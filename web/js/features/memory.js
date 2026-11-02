@@ -36,7 +36,7 @@ export function memorySummary(data) {
 
 export function openMemory({ tab = 'global', host } = {}) {
   const node = el(`<div class="modal memory-modal">
-      <header><h2>Memory</h2><span class="mem-live"></span><button class="switch" id="memOn" role="switch" title="Learn from tasks"></button><button class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>Memory</h2><span class="mem-live"></span><button class="switch" id="memOn" role="switch" title="Learn from tasks"></button><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       <p class="mem-lede">Learned from your tasks and added to every agent's prompt. What you ask always wins.</p>
       <div class="mem-tabs" role="tablist"></div>
       <div class="mem-body"></div>

@@ -3,7 +3,7 @@
 .auto-mark .i { width: 100%; height: 100%; }
 .model-logo.routed::before { content: ''; position: absolute; right: -3px; bottom: -3px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1.5px var(--surface); }
 .pk-note { margin: 8px 10px 4px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
-.pk-note a { color: var(--accent-ink); }
+.pk-note a { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; } /* a link in a sentence: told apart by more than colour */
 .ro-goal { flex: none; }
 .ro-allowed { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 360px; }
 .chip-tog { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 7px; border: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
@@ -33,6 +33,7 @@
 .pill.auto-pick { gap: 4px; color: var(--accent-ink); }
 .pill.auto-handed { color: var(--muted); }
 .ask.by-wisp { background: color-mix(in srgb, var(--accent) 6%, var(--bg-2)); }
+.ask.by-wisp time { color: var(--muted); } /* --faint is AA on --bg-2, not on the tint */
 .ask-by { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; font-size: 11.5px; font-weight: 500; color: var(--accent-ink); }
 .ask-by .i { width: 12px; height: 12px; }
 .ask-from { min-width: 0; white-space: nowrap; color: var(--muted); }
@@ -77,6 +78,8 @@
 .runners .auto-pv { flex: 0 1 auto; }
 /* a narrower bar: the pick outranks the word (the spark still says Auto, its tooltip names the goal) */
 @container launcher (max-width: 640px) { .runners.pv-on .rb-h { display: none; } }
+/* the pick's name folds to its logo before it would be cut ("Claude C…"); its tooltip names it */
+@container launcher (max-width: 640px) { .apv-l, .apv-sk { display: none; } .auto-pv { padding: 0 5px; } .auto-pv .rb-logo { margin-right: 0; } } /* its logo alone: a 28px square */
 /* a phone: the pick's logo alone, and Auto's chevron goes (the pick is the next thing to tap) */
 @container launcher (max-width: 520px) {
   .apv-l, .apv-sk { display: none; }
@@ -98,9 +101,9 @@ body.wisp-mobile .launcher .runners :is(.auto-pv, .runner-btn) { min-width: 44px
 .ap-head .rb-logo > * { width: 15px; height: 15px; }
 .ap-title { display: grid; gap: 1px; min-width: 0; }
 .ap-title b { font-size: 14px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ap-title small { font-size: 12px; color: var(--muted); }
+.ap-title small { font-size: 12.5px; color: var(--muted); }
 .ap-why { margin: 6px 10px 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
-.ap-facts { display: flex; flex-wrap: wrap; gap: 2px 12px; margin: 4px 10px 4px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ap-facts { display: flex; flex-wrap: wrap; gap: 2px 12px; margin: 4px 10px 4px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .ap-facts b { font-weight: 600; color: var(--ink); }
 .ap-h { margin: 10px 10px 2px; font-size: 11.5px; font-weight: 500; color: var(--faint); }
 .menu :is(.ap-alt, .ap-sug) { gap: 8px; padding: 6px 8px; text-align: left; }
@@ -110,7 +113,7 @@ body.wisp-mobile .launcher .runners :is(.auto-pv, .runner-btn) { min-width: 44px
 .ap-text small { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
 .ap-alt .ap-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ap-sug .ap-text b { color: var(--accent-ink); }
-.ap-n { flex: none; min-width: 32px; text-align: right; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ap-n { flex: none; min-width: 32px; text-align: right; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .ap-n:empty { display: none; }
 .ap-sep { height: 1px; margin: 5px 4px; background: var(--line); }
 .menu.auto-pop > button:not(.ap-alt, .ap-sug) .i { width: 14px; height: 14px; color: var(--muted); flex: none; }
@@ -118,7 +121,7 @@ body.wisp-mobile .launcher .runners :is(.auto-pv, .runner-btn) { min-width: 44px
 
 /* Settings → Auto: where the starting numbers come from, each row's source, Never / Prefer */
 .router-modal h5.ro-sub { margin: 0 0 4px; font-size: 11.5px; font-weight: 500; color: var(--faint); }
-.ro-sources { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 2px; font-size: 12px; }
+.ro-sources { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 2px; font-size: 12.5px; }
 .ro-sources li { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .ro-sources a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--accent-ink); }
 .ro-sources small { flex: none; color: var(--faint); font-variant-numeric: tabular-nums; }
@@ -126,11 +129,11 @@ body.wisp-mobile .launcher .runners :is(.auto-pv, .runner-btn) { min-width: 44px
 .ro-src.mine { color: var(--accent-ink); }
 .ro-scroll { overflow-x: auto; margin: 0 -2px; }
 .ro-rule { display: inline-flex; gap: 4px; }
-.ro-rule .chip-tog { padding: 2px 7px; font-size: 12px; }
+.ro-rule .chip-tog { padding: 2px 7px; font-size: 12.5px; }
 .ro-rule .chip-tog:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
 .ro-rule [data-rule="blocked"].on { border-color: var(--line-2); background: var(--bg-2); color: var(--bad); }
 .ro-kinds { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .ro-kinds[hidden] { display: none; }
-.ro-kind { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 9px; border-radius: 7px; border: 1px solid var(--line); font-size: 12px; color: var(--ink-2); }
+.ro-kind { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 9px; border-radius: 7px; border: 1px solid var(--line); font-size: 12.5px; color: var(--ink-2); }
 @media (max-width: 640px) { .ro-table .ro-time { display: none; } }
 @media (pointer: coarse) { .ro-rule .chip-tog { min-height: 44px; padding-inline: 10px; } }

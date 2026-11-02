@@ -56,7 +56,7 @@
 .cr-add .i { width: 14px; height: 14px; }
 /* Org, beside +: the whole crew's chart (org.js). Small, like the heading it sits on. */
 #secCrew > .cr-org { position: absolute; top: 3px; right: 32px; }
-.cr-org { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 7px; border-radius: 6px; font-size: 12px; font-weight: 500; color: var(--muted); transition: background 0.15s, color 0.15s; }
+.cr-org { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 7px; border-radius: 6px; font-size: 12.5px; font-weight: 500; color: var(--muted); transition: background 0.15s, color 0.15s; }
 .cr-org[hidden] { display: none; }
 .cr-org:hover { background: var(--bg-2); color: var(--ink); }
 .cr-org.on { background: var(--accent-soft); color: var(--accent-ink); }
@@ -645,7 +645,7 @@ body.wisp-mobile :is(.crew-share, .crew-import, .crew-review) .ce-foot button { 
 .rec-menu { min-width: 240px; }
 .rec-menu hr { margin: 4px 6px; border: 0; border-top: 1px solid var(--line); }
 .rec-menu .rec-mi { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.rec-menu .rec-mi small { color: var(--muted); font-size: 12px; }
+.rec-menu .rec-mi small { color: var(--muted); font-size: 12.5px; }
 .rec-menu .rec-on { margin-left: auto; width: 14px; height: 14px; color: var(--accent); }
 .rec-body { min-height: 120px; }
 
@@ -693,11 +693,11 @@ body.wisp-mobile :is(.crew-share, .crew-import, .crew-review) .ce-foot button { 
 .rec-kind, .rec-rank { display: grid; grid-template-columns: minmax(0, 190px) minmax(60px, 1fr) 56px 40px 64px; align-items: center; gap: 2px 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .rec-kind:last-child, .rec-rank:last-child { border-bottom: 0; }
 .rec-k { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
-.rec-k small { color: var(--muted); font-size: 12px; }
+.rec-k small { color: var(--muted); font-size: 12.5px; }
 .rec-kind b, .rec-rank b { text-align: right; font-weight: 600; color: var(--ink); }
 .rec-pc, .rec-c { text-align: right; color: var(--muted); }
-.rec-c .faint { color: var(--faint); font-size: 12px; }
-.rec-sub { grid-column: 1 / -1; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-c .faint { color: var(--faint); font-size: 12.5px; }
+.rec-sub { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rec-kind.rep .rec-meter i { background: var(--accent); }
 .rec-kind:not(.rep) .rec-meter i { background: color-mix(in srgb, var(--accent) 40%, transparent); }
 .rec-rank { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 24px minmax(0, 166px) minmax(60px, 1fr) 56px 40px 64px; align-items: center; gap: 2px 12px; width: 100%; padding: 8px 6px; margin: 0 -6px; border-radius: 8px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; cursor: pointer; }
@@ -713,7 +713,7 @@ button.rec-rank:focus-visible { box-shadow: inset 0 0 0 2px var(--accent-soft), 
 .rec-job:focus-visible { box-shadow: inset 0 0 0 2px var(--accent-soft), inset 0 0 0 1px var(--accent); }
 .rec-job[disabled] { cursor: default; opacity: 0.6; }
 .rec-jt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
-.rec-jk, .rec-jw { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.rec-jk, .rec-jw { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 .rec-job b { text-align: right; font-weight: 600; color: var(--ink); }
 .rec-outcomes { margin: 18px 0 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
 .rec-none { margin: 18px 0 8px; color: var(--muted); }
@@ -800,8 +800,8 @@ body.stack .org-hint { min-height: calc(2.9em + 12px); }
 .org-face > .cr-av { grid-row: 1; }
 .org-who { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
 .org-who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; color: var(--ink); }
-.org-who small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
-.org-st { grid-column: 1 / -1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--faint); }
+.org-who small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 12.5px; color: var(--muted); } /* two lines: a role is a phrase, not "Reviews every …" */
+.org-st { grid-column: 1 / -1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; color: var(--faint); }
 .org-st.live { color: var(--accent-ink); }
 .org-st.asks { color: var(--warn); font-weight: 500; }
 .org-st.report { color: var(--ink-2); }
@@ -866,7 +866,7 @@ body.stack .org-hint { min-height: calc(2.9em + 12px); }
 button.org-person:hover { background: var(--bg-2); }
 .org-person > span:last-child { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
 .org-person b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; color: var(--ink); }
-.org-person small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--faint); }
+.org-person small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; color: var(--faint); }
 .org-logo { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--bg-2); }
 .org-logo > * { width: 13px; height: 13px; }
 .org-x { flex: none; color: var(--faint); }
@@ -883,5 +883,8 @@ button.org-person:hover { background: var(--bg-2); }
 .org-acts .icon-btn { margin-left: auto; }
 .menu.org-menu { min-width: 220px; }
 .menu.org-menu button { gap: 8px; }
-.menu.org-menu small { color: var(--faint); font-size: 12px; }
+.menu.org-menu small { color: var(--faint); font-size: 12.5px; }
 .menu.org-menu hr { margin: 4px 0; border: 0; border-top: 1px solid var(--line); }
+/* A file in the @ picker: its icon in the face's square, the folder under its name */
+.cr-pick-row .fl-ic { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--bg-2); color: var(--muted); }
+.cr-pick-row .fl-ic .i { width: 13px; height: 13px; }

@@ -150,7 +150,7 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .b-diff tr.add .sign, .b-diff tr.add .no { color: var(--add); }
 .b-diff tr.del { background: var(--del-bg); }
 .b-diff tr.del .sign, .b-diff tr.del .no { color: var(--del); }
-.b-diff tr.del .src { opacity: 0.8; }
+/* No fading on removed lines: the red ground says it, and an 80% keyword on it fell under AA */
 .b-diff tr.gap td { padding: 3px 12px; font: 11.5px var(--sans); color: var(--faint); background: var(--surface-2); }
 .b-diff tr.gap .i { width: 12px; height: 12px; vertical-align: -2px; }
 .b-diff tr.sep td { height: 10px; background: var(--surface-2); border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); }
@@ -426,7 +426,7 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .mp-k .i { width: 12px; height: 12px; }
 .b-map.many .mp-place.on .mp-k { border-color: var(--accent); background: var(--accent); color: #fff; }
 .mp-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.mp-main b { font-weight: 600; font-size: 13.5px; color: var(--ink); }
+.mp-main b { font-weight: 600; font-size: 13px; color: var(--ink); }
 .mp-addr { font-size: 13px; color: var(--ink-2); }
 .mp-main b + .mp-addr { color: var(--muted); }
 .mp-addr:empty { display: none; }

@@ -47,7 +47,7 @@ const UPDATE_CHANNELS = [['stable', 'Stable'], ['beta', 'Beta'], ['nightly', 'Ni
 const CHANNEL_HINTS = { stable: 'Tested releases', beta: 'Previews of the next release (npm <code>next</code>), then the release itself', nightly: 'A build of main every night (npm <code>nightly</code>). Newest, and sometimes broken' };
 
 const settingsPanes = (grid = inGrid()) => [
-  { id: 'general', label: 'General', icon: 'settings', lede: 'Where files open, where you take over, and how tasks start.' },
+  { id: 'general', label: 'General', icon: 'settings', lede: MOBILE ? 'How tasks start and how they answer.' : 'Where files open, where you take over, and how tasks start.' },
   { id: 'notifications', label: 'Notifications', icon: 'bell', lede: 'Hear about questions and finished tasks, here or on your phone.' },
   { id: 'agents', label: 'Agents', icon: 'agent', lede: 'The harnesses wisp found on this machine. Pick one next to the model in the launcher.' },
   { id: 'connectors', label: 'Connectors', icon: 'plug', lede: "MCP servers every task's agent can use, whatever the harness." },
@@ -94,9 +94,9 @@ export function openSettings(opts) {
   const missing = S.agents.filter((a) => !a.available).length;
   const node = el(`
     <div class="modal settings-modal sx">
-      <nav class="sx-nav" role="tablist" aria-orientation="vertical">
+      <nav class="sx-nav" aria-label="Settings">
         <h2>Settings</h2>
-        ${SETTINGS_PANES.map((p) => `<button role="tab" data-pane="${p.id}">${icon(p.icon)}<span>${p.label}</span>${p.id === 'agents' && missing ? `<i class="dot bad" title="${missing} not found"></i>` : ''}${icon('chevron')}</button>`).join('')}
+        <div class="sx-tabs" role="tablist" aria-orientation="vertical">${SETTINGS_PANES.map((p) => `<button role="tab" data-pane="${p.id}">${icon(p.icon)}<span>${p.label}</span>${p.id === 'agents' && missing ? `<i class="dot bad" title="${missing} not found"></i>` : ''}${icon('chevron')}</button>`).join('')}</div>
       </nav>
       <header class="sx-top">
         <h2 class="sx-home">Settings</h2>
@@ -108,7 +108,7 @@ export function openSettings(opts) {
         <p class="sx-lede"></p>
         <section class="sx-pane" data-pane="general">
           <div class="sx-group">
-            ${row('Open files in', 'File links in cards and diffs', `<select name="editor">${[['vscode', 'VS Code'], ['cursor', 'Cursor'], ['windsurf', 'Windsurf'], ['zed', 'Zed'], ['idea', 'JetBrains'], ['none', 'Copy path']]
+            ${MOBILE ? '' : row('Open files in', 'File links in cards and diffs', `<select name="editor">${[['vscode', 'VS Code'], ['cursor', 'Cursor'], ['windsurf', 'Windsurf'], ['zed', 'Zed'], ['idea', 'JetBrains'], ['none', 'Copy path']]
               .map(([v, l]) => `<option value="${v}" ${d.editor === v || (!d.editor && v === 'vscode') ? 'selected' : ''}>${l}</option>`)
               .join('')}</select>`)}
             ${(S.config.terminals || []).length > 1 && !MOBILE ? row('Take over in', 'Where you carry on a task yourself: a terminal inside wisp, or a terminal app', `<select name="terminal">${S.config.terminals.map((t) => `<option value="${t.id}" ${(d.terminal || S.config.defaultTerminal || 'auto') === t.id ? 'selected' : ''}>${t.label}</option>`).join('')}</select>`) : ''}
@@ -194,6 +194,7 @@ export function openSettings(opts) {
           <div class="sx-group">
             ${row('Recipes', '<span class="recipe-hint"></span>', '<button class="ghost sm" data-auto="recipes">Manage</button>')}
             ${row('Triggers', '<span class="trigger-hint"></span>', '<button class="ghost sm" data-auto="triggers">Manage</button>')}
+            ${row('Webhook triggers', 'Lets Slack, Linear or any service start a task by calling a trigger’s secret URL. Off: those URLs refuse every call', '<button class="switch" id="hookTriggers" role="switch" aria-label="Webhook triggers"></button>')}
           </div>
         </section>
         <section class="sx-pane sp-pane" data-pane="spells"></section>
@@ -228,6 +229,16 @@ export function openSettings(opts) {
     </div>`);
   const close = overlay(node);
   $('.sx-top .close', node).onclick = close;
+  // A row's switch, list or field has no words of its own: the row's title names it (screen
+  // readers said "switch, off"). Panes repaint their rows, so new ones are named as they come.
+  const nameRows = () => {
+    for (const r of $$('.sx-row', node)) {
+      const name = $(':scope > .sx-text > b', r)?.textContent.trim();
+      if (name) for (const c of $$(':scope > .sx-ctl > :is(button.switch, select, input:not([type=hidden]))', r)) if (!c.hasAttribute('aria-label') && !c.labels?.length) c.setAttribute('aria-label', name);
+    }
+  };
+  nameRows();
+  new MutationObserver(nameRows).observe(node, { childList: true, subtree: true });
   // On a phone the sections are a list first and a pane opens over it (CSS shows one or the
   // other under 640px); an explicit pane, like a toast's "Settings" link, opens straight to it.
   const toList = (on) => {
@@ -605,6 +616,21 @@ export function openSettings(opts) {
     api('/agents').then((list) => (setAgents(list), bus.emit('agents')), () => {});
   };
   paintDw();
+  // Webhook triggers (server/hooks.js): instant, rolled back if refused.
+  const ht = $('#hookTriggers', node);
+  const paintHt = () => ht.setAttribute('aria-checked', S.config.defaults.webhookTriggers === 'on');
+  ht.onclick = async () => {
+    const was = S.config.defaults.webhookTriggers;
+    S.config.defaults.webhookTriggers = was === 'on' ? 'off' : 'on';
+    paintHt();
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { webhookTriggers: S.config.defaults.webhookTriggers } } }));
+    if (!saved) {
+      S.config.defaults.webhookTriggers = was;
+      paintHt();
+    }
+  };
+  paintHt();
+  bus.on('config', paintHt, { node });
   // Ask near the limit (features/hold.js): instant, rolled back on a refusal. The bars repaint with
   // the line (budget.js tone), and the harness list brings the new lines on its next broadcast.
   const holdSetting = () => (HOLD_LINES.includes(S.config.defaults.limitHold) ? S.config.defaults.limitHold : HOLD_DEFAULT);
@@ -812,7 +838,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', liveLimits: '#liveLimits', limitHold: '.hold-seg' };
+  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

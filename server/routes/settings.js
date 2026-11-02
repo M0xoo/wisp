@@ -53,6 +53,7 @@ export function register(r, app) {
     for (const k of Object.values(STOP_KEYS)) if (body.defaults?.[k] !== undefined && !STOP_BY.includes(body.defaults[k])) return c.send(400, { error: `${k} must be one of ${STOP_BY.join(', ')}` });
     if (body.defaults?.liveLimits !== undefined && !['on', 'off'].includes(body.defaults.liveLimits)) return c.send(400, { error: 'liveLimits must be on or off' });
     if (body.defaults?.drainWatch !== undefined && !['on', 'off'].includes(body.defaults.drainWatch)) return c.send(400, { error: 'drainWatch must be on or off' });
+    if (body.defaults?.webhookTriggers !== undefined && !['on', 'off'].includes(body.defaults.webhookTriggers)) return c.send(400, { error: 'webhookTriggers must be on or off' });
     if (body.defaults?.updateChannel !== undefined && !Object.hasOwn(CHANNELS, body.defaults.updateChannel)) return c.send(400, { error: `updateChannel must be one of ${Object.keys(CHANNELS).join(', ')}` });
     const channelWas = store.config.defaults.updateChannel;
     if (body.defaults) Object.assign(store.config.defaults, Object.fromEntries(Object.entries(body.defaults).filter(([k]) => !locked[k])));

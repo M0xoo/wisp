@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { execFile } from './proc.js';
 import { bad } from './util.js';
+import { prepareWorktree } from './worktree-setup.js';
 
 // git by its full path, found once: a bare `git` makes every spawn walk PATH (about 50 ms a call on
 // macOS, against 3 ms), and macOS's /usr/bin/git is a shim that asks xcrun on every call.
@@ -146,9 +147,12 @@ export async function createWorktree({ cwd, home, id, title, source }) {
   const dir = path.join(home, 'worktrees', `${path.basename(root)}-${id}`);
   fs.mkdirSync(path.dirname(dir), { recursive: true });
   await addWorktree(root, ['--no-track', '-b', branch, dir, base.ref]);
+  // What git ignores (.env …) and the repo's setup step, as other worktree tools bring them along
+  const prepared = await prepareWorktree(root, dir);
+  if (prepared.problems.length) console.warn(`wisp: worktree ${dir}: ${prepared.problems.join('; ')}`);
   // Launched from a subfolder of the repo: keep working in that subfolder.
   const sub = path.relative(realpath(root), realpath(cwd));
-  return { path: dir, cwd: sub && !sub.startsWith('..') ? path.join(dir, sub) : dir, branch, base: base.branch, baseRef: base.ref, head: base.sha || null, remote: base.remote, root, createdAt: Date.now() };
+  return { path: dir, cwd: sub && !sub.startsWith('..') ? path.join(dir, sub) : dir, branch, base: base.branch, baseRef: base.ref, head: base.sha || null, remote: base.remote, root, createdAt: Date.now(), ...((prepared.copied.length || prepared.ran.length || prepared.problems.length) && { prepared }) };
 }
 
 // Archiving removes a clean worktree; a follow-up brings it back from its branch.

@@ -7,7 +7,7 @@ import { mentionHtml } from '../mention-text.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
-import { DAY_TIME, fmtDate } from '../core/format.js';
+import { turnTime } from '../core/format.js';
 import { toastError } from '../ui/toast.js';
 import { viewImage } from '../ui/viewer.js';
 import { popover } from '../ui/popover.js';
@@ -81,6 +81,9 @@ async function approveBlocked(s, turn, allow) {
 export const VISIBLE_TURNS = 8;
 const PROMPT_CUT = 4000; // characters of a folded prompt laid out before Show all
 
+// What a new worktree brought along (server/worktree-setup.js), for the branch's tooltip.
+const preparedLine = (p) => (p ? `${p.copied?.length ? `\nCopied: ${p.copied.join(', ')}` : ''}${p.ran?.length ? `\nSet up with: ${p.ran.join(' && ')}` : ''}` : '');
+
 export function renderBody(id, { fresh }) {
   const s = S.full.get(id);
   const n = S.nodes.get(id);
@@ -102,7 +105,7 @@ export function renderBody(id, { fresh }) {
             <button class="ghost xs it-changes" data-a="changes" data-key="D" aria-pressed="false" title="Changes: every file this task changed (D)">${icon('file')}<i class="it-lbl">Changes</i></button>
             <button class="ghost xs it-shell" data-a="shell" data-key="⌃\`" aria-pressed="false" title="Shell: your terminal in this task's folder (⌃\`)">${icon('shell')}<i class="it-lbl">Shell</i></button>
             <button class="ghost xs it-watch" data-a="watch" aria-pressed="false" title="Watch: the page the agent keeps up to date while it works" hidden>${icon('eye')}<i class="it-lbl">Watch</i></button>
-            <button class="ghost xs" data-a="ship" data-key="S" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
+            <button class="ghost xs" data-a="ship" data-key="S" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it…</span></button>
             <button class="ghost xs it-done" data-a="done" data-key="E" title="Mark done (E)" hidden>${icon('done')}<span>Mark done</span></button>
             <button class="ghost xs" data-a="more" title="More">${icon('dots')}<i class="it-lbl">More</i></button>
           </div>
@@ -286,7 +289,7 @@ export function paintMini(id) {
     <span class="im-acts">${btn('transcript', 'transcript')}${btn('rerun', 'rerun')}${btn('watch', 'eye')}${btn('done', 'done')}${btn('more', 'dots')}</span>
     <span class="grow"></span>
     ${pr ? `<button class="im-pr pr-${tone}" data-a="pr" title="Open PR #${pr.number}"><i class="pr-dot"></i>#${pr.number}${prs.length > 1 ? `<small>+${prs.length - 1}</small>` : ''}</button>` : ship && !ship.hidden ? `<button class="ghost xs" data-a="ship">${icon('send')}<span>${esc($('span', ship).textContent)}</span></button>` : ''}
-    <button class="icon-btn im-shell" data-a="shell" title="${live ? 'Shell, running' : 'Open shell'}" aria-label="${live ? 'Shell, running' : 'Open shell'}">${icon('shell')}${live ? '<i class="sd-live"></i>' : ''}</button>`;
+    <button class="icon-btn im-shell" data-a="shell" title="${live ? 'Shell, running' : 'Shell'}" aria-label="${live ? 'Shell, running' : 'Shell'}">${icon('shell')}${live ? '<i class="sd-live"></i>' : ''}</button>`;
   if (row.dataset.h !== html) (row.innerHTML = html), (row.dataset.h = html);
 }
 
@@ -308,7 +311,8 @@ export function paintMeta(id) {
   box.title = [agentName(s.agent), s.model, s.effort && `${effortLabel(s.effort)} thinking`, mode?.label, where, s.worktree?.branch].filter(Boolean).join(' · ');
   box.innerHTML = `
     ${mode && mode !== DEFAULT_MODE ? `<span class="m mode m-${mode.id}" title="${esc(mode.hint)}">${icon(mode.icon)}${esc(mode.label)}</span>` : ''}
-    ${s.worktree ? `<span class="m branch" title="Worktree: ${esc(s.worktree.path)}\nFrom ${esc(s.worktree.baseRef)}">${icon('branch')}${branchHtml(s.worktree.branch)}</span>` : ''}
+    ${s.worktree ? `<span class="m branch" title="${esc(`Worktree: ${s.worktree.path}\nFrom ${s.worktree.baseRef}${preparedLine(s.worktree.prepared)}`)}">${icon('branch')}${branchHtml(s.worktree.branch)}</span>` : ''}
+    ${s.worktree?.prepared?.problems?.length ? `<span class="m setup-warn" title="${esc(s.worktree.prepared.problems.join('\n'))}">${icon('warn')}Worktree setup failed</span>` : ''}
     ${(s.also || []).map((a, i) => `<span class="m also c-${summary.also?.[i]?.color || 'slate'}" title="${esc(`Also works in ${a.cwd}${a.worktree ? `\nWorktree: ${a.worktree.path}\nBranch ${a.worktree.branch}, from ${a.worktree.baseRef}` : ''}`)}"><i class="p-dot"></i>${esc(summary.also?.[i]?.project || a.cwd.split(/[\\/]/).pop())}</span>`).join('')}
     ${s.subagents?.length ? `<span class="m team-m" title="${esc(s.subagents.map((m) => `@${m.name}${copiesOf(m) > 1 ? ` ×${copiesOf(m)}` : ''}: ${memberLabel(m)}${m.use ? ` — ${m.use}` : ''}`).join('\n'))}">${icon('agent')}${teamSize(s.subagents)} delegate${teamSize(s.subagents) > 1 ? 's' : ''}</span>` : ''}
     ${s.moved?.from ? `<span class="m" title="${esc(`This task ran on ${s.moved.from} before it moved here, with its work and history`)}">${icon('server')}From ${esc(s.moved.from)}</span>` : ''}
@@ -422,16 +426,16 @@ function openMoved(next) {
 function renderFoldedTurn(t, unfold) {
   const hero = t.presentation?.blocks?.find((b) => b.type === 'hero');
   const sent = !t.goal && sentComments(t.prompt);
-  const said = sent ? sent.rest.trim() || `${sent.count} comment${sent.count > 1 ? 's' : ''} on the answer` : t.prompt;
+  const said = sent ? sent.rest.trim() || `${sent.count} comment${sent.count > 1 ? 's' : ''}${sent.lines === sent.count ? ' on the changes' : sent.lines ? '' : ' on the answer'}` : t.prompt;
   const node = el(`
-    <article class="turn folded" data-turn="${t.id}">
+    <article class="turn folded${t.goal ? ' goal-turn' : ''}" data-turn="${t.id}">
       <button class="t-fold" title="Show this exchange">
         ${icon('chevron', 'chev')}
-        <span class="t-prompt">${t.by === 'wisp' ? '<b class="t-by">wisp</b> ' : ''}${t.goal ? 'What’s still missing' : `${sent ? icon('comment', 't-cm') : ''}${mentionHtml(esc(said.slice(0, 300).replace(/\s+/g, ' ')), { link: false })}`}</span>
+        <span class="t-prompt">${t.by === 'wisp' ? '<b class="t-by">wisp</b> ' : ''}${t.goal ? `Round ${Number(t.goal) || ''}: what’s still missing`.replace('Round : ', '') : `${sent ? icon('comment', 't-cm') : ''}${mentionHtml(esc(said.slice(0, 300).replace(/\s+/g, ' ')), { link: false })}`}</span>
         ${t.rolledBackAt ? '<span class="rev-tag">Rolled back</span>' : ''}
         ${t.moved ? `<span class="t-moved" title="${esc(`Ran on ${t.moved}`)}">${icon('server')}${esc(t.moved)}</span>` : ''}
         ${hero?.title ? `<span class="t-result">${esc(hero.title)}</span>` : ''}
-        <time>${fmtDate(t.startedAt, DAY_TIME)}</time>
+        ${turnTime(t.startedAt)}
       </button>
     </article>`);
   $('.t-fold', node).onclick = unfold;
@@ -558,7 +562,7 @@ function renderTurn(s, t, isLatest, fold, tx) {
         ${modeSwitch(s, t)}
         ${accountSwitch(s, t)}
         ${t.moved ? `<span class="t-moved" title="${esc(`Ran on ${t.moved}, before the task moved`)}">${icon('server')}${esc(t.moved)}</span>` : ''}
-        <time>${fmtDate(t.startedAt, DAY_TIME)}</time>
+        ${turnTime(t.startedAt)}
         ${cpLabel ? `<span class="cp-sha" title="Git checkpoint before this turn${cp.branch ? ` on ${esc(cp.branch)}` : ''} (${esc(cp.head)}${cp.dirty ? ' + uncommitted changes' : ''})">${icon('branch')}${esc(cpLabel)}</span>` : ''}
         ${t.rolledBackAt ? '<span class="rev-tag">Rolled back</span>' : ''}
       </div>

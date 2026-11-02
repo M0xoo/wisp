@@ -166,6 +166,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 button { cursor: pointer; background: none; border: 0; padding: 0; }
 a { color: inherit; text-decoration: none; }
 code, kbd, pre { font-family: var(--mono); }
+/* The browser's own `smaller` (10.4px under 12.5px) is off the scale: a bare <small> is the hint size */
+small { font-size: 11.5px; }
 kbd {
   font-size: 11.5px; padding: 1px 5px; border-radius: 5px; border: 1px solid var(--line-2);
   border-bottom-width: 2px; color: var(--muted); background: var(--surface); line-height: 1.4;

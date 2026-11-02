@@ -3,7 +3,9 @@
 
 import { laterActions, runLaterAction } from './later.js';
 import { goalActions, runGoalAction } from './goal.js';
+import { esc } from '../md.js';
 import { palette } from '../palette.js';
+import { api } from '../core/api.js';
 import { $ } from '../core/dom.js';
 import { ago, STATUS_LABEL } from '../core/format.js';
 import { isForLater, MOBILE, S, save } from '../core/state.js';
@@ -14,7 +16,7 @@ import { openAutomations, recipeParams, runRecipe, saveAsRecipe } from './automa
 import { compareView } from './compare.js';
 import { collapseAll, expand, feedToTop, renderFeed, reveal } from './feed.js';
 import { feedbackOn, openFeedback } from './feedback.js';
-import { focusLauncher, renderLaunchChips } from './launcher.js';
+import { focusLauncher, openIssuePicker, renderLaunchChips } from './launcher.js';
 import { inBrowser, openGetApp } from './getapp.js';
 import { openMachines } from './machines.js';
 import { openMemory } from './memory.js';
@@ -31,7 +33,7 @@ import { openUsage } from './usage.js';
 import { activeSpells, runAction } from './spells.js';
 import { openCast } from './spell-ui.js';
 import { isSplit, isStacked, sideShown, splitOpen, toggleSidebar } from './split.js';
-import { openPanel, panelLabel, reviewLabel, toggle as togglePanel } from './panel.js';
+import { openPanel, panelLabel, reviewLabel, runApp, runAppLabel, toggle as togglePanel } from './panel.js';
 import { setTheme, themePref } from './theme.js';
 import { addToCrew, cadenceLabel, crewEditor, crewList, memberById, openCrew } from './crew.js';
 import { importCrew, shareMember } from './crew-share.js';
@@ -44,6 +46,19 @@ function withCard(id, fn, { open = false } = {}) {
   reveal(id);
   if (!open || S.open.has(id)) return setTimeout(fn, 50);
   expand(id).then(fn);
+}
+
+// Past work by its words (GET /search): what a task's prompts and answers said, not only its title.
+async function deepSearch(q) {
+  const { hits } = await api(`/search?q=${encodeURIComponent(q)}&limit=12`);
+  const WHERE = { title: 'Title', prompt: 'You asked', answer: 'It answered' };
+  return hits.map((h) => {
+    const s = S.sessions.get(h.id);
+    // The words found, marked in the line around them
+    const words = q.toLowerCase().split(/\s+/).filter((w) => w.length > 1).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const subHtml = `${WHERE[h.where] || ''}: ${esc(h.snippet).replace(new RegExp(`(${words.map((w) => esc(w)).join('|')})`, 'gi'), '<mark class="pal-hit">$1</mark>')}`;
+    return { group: 'In prompts and answers', label: h.title || s?.title || 'Task', sub: `${WHERE[h.where] || ''}: ${h.snippet}`, subHtml, dot: s?.color, icon: 'search', run: () => reveal(h.id) };
+  });
 }
 
 function paletteItems() {
@@ -63,14 +78,18 @@ function paletteItems() {
     if (canRollback) items.push({ group: g, label: rolledBack ? 'Re-apply latest turn' : 'Restore to before latest turn', sub, icon: rolledBack ? 'rerun' : 'replay', keywords: 'rollback revert undo checkpoint restore', run: () => rollbackTurn(id, lastTurn?.id, rolledBack) });
     if (isForLater(cur) || canSaveForLater(cur)) items.push({ group: g, label: isForLater(cur) ? 'Unsave' : 'Save for later', sub, icon: 'bookmark', kbd: 'L', keywords: 'bookmark park later read', run: () => setForLater(id, !isForLater(cur)) });
     if (cur.archived || !live) items.push({ group: g, label: cur.archived ? 'Unarchive' : 'Archive', sub, icon: 'archive', kbd: 'A', run: () => setArchived(id, !cur.archived) });
-    items.push({ group: g, label: 'Take over in a terminal', sub, icon: 'terminal', kbd: 'T', run: () => takeOver(id) });
+    items.push({ group: g, label: 'Take over', sub, icon: 'terminal', keywords: 'terminal take over carry on yourself cli', kbd: 'T', run: () => takeOver(id) });
     items.push({ group: g, label: 'Rerun…', sub, icon: 'rerun', kbd: '⇧R', keywords: 'retry again restart model harness', run: () => rerun(id) });
     if (forkable(cur)) items.push({ group: g, label: 'Fork…', sub, icon: 'fork', kbd: '⇧F', keywords: 'branch copy duplicate try another way split', run: () => forkTask(id) });
     if (shippable(cur)) items.push({ group: g, label: shipLabel(cur), sub, icon: 'send', kbd: 'S', keywords: 'commit push pull request pr github', run: () => shipDialog(id) });
     if (mergeLabel(cur)) items.push({ group: g, label: mergeLabel(cur), sub, icon: 'check', keywords: 'squash github', run: () => mergePr(id) });
     if (reviewLabel(cur)) items.push({ group: g, label: reviewLabel(cur), sub, icon: 'merge', kbd: 'P', keywords: 'pull request checks ci reviews comments github side panel', run: () => openPanel(id, 'pr') });
-    if (!cur.pending) items.push({ group: g, label: 'Show changes', sub, icon: 'file', kbd: 'D', keywords: 'diff files edited changed git side panel', run: () => openPanel(id, 'changes') });
-    if (!cur.pending) items.push({ group: g, label: 'Open shell', sub, icon: 'shell', kbd: '⌃`', keywords: 'terminal worktree folder command run console bash zsh side panel', run: () => openPanel(id, 'shell') });
+    if (!cur.pending) items.push({ group: g, label: 'Changes', sub, icon: 'file', kbd: 'D', keywords: 'diff files edited changed git side panel', run: () => openPanel(id, 'changes') });
+    // A worktree's Changes stage and commit (changes.js): the commit box, focused once it shows
+    if (!cur.pending && cur.branch && cur.agent !== 'wisp') items.push({ group: g, label: 'Commit staged changes…', sub, icon: 'check', keywords: 'git commit stage staged index message source control', run: () => (openPanel(id, 'changes'), import('./changes.js').then((m) => m.focusCommit(id))) });
+    if (!cur.pending && cur.agent !== 'wisp') items.push({ group: g, label: 'Open a file…', sub, icon: 'search', keywords: 'edit editor file code find go to ⌘p', run: () => (openPanel(id, 'changes'), import('./editor.js').then((m) => m.openFileFinder($('#sidePanel'), id))) });
+    if (!cur.pending) items.push({ group: g, label: 'Shell', sub, icon: 'shell', kbd: '⌃`', keywords: 'terminal worktree folder command run console bash zsh side panel', run: () => openPanel(id, 'shell') });
+    if (runAppLabel(cur)) items.push({ group: g, label: runAppLabel(cur), sub, icon: runAppLabel(cur) === 'Stop app' ? 'stop' : 'play', keywords: 'run app dev server preview start stop localhost port npm side panel', run: () => runApp(id) });
     if (cur.watch) items.push({ group: g, label: 'Watch', sub, icon: 'eye', keywords: 'live progress page agent working side panel', run: () => openPanel(id, 'watch') });
     if (cur.groupId) items.push({ group: g, label: 'Compare runs', sub, icon: 'agent', keywords: 'vs side by side harness', run: () => compareView(id) });
     items.push({ group: g, label: 'Save as recipe…', sub, icon: 'bolt', keywords: 'template reuse automation', run: () => saveAsRecipe(id) });
@@ -80,22 +99,10 @@ function paletteItems() {
     const member = cur.crew && memberById(cur.crew.id);
     if (member) items.push({ group: g, label: `Open ${member.name}`, sub, icon: 'crew', keywords: 'crew agent member', run: () => openCrew(member.id) });
     else if (!cur.parentId && cur.agent !== 'wisp') items.push({ group: g, label: 'Add to crew…', sub, icon: 'crew', keywords: 'crew agent assistant persistent schedule avatar', run: () => addToCrew(id) });
-    items.push({ group: g, label: transcriptOn(id) ? 'Show the presentation' : 'Show the full transcript', sub, icon: 'transcript', kbd: 'V', keywords: 'transcript log messages steps tool calls verbose activity history', run: () => withCard(id, () => toggleTranscript(id)) });
+    items.push({ group: g, label: 'Transcript', sub: transcriptOn(id) ? `On · ${sub}` : sub, icon: 'transcript', kbd: 'V', keywords: 'transcript log messages steps tool calls verbose activity history', run: () => withCard(id, () => toggleTranscript(id)) });
     items.push({ group: g, label: 'Rename', sub, icon: 'pen', kbd: 'M', run: () => withCard(id, () => rename(id)) });
     items.push({ group: g, label: 'Delete task', sub, icon: 'trash', kbd: '⌫', keywords: 'remove', run: () => deleteSession(id) });
   }
-
-  // The crew: open a member, or add one.
-  for (const m of crewList()) items.push({ group: 'Crew', label: m.name, sub: [m.role, m.paused ? 'Paused' : cadenceLabel(m.cron)].filter(Boolean).join(' · '), icon: 'crew', keywords: `crew agent @${m.name} ${m.brief.slice(0, 200)}`, run: () => openCrew(m.id) });
-  if (crewList().length) items.push({ group: 'Crew', label: 'Org', sub: 'Who on your crew hands work to whom', icon: 'org', keywords: 'crew org chart delegates team hierarchy relationships manage', run: () => openOrg() });
-  items.push({ group: 'Crew', label: 'Add a crew member…', icon: 'plus', keywords: 'crew agent assistant new persistent schedule avatar spirit', run: () => crewEditor() });
-  // Sharing them: one, all of them, or one someone shared with you (crew-share.js).
-  for (const m of crewList()) items.push({ group: 'Crew', label: `${m.name}’s delegates…`, icon: 'org', keywords: 'crew org delegates team who hands work', run: () => openOrg(m.id) });
-  for (const m of crewList()) items.push({ group: 'Crew', label: `Share ${m.name}…`, icon: 'arrow', keywords: 'crew export gist file copy send colleague', run: () => shareMember(m.id) });
-  if (crewList().length > 1) items.push({ group: 'Crew', label: 'Share your crew…', icon: 'arrow', keywords: 'crew export all members gist file', run: () => shareMember(crewList().map((m) => m.id)) });
-  for (const m of crewList()) items.push({ group: 'Crew', label: `${m.name}’s track record`, icon: 'stats', keywords: 'crew track record performance stats jobs finished check-ins spend', run: () => trackRecord({ id: m.id }) });
-  if (crewList().length > 1) items.push({ group: 'Crew', label: 'Crew track record', icon: 'stats', keywords: 'crew compare track record performance stats jobs finished check-ins spend', run: () => crewRecord() });
-  items.push({ group: 'Crew', label: 'Import crew members…', icon: 'download', keywords: 'crew import shared gist file .crew.json add', run: () => importCrew() });
 
   const sessions = [...S.sessions.values()].filter((s) => !s.pending).sort((a, b) => a.archived - b.archived || b.updatedAt - a.updatedAt);
   for (const s of sessions) {
@@ -114,6 +121,18 @@ function paletteItems() {
     });
   }
 
+  // The crew, after the tasks: open a member, or add one. Its chores show only while typing (limit 0).
+  for (const m of crewList()) items.push({ group: 'Crew', label: m.name, sub: [m.role, m.paused ? 'Paused' : cadenceLabel(m.cron)].filter(Boolean).join(' · '), icon: 'crew', keywords: `crew agent @${m.name} ${m.brief.slice(0, 200)}`, run: () => openCrew(m.id) });
+  if (crewList().length) items.push({ group: 'Crew', label: 'Org', sub: 'Who on your crew hands work to whom', icon: 'org', keywords: 'crew org chart delegates team hierarchy relationships manage', run: () => openOrg() });
+  items.push({ group: 'Crew', label: 'Add a crew member…', icon: 'plus', keywords: 'crew agent assistant new persistent schedule avatar spirit', run: () => crewEditor() });
+  // Sharing them: one, all of them, or one someone shared with you (crew-share.js).
+  for (const m of crewList()) items.push({ group: 'Crew', label: `${m.name}’s delegates…`, limit: 0, icon: 'org', keywords: 'crew org delegates team who hands work', run: () => openOrg(m.id) });
+  for (const m of crewList()) items.push({ group: 'Crew', label: `Share ${m.name}…`, limit: 0, icon: 'arrow', keywords: 'crew export gist file copy send colleague', run: () => shareMember(m.id) });
+  if (crewList().length > 1) items.push({ group: 'Crew', label: 'Share your crew…', limit: 0, icon: 'arrow', keywords: 'crew export all members gist file', run: () => shareMember(crewList().map((m) => m.id)) });
+  for (const m of crewList()) items.push({ group: 'Crew', label: `${m.name}’s track record`, limit: 0, icon: 'stats', keywords: 'crew track record performance stats jobs finished check-ins spend', run: () => trackRecord({ id: m.id }) });
+  if (crewList().length > 1) items.push({ group: 'Crew', label: 'Crew track record', limit: 0, icon: 'stats', keywords: 'crew compare track record performance stats jobs finished check-ins spend', run: () => crewRecord() });
+  items.push({ group: 'Crew', label: 'Import crew members…', limit: 0, icon: 'download', keywords: 'crew import shared gist file .crew.json add', run: () => importCrew() });
+
   // Topics: the tags agents gave their tasks (wisp_tag). Only while typing: picking one narrows to #it.
   const topics = new Map();
   for (const s of sessions) for (const t of s.tags || []) {
@@ -125,6 +144,7 @@ function paletteItems() {
   const a = 'Actions';
   items.push(
     { group: a, label: 'New task', icon: 'plus', kbd: 'N', keywords: 'launch create prompt task', run: focusLauncher },
+    { group: a, label: 'Start from an issue…', icon: 'issue', keywords: 'github linear issue ticket bug new task launch', run: () => (focusLauncher(), openIssuePicker()) },
     { group: a, label: S.showDone ? 'Hide done' : 'Show done', icon: 'done', keywords: 'toggle finished', run: () => $('#secDone .sec-toggle').click() },
     { group: a, label: S.showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', keywords: 'toggle', run: () => $('#secArchived .sec-toggle').click() },
   );
@@ -194,5 +214,5 @@ export function openPalette() {
   // Don't stack over another modal (settings, projects…); the palette replaces nothing.
   if (!$('#overlay').hidden) return;
   paletteOpen = true;
-  palette({ items: paletteItems(), overlay: (node) => overlay(node, { onClose: () => (paletteOpen = false) }) });
+  palette({ items: paletteItems(), overlay: (node) => overlay(node, { onClose: () => (paletteOpen = false) }), deep: deepSearch });
 }

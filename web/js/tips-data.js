@@ -14,11 +14,12 @@ const SPELLS = 'customize-wisp-with-spells';
 const ACCOUNTS = 'use-work-and-personal-claude-code-accounts';
 const GOALS = 'make-claude-code-keep-going-until-tests-pass';
 
-// [what to try, where it's explained]. Short enough for one line at the home's reading width.
+// [what to try, where it's explained, true when it points at a New task control the first run keeps
+// behind More options]. Short enough for one line at the home's reading width.
 export const TIPS = [
-  ['Turn on <b>Goal</b>, say when it’s done, and wisp sends the task back each round until it holds', G(GOALS, 'the-check')],
+  ['Turn on <b>Goal</b>, say when it’s done, and wisp sends the task back each round until it holds', G(GOALS, 'the-check'), true],
   ['Type <b>/goal</b> in a reply box to keep a task going until your condition holds', G(GOALS, 'done-when')],
-  ['Click <b>vs</b> in the launcher to run the same task on two agents, each on its own branch', G(PARALLEL, 'with-wisp')],
+  ['Click <b>vs</b> in the launcher to run the same task on two agents, each on its own branch', G(PARALLEL, 'with-wisp'), true],
   ['<b>Compare</b> lines runs up side by side: time, cost, tests and the diff. <b>Keep this</b> keeps the winner', G(VS, 'run-the-comparison')],
   ['Leave the harness on <b>Auto</b> and wisp picks the agent and model per task from what worked for you', G(VS, 'let-results-pick')],
   ['When Claude Code hits its usage limit, Auto rests it and hands the next tasks to another agent', G(MANY, 'how-many')],

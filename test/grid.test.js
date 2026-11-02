@@ -240,6 +240,10 @@ test('the edge: no cookie → sign in; another user’s cookie doesn’t open it
   const { origin } = await openWisp(ada);
   const evil = await ada.go(`${origin}/api/sessions`, { method: 'POST', body: { prompt: 'x' }, headers: { origin: 'https://evil.example' } });
   assert.equal(evil.status, 403);
+  // A trigger's secret URL goes through without signing in: ada's wisp itself answers (no such hook).
+  const hook = await browser().go(`${origin}/api/hooks/${'a'.repeat(32)}`, { method: 'POST', body: { text: 'hi' }, headers: { accept: 'application/json' } });
+  assert.equal(hook.status, 404, hook.text);
+  assert.equal(hook.json?.error, 'not found');
 });
 
 test('a task runs in the user’s wisp through the edge; idle, it stops; the next request wakes it', async () => {

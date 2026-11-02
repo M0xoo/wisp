@@ -26,7 +26,7 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
   const agents = places ? harnessesAt(places, { auto }) : auto ? [AUTO, ...S.agents] : S.agents;
   const remote = places?.length > 1 || !!places?.[0];
   const sub = (a) => {
-    if (a.id === 'auto') return 'Picks harness and model for you';
+    if (a.id === 'auto') return 'Picks per task';
     if (!a.available && signedOut(a)) return remote ? 'Signed out there' : 'Signed out';
     if (!a.available) return remote ? 'Not installed there' : 'Not installed';
     const models = (a.models || []).length > 1 ? `${a.models.length - 1} models` : 'Default model';
@@ -35,9 +35,17 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
   let focusAgent = agents.find((a) => a.id === agent && a.available) ? agent : agents.find((a) => a.available)?.id;
   // Near the line you set (Ask near the limit, features/hold.js): the harness says how full, in
   // place of its model count, so a held send never comes as a surprise.
+  // Otherwise, before you pick, how much of its plan is gone: its fullest window, quietly.
+  const fullest = (a) => {
+    let out = null;
+    for (const b of a?.budget || []) for (const w of b.windows || []) if (typeof w.used === 'number' && (!out || w.used > out.used)) out = w;
+    return out;
+  };
   const usageNote = (a) => {
     const w = a.available && nearLine(a, a.accounts?.length > 1 ? undefined : '');
-    return w ? `<small class="warn rp-usage" title="${esc(`${w.label} window at ${Math.floor(w.used * 100)}%: wisp asks before sending more`)}">${esc(`${w.label} window at ${Math.floor(w.used * 100)}%`)}</small>` : '';
+    if (w) return `<small class="warn rp-usage" title="${esc(`${w.label} window at ${Math.floor(w.used * 100)}%: wisp asks before sending more`)}">${esc(`${w.label} window at ${Math.floor(w.used * 100)}%`)}</small>`;
+    const u = a.available && fullest(a);
+    return u ? `<small class="rp-usage" title="${esc(`${u.label} window ${Math.floor(u.used * 100)}% used${u.resetsAt ? `, resets ${new Date(u.resetsAt).toLocaleString()}` : ''}`)}">${esc(`${u.label} ${Math.floor(u.used * 100)}% used`)}</small>` : '';
   };
   const accUsage = (id, acc) => {
     const w = nearLine(agents.find((x) => x.id === id), acc);
@@ -71,7 +79,7 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
       </div>
       <div class="pk-main">
         <label class="field pk-search">${icon('search')}<input spellcheck="false" autocomplete="off"></label>
-        <div class="pk-list" role="listbox" aria-label="Model"></div>
+        <div class="pk-list"></div>
         <div class="pk-effort pk-think"></div>
         <div class="pk-effort pk-acct" role="radiogroup" aria-label="Account" hidden></div>
       </div>
@@ -221,7 +229,7 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
     if (a && !a.available && signedOut(a)) return paintSignIn(a);
     if (a && !a.available) return paintSetup(a);
     if (a?.id === 'auto') {
-      list.innerHTML = `<div class="pk-group"><div class="pk-ghead">Goal</div>${AUTO_GOALS.map((g) => `<button class="pk-m${g.id === current ? ' on' : ''}" role="option" aria-selected="${g.id === current}" data-id="${g.id}"><span class="pk-text"><b>${g.label}</b><small>${g.hint}</small></span>${icon('check', 'pk-check')}</button>`).join('')}</div><p class="pk-note">wisp picks the harness and model for each task from what worked before, and learns from how it went. ${'<a href="#" class="pk-auto-more">How Auto picks</a>'}</p><div class="pk-empty" hidden>No models match</div>`;
+      list.innerHTML = `<div class="pk-group" role="listbox" aria-label="Goal"><div class="pk-ghead" aria-hidden="true">Goal</div>${AUTO_GOALS.map((g) => `<button class="pk-m${g.id === current ? ' on' : ''}" role="option" aria-selected="${g.id === current}" data-id="${g.id}"><span class="pk-text"><b>${g.label}</b><small>${g.hint}</small></span>${icon('check', 'pk-check')}</button>`).join('')}</div><p class="pk-note">wisp picks the harness and model for each task from what worked before, and learns from how it went. ${'<a href="#" class="pk-auto-more">How Auto picks</a>'}</p><div class="pk-empty" hidden>No models match</div>`;
       $('.pk-search', node).hidden = true;
       $('.pk-auto-more', list).onclick = (e) => {
         e.preventDefault();
@@ -243,7 +251,8 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
     list.innerHTML = [...groups]
       .map(
         ([g, ms]) =>
-          `<div class="pk-group">${g ? `<div class="pk-ghead">${esc(g)}</div>` : ''}${ms
+          // Each group is its own list of options: the list around them also holds a note or a setup card
+          `<div class="pk-group" role="listbox" aria-label="${esc(g || 'Model')}">${g ? `<div class="pk-ghead" aria-hidden="true">${esc(g)}</div>` : ''}${ms
             .map(
               (m) => `<button class="pk-m${m.id === current ? ' on' : ''}" role="option" aria-selected="${m.id === current}" data-id="${esc(m.id)}">
                 <span class="pk-text"><b>${esc(m.id ? m.label : 'Default')}</b><small>${esc(m.id ? (m.hint && m.hint !== g ? m.hint : '') : m.hint || `Whatever ${a?.name} is set to`)}</small></span>${icon('check', 'pk-check')}

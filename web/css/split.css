@@ -308,7 +308,7 @@ body.split:not(.stack):not(.side-hidden) .sh-next .sh-task:not(.sh-up) { grid-te
 body:has(:is(textarea, input, [contenteditable="true"]):focus) .ts-badge::after { animation: none; opacity: 0; }
 @keyframes ts-ring { to { transform: scale(1.44); opacity: 0; } }
 .ts-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.ts-text b { font-size: 13.5px; }
+.ts-text b { font-size: 13px; }
 .ts-text small { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
 .ts-cta {
   display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 12px; border-radius: 8px;
@@ -471,9 +471,11 @@ body.split #feed .item.open > .it-body > .it-dock {
 }
 body.split #feed .item.open > .it-body .turns { padding-left: 0; padding-right: 0; }
 body.split #feed .item.open > .it-body .composer { box-shadow: var(--shadow-1); }
-/* The follow-up box is one quiet line until you click into it (or it has something in it); once
-   you're in it, it stays open through its pickers (.awake, composer.js) until you move elsewhere. */
-body.split #feed .item.open .composer:not(.awake):not(.g-on):not(:has(.reply:focus)):not(:has(.open)):has(.reply:placeholder-shown):not(:has(.tray:not([hidden]))) .c-bar { display: none; }
+/* Side by side the follow-up box keeps its bar: folding it moved the notices above it ~30px each
+   time focus left. Stacked (a phone) it's one quiet line until you click into it (or it has
+   something in it), where the keyboard moves the page anyway; once you're in it, it stays open
+   through its pickers (.awake, composer.js) until you move elsewhere. */
+body.split.stack #feed .item.open .composer:not(.awake):not(.g-on):not(:has(.reply:focus)):not(:has(.open)):has(.reply:placeholder-shown):not(:has(.tray:not([hidden]))) .c-bar { display: none; }
 body.split #feed .item.open .composer:not(.awake):not(:has(.reply:focus)) { box-shadow: none; }
 body.split #feed .item.open > .it-body > .it-dock { padding: 14px 0 16px; }
 
@@ -499,15 +501,30 @@ body.split.stack #feed .item.open .it-title { white-space: normal; }
    details column (860px) keeps that column's one fact a row instead. */
 /* 12px under the header's line, the same as between its two rows: one rhythm, not 8 then 12 */
 body.split.stack:not(.pane-wide) #feed .item.open > .it-body > .it-bar { padding-top: 12px; }
-body.split.stack:not(.pane-wide) .it-bar > .it-props { flex: 1 0 100%; flex-wrap: nowrap; min-width: 0; }
+body.split.stack:not(.pane-wide) .it-bar > .it-props { flex: 0 1 auto; max-width: 100%; flex-wrap: nowrap; min-width: 0; }
 body.split.stack:not(.pane-wide) .it-bar > .it-props > * { flex: none; }
 body.split:not(.pane-wide) .it-bar > .it-props > .q-proj { flex: 0 1 auto; min-width: 6ch; max-width: none; } /* whole while there's room */
-body.split.stack:not(.pane-wide) .it-bar > .it-actions { order: 1; }
-body.split.stack:not(.pane-wide) .it-bar > .it-meta { order: 2; flex: 1 1 0; justify-content: flex-end; }
-/* A touch screen's 44px actions leave a branch too little room to say anything: there it gets its
-   own line, under the facts, rather than "wi…". */
-@media (pointer: coarse) { body.split.stack:not(.pane-wide) .it-bar > .it-meta:has(.m.branch) { flex: 1 0 100%; order: 0; justify-content: flex-start; } }
-body.wisp-mobile.split.stack:not(.pane-wide) .it-bar > .it-meta:has(.m.branch) { flex: 1 0 100%; order: 0; justify-content: flex-start; }
+/* A pane too narrow for the details column (a phone, a narrow window, the side panel open): the
+   actions say their names as the details column does, wrapping under the facts at their own width
+   (never cut), not bare icons beside labelled ones; the branch takes the line above them, whole. */
+body.split:not(.pane-wide) .it-bar { flex-wrap: wrap; row-gap: 8px; }
+body.split:not(.pane-wide) .it-bar > .it-actions { order: 1; flex: 1 0 100%; flex-wrap: wrap; gap: 2px 4px; margin: 0 0 0 -6px; }
+body.split:not(.pane-wide) .it-actions .ghost.xs { flex: none; justify-content: flex-start; gap: 6px; min-width: 0; height: 32px; padding: 0 6px; font-size: 12.5px; color: var(--ink-2); }
+body.split:not(.pane-wide) .it-actions .ghost.xs > :is(span, .it-lbl) { display: inline; white-space: nowrap; }
+body.split:not(.pane-wide) .it-actions .it-done { color: var(--good); }
+/* A page (a phone): one row of equal columns, icon over name like a tab bar, Shell on it instead of
+   a card of its own; Transcript, Rerun… and Take over lead More (actions.js moreMenu) */
+body.split:not(.pane-wide) .it-actions :is(.tx-toggle, [data-a="rerun"], [data-a="takeover"]) { display: none; } /* any narrow pane: the bar stays one row */
+body.split.stack:not(.pane-wide) .it-bar > .it-actions { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; margin: 0 -6px; }
+body.split.stack:not(.pane-wide) .it-actions .ghost.xs { flex-direction: column; justify-content: center; gap: 3px; height: auto; min-height: 52px; padding: 4px 2px; border-radius: 10px; font-size: 11.5px; line-height: 1.25; text-align: center; }
+body.split.stack:not(.pane-wide) .it-actions .ghost.xs > :is(span, .it-lbl) { white-space: normal; overflow-wrap: anywhere; }
+body.split.stack:not(.pane-wide) .it-actions .ghost.xs > .i { width: 17px; height: 17px; }
+body.split.stack:not(.pane-wide) .it-actions .it-shell:not([hidden]) { display: inline-flex; position: relative; }
+body.split.stack:not(.pane-wide) .it-bar > .shell-door { display: none; }
+.it-actions .it-shell.live::after { content: ''; position: absolute; top: 8px; left: calc(50% + 6px); width: 7px; height: 7px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 2px var(--bg); } /* yours is still running */
+/* The branch beside the facts while it has room to say something (cut in the middle), else a line of its own */
+body.split:not(.pane-wide) .it-bar > .it-meta { order: 0; flex: 1 1 100px; min-width: 100px; justify-content: flex-start; }
+body.split:not(.pane-wide) .it-bar > .it-meta:empty { display: none; }
 body.split.stack:not(.pane-wide) .it-bar > .it-slot { order: 3; }
 /* A pane too narrow for the details column but wide enough for one row: the facts keep room for a
    branch that says something, and the actions go under them rather than squeeze it. */
@@ -589,6 +606,7 @@ body.wisp-mobile #feed .item.sw-gone { transition: height 0.2s var(--ease), marg
    thumb, as in the app. */
 @media (hover: none) and (pointer: coarse) {
   body.split.stack .it-bar .ghost.xs { min-width: 44px; height: 44px; padding: 4px; justify-content: center; border-radius: 12px; background-clip: content-box; }
+  body.split.stack:not(.pane-wide) .it-actions .ghost.xs { height: auto; min-height: 52px; padding: 4px 2px; background-clip: border-box; }
 }
 @media (hover: none) {
   body.split.stack #feed.has-quick .it-head { grid-template-columns: 10px minmax(0, 1fr) auto 36px; }

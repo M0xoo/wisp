@@ -95,7 +95,7 @@ export function openFeedback({ sessionId, text = '', rating = null, kind = 'idea
   if (!feedbackOn()) return toast('Feedback is turned off on this install.', { tone: 'bad' });
   const node = el(`
     <form class="modal fb-modal">
-      <header><h2>Send feedback</h2><button type="button" class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>Send feedback</h2><button type="button" class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       <fieldset class="pk-seg fb-kind" role="radiogroup" aria-label="Kind">${KINDS.map(([k, i, label]) => `<button type="button" role="radio" data-kind="${k}">${icon(i)}${label}</button>`).join('')}</fieldset>
       <div class="fb-rate"><span>How is wisp working for you?</span>
         ${['up', 'down'].map((r) => `<button type="button" class="rate-btn" data-rate="${r}" aria-pressed="false" title="${r === 'up' ? 'Good' : 'Not good'}">${icon(`thumb-${r}`)}</button>`).join('')}

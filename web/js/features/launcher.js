@@ -119,6 +119,20 @@ bus.on('sandbox-step', ({ key, live }) => {
   renderFeed();
 });
 
+// Until your first task, the box is the prompt, how it runs and Send: the other six controls wait
+// behind More options (once opened, or once there's a task, they stay). Only once the list is in:
+// before it, a returning user's box would lose its buttons for a moment.
+let listed = false;
+function paintFirstRun() {
+  const box = $('#launcher:not(.skel)');
+  if (!box) return;
+  if ([...S.sessions.values()].some((s) => s.agent !== 'wisp')) save('wisp.launcherFull', true);
+  const was = box.classList.contains('first-run');
+  box.classList.toggle('first-run', listed && !load('wisp.launcherFull', false));
+  if (was !== box.classList.contains('first-run')) bus.emit('firstRun'); // the tips under it follow
+}
+bus.on('listed', () => ((listed = true), paintFirstRun()));
+
 export function renderLauncher() {
   const box = $('#launcher');
   const mode = S.config.defaults.mode || DEFAULT_MODE.id;
@@ -154,6 +168,8 @@ export function renderLauncher() {
         <button class="vs-btn vs-add" id="compareBtn" aria-label="Compare">${icon('plus')}</button>
       </div>
       <button class="tog-btn team-btn" id="teamBtn" aria-haspopup="dialog"></button>
+      ${MOBILE ? `<button class="tog-btn issue-btn" aria-haspopup="dialog" title="Start from one of the project’s open issues">${icon('issue')}<span>Issue</span></button>` : ''}
+      <button class="tog-btn l-more" id="launchMore" title="Run on another computer, compare, delegate, a goal, a worktree, start later, start from an issue">${icon('dots')}<span>More options</span></button>
       <span class="grow"></span>
       <button class="tog-btn goal-btn" id="goalBtn" aria-pressed="false"></button>
       <button class="tog-btn" id="wtBtn"></button>
@@ -197,7 +213,19 @@ export function renderLauncher() {
     e.preventDefault();
     ta.focus();
   };
+  paintFirstRun();
+  $('#launchMore', box).onclick = () => {
+    save('wisp.launcherFull', true);
+    box.classList.remove('first-run');
+    bus.emit('firstRun');
+    ta.focus();
+  };
   $('#attach', box).onclick = tray.pick;
+  // The phone app's bar scrolls sideways: Issue goes there, after Delegate, instead of the project row.
+  if (MOBILE)
+    $('.l-bar .issue-btn', box).onclick = () => {
+      openIssuePicker();
+    };
   $('#whereBtn', box).onclick = (e) => whereMenu(e.currentTarget, ta);
   paintWhereBtn();
 
@@ -445,6 +473,7 @@ export function renderLauncher() {
   // at: start it then instead (Start later, or the time read from the box); now: ignore that time.
   // confirm: you said yes to starting it although it takes the window past your line (Start anyway).
   const go = async (over = null, { at = null, now = false, confirm = false } = {}) => {
+    if (box.classList.contains('first-run')) (save('wisp.launcherFull', true), box.classList.remove('first-run'), bus.emit('firstRun'));
     if (over && !(over instanceof Event) && over.text && !ta.value.trim().startsWith(over.text)) ta.value = `${over.text}${ta.value.trim() ? `\n\n${ta.value.trim()}` : ''}`;
     if (over instanceof Event) over = null;
     const prompt = ta.value.trim();
@@ -779,7 +808,10 @@ export function renderLaunchChips() {
     ? `<button class="lp-chip add pick" data-add="${addOn}" title="Another folder${addOn ? ` on ${esc(placeName(addOn))}` : ''}">${icon('folder')}${list.length > CHIPS ? '' : '<span>Other folder…</span>'}</button>`
     : `<button class="lp-chip add" data-add="${addOn}">${icon('folder')}${addOn ? `Pick a project on ${esc(placeName(addOn))}…` : 'Choose a folder…'}</button>`;
   const none = `<button class="lp-chip none ${pick === NO_FOLDER ? 'on' : ''}" data-id="${NO_FOLDER}" title="No folder: a general ask, with no project and no worktree. The agent gets an empty scratch directory.">${icon('text')}<span>No folder</span></button>`;
-  const html = `<span class="l-in">in</span><span class="lp-group">${chips}${more}${none}${add}${offline}</span>`;
+  // Issue: start from one of the picked project's open issues (features/issues.js). In this row, by
+  // the project it lists from: the bar under the prompt has no room left for it at 1440px.
+  const issue = MOBILE ? '' : `<button class="tog-btn issue-btn lp-issue" id="issueBtn" data-issue="1" aria-haspopup="dialog" title="Start from one of the project’s open issues (GitHub, or Linear when connected)">${icon('issue')}<span>Issue</span></button>`;
+  const html = `<span class="l-in">in</span><span class="lp-group">${chips}${more}${none}${add}${issue}${offline}</span>`;
   // Unchanged chips stay as they were folded: fitting measures the row once per chip it folds.
   if (box.dataset.h !== html) {
     box.dataset.h = html;
@@ -814,6 +846,7 @@ export function renderLaunchChips() {
     renderLaunchRecipes();
   };
   box.onclick = (e) => {
+    if (e.target.closest('[data-issue]')) return void openIssuePicker();
     const chip = e.target.closest('.lp-chip[data-id]');
     if (chip) {
       choose(chip.dataset.id, { add: !!e.target.closest('[data-also]') || e.metaKey || e.ctrlKey || e.shiftKey });
@@ -922,7 +955,7 @@ function setWhere(list) {
 
 function whereMenu(anchor, back) {
   if ($('.menu.where-menu')) return $('.menu.where-menu').close(), refocus(back);
-  const box = el(`<div class="menu where-menu" role="menu"></div>`);
+  const box = el(`<div class="menu where-menu" role="menu" aria-label="Run on"></div>`);
   const paint = () => {
     const row = (k, m) => {
       const on = launch.where.includes(k);
@@ -939,11 +972,11 @@ function whereMenu(anchor, back) {
     const several = launch.where.length > 1;
     // One place reads as a radio, several as checkboxes.
     box.classList.toggle('several', several);
-    box.innerHTML = `<div class="wm-h">Run on <small>${several ? `in parallel on ${launch.where.length} places` : 'one, or several in parallel'} · any project runs anywhere</small></div>
+    box.innerHTML = `<div class="wm-h" aria-hidden="true">Run on <small>${several ? `in parallel on ${launch.where.length} places` : 'one, or several in parallel'} · any project runs anywhere</small></div>
       ${row('', null)}${S.machines.map((m) => row(m.id, m)).join('')}
-      <div class="wm-sep"></div>
-      <button data-a="add">${icon('plus')}${S.machines.length ? 'Add a machine…' : 'Add a machine to run on another computer…'}</button>
-      ${S.machines.length ? `<button data-a="manage">${icon('settings')}Manage machines</button>` : ''}`;
+      <div class="wm-sep" role="separator"></div>
+      <button data-a="add" role="menuitem">${icon('plus')}${S.machines.length ? 'Add a machine…' : 'Add a machine to run on another computer…'}</button>
+      ${S.machines.length ? `<button data-a="manage" role="menuitem">${icon('settings')}Manage machines</button>` : ''}`;
   };
   const set = (list) => {
     setWhere(list);
@@ -1142,6 +1175,11 @@ function sentNote(who) {
 // Sent from home as a page of its own (stacked): back to the list, where the new task shows.
 function leaveHome() {
   if (isStacked() && stackPage()) goBack();
+}
+
+// New task's Issue button and ⌘K: an issue of the picked project fills the prompt (features/issues.js).
+export function openIssuePicker() {
+  import('./issues.js').then((m) => m.pickIssue({ project: projectOf(), ta: $('#prompt') }));
 }
 
 export function focusLauncher() {

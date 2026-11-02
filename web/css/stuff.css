@@ -164,7 +164,7 @@ body.split #stuffView { flex: 1; }
 
 .st-meta { display: grid; gap: 3px; min-width: 0; padding: 10px 12px 12px; }
 .st-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; color: var(--ink); }
-.st-sub { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 12px; color: var(--faint); }
+.st-sub { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 12.5px; color: var(--faint); }
 .st-sub .i { flex: none; width: 12px; height: 12px; }
 .st-sub > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-sub time { flex: none; margin-left: auto; font-variant-numeric: tabular-nums; }
@@ -176,7 +176,7 @@ body.split #stuffView { flex: 1; }
 .st-tags i { padding: 1px 7px; border-radius: 6px; background: var(--accent-soft); font: normal 11.5px var(--sans); color: var(--accent-ink); }
 .st-from {
   display: flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; margin-top: 4px; padding: 0; justify-self: start;
-  font-size: 12px; color: var(--muted); text-align: left;
+  font-size: 12.5px; color: var(--muted); text-align: left;
 }
 .st-from .i { flex: none; width: 12px; height: 12px; color: var(--faint); }
 .st-from span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -210,7 +210,7 @@ body.split #stuffView { flex: 1; }
 /* Nothing yet: three things on a shelf, tilted, and how to keep one */
 .sf-empty { max-width: 440px; margin: 9vh auto 0; text-align: center; }
 .sf-empty h3 { margin: 22px 0 6px; font: 600 17px var(--display); color: var(--ink); }
-.sf-empty p { margin: 0 0 8px; font-size: 13.5px; line-height: 1.55; color: var(--muted); }
+.sf-empty p { margin: 0 0 8px; font-size: 13px; line-height: 1.55; color: var(--muted); }
 .sf-empty p .i { width: 15px; height: 15px; vertical-align: -3px; color: var(--accent); }
 .sf-empty q { color: var(--ink-2); font-style: italic; }
 .sf-empty .sf-or { font-size: 12.5px; color: var(--faint); }
@@ -227,7 +227,7 @@ body.split #stuffView { flex: 1; }
 .sf-tile.t2 i.short { width: 28px; }
 .sf-tile.t3 { transform: rotate(8deg) translate(-10px, 6px); color: var(--accent); animation-delay: 0.19s; --r: 8deg; --x: -10px; --y: 6px; }
 @keyframes sf-tile { from { opacity: 0; transform: rotate(var(--r)) translate(var(--x), calc(var(--y) + 14px)); } }
-.sf-none { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0 0 12px; font-size: 13.5px; color: var(--muted); }
+.sf-none { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0 0 12px; font-size: 13px; color: var(--muted); }
 .sf-none .i { width: 15px; height: 15px; color: var(--faint); }
 
 /* Dropping files on the page */
@@ -243,7 +243,7 @@ body.split #stuffView { flex: 1; }
 
 /* Edit details, by the card */
 .menu.st-edit { z-index: 60; display: grid; gap: 10px; width: min(320px, calc(100vw - 16px)); padding: 12px; }
-.st-edit label { display: grid; gap: 5px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.st-edit label { display: grid; gap: 5px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
 .st-edit-bar { display: flex; justify-content: flex-end; gap: 6px; }
 .menu.st-edit .st-edit-bar button { width: auto; padding: 0 12px; }
 .menu.st-edit .primary { color: var(--bg); }
@@ -290,11 +290,11 @@ body.electron.mac.split.stack .stuff-view .cv-top { padding-left: 98px; }
 .st-card:hover .st-win { transform: translateY(-3px); }
 .st-win-bar { flex: none; display: flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
 .st-win-bar i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-2); }
-.st-win-bar span { min-width: 0; margin-left: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--mono); color: var(--faint); }
+.st-win-bar span { min-width: 0; margin-left: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11.5px var(--mono); color: var(--faint); }
 .st-win > img { flex: 1; min-height: 0; width: 100%; object-fit: cover; object-position: top; display: block; }
 .st-win-body { flex: 1; display: grid; place-content: center; justify-items: center; gap: 8px; padding: 10px 16px 28px; background: var(--accent-soft); text-align: center; }
 .st-win-body b { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--accent); color: var(--on-accent); font: 600 22px var(--display); }
-.st-win-body span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.st-win-body span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
 .st-launch {
   position: absolute; right: 10px; bottom: 10px; z-index: 1; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px 0 9px;
   border-radius: 99px; background: var(--ink); color: var(--bg); font-size: 12.5px; font-weight: 600; box-shadow: var(--shadow-2);
@@ -307,7 +307,7 @@ body.electron.mac.split.stack .stuff-view .cv-top { padding-left: 98px; }
 .stuff-view.list .st-thumb > .st-launch { display: none; }
 .stuff-view.list .k-app .st-glyph { color: var(--accent); }
 /* updated since it was kept */
-.st-v { flex: none; padding: 0 5px; border-radius: 5px; background: var(--bg-2); font: 500 11px var(--mono); font-style: normal; color: var(--muted); }
+.st-v { flex: none; padding: 0 5px; border-radius: 5px; background: var(--bg-2); font: 500 11.5px var(--mono); font-style: normal; color: var(--muted); }
 
 /* In the @ picker: a small picture of the thing */
 .st-mini { flex: none; display: grid; place-items: center; width: 28px; height: 28px; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--bg-2); color: var(--muted); }
@@ -385,7 +385,7 @@ body.electron.mac :is(.ap, .dr) { top: 46px; }
   body.electron.mac .ap-top { padding-left: 84px; }
 }
 /* published on a wisp Grid: copies its public link */
-.st-pub { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 6px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-ink); font: 500 11px var(--sans); font-style: normal; }
+.st-pub { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 6px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-ink); font: 500 11.5px var(--sans); font-style: normal; }
 .st-pub .i { width: 11px; height: 11px; }
 button.st-pub:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 .st-pub.old { background: var(--bg-2); color: var(--muted); }
@@ -393,6 +393,6 @@ button.st-pub:hover { background: color-mix(in srgb, var(--accent) 22%, transpar
 /* a published app's link, in an answer's card */
 .sb-pub { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 2px; font-size: 12.5px; color: var(--muted); }
 .sb-pub > .i { flex: none; width: 13px; height: 13px; color: var(--accent-ink); }
-.sb-pub a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12px; color: var(--accent-ink); text-decoration: none; }
+.sb-pub a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 11.5px; color: var(--accent-ink); text-decoration: none; }
 .sb-pub a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .sb-pub .st-pub { cursor: pointer; }

@@ -23,7 +23,7 @@ const coversModel = (rule, a) => !rule.includes('@') && (rule === modelRule(a) |
 const modelName = (a) => (a.model ? a.label.split(' · ')[1] || a.model : `${a.label.split(' · ')[0]}’s default model`);
 export async function openRouter({ host } = {}) {
   const node = el(`<div class="modal router-modal">
-      <header><h2>Auto</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>Auto</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       <div class="ro-body"><div class="it-loading"><span class="orb tiny"></span>Loading…</div></div>
     </div>`);
   const close = present(node, host);

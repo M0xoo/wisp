@@ -170,6 +170,7 @@ export const loadSessions = shared(async () => {
   saveOpen();
   keepInPlace(feedAnchor(), renderFeed);
   for (const id of S.open) scheduleRefetch(id);
+  bus.emit('listed'); // the server's list is in (New task's first run waits for it)
 });
 
 export const loadConfig = shared(async () => {

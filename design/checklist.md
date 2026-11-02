@@ -12,6 +12,8 @@ Copy this into your notes and tick it off. A UI change isn't verified until it h
 - [ ] In the **phone app's** page if it shows there (`node qa/mobile.mjs`, or `body.wisp-mobile` with
       the `wispMobile` user agent).
 - [ ] A screenshot of the result goes in the reply / PR.
+- [ ] `node qa/ui-audit.mjs` (every view, five sizes, light and dark) and `QUICK=1 node qa/buttons.mjs`
+      pass: no axe violation, ≤ 5 font sizes, no cut short label, 44px in the app.
 
 Use the QA runners rather than your own wisp: they start an isolated wisp with fake agents
 (`node qa/web.mjs`, `qa/mobile.mjs`, `qa/desktop.mjs`; see `qa/README.md`). For a one-off check,

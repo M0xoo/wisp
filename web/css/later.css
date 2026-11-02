@@ -31,7 +31,7 @@
 .menu .lm-go:hover { background: none; }
 .menu .lm-go[disabled] { opacity: 1; }
 .lm-go .lm-t.no { color: var(--faint); }
-.lm-go kbd { font-size: 10.5px; }
+.lm-go kbd { font-size: 11.5px; }
 @media (pointer: coarse) { .lm-in { height: 44px; font-size: 16px; } }
 .menu.later-plan { width: 280px; }
 .lp-what { margin: 4px 10px 6px; font-size: 12.5px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }

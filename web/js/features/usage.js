@@ -11,7 +11,7 @@ import { agentName, harnessLogo } from './runners.js';
 
 export async function openUsage({ days = 30, host } = {}) {
   const node = el(`<div class="modal usage-modal">
-      <header><h2>Usage</h2><div class="mem-tabs us-range">${[7, 30, 90].map((d) => `<button data-days="${d}">${d} days</button>`).join('')}</div><button class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>Usage</h2><div class="mem-tabs us-range">${[7, 30, 90].map((d) => `<button data-days="${d}">${d} days</button>`).join('')}</div><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       <div class="us-body"><div class="it-loading"><span class="orb tiny"></span>Adding it up…</div></div>
     </div>`);
   const close = present(node, host);

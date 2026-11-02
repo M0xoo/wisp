@@ -180,7 +180,7 @@ async function confirmExec(spell, command) {
   return new Promise((resolve) => {
     const node = el(`
       <form class="modal sp-confirm">
-        <header><h2>${icon('terminal')} Run this command?</h2><button type="button" class="icon-btn close">${icon('x')}</button></header>
+        <header><h2>${icon('terminal')} Run this command?</h2><button type="button" class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
         <p>The spell <b>${esc(spell.name)}</b> wants to run this in the task's folder:</p>
         <pre class="code"><code>$ ${esc(command)}</code></pre>
         <footer><button type="button" class="ghost" data-a="no">Cancel</button><button class="primary" type="submit">Run it</button></footer>
@@ -325,7 +325,7 @@ export function openPanel(spell, panelId, ctx = {}) {
   if (!panel) return toast(`${esc(spell.name)} has no panel ${esc(panelId)}`, { tone: 'bad' });
   const node = el(`
     <div class="modal sp-panel ${panel.as === 'drawer' ? 'sp-drawer' : ''}" data-spell="${esc(spell.id)}">
-      <header><h2>${panel.icon ? icon(panel.icon) : ''}${esc(panel.title || spell.name)}</h2><span class="sp-by" title="From the spell ${esc(spell.name)}">${icon('wizard')}${esc(spell.name)}</span><button class="icon-btn sp-refresh" title="Refresh">${icon('replay')}</button><button class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>${panel.icon ? icon(panel.icon) : ''}${esc(panel.title || spell.name)}</h2><span class="sp-by" title="From the spell ${esc(spell.name)}">${icon('wizard')}${esc(spell.name)}</span><button class="icon-btn sp-refresh" title="Refresh">${icon('replay')}</button><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       <div class="sp-panel-body"><div class="it-loading"><span class="orb tiny"></span>Loading…</div></div>
     </div>`);
   const body = $('.sp-panel-body', node);

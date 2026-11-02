@@ -17,7 +17,7 @@ export function phoneSummary(r) {
 
 export async function openPhone({ host } = {}) {
   const node = el(`<div class="modal phone-modal">
-      <header><h2>Phone</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>Phone</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       <p class="mem-lede">Get questions and finished tasks on your phone, and answer from there. wisp polls both services, so nothing needs to reach this machine. They receive titles, summaries and questions (with their context), never code or diffs.</p>
       <div class="ph-body"></div>
     </div>`);

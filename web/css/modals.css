@@ -20,7 +20,7 @@
 /* rerun dialog: the launcher's prompt + harness bar, in a modal. Its popovers sit above the overlay. */
 .rr-box { padding: 8px 10px 8px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--surface-2); transition: border-color 0.15s, box-shadow 0.15s; }
 .rr-box:is(:focus-within, :has(.open)) { border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); box-shadow: 0 0 0 3px var(--accent-soft); }
-.rr-prompt { display: block; width: 100%; resize: none; border: 0; outline: 0; background: transparent; padding: 6px 2px; font-size: 14.5px; line-height: 1.55; color: var(--ink); min-height: 72px; }
+.rr-prompt { display: block; width: 100%; resize: none; border: 0; outline: 0; background: transparent; padding: 6px 2px; font-size: 14px; line-height: 1.55; color: var(--ink); min-height: 72px; }
 .rr-files { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 2px 6px; }
 .rr-file { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 7px; font-size: 12.5px; color: var(--ink-2); background: var(--bg-2); }
 .rr-file .i { width: 12px; height: 12px; color: var(--muted); }
@@ -38,7 +38,11 @@
   .rr-box .runner-btn .rb-m { margin-left: 0; }
   .rr-box .runner-btn .rb-m::before { display: none; }
 }
-@container rerun (max-width: 400px) { .rr-box .runner-btn :is(.rb-m, .chev) { display: none; } }
+@container rerun (max-width: 400px) {
+  .rr-box .runner-btn :is(.rb-m, .rb-e, .chev) { display: none; }
+  .rr-box .l-bar > .runner-btn { width: 30px; padding: 0; justify-content: center; } /* its logo alone, in a square */
+  .rr-box .runner-btn .rb-logo { margin-right: 0; }
+}
 .overlay:not([hidden]) ~ :is(.picker, .menu) { z-index: 55; }
 /* The image viewer (ui/viewer.js): a picture full screen to pinch, drag and zoom. touch-action: none
    hands every finger to it, so the page around doesn't scroll or zoom instead. --dim fades the
@@ -172,7 +176,7 @@ body.wisp-mobile .lb-open { display: none; }
 .hint .clonedir { width: 220px; height: 24px; padding: 0 7px; margin: 0 4px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 12.5px; outline: 0; }
 .hint .clonedir:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .found { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
-.found-item { display: grid; grid-template-columns: 16px 1fr; column-gap: 8px; text-align: left; padding: 8px 10px; border-radius: 11px; border: 1px solid var(--line); transition: all 0.15s; }
+.found-item { display: grid; grid-template-columns: 16px 1fr; column-gap: 8px; text-align: left; padding: 8px 10px; border-radius: 11px; border: 1px solid var(--line); transition: background 0.15s, border-color 0.15s, color 0.15s; }
 .found-item:hover { border-color: var(--accent); background: var(--accent-soft); }
 .found-item .i { grid-row: span 2; margin-top: 2px; color: var(--accent); }
 .found-item b { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -195,6 +199,7 @@ body.wisp-mobile .lb-open { display: none; }
   width: min(900px, 100%); height: min(680px, calc(100dvh - 40px)); max-height: none; padding: 0; overflow: hidden;
 }
 .sx-nav { grid-area: nav; display: flex; flex-direction: column; gap: 1px; padding: 18px 10px; background: var(--bg-2); border-right: 1px solid var(--line); overflow-y: auto; overscroll-behavior: contain; }
+.sx-tabs { display: flex; flex-direction: column; gap: 1px; } /* the tablist holds only its tabs (the heading sits above it) */
 .sx-nav h2 { margin: 0 8px 14px; font: 600 18px/1.2 var(--display); letter-spacing: -0.015em; }
 .sx-nav button { flex: none; display: flex; align-items: center; gap: 9px; height: 32px; padding: 0 10px; border-radius: 8px; font-size: 13px; color: var(--ink-2); text-align: left; transition: background 0.12s, color 0.12s; }
 .sx-nav button .i { flex: none; width: 15px; height: 15px; color: var(--muted); }
@@ -207,7 +212,7 @@ body.wisp-mobile .lb-open { display: none; }
 .modal.sx > .sx-top { grid-area: top; display: flex; align-items: center; gap: 6px; min-height: 58px; margin: 0; padding: 10px 12px 10px 24px; border-bottom: 1px solid var(--line); }
 .modal.sx > .sx-top[hidden] { display: none; }
 .sx-top .sx-home, .sx-top .sx-up { display: none; }
-.sx-title { flex: 1; min-width: 0; margin: 0; font: 600 16px/1.3 var(--display); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sx-title { flex: 1; min-width: 0; margin: 0; font: 600 18px/1.3 var(--display); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sx-main { grid-area: main; min-width: 0; min-height: 0; padding: 16px 24px 28px; overflow-y: auto; overscroll-behavior: contain; container: sx / inline-size; }
 .sx-lede { margin: 0 2px 16px; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
 /* a view opened inside (Memory, Usage, …): its own head (Back, title, close) stays at the top the same way */
@@ -266,7 +271,7 @@ body.wisp-mobile .lb-open { display: none; }
 .bg-di .i { width: 16px; height: 16px; }
 .bg-dt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .bg-dt b { font-weight: 500; font-size: 13px; }
-.bg-dt small { font-size: 12px; line-height: 1.45; color: var(--ink-2); }
+.bg-dt small { font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
 .bg-da { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
 .bg-da .i { width: 13px; height: 13px; }
 /* Where it went: the tasks that used most of the account's longest window, in the bars' columns */
@@ -301,6 +306,7 @@ button.bg-task:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--acc
   .sx-text { flex: 1 1 200px; }
   .sx-ctl { max-width: 100%; flex-wrap: wrap; }
   .sx-ctl:has(> .input, > select) { flex: 1 1 100%; }
+  .sx-ctl > .kit-sel { width: 100%; }
   .sx-ctl > :is(.input, select) { width: 100%; }
   .sx-main .ro-allowed { justify-content: flex-start; max-width: none; }
   .sx-usage { grid-template-columns: repeat(2, 1fr); }

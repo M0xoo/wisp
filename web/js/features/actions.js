@@ -28,7 +28,7 @@ import { feedAnchor, keepInPlace } from './scroll.js';
 import { mergeLabel, mergePr, shipDialog, shipLabel, shippable } from './ship.js';
 import { slotHtml } from './spells.js';
 import { openTerm, termFailed, termSize, termStarted } from './term.js';
-import { changesItem, openPanel, reviewLabel, shellItem, watchItem } from './panel.js';
+import { changesItem, openPanel, reviewLabel, runApp, runItem, shellItem, watchItem } from './panel.js';
 import { ask } from '../ui/confirm.js';
 import { goalMenuHtml, runGoalAction } from './goal.js';
 import { DAY_TIME, fmtDate } from '../core/format.js';
@@ -188,8 +188,16 @@ export function moreMenu(id, anchor) {
   const canRollback = s.agent !== 'wisp' && sum.state !== 'running' && (lastTurn?.changes?.length || lastTurn?.checkpoint?.commit);
   const rolledBack = !!lastTurn?.rolledBackAt;
   const r = anchor.getBoundingClientRect();
+  // A narrow page's bar keeps four actions on one row: the ones it folds away lead its More, and
+  // what's already on the page (Changes on the bar, the Shell card) isn't said again
+  const folded = document.body.matches('.split:not(.pane-wide)') && anchor.closest('.it-actions');
+  const txOn = $(`.item[data-id="${CSS.escape(id)}"] .tx-toggle`)?.getAttribute('aria-pressed') === 'true';
   const menu = el(`
     <div class="menu" style="top:${r.bottom + 6}px;right:${innerWidth - r.right}px">
+      ${folded ? `<button data-a="transcript" aria-pressed="${txOn}">${icon('transcript')}Transcript${txOn ? icon('check', 'mi-on') : ''}${keyHint('V')}</button>
+      <button data-a="rerun">${icon('rerun')}Rerun…${keyHint('⇧R')}</button>
+      <button data-a="takeover">${icon('terminal')}Take over${keyHint('T')}</button>
+      <div class="wm-sep" role="separator"></div>` : ''}
       <button data-a="rename">${icon('pen')}Rename${keyHint('M')}</button>
       <button data-a="copy-id">${icon('copy')}Copy task ID</button>
       ${s.agentSessionId ? `<button data-a="copy">${icon('copy')}Copy resume command</button>` : ''}
@@ -198,8 +206,9 @@ export function moreMenu(id, anchor) {
       ${shareable(sum) ? `<button data-a="share">${icon('share')}Share…</button>` : ''}
       ${mergeLabel(sum) ? `<button data-a="merge">${icon('check')}${mergeLabel(sum)}</button>` : ''}
       ${reviewLabel(sum) ? `<button data-a="review">${icon('merge')}${reviewLabel(sum)}${keyHint('P')}</button>` : ''}
-      ${sum.pending ? '' : changesItem()}
-      ${shellItem(id)}
+      ${sum.pending || folded ? '' : changesItem()}
+      ${folded && [...document.querySelectorAll(`.item[data-id="${CSS.escape(id)}"] :is(.shell-door, .it-actions .it-shell)`)].some((b) => b.offsetParent) ? '' : shellItem(id)}
+      ${runItem(sum)}
       ${watchItem(sum)}
       ${sum.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
       <button data-a="recipe">${icon('bolt')}Save as recipe…</button>
@@ -217,6 +226,9 @@ export function moreMenu(id, anchor) {
     const a = e.target.closest('button')?.dataset.a;
     close();
     if (a === 'rename') rename(id);
+    if (a === 'transcript') import('./turns.js').then((m) => m.toggleTranscript(id));
+    if (a === 'rerun') rerun(id);
+    if (a === 'takeover') takeOver(id);
     if (a === 'copy-id') copyTaskId(id);
     if (a === 'fork') forkTask(id);
     if (a === 'share') shareTask(id);
@@ -225,6 +237,7 @@ export function moreMenu(id, anchor) {
     if (a === 'changes') openPanel(id, 'changes');
     if (a === 'shell') openPanel(id, 'shell');
     if (a === 'watch') openPanel(id, 'watch');
+    if (a === 'run-app') runApp(id);
     if (a === 'compare') compareView(id);
     if (a === 'recipe') saveAsRecipe(id);
     if (a === 'crew') crewAction(id);
@@ -267,6 +280,7 @@ export function taskMenu(id, e) {
       ${reviewLabel(s) ? `<button data-a="review">${icon('merge')}${reviewLabel(s)}${keyHint('P')}</button>` : ''}
       ${s.pending ? '' : changesItem()}
       ${s.pending ? '' : shellItem(s.id)}
+      ${runItem(s)}
       ${watchItem(s)}
       ${s.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
       <button data-a="recipe">${icon('bolt')}Save as recipe…</button>
@@ -296,6 +310,7 @@ export function taskMenu(id, e) {
     if (a === 'changes') openPanel(id, 'changes');
     if (a === 'shell') openPanel(id, 'shell');
     if (a === 'watch') openPanel(id, 'watch');
+    if (a === 'run-app') runApp(id);
     if (a === 'compare') compareView(id);
     if (a === 'recipe') saveAsRecipe(id);
     if (a === 'crew') crewAction(id);
@@ -383,9 +398,9 @@ export async function rerun(id) {
 
   const node = el(`
     <div class="modal rerun-modal">
-      <header><h2>Rerun task</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>Rerun task</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       <div class="rr-box">
-        <textarea class="rr-prompt" rows="3" spellcheck="false"></textarea>
+        <textarea class="rr-prompt" rows="3" spellcheck="false" aria-label="Prompt"></textarea>
         ${files.length ? `<div class="rr-files">${files.map((f) => `<span class="rr-file">${icon('clip')}${esc(f.name)}</span>`).join('')}</div>` : ''}
         <div class="l-bar">
           <button class="tog-btn where-btn" data-a="place" aria-haspopup="menu" ${S.machines.length ? '' : 'hidden'}></button>
@@ -494,9 +509,9 @@ export async function forkTask(id, turnId = '', draft = null) {
 
   const node = el(`
     <div class="modal rerun-modal fork-modal">
-      <header><h2>Fork task</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>Fork task</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       <div class="rr-box">
-        <textarea class="rr-prompt" rows="3" spellcheck="false" placeholder="What should the fork try?"></textarea>
+        <textarea class="rr-prompt" rows="3" spellcheck="false" placeholder="What should the fork try?" aria-label="What should the fork try?"></textarea>
         <div class="l-bar">
           <button class="mode-btn" data-a="mode" aria-haspopup="menu"></button>
           <button class="runner-btn" data-a="runner" title="Harness, model and thinking level" aria-haspopup="dialog"></button>

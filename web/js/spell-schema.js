@@ -26,7 +26,7 @@ export const SLOTS = {
   'split.head': "Split view: a button in the open task's header, next to its title (acts on that task).",
   'split.details': "Split view: a button in the open task's details column, under its actions (acts on that task).",
   'term.head': "A button in the header of a task's terminal (take over in wisp), before End (acts on that task).",
-  'panel.head': "The side panel beside the open task (Changes, PR, Shell, Watch): a button in its head (acts on that task).",
+  'panel.head': "The side panel beside the open task (Changes, PR, Shell, Preview, Watch): a button in its head (acts on that task).",
   'crew.page': "A crew member's thread: a button in its header, next to Pause.",
   'org.head': 'The Org page (who on the crew hands work to whom): a button in its header, before Add member.',
   'plan.head': "A scheduled task's page (opened from its row under Scheduled): a button in its header, before Start now.",
@@ -155,6 +155,8 @@ export const PARTS = {
   'picker.thinking': '.picker .pk-think',
   'launcher.compare': '#compareBtn',
   'launcher.team': '#teamBtn',
+  'launcher.issue': '#launcher .issue-btn', // Issue: start from one of the project's open issues (GitHub, Linear)
+  'issues.picker': '.palette.issues', // the list of issues it opens
   // The Delegate popover (launcher and follow-ups): the lead strip, and each delegate's place chip.
   'delegate.panel': '.team-pop',
   'delegate.lead': '.team-pop .tp-lead',
@@ -185,6 +187,7 @@ export const PARTS = {
   'card.goal': '#feed .goal-pill',
   'launcher.send': '#launch',
   'launcher.later': '#launchLater',
+  'launcher.more': '#launchMore', // More options: the rest of the bar, until the first task
   'launcher.when': '#launcher .l-when',
   'launcher.recipes': '#launcher .l-recipes',
   'launcher.fab': '#promptFab',
@@ -212,6 +215,7 @@ export const PARTS = {
   // Comments on an answer (features/comments.js): the waiting ones over the box, the button on a
   // block, the bubble over selected words, the note card, the marks, and the sent ones on a prompt.
   'composer.comments': '.composer .cmt-tray',
+  'composer.sendComments': '.composer .cmt-send',
   'answer.comment': '.cmt-add',
   'answer.commentBubble': '.cmt-bubble',
   'answer.commentCard': '.cmt-card',
@@ -243,6 +247,11 @@ export const PARTS = {
   // a turn's Fork from this turn button and the line where a fork's own turns start.
   'card.forkedFrom': '#feed .it-meta .m.fork-from',
   'card.forks': '#feed .it-meta .m.forks',
+  'card.setupWarn': '#feed .it-meta .m.setup-warn', // a worktree's .worktreeinclude copy or setup step failed
+  'mention.picker': '.menu.cr-pick', // @ in a prompt box: crew, My Stuff and files
+  'form.select': '.kit-sel', // a list's button in dialogs and Settings (ui/select.js)
+  'form.selectMenu': '.menu.kit-menu', // its options
+  'mention.file': '.cr-pick .fl-pick', // a file in it
   'turn.fork': '#feed .tb-fork',
   'turn.forkStart': '#feed .fork-line',
   // Split view only (body.split): the task list on one side, the open task on the other.
@@ -300,7 +309,7 @@ export const PARTS = {
   'term.head': '#term .tm-head',
   'term.screen': '#term .tm-screen',
   'term.keys': '#term .tm-keys',
-  // The side panel beside the open task: its tabs (Changes, PR #412, Shell, Watch), the line
+  // The side panel beside the open task: its tabs (Changes, PR #412, Shell, Preview, Watch), the line
   // saying where the task's folder is (computer, branch, what's not shipped), the files the task
   // changed (their summary line and list), the shell in that folder, and the PR's parts. The
   // PR's verdict and Merge aren't parts: a spell can't hide what decides a merge.
@@ -309,6 +318,24 @@ export const PARTS = {
   'panel.changes': '#sidePanel .pn-changes',
   'panel.changes.summary': '#sidePanel .cx-sum',
   'panel.changes.list': '#sidePanel .cx-list',
+  'panel.changes.edit': '#sidePanel .cx-edit', // Edit here on a file's row
+  'panel.changes.open': '#sidePanel .cx-find', // Open file…: any file of the task, in the editor
+  'panel.editor': '#sidePanel .pn-edit', // the editor over Changes
+  'panel.editor.code': '#sidePanel .ed-scroll',
+  'panel.editor.save': '#sidePanel .ed-save',
+  'panel.editor.problems': '#sidePanel .ed-probs', // the language server's problems count
+  'panel.editor.hover': '#sidePanel .ed-hover', // what a name is, on hover
+  // Comments on a diff's lines (features/comments.js): the + over a line under the pointer, and the
+  // numbered mark on a commented line's gutter.
+  'panel.changes.comment': '#sidePanel .cmt-line-add',
+  'panel.changes.commentMark': '#sidePanel .cmt-mark.cmt-line',
+  // Reviewing (features/changes.js): a hunk's Revert, a file's Viewed toggle, and "2 of 7 viewed".
+  'panel.changes.revertHunk': '#sidePanel .cx-hk-rev',
+  'panel.changes.viewed': '#sidePanel .cx-viewed',
+  'panel.changes.viewedCount': '#sidePanel .cx-seen',
+  'panel.changes.stage': '#sidePanel .cx-stage', // a file's Stage / Unstage toggle (+ / −), before Viewed
+  'panel.changes.stageHunk': '#sidePanel .cx-hk-stage', // a hunk's Stage / Unstage, beside its Revert
+  'panel.changes.commit': '#sidePanel .cx-commit', // the commit row under the summary: message, count, Commit
   'panel.place': '#sidePanel .pn-place',
   'panel.shell': '#sidePanel .pn-shell',
   'panel.pr': '#sidePanel .pn-pr',
@@ -317,6 +344,13 @@ export const PARTS = {
   'panel.files': '#sidePanel .pn-files',
   'panel.watch': '#sidePanel .pn-watch',
   'panel.browser': '#sidePanel .pn-browser', // a sandboxed task's browser, live
+  // Preview (features/run.js): the task's app run from its worktree. Its section, the bar over the
+  // running app (address, Pick element, Logs, Restart, Stop), Run in the box that starts it, and its logs.
+  'panel.preview': '#sidePanel .pn-run',
+  'panel.preview.bar': '#sidePanel .rn-bar',
+  'panel.preview.run': '#sidePanel .rn-go',
+  'panel.preview.pick': '#sidePanel .rn-pick',
+  'panel.preview.logs': '#sidePanel .rn-log',
   'watch.caption': '#sidePanel .wt-cap',
   'watch.run': '#sidePanel .wt-run',
   // Settings: the dialog, its list of sections, and the head with the pane's name and close button.
@@ -363,6 +397,10 @@ export const PARTS = {
   'budget.drain': '.sx-budget .bg-drain',
   // …and the Check Codex while work waits row.
   'settings.liveLimits': '.sx-budget .sx-row:has(#liveLimits)',
+  'settings.webhookTriggers': '.sx-row:has(#hookTriggers)',
+  // A hook trigger's editor (features/automations.js): its URL with Copy and Regenerate, and its last deliveries.
+  'automations.hookUrl': '.auto-modal .au-hook',
+  'automations.deliveries': '.auto-modal .au-deliv',
   // The harness picker: how full a window at or past your Ask near the limit line is (server/guard.js).
   // The hold row and the held card aren't parts: they need you, like a due reminder.
   'harness.usage': '.rp-usage',
@@ -440,7 +478,7 @@ export const PART_PROPS = {
   term: { fontSize: 'int' },
   // tab: what it opens on (the toggle, ]), until you open another; swipe: false stops swiping a
   // task page left (and the panel right) bringing it in and out in the phone app
-  panel: { width: 'px', tab: ['changes', 'pr', 'shell', 'watch', 'browser'], swipe: 'bool' },
+  panel: { width: 'px', tab: ['changes', 'pr', 'shell', 'preview', 'watch', 'browser'], swipe: 'bool' },
   'panel.changes': { generated: 'bool' }, // lockfiles and build output listed, not folded under one row (off)
   'panel.pr': { bots: 'bool' }, // bots' comments shown, not folded under one row (off)
 };
@@ -475,7 +513,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'comment', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'grip', 'crew', 'org', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell', 'stuff', 'star', 'image', 'grid', 'app', 'eye', 'share', 'pin', 'judge', 'box'];
+export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'comment', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'grip', 'crew', 'org', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell', 'stuff', 'star', 'image', 'grid', 'app', 'eye', 'share', 'pin', 'judge', 'box', 'issue'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click
@@ -556,6 +594,9 @@ export const SETTINGS = {
   drainWatch: ['on', 'off'],
   // Ask near the limit: before a run would take a 5-hour or weekly window past this share (server/guard.js).
   limitHold: ['off', '80', '90', '95'],
+  // Webhook triggers: a trigger's secret URL (POST /api/hooks/<token>) starts tasks from Slack,
+  // Linear or anything else (server/hooks.js). Off, those URLs answer 404.
+  webhookTriggers: ['on', 'off'],
 };
 
 // GET routes a `wisp` data source may read (patterns, :x = one segment).

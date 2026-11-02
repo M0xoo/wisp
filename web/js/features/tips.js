@@ -87,7 +87,10 @@ function html() {
   const setup = setupHtml() + toolsHtml() + gridHtml();
   if (MOBILE) return setup && `<h4>Tips</h4>${setup}`;
   const n = count();
-  const items = Array.from({ length: n }, (_, i) => TIPS[(at + i) % TIPS.length])
+  // New task's first run keeps Goal and vs behind More options: no tip points at what isn't there
+  const first = !!$('#launcher.first-run');
+  const shown = first ? TIPS.filter(([, , full]) => !full) : TIPS;
+  const items = Array.from({ length: n }, (_, i) => shown[(at + i) % shown.length])
     .map(([text, href]) => `<a class="tip" href="${href}" target="_blank" rel="noopener">${icon('spark')}<span>${text}</span>${icon('external', 'tip-go')}</a>`)
     .join('');
   return `<h4>Tips<button class="tip-more" title="Show other tips">More tips</button></h4>${setup}${items}`;
@@ -134,6 +137,7 @@ paintTips();
 loadTools();
 loadHere();
 bus.on('tools', paintTips);
+bus.on('firstRun', paintTips);
 bus.on('computer', (v) => {
   here = v;
   paintTips();

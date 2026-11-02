@@ -10,6 +10,8 @@
 //   PR     the task's pull request without the noise: the verdict and its one next step, each
 //          check (failing first), where reviewers stand, the conversation (bots and outdated
 //          threads folded), the files. Ask to fix and Send to agent fill the task's reply box.
+//   Preview  the task's app, run from its worktree (run.js, server/runs.js): Run, the page in a
+//          frame, Pick element into the reply box, its logs.
 //   Watch  the page the agent keeps beside the task while it works (watch.js): it opens by itself
 //          when the agent puts one up on the task you're looking at.
 //
@@ -39,8 +41,10 @@ import { slotHtml, spellProp } from './spells.js';
 import { isSplit, isStacked, relayout, splitOpen } from './split.js';
 import { connect, SCREEN_HTML, termState, TermView, TOUCH } from './term-view.js';
 import { changesClick, changesOf, CHANGES_HTML, loadChanges, paintChanges } from './changes.js';
+import { editorFor } from './editor.js';
 import { forgetWatch, loadWatch, paintWatch, WATCH_HTML, watchClick, watchTitle } from './watch.js';
 import { BROWSER_HTML, paintBrowser, sandboxed } from './sandbox-browser.js';
+import { appRunning, loadRun, paintRun, RUN_HTML, runClick, runLabel, runOf, startRun, stopRun, wireRun } from './run.js';
 
 const PANEL_W = 480;
 const MIN_W = 360;
@@ -55,10 +59,13 @@ const keep = () => save('wisp.panel', pref);
 let page = null;
 let pageBack = null;
 const pageOn = () => isStacked() && !!page && page.id === target();
+// Preview is for a task with a worktree.
+const hasTree = (s) => !!s?.branch && !s.pending;
 // Watch on a task with nothing to watch shows its shell.
 const tabOf = () => {
   const tab = pageOn() ? page.tab : pref.tab || spellProp('panel', 'tab') || 'changes';
   if (tab === 'browser' && !sandboxed(S.sessions.get(target()))) return 'changes';
+  if (tab === 'preview' && !hasTree(S.sessions.get(target()))) return 'changes';
   return tab === 'watch' && !S.sessions.get(target())?.watch ? 'changes' : tab;
 };
 
@@ -89,6 +96,7 @@ const panel = el(`
     </section>
     <section class="pn-pr" hidden></section>
     ${CHANGES_HTML}
+    ${RUN_HTML}
     ${WATCH_HTML}
     ${BROWSER_HTML}
   </aside>`);
@@ -137,6 +145,7 @@ function paint() {
   paintName();
   paintPlace();
   paintBody();
+  editorFor(id);
 }
 
 function paintWidth() {
@@ -176,7 +185,10 @@ export function paintDoor(id) {
   const live = shells.get(id)?.code === null;
   const html = `${icon('shell')}<b>Shell</b><span class="sd-sub">${live ? '<i class="sd-live"></i>Running on ' : ''}${esc(placeOf(S.sessions.get(id)).name)}</span>${icon('chevron', 'chev')}`;
   if (door.dataset.h !== html) (door.innerHTML = html), (door.dataset.h = html);
-  door.setAttribute('aria-label', live ? 'Shell, running' : 'Open shell');
+  door.setAttribute('aria-label', live ? 'Shell, running' : 'Shell');
+  // The bar's Shell (a phone's, in place of the door) says the same: running, and where
+  const btn = $('.it-actions .it-shell', S.nodes.get(id)?.body);
+  if (btn) (btn.classList.toggle('live', live), (btn.title = `Shell on ${placeOf(S.sessions.get(id)).name}${live ? ', running' : ''} (⌃\`)`));
   paintMini(id);
 }
 
@@ -202,7 +214,7 @@ function paintBtn() {
 
 // Its head is the tabs, in a fixed order: Changes, the PR (PR #412, PRs with several, PR before
 // there's one), Shell, and Watch last once the agent put a page up, so the others never move.
-const TAB_SECTION = { changes: '.pn-changes', pr: '.pn-pr', shell: '.pn-shell', watch: '.pn-watch', browser: '.pn-browser' };
+const TAB_SECTION = { changes: '.pn-changes', pr: '.pn-pr', shell: '.pn-shell', preview: '.pn-run', watch: '.pn-watch', browser: '.pn-browser' };
 function paintName() {
   const s = S.sessions.get(shown);
   const prs = prsOf(s);
@@ -212,6 +224,7 @@ function paintName() {
     ['changes', 'file', 'Changes'],
     ['pr', 'merge', n > 1 ? 'PRs' : n ? `PR #${prs[0].pr.number}` : 'PR'],
     ['shell', 'shell', 'Shell'],
+    ...(hasTree(s) ? [['preview', 'web', 'Preview', 'Preview: run the app from the task’s worktree']] : []),
     ...(s?.watch ? [['watch', 'eye', 'Watch', watchTitle(shown)]] : []),
     // A sandboxed task's browser, live (sandbox-browser.js): last, so the others never move.
     ...(sandboxed(s) ? [['browser', 'web', 'Browser', 'The sandbox’s browser, live: what the agent drives']] : []),
@@ -219,7 +232,7 @@ function paintName() {
   const html = tabs.map(([k, ic, label, title]) => `<button role="tab" data-tab="${k}" class="${k === tab ? 'on' : ''}" aria-selected="${k === tab}" tabindex="${k === tab ? 0 : -1}" title="${esc(title || label)}">${icon(ic)}<span>${esc(label)}</span></button>`).join('');
   const head = $('.pn-tabs', panel);
   if (head.dataset.h !== html) (head.innerHTML = html), (head.dataset.h = html);
-  panel.setAttribute('aria-label', { shell: 'Shell', watch: 'Watch', changes: 'Changes', pr: 'Pull request', browser: 'Browser' }[tab]);
+  panel.setAttribute('aria-label', { shell: 'Shell', preview: 'Preview', watch: 'Watch', changes: 'Changes', pr: 'Pull request', browser: 'Browser' }[tab]);
   for (const [k, sel] of Object.entries(TAB_SECTION)) $(sel, panel).hidden = tab !== k;
   // Watch is about the page, not the folder: no place line.
   panel.classList.toggle('on-watch', tab === 'watch' || tab === 'browser');
@@ -234,6 +247,7 @@ function paintBody() {
   else if (tab === 'shell') paintShell();
   else if (tab === 'watch') paintWatch($('.pn-watch', panel), shown);
   else if (tab === 'browser') paintBrowser($('.pn-browser', panel), shown, () => tabOf() === 'browser' && paintBody());
+  else if (tab === 'preview') paintRun($('.pn-run', panel), shown);
   else paintPr();
 }
 
@@ -702,6 +716,7 @@ panel.addEventListener('click', (e) => {
   if (tab) return tab !== tabOf() && openPanel(shown, tab);
   if (changesClick(e, shown, cxCtx())) return;
   if (watchClick(e, shown)) return;
+  if (runClick(e, shown)) return;
   const pick = e.target.closest('[data-pick]');
   if (pick) return (picked.set(shown, Number(pick.dataset.pick)), paintPr());
   const f = e.target.closest('[data-fold]')?.dataset.fold;
@@ -818,6 +833,9 @@ bus.on('watch', ({ id, opened }) => {
   else forgetWatch(id);
   if (opened && !on && !isStacked() && target() === id && (panel.hidden || !['shell', 'changes'].includes(tabOf()))) openPanel(id, 'watch');
 });
+// Preview: the app started, answered, stopped (run.js after each look or action).
+bus.on('run', (id) => !panel.hidden && shown === id && tabOf() === 'preview' && paintRun($('.pn-run', panel), id));
+wireRun($('.pn-run', panel), () => shown, { toReply: (id, line) => addToReply(id, line) });
 bus.on('watch:doc', (id) => {
   if (panel.hidden || shown !== id || tabOf() !== 'watch') return;
   paintName();
@@ -922,8 +940,30 @@ export const reviewLabel = (s) => {
   const prs = prsOf(s);
   return !prs.length ? null : prs.length > 1 ? 'Review PRs' : `Review PR #${prs[0].pr.number}`;
 };
-export const shellItem = (id) => `<button data-a="shell">${icon('shell')}Open shell${keyHint('⌃`')}</button>`;
-export const changesItem = () => `<button data-a="changes">${icon('file')}Show changes${keyHint('D')}</button>`;
+export const shellItem = (id) => `<button data-a="shell">${icon('shell')}Shell${keyHint('⌃`')}</button>`;
+export const changesItem = () => `<button data-a="changes">${icon('file')}Changes${keyHint('D')}</button>`;
+// Preview's Run app / Stop app, the same in More, the right-click menu and ⌘K.
+export const runItem = (s) => (hasTree(s) ? `<button data-a="run-app">${icon(appRunning(s.id) ? 'stop' : 'play')}${runLabel(s.id)}</button>` : '');
+export const runAppLabel = (s) => (hasTree(s) ? runLabel(s.id) : null);
+// Stop it if it runs; else open Preview and run it (the command it last ran, the config's, or the
+// guess). Nothing known to run yet, or the last run failed: Preview opens on that.
+export async function runApp(id) {
+  if (appRunning(id)) return stopRun(id);
+  openPanel(id, 'preview');
+  if (!runOf(id)) await loadRun(id);
+  const d = runOf(id);
+  if (d?.running || (d?.exitCode != null && !d.stopped)) return; // running, or it failed: Preview shows that
+  const command = d?.command || d?.config?.command;
+  if (command && d?.canRun !== false) startRun(id, { command });
+}
+// The picked element: a line added to what's in the reply box (stacked, back to the task first).
+function addToReply(id, line) {
+  if (isStacked()) close();
+  const ta = $('.reply', S.nodes.get(id)?.card);
+  if (!ta) return;
+  const text = ta.value.trim() ? `${ta.value.replace(/\s*$/, '')}\n${line} ` : `${line} `;
+  draftInto(id, text);
+}
 export const watchItem = (s) => (s?.watch ? `<button data-a="watch">${icon('eye')}Watch</button>` : '');
 export const panelLabel = () => `${panel.hidden ? 'Show' : 'Hide'} side panel`;
 

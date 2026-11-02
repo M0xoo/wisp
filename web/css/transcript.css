@@ -44,7 +44,7 @@
 .tx-step:hover .tx-t, .tx-msg:hover .tx-t, .tx-step.open .tx-t { opacity: 1; }
 .tx-open {
   flex: none; display: grid; place-items: center; width: 22px; height: 22px; margin: -2px -4px -2px 0; border-radius: 6px;
-  color: var(--faint); opacity: 0; transition: opacity 0.15s, background 0.15s, color 0.15s;
+  color: var(--faint); opacity: 0; cursor: pointer; transition: opacity 0.15s, background 0.15s, color 0.15s;
 }
 .tx-open .i { width: 13px; height: 13px; }
 .tx-step:hover .tx-open, .tx-open:focus-visible { opacity: 1; }
