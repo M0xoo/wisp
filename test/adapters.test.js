@@ -280,6 +280,18 @@ test('claude: a resume that first reports stopped background tasks still ends on
   assert.ok(events.some((e) => e.type === 'change'), 'the work after it is reported too');
 });
 
+test('claude: an exported CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES does not reach the CLI', async () => {
+  process.env.CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES = '1';
+  try {
+    await run('claude').done;
+    const rec = records(RECORD, 'claude').at(-1);
+    assert.ok(rec.argv.includes('-p'), 'a headless run');
+    assert.equal(rec.summaries, undefined, 'absent from the spawned env');
+  } finally {
+    delete process.env.CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES;
+  }
+});
+
 test('claude: passes --chrome when Claude in Chrome is enabled by default', async () => {
   const dir = tmp('claude-config');
   process.env.CLAUDE_CONFIG_DIR = dir;
