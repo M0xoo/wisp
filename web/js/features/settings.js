@@ -227,6 +227,9 @@ export function openSettings(opts) {
           <div class="sx-group">
             ${row('Anonymous usage stats', '<span class="tele-hint"></span>', '<button class="switch" id="tele" role="switch"></button>')}
           </div>
+          <div class="sx-group">
+            ${row('Hide .env values', 'What a task shows of a .env or .env.* file reads KEY=•••• in its activity, diffs and Changes, until you press Reveal there. Not .env.example or .env.sample', '<button class="switch" id="maskEnv" role="switch"></button>')}
+          </div>
           <p class="hint">Agent, model, status, timings and scrubbed errors only.</p>
         </section>
       </div>
@@ -603,6 +606,22 @@ export function openSettings(opts) {
     }
   };
   paintLl();
+  // Hide .env values (server/env-mask.js): on unless set off. Instant, rolled back on a refusal.
+  const me = $('#maskEnv', node);
+  const paintMe = () => me.setAttribute('aria-checked', S.config.defaults.maskEnvFiles !== 'off');
+  me.onclick = async () => {
+    const was = S.config.defaults.maskEnvFiles;
+    S.config.defaults.maskEnvFiles = was === 'off' ? 'on' : 'off';
+    paintMe();
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { maskEnvFiles: S.config.defaults.maskEnvFiles } } }));
+    if (!saved) {
+      S.config.defaults.maskEnvFiles = was;
+      paintMe();
+      return;
+    }
+    bus.emit('envmask'); // what's open shows again with the new setting
+  };
+  paintMe();
   // Ask before running a changed harness (server/harness-watch.js): instant, rolled back on a refusal.
   const ha = $('#harnessAsk', node);
   const paintHa = () => ha.setAttribute('aria-checked', S.config.defaults.harnessAsk === 'on');
@@ -857,7 +876,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', harnessAsk: '#harnessAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers' };
+  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

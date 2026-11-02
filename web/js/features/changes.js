@@ -19,6 +19,7 @@ import { agentName } from './runners.js';
 import { spellProp } from './spells.js';
 import { wholeTask } from './feed.js';
 import { paintLineMarks } from './comments.js';
+import { hide, maskBar, reveal, revealedOf } from '../env-mask.js';
 
 const SHOWN_LINES = 300; // a file's diff past this waits for Show more
 const SHOWN_FILES = 200;
@@ -62,6 +63,8 @@ function setSeen(id, f, on) {
   } catch {}
 }
 const setOf = (m, id) => m.get(id) || (m.set(id, new Set()), m.get(id));
+// .env files whose Reveal is on, per task (server/env-mask.js): /changes sends those unmasked.
+const unmaskedPaths = new Map();
 
 // What wisp captured, merged per file in turn order. Paths under the task's folder lose it.
 function captured(id, root) {
@@ -72,8 +75,11 @@ function captured(id, root) {
   const by = new Map();
   for (const t of s.turns || [])
     for (const c of t.changes || []) {
-      const f = by.get(c.file) || { path: strip(c.file), status: c.op === 'create' ? 'A' : 'M', edits: [], reverted: true };
-      if (!c.reverted) (f.edits.push(...(c.edits || [])), (f.reverted = false));
+      const f = by.get(c.file) || { path: strip(c.file), status: c.op === 'create' ? 'A' : 'M', edits: [], reverted: true, envq: [] };
+      // A .env file's edits come masked: Reveal fetched them as they are (env-mask.js).
+      const raw = revealedOf(id, c.masked);
+      if (c.masked) f.envq.push(c.masked);
+      if (!c.reverted) (f.edits.push(...((raw || c).edits || [])), (f.reverted = false));
       by.set(c.file, f);
     }
   return [...by.values()]
@@ -81,7 +87,8 @@ function captured(id, root) {
       const n = f.reverted ? { add: 0, del: 0 } : countChanges(f.edits);
       // Each edit is a snippet, not the whole file: its lines aren't numbered, a gap row sits between.
       const rows = f.edits.flatMap((e, i) => [...(i ? [{ op: 'sep' }] : []), ...hunks(diffLines(e.before || '', e.after || ''), 3).map((r) => ({ ...r, a: undefined, b: undefined }))]);
-      return { path: f.path, status: f.status, add: n.add, del: n.del, reverted: f.reverted, rows, more: 0 };
+      const shown = f.envq.length && f.envq.every((q) => revealedOf(id, q));
+      return { path: f.path, status: f.status, add: n.add, del: n.del, reverted: f.reverted, rows, more: 0, ...(f.envq.length && { envq: f.envq, ...(shown ? { unmasked: true } : { masked: true }) }) };
     })
     .sort((a, b) => a.path.localeCompare(b.path));
 }
@@ -93,7 +100,8 @@ export async function loadChanges(id, { root } = {}) {
   job.p = (async () => {
     let out;
     try {
-      const r = await api(`/sessions/${id}/changes`);
+      const reveal = [...(unmaskedPaths.get(id) || [])].map((p) => `reveal=${encodeURIComponent(p)}`).join('&');
+      const r = await api(`/sessions/${id}/changes${reveal ? `?${reveal}` : ''}`);
       // staging: the server says what's staged (a wisp too old to say has neither field)
       out = r.files ? { files: r.files, base: r.base, git: true, untracked: r.untracked, staging: r.files.every((f) => 'staged' in f) } : null;
     } catch (err) {
@@ -104,6 +112,7 @@ export async function loadChanges(id, { root } = {}) {
       const files = captured(id, root);
       out = files ? { files, git: false, ...(out?.error && !data.get(id)?.files ? { error: out.error } : {}) } : out || { files: null };
     }
+    for (const f of out?.git ? out.files || [] : []) if (unmaskedPaths.get(id)?.has(f.path)) f.unmasked = true;
     data.set(id, { ...out, at: Date.now() });
   })();
   await job.p;
@@ -232,7 +241,8 @@ function paintFile(node, id, f, git, seen, staging) {
   const all = setOf(whole, id).has(f.path);
   const rows = all ? f.rows : f.rows.slice(0, SHOWN_LINES);
   const left = f.rows.length - rows.length + (f.more || 0);
-  const v = `${hash(f.rows)}:${rows.length}:${f.more || 0}`;
+  const env = f.masked || f.unmasked;
+  const v = `${hash(f.rows)}:${rows.length}:${f.more || 0}:${f.masked ? 'm' : f.unmasked ? 'u' : ''}`;
   if (diff?.dataset.v === v) return;
   const lang = langOf(f.path);
   const numbered = git;
@@ -257,6 +267,7 @@ function paintFile(node, id, f, git, seen, staging) {
       .join('');
   } else body = `<tbody>${rows.map((o) => (o.op === 'sep' ? '<tr class="sep"><td colspan="3"></td></tr>' : o.op === '…' ? gap(o) : line(o))).join('')}</tbody>`;
   const html = `
+    ${env ? maskBar(f.path, '', !!f.unmasked, ' data-a="cx-env"') : ''}
     ${f.from ? `<p class="cx-from">${icon('arrow')}Renamed from <code>${esc(f.from)}</code></p>` : ''}
     <div class="diff-scroll"${numbered ? ` tabindex="0" aria-label="${esc(`Diff of ${f.path}: ↑ ↓ pick a line, Enter comments on it`)}"` : ''}><table>${body}</table></div>
     ${left > 0 ? (all ? `<p class="cx-cut">${left} more line${left > 1 ? 's' : ''} not shown: open the file to read them all.</p>` : `<button class="ghost xs cx-show" data-a="cx-whole">Show ${left} more line${left > 1 ? 's' : ''}</button>`) : ''}`;
@@ -409,6 +420,30 @@ export function changesClick(e, id, ctx) {
     if (can.every((f) => set.has(f.path))) set.clear();
     else for (const f of can) set.add(f.path);
     return (ctx.repaint(), true);
+  }
+  if (a === 'cx-env') {
+    // Reveal / Hide a .env file's values here: the button flips at once, the diff follows.
+    const f = d?.files?.find((x) => x.path === path);
+    if (!f) return true;
+    const on = !f.unmasked;
+    b.textContent = on ? 'Hide' : 'Reveal';
+    b.setAttribute('aria-pressed', on);
+    const paths = setOf(unmaskedPaths, id);
+    if (!on) {
+      paths.delete(path);
+      for (const q of f.envq || []) hide(id, q);
+      return (ctx.reload(), true);
+    }
+    if (d.git) return (paths.add(path), ctx.reload(), true);
+    Promise.all((f.envq || []).map((q) => reveal(id, q))).then(
+      () => ctx.reload(),
+      (err) => {
+        b.textContent = 'Reveal';
+        b.setAttribute('aria-pressed', false);
+        toastError(`Couldn’t reveal it: ${err.message}`);
+      },
+    );
+    return true;
   }
   if (a === 'cx-toggle') {
     const set = setOf(open, id);

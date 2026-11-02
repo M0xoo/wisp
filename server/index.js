@@ -5,6 +5,7 @@
 //   routes/    one file per area of the API (sessions, ship, settings, machines, …)
 //   services/  what several routes and background jobs share (launching, Ship it, Auto, …)
 
+import { maskOn, maskStep } from './env-mask.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -201,7 +202,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.lastActivityAt = Date.now();
   for (const e of ['started', 'turn', 'ended']) runner.on(e, () => (app.lastActivityAt = Date.now()));
   runner.on('summary', (s) => app.broadcast('summary', s));
-  runner.on('activity', (a) => app.broadcast('activity', a));
+  runner.on('activity', (a) => app.broadcast('activity', maskOn(store.config) ? { ...a, item: maskStep(a.item, a.turnId) } : a)); // .env output masked (env-mask.js)
   runner.on('turn', (t) => app.broadcast('turn', t));
   runner.on('finished', (f) => app.broadcast('finished', f));
   runner.on('finished', ({ session }) => notifyWebhooks(store, session));

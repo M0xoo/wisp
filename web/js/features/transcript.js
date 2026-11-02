@@ -2,7 +2,8 @@
 // ends with its presentation, rendered as blocks. Off by default (Settings → General → Full
 // transcript); any card switches with its Transcript button or V.
 
-import { countChanges, fmtDuration, renderPresentation } from '../blocks.js';
+import { bindReveal, countChanges, fmtDuration, renderPresentation } from '../blocks.js';
+import { maskBar, revealedOf } from '../env-mask.js';
 import { esc, md } from '../md.js';
 import { $, el, icon } from '../core/dom.js';
 import { load, S, save } from '../core/state.js';
@@ -230,20 +231,33 @@ export function updateStep(turnNode, item, t) {
   }
 }
 
+const envName = (cmd) => String(cmd || '').match(/\.env(?:\.[\w.-]+)?/)?.[0] || '.env';
+
 // What a step opens to.
 function moreEl(a, t, ctx) {
   if (a.kind === 'edit') {
-    const edits = editsOf(a, t);
+    // A .env file's edits come masked (server/env-mask.js); Reveal draws them as they are.
+    const sid = ctx?.session?.id;
+    const mq = findChange(t, a.file)?.masked;
+    const raw = revealedOf(sid, mq);
+    const edits = raw ? editsOf(a, { changes: [raw] }) : editsOf(a, t);
     if (!edits) return el(`<div class="tx-more"><p class="tx-none">No captured edits for this file.</p></div>`);
     const blocks = edits.map((e) => ({ type: 'diff', file: a.file, before: e.before, after: e.after, bare: true }));
-    const box = el(`<div class="tx-more tx-diff"></div>`);
+    const box = el(`<div class="tx-more tx-diff">${mq && sid ? maskBar(a.file, mq, !!raw) : ''}</div>`);
     box.append(renderPresentation({ blocks }, { ...ctx, turn: t }));
+    bindReveal(box, sid, mq, () => moreEl(a, t, ctx));
     return box;
   }
   if (a.kind === 'error') return el(`<div class="tx-more"><pre class="tx-out err">${esc(a.label)}</pre></div>`);
   const cmd = a.detail ? `<span class="tx-cmdline">${a.kind === 'run' ? '<b>$</b> ' : ''}${esc(a.detail)}</span>` : '';
-  const out = a.output ? `<span class="tx-res">${esc(a.output)}</span>` : '';
-  return el(`<div class="tx-more"><pre class="tx-out">${cmd}${out}</pre></div>`);
+  // What a command that read a .env file printed comes masked (server/env-mask.js).
+  const sid = ctx?.session?.id;
+  const raw = revealedOf(sid, a.masked);
+  const output = raw?.output ?? a.output;
+  const out = output ? `<span class="tx-res">${esc(output)}</span>` : '';
+  const node = el(`<div class="tx-more">${a.masked && sid ? maskBar(a.file || envName(a.detail), a.masked, !!raw) : ''}<pre class="tx-out">${cmd}${out}</pre></div>`);
+  bindReveal(node, sid, a.masked, () => moreEl(a, t, ctx));
+  return node;
 }
 
 async function toggleStep(li, a, t, ctx) {

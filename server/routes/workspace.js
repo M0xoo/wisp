@@ -27,6 +27,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { ensureWorktree, gh, git, taskChanges, worktreeStatus } from '../git.js';
 import { hunkKey, hunksOf, revertHunk } from '../hunks.js';
+import { maskChangesFile, maskOn, maskRow } from '../env-mask.js';
+// The page may have shown a .env file's hunk masked: its key is the masked rows'.
+const sameHunk = (rows, key) => hunkKey(rows) === key || hunkKey(rows.map(maskRow)) === key;
 import { commitStaged, hunkable, stageFile, stageHunk, stageState } from '../stage.js';
 import { ptySupported } from '../pty.js';
 import { workdir } from '../runner.js';
@@ -224,6 +227,9 @@ export function register(r, app) {
     one(async (c, s) => {
       if (s.worktree && !fs.existsSync(s.worktree.path)) await ensureWorktree(s.worktree).catch(() => {});
       const out = s.worktree && !shellDir(s).gone ? await stageState(s.worktree.path, await taskChanges(s.worktree)) : null;
+      // .env files' values masked, but for the ones whose Reveal is on (?reveal=<path>, repeated).
+      const reveal = new Set(c.query.getAll('reveal'));
+      if (out?.files && maskOn(store.config)) out.files = out.files.map((f) => maskChangesFile(f, reveal));
       c.send(200, out || { files: null });
     }),
   );
@@ -260,7 +266,7 @@ export function register(r, app) {
         if (f.status === 'A' || f.status === 'D' || f.binary) throw bad('That file is new or deleted as a whole: revert the file.');
         const hs = hunksOf(f.rows);
         const h = hs[body.hunk];
-        if (!h || (body.key && hunkKey(h.rows) !== body.key)) return c.send(409, { error: STALE });
+        if (!h || (body.key && !sameHunk(h.rows, body.key))) return c.send(409, { error: STALE });
         if (f.more && body.hunk === hs.length - 1) throw bad('That part is longer than Changes shows: revert the file, or edit it.');
         const file = sourceFile(s, f.path);
         if (!file) return c.send(409, { error: STALE });
@@ -311,7 +317,7 @@ export function register(r, app) {
           if (!hunkable(f)) throw bad('That file is new, deleted or binary: stage the whole file.');
           const hs = hunksOf(f.rows);
           const h = hs[body.hunk];
-          if (!h || (body.key && hunkKey(h.rows) !== body.key)) return c.send(409, { error: STALE });
+          if (!h || (body.key && !sameHunk(h.rows, body.key))) return c.send(409, { error: STALE });
           if (f.more && body.hunk === hs.length - 1) throw bad('That part is longer than Changes shows: stage the file.');
           if (!(await stageHunk(root, f, body.hunk, { unstage }))) return c.send(409, { error: gone });
         } else if (!(await stageFile(root, [f.path, f.from], { unstage }))) return c.send(409, { error: gone });

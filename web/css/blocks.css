@@ -141,6 +141,19 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .code-head .file { display: inline-flex; min-width: 0; }
 .lineno { font: 12.5px var(--mono); color: var(--faint); }
 .diff-scroll, .code-scroll { overflow-x: auto; max-height: 560px; overflow-y: auto; }
+/* A .env file's values masked (server/env-mask.js): one quiet line over the diff or output, Reveal at its end.
+   Fixed height, so Reveal ⇄ Hide moves nothing. */
+.env-mask {
+  display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 4px 8px 4px 14px;
+  border-bottom: 1px solid var(--line); background: var(--surface-2); font: 12.5px var(--sans); color: var(--muted);
+}
+.env-mask .env-what { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.env-mask .env-reveal { flex: none; min-width: 64px; justify-content: center; }
+.tx-more > .env-mask { border: 1px solid var(--line); border-bottom: 0; border-radius: 8px 8px 0 0; }
+.tx-more > .env-mask + .tx-out { border-top-left-radius: 0; border-top-right-radius: 0; }
+.tx-more.tx-diff > .env-mask { border-radius: 8px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+.cx-diff > .env-mask { border-top: 1px solid var(--line); }
+@media (pointer: coarse) { .env-mask .env-reveal { min-height: 44px; } }
 .b-diff table, .b-code table { border-collapse: collapse; width: 100%; font: 12.5px/1.65 var(--mono); }
 .b-diff td, .b-code td { padding: 0; vertical-align: top; }
 .b-diff .no, .b-code .no { width: 1%; min-width: 36px; padding: 0 10px 0 12px; text-align: right; color: var(--faint); user-select: none; font-size: 11.5px; }

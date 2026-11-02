@@ -407,6 +407,11 @@ export const PARTS = {
   // running a changed harness row.
   'harness.change': '.hw-note',
   'settings.harnessAsk': '.sx-row:has(#harnessAsk)',
+  // .env masking (server/env-mask.js): the line over a masked .env diff or command output, its
+  // Reveal / Hide button, and the Hide .env values row in Settings → Privacy.
+  'env.masked': '.env-mask',
+  'env.reveal': '.env-mask .env-reveal',
+  'settings.maskEnvFiles': '.sx-row:has(#maskEnv)',
   'budget.drain': '.sx-budget .bg-drain',
   // …and the Check Codex while work waits row.
   'settings.liveLimits': '.sx-budget .sx-row:has(#liveLimits)',
@@ -608,6 +613,8 @@ export const SETTINGS = {
   drainWatch: ['on', 'off'],
   // Ask before running a changed harness: hold a run whose harness's program changed until you trust it (server/harness-watch.js).
   harnessAsk: ['on', 'off'],
+  // Hide .env values: a .env / .env.* file's values show as KEY=•••• in activity, diffs and Changes until Reveal (server/env-mask.js).
+  maskEnvFiles: ['on', 'off'],
   // Ask near the limit: before a run would take a 5-hour or weekly window past this share (server/guard.js).
   limitHold: ['off', '80', '90', '95'],
   // Webhook triggers: a trigger's secret URL (POST /api/hooks/<token>) starts tasks from Slack,

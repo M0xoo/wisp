@@ -148,6 +148,11 @@ addEventListener('online', () => {
   for (const id of S.open) scheduleRefetch(id, 0); // the task on screen doesn't wait for the stream's hello
 });
 
+// Hide .env values turned on or off (Settings → Privacy): the open tasks come again masked or not.
+bus.on('envmask', () => {
+  for (const id of S.open) scheduleRefetch(id, 0);
+});
+
 // The phone asks for what changed since its last list (thousands of tasks are hundreds of KB, and
 // it fetches the list each time it comes back); the answer says when it's the whole list instead.
 export const loadSessions = shared(async () => {
