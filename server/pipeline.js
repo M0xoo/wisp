@@ -13,7 +13,7 @@
 
 import { judge, diffOf } from './judge.js';
 import { workdir } from './runner.js';
-import { infraError, tierOf } from './router.js';
+import { BLIP_MS, infraError, limitOf, tierOf } from './router.js';
 
 // What an errored turn said (the terminal block the runner puts on it).
 const errorText = (turn) => (turn.presentation?.blocks || []).filter((b) => b.type === 'terminal').map((b) => b.output || '').join('\n');
@@ -32,6 +32,7 @@ export function autoSettings(d = {}) {
 
 export class Pipeline {
   // deps: { store, runner, router, settings(), agents(), projectOf(session), launchSibling(session, pick),
+  //         windows(agent, account) (server/budget.js: the account's usage windows now),
   //         onSettled(session), broadcast(event, data) }
   constructor(deps) {
     Object.assign(this, deps);
@@ -61,7 +62,8 @@ export class Pipeline {
     const live = () => this.tokens.get(session.id) === token && this.store.get(session.id) === session;
     const s = this.settings();
     try {
-      const limit = turn.status === 'error' && infraError(errorText(turn));
+      // A Codex 429 while its plan has room is a short pause, not a 10-minute rest (router.js limitOf).
+      const limit = turn.status === 'error' && limitOf(errorText(turn), { agent: session.agent, windows: this.windows?.(session.agent, session.account || 'default') });
       if (limit) return await this.#moveOn(session, turn, limit, live);
       if (turn.status === 'error' && s.escalate && this.#canEscalate(session)) {
         // A step up: a stronger tier than this run's (or the strongest there is, if it was already top).
@@ -96,13 +98,28 @@ export class Pipeline {
     const cooled = this.router.cool(session.route?.key || `${session.agent}:${session.model || ''}`, { ...limit, why });
     this.router.void(session.id);
     const name = cooled.endsWith(':*') ? session.route?.label?.split(' · ')[0] || session.agent : session.route?.label || session.agent;
-    const tried = [...(a.tried || []), session.route?.key].filter(Boolean);
-    const pick = tried.length < MAX_MOVES ? this.router.choose({ prompt: session.turns[0].prompt, agents: this.agents(), goal: session.route?.goal || 'balanced', exclude: tried, needDelegate: !!session.subagents?.length }) : null;
+    // A blip doesn't strike the arm off for this task (it may be picked again once its minute is up),
+    // but it gets one more go at most: the run after the wait carries it in `tried`.
+    const key = session.route?.key;
+    const tried = [...(a.tried || []), !limit.blip && key].filter(Boolean);
+    const choose = (exclude) => (tried.length < MAX_MOVES ? this.router.choose({ prompt: session.turns[0].prompt, agents: this.agents(), goal: session.route?.goal || 'balanced', exclude, needDelegate: !!session.subagents?.length }) : null);
+    let pick = choose([...tried, key].filter(Boolean));
+    if (limit.blip) {
+      this.#note(session, turn, 'check', `${name} said “too many requests” with its plan not used up: it rests a minute, not ten`);
+      // Nothing else can run: wait out the minute and try the same harness once more.
+      if (!pick && key && !tried.includes(key)) {
+        this.#stage(session, turn, 'moving', `${name} said “too many requests” · trying again in a minute`);
+        await new Promise((r) => setTimeout(r, this.blipMs ?? limit.ms + 1000));
+        if (!live()) return;
+        pick = choose(tried);
+        tried.push(key);
+      }
+    }
     if (!pick) {
       this.#note(session, turn, 'check', `${name} is at its limit, and nothing else Auto may use can run right now`);
       return this.#settle(session);
     }
-    this.#stage(session, turn, 'moving', `${name} is at its limit · moving to ${pick.label}`);
+    this.#stage(session, turn, 'moving', pick.key === key ? `Trying ${pick.label} again` : `${name} is at its limit · moving to ${pick.label}`);
     const sib = await this.launchSibling(session, pick, { reason: 'limit', tried });
     if (!live()) return;
     a.escalatedTo = sib.id;
