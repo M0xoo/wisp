@@ -77,6 +77,10 @@ function checked(a) {
 export const adapters = Object.fromEntries([claude, codex, opencode, cursor, antigravity, grok, copilot].map((a) => [a.id, checked(a)]));
 
 const detected = new Map();
+const versions = new Map(); // id -> the version its last detect reported (server/harness-watch.js)
+
+// The version a harness's detect last reported, or '' before one ran.
+export const detectedVersion = (id) => versions.get(id) || '';
 
 // fresh: detect again even where a hit is cached (Settings → Agents → Re-check), so a newly
 // signed-in provider's models or an upgraded CLI show up without restarting wisp. fresh: '<id>'
@@ -94,6 +98,7 @@ export async function listAgents({ fresh = false } = {}) {
           a.detect().then(async (f) => (f.available && (await signedIn(a.id).catch(() => null)) === false ? { ...f, available: false, signedIn: false, error: 'Not signed in' } : f)),
         );
       const found = await detected.get(a.id);
+      if (found.version) versions.set(a.id, found.version);
       // Only a hit is cached: a CLI installed while wisp is running shows up on the next call. A
       // signed-out one stays cached too; signing in from wisp detects again.
       if (!found.available && found.signedIn !== false) detected.delete(a.id);

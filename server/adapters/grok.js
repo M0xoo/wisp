@@ -26,6 +26,7 @@ const REFUSED = /permission required: (\S+) ?(.*?) was not run\b/g;
 
 export default {
   id: 'grok',
+  bin: () => BIN, // the program it runs (server/harness-watch.js)
   name: 'Grok',
   askTool: 'wisp__ask_user',
   models: [{ id: '', label: 'Default', hint: 'Whatever Grok is set to' }],

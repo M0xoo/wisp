@@ -335,6 +335,12 @@ test('ask near the limit: limitHold is a setting with its lines; the harness pic
   for (const sel of Object.values(schema.PARTS)) assert.ok(!/\.(c-hold|l-hold|b-held|st-held)\b/.test(sel), `${sel} must not be a part: a held send needs you`);
 });
 
+test('Harness watch: Ask before running a changed harness is a setting; the change line and its row are parts', () => {
+  assert.deepEqual(problems({ ...base0, settings: { harnessAsk: 'on' } }), []);
+  assert.ok(problems({ ...base0, settings: { harnessAsk: 'always' } }).some((x) => /harnessAsk/.test(x) && /on \| off/.test(x)));
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.harnessAsk'] }, parts: { 'harness.change': { style: { opacity: '0.8' } } } }), []);
+});
+
 test('a harness’s own stop line and Drain watch are settings; their rows and the drain card are parts', () => {
   assert.deepEqual(problems({ ...base0, settings: { autoStopCodex: '50', autoStopClaude: 'same', drainWatch: 'on', liveLimits: 'on' } }), []);
   assert.ok(problems({ ...base0, settings: { liveLimits: 'sometimes' } }).some((x) => /liveLimits/.test(x)));

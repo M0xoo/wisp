@@ -402,6 +402,11 @@ export const PARTS = {
   // …a harness's own Automations stop at row, the Drain watch row, and its card on an account.
   'settings.autoStopBy': '.sx-budget .us-by-row',
   'settings.drainWatch': '.sx-budget .sx-row:has(#drainWatch)',
+  // Harness watch (server/harness-watch.js): the line a task and Settings → Agents show when a
+  // harness's program changed since wisp pinned it (with Trust this version), and the Ask before
+  // running a changed harness row.
+  'harness.change': '.hw-note',
+  'settings.harnessAsk': '.sx-row:has(#harnessAsk)',
   'budget.drain': '.sx-budget .bg-drain',
   // …and the Check Codex while work waits row.
   'settings.liveLimits': '.sx-budget .sx-row:has(#liveLimits)',
@@ -601,6 +606,8 @@ export const SETTINGS = {
   liveLimits: ['on', 'off'],
   // Drain watch: warn when an account's recent runs take twice its usual share of a window per unit of work.
   drainWatch: ['on', 'off'],
+  // Ask before running a changed harness: hold a run whose harness's program changed until you trust it (server/harness-watch.js).
+  harnessAsk: ['on', 'off'],
   // Ask near the limit: before a run would take a 5-hour or weekly window past this share (server/guard.js).
   limitHold: ['off', '80', '90', '95'],
   // Webhook triggers: a trigger's secret URL (POST /api/hooks/<token>) starts tasks from Slack,

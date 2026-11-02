@@ -40,6 +40,7 @@ import { Accounts, useAccounts } from './accounts.js';
 import { Budget, addShare, holdWhy, stopFor, drainWhy } from './budget.js';
 import { createLiveLimits, readCodex } from './live-limits.js';
 import { Guard } from './guard.js';
+import { HarnessWatch } from './harness-watch.js';
 import { DEFAULT_PORT, VERSION } from './util.js';
 import { Routes } from './http/router.js';
 import { send, eventStream } from './http/respond.js';
@@ -154,6 +155,9 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   // it should wait for you or the reset.
   const guard = new Guard({ store, budget });
   runner.guard = guard;
+  // Harness watch (server/harness-watch.js): says when a harness's program changed since wisp pinned it.
+  const harnessWatch = new HarnessWatch(store.home);
+  runner.harnessWatch = harnessWatch;
   const events = eventStream();
   const app = {
     port,
@@ -298,6 +302,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.accounts = accounts;
   app.budget = budget;
   app.guard = guard;
+  app.harnessWatch = harnessWatch;
   app.agentLogin = createAgentLogin({
     accounts,
     onChange: (v) => {

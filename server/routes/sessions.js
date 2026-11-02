@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { adapters, listAgents } from '../adapters/index.js';
+import { adapters, detectedVersion, listAgents } from '../adapters/index.js';
 import { btwQuestion } from '../btw.js';
 import { notSide, sideAsk } from '../side.js';
 import { goalView } from '../goal.js';
@@ -578,7 +578,15 @@ export function register(r, app) {
       const { action } = await c.body();
       const t = s.turns.at(-1);
       if (t?.status !== 'held') return c.send(404, { error: 'Nothing on this task is waiting for the limit.' });
-      if (action === 'start') {
+      // A changed harness (server/harness-watch.js): start trusts what's there now, then runs it.
+      if (t.held.harness && action === 'start') {
+        const a = adapters[t.held.agent];
+        if (t.held.harness.checking && a?.bin) await app.harnessWatch?.observe(t.held.agent, a.bin(), detectedVersion(t.held.agent));
+        app.harnessWatch?.trust(t.held.agent);
+        for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
+        runner.release(s);
+      } else if (t.held.harness && action === 'wait') return c.send(400, { error: 'A changed harness waits for you: trust it, or skip this run.' });
+      else if (action === 'start') {
         app.guard.confirm({ agent: t.held.agent, account: t.held.account, kind: t.held.kind, origin: s.origin, crew: s.crew, session: s });
         for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
         runner.release(s);

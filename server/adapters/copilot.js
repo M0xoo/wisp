@@ -35,6 +35,7 @@ const totals = new Map();
 
 export default {
   id: 'copilot',
+  bin: () => BIN, // the program it runs (server/harness-watch.js)
   name: 'Copilot',
   askTool: 'wisp-ask_user',
   models: [{ id: '', label: 'Default', hint: 'Whatever Copilot is set to' }],

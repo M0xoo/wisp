@@ -53,6 +53,7 @@ const toml = (v) =>
 
 export default {
   id: 'codex',
+  bin: () => BIN, // the program it runs (server/harness-watch.js)
   name: 'Codex',
   askTool: 'mcp__wisp__ask_user',
   fork: true, // run({ resumeId, fork }) answers on a copy of the conversation (/btw)

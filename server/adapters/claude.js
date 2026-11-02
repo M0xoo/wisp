@@ -116,6 +116,7 @@ const PERMISSION_MODES = {
 
 export default {
   id: 'claude',
+  bin: () => BIN, // the program it runs (server/harness-watch.js)
   name: 'Claude Code',
   // Asks wisp before a tool call its permission mode won't allow on its own (Edits mode).
   approveTool: 'mcp__wisp__approve',

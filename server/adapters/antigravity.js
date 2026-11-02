@@ -37,6 +37,7 @@ const EFFORT_SUFFIX = /-(low|medium|high)$/;
 
 export default {
   id: 'antigravity',
+  bin: () => BIN, // the program it runs (server/harness-watch.js)
   name: 'Antigravity',
   askTool: null,
   models: [{ id: '', label: 'Default', hint: 'Whatever Antigravity is set to' }],

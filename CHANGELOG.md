@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Added
 
 - **Phone app: dictate a prompt.** In the Android app a mic next to the paperclip, in New task and in a task's reply box, types what you say into the box as you speak, using the phone's own speech recognition. Tap it again to stop. wisp asks for the microphone the first time; refused, it says how to allow it. Browsers and the desktop app are unchanged. Spells: the `composer.mic` and `launcher.mic` parts and the `mic` icon.
+- **wisp says when a harness's program changed.** The first time wisp runs Claude Code, Codex, Cursor, opencode, Copilot or another harness it keeps where its program is, its size, sha256 and version. If that changes, the task and Settings → Agents say so (“Codex changed since 2 Nov: 0.1.2 → 0.1.3”) with *Trust this version*: a newer version in the same install folder is a plain line, another folder or the same version with other bytes is a warning. Nothing is blocked unless you turn on *Ask before running a changed harness* (Settings → Agents, off by default): then a run on a changed harness waits for *Trust and start* or *Skip this run*. Spells: the `harness.change` and `settings.harnessAsk` parts and the `harnessAsk` setting.
 
 ### Fixed
 

@@ -19,6 +19,7 @@ import { feedbackOn, rateTurn, whyForm } from './feedback.js';
 import { projectById } from './places.js';
 import { accountMark, accountOf, agentName, DEFAULT_MODE, effortLabel, limitUntil, modelBadge, MODES } from './runners.js';
 import { heldCard } from './hold.js';
+import { harnessNote } from './harness-watch.js';
 import { scheduleFollowUp } from './later.js';
 import { scrollByPx, topInset, watching } from './scroll.js';
 import { prsOf, renderPrStrip, shipDialog } from './ship.js';
@@ -596,6 +597,9 @@ function renderTurn(s, t, isLatest, fold, tx) {
   const atts = [...ask.querySelectorAll('.ask-atts img')];
   atts.forEach((img, index) => img.addEventListener('click', () => viewImage(img.src, img.alt, { list: atts.map((i) => ({ src: i.src, alt: i.alt })), index })));
   node.append(ask);
+  // Its harness's program changed since wisp pinned it (features/harness-watch.js), until trusted.
+  const hw = t.status !== 'held' && t.harness && harnessNote(t.agent || s.agent, t.harness);
+  if (hw) node.append(el(hw));
 
   if (t.status === 'held') {
     // Held near the limit (features/hold.js): the card is all there is until it goes.

@@ -31,8 +31,10 @@ import { openUnlisted, pruneSubs, subsUnder } from './lineage.js';
 import { backToPlace, goBack, goHome, isSplit, isStacked, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
 
 // A run held near the limit (features/hold.js), on its row: the window, and when it goes by itself.
-const heldSub = (s) => (s.held.waiting ? `Waiting for the ${s.held.label.toLowerCase()} reset` : `${s.held.label} window at ${Math.floor(s.held.used * 100)}%`);
-const heldTip = (s) => `${s.held.label} window at ${Math.floor(s.held.used * 100)}% · goes by itself ${aheadLabel(s.held.until)}`;
+// One held for a changed harness (features/harness-watch.js) waits for you instead.
+const heldSub = (s) => (s.held.harness ? `Waits for you to trust ${agentName(s.agent)}` : s.held.waiting ? `Waiting for the ${s.held.label.toLowerCase()} reset` : `${s.held.label} window at ${Math.floor(s.held.used * 100)}%`);
+const heldTip = (s) => (s.held.harness ? `${agentName(s.agent)} changed since wisp last ran it: Trust and start, or Skip this run` : heldTipLimit(s));
+const heldTipLimit = (s) => `${s.held.label} window at ${Math.floor(s.held.used * 100)}% · goes by itself ${aheadLabel(s.held.until)}`;
 
 function visible(list) {
   return S.filter === 'all' ? list : list.filter((s) => inProject(s, S.filter));
