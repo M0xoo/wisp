@@ -37,6 +37,7 @@ import { parseWhen } from '../when.js';
 import { addPlan, aheadLabel, followUpItems, planAsk, planSaid, scheduleFollowUp, timeMenu, whenTip } from './later.js';
 import { keyedRows, queuedItems } from './queued.js';
 import { hideHold, holdNow, showHold } from './hold.js';
+import { micFor, micHtml } from './dictate.js';
 import { commentCount, commentTray, paintCommentTray, restoreComments, takeComments, withPending } from './comments.js';
 
 export function draftInto(id, text) {
@@ -100,6 +101,7 @@ export function renderDock(id) {
       ${replyGoalHtml()}
       <div class="c-bar">
         <button class="icon-btn c-attach" title="Attach files">${icon('clip')}</button>
+        ${micHtml('c-mic')}
         <button class="mode-btn c-mode" aria-haspopup="menu"></button>
         <button class="c-runner" aria-haspopup="dialog"></button>
         <button class="c-place" aria-haspopup="menu" hidden></button>
@@ -127,6 +129,7 @@ export function renderDock(id) {
   autosize(ta, 260);
   acceptFiles(comp, ta, n.tray);
   $('.c-attach', comp).onclick = n.tray.pick;
+  micFor($('.c-mic', comp), ta, { onStart: () => comp.classList.add('awake') });
   $('.c-done', comp).onclick = () => toggleDone(id);
   $('.c-ship', comp).onclick = () => shipDialog(id);
   $('.c-queue', comp).onclick = toggleQueue;

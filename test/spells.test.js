@@ -901,3 +901,9 @@ test("phone attach menu: a part, and its camera and video icons", () => {
   assert.ok(schema.ICONS.includes('camera') && schema.ICONS.includes('video'));
   assert.ok(problems({ ...base0, ui: { hide: ['composer.attachMenus'] } }).length, 'a typo is refused');
 });
+
+test('phone dictation: the mic is a part in New task and the reply box, with its icon', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['composer.mic', 'launcher.mic'] }, parts: { 'composer.mic': { style: { color: 'var(--accent)' } } } }), []);
+  assert.ok(schema.ICONS.includes('mic'));
+  assert.ok(problems({ ...base0, ui: { hide: ['composer.mike'] } }).length, 'a typo is refused');
+});

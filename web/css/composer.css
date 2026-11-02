@@ -175,3 +175,5 @@
 }
 a.mn:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 .menu.att-menu button:focus-visible { outline: 0; background: var(--bg-2); color: var(--ink); } /* the phone attach menu (attachments.js) */
+/* The phone app's mic (features/dictate.js): listening shows in the accent, quietly. */
+.icon-btn.c-mic.on, .icon-btn.l-mic.on { color: var(--accent-ink); background: var(--accent-soft); }

@@ -131,6 +131,7 @@ export const PARTS = {
   'launcher.input': '#prompt',
   'launcher.projects': '#launcher .l-projects',
   'launcher.attach': '#attach',
+  'launcher.mic': '#mic', // the phone app's Dictate button (features/dictate.js)
   'launcher.where': '#whereBtn',
   'launcher.mode': '#mode',
   'launcher.harness': '#runner',
@@ -194,6 +195,7 @@ export const PARTS = {
   composer: '.composer',
   'composer.input': '.composer .reply',
   'composer.attach': '.composer .c-attach',
+  'composer.mic': '.composer .c-mic', // the phone app's Dictate button (features/dictate.js)
   'composer.attachMenu': '.menu.att-menu', // the phone app's attach menu: Take photo, Record video, Choose files
   'composer.mode': '.composer .c-mode',
   'composer.harness': '.composer .c-runner',
@@ -519,7 +521,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'comment', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'grip', 'crew', 'org', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell', 'stuff', 'star', 'image', 'grid', 'app', 'eye', 'share', 'pin', 'judge', 'box', 'issue', 'discuss', 'camera', 'video'];
+export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'comment', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'grip', 'crew', 'org', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell', 'stuff', 'star', 'image', 'grid', 'app', 'eye', 'share', 'pin', 'judge', 'box', 'issue', 'discuss', 'camera', 'video', 'mic'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click

@@ -32,6 +32,7 @@ import { activeSpells, launcherParts, runAction, spellProp } from './spells.js';
 import { cast } from './spell-ui.js';
 import { goalAsk, HOME_SLASH, isGoalDrop, SANDBOX_HINT, sandboxAsk, SPELL_HINT, spellAsk, terminalAsk } from '../slash-text.js';
 import { historyStep, remember } from '../prompt-history.js';
+import { micFor, micHtml } from './dictate.js';
 import { goBack, goHome, isSplit, isStacked, stackPage } from './split.js';
 import { addressedTo, openCrew } from './crew.js';
 import { parseWhen } from '../when.js';
@@ -160,6 +161,7 @@ export function renderLauncher() {
     ${launcherGoalHtml()}
     <div class="l-bar">
       <button class="icon-btn" id="attach" title="Attach files">${icon('clip')}</button>
+      ${micHtml('l-mic', 'mic')}
       <button class="tog-btn where-btn" id="whereBtn" aria-haspopup="menu"></button>
       <button class="mode-btn" id="mode" aria-haspopup="menu"></button>
       <div class="runners">
@@ -221,6 +223,7 @@ export function renderLauncher() {
     ta.focus();
   };
   $('#attach', box).onclick = tray.pick;
+  micFor($('#mic', box), ta);
   // The phone app's bar scrolls sideways: Issue goes there, after Delegate, instead of the project row.
   if (MOBILE)
     $('.l-bar .issue-btn', box).onclick = () => {
