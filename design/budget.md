@@ -93,6 +93,30 @@ turn.
   lead). Settings shows *Where the weekly window went*: the tasks (each opens), *n other tasks*,
   and *Outside wisp or earlier* (= used − traced). Spell part `budget.where`.
 
+## Spare allowance
+
+People lose the share of a weekly window they didn't use when it resets, or when they downgrade
+(r/ClaudeCode 1xm7meb, r/codex 1xm7zvm, 1xm8jsu). Moris's pick, 2026-11-02. Page only, no route:
+the numbers are already on `GET /agents` (`budget`).
+
+- **Rule** (`web/js/spare.js`, `spareOf(agents, { now, hours, left, seen })`, DOM-free): a window of
+  a day or more (`ms`) whose reset is within `hours` (24; spell prop `split.spare.hours`, 1–40)
+  with at least 20% left, on an installed harness. Not when the window runs out first at this pace
+  (`hitAt`), when any window of the account is used up (a task now would only wait), or for an
+  account since removed. The 5-hour window never counts: it always resets soon.
+- **Card** (`split.js paintSpare`, `.sh-spare` over Needs you, at most two, soonest first): the
+  harness logo, *38% left* of *Codex’s weekly window · resets Thu 21:00*, **Start a task** and ×.
+  Its tooltip says when the CLI last reported. Repaints on the `agents` bus event.
+- **Start a task** sets the launcher's harness and account (`#launcher.spellSet({ agent, account })`,
+  the same `pickRun` as the picker, so it's saved as the harness's account like a pick by hand) and
+  focuses the prompt. Nothing is sent.
+- **×** keeps `wisp.spareSeen[agent:account:window] = resetsAt` in this browser; the same period
+  (within 10 minutes, Codex drifts) stays hidden, the next one shows. Past resets are pruned.
+- **Setting** `defaults.spareCard` (`on` | `off`, on unless off, spell-lockable), Settings → Usage →
+  *Spare allowance*.
+- **Terms.** Advice only. It never switches accounts, never moves work, never spends a banked reset
+  (`rateLimitResetCredit/consume` stays unused).
+
 ## Not yet
 
 - Asking before a run takes a window past a line: design/hold.md (Ask near the limit).

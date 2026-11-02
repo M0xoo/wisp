@@ -579,3 +579,21 @@ test('early reset, end to end: a follow-up held for the plan and one waiting at 
     await api('/config', { defaults: { autoStop: 'off', liveLimits: 'off' } }, 'PATCH');
   }
 });
+
+test('spare allowance: /agents carries what the home card needs, and the switch only takes on or off', async () => {
+  await assert.rejects(api('/config', { defaults: { spareCard: 'yes' } }, 'PATCH'), /spareCard must be on or off/);
+  const { spareOf } = await import('../web/js/spare.js');
+  const R = seedPlan(0.4, Date.now() + 10 * H); // Claude Code's weekly: 60% left, resets in 10 hours
+  const cards = spareOf(await api('/agents'));
+  const c = cards.find((x) => x.agent === 'claude');
+  assert.ok(c, 'a card for Claude Code');
+  assert.equal(c.window, 'seven_day');
+  assert.equal(Math.round(c.left * 100), 60);
+  assert.equal(c.resetsAt, R);
+  assert.equal(c.account, '', 'the CLI’s own login: the launcher keeps its account');
+  assert.ok(!cards.some((x) => x.window === 'five_hour'), 'a 5-hour window always resets soon: never a card');
+  await api('/config', { defaults: { spareCard: 'off' } }, 'PATCH');
+  assert.equal((await api('/config')).defaults.spareCard, 'off');
+  await api('/config', { defaults: { spareCard: 'on' } }, 'PATCH');
+  seedPlan(); // back to the other tests' plan
+});

@@ -240,6 +240,20 @@ body.split .task-runs { padding: 0 4px 4px; }
 body.split:not(.stack):not(.side-hidden) .sh-next .sh-s { display: none; }
 /* ...and drops its column, or the empty track's gap pulls the times in from the right edge */
 body.split:not(.stack):not(.side-hidden) .sh-next .sh-task:not(.sh-up) { grid-template-columns: 10px minmax(0, 1fr) auto; }
+/* Spare allowance (split.js paintSpare): a quiet row per window over Needs you. Neutral, not a
+   warning: nothing is wrong, there's just plan left that a reset will take. */
+.sh-spare { margin-top: 30px; display: flex; flex-direction: column; gap: 6px; }
+.sh-spare[hidden] { display: none; }
+.sh-spare:not([hidden]) + .sh-next { margin-top: 22px; }
+.sp-card { display: grid; grid-template-columns: 13px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; min-height: 44px; padding: 6px 6px 6px 13px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
+.sp-text { min-width: 0; font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-text b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.sp-start { gap: 6px; }
+.sp-x { width: 30px; height: 30px; color: var(--faint); }
+.sp-x:hover { color: var(--ink-2); }
+.sp-start .i, .sp-x .i { width: 13px; height: 13px; }
+/* a phone's width: the line wraps instead of losing the reset time */
+@media (max-width: 520px) { .sp-text { white-space: normal; line-height: 1.4; } }
 .sh-keys { margin: 18px 0 0; padding: 0 8px 0 13px; font-size: 12.5px; color: var(--faint); line-height: 2; }
 /* the prompt box at home, quieter: chips without outlines, recipes without a rule over them */
 .split-home .launcher .lp-chip:not(.add) { border-color: transparent; }

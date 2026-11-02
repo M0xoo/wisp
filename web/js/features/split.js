@@ -36,6 +36,8 @@ import { openUpcoming, upcoming, upcomingByDay, upcomingRow } from './later.js';
 import { paintGoal } from './goal.js';
 import { backTarget, trailOf } from './lineage.js';
 import { planLine } from './budget.js';
+import { harnessLogo } from './runners.js';
+import { pruneSeen, spareKey, spareOf, spareWhose, spareWords } from '../spare.js';
 import { feedbackOn, openFeedback } from './feedback.js';
 import { follow as followTerm } from './term.js';
 
@@ -508,6 +510,7 @@ function paintHome() {
         )
         .join('')}`
     : '';
+  paintSpare();
   const next = $('.sh-next', home);
   if (next.dataset.h !== html) (next.innerHTML = html), (next.dataset.h = html);
   next.hidden = !html;
@@ -527,6 +530,42 @@ function paintHome() {
   coming.hidden = !up;
   $('.sh-fb', home).hidden = !feedbackOn();
   $('.sh-keys', home).innerHTML = '<kbd>J</kbd><kbd>K</kbd> move through tasks · <kbd>↵</kbd> open · <kbd>E</kbd> done · <kbd>Esc</kbd> back here · <kbd>[</kbd> hide the list';
+}
+
+// Spare allowance (web/js/spare.js): a weekly window about to reset with much of it unused, above
+// Needs you. Start a task picks that harness and account in the prompt box above (you send it);
+// × hides that window's card until its next period, on this device.
+let spare = []; // the cards, as painted
+function paintSpare() {
+  const box = $('.sh-spare', home);
+  const off = S.config.defaults?.spareCard === 'off';
+  spare = off ? [] : spareOf(S.agents, { hours: spellProp('split.spare', 'hours') || undefined, seen: load('wisp.spareSeen', {}) }).slice(0, 2);
+  const html = spare
+    .map((x, i) => {
+      const who = `${x.name}${x.accountLabel ? ` (${x.accountLabel})` : ''}`;
+      const tip = `What’s left at the reset doesn’t carry over. wisp never switches accounts for you: Start a task only picks ${who} in the prompt box.${x.at ? ` Last reported ${whenLabel(x.at)}.` : ''}`;
+      return `<div class="sp-card" role="status" aria-label="${esc(spareWords(x, whenLabel(x.resetsAt)))}" data-i="${i}">
+        <span class="model-logo">${harnessLogo(x.agent)}</span>
+        <span class="sp-text" title="${esc(tip)}"><b>${esc(`${Math.round(x.left * 100)}% left`)}</b><span>${esc(` of ${spareWhose(x)} · resets ${whenLabel(x.resetsAt)}`)}</span></span>
+        <button type="button" class="ghost sm sp-start" data-spare="start" data-i="${i}" title="${esc(`Pick ${who} in the prompt box`)}">${icon('plus')}Start a task</button>
+        <button type="button" class="icon-btn sp-x" data-spare="x" data-i="${i}" title="Hide until it resets" aria-label="Hide until it resets">${icon('x')}</button>
+      </div>`;
+    })
+    .join('');
+  if (box.dataset.h !== html) (box.innerHTML = html), (box.dataset.h = html);
+  box.hidden = !html;
+}
+
+function onSpare(btn) {
+  const x = spare[Number(btn.dataset.i)];
+  if (!x) return;
+  if (btn.dataset.spare === 'x') {
+    save('wisp.spareSeen', { ...pruneSeen(load('wisp.spareSeen', {})), [spareKey(x)]: x.resetsAt });
+    paintSpare();
+    return;
+  }
+  $('#launcher')?.spellSet?.({ agent: x.agent, account: x.account || undefined });
+  $('#prompt')?.focus();
 }
 
 // The open body is fixed to #splitStage's box: whatever moves the box (the header wrapping, the
@@ -623,6 +662,8 @@ home.addEventListener('click', (e) => {
     return;
   }
   if (e.target.closest('.sh-fb')) return openFeedback({ source: 'home' });
+  const sp = e.target.closest('[data-spare]');
+  if (sp) return onSpare(sp);
   const up = e.target.closest('.sh-up');
   if (up) return openUpcoming(shown[up.dataset.up], up, e);
   const id = e.target.closest('.sh-task')?.dataset.id;
@@ -665,6 +706,10 @@ wide.addEventListener('change', () => {
   paintSplit();
 });
 bus.on('spells', applyView);
+// A window moved (server/budget.js broadcasts 'agents'): the spare card follows, while home shows.
+bus.on('agents', () => {
+  if (isSplit() && !home.hidden) paintSpare();
+});
 bus.on('config', paintMe);
 bus.on('machines', paintMe);
 // index.html laid it out already: this takes over before anything paints.

@@ -218,6 +218,7 @@ export function openSettings(opts) {
               })
               .join('')}
             ${row('Check Codex while work waits', 'While work waits for a Codex plan, wisp asks Codex every 10 minutes how its windows stand (nothing is spent). A reset that comes early, like a banked one, lets that work go at once', '<button class="switch" id="liveLimits" role="switch"></button>', 'us-live')}
+            ${row('Spare allowance', 'When a weekly window resets within a day with a fifth or more unused, home says how much is left, with Start a task on that account. Only advice: wisp never switches accounts for you', '<button class="switch" id="spareCard" role="switch"></button>')}
             ${row('Drain watch', 'Warns here, and on your phone when it’s set up, when an account’s last two hours of runs took twice or more its usual share of a window for the same work. Copy report puts the numbers in words for a support ticket', '<button class="switch" id="drainWatch" role="switch"></button>')}
             ${row('Ask near the limit', 'Before a task would take a 5-hour or weekly window past this, wisp asks first. Scheduled runs and crew jobs wait in Needs you', `<span class="pk-seg hold-seg">${HOLD_LINES.map((v) => `<button type="button" data-v="${v}">${v === 'off' ? 'Off' : `${v}%`}</button>`).join('')}</span>`)}
             ${row('Wait for the reset', 'At a usage limit, the task waits under Scheduled and carries on in the same conversation when the window resets. Off: it stops and asks you', '<button class="switch" id="limitWait" role="switch"></button>')}
@@ -636,6 +637,22 @@ export function openSettings(opts) {
     }
   };
   paintHa();
+  // Spare allowance: instant; home's card follows on the config event.
+  const sc = $('#spareCard', node);
+  const paintSc = () => sc.setAttribute('aria-checked', S.config.defaults.spareCard !== 'off');
+  sc.onclick = async () => {
+    const was = S.config.defaults.spareCard;
+    S.config.defaults.spareCard = was === 'off' ? 'on' : 'off';
+    paintSc();
+    bus.emit('agents');
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { spareCard: S.config.defaults.spareCard } } }));
+    if (!saved) {
+      S.config.defaults.spareCard = was;
+      paintSc();
+      bus.emit('agents');
+    }
+  };
+  paintSc();
   // Drain watch: instant; the card comes with the harness list once it's on.
   const dw = $('#drainWatch', node);
   const paintDw = () => dw.setAttribute('aria-checked', S.config.defaults.drainWatch === 'on');
@@ -876,7 +893,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers' };
+  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

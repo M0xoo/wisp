@@ -401,9 +401,10 @@ export function renderLauncher() {
     },
   });
   runnerBtn.onclick = () => runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, account: curAccount, savedModel, savedEffort, places: launch.where, auto: true, back: ta }, pickRun);
-  // Spells: set the pickers (setLaunch), or launch once with other settings (launchWith).
+  // Spells: set the pickers (setLaunch), or launch once with other settings (launchWith). The
+  // spare-allowance card (split.js) sets the harness and its account the same way.
   box.spellSet = (v) => {
-    if (v.agent && harnessesAt(launch.where, { auto: true }).some((a) => a.id === v.agent)) pickRun(v.agent, v.model ?? savedModel(v.agent), v.effort ?? savedEffort(v.agent, v.model ?? savedModel(v.agent)));
+    if (v.agent && harnessesAt(launch.where, { auto: true }).some((a) => a.id === v.agent)) pickRun(v.agent, v.model ?? savedModel(v.agent), v.effort ?? savedEffort(v.agent, v.model ?? savedModel(v.agent)), v.account);
     else if (v.agent) toast(`${esc(agentName(v.agent))} isn’t installed here`, { tone: 'bad' });
     if (v.mode) setMode(v.mode);
   };
