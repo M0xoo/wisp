@@ -299,9 +299,10 @@ test('a conflict fix that leaves conflicts is not pushed; Fix conflicts retries;
 });
 
 test('the task list answers ?since= with only what changed, and the whole list when it can’t tell', async () => {
-  const repo = makeRepo();
-  const a = await api('/sessions', { body: { prompt: 'Fix add()', cwd: repo.dir, agent: 'claude' } });
-  const b = await api('/sessions', { body: { prompt: 'Fix sub()', cwd: repo.dir, agent: 'claude' } });
+  const repo = makeRepo(); // a path: `repo.dir` ran both tasks in the wisp checkout (a worktree and branch left there each run)
+  const a = await api('/sessions', { body: { prompt: 'Fix add()', cwd: repo, agent: 'claude' } });
+  const b = await api('/sessions', { body: { prompt: 'Fix sub()', cwd: repo, agent: 'claude' } });
+  assert.deepEqual([a.cwd, b.cwd].map((d) => fs.realpathSync(d)), [repo, repo].map((d) => fs.realpathSync(d)));
   await Promise.all([settled(a.id), settled(b.id)]);
   // Their worktrees are checked after they settle (toShip): wait, or that change lands mid-test.
   await until(async () => ((await api('/sessions')).filter((x) => x.id === a.id || x.id === b.id).every((x) => x.toShip) ? true : null));
