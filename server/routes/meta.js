@@ -61,7 +61,8 @@ export function register(r, app) {
         const out = { ...rest, ...(drain && app.store.config.defaults.drainWatch === 'on' && { drain }) };
         return where ? { ...out, where: { window: w.id, label: w.label, used: w.used, ...where } } : out;
       });
-      return { ...a, ...(app.accounts?.supports(a.id) && { accounts: app.accounts.view(a.id) }), ...(budget.length && { budget }) };
+      // Harness watch (server/harness-watch.js): when its program was pinned, and how it changed since.
+      return { ...a, ...app.harnessWatch?.view(a.id), ...(app.accounts?.supports(a.id) && { accounts: app.accounts.view(a.id) }), ...(budget.length && { budget }) };
     });
   // ?fresh=1 detects every harness again; ?fresh=<id> just that one (after signing in to it).
   r.route('GET', '/agents', async (c) => c.send(200, withAccounts(await (c.query.has('fresh') ? app.auto.detect({ fresh: Object.hasOwn(adapters, c.query.get('fresh')) ? c.query.get('fresh') : true }) : app.auto.listed()))));
@@ -75,6 +76,13 @@ export function register(r, app) {
     const b = await c.body();
     if (!app.budget?.dismissDrain(c.params.id, String(b.account || 'default'), String(b.window || ''))) return c.send(404, { error: 'No such window.' });
     c.send(200, { ok: true });
+  });
+  // Trust this version: a harness whose program changed (server/harness-watch.js) is pinned as it is
+  // now. Answers the harness list, as GET /agents does.
+  r.route('POST', '/agents/:id/trust', async (c) => {
+    if (!Object.hasOwn(adapters, c.params.id)) return c.send(404, { error: 'No such harness.' });
+    app.harnessWatch?.trust(c.params.id); // already trusted (from another tab, or Settings): the same answer
+    c.send(200, withAccounts(await app.auto.listed()));
   });
   // git and gh, for Ship it: installed, gh signed in to GitHub, and how to get what's missing.
   r.route('GET', '/tools', async (c) => c.send(200, await tools()));

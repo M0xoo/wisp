@@ -10,6 +10,7 @@ const BIN = process.env.WISP_CURSOR_BIN || 'cursor-agent';
 
 export default {
   id: 'cursor',
+  bin: () => BIN, // the program it runs (server/harness-watch.js)
   name: 'Cursor',
   askTool: null,
   models: [{ id: '', label: 'Default', hint: 'Whatever Cursor is set to' }],

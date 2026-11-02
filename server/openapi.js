@@ -96,6 +96,13 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object' }), 404: json(ref('Error')) },
         },
       },
+      '/agents/{aid}/trust': {
+        parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string' } }],
+        post: {
+          summary: 'Trust this version: pin a harness whose program changed (path, size, sha256, version) as it is now',
+          responses: { 200: json({ type: 'array', items: ref('Agent') }), 404: json(ref('Error')) },
+        },
+      },
       '/agents/recheck': { post: { summary: 'Detect harnesses and models again, here and on every online machine', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
       '/feedback': {
         post: {
@@ -588,7 +595,7 @@ export function openapi({ version, port }) {
       },
       '/sessions/{id}/held': {
         parameters: [id],
-        post: { summary: 'A run held near the usage limit (its last turn has status `held`): start it now, wait for the reset (it leaves Needs you), or skip it', requestBody: body({ type: 'object', required: ['action'], properties: { action: { enum: ['start', 'wait', 'skip'] } } }), responses: { 200: json(ref('Summary')), 400: err[400], 404: err[404] } },
+        post: { summary: 'A run held near the usage limit, or for a changed harness (its last turn has status `held`; held.harness): start it now (a changed harness is trusted first), wait for the reset (it leaves Needs you; not for a harness), or skip it', requestBody: body({ type: 'object', required: ['action'], properties: { action: { enum: ['start', 'wait', 'skip'] } } }), responses: { 200: json(ref('Summary')), 400: err[400], 404: err[404] } },
       },
       '/sessions/{id}/queue': {
         parameters: [id],
@@ -784,7 +791,7 @@ export function openapi({ version, port }) {
         },
         CloudSignin: { type: 'object', properties: { id: { type: 'string' }, grid: { type: 'string' }, state: { enum: ['waiting', 'done', 'denied', 'expired', 'failed', 'cancelled'] }, userCode: { type: 'string' }, verifyUrl: { type: 'string' }, expiresAt: { type: 'integer' }, error: { type: 'string' }, machineId: { type: ['string', 'null'] }, user: { type: ['object', 'null'] } } },
         Health: { type: 'object', properties: { ok: { type: 'boolean' }, name: { const: 'wisp' }, version: { type: 'string' }, apiVersion: { type: 'integer' }, pid: { type: 'integer' }, url: { type: 'string' } } },
-        Agent: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, available: { type: 'boolean' }, version: { type: 'string' }, models: { type: 'array', items: { type: 'object' } }, efforts: { type: 'array', items: { type: 'string' } }, hasKey: { type: ['boolean', 'null'], description: 'opencode only: signed in to a provider or has an API key in the environment (false: its free models alone)' }, setup: { type: 'object', description: 'Only while not found: how to get it on that OS', properties: { tip: { type: 'string' }, command: { type: 'string' }, url: { type: 'string' } } }, budget: { type: 'array', description: 'How much of each account’s usage windows is gone, as its CLI last reported (Claude, Codex). hitAt: when it runs out at this pace, if before the reset', items: { type: 'object', properties: { account: { type: 'string', description: 'default: the CLI’s own' }, at: { type: 'integer' }, windows: { type: 'array', items: { type: 'object', properties: { id: { type: 'string', description: 'five_hour, seven_day, …' }, label: { type: 'string' }, used: { type: 'number', minimum: 0, maximum: 1 }, resetsAt: { type: ['integer', 'null'] }, hitAt: { type: ['integer', 'null'] } } } } } } } } },
+        Agent: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, available: { type: 'boolean' }, version: { type: 'string' }, models: { type: 'array', items: { type: 'object' } }, efforts: { type: 'array', items: { type: 'string' } }, hasKey: { type: ['boolean', 'null'], description: 'opencode only: signed in to a provider or has an API key in the environment (false: its free models alone)' }, setup: { type: 'object', description: 'Only while not found: how to get it on that OS', properties: { tip: { type: 'string' }, command: { type: 'string' }, url: { type: 'string' } } }, budget: { type: 'array', description: 'How much of each account’s usage windows is gone, as its CLI last reported (Claude, Codex). hitAt: when it runs out at this pace, if before the reset', items: { type: 'object', properties: { account: { type: 'string', description: 'default: the CLI’s own' }, at: { type: 'integer' }, windows: { type: 'array', items: { type: 'object', properties: { id: { type: 'string', description: 'five_hour, seven_day, …' }, label: { type: 'string' }, used: { type: 'number', minimum: 0, maximum: 1 }, resetsAt: { type: ['integer', 'null'] }, hitAt: { type: ['integer', 'null'] } } } } } } }, pinnedAt: { type: 'integer', description: 'Harness watch: when wisp pinned its program (path, size, sha256, version)' }, changed: { type: 'object', description: 'Harness watch: its program is not the pinned one. kind: update (version up, same install folder) or warn', properties: { kind: { type: 'string', enum: ['update', 'warn'] }, from: { type: 'object' }, to: { type: 'object' }, at: { type: 'integer' } } } } },
         Project: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, path: { type: 'string' }, color: { type: 'string' } } },
         Webhook: { type: 'object', required: ['url'], properties: { url: { type: 'string', format: 'uri' }, events: { type: 'array', items: { enum: ['session.finished', 'session.waiting'] } } } },
         Launch: {

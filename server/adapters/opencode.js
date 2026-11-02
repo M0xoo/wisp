@@ -40,6 +40,7 @@ export function hasKey(out) {
 
 export default {
   id: 'opencode',
+  bin: () => BIN, // the program it runs (server/harness-watch.js)
   name: 'opencode',
   askTool: 'wisp_ask_user',
   fork: true, // run({ resumeId, fork }) answers on a copy of the session (/btw)

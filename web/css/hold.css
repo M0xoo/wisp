@@ -24,3 +24,22 @@
 .pk-text small.rp-usage { color: var(--muted); font-variant-numeric: tabular-nums; } /* how much of the plan is gone: plain */
 .pk-text small.rp-usage.warn { color: var(--warn); } /* at or past your line */
 .pk-seg b.rp-usage { font: 600 11.5px var(--sans); color: var(--warn); font-variant-numeric: tabular-nums; }
+
+/* ---------- Harness watch (features/harness-watch.js) ---------- */
+/* A harness's program changed since wisp pinned it: one line on the task's turn and under its row
+   in Settings → Agents, with Trust this version. An update is plain; anything else is in --warn. */
+.hw-note[hidden] { display: none; }
+.hw-note {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 6px 0 8px; padding: 8px 10px;
+  border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line-2); font-size: 12.5px; line-height: 1.45; color: var(--ink-2);
+}
+.hw-note > .i { flex: none; width: 14px; height: 14px; color: var(--muted); }
+.hw-note .hw-say { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; text-wrap: pretty; }
+.hw-note.hw-warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+.hw-note.hw-warn > .i { color: var(--warn); }
+.sx-agents .hw-note { margin: 0 14px 10px; }
+.hw-held .hd-say { display: flex; gap: 8px; align-items: flex-start; }
+.hw-held .hd-say .i { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--muted); }
+.hw-held.hw-warn .hd-say .i { color: var(--warn); }
+@media (pointer: coarse) { .hw-note button { min-height: 44px; } }
+.hw-held:not(.hw-warn) { border-color: var(--line-2); }

@@ -25,6 +25,7 @@ import { openPhone, phoneSummary } from './phone.js';
 import { paintReachable, reachableBox, reachableHtml } from './reachable.js';
 import { machinesSummary } from './places.js';
 import { AUTO_GOALS, agentsAt, harnessLogo } from './runners.js';
+import { harnessNote } from './harness-watch.js';
 import { copySetupCommand, INSTALLABLE, installHarness, isInstalling, loadTools, setupCommand, setupDocs, setupTip, tools } from './setup.js';
 import { clearPicks } from './transcript.js';
 import { repaintViews } from './turns.js';
@@ -146,6 +147,9 @@ export function openSettings(opts) {
         </section>
         <section class="sx-pane" data-pane="agents">
           <div class="sx-group sx-agents"></div>
+          <div class="sx-group">
+            ${row('Ask before running a changed harness', 'wisp keeps the path, size and sha256 of each harness’s program from the first time it runs it. Off, a change shows on the task and here. On, a run on a changed harness waits until you trust it', '<button class="switch" id="harnessAsk" role="switch"></button>')}
+          </div>
           <div class="sx-group">
             ${row('Installed something new?', '<span class="recheck-hint"></span>', `<button class="ghost sm" id="recheck">${icon('replay')}Re-check</button>`)}
           </div>
@@ -273,7 +277,8 @@ export function openSettings(opts) {
         const state = a.available ? ['ok', 'Ready'] : out ? ['warn', 'Signed out'] : ['bad', 'Not found'];
         // Several accounts: each signs in on its own row, so the harness row only says how it is.
         const many = manyAccounts(a);
-        return row(`<span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}`, desc, `${install}${docs}${(a.available || out) && !many ? loginControl(a.id) : ''}<span class="sx-state ${state[0]}" ${a.error ? `title="${esc(a.error)}"` : ''}><i class="dot ${state[0]}"></i>${state[1]}</span>`) + ((a.available || out) && !many ? loginPanel(a.id) : '') + accountsHtml(a);
+        // Its program changed since wisp pinned it (features/harness-watch.js): the line and Trust this version.
+        return row(`<span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}`, desc, `${install}${docs}${(a.available || out) && !many ? loginControl(a.id) : ''}<span class="sx-state ${state[0]}" ${a.error ? `title="${esc(a.error)}"` : ''}><i class="dot ${state[0]}"></i>${state[1]}</span>`) + harnessNote(a.id, a.changed) + ((a.available || out) && !many ? loginPanel(a.id) : '') + accountsHtml(a);
       }).join('')
       : '<div class="sx-row"><div class="it-loading"><span class="orb tiny"></span>Looking for harnesses…</div></div>');
     // git and GitHub: not harnesses, but what Ship it commits, pushes and opens pull requests with.
@@ -598,6 +603,20 @@ export function openSettings(opts) {
     }
   };
   paintLl();
+  // Ask before running a changed harness (server/harness-watch.js): instant, rolled back on a refusal.
+  const ha = $('#harnessAsk', node);
+  const paintHa = () => ha.setAttribute('aria-checked', S.config.defaults.harnessAsk === 'on');
+  ha.onclick = async () => {
+    const was = S.config.defaults.harnessAsk;
+    S.config.defaults.harnessAsk = was === 'on' ? 'off' : 'on';
+    paintHa();
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { harnessAsk: S.config.defaults.harnessAsk } } }));
+    if (!saved) {
+      S.config.defaults.harnessAsk = was;
+      paintHa();
+    }
+  };
+  paintHa();
   // Drain watch: instant; the card comes with the harness list once it's on.
   const dw = $('#drainWatch', node);
   const paintDw = () => dw.setAttribute('aria-checked', S.config.defaults.drainWatch === 'on');
@@ -838,7 +857,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers' };
+  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', harnessAsk: '#harnessAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

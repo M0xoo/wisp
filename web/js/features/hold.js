@@ -13,6 +13,7 @@ import { holdFor, holdTo } from '../limit-hold.js';
 import { renderFeed } from './feed.js';
 import { aheadLabel, whenTip } from './later.js';
 import { accountOf, agentName } from './runners.js';
+import { changeText } from './harness-watch.js';
 
 const pct = (x) => `${Math.floor(x * 100)}%`;
 // "Weekly" → "weekly"; "Weekly Opus" → "weekly Opus".
@@ -117,6 +118,7 @@ export function hideHold(row) {
 // button locks the card at once; a refusal unlocks it with a red toast.
 export function heldCard(s, t) {
   const h = { ...t.held, agent: t.held.agent || s.agent };
+  if (h.harness) return wire(s, harnessCard(h));
   const first = h.kind !== 'followUp';
   const at = h.until;
   const why = h.to[1] - h.used >= 0.005 ? `this run may take ${whose(h)} ${lower(h.label)} window from ${pct(h.used)} ${holdTo(h) === 'past the limit' ? 'past the limit' : `to ${holdTo(h)}`}` : `${whose(h)} ${lower(h.label)} window was at ${pct(h.used)}, past your ${pct(h.line)} line`;
@@ -131,6 +133,24 @@ export function heldCard(s, t) {
         <button class="ghost sm" data-held="skip">${icon('skip')}Skip this run</button>
       </div>
     </div>`);
+  return wire(s, node);
+}
+
+// Held for a changed harness (Settings → Agents → Ask before running a changed harness): it says
+// what changed and waits for Trust and start, or Skip this run. Nothing to wait for by itself.
+function harnessCard(h) {
+  const c = h.harness;
+  const say = c.checking ? `Checking ${agentName(h.agent)}’s program before it starts: it changed since wisp last ran it.` : `Held before it started: ${changeText(h.agent, c)}.${c.kind === 'update' ? '' : ' If you didn’t install this, skip it.'}`;
+  return el(`<div class="b-limit b-held hw-held${c.kind === 'update' || c.checking ? '' : ' hw-warn'}">
+      <p class="hd-say">${icon(c.kind === 'update' || c.checking ? 'info' : 'warn')}${esc(say)}</p>
+      <div class="lm-acts">
+        <button class="primary sm" data-held="start">${icon('play')}${HELD_LABEL.start({ held: h })}</button>
+        <button class="ghost sm" data-held="skip">${icon('skip')}Skip this run</button>
+      </div>
+    </div>`);
+}
+
+function wire(s, node) {
   const lock = (on) => {
     node.classList.toggle('resolved', on);
     for (const b of $$('button', node)) b.disabled = on;
@@ -169,4 +189,4 @@ export async function heldAction(id, action) {
 }
 
 // The words wisp uses for each, so every surface (card, row menu, ⌘K) says the same.
-export const HELD_LABEL = { start: (s) => (s.held?.kind === 'followUp' ? 'Send now' : 'Start now'), wait: () => 'Wait', skip: () => 'Skip this run' };
+export const HELD_LABEL = { start: (s) => (s.held?.harness ? 'Trust and start' : s.held?.kind === 'followUp' ? 'Send now' : 'Start now'), wait: () => 'Wait', skip: () => 'Skip this run' };
