@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Phone app: attach a photo or a video straight from the camera.** In the Android app the paperclip in New task and in a task's reply box opens *Take photo*, *Record video* and *Choose files*: a photo or video you take goes in the tray and uploads like a picked file, with no camera permission to grant. Browsers and the desktop app are unchanged, apart from a video in the tray now showing a video icon. Spells: the `composer.attachMenu` part and the `camera` and `video` icons.
+
 ## [0.52.0] - 2026-11-02
 
 ### Added

@@ -273,3 +273,15 @@ Never send builds to someone's own phone as part of QA.
   answers (at least half a second) and the row turns *Online* without waiting for the 10 s refresh. The
   page itself doesn't stretch or glow. A sheet, a scroll that isn't at the top, or a sideways swipe never
   starts a pull.
+
+### MOB-29 Take a photo or record a video for a prompt
+- **Run:** Emulator (its virtual camera) or the Pixel (debug APK).
+- **Steps:** in New task tap the paperclip; the menu reads *Take photo*, *Record video*, *Choose files*.
+  Tap *Take photo*, shoot, accept. Tap the paperclip → *Record video*, record a few seconds, accept.
+  Tap the paperclip → *Take photo* and back out of the camera. Send the prompt. Open a task and do the
+  same from its reply box. Tap the paperclip twice.
+- **Expected:** the camera opens with no permission asked; an accepted photo shows in the tray with
+  its thumbnail (`photo-<date>.jpg`), a video with the video icon (`video-<date>.mp4`), each uploads
+  and goes with the message (the photo shows in the turn). Backing out adds nothing and the next pick
+  still works. A second tap on the paperclip closes the menu. In a browser the paperclip still opens
+  the file picker straight away.

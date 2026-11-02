@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- No CAMERA: Take photo / Record video hand off to the camera app (Capture.java), which needs
+         none. Declaring it would make those intents throw until it's granted. -->
 
     <application
         android:allowBackup="false"
