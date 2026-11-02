@@ -5,9 +5,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-11-02
+
 ### Added
 
 - **Phone app: attach a photo or a video straight from the camera.** In the Android app the paperclip in New task and in a task's reply box opens *Take photo*, *Record video* and *Choose files*: a photo or video you take goes in the tray and uploads like a picked file, with no camera permission to grant. Browsers and the desktop app are unchanged, apart from a video in the tray now showing a video icon. Spells: the `composer.attachMenu` part and the `camera` and `video` icons.
+
+### Fixed
+
+- **A terminal in wisp starts at its real size.** On a busy computer, a program started in a wisp terminal (Take over, `/terminal`, Shell) could see a 0×0 screen on its first look and draw itself wrong until the next resize: the size is now set before the program starts.
+
+- **Changes keeps a long folder readable.** In the side panel's Changes, a file deep in a long folder squeezed the folder to a sliver that showed one dot of its ellipsis, so the row read as *./a-file…*; the folder now keeps room for *…/*.
 
 ## [0.52.0] - 2026-11-02
 
@@ -66,8 +74,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **My Stuff in the phone app's top bar.** The app's floating New task hides the row that held the My Stuff button, so My Stuff was only reachable through Search. It now has its own button beside Search. Spells reach it through the `stuff.topButton` part.
 
 ### Fixed
-
-- **A terminal in wisp starts at its real size.** On a busy computer, a program started in a wisp terminal (Take over, `/terminal`, Shell) could see a 0×0 screen on its first look and draw itself wrong until the next resize: the size is now set before the program starts.
 
 - **`/terminal` no longer refuses a task with a goal, a team or a crew member.** Typing `/terminal …` with *Done when* set, delegates picked, compare runs added or `@Ada` in the prompt used to show an error and keep the prompt. Now it starts the task in your terminal and leaves those out: you drive the agent there yourself. It's still refused where no terminal can open (Windows, or a harness that can't resume its sessions).
 
