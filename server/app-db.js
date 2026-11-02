@@ -49,12 +49,17 @@ export const allowedSql = (sql) => !DENY.test(sql);
 export function createAppDb({ maxBytes = 10 * 1024 * 1024, timeoutMs = 5000 } = {}) {
   let child = null; // with .ready (whether node:sqlite is there) and .waiting (id -> { resolve, timer })
   let seq = 0;
+  // A worker that was killed but hasn't exited yet. The next one waits for it: on Windows the kill
+  // is asynchronous and the dead worker's locks on the file linger until it's gone, so a fresh
+  // worker opening the same file would wait on them (busy_timeout) past its own time limit.
+  let dying = null;
 
   function start() {
     if (child) return child;
     child = fork(WORKER, [], { execArgv: ['--no-warnings'], stdio: ['ignore', 'ignore', 'ignore', 'ipc'], env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
     const me = child;
     me.waiting = new Map();
+    me.exited = new Promise((resolve) => me.once('exit', resolve));
     me.ready = new Promise((resolve) => {
       me.once('message', (m) => resolve(!!m.ready));
       me.once('exit', () => resolve(false));
@@ -81,6 +86,7 @@ export function createAppDb({ maxBytes = 10 * 1024 * 1024, timeoutMs = 5000 } = 
   }
 
   async function ask(msg) {
+    if (dying) await dying;
     const me = start();
     if (!(await me.ready)) {
       if (child === me) child = null;
@@ -100,6 +106,10 @@ export function createAppDb({ maxBytes = 10 * 1024 * 1024, timeoutMs = 5000 } = 
           resolve({ error: `That query took over ${timeoutMs / 1000} s and was stopped.`, status: 503 });
           // The only way to stop a query in node:sqlite. The next query starts a new worker at once.
           if (child === me) child = null;
+          // Never wait forever on it: a worker that won't die is still replaced after a while.
+          const gone = (dying = Promise.race([me.exited, new Promise((r) => setTimeout(r, 5000).unref())]).then(() => {
+            if (dying === gone) dying = null;
+          }));
           me.kill('SIGKILL');
         };
         w.timer = setTimeout(() => setImmediate(stop), timeoutMs);
