@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-11-02
+
 ### Added
 
 - **Side discussions: talk a task over on a page of its own.** Type **/side** and a message in a task's reply box (or pick **Side discussion…** in its More, its right-click menu or ⌘K) to open a side discussion about it: a task of its own, with full answers (blocks, apps, follow-ups) where /btw gives one quick reply under the turn. It reads the main task's folder as it is now, and every message you send it comes with the main task's latest state (what it's doing, what it changed, what it last said), so it can always check on the work, even while the main task runs. It changes nothing: it runs in Plan, anything that would change something is refused without asking, wisp's tools that act (launch, delegate, crew edits…) aren't offered, and its page has no Rerun, Take over, Ship it, revert, commit or run buttons for the main task's folder. Archiving the main task keeps its worktree while a side discussion runs; deleting it stops them. Its bar says *Side discussion of …* (click to go back), and the main task's says *N side discussions*. New `POST /api/sessions/{id}/side`; summaries carry `sideOf` and `sides`. Spells: the `side` action, the `card.sideOf`, `card.sides`, `card.sidePill` and `turn.sideStart` parts and the `discuss` icon.
