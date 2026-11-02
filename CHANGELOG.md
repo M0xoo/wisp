@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- Goals: picking a judge's harness opens its picker over the Judges editor instead of behind it.
+
 ## [0.51.0] - 2026-11-02
 
 ### Added
