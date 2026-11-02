@@ -130,10 +130,18 @@ test('wisp’s MCP server in a side discussion offers only the tools that read, 
   const ask = (env, lines) =>
     new Promise((resolve) => {
       const p = spawn(process.execPath, ['server/mcp-ask.js'], { env: { ...process.env, WISP_URL: 'http://127.0.0.1:9', WISP_TOKEN: 't', WISP_SESSION: 's', ...env } });
+      // stdout arrives in chunks that can split a line (macOS, Node 20): parse only whole lines,
+      // and only once, since more chunks can land after the kill.
       let out = '';
+      let done = false;
       p.stdout.on('data', (d) => {
+        if (done) return;
         out += d;
-        if (out.trim().split('\n').length >= lines.length) (p.kill(), resolve(out.trim().split('\n').map((l) => JSON.parse(l))));
+        const whole = out.split('\n').slice(0, -1).filter((l) => l.trim());
+        if (whole.length < lines.length) return;
+        done = true;
+        p.kill();
+        resolve(whole.map((l) => JSON.parse(l)));
       });
       p.stdin.write(lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
     });
