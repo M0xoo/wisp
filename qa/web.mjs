@@ -254,7 +254,7 @@ try {
     p.clean();
   });
 
-  await check('WEB-44', 'side panel Changes: a long folder is cut to …/, never a bare ./', async () => {
+  await check('WEB-46', 'side panel Changes: a long folder is cut to …/, never a bare ./', async () => {
     const t = await launch({ prompt: 'fix the add function' });
     const s = await settled(t.id);
     const deep = path.join(s.worktree?.cwd || s.cwd, 'web/css/components/a-very-long-folder-name-for-testing/another-really-long-folder');
