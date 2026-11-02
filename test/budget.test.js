@@ -71,6 +71,7 @@ test('claude: both windows from its rate_limit_event, in ms; a refusal without a
       { id: 'five_hour', used: 0.72, resetsAt: 1792982400_000, ms: 5 * H },
       { id: 'seven_day', used: 0.76, resetsAt: 1793192400_000, ms: 7 * 24 * H },
     ],
+    complete: true, // unifiedWindows lists every window (window changes)
   });
   assert.deepEqual(claudeLimits({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: 1792982400 }), { windows: [{ id: 'five_hour', used: 1, resetsAt: 1792982400_000, ms: 5 * H }], rejected: 'five_hour' });
   assert.equal(claudeLimits({ status: 'allowed' }), null, 'nothing to show');
@@ -81,9 +82,10 @@ test('codex: primary and secondary from its session file, named by their length'
   const rl = { primary: { used_percent: 41, window_minutes: 300, resets_at: 1792982400 }, secondary: { used_percent: 100, window_minutes: 10080, resets_at: 1793192400 }, rate_limit_reached_type: 'secondary' };
   assert.deepEqual(codexLimits(rl), {
     windows: [
-      { id: 'five_hour', used: 0.41, resetsAt: 1792982400_000, ms: 5 * H },
-      { id: 'seven_day', used: 1, resetsAt: 1793192400_000, ms: 7 * 24 * H },
+      { id: 'five_hour', used: 0.41, resetsAt: 1792982400_000, ms: 5 * H, slot: 'primary' },
+      { id: 'seven_day', used: 1, resetsAt: 1793192400_000, ms: 7 * 24 * H, slot: 'secondary' },
     ],
+    complete: true,
     rejected: 'seven_day',
   });
   // A free plan's month-long window.
@@ -527,7 +529,7 @@ test('an early reset: much less used and a new period, before the old reset; Cod
 
 test('codex: what its app-server reads live becomes the same windows a run reports', () => {
   const res = { rateLimits: { limitId: 'premium', primary: null }, rateLimitsByLimitId: { codex: { limitId: 'codex', primary: { usedPercent: 12, windowDurationMins: 300, resetsAt: 1792982400 }, secondary: { usedPercent: 100, windowDurationMins: 10080, resetsAt: 1793192400 }, rateLimitReachedType: 'rate_limit_reached' } } };
-  assert.deepEqual(codexLive(res), { windows: [{ id: 'five_hour', used: 0.12, resetsAt: 1792982400_000, ms: 5 * H }, { id: 'seven_day', used: 1, resetsAt: 1793192400_000, ms: 7 * 24 * H }], rejected: 'seven_day' });
+  assert.deepEqual(codexLive(res), { windows: [{ id: 'five_hour', used: 0.12, resetsAt: 1792982400_000, ms: 5 * H, slot: 'primary' }, { id: 'seven_day', used: 1, resetsAt: 1793192400_000, ms: 7 * 24 * H, slot: 'secondary' }], complete: true, rejected: 'seven_day' });
   assert.equal(codexLive({ rateLimits: { primary: { usedPercent: 40, windowDurationMins: 43200, resetsAt: 1794875575 } } }).windows[0].id, 'w43200m', 'no per-limit list: rateLimits');
   assert.equal(codexLive(null), null);
   assert.equal(codexLive({ rateLimits: { primary: null, secondary: null } }), null);
@@ -596,4 +598,23 @@ test('spare allowance: /agents carries what the home card needs, and the switch 
   assert.equal((await api('/config')).defaults.spareCard, 'off');
   await api('/config', { defaults: { spareCard: 'on' } }, 'PATCH');
   seedPlan(); // back to the other tests' plan
+});
+
+test('window changes: /agents carries the notice, × hides it, the switch hides them all and only takes on or off', async () => {
+  await assert.rejects(api('/config', { defaults: { windowNotice: 'yes' } }, 'PATCH'), /windowNotice must be on or off/);
+  const at = Date.now() + 2 * 24 * H;
+  const report = (R) => srv.budget.record('codex', 'default', codexLimits({ primary: { used_percent: 5, window_minutes: 300, resets_at: (Date.now() + 2 * H) / 1000 }, secondary: { used_percent: 30, window_minutes: 10080, resets_at: R / 1000 } }));
+  report(at);
+  report(at + 12 * H); // the weekly now resets 12 hours later than it did
+  const codexOf = async () => (await api('/agents')).find((a) => a.id === 'codex');
+  const notes = (a) => (a.budget || []).flatMap((b) => b.notices || []);
+  let [n] = notes(await codexOf());
+  assert.equal(n?.kind, 'reset');
+  assert.equal(n.window, 'seven_day');
+  await api('/config', { defaults: { windowNotice: 'off' } }, 'PATCH');
+  assert.deepEqual(notes(await codexOf()), [], 'off: the API leaves them out too');
+  await api('/config', { defaults: { windowNotice: 'on' } }, 'PATCH');
+  await assert.rejects(api('/agents/codex/windows/dismiss', { window: 'five_hour' }), (e) => e.status === 404);
+  assert.deepEqual(await api('/agents/codex/windows/dismiss', { account: 'default', window: 'seven_day' }), { ok: true });
+  assert.deepEqual(notes(await codexOf()), []);
 });

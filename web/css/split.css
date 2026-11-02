@@ -252,6 +252,8 @@ body.split:not(.stack):not(.side-hidden) .sh-next .sh-task:not(.sh-up) { grid-te
 .sp-x { width: 30px; height: 30px; color: var(--faint); }
 .sp-x:hover { color: var(--ink-2); }
 .sp-x .i { width: 13px; height: 13px; }
+/* Window changes (split.js paintSpare): the same row, a line and ×, no button */
+.sp-card.wn-card { grid-template-columns: 13px minmax(0, 1fr) auto; }
 /* without hover (touch) the button needs its own edge, or it reads as text */
 @media (hover: none) { .sp-start { border: 1px solid var(--line); } }
 /* a phone's width: the line wraps over the whole row, the button goes under it */
@@ -261,6 +263,7 @@ body.split:not(.stack):not(.side-hidden) .sh-next .sh-task:not(.sh-up) { grid-te
   .sp-text { grid-area: t; white-space: normal; line-height: 1.4; }
   .sp-x { grid-area: x; margin-top: -6px; }
   .sp-start { grid-area: s; justify-self: start; margin-top: 4px; }
+  .sp-card.wn-card { grid-template-areas: 'l t x'; }
 }
 .sh-keys { margin: 18px 0 0; padding: 0 8px 0 13px; font-size: 12.5px; color: var(--faint); line-height: 2; }
 /* the prompt box at home, quieter: chips without outlines, recipes without a rule over them */

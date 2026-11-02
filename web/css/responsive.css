@@ -257,7 +257,7 @@ body.wisp-mobile #feed .item:not(.open) { contain-intrinsic-size: auto 88px; }
 /* The phone app: every control a thumb can hit is 44px (qa/ui-audit.mjs checks each view). Rows grow;
    small inline buttons keep their look and take the room with a min-height. */
 body.wisp-mobile :is(.sh-task, .t-fold, .tx-row, .pk-h, .m.cv-dlg) { min-height: 44px; }
-body.wisp-mobile :is(.sp-start, .sp-x) { min-width: 44px; min-height: 44px; }
+body.wisp-mobile :is(.sp-start, .sp-x, .bg-nx) { min-width: 44px; min-height: 44px; }
 body.wisp-mobile :is(.l-goal input, .c-goal-line input, .composer-goal input, .pal-input input) { min-height: 44px; }
 body.wisp-mobile .topbar .brand { min-height: 44px; display: inline-flex; align-items: center; }
 body.wisp-mobile #moreProjects { height: 44px; }

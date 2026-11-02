@@ -121,6 +121,38 @@ the numbers are already on `GET /agents` (`budget`).
 - **Terms.** Advice only. It never switches accounts, never moves work, never spends a banked reset
   (`rateLimitResetCredit/consume` stays unused).
 
+
+## Window changes
+
+Plans change their windows without saying so: a weekly reset that moves from Thursday night to
+Sunday morning, a weekly window that becomes a 30-day one, a window that's added or dropped. People
+plan their week around those resets. Moris's queue (#5), 2026-11-03.
+
+- **Detection** (`server/budget.js` `#shape`, on every `record()`): what wisp last saw of each
+  window (`acc.shape.windows[id] = { ms, resetsAt, slot, at, miss }`) is kept in `budget.json`, so
+  a restart announces nothing again. The first report of an account only sets it.
+  - *reset*: a window of a day or more whose reset is off its old schedule (old reset plus whole
+    periods) by more than 10 minutes (Codex drifts). Never the 5-hour window (it starts at your
+    first message), never an early (banked) reset (it has its own *Reset early* line).
+  - *length*: the same id with another length, or Codex's same slot (`primary`/`secondary`) under
+    a new id (Codex names windows by their minutes: `seven_day` → `w43200m`).
+  - *new*: a window not seen before, from a report that lists every window (`complete`: Claude's
+    `unifiedWindows`, Codex's rate_limits). A Claude event naming one window says nothing.
+  - *gone*: missing from 3 full reports in a row over 6 hours or more. Its bar goes too.
+- **Notices** (`acc.notices[window]`, one per window; the next change of it replaces it) are on
+  `GET /agents` as `budget[].notices` with `label`/`wasLabel`, unless `defaults.windowNotice` is
+  `off`. × is `POST /agents/:id/windows/dismiss { account, window }`, optimistic with a `tryApi`
+  rollback (`features/budget.js dismissNotice`), shared by both places.
+- **Words** (`web/js/window-notice.js noticeWords`): *Codex’s weekly window now resets Sun 09:00
+  (was Thu 21:00)*, *… is now 30-day, resets …*, *Codex has a new 30-day window, resets …*,
+  *… is gone: it no longer reports one*. Weekday and time; the tooltip has the dates and when wisp
+  saw it.
+- **Where**: a line in the account's block in Settings → Usage (`.bg-note`, under the bars), and
+  a row in home's `.sh-spare` box after the spare rows (`.sp-card.wn-card`: logo, line, ×; at most
+  two, newest first). Setting `windowNotice` (on unless off, spell-lockable), Settings → Usage →
+  *Window changes*.
+- **Terms.** Advice only: no action button, nothing switches.
+
 ## Not yet
 
 - Asking before a run takes a window past a line: design/hold.md (Ask near the limit).
