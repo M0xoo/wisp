@@ -39,6 +39,8 @@ import { addToCrew, cadenceLabel, crewEditor, crewList, memberById, openCrew } f
 import { importCrew, shareMember } from './crew-share.js';
 import { crewRecord, trackRecord } from './crew-record.js';
 
+import { sideable, sideDraft } from './side.js';
+
 const STATE_LABEL = { running: 'Working', waiting: 'Asking', review: 'Review', done: 'Done' };
 
 // Run something on a session's card, expanding it first if the action needs the body.
@@ -69,7 +71,7 @@ function paletteItems() {
     const full = S.full.get(id);
     const lastTurn = full?.turns?.at(-1);
     const live = cur.state === 'running' || cur.state === 'waiting';
-    const canRollback = cur.agent !== 'wisp' && !live && (lastTurn?.changes?.length || lastTurn?.checkpoint?.commit || cur.filesChanged);
+    const canRollback = cur.agent !== 'wisp' && !cur.sideOf && !live && (lastTurn?.changes?.length || lastTurn?.checkpoint?.commit || cur.filesChanged);
     const rolledBack = !!lastTurn?.rolledBackAt;
     const g = 'This task';
     const sub = cur.title;
@@ -78,9 +80,10 @@ function paletteItems() {
     if (canRollback) items.push({ group: g, label: rolledBack ? 'Re-apply latest turn' : 'Restore to before latest turn', sub, icon: rolledBack ? 'rerun' : 'replay', keywords: 'rollback revert undo checkpoint restore', run: () => rollbackTurn(id, lastTurn?.id, rolledBack) });
     if (isForLater(cur) || canSaveForLater(cur)) items.push({ group: g, label: isForLater(cur) ? 'Unsave' : 'Save for later', sub, icon: 'bookmark', kbd: 'L', keywords: 'bookmark park later read', run: () => setForLater(id, !isForLater(cur)) });
     if (cur.archived || !live) items.push({ group: g, label: cur.archived ? 'Unarchive' : 'Archive', sub, icon: 'archive', kbd: 'A', run: () => setArchived(id, !cur.archived) });
-    items.push({ group: g, label: 'Take over', sub, icon: 'terminal', keywords: 'terminal take over carry on yourself cli', kbd: 'T', run: () => takeOver(id) });
-    items.push({ group: g, label: 'Rerun…', sub, icon: 'rerun', kbd: '⇧R', keywords: 'retry again restart model harness', run: () => rerun(id) });
+    if (!cur.sideOf) items.push({ group: g, label: 'Take over', sub, icon: 'terminal', keywords: 'terminal take over carry on yourself cli', kbd: 'T', run: () => takeOver(id) });
+    if (!cur.sideOf) items.push({ group: g, label: 'Rerun…', sub, icon: 'rerun', kbd: '⇧R', keywords: 'retry again restart model harness', run: () => rerun(id) });
     if (forkable(cur)) items.push({ group: g, label: 'Fork…', sub, icon: 'fork', kbd: '⇧F', keywords: 'branch copy duplicate try another way split', run: () => forkTask(id) });
+    if (sideable(cur)) items.push({ group: g, label: 'Side discussion…', sub, icon: 'discuss', keywords: 'side talk discuss review explain ask read-only /side', run: () => sideDraft(id) });
     if (shippable(cur)) items.push({ group: g, label: shipLabel(cur), sub, icon: 'send', kbd: 'S', keywords: 'commit push pull request pr github', run: () => shipDialog(id) });
     if (mergeLabel(cur)) items.push({ group: g, label: mergeLabel(cur), sub, icon: 'check', keywords: 'squash github', run: () => mergePr(id) });
     if (reviewLabel(cur)) items.push({ group: g, label: reviewLabel(cur), sub, icon: 'merge', kbd: 'P', keywords: 'pull request checks ci reviews comments github side panel', run: () => openPanel(id, 'pr') });

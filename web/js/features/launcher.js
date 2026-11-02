@@ -1073,7 +1073,7 @@ function launchedFx(from, to) {
 // A launch the server hasn't answered yet: a placeholder summary that shows in Working as a
 // "Starting up" card. It can't be opened; the real card takes its place.
 let pendingSeq = 0;
-function addPending(prompt, { project: p, m, also = [], sandbox = false }, { agent, model, effort, account }, live = 'Starting up') {
+function addPending(prompt, { project: p, m, also = [], sandbox = false, sideOf = null }, { agent, model, effort, account }, live = 'Starting up') {
   const id = `pending-${++pendingSeq}`;
   const line = plain(terminalAsk(prompt) ?? sandboxAsk(prompt) ?? prompt).split('\n')[0].replace(/\s+/g, ' '); // the server drops /terminal and /sandbox too
   const now = Date.now();
@@ -1096,6 +1096,7 @@ function addPending(prompt, { project: p, m, also = [], sandbox = false }, { age
     createdAt: now,
     updatedAt: now,
     machine: sandbox ? { id: id, name: 'Sandbox', target: '', sandbox: true } : m ? { id: m.id, name: m.name, target: m.target } : null,
+    ...(sideOf && { sideOf }), // a side discussion's row draws its Side pill from the start
   });
   return id;
 }
@@ -1103,11 +1104,11 @@ function addPending(prompt, { project: p, m, also = [], sandbox = false }, { age
 // A launch from a dialog (rerun, recipes): the dialog closes and a placeholder shows in Working
 // at once; the real session replaces it, or it disappears and the error is thrown on.
 // machine: where it runs ('' = this computer), else where the folder is.
-export async function launchBehind({ prompt, cwd, runner, machine }, request) {
+export async function launchBehind({ prompt, cwd, runner, machine, sideOf = null }, request) {
   const sum = S.config.projects.find((p) => placesOf(p).some((k) => pathAt(p, k) === cwd));
   const project = sum || { path: cwd, name: cwd.split('/').filter(Boolean).pop() || cwd, id: null, color: 'slate' };
   const k = machine ?? placeOf(project);
-  const ghost = addPending(prompt, { project, m: k ? machineById(k) : null }, runner, k && sum && !pathAt(sum, k) ? `Cloning ${sum.name} on ${placeName(k)}` : undefined);
+  const ghost = addPending(prompt, { project, m: k ? machineById(k) : null, sideOf }, runner, k && sum && !pathAt(sum, k) ? `Cloning ${sum.name} on ${placeName(k)}` : undefined);
   if (S.filter !== 'all' && S.filter !== project.id) {
     S.filter = 'all';
     save('wisp.filter', S.filter);

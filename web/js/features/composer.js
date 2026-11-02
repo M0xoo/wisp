@@ -2,7 +2,11 @@
 // side questions (/btw), which don't interrupt the run.
 
 import { esc } from '../md.js';
-import { btwQuestion, goalAsk, isBtw, isGoalDrop, SPELL_HINT, spellAsk } from '../slash-text.js';
+import { btwQuestion, goalAsk, isBtw, isGoalDrop, SIDE_HINT, sideAsk, SLASH, SPELL_HINT, spellAsk } from '../slash-text.js';
+import { sideable, startSide } from './side.js';
+
+// A follow-up box's / menu: /side only where it can start one, /goal not on a side discussion.
+const slashFor = (s) => SLASH.filter((c) => (c.name !== 'side' || sideable(s)) && (c.name !== 'goal' || !s?.sideOf));
 import { editGoal, goalAction, paintReplyGoal, replyGoalHtml, setGoal, showGoal, takeReplyGoal, wireReplyGoal } from './goal.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
@@ -119,7 +123,7 @@ export function renderDock(id) {
   comp.prepend(n.tray.node);
   $('.reply', comp).before(commentTray(id)); // comments on the answer, going out with the next message
   const ta = mentionBox($('.reply', comp));
-  slashMenu(ta, comp);
+  slashMenu(ta, comp, () => slashFor(S.sessions.get(id) || S.full.get(id)));
   autosize(ta, 260);
   acceptFiles(comp, ta, n.tray);
   $('.c-attach', comp).onclick = n.tray.pick;
@@ -293,8 +297,8 @@ function paintReplyMode(id, btn) {
   btn.title = from
     ? `${m.label}: ${m.hint}\nYour next follow-up switches this task from ${from.label} to ${m.label}. Shift+Tab to switch`
     : `${m.label}: ${m.hint}\nPick another mode for your next follow-up. Shift+Tab to switch`;
-  // Subagents run in their lead's mode; the tour has nothing to run.
-  btn.hidden = !s || s.agent === 'wisp' || !!s.parentId;
+  // Subagents run in their lead's mode; the tour has nothing to run; a side discussion only reads.
+  btn.hidden = !s || s.agent === 'wisp' || !!s.parentId || !!s.sideOf;
 }
 
 // The harness, model and thinking level the next follow-up runs on: the session's own until the
@@ -389,7 +393,7 @@ function paintReplyTeam(id, btn) {
         ? `${agentName(lead)} can delegate to:\n${list}\nClick to change them for your next follow-up`
         : `Delegate: give ${agentName(lead)} agents on other harnesses or machines to hand work to from your next follow-up`;
   // Subagents don't get a team of their own; a lead that can't delegate only shows one it has.
-  btn.hidden = !s || s.agent === 'wisp' || !!s.parentId || (!canLead(lead) && !team.length);
+  btn.hidden = !s || s.agent === 'wisp' || !!s.parentId || !!s.sideOf || (!canLead(lead) && !team.length); // a side discussion hands nothing out
 }
 
 // Where the next follow-up runs: where the task is, until the user picks another computer here.
@@ -444,7 +448,7 @@ function paintReplyPlace(id, btn) {
     ? `Your next follow-up moves this task from ${placeName(placeNow(s))} to ${placeName(k)}, with its work and history. Click to change`
     : `Runs on ${placeName(k)}. Pick another computer for your next follow-up`;
   // Only with machines to move to; subagents go where their lead is, the tour nowhere.
-  btn.hidden = !s || !S.machines.length || s.agent === 'wisp' || !!s.parentId;
+  btn.hidden = !s || !S.machines.length || s.agent === 'wisp' || !!s.parentId || !!s.sideOf; // a side discussion stays with its main task
 }
 
 export function updateDock(id) {
@@ -580,6 +584,21 @@ export async function sendReply(id, text, { confirm = false } = {}) {
       n?.tray?.restore(files);
     };
     return askBtw(id, question, { attachments, files, restore });
+  }
+  // /side <message>: a side discussion about this task, on a page of its own (side.js).
+  const side = sideAsk(text);
+  if (side !== null) {
+    if (!side) return toast(SIDE_HINT);
+    if (n?.tray?.busy) toast('Waiting for uploads…');
+    const attachments = n?.tray ? await n.tray.ids() : [];
+    if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
+    S.drafts.delete(id);
+    const files = n?.tray?.take() || [];
+    const restore = () => {
+      if (ta?.isConnected && !ta.value) ((ta.value = text), ta.dispatchEvent(new Event('input')));
+      n?.tray?.restore(files);
+    };
+    return startSide(id, side, { attachments, restore });
   }
   // "@Ada …": a message for a crew member, answered on this card; the task's agent carries on.
   const to = addressedTo(text);

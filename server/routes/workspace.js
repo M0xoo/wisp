@@ -33,6 +33,7 @@ import { workdir } from '../runner.js';
 import { defaultTerminal, inWisp, openInTerminal } from '../terminal.js';
 import { bad } from '../util.js';
 import { runCommand } from '../worktree-setup.js';
+import { notSide } from '../side.js';
 
 // The user's login shell, started as one so their PATH and prompt come with it.
 export const shellArgv = (env = process.env) => [env.SHELL || '/bin/sh', '-l'];
@@ -235,6 +236,7 @@ export function register(r, app) {
     'POST',
     '/sessions/:id/changes/revert',
     one(async (c, s) => {
+      notSide(s, 'revert files');
       const body = await c.body();
       if (typeof body.path !== 'string' || !body.path) throw bad('path is required');
       if (s.state === 'running' || s.state === 'waiting') return c.send(409, { error: BUSY });
@@ -292,6 +294,7 @@ export function register(r, app) {
     'POST',
     '/sessions/:id/changes/stage',
     one(async (c, s) => {
+      notSide(s, 'stage files');
       const body = await c.body();
       if (typeof body.path !== 'string' || !body.path) throw bad('path is required');
       const { root, error } = await gitHere(s);
@@ -323,6 +326,7 @@ export function register(r, app) {
     'POST',
     '/sessions/:id/changes/commit',
     one(async (c, s) => {
+      notSide(s, 'commit');
       const body = await c.body();
       const message = typeof body.message === 'string' ? body.message.trim() : '';
       if (!message) throw bad('Write a commit message first.');
@@ -357,6 +361,7 @@ export function register(r, app) {
     'PUT',
     '/sessions/:id/source',
     one(async (c, s) => {
+      notSide(s, 'edit files');
       const body = await c.body();
       if (typeof body.text !== 'string') throw bad('text is required');
       if (Buffer.byteLength(body.text) > SOURCE_MAX) return c.send(413, { error: 'Too big to save here (over 1 MB).' });

@@ -15,6 +15,7 @@ import { handoffNote } from './handoff.js';
 import { openTerms } from './pty.js';
 import { agentPrompt, plainMentions } from './mentions.js';
 import { BTW_SYSTEM, BTW_TIMEOUT_MS, MAX_BTW, btwAnswer, btwPrompt } from './btw.js';
+import { SIDE_DENIED, sideNote, sidePrompt } from './side.js';
 import { bad, clip, MODES, newId } from './util.js';
 import { LIMIT_CARRY_ON, laterNote, laterView } from './later.js';
 import { HOMES as ACCOUNT_HOMES } from './accounts.js';
@@ -72,7 +73,8 @@ export function clipOutput(text) {
 }
 
 // Where the agent actually works: its own worktree when it has one, else the project folder.
-export const workdir = (s) => s.worktree?.cwd || s.cwd;
+// A side discussion (/side, server/side.js) reads its main task's folder.
+export const workdir = (s) => s.sideOf?.cwd || s.worktree?.cwd || s.cwd;
 
 // Where the agent works in the task's other folders (also): their worktrees, else the folders.
 export const alsoDirs = (s) => (s.also || []).map((a) => a.worktree?.cwd || a.cwd);
@@ -239,6 +241,8 @@ export function summarize(s, store) {
     moved: s.moved || null, // { from }: carried on here from another place (services/move.js)
     movedTo: s.movedTo || null, // { id, place }: this one carried on there, and was archived
     ...(s.forkedFrom && { forkedFrom: s.forkedFrom }), // { id, title, turn, of }: a fork of that task (services/fork.js)
+    ...(s.sideOf && { sideOf: { id: s.sideOf.id, title: s.sideOf.title } }), // a read-only side discussion about that task (server/side.js)
+    ...(s.sides?.length && { sides: store ? s.sides.filter((x) => store.get(x)) : s.sides }), // its side discussions' ids
     ...(s.shared && { shared: { url: s.shared.url, host: s.shared.host, locked: !!s.shared.locked, work: !!s.shared.work, at: s.shared.at } }), // its share link (services/share.js)
     ...(s.sharedFrom && { sharedFrom: { id: s.sharedFrom.id, url: s.sharedFrom.url, host: s.sharedFrom.host, handle: s.sharedFrom.handle, name: s.sharedFrom.name, skills: (s.sharedFrom.kit || []).map((k) => k.name) } }), // imported from someone's share
     ...(s.forks?.length && { forks: store ? s.forks.filter((x) => store.get(x)) : s.forks }), // its forks' ids
@@ -326,7 +330,7 @@ export class Runner extends EventEmitter {
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
   // also: the task's other folders, [{ cwd, worktree }] (services/launch.js).
   // history / title / moved: a task moved here from another place, with the turns it had there.
-  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null, goal = null, forkedFrom = null, hold = null, sharedFrom = null, idle = false, tui = false }) {
+  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null, goal = null, forkedFrom = null, sideOf = null, hold = null, sharedFrom = null, idle = false, tui = false }) {
     if (!adapters[agent] && !(relay && agent === 'auto')) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
@@ -350,6 +354,7 @@ export class Runner extends EventEmitter {
       turns: [...history],
       ...(moved && { moved }),
       ...(forkedFrom && { forkedFrom }), // { id, title, turn, of }: forked from that task's turn (services/fork.js)
+      ...(sideOf && { sideOf }), // { id, title, cwd }: a read-only side discussion about that task (server/side.js)
       ...(sharedFrom && { sharedFrom }), // { id, url, host, handle, name, title, kit? }: imported from a share (services/share.js)
       ...(kind && { kind }), // 'spell': a Cast a spell task (server/spell-guide.js)
       ...(worktree && { worktree }),
@@ -367,7 +372,7 @@ export class Runner extends EventEmitter {
     };
     if (goal && !parentId && !delegated) this.goals?.attach(session, goal);
     this.store.put(session);
-    if (!parentId && !delegated) for (const dir of [...also.map((a) => a.cwd), cwd]) this.store.touchProject(dir); // a subagent's cwd may be the lead's worktree
+    if (!parentId && !delegated && !sideOf) for (const dir of [...also.map((a) => a.cwd), cwd]) this.store.touchProject(dir); // a subagent's cwd may be the lead's worktree
     // Ask near the limit (server/guard.js): an automation's task that would cross your line waits.
     // idle: an imported task with nothing asked yet: its history shows, and it waits for your follow-up.
     if (idle) Object.assign(session, { state: 'review', unread: false });
@@ -468,9 +473,9 @@ export class Runner extends EventEmitter {
   // hold: Ask near the limit (server/guard.js) said this follow-up would cross your line: it's kept
   // as a held turn instead. Scheduled follow-ups and goal rounds are checked here themselves.
   reply(session, text, attachments = [], { queue = false, mode, run, team, grants, once, by, later, goal, hold } = {}) {
-    if (!MODES.has(mode) || mode === session.mode) mode = undefined;
+    if (!MODES.has(mode) || mode === session.mode || session.sideOf) mode = undefined; // a side discussion stays read-only
     run = changedRun(session, run);
-    if (session.parentId || (team && JSON.stringify(team) === JSON.stringify(session.subagents || []))) team = undefined;
+    if (session.parentId || session.sideOf || (team && JSON.stringify(team) === JSON.stringify(session.subagents || []))) team = undefined;
     if (by !== 'wisp' && by !== 'later') this.pipeline?.cancel(session);
     if (by !== 'wisp') this.goals?.cancel(session);
     if (by !== 'wisp') delete session.queueHeld; // you're back: a queue a Stop held carries on after this
@@ -530,6 +535,7 @@ export class Runner extends EventEmitter {
   approveBlocked(session, { turnId, allow }) {
     const turn = turnId ? session.turns.find((t) => t.id === turnId) : session.turns.at(-1);
     if (!turn?.blocked?.length) throw bad('Nothing on that turn is waiting for approval.', 404);
+    if (allow && session.sideOf) throw bad('A side discussion only reads: ask the main task to do it.', 409);
     if (turn.approval) throw bad(`Already ${turn.approval}.`, 409);
     // A CLI still lingering after its result doesn't count: reply() lets it go and starts the retry.
     if (turn !== session.turns.at(-1) || (this.live.has(session.id) && turn.status === 'running')) throw bad('The task has moved on since; send a follow-up instead.', 409);
@@ -841,6 +847,11 @@ export class Runner extends EventEmitter {
     const adapter = adapters[session.agent];
     const p = adapter.permission?.(String(tool || ''), input && typeof input === 'object' ? input : {}, workdir(session)) || { tool: String(tool || 'tool'), action: `use ${tool}`, detail: '' };
     const turn = session.turns.at(-1);
+    // A side discussion changes nothing: what its mode didn't allow is refused without asking.
+    if (session.sideOf) {
+      if (turn) this.#onEvent(session, turn, { type: 'tool', kind: 'answer', label: `Refused (side discussions only read): ${p.action}` });
+      return { decision: 'deny', message: SIDE_DENIED };
+    }
     if ((session.grants || []).some((g) => sameAction(g, p))) {
       if (turn) this.#onEvent(session, turn, { type: 'tool', kind: 'answer', label: `Allowed (always in this task): ${p.action}` });
       return { decision: 'allow' };
@@ -1099,7 +1110,7 @@ export class Runner extends EventEmitter {
     const id = newId();
     // A subagent's edits land in the lead's turn, whose checkpoint already covers them.
     const checkpoint =
-      session.agent === 'wisp' || session.parentId
+      session.agent === 'wisp' || session.parentId || session.sideOf
         ? null
         : !session.turns.length && session.worktree?.head
           ? freshCheckpoint(session.worktree)
@@ -1141,7 +1152,8 @@ export class Runner extends EventEmitter {
     const crew = session.crew ? this.crewNote(session) : '';
     // A shared task's skills and instructions came with it (services/share.js): written out in full.
     const kit = !sub && session.sharedFrom?.kit?.length ? kitNote({ kit: session.sharedFrom.kit }) : '';
-    return base + spell + crew + kit + goalNote(session) + workspaceNote(session) + this.promptExtra(session);
+    const side = session.sideOf ? sideNote(session, adapter.askTool === null || !this.bridge ? '' : (adapter.askTool ?? 'mcp__wisp__ask_user').replace(/ask_user$/, 'wisp_session')) : '';
+    return base + spell + crew + kit + side + goalNote(session) + workspaceNote(session) + this.promptExtra(session);
   }
 
   // wisp's own MCP server (ask_user, delegate), for harnesses that take one, and your connectors
@@ -1165,6 +1177,7 @@ export class Runner extends EventEmitter {
           WISP_TURN: session.turns.at(-1)?.id || '', // so a run's leftover helper can tell its turn is over
           ...(adapter.approveTool && { WISP_APPROVE: '1' }),
           ...(session.kind === 'spell' && { WISP_SPELLS: '1' }),
+          ...(session.sideOf && { WISP_READONLY: '1' }), // a side discussion: only the tools that read (server/side.js)
           ...(this.store.config?.defaults?.watch !== 'off' && { WISP_WATCH: '1' }),
           ...(team.length && { WISP_TEAM: JSON.stringify(team.map((m) => ({ name: m.name, agent: m.crew ? `${m.label || m.name} of the user's crew${m.role ? `, ${m.role}` : ''}` : adapters[m.agent]?.name || m.agent, model: m.crew ? 'own folder and memory' : m.model, effort: m.effort, use: m.use, count: m.count || 1, copies: copies(m), ...(m.machine && { place: m.place || 'another machine' }) }))) }),
         },
@@ -1175,7 +1188,7 @@ export class Runner extends EventEmitter {
   // grants: harness rules allowing what the user approved, for this turn only. once: a mode for
   // this turn only (an approved retry the harness can't scope runs in Full auto).
   #startTurn(session, prompt, attachments = [], { grants = [], once, by, reports, later, goal } = {}) {
-    const mode = MODES.has(once) ? once : session.mode;
+    const mode = session.sideOf ? 'plan' : MODES.has(once) ? once : session.mode;
     const turn = this.#newTurn(session, prompt, attachments, mode);
     if (session.relay) turn.relay = { state: 'pending' }; // until the relay picks it up
     if (by === 'wisp') turn.by = 'wisp'; // sent by wisp (Auto's repair round), not by you
@@ -1237,11 +1250,15 @@ export class Runner extends EventEmitter {
     const tools = !session.parentId && !session.delegated && adapter.askTool !== null && this.bridge;
     const text = agentPrompt(prompt, this.store, { tool: tools ? (adapter.askTool ?? 'mcp__wisp__ask_user').replace(/ask_user$/, 'wisp_session') : null, self: session.id, stuff: this.stuff });
     const still = owed.length && team.length && this.bridge ? stillWorkingNote(owed) : '';
+    // A side discussion hears where its main task stands now, before each of your messages.
+    const main = session.sideOf ? this.store.get(session.sideOf.id) || null : null;
+    if (main) session.sideOf.cwd = workdir(main); // where the main task works now (it may have moved)
+    const said = session.sideOf ? sidePrompt(main, text, (t) => adapters[t.agent || main?.agent]?.name || t.agent || main?.agent) : text;
     const handle = adapter.run({
-      prompt: [handoff, still, turn.later ? laterNote(turn.later) : '', text].filter(Boolean).join('\n\n'),
+      prompt: [handoff, still, turn.later ? laterNote(turn.later) : '', said].filter(Boolean).join('\n\n'),
       attachments,
       cwd: workdir(session),
-      dirs: [...alsoDirs((session.parentId && this.store.get(session.parentId)) || session), ...(session.crew ? this.crewDirs(session) : [])], // the task's other folders (a subagent's are its lead's), a crew job's skills
+      dirs: [...alsoDirs((session.parentId && this.store.get(session.parentId)) || main || session), ...(session.crew ? this.crewDirs(session) : [])], // the task's other folders (a subagent's are its lead's), a crew job's skills
       resumeId: session.agentSessionId,
       mode,
       grants,
@@ -1349,6 +1366,12 @@ export class Runner extends EventEmitter {
         return;
       }
       case 'blocked': {
+        // A side discussion only reads: what was refused is a note, not something to allow and retry.
+        if (session.sideOf) {
+          turn.activity.push({ t: Date.now(), kind: 'answer', label: `Refused (side discussions only read): ${clip(String(ev.detail || ev.tool || 'a change'), 120)}` });
+          this.store.save(session);
+          return;
+        }
         // A tool call the harness's permissions refused. The card after the turn offers to retry it.
         const item = { tool: String(ev.tool || 'tool'), detail: String(ev.detail ?? ''), ...(ev.rule !== undefined && { rule: ev.rule }) };
         const list = (turn.blocked ||= []);

@@ -16,6 +16,7 @@ import { autosize } from './attachments.js';
 import { saveAsRecipe } from './automations.js';
 import { compareView } from './compare.js';
 import { collapse, expand, handOff, renderFeed, setFocus } from './feed.js';
+import { sideable, sideDraft } from './side.js';
 import { launchBehind } from './launcher.js';
 import { shareable, shareTask } from './share.js';
 import { copyTaskId, mentionBox } from './mentions.js';
@@ -122,6 +123,7 @@ export async function execAction(id, turnId, command, key) {
 // else in the terminal app. The page's terminal shows at once and fills in when it's started.
 // A terminal session (Settings → General) is always in the page, and opens with no conversation yet.
 export async function takeOver(id) {
+  if (S.sessions.get(id)?.sideOf) return; // a side discussion only reads: a terminal would leave Plan
   if (S.sessions.get(id)?.term) return void openTerm(id); // already open: show it again
   const tui = !!S.sessions.get(id)?.tui;
   let s = S.full.get(id);
@@ -195,14 +197,15 @@ export function moreMenu(id, anchor) {
   const menu = el(`
     <div class="menu" style="top:${r.bottom + 6}px;right:${innerWidth - r.right}px">
       ${folded ? `<button data-a="transcript" aria-pressed="${txOn}">${icon('transcript')}Transcript${txOn ? icon('check', 'mi-on') : ''}${keyHint('V')}</button>
-      <button data-a="rerun">${icon('rerun')}Rerun…${keyHint('⇧R')}</button>
-      <button data-a="takeover">${icon('terminal')}Take over${keyHint('T')}</button>
+      ${sum.sideOf ? '' : `<button data-a="rerun">${icon('rerun')}Rerun…${keyHint('⇧R')}</button>
+      <button data-a="takeover">${icon('terminal')}Take over${keyHint('T')}</button>`}
       <div class="wm-sep" role="separator"></div>` : ''}
       <button data-a="rename">${icon('pen')}Rename${keyHint('M')}</button>
       <button data-a="copy-id">${icon('copy')}Copy task ID</button>
       ${s.agentSessionId ? `<button data-a="copy">${icon('copy')}Copy resume command</button>` : ''}
       ${MOBILE ? '' : `<button data-a="folder">${icon('folder')}Open project in editor</button>`}
       ${forkable(sum) ? `<button data-a="fork">${icon('fork')}Fork…${keyHint('⇧F')}</button>` : ''}
+      ${sideable(sum) ? `<button data-a="side">${icon('discuss')}Side discussion…</button>` : ''}
       ${shareable(sum) ? `<button data-a="share">${icon('share')}Share…</button>` : ''}
       ${mergeLabel(sum) ? `<button data-a="merge">${icon('check')}${mergeLabel(sum)}</button>` : ''}
       ${reviewLabel(sum) ? `<button data-a="review">${icon('merge')}${reviewLabel(sum)}${keyHint('P')}</button>` : ''}
@@ -231,6 +234,7 @@ export function moreMenu(id, anchor) {
     if (a === 'takeover') takeOver(id);
     if (a === 'copy-id') copyTaskId(id);
     if (a === 'fork') forkTask(id);
+    if (a === 'side') sideDraft(id);
     if (a === 'share') shareTask(id);
     if (a === 'merge') mergePr(id);
     if (a === 'review') openPanel(id, 'pr');
@@ -272,8 +276,9 @@ export function taskMenu(id, e) {
       ${S.open.has(id) ? `<button data-a="collapse">${icon('chevron')}Collapse${keyHint('O')}</button>` : `<button data-a="open">${icon('chevron')}Open${keyHint('O')}</button>`}
       <button data-a="rename">${icon('pen')}Rename${keyHint('M')}</button>
       <button data-a="copy-id">${icon('copy')}Copy task ID</button>
-      <button data-a="rerun">${icon('rerun')}Rerun…${keyHint('⇧R')}</button>
+      ${s.sideOf ? '' : `<button data-a="rerun">${icon('rerun')}Rerun…${keyHint('⇧R')}</button>`}
       ${forkable(s) ? `<button data-a="fork">${icon('fork')}Fork…${keyHint('⇧F')}</button>` : ''}
+      ${sideable(s) ? `<button data-a="side">${icon('discuss')}Side discussion…</button>` : ''}
       ${shareable(s) ? `<button data-a="share">${icon('share')}Share…</button>` : ''}
       ${shippable(s) ? `<button data-a="ship">${icon('send')}${shipLabel(s)}${keyHint('S')}</button>` : ''}
       ${mergeLabel(s) ? `<button data-a="merge">${icon('check')}${mergeLabel(s)}</button>` : ''}
@@ -303,6 +308,7 @@ export function taskMenu(id, e) {
     if (a === 'copy-id') copyTaskId(id);
     if (a === 'rerun') rerun(id);
     if (a === 'fork') forkTask(id);
+    if (a === 'side') sideDraft(id);
     if (a === 'share') shareTask(id);
     if (a === 'ship') shipDialog(id);
     if (a === 'merge') mergePr(id);
@@ -383,6 +389,7 @@ addEventListener('pagehide', sendAllDeletes);
 // optionally edited, on whichever computer, harness, model and thinking level you pick. The
 // original stays. Another computer runs it in its own checkout (cloned there if need be).
 export async function rerun(id) {
+  if (S.sessions.get(id)?.sideOf) return; // a side discussion starts another with /side on its main task
   const s = S.full.get(id) || (await api(`/sessions/${id}`).catch(toastError));
   const first = s?.turns?.[0];
   if (!first?.prompt) return toast('Nothing to rerun — this task has no prompt.', { tone: 'bad' });
@@ -488,7 +495,7 @@ export async function rerun(id) {
 // the conversation up to there and its files as they were then, on a branch of its own. This one
 // is kept as it is. The fork can run on another harness or mode. draft: what a fork that failed
 // was sent with, so Edit again brings it all back.
-export const forkable = (s) => !!s && s.agent !== 'wisp' && !s.parentId && !s.kind && !s.pending && !s.delegated;
+export const forkable = (s) => !!s && s.agent !== 'wisp' && !s.parentId && !s.kind && !s.pending && !s.delegated && !s.sideOf;
 export async function forkTask(id, turnId = '', draft = null) {
   const s = S.full.get(id) || (await api(`/sessions/${id}`).catch(toastError));
   if (!s) return;
