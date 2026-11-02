@@ -19,6 +19,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - **Codex limits are told apart.** Codex sometimes answers “429 Too Many Requests” while your plan still has room: with its usage windows known and none full, Auto now rests it one minute instead of ten, and tries it again once when nothing else can run. When Codex refuses because too many devices or sessions are signed in, the task says so and what to do (close Codex elsewhere, then Rerun) instead of a bare error. A real usage limit still shows the card where you pick wait, another account or hand-off; wisp never switches accounts by itself.
+- **Claude Code no longer spends extra calls on progress summaries.** With `CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES` exported in your shell, every Claude Code run wisp started (tasks and Take over terminals) made extra model calls to summarise its subagents' progress. wisp now leaves it out of the runs it starts; a Shell beside the task keeps your environment as it is.
 
 ## [0.53.0] - 2026-11-02
 
