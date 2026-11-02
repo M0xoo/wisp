@@ -204,7 +204,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="style.css?v=58" />
+  <link rel="stylesheet" href="style.css?v=59" />
   <script>document.documentElement.classList.add('js'); if (/iPhone|iPod|Android.+Mobile/.test(navigator.userAgent)) document.documentElement.classList.add('phone')</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -534,6 +534,26 @@
         <div><dt>Usage</dt><dd>Spend, success rate and questions asked, per project and per harness and model.</dd></div>
         <div><dt>Small and local</dt><dd>A Node server with zero runtime dependencies and a vanilla JS UI. State is plain JSON in <code>~/.wisp</code>.</dd></div>
       </dl>
+    </section>
+
+    <!-- ───────── reviews (for fun) ───────── -->
+    <section class="voices wrap" id="reviews">
+      <h2>Reviews nobody asked for.</h2>
+      <p class="sub">What the people (and things) around a wisp user really think. Unedited. Mostly.</p>
+      <div class="v-wall">
+        <figure class="v-card"><blockquote>Stop using your phone to build stuff and focus on me.</blockquote><figcaption><span class="v-av" aria-hidden="true">G</span><b>Girlfriend</b><span class="v-stars" aria-label="1 out of 5">★☆☆☆☆</span></figcaption></figure>
+        <figure class="v-card"><blockquote>This amazing, can I have more VMs for free?</blockquote><figcaption><span class="v-av" aria-hidden="true">B</span><b>Best friend</b><span class="v-stars" aria-label="5 out of 5">★★★★★</span></figcaption></figure>
+        <figure class="v-card"><blockquote>Yeah not bad.</blockquote><figcaption><span class="v-av" aria-hidden="true">C</span><b>A colleague</b><span class="v-stars" aria-label="3 out of 5">★★★☆☆</span></figcaption></figure>
+        <figure class="v-card"><blockquote>I had been failing one run in five since 2023. People wrote Slack threads about me. Then it fixed me in four minutes while he was at lunch.</blockquote><figcaption><span class="v-av" aria-hidden="true">T</span><b>The flaky auth test, retired</b><span class="v-stars" aria-label="0 out of 5">☆☆☆☆☆</span></figcaption></figure>
+        <figure class="v-card"><blockquote>He closed the lid and walked away, and the agents kept working. So now the laptop is warm and it's mine.</blockquote><figcaption><span class="v-av emo" aria-hidden="true">🐈</span><b>The cat</b></figcaption></figure>
+        <figure class="v-card"><blockquote>I was halfway through a refactor and he moved me to the GPU box. Mid-sentence. Nobody asked me.</blockquote><figcaption><span class="v-av" aria-hidden="true">CC</span><b>Claude Code</b><span class="v-stars" aria-label="4 out of 5">★★★★☆</span></figcaption></figure>
+        <figure class="v-card"><blockquote>Lost the compare run again. I demand a rematch. Best of five.</blockquote><figcaption><span class="v-av" aria-hidden="true">CX</span><b>Codex</b><span class="v-stars" aria-label="2 out of 5">★★☆☆☆</span></figcaption></figure>
+        <figure class="v-card"><blockquote>He says the robots do all the work now. Then why is he still awake at 2am?</blockquote><figcaption><span class="v-av" aria-hidden="true">M</span><b>Mom</b><span class="v-stars" aria-label="5 out of 5">★★★★★</span></figcaption></figure>
+        <figure class="v-card"><blockquote>His PR count tripled. His standup update is still ‘still on it’.</blockquote><figcaption><span class="v-av" aria-hidden="true">PM</span><b>Manager</b><span class="v-stars" aria-label="4 out of 5">★★★★☆</span></figcaption></figure>
+        <figure class="v-card"><blockquote>He orders a flat white, merges a PR from his phone, and walks off without the flat white. Every day.</blockquote><figcaption><span class="v-av emo" aria-hidden="true">☕</span><b>Barista</b></figcaption></figure>
+        <figure class="v-card"><blockquote>I asked if he was open to leading a team of twelve. He said he already does, and they never take holidays.</blockquote><figcaption><span class="v-av" aria-hidden="true">R</span><b>Recruiter on LinkedIn</b><span class="v-stars" aria-label="3 out of 5">★★★☆☆</span></figcaption></figure>
+        <figure class="v-card"><blockquote>He used to explain his bugs to me. Now he explains them to a task box and it answers back.</blockquote><figcaption><span class="v-av emo" aria-hidden="true">🦆</span><b>Rubber duck</b><span class="v-stars" aria-label="0 out of 5">☆☆☆☆☆</span></figcaption></figure>
+      </div>
     </section>
 
     <!-- ───────── wisp Cloud teaser ───────── -->

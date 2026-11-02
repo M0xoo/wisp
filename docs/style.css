@@ -934,6 +934,20 @@ button.sw-tb { cursor: pointer; }
 .grid dt { font-weight: 650; font-size: 19px; letter-spacing: -0.01em; }
 .grid dd { margin: 8px 0 0; font-size: 16px; color: var(--ink-2); line-height: 1.6; }
 
+/* ---------- reviews nobody asked for: quotes on tone cards, in columns so short ones pack ---------- */
+.voices { padding: 40px 0 120px; }
+.voices .sub { margin-top: 16px; color: var(--ink-2); font-size: 18px; }
+.v-wall { margin-top: 48px; columns: 3 300px; column-gap: 20px; }
+.v-card { break-inside: avoid; margin: 0 0 20px; padding: 24px; border-radius: 14px; background: var(--tone); }
+.v-card blockquote { margin: 0; font-size: 18px; line-height: 1.45; letter-spacing: -0.01em; color: var(--ink); }
+.v-card blockquote::before { content: '\201C'; }
+.v-card blockquote::after { content: '\201D'; }
+.v-card figcaption { display: flex; align-items: center; gap: 10px; margin-top: 18px; font-size: 14px; }
+.v-card figcaption b { font-weight: 600; }
+.v-av { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font: 650 12px var(--sans); }
+.v-av.emo { font-size: 17px; background: var(--tone-2); }
+.v-stars { margin-left: auto; color: var(--muted); letter-spacing: 1px; font-size: 13px; }
+
 /* ---------- install ---------- */
 .install { padding: 120px 0; background: var(--bg-2); }
 .install .sub { margin-top: 16px; color: var(--ink-2); font-size: 18px; }
