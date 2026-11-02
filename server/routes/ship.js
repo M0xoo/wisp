@@ -3,6 +3,7 @@
 // several repos (also) ships, follows and merges a PR in each (services/ship.js).
 
 import { repoStatus, reposOf } from '../services/ship.js';
+import { notSide } from '../side.js';
 
 export function register(r, app) {
   const { store, runner, telemetry } = app;
@@ -30,6 +31,7 @@ export function register(r, app) {
     'POST',
     '/sessions/:id/ship',
     one(async (c, s) => {
+      notSide(s, 'ship');
       if (!hasTrees(s)) return c.send(400, { error: NO_TREE });
       if (runner.working(s)) return c.send(409, { error: 'Still working: wait for it to finish, or stop it.' });
       if (s.shipping) return c.send(409, { error: 'Already shipping: wait for it to land.' });
@@ -45,6 +47,7 @@ export function register(r, app) {
     'POST',
     '/sessions/:id/pr',
     one(async (c, s) => {
+      notSide(s, 'open a pull request');
       if (!s.pr && !s.also?.some((a) => a.pr) && !s.prs?.length) return c.send(404, { error: 'No pull request yet.' });
       c.send(200, await app.ship.refreshPr(s));
     }),
@@ -55,6 +58,7 @@ export function register(r, app) {
     'POST',
     '/sessions/:id/fix-conflicts',
     one(async (c, s) => {
+      notSide(s, 'fix conflicts');
       if (s.pr?.state !== 'OPEN' || !s.worktree) return c.send(400, { error: 'No open pull request.' });
       if (runner.working(s)) return c.send(409, { error: 'Still working: wait for it to finish, or stop it.' });
       if (!s.pr.conflict) await app.ship.refreshPr(s);
@@ -71,6 +75,7 @@ export function register(r, app) {
     'POST',
     '/sessions/:id/merge',
     one(async (c, s) => {
+      notSide(s, 'merge');
       if (!app.ship.prsOf(s).length) return c.send(400, { error: 'No pull request to merge.' });
       const out = await app.ship.mergeAll(s);
       app.launcher.markDone(s);

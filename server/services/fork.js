@@ -133,5 +133,17 @@ export function createFork(app) {
     return summarize(session, store);
   }
 
-  return { fork, side };
+  // Before a side discussion's turn: the main task's folder as it is now (a worktree comes back if
+  // it was archived away, a moved task's new place), or a clear refusal once it's gone.
+  async function sideFolder(side) {
+    const main = store.get(side.sideOf.id);
+    if (main) {
+      for (const x of [main, ...(main.also || [])]) await ensureWorktree(x.worktree);
+      side.sideOf.cwd = workdir(main);
+      side.sideOf.title = main.title;
+    }
+    if (!fs.existsSync(side.sideOf.cwd)) throw bad('The main task’s folder is gone, so there’s nothing left to read. Start a new side discussion from a task that still has its work.', 409);
+  }
+
+  return { fork, side, sideFolder };
 }

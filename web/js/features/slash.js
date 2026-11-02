@@ -9,14 +9,15 @@ import { feedbackOn } from './feedback.js';
 import { activeSpells } from './spells.js';
 import './after-pick.js'; // the task picker after "/after "
 
-// Register before the box's own Enter handler: picking a command must not send it.
+// Register before the box's own Enter handler: picking a command must not send it. base: the
+// commands, or a function giving them (a follow-up box's depend on its task).
 export function slashMenu(ta, host, base = SLASH) {
   const menu = el('<div class="slash-menu" role="listbox" aria-label="Commands" hidden></div>');
   host.append(menu);
   let items = [];
   let sel = 0;
   let closed = false; // Esc: hidden until the text changes
-  const commands = () => [...base.filter((c) => !['feedback', 'bug'].includes(c.name) || feedbackOn()), ...activeSpells().flatMap((s) => (s.slash || []).map((c) => ({ name: c.name, args: c.args || '', hint: c.hint || `From ${s.name}` })))];
+  const commands = () => [...(typeof base === 'function' ? base() : base).filter((c) => !['feedback', 'bug'].includes(c.name) || feedbackOn()), ...activeSpells().flatMap((s) => (s.slash || []).map((c) => ({ name: c.name, args: c.args || '', hint: c.hint || `From ${s.name}` })))];
   const paint = () => {
     const next = !closed && document.activeElement === ta ? slashMatches(ta.value, commands()) : [];
     if (next.map((c) => c.name).join() !== items.map((c) => c.name).join()) sel = 0;

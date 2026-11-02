@@ -204,6 +204,11 @@ body.split #feed .item.open > .it-skel .sk-turns { padding-left: 0; padding-righ
 .fork-line .i { width: 12px; height: 12px; color: var(--faint); }
 .fork-line i { font-style: normal; }
 .fork-line .link { font-size: inherit; }
+/* A side discussion's line: a long title gives way, the read-only note stays whole */
+.side-line > span { min-width: 0; max-width: 100%; }
+.side-line .sl-of { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-line .sl-ro { flex: none; }
+body.split:not(.pane-wide) .side-line .sl-ro { display: none; }
 body.split.pane-wide .fork-line .fl-narrow, body.split:not(.pane-wide) .fork-line .fl-wide { display: none; }
 /* older exchanges fold to a single row; the latest stays open */
 .turn.folded { padding-top: 0; }

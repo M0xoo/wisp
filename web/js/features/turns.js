@@ -170,7 +170,8 @@ export function renderBody(id, { fresh }) {
   paintDone(id);
   paintDoor(id);
   // While it works, the session id may still be on its way: takeOver asks for it.
-  $('[data-a="takeover"]', body).hidden = !s.agentSessionId && !live;
+  $('[data-a="takeover"]', body).hidden = (!s.agentSessionId && !live) || !!s.sideOf;
+  $('.it-actions [data-a="rerun"]', body).hidden = !!s.sideOf; // a side discussion only reads, and has no task of its own to redo
   $('.it-watch', body).hidden = !summary.watch; // only once its agent put a page up (wisp_watch)
   $('.it-changes', body).hidden = !!summary.pending;
   const tx = transcriptOn(id);
@@ -852,7 +853,7 @@ function renderTrail(s, t, tx) {
     return { add: acc.add + n.add, del: acc.del + n.del };
   }, { add: 0, del: 0 });
   const st = t.stats || {};
-  const canRollback = s.agent !== 'wisp' && s.state !== 'running' && (t.changes?.length || t.checkpoint?.commit);
+  const canRollback = s.agent !== 'wisp' && !s.sideOf && s.state !== 'running' && (t.changes?.length || t.checkpoint?.commit);
   const rolledBack = !!t.rolledBackAt;
   const rated = t.feedback?.rating;
   // Forking from here needs the work as it was after this turn: the folder now for the latest

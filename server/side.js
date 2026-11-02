@@ -7,6 +7,7 @@
 // (server/mcp-ask.js, WISP_READONLY).
 
 import { btwDigest } from './btw.js';
+import { bad } from './util.js';
 
 export const SIDE_CMD = /^\/side(?:\s+|$)/i;
 
@@ -14,6 +15,11 @@ export const SIDE_CMD = /^\/side(?:\s+|$)/i;
 export function sideAsk(text) {
   const t = String(text || '').trim();
   return SIDE_CMD.test(t) ? t.replace(SIDE_CMD, '').trim() : null;
+}
+
+// A route that would change the work, on a side discussion: its folder is the main task's.
+export function notSide(s, what = 'change the work') {
+  if (s?.sideOf) throw bad(`A side discussion only reads: it can't ${what}. Do it on the main task.`, 409);
 }
 
 // Why an approval in a side discussion is refused (the harness hears it as the answer).

@@ -148,3 +148,52 @@ test('wisp’s MCP server in a side discussion offers only the tools that read, 
   const [all] = await ask({}, [list]);
   assert.ok(all.result.tools.some((t) => t.name === 'wisp_launch'), 'other tasks keep every tool');
 });
+
+test('nothing on a side discussion’s page changes the main task’s folder; queued follow-ups stay in Plan', async () => {
+  const repo = makeRepo();
+  const s = await api('/sessions', { prompt: 'fix add() please', cwd: repo, agent: 'claude', mode: 'auto', worktree: true });
+  await settled(s.id, 1);
+  const side = await api(`/sessions/${s.id}/side`, { text: 'what changed?' });
+  await settled(side.id, 1);
+  for (const [p, body, method] of [
+    [`/sessions/${side.id}/changes/revert`, { path: 'math.js' }],
+    [`/sessions/${side.id}/changes/stage`, { path: 'math.js' }],
+    [`/sessions/${side.id}/changes/commit`, { message: 'x' }],
+    [`/sessions/${side.id}/source`, { path: 'math.js', text: 'x' }, 'PUT'],
+    [`/sessions/${side.id}/ship`, {}],
+    [`/sessions/${side.id}/merge`, {}],
+    [`/sessions/${side.id}/exec`, { command: 'touch nope' }],
+    [`/sessions/${side.id}/rollback`, { restore: false }],
+    [`/sessions/${side.id}/takeover`, { inline: true }],
+  ]) {
+    const r = await call(p, body, method);
+    assert.equal(r.status, 409, p);
+    assert.match(r.json.error, /side discussion only reads/, p);
+  }
+  // A follow-up queued behind a running turn, with a mode, still runs in Plan.
+  process.env.FAKE_DELAY = '600';
+  await api(`/sessions/${side.id}/reply`, { text: 'first' });
+  await api(`/sessions/${side.id}/reply`, { text: 'second', queue: true, mode: 'auto' });
+  delete process.env.FAKE_DELAY;
+  await settled(side.id, 3);
+  assert.deepEqual(runs().slice(-2).map((r) => flag(r, '--permission-mode')), ['plan', 'plan']);
+  assert.equal((await api(`/sessions/${side.id}`)).turns.at(-1).mode, 'plan');
+});
+
+test('deleting a side discussion takes it off its main task; deleting the main task leaves it to read what was said', async () => {
+  const repo = makeRepo();
+  const s = await api('/sessions', { prompt: 'fix add() please', cwd: repo, agent: 'claude', worktree: true });
+  await settled(s.id, 1);
+  const a = await api(`/sessions/${s.id}/side`, { text: 'one' });
+  const b = await api(`/sessions/${s.id}/side`, { text: 'two' });
+  await settled(a.id, 1);
+  await settled(b.id, 1);
+  await api(`/sessions/${a.id}`, {}, 'DELETE');
+  assert.deepEqual((await api(`/sessions/${s.id}`)).sides, [b.id]);
+  await api(`/sessions/${s.id}`, {}, 'DELETE');
+  const left = await api(`/sessions/${b.id}`);
+  assert.equal(left.sideOf.id, s.id);
+  const r = await call(`/sessions/${b.id}/reply`, { text: 'still there?' });
+  assert.equal(r.status, 409, 'its folder went with the main task');
+  assert.match(r.json.error, /folder is gone/);
+});

@@ -168,6 +168,11 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Expected:** an answer appears without interrupting or adding a turn to the main run.
 - **Automated** (API), **Suite** (`test/btw.test.js`)
 
+### WEB-22c · `/side` side discussion
+- **Steps:** on a finished worktree task, follow up with `/side why that approach?`; again from More, right-click and ⌘K (*Side discussion…* puts `/side ` in the box). Send a bare `/side`. In the side discussion, follow up once more, then follow up on the main task and ask the side discussion about it. Check its / menu, More, right-click and ⌘K. Click its *Side discussion of …* line; on the main task, click *N side discussions*. Repeat at 390px (stacked) and in dark.
+- **Expected:** the box clears at once, a row with the *Side* pill appears and opens; the main task counts it. A bare `/side` shows the hint and sends nothing. The side discussion runs in Plan, has no mode, team, computer or goal buttons, no Rerun, Take over or Ship it, and no `/side` or `/goal` in its / menu; its answers know what the main task did since. The line and chip go back and forth. Nothing in the main task's folder changes.
+- **Suite** (`test/side.test.js`), **Manual** (the page)
+
 ### WEB-22b · Feedback and bug reports
 - **Steps:** on home, click *Hit a bug, or wish wisp did something? Tell us* at the foot; switch the dialog to
   *Something broke*. Then type `/bug the list jumps` in the prompt box and press Enter.

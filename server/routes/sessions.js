@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { adapters, listAgents } from '../adapters/index.js';
 import { btwQuestion } from '../btw.js';
-import { sideAsk } from '../side.js';
+import { notSide, sideAsk } from '../side.js';
 import { goalView } from '../goal.js';
 import { searchTasks } from '../search.js';
 import { cleanupCheckpoints, revertFileChange, rollbackToTurn } from '../checkpoint.js';
@@ -291,7 +291,9 @@ export function register(r, app) {
       // Archived: a clean worktree goes (its branch stays, a follow-up brings it back).
       // discardWorktree: a compare run you didn't keep; its changes go too.
       if (s.archived) (app.shells?.close(s.id), app.runs?.stop(s.id)); // its shell and app in the side panel go with it
-      if (!runner.live.has(s.id) && (s.archived || body.discardWorktree))
+      // A side discussion reading it keeps it too (server/side.js): it comes back for the next one anyway.
+      const read = (s.sides || []).some((id) => runner.live.has(id));
+      if (!runner.live.has(s.id) && !read && (s.archived || body.discardWorktree))
         for (const x of [s, ...(s.also || [])]) if (x.worktree) await removeWorktree(x.worktree, { force: !!body.discardWorktree, branch: !!body.discardWorktree && !x.pr && 'force' });
       app.sessionChanged(s);
       c.send(200, summarize(s, store));
@@ -306,6 +308,17 @@ export function register(r, app) {
       try {
         runner.stop(s);
         runner.stopSides(s);
+        // Its side discussions read its folder, which goes: the ones running stop (they stay, to read).
+        for (const id of s.sides || []) {
+          const side = store.get(id);
+          if (side && runner.live.has(id)) (runner.stop(side), await runner.live.get(id)?.done);
+        }
+        const main = s.sideOf && store.get(s.sideOf.id);
+        if (main?.sides) {
+          main.sides = main.sides.filter((x) => x !== s.id);
+          store.save(main);
+          app.sessionChanged(main);
+        }
         await runner.live.get(s.id)?.done;
         cleanupCheckpoints(workdir(s), s.id);
         for (const cid of Object.values(s.children || {})) {
@@ -446,7 +459,8 @@ export function register(r, app) {
     '/sessions/:id/share',
     one(async (c, s) => {
       const { passkey, work, account } = await c.body();
-      c.send(200, await app.sharer.share(s, { passkey: passkey ?? '', work: work !== false, account }));
+      // A side discussion's folder is the main task's: it shares the conversation only.
+      c.send(200, await app.sharer.share(s, { passkey: passkey ?? '', work: work !== false && !s.sideOf, account }));
     }),
   );
   r.route('DELETE', '/sessions/:id/share', one(async (c, s) => c.send(200, await app.sharer.unshare(s))));
@@ -634,6 +648,7 @@ export function register(r, app) {
   const undo = ({ what, busy, apply, label, event, after }) =>
     one(async (c, s) => {
       notTour(s, what);
+      notSide(s, what);
       if (runner.working(s)) return c.send(409, { error: busy });
       const body = await c.body();
       const turn = turnOf(s, body.turnId);
@@ -679,6 +694,7 @@ export function register(r, app) {
     '/sessions/:id/exec',
     one(async (c, s) => {
       const { command, turnId, key } = await c.body();
+      notSide(s, 'run commands in the main task’s folder');
       const cmd = String(command || '').trim();
       if (!cmd) return c.send(400, { error: 'command required' });
       const turn = (turnId && s.turns.find((t) => t.id === turnId)) || s.turns.at(-1);
@@ -734,6 +750,7 @@ export function register(r, app) {
   // to resume yet. A take over tells the agent to drop the wisp block (TAKEOVER_NOTE).
   const takeover = (fn) =>
     one(async (c, s) => {
+      notSide(s, 'be taken over in a terminal (it would leave Plan there)');
       const adapter = adapters[s.agent];
       if (!adapter?.resumeCommand || (!s.agentSessionId && !s.tui)) return c.send(400, { error: 'This session cannot be resumed in a terminal.' });
       const trusted = store.isScratch(s.cwd) || !!s.worktree?.cwd;

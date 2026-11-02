@@ -2,8 +2,11 @@
 // side questions (/btw), which don't interrupt the run.
 
 import { esc } from '../md.js';
-import { btwQuestion, goalAsk, isBtw, isGoalDrop, SIDE_HINT, sideAsk, SPELL_HINT, spellAsk } from '../slash-text.js';
-import { startSide } from './side.js';
+import { btwQuestion, goalAsk, isBtw, isGoalDrop, SIDE_HINT, sideAsk, SLASH, SPELL_HINT, spellAsk } from '../slash-text.js';
+import { sideable, startSide } from './side.js';
+
+// A follow-up box's / menu: /side only where it can start one, /goal not on a side discussion.
+const slashFor = (s) => SLASH.filter((c) => (c.name !== 'side' || sideable(s)) && (c.name !== 'goal' || !s?.sideOf));
 import { editGoal, goalAction, paintReplyGoal, replyGoalHtml, setGoal, showGoal, takeReplyGoal, wireReplyGoal } from './goal.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
@@ -120,7 +123,7 @@ export function renderDock(id) {
   comp.prepend(n.tray.node);
   $('.reply', comp).before(commentTray(id)); // comments on the answer, going out with the next message
   const ta = mentionBox($('.reply', comp));
-  slashMenu(ta, comp);
+  slashMenu(ta, comp, () => slashFor(S.sessions.get(id) || S.full.get(id)));
   autosize(ta, 260);
   acceptFiles(comp, ta, n.tray);
   $('.c-attach', comp).onclick = n.tray.pick;

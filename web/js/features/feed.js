@@ -483,7 +483,7 @@ export function headPills(s, pill) {
 }
 
 // A side discussion (/side) says so in the list: its title alone reads like any task's.
-const sidePill = (s) => (s.sideOf ? `<span class="pill side-pill" title="${esc(`Side discussion of “${S.sessions.get(s.sideOf.id)?.title || s.sideOf.title}”: it reads that task's work and changes nothing`)}">${icon('comment')}Side</span>` : '');
+const sidePill = (s) => (s.sideOf ? `<span class="pill side-pill" title="${esc(`Side discussion of “${S.sessions.get(s.sideOf.id)?.title || s.sideOf.title}”: it reads that task's work and changes nothing`)}">${icon('discuss')}Side</span>` : '');
 
 // What Auto found after the run: its own test check, the best-of-2 pick, a hand-over.
 function autoPill(s) {

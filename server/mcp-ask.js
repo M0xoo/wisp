@@ -37,7 +37,7 @@ import { blockDocs } from './protocol.js';
 const { WISP_URL, WISP_TOKEN, WISP_SESSION, WISP_TURN, WISP_APPROVE, WISP_SPELLS, WISP_WATCH, WISP_READONLY } = process.env;
 // A side discussion's tools (server/side.js): reading, asking you, the page beside the task. Nothing
 // that changes work, starts tasks or edits your setup.
-const READ_ONLY_TOOLS = ['ask_user', 'resume_later', 'wisp_tag', 'wisp_watch', 'wisp_blocks', 'wisp_stats', 'wisp_sessions', 'wisp_session', 'wisp_stuff', 'wisp_crew', 'wisp_connectors', 'wisp_available', 'approve'];
+const READ_ONLY_TOOLS = ['ask_user', 'resume_later', 'wisp_tag', 'wisp_watch', 'wisp_blocks', 'wisp_stats', 'wisp_sessions', 'wisp_session', 'wisp_stuff', 'wisp_crew', 'wisp_connectors', 'wisp_available'];
 const offered = (name) => !WISP_READONLY || READ_ONLY_TOOLS.includes(name);
 const WAIT_S = 240; // wisp_task wait / wisp_launch wait=true, unless the agent asks for longer
 const MAX_WAIT_S = 1800;
@@ -653,7 +653,7 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     } else if (method === 'tools/list') {
       send({ id, result: { tools: [TOOL, LATER, TAG, PR, ...(WISP_WATCH ? [WATCH] : []), SAVE, STUFF, BLOCKS, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...CONTROL_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...TEAM_TOOLS, ...(WISP_SPELLS ? SPELL_TOOLS : [])].filter((t) => offered(t.name)) } });
     } else if (method === 'tools/call' && !offered(params?.name)) {
-      send({ id, result: { isError: true, content: [{ type: 'text', text: 'Not in a side discussion: it only reads and changes nothing.' }] } });
+      send({ id, result: { isError: true, content: [{ type: 'text', text: 'Not available in a side discussion: it only reads and changes nothing.' }] } });
     } else if (method === 'tools/call' && params?.name === 'ask_user') {
       const answer = await askUser(params.arguments || {});
       const text = answer === null ? 'The user did not answer (the question was cancelled). Use your best judgment and note the assumption.' : `The user answered: ${answer}`;

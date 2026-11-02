@@ -1252,6 +1252,7 @@ export class Runner extends EventEmitter {
     const still = owed.length && team.length && this.bridge ? stillWorkingNote(owed) : '';
     // A side discussion hears where its main task stands now, before each of your messages.
     const main = session.sideOf ? this.store.get(session.sideOf.id) || null : null;
+    if (main) session.sideOf.cwd = workdir(main); // where the main task works now (it may have moved)
     const said = session.sideOf ? sidePrompt(main, text, (t) => adapters[t.agent || main?.agent]?.name || t.agent || main?.agent) : text;
     const handle = adapter.run({
       prompt: [handoff, still, turn.later ? laterNote(turn.later) : '', said].filter(Boolean).join('\n\n'),
@@ -1365,6 +1366,12 @@ export class Runner extends EventEmitter {
         return;
       }
       case 'blocked': {
+        // A side discussion only reads: what was refused is a note, not something to allow and retry.
+        if (session.sideOf) {
+          turn.activity.push({ t: Date.now(), kind: 'answer', label: `Refused (side discussions only read): ${clip(String(ev.detail || ev.tool || 'a change'), 120)}` });
+          this.store.save(session);
+          return;
+        }
         // A tool call the harness's permissions refused. The card after the turn offers to retry it.
         const item = { tool: String(ev.tool || 'tool'), detail: String(ev.detail ?? ''), ...(ev.rule !== undefined && { rule: ev.rule }) };
         const list = (turn.blocked ||= []);
