@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-11-03
+
 ### Added
 
 - **Hand a refused task to another agent.** When a harness turns a task down (Claude Code's usage-policy refusal on security, reverse-engineering or game work, or a short "I can't help with that" from a run that changed nothing), the task says so and offers *Hand to <another harness>* under the hero: one click sends the same prompt and its files there, with the task's turns so far. It only offers a harness on another company's model: after a Claude refusal, Copilot CLI, opencode, Cursor or Antigravity are offered only on a GPT, Gemini or other non-Anthropic model, which the hand-off pins (and the same for OpenAI). wisp never hands it over by itself, and never retries on another account of the same harness.
