@@ -107,8 +107,23 @@ export function compareWords(c, labelOf) {
   const hi = list.reduce((a, b) => (b.output > a.output ? b : a));
   const lo = list.reduce((a, b) => (b.output < a.output ? b : a));
   const n = `(n=${list.map((x) => x.turns).join(' / ')})`;
-  if (!r) return `${list.map((x) => labelOf(x.account)).join(' and ')} use about the same output tokens per turn ${n}`;
-  return `${labelOf(hi.account)} uses ${r.toFixed(1)}× the output tokens per turn of ${labelOf(lo.account)} ${n}`;
+  const tools = list.filter((x) => x.missing?.length).map((x) => `${labelOf(x.account)} has no ${toolWords(x.missing)}`);
+  const more = tools.length ? `; ${tools.join('; ')}` : '';
+  if (!r) return `${list.map((x) => labelOf(x.account)).join(' and ')} use about the same output tokens per turn ${n}${more}`;
+  return `${labelOf(hi.account)} uses ${r.toFixed(1)}× the output tokens per turn of ${labelOf(lo.account)} ${n}${more}`;
+}
+
+// Tools an account lacks, in words: "WebFetch", "WebFetch or the github MCP tools", "A, B, C and 4 more".
+// An MCP server's tools go under its name (mcp__github__create_issue → the github MCP tools).
+export function toolWords(names) {
+  const out = [];
+  for (const n of names || []) {
+    const srv = /^mcp__(.+?)__/.exec(n)?.[1];
+    const w = srv ? `the ${srv} MCP tools` : n;
+    if (!out.includes(w)) out.push(w);
+  }
+  if (out.length > 3) return `${out.slice(0, 3).join(', ')} and ${out.length - 3} more`;
+  return out.length > 1 ? `${out.slice(0, -1).join(', ')} or ${out.at(-1)}` : out[0] || '';
 }
 
 // One account's numbers in words: "4.1k out · 52k in · 81% cache · 14 turns".

@@ -145,6 +145,11 @@ function overHtml(b) {
 // the vendor. Numbers only: it never suggests an account, and wisp never switches.
 export const accountLabel = (a, id) => a.accounts?.find((x) => x.id === id)?.label || (id === 'default' ? 'Default account' : id);
 export const modelLabel = (a, id) => (id && a.models?.find((m) => m.id === id)?.label) || id || 'Default model';
+// The full list behind "Personal has no WebFetch, … and 4 more" (the words stop at three).
+const missingTip = (c, label) => {
+  const t = c.accounts.filter((x) => x.missing?.length).map((x) => `${label(x.account)} had no ${x.missing.join(', ')} on its latest turn`).join('. ');
+  return t ? ` title="${esc(t)}"` : '';
+};
 function compareHtml(a) {
   if (!a.compare?.length) return '';
   const label = (id) => accountLabel(a, id);
@@ -152,7 +157,7 @@ function compareHtml(a) {
     .map(
       (c) => `<div class="bg-cr" data-model="${esc(c.model)}">
         <span class="bg-cm">${esc(modelLabel(a, c.model))}</span>
-        <span class="bg-cw">${esc(compareWords(c, label))}</span>
+        <span class="bg-cw"${missingTip(c, label)}>${esc(compareWords(c, label))}</span>
         ${c.accounts.map((x) => `<span class="bg-ca"><span class="bg-acc">${esc(label(x.account))}</span><span class="bg-cn">${compareParts(x).map(esc).join('<span class="tb-dot" aria-hidden="true">·</span>')}</span></span>`).join('')}
       </div>`,
     )
@@ -171,7 +176,7 @@ export function compareReport(a) {
   const lines = [`Tokens per turn by account (from wisp, ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC)`, `Harness: ${a.name}${a.version ? ` ${a.version}` : ''}`];
   for (const c of a.compare || []) {
     lines.push('', `Model: ${modelLabel(a, c.model)}${c.model ? ` (${c.model})` : ''}`);
-    for (const x of c.accounts) lines.push(`- ${label(x.account)}: ${x.turns} turns, median ${x.output.toLocaleString('en-US')} output / ${x.input.toLocaleString('en-US')} input tokens per turn${x.cache != null ? `, ${Math.round(x.cache * 100)}% of input from the cache` : ''}`);
+    for (const x of c.accounts) lines.push(`- ${label(x.account)}: ${x.turns} turns, median ${x.output.toLocaleString('en-US')} output / ${x.input.toLocaleString('en-US')} input tokens per turn${x.cache != null ? `, ${Math.round(x.cache * 100)}% of input from the cache` : ''}${x.missing?.length ? `; without ${x.missing.join(', ')}` : ''}`);
     lines.push(compareWords(c, label) + '.');
   }
   lines.push('', `Median of each finished turn over the last ${COMPARE_DAYS} days, as the CLI reported it. Input counts cache reads and writes. Same machine, same wisp; only the signed-in account differs.`);

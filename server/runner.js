@@ -24,7 +24,7 @@ import { refusalOf } from './refusal.js';
 import { vendorOf } from '../web/js/vendors.js';
 import { goalNote, goalView } from './goal.js';
 import { kitNote } from './crew.js';
-import { planOf, unitsOf } from './budget.js';
+import { planOf, toolSet, unitsOf } from './budget.js';
 import { watchView } from './watch.js';
 import { asks as projectAsks } from './project-trust.js';
 import { reviewView } from './services/review.js';
@@ -1470,6 +1470,14 @@ export class Runner extends EventEmitter {
         // Billed to an API key instead of the plan (Claude Code's apiKeySource).
         if (ev.kind) this.#pastPlan(session, turn, ev.kind);
         return;
+      case 'tools': {
+        // The run's tool list (details.tools), for the account comparison. The list is stored once per
+        // task; later turns with the same tools keep only the hash.
+        const seen = session.turns.filter((t) => t !== turn && t.details?.tools?.list).map((t) => t.details.tools.hash);
+        (turn.details ||= {}).tools = toolSet(ev.list, seen);
+        this.store?.save?.(session);
+        return;
+      }
       case 'background': {
         turn.background = ev.tasks;
         if (turn.interim) this.#waitItem(session, turn);

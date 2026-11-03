@@ -24,6 +24,7 @@
 // over is Past your plan's: runs billed beyond the plan (Claude's extra usage, Codex credits, an API
 // key), kept for a week; each one also marks its turn (turn.overage, runner.js).
 
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -608,16 +609,30 @@ export function whereItWent(sessions, agent, account, win, resetsAt, { limit = 3
   return { tasks: all.slice(0, limit), more: Math.max(0, all.length - limit), traced: all.reduce((t, x) => t + x.used, 0) };
 }
 
+// A run's tool list (Claude Code's system/init tools) as turn.details.tools: { hash, list }. wisp's
+// own MCP tools are left out (they change with the task: crew jobs, subagents), so the hash only
+// moves when the account's own tools do. `seen` (hashes earlier turns of this task stored the list
+// under) drops the list from repeat turns: the hash points back to it.
+export function toolSet(list, seen = []) {
+  const names = [...new Set((list || []).map(String).filter((n) => n && !/^mcp__wisp__/.test(n)))].sort();
+  const hash = createHash('sha1').update(names.join('\n')).digest('hex').slice(0, 12);
+  return seen.includes(hash) ? { hash } : { hash, list: names };
+}
+
 // Tokens per turn by account (Settings → Usage, the receipt's tooltip): for each model this harness
 // ran on two or more accounts over the last 7 days, each account's median turn, once every account
 // shown has `min` finished turns on that model. Only what the CLI reported per turn, so it shows
 // when the same work costs one login more than another. A diagnostic: nothing here picks an account.
-// sessions: every task. → [{ model, accounts: [{ account, turns, output, input, cache }] }], most output first.
+// sessions: every task. → [{ model, accounts: [{ account, turns, output, input, cache, missing? }] }], most output first;
+// missing: tools another account in the row had on its latest turn and this one didn't.
 export function compareAccounts(sessions, agent, { now = Date.now(), days = COMPARE_DAYS, min = COMPARE_MIN } = {}) {
   const since = now - days * 864e5;
-  const by = new Map(); // model → account → { out: [], read: [], cached, readSum }
+  const by = new Map(); // model → account → { out: [], read: [], cached, readSum, tools, toolsAt }
+  const lists = new Map(); // tools hash → list, from whichever turn stored it
   for (const s of sessions) {
     for (const t of s.turns || []) {
+      const ts = t.details?.tools;
+      if (ts?.hash && Array.isArray(ts.list)) lists.set(ts.hash, ts.list);
       if ((t.agent || s.agent) !== agent || t.status !== 'done' || !(t.startedAt >= since) || t.startedAt > now) continue;
       const k = turnTokens(t);
       if (!k.output) continue;
@@ -625,8 +640,13 @@ export function compareAccounts(sessions, agent, { now = Date.now(), days = COMP
       const m = by.get(model) || new Map();
       by.set(model, m);
       const acc = t.account || 'default';
-      const e = m.get(acc) || { out: [], read: [], cached: 0, readSum: 0 };
+      const e = m.get(acc) || { out: [], read: [], cached: 0, readSum: 0, tools: null, toolsAt: -Infinity };
       m.set(acc, e);
+      // The account's tools as of its latest turn that reported them.
+      if (ts?.hash && t.startedAt >= e.toolsAt) {
+        e.tools = ts.hash;
+        e.toolsAt = t.startedAt;
+      }
       e.out.push(k.output);
       e.read.push(k.read);
       e.cached += k.cached;
@@ -637,9 +657,19 @@ export function compareAccounts(sessions, agent, { now = Date.now(), days = COMP
   for (const [model, m] of by) {
     const accounts = [...m]
       .filter(([, e]) => e.out.length >= min)
-      .map(([account, e]) => ({ account, turns: e.out.length, output: Math.round(median(e.out)), input: Math.round(median(e.read)), cache: e.readSum && e.cached ? e.cached / e.readSum : null }))
+      .map(([account, e]) => ({ account, turns: e.out.length, output: Math.round(median(e.out)), input: Math.round(median(e.read)), cache: e.readSum && e.cached ? e.cached / e.readSum : null, tools: e.tools && lists.get(e.tools) }))
       .sort((a, b) => b.output - a.output);
-    if (accounts.length >= 2) out.push({ model, accounts });
+    if (accounts.length < 2) continue;
+    // Tools another account had that this one didn't (its settings deny WebFetch, an MCP server it
+    // lacks): a reason its turns differ. Only between accounts that both reported a list.
+    const known = accounts.filter((x) => x.tools);
+    const all = [...new Set(known.flatMap((y) => y.tools))].sort();
+    for (const x of accounts) {
+      const missing = known.length >= 2 && x.tools ? all.filter((n) => !x.tools.includes(n)) : [];
+      if (missing.length) x.missing = missing;
+    }
+    for (const x of accounts) delete x.tools;
+    out.push({ model, accounts });
   }
   return out.sort((a, b) => a.model.localeCompare(b.model));
 }

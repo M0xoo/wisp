@@ -816,6 +816,67 @@ test('compare words: a ratio only past 1.2×, n per account, never a suggestion'
   assert.equal(compareTip(undefined, 'opus', 'work', label), '');
 });
 
+// Moris check-in 12 #1: Claude's system/init tool list per turn, and the comparison says when two
+// accounts' tools differ ("Personal has no WebFetch").
+const { toolSet } = await import('../server/budget.js');
+const { toolWords } = await import('../web/js/receipt.js');
+
+test('toolSet: sorted, deduped, wisp’s own MCP tools left out; a repeat keeps only the hash', () => {
+  const a = toolSet(['WebFetch', 'Read', 'Read', 'mcp__wisp__ask_user', 'mcp__github__create_issue']);
+  assert.deepEqual(a.list, ['Read', 'WebFetch', 'mcp__github__create_issue']);
+  assert.match(a.hash, /^[0-9a-f]{12}$/);
+  assert.equal(toolSet(['Read', 'mcp__github__create_issue', 'WebFetch', 'mcp__wisp__delegate']).hash, a.hash, 'order and wisp tools don’t move the hash');
+  assert.notEqual(toolSet(['Read']).hash, a.hash);
+  assert.deepEqual(toolSet(['WebFetch', 'Read', 'mcp__github__create_issue'], [a.hash]), { hash: a.hash });
+});
+
+test('compareAccounts: tools another account had and this one didn’t, from each account’s latest turn', () => {
+  const full = toolSet(['Read', 'WebFetch', 'mcp__github__a', 'mcp__github__b']);
+  const lean = toolSet(['Read']);
+  const old = toolSet(['Read', 'WebFetch']);
+  const sessions = [
+    { agent: 'claude', turns: [...many(5, () => turnOf('work', 4000, 1000, { details: { tools: full } })), turnOf('default', 2000, 1000, { startedAt: NOW - 72e5, details: { tools: old } })] },
+    // The list is stored on another task's turn; this account's latest turn has only the hash.
+    { agent: 'claude', turns: [{ agent: 'claude', status: 'error', startedAt: NOW - 9 * 864e5, details: { tools: lean } }, ...many(4, () => turnOf('default', 2000, 1000, { details: { tools: { hash: lean.hash } } }))] },
+  ];
+  const [c] = compareAccounts(sessions, 'claude', { now: NOW });
+  assert.deepEqual(c.accounts.map((x) => [x.account, x.missing]), [['work', undefined], ['default', ['WebFetch', 'mcp__github__a', 'mcp__github__b']]]);
+  assert.equal(c.accounts[0].tools, undefined, 'the lists stay on the server');
+  const label = (id) => ({ work: 'Work', default: 'Personal' })[id];
+  assert.equal(compareWords(c, label), 'Work uses 2.0× the output tokens per turn of Personal (n=5 / 5); Personal has no WebFetch or the github MCP tools');
+  // Only one account reported tools: nothing to say.
+  const one = [{ agent: 'claude', turns: [...many(5, () => turnOf('work', 10, 10, { details: { tools: full } })), ...many(5, () => turnOf('default', 10, 10))] }];
+  assert.ok(compareAccounts(one, 'claude', { now: NOW })[0].accounts.every((x) => !x.missing));
+});
+
+test('toolWords: names, MCP servers by name, three at most', () => {
+  assert.equal(toolWords(['WebFetch']), 'WebFetch');
+  assert.equal(toolWords(['WebFetch', 'WebSearch']), 'WebFetch or WebSearch');
+  assert.equal(toolWords(['A', 'B', 'C', 'D', 'mcp__x__1', 'mcp__x__2']), 'A, B, C and 2 more');
+  assert.equal(toolWords([]), '');
+});
+
+test('the Claude init tool list lands on the turn as details.tools; a repeat turn keeps only the hash', async () => {
+  const cwd = makeRepo();
+  try {
+    process.env.FAKE_TOOLS = 'Read,Edit,WebFetch,mcp__wisp__ask_user';
+    const a = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', worktree: false });
+    let x = await ended(a.id, 'review');
+    assert.deepEqual(x.turns[0].details?.tools?.list, ['Edit', 'Read', 'WebFetch']);
+    await api(`/sessions/${a.id}/reply`, { text: 'and the docs please' });
+    x = await until(async () => {
+      const y = await api(`/sessions/${a.id}`);
+      return y.turns.length === 2 && y.turns[1].status !== 'running' && y;
+    }, { timeout: 30_000 });
+    assert.deepEqual(x.turns[1].details.tools, { hash: x.turns[0].details.tools.hash });
+    delete process.env.FAKE_TOOLS;
+    const b = await api('/sessions', { prompt: 'write the docs please', cwd, agent: 'claude', worktree: false });
+    assert.equal((await ended(b.id, 'review')).turns[0].details, undefined, 'no tools in init: nothing stored');
+  } finally {
+    delete process.env.FAKE_TOOLS;
+  }
+});
+
 test('compare on /agents: only for a harness with several accounts', async () => {
   const all = srv.store.all;
   const multi = srv.accounts.multi;

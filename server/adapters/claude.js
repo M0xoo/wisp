@@ -269,9 +269,12 @@ export default {
         // How much of the account's 5-hour and weekly windows is gone (Settings → Usage, the limit card).
         const limits = claudeLimits(msg.rate_limit_info);
         if (limits) onEvent({ type: 'limits', ...limits });
-      } else if (msg.type === 'system' && msg.subtype === 'init' && msg.apiKeySource && !/^(?:none|oauth)$/i.test(msg.apiKeySource)) {
+      } else if (msg.type === 'system' && msg.subtype === 'init') {
         // Signed in with an API key (ANTHROPIC_API_KEY, apiKeyHelper…): billed as API credit, not the plan.
-        onEvent({ type: 'billing', kind: 'api' });
+        if (msg.apiKeySource && !/^(?:none|oauth)$/i.test(msg.apiKeySource)) onEvent({ type: 'billing', kind: 'api' });
+        // The tools this run had (built-ins and MCP tools): two accounts of the same harness can differ
+        // (one's settings deny WebFetch), which the account comparison says (server/budget.js).
+        if (Array.isArray(msg.tools)) onEvent({ type: 'tools', list: msg.tools });
       } else if (msg.type === 'system') {
         // background_tasks_changed carries the full list; task_started/task_notification are the
         // per-task edges, kept as a fallback in case a CLI version only sends those.
