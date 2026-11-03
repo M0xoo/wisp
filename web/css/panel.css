@@ -276,6 +276,17 @@ body.side-right .pn-grip { left: auto; right: -4px; }
 .xrv-tests.fail .i { color: var(--bad); }
 .xrv-tests.unknown .i { color: var(--warn); }
 .xrv-tests code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+/* What the user ruled out (and Done when), checked against the diff: a tick each, a cross when broken */
+.xrv-cons { margin: 6px 0 4px; font-size: 12.5px; }
+.xrv-cons-h { margin: 0 0 4px; color: var(--muted); font-size: 11.5px; font-weight: 600; }
+.xrv-cons ul { margin: 0; padding: 0; list-style: none; }
+.xrv-cons li { display: flex; align-items: flex-start; gap: 6px; padding: 2px 0; color: var(--ink-2); line-height: 1.45; }
+.xrv-cons li > span { min-width: 0; overflow-wrap: anywhere; }
+.xrv-cons .i { width: 13px; height: 13px; flex: none; margin-top: 2px; color: var(--good); }
+.xrv-cons li.broken { color: var(--ink); }
+.xrv-cons li.broken .i { color: var(--bad); }
+.xrv-rule { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.xrv-rule q { color: var(--ink-2); }
 .xrv-f { padding: 10px 0; border-top: 1px solid var(--line); }
 .xrv-sev { flex: none; font-size: 11.5px; font-weight: 600; color: var(--muted); }
 .xrv-f.high .xrv-sev { color: var(--bad); }

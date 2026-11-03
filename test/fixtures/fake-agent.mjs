@@ -219,7 +219,7 @@ if (btw) {
 
 // Review by another harness (server/services/review.js): FAKE_REVIEW is the JSON it answers, else one finding.
 if (stdin.includes('You review a pull request another coding agent wrote')) {
-  if (process.env.FAKE_RECORD) fs.appendFileSync(path.join(process.env.FAKE_RECORD, 'review.jsonl'), JSON.stringify({ name, cwd: process.cwd(), argv, tests: /<tests /.test(stdin), diff: stdin.split('<diff>')[1]?.split('</diff>')[0]?.trim() || '' }) + '\n');
+  if (process.env.FAKE_RECORD) fs.appendFileSync(path.join(process.env.FAKE_RECORD, 'review.jsonl'), JSON.stringify({ name, cwd: process.cwd(), argv, tests: /<tests /.test(stdin), diff: stdin.split('<diff>')[1]?.split('</diff>')[0]?.trim() || '', constraints: stdin.split('<constraints>')[1]?.split('</constraints>')[0]?.trim() || '' }) + '\n');
   answer(process.env.FAKE_REVIEW || JSON.stringify({ summary: `${name} found one thing`, findings: [{ severity: 'high', file: 'math.js', line: 1, text: 'add() has no test' }] }), 'pr-review');
   process.exit(0);
 }

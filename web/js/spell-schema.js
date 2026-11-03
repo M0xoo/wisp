@@ -368,6 +368,10 @@ export const PARTS = {
   'panel.pr': '#sidePanel .pn-pr',
   'panel.pr.review': '#sidePanel .pn-xrv',
   'panel.pr.review.again': '#sidePanel .pn-xrv [data-a="xreview"]',
+  // The review's list of what the user ruled out (and Done when) it checked the diff against, and
+  // on a finding that breaks one, the user's words.
+  'panel.pr.review.constraints': '#sidePanel .pn-xrv .xrv-cons',
+  'panel.pr.review.rule': '#sidePanel .pn-xrv .xrv-rule',
   'panel.checks': '#sidePanel .pn-checks',
   'panel.conversation': '#sidePanel .pn-talk',
   'panel.files': '#sidePanel .pn-files',

@@ -357,7 +357,9 @@ test('.env masking: Hide .env values is a setting; the masked line and its Revea
 test('Review by another harness: a setting (off, other, or a harness); the PR row’s chip and the panel’s section are parts', () => {
   for (const v of ['off', 'other', 'codex', 'claude']) assert.deepEqual(problems({ ...base0, settings: { review: v } }), []);
   assert.ok(problems({ ...base0, settings: { review: 'on' } }).some((x) => /review/.test(x) && /off \| other \| claude/.test(x)));
-  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.review', 'split.pr.review', 'panel.pr.review.again'] }, parts: { 'panel.pr.review': { style: { opacity: '0.8' } } } }), []);
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.review', 'split.pr.review', 'panel.pr.review.again'] }, parts: { 'panel.pr.review': { style: { opacity: '0.8' } } } }), []);  // What the review checked the diff against (the user's don't-touch lines, Done when), and the user's words on a finding.
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['panel.pr.review.constraints'] }, parts: { 'panel.pr.review.rule': { style: { fontSize: '12px' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['panel.pr.review.constraint'] } }).some((x) => /panel\.pr\.review\.constraint isn't a part/.test(x)));
 });
 
 test('Harness watch: Ask before running a changed harness is a setting; the change line and its row are parts', () => {

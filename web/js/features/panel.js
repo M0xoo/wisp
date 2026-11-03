@@ -527,10 +527,16 @@ function xreviewHtml(s, p, canAsk) {
       <li class="xrv-f ${f.severity}">
         <div class="pn-where-line"><span class="xrv-sev">${SEV[f.severity] || ''}</span>${f.file ? `<code>${esc(f.file)}${f.line ? `:${f.line}` : ''}</code>` : ''}</div>
         <div class="pn-text">${esc(f.text)}</div>
+        ${f.rule ? `<p class="xrv-rule">You said: <q>${esc(f.rule)}</q></p>` : ''}
         ${canAsk ? `<button class="ghost xs pn-send" data-a="send" data-kind="finding" data-i="${i}" title="Put it in the reply box for the agent">${icon('send')}<span>Send to agent</span></button>` : ''}
       </li>`)
     .join('');
-  return `<section class="pn-xrv">${head}<p class="xrv-sum">${esc(r.summary || '')}</p>${tests}${items ? `<ul>${items}</ul>` : ''}<div class="xrv-foot">${canAsk && r.findings.length > 1 ? `<button class="ghost xs" data-a="send" data-kind="findings" title="Put every finding in the reply box for the agent">${icon('send')}<span>Send all to agent</span></button>` : ''}<span class="grow"></span>${again}</div></section>`;
+  // What the user ruled out (and Done when) that the reviewer checked the diff against; a broken one says so.
+  const broken = new Set(r.findings.filter((f) => f.constraint).map((f) => f.constraint));
+  const cons = r.constraints?.length
+    ? `<div class="xrv-cons"><p class="xrv-cons-h">Checked against what you said</p><ul>${r.constraints.map((c, i) => `<li class="${broken.has(i + 1) ? 'broken' : 'held'}">${icon(broken.has(i + 1) ? 'x' : 'check')}<span>${esc(c)}</span></li>`).join('')}</ul></div>`
+    : '';
+  return `<section class="pn-xrv">${head}<p class="xrv-sum">${esc(r.summary || '')}</p>${tests}${cons}${items ? `<ul>${items}</ul>` : ''}<div class="xrv-foot">${canAsk && r.findings.length > 1 ? `<button class="ghost xs" data-a="send" data-kind="findings" title="Put every finding in the reply box for the agent">${icon('send')}<span>Send all to agent</span></button>` : ''}<span class="grow"></span>${again}</div></section>`;
 }
 
 function checksHtml(id, p, canAsk) {
@@ -688,7 +694,7 @@ function sendToAgent(id, kind, i) {
     const list = kind === 'finding' ? [r?.findings?.[i]].filter(Boolean) : r?.findings || [];
     if (!list.length) return;
     const by = S.agents.find((a) => a.id === r.by?.agent)?.name || 'Another harness';
-    return toReply(id, `${by} reviewed PR #${p.number} and found:\n\n${list.map((f) => `- **${SEV[f.severity] || f.severity}**${f.file ? ` \`${f.file}${f.line ? `:${f.line}` : ''}\`` : ''}: ${f.text}`).join('\n')}\n\nCheck ${list.length > 1 ? 'each one' : 'it'}, fix what holds and push.`);
+    return toReply(id, `${by} reviewed PR #${p.number} and found:\n\n${list.map((f) => `- **${SEV[f.severity] || f.severity}**${f.file ? ` \`${f.file}${f.line ? `:${f.line}` : ''}\`` : ''}: ${f.text}${f.rule ? ` (I said: “${f.rule}”)` : ''}`).join('\n')}\n\nCheck ${list.length > 1 ? 'each one' : 'it'}, fix what holds and push.`);
   }
   if (kind === 'thread') {
     const t = p.threads[i];
