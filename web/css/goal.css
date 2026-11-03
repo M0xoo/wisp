@@ -146,7 +146,7 @@ body.split.pane-wide #feed .item.open > .it-body > .goal-slot { position: sticky
 /* A phone: in the Edit goal popover the editor takes its place, with Done to go back. */
 .judges-pop.sheet { max-height: calc(100vh - 16px); }
 /* The phone app: fingers, not pointers. */
-body.wisp-mobile :is(.l-goal .judges-btn, .goal-pop .gp-judges, .judges-pop .tp-del, .judges-pop .jp-done) { min-height: 44px; min-width: 44px; }
+body.wisp-mobile .l-goal .judges-btn, body.wisp-mobile .goal-pop .gp-judges, body.wisp-mobile .judges-pop .tp-del, body.wisp-mobile .judges-pop .jp-done { min-height: 44px; min-width: 44px; }
 body.wisp-mobile .jp-vote .pk-seg button { min-height: 44px; padding: 0 12px; }
 body.wisp-mobile .gb-judges { height: 44px; }
 

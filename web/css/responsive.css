@@ -107,8 +107,10 @@ body.wisp-mobile .c-bar .c-mode span { display: none; }
 body.wisp-mobile .c-bar .c-mode { padding: 0; justify-content: center; }
 /* Feels like an app, not a page: a press shows on what you touch, a long press doesn't select the
    button or header under it, and taps don't wait to see if they're a double-tap zoom. */
-body.wisp-mobile :is(button, a, summary, .it-head, .task-head) { touch-action: manipulation; }
-body.wisp-mobile :is(button, .topbar, .it-head, .task-head) { -webkit-user-select: none; user-select: none; }
+/* Written out, not as :is() lists, which Chrome tries on every element of every restyle. Lower
+   specificity for the tags changes nothing: no rule between sets these to something else. */
+body.wisp-mobile button, body.wisp-mobile a, body.wisp-mobile summary, body.wisp-mobile .it-head, body.wisp-mobile .task-head { touch-action: manipulation; }
+body.wisp-mobile button, body.wisp-mobile .topbar, body.wisp-mobile .it-head, body.wisp-mobile .task-head { -webkit-user-select: none; user-select: none; }
 body.wisp-mobile button { transition: transform 0.12s var(--ease), opacity 0.12s; }
 /* .pressed: set as the finger goes down (ui/press.js); :active only comes once it lifts. Pressing
    in is instant, letting go eases out. */
@@ -259,7 +261,7 @@ body.wisp-mobile #feed .item:not(.open) { contain-intrinsic-size: auto 88px; }
    small inline buttons keep their look and take the room with a min-height. */
 body.wisp-mobile :is(.sh-task, .t-fold, .tx-row, .pk-h, .m.cv-dlg) { min-height: 44px; }
 body.wisp-mobile .sp-start, body.wisp-mobile .sp-x, body.wisp-mobile .bg-nx { min-width: 44px; min-height: 44px; }
-body.wisp-mobile :is(.l-goal input, .c-goal-line input, .composer-goal input, .pal-input input) { min-height: 44px; }
+body.wisp-mobile .l-goal input, body.wisp-mobile .c-goal-line input, body.wisp-mobile .composer-goal input, body.wisp-mobile .pal-input input { min-height: 44px; }
 body.wisp-mobile .topbar .brand { min-height: 44px; display: inline-flex; align-items: center; }
 body.wisp-mobile #moreProjects { height: 44px; }
 body.wisp-mobile #toasts .t-act, body.wisp-mobile #toasts .t-x { min-width: 44px; min-height: 44px; }
