@@ -30,6 +30,8 @@ globalThis.location = new URL('http://localhost/');
 globalThis.history = { pushState() {}, replaceState() {}, state: null };
 globalThis.fetch = async () => ({ ok: true, status: 200, headers: new Map(), json: async () => ({}), text: async () => '' });
 globalThis.visualViewport = undefined;
+// Node 20 has no navigator global (21+ does), and ui/kbd.js reads navigator.platform at load.
+if (!globalThis.navigator) globalThis.navigator = { platform: '', userAgent: '', clipboard: { writeText: async () => {} } };
 globalThis.innerWidth = 1440;
 globalThis.innerHeight = 900;
 for (const n of ['HTMLElement', 'HTMLTextAreaElement', 'HTMLInputElement', 'Element', 'Node', 'Event', 'CustomEvent', 'EventTarget', 'MutationObserver', 'ResizeObserver', 'IntersectionObserver', 'EventSource', 'Image', 'BroadcastChannel'])
