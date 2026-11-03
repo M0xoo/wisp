@@ -18,6 +18,7 @@ import { normalizeRecipe } from './recipes.js';
 import { clock24, cronWords, midSentence } from '../web/js/schedule.js';
 import { normalizeBlueprints, SPELL_CREW_MAX } from './crew-share.js';
 import { bad, clip, truncate, writeJsonAtomic } from './util.js';
+import { panesProblem } from '../web/js/pane-bridge.js';
 
 const ID = /^[a-z0-9][a-z0-9-]{0,40}$/;
 const MAX_SCRIPT = 64 * 1024;
@@ -167,7 +168,7 @@ export function normalizeSpell(raw) {
     else if (allowed && !allowed.includes(slot)) p.at_(where, `this goes in ${allowed.join(', ')}`);
   };
 
-  const BUTTON_SLOTS = ['topbar', 'float', 'palette', 'launcher.bar', 'launcher.chips', 'composer.bar', 'composer.chips', 'card.hover', 'card.menu', 'sidebar.top', 'split.head', 'split.details', 'term.head', 'panel.head', 'crew.page', 'org.head', 'plan.head', 'stuff.head', 'split.upcoming', 'goal.band'];
+  const BUTTON_SLOTS = ['topbar', 'float', 'palette', 'launcher.bar', 'launcher.chips', 'composer.bar', 'composer.chips', 'card.hover', 'card.menu', 'sidebar.top', 'split.head', 'split.details', 'term.head', 'panel.head', 'crew.page', 'org.head', 'plan.head', 'stuff.head', 'split.upcoming', 'split.panes', 'goal.band'];
   const buttons = arr(j.buttons).slice(0, MAX_ITEMS).map((b, i) => {
     const where = `buttons[${i}]`;
     const x = obj(b) || {};
@@ -323,6 +324,7 @@ export function normalizeSpell(raw) {
     const t = SETTINGS[k];
     if (!t) p.at_(`settings.${k}`, `not a setting spells can change (${Object.keys(SETTINGS).join(', ')})`);
     else if (Array.isArray(t) ? !t.includes(v) : typeof v !== 'string') p.at_(`settings.${k}`, Array.isArray(t) ? t.join(' | ') : 'a string');
+    else if (k === 'panes' && panesProblem(v)) p.at_('settings.panes', panesProblem(v));
     else settings[k] = v;
   }
 

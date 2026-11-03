@@ -31,6 +31,7 @@ export const SLOTS = {
   'org.head': 'The Org page (who on the crew hands work to whom): a button in its header, before Add member.',
   'plan.head': "A scheduled task's page (opened from its row under Scheduled): a button in its header, before Start now.",
   'stuff.head': 'My Stuff (what you and your agents kept from tasks): a button in its header, before Add files.',
+  'split.panes': "Split view's home: a button on the Panes heading (the apps pinned on home).",
   'split.upcoming': "Split view's home: a button on the Coming up heading (scheduled tasks, reminders, follow-ups, check-ins).",
   'goal.band': "The open task's goal band: a button on its second line, after the last check (acts on that task).",
 };
@@ -287,6 +288,9 @@ export const PARTS = {
   // Add to Home Screen (web/js/features/homescreen.js): a row on home on a wisp Grid in an iPhone's browser, until added or hidden.
   'home.install': '#splitHome .hs-install',
   // Spare allowance (web/js/spare.js): a row under Needs you when a weekly window resets soon with much left.
+  'split.panes': '#splitHome .sh-panes', // apps from My Stuff pinned on home (settings.panes "<app>@home")
+  'split.pane': '#splitHome .sh-pane', // one of them: its bar and its frame
+  'split.pane.bar': '#splitHome .sh-pane .pa-bar',
   'split.spare': '#splitHome .sh-spare',
   'split.spare.start': '#splitHome .sh-spare .sp-start', // Use <harness>: picks that harness and account in the prompt box
   // Window changes (web/js/window-notice.js): a row when a plan's usage window appears, goes, changes length or moves its reset.
@@ -375,6 +379,9 @@ export const PARTS = {
   'panel.checks': '#sidePanel .pn-checks',
   'panel.conversation': '#sidePanel .pn-talk',
   'panel.files': '#sidePanel .pn-files',
+  'panel.pane': '#sidePanel .pn-pane', // an app pinned beside tasks (settings.panes "<app>@task"): its tab's page
+  'panel.pane.tab': '#sidePanel .pn-tabs [data-tab^="pane:"]',
+  'panel.pane.bar': '#sidePanel .pn-pane .pa-bar',
   'panel.watch': '#sidePanel .pn-watch',
   'panel.browser': '#sidePanel .pn-browser', // a sandboxed task's browser, live
   // Preview (features/run.js): the task's app run from its worktree. Its section, the bar over the
@@ -532,6 +539,7 @@ export const PART_PROPS = {
   'stuff.page': { view: ['grid', 'list'], group: ['time', 'task'], cardWidth: 'px' }, // until you pick one there; cardWidth: a card's least width in the grid
   tips: { count: 'int' },
   'split.upcoming': { count: 'int' },
+  'split.panes': { height: 'px' }, // a home pane's height (420); a phone's is the window's less its bars
   'split.spare': { hours: 'int' }, // the card shows once a window resets within this many hours (24)
   term: { fontSize: 'int' },
   // tab: what it opens on (the toggle, ]), until you open another; swipe: false stops swiping a
@@ -669,6 +677,9 @@ export const SETTINGS = {
   // Webhook triggers: a trigger's secret URL (POST /api/hooks/<token>) starts tasks from Slack,
   // Linear or anything else (server/hooks.js). Off, those URLs answer 404.
   webhookTriggers: ['on', 'off'],
+  // Panes: My Stuff apps pinned beside tasks or on home, "<app id or name>@task,<app>@home"
+  // (web/js/pane-bridge.js). A spell pins them; what they may use you allow yourself.
+  panes: 'string',
 };
 
 // GET routes a `wisp` data source may read (patterns, :x = one segment).

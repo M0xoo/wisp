@@ -32,6 +32,7 @@ import { goBack, goHome, isSplit, isStacked, splitOpen } from './split.js';
 import { cleanTitle } from '../mention-text.js';
 import { boxUrl, isLoopback, previewSandbox } from '../preview-spec.js';
 import { gridLink } from '../grid-link.js';
+import { pinApp, pinnedAt, setAllowed, unpinApp } from './panes.js';
 import { closeOverlay, overlay } from '../ui/overlay.js';
 import { leaveCrew } from './crew.js';
 import { leaveOrg } from './org.js';
@@ -106,6 +107,8 @@ const drop = (id) => setStuff((S.stuff || []).filter((x) => x.id !== id));
 const put = (it) => setStuff([it, ...(S.stuff || [])]);
 
 bus.on('stuff', () => loadStuff());
+// Pinned apps (panes.js) need the list, even before My Stuff was ever opened here.
+bus.on('panes', () => S.stuff === null && loadStuff());
 queueMicrotask(loadStuff);
 
 // --- Save to My Stuff, on a reply's blocks ----------------------------------------------------------
@@ -641,6 +644,10 @@ function itemMenu(it, at, anchor = null) {
     app && behind(it) && ['publish', 'update', 'Update public link'],
     app && it.published && ['unpublish', 'x', 'Unpublish'],
     app && it.db && it.data && ['resetdata', 'rerun', 'Reset data'],
+    // Panes (panes.js): beside the open task, or on home. Pinning asks first what it may use.
+    app && (pinnedAt(it, 'task') ? ['unpin-task', 'panel', 'Unpin from beside tasks'] : ['pin-task', 'panel', 'Pin beside tasks']),
+    app && (pinnedAt(it, 'home') ? ['unpin-home', 'pin', 'Unpin from home'] : ['pin-home', 'pin', 'Pin on home']),
+    app && it.allowed?.length && ['revoke', 'lock', 'Take back access'],
     ['mention', 'agent', 'Use in a new task'],
     canCopy(it) && ['copy', 'copy', it.kind === 'link' ? 'Copy link' : 'Copy'],
     !app && it.kind !== 'link' && CAN_SAVE && ['download', 'download', 'Download'],
@@ -669,6 +676,9 @@ function act(a, it, btn) {
   if (a === 'publish') return publishApp(it);
   if (a === 'unpublish') return unpublishApp(it);
   if (a === 'resetdata') return resetData(it);
+  if (a === 'pin-task' || a === 'pin-home') return pinApp(it, a.slice(4), btn);
+  if (a === 'unpin-task' || a === 'unpin-home') return unpinApp(it, a.slice(6));
+  if (a === 'revoke') return setAllowed(it, []).then((ok) => ok && toast(`<b>${esc(it.title)}</b> can no longer use wisp`));
   if (a === 'pubcopy') return copyPublic(it, btn);
   if (a === 'pubopen') return window.open(it.published.url, '_blank', 'noopener');
   if (a === 'mention') return mentionInNew(it);

@@ -12,6 +12,7 @@ import { pipeline } from 'node:stream';
 import { MIME } from '../http/static.js';
 import { bad } from '../util.js';
 import { DB_CLIENT, createAppDb } from '../app-db.js';
+import { PANE_CLIENT, PANE_CSP } from '../../web/js/pane-bridge.js';
 
 const BASE = 47100;
 const SPAN = 800;
@@ -120,6 +121,12 @@ export class Apps {
       return res.end('forbidden host');
     }
     const pathname = new URL(req.url, 'http://x').pathname;
+    // An app that uses wisp (a pane: web/js/pane-bridge.js) keeps its requests on its own origin.
+    const csp = this.stuff.get(id)?.uses?.length ? { 'content-security-policy': PANE_CSP } : {};
+    if (pathname === '/_wisp/pane.js') {
+      res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      return res.end(req.method === 'HEAD' ? undefined : PANE_CLIENT);
+    }
     if (pathname.startsWith('/_wisp/')) return serveDb(req, res, pathname, this.stuff.get(id)?.db, () => ({ file: this.stuff.dataFile(id), seed: seedOf(r.root, this.stuff.get(id).db, this.stuff.dataFile(id)) }), this.db);
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.writeHead(405, { allow: 'GET, HEAD' });
@@ -131,7 +138,7 @@ export class Apps {
       return res.end('Not found in this app.');
     }
     const st = fs.statSync(file);
-    res.writeHead(200, { 'content-type': typeOf(file), 'content-length': st.size, 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' });
+    res.writeHead(200, { 'content-type': typeOf(file), 'content-length': st.size, 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff', ...csp });
     if (req.method === 'HEAD') return res.end();
     // pipeline, not pipe: a client that goes early closes the file too, or Windows keeps the folder.
     pipeline(fs.createReadStream(file), res, () => {});

@@ -298,6 +298,15 @@ test('sandboxes: the card in Settings → Cloud is a part', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['panel.browser'] } }), []);
 });
 
+test('panes: the pane tab, the home panes and their bars are parts; Panes takes buttons and a height; panes is a setting a spell can pin with', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['panel.pane.tab', 'split.pane.bar'] }, parts: { 'panel.pane': { style: { background: 'var(--surface)' } }, 'split.pane': { style: { borderRadius: '6px' } }, 'panel.pane.bar': { style: { opacity: '0.9' } }, 'split.panes': { props: { height: 600 } } } }), []);
+  assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'split.panes', label: 'My Stuff', do: { open: 'https://example.com' } }] }), []);
+  assert.deepEqual(problems({ ...base0, settings: { panes: 'Task board@home,pr-notes@task' } }), []);
+  assert.ok(problems({ ...base0, parts: { 'split.panes': { props: { height: 40 } } } }).some((x) => /height: px from 160 to 1600/.test(x)));
+  assert.ok(problems({ ...base0, settings: { panes: 'board@sidebar' } }).some((x) => /settings\.panes.*@task or @home/.test(x)));
+  assert.ok(problems({ ...base0, settings: { panes: ['board@home'] } }).some((x) => /settings\.panes: a string/.test(x)));
+});
+
 test('drafts: the section and its rows are parts', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['section.drafts'] }, parts: { 'drafts.row': { style: { opacity: '0.8' } } } }), []);
 });
