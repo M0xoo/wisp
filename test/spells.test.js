@@ -280,6 +280,12 @@ test('the usage-limit card under a turn\'s hero is not a part: it asks you somet
   assert.equal(schema.PARTS['turn.limit'], undefined, 'a limit asks you what next: never a part a spell could hide');
 });
 
+test('the refusal card (Hand to another harness after a refusal) is a part; restyle or hide it', () => {
+  assert.equal(schema.PARTS['turn.refusal'], '#feed .turn .b-refusal');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['turn.refusal'] }, parts: { 'turn.refusal': { style: { borderColor: 'var(--line)' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['turn.refusals'] } }).some((x) => /turn\.refusals/.test(x)));
+});
+
 test('every task-list section and its folding heading are parts', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['section.needs', 'section.working'] }, parts: { 'section.heading': { style: { fontSize: '13px' } } } }), []);
   assert.ok(problems({ ...base0, ui: { hide: ['section.waiting'] } }).length);

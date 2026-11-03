@@ -21,6 +21,7 @@ import { accountMark, accountOf, agentName, DEFAULT_MODE, effortLabel, limitUnti
 import { heldCard } from './hold.js';
 import { harnessNote } from './harness-watch.js';
 import { scheduleFollowUp } from './later.js';
+import { handoffTargets } from '../vendors.js';
 import { scrollByPx, topInset, watching } from './scroll.js';
 import { prsOf, renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
@@ -527,6 +528,45 @@ function limitCard(s, t) {
   return node;
 }
 
+// A harness that turned the task down (turn.refusal, server/refusal.js): the hero says so, and
+// this card hands the same prompt (and its files) to another of your harnesses, which hears this
+// task's turns first (server/handoff.js). One click, never by itself; the same Hand to <harness>
+// as the usage-limit card. Every button disables the card at once; a refusal turns it back on.
+// Only a harness on another vendor's model (web/js/vendors.js): Copilot, opencode or Cursor on a
+// Claude model would ask Anthropic again after a Claude refusal. The model is pinned on the hand-off.
+const REFUSAL_MAX = 3;
+function refusalCard(s, t) {
+  const from = t.refusal.agent || t.agent || s.agent;
+  const fromModel = t.refusal.model ?? t.model ?? s.model ?? '';
+  const to = handoffTargets({ from, fromModel, agents: S.agents, models: S.config?.defaults?.models || {}, max: REFUSAL_MAX });
+  const nameOf = (id) => S.agents.find((a) => a.id === id)?.name || agentName(id);
+  const node = el(`<div class="b-limit b-refusal">
+      ${to.length ? `<div class="lm-acts">${to.map((x, i) => `<button class="${i ? 'ghost' : 'primary'} sm" data-rf="${esc(x.agent)}" data-rf-model="${esc(x.model)}" title="Sends the same prompt to ${esc(nameOf(x.agent))}${x.model ? ` on ${esc(x.model)}` : ''}, with this task's turns">${icon('agent')}Hand to ${esc(nameOf(x.agent))}</button>`).join('')}</div>` : ''}
+      ${to.length ? '' : '<p class="lm-note">No agent on another company’s model is set up to take it. Add one in Settings → Agents, or rephrase it in the reply box.</p>'}
+    </div>`);
+  const lock = (on) => {
+    node.classList.toggle('resolved', on);
+    for (const b of $$('button', node)) b.disabled = on;
+  };
+  node.addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-rf]');
+    if (!b || b.disabled) return;
+    lock(true);
+    const run = { agent: b.dataset.rf, model: b.dataset.rfModel || '' };
+    const files = (t.attachments || []).filter((f) => f.id);
+    const undo = startOptimistic(s.id, t.prompt, files, { run });
+    try {
+      await api(`/sessions/${s.id}/reply`, { method: 'POST', body: { text: t.prompt, attachments: files.map((f) => f.id), ...run } });
+      if (undo) scheduleRefetch(s.id);
+    } catch (err) {
+      undo?.();
+      lock(false);
+      toastError(err);
+    }
+  });
+  return node;
+}
+
 // A crew member's job that came from another task (delegated, tagged, asked to check on it): its
 // first message says which, and opens that task while it's still around.
 const FROM_LABEL = { delegated: 'Delegated from', mention: 'Tagged in', event: 'Checking on' };
@@ -617,10 +657,10 @@ function renderTurn(s, t, isLatest, fold, tx) {
     const ctx = ctxFor(s, t, isLatest);
     // The trail under it carries the time, cost and files, so the hero doesn't repeat them.
     const out = tx ? renderTranscript(s, t, ctx) : renderPresentation(t.presentation, { ...ctx, trail: true });
-    if (isLatest && t.limit && s.state !== 'running') {
+    if (isLatest && (t.limit || t.refusal) && s.state !== 'running') {
       const card = el('<div class="blk blk-limit"></div>');
       card.style.setProperty('--d', '110ms'); // right after the hero
-      card.append(limitCard(s, t));
+      card.append(t.limit ? limitCard(s, t) : refusalCard(s, t));
       const hero = $('.blk-hero', out);
       hero ? hero.after(card) : out.prepend(card);
     }
