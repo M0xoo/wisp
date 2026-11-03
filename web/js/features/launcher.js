@@ -471,7 +471,8 @@ export function renderLauncher() {
   // Near the limit (features/hold.js): the row offers Start anyway and Wait until the reset, which
   // is Start later at that time. The prompt stays in the box until one of them goes.
   const holdRow = $('.l-hold', box);
-  const holdLaunch = (h, over) => showHold(holdRow, ta, h, { kind: 'first', go: () => go(over, { confirm: true }), wait: (at) => go(over, { at }) });
+  // A job for a crew member ("@Ada …") has no Start later, so no Wait until either.
+  const holdLaunch = (h, over) => showHold(holdRow, ta, addressedTo(ta.value).members.length ? { ...h, resetsAt: null } : h, { kind: 'first', go: () => go(over, { confirm: true }), wait: (at) => go(over, { at }) });
 
   // over: a spell's launchWith ({ agent, model, effort, mode, text }) for this one launch.
   // at: start it then instead (Start later, or the time read from the box); now: ignore that time.
@@ -600,9 +601,11 @@ export function renderLauncher() {
     }
     if (!confirm) {
       const first = over?.agent ? { agent: over.agent, account: savedAccount(over.agent) } : { agent: agent?.id, account: curAccount };
+      // "@Ada …" runs on Ada's harness, here (one on another computer: the server asks there).
+      const runs = toCrew.length ? toCrew.filter((m) => !m.machine).map((m) => ({ agent: m.agent, account: '', here: true })) : [first, ...compare];
       for (const t of targets) {
-        for (const r of [first, ...compare]) {
-          const h = holdNow(r.agent, r.account || '', 'first', agentsAt(t.k));
+        for (const r of runs) {
+          const h = holdNow(r.agent, r.account || '', 'first', r.here ? S.agents : agentsAt(t.k));
           if (h) return holdLaunch({ agent: r.agent, account: r.account || 'default', ...h }, over);
         }
       }

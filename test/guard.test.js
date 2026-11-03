@@ -304,3 +304,54 @@ test('a scheduled follow-up near the limit is held on its task; still over at th
   assert.deepEqual(after.turns.map((t) => t.prompt), ['start', 'carry on', 'and this']);
   srv.budget.record('claude', 'default', { windows: [{ id: 'seven_day', used: 0.1, resetsAt: week, ms: 168 * H }] });
 });
+
+// A job you give a crew member yourself ("@Ada …" in the prompt box, or her thread's box) is your
+// own run: asked about like any task, and Send anyway starts it at once, not held. Her check-ins
+// still start held.
+test('your job for a crew member near the limit: asked about, and Send anyway starts it, not held', async () => {
+  const repo = makeRepo();
+  // A fresh window each time (its own reset), so an earlier yes doesn't carry over.
+  let n = 0;
+  const near = () => srv.budget.record('claude', 'default', { windows: [{ id: 'seven_day', used: 0.995, resetsAt: Date.now() + (50 + ++n) * H, ms: 168 * H }] });
+  const ada = await api('/crew', { name: 'Hilda', role: 'Tester', agent: 'claude', cwd: repo, mode: 'edits', parallel: 1 });
+  const notHeld = async (s) => {
+    const full = await settled(s.id);
+    assert.equal(full.turns[0].status, 'done', `started at once, not held: ${full.turns[0].status}`);
+    assert.equal(full.held, undefined);
+  };
+
+  near();
+  const asked = await call(`/crew/${ada.id}/jobs`, { prompt: 'check the build' });
+  assert.equal(asked.status, 409, `her thread's box asks first: ${JSON.stringify(asked.body)}`);
+  assert.equal(asked.body.hold.id, 'seven_day');
+  const askedAt = await call('/sessions', { prompt: '@Hilda check the build', cwd: repo, agent: 'claude', worktree: false });
+  assert.equal(askedAt.status, 409, `@Hilda in the prompt box asks first: ${JSON.stringify(askedAt.body)}`);
+  assert.equal(askedAt.body.hold.id, 'seven_day');
+  // Her check-in is hers, not yours: it starts held, in Needs you.
+  const ci = await api(`/crew/${ada.id}/checkin`, {});
+  assert.equal((await api(`/sessions/${ci.session.id}`)).turns[0].status, 'held');
+  await api(`/sessions/${ci.session.id}/held`, { action: 'skip' }, 'POST');
+
+  near();
+  const thread = await api(`/crew/${ada.id}/jobs`, { prompt: 'check the build', confirmLimit: true });
+  await notHeld(thread.session);
+  near();
+  const prompt = await api('/sessions', { prompt: '@Hilda check the docs', cwd: repo, agent: 'claude', worktree: false, confirmLimit: true });
+  await notHeld(prompt);
+
+  // Waiting for her free slot keeps your yes.
+  near();
+  process.env.FAKE_DELAY = '1500';
+  let busy;
+  try {
+    busy = await api(`/crew/${ada.id}/jobs`, { prompt: 'a long one', confirmLimit: true });
+  } finally {
+    delete process.env.FAKE_DELAY;
+  }
+  near();
+  const queued = await api(`/crew/${ada.id}/jobs`, { prompt: 'after that', confirmLimit: true });
+  assert.ok(queued.queued, `waits for a free slot: ${JSON.stringify(queued)}`);
+  await settled(busy.session.id);
+  const next = await until(() => srv.store.all().find((s) => s.crew?.id === ada.id && s.turns[0]?.prompt === 'after that'), { timeout: 10_000 });
+  await notHeld(next);
+});

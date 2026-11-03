@@ -101,13 +101,13 @@ export function register(r, app) {
     'POST',
     '/crew/:id/jobs',
     member(async (c, m) => {
-      const { prompt: asked, attachments, kit } = await c.body();
+      const { prompt: asked, attachments, kit, confirmLimit } = await c.body();
       // kit: build their kit (they propose skills and instructions files; you pick).
       const prompt = String(asked || '').trim() || (kit === true ? `Build your kit: make yourself excellent${m.role ? ` as our ${m.role}` : ' at your job'}.` : '');
       if (!prompt) throw bad('Tell them what to do.');
       // @Quill in it: Quill joins this job's delegates.
       const tagged = crewMentions(String(prompt), crew.list).all;
-      c.send(201, started(m, await crew.assign(m, { prompt, job: 'task', attachments: Array.isArray(attachments) ? attachments : [], tagged, kit: kit === true })));
+      c.send(201, started(m, await crew.assign(m, { prompt, job: 'task', attachments: Array.isArray(attachments) ? attachments : [], tagged, kit: kit === true, confirmLimit: confirmLimit === true })));
     }),
   );
   r.route(
