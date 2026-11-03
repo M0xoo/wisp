@@ -10,7 +10,7 @@ body.split.panel-open:not(.stack) .stage { grid-template-columns: var(--side-w) 
 body.split.panel-open.side-right:not(.stack) .stage { grid-template-columns: var(--panel-w) minmax(0, 1fr) var(--side-w); }
 body.split.panel-open.side-hidden:not(.stack) .stage { grid-template-columns: 0 minmax(0, 1fr) var(--panel-w); }
 body.split.panel-open.side-hidden.side-right:not(.stack) .stage { grid-template-columns: var(--panel-w) minmax(0, 1fr) 0; }
-body.split.panel-open.side-right:not(.stack) :is(.topbar, .feed-wrap) { grid-column: 3; }
+body.split.panel-open.side-right:not(.stack) .topbar, body.split.panel-open.side-right:not(.stack) .feed-wrap { grid-column: 3; }
 body.split.panel-open.side-right:not(.stack) .split-main { grid-column: 2; }
 
 .side-panel {
@@ -55,7 +55,7 @@ body.side-right .pn-grip { left: auto; right: -4px; }
 .pn-shell { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--term-bg); }
 .pn-shell[hidden] { display: none; }
 .pn-shell .tm-screen { padding: 8px 10px; }
-.pn-shell.blocked > :is(.tm-screen, .tm-keys) { display: none; }
+.pn-shell.blocked > .tm-screen, .pn-shell.blocked > .tm-keys { display: none; }
 .pn-msg {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px;
   text-align: center; color: color-mix(in srgb, var(--term-ink) 70%, transparent); font-size: 13px;
@@ -75,7 +75,7 @@ body.side-right .pn-grip { left: auto; right: -4px; }
 
 /* Watch: the page the agent keeps up to date (features/watch.js). No place line: it's about the
    page, not the folder. The caption says what the agent is doing; the run strip how to do it yourself. */
-.side-panel.on-watch :is(.pn-place, .pn-note) { display: none; }
+.side-panel.on-watch .pn-place, .side-panel.on-watch .pn-note { display: none; }
 .pn-watch { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .pn-watch[hidden] { display: none; }
 
@@ -330,7 +330,10 @@ body.split.stack .sh-panel { display: none; }
    under it are layers of their own, and the task dims under a shade that only fades. */
 /* (A scroller takes sideways pans for itself unless told, so the panel's own scrollers say it too.) */
 body.wisp-mobile.stack-page :is(.split-main, #feed .item.open > .it-body),
-body.wisp-mobile .side-panel.stacked, body.wisp-mobile .side-panel.stacked :is(.pn-pr, .cx-list, .tm-screen) { touch-action: pan-y pinch-zoom; }
+body.wisp-mobile .side-panel.stacked,
+body.wisp-mobile .side-panel.stacked .pn-pr,
+body.wisp-mobile .side-panel.stacked .cx-list,
+body.wisp-mobile .side-panel.stacked .tm-screen { touch-action: pan-y pinch-zoom; }
 .pn-drag { will-change: transform; }
 .side-panel.stacked.pn-drag { animation: none; box-shadow: -1px 0 0 var(--line), var(--shadow-2); }
 .pn-scrim { position: fixed; inset: 0; z-index: 5; background: rgb(10 10 12); opacity: 0; pointer-events: none; will-change: opacity; }
@@ -398,7 +401,7 @@ body.split.stack:not(.pane-wide) #feed .item.open .it-bar > .pr-strip:not(.ship-
 body.split.stack:not(.pane-wide) #feed .item.open .it-bar > .pr-strip:not(.ship-run) > :is(button, a.ghost) { order: 2; }
 body.split.stack:not(.pane-wide) #feed .item.open .it-bar > .pr-strip:not(.ship-run) > .pr-go { order: 1; }
 body.split.stack:not(.pane-wide) #feed .item.open .it-bar > .pr-strip:not(.ship-run):has(> button, > a.ghost)::after { content: ''; order: 1; flex: 1 0 100%; }
-body.split.stack:not(.pane-wide) #feed .item.open .it-bar > .pr-strip:not(.ship-run) > :is(.pr-merge, .pr-fix) { margin-left: auto; }
+body.split.stack:not(.pane-wide) #feed .item.open .it-bar > .pr-strip:not(.ship-run) > .pr-merge, body.split.stack:not(.pane-wide) #feed .item.open .it-bar > .pr-strip:not(.ship-run) > .pr-fix { margin-left: auto; }
 /* On the task's page the PR row says where it goes. */
 body.split.stack #feed .item.open .pr-strip:not(.ship-run) .pr-go { display: inline-flex; flex: none; margin-left: auto; color: var(--faint); }
 body.split.stack #feed .item.open .pr-strip:not(.ship-run) .pr-go .i { width: 15px; height: 15px; }
@@ -498,7 +501,7 @@ body.split.stack #feed .item.open .pr-strip:not(.ship-run) .pr-go .i { width: 15
 .cx-word { width: calc(10ch + 8px); color: var(--faint); font: 11.5px var(--sans); }
 .cx-more, .cx-edit { flex: none; width: 24px; height: 24px; margin-right: 6px; border-radius: 7px; color: var(--faint); }
 .cx-edit { margin-right: 0; }
-:is(.cx-more, .cx-edit):hover { color: var(--ink); }
+.cx-more:hover, .cx-edit:hover { color: var(--ink); }
 :is(.cx-more, .cx-edit) .i { width: 14px; height: 14px; }
 
 /* Viewed, as on GitHub: a box and its word at the row's right, before the pencil. Ticked, the row
@@ -513,7 +516,7 @@ body.split.stack #feed .item.open .pr-strip:not(.ship-run) .pr-go .i { width: 15
 .cx-viewed[aria-pressed='true'] { color: var(--ink-2); }
 .cx-viewed[aria-pressed='true'] .cx-box { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
 .cx-viewed[aria-pressed='true'] .cx-box .i { opacity: 1; }
-.cx-file.viewed .cx-row :is(.path, .cx-n) { color: var(--faint); }
+.cx-file.viewed .cx-row .path, .cx-file.viewed .cx-row .cx-n { color: var(--faint); }
 .cx-file.viewed .cx-row .badge { background: var(--bg-2); color: var(--faint); }
 .cx-seen { flex: none; color: var(--faint); font-size: 11.5px; }
 
@@ -590,7 +593,7 @@ body.split.stack #feed .item.open .pr-strip:not(.ship-run) .pr-go .i { width: 15
 .side-panel.stacked .pn-tabs button .i { display: none; }
 .side-panel.stacked .pn-tabs button span { display: inline; }
 .side-panel.touch .cx-row { height: 44px; }
-.side-panel.touch :is(.cx-more, .cx-edit) { width: 40px; height: 40px; }
+.side-panel.touch .cx-more, .side-panel.touch .cx-edit { width: 40px; height: 40px; }
 .side-panel.touch .cx-viewed { height: 40px; }
 .side-panel.touch .cx-stage { height: 40px; }
 /* With Stage beside Viewed, a phone's row had no room left for the path: there Edit here is in ⋯ */

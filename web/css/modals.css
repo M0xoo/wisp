@@ -29,7 +29,7 @@
 .rerun-modal { width: min(660px, 100%); }
 .rr-box { container: rerun / inline-size; }
 .rr-box .l-bar > .runner-btn { flex: 0 1 auto; min-width: 0; overflow: hidden; }
-.rr-box .runner-btn :is(.rb-logo, .rb-e, .chev) { flex: none; }
+.rr-box .runner-btn .rb-logo, .rr-box .runner-btn .rb-e, .rr-box .runner-btn .chev { flex: none; }
 .rr-box .runner-btn .rb-h { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rr-box .runner-btn .rb-m { flex: 0 1 auto; min-width: 0; }
 .rr-box .where-btn span { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -39,11 +39,11 @@
   .rr-box .runner-btn .rb-m::before { display: none; }
 }
 @container rerun (max-width: 400px) {
-  .rr-box .runner-btn :is(.rb-m, .rb-e, .chev) { display: none; }
+  .rr-box .runner-btn .rb-m, .rr-box .runner-btn .rb-e, .rr-box .runner-btn .chev { display: none; }
   .rr-box .l-bar > .runner-btn { width: 30px; padding: 0; justify-content: center; } /* its logo alone, in a square */
   .rr-box .runner-btn .rb-logo { margin-right: 0; }
 }
-.overlay:not([hidden]) ~ :is(.picker, .menu) { z-index: 55; }
+.overlay:not([hidden]) ~ .picker, .overlay:not([hidden]) ~ .menu { z-index: 55; }
 /* The image viewer (ui/viewer.js): a picture full screen to pinch, drag and zoom. touch-action: none
    hands every finger to it, so the page around doesn't scroll or zoom instead. --dim fades the
    backdrop while a finger drags the picture away. */
@@ -55,7 +55,7 @@
 .lb-img { max-width: calc(100vw - 48px); max-height: calc(100dvh - 128px); border-radius: 8px; box-shadow: var(--shadow-2); transform-origin: center; cursor: zoom-in; -webkit-user-drag: none; }
 .lb-vid { max-width: calc(100vw - 48px); max-height: calc(100dvh - 128px); border-radius: 8px; box-shadow: var(--shadow-2); background: #000; }
 /* A video has its own controls: no zoom or copy on the bar. */
-.lb-video :is(.lb-out, .lb-pct, .lb-in, .lb-zsep, .img-copy) { display: none; }
+.lb-video .lb-out, .lb-video .lb-pct, .lb-video .lb-in, .lb-video .lb-zsep, .lb-video .img-copy { display: none; }
 .lb-img.glide { transition: transform 0.24s var(--ease); }
 .lb.zoomed .lb-img { cursor: grab; }
 .lb.zoomed.held .lb-img { cursor: grabbing; }
@@ -63,11 +63,11 @@
   position: absolute; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; align-items: center; gap: 2px;
   padding: 4px; border-radius: 12px; background: rgb(30 30 34 / 0.86); border: 1px solid rgb(255 255 255 / 0.1); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
 }
-.lb-bar :is(button, a) {
+.lb-bar button, .lb-bar a {
   display: inline-grid; place-items: center; min-width: 36px; height: 36px; padding: 0 6px; border-radius: 9px;
   color: rgb(255 255 255 / 0.75); font: 500 12.5px/1 var(--sans); font-variant-numeric: tabular-nums; transition: background 0.15s, color 0.15s;
 }
-.lb-bar :is(button, a):hover { background: rgb(255 255 255 / 0.1); color: #fff; }
+.lb-bar button:hover, .lb-bar a:hover { background: rgb(255 255 255 / 0.1); color: #fff; }
 /* Save to My Stuff, lit once it's in (the bar is dark in both themes: the dark theme's accent) */
 .lb-bar .lb-keep.on { color: #94adff; background: rgb(148 173 255 / 0.14); }
 .lb-bar .i { width: 16px; height: 16px; }
@@ -88,10 +88,10 @@
 .lb-count { min-width: 52px; padding: 0 6px; text-align: center; color: rgb(255 255 255 / 0.75); font: 500 12.5px/1 var(--sans); font-variant-numeric: tabular-nums; }
 .lb.zoomed .lb-nav { opacity: 0; pointer-events: none; }
 /* A phone reads a screenshot edge to edge; the original wouldn't open outside the app's tunnel. */
-@media (max-width: 640px) { :is(.lb-img, .lb-vid) { max-width: 100vw; max-height: calc(100dvh - 140px); border-radius: 0; } .lb-nav { top: auto; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 62px); width: 40px; height: 40px; } }
+@media (max-width: 640px) { .lb-img, .lb-vid { max-width: 100vw; max-height: calc(100dvh - 140px); border-radius: 0; } .lb-nav { top: auto; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 62px); width: 40px; height: 40px; } }
 body.wisp-mobile .lb-open { display: none; }
 /* A narrow phone pinches to zoom: the count takes the zoom buttons' room. */
-@media (max-width: 380px) { .lb-set :is(.lb-out, .lb-in) { display: none; } }
+@media (max-width: 380px) { .lb-set .lb-out, .lb-set .lb-in { display: none; } }
 /* The doc reader (ui/reader.js): a markdown file full screen, a page on a dimmed desk, headings
    down the side when there's room. The bar under the head fills as you read. */
 .overlay:has(> .dr) { padding: 0; }
@@ -342,7 +342,7 @@ button.bg-task:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--acc
   .sx-top .icon-btn { width: 40px; height: 40px; }
   .sx-top .icon-btn .i { width: 20px; height: 20px; }
   .sx-title { font-size: 17px; }
-  .modal.sx.at-list .sx-top :is(.sx-up, .sx-title) { display: none; }
+  .modal.sx.at-list .sx-top .sx-up, .modal.sx.at-list .sx-top .sx-title { display: none; }
   .modal.sx.at-list .sx-top .sx-home { display: block; flex: 1; margin: 0 0 0 10px; font-size: 22px; }
   /* the list: one rounded group of big rows, each with its icon in a tile and a chevron */
   .sx-nav { gap: 0; padding: 14px 14px calc(24px + env(safe-area-inset-bottom)); border-right: 0; }

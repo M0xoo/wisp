@@ -51,7 +51,7 @@ body.split.pane-wide #feed .item.open > .it-body > .goal-slot { position: sticky
 @keyframes gb-fill { from { width: var(--was); } }
 @keyframes gb-glow { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--good) 28%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
 @media (prefers-reduced-motion: reduce) {
-  .goal-band.landing, .goal-band.landing .gb-fill, .goal-band.landing .gb-met :is(circle, path) { animation: none; stroke-dashoffset: 0; }
+  .goal-band.landing, .goal-band.landing .gb-fill, .goal-band.landing .gb-met circle, .goal-band.landing .gb-met path { animation: none; stroke-dashoffset: 0; }
   .gb-fill { transition: none; }
 }
 
@@ -140,7 +140,7 @@ body.split.pane-wide #feed .item.open > .it-body > .goal-slot { position: sticky
 .jp-row .tp-top .grow { display: none; }
 .jp-row .tp-runner { justify-self: start; max-width: 100%; }
 .jp-row .tp-crew { min-width: 0; }
-.jp-row .tp-crew :is(b, small) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jp-row .tp-crew b, .jp-row .tp-crew small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu.jp-add-menu { min-width: 280px; max-width: min(360px, calc(100vw - 16px)); z-index: 80; }
 .goal-pop .gp-judges { height: 30px; }
 /* A phone: in the Edit goal popover the editor takes its place, with Done to go back. */

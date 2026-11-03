@@ -97,9 +97,9 @@
 .it-run .ir-logo > * { display: block; width: 100%; height: 100%; }
 .it-run .ir-logo .mono { background: currentColor; -webkit-mask: var(--logo) center / contain no-repeat; mask: var(--logo) center / contain no-repeat; }
 .it-run .ir-h { color: var(--muted); }
-.it-run :is(.ir-m, .ir-w) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.it-run .ir-m, .it-run .ir-w { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .it-run .ir-m { min-width: 7ch; }
-.it-run :is(.ir-m, .ir-w)::before { content: '·'; padding: 0 5px; }
+.it-run .ir-m::before, .it-run .ir-w::before { content: '·'; padding: 0 5px; }
 .it-run .ir-w { display: inline-flex; align-items: center; min-width: 8ch; }
 .it-run .ir-w > span { overflow: hidden; text-overflow: ellipsis; }
 .it-run .ir-w .i { flex: none; width: 11px; height: 11px; margin-right: 4px; }
@@ -139,8 +139,8 @@
 .it-later:hover { background: var(--bg-2); color: var(--accent-ink); }
 .it-later-gap { flex: none; width: 20px; }
 /* No hover on touch: the long-press menu and the task's More have it instead. */
-@media (hover: none) { :is(.it-later, .it-later-gap) { display: none; } }
-body.wisp-mobile :is(.it-later, .it-later-gap) { display: none; }
+@media (hover: none) { .it-later, .it-later-gap { display: none; } }
+body.wisp-mobile .it-later, body.wisp-mobile .it-later-gap { display: none; }
 /* For later's heading: how many a crew member filed there that you haven't read */
 .f-group h4 .fl-new { color: var(--accent-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 .f-group h4 .fl-new::before { content: '· '; color: var(--faint); font-weight: 400; }
@@ -322,7 +322,7 @@ body.stack .t-result { display: none; }
 .btw-list:empty { display: none; }
 .btw { position: relative; padding: 10px 40px 11px 14px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
 .btw.new { animation: rise 0.35s var(--ease) both; }
-.btw.landed > :is(.btw-a, .btw-err) { animation: fade-in 0.4s var(--ease) both; }
+.btw.landed > .btw-a, .btw.landed > .btw-err { animation: fade-in 0.4s var(--ease) both; }
 .btw-q { display: flex; align-items: baseline; gap: 8px; font-size: 13px; line-height: 20px; color: var(--ink); }
 .btw-tag {
   flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px 1px 4px; border-radius: 5px; cursor: default;
@@ -396,7 +396,7 @@ body.stack .t-result { display: none; }
 .lm-acts .acc-i { width: 16px; height: 16px; font-size: 9px; }
 .b-limit.resolved .lm-acts { opacity: 0.55; pointer-events: none; }
 .lm-note { margin: 8px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
-@media (pointer: coarse) { .lm-acts :is(button, a) { min-height: 44px; } }
+@media (pointer: coarse) { .lm-acts button, .lm-acts a { min-height: 44px; } }
 .b-blocked .q-head { margin-bottom: 8px; }
 .b-blocked.resolved .q-head { color: var(--muted); }
 .bl-state { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-weight: 500; color: var(--muted); }
