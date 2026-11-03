@@ -352,6 +352,7 @@ cd ../app-stripe && codex   # starts with no idea what happened so far`)}
         </tbody>
       </table></div>
       <p>Each turn’s badge shows the harness that ran it, so the card reads as one story across agents and computers.</p>
+      <aside class="g-note"><b>When an agent says no</b><p>If a harness turns down legitimate work (Claude Code’s usage-policy refusal, or a short <i>I can’t help with that</i> from a run that changed nothing), the task says so and offers <b>Hand to &lt;another harness&gt;</b>. It offers only harnesses on another company’s model and pins that model, and one click sends the prompt, its files and the turns so far. wisp never hands a task over by itself, and never retries on another account of the same harness.</p></aside>
     </section>
 
     <section>
@@ -598,6 +599,8 @@ npx wisp-agents skill install --agent all`)}
           <tr><td>finishes</td><td>you check the terminal</td><td>desktop and phone notification</td></tr>
           <tr><td>reports back</td><td>thousands of lines of log</td><td>a headline, the real diff, the tests, next steps</td></tr>
           <tr><td>edits files</td><td>in your checkout</td><td>in its own worktree, with a checkpoint per turn</td></tr>
+          <tr><td>is in a repo with its own hooks or MCP servers</td><td><code>claude -p</code> starts them without asking, in any mode</td><td>lists each one with its command first: <b>Trust and start</b>, <b>Run without them</b> or <b>Skip this run</b></td></tr>
+          <tr><td>turns the task down</td><td>the turn ends; you copy it elsewhere by hand</td><td><b>Hand to &lt;another harness&gt;</b> on another company’s model, with the turns so far</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -798,6 +801,45 @@ curl -X PUT localhost:4477/api/sessions/$ID/goal \\
         ['Can I change the goal mid-way?', 'Yes. Edit goal… in the band, More, the right-click menu or ⌘K changes the words and keeps its rounds so far. /goal drop, or Drop goal, removes it.'],
       ],
       related: ['run-coding-agents-in-the-background', 'claude-code-vs-codex', 'run-multiple-claude-code-agents-in-parallel'],
+    },
+
+    {
+      slug: 'review-claude-code-prs-with-codex',
+      topic: 'agents',
+      title: 'Have Codex review Claude Code’s pull requests before you merge: wisp',
+      h1: 'Have Codex review Claude Code’s pull requests',
+      card: 'A different agent than the author reads each PR, the tests run again on its head, and Merge says what it found.',
+      description: 'Get a second opinion from another coding agent before you merge: Codex reviews Claude Code’s PRs and Claude Code reviews Codex’s, with tests rerun on the PR head, on the plans you already have.',
+      lede: 'Claude Code’s <code>/review</code> is Claude reading Claude’s work, and Codex’s <code>/review</code> is Codex reading Codex’s. In wisp, turn on <b>Review by another harness</b> and each open PR is reviewed by a different agent than the one that wrote it. The project’s tests run again on the PR’s head, and Merge tells you what was found.',
+      shot: ['report', 'A wisp report for a finished task: headline, numbers, the diff and the test run'],
+      body: `
+    <section>
+      <h2 id="native">What the CLIs do on their own</h2>
+      <p>Each vendor ships a reviewer for its own agent. Claude Code has <code>/review</code> and <code>/security-review</code>, and a GitHub Action that comments on PRs. Codex has <code>/review</code> against a base branch or a commit, and <code>@codex review</code> on GitHub. Cursor has Bugbot, billed per review. In each case the model that reviews the code comes from the same company as the one that wrote it, so the two tend to miss the same things.</p>
+    </section>
+
+    <section>
+      <h2 id="turn-on">Turn it on</h2>
+      <ol class="doc-steps">
+        <li><b>Start wisp</b> with at least two harnesses signed in, for example Claude Code and Codex. ${install()}</li>
+        <li><b>Settings → General → Review by another harness.</b> Pick <i>Another harness than the author</i>, or one harness by name (pick it by name to be sure the reviewer runs another company’s model).</li>
+        <li><b>Ship a task.</b> Once its PR is open, the reviewer gets the branch at the PR’s head, reads the diff against the base and the code around it, and lists what it would fix by severity. At the same time, the project’s tests run again on that head.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2 id="read">Read it where you merge</h2>
+      <p>The PR row shows <i>Not reviewed</i>, <i>Reviewing</i>, <i>N issues</i>, <i>Tests fail</i> or <i>Reviewed</i>. The PR panel lists each finding with its file and line, <b>Send to agent</b> to hand it back to the task, and <b>Review again</b>. Merge’s confirmation says when the PR isn’t reviewed or what the review found. Merge stays possible: the review informs you, it doesn’t block.</p>
+      <aside class="g-note"><b>Your plans, your accounts</b><p>The review runs on the reviewing harness’s signed-in account, so there’s nothing extra to pay for. wisp never switches accounts for it, and once a window passes <i>Automations stop at</i>, the review waits for the reset.</p></aside>
+    </section>
+`,
+      faq: [
+        ['Does the review post comments on GitHub?', 'No. Findings show in wisp: on the PR row, in the PR panel and in Merge’s confirmation. Send to agent hands one back to the task to fix.'],
+        ['Which harness reviews?', 'With Another harness than the author, the first one installed that didn’t write the task: Claude Code, then Codex, then the rest. Or pick one by name.'],
+        ['Does it block Merge?', 'No. Merge’s confirmation tells you what the review found, or that it hasn’t run, and you decide.'],
+        ['Can a spell change it?', 'Yes. The review setting can be set by a spell, and the PR chip and panel section can be restyled (split.pr.review, panel.pr.review).'],
+      ],
+      related: ['claude-code-vs-codex', 'run-claude-code-and-codex-in-parallel', 'make-claude-code-keep-going-until-tests-pass'],
     },
 
     {
