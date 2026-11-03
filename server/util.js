@@ -34,7 +34,23 @@ export function clip(s, n = 80) {
 // Write JSON so a crash mid-write never leaves a half file behind: tmp file, then rename.
 export function writeJsonAtomic(file, data, space) {
   fs.writeFileSync(`${file}.tmp`, JSON.stringify(data, null, space));
-  fs.renameSync(`${file}.tmp`, file);
+  renameRetrying(`${file}.tmp`, file);
+}
+
+// On Windows, a rename over a file something else holds open for a moment (a reader, antivirus,
+// the search indexer) fails with EPERM/EACCES/EBUSY: wait it out (about half a second at most)
+// instead of failing the request. Any other error, or one that lasts, still throws.
+const BUSY = new Set(['EPERM', 'EACCES', 'EBUSY']);
+const nap = new Int32Array(new SharedArrayBuffer(4));
+function renameRetrying(from, to) {
+  for (let i = 1; ; i++) {
+    try {
+      return fs.renameSync(from, to);
+    } catch (err) {
+      if (!BUSY.has(err.code) || i >= 10) throw err;
+      Atomics.wait(nap, 0, 0, i * 10);
+    }
+  }
 }
 
 // At most n characters, line breaks kept (messages, not one-liners).
