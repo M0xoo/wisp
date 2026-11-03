@@ -1440,6 +1440,111 @@ CLAUDE_CONFIG_DIR=~/.claude-personal claude   # the other one`)}
     },
 
     {
+      slug: 'several-claude-code-accounts-and-computers',
+      topic: 'machines',
+      title: 'Two Claude Code accounts, three computers, one task list: wisp',
+      h1: 'Several accounts and computers, one task list',
+      card: 'Your personal and work accounts, your laptop, desktop and server: every task in one list, each run on the account and computer you pick.',
+      description: 'Run Claude Code and Codex on more than one account and more than one computer without losing track: one task list for all of them, an account and a computer picked per task, and a question before anything moves.',
+      lede: 'With two Claude Code accounts and three computers, the hard part is knowing what runs where and on whose plan. wisp keeps one task list for all of it. Add your second account in Settings → Agents and your other computers in Machines, then pick per task where it runs and which account pays. Tasks on every computer land in the same list.',
+      shot: ['machines', 'The wisp launcher’s Run on menu: this computer and the machine studio both ticked, so the task runs in parallel on both'],
+      body: `
+    <section>
+      <h2 id="manual">The manual way</h2>
+      ${sh(`# two logins, one folder each
+claude                                        # your usual account
+CLAUDE_CONFIG_DIR=~/.claude-work claude       # the other one
+
+# and on each computer, its own terminals
+ssh desktop    # tmux, worktrees, which account was this?
+ssh devbox`)}
+      <p>It works, until you have a terminal per account per computer and per project. Nothing tells you which session runs on which plan, which one is waiting for an answer, or which one is done.</p>
+    </section>
+
+    <section>
+      <h2 id="with-wisp">With wisp</h2>
+      <ol class="doc-steps">
+        <li><b>Start wisp.</b> ${install()}</li>
+        <li><b>Add the second account.</b> Settings → Agents → <b>Add another Claude account</b> (or Codex), as personal or work. It signs in with the CLI’s own sign-in into a folder of its own; settings, skills, MCP servers and transcripts are shared with your first account, the login never is. See <a href="/guides/use-work-and-personal-claude-code-accounts.html">work and personal accounts</a>.</li>
+        <li><b>Add your other computers.</b> Machines → <i>Reach this computer from anywhere</i> on each one (no SSH, through wisp Cloud), or connect over SSH or Tailscale. See <a href="/guides/run-coding-agents-on-multiple-machines.html">agents on several machines</a>.</li>
+        <li><b>Pick per task.</b> In the launcher, <b>Run on</b> says which computer (or several at once), and the runner picker’s <i>Account</i> row says which account. A machine has its own accounts, so the row lists what’s signed in there.</li>
+        <li><b>Read one list.</b> Tasks from every computer and account join the same list, with the machine on the card. Questions from any of them come to <i>Needs you</i>, and to your phone with ntfy or Telegram.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2 id="projects">Too many projects</h2>
+      <ul class="doc-list">
+        <li><b>Every project runs on every computer.</b> A machine without a checkout gets one first: wisp reuses a clone of the same repo it finds there, or clones the project’s origin.</li>
+        <li><b>One task, several folders.</b> ⌘/Ctrl-click another project in the launcher and the agent works in both, with a worktree per repo. <b>Ship it</b> opens a PR per repo with changes.</li>
+        <li><b>Move a task.</b> <b>Runs on</b> next to the reply box moves your next follow-up and the task to another computer, with its branch and uncommitted work. See <a href="/guides/move-a-task-to-another-machine-or-agent.html">move a task</a>.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="limits">Limits stay per account</h2>
+      <p>Each account keeps its own 5-hour and weekly windows, and wisp doesn’t pool them. When one runs out, the task asks you: wait for the reset, continue on another of your accounts, hand it to another agent, or get extra usage. wisp never switches accounts on its own. Settings → Usage → <b>Plan budget</b> shows how much of each account’s windows is gone and which tasks used it; see <a href="/guides/see-where-your-claude-code-usage-went.html">where your usage went</a>.</p>
+      <aside class="g-note"><b>Good to know</b><p>Plan budget reads the windows from the runs on the computer it’s open on. The windows belong to the account, so runs of the same account on your other computers show up there as <i>Outside wisp or earlier</i>.</p></aside>
+    </section>
+`,
+      faq: [
+        ['Can one task list show tasks running on other computers?', 'Yes. Tasks on every machine you added join the same list, with the machine on the card, and you answer, follow up or Ship it from there.'],
+        ['Can each computer use a different Claude account?', 'Yes. A machine has its own accounts; the runner picker lists the accounts signed in on the computer the task runs on.'],
+        ['Does wisp move a task to my other account at a limit?', 'No. The task asks you first: wait for the reset, continue on another of your accounts, hand it to another agent, or get extra usage.'],
+        ['Do I need SSH for my other computers?', 'No. Signed in to wisp Cloud, a computer holds a tunnel open to the grid and shows up in your other computers’ Machines. SSH and Tailscale work too.'],
+      ],
+      related: ['use-work-and-personal-claude-code-accounts', 'run-coding-agents-on-multiple-machines', 'move-a-task-to-another-machine-or-agent'],
+    },
+
+    {
+      slug: 'see-where-your-claude-code-usage-went',
+      topic: 'yours',
+      title: 'Claude Code usage draining fast? See where it went: wisp',
+      h1: 'See where your Claude Code usage went',
+      card: 'Each task’s share of your 5-hour and weekly windows, the tasks that used the most, and a warning with a report when your plan empties faster than usual.',
+      description: 'See which tasks used your Claude Code and Codex 5-hour and weekly windows, and get warned when a plan suddenly empties faster for the same work, with a report you can paste into a support ticket.',
+      lede: 'Claude Code and Codex tell you how much of your 5-hour and weekly windows is gone, but not which work used it. wisp shares each move of a window out among the tasks that ran on that account. Settings → Usage → <b>Plan budget</b> lists the tasks that used the most, and <b>Drain watch</b> warns when the same work starts costing much more of your plan.',
+      shot: ['limit', 'A wisp task whose Work account reached its usage limit: Wait until the reset, Continue on Personal, Hand to Codex or Get extra usage'],
+      body: `
+    <section>
+      <h2 id="manual">What the CLIs tell you</h2>
+      <p>On every run, Claude Code reports how much of each window is used and when it resets (a <code>rate_limit_event</code> in its stream), and Codex writes the same into its session file. That is a total for the account. With several sessions open, you can’t tell which of them used it, or whether a session used much more than it should have.</p>
+    </section>
+
+    <section>
+      <h2 id="where">Where it went</h2>
+      <ol class="doc-steps">
+        <li><b>Start wisp.</b> ${install()}</li>
+        <li><b>Run your tasks as usual.</b> Each time the CLI reports its windows, wisp shares the change out among the tasks that ran on that account since the last report, by how long each one ran.</li>
+        <li><b>A task’s share.</b> Its details show it, longest window first: <i>22% of weekly · 31% of 5-hour</i>. A subagent’s share counts on its lead.</li>
+        <li><b>The account’s share.</b> Settings → Usage → <b>Plan budget</b> shows each Claude Code and Codex account’s windows, when each resets and when you’d run out at this pace. Under it, <i>Where the weekly window went</i> lists the three tasks that used the most this period (click one to open it), the rest in one row, and <i>Outside wisp or earlier</i> for what wisp didn’t run.</li>
+      </ol>
+      <aside class="g-note"><b>Approximate by design.</b><p>The CLIs report whole percents, and Claude Code reports once per run, so a turn’s share arrives with the next report. Tasks that ran between two reports split what moved by how long each ran.</p></aside>
+    </section>
+
+    <section>
+      <h2 id="drain">When your plan drains faster than usual</h2>
+      <p>Turn on Settings → Usage → <b>Drain watch</b> (off by default). It compares an account’s runs of the last two hours with its runs of the two weeks before, as share of a window per unit of work: Claude Code’s reported cost, else tokens. At twice the usual rate or more, the account’s block in Plan budget gets a card:</p>
+      <blockquote><p><b>Using your plan 3.1× faster than usual</b><br />Since 14:05, 4 runs took 18% of the weekly window for $2.10 of work. That much work usually takes 6%.</p></blockquote>
+      <p>Runs that ended in an error and still used the window are counted apart. <b>Copy report</b> puts the numbers on the clipboard in plain words, ready for a support ticket: the harness and account, the window and its reset in UTC, the runs, the work, and what that work took over the two weeks before. <b>Dismiss</b> hides the card until a later run shows the drain again. With ntfy or Telegram set up, your phone hears of it too, at most once every two hours per window.</p>
+      <aside class="g-note"><b>Good to know</b><p>Drain watch needs a baseline (five runs in the two weeks before) before it says anything. It measures the plan, not wisp, so use of the same account in other apps in that time counts too, and the report says so.</p></aside>
+    </section>
+
+    <section>
+      <h2 id="keep">Keep part of your plan for yourself</h2>
+      <p><b>Automations stop at</b> (Off, 50%, 75% or 90%, and a line per harness) holds back work nobody started by hand once a window passes the mark: crew check-ins, triggers, goal rounds and agents’ own follow-ups wait for the reset. Anything you start yourself still runs. wisp never switches accounts or goes past a provider’s limit on its own.</p>
+    </section>
+`,
+      faq: [
+        ['Does wisp ask Anthropic or OpenAI for my usage?', 'No. It reads what the CLI already reports on each run. The one exception is opt-in: Check Codex while work waits asks Codex’s app-server how its windows stand while work waits for a reset, which spends nothing.'],
+        ['How exact is a task’s share?', 'Approximate. The CLIs report whole percents, Claude Code once per run, and tasks that ran at the same time split what moved between two reports by how long each ran.'],
+        ['What goes in Copy report?', 'The harness and account, the window, when it resets in UTC, how many runs and how much work since the drain began, the share of the window they took, and what the same work took over the two weeks before.'],
+        ['Which harnesses does this cover?', 'Claude Code and Codex, the two whose CLIs report their usage windows. Settings → Usage also shows spend and turns for every harness.'],
+      ],
+      related: ['use-work-and-personal-claude-code-accounts', 'several-claude-code-accounts-and-computers', 'run-coding-agents-in-the-background'],
+    },
+
+    {
       slug: 'share-crew-members',
       topic: 'yours',
       title: 'Share an AI coding agent with your team: wisp crew members',
