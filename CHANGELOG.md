@@ -13,6 +13,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Tasks whose agent scheduled a check-in move from Needs you to Scheduled.** When a task finishes and its agent has said it will look again later (a follow-up it scheduled), the task waits under *Scheduled* with the check-in's time instead of sitting in *Needs you*, and it no longer counts in the tab title or a crew member's dot. It keeps its unread dot and one-click done there, and home's *Coming up* lists the check-in. Tasks asking you, due reminders and tasks with only your own reminders ahead stay in *Needs you*.
 - **Crew members and subagents can change the crew too.** `wisp_crew_add`, `wisp_crew_edit` and `wisp_crew_remove` work from a crew member's job and from a subagent, not only from a task you started, so a lead can hire help for a job. A member's job can't remove that member.
 
 ## [0.54.0] - 2026-11-02

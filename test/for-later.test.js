@@ -12,7 +12,7 @@ process.env.WISP_NO_OPEN = '1';
 process.env.FAKE_RECORD = tmp('forlater-rec');
 installFakeBins();
 const { startServer } = await import('../server/index.js');
-const { isForLater, needsYou } = await import('../web/js/core/state.js');
+const { isForLater, isScheduled, needsYou } = await import('../web/js/core/state.js');
 
 const freePort = () =>
   new Promise((resolve) => {
@@ -111,4 +111,36 @@ test('the page: For later hides nothing that needs you, and isn’t counted as n
   assert.equal(needsYou({ state: 'review', unread: true }), true);
   assert.equal(needsYou({ state: 'waiting' }), true);
   assert.equal(needsYou({ state: 'review', unread: false }), false);
+});
+
+test('the page: a finished task whose agent scheduled a check-in is Scheduled, not Needs you', () => {
+  const check = { at: Date.now() + 600_000, by: 'agent', text: 'check CI' };
+  const remind = { at: Date.now() + 600_000, by: 'user', text: 'look at it', remind: true };
+  const agent = { state: 'review', unread: true, later: [check] };
+  assert.equal(isScheduled(agent), true);
+  assert.equal(needsYou(agent), false);
+  // Only your own reminders ahead: the report still needs you.
+  const mine = { state: 'review', unread: true, later: [remind] };
+  assert.equal(isScheduled(mine), false);
+  assert.equal(needsYou(mine), true);
+  assert.equal(isScheduled({ ...agent, later: [remind, check] }), true);
+  // Asking you always stays in Needs you.
+  const asks = { state: 'waiting', later: [check] };
+  assert.equal(isScheduled(asks), false);
+  assert.equal(needsYou(asks), true);
+  // A due reminder, a held run, a terminal that's open, a pending launch: not Scheduled.
+  assert.equal(isScheduled({ ...agent, reminder: { text: 'x' } }), false);
+  assert.equal(needsYou({ ...agent, reminder: { text: 'x' } }), true);
+  assert.equal(isScheduled({ ...agent, held: { label: 'Weekly', used: 0.91 } }), false);
+  assert.equal(isScheduled({ ...agent, tui: true, term: true }), false);
+  assert.equal(isScheduled({ ...agent, pending: true }), false);
+  assert.equal(isScheduled({ ...agent, state: 'running' }), false);
+  assert.equal(isScheduled({ ...agent, archived: true }), false);
+  assert.equal(isScheduled({ ...agent, forLater: { at: 1, by: 'user' } }), false);
+  assert.equal(isScheduled({ state: 'review', unread: true }), false);
+  // Done, as before: any follow-up, or a held run waiting for the reset.
+  assert.equal(isScheduled({ state: 'done', later: [check] }), true);
+  assert.equal(isScheduled({ state: 'done', later: [remind] }), true);
+  assert.equal(isScheduled({ state: 'done', held: { waiting: true, until: 1 } }), true);
+  assert.equal(isScheduled({ state: 'done' }), false);
 });

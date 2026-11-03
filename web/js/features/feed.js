@@ -83,12 +83,13 @@ export function groups() {
   const all = every.filter((s) => !s.archived && !isForLater(s));
   // A terminal session with its terminal running is being worked on, by you and its agent.
   const inTerm = (s) => s.tui && s.term && s.state === 'review';
+  // Not one whose agent scheduled a check-in: that waits in Scheduled with its report.
   const needs = all
-    .filter((s) => (s.state === 'review' || s.state === 'waiting') && !inTerm(s))
+    .filter((s) => (s.state === 'review' || s.state === 'waiting') && !inTerm(s) && !isScheduled(s))
     .sort((a, b) => (b.state === 'waiting') - (a.state === 'waiting') || b.updatedAt - a.updatedAt);
   // Working items keep launch order so the feed doesn't reshuffle on every tool call.
   const working = all.filter((s) => s.state === 'running' || inTerm(s)).sort((a, b) => b.createdAt - a.createdAt);
-  // Done, with follow-ups still to come: Scheduled, soonest first (later.js).
+  // Done or finished, with follow-ups still to come: Scheduled, soonest first (later.js).
   const scheduled = all.filter((s) => isScheduled(s)).sort((a, b) => nextAt(a) - nextAt(b));
   const done = all.filter((s) => s.state === 'done' && !isScheduled(s)).sort((a, b) => b.updatedAt - a.updatedAt);
   const archived = every.filter((s) => s.archived).sort((a, b) => b.updatedAt - a.updatedAt);

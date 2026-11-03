@@ -68,14 +68,19 @@ backend) and Gucci (the UI); the decisions they changed are marked *(review)*.
 - **Above the reply box:** each follow-up is a row like a queued one (*At 14:45 · set by the agent ·
   message*, ×). A click or right-click gives **Send now / Change time… / Cancel follow-up**. × acts at
   once with **Undo**, no confirm *(review)*.
-- **The card:** a clock pill with the next time (*14:32*, *+1* for more) in *Needs you*, under a crew
-  member, and in the details. On phones it shrinks to the clock. The list never says *in 18m*: times
-  ahead are absolute *(review)*.
+- **The card:** a clock pill with the next time (*14:32*, *+1* for more) in *Needs you* (a task
+  asking you, or one with only your reminders ahead), under a crew member, and in the details. On
+  phones it shrinks to the clock. The list never says *in 18m*: times ahead are absolute *(review)*.
 - **The *Scheduled* section** (sidebar and feed, between *Working* and *Done*) *(review: not "Coming
-  up")*. It holds plans (clock or bell rows: **Start now / Change start time… / Delete**) and done
-  tasks with follow-ups to come, soonest first, with the time in the time column and no pill. A
-  task waiting for review or asking you stays in *Needs you*: scheduling never hides what needs you
-  *(review)*.
+  up")*. It holds plans (clock or bell rows: **Start now / Change start time… / Delete**), done
+  tasks with follow-ups to come, and finished tasks whose agent scheduled a check-in
+  (`resume_later`, a follow-up that isn't a reminder), soonest first, with the time in the time
+  column and no clock pill. *Needs you* is only what you have to act on now: a finished one there
+  keeps its unread dot, its *Finished* pill and the one-click done, but doesn't count in the tab
+  title, a crew member's dot or home's *Needs you* until its check-in comes back. Never Scheduled
+  (`isScheduled`, `web/js/core/state.js`): a task asking you, a due reminder, a run held near the
+  limit, an open terminal, or one with only your own reminders ahead *(2026-11-03: the agent's
+  check-ins no longer keep a task in Needs you)*.
 - **Split home, *Coming up*:** under *Needs you*, above the tips, the next 5 (spell prop `count`).
   It lists plans, follow-ups (here and on machines), crew check-ins with their face, and schedule
   triggers with a bolt. A click opens the task, member or trigger, or the plan's menu. With more,

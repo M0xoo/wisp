@@ -28,8 +28,16 @@ export const inGrid = () => !!S.config?.grid;
 // Saved for later (design/for-later.md): in that section, and not counted as needing you. Work
 // that needs you now (running, asking, a reminder that came due) never hides there.
 export const isForLater = (s) => !!s?.forLater && !s.archived && !s.reminder && !s.pending && (s.state === 'review' || s.state === 'done');
+// Waiting on follow-ups (design/later.md): in Scheduled, out of Needs you. A done task with any
+// follow-up or a run held for the reset, or a finished one whose agent scheduled a check-in
+// (resume_later): its report waits there too. Never one asking you, a due reminder, a held run
+// to decide on, a terminal that's open, or one with only your reminders ahead.
+export const isScheduled = (s) =>
+  !!s && !s.archived && !s.forLater && // saved for later: that wins
+  ((s.state === 'done' && (!!s.later?.length || !!s.held?.waiting)) ||
+    (s.state === 'review' && !s.reminder && !s.held && !s.pending && !(s.tui && s.term) && !!s.later?.some((l) => !l.remind)));
 // What the tab title, the crew's dots and home count: asking you, or a report you haven't read.
-export const needsYou = (s) => !isForLater(s) && !s.archived && (s.state === 'waiting' || (s.state === 'review' && !!s.unread));
+export const needsYou = (s) => !isForLater(s) && !s.archived && !isScheduled(s) && (s.state === 'waiting' || (s.state === 'review' && !!s.unread));
 export function nameHere() {
   if (COMPUTER) return;
   HERE = inGrid() ? 'Cloud computer' : 'This computer';

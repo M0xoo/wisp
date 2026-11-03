@@ -15,7 +15,7 @@ import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { ago, STATUS_LABEL, timeAttrs, whenLabel } from '../core/format.js';
 import { fmtDuration } from '../blocks.js';
-import { HERE, isForLater, launch, load, MOBILE, S, save } from '../core/state.js';
+import { HERE, isForLater, launch, load, MOBILE, needsYou, S, save } from '../core/state.js';
 import { canSaveForLater, setForLater } from './actions.js';
 import { onBack } from '../ui/back.js';
 import { overlay } from '../ui/overlay.js';
@@ -93,7 +93,7 @@ export function memberState(m) {
   const asks = jobs.some((s) => s.state === 'waiting');
   const sent = pendingOf(m);
   const live = [...jobs.filter((s) => s.state === 'running'), ...sent];
-  const unread = jobs.filter((s) => s.state === 'review' && s.unread && !s.archived && !isForLater(s)).length; // saved for later: not a ping
+  const unread = jobs.filter((s) => s.state === 'review' && needsYou(s)).length; // saved for later or scheduled: not a ping
   return { jobs, sent, asks, live, unread, mood: asks ? 'asks' : live.length ? 'live' : m.paused ? 'sleep' : 'idle' };
 }
 
@@ -181,7 +181,7 @@ export function statusLine(m, st) {
   const ask = st.jobs.find((s) => s.state === 'waiting');
   if (ask) return { cls: 'asks', text: `Asking you${ask.question ? `: ${ask.question}` : ''}` };
   if (st.live.length) return { cls: 'live', text: busyLine(st.live) };
-  const report = st.jobs.filter((s) => s.state === 'review' && s.unread && !s.archived && !isForLater(s)).sort((a, b) => b.updatedAt - a.updatedAt)[0];
+  const report = st.jobs.filter((s) => s.state === 'review' && needsYou(s)).sort((a, b) => b.updatedAt - a.updatedAt)[0];
   if (report) return { cls: 'report', text: `Reported: ${report.title}` };
   if (m.changed && m.paused) return { cls: '', text: m.changed.from ? 'Paused: their spell changed' : 'New from a spell: review to start' };
   if (m.queue?.length) return { cls: '', text: `${m.queue.length} waiting` };
