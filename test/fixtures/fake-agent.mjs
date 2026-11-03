@@ -10,6 +10,8 @@
 //   FAKE_LIMIT_ONCE=<file>  the first run hits a usage limit (stderr, exit 1); later runs work
 //   FAKE_LIMIT_TEXT  what that first run prints instead of the usual session-limit line
 //   FAKE_LIMITS  claude: a rate_limit_info (JSON) it reports as a rate_limit_event before anything else
+//   FAKE_API_KEY_SOURCE  claude: its init's apiKeySource (default none: the plan)
+//   FAKE_CACHE_READ  claude: cache_read_input_tokens on its result (and 20 cache writes)
 //   FAKE_RATE_LIMIT  opencode: log a rate-limit error to stderr, then go quiet for good as the
 //                real CLI does while it retries (`recover`: carry on with the turn after it)
 //   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
@@ -513,7 +515,7 @@ if (name === 'claude') {
     out({ type: 'system', subtype: 'init', session_id: session });
     out({ type: 'result', subtype: 'success', is_error: false, result: '', session_id: session, duration_ms: 74, num_turns: 0, total_cost_usd: 0.01 });
   }
-  out({ type: 'system', subtype: 'init', session_id: session });
+  out({ type: 'system', subtype: 'init', session_id: session, apiKeySource: process.env.FAKE_API_KEY_SOURCE || 'none' });
   out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: target } }] } });
   if (process.env.FAKE_HANG) hang();
   else {
@@ -564,7 +566,7 @@ if (name === 'claude') {
         out({ type: 'system', subtype: 'init', session_id: session });
         out({ type: 'result', subtype: 'success', is_error: false, result: final('background done'), session_id: session });
       }
-    } else out({ type: 'result', subtype: 'success', is_error: false, result: final(answer), session_id: session, duration_ms: 5, num_turns: 3, total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: 5 }, permission_denials: refused ? [{ tool_name: 'Bash', tool_use_id: 't9', tool_input: { command: 'npm publish', description: 'Publish' } }] : [] });
+    } else out({ type: 'result', subtype: 'success', is_error: false, result: final(answer), session_id: session, duration_ms: 5, num_turns: 3, total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: 5, ...(process.env.FAKE_CACHE_READ && { cache_read_input_tokens: Number(process.env.FAKE_CACHE_READ), cache_creation_input_tokens: 20 }) }, permission_denials: refused ? [{ tool_name: 'Bash', tool_use_id: 't9', tool_input: { command: 'npm publish', description: 'Publish' } }] : [] });
   }
 } else if (name === 'codex') {
   out({ type: 'thread.started', thread_id: session });

@@ -618,3 +618,153 @@ test('window changes: /agents carries the notice, × hides it, the switch hides 
   assert.deepEqual(await api('/agents/codex/windows/dismiss', { account: 'default', window: 'seven_day' }), { ok: true });
   assert.deepEqual(notes(await codexOf()), []);
 });
+
+// --- Plan windows with no 5-hour window (Claude Ultra since 2026-11) -----------------------------
+
+test('only a weekly window: no 5-hour row, Wait until picks the weekly reset, Automations stop at waits for it', () => {
+  let now = 2_000 * H;
+  const b = new Budget(tmp('budget-weekly-only'), { now: () => now });
+  const R = now + 3 * 24 * H;
+  const ev = (used, status = 'allowed') => claudeLimits({ status, rateLimitType: 'seven_day', utilization: used, resetsAt: R / 1000, unifiedWindows: { seven_day: { utilization: used, resetsAt: R / 1000 } } });
+  b.record('claude', 'default', ev(0.4));
+  const v = b.view('claude')[0];
+  assert.deepEqual(v.windows.map((w) => w.id), ['seven_day'], 'no empty 5-hour row');
+  assert.equal(v.notices, undefined, 'the first report only sets what was seen');
+  assert.equal(b.resetAt('claude', 'default'), null, 'not at its limit');
+  now += H;
+  b.record('claude', 'default', ev(1, 'rejected'));
+  assert.equal(b.resetAt('claude', 'default'), R, 'Wait until: the weekly reset');
+  assert.equal(b.hold('claude', 'default', 0.75).until, R);
+  assert.equal(b.hold('claude', 'default', 0.75).label, 'Weekly');
+  assert.deepEqual(b.windows('claude', 'default').map((w) => w.id), ['seven_day']);
+});
+
+test('the 5-hour window goes: its row leaves once it resets, the change is told once over a day of polls', () => {
+  let now = 3_000 * H;
+  let changes = 0;
+  const b = new Budget(tmp('budget-five-gone'), { now: () => now, onChange: () => changes++ });
+  const R7 = now + 4 * 24 * H;
+  const both = claudeLimits({ status: 'allowed', unifiedWindows: { five_hour: { utilization: 0.3, resetsAt: (now + H) / 1000 }, seven_day: { utilization: 0.2, resetsAt: R7 / 1000 } } });
+  b.record('claude', 'default', both);
+  assert.deepEqual(b.view('claude')[0].windows.map((w) => w.id), ['five_hour', 'seven_day']);
+  // From now on every report lists the weekly window alone, every 10 minutes for a day.
+  const told = [];
+  for (let i = 1; i <= 6 * 24; i++) {
+    now += 10 * 60_000;
+    b.record('claude', 'default', claudeLimits({ status: 'allowed', unifiedWindows: { seven_day: { utilization: 0.2 + i / 1000, resetsAt: R7 / 1000 } } }));
+    const v = b.view('claude')[0];
+    for (const n of v.notices || []) if (!told.some((x) => x.window === n.window && x.at === n.at)) told.push(n);
+    // Before the 5-hour one's reset its last numbers still hold; after it, no empty bar.
+    if (now > 3_000 * H + H) assert.deepEqual(v.windows.map((w) => w.id), ['seven_day'], `poll ${i}: no stale 5-hour row`);
+  }
+  assert.deepEqual(told.map((n) => [n.kind, n.window]), [['gone', 'five_hour']], 'told once, not on every poll');
+  assert.ok(b.dismissNotice('claude', 'default', 'five_hour'));
+  const before = changes;
+  for (let i = 0; i < 12; i++) {
+    now += 10 * 60_000;
+    b.record('claude', 'default', claudeLimits({ status: 'allowed', unifiedWindows: { seven_day: { utilization: 0.4, resetsAt: R7 / 1000 } } }));
+  }
+  assert.equal(b.view('claude')[0].notices, undefined, 'dismissed stays dismissed');
+  assert.ok(changes - before <= 1, 'same numbers: nobody told');
+  assert.equal(b.resetAt('claude', 'default'), null);
+});
+
+test('Codex reporting only its weekly window (primary empty) has no 5-hour row', () => {
+  const now = Date.now();
+  const b = new Budget(tmp('budget-codex-weekly'), { now: () => now });
+  const R = Math.round((now + 2 * 24 * H) / 1000);
+  b.record('codex', 'default', codexLimits({ primary: null, secondary: { used_percent: 100, window_minutes: 10080, resets_at: R } }));
+  assert.deepEqual(b.view('codex')[0].windows.map((w) => w.id), ['seven_day']);
+  assert.equal(b.resetAt('codex', 'default'), R * 1000, 'Wait until: the weekly reset');
+});
+
+// --- Past your plan: runs billed beyond the plan's windows -----------------------------------------
+
+test('past your plan: Claude’s extra usage and a Codex credit drop flag the run; “overage” is never a window', () => {
+  const x = claudeLimits({ ...CLAUDE_EVENT, isUsingOverage: true, overageStatus: 'allowed' });
+  assert.equal(x.overage, true);
+  assert.deepEqual(x.windows.map((w) => w.id), ['five_hour', 'seven_day']);
+  assert.equal(claudeLimits(CLAUDE_EVENT).overage, undefined, 'isUsingOverage false: on the plan');
+  const only = claudeLimits({ status: 'allowed', rateLimitType: 'overage', utilization: 0.2, isUsingOverage: true });
+  assert.deepEqual(only, { windows: [], overage: true }, 'the extra-usage allowance is not a plan window');
+  assert.equal(claudeLimits({ status: 'rejected', rateLimitType: 'overage', utilization: 1 }), null);
+
+  let now = 4_000 * H;
+  let changes = 0;
+  const b = new Budget(tmp('budget-over'), { now: () => now, onChange: () => changes++ });
+  assert.equal(b.record('claude', 'default', x), 'extra');
+  assert.equal(b.record('claude', 'default', claudeLimits(CLAUDE_EVENT)), null);
+  assert.equal(b.record('claude', 'default', only), 'extra', 'no windows, still flagged');
+
+  const rl = (balance) => ({ secondary: { used_percent: 100, window_minutes: 10080, resets_at: Math.round((now + 24 * H) / 1000) }, credits: { has_credits: true, unlimited: false, balance } });
+  assert.equal(codexLimits(rl('12.5')).credits, 12.5);
+  assert.equal(codexLimits({ ...rl('1'), credits: { unlimited: true, balance: null } }).credits, undefined);
+  assert.equal(b.record('codex', 'default', codexLimits(rl('12.5'))), null, 'the first balance only sets it');
+  assert.equal(b.record('codex', 'default', codexLimits(rl('12.5'))), null, 'unchanged');
+  assert.equal(b.record('codex', 'default', codexLimits(rl('11.75'))), 'credits', 'went down: this run took credits');
+  assert.equal(b.record('codex', 'default', codexLimits(rl('20'))), null, 'topped up');
+
+  // Plan budget counts them for a week, once per turn, and names the last one's task.
+  b.overage('claude', 'default', 'extra', 's1', 't1');
+  b.overage('claude', 'default', 'extra', 's1', 't1');
+  now += H;
+  b.overage('claude', 'default', 'api', 's2', 't1');
+  assert.deepEqual(b.view('claude')[0].overage, { runs: 2, at: now, kind: 'api', sid: 's2' });
+  assert.ok(changes > 0);
+  now += 7 * 24 * H - H / 2;
+  assert.deepEqual(b.view('claude')[0].overage, { runs: 1, at: now - 7 * 24 * H + H / 2, kind: 'api', sid: 's2' }, 'older than a week: gone');
+});
+
+const { receiptOf, receiptParts, tokenWords } = await import('../web/js/receipt.js');
+
+test('usage receipt: tokens with Anthropic’s cache counted apart, OpenAI’s inside; the longest window; Past your plan', () => {
+  // Claude: 2k fresh + 30k read from cache + 4k written to it, 2k out.
+  const c = receiptOf({ stats: { inputTokens: 2000, cacheReadTokens: 30000, cacheWriteTokens: 4000, outputTokens: 2000 }, plan: [{ window: 'five_hour', used: 0.12 }, { window: 'seven_day', used: 0.031 }] });
+  assert.equal(c.tokens, 38000);
+  assert.equal(Math.round(c.cache * 100), 83);
+  assert.deepEqual(receiptParts(c), ['38k tokens', '83% cache', '3% of weekly'], 'the weekly window, not the 5-hour one');
+  // Codex: input_tokens holds the cached ones.
+  const x = receiptOf({ stats: { inputTokens: 100000, cachedInputTokens: 71000, outputTokens: 1500 } });
+  assert.deepEqual(receiptParts(x), ['102k tokens', '71% cache']);
+  // Only a weekly window (no 5-hour): that's the one on the line; a month-long one beats it.
+  assert.deepEqual(receiptParts(receiptOf({ plan: [{ window: 'seven_day', used: 0.002 }] })), ['<1% of weekly']);
+  assert.deepEqual(receiptParts(receiptOf({ plan: [{ window: 'seven_day', used: 0.1 }, { window: 'w43200m', used: 0.05 }] })), ['5% of 30-day']);
+  // Two shares of the same window (two periods, two accounts) add up.
+  assert.deepEqual(receiptParts(receiptOf({ plan: [{ window: 'seven_day', used: 0.02 }, { window: 'seven_day', used: 0.01 }] })), ['3% of weekly']);
+  assert.equal(receiptOf({ stats: { inputTokens: 1000 }, overage: { kind: 'extra' } }).overage, 'extra');
+  assert.equal(receiptOf({ stats: {}, overage: { kind: 'nonsense' } }), null, 'nothing to say');
+  assert.equal(receiptOf({}), null);
+  assert.deepEqual(receiptParts(receiptOf({ stats: { inputTokens: 10, cacheReadTokens: 31000, cacheWriteTokens: 20, outputTokens: 5 } })), ['31k tokens', '99% cache'], 'not all of it: never 100%');
+  assert.deepEqual([tokenWords(820), tokenWords(38400), tokenWords(1_250_000), tokenWords(12_000_000)], ['820', '38k', '1.3M', '12M']);
+});
+
+test('past your plan, end to end: a run on extra usage or an API key is flagged on its turn and in Plan budget; the receipt’s tokens land on it', async () => {
+  delete srv.budget.state.claude;
+  const cwd = makeRepo();
+  try {
+    process.env.FAKE_LIMITS = JSON.stringify({ status: 'allowed_warning', rateLimitType: 'seven_day', utilization: 1, isUsingOverage: true, overageStatus: 'allowed', resetsAt: Math.round((Date.now() + 2 * 24 * H) / 1000), unifiedWindows: { seven_day: { utilization: 1, resetsAt: Math.round((Date.now() + 2 * 24 * H) / 1000) } } });
+    process.env.FAKE_CACHE_READ = '3000';
+    const a = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', worktree: false });
+    const x = await ended(a.id, 'review');
+    assert.equal(x.turns[0].overage?.kind, 'extra');
+    assert.deepEqual([x.turns[0].stats.cacheReadTokens, x.turns[0].stats.cacheWriteTokens], [3000, 20]);
+    const claude = (await api('/agents')).find((y) => y.id === 'claude');
+    const over = claude.budget.find((y) => y.account === 'default').overage;
+    assert.deepEqual([over.runs, over.kind, over.sid], [1, 'extra', a.id]);
+    assert.deepEqual(claude.budget.find((y) => y.account === 'default').windows.map((w) => w.id), ['seven_day']);
+
+    delete process.env.FAKE_LIMITS;
+    delete process.env.FAKE_CACHE_READ;
+    delete srv.budget.state.claude; // the weekly window at 100% would hold the next launch
+    process.env.FAKE_API_KEY_SOURCE = 'ANTHROPIC_API_KEY';
+    const b = await api('/sessions', { prompt: 'write the docs please', cwd, agent: 'claude', worktree: false });
+    assert.equal((await ended(b.id, 'review')).turns[0].overage?.kind, 'api');
+    process.env.FAKE_API_KEY_SOURCE = 'none';
+    const c = await api('/sessions', { prompt: 'write the docs again please', cwd, agent: 'claude', worktree: false });
+    assert.equal((await ended(c.id, 'review')).turns[0].overage, undefined, 'on the plan: no flag');
+  } finally {
+    delete process.env.FAKE_LIMITS;
+    delete process.env.FAKE_CACHE_READ;
+    delete process.env.FAKE_API_KEY_SOURCE;
+  }
+});

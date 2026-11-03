@@ -22,6 +22,7 @@ import { heldCard } from './hold.js';
 import { harnessNote } from './harness-watch.js';
 import { scheduleFollowUp } from './later.js';
 import { handoffTargets } from '../vendors.js';
+import { OVERAGE, receiptOf, receiptParts, receiptTip } from '../receipt.js';
 import { scrollByPx, topInset, watching } from './scroll.js';
 import { prsOf, renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
@@ -567,6 +568,17 @@ function refusalCard(s, t) {
   return node;
 }
 
+// The usage receipt (web/js/receipt.js): what the run took, quiet, in the trail bar; and Past your
+// plan when it was billed beyond the plan (turn.overage). Nothing while it runs: the numbers come at the end.
+function receiptHtml(t) {
+  if (t.status === 'running') return '';
+  const r = receiptOf(t);
+  const parts = receiptParts(r);
+  const o = r?.overage && OVERAGE[r.overage];
+  return (parts.length ? `<span class="tb tb-receipt" title="${esc(receiptTip(r))}">${parts.map((p) => `<span>${esc(p)}</span>`).join('<span class="tb-dot" aria-hidden="true">·</span>')}</span>` : '') +
+    (o ? `<span class="tb tb-over" title="${esc(`${o.tip}. Settings → Usage → Plan budget counts these runs`)}">${icon('warn')}${esc(o.label)}</span>` : '');
+}
+
 // A crew member's job that came from another task (delegated, tagged, asked to check on it): its
 // first message says which, and opens that task while it's still around.
 const FROM_LABEL = { delegated: 'Delegated from', mention: 'Tagged in', event: 'Checking on' };
@@ -914,6 +926,7 @@ function renderTrail(s, t, tx) {
         ${acts.length && !tx ? `<button class="tb-acts" data-tab="activity" title="Show activity">${parts.length ? parts.map(([ic, l, n]) => `<span class="tb" title="${n} ${l}">${icon(ic)}${n}<span class="tb-l"> ${l}</span></span>`).join('') : 'Activity'}</button>` : ''}
         ${t.endedAt ? `<span class="tb">${fmtDuration(t.endedAt - t.startedAt)}</span>` : ''}
         ${st.costUsd ? `<span class="tb">$${st.costUsd.toFixed(2)}</span>` : ''}
+        ${receiptHtml(t)}
         <span class="grow"></span>
         ${t.changes?.length ? `<button class="link xs" data-tab="changes">${t.changes.length} file${t.changes.length > 1 ? 's' : ''} <span class="plus">+${totals.add}</span> <span class="minus">−${totals.del}</span></button>` : ''}
         <span class="tb-tools">

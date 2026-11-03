@@ -125,6 +125,20 @@ export function drainReport(a, b, acc) {
   ].join('\n');
 }
 
+// Past your plan: the account's runs billed beyond its plan this week (server/budget.js overage()),
+// and the last one's task, which opens.
+const OVER_WORDS = { extra: 'billed as extra usage', credits: 'billed to Codex credits', api: 'billed to an API key, not the plan' };
+function overHtml(b) {
+  const o = b.overage;
+  if (!o?.runs) return '';
+  const task = o.sid && S.sessions?.get?.(o.sid);
+  return `<div class="bg-over" role="status">
+    <span class="bg-di">${icon('warn')}</span>
+    <span class="bg-nt"><b>Past your plan:</b> ${o.runs} run${o.runs === 1 ? '' : 's'} in the last 7 days ${esc(OVER_WORDS[o.kind] || OVER_WORDS.extra)} (last: ${esc(whenLabel(o.at))}).</span>
+    ${task ? `<button type="button" class="ghost sm bg-ol" data-session="${esc(o.sid)}" title="${esc(`Open “${task.title || 'Untitled'}”`)}">Open it</button>` : ''}
+  </div>`;
+}
+
 // agents: S.agents. '' when no harness here reports its windows (the pane hides the group).
 export function budgetHtml(agents) {
   const out = [];
@@ -148,6 +162,7 @@ export function budgetHtml(agents) {
       out.push(`<div class="bg-acct${stop ? ' stops' : ''}" data-agent="${esc(a.id)}" data-acc="${esc(b.account)}"${stop ? ` style="--stop:${stop * 100}%"` : ''}>
         <b class="bg-name"><span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}${acc ? `<span class="bg-acc">${esc(acc.label)}</span>` : ''}</b>
         ${wins}
+        ${overHtml(b)}
         ${noticesHtml(a, b, acc)}
         ${drainHtml(a, b)}
         ${whereHtml(b.where)}
@@ -157,7 +172,7 @@ export function budgetHtml(agents) {
   if (out.length) return out.join('');
   // Nothing reported yet: say where the numbers will come from, once a run tells us.
   const can = agents.filter((a) => REPORTS.has(a.id) && a.available);
-  return can.length ? `<p class="bg-empty">Shows each account’s 5-hour and weekly windows after its next ${can.map((a) => esc(a.name)).join(' or ')} run.</p>` : '';
+  return can.length ? `<p class="bg-empty">Shows each account’s usage windows after its next ${can.map((a) => esc(a.name)).join(' or ')} run.</p>` : '';
 }
 
 // A window by its id, in words for a sentence: "weekly", "5-hour", "30-day".

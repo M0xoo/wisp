@@ -1459,9 +1459,16 @@ export class Runner extends EventEmitter {
         this.store.save(session);
         return;
       }
-      case 'limits':
-        // How much of this account's usage windows is gone (server/budget.js).
-        this.budget?.record?.(session.agent, session.account || 'default', ev);
+      case 'limits': {
+        // How much of this account's usage windows is gone (server/budget.js), and whether this run
+        // is billed past the plan (extra usage, Codex credits): Past your plan on the turn.
+        const past = this.budget?.record?.(session.agent, session.account || 'default', ev);
+        if (past) this.#pastPlan(session, turn, past);
+        return;
+      }
+      case 'billing':
+        // Billed to an API key instead of the plan (Claude Code's apiKeySource).
+        if (ev.kind) this.#pastPlan(session, turn, ev.kind);
         return;
       case 'background': {
         turn.background = ev.tasks;
@@ -1637,6 +1644,15 @@ export class Runner extends EventEmitter {
         ...(rest.length ? rest : [{ type: 'markdown', text: ev.text || 'No answer.' }]),
       ],
     };
+  }
+
+  // A run billed past its plan (turn.overage: 'extra' usage, Codex 'credits', an 'api' key): the
+  // turn's receipt says so, and Plan budget counts it for the week (server/budget.js overage()).
+  #pastPlan(session, turn, kind) {
+    if (!turn || turn.overage) return;
+    turn.overage = { kind, at: Date.now() };
+    this.budget?.overage?.(session.agent, session.account || 'default', kind, session.id, turn.id);
+    this.store.save(session);
   }
 
   // Refused because too many devices or sessions are signed in on the account (Codex): no window to

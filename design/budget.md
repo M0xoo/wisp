@@ -220,3 +220,23 @@ Design by Sana (2026-11-01).
   private OAuth endpoint with a scraped token is off-limits): it keeps learning with its next run.
 - **Terms**: reads the account the work would run on and nothing else; never switches accounts or
   spends a reset.
+
+## Usage receipt and Past your plan
+
+Each finished turn's trail bar carries a quiet receipt (`web/js/receipt.js`): tokens read and written
+(Anthropic's cache reads and writes are counted apart from `input_tokens`, OpenAI's `input_tokens`
+already holds the cached ones), the share that came from the cache, and the turn's share of the
+account's **longest** window (`turn.plan`). With Claude's 5-hour window gone on some plans, people
+count the week, so the week leads. The plan share lands with the account's next report, so a turn
+that just ended may show it a little later. Nothing shows while the turn runs.
+
+*Past your plan* marks a run billed beyond the plan: Claude Code's `rate_limit_info.isUsingOverage`
+(extra usage), a drop in Codex's `rate_limits.credits.balance` between two reports (credits), or
+Claude Code's `apiKeySource` other than `none`/`oauth` (an API key, shown as *API credit*). It sets
+`turn.overage` once per turn, and Plan budget lists the account's count for the last 7 days with
+*Open it* for the last task (`overage()` keeps 50, for a week). It's a fact about billing, in the
+warn colour, never a block: wisp doesn't stop the run or switch accounts.
+
+An account whose reports list only a weekly window has no 5-hour row. A window the latest report of
+every window left out stops showing once its own reset has passed (no empty bar), and the
+window-change notice says *gone* once, after `GONE_MISS` reports over `GONE_AGE`.
