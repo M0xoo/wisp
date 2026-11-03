@@ -48,7 +48,7 @@
 .cq.dragged { z-index: 1; background: var(--surface); border-style: solid; box-shadow: var(--shadow-1); }
 /* Editing in place: the text becomes a box, the row grows with it. */
 .cq.editing { align-items: flex-start; padding-right: 30px; }
-.cq.editing :is(.cq-pen, .cq-grip, .cq-acts) { display: none; }
+.cq.editing .cq-pen, .cq.editing .cq-grip, .cq.editing .cq-acts { display: none; }
 .cq.editing .att-x { top: 8px; translate: none; }
 .cq-editbox { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .composer .cq-edit { width: 100%; min-height: 24px; margin: -3px 0 0; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font: inherit; font-size: 12.5px; line-height: 1.45; resize: none; }

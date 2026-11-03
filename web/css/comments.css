@@ -89,13 +89,13 @@
 .cmt-line-add:hover { background: var(--accent-ink); }
 .cx-diff tr:hover > td > .cmt-line-add, .cmt-line-add:focus-visible { opacity: 1; transform: none; pointer-events: auto; }
 /* The first and last rows have 6px more padding: keep the + and the mark on their line. */
-.cx-diff tbody:first-child > tr:first-child > td > :is(.cmt-line-add, .cmt-line) { top: calc(50% + 3px); }
-.cx-diff tbody:last-child > tr:last-child > td > :is(.cmt-line-add, .cmt-line) { top: calc(50% - 3px); }
-.cx-diff tbody:first-child:last-child > tr:first-child:last-child > td > :is(.cmt-line-add, .cmt-line) { top: 50%; }
+.cx-diff tbody:first-child > tr:first-child > td > .cmt-line-add, .cx-diff tbody:first-child > tr:first-child > td > .cmt-line { top: calc(50% + 3px); }
+.cx-diff tbody:last-child > tr:last-child > td > .cmt-line-add, .cx-diff tbody:last-child > tr:last-child > td > .cmt-line { top: calc(50% - 3px); }
+.cx-diff tbody:first-child:last-child > tr:first-child:last-child > td > .cmt-line-add, .cx-diff tbody:first-child:last-child > tr:first-child:last-child > td > .cmt-line { top: 50%; }
 /* Lines a comment is about, and the ones its open card is about. */
 /* Commented lines are lit in their number and sign only: the code keeps its added / removed tint */
-.cx-diff tr.cmt-lit > :is(td.no, td.sign) { background-image: linear-gradient(color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent) 16%, transparent)); }
-.cx-diff tr.cmt-lit-draft > :is(td.no, td.sign) { background-image: linear-gradient(color-mix(in srgb, var(--accent) 28%, transparent), color-mix(in srgb, var(--accent) 28%, transparent)); }
+.cx-diff tr.cmt-lit > td.no, .cx-diff tr.cmt-lit > td.sign { background-image: linear-gradient(color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent) 16%, transparent)); }
+.cx-diff tr.cmt-lit-draft > td.no, .cx-diff tr.cmt-lit-draft > td.sign { background-image: linear-gradient(color-mix(in srgb, var(--accent) 28%, transparent), color-mix(in srgb, var(--accent) 28%, transparent)); }
 .cx-diff tr.cmt-lit-draft > td.src { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 30%, transparent), inset 0 -1px 0 color-mix(in srgb, var(--accent) 30%, transparent); }
 /* Its mark: the number at the gutter's left, clear of the line number. */
 .cmt-mark.cmt-line { left: 3px; top: 50%; translate: 0 -50%; height: 16px; min-width: 16px; padding: 0 4px; border-radius: 8px; }
@@ -168,6 +168,6 @@ body.wisp-mobile .cmt-send { min-height: 44px; }
 .an-body .cmt-say { flex-basis: 100%; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }
 .t-prompt .t-cm { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; color: var(--accent); }
 /* The keyboard's line (comments.js): lit like a hovered one, its + showing */
-.cx-diff tr.kb-line > :is(td.no, td.sign) { background-image: linear-gradient(color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent) 16%, transparent)); }
+.cx-diff tr.kb-line > td.no, .cx-diff tr.kb-line > td.sign { background-image: linear-gradient(color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent) 16%, transparent)); }
 .cx-diff tr.kb-line > td > .cmt-line-add { opacity: 1; transform: none; pointer-events: auto; }
 .cx-diff .diff-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }

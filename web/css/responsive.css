@@ -51,7 +51,7 @@
 
 /* A tap leaves :hover on the button until the next tap elsewhere: no grey box left behind on touch. */
 @media (hover: none) {
-  :is(.ghost, .icon-btn, .tb-btn, .tb-acts, .rate-btn):hover:not(.on), .ghost.danger:hover { background: none; }
+  .ghost:hover:not(.on), .icon-btn:hover:not(.on), .tb-btn:hover:not(.on), .tb-acts:hover:not(.on), .rate-btn:hover:not(.on), .ghost.danger:hover { background: none; }
 }
 
 /* Touch screens have no keys to press: drop the shortcut hints on floating buttons. */
@@ -101,19 +101,21 @@ body.wisp-mobile .machines-btn .i { color: var(--muted); }
 /* In the avatar's menu the computer's name has the row's width, not the top bar's 132px. */
 body.wisp-mobile .me-menu { width: min(320px, calc(100vw - 16px)); }
 body.wisp-mobile .me-menu .machines-btn span { max-width: none; }
-body.wisp-mobile .topbar :is(.p-chip, .machines-btn)::before { content: ''; position: absolute; inset: -6px -2px; }
+body.wisp-mobile .topbar .p-chip::before, body.wisp-mobile .topbar .machines-btn::before { content: ''; position: absolute; inset: -6px -2px; }
 /* A follow-up's bar is narrow on a phone: its mode button is just the icon (coloured per mode; the menu names it). */
 body.wisp-mobile .c-bar .c-mode span { display: none; }
 body.wisp-mobile .c-bar .c-mode { padding: 0; justify-content: center; }
 /* Feels like an app, not a page: a press shows on what you touch, a long press doesn't select the
    button or header under it, and taps don't wait to see if they're a double-tap zoom. */
-body.wisp-mobile :is(button, a, summary, .it-head, .task-head) { touch-action: manipulation; }
-body.wisp-mobile :is(button, .topbar, .it-head, .task-head) { -webkit-user-select: none; user-select: none; }
+/* Written out, not as :is() lists, which Chrome tries on every element of every restyle. Lower
+   specificity for the tags changes nothing: no rule between sets these to something else. */
+body.wisp-mobile button, body.wisp-mobile a, body.wisp-mobile summary, body.wisp-mobile .it-head, body.wisp-mobile .task-head { touch-action: manipulation; }
+body.wisp-mobile button, body.wisp-mobile .topbar, body.wisp-mobile .it-head, body.wisp-mobile .task-head { -webkit-user-select: none; user-select: none; }
 body.wisp-mobile button { transition: transform 0.12s var(--ease), opacity 0.12s; }
 /* .pressed: set as the finger goes down (ui/press.js); :active only comes once it lifts. Pressing
    in is instant, letting go eases out. */
 body.wisp-mobile button:is(:active, .pressed):not(:disabled) { transform: scale(0.96); opacity: 0.8; transition: none; }
-body.wisp-mobile :is(.it-head, .task-head):is(:active, .pressed) { background: var(--bg-2); }
+body.wisp-mobile .it-head:is(:active, .pressed), body.wisp-mobile .task-head:is(:active, .pressed) { background: var(--bg-2); }
 /* While what's shown may be stale (painted from the phone's cache, or the tunnel is reconnecting):
    a thin moving line under the top bar (features/cache.js syncing). */
 body.wisp-mobile .topbar::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; opacity: 0; pointer-events: none; transition: opacity 0.3s;
@@ -124,7 +126,7 @@ body.wisp-mobile.syncing .topbar::after { opacity: 1; animation: syncing 1.1s ea
 /* ---------- phone app: reach, size and type ---------- */
 /* Only in the app (body.wisp-mobile): a desktop or a narrow browser window keeps its own layout. */
 /* 44px under every control a thumb aims at. */
-body.wisp-mobile .topbar :is(.icon-btn, .auto-btn, .search-btn, .me-btn) { min-width: 44px; height: 44px; justify-content: center; }
+body.wisp-mobile .topbar .icon-btn, body.wisp-mobile .topbar .auto-btn, body.wisp-mobile .topbar .search-btn, body.wisp-mobile .topbar .me-btn { min-width: 44px; height: 44px; justify-content: center; }
 /* The avatar menu's rows take a thumb. */
 body.wisp-mobile .me-menu :is(.sf-me, .me-nav .auto-btn) { min-height: 44px; }
 body.wisp-mobile .lp-chip { height: 44px; }
@@ -135,16 +137,16 @@ body.wisp-mobile .topbar .brand:is(:active, .pressed) { opacity: 0.6; }
 body.wisp-mobile .topbar .me-btn .sf-av { width: 30px; height: 30px; font-size: 13px; }
 body.wisp-mobile .topbar .me-btn .sf-av.out { background: var(--surface); }
 body.wisp-mobile .topbar .me-btn .sf-av .i { width: 16px; height: 16px; }
-body.wisp-mobile .topbar :is(.search-btn, .stuff-top) { position: relative; color: var(--ink-2); background: none; }
-body.wisp-mobile .topbar :is(.search-btn, .stuff-top)::after { content: ''; position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; translate: -50% -50%; border-radius: 50%; background: var(--surface); box-shadow: 0 0 0 1px var(--line-2); z-index: -1; }
+body.wisp-mobile .topbar .search-btn, body.wisp-mobile .topbar .stuff-top { position: relative; color: var(--ink-2); background: none; }
+body.wisp-mobile .topbar .search-btn::after, body.wisp-mobile .topbar .stuff-top::after { content: ''; position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; translate: -50% -50%; border-radius: 50%; background: var(--surface); box-shadow: 0 0 0 1px var(--line-2); z-index: -1; }
 body.wisp-mobile .topbar :is(.search-btn, .stuff-top) .i { width: 16px; height: 16px; }
 /* Pressed while My Stuff is open. */
 body.wisp-mobile .topbar .stuff-top.on { color: var(--accent); }
-body.wisp-mobile .launcher :is(.icon-btn, .tog-btn, .mode-btn, .send) { min-width: 44px; height: 44px; }
+body.wisp-mobile .launcher .icon-btn, body.wisp-mobile .launcher .tog-btn, body.wisp-mobile .launcher .mode-btn, body.wisp-mobile .launcher .send { min-width: 44px; height: 44px; }
 body.wisp-mobile .launcher .runners { height: 46px; }
 body.wisp-mobile .launcher .runners .runner-btn { height: 44px; }
 body.wisp-mobile .launcher .vs-btn { width: 44px; }
-body.wisp-mobile .c-bar :is(.icon-btn, .mode-btn, .c-runner, .c-place, .team-btn, .tog-btn, .send, .c-done, .c-ship) { flex: none; min-width: 44px; height: 44px; }
+body.wisp-mobile .c-bar .icon-btn, body.wisp-mobile .c-bar .mode-btn, body.wisp-mobile .c-bar .c-runner, body.wisp-mobile .c-bar .c-place, body.wisp-mobile .c-bar .team-btn, body.wisp-mobile .c-bar .tog-btn, body.wisp-mobile .c-bar .send, body.wisp-mobile .c-bar .c-done, body.wisp-mobile .c-bar .c-ship { flex: none; min-width: 44px; height: 44px; }
 /* A follow-up's bar is narrower than its 44px buttons: it scrolls sideways, Send stays in the box. */
 body.wisp-mobile .c-bar { gap: 0; overflow-x: auto; scrollbar-width: none; margin-right: -4px; }
 body.wisp-mobile .c-bar::-webkit-scrollbar { display: none; }
@@ -178,7 +180,7 @@ body.wisp-mobile .tests-cmd .run-tests { min-height: 44px; }
 body.wisp-mobile .trail-bar :is(.tb-acts, .tb-btn, .link.xs, .rate-btn) { min-height: 44px; min-width: 44px; justify-content: center; }
 body.wisp-mobile :is(.ask-card, .b-question) .opt { min-height: 44px; }
 body.wisp-mobile .q-own :is(.input, button) { height: 44px; }
-body.wisp-mobile :is(.peek, .stop) { min-height: 44px; display: inline-flex; align-items: center; }
+body.wisp-mobile .peek, body.wisp-mobile .stop { min-height: 44px; display: inline-flex; align-items: center; }
 /* The keys 1, 2… pick an answer on a keyboard; a phone has none. */
 body.wisp-mobile .opt .k { display: none; }
 /* The working panel, as on a narrow window (≤720px above): the orb beside the status line only. */
@@ -191,7 +193,7 @@ body.wisp-mobile .it-head > .q-dot { align-self: start; margin-top: 8px; }
 body.wisp-mobile .it-head > .q-dot.auto { margin-top: 5px; }
 body.wisp-mobile .it-head > .it-side { grid-column: 2; flex-wrap: wrap; row-gap: 4px; min-height: 24px; }
 /* …the time right after the harness, done and the chevron at the end of the line. */
-body.wisp-mobile .it-side > :is(.it-quick, .it-quick-gap) { margin-left: auto; }
+body.wisp-mobile .it-side > .it-quick, body.wisp-mobile .it-side > .it-quick-gap { margin-left: auto; }
 body.wisp-mobile .it-side > .chev:not(:is(.it-quick, .it-quick-gap) ~ .chev) { margin-left: auto; }
 body.wisp-mobile .item:not(.open) .it-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
 /* A question's choices, answered from the row (feed.js rowChoices). */
@@ -237,9 +239,9 @@ body.wisp-mobile .to-top { top: auto; left: auto; right: 12px; bottom: calc(84px
 
 /* Type: a phone reads at arm's length. Titles 15, lines under them 13, small print 12. */
 body.wisp-mobile .it-title { font-size: 15px; }
-body.wisp-mobile :is(.it-sub, .q-live) { font-size: 13px; }
+body.wisp-mobile .it-sub, body.wisp-mobile .q-live { font-size: 13px; }
 body.wisp-mobile .it-run { font-size: 12.5px; line-height: 18px; }
-body.wisp-mobile :is(.q-time, .q-proj, .pill) { font-size: 12.5px; }
+body.wisp-mobile .q-time, body.wisp-mobile .q-proj, body.wisp-mobile .pill { font-size: 12.5px; }
 body.wisp-mobile .f-group h4 { font-size: 13px; }
 body.wisp-mobile .trail-bar { font-size: 13px; }
 body.wisp-mobile .tb-l { display: inline; }
@@ -258,11 +260,11 @@ body.wisp-mobile #feed .item:not(.open) { contain-intrinsic-size: auto 88px; }
 /* The phone app: every control a thumb can hit is 44px (qa/ui-audit.mjs checks each view). Rows grow;
    small inline buttons keep their look and take the room with a min-height. */
 body.wisp-mobile :is(.sh-task, .t-fold, .tx-row, .pk-h, .m.cv-dlg) { min-height: 44px; }
-body.wisp-mobile :is(.sp-start, .sp-x, .bg-nx) { min-width: 44px; min-height: 44px; }
-body.wisp-mobile :is(.l-goal input, .c-goal-line input, .composer-goal input, .pal-input input) { min-height: 44px; }
+body.wisp-mobile .sp-start, body.wisp-mobile .sp-x, body.wisp-mobile .bg-nx { min-width: 44px; min-height: 44px; }
+body.wisp-mobile .l-goal input, body.wisp-mobile .c-goal-line input, body.wisp-mobile .composer-goal input, body.wisp-mobile .pal-input input { min-height: 44px; }
 body.wisp-mobile .topbar .brand { min-height: 44px; display: inline-flex; align-items: center; }
 body.wisp-mobile #moreProjects { height: 44px; }
-body.wisp-mobile #toasts :is(.t-act, .t-x) { min-width: 44px; min-height: 44px; }
+body.wisp-mobile #toasts .t-act, body.wisp-mobile #toasts .t-x { min-width: 44px; min-height: 44px; }
 body.wisp-mobile .pk-seg button, body.wisp-mobile .side-panel.stacked .pn-tabs button { min-height: 44px; }
 body.wisp-mobile :is(.modal, .menu, .picker, .goal-pop, .team-pop, .pop) :is(.primary.sm, .ghost.sm, .runner-btn, .mode-btn, .input, .icon-btn.close) { min-height: 44px; }
 body.wisp-mobile :is(.modal, .goal-pop, .team-pop) .icon-btn.close { min-width: 44px; }
@@ -272,7 +274,7 @@ body.wisp-mobile .side-panel .cx-viewed { min-width: 44px; height: 44px; }
 body.wisp-mobile .side-panel .cx-hk-rev { height: 44px; min-width: 64px; } /* its head row grows to hold it */
 body.wisp-mobile .side-panel .cx-hk-stage { height: 44px; min-width: 72px; }
 body.wisp-mobile .side-panel .cx-stage { height: 44px; }
-body.wisp-mobile .side-panel :is(.cx-cm-field, .cx-cm-go) { height: 44px; }
+body.wisp-mobile .side-panel .cx-cm-field, body.wisp-mobile .side-panel .cx-cm-go { height: 44px; }
 body.wisp-mobile .side-panel .ghost.xs { min-height: 44px; }
 body.wisp-mobile :is(.crew-view, .cv-col, .pal-list) .link.xs { min-width: 44px; justify-content: center; }
 body.wisp-mobile label.check { min-height: 44px; } /* the box is small; its line takes the tap */

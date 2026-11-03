@@ -14,7 +14,7 @@ body.split .feed-wrap {
 }
 body.split .split-main { grid-row: 1 / -1; grid-column: 2; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 body.split.side-right .stage { grid-template-columns: minmax(0, 1fr) var(--side-w); }
-body.split.side-right :is(.topbar, .feed-wrap) { grid-column: 2; border-right: 0; border-left: 1px solid var(--line); }
+body.split.side-right .topbar, body.split.side-right .feed-wrap { grid-column: 2; border-right: 0; border-left: 1px solid var(--line); }
 body.split.side-right .split-main { grid-column: 1; }
 
 /* The sidebar's head: the brand and the icon buttons on one line, the project filter under them. */
@@ -27,7 +27,7 @@ body.split .topbar .sp-top { order: 1; }
 body.split .topbar .search-btn { order: 2; width: 32px; padding: 0; justify-content: center; border-color: transparent; background: none; }
 body.split .topbar .search-btn:hover { background: var(--bg-2); }
 body.split:not(.wisp-mobile) .topbar .search-btn { height: 32px; } /* the height of the sidebar and avatar buttons beside it (the app's are 44px) */
-body.split .topbar .search-btn :is(span, kbd) { display: none; }
+body.split .topbar .search-btn span, body.split .topbar .search-btn kbd { display: none; }
 body.split .topbar .me-btn { order: 3; }
 /* the sidebar button sits at the list's inner edge, and stays at that edge once the list is hidden */
 body.split .topbar .view-btn { order: 4; }
@@ -50,7 +50,7 @@ body.split.side-hidden .topbar {
   border: 0; background: none;
 }
 body.split.side-hidden.side-right .topbar { left: auto; right: 0; }
-body.split.side-hidden .topbar > :is(.brand, .projects) { display: none; }
+body.split.side-hidden .topbar > .brand, body.split.side-hidden .topbar > .projects { display: none; }
 body.split.side-hidden:not(.side-right) .split-head {
   padding-left: max(calc(var(--bar-w, 120px) + 8px), 24px, calc((100% - var(--read-w)) / 2));
 }
@@ -104,10 +104,10 @@ body.split.side-hidden.pane-wide.side-right .split-head { padding-right: max(cal
 .sf-av .i { width: 15px; height: 15px; }
 .sf-av.out + .sf-who b { color: var(--muted); font-weight: 500; }
 .sf-who { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
-.sf-who :is(b, small) { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sf-who b, .sf-who small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .sf-who b { font-size: 13px; font-weight: 600; }
 .sf-who small { font-size: 11.5px; color: var(--faint); }
-body.split :is(.collapse-all, .to-top) { display: none; }
+body.split .collapse-all, body.split .to-top { display: none; }
 body.resizing, body.resizing * { cursor: col-resize !important; user-select: none; }
 
 /* The grip: an invisible strip on the sidebar's edge, a hairline when grabbed. */
@@ -169,7 +169,7 @@ body.split #feed .it-head .q-dot { grid-row: 1; }
    pills under it no longer squeeze it to half the sidebar. */
 body.split #feed .it-title { grid-row: 1; grid-column: 2 / -1; padding-right: 36px; font-size: 13px; } /* "365d" is the widest */
 body.split #feed .f-group.scheduled .it-title { padding-right: 88px; } /* "Thu 09:00", "26 Oct 09:00" */
-body.split #feed :is(.it-sub, .q-live) { grid-row: 2; grid-column: 2; }
+body.split #feed .it-sub, body.split #feed .q-live { grid-row: 2; grid-column: 2; }
 body.split #feed .it-sub { color: var(--faint); }
 /* The phone's answer buttons (feed.js rowChoices) get their own line under the summary, across the
    row: auto-placed, they'd open a fourth column and push the row past the list's edge. */
@@ -201,9 +201,9 @@ body.split #feed .item.open:not(.unread):not(.st-waiting) .it-title { color: var
 body.split #feed .item.open.st-done .it-title { color: var(--muted); }
 body.split #feed .it-side .chev { display: none; }
 /* Rows say what needs saying (state, PR, time); details: "full" (a spell's) brings back the rest. */
-body.split:not(.side-full) #feed .it-side > :is(.model-logo, .team-stack, .q-machine, .q-proj) { display: none; }
+body.split:not(.side-full) #feed .it-side > .model-logo, body.split:not(.side-full) #feed .it-side > .team-stack, body.split:not(.side-full) #feed .it-side > .q-machine, body.split:not(.side-full) #feed .it-side > .q-proj { display: none; }
 /* …but not the harness and machine twice: the third line says those. */
-body.split.side-full #feed .it-head:has(> .it-main > .it-run) .it-side > :is(.model-logo, .q-machine) { display: none; }
+body.split.side-full #feed .it-head:has(> .it-main > .it-run) .it-side > .model-logo, body.split.side-full #feed .it-head:has(> .it-main > .it-run) .it-side > .q-machine { display: none; }
 body.split .task-item { background: transparent; border-color: var(--line); box-shadow: none; }
 body.split .task-item.has-open { box-shadow: none; }
 body.split .task-head { padding: 8px 10px 6px 12px; gap: 10px; }
@@ -362,7 +362,7 @@ body:has(:is(textarea, input, [contenteditable="true"]):focus) .ts-badge::after 
 .split-head.st-done .sh-title { color: var(--ink-2); } /* done, but still the heading you read */
 .sh-acts { flex: none; display: flex; align-items: center; gap: 4px; }
 /* the head's buttons share the icon buttons' 32px; one whose label folds away is a 32px square */
-.sh-acts > :is(.ghost.sm, .primary.sm) { height: 32px; }
+.sh-acts > .ghost.sm, .sh-acts > .primary.sm { height: 32px; }
 .sh-acts > .ghost.sm:not(:has(> span:not([hidden]))) { width: 32px; padding: 0; justify-content: center; }
 body.electron.split .split-head { -webkit-app-region: drag; }
 body.electron.split .split-head :is(button, a, .sh-title) { -webkit-app-region: no-drag; }
@@ -408,7 +408,7 @@ body.split:not(.stack):not(.side-hidden) .it-bar > .it-props > .pill[class*='st-
 
 /* The task's bar (sticky, or the details column) keeps Ship it and Mark done in reach at any scroll:
    the reply box doesn't say them a second time. */
-body.split #feed .item.open .composer :is(.c-ship, .c-done) { display: none; }
+body.split #feed .item.open .composer .c-ship, body.split #feed .item.open .composer .c-done { display: none; }
 
 /* A wide pane: the reading column, and beside it the details column, which stays put while the task
    scrolls, so the controls are in reach at any point of a long report. It's a sticky bar of no
@@ -446,7 +446,7 @@ body.split.pane-wide .it-props .model-logo.routed::before { right: auto; bottom:
 /* the account's initial, bottom-right of the logo; Auto's dot moves to its top-right */
 body.split.pane-wide .it-props .model-logo > .acc-i { right: auto; bottom: auto; left: 6px; top: 8px; width: 12px; height: 12px; margin: 0; }
 body.split.pane-wide .it-props .model-logo.routed:has(> .acc-i)::before { top: -1px; }
-body.split.pane-wide .it-props > :is(.q-proj, .q-machine) {
+body.split.pane-wide .it-props > .q-proj, body.split.pane-wide .it-props > .q-machine {
   flex: 1 0 100%; order: 3; position: relative; max-width: none; padding: 0 0 0 22px; background: none; font-size: 12.5px; line-height: 1.45; color: var(--ink-2);
 }
 /* its share of the plan's windows (budget.js planLine): a row of the details column. The narrow
@@ -469,7 +469,7 @@ body.split.pane-wide .it-bar > .pr-strip > a.ghost { margin-left: auto; }
 body.split.pane-wide .it-bar > .pr-strip > .pr-line { order: 2; flex: 1 0 100%; white-space: normal; color: var(--muted); }
 body.split.pane-wide .it-bar > .pr-strip > button { order: 3; }
 /* the next step, Merge or Fix conflicts, in one place: a full-width button after Check now */
-body.split.pane-wide .it-bar > .pr-strip > :is(.pr-merge, .pr-fix) { flex: 1; justify-content: center; height: 28px; }
+body.split.pane-wide .it-bar > .pr-strip > .pr-merge, body.split.pane-wide .it-bar > .pr-strip > .pr-fix { flex: 1; justify-content: center; height: 28px; }
 body.split.pane-wide .it-bar > .pr-strip > .pr-merge { background: color-mix(in srgb, var(--good) 12%, transparent); }
 body.split.pane-wide .it-bar > .pr-strip > .pr-fix { background: color-mix(in srgb, var(--bad) 12%, transparent); }
 body.split.pane-wide .it-bar > .pr-strip.ship-run .ship-what { flex: 1 1 0; white-space: normal; }
@@ -509,9 +509,9 @@ body.split #feed .item.open > .it-body > .it-dock { padding: 14px 0 16px; }
    opens over it as a page (body.stack-page) whose head starts with Back. The list stays laid out
    underneath, off-screen (the open card's body lives in it, and it keeps its scroll for Back). */
 body.split.stack .stage { grid-template-columns: minmax(0, 1fr); }
-body.split.stack :is(.topbar, .feed-wrap) { grid-column: 1; border-left: 0; border-right: 0; }
+body.split.stack .topbar, body.split.stack .feed-wrap { grid-column: 1; border-left: 0; border-right: 0; }
 body.split.stack .split-main { grid-column: 1; }
-body.split.stack :is(.split-grip, .view-btn) { display: none; }
+body.split.stack .split-grip, body.split.stack .view-btn { display: none; }
 body.split.stack:not(.stack-page) .split-main { display: none; }
 body.split.stack.stack-page .topbar { display: none; }
 body.split.stack.stack-page .feed-wrap { position: absolute; top: 0; bottom: 0; left: -100vw; width: 100vw; visibility: hidden; }
@@ -539,7 +539,7 @@ body.split:not(.pane-wide) .it-actions .ghost.xs > :is(span, .it-lbl) { display:
 body.split:not(.pane-wide) .it-actions .it-done { color: var(--good); }
 /* A page (a phone): one row of equal columns, icon over name like a tab bar, Shell on it instead of
    a card of its own; Transcript, Rerun… and Take over lead More (actions.js moreMenu) */
-body.split:not(.pane-wide) .it-actions :is(.tx-toggle, [data-a="rerun"], [data-a="takeover"]) { display: none; } /* any narrow pane: the bar stays one row */
+body.split:not(.pane-wide) .it-actions .tx-toggle, body.split:not(.pane-wide) .it-actions [data-a="rerun"], body.split:not(.pane-wide) .it-actions [data-a="takeover"] { display: none; } /* any narrow pane: the bar stays one row */
 body.split.stack:not(.pane-wide) .it-bar > .it-actions { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; margin: 0 -6px; }
 body.split.stack:not(.pane-wide) .it-actions .ghost.xs { flex-direction: column; justify-content: center; gap: 3px; height: auto; min-height: 52px; padding: 4px 2px; border-radius: 10px; font-size: 11.5px; line-height: 1.25; text-align: center; }
 body.split.stack:not(.pane-wide) .it-actions .ghost.xs > :is(span, .it-lbl) { white-space: normal; overflow-wrap: anywhere; }
@@ -576,7 +576,7 @@ body.split.stack .split-home { --home-top: 0px; padding: 0 16px 32px; align-item
 body.split.stack .split-home > * { max-width: none; }
 body.split.stack .sh-bar { display: flex; align-items: center; gap: 6px; min-height: 56px; padding: 6px 0; margin-bottom: 8px; }
 body.split.stack .sh-hello { margin: 0; padding: 0; font-size: 19px; }
-body.split.stack :is(.sh-tips, .sh-keys) { display: none; }
+body.split.stack .sh-tips, body.split.stack .sh-keys { display: none; }
 /* …except the setup tip: with no harness, it's the one thing to do here */
 body.split.stack .sh-tips.has-setup:not([hidden]) { display: flex; margin-top: 22px; }
 body.split.stack .sh-tips.has-setup > :not(.tip-setup) { display: none; }

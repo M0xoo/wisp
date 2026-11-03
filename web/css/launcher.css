@@ -21,7 +21,7 @@
 .sk-line.short { width: 64px; }
 @keyframes sk-pulse { 50% { opacity: 0.5; } }
 /* The real controls replace the placeholders all at once, with a short fade (renderLauncher). */
-.launcher.fill-in :is(.l-projects, .l-bar, .l-recipes) { animation: sk-in 0.28s var(--ease); }
+.launcher.fill-in .l-projects, .launcher.fill-in .l-bar, .launcher.fill-in .l-recipes { animation: sk-in 0.28s var(--ease); }
 @keyframes sk-in { from { opacity: 0; } }
 .l-projects { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 2px 8px; }
 /* no harness yet: one quiet line offering to install opencode */
@@ -127,7 +127,7 @@ body:not(.wisp-mobile):has(.launcher.docked:is(:focus-within, :has(.open))) .to-
 .l-bar .where-btn .chev { display: none; }
 .l-bar > :not(.runners) { flex: none; }
 /* one height for the bar: every hover and lit pill lines up with Send and the harness pill */
-.l-bar > :is(.icon-btn, .mode-btn) { height: 30px; min-width: 30px; }
+.l-bar > .icon-btn, .l-bar > .mode-btn { height: 30px; min-width: 30px; }
 .l-bar > .icon-btn { width: 30px; }
 .l-bar > .mode-btn { padding: 0 7px; justify-content: center; }
 .l-bar .grow { flex: 1; }
@@ -144,10 +144,10 @@ body:not(.wisp-mobile):has(.launcher.docked:is(:focus-within, :has(.open))) .to-
 .runners .rb-logo { flex: none; }
 .runners .rb-h { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .runners .rb-m { flex: 0 10000 auto; min-width: 0; } /* the model gives way well before the harness name */
-.runners.cmp :is(.rb-e, .rb-a), .l-bar.l-cmp #wtBtn span { display: none; }
+.runners.cmp .rb-e, .runners.cmp .rb-a, .l-bar.l-cmp #wtBtn span { display: none; }
 /* three or four harnesses: logos only (each button's tooltip names it), the bar's other labels fold too */
 .runners.many .runner-btn { flex: none; padding-inline: 6px; }
-.runners.many :is(.rb-h, .rb-m) { display: none; }
+.runners.many .rb-h, .runners.many .rb-m { display: none; }
 .runners.many .rb-logo { margin-right: 3px; }
 .runners.many .runner-btn .chev { margin-left: 0; }
 .l-bar.l-many :is(.mode-btn span, .team-btn .tb-label) { display: none; }

@@ -341,11 +341,11 @@ body.split #crewView { flex: 1; }
 .cv-text .prose > :first-child { margin-top: 0; }
 .cv-text .prose > :last-child { margin-bottom: 0; }
 .cv-text .prose p { margin: 0 0 6px; }
-.cv-text .prose :is(ul, ol) { margin: 0 0 6px; padding-left: 16px; }
+.cv-text .prose ul, .cv-text .prose ol { margin: 0 0 6px; padding-left: 16px; }
 .cv-text .prose li { margin: 0 0 3px; }
 .cv-text .prose li::marker { color: var(--faint); }
 .cv-text .prose code { font-size: 11.5px; overflow-wrap: anywhere; }
-.cv-text .prose :is(h1, h2, h3, h4, h5, h6) { margin: 8px 0 4px; font-size: 12.5px; }
+.cv-text .prose h1, .cv-text .prose h2, .cv-text .prose h3, .cv-text .prose h4, .cv-text .prose h5, .cv-text .prose h6 { margin: 8px 0 4px; font-size: 12.5px; }
 .cv-sec > .cv-all { align-self: flex-start; margin-top: -2px; font-size: 12.5px; }
 .cv-none { margin: 0; color: var(--faint); line-height: 1.5; }
 .cv-nb-empty { display: block; height: auto; width: 100%; padding: 10px 12px; border: 1px dashed var(--line-2); border-radius: var(--radius); text-align: left; font-size: 12.5px; }
@@ -513,7 +513,7 @@ body.wisp-mobile .cv-sec h5:has(> .link.xs) { margin-bottom: 7px; } /* Edit's 44
 .cv-page-top .sh-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cv-page-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 24px calc(24px + env(safe-area-inset-bottom)); }
 .cv-page.pn-drag { box-shadow: -1px 0 0 var(--line), var(--shadow-2); }
-body.wisp-mobile.stack-page .crew-view :is(.cv-top, .cv-scroll), body.wisp-mobile .cv-page, body.wisp-mobile .cv-page-scroll { touch-action: pan-y pinch-zoom; }
+body.wisp-mobile.stack-page .crew-view .cv-top, body.wisp-mobile.stack-page .crew-view .cv-scroll, body.wisp-mobile .cv-page, body.wisp-mobile .cv-page-scroll { touch-action: pan-y pinch-zoom; }
 
 /* ---------- sharing (crew-share.js): Share, Import and its review, a spell member's review ---------- */
 .crew-share { width: min(520px, 100%); }
@@ -533,7 +533,7 @@ body.wisp-mobile.stack-page .crew-view :is(.cv-top, .cv-scroll), body.wisp-mobil
 .cs-opts .check:has(input:disabled) { opacity: 0.55; cursor: default; }
 .cs-out { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
 .cs-out:empty { display: none; }
-:is(.cs-note, .ci-note, .cs-bad) { display: flex; gap: 7px; margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+.cs-note, .ci-note, .cs-bad { display: flex; gap: 7px; margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
 :is(.cs-note, .ci-note, .cs-bad) .i { flex: none; width: 13px; height: 13px; margin-top: 2px; color: var(--faint); }
 .cs-bad { padding: 8px 10px; border-radius: var(--radius); color: var(--ink-2); background: color-mix(in srgb, var(--bad) 9%, transparent); }
 .cs-bad .i { color: var(--bad); }
@@ -546,7 +546,7 @@ body.wisp-mobile.stack-page .crew-view :is(.cv-top, .cv-scroll), body.wisp-mobil
 .modal .ci-src { margin: -6px 0 12px; }
 .ci-list { display: flex; flex-direction: column; gap: 10px; max-height: min(58vh, 560px); overflow: auto; }
 .ci-card { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
-.ci-card.skip :is(.ci-main, .ci-face) { opacity: 0.45; }
+.ci-card.skip .ci-main, .ci-card.skip .ci-face { opacity: 0.45; }
 .ci-pick { flex: none; padding-top: 10px; cursor: pointer; }
 .ci-pick input { margin: 0; }
 .ci-face { flex: none; display: block; }
@@ -554,7 +554,7 @@ body.wisp-mobile.stack-page .crew-view :is(.cv-top, .cv-scroll), body.wisp-mobil
 .ci-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .ci-name { width: 180px; max-width: 100%; font-weight: 600; }
 .ci-role { font-size: 12.5px; color: var(--muted); }
-:is(.ci-facts, .cr-facts) { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--muted); }
+.ci-facts, .cr-facts { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--muted); }
 :is(.ci-facts, .cr-facts) > span { display: inline-flex; align-items: center; gap: 5px; }
 :is(.ci-facts, .cr-facts) .i { width: 12px; height: 12px; color: var(--faint); }
 .ci-facts .cv-logo { display: grid; place-items: center; width: 13px; height: 13px; }
@@ -580,7 +580,7 @@ body.wisp-mobile.stack-page .crew-view :is(.cv-top, .cv-scroll), body.wisp-mobil
 .cr-change { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 0; font-size: 12.5px; color: var(--ink); }
 .cr-body .cv-sec .i { width: 12px; height: 12px; margin: 0 6px; color: var(--faint); vertical-align: -1px; }
 .cr-diff { display: grid; gap: 6px; }
-.cr-diff :is(del, ins) { display: block; padding: 6px 10px; border-radius: var(--radius); text-decoration: none; }
+.cr-diff del, .cr-diff ins { display: block; padding: 6px 10px; border-radius: var(--radius); text-decoration: none; }
 .cr-diff small { font-size: 11.5px; font-weight: 600; color: var(--faint); }
 .cr-diff del { background: var(--bg-2); color: var(--muted); }
 .cr-diff ins { border: 1px solid var(--line-2); color: var(--ink); }
@@ -600,8 +600,8 @@ body.wisp-mobile.stack-page .crew-view :is(.cv-top, .cv-scroll), body.wisp-mobil
 .ce-spell > .i { flex: none; width: 14px; height: 14px; color: var(--accent); }
 .ce-spell > span { flex: 1; min-width: 0; }
 .ce-spell button { flex: none; }
-.crew-edit :is(input, textarea, button):disabled { cursor: not-allowed; }
-.crew-edit :is(.lp-chip, .tog-btn, .mode-btn, .ce-face):disabled { opacity: 0.55; }
+.crew-edit input:disabled, .crew-edit textarea:disabled, .crew-edit button:disabled { cursor: not-allowed; }
+.crew-edit .lp-chip:disabled, .crew-edit .tog-btn:disabled, .crew-edit .mode-btn:disabled, .crew-edit .ce-face:disabled { opacity: 0.55; }
 .crew-edit .ce-face:disabled:hover { transform: none; }
 .ce-import { color: var(--muted); }
 .ce-import .i { width: 13px; height: 13px; }

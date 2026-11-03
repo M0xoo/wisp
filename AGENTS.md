@@ -135,6 +135,10 @@ is New task). Scrolling goes through `web/js/features/scroll.js` (`scrollByPx`, 
   matching things that change everywhere (`.open`, `.i`, `[hidden]`), it makes every class change restyle the
   whole page (each open and Back on a phone paid ~25 ms per change). Set a class from the JS instead
   (`has-quick`, `l-cmp`, `pv-on`); `node qa/mobile-perf.mjs` shows the cost.
+- Don't end a selector in an `:is()` list (`.bar :is(.a, .b)`, `:is(.a, .b):hover`): Chrome can't
+  index it by class and tries it on every element of every restyle. Write the list out
+  (`.bar .a, .bar .b`). An `:is()` in the middle (`:is(.a, .b) .c`) is fine, and so is one whose
+  arguments differ in specificity or hold combinators, which a list can't replace.
 - New integrations ship off by default behind a Settings switch, with tests.
 - `scripts/site.mjs` must handle CRLF input (Windows CI).
 - User-facing features and fixes get a `CHANGELOG.md` entry under *Unreleased*. Releases also
