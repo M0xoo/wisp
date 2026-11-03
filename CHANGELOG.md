@@ -13,6 +13,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Tasks whose agent scheduled a check-in move from Needs you to Scheduled.** When a task finishes and its agent has said it will look again later (a follow-up it scheduled), the task waits under *Scheduled* with the check-in's time instead of sitting in *Needs you*, and it no longer counts in the tab title or a crew member's dot. It keeps its unread dot and one-click done there, and home's *Coming up* lists the check-in. Tasks asking you, due reminders and tasks with only your own reminders ahead stay in *Needs you*.
 
+### Fixed
+
+- **Accented letters and emoji in a long prompt or request no longer turn into `�`.** The server decoded each piece of a request body on its own, so a character whose bytes landed on both sides of a network chunk was garbled; it now decodes the whole body at once. The 2 MB body limit is also counted in bytes, as intended.
+
 ## [0.55.0] - 2026-11-03
 
 ### Added

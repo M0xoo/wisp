@@ -62,20 +62,24 @@ export function send(res, status, body) {
 
 export function readJson(req) {
   return new Promise((resolve, reject) => {
-    let data = '';
+    // Buffers, decoded once at the end: a chunk can end inside a character's UTF-8 bytes.
+    let chunks = [];
+    let size = 0;
     let tooLarge = false;
     req.on('data', (c) => {
       if (tooLarge) return;
-      data += c;
-      if (data.length > MAX_BODY) {
+      chunks.push(c);
+      size += c.length;
+      if (size > MAX_BODY) {
         // Stop buffering: the rest of the body is dropped, not held in memory.
         tooLarge = true;
-        data = '';
+        chunks = [];
         reject(Object.assign(new Error('body too large'), { status: 413 }));
       }
     });
     req.on('end', () => {
       if (tooLarge) return;
+      const data = Buffer.concat(chunks).toString('utf8');
       try {
         resolve(data ? JSON.parse(data) : {});
       } catch {

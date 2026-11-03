@@ -4,7 +4,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { send } from '../server/http/respond.js';
+import { EventEmitter } from 'node:events';
+import { readJson, send } from '../server/http/respond.js';
 
 let server;
 let base;
@@ -47,4 +48,26 @@ test('small answers, errors and writes carry no ETag', async () => {
   assert.equal((await get('/small')).headers.etag, undefined);
   assert.equal((await get('/missing')).headers.etag, undefined);
   assert.equal((await get('/task', {}, 'POST')).headers.etag, undefined);
+});
+
+// A request body arrives in chunks cut anywhere, even inside one character's UTF-8 bytes.
+const feed = (chunks) => {
+  const req = new EventEmitter();
+  const out = readJson(req);
+  for (const c of chunks) req.emit('data', c);
+  req.emit('end');
+  return out;
+};
+
+test('readJson keeps a multibyte character split across two chunks', async () => {
+  const bytes = Buffer.from(JSON.stringify({ prompt: 'café 🎉' }));
+  for (const ch of ['é', '🎉']) {
+    const at = bytes.indexOf(Buffer.from(ch)) + 1; // inside the character
+    assert.deepEqual(await feed([bytes.subarray(0, at), bytes.subarray(at)]), { prompt: 'café 🎉' });
+  }
+});
+
+test('readJson counts the size limit in bytes, not characters', async () => {
+  const body = Buffer.from(JSON.stringify({ s: '€'.repeat(700_000) })); // ~2.1 MB, 700k characters
+  await assert.rejects(feed([body]), { status: 413 });
 });
