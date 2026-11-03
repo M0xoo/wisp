@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-11-03
+
 ### Added
 
 - **Usage receipt on every turn, and Past your plan.** Each finished turn's trail bar now says what the run took, quietly: *38k tokens · 71% cache · 3% of weekly* (tokens read and written, Claude's cache reads and writes counted in; the share of the account's longest window, as wisp traced it). When a run is billed beyond the plan (Claude Code's extra usage, Codex credits, or Claude Code using an API key instead of your plan), the turn says *Past your plan* (or *API credit*), and Settings → Usage → Plan budget shows how many runs did that in the last 7 days, with *Open it* for the last one. An account that reports only a weekly window (Claude's plans without the 5-hour one) shows no empty 5-hour row, waits for the weekly reset at a limit, and tells you once that the 5-hour window is gone. Spells: `turn.receipt`, `turn.overage`, `budget.overage`. API: `turn.overage`, `overage` on `/agents` budgets, `cacheReadTokens`/`cacheWriteTokens` on Claude turns' stats.
