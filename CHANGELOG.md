@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Review by another harness checks what you ruled out.** The review before Merge now gets the lines in your own messages that rule something out or narrow the task (*don't touch migrations/*, *only change web/*, *leave the tests alone*) and the task's *Done when*, and checks the diff against each. A change that breaks one comes back as a High finding naming the path and your words (*Touched migrations/ — you said: don't touch migrations*), and the PR panel's review lists what it checked, a cross on any it broke. A harness's own `/review` only looks for bugs.
 
+### Changed
+
+- **Full auto no longer asks before a repo's hooks, MCP servers and worktree setup run.** Full auto already skips every approval, so a task in it runs them as before the trust card, unasked, and a new worktree sets itself up at once. Plan and Edits still wait on the card, and a run held on it starts when you switch the task to Full auto.
+
 ### Fixed
 
 - **Saving settings on Windows no longer fails now and then.** When something held `config.json` (or another file wisp saves) open for a moment, such as antivirus, the search indexer or another reader, the save failed with *EPERM: operation not permitted, rename* and the change (a new connector, a setting) was refused. wisp now waits out the lock, for half a second at most, before giving up.

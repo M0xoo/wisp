@@ -617,7 +617,7 @@ npx wisp-agents skill install --agent all`)}
           <tr><td>finishes</td><td>you check the terminal</td><td>desktop and phone notification</td></tr>
           <tr><td>reports back</td><td>thousands of lines of log</td><td>a headline, the real diff, the tests, next steps</td></tr>
           <tr><td>edits files</td><td>in your checkout</td><td>in its own worktree, with a checkpoint per turn</td></tr>
-          <tr><td>is in a repo with its own hooks or MCP servers</td><td><code>claude -p</code> starts them without asking, in any mode</td><td>lists each one with its command first: <b>Trust and start</b>, <b>Run without them</b> or <b>Skip this run</b></td></tr>
+          <tr><td>is in a repo with its own hooks or MCP servers</td><td><code>claude -p</code> starts them without asking, in any mode</td><td>lists each one with its command first: <b>Trust and start</b>, <b>Run without them</b> or <b>Skip this run</b> (not in Full auto)</td></tr>
           <tr><td>turns the task down</td><td>the turn ends; you copy it elsewhere by hand</td><td><b>Hand to &lt;another harness&gt;</b> on another company’s model, with the turns so far</td></tr>
         </tbody>
       </table></div>

@@ -502,8 +502,12 @@ export class Runner extends EventEmitter {
       this.answer(session, text);
       return { answered: true };
     }
-    // A held run goes first: what you send now queues behind it.
-    if (session.turns.at(-1)?.status === 'held') {
+    // A held run goes first: what you send now queues behind it. Switched to Full auto, a run held
+    // on the repo's trust card goes in Full auto, unasked (not one whose new worktree's setup is
+    // held: that setup runs from the card).
+    const held = session.turns.at(-1);
+    if (held?.status === 'held') {
+      if (mode === 'auto' && held.held?.project && held.run && ![session, ...(session.also || [])].some((x) => x.worktree?.prepared?.held)) held.run.opts = { ...held.run.opts, mode };
       this.release(session);
       queue = true;
     }
@@ -1213,12 +1217,13 @@ export class Runner extends EventEmitter {
     // Project trust (server/project-trust.js): what this repo would run that you haven't trusted. The
     // task waits on a card listing it, unless you chose Run without them on it already. A subagent
     // or side discussion never waits: it runs without them (its lead was asked).
-    const project = session.relay ? null : this.projectPending(session);
+    // Full auto skips it: choosing it means don't ask me (it already skips every approval).
+    const mode = session.sideOf ? 'plan' : MODES.has(once) ? once : session.mode;
+    const project = session.relay ? null : this.projectPending(session, session.agent, mode);
     if (project && !session.parentId && !session.delegated && !session.sideOf && !project.items.every((x) => session.projectWithout?.includes(x.id))) {
       this.#holdTurn(session, prompt, attachments, { grants, once, by, reports, later, goal }, { agent: session.agent, project });
       return;
     }
-    const mode = session.sideOf ? 'plan' : MODES.has(once) ? once : session.mode;
     const turn = this.#newTurn(session, prompt, attachments, mode);
     if (session.relay) turn.relay = { state: 'pending' }; // until the relay picks it up
     if (by === 'wisp') turn.by = 'wisp'; // sent by wisp (Auto's repair round), not by you
@@ -1340,10 +1345,11 @@ export class Runner extends EventEmitter {
   }
 
   // Project trust (server/project-trust.js): what a run of this task would run from its repo (Claude
-  // Code's hooks and MCP servers, a new worktree's held setup) that isn't trusted, or null.
-  projectPending(session, agent = session.agent) {
+  // Code's hooks and MCP servers, a new worktree's held setup) that isn't trusted, or null. Always
+  // null in Full auto (mode: the run's): it runs them as it would with no trust check at all.
+  projectPending(session, agent = session.agent, mode = session.mode) {
     const pt = this.projectTrust;
-    if (!pt || !projectAsks(this.store.config?.defaults)) return null;
+    if (!pt || !projectAsks(this.store.config?.defaults, mode)) return null;
     const held = [session, ...(session.also || [])].flatMap((x) => x.worktree?.prepared?.held || []);
     try {
       return pt.pending(workdir(session), agent, held);
