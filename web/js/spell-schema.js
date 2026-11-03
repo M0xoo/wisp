@@ -417,6 +417,10 @@ export const PARTS = {
   'env.masked': '.env-mask',
   'env.reveal': '.env-mask .env-reveal',
   'settings.maskEnvFiles': '.sx-row:has(#maskEnv)',
+  // Project trust (server/project-trust.js): the Ask before a repo's hooks, servers and setup run row,
+  // and the line on a turn that ran without them. The card that waits for you is not a part.
+  'settings.projectAsk': '.sx-row:has(#projectAsk)',
+  'project.without': '.pt-without',
   'budget.drain': '.sx-budget .bg-drain',
   // …and the Check Codex while work waits row.
   'settings.liveLimits': '.sx-budget .sx-row:has(#liveLimits)',
@@ -628,6 +632,8 @@ export const SETTINGS = {
   harnessAsk: ['on', 'off'],
   // Hide .env values: a .env / .env.* file's values show as KEY=•••• in activity, diffs and Changes until Reveal (server/env-mask.js).
   maskEnvFiles: ['on', 'off'],
+  // Ask before a repo's hooks, MCP servers and worktree setup run (server/project-trust.js): on unless off.
+  projectAsk: ['on', 'off'],
   // Ask near the limit: before a run would take a 5-hour or weekly window past this share (server/guard.js).
   limitHold: ['off', '80', '90', '95'],
   // Webhook triggers: a trigger's secret URL (POST /api/hooks/<token>) starts tasks from Slack,

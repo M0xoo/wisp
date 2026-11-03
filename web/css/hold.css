@@ -43,3 +43,19 @@
 .hw-held.hw-warn .hd-say .i { color: var(--warn); }
 @media (pointer: coarse) { .hw-note button { min-height: 44px; } }
 .hw-held:not(.hw-warn) { border-color: var(--line-2); }
+
+/* ---------- Project trust (features/hold.js, server/project-trust.js) ---------- */
+/* A run held for a repo's hooks, MCP servers or worktree setup: the list of what it would run, each
+   a kind, a name, Open file and the command, then Trust and start / Run without them / Skip. */
+.pt-held .hd-say { display: flex; gap: 8px; align-items: flex-start; }
+.pt-held .hd-say .i { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--warn); }
+.pt-list { list-style: none; margin: 0 0 12px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.pt-item { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; min-width: 0; }
+.pt-item + .pt-item { border-top: 1px solid var(--line); }
+.pt-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pt-kind { flex: none; font-size: 11px; color: var(--muted); }
+.pt-name { flex: 1 1 auto; min-width: 0; font-size: 12.5px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-open { flex: none; margin-left: auto; }
+.pt-cmd { display: block; font: 12px/1.45 var(--mono); color: var(--ink-2); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 7.5em; overflow: auto; }
+.pt-without { color: var(--muted); }
+@media (pointer: coarse) { .pt-open { min-height: 44px; } }

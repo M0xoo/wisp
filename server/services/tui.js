@@ -28,7 +28,7 @@ export function startsInTerminal(body, { on, agent, origin, crew, kind, goal, co
 export function tuiArgv(app, s, { prompt = '' } = {}) {
   const adapter = adapters[s.agent];
   const trusted = app.store.isScratch(s.cwd) || !!s.worktree?.cwd;
-  if (trusted) adapter.trust?.(workdir(s));
+  if (trusted && !app.runner?.projectPending?.(s)) adapter.trust?.(workdir(s)); // an untrusted repo (server/project-trust.js): the CLI asks
   let sessionId;
   if (!s.agentSessionId && adapter.sessionIds) {
     sessionId = crypto.randomUUID();

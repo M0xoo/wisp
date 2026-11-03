@@ -38,6 +38,7 @@ export function askJson({ agents, prompt, cwd, timeoutMs = 90_000, pick = cheape
         effort: pick.effort || '',
         systemPrompt: 'You are a helper inside wisp. Answer with one JSON object and nothing else.',
         accountEnv: sideEnv(pick.agent),
+        untrusted: true, // a JSON answer needs nothing from the folder (server/project-trust.js)
         attachments: [],
         onEvent: (e) => {
           if (e.type === 'result') text = e.isError ? '' : e.text || '';

@@ -602,6 +602,8 @@ function renderTurn(s, t, isLatest, fold, tx) {
   // Its harness's program changed since wisp pinned it (features/harness-watch.js), until trusted.
   const hw = t.status !== 'held' && t.harness && harnessNote(t.agent || s.agent, t.harness);
   if (hw) node.append(el(hw));
+  // Ran without the repo's hooks and MCP servers (server/project-trust.js): say so, it explains a missing tool.
+  if (t.untrusted && t.status !== 'held') node.append(el(`<div class="hw-note pt-without">${icon('info')}<span class="hw-say">Ran without this repo’s hooks and MCP servers (and without your own MCP servers). A new task in this repo asks again.</span></div>`));
 
   if (t.status === 'held') {
     // Held near the limit (features/hold.js): the card is all there is until it goes.

@@ -42,6 +42,7 @@ import { Budget, addShare, holdWhy, stopFor, drainWhy } from './budget.js';
 import { createLiveLimits, readCodex } from './live-limits.js';
 import { Guard } from './guard.js';
 import { HarnessWatch } from './harness-watch.js';
+import { ProjectTrust } from './project-trust.js';
 import { DEFAULT_PORT, VERSION } from './util.js';
 import { Routes } from './http/router.js';
 import { send, eventStream } from './http/respond.js';
@@ -159,6 +160,9 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   // Harness watch (server/harness-watch.js): says when a harness's program changed since wisp pinned it.
   const harnessWatch = new HarnessWatch(store.home);
   runner.harnessWatch = harnessWatch;
+  // Project trust (server/project-trust.js): a repo's hooks, MCP servers and setup wait for your yes.
+  const projectTrust = new ProjectTrust(store.home);
+  runner.projectTrust = projectTrust;
   const events = eventStream();
   const app = {
     port,
@@ -304,6 +308,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.budget = budget;
   app.guard = guard;
   app.harnessWatch = harnessWatch;
+  app.projectTrust = projectTrust;
   app.agentLogin = createAgentLogin({
     accounts,
     onChange: (v) => {

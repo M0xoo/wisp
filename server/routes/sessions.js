@@ -15,6 +15,7 @@ import { searchTasks } from '../search.js';
 import { cleanupCheckpoints, revertFileChange, rollbackToTurn } from '../checkpoint.js';
 import { execCommand } from '../proc.js';
 import { ensureWorktree, removeWorktree, worktreeSource } from '../git.js';
+import { runSetup } from '../worktree-setup.js';
 import { MIME } from '../http/static.js';
 import { prepared, sendFile } from '../http/respond.js';
 import { blocksToMarkdown, sessionToMarkdown } from '../render.js';
@@ -589,8 +590,44 @@ export function register(r, app) {
       const { action } = await c.body();
       const t = s.turns.at(-1);
       if (t?.status !== 'held') return c.send(404, { error: 'Nothing on this task is waiting for the limit.' });
+      // A repo's hooks, servers or setup (server/project-trust.js). start: trust them, run a new
+      // worktree's held setup, then the run. without: this task runs without them (no setup either).
+      if (t.held.project && ['start', 'without'].includes(action)) {
+        const p = t.held.project;
+        if (p.setup === 'running') return c.send(200, summarize(s, store));
+        const trees = [s, ...(s.also || [])].map((x) => x.worktree).filter(Boolean);
+        if (action === 'without') {
+          for (const wt of trees.filter((w) => w.prepared?.held)) {
+            wt.prepared.skipped = wt.prepared.held.map((x) => x.command);
+            delete wt.prepared.held;
+          }
+          s.projectWithout = [...new Set([...(s.projectWithout || []), ...p.items.map((x) => x.id)])];
+          for (const wt of trees) await ensureWorktree(wt);
+          runner.release(s);
+        } else {
+          app.projectTrust?.trust(p.key, p.items.map((x) => x.id));
+          const setup = trees.filter((w) => w.prepared?.held);
+          if (!setup.length) {
+            for (const wt of trees) await ensureWorktree(wt);
+            runner.release(s);
+          } else {
+            p.setup = 'running'; // the card says so; the run starts when it's done
+            app.sessionChanged(s);
+            (async () => {
+              for (const wt of trees) await ensureWorktree(wt).catch(() => {});
+              for (const wt of setup) {
+                const done = await runSetup(wt.root, wt.path, wt.prepared.held.map((x) => x.command));
+                wt.prepared.ran = [...(wt.prepared.ran || []), ...done.ran];
+                if (done.problems.length) wt.prepared.problems = [...(wt.prepared.problems || []), ...done.problems];
+                delete wt.prepared.held;
+              }
+              if (store.get(s.id)) runner.release(s);
+            })().catch((err) => console.warn(`wisp: setup for ${s.id}: ${err.message}`));
+          }
+        }
+      } else if (t.held.project && action === 'wait') return c.send(400, { error: 'This waits for you: trust the repo’s hooks and servers, run without them, or skip this run.' });
       // A changed harness (server/harness-watch.js): start trusts what's there now, then runs it.
-      if (t.held.harness && action === 'start') {
+      else if (t.held.harness && action === 'start') {
         const a = adapters[t.held.agent];
         if (t.held.harness.checking && a?.bin) await app.harnessWatch?.observe(t.held.agent, a.bin(), detectedVersion(t.held.agent));
         app.harnessWatch?.trust(t.held.agent);
@@ -607,7 +644,7 @@ export function register(r, app) {
         s.unread = false;
         app.sessionChanged(s);
       } else if (action === 'skip') runner.skipHeld(s);
-      else return c.send(400, { error: 'action must be start, wait or skip.' });
+      else return c.send(400, { error: 'action must be start, wait, without or skip.' });
       c.send(200, summarize(s, store));
     }),
   );
@@ -775,7 +812,8 @@ export function register(r, app) {
       const trusted = store.isScratch(s.cwd) || !!s.worktree?.cwd;
       await ensureTrees(s);
       const argv = s.tui ? tuiArgv(app, s).argv : adapter.resumeCommand({ resumeId: s.agentSessionId, model: s.model, effort: s.effort, dirs: alsoDirs(s), cwd: workdir(s), trusted, systemPrompt: TAKEOVER_NOTE });
-      if (trusted && !s.tui) adapter.trust?.(workdir(s));
+      // ...unless the repo's hooks or servers aren't trusted in wisp (server/project-trust.js): then the CLI asks.
+      if (trusted && !s.tui && !runner.projectPending(s)) adapter.trust?.(workdir(s));
       const command = `cd ${shq(workdir(s))} && ${argv.map(shq).join(' ')}`;
       c.send(200, { command, ...(await fn(s, argv, c)) });
     });

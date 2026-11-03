@@ -565,7 +565,8 @@ export function laterActions(s) {
   // A run held near the limit (features/hold.js): the card's three, by the card's names.
   if (s.held) {
     out.push({ a: 'held-start', label: HELD_LABEL.start(s), icon: 'play' });
-    if (!s.held.waiting && !s.held.harness) out.push({ a: 'held-wait', label: HELD_LABEL.wait(s), icon: 'clock' });
+    if (s.held.project) out.push({ a: 'held-without', label: HELD_LABEL.without(s), icon: 'skip' });
+    if (!s.held.waiting && !s.held.harness && !s.held.project) out.push({ a: 'held-wait', label: HELD_LABEL.wait(s), icon: 'clock' });
     out.push({ a: 'held-skip', label: HELD_LABEL.skip(s), icon: 'skip' });
   }
   if (s.reminder && s.state === 'review') out.push({ a: 'later-snooze', label: 'Snooze…', icon: 'bell' });

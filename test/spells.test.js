@@ -335,6 +335,13 @@ test('ask near the limit: limitHold is a setting with its lines; the harness pic
   for (const sel of Object.values(schema.PARTS)) assert.ok(!/\.(c-hold|l-hold|b-held|st-held)\b/.test(sel), `${sel} must not be a part: a held send needs you`);
 });
 
+test('Project trust: Ask before a repo’s hooks, servers and setup run is a setting; its row and the ran-without line are parts', () => {
+  assert.deepEqual(problems({ ...base0, settings: { projectAsk: 'off' } }), []);
+  assert.ok(problems({ ...base0, settings: { projectAsk: 'never' } }).some((x) => /projectAsk/.test(x) && /on \| off/.test(x)));
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.projectAsk'] }, parts: { 'project.without': { style: { opacity: '0.8' } } } }), []);
+  for (const sel of Object.values(schema.PARTS)) assert.ok(!/\.pt-held\b/.test(sel), `${sel} must not be a part: the trust card needs you`);
+});
+
 test('.env masking: Hide .env values is a setting; the masked line and its Reveal are parts', () => {
   assert.deepEqual(problems({ ...base0, settings: { maskEnvFiles: 'off' } }), []);
   assert.ok(problems({ ...base0, settings: { maskEnvFiles: true } }).some((x) => /maskEnvFiles/.test(x) && /on \| off/.test(x)));
