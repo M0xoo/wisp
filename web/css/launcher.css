@@ -113,13 +113,15 @@ body.wisp-mobile .launcher .lp-chip.add.pick:is(:not(:only-child), :not(:has(> s
 }
 @keyframes dock-in { from { opacity: 0; transform: translateY(-8px); } }
 /* Cards scroll away under the docked launcher: the page behind it is solid, then fades out just below
-   it, instead of half a line of text peeking around its edges. */
-.stage:has(> .feed-wrap .launcher.docked) .topbar { border-bottom-color: transparent; }
-.stage:has(> .feed-wrap .launcher.docked) .topbar::before {
+   it, instead of half a line of text peeking around its edges. The phone app's launcher never
+   docks (scroll.js): with :not() first Chrome never runs the :has() there, which searches the
+   whole page each time it's checked (on opens, Back and New task: qa/mobile-perf.mjs). */
+.stage:not(.wisp-mobile *):has(> .feed-wrap .launcher.docked) .topbar { border-bottom-color: transparent; }
+.stage:not(.wisp-mobile *):has(> .feed-wrap .launcher.docked) .topbar::before {
   content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 76px; pointer-events: none;
   background: linear-gradient(var(--bg) 60px, color-mix(in srgb, var(--bg) 0%, transparent));
 }
-body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: none; }
+body:not(.wisp-mobile):has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: none; }
 .l-bar { display: flex; align-items: center; gap: 6px; padding-top: 6px; }
 /* the place is named like its neighbours (Full auto, Subagents), which open menus without a chevron too */
 .l-bar .where-btn .chev { display: none; }

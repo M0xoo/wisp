@@ -215,8 +215,9 @@ body.wisp-mobile .prompt-fab {
 body.wisp-mobile .prompt-fab .i { width: 20px; height: 20px; }
 /* Only on the list: a page (a task, home) has its own box at hand. */
 body.wisp-mobile.stack-page .prompt-fab { display: none; }
-/* …and not under a dialog, where it covered the dialog's last line. */
-body.wisp-mobile:has(.overlay:not([hidden])) .prompt-fab { display: none; }
+/* …and not under a dialog, where it covered the dialog's last line. #overlay is body's child and
+   the button comes after it (fab.js): a sibling rule, not a :has() on body that every restyle pays. */
+body.wisp-mobile > .overlay:not([hidden]) ~ .prompt-fab { display: none; }
 body.wisp-mobile .split-top .st-row:has(> .sp-side:empty) { display: none; }
 /* …and with nothing in that row, no empty band between the top bar and the first group. */
 body.wisp-mobile .split-top:not(:has(> .st-row > .sp-side:not(:empty))) { display: none; }
