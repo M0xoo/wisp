@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Review by another harness checks what you ruled out.** The review before Merge now gets the lines in your own messages that rule something out or narrow the task (*don't touch migrations/*, *only change web/*, *leave the tests alone*) and the task's *Done when*, and checks the diff against each. A change that breaks one comes back as a High finding naming the path and your words (*Touched migrations/ — you said: don't touch migrations*), and the PR panel's review lists what it checked, a cross on any it broke. A harness's own `/review` only looks for bugs.
 
+### Fixed
+
+- **Saving settings on Windows no longer fails now and then.** When a connector started at the moment wisp saved its settings, Windows refused the save (*EPERM: operation not permitted, rename … config.json*) and the change was lost. wisp now waits a moment and saves again.
+
 ## [0.57.0] - 2026-11-03
 
 ### Added

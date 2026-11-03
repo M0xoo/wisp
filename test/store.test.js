@@ -162,3 +162,39 @@ test('the usage stats count a task’s questions and tool calls without loading 
   assert.equal(full.usage.total.questions, 4);
   assert.deepEqual(lazyKeys(b.get(s.id).turns[0]), ['activity', 'changes', 'raw'], 'still on disk');
 });
+
+// Windows refuses a rename onto a file another process has open (EPERM): the connector proxy
+// (server/mcp-connector.js) reads config.json as it starts, so a save at that moment threw and
+// the API answered 500 (main run 41596560377, windows node 20). The save waits briefly and retries.
+test('config.json saves through a rename Windows refuses while another process reads it', () => {
+  const home = tmp('store-eperm');
+  const a = new Store(home);
+  a.config.projects = [{ id: 'p1', name: 'kept', path: '/x' }];
+  const rename = fs.renameSync;
+  let refused = 0;
+  fs.renameSync = (from, to) => {
+    if (refused < 3) {
+      refused++;
+      throw Object.assign(new Error(`EPERM: operation not permitted, rename '${from}' -> '${to}'`), { code: 'EPERM' });
+    }
+    return rename(from, to);
+  };
+  try {
+    a.saveConfig();
+  } finally {
+    fs.renameSync = rename;
+  }
+  assert.equal(refused, 3);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).projects[0].name, 'kept');
+  assert.ok(!fs.existsSync(path.join(home, 'config.json.tmp')));
+  // A refusal that doesn't pass still throws, and leaves the old file as it was.
+  fs.renameSync = () => {
+    throw Object.assign(new Error('EACCES'), { code: 'EACCES' });
+  };
+  try {
+    assert.throws(() => a.saveConfig(), /EACCES/);
+  } finally {
+    fs.renameSync = rename;
+  }
+  assert.equal(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).projects[0].name, 'kept');
+});

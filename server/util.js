@@ -32,9 +32,24 @@ export function clip(s, n = 80) {
 }
 
 // Write JSON so a crash mid-write never leaves a half file behind: tmp file, then rename.
+// Windows refuses a rename onto a file another process has open (EPERM, EACCES or EBUSY): the
+// connector proxy reads config.json as it starts. Its read takes milliseconds, so wait and retry
+// (under half a second in all) before giving up; the tmp file goes and the old file stays.
+const BUSY = new Set(['EPERM', 'EACCES', 'EBUSY']);
 export function writeJsonAtomic(file, data, space) {
-  fs.writeFileSync(`${file}.tmp`, JSON.stringify(data, null, space));
-  fs.renameSync(`${file}.tmp`, file);
+  const tmpFile = `${file}.tmp`;
+  fs.writeFileSync(tmpFile, JSON.stringify(data, null, space));
+  for (let i = 0; ; i++) {
+    try {
+      return fs.renameSync(tmpFile, file);
+    } catch (e) {
+      if (!BUSY.has(e.code) || i >= 8) {
+        fs.rmSync(tmpFile, { force: true });
+        throw e;
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10 * (i + 1));
+    }
+  }
 }
 
 // At most n characters, line breaks kept (messages, not one-liners).
