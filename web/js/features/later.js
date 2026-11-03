@@ -7,7 +7,7 @@ import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { ago, fmtDate } from '../core/format.js';
-import { S } from '../core/state.js';
+import { isScheduled, S } from '../core/state.js';
 import { clampToViewport, popover, refocus } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { parseWhen } from '../when.js';
@@ -43,9 +43,8 @@ export function inWords(t, now = Date.now()) {
 export const whenTip = (t) => `${inWords(t).replace(/^in/, 'In')} · ${fmtDate(t, FULL)}`;
 const whoSet = (by) => (by === 'user' ? 'you' : by === 'agent' ? 'the agent' : by);
 
-// A task with only follow-ups to wait for: it sits in Scheduled. One that asks you or has a report
-// to read stays in Needs you with the pill (nothing an agent schedules hides what needs you).
-export const isScheduled = (s) => !s.archived && !s.forLater && s.state === 'done' && (!!s.later?.length || !!s.held?.waiting); // saved for later: that wins
+// A task with follow-ups to wait for sits in Scheduled (core/state.js, which needsYou shares).
+export { isScheduled };
 // When a scheduled task's next thing happens: its follow-up, or its held run's reset (features/hold.js).
 export const nextAt = (s) => Math.min(s.later?.[0]?.at ?? Infinity, s.held?.waiting ? s.held.until : Infinity);
 

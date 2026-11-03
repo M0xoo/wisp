@@ -5,7 +5,7 @@
 
 import { esc } from '../md.js';
 import { $$, el } from '../core/dom.js';
-import { S } from '../core/state.js';
+import { isScheduled, S } from '../core/state.js';
 import { popover } from '../ui/popover.js';
 import { cleanTitle } from '../mention-text.js';
 
@@ -14,7 +14,7 @@ const LEAD = /^\/after\s+([^\n@]{0,60})$/i; // what the box shows up to the care
 const MAX = 8;
 let picker = null; // { ta, node, close, list, act, start }
 
-const where = (s) => (s.archived ? 'Archived' : s.state === 'done' ? 'Done' : s.state === 'running' ? 'Working' : s.state === 'waiting' || s.state === 'review' ? 'Needs you' : '');
+const where = (s) => (s.archived ? 'Archived' : isScheduled(s) ? 'Scheduled' : s.state === 'done' ? 'Done' : s.state === 'running' ? 'Working' : s.state === 'waiting' || s.state === 'review' ? 'Needs you' : '');
 // Unfinished first (what you'd wait for), then the most recently active.
 const rank = (s) => (s.state === 'done' || s.archived ? 1 : 0);
 
