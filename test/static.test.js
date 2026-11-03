@@ -209,3 +209,41 @@ test('modules go without their comment lines, line for line, and anything unclea
   ];
   for (const [input, out] of cases) assert.equal(blankComments(input), out, input);
 });
+
+// The iPhone home-screen app (wisp Grid, web/js/features/homescreen.js): the manifest by its own
+// URL, never cached for good; its icons; and the head script that goes full screen only there.
+test('the home-screen manifest is served as a manifest, no-cache, with its icons', async () => {
+  const r = await get('/manifest.webmanifest?v=nope');
+  assert.equal(r.status, 200);
+  assert.equal(r.headers['content-type'], 'application/manifest+json');
+  assert.equal(r.headers['cache-control'], 'no-cache', 'iOS reads it by URL: never immutable');
+  const m = JSON.parse(r.body);
+  assert.deepEqual([m.display, m.scope, m.start_url, m.short_name], ['standalone', '/', '/?from=home', 'wisp']);
+  assert.ok(m.icons.some((i) => i.purpose === 'maskable' && i.sizes === '512x512'));
+  for (const i of m.icons) {
+    const png = await get(i.src);
+    assert.equal(png.status, 200, i.src);
+    assert.equal(png.headers['content-type'], 'image/png');
+    assert.equal(png.body.readUInt32BE(16), Number(i.sizes.split('x')[0]), `${i.src} is ${i.sizes}`);
+  }
+  assert.equal((await get('/apple-touch-icon.png')).status, 200, 'iOS still uses it for the icon');
+});
+
+test('index.html goes full screen (viewport-fit=cover) only when opened from the Home Screen', async () => {
+  const html = (await get('/')).body.toString();
+  assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1">/, 'browsers keep their viewport');
+  assert.doesNotMatch(html, /rel="manifest"/, 'the manifest goes in from the page, on a Grid only');
+  const script = /<script>(try \{ if \(!\/\\bwispMobile[^<]*)<\/script>/.exec(html)?.[1];
+  assert.ok(script, 'the standalone script is in the head');
+  const run = ({ ua = 'Safari', standalone = false, mode = false }) => {
+    const meta = { content: 'width=device-width, initial-scale=1' };
+    const classes = new Set();
+    const ctx = { navigator: { userAgent: ua, standalone }, matchMedia: () => ({ matches: mode }), document: { documentElement: { classList: { add: (c) => classes.add(c) } }, querySelector: () => meta } };
+    new Function(...Object.keys(ctx), script)(...Object.values(ctx));
+    return [classes.has('standalone'), meta.content];
+  };
+  assert.deepEqual(run({ standalone: true }), [true, 'width=device-width, initial-scale=1, viewport-fit=cover'], 'iOS home-screen app');
+  assert.deepEqual(run({ mode: true }), [true, 'width=device-width, initial-scale=1, viewport-fit=cover'], 'display-mode: standalone');
+  assert.deepEqual(run({}), [false, 'width=device-width, initial-scale=1'], 'a browser tab');
+  assert.deepEqual(run({ ua: 'Mozilla wispMobile/1', standalone: true, mode: true }), [false, 'width=device-width, initial-scale=1'], 'never the Android app');
+});

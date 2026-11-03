@@ -7,7 +7,7 @@ import { api } from './core/api.js';
 import * as bus from './core/bus.js';
 import { $, $$ } from './core/dom.js';
 import { ago, agoLong } from './core/format.js';
-import { MOBILE, S, setAgents } from './core/state.js';
+import { MOBILE, S, setAgents, STANDALONE } from './core/state.js';
 import { combo } from './ui/kbd.js';
 import { openAutomations } from './features/automations.js';
 import { openPalette } from './features/commands.js';
@@ -161,7 +161,7 @@ function paintSnapshot(snap) {
   if (MOBILE) {
     askNotify(); // alerts are what the phone is for: ask once, on the first visit
     startShell();
-  }
+  } else if (STANDALONE) startShell(); // the iPhone home-screen app opens from cache too (homescreen.js)
   const list = await agents;
   if (!list || JSON.stringify(list) === JSON.stringify(S.agents)) return;
   setAgents(list);

@@ -388,6 +388,8 @@ test('Automations stop at (autoStop) is a setting; its row, Where it went and a 
   // Spare allowance: home's card, its Start a task, its window in hours, the switch.
   assert.deepEqual(problems({ ...base0, ui: { hide: ['split.spare.start', 'settings.spareCard'] }, parts: { 'split.spare': { props: { hours: 12 }, style: { opacity: '0.8' } } }, settings: { spareCard: 'off' } }), []);
   assert.ok(problems({ ...base0, parts: { 'split.spare': { props: { hours: 48 } } } }).some((x) => /hours: int from 1 to 40/.test(x)));
+  // Add to Home Screen (homescreen.js): a spell hides or restyles the card.
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['home.install'] }, parts: { 'home.install': { style: { opacity: '0.8' } } } }), []);
   assert.ok(problems({ ...base0, settings: { spareCard: 'yes' } }).some((x) => /spareCard/.test(x) && /on \| off/.test(x)));
 });
 

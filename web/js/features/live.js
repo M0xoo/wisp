@@ -27,6 +27,7 @@ import { loadUpdate, renderUpdate } from './update.js';
 import { applyView } from './split.js';
 import { applyTheme } from './theme.js';
 import { checkBuild, syncing } from './cache.js';
+import { homeScreenTags } from './homescreen.js';
 
 let es = null;
 let hiddenAt = 0;
@@ -187,6 +188,7 @@ export const loadConfig = shared(async () => {
 export function setConfig(config) {
   S.config = config;
   nameHere();
+  homeScreenTags();
   paintMachinesBtn();
   applySpells();
   applyTheme();
