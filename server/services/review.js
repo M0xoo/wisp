@@ -11,6 +11,7 @@ import { askJson } from '../quick.js';
 import { diffOf } from '../judge.js';
 import { check as runCheck } from '../check.js';
 import { gitBin } from '../git.js';
+import { constraintsOf } from '../handoff.js';
 
 // What defaults.review may be: off, another harness than the author's, or one harness.
 export const HARNESSES = ['claude', 'codex', 'antigravity', 'copilot', 'opencode', 'cursor', 'grok'];
@@ -39,7 +40,18 @@ export function pickReviewer(setting, authors, agents) {
   return ready(setting) ? { agent: setting, model: '' } : { why: `${agents.find((a) => a.id === setting)?.name || setting} isn't installed here.` };
 }
 
-export function reviewPrompt({ title, task, diff, tests }) {
+// What the user ruled out or narrowed in their own messages (handoff.js constraintsOf: "don't touch
+// migrations/", "only change web/") and the task's Done when: the reviewer checks the diff against
+// each, which a harness's own /review never does. Up to 13 lines, each as the user wrote it.
+export function constraintsFor(s) {
+  const done = String(s?.goal?.text || '').replace(/\s+/g, ' ').trim();
+  return [...constraintsOf(s || {}), ...(done ? [`Done when: ${clip(done, 600)}`] : [])];
+}
+
+export function reviewPrompt({ title, task, diff, tests, constraints = [] }) {
+  const c = constraints.length
+    ? `\n<constraints>\nThe user set these for this task, in their own words. Check the diff against each one. A change that breaks one (touches what they ruled out, works outside what they narrowed it to, or plainly doesn't do what Done when asks) is a "high" finding with "constraint" set to its number, and its text names the path and the user's words, like "Touched migrations/ — you said: don't touch migrations". Leave "constraint" out of every other finding.\n${constraints.map((r, i) => `${i + 1}. ${r}`).join('\n')}\n</constraints>\n`
+    : '';
   const t = tests && tests.verdict !== 'skip' ? `\n<tests command="${tests.command}" verdict="${tests.verdict}">${tests.verdict === 'pass' ? '' : `\n${String(tests.output || '').slice(-3000)}\n`}</tests>\n` : '';
   return `You review a pull request another coding agent wrote, before it's merged. Your working directory is its branch at the PR's head: open the files, read the code around the change, run read-only commands. Don't take the PR's word for anything you can check.
 
@@ -48,21 +60,26 @@ Look for what would make a careful reviewer ask for changes: bugs, missed cases,
 <pr title="${String(title || '').replace(/"/g, "'").slice(0, 200)}">
 ${String(task || '').slice(0, 3000)}
 </pr>
-${t}
+${t}${c}
 <diff>
 ${String(diff || '').slice(0, MAX_DIFF) || '(no changes)'}
 </diff>
 
-Reply with one JSON object: {"summary": "one sentence", "findings": [{"severity": "high" | "medium" | "low", "file": "path", "line": 12, "text": "what is wrong and what to do"}]}`;
+Reply with one JSON object: {"summary": "one sentence", "findings": [{"severity": "high" | "medium" | "low", "file": "path", "line": 12, "text": "what is wrong and what to do"${constraints.length ? ', "constraint": 1' : ''}}]}`;
 }
 
-// A reviewer's reply as { summary, findings }, or null when it said nothing usable.
-export function readReview(j) {
+// A reviewer's reply as { summary, findings }, or null when it said nothing usable. A finding that
+// breaks one of `constraints` is high whatever the reviewer said, and carries the user's words.
+export function readReview(j, constraints = []) {
   if (!j || typeof j !== 'object' || !Array.isArray(j.findings)) return null;
   const findings = j.findings
     .filter((f) => f && typeof f === 'object' && String(f.text || '').trim())
     .slice(0, MAX_FINDINGS)
-    .map((f) => ({ severity: SEVERITY.includes(f.severity) ? f.severity : 'medium', ...(f.file && { file: clip(f.file, 200) }), ...(Number.isInteger(Number(f.line)) && Number(f.line) > 0 && { line: Number(f.line) }), text: clip(f.text, 600) }))
+    .map((f) => {
+      const n = Number(f.constraint);
+      const rule = Number.isInteger(n) && n > 0 ? constraints[n - 1] : undefined;
+      return { severity: rule ? 'high' : SEVERITY.includes(f.severity) ? f.severity : 'medium', ...(f.file && { file: clip(f.file, 200) }), ...(Number.isInteger(Number(f.line)) && Number(f.line) > 0 && { line: Number(f.line) }), text: clip(f.text, 600), ...(rule && { constraint: n, rule }) };
+    })
     .sort((a, b) => SEVERITY.indexOf(a.severity) - SEVERITY.indexOf(b.severity));
   return { summary: clip(j.summary || (findings.length ? `${findings.length} issue${findings.length > 1 ? 's' : ''} found.` : 'Nothing to fix.'), 300), findings };
 }
@@ -71,7 +88,7 @@ export function readReview(j) {
 export function reviewView(s) {
   const r = s.review;
   if (!r) return null;
-  return { status: r.status, head: r.head, current: !!s.pr && r.head === s.pr.head, ...(r.by && { by: r.by }), ...(r.summary && { summary: r.summary }), findings: r.findings || [], ...(r.tests && { tests: r.tests }), ...(r.why && { why: r.why }), at: r.at };
+  return { status: r.status, head: r.head, current: !!s.pr && r.head === s.pr.head, ...(r.by && { by: r.by }), ...(r.summary && { summary: r.summary }), findings: r.findings || [], ...(r.tests && { tests: r.tests }), ...(r.constraints?.length && { constraints: r.constraints }), ...(r.why && { why: r.why }), at: r.at };
 }
 
 const git = (dir, args) => {
@@ -125,15 +142,16 @@ export function createReview(app) {
       const tests = await runCheck({ dir, project: store.projectFor?.(s.cwd), worktree: s.worktree }).catch(() => null);
       if (!live()) return;
       const base = git(dir, ['merge-base', 'HEAD', s.worktree.baseRef || 'HEAD']) || s.worktree.head || 'HEAD';
-      const ask = reviewPrompt({ title: s.title, task: s.turns?.[0]?.prompt, diff: diffOf(dir, base), tests });
+      const constraints = constraintsFor(s);
+      const ask = reviewPrompt({ title: s.title, task: s.turns?.[0]?.prompt, diff: diffOf(dir, base), tests, constraints });
       const j = await askJson({ agents: app.auto.here(), prompt: ask, cwd: dir, timeoutMs: REVIEW_MS, pick }).catch(() => null);
       if (!live()) return;
-      const r = readReview(j);
+      const r = readReview(j, constraints);
       const t = tests && tests.verdict !== 'skip' ? { verdict: tests.verdict, command: tests.command, passed: tests.passed || 0, failed: tests.failed || 0 } : null;
       s.review = r
-        ? { status: 'done', head, by: pick, summary: r.summary, findings: r.findings, ...(t && { tests: t }), at: Date.now() }
+        ? { status: 'done', head, by: pick, summary: r.summary, findings: r.findings, ...(t && { tests: t }), ...(constraints.length && { constraints }), at: Date.now() }
         : { status: 'failed', head, by: pick, why: `${app.auto.here().find((a) => a.id === pick.agent)?.name || pick.agent} didn’t answer.`, findings: [], ...(t && { tests: t }), at: Date.now() };
-      app.telemetry?.track?.('pr_review', { agent: s.agent, reviewer: pick.agent, status: s.review.status, findings: s.review.findings.length, tests: t?.verdict || 'skip' });
+      app.telemetry?.track?.('pr_review', { agent: s.agent, reviewer: pick.agent, status: s.review.status, findings: s.review.findings.length, constraints: constraints.length, broken: s.review.findings.filter((f) => f.constraint).length, tests: t?.verdict || 'skip' });
     } catch (err) {
       if (live()) s.review = { status: 'failed', head, by: pick, why: clip(err.message, 300), findings: [], at: Date.now() };
     } finally {

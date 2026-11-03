@@ -298,9 +298,9 @@ test('a conflict fix that leaves conflicts is not pushed; Fix conflicts retries;
   }
 });
 
-test('review by another harness: off by default; on, another harness reviews the PR head and Merge still works', async () => {
+test('review by another harness: off by default; on, another harness reviews the PR head against what the user ruled out, and Merge still works', async () => {
   const repo = makeClone();
-  const s = await api('/sessions', { body: { prompt: 'Fix add() for review', cwd: repo.dir, agent: 'claude' } });
+  const s = await api('/sessions', { body: { prompt: "Fix add() for review. Don't touch README.md.", cwd: repo.dir, agent: 'claude' } });
   await settled(s.id);
   const reviews = () => (fs.existsSync(path.join(RECORD, 'review.jsonl')) ? records(RECORD, 'review') : []);
   const before = reviews().length;
@@ -322,18 +322,26 @@ test('review by another harness: off by default; on, another harness reviews the
     assert.equal(rec.name, 'codex');
     assert.equal(fs.realpathSync.native(rec.cwd), fs.realpathSync.native((await session(s.id)).worktree.path));
     assert.match(rec.diff, /math\.js/);
+    // The user's don't-touch line goes to the reviewer, and the page sees what it checked.
+    assert.match(rec.constraints, /\n1\. Don't touch README\.md\.$/);
+    assert.deepEqual(done.review.constraints, ["Don't touch README.md."]);
     // The same head isn't reviewed twice; Review again does, and a clean answer has no findings.
     await api(`/sessions/${s.id}/pr`, { body: {} });
     assert.equal(reviews().length, before + 1);
+    // A finding that breaks the user's line is high, whatever the reviewer said, and carries their words.
+    process.env.FAKE_REVIEW = JSON.stringify({ summary: 'One rule broken', findings: [{ severity: 'low', file: 'README.md', text: 'Touched README.md — you said: don’t touch README.md', constraint: 1 }] });
+    await api(`/sessions/${s.id}/review`, { body: {} });
+    const broke = await until(async () => (reviews().length === before + 2 && (await summaryOf(s.id)).review?.status === 'done' ? summaryOf(s.id) : null));
+    assert.deepEqual(broke.review.findings, [{ severity: 'high', file: 'README.md', text: 'Touched README.md — you said: don’t touch README.md', constraint: 1, rule: "Don't touch README.md." }]);
     process.env.FAKE_REVIEW = JSON.stringify({ summary: 'Looks right', findings: [] });
     await api(`/sessions/${s.id}/review`, { body: {} });
-    const again = await until(async () => (reviews().length === before + 2 && (await summaryOf(s.id)).review?.status === 'done' ? summaryOf(s.id) : null));
+    const again = await until(async () => (reviews().length === before + 3 && (await summaryOf(s.id)).review?.status === 'done' ? summaryOf(s.id) : null));
     assert.deepEqual(again.review.findings, []);
     assert.equal(again.review.summary, 'Looks right');
     // A harness picked by name reviews, even the author's own.
     await api('/config', { method: 'PATCH', body: { defaults: { review: 'claude' } } });
     await api(`/sessions/${s.id}/review`, { body: {} });
-    await until(async () => (await summaryOf(s.id)).review?.status === 'done' && reviews().length === before + 3);
+    await until(async () => (await summaryOf(s.id)).review?.status === 'done' && reviews().length === before + 4);
     assert.equal((await summaryOf(s.id)).review.by.agent, 'claude');
     // Merge isn't blocked by it.
     const merged = await api(`/sessions/${s.id}/merge`, { body: {} });
