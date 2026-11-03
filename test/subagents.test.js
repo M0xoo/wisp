@@ -6,6 +6,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import { installFakeBins, makeRepo, records, tmp, until } from './helpers.js';
+import { MAX_COPIES, normalizeTeam } from '../server/subagents.js';
 
 const RECORD = tmp('sub-record');
 process.env.FAKE_RECORD = RECORD;
@@ -119,7 +120,31 @@ test('a member with copies runs several tasks at once, one per copy', async () =
   assert.match(told, /name a copy \(`codex#2`\)/);
   const summary = (await api('/sessions')).find((x) => x.id === s.id);
   assert.deepEqual(summary.team.map((m) => m.used), [true, true, false]);
-  await assert.rejects(api('/sessions', { prompt: 'x', cwd: makeRepo(), agent: 'claude', worktree: false, subagents: [{ agent: 'codex', count: 5 }, { agent: 'opencode', count: 5 }, { agent: 'claude', count: 5 }] }), /At most 12 subagents/);
+});
+
+test('a team is as big as the user picks: every row stays, every copy counts, one call reaches them all', async () => {
+  const adapters = { codex: {} };
+  const rows = (n, extra = {}) => Array.from({ length: n }, (_, i) => ({ agent: 'codex', name: `d${i}`, ...extra }));
+  assert.equal(normalizeTeam(rows(8), adapters).length, 8);
+  assert.deepEqual(normalizeTeam(rows(40, { count: 5 }), adapters).map((m) => m.count), Array(40).fill(5), '200 agents in all');
+  assert.equal(normalizeTeam(rows(1, { count: 9 }), adapters)[0].count, MAX_COPIES, 'copies of one row stay a per-row control');
+
+  // Past the 12 tasks a delegate call used to read, so the 14th member really gets its task.
+  const s = await api('/sessions', { prompt: 'DELEGATE', cwd: makeRepo(), agent: 'claude', worktree: false, subagents: rows(14) });
+  assert.equal(s.team.length, 14);
+  const done = await settled(s.id);
+  const sent = done.turns[0].delegations.map((d) => d.name).sort();
+  assert.deepEqual(sent, rows(14).map((m) => m.name).sort());
+  assert.equal(Object.keys(done.children).length, 14);
+});
+
+test('a run the OS refuses to start ends as an error that says why, not stuck on Working', async () => {
+  // Past every OS's limit on one command line or string: spawn throws (E2BIG, ENAMETOOLONG).
+  const subagents = Array.from({ length: 3000 }, (_, i) => ({ agent: 'codex', name: `d${i}`, use: 'x'.repeat(300) }));
+  const s = await api('/sessions', { prompt: 'A huge team', cwd: makeRepo(), agent: 'claude', worktree: false, subagents });
+  const done = await settled(s.id);
+  assert.equal(done.turns[0].status, 'error');
+  assert.match(JSON.stringify(done.turns[0].presentation), /too long[^"]*3000 delegates/);
 });
 
 test('delegating again resumes the same subagent session', async () => {

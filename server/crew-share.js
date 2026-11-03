@@ -14,7 +14,7 @@ import path from 'node:path';
 import { adapters } from './adapters/index.js';
 import { BRIEF_MAX, CREW_COLORS, DEFINITION, MAX_CREW, MAX_PARALLEL, NAME, REVIEWED, avatarOf, clampNotebook, handleOf, normalizeKit } from './crew.js';
 import { MEMBER_KINDS, readSchedule } from './triggers.js';
-import { MAX_SUBAGENTS, normalizeTeam } from './subagents.js';
+import { normalizeTeam } from './subagents.js';
 import { scanAll } from './secret-scan.js';
 import { gh } from './git.js';
 import { bad, MODES, truncate } from './util.js';
@@ -72,7 +72,6 @@ export function normalizeBlueprint(raw) {
     const text = (k, n) => String(t[k] || '').replace(/\s+/g, ' ').trim().slice(0, n);
     return { agent: String(t.agent), ...(text('name', 40) && { name: text('name', 40) }), ...(text('model', 120) && { model: text('model', 120) }), ...(text('effort', 20) && { effort: text('effort', 20) }), ...(text('use', 300) && { use: text('use', 300) }), ...(Number(t.count) > 1 && { count: Math.min(4, Math.floor(Number(t.count))) }) };
   });
-  if (team.length > MAX_SUBAGENTS) throw bad(`team: at most ${MAX_SUBAGENTS} delegates`);
   if (team.some((t) => t.crew === key)) throw bad("team: a member can't delegate to themselves");
   const notebook = typeof raw.notebook === 'string' ? clampNotebook(raw.notebook.trim()) : '';
   return {

@@ -22,9 +22,7 @@ import { ctxFor } from './turns.js';
 import { avatarHtml, crewList, memberById } from './crew.js';
 import { onSubSummary, openFrom, openSub } from './lineage.js';
 
-const MAX_TEAM = 6; // rows
 const MAX_COPIES = 5; // parallel copies of one row
-const MAX_INSTANCES = 12; // copies across the team
 export const copiesOf = (m) => Math.max(1, m.count || 1);
 export const teamSize = (team) => team.reduce((n, m) => n + copiesOf(m), 0);
 export const canLead = (id) => agentById(id)?.delegates !== false;
@@ -149,10 +147,9 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
     w.innerHTML = `${icon('warn')}<span>${esc(agentName(lead))} can't delegate: wisp can't give it tools. Pick Claude Code, Codex or opencode as the lead to use these.</span>`;
   };
   const paintFoot = () => {
-    const full = members.length >= MAX_TEAM || teamSize(members) >= MAX_INSTANCES;
     foot.innerHTML = `
-      <button class="ghost sm tp-add" ${full ? 'disabled' : ''} ${S.machines.length || crewFree().length ? 'aria-haspopup="menu"' : ''}>${icon('plus')}Add delegate${S.machines.length || crewFree().length ? icon('chevron', 'chev') : ''}</button>
-      <span class="tp-count" title="Agents in all, counting copies (max ${MAX_INSTANCES})">${teamSize(members)} agent${teamSize(members) === 1 ? '' : 's'}</span>
+      <button class="ghost sm tp-add" ${S.machines.length || crewFree().length ? 'aria-haspopup="menu"' : ''}>${icon('plus')}Add delegate${S.machines.length || crewFree().length ? icon('chevron', 'chev') : ''}</button>
+      <span class="tp-count" title="Agents in all, counting copies">${teamSize(members)} agent${teamSize(members) === 1 ? '' : 's'}</span>
       <span class="grow"></span>
       ${members.length ? `<button class="link xs tp-clear">Clear</button><button class="ghost sm tp-save">${icon('check')}Save as preset</button>` : ''}`;
   };
@@ -166,6 +163,7 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
   };
   const paintList = () => {
     const named = uniqueNames(members);
+    const top = list.scrollTop; // a long team: a change near the bottom stays in view
     list.innerHTML = members.length
       ? members
           .map((m, i) =>
@@ -179,7 +177,7 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
                 <span class="tp-copies${copiesOf(m) > 1 ? ' on' : ''}" title="Copies: identical agents that take tasks in parallel">
                   <button class="tp-dec" aria-label="One copy fewer" ${copiesOf(m) <= 1 ? 'disabled' : ''}>${icon('minus')}</button>
                   <b>×${copiesOf(m)}</b>
-                  <button class="tp-inc" aria-label="One copy more" ${copiesOf(m) >= MAX_COPIES || teamSize(members) >= MAX_INSTANCES ? 'disabled' : ''}>${icon('plus')}</button>
+                  <button class="tp-inc" aria-label="One copy more" ${copiesOf(m) >= MAX_COPIES ? 'disabled' : ''}>${icon('plus')}</button>
                 </span>
                 <button class="icon-btn tp-del" title="Remove">${icon('x')}</button>
               </div>
@@ -191,6 +189,7 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
           )
           .join('')
       : `<div class="tp-empty">${icon('agent')}<p>No delegates yet. Add one per job: Codex for tests next to the lead, or a model on your GPU box for the heavy lifting.</p></div>`;
+    list.scrollTop = top;
     $$('.tp-row', list).forEach((row, i) => !members[i].crew && paintRunnerBtn($('.tp-runner', row), members[i].agent, members[i].model, members[i].effort));
     paintFoot();
     paintLead();
@@ -214,7 +213,7 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
   };
   const addCrew = (id) => {
     const c = memberById(id);
-    if (!c || members.length >= MAX_TEAM || teamSize(members) >= MAX_INSTANCES || members.some((m) => m.crew === id)) return;
+    if (!c || members.some((m) => m.crew === id)) return;
     members.push({ crew: c.id, name: c.name, label: c.name, role: c.role, agent: c.agent, use: c.role || '', count: 1 });
     paintList();
     commit();
@@ -231,7 +230,6 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
     Object.assign(m, { agent: a.id, model, effort: savedEffort(a.id, model) });
   };
   const add = (k = '') => {
-    if (members.length >= MAX_TEAM || teamSize(members) >= MAX_INSTANCES) return;
     const used = new Set([lead, ...members.filter((m) => (m.machine || '') === k).map((m) => m.agent)]);
     const pool = harnessesAt(placesFor({ machine: k }, leadPlaces()));
     const a = pool.find((x) => x.available && !used.has(x.id)) || pool.find((x) => x.available && x.id !== lead) || pool.find((x) => x.available);
@@ -370,7 +368,7 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
     if (step) {
       const m = members[i];
       const next = copiesOf(m) + step;
-      if (next < 1 || next > MAX_COPIES || (step > 0 && teamSize(members) >= MAX_INSTANCES)) return;
+      if (next < 1 || next > MAX_COPIES) return;
       m.count = next;
       paintList();
       $(`.tp-row[data-i="${i}"] ${step > 0 ? '.tp-inc' : '.tp-dec'}`, list)?.focus();

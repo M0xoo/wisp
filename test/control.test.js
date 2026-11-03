@@ -88,6 +88,17 @@ test('a lead without a team makes its own subagent with delegate; a bad harness 
   assert.equal((await api(`/sessions/${done.children.reviewer}`)).turns.length, 2, 'the same subagent session, resumed');
 });
 
+test('a lead with a big team still makes its own subagent, and a delegate call reaches every one it names', async () => {
+  const team = Array.from({ length: 8 }, (_, i) => ({ agent: 'codex', name: `d${i}` }));
+  const done = await settled((await launch('ADHOC please review', { subagents: team })).id);
+  assert.equal(done.subagents.length, 9, 'the eight picked and the one it made');
+  assert.equal(done.subagents.at(-1).name, 'reviewer');
+
+  const many = await settled((await launch('ADHOC*14 please review')).id);
+  assert.equal(many.subagents.length, 14);
+  assert.equal(Object.keys(many.children).length, 14);
+});
+
 test('a subagent named on a machine runs there (relayed); an unknown machine is refused', async () => {
   srv.store.config.machines.push({ id: 'm-box', name: 'devbox', target: 'dev@devbox', autoConnect: false });
   try {

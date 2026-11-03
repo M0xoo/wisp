@@ -432,6 +432,12 @@ const ask = async () => {
     return `schema ${schema ? 'read' : 'missing'} | check: ${String(check).split('\n')[0]}`;
   }
   // ADHOC: the lead makes its own subagents (codex here, or on the machine ADHOC@<id> names).
+  // ADHOC*<n>: n new ones in one call.
+  const adhocs = Number(stdin.match(/ADHOC\*(\d+)/)?.[1]);
+  if (adhocs && srv) {
+    const report = await mcpCall(srv, 'delegate', { tasks: Array.from({ length: adhocs }, (_, i) => ({ agent: 'codex', name: `made-${i}`, prompt: 'Check math.js' })) });
+    return `adhoc: ${report.split('\n').filter((l) => /^### /.test(l)).length}`;
+  }
   if (stdin.includes('ADHOC') && srv) {
     const machine = stdin.match(/ADHOC@(\S+)/)?.[1];
     const report = await mcpCall(srv, 'delegate', { tasks: [{ agent: 'codex', name: 'Reviewer', effort: 'high', ...(machine && { machine }), prompt: 'Check math.js' }, { agent: 'nope', prompt: 'x' }], ...(machine && { wait: false }) });

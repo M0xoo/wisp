@@ -32,8 +32,6 @@ import { memberLabel, teamEditor } from './team.js';
 import { placeName } from './places.js';
 import { slotHtml, spellProp } from './spells.js';
 
-const MAX_TEAM = 6; // a member's delegates (rows), as the server allows
-const MAX_INSTANCES = 12; // parallel copies across them
 const WIDE = 860; // the details beside the chart from this pane width
 
 S.orgOpen = load('wisp.orgOpen', false);
@@ -244,7 +242,7 @@ function paintHint() {
     : m
       ? m.spell
         ? `The “${esc(m.spell.name)}” spell sets who <b>${esc(m.name)}</b> hands work to.`
-        : `Choosing <b>${esc(m.name)}</b>’s delegates: ${icon('plus')} adds a member, ${icon('check')} takes them off${(m.team || []).length < MAX_TEAM ? ` · <button class="link xs" data-a="add-to">Add a delegate…</button>` : ''}${touch ? '' : ' · Esc when done'}`
+        : `Choosing <b>${esc(m.name)}</b>’s delegates: ${icon('plus')} adds a member, ${icon('check')} takes them off · <button class="link xs" data-a="add-to">Add a delegate…</button>${touch ? '' : ' · Esc when done'}`
       : crewList().length
         ? `Arrows go from a member to their delegates. Select one to change who they hand work to${movable() ? (touch ? ', then drag it to move it' : '. Drag a card to move it, or from its handle onto another to link them') : touch ? '' : ', or drag from one’s handle onto another'}.`
         : '';
@@ -555,7 +553,6 @@ function memberSide(m, g) {
   const crew = team.filter((t) => t.crew && memberById(t.crew));
   const tools = team.map((t, i) => ({ t, i })).filter(({ t }) => !t.crew);
   const from = (g.inc.get(m.id) || []).map(memberById).filter(Boolean);
-  const full = team.length >= MAX_TEAM || team.reduce((n, t) => n + (t.count || 1), 0) >= MAX_INSTANCES;
   const out = [
     ...crew.map((t) => personRow(memberById(t.crew), { unlink: locked ? '' : `data-unlink="${esc(m.id)}:${esc(t.crew)}" title="Remove ${esc(memberById(t.crew).name)} from ${esc(m.name)}’s delegates" aria-label="Remove ${esc(memberById(t.crew).name)}"` })),
     ...tools.map(
@@ -581,9 +578,9 @@ function memberSide(m, g) {
       <button class="ghost sm" data-a="edit">${icon('pen')}<span>Edit…</span></button>
     </div>
     <div class="cv-sec org-sec">
-      <h5>Hands work to <small>${team.length} of ${MAX_TEAM}</small></h5>
+      <h5>Hands work to${team.length ? ` <small>${team.length}</small>` : ''}</h5>
       ${out ? `<div class="org-rows">${out}</div>` : `<p class="org-none">Nobody yet${locked ? '' : ': pick members in the chart, or add an agent'}.</p>`}
-      ${locked ? '' : `<button class="ghost xs org-addto" data-a="add-to" ${full ? `disabled title="${esc(m.name)} has as many delegates as a job can take"` : ''}>${icon('plus')}<span>Add a delegate…</span></button>`}
+      ${locked ? '' : `<button class="ghost xs org-addto" data-a="add-to">${icon('plus')}<span>Add a delegate…</span></button>`}
     </div>
     <div class="cv-sec org-sec">
       <h5>Gets work from</h5>
@@ -601,8 +598,6 @@ function link(fromId, toId) {
   if (m.spell) return toast(`The “${esc(m.spell.name)}” spell sets who ${esc(m.name)} hands work to.`, { tone: 'bad' });
   const team = m.team || [];
   if (team.some((t) => t.crew === toId)) return;
-  if (team.length >= MAX_TEAM || team.reduce((n, t) => n + (t.count || 1), 0) >= MAX_INSTANCES)
-    return toast(`${esc(m.name)} has as many delegates as a job can take: remove one first.`, { tone: 'bad' });
   patchMember(m, { team: [...team, { crew: c.id, name: c.name, label: c.name, role: c.role, agent: c.agent, use: c.role || '', count: 1 }] });
 }
 

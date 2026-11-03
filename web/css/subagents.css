@@ -95,7 +95,7 @@ button.tp-place[aria-expanded="true"] { border-color: color-mix(in srgb, var(--a
 .tp-spread { display: inline-flex; align-items: center; gap: 4px; flex: none; font: 11.5px var(--mono); color: var(--muted); }
 .tp-spread .i { width: 12px; height: 12px; }
 .tp-foot .tp-add .chev { width: 10px; height: 10px; margin-left: 2px; opacity: 0.6; transform: rotate(90deg); }
-.menu.tp-where { min-width: 300px; max-width: min(380px, calc(100vw - 16px)); }
+.menu.tp-where { min-width: 300px; max-width: min(380px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow-y: auto; }
 /* phones: the lead strip and rows wrap instead of squeezing */
 @media (max-width: 520px) {
   .tp-lead { flex-wrap: wrap; }
