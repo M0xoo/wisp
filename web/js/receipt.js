@@ -26,14 +26,20 @@ export const OVERAGE = {
   api: { label: 'API credit', tip: 'Billed to an API key, not your plan: Claude Code found an API key (ANTHROPIC_API_KEY or an apiKeyHelper) and used it' },
 };
 
-// → { tokens, cache, plan: [{ window, used }] longest first, overage } or null when there's nothing to say.
-export function receiptOf(t) {
+// What a turn read (its cache reads and writes counted in), of that from the cache, and wrote.
+export function turnTokens(t) {
   const st = t?.stats || {};
   const n = (x) => (Number.isFinite(x) && x > 0 ? x : 0);
   const anthropic = 'cacheReadTokens' in st || 'cacheWriteTokens' in st;
   const read = anthropic ? n(st.inputTokens) + n(st.cacheReadTokens) + n(st.cacheWriteTokens) : n(st.inputTokens);
   const cached = anthropic ? n(st.cacheReadTokens) : Math.min(n(st.cachedInputTokens), read);
-  const tokens = read + n(st.outputTokens);
+  return { read, cached, output: n(st.outputTokens) };
+}
+
+// → { tokens, cache, plan: [{ window, used }] longest first, overage } or null when there's nothing to say.
+export function receiptOf(t) {
+  const { read, cached, output } = turnTokens(t);
+  const tokens = read + output;
   const by = {};
   for (const p of t?.plan || []) if (p?.window && p.used > 0) by[p.window] = (by[p.window] || 0) + p.used;
   const plan = Object.entries(by)
@@ -69,4 +75,51 @@ export function receiptTip(r) {
     r.cache != null && r.tokens ? `${pct(r.cache)} of what it read came from the cache` : '',
     plan ? `This turn took ${plan}, as wisp traced it from what the CLI reports` : '',
   ].filter(Boolean).join('. ');
+}
+
+// Account comparison (server/budget.js compareAccounts, on the harness list as `compare`): per
+// model, each account's median turn over the last 7 days, once each has COMPARE_MIN turns on it.
+// A diagnostic, in numbers only: it never says which account to use, and wisp never switches.
+export const COMPARE_MIN = 5;
+export const COMPARE_DAYS = 7;
+
+export function median(xs) {
+  if (!xs.length) return 0;
+  const a = [...xs].sort((x, y) => x - y);
+  const m = a.length >> 1;
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+
+// How many times the most output per turn is the least's: 1.9, or null under 1.2× (about the same).
+export function compareRatio(c) {
+  const outs = (c?.accounts || []).map((x) => x.output).filter((x) => x > 0);
+  if (outs.length < 2) return null;
+  const r = Math.max(...outs) / Math.min(...outs);
+  return r >= 1.2 ? r : null;
+}
+
+// "Work uses 1.9× the output tokens per turn of Personal (n=14 / 11)", or "about the same".
+// labelOf(account id) → its name.
+export function compareWords(c, labelOf) {
+  const list = c?.accounts || [];
+  if (list.length < 2) return '';
+  const r = compareRatio(c);
+  const hi = list.reduce((a, b) => (b.output > a.output ? b : a));
+  const lo = list.reduce((a, b) => (b.output < a.output ? b : a));
+  const n = `(n=${list.map((x) => x.turns).join(' / ')})`;
+  if (!r) return `${list.map((x) => labelOf(x.account)).join(' and ')} use about the same output tokens per turn ${n}`;
+  return `${labelOf(hi.account)} uses ${r.toFixed(1)}× the output tokens per turn of ${labelOf(lo.account)} ${n}`;
+}
+
+// One account's numbers in words: "4.1k out · 52k in · 81% cache · 14 turns".
+export function compareParts(x) {
+  return [`${tokenWords(x.output)} out`, `${tokenWords(x.input)} in`, ...(x.cache != null ? [`${pct(x.cache)} cache`] : []), `${x.turns} turns`];
+}
+
+// The receipt's tooltip line for a turn on `model` with `account`: the other accounts' median turn
+// beside this one's, or '' when the comparison isn't there (fewer than COMPARE_MIN turns each).
+export function compareTip(compare, model, account, labelOf) {
+  const c = (compare || []).find((x) => x.model === (model || ''));
+  if (!c || !c.accounts.some((x) => x.account === (account || 'default'))) return '';
+  return `Median turn on this model over the last ${COMPARE_DAYS} days: ${c.accounts.map((x) => `${labelOf(x.account)} ${tokenWords(x.output)} out / ${tokenWords(x.input)} in`).join(', ')}. Settings → Usage compares the accounts`;
 }

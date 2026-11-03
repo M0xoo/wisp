@@ -28,6 +28,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { writeJsonAtomic } from './util.js';
+import { COMPARE_DAYS, COMPARE_MIN, median, turnTokens } from '../web/js/receipt.js';
 
 const H = 3600_000;
 // What wisp calls each window, and how long it is when the CLI doesn't say.
@@ -605,4 +606,40 @@ export function whereItWent(sessions, agent, account, win, resetsAt, { limit = 3
   if (!by.size) return null;
   const all = [...by.values()].sort((a, b) => b.used - a.used);
   return { tasks: all.slice(0, limit), more: Math.max(0, all.length - limit), traced: all.reduce((t, x) => t + x.used, 0) };
+}
+
+// Tokens per turn by account (Settings → Usage, the receipt's tooltip): for each model this harness
+// ran on two or more accounts over the last 7 days, each account's median turn, once every account
+// shown has `min` finished turns on that model. Only what the CLI reported per turn, so it shows
+// when the same work costs one login more than another. A diagnostic: nothing here picks an account.
+// sessions: every task. → [{ model, accounts: [{ account, turns, output, input, cache }] }], most output first.
+export function compareAccounts(sessions, agent, { now = Date.now(), days = COMPARE_DAYS, min = COMPARE_MIN } = {}) {
+  const since = now - days * 864e5;
+  const by = new Map(); // model → account → { out: [], read: [], cached, readSum }
+  for (const s of sessions) {
+    for (const t of s.turns || []) {
+      if ((t.agent || s.agent) !== agent || t.status !== 'done' || !(t.startedAt >= since) || t.startedAt > now) continue;
+      const k = turnTokens(t);
+      if (!k.output) continue;
+      const model = String(t.model || '');
+      const m = by.get(model) || new Map();
+      by.set(model, m);
+      const acc = t.account || 'default';
+      const e = m.get(acc) || { out: [], read: [], cached: 0, readSum: 0 };
+      m.set(acc, e);
+      e.out.push(k.output);
+      e.read.push(k.read);
+      e.cached += k.cached;
+      e.readSum += k.read;
+    }
+  }
+  const out = [];
+  for (const [model, m] of by) {
+    const accounts = [...m]
+      .filter(([, e]) => e.out.length >= min)
+      .map(([account, e]) => ({ account, turns: e.out.length, output: Math.round(median(e.out)), input: Math.round(median(e.read)), cache: e.readSum && e.cached ? e.cached / e.readSum : null }))
+      .sort((a, b) => b.output - a.output);
+    if (accounts.length >= 2) out.push({ model, accounts });
+  }
+  return out.sort((a, b) => a.model.localeCompare(b.model));
 }

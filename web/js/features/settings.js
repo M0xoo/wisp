@@ -42,7 +42,7 @@ const REVIEW_CHOICES = () => [
 import { crewRecord } from './crew-record.js';
 import { crewList } from './crew.js';
 import { connectorsPane } from './connectors.js';
-import { budgetHtml, dismissNotice, drainReport, STOP_AT, STOP_BY, STOP_KEYS } from './budget.js';
+import { budgetHtml, compareReport, dismissNotice, drainReport, STOP_AT, STOP_BY, STOP_KEYS } from './budget.js';
 import { reveal } from './feed.js';
 import { spellsPane } from './spell-ui.js';
 import { setTheme, themePref } from './theme.js';
@@ -535,6 +535,14 @@ export function openSettings(opts) {
     if (wn) {
       const box = wn.closest('.bg-acct');
       dismissNotice(box.dataset.agent, box.dataset.acc, wn.dataset.wnote);
+      return;
+    }
+    const cp = e.target.closest('[data-cmp]');
+    if (cp) {
+      const a = S.agents.find((x) => x.id === cp.closest('.bg-cmp')?.dataset.agent);
+      if (!a?.compare?.length) return;
+      await copy(compareReport(a), cp);
+      toast('Report copied');
       return;
     }
     const dr = e.target.closest('[data-drain]');

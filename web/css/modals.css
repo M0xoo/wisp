@@ -287,6 +287,21 @@ body.wisp-mobile .lb-open { display: none; }
 .bg-da { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
 .bg-da .i { width: 13px; height: 13px; }
 /* Where it went: the tasks that used most of the account's longest window, in the bars' columns */
+/* Tokens per turn by account: its own box after the harness's accounts, one model per row. */
+.bg-cmp { display: flex; flex-direction: column; gap: 2px; padding: 11px 14px 12px; }
+.bg-cmp:not(:first-child) { border-top: 1px solid var(--line); }
+.bg-cmp .bg-name { margin-bottom: 0; }
+.bg-ch { font-weight: 400; color: var(--muted); }
+.bg-cmp .bg-wh { margin-bottom: 0; }
+.bg-cr { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.bg-cm { font-size: 12.5px; font-weight: 500; color: var(--ink); }
+.bg-cw { font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
+.bg-ca { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; row-gap: 2px; font-size: 12px; color: var(--muted); }
+.bg-ca .bg-acc { flex: none; }
+.bg-cn { font-variant-numeric: tabular-nums; }
+.bg-cn .tb-dot { margin: 0 5px; color: var(--faint); }
+.bg-cmp .bg-da { margin-top: 8px; }
+
 .bg-where { grid-column: 1 / -1; display: grid; grid-template-columns: 76px minmax(0, 1fr) 40px; column-gap: 10px; row-gap: 1px; margin-top: 8px; padding-top: 9px; border-top: 1px solid var(--line); }
 .bg-wh { grid-column: 1 / -1; margin-bottom: 3px; font-size: 11.5px; color: var(--faint); }
 .bg-task { grid-column: 2 / -1; display: grid; grid-template-columns: minmax(0, 1fr) 40px; column-gap: 10px; align-items: center; min-height: 26px; margin: 0 -6px; padding: 0 6px; border-radius: 6px; font-size: 12.5px; color: var(--ink-2); text-align: left; }

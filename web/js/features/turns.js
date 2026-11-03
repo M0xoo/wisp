@@ -22,7 +22,7 @@ import { heldCard } from './hold.js';
 import { harnessNote } from './harness-watch.js';
 import { scheduleFollowUp } from './later.js';
 import { handoffTargets } from '../vendors.js';
-import { OVERAGE, receiptOf, receiptParts, receiptTip } from '../receipt.js';
+import { compareTip, OVERAGE, receiptOf, receiptParts, receiptTip } from '../receipt.js';
 import { scrollByPx, topInset, watching } from './scroll.js';
 import { prsOf, renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
@@ -575,7 +575,12 @@ function receiptHtml(t) {
   const r = receiptOf(t);
   const parts = receiptParts(r);
   const o = r?.overage && OVERAGE[r.overage];
-  return (parts.length ? `<span class="tb tb-receipt" title="${esc(receiptTip(r))}">${parts.map((p) => `<span>${esc(p)}</span>`).join('<span class="tb-dot" aria-hidden="true">·</span>')}</span>` : '') +
+  // With several accounts on this harness, the tooltip also has each account's median turn on this
+  // model this week (server/budget.js compareAccounts): numbers only, never which one to use.
+  const a = S.agents.find((x) => x.id === t.agent);
+  const vs = a?.compare ? compareTip(a.compare, t.model, t.account, (id) => a.accounts?.find((x) => x.id === id)?.label || (id === 'default' ? 'Default account' : id)) : '';
+  const tip = [receiptTip(r), vs].filter(Boolean).join('. ');
+  return (parts.length ? `<span class="tb tb-receipt" title="${esc(tip)}">${parts.map((p) => `<span>${esc(p)}</span>`).join('<span class="tb-dot" aria-hidden="true">·</span>')}</span>` : '') +
     (o ? `<span class="tb tb-over" title="${esc(`${o.tip}. Settings → Usage → Plan budget counts these runs`)}">${icon('warn')}${esc(o.label)}</span>` : '');
 }
 

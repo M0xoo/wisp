@@ -768,3 +768,66 @@ test('past your plan, end to end: a run on extra usage or an API key is flagged 
     delete process.env.FAKE_API_KEY_SOURCE;
   }
 });
+
+// Tokens per turn by account (Moris check-in 11 #1): the same harness and model on two logins, each
+// account's median turn, once each has 5 finished turns on it. Numbers only, never a pick.
+const { compareAccounts } = await import('../server/budget.js');
+const { compareRatio, compareWords, compareTip, compareParts, median } = await import('../web/js/receipt.js');
+
+const NOW = Date.UTC(2026, 10, 3, 12);
+const turnOf = (account, output, input, extra = {}) => ({ agent: 'claude', model: 'opus', status: 'done', startedAt: NOW - 36e5, ...(account !== 'default' && { account }), stats: { inputTokens: input, cacheReadTokens: input * 4, cacheWriteTokens: 0, outputTokens: output }, ...extra });
+const many = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+
+test('compareAccounts: per model, each account’s median turn, only with ≥5 turns on two accounts', () => {
+  const sessions = [
+    { agent: 'claude', turns: [...many(6, (i) => turnOf('work', 4000 + i * 100, 1000)), ...many(5, () => turnOf('default', 2000, 1000))] },
+    // Too few on the second account for sonnet; one account only for haiku; another harness; old, running, errored and empty turns.
+    { agent: 'claude', turns: [...many(5, () => turnOf('work', 10, 10, { model: 'sonnet' })), ...many(4, () => turnOf('default', 10, 10, { model: 'sonnet' })), ...many(9, () => turnOf('work', 10, 10, { model: 'haiku' }))] },
+    { agent: 'codex', turns: many(9, () => turnOf('default', 5, 5, { agent: 'codex' })) },
+    { agent: 'claude', turns: [turnOf('default', 99999, 1, { startedAt: NOW - 8 * 864e5 }), turnOf('default', 99999, 1, { status: 'running' }), turnOf('default', 99999, 1, { status: 'error' }), turnOf('default', 0, 1)] },
+  ];
+  const c = compareAccounts(sessions, 'claude', { now: NOW });
+  assert.equal(c.length, 1);
+  assert.equal(c[0].model, 'opus');
+  assert.deepEqual(c[0].accounts.map((x) => [x.account, x.turns, x.output, x.input]), [['work', 6, 4250, 5000], ['default', 5, 2000, 5000]], 'most output first; input counts cache reads');
+  assert.equal(c[0].accounts[0].cache, 0.8);
+  assert.deepEqual(compareAccounts(sessions, 'codex', { now: NOW }), [], 'one account: nothing to compare');
+  assert.deepEqual(compareAccounts(sessions, 'claude', { now: NOW, min: 4 }).map((x) => x.model), ['opus', 'sonnet']);
+  // A Codex turn: cached input is already inside input_tokens.
+  const cx = compareAccounts([{ agent: 'codex', turns: [...many(5, () => ({ agent: 'codex', model: '', status: 'done', startedAt: NOW, stats: { inputTokens: 1000, cachedInputTokens: 600, outputTokens: 50 } })), ...many(5, () => ({ agent: 'codex', model: '', account: 'b', status: 'done', startedAt: NOW, stats: { inputTokens: 1000, cachedInputTokens: 200, outputTokens: 50 } }))] }], 'codex', { now: NOW });
+  assert.deepEqual(cx[0].accounts.map((x) => [x.input, x.cache]), [[1000, 0.6], [1000, 0.2]]);
+  assert.equal(cx[0].model, '', 'the harness default is its own row');
+});
+
+test('compare words: a ratio only past 1.2×, n per account, never a suggestion', () => {
+  assert.equal(median([3, 1, 2]), 2);
+  assert.equal(median([4, 1, 2, 3]), 2.5);
+  assert.equal(median([]), 0);
+  const label = (id) => ({ work: 'Work', default: 'Personal' })[id];
+  const c = { model: 'opus', accounts: [{ account: 'work', turns: 14, output: 3800, input: 52000, cache: 0.81 }, { account: 'default', turns: 11, output: 2000, input: 49000, cache: 0.79 }] };
+  assert.equal(compareWords(c, label), 'Work uses 1.9× the output tokens per turn of Personal (n=14 / 11)');
+  assert.equal(compareRatio({ accounts: [{ output: 1100 }, { output: 1000 }] }), null);
+  assert.equal(compareWords({ accounts: [{ account: 'work', turns: 5, output: 1100 }, { account: 'default', turns: 6, output: 1000 }] }, label), 'Work and Personal use about the same output tokens per turn (n=5 / 6)');
+  assert.doesNotMatch(compareWords(c, label), /switch|move|use Personal|cheaper|instead/i);
+  assert.deepEqual(compareParts(c.accounts[0]), ['4k out', '52k in', '81% cache', '14 turns']);
+  assert.match(compareTip([c], 'opus', 'work', label), /^Median turn on this model over the last 7 days: Work 4k out \/ 52k in, Personal 2k out \/ 49k in/);
+  assert.equal(compareTip([c], 'sonnet', 'work', label), '', 'another model: nothing');
+  assert.equal(compareTip([c], 'opus', 'other', label), '', 'an account not in the comparison: nothing');
+  assert.equal(compareTip(undefined, 'opus', 'work', label), '');
+});
+
+test('compare on /agents: only for a harness with several accounts', async () => {
+  const all = srv.store.all;
+  const multi = srv.accounts.multi;
+  try {
+    srv.store.all = () => [{ id: 'x', agent: 'claude', turns: [...many(5, () => turnOf('work', 4000, 1000, { startedAt: Date.now() - 36e5 })), ...many(5, () => turnOf('default', 2000, 1000, { startedAt: Date.now() - 36e5 }))] }];
+    srv.accounts.multi = () => false;
+    assert.equal((await api('/agents')).find((y) => y.id === 'claude').compare, undefined, 'one account: no field');
+    srv.accounts.multi = (id) => id === 'claude';
+    const claude = (await api('/agents')).find((y) => y.id === 'claude');
+    assert.deepEqual(claude.compare.map((c) => [c.model, c.accounts.map((x) => x.account)]), [['opus', ['work', 'default']]]);
+  } finally {
+    srv.store.all = all;
+    srv.accounts.multi = multi;
+  }
+});

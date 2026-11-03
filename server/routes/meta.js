@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { adapters } from '../adapters/index.js';
-import { whereItWent } from '../budget.js';
+import { compareAccounts, whereItWent } from '../budget.js';
 import { tools } from '../git.js';
 import { openapi } from '../openapi.js';
 import { pageEvent } from '../telemetry.js';
@@ -63,7 +63,9 @@ export function register(r, app) {
         return where ? { ...out, where: { window: w.id, label: w.label, used: w.used, ...where } } : out;
       });
       // Harness watch (server/harness-watch.js): when its program was pinned, and how it changed since.
-      return { ...a, ...app.harnessWatch?.view(a.id), ...(app.accounts?.supports(a.id) && { accounts: app.accounts.view(a.id) }), ...(budget.length && { budget }) };
+      // Tokens per turn by account (Settings → Usage): only a harness with several accounts.
+      const compare = app.accounts?.multi?.(a.id) ? compareAccounts(app.store.all(), a.id) : [];
+      return { ...a, ...app.harnessWatch?.view(a.id), ...(app.accounts?.supports(a.id) && { accounts: app.accounts.view(a.id) }), ...(budget.length && { budget }), ...(compare.length && { compare }) };
     });
   // ?fresh=1 detects every harness again; ?fresh=<id> just that one (after signing in to it).
   r.route('GET', '/agents', async (c) => c.send(200, withAccounts(await (c.query.has('fresh') ? app.auto.detect({ fresh: Object.hasOwn(adapters, c.query.get('fresh')) ? c.query.get('fresh') : true }) : app.auto.listed()))));

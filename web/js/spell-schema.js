@@ -418,6 +418,8 @@ export const PARTS = {
   'budget.where': '.sx-budget .bg-where',
   // …Past your plan: an account's runs billed beyond its plan in the last 7 days.
   'budget.overage': '.sx-budget .bg-over',
+  // …tokens per turn by account: each account's median turn per model this week (several accounts only).
+  'budget.compare': '.sx-budget .bg-cmp',
   // …a harness's own Automations stop at row, the Drain watch row, and its card on an account.
   'settings.autoStopBy': '.sx-budget .us-by-row',
   'settings.drainWatch': '.sx-budget .sx-row:has(#drainWatch)',

@@ -18,6 +18,7 @@ import { tryApi } from '../ui/toast.js';
 import { noticeWords } from '../window-notice.js';
 import { harnessLogo } from './runners.js';
 import { holdLine } from '../limit-hold.js';
+import { COMPARE_DAYS, COMPARE_MIN, compareParts, compareWords } from '../receipt.js';
 
 const REPORTS = new Set(['claude', 'codex']); // harnesses whose CLI says how much is gone
 export const STOP_AT = ['off', '50', '75', '90']; // Automations stop at (server/budget.js STOP_AT)
@@ -139,6 +140,44 @@ function overHtml(b) {
   </div>`;
 }
 
+// Tokens per turn by account (server/budget.js compareAccounts): one row per model this harness ran
+// on two or more accounts this week, each account's median turn, and Copy report for a bug report to
+// the vendor. Numbers only: it never suggests an account, and wisp never switches.
+export const accountLabel = (a, id) => a.accounts?.find((x) => x.id === id)?.label || (id === 'default' ? 'Default account' : id);
+export const modelLabel = (a, id) => (id && a.models?.find((m) => m.id === id)?.label) || id || 'Default model';
+function compareHtml(a) {
+  if (!a.compare?.length) return '';
+  const label = (id) => accountLabel(a, id);
+  const rows = a.compare
+    .map(
+      (c) => `<div class="bg-cr" data-model="${esc(c.model)}">
+        <span class="bg-cm">${esc(modelLabel(a, c.model))}</span>
+        <span class="bg-cw">${esc(compareWords(c, label))}</span>
+        ${c.accounts.map((x) => `<span class="bg-ca"><span class="bg-acc">${esc(label(x.account))}</span><span class="bg-cn">${compareParts(x).map(esc).join('<span class="tb-dot" aria-hidden="true">·</span>')}</span></span>`).join('')}
+      </div>`,
+    )
+    .join('');
+  return `<div class="bg-cmp" data-agent="${esc(a.id)}">
+    <b class="bg-name"><span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}<span class="bg-ch">tokens per turn by account</span></b>
+    <small class="bg-wh" title="${esc(`Median finished turn per account over the last ${COMPARE_DAYS} days, shown once each account has ${COMPARE_MIN} turns on that model. Input counts cache reads and writes. From what the CLI reports on each turn.`)}">Median turn, last ${COMPARE_DAYS} days</small>
+    ${rows}
+    <span class="bg-da"><button type="button" class="ghost sm" data-cmp="copy">${icon('copy')}Copy report</button></span>
+  </div>`;
+}
+
+// What Copy report puts on the clipboard: both accounts' numbers side by side, for the vendor.
+export function compareReport(a) {
+  const label = (id) => accountLabel(a, id);
+  const lines = [`Tokens per turn by account (from wisp, ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC)`, `Harness: ${a.name}${a.version ? ` ${a.version}` : ''}`];
+  for (const c of a.compare || []) {
+    lines.push('', `Model: ${modelLabel(a, c.model)}${c.model ? ` (${c.model})` : ''}`);
+    for (const x of c.accounts) lines.push(`- ${label(x.account)}: ${x.turns} turns, median ${x.output.toLocaleString('en-US')} output / ${x.input.toLocaleString('en-US')} input tokens per turn${x.cache != null ? `, ${Math.round(x.cache * 100)}% of input from the cache` : ''}`);
+    lines.push(compareWords(c, label) + '.');
+  }
+  lines.push('', `Median of each finished turn over the last ${COMPARE_DAYS} days, as the CLI reported it. Input counts cache reads and writes. Same machine, same wisp; only the signed-in account differs.`);
+  return lines.join('\n');
+}
+
 // agents: S.agents. '' when no harness here reports its windows (the pane hides the group).
 export function budgetHtml(agents) {
   const out = [];
@@ -168,8 +207,9 @@ export function budgetHtml(agents) {
         ${whereHtml(b.where)}
       </div>`);
     }
+    out.push(compareHtml(a));
   }
-  if (out.length) return out.join('');
+  if (out.some(Boolean)) return out.join('');
   // Nothing reported yet: say where the numbers will come from, once a run tells us.
   const can = agents.filter((a) => REPORTS.has(a.id) && a.available);
   return can.length ? `<p class="bg-empty">Shows each account’s usage windows after its next ${can.map((a) => esc(a.name)).join(' or ')} run.</p>` : '';
