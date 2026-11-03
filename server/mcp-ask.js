@@ -20,7 +20,7 @@
 // `wisp_sessions` and `wisp_session` are read-only too: list the user's other tasks and read one's
 // reports, e.g. a task the user mentioned in the prompt.
 // `wisp_crew`, `wisp_crew_add`, `wisp_crew_edit` and `wisp_crew_remove` read and change the user's crew
-// (server/crew.js) when the user asks; wisp refuses changes from subagents and crew members' jobs.
+// (server/crew.js), from any task, subagent or crew member's job; a member's job can't remove itself.
 // `wisp_crew_kit` proposes skills and instructions files for a member: the task shows them for the
 // user to pick from, so a member's job may call it too.
 // `wisp_connectors`, `wisp_connector_add` and `wisp_connector_signin` read and add the user's

@@ -11,6 +11,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Home says when plan allowance would go unused.** When a Claude Code or Codex account's weekly (or longer) window resets within a day with a fifth or more of it left, split view's home shows a row under Needs you: *38% of Codex’s weekly window left · resets Thu 21:00*, with *Use Codex*, which picks that harness and account in the prompt box for you to send. × hides it until that window resets. It's advice only: wisp never switches accounts or spends a reset by itself. Turn it off with *Spare allowance* in Settings → Usage (on by default). Spells: the `split.spare` part with its `hours` prop (24), `split.spare.start` (*Use …*), `settings.spareCard` and the `spareCard` setting.
 - **wisp says when a plan's usage window changes.** When a Claude Code or Codex account's window appears, goes, changes its length or moves its reset off its schedule (*Codex’s weekly window now resets Sun 09:00 (was Thu 21:00)*), Settings → Usage shows a line in that account's block and split view's home a row under Needs you, each with × to hide it until that window changes again. The first sighting of an account announces nothing, the 5-hour window's moving reset never counts, and what wisp last saw is kept in `budget.json`, so a restart doesn't announce it again. Advice only: wisp never switches accounts. Turn it off with *Window changes* in Settings → Usage (on by default). Spells: the `split.windowNotice`, `settings.windowNotice` and `settings.windowNotice.line` parts and the `windowNotice` setting. API: `budget[].notices` on `GET /agents`, `POST /agents/:id/windows/dismiss`.
 
+### Changed
+
+- **Crew members and subagents can change the crew too.** `wisp_crew_add`, `wisp_crew_edit` and `wisp_crew_remove` work from a crew member's job and from a subagent, not only from a task you started, so a lead can hire help for a job. A member's job can't remove that member.
+
 ## [0.54.0] - 2026-11-02
 
 ### Added

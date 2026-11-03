@@ -560,7 +560,7 @@ test('a task joins the crew: its folder, harness and first prompt become the mem
   assert.ok(st.nextWakeAt && st.nextWakeAt <= cy.nextAt);
 });
 
-test('an agent adds, changes and removes crew members when the user asks; a member’s job can’t', async () => {
+test('any agent adds, changes and removes crew members, a member’s job too, but not itself', async () => {
   const cwd = makeRepo();
   const said = async (prompt) => {
     const s = await api('/sessions', { prompt, cwd, agent: 'claude', mode: 'edits', worktree: false });
@@ -576,10 +576,16 @@ test('an agent adds, changes and removes crew members when the user asks; a memb
   quill = await api(`/crew/${quill.id}`);
   assert.deepEqual([quill.role, quill.paused, quill.brief], ['Docs lead', true, 'Keep the README current.'], 'only the fields given change');
 
-  // A member's own job can't change the crew.
+  // A member's job changes the crew too: Bo removes Quill.
   const bo = await api('/crew', { name: 'Bo', cwd, agent: 'claude', mode: 'edits' });
-  const { session } = await api(`/crew/${bo.id}/jobs`, { prompt: 'CREWFIRE Quill' });
-  assert.match((await ended(session.id)).turns.at(-1).presentation.blocks[0].summary, /Only a task the user started can change their crew/);
+  const job = async (m, prompt) => (await ended((await api(`/crew/${m.id}/jobs`, { prompt })).session.id)).turns.at(-1).presentation.blocks[0].summary;
+  assert.match(await job(bo, 'CREWFIRE Quill'), /Removed Quill from the user's crew/);
+  assert.ok(!(await api('/crew')).some((m) => m.name === 'Quill'));
+
+  // ...but a member's job can't remove that member itself.
+  assert.match(await said('CREWHIRE: add the docs writer back'), /Added Quill to the user's crew/);
+  quill = (await api('/crew')).find((m) => m.name === 'Quill');
+  assert.match(await job(quill, 'CREWFIRE yourself'), /You are Quill: a member's job can't remove itself/);
   assert.ok((await api('/crew')).some((m) => m.name === 'Quill'));
 
   assert.match(await said('CREWFIRE: remove Quill from my crew'), /Removed Quill from the user's crew/);

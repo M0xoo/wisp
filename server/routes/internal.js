@@ -375,8 +375,8 @@ export function register(r, app) {
   );
 
   // wisp_crew, wisp_crew_add, wisp_crew_edit, wisp_crew_remove: the user's crew, read and changed by
-  // an agent the user asked to. Only the user's own tasks change it: not a subagent, nor a member's
-  // job (no member hiring or firing members on its own). A refusal is the tool's answer, not an error.
+  // any agent wisp runs: a task the user started, a subagent or a member's job (a lead hires help for
+  // a job). One guard: a member's job can't remove that member. A refusal is the tool's answer, not an error.
   r.route(
     'GET',
     '/internal/crew/:id',
@@ -398,10 +398,9 @@ export function register(r, app) {
     guarded(async (c) => {
       const s = lead(c);
       if (!s) return c.send(404, { error: 'no such session' });
-      if (s.parentId || s.crew) return c.send(200, { error: 'Only a task the user started can change their crew; a subagent or a crew member’s job can’t. Tell the user what to change instead.' });
       const body = await c.body();
       try {
-        c.send(200, await fn(s, body || {}));
+        c.send(200, await fn(s, body || {}, s.crew ? 'crew' : s.parentId ? 'subagent' : 'task'));
       } catch (err) {
         c.send(200, { error: err.message });
       }
@@ -415,7 +414,7 @@ export function register(r, app) {
   r.route(
     'POST',
     '/internal/crew/:id',
-    crewChange(async (s, body) => {
+    crewChange(async (s, body, by) => {
       // No folder given: the asking task's project (its worktree is the task's, not the member's).
       const cwd = body.cwd !== undefined ? String(body.cwd || '') : store.projectFor?.(s.cwd)?.path || (store.isScratch?.(s.cwd) ? '' : s.cwd);
       // from: members someone shared (server/crew-share.js), paused until the user resumes them.
@@ -427,11 +426,11 @@ export function register(r, app) {
         const agents = (await app.auto?.agents?.().catch(() => null)) || [];
         const plan = planImport(parsed.members, { crew: app.crew, agents, choices: Object.fromEntries(parsed.members.map((b) => [b.key, { cwd }])) });
         const made = applyImport(plan, { crew: app.crew, triggers: app.triggers });
-        telemetry.track('crew_imported', { members: made.length, source: 'agent' });
+        telemetry.track('crew_imported', { members: made.length, source: 'agent', by });
         return { text: `Added ${made.map((m) => m.name).join(', ')} to the user's crew, paused: they start once the user presses Resume on them.\n\n${made.map((m) => memberLine(app.crew.view(m))).join('\n')}${plan.some((p) => p.notes.length) ? `\n\nNotes:\n${plan.flatMap((p) => p.notes).map((n) => `- ${n}`).join('\n')}` : ''}` };
       }
       const m = app.crew.create({ ...pick(body), cwd });
-      telemetry.track('crew_tool', { agent: s.agent, op: 'add' });
+      telemetry.track('crew_tool', { agent: s.agent, op: 'add', by });
       const out = body.checkin === true ? await app.crew.checkin(m).catch(() => ({})) : {};
       return { text: `Added ${m.name} to the user's crew.\n\n${memberLine(app.crew.view(m))}${out.session ? `\n\nTheir first check-in is running (task \`${out.session.id}\`).` : ''}\n\nThe user can talk to them as @${m.name} in any prompt.` };
     }),
@@ -440,14 +439,14 @@ export function register(r, app) {
   r.route(
     'PATCH',
     '/internal/crew/:id',
-    crewChange(async (s, body) => {
+    crewChange(async (s, body, by) => {
       const m = named(body.member);
       // remember: lines added to the end of their notebook (after a rewrite given with them).
       const lines = (Array.isArray(body.remember) ? body.remember : []).filter((x) => typeof x === 'string' && x.trim()).slice(0, 12);
       const fields = pick(body);
       if (lines.length) fields.notebook = [fields.notebook ?? m.notebook, ...lines.map((x) => `- ${x.replace(/\s+/g, ' ').trim().slice(0, 300)}`)].filter(Boolean).join('\n');
       app.crew.update(m, fields);
-      telemetry.track('crew_tool', { agent: s.agent, op: 'edit' });
+      telemetry.track('crew_tool', { agent: s.agent, op: 'edit', by });
       const nb = fields.notebook !== undefined ? `\n\nTheir notebook now has ${m.notebook.length} characters.` : '';
       return { text: `Updated ${m.name}.\n\n${memberLine(app.crew.view(m))}${nb}` };
     }),
@@ -482,11 +481,12 @@ export function register(r, app) {
   r.route(
     'DELETE',
     '/internal/crew/:id',
-    crewChange(async (s, body) => {
+    crewChange(async (s, body, by) => {
       const m = named(body.member);
+      if (s.crew?.id === m.id) throw new Error(`You are ${m.name}: a member's job can't remove itself from the crew. Tell the user, who can remove you in wisp.`);
       const running = app.crew.busy(m);
       app.crew.remove(m);
-      telemetry.track('crew_tool', { agent: s.agent, op: 'remove' });
+      telemetry.track('crew_tool', { agent: s.agent, op: 'remove', by });
       return { text: `Removed ${m.name} from the user's crew. Their brief, notebook and schedule are gone; their jobs stay as ordinary tasks${running ? ` (${running} still running)` : ''}, and triggers that sent them work are off.` };
     }),
     opts,
