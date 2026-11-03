@@ -13,6 +13,8 @@
 //   FAKE_API_KEY_SOURCE  claude: its init's apiKeySource (default none: the plan)
 //   FAKE_TOOLS           claude: its init's tools, comma-separated (default: none sent)
 //   FAKE_CACHE_READ  claude: cache_read_input_tokens on its result (and 20 cache writes)
+//   FAKE_SUBAGENTS   claude: that many web-fetch Agent calls on Opus (two messages each, one
+//                    message id repeated), and modelUsage on its result
 //   FAKE_RATE_LIMIT  opencode: log a rate-limit error to stderr, then go quiet for good as the
 //                real CLI does while it retries (`recover`: carry on with the turn after it)
 //   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
@@ -545,6 +547,17 @@ if (name === 'claude') {
         fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace('a - b', 'a + b'));
       }
     }
+    for (let i = 0; i < Number(process.env.FAKE_SUBAGENTS || 0); i++) {
+      // As Claude Code streams a subagent: its messages carry the Agent call's id as parent_tool_use_id,
+      // and one API call may come as two messages with the same id and usage.
+      const call = `ag${i}`;
+      out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: call, name: 'Agent', input: { subagent_type: 'web-fetch', description: 'Read the docs page', prompt: 'read it' } }] } });
+      const usage = { input_tokens: 100, cache_read_input_tokens: 900, output_tokens: 4000 };
+      out({ type: 'assistant', parent_tool_use_id: call, session_id: session, message: { id: `m${i}a`, model: 'claude-opus-5-5', usage, content: [{ type: 'text', text: 'Reading' }] } });
+      out({ type: 'assistant', parent_tool_use_id: call, session_id: session, message: { id: `m${i}a`, model: 'claude-opus-5-5', usage, content: [{ type: 'tool_use', id: `${call}w`, name: 'Bash', input: { command: 'curl -s https://example.com' } }] } });
+      out({ type: 'assistant', parent_tool_use_id: call, session_id: session, message: { id: `m${i}b`, model: 'claude-opus-5-5', usage: { input_tokens: 50, output_tokens: 5000 }, content: [{ type: 'text', text: 'Done' }] } });
+      out({ type: 'user', session_id: session, message: { content: [{ type: 'tool_result', tool_use_id: call, content: [{ type: 'text', text: 'The page says hi' }] }] } });
+    }
     out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't3', name: 'Bash', input: { command: 'npm test', description: 'Run the tests' } }] } });
     out({ type: 'user', session_id: session, message: { content: [{ type: 'tool_result', tool_use_id: 't3', is_error: true, content: '1 failing' }] } });
     const answer = await ask();
@@ -567,7 +580,7 @@ if (name === 'claude') {
         out({ type: 'system', subtype: 'init', session_id: session });
         out({ type: 'result', subtype: 'success', is_error: false, result: final('background done'), session_id: session });
       }
-    } else out({ type: 'result', subtype: 'success', is_error: false, result: final(answer), session_id: session, duration_ms: 5, num_turns: 3, total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: 5, ...(process.env.FAKE_CACHE_READ && { cache_read_input_tokens: Number(process.env.FAKE_CACHE_READ), cache_creation_input_tokens: 20 }) }, permission_denials: refused ? [{ tool_name: 'Bash', tool_use_id: 't9', tool_input: { command: 'npm publish', description: 'Publish' } }] : [] });
+    } else out({ type: 'result', subtype: 'success', is_error: false, result: final(answer), session_id: session, duration_ms: 5, num_turns: 3, total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: 5, ...(process.env.FAKE_CACHE_READ && { cache_read_input_tokens: Number(process.env.FAKE_CACHE_READ), cache_creation_input_tokens: 20 }) }, ...(process.env.FAKE_SUBAGENTS && { modelUsage: { 'claude-opus-5-5': { inputTokens: 4000, outputTokens: 41000, cacheReadInputTokens: 20000, cacheCreationInputTokens: 0, costUSD: 1.2 }, 'claude-haiku-4-5-20251001': { inputTokens: 900, outputTokens: 120, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 } } }), permission_denials: refused ? [{ tool_name: 'Bash', tool_use_id: 't9', tool_input: { command: 'npm publish', description: 'Publish' } }] : [] });
   }
 } else if (name === 'codex') {
   out({ type: 'thread.started', thread_id: session });

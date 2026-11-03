@@ -302,13 +302,15 @@ body.wisp-mobile .lb-open { display: none; }
 .bg-cn .tb-dot { margin: 0 5px; color: var(--faint); }
 .bg-cmp .bg-da { margin-top: 8px; }
 
-.bg-where { grid-column: 1 / -1; display: grid; grid-template-columns: 76px minmax(0, 1fr) 40px; column-gap: 10px; row-gap: 1px; margin-top: 8px; padding-top: 9px; border-top: 1px solid var(--line); }
+.bg-where, .bg-sub { grid-column: 1 / -1; display: grid; grid-template-columns: 76px minmax(0, 1fr) 40px; column-gap: 10px; row-gap: 1px; margin-top: 8px; padding-top: 9px; border-top: 1px solid var(--line); }
 .bg-wh { grid-column: 1 / -1; margin-bottom: 3px; font-size: 11.5px; color: var(--faint); }
 .bg-task { grid-column: 2 / -1; display: grid; grid-template-columns: minmax(0, 1fr) 40px; column-gap: 10px; align-items: center; min-height: 26px; margin: 0 -6px; padding: 0 6px; border-radius: 6px; font-size: 12.5px; color: var(--ink-2); text-align: left; }
 button.bg-task:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); }
 button.bg-task:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--accent); }
 .bg-task.muted { color: var(--muted); }
 .bg-task.muted .bg-p { font-weight: 400; }
+/* the page-reads note under the subagents: a sentence, so it may wrap */
+.bg-inst .bg-tt { white-space: normal; padding: 3px 0; }
 .bg-tt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* a titled group inside a pane (Machines → This computer) */
 .sx-head { display: flex; align-items: flex-end; gap: 12px; margin: 22px 2px 8px; }

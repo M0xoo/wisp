@@ -119,6 +119,73 @@ const PERMISSION_MODES = {
   auto: 'bypassPermissions',
 };
 
+// Where a turn's tokens went (the receipt, server/budget.js whereSubagents). modelUsage on the
+// result has the run's tokens per model, its subagents' included. Subagents: each Agent (or Task)
+// call's subagent_type, and the tokens of the messages that carry its id as parent_tool_use_id. One
+// API call can come as several messages (one per content block) with the same id and usage, so each
+// message id counts once, at its largest; the Agent result's own usage (tool_use_result) wins when
+// it's there. A web-fetch agent on a run whose init had no WebFetch (Claude Code's
+// tengu_clever_orbit experiment, CC#106743) is marked `instead: 'WebFetch'`.
+const n0 = (x) => (Number.isFinite(x) && x > 0 ? x : 0);
+export function modelsOf(modelUsage) {
+  if (!modelUsage || typeof modelUsage !== 'object') return undefined;
+  const list = Object.entries(modelUsage)
+    .map(([model, u]) => ({ model, input: n0(u?.inputTokens), output: n0(u?.outputTokens), cacheRead: n0(u?.cacheReadInputTokens), cacheWrite: n0(u?.cacheCreationInputTokens) }))
+    .filter((m) => m.input + m.output + m.cacheRead + m.cacheWrite > 0)
+    .sort((a, b) => b.output - a.output);
+  return list.length ? list : undefined;
+}
+
+export function subagentTally() {
+  const calls = new Map(); // Agent tool_use id -> { type, model, msgs: Map(message id -> usage), total }
+  let tools = null; // init's tools, when it sent them
+  const usageOf = (u) => ({ read: n0(u?.input_tokens) + n0(u?.cache_read_input_tokens) + n0(u?.cache_creation_input_tokens), output: n0(u?.output_tokens) });
+  return {
+    init(list) {
+      if (Array.isArray(list)) tools = list;
+    },
+    call(id, name, input) {
+      if ((name === 'Agent' || name === 'Task') && id) calls.set(id, { type: String(input?.subagent_type || 'general-purpose'), model: input?.model ? String(input.model) : '', msgs: new Map(), total: null });
+    },
+    // An assistant message from inside a subagent.
+    message(msg) {
+      const c = calls.get(msg.parent_tool_use_id);
+      if (!c) return;
+      const m = msg.message || {};
+      if (m.model) c.model = String(m.model);
+      if (!m.usage) return;
+      const key = m.id || `#${c.msgs.size}`;
+      const u = usageOf(m.usage);
+      const was = c.msgs.get(key);
+      c.msgs.set(key, was ? { read: Math.max(was.read, u.read), output: Math.max(was.output, u.output) } : u);
+    },
+    // The Agent call's result; Claude Code puts the subagent's total usage on tool_use_result.
+    result(id, toolUseResult) {
+      const c = calls.get(id);
+      if (c && toolUseResult?.usage && typeof toolUseResult.usage === 'object') c.total = usageOf(toolUseResult.usage);
+    },
+    // → [{ type, calls, model, read, output, instead? }], most output first, or undefined. Clears the tally.
+    take() {
+      const by = new Map();
+      for (const c of calls.values()) {
+        const sum = c.total || [...c.msgs.values()].reduce((a, u) => ({ read: a.read + u.read, output: a.output + u.output }), { read: 0, output: 0 });
+        const e = by.get(c.type) || { type: c.type, calls: 0, models: new Map(), read: 0, output: 0 };
+        e.calls++;
+        e.read += sum.read;
+        e.output += sum.output;
+        if (c.model) e.models.set(c.model, (e.models.get(c.model) || 0) + sum.output + 1);
+        by.set(c.type, e);
+      }
+      calls.clear();
+      if (!by.size) return undefined;
+      const noFetch = tools && !tools.includes('WebFetch');
+      return [...by.values()]
+        .map(({ models, ...e }) => ({ ...e, model: [...models].sort((a, b) => b[1] - a[1])[0]?.[0] || '', ...(noFetch && /^web[-_ ]?fetch/i.test(e.type) && { instead: 'WebFetch' }) }))
+        .sort((a, b) => b.output - a.output || b.calls - a.calls);
+    },
+  };
+}
+
 export default {
   id: 'claude',
   bin: () => BIN, // the program it runs (server/harness-watch.js)
@@ -228,6 +295,7 @@ export default {
     env.MCP_TOOL_TIMEOUT ??= String(ASK_TIMEOUT_MS);
 
     let sawResult = false;
+    const subagents = subagentTally();
     let refused = false; // an assistant message the API ended with stop_reason "refusal" (server/refusal.js)
     let early = null; // an empty result that came before our prompt was answered (see below)
     const pendingTools = new Map(); // tool_use_id -> name, to flag failed tool results
@@ -244,6 +312,7 @@ export default {
       if (msg.session_id) onEvent({ type: 'session', id: msg.session_id });
 
       if (msg.type === 'assistant') {
+        if (msg.parent_tool_use_id) subagents.message(msg);
         if (msg.message?.stop_reason === 'refusal') refused = true;
         for (const part of msg.message?.content || []) {
           if (part.type === 'text' && part.text.trim()) {
@@ -252,6 +321,7 @@ export default {
             onEvent({ type: 'thinking' });
           } else if (part.type === 'tool_use') {
             pendingTools.set(part.id, part.name);
+            subagents.call(part.id, part.name, part.input);
             onEvent({ type: 'tool', id: part.id, ...describeTool(part.name, part.input || {}, cwd) });
             const change = captureChange(part.name, part.input || {}, cwd);
             if (change) onEvent({ type: 'change', ...change });
@@ -260,6 +330,7 @@ export default {
       } else if (msg.type === 'user') {
         for (const part of msg.message?.content || []) {
           if (part.type !== 'tool_result') continue;
+          subagents.result(part.tool_use_id, msg.tool_use_result);
           if (part.is_error) {
             const name = pendingTools.get(part.tool_use_id);
             onEvent({ type: 'tool_error', name, text: flatten(part.content).slice(0, 400) });
@@ -275,6 +346,7 @@ export default {
         // The tools this run had (built-ins and MCP tools): two accounts of the same harness can differ
         // (one's settings deny WebFetch), which the account comparison says (server/budget.js).
         if (Array.isArray(msg.tools)) onEvent({ type: 'tools', list: msg.tools });
+        subagents.init(msg.tools);
       } else if (msg.type === 'system') {
         // background_tasks_changed carries the full list; task_started/task_notification are the
         // per-task edges, kept as a fallback in case a CLI version only sends those.
@@ -298,6 +370,8 @@ export default {
           return;
         }
         sawResult = true;
+        const subs = subagents.take();
+        if (subs) ev.stats.subagents = subs;
         // Refused tool calls (no approve tool here, or the user said no): the card offers a retry.
         for (const d of msg.permission_denials || []) {
           const input = d.tool_input || {};
@@ -343,6 +417,8 @@ function resultEvent(msg) {
       // Not in inputTokens (Anthropic counts them apart): the turn's receipt adds them up.
       ...(Number.isFinite(msg.usage?.cache_read_input_tokens) && { cacheReadTokens: msg.usage.cache_read_input_tokens }),
       ...(Number.isFinite(msg.usage?.cache_creation_input_tokens) && { cacheWriteTokens: msg.usage.cache_creation_input_tokens }),
+      // Tokens per model (subagents' and side calls' models included): where the turn's tokens went.
+      ...(modelsOf(msg.modelUsage) && { models: modelsOf(msg.modelUsage) }),
     },
   };
 }

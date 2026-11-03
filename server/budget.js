@@ -29,7 +29,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { writeJsonAtomic } from './util.js';
-import { COMPARE_DAYS, COMPARE_MIN, median, turnTokens } from '../web/js/receipt.js';
+import { COMPARE_DAYS, COMPARE_MIN, median, turnOutput, turnTokens } from '../web/js/receipt.js';
 
 const H = 3600_000;
 // What wisp calls each window, and how long it is when the CLI doesn't say.
@@ -607,6 +607,38 @@ export function whereItWent(sessions, agent, account, win, resetsAt, { limit = 3
   if (!by.size) return null;
   const all = [...by.values()].sort((a, b) => b.used - a.used);
   return { tasks: all.slice(0, limit), more: Math.max(0, all.length - limit), traced: all.reduce((t, x) => t + x.used, 0) };
+}
+
+// Where an account's window went to subagents this period (Settings → Usage, beside Where it went):
+// each subagent type's calls, output and its share of the window, a turn's share split by the part
+// of the turn's output that type wrote. → [{ type, calls, model, output, used, instead? }], top
+// `limit` by share, or null when no traced turn ran a subagent.
+export function whereSubagents(sessions, agent, account, win, resetsAt, { limit = 3 } = {}) {
+  const by = new Map();
+  for (const s of sessions) {
+    for (const t of s.turns || []) {
+      const subs = t.stats?.subagents;
+      if (!subs?.length) continue;
+      let used = 0;
+      for (const p of t.plan || []) if (p.agent === agent && p.account === account && p.window === win && samePeriod(p.resetsAt, resetsAt)) used += p.used;
+      if (!(used > 0)) continue;
+      const total = turnOutput(t);
+      for (const x of subs) {
+        const e = by.get(x.type) || { type: x.type, calls: 0, output: 0, used: 0, models: new Map() };
+        e.calls += x.calls || 0;
+        e.output += x.output || 0;
+        e.used += total ? (used * (x.output || 0)) / total : 0;
+        if (x.model) e.models.set(x.model, (e.models.get(x.model) || 0) + (x.output || 0) + 1);
+        if (x.instead) e.instead = x.instead;
+        by.set(x.type, e);
+      }
+    }
+  }
+  if (!by.size) return null;
+  return [...by.values()]
+    .map(({ models, ...e }) => ({ ...e, model: [...models].sort((a, b) => b[1] - a[1])[0]?.[0] || '' }))
+    .sort((a, b) => b.used - a.used || b.output - a.output)
+    .slice(0, limit);
 }
 
 // A run's tool list (Claude Code's system/init tools) as turn.details.tools: { hash, list }. wisp's

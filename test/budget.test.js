@@ -892,3 +892,92 @@ test('compare on /agents: only for a harness with several accounts', async () =>
     srv.accounts.multi = multi;
   }
 });
+
+// Where a turn's tokens went (check-in 14): tokens per model from the result's modelUsage, and per
+// subagent type from the messages carrying each Agent call's id as parent_tool_use_id.
+const { modelsOf, subagentTally } = await import('../server/adapters/claude.js');
+const { modelWords, subagentParts, subagentTip, insteadWords, turnOutput } = await import('../web/js/receipt.js');
+const { whereSubagents } = await import('../server/budget.js');
+
+test('subagent tally: per type, one message id counts once, the Agent result’s usage wins; modelUsage per model', () => {
+  const t = subagentTally();
+  t.init(['Read', 'Bash']);
+  t.call('a1', 'Agent', { subagent_type: 'web-fetch' });
+  t.call('a2', 'Agent', { subagent_type: 'web-fetch' });
+  t.call('a3', 'Task', { subagent_type: 'Explore', model: 'haiku' });
+  t.call('b1', 'Bash', { command: 'ls' }); // not an agent
+  const u = { input_tokens: 10, cache_read_input_tokens: 90, output_tokens: 300 };
+  t.message({ parent_tool_use_id: 'a1', message: { id: 'm1', model: 'claude-opus-5-5', usage: u } });
+  t.message({ parent_tool_use_id: 'a1', message: { id: 'm1', model: 'claude-opus-5-5', usage: u } });
+  t.message({ parent_tool_use_id: 'a1', message: { id: 'm2', usage: { input_tokens: 5, output_tokens: 200 } } });
+  t.message({ parent_tool_use_id: 'a2', message: { id: 'm3', model: 'claude-opus-5-5', usage: u } });
+  t.result('a2', { usage: { input_tokens: 1, output_tokens: 1000 } });
+  t.message({ parent_tool_use_id: 'nope', message: { id: 'm4', usage: u } });
+  const subs = t.take();
+  assert.deepEqual(subs, [
+    { type: 'web-fetch', calls: 2, read: 105 + 1, output: 500 + 1000, model: 'claude-opus-5-5', instead: 'WebFetch' },
+    { type: 'Explore', calls: 1, read: 0, output: 0, model: 'haiku' },
+  ]);
+  assert.equal(t.take(), undefined, 'take clears it');
+  const t2 = subagentTally();
+  t2.init(['Read', 'WebFetch']);
+  t2.call('a1', 'Agent', { subagent_type: 'web-fetch' });
+  assert.equal(t2.take()[0].instead, undefined, 'WebFetch was there: no note');
+  assert.deepEqual(modelsOf({ 'claude-opus-5-5': { inputTokens: 4, outputTokens: 41, cacheReadInputTokens: 2 }, x: { inputTokens: 0, outputTokens: 0 }, 'claude-haiku-4-5': { outputTokens: 50 } }), [
+    { model: 'claude-haiku-4-5', input: 0, output: 50, cacheRead: 0, cacheWrite: 0 },
+    { model: 'claude-opus-5-5', input: 4, output: 41, cacheRead: 2, cacheWrite: 0 },
+  ]);
+  assert.equal(modelsOf(undefined), undefined);
+});
+
+test('receipt: where the tokens went, by subagent and by model, and page reads run as an agent', () => {
+  assert.deepEqual(['claude-opus-5-5', 'claude-haiku-4-5-20251001', 'claude-3-5-sonnet-20241022', 'claude-sonnet-4-5[1m]', 'opus', 'gpt-5.5'].map(modelWords), ['Opus 5.5', 'Haiku 4.5', 'Sonnet 3.5', 'Sonnet 4.5 (1M)', 'Opus', 'gpt-5.5']);
+  const t = { stats: { inputTokens: 10, outputTokens: 5, models: [{ model: 'claude-opus-5-5', input: 4000, output: 41000, cacheRead: 20000, cacheWrite: 0 }, { model: 'claude-haiku-4-5', input: 900, output: 120, cacheRead: 0, cacheWrite: 0 }], subagents: [{ type: 'web-fetch', calls: 3, model: 'claude-opus-5-5', read: 3150, output: 27000, instead: 'WebFetch' }] } };
+  assert.equal(turnOutput(t), 41120);
+  assert.deepEqual(subagentParts(t), ['3 web-fetch agents', 'Opus 5.5', '27k of 41k output']);
+  assert.equal(insteadWords(t.stats.subagents[0]), 'Claude Code ran page reads as an agent on Opus 5.5 on this account');
+  const tip = subagentTip(t);
+  assert.match(tip, /Subagents: 3 web-fetch agents on Opus 5\.5: 27k of 41k output tokens/);
+  assert.match(tip, /By model: Opus 5\.5 41k out \/ 24k in, Haiku 4\.5 120 out \/ 900 in/);
+  assert.match(tip, /ran page reads as an agent/);
+  assert.deepEqual(subagentParts({ stats: { outputTokens: 5 } }), [], 'no subagent: no line');
+  assert.deepEqual(subagentParts({ stats: { outputTokens: 900, subagents: [{ type: 'Explore', calls: 1, model: '', read: 0, output: 0 }] } }), ['1 Explore agent']);
+});
+
+test('where it went: subagents, a turn’s share of the window split by the output each type wrote', () => {
+  const R = NOW + 2 * 864e5;
+  const plan = (used) => [{ agent: 'claude', account: 'default', window: 'seven_day', used, resetsAt: R }];
+  const sessions = [
+    { id: 'a', turns: [{ stats: { outputTokens: 10000, subagents: [{ type: 'web-fetch', calls: 2, model: 'claude-opus-5-5', read: 10, output: 5000, instead: 'WebFetch' }] }, plan: plan(0.1) }] },
+    { id: 'b', turns: [{ stats: { outputTokens: 4000, subagents: [{ type: 'web-fetch', calls: 1, model: 'claude-opus-5-5', read: 10, output: 1000 }, { type: 'Explore', calls: 1, model: 'claude-haiku-4-5', read: 5, output: 3000 }] }, plan: plan(0.04) }] },
+    { id: 'c', turns: [{ stats: { outputTokens: 4000, subagents: [{ type: 'Explore', calls: 9, output: 4000 }] }, plan: [{ ...plan(0.5)[0], account: 'work' }] }] },
+    { id: 'd', turns: [{ stats: { outputTokens: 4000 }, plan: plan(0.2) }] },
+  ];
+  const w = whereSubagents(sessions, 'claude', 'default', 'seven_day', R);
+  assert.equal(w.length, 2);
+  assert.deepEqual([w[0].type, w[0].calls, w[0].output, w[0].model, w[0].instead], ['web-fetch', 3, 6000, 'claude-opus-5-5', 'WebFetch']);
+  assert.ok(Math.abs(w[0].used - (0.05 + 0.01)) < 1e-9);
+  assert.ok(Math.abs(w[1].used - 0.03) < 1e-9);
+  assert.equal(whereSubagents(sessions, 'claude', 'other', 'seven_day', R), null);
+});
+
+test('a Claude run with web-fetch agents and no WebFetch lands models and subagents on its turn', async () => {
+  const cwd = makeRepo();
+  try {
+    process.env.FAKE_SUBAGENTS = '3';
+    process.env.FAKE_TOOLS = 'Read,Edit,Bash,Agent';
+    const a = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', worktree: false });
+    const t = (await ended(a.id, 'review')).turns[0];
+    assert.deepEqual(t.stats.subagents, [{ type: 'web-fetch', calls: 3, read: 3150, output: 27000, model: 'claude-opus-5-5', instead: 'WebFetch' }]);
+    assert.deepEqual(t.stats.models.map((m) => [m.model, m.output]), [['claude-opus-5-5', 41000], ['claude-haiku-4-5-20251001', 120]]);
+    assert.deepEqual(subagentParts(t), ['3 web-fetch agents', 'Opus 5.5', '27k of 41k output']);
+    delete process.env.FAKE_SUBAGENTS;
+    const b = await api('/sessions', { prompt: 'write the docs please', cwd, agent: 'claude', worktree: false });
+    const u = (await ended(b.id, 'review')).turns[0];
+    assert.equal(u.stats.subagents, undefined);
+    assert.equal(u.stats.models, undefined);
+  } finally {
+    delete process.env.FAKE_SUBAGENTS;
+    delete process.env.FAKE_TOOLS;
+  }
+});

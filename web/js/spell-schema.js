@@ -265,6 +265,8 @@ export const PARTS = {
   // plan when the run was billed beyond the plan (extra usage, Codex credits, an API key).
   'turn.receipt': '#feed .turn .tb-receipt',
   'turn.overage': '#feed .turn .tb-over',
+  // …and where the tokens went: the subagent type that wrote most (3 web-fetch agents · Opus 5.5 · 27k of 41k output).
+  'turn.agents': '#feed .turn .tb-agents',
   'turn.forkStart': '#feed .fork-line:not(.side-line)',
   // Split view only (body.split): the task list on one side, the open task on the other.
   sidebar: 'body.split .feed-wrap',
@@ -418,6 +420,8 @@ export const PARTS = {
   // …its Automations stop at row, and Where it went: the tasks that used most of an account's longest window.
   'settings.autoStop': '.sx-budget .sx-row:has(.us-stop)',
   'budget.where': '.sx-budget .bg-where',
+  // …Where it went: subagents: the share of that window each subagent type took.
+  'budget.subagents': '.sx-budget .bg-sub',
   // …Past your plan: an account's runs billed beyond its plan in the last 7 days.
   'budget.overage': '.sx-budget .bg-over',
   // …tokens per turn by account: each account's median turn per model this week (several accounts only).

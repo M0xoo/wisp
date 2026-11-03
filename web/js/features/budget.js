@@ -18,7 +18,7 @@ import { tryApi } from '../ui/toast.js';
 import { noticeWords } from '../window-notice.js';
 import { harnessLogo } from './runners.js';
 import { holdLine } from '../limit-hold.js';
-import { COMPARE_DAYS, COMPARE_MIN, compareParts, compareWords } from '../receipt.js';
+import { COMPARE_DAYS, COMPARE_MIN, compareParts, compareWords, insteadWords, modelWords, tokenWords } from '../receipt.js';
 
 const REPORTS = new Set(['claude', 'codex']); // harnesses whose CLI says how much is gone
 export const STOP_AT = ['off', '50', '75', '90']; // Automations stop at (server/budget.js STOP_AT)
@@ -94,6 +94,19 @@ function whereHtml(w) {
   if (w.more && rest > 0) rows.push(`<div class="bg-task muted"><span class="bg-tt">${w.more} other task${w.more === 1 ? '' : 's'}</span><b class="bg-p">${pct(rest)}</b></div>`);
   if (outside >= 0.005) rows.push(`<div class="bg-task muted" title="Runs of the CLI outside wisp, other apps on the same plan, and anything from before wisp kept track"><span class="bg-tt">Outside wisp or earlier</span><b class="bg-p">${pct(outside)}</b></div>`);
   return `<div class="bg-where"><small class="bg-wh">Where the ${esc(label)} window went</small>${rows.join('')}</div>`;
+}
+
+// Beside it, what of that window went to subagents (server/budget.js whereSubagents), by type: "3
+// web-fetch agents · Opus 5.5 · 27k out" and its share; and, when Claude Code ran page reads as an
+// agent because the account had no WebFetch (CC#106743), that in words.
+function subagentsHtml(w) {
+  if (!w?.subagents?.length) return '';
+  const rows = w.subagents.map((x) => {
+    const words = [`${x.calls} ${x.type} agent${x.calls === 1 ? '' : 's'}`, x.model ? modelWords(x.model) : '', x.output ? `${tokenWords(x.output)} out` : ''].filter(Boolean).join(' · ');
+    return `<div class="bg-task"><span class="bg-tt">${esc(words)}</span><b class="bg-p">${pct(x.used)}</b></div>`;
+  });
+  const notes = [...new Set(w.subagents.map(insteadWords).filter(Boolean))].map((t) => `<div class="bg-task muted bg-inst"><span class="bg-tt">${esc(t)}</span></div>`);
+  return `<div class="bg-sub"><small class="bg-wh">Where it went: subagents</small>${rows.join('')}${notes.join('')}</div>`;
 }
 
 // Drain watch's card on an account: how much faster, since when, and what that much work usually takes.
@@ -210,6 +223,7 @@ export function budgetHtml(agents) {
         ${noticesHtml(a, b, acc)}
         ${drainHtml(a, b)}
         ${whereHtml(b.where)}
+        ${subagentsHtml(b.where)}
       </div>`);
     }
     out.push(compareHtml(a));

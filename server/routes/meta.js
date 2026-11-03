@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { adapters } from '../adapters/index.js';
-import { compareAccounts, whereItWent } from '../budget.js';
+import { compareAccounts, whereItWent, whereSubagents } from '../budget.js';
 import { tools } from '../git.js';
 import { openapi } from '../openapi.js';
 import { pageEvent } from '../telemetry.js';
@@ -60,7 +60,9 @@ export function register(r, app) {
         // Window changes (on unless off): with the switch off, the API leaves them out too.
         const { drain, notices, ...rest } = b;
         const out = { ...rest, ...(drain && app.store.config.defaults.drainWatch === 'on' && { drain }), ...(notices && app.store.config.defaults.windowNotice !== 'off' && { notices }) };
-        return where ? { ...out, where: { window: w.id, label: w.label, used: w.used, ...where } } : out;
+        // …and how much of it went to subagents (by type), when a traced turn ran one.
+        const subagents = where && whereSubagents(app.store.all(), a.id, b.account, w.id, w.resetsAt);
+        return where ? { ...out, where: { window: w.id, label: w.label, used: w.used, ...where, ...(subagents && { subagents }) } } : out;
       });
       // Harness watch (server/harness-watch.js): when its program was pinned, and how it changed since.
       // Tokens per turn by account (Settings → Usage): only a harness with several accounts.

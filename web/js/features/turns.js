@@ -22,7 +22,7 @@ import { heldCard } from './hold.js';
 import { harnessNote } from './harness-watch.js';
 import { scheduleFollowUp } from './later.js';
 import { handoffTargets } from '../vendors.js';
-import { compareTip, OVERAGE, receiptOf, receiptParts, receiptTip } from '../receipt.js';
+import { compareTip, OVERAGE, receiptOf, receiptParts, receiptTip, subagentParts, subagentTip } from '../receipt.js';
 import { scrollByPx, topInset, watching } from './scroll.js';
 import { prsOf, renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
@@ -581,7 +581,17 @@ function receiptHtml(t) {
   const vs = a?.compare ? compareTip(a.compare, t.model, t.account, (id) => a.accounts?.find((x) => x.id === id)?.label || (id === 'default' ? 'Default account' : id)) : '';
   const tip = [receiptTip(r), vs].filter(Boolean).join('. ');
   return (parts.length ? `<span class="tb tb-receipt" title="${esc(tip)}">${parts.map((p) => `<span>${esc(p)}</span>`).join('<span class="tb-dot" aria-hidden="true">·</span>')}</span>` : '') +
+    agentsHtml(t) +
     (o ? `<span class="tb tb-over" title="${esc(`${o.tip}. Settings → Usage → Plan budget counts these runs`)}">${icon('warn')}${esc(o.label)}</span>` : '');
+}
+
+// Where the tokens went, beside the receipt: the subagent type that wrote most (3 web-fetch agents ·
+// Opus 5.5 · 27k of 41k output); its tooltip has every type, the tokens per model, and when Claude
+// Code ran page reads as an agent because the account had no WebFetch.
+function agentsHtml(t) {
+  const parts = subagentParts(t);
+  if (!parts.length) return '';
+  return `<span class="tb tb-agents" title="${esc(subagentTip(t))}">${parts.map((p) => `<span>${esc(p)}</span>`).join('<span class="tb-dot" aria-hidden="true">·</span>')}</span>`;
 }
 
 // A crew member's job that came from another task (delegated, tagged, asked to check on it): its
