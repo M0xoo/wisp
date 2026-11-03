@@ -97,6 +97,7 @@ export class Pipeline {
     const why = errorText(turn).split('\n').find((l) => l.trim())?.trim() || 'at its limit';
     const cooled = this.router.cool(session.route?.key || `${session.agent}:${session.model || ''}`, { ...limit, why });
     this.router.void(session.id);
+    const at = limit.kind === 'capacity' ? 'at capacity' : 'at its limit'; // capacity: the model, not your plan
     const name = cooled.endsWith(':*') ? session.route?.label?.split(' · ')[0] || session.agent : session.route?.label || session.agent;
     // A blip doesn't strike the arm off for this task (it may be picked again once its minute is up),
     // but it gets one more go at most: the run after the wait carries it in `tried`.
@@ -116,10 +117,10 @@ export class Pipeline {
       }
     }
     if (!pick) {
-      this.#note(session, turn, 'check', `${name} is at its limit, and nothing else Auto may use can run right now`);
+      this.#note(session, turn, 'check', `${name} is ${at}, and nothing else Auto may use can run right now`);
       return this.#settle(session);
     }
-    this.#stage(session, turn, 'moving', pick.key === key ? `Trying ${pick.label} again` : `${name} is at its limit · moving to ${pick.label}`);
+    this.#stage(session, turn, 'moving', pick.key === key ? `Trying ${pick.label} again` : `${name} is ${at} · moving to ${pick.label}`);
     const sib = await this.launchSibling(session, pick, { reason: 'limit', tried });
     if (!live()) return;
     a.escalatedTo = sib.id;

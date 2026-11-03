@@ -184,6 +184,8 @@ export function infraError(text = '') {
   if (DEVICE_LIMIT.test(t)) return { scope: 'agent', ms: 15 * 60_000, kind: 'device' };
   if (/usage_limit_reached/i.test(t)) return { scope: 'agent', ms: resetIn(t) ?? 60 * 60_000 };
   if (/session limit|usage limit|limit reached|resets \d|quota|exceeded your|insufficient (credit|balance|quota)|balance exhausted|payment required|\b402\b|billing/i.test(t)) return { scope: 'agent', ms: resetIn(t) ?? 60 * 60_000 };
+  // A model OpenAI has no room for right now (openai/codex#59045): that model rests, others run.
+  if (/model is at capacity|capacity unavailable/i.test(t)) return { scope: 'arm', ms: 10 * 60_000, kind: 'capacity' };
   if (/rate[- ]?limit|too many requests|\b429\b|overloaded|\b529\b|try again in a few minutes/i.test(t)) return { scope: 'arm', ms: 10 * 60_000 };
   return null;
 }
@@ -196,7 +198,7 @@ const DEVICE_LIMIT = /\b(?:devices?|device[- ]session) limit|too many (?:devices
 export const BLIP_MS = 60_000;
 export function limitOf(text = '', { agent = '', windows = [] } = {}) {
   const limit = infraError(text);
-  if (!limit || limit.scope !== 'arm' || agent !== 'codex') return limit;
+  if (!limit || limit.scope !== 'arm' || limit.kind || agent !== 'codex') return limit;
   const known = (windows || []).filter((w) => Number.isFinite(w?.used));
   if (!known.length || known.some((w) => w.used >= 0.995)) return limit;
   return { ...limit, ms: BLIP_MS, blip: true };
