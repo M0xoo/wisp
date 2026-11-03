@@ -86,6 +86,15 @@ const readAll = (res) =>
     res.on('error', reject);
   });
 
+// A machine's answer as JSON. An error page that isn't (a proxy's 413, a gateway's 502) keeps its
+// words as the error, so the user sees them instead of a JSON parse error.
+const parseReply = (text) => {
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    return { error: text.slice(0, 200) };
+  }
+};
 
 export class Machines extends EventEmitter {
   // onEvent(event, data): a session event from a machine, ids already rewritten.
@@ -633,13 +642,7 @@ export class Machines extends EventEmitter {
     // content-length always: Node doesn't chunk a DELETE's body by default, so without it the body
     // goes out unframed and the other end reads it as a broken next request (an empty 400).
     const res = await this.#request(m, c, method, p, { body: data, headers: json ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {}, ...opts });
-    const text = await readAll(res);
-    let j;
-    try {
-      j = text ? JSON.parse(text) : {};
-    } catch {
-      j = { error: text.slice(0, 200) };
-    }
+    const j = parseReply(await readAll(res));
     if (res.statusCode >= 400) throw Object.assign(bad(j.error || `${m.name}: HTTP ${res.statusCode}`, res.statusCode), j.hold && { hold: j.hold }); // hold: Ask near the limit there
     return j;
   }
@@ -806,8 +809,7 @@ export class Machines extends EventEmitter {
       headers: { 'content-type': 'application/octet-stream', 'content-length': fs.statSync(u.path).size },
       timeout: 10 * 60_000,
     });
-    const text = await readAll(res);
-    const j = JSON.parse(text || '{}');
+    const j = parseReply(await readAll(res));
     if (res.statusCode >= 400) throw bad(j.error || `Upload failed (${res.statusCode})`, res.statusCode);
     return j;
   }

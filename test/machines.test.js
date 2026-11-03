@@ -6,6 +6,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import http from 'node:http';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -14,7 +15,7 @@ import { installFakeBins, makeClone, makeRepo, records, same, tmp, until, win, i
 import { sameRepo } from '../server/git.js';
 import { authorizedKeys, reachable, sshBanner, tailscaleSelf } from '../server/machines/reachable.js';
 import { nodeInstallScript } from '../server/machines/bootstrap.js';
-import { bootstrapScript, STEPS, splitId, qualify, sshHint, sshHosts, knownHosts, tailscalePeers, discoverHosts, updateTo } from '../server/machines.js';
+import { Machines, bootstrapScript, STEPS, splitId, qualify, sshHint, sshHosts, knownHosts, tailscalePeers, discoverHosts, updateTo } from '../server/machines.js';
 
 const RECORD = tmp('machines-record');
 const THERE = tmp('machines-there'); // WISP_HOME on "the machine"
@@ -597,5 +598,28 @@ test('this computer: SSH banner, Tailscale self and authorized keys', { skip: wi
   } finally {
     sshd.close();
     other.close();
+  }
+});
+
+// A machine's error answers aren't always wisp's JSON (a proxy's 413, a gateway's 502 page): the
+// user sees its status and words, not a JSON parse error.
+test('a machine that refuses an upload with a non-JSON answer: its status and words, not a SyntaxError', async () => {
+  const srv = http.createServer((req, res) => {
+    req.resume();
+    req.on('end', () => {
+      if (req.url.startsWith('/api/uploads')) return res.writeHead(413, { 'content-type': 'text/plain' }).end('Request Entity Too Large');
+      res.writeHead(500, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'disk full over there' }));
+    });
+  });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  try {
+    const ms = new Machines({ store: { config: { machines: [{ id: 'g', name: 'box', kind: 'grid', url: `http://127.0.0.1:${srv.address().port}` }] } }, secrets: { get: () => 't' } });
+    ms.conns.set('g', { state: 'online', token: 't' });
+    await assert.rejects(ms.json('g', 'GET', '/x'), { status: 500, message: 'disk full over there' });
+    const file = path.join(tmp('upload'), 'f.bin');
+    fs.writeFileSync(file, 'x');
+    await assert.rejects(ms.upload('g', { name: 'f.bin', mime: 'application/octet-stream', path: file }), { status: 413, message: 'Request Entity Too Large' });
+  } finally {
+    srv.close();
   }
 });

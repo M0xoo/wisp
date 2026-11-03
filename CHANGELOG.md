@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - **Accented letters and emoji in a long prompt or request no longer turn into `�`.** The server decoded each piece of a request body on its own, so a character whose bytes landed on both sides of a network chunk was garbled; it now decodes the whole body at once. The 2 MB body limit is also counted in bytes, as intended.
+- **A machine that refuses an attachment says why.** When sending a file to another machine or a cloud computer was refused with an answer that isn't wisp's JSON (a proxy's *Request Entity Too Large*, a gateway's error page), you saw a JSON parse error (`Unexpected token 'R'…`) as a 500; now you see that answer and its status, as other requests to a machine already did.
 
 ## [0.55.0] - 2026-11-03
 
