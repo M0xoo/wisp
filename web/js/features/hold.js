@@ -14,6 +14,7 @@ import { renderFeed } from './feed.js';
 import { aheadLabel, whenTip } from './later.js';
 import { accountOf, agentName } from './runners.js';
 import { changeText } from './harness-watch.js';
+import { openInEditor } from './actions.js';
 
 const pct = (x) => `${Math.floor(x * 100)}%`;
 // "Weekly" → "weekly"; "Weekly Opus" → "weekly Opus".
@@ -118,6 +119,7 @@ export function hideHold(row) {
 // button locks the card at once; a refusal unlocks it with a red toast.
 export function heldCard(s, t) {
   const h = { ...t.held, agent: t.held.agent || s.agent };
+  if (h.project) return wire(s, projectCard(s, h));
   if (h.harness) return wire(s, harnessCard(h));
   const first = h.kind !== 'followUp';
   const at = h.until;
@@ -150,6 +152,36 @@ function harnessCard(h) {
     </div>`);
 }
 
+// Held for a repo's hooks, MCP servers or worktree setup (server/project-trust.js, Settings →
+// Privacy): what it would run, each with Open file, and Trust and start / Run without them / Skip.
+// It says what the repo asks to run; it doesn't say whether that's safe.
+const PT_KIND = { hook: 'Hook', mcp: 'MCP server', command: 'Command', plugin: 'Plugin', setup: 'Setup' };
+const ptItem = (x) => `<li class="pt-item">
+    <span class="pt-head"><span class="pt-kind">${esc(PT_KIND[x.kind] || x.kind)}</span><b class="pt-name">${esc(x.name)}</b><button type="button" class="ghost xs pt-open" data-file="${esc(x.file)}" title="${esc(x.file)}">${icon('external')}Open file</button></span>
+    <code class="pt-cmd">${esc(x.command)}</code>
+  </li>`;
+function projectCard(s, h) {
+  const p = h.project;
+  const setup = p.setup === 'running';
+  const say = setup
+    ? 'Trusted. Running the repo’s worktree setup; the run starts when it’s done.'
+    : `${p.changed ? 'This repo’s hooks, servers or setup changed since you trusted it.' : 'This repo asks to run its own programs.'} Held before it ${h.kind === 'followUp' ? 'was sent' : 'started'}: these would run on this computer, as you, whatever the mode.`;
+  const node = el(`<div class="b-limit b-held pt-held">
+      <p class="hd-say">${icon(setup ? 'info' : 'warn')}<span>${esc(say)}</span></p>
+      <ul class="pt-list">${p.items.map(ptItem).join('')}</ul>
+      <div class="lm-acts">
+        <button class="primary sm" data-held="start"${setup ? ' disabled' : ''}>${icon('play')}${HELD_LABEL.start({ held: h })}</button>
+        <button class="ghost sm" data-held="without"${setup ? ' disabled' : ''} title="Claude Code runs with your own settings only: not the repo’s hooks or its MCP servers (nor your own MCP servers, on this task), and a new worktree’s setup doesn’t run">${icon('skip')}${HELD_LABEL.without()}</button>
+        <button class="ghost sm" data-held="skip"${setup ? ' disabled' : ''}>${icon('skip')}Skip this run</button>
+      </div>
+    </div>`);
+  node.addEventListener('click', (e) => {
+    const b = e.target.closest('.pt-open');
+    if (b) openInEditor(s, b.dataset.file);
+  });
+  return node;
+}
+
 function wire(s, node) {
   const lock = (on) => {
     node.classList.toggle('resolved', on);
@@ -171,7 +203,7 @@ export async function heldAction(id, action) {
   const s = S.sessions.get(id);
   const was = s && { state: s.state, status: s.status, unread: s.unread, held: s.held, live: s.live };
   if (s) {
-    if (action === 'start') Object.assign(s, { state: 'running', status: 'running', unread: false, held: undefined, live: 'Starting up' });
+    if (action === 'start' || action === 'without') Object.assign(s, { state: 'running', status: 'running', unread: false, held: undefined, live: 'Starting up' });
     else if (action === 'wait') Object.assign(s, { state: 'done', unread: false, held: { ...s.held, waiting: true } });
     else Object.assign(s, { state: 'done', status: 'info', unread: false, held: undefined });
     renderFeed();
@@ -189,4 +221,4 @@ export async function heldAction(id, action) {
 }
 
 // The words wisp uses for each, so every surface (card, row menu, ⌘K) says the same.
-export const HELD_LABEL = { start: (s) => (s.held?.harness ? 'Trust and start' : s.held?.kind === 'followUp' ? 'Send now' : 'Start now'), wait: () => 'Wait', skip: () => 'Skip this run' };
+export const HELD_LABEL = { start: (s) => (s.held?.harness || s.held?.project ? 'Trust and start' : s.held?.kind === 'followUp' ? 'Send now' : 'Start now'), wait: () => 'Wait', without: () => 'Run without them', skip: () => 'Skip this run' };

@@ -603,7 +603,7 @@ export function openapi({ version, port }) {
       },
       '/sessions/{id}/held': {
         parameters: [id],
-        post: { summary: 'A run held near the usage limit, or for a changed harness (its last turn has status `held`; held.harness): start it now (a changed harness is trusted first), wait for the reset (it leaves Needs you; not for a harness), or skip it', requestBody: body({ type: 'object', required: ['action'], properties: { action: { enum: ['start', 'wait', 'skip'] } } }), responses: { 200: json(ref('Summary')), 400: err[400], 404: err[404] } },
+        post: { summary: 'A run held near the usage limit, for a changed harness (held.harness) or for a repo’s untrusted hooks, MCP servers or worktree setup (held.project, server/project-trust.js; its turn lists them). start: now (a changed harness or the repo is trusted first, then a held setup runs); without (repo only): this task runs without them and without the setup; wait: for the reset (limit only); skip: it never runs', requestBody: body({ type: 'object', required: ['action'], properties: { action: { enum: ['start', 'wait', 'without', 'skip'] } } }), responses: { 200: json(ref('Summary')), 400: err[400], 404: err[404] } },
       },
       '/sessions/{id}/queue': {
         parameters: [id],

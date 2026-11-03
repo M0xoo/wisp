@@ -14,7 +14,12 @@ let VERSION = []; // [major, minor, patch] of the claude detect() found
 // A lean run (the retro) only reads its prompt and answers: its own system prompt instead of Claude
 // Code's, no tools, MCP servers, skills or saved session. A real retro went from 28k input tokens
 // to 3k with the same reply. Claude Code 2.1 has all of these flags.
-const LEAN = ['--tools', '', '--strict-mcp-config', '--disable-slash-commands', '--no-session-persistence'];
+// --setting-sources user: nor the folder's hooks (server/project-trust.js).
+const LEAN = ['--tools', '', '--strict-mcp-config', '--setting-sources', 'user', '--disable-slash-commands', '--no-session-persistence'];
+// A run in a repo you haven't trusted (server/project-trust.js): only your own settings, so not the
+// repo's hooks (.claude/settings.json, settings.local.json: a repo can commit that one too), and
+// only the MCP servers wisp passes, so not .mcp.json's (nor, this run, your own).
+const UNTRUSTED = ['--setting-sources', 'user', '--strict-mcp-config'];
 const leanOk = () => VERSION.length === 3 && (VERSION[0] > 2 || (VERSION[0] === 2 && VERSION[1] >= 1));
 // Where claude lives when it isn't on PATH: the native installer's folders (an app started from
 // the Dock never reads the shell profile that adds them), then the copies the Claude desktop app
@@ -189,7 +194,8 @@ export default {
   // fork: resume a throwaway copy of resumeId's conversation, leaving the original as it is.
   // accountEnv: the account it runs on (CLAUDE_CONFIG_DIR, server/accounts.js), {} for the default.
   // lean: a side run that only answers (the retro), without Claude Code's prompt and tools.
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, onEvent }) {
+  // untrusted: without the repo's hooks and MCP servers (server/project-trust.js).
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, onEvent }) {
     lean = lean && leanOk();
     const args = [
       '-p',
@@ -198,6 +204,7 @@ export default {
       '--permission-mode', PERMISSION_MODES[mode] || 'acceptEdits',
     ];
     if (lean) args.push(...LEAN);
+    else if (untrusted) args.push(...UNTRUSTED);
     if (model) args.push('--model', model);
     if (effort) args.push('--effort', effort);
     if (chromeEnabled({ ...process.env, ...accountEnv })) args.push('--chrome');

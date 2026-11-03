@@ -24,6 +24,7 @@ import { goalNote, goalView } from './goal.js';
 import { kitNote } from './crew.js';
 import { planOf, unitsOf } from './budget.js';
 import { watchView } from './watch.js';
+import { asks as projectAsks } from './project-trust.js';
 
 const MAX_ACTIVITY = 400;
 const MAX_TEXT = 20_000; // an agent message, kept whole for the transcript up to this
@@ -209,7 +210,8 @@ export function summarize(s, store) {
     preview: hero?.summary || '',
     // Ask near the limit (server/guard.js): it waits, held before it started or was sent.
     // ...or a changed harness (server/harness-watch.js, Ask before running a changed harness) waits for Trust.
-    ...(last?.status === 'held' && { held: (({ kind, label, used, to, line, resetsAt, until, waiting, harness }) => (harness ? { kind, harness } : { kind, label, used, to, line, resetsAt, until, ...(waiting && { waiting: true }) }))(last.held) }),
+    // ...or a repo's hooks, servers or setup (server/project-trust.js) wait for Trust and start.
+    ...(last?.status === 'held' && { held: (({ kind, label, used, to, line, resetsAt, until, waiting, harness, project }) => (project ? { kind, project: { count: project.items.length, ...(project.changed && { changed: true }), ...(project.setup && { setup: project.setup }) } } : harness ? { kind, harness } : { kind, label, used, to, line, resetsAt, until, ...(waiting && { waiting: true }) }))(last.held) }),
     ...(s.watch && { watch: watchView(s) }), // a page its agent keeps updating beside it (server/watch.js)
     ...(s.tags?.length && { tags: s.tags }), // topic words its agent set with wisp_tag, for search (web/js/tags.js)
     live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || 'Starting up' : s.auto?.busy ? s.auto.label : s.goal?.status === 'checking' ? 'Checking the goal' : '',
@@ -417,7 +419,9 @@ export class Runner extends EventEmitter {
       endedAt: null,
       status: 'held',
       // A changed harness has no reset to wait for: it waits for Trust and start, or Skip.
-      held: hold.harness
+      held: hold.project
+        ? { kind, agent: hold.agent, project: hold.project, at: now }
+        : hold.harness
         ? { kind, agent: hold.agent, harness: hold.harness, at: now }
         : { kind, agent: hold.agent, account: hold.account, id: hold.id, label: hold.label, used: hold.used, to: hold.to, line: hold.line, resetsAt: hold.resetsAt, until: this.guard?.until?.(hold) || now + 3600_000, at: now },
       run: { attachments, opts },
@@ -457,7 +461,7 @@ export class Runner extends EventEmitter {
   skipHeld(session) {
     const t = session.turns.at(-1);
     if (t?.status !== 'held') return false;
-    const why = t.held.harness ? `${adapters[t.held.agent]?.name || t.held.agent} had changed and wasn’t trusted.` : `${t.held.label} window was near its limit.`;
+    const why = t.held.project ? 'This repo’s hooks, servers or setup weren’t trusted.' : t.held.harness ? `${adapters[t.held.agent]?.name || t.held.agent} had changed and wasn’t trusted.` : `${t.held.label} window was near its limit.`;
     Object.assign(t, { status: 'stopped', skipped: true, endedAt: Date.now(), presentation: { blocks: [{ type: 'hero', title: 'Skipped before it started', summary: why, status: 'info' }] } });
     delete t.run;
     session.state = 'done';
@@ -765,6 +769,7 @@ export class Runner extends EventEmitter {
         effort: session.effort || '',
         systemPrompt: BTW_SYSTEM,
         accountEnv: this.#accountEnv(session, entry.agent),
+        untrusted: !!this.projectPending(session, entry.agent),
         onEvent: (ev) => {
           if (ev.type === 'result') reply = ev;
         },
@@ -1194,10 +1199,19 @@ export class Runner extends EventEmitter {
   // this turn only (an approved retry the harness can't scope runs in Full auto).
   #startTurn(session, prompt, attachments = [], { grants = [], once, by, reports, later, goal } = {}) {
     if (!session.relay && this.#harnessHold(session, prompt, attachments, { grants, once, by, reports, later, goal })) return;
+    // Project trust (server/project-trust.js): what this repo would run that you haven't trusted. The
+    // task waits on a card listing it, unless you chose Run without them on it already. A subagent
+    // or side discussion never waits: it runs without them (its lead was asked).
+    const project = session.relay ? null : this.projectPending(session);
+    if (project && !session.parentId && !session.delegated && !session.sideOf && !project.items.every((x) => session.projectWithout?.includes(x.id))) {
+      this.#holdTurn(session, prompt, attachments, { grants, once, by, reports, later, goal }, { agent: session.agent, project });
+      return;
+    }
     const mode = session.sideOf ? 'plan' : MODES.has(once) ? once : session.mode;
     const turn = this.#newTurn(session, prompt, attachments, mode);
     if (session.relay) turn.relay = { state: 'pending' }; // until the relay picks it up
     if (by === 'wisp') turn.by = 'wisp'; // sent by wisp (Auto's repair round), not by you
+    if (project) turn.untrusted = true; // ran without the repo's hooks and servers
     if (by === 'wisp' && goal) turn.goal = goal; // ...going back to work on the goal: its round
     // A follow-up scheduled earlier (server/later.js): who set it and when. An agent's own wake-ups
     // count up until you say something, so it can't keep itself going for ever.
@@ -1276,6 +1290,7 @@ export class Runner extends EventEmitter {
       delegating: team.length > 0 && !!this.bridge,
       mcpServers: this.#mcpServers(session, adapter, team, mode),
       accountEnv: this.#accountEnv(session),
+      untrusted: !!project,
       onEvent: (ev) => {
         if (released) return; // a lingering process we already let go of
         const waiting = this.#onEvent(session, turn, ev) === 'waiting';
@@ -1311,6 +1326,19 @@ export class Runner extends EventEmitter {
     handle.release = release;
     this.live.set(session.id, handle);
     handle.done.finally(release);
+  }
+
+  // Project trust (server/project-trust.js): what a run of this task would run from its repo (Claude
+  // Code's hooks and MCP servers, a new worktree's held setup) that isn't trusted, or null.
+  projectPending(session, agent = session.agent) {
+    const pt = this.projectTrust;
+    if (!pt || !projectAsks(this.store.config?.defaults)) return null;
+    const held = [session, ...(session.also || [])].flatMap((x) => x.worktree?.prepared?.held || []);
+    try {
+      return pt.pending(workdir(session), agent, held);
+    } catch {
+      return null;
+    }
   }
 
   // Harness watch (server/harness-watch.js): the program this run starts is looked at, and when it

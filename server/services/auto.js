@@ -172,7 +172,7 @@ export function createAuto(app) {
     const first = s.turns[0];
     const id = newId();
     if (!s.groupId) s.groupId = newId();
-    const fresh = (wt, cwd) => (wt ? createWorktree({ cwd, home: store.home, id, title: first.prompt, source: { root: wt.root, base: { ref: wt.head || wt.baseRef, branch: wt.base, remote: wt.remote, sha: wt.head } } }).catch(() => null) : null);
+    const fresh = (wt, cwd) => (wt ? createWorktree({ cwd, home: store.home, id, title: first.prompt, source: { root: wt.root, base: { ref: wt.head || wt.baseRef, branch: wt.base, remote: wt.remote, sha: wt.head } }, holdSetup: (root) => app.runner.projectTrust?.setupHold(root, store.config.defaults) || null }).catch(() => null) : null);
     const worktree = await fresh(s.worktree, s.cwd);
     // The task's other folders too: fresh worktrees from the same bases.
     const also = await Promise.all(

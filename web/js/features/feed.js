@@ -32,8 +32,8 @@ import { backToPlace, goBack, goHome, isSplit, isStacked, keepPlace, paintHead, 
 
 // A run held near the limit (features/hold.js), on its row: the window, and when it goes by itself.
 // One held for a changed harness (features/harness-watch.js) waits for you instead.
-const heldSub = (s) => (s.held.harness ? `Waits for you to trust ${agentName(s.agent)}` : s.held.waiting ? `Waiting for the ${s.held.label.toLowerCase()} reset` : `${s.held.label} window at ${Math.floor(s.held.used * 100)}%`);
-const heldTip = (s) => (s.held.harness ? `${agentName(s.agent)} changed since wisp last ran it: Trust and start, or Skip this run` : heldTipLimit(s));
+const heldSub = (s) => (s.held.project ? (s.held.project.setup ? 'Running the repo’s setup' : 'Waits for you to trust this repo’s hooks and servers') : s.held.harness ? `Waits for you to trust ${agentName(s.agent)}` : s.held.waiting ? `Waiting for the ${s.held.label.toLowerCase()} reset` : `${s.held.label} window at ${Math.floor(s.held.used * 100)}%`);
+const heldTip = (s) => (s.held.project ? 'This repo asks to run its own programs: Trust and start, Run without them, or Skip this run' : s.held.harness ? `${agentName(s.agent)} changed since wisp last ran it: Trust and start, or Skip this run` : heldTipLimit(s));
 const heldTipLimit = (s) => `${s.held.label} window at ${Math.floor(s.held.used * 100)}% · goes by itself ${aheadLabel(s.held.until)}`;
 
 function visible(list) {

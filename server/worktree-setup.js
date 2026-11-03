@@ -88,7 +88,9 @@ export function runCommand(root) {
 
 // Copy, then set up. Never throws: a worktree that couldn't be prepared still works, and what went
 // wrong is returned (the task says so) rather than stopping the launch.
-export async function prepareWorktree(root, dir) {
+// hold: the setup steps the repo isn't trusted for (server/project-trust.js): they don't run now but
+// wait in `held` for Trust and start (runSetup) or Run without them.
+export async function prepareWorktree(root, dir, { hold = null } = {}) {
   const copied = [];
   const problems = [];
   for (const rel of await includedPaths(root)) {
@@ -103,9 +105,17 @@ export async function prepareWorktree(root, dir) {
       problems.push(`couldn't copy ${rel}: ${err.message}`);
     }
   }
+  if (hold?.length) return { copied, ran: [], problems, held: hold };
+  const setup = await runSetup(root, dir, setupCommands(root));
+  return { copied, ran: setup.ran, problems: [...problems, ...setup.problems] };
+}
+
+// The setup steps, in order, in the new worktree dir; stops at the first that fails.
+export async function runSetup(root, dir, commands) {
   const ran = [];
+  const problems = [];
   const shell = process.platform === 'win32' ? [process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c']] : [process.env.SHELL || '/bin/sh', ['-c']];
-  for (const cmd of setupCommands(root)) {
+  for (const cmd of commands) {
     try {
       await run(shell[0], [...shell[1], cmd], { cwd: dir, timeout: SETUP_TIMEOUT, env: { ...process.env, ROOT_WORKTREE_PATH: root } });
       ran.push(cmd);
@@ -114,5 +124,5 @@ export async function prepareWorktree(root, dir) {
       break; // the next step likely needs this one
     }
   }
-  return { copied, ran, problems };
+  return { ran, problems };
 }

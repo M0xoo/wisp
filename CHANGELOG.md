@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **wisp asks before a repo's hooks, MCP servers and worktree setup run.** Claude Code runs a repo's `.claude/settings.json` hooks and `.mcp.json` servers without asking when wisp runs it, whatever the mode, Plan included, and wisp runs `.wisp/worktree.json` / `.cursor/worktrees.json` setup on each new worktree. Now the first run in such a repo, and the first after one of them changes, waits on a card listing each hook, server, helper command, plugin and setup step with its command and *Open file*: *Trust and start* (remembered per repo, its worktrees included), *Run without them* (Claude Code with only your own settings and wisp's MCP server, no setup; that task keeps running that way) or *Skip this run*. Repos with none of these files run as before. Subagents and side discussions never wait: they run without them until the repo is trusted. Take over no longer marks such a repo's worktree as trusted in Claude Code, Codex or Copilot, so their own trust question shows. Turn it off with *Ask before a repo’s hooks, servers and setup run* in Settings → Privacy (on by default). It lists what a repo asks to run; it can't tell you whether that's safe. Spells: the `settings.projectAsk` and `project.without` parts and the `projectAsk` setting. API: `held.project` on a held turn, `action: "without"` on `POST /sessions/:id/held`.
+
 ### Changed
 
 - **Tasks whose agent scheduled a check-in move from Needs you to Scheduled.** When a task finishes and its agent has said it will look again later (a follow-up it scheduled), the task waits under *Scheduled* with the check-in's time instead of sitting in *Needs you*, and it no longer counts in the tab title or a crew member's dot. It keeps its unread dot and one-click done there, and home's *Coming up* lists the check-in. Tasks asking you, due reminders and tasks with only your own reminders ahead stay in *Needs you*.

@@ -138,7 +138,8 @@ export async function worktreeSource(cwd) {
   return { root, base };
 }
 
-export async function createWorktree({ cwd, home, id, title, source }) {
+// holdSetup(root): the setup steps to keep back until the repo is trusted (server/project-trust.js), or null.
+export async function createWorktree({ cwd, home, id, title, source, holdSetup }) {
   const { root, base } = source || (await worktreeSource(cwd)) || {};
   if (!base) return null;
   // Short and readable; the full id only if that name is taken (a leftover branch, a prefix clash).
@@ -148,11 +149,11 @@ export async function createWorktree({ cwd, home, id, title, source }) {
   fs.mkdirSync(path.dirname(dir), { recursive: true });
   await addWorktree(root, ['--no-track', '-b', branch, dir, base.ref]);
   // What git ignores (.env …) and the repo's setup step, as other worktree tools bring them along
-  const prepared = await prepareWorktree(root, dir);
+  const prepared = await prepareWorktree(root, dir, { hold: holdSetup?.(root) || null });
   if (prepared.problems.length) console.warn(`wisp: worktree ${dir}: ${prepared.problems.join('; ')}`);
   // Launched from a subfolder of the repo: keep working in that subfolder.
   const sub = path.relative(realpath(root), realpath(cwd));
-  return { path: dir, cwd: sub && !sub.startsWith('..') ? path.join(dir, sub) : dir, branch, base: base.branch, baseRef: base.ref, head: base.sha || null, remote: base.remote, root, createdAt: Date.now(), ...((prepared.copied.length || prepared.ran.length || prepared.problems.length) && { prepared }) };
+  return { path: dir, cwd: sub && !sub.startsWith('..') ? path.join(dir, sub) : dir, branch, base: base.branch, baseRef: base.ref, head: base.sha || null, remote: base.remote, root, createdAt: Date.now(), ...((prepared.copied.length || prepared.ran.length || prepared.problems.length || prepared.held) && { prepared }) };
 }
 
 // Archiving removes a clean worktree; a follow-up brings it back from its branch.

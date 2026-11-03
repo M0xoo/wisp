@@ -271,6 +271,7 @@ export class Retro {
       systemPrompt: RETRO_SYSTEM,
       mcpServers: {},
       lean: true,
+      untrusted: true, // without the folder's hooks and servers (server/project-trust.js)
       accountEnv: sideEnv(session.agent, session.account),
       onEvent: (ev) => {
         if (ev.type !== 'result') return;

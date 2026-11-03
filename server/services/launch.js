@@ -44,6 +44,8 @@ export function alsoDirs(list, cwd) {
 
 export function createLaunch(app) {
   const { store, runner, machines } = app;
+  // A repo's worktree setup waits until you trust it (server/project-trust.js).
+  const holdSetup = (root) => runner.projectTrust?.setupHold(root, store.config.defaults) || null;
 
   // body: { prompt, cwd, also: [folder], scratch: true = no folder, agent, mode, model, effort, attachments: [uploadId], worktree, compare,
   //         subagents: [{ name, agent, model, effort, use }] | preset: teamId, moved: { from, title, turns, packs }, account }
@@ -142,7 +144,7 @@ export function createLaunch(app) {
       // One fetch for the whole launch, then the checkouts (git.js has them take turns in the
       // repo): compare runs used to fetch once per run before anything showed up in the feed.
       const results = await worktreeSource(cwd).then(
-        (source) => source && Promise.allSettled(ids.map((id) => createWorktree({ cwd, home: store.home, id, title: body.prompt, source }))),
+        (source) => source && Promise.allSettled(ids.map((id) => createWorktree({ cwd, home: store.home, id, title: body.prompt, source, holdSetup }))),
         (err) => [{ status: 'rejected', reason: err }],
       );
       const failed = results?.find((x) => x.status === 'rejected')?.reason;
@@ -159,7 +161,7 @@ export function createLaunch(app) {
     const extras = await Promise.all(
       also.map(async (dir) => {
         const source = wantTree && (await worktreeSource(dir).catch(() => null));
-        const made = await Promise.all(ids.map((id) => (source ? createWorktree({ cwd: dir, home: store.home, id, title: body.prompt, source }).catch((err) => console.warn(`wisp: no worktree for ${dir}: ${err.message}`)) : null)));
+        const made = await Promise.all(ids.map((id) => (source ? createWorktree({ cwd: dir, home: store.home, id, title: body.prompt, source, holdSetup }).catch((err) => console.warn(`wisp: no worktree for ${dir}: ${err.message}`)) : null)));
         return made.map((worktree) => ({ cwd: dir, ...(worktree && { worktree }) }));
       }),
     );

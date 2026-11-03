@@ -231,6 +231,9 @@ export function openSettings(opts) {
           </div>
           <p class="hint">Agent, model, status, timings and scrubbed errors only.</p>
           <div class="sx-group">
+            ${row('Ask before a repo’s hooks, servers and setup run', 'Claude Code runs a repo’s hooks and MCP servers, and wisp runs its worktree setup, without asking. On, the first run in a repo, and the first after one of them changes, waits for you with the list: Trust and start, Run without them, or Skip. It shows what a repo asks to run; it can’t tell you whether that’s safe', '<button class="switch" id="projectAsk" role="switch"></button>')}
+          </div>
+          <div class="sx-group">
             ${row('Hide .env values', 'What a task shows of a .env or .env.* file reads KEY=•••• in its activity, diffs and Changes, until you press Reveal there. Not .env.example or .env.sample', '<button class="switch" id="maskEnv" role="switch"></button>')}
           </div>
         </section>
@@ -614,6 +617,20 @@ export function openSettings(opts) {
     }
   };
   paintLl();
+  // Ask before a repo's hooks, servers and setup run (server/project-trust.js): on unless set off.
+  const pa = $('#projectAsk', node);
+  const paintPa = () => pa.setAttribute('aria-checked', S.config.defaults.projectAsk !== 'off');
+  pa.onclick = async () => {
+    const was = S.config.defaults.projectAsk;
+    S.config.defaults.projectAsk = was === 'off' ? 'on' : 'off';
+    paintPa();
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { projectAsk: S.config.defaults.projectAsk } } }));
+    if (!saved) {
+      S.config.defaults.projectAsk = was;
+      paintPa();
+    }
+  };
+  paintPa();
   // Hide .env values (server/env-mask.js): on unless set off. Instant, rolled back on a refusal.
   const me = $('#maskEnv', node);
   const paintMe = () => me.setAttribute('aria-checked', S.config.defaults.maskEnvFiles !== 'off');
@@ -916,7 +933,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers' };
+  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

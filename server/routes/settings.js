@@ -52,6 +52,7 @@ export function register(r, app) {
     if (body.defaults?.autoStop !== undefined && !STOP_AT.includes(body.defaults.autoStop)) return c.send(400, { error: `autoStop must be one of ${STOP_AT.join(', ')}` });
     for (const k of Object.values(STOP_KEYS)) if (body.defaults?.[k] !== undefined && !STOP_BY.includes(body.defaults[k])) return c.send(400, { error: `${k} must be one of ${STOP_BY.join(', ')}` });
     if (body.defaults?.liveLimits !== undefined && !['on', 'off'].includes(body.defaults.liveLimits)) return c.send(400, { error: 'liveLimits must be on or off' });
+    if (body.defaults?.projectAsk !== undefined && !['on', 'off'].includes(body.defaults.projectAsk)) return c.send(400, { error: 'projectAsk must be on or off' });
     if (body.defaults?.maskEnvFiles !== undefined && !['on', 'off'].includes(body.defaults.maskEnvFiles)) return c.send(400, { error: 'maskEnvFiles must be on or off' });
     if (body.defaults?.harnessAsk !== undefined && !['on', 'off'].includes(body.defaults.harnessAsk)) return c.send(400, { error: 'harnessAsk must be on or off' });
     if (body.defaults?.windowNotice !== undefined && !['on', 'off'].includes(body.defaults.windowNotice)) return c.send(400, { error: 'windowNotice must be on or off' });
