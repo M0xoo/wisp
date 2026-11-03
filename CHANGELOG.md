@@ -10,6 +10,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **.env values are hidden on screen.** When a task's activity, a diff or Changes shows a `.env` or `.env.*` file (not `.env.example` or `.env.sample`), its values read `KEY=••••`: the edits wisp captured, the git diff in Changes, a diff or code block about one, and what a command like `cat .env` printed. *Reveal* above it shows that one view as it is, until *Hide*. The server masks before anything goes to the page, so the browser, the phone app and wisp Grid all get it; the file itself, rollback and Revert are untouched, and the agent still reads it. Turn it off with *Hide .env values* in Settings → Privacy (on by default). Spells: the `env.masked`, `env.reveal` and `settings.maskEnvFiles` parts and the `maskEnvFiles` setting.
 - **Home says when plan allowance would go unused.** When a Claude Code or Codex account's weekly (or longer) window resets within a day with a fifth or more of it left, split view's home shows a row under Needs you: *38% of Codex’s weekly window left · resets Thu 21:00*, with *Use Codex*, which picks that harness and account in the prompt box for you to send. × hides it until that window resets. It's advice only: wisp never switches accounts or spends a reset by itself. Turn it off with *Spare allowance* in Settings → Usage (on by default). Spells: the `split.spare` part with its `hours` prop (24), `split.spare.start` (*Use …*), `settings.spareCard` and the `spareCard` setting.
 
+### Changed
+
+- **Crew members and subagents can change the crew too.** `wisp_crew_add`, `wisp_crew_edit` and `wisp_crew_remove` work from a crew member's job and from a subagent, not only from a task you started, so a lead can hire help for a job. A member's job can't remove that member.
+
 ## [0.54.0] - 2026-11-02
 
 ### Added

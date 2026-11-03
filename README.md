@@ -466,7 +466,7 @@ A check-in that found nothing marks itself `quiet`: it's logged and archived (it
   <img src="docs/assets/shots/light-org.webp" alt="wisp's Org page: Ada, a tech lead, hands work to Scout, Quill and three Codex copies; Quill hands work to Echo" width="880" />
 </picture>
 
-**Ask any task to change the crew.** *Add a crew member who reviews new PRs every hour*, *pause Ada*, *remove Quill*: every agent wisp runs has `wisp_crew`, `wisp_crew_add`, `wisp_crew_edit` and `wisp_crew_remove`, and writes the brief from what you asked. A subagent or a member's own job can't change the crew. `wisp mcp` has the same tools, so Claude Code, Codex or any MCP client outside wisp can manage it too.
+**Ask any task to change the crew.** *Add a crew member who reviews new PRs every hour*, *pause Ada*, *remove Quill*: every agent wisp runs has `wisp_crew`, `wisp_crew_add`, `wisp_crew_edit` and `wisp_crew_remove`, and writes the brief from what you asked. Crew members and subagents can too, so a lead can hire help for a job; a member's job just can't remove that member. `wisp mcp` has the same tools, so Claude Code, Codex or any MCP client outside wisp can manage it too.
 
 **They follow up by themselves.** A member tagged in a task, or delegated to by one, can send that task's agent a follow-up of its own when it finds something that agent should act on (`followUp` in its block). It shows in the task as *@Ada (your crew’s CI watcher): …*, Ada's thread there moves along with it, and Ada's job says where it followed up. Ada also joins that task's delegates, so its agent can hand the work back for her to check; that delegated job reports to the agent rather than following up again, so they can't loop.
 

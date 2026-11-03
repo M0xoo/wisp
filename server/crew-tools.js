@@ -34,7 +34,7 @@ export const CREW_TOOLS = [
   {
     name: 'wisp_crew_add',
     description:
-      'Add a member to the user\'s crew in wisp, when the user asks for one ("add a crew member who watches CI"). They work as tasks: ' +
+      'Add a member to the user\'s crew in wisp, when the user asks for one ("add a crew member who watches CI"), or when you need help for a job and the user\'s brief lets you hire it. They work as tasks: ' +
       'on their schedule (cron), when the user tags @Name in a prompt, or when another task delegates to them. Write the brief to them, ' +
       'from what the user asked. Pick a short, friendly name if the user gave none. Returns the new member. ' +
       'When the user gives a shared crew file or link ("add the member from gist:abc123"), pass it as `from` instead.',
@@ -93,7 +93,8 @@ export const CREW_TOOLS = [
     name: 'wisp_crew_remove',
     description:
       'Remove a member from the user\'s crew in wisp. Their brief, notebook and schedule are deleted; their jobs stay as ordinary tasks. ' +
-      'Only when the user asked to remove that member; if unsure who they meant, ask the user first.',
+      'Only when the user asked to remove that member, or a member you added for a job is done; if unsure who they meant, ask the user first. ' +
+      'A crew member\'s job can\'t remove that member itself.',
     inputSchema: { type: 'object', properties: { member: { type: 'string', description: 'Their name, @handle or id.' } }, required: ['member'] },
   },
 ];
