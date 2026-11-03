@@ -537,7 +537,7 @@ function refusalCard(s, t) {
   const to = S.agents.filter((a) => a.id !== from && a.id !== 'wisp' && a.available).slice(0, REFUSAL_MAX);
   const node = el(`<div class="b-limit b-refusal">
       ${to.length ? `<div class="lm-acts">${to.map((a, i) => `<button class="${i ? 'ghost' : 'primary'} sm" data-rf="${esc(a.id)}" title="Sends the same prompt to ${esc(a.name || agentName(a.id))}, with this task's turns">${icon('agent')}Hand to ${esc(a.name || agentName(a.id))}</button>`).join('')}</div>` : ''}
-      <p class="lm-note">${to.length ? 'Or rephrase it in the reply box.' : 'No other agent is set up to take it. Add one in Settings → Agents, or rephrase it in the reply box.'}</p>
+      ${to.length ? '' : '<p class="lm-note">No other agent is set up to take it. Add one in Settings → Agents, or rephrase it in the reply box.</p>'}
     </div>`);
   const lock = (on) => {
     node.classList.toggle('resolved', on);
