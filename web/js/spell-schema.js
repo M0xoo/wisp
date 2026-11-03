@@ -282,6 +282,8 @@ export const PARTS = {
   'split.upcoming': '#splitHome .sh-coming', // Coming up: what runs next, soonest first
   'split.upcoming.more': '#splitHome .sh-coming .sh-more', // Show all / Show fewer, past the first `count`
   'split.upcoming.day': '#splitHome .sh-coming .sh-day', // a day's heading in the full list (Today, Tomorrow, Fri 31 Oct)
+  // Add to Home Screen (web/js/features/homescreen.js): a row on home on a wisp Grid in an iPhone's browser, until added or hidden.
+  'home.install': '#splitHome .hs-install',
   // Spare allowance (web/js/spare.js): a row under Needs you when a weekly window resets soon with much left.
   'split.spare': '#splitHome .sh-spare',
   'split.spare.start': '#splitHome .sh-spare .sp-start', // Use <harness>: picks that harness and account in the prompt box

@@ -19,6 +19,11 @@ export function save(k, v) {
 export const MOBILE = typeof navigator !== 'undefined' && /\bwispMobile\b/.test(navigator.userAgent);
 // There, this page is one of your computers, opened from the app's list (mobile/www), which passes
 // its name as ?m=: "here" goes by that name instead of "This computer".
+// Opened from the Home Screen (an iPhone's Add to Home Screen on wisp Grid): index.html's first
+// script sets html.standalone and viewport-fit=cover. Never the Android app: that's MOBILE, and
+// phone-app changes stay scoped to it. IOS: an iPhone or iPad (iPadOS says it's a Mac with touch).
+export const STANDALONE = typeof document !== 'undefined' && !MOBILE && document.documentElement.classList.contains('standalone');
+export const IOS = typeof navigator !== 'undefined' && (/\b(iPhone|iPad|iPod)\b/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
 export const COMPUTER = MOBILE ? new URLSearchParams(location.search).get('m') || sessionStorage.getItem('wisp.computer') || '' : '';
 if (COMPUTER) sessionStorage.setItem('wisp.computer', COMPUTER);
 export let HERE = COMPUTER || 'This computer'; // in labels

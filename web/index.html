@@ -8,6 +8,10 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">
   <!-- Light / dark from the first paint: the last one seen (web/js/features/theme.js). -->
   <script>try { var t = JSON.parse(localStorage.getItem('wisp.theme')); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch {}</script>
+  <!-- Opened from an iPhone's Home Screen (wisp Grid, web/js/features/homescreen.js): full screen
+       under the status bar and around the notch, so the page lays itself out of the way of both
+       (html.standalone, split.css). A browser tab and the Android app (wispMobile) never get it. -->
+  <script>try { if (!/\bwispMobile\b/.test(navigator.userAgent) && (navigator.standalone === true || matchMedia('(display-mode: standalone)').matches)) { document.documentElement.classList.add('standalone'); var v = document.querySelector('meta[name="viewport"]'); v.content += ', viewport-fit=cover'; } } catch {}</script>
   <!-- The lists boot needs, asked for now rather than once every module has loaded (web/js/core/api.js
        takes them). The phone app asks for what changed since its cached list: only with none yet
        (its first open of a computer, where the modules come slowest) does it ask here, for all of it. -->

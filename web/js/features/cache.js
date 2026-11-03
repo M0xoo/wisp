@@ -7,7 +7,7 @@
 // cross the internet, and the cloud computer may have to wake up first. On this computer they take
 // milliseconds, so it waits for them.
 
-import { COMPUTER, MOBILE, S } from '../core/state.js';
+import { COMPUTER, MOBILE, S, STANDALONE } from '../core/state.js';
 import { toast } from '../ui/toast.js';
 
 const KEY = `wisp.snapshot.${COMPUTER || 'here'}`;
@@ -72,9 +72,11 @@ export function syncing(on) {
 }
 
 // The service worker serves the cached page; the page checks the server's build when it opens and
-// whenever the live stream (re)connects, since the tunnel may come up after the page.
+// whenever the live stream (re)connects, since the tunnel may come up after the page. The same for
+// wisp opened from an iPhone's Home Screen (STANDALONE, homescreen.js): it opens at once from cache.
+const SHELLED = MOBILE || STANDALONE;
 export function startShell() {
-  if (!MOBILE || !('serviceWorker' in navigator)) return;
+  if (!SHELLED || !('serviceWorker' in navigator)) return;
   navigator.serviceWorker.register('/sw.js').catch(() => {});
   checkBuild();
 }
@@ -83,9 +85,12 @@ export function startShell() {
 // onto it, silently if you haven't touched the page yet, else with a toast.
 let told = false;
 export async function checkBuild() {
-  if (!MOBILE || !('serviceWorker' in navigator)) return;
+  if (!SHELLED || !('serviceWorker' in navigator)) return;
   const mine = document.querySelector('meta[name="wisp-build"]')?.content;
   const r = await fetch('/', { method: 'HEAD', cache: 'no-store' }).catch(() => null);
+  // Signed out of the Grid (its edge answers 401): the cached page can't reach anything. Drop the
+  // worker and its cache, so the reload reaches the edge and its sign-in.
+  if (STANDALONE && r?.status === 401) return signInAgain();
   const build = r?.headers.get('x-wisp-build');
   if (!mine || !build) return;
   if (build === mine) return fillShell();
@@ -98,6 +103,12 @@ export async function checkBuild() {
   if (told) return;
   told = true;
   toast('wisp was updated on this computer', { action: { label: 'Reload', run: reload }, timeout: 15_000 });
+}
+
+async function signInAgain() {
+  await Promise.all((await navigator.serviceWorker.getRegistrations()).map((x) => x.unregister())).catch(() => {});
+  await caches.delete(SHELL).catch(() => {});
+  location.reload();
 }
 
 // A new build keeps the files it shares with the last one: scripts and stylesheets are named by

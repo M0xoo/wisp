@@ -42,8 +42,11 @@ export const MIME = {
   '.mov': 'video/quicktime',
   '.m4v': 'video/mp4',
   '.pdf': 'application/pdf',
+  // The iPhone home-screen app's manifest (wisp Grid): unversioned and no-cache like any file here
+  // not named by its content, since iOS reads it by this URL when it's added to the Home Screen.
+  '.webmanifest': 'application/manifest+json',
 };
-const TEXT = new Set(['.html', '.js', '.css', '.svg', '.json', '.md']);
+const TEXT = new Set(['.html', '.js', '.css', '.svg', '.json', '.md', '.webmanifest']);
 const MAX_CACHED = 4e6; // bigger files (videos) are streamed, not held in memory
 
 const hash = (buf) => crypto.createHash('sha1').update(buf).digest('base64url').slice(0, 20);

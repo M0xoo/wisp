@@ -553,6 +553,24 @@ try {
     p.clean();
   });
 
+  await check('WEB-49', 'Home Screen app: full screen and its own cache only when standalone', async () => {
+    // A browser tab: no class, the viewport as it was, no manifest (this isn't a Grid).
+    const tab = await p.evaluate(() => [document.documentElement.classList.contains('standalone'), document.querySelector('meta[name="viewport"]').content, !!document.querySelector('link[rel="manifest"]')]);
+    ok(!tab[0] && !tab[1].includes('viewport-fit') && !tab[2], `browser tab: ${JSON.stringify(tab)}`);
+    // Opened from an iPhone's Home Screen (navigator.standalone, before the page's first script).
+    const q = await page({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    await q.addInitScript(() => Object.defineProperty(Navigator.prototype, 'standalone', { get: () => true }));
+    await q.goto(w.url + '/');
+    await q.waitForSelector('#splitHome, .item', { timeout: 15000 });
+    const home = await q.evaluate(() => [document.documentElement.classList.contains('standalone'), document.querySelector('meta[name="viewport"]').content]);
+    ok(home[0] && home[1].endsWith('viewport-fit=cover'), `standalone: ${JSON.stringify(home)}`);
+    // Its service worker takes over, so the next open paints from cache (web/sw.js).
+    await until(() => q.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length > 0), { timeout: 10000, what: 'service worker' });
+    ok(!(await q.evaluate(() => !!document.querySelector('link[rel="manifest"]'))), 'no manifest off a Grid');
+    q.clean();
+    await q.context().close();
+  });
+
   await check('WEB-31', 'docs site builds and renders', async () => {
     execFileSync(process.execPath, [path.join(ROOT, 'scripts/site.mjs')], { cwd: ROOT, stdio: 'ignore' });
     for (const [label, vp] of [['desktop', { width: 1440, height: 900 }], ['phone', { width: 390, height: 844 }]]) {

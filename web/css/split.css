@@ -13,6 +13,13 @@ body.split .feed-wrap {
   overflow-y: auto; border-right: 1px solid var(--line); background: var(--rail);
 }
 body.split .split-main { grid-row: 1 / -1; grid-column: 2; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+/* Opened from an iPhone's Home Screen (html.standalone: index.html, homescreen.js): wisp runs full
+   screen under the status bar and around the notch, so the page keeps out of both and of the home
+   indicator. env() is 0 everywhere else, and a browser tab or the Android app never get the class.
+   The open task's body is fixed to #splitStage's box (measure() in split.js), so it follows. */
+html.standalone body.split .stage { padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+html.standalone body.split .feed-wrap { padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
+html.standalone body.split:not(.stack) #feed .item.open > .it-body > .it-dock { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
 body.split.side-right .stage { grid-template-columns: minmax(0, 1fr) var(--side-w); }
 body.split.side-right .topbar, body.split.side-right .feed-wrap { grid-column: 2; border-right: 0; border-left: 1px solid var(--line); }
 body.split.side-right .split-main { grid-column: 1; }
@@ -242,6 +249,9 @@ body.split:not(.stack):not(.side-hidden) .sh-next .sh-s { display: none; }
 body.split:not(.stack):not(.side-hidden) .sh-next .sh-task:not(.sh-up) { grid-template-columns: 10px minmax(0, 1fr) auto; }
 /* Spare allowance (split.js paintSpare): rows under Needs you, like its own: advice, not a warning,
    so no surface until hovered. */
+/* Add to Home Screen (homescreen.js): a spare-card row; Share's glyph sits in the sentence. */
+.hs-install .model-logo { color: var(--muted); }
+.hs-share { width: 13px; height: 13px; vertical-align: -2px; }
 .sh-spare { margin-top: 30px; display: flex; flex-direction: column; gap: 2px; }
 .sh-spare[hidden] { display: none; }
 .sh-next:not([hidden]) + .sh-spare:not([hidden]) { margin-top: 14px; }

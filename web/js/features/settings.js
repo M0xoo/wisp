@@ -20,7 +20,7 @@ import { mountSandboxes } from './sandbox.js';
 import { loginControl, loginPanel, typingLogin, wireLogins } from './agent-login.js';
 import { accountCount, accountsHtml, gridAccountsNote, manyAccounts, wireAccounts } from './accounts.js';
 import { memorySummary, openMemory, setLearning } from './memory.js';
-import { notifyOn, notifyPermission, requestNotify } from './notify.js';
+import { IOS_HOME, notifyOn, notifyPermission, requestNotify } from './notify.js';
 import { openPhone, phoneSummary } from './phone.js';
 import { paintReachable, reachableBox, reachableHtml } from './reachable.js';
 import { machinesSummary } from './places.js';
@@ -148,7 +148,7 @@ export function openSettings(opts) {
         </section>
         <section class="sx-pane" data-pane="notifications">
           <div class="sx-group">
-            ${row(MOBILE ? 'Notifications' : 'Desktop notifications', '<span class="notif-hint"></span>', '<button class="switch" id="notif" role="switch"></button>')}
+            ${row(MOBILE || IOS_HOME ? 'Notifications' : 'Desktop notifications', '<span class="notif-hint"></span>', '<button class="switch" id="notif" role="switch"></button>')}
           </div>
           <div class="sx-group">
             ${row('Phone', '<span class="phone-hint">ntfy or Telegram: answer questions from your phone</span>', '<button class="ghost sm" id="openPhone">Set up</button>')}
@@ -439,7 +439,7 @@ export function openSettings(opts) {
     sw.setAttribute('aria-checked', on);
     sw.disabled = perm === 'denied' || perm === 'unsupported';
     const blocked = MOBILE ? 'Blocked: allow notifications for wisp in Android settings' : 'Blocked — allow notifications for this site in your browser';
-    $('.notif-hint', node).textContent = perm === 'denied' ? blocked : perm === 'unsupported' ? 'Not supported here' : on ? 'On' : 'Off';
+    $('.notif-hint', node).textContent = perm === 'denied' ? blocked : perm === 'unsupported' ? (IOS_HOME ? 'On iPhone, alerts come from the ntfy app: Phone, below' : 'Not supported here') : on ? 'On' : 'Off';
   };
   sw.onclick = async () => {
     let want = !notifyOn();

@@ -21,6 +21,7 @@ import * as bus from '../core/bus.js';
 import { $, $$, beforePaint, el, icon } from '../core/dom.js';
 import { ago, fmtDate, SHORT_TIME, STATUS_LABEL, timeAttrs, whenLabel } from '../core/format.js';
 import { inGrid, isForLater, load, MOBILE, needsYou, S, save } from '../core/state.js';
+import { dismissInstall, installHint } from './homescreen.js';
 import { SPLIT_MIN_WIDTH } from '../spell-schema.js';
 import { onBack } from '../ui/back.js';
 import { popover } from '../ui/popover.js';
@@ -566,7 +567,15 @@ function paintSpare() {
       </div>`,
     )
     .join('');
-  const all = html + nhtml;
+  // On a wisp Grid in an iPhone's browser: add wisp to the Home Screen (homescreen.js), first in the box.
+  const install = installHint()
+    ? `<div class="sp-card hs-install" role="note">
+        <span class="model-logo">${icon('phone')}</span>
+        <span class="sp-text">Add wisp to your Home Screen: tap Share ${icon('share', 'hs-share')}, then Add to Home Screen</span>
+        <button type="button" class="icon-btn sp-x" data-install="x" title="Hide this" aria-label="Hide this">${icon('x')}</button>
+      </div>`
+    : '';
+  const all = install + html + nhtml;
   if (box.dataset.h !== all) (box.innerHTML = all), (box.dataset.h = all);
   box.hidden = !all;
 }
@@ -680,6 +689,11 @@ home.addEventListener('click', (e) => {
   if (e.target.closest('.sh-fb')) return openFeedback({ source: 'home' });
   const sp = e.target.closest('[data-spare]');
   if (sp) return onSpare(sp);
+  if (e.target.closest('[data-install]')) {
+    dismissInstall();
+    paintSpare();
+    return;
+  }
   const wn = e.target.closest('[data-wnote]');
   if (wn) {
     const n = notes[Number(wn.dataset.wnote)];

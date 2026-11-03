@@ -4,7 +4,7 @@
 
 import { esc } from '../md.js';
 import { icon } from '../core/dom.js';
-import { S } from '../core/state.js';
+import { IOS, S, STANDALONE } from '../core/state.js';
 import { toast } from '../ui/toast.js';
 import { reveal } from './feed.js';
 import { watching } from './scroll.js';
@@ -13,8 +13,13 @@ import { avatarHtml, crewInView, memberById, openMember } from './crew.js';
 const app = typeof window !== 'undefined' ? window.wispAndroid : null;
 
 // 'granted' | 'denied' | 'default' | 'unsupported', from the browser or the Android app.
+// An iPhone's home-screen app has no Notification constructor (iOS notifies those only through Web
+// Push, which wisp doesn't send yet): unsupported there, so nothing calls new Notification(); its
+// alerts come from the ntfy app (Settings → Phone) and the toasts.
+export const IOS_HOME = STANDALONE && IOS;
 export function notifyPermission() {
   if (app) return app.permission();
+  if (IOS_HOME) return 'unsupported';
   return 'Notification' in window ? Notification.permission : 'unsupported';
 }
 
