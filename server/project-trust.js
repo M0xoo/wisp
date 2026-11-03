@@ -7,6 +7,7 @@
 // no setup), or Skip. What you trusted is kept per repo (the main checkout, so its worktrees share
 // it) as one hash per item: a new or changed hook asks again, one that's gone doesn't matter.
 // A repo with none of these files runs as before. Settings → Privacy → projectAsk ('off' to stop).
+// Full auto (mode 'auto') never asks: choosing it means don't ask me, so it runs them all, as before.
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -119,7 +120,7 @@ export function setupItems(root) {
   return (Array.isArray(list) ? list : [list]).filter((c) => typeof c === 'string' && c.trim()).map((command, i) => item({ kind: 'setup', file, name: `step ${i + 1}`, command }));
 }
 
-export const asks = (defaults) => defaults?.projectAsk !== 'off';
+export const asks = (defaults, mode) => defaults?.projectAsk !== 'off' && mode !== 'auto';
 
 export class ProjectTrust {
   constructor(home, { now = Date.now } = {}) {
@@ -156,8 +157,9 @@ export class ProjectTrust {
   }
 
   // A new worktree of root: its setup steps when they aren't trusted (they wait), else null.
-  setupHold(root, defaults) {
-    if (!asks(defaults)) return null;
+  // mode: the task's (Full auto runs it at once).
+  setupHold(root, defaults, mode) {
+    if (!asks(defaults, mode)) return null;
     return this.untrusted(repoOf(root).key, setupItems(root))?.items || null;
   }
 

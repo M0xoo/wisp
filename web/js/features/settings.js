@@ -240,7 +240,7 @@ export function openSettings(opts) {
           </div>
           <p class="hint">Agent, model, status, timings and scrubbed errors only.</p>
           <div class="sx-group">
-            ${row('Ask before a repo’s hooks, servers and setup run', 'Claude Code runs a repo’s hooks and MCP servers, and wisp runs its worktree setup, without asking. On, the first run in a repo, and the first after one of them changes, waits for you with the list: Trust and start, Run without them, or Skip. It shows what a repo asks to run; it can’t tell you whether that’s safe', '<button class="switch" id="projectAsk" role="switch"></button>')}
+            ${row('Ask before a repo’s hooks, servers and setup run', 'Claude Code runs a repo’s hooks and MCP servers, and wisp runs its worktree setup, without asking. On, the first run in a repo, and the first after one of them changes, waits for you with the list: Trust and start, Run without them, or Skip (not in Full auto, which runs them unasked). It shows what a repo asks to run; it can’t tell you whether that’s safe', '<button class="switch" id="projectAsk" role="switch"></button>')}
           </div>
           <div class="sx-group">
             ${row('Hide .env values', 'What a task shows of a .env or .env.* file reads KEY=•••• in its activity, diffs and Changes, until you press Reveal there. Not .env.example or .env.sample', '<button class="switch" id="maskEnv" role="switch"></button>')}

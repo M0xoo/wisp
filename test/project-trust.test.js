@@ -1,7 +1,7 @@
 // Project trust (server/project-trust.js): a repo's Claude Code hooks, MCP servers and worktree setup
 // wait for your yes. The first run in such a repo (and the first after one changes) is held with the
 // list; Trust and start remembers it per repo, Run without them runs claude with
-// --setting-sources user --strict-mcp-config (and no setup), Skip never runs.
+// --setting-sources user --strict-mcp-config (and no setup), Skip never runs. Full auto never asks.
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -152,7 +152,7 @@ test('a repo with hooks waits on a card; Run without them passes --setting-sourc
   write(cwd, '.mcp.json', { mcpServers: { db: { command: 'node', args: ['srv.js'] } } });
 
   // Held before it started: nothing ran.
-  const s = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', worktree: false });
+  const s = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', mode: 'edits', worktree: false });
   const t = await held(s.id);
   assert.equal(t.held.project.items.length, 5);
   assert.deepEqual(t.held.project.items.map((x) => x.kind), ['hook', 'hook', 'command', 'plugin', 'mcp']);
@@ -177,20 +177,20 @@ test('a repo with hooks waits on a card; Run without them passes --setting-sourc
   assert.ok(runs[1].argv.includes('--strict-mcp-config'));
 
   // A new task asks again; Trust and start runs claude as before and remembers the repo.
-  const s2 = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', worktree: false });
+  const s2 = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', mode: 'edits', worktree: false });
   await held(s2.id);
   await api(`/sessions/${s2.id}/held`, { action: 'start' });
   await ended(s2.id);
   runs = claudeRuns(cwd);
   assert.equal(runs.length, 3);
   assert.ok(!runs[2].argv.includes('--setting-sources') && !runs[2].argv.includes('--strict-mcp-config'));
-  const s3 = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', worktree: false });
+  const s3 = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', mode: 'edits', worktree: false });
   await ended(s3.id);
   assert.equal((await last(s3.id)).held, undefined, 'trusted: no card');
 
   // A changed hook asks again (changed), Skip never runs it.
   write(cwd, '.claude/settings.json', { hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo new' }] }] } });
-  const s4 = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', worktree: false });
+  const s4 = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', mode: 'edits', worktree: false });
   const t4 = await held(s4.id);
   assert.equal(t4.held.project.changed, true);
   assert.deepEqual(t4.held.project.items.map((x) => x.command), ['echo new']);
@@ -205,7 +205,7 @@ test('a repo with hooks waits on a card; Run without them passes --setting-sourc
   await assert.rejects(api('/config', { defaults: { projectAsk: 'maybe' } }, 'PATCH'), /projectAsk must be on or off/);
   await api('/config', { defaults: { projectAsk: 'off' } }, 'PATCH');
   try {
-    const s5 = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', worktree: false });
+    const s5 = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', mode: 'edits', worktree: false });
     await ended(s5.id);
     assert.equal((await last(s5.id)).untrusted, undefined);
   } finally {
@@ -215,7 +215,7 @@ test('a repo with hooks waits on a card; Run without them passes --setting-sourc
 
 test('a repo without hooks, servers or setup: no card', async () => {
   const cwd = makeRepo();
-  const s = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', worktree: false });
+  const s = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', mode: 'edits', worktree: false });
   await ended(s.id);
   const t = await last(s.id);
   assert.equal(t.held, undefined);
@@ -229,7 +229,7 @@ test('a new worktree’s setup waits for Trust and start, and never runs on Run 
   execFileSync('git', ['commit', '-qm', 'setup'], { cwd, stdio: 'ignore' });
 
   // Codex reads no .claude/ files, but wisp's own setup still waits.
-  const s = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'codex', worktree: true });
+  const s = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'codex', mode: 'edits', worktree: true });
   const t = await held(s.id);
   const wt = (await api(`/sessions/${s.id}`)).worktree;
   assert.deepEqual(t.held.project.items.map((x) => x.kind), ['setup']);
@@ -238,16 +238,56 @@ test('a new worktree’s setup waits for Trust and start, and never runs on Run 
   await ended(s.id);
   assert.ok(!fs.existsSync(path.join(wt.path, 'setup-ran')), 'nor without them');
 
-  const s2 = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'codex', worktree: true });
+  const s2 = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'codex', mode: 'edits', worktree: true });
   await held(s2.id);
   const wt2 = (await api(`/sessions/${s2.id}`)).worktree;
   await api(`/sessions/${s2.id}/held`, { action: 'start' });
   await ended(s2.id);
   assert.ok(fs.existsSync(path.join(wt2.path, 'setup-ran')), 'Trust and start ran it');
   // Trusted: the next worktree sets itself up, with no card.
-  const s3 = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'codex', worktree: true });
+  const s3 = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'codex', mode: 'edits', worktree: true });
   await ended(s3.id);
   const wt3 = (await api(`/sessions/${s3.id}`)).worktree;
   assert.equal((await last(s3.id)).held, undefined);
   assert.ok(fs.existsSync(path.join(wt3.path, 'setup-ran')));
+});
+
+test('Full auto never asks: hooks, servers and a new worktree’s setup run as before; Edits still holds; switching a held task to Full auto starts it', async () => {
+  const cwd = makeRepo();
+  write(cwd, '.claude/settings.json', HOOKS);
+  write(cwd, '.mcp.json', { mcpServers: { db: { command: 'node', args: ['srv.js'] } } });
+  write(cwd, '.wisp/worktree.json', { setup: ['echo ok > setup-ran'] });
+  execFileSync('git', ['add', '.'], { cwd, stdio: 'ignore' });
+  execFileSync('git', ['commit', '-qm', 'hooks and setup'], { cwd, stdio: 'ignore' });
+
+  // Full auto: no card, claude with the repo's settings, the worktree set up, not marked untrusted.
+  const s = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', mode: 'auto', worktree: true });
+  await ended(s.id);
+  const t = await last(s.id);
+  assert.equal(t.held, undefined);
+  assert.equal(t.untrusted, undefined);
+  const wt = (await api(`/sessions/${s.id}`)).worktree;
+  assert.ok(fs.existsSync(path.join(wt.path, 'setup-ran')), 'the setup ran in Full auto');
+  assert.equal(wt.prepared?.held, undefined);
+  const runs = records(RECORD, 'claude').filter((r) => r.argv.includes('-p') && fs.realpathSync(r.cwd).startsWith(fs.realpathSync(wt.path)));
+  assert.equal(runs.length, 1);
+  assert.ok(!runs[0].argv.includes('--setting-sources') && !runs[0].argv.includes('--strict-mcp-config'));
+
+  // ...and it didn't trust the repo for the other modes: Edits still holds, with every item.
+  const e = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', mode: 'edits', worktree: false });
+  const te = await held(e.id);
+  assert.equal(te.held.project.items.length, 5);
+  assert.equal(claudeRuns(cwd).length, 0);
+
+  // Switched to Full auto with a follow-up: the held run goes (in Full auto, trusted), then the follow-up.
+  await api(`/sessions/${e.id}/reply`, { text: 'go ahead', mode: 'auto' });
+  await until(async () => (await api(`/sessions/${e.id}`)).turns.length === 2 && !['running', 'held'].includes((await last(e.id)).status), { timeout: 30_000 });
+  const turns = (await api(`/sessions/${e.id}`)).turns;
+  assert.deepEqual(turns.map((x) => [x.prompt, x.mode, x.status === 'held', !!x.untrusted]), [
+    ['fix the add bug please', 'auto', false, false],
+    ['go ahead', 'auto', false, false],
+  ]);
+  const ran = claudeRuns(cwd);
+  assert.equal(ran.length, 2);
+  assert.ok(ran.every((r) => !r.argv.includes('--strict-mcp-config')));
 });
