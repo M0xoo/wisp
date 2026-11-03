@@ -694,7 +694,7 @@ body.wisp-mobile .mp-route { height: 44px; padding: 0 10px; }
 .tb .i { width: 13px; height: 13px; }
 .tb-l { display: none; } /* the phone names each count (responsive.css) */
 /* The usage receipt: quiet, like the duration and cost beside it; Past your plan in the warn colour */
-.tb-receipt { gap: 6px; }
+.tb-receipt, .tb-agents { gap: 6px; }
 .tb-dot { opacity: 0.6; }
 .tb-over { color: var(--warn); }
 .trail-bar .link { font-size: 12.5px; }

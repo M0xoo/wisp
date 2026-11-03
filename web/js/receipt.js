@@ -33,6 +33,12 @@ export function turnTokens(t) {
   const anthropic = 'cacheReadTokens' in st || 'cacheWriteTokens' in st;
   const read = anthropic ? n(st.inputTokens) + n(st.cacheReadTokens) + n(st.cacheWriteTokens) : n(st.inputTokens);
   const cached = anthropic ? n(st.cacheReadTokens) : Math.min(n(st.cachedInputTokens), read);
+  // Claude's modelUsage (stats.models) counts every model the run used, its subagents' included,
+  // which usage can leave out: the larger of the two is the turn's.
+  if (st.models?.length) {
+    const m = st.models.reduce((a, x) => ({ read: a.read + n(x.input) + n(x.cacheRead) + n(x.cacheWrite), cached: a.cached + n(x.cacheRead), output: a.output + n(x.output) }), { read: 0, cached: 0, output: 0 });
+    if (m.read + m.output > read + n(st.outputTokens)) return m;
+  }
   return { read, cached, output: n(st.outputTokens) };
 }
 
@@ -137,4 +143,53 @@ export function compareTip(compare, model, account, labelOf) {
   const c = (compare || []).find((x) => x.model === (model || ''));
   if (!c || !c.accounts.some((x) => x.account === (account || 'default'))) return '';
   return `Median turn on this model over the last ${COMPARE_DAYS} days: ${c.accounts.map((x) => `${labelOf(x.account)} ${tokenWords(x.output)} out / ${tokenWords(x.input)} in`).join(', ')}. Settings → Usage compares the accounts`;
+}
+
+// Where a turn's tokens went (server/adapters/claude.js: stats.models from the result's modelUsage,
+// stats.subagents from each Agent call's messages). claude-opus-5-5 → "Opus 5.5", opus → "Opus".
+export function modelWords(id) {
+  const s = String(id || '');
+  const m = /^claude-(?:(\d+)-(?:(\d)-)?)?(opus|sonnet|haiku|fable)(?:-(\d{1,2})(?:-(\d{1,2}))?)?(?:-\d{8})?(\[1m\])?$/i.exec(s);
+  const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+  if (m) {
+    const v = m[4] ? `${m[4]}${m[5] ? `.${m[5]}` : ''}` : m[1] ? `${m[1]}${m[2] ? `.${m[2]}` : ''}` : '';
+    return `${cap(m[3])}${v ? ` ${v}` : ''}${m[6] ? ' (1M)' : ''}`;
+  }
+  return /^(opus|sonnet|haiku|fable)$/i.test(s) ? cap(s) : s;
+}
+
+// All the output the turn wrote, its subagents' included (modelUsage has them; usage may not).
+export function turnOutput(t) {
+  const st = t?.stats || {};
+  const n = (x) => (Number.isFinite(x) && x > 0 ? x : 0);
+  const models = (st.models || []).reduce((a, m) => a + n(m.output), 0);
+  const subs = (st.subagents || []).reduce((a, x) => a + n(x.output), 0);
+  return Math.max(models, n(st.outputTokens), subs);
+}
+
+const agentsWord = (x) => `${x.calls} ${x.type} agent${x.calls === 1 ? '' : 's'}`;
+
+// "Claude Code ran page reads as an agent on Opus 5.5 on this account": a web-fetch agent ran on a
+// run whose tools had no WebFetch (CC#106743), or ''.
+export function insteadWords(x) {
+  return x?.instead === 'WebFetch' ? `Claude Code ran page reads as an agent${x.model ? ` on ${modelWords(x.model)}` : ''} on this account` : '';
+}
+
+// The receipt's subagent line, for the subagent type that wrote most: "3 web-fetch agents · Opus 5.5 ·
+// 27k of 41k output", or '' when no subagent ran.
+export function subagentParts(t) {
+  const x = t?.stats?.subagents?.[0];
+  if (!x) return [];
+  const total = turnOutput(t);
+  return [agentsWord(x), x.model ? modelWords(x.model) : '', x.output ? `${tokenWords(x.output)} of ${tokenWords(total)} output` : ''].filter(Boolean);
+}
+
+// Its tooltip: every subagent type, the tokens per model, and the page-reads note.
+export function subagentTip(t) {
+  const st = t?.stats || {};
+  const total = turnOutput(t);
+  const subs = (st.subagents || []).map((x) => `${agentsWord(x)}${x.model ? ` on ${modelWords(x.model)}` : ''}: ${tokenWords(x.output)} of ${tokenWords(total)} output tokens, ${tokenWords(x.read)} read`);
+  const models = (st.models || []).map((m) => `${modelWords(m.model)} ${tokenWords(m.output)} out / ${tokenWords(m.input + m.cacheRead + m.cacheWrite)} in`);
+  const notes = [...new Set((st.subagents || []).map(insteadWords).filter(Boolean))];
+  return [subs.length ? `Subagents: ${subs.join('; ')}` : '', models.length ? `By model: ${models.join(', ')}` : '', ...notes].filter(Boolean).join('. ');
 }
