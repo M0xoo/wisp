@@ -103,7 +103,7 @@ function subagentsHtml(w) {
   if (!w?.subagents?.length) return '';
   const rows = w.subagents.map((x) => {
     const words = [`${x.calls} ${x.type} agent${x.calls === 1 ? '' : 's'}`, x.model ? modelWords(x.model) : '', x.output ? `${tokenWords(x.output)} out` : ''].filter(Boolean).join(' · ');
-    return `<div class="bg-task"><span class="bg-tt">${esc(words)}</span><b class="bg-p">${pct(x.used)}</b></div>`;
+    return `<div class="bg-task" title="${esc(words)}"><span class="bg-tt">${esc(words)}</span><b class="bg-p">${pct(x.used)}</b></div>`;
   });
   const notes = [...new Set(w.subagents.map(insteadWords).filter(Boolean))].map((t) => `<div class="bg-task muted bg-inst"><span class="bg-tt">${esc(t)}</span></div>`);
   return `<div class="bg-sub"><small class="bg-wh">Where it went: subagents</small>${rows.join('')}${notes.join('')}</div>`;

@@ -981,3 +981,10 @@ test('a Claude run with web-fetch agents and no WebFetch lands models and subage
     delete process.env.FAKE_TOOLS;
   }
 });
+
+test('receipt tokens: modelUsage counts in when it holds more than usage (its subagents)', () => {
+  const t = { stats: { inputTokens: 10, cacheReadTokens: 31000, cacheWriteTokens: 20, outputTokens: 5, models: [{ model: 'claude-opus-5-5', input: 4000, output: 41000, cacheRead: 20000, cacheWrite: 0 }, { model: 'claude-haiku-4-5', input: 900, output: 120, cacheRead: 0, cacheWrite: 0 }] } };
+  assert.deepEqual(receiptParts(receiptOf(t)), ['66k tokens', '80% cache']);
+  const small = { stats: { inputTokens: 10, cacheReadTokens: 31000, cacheWriteTokens: 20, outputTokens: 5, models: [{ model: 'x', input: 1, output: 1, cacheRead: 0, cacheWrite: 0 }] } };
+  assert.deepEqual(receiptParts(receiptOf(small)), ['31k tokens', '99% cache'], 'usage is larger: usage');
+});

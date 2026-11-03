@@ -33,6 +33,12 @@ export function turnTokens(t) {
   const anthropic = 'cacheReadTokens' in st || 'cacheWriteTokens' in st;
   const read = anthropic ? n(st.inputTokens) + n(st.cacheReadTokens) + n(st.cacheWriteTokens) : n(st.inputTokens);
   const cached = anthropic ? n(st.cacheReadTokens) : Math.min(n(st.cachedInputTokens), read);
+  // Claude's modelUsage (stats.models) counts every model the run used, its subagents' included,
+  // which usage can leave out: the larger of the two is the turn's.
+  if (st.models?.length) {
+    const m = st.models.reduce((a, x) => ({ read: a.read + n(x.input) + n(x.cacheRead) + n(x.cacheWrite), cached: a.cached + n(x.cacheRead), output: a.output + n(x.output) }), { read: 0, cached: 0, output: 0 });
+    if (m.read + m.output > read + n(st.outputTokens)) return m;
+  }
   return { read, cached, output: n(st.outputTokens) };
 }
 
