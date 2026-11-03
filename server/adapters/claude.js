@@ -119,68 +119,114 @@ const PERMISSION_MODES = {
   auto: 'bypassPermissions',
 };
 
-// Where a turn's tokens went (the receipt, server/budget.js whereSubagents). modelUsage on the
-// result has the run's tokens per model, its subagents' included. Subagents: each Agent (or Task)
-// call's subagent_type, and the tokens of the messages that carry its id as parent_tool_use_id. One
-// API call can come as several messages (one per content block) with the same id and usage, so each
-// message id counts once, at its largest; the Agent result's own usage (tool_use_result) wins when
-// it's there. A web-fetch agent on a run whose init had no WebFetch (Claude Code's
-// tengu_clever_orbit experiment, CC#106743) is marked `instead: 'WebFetch'`.
+// Where a turn's tokens went (the receipt, server/budget.js whereSubagents). As claude 2.1.316
+// streams it (captured): result.modelUsage has the tokens per model, subagents' and side calls'
+// included, and adds up over every result of the process (a background task's wake-up result holds
+// the first one's too), so each result keeps only what's new since the last. result.usage is the
+// main thread's alone. Subagents: each Agent (or Task) call, or task_started, gives its
+// subagent_type; the messages carrying its id as parent_tool_use_id give their model and what they
+// read. Their output_tokens are a snapshot from the stream's start (1 for a whole answer), so a
+// model's output comes from modelUsage: what that model wrote minus the main thread's usage (when
+// it's the main thread's model), shared among the subagents on it by their messages' counts. An
+// Agent result that carries its own usage (tool_use_result.usage) wins. A web-fetch agent on a run
+// whose init had no WebFetch (Claude Code's tengu_clever_orbit experiment, CC#106743) is marked
+// `instead: 'WebFetch'`.
 const n0 = (x) => (Number.isFinite(x) && x > 0 ? x : 0);
-export function modelsOf(modelUsage) {
+const MODEL_KEYS = { input: 'inputTokens', output: 'outputTokens', cacheRead: 'cacheReadInputTokens', cacheWrite: 'cacheCreationInputTokens' };
+// → [{ model, input, output, cacheRead, cacheWrite }] most output first, what's new since `prev`
+// (the last result's modelUsage), or undefined.
+export function modelsOf(modelUsage, prev) {
   if (!modelUsage || typeof modelUsage !== 'object') return undefined;
   const list = Object.entries(modelUsage)
-    .map(([model, u]) => ({ model, input: n0(u?.inputTokens), output: n0(u?.outputTokens), cacheRead: n0(u?.cacheReadInputTokens), cacheWrite: n0(u?.cacheCreationInputTokens) }))
+    .map(([model, u]) => {
+      const e = { model };
+      for (const [k, key] of Object.entries(MODEL_KEYS)) e[k] = Math.max(0, n0(u?.[key]) - n0(prev?.[model]?.[key]));
+      return e;
+    })
     .filter((m) => m.input + m.output + m.cacheRead + m.cacheWrite > 0)
     .sort((a, b) => b.output - a.output);
   return list.length ? list : undefined;
 }
 
 export function subagentTally() {
-  const calls = new Map(); // Agent tool_use id -> { type, model, msgs: Map(message id -> usage), total }
+  const calls = new Map(); // Agent tool_use id -> { type, model, msgs: Map(message id -> { model, read, output }), total }
   let tools = null; // init's tools, when it sent them
+  let main = ''; // the main thread's model, from its own messages
   const usageOf = (u) => ({ read: n0(u?.input_tokens) + n0(u?.cache_read_input_tokens) + n0(u?.cache_creation_input_tokens), output: n0(u?.output_tokens) });
   return {
     init(list) {
       if (Array.isArray(list)) tools = list;
     },
     call(id, name, input) {
-      if ((name === 'Agent' || name === 'Task') && id) calls.set(id, { type: String(input?.subagent_type || 'general-purpose'), model: input?.model ? String(input.model) : '', msgs: new Map(), total: null });
+      if ((name === 'Agent' || name === 'Task') && id && !calls.has(id)) calls.set(id, { type: String(input?.subagent_type || 'general-purpose'), model: input?.model ? String(input.model) : '', msgs: new Map(), total: null });
     },
-    // An assistant message from inside a subagent.
+    // An assistant message: from inside a subagent (parent_tool_use_id), or the main thread's.
     message(msg) {
-      const c = calls.get(msg.parent_tool_use_id);
-      if (!c) return;
       const m = msg.message || {};
+      const c = msg.parent_tool_use_id && calls.get(msg.parent_tool_use_id);
+      if (!msg.parent_tool_use_id) {
+        if (m.model) main = String(m.model);
+        return;
+      }
+      if (!c) return;
       if (m.model) c.model = String(m.model);
       if (!m.usage) return;
       const key = m.id || `#${c.msgs.size}`;
       const u = usageOf(m.usage);
       const was = c.msgs.get(key);
-      c.msgs.set(key, was ? { read: Math.max(was.read, u.read), output: Math.max(was.output, u.output) } : u);
+      c.msgs.set(key, { model: c.model, read: Math.max(was?.read || 0, u.read), output: Math.max(was?.output || 0, u.output) });
     },
-    // The Agent call's result; Claude Code puts the subagent's total usage on tool_use_result.
+    // The Agent call's result; an older Claude Code put the subagent's usage on tool_use_result.
     result(id, toolUseResult) {
       const c = calls.get(id);
-      if (c && toolUseResult?.usage && typeof toolUseResult.usage === 'object') c.total = usageOf(toolUseResult.usage);
+      if (!c) return;
+      if (toolUseResult?.resolvedModel && !c.model) c.model = String(toolUseResult.resolvedModel);
+      if (toolUseResult?.usage && typeof toolUseResult.usage === 'object' && Number.isFinite(toolUseResult.usage.output_tokens)) c.total = usageOf(toolUseResult.usage);
     },
+    // models: this result's modelsOf; mainOut: its usage.output_tokens.
     // → [{ type, calls, model, read, output, instead? }], most output first, or undefined. Clears the tally.
-    take() {
-      const by = new Map();
+    take({ models, mainOut = 0 } = {}) {
+      if (!calls.size) return undefined;
+      // Per call and model: what its messages say.
+      const parts = []; // { c, model, read, output }
       for (const c of calls.values()) {
-        const sum = c.total || [...c.msgs.values()].reduce((a, u) => ({ read: a.read + u.read, output: a.output + u.output }), { read: 0, output: 0 });
-        const e = by.get(c.type) || { type: c.type, calls: 0, models: new Map(), read: 0, output: 0 };
-        e.calls++;
-        e.read += sum.read;
-        e.output += sum.output;
-        if (c.model) e.models.set(c.model, (e.models.get(c.model) || 0) + sum.output + 1);
-        by.set(c.type, e);
+        if (c.total) {
+          parts.push({ c, model: c.model, ...c.total, fixed: true });
+          continue;
+        }
+        const by = new Map();
+        for (const m of c.msgs.values()) {
+          const e = by.get(m.model || c.model) || { c, model: m.model || c.model, read: 0, output: 0 };
+          e.read += m.read;
+          e.output += m.output;
+          by.set(e.model, e);
+        }
+        if (!by.size) by.set(c.model, { c, model: c.model, read: 0, output: 0 });
+        parts.push(...by.values());
+      }
+      // A model's output from modelUsage, past what the main thread and fixed totals account for.
+      const mainModel = main || models?.[0]?.model || '';
+      for (const m of models || []) {
+        const on = parts.filter((p) => p.model === m.model && !p.fixed);
+        if (!on.length) continue;
+        const pool = m.output - (m.model === mainModel ? n0(mainOut) : 0) - parts.filter((p) => p.model === m.model && p.fixed).reduce((a, p) => a + p.output, 0);
+        const seen = on.reduce((a, p) => a + p.output, 0);
+        if (!(pool > seen)) continue;
+        for (const p of on) p.output = seen ? Math.round((pool * p.output) / seen) : Math.round(pool / on.length);
+      }
+      const types = new Map();
+      for (const p of parts) {
+        const e = types.get(p.c.type) || { type: p.c.type, ids: new Set(), models: new Map(), read: 0, output: 0 };
+        e.ids.add(p.c);
+        e.read += p.read;
+        e.output += p.output;
+        if (p.model) e.models.set(p.model, (e.models.get(p.model) || 0) + p.output + 1);
+        types.set(p.c.type, e);
       }
       calls.clear();
-      if (!by.size) return undefined;
       const noFetch = tools && !tools.includes('WebFetch');
-      return [...by.values()]
-        .map(({ models, ...e }) => ({ ...e, model: [...models].sort((a, b) => b[1] - a[1])[0]?.[0] || '', ...(noFetch && /^web[-_ ]?fetch/i.test(e.type) && { instead: 'WebFetch' }) }))
+      return [...types.values()]
+        .map(({ models: ms, ids, ...e }) => ({ type: e.type, calls: ids.size, read: e.read, output: e.output, model: [...ms].sort((a, b) => b[1] - a[1])[0]?.[0] || '', ...(noFetch && /^web[-_ ]?fetch/i.test(e.type) && { instead: 'WebFetch' }) }))
         .sort((a, b) => b.output - a.output || b.calls - a.calls);
     },
   };
@@ -296,6 +342,7 @@ export default {
 
     let sawResult = false;
     const subagents = subagentTally();
+    let lastModels = null; // the last result's modelUsage (it adds up over the process)
     let refused = false; // an assistant message the API ended with stop_reason "refusal" (server/refusal.js)
     let early = null; // an empty result that came before our prompt was answered (see below)
     const pendingTools = new Map(); // tool_use_id -> name, to flag failed tool results
@@ -312,7 +359,7 @@ export default {
       if (msg.session_id) onEvent({ type: 'session', id: msg.session_id });
 
       if (msg.type === 'assistant') {
-        if (msg.parent_tool_use_id) subagents.message(msg);
+        subagents.message(msg);
         if (msg.message?.stop_reason === 'refusal') refused = true;
         for (const part of msg.message?.content || []) {
           if (part.type === 'text' && part.text.trim()) {
@@ -348,6 +395,8 @@ export default {
         if (Array.isArray(msg.tools)) onEvent({ type: 'tools', list: msg.tools });
         subagents.init(msg.tools);
       } else if (msg.type === 'system') {
+        // A subagent started (claude 2.1.316 runs Agent calls in the background): its type.
+        if (msg.subtype === 'task_started' && msg.task_type === 'local_agent' && msg.tool_use_id) subagents.call(msg.tool_use_id, 'Agent', { subagent_type: msg.subagent_type });
         // background_tasks_changed carries the full list; task_started/task_notification are the
         // per-task edges, kept as a fallback in case a CLI version only sends those.
         if (msg.subtype === 'background_tasks_changed' && Array.isArray(msg.tasks)) {
@@ -370,7 +419,11 @@ export default {
           return;
         }
         sawResult = true;
-        const subs = subagents.take();
+        // modelUsage adds up over the process: this result's part is what's new since the last.
+        const models = modelsOf(msg.modelUsage, lastModels);
+        if (msg.modelUsage) lastModels = msg.modelUsage;
+        if (models) ev.stats.models = models;
+        const subs = subagents.take({ models, mainOut: msg.usage?.output_tokens });
         if (subs) ev.stats.subagents = subs;
         // Refused tool calls (no approve tool here, or the user said no): the card offers a retry.
         for (const d of msg.permission_denials || []) {
@@ -417,8 +470,6 @@ function resultEvent(msg) {
       // Not in inputTokens (Anthropic counts them apart): the turn's receipt adds them up.
       ...(Number.isFinite(msg.usage?.cache_read_input_tokens) && { cacheReadTokens: msg.usage.cache_read_input_tokens }),
       ...(Number.isFinite(msg.usage?.cache_creation_input_tokens) && { cacheWriteTokens: msg.usage.cache_creation_input_tokens }),
-      // Tokens per model (subagents' and side calls' models included): where the turn's tokens went.
-      ...(modelsOf(msg.modelUsage) && { models: modelsOf(msg.modelUsage) }),
     },
   };
 }

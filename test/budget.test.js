@@ -899,34 +899,42 @@ const { modelsOf, subagentTally } = await import('../server/adapters/claude.js')
 const { modelWords, subagentParts, subagentTip, insteadWords, turnOutput } = await import('../web/js/receipt.js');
 const { whereSubagents } = await import('../server/budget.js');
 
-test('subagent tally: per type, one message id counts once, the Agent result’s usage wins; modelUsage per model', () => {
+test('subagent tally: per type, output from modelUsage past the main thread, one message id once; modelUsage deltas', () => {
   const t = subagentTally();
   t.init(['Read', 'Bash']);
+  t.message({ message: { id: 'x', model: 'claude-opus-5-5', usage: { output_tokens: 1 } } }); // the main thread's
   t.call('a1', 'Agent', { subagent_type: 'web-fetch' });
   t.call('a2', 'Agent', { subagent_type: 'web-fetch' });
-  t.call('a3', 'Task', { subagent_type: 'Explore', model: 'haiku' });
+  t.call('a3', 'Agent', { subagent_type: 'Explore' }); // started again by task_started: kept once
+  t.call('a3', 'Agent', { subagent_type: 'Explore' });
   t.call('b1', 'Bash', { command: 'ls' }); // not an agent
-  const u = { input_tokens: 10, cache_read_input_tokens: 90, output_tokens: 300 };
+  const u = { input_tokens: 10, cache_read_input_tokens: 90, output_tokens: 1 };
   t.message({ parent_tool_use_id: 'a1', message: { id: 'm1', model: 'claude-opus-5-5', usage: u } });
   t.message({ parent_tool_use_id: 'a1', message: { id: 'm1', model: 'claude-opus-5-5', usage: u } });
-  t.message({ parent_tool_use_id: 'a1', message: { id: 'm2', usage: { input_tokens: 5, output_tokens: 200 } } });
+  t.message({ parent_tool_use_id: 'a1', message: { id: 'm2', model: 'claude-opus-5-5', usage: { input_tokens: 5, output_tokens: 1 } } });
   t.message({ parent_tool_use_id: 'a2', message: { id: 'm3', model: 'claude-opus-5-5', usage: u } });
-  t.result('a2', { usage: { input_tokens: 1, output_tokens: 1000 } });
-  t.message({ parent_tool_use_id: 'nope', message: { id: 'm4', usage: u } });
-  const subs = t.take();
+  t.message({ parent_tool_use_id: 'a3', message: { id: 'm4', model: 'claude-haiku-4-5', usage: u } });
+  t.message({ parent_tool_use_id: 'nope', message: { id: 'm5', usage: u } });
+  t.result('a2', { isAsync: true, status: 'async_launched' }); // no usage: nothing changes
+  // Opus wrote 9000, 3000 of it the main thread's: 6000 shared 2:1 by the messages' counts.
+  const models = modelsOf({ 'claude-opus-5-5': { outputTokens: 9000 }, 'claude-haiku-4-5': { outputTokens: 400 } });
+  const subs = t.take({ models, mainOut: 3000 });
   assert.deepEqual(subs, [
-    { type: 'web-fetch', calls: 2, read: 105 + 1, output: 500 + 1000, model: 'claude-opus-5-5', instead: 'WebFetch' },
-    { type: 'Explore', calls: 1, read: 0, output: 0, model: 'haiku' },
+    { type: 'web-fetch', calls: 2, read: 105 + 100, output: 6000, model: 'claude-opus-5-5', instead: 'WebFetch' },
+    { type: 'Explore', calls: 1, read: 100, output: 400, model: 'claude-haiku-4-5' },
   ]);
   assert.equal(t.take(), undefined, 'take clears it');
+  // An Agent result with its own usage wins.
   const t2 = subagentTally();
   t2.init(['Read', 'WebFetch']);
   t2.call('a1', 'Agent', { subagent_type: 'web-fetch' });
-  assert.equal(t2.take()[0].instead, undefined, 'WebFetch was there: no note');
-  assert.deepEqual(modelsOf({ 'claude-opus-5-5': { inputTokens: 4, outputTokens: 41, cacheReadInputTokens: 2 }, x: { inputTokens: 0, outputTokens: 0 }, 'claude-haiku-4-5': { outputTokens: 50 } }), [
-    { model: 'claude-haiku-4-5', input: 0, output: 50, cacheRead: 0, cacheWrite: 0 },
-    { model: 'claude-opus-5-5', input: 4, output: 41, cacheRead: 2, cacheWrite: 0 },
-  ]);
+  t2.result('a1', { usage: { input_tokens: 7, output_tokens: 70 }, resolvedModel: 'claude-sonnet-4-5' });
+  assert.deepEqual(t2.take({ models: modelsOf({ 'claude-sonnet-4-5': { outputTokens: 500 } }) }), [{ type: 'web-fetch', calls: 1, read: 7, output: 70, model: 'claude-sonnet-4-5' }], 'WebFetch was there: no note');
+  // modelUsage adds up over a process's results: each keeps what's new.
+  const first = { 'claude-haiku-5-5': { inputTokens: 6, outputTokens: 299, cacheReadInputTokens: 39658, cacheCreationInputTokens: 36759 } };
+  const second = { 'claude-haiku-5-5': { inputTokens: 10, outputTokens: 302, cacheReadInputTokens: 68461, cacheCreationInputTokens: 37421 } };
+  assert.deepEqual(modelsOf(second, first), [{ model: 'claude-haiku-5-5', input: 4, output: 3, cacheRead: 28803, cacheWrite: 662 }]);
+  assert.equal(modelsOf(first, first), undefined, 'nothing new: nothing');
   assert.equal(modelsOf(undefined), undefined);
 });
 
