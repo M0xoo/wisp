@@ -217,6 +217,7 @@ export function openapi({ version, port }) {
       },
       '/sessions/{id}/pr': { parameters: [id], post: { summary: 'Refresh the PR status (checks, review, state) now; it is also polled every minute', responses: { 200: json(ref('PullRequest')), 404: err[404] } } },
       '/sessions/{id}/fix-conflicts': { parameters: [id], post: { summary: 'Fix the PR\'s merge conflicts now (the PR row\'s Fix conflicts button): a follow-up merges the base in, then wisp pushes to the PR', responses: { 200: json({ type: 'object' }), 400: err[400] } } },
+      '/sessions/{id}/review': { parameters: [id], post: { summary: 'Review the task\'s open PR by another harness now: one other than the author (or defaults.review\'s pick) reads the diff and the tests run again on the PR head; the result is the session\'s review', responses: { 200: json({ type: 'object' }), 400: err[400], 409: json(ref('Error')) } } },
       '/sessions/{id}/merge': {
         parameters: [id],
         post: { summary: 'Mark the PR ready if draft, squash-merge it with --match-head-commit, fast-forward the local base branch, remove the worktree', responses: { 200: json({ type: 'object', properties: { pr: ref('PullRequest'), sync: { type: 'object', properties: { ok: { type: 'boolean' }, text: { type: 'string' } } } } }), 400: err[400] } },
@@ -987,6 +988,7 @@ export function openapi({ version, port }) {
             branch: { type: 'string', description: 'Worktree branch, if it has one' },
             pr: { type: ['object', 'null'], description: 'Its pull request, once shipped' },
             shipping: { type: ['object', 'null'], description: "{ step: start | commit | push | pr, update } while Ship it runs" },
+            review: { type: ['object', 'null'], description: "Review by another harness of the PR's head (defaults.review): { status: running | done | failed | held, head, current (of the PR's head now), by: { agent, model }, summary, findings: [{ severity: high | medium | low, file, line, text }], tests: { verdict, command, passed, failed }, why }" },
             conflictFix: { type: ['object', 'null'], description: "{ step: fixing | pushing | done | failed, why } while wisp fixes the PR's merge conflicts: after Fix conflicts, or on its own with defaults.fixConflicts: 'on'" },
             overlaps: { type: 'array', description: 'Other open tasks in the same repo that change the same files: [{ id, title, files, more, conflicts }]. conflicts lists the files merging both would leave conflicted ([] if they merge cleanly, null if git is older than 2.38). Absent when there are none.' },
             groupId: { type: ['string', 'null'], description: 'Shared by sessions launched together with compare' },

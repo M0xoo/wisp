@@ -25,6 +25,7 @@ import { kitNote } from './crew.js';
 import { planOf, unitsOf } from './budget.js';
 import { watchView } from './watch.js';
 import { asks as projectAsks } from './project-trust.js';
+import { reviewView } from './services/review.js';
 
 const MAX_ACTIVITY = 400;
 const MAX_TEXT = 20_000; // an agent message, kept whole for the transcript up to this
@@ -238,6 +239,8 @@ export function summarize(s, store) {
     ...(s.prs?.length && { prs: s.prs.map((x) => ({ repo: x.repo, pr: { number: x.pr.number, url: x.pr.url, state: x.pr.state, draft: x.pr.draft, review: x.pr.review, checks: x.pr.checks, conflict: !!x.pr.conflict } })) }),
     // wisp fixing the PR's merge conflicts on its own: { step: 'fixing' | 'pushing' | 'done' | 'failed', why }
     conflictFix: s.conflictFix ? { step: s.conflictFix.step, why: s.conflictFix.why || '' } : null,
+    // Review by another harness of the PR's head (services/review.js): { status, current, by, findings, tests, why }
+    review: reviewView(s),
     groupId: s.groupId || null,
     origin: s.origin || null, // { kind: 'recipe' | 'trigger' | 'telegram', id, name }
     ...(s.kind && { kind: s.kind }), // 'spell': a Cast a spell task

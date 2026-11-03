@@ -348,6 +348,12 @@ test('.env masking: Hide .env values is a setting; the masked line and its Revea
   assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.maskEnvFiles', 'env.reveal'] }, parts: { 'env.masked': { style: { opacity: '0.8' } } } }), []);
 });
 
+test('Review by another harness: a setting (off, other, or a harness); the PR row’s chip and the panel’s section are parts', () => {
+  for (const v of ['off', 'other', 'codex', 'claude']) assert.deepEqual(problems({ ...base0, settings: { review: v } }), []);
+  assert.ok(problems({ ...base0, settings: { review: 'on' } }).some((x) => /review/.test(x) && /off \| other \| claude/.test(x)));
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.review', 'split.pr.review', 'panel.pr.review.again'] }, parts: { 'panel.pr.review': { style: { opacity: '0.8' } } } }), []);
+});
+
 test('Harness watch: Ask before running a changed harness is a setting; the change line and its row are parts', () => {
   assert.deepEqual(problems({ ...base0, settings: { harnessAsk: 'on' } }), []);
   assert.ok(problems({ ...base0, settings: { harnessAsk: 'always' } }).some((x) => /harnessAsk/.test(x) && /on \| off/.test(x)));

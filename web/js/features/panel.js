@@ -36,7 +36,7 @@ import { draftInto } from './composer.js';
 import { paintMini } from './turns.js';
 import { expand } from './feed.js';
 import { agentName } from './runners.js';
-import { fixPr, mergePr, prsOf, shipDialog, shippable } from './ship.js';
+import { fixPr, mergePr, prsOf, reviewState, shipDialog, shippable, startReview } from './ship.js';
 import { slotHtml, spellProp } from './spells.js';
 import { isSplit, isStacked, relayout, splitOpen } from './split.js';
 import { connect, SCREEN_HTML, termState, TermView, TOUCH } from './term-view.js';
@@ -499,7 +499,38 @@ function verdict(p, s) {
   if (c.pending) return { tone: 'pending', text: `Waiting on ${c.pending} check${c.pending > 1 ? 's' : ''}`, btn: ['merge', 'Merge', 'ghost'] };
   if (p.draft) return { tone: 'draft', text: 'Draft: merging marks it ready first', btn: ['merge', 'Merge', 'ghost'] };
   if (p.review === 'REVIEW_REQUIRED') return { tone: 'pending', text: 'Needs a review before it can merge', btn: ['merge', 'Merge', 'ghost'] };
-  return { tone: 'pass', text: 'Ready to merge', btn: ['merge', 'Merge', 'primary'] };
+  // Review by another harness: Merge stays, but the line says it isn't reviewed or what it found.
+  const rv = s?.pr?.number === p.number ? reviewState(s) : null;
+  if (rv && rv.kind !== 'pass') {
+    const why = rv.kind === 'running' ? 'being reviewed' : rv.kind === 'issues' ? `review found ${rv.n} issue${rv.n > 1 ? 's' : ''}` : rv.kind === 'tests' ? 'tests fail on its head' : 'not reviewed';
+    return { tone: rv.kind === 'issues' || rv.kind === 'tests' ? 'fail' : 'pending', text: `Can merge · ${why}`, btn: ['merge', 'Merge', 'ghost'] };
+  }
+  return { tone: 'pass', text: rv ? 'Ready to merge · reviewed' : 'Ready to merge', btn: ['merge', 'Merge', 'primary'] };
+}
+
+// Review by another harness: who reviewed, the tests on the PR's head, and each finding with
+// Send to agent; Review again (or Review now) at the foot.
+const SEV = { high: 'High', medium: 'Medium', low: 'Low' };
+function xreviewHtml(s, p, canAsk) {
+  if (s?.pr?.number !== p.number || p.state !== 'OPEN') return '';
+  const v = reviewState(s);
+  if (!v) return '';
+  const r = s.review;
+  const by = S.agents.find((a) => a.id === r?.by?.agent)?.name || r?.by?.agent || '';
+  const head = `<h4>Review by ${by ? esc(by) : 'another harness'}${v.n ? `<span class="n">${v.n}</span>` : ''}</h4>`;
+  const again = v.kind === 'running' ? '' : `<button class="ghost xs" data-a="xreview">${icon('replay')}<span>${r?.current && r.status === 'done' ? 'Review again' : 'Review now'}</span></button>`;
+  if (v.kind === 'running') return `<section class="pn-xrv running">${head}<p class="pn-none">${esc(v.title)}…</p></section>`;
+  if (v.kind === 'none' || v.kind === 'failed' || v.kind === 'held') return `<section class="pn-xrv">${head}<p class="pn-none">${esc(v.title.replace(/\. Click to .*$/, '.'))}</p><div class="xrv-foot">${again}</div></section>`;
+  const tests = r.tests ? `<p class="xrv-tests ${r.tests.verdict}">${icon(r.tests.verdict === 'fail' ? 'x' : r.tests.verdict === 'pass' ? 'check' : 'info')}<code>${esc(r.tests.command || 'tests')}</code><span>${r.tests.verdict === 'pass' ? `pass${r.tests.passed ? ` · ${r.tests.passed}` : ''}` : r.tests.verdict === 'fail' ? `fail${r.tests.failed ? ` · ${r.tests.failed}` : ''}` : 'unclear'} on the PR’s head</span></p>` : '';
+  const items = r.findings
+    .map((f, i) => `
+      <li class="xrv-f ${f.severity}">
+        <div class="pn-where-line"><span class="xrv-sev">${SEV[f.severity] || ''}</span>${f.file ? `<code>${esc(f.file)}${f.line ? `:${f.line}` : ''}</code>` : ''}</div>
+        <div class="pn-text">${esc(f.text)}</div>
+        ${canAsk ? `<button class="ghost xs pn-send" data-a="send" data-kind="finding" data-i="${i}" title="Put it in the reply box for the agent">${icon('send')}<span>Send to agent</span></button>` : ''}
+      </li>`)
+    .join('');
+  return `<section class="pn-xrv">${head}<p class="xrv-sum">${esc(r.summary || '')}</p>${tests}${items ? `<ul>${items}</ul>` : ''}<div class="xrv-foot">${canAsk && r.findings.length > 1 ? `<button class="ghost xs" data-a="send" data-kind="findings" title="Put every finding in the reply box for the agent">${icon('send')}<span>Send all to agent</span></button>` : ''}<span class="grow"></span>${again}</div></section>`;
 }
 
 function checksHtml(id, p, canAsk) {
@@ -619,6 +650,7 @@ function paintPr() {
       <div class="pn-meta">#${p.number} · ${p.draft && p.state === 'OPEN' ? 'Draft' : STATE[p.state] || esc(p.state || '')}${p.branch ? ` · <code>${esc(p.branch)}</code> → <code>${esc(p.base || '')}</code>` : ''}${p.author ? ` · by ${esc(p.author)}` : ''}</div>
       ${bar ? '' : verdictHtml}
       ${p.error ? `<p class="pn-err">${icon('warn')}${esc(p.error)}</p>` : ''}
+      ${xreviewHtml(s, p, canAsk)}
       ${p.checkList ? checksHtml(id, p, canAsk && p.state === 'OPEN') : ''}
       ${reviewersHtml(p)}
       ${talkHtml(id, p, canAsk)}
@@ -651,6 +683,13 @@ function sendToAgent(id, kind, i) {
   const p = currentPr(id);
   if (!p) return;
   const quote = (b) => String(b || '').trim().split('\n').map((l) => `> ${l}`).join('\n');
+  if (kind === 'finding' || kind === 'findings') {
+    const r = S.sessions.get(id)?.review;
+    const list = kind === 'finding' ? [r?.findings?.[i]].filter(Boolean) : r?.findings || [];
+    if (!list.length) return;
+    const by = S.agents.find((a) => a.id === r.by?.agent)?.name || 'Another harness';
+    return toReply(id, `${by} reviewed PR #${p.number} and found:\n\n${list.map((f) => `- **${SEV[f.severity] || f.severity}**${f.file ? ` \`${f.file}${f.line ? `:${f.line}` : ''}\`` : ''}: ${f.text}`).join('\n')}\n\nCheck ${list.length > 1 ? 'each one' : 'it'}, fix what holds and push.`);
+  }
   if (kind === 'thread') {
     const t = p.threads[i];
     return toReply(id, `${t.notes[0].author} commented on \`${t.path}${t.line ? `:${t.line}` : ''}\` in PR #${p.number}:\n\n${t.notes.map((x) => quote(`**${x.author}:** ${x.body}`)).join('\n>\n')}\n\nAddress it and push.`);
@@ -738,6 +777,7 @@ panel.addEventListener('click', (e) => {
   if (a === 'ship') return void shipDialog(id);
   if (a === 'fix-check') return void askToFix(id, b.dataset.name, b.dataset.url, b);
   if (a === 'send') return sendToAgent(id, b.dataset.kind, Number(b.dataset.i));
+  if (a === 'xreview') return startReview(id);
 });
 
 // The tabs: ←/→ move to the next one and show it.
@@ -820,6 +860,7 @@ bus.on('edit', (id) => {
   cxEdit = setTimeout(() => cxOn(id) && refreshCx(id), 1000);
 });
 bus.on('task', (id) => cxOn(id) && refreshCx(id));
+bus.on('review', (id) => !panel.hidden && shown === id && tabOf() === 'pr' && paintPr()); // review by another harness moved on (paintPr writes only what changed)
 bus.on('spells', () => !panel.hidden && (paintWidth(), paintName(), paintBody()));
 bus.on('panel:close', () => close());
 // Watch: the agent moved its page, or its task started or stopped (the caption's dot). Shown, it

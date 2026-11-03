@@ -298,6 +298,9 @@ export const PARTS = {
   // says (state, PR, harness, project, time), how it runs (branch, mode, …), its PR and its actions.
   'split.details': 'body.split #feed .item.open > .it-body > .it-bar',
   'split.pr': 'body.split #feed .item.open .it-bar > .pr-strip',
+  // Review by another harness (setting review): the PR row's chip (Not reviewed, Reviewing, N issues,
+  // Reviewed) and the PR panel's section with its findings and Review again.
+  'split.pr.review': '.pr-strip .pr-rv',
   // The open task's ways into its shell: the action row's Shell button, and on a phone the row
   // under the PR's that opens it as a page (where it runs, and whether yours is still running).
   'split.shell': 'body.split #feed .item.open .it-actions > .it-shell',
@@ -352,6 +355,8 @@ export const PARTS = {
   'panel.place': '#sidePanel .pn-place',
   'panel.shell': '#sidePanel .pn-shell',
   'panel.pr': '#sidePanel .pn-pr',
+  'panel.pr.review': '#sidePanel .pn-xrv',
+  'panel.pr.review.again': '#sidePanel .pn-xrv [data-a="xreview"]',
   'panel.checks': '#sidePanel .pn-checks',
   'panel.conversation': '#sidePanel .pn-talk',
   'panel.files': '#sidePanel .pn-files',
@@ -412,6 +417,7 @@ export const PARTS = {
   // running a changed harness row.
   'harness.change': '.hw-note',
   'settings.harnessAsk': '.sx-row:has(#harnessAsk)',
+  'settings.review': '.sx-row:has(select[name="review"])',
   // .env masking (server/env-mask.js): the line over a masked .env diff or command output, its
   // Reveal / Hide button, and the Hide .env values row in Settings → Privacy.
   'env.masked': '.env-mask',
@@ -630,6 +636,9 @@ export const SETTINGS = {
   windowNotice: ['on', 'off'],
   // Ask before running a changed harness: hold a run whose harness's program changed until you trust it (server/harness-watch.js).
   harnessAsk: ['on', 'off'],
+  // Review by another harness before Merge (server/services/review.js): off, another harness than
+  // the author's, or this one.
+  review: ['off', 'other', 'claude', 'codex', 'antigravity', 'copilot', 'opencode', 'cursor', 'grok'],
   // Hide .env values: a .env / .env.* file's values show as KEY=•••• in activity, diffs and Changes until Reveal (server/env-mask.js).
   maskEnvFiles: ['on', 'off'],
   // Ask before a repo's hooks, MCP servers and worktree setup run (server/project-trust.js): on unless off.

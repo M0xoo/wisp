@@ -15,6 +15,7 @@ import { cloneRepo, gh, git, parseRepo } from '../git.js';
 import { checkout, cloneRoot, discoverRepos, originAt } from '../services/places.js';
 import { expand } from '../util.js';
 import { triggerView } from '../triggers.js';
+import { REVIEW_VALUES } from '../services/review.js';
 
 // On a wisp Grid (its hostd sets WISP_GRID_URL): the grid, and this wisp's own address there, so
 // the page offers connecting through the grid instead of SSH. preview: where a page the agent
@@ -54,6 +55,7 @@ export function register(r, app) {
     if (body.defaults?.liveLimits !== undefined && !['on', 'off'].includes(body.defaults.liveLimits)) return c.send(400, { error: 'liveLimits must be on or off' });
     if (body.defaults?.projectAsk !== undefined && !['on', 'off'].includes(body.defaults.projectAsk)) return c.send(400, { error: 'projectAsk must be on or off' });
     if (body.defaults?.maskEnvFiles !== undefined && !['on', 'off'].includes(body.defaults.maskEnvFiles)) return c.send(400, { error: 'maskEnvFiles must be on or off' });
+    if (body.defaults?.review !== undefined && !REVIEW_VALUES.includes(body.defaults.review)) return c.send(400, { error: `review must be one of ${REVIEW_VALUES.join(', ')}` });
     if (body.defaults?.harnessAsk !== undefined && !['on', 'off'].includes(body.defaults.harnessAsk)) return c.send(400, { error: 'harnessAsk must be on or off' });
     if (body.defaults?.windowNotice !== undefined && !['on', 'off'].includes(body.defaults.windowNotice)) return c.send(400, { error: 'windowNotice must be on or off' });
     if (body.defaults?.spareCard !== undefined && !['on', 'off'].includes(body.defaults.spareCard)) return c.send(400, { error: 'spareCard must be on or off' });

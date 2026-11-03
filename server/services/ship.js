@@ -122,6 +122,7 @@ export function createShip(app) {
     if (changed((x) => x.state) || changed((x) => x.review) || (changed(settledChecks) && settledChecks(pr) !== 'pending')) (s.unread = true), delete s.forLater;
     app.sessionChanged(s);
     await fixConflicts(s).catch(() => {});
+    app.review?.maybe(s); // a new head: review by another harness, when it's on
     return pr;
   };
 
@@ -213,6 +214,7 @@ export function createShip(app) {
       app.sessionChanged(s, { now: true });
     }
     recheck(s);
+    app.review?.maybe(s);
     return { ...(s.pr || todo[0].at.pr), ...(repos.length > 1 && { prs: prsOf(s) }) };
   };
   // Every PR of the task, its own first, then those its agent attached: { repo, number, url, state }.
