@@ -273,6 +273,10 @@ export const PARTS = {
   'turn.overage': '#feed .turn .tb-over',
   // …and where the tokens went: the subagent type that wrote most (3 web-fetch agents · Opus 5.5 · 27k of 41k output).
   'turn.agents': '#feed .turn .tb-agents',
+  // Its offer to run subagents on Haiku when they wrote most of the output on the task's model.
+  'turn.agents.switch': '#feed .turn .tb-sub-switch',
+  // Subagents on Haiku: its row in Settings → Usage.
+  'settings.subagentModel': '.sx-row:has(select[name="subagentModel"])',
   'turn.forkStart': '#feed .fork-line:not(.side-line)',
   // Split view only (body.split): the task list on one side, the open task on the other.
   sidebar: 'body.split .feed-wrap',
@@ -670,6 +674,8 @@ export const SETTINGS = {
   spareCard: ['on', 'off'],
   // Window changes: a line in Settings → Usage and on home when a plan's usage window changes (on unless off).
   windowNotice: ['on', 'off'],
+  // Subagents on Haiku: the model Claude Code's subagents run on, '' for the task's own (Settings → Usage).
+  subagentModel: ['', 'haiku', 'sonnet'],
   // Ask before running a changed harness: hold a run whose harness's program changed until you trust it (server/harness-watch.js).
   harnessAsk: ['on', 'off'],
   // Lean Claude Code runs, without nonessential traffic (server/lean.js): off; on, wisp's own side

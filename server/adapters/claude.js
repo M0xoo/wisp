@@ -132,6 +132,9 @@ const PERMISSION_MODES = {
 // Agent result that carries its own usage (tool_use_result.usage) wins. A web-fetch agent on a run
 // whose init had no WebFetch (Claude Code's tengu_clever_orbit experiment, CC#106743) is marked
 // `instead: 'WebFetch'`.
+// Subagents on Haiku (Settings → Usage, defaults.subagentModel): '' is the task's own model.
+export const SUBAGENT_MODELS = ['', 'haiku', 'sonnet'];
+
 const n0 = (x) => (Number.isFinite(x) && x > 0 ? x : 0);
 const MODEL_KEYS = { input: 'inputTokens', output: 'outputTokens', cacheRead: 'cacheReadInputTokens', cacheWrite: 'cacheCreationInputTokens' };
 // → [{ model, input, output, cacheRead, cacheWrite }] most output first, what's new since `prev`
@@ -227,7 +230,11 @@ export function subagentTally() {
       calls.clear();
       const noFetch = tools && !tools.includes('WebFetch');
       return [...types.values()]
-        .map(({ models: ms, ids, ...e }) => ({ type: e.type, calls: ids.size, read: e.read, output: e.output, model: [...ms].sort((a, b) => b[1] - a[1])[0]?.[0] || '', ...(noFetch && /^web[-_ ]?fetch/i.test(e.type) && { instead: 'WebFetch' }) }))
+        .map(({ models: ms, ids, ...e }) => {
+          const model = [...ms].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+          // same: on the main thread's model, as its own messages name it (the receipt offers Subagents on Haiku, web/js/receipt.js).
+          return { type: e.type, calls: ids.size, read: e.read, output: e.output, model, ...(model && model === main && { same: true }), ...(noFetch && /^web[-_ ]?fetch/i.test(e.type) && { instead: 'WebFetch' }) };
+        })
         .sort((a, b) => b.output - a.output || b.calls - a.calls);
     },
   };
@@ -310,7 +317,9 @@ export default {
   // lean: a side run that only answers (the retro), without Claude Code's prompt and tools.
   // untrusted: without the repo's hooks and MCP servers (server/project-trust.js).
   // quiet: without Claude Code's nonessential traffic, which also drops claude.ai connectors (server/lean.js).
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, quiet = false, onEvent }) {
+  // subagentModel: '' | 'haiku' | 'sonnet', the model its subagents and workflow agents run on
+  // (defaults.subagentModel). Never _FORCE: an Agent call's own model, or a custom agent's, still wins.
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, quiet = false, subagentModel = '', onEvent }) {
     lean = lean && leanOk();
     const args = [
       '-p',
@@ -341,6 +350,7 @@ export default {
     for (const k of PARENT_SESSION_ENV) delete env[k]; // don't let a parent Claude Code session leak into the child
     for (const k of COSTLY_ENV) delete env[k];
     if (quiet) Object.assign(env, LEAN_ENV);
+    if (SUBAGENT_MODELS.includes(subagentModel) && subagentModel) env.CLAUDE_CODE_SUBAGENT_MODEL = env.CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL = subagentModel;
     env.MCP_TOOL_TIMEOUT ??= String(ASK_TIMEOUT_MS);
 
     let sawResult = false;

@@ -14,6 +14,7 @@
 //   FAKE_TOOLS           claude: its init's tools, comma-separated (default: none sent)
 //   FAKE_CACHE_READ  claude: cache_read_input_tokens on its result (and 20 cache writes)
 //   FAKE_SUBAGENTS   claude: that many background web-fetch Agent calls on Opus, as claude 2.1.316
+//                    (on CLAUDE_CODE_SUBAGENT_MODEL's model when it's set, as Claude Code does)
 //                    streams them, and modelUsage on its result (Opus 41k output, 14k the main thread's)
 //   FAKE_RATE_LIMIT  opencode: log a rate-limit error to stderr, then go quiet for good as the
 //                real CLI does while it retries (`recover`: carry on with the turn after it)
@@ -176,7 +177,7 @@ const btw = stdin.includes('# wisp btw');
 
 if (process.env.FAKE_RECORD) {
   fs.mkdirSync(process.env.FAKE_RECORD, { recursive: true });
-  fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${retro ? 'retro' : btw ? 'btw' : name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid, opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT, allowAll: process.env.COPILOT_ALLOW_ALL, configDir: process.env.CLAUDE_CONFIG_DIR, codexHome: process.env.CODEX_HOME, summaries: process.env.CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES, nonessential: process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC }) + '\n');
+  fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${retro ? 'retro' : btw ? 'btw' : name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid, opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT, allowAll: process.env.COPILOT_ALLOW_ALL, configDir: process.env.CLAUDE_CONFIG_DIR, codexHome: process.env.CODEX_HOME, summaries: process.env.CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES, nonessential: process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, subagentModel: process.env.CLAUDE_CODE_SUBAGENT_MODEL, workflowSubagentModel: process.env.CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL, subagentForce: process.env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE }) + '\n');
 }
 
 // FAKE_LIMITS: claude reports this rate_limit_info first (its usage windows, server/budget.js).
@@ -571,6 +572,8 @@ if (name === 'claude') {
         fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace('a - b', 'a + b'));
       }
     }
+    // CLAUDE_CODE_SUBAGENT_MODEL (wisp's Subagents run on): the subagents' messages and modelUsage name it.
+    const SUB = { haiku: 'claude-haiku-4-5-20251001', sonnet: 'claude-sonnet-4-5-20250929' }[process.env.CLAUDE_CODE_SUBAGENT_MODEL] || 'claude-opus-5-5';
     for (let i = 0; i < Number(process.env.FAKE_SUBAGENTS || 0); i++) {
       // As claude 2.1.316 streams a subagent (captured): the Agent call launches in the background
       // (task_started has its tool_use_id), its messages carry that id as parent_tool_use_id, one API
@@ -579,11 +582,11 @@ if (name === 'claude') {
       const call = `ag${i}`;
       out({ type: 'assistant', session_id: session, message: { id: `main${i}`, model: 'claude-opus-5-5', usage: { input_tokens: 3, output_tokens: 1 }, content: [{ type: 'tool_use', id: call, name: 'Agent', input: { subagent_type: 'web-fetch', description: 'Read the docs page', prompt: 'read it' } }] } });
       out({ type: 'system', subtype: 'task_started', task_id: `task${i}`, tool_use_id: call, subagent_type: 'web-fetch', task_type: 'local_agent', is_backgrounded: true, description: 'Read the docs page', session_id: session });
-      out({ type: 'user', session_id: session, message: { content: [{ type: 'tool_result', tool_use_id: call, content: [{ type: 'text', text: 'Async agent launched' }] }] }, tool_use_result: { isAsync: true, status: 'async_launched', resolvedModel: 'claude-opus-5-5' } });
+      out({ type: 'user', session_id: session, message: { content: [{ type: 'tool_result', tool_use_id: call, content: [{ type: 'text', text: 'Async agent launched' }] }] }, tool_use_result: { isAsync: true, status: 'async_launched', resolvedModel: SUB } });
       const usage = { input_tokens: 100, cache_read_input_tokens: 900, output_tokens: 1 };
-      out({ type: 'assistant', parent_tool_use_id: call, session_id: session, message: { id: `m${i}a`, model: 'claude-opus-5-5', usage, content: [{ type: 'text', text: 'Reading' }] } });
-      out({ type: 'assistant', parent_tool_use_id: call, session_id: session, message: { id: `m${i}a`, model: 'claude-opus-5-5', usage, content: [{ type: 'tool_use', id: `${call}w`, name: 'Bash', input: { command: 'curl -s https://example.com' } }] } });
-      out({ type: 'assistant', parent_tool_use_id: call, session_id: session, message: { id: `m${i}b`, model: 'claude-opus-5-5', usage: { input_tokens: 50, output_tokens: 1 }, content: [{ type: 'text', text: 'Done' }] } });
+      out({ type: 'assistant', parent_tool_use_id: call, session_id: session, message: { id: `m${i}a`, model: SUB, usage, content: [{ type: 'text', text: 'Reading' }] } });
+      out({ type: 'assistant', parent_tool_use_id: call, session_id: session, message: { id: `m${i}a`, model: SUB, usage, content: [{ type: 'tool_use', id: `${call}w`, name: 'Bash', input: { command: 'curl -s https://example.com' } }] } });
+      out({ type: 'assistant', parent_tool_use_id: call, session_id: session, message: { id: `m${i}b`, model: SUB, usage: { input_tokens: 50, output_tokens: 1 }, content: [{ type: 'text', text: 'Done' }] } });
       out({ type: 'system', subtype: 'task_notification', task_id: `task${i}`, tool_use_id: call, status: 'completed', usage: { total_tokens: 1051, tool_uses: 1, duration_ms: 900 }, session_id: session });
     }
     out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't3', name: 'Bash', input: { command: 'npm test', description: 'Run the tests' } }] } });
@@ -608,7 +611,7 @@ if (name === 'claude') {
         out({ type: 'system', subtype: 'init', session_id: session });
         out({ type: 'result', subtype: 'success', is_error: false, result: final('background done'), session_id: session });
       }
-    } else out({ type: 'result', subtype: 'success', is_error: false, result: final(answer), session_id: session, duration_ms: 5, num_turns: 3, total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: process.env.FAKE_SUBAGENTS ? 14000 : 5, ...(process.env.FAKE_CACHE_READ && { cache_read_input_tokens: Number(process.env.FAKE_CACHE_READ), cache_creation_input_tokens: 20 }) }, ...(process.env.FAKE_SUBAGENTS && { modelUsage: { 'claude-opus-5-5': { inputTokens: 4000, outputTokens: 41000, cacheReadInputTokens: 20000, cacheCreationInputTokens: 0, costUSD: 1.2 }, 'claude-haiku-4-5-20251001': { inputTokens: 900, outputTokens: 120, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 } } }), permission_denials: refused ? [{ tool_name: 'Bash', tool_use_id: 't9', tool_input: { command: 'npm publish', description: 'Publish' } }] : [] });
+    } else out({ type: 'result', subtype: 'success', is_error: false, result: final(answer), session_id: session, duration_ms: 5, num_turns: 3, total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: process.env.FAKE_SUBAGENTS ? 14000 : 5, ...(process.env.FAKE_CACHE_READ && { cache_read_input_tokens: Number(process.env.FAKE_CACHE_READ), cache_creation_input_tokens: 20 }) }, ...(process.env.FAKE_SUBAGENTS && { modelUsage: fakeModelUsage() }), permission_denials: refused ? [{ tool_name: 'Bash', tool_use_id: 't9', tool_input: { command: 'npm publish', description: 'Publish' } }] : [] });
   }
 } else if (name === 'codex') {
   out({ type: 'thread.started', thread_id: session });
@@ -764,3 +767,14 @@ if (name === 'claude') {
   }
 }
 if (process.env.FAKE_LINGER) await new Promise((r) => setTimeout(r, Number(process.env.FAKE_LINGER)));
+
+// FAKE_SUBAGENTS' modelUsage: Opus wrote 41k (14k the main thread's, the rest its subagents'), and a
+// Haiku side call 120. With CLAUDE_CODE_SUBAGENT_MODEL the subagents' 27k move to that model.
+function fakeModelUsage() {
+  const sub = { haiku: 'claude-haiku-4-5-20251001', sonnet: 'claude-sonnet-4-5-20250929' }[process.env.CLAUDE_CODE_SUBAGENT_MODEL];
+  const u = { 'claude-opus-5-5': { inputTokens: 4000, outputTokens: 41000, cacheReadInputTokens: 20000, cacheCreationInputTokens: 0, costUSD: 1.2 }, 'claude-haiku-4-5-20251001': { inputTokens: 900, outputTokens: 120, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 } };
+  if (!sub) return u;
+  u['claude-opus-5-5'].outputTokens = 14000;
+  u[sub] = { ...(u[sub] || { inputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }), outputTokens: (u[sub]?.outputTokens || 0) + 27000 };
+  return u;
+}

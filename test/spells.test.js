@@ -377,6 +377,12 @@ test('Lean Claude Code runs: leanRuns (off, on, all) is a setting, its Settings 
   assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.leanRuns'] } }), []);
 });
 
+test('Subagents on Haiku: subagentModel is a setting; its Settings row and the receipt’s offer are parts', () => {
+  for (const v of ['', 'haiku', 'sonnet']) assert.deepEqual(problems({ ...base0, settings: { subagentModel: v } }), []);
+  assert.ok(problems({ ...base0, settings: { subagentModel: 'opus' } }).some((x) => /subagentModel/.test(x) && /haiku \| sonnet/.test(x)));
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.subagentModel', 'turn.agents.switch'] } }), []);
+});
+
 test('Harness watch: Ask before running a changed harness is a setting; the change line and its row are parts', () => {
   assert.deepEqual(problems({ ...base0, settings: { harnessAsk: 'on' } }), []);
   assert.ok(problems({ ...base0, settings: { harnessAsk: 'always' } }).some((x) => /harnessAsk/.test(x) && /on \| off/.test(x)));

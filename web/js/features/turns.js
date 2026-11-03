@@ -22,7 +22,7 @@ import { heldCard } from './hold.js';
 import { harnessNote } from './harness-watch.js';
 import { scheduleFollowUp } from './later.js';
 import { handoffTargets } from '../vendors.js';
-import { compareTip, OVERAGE, receiptOf, receiptParts, receiptTip, subagentParts, subagentTip } from '../receipt.js';
+import { compareTip, offerSubagentModel, OVERAGE, receiptOf, receiptParts, receiptTip, subagentParts, subagentTip } from '../receipt.js';
 import { scrollByPx, topInset, watching } from './scroll.js';
 import { prsOf, renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
@@ -570,7 +570,7 @@ function refusalCard(s, t) {
 
 // The usage receipt (web/js/receipt.js): what the run took, quiet, in the trail bar; and Past your
 // plan when it was billed beyond the plan (turn.overage). Nothing while it runs: the numbers come at the end.
-function receiptHtml(t) {
+function receiptHtml(t, s) {
   if (t.status === 'running') return '';
   const r = receiptOf(t);
   const parts = receiptParts(r);
@@ -581,17 +581,21 @@ function receiptHtml(t) {
   const vs = a?.compare ? compareTip(a.compare, t.model, t.account, (id) => a.accounts?.find((x) => x.id === id)?.label || (id === 'default' ? 'Default account' : id)) : '';
   const tip = [receiptTip(r), vs].filter(Boolean).join('. ');
   return (parts.length ? `<span class="tb tb-receipt" title="${esc(tip)}">${parts.map((p) => `<span>${esc(p)}</span>`).join('<span class="tb-dot" aria-hidden="true">·</span>')}</span>` : '') +
-    agentsHtml(t) +
+    agentsHtml(t, t.agent || s?.agent) +
     (o ? `<span class="tb tb-over" title="${esc(`${o.tip}. Settings → Usage → Plan budget counts these runs`)}">${icon('warn')}${esc(o.label)}</span>` : '');
 }
 
 // Where the tokens went, beside the receipt: the subagent type that wrote most (3 web-fetch agents ·
 // Opus 5.5 · 27k of 41k output); its tooltip has every type, the tokens per model, and when Claude
 // Code ran page reads as an agent because the account had no WebFetch.
-function agentsHtml(t) {
+// When subagents on the task's model wrote 40% or more of the output, it offers to run them on Haiku
+// (opens Settings → Usage → Subagents run on; wisp never changes it for you).
+function agentsHtml(t, agent) {
   const parts = subagentParts(t);
   if (!parts.length) return '';
-  return `<span class="tb tb-agents" title="${esc(subagentTip(t))}">${parts.map((p) => `<span>${esc(p)}</span>`).join('<span class="tb-dot" aria-hidden="true">·</span>')}</span>`;
+  const offer = offerSubagentModel(t, S.config?.defaults?.subagentModel || '', agent);
+  return `<span class="tb tb-agents" title="${esc(subagentTip(t))}">${parts.map((p) => `<span>${esc(p)}</span>`).join('<span class="tb-dot" aria-hidden="true">·</span>')}</span>` +
+    (offer ? `<button class="link xs tb-sub-switch" data-a="subagent-model" title="Subagents on the task’s model wrote most of this turn. Pick the model they run on in Settings → Usage">Run subagents on Haiku</button>` : '');
 }
 
 // A crew member's job that came from another task (delegated, tagged, asked to check on it): its
@@ -941,7 +945,7 @@ function renderTrail(s, t, tx) {
         ${acts.length && !tx ? `<button class="tb-acts" data-tab="activity" title="Show activity">${parts.length ? parts.map(([ic, l, n]) => `<span class="tb" title="${n} ${l}">${icon(ic)}${n}<span class="tb-l"> ${l}</span></span>`).join('') : 'Activity'}</button>` : ''}
         ${t.endedAt ? `<span class="tb">${fmtDuration(t.endedAt - t.startedAt)}</span>` : ''}
         ${st.costUsd ? `<span class="tb">$${st.costUsd.toFixed(2)}</span>` : ''}
-        ${receiptHtml(t)}
+        ${receiptHtml(t, s)}
         <span class="grow"></span>
         ${t.changes?.length ? `<button class="link xs" data-tab="changes">${t.changes.length} file${t.changes.length > 1 ? 's' : ''} <span class="plus">+${totals.add}</span> <span class="minus">−${totals.del}</span></button>` : ''}
         <span class="tb-tools">
@@ -964,6 +968,10 @@ function renderTrail(s, t, tx) {
     }
     if (e.target.closest('[data-a="fork"]')) {
       return forkTask(s.id, t.id);
+    }
+    if (e.target.closest('[data-a="subagent-model"]')) {
+      import('./settings.js').then((m) => m.openSettings({ pane: 'usage', focus: 'subagentModel' }));
+      return;
     }
     const rb = e.target.closest('[data-rate]');
     if (rb) {

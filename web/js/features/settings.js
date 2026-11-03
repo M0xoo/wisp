@@ -52,6 +52,8 @@ import { loadUpdate, updateState } from './update.js';
 // (memory, automations, usage history) keep their own views; a pane only summarises and links.
 // On a wisp Grid, Machines becomes Connect (the grid, not SSH) and Cloud goes: wisp is in the cloud.
 // Which releases wisp updates to; the server reads them in server/update.js (CHANNELS).
+// Subagents on Haiku (server/adapters/claude.js SUBAGENT_MODELS): '' is the task's own model.
+const SUBAGENT_CHOICES = [['', 'Same as the task'], ['sonnet', 'Sonnet'], ['haiku', 'Haiku']];
 const UPDATE_CHANNELS = [['stable', 'Stable'], ['beta', 'Beta'], ['nightly', 'Nightly']];
 // Lean Claude Code runs (server/lean.js, LEAN_VALUES): on is wisp's side runs only.
 const LEAN_CHOICES = [['off', 'Off'], ['on', 'wisp’s side runs'], ['all', 'All Claude runs']];
@@ -220,6 +222,7 @@ export function openSettings(opts) {
           <div class="sx-head"><div><b>Plan budget</b><small>Your plans’ usage windows, as Claude Code and Codex report them on each run</small></div></div>
           <div class="sx-group sx-budget">
             <div class="bg-list"></div>
+            ${row('Subagents run on', 'Claude Code’s own subagents (Explore, Plan, page reads) and workflow agents. They run on the task’s model unless you pick one here; an agent that names its own model keeps it. Where it went shows what they took', `<select name="subagentModel">${SUBAGENT_CHOICES.map(([v, l]) => `<option value="${v}" ${(d.subagentModel || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`)}
             ${row('Automations stop at', 'Check-ins, triggers, goal rounds and agents’ own follow-ups wait once an account passes this much of a window, and go on after it resets. What you start always runs', `<fieldset class="pk-seg us-stop" aria-label="Automations stop at">${STOP_AT.map((v) => `<button type="button" data-v="${v}">${v === 'off' ? 'Off' : `${v}%`}</button>`).join('')}</fieldset>`)}
             ${Object.entries(STOP_KEYS)
               .map(([id, k]) => {
@@ -955,7 +958,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', leanRuns: 'select[name="leanRuns"]', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers', review: 'select[name="review"]' };
+  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', leanRuns: 'select[name="leanRuns"]', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers', review: 'select[name="review"]', subagentModel: 'select[name="subagentModel"]' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {
@@ -996,6 +999,16 @@ export function openSettings(opts) {
     }
     // From /sandbox's "Sign in": the Sandboxes card in view, its sign-in started.
     if (opts?.focus === 'sandbox') setTimeout(() => $('.sx-sandbox', node)?.focusSignIn?.(), 0);
+  }
+  // From a turn's receipt (Run subagents on Haiku): the row, in view and focused.
+  if (opts?.focus === 'subagentModel') {
+    // After overlay() has swapped the select for its menu kit button (it imports ui/select.js first).
+    import('../ui/select.js').then(() => requestAnimationFrame(() => {
+      const sel = $('select[name="subagentModel"]', node);
+      if (!sel) return;
+      sel.closest('.sx-row')?.scrollIntoView({ block: 'center' });
+      (sel.hidden ? sel.nextElementSibling : sel)?.focus({ preventScroll: true }); // the menu kit's button
+    }));
   }
 }
 
