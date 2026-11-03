@@ -20,6 +20,7 @@ import { bad, clip, MODES, newId } from './util.js';
 import { LIMIT_CARRY_ON, laterNote, laterView } from './later.js';
 import { HOMES as ACCOUNT_HOMES } from './accounts.js';
 import { infraError } from './router.js';
+import { refusalOf } from './refusal.js';
 import { goalNote, goalView } from './goal.js';
 import { kitNote } from './crew.js';
 import { planOf, unitsOf } from './budget.js';
@@ -1543,6 +1544,8 @@ export class Runner extends EventEmitter {
     if (!ev.stopped) blockedCard(turn);
     // A usage limit: the turn asks you what next (or waits for the reset, below).
     if (ev.isError && !ev.stopped) this.#atLimit(session, turn, ev);
+    // Turned down: the turn offers to hand the same prompt to another of your harnesses.
+    if (!ev.stopped && !turn.limit) this.#refused(session, turn, ev);
     // A lead that ends its turn without reading what its delegates finished gets it as a follow-up.
     if (!ev.stopped && !session.parentId) this.#reportBack(session, { ending: true });
     // Auto checks the work before it reaches you: the session stays in Working meanwhile.
@@ -1607,6 +1610,27 @@ export class Runner extends EventEmitter {
         // No time here: the card under it says when, in the page's own time format.
         { type: 'hero', title: `${from?.label || adapters[session.agent]?.name || 'This harness'} is at its usage limit`, summary: others.length ? 'Wait for the reset, continue on another of your accounts, or hand the task to another agent.' : 'Wait for the reset, or hand the task to another agent.', status: 'blocked' },
         { type: 'terminal', command: `${session.agent} run`, output: ev.text || 'No output.', exitCode: 1 },
+      ],
+    };
+  }
+
+  // The harness turned the task down (server/refusal.js): the hero says so, and the card under it
+  // (turn.refusal) offers Hand to <another harness> with the same prompt and this task's turns
+  // (handoff.js). Never by itself, and never another account of the same harness: that would be
+  // asking the same model again to get around its own answer. A subagent's or a delegated job's
+  // refusal goes to its lead as it is.
+  #refused(session, turn, ev) {
+    if (session.parentId || session.delegated || turn.plain) return;
+    const r = refusalOf({ text: ev.text, stopReason: ev.stopReason, isError: !!ev.isError, changes: turn.changes?.length || 0 });
+    if (!r) return;
+    const agent = turn.agent || session.agent;
+    const name = adapters[agent]?.name || 'This harness';
+    turn.refusal = { agent, kind: r.kind, ...(r.line && { line: r.line }) };
+    const rest = (turn.presentation?.blocks || []).filter((b) => b.type !== 'hero' && b.type !== 'next');
+    turn.presentation = {
+      blocks: [
+        { type: 'hero', title: `${name} turned this task down`, summary: 'Hand the same prompt, with what this task has seen, to another agent, or rephrase it and follow up.', status: 'blocked' },
+        ...(rest.length ? rest : [{ type: 'markdown', text: ev.text || 'No answer.' }]),
       ],
     };
   }

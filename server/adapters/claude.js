@@ -228,6 +228,7 @@ export default {
     env.MCP_TOOL_TIMEOUT ??= String(ASK_TIMEOUT_MS);
 
     let sawResult = false;
+    let refused = false; // an assistant message the API ended with stop_reason "refusal" (server/refusal.js)
     let early = null; // an empty result that came before our prompt was answered (see below)
     const pendingTools = new Map(); // tool_use_id -> name, to flag failed tool results
     // Background tasks (run_in_background shells, background subagents) still running. While any
@@ -243,6 +244,7 @@ export default {
       if (msg.session_id) onEvent({ type: 'session', id: msg.session_id });
 
       if (msg.type === 'assistant') {
+        if (msg.message?.stop_reason === 'refusal') refused = true;
         for (const part of msg.message?.content || []) {
           if (part.type === 'text' && part.text.trim()) {
             onEvent({ type: 'text', text: part.text });
@@ -295,6 +297,7 @@ export default {
           const input = d.tool_input || {};
           onEvent({ type: 'blocked', tool: d.tool_name, detail: detailOf(d.tool_name, input, cwd), rule: ruleOf(d.tool_name, input) });
         }
+        if (refused) ev.stopReason = 'refusal';
         onEvent({ ...ev, background: background.size }); // > 0: another turn and result follow when they finish
       }
     };
@@ -324,6 +327,7 @@ function resultEvent(msg) {
     type: 'result',
     text: msg.result ?? '',
     isError: !!msg.is_error || (msg.subtype && msg.subtype !== 'success'),
+    ...(msg.stop_reason && { stopReason: msg.stop_reason }),
     stats: {
       costUsd: msg.total_cost_usd,
       durationMs: msg.duration_ms,

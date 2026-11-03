@@ -14,6 +14,8 @@
 //                real CLI does while it retries (`recover`: carry on with the turn after it)
 //   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
 //   ENVFILE in the prompt (claude): `cat .env`, then an edit of a value in .env
+//   REFUSEME in the prompt (claude): the API ends with stop_reason "refusal" and the CLI reports its
+//                usage-policy error, as Claude Code does; DECLINEME: a plain "I can't help with that"
 //   FAKE_DELAY   ms to work before answering (screenshots of live runs)
 //   FAKE_GOAL_DELAY  ms a goal check takes (screenshots of a check)
 //   FAKE_GOAL_SCRIPT  JSON [{ why, next, progress }]: what each goal check says (screenshots)
@@ -493,6 +495,18 @@ const ask = async () => {
 if (refused && name === 'grok') process.stderr.write('permission required: Edit calc.py was not run, as a headless run ca'), process.stderr.write('nnot ask for approval\n');
 if (refused && name === 'opencode') process.stderr.write('\x1b[93m\x1b[1m! \x1b[0mpermission requested: bash (npm publish); auto-rejecting\n');
 
+// Claude Code's refusal, in its own words: the API stops with stop_reason "refusal" and the CLI
+// ends the turn with its usage-policy error. DECLINEME: the model just says no, nothing changed.
+if (name === 'claude' && (stdin.includes('REFUSEME') || stdin.includes('DECLINEME'))) {
+  const policy = stdin.includes('REFUSEME');
+  const said = policy
+    ? 'API Error: Claude Code is unable to respond to this request, which appears to violate our Usage Policy (https://www.anthropic.com/legal/aup). Please double press esc to edit your last message or start a new session for Claude Code to assist with a different task.'
+    : "I'm sorry, but I can't help with reverse engineering that binary.";
+  out({ type: 'system', subtype: 'init', session_id: session });
+  out({ type: 'assistant', session_id: session, message: { content: [{ type: 'text', text: said }], stop_reason: policy ? 'refusal' : 'end_turn' } });
+  out({ type: 'result', subtype: 'success', is_error: policy, result: said, session_id: session, duration_ms: 5, num_turns: 1, total_cost_usd: 0.001 });
+  process.exit(0);
+}
 if (name === 'claude') {
   if (process.env.FAKE_ORPHANS && resumeId) {
     out({ type: 'system', subtype: 'task_notification', session_id: session });

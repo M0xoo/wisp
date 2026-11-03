@@ -318,6 +318,9 @@ export const PARTS = {
   'details.plan': 'body.split #feed .item.open .it-props > .plan-used',
   // A turn that hit its account's usage limit: the card under its hero (Wait until…, Continue on
   // another account, Hand to another harness, Get extra usage).
+  // A turn its harness turned down (server/refusal.js): the card under its hero (Hand to <another
+  // harness>, with the same prompt). Not a question: the task goes on without it, so it can be hidden.
+  'turn.refusal': '#feed .turn .b-refusal',
   'split.actions': 'body.split #feed .item.open .it-bar > .it-actions',
   // Take over in wisp: the task's terminal (a sheet, over the open task in split view, full
   // screen on a phone), its header, the screen and the phone's row of keys (Esc, Tab, Ctrl, arrows).
