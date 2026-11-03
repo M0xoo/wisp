@@ -618,3 +618,277 @@ test('window changes: /agents carries the notice, × hides it, the switch hides 
   assert.deepEqual(await api('/agents/codex/windows/dismiss', { account: 'default', window: 'seven_day' }), { ok: true });
   assert.deepEqual(notes(await codexOf()), []);
 });
+
+// --- Plan windows with no 5-hour window (Claude Ultra since 2026-11) -----------------------------
+
+test('only a weekly window: no 5-hour row, Wait until picks the weekly reset, Automations stop at waits for it', () => {
+  let now = 2_000 * H;
+  const b = new Budget(tmp('budget-weekly-only'), { now: () => now });
+  const R = now + 3 * 24 * H;
+  const ev = (used, status = 'allowed') => claudeLimits({ status, rateLimitType: 'seven_day', utilization: used, resetsAt: R / 1000, unifiedWindows: { seven_day: { utilization: used, resetsAt: R / 1000 } } });
+  b.record('claude', 'default', ev(0.4));
+  const v = b.view('claude')[0];
+  assert.deepEqual(v.windows.map((w) => w.id), ['seven_day'], 'no empty 5-hour row');
+  assert.equal(v.notices, undefined, 'the first report only sets what was seen');
+  assert.equal(b.resetAt('claude', 'default'), null, 'not at its limit');
+  now += H;
+  b.record('claude', 'default', ev(1, 'rejected'));
+  assert.equal(b.resetAt('claude', 'default'), R, 'Wait until: the weekly reset');
+  assert.equal(b.hold('claude', 'default', 0.75).until, R);
+  assert.equal(b.hold('claude', 'default', 0.75).label, 'Weekly');
+  assert.deepEqual(b.windows('claude', 'default').map((w) => w.id), ['seven_day']);
+});
+
+test('the 5-hour window goes: its row leaves once it resets, the change is told once over a day of polls', () => {
+  let now = 3_000 * H;
+  let changes = 0;
+  const b = new Budget(tmp('budget-five-gone'), { now: () => now, onChange: () => changes++ });
+  const R7 = now + 4 * 24 * H;
+  const both = claudeLimits({ status: 'allowed', unifiedWindows: { five_hour: { utilization: 0.3, resetsAt: (now + H) / 1000 }, seven_day: { utilization: 0.2, resetsAt: R7 / 1000 } } });
+  b.record('claude', 'default', both);
+  assert.deepEqual(b.view('claude')[0].windows.map((w) => w.id), ['five_hour', 'seven_day']);
+  // From now on every report lists the weekly window alone, every 10 minutes for a day.
+  const told = [];
+  for (let i = 1; i <= 6 * 24; i++) {
+    now += 10 * 60_000;
+    b.record('claude', 'default', claudeLimits({ status: 'allowed', unifiedWindows: { seven_day: { utilization: 0.2 + i / 1000, resetsAt: R7 / 1000 } } }));
+    const v = b.view('claude')[0];
+    for (const n of v.notices || []) if (!told.some((x) => x.window === n.window && x.at === n.at)) told.push(n);
+    // Before the 5-hour one's reset its last numbers still hold; after it, no empty bar.
+    if (now > 3_000 * H + H) assert.deepEqual(v.windows.map((w) => w.id), ['seven_day'], `poll ${i}: no stale 5-hour row`);
+  }
+  assert.deepEqual(told.map((n) => [n.kind, n.window]), [['gone', 'five_hour']], 'told once, not on every poll');
+  assert.ok(b.dismissNotice('claude', 'default', 'five_hour'));
+  const before = changes;
+  for (let i = 0; i < 12; i++) {
+    now += 10 * 60_000;
+    b.record('claude', 'default', claudeLimits({ status: 'allowed', unifiedWindows: { seven_day: { utilization: 0.4, resetsAt: R7 / 1000 } } }));
+  }
+  assert.equal(b.view('claude')[0].notices, undefined, 'dismissed stays dismissed');
+  assert.ok(changes - before <= 1, 'same numbers: nobody told');
+  assert.equal(b.resetAt('claude', 'default'), null);
+});
+
+test('Codex reporting only its weekly window (primary empty) has no 5-hour row', () => {
+  const now = Date.now();
+  const b = new Budget(tmp('budget-codex-weekly'), { now: () => now });
+  const R = Math.round((now + 2 * 24 * H) / 1000);
+  b.record('codex', 'default', codexLimits({ primary: null, secondary: { used_percent: 100, window_minutes: 10080, resets_at: R } }));
+  assert.deepEqual(b.view('codex')[0].windows.map((w) => w.id), ['seven_day']);
+  assert.equal(b.resetAt('codex', 'default'), R * 1000, 'Wait until: the weekly reset');
+});
+
+// --- Past your plan: runs billed beyond the plan's windows -----------------------------------------
+
+test('past your plan: Claude’s extra usage and a Codex credit drop flag the run; “overage” is never a window', () => {
+  const x = claudeLimits({ ...CLAUDE_EVENT, isUsingOverage: true, overageStatus: 'allowed' });
+  assert.equal(x.overage, true);
+  assert.deepEqual(x.windows.map((w) => w.id), ['five_hour', 'seven_day']);
+  assert.equal(claudeLimits(CLAUDE_EVENT).overage, undefined, 'isUsingOverage false: on the plan');
+  const only = claudeLimits({ status: 'allowed', rateLimitType: 'overage', utilization: 0.2, isUsingOverage: true });
+  assert.deepEqual(only, { windows: [], overage: true }, 'the extra-usage allowance is not a plan window');
+  assert.equal(claudeLimits({ status: 'rejected', rateLimitType: 'overage', utilization: 1 }), null);
+
+  let now = 4_000 * H;
+  let changes = 0;
+  const b = new Budget(tmp('budget-over'), { now: () => now, onChange: () => changes++ });
+  assert.equal(b.record('claude', 'default', x), 'extra');
+  assert.equal(b.record('claude', 'default', claudeLimits(CLAUDE_EVENT)), null);
+  assert.equal(b.record('claude', 'default', only), 'extra', 'no windows, still flagged');
+
+  const rl = (balance) => ({ secondary: { used_percent: 100, window_minutes: 10080, resets_at: Math.round((now + 24 * H) / 1000) }, credits: { has_credits: true, unlimited: false, balance } });
+  assert.equal(codexLimits(rl('12.5')).credits, 12.5);
+  assert.equal(codexLimits({ ...rl('1'), credits: { unlimited: true, balance: null } }).credits, undefined);
+  assert.equal(b.record('codex', 'default', codexLimits(rl('12.5'))), null, 'the first balance only sets it');
+  assert.equal(b.record('codex', 'default', codexLimits(rl('12.5'))), null, 'unchanged');
+  assert.equal(b.record('codex', 'default', codexLimits(rl('11.75'))), 'credits', 'went down: this run took credits');
+  assert.equal(b.record('codex', 'default', codexLimits(rl('20'))), null, 'topped up');
+
+  // Plan budget counts them for a week, once per turn, and names the last one's task.
+  b.overage('claude', 'default', 'extra', 's1', 't1');
+  b.overage('claude', 'default', 'extra', 's1', 't1');
+  now += H;
+  b.overage('claude', 'default', 'api', 's2', 't1');
+  assert.deepEqual(b.view('claude')[0].overage, { runs: 2, at: now, kind: 'api', sid: 's2' });
+  assert.ok(changes > 0);
+  now += 7 * 24 * H - H / 2;
+  assert.deepEqual(b.view('claude')[0].overage, { runs: 1, at: now - 7 * 24 * H + H / 2, kind: 'api', sid: 's2' }, 'older than a week: gone');
+});
+
+const { receiptOf, receiptParts, tokenWords } = await import('../web/js/receipt.js');
+
+test('usage receipt: tokens with Anthropic’s cache counted apart, OpenAI’s inside; the longest window; Past your plan', () => {
+  // Claude: 2k fresh + 30k read from cache + 4k written to it, 2k out.
+  const c = receiptOf({ stats: { inputTokens: 2000, cacheReadTokens: 30000, cacheWriteTokens: 4000, outputTokens: 2000 }, plan: [{ window: 'five_hour', used: 0.12 }, { window: 'seven_day', used: 0.031 }] });
+  assert.equal(c.tokens, 38000);
+  assert.equal(Math.round(c.cache * 100), 83);
+  assert.deepEqual(receiptParts(c), ['38k tokens', '83% cache', '3% of weekly'], 'the weekly window, not the 5-hour one');
+  // Codex: input_tokens holds the cached ones.
+  const x = receiptOf({ stats: { inputTokens: 100000, cachedInputTokens: 71000, outputTokens: 1500 } });
+  assert.deepEqual(receiptParts(x), ['102k tokens', '71% cache']);
+  // Only a weekly window (no 5-hour): that's the one on the line; a month-long one beats it.
+  assert.deepEqual(receiptParts(receiptOf({ plan: [{ window: 'seven_day', used: 0.002 }] })), ['<1% of weekly']);
+  assert.deepEqual(receiptParts(receiptOf({ plan: [{ window: 'seven_day', used: 0.1 }, { window: 'w43200m', used: 0.05 }] })), ['5% of 30-day']);
+  // Two shares of the same window (two periods, two accounts) add up.
+  assert.deepEqual(receiptParts(receiptOf({ plan: [{ window: 'seven_day', used: 0.02 }, { window: 'seven_day', used: 0.01 }] })), ['3% of weekly']);
+  assert.equal(receiptOf({ stats: { inputTokens: 1000 }, overage: { kind: 'extra' } }).overage, 'extra');
+  assert.equal(receiptOf({ stats: {}, overage: { kind: 'nonsense' } }), null, 'nothing to say');
+  assert.equal(receiptOf({}), null);
+  assert.deepEqual(receiptParts(receiptOf({ stats: { inputTokens: 10, cacheReadTokens: 31000, cacheWriteTokens: 20, outputTokens: 5 } })), ['31k tokens', '99% cache'], 'not all of it: never 100%');
+  assert.deepEqual([tokenWords(820), tokenWords(38400), tokenWords(1_250_000), tokenWords(12_000_000)], ['820', '38k', '1.3M', '12M']);
+});
+
+test('past your plan, end to end: a run on extra usage or an API key is flagged on its turn and in Plan budget; the receipt’s tokens land on it', async () => {
+  delete srv.budget.state.claude;
+  const cwd = makeRepo();
+  try {
+    process.env.FAKE_LIMITS = JSON.stringify({ status: 'allowed_warning', rateLimitType: 'seven_day', utilization: 1, isUsingOverage: true, overageStatus: 'allowed', resetsAt: Math.round((Date.now() + 2 * 24 * H) / 1000), unifiedWindows: { seven_day: { utilization: 1, resetsAt: Math.round((Date.now() + 2 * 24 * H) / 1000) } } });
+    process.env.FAKE_CACHE_READ = '3000';
+    const a = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', worktree: false });
+    const x = await ended(a.id, 'review');
+    assert.equal(x.turns[0].overage?.kind, 'extra');
+    assert.deepEqual([x.turns[0].stats.cacheReadTokens, x.turns[0].stats.cacheWriteTokens], [3000, 20]);
+    const claude = (await api('/agents')).find((y) => y.id === 'claude');
+    const over = claude.budget.find((y) => y.account === 'default').overage;
+    assert.deepEqual([over.runs, over.kind, over.sid], [1, 'extra', a.id]);
+    assert.deepEqual(claude.budget.find((y) => y.account === 'default').windows.map((w) => w.id), ['seven_day']);
+
+    delete process.env.FAKE_LIMITS;
+    delete process.env.FAKE_CACHE_READ;
+    delete srv.budget.state.claude; // the weekly window at 100% would hold the next launch
+    process.env.FAKE_API_KEY_SOURCE = 'ANTHROPIC_API_KEY';
+    const b = await api('/sessions', { prompt: 'write the docs please', cwd, agent: 'claude', worktree: false });
+    assert.equal((await ended(b.id, 'review')).turns[0].overage?.kind, 'api');
+    process.env.FAKE_API_KEY_SOURCE = 'none';
+    const c = await api('/sessions', { prompt: 'write the docs again please', cwd, agent: 'claude', worktree: false });
+    assert.equal((await ended(c.id, 'review')).turns[0].overage, undefined, 'on the plan: no flag');
+  } finally {
+    delete process.env.FAKE_LIMITS;
+    delete process.env.FAKE_CACHE_READ;
+    delete process.env.FAKE_API_KEY_SOURCE;
+  }
+});
+
+// Tokens per turn by account (Moris check-in 11 #1): the same harness and model on two logins, each
+// account's median turn, once each has 5 finished turns on it. Numbers only, never a pick.
+const { compareAccounts } = await import('../server/budget.js');
+const { compareRatio, compareWords, compareTip, compareParts, median } = await import('../web/js/receipt.js');
+
+const NOW = Date.UTC(2026, 10, 3, 12);
+const turnOf = (account, output, input, extra = {}) => ({ agent: 'claude', model: 'opus', status: 'done', startedAt: NOW - 36e5, ...(account !== 'default' && { account }), stats: { inputTokens: input, cacheReadTokens: input * 4, cacheWriteTokens: 0, outputTokens: output }, ...extra });
+const many = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+
+test('compareAccounts: per model, each account’s median turn, only with ≥5 turns on two accounts', () => {
+  const sessions = [
+    { agent: 'claude', turns: [...many(6, (i) => turnOf('work', 4000 + i * 100, 1000)), ...many(5, () => turnOf('default', 2000, 1000))] },
+    // Too few on the second account for sonnet; one account only for haiku; another harness; old, running, errored and empty turns.
+    { agent: 'claude', turns: [...many(5, () => turnOf('work', 10, 10, { model: 'sonnet' })), ...many(4, () => turnOf('default', 10, 10, { model: 'sonnet' })), ...many(9, () => turnOf('work', 10, 10, { model: 'haiku' }))] },
+    { agent: 'codex', turns: many(9, () => turnOf('default', 5, 5, { agent: 'codex' })) },
+    { agent: 'claude', turns: [turnOf('default', 99999, 1, { startedAt: NOW - 8 * 864e5 }), turnOf('default', 99999, 1, { status: 'running' }), turnOf('default', 99999, 1, { status: 'error' }), turnOf('default', 0, 1)] },
+  ];
+  const c = compareAccounts(sessions, 'claude', { now: NOW });
+  assert.equal(c.length, 1);
+  assert.equal(c[0].model, 'opus');
+  assert.deepEqual(c[0].accounts.map((x) => [x.account, x.turns, x.output, x.input]), [['work', 6, 4250, 5000], ['default', 5, 2000, 5000]], 'most output first; input counts cache reads');
+  assert.equal(c[0].accounts[0].cache, 0.8);
+  assert.deepEqual(compareAccounts(sessions, 'codex', { now: NOW }), [], 'one account: nothing to compare');
+  assert.deepEqual(compareAccounts(sessions, 'claude', { now: NOW, min: 4 }).map((x) => x.model), ['opus', 'sonnet']);
+  // A Codex turn: cached input is already inside input_tokens.
+  const cx = compareAccounts([{ agent: 'codex', turns: [...many(5, () => ({ agent: 'codex', model: '', status: 'done', startedAt: NOW, stats: { inputTokens: 1000, cachedInputTokens: 600, outputTokens: 50 } })), ...many(5, () => ({ agent: 'codex', model: '', account: 'b', status: 'done', startedAt: NOW, stats: { inputTokens: 1000, cachedInputTokens: 200, outputTokens: 50 } }))] }], 'codex', { now: NOW });
+  assert.deepEqual(cx[0].accounts.map((x) => [x.input, x.cache]), [[1000, 0.6], [1000, 0.2]]);
+  assert.equal(cx[0].model, '', 'the harness default is its own row');
+});
+
+test('compare words: a ratio only past 1.2×, n per account, never a suggestion', () => {
+  assert.equal(median([3, 1, 2]), 2);
+  assert.equal(median([4, 1, 2, 3]), 2.5);
+  assert.equal(median([]), 0);
+  const label = (id) => ({ work: 'Work', default: 'Personal' })[id];
+  const c = { model: 'opus', accounts: [{ account: 'work', turns: 14, output: 3800, input: 52000, cache: 0.81 }, { account: 'default', turns: 11, output: 2000, input: 49000, cache: 0.79 }] };
+  assert.equal(compareWords(c, label), 'Work uses 1.9× the output tokens per turn of Personal (n=14 / 11)');
+  assert.equal(compareRatio({ accounts: [{ output: 1100 }, { output: 1000 }] }), null);
+  assert.equal(compareWords({ accounts: [{ account: 'work', turns: 5, output: 1100 }, { account: 'default', turns: 6, output: 1000 }] }, label), 'Work and Personal use about the same output tokens per turn (n=5 / 6)');
+  assert.doesNotMatch(compareWords(c, label), /switch|move|use Personal|cheaper|instead/i);
+  assert.deepEqual(compareParts(c.accounts[0]), ['4k out', '52k in', '81% cache', '14 turns']);
+  assert.match(compareTip([c], 'opus', 'work', label), /^Median turn on this model over the last 7 days: Work 4k out \/ 52k in, Personal 2k out \/ 49k in/);
+  assert.equal(compareTip([c], 'sonnet', 'work', label), '', 'another model: nothing');
+  assert.equal(compareTip([c], 'opus', 'other', label), '', 'an account not in the comparison: nothing');
+  assert.equal(compareTip(undefined, 'opus', 'work', label), '');
+});
+
+// Moris check-in 12 #1: Claude's system/init tool list per turn, and the comparison says when two
+// accounts' tools differ ("Personal has no WebFetch").
+const { toolSet } = await import('../server/budget.js');
+const { toolWords } = await import('../web/js/receipt.js');
+
+test('toolSet: sorted, deduped, wisp’s own MCP tools left out; a repeat keeps only the hash', () => {
+  const a = toolSet(['WebFetch', 'Read', 'Read', 'mcp__wisp__ask_user', 'mcp__github__create_issue']);
+  assert.deepEqual(a.list, ['Read', 'WebFetch', 'mcp__github__create_issue']);
+  assert.match(a.hash, /^[0-9a-f]{12}$/);
+  assert.equal(toolSet(['Read', 'mcp__github__create_issue', 'WebFetch', 'mcp__wisp__delegate']).hash, a.hash, 'order and wisp tools don’t move the hash');
+  assert.notEqual(toolSet(['Read']).hash, a.hash);
+  assert.deepEqual(toolSet(['WebFetch', 'Read', 'mcp__github__create_issue'], [a.hash]), { hash: a.hash });
+});
+
+test('compareAccounts: tools another account had and this one didn’t, from each account’s latest turn', () => {
+  const full = toolSet(['Read', 'WebFetch', 'mcp__github__a', 'mcp__github__b']);
+  const lean = toolSet(['Read']);
+  const old = toolSet(['Read', 'WebFetch']);
+  const sessions = [
+    { agent: 'claude', turns: [...many(5, () => turnOf('work', 4000, 1000, { details: { tools: full } })), turnOf('default', 2000, 1000, { startedAt: NOW - 72e5, details: { tools: old } })] },
+    // The list is stored on another task's turn; this account's latest turn has only the hash.
+    { agent: 'claude', turns: [{ agent: 'claude', status: 'error', startedAt: NOW - 9 * 864e5, details: { tools: lean } }, ...many(4, () => turnOf('default', 2000, 1000, { details: { tools: { hash: lean.hash } } }))] },
+  ];
+  const [c] = compareAccounts(sessions, 'claude', { now: NOW });
+  assert.deepEqual(c.accounts.map((x) => [x.account, x.missing]), [['work', undefined], ['default', ['WebFetch', 'mcp__github__a', 'mcp__github__b']]]);
+  assert.equal(c.accounts[0].tools, undefined, 'the lists stay on the server');
+  const label = (id) => ({ work: 'Work', default: 'Personal' })[id];
+  assert.equal(compareWords(c, label), 'Work uses 2.0× the output tokens per turn of Personal (n=5 / 5); Personal has no WebFetch or the github MCP tools');
+  // Only one account reported tools: nothing to say.
+  const one = [{ agent: 'claude', turns: [...many(5, () => turnOf('work', 10, 10, { details: { tools: full } })), ...many(5, () => turnOf('default', 10, 10))] }];
+  assert.ok(compareAccounts(one, 'claude', { now: NOW })[0].accounts.every((x) => !x.missing));
+});
+
+test('toolWords: names, MCP servers by name, three at most', () => {
+  assert.equal(toolWords(['WebFetch']), 'WebFetch');
+  assert.equal(toolWords(['WebFetch', 'WebSearch']), 'WebFetch or WebSearch');
+  assert.equal(toolWords(['A', 'B', 'C', 'D', 'mcp__x__1', 'mcp__x__2']), 'A, B, C and 2 more');
+  assert.equal(toolWords([]), '');
+});
+
+test('the Claude init tool list lands on the turn as details.tools; a repeat turn keeps only the hash', async () => {
+  const cwd = makeRepo();
+  try {
+    process.env.FAKE_TOOLS = 'Read,Edit,WebFetch,mcp__wisp__ask_user';
+    const a = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', worktree: false });
+    let x = await ended(a.id, 'review');
+    assert.deepEqual(x.turns[0].details?.tools?.list, ['Edit', 'Read', 'WebFetch']);
+    await api(`/sessions/${a.id}/reply`, { text: 'and the docs please' });
+    x = await until(async () => {
+      const y = await api(`/sessions/${a.id}`);
+      return y.turns.length === 2 && y.turns[1].status !== 'running' && y;
+    }, { timeout: 30_000 });
+    assert.deepEqual(x.turns[1].details.tools, { hash: x.turns[0].details.tools.hash });
+    delete process.env.FAKE_TOOLS;
+    const b = await api('/sessions', { prompt: 'write the docs please', cwd, agent: 'claude', worktree: false });
+    assert.equal((await ended(b.id, 'review')).turns[0].details, undefined, 'no tools in init: nothing stored');
+  } finally {
+    delete process.env.FAKE_TOOLS;
+  }
+});
+
+test('compare on /agents: only for a harness with several accounts', async () => {
+  const all = srv.store.all;
+  const multi = srv.accounts.multi;
+  try {
+    srv.store.all = () => [{ id: 'x', agent: 'claude', turns: [...many(5, () => turnOf('work', 4000, 1000, { startedAt: Date.now() - 36e5 })), ...many(5, () => turnOf('default', 2000, 1000, { startedAt: Date.now() - 36e5 }))] }];
+    srv.accounts.multi = () => false;
+    assert.equal((await api('/agents')).find((y) => y.id === 'claude').compare, undefined, 'one account: no field');
+    srv.accounts.multi = (id) => id === 'claude';
+    const claude = (await api('/agents')).find((y) => y.id === 'claude');
+    assert.deepEqual(claude.compare.map((c) => [c.model, c.accounts.map((x) => x.account)]), [['opus', ['work', 'default']]]);
+  } finally {
+    srv.store.all = all;
+    srv.accounts.multi = multi;
+  }
+});

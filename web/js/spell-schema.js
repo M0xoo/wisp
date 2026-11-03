@@ -261,6 +261,10 @@ export const PARTS = {
   'form.selectMenu': '.menu.kit-menu', // its options
   'mention.file': '.cr-pick .fl-pick', // a file in it
   'turn.fork': '#feed .tb-fork',
+  // A turn's usage receipt in its trail bar (38k tokens · 71% cache · 3% of weekly), and Past your
+  // plan when the run was billed beyond the plan (extra usage, Codex credits, an API key).
+  'turn.receipt': '#feed .turn .tb-receipt',
+  'turn.overage': '#feed .turn .tb-over',
   'turn.forkStart': '#feed .fork-line:not(.side-line)',
   // Split view only (body.split): the task list on one side, the open task on the other.
   sidebar: 'body.split .feed-wrap',
@@ -412,6 +416,10 @@ export const PARTS = {
   // …its Automations stop at row, and Where it went: the tasks that used most of an account's longest window.
   'settings.autoStop': '.sx-budget .sx-row:has(.us-stop)',
   'budget.where': '.sx-budget .bg-where',
+  // …Past your plan: an account's runs billed beyond its plan in the last 7 days.
+  'budget.overage': '.sx-budget .bg-over',
+  // …tokens per turn by account: each account's median turn per model this week (several accounts only).
+  'budget.compare': '.sx-budget .bg-cmp',
   // …a harness's own Automations stop at row, the Drain watch row, and its card on an account.
   'settings.autoStopBy': '.sx-budget .us-by-row',
   'settings.drainWatch': '.sx-budget .sx-row:has(#drainWatch)',

@@ -21,11 +21,15 @@
 // runs worked, against the units of work they did, and the line you last said yes at.
 // drain is Drain watch's (defaults.drainWatch): the same move per run, kept run by run for two weeks,
 // so a plan that suddenly moves much faster for the same work stands out (drain(), design/budget.md).
+// over is Past your plan's: runs billed beyond the plan (Claude's extra usage, Codex credits, an API
+// key), kept for a week; each one also marks its turn (turn.overage, runner.js).
 
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { writeJsonAtomic } from './util.js';
+import { COMPARE_DAYS, COMPARE_MIN, median, turnTokens } from '../web/js/receipt.js';
 
 const H = 3600_000;
 // What wisp calls each window, and how long it is when the CLI doesn't say.
@@ -68,6 +72,8 @@ const DRAIN_MIN = { runs: 5, du: 0.03 }; // what "usual" needs before it means a
 const DRAIN_NOW = { runs: 2, du: 0.05 }; // and the recent runs (the CLI reports whole percents)
 // Window changes: a window counts as gone once this many reports in a row over this long left it out.
 const GONE_MISS = 3;
+const OVER_KEEP = 50; // runs billed past the plan, per account
+const OVER_AGE = 7 * 24 * H;
 const GONE_AGE = 6 * H;
 // A long window's reset moved off its schedule (its old reset plus whole periods), beyond Codex's
 // drift. The 5-hour window starts at your first message, so its reset always moves: never counted.
@@ -105,13 +111,16 @@ export function unitsOf(stats) {
   return tokens > 0 ? tokens / 1e6 : 0;
 }
 
-// Claude's rate_limit_event.rate_limit_info → { windows, rejected? } or null.
-// { status, rateLimitType, utilization, resetsAt (s), unifiedWindows: { five_hour: { utilization, resetsAt } } }
+// Claude's rate_limit_event.rate_limit_info → { windows, rejected?, overage? } or null.
+// { status, rateLimitType, utilization, resetsAt (s), unifiedWindows: { five_hour: { utilization, resetsAt } },
+//   isUsingOverage, overageStatus }. overage: this run is billed as extra usage, past the plan.
+// rateLimitType "overage" is the extra-usage allowance, not a plan window: never a row.
 export function claudeLimits(info) {
   if (!info || typeof info !== 'object') return null;
   const windows = [];
+  const overage = info.isUsingOverage === true;
   const add = (id, w, used = w?.utilization) => {
-    if (!id || typeof id !== 'string' || !Number.isFinite(used) || windows.some((x) => x.id === id)) return;
+    if (!id || typeof id !== 'string' || id === 'overage' || !Number.isFinite(used) || windows.some((x) => x.id === id)) return;
     windows.push({ id, used: clamp(used), resetsAt: toMs(w.resetsAt), ms: WINDOWS[id]?.ms ?? null });
   };
   for (const [id, w] of Object.entries(info.unifiedWindows || {})) if (w && typeof w === 'object') add(id, w);
@@ -120,8 +129,8 @@ export function claudeLimits(info) {
   const rejected = info.status === 'rejected';
   // A refusal without a number is a full window.
   add(info.rateLimitType, info, Number.isFinite(info.utilization) ? info.utilization : rejected ? 1 : NaN);
-  if (!windows.length) return null;
-  return { windows, ...(complete && { complete }), ...(rejected && { rejected: String(info.rateLimitType || '') }) };
+  if (!windows.length) return overage ? { windows, overage } : null;
+  return { windows, ...(complete && { complete }), ...(rejected && info.rateLimitType !== 'overage' && { rejected: String(info.rateLimitType || '') }), ...(overage && { overage }) };
 }
 
 // Codex's rate_limits (from its session file) → { windows, rejected? } or null.
@@ -138,9 +147,12 @@ export function codexLimits(rl) {
     // slot: a window that changes length keeps its slot and gets a new id (window changes, below).
     windows.push({ id, used: clamp(w.used_percent / 100), resetsAt, ms: mins ? mins * 60_000 : null, slot });
   }
+  // credits: the balance Codex bills past the plan's windows (a string in its snapshot). A drop
+  // between two reports is a run billed past the plan (Budget.record).
+  const credits = rl.credits && !rl.credits.unlimited ? Number(rl.credits.balance) : NaN;
   if (!windows.length) return null;
   const full = windows.find((w) => w.used >= 1);
-  return { windows, complete: true, ...((rl.rate_limit_reached_type || full) && { rejected: full?.id || windows[0].id }) };
+  return { windows, complete: true, ...((rl.rate_limit_reached_type || full) && { rejected: full?.id || windows[0].id }), ...(Number.isFinite(credits) && { credits }) };
 }
 
 // What Codex's app-server answers to account/rateLimits/read → codexLimits' input (its own fields
@@ -219,10 +231,21 @@ export class Budget {
     }
   }
 
-  // What a run reported: { windows: [{ id, used, resetsAt, ms }], rejected? }.
-  record(agent, account, { windows = [], complete = false } = {}) {
-    if (!agent || !Array.isArray(windows) || !windows.length) return;
+  // What a run reported: { windows: [{ id, used, resetsAt, ms }], rejected?, overage?, credits? }.
+  // Returns 'extra' or 'credits' when this report says the run is billed past the plan, else null.
+  record(agent, account, { windows = [], complete = false, overage = false, credits } = {}) {
+    if (!agent || !Array.isArray(windows)) return null;
     account ||= 'default';
+    let past = overage ? 'extra' : null;
+    if (Number.isFinite(credits)) {
+      const acc = ((this.state[agent] ||= {})[account] ||= { windows: {} });
+      if (Number.isFinite(acc.credits) && credits < acc.credits - 1e-9) past = 'credits';
+      acc.credits = credits;
+    }
+    if (!windows.length) {
+      if (past || Number.isFinite(credits)) this.save();
+      return past;
+    }
     const acc = ((this.state[agent] ||= {})[account] ||= { windows: {} });
     const now = this.now();
     const share = this.#sharers(agent, account, acc.at, now);
@@ -257,6 +280,31 @@ export class Budget {
     this.save();
     if (moved) this.onChange();
     if (early.length) this.onReset(agent, account, early);
+    return past;
+  }
+
+  // --- past your plan: runs billed beyond the plan's windows ---------------------------------------
+
+  // A run on the account was billed past its plan: kind 'extra' (Claude's extra usage), 'credits'
+  // (Codex credits) or 'api' (an API key, not the plan). Once per turn; a week is kept.
+  overage(agent, account, kind, sid, tid) {
+    if (!agent || !kind) return;
+    const acc = ((this.state[agent] ||= {})[account || 'default'] ||= { windows: {} });
+    const now = this.now();
+    const list = (acc.over || []).filter((x) => x.at > now - OVER_AGE);
+    if (list.some((x) => x.sid === sid && x.tid === tid)) return;
+    list.push({ at: now, kind, sid, tid });
+    acc.over = list.slice(-OVER_KEEP);
+    this.save();
+    this.onChange();
+  }
+
+  // For Plan budget: { runs, at, kind, sid } over the last week, or null.
+  #overView(acc, now) {
+    const list = (acc.over || []).filter((x) => x.at > now - OVER_AGE);
+    if (!list.length) return null;
+    const last = list.at(-1);
+    return { runs: list.length, at: last.at, kind: last.kind, ...(last.sid && { sid: last.sid }) };
   }
 
   // --- where it went: the turns that ran on an account between two of its reports ---------------
@@ -322,6 +370,7 @@ export class Budget {
     const acc = this.state[agent]?.[account || 'default'];
     const now = this.now();
     return Object.entries(acc?.windows || {})
+      .filter(([id, w]) => !stale(acc, id, w, now))
       .map(([id, w]) => {
         const fresh = w.resetsAt && w.resetsAt <= now;
         return { id, label: WINDOWS[id]?.label || labelOf(w.ms), used: fresh ? 0 : w.used, resetsAt: fresh ? null : w.resetsAt, ms: w.ms || null };
@@ -481,6 +530,7 @@ export class Budget {
     const out = [];
     for (const [account, acc] of Object.entries(this.state[agent] || {})) {
       const windows = Object.entries(acc.windows || {})
+        .filter(([id, w]) => !stale(acc, id, w, now))
         .map(([id, w]) => {
           const fresh = w.resetsAt && w.resetsAt <= now;
           const used = fresh ? 0 : w.used;
@@ -490,13 +540,17 @@ export class Budget {
         .sort((a, b) => rank(a.id) - rank(b.id));
       const drain = this.drain(agent, account);
       const notices = Object.values(acc.notices || {}).map((n) => ({ ...n, label: WINDOWS[n.window]?.label || labelOf(n.ms), ...(n.wasMs && { wasLabel: WINDOWS[n.wasWindow]?.label || labelOf(n.wasMs) }) }));
-      if (windows.length || notices.length) out.push({ account, at: acc.at || null, windows, ...(drain && { drain }), ...(notices.length && { notices }) });
+      const overage = this.#overView(acc, now);
+      if (windows.length || notices.length || overage) out.push({ account, at: acc.at || null, windows, ...(drain && { drain }), ...(notices.length && { notices }), ...(overage && { overage }) });
     }
     return out;
   }
 }
 
 const rank = (id) => (ORDER.includes(id) ? ORDER.indexOf(id) : ORDER.length);
+// A window the last report of every window left out (Claude Ultra's gone 5-hour one), once its
+// reset has passed: there's nothing to show but an empty bar until #shape calls it gone.
+const stale = (acc, id, w, now) => !!acc.shape?.windows?.[id]?.miss && (!w.resetsAt || w.resetsAt <= now);
 // A window wisp has no name for, by its length: "30-day", "12-hour".
 const labelOf = (ms) => (!ms ? 'Usage' : ms >= 24 * H ? `${Math.round(ms / (24 * H))}-day` : `${Math.round(ms / H)}-hour`);
 
@@ -553,4 +607,69 @@ export function whereItWent(sessions, agent, account, win, resetsAt, { limit = 3
   if (!by.size) return null;
   const all = [...by.values()].sort((a, b) => b.used - a.used);
   return { tasks: all.slice(0, limit), more: Math.max(0, all.length - limit), traced: all.reduce((t, x) => t + x.used, 0) };
+}
+
+// A run's tool list (Claude Code's system/init tools) as turn.details.tools: { hash, list }. wisp's
+// own MCP tools are left out (they change with the task: crew jobs, subagents), so the hash only
+// moves when the account's own tools do. `seen` (hashes earlier turns of this task stored the list
+// under) drops the list from repeat turns: the hash points back to it.
+export function toolSet(list, seen = []) {
+  const names = [...new Set((list || []).map(String).filter((n) => n && !/^mcp__wisp__/.test(n)))].sort();
+  const hash = createHash('sha1').update(names.join('\n')).digest('hex').slice(0, 12);
+  return seen.includes(hash) ? { hash } : { hash, list: names };
+}
+
+// Tokens per turn by account (Settings → Usage, the receipt's tooltip): for each model this harness
+// ran on two or more accounts over the last 7 days, each account's median turn, once every account
+// shown has `min` finished turns on that model. Only what the CLI reported per turn, so it shows
+// when the same work costs one login more than another. A diagnostic: nothing here picks an account.
+// sessions: every task. → [{ model, accounts: [{ account, turns, output, input, cache, missing? }] }], most output first;
+// missing: tools another account in the row had on its latest turn and this one didn't.
+export function compareAccounts(sessions, agent, { now = Date.now(), days = COMPARE_DAYS, min = COMPARE_MIN } = {}) {
+  const since = now - days * 864e5;
+  const by = new Map(); // model → account → { out: [], read: [], cached, readSum, tools, toolsAt }
+  const lists = new Map(); // tools hash → list, from whichever turn stored it
+  for (const s of sessions) {
+    for (const t of s.turns || []) {
+      const ts = t.details?.tools;
+      if (ts?.hash && Array.isArray(ts.list)) lists.set(ts.hash, ts.list);
+      if ((t.agent || s.agent) !== agent || t.status !== 'done' || !(t.startedAt >= since) || t.startedAt > now) continue;
+      const k = turnTokens(t);
+      if (!k.output) continue;
+      const model = String(t.model || '');
+      const m = by.get(model) || new Map();
+      by.set(model, m);
+      const acc = t.account || 'default';
+      const e = m.get(acc) || { out: [], read: [], cached: 0, readSum: 0, tools: null, toolsAt: -Infinity };
+      m.set(acc, e);
+      // The account's tools as of its latest turn that reported them.
+      if (ts?.hash && t.startedAt >= e.toolsAt) {
+        e.tools = ts.hash;
+        e.toolsAt = t.startedAt;
+      }
+      e.out.push(k.output);
+      e.read.push(k.read);
+      e.cached += k.cached;
+      e.readSum += k.read;
+    }
+  }
+  const out = [];
+  for (const [model, m] of by) {
+    const accounts = [...m]
+      .filter(([, e]) => e.out.length >= min)
+      .map(([account, e]) => ({ account, turns: e.out.length, output: Math.round(median(e.out)), input: Math.round(median(e.read)), cache: e.readSum && e.cached ? e.cached / e.readSum : null, tools: e.tools && lists.get(e.tools) }))
+      .sort((a, b) => b.output - a.output);
+    if (accounts.length < 2) continue;
+    // Tools another account had that this one didn't (its settings deny WebFetch, an MCP server it
+    // lacks): a reason its turns differ. Only between accounts that both reported a list.
+    const known = accounts.filter((x) => x.tools);
+    const all = [...new Set(known.flatMap((y) => y.tools))].sort();
+    for (const x of accounts) {
+      const missing = known.length >= 2 && x.tools ? all.filter((n) => !x.tools.includes(n)) : [];
+      if (missing.length) x.missing = missing;
+    }
+    for (const x of accounts) delete x.tools;
+    out.push({ model, accounts });
+  }
+  return out.sort((a, b) => a.model.localeCompare(b.model));
 }

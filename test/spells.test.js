@@ -379,6 +379,9 @@ test('Automations stop at (autoStop) is a setting; its row, Where it went and a 
   assert.deepEqual(problems({ ...base0, settings: { autoStop: 'off' } }), []);
   assert.ok(problems({ ...base0, settings: { autoStop: '80' } }).some((x) => /autoStop/.test(x) && /off \| 50 \| 75 \| 90/.test(x)));
   assert.deepEqual(problems({ ...base0, ui: { hide: ['budget.where', 'details.plan'] }, parts: { 'settings.autoStop': { style: { opacity: '0.8' } } } }), []);
+  // The usage receipt and Past your plan (web/js/receipt.js) can be hidden or restyled.
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['turn.receipt', 'budget.overage', 'budget.compare'] }, parts: { 'turn.overage': { style: { fontWeight: '600' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['turn.receipts'] } }).length, 'an unknown part is refused');
   // Window changes: home's row, Settings → Usage's line and its switch.
   assert.deepEqual(problems({ ...base0, ui: { hide: ['split.windowNotice', 'settings.windowNotice.line'] }, parts: { 'settings.windowNotice': { style: { opacity: '0.8' } } }, settings: { windowNotice: 'off' } }), []);
   assert.ok(problems({ ...base0, settings: { windowNotice: 'maybe' } }).some((x) => /windowNotice/.test(x) && /on \| off/.test(x)));

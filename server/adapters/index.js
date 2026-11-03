@@ -40,7 +40,9 @@
 //   { type: 'blocked', tool, detail, rule? }        a call its permissions refused; rule: what allows
 //                                                  exactly that on a retry (none: retry in Full auto)
 //   { type: 'limits', windows: [{ id, used, resetsAt, ms }], rejected? }   how much of the account's
-//                                                  usage windows is gone (server/budget.js); before result
+//                                                  usage windows is gone (server/budget.js); before result.
+//                                                  overage: billed as extra usage; credits: Codex's balance
+//   { type: 'billing', kind: 'api' }                billed to an API key, not the plan
 //   { type: 'result', text, isError, stopped?, stats? }   exactly once, at the end
 //
 // mode is one of: plan (read-only), edits (auto-accept file edits), auto (no permission prompts).

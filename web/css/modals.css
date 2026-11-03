@@ -271,6 +271,12 @@ body.wisp-mobile .lb-open { display: none; }
 .bg-nx { flex: none; width: 26px; height: 26px; color: var(--faint); }
 .bg-nx:hover { color: var(--ink-2); }
 .bg-nx .i { width: 12px; height: 12px; }
+/* Past your plan: runs billed beyond the plan this week, a line under the bars */
+.bg-over { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 6px 6px 10px; border-radius: 8px; border: 1px solid var(--line-2); background: color-mix(in srgb, var(--warn) 7%, transparent); }
+.bg-over .bg-di { margin-top: 0; width: 14px; height: 14px; }
+.bg-over .bg-di .i { width: 14px; height: 14px; }
+.bg-over .bg-nt b { font-weight: 500; }
+.bg-ol { flex: none; }
 /* Drain watch: a card in the account's block, under its bars */
 .bg-drain { grid-column: 1 / -1; display: flex; gap: 10px; margin-top: 8px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line-2); background: color-mix(in srgb, var(--warn) 7%, transparent); }
 .bg-di { flex: none; display: inline-flex; width: 16px; height: 16px; margin-top: 1px; color: var(--warn); }
@@ -281,6 +287,21 @@ body.wisp-mobile .lb-open { display: none; }
 .bg-da { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
 .bg-da .i { width: 13px; height: 13px; }
 /* Where it went: the tasks that used most of the account's longest window, in the bars' columns */
+/* Tokens per turn by account: its own box after the harness's accounts, one model per row. */
+.bg-cmp { display: flex; flex-direction: column; gap: 2px; padding: 11px 14px 12px; }
+.bg-cmp:not(:first-child) { border-top: 1px solid var(--line); }
+.bg-cmp .bg-name { margin-bottom: 0; }
+.bg-ch { font-weight: 400; color: var(--muted); }
+.bg-cmp .bg-wh { margin-bottom: 0; }
+.bg-cr { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.bg-cm { font-size: 12.5px; font-weight: 500; color: var(--ink); }
+.bg-cw { font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
+.bg-ca { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; row-gap: 2px; font-size: 12px; color: var(--muted); }
+.bg-ca .bg-acc { flex: none; }
+.bg-cn { font-variant-numeric: tabular-nums; }
+.bg-cn .tb-dot { margin: 0 5px; color: var(--faint); }
+.bg-cmp .bg-da { margin-top: 8px; }
+
 .bg-where { grid-column: 1 / -1; display: grid; grid-template-columns: 76px minmax(0, 1fr) 40px; column-gap: 10px; row-gap: 1px; margin-top: 8px; padding-top: 9px; border-top: 1px solid var(--line); }
 .bg-wh { grid-column: 1 / -1; margin-bottom: 3px; font-size: 11.5px; color: var(--faint); }
 .bg-task { grid-column: 2 / -1; display: grid; grid-template-columns: minmax(0, 1fr) 40px; column-gap: 10px; align-items: center; min-height: 26px; margin: 0 -6px; padding: 0 6px; border-radius: 6px; font-size: 12.5px; color: var(--ink-2); text-align: left; }

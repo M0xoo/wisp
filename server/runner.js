@@ -24,7 +24,7 @@ import { refusalOf } from './refusal.js';
 import { vendorOf } from '../web/js/vendors.js';
 import { goalNote, goalView } from './goal.js';
 import { kitNote } from './crew.js';
-import { planOf, unitsOf } from './budget.js';
+import { planOf, toolSet, unitsOf } from './budget.js';
 import { watchView } from './watch.js';
 import { asks as projectAsks } from './project-trust.js';
 import { reviewView } from './services/review.js';
@@ -1459,10 +1459,25 @@ export class Runner extends EventEmitter {
         this.store.save(session);
         return;
       }
-      case 'limits':
-        // How much of this account's usage windows is gone (server/budget.js).
-        this.budget?.record?.(session.agent, session.account || 'default', ev);
+      case 'limits': {
+        // How much of this account's usage windows is gone (server/budget.js), and whether this run
+        // is billed past the plan (extra usage, Codex credits): Past your plan on the turn.
+        const past = this.budget?.record?.(session.agent, session.account || 'default', ev);
+        if (past) this.#pastPlan(session, turn, past);
         return;
+      }
+      case 'billing':
+        // Billed to an API key instead of the plan (Claude Code's apiKeySource).
+        if (ev.kind) this.#pastPlan(session, turn, ev.kind);
+        return;
+      case 'tools': {
+        // The run's tool list (details.tools), for the account comparison. The list is stored once per
+        // task; later turns with the same tools keep only the hash.
+        const seen = session.turns.filter((t) => t !== turn && t.details?.tools?.list).map((t) => t.details.tools.hash);
+        (turn.details ||= {}).tools = toolSet(ev.list, seen);
+        this.store?.save?.(session);
+        return;
+      }
       case 'background': {
         turn.background = ev.tasks;
         if (turn.interim) this.#waitItem(session, turn);
@@ -1637,6 +1652,15 @@ export class Runner extends EventEmitter {
         ...(rest.length ? rest : [{ type: 'markdown', text: ev.text || 'No answer.' }]),
       ],
     };
+  }
+
+  // A run billed past its plan (turn.overage: 'extra' usage, Codex 'credits', an 'api' key): the
+  // turn's receipt says so, and Plan budget counts it for the week (server/budget.js overage()).
+  #pastPlan(session, turn, kind) {
+    if (!turn || turn.overage) return;
+    turn.overage = { kind, at: Date.now() };
+    this.budget?.overage?.(session.agent, session.account || 'default', kind, session.id, turn.id);
+    this.store.save(session);
   }
 
   // Refused because too many devices or sessions are signed in on the account (Codex): no window to
