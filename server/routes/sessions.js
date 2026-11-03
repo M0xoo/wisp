@@ -221,7 +221,7 @@ export function register(r, app) {
     if (t.lead.length) {
       if (!t.rest) throw bad(`Tell ${t.lead.map((m) => m.name).join(' and ')} what to do after the name.`);
       const jobs = [];
-      for (const m of t.lead) jobs.push({ m, out: await app.crew.assign(m, { prompt: t.rest, job: 'task', attachments: Array.isArray(body.attachments) ? body.attachments : [], tagged: others(t) }) });
+      for (const m of t.lead) jobs.push({ m, out: await app.crew.assign(m, { prompt: t.rest, job: 'task', attachments: Array.isArray(body.attachments) ? body.attachments : [], tagged: others(t), confirmLimit: body.confirmLimit === true }) });
       const list = jobs.map(({ m, out }) => (out.session ? sumOf(out.session) : { queued: out.queued, crew: { id: m.id, name: m.name } }));
       return c.send(201, list.length > 1 ? { ...list[0], group: list } : list[0]);
     }

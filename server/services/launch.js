@@ -52,7 +52,9 @@ export function createLaunch(app) {
   // crew: a crew member's job ({ id, job, from? }, server/crew.js); only the crew sets it, never a request.
   // unattended: nobody started it by hand (a check-in, a trigger): it doesn't start on an account
   // past Settings → Usage → Automations stop at, and throws with `held` instead.
-  async function launch(body, origin = null, { crew = null, unattended = false } = {}) {
+  // yours: a crew job you gave just now ({ confirm }: your Send anyway), asked about near the limit
+  // like a task of your own rather than started held (server/crew.js).
+  async function launch(body, origin = null, { crew = null, unattended = false, yours = null } = {}) {
     // crewJob: a job the wisp that owns a crew member sent here, with the member's note (server/crew.js).
     crew ||= crewJobOf(body.crewJob);
     // "/terminal fix it": a terminal session (Babysitting mode) whatever the setting says. What a
@@ -114,14 +116,16 @@ export function createLaunch(app) {
     // Ask near the limit (server/guard.js): a run that would take its account's window past your
     // line doesn't go yet. Yours is refused with what it would take until you say yes
     // (confirmLimit); a schedule's, trigger's, recipe's or crew job's starts held, in Needs you.
+    // A job you gave a crew member yourself is yours (`yours`), with your yes in it.
     // Not a moved task, a delegate's run, or a job a lead handed a crew member (the lead went ahead).
     let hold = null;
     if (app.guard && !moved && !delegated && crew?.job !== 'delegated') {
-      const auto = !!(origin || crew);
+      const auto = !!(origin || (crew && !yours));
+      const confirmed = yours ? yours.confirm === true : body.confirmLimit === true;
       const checks = runners.map((r) => ({ agent: r.agent, account: runner.accountFor(r.agent, r.account, !auto), kind: 'first', origin, crew }));
       hold = checks.map((x) => app.guard.check(x)).find(Boolean) || null;
       if (hold && !auto) {
-        if (body.confirmLimit !== true) throw Object.assign(bad(holdMessage(hold), 409), { hold });
+        if (!confirmed) throw Object.assign(bad(holdMessage(hold), 409), { hold });
         for (const x of checks) app.guard.confirm(x);
         hold = null;
       }

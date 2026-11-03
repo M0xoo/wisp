@@ -614,12 +614,16 @@ export class Crew {
   // event: what a task watcher saw happen to `from` (finished, done).
   // unattended: nobody asked for it just now (a check-in on its schedule, a trigger): it doesn't
   // start while its account is past Automations stop at (it's skipped, see #failed).
-  async assign(m, { prompt, job = 'task', from = null, origin = null, attachments = [], reply = null, wake = false, tagged = [], kit = false, event = '', unattended = false } = {}) {
+  // confirmLimit (true/false): you're giving this job now (the prompt box, their thread), so it's
+  // your own run near the limit: refused with the hold until you say yes (true), then started at
+  // once. The yes stays with a job that waits for a free slot; without one, a job that waits starts
+  // held (nobody's there to ask). Left out: an automation's, held like a schedule's.
+  async assign(m, { prompt, job = 'task', from = null, origin = null, attachments = [], reply = null, wake = false, tagged = [], kit = false, event = '', unattended = false, confirmLimit } = {}) {
     if (!JOBS.has(job)) job = 'task';
     const text = String(prompt || '').trim() || (job === 'checkin' ? checkinPrompt(m, { wake }) : '');
     if (!text) throw bad('Tell them what to do.');
     const extra = tagged.filter((x) => x.id !== m.id).map((x) => taggedDelegate(x, 'job'));
-    const w = { id: newId(), prompt: text, job, ...(from && { from }), ...(origin && { origin }), ...(attachments.length && { attachments }), ...(reply && { reply }), ...(wake && { wake: true }), ...(EVENT_WHAT[event] && { event }), ...(kit && { kit: true }), ...(extra.length && { team: extra }), ...(unattended && { unattended: true }), at: this.now() };
+    const w = { id: newId(), prompt: text, job, ...(from && { from }), ...(origin && { origin }), ...(attachments.length && { attachments }), ...(reply && { reply }), ...(wake && { wake: true }), ...(EVENT_WHAT[event] && { event }), ...(kit && { kit: true }), ...(extra.length && { team: extra }), ...(unattended && { unattended: true }), ...(typeof confirmLimit === 'boolean' && job === 'task' && !origin && !unattended && { limit: confirmLimit ? 'yes' : 'ask' }), at: this.now() };
     if (from?.id && (job === 'mention' || job === 'delegated' || job === 'event')) this.#link(m, from);
     if (this.busy(m) >= m.parallel || (m.paused && job !== 'task' && job !== 'mention')) {
       if (m.queue.length >= QUEUE_MAX) throw bad(`${m.name} already has ${QUEUE_MAX} jobs waiting.`, 429);
@@ -627,10 +631,11 @@ export class Crew {
       this.#changed();
       return { queued: m.queue.length };
     }
-    return { session: await this.#start(m, w) };
+    return { session: await this.#start(m, w, { now: true }) };
   }
 
-  async #start(m, w) {
+  // now: you're there (assign), so a job of yours near the limit is asked about rather than held.
+  async #start(m, w, { now = false } = {}) {
     this.starting.set(m.id, (this.starting.get(m.id) || 0) + 1);
     const was = { checkins: m.checkins || 0, lastCheckinAt: m.lastCheckinAt || null };
     try {
@@ -638,7 +643,8 @@ export class Crew {
       const crew = { id: m.id, job: w.job, ...(w.from && { from: w.from }), ...(w.reply && { reply: w.reply }), ...(w.wake && { wake: true }), ...(w.event && { event: w.event }), ...(w.kit && { kit: true }) };
       const body = { prompt: w.prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: m.mode, attachments: w.attachments || [], ...this.#teamFor(m, w.job, w.team) };
       if (elsewhere(m)) return await this.#startAway(m, body, crew, w.origin);
-      const [s] = await this.launch(body, w.origin || null, { crew, unattended: !!w.unattended });
+      const yours = w.limit === 'yes' || (w.limit === 'ask' && now) ? { confirm: w.limit === 'yes' } : null;
+      const [s] = await this.launch(body, w.origin || null, { crew, unattended: !!w.unattended, yours });
       delete m.held;
       return s;
     } catch (err) {

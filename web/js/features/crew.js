@@ -35,6 +35,7 @@ import { canSandbox, machineById, pathAt, placeName, placesOf } from './places.j
 import { slotHtml, spellProp } from './spells.js';
 import { paintTeamBtn, teamEditor } from './team.js';
 import { addFiles, kitClick, kitHtml, offerClick, offerHtml } from './crew-kit.js';
+import { hideHold, holdNow, showHold } from './hold.js';
 import { importCrew, reviewChange, shareMember } from './crew-share.js';
 import { trackRecord } from './crew-record.js';
 import { stuffCount, stuffMatches, stuffSub, stuffThumbHtml } from './stuff.js';
@@ -601,7 +602,9 @@ export async function removeMember(id, anchor) {
 // Hand a member a job. It shows in the thread at once (Starting up) and the box gets its text
 // back if the server refuses.
 // kit: they build their own kit (crew-kit.js): what they propose comes back under the job.
-export async function sendJob(m, prompt, { restore, kit = false } = {}) {
+// confirm: your Start anyway near the usage limit. onHold(hold): the server says it's near the limit
+// (409): the box gets its text back and the hold row shows, instead of an error toast.
+export async function sendJob(m, prompt, { restore, kit = false, confirm = false, onHold } = {}) {
   const pend = { id: `sending-${Date.now()}`, prompt };
   sending.set(m.id, [...(sending.get(m.id) || []), pend]);
   // Under the member in the list too, unless it will wait for a free slot.
@@ -609,7 +612,7 @@ export async function sendJob(m, prompt, { restore, kit = false } = {}) {
   const card = st.live.length + st.jobs.filter((s) => s.state === 'waiting').length < (m.parallel || 1) && addPendingJob(m, prompt);
   renderFeed();
   try {
-    const out = await api(`/crew/${m.id}/jobs`, { method: 'POST', body: { prompt, ...(kit && { kit: true }) } });
+    const out = await api(`/crew/${m.id}/jobs`, { method: 'POST', body: { prompt, ...(kit && { kit: true }), ...(confirm && { confirmLimit: true }) } });
     if (card) S.sessions.delete(card);
     if (out.member) Object.assign(m, out.member);
     if (out.session && !S.sessions.has(out.session.id)) S.sessions.set(out.session.id, out.session);
@@ -617,7 +620,8 @@ export async function sendJob(m, prompt, { restore, kit = false } = {}) {
   } catch (err) {
     if (card) S.sessions.delete(card);
     restore?.();
-    toastError(err);
+    if (err.hold && onHold) onHold(err.hold);
+    else toastError(err);
   } finally {
     sending.set(m.id, (sending.get(m.id) || []).filter((x) => x !== pend));
     renderFeed();
@@ -815,6 +819,7 @@ function buildView(id) {
           <details class="cv-about"><summary></summary><div class="cv-side"></div></details>
         </div>
         <form class="cv-dock">
+          <div class="c-hold cv-hold" role="group" aria-label="Near the usage limit" aria-live="polite" hidden></div>
           <div class="cv-box">
             <textarea class="cv-input" rows="1" spellcheck="false"></textarea>
             <div class="cv-bar">
@@ -846,6 +851,27 @@ function buildView(id) {
   // The details may run down beside the box (crew.css): they need its height.
   const dock = $('.cv-dock', node);
   new ResizeObserver(() => node.style.setProperty('--cv-dock-h', `${dock.offsetHeight}px`)).observe(dock);
+  // Near the usage limit (features/hold.js): the hold row over the box, as over a task's reply box,
+  // with Start anyway; no Wait until (a job has no Start later). The draft stays until it goes.
+  const holdRow = $('.cv-hold', node);
+  const holdDock = (m, h) => showHold(holdRow, ta, { agent: m.agent, account: 'default', ...h, resetsAt: null }, { kind: 'first', go: () => sendDock(memberById(id) || m, { confirm: true }), wait: () => {} });
+  const sendDock = (m, { confirm = false } = {}) => {
+    const text = ta.value.trim();
+    if (!text) return;
+    // One on another computer: the server there decides.
+    const h = !confirm && !m.machine && holdNow(m.agent, '', 'first');
+    if (h) return holdDock(m, h);
+    hideHold(holdRow);
+    ta.value = '';
+    autosize();
+    return sendJob(m, text, {
+      confirm,
+      restore: () => {
+        if (!ta.value) (ta.value = text), autosize();
+      },
+      onHold: (x) => holdDock(m, x),
+    });
+  };
   mentionBox(ta); // @ the rest of the crew, tasks pasted by id
   ta.dataset.crew = id;
 
@@ -1001,17 +1027,7 @@ function buildView(id) {
     const m = memberById(id);
     const f = e.target;
     if (!m) return;
-    if (f.classList.contains('cv-dock')) {
-      const text = ta.value.trim();
-      if (!text) return;
-      ta.value = '';
-      autosize();
-      return sendJob(m, text, {
-        restore: () => {
-          if (!ta.value) (ta.value = text), autosize();
-        },
-      });
-    }
+    if (f.classList.contains('cv-dock')) return sendDock(m);
     const job = f.closest('.cv-job')?.dataset.id;
     const input = $('input', f);
     const text = input?.value.trim();

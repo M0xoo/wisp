@@ -80,6 +80,9 @@ including your own sends, with an estimate, and keeps what it holds in Needs you
   **Start anyway**, **Wait until Thu 21:00** (Later: a scheduled follow-up or a Start later task),
   × **Keep editing**. The draft stays in the box. Enter = anyway (not a repeat, not within 300 ms),
   Alt+Enter = wait, Esc = keep editing. A 409 from the server shows the same row.
+  A job you give a crew member (*@Ada …*, or the box in their thread, `.cv-hold`) is your own
+  run: the same row, on the member's harness, without Wait until (a job has no Start later); Start
+  anyway sends `confirmLimit` and the job starts at once, also after waiting for a free slot.
 - **Held card** under the held prompt (`.b-held`, like the limit card): *Held before it started:
   this run may take Claude Code’s weekly window from 91% to about 96%. Left alone, it waits for the
   reset.* **Start now** / **Send now**, **Wait until …**, **Skip this run**. Optimistic, rolled back
