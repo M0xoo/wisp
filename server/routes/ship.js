@@ -70,6 +70,19 @@ export function register(r, app) {
       c.send(200, { conflictFix: s.conflictFix });
     }),
   );
+  // Review by another harness, now (the PR row's Not reviewed / Review again): another harness than
+  // the author's reads the PR's diff and the tests run again on its head (services/review.js).
+  r.route(
+    'POST',
+    '/sessions/:id/review',
+    one(async (c, s) => {
+      notSide(s, 'review a pull request');
+      if (s.pr?.state !== 'OPEN' || !s.worktree) return c.send(400, { error: 'No open pull request of the task’s own branch.' });
+      const why = app.review.maybe(s, { force: true });
+      if (why) return c.send(409, { error: why });
+      c.send(200, { review: s.review });
+    }),
+  );
   // Squash-merge the reviewed head, sync the user's base branch, clean up the worktree.
   r.route(
     'POST',

@@ -210,6 +210,13 @@ if (btw) {
   process.exit(0);
 }
 
+// Review by another harness (server/services/review.js): FAKE_REVIEW is the JSON it answers, else one finding.
+if (stdin.includes('You review a pull request another coding agent wrote')) {
+  if (process.env.FAKE_RECORD) fs.appendFileSync(path.join(process.env.FAKE_RECORD, 'review.jsonl'), JSON.stringify({ name, cwd: process.cwd(), argv, tests: /<tests /.test(stdin), diff: stdin.split('<diff>')[1]?.split('</diff>')[0]?.trim() || '' }) + '\n');
+  answer(process.env.FAKE_REVIEW || JSON.stringify({ summary: `${name} found one thing`, findings: [{ severity: 'high', file: 'math.js', line: 1, text: 'add() has no test' }] }), 'pr-review');
+  process.exit(0);
+}
+
 // wisp checking a goal (server/goal.js): the goal's text says how it goes. "[met after N]" is met
 // on the Nth check, "[impossible]" can't be met, anything else is never met.
 if (stdin.includes('You check whether a coding agent reached its goal')) {

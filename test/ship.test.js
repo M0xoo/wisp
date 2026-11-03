@@ -298,6 +298,54 @@ test('a conflict fix that leaves conflicts is not pushed; Fix conflicts retries;
   }
 });
 
+test('review by another harness: off by default; on, another harness reviews the PR head and Merge still works', async () => {
+  const repo = makeClone();
+  const s = await api('/sessions', { body: { prompt: 'Fix add() for review', cwd: repo.dir, agent: 'claude' } });
+  await settled(s.id);
+  const reviews = () => (fs.existsSync(path.join(RECORD, 'review.jsonl')) ? records(RECORD, 'review') : []);
+  const before = reviews().length;
+  await assert.rejects(api('/config', { method: 'PATCH', body: { defaults: { review: 'on' } } }), /review must be one of off, other, claude/);
+  try {
+    // Off (the default): shipping reviews nothing, and the summary has no review.
+    await api(`/sessions/${s.id}/ship`, { body: { title: 'fix: add adds' } });
+    await api(`/sessions/${s.id}/pr`, { body: {} });
+    assert.equal((await summaryOf(s.id)).review, null);
+    assert.equal(reviews().length, before);
+    // On: another harness than the author (claude) reviews the PR's head, in the task's worktree.
+    await api('/config', { method: 'PATCH', body: { defaults: { review: 'other' } } });
+    await api(`/sessions/${s.id}/pr`, { body: {} });
+    const done = await until(async () => ((await summaryOf(s.id)).review?.status === 'done' ? summaryOf(s.id) : null));
+    assert.equal(done.review.current, true);
+    assert.equal(done.review.by.agent, 'codex');
+    assert.deepEqual(done.review.findings, [{ severity: 'high', file: 'math.js', line: 1, text: 'add() has no test' }]);
+    const rec = reviews().at(-1);
+    assert.equal(rec.name, 'codex');
+    assert.equal(fs.realpathSync.native(rec.cwd), fs.realpathSync.native((await session(s.id)).worktree.path));
+    assert.match(rec.diff, /math\.js/);
+    // The same head isn't reviewed twice; Review again does, and a clean answer has no findings.
+    await api(`/sessions/${s.id}/pr`, { body: {} });
+    assert.equal(reviews().length, before + 1);
+    process.env.FAKE_REVIEW = JSON.stringify({ summary: 'Looks right', findings: [] });
+    await api(`/sessions/${s.id}/review`, { body: {} });
+    const again = await until(async () => (reviews().length === before + 2 && (await summaryOf(s.id)).review?.status === 'done' ? summaryOf(s.id) : null));
+    assert.deepEqual(again.review.findings, []);
+    assert.equal(again.review.summary, 'Looks right');
+    // A harness picked by name reviews, even the author's own.
+    await api('/config', { method: 'PATCH', body: { defaults: { review: 'claude' } } });
+    await api(`/sessions/${s.id}/review`, { body: {} });
+    await until(async () => (await summaryOf(s.id)).review?.status === 'done' && reviews().length === before + 3);
+    assert.equal((await summaryOf(s.id)).review.by.agent, 'claude');
+    // Merge isn't blocked by it.
+    const merged = await api(`/sessions/${s.id}/merge`, { body: {} });
+    assert.equal(merged.pr.state, 'MERGED');
+    await assert.rejects(api(`/sessions/${s.id}/review`, { body: {} }), /No open pull request/);
+  } finally {
+    delete process.env.FAKE_REVIEW;
+    await api('/config', { method: 'PATCH', body: { defaults: { review: 'off' } } });
+    await closePrs(s.id);
+  }
+});
+
 test('the task list answers ?since= with only what changed, and the whole list when it can’t tell', async () => {
   const repo = makeRepo(); // a path: `repo.dir` ran both tasks in the wisp checkout (a worktree and branch left there each run)
   const a = await api('/sessions', { body: { prompt: 'Fix add()', cwd: repo, agent: 'claude' } });

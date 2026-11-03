@@ -25,6 +25,58 @@ function prLine(pr, fix) {
   return [state, pr.state === 'OPEN' ? checks : '', pr.state === 'OPEN' ? REVIEW[pr.review] : ''].filter(Boolean).join(' · ');
 }
 
+// Review by another harness (Settings → Review by another harness, server/services/review.js):
+// where the task's own PR stands. kind: running | none | failed | held | tests | issues | pass, or
+// null when the setting is off and nothing was ever reviewed.
+const harnessName = (id) => S.agents.find((a) => a.id === id)?.name || id || 'another harness';
+export function reviewState(s) {
+  const pr = s?.pr;
+  if (pr?.state !== 'OPEN') return null;
+  const on = (S.config?.defaults?.review || 'off') !== 'off';
+  const r = s.review;
+  if (!r && !on) return null;
+  const by = harnessName(r?.by?.agent);
+  if (r?.status === 'running' && r.current) return { kind: 'running', label: 'Reviewing', title: `${by} is reviewing the PR and its tests are running again` };
+  if (!r || !r.current) return { kind: 'none', label: 'Not reviewed', title: r ? 'Not reviewed since the last push. Click to review it now' : 'Not reviewed by another harness yet. Click to review it now' };
+  if (r.status === 'failed' || r.status === 'held') return { kind: r.status, label: 'Not reviewed', title: `${r.why || 'The review didn’t finish'}. Click to try again` };
+  const n = r.findings.length;
+  const failing = r.tests?.verdict === 'fail';
+  if (failing) return { kind: 'tests', label: n ? `Tests fail · ${n} issue${n > 1 ? 's' : ''}` : 'Tests fail', n, title: `The tests fail on the PR’s head (${r.tests.command})${n ? `, and ${by} found ${n} issue${n > 1 ? 's' : ''}` : ''}` };
+  if (n) return { kind: 'issues', label: `${n} issue${n > 1 ? 's' : ''}`, n, title: `${by}’s review found ${n} issue${n > 1 ? 's' : ''}: ${r.summary || ''}` };
+  return { kind: 'pass', label: 'Reviewed', title: `${by} reviewed it: ${r.summary || 'nothing to fix'}${r.tests ? ` · ${r.tests.command} passes` : ''}` };
+}
+const RV_ICON = { running: 'clock', none: 'judge', failed: 'warn', held: 'clock', tests: 'x', issues: 'warn', pass: 'check' };
+const reviewChip = (s) => {
+  const v = reviewState(s);
+  if (!v) return '';
+  // Not reviewed: the chip reviews it now. Otherwise it's part of the row, which opens the PR panel with the findings.
+  const act = ['none', 'failed', 'held'].includes(v.kind) ? ' data-pr="review"' : '';
+  return `<button class="ghost xs pr-rv rv-${v.kind}"${act} title="${esc(v.title)}">${icon(RV_ICON[v.kind])}<span>${esc(v.label)}</span></button>`;
+};
+// Merge's confirmation, in words: why it isn't reviewed, or what the review found.
+export function reviewWarning(s) {
+  const v = reviewState(s);
+  if (!v || v.kind === 'pass') return '';
+  if (v.kind === 'running') return '⚠ The review by another harness is still running.';
+  if (v.kind === 'tests') return `⚠ ${v.title}.`;
+  if (v.kind === 'issues') return `⚠ The review by ${harnessName(s.review.by?.agent)} found ${v.n} issue${v.n > 1 ? 's' : ''}.`;
+  return '⚠ Not reviewed by another harness.';
+}
+// Review it now: the chip says Reviewing at once; a refusal puts it back with why.
+export function startReview(id) {
+  const s = S.sessions.get(id);
+  if (!s?.pr) return;
+  const was = s.review;
+  s.review = { ...(was || {}), status: 'running', head: s.pr.head || was?.head, current: true, findings: [], by: was?.by };
+  renderPrStrip(id);
+  api(`/sessions/${id}/review`, { method: 'POST', body: {} }).catch((err) => {
+    const now = S.sessions.get(id);
+    if (now?.review?.status === 'running') now.review = was;
+    renderPrStrip(id);
+    toastError(err);
+  });
+}
+
 // A ship in flight, per session: { steps, step, update, route, error, values }. The dialog closes
 // on confirm and the card follows along here (the server sends the live stage as `shipping`);
 // a failure stays on the card with Retry, which reopens the dialog with what was typed.
@@ -105,6 +157,7 @@ export function renderPrStrip(id) {
     ${open.length ? `<button class="ghost xs" data-pr="refresh" title="Check now (wisp also checks every minute)">${icon('replay')}</button>` : ''}
     ${several ? '' : `<a class="ghost xs" href="${esc(pr.url)}" target="_blank">${icon('external')}<span>GitHub</span></a>`}
     ${pr.state === 'OPEN' && pr.conflict && s.pr && !fixing(fix) && s.state !== 'running' ? `<button class="ghost xs pr-fix" data-pr="fix" title="Send the task a follow-up to merge the base in and resolve the conflicts; wisp pushes the fix to the PR">${icon('merge')}<span>Fix conflicts</span></button>` : ''}
+    ${s.pr?.state === 'OPEN' ? reviewChip(s) : ''}
     ${open.length && !conflict ? `<button class="ghost xs pr-merge" data-pr="merge" title="Squash-merge${open.length > 1 ? ` all ${open.length} PRs` : ''}, then fast-forward your local base branch${open.length > 1 ? 'es' : ''}">${icon('check')}<span>Merge${open.length > 1 ? ' all' : ''}</span></button>` : ''}
     <span class="pr-go" aria-hidden="true">${icon('chevron')}</span>`;
   node.onclick = (e) => {
@@ -112,6 +165,7 @@ export function renderPrStrip(id) {
     if (a === 'refresh') refreshPr(id, e.target.closest('[data-pr]'));
     if (a === 'merge') mergePr(id);
     if (a === 'fix') fixPr(id);
+    if (a === 'review') startReview(id);
   };
 }
 
@@ -287,6 +341,7 @@ export async function mergePr(id) {
       return c.fail ? `⚠ ${c.fail} check${c.fail > 1 ? 's are' : ' is'} failing${where}.` : c.pending ? `⚠ ${c.pending} check${c.pending > 1 ? 's are' : ' is'} still running${where}.` : '';
     })
     .filter(Boolean)
+    .concat(reviewWarning(s) || [])
     .concat(overlapWarning(s) || [])
     .join('\n');
   const what = several ? `these ${open.length} PRs (${open.map((x) => `${x.repo} #${x.pr.number}`).join(', ')})` : `PR #${open[0].pr.number}${open[0].pr.draft ? ' (marks it ready first)' : ''}`;

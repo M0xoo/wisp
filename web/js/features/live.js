@@ -63,7 +63,8 @@ export function connect() {
     if (prev?.state !== s.state || prev?.queued !== s.queued || (S.full.get(s.id) && S.full.get(s.id).state !== s.state)) scheduleRefetch(s.id);
     if (!!prev?.term !== !!s.term && S.nodes.has(s.id)) updateDock(s.id); // the follow-up box says it's in a terminal
     else if (JSON.stringify(prev?.later || null) !== JSON.stringify(s.later || null) && S.nodes.has(s.id)) updateDock(s.id); // its scheduled follow-ups, above the box
-    if (JSON.stringify([prev?.pr, prev?.also, prev?.prs, prev?.toShip, prev?.state, prev?.shipping]) !== JSON.stringify([s.pr, s.also, s.prs, s.toShip, s.state, s.shipping])) renderPrStrip(s.id);
+    if (JSON.stringify([prev?.pr, prev?.also, prev?.prs, prev?.toShip, prev?.state, prev?.shipping, prev?.review]) !== JSON.stringify([s.pr, s.also, s.prs, s.toShip, s.state, s.shipping, s.review])) renderPrStrip(s.id);
+    if (JSON.stringify(prev?.review || null) !== JSON.stringify(s.review || null)) bus.emit('review', s.id); // the PR panel's review section
     if (JSON.stringify(prev?.overlaps || null) !== JSON.stringify(s.overlaps || null)) renderOverlapStrip(s.id);
     if (prev?.state !== s.state || prev?.pr?.state !== s.pr?.state) spellEvent('summary');
     // Watch: the page its agent keeps beside it moved (panel.js); opened: put up just now.

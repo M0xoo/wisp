@@ -61,6 +61,7 @@ import { createFork } from './services/fork.js';
 import { createPlaces } from './services/places.js';
 import { phoneActions } from './services/phone.js';
 import { createShip } from './services/ship.js';
+import { createReview } from './services/review.js';
 import { createOverlaps } from './services/overlaps.js';
 import { trackTurns } from './services/telemetry.js';
 import { Uploads } from './services/uploads.js';
@@ -464,6 +465,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   // Phone: answers and follow-ups coming back from ntfy / Telegram.
   app.remote = new Remote({ store, onChange: () => app.broadcast('remote', {}), ...phoneActions(app) });
   app.overlaps = createOverlaps(app);
+  app.review = createReview(app); // review by another harness before Merge (defaults.review)
   app.ship = createShip(app);
   createSpellHooks(app);
 

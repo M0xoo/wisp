@@ -31,6 +31,14 @@ import { clearPicks } from './transcript.js';
 import { repaintViews } from './turns.js';
 import { openUsage } from './usage.js';
 import { HOLD_DEFAULT, HOLD_LINES } from '../limit-hold.js';
+
+// Review by another harness: off, whichever other harness is installed, or one of them (by name).
+const REVIEW_HARNESSES = ['claude', 'codex', 'antigravity', 'copilot', 'opencode', 'cursor', 'grok'];
+const REVIEW_CHOICES = () => [
+  ['off', 'Off'],
+  ['other', 'Another harness than the author'],
+  ...REVIEW_HARNESSES.filter((id) => S.agents.some((a) => a.id === id && a.available) || S.config.defaults.review === id).map((id) => [id, S.agents.find((a) => a.id === id)?.name || id]),
+];
 import { crewRecord } from './crew-record.js';
 import { crewList } from './crew.js';
 import { connectorsPane } from './connectors.js';
@@ -122,6 +130,7 @@ export function openSettings(opts) {
           </div>
           <div class="sx-group">
             ${row('Worktree per task', 'Each task gets its own branch from origin/main, in git repos', '<button class="switch" id="wtDefault" role="switch"></button>')}
+            ${row('Review by another harness', 'Before you merge a task’s PR, a harness other than the one that wrote it reads the diff and lists what it would fix, and the tests run again on the PR’s head. Merge stays possible; it says when the PR isn’t reviewed or the review found issues. Runs on that harness’s own account, never another', `<select name="review">${REVIEW_CHOICES().map(([v, l]) => `<option value="${v}" ${(d.review || 'off') === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`)}
             ${row('Auto-fix PR conflicts', 'Without waiting for a click on Fix conflicts: when a shipped PR conflicts with its base, the task merges the base in, resolves it and pushes', '<button class="switch" id="fixConflicts" role="switch"></button>')}
             ${row('Read times in prompts', 'A prompt that starts with a time (“in 5 min …”, “tomorrow at 9 …”) or says “remind me … in 1 hour” is scheduled for then. A chip under the box shows the time before you send', '<button class="switch" id="readTimes" role="switch"></button>')}
             ${row('Watch agents work', 'On long tasks, agents may put a page beside the task that shows their progress as they go, and keep it current. It opens in the side panel', '<button class="switch" id="watchOn" role="switch"></button>')}
@@ -414,10 +423,12 @@ export function openSettings(opts) {
     const { name, value } = e.target;
     if (!name || e.target.closest('.embedded')) return; // a nested view's own form
     if (name === 'terminal') $('.custom-term', node).hidden = value !== 'custom';
-    await tryApi(async () => {
+    const ok = await tryApi(async () => {
       await api('/config', { method: 'PATCH', body: { defaults: { [name]: value } } });
       await loadConfig();
+      return true;
     });
+    if (!ok && e.target.tagName === 'SELECT' && S.config.defaults[name] !== undefined) e.target.value = S.config.defaults[name]; // refused: back to what's in effect
   });
   // The switch shows wisp's own on/off preference; the browser permission can only be
   // granted from here, never revoked, so it surfaces as a hint when it blocks the switch.
@@ -933,7 +944,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers' };
+  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers', review: 'select[name="review"]' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {
