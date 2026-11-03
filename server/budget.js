@@ -66,6 +66,16 @@ const DRAIN_RECENT = 2 * H;
 const DRAIN_RATIO = 2; // this many times the usual share per unit of work
 const DRAIN_MIN = { runs: 5, du: 0.03 }; // what "usual" needs before it means anything
 const DRAIN_NOW = { runs: 2, du: 0.05 }; // and the recent runs (the CLI reports whole percents)
+// Window changes: a window counts as gone once this many reports in a row over this long left it out.
+const GONE_MISS = 3;
+const GONE_AGE = 6 * H;
+// A long window's reset moved off its schedule (its old reset plus whole periods), beyond Codex's
+// drift. The 5-hour window starts at your first message, so its reset always moves: never counted.
+const shifted = (was, cur) => {
+  if (!(cur.ms >= 24 * H) || !was.resetsAt || !cur.resetsAt || samePeriod(was.resetsAt, cur.resetsAt)) return false;
+  const r = (((cur.resetsAt - was.resetsAt) % cur.ms) + cur.ms) % cur.ms;
+  return Math.min(r, cur.ms - r) > 10 * 60_000;
+};
 const toMs = (s) => (Number.isFinite(s) && s > 0 ? (s < 1e12 ? s * 1000 : s) : null); // seconds or ms
 
 function readJson(file) {
@@ -105,11 +115,13 @@ export function claudeLimits(info) {
     windows.push({ id, used: clamp(used), resetsAt: toMs(w.resetsAt), ms: WINDOWS[id]?.ms ?? null });
   };
   for (const [id, w] of Object.entries(info.unifiedWindows || {})) if (w && typeof w === 'object') add(id, w);
+  // Every window the plan has (window changes, below): an event with only rateLimitType names one.
+  const complete = windows.length > 0;
   const rejected = info.status === 'rejected';
   // A refusal without a number is a full window.
   add(info.rateLimitType, info, Number.isFinite(info.utilization) ? info.utilization : rejected ? 1 : NaN);
   if (!windows.length) return null;
-  return { windows, ...(rejected && { rejected: String(info.rateLimitType || '') }) };
+  return { windows, ...(complete && { complete }), ...(rejected && { rejected: String(info.rateLimitType || '') }) };
 }
 
 // Codex's rate_limits (from its session file) → { windows, rejected? } or null.
@@ -117,17 +129,18 @@ export function claudeLimits(info) {
 export function codexLimits(rl) {
   if (!rl || typeof rl !== 'object') return null;
   const windows = [];
-  for (const w of [rl.primary, rl.secondary]) {
+  for (const [slot, w] of [['primary', rl.primary], ['secondary', rl.secondary]]) {
     if (!w || !Number.isFinite(w.used_percent)) continue;
     const mins = Number(w.window_minutes) || 0;
     const id = mins === 300 ? 'five_hour' : mins === 10080 ? 'seven_day' : mins ? `w${mins}m` : '';
     if (!id || windows.some((x) => x.id === id)) continue;
     const resetsAt = toMs(w.resets_at) ?? (Number.isFinite(w.resets_in_seconds) ? Date.now() + w.resets_in_seconds * 1000 : null);
-    windows.push({ id, used: clamp(w.used_percent / 100), resetsAt, ms: mins ? mins * 60_000 : null });
+    // slot: a window that changes length keeps its slot and gets a new id (window changes, below).
+    windows.push({ id, used: clamp(w.used_percent / 100), resetsAt, ms: mins ? mins * 60_000 : null, slot });
   }
   if (!windows.length) return null;
   const full = windows.find((w) => w.used >= 1);
-  return { windows, ...((rl.rate_limit_reached_type || full) && { rejected: full?.id || windows[0].id }) };
+  return { windows, complete: true, ...((rl.rate_limit_reached_type || full) && { rejected: full?.id || windows[0].id }) };
 }
 
 // What Codex's app-server answers to account/rateLimits/read → codexLimits' input (its own fields
@@ -207,7 +220,7 @@ export class Budget {
   }
 
   // What a run reported: { windows: [{ id, used, resetsAt, ms }], rejected? }.
-  record(agent, account, { windows = [] } = {}) {
+  record(agent, account, { windows = [], complete = false } = {}) {
     if (!agent || !Array.isArray(windows) || !windows.length) return;
     account ||= 'default';
     const acc = ((this.state[agent] ||= {})[account] ||= { windows: {} });
@@ -239,6 +252,7 @@ export class Budget {
       if (d > 0 && share.length) for (const [k, part] of share) this.onShare(k.sid, k.tid, { agent, account, window: w.id, used: d * part, resetsAt: next.resetsAt });
       acc.windows[w.id] = next;
     }
+    if (this.#shape(acc, windows, complete, early, now)) moved = true;
     acc.at = now;
     this.save();
     if (moved) this.onChange();
@@ -376,6 +390,68 @@ export class Budget {
     return true;
   }
 
+  // --- window changes: a plan's window that appears, goes, changes length or moves its reset -----
+  // (design/budget.md). What wisp last saw of each window is kept in acc.shape, so a restart doesn't
+  // announce anything again; each change leaves acc.notices[id] until it's dismissed or the next
+  // change of that window replaces it. The first report of an account only sets what was seen.
+  // Returns whether a notice was added.
+  #shape(acc, windows, complete, early, now) {
+    const sh = (acc.shape ||= { since: now, n: 0, windows: {} });
+    const first = !sh.n++;
+    const seen = sh.windows;
+    const got = new Set();
+    let added = false;
+    const note = (id, n) => {
+      (acc.notices ||= {})[id] = { window: id, at: now, ...n };
+      added = true;
+    };
+    for (const w of windows) {
+      if (!w?.id || !Number.isFinite(w.used)) continue;
+      got.add(w.id);
+      const cur = acc.windows[w.id];
+      if (!cur) continue; // over MAX_WINDOWS
+      const was = seen[w.id];
+      const now_ = { ms: cur.ms, resetsAt: cur.resetsAt, slot: w.slot || null, at: now, miss: 0 };
+      if (!was) {
+        // Codex names a window by its length: the same slot under a new id is a length change.
+        const old = !first && w.slot && Object.entries(seen).find(([id, x]) => x.slot === w.slot && id !== w.id && !windows.some((y) => y.id === id));
+        if (old) {
+          const [oid, o] = old;
+          delete seen[oid];
+          delete acc.windows[oid];
+          delete acc.notices?.[oid];
+          note(w.id, { kind: 'length', ms: cur.ms, wasMs: o.ms, wasWindow: oid, resetsAt: cur.resetsAt });
+        } else if (!first && !complete) continue; // only a report of every window says it's new
+        else if (!first) note(w.id, { kind: 'new', ms: cur.ms, resetsAt: cur.resetsAt });
+      } else if (was.ms && cur.ms && Math.abs(was.ms - cur.ms) > 60_000) {
+        note(w.id, { kind: 'length', ms: cur.ms, wasMs: was.ms, resetsAt: cur.resetsAt });
+      } else if (shifted(was, cur) && !early.includes(w.id)) {
+        // An early (banked) reset moves it too, but has its own line (earlyAt).
+        note(w.id, { kind: 'reset', ms: cur.ms, resetsAt: cur.resetsAt, wasResetsAt: was.resetsAt + Math.round((cur.resetsAt - was.resetsAt) / cur.ms) * cur.ms });
+      }
+      seen[w.id] = now_;
+    }
+    // Gone: missing from several reports that list every window, over hours (a report can skip one).
+    if (complete && !first)
+      for (const [id, x] of Object.entries(seen)) {
+        if (got.has(id) || ++x.miss < GONE_MISS || now - x.at < GONE_AGE) continue;
+        delete seen[id];
+        delete acc.windows[id];
+        note(id, { kind: 'gone', ms: x.ms, resetsAt: x.resetsAt });
+      }
+    return added;
+  }
+
+  // × on a window's notice: gone until that window changes again.
+  dismissNotice(agent, account, id) {
+    const acc = this.state[agent]?.[account || 'default'];
+    if (!acc?.notices?.[id]) return false;
+    delete acc.notices[id];
+    this.save();
+    this.onChange();
+    return true;
+  }
+
   // What a unit of work takes of the window, from the runs so far (kept across resets), or null.
   rate(agent, account, id) {
     const l = this.state[agent]?.[account || 'default']?.learn?.[id];
@@ -413,7 +489,8 @@ export class Budget {
         })
         .sort((a, b) => rank(a.id) - rank(b.id));
       const drain = this.drain(agent, account);
-      if (windows.length) out.push({ account, at: acc.at || null, windows, ...(drain && { drain }) });
+      const notices = Object.values(acc.notices || {}).map((n) => ({ ...n, label: WINDOWS[n.window]?.label || labelOf(n.ms), ...(n.wasMs && { wasLabel: WINDOWS[n.wasWindow]?.label || labelOf(n.wasMs) }) }));
+      if (windows.length || notices.length) out.push({ account, at: acc.at || null, windows, ...(drain && { drain }), ...(notices.length && { notices }) });
     }
     return out;
   }

@@ -35,9 +35,10 @@ import { leaveStuff, paintStuff, stuffShown } from './stuff.js';
 import { openUpcoming, upcoming, upcomingByDay, upcomingRow } from './later.js';
 import { paintGoal } from './goal.js';
 import { backTarget, trailOf } from './lineage.js';
-import { planLine } from './budget.js';
+import { dismissNotice, noticesOn, noticeTip, noticeWhen, planLine } from './budget.js';
 import { harnessLogo } from './runners.js';
 import { pruneSeen, spareKey, spareOf, spareWhose, spareWords } from '../spare.js';
+import { noticesOf, noticeWords } from '../window-notice.js';
 import { feedbackOn, openFeedback } from './feedback.js';
 import { follow as followTerm } from './term.js';
 
@@ -554,9 +555,22 @@ function paintSpare() {
       </div>`;
     })
     .join('');
-  if (box.dataset.h !== html) (box.innerHTML = html), (box.dataset.h = html);
-  box.hidden = !html;
+  // Window changes (web/js/window-notice.js) in the same box, after the spare rows: a line and ×.
+  notes = noticesOn() ? noticesOf(S.agents).slice(0, 2) : [];
+  const nhtml = notes
+    .map(
+      (n, i) => `<div class="sp-card wn-card" role="status">
+        <span class="model-logo">${harnessLogo(n.agent)}</span>
+        <span class="sp-text" title="${esc(noticeTip(n))}">${esc(noticeWords(n, noticeWhen))}</span>
+        <button type="button" class="icon-btn sp-x" data-wnote="${i}" title="Hide until this window changes again" aria-label="Hide until this window changes again">${icon('x')}</button>
+      </div>`,
+    )
+    .join('');
+  const all = html + nhtml;
+  if (box.dataset.h !== all) (box.innerHTML = all), (box.dataset.h = all);
+  box.hidden = !all;
 }
+let notes = []; // the window changes, as painted
 
 function onSpare(btn) {
   const x = spare[Number(btn.dataset.i)];
@@ -666,6 +680,12 @@ home.addEventListener('click', (e) => {
   if (e.target.closest('.sh-fb')) return openFeedback({ source: 'home' });
   const sp = e.target.closest('[data-spare]');
   if (sp) return onSpare(sp);
+  const wn = e.target.closest('[data-wnote]');
+  if (wn) {
+    const n = notes[Number(wn.dataset.wnote)];
+    if (n) dismissNotice(n.agent, n.account, n.window);
+    return;
+  }
   const up = e.target.closest('.sh-up');
   if (up) return openUpcoming(shown[up.dataset.up], up, e);
   const id = e.target.closest('.sh-task')?.dataset.id;

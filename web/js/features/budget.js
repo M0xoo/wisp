@@ -9,9 +9,13 @@
 // the same work (server/budget.js drain()), with Copy report and Dismiss.
 
 import { esc } from '../md.js';
+import { api } from '../core/api.js';
+import * as bus from '../core/bus.js';
 import { icon } from '../core/dom.js';
-import { whenLabel } from '../core/format.js';
+import { fmtDate, SHORT_TIME, whenLabel } from '../core/format.js';
 import { S } from '../core/state.js';
+import { tryApi } from '../ui/toast.js';
+import { noticeWords } from '../window-notice.js';
 import { harnessLogo } from './runners.js';
 import { holdLine } from '../limit-hold.js';
 
@@ -25,6 +29,37 @@ export function stopAt(agent) {
   const d = S.config.defaults || {};
   const v = STOP_AT.includes(d[STOP_KEYS[agent]]) ? d[STOP_KEYS[agent]] : d.autoStop;
   return STOP_AT.includes(v) && v !== 'off' ? Number(v) / 100 : null;
+}
+
+// Window changes (web/js/window-notice.js): a reset in words is its weekday and time ("Sun 09:00"),
+// the tooltip has the dates. Shown unless Settings → Usage → Window changes is off.
+export const noticeWhen = (t) => fmtDate(t, { weekday: 'short', ...SHORT_TIME });
+export const noticeTip = (n) =>
+  [n.resetsAt && `Resets ${whenLabel(n.resetsAt)}`, n.wasResetsAt && `before, ${whenLabel(n.wasResetsAt)}`].filter(Boolean).join(', ') + `${n.resetsAt ? '. ' : ''}Seen ${whenLabel(n.at)}. wisp never switches accounts for you.`;
+export const noticesOn = () => S.config.defaults?.windowNotice !== 'off';
+
+// × on a window change, here or on home: gone at once from both, back with a toast if the server refuses.
+export async function dismissNotice(agentId, account, window) {
+  const b = S.agents.find((x) => x.id === agentId)?.budget?.find((x) => x.account === account);
+  const i = b?.notices?.findIndex((x) => x.window === window) ?? -1;
+  if (i < 0) return;
+  const [was] = b.notices.splice(i, 1);
+  bus.emit('agents');
+  const ok = await tryApi(() => api(`/agents/${encodeURIComponent(agentId)}/windows/dismiss`, { method: 'POST', body: { account, window } }));
+  if (!ok) {
+    b.notices.splice(i, 0, was);
+    bus.emit('agents');
+  }
+}
+
+function noticesHtml(a, b, acc) {
+  if (!noticesOn() || !b.notices?.length) return '';
+  return b.notices
+    .map((n) => {
+      const x = { ...n, name: a.name, accountLabel: acc?.label || '' };
+      return `<div class="bg-note" role="status"><span class="bg-nt" title="${esc(noticeTip(x))}">${esc(noticeWords(x, noticeWhen))}</span><button type="button" class="icon-btn bg-nx" data-wnote="${esc(n.window)}" title="Hide until this window changes again" aria-label="Hide until this window changes again">${icon('x')}</button></div>`;
+    })
+    .join('');
 }
 
 // Units of work as the CLI reports them: Claude Code's cost, else tokens (server/budget.js unitsOf).
@@ -113,6 +148,7 @@ export function budgetHtml(agents) {
       out.push(`<div class="bg-acct${stop ? ' stops' : ''}" data-agent="${esc(a.id)}" data-acc="${esc(b.account)}"${stop ? ` style="--stop:${stop * 100}%"` : ''}>
         <b class="bg-name"><span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}${acc ? `<span class="bg-acc">${esc(acc.label)}</span>` : ''}</b>
         ${wins}
+        ${noticesHtml(a, b, acc)}
         ${drainHtml(a, b)}
         ${whereHtml(b.where)}
       </div>`);

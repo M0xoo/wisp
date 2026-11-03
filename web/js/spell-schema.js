@@ -281,6 +281,8 @@ export const PARTS = {
   // Spare allowance (web/js/spare.js): a row under Needs you when a weekly window resets soon with much left.
   'split.spare': '#splitHome .sh-spare',
   'split.spare.start': '#splitHome .sh-spare .sp-start', // Use <harness>: picks that harness and account in the prompt box
+  // Window changes (web/js/window-notice.js): a row when a plan's usage window appears, goes, changes length or moves its reset.
+  'split.windowNotice': '#splitHome .sh-spare .wn-card',
   'split.feedback': '#splitHome .sh-fb', // Hit a bug, or an idea: opens Send feedback (hidden when feedback is off)
   // Split view's home: tips under the prompt box (after Needs you), each linking to its guide on trywisp.dev.
   tips: '#splitHome .sh-tips',
@@ -420,6 +422,8 @@ export const PARTS = {
   'settings.liveLimits': '.sx-budget .sx-row:has(#liveLimits)',
   'settings.webhookTriggers': '.sx-row:has(#hookTriggers)',
   'settings.spareCard': '.sx-budget .sx-row:has(#spareCard)',
+  'settings.windowNotice': '.sx-budget .sx-row:has(#windowNotice)',
+  'settings.windowNotice.line': '.sx-budget .bg-note', // the line in an account's block, with ×
   // A hook trigger's editor (features/automations.js): its URL with Copy and Regenerate, and its last deliveries.
   'automations.hookUrl': '.auto-modal .au-hook',
   'automations.deliveries': '.auto-modal .au-deliv',
@@ -618,6 +622,8 @@ export const SETTINGS = {
   drainWatch: ['on', 'off'],
   // Spare allowance: home's card when a weekly window resets soon with much of it unused (on unless off).
   spareCard: ['on', 'off'],
+  // Window changes: a line in Settings → Usage and on home when a plan's usage window changes (on unless off).
+  windowNotice: ['on', 'off'],
   // Ask before running a changed harness: hold a run whose harness's program changed until you trust it (server/harness-watch.js).
   harnessAsk: ['on', 'off'],
   // Hide .env values: a .env / .env.* file's values show as KEY=•••• in activity, diffs and Changes until Reveal (server/env-mask.js).

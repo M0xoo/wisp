@@ -360,6 +360,9 @@ test('Automations stop at (autoStop) is a setting; its row, Where it went and a 
   assert.deepEqual(problems({ ...base0, settings: { autoStop: 'off' } }), []);
   assert.ok(problems({ ...base0, settings: { autoStop: '80' } }).some((x) => /autoStop/.test(x) && /off \| 50 \| 75 \| 90/.test(x)));
   assert.deepEqual(problems({ ...base0, ui: { hide: ['budget.where', 'details.plan'] }, parts: { 'settings.autoStop': { style: { opacity: '0.8' } } } }), []);
+  // Window changes: home's row, Settings → Usage's line and its switch.
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['split.windowNotice', 'settings.windowNotice.line'] }, parts: { 'settings.windowNotice': { style: { opacity: '0.8' } } }, settings: { windowNotice: 'off' } }), []);
+  assert.ok(problems({ ...base0, settings: { windowNotice: 'maybe' } }).some((x) => /windowNotice/.test(x) && /on \| off/.test(x)));
   // Spare allowance: home's card, its Start a task, its window in hours, the switch.
   assert.deepEqual(problems({ ...base0, ui: { hide: ['split.spare.start', 'settings.spareCard'] }, parts: { 'split.spare': { props: { hours: 12 }, style: { opacity: '0.8' } } }, settings: { spareCard: 'off' } }), []);
   assert.ok(problems({ ...base0, parts: { 'split.spare': { props: { hours: 48 } } } }).some((x) => /hours: int from 1 to 40/.test(x)));

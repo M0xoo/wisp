@@ -57,8 +57,9 @@ export function register(r, app) {
         const w = b.windows.filter((x) => x.resetsAt && x.used > 0).sort((x, y) => (y.ms || 0) - (x.ms || 0))[0];
         const where = w && whereItWent(app.store.all(), a.id, b.account, w.id, w.resetsAt);
         // Drain watch (Settings → Usage) is off by default: no card, and the API says nothing either.
-        const { drain, ...rest } = b;
-        const out = { ...rest, ...(drain && app.store.config.defaults.drainWatch === 'on' && { drain }) };
+        // Window changes (on unless off): with the switch off, the API leaves them out too.
+        const { drain, notices, ...rest } = b;
+        const out = { ...rest, ...(drain && app.store.config.defaults.drainWatch === 'on' && { drain }), ...(notices && app.store.config.defaults.windowNotice !== 'off' && { notices }) };
         return where ? { ...out, where: { window: w.id, label: w.label, used: w.used, ...where } } : out;
       });
       // Harness watch (server/harness-watch.js): when its program was pinned, and how it changed since.
@@ -75,6 +76,12 @@ export function register(r, app) {
   r.route('POST', '/agents/:id/drain/dismiss', async (c) => {
     const b = await c.body();
     if (!app.budget?.dismissDrain(c.params.id, String(b.account || 'default'), String(b.window || ''))) return c.send(404, { error: 'No such window.' });
+    c.send(200, { ok: true });
+  });
+  // A window change's line (Settings → Usage, split home): × hides it until that window changes again.
+  r.route('POST', '/agents/:id/windows/dismiss', async (c) => {
+    const b = await c.body();
+    if (!app.budget?.dismissNotice(c.params.id, String(b.account || 'default'), String(b.window || ''))) return c.send(404, { error: 'No such notice.' });
     c.send(200, { ok: true });
   });
   // Trust this version: a harness whose program changed (server/harness-watch.js) is pinned as it is

@@ -54,6 +54,7 @@ export function register(r, app) {
     if (body.defaults?.liveLimits !== undefined && !['on', 'off'].includes(body.defaults.liveLimits)) return c.send(400, { error: 'liveLimits must be on or off' });
     if (body.defaults?.maskEnvFiles !== undefined && !['on', 'off'].includes(body.defaults.maskEnvFiles)) return c.send(400, { error: 'maskEnvFiles must be on or off' });
     if (body.defaults?.harnessAsk !== undefined && !['on', 'off'].includes(body.defaults.harnessAsk)) return c.send(400, { error: 'harnessAsk must be on or off' });
+    if (body.defaults?.windowNotice !== undefined && !['on', 'off'].includes(body.defaults.windowNotice)) return c.send(400, { error: 'windowNotice must be on or off' });
     if (body.defaults?.spareCard !== undefined && !['on', 'off'].includes(body.defaults.spareCard)) return c.send(400, { error: 'spareCard must be on or off' });
     if (body.defaults?.drainWatch !== undefined && !['on', 'off'].includes(body.defaults.drainWatch)) return c.send(400, { error: 'drainWatch must be on or off' });
     if (body.defaults?.webhookTriggers !== undefined && !['on', 'off'].includes(body.defaults.webhookTriggers)) return c.send(400, { error: 'webhookTriggers must be on or off' });
