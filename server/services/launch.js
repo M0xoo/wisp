@@ -54,7 +54,8 @@ export function createLaunch(app) {
   // past Settings → Usage → Automations stop at, and throws with `held` instead.
   // yours: a crew job you gave just now ({ confirm }: your Send anyway), asked about near the limit
   // like a task of your own rather than started held (server/crew.js).
-  async function launch(body, origin = null, { crew = null, unattended = false, yours = null } = {}) {
+  // dry: only Ask near the limit: throws its 409 { hold } (or returns []) before anything is made.
+  async function launch(body, origin = null, { crew = null, unattended = false, yours = null, dry = false } = {}) {
     // crewJob: a job the wisp that owns a crew member sent here, with the member's note (server/crew.js).
     crew ||= crewJobOf(body.crewJob);
     // One you gave that member just now, there (yours): asked about here, with your yes as confirmLimit.
@@ -80,7 +81,7 @@ export function createLaunch(app) {
     if (kind) body = { ...body, scratch: true, mode: 'edits', compare: undefined, subagents: undefined, preset: undefined, worktree: false };
     // scratch: no project folder (general questions); the task gets an empty directory of its own.
     const scratch = body.scratch === true;
-    const cwd = scratch ? store.scratchDir(newId()) : expand(body.cwd || process.cwd());
+    const cwd = scratch ? (dry ? store.home : store.scratchDir(newId())) : expand(body.cwd || process.cwd());
     if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) throw bad(`Not a directory: ${cwd}`);
     const also = scratch ? [] : alsoDirs(body.also, cwd);
     const d = store.config.defaults;
@@ -136,6 +137,7 @@ export function createLaunch(app) {
         hold = null;
       }
     }
+    if (dry) return [];
     // Terminal sessions (Settings → General): the agent's own CLI in the page, started on the prompt.
     const tui = startsInTerminal(body, { on: d.terminalSessions === 'on', agent: runners[0].agent, origin, crew, kind, goal, comparing, team: subagents.length > 0, hold });
     // Typed /terminal: refused only where no terminal can open. A crew job, schedule or spell that

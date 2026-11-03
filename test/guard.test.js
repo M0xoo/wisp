@@ -398,3 +398,24 @@ test('your job for a crew member on another computer: the yes goes with it, so i
     srv.crew.get(m.id).machine = '';
   }
 });
+
+test('"@A @B …" near the limit for B only: nobody starts until you say yes, then each gets one job', async () => {
+  const repo = makeRepo();
+  srv.budget.record('claude', 'default', { windows: [{ id: 'seven_day', used: 0.1, resetsAt: Date.now() + 90 * H, ms: 168 * H }] });
+  srv.budget.record('codex', 'default', { windows: [{ id: 'seven_day', used: 0.995, resetsAt: Date.now() + 91 * H, ms: 168 * H }] });
+  const a = await api('/crew', { name: 'Annika', role: 'Tester', agent: 'claude', cwd: repo, mode: 'edits', parallel: 2 });
+  const b = await api('/crew', { name: 'Berit', role: 'Tester', agent: 'codex', cwd: repo, mode: 'edits', parallel: 2 });
+  const jobsOf = (m) => srv.store.all().filter((s) => s.crew?.id === m.id);
+
+  const asked = await call('/sessions', { prompt: '@Annika @Berit check the build', cwd: repo, worktree: false });
+  assert.equal(asked.status, 409, `Berit's harness is near the limit: ${JSON.stringify(asked.body).slice(0, 200)}`);
+  assert.equal(asked.body.hold?.agent, 'codex');
+  assert.equal(jobsOf(a).length, 0, 'Annika did not start before you answered');
+  assert.equal(jobsOf(b).length, 0);
+
+  const yes = await api('/sessions', { prompt: '@Annika @Berit check the build', cwd: repo, worktree: false, confirmLimit: true });
+  assert.equal(yes.group?.length, 2);
+  for (const s of yes.group) await settled(s.id);
+  assert.equal(jobsOf(a).length, 1, 'Start anyway: one job for Annika, not two');
+  assert.equal(jobsOf(b).length, 1);
+});

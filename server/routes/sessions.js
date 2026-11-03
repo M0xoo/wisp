@@ -21,7 +21,7 @@ import { prepared, sendFile } from '../http/respond.js';
 import { blocksToMarkdown, sessionToMarkdown } from '../render.js';
 import { alsoDirs, listSummary, summarize, workdir } from '../runner.js';
 import { normalizeTeam } from '../subagents.js';
-import { crewMentions, taggedDelegate } from '../crew.js';
+import { crewMentions, elsewhere, taggedDelegate } from '../crew.js';
 import { ptySupported } from '../pty.js';
 import { defaultTerminal, inWisp, openInTerminal, shq } from '../terminal.js';
 import { bad, clip, expand, MODES } from '../util.js';
@@ -220,8 +220,14 @@ export function register(r, app) {
     }
     if (t.lead.length) {
       if (!t.rest) throw bad(`Tell ${t.lead.map((m) => m.name).join(' and ')} what to do after the name.`);
+      const job = { prompt: t.rest, attachments: Array.isArray(body.attachments) ? body.attachments : [], tagged: others(t) };
+      // Several members, no yes yet: each one's run is checked against your line before any starts,
+      // so a 409 for one doesn't leave the others started (and Start anyway giving them a second
+      // job). Members on other computers start first: their wisp asks there, before any here went.
+      if (t.lead.length > 1 && body.confirmLimit !== true) for (const m of t.lead) await app.crew.askFirst(m, job);
       const jobs = [];
-      for (const m of t.lead) jobs.push({ m, out: await app.crew.assign(m, { prompt: t.rest, job: 'task', attachments: Array.isArray(body.attachments) ? body.attachments : [], tagged: others(t), confirmLimit: body.confirmLimit === true }) });
+      for (const m of [...t.lead].sort((x, y) => elsewhere(y) - elsewhere(x))) jobs.push({ m, out: await app.crew.assign(m, { ...job, job: 'task', confirmLimit: body.confirmLimit === true }) });
+      jobs.sort((x, y) => t.lead.indexOf(x.m) - t.lead.indexOf(y.m));
       const list = jobs.map(({ m, out }) => (out.session ? sumOf(out.session) : { queued: out.queued, crew: { id: m.id, name: m.name } }));
       return c.send(201, list.length > 1 ? { ...list[0], group: list } : list[0]);
     }
