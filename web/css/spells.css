@@ -30,7 +30,7 @@
 .sp-fan-items { display: none; flex-direction: column-reverse; align-items: inherit; gap: 8px; }
 .sp-fan.open .sp-fan-items { display: flex; }
 .sp-fan.open .sp-fan-btn { color: var(--ink); border-color: var(--faint); }
-body:has(.launcher.docked:is(:focus-within, :has(.open))) .sp-float { bottom: 96px; }
+body:not(.wisp-mobile):has(.launcher.docked:is(:focus-within, :has(.open))) .sp-float { bottom: 96px; } /* never docked in the app: launcher.css */
 
 /* card head chips and hover buttons */
 .sp-chip {
