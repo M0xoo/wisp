@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-11-03
+
 ### Added
 
 - **.env values are hidden on screen.** When a task's activity, a diff or Changes shows a `.env` or `.env.*` file (not `.env.example` or `.env.sample`), its values read `KEY=••••`: the edits wisp captured, the git diff in Changes, a diff or code block about one, and what a command like `cat .env` printed. *Reveal* above it shows that one view as it is, until *Hide*. The server masks before anything goes to the page, so the browser, the phone app and wisp Grid all get it; the file itself, rollback and Revert are untouched, and the agent still reads it. Turn it off with *Hide .env values* in Settings → Privacy (on by default). Spells: the `env.masked`, `env.reveal` and `settings.maskEnvFiles` parts and the `maskEnvFiles` setting.
