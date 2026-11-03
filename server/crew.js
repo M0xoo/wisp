@@ -332,10 +332,11 @@ Leave out the fields you don't need, and keep secrets out of the notebook.`;
 
 // A job another wisp sent here for its crew member (crewJob on POST /sessions): which member,
 // what kind of job, and the member's note, made there from its memory. null when it isn't one.
+// yours: a task you gave the member just now there, asked about near the limit like your own.
 export function crewJobOf(x) {
   if (!x || typeof x !== 'object' || !ID.test(x.id || '') || typeof x.note !== 'string') return null;
   const from = x.from && typeof x.from === 'object' ? { id: String(x.from.id || '').slice(0, 60), title: String(x.from.title || '').slice(0, 200) } : null;
-  return { id: x.id, job: JOBS.has(x.job) ? x.job : 'task', ...(from && { from }), note: x.note.slice(0, NOTE_MAX), ...(x.wake === true && { wake: true }), ...(EVENT_WHAT[x.event] && { event: x.event }) };
+  return { id: x.id, job: JOBS.has(x.job) ? x.job : 'task', ...(from && { from }), note: x.note.slice(0, NOTE_MAX), ...(x.wake === true && { wake: true }), ...(EVENT_WHAT[x.event] && { event: x.event }), ...(x.yours === true && x.job === 'task' && { yours: true }) };
 }
 
 // The prompt a check-in starts with.
@@ -642,8 +643,8 @@ export class Crew {
       if (w.job === 'checkin') Object.assign(m, { checkins: was.checkins + 1, lastCheckinAt: this.now() });
       const crew = { id: m.id, job: w.job, ...(w.from && { from: w.from }), ...(w.reply && { reply: w.reply }), ...(w.wake && { wake: true }), ...(w.event && { event: w.event }), ...(w.kit && { kit: true }) };
       const body = { prompt: w.prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: m.mode, attachments: w.attachments || [], ...this.#teamFor(m, w.job, w.team) };
-      if (elsewhere(m)) return await this.#startAway(m, body, crew, w.origin);
       const yours = w.limit === 'yes' || (w.limit === 'ask' && now) ? { confirm: w.limit === 'yes' } : null;
+      if (elsewhere(m)) return await this.#startAway(m, body, crew, w.origin, yours);
       const [s] = await this.launch(body, w.origin || null, { crew, unattended: !!w.unattended, yours });
       delete m.held;
       return s;
@@ -658,12 +659,14 @@ export class Crew {
 
   // A job on the member's machine: that wisp runs it with the note we write from the member's
   // memory, and we remember what to do when it's done (an @mention's answer). Resolves with its summary.
-  async #startAway(m, body, crew, origin = null) {
+  // yours: a job you gave just now (#start): that wisp asks near its limit, or starts it on your yes,
+  // rather than holding it as a member's own.
+  async #startAway(m, body, crew, origin = null, yours = null) {
     if (!this.remote) throw bad('Machines aren’t available here.');
     const { reply, ...sent } = crew;
     // In a sandbox: theirs, or a fresh one for this job, with their project as it is here.
     const at = m.sandbox ? await this.remote.sandbox(m, { title: body.prompt }) : { machine: m.machine };
-    const [s] = await this.remote.launch({ ...body, ...(at.cwd ? { cwd: at.cwd, scratch: undefined } : m.sandbox ? { scratch: true, cwd: undefined } : {}), ...(m.sandbox && { agent: 'claude', worktree: false }), machine: at.machine, crewJob: { ...sent, note: crewNote(m, crew) } }, origin);
+    const [s] = await this.remote.launch({ ...body, ...(at.cwd ? { cwd: at.cwd, scratch: undefined } : m.sandbox ? { scratch: true, cwd: undefined } : {}), ...(m.sandbox && { agent: 'claude', worktree: false }), machine: at.machine, crewJob: { ...sent, note: crewNote(m, crew), ...(yours && { yours: true }) }, ...(yours?.confirm && { confirmLimit: true }) }, origin);
     if (m.sandbox) this.remote.sandboxJob?.(at.machine, s.id);
     m.away[s.id] = { ...(reply && { reply }), at: this.now() };
     return s;
