@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **A Codex model at capacity moves the task on in Auto.** When Codex ends a run with *Selected model is at capacity* (openai/codex#59045), Auto now treats that model as unavailable, not as failing the task: it rests that model for 10 minutes (other Codex models can still run), the run doesn't count against it, and the task moves on with *… is at capacity · moving to …*. Before, the run counted as a failure and the task either stopped on the error or was handed off as if the model had got the task wrong.
+
 ## [0.56.0] - 2026-11-03
 
 ### Added

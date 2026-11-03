@@ -19,12 +19,12 @@ const { BLIP_MS } = await import('../server/router.js');
 const { startServer } = await import('../server/index.js');
 
 // A Pipeline over stubs: the router records what it cooled and answers picks from a list.
-function rig({ windows, picks }) {
+function rig({ windows, picks, error = 'exceeded retry limit, last status: 429 Too Many Requests' }) {
   const cooled = [];
   const launched = [];
   const notes = [];
   const session = { id: 's1', agent: 'codex', account: '', auto: { strategy: 'single' }, route: { key: 'codex:gpt-5.6', label: 'Codex · gpt-5.6', goal: 'balanced' }, turns: [{ prompt: 'fix it' }] };
-  const turn = { status: 'error', presentation: { blocks: [{ type: 'terminal', output: 'exceeded retry limit, last status: 429 Too Many Requests' }] } };
+  const turn = { status: 'error', presentation: { blocks: [{ type: 'terminal', output: error }] } };
   const p = new Pipeline({
     store: { get: () => session, all: () => [session] },
     runner: { note: (s, t, { label }) => notes.push(label), settle: () => {} },
@@ -63,6 +63,22 @@ test('a Codex 429 with a full window is the real limit: ten minutes, and the arm
   assert.equal(r.cooled[0].ms, 10 * 60_000);
   assert.deepEqual(r.launched[0].tried, ['codex:gpt-5.6']);
   assert.equal(r.launched[0].pick.key, 'claude:');
+});
+
+// openai/codex#59045: codex ends the turn with "Selected model is at capacity" when OpenAI has no
+// room for that model. It's the model being unavailable, not failing the task: Auto rests that
+// model (not the whole harness) and moves the task on, saying so, even with plan left.
+test('a Codex model at capacity: that model cools down and the task moves on, not counted as a failure', async () => {
+  const r = rig({ error: 'Selected model is at capacity. Please try a different model.', windows: [{ id: 'five_hour', used: 0.3 }], picks: [{ key: 'codex:gpt-5.5', label: 'Codex · gpt-5.5' }] });
+  await r.p.run(r.session, r.turn);
+  assert.equal(r.cooled.length, 1, 'the arm is cooled');
+  assert.equal(r.cooled[0].key, 'codex:gpt-5.6');
+  assert.equal(r.cooled[0].scope, 'arm', 'only that model: another Codex model can run');
+  assert.equal(r.cooled[0].ms, 10 * 60_000, 'not the one-minute “too many requests” blip');
+  assert.equal(r.launched[0].pick.key, 'codex:gpt-5.5');
+  assert.deepEqual(r.launched[0].tried, ['codex:gpt-5.6']);
+  assert.ok(r.notes.some((n) => /Codex · gpt-5\.6 is at capacity · moving to Codex · gpt-5\.5/.test(n)), r.notes.join(' | '));
+  assert.ok(!r.notes.some((n) => /too many requests/.test(n)));
 });
 
 // The device notice, end to end through a real server with the fake codex.
