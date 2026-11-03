@@ -32,7 +32,7 @@ import { goBack, goHome, isSplit, isStacked, splitOpen } from './split.js';
 import { cleanTitle } from '../mention-text.js';
 import { boxUrl, isLoopback, previewSandbox } from '../preview-spec.js';
 import { gridLink } from '../grid-link.js';
-import { overlay } from '../ui/overlay.js';
+import { closeOverlay, overlay } from '../ui/overlay.js';
 import { leaveCrew } from './crew.js';
 import { leaveOrg } from './org.js';
 import { leavePlan } from './plan-view.js';
@@ -721,6 +721,9 @@ export function stuffPalette() {
 export const stuffShown = () => isSplit() && S.stuffOpen && !splitOpen() && !S.crewOpen && !S.orgOpen && !S.planOpen;
 
 export function openStuff() {
+  // Opened from over the page (the image viewer's Save, then the toast's Open): My Stuff would
+  // show behind it. closeOverlay runs the dialog's own cleanup too (a video stops).
+  closeOverlay();
   leaveCrew();
   leaveOrg();
   leavePlan();
