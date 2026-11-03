@@ -165,9 +165,27 @@ const swap = () => fs.appendFileSync(fakeClaude, win ? '\r\nREM changed\r\n' : '
 
 test('a run on a changed harness carries the change; the harness list has it until trusted', async () => {
   const cwd = makeRepo();
+  // The run never waits for the hash (runner.js #watchHarness), so a fast fake run can end before
+  // its pin is written (a loaded macOS runner did). Hold the hash until the run ended, every time.
+  const w = srv.runner.harnessWatch;
+  const fingerprint = w.fingerprint;
+  let hashNow;
+  const gate = new Promise((resolve) => {
+    hashNow = resolve;
+  });
+  w.fingerprint = async (bin) => {
+    await gate;
+    return fingerprint.call(w, bin);
+  };
   const s1 = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', worktree: false });
   await ended(s1.id);
-  const first = (await api('/agents')).find((a) => a.id === 'claude');
+  assert.equal((await api('/agents')).find((a) => a.id === 'claude').pinnedAt, undefined, 'the run ended before its hash');
+  w.fingerprint = fingerprint;
+  hashNow();
+  const first = await until(async () => {
+    const a = (await api('/agents')).find((x) => x.id === 'claude');
+    return a.pinnedAt && a;
+  });
   assert.ok(first.pinnedAt, 'pinned on its first run');
   assert.equal(first.changed, undefined);
   assert.equal((await api(`/sessions/${s1.id}`)).turns.at(-1).harness, undefined);
