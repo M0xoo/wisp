@@ -15,7 +15,12 @@ export function overlay(node, { onClose } = {}) {
   o.hidden = false;
   requestAnimationFrame(() => o.classList.add('on'));
   backDone ||= onBack(() => o.close?.());
+  let closed = false;
   const close = () => {
+    // Closed already (the palette closes itself, then the task it opens closes #overlay again
+    // while it fades): onClose runs once.
+    if (closed) return;
+    closed = true;
     // The phone's Back entry goes with the dialog showing, not one replaced meanwhile.
     if (o.firstChild === node) (backDone?.(), (backDone = null));
     o.classList.remove('on');
