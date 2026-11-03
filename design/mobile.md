@@ -104,3 +104,15 @@ narrow browser's under the media query (the reply box's mode button is icon-only
   test that a stale cached page reloads onto the new build.
 - Check it with `node qa/mobile.mjs` (the app's WebView as a page) and the `MOB-*` scenarios in
   `qa/scenarios/mobile.md`.
+
+## The iPhone Home Screen app (wisp Grid)
+
+- On a Grid, iPhone Safari's *Add to Home Screen* opens wisp full screen. That's `STANDALONE`
+  (`web/js/core/state.js`, `html.standalone`), not `MOBILE`: the Android app's code paths stay its own.
+- It draws under the status bar and around the notch (`viewport-fit=cover`, set only there by
+  index.html's first script). Anything pinned to an edge of the window keeps clear with
+  `env(safe-area-inset-*)`, scoped to `html.standalone` so browser tabs don't move. `.stage` already
+  pads for the list, the task's head and the reply box (split.css).
+- No `new Notification()` there (iOS has none for home-screen apps): alerts come from ntfy.
+- The manifest and Apple's tags go in from `homescreen.js` on a Grid only, so a desktop browser on
+  someone's own computer is never offered to install wisp.

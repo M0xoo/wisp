@@ -18,6 +18,7 @@ body.split .split-main { grid-row: 1 / -1; grid-column: 2; min-width: 0; min-hei
    indicator. env() is 0 everywhere else, and a browser tab or the Android app never get the class.
    The open task's body is fixed to #splitStage's box (measure() in split.js), so it follows. */
 html.standalone body.split .stage { padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+html.standalone body.split.stack:not(.stack-page) .stage { background: var(--rail); } /* the list's colour under the status bar and beside the notch */
 html.standalone body.split .feed-wrap { padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
 html.standalone body.split:not(.stack) #feed .item.open > .it-body > .it-dock { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
 body.split.side-right .stage { grid-template-columns: minmax(0, 1fr) var(--side-w); }
