@@ -352,6 +352,7 @@ cd ../app-stripe && codex   # starts with no idea what happened so far`)}
         </tbody>
       </table></div>
       <p>Each turn’s badge shows the harness that ran it, so the card reads as one story across agents and computers.</p>
+      <p><b>Your rules go along.</b> The new harness’s first turn opens with <i>What still holds</i>: the lines from your own messages that rule something out or narrow it (<i>don’t touch the migrations</i>, <i>only change server/auth</i>, <i>no new dependencies</i>) and the task’s <i>Done when</i> while its goal is open. The thinking level carries over in the new harness’s terms (Claude Code <i>max</i> becomes Codex <i>xhigh</i>), unless you pick one with the switch.</p>
       <aside class="g-note"><b>When an agent says no</b><p>If a harness turns down legitimate work (Claude Code’s usage-policy refusal, or a short <i>I can’t help with that</i> from a run that changed nothing), the task says so and offers <b>Hand to &lt;another harness&gt;</b>. It offers only harnesses on another company’s model and pins that model, and one click sends the prompt, its files and the turns so far. wisp never hands a task over by itself, and never retries on another account of the same harness.</p></aside>
     </section>
 
@@ -421,6 +422,23 @@ git worktree remove ../app-auth`)}
         <li><b>Read the report, ship it.</b> Each finished run hands back a headline, the real diff, the test run and next steps. <b>Ship it</b> commits, pushes and opens the PR; <b>Merge</b> squash-merges and syncs your local main.</li>
       </ol>
       <p>Press <kbd>T</kbd> on any card to continue that session yourself: your terminal opens in its worktree with <code>${h.esc(claude.resume)}</code>.</p>
+    </section>
+
+    <section>
+      <h2 id="tmux">Coming from tmux with 3 to 5 agents</h2>
+      <p>The usual setup is a tmux session with a pane or window per agent, a worktree each, and a habit of cycling through panes to see who’s waiting. Here is what each part becomes in wisp:</p>
+      <div class="table"><table>
+        <thead><tr><th>In tmux</th><th>In wisp</th></tr></thead>
+        <tbody>
+          <tr><td>A pane per agent, <code>git worktree add</code> by hand</td><td>A task per agent, its worktree and branch made for you (setup from <code>.wisp/worktree.json</code>)</td></tr>
+          <tr><td>Cycling panes to see who’s waiting</td><td><i>Needs you</i> lists the tasks with a question, a permission or a report; the rest stay in <i>Working</i> with a one-line status</td></tr>
+          <tr><td>Scrolling a pane to see what changed</td><td>A report with the real diff and the test run; the full transcript is a toggle away</td></tr>
+          <tr><td><code>tmux attach</code> to type into a session</td><td><b>Take over</b> (<kbd>T</kbd>) resumes the same session in a terminal, inside wisp or your own</td></tr>
+          <tr><td>Detaching and leaving it on a box</td><td>Tasks run in the background; on wisp Cloud they keep going with the laptop shut, and ntfy or Telegram tells your phone when one needs you</td></tr>
+          <tr><td>Every pane on Claude Code</td><td>Each task on any harness: Claude Code, Codex, Cursor, opencode and others, side by side</td></tr>
+        </tbody>
+      </table></div>
+      <aside class="g-note"><b>Keep tmux for what it’s good at</b><p>If you like watching an agent type, tmux shows every keystroke as it happens. Take over drops you into the same session whenever you want that, and back out again.</p></aside>
     </section>
 
     <section>
@@ -959,6 +977,7 @@ tmux attach -t agent`)}
     <section>
       <h2 id="phone">4. Use it from your phone</h2>
       <p>The wisp Android app starts with <b>wisp Cloud</b> on its first screen: press <b>Sign in</b> and allow the code in your browser. It then lists your cloud computer and every computer you added to the grid, each one a tap away. No SSH and no tunnel to set up.</p>
+      <p>On an iPhone, open your cloud wisp in Safari and press Share → <b>Add to Home Screen</b>. wisp opens full screen with its own icon, shows what it had at once and then refreshes, and keeps clear of the notch and the home indicator. Alerts come through the ntfy app (Settings → <b>Phone</b>): iOS lets a Home Screen app notify only through Web Push, which wisp doesn’t send yet.</p>
     </section>
 
     <section>
@@ -1090,7 +1109,7 @@ claude remote-control      # press space for a QR code, scan it with the Claude 
 `,
       faq: [
         ['Can I use Remote Control and wisp together?', 'Yes. They don’t touch each other: Remote Control drives a claude process you started, while wisp starts its own agents in worktrees. Many people keep Remote Control for a session they’re in the middle of and use wisp to send off new tasks.'],
-        ['Does wisp work on iPhone?', 'Through the browser: grid.trywisp.dev lists your cloud wisp and every computer you added, each with an Open button. The native app is Android only for now.'],
+        ['Does wisp work on iPhone?', 'Yes. Open your cloud wisp in Safari and use Share → Add to Home Screen: it runs full screen with its own icon. grid.trywisp.dev lists every computer you added, each with an Open button. The native app is Android only.'],
         ['Do I need a Claude Max plan?', 'No. wisp runs Claude Code with whatever plan it’s signed in with, and the other agents with their own accounts. wisp doesn’t resell model usage.'],
         ['What if I don’t want a relay at all?', 'Use Machines over SSH, with Tailscale to reach your computers from anywhere. Nothing goes through grid.trywisp.dev then.'],
       ],
@@ -1146,7 +1165,7 @@ claude remote-control      # press space for a QR code, scan it with the Claude 
     </section>
 `,
       faq: [
-        ['Does it work on iPhone?', 'Yes, in the browser: grid.trywisp.dev opens your cloud wisp and every computer you added. The native wisp app is Android only for now.'],
+        ['Does it work on iPhone?', 'Yes. Open your cloud wisp in Safari and use Share → Add to Home Screen for a full-screen wisp with its own icon; grid.trywisp.dev opens every computer you added. The native wisp app is Android only.'],
         ['Can the computer run Linux?', 'Yes. wisp runs the Codex CLI on macOS, Linux and Windows (beta); the cloud box is Linux.'],
         ['Which Codex plan do I need?', 'The one you already use: Codex signs in with your ChatGPT account or an API key, and its limits apply. wisp doesn’t resell model usage.'],
         ['Is Codex Remote better?', 'If you live in the ChatGPT desktop app on a Mac or PC that stays awake, it’s the most direct. wisp fits when you use the Codex CLI, Linux, several computers or other agents, or want Codex to keep going with every computer off.'],
@@ -1171,7 +1190,7 @@ claude remote-control      # press space for a QR code, scan it with the Claude 
         <thead><tr><th></th><th>Happy</th><th>Grass</th><th>CloudCLI</th><th>wisp</th></tr></thead>
         <tbody>
           <tr><th scope="row">Agents</th><td>Claude Code, Codex</td><td>Claude Code, opencode</td><td>Claude Code, Codex, Cursor CLI</td><td>Claude Code, Codex, Cursor, opencode, Grok, Antigravity, Copilot</td></tr>
-          <tr><th scope="row">Phone</th><td>iOS, Android, web</td><td>iOS (Android waitlist)</td><td>Phone browser</td><td>Android app, any phone browser</td></tr>
+          <tr><th scope="row">Phone</th><td>iOS, Android, web</td><td>iOS (Android waitlist)</td><td>Phone browser</td><td>Android app, iPhone Home Screen (wisp Cloud), any phone browser</td></tr>
           <tr><th scope="row">Runs on</th><td>Your computer</td><td>Their VM or your computer</td><td>Your computer, or their hosted box</td><td>Your computers, or a cloud box</td></tr>
           <tr><th scope="row">How you connect</th><td>Encrypted relay</td><td>Their service</td><td>Your network, or their cloud</td><td>Grid tunnel (no open port), or SSH</td></tr>
           <tr><th scope="row">Open source</th><td>Yes, MIT</td><td>Not stated</td><td>Yes, AGPL-3.0</td><td>Yes, MIT, server included</td></tr>
@@ -1573,6 +1592,28 @@ ssh devbox`)}
     </section>
 
     <section>
+      <h2 id="all-accounts">Every account’s windows on one page, no menu-bar app</h2>
+      <p>With a work and a personal plan on Claude Code and a Codex plan, that’s six windows to keep an eye on, and the usual answer is a menu-bar app per vendor that polls each account. Plan budget lists them all in one place: each account’s 5-hour and weekly windows, how much is gone, when each resets and when you’d run out at this pace. It’s the same page on your desktop, in a browser and on your phone, because it’s part of wisp.</p>
+      <aside class="g-note"><b>Where the numbers come from</b><p>wisp reads what the CLI reports on each run, so an account shows its windows as of its last run there, and a window whose reset has passed reads as fresh. It doesn’t poll the providers; the one opt-in exception is <i>Check Codex while work waits</i>.</p></aside>
+    </section>
+
+    <section>
+      <h2 id="receipt">What each turn took</h2>
+      <p>Every finished turn carries a receipt in its trail bar: <i>38k tokens · 71% cache · 3% of weekly</i>. That’s the tokens read and written (Claude’s cache reads and writes counted in), the share read from the cache, and the turn’s share of the account’s longest window as wisp traced it.</p>
+      <ul class="doc-list">
+        <li><b>Past your plan.</b> A run billed beyond the plan (Claude Code’s extra usage, Codex credits, or Claude Code using an API key instead of your plan) says <i>Past your plan</i> or <i>API credit</i> on the turn. Plan budget counts how many runs did that in the last 7 days, with <b>Open it</b> for the last one.</li>
+        <li><b>Subagents.</b> When Claude Code ran subagents, the trail bar says so beside the receipt: <i>3 web-fetch agents · Opus 5.5 · 27k of 41k output</i>. Its tooltip lists every subagent type and the tokens per model. <i>Where it went: subagents</i> in Plan budget shows each subagent type’s share of the account’s longest window.</li>
+        <li><b>Page reads on another model.</b> When a run’s tools had no WebFetch but a <code>web-fetch</code> agent ran, the turn says <i>Claude Code ran page reads as an agent on &lt;model&gt; on this account</i>. That’s a Claude Code experiment (<a href="https://github.com/anthropics/claude-code/issues/106743" target="_blank" rel="noopener">anthropics/claude-code#106743</a>) that can drain a plan faster.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="compare">Two accounts, the same work</h2>
+      <p>With two or more accounts on a harness, Settings → Usage shows each account’s median turn per model over the last 7 days, once each has 5 finished turns on that model: output and input tokens and the share read from the cache, with a line such as <i>Work uses 1.9× the output tokens per turn of Personal (n=14 / 11)</i>. When Claude Code ran with different tools on the two accounts (one’s settings deny WebFetch, an MCP server only one has), the line says that too. <b>Copy report</b> puts both accounts’ numbers in one block for a bug report to the vendor.</p>
+      <aside class="g-note"><b>A diagnostic only</b><p>It never suggests an account, and wisp never switches accounts.</p></aside>
+    </section>
+
+    <section>
       <h2 id="keep">Keep part of your plan for yourself</h2>
       <p><b>Automations stop at</b> (Off, 50%, 75% or 90%, and a line per harness) holds back work nobody started by hand once a window passes the mark: crew check-ins, triggers, goal rounds and agents’ own follow-ups wait for the reset. Anything you start yourself still runs. wisp never switches accounts or goes past a provider’s limit on its own.</p>
     </section>
@@ -1582,6 +1623,8 @@ ssh devbox`)}
         ['How exact is a task’s share?', 'Approximate. The CLIs report whole percents, Claude Code once per run, and tasks that ran at the same time split what moved between two reports by how long each ran.'],
         ['What goes in Copy report?', 'The harness and account, the window, when it resets in UTC, how many runs and how much work since the drain began, the share of the window they took, and what the same work took over the two weeks before.'],
         ['Which harnesses does this cover?', 'Claude Code and Codex, the two whose CLIs report their usage windows. Settings → Usage also shows spend and turns for every harness.'],
+        ['Do I still need a menu-bar app for my limits?', 'Not for the accounts wisp runs. Plan budget shows every Claude Code and Codex account’s windows on one page, as of each account’s last run, on desktop, in a browser and on your phone.'],
+        ['Can I tell when a turn was billed beyond my plan?', 'Yes. The turn says Past your plan (extra usage, Codex credits) or API credit (Claude Code on an API key), and Plan budget counts those runs over the last 7 days.'],
       ],
       related: ['use-work-and-personal-claude-code-accounts', 'several-claude-code-accounts-and-computers', 'run-coding-agents-in-the-background'],
     },
