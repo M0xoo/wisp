@@ -23,6 +23,9 @@ shell's.
 - **Steps:** `WISP_PORT=4521 electron . --user-data-dir=<tmp>`.
 - **Expected:** the port answers `/api/health` with the Electron main process's pid; the window
   loads wisp (launcher / split home) and the body has `electron` (and `mac` on macOS).
+  The first open (no saved `shell-path` in the user-data dir) waits for the login shell's `PATH`
+  at most 5 s, even when `~/.zshrc` is slow: a window that takes longer is a bug
+  (`test/shell-path.test.js`).
 - Automated: qa/desktop.mjs
 
 ## DESK-02 · Window title, size, minimum size

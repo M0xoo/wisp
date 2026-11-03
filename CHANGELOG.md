@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - **Saving settings on Windows no longer fails now and then.** When something held `config.json` (or another file wisp saves) open for a moment, such as antivirus, the search indexer or another reader, the save failed with *EPERM: operation not permitted, rename* and the change (a new connector, a setting) was refused. wisp now waits out the lock, for half a second at most, before giving up.
+- **The desktop app's first window opens within 5 seconds, even with a slow shell setup.** On first open the app reads PATH from your login shell. A `~/.zshrc` that took long kept the window from opening until it finished, because the 5-second limit never stopped an interactive zsh.
 
 ## [0.57.0] - 2026-11-03
 
