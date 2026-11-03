@@ -23,6 +23,7 @@ import { snapshotKept } from './cache.js';
 import { slotHtml } from './spells.js';
 import { swipesDone } from './swipe.js';
 import { toastError } from '../ui/toast.js';
+import { closeOverlay } from '../ui/overlay.js';
 import { termPill } from './term.js';
 import { goalPill } from './goal.js';
 import { aheadLabel, isScheduled, laterLine, laterPill, laterTip, nextAt, planRows } from './later.js';
@@ -853,8 +854,10 @@ export const sectionOf = (s) => {
   return t.archived ? 'archived' : isForLater(t) ? 'forLater' : t.state === 'running' ? 'working' : isScheduled(t) ? 'scheduled' : t.state === 'done' ? 'done' : 'needs';
 };
 
-// Bring an item into view, expanded — used by notifications and links.
+// Bring an item into view, expanded — used by notifications and links. Whatever #overlay shows
+// (the image viewer, a dialog) closes first: the task would open behind it, out of sight.
 export function reveal(id) {
+  closeOverlay();
   const sub = S.sessions.get(id);
   if (!sub) return void openUnlisted(id); // a subagent's run, from a link: under its lead
   // A subagent opened by itself sits under its lead: the lead's section and project show it.
