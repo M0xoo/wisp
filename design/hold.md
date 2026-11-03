@@ -83,6 +83,8 @@ including your own sends, with an estimate, and keeps what it holds in Needs you
   A job you give a crew member (*@Ada …*, or the box in their thread, `.cv-hold`) is your own
   run: the same row, on the member's harness, without Wait until (a job has no Start later); Start
   anyway sends `confirmLimit` and the job starts at once, also after waiting for a free slot.
+  A follow-up on a job in the thread (*Follow up*, `.cv-fhold`) gets the row over its box too:
+  **Send anyway**, no Wait until; the text stays in the box.
 - **Held card** under the held prompt (`.b-held`, like the limit card): *Held before it started:
   this run may take Claude Code’s weekly window from 91% to about 96%. Left alone, it waits for the
   reset.* **Start now** / **Send now**, **Wait until …**, **Skip this run**. Optimistic, rolled back

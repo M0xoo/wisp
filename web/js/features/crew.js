@@ -796,7 +796,7 @@ function jobHtml(m, s, { follow = false } = {}) {
             ${live || asks ? '' : `<button class="ghost xs" data-follow>${icon('enter')}Follow up</button>`}
             ${isForLater(s) ? `<button class="ghost xs cv-later on" data-later aria-pressed="true" title="Unsave (L)">${icon('bookmark')}Saved for later</button>` : canSaveForLater(s) && !quietJob(s) ? `<button class="ghost xs cv-later" data-later aria-pressed="false" title="Save for later (L)">${icon('bookmark')}Save for later</button>` : ''}
           </div>
-          ${follow ? `<form class="cv-inline" data-follow-form><input class="input sm" placeholder="Follow up with ${esc(m.name)} on this…" autocomplete="off" spellcheck="false"><button class="primary sm">Send</button></form>` : ''}
+          ${follow ? `<div class="c-hold cv-fhold" role="group" aria-label="Near the usage limit" aria-live="polite" hidden></div><form class="cv-inline" data-follow-form><input class="input sm" placeholder="Follow up with ${esc(m.name)} on this…" autocomplete="off" spellcheck="false"><button class="primary sm">Send</button></form>` : ''}
         </div>
       </div>
     </article>`;
@@ -843,6 +843,7 @@ function buildView(id) {
   const about = $('.cv-about', node);
   let show = SHOW;
   const following = new Set(); // jobs with their follow-up box open
+  const holding = new Map(); // job -> { text, hold }: its follow-up waits for your yes (the hold row)
   const autosize = () => {
     ta.style.height = 'auto';
     ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
@@ -935,6 +936,8 @@ function buildView(id) {
       if (thread.children[i] !== n) thread.insertBefore(n, thread.children[i] || null);
     });
     while (thread.children.length > want.length) thread.lastElementChild.remove();
+    // A follow-up waiting for your yes keeps its row and its text when its job was drawn again.
+    for (const job of holding.keys()) showFollowHold(job);
     if (end) scroller.scrollTop = scroller.scrollHeight;
 
     // What it is and how it works: beside the thread on a wide pane, folded above it otherwise.
@@ -1034,14 +1037,49 @@ function buildView(id) {
     if (!job || !text) return input?.focus();
     input.value = '';
     if (f.hasAttribute('data-answer-form')) return answerJob(job, text, { restore: () => (input.value = text) });
+    sendFollow(job, text);
+  });
+  // Follow up on a job near the usage limit (features/hold.js): the hold row over its box, as over
+  // a task's reply box, with Send anyway; no Wait until (the thread has no Start later). The page
+  // asks first when it can tell (a job on another computer: the server there does), and a 409 from
+  // the server shows the same row with the text back in the box.
+  const sendFollow = (job, text, { confirm = false } = {}) => {
+    const s = S.sessions.get(job);
+    if (!s) return;
+    const who = { agent: s.agent, account: s.account || '' };
+    const h = !confirm && !s.machine && holdNow(who.agent, who.account, 'followUp');
+    if (h) return holdFollow(job, text, { ...who, ...h });
+    holding.delete(job);
     following.delete(job);
     followJob(job, text, {
+      confirm,
       restore: () => {
         following.add(job);
         paint();
       },
+      onHold: (x) => holdFollow(job, text, { ...who, ...x }),
     });
-  });
+  };
+  const holdFollow = (job, text, hold) => {
+    holding.set(job, { text, hold: { ...hold, account: hold.account || 'default', resetsAt: null } });
+    const row = $(`.cv-job[data-id="${job}"] .cv-fhold`, node);
+    if (row) delete row.dataset.held; // asked again after × (Keep editing)
+    following.add(job);
+    paint();
+    $(`.cv-job[data-id="${job}"] [data-follow-form] input`, node)?.focus();
+  };
+  // Its row, once per box: × (Keep editing) leaves the row closed and the text in the box.
+  const showFollowHold = (job) => {
+    const x = holding.get(job);
+    const art = $(`.cv-job[data-id="${job}"]`, node);
+    const row = art && $('.cv-fhold', art);
+    const input = art && $('[data-follow-form] input', art);
+    if (!row || !input) return holding.delete(job);
+    if (row.dataset.held) return row.hidden && holding.delete(job);
+    if (!input.value) input.value = x.text;
+    row.dataset.held = '1';
+    showHold(row, input, x.hold, { kind: 'followUp', go: () => sendFollow(job, input.value.trim() || x.text, { confirm: true }), wait: () => {} });
+  };
   ta.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !e.defaultPrevented) {
       e.preventDefault();
@@ -1218,19 +1256,22 @@ async function answerJob(id, text, { restore } = {}) {
 }
 
 // Follow up on a finished job from the thread: that job carries on, with what it already knows.
-async function followJob(id, text, { restore } = {}) {
+// confirm: your Send anyway near the usage limit. onHold(hold): the server says it's near the limit
+// (409): the hold row shows instead of an error toast.
+async function followJob(id, text, { restore, confirm = false, onHold } = {}) {
   const s = S.sessions.get(id);
   if (!s) return;
   const before = { ...s };
   Object.assign(s, { state: 'running', live: 'Starting up', updatedAt: Date.now() });
   renderFeed();
   try {
-    await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, queue: true } });
+    await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, queue: true, ...(confirm && { confirmLimit: true }) } });
   } catch (err) {
     S.sessions.set(id, before);
     renderFeed();
     restore?.();
-    toastError(err);
+    if (err.hold && onHold) onHold(err.hold);
+    else toastError(err);
   }
 }
 
