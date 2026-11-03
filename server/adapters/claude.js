@@ -7,6 +7,7 @@ import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, crewToolLabel, dete
 import { describeCommand } from './commands.js';
 import { claudeLimits } from '../budget.js';
 import { COSTLY_ENV, PARENT_SESSION_ENV } from '../pty.js';
+import { LEAN_ENV } from '../lean.js';
 
 const DEFAULT_BIN = process.env.WISP_CLAUDE_BIN || 'claude';
 let BIN = DEFAULT_BIN;
@@ -308,7 +309,8 @@ export default {
   // accountEnv: the account it runs on (CLAUDE_CONFIG_DIR, server/accounts.js), {} for the default.
   // lean: a side run that only answers (the retro), without Claude Code's prompt and tools.
   // untrusted: without the repo's hooks and MCP servers (server/project-trust.js).
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, onEvent }) {
+  // quiet: without Claude Code's nonessential traffic, which also drops claude.ai connectors (server/lean.js).
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, quiet = false, onEvent }) {
     lean = lean && leanOk();
     const args = [
       '-p',
@@ -338,6 +340,7 @@ export default {
     const env = { ...process.env, ...accountEnv };
     for (const k of PARENT_SESSION_ENV) delete env[k]; // don't let a parent Claude Code session leak into the child
     for (const k of COSTLY_ENV) delete env[k];
+    if (quiet) Object.assign(env, LEAN_ENV);
     env.MCP_TOOL_TIMEOUT ??= String(ASK_TIMEOUT_MS);
 
     let sawResult = false;

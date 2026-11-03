@@ -53,6 +53,8 @@ import { loadUpdate, updateState } from './update.js';
 // On a wisp Grid, Machines becomes Connect (the grid, not SSH) and Cloud goes: wisp is in the cloud.
 // Which releases wisp updates to; the server reads them in server/update.js (CHANNELS).
 const UPDATE_CHANNELS = [['stable', 'Stable'], ['beta', 'Beta'], ['nightly', 'Nightly']];
+// Lean Claude Code runs (server/lean.js, LEAN_VALUES): on is wisp's side runs only.
+const LEAN_CHOICES = [['off', 'Off'], ['on', 'wisp’s side runs'], ['all', 'All Claude runs']];
 const CHANNEL_HINTS = { stable: 'Tested releases', beta: 'Previews of the next release (npm <code>next</code>), then the release itself', nightly: 'A build of main every night (npm <code>nightly</code>). Newest, and sometimes broken' };
 
 const settingsPanes = (grid = inGrid()) => [
@@ -157,6 +159,7 @@ export function openSettings(opts) {
         <section class="sx-pane" data-pane="agents">
           <div class="sx-group sx-agents"></div>
           <div class="sx-group">
+            ${row('Lean Claude Code runs', 'Without telemetry, error reports and update checks: fewer connections and about a second faster to start. A lean run has no claude.ai connectors (Google Drive, Docs, …), no org memory (Team plans), no /ultrareview or /advisor, no push notifications, and none of Claude Code’s server-rolled features. wisp’s side runs (judges, reviews, the retro) need none of these', `<select name="leanRuns">${LEAN_CHOICES.map(([v, l]) => `<option value="${v}" ${(d.leanRuns || 'on') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`)}
             ${row('Ask before running a changed harness', 'wisp keeps the path, size and sha256 of each harness’s program from the first time it runs it. Off, a change shows on the task and here. On, a run on a changed harness waits until you trust it', '<button class="switch" id="harnessAsk" role="switch"></button>')}
           </div>
           <div class="sx-group">
@@ -952,7 +955,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers', review: 'select[name="review"]' };
+  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', leanRuns: 'select[name="leanRuns"]', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers', review: 'select[name="review"]' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

@@ -38,6 +38,7 @@ import { createSandbox } from './services/sandbox.js';
 import { createAgentLogin } from './agent-login.js';
 import { Router } from './router.js';
 import { Accounts, useAccounts } from './accounts.js';
+import { useConfig as useLean } from './lean.js';
 import { Budget, addShare, holdWhy, stopFor, drainWhy } from './budget.js';
 import { createLiveLimits, readCodex } from './live-limits.js';
 import { Guard } from './guard.js';
@@ -113,6 +114,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   // Several accounts per harness (server/accounts.js): runs, sign-ins and wisp's own small runs.
   const accounts = new Accounts(store.home);
   useAccounts(accounts);
+  useLean(() => store.config);
   runner.accounts = accounts;
   runner.accountPref = (agent) => store.config.defaults.accounts?.[agent] || '';
   // Your MCP servers (Settings → Connectors), for every turn of a harness that takes them.

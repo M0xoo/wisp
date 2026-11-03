@@ -371,6 +371,12 @@ test('Review by another harness: a setting (off, other, or a harness); the PR ro
   assert.ok(problems({ ...base0, ui: { hide: ['panel.pr.review.constraint'] } }).some((x) => /panel\.pr\.review\.constraint isn't a part/.test(x)));
 });
 
+test('Lean Claude Code runs: leanRuns (off, on, all) is a setting, its Settings row a part', () => {
+  for (const v of ['off', 'on', 'all']) assert.deepEqual(problems({ ...base0, settings: { leanRuns: v } }), []);
+  assert.ok(problems({ ...base0, settings: { leanRuns: 'sometimes' } }).some((x) => /leanRuns/.test(x) && /off \| on \| all/.test(x)));
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.leanRuns'] } }), []);
+});
+
 test('Harness watch: Ask before running a changed harness is a setting; the change line and its row are parts', () => {
   assert.deepEqual(problems({ ...base0, settings: { harnessAsk: 'on' } }), []);
   assert.ok(problems({ ...base0, settings: { harnessAsk: 'always' } }).some((x) => /harnessAsk/.test(x) && /on \| off/.test(x)));

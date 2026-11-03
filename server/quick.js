@@ -3,6 +3,7 @@
 
 import { sideEnv } from './accounts.js';
 import { adapters } from './adapters/index.js';
+import { leanOn } from './lean.js';
 
 // Cheapest first: what the scout and judge run on when it's installed.
 const CHEAP = [
@@ -39,6 +40,7 @@ export function askJson({ agents, prompt, cwd, timeoutMs = 90_000, pick = cheape
         systemPrompt: 'You are a helper inside wisp. Answer with one JSON object and nothing else.',
         accountEnv: sideEnv(pick.agent),
         untrusted: true, // a JSON answer needs nothing from the folder (server/project-trust.js)
+        quiet: leanOn(), // a JSON answer loses nothing without nonessential traffic (server/lean.js)
         attachments: [],
         onEvent: (e) => {
           if (e.type === 'result') text = e.isError ? '' : e.text || '';

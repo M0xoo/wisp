@@ -27,6 +27,7 @@ import { kitNote } from './crew.js';
 import { planOf, toolSet, unitsOf } from './budget.js';
 import { watchView } from './watch.js';
 import { asks as projectAsks } from './project-trust.js';
+import { leanTask } from './lean.js';
 import { reviewView } from './services/review.js';
 
 const MAX_ACTIVITY = 400;
@@ -250,6 +251,7 @@ export function summarize(s, store) {
     groupId: s.groupId || null,
     origin: s.origin || null, // { kind: 'recipe' | 'trigger' | 'telegram', id, name }
     ...(s.kind && { kind: s.kind }), // 'spell': a Cast a spell task
+    ...(s.lean && { lean: s.lean }), // 'on' | 'off': this task's own lean runs choice (server/lean.js)
     moved: s.moved || null, // { from }: carried on here from another place (services/move.js)
     movedTo: s.movedTo || null, // { id, place }: this one carried on there, and was archived
     ...(s.forkedFrom && { forkedFrom: s.forkedFrom }), // { id, title, turn, of }: a fork of that task (services/fork.js)
@@ -785,6 +787,7 @@ export class Runner extends EventEmitter {
         systemPrompt: BTW_SYSTEM,
         accountEnv: this.#accountEnv(session, entry.agent),
         untrusted: !!this.projectPending(session, entry.agent),
+        quiet: leanTask(session, this.store.config?.defaults), // a /btw is yours: lean as the task is (server/lean.js)
         onEvent: (ev) => {
           if (ev.type === 'result') reply = ev;
         },
@@ -1321,6 +1324,7 @@ export class Runner extends EventEmitter {
       mcpServers: this.#mcpServers(session, adapter, team, mode),
       accountEnv: this.#accountEnv(session),
       untrusted: !!project,
+      quiet: leanTask(session, this.store.config?.defaults), // only when asked: lean drops claude.ai connectors (server/lean.js)
       onEvent: (ev) => {
         if (released) return; // a lingering process we already let go of
         const waiting = this.#onEvent(session, turn, ev) === 'waiting';
