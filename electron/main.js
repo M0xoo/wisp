@@ -2,10 +2,10 @@
 // the window loads the same UI the browser mode serves.
 
 import { app, BrowserWindow, shell, nativeTheme, Menu, dialog, ipcMain, clipboard } from 'electron';
-import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readShellPath } from './shell-path.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.WISP_PORT) || 4477;
@@ -24,17 +24,13 @@ function inheritShellPath() {
     saved = fs.readFileSync(PATH_FILE(), 'utf8');
   } catch {}
   if (saved) process.env.PATH = saved;
-  const sh = process.env.SHELL || '/bin/zsh';
-  const fresh = new Promise((resolve) => {
-    execFile(sh, ['-ilc', 'printf "__WISP__%s__WISP__" "$PATH"'], { encoding: 'utf8', timeout: 5000 }, (err, out) => {
-      const p = String(out || '').match(/__WISP__(.*)__WISP__/)?.[1];
-      if (!p || p === saved) return resolve(false);
-      process.env.PATH = p;
-      try {
-        fs.writeFileSync(PATH_FILE(), p);
-      } catch {}
-      resolve(true);
-    });
+  const fresh = readShellPath().then((p) => {
+    if (!p || p === saved) return false;
+    process.env.PATH = p;
+    try {
+      fs.writeFileSync(PATH_FILE(), p);
+    } catch {}
+    return true;
   });
   return { saved: !!saved, fresh };
 }
