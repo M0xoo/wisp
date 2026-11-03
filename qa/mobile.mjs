@@ -263,6 +263,35 @@ try {
     await ctx.close();
     console.log(`      offline first paint: ${titles} tasks in ${ms}ms`);
   });
+  await check('MOB-31', 'the reply box: /btw says so on a line of its own, one row of 44px buttons, nothing moves sideways', async () => {
+    const ctx = await phone(PHONES[0]);
+    const page = await ctx.newPage();
+    await page.goto(`${wisp.url}/`);
+    await page.locator(`.item[data-id="${first.json.id}"] .it-head`).first().tap();
+    const ta = page.locator('.item.open .composer .reply');
+    await ta.waitFor({ timeout: 10_000 });
+    await ta.tap();
+    const read = () => page.evaluate(() => {
+      const comp = document.querySelector('.item.open .composer');
+      const box = (q) => comp.querySelector(q).getBoundingClientRect();
+      const small = [...comp.querySelectorAll('.c-bar > :not([hidden])')].filter((b) => b.getBoundingClientRect().height && b.getBoundingClientRect().height < 44).map((b) => b.className);
+      return { bar: box('.c-bar').height, send: box('.send').x, input: box('.reply').x, hint: box('.c-hint').height, hintTop: box('.c-hint').top, barTop: box('.c-bar').top, inBar: !!comp.querySelector('.c-bar .c-hint'), small };
+    });
+    await ta.fill('Now add a test');
+    const off = await read();
+    await ta.fill('/btw last round and score');
+    await page.waitForSelector('.item.open .composer.is-btw');
+    const on = await read();
+    ok(!on.inBar, 'the hint is still inside the bar');
+    ok(on.bar === 44 && off.bar === 44, `the bar is ${off.bar}px, then ${on.bar}px with /btw (should stay 44)`);
+    ok(on.hint <= 20, `the hint is ${on.hint}px tall: it wrapped`);
+    ok(on.hintTop < on.barTop, 'the hint is not above the buttons');
+    ok(on.send === off.send && on.input === off.input, `moved sideways: Send ${off.send} → ${on.send}, input ${off.input} → ${on.input}`);
+    ok(!on.small.length, `under 44px: ${on.small.join(', ')}`);
+    await shot(page, 'composer-btw');
+    await ctx.close();
+  });
+
   await check('MOB-18', 'menus open whole with the keyboard up; a long computer name gives way', async () => {
     const LONG = 'Mokhless-MacBook-Pro-Studio-Workstation';
     const ctx = await phone(PHONES[0]);
