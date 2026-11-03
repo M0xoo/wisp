@@ -17,9 +17,11 @@ const FILE = 'project-trust.json';
 // Claude Code settings keys whose value is a program it runs (besides hooks).
 const HELPERS = ['apiKeyHelper', 'awsAuthRefresh', 'awsCredentialExport', 'otelHeadersHelper'];
 
+// .native: on Windows it expands 8.3 names (RUNNER~1), as git's own paths are, so a checkout and
+// its worktrees get one key.
 const realDir = (dir) => {
   try {
-    return fs.realpathSync(dir);
+    return fs.realpathSync.native(dir);
   } catch {
     return path.resolve(dir);
   }

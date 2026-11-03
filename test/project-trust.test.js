@@ -101,9 +101,9 @@ test('setupItems: wisp’s own file first, else Cursor’s; repoOf: a worktree s
   assert.deepEqual(setupItems(dir).map((x) => [x.file, x.command]), [['.wisp/worktree.json', 'pnpm i']]);
   const wt = path.join(tmp('pt-wt'), 'tree');
   execFileSync('git', ['worktree', 'add', '-q', '-b', 'side', wt], { cwd: dir, stdio: 'ignore' });
-  const main = fs.realpathSync(dir);
+  const main = fs.realpathSync.native(dir);
   assert.equal(repoOf(wt).key, main);
-  assert.equal(repoOf(wt).top, fs.realpathSync(wt));
+  assert.equal(repoOf(wt).top, fs.realpathSync.native(wt));
   assert.equal(repoOf(path.join(dir, '.git', '..')).key, main);
 });
 
@@ -224,7 +224,7 @@ test('a repo without hooks, servers or setup: no card', async () => {
 
 test('a new worktree’s setup waits for Trust and start, and never runs on Run without them', async () => {
   const cwd = makeRepo();
-  write(cwd, '.wisp/worktree.json', { setup: ['node -e "require(\'fs\').writeFileSync(\'setup-ran\', \'1\')"'] });
+  write(cwd, '.wisp/worktree.json', { setup: ['echo ok > setup-ran'] }); // sh and cmd alike
   execFileSync('git', ['add', '.'], { cwd, stdio: 'ignore' });
   execFileSync('git', ['commit', '-qm', 'setup'], { cwd, stdio: 'ignore' });
 
