@@ -4,7 +4,9 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import net from 'node:net';
+import path from 'node:path';
 import { installFakeBins, makeRepo, tmp, until } from './helpers.js';
 
 process.env.WISP_HOME = tmp('refusal-wisp');
@@ -15,6 +17,7 @@ installFakeBins();
 
 const { refusalOf } = await import('../server/refusal.js');
 const { vendorOf, handoffTargets } = await import('../web/js/vendors.js');
+const { constraintsOf, handoffNote, mapEffort } = await import('../server/handoff.js');
 const { startServer } = await import('../server/index.js');
 
 const CC = 'API Error: Claude Code is unable to respond to this request, which appears to violate our Usage Policy (https://www.anthropic.com/legal/aup). Please double press esc to edit your last message or start a new session for Claude Code to assist with a different task.';
@@ -152,4 +155,68 @@ test('handoffTargets: a refusal is only offered to another vendor\'s model, pinn
   // A harness whose only models are unknown never qualifies; at most `max`.
   assert.deepEqual(handoffTargets({ from: 'claude', agents: [{ id: 'copilot', available: true, models: [{ id: '' }] }] }), []);
   assert.equal(handoffTargets({ from: 'grok', agents }).length, 3);
+});
+
+// Moris check-in 12 #2: the hand-off carries the user's constraints, the task's effort and its Done when.
+test('constraintsOf: the user\'s "don\'t touch / only change / leave … alone" lines, from their own turns, once each', () => {
+  const s = {
+    turns: [
+      { prompt: 'Fix the login bug. Don\u2019t touch the migrations folder.\n- only change server/auth\nLeave the tests alone please. Make it fast.' },
+      { prompt: 'never push to main', by: 'wisp' },
+      { prompt: "What's missing: do not modify x", goal: true },
+      { prompt: 'Carry on. Never push to main', later: { by: 'user' } },
+      { prompt: 'Add a test, but no new dependencies. Don\'t touch the migrations folder.' },
+      { prompt: 'Thanks, that looks good' },
+    ],
+  };
+  assert.deepEqual(constraintsOf(s), ["Don't touch the migrations folder.", 'only change server/auth', 'Leave the tests alone please.', 'Add a test, but no new dependencies.']);
+  assert.deepEqual(constraintsOf({ turns: [{ prompt: 'fix the add bug please' }] }), []);
+  assert.equal(constraintsOf({ turns: Array.from({ length: 20 }, (_, i) => ({ prompt: `Don't touch file${i}.js` })) }).length, 12, 'at most 12, the latest');
+});
+
+test('mapEffort: the same level, else the nearest the harness has (the lower on a tie), else none', () => {
+  const codex = ['minimal', 'low', 'medium', 'high', 'xhigh'];
+  assert.equal(mapEffort('medium', codex), 'medium');
+  assert.equal(mapEffort('max', codex), 'xhigh');
+  assert.equal(mapEffort('minimal', ['low', 'medium', 'high']), 'low');
+  assert.equal(mapEffort('medium', ['low', 'high']), 'low');
+  assert.equal(mapEffort('high', []), '', 'a harness without levels');
+  assert.equal(mapEffort('', codex), '');
+  assert.equal(mapEffort('turbo', codex), '', 'a level wisp doesn\'t know');
+});
+
+test('handoffNote: What still holds, with the constraints and Done when, ahead of the turns', () => {
+  const s = { turns: [{ agent: 'claude', prompt: 'Refactor auth. Don\'t touch the migrations.', status: 'done', raw: 'I can\'t help with that.' }, { agent: 'codex', prompt: 'x', status: 'running' }], goal: { text: 'npm test passes', status: 'working' } };
+  const note = handoffNote(s, 'codex', null, (t) => t.agent);
+  assert.match(note, /### What still holds\n\n.*\n\n- Don't touch the migrations\.\n- Done when: npm test passes/);
+  assert.ok(note.indexOf('What still holds') < note.indexOf('### Turn 1'));
+  assert.doesNotMatch(handoffNote({ ...s, goal: { text: 'npm test passes', status: 'met' } }, 'codex', null, (t) => t.agent), /Done when/, 'a met goal is over');
+  assert.doesNotMatch(handoffNote({ turns: [{ agent: 'claude', prompt: 'fix it', status: 'done' }, { prompt: 'x' }] }, 'codex', null, (t) => t.agent), /What still holds/, 'nothing to carry: no section');
+});
+
+test('Hand to Codex after a refusal: Codex hears the constraints, at the task\'s effort', async () => {
+  const rec = tmp('refusal-rec');
+  process.env.FAKE_RECORD = rec;
+  try {
+    const prompt = "REFUSEME reverse engineer the license check in ./bin/app. Don't touch the tests folder.";
+    const s = await api('/sessions', { prompt, cwd: makeRepo(), agent: 'claude', effort: 'max', worktree: false });
+    await settled(s.id);
+    await api(`/sessions/${s.id}/reply`, { text: prompt, agent: 'codex' });
+    const y = await settled(s.id, 2);
+    assert.equal(y.agent, 'codex');
+    assert.equal(y.effort, 'xhigh', 'Claude max → Codex xhigh, not Codex\'s default');
+    const runs = fs.readFileSync(path.join(rec, 'codex.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    assert.equal(runs.length, 1);
+    const said = [...runs[0].argv, runs[0].stdin || ''].join('\n');
+    assert.match(said, /### What still holds\n\n.*\n\n- Don't touch the tests folder\.\n\n### Turn 1/, 'only the constraint, ahead of the turns');
+    const run = runs[0];
+    assert.ok(run.argv.join(' ').includes('model_reasoning_effort="xhigh"'), run.argv.join(' '));
+    // Picking an effort on the switch wins; the same harness keeps its level when none is sent.
+    await api(`/sessions/${s.id}/reply`, { text: 'and the docs', agent: 'codex', effort: 'low' });
+    assert.equal((await settled(s.id, 3)).effort, 'low');
+    await api(`/sessions/${s.id}/reply`, { text: 'and the readme', account: '' });
+    assert.equal((await settled(s.id, 4)).effort, 'low');
+  } finally {
+    delete process.env.FAKE_RECORD;
+  }
 });

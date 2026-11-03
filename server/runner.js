@@ -11,7 +11,7 @@ import { systemPrompt, parsePresentation, heroOf } from './protocol.js';
 import { spellGuide } from './spell-guide.js';
 import { captureCheckpoint, freshCheckpoint, readGitFile } from './checkpoint.js';
 import { teamNote, copies, SUBAGENT_ASK, AWAY_SUBAGENT, delegationReport, stillWorkingNote, REPORTS_BACK } from './subagents.js';
-import { handoffNote } from './handoff.js';
+import { handoffNote, mapEffort } from './handoff.js';
 import { openTerms } from './pty.js';
 import { agentPrompt, plainMentions } from './mentions.js';
 import { BTW_SYSTEM, BTW_TIMEOUT_MS, MAX_BTW, btwAnswer, btwPrompt } from './btw.js';
@@ -103,11 +103,15 @@ function workspaceNote(s) {
 
 // A follow-up's { agent, model, effort }, or null when it's what the session already runs on.
 // Fields left out keep the session's; a new harness without a model gets its default.
+// No effort with a switch to another harness (Hand to <harness> on the refusal and limit cards): the
+// task keeps its thinking level, as that harness (and model) names it, not its default (handoff.js).
 function changedRun(session, run) {
   if (!run || typeof run !== 'object') return null;
   const agent = run.agent || session.agent;
   const same = agent === session.agent;
-  const next = { agent, model: String(run.model ?? (same ? session.model : '') ?? ''), effort: String(run.effort ?? (same ? session.effort : '') ?? ''), ...(run.account !== undefined && { account: String(run.account || '') }) };
+  const model = String(run.model ?? (same ? session.model : '') ?? '');
+  const levels = (model && adapters[agent]?.models?.find((m) => m.id === model)?.efforts) || adapters[agent]?.efforts || [];
+  const next = { agent, model, effort: String(run.effort ?? (same ? session.effort : mapEffort(session.effort, levels)) ?? ''), ...(run.account !== undefined && { account: String(run.account || '') }) };
   return same && next.model === (session.model || '') && next.effort === (session.effort || '') && (next.account === undefined || next.account === (session.account || '')) ? null : next;
 }
 
@@ -574,6 +578,8 @@ export class Runner extends EventEmitter {
     for (const t of session.turns) t.agent ||= session.agent;
     // Auto's pick was overruled: the card stops crediting it, and the router learns (services/auto.js).
     if (session.route && (agent !== session.agent || model !== session.model || effort !== (session.effort || ''))) session.route.switched = true;
+    // No effort with the switch (Hand to <harness> on the refusal and limit cards): the task keeps its
+    // thinking level, as the new harness (and model) names it, not the new harness's default.
     if (agent !== session.agent) {
       session.agent = agent;
       session.agentSessionId = session.agentSessions[agent] || null;

@@ -8,6 +8,8 @@ import { blocksToMarkdown } from './render.js';
 import { clip, truncate } from './util.js';
 
 const BUDGET = 24_000; // characters of earlier turns, newest kept first
+const MAX_RULES = 12;
+const RULE_CHARS = 300;
 const PER_TURN = 6_000;
 // The parts of a report worth passing on. Diffs, code and terminal output are on disk or in git.
 const KEEP = new Set(['hero', 'markdown', 'steps', 'stats', 'files', 'tests', 'commits', 'checklist', 'callout', 'question', 'next']);
@@ -46,6 +48,59 @@ export function turnText(t, n, name) {
   );
 }
 
+// What the user ruled out or narrowed in their own messages ("don't touch the migrations", "only
+// change web/", "leave the tests alone"): a turn digest clips them, and a harness that takes the task
+// over (a refusal or limit hand-off, a switch) would lose them. Lines from the user's own turns only
+// (not wisp's carry-ons, goal rounds or scheduled follow-ups), oldest first, each once.
+const RULE = [
+  /\b(?:don'?t|do not|never|must not|mustn'?t|shouldn'?t|should not|avoid)\s+(?:\w+ing\s+)?(?:touch|chang|modif|edit|delet|remov|renam|refactor|rewrit|add|commit|push|merge|install|upgrad|bump|deploy|publish|run)\w*/i,
+  /\bonly\s+(?:change|touch|edit|modify|work (?:in|on))\b/i,
+  /\bleave\b.{1,80}?\b(?:alone|as (?:it )?is|untouched)\b/i,
+  /\bwithout (?:changing|touching|modifying|editing)\b/i,
+  /\bkeep\b.{1,60}?\b(?:as (?:it )?is|unchanged|untouched)\b/i,
+  /\b(?:no new|not? (?:any )?new) (?:dependenc|packages?|librar|files?)\w*/i,
+];
+export function constraintsOf(session) {
+  const out = [];
+  for (const t of session.turns || []) {
+    if (t.by || t.goal || t.later || !t.prompt) continue;
+    const text = textMentions(String(t.prompt)).replace(/[\u2018\u2019]/g, "'");
+    for (const raw of text.split(/\n+|(?<=[.!?])\s+(?=[A-Z])/)) {
+      const line = raw.replace(/^\s*(?:[-*•>]|\d+[.)])\s*/, '').trim();
+      if (!line || !RULE.some((r) => r.test(line))) continue;
+      const rule = clip(line, RULE_CHARS);
+      if (!out.includes(rule)) out.push(rule);
+    }
+  }
+  return out.slice(-MAX_RULES);
+}
+
+// What carries over to the harness taking the task: the user's constraints and the task's Done
+// when (the goal's own section in the system prompt explains the checking; this keeps it in view).
+function keepNote(session) {
+  const rules = constraintsOf(session);
+  const goal = session.goal && !['met', 'impossible', 'out', 'handed'].includes(session.goal.status) ? session.goal.text : '';
+  if (!rules.length && !goal) return '';
+  return [
+    '### What still holds',
+    'The user set these earlier in this task. They hold for you too, whatever the turns below did:',
+    [...rules.map((r) => `- ${r}`), ...(goal ? [`- Done when: ${clip(goal.replace(/\s+/g, ' '), 600)}`] : [])].join('\n'),
+  ].join('\n\n');
+}
+
+// The same thinking level on the harness taking over, as close as it has one: Claude's medium is
+// Codex's medium, Claude's max is Codex's xhigh (its highest). '' when it has none or none was set.
+const LEVELS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+export function mapEffort(effort, levels = []) {
+  if (!effort || !levels.length) return '';
+  if (levels.includes(effort)) return effort;
+  const at = LEVELS.indexOf(effort);
+  if (at < 0) return '';
+  const known = levels.filter((l) => LEVELS.includes(l));
+  if (!known.length) return '';
+  return known.reduce((best, l) => (Math.abs(LEVELS.indexOf(l) - at) < Math.abs(LEVELS.indexOf(best) - at) || (Math.abs(LEVELS.indexOf(l) - at) === Math.abs(LEVELS.indexOf(best) - at) && LEVELS.indexOf(l) < LEVELS.indexOf(best)) ? l : best));
+}
+
 // The note for `agent` taking the next turn, or '' when it has seen everything.
 // name(turn) → the harness's display name for that turn.
 export function handoffNote(session, agent, resumeId, name, mine) {
@@ -79,6 +134,7 @@ export function handoffNote(session, agent, resumeId, name, mine) {
   return [
     '## Earlier in this task',
     intro,
+    keepNote(session),
     dropped ? `_${dropped} earlier turn${dropped > 1 ? 's' : ''} left out for length._` : '',
     ...parts,
     '---',

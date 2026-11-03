@@ -219,7 +219,8 @@ test('a follow-up can switch harness and model: the new harness gets the turns i
   assert.match(codex.stdin, /Fake claude finished/);
   assert.match(codex.stdin, /## Follow-up\n\ncodex, take it from here/);
   assert.equal(x.agent, 'codex');
-  assert.deepEqual([x.model, x.effort], ['', ''], 'a new harness starts on its default');
+  assert.deepEqual([x.model, x.effort], ['', 'high'], 'a new harness starts on its default model, at the task\'s level (handoff.js mapEffort)');
+  assert.ok(codex.argv.includes('model_reasoning_effort="high"'));
   assert.equal(x.agentSessionId, 'codex-session-1');
   assert.deepEqual(x.agentSessions, { claude: 'claude-session-1', codex: 'codex-session-1' });
   assert.deepEqual(x.turns.map((t) => [t.agent, t.model]), [['claude', ''], ['claude', 'opus'], ['codex', '']]);
