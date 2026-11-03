@@ -21,6 +21,7 @@ import { LIMIT_CARRY_ON, laterNote, laterView } from './later.js';
 import { HOMES as ACCOUNT_HOMES } from './accounts.js';
 import { infraError } from './router.js';
 import { refusalOf } from './refusal.js';
+import { vendorOf } from '../web/js/vendors.js';
 import { goalNote, goalView } from './goal.js';
 import { kitNote } from './crew.js';
 import { planOf, unitsOf } from './budget.js';
@@ -1616,8 +1617,8 @@ export class Runner extends EventEmitter {
 
   // The harness turned the task down (server/refusal.js): the hero says so, and the card under it
   // (turn.refusal) offers Hand to <another harness> with the same prompt and this task's turns
-  // (handoff.js). Never by itself, and never another account of the same harness: that would be
-  // asking the same model again to get around its own answer. A subagent's or a delegated job's
+  // (handoff.js). Never by itself, and never another account of the same harness or another harness on the same vendor's model: that would be
+  // asking the same model the same question again. A subagent's or a delegated job's
   // refusal goes to its lead as it is.
   #refused(session, turn, ev) {
     if (session.parentId || session.delegated || turn.plain) return;
@@ -1625,7 +1626,10 @@ export class Runner extends EventEmitter {
     if (!r) return;
     const agent = turn.agent || session.agent;
     const name = adapters[agent]?.name || 'This harness';
-    turn.refusal = { agent, kind: r.kind, ...(r.line && { line: r.line }) };
+    // Whose model refused (web/js/vendors.js): the card only offers another vendor's.
+    const model = String(turn.model ?? session.model ?? '');
+    const vendor = vendorOf(model, agent);
+    turn.refusal = { agent, model, ...(vendor && { vendor }), kind: r.kind, ...(r.line && { line: r.line }) };
     const rest = (turn.presentation?.blocks || []).filter((b) => b.type !== 'hero' && b.type !== 'next');
     turn.presentation = {
       blocks: [

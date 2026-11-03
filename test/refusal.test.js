@@ -14,6 +14,7 @@ process.env.CODEX_HOME = tmp('refusal-codex-home');
 installFakeBins();
 
 const { refusalOf } = await import('../server/refusal.js');
+const { vendorOf, handoffTargets } = await import('../web/js/vendors.js');
 const { startServer } = await import('../server/index.js');
 
 const CC = 'API Error: Claude Code is unable to respond to this request, which appears to violate our Usage Policy (https://www.anthropic.com/legal/aup). Please double press esc to edit your last message or start a new session for Claude Code to assist with a different task.';
@@ -79,7 +80,7 @@ test('Claude Code refuses: the turn says so and offers a hand-off; nothing moves
   const s = await api('/sessions', { prompt, cwd: makeRepo(), agent: 'claude', worktree: false });
   const x = await settled(s.id);
   const t = x.turns[0];
-  assert.deepEqual({ agent: t.refusal?.agent, kind: t.refusal?.kind }, { agent: 'claude', kind: 'policy' });
+  assert.deepEqual({ agent: t.refusal?.agent, kind: t.refusal?.kind, vendor: t.refusal?.vendor }, { agent: 'claude', kind: 'policy', vendor: 'anthropic' });
   assert.match(t.refusal.line, /Usage Policy/);
   assert.equal(t.limit, undefined, 'not a usage limit');
   const hero = t.presentation.blocks[0];
@@ -109,4 +110,46 @@ test('a plain "I can\'t help with that" is a refusal too; an ordinary answer is 
   const b = await api('/sessions', { prompt: 'fix the add bug please', cwd: makeRepo(), agent: 'claude', worktree: false });
   const y = await settled(b.id);
   assert.equal(y.turns[0].refusal, undefined);
+});
+
+test('vendorOf: whose model a harness runs, from the model id or the single-vendor harness', () => {
+  for (const [m, a, v] of [
+    ['', 'claude', 'anthropic'], ['opus', 'claude', 'anthropic'], ['claude-sonnet-4.5', 'copilot', 'anthropic'],
+    ['anthropic/claude-opus-4-1', 'opencode', 'anthropic'], ['github-copilot/claude-sonnet-4', 'opencode', 'anthropic'],
+    ['sonnet-4.5-thinking', 'cursor', 'anthropic'], ['claude-sonnet-4-5', 'antigravity', 'anthropic'],
+    ['', 'codex', 'openai'], ['gpt-5.1-codex', 'codex', 'openai'], ['gpt-5', 'copilot', 'openai'], ['o4-mini', 'opencode', 'openai'],
+    ['openrouter/openai/gpt-5', 'opencode', 'openai'], ['gemini-3-pro', 'antigravity', 'google'], ['', 'grok', 'xai'],
+    ['composer-1', 'cursor', 'cursor'], ['deepseek/deepseek-chat', 'opencode', 'deepseek'],
+    ['', 'copilot', ''], ['', 'opencode', ''], ['auto', 'cursor', ''], ['', 'antigravity', ''],
+  ]) assert.equal(vendorOf(m, a), v, `${a} ${m || '(default)'}`);
+});
+
+test('handoffTargets: a refusal is only offered to another vendor\'s model, pinned on the hand-off', () => {
+  const agents = [
+    { id: 'claude', available: true, models: [{ id: '' }, { id: 'opus' }, { id: 'sonnet' }] },
+    { id: 'copilot', available: true, models: [{ id: '' }, { id: 'claude-sonnet-4.5' }, { id: 'gpt-5' }] },
+    { id: 'opencode', available: true, models: [{ id: '' }, { id: 'anthropic/claude-opus-4-1' }, { id: 'openai/gpt-5' }] },
+    { id: 'cursor', available: true, models: [{ id: '' }, { id: 'sonnet-4.5' }] },
+    { id: 'codex', available: true, models: [{ id: '' }] },
+    { id: 'grok', available: false, models: [{ id: '' }] },
+    { id: 'wisp', available: true },
+  ];
+  const pairs = (xs) => xs.map((x) => `${x.agent}:${x.model}`);
+  // Claude refused: Copilot and opencode go on their GPT model, Cursor (only Claude listed) and
+  // the unavailable Grok are left out, Codex goes as it is.
+  const claude = handoffTargets({ from: 'claude', fromModel: '', agents, max: 9 });
+  assert.deepEqual(pairs(claude), ['copilot:gpt-5', 'opencode:openai/gpt-5', 'codex:']);
+  for (const x of claude) assert.notEqual(vendorOf(x.model, x.agent), 'anthropic');
+  // Copilot set to Claude in wisp: still pinned to GPT. Set to GPT: kept.
+  assert.deepEqual(pairs(handoffTargets({ from: 'claude', agents, models: { copilot: 'claude-sonnet-4.5' }, max: 9 })).slice(0, 1), ['copilot:gpt-5']);
+  assert.deepEqual(pairs(handoffTargets({ from: 'claude', agents, models: { copilot: 'gpt-5' }, max: 9 })).slice(0, 1), ['copilot:gpt-5']);
+  // Codex refused: no OpenAI model again, Claude Code goes as it is.
+  const codex = handoffTargets({ from: 'codex', agents, max: 9 });
+  assert.deepEqual(pairs(codex), ['claude:', 'copilot:claude-sonnet-4.5', 'opencode:anthropic/claude-opus-4-1', 'cursor:sonnet-4.5']);
+  for (const x of codex) assert.notEqual(vendorOf(x.model, x.agent), 'openai');
+  // Copilot refused on Claude: Claude Code is the same vendor, so it's out.
+  assert.deepEqual(pairs(handoffTargets({ from: 'copilot', fromModel: 'claude-sonnet-4.5', agents, max: 9 })), ['opencode:openai/gpt-5', 'codex:']);
+  // A harness whose only models are unknown never qualifies; at most `max`.
+  assert.deepEqual(handoffTargets({ from: 'claude', agents: [{ id: 'copilot', available: true, models: [{ id: '' }] }] }), []);
+  assert.equal(handoffTargets({ from: 'grok', agents }).length, 3);
 });

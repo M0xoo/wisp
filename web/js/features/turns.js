@@ -21,6 +21,7 @@ import { accountMark, accountOf, agentName, DEFAULT_MODE, effortLabel, limitUnti
 import { heldCard } from './hold.js';
 import { harnessNote } from './harness-watch.js';
 import { scheduleFollowUp } from './later.js';
+import { handoffTargets } from '../vendors.js';
 import { scrollByPx, topInset, watching } from './scroll.js';
 import { prsOf, renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
@@ -531,13 +532,17 @@ function limitCard(s, t) {
 // this card hands the same prompt (and its files) to another of your harnesses, which hears this
 // task's turns first (server/handoff.js). One click, never by itself; the same Hand to <harness>
 // as the usage-limit card. Every button disables the card at once; a refusal turns it back on.
+// Only a harness on another vendor's model (web/js/vendors.js): Copilot, opencode or Cursor on a
+// Claude model would ask Anthropic again after a Claude refusal. The model is pinned on the hand-off.
 const REFUSAL_MAX = 3;
 function refusalCard(s, t) {
   const from = t.refusal.agent || t.agent || s.agent;
-  const to = S.agents.filter((a) => a.id !== from && a.id !== 'wisp' && a.available).slice(0, REFUSAL_MAX);
+  const fromModel = t.refusal.model ?? t.model ?? s.model ?? '';
+  const to = handoffTargets({ from, fromModel, agents: S.agents, models: S.config?.defaults?.models || {}, max: REFUSAL_MAX });
+  const nameOf = (id) => S.agents.find((a) => a.id === id)?.name || agentName(id);
   const node = el(`<div class="b-limit b-refusal">
-      ${to.length ? `<div class="lm-acts">${to.map((a, i) => `<button class="${i ? 'ghost' : 'primary'} sm" data-rf="${esc(a.id)}" title="Sends the same prompt to ${esc(a.name || agentName(a.id))}, with this task's turns">${icon('agent')}Hand to ${esc(a.name || agentName(a.id))}</button>`).join('')}</div>` : ''}
-      ${to.length ? '' : '<p class="lm-note">No other agent is set up to take it. Add one in Settings → Agents, or rephrase it in the reply box.</p>'}
+      ${to.length ? `<div class="lm-acts">${to.map((x, i) => `<button class="${i ? 'ghost' : 'primary'} sm" data-rf="${esc(x.agent)}" data-rf-model="${esc(x.model)}" title="Sends the same prompt to ${esc(nameOf(x.agent))}${x.model ? ` on ${esc(x.model)}` : ''}, with this task's turns">${icon('agent')}Hand to ${esc(nameOf(x.agent))}</button>`).join('')}</div>` : ''}
+      ${to.length ? '' : '<p class="lm-note">No agent on another company’s model is set up to take it. Add one in Settings → Agents, or rephrase it in the reply box.</p>'}
     </div>`);
   const lock = (on) => {
     node.classList.toggle('resolved', on);
@@ -547,7 +552,7 @@ function refusalCard(s, t) {
     const b = e.target.closest('button[data-rf]');
     if (!b || b.disabled) return;
     lock(true);
-    const run = { agent: b.dataset.rf };
+    const run = { agent: b.dataset.rf, model: b.dataset.rfModel || '' };
     const files = (t.attachments || []).filter((f) => f.id);
     const undo = startOptimistic(s.id, t.prompt, files, { run });
     try {
