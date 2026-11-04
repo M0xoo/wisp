@@ -90,6 +90,11 @@ export function records(dir, bin) {
   return fs.existsSync(f) ? fs.readFileSync(f, 'utf8').trim().split('\n').map((l) => JSON.parse(l)) : [];
 }
 
+// A harness's task runs, without wisp's memory (a retro, server/preferences.js), which runs on the
+// session's harness 90s after a task goes quiet, so an earlier test's retro can land after this
+// test's run. Its prompt isn't always on stdin: codex and grok get it as an argument.
+export const taskRuns = (dir, bin) => records(dir, bin).filter((r) => ![r.stdin, ...r.argv].some((s) => s.includes('# wisp retro')));
+
 export const same = (a, b) => fs.realpathSync.native(a).toLowerCase() === fs.realpathSync.native(b).toLowerCase();
 
 // Poll fn until it returns something truthy. Errors count as "not yet" (a polled local HTTP

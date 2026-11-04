@@ -6,13 +6,11 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import net from 'node:net';
-import { installFakeBins, makeRepo, records, tmp, until } from './helpers.js';
+import { installFakeBins, makeRepo, records, taskRuns, tmp, until } from './helpers.js';
 
 const RECORD = tmp('e2e-record');
 process.env.FAKE_RECORD = RECORD;
-// A harness's last task run. wisp's memory (a retro, server/preferences.js) runs on the session's
-// harness 90s after a task goes quiet, so an earlier test's retro can land after this test's run.
-const lastRun = (bin) => records(RECORD, bin).filter((r) => !r.stdin.startsWith('# wisp retro')).at(-1);
+const lastRun = (bin) => taskRuns(RECORD, bin).at(-1);
 process.env.WISP_HOME = tmp('e2e-home');
 process.env.WISP_UPDATE_CHECK = '0'; // no registry calls from tests
 installFakeBins();
@@ -617,6 +615,19 @@ test('codex: what its sandbox refused (from its blocked block) retries in Full a
   await api(`/sessions/${s.id}/reply`, { text: 'and the changelog' });
   await settled(s.id, 3);
   assert.ok(!lastRun('codex').argv.includes('--dangerously-bypass-approvals-and-sandbox'));
+});
+
+test('a retro on codex is not taken for its last task run', async () => {
+  const s = await api('/sessions', { prompt: 'fix add()', cwd: makeRepo(), agent: 'codex', mode: 'auto' });
+  await settled(s.id, 1);
+  await api(`/sessions/${s.id}/reply`, { text: 'retro probe follow-up' });
+  await settled(s.id, 2);
+  const task = lastRun('codex');
+  assert.ok(task.argv.includes('--dangerously-bypass-approvals-and-sandbox'));
+
+  await fetch(`${base}/api/sessions/${s.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ state: 'done' }) });
+  await until(() => records(RECORD, 'codex').some((r) => r.stdin.includes('Return the updated JSON object now.') && r.stdin.includes('retro probe follow-up')), { timeout: 30_000 });
+  assert.equal(lastRun('codex').pid, task.pid, 'the retro is not the task\'s last run');
 });
 
 test('opencode: a rejected permission retries with exactly that pattern allowed; deny just closes the card', async () => {
