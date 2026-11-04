@@ -307,6 +307,70 @@ test('commandClash: commands that rewrite shared work are clashes, reads and oth
   assert.equal(at('rm *.txt', []).level, 'none', 'nothing of main’s to remove');
 });
 
+test('commandClash: git commands that destroy or move work count, listing and creating don’t', () => {
+  const at = (command, files = ['src/a.js']) => commandClash(command, { files, cwd: '/repo' });
+  for (const c of ['git rm -f src/a.js', 'git rm --cached src/a.js', 'git mv src/a.js src/b.js', 'git apply fix.patch', 'git branch -f main HEAD~1', 'git branch -D old', 'git branch -d old', 'git branch -M main2', 'git branch -m main2', 'git branch --delete old', 'git branch --force main HEAD~1', 'git worktree remove ../x', 'git worktree move ../x ../y', 'git update-ref refs/heads/main HEAD~1']) {
+    const v = at(c);
+    assert.equal(v.level, 'clash', c);
+    assert.equal(v.why, 'shared', c);
+  }
+  assert.deepEqual(at('git rm -f src/a.js').files, ['src/a.js'], 'names what it destroys');
+  assert.equal(at('git commit -m x', []).why, 'shared', 'whatever main changed');
+  for (const c of ['git branch', 'git branch -a', 'git branch -vv', 'git branch --list', 'git branch --show-current', 'git branch new', 'git branch new HEAD~1', 'git branch --merged', 'git worktree list', 'git worktree add ../x', 'git rm -n src/a.js', 'git rm --dry-run src/a.js', 'git mv -n src/a.js b.js', 'git apply --check fix.patch', 'git apply --stat fix.patch']) assert.equal(at(c).level, 'none', c);
+});
+
+test('commandClash: a write to one of main’s files is a clash that names it, before it runs', () => {
+  const at = (command, files = ['src/a.js']) => commandClash(command, { files, cwd: '/repo' });
+  for (const c of [
+    'echo x > src/a.js', 'echo x >src/a.js', 'echo x>src/a.js', 'echo x >> src/a.js', 'echo x >>src/a.js', 'npm test 2> src/a.js', 'npm test 2>src/a.js', 'echo x >| src/a.js', 'echo x >|src/a.js', 'npm test &> src/a.js', 'npm test &>> src/a.js', 'npm test >& src/a.js', '> src/a.js', ': > src/a.js', 'cat y 1> "src/a.js"', 'exec > src/a.js', 'FOO=1 > src/a.js', 'npm test 2>&1 > src/a.js', 'bash -c "echo x > src/a.js"', 'bash -lc "echo x > src/a.js"', 'sh run.sh > src/a.js', 'echo x > ./src/a.js', 'echo x > /repo/src/a.js',
+    'sed -i "" s/a/b/ src/a.js', 'sed -i s/a/b/ src/a.js', 'sed -i.bak s/a/b/ src/a.js', 'sed -i .bak s/a/b/ src/a.js', 'sed -Ei s/a/b/ src/a.js', 'sed --in-place s/a/b/ src/a.js', 'sed --in-place=.bak s/a/b/ src/a.js', 'sed -i -e s/a/b/ src/a.js', 'sed -e s/a/b/ -i src/a.js', 'sed -i -f fix.sed src/a.js', 'gsed -i s/a/b/ src/a.js', 'sed -i \\\n  s/a/b/ \\\n  src/a.js',
+    'perl -i -pe s/a/b/ src/a.js', 'perl -pi -e s/a/b/ src/a.js', 'perl -i.bak -pe s/a/b/ src/a.js', 'perl -0777 -pi -e s/a/b/ src/a.js',
+    'cat y | tee src/a.js', 'cat y | tee -a src/a.js', 'cat y | tee other.txt src/a.js',
+    'cp y src/a.js', 'cp -f y src/a.js', 'cp y a.js src/', 'cp a.js src', 'cp -r lib/src .', 'cp -t src a.js', 'cp --target-directory=src a.js', 'install y src/a.js', 'install -m 755 y src/a.js', 'rsync -a y src/a.js', 'rsync -a --delete y/ src/', 'dd if=y of=src/a.js', 'truncate -s0 src/a.js', 'truncate -s 0 src/a.js', 'truncate --size=0 src/a.js', 'truncate --size 0 src/a.js',
+    'cd src && echo x > a.js', 'cd src && sed -i s/a/b/ a.js', 'cd src && rm a.js', 'cd src; cp y a.js',
+    '{ echo x > src/a.js; }', 'if true; then echo x > src/a.js; fi', 'for f in a; do sed -i s/a/b/ src/a.js; done',
+  ]) {
+    const v = at(c);
+    assert.equal(v.level, 'clash', c);
+    assert.equal(v.why, c.includes('rm a.js') ? 'removes' : 'writes', c);
+    assert.deepEqual(v.files, ['src/a.js'], c);
+  }
+});
+
+test('commandClash: a target the shell would expand counts when main has work, and only then', () => {
+  const at = (command, files = ['src/a.js']) => commandClash(command, { files, cwd: '/repo' });
+  for (const c of ['echo x > src/*.js', 'echo x > "$F"', 'echo x > $F', 'echo x > $(pick)', 'echo x > `pick`', 'echo x > src/$(pick).js', 'rm $(git ls-files)', 'sed -i s/a/b/ src/*.js', 'sed -i s/a/b/ $(git ls-files)', 'perl -pi -e s/a/b/ src/*', 'cat y | tee $F', 'cp y $F', 'cp y src/*', 'cp src2/* src/', 'dd if=y of=$F', 'truncate -s0 *', 'for f in src/*.js; do sed -i s/a/b/ "$f"; done', 'cd "$D" && echo x > a.js', 'cd "$D" && rm a.js']) {
+    assert.equal(at(c).level, 'clash', c);
+    assert.deepEqual(at(c).files, ['src/a.js'], c);
+    assert.equal(at(c, []).level, 'none', `${c}: main has no work`);
+  }
+});
+
+test('commandClash: what doesn’t touch main’s files stays free, with no card', () => {
+  const at = (command, files = ['src/a.js']) => commandClash(command, { files, cwd: '/repo' });
+  for (const c of [
+    'echo x > new.txt', 'echo x >> new.txt', 'echo x >new.txt', 'echo x>new.txt', 'npm test 2> err.log', 'npm test &> out.log', 'echo x >| new.txt', 'npm test > /dev/null', 'npm test >/dev/null 2>&1', 'npm test 2>/dev/null', 'npm test &>/dev/null', 'npm test 2>&1 | tail -5', 'npm test 2>&-', 'echo x > /tmp/y', 'echo x > ../other/a.js', 'cat < src/a.js', 'wc -l < src/a.js > /tmp/n', 'cat src/a.js > copy.js',
+    'sed -i "" s/a/b/ new.txt', 'sed -i s/a/b/ new.txt', 'sed -i "" "s/a*/b/" new.txt', 'sed -i .bak "s/a*$/b/" new.txt', 'sed -i -e "s/a*/b/" new.txt', 'sed -Ei "s/[a-z]+/b/" new.txt', 'sed -n 1,5p src/a.js', 'sed s/a/b/ src/a.js', 'sed "s/a/b/" src/a.js > out.js',
+    'perl -i -pe "s/a*/b/" new.txt', 'perl -pi -e "s/a*/b/" new.txt', 'perl -Mstrict -ne "print" src/a.js', 'perl -pe s/a/b/ src/a.js',
+    'cat y | tee new.txt', 'cat src/a.js | tee -a log.txt', 'tee >(cat) < src/a.js', 'cat y | tee /dev/null',
+    'cp y new.txt', 'cp src/a.js /tmp/keep.js', 'cp src/a.js src/b.js', 'cp src/*.js /tmp/keep/', 'cp y src/', 'cp -r y lib', 'install y bin/y', 'rsync -a src/ /tmp/keep/', 'dd if=src/a.js of=/tmp/y', 'truncate -s0 new.txt', 'truncate -s 0 new.txt',
+    'cd /tmp && echo x > src/a.js', 'cd /tmp && rm src/a.js', 'cd src && echo x > new.txt',
+    'cat > new.txt <<EOF\nrm src/a.js\necho x > src/a.js\ndon\'t\nEOF', 'cat <<-\'EOF\' > new.txt\n\techo x > $F\n\tEOF', 'echo ok # rm src/a.js > src/a.js', 'echo "a > src/a.js"', 'grep -r ">" src', 'echo \'x\' \\> src/a.js', 'git log --format=">%h"',
+  ]) assert.equal(at(c).level, 'none', c);
+});
+
+test('commandClash: what follows a heredoc, an apostrophe in a comment or a chain is still read', () => {
+  const at = (command) => commandClash(command, { files: ['src/a.js'], cwd: '/repo' });
+  assert.equal(at('cat > new.txt <<EOF\ndon\'t\nEOF\nrm src/a.js').why, 'removes');
+  assert.equal(at('# don\'t\nrm src/a.js').why, 'removes');
+  assert.equal(at('cat <<EOF > src/a.js\nx\nEOF').why, 'writes');
+  assert.equal(at('npm test && echo done > new.txt; echo x > src/a.js').why, 'writes');
+  assert.equal(at('rm src/a.js; git reset --hard').why, 'shared', 'the worst one');
+  assert.deepEqual(at('echo x > src/a.js; git stash').files, ['src/a.js']);
+  assert.equal(commandClash('rm a.js; echo x > b.js', { files: ['a.js', 'b.js'], cwd: '/repo' }).why, 'removes');
+  assert.deepEqual(commandClash('rm a.js; echo x > b.js', { files: ['a.js', 'b.js'], cwd: '/repo' }).files, ['a.js', 'b.js']);
+});
+
 // --- through a real server -----------------------------------------------------------------------
 
 const edited = (dir, f = 'math.js') => fs.readFileSync(path.join(dir, f), 'utf8');
@@ -536,9 +600,64 @@ test('commands: rm of a file main changed is a clash; Apply tells main', async (
   await settled(id, 2);
 });
 
-test('a command that changed a file main also changed: a warning row and the same message to main', async () => {
+test('commands: writing over a file main changed is a card that names it; Keep leaves it, Apply runs it and tells main', async () => {
   const { id, dir } = await mainTask();
-  const side = await api(`/sessions/${id}/side`, { text: 'SIDERUN echo "// from a command" >> math.js' });
+  const before = edited(dir);
+  const side = await api(`/sessions/${id}/side`, { text: 'SIDERUN echo gone > math.js' });
+  const waiting = await asking(side.id);
+  assert.equal(waiting.ask.clash.kind, 'command');
+  assert.equal(waiting.ask.clash.why, 'writes');
+  assert.deepEqual(waiting.ask.clash.files, ['math.js']);
+  assert.match(waiting.ask.question, /math\.js/);
+  assert.equal(edited(dir), before, 'nothing written before the answer');
+  await api(`/sessions/${side.id}/clash`, { askId: waiting.ask.id, action: 'keep' });
+  await settled(side.id, 1);
+  assert.equal(edited(dir), before, 'main’s lines survived');
+
+  const again = await api(`/sessions/${id}/side`, { text: 'SIDERUN sed -i.bak s/add/plus/ math.js' });
+  const card = await asking(again.id);
+  await api(`/sessions/${again.id}/clash`, { askId: card.ask.id, action: 'apply', sig: card.ask.clash.sig });
+  await settled(again.id, 1);
+  assert.match(edited(dir), /plus/);
+  const m = await until(async () => {
+    const x = await api(`/sessions/${id}`);
+    return x.turns.length === 2 && x;
+  });
+  assert.match(m.turns[1].prompt, /math\.js[\s\S]*sed -i\.bak/);
+  await settled(id, 2);
+});
+
+test('commands: git rm of main’s work waits on a card before anything is gone', async () => {
+  const { id, dir } = await mainTask();
+  const side = await api(`/sessions/${id}/side`, { text: 'SIDERUN git rm -f math.js' });
+  const waiting = await asking(side.id);
+  assert.equal(waiting.ask.clash.why, 'shared');
+  assert.deepEqual(waiting.ask.clash.files, ['math.js']);
+  assert.ok(fs.existsSync(path.join(dir, 'math.js')));
+  await api(`/sessions/${side.id}/clash`, { askId: waiting.ask.id, action: 'keep' });
+  await settled(side.id, 1);
+  assert.match(edited(dir), /a \+ b/);
+});
+
+test('commands: a file the side’s own command made or changed stays the side’s, with no card next time', async () => {
+  const { id, dir } = await mainTask();
+  fs.writeFileSync(path.join(dir, 'notes.md'), 'hello\n');
+  repoGit(dir, 'add', 'notes.md');
+  repoGit(dir, 'commit', '-qm', 'notes', '--only', 'notes.md');
+  const side = await api(`/sessions/${id}/side`, { text: 'SIDERUN echo one > fresh.txt\nSIDERUN sed -i.bak s/hello/hi/ notes.md' });
+  await settled(side.id, 1);
+  await api(`/sessions/${side.id}/reply`, { text: 'SIDERUN echo two >> fresh.txt\nSIDERUN sed -i.bak s/hi/hey/ notes.md' });
+  const full = await settled(side.id, 2);
+  assert.equal(full.ask ?? null, null);
+  assert.equal(edited(dir, 'fresh.txt'), 'one\ntwo\n');
+  assert.equal(edited(dir, 'notes.md'), 'hey\n');
+  assert.equal(full.turns[0].sideWarn, undefined);
+  assert.equal((await api(`/sessions/${id}`)).turns.length, 1, 'nothing reached the main task');
+});
+
+test('a write the check can’t read (a script) is caught after it ran: a warning row and the same message to main', async () => {
+  const { id, dir } = await mainTask();
+  const side = await api(`/sessions/${id}/side`, { text: `SIDERUN node -e "fs.appendFileSync('math.js', '// from a command\\n')"` });
   await settled(side.id, 1);
   assert.match(edited(dir), /from a command/);
   const full = await until(async () => {

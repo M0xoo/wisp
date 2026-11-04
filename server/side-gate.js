@@ -128,7 +128,7 @@ export function createSideGate({ store, workdir, change, warn, ask, tell, answer
 
   const commandCard = (side, command, v, files) => ({ kind: 'command', command: clip(command), files: v.files || [], why: v.why, mainTitle: mainOf(side)?.title || side.sideOf.title, main: [], lines: [], sig: sha(JSON.stringify([command, v.files || [], files])) });
 
-  const askCard = (side, card) => ask(side, { question: card.kind === 'command' ? 'This command rewrites work the main task shares' : `This clashes with the main task in ${card.file}`, options: [SIDE_APPLY, SIDE_KEEP], clash: card });
+  const askCard = (side, card) => ask(side, { question: card.why === 'writes' ? `This command writes over ${card.files[0]}${card.files.length > 1 ? ` and ${card.files.length - 1} more` : ''}` : card.kind === 'command' ? 'This command rewrites work the main task shares' : `This clashes with the main task in ${card.file}`, options: [SIDE_APPLY, SIDE_KEEP], clash: card });
 
   // Everything main changed, by file, for commands: what git says plus its running turn.
   function mainFilesOf(side, dirty) {
@@ -162,7 +162,13 @@ export function createSideGate({ store, workdir, change, warn, ask, tell, answer
     const moved = new Set(during.filter((x) => !w.during.includes(x)).map((x) => x.replace(/:\d+$/, '')));
     const changed = [...new Set([...now.keys(), ...w.before.keys()])].filter((f) => now.get(f) !== w.before.get(f));
     for (const file of changed) {
-      if (!w.files.includes(file) || moved.has(file)) continue; // main's own edit in the meantime isn't the command's
+      if (moved.has(file)) continue; // main's own edit in the meantime isn't the command's
+      if (!w.files.includes(file)) {
+        // The side's command made or changed it: to the next command it isn't main's.
+        const text = readText(path.join(workdir(side), file));
+        if (text !== null) (side.sideOwn ||= {})[file] = [{ text, at: 1 }];
+        continue;
+      }
       warn(side, turn, { kind: 'command', file, main: main?.title || side.sideOf.title });
       tell(side, sideTell(side, { by: 'command', file, command: w.command, after: tailOf(path.join(workdir(side), file)) }, turn.prompt));
     }

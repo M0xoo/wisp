@@ -80,6 +80,7 @@ export function sideWarnRows(t) {
   return el(`<ul class="side-warns">${t.sideWarn.map((w) => `<li class="side-warn">${icon('warn')}<span><code>${esc(w.file)}</code> ${w.kind === 'command' ? 'also changed by' : 'is being changed by'} the main task, <b>${esc(w.main)}</b>${w.kind === 'command' ? ': a command here changed it, and the main task was told' : ', on other lines'}</span></li>`).join('')}</ul>`);
 }
 
+const moreFiles = (f) => `${f[0]}${f.length > 1 ? ` and ${f.length - 1} more` : ''}`;
 const range = (r) => (r.from === r.to ? `line ${r.from}` : r.from > r.to ? `after line ${r.to}` : `lines ${r.from}–${r.to}`);
 const CLASH_WHY = {
   lines: 'These are lines the main task changed.',
@@ -98,12 +99,12 @@ export function clashCardHtml(a) {
   const c = a.clash;
   const of = esc(c.mainTitle);
   const side = c.command ? `<pre class="perm-detail">${esc(c.command)}</pre>` : `<pre class="perm-detail clash-diff">${proposedHtml(c.proposed)}</pre>`;
-  const main = c.main.length ? `<div class="clash-label">The main task’s ${esc(c.main.map(range).join(', '))}</div><pre class="perm-detail">${esc(c.main.map((m) => m.text).join('\n…\n'))}</pre>` : c.files?.length ? `<div class="clash-label">Files of the main task it removes</div><pre class="perm-detail">${esc(c.files.join('\n'))}</pre>` : '';
+  const main = c.main.length ? `<div class="clash-label">The main task’s ${esc(c.main.map(range).join(', '))}</div><pre class="perm-detail">${esc(c.main.map((m) => m.text).join('\n…\n'))}</pre>` : c.files?.length && (c.why !== 'writes' || c.files.length > 1) ? `<div class="clash-label">Files of the main task it ${c.why === 'writes' ? 'writes over' : 'removes'}</div><pre class="perm-detail">${esc(c.files.join('\n'))}</pre>` : '';
   return `
     <div class="ask-card perm clash">
       <div class="q-head">${icon('warn')}<span>${c.kind === 'cleared' ? 'No clash any more' : 'Clash with the main task'}</span></div>
       <p class="q-text">${c.command ? 'Run this command?' : `<code>${esc(c.file)}</code>`}</p>
-      <p class="q-context">${c.moved ? `<b>The main task moved while this waited.</b> ` : ''}${esc(CLASH_WHY[c.kind] || '')} Main task: ${of}.</p>
+      <p class="q-context">${c.moved ? `<b>The main task moved while this waited.</b> ` : ''}${esc(c.why === 'writes' ? `This command writes over ${moreFiles(c.files)}, which the main task changed.` : CLASH_WHY[c.kind] || '')} Main task: ${of}.</p>
       <div class="clash-label">${c.command ? 'This side discussion wants to run' : 'This side discussion’s change'}</div>
       ${side}
       ${main}

@@ -56,7 +56,7 @@ ${latest}
 - You share the main task's folder: the files here are its work as it is right now (${read}) What you change lands in that work, and the main task may be editing at the same time.
 - Run what the user asks and edit what they ask, when they ask. Don't start changes of your own: this is a discussion, the main task does the work.
 - wisp checks every write before it happens. A file the main task hasn't touched goes through. One it changed elsewhere goes through with a warning. Lines it changed are a clash: the user sees a card here, and if they accept, wisp tells the main task. If they keep the main task's version your call is refused: don't retry it, and say what to tell the main task instead.
-- Commits, pushes, resets, stashes, rebases, merges and the like rewrite the main task's work: they count as clashes. wisp's own Ship, rollback, fork, goals and terminal stay on the main task. You can't start tasks, delegate or edit the crew.
+- Commits, pushes, resets, stashes, rebases, merges and the like rewrite the main task's work: they count as clashes, and so does a command that removes or writes over a file it changed (\`rm\`, \`>\`, \`sed -i\`, \`cp\`…). wisp's own Ship, rollback, fork, goals and terminal stay on the main task. You can't start tasks, delegate or edit the crew.
 ${latest}
 - Answer as for any wisp task, wisp presentation block included.`;
 }
@@ -181,27 +181,76 @@ export function addOwn(list, { old, text, gone, at, all }) {
 
 // Commands that rewrite the work the two share, whatever main changed. git stash list and the like
 // only read, and so does a dry run.
-const SHARED_GIT = new Set(['reset', 'checkout', 'switch', 'restore', 'clean', 'stash', 'rebase', 'merge', 'commit', 'push', 'pull', 'cherry-pick', 'revert', 'am']);
-const GIT_READS = { stash: new Set(['list', 'show']) };
+const SHARED_GIT = new Set(['reset', 'checkout', 'switch', 'restore', 'clean', 'stash', 'rebase', 'merge', 'commit', 'push', 'pull', 'cherry-pick', 'revert', 'am', 'rm', 'mv', 'apply', 'update-ref']);
 const dryRun = (args) => args.some((a) => a === '--dry-run' || /^-[a-z]*n[a-z]*$/i.test(a));
+function gitRewrites(sub, rest) {
+  if (sub === 'stash') return !['list', 'show'].includes(rest[0]);
+  if (sub === 'clean' || sub === 'rm' || sub === 'mv') return !dryRun(rest);
+  if (sub === 'apply') return rest.includes('--apply') || !rest.some((a) => ['--check', '--stat', '--numstat', '--summary'].includes(a));
+  // Listing and creating are free; moving or deleting a branch (main's, perhaps) isn't.
+  if (sub === 'branch') return rest.some((a) => /^-[a-zA-Z]*[dDmMCf]/.test(a) || ['--delete', '--move', '--force'].includes(a));
+  if (sub === 'worktree') return rest[0] === 'remove' || rest[0] === 'move';
+  return SHARED_GIT.has(sub);
+}
 
-// One command line into its simple commands, as word lists. Not a shell: quotes and the separators
-// are all it needs to find the program and its arguments. `bash -c "…"` is read too.
+// What goes before the program: assignments, wrappers and the shell's own keywords.
+const LEADERS = new Set(['sudo', 'command', 'time', 'env', 'nohup', 'exec', '{', '!', 'if', 'then', 'elif', 'else', 'while', 'until', 'do']);
+const REDIRECT = /&>>?|>>|>\||>&|>/y;
+const HEREDOC = /^<<(-?)\s*(?:'([^'\n]*)'|"([^"\n]*)"|\\?([^\s;|&<>()]+))/;
+
+// One command line into its simple commands: { words, outs }, the word list and the files it
+// redirects output to. Not a shell: quotes, separators, redirects and heredocs are all it needs to
+// find the program, its arguments and its targets. `bash -c "…"` is read too. A $(…) or `…` in an
+// argument stays in it as a `$`: what it prints can't be read here.
 function simpleCommands(text) {
   const out = [];
   let words = [];
+  let outs = [];
+  let docs = []; // heredocs opened on this line
   let word = '';
   let quote = '';
   let has = false;
+  let into = ''; // the next word is a redirect's: '>' a target, '<' an input
+  let tick = false;
   const end = () => {
-    if (has) words.push(word);
+    if (has) {
+      if (into === '>') outs.push(word);
+      else if (!into) words.push(word);
+      into = '';
+    }
     word = '';
     has = false;
   };
   const flush = () => {
     end();
-    if (words.length) out.push(words);
+    into = '';
+    if (words.length || outs.length) out.push({ words, outs });
     words = [];
+    outs = [];
+  };
+  const substitution = () => {
+    [word, has] = [`${word}$`, true];
+    flush();
+  };
+  const dropFd = () => {
+    if (/^\d+$/.test(word)) [word, has] = ['', false];
+  };
+  // A heredoc's body isn't commands, and can hold anything (an apostrophe would swallow what comes
+  // next). With no closing line, the rest is read as commands: an arithmetic 1<<2 is no heredoc.
+  const pastDocs = (nl) => {
+    let at = nl;
+    for (const d of docs) {
+      for (let p = at + 1, e; p <= text.length; p = e + 1) {
+        e = text.indexOf('\n', p);
+        if (e < 0) e = text.length;
+        if ((d.tabs ? text.slice(p, e).replace(/^\t+/, '') : text.slice(p, e)) === d.tag) {
+          at = e;
+          break;
+        }
+      }
+    }
+    docs = [];
+    return at;
   };
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
@@ -210,23 +259,56 @@ function simpleCommands(text) {
       else if (c === '\\' && quote === '"' && i + 1 < text.length) word += text[++i];
       else word += c;
     } else if (c === '"' || c === "'") [quote, has] = [c, true];
+    else if (c === '\\' && text[i + 1] === '\n') i++;
     else if (c === '\\' && i + 1 < text.length) [word, has] = [word + text[++i], true];
-    else if (c === '`' || c === '(' || c === ')' || c === ';' || c === '|' || c === '&' || c === '\n') flush();
-    else if (c === '$' && text[i + 1] === '(') (flush(), i++);
+    else if (c === '#' && !has) {
+      const nl = text.indexOf('\n', i);
+      i = nl < 0 ? text.length : nl - 1;
+    } else if (c === '\n') {
+      flush();
+      i = pastDocs(i);
+    } else if (c === '>' || (c === '&' && text[i + 1] === '>')) {
+      REDIRECT.lastIndex = i;
+      const op = REDIRECT.exec(text)[0];
+      if (c === '>') dropFd();
+      end();
+      i += op.length - 1;
+      const dup = op === '>&' && /^(?:\d+|-)(?=[\s;|&)]|$)/.exec(text.slice(i + 1, i + 12));
+      if (dup) i += dup[0].length; // 2>&1: no file
+      else if (text[i + 1] !== '(') into = '>'; // tee >(cmd) writes to a command
+    } else if (c === '<') {
+      const doc = text[i + 1] === '<' && text[i + 2] !== '<' && HEREDOC.exec(text.slice(i));
+      dropFd();
+      end();
+      if (doc) {
+        docs.push({ tabs: !!doc[1], tag: doc[2] ?? doc[3] ?? doc[4] });
+        i += doc[0].length - 1;
+      } else if (text.startsWith('<<<', i)) [i, into] = [i + 2, '<'];
+      else if (text[i + 1] === '>') [i, into] = [i + 1, '>'];
+      else if (text[i + 1] === '&') [i, into] = [i + 1, '<'];
+      else if (text[i + 1] !== '(') into = '<';
+    } else if (c === '`') {
+      if (tick) flush();
+      else substitution();
+      tick = !tick;
+    } else if (c === '$' && text[i + 1] === '(') {
+      substitution();
+      i++;
+    } else if (c === '(' || c === ')' || c === ';' || c === '|' || c === '&') flush();
     else if (c === ' ' || c === '\t') end();
     else [word, has] = [word + c, true];
   }
   flush();
-  return out.flatMap((w) => {
-    // Wrappers and assignments before the program.
+  return out.flatMap(({ words: w, outs: to }) => {
     let i = 0;
-    while (i < w.length && (/^[A-Za-z_][A-Za-z0-9_]*=/.test(w[i]) || ['sudo', 'command', 'time', 'env', 'nohup', 'exec'].includes(w[i]))) i++;
+    while (i < w.length && (/^[A-Za-z_][A-Za-z0-9_]*=/.test(w[i]) || LEADERS.has(w[i]))) i++;
     const c = w.slice(i);
+    const own = to.length ? [{ words: [], outs: to }] : []; // `sh run.sh > a.js` still writes a.js
     if (/^(ba|z|da)?sh$/.test(c[0] || '') || c[0] === 'eval') {
-      const at = c[0] === 'eval' ? 1 : c.indexOf('-c') + 1;
-      return at > 0 && c[at] ? simpleCommands(c.slice(at).join(' ')) : [];
+      const at = c[0] === 'eval' ? 1 : c.findIndex((x) => /^-[a-z]*c$/.test(x)) + 1;
+      return [...(at > 0 && c[at] ? simpleCommands(c.slice(at).join(' ')) : []), ...own];
     }
-    return c.length ? [c] : [];
+    return c.length ? [{ words: c, outs: to }] : own;
   });
 }
 
@@ -240,36 +322,120 @@ const cleanPath = (p, cwd) => {
   return parts.join('/');
 };
 
-// A command's verdict before it runs: none, or clash with why ('shared' or 'removes') and the files
-// of main's it removes. files: main's changed files, relative to cwd. An argument the shell would
-// expand can't be read here, so with main's work around it counts (fails towards a card).
+// An argument the shell would expand.
+const expands = (a) => /[*?[{$~]/.test(a);
+const plain = (args) => args.filter((a) => !a.startsWith('-'));
+
+// The files of a `sed -i` or `perl -i` (nothing without it): what's left after the flags and the
+// script, which can hold anything (`s/a*/b/` is no wildcard). scripted: the short flags that bring
+// their own script, so the first plain argument is a file.
+function inPlaceFiles(args, scripted) {
+  if (!args.some((a) => /^-[^-MmI]*i/.test(a) || /^--in-place(=|$)/.test(a))) return [];
+  const paths = [];
+  let script = false;
+  for (let j = 0; j < args.length; j++) {
+    const a = args[j];
+    if (/^--(expression|file)$/.test(a)) [script, j] = [true, j + 1];
+    else if (/^--(expression|file)=/.test(a)) script = true;
+    else if (a.startsWith('--')) continue;
+    else if (scripted.test(a)) {
+      script = true;
+      if (scripted.exec(a)[0] === a) j++;
+    } else if (a.startsWith('-')) {
+      if (/i$/.test(a) && (args[j + 1] === '' || /^\.[^/]*$/.test(args[j + 1] || ''))) j++; // BSD: -i "" or -i .bak
+    } else paths.push(a);
+  }
+  return script ? paths : paths.slice(1);
+}
+
+// Where a cp, install or rsync lands, and what it brings.
+function copyOf(prog, args) {
+  const paths = [];
+  let dest = null;
+  for (let j = 0; j < args.length; j++) {
+    const a = args[j];
+    if (prog !== 'rsync' && (/^-[a-zA-Z]*t$/.test(a) || a === '--target-directory')) dest = args[++j];
+    else if (prog !== 'rsync' && a.startsWith('--target-directory=')) dest = a.slice(19);
+    else if (!a.startsWith('-')) paths.push(a);
+  }
+  return dest === null ? { dest: paths.at(-1), sources: paths.slice(0, -1) } : { dest, sources: paths };
+}
+
+function truncated(args) {
+  const paths = [];
+  for (let j = 0; j < args.length; j++) {
+    if (['-s', '--size', '-r', '--reference'].includes(args[j])) j++;
+    else if (!args[j].startsWith('-')) paths.push(args[j]);
+  }
+  return paths;
+}
+
+// A command's verdict before it runs: none, or clash with why ('shared', 'removes' or 'writes') and
+// the files of main's it hits. files: main's changed files, relative to cwd. An argument the shell
+// would expand can't be read here, so with main's work around it counts (fails towards a card).
+// A file main hasn't touched is free, however the command writes it.
 export function commandClash(command, { files = [], cwd = '' } = {}) {
-  const hit = new Set();
+  const removed = new Set();
+  const written = new Set();
   let shared = false;
-  for (const w of simpleCommands(String(command || ''))) {
-    if (w[0] === 'git') {
-      let i = 1;
-      while (i < w.length && w[i].startsWith('-')) i += w[i] === '-C' || w[i] === '-c' ? 2 : 1;
-      const sub = w[i];
-      const rest = w.slice(i + 1);
-      if (!SHARED_GIT.has(sub)) continue;
-      if (GIT_READS[sub]?.has(rest[0])) continue;
-      if (sub === 'clean' && dryRun(rest)) continue;
+  let here = cwd; // a `cd` in the chain moves what relative paths mean
+  let lost = false; // cd "$D": they could mean anything now
+  // tree: a folder, and everything of main's in it.
+  const reach = (a, into, tree = false) => {
+    if (!a) return;
+    const wild = expands(a) || (lost && !a.startsWith('/'));
+    const p = cleanPath(a, here);
+    for (const f of files) {
+      const full = cleanPath(f, cwd);
+      if (wild || full === p || (tree && full.startsWith(`${p}/`))) into.add(f);
+    }
+  };
+  for (const { words: w, outs } of simpleCommands(String(command || ''))) {
+    for (const t of outs) reach(t, written);
+    if (!w.length) continue;
+    const prog = w[0].split('/').pop();
+    const args = w.slice(1);
+    if (prog === 'cd') {
+      const to = plain(args)[0];
+      if (!to || expands(to)) lost = true;
+      else {
+        here = cleanPath(to, here);
+        if (to.startsWith('/')) lost = false;
+      }
+    } else if (prog === 'git') {
+      let i = 0;
+      while (i < args.length && args[i].startsWith('-')) i += args[i] === '-C' || args[i] === '-c' ? 2 : 1;
+      const sub = args[i];
+      const rest = args.slice(i + 1);
+      if (!gitRewrites(sub, rest)) continue;
       shared = true;
-    } else if (['rm', 'mv', 'unlink'].includes(w[0].split('/').pop())) {
-      for (const a of w.slice(1)) {
-        if (a.startsWith('-')) continue;
-        const wild = /[*?[{$~]/.test(a);
-        const p = cleanPath(a, cwd);
-        for (const f of files) {
-          const full = cleanPath(f, cwd);
-          if (wild || full === p || full.startsWith(`${p}/`)) hit.add(f);
-        }
+      if (sub === 'rm' || sub === 'mv') for (const a of plain(rest)) reach(a, removed, true);
+    } else if (['rm', 'mv', 'unlink'].includes(prog)) {
+      for (const a of plain(args)) reach(a, removed, true);
+    } else if (prog === 'sed' || prog === 'gsed' || prog === 'perl') {
+      for (const a of inPlaceFiles(args, prog === 'perl' ? /^-[^i]*[eE]/ : /^-[^i]*[ef]/)) reach(a, written);
+    } else if (prog === 'tee') {
+      for (const a of plain(args)) reach(a, written);
+    } else if (prog === 'truncate') {
+      for (const a of truncated(args)) reach(a, written);
+    } else if (prog === 'dd') {
+      for (const a of args) if (a.startsWith('of=')) reach(a.slice(3), written);
+    } else if (prog === 'cp' || prog === 'install' || prog === 'rsync') {
+      const { dest, sources } = copyOf(prog, args);
+      if (!dest) continue;
+      reach(dest, written);
+      for (const s of sources) {
+        // Into a folder: only what lands on main's file counts, `cp y src/` doesn't.
+        const name = s.endsWith('/') ? '*' : s.split('/').pop();
+        if (expands(name)) reach(dest, written, true);
+        else reach(`${dest}/${name}`, written, true);
       }
     }
   }
-  if (shared) return { level: 'clash', why: 'shared', files: [...hit] };
-  return hit.size ? { level: 'clash', why: 'removes', files: [...hit] } : { level: 'none' };
+  const hit = [...new Set([...removed, ...written])];
+  if (shared) return { level: 'clash', why: 'shared', files: hit };
+  if (removed.size) return { level: 'clash', why: 'removes', files: hit };
+  return written.size ? { level: 'clash', why: 'writes', files: hit } : { level: 'none' };
 }
 
 const clipText = (t, n) => (String(t).length > n ? `${String(t).slice(0, n)}…` : String(t));
