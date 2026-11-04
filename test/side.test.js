@@ -18,7 +18,7 @@ process.env.WISP_UPDATE_CHECK = '0';
 installFakeBins();
 
 const { startServer } = await import('../server/index.js');
-const { sideAsk, sidePrompt, parseHunks, editLines, mainChanges, clashCheck, commandClash, addOwn, SIDE_APPLY, SIDE_KEEP } = await import('../server/side.js');
+const { sideAsk, sidePrompt, parseHunks, editLines, mainChanges, clashCheck, commandClash, addOwn, SIDE_APPLY, SIDE_KEEP, SIDE_APPLY_OTHER, SIDE_KEEP_OTHER } = await import('../server/side.js');
 const { adapters } = await import('../server/adapters/index.js');
 const page = await import('../web/js/slash-text.js');
 
@@ -503,6 +503,68 @@ test('a side’s second edit of its own line isn’t a clash with itself', async
   const full = await settled(side.id, 2);
   assert.match(edited(dir), /export function sum/);
   assert.equal(full.ask, undefined);
+});
+
+test('a second side discussion: another side’s lines are that side’s on the card, not the main task’s, and the main task hears nothing', async () => {
+  const { id, dir, main } = await mainTask();
+  // A file main never touched: only the first side changes it.
+  fs.writeFileSync(path.join(dir, 'notes.md'), 'hello\nworld\n');
+  repoGit(dir, 'add', 'notes.md');
+  repoGit(dir, 'commit', '-qm', 'notes', '--only', 'notes.md');
+  const first = await api(`/sessions/${id}/side`, { text: 'SIDEEDIT notes.md|world|there' });
+  const { title } = await settled(first.id, 1);
+  const second = await api(`/sessions/${id}/side`, { text: 'SIDEEDIT notes.md|there|everyone' });
+  const waiting = await asking(second.id);
+  const c = waiting.ask.clash;
+  assert.deepEqual([c.kind, c.file, c.by?.id, c.by?.title], ['lines', 'notes.md', first.id, title]);
+  assert.doesNotMatch(waiting.ask.question, /main task/);
+  assert.match(waiting.ask.question, /another side discussion/);
+  assert.deepEqual(waiting.ask.options, [SIDE_APPLY_OTHER, SIDE_KEEP_OTHER]);
+  // It's that discussion's work, so Apply and Keep don't speak of main, and main isn't told.
+  await api(`/sessions/${second.id}/clash`, { askId: waiting.ask.id, action: 'apply', sig: c.sig });
+  const done = await settled(second.id, 1);
+  assert.equal(edited(dir, 'notes.md'), 'hello\neveryone\n');
+  assert.doesNotMatch(JSON.stringify(done.turns[0].activity), /told the main task/);
+  const after = await api(`/sessions/${id}`);
+  assert.deepEqual([after.turns.length, after.queue?.length || 0], [1, 0], `${main.title} heard nothing`);
+});
+
+test('a second side discussion: another line of what a side changed is said as that side’s; main’s own lines stay main’s', async () => {
+  const { id, dir, main } = await mainTask();
+  fs.writeFileSync(path.join(dir, 'notes.md'), 'one\ntwo\nthree\n');
+  repoGit(dir, 'add', 'notes.md');
+  repoGit(dir, 'commit', '-qm', 'notes', '--only', 'notes.md');
+  const first = await api(`/sessions/${id}/side`, { text: 'SIDEEDIT notes.md|one|uno' });
+  const { title } = await settled(first.id, 1);
+  const second = await api(`/sessions/${id}/side`, { text: 'SIDEEDIT notes.md|three|tres' });
+  const quiet = await settled(second.id, 1);
+  assert.deepEqual(quiet.turns[0].sideWarn.map((w) => [w.kind, w.file, w.main, w.by]), [['overlap', 'notes.md', title, 'side']]);
+  assert.equal(edited(dir, 'notes.md'), 'uno\ntwo\ntres\n');
+  // In a file both changed, main's line is still main's.
+  const both = await api(`/sessions/${id}/side`, { text: 'SIDEEDIT math.js|export function add|export function plus' });
+  await settled(both.id, 1);
+  const third = await api(`/sessions/${id}/side`, { text: 'SIDEEDIT math.js|return a + b;|return b + a;' });
+  const c = (await asking(third.id)).ask.clash;
+  assert.deepEqual([c.kind, c.mainTitle, c.by], ['lines', main.title, undefined]);
+  await api(`/sessions/${third.id}/clash`, { askId: (await api(`/sessions/${third.id}`)).ask.id, action: 'keep', sig: c.sig });
+  await settled(third.id, 1);
+});
+
+test('a second side discussion: a command over what only another side changed names that side, and Keep leaves it', async () => {
+  const { id, dir } = await mainTask();
+  fs.writeFileSync(path.join(dir, 'notes.md'), 'hello\nworld\n');
+  repoGit(dir, 'add', 'notes.md');
+  repoGit(dir, 'commit', '-qm', 'notes', '--only', 'notes.md');
+  const first = await api(`/sessions/${id}/side`, { text: 'SIDEEDIT notes.md|world|there' });
+  await settled(first.id, 1);
+  const second = await api(`/sessions/${id}/side`, { text: 'SIDERUN rm notes.md' });
+  const waiting = await asking(second.id);
+  const c = waiting.ask.clash;
+  assert.deepEqual([c.kind, c.why, c.files, c.by?.id], ['command', 'removes', ['notes.md'], first.id]);
+  await api(`/sessions/${second.id}/clash`, { askId: waiting.ask.id, action: 'keep', sig: c.sig });
+  await settled(second.id, 1);
+  assert.equal(edited(dir, 'notes.md'), 'hello\nthere\n');
+  assert.deepEqual((await api(`/sessions/${id}`)).turns.length, 1);
 });
 
 test('clash: a card in the side before the write; the main task gets none; Apply tells an idle main as a follow-up', async () => {

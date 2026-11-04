@@ -16,7 +16,7 @@ import { handoffNote, mapEffort } from './handoff.js';
 import { openTerms } from './pty.js';
 import { agentPrompt, plainMentions } from './mentions.js';
 import { BTW_SYSTEM, BTW_TIMEOUT_MS, MAX_BTW, btwAnswer, btwPrompt } from './btw.js';
-import { SIDE_APPLY, SIDE_DENIED, SIDE_KEEP, sideNote, sidePrompt } from './side.js';
+import { SIDE_APPLY, SIDE_APPLY_OTHER, SIDE_DENIED, SIDE_KEEP, SIDE_KEEP_OTHER, sideNote, sidePrompt } from './side.js';
 import { createSideGate } from './side-gate.js';
 import { bad, clip, MODES, newId } from './util.js';
 import { LIMIT_CARRY_ON, laterNote, laterView } from './later.js';
@@ -1005,7 +1005,7 @@ export class Runner extends EventEmitter {
     // A clash card goes through its own recheck. Typed words keep main's version, with those words.
     if (ask.clash) {
       try {
-        this.clashAnswer(session, text === SIDE_APPLY ? { action: 'apply' } : { action: 'keep', words: text === SIDE_KEEP ? '' : text });
+        this.clashAnswer(session, text === SIDE_APPLY || text === SIDE_APPLY_OTHER ? { action: 'apply' } : { action: 'keep', words: text === SIDE_KEEP || text === SIDE_KEEP_OTHER ? '' : text });
         return true;
       } catch (err) {
         if (err.stale) return false;
