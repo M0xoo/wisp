@@ -190,6 +190,11 @@ const SAVE = {
       title: { type: 'string', description: 'What the user sees on its card, a few words. Default: from the file name.' },
       note: { type: 'string', description: 'Optional: one or two sentences on what it is, to find it by later.' },
       tags: { type: 'array', items: { type: 'string' }, description: 'Optional: 1–5 short words to find it by, e.g. ["logo", "brand"].' },
+      pin: {
+        type: 'string',
+        enum: ['home', 'task'],
+        description: 'With an app, in a Make a pane task only (ignored elsewhere): show it as a pane on home, or beside tasks. Pinning grants nothing: the user allows what it uses from its bar.',
+      },
       publish: {
         type: 'boolean',
         description:

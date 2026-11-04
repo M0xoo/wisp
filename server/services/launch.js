@@ -19,6 +19,9 @@ import { attachmentNote } from '../adapters/common.js';
 import { openTui, startsInTerminal, tuiReply } from './tui.js';
 import { sandboxAsk, terminalAsk } from '../../web/js/slash-text.js';
 
+// Tasks that work on wisp itself, from an empty folder here: Cast a spell, and Make a pane.
+const OWN_FOLDER = ['spell', 'pane'];
+
 export const MAX_COMPARE = 4;
 export const MAX_ALSO = 8; // extra folders one task may work in
 
@@ -73,11 +76,12 @@ export function createLaunch(app) {
     if (asGoal) body = { ...body, goal: asGoal, prompt: asGoal };
     if (!String(body.prompt || '').trim()) throw bad('prompt required');
     // goal: { text, judges?, vote? }: the task keeps going until it holds (server/goal.js).
-    const goal = !crew && !body.delegated && body.kind !== 'spell' ? normalizeGoal(body.goal) : null;
+    const goal = !crew && !body.delegated && !OWN_FOLDER.includes(body.kind) ? normalizeGoal(body.goal) : null;
     // kind 'spell': Cast a spell. The agent changes wisp, not a project: an empty scratch folder of
     // its own, one run. Edits mode, not Plan: Claude's Plan mode refuses MCP tools (the spell tools),
     // and there is nothing in the folder to edit; wisp installs the spell only when you keep it.
-    const kind = body.kind === 'spell' ? 'spell' : '';
+    // kind 'pane': the same for an app for My Stuff (server/pane-guide.js): it builds it there and saves it.
+    const kind = OWN_FOLDER.includes(body.kind) ? body.kind : '';
     if (kind) body = { ...body, scratch: true, mode: 'edits', compare: undefined, subagents: undefined, preset: undefined, worktree: false };
     // scratch: no project folder (general questions); the task gets an empty directory of its own.
     const scratch = body.scratch === true;
@@ -177,7 +181,7 @@ export function createLaunch(app) {
         return made.map((worktree) => ({ cwd: dir, ...(worktree && { worktree }) }));
       }),
     );
-    const made = runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, kind, goal, hold, tui, ...(crew && !i && { crew }), ...(kind && { title: `Spell: ${String(body.prompt).trim().split('\n')[0].slice(0, 60)}` }), ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
+    const made = runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, kind, goal, hold, tui, ...(crew && !i && { crew }), ...(kind && { title: `${kind === 'pane' ? 'Pane' : 'Spell'}: ${String(body.prompt).trim().split('\n')[0].slice(0, 60)}` }), ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
     if (tui) openTui(app, made[0], { prompt: String(body.prompt).trim() + attachmentNote(attachments), cols: body.cols, rows: body.rows });
     return made;
   }
@@ -204,10 +208,10 @@ export function createLaunch(app) {
   async function launchAny(body, origin = null, opts = {}) {
     // "/sandbox …": a fresh box of its own on your grid, made first (services/sandbox.js), which
     // comes back here with the machine set.
-    if (!body.machine && body.kind !== 'spell' && sandboxAsk(body.prompt) !== null && app.sandbox) return app.sandbox.launch(body, origin);
+    if (!body.machine && !OWN_FOLDER.includes(body.kind) && sandboxAsk(body.prompt) !== null && app.sandbox) return app.sandbox.launch(body, origin);
     // machine: "sandbox" (wisp_launch, the API): the same as typing /sandbox.
     if (body.machine === 'sandbox' && app.sandbox) return app.sandbox.launch({ ...body, machine: undefined, prompt: `/sandbox ${String(body.prompt || '').trim()}` }, origin);
-    const mid = body.kind === 'spell' ? null : machineFor(body); // spells change this wisp, so they're cast here
+    const mid = OWN_FOLDER.includes(body.kind) ? null : machineFor(body); // spells change this wisp, and My Stuff is here: they're made here
     // You picked a harness yourself after Auto's preview showed another: Auto learns from it.
     if (body.agent && body.agent !== 'auto') app.auto.overrode(body, body);
     // The team as that place runs it: members on other machines are carried there from here.

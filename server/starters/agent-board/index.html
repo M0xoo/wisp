@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent board</title>
+<link rel="stylesheet" href="/_wisp/pane.css">
+<style>
+  body { display: flex; flex-direction: column; gap: 8px; padding: 8px; overflow: hidden; }
+  #note { margin: 0; font-size: 12.5px; color: var(--muted); }
+  #note:empty { display: none; }
+  #note.bad { color: var(--bad); }
+  #crew { display: flex; flex-wrap: wrap; gap: 4px; }
+  #crew:empty { display: none; }
+  #board { flex: 1; min-height: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(150px, 1fr); gap: 8px; overflow-x: auto; }
+  .col { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-radius: 10px; background: var(--bg-2); }
+  .col.over { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+  .col h2 { display: flex; align-items: center; gap: 6px; margin: 0; padding: 8px 10px 4px; font-size: 12.5px; font-weight: 500; color: var(--ink-2); }
+  .col h2 b { flex: 1; min-width: 0; font-weight: inherit; }
+  .col h2 span { color: var(--faint); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .col[data-col=needs] h2::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
+  .list { flex: 1; min-height: 40px; display: flex; flex-direction: column; gap: 6px; padding: 4px 6px 8px; overflow-y: auto; }
+  .card { flex: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 8px 10px; }
+  .card.ghost { position: fixed; z-index: 10; pointer-events: none; box-shadow: var(--shadow-2); }
+  .card.lifted { opacity: 0.4; }
+  .top { display: flex; gap: 6px; align-items: flex-start; }
+  .grip { position: relative; flex: none; display: grid; place-items: center; width: 12px; height: 18px; color: var(--faint); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .title { flex: 1; min-width: 0; font-weight: 500; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+  .when { flex: none; min-width: 3ch; font-size: 11.5px; line-height: 18px; text-align: right; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .meta { display: flex; flex-wrap: wrap; gap: 3px; min-height: 20px; }
+  .meta .chip { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .acts { display: flex; justify-content: flex-end; gap: 4px; }
+  .acts .btn { min-height: 26px; padding: 0 8px; font-size: 12.5px; }
+  .say { display: grid; gap: 4px; }
+  .say textarea { display: block; width: 100%; padding: 6px 8px; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 8px; outline: 0; resize: vertical; }
+  .say textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .say textarea::placeholder { color: var(--faint); }
+  .err { margin: 0; font-size: 12.5px; color: var(--bad); overflow-wrap: anywhere; }
+  .err:empty { display: none; }
+  #empty { margin: auto; color: var(--muted); text-align: center; }
+  .ph { pointer-events: none; }
+  .ph .sk { height: 11px; border-radius: 6px; }
+  .ph .sk + .sk { width: 60%; }
+  /* A finger: 44px to touch, the same room in the layout (the grip's ::before reaches past it). */
+  @media (pointer: coarse) {
+    .grip { width: 16px; }
+    .grip::before { content: ''; position: absolute; inset: -13px -14px; }
+    .acts .btn { flex: 1; min-height: 44px; justify-content: center; }
+    .say textarea { font-size: 16px; }
+  }
+  /* Narrow: the columns stack and the board scrolls down, never sideways. Done's heading stays at
+     the bottom edge, so a card can be dropped on it from anywhere in the list: that takes .col out
+     of the box tree, or the heading couldn't leave the top of its own column. */
+  @media (max-width: 640px) {
+    #board { display: flex; flex-direction: column; gap: 4px; overflow: hidden auto; }
+    .col { flex: none; min-height: auto; background: none; }
+    .col h2 { padding: 8px 2px 4px; }
+    .list { flex: none; min-height: 0; padding: 0; overflow: visible; }
+    .list:empty { display: none; }
+    .col[data-col=done] { display: contents; }
+    .col[data-col=done] h2 { position: sticky; bottom: 0; z-index: 1; flex: none; min-height: 44px; margin-top: 4px; padding: 0 10px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; }
+    .col.over h2 { background: color-mix(in srgb, var(--accent) 12%, var(--bg-2)); border-color: var(--accent); } /* opaque: cards pass under it */
+  }
+</style>
+</head>
+<body>
+<p id="note" role="status"></p>
+<div id="crew"></div>
+<div id="board"></div>
+<p id="empty" hidden>No tasks yet. Start one and it shows up here.</p>
+<script src="/_wisp/pane.js"></script>
+<script>
+  // The columns, from what a task is doing. Its question counts as needing you, whatever its state.
+  const COLS = [['running', 'Working'], ['needs', 'Needs you'], ['review', 'Review'], ['done', 'Done']];
+  const colOf = (t) => (t.state === 'done' ? 'done' : t.asks || t.state === 'waiting' ? 'needs' : t.state === 'running' ? 'running' : 'review');
+  const board = document.getElementById('board');
+  const note = document.getElementById('note');
+  const cols = new Map();
+  const cards = new Map(); // task id -> { node, task }
+  let lifted = null; // the card being dragged: a refresh leaves the board alone until it lands
+  const GRIP = `<svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor" aria-hidden="true">${[1, 7, 13].map((y) => `<circle cx="1.5" cy="${y}" r="1.2"/><circle cx="6.5" cy="${y}" r="1.2"/>`).join('')}</svg>`;
+  const PLACEHOLDER = '<div class="card ph" aria-hidden="true"><i class="sk"></i><i class="sk"></i></div>';
+
+  for (const [id, name] of COLS) {
+    const col = document.createElement('section');
+    col.className = 'col';
+    col.dataset.col = id;
+    col.innerHTML = `<h2><b></b><span></span></h2><div class="list">${PLACEHOLDER}${PLACEHOLDER}</div>`;
+    col.querySelector('b').textContent = name;
+    board.append(col);
+    cols.set(id, col);
+  }
+
+  // Writes only what changed: an update that changes nothing here touches nothing.
+  const put = (node, text) => {
+    if (node.textContent !== text) node.textContent = text;
+  };
+  const say = (text, bad = false) => {
+    put(note, text);
+    note.classList.toggle('bad', bad);
+  };
+  const ago = (t) => {
+    if (!t) return '';
+    const m = Math.round((Date.now() - t) / 60000);
+    return m < 1 ? 'now' : m < 60 ? `${m}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`;
+  };
+  const chip = (text) => {
+    const c = document.createElement('span');
+    c.className = 'chip';
+    c.textContent = text;
+    return c;
+  };
+
+  // Mark done: from the button, or a card dropped on Done. A refusal stays on the card.
+  async function markDone(card) {
+    card.err.textContent = '';
+    try {
+      await wisp.tasks.done(card.task.id);
+    } catch (err) {
+      card.err.textContent = err.message;
+    }
+  }
+
+  async function followUp(card, box) {
+    const text = box.value.trim();
+    if (!text) return box.focus();
+    card.err.textContent = '';
+    try {
+      await wisp.tasks.followUp(card.task.id, text); // wisp's own card asks first
+      box.value = '';
+      card.say.hidden = true;
+    } catch (err) {
+      card.err.textContent = err.message;
+    }
+  }
+
+  function makeCard(t) {
+    const node = document.createElement('article');
+    node.className = 'card';
+    node.dataset.id = t.id;
+    node.innerHTML = `<div class="top"><span class="grip" title="Drag to Done">${GRIP}</span><span class="title"></span><time class="when"></time></div>
+      <div class="meta"></div>
+      <div class="acts"><button class="btn" data-a="say">Follow up</button><button class="btn" data-a="done">Done</button></div>
+      <form class="say" hidden><textarea rows="2" aria-label="Follow-up" placeholder="Follow up…"></textarea><div class="acts"><button type="button" class="btn" data-a="close">Cancel</button><button class="btn primary">Send</button></div></form>
+      <p class="err" role="alert"></p>`;
+    const card = { node, task: t, title: node.querySelector('.title'), when: node.querySelector('.when'), grip: node.querySelector('.grip'), meta: node.querySelector('.meta'), say: node.querySelector('.say'), err: node.querySelector('.err'), done: node.querySelector('[data-a=done]') };
+    const box = node.querySelector('textarea');
+    node.addEventListener('click', (e) => {
+      const a = e.target.closest('[data-a]')?.dataset.a;
+      if (a === 'done') markDone(card);
+      if (a === 'say') {
+        card.say.hidden = !card.say.hidden;
+        if (!card.say.hidden) box.focus();
+      }
+      if (a === 'close') card.say.hidden = true;
+    });
+    card.say.addEventListener('submit', (e) => {
+      e.preventDefault();
+      followUp(card, box);
+    });
+    card.grip.addEventListener('pointerdown', (e) => lift(card, e));
+    return card;
+  }
+
+  function paintCard(card, t) {
+    card.task = t;
+    put(card.title, t.title || 'Untitled');
+    card.title.title = t.title || '';
+    put(card.when, ago(t.updatedAt)); // its own column: the minute ticking over moves no chip
+    const bits = [t.harness, t.account, t.machine, t.crew?.name, t.pr && `#${t.pr.number}`].filter(Boolean);
+    if (card.meta.dataset.bits !== bits.join('\0')) {
+      card.meta.dataset.bits = bits.join('\0');
+      card.meta.replaceChildren(...bits.map(chip));
+    }
+    card.done.hidden = t.state === 'done';
+    card.grip.hidden = t.state === 'done'; // nowhere left to drag it
+  }
+
+  // Only what changed moves: an open follow-up box stays open and keeps what's typed in it.
+  function paint(tasks) {
+    if (lifted) return (lifted.next = tasks);
+    say('');
+    document.querySelectorAll('.ph').forEach((n) => n.remove());
+    const seen = new Set();
+    for (const t of [...tasks].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))) {
+      seen.add(t.id);
+      const card = cards.get(t.id) || makeCard(t);
+      cards.set(t.id, card);
+      paintCard(card, t);
+      const list = cols.get(colOf(t)).querySelector('.list');
+      // Only a new card, or one that changed column, goes in, newest first; the rest stay in place.
+      if (card.node.parentNode !== list) list.insertBefore(card.node, [...list.children].find((n) => (cards.get(n.dataset.id)?.task.updatedAt || 0) < (t.updatedAt || 0)) || null);
+    }
+    for (const [id, card] of cards) if (!seen.has(id)) (card.node.remove(), cards.delete(id));
+    for (const col of cols.values()) put(col.querySelector('h2 span'), String(col.querySelector('.list').children.length));
+    document.getElementById('empty').hidden = cards.size > 0;
+    board.hidden = cards.size === 0;
+  }
+
+  // Drag: pointer events, so a finger works too (the grip alone doesn't scroll the column).
+  function lift(card, e) {
+    e.preventDefault();
+    const grip = e.currentTarget;
+    grip.setPointerCapture(e.pointerId);
+    const ghost = card.node.cloneNode(true);
+    ghost.classList.add('ghost');
+    ghost.style.width = `${card.node.offsetWidth}px`;
+    document.body.append(ghost);
+    card.node.classList.add('lifted');
+    lifted = { card };
+    const at = (ev) => {
+      ghost.style.left = `${ev.clientX - 12}px`;
+      ghost.style.top = `${ev.clientY - 12}px`;
+      const over = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.col');
+      cols.forEach((c) => c.classList.toggle('over', c === over && c.dataset.col === 'done'));
+      return over;
+    };
+    at(e);
+    grip.onpointermove = at;
+    grip.onpointerup = grip.onpointercancel = (ev) => {
+      const over = ev.type === 'pointerup' ? at(ev) : null;
+      grip.onpointermove = grip.onpointerup = grip.onpointercancel = null;
+      ghost.remove();
+      card.node.classList.remove('lifted');
+      cols.forEach((c) => c.classList.remove('over'));
+      const { next } = lifted;
+      lifted = null;
+      if (next) paint(next);
+      if (over?.dataset.col === 'done' && card.task.state !== 'done') markDone(card);
+    };
+  }
+
+  // Waiting for Allow…: the board says so, and starts the moment it can.
+  function start() {
+    wisp.tasks.list().then(
+      (tasks) => {
+        paint(tasks);
+        wisp.on('tasks', paint);
+        crew();
+      },
+      (err) => {
+        say(/Not allowed/.test(err.message) ? 'Press Allow… on this pane’s bar to see your tasks.' : err.message);
+        board.hidden = true;
+        setTimeout(start, 4000);
+      },
+    );
+  }
+  function crew() {
+    wisp.crew.list().then(
+      (list) => {
+        const box = document.getElementById('crew');
+        const names = list.map((m) => `${m.name}${m.busy ? ' · working' : ''}`);
+        if (box.dataset.names !== names.join('\0')) {
+          box.dataset.names = names.join('\0');
+          box.replaceChildren(...names.map(chip));
+        }
+      },
+      () => {},
+    );
+    setTimeout(crew, 60000);
+  }
+  setInterval(() => cards.forEach((c) => paintCard(c, c.task)), 60000);
+  start();
+</script>
+</body>
+</html>

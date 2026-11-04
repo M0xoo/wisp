@@ -9,8 +9,11 @@ import net from 'node:net';
 import path from 'node:path';
 import vm from 'node:vm';
 import { installFakeBins, tmp } from './helpers.js';
-import { appFor, argsOf, effectiveGrant, grantOf, launchBody, lightPrs, lightTask, missingOf, notWhile, PANE_APP_CSP, PANE_CALLS, PANE_CLIENT, PANE_CSP, PANE_USES, PANE_WRITES, paneFrameCsp, panesProblem, panesString, paneWrapperDoc, parsePanes, refusal, runsFullAuto, scrubSecrets, showInvisible, usesOf } from '../web/js/pane-bridge.js';
+import { appFor, argsOf, burnOf, CALL_DOCS, effectiveGrant, grantOf, launchBody, lightAccounts, lightPrs, lightTask, missingOf, notWhile, PANE_APP_CSP, PANE_CALLS, PANE_CLIENT, PANE_CSP, PANE_USES, PANE_WRITES, paneFrameCsp, PANE_KIT, paneStale, panesProblem, panesString, paneWrapperDoc, parsePanes, refusal, runsFullAuto, scrubSecrets, showInvisible, usesOf } from '../web/js/pane-bridge.js';
 import { appHash, scanApp } from '../server/services/stuff.js';
+import { paneGuide, PANE_EXAMPLE, paneReference } from '../server/pane-guide.js';
+import { starters } from '../server/routes/stuff.js';
+import { isPaneAsk } from '../web/js/slash-text.js';
 import { createPublish } from '../server/services/publish.js';
 import { packAttached } from '../server/services/share.js';
 
@@ -151,6 +154,90 @@ test('scrubSecrets: tokens are gone from what a frame gets, ordinary words aren�
   assert.deepEqual(lightPrs([{ id: 't', title: 'API_KEY=abc', pr: { url: 'u' } }]).map((p) => p.title.includes('abc')), [false]);
 });
 
+test('the pane guide comes from the schema: every scope and call, with its arguments and what it returns', () => {
+  assert.deepEqual(Object.keys(CALL_DOCS).sort(), Object.keys(PANE_CALLS).sort(), 'a call without a doc fails here');
+  const ref = paneReference();
+  for (const m of Object.keys(PANE_CALLS)) {
+    assert.ok(CALL_DOCS[m].call && CALL_DOCS[m].returns, m);
+    assert.ok(ref.includes(CALL_DOCS[m].call) && ref.includes(CALL_DOCS[m].returns), m);
+  }
+  for (const [k, words] of Object.entries(PANE_USES)) assert.ok(ref.includes(k) && ref.includes(words), k);
+  for (const fact of ['/_wisp/pane.js', '/_wisp/pane.css', 'wisp.context', "wisp.on('context'", "wisp.on('tasks'", 'wisp-app.json', 'Changed since allowed', 'bundle everything', 'Links can', 'Handle the rejection']) assert.ok(ref.includes(fact), fact);
+  const guide = paneGuide('mcp__x__ask');
+  assert.ok(guide.includes('mcp__x__ask'));
+  for (const fact of ['wisp_save', 'pin: "home"', 'same id', 'Never ask for tasks:write when reading is enough']) assert.ok(guide.includes(fact), fact);
+});
+
+test('the guide’s example is a pane wisp accepts, and keeps to its own rules', () => {
+  assert.deepEqual(usesOf(PANE_EXAMPLE.manifest), PANE_EXAMPLE.manifest.uses);
+  assert.deepEqual(PANE_EXAMPLE.manifest.uses, ['tasks:read'], 'the least it needs');
+  assert.ok(paneGuide().includes(PANE_EXAMPLE.html) && paneGuide().includes(PANE_EXAMPLE.manifest.name));
+  assert.match(PANE_EXAMPLE.html, /\/_wisp\/pane\.js/);
+  assert.doesNotMatch(PANE_EXAMPLE.html, /https?:\/\//, 'nothing from elsewhere');
+  assert.match(PANE_EXAMPLE.html, /err\.message/, 'handles a refusal');
+});
+
+test('isPaneAsk: “make me a pane” in the prompt box, nothing else', () => {
+  for (const yes of ['make a pane that lists PRs', 'Make me a pane', 'please make me a pane for crew', 'MAKE A PANE']) assert.equal(isPaneAsk(yes), true, yes);
+  for (const no of ['make a panel', 'make me a pancake', 'fix the pane', 'can you make a pane', '']) assert.equal(isPaneAsk(no), false, no);
+});
+
+test('paneStale: a new rev means reload; the first load, the same rev or a gone app don’t', () => {
+  assert.equal(paneStale(1, { rev: 2 }), true);
+  assert.equal(paneStale(3, { rev: 2 }), true, 'a restore bumps it too, but any move counts');
+  assert.equal(paneStale(1, {}), false, 'a new item has no rev yet');
+  assert.equal(paneStale(2, { rev: 2 }), false);
+  assert.equal(paneStale(undefined, { rev: 2 }), false, 'not loaded yet');
+  assert.equal(paneStale(1, null), false);
+});
+
+test('usage: light per-account rows, no email or anything else an account carries', () => {
+  const now = 10 * 3_600_000;
+  const H = 3_600_000;
+  const email = 'ada@example.com';
+  const agents = [
+    { id: 'auto', available: true },
+    { id: 'off', name: 'Off', available: false, budget: [{ account: 'default', windows: [{ id: 'x', used: 1 }] }] },
+    {
+      id: 'claude',
+      name: 'Claude Code',
+      available: true,
+      accounts: [{ id: 'default', label: 'Main', email, plan: 'max', home: '/secret' }, { id: 'w', label: email, email }, { id: 'idle', label: 'Idle', email }],
+      budget: [
+        { account: 'default', at: 1, drain: { x: 1 }, windows: [{ id: 'five_hour', label: '5-hour', used: 0.5, resetsAt: now + 3 * H, ms: 5 * H, hitAt: 1, line: 0.9, est: 3 }, { id: 'seven_day', label: 'Weekly', used: 1.4, resetsAt: now + 48 * H, ms: 168 * H }] },
+        { account: 'w', windows: [{ id: 'five_hour', label: '5-hour', used: 0.01, resetsAt: now + 3 * H, ms: 5 * H }] },
+      ],
+    },
+    { id: 'codex', name: 'Codex', available: true, accounts: [{ id: 'default', label: 'Main', email }] },
+    { id: 'grok', name: 'Grok', available: true },
+  ];
+  const rows = lightAccounts(agents, now);
+  assert.deepEqual(rows.map((r) => [r.agent, r.agentName, r.account, r.windows.length]), [['claude', 'Claude Code', 'Main', 2], ['claude', 'Claude Code', 'Account 2', 1], ['claude', 'Claude Code', 'Idle', 0], ['codex', 'Codex', '', 0], ['grok', 'Grok', '', 0]]);
+  assert.deepEqual(rows[0].windows[0], { id: 'five_hour', label: '5-hour', used: 0.5, resetsAt: now + 3 * H });
+  assert.equal(rows[0].windows[1].used, 1, 'kept to 0–1');
+  assert.equal(rows[0].burnPerHour, 0.25, '50% of the 5-hour window in its first 2 hours');
+  assert.equal(rows[0].burnWindow, '5-hour');
+  assert.equal(rows[1].burnPerHour, null, 'too little gone to tell');
+  assert.equal(rows[2].burnPerHour, null);
+  assert.doesNotMatch(JSON.stringify(rows), /ada@|example|\/secret|"plan"|"email"|"drain"|hitAt|"line"|"est"/);
+  // Never a guess.
+  assert.equal(burnOf([{ used: 0.5, resetsAt: now + H }], now).burnPerHour, null, 'no length: no start, no rate');
+  assert.equal(burnOf([{ used: 0.5, ms: 5 * H }], now).burnPerHour, null, 'no reset');
+  assert.equal(burnOf([{ used: 0.5, ms: 5 * H, resetsAt: now - 1 }], now).burnPerHour, null, 'already reset');
+  assert.equal(burnOf([{ used: 0.5, ms: 5 * H, resetsAt: now + 5 * H - 60_000 }], now).burnPerHour, null, 'a minute in');
+  assert.equal(burnOf([], now).burnPerHour, null);
+  const scrubbed = lightAccounts([{ id: 'a', name: 'A', available: true, accounts: [{ id: 'x', label: 'API_KEY=abc' }, { id: 'y', label: 'b' }], budget: [{ account: 'x', windows: [] }] }], now);
+  assert.doesNotMatch(JSON.stringify(scrubbed), /abc/);
+});
+
+test('light shapes: a task carries its harness, account and machine by name, wherever it runs', () => {
+  const t = lightTask({ id: 't@m1', title: 'x', agent: 'claude', account: 'w', machine: { id: 'm1', name: 'Studio', target: 'me@studio' } }, { harness: 'Claude Code', account: 'Work' });
+  assert.deepEqual([t.id, t.harness, t.account, t.machine], ['t@m1', 'Claude Code', 'Work', 'Studio']);
+  assert.doesNotMatch(JSON.stringify(t), /me@studio/);
+  assert.deepEqual(lightTask({ id: 't', agent: 'codex' }).harness, 'codex');
+  assert.equal(lightTask({ id: 't' }, { account: 'ada@example.com' }).account, 'Account 1');
+});
+
 test('light shapes: a task never carries its turns or folder', () => {
   const s = { id: 't1', title: 'Fix', state: 'review', status: 'done', project: 'wisp', cwd: '/secret', turns: [{ prompt: 'p' }], pr: { number: 3, url: 'u', state: 'open', checks: 'pass' }, prs: [{ repo: 'o/r', pr: { number: 4, url: 'u4', state: 'open' } }] };
   const t = lightTask(s);
@@ -178,6 +265,20 @@ test('/_wisp/pane.js: outside a pane every call refuses; inside, calls post to t
   pane.wisp.tasks.launch({ prompt: 'x' });
   assert.deepEqual(plain(pane.posted[1]), { wispPane: 1, id: 1, method: 'tasks.launch', args: [{ prompt: 'x' }] });
   assert.throws(() => (pane.wisp.tasks = {}), TypeError, 'frozen');
+});
+
+test('/_wisp/pane.js: wisp’s theme lands on the page’s root, for pane.css', () => {
+  const top = { postMessage() {} };
+  let listen;
+  const root = { dataset: {} };
+  const ctx = { addEventListener: (_, fn) => (listen = fn), console, Promise, Error, Object, Map, document: { documentElement: root } };
+  ctx.window = ctx;
+  ctx.parent = { postMessage() {}, parent: top };
+  vm.runInNewContext(PANE_CLIENT, ctx);
+  listen({ source: top, data: { wispPane: 1, event: 'context', data: { where: 'home', theme: 'dark' } } });
+  assert.equal(root.dataset.theme, 'dark');
+  assert.equal(ctx.wisp.context.theme, 'dark');
+  assert.ok(ctx.wisp.usage.accounts);
 });
 
 test('/_wisp/pane.js: answers come from wisp’s page, the parent of the wrapper frame; nobody else’s count', async () => {
@@ -257,6 +358,8 @@ test('paneCall: refuses what wasn’t allowed before calling anything, and answe
     await assert.rejects(paneCall(f, 'crew.list', []), /needs "crew:read"/);
     assert.deepEqual(calls, [], 'nothing reached the API');
     assert.deepEqual(cards, [], 'and no card opened');
+    await assert.rejects(paneCall(f, 'usage.accounts', []), /Not allowed: usage\.accounts\(\) needs "usage:read"/);
+    assert.deepEqual(calls, [], 'usage:read refused without the grant');
     const list = await paneCall(f, 'tasks.list', []);
     assert.deepEqual(list.map((t) => [t.id, t.title, t.cwd]), [['t1', 'Fix', undefined]]);
     await assert.rejects(paneCall(f, 'tasks.get', ['nope']), /No task nope/);
@@ -393,8 +496,8 @@ after(() => {
   srv.server.closeAllConnections?.();
   srv.server.close();
 });
-async function api(p, body, method = body ? 'POST' : 'GET') {
-  const r = await fetch(`${base}/api${p}`, { method, headers: method === 'GET' ? {} : { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+async function api(p, body, method = body ? 'POST' : 'GET', headers = {}) {
+  const r = await fetch(`${base}/api${p}`, { method, headers: method === 'GET' ? headers : { 'content-type': 'application/json', ...headers }, body: body ? JSON.stringify(body) : undefined });
   const j = await r.json();
   if (!r.ok) throw Object.assign(new Error(`${p}: ${j.error}`), { status: r.status });
   return j;
@@ -617,6 +720,140 @@ test('a grant never leaves: not with a published app, not with a shared task', a
   const card = JSON.stringify(turns);
   assert.match(card, /"Leave"/);
   assert.ok(!card.includes('allowed') && !card.includes('grantHash'));
+});
+
+test('/_wisp/pane.css: wisp’s tokens, light and dark off data-theme, and the kit; the CSP lets it in', async () => {
+  const it = srv.stuff.addApp(appDir('css', { name: 'Css', uses: ['tasks:read'] }));
+  const { url } = await api(`/stuff/${it.id}/launch`, {});
+  const r = await fetch(`${url}_wisp/pane.css`);
+  assert.match(r.headers.get('content-type'), /text\/css/);
+  const css = await r.text();
+  assert.match(css, /--ink:/);
+  assert.match(css, /:root\[data-theme='dark'\]/);
+  assert.ok(css.endsWith(PANE_KIT));
+  for (const cls of ['body', '.btn', '.card', '.chip', '.muted']) assert.ok(PANE_KIT.includes(cls), cls);
+  assert.match(PANE_CSP, /style-src 'self'/);
+  assert.doesNotMatch(css, /url\(\s*['"]?http/, 'nothing from elsewhere');
+  await api(`/stuff/${it.id}/launch`, undefined, 'DELETE');
+});
+
+test('starters: listed from their folders, added once, grant and pin nothing', async () => {
+  const on = starters();
+  assert.deepEqual(on.map((s) => s.id).sort(), ['agent-board', 'allowance-board']);
+  for (const s of on) {
+    assert.ok(s.name && s.description, s.id);
+    const html = fs.readFileSync(new URL(`../server/starters/${s.id}/index.html`, import.meta.url), 'utf8');
+    assert.match(html, /\/_wisp\/pane\.js/);
+    assert.match(html, /\/_wisp\/pane\.css/);
+    assert.doesNotMatch(html, /(src|href)="https?:|fetch\(|RTCPeerConnection/, `${s.id} stays on its own address`);
+    assert.match(html, /Not allowed/, `${s.id} says what to do before it’s allowed`);
+  }
+  assert.deepEqual(on.find((s) => s.id === 'agent-board').uses, ['tasks:read', 'tasks:write', 'crew:read']);
+  assert.deepEqual(on.find((s) => s.id === 'allowance-board').uses, ['usage:read']);
+  const before = (await api('/stuff/starters')).starters;
+  assert.ok(before.every((s) => s.added === null));
+  const panes = (await api('/config')).defaults.panes;
+  const it = await api('/stuff/starters/agent-board', {});
+  assert.equal(it.by, 'wisp');
+  assert.equal(it.title, 'Agent board');
+  assert.equal(it.allowed, undefined, 'grants nothing');
+  assert.equal((await api('/config')).defaults.panes, panes, 'pins nothing');
+  assert.equal((await api('/stuff/starters/agent-board', {})).id, it.id, 'the same item');
+  assert.equal(srv.stuff.list().filter((x) => x.title === 'Agent board').length, 1);
+  assert.equal((await api('/stuff/starters')).starters.find((s) => s.id === 'agent-board').added, it.id);
+  await assert.rejects(api('/stuff/starters/nope', {}), (e) => e.status === 404);
+  await api(`/stuff/${it.id}`, undefined, 'DELETE');
+  assert.equal((await api('/stuff/starters')).starters.find((s) => s.id === 'agent-board').added, null, 'removed: it can be added again');
+});
+
+// A real run: the harness calls wisp_save over the bridge, as an agent does.
+const until = async (fn, ms = 8000) => {
+  for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 20))) {
+    const v = await fn();
+    if (v) return v;
+  }
+  throw new Error('timed out');
+};
+const finished = (id) => until(async () => (await api(`/sessions/${id}`)).turns?.at(-1)?.status !== 'running' && (await api(`/sessions/${id}`)));
+
+test('kind pane: edits, an empty scratch folder, this computer, no compare, team or goal, and the guide in its prompt', async () => {
+  const rec = tmp('pane-rec');
+  process.env.FAKE_RECORD = rec;
+  const s = await api('/sessions', { prompt: 'make me a pane', kind: 'pane', agent: 'claude', mode: 'auto', cwd: '/nowhere', machine: 'elsewhere', compare: [{ agent: 'codex' }], subagents: [{ name: 'x', agent: 'codex' }], goal: { text: 'x' } });
+  await finished(s.id);
+  delete process.env.FAKE_RECORD;
+  const task = srv.store.get(s.id);
+  assert.equal(task.kind, 'pane');
+  assert.equal(task.mode, 'edits');
+  assert.ok(srv.store.isScratch(task.cwd));
+  assert.equal(task.goal, undefined);
+  assert.equal((task.subagents || []).length, 0);
+  assert.equal(s.kind, 'pane');
+  assert.match(s.title, /^Pane: make me a pane/);
+  const line = fs.readFileSync(path.join(rec, 'claude.jsonl'), 'utf8').trim().split('\n')[0];
+  assert.ok(line.includes('# Making a pane'), 'the guide is in its system prompt');
+  const plain = await api('/sessions', { prompt: 'x', kind: 'nonsense', scratch: true, agent: 'claude' });
+  assert.equal(plain.kind, undefined);
+  await finished(plain.id);
+});
+
+test('wisp_save pin: only a pane task, into the setting, within the limit, and it grants nothing', async () => {
+  await api('/config', { defaults: { panes: '' } }, 'PATCH');
+  const save = async (session, body) => (await api('/internal/stuff', { session, ...body }, 'POST', { 'x-wisp-token': srv.token })).text;
+  const dir = (s, name) => {
+    const d = path.join(srv.store.get(s.id).cwd, name);
+    fs.mkdirSync(d, { recursive: true });
+    fs.writeFileSync(path.join(d, 'index.html'), '<title>x</title>');
+    fs.writeFileSync(path.join(d, 'wisp-app.json'), JSON.stringify({ name, uses: ['tasks:read', 'tasks:write'] }));
+    return name;
+  };
+  const other = await api('/sessions', { prompt: 'plain', scratch: true, agent: 'claude' });
+  await finished(other.id);
+  const said = await save(other.id, { app: dir(other, 'no-pin'), pin: 'home' });
+  assert.match(said, /pin was ignored: only a Make a pane task can pin/);
+  assert.equal((await api('/config')).defaults.panes || '', '', 'not pinned');
+
+  const s = await api('/sessions', { prompt: 'a pane', kind: 'pane', agent: 'claude' });
+  await finished(s.id);
+  const first = await save(s.id, { app: dir(s, 'pinned'), pin: 'home' });
+  assert.match(first, /Pinned on home\. Pinning grants nothing/);
+  const it = srv.stuff.list().find((x) => x.title === 'pinned');
+  assert.equal((await api('/config')).defaults.panes, `${it.id}@home`);
+  assert.equal(it.allowed, undefined, 'nothing allowed');
+  assert.deepEqual(await api(`/stuff/${it.id}/grant`), { allowed: [], changed: false });
+  assert.match(await save(s.id, { app: 'pinned', id: it.id, pin: 'home' }), /already pinned/);
+  assert.equal((await api('/config')).defaults.panes, `${it.id}@home`, 'once');
+  assert.match(await save(s.id, { app: 'pinned', id: it.id, pin: 'sidebar' }), /pin was ignored: it pins an app, to task or home/);
+  assert.match(await save(s.id, { text: '# x', name: 'x.md', pin: 'home' }), /pin was ignored/);
+  const eight = Array.from({ length: 8 }, (_, i) => `a${i}@home`).join(',');
+  await api('/config', { defaults: { panes: eight } }, 'PATCH');
+  assert.match(await save(s.id, { app: 'pinned', id: it.id, pin: 'task' }), /It isn't pinned: 8 panes are pinned already/);
+  assert.equal((await api('/config')).defaults.panes, eight);
+  await api('/config', { defaults: { panes: '' } }, 'PATCH');
+});
+
+test('a real pane run: the harness saves through wisp_save, pinned; the update makes a new rev and keeps the pin', async () => {
+  await api('/config', { defaults: { panes: '' } }, 'PATCH');
+  const rec = tmp('pane-run');
+  process.env.FAKE_RECORD = rec;
+  const s = await api('/sessions', { prompt: 'PANESAVE task', kind: 'pane', agent: 'claude' });
+  await finished(s.id);
+  const it = await until(() => srv.stuff.list().find((x) => x.title === 'Fake pane' && x.from?.session === s.id));
+  assert.equal((await api('/config')).defaults.panes, `${it.id}@task`);
+  assert.equal(it.allowed, undefined);
+  await api(`/stuff/${it.id}/allow`, { uses: ['tasks:read', 'tasks:write'] });
+  assert.equal((await api(`/stuff/${it.id}/grant`)).changed, false);
+  await new Promise((r) => setTimeout(r, 5));
+  await api(`/sessions/${s.id}/reply`, { text: `PANEUPDATE ${it.id}` });
+  await until(() => (srv.stuff.get(it.id).rev || 1) === 2);
+  await finished(s.id);
+  delete process.env.FAKE_RECORD;
+  assert.deepEqual(await api(`/stuff/${it.id}/grant`), { allowed: ['tasks:read'], changed: true }, 'the new code turned tasks:write off');
+  await api(`/stuff/${it.id}/restore`, {});
+  assert.equal(srv.stuff.get(it.id).rev, 3, 'a restore is a new rev too: the pane reloads');
+  await api('/config', { defaults: { panes: '' } }, 'PATCH');
+  const said = fs.readFileSync(path.join(rec, 'pane.jsonl'), 'utf8');
+  assert.match(said, /Pinned beside tasks/);
 });
 
 test('PATCH /config checks the panes setting', async () => {

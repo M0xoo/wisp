@@ -29,7 +29,7 @@ export function createSpellHooks(app) {
   const { runner, store, spells } = app;
   const waiting = new Set(); // sessions already reported as waiting, until they move on
 
-  const skip = (s) => !s || s.agent === 'wisp' || s.parentId || s.kind === 'spell';
+  const skip = (s) => !s || s.agent === 'wisp' || s.parentId || s.kind === 'spell' || s.kind === 'pane';
 
   async function act(spell, hook, s) {
     const [k, v] = Object.entries(hook.do || {})[0] || [];

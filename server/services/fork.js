@@ -46,7 +46,7 @@ export function createFork(app) {
     if (s.agent === 'wisp') throw bad('This is the tour — launch a real wisp to fork it.');
     if (s.parentId || s.delegated) throw bad('A subagent’s run can’t be forked: fork its lead’s task.');
     if (s.sideOf) throw bad('A side discussion has no work of its own to fork: fork its main task.', 409);
-    if (s.kind) throw bad(s.kind === 'spell' ? 'A spell can’t be forked: cast another one.' : 'Only a task with an agent can be forked.');
+    if (s.kind) throw bad(s.kind === 'spell' ? 'A spell can’t be forked: cast another one.' : s.kind === 'pane' ? 'A pane task can’t be forked: ask for another one.' : 'Only a task with an agent can be forked.');
     prompt = String(prompt || '').trim();
     if (!prompt) throw bad('Say what the fork should do.');
     const at = turnId ? s.turns.findIndex((t) => t.id === turnId) : s.turns.findLastIndex((t) => t.status !== 'running');

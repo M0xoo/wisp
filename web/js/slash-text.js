@@ -60,6 +60,9 @@ export function spellAsk(text) {
   const t = String(text || '').trim();
   return SPELL_CMD.test(t) ? t.replace(SPELL_CMD, '').trim() : null;
 }
+// "make me a pane that…" typed in the prompt box: a Make a pane task, not an ordinary one.
+export const isPaneAsk = (text) => /^(please\s+)?make\s+(me\s+)?a\s+pane\b/i.test(String(text || '').trim());
+
 export const SPELL_HINT = 'Say what to change after /spell, like “/spell a floating button that opens my PRs”';
 
 // The condition in "/goal all tests pass" ('' for a bare /goal), or null when it isn't one.

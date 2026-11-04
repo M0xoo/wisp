@@ -189,7 +189,9 @@ export const loadConfig = shared(async () => {
   if (JSON.stringify(config) !== JSON.stringify(S.config)) setConfig(config);
 });
 export function setConfig(config) {
+  const pinned = S.config?.defaults?.panes;
   S.config = config;
+  if ((config.defaults?.panes || '') !== (pinned || '')) queueMicrotask(() => bus.emit('panes')); // an agent's save pinned it
   nameHere();
   homeScreenTags();
   paintMachinesBtn();

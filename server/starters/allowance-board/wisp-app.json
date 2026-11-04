@@ -1,0 +1,5 @@
+{
+  "name": "Allowance board",
+  "description": "How much of each account's usage windows is gone, when they reset, and how fast they're going.",
+  "uses": ["usage:read"]
+}

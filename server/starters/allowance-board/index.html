@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Allowance board</title>
+<link rel="stylesheet" href="/_wisp/pane.css">
+<style>
+  html { height: auto; }
+  #note { margin: 0 0 8px; color: var(--muted); }
+  #note:empty { display: none; }
+  #list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 8px; align-items: start; }
+  .card { display: grid; gap: 8px; min-width: 0; }
+  .head { display: flex; align-items: baseline; gap: 8px; }
+  .head b { flex: 1; min-width: 0; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rate { flex: none; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .none { font-size: 12.5px; color: var(--muted); }
+  /* Fixed columns: percentages and reset times line up across windows and accounts; each bar runs the card's width under its line. */
+  .win { display: grid; grid-template-columns: 56px 4ch minmax(0, 1fr); gap: 4px 8px; align-items: center; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .win > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pct, .when { text-align: right; }
+  .pct { color: var(--ink); }
+  .win.high .pct { color: var(--bad); }
+  .bar { grid-row: 2; grid-column: 1 / -1; height: 6px; border-radius: 99px; background: var(--bg-2); overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 99px; background: var(--ink-2); transition: width 0.3s var(--ease); }
+  .win.high .bar i { background: var(--bad); }
+  .ph .sk { height: 11px; border-radius: 6px; }
+  .ph .head .sk { width: 40%; }
+</style>
+</head>
+<body>
+<p id="note" role="status"></p>
+<div id="list">
+  <article class="card ph" aria-hidden="true"><div class="head"><i class="sk"></i></div><i class="sk"></i><i class="sk"></i></article>
+  <article class="card ph" aria-hidden="true"><div class="head"><i class="sk"></i></div><i class="sk"></i><i class="sk"></i></article>
+</div>
+<script src="/_wisp/pane.js"></script>
+<script>
+  const list = document.getElementById('list');
+  const note = document.getElementById('note');
+  const cards = new Map(); // agent and account -> { node, head, rate, none, wins: window id -> its nodes }
+  const add = (parent, tag, cls) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    parent.append(n);
+    return n;
+  };
+  // Writes only what changed: a refresh that changes nothing touches nothing.
+  const put = (node, text) => {
+    if (node.textContent !== text) node.textContent = text;
+  };
+  function resetsIn(at) {
+    if (!at) return 'no reset time';
+    const m = Math.max(0, Math.round((at - Date.now()) / 60000));
+    if (m < 60) return `resets in ${m}m`;
+    const h = Math.floor(m / 60);
+    return h < 48 ? `resets in ${h}h ${m % 60}m` : `resets in ${Math.round(h / 24)}d`;
+  }
+  // No burn rate (null) is no line at all: wisp can't tell yet, which isn't 0.
+  function rateOf(r) {
+    if (r.burnPerHour === null || r.burnPerHour === undefined) return '';
+    const n = Math.round(r.burnPerHour * 100);
+    return `${r.burnWindow ? `${r.burnWindow}: ` : ''}${n < 1 ? 'under 1%' : `${n}%`} an hour`;
+  }
+  function makeCard() {
+    const node = document.createElement('article');
+    node.className = 'card';
+    const head = add(node, 'div', 'head');
+    const card = { node, name: add(head, 'b'), rate: add(head, 'span', 'rate'), none: add(node, 'span', 'none'), wins: new Map() };
+    card.none.textContent = 'This harness reports no usage windows yet.';
+    return card;
+  }
+  function makeWin(card, w) {
+    const node = add(card.node, 'div', 'win');
+    const win = { node, label: add(node, 'span'), pct: add(node, 'span', 'pct') };
+    const bar = add(node, 'div', 'bar');
+    bar.setAttribute('role', 'progressbar');
+    bar.setAttribute('aria-valuemin', '0');
+    bar.setAttribute('aria-valuemax', '100');
+    bar.setAttribute('aria-label', w.label);
+    win.bar = bar;
+    win.fill = add(bar, 'i');
+    win.when = add(node, 'span', 'when');
+    return win;
+  }
+  function paintCard(card, r) {
+    const name = r.account ? `${r.agentName} · ${r.account}` : r.agentName;
+    put(card.name, name);
+    card.name.title = name;
+    put(card.rate, rateOf(r));
+    card.rate.hidden = !card.rate.textContent;
+    card.none.hidden = r.windows.length > 0;
+    const seen = new Set();
+    for (const w of r.windows) {
+      seen.add(w.id);
+      if (!card.wins.has(w.id)) card.wins.set(w.id, makeWin(card, w));
+      const win = card.wins.get(w.id);
+      const pct = Math.round(w.used * 100);
+      put(win.label, w.label);
+      win.label.title = w.label;
+      put(win.pct, `${pct}%`);
+      put(win.when, resetsIn(w.resetsAt));
+      win.bar.setAttribute('aria-valuenow', String(pct));
+      win.fill.style.width = `${Math.min(100, pct)}%`;
+      win.node.classList.toggle('high', w.used >= 0.9);
+    }
+    for (const [id, win] of card.wins) if (!seen.has(id)) (win.node.remove(), card.wins.delete(id));
+  }
+  function paint(rows) {
+    note.textContent = rows.length ? '' : 'No harness is set up yet.';
+    list.querySelectorAll('.ph').forEach((n) => n.remove());
+    const seen = new Set();
+    rows.forEach((r, i) => {
+      const key = `${r.agent}\0${r.account}`;
+      seen.add(key);
+      if (!cards.has(key)) cards.set(key, makeCard());
+      const card = cards.get(key);
+      paintCard(card, r);
+      if (list.children[i] !== card.node) list.insertBefore(card.node, list.children[i] || null);
+    });
+    for (const [key, card] of cards) if (!seen.has(key)) (card.node.remove(), cards.delete(key));
+  }
+  function refresh() {
+    wisp.usage.accounts().then(paint, (err) => {
+      const allow = /Not allowed/.test(err.message);
+      note.textContent = allow ? 'Press Allow… on this pane’s bar to see your usage.' : err.message;
+      if (cards.size) return;
+      list.querySelectorAll('.ph').forEach((n) => n.remove());
+      if (allow) setTimeout(refresh, 4000); // as Agent board: it starts the moment it can
+    });
+  }
+  refresh();
+  setInterval(refresh, 60000);
+</script>
+</body>
+</html>

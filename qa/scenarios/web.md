@@ -401,3 +401,21 @@ Every page check also fails on an uncaught page error or a `console.error`.
   - 7: both navigations are blocked, the other port gets no request and the frame shows Chrome's blocked page until **Reload the pane**; the same-origin one works and `wisp.*` still answers.
   - 8: Chrome refuses the frame.
 - **Suite** (`test/panes.test.js`), **Manual** (real Chrome)
+
+### WEB-51 · Make a pane, and the starters
+- **Preconditions:** a fake harness; a few tasks in different states, on a harness or account of their own, one by a crew member, one with a PR; `budget.json` with windows for one harness.
+- **Steps:**
+  1. In New task, send `make me a pane PANESAVE home` (the fake harness's `wisp_save`).
+  2. Reply `PANEUPDATE <its id>`, watching the pane on home.
+  3. **Allow…** on its bar, save again, then call `wisp.tasks.done()` from the pane.
+  4. ⌘K → **Make a pane…**, and My Stuff → **Make a pane**. Press **Add** on Agent board, then **Allow and pin**.
+  5. Drag a card to Done; press **Done** on another; **Follow up** on a third and Send and Cancel on wisp's card. Do more than 6 writes in a minute.
+  6. **Add** Allowance board, **Allow and pin**.
+- **Expected:**
+  - 1: the task runs in Edits in an empty folder, on this computer. A toast says *Pinned Fake pane on home* and the pane shows there with *No access yet*: no Allow card opens, nothing is allowed.
+  - 2: the pane shows the new version with no empty frame between, and the node stays where it is.
+  - 3: after that second save the bar says *Changed since allowed*, and the call is refused with no card.
+  - 4: Add asks from the Allow card on that click, and nothing is added to `allowed` until you press it. Add twice gives one item.
+  - 5: cards land in the right columns with harness, account, machine, crew name, PR and time. Done works both ways, by finger too: on a narrow pane the columns stack, Done's heading stays at the bottom edge to drop on, and the grip is 44px to a finger; cancelling wisp's card shows *You didn’t send it.* on the task's card, as does *Slow down*.
+  - 6: a row per account and a bar per window with *resets in …*; a harness with no windows says so; no burn rate until it can be told.
+- **Suite** (`test/panes.test.js`), **Manual** (real Chrome)

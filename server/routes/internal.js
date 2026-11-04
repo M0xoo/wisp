@@ -19,6 +19,7 @@ import { applyImport, parseCrewFile, planImport } from '../crew-share.js';
 import { fetchShared } from './spells.js';
 import { describeSpell, normalizeSpell } from '../spells.js';
 import { spellReference } from '../spell-guide.js';
+import { appFor, MAX_PANES, PANE_WHERE, panesString, parsePanes } from '../../web/js/pane-bridge.js';
 import { ghProblem, wispPathProblem } from '../../web/js/spell-schema.js';
 import { MAX_TAGS, normalizeTags } from '../../web/js/tags.js';
 
@@ -26,6 +27,21 @@ import { MAX_TAGS, normalizeTags } from '../../web/js/tags.js';
 const size = (n) => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 ** 2).toFixed(1)} MB`);
 
 export function register(r, app) {
+  // wisp_save's pin: only a Make a pane task may, and it grants nothing (the user allows from the
+  // pane's bar). What it did, for the agent to read. The setting's change reaches the page as `config`.
+  const pinNote = (task, it, where) => {
+    if (task.kind !== 'pane') return ' pin was ignored: only a Make a pane task can pin. The user pins it from My Stuff.';
+    if (it.kind !== 'app' || !PANE_WHERE.includes(where)) return ` pin was ignored: it pins an app, to ${PANE_WHERE.join(' or ')}.`;
+    const pins = parsePanes(store.config.defaults.panes);
+    if (pins.some((p) => p.where === where && appFor(p, app.stuff.list())?.id === it.id)) return ' It is already pinned, and its pane reloads with this version.';
+    const by = app.spells.settings().lockedBy.panes;
+    if (by) return ` It isn't pinned: the spell ${by.name} sets the panes. Tell the user to pin it from My Stuff after turning that off.`;
+    if (pins.length >= MAX_PANES) return ` It isn't pinned: ${MAX_PANES} panes are pinned already, the most there can be. Tell the user to unpin one, then pin it from My Stuff.`;
+    store.config.defaults.panes = panesString([...pins, { app: it.id, where }]);
+    app.configChanged();
+    return ` Pinned ${where === 'home' ? 'on home' : 'beside tasks'}. Pinning grants nothing: if it uses wisp, the user allows that with Allow… on the pane's bar, and until then its calls are refused.`;
+  };
+
   const { store, runner, telemetry } = app;
   // The token check, then the handler; a wrong token is a 403 whatever the route.
   const guarded = (fn) => (c) => (c.req.headers['x-wisp-token'] !== app.token ? c.send(403, { error: 'bad token' }) : fn(c));
@@ -192,6 +208,7 @@ export function register(r, app) {
           launch += ` It wasn't unpublished: ${err.message}`;
         }
       } else if (it.published) launch += ` It's public at ${it.published.url}${(it.published.rev || 1) !== (it.rev || 1) ? ', with an older version: wisp_save with this id and publish: true updates the link' : ''}.`;
+      if (body.pin !== undefined) launch += pinNote(lead, it, body.pin);
       c.send(200, { text: replace ? `Updated ${what} in the user's My Stuff, now v${it.rev || 1}; the version before is kept and the user can restore it.${launch} Show it in your answer as {"type":"stuff","id":"${it.id}"}.` : `Saved ${what} to the user's My Stuff, id ${it.id}. It's a copy: later changes to the original don't reach it (wisp_save with this id updates it).${launch} Show it in your answer as {"type":"stuff","id":"${it.id}"}${it.kind === 'app' ? ' (the user launches it from there, inside wisp)' : ''}.` });
     }),
     opts,

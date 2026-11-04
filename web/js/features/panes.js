@@ -21,11 +21,11 @@ import { ask } from '../ui/confirm.js';
 import { toast, toastError } from '../ui/toast.js';
 import { boxUrl, isLoopback } from '../preview-spec.js';
 import { gridLink } from '../grid-link.js';
-import { appFor, argsOf, launchBody, lightMember, lightPrs, lightTask, listedTasks, missingOf, notWhile, PANE_USES, PANE_WRITES, PANE_WRITES_PER_MIN, paneFrameCsp, panesString, paneWrapperDoc, parsePanes, refusal, runsFullAuto } from '../pane-bridge.js';
+import { accountOf, agentName, DEFAULT_MODE, harnessesAt, MODES, savedAccount, savedEffort, savedModel } from './runners.js';
+import { appFor, argsOf, launchBody, lightAccounts, lightMember, lightPrs, lightTask, listedTasks, missingOf, notWhile, PANE_USES, PANE_WRITES, PANE_WRITES_PER_MIN, paneFrameCsp, paneStale, panesString, paneWrapperDoc, parsePanes, refusal, runsFullAuto } from '../pane-bridge.js';
 import { paneCard } from './pane-card.js';
-import { agentName, DEFAULT_MODE, harnessesAt, MODES, savedAccount, savedEffort, savedModel } from './runners.js';
 
-const frames = new Map(); // `${where}:${app id}` -> { node, iframe (the app's), origin, id, where, task, watching, writes }
+const frames = new Map(); // `${where}:${app id}` -> { node, wrapper, iframe (the app's), shown, origin, url, to, rev, id, where, task, watching, writes }
 
 // --- the pins ----------------------------------------------------------------------------------
 
@@ -178,23 +178,23 @@ async function start(f) {
   // Over the phone app's SSH tunnel only wisp itself is reachable (as Launch says).
   if (MOBILE && isLoopback(location.href)) return (stage.innerHTML = `<p class="pa-off">${icon('info')}Panes open here when you connect through wisp Cloud, or in a browser on the computer running wisp.</p>`);
   try {
+    const rev = it.rev || 1;
     const { url } = await api(`/stuff/${it.id}/launch`, { method: 'POST' });
-    const to = isLoopback(location.href) ? url : boxUrl(url, S.config?.preview || S.config?.grid?.preview);
+    const to = addressOf(url);
     if (!to) return (stage.innerHTML = `<p class="pa-off">${icon('info')}It runs on the computer with wisp, at <code>${esc(url)}</code>.</p>`);
-    f.origin = new URL(to).origin;
-    let link = await gridLink(url, to);
-    // A preview address can send a frame through the grid's sign-in, so that origin is let through.
-    const origins = [to, link, S.config?.grid?.url].filter(Boolean).map((u) => new URL(u).origin);
+    Object.assign(f, { rev, url, to, origin: new URL(to).origin, link: await gridLink(url, to) });
     // No sandbox (it's script-less and has to be same-origin for us to fill it), and it passes
     // clipboard-write on: a frame only gets what the frame around it has.
     const wrapper = el(`<iframe class="pa-frame" title="${esc(it.title)}" allow="clipboard-write"></iframe>`);
-    wrapper.srcdoc = paneWrapperDoc(paneFrameCsp(origins));
+    wrapper.srcdoc = wrapperDoc(f);
+    f.wrapper = wrapper;
     // Every load: moving the node reloads the wrapper, empty, as a new window.
     wrapper.addEventListener('load', async () => {
       const win = wrapper.contentWindow;
-      const src = link || (await gridLink(url, to)); // a one-time link doesn't work twice
-      link = '';
-      appFrame(f, it, src, win);
+      const src = f.link || (await gridLink(f.url, f.to)); // a one-time link doesn't work twice
+      f.link = '';
+      win.addEventListener('message', (e) => onMessage(f, e));
+      appFrame(f, src, win);
     });
     stage.append(wrapper);
   } catch (err) {
@@ -202,15 +202,53 @@ async function start(f) {
   }
 }
 
+const addressOf = (url) => (isLoopback(location.href) ? url : boxUrl(url, S.config?.preview || S.config?.grid?.preview));
+// A preview address can send a frame through the grid's sign-in, so that origin is let through.
+const wrapperDoc = (f) => paneWrapperDoc(paneFrameCsp([f.to, f.link, S.config?.grid?.url].filter(Boolean).map((u) => new URL(u).origin)));
+
 // The app's frame, in the wrapper: its own origin (its storage, its database), scripts and forms;
 // no popups, no top navigation. Its `parent` is the wrapper, so that's where its calls arrive.
-function appFrame(f, it, src, win) {
-  const iframe = el(`<iframe title="${esc(it.title)}" allow="clipboard-write" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>`);
-  iframe.addEventListener('load', () => (f.node.classList.add('ready'), context(f)));
+// over: the frame showing now, kept in place until this one has loaded, so a new version never
+// flashes an empty pane. Calls go to the new one from the start.
+function appFrame(f, src, win, over = null) {
+  f.pending?.remove();
+  const it = appNow(f.id);
+  const iframe = el(`<iframe title="${esc(it?.title || '')}" allow="clipboard-write" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>`);
+  if (over) iframe.style.cssText = 'position:absolute;top:0;left:0;visibility:hidden';
+  iframe.addEventListener('load', () => {
+    if (over) (over.remove(), (iframe.style.cssText = ''), (over = null));
+    f.pending = null;
+    f.shown = iframe;
+    f.node.classList.add('ready');
+    context(f);
+  });
   iframe.src = src;
   f.iframe = iframe;
-  win.addEventListener('message', (e) => onMessage(f, e));
+  f.pending = iframe;
   win.document.body.append(iframe);
+}
+
+// A new version of a pinned app (an agent's wisp_save, or Back to the version before): launch
+// serves its new folder, and the frame reloads in place. Its write access is the server's to judge
+// (GET /stuff/:id/grant, on the next write); nothing opens by itself.
+async function reloadPane(f) {
+  const it = appNow(f.id);
+  f.rev = it.rev || 1;
+  try {
+    const { url } = await api(`/stuff/${it.id}/launch`, { method: 'POST' });
+    const to = addressOf(url);
+    if (!to || !f.wrapper) return;
+    const link = await gridLink(url, to);
+    if (f.rev !== (it.rev || 1)) return; // a newer one came meanwhile: its reload has it
+    const origin = new URL(to).origin;
+    Object.assign(f, { url, to });
+    if (origin === f.origin) return appFrame(f, link, f.wrapper.contentWindow, f.shown);
+    // Another port (this one was taken): the wrapper's CSP has to be written again.
+    Object.assign(f, { origin, link });
+    f.wrapper.srcdoc = wrapperDoc(f);
+  } catch (err) {
+    toastError(err);
+  }
 }
 
 function drop(key) {
@@ -226,7 +264,8 @@ const post = (f, m) => f.origin && f.iframe?.contentWindow?.postMessage({ wispPa
 const theme = () => { const t = document.documentElement.dataset.theme; return t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'; };
 const context = (f) => post(f, { event: 'context', data: { where: f.where, task: f.where === 'task' ? f.task : null, theme: theme() } });
 
-const tasksNow = () => listedTasks(S.sessions.values()).filter((s) => !s.archived).map(lightTask);
+const light = (s) => lightTask(s, { harness: agentName(s.agent), account: accountOf(s.agent, s.account)?.label });
+const tasksNow = () => listedTasks(S.sessions.values()).filter((s) => !s.archived).map(light);
 const projectFor = (v) => {
   if (!v) return null;
   const k = String(v).toLowerCase();
@@ -235,7 +274,7 @@ const projectFor = (v) => {
 
 // New task's defaults, resolved as the launcher resolves them: your harness if it's available
 // here, else the first that is, and your mode. Not left to the server, which falls back to Full auto.
-function launchDefaults() {
+export function launchDefaults() {
   const d = S.config.defaults;
   const here = harnessesAt([''], { auto: true });
   const chosen = here.find((a) => a.id === (d.agent || 'auto'));
@@ -276,6 +315,14 @@ async function confirmed(f, method, spec, d) {
   await grantNow(f, method);
 }
 
+// What GET /agents says of the usage windows, for all panes: every window a pane polls, not each.
+let agents = { at: 0, list: null };
+async function agentsNow() {
+  if (agents.list && Date.now() - agents.at < 30_000) return agents.list;
+  agents = { at: Date.now(), list: await api('/agents') };
+  return agents.list;
+}
+
 // One call from a frame: checked, then done. Resolves with what goes back, or throws why not.
 // deps: what a test puts in place of the card, the frame list and sending.
 export async function paneCall(f, method, raw, deps = {}) {
@@ -303,7 +350,7 @@ export async function paneCall(f, method, raw, deps = {}) {
     case 'tasks.list':
       return tasksNow();
     case 'tasks.get':
-      return lightTask(task(args[0]));
+      return light(task(args[0]));
     case 'tasks.watch':
       f.watching = true;
       setTimeout(() => post(f, { event: 'tasks', data: tasksNow() }));
@@ -316,7 +363,7 @@ export async function paneCall(f, method, raw, deps = {}) {
       await confirmed(f, method, { head: `${it.title} wants to start a task`, rows: [['Project', p?.name || 'No project'], ['Harness', agentName(body.agent)], modeRow(body.mode)], prompt: body.prompt }, d);
       const out = await api('/sessions', { method: 'POST', body });
       toast(`<b>${esc(it.title)}</b> started <b>${esc(out.title || 'a task')}</b>`);
-      return out.id ? lightTask(out) : { queued: true };
+      return out.id ? light(out) : { queued: true };
     }
     case 'tasks.followUp': {
       const s = task(args[0]);
@@ -337,6 +384,8 @@ export async function paneCall(f, method, raw, deps = {}) {
       return lightPrs(S.sessions.values());
     case 'crew.list':
       return (S.config.crew || []).map(lightMember);
+    case 'usage.accounts':
+      return lightAccounts(await agentsNow(), Date.now());
   }
   throw new Error(`wisp has no ${method}().`);
 }
@@ -367,4 +416,28 @@ function pushTasks() {
 bus.on('summary', pushTasks);
 bus.on('listed', pushTasks);
 bus.on('theme', () => frames.forEach(context));
-bus.on('stuff-list', () => frames.forEach(paintBar));
+bus.on('stuff-list', () => {
+  for (const f of frames.values()) {
+    paintBar(f);
+    if (paneStale(f.rev, appNow(f.id))) reloadPane(f);
+  }
+});
+
+// A pin a Make a pane task just made: said in a toast, and beside that task its tab opens. Pins you
+// or a spell made need no telling. Runs on both events: the pin and the app reach the page apart.
+let pinsSeen = null;
+function agentPins() {
+  if (!S.config || S.stuff === null || S.stuff === undefined) return;
+  const now = panesAt('task').map((x) => ['task', x.it]).concat(panesAt('home').map((x) => ['home', x.it]));
+  const was = pinsSeen;
+  pinsSeen = new Set(now.map(([where, it]) => `${where}:${it.id}`));
+  if (!was) return;
+  for (const [where, it] of now) {
+    const from = it.from?.session && S.sessions.get(it.from.session);
+    if (was.has(`${where}:${it.id}`) || from?.kind !== 'pane') continue;
+    toast(`Pinned <b>${esc(it.title)}</b> ${WHERE_WORDS[where]}`);
+    if (where === 'task') import('./panel.js').then((p) => p.openPanel(from.id, `pane:${it.id}`));
+  }
+}
+bus.on('panes', agentPins);
+bus.on('stuff-list', agentPins);
