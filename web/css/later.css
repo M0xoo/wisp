@@ -70,11 +70,6 @@ body.wisp-mobile .when-chip .link, body.wisp-mobile .when-chip .att-x { min-heig
   #feed .it-head .later-pill { padding: 0 6px; }
   #feed .it-head .later-pill .lp-t, #feed .it-head .later-pill b { display: none; }
 }
-/* phones: a read time takes a line of its own above the reply box's buttons */
-@media (max-width: 520px) {
-  .c-bar:has(.when-chip) { flex-wrap: wrap; }
-  .c-bar .c-hint:has(.when-chip) { flex-basis: 100%; order: -1; }
-}
 
 /* the open plan's row in the list, like an open task's */
 body.split #feed .plan-row.sel { background: var(--bg-2); border-color: transparent; box-shadow: none; }

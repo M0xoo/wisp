@@ -291,6 +291,35 @@ try {
     await shot(page, 'composer-btw');
     await ctx.close();
   });
+  await check('MOB-32', 'the reply box in a phone browser: the same line above its buttons, back in the bar past 720px', async () => {
+    const ctx = await browser.newContext({ viewport: { width: PHONES[0].width, height: PHONES[0].height }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+    const page = await ctx.newPage();
+    await page.goto(`${wisp.url}/`);
+    await page.locator(`.item[data-id="${first.json.id}"] .it-head`).first().tap();
+    const ta = page.locator('.item.open .composer .reply');
+    await ta.waitFor({ timeout: 10_000 });
+    await ta.tap();
+    const read = () => page.evaluate(() => {
+      const comp = document.querySelector('.item.open .composer');
+      const box = (q) => comp.querySelector(q).getBoundingClientRect();
+      const hint = comp.querySelector('.c-hint');
+      return { bar: box('.c-bar').height, send: box('.send').x, sendW: box('.send').width, input: box('.reply').x, hint: box('.c-hint').height, inBar: !!comp.querySelector('.c-bar .c-hint'), ends: getComputedStyle(hint).textOverflow };
+    });
+    await ta.fill('Now add a test');
+    const off = await read();
+    await ta.fill('/btw last round and score');
+    await page.waitForSelector('.item.open .composer.is-btw');
+    const on = await read();
+    ok(!on.inBar, 'the hint is still inside the bar');
+    ok(on.bar === off.bar, `the bar went from ${off.bar}px to ${on.bar}px with /btw`);
+    ok(on.hint <= 20 && on.ends === 'ellipsis', `the hint is ${on.hint}px tall, ends in ${on.ends}`);
+    ok(on.sendW === 30, `Send is ${on.sendW}px wide: it squeezed`);
+    ok(on.send === off.send && on.input === off.input, `moved sideways: Send ${off.send} → ${on.send}, input ${off.input} → ${on.input}`);
+    await page.setViewportSize({ width: 721, height: 900 });
+    await page.waitForFunction(() => document.querySelector('.item.open .c-bar .c-hint'));
+    ok(!(await page.evaluate(() => document.body.classList.contains('hint-row'))), 'hint-row stayed on past 720px');
+    await ctx.close();
+  });
 
   await check('MOB-18', 'menus open whole with the keyboard up; a long computer name gives way', async () => {
     const LONG = 'Mokhless-MacBook-Pro-Studio-Workstation';

@@ -146,36 +146,43 @@ body.wisp-mobile .launcher .icon-btn, body.wisp-mobile .launcher .tog-btn, body.
 body.wisp-mobile .launcher .runners { height: 46px; }
 body.wisp-mobile .launcher .runners .runner-btn { height: 44px; }
 body.wisp-mobile .launcher .vs-btn { width: 44px; }
-body.wisp-mobile .c-bar .icon-btn, body.wisp-mobile .c-bar .mode-btn, body.wisp-mobile .c-bar .c-runner, body.wisp-mobile .c-bar .c-place, body.wisp-mobile .c-bar .team-btn, body.wisp-mobile .c-bar .tog-btn, body.wisp-mobile .c-bar .send, body.wisp-mobile .c-bar .c-done, body.wisp-mobile .c-bar .c-ship { flex: none; min-width: 44px; height: 44px; }
-/* A follow-up's bar is narrower than its 44px buttons: it scrolls sideways, Send stays in the box. */
-body.wisp-mobile .c-bar { gap: 0; overflow-x: auto; scrollbar-width: none; margin: 0 -4px 0 -8px; }
-body.wisp-mobile .c-bar::-webkit-scrollbar { display: none; }
+body.wisp-mobile .c-bar .icon-btn, body.wisp-mobile .c-bar .mode-btn, body.wisp-mobile .c-bar .c-runner, body.wisp-mobile .c-bar .c-place, body.wisp-mobile .c-bar .team-btn, body.wisp-mobile .c-bar .tog-btn, body.wisp-mobile .c-bar .send, body.wisp-mobile .c-bar .c-done, body.wisp-mobile .c-bar .c-ship { min-width: 44px; height: 44px; }
+/* body.hint-row: the app, and a browser at a phone's width (composer.js sets it and moves .c-hint out of
+   the bar). A follow-up's bar can be narrower than its buttons: it scrolls sideways, none of them squeezes,
+   Send stays in the box. */
+body.hint-row .c-bar { overflow-x: auto; scrollbar-width: none; }
+body.hint-row .c-bar::-webkit-scrollbar { display: none; }
+body.hint-row .c-bar .icon-btn, body.hint-row .c-bar .mode-btn, body.hint-row .c-bar .c-runner, body.hint-row .c-bar .c-place, body.hint-row .c-bar .team-btn, body.hint-row .c-bar .tog-btn, body.hint-row .c-bar .send, body.hint-row .c-bar .c-done, body.hint-row .c-bar .c-ship, body.hint-row .c-bar .c-queue { flex: none; }
+body.wisp-mobile .c-bar { gap: 0; margin: 0 -4px 0 -8px; }
+/* In a browser the bar's 30px buttons stay: a little room so a scrolling bar doesn't cut their focus ring. */
+body.hint-row:not(.wisp-mobile) .c-bar { padding: 3px; margin: -3px; }
 /* The pickers on the left, Queue, Send later and Send on the right (the hint held them apart on a desktop). */
-body.wisp-mobile .c-bar::after { content: ''; flex: 1 0 0; }
-body.wisp-mobile .c-bar > .c-ship, body.wisp-mobile .c-bar > .c-done, body.wisp-mobile .c-bar > .c-queue, body.wisp-mobile .c-bar > .c-later, body.wisp-mobile .c-bar > .send { order: 1; }
+body.hint-row .c-bar::after { content: ''; flex: 1 0 0; }
+body.hint-row .c-bar > .c-ship, body.hint-row .c-bar > .c-done, body.hint-row .c-bar > .c-queue, body.hint-row .c-bar > .c-later, body.hint-row .c-bar > .send { order: 1; }
 /* Queue: 44px like its neighbours, on the tile an on Goal has. */
 body.wisp-mobile .c-bar .c-queue { flex: none; min-width: 44px; height: 44px; padding: 0 6px; gap: 4px; border: 0; border-radius: 8px; }
 /* A phone's width: Queue folds to its icon and switch (its title says what it does), and the delegates' faces close up. */
 @media (max-width: 520px) {
-  body.wisp-mobile .c-bar .c-queue > span { display: none; }
+  body.hint-row .c-bar .c-queue > span { display: none; }
+  body.hint-row:not(.wisp-mobile) .c-bar { gap: 4px; }
 }
 body.wisp-mobile .c-bar .c-team .ts-m:not(.ts-more) + .ts-m:not(.ts-more) { margin-left: -7px; }
 body.wisp-mobile .c-bar .c-team .tb-label { display: none; }
 body.wisp-mobile .c-bar .c-place .cr-label { max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* What the box says (composer.js moves .c-hint out of the bar): one line above the buttons, ending in
-   an ellipsis. A read time keeps its 44px Send now and ×, so its line is that tall. */
-body.wisp-mobile .composer > .c-hint { display: block; min-height: 20px; padding: 0 2px; font-size: 12px; line-height: 20px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-body.wisp-mobile .composer > .c-hint:empty { display: none; }
+/* What the box says: one line above the buttons, ending in an ellipsis. In the app a read time keeps its
+   44px Send now and ×, so its line is that tall. */
+body.hint-row .composer > .c-hint { display: block; min-height: 20px; padding: 0 2px; font-size: 12px; line-height: 20px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.hint-row .composer > .c-hint:empty { display: none; }
 /* A long file name gives way, its icon doesn't. */
 body.wisp-mobile .att img, body.wisp-mobile .att-ic { flex: none; }
-body.wisp-mobile .composer > .c-hint .when-chip { display: flex; font-size: 12px; }
-body.wisp-mobile .composer > .c-hint .when-chip .link { flex: none; margin-left: auto; font-size: 12px; white-space: nowrap; }
-body.wisp-mobile .composer > .c-hint .when-chip .att-x { flex: none; }
+body.hint-row .composer > .c-hint .when-chip { display: flex; font-size: 12px; }
+body.hint-row .composer > .c-hint .when-chip .link { flex: none; margin-left: auto; font-size: 12px; white-space: nowrap; }
+body.hint-row .composer > .c-hint .when-chip .att-x { flex: none; }
 /* /btw: the pickers step back without washing out, and Send later's empty slot stays, so nothing in the bar moves. */
-body.wisp-mobile .composer.is-btw .c-mode, body.wisp-mobile .composer.is-btw .c-runner, body.wisp-mobile .composer.is-btw .c-place, body.wisp-mobile .composer.is-btw .c-team, body.wisp-mobile .composer.is-btw .c-queue { opacity: 0.6; filter: grayscale(1); }
-body.wisp-mobile .composer.is-btw .c-later[hidden] { display: inline-grid !important; visibility: hidden; }
-body.wisp-mobile .c-bar > .send { position: sticky; right: 0; box-shadow: -10px 0 8px -2px var(--surface-2); }
-body.wisp-mobile .composer:focus-within .c-bar > .send { box-shadow: -10px 0 8px -2px var(--surface); }
+body.hint-row .composer.is-btw .c-mode, body.hint-row .composer.is-btw .c-runner, body.hint-row .composer.is-btw .c-place, body.hint-row .composer.is-btw .c-team, body.hint-row .composer.is-btw .c-queue { opacity: 0.6; filter: grayscale(1); }
+body.hint-row .composer.is-btw .c-later[hidden] { display: inline-grid !important; visibility: hidden; }
+body.hint-row .c-bar > .send { position: sticky; right: 0; box-shadow: -10px 0 8px -2px var(--surface-2); }
+body.hint-row .composer:focus-within .c-bar > .send { box-shadow: -10px 0 8px -2px var(--surface); }
 /* The task's icon actions: each icon centred in its 44px, a pressed one (Transcript) on a 36px square
    (content-box) so the first lines up with the pills above it, and no more air above and below than
    between the bar's other lines. */

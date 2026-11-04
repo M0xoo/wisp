@@ -302,3 +302,8 @@ Never send builds to someone's own phone as part of QA.
 - **Run:** `qa/mobile.mjs`
 - **Steps:** on a task at 412 and 360px, light and dark: open the reply box idle, running, waiting and under a live transcript; Queue on and off; type `/btw …` and clear it; type `tomorrow at 9am run the linter`; attach a file with a long name; paste a long message; a task with 6+ delegates.
 - **Expected:** the buttons are one row, each 44px, and the bar scrolls sideways with Send pinned. What the box says (*Side question · …*, a read time) is one line above the buttons, ending in `…`, never a wrapped column. Toggling `/btw` moves neither Send nor the input sideways; the buttons step back but stay readable. Under a transcript the working panel's orb, status and Stop are centred on one row.
+
+### MOB-32 The reply box in a phone browser
+- **Run:** `qa/mobile.mjs`
+- **Steps:** in a plain browser (no app) at 412 and 360px, light and dark: open a task's reply box; type `/btw …` and clear it; type `tomorrow at 9am run the linter`. Widen the window past 720px with `/btw` still typed, and narrow it again.
+- **Expected:** as MOB-31, with the browser's 30px buttons: none squeezes, the hint is one line above them ending in `…`, and neither Send nor the input moves sideways. Past 720px the hint is back inside the bar, as on a desktop.
