@@ -4,13 +4,14 @@
 // Docs and code keep their opening in the record (`excerpt`), so the page draws every card from
 // the list alone.
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { MIME } from '../http/static.js';
 import { bad, clip, newId } from '../util.js';
 import { normalizeTags } from '../../web/js/tags.js';
 import { dbSpec } from '../app-db.js';
-import { grantOf, usesOf } from '../../web/js/pane-bridge.js';
+import { effectiveGrant, grantOf, usesOf, WRITE_USES } from '../../web/js/pane-bridge.js';
 
 export const MAX_STUFF = 500 * 1024 * 1024;
 const MAX_TEXT = 2 * 1024 * 1024; // text saved from a reply (a doc, a snippet)
@@ -80,7 +81,60 @@ function pruneGrant(it, uses) {
   const allowed = grantOf(uses || [], it.allowed);
   if (allowed.length) it.allowed = allowed;
   else delete it.allowed;
+  if (!allowed.some((x) => WRITE_USES.includes(x))) delete it.grantHash;
   return it;
+}
+
+// --- what an app's code is: a write grant is tied to it, and the Allow card reads it ---------------
+
+const appFiles = (dir, rel = '') =>
+  fs.readdirSync(path.join(dir, rel), { withFileTypes: true }).flatMap((d) => {
+    const r = rel ? `${rel}/${d.name}` : d.name;
+    if (d.isDirectory()) return appFiles(dir, r);
+    const abs = path.join(dir, r);
+    // A link is served as what it points at (apps.js): that's the file, and where it points.
+    const link = d.isSymbolicLink() ? fs.readlinkSync(abs) : '';
+    const st = fs.statSync(abs, { throwIfNoEntry: false });
+    return st?.isFile() || link ? [{ rel: r, abs, link, st: st?.isFile() ? st : null }] : [];
+  });
+
+// By folder, until a file's path, time or size moves, so a view of an app stays a few stats.
+// ctime too: mtime and size can be put back after an edit, ctime can't.
+const scanned = new Map(); // dir -> { sig, files, code, risky }
+function scanOf(dir) {
+  const files = appFiles(dir).sort((a, b) => (a.rel < b.rel ? -1 : 1));
+  const sig = files.map((f) => `${f.rel}\0${f.link}\0${f.st?.mtimeMs}\0${f.st?.ctimeMs}\0${f.st?.size}`).join('\0');
+  let c = scanned.get(dir);
+  if (c?.sig !== sig) scanned.set(dir, (c = { sig, files }));
+  return c;
+}
+
+// sha256 of the folder's sorted paths and contents, and the sorted uses. The stats only vouch for a
+// hash once they're old: a same-size edit in the same clock tick (15 ms on Windows, more on some
+// disks) leaves them as they were, so a file touched just now is read every time (as git does).
+const SETTLED_MS = 3000;
+const settled = (c) => c.files.every((f) => Date.now() - Math.max(f.st?.mtimeMs || 0, f.st?.ctimeMs || 0) > SETTLED_MS);
+export function appHash(dir, uses = []) {
+  const c = scanOf(dir);
+  if (!c.code || !c.settled) {
+    const h = crypto.createHash('sha256');
+    for (const f of c.files) {
+      h.update(`${f.rel}\0${f.link}\0${f.st?.size ?? ''}\0`);
+      if (f.st) h.update(fs.readFileSync(f.abs));
+    }
+    c.code = h.digest('hex');
+    c.settled = settled(c); // checked after reading: an edit during the read keeps it unsettled
+  }
+  return crypto.createHash('sha256').update(`${c.code}\0${[...uses].sort().join('\0')}`).digest('hex');
+}
+
+// What the Allow card should say out loud. Literal names only, so it can miss code that builds
+// them at run time: a warning when it finds one, no promise when it doesn't.
+const WEBRTC = /RTCPeerConnection|RTCDataChannel|webkitRTC/;
+export function scanApp(dir) {
+  const c = scanOf(dir);
+  c.risky ??= c.files.some((f) => f.st && /\.(html?|[cm]?js)$/i.test(f.rel) && WEBRTC.test(fs.readFileSync(f.abs, 'latin1'))) ? ['webrtc'] : [];
+  return c.risky;
 }
 
 // --- what an agent reads (wisp_stuff, @-mentions in a prompt) --------------------------------------
@@ -151,9 +205,36 @@ export class Stuff {
 
   // What the page sees: no paths on this computer. db: whether the app has a database, and data:
   // whether it has any yet (Reset data).
+  // allowed: what holds now (grant()), never what's stored; grantHash stays here.
   view(it) {
-    const { path: _p, source: _s, prev, cover, db, ...rest } = it;
-    return { ...rest, ...(prev && { prev: { at: prev.at, size: prev.size, by: prev.by } }), ...(cover && { cover: true }), ...(db && { db: true, data: fs.existsSync(this.dataFile(it.id)) }) };
+    const { path: _p, source: _s, prev, cover, db, allowed: _a, grantHash: _h, ...rest } = it;
+    const { allowed, changed } = this.grant(it);
+    const risky = it.uses?.length ? this.risky(it) : [];
+    return { ...rest, ...(allowed.length && { allowed }), ...(changed && { changed: true }), ...(risky.length && { risky }), ...(prev && { prev: { at: prev.at, size: prev.size, by: prev.by } }), ...(cover && { cover: true }), ...(db && { db: true, data: fs.existsSync(this.dataFile(it.id)) }) };
+  }
+
+  // Its folder as it is now, '' when that can't be read (no match: a write grant is off).
+  #hash(it) {
+    try {
+      return appHash(it.path, it.uses);
+    } catch {
+      return '';
+    }
+  }
+
+  // What an app may use now: { allowed, changed } (pane-bridge.js effectiveGrant). The code is only
+  // hashed for an app holding a write scope.
+  grant(it) {
+    const list = it.allowed || [];
+    return effectiveGrant(list, it.grantHash, list.some((x) => WRITE_USES.includes(x)) ? this.#hash(it) : '');
+  }
+
+  risky(it) {
+    try {
+      return scanApp(it.path);
+    } catch {
+      return [];
+    }
   }
 
   // An app's database (app-db.js): beside it, under its id, so it outlives updates to the app.
@@ -322,8 +403,9 @@ export class Stuff {
     const it = this.byId.get(id);
     if (!it || it.kind !== 'app') throw bad('That’s not an app in My Stuff.', 404);
     const allowed = grantOf(it.uses || [], uses);
-    const { allowed: _a, ...rest } = it;
-    return this.#save(allowed.length ? { ...rest, allowed } : rest);
+    const { allowed: _a, grantHash: _h, ...rest } = it;
+    const tied = allowed.some((x) => WRITE_USES.includes(x));
+    return this.#save({ ...rest, ...(allowed.length && { allowed }), ...(tied && { grantHash: this.#hash(it) }) });
   }
 
   // Async: on Windows a file the app's server is still closing blocks its folder for a moment, and

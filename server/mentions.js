@@ -53,7 +53,7 @@ function stuffNote(prompt, stuff, tools) {
   if (!found.length || !stuff) return '';
   const lines = found.map((m) => {
     const it = stuff.get(m.id);
-    return it ? stuffDetail(it) : `- \`${m.id}\` (${m.title}): no longer in My Stuff.`;
+    return it ? stuffDetail({ ...it, allowed: stuff.grant(it).allowed }) : `- \`${m.id}\` (${m.title}): no longer in My Stuff.`;
   });
   const how = tools ? 'Use them from these paths. To change one for the user, save the new version with wisp_save and its id.' : 'Use them from these paths; leave the copies there as they are.';
   return `\n\n<wisp-stuff>\nThe user points at things they kept in My Stuff. ${how}\n${lines.join('\n')}\n</wisp-stuff>`;

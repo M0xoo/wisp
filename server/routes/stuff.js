@@ -7,6 +7,7 @@ import { sendFile } from '../http/respond.js';
 import { MIME } from '../http/static.js';
 import { workdir } from '../runner.js';
 import { bad } from '../util.js';
+import { grantOf, notWhile, runsFullAuto } from '../../web/js/pane-bridge.js';
 import { docFile, mediaFile, revealInFolder } from './sessions.js';
 
 // A file a task's reply showed or named: its pictures and docs, or anything in its folder.
@@ -127,9 +128,25 @@ export function register(r, app) {
   );
 
   // Allow a pane what its wisp-app.json "uses" (web/js/pane-bridge.js): you, once, when you pin it.
-  // DELETE takes it all back. A spell can pin a pane but never allow it anything.
-  r.route('POST', '/stuff/:id/allow', one(async (c, it) => c.send(200, view(stuff.allow(it.id, (await c.body()).uses)))));
+  // DELETE takes it all back. A spell can pin a pane but never allow it anything. Scopes never
+  // widen while the task it's for (task), or the task that made the app, runs in Full auto: nobody
+  // is reading cards there. Other Full auto tasks (crew jobs, all the time) don't matter here.
+  r.route(
+    'POST',
+    '/stuff/:id/allow',
+    one(async (c, it) => {
+      const { uses, task } = await c.body();
+      const now = stuff.grant(it).allowed;
+      if (grantOf(it.uses || [], uses).some((x) => !now.includes(x))) {
+        const run = [task, it.from?.session].map((id) => id && store.get(String(id))).find(runsFullAuto);
+        if (run) return c.send(409, { error: notWhile(run) });
+      }
+      c.send(200, view(stuff.allow(it.id, uses)));
+    }),
+  );
   r.route('DELETE', '/stuff/:id/allow', one((c, it) => c.send(200, view(stuff.allow(it.id, [])))));
+  // What it may use right now, asked before every write a pane makes (features/panes.js).
+  r.route('GET', '/stuff/:id/grant', one((c, it) => c.send(200, stuff.grant(it))));
 
   // Back to the version before the last change (an agent's update, or yours).
   r.route('POST', '/stuff/:id/restore', one((c, it) => c.send(200, view(stuff.restore(it.id)))));

@@ -204,7 +204,7 @@ export function register(r, app) {
       const one = c.query.get('id');
       if (one) {
         const it = app.stuff.get(one);
-        return c.send(200, { text: it ? stuffDetail(it) : `No item ${one} in My Stuff.` });
+        return c.send(200, { text: it ? stuffDetail({ ...it, allowed: app.stuff.grant(it).allowed }) : `No item ${one} in My Stuff.` });
       }
       const kind = c.query.get('kind') || '';
       const all = app.stuff.search(c.query.get('query') || '', kind);
