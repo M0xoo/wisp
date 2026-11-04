@@ -375,3 +375,24 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Steps:** on a wisp Grid in iPhone Safari, open home; hide the *Add wisp to your Home Screen* row with ×, reload. Clear site data, then Share → **Add to Home Screen**, open it from the Home Screen. Portrait and landscape; Settings → Notifications; open a task, Back; force-quit and open again; sign out on the grid and open it. In desktop Chrome on this computer, and in the Android app, open home.
 - **Expected:** the row shows only in an iPhone's browser on a Grid, until × (it doesn't come back). The icon reads *wisp* with the logo. It opens full screen; nothing sits under the status bar, the notch, the Dynamic Island or the home indicator (the list's head, the task's head and the reply box keep clear of them), the status bar is readable in light and dark. The second open paints from cache, then refreshes; a grid deploy reloads it onto the new build. Notifications reads *On iPhone, alerts come from the ntfy app*; nothing throws. Signed out, it drops its cache and lands on the sign-in. Desktop browsers and the Android app look as before: no install offer, no new padding.
 - **Automated** (WEB-49: emulated `navigator.standalone`: `html.standalone`, `viewport-fit=cover`, the service worker registers; a browser tab gets none of it), **Suite** (`test/static.test.js`, `test/spells.test.js`), **Manual** (a real iPhone on grid.trywisp.dev)
+
+### WEB-50 · Panes: pin, the card, a code change, Full auto, staying in the frame
+- **Preconditions:** an app in My Stuff whose `wisp-app.json` has `"uses": ["tasks:read", "tasks:write"]`, loading `/_wisp/pane.js`.
+- **Steps:**
+  1. ⋯ → **Pin on home**: the Allow card lists what it asks and says *assume whoever wrote it can see what it reads*. **Allow and pin**.
+  2. From the pane, call `wisp.tasks.launch({ prompt: 'a\u202Eb' })`.
+  3. **Cancel**; Esc; a click outside. Then call it again and press **Send**.
+  4. Call it twice at once, and once with ⌘K open.
+  5. Change a file in the app's folder, then call it again. **Allow…** on its bar, then call it again.
+  6. Pin the app beside a task running in Full auto (or the task that made the app).
+  7. From the pane: `location = 'http://127.0.0.1:<another port>/?x'`, a meta refresh to it, then `location = '/other.html'`.
+  8. Frame wisp's page from an app with no `uses`.
+- **Expected:**
+  - 2: wisp's own card over the page (not in the frame): project, harness, mode as the launcher names it, the prompt with `<U+202E>` and its length. Cancel has the focus, Send is disabled for 600 ms, and Enter on Cancel doesn't send.
+  - 3: each of the three rejects with *You didn’t send it.* and nothing starts; Send starts a task in your default mode.
+  - 4: the second is refused with *A card is already waiting for you.*; with ⌘K open, *wisp has a dialog open: close it, then try again.*; a dialog that opens over the card counts as Cancel.
+  - 5: *This pane changed since you allowed it: allow it again from its bar.*, no card, *Changed since allowed* on the bar; after allowing, the card opens again.
+  - 6: **Allow…** is hidden; pinning from My Stuff toasts *Not while … runs in Full auto.*, no card.
+  - 7: both navigations are blocked, the other port gets no request and the frame shows Chrome's blocked page until **Reload the pane**; the same-origin one works and `wisp.*` still answers.
+  - 8: Chrome refuses the frame.
+- **Suite** (`test/panes.test.js`), **Manual** (real Chrome)

@@ -6,12 +6,17 @@
 // `wisp.tasks.list()` and the rest post a message to the parent page, which checks the call against
 // what you allowed when you pinned it (`allowed`, a subset of what its wisp-app.json `uses`) and
 // only then calls the real API. An app that uses any of this is served with a CSP that keeps its
-// requests on its own origin (its files and its database), so what it reads can't leave.
+// requests on its own origin (its files and its database), and its frame sits in a wrapper whose
+// CSP stops it navigating anywhere else (paneFrameCsp). That doesn't make what it reads private:
+// Chrome applies no CSP to WebRTC, so treat what a pane reads as visible to whoever wrote it.
+// A write is never the frame's to make: wisp's own card asks you first (features/pane-card.js).
+
+import { redactSecrets } from './secret-scan.js';
 
 // What an app may ask for, with the words the Allow card shows.
 export const PANE_USES = {
   'tasks:read': 'See your tasks: title, state, project, branch, PR and the one-line summary of the last answer (not the conversation)',
-  'tasks:write': 'Start tasks, send follow-ups and mark tasks done',
+  'tasks:write': 'Ask to start tasks and send follow-ups (you confirm each one), and mark tasks done',
   'prs:read': 'See your tasks’ pull requests',
   'crew:read': 'See your crew: names, roles and what they’re doing',
 };
@@ -28,9 +33,14 @@ export const PANE_CALLS = {
   'crew.list': 'crew:read',
 };
 
+// The scopes that change something. A grant of one is tied to the app's code (effectiveGrant).
+export const WRITE_USES = ['tasks:write'];
+export const PANE_WRITES = Object.keys(PANE_CALLS).filter((m) => WRITE_USES.includes(PANE_CALLS[m]));
+
 export const PANE_WHERE = ['task', 'home'];
 export const MAX_PANES = 8;
-// At most this many writes a minute from one pane: a loop in an app can't start a hundred tasks.
+// At most this many writes a minute from one pane, whatever became of them (a card you cancelled
+// counts): a loop in an app can't start a hundred tasks or bury you in cards.
 export const PANE_WRITES_PER_MIN = 6;
 const MAX_TEXT = 20_000;
 
@@ -49,6 +59,28 @@ export const grantOf = (uses = [], want = []) => (Array.isArray(want) ? want : [
 
 // What the app asks for that you haven't allowed yet.
 export const missingOf = (it) => (it?.uses || []).filter((x) => !(it.allowed || []).includes(x));
+
+// What a stored grant is worth now. A write scope holds only for the code you allowed: while the
+// app's hash differs (or there's none) the write scopes are off and changed says so. Nothing is
+// deleted: going back to that code brings them back. Read scopes aren't tied to the hash.
+export function effectiveGrant(allowed = [], grantHash = '', hashNow = '') {
+  const list = allowed || [];
+  const tied = list.some((x) => WRITE_USES.includes(x));
+  if (!tied || (grantHash && grantHash === hashNow)) return { allowed: list, changed: false };
+  return { allowed: list.filter((x) => !WRITE_USES.includes(x)), changed: true };
+}
+
+// A task the app may not gain a scope under: it's running in Full auto, nobody is reading cards.
+// `s` is the page's summary (status) or the server's task (its last turn).
+export const runsFullAuto = (s) => !!s && s.mode === 'auto' && (s.state === 'running' || s.status === 'running' || s.turns?.at(-1)?.status === 'running');
+export const notWhile = (s) => `Not while ${s.title || 'a task'} runs in Full auto.`;
+
+// The body of POST /sessions for a pane's task: as New task sends it. `defaults` are the page's
+// resolved ones (panes.js launchDefaults); leave mode out and the server falls back to Full auto.
+export function launchBody(defaults = {}, prompt = '', project = null) {
+  const d = defaults;
+  return { prompt, ...(project ? { cwd: project.path } : { scratch: true }), agent: d.agent, mode: d.mode, model: d.model, effort: d.effort, account: d.account || undefined, worktree: d.worktree === 'off' ? false : undefined };
+}
 
 // Why a call is refused, or '' when it may go. allowed: what you allowed for this app.
 export function refusal(method, allowed = []) {
@@ -105,13 +137,20 @@ export function appFor(pin, items = []) {
 
 // --- what the frame gets: light shapes, never turns ------------------------------------------
 
+// A secret a task's title or summary happens to quote stays out of the frame: the shared scanner,
+// plus what's too short for it to be sure of but plainly a secret here.
+const MORE_SECRETS = [/\bBearer\s+[\w.~+/=-]{8,}/gi, /\bsk-[A-Za-z0-9_-]{12,}/g, /\b[\w.-]*(?:KEY|TOKEN|SECRET|PASSWORD)[\w.-]*\s*=(?!=)\s*\S+/gi];
+export function scrubSecrets(text) {
+  return MORE_SECRETS.reduce((out, re) => out.replace(re, '[redacted]'), redactSecrets(text).text);
+}
+
 const prOf = (p) => (p ? { number: p.number, url: p.url, state: p.state, draft: !!p.draft, checks: p.checks || null, review: p.review || null, conflict: !!p.conflict } : null);
 
 export function lightTask(s) {
   if (!s) return null;
   return {
     id: s.id,
-    title: s.title || '',
+    title: scrubSecrets(s.title || ''),
     state: s.state, // running, waiting, review, done, …
     status: s.status || '', // what its last answer said: done, partial, blocked, info, running
     project: s.project || '',
@@ -119,8 +158,8 @@ export function lightTask(s) {
     model: s.model || '',
     mode: s.mode || '',
     branch: s.branch || '',
-    summary: s.preview || '',
-    live: s.live || '',
+    summary: scrubSecrets(s.preview || ''),
+    live: scrubSecrets(s.live || ''),
     unread: !!s.unread,
     archived: !!s.archived,
     asks: !!s.asks,
@@ -138,7 +177,7 @@ export function lightPrs(sessions) {
   const out = [];
   for (const s of listedTasks(sessions)) {
     const all = [...(s.pr ? [{ repo: s.project, pr: s.pr }] : []), ...(s.prs || [])];
-    for (const x of all) if (x?.pr && !out.some((o) => o.url === x.pr.url)) out.push({ ...prOf(x.pr), repo: x.repo || s.project || '', task: s.id, title: s.title || '' });
+    for (const x of all) if (x?.pr && !out.some((o) => o.url === x.pr.url)) out.push({ ...prOf(x.pr), repo: x.repo || s.project || '', task: s.id, title: scrubSecrets(s.title || '') });
   }
   return out;
 }
@@ -149,9 +188,11 @@ export const lightMember = (m) => (m ? { id: m.id, name: m.name, role: m.role ||
 
 // What the app's page loads with <script src="/_wisp/pane.js"></script>: `wisp`, calls that post
 // to the parent and resolve with its answer. Outside a pane (opened in a tab) every call refuses.
+// The parent is the wrapper frame, which has no scripts: wisp's page listens on it and answers
+// from itself, so an answer's source is the parent's parent.
 export const PANE_CLIENT = `(()=>{if(window.wisp&&window.wisp.tasks)return;const inPane=parent!==window;let n=0;const wait=new Map();const subs={};let ctx={where:inPane?'':'tab'};
 const call=(method,...args)=>new Promise((ok,no)=>{if(!inPane)return no(new Error('Pin this app as a pane in wisp to use wisp.'+method+'().'));const id=++n;wait.set(id,{ok,no});parent.postMessage({wispPane:1,id,method,args},'*')});
-addEventListener('message',(e)=>{if(e.source!==parent)return;const m=e.data||{};if(!m.wispPane)return;if(m.id&&wait.has(m.id)){const w=wait.get(m.id);wait.delete(m.id);m.error?w.no(new Error(m.error)):w.ok(m.result);return}
+addEventListener('message',(e)=>{if(e.source!==parent&&e.source!==parent.parent)return;const m=e.data||{};if(!m.wispPane)return;if(m.id&&wait.has(m.id)){const w=wait.get(m.id);wait.delete(m.id);m.error?w.no(new Error(m.error)):w.ok(m.result);return}
 if(m.event==='context'){ctx=Object.freeze({...m.data});}(subs[m.event]||[]).forEach((f)=>{try{f(m.data)}catch(err){console.error(err)}})});
 const on=(ev,fn)=>{(subs[ev]=subs[ev]||[]).push(fn);if(ev==='tasks')call('tasks.watch').catch((err)=>console.warn(err.message));return()=>{subs[ev]=(subs[ev]||[]).filter((f)=>f!==fn)}};
 window.wisp=Object.freeze({get context(){return ctx},on,
@@ -160,4 +201,23 @@ prs:Object.freeze({list:()=>call('prs.list')}),crew:Object.freeze({list:()=>call
 if(inPane)parent.postMessage({wispPane:1,hello:1},'*');})();`;
 
 // An app that uses wisp keeps its requests on its own origin: its files, its database.
+// An app that doesn't use wisp keeps its network, but an app on loopback can't frame wisp's http page and steal clicks.
+export const PANE_APP_CSP = "frame-src 'self' https: data: blob:";
 export const PANE_CSP = "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'";
+
+// The wrapper around an app's frame: no sandbox and no scripts of its own, only a CSP. A frame's
+// navigations answer to the CSP of the document holding it, and the sandbox has no such rule, so
+// this is what stops `location = 'https://…?' + data` and a meta refresh. Exact origins, never a
+// wildcard: whatever isn't an http(s) origin is dropped.
+export function paneFrameCsp(origins = []) {
+  const ok = origins.filter((o, i, a) => typeof o === 'string' && /^https?:\/\/(\[[0-9a-f:]+\]|[a-z0-9.-]+)(:\d{1,5})?$/.test(o) && a.indexOf(o) === i);
+  return `default-src 'none'; style-src 'unsafe-inline'; frame-src ${ok.join(' ') || "'none'"}`;
+}
+
+// The wrapper's document (the iframe's srcdoc). csp is paneFrameCsp's: origins can't hold a quote.
+export const paneWrapperDoc = (csp) => `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="${csp}"><style>html,body{margin:0;height:100%}iframe{display:block;border:0;width:100%;height:100%}</style></head><body></body></html>`;
+
+// What the card shows: anything that doesn't print, or reorders what's around it, as a visible
+// <U+202E>. Newlines and tabs stay. Tag characters (U+E0000…) spell text only an agent reads.
+const INVISIBLE = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u00AD\u034F\u061C\u180E\u200B-\u200F\u2028-\u202E\u2060-\u206F\uFEFF\uFFF9-\uFFFB\u{E0000}-\u{E007F}]/gu;
+export const showInvisible = (text) => String(text ?? '').replace(INVISIBLE, (c) => `<U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}>`);

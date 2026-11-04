@@ -12,7 +12,7 @@ import { pipeline } from 'node:stream';
 import { MIME } from '../http/static.js';
 import { bad } from '../util.js';
 import { DB_CLIENT, createAppDb } from '../app-db.js';
-import { PANE_CLIENT, PANE_CSP } from '../../web/js/pane-bridge.js';
+import { PANE_APP_CSP, PANE_CLIENT, PANE_CSP } from '../../web/js/pane-bridge.js';
 
 const BASE = 47100;
 const SPAN = 800;
@@ -121,8 +121,9 @@ export class Apps {
       return res.end('forbidden host');
     }
     const pathname = new URL(req.url, 'http://x').pathname;
-    // An app that uses wisp (a pane: web/js/pane-bridge.js) keeps its requests on its own origin.
-    const csp = this.stuff.get(id)?.uses?.length ? { 'content-security-policy': PANE_CSP } : {};
+    // An app that uses wisp (a pane: web/js/pane-bridge.js) keeps its requests on its own origin;
+    // any other keeps its network but can't frame wisp's page.
+    const csp = { 'content-security-policy': this.stuff.get(id)?.uses?.length ? PANE_CSP : PANE_APP_CSP };
     if (pathname === '/_wisp/pane.js') {
       res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
       return res.end(req.method === 'HEAD' ? undefined : PANE_CLIENT);

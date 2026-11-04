@@ -647,7 +647,7 @@ function itemMenu(it, at, anchor = null) {
     // Panes (panes.js): beside the open task, or on home. Pinning asks first what it may use.
     app && (pinnedAt(it, 'task') ? ['unpin-task', 'panel', 'Unpin from beside tasks'] : ['pin-task', 'panel', 'Pin beside tasks']),
     app && (pinnedAt(it, 'home') ? ['unpin-home', 'pin', 'Unpin from home'] : ['pin-home', 'pin', 'Pin on home']),
-    app && it.allowed?.length && ['revoke', 'lock', 'Take back access'],
+    app && (it.allowed?.length || it.changed) && ['revoke', 'lock', 'Take back access'],
     ['mention', 'agent', 'Use in a new task'],
     canCopy(it) && ['copy', 'copy', it.kind === 'link' ? 'Copy link' : 'Copy'],
     !app && it.kind !== 'link' && CAN_SAVE && ['download', 'download', 'Download'],

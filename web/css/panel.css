@@ -694,13 +694,17 @@ body.wisp-mobile .ed-head .ed-probs { min-height: 44px; }
 .pn-pane > .pa { flex: 1; min-height: 0; }
 .pn-pane > .pa[hidden] { display: none; }
 .pa { display: flex; flex-direction: column; min-height: 0; }
-.pa-bar { display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 6px 0 12px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--ink-2); }
+.pa-bar { container: pa-bar / inline-size; display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 6px 0 12px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--ink-2); }
 .pa-bar .grow { flex: 1; }
 .pa-ic { display: inline-flex; color: var(--muted); }
 .pa-ic .i { width: 13px; height: 13px; }
 .pa-name { min-width: 0; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pa-need { color: var(--faint); white-space: nowrap; }
+.pa-need { flex: 0 1000 auto; min-width: 0; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* gives way before the name; the full words are in its title */
 .pa-need[hidden], .pa-allow[hidden] { display: none; }
+/* Narrow: a short name stays whole and a long one stops at a share of the bar, so what it still needs keeps some room. */
+@container pa-bar (max-width: 480px) {
+  .pa-name { flex: none; max-width: 36%; }
+}
 .pa-stage { position: relative; flex: 1; min-height: 0; background: var(--bg); }
 .pa-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--bg); }
 .pa-wait { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; font-size: 13px; color: var(--muted); }
@@ -710,3 +714,38 @@ body.wisp-mobile .ed-head .ed-probs { min-height: 44px; }
 .pa-off .i { flex: none; width: 14px; height: 14px; margin-top: 2px; }
 .touch .pa-bar { min-height: 44px; }
 .touch .pa-bar .icon-btn { width: 40px; height: 40px; }
+/* ---------- the card a pane's write waits on (features/pane-card.js) ----------
+   A column that never scrolls as a whole: the prompt gives up height first, then what's above it,
+   so Cancel and Send stay on screen however long either gets. */
+.modal.pane-card { display: flex; flex-direction: column; gap: 12px; max-height: 86dvh; overflow: hidden; }
+.pc-top { flex: 0 1 auto; min-height: 0; max-height: 46dvh; margin: 0 -8px; padding: 0 8px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; }
+.pane-card header { flex: none; margin: 0; }
+.pane-card h2 { min-width: 0; overflow-wrap: anywhere; }
+.pc-from { flex: none; display: flex; gap: 8px; align-items: flex-start; margin: 12px 0 10px; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+.pc-from .i { flex: none; width: 13px; height: 13px; margin-top: 2px; }
+.pc-rows { display: contents; } /* its rows sit directly in .pc-top, so .pc-warn can stick anywhere in it */
+.pc-rows > div { flex: none; display: grid; margin: 1px -8px; grid-template-columns: 52px minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 3px 8px; border-radius: 8px; }
+.pc-rows dt { font-size: 12.5px; color: var(--muted); }
+.pc-rows dd { display: flex; gap: 6px; margin: 0; min-width: 0; font-size: 13px; line-height: 1.45; color: var(--ink); overflow-wrap: anywhere; }
+.pc-rows dd > span { min-width: 0; }
+/* Full auto: flagged like wisp's other warnings (.au-warn), the row tinted, never a stripe. Opaque
+   and sticky: an app's long name can scroll the rows, not push this out of sight. */
+.pc-rows .pc-warn { position: sticky; bottom: 0; background: color-mix(in srgb, var(--warn) 8%, var(--surface)); }
+.pc-warn dd { font-weight: 500; color: var(--warn); }
+.pc-warn dd .i { flex: none; width: 13px; height: 13px; align-self: center; }
+.pc-label { flex: none; display: flex; justify-content: space-between; gap: 12px; margin-bottom: -6px; font-size: 12.5px; color: var(--muted); }
+.pc-len { font-variant-numeric: tabular-nums; }
+.pc-hid { font-weight: 500; color: var(--warn); }
+.pc-prompt { flex: 0 1000 auto; min-height: 44px; max-height: 56dvh; margin: 0; padding: 10px 12px; overflow: auto; overscroll-behavior: contain; white-space: pre-wrap; overflow-wrap: anywhere; font: 14px/1.55 var(--sans); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; }
+/* What doesn't print, as a chip no typed text can pass for. */
+.pc-inv { padding: 1px 4px; border: 1px solid color-mix(in srgb, var(--warn) 35%, var(--line)); border-radius: 5px; white-space: nowrap; font: 500 12.5px/1 var(--mono); color: color-mix(in srgb, var(--warn) 85%, var(--ink)); background: color-mix(in srgb, var(--warn) 8%, transparent); }
+.pc-acts { flex: none; display: flex; justify-content: flex-end; gap: 8px; }
+/* Cancel holds the focus and is the safe answer: it reads as a button, not as a hint beside Send. */
+.pc-acts .ghost { padding: 0 12px; color: var(--ink); border: 1px solid var(--line-2); }
+.pc-acts .primary:disabled { cursor: not-allowed; }
+@media (pointer: coarse), (max-width: 520px) {
+  .pc-acts button { flex: 1; justify-content: center; }
+}
+@media (pointer: coarse) {
+  .pc-acts button { min-height: 44px; }
+}
