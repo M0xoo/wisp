@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { installFakeBins, makeRepo, records, same, tmp, until } from './helpers.js';
+import { installFakeBins, makeRepo, same, taskRuns, tmp, until } from './helpers.js';
 
 const RECORD = tmp('fork-record');
 process.env.FAKE_RECORD = RECORD;
@@ -43,7 +43,7 @@ const settled = (id, n) =>
     const x = await api(`/sessions/${id}`);
     return x.turns.length === n && x.state === 'review' && x;
   });
-const last = (bin) => records(RECORD, bin).filter((r) => !r.stdin.startsWith('# wisp retro')).at(-1);
+const last = (bin) => taskRuns(RECORD, bin).at(-1);
 const read = (dir, f) => fs.readFileSync(path.join(dir, f), 'utf8');
 
 before(async () => {
