@@ -559,6 +559,21 @@ test('archive drops a clean worktree and a follow-up brings it back; delete remo
   assert.notEqual(repo.git('branch', '--list', wt.branch), '', 'a branch with commits survives');
 });
 
+test('archive drops a clean worktree at once while the CLI is still exiting after its result', async () => {
+  process.env.FAKE_LINGER = '2000'; // under the 3 s linger, so the run is still live when the task shows as done
+  const repo = makeClone();
+  const s = await api('/sessions', { body: { prompt: 'Tidy math.js', cwd: repo.dir, agent: 'claude' } });
+  try {
+    const { worktree: wt } = await settled(s.id);
+    repo.git('-C', wt.path, 'commit', '-qam', 'wip');
+    await api(`/sessions/${s.id}`, { method: 'PATCH', body: { archived: true } });
+    assert.equal(fs.existsSync(wt.path), false, 'nothing comes back for it later: the moment to drop it is now');
+    assert.notEqual(repo.git('branch', '--list', wt.branch), '');
+  } finally {
+    delete process.env.FAKE_LINGER;
+  }
+});
+
 test('compare: one task on two harnesses, each in its own worktree; discard the loser', async () => {
   const repo = makeClone();
   const s = await api('/sessions', { body: { prompt: 'Fix add()', cwd: repo.dir, agent: 'claude', compare: [{ agent: 'codex' }] } });

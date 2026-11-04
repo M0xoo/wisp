@@ -311,7 +311,7 @@ export function register(r, app) {
       if (s.archived) (app.shells?.close(s.id), app.runs?.stop(s.id)); // its shell and app in the side panel go with it
       // A side discussion reading it keeps it too (server/side.js): it comes back for the next one anyway.
       const read = (s.sides || []).some((id) => runner.live.has(id));
-      if (!runner.live.has(s.id) && !read && (s.archived || body.discardWorktree))
+      if (!runner.working(s) && !read && (s.archived || body.discardWorktree))
         for (const x of [s, ...(s.also || [])]) if (x.worktree) await removeWorktree(x.worktree, { force: !!body.discardWorktree, branch: !!body.discardWorktree && !x.pr && 'force' });
       app.sessionChanged(s);
       c.send(200, summarize(s, store));
