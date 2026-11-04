@@ -29,6 +29,7 @@ import { goalPill } from './goal.js';
 import { aheadLabel, isScheduled, laterLine, laterPill, laterTip, nextAt, planRows } from './later.js';
 import { crewDot, crewFace, memberById, paintCrew, pinJob, underMember } from './crew.js';
 import { openUnlisted, pruneSubs, subsUnder } from './lineage.js';
+import { sideDoes } from './side.js';
 import { backToPlace, goBack, goHome, isSplit, isStacked, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
 
 // A run held near the limit (features/hold.js), on its row: the window, and when it goes by itself.
@@ -487,7 +488,7 @@ export function headPills(s, pill) {
 }
 
 // A side discussion (/side) says so in the list: its title alone reads like any task's.
-const sidePill = (s) => (s.sideOf ? `<span class="pill side-pill" title="${esc(`Side discussion of “${S.sessions.get(s.sideOf.id)?.title || s.sideOf.title}”: it reads that task's work and changes nothing`)}">${icon('discuss')}Side</span>` : '');
+const sidePill = (s) => (s.sideOf ? `<span class="pill side-pill" title="${esc(`Side discussion of “${S.sessions.get(s.sideOf.id)?.title || s.sideOf.title}”: it ${sideDoes(s.sideOf)}`)}">${icon('discuss')}Side</span>` : '');
 
 // What Auto found after the run: its own test check, the best-of-2 pick, a hand-over.
 function autoPill(s) {

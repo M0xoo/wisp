@@ -223,7 +223,7 @@ export function register(r, app) {
       const body = await c.body();
       const s = store.get(body.session);
       if (!s) return c.send(404, { error: 'no such session' });
-      const out = runner.requestApproval(s, body);
+      const out = await runner.requestApproval(s, body);
       if (out.id) telemetry.track('approval', { agent: s.agent });
       c.send(200, out);
     }),

@@ -3,7 +3,7 @@
 
 export const SLASH = [
   { name: 'btw', args: 'question', hint: 'Ask on the side. The agent keeps working' },
-  { name: 'side', args: 'what to talk over', hint: 'Talk it over on a page of its own. It reads the work, changes nothing' },
+  { name: 'side', args: 'what to talk over', hint: 'Talk it over on a page of its own. It can run and edit, and checks for clashes first' },
   { name: 'goal', args: 'what has to be true', hint: 'Keep going until it holds. /goal drop stops', bare: true }, // alone: opens the goal's popover
   { name: 'spell', args: 'what to change', hint: 'Cast a spell: change wisp itself' },
   { name: 'feedback', args: 'note', hint: 'Tell the wisp team what works or what you wish it did', bare: true }, // alone: opens the dialog

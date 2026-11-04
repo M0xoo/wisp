@@ -21,6 +21,7 @@ const LEAN = ['--tools', '', '--strict-mcp-config', '--setting-sources', 'user',
 // repo's hooks (.claude/settings.json, settings.local.json: a repo can commit that one too), and
 // only the MCP servers wisp passes, so not .mcp.json's (nor, this run, your own).
 const UNTRUSTED = ['--setting-sources', 'user', '--strict-mcp-config'];
+const GATED = ['Edit', 'MultiEdit', 'Write', 'NotebookEdit', 'Bash']; // what a gated run always asks wisp about
 const leanOk = () => VERSION.length === 3 && (VERSION[0] > 2 || (VERSION[0] === 2 && VERSION[1] >= 1));
 // Where claude lives when it isn't on PATH: the native installer's folders (an app started from
 // the Dock never reads the shell profile that adds them), then the copies the Claude desktop app
@@ -246,6 +247,7 @@ export default {
   name: 'Claude Code',
   // Asks wisp before a tool call its permission mode won't allow on its own (Edits mode).
   approveTool: 'mcp__wisp__approve',
+  sideGate: true, // a side discussion can change the work: wisp hears of every write first
   fork: true, // run({ resumeId, fork }) answers on a copy of the conversation (/btw)
   models: [
     { id: '', label: 'Default', hint: 'Whatever Claude Code is set to' },
@@ -319,14 +321,18 @@ export default {
   // quiet: without Claude Code's nonessential traffic, which also drops claude.ai connectors (server/lean.js).
   // subagentModel: '' | 'haiku' | 'sonnet', the model its subagents and workflow agents run on
   // (defaults.subagentModel). Never _FORCE: an Agent call's own model, or a custom agent's, still wins.
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, quiet = false, subagentModel = '', onEvent }) {
+  // gate: every write and command goes to the approve tool first (a side discussion, server/side-gate.js).
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, quiet = false, subagentModel = '', gate = false, onEvent }) {
     lean = lean && leanOk();
     const args = [
       '-p',
       '--output-format', 'stream-json',
       lean ? '--system-prompt' : '--append-system-prompt', systemPrompt,
-      '--permission-mode', PERMISSION_MODES[mode] || 'acceptEdits',
+      // acceptEdits never reaches the approve tool (nor does rm or touch): only default does.
+      '--permission-mode', gate ? 'default' : PERMISSION_MODES[mode] || 'acceptEdits',
     ];
+    // An ask rule beats allow rules, so the user's own settings can't take a write past the gate.
+    if (gate) args.push('--settings', JSON.stringify({ permissions: { ask: GATED } }));
     if (lean) args.push(...LEAN);
     else if (untrusted) args.push(...UNTRUSTED);
     if (model) args.push('--model', model);
@@ -384,7 +390,8 @@ export default {
             subagents.call(part.id, part.name, part.input);
             onEvent({ type: 'tool', id: part.id, ...describeTool(part.name, part.input || {}, cwd) });
             const change = captureChange(part.name, part.input || {}, cwd);
-            if (change) onEvent({ type: 'change', ...change });
+            // Streamed before the call runs, and before any permission prompt for it (early).
+            if (change) onEvent({ type: 'change', early: true, ...change });
           }
         }
       } else if (msg.type === 'user') {
@@ -393,7 +400,7 @@ export default {
           subagents.result(part.tool_use_id, msg.tool_use_result);
           if (part.is_error) {
             const name = pendingTools.get(part.tool_use_id);
-            onEvent({ type: 'tool_error', name, text: flatten(part.content).slice(0, 400) });
+            onEvent({ type: 'tool_error', id: part.tool_use_id, name, text: flatten(part.content).slice(0, 400) });
           } else onEvent({ type: 'tool_output', id: part.tool_use_id, text: flatten(part.content) });
         }
       } else if (msg.type === 'rate_limit_event') {

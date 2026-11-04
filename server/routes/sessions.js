@@ -709,6 +709,18 @@ export function register(r, app) {
     }),
   );
 
+  // A side discussion's clash card: Apply rechecks first, and a card that no longer holds answers
+  // 409 and is redrawn with what's there now (the agent keeps waiting on it).
+  r.route(
+    'POST',
+    '/sessions/:id/clash',
+    one(async (c, s) => {
+      const { askId, action, sig } = await c.body();
+      if (action !== 'apply' && action !== 'keep') return c.send(400, { error: 'action must be apply or keep' });
+      c.send(200, { ok: true, ...runner.clashAnswer(s, { askId, action, sig }) });
+    }),
+  );
+
   // The card under a turn whose permissions blocked something: allow retries it, deny closes it.
   r.route(
     'POST',
@@ -829,7 +841,7 @@ export function register(r, app) {
   // to resume yet. A take over tells the agent to drop the wisp block (TAKEOVER_NOTE).
   const takeover = (fn) =>
     one(async (c, s) => {
-      notSide(s, 'be taken over in a terminal (it would leave Plan there)');
+      notSide(s, 'be taken over in a terminal (it would leave the gate there)');
       const adapter = adapters[s.agent];
       if (!adapter?.resumeCommand || (!s.agentSessionId && !s.tui)) return c.send(400, { error: 'This session cannot be resumed in a terminal.' });
       const trusted = store.isScratch(s.cwd) || !!s.worktree?.cwd;

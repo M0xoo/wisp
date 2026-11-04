@@ -36,7 +36,7 @@ import { signIn } from './connectors.js';
 import { crewFace, paintOffers } from './crew.js';
 import { keepCtx, stuffBlock } from './stuff.js';
 import { paintMarks, sentComments } from './comments.js';
-import { sideChips, sideLine, sidesMenu } from './side.js';
+import { clashCardHtml, sideWarnRows, sideChips, sideLine, sidesMenu } from './side.js';
 
 export function ctxFor(s, turn, isLatest) {
   return {
@@ -174,7 +174,7 @@ export function renderBody(id, { fresh }) {
   paintDoor(id);
   // While it works, the session id may still be on its way: takeOver asks for it.
   $('[data-a="takeover"]', body).hidden = (!s.agentSessionId && !live) || !!s.sideOf;
-  $('.it-actions [data-a="rerun"]', body).hidden = !!s.sideOf; // a side discussion only reads, and has no task of its own to redo
+  $('.it-actions [data-a="rerun"]', body).hidden = !!s.sideOf; // a side discussion has no task of its own to redo
   $('.it-watch', body).hidden = !summary.watch; // only once its agent put a page up (wisp_watch)
   $('.it-changes', body).hidden = !!summary.pending;
   const tx = transcriptOn(id);
@@ -211,7 +211,7 @@ export function renderBody(id, { fresh }) {
     const revKey = `${t.rolledBackAt || 0}:${(t.changes || []).map((c) => (c.reverted ? 1 : 0)).join('')}`;
     // .env masking turned on or off (Settings → Privacy): the turn is drawn again with or without it.
     const envKey = t.changes?.some((c) => c.masked) || t.activity?.some((x) => x.masked) ? 'm' : '';
-    const key = `${t.status}${t.held?.waiting ? '-waiting' : ''}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length + !!summary.watch : ''}|${subKey(s, t)}|${tx}|${isLatest ? s.goal?.status || '' : ''}|${envKey}`;
+    const key = `${t.status}${t.held?.waiting ? '-waiting' : ''}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + (s.ask?.clash?.sig || '') + (t.sideWarn?.length || '') + s.queue?.length + !!summary.watch : ''}|${subKey(s, t)}|${tx}|${isLatest ? s.goal?.status || '' : ''}|${envKey}`;
     const prev = n.turnNodes.get(t.id);
     let node = prev?.node;
     if (!prev || prev.key !== key) {
@@ -231,6 +231,8 @@ export function renderBody(id, { fresh }) {
       if (t.id === forkStart) node.prepend(forkLine(s.forkedFrom));
       // A side discussion says what it is above its first message, with the way back.
       if (s.sideOf && t.id === s.turns[0]?.id) node.prepend(sideLine(s.sideOf));
+      const warns = sideWarnRows(t);
+      if (warns) $('.ask', node)?.after(warns);
       // An imported task's own turns start under a line too: the ones above came with the share.
       if (t.id === sharedStart) node.prepend(el(`<div class="fork-line"><span>${icon('share')}<i>Imported from ${esc(s.sharedFrom.name || s.sharedFrom.handle || 'a share')}: your turns start here</i></span></div>`));
       if (prev) prev.node.replaceWith(node);
@@ -632,7 +634,7 @@ function renderTurn(s, t, isLatest, fold, tx) {
   const ask = el(`
     <div class="ask${t.by === 'wisp' ? ' by-wisp' : ''}">
       ${from ? `<div class="ask-by ask-from">${icon('crew')}${from.label}${from.open ? `<button class="link" data-from="${esc(from.id)}">“${esc(from.title)}”</button>` : `<span>“${esc(from.title)}”</span>`}</div>` : ''}
-      ${t.by === 'wisp' ? `<div class="ask-by">${icon(t.goal ? 'target' : 'spark')}${t.reports ? 'Sent by wisp when your subagents finished' : t.goal ? 'Sent back by wisp: the goal isn’t met yet' : 'Sent by wisp after its test run'}</div>` : ''}
+      ${t.side ? `<div class="ask-by ask-from">${icon('discuss')}<span>Sent by wisp from side discussion&nbsp;</span>${S.sessions.has(t.side.id) ? `<button class="link" data-from="${esc(t.side.id)}">“${esc(t.side.title)}”</button>` : `<span>“${esc(t.side.title)}”</span>`}</div>` : t.by === 'wisp' ? `<div class="ask-by">${icon(t.goal ? 'target' : 'spark')}${t.reports ? 'Sent by wisp when your subagents finished' : t.goal ? 'Sent back by wisp: the goal isn’t met yet' : 'Sent by wisp after its test run'}</div>` : ''}
       ${missing ? `<div class="ask-goal"><b>Still missing</b> ${esc(missing)}${next ? `<span>Next: ${esc(next)}</span>` : ''}</div>` : ''}
       ${sent ? sent.html : ''}
       <div class="ask-text ${long ? 'clamped' : ''}" ${missing || (sent && !said.trim()) ? 'hidden' : ''}>${mentionHtml(esc(cut ? said.slice(0, PROMPT_CUT) : said))}</div>
@@ -871,9 +873,40 @@ function renderConnectorCard(s) {
   return node;
 }
 
+// A side discussion's clash card (side.js). The first button applies, after the server's recheck: a
+// card that no longer holds comes back redrawn, with a toast.
+function renderClashCard(s) {
+  const a = s.ask;
+  const node = el(clashCardHtml(a));
+  const send = async (body, said) => {
+    node.classList.add('sent');
+    const undo = startOptimistic(s.id, said, null, { answering: true });
+    try {
+      await api(`/sessions/${s.id}/${body.text ? 'answer' : 'clash'}`, { method: 'POST', body });
+      if (undo) scheduleRefetch(s.id);
+    } catch (e) {
+      node.classList.remove('sent');
+      undo?.();
+      toastError(e);
+      scheduleRefetch(s.id);
+    }
+  };
+  node.addEventListener('click', (e) => {
+    const b = e.target.closest('.opt');
+    if (b) send({ askId: a.id, action: b.dataset.i === '0' ? 'apply' : 'keep', sig: a.clash.sig }, a.options[b.dataset.i]);
+  });
+  $('form', node).onsubmit = (e) => {
+    e.preventDefault();
+    const text = $('input', node).value.trim();
+    if (text) send({ text }, text);
+  };
+  return node;
+}
+
 function renderAskCard(s) {
   const a = s.ask;
   if (a.connector) return renderConnectorCard(s);
+  if (a.clash) return renderClashCard(s);
   const p = a.permission;
   // A live approval: the agent is paused on a tool call its permissions don't allow by themselves.
   const node = p

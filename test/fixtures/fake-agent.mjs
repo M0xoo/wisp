@@ -57,6 +57,10 @@
 // the run allows it (claude --allowedTools Bash(npm publish), or a Full auto run): claude reports
 // it in permission_denials, opencode on stderr, codex in a `blocked` block of its presentation,
 // copilot as a denied permission request (unless --allow-tool=shell(npm publish) or --allow-all).
+// A gated claude run (--permission-mode default, a side discussion that can change the work) leaves
+// math.js alone and acts only on lines of the user's message, each going through wisp's approve
+// tool the way the real CLI does, tool_use first: SIDEEDIT <file>|<old>|<new>, SIDEWRITE
+// <file>|<content>, SIDERUN <command>.
 
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -339,6 +343,34 @@ async function mcpCall(srv, tool, args) {
   child.kill();
   return res.result.content[0].text;
 }
+// The gated run's acts (see the top). tool_use goes out before the gate is asked, as the real CLI's does.
+async function sideActs(srv, session) {
+  const said = stdin.split('## The user, in this side discussion').pop();
+  const answers = [];
+  let n = 0;
+  for (const line of said.split('\n')) {
+    const m = /^(SIDEEDIT|SIDEWRITE|SIDERUN) (.+)$/.exec(line.trim());
+    if (!m) continue;
+    const [file, a, b] = m[2].split('|');
+    const id = `side${++n}`;
+    const tool = m[1] === 'SIDEEDIT' ? 'Edit' : m[1] === 'SIDEWRITE' ? 'Write' : 'Bash';
+    const abs = path.resolve(process.cwd(), file);
+    const input = tool === 'Edit' ? { file_path: abs, old_string: a, new_string: b } : tool === 'Write' ? { file_path: abs, content: a } : { command: m[2], description: 'Run it' };
+    out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id, name: tool, input }] } });
+    const r = JSON.parse(await mcpCall(srv, flag('--permission-prompt-tool').replace(/^mcp__wisp__/, ''), { tool_name: tool, input, tool_use_id: id }));
+    if (r.behavior !== 'allow') {
+      answers.push(`refused: ${r.message}`);
+      out({ type: 'user', session_id: session, message: { content: [{ type: 'tool_result', tool_use_id: id, is_error: true, content: r.message }] } });
+      continue;
+    }
+    if (tool === 'Edit') fs.writeFileSync(abs, fs.readFileSync(abs, 'utf8').replace(a, b));
+    else if (tool === 'Write') fs.writeFileSync(abs, a);
+    else execFileSync('sh', ['-c', m[2]], { stdio: 'ignore' });
+    answers.push(`done: ${m[1]}`);
+    out({ type: 'user', session_id: session, message: { content: [{ type: 'tool_result', tool_use_id: id, content: 'ok' }] } });
+  }
+  return answers.join(' | ') || 'nothing to do';
+}
 const askUser = (srv, question) => mcpCall(srv, 'ask_user', { question, options: ['Yes', 'No'] });
 
 // --- the work ---------------------------------------------------------------------------
@@ -546,7 +578,10 @@ if (name === 'claude') {
   out({ type: 'system', subtype: 'init', session_id: session, apiKeySource: process.env.FAKE_API_KEY_SOURCE || 'none', ...(process.env.FAKE_TOOLS && { tools: process.env.FAKE_TOOLS.split(',') }) });
   out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: target } }] } });
   if (process.env.FAKE_HANG) hang();
-  else {
+  else if (flag('--permission-mode') === 'default') {
+    const answer = await sideActs(injectedMcp(), session);
+    out({ type: 'result', subtype: 'success', is_error: false, result: final(answer), session_id: session, duration_ms: 5, num_turns: 1, total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: 5 } });
+  } else {
     out({ type: 'user', session_id: session, message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: [{ type: 'text', text: before }] }] } });
     if (stdin.includes('NARRATE')) {
       out({ type: 'assistant', session_id: session, message: { content: [{ type: 'text', text: `Looking around first.${' Here is why.'.repeat(100)}` }] } });

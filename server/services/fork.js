@@ -122,7 +122,7 @@ export function createFork(app) {
       prompt,
       cwd: s.cwd,
       ...run,
-      mode: 'plan',
+      mode: runner.sideMode(run.agent),
       attachments: app.uploads.resolve(attachments),
       sideOf: { id: s.id, title: s.title, cwd: workdir(s) },
     });

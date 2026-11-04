@@ -15,7 +15,7 @@ Use these, everywhere in the page, the app, the site and the CHANGELOG:
 | *Finished* (the agent's verdict) | Completed, Success |
 | *Mark done* / *Reopen* | Close / Resolve |
 | *Rerun…* | Replay (that's a separate presentation, under More) |
-| *side question* (`/btw`: one answer under the turn), *side discussion* (`/side`: a read-only task of its own; *Side* on its row) | side chat, aside, thread; *side panel* is the Changes/PR/Shell panel, not these |
+| *side question* (`/btw`: one answer under the turn), *side discussion* (`/side`: a task of its own in the main task's folder, with a *clash* card before it changes lines the main task changed; *Side* on its row) | side chat, aside, thread; *side panel* is the Changes/PR/Shell panel, not these |
 | *Ship it* | Push, Deploy |
 | harness (Claude Code, Codex, …), model, thinking level | provider, engine, effort |
 | prompt box / reply box (*follow-up*) | input, chat box |

@@ -637,6 +637,7 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
       <ul class="doc-list">
         <li><b>Phone.</b> Questions and finished tasks go to ntfy or Telegram. Tap an option to answer, or start a task from Telegram with <code>/new</code>.</li>
         <li><b>Ask without interrupting.</b> <code>/btw did you update the docs too?</code> gets an answer from a copy of the conversation while the run keeps going.</li>
+        <li><b>Talk it over, or have it done on the side.</b> <code>/side run the tests and fix the typo in the README</code> opens a side discussion on the same folder. It runs commands and edits files, and checks each write against what the main task changed: if the lines clash, you choose, and the main task is told. With Claude Code and OpenCode; on other harnesses it only reads.</li>
         <li><b>Keep it running.</b> Run tasks on a desktop or VM so they don’t stop when the laptop sleeps (<a href="/guides/run-coding-agents-on-multiple-machines.html">agents on other machines</a>), or on <a href="/guides/use-wisp-cloud.html">wisp Cloud</a>, your own wisp on a server.</li>
       </ul>
     </section>

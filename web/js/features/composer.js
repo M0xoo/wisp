@@ -317,7 +317,7 @@ function paintReplyMode(id, btn) {
   btn.title = from
     ? `${m.label}: ${m.hint}\nYour next follow-up switches this task from ${from.label} to ${m.label}. Shift+Tab to switch`
     : `${m.label}: ${m.hint}\nPick another mode for your next follow-up. Shift+Tab to switch`;
-  // Subagents run in their lead's mode; the tour has nothing to run; a side discussion only reads.
+  // Subagents run in their lead's mode; the tour has nothing to run; a side discussion's comes with its harness.
   btn.hidden = !s || s.agent === 'wisp' || !!s.parentId || !!s.sideOf;
 }
 
@@ -484,7 +484,9 @@ export function updateDock(id) {
   ta.placeholder = tour
     ? 'This is the tour — launch a real wisp from the box at the top'
     : s.ask
-      ? s.ask.permission
+      ? s.ask.clash
+        ? 'Or say what to do instead (keeps main’s version)…'
+        : s.ask.permission
         ? `Or tell ${name} what to do instead (denies this call)…`
         : `Answer ${name}…`
       : S.sessions.get(id)?.term
