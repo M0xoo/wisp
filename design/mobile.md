@@ -26,7 +26,8 @@ narrow browser's under the media query (the reply box's mode button is icon-only
   app).
 - A bar of 44px buttons holds buttons only. What it says (*Side question · …*, a read time) is a row
   of its own above it: one line that ends in `…` (`.c-hint`, which `composer.js` moves out of `.c-bar`
-  in the app). Flex text inside a bar that doesn't wrap squeezes into a word-wide column. Anything
+  in the app and in a browser up to 720px, `body.hint-row`). Flex text inside a bar that doesn't wrap
+  squeezes into a word-wide column. Anything
   that changes with what's typed keeps its slot, so Send and the input never move sideways.
 - A status line stays one line at any width and text size: what doesn't fit drops whole, least
   important first (the working panel's action count, then its time), and the name ends in `…`

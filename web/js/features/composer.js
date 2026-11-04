@@ -90,6 +90,22 @@ function settle(e) {
 document.addEventListener('pointerdown', settle, true);
 document.addEventListener('focusin', settle, true);
 
+// In the app and at a phone's width the bar holds buttons only: what it says gets a line of its own,
+// or flex text in a bar that doesn't wrap squeezes into a word-wide column. Wider, it sits in the bar.
+const PHONE_WIDTH = matchMedia('(max-width: 720px)');
+const hintRow = () => MOBILE || PHONE_WIDTH.matches;
+function placeHint(comp) {
+  const hint = $('.c-hint', comp);
+  if (hintRow()) $('.c-bar', comp).before(hint);
+  else $('.c-ship', comp).before(hint);
+}
+function paintHintRow() {
+  document.body.classList.toggle('hint-row', hintRow());
+  document.querySelectorAll('.it-dock .composer').forEach(placeHint);
+}
+PHONE_WIDTH.addEventListener('change', paintHintRow);
+paintHintRow();
+
 export function renderDock(id) {
   const n = S.nodes.get(id);
   const dock = $('.it-dock', n.body);
@@ -116,8 +132,7 @@ export function renderDock(id) {
       </div>
     </div>`);
   if (carryTo === id) (comp.classList.add('awake'), (carryTo = null));
-  // The phone's bar is a row of 44px buttons that scrolls sideways: what it says gets a line of its own.
-  if (MOBILE) $('.c-bar', comp).before($('.c-hint', comp));
+  placeHint(comp);
   dock.append(comp);
   // Only typing opens it: a chip pressed in the folded box would move before the click landed.
   comp.addEventListener('focusin', (e) => {
