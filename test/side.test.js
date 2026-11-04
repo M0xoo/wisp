@@ -384,6 +384,30 @@ test('commandClash: a write to one of main’s files is a clash that names it, b
   }
 });
 
+test('commandClash: awk -i inplace, ruby -i and patch write main’s files; without the flag they only read', () => {
+  const at = (command, files = ['src/a.js']) => commandClash(command, { files, cwd: '/repo' });
+  for (const c of [
+    "awk -i inplace '{print}' src/a.js", "gawk -i inplace '{print}' src/a.js", "awk -iinplace '{print}' src/a.js", "awk --include=inplace '{print}' src/a.js", "awk --include inplace '{print}' src/a.js",
+    "awk -i inplace.awk '{print}' src/a.js", "awk -v INPLACE_SUFFIX=.bak -i inplace '{print}' src/a.js", "awk -i inplace -f prog.awk src/a.js", "awk -i inplace -e '{print}' other.txt src/a.js", "awk -F: -i inplace -- '{print}' src/a.js", "awk --field-separator=: -i inplace '{print}' src/a.js", "awk -i inplace --file=prog.awk src/a.js",
+    "ruby -i -pe 'gsub(/a/, %q(b))' src/a.js", "ruby -pi -e 'x' src/a.js", "ruby -i.bak -pe 'x' src/a.js", "ruby -pi.bak -e 'x' src/a.js", "ruby -rjson -pi -e 'x' src/a.js", 'ruby -i prog.rb src/a.js', "cd src && ruby -pi -e 'x' a.js",
+    'patch src/a.js fix.diff', 'patch src/a.js < fix.diff', 'patch -N src/a.js fix.diff', 'patch -o src/a.js other.js fix.diff', 'patch -osrc/a.js other.js < fix.diff', 'patch --output=src/a.js other.js fix.diff', 'patch --output src/a.js other.js < fix.diff',
+    'patch -d src a.js fix.diff', 'patch -dsrc a.js < fix.diff', 'patch --directory=src a.js fix.diff', 'patch -i fix.diff src/a.js',
+    'patch -p1 < fix.diff', 'patch -Np1 -i fix.diff', 'patch --strip=1 --input=fix.diff', 'patch -R -p0 < fix.diff', 'git diff other | patch -p1', 'patch -p1 <<EOF\n--- a/x\nEOF',
+  ]) {
+    const v = at(c);
+    assert.equal(v.level, 'clash', c);
+    assert.equal(v.why, 'writes', c);
+    assert.deepEqual(v.files, ['src/a.js'], c);
+  }
+  for (const c of [
+    "awk '{print}' src/a.js", "gawk -F: '{print $1}' src/a.js", "awk -f prog.awk src/a.js", "awk -i inplace '{print}' other.txt", "awk --field-separator=: -i inplace '{print}' other.txt", "awk -i ./lib.awk '{print}' src/a.js", 'awk src/a.js',
+    "ruby -e 'puts 1' src/a.js", 'ruby src/a.js', "ruby -rdigest -e 'puts 1' src/a.js", "ruby -Isrc -e 'puts 1' src/a.js", "ruby -pi -e 'x' other.txt",
+    'patch other.txt fix.diff', 'patch -o other.txt src/a.js fix.diff', 'patch -o - src/a.js < fix.diff', 'patch --output=- src/a.js < fix.diff', 'patch --dry-run -p1 < fix.diff', 'patch -C -p1 < fix.diff', 'patch --check src/a.js fix.diff', 'patch -d lib a.js fix.diff',
+  ]) assert.equal(at(c).level, 'none', c);
+  assert.equal(at('patch -p1 < fix.diff', []).level, 'none', 'main has changed nothing: no card');
+  assert.deepEqual(at('patch -p1 < fix.diff', ['src/a.js', 'b.js']).files, ['src/a.js', 'b.js'], 'a diff it can’t read could hit any of them');
+});
+
 test('commandClash: a target the shell would expand counts when main has work, and only then', () => {
   const at = (command, files = ['src/a.js']) => commandClash(command, { files, cwd: '/repo' });
   for (const c of ['echo x > src/*.js', 'echo x > "$F"', 'echo x > $F', 'echo x > $(pick)', 'echo x > `pick`', 'echo x > src/$(pick).js', 'rm $(git ls-files)', 'sed -i s/a/b/ src/*.js', 'sed -i s/a/b/ $(git ls-files)', 'perl -pi -e s/a/b/ src/*', 'cat y | tee $F', 'cp y $F', 'cp y src/*', 'cp src2/* src/', 'dd if=y of=$F', 'truncate -s0 *', 'for f in src/*.js; do sed -i s/a/b/ "$f"; done', 'cd "$D" && echo x > a.js', 'cd "$D" && rm a.js']) {
