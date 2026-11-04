@@ -129,14 +129,19 @@ const clientIp = (req) => {
   return fwd || at;
 };
 
-// A sliding window per key: n requests per minute.
-function limiter() {
+// A sliding window per key: n requests in any minute. Refused ones aren't kept, so a key holds n at most.
+const LIMIT_WINDOW = 60_000;
+export function limiter() {
   const hits = new Map();
-  setInterval(() => hits.clear(), 60_000).unref();
+  setInterval(() => {
+    for (const [key, at] of hits) if (Date.now() - at.at(-1) >= LIMIT_WINDOW) hits.delete(key);
+  }, LIMIT_WINDOW).unref();
   return (key, n) => {
-    const c = (hits.get(key) || 0) + 1;
-    hits.set(key, c);
-    if (c > n) throw bad('Too many requests. Wait a minute.', 429);
+    const now = Date.now();
+    const at = (hits.get(key) || []).filter((t) => now - t < LIMIT_WINDOW);
+    if (at.length >= n) throw bad('Too many requests. Wait a minute.', 429);
+    at.push(now);
+    hits.set(key, at);
   };
 }
 

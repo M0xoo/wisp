@@ -1667,6 +1667,31 @@ test('behind Caddy: limits are per client, Caddy’s own address asks for certif
   assert.equal((await b.go(`${base}/signin?return=${encodeURIComponent('/account?x=1')}`)).location, '/account?x=1');
 });
 
+test('rate limit: n in any minute, wherever the minute falls for the clock or for a key', async (t) => {
+  const { limiter } = await import('../grid/server.js');
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'] });
+  const limit = limiter();
+  const limited = (key = 'a') => {
+    try {
+      return limit(key, 3), false;
+    } catch (err) {
+      assert.equal(err.status, 429);
+      return true;
+    }
+  };
+  // A clock minute ends just after these three: they still count, for this key and no other.
+  t.mock.timers.tick(59_999);
+  assert.deepEqual([limited(), limited(), limited()], [false, false, false]);
+  t.mock.timers.tick(1);
+  assert.equal(limited(), true, 'three a moment ago: a timer going off doesn’t hand out a second allowance');
+  assert.equal(limited('b'), false, 'another key has its own');
+  // A minute after those three, not before.
+  t.mock.timers.tick(59_998);
+  assert.equal(limited(), true);
+  t.mock.timers.tick(1);
+  assert.equal(limited(), false);
+});
+
 test('the container driver: one locked-down container per user, reachable only from this box', async () => {
   const { containerRun, CONTAINER } = await import('../grid/hostd.js');
   const { args } = containerRun({ ...CONTAINER, resolv: '/data/users/1/resolv.conf', envFile: '/data/users/1/box.env', name: 'wisp-u-1', port: 47001, home: '/data/users/1/home' });
