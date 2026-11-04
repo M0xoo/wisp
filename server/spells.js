@@ -18,7 +18,7 @@ import { normalizeRecipe } from './recipes.js';
 import { clock24, cronWords, midSentence } from '../web/js/schedule.js';
 import { normalizeBlueprints, SPELL_CREW_MAX } from './crew-share.js';
 import { bad, clip, truncate, writeJsonAtomic } from './util.js';
-import { panesProblem } from '../web/js/pane-bridge.js';
+import { paneWidthsProblem, panesProblem } from '../web/js/pane-bridge.js';
 
 const ID = /^[a-z0-9][a-z0-9-]{0,40}$/;
 const MAX_SCRIPT = 64 * 1024;
@@ -273,6 +273,7 @@ export function normalizeSpell(raw) {
         const t = allowed[k];
         if (!t) p.at_(where, `${k} isn't a prop of ${name}${Object.keys(allowed).length ? ` (${Object.keys(allowed).join(', ')})` : ''}`);
         else if (Array.isArray(t) ? !t.includes(val) : PROP_RANGE[t] ? !Number.isInteger(val) || val < PROP_RANGE[t][0] || val > PROP_RANGE[t][1] : t === 'bool' ? typeof val !== 'boolean' : typeof val !== 'string') p.at_(where, `${k}: ${Array.isArray(t) ? t.join(' | ') : PROP_RANGE[t] ? `${t} from ${PROP_RANGE[t][0]} to ${PROP_RANGE[t][1]}` : t}`);
+        else if (name === 'split.panes' && k === 'widths' && paneWidthsProblem(val)) p.at_(where, paneWidthsProblem(val));
         else out.props[k] = typeof val === 'string' ? str(val, 160) : val;
       }
     }

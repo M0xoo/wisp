@@ -5,7 +5,7 @@
 // scroll or a swipe doesn't flash them. Kept long enough to be seen on a quick tap.
 
 const BUTTONS = 'button, .brand, .shell-door, [role="menuitem"]';
-const ROWS = '.it-head, .task-head, .cr-row';
+const ROWS = '.it-head, .task-head, .cr-row, .sh-pane-row';
 const ROW_DELAY = 60; // ms: a scroll or swipe has moved past SLOP by then
 const MIN_SHOWN = 100; // ms from the touch
 const SLOP = 8; // px

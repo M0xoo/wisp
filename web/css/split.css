@@ -656,12 +656,80 @@ body.wisp-mobile #feed .item.sw-gone { transition: height 0.2s var(--ease), marg
 body.electron.mac.split.stack :is(.split-head, .crew-view .cv-top, .org-view .cv-top) { padding-left: 98px; }
 body.electron.mac.split.stack .sh-bar { padding-left: 82px; }
 
-/* Panes on home (panes.js): apps from My Stuff pinned here, a bar over a frame of fixed height
-   (--pa-h, the spell's split.panes height) so nothing below moves while one loads. */
+/* Panes on home (panes.js, split.js): apps from My Stuff pinned here. Side by side they tile, a bar
+   over a frame, in rows of --pa-h so nothing below moves while one loads; a drag or a spell sizes
+   them (split.panes columns, widths, height). With two columns or more they take home's whole width. */
 .sh-panes { margin-top: 30px; display: flex; flex-direction: column; gap: 12px; }
 .sh-panes[hidden] { display: none; }
+.split-home > .sh-panes.tiled { max-width: none; }
 .sh-panes > h4 { display: flex; gap: 6px; margin: 0 0 -6px; padding: 0 13px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
 .sh-panes > h4 .n { color: var(--faint); }
-.sh-pane { height: var(--pa-h, 420px); border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
-/* Stacked (a phone, a narrow window), home is a page: a pane takes most of the window's height. */
-body.stack .sh-pane { height: min(var(--pa-h, 420px), calc(100dvh - 140px)); }
+.split-home > .sh-panes.tiled > h4 { padding-left: 0; } /* on the tiles' edge */
+.sh-rows { display: none; flex-direction: column; gap: 2px; }
+.sh-tiles { position: relative; display: grid; grid-auto-rows: var(--pa-h, 420px); gap: 12px; }
+.sh-pane { min-width: 0; height: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+/* The grips: a strip the width of the gap with nothing on it until you reach for it, then a hairline,
+   as the side panel's and the sidebar's; on the keyboard the focus colour, as loud as the ring it replaces. */
+.sh-grip { position: absolute; z-index: 2; touch-action: none; }
+.sh-grip::after { content: ''; position: absolute; background: transparent; transition: background 0.15s; }
+.sh-grip.x { top: 0; bottom: 0; width: 13px; margin-left: -6.5px; cursor: col-resize; }
+.sh-grip.x::after { inset: 0 6px; }
+.sh-grip.y { left: 0; right: 0; bottom: -13px; height: 13px; cursor: row-resize; }
+.sh-grip.y::after { inset: 6px 0; }
+@media (hover: hover) {
+  .sh-grip:hover::after { background: var(--line-2); }
+}
+.sh-grip.held::after { background: var(--line-2); }
+.sh-grip:focus-visible { outline: none; }
+.sh-grip:focus-visible::after { background: var(--accent); }
+.sh-grip.x:focus-visible::after { inset: 0 5px 0 6px; }
+.sh-grip.y:focus-visible::after { inset: 6px 0 5px; }
+body.resizing.resizing-y, body.resizing.resizing-y * { cursor: row-resize !important; }
+body.resizing .sh-pane iframe { pointer-events: none; }
+
+/* Stacked (a phone, a narrow window): a row per pane, quiet like Needs you's above it, its icon on
+   their dot's column; a tapped one opens as a page, filling home. */
+body.stack .sh-rows { display: flex; }
+body.stack .sh-tiles { display: none; }
+.sh-pane-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 12px; border: 1px solid transparent; border-radius: 9px; text-align: left; font-size: 13px; transition: background 0.15s, border-color 0.15s; }
+.sh-pane-row .pa-ic { flex: none; width: 10px; }
+.sh-pane-row .pa-ic .i { flex: none; }
+.sh-pane-row .pa-name { flex: 0 1 auto; max-width: 58%; margin-right: auto; } /* a long one leaves room for what it still asks for */
+.sh-pane-row .pa-need { font-size: 12.5px; color: var(--muted); }
+.sh-pane-row .chev { flex: none; width: 14px; height: 14px; margin-right: -4px; color: var(--faint); } /* the glyph, not its box, on the times' edge */
+@media (hover: hover) {
+  .sh-pane-row:hover { background: var(--surface); border-color: var(--line); }
+}
+.sh-pane-row:active, .sh-pane-row.pressed { background: var(--bg-2); }
+body.wisp-mobile button.sh-pane-row:is(:active, .pressed):not(:disabled) { transform: none; opacity: 1; } /* a row, not a button: it darkens, it doesn't shrink */
+body.wisp-mobile .sh-pane-row { min-height: 44px; }
+@media (pointer: coarse) {
+  .sh-pane-row { min-height: 44px; }
+}
+
+/* A pane's page: its bar is the page's head, the same box as a task's, so Back sits on the same spot;
+   a title of two lines, or one over what it still asks for. The frame stops short of the phone's own
+   bar at the bottom edge, on the same background. */
+body.split.stack .split-main .sh-pane .sh-back[hidden] { display: none; }
+body.split.stack .split-home.pane-open { padding: 0; overflow: hidden; }
+body.split.stack .split-home.pane-open > *, body.split.stack .split-home.pane-open > .sh-tips.has-setup:not([hidden]) { display: none; }
+body.split.stack .split-home.pane-open > .sh-panes { display: flex; flex: 1; min-height: 0; margin: 0; }
+body.stack .pane-open .sh-panes > h4, body.stack .pane-open .sh-rows { display: none; }
+body.stack .pane-open .sh-tiles { display: flex; flex: 1; min-height: 0; flex-direction: column; }
+body.stack .pane-open .sh-pane { display: none; }
+body.stack .pane-open .sh-pane.pa-open { display: flex; flex: 1; height: auto; min-height: 0; border: 0; border-radius: 0; background: var(--bg); }
+body.stack .pa-open .pa-ic, body.stack .pa-open .pa-bar .grow { display: none; }
+body.stack .pa-open .pa-bar { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-content: center; align-items: center; gap: 0; min-height: 56px; padding: 6px 16px; }
+body.stack .pa-open .sh-back { grid-area: 1 / 1 / 3 / 2; }
+body.stack .pa-open .pa-name { grid-area: 1 / 2; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; flex: none; max-width: none; padding: 0 6px; font: 600 14px/1.3 var(--display); letter-spacing: -0.015em; white-space: normal; overflow-wrap: anywhere; }
+body.stack .pa-open.pa-needs .pa-name { -webkit-line-clamp: 1; align-self: end; }
+body.stack .pa-open .pa-need:not([hidden]) { grid-area: 2 / 2; align-self: start; display: block; padding: 0 6px; line-height: 1.3; }
+body.stack .pa-open .pa-allow { grid-area: 1 / 3 / 3 / 4; position: relative; height: 32px; padding: 0 8px; white-space: nowrap; }
+body.stack .pa-open .pa-allow::before { content: ''; position: absolute; inset: -6px 0; } /* a thumb's 44px */
+body.stack .pa-open .pa-bar [data-pa='reload'] { grid-area: 1 / 4 / 3 / 5; }
+body.stack .pa-open .pa-bar [data-pa='unpin'] { grid-area: 1 / 5 / 3 / 6; margin-right: -10px; }
+body.stack .pa-open .pa-bar .icon-btn[data-pa] { width: 44px; height: 44px; padding: 6px; background-clip: content-box; }
+body.stack .pa-open .pa-frame { height: calc(100% - env(safe-area-inset-bottom)); }
+body.electron.mac.split.stack .pa-open .pa-bar { padding-left: 98px; }
+body.electron.split.stack .pa-open .pa-bar { -webkit-app-region: drag; }
+body.electron.split.stack .pa-open .pa-bar button { position: relative; z-index: 2; -webkit-app-region: no-drag; } /* above .split-drag, which stays on home */

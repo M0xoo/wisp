@@ -62,7 +62,7 @@ Beside tasks, \`context.task\` is the open task: repaint when it changes.
 - Changing any file of the app turns \`tasks:write\` off until the user allows it again; its bar says *Changed since allowed*, and read scopes stay. Say this in your answer when the pane has \`tasks:write\`, every time you update it.
 - An app that uses wisp may only reach its own address. No external scripts, styles, fonts, images or fetch, so no CDN, whatever wisp_save says about CDNs: bundle everything into the folder. Frames are off.
 - Links can't open anything: the frame has no popups and can't leave its own address. A link inside the app works; one to anywhere else fails. Show an address as text.
-- There are at most ${MAX_PANES} panes. It is one frame in a side panel about 400px wide, or a band on home 420px tall: it must work narrow, and scroll inside itself.`;
+- There are at most ${MAX_PANES} panes. It is one frame in a side panel about 400px wide, or a tile on home at least 300px wide and 420px tall that the user can resize, and a full page on phones: it must work narrow, and scroll inside itself.`;
 }
 
 // The system-prompt section for a Make a pane task (kind: 'pane').

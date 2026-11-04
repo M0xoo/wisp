@@ -303,6 +303,8 @@ export const PARTS = {
   'split.panes': '#splitHome .sh-panes', // apps from My Stuff pinned on home (settings.panes "<app>@home")
   'split.pane': '#splitHome .sh-pane', // one of them: its bar and its frame
   'split.pane.bar': '#splitHome .sh-pane .pa-bar',
+  'split.pane.grip': '#splitHome .sh-grip', // the handles between panes and under them: hide them and the sizes are the spell's
+  'split.pane.row': '#splitHome .sh-pane-row', // a pane's row when stacked (a phone, a narrow window): it opens as a page
   'split.spare': '#splitHome .sh-spare',
   'split.spare.start': '#splitHome .sh-spare .sp-start', // Use <harness>: picks that harness and account in the prompt box
   // Window changes (web/js/window-notice.js): a row when a plan's usage window appears, goes, changes length or moves its reset.
@@ -553,7 +555,10 @@ export const PART_PROPS = {
   'stuff.page': { view: ['grid', 'list'], group: ['time', 'task'], cardWidth: 'px' }, // until you pick one there; cardWidth: a card's least width in the grid
   tips: { count: 'int' },
   'split.upcoming': { count: 'int' },
-  'split.panes': { height: 'px' }, // a home pane's height (420); a phone's is the window's less its bars
+  // Home's panes. height: of a tile (420). columns: how many side by side, at most; 1 is one under the
+  // other, a narrow window shows fewer; unset, as many as fit. widths: their relative shares, "2,1,1".
+  // A drag wins over all three until the spell's values change; on a phone a pane is a full page.
+  'split.panes': { height: 'px', columns: 'int', widths: 'string' },
   'split.spare': { hours: 'int' }, // the card shows once a window resets within this many hours (24)
   term: { fontSize: 'int' },
   // tab: what it opens on (the toggle, ]), until you open another; swipe: false stops swiping a
