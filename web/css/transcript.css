@@ -110,6 +110,7 @@
   .tx-panel .w-body:has(.w-tip) { display: block; }
   .tx-panel .w-body:has(.w-tip) .w-actions { margin-top: 8px; }
   .tx-title { display: none; }
+  .tx-title + .tx-count::before { content: none; }
   .tx-cmd { display: none; }
   .tx-msg { padding-right: 8px; }
   .tx-msg .tx-t { display: none; }

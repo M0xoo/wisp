@@ -186,6 +186,11 @@ export const PARTS = {
   'goal.track': '#feed .item.open .goal-band .gb-track',
   'goal.check': '#feed .item.open .goal-band .gb-check',
   'goal.judges': '#feed .item.open .goal-band .gb-judges',
+  'goal.checks': '.menu.jv-pop', // the popover with each judge's vote and the rounds before
+  'goal.run': '.goal-run', // a goal check's page: what one judge was told, did and voted
+  'goal.runHead': '.goal-run .gr-head',
+  'goal.runVote': '.goal-run .gr-vote',
+  'goal.runPrompt': '.goal-run .gr-prompt',
   'card.goal': '#feed .goal-pill',
   'launcher.send': '#launch',
   'launcher.later': '#launchLater',

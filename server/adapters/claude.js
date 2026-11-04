@@ -368,7 +368,7 @@ export default {
           if (part.type === 'text' && part.text.trim()) {
             onEvent({ type: 'text', text: part.text });
           } else if (part.type === 'thinking') {
-            onEvent({ type: 'thinking' });
+            onEvent({ type: 'thinking', ...(part.thinking && { text: part.thinking }) });
           } else if (part.type === 'tool_use') {
             pendingTools.set(part.id, part.name);
             subagents.call(part.id, part.name, part.input);

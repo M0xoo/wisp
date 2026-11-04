@@ -35,7 +35,7 @@
 //   { type: 'tool_output', id, text }               what a finished call returned (the transcript shows it)
 //   { type: 'tool_error', name, text }
 //   { type: 'text', text }                          assistant prose, the final answer included
-//   { type: 'thinking' }
+//   { type: 'thinking', text? }
 //   { type: 'change', file, op, edits: [{ before, after }] }
 //   { type: 'blocked', tool, detail, rule? }        a call its permissions refused; rule: what allows
 //                                                  exactly that on a retry (none: retry in Full auto)

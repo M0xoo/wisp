@@ -503,6 +503,10 @@ export function openapi({ version, port }) {
         patch: { summary: 'Pause the goal (the task lands after its round) or resume it (a paused goal goes back to work)', requestBody: body({ type: 'object', required: ['action'], properties: { action: { enum: ['pause', 'resume'] } } }), responses: { 200: json({ type: 'object' }), 400: err[400], 404: err[404] } },
         delete: { summary: 'Drop the goal', responses: { 200: ok, 404: err[404] } },
       },
+      '/sessions/{id}/goal-runs/{run}': {
+        parameters: [id, { name: 'run', in: 'path', required: true, schema: { type: 'string' } }],
+        get: { summary: 'What one goal check said and did: the prompt it got, its steps and its vote. The id is on a check’s votes (or on the check, when wisp checks by itself); a goal keeps those of its last 50 checks', responses: { 200: ok, 404: err[404] } },
+      },
       '/sessions/{id}/answer': { parameters: [id], post: { summary: 'Answer the pending ask_user question (or approval: Allow, Always allow in this task, Deny, or what to do instead)', requestBody: body({ type: 'object', required: ['text'], properties: { text: { type: 'string' } } }), responses: { 200: ok } } },
       '/sessions/{id}/approve': { parameters: [id], post: { summary: 'Allow and retry (or deny) what a finished turn’s permissions blocked', requestBody: body({ type: 'object', properties: { turnId: { type: 'string' }, allow: { type: 'boolean', description: 'Default true' } } }), responses: { 200: ok } } },
       '/sessions/{id}/revert': {

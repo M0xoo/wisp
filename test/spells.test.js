@@ -888,6 +888,7 @@ test('goals: the band, its parts, the row pill and the launcher line are parts; 
 
 test("goals: the judges' votes in the band and the launcher's Judges button are parts; judge is an icon", () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.goalJudges'] }, parts: { 'goal.judges': { style: { opacity: '0.8' } } } }), []);
+  assert.deepEqual(problems({ ...base0, parts: { 'goal.checks': { style: { opacity: '0.9' } }, 'goal.run': { style: { opacity: '0.9' } }, 'goal.runHead': { style: { opacity: '0.9' } }, 'goal.runVote': { style: { opacity: '0.9' } }, 'goal.runPrompt': { style: { opacity: '0.9' } } } }), []);
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'goal.band', label: 'Second opinion', icon: 'judge', do: { open: 'https://example.com' } }] }), []);
   assert.ok(problems({ ...base0, parts: { 'goal.judges': { props: { lines: 2 } } } }).some((x) => /goal\.judges/.test(x)));
 });

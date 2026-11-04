@@ -77,6 +77,7 @@ export function connect() {
     onActivity(a);
     if (a.item?.kind === 'edit') bus.emit('edit', a.sessionId); // the panel's Changes looks again
   });
+  es.addEventListener('goal-run', (e) => bus.emit('goal-run', JSON.parse(e.data))); // a goal check's page (goal-run.js)
   es.addEventListener('turn', (e) => scheduleRefetch(JSON.parse(e.data).sessionId));
   es.addEventListener('finished', (e) => (notifyFinished(JSON.parse(e.data).session), spellEvent('finished')));
   es.addEventListener('reminder', (e) => notifyReminder(JSON.parse(e.data).session));

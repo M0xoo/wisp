@@ -11,6 +11,7 @@ import { runnerPicker } from './runner-picker.js';
 import { agentById, agentName, effortLabel, harnessLogo, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
 import { avatarHtml, crewList, memberById } from './crew.js';
 import { S } from '../core/state.js';
+import { openGoalRun } from './goal-run.js';
 
 export const MAX_JUDGES = 5; // as the server allows
 export const VOTES = [
@@ -30,7 +31,7 @@ export function judgeLabel(j) {
   const model = (j.model && a?.models?.find((x) => x.id === j.model)?.label) || j.model;
   return [a?.name || agentName(j.agent), model, j.effort && effortLabel(j.effort)].filter(Boolean).join(' · ');
 }
-const faceOf = (j, size) => {
+export const faceOf = (j, size) => {
   const c = j.crew && memberById(j.crew);
   return c ? avatarHtml(c, { size, dot: false, small: true }) : harnessLogo(j.agent);
 };
@@ -236,11 +237,11 @@ export function judgesEditor(anchor, { judges, vote = 'majority', over = null },
   if (!list.length) $('.tp-add', node)?.focus();
 }
 
-const SAID = { met: 'Met', not_yet: 'Not yet', impossible: 'Can’t be done', unchecked: 'No answer' };
-const VOTE_ICON = { met: 'check', not_yet: 'minus', impossible: 'x', unchecked: 'minus' };
+export const SAID = { met: 'Met', not_yet: 'Not yet', impossible: 'Can’t be done', unchecked: 'No answer' };
+export const VOTE_ICON = { met: 'check', not_yet: 'minus', impossible: 'x', unchecked: 'minus' };
 
 // The band's votes: each judge's face with a dot for how it voted at the last check, and the
-// count (–/3 until they first vote). A button: it opens each judge's vote and why.
+// count (–/3 until they first vote). A button: it opens each judge's vote and why (checksPopover).
 export function votesHtml(g) {
   if (!g?.judges?.length) return '';
   const n = g.judges.length;
@@ -250,21 +251,74 @@ export function votesHtml(g) {
   return `<button class="gb-judges" data-g="judges" aria-haspopup="dialog" title="${esc(tip)}" aria-label="${esc(tip)}"><span class="tb-stack">${g.judges.map((j, i) => `<span class="ts-m v-${votes?.[i]?.verdict || 'none'}${j.crew ? ' crew' : ''}" style="--i:${i}">${faceOf(j, 18)}</span>`).join('')}</span><span class="gbj-n">${met == null ? '–' : met}/${n}</span></button>`;
 }
 
-// Each judge's vote at the last check, and why: from the band's faces.
-export function votesPopover(g, anchor) {
+// One way into a check's record: a row that opens it (goal-run.js), or plain when it has none (a
+// judge that never ran, a goal from before checks were kept).
+const rowTag = (open, r) => (r.run ? `button class="${open}" data-r="${r.i}"` : `div class="${open}"`);
+const rowEnd = (r) => (r.run ? 'button' : 'div');
+
+// A goal's checks: each judge's vote at the last one, and why, then the rounds before it. From the
+// band's faces, its check line and Goal checks…; every row with a record opens that conversation.
+// The summary's checks are light: the votes of older rounds come from the task's full copy.
+export function checksPopover(id, anchor) {
   if ($('.menu.jv-pop')) return $('.menu.jv-pop').close();
-  const n = g.judges.length;
+  const g = S.sessions.get(id)?.goal;
+  if (!g) return;
+  const judges = g.judges || [];
+  const n = judges.length;
+  const checking = g.status === 'checking';
+  const hints = [];
+  const hint = (r) => ({ ...r, i: hints.push(r) - 1 });
+  const last = g.checks?.at(-1);
   const votes = g.last?.votes?.length === n ? g.last.votes : null;
-  const menu = el(`<div class="menu jv-pop" role="dialog" aria-label="Judges’ votes">
-    <div class="jv-h"><b>Judges</b><small>${esc(ruleLine(g.vote, n))}</small></div>
-    ${g.judges
-      .map((j, i) => {
-        const v = votes?.[i];
-        return `<div class="jv-row v-${v?.verdict || 'none'}"><span class="jv-face">${faceOf(j, 24)}</span><span class="jv-text"><b>${esc(j.name || judgeLabel(j))}</b><small>${esc(v?.why || 'Votes after the next round')}</small></span><span class="jv-vote">${v ? `${icon(VOTE_ICON[v.verdict] || 'minus')}${SAID[v.verdict] || v.verdict}` : '–'}</span></div>`;
+  const running = (at) => (checking ? g.running?.find((r) => r.at === at) : null);
+  const liveRow = (r, j) => hint({ ...r, ...j, name: r?.name || j?.name, round: g.round, live: !!r });
+
+  const judgeRow = (j, i) => {
+    const on = checking;
+    const v = on ? null : votes?.[i];
+    const r = on ? liveRow(running(i), { agent: j.agent, crew: j.crew, name: j.name || judgeLabel(j) }) : hint({ agent: j.agent, crew: j.crew, name: v?.name || j.name || judgeLabel(j), round: last?.round, verdict: v?.verdict, why: v?.why, run: v?.run });
+    const tag = rowTag(`jv-row v-${v?.verdict || 'none'}`, r);
+    return `<${tag}><span class="jv-face">${faceOf(j, 24)}</span><span class="jv-text"><b>${esc(j.name || judgeLabel(j))}</b><small>${esc(on ? (r.run ? 'Checking now' : 'After the project’s tests') : v?.why || 'Votes after the next round')}</small></span><span class="jv-vote">${on ? 'Checking' : v ? `${icon(VOTE_ICON[v.verdict] || 'minus')}${SAID[v.verdict] || v.verdict}` : '–'}</span></${rowEnd(r)}>`;
+  };
+  const ownLive = () => {
+    const r = liveRow(running(0), { name: 'wisp’s check' });
+    return `<${rowTag('jv-row v-none', r)}><span class="jv-face">${icon('target')}</span><span class="jv-text"><b>Round ${g.round}</b><small>${r.run ? 'Checking now' : 'After the project’s tests'}</small></span><span class="jv-vote">Checking</span></${rowEnd(r)}>`;
+  };
+
+  const full = S.full.get(id)?.goal?.checks;
+  const votesOf = (c) => full?.find((x) => x.at === c.at)?.votes || [];
+  const roundRow = (c) => {
+    const said = `${icon(VOTE_ICON[c.verdict] || 'minus')}${SAID[c.verdict] || c.verdict}`;
+    const list = votesOf(c);
+    if (!list.length) {
+      const r = hint({ name: 'wisp’s check', round: c.round, verdict: c.verdict, why: c.why, next: c.next, run: c.run });
+      return `<${rowTag(`jv-round v-${c.verdict}`, r)}><span class="jr-n">Round ${c.round}</span><span class="jr-why">${esc(c.why)}</span><span class="jv-vote">${said}</span></${rowEnd(r)}>`;
+    }
+    const faces = list
+      .map((v) => {
+        const r = hint({ ...v, round: c.round });
+        const tip = `${v.name}: ${SAID[v.verdict] || v.verdict}`;
+        return r.run ? `<button class="jr-face v-${v.verdict}" data-r="${r.i}" title="${esc(tip)}" aria-label="${esc(`Round ${c.round}, ${tip}: open`)}">${faceOf(v, 18)}</button>` : `<span class="jr-face v-${v.verdict}" title="${esc(tip)}">${faceOf(v, 18)}</span>`;
       })
-      .join('')}
+      .join('');
+    return `<div class="jv-round v-${c.verdict}"><span class="jr-n">Round ${c.round}</span><span class="jr-faces">${faces}</span><span class="jv-vote">${said}</span></div>`;
+  };
+
+  // With judges the last check has its own rows, unless a new one is under way or the bench changed
+  // since (its votes are set aside, so it stays down here).
+  const rounds = [...(g.checks || [])].reverse().slice(n && !checking && votes ? 1 : 0);
+  const menu = el(`<div class="menu jv-pop" role="dialog" aria-label="${n ? 'Judges’ votes' : 'Goal checks'}">
+    <div class="jv-h"><b>${n ? 'Judges' : 'Checks'}</b><small>${esc(n ? ruleLine(g.vote, n) : 'wisp’s own look at the work, each round')}</small></div>
+    ${n ? judges.map(judgeRow).join('') : checking ? ownLive() : ''}
+    ${rounds.length ? `${n ? '<div class="jv-sec">Earlier rounds</div>' : ''}<div class="jv-rounds">${rounds.map(roundRow).join('')}</div>` : ''}
   </div>`);
   const close = popover(menu, { anchor, capture: true });
+  menu.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-r]');
+    if (!b) return;
+    close();
+    openGoalRun(id, hints[Number(b.dataset.r)]);
+  });
   const r = anchor.getBoundingClientRect();
   const w = menu.offsetWidth;
   const h = menu.offsetHeight;
