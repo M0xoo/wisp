@@ -46,7 +46,7 @@ const WAKE_MAX = 7 * 24 * 60;
 export const NAME = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,23}$/u;
 const PLACE = /^[\w-]{1,40}$/; // a machine id
 // Their jobs run away from here: on a machine, or in a sandbox (memory, schedule and queue stay here).
-const elsewhere = (m) => !!(m.machine || m.sandbox);
+export const elsewhere = (m) => !!(m.machine || m.sandbox);
 const NOTE_MAX = 60_000;
 const SEEN_MAX = 200;
 const OFFERS_MAX = 10;
@@ -635,6 +635,21 @@ export class Crew {
     return { session: await this.#start(m, w, { now: true }) };
   }
 
+  // Before a job you give several members at once ("@Ada @Quill …"), each one's turn: throws the
+  // hold (409) when this member's run would cross your line, so nobody starts until you say yes and
+  // Start anyway doesn't give the ones that went a second job. One that would wait for a free slot
+  // (it starts held) or works on another computer (that wisp asks) isn't checked here.
+  async askFirst(m, { prompt, attachments = [], tagged = [] } = {}) {
+    if (elsewhere(m) || this.busy(m) >= m.parallel) return;
+    const team = tagged.filter((x) => x.id !== m.id).map((x) => taggedDelegate(x, 'job'));
+    await this.launch(this.#bodyFor(m, { prompt: String(prompt || '').trim(), job: 'task', attachments, team }), null, { crew: { id: m.id, job: 'task' }, yours: { confirm: false }, dry: true });
+  }
+
+  // What launch gets for job w of member m.
+  #bodyFor(m, w) {
+    return { prompt: w.prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: m.mode, attachments: w.attachments || [], ...this.#teamFor(m, w.job, w.team) };
+  }
+
   // now: you're there (assign), so a job of yours near the limit is asked about rather than held.
   async #start(m, w, { now = false } = {}) {
     this.starting.set(m.id, (this.starting.get(m.id) || 0) + 1);
@@ -642,7 +657,7 @@ export class Crew {
     try {
       if (w.job === 'checkin') Object.assign(m, { checkins: was.checkins + 1, lastCheckinAt: this.now() });
       const crew = { id: m.id, job: w.job, ...(w.from && { from: w.from }), ...(w.reply && { reply: w.reply }), ...(w.wake && { wake: true }), ...(w.event && { event: w.event }), ...(w.kit && { kit: true }) };
-      const body = { prompt: w.prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: m.mode, attachments: w.attachments || [], ...this.#teamFor(m, w.job, w.team) };
+      const body = this.#bodyFor(m, w);
       const yours = w.limit === 'yes' || (w.limit === 'ask' && now) ? { confirm: w.limit === 'yes' } : null;
       if (elsewhere(m)) return await this.#startAway(m, body, crew, w.origin, yours);
       const [s] = await this.launch(body, w.origin || null, { crew, unattended: !!w.unattended, yours });
