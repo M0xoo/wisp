@@ -4,6 +4,7 @@
 //
 //   PW_DIR=/tmp/gridcheck node marketing/guide-shots/shoot.mjs           → docs/assets/shots/*.webp
 //   ONLY=report,limit PW_DIR=/tmp/gridcheck node marketing/guide-shots/shoot.mjs
+//   ONLY=allowance PW_DIR=/tmp/gridcheck node marketing/guide-shots/shoot.mjs   (the boards one at a time)
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -15,7 +16,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.join(HERE, '../../docs/assets/shots');
 const ONLY = process.env.ONLY?.split(',');
 
-const w = await start();
+const BOARDS = ['agent-board', 'allowance'];
+const w = await start({ boards: !!ONLY?.some((n) => BOARDS.includes(n)) });
 const until = async (what, fn) => {
   for (let i = 0; i < 120; i++) if (await fn()) return;
   else await new Promise((r) => setTimeout(r, 500));
@@ -31,6 +33,29 @@ await until('the tasks', async () => {
 // wisp's welcome task, and two tasks already read, so the list looks lived in.
 for (const x of await sessions()) if (x.agent === 'wisp') await api(w.url, `/api/sessions/${x.id}`, { archived: true }, 'PATCH');
 for (const id of [w.ids.invoices, w.ids.camera]) await api(w.url, `/api/sessions/${id}`, { unread: false }, 'PATCH');
+
+// The starter panes, added, allowed and pinned on home. Only for the board shots: they push the
+// home page's other shots out of the frame.
+if (ONLY?.some((n) => BOARDS.includes(n))) {
+  // The fake agent titles a task after itself: back to what it was asked.
+  const list = await sessions();
+  for (const x of list) {
+    if (!/^Fake /.test(x.title || '')) continue;
+    const full = (await api(w.url, `/api/sessions/${encodeURIComponent(x.id)}`)).json;
+    await api(w.url, `/api/sessions/${encodeURIComponent(x.id)}`, { title: full.turns?.[0]?.prompt || x.title }, 'PATCH');
+  }
+  // Fewer cards, so every harness, account and machine is on screen; three on Done, so it reads left to right.
+  for (const x of await sessions()) if (x.title?.startsWith('Migrate validation') || [w.ids.spell, w.ids.flaky, w.ids.limit, w.ids.camera, w.ids.goal].includes(x.id)) await api(w.url, `/api/sessions/${encodeURIComponent(x.id)}`, { archived: true }, 'PATCH');
+  for (const x of await sessions()) if (x.id === w.ids.invoices || ['opencode', 'cursor'].includes(x.agent)) await api(w.url, `/api/sessions/${x.id}`, { state: 'done' }, 'PATCH');
+  const pins = [];
+  // Alone on home a board takes the full width: shoot the Allowance board by itself for its two columns of cards.
+  for (const id of ['agent-board', 'allowance-board'].filter((x) => ONLY.includes(x.replace('-board', '')) || ONLY.includes(x))) {
+    const it = (await api(w.url, `/api/stuff/starters/${id}`, {})).json;
+    await api(w.url, `/api/stuff/${it.id}/allow`, { uses: it.uses });
+    pins.push(`${it.id}@home`);
+  }
+  await api(w.url, '/api/config', { defaults: { panes: pins.join(',') } }, 'PATCH');
+}
 
 const { chromium } = playwright();
 const browser = await chromium.launch({ executablePath: CHROME });
@@ -55,6 +80,16 @@ const open = async (p, id) => {
 };
 const pad = (box, n = 16) => ({ x: Math.max(0, box.x - n), y: Math.max(0, box.y - n), width: box.width + 2 * n, height: box.height + 2 * n });
 
+// One pane on home, by its name on its bar, scrolled into view.
+const board = async (p, name, height = 620) => {
+  const pane = p.locator(`.pa[aria-label="${name}"]`);
+  await pane.waitFor({ timeout: 20000 });
+  await p.evaluate((h) => document.querySelectorAll('.sh-panes, .sh-tiles').forEach((n) => n.style.setProperty('--pa-h', h)), `${height}px`); // the split.panes height a spell can set
+  await pane.scrollIntoViewIfNeeded();
+  await p.mouse.move(2, 2);
+  await p.waitForTimeout(3500);
+  return { clip: pad(await pane.boundingBox(), 0) };
+};
 // [name, width, height, take(page) → screenshot options]
 const TAKES = [
   ['app', 1280, 860, async (p) => {
@@ -125,6 +160,8 @@ const TAKES = [
     await p.waitForTimeout(1500);
     return {};
   }],
+  ['agent-board', 1280, 1700, async (p) => board(p, 'Agent board')],
+  ['allowance', 1280, 1700, async (p) => board(p, 'Allowance board', 670)],
   ['compare', 1240, 900, async (p) => {
     await p.click('.task-item [data-a="compare"]');
     await p.waitForSelector('.compare-modal');

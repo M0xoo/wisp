@@ -394,6 +394,97 @@ curl -X POST localhost:4477/api/sessions/<id>/reply \\
     },
 
     {
+      slug: 'one-board-for-all-your-coding-agents',
+      topic: 'agents',
+      title: 'One board for all your coding agents, on any harness: wisp',
+      h1: 'One board for all your coding agents',
+      card: 'Claude Code, Codex, Cursor and the rest, on every account and computer you use, in four columns you can act on.',
+      description: 'See every coding agent task on one kanban board: Claude Code, Codex, Cursor and opencode, across your accounts, machines and crew. Mark tasks done or send follow-ups from the board.',
+      lede: 'A pane inside Claude Code or Cursor shows that tool’s own work, so Claude Code on two accounts and Codex on a server means several windows. wisp’s <b>Agent board</b> puts all of it on one live board: Working, Needs you, Review and Done, across every harness, account, machine and crew member, with Done and Follow up on each card.',
+      shot: ['agent-board', 'wisp’s Agent board pinned on home: columns Working, Needs you, Review and Done, with cards from Claude Code on the Work and Personal accounts, Codex on the machine studio, Cursor and opencode, and the crew members Scout, Quill and Echo above the columns'],
+      body: `
+    <section>
+      <h2 id="manual">The manual way</h2>
+      ${sh(`# one list per tool, per account, per computer
+claude --resume
+CLAUDE_CONFIG_DIR=~/.claude-work claude --resume
+codex resume
+ssh studio -t 'codex resume'`)}
+      <p>Each of those answers for one harness on one account on one computer. Who is waiting on you across all of them is something you work out by going through the windows.</p>
+    </section>
+
+    <section>
+      <h2 id="add">Add the Agent board</h2>
+      <ol class="doc-steps">
+        <li><b>Start wisp.</b> ${install()}</li>
+        <li><b>Open Make a pane.</b> ⌘K → <i>Make a pane…</i>, or <b>Make a pane</b> at the top of My Stuff. Press <b>Add</b> on Agent board.</li>
+        <li><b>Say what it may use.</b> Wisp’s card lists it. <b>Allow and pin</b> puts the board on home, under <i>Needs you</i>.</li>
+      </ol>
+      <p>No agent runs and no tokens go: Agent board ships with wisp, and it reads the same task list as the sidebar.</p>
+    </section>
+
+    <section>
+      <h2 id="columns">What’s on the board</h2>
+      <ul class="doc-list">
+        <li><b>Working</b>: the agent is running. <b>Needs you</b>: it asked you something or is waiting. <b>Review</b>: it finished and you haven’t marked it done. <b>Done</b>: you have.</li>
+        <li><b>Each card</b> shows the title, the harness, the account when a harness has several, the machine when it isn’t this computer, the PR and how long ago it moved.</li>
+        <li><b>Your crew</b> sits above the columns, with who’s working now. Their jobs are tasks, so they are cards like any other.</li>
+        <li><b>Done</b>: drag a card to the column or press its button, by mouse or finger. It works on tasks on other machines too.</li>
+        <li><b>Follow up</b> opens wisp’s own card with the task, harness, mode and your exact words. Nothing goes until you press <b>Send</b>.</li>
+      </ul>
+      <p>The board updates as tasks change, and a card you’re typing in stays open while it does.</p>
+    </section>
+
+    <section>
+      <h2 id="others">What other tools’ panes and boards do</h2>
+      <p>Pinned panes are no longer rare. The difference is what a pane can see.</p>
+      <div class="table"><table>
+        <thead><tr><th>Tool</th><th>What it has (November 2026)</th></tr></thead>
+        <tbody>
+          <tr><td>Claude Code</td><td>Mods draw a pane, a band or the status line, inside a Claude Code session</td></tr>
+          <tr><td>Codex</td><td>A runtime for UI plugins arrived in 0.166.0; plugins today bundle skills and MCP servers</td></tr>
+          <tr><td>Cursor</td><td>Canvases: the agent builds tables and charts beside the chat</td></tr>
+          <tr><td>opencode</td><td>Plugins can fill slots in the terminal app</td></tr>
+          <tr><td>Vibe Kanban</td><td>A kanban board over 10+ agents, where you start each one from a workspace. Its company has shut down and the project is community-maintained</td></tr>
+          <tr><td>Cline Kanban</td><td>A board you start in a git repo with <code>npx kanban</code>, running a CLI agent per card in its own worktree</td></tr>
+        </tbody>
+      </table></div>
+      <p>The first four stay inside their own harness. Vibe Kanban and Cline Kanban cross harnesses for work you start from their board. wisp’s board reads wisp’s task list, so whatever wisp runs is on it: a crew member’s check-in, a task on your GPU box, a run on your second account.</p>
+    </section>
+
+    <section>
+      <h2 id="allowance">Allowance board: every account’s limits, and what each period cost</h2>
+      <p>Add it the same way. It keeps a card per account open on home: how much of each 5-hour and weekly window is gone, when it resets, and how fast it’s going once that can be told.</p>
+      ${shot('allowance', 'wisp’s Allowance board: Claude Code on the Work and Personal accounts and Codex, each with 5-hour and weekly bars, the percentage gone, resets in and a rate per hour, and under the weekly window a table of its periods with Outside wisp, Used and For 1%; opencode, Cursor, Antigravity and Grok say they report no usage windows yet')}
+      <p>Under each window sit its recent periods, newest first: how much went outside wisp, how much was used, and what 1% of the window cost in wisp, in dollars on Claude Code and in millions of tokens on Codex. Outside wisp can read low, never high. A cost worked out from running totals is marked ≈.</p>
+      <p>Claude Code and Codex report their windows; the other harnesses say so on their card. It’s read-only: the board can’t start or change anything. For which tasks used a window, see <a href="/guides/see-where-your-claude-code-usage-went.html">where your usage went</a>.</p>
+      <aside class="g-note">It shows the accounts on the computer running this wisp. Usage stays per machine, so a machine’s accounts show on that machine’s wisp. A period from before this version shows a dash for Outside wisp and Used, because wisp only keeps that reading from now on. Once there are 2 full weekly periods on each side, a line compares what 1% did; before that it says nothing.</aside>
+    </section>
+
+    <section>
+      <h2 id="grows">wisp grows with you</h2>
+      <p>Both boards are ordinary apps in My Stuff. Want a column for PRs with failing checks, or one board per project? Type <em>make me a pane that…</em> in New task and an agent builds it in an empty folder, pins it, and the pane reloads in place as it changes. Claude Code mods can be made from a prompt too; what a wisp pane adds is that it can see all of your work.</p>
+      <p>A pane gets only what you allow, when you press <b>Allow…</b> on its bar:</p>
+      <ul class="doc-list">
+        <li>It reads each task’s title, state, project, branch, PR and the last answer’s one-line summary. Never the conversation, and secrets are redacted first.</li>
+        <li>It can’t send a prompt. Every task it starts and every follow-up waits on wisp’s card for your click, at most 6 writes a minute, in your default harness and mode.</li>
+        <li>If its code changes, its write access stops until you allow it again.</li>
+      </ul>
+      <aside class="g-note">Treat what a pane reads as visible to whoever wrote its code. wisp keeps a pane’s requests on its own address, but browsers don’t apply those rules to WebRTC, and the Allow card says so when the code uses it.</aside>
+    </section>
+`,
+      faq: [
+        ['Which harnesses show up on the Agent board?', 'All of them: Claude Code, Codex, Cursor, opencode, Antigravity, Grok and Copilot. A task on any harness is a card with the harness named on it.'],
+        ['What happens to a machine that’s offline?', 'Its tasks stay on the board as last seen, like in the sidebar.'],
+        ['Does it work on my phone?', 'In a browser through wisp Cloud, yes: the columns stack and Done’s heading stays at the bottom edge to drop on. The Android app connected over SSH says so instead of opening panes, because only wisp itself is reachable through that tunnel.'],
+        ['Can the board send anything to an agent by itself?', 'No. A follow-up always opens wisp’s own card, and only your click on Send sends it. Marking a task done needs no card, and Undo is a click away in wisp.'],
+        ['Can I change the board?', 'Yes. It’s an app in My Stuff, so ask an agent to change it, or make your own with Make a pane. After a change, it needs your Allow again before it can write.'],
+        ['Can a spell pin a pane?', 'Yes, with the panes setting (for example "Agent board@home"), but a spell can never allow a pane anything.'],
+      ],
+      related: ['several-claude-code-accounts-and-computers', 'see-where-your-claude-code-usage-went', 'keep-what-your-coding-agents-make'],
+    },
+
+    {
       slug: 'run-multiple-claude-code-agents-in-parallel',
       topic: 'agents',
       title: 'How to run multiple Claude Code agents in parallel — wisp',
@@ -1877,9 +1968,10 @@ ssh devbox`)}
         ['What goes in Copy report?', 'The harness and account, the window, when it resets in UTC, how many runs and how much work since the drain began, the share of the window they took, and what the same work took over the two weeks before.'],
         ['Which harnesses does this cover?', 'Claude Code and Codex, the two whose CLIs report their usage windows. Settings → Usage also shows spend and turns for every harness.'],
         ['Do I still need a menu-bar app for my limits?', 'Not for the accounts wisp runs. Plan budget shows every Claude Code and Codex account’s windows on one page, as of each account’s last run, on desktop, in a browser and on your phone.'],
+        ['Can I keep my limits on screen?', 'Yes. Pin the Allowance board on home: every account on this computer, its windows, when they reset, how fast they’re going and what each recent period cost.'],
         ['Can I tell when a turn was billed beyond my plan?', 'Yes. The turn says Past your plan (extra usage, Codex credits) or API credit (Claude Code on an API key), and Plan budget counts those runs over the last 7 days.'],
       ],
-      related: ['use-work-and-personal-claude-code-accounts', 'several-claude-code-accounts-and-computers', 'run-coding-agents-in-the-background'],
+      related: ['use-work-and-personal-claude-code-accounts', 'several-claude-code-accounts-and-computers', 'one-board-for-all-your-coding-agents'],
     },
 
     {
@@ -1972,7 +2064,7 @@ cp .wisp/shots/phone.png ~/agent-output/`)}
       <h2 id="apps">Apps</h2>
       <p>For a demo, slides or a small tool, agents build a static web app and save its folder with a screenshot as its cover. <b>Launch</b> serves it on a port of its own and opens it inside wisp, with Reload, New tab, Stop and Close. It stops after 30 minutes idle. An app whose <code>wisp-app.json</code> says <code>"db": true</code> gets its own SQLite database that survives updates. To share one, see <a href="/guides/publish-an-app-your-agent-built.html">publish an app your agent built</a>.</p>
       <p><b>⋯ → Pin beside tasks</b> makes an app a tab in the side panel, told which task is open; <b>Pin on home</b> puts it on the home page, for a board of your tasks or a PR queue. An app can read and start tasks when its <code>wisp-app.json</code> lists what it needs in <code>"uses"</code> (<code>tasks:read</code>, <code>tasks:write</code>, <code>prs:read</code>, <code>crew:read</code>, <code>usage:read</code>) and its page loads <code>/_wisp/pane.js</code>: you allow it once when you pin it and wisp checks every call. A task it starts or a follow-up it sends waits on wisp’s own card, and only your click on Send sends it; that access ends when the app’s code changes. wisp keeps its requests on its own address, but treat what it reads as visible to whoever wrote it. On home, panes sit side by side: drag between them or under them to resize, and double-click to reset. On a phone or in a narrow window each is a row that opens as a page, with Back. A spell can pin panes with its <code>panes</code> setting and lay them out with the <code>split.panes</code> part’s <code>columns</code>, <code>widths</code> (<code>"2,1,1"</code>) and <code>height</code>.</p>
-      <p><b>Make a pane</b> in My Stuff or ⌘K, or typing <em>make me a pane that…</em> in New task, has an agent build one: it writes the app into My Stuff, pins it, and the pane reloads in place each time the agent changes it. Pinning grants nothing, so press <b>Allow…</b> on its bar when it asks. The same dialog adds two starters: <b>Agent board</b>, every task in Working, Needs you, Review and Done columns across harnesses, accounts, machines and your crew; and <b>Allowance board</b>, each account’s usage windows, when they reset, and period by period how much went outside wisp and what 1% cost. A pane can load <code>/_wisp/pane.css</code> to look like wisp in light and dark.</p>
+      <p>The <a href="/guides/one-board-for-all-your-coding-agents.html">Agent board</a> is one: every task across your harnesses, accounts and machines. <b>Make a pane</b> in My Stuff or ⌘K, or typing <em>make me a pane that…</em> in New task, has an agent build one: it writes the app into My Stuff, pins it, and the pane reloads in place each time the agent changes it. Pinning grants nothing, so press <b>Allow…</b> on its bar when it asks. The same dialog adds two starters: <b>Agent board</b>, every task in Working, Needs you, Review and Done columns across harnesses, accounts, machines and your crew; and <b>Allowance board</b>, each account’s usage windows, when they reset, and period by period how much went outside wisp and what 1% cost. A pane can load <code>/_wisp/pane.css</code> to look like wisp in light and dark.</p>
     </section>
 `,
       faq: [
@@ -1981,7 +2073,7 @@ cp .wisp/shots/phone.png ~/agent-output/`)}
         ['What happens when an agent changes something I kept?', 'It saves a new version in place, marked v2, and keeps the version before so ⋯ → Restore can put it back.'],
         ['Which harnesses can save to My Stuff?', 'Every agent wisp runs gets the wisp_save and wisp_stuff tools, so Claude Code, Codex and the other harnesses can.'],
       ],
-      related: ['publish-an-app-your-agent-built', 'run-coding-agents-in-the-background', 'customize-wisp-with-spells'],
+      related: ['one-board-for-all-your-coding-agents', 'publish-an-app-your-agent-built', 'customize-wisp-with-spells'],
     },
 
     {
