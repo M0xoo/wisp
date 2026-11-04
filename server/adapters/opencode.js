@@ -2,6 +2,7 @@
 
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { toolsDir } from '../util.js';
 import { ASK_TIMEOUT_MS, attachmentNote, clip, crewToolLabel, detectFirst, exitText, fileTracker, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
 import { describeCommand } from './commands.js';
@@ -25,6 +26,7 @@ const rateLimitGrace = () => Number(process.env.WISP_RATE_LIMIT_GRACE_MS) || 60_
 const RATE_LIMITED = /Rate limit exceeded|Too Many Requests|status(?:Code)?[=: ]+429\b/i;
 // `run` answers every permission prompt itself and says so on stderr (cli/cmd/run.ts):
 // "! permission requested: bash (npm publish); auto-rejecting".
+const GATE_PLUGIN = pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'opencode-gate.js')).href;
 const REJECTED = /permission requested: ([\w.-]+) \((.*?)\); auto-rejecting/g;
 const ANSI = /\x1b\[[0-9;]*m/g;
 
@@ -41,6 +43,7 @@ export function hasKey(out) {
 export default {
   id: 'opencode',
   bin: () => BIN, // the program it runs (server/harness-watch.js)
+  sideGate: true, // its plugin stops a side discussion's writes until wisp answers (server/opencode-gate.js)
   name: 'opencode',
   askTool: 'wisp_ask_user',
   fork: true, // run({ resumeId, fork }) answers on a copy of the session (/btw)
@@ -84,7 +87,8 @@ export default {
 
   // grants: { permission, patterns } the user allowed after `run` rejected them, for this turn.
   // fork: continue a copy of resumeId's session instead of the session itself (/btw).
-  run({ prompt, attachments = [], cwd, resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], onEvent }) {
+  // gate: every write and command waits on wisp first (a side discussion, server/opencode-gate.js).
+  run({ prompt, attachments = [], cwd, resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], gate = false, onEvent }) {
     // The prompt goes on stdin; `run` appends piped stdin to the (empty) message.
     // Errors to stderr: the only place a rate limit shows up (see RATE_LIMITED).
     const args = ['run', '--format', 'json', '--print-logs', '--log-level', V2 ? 'error' : 'ERROR'];
@@ -103,11 +107,13 @@ export default {
     }
     const env = { ...process.env };
     const allow = grants.filter((g) => g && typeof g.permission === 'string' && Array.isArray(g.patterns));
-    if (Object.keys(mcp).length || allow.length) {
+    if (Object.keys(mcp).length || allow.length || gate) {
       const inline = env.OPENCODE_CONFIG_CONTENT ? safeJson(env.OPENCODE_CONFIG_CONTENT) : {};
       const permission = typeof inline.permission === 'object' ? { ...inline.permission } : inline.permission ? { '*': inline.permission } : {};
       // Its built-in `task` subagents would bypass the user's team.
       if (delegating) permission.task = 'deny';
+      // Behind the gate `run` must not auto-reject them itself, and its subagents stay out of it.
+      if (gate) Object.assign(permission, { edit: 'allow', bash: 'allow', task: 'deny' });
       for (const g of allow) {
         const was = permission[g.permission];
         permission[g.permission] = { ...(typeof was === 'object' ? was : was && { '*': was }), ...Object.fromEntries(g.patterns.map((p) => [String(p), 'allow'])) };
@@ -116,7 +122,9 @@ export default {
         ...inline,
         ...(Object.keys(mcp).length && { mcp: { ...inline.mcp, ...mcp }, experimental: { ...inline.experimental, mcp_timeout: ASK_TIMEOUT_MS } }),
         ...(Object.keys(permission).length && { permission }),
+        ...(gate && { plugin: [...(inline.plugin || []), GATE_PLUGIN] }),
       });
+      if (gate) Object.assign(env, { WISP_URL: mcpServers.wisp?.env?.WISP_URL, WISP_TOKEN: mcpServers.wisp?.env?.WISP_TOKEN, WISP_SESSION: mcpServers.wisp?.env?.WISP_SESSION });
     }
 
     const input = withProtocol(prompt, systemPrompt, resumeId) + attachmentNote(attachments, 'They are also attached to this message');
@@ -170,10 +178,11 @@ export default {
             // Emitted once the tool has finished, with its input and output.
             const state = part.state || {};
             const input = state.input || {};
-            onEvent({ type: 'tool', ...describeTool(part.tool, input, cwd), ...(state.status !== 'error' && typeof state.output === 'string' && { output: state.output }) });
-            if (state.status === 'error') onEvent({ type: 'tool_error', name: part.tool, text: clip(state.error || state.output, 400) });
+            onEvent({ type: 'tool', id: part.callID, ...describeTool(part.tool, input, cwd), ...(state.status !== 'error' && typeof state.output === 'string' && { output: state.output }) });
+            if (state.status === 'error') onEvent({ type: 'tool_error', id: part.callID, name: part.tool, text: clip(state.error || state.output, 400) });
             else {
               for (const change of captureChanges(part.tool, input, state.metadata || {}, cwd, files)) onEvent({ type: 'change', ...change });
+              onEvent({ type: 'tool_output', id: part.callID, text: '' }); // the call is over: the gate hears it
             }
             break;
           }

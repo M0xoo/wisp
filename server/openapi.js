@@ -508,6 +508,14 @@ export function openapi({ version, port }) {
         get: { summary: 'What one goal check said and did: the prompt it got, its steps and its vote. The id is on a check’s votes (or on the check, when wisp checks by itself); a goal keeps those of its last 50 checks', responses: { 200: ok, 404: err[404] } },
       },
       '/sessions/{id}/answer': { parameters: [id], post: { summary: 'Answer the pending ask_user question (or approval: Allow, Always allow in this task, Deny, or what to do instead)', requestBody: body({ type: 'object', required: ['text'], properties: { text: { type: 'string' } } }), responses: { 200: ok } } },
+      '/sessions/{id}/clash': {
+        parameters: [id],
+        post: {
+          summary: 'Answer a side discussion’s clash card: apply writes it and tells the main task, keep refuses it. Apply rechecks first: a card that no longer holds gets 409 and shows the new state',
+          requestBody: body({ type: 'object', required: ['action'], properties: { action: { type: 'string', enum: ['apply', 'keep'] }, askId: { type: 'string' }, sig: { type: 'string', description: 'The card’s clash.sig, as you saw it' } } }),
+          responses: { 200: ok, 400: err[400], 404: err[404], 409: json(ref('Error'), 'The main task moved, or the card has moved on') },
+        },
+      },
       '/sessions/{id}/approve': { parameters: [id], post: { summary: 'Allow and retry (or deny) what a finished turn’s permissions blocked', requestBody: body({ type: 'object', properties: { turnId: { type: 'string' }, allow: { type: 'boolean', description: 'Default true' } } }), responses: { 200: ok } } },
       '/sessions/{id}/revert': {
         parameters: [id],
@@ -552,7 +560,7 @@ export function openapi({ version, port }) {
       '/sessions/{id}/side': {
         parameters: [id],
         post: {
-          summary: 'Start a side discussion (/side) about the task: a read-only task of its own (Plan mode, no history, no work of its own) that reads the task’s folder and hears its latest state with every message. Its summary has sideOf; the task lists it in sides',
+          summary: 'Start a side discussion (/side) about the task: a task of its own (no history, no work of its own) in the task’s folder, that hears its latest state with every message. It runs commands and edits behind a clash check where the harness can ask before a write, and only reads elsewhere (sideOf.edits). Its summary has sideOf; the task lists it in sides',
           requestBody: body({ type: 'object', required: ['text'], properties: { text: { type: 'string', description: 'The opening message; a leading /side is dropped' }, agent: { type: 'string' }, model: { type: 'string' }, effort: { type: 'string' }, attachments: { type: 'array', items: { type: 'string' } } } }),
           responses: { 201: json(ref('Summary')), 400: err[400], 404: err[404], 409: json(ref('Error'), 'It is a side discussion already') },
         },

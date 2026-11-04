@@ -26,7 +26,8 @@
 // `wisp_connectors`, `wisp_connector_add` and `wisp_connector_signin` read and add the user's
 // connectors (MCP servers every task gets, server/connectors.js); secret values never pass through
 // the agent: the sign-in card takes them.
-// With WISP_READONLY (a /side discussion, server/side.js): only the tools that read, ask or show.
+// With WISP_READONLY (a /side discussion, server/side.js): only the tools that read, ask or show,
+// and `approve`, where its writes meet the clash check.
 // With WISP_SPELLS (a Cast a spell task): `wisp_spells`, `wisp_spell_schema`, `wisp_spell_data` and
 // `wisp_spell_check`, to write a spell for the user to keep.
 
@@ -35,9 +36,9 @@ import { CREW_TOOLS } from './crew-tools.js';
 import { blockDocs } from './protocol.js';
 
 const { WISP_URL, WISP_TOKEN, WISP_SESSION, WISP_TURN, WISP_APPROVE, WISP_SPELLS, WISP_WATCH, WISP_READONLY } = process.env;
-// A side discussion's tools (server/side.js): reading, asking you, the page beside the task. Nothing
-// that changes work, starts tasks or edits your setup.
-const READ_ONLY_TOOLS = ['ask_user', 'resume_later', 'wisp_tag', 'wisp_watch', 'wisp_blocks', 'wisp_stats', 'wisp_sessions', 'wisp_session', 'wisp_stuff', 'wisp_crew', 'wisp_connectors', 'wisp_available'];
+// A side discussion's tools (server/side.js): reading, asking you, the page beside the task, the
+// gate. Nothing that starts tasks or edits your setup.
+const READ_ONLY_TOOLS = ['approve', 'ask_user', 'resume_later', 'wisp_tag', 'wisp_watch', 'wisp_blocks', 'wisp_stats', 'wisp_sessions', 'wisp_session', 'wisp_stuff', 'wisp_crew', 'wisp_connectors', 'wisp_available'];
 const offered = (name) => !WISP_READONLY || READ_ONLY_TOOLS.includes(name);
 const WAIT_S = 240; // wisp_task wait / wisp_launch wait=true, unless the agent asks for longer
 const MAX_WAIT_S = 1800;
@@ -629,8 +630,8 @@ async function askUser(args) {
   return (await waitFor(id))?.answer ?? null;
 }
 
-async function approve({ tool_name: tool, input = {} }) {
-  let r = await call(`/api/internal/approve`, { session: WISP_SESSION, tool, input });
+async function approve({ tool_name: tool, input = {}, tool_use_id }) {
+  let r = await call(`/api/internal/approve`, { session: WISP_SESSION, tool, input, tool_use_id });
   if (r.id) r = await waitFor(r.id);
   if (r?.decision === 'allow') return { behavior: 'allow', updatedInput: input };
   if (!r) return { behavior: 'deny', message: 'The user did not answer (the request was cancelled). Do not retry it; carry on without it and say what was skipped.' };

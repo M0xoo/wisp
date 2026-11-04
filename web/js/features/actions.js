@@ -123,7 +123,7 @@ export async function execAction(id, turnId, command, key) {
 // else in the terminal app. The page's terminal shows at once and fills in when it's started.
 // A terminal session (Settings → General) is always in the page, and opens with no conversation yet.
 export async function takeOver(id) {
-  if (S.sessions.get(id)?.sideOf) return; // a side discussion only reads: a terminal would leave Plan
+  if (S.sessions.get(id)?.sideOf) return; // a terminal would leave the side discussion's gate
   if (S.sessions.get(id)?.term) return void openTerm(id); // already open: show it again
   const tui = !!S.sessions.get(id)?.tui;
   let s = S.full.get(id);

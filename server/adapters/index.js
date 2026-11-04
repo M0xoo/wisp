@@ -9,6 +9,8 @@
 //                                                  null = can't inject MCP, ask via a question block
 //     approveTool?: string                         its permission prompts go to wisp's `approve` MCP
 //                                                  tool (live approval); omit if it can't route them
+//     sideGate?: true                              run({ gate }) really stops every write until wisp
+//                                                  answers, so a side discussion may edit (server/side-gate.js)
 //     fork?: true                                  run({ resumeId, fork: true }) works on a copy of
 //                                                  that conversation, leaving it as it is (/btw)
 //     permission?(tool, input, cwd): { tool, action, detail, why? }   what a live approval is about

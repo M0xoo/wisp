@@ -273,7 +273,7 @@ test('side discussions: a side button acts on the card\'s task, its chips are pa
   assert.ok(problems({ ...base0, buttons: [{ slot: 'card.menu', label: 'x', do: { side: { agent: 'codex' } } }] }).some((x) => /side needs a prompt: what the side discussion should talk over/.test(x)));
   assert.ok(problems({ ...base0, buttons: [{ slot: 'card.menu', label: 'x', do: { side: { prompt: 'p', mode: 'auto' } } }] }).some((x) => /side takes no mode: a side discussion only reads/.test(x)));
   assert.ok(problems({ ...base0, slash: [{ name: 'side', do: { toast: 'hi' } }] }).some((x) => /\/side is built in/.test(x)));
-  assert.deepEqual(problems({ ...base0, parts: { 'card.sideOf': { style: { color: 'red' } }, 'card.sides': { style: { fontWeight: '700' } }, 'card.sidePill': { style: { color: 'red' } } }, ui: { hide: ['turn.sideStart'] } }), []);
+  assert.deepEqual(problems({ ...base0, parts: { 'card.sideOf': { style: { color: 'red' } }, 'card.sides': { style: { fontWeight: '700' } }, 'card.sidePill': { style: { color: 'red' } } }, ui: { hide: ['turn.sideStart', 'turn.sideWarn'] } }), []);
 });
 
 test('the usage-limit card under a turn\'s hero is not a part: it asks you something', () => {

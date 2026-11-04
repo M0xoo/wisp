@@ -1,6 +1,8 @@
 // /side: a side discussion about a task, on a page of its own (server/side.js). It's a task like
-// any other (full answers, follow-ups, blocks) that reads the main task's work and changes nothing.
-// Here: starting one from a follow-up box, and the chips that link the two.
+// any other (full answers, follow-ups, blocks) in the main task's folder: it runs commands and edits
+// behind a clash check, or only reads on a harness that can't ask before a write (sideOf.edits).
+// Here: starting one from a follow-up box, the chips that link the two, and the clash card with its
+// warning rows.
 
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
@@ -44,13 +46,16 @@ export async function startSide(id, text, { attachments = [], restore, agent, mo
 
 const sideTitle = (f) => S.sessions.get(f.id)?.title || f.title;
 
+// What a side discussion does to the main task's work, in a line.
+export const sideDoes = (of) => (of?.edits === false ? 'reads its work, changes nothing' : 'runs and edits in its work, checks for clashes first');
+
 // The bar's chips: on a side discussion, the task it's about; on that task, its side discussions.
 export function sideChips(s, summary) {
   const of = s.sideOf;
   const sides = ((summary.id ? summary.sides : s.sides) || []).filter((x) => S.sessions.has(x) || x.startsWith('pending-'));
   const from = of
     ? S.sessions.has(of.id)
-      ? `<button class="m side-of" data-a="side-of" title="${esc(`A read-only side discussion: it reads “${sideTitle(of)}” and its work as they are now, and changes nothing. Open that task`)}">${icon('discuss')}<span>Side discussion of <b>${esc(sideTitle(of))}</b></span></button>`
+      ? `<button class="m side-of" data-a="side-of" title="${esc(`A side discussion of “${sideTitle(of)}”: it ${sideDoes(of)}. Open that task`)}">${icon('discuss')}<span>Side discussion of <b>${esc(sideTitle(of))}</b></span></button>`
       : `<span class="m side-of" title="The task this side discussion was about was deleted">${icon('discuss')}<span>Side discussion of <b>${esc(of.title)}</b></span></span>`
     : '';
   // Still starting (only the placeholder): a count, not a button that would open nothing yet.
@@ -59,13 +64,53 @@ export function sideChips(s, summary) {
   return from + list;
 }
 
-// Above a side discussion's first message: what it's about and that it only reads.
+// Above a side discussion's first message: what it's about and what it may do.
 export function sideLine(of) {
   const there = S.sessions.has(of.id);
-  const line = el(`<div class="fork-line side-line"><span>${icon('discuss')}<i class="sl-of">Side discussion of ${there ? `<button class="link" title="${esc(`Open “${sideTitle(of)}”, the task this side discussion is about`)}">${esc(sideTitle(of))}</button>` : `<b title="${esc(of.title)}">${esc(of.title)}</b>`}</i><i class="sl-ro">· reads its work, changes nothing</i></span></div>`);
+  const line = el(`<div class="fork-line side-line"><span>${icon('discuss')}<i class="sl-of">Side discussion of ${there ? `<button class="link" title="${esc(`Open “${sideTitle(of)}”, the task this side discussion is about`)}">${esc(sideTitle(of))}</button>` : `<b title="${esc(of.title)}">${esc(of.title)}</b>`}</i><i class="sl-ro">· ${esc(sideDoes(of))}</i></span></div>`);
   const b = line.querySelector('button');
   if (b) b.onclick = () => reveal(of.id);
   return line;
+}
+
+// The rows under a side discussion's prompt: it touched a file the main task changed too. No card:
+// an overlap is only said, and a command that hit main's file has already told the main task.
+export function sideWarnRows(t) {
+  if (!t.sideWarn?.length) return null;
+  return el(`<ul class="side-warns">${t.sideWarn.map((w) => `<li class="side-warn">${icon('warn')}<span><code>${esc(w.file)}</code> ${w.kind === 'command' ? 'also changed by' : 'is being changed by'} the main task, <b>${esc(w.main)}</b>${w.kind === 'command' ? ': a command here changed it, and the main task was told' : ', on other lines'}</span></li>`).join('')}</ul>`);
+}
+
+const moreFiles = (f) => `${f[0]}${f.length > 1 ? ` and ${f.length - 1} more` : ''}`;
+const range = (r) => (r.from === r.to ? `line ${r.from}` : r.from > r.to ? `after line ${r.to}` : `lines ${r.from}–${r.to}`);
+const CLASH_WHY = {
+  lines: 'These are lines the main task changed.',
+  write: 'This replaces a file the main task changed.',
+  unlocated: 'wisp can’t tell which lines this touches, in a file the main task changed.',
+  command: 'This command rewrites work the main task shares.',
+  cleared: 'The main task moved: it no longer touches these lines.',
+};
+
+// A diff of what the side wants, as lines: what goes, what comes.
+const proposedHtml = (p) => `${p.before ? p.before.split('\n').map((l) => `<span class="clash-del">${esc(l) || ' '}</span>`).join('') : ''}${p.after.split('\n').map((l) => `<span class="clash-add">${esc(l) || ' '}</span>`).join('')}`;
+
+// The clash card: in the side discussion, before the write, whatever mode the main task is in. Only
+// here: the main task's run never pauses for it. An approval, so spells can't reach it.
+export function clashCardHtml(a) {
+  const c = a.clash;
+  const of = esc(c.mainTitle);
+  const side = c.command ? `<pre class="perm-detail">${esc(c.command)}</pre>` : `<pre class="perm-detail clash-diff">${proposedHtml(c.proposed)}</pre>`;
+  const main = c.main.length ? `<div class="clash-label">The main task’s ${esc(c.main.map(range).join(', '))}</div><pre class="perm-detail">${esc(c.main.map((m) => m.text).join('\n…\n'))}</pre>` : c.files?.length && (c.why !== 'writes' || c.files.length > 1) ? `<div class="clash-label">Files of the main task it ${c.why === 'writes' ? 'writes over' : 'removes'}</div><pre class="perm-detail">${esc(c.files.join('\n'))}</pre>` : '';
+  return `
+    <div class="ask-card perm clash">
+      <div class="q-head">${icon('warn')}<span>${c.kind === 'cleared' ? 'No clash any more' : 'Clash with the main task'}</span></div>
+      <p class="q-text">${c.command ? 'Run this command?' : `<code>${esc(c.file)}</code>`}</p>
+      <p class="q-context">${c.moved ? `<b>The main task moved while this waited.</b> ` : ''}${esc(c.why === 'writes' ? `This command writes over ${moreFiles(c.files)}, which the main task changed.` : CLASH_WHY[c.kind] || '')} Main task: ${of}.</p>
+      <div class="clash-label">${c.command ? 'This side discussion wants to run' : 'This side discussion’s change'}</div>
+      ${side}
+      ${main}
+      <div class="q-opts">${a.options.map((o, i) => `<button class="opt ${i === 0 ? 'go' : 'no'}" data-i="${i}"><span class="k">${i + 1}</span>${esc(o)}</button>`).join('')}</div>
+      <form class="q-own"><input class="input" aria-label="Say what to do instead" placeholder="Or say what to do instead (keeps main’s version)…"><button class="ghost sm">Send</button></form>
+    </div>`;
 }
 
 const STATE_WORD = { running: 'Working', waiting: 'Asking', review: 'Review', done: 'Done' };

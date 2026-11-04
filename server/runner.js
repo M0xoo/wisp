@@ -15,7 +15,8 @@ import { handoffNote, mapEffort } from './handoff.js';
 import { openTerms } from './pty.js';
 import { agentPrompt, plainMentions } from './mentions.js';
 import { BTW_SYSTEM, BTW_TIMEOUT_MS, MAX_BTW, btwAnswer, btwPrompt } from './btw.js';
-import { SIDE_DENIED, sideNote, sidePrompt } from './side.js';
+import { SIDE_APPLY, SIDE_DENIED, SIDE_KEEP, sideNote, sidePrompt } from './side.js';
+import { createSideGate } from './side-gate.js';
 import { bad, clip, MODES, newId } from './util.js';
 import { LIMIT_CARRY_ON, laterNote, laterView } from './later.js';
 import { HOMES as ACCOUNT_HOMES } from './accounts.js';
@@ -249,7 +250,7 @@ export function summarize(s, store) {
     ...(s.tui && { tui: true }), // a terminal session: it opens on the agent's own CLI (services/tui.js)
     asks: !!s.ask || !!last?.presentation?.blocks?.some((b) => b.type === 'question'),
     question: s.ask?.question || '',
-    options: s.ask?.options?.length ? s.ask.options : undefined, // its choices, answered from the row on a phone
+    options: s.ask?.options?.length && !s.ask.clash ? s.ask.options : undefined, // its choices, answered from the row on a phone (not a clash: that's read before it's answered)
     approval: !!s.ask?.permission, // the question is a live approval (Allow / Deny)
     branch: s.worktree?.branch || '',
     // The task's other folders: their project, worktree branch and PR, for the card and the filter.
@@ -277,7 +278,7 @@ export function summarize(s, store) {
     moved: s.moved || null, // { from }: carried on here from another place (services/move.js)
     movedTo: s.movedTo || null, // { id, place }: this one carried on there, and was archived
     ...(s.forkedFrom && { forkedFrom: s.forkedFrom }), // { id, title, turn, of }: a fork of that task (services/fork.js)
-    ...(s.sideOf && { sideOf: { id: s.sideOf.id, title: s.sideOf.title } }), // a read-only side discussion about that task (server/side.js)
+    ...(s.sideOf && { sideOf: { id: s.sideOf.id, title: s.sideOf.title, edits: s.mode !== 'plan' } }), // a side discussion about that task (server/side.js); edits: false on a harness that stays read-only
     ...(s.sides?.length && { sides: store ? s.sides.filter((x) => store.get(x)) : s.sides }), // its side discussions' ids
     ...(s.shared && { shared: { url: s.shared.url, host: s.shared.host, locked: !!s.shared.locked, work: !!s.shared.work, at: s.shared.at } }), // its share link (services/share.js)
     ...(s.sharedFrom && { sharedFrom: { id: s.sharedFrom.id, url: s.sharedFrom.url, host: s.sharedFrom.host, handle: s.sharedFrom.handle, name: s.sharedFrom.name, skills: (s.sharedFrom.kit || []).map((k) => k.name) } }), // imported from someone's share
@@ -343,6 +344,17 @@ export class Runner extends EventEmitter {
     this.accounts = null; // a harness's several accounts (server/accounts.js); null: only the CLI's own
     this.accountPref = () => ''; // (agent) => the account you last picked for it
     this.goals = null; // goals: keep going until a condition holds (server/goal.js)
+    this.sidePending = new Map(); // a clash card's ask id -> the tool call it holds (server/side-gate.js)
+    this.sideGate = createSideGate({
+      store,
+      workdir,
+      change: (side, turn, ev) => adapters[side.agent]?.approveTool && this.#onEvent(side, turn, { type: 'change', ...ev }), // others report their own, once done
+      warn: (side, turn, item) => this.#sideWarn(side, turn, item),
+      ask: (side, a) => this.ask(side, a),
+      tell: (side, text) => this.#tellMain(side, text),
+      answered: (side, a) => this.#sideAnswered(side, a),
+      touch: (side, turn) => this.#touch(side, { turn: turn?.id }),
+    });
 
     // Anything that was mid-flight when wisp last died is now orphaned.
     const died = restartReason();
@@ -390,7 +402,7 @@ export class Runner extends EventEmitter {
       turns: [...history],
       ...(moved && { moved }),
       ...(forkedFrom && { forkedFrom }), // { id, title, turn, of }: forked from that task's turn (services/fork.js)
-      ...(sideOf && { sideOf }), // { id, title, cwd }: a read-only side discussion about that task (server/side.js)
+      ...(sideOf && { sideOf }), // { id, title, cwd }: a side discussion about that task (server/side.js)
       ...(sharedFrom && { sharedFrom }), // { id, url, host, handle, name, title, kit? }: imported from a share (services/share.js)
       ...(kind && { kind }), // 'spell': a Cast a spell task (server/spell-guide.js)
       ...(worktree && { worktree }),
@@ -514,14 +526,15 @@ export class Runner extends EventEmitter {
   // goal: the round a follow-up from wisp starts toward the task's goal (server/goal.js).
   // hold: Ask near the limit (server/guard.js) said this follow-up would cross your line: it's kept
   // as a held turn instead. Scheduled follow-ups and goal rounds are checked here themselves.
-  reply(session, text, attachments = [], { queue = false, mode, run, team, grants, once, by, later, goal, hold } = {}) {
-    if (!MODES.has(mode) || mode === session.mode || session.sideOf) mode = undefined; // a side discussion stays read-only
+  // side: { id, title }: sent by wisp from that side discussion (the turn says so).
+  reply(session, text, attachments = [], { queue = false, mode, run, team, grants, once, by, later, goal, hold, side } = {}) {
+    if (!MODES.has(mode) || mode === session.mode || session.sideOf) mode = undefined; // a side discussion's mode is its harness's (sideMode)
     run = changedRun(session, run);
     if (session.parentId || session.sideOf || (team && JSON.stringify(team) === JSON.stringify(session.subagents || []))) team = undefined;
     if (by !== 'wisp' && by !== 'later') this.pipeline?.cancel(session);
     if (by !== 'wisp') this.goals?.cancel(session);
     if (by !== 'wisp') delete session.queueHeld; // you're back: a queue a Stop held carries on after this
-    const extra = { ...(by === 'wisp' && goal && { goal }), ...(mode && { mode }), ...(run && { run }), ...(team && { team }), ...(grants?.length && { grants }), ...(MODES.has(once) && { once }), ...((by === 'wisp' || by === 'later') && { by }), ...(by === 'later' && later && { later }) };
+    const extra = { ...(by === 'wisp' && goal && { goal }), ...(mode && { mode }), ...(run && { run }), ...(team && { team }), ...(grants?.length && { grants }), ...(MODES.has(once) && { once }), ...((by === 'wisp' || by === 'later') && { by }), ...(by === 'later' && later && { later }), ...(side && { side }) };
     if (session.ask && !Object.keys(extra).length) {
       this.answer(session, text);
       return { answered: true };
@@ -581,7 +594,7 @@ export class Runner extends EventEmitter {
   approveBlocked(session, { turnId, allow }) {
     const turn = turnId ? session.turns.find((t) => t.id === turnId) : session.turns.at(-1);
     if (!turn?.blocked?.length) throw bad('Nothing on that turn is waiting for approval.', 404);
-    if (allow && session.sideOf) throw bad('A side discussion only reads: ask the main task to do it.', 409);
+    if (allow && session.sideOf) throw bad('A side discussion can’t allow this: ask the main task to do it.', 409);
     if (turn.approval) throw bad(`Already ${turn.approval}.`, 409);
     // A CLI still lingering after its result doesn't count: reply() lets it go and starts the retry.
     if (turn !== session.turns.at(-1) || (this.live.has(session.id) && turn.status === 'running')) throw bad('The task has moved on since; send a follow-up instead.', 409);
@@ -869,7 +882,8 @@ export class Runner extends EventEmitter {
   // ask_user: the agent is blocked inside a tool call until answer() is called.
   // permission: set for a live approval ({ tool, action, detail }), see requestApproval().
   // connector: a connector waiting for the user's sign-in or keys ({ id, name, kind, keys }).
-  ask(session, { question, context, options, permission, connector }) {
+  // clash: a side discussion's clash card (server/side-gate.js).
+  ask(session, { question, context, options, permission, connector, clash }) {
     const turn = session.turns.at(-1);
     session.ask = {
       id: newId(),
@@ -879,11 +893,12 @@ export class Runner extends EventEmitter {
       askedAt: Date.now(),
       ...(permission && { permission }),
       ...(connector && { connector }),
+      ...(clash && { clash }),
     };
     session.state = 'waiting';
     session.unread = true;
     delete session.archived; // a question needs the user, so it comes back to the feed
-    const label = permission ? `Needs your OK to ${permission.action}` : `Asked you: ${session.ask.question}`;
+    const label = clash ? `Clash with the main task: ${clash.file || clash.command}` : permission ? `Needs your OK to ${permission.action}` : `Asked you: ${session.ask.question}`;
     if (turn) this.#onEvent(session, turn, { type: 'tool', kind: 'ask', label });
     this.#touch(session, { turn: turn?.id });
     this.emit('finished', { session: summarize(session, this.store) });
@@ -893,13 +908,15 @@ export class Runner extends EventEmitter {
   // Live approval: the harness asks before a tool call its permission mode doesn't allow on its
   // own (Claude's --permission-prompt-tool). It waits on the answer like ask_user; something the
   // user said "always" to earlier in this task goes through at once.
-  requestApproval(session, { tool, input }) {
+  requestApproval(session, { tool, input, tool_use_id }) {
     const adapter = adapters[session.agent];
     const p = adapter.permission?.(String(tool || ''), input && typeof input === 'object' ? input : {}, workdir(session)) || { tool: String(tool || 'tool'), action: `use ${tool}`, detail: '' };
     const turn = session.turns.at(-1);
-    // A side discussion changes nothing: what its mode didn't allow is refused without asking.
+    // A side discussion: wisp's gate decides (server/side-gate.js). On a harness that can't ask
+    // before a write it stays read-only, and what its mode didn't allow is refused without asking.
     if (session.sideOf) {
-      if (turn) this.#onEvent(session, turn, { type: 'tool', kind: 'answer', label: `Refused (side discussions only read): ${p.action}` });
+      if (this.sideMode(session.agent) === 'edits') return this.#sideDecide(session, { tool: String(tool || ''), input: input && typeof input === 'object' ? input : {}, tool_use_id });
+      if (turn) this.#onEvent(session, turn, { type: 'tool', kind: 'answer', label: `Refused (side discussions on ${adapter.name} only read): ${p.action}` });
       return { decision: 'deny', message: SIDE_DENIED };
     }
     if ((session.grants || []).some((g) => sameAction(g, p))) {
@@ -915,9 +932,78 @@ export class Runner extends EventEmitter {
     return { id };
   }
 
+  async #sideDecide(session, call) {
+    const out = await this.sideGate.decide(session, call);
+    if (!out.id) return out;
+    this.sidePending.set(out.id, out.pending);
+    return { id: out.id };
+  }
+
+  // The mode a side discussion runs in on this harness: Edits behind the gate where wisp can ask
+  // before a write, else Plan.
+  sideMode(agent) {
+    return adapters[agent]?.sideGate && this.bridge ? 'edits' : 'plan';
+  }
+
+  // The clash card's answer (POST /sessions/:id/clash, or /answer): action 'apply' or 'keep'.
+  clashAnswer(session, { askId, action, sig, words } = {}) {
+    const ask = session.ask;
+    if (!ask?.clash || (askId && ask.id !== askId)) throw bad('That card has moved on.', 409);
+    const pending = this.sidePending.get(ask.id);
+    if (!pending) throw bad('That card has moved on.', 409);
+    const out = this.sideGate.settle(session, pending, { action, sig, words });
+    if (out.stale) throw Object.assign(bad('The main task moved: look at the card again before you apply it.', 409), { stale: true });
+    this.sidePending.delete(ask.id);
+    return out;
+  }
+
+  #sideAnswered(session, { decision, message, label }) {
+    const ask = session.ask;
+    this.answers.set(ask.id, { answer: label, decision, ...(message && { message }) });
+    ask.answer = label;
+    delete session.ask;
+    session.state = this.live.has(session.id) ? 'running' : 'review';
+    const turn = session.turns.at(-1);
+    if (turn) this.#onEvent(session, turn, { type: 'tool', kind: 'answer', label });
+    this.#touch(session, { turn: turn?.id });
+  }
+
+  // A row in a side discussion's turn: it touched what the main task is working on.
+  #sideWarn(session, turn, item) {
+    if (!turn) return;
+    const list = (turn.sideWarn ||= []);
+    if (!list.some((w) => w.kind === item.kind && w.file === item.file)) list.push(item);
+    this.#touch(session, { turn: turn.id });
+  }
+
+  // What a side discussion did, for the main task: in its follow-up queue while it runs (Stop keeps
+  // the queue), a follow-up when it's idle. A held turn stays held: this waits behind it.
+  #tellMain(side, text) {
+    const main = this.store.get(side.sideOf.id);
+    if (!main) return false;
+    const from = { id: side.id, title: side.title };
+    if (main.turns.at(-1)?.status === 'held') {
+      main.queue.push({ id: newId(), text, attachments: [], by: 'wisp', side: from });
+      this.#touch(main);
+      return true;
+    }
+    this.reply(main, text, [], { queue: true, by: 'wisp', side: from });
+    return true;
+  }
+
   answer(session, text) {
     const ask = session.ask;
     if (!ask) return false;
+    // A clash card goes through its own recheck. Typed words keep main's version, with those words.
+    if (ask.clash) {
+      try {
+        this.clashAnswer(session, text === SIDE_APPLY ? { action: 'apply' } : { action: 'keep', words: text === SIDE_KEEP ? '' : text });
+        return true;
+      } catch (err) {
+        if (err.stale) return false;
+        throw err;
+      }
+    }
     ask.answer = text;
     const turn = session.turns.at(-1);
     let label = `You answered: ${text}`;
@@ -1202,7 +1288,7 @@ export class Runner extends EventEmitter {
     const crew = session.crew ? this.crewNote(session) : '';
     // A shared task's skills and instructions came with it (services/share.js): written out in full.
     const kit = !sub && session.sharedFrom?.kit?.length ? kitNote({ kit: session.sharedFrom.kit }) : '';
-    const side = session.sideOf ? sideNote(session, adapter.askTool === null || !this.bridge ? '' : (adapter.askTool ?? 'mcp__wisp__ask_user').replace(/ask_user$/, 'wisp_session')) : '';
+    const side = session.sideOf ? sideNote(session, adapter.askTool === null || !this.bridge ? '' : (adapter.askTool ?? 'mcp__wisp__ask_user').replace(/ask_user$/, 'wisp_session'), { edits: this.sideMode(session.agent) === 'edits', name: adapter.name }) : '';
     return base + spell + crew + kit + side + goalNote(session) + workspaceNote(session) + this.promptExtra(session);
   }
 
@@ -1210,7 +1296,8 @@ export class Runner extends EventEmitter {
   // (server/connectors.js). Subagents get only the connectors: they have nobody to ask.
   #mcpServers(session, adapter, team, mode) {
     if (adapter.askTool === null) return {};
-    const yours = this.connectors?.({ agent: session.agent, mode, cwd: workdir(session) }) || {};
+    // A side discussion gets none: connectors can act on the world, and the gate only sees the folder.
+    const yours = this.connectors?.({ agent: session.agent, mode: session.sideOf ? 'plan' : mode, cwd: workdir(session) }) || {};
     if (!this.bridge || session.parentId || session.delegated) return yours;
     return {
       ...yours,
@@ -1227,7 +1314,7 @@ export class Runner extends EventEmitter {
           WISP_TURN: session.turns.at(-1)?.id || '', // so a run's leftover helper can tell its turn is over
           ...(adapter.approveTool && { WISP_APPROVE: '1' }),
           ...(session.kind === 'spell' && { WISP_SPELLS: '1' }),
-          ...(session.sideOf && { WISP_READONLY: '1' }), // a side discussion: only the tools that read (server/side.js)
+          ...(session.sideOf && { WISP_READONLY: '1' }), // a side discussion: wisp's tools that read, ask or show, plus the gate (server/side.js)
           ...(this.store.config?.defaults?.watch !== 'off' && { WISP_WATCH: '1' }),
           ...(team.length && { WISP_TEAM: JSON.stringify(team.map((m) => ({ name: m.name, agent: m.crew ? `${m.label || m.name} of the user's crew${m.role ? `, ${m.role}` : ''}` : adapters[m.agent]?.name || m.agent, model: m.crew ? 'own folder and memory' : m.model, effort: m.effort, use: m.use, count: m.count || 1, copies: copies(m), ...(m.machine && { place: m.place || 'another machine' }) }))) }),
         },
@@ -1251,21 +1338,23 @@ export class Runner extends EventEmitter {
 
   // grants: harness rules allowing what the user approved, for this turn only. once: a mode for
   // this turn only (an approved retry the harness can't scope runs in Full auto).
-  #startTurn(session, prompt, attachments = [], { grants = [], once, by, reports, later, goal } = {}) {
-    if (!session.relay && this.#harnessHold(session, prompt, attachments, { grants, once, by, reports, later, goal })) return;
+  #startTurn(session, prompt, attachments = [], { grants = [], once, by, reports, later, goal, side } = {}) {
+    if (!session.relay && this.#harnessHold(session, prompt, attachments, { grants, once, by, reports, later, goal, side })) return;
     // Project trust (server/project-trust.js): what this repo would run that you haven't trusted. The
     // task waits on a card listing it, unless you chose Run without them on it already. A subagent
     // or side discussion never waits: it runs without them (its lead was asked).
     // Full auto skips it: choosing it means don't ask me (it already skips every approval).
-    const mode = session.sideOf ? 'plan' : MODES.has(once) ? once : session.mode;
+    if (session.sideOf) session.mode = this.sideMode(session.agent);
+    const mode = MODES.has(once) && !session.sideOf ? once : session.mode;
     const project = session.relay ? null : this.projectPending(session, session.agent, mode);
     if (project && !session.parentId && !session.delegated && !session.sideOf && !project.items.every((x) => session.projectWithout?.includes(x.id))) {
-      this.#holdTurn(session, prompt, attachments, { grants, once, by, reports, later, goal }, { agent: session.agent, project });
+      this.#holdTurn(session, prompt, attachments, { grants, once, by, reports, later, goal, side }, { agent: session.agent, project });
       return;
     }
     const turn = this.#newTurn(session, prompt, attachments, mode);
     if (session.relay) turn.relay = { state: 'pending' }; // until the relay picks it up
     if (by === 'wisp') turn.by = 'wisp'; // sent by wisp (Auto's repair round), not by you
+    if (side) turn.side = side; // ...from that side discussion: what changed in the shared work
     if (project) turn.untrusted = true; // ran without the repo's hooks and servers
     if (by === 'wisp' && goal) turn.goal = goal; // ...going back to work on the goal: its round
     // A follow-up scheduled earlier (server/later.js): who set it and when. An agent's own wake-ups
@@ -1353,6 +1442,7 @@ export class Runner extends EventEmitter {
       accountEnv: this.#accountEnv(session),
       untrusted: !!project,
       quiet: leanTask(session, this.store.config?.defaults), // only when asked: lean drops claude.ai connectors (server/lean.js)
+      gate: !!session.sideOf && mode === 'edits', // every write waits on wisp (server/side-gate.js)
       onEvent: (ev) => {
         if (released) return; // a lingering process we already let go of
         const waiting = this.#onEvent(session, turn, ev) === 'waiting';
@@ -1454,6 +1544,7 @@ export class Runner extends EventEmitter {
       case 'tool':
       case 'tool_error':
       case 'text': {
+        if (ev.type === 'tool_error' && ev.id && session.sideOf) this.sideGate.toolDone(session, turn, ev.id, true).catch(() => {});
         const item = stepOf(ev);
         turn.activity.push(item);
         // The transcript says how many of the oldest steps it no longer has.
@@ -1463,6 +1554,7 @@ export class Runner extends EventEmitter {
         return;
       }
       case 'tool_output': {
+        if (ev.id && session.sideOf) this.sideGate.toolDone(session, turn, ev.id, false).catch(() => {});
         // What a call returned, for the transcript.
         const item = stepOutput(turn.activity, ev);
         if (!item) return;
@@ -1471,6 +1563,8 @@ export class Runner extends EventEmitter {
         return;
       }
       case 'change': {
+        // A harness that reports an edit before it's allowed: on a side discussion the gate records it.
+        if (ev.early && session.sideOf) return;
         let entry = turn.changes.find((c) => c.file === ev.file);
         if (!entry) {
           let beforeFile = ev.beforeFile;
@@ -1497,9 +1591,10 @@ export class Runner extends EventEmitter {
         return;
       }
       case 'blocked': {
-        // A side discussion only reads: what was refused is a note, not something to allow and retry.
+        // A side discussion: what was refused was the gate's or the card's answer, or its harness only
+        // reads. A note at most, never something to allow and retry.
         if (session.sideOf) {
-          turn.activity.push({ t: Date.now(), kind: 'answer', label: `Refused (side discussions only read): ${clip(String(ev.detail || ev.tool || 'a change'), 120)}` });
+          if (session.mode === 'plan') turn.activity.push({ t: Date.now(), kind: 'answer', label: `Refused (side discussions on ${adapters[session.agent]?.name || session.agent} only read): ${clip(String(ev.detail || ev.tool || 'a change'), 120)}` });
           this.store.save(session);
           return;
         }
@@ -1571,6 +1666,7 @@ export class Runner extends EventEmitter {
     turn.stats = ev.stats || null;
     this.guard?.changed?.(turn.agent || session.agent); // its cost counts in the next estimate
     this.budget?.spend?.(turn.agent || session.agent, session.account || 'default', unitsOf(turn.stats), { failed: !!ev.isError && !ev.stopped });
+    if (session.sideOf) this.sideGate.turnEnded(session, turn);
     delete session.ask;
     if (this.stopping.delete(session.id)) ev = { ...ev, stopped: true };
     const interrupted = ev.stopped && this.interrupting.has(session.id);

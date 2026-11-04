@@ -83,7 +83,7 @@ function paletteItems() {
     if (!cur.sideOf) items.push({ group: g, label: 'Take over', sub, icon: 'terminal', keywords: 'terminal take over carry on yourself cli', kbd: 'T', run: () => takeOver(id) });
     if (!cur.sideOf) items.push({ group: g, label: 'Rerun…', sub, icon: 'rerun', kbd: '⇧R', keywords: 'retry again restart model harness', run: () => rerun(id) });
     if (forkable(cur)) items.push({ group: g, label: 'Fork…', sub, icon: 'fork', kbd: '⇧F', keywords: 'branch copy duplicate try another way split', run: () => forkTask(id) });
-    if (sideable(cur)) items.push({ group: g, label: 'Side discussion…', sub, icon: 'discuss', keywords: 'side talk discuss review explain ask read-only /side', run: () => sideDraft(id) });
+    if (sideable(cur)) items.push({ group: g, label: 'Side discussion…', sub, icon: 'discuss', keywords: 'side talk discuss review explain ask run edit /side', run: () => sideDraft(id) });
     if (shippable(cur)) items.push({ group: g, label: shipLabel(cur), sub, icon: 'send', kbd: 'S', keywords: 'commit push pull request pr github', run: () => shipDialog(id) });
     if (mergeLabel(cur)) items.push({ group: g, label: mergeLabel(cur), sub, icon: 'check', keywords: 'squash github', run: () => mergePr(id) });
     if (reviewLabel(cur)) items.push({ group: g, label: reviewLabel(cur), sub, icon: 'merge', kbd: 'P', keywords: 'pull request checks ci reviews comments github side panel', run: () => openPanel(id, 'pr') });
