@@ -369,8 +369,8 @@ test('publish: GET /stuff says where an app can go; without a wisp Grid, publish
 
 // App data needs node:sqlite (Node 22.13+): on older Node the endpoint says so, and these skip.
 const sqlite = await import('node:sqlite').then(
-  () => true,
-  () => false,
+  (m) => m,
+  () => null,
 );
 
 test('app data: an app whose wisp-app.json asks gets its own SQLite database, made from its seed, reset on demand', { skip: !sqlite && 'needs node:sqlite' }, async () => {
@@ -431,7 +431,11 @@ test('app data: a query that never ends is stopped, and the next one works; the 
   const { createAppDb } = await import('../server/app-db.js');
   const db = createAppDb({ maxBytes: 64 * 1024, timeoutMs: 800 });
   const file = path.join(tmp('db-unit'), 'a.sqlite');
-  const s = http.createServer((req, res) => db.handle(req, res, { file, seed: 'CREATE TABLE t (v TEXT);' }));
+  // Made here, not by a seed: making a file can take the whole 800 ms on a loaded Windows box.
+  const made = new sqlite.DatabaseSync(file);
+  made.exec('CREATE TABLE t (v TEXT);');
+  made.close();
+  const s = http.createServer((req, res) => db.handle(req, res, { file }));
   await new Promise((r) => s.listen(0, '127.0.0.1', r));
   const q = async (sql, params = []) => {
     const r = await fetch(`http://127.0.0.1:${s.address().port}/_wisp/db`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sql, params }) });
@@ -465,6 +469,47 @@ test('app data: a query that never ends is stopped, and the next one works; the 
     } finally {
       globalThis.setTimeout = real;
     }
+  } finally {
+    db.close();
+    s.close();
+  }
+});
+
+test('app data: a seed stopped halfway is run again, whole, and data already there stays', { skip: !sqlite && 'needs node:sqlite' }, async () => {
+  const http = await import('node:http');
+  const { createAppDb } = await import('../server/app-db.js');
+  // Long enough for a cold start on a loaded Windows box (the quick seed below has to finish in it).
+  const db = createAppDb({ timeoutMs: 2500 });
+  const dir = tmp('db-seed');
+  const file = path.join(dir, 'a.sqlite');
+  const forever = 'WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT count(*) FROM c;';
+  let seed = `CREATE TABLE half (v TEXT); ${forever} CREATE TABLE never (v TEXT);`;
+  const s = http.createServer((req, res) => db.handle(req, res, { file: req.url.includes('old') ? `${file}.old` : file, seed }));
+  await new Promise((r) => s.listen(0, '127.0.0.1', r));
+  const q = async (sql, params = [], at = '/_wisp/db') => {
+    const r = await fetch(`http://127.0.0.1:${s.address().port}${at}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sql, params }) });
+    return { status: r.status, ...(await r.json()) };
+  };
+  const tables = "SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name";
+  try {
+    const stopped = await q('SELECT 1 AS one');
+    assert.deepEqual([stopped.status, /stopped/.test(stopped.error)], [503, true], JSON.stringify(stopped));
+
+    seed = "CREATE TABLE t (v TEXT); INSERT INTO t VALUES ('seeded');";
+    assert.deepEqual((await q(tables)).rows, [{ name: 't' }], 'the half made database is gone and the seed ran');
+    await q("INSERT INTO t VALUES ('mine')");
+
+    // Opened again, in a new worker: finished seeds don't run twice.
+    db.close();
+    seed = "CREATE TABLE other (v TEXT);";
+    assert.deepEqual((await q(tables)).rows, [{ name: 't' }]);
+    assert.equal((await q('SELECT count(*) AS n FROM t')).rows[0].n, 2);
+
+    // A file a stopped worker left behind before this fix: made, but nothing in it.
+    const old = new sqlite.DatabaseSync(`${file}.old`);
+    old.exec('PRAGMA journal_mode = WAL;');
+    old.close();
+    assert.deepEqual((await q(tables, [], '/_wisp/db?old')).rows, [{ name: 'other' }]);
   } finally {
     db.close();
     s.close();
