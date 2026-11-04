@@ -9,7 +9,7 @@ import net from 'node:net';
 import path from 'node:path';
 import vm from 'node:vm';
 import { installFakeBins, tmp } from './helpers.js';
-import { appFor, argsOf, burnOf, CALL_DOCS, effectiveGrant, grantOf, launchBody, lightAccounts, lightPrs, lightTask, missingOf, notWhile, PANE_APP_CSP, PANE_CALLS, PANE_CLIENT, PANE_CSP, PANE_USES, PANE_WRITES, paneFrameCsp, PANE_KIT, paneStale, panesProblem, panesString, paneWrapperDoc, parsePanes, refusal, runsFullAuto, scrubSecrets, showInvisible, usesOf } from '../web/js/pane-bridge.js';
+import { appFor, argsOf, burnOf, CALL_DOCS, dragShares, effectiveGrant, fitShares, grantOf, launchBody, lightAccounts, lightPrs, lightTask, MIN_TILE, missingOf, notWhile, PANE_APP_CSP, PANE_CALLS, PANE_CLIENT, PANE_CSP, PANE_USES, PANE_WRITES, paneFrameCsp, PANE_KIT, paneNeed, paneStale, panesProblem, panesString, paneWidthsProblem, paneWrapperDoc, parsePanes, refusal, runsFullAuto, scrubSecrets, showInvisible, TILE_GAP, tileColumns, tileEdges, tileFrom, tileSaved, tileShares, usesOf } from '../web/js/pane-bridge.js';
 import { appHash, scanApp } from '../server/services/stuff.js';
 import { paneGuide, PANE_EXAMPLE, paneReference } from '../server/pane-guide.js';
 import { starters } from '../server/routes/stuff.js';
@@ -21,6 +21,96 @@ process.env.WISP_HOME = tmp('panes-home');
 process.env.WISP_UPDATE_CHECK = '0';
 process.env.WISP_NO_OPEN = '1';
 installFakeBins();
+
+test('tileColumns: what is asked, as far as it fits, at least one', () => {
+  assert.equal(MIN_TILE, 300);
+  assert.equal(TILE_GAP, 12);
+  assert.equal(tileColumns(3, 1200), 3);
+  assert.equal(tileColumns(3, 924), 3, 'exactly three tiles and two gaps');
+  assert.equal(tileColumns(3, 923), 2);
+  assert.equal(tileColumns(3, 612), 2);
+  assert.equal(tileColumns(3, 611), 1);
+  assert.equal(tileColumns(3, 100), 1);
+  assert.equal(tileColumns(3, 0), 1);
+  assert.equal(tileColumns(0, 1200), 1);
+  assert.equal(tileColumns(1, 1200), 1);
+  assert.equal(tileColumns(8, 1200), 3, 'more panes than fit: they wrap');
+  assert.equal(tileColumns(3, 1600, 2), 2, 'a spell asks for fewer');
+  assert.equal(tileColumns(3, 1600, 1), 1);
+  assert.equal(tileColumns(2, 1600, 5), 2, 'never more than the panes');
+  assert.equal(tileColumns(4, 700, 3), 2, 'a narrow window shows fewer than the spell asks');
+});
+
+test('paneWidthsProblem: 1 to 8 shares, each above 0 and at most 100', () => {
+  for (const ok of ['1', '2,1,1', ' 2 , 1 ', '0.5,1.25', '100', '1,1,1,1,1,1,1,1']) assert.equal(paneWidthsProblem(ok), '', ok);
+  for (const bad of ['', 'abc', '0,1', '1,,2', '101', '-1,2', '1e2', '1,2,3,4,5,6,7,8,9', 3, null, undefined]) assert.match(paneWidthsProblem(bad), /widths is relative shares like "2,1,1"/, String(bad));
+});
+
+test('tileShares: your drag for that many columns, else the spell, else equal', () => {
+  assert.deepEqual(tileShares(3), [1, 1, 1]);
+  assert.deepEqual(tileShares(3, { spell: '2,1,1' }), [2, 1, 1]);
+  assert.deepEqual(tileShares(2, { spell: '2,1,1' }), [1, 1], 'not as many as the columns: equal');
+  assert.deepEqual(tileShares(3, { spell: '2,1,1', saved: { 3: [1, 2, 3] } }), [1, 2, 3], 'a drag wins');
+  assert.deepEqual(tileShares(2, { spell: '2,1', saved: { 3: [1, 2, 3] } }), [2, 1], 'a drag at another column count does not');
+  assert.deepEqual(tileShares(3, { spell: 'abc', saved: { 3: [1, 2] } }), [1, 1, 1], 'a short save, a bad prop');
+  assert.deepEqual(tileShares(2, { saved: { 2: [1, -1] } }), [1, 1]);
+  assert.deepEqual(tileShares(2, { saved: { 2: 'x' } }), [1, 1]);
+});
+
+test('tileSaved and tileFrom: what was dragged counts only under the layout it was dragged in', () => {
+  assert.equal(tileFrom({}), '||');
+  assert.equal(tileFrom({ columns: 2, widths: '2,1', height: 500 }), '2|2,1|500');
+  const stored = { from: '||', h: 500, w: { 2: [2, 1] } };
+  assert.deepEqual(tileSaved(stored, '||'), { h: 500, w: stored.w });
+  assert.deepEqual(tileSaved(stored, '2||'), { w: {} }, 'a spell cast since');
+  assert.deepEqual(tileSaved(null, '||'), { w: {} });
+  assert.deepEqual(tileSaved({ from: '||', h: 9000, w: 'x' }, '||'), { h: undefined, w: {} }, 'junk in localStorage');
+});
+
+test('fitShares: no column under the minimum, whatever the shares', () => {
+  const px = (shares, room) => {
+    const total = shares.reduce((a, b) => a + b);
+    return shares.map((s) => (s / total) * (room - TILE_GAP * (shares.length - 1)));
+  };
+  assert.deepEqual(fitShares([2, 1, 1], 1600), [2, 1, 1], 'room enough: as they are');
+  assert.deepEqual(fitShares([1, 1], 612), [1, 1]);
+  for (const [shares, room] of [[[8, 1, 1], 1000], [[100, 1], 800], [[1, 50, 1, 1], 1400], [[3, 1, 1], 924]]) {
+    for (const w of px(fitShares(shares, room), room)) assert.ok(w >= MIN_TILE - 1, `${shares} in ${room}: ${w}`);
+  }
+  assert.deepEqual(fitShares([3, 1, 1], 924), [1.667, 1.667, 1.667], 'exactly enough for all: equal');
+});
+
+test('tileEdges: each boundary is the middle of its gap', () => {
+  assert.deepEqual(tileEdges([1], 760), []);
+  assert.deepEqual(tileEdges([1, 1], 812), [406]);
+  assert.deepEqual(tileEdges([1, 1, 1], 924), [306, 618]);
+  assert.deepEqual(tileEdges([2, 1, 1], 1224), [606, 918]);
+});
+
+test('dragShares: moves one boundary, keeps the sum and the minimum, and rounds', () => {
+  const room = 1224; // 1200 to share
+  assert.deepEqual(dragShares([1, 1, 1], 0, 100, room), [1.25, 0.75, 1]);
+  assert.deepEqual(dragShares([1, 1, 1], 1, -100, room), [1, 0.75, 1.25]);
+  assert.deepEqual(dragShares([1, 1, 1], 0, 1000, room), [1.25, 0.75, 1], 'stops at the right one’s minimum');
+  assert.deepEqual(dragShares([1, 1, 1], 0, -1000, room), [0.75, 1.25, 1], 'and the left one’s');
+  assert.deepEqual(dragShares([1, 1, 1], 0, 33.3, room), [1.083, 0.917, 1]);
+  const before = [2, 1, 1];
+  dragShares(before, 0, 50, room);
+  assert.deepEqual(before, [2, 1, 1], 'pure');
+  assert.deepEqual(dragShares([1, 1], 0, 50, 500), [1, 1], 'too small for two minimums: stays');
+  assert.deepEqual(dragShares([1, 1], 0, NaN, room), [1, 1]);
+  const out = dragShares([1.5, 0.5, 1], 0, -999, room);
+  assert.ok(Math.abs(out.reduce((a, b) => a + b) - 3) < 1e-9);
+  assert.ok((out[0] / 3) * 1200 >= MIN_TILE - 1);
+});
+
+test('paneNeed: the bar’s and the row’s words for what an app still asks for', () => {
+  assert.equal(paneNeed({}), '');
+  assert.equal(paneNeed({ uses: ['tasks:read'], allowed: ['tasks:read'] }), '');
+  assert.equal(paneNeed({ uses: ['tasks:read'] }), 'No access yet');
+  assert.equal(paneNeed({ uses: ['tasks:read', 'prs:read'], allowed: ['tasks:read'] }), 'Some access not allowed');
+  assert.equal(paneNeed({ uses: ['tasks:write'], allowed: [], changed: true }), 'Changed since allowed');
+});
 
 test('usesOf: wisp-app.json "uses" is a list of known scopes, deduped', () => {
   assert.deepEqual(usesOf({}), []);

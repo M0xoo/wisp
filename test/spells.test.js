@@ -301,6 +301,11 @@ test('sandboxes: the card in Settings → Cloud is a part', () => {
 test('panes: the pane tab, the home panes and their bars are parts; Panes takes buttons and a height; panes is a setting a spell can pin with', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['panel.pane.tab', 'split.pane.bar'] }, parts: { 'panel.pane': { style: { background: 'var(--surface)' } }, 'split.pane': { style: { borderRadius: '6px' } }, 'panel.pane.bar': { style: { opacity: '0.9' } }, 'split.panes': { props: { height: 600 } } } }), []);
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'split.panes', label: 'My Stuff', do: { open: 'https://example.com' } }] }), []);
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['split.pane.grip', 'split.pane.row'] }, parts: { 'split.pane.grip': { style: { opacity: '0.5' } }, 'split.pane.row': { style: { borderRadius: '6px' } }, 'split.panes': { props: { columns: 2, widths: '2,1,1', height: 500 } } } }), []);
+  assert.deepEqual(problems({ ...base0, parts: { 'split.panes': { props: { columns: 1, widths: '100, 0.5' } } } }), []);
+  for (const columns of [0, 41, 1.5, '2']) assert.ok(problems({ ...base0, parts: { 'split.panes': { props: { columns } } } }).some((x) => /columns: int from 1 to 40/.test(x)), `columns ${columns}`);
+  for (const widths of ['abc', '0,1', '1,2,3,4,5,6,7,8,9', '101,1', '', '1,,2', '-1,2']) assert.ok(problems({ ...base0, parts: { 'split.panes': { props: { widths } } } }).some((x) => /widths is relative shares like "2,1,1"/.test(x)), `widths ${widths}`);
+  assert.ok(problems({ ...base0, parts: { 'split.panes': { props: { widths: 2 } } } }).some((x) => /widths: string/.test(x)));
   assert.deepEqual(problems({ ...base0, settings: { panes: 'Task board@home,pr-notes@task' } }), []);
   assert.ok(problems({ ...base0, parts: { 'split.panes': { props: { height: 40 } } } }).some((x) => /height: px from 160 to 1600/.test(x)));
   assert.ok(problems({ ...base0, settings: { panes: 'board@sidebar' } }).some((x) => /settings\.panes.*@task or @home/.test(x)));

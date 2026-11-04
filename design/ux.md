@@ -99,6 +99,12 @@ The rules are written up in `docs/feed.md`; the code is `web/js/features/scroll.
   where it was scrolled when you come back.
 - A page slides in only when you open it (`.stack-in`, for the move only): never on the first paint,
   a refresh or the window narrowing onto it.
+- Panes pinned on home tile side by side: as many columns as fit at 300px or more (`columns` on the
+  `split.panes` part is the most it shows), in the order of their pins, with grips between and under
+  them. A drag wins over a spell's `widths` and `height` until the spell's values change, and it's
+  saved in the browser (`wisp.panes`). Stacked they're rows that open as a page with Back (no grips,
+  and no frame until tapped). A frame never moves in the DOM: a pane that isn't showing is
+  `display: none`, so its app keeps running.
 - Split view's home always lists what needs you under **Needs you**, above the tips. Tips show only
   on the side-by-side home: never stacked or in the phone app.
 

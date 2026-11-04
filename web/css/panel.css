@@ -688,7 +688,7 @@ body.wisp-mobile .ed-head .ed-probs { min-height: 44px; }
 .side-panel.stacked .ed-lsp span { display: none; } /* a phone-wide head: its spark alone (named), the file name whole */
 
 /* A pane (panes.js): an app pinned beside tasks, filling the panel under its own small bar. The
-   same node on home (split.css .sh-pane) sets its height; here it takes what the panel has. */
+   same node on home (split.css .sh-pane) is a tile; here it takes what the panel has. */
 .pn-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .pn-pane[hidden] { display: none; }
 .pn-pane > .pa { flex: 1; min-height: 0; }
@@ -696,6 +696,7 @@ body.wisp-mobile .ed-head .ed-probs { min-height: 44px; }
 .pa { display: flex; flex-direction: column; min-height: 0; }
 .pa-bar { container: pa-bar / inline-size; display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 6px 0 12px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--ink-2); }
 .pa-bar .grow { flex: 1; }
+.pa-bar > button { flex: none; } /* a long name never squeezes Reload and Unpin */
 .pa-ic { display: inline-flex; color: var(--muted); }
 .pa-ic .i { width: 13px; height: 13px; }
 .pa-name { min-width: 0; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -705,9 +706,15 @@ body.wisp-mobile .ed-head .ed-probs { min-height: 44px; }
 @container pa-bar (max-width: 480px) {
   .pa-name { flex: none; max-width: 36%; }
 }
+/* A tile's width: two letters of it would say nothing, and Allow… says it. */
+@container pa-bar (max-width: 360px) {
+  .pa-name { flex: 0 1 auto; max-width: none; }
+  .pa-need { display: none; }
+}
 .pa-stage { position: relative; flex: 1; min-height: 0; background: var(--bg); }
 .pa-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--bg); }
-.pa-wait { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; font-size: 13px; color: var(--muted); }
+.pa-wait { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-content: center; justify-items: center; gap: 12px; padding: 0 24px; font-size: 13px; color: var(--muted); text-align: center; }
+.pa-wait span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 .pa.ready .pa-wait { display: none; }
 .pa-wait i { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--accent); animation: ap-spin 0.8s linear infinite; }
 .pa-off { margin: 0; padding: 18px 16px; display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--muted); }

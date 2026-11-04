@@ -419,3 +419,23 @@ Every page check also fails on an uncaught page error or a `console.error`.
   - 5: cards land in the right columns with harness, account, machine, crew name, PR and time. Done works both ways, by finger too: on a narrow pane the columns stack, Done's heading stays at the bottom edge to drop on, and the grip is 44px to a finger; cancelling wisp's card shows *You didn’t send it.* on the task's card, as does *Slow down*.
   - 6: a row per account and a bar per window with *resets in …*; a harness with no windows says so; no burn rate until it can be told.
 - **Suite** (`test/panes.test.js`), **Manual** (real Chrome)
+
+### WEB-52 · Home panes: tiles, sizes, a spell's layout, rows and pages
+- **Preconditions:** three apps in My Stuff, each pinned on home; each shows a counter or the time it loaded, so a reload shows.
+- **Steps:**
+  1. At 1440px, open home. Drag the boundary between the first two tiles, then the one under the tiles. Press Tab to a grip and use the arrow keys.
+  2. Reload the page.
+  3. Double-click a boundary, then the bottom grip.
+  4. Cast a spell with `parts: { 'split.panes': { props: { columns: 2, widths: '2,1', height: 500 } } }`, drag, then remove the spell.
+  5. Set `columns` to 1, then hide `split.pane.grip`.
+  6. Narrow the window past 900px, and widen it again.
+  7. At 390px (and in the phone app), open New task. Tap a row, then Back; tap it again, then Esc; open it and press the phone's Back, twice. Unpin a pane from its page.
+- **Expected:**
+  - 1: three tiles fill home's width, past the 760px read width. No tile goes under 300px, a height stays between 200 and 1600, and the apps' counters don't change during a drag.
+  - 2: the sizes are as you left them. The apps reload with the page, and only then.
+  - 3: the boundary's column count goes back to the spell's widths or equal, and the height to the spell's or 420.
+  - 4: the spell's layout shows at once, with two columns and the third pane on a second row; a drag saves over it; removing the spell shows equal tiles again, not the sizes from under the spell.
+  - 5: one under the other at the read width, with no boundary grip; then no grips at all.
+  - 6: below 900px the tiles go and a row per pane shows, with no grips; widening brings the tiles back with the apps still running.
+  - 7: no frame exists until a row is tapped. The page fills home with Back, the name, Reload and Unpin. Back goes pane page → home page → list, one step each, by the button, Esc or the phone's Back, and home is where it was scrolled. Reopening doesn't reload the app. Unpinning closes the page.
+- **Suite** (`test/panes.test.js`, `test/spells.test.js`), **Manual** (real Chrome)

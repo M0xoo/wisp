@@ -22,8 +22,10 @@ import { toast, toastError } from '../ui/toast.js';
 import { boxUrl, isLoopback } from '../preview-spec.js';
 import { gridLink } from '../grid-link.js';
 import { accountOf, agentName, DEFAULT_MODE, harnessesAt, MODES, savedAccount, savedEffort, savedModel } from './runners.js';
-import { appFor, argsOf, launchBody, lightAccounts, lightMember, lightPrs, lightTask, listedTasks, missingOf, notWhile, PANE_USES, PANE_WRITES, PANE_WRITES_PER_MIN, paneFrameCsp, paneStale, panesString, paneWrapperDoc, parsePanes, refusal, runsFullAuto } from '../pane-bridge.js';
+import { appFor, argsOf, launchBody, lightAccounts, lightMember, lightPrs, lightTask, listedTasks, missingOf, notWhile, paneNeed, PANE_USES, PANE_WRITES, PANE_WRITES_PER_MIN, paneFrameCsp, paneStale, panesString, paneWrapperDoc, parsePanes, refusal, runsFullAuto } from '../pane-bridge.js';
 import { paneCard } from './pane-card.js';
+
+export { paneNeed };
 
 const frames = new Map(); // `${where}:${app id}` -> { node, wrapper, iframe (the app's), shown, origin, url, to, rev, id, where, task, watching, writes }
 
@@ -127,13 +129,17 @@ function patchItem(id, fields) {
 const quietFor = (f) => !!fullAutoRun(appNow(f.id), f.where === 'task' ? f.task : null);
 
 // Its node: a bar (name, what it still asks for, Reload, Unpin) over the frame. Made once per app
-// and place, then kept: moving or re-adding a frame reloads the app.
+// and place, then kept: moving or re-adding a frame reloads the app. On home the bar also has Back,
+// shown only while it's open as a page (split.js, stacked).
+// Is it made already? Stacked, home starts no frame until its row is tapped (split.js).
+export const paneMade = (it, where) => frames.has(`${where}:${it.id}`);
+
 export function paneNode(it, where, task = null) {
   const key = `${where}:${it.id}`;
   let f = frames.get(key);
   if (!f) {
     const node = el(`<section class="pa" data-app="${esc(it.id)}" aria-label="${esc(it.title)}">
-      <div class="pa-bar"><span class="pa-ic">${icon('app')}</span><b class="pa-name"></b><span class="pa-need" hidden></span><span class="grow"></span>
+      <div class="pa-bar">${where === 'home' ? `<button class="icon-btn xs sh-back" title="Back" aria-label="Back" hidden>${icon('back')}</button>` : ''}<span class="pa-ic">${icon('app')}</span><b class="pa-name"></b><span class="pa-need" hidden></span><span class="grow"></span>
         <button class="ghost xs pa-allow" data-pa="allow" hidden>${icon('lock')}<span>Allow…</span></button>
         <button class="icon-btn xs" data-pa="reload" title="Reload the pane" aria-label="Reload the pane">${icon('rerun')}</button>
         <button class="icon-btn xs" data-pa="unpin" title="Unpin" aria-label="Unpin">${icon('x')}</button>
@@ -160,16 +166,24 @@ export function paneNode(it, where, task = null) {
   return f.node;
 }
 
+// Runs on every repaint of home, so it only writes what changed.
 function paintBar(f) {
   const it = appNow(f.id);
   if (!it) return;
-  f.node.querySelector('.pa-name').textContent = it.title;
-  const missing = missingOf(it);
+  const name = f.node.querySelector('.pa-name');
+  if (name.textContent !== it.title) name.textContent = it.title;
+  const words = paneNeed(it);
   const need = f.node.querySelector('.pa-need');
-  need.hidden = !missing.length;
-  need.textContent = !missing.length ? '' : it.changed ? 'Changed since allowed' : it.allowed?.length ? 'Some access not allowed' : 'No access yet';
-  need.title = [need.textContent, ...missing.map((u) => PANE_USES[u])].join('\n'); // the bar may cut it short
-  f.node.querySelector('.pa-allow').hidden = !missing.length || quietFor(f);
+  if (need.hidden === !!words) {
+    need.hidden = !words;
+    f.node.classList.toggle('pa-needs', !!words); // on a page, it takes the title's second line
+  }
+  if (need.textContent !== words) need.textContent = words;
+  const tip = [words, ...missingOf(it).map((u) => PANE_USES[u])].join('\n'); // the bar may cut it short
+  if (need.title !== tip) need.title = tip;
+  const allow = f.node.querySelector('.pa-allow');
+  const off = !words || quietFor(f);
+  if (allow.hidden !== off) allow.hidden = off;
 }
 
 async function start(f) {

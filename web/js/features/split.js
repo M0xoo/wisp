@@ -43,7 +43,8 @@ import { pruneSeen, spareKey, spareOf, spareWhose, spareWords } from '../spare.j
 import { noticesOf, noticeWords } from '../window-notice.js';
 import { feedbackOn, openFeedback } from './feedback.js';
 import { follow as followTerm } from './term.js';
-import { paneNode, panesAt } from './panes.js';
+import { paneMade, paneNeed, paneNode, panesAt } from './panes.js';
+import { dragShares, fitShares, TILE_HEIGHT, TILE_MAX_HEIGHT, TILE_MIN_HEIGHT, tileColumns, tileEdges, tileFrom, tileSaved, tileShares } from '../pane-bridge.js';
 
 const wide = matchMedia(`(min-width: ${SPLIT_MIN_WIDTH}px)`);
 const SIDE_W = 340;
@@ -107,6 +108,7 @@ export function goHome({ focus = true } = {}) {
   leaveOrg(); // and the Org page
   leavePlan(); // and a scheduled task's page
   leaveStuff(); // and My Stuff
+  leavePane(); // and a pane open as a page
   for (const id of [...S.open]) collapse(id);
   homeAsked = isStacked();
   paintSplit();
@@ -114,9 +116,15 @@ export function goHome({ focus = true } = {}) {
 }
 
 // Back (Esc, the head's ×, the stacked page's Back, the phone's Back): a crew job goes back to its
-// member's thread, the thread home. Stacked, home is the list.
+// member's thread, the thread home. Stacked, a pane's page goes back to home, and home is the list.
 export function goBack({ focus = false } = {}) {
   if (closeGoalRun()) return; // a goal check's page: back to its task, as it was
+  const pane = panePage;
+  if (leavePane()) {
+    paintSplit();
+    $$('.sh-pane-row', home).find((r) => r.dataset.pane === pane)?.focus({ preventScroll: true });
+    return;
+  }
   // A delegate's task goes back up to the task it was opened from (its lead), wherever it is.
   const up = splitOpen() && backTarget(splitOpen());
   if (up) return void reveal(up);
@@ -348,8 +356,9 @@ export function paintSplit() {
   const crew = crewViewShown() || orgShown() || planShown() || stuffShown();
   const stacked = isStacked();
   if (s || crew) homeAsked = false;
-  paintPage(stacked && (!!s || crew || homeAsked));
-  home.hidden = !!s || crew || (stacked && !homeAsked);
+  if (s || crew || !stacked) leavePane(); // something else opened over it, or the window widened
+  paintPage(stacked && (!!s || crew || homeAsked || !!panePage));
+  home.hidden = !!s || crew || (stacked && !homeAsked && !panePage);
   $('#splitHead').hidden = !s;
   const shown = !!s && $('#splitStage').hidden;
   $('#splitStage').hidden = !s;
@@ -372,6 +381,12 @@ export function paintSplit() {
 let paged = false;
 let pageBack = null;
 let painted = false;
+function slideIn() {
+  const b = document.body;
+  b.classList.add('stack-in');
+  clearTimeout(slideIn.t);
+  slideIn.t = setTimeout(() => b.classList.remove('stack-in'), 260);
+}
 function paintPage(on) {
   const b = document.body;
   const opened = on && !paged && painted && b.classList.contains('stack');
@@ -379,11 +394,7 @@ function paintPage(on) {
   if (on !== paged) {
     paged = on;
     b.classList.toggle('stack-page', on);
-    if (opened) {
-      b.classList.add('stack-in');
-      clearTimeout(paintPage.t);
-      paintPage.t = setTimeout(() => b.classList.remove('stack-in'), 260);
-    }
+    if (opened) slideIn();
   }
   if (on && !pageBack)
     pageBack = onBack(() => {
@@ -586,31 +597,219 @@ function paintSpare() {
 }
 let notes = []; // the window changes, as painted
 
-// Panes on home (panes.js): apps pinned there, each under its bar at a fixed height (the spell's
-// split.panes height). Their nodes stay in place across repaints: re-adding one reloads its app.
-function paintPanes() {
+// Panes on home (panes.js): apps pinned there. Side by side they tile, in the order of their pins:
+// as many columns as fit (the spell's split.panes columns at most), sized by your drag, else the
+// spell's widths and height. Stacked each is a row (`.sh-rows`) that opens it as a page (panePage):
+// no frame starts until then. Their nodes stay in `.sh-tiles` whatever shows, hidden rather than
+// moved: re-adding one reloads its app. Called on every repaint of home, so it writes what changed.
+let panePage = null; // stacked: the app open as a page
+let paneBack = null; // …and its entry in the phone's Back (ui/back.js)
+let pageTop = 0; // where home was scrolled under it
+let room = 0; // the width home has for them, from the observer below; 0 until it has been measured
+let tileSizes = load('wisp.panes', null); // { from, h, w: { <columns>: shares } } (pane-bridge.js)
+let dragging = false;
+
+function panesBox() {
   const box = $('.sh-panes', home);
-  const list = panesAt('home');
-  box.hidden = !list.length;
-  box.style.setProperty('--pa-h', `${spellProp('split.panes', 'height') || 420}px`);
-  let head = $('h4', box);
-  const h = `Panes<span class="n">${list.length}</span>${slotHtml('split.panes')}`;
-  if (!head) box.prepend((head = el('<h4></h4>')));
-  if (head.dataset.h !== h) (head.innerHTML = h), (head.dataset.h = h);
-  const want = list.map(({ it }) => {
-    const n = paneNode(it, 'home');
-    n.classList.add('sh-pane');
-    return n;
+  if (!box.firstElementChild) box.append(el('<h4></h4>'), el('<div class="sh-rows"></div>'), el('<div class="sh-tiles"></div>'));
+  return box;
+}
+
+function leavePane() {
+  if (!panePage) return false;
+  panePage = null;
+  paneBack?.();
+  paneBack = null;
+  return true;
+}
+
+// Its own entry in the phone's Back, over home's: closing one mustn't touch the other.
+function openPane(id) {
+  if (panePage || !panesAt('home').some(({ it }) => it.id === id)) return;
+  panePage = id;
+  paneBack = onBack(() => {
+    paneBack = null;
+    goBack();
   });
-  for (const n of [...box.querySelectorAll(':scope > .pa')]) if (!want.includes(n)) n.remove();
-  let at = head;
+  slideIn(); // home is a page already, so paintPage sees nothing open
+  paintSplit();
+}
+
+const setStyle = (n, prop, v) => {
+  if (n.style.getPropertyValue(prop) !== v) n.style.setProperty(prop, v);
+};
+
+function paintPanes() {
+  const box = panesBox();
+  const list = panesAt('home');
+  const stacked = isStacked();
+  if (panePage && !list.some(({ it }) => it.id === panePage)) leavePane(); // unpinned while open
+  if (box.hidden === !!list.length) box.hidden = !list.length;
+  const head = $('h4', box);
+  const h = `Panes<span class="n">${list.length}</span>${slotHtml('split.panes')}`;
+  if (head.dataset.h !== h) (head.innerHTML = h), (head.dataset.h = h);
+  const rows = stacked ? list.map(({ it }) => paneRow(it)).join('') : '';
+  const rowBox = $('.sh-rows', box);
+  if (rowBox.dataset.h !== rows) (rowBox.innerHTML = rows), (rowBox.dataset.h = rows);
+  const want = list
+    .filter(({ it }) => !stacked || it.id === panePage || paneMade(it, 'home'))
+    .map(({ it }) => {
+      const n = paneNode(it, 'home');
+      if (!n.classList.contains('sh-pane')) n.classList.add('sh-pane');
+      return n;
+    });
+  const tiles = $('.sh-tiles', box);
+  for (const n of [...tiles.querySelectorAll(':scope > .pa')]) if (!want.includes(n)) n.remove();
+  let at = null;
   for (const n of want) {
-    if (at.nextElementSibling !== n) at.after(n);
+    if ((at ? at.nextElementSibling : tiles.firstElementChild) !== n) {
+      if (at) at.after(n);
+      else tiles.prepend(n);
+    }
     at = n;
   }
+  paintPanePage(want);
+  paintTiles(list.length);
 }
-bus.on('panes', () => home && !home.hidden && paintPanes());
-bus.on('stuff-list', () => home && !home.hidden && paintPanes());
+
+function paneRow(it) {
+  const need = paneNeed(it);
+  return `<button class="sh-pane-row" data-pane="${esc(it.id)}"><span class="pa-ic">${icon('app')}</span><span class="pa-name">${esc(it.title)}</span>${need ? `<span class="pa-need">${esc(need)}</span>` : ''}${icon('chevron', 'chev')}</button>`;
+}
+
+// A pane's page: home's other children go, the pane fills it. Nothing moves in the DOM.
+function paintPanePage(nodes) {
+  const open = !!panePage;
+  if (home.classList.contains('pane-open') !== open) {
+    if (open) pageTop = home.scrollTop;
+    home.classList.toggle('pane-open', open);
+    if (!open) home.scrollTop = pageTop;
+  }
+  for (const n of nodes) {
+    const on = n.dataset.app === panePage;
+    if (n.classList.contains('pa-open') !== on) n.classList.toggle('pa-open', on);
+    const back = n.querySelector('.sh-back');
+    if (back.hidden === on) back.hidden = !on;
+  }
+}
+
+const tileSpell = () => ({ columns: spellProp('split.panes', 'columns'), widths: spellProp('split.panes', 'widths'), height: spellProp('split.panes', 'height') });
+
+// The layout the tiles have now.
+function tilesNow(count = panesAt('home').length) {
+  const spell = tileSpell();
+  const saved = tileSaved(tileSizes, tileFrom(spell));
+  const columns = tileColumns(count, room, spell.columns);
+  return { columns, rows: Math.ceil(count / columns), height: saved.h ?? spell.height ?? TILE_HEIGHT, shares: fitShares(tileShares(columns, { spell: spell.widths, saved: saved.w }), room) };
+}
+
+function paintTiles(count = panesAt('home').length) {
+  const box = panesBox();
+  const tiles = $('.sh-tiles', box);
+  const t = tilesNow(count);
+  const on = count > 0 && !!room && !isStacked(); // stacked (or not measured yet) there's nothing to lay out
+  setStyle(box, '--pa-h', `${t.height}px`);
+  const tiled = on && t.columns >= 2;
+  if (box.classList.contains('tiled') !== tiled) box.classList.toggle('tiled', tiled);
+  if (on) setStyle(tiles, 'grid-template-columns', t.shares.map((x) => `${x}fr`).join(' '));
+  const x = $$(':scope > .sh-grip.x', tiles);
+  if (!dragging) {
+    // Never the grip in your hand: its pointer capture goes with it.
+    const wantX = on ? t.columns - 1 : 0;
+    while (x.length > wantX) x.pop().remove();
+    while (x.length < wantX) x.push(tiles.appendChild(gripNode('x', x.length)));
+    const y = $(':scope > .sh-grip.y', tiles);
+    if (on && !y) tiles.append(gripNode('y'));
+    else if (!on) y?.remove();
+  }
+  if (on) tileEdges(t.shares, room).forEach((px, i) => x[i] && setStyle(x[i], 'left', `${px}px`));
+}
+
+const gripNode = (axis, i = 0) =>
+  el(`<div class="sh-grip ${axis}" data-i="${i}" role="separator" aria-orientation="${axis === 'x' ? 'vertical' : 'horizontal'}" aria-label="Resize panes" title="Drag to resize · double-click to reset" tabindex="0"></div>`);
+
+// Yours for this layout, or a clean slate: a drag saves over another spell's sizes.
+function ownSizes() {
+  const from = tileFrom(tileSpell());
+  if (tileSizes?.from !== from) tileSizes = { from, w: {} };
+  tileSizes.w = tileSizes.w && typeof tileSizes.w === 'object' ? tileSizes.w : {};
+  return tileSizes;
+}
+
+// A grip moved from where it was (start: tilesNow()). In memory: saved when the drag ends.
+function moveGrip(g, start, dx, dy) {
+  const mine = ownSizes();
+  if (g.classList.contains('y')) mine.h = Math.round(Math.min(TILE_MAX_HEIGHT, Math.max(TILE_MIN_HEIGHT, start.height + dy / start.rows)));
+  else mine.w[start.columns] = dragShares(start.shares, Number(g.dataset.i), dx, room);
+  paintTiles();
+}
+
+const paneRepaint = () => {
+  if (home && !home.hidden && isSplit()) paintPanes();
+};
+bus.on('panes', paneRepaint);
+bus.on('stuff-list', paneRepaint);
+bus.on('spells', paneRepaint);
+
+// Home's width (0 while it's hidden: nothing to do then) decides the columns, so it's observed, not
+// the tiles: `.tiled` changes their own width.
+new ResizeObserver(([e]) => {
+  const w = e.contentRect.width;
+  if (!w || w === room) return;
+  room = w;
+  if (!home.hidden && !dragging) paintTiles();
+}).observe(home);
+
+home.addEventListener('pointerdown', (e) => {
+  const g = e.target.closest('.sh-grip');
+  if (!g || e.button !== 0) return;
+  e.preventDefault();
+  g.setPointerCapture(e.pointerId); // keeps the pointer over the frames, which would swallow it
+  const b = document.body.classList;
+  const tall = g.classList.contains('y');
+  b.add('resizing');
+  b.toggle('resizing-y', tall);
+  g.classList.add('held');
+  dragging = true;
+  const start = tilesNow();
+  let moved = false;
+  const move = (ev) => {
+    moved = true;
+    moveGrip(g, start, ev.clientX - e.clientX, ev.clientY - e.clientY);
+  };
+  const up = () => {
+    g.removeEventListener('pointermove', move);
+    g.removeEventListener('pointerup', up);
+    g.removeEventListener('pointercancel', up);
+    b.remove('resizing', 'resizing-y');
+    g.classList.remove('held');
+    dragging = false;
+    if (moved) save('wisp.panes', tileSizes);
+    paintTiles();
+  };
+  g.addEventListener('pointermove', move);
+  g.addEventListener('pointerup', up);
+  g.addEventListener('pointercancel', up);
+});
+home.addEventListener('keydown', (e) => {
+  const g = e.target.closest('.sh-grip');
+  if (!g) return;
+  const tall = g.classList.contains('y');
+  const by = { ArrowLeft: tall ? 0 : -16, ArrowRight: tall ? 0 : 16, ArrowUp: tall ? -16 : 0, ArrowDown: tall ? 16 : 0 }[e.key];
+  if (!by) return;
+  e.preventDefault();
+  moveGrip(g, tilesNow(), by, by);
+  save('wisp.panes', tileSizes);
+});
+home.addEventListener('dblclick', (e) => {
+  const g = e.target.closest('.sh-grip');
+  if (!g) return;
+  const mine = ownSizes();
+  if (g.classList.contains('y')) delete mine.h;
+  else delete mine.w[tilesNow().columns];
+  save('wisp.panes', mine);
+  paintTiles();
+});
 
 function onSpare(btn) {
   const x = spare[Number(btn.dataset.i)];
@@ -706,6 +905,8 @@ let shown = []; // Coming up's rows, as painted
 let upAll = load('wisp.upAll', false); // Coming up shows everything, not only the next few
 home.addEventListener('click', (e) => {
   if (e.target.closest('.sh-back')) return goBack();
+  const pane = e.target.closest('.sh-pane-row');
+  if (pane) return openPane(pane.dataset.pane);
   if (e.target.closest('.sh-more')) {
     upAll = !upAll;
     save('wisp.upAll', upAll);

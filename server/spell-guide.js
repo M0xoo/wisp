@@ -6,11 +6,11 @@ import { ACTIONS, CARD_HEAD_ORDER, EVENTS, HOOK_ACTIONS, HOOK_IF, ICONS, PART_PR
 
 export const SPELL_EXAMPLES = [
   {
-    ask: 'Pin my Task board app on home, and my PR notes app beside each task',
+    ask: 'Pin my Task board and Roadmap apps on home, the board twice as wide, and my PR notes app beside each task',
     spell: {
-      wispSpell: 1, id: 'my-panes', name: 'My panes', version: '1.0.0', description: 'Pins two My Stuff apps as panes: one on home, one as a tab in the side panel. What they may use (their wisp-app.json "uses") you allow yourself.',
-      settings: { panes: 'Task board@home,PR notes@task' },
-      parts: { 'split.panes': { props: { height: 560 } } },
+      wispSpell: 1, id: 'my-panes', name: 'My panes', version: '1.0.0', description: 'Pins My Stuff apps as panes: two side by side on home, one as a tab in the side panel. What they may use (their wisp-app.json "uses") you allow yourself.',
+      settings: { panes: 'Task board@home,Roadmap@home,PR notes@task' },
+      parts: { 'split.panes': { props: { height: 560, columns: 2, widths: '2,1' } } },
     },
   },
   {

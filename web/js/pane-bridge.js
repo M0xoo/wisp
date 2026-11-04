@@ -148,6 +148,104 @@ export function panesProblem(v) {
   return bad ? `panes: "${bad.app}@${bad.where}" should be <app id or name>@task or @home.` : '';
 }
 
+// --- home's tiles -----------------------------------------------------------------------------
+
+// Side by side, apps pinned on home tile (features/split.js): a column at least MIN_TILE wide, sizes
+// as relative shares (a grid's fr) so they follow the window. A drag wins over a spell's widths and
+// height, until the spell's layout changes (tileFrom): casting one shows it, and a drag saves over.
+export const MIN_TILE = 300;
+export const TILE_GAP = 12;
+export const TILE_HEIGHT = 420;
+export const TILE_MIN_HEIGHT = 200;
+export const TILE_MAX_HEIGHT = 1600;
+const WIDTHS_MAX = 8;
+
+const round3 = (n) => Math.round(n * 1000) / 1000;
+const inner = (columns, room) => room - TILE_GAP * (columns - 1); // what the columns share
+const sumOf = (list) => list.reduce((a, b) => a + b, 0);
+const goodShares = (v, n) => Array.isArray(v) && v.length === n && v.every((x) => Number.isFinite(x) && x > 0);
+
+// Why the spell prop `widths` can't be kept, or ''.
+export function paneWidthsProblem(v) {
+  const words = 'widths is relative shares like "2,1,1"';
+  if (typeof v !== 'string') return `${words}.`;
+  const parts = v.split(',').map((x) => x.trim());
+  if (parts.length > WIDTHS_MAX) return `${words}: at most ${WIDTHS_MAX} numbers.`;
+  if (parts.some((x) => !/^\d+(\.\d+)?$/.test(x) || Number(x) <= 0 || Number(x) > 100)) return `${words}: 1 to ${WIDTHS_MAX} numbers, each above 0 and at most 100.`;
+  return '';
+}
+
+// How many columns to show: what's asked (a spell's columns, else one per pane), as far as they fit.
+export function tileColumns(count, room, wanted) {
+  const fit = Math.floor((room + TILE_GAP) / (MIN_TILE + TILE_GAP));
+  return Math.max(1, Math.min(wanted || count, count, fit));
+}
+
+// What identifies a spell's layout, kept with a drag so another spell's sizes aren't taken for it.
+export const tileFrom = ({ columns, widths, height } = {}) => [columns ?? '', widths ?? '', height ?? ''].join('|');
+
+// What was saved ('wisp.panes': { from, h, w: { <columns>: shares } }), if it's for this layout.
+export function tileSaved(stored, from) {
+  if (stored?.from !== from) return { w: {} };
+  const h = stored.h;
+  return { h: Number.isFinite(h) && h >= TILE_MIN_HEIGHT && h <= TILE_MAX_HEIGHT ? h : undefined, w: stored.w && typeof stored.w === 'object' ? stored.w : {} };
+}
+
+// The columns' shares: the drag saved for this many columns, else the spell's if it has exactly
+// this many, else equal. saved: { <columns>: shares }; spell: the prop, "2,1,1".
+export function tileShares(columns, { spell, saved } = {}) {
+  const mine = saved?.[columns];
+  if (goodShares(mine, columns)) return [...mine];
+  const theirs = typeof spell === 'string' && !paneWidthsProblem(spell) ? spell.split(',').map(Number) : null;
+  return goodShares(theirs, columns) ? theirs : Array(columns).fill(1);
+}
+
+// Shares no column of which is under MIN_TILE in this room: those are raised to it, and the others
+// give it up in proportion. A spell's "8,1,1" or a drag made in a wider window lands here.
+export function fitShares(shares, room) {
+  const total = sumOf(shares);
+  const min = (MIN_TILE / inner(shares.length, room)) * total;
+  if (!(min > 0) || min * shares.length >= total) return shares.map(() => round3(total / shares.length));
+  const raised = new Set();
+  for (;;) {
+    const free = shares.filter((_, i) => !raised.has(i));
+    const scale = (total - raised.size * min) / sumOf(free);
+    const under = shares.findIndex((s, i) => !raised.has(i) && s * scale < min);
+    if (under < 0) return shares.map((s, i) => round3(raised.has(i) ? min : s * scale));
+    raised.add(under);
+  }
+}
+
+// Where each boundary between columns sits, in px from the left: the middle of the gap.
+export function tileEdges(shares, room) {
+  const unit = inner(shares.length, room) / sumOf(shares);
+  let at = 0;
+  return shares.slice(0, -1).map((s, i) => {
+    at += s * unit;
+    return Math.round((at + i * TILE_GAP + TILE_GAP / 2) * 10) / 10;
+  });
+}
+
+// The boundary between columns i and i + 1 moved dx px in this room: the pair keeps its total, and
+// each side stays at least MIN_TILE (a pair too small for that doesn't move).
+export function dragShares(shares, i, dx, room) {
+  const unit = inner(shares.length, room) / sumOf(shares);
+  const pair = shares[i] + shares[i + 1];
+  const min = MIN_TILE / unit;
+  if (!(pair >= min * 2) || !Number.isFinite(dx)) return [...shares];
+  const left = Math.min(Math.max(shares[i] + dx / unit, min), pair - min);
+  const out = [...shares];
+  out[i] = round3(left);
+  out[i + 1] = round3(pair - out[i]);
+  return out;
+}
+
+// What the app still asks for, in the bar's words ('' when it has it all). Stacked, its row says it too.
+export function paneNeed(it) {
+  if (!missingOf(it).length) return '';
+  return it.changed ? 'Changed since allowed' : it.allowed?.length ? 'Some access not allowed' : 'No access yet';
+}
+
 // Which of My Stuff's apps a pin means: its id, else its name or title (any case).
 export function appFor(pin, items = []) {
   const apps = items.filter((x) => x.kind === 'app' && !x.pending);
