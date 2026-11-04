@@ -119,6 +119,7 @@ body.split:not(.pane-wide) .it-meta .m.side-of { display: none; } /* the line ab
 /* Review by another harness: one chip, toned by what it found; Reviewing pulses its clock */
 .pr-strip .pr-rv { color: var(--muted); }
 .pr-strip .pr-rv.rv-pass { color: var(--good); }
+.pr-strip .pr-rv.rv-partial { color: var(--warn); }
 .pr-strip .pr-rv:is(.rv-issues, .rv-tests) { color: var(--bad); font-weight: 500; }
 .pr-strip .pr-rv:is(.rv-failed, .rv-held) .i { color: var(--warn); }
 .pr-strip .pr-rv.rv-running .i { animation: pulse 1.4s ease-in-out infinite; }

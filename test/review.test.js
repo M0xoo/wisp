@@ -4,8 +4,13 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { HARNESSES, REVIEW_VALUES, authorsOf, constraintsFor, pickReviewer, readReview, reviewPrompt, reviewView } from '../server/services/review.js';
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { diffOf, diffSections } from '../server/judge.js';
+import { HARNESSES, REVIEW_VALUES, authorsOf, constraintsFor, fitDiff, partialSummary, pickReviewer, readReview, reviewPrompt, reviewView } from '../server/services/review.js';
 import { SETTINGS } from '../web/js/spell-schema.js';
+import { makeRepo } from './helpers.js';
 
 const agents = (...ids) => ids.map((id) => ({ id, name: id === 'codex' ? 'Codex' : id, available: true }));
 
@@ -99,4 +104,158 @@ test('a finding that breaks a constraint is high and carries the user’s words;
 test('the setting’s values are the spell schema’s', () => {
   assert.deepEqual(SETTINGS.review, REVIEW_VALUES);
   assert.deepEqual(REVIEW_VALUES, ['off', 'other', ...HARNESSES]);
+});
+
+// A file's section as `git diff` prints it, with hunks of the given sizes.
+const section = (p, ...hunks) => ({
+  path: p,
+  text: `diff --git a/${p} b/${p}\n--- a/${p}\n+++ b/${p}\n${hunks.map((n, i) => `@@ -${i},1 +${i},1 @@\n+${'x'.repeat(n)}\n`).join('')}`,
+});
+const committed = (dir) => {
+  execFileSync('git', ['add', '-A'], { cwd: dir, stdio: 'ignore' });
+  execFileSync('git', ['commit', '-qm', 'more'], { cwd: dir, stdio: 'ignore' });
+};
+
+test('fitDiff: everything fits, nothing is left out and the sections stay whole', () => {
+  const a = section('a.js', 10);
+  const b = section('b.js', 10);
+  const { diff, coverage } = fitDiff({ sections: [a, b], files: ['a.js', 'b.js'] });
+  assert.equal(diff, a.text + b.text);
+  assert.deepEqual(coverage, { files: 2, seen: 2, chars: diff.length, seenChars: diff.length, cut: [], missing: [] });
+});
+
+test('fitDiff: a file that does not fit is skipped, not the end of the diff', () => {
+  const small = (i) => section(`s${i}.js`, 50);
+  const huge = { path: 'lock.json', text: `diff --git a/lock.json b/lock.json\nBinary-ish, no hunks ${'x'.repeat(5000)}\n` };
+  const sections = [small(1), huge, small(2), small(3)];
+  const { diff, coverage } = fitDiff({ sections, files: sections.map((s) => s.path) }, 1000);
+  for (const s of [small(1), small(2), small(3)]) assert.ok(diff.includes(s.text));
+  assert.doesNotMatch(diff, /lock\.json/);
+  assert.equal(coverage.seen, 3);
+  assert.deepEqual(coverage.missing, ['lock.json']);
+  assert.equal(coverage.seenChars, diff.length);
+  assert.ok(coverage.chars > coverage.seenChars);
+});
+
+test('fitDiff: one oversized file is cut on a hunk boundary and listed as cut', () => {
+  const big = section('big.js', 400, 400, 5000, 100);
+  const { diff, coverage } = fitDiff({ sections: [big], files: ['big.js'] }, 1100);
+  assert.ok(diff.length <= 1100);
+  assert.match(diff, /^diff --git a\/big\.js b\/big\.js\n--- a\/big\.js\n\+\+\+ b\/big\.js\n@@ -0,1/);
+  // Never half a hunk: each header is followed by all of its line, and the 5000 is skipped whole.
+  assert.deepEqual(diff.match(/^@@ -\d/gm), ['@@ -0', '@@ -1', '@@ -3']);
+  assert.ok(diff.endsWith(`+${'x'.repeat(100)}\n`));
+  assert.deepEqual([coverage.seen, coverage.cut, coverage.missing], [0, ['big.js'], []]);
+});
+
+test('fitDiff: no hunk fits, or it has none: nothing of the file, not its header alone', () => {
+  const { diff, coverage } = fitDiff({ sections: [section('big.js', 5000)], files: ['big.js'] }, 1000);
+  assert.equal(diff, '');
+  assert.deepEqual([coverage.seen, coverage.cut, coverage.missing], [0, [], ['big.js']]);
+});
+
+test('fitDiff: a new file over its 4000 chars counts as cut even when it fits', () => {
+  const { diff, coverage } = fitDiff({ sections: [{ path: 'new.js', text: '\n--- /dev/null\n+++ b/new.js\n+a', cut: true }], files: ['new.js'] });
+  assert.match(diff, /new\.js/);
+  assert.deepEqual([coverage.seen, coverage.cut], [0, ['new.js']]);
+});
+
+test('fitDiff: at most 50 names in all, and `more` counts the rest; it is left out at 0', () => {
+  const names = (n, at) => Array.from({ length: n }, (_, i) => `${at}${i}.js`);
+  const cut = names(10, 'c').map((p) => ({ path: p, text: 'x', cut: true }));
+  const { coverage } = fitDiff({ sections: cut, files: [...names(10, 'c'), ...names(60, 'm')] });
+  assert.equal(coverage.cut.length, 10);
+  assert.equal(coverage.missing.length, 40);
+  assert.equal(coverage.more, 20);
+  assert.equal(coverage.files, 70);
+  assert.equal('more' in fitDiff({ sections: [], files: names(50, 'm') }).coverage, false);
+});
+
+test('fitDiff: a path with two sections is seen only if both are', () => {
+  const twice = [section('a.js', 10), { ...section('a.js', 5000), path: 'a.js' }];
+  const { coverage } = fitDiff({ sections: twice, files: ['a.js'] }, 1000);
+  assert.deepEqual([coverage.files, coverage.seen, coverage.cut], [1, 0, ['a.js']]);
+});
+
+test('diffSections: one section per file, renames and spaces and non-ASCII names read right', () => {
+  const dir = makeRepo();
+  fs.writeFileSync(path.join(dir, 'old name.js'), 'one\ntwo\nthree\nfour\nfive\nsix\n');
+  fs.writeFileSync(path.join(dir, 'a b.js'), '1\n');
+  fs.writeFileSync(path.join(dir, 'é.js'), '1\n');
+  committed(dir);
+  const base = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir }).toString().trim();
+  fs.renameSync(path.join(dir, 'old name.js'), path.join(dir, 'new name.js'));
+  fs.appendFileSync(path.join(dir, 'a b.js'), 'diff --git a/fake b/fake\n'); // shows with a + in front
+  fs.appendFileSync(path.join(dir, 'é.js'), '2\r\ndiff --git a/fake b/fake\n'); // a bare line end inside the hunk
+  execFileSync('git', ['add', '-A'], { cwd: dir, stdio: 'ignore' });
+  const { sections, files, failed } = diffSections(dir, base);
+  assert.equal(failed, undefined);
+  assert.deepEqual(sections.map((s) => s.path).sort(), ['a b.js', 'new name.js', 'é.js'].sort());
+  assert.deepEqual([...files].sort(), ['a b.js', 'new name.js', 'é.js'].sort());
+  assert.equal(fitDiff({ sections, files }).coverage.seen, 3);
+  assert.equal(sections.map((s) => s.text).join(''), diffOf(dir, base));
+});
+
+test('diffOf keeps its shape: tracked diff, then each new file after a /dev/null header, cut at 4000', () => {
+  const dir = makeRepo();
+  fs.writeFileSync(path.join(dir, 'n.txt'), 'a\nb');
+  fs.writeFileSync(path.join(dir, 'z.txt'), 'y'.repeat(5000));
+  const tracked = execFileSync('git', ['diff', 'HEAD', '--', '.', ':(exclude)node_modules'], { cwd: dir }).toString();
+  assert.equal(diffOf(dir), `${tracked}\n--- /dev/null\n+++ b/n.txt\n+a\n+b\n--- /dev/null\n+++ b/z.txt\n+${'y'.repeat(4000)}`);
+  const z = diffSections(dir).sections.at(-1);
+  assert.deepEqual([z.path, z.cut], ['z.txt', true]);
+});
+
+test('diffSections: new files past the first 30 are listed, so they show as missing', () => {
+  const dir = makeRepo();
+  for (let i = 0; i < 35; i++) fs.writeFileSync(path.join(dir, `n${String(i).padStart(2, '0')}.txt`), 'x');
+  const { coverage } = fitDiff(diffSections(dir));
+  assert.equal(coverage.files, 36); // math.js too
+  assert.equal(coverage.seen, 31);
+  assert.deepEqual(coverage.missing, ['n30.txt', 'n31.txt', 'n32.txt', 'n33.txt', 'n34.txt']);
+});
+
+test('diffSections: a node_modules link is no change, or every wisp worktree would read as partial', () => {
+  const dir = makeRepo();
+  fs.symlinkSync(path.dirname(dir), path.join(dir, 'node_modules'));
+  const { coverage } = fitDiff(diffSections(dir));
+  assert.deepEqual([coverage.files, coverage.seen, coverage.missing], [1, 1, []]);
+});
+
+test('a diff git would not give: changed files read 0 seen, and never "(no changes)"', () => {
+  const { diff, coverage } = fitDiff({ sections: [], files: ['a.js', 'b.js'] });
+  assert.equal(diff, '');
+  assert.deepEqual([coverage.files, coverage.seen, coverage.missing], [2, 0, ['a.js', 'b.js']]);
+  const p = reviewPrompt({ diff, coverage });
+  assert.doesNotMatch(p, /\(no changes\)/);
+  assert.match(p, /holds 0 of 2 files whole/);
+  // git answered nothing at all: run() fails the review rather than review an empty list.
+  assert.equal(diffSections(makeRepo(), 'no-such-ref').failed, true);
+  assert.match(reviewPrompt({ diff: '', coverage: fitDiff({ sections: [], files: [] }).coverage }), /\(no changes\)/);
+});
+
+test('the prompt says when the diff is partial, before the diff; a whole one has no block', () => {
+  const coverage = { files: 63, seen: 41, chars: 90000, seenChars: 60000, cut: ['a.js'], missing: ['b.js', 'c.js'], more: 19 };
+  const p = reviewPrompt({ diff: '+a', coverage });
+  assert.ok(p.indexOf('<partial>') < p.indexOf('<diff>'));
+  assert.match(p, /holds 41 of 63 files whole/);
+  assert.match(p, /Only part of: a\.js\nNot in it: b\.js, c\.js\nAnd 19 files not named here\./);
+  assert.match(p, /working directory/);
+  assert.match(p, /covers only what you read/);
+  assert.doesNotMatch(reviewPrompt({ diff: '+a', coverage: { files: 2, seen: 2, chars: 2, seenChars: 2, cut: [], missing: [] } }), /<partial>/);
+  assert.doesNotMatch(reviewPrompt({ diff: '+a' }), /<partial>/);
+});
+
+test('the summary of a partial review with no findings is wisp’s own', () => {
+  assert.equal(partialSummary({ files: 63, seen: 41, cut: ['a.js'] }), 'No issues in what it read.');
+  assert.equal(partialSummary({ files: 1, seen: 0, cut: ['big.js'] }), 'No issues in the part it read.');
+  assert.equal(partialSummary({ files: 3, seen: 0, cut: ['a.js', 'b.js', 'c.js'] }), 'No issues in the parts it read.');
+  assert.equal(partialSummary({ files: 63, seen: 0, cut: [] }), 'No issues found, but it read nothing.');
+});
+
+test('reviewView passes coverage through; a review from before it was recorded reads as it did', () => {
+  const coverage = { files: 2, seen: 1, chars: 9, seenChars: 4, cut: [], missing: ['b.js'] };
+  const s = { pr: { head: 'abc' }, review: { status: 'done', head: 'abc', summary: 'Fine', findings: [], at: 1 } };
+  assert.deepEqual(reviewView(s), { status: 'done', head: 'abc', current: true, summary: 'Fine', findings: [], at: 1 });
+  assert.deepEqual(reviewView({ ...s, review: { ...s.review, coverage } }).coverage, coverage);
 });

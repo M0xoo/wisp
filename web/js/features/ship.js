@@ -26,9 +26,21 @@ function prLine(pr, fix) {
 }
 
 // Review by another harness (Settings → Review by another harness, server/services/review.js):
-// where the task's own PR stands. kind: running | none | failed | held | tests | issues | pass, or
-// null when the setting is off and nothing was ever reviewed.
+// where the task's own PR stands. kind: running | none | failed | held | tests | issues | partial |
+// pass, or null when the setting is off and nothing was ever reviewed. partial: no findings, but the
+// reviewer got only part of the diff, which is never a pass. v.part is that, in words.
 const harnessName = (id) => S.agents.find((a) => a.id === id)?.name || id || 'another harness';
+// How much of the diff a partial review had, to follow "read" or "reviewed": '' for a whole one, or
+// one from before this was recorded. name dresses a file named in it (the panel's <code>).
+export function partOfDiff(c, name = (f) => f) {
+  if (!c || c.seen >= c.files) return '';
+  const files = `${c.files} file${c.files === 1 ? '' : 's'}`;
+  if (c.seen) return `only ${c.seen} of ${files}`;
+  const n = c.cut.length;
+  if (!n) return c.files === 1 ? 'none of the diff' : `none of the ${files}`;
+  if (c.files === 1) return `only part of ${name(c.cut[0])}`;
+  return `only parts of ${n === c.files ? files : `${n} of ${files}`}`;
+}
 export function reviewState(s) {
   const pr = s?.pr;
   if (pr?.state !== 'OPEN') return null;
@@ -41,11 +53,17 @@ export function reviewState(s) {
   if (r.status === 'failed' || r.status === 'held') return { kind: r.status, label: 'Not reviewed', title: `${r.why || 'The review didn’t finish'}. Click to try again` };
   const n = r.findings.length;
   const failing = r.tests?.verdict === 'fail';
-  if (failing) return { kind: 'tests', label: n ? `Tests fail · ${n} issue${n > 1 ? 's' : ''}` : 'Tests fail', n, title: `The tests fail on the PR’s head (${r.tests.command})${n ? `, and ${by} found ${n} issue${n > 1 ? 's' : ''}` : ''}` };
-  if (n) return { kind: 'issues', label: `${n} issue${n > 1 ? 's' : ''}`, n, title: `${by}’s review found ${n} issue${n > 1 ? 's' : ''}: ${r.summary || ''}` };
+  const part = partOfDiff(r.coverage);
+  const note = part ? ` · ${by} read ${part}` : '';
+  // Red chips say it too: a finding doesn't tell you the review saw everything. The tests' one drops
+  // its count for the room: the PR row is 200px wide in the details column.
+  const partly = part ? ' · partly reviewed' : '';
+  if (failing) return { kind: 'tests', label: part ? `Tests fail${partly}` : n ? `Tests fail · ${n} issue${n > 1 ? 's' : ''}` : 'Tests fail', n, part, title: `The tests fail on the PR’s head (${r.tests.command})${n ? `, and ${by} found ${n} issue${n > 1 ? 's' : ''}` : ''}${note}` };
+  if (n) return { kind: 'issues', label: `${n} issue${n > 1 ? 's' : ''}${partly}`, n, part, title: `${by}’s review found ${n} issue${n > 1 ? 's' : ''}: ${r.summary || ''}${note}` };
+  if (part) return { kind: 'partial', label: r.coverage.seen || r.coverage.cut.length ? 'Partly reviewed' : 'Not reviewed', part, title: `${by} reviewed ${part}${r.tests?.verdict === 'pass' ? ` · ${r.tests.command} passes` : ''}` };
   return { kind: 'pass', label: 'Reviewed', title: `${by} reviewed it: ${r.summary || 'nothing to fix'}${r.tests ? ` · ${r.tests.command} passes` : ''}` };
 }
-const RV_ICON = { running: 'clock', none: 'judge', failed: 'warn', held: 'clock', tests: 'x', issues: 'warn', pass: 'check' };
+const RV_ICON = { running: 'clock', none: 'judge', failed: 'warn', held: 'clock', tests: 'x', issues: 'warn', partial: 'warn', pass: 'check' };
 const reviewChip = (s) => {
   const v = reviewState(s);
   if (!v) return '';
@@ -59,7 +77,8 @@ export function reviewWarning(s) {
   if (!v || v.kind === 'pass') return '';
   if (v.kind === 'running') return '⚠ The review by another harness is still running.';
   if (v.kind === 'tests') return `⚠ ${v.title}.`;
-  if (v.kind === 'issues') return `⚠ The review by ${harnessName(s.review.by?.agent)} found ${v.n} issue${v.n > 1 ? 's' : ''}.`;
+  if (v.kind === 'issues') return `⚠ The review by ${harnessName(s.review.by?.agent)} found ${v.n} issue${v.n > 1 ? 's' : ''}.${v.part ? ` It read ${v.part}.` : ''}`;
+  if (v.kind === 'partial') return `⚠ The review by ${harnessName(s.review.by?.agent)} read ${v.part}.`;
   return '⚠ Not reviewed by another harness.';
 }
 // Review it now: the chip says Reviewing at once; a refusal puts it back with why.

@@ -373,6 +373,9 @@ test('Review by another harness: a setting (off, other, or a harness); the PR ro
   assert.ok(problems({ ...base0, settings: { review: 'on' } }).some((x) => /review/.test(x) && /off \| other \| claude/.test(x)));
   assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.review', 'split.pr.review', 'panel.pr.review.again'] }, parts: { 'panel.pr.review': { style: { opacity: '0.8' } } } }), []);  // What the review checked the diff against (the user's don't-touch lines, Done when), and the user's words on a finding.
   assert.deepEqual(problems({ ...base0, ui: { hide: ['panel.pr.review.constraints'] }, parts: { 'panel.pr.review.rule': { style: { fontSize: '12px' } } } }), []);
+  // How much of the diff the reviewer had.
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['panel.pr.review.coverage'] }, parts: { 'panel.pr.review.coverage': { style: { fontSize: '12px' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['panel.pr.review.cover'] } }).some((x) => /panel\.pr\.review\.cover isn't a part/.test(x)));
   assert.ok(problems({ ...base0, ui: { hide: ['panel.pr.review.constraint'] } }).some((x) => /panel\.pr\.review\.constraint isn't a part/.test(x)));
 });
 
