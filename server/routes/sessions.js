@@ -291,6 +291,10 @@ export function register(r, app) {
       if (s.state === 'done' && was !== 'done') app.triggers?.taskEvent('done', s), app.later?.taskDone(s); // and what waited for it (/after) starts
       if (body.state === 'review' && s.state === 'done') s.state = 'review';
       if (typeof body.unread === 'boolean') s.unread = body.unread;
+      // Lean runs for this task only (server/lean.js): 'on' | 'off', null back to the setting.
+      if (body.lean !== undefined && body.lean !== null && !['on', 'off'].includes(body.lean)) throw bad('lean must be on, off or null', 400);
+      if (body.lean === null) delete s.lean;
+      else if (body.lean) s.lean = body.lean;
       // Moved to another place by the wisp that shows it (services/move.js): where it went.
       if (body.movedTo && typeof body.movedTo === 'object') s.movedTo = { id: String(body.movedTo.id || ''), place: String(body.movedTo.place || '') };
       // The team can change between turns; the next turn's lead sees the new roster.

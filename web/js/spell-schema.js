@@ -445,6 +445,8 @@ export const PARTS = {
   // running a changed harness row.
   'harness.change': '.hw-note',
   'settings.harnessAsk': '.sx-row:has(#harnessAsk)',
+  // Lean Claude Code runs (server/lean.js): its row in Settings → Agents.
+  'settings.leanRuns': '.sx-row:has(select[name="leanRuns"])',
   'settings.review': '.sx-row:has(select[name="review"])',
   // .env masking (server/env-mask.js): the line over a masked .env diff or command output, its
   // Reveal / Hide button, and the Hide .env values row in Settings → Privacy.
@@ -665,6 +667,9 @@ export const SETTINGS = {
   windowNotice: ['on', 'off'],
   // Ask before running a changed harness: hold a run whose harness's program changed until you trust it (server/harness-watch.js).
   harnessAsk: ['on', 'off'],
+  // Lean Claude Code runs, without nonessential traffic (server/lean.js): off; on, wisp's own side
+  // runs only (the default); all, every Claude run (drops claude.ai connectors and org memory).
+  leanRuns: ['off', 'on', 'all'],
   // Review by another harness before Merge (server/services/review.js): off, another harness than
   // the author's, or this one.
   review: ['off', 'other', 'claude', 'codex', 'antigravity', 'copilot', 'opencode', 'cursor', 'grok'],

@@ -16,6 +16,7 @@ import { adapters, listAgents } from './adapters/index.js';
 import { tierOf } from './router.js';
 import { heroOf } from './protocol.js';
 import { sideEnv } from './accounts.js';
+import { leanOn } from './lean.js';
 import { clip, writeJsonAtomic } from './util.js';
 
 export const KINDS = ['preferences', 'lessons'];
@@ -272,6 +273,7 @@ export class Retro {
       mcpServers: {},
       lean: true,
       untrusted: true, // without the folder's hooks and servers (server/project-trust.js)
+      quiet: leanOn(), // server/lean.js
       accountEnv: sideEnv(session.agent, session.account),
       onEvent: (ev) => {
         if (ev.type !== 'result') return;
