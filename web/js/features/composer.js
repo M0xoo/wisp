@@ -10,7 +10,7 @@ const slashFor = (s) => SLASH.filter((c) => (c.name !== 'side' || sideable(s)) &
 import { editGoal, goalAction, paintReplyGoal, replyGoalHtml, setGoal, showGoal, takeReplyGoal, wireReplyGoal } from './goal.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
-import { here, S, saveOpen } from '../core/state.js';
+import { here, MOBILE, S, saveOpen } from '../core/state.js';
 import { toast, toastError } from '../ui/toast.js';
 import { toggleDone } from './actions.js';
 import { openTerm, termFailed, termStarted } from './term.js';
@@ -116,6 +116,8 @@ export function renderDock(id) {
       </div>
     </div>`);
   if (carryTo === id) (comp.classList.add('awake'), (carryTo = null));
+  // The phone's bar is a row of 44px buttons that scrolls sideways: what it says gets a line of its own.
+  if (MOBILE) $('.c-bar', comp).before($('.c-hint', comp));
   dock.append(comp);
   // Only typing opens it: a chip pressed in the folded box would move before the click landed.
   comp.addEventListener('focusin', (e) => {

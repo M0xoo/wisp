@@ -297,3 +297,8 @@ Never send builds to someone's own phone as part of QA.
   the box as you speak, after the typed words with one space; tapping it stops and keeps the text.
   The reply box opens up when the mic starts. Sending clears the box and nothing comes back into it.
   Leaving the app stops listening. In a browser and the desktop app there is no mic.
+
+### MOB-31 The reply box stays one row at any state
+- **Run:** `qa/mobile.mjs`
+- **Steps:** on a task at 412 and 360px, light and dark: open the reply box idle, running, waiting and under a live transcript; Queue on and off; type `/btw …` and clear it; type `tomorrow at 9am run the linter`; attach a file with a long name; paste a long message; a task with 6+ delegates.
+- **Expected:** the buttons are one row, each 44px, and the bar scrolls sideways with Send pinned. What the box says (*Side question · …*, a read time) is one line above the buttons, ending in `…`, never a wrapped column. Toggling `/btw` moves neither Send nor the input sideways; the buttons step back but stay readable. Under a transcript the working panel's orb, status and Stop are centred on one row.

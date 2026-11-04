@@ -148,9 +148,32 @@ body.wisp-mobile .launcher .runners .runner-btn { height: 44px; }
 body.wisp-mobile .launcher .vs-btn { width: 44px; }
 body.wisp-mobile .c-bar .icon-btn, body.wisp-mobile .c-bar .mode-btn, body.wisp-mobile .c-bar .c-runner, body.wisp-mobile .c-bar .c-place, body.wisp-mobile .c-bar .team-btn, body.wisp-mobile .c-bar .tog-btn, body.wisp-mobile .c-bar .send, body.wisp-mobile .c-bar .c-done, body.wisp-mobile .c-bar .c-ship { flex: none; min-width: 44px; height: 44px; }
 /* A follow-up's bar is narrower than its 44px buttons: it scrolls sideways, Send stays in the box. */
-body.wisp-mobile .c-bar { gap: 0; overflow-x: auto; scrollbar-width: none; margin-right: -4px; }
+body.wisp-mobile .c-bar { gap: 0; overflow-x: auto; scrollbar-width: none; margin: 0 -4px 0 -8px; }
 body.wisp-mobile .c-bar::-webkit-scrollbar { display: none; }
-body.wisp-mobile .c-bar .c-hint { flex: 1 0 4px; }
+/* The pickers on the left, Queue, Send later and Send on the right (the hint held them apart on a desktop). */
+body.wisp-mobile .c-bar::after { content: ''; flex: 1 0 0; }
+body.wisp-mobile .c-bar > .c-ship, body.wisp-mobile .c-bar > .c-done, body.wisp-mobile .c-bar > .c-queue, body.wisp-mobile .c-bar > .c-later, body.wisp-mobile .c-bar > .send { order: 1; }
+/* Queue: 44px like its neighbours, on the tile an on Goal has. */
+body.wisp-mobile .c-bar .c-queue { flex: none; min-width: 44px; height: 44px; padding: 0 6px; gap: 4px; border: 0; border-radius: 8px; }
+/* A phone's width: Queue folds to its icon and switch (its title says what it does), and the delegates' faces close up. */
+@media (max-width: 520px) {
+  body.wisp-mobile .c-bar .c-queue > span { display: none; }
+}
+body.wisp-mobile .c-bar .c-team .ts-m:not(.ts-more) + .ts-m:not(.ts-more) { margin-left: -7px; }
+body.wisp-mobile .c-bar .c-team .tb-label { display: none; }
+body.wisp-mobile .c-bar .c-place .cr-label { max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* What the box says (composer.js moves .c-hint out of the bar): one line above the buttons, ending in
+   an ellipsis. A read time keeps its 44px Send now and ×, so its line is that tall. */
+body.wisp-mobile .composer > .c-hint { display: block; min-height: 20px; padding: 0 2px; font-size: 12px; line-height: 20px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.wisp-mobile .composer > .c-hint:empty { display: none; }
+/* A long file name gives way, its icon doesn't. */
+body.wisp-mobile .att img, body.wisp-mobile .att-ic { flex: none; }
+body.wisp-mobile .composer > .c-hint .when-chip { display: flex; font-size: 12px; }
+body.wisp-mobile .composer > .c-hint .when-chip .link { flex: none; margin-left: auto; font-size: 12px; white-space: nowrap; }
+body.wisp-mobile .composer > .c-hint .when-chip .att-x { flex: none; }
+/* /btw: the pickers step back without washing out, and Send later's empty slot stays, so nothing in the bar moves. */
+body.wisp-mobile .composer.is-btw .c-mode, body.wisp-mobile .composer.is-btw .c-runner, body.wisp-mobile .composer.is-btw .c-place, body.wisp-mobile .composer.is-btw .c-team, body.wisp-mobile .composer.is-btw .c-queue { opacity: 0.6; filter: grayscale(1); }
+body.wisp-mobile .composer.is-btw .c-later[hidden] { display: inline-grid !important; visibility: hidden; }
 body.wisp-mobile .c-bar > .send { position: sticky; right: 0; box-shadow: -10px 0 8px -2px var(--surface-2); }
 body.wisp-mobile .composer:focus-within .c-bar > .send { box-shadow: -10px 0 8px -2px var(--surface); }
 /* The task's icon actions: each icon centred in its 44px, a pressed one (Transcript) on a 36px square
@@ -186,6 +209,17 @@ body.wisp-mobile .opt .k { display: none; }
 /* The working panel, as on a narrow window (≤720px above): the orb beside the status line only. */
 body.wisp-mobile .w-panel { display: block; padding: 14px 16px; }
 body.wisp-mobile .w-orb { float: left; margin-right: 12px; }
+/* Under a live transcript the panel is one row, orb, status and Stop centred on each other. What comes
+   under them (the /btw tip, a question, the team) takes the panel's whole width. */
+body.wisp-mobile .w-panel.tx-panel { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 0 10px; padding: 4px 8px 4px 14px; }
+body.wisp-mobile .tx-panel .w-orb { float: none; display: flex; align-self: center; margin: 0; padding: 0; }
+body.wisp-mobile .tx-panel .w-body, body.wisp-mobile .tx-panel .w-actions { display: contents; }
+body.wisp-mobile .tx-panel .w-status { grid-column: 2; }
+body.wisp-mobile .tx-panel .w-watch { grid-column: 3; grid-row: 1; }
+body.wisp-mobile .tx-panel .stop { grid-column: 4; grid-row: 1; }
+body.wisp-mobile .tx-panel .w-actions > .grow { display: none; }
+body.wisp-mobile .tx-panel .w-tip, body.wisp-mobile .tx-panel .w-queued { grid-column: 1 / -1; padding-bottom: 8px; }
+body.wisp-mobile .tx-panel .ask-slot:not(:empty) { margin-top: 0; padding-bottom: 10px; }
 
 /* A row gives its title the whole width: status, harness, time, done and the chevron go under it. */
 body.wisp-mobile .it-head { grid-template-columns: 10px 1fr; row-gap: 6px; }
@@ -244,6 +278,10 @@ body.wisp-mobile .it-run { font-size: 12.5px; line-height: 18px; }
 body.wisp-mobile .q-time, body.wisp-mobile .q-proj, body.wisp-mobile .pill { font-size: 12.5px; }
 body.wisp-mobile .f-group h4 { font-size: 13px; }
 body.wisp-mobile .trail-bar { font-size: 13px; }
+/* The stats line gets air of its own above the 44px files row, and the turn's rule comes back up under
+   that row: a 44px row's own room already reads as most of the gap. */
+body.wisp-mobile .trail-bar > .tb { min-height: 32px; }
+body.wisp-mobile .turn:not(:last-child) > .trail { margin-bottom: -16px; }
 body.wisp-mobile .tb-l { display: inline; }
 /* With the counts named, the bar can't fit on one line: the files and the turn's tools always start the
    second line, rather than landing wherever the wrap falls. */

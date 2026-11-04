@@ -24,6 +24,10 @@ narrow browser's under the media query (the reply box's mode button is icon-only
 - Titles get two lines instead of `do a full audi…`.
 - A bar with more buttons than fit scrolls sideways with Send pinned at the end (`.c-bar` in the
   app).
+- A bar of 44px buttons holds buttons only. What it says (*Side question · …*, a read time) is a row
+  of its own above it: one line that ends in `…` (`.c-hint`, which `composer.js` moves out of `.c-bar`
+  in the app). Flex text inside a bar that doesn't wrap squeezes into a word-wide column. Anything
+  that changes with what's typed keeps its slot, so Send and the input never move sideways.
 - A status line stays one line at any width and text size: what doesn't fit drops whole, least
   important first (the working panel's action count, then its time), and the name ends in `…`
   (`.w-status`: wrap onto a second line the box clips). A placeholder stays one line and fades out
