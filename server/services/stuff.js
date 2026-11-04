@@ -109,16 +109,21 @@ function scanOf(dir) {
   return c;
 }
 
-// sha256 of the folder's sorted paths and contents, and the sorted uses.
+// sha256 of the folder's sorted paths and contents, and the sorted uses. The stats only vouch for a
+// hash once they're old: a same-size edit in the same clock tick (15 ms on Windows, more on some
+// disks) leaves them as they were, so a file touched just now is read every time (as git does).
+const SETTLED_MS = 3000;
+const settled = (c) => c.files.every((f) => Date.now() - Math.max(f.st?.mtimeMs || 0, f.st?.ctimeMs || 0) > SETTLED_MS);
 export function appHash(dir, uses = []) {
   const c = scanOf(dir);
-  if (!c.code) {
+  if (!c.code || !c.settled) {
     const h = crypto.createHash('sha256');
     for (const f of c.files) {
       h.update(`${f.rel}\0${f.link}\0${f.st?.size ?? ''}\0`);
       if (f.st) h.update(fs.readFileSync(f.abs));
     }
     c.code = h.digest('hex');
+    c.settled = settled(c); // checked after reading: an edit during the read keeps it unsettled
   }
   return crypto.createHash('sha256').update(`${c.code}\0${[...uses].sort().join('\0')}`).digest('hex');
 }

@@ -443,13 +443,19 @@ test('appHash: any file, any path or the uses change it; order doesn’t; a view
   assert.equal(appHash(dir, ['tasks:write', 'tasks:read']), was, 'uses are sorted');
   assert.notEqual(appHash(dir, ['tasks:read']), was);
   const read = fs.readFileSync;
+  const now = Date.now;
   let reads = 0;
   fs.readFileSync = (...a) => (reads++, read(...a));
+  Date.now = () => now() + 10_000; // its files have settled
   try {
+    assert.equal(appHash(dir, ['tasks:read', 'tasks:write']), was);
+    assert.ok(reads > 0, 'first look since it settled: read');
+    reads = 0;
     assert.equal(appHash(dir, ['tasks:read', 'tasks:write']), was);
     assert.equal(reads, 0, 'nothing moved: nothing read');
   } finally {
     fs.readFileSync = read;
+    Date.now = now;
   }
   fs.mkdirSync(path.join(dir, 'js'));
   fs.writeFileSync(path.join(dir, 'js', 'a.js'), 'one');
