@@ -30,7 +30,8 @@ import { feedAnchor, keepInPlace, stage, topInset } from './scroll.js';
 import { canLead, paintTeamBtn, teamEditor } from './team.js';
 import { activeSpells, launcherParts, runAction, spellProp } from './spells.js';
 import { cast } from './spell-ui.js';
-import { goalAsk, HOME_SLASH, isGoalDrop, SANDBOX_HINT, sandboxAsk, SPELL_HINT, spellAsk, terminalAsk } from '../slash-text.js';
+import { makePane } from './pane-make.js';
+import { goalAsk, HOME_SLASH, isGoalDrop, isPaneAsk, SANDBOX_HINT, sandboxAsk, SPELL_HINT, spellAsk, terminalAsk } from '../slash-text.js';
 import { historyStep, remember } from '../prompt-history.js';
 import { micFor, micHtml } from './dictate.js';
 import { goBack, goHome, isSplit, isStacked, stackPage } from './split.js';
@@ -491,6 +492,13 @@ export function renderLauncher() {
       S.drafts.delete('home');
       ta.dispatchEvent(new Event('input'));
       return cast(ask).catch((err) => (toastError(err), (ta.value = prompt), ta.dispatchEvent(new Event('input'))));
+    }
+    // "make me a pane that…": an app for My Stuff, not a task in this folder.
+    if (isPaneAsk(prompt)) {
+      ta.value = '';
+      S.drafts.delete('home');
+      ta.dispatchEvent(new Event('input'));
+      return makePane(prompt).catch((err) => (toastError(err), (ta.value = prompt), ta.dispatchEvent(new Event('input'))));
     }
     // A spell's slash command, typed in the prompt box.
     const slash = spellSlash(prompt);

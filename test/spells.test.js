@@ -440,6 +440,9 @@ test('My Stuff: its box, page, filters, cards and Save buttons are parts; its he
   };
   assert.deepEqual(problems(ok), []);
   assert.ok(schema.SLOTS['stuff.head'] && !schema.CARD_SLOTS.has('stuff.head'));
+  assert.equal(schema.PARTS['stuff.makePane'], '.stuff-view .sf-make', 'Make a pane can be restyled or hidden');
+  assert.deepEqual(problems({ ...base0, parts: { 'stuff.makePane': { hide: true } } }), []);
+  assert.equal(schema.PARTS['stuff.makePane.dialog'], '.modal.pane-make', 'its dialog too');
   for (const i of ['stuff', 'star', 'image', 'grid', 'app']) assert.ok(schema.ICONS.includes(i), i);
   assert.ok(problems({ ...base0, buttons: [{ slot: 'stuff.head', panel: 'x' }] }).length);
   assert.deepEqual(problems({ ...base0, parts: { 'stuff.page': { props: { view: 'list', group: 'task', cardWidth: 280 } } } }), []);

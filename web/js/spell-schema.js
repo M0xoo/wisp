@@ -123,6 +123,8 @@ export const PARTS = {
   'stuff.card': '.stuff-view .st-card', // one thing kept
   'stuff.save': '.stuff-save', // Save to My Stuff on a reply's picture, video, doc or code
   'stuff.launch': '.stuff-view .st-launch', // Launch on an app's card
+  'stuff.makePane': '.stuff-view .sf-make', // Make a pane in its header
+  'stuff.makePane.dialog': '.modal.pane-make', // the Make a pane dialog
   'stuff.public': '.stuff-view .st-pub', // Public on a published app's card (copies its link)
   'crew.share': '.crew-share',
   'crew.import': '.crew-import',

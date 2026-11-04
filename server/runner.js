@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { adapters, detectedVersion } from './adapters/index.js';
 import { systemPrompt, parsePresentation, heroOf } from './protocol.js';
 import { spellGuide } from './spell-guide.js';
+import { paneGuide } from './pane-guide.js';
 import { captureCheckpoint, freshCheckpoint, readGitFile } from './checkpoint.js';
 import { teamNote, copies, SUBAGENT_ASK, AWAY_SUBAGENT, delegationReport, stillWorkingNote, REPORTS_BACK } from './subagents.js';
 import { handoffNote, mapEffort } from './handoff.js';
@@ -109,7 +110,7 @@ export const alsoDirs = (s) => (s.also || []).map((a) => a.worktree?.cwd || a.cw
 
 // Settings → General → wisp blocks off: the agent answers in plain markdown. Not for crew jobs or
 // spells (their blocks carry what wisp acts on), nor for subagents (they report to their lead).
-export const plainAnswer = (s, store) => store?.config?.defaults?.blocks === 'off' && !s.crew && s.kind !== 'spell' && !s.parentId && !s.delegated;
+export const plainAnswer = (s, store) => store?.config?.defaults?.blocks === 'off' && !s.crew && s.kind !== 'spell' && s.kind !== 'pane' && !s.parentId && !s.delegated;
 
 // Worktree sessions get told where they are, so they don't go looking for the main checkout. A task
 // with other folders (also) gets their paths: that's where the work in them goes.
@@ -273,7 +274,7 @@ export function summarize(s, store) {
     review: reviewView(s),
     groupId: s.groupId || null,
     origin: s.origin || null, // { kind: 'recipe' | 'trigger' | 'telegram', id, name }
-    ...(s.kind && { kind: s.kind }), // 'spell': a Cast a spell task
+    ...(s.kind && { kind: s.kind }), // 'spell': a Cast a spell task; 'pane': a Make a pane task
     ...(s.lean && { lean: s.lean }), // 'on' | 'off': this task's own lean runs choice (server/lean.js)
     moved: s.moved || null, // { from }: carried on here from another place (services/move.js)
     movedTo: s.movedTo || null, // { id, place }: this one carried on there, and was archived
@@ -404,7 +405,7 @@ export class Runner extends EventEmitter {
       ...(forkedFrom && { forkedFrom }), // { id, title, turn, of }: forked from that task's turn (services/fork.js)
       ...(sideOf && { sideOf }), // { id, title, cwd }: a side discussion about that task (server/side.js)
       ...(sharedFrom && { sharedFrom }), // { id, url, host, handle, name, title, kit? }: imported from a share (services/share.js)
-      ...(kind && { kind }), // 'spell': a Cast a spell task (server/spell-guide.js)
+      ...(kind && { kind }), // 'spell': a Cast a spell task (server/spell-guide.js); 'pane': Make a pane (server/pane-guide.js)
       ...(worktree && { worktree }),
       ...(also.length && { also }),
       ...(groupId && { groupId }),
@@ -1284,7 +1285,7 @@ export class Runner extends EventEmitter {
     const base = sub
       ? systemPrompt({ ask: SUBAGENT_ASK + (session.delegated ? AWAY_SUBAGENT : '') })
       : systemPrompt({ askTool: adapter.askTool, extraBlocks, apps: this.store.config?.defaults?.apps !== 'off', watch: this.store.config?.defaults?.watch !== 'off', blocks: !plainAnswer(session, this.store) }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
-    const spell = session.kind === 'spell' ? spellGuide(adapter.askTool ?? 'mcp__wisp__ask_user') : '';
+    const spell = session.kind === 'spell' ? spellGuide(adapter.askTool ?? 'mcp__wisp__ask_user') : session.kind === 'pane' ? paneGuide(adapter.askTool ?? 'mcp__wisp__ask_user') : '';
     const crew = session.crew ? this.crewNote(session) : '';
     // A shared task's skills and instructions came with it (services/share.js): written out in full.
     const kit = !sub && session.sharedFrom?.kit?.length ? kitNote({ kit: session.sharedFrom.kit }) : '';

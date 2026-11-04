@@ -714,6 +714,37 @@ body.wisp-mobile .ed-head .ed-probs { min-height: 44px; }
 .pa-off .i { flex: none; width: 14px; height: 14px; margin-top: 2px; }
 .touch .pa-bar { min-height: 44px; }
 .touch .pa-bar .icon-btn { width: 40px; height: 40px; }
+/* ---------- Make a pane (features/pane-make.js): laid out as Cast a spell (spell-ui.js openCast) ---------- */
+.pane-make { display: grid; gap: 12px; }
+.pane-make header { margin-bottom: 0; }
+.pane-make h2 { display: flex; align-items: center; gap: 8px; }
+.pane-make h2 .i { width: 18px; height: 18px; color: var(--accent); }
+.pane-make > .hint { margin: 0; }
+.pane-make h4 { margin: 4px 0 -4px; }
+.pane-make footer { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+.pane-make footer .hint { margin: 0 auto 0 0; }
+.pane-make footer .primary { flex: none; }
+.pm-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 10px; }
+.pm-list li { display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 2px 12px; align-items: center; min-height: 80px; padding: 10px 12px; }
+.pm-list li + li { border-top: 1px solid var(--line); }
+.pm-list b { font-size: 13px; font-weight: 500; color: var(--ink); }
+.pm-list small { grid-column: 1; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+.pm-list button, .pm-added { grid-area: 1 / 2 / 3 / 3; display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 72px; padding: 0 8px; }
+.pm-list button { border: 1px solid var(--line-2); color: var(--ink); }
+.pm-added { font-size: 13px; color: var(--good); }
+.pm-added .i { width: 13px; height: 13px; }
+.pm-list .pm-off { display: block; min-height: 0; font-size: 12.5px; color: var(--muted); }
+/* The rows' real shapes until the list is in: name, description, its button. */
+.pm-sk .sk { height: 12px; width: 30%; border-radius: 6px; }
+.pm-sk .sk + .sk { grid-column: 1; width: 86%; }
+.pm-sk .sk:nth-child(3) { grid-area: 1 / 2 / 3 / 3; width: 72px; height: 30px; border-radius: 9px; }
+@media (max-width: 520px) {
+  .pm-list li { min-height: 116px; }
+}
+@media (pointer: coarse) {
+  .pane-make footer .primary, .pm-list button { min-height: 44px; }
+  .pane-make .close { width: 44px; height: 44px; margin: -6px -8px -6px 0; }
+}
 /* ---------- the card a pane's write waits on (features/pane-card.js) ----------
    A column that never scrolls as a whole: the prompt gives up height first, then what's above it,
    so Cancel and Send stay on screen however long either gets. */

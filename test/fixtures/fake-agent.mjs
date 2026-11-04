@@ -446,6 +446,16 @@ if (fixup) {
 const FAKE_SPELL = process.env.FAKE_SPELL ? JSON.parse(fs.readFileSync(process.env.FAKE_SPELL, 'utf8')) : { wispSpell: 1, id: 'fake-hello', name: 'Fake hello', prompt: ['Say hello first.'] };
 const ask = async () => {
   const srv = injectedMcp();
+  // PANESAVE home|task: a Make a pane task builds its app and saves it with wisp_save, pinned, and
+  // PANEUPDATE <id> saves a new version: what it answers shows in the output, for the tests.
+  const paneAsk = /PANE(SAVE|UPDATE) (\S+)/.exec(stdin);
+  if (paneAsk && srv) {
+    fs.mkdirSync('app', { recursive: true });
+    fs.writeFileSync('app/index.html', `<!doctype html><title>Fake pane</title><link rel="stylesheet" href="/_wisp/pane.css"><script src="/_wisp/pane.js"></script><div class="card" id="v">version ${Date.now()}</div>`);
+    fs.writeFileSync('app/wisp-app.json', JSON.stringify({ name: 'Fake pane', uses: ['tasks:read', 'tasks:write'] }));
+    const said = await mcpCall(srv, 'wisp_save', { app: 'app', ...(paneAsk[1] === 'UPDATE' ? { id: paneAsk[2] } : { pin: paneAsk[2] }) });
+    if (process.env.FAKE_RECORD) fs.appendFileSync(path.join(process.env.FAKE_RECORD, 'pane.jsonl'), `${JSON.stringify({ said })}\n`);
+  }
   // WATCHURL: a running app beside the task (FAKE_WATCH_URL, its dev server), navigated and reloaded.
   if (stdin.includes('WATCHURL') && srv) {
     const url = process.env.FAKE_WATCH_URL || 'http://localhost:5173';

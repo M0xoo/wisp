@@ -19,6 +19,7 @@ export const PANE_USES = {
   'tasks:write': 'Ask to start tasks and send follow-ups (you confirm each one), and mark tasks done',
   'prs:read': 'See your tasks’ pull requests',
   'crew:read': 'See your crew: names, roles and what they’re doing',
+  'usage:read': 'See your usage windows: how much of each is gone and when it resets',
 };
 
 // Each call the frame can make, and what it needs.
@@ -31,6 +32,22 @@ export const PANE_CALLS = {
   'tasks.done': 'tasks:write',
   'prs.list': 'prs:read',
   'crew.list': 'crew:read',
+  'usage.accounts': 'usage:read',
+};
+
+const TASK = '{ id, title, state: "running"|"waiting"|"review"|"done", status, project, agent, harness (its name), account, machine, model, mode, branch, summary, live, unread, archived, asks, crew: { id, name } | absent, pr: { number, url, state, draft, checks, review, conflict } | null, createdAt, updatedAt }';
+// How to call each of them and what comes back: the agent's reference (server/pane-guide.js), so
+// nothing it's told drifts from what the bridge does. A new call needs an entry (a test checks).
+export const CALL_DOCS = {
+  'tasks.list': { call: 'wisp.tasks.list()', returns: `[Task], every task that isn't archived. Task: ${TASK}` },
+  'tasks.get': { call: 'wisp.tasks.get(id)', returns: 'Task; rejects if there is no such task' },
+  'tasks.watch': { call: "wisp.on('tasks', fn)", returns: 'fn([Task]) now, then each time tasks change, at most every 300 ms. Returns a function that stops it' },
+  'tasks.launch': { call: 'wisp.tasks.launch({ prompt, project })', returns: "Task, or { queued: true }. project: a project's name, or leave it out for no project. Harness and mode are the user's defaults. Opens wisp's card; rejects if they cancel" },
+  'tasks.followUp': { call: 'wisp.tasks.followUp(id, text)', returns: "true. Opens wisp's card; rejects if they cancel" },
+  'tasks.done': { call: 'wisp.tasks.done(id)', returns: 'true. No card' },
+  'prs.list': { call: 'wisp.prs.list()', returns: "[{ number, url, state, draft, checks, review, conflict, repo, task (id), title }], each task's pull requests" },
+  'crew.list': { call: 'wisp.crew.list()', returns: '[{ id, name, role, busy, nextAt }]' },
+  'usage.accounts': { call: 'wisp.usage.accounts()', returns: '[{ agent, agentName, account, windows: [{ id, label, used (0 to 1), resetsAt (ms) | null }], burnPerHour (share of the window burnWindow names, per hour, since it started) | null, burnWindow }], one per account. windows is empty when the harness reports none. burnPerHour is null when it is too early to tell; never make one up' },
 };
 
 // The scopes that change something. A grant of one is tied to the app's code (effectiveGrant).
@@ -74,6 +91,9 @@ export function effectiveGrant(allowed = [], grantHash = '', hashNow = '') {
 // `s` is the page's summary (status) or the server's task (its last turn).
 export const runsFullAuto = (s) => !!s && s.mode === 'auto' && (s.state === 'running' || s.status === 'running' || s.turns?.at(-1)?.status === 'running');
 export const notWhile = (s) => `Not while ${s.title || 'a task'} runs in Full auto.`;
+
+// Has the app's content moved on from what its pane loaded? rev goes up on every update and restore.
+export const paneStale = (seen, it) => seen !== undefined && !!it && (it.rev || 1) !== seen;
 
 // The body of POST /sessions for a pane's task: as New task sends it. `defaults` are the page's
 // resolved ones (panes.js launchDefaults); leave mode out and the server falls back to Full auto.
@@ -146,7 +166,8 @@ export function scrubSecrets(text) {
 
 const prOf = (p) => (p ? { number: p.number, url: p.url, state: p.state, draft: !!p.draft, checks: p.checks || null, review: p.review || null, conflict: !!p.conflict } : null);
 
-export function lightTask(s) {
+// names: what only the page knows (the harness's name, the account's label).
+export function lightTask(s, names = {}) {
   if (!s) return null;
   return {
     id: s.id,
@@ -155,6 +176,9 @@ export function lightTask(s) {
     status: s.status || '', // what its last answer said: done, partial, blocked, info, running
     project: s.project || '',
     agent: s.agent || '',
+    harness: names.harness || s.agent || '',
+    account: accountWords(names.account),
+    machine: s.machine?.name || '',
     model: s.model || '',
     mode: s.mode || '',
     branch: s.branch || '',
@@ -182,6 +206,41 @@ export function lightPrs(sessions) {
   return out;
 }
 
+// An account by its label, never its address.
+function accountWords(label, n = 1) {
+  const t = scrubSecrets(label || '');
+  return t.includes('@') ? `Account ${n}` : t;
+}
+
+// How fast a window goes: its share per hour since it started, on the shortest window that can say.
+// Not before budget.js's paceOf would: under 5% gone or too soon after it started, it can't be told.
+const H = 3_600_000;
+export function burnOf(windows = [], now = Date.now()) {
+  for (const w of [...windows].filter((x) => x.ms).sort((a, b) => a.ms - b.ms)) {
+    const spent = now - (w.resetsAt - w.ms);
+    if (!w.resetsAt || w.resetsAt <= now || !(w.used >= 0.05) || spent < Math.min(w.ms / 10, H / 2)) continue;
+    return { burnPerHour: Math.round((w.used / (spent / H)) * 10_000) / 10_000, burnWindow: w.label || '' };
+  }
+  return { burnPerHour: null, burnWindow: '' };
+}
+
+// GET /agents' budget as a frame sees it: a row per account, what a window is and when it resets.
+// No emails, plans, sign-in states or anything else an account carries.
+export function lightAccounts(agents = [], now = Date.now()) {
+  const out = [];
+  for (const a of agents) {
+    if (!a?.available || a.id === 'auto') continue;
+    const row = (label, list = []) => ({ agent: a.id, agentName: scrubSecrets(a.name || a.id), account: label, windows: list.map((w) => ({ id: w.id, label: scrubSecrets(w.label || ''), used: Math.min(1, Math.max(0, Number(w.used) || 0)), resetsAt: w.resetsAt || null })), ...burnOf(list, now) });
+    const accounts = a.accounts || [];
+    const named = (id) => (accounts.length > 1 ? accountWords(accounts.find((x) => x.id === id)?.label, accounts.findIndex((x) => x.id === id) + 1) : '');
+    const seen = new Set();
+    for (const b of a.budget || []) (seen.add(b.account), out.push(row(named(b.account), b.windows)));
+    for (const x of accounts) if (!seen.has(x.id) && (accounts.length > 1 || !seen.size)) (seen.add(x.id), out.push(row(named(x.id))));
+    if (!seen.size) out.push(row(''));
+  }
+  return out;
+}
+
 export const lightMember = (m) => (m ? { id: m.id, name: m.name, role: m.role || '', busy: !!(m.running || m.busy), nextAt: m.nextAt || null } : null);
 
 // --- the frame's side: /_wisp/pane.js -----------------------------------------------------------
@@ -193,12 +252,36 @@ export const lightMember = (m) => (m ? { id: m.id, name: m.name, role: m.role ||
 export const PANE_CLIENT = `(()=>{if(window.wisp&&window.wisp.tasks)return;const inPane=parent!==window;let n=0;const wait=new Map();const subs={};let ctx={where:inPane?'':'tab'};
 const call=(method,...args)=>new Promise((ok,no)=>{if(!inPane)return no(new Error('Pin this app as a pane in wisp to use wisp.'+method+'().'));const id=++n;wait.set(id,{ok,no});parent.postMessage({wispPane:1,id,method,args},'*')});
 addEventListener('message',(e)=>{if(e.source!==parent&&e.source!==parent.parent)return;const m=e.data||{};if(!m.wispPane)return;if(m.id&&wait.has(m.id)){const w=wait.get(m.id);wait.delete(m.id);m.error?w.no(new Error(m.error)):w.ok(m.result);return}
-if(m.event==='context'){ctx=Object.freeze({...m.data});}(subs[m.event]||[]).forEach((f)=>{try{f(m.data)}catch(err){console.error(err)}})});
+if(m.event==='context'){ctx=Object.freeze({...m.data});if(ctx.theme)document.documentElement.dataset.theme=ctx.theme}(subs[m.event]||[]).forEach((f)=>{try{f(m.data)}catch(err){console.error(err)}})});
 const on=(ev,fn)=>{(subs[ev]=subs[ev]||[]).push(fn);if(ev==='tasks')call('tasks.watch').catch((err)=>console.warn(err.message));return()=>{subs[ev]=(subs[ev]||[]).filter((f)=>f!==fn)}};
 window.wisp=Object.freeze({get context(){return ctx},on,
 tasks:Object.freeze({list:()=>call('tasks.list'),get:(id)=>call('tasks.get',id),launch:(o)=>call('tasks.launch',o),followUp:(id,text)=>call('tasks.followUp',id,text),done:(id)=>call('tasks.done',id)}),
-prs:Object.freeze({list:()=>call('prs.list')}),crew:Object.freeze({list:()=>call('crew.list')})});
+prs:Object.freeze({list:()=>call('prs.list')}),crew:Object.freeze({list:()=>call('crew.list')}),usage:Object.freeze({accounts:()=>call('usage.accounts')})});
 if(inPane)parent.postMessage({wispPane:1,hello:1},'*');})();`;
+
+// /_wisp/pane.css's kit, after wisp's tokens: an app looks at home with these few classes. It sits
+// mostly in :where() so an app's own rules win. body and .btn have to beat tokens.css's bare `body`
+// and `button`; they're plain selectors, and an app's own stylesheet comes later, so it still wins.
+export const PANE_KIT = `
+:where(html) { color-scheme: light dark; }
+:where(*) { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+body { padding: 12px; font: 13px/1.45 var(--sans); }
+.btn { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 10px; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line-2); border-radius: 8px; cursor: pointer; }
+.btn:hover { background: var(--bg-2); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn.primary { color: var(--bg); background: var(--ink); border-color: var(--ink); }
+.btn.primary:hover { opacity: 0.86; }
+.btn:active { transform: scale(0.96); }
+@media (hover: none) { .btn:hover { background: var(--surface); } .btn.primary:hover { background: var(--ink); opacity: 1; } }
+@media (pointer: coarse) { .btn { min-height: 44px; } }
+:where(.card) { padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+:where(.chip) { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; font-size: 11.5px; color: var(--muted); background: var(--bg-2); border-radius: 99px; }
+:where(.muted) { color: var(--muted); }
+:where(.faint) { color: var(--faint); }
+:where(.sk) { display: block; background: var(--bg-2); animation: sk-pulse 1.4s ease-in-out infinite; }
+@keyframes sk-pulse { 50% { opacity: 0.5; } }
+@media (prefers-reduced-motion: reduce) { :where(.sk) { animation: none; } }
+`;
 
 // An app that uses wisp keeps its requests on its own origin: its files, its database.
 // An app that doesn't use wisp keeps its network, but an app on loopback can't frame wisp's http page and steal clicks.

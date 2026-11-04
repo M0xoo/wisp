@@ -903,6 +903,7 @@ function onClick(e) {
   const a = e.target.closest('[data-a]')?.dataset.a;
   if (a === 'close') return goBack();
   if (a === 'add') return $('.sf-file', view.node).click();
+  if (a === 'make-pane') return import('./pane-make.js').then((m) => m.openMakePane());
   if (a === 'kind') {
     kind = e.target.closest('[data-k]').dataset.k;
     save('wisp.stuffKind', kind);
@@ -1021,6 +1022,7 @@ function paintTop() {
     <span class="cv-state">${esc(sub)}</span>
     <span class="sh-acts">
       ${slotHtml('stuff.head', null)}
+      <button class="ghost sm sf-make" data-a="make-pane" aria-label="Make a pane" title="An app that lives in wisp: an agent builds it, or start from one wisp ships with">${icon('app')}<span>Make a pane</span></button>
       <button class="ghost sm sf-add" data-a="add" title="Add files from this computer (or drop them here)">${icon('plus')}<span>Add files</span></button>
       ${stacked ? '' : `<button class="icon-btn" data-a="close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button>`}
     </span>`,

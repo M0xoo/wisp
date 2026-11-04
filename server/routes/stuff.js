@@ -3,11 +3,12 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { sendFile } from '../http/respond.js';
 import { MIME } from '../http/static.js';
 import { workdir } from '../runner.js';
 import { bad } from '../util.js';
-import { grantOf, notWhile, runsFullAuto } from '../../web/js/pane-bridge.js';
+import { grantOf, notWhile, runsFullAuto, usesOf } from '../../web/js/pane-bridge.js';
 import { docFile, mediaFile, revealInFolder } from './sessions.js';
 
 // A file a task's reply showed or named: its pictures and docs, or anything in its folder.
@@ -26,6 +27,19 @@ export function fromTask(s, { turn, key } = {}) {
   if (!s) return key ? { key: String(key).slice(0, 300) } : undefined;
   return { session: s.id, title: s.title, ...(turn && { turn: String(turn) }), ...(key && { key: String(key).slice(0, 300) }) };
 }
+
+// The panes wisp ships with: a folder each under server/starters.
+const STARTERS = fileURLToPath(new URL('../starters/', import.meta.url));
+export function starters() {
+  return fs
+    .readdirSync(STARTERS, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => {
+      const m = JSON.parse(fs.readFileSync(path.join(STARTERS, d.name, 'wisp-app.json'), 'utf8'));
+      return { id: d.name, name: m.name, description: m.description || '', uses: usesOf(m) };
+    });
+}
+const starterKey = (id) => `starter:${id}`;
 
 export function register(r, app) {
   const { stuff, store } = app;
@@ -99,6 +113,16 @@ export function register(r, app) {
       sendFile(c.req, c.res, it.cover, MIME[path.extname(it.cover)] || 'application/octet-stream', { 'content-security-policy': "sandbox; default-src 'none'; style-src 'unsafe-inline'", 'x-content-type-options': 'nosniff' });
     }),
   );
+
+  // Starters: added once (the same item after that), pinned and allowed by you like any app.
+  r.route('GET', '/stuff/starters', (c) => c.send(200, { starters: starters().map((s) => ({ ...s, added: stuff.findKey(starterKey(s.id))?.id || null })) }));
+  r.route('POST', '/stuff/starters/:starter', (c) => {
+    const s = starters().find((x) => x.id === c.params.starter);
+    if (!s) return c.send(404, { error: 'wisp has no starter by that name.' });
+    const same = stuff.findKey(starterKey(s.id));
+    if (same) return c.send(200, view(same));
+    c.send(201, view(stuff.addApp(path.join(STARTERS, s.id), { by: 'wisp', from: { key: starterKey(s.id) } })));
+  });
 
   // Launch an app: it's served on a port of its own (services/apps.js) until it's stopped or idle.
   r.route(

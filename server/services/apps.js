@@ -12,7 +12,7 @@ import { pipeline } from 'node:stream';
 import { MIME } from '../http/static.js';
 import { bad } from '../util.js';
 import { DB_CLIENT, createAppDb } from '../app-db.js';
-import { PANE_APP_CSP, PANE_CLIENT, PANE_CSP } from '../../web/js/pane-bridge.js';
+import { PANE_APP_CSP, PANE_CLIENT, PANE_CSP, PANE_KIT } from '../../web/js/pane-bridge.js';
 
 const BASE = 47100;
 const SPAN = 800;
@@ -37,6 +37,9 @@ const MORE_MIME = {
   '.xml': 'application/xml',
   '.webmanifest': 'application/manifest+json',
 };
+// wisp's tokens (light and dark, off data-theme as on wisp's page, set by /_wisp/pane.js) and a kit.
+const paneCss = () => fs.readFileSync(new URL('../../web/css/tokens.css', import.meta.url), 'utf8') + PANE_KIT;
+
 export const typeOf = (f) => MORE_MIME[path.extname(f).toLowerCase()] || MIME[path.extname(f).toLowerCase()] || 'application/octet-stream';
 
 // The same port for the same app every time (its localStorage lives on its origin).
@@ -127,6 +130,10 @@ export class Apps {
     if (pathname === '/_wisp/pane.js') {
       res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
       return res.end(req.method === 'HEAD' ? undefined : PANE_CLIENT);
+    }
+    if (pathname === '/_wisp/pane.css') {
+      res.writeHead(200, { 'content-type': 'text/css; charset=utf-8', 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' });
+      return res.end(req.method === 'HEAD' ? undefined : paneCss());
     }
     if (pathname.startsWith('/_wisp/')) return serveDb(req, res, pathname, this.stuff.get(id)?.db, () => ({ file: this.stuff.dataFile(id), seed: seedOf(r.root, this.stuff.get(id).db, this.stuff.dataFile(id)) }), this.db);
     if (req.method !== 'GET' && req.method !== 'HEAD') {
