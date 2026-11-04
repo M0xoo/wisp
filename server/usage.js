@@ -1,6 +1,8 @@
 // Spend and outcomes across sessions: what each turn cost, whether it worked, how often the
 // agent had to ask. Built from the session records, nothing extra is stored.
 
+import { turnTokens } from '../web/js/receipt.js';
+
 const DAY = 864e5;
 const dayKey = (t) => {
   const d = new Date(t);
@@ -39,8 +41,9 @@ function add(b, t) {
   const st = t.stats || {};
   b.turns++;
   if (typeof st.costUsd === 'number') (b.cost += st.costUsd), b.priced++;
-  b.inputTokens += st.inputTokens || 0;
-  b.outputTokens += st.outputTokens || 0;
+  const k = turnTokens(t);
+  b.inputTokens += k.read;
+  b.outputTokens += k.output;
   b.durationMs += t.endedAt && t.startedAt ? t.endedAt - t.startedAt : 0;
   if (outcome(t) === 'done') b.done++;
   b.questions += factsOf(t).asks + ((t.presentation?.blocks || []).some((x) => x?.type === 'question') ? 1 : 0);
@@ -199,7 +202,10 @@ const KIND = { checkin: 'checkin', task: 'task', mention: 'mention', delegated: 
 const KINDS = ['checkin', 'trigger', 'task', 'mention', 'delegated'];
 const quietJob = (s) => !!s.turns?.[0]?.quiet || ((s.crew?.job === 'checkin' || s.crew?.job === 'event') && !!s.archived && s.state === 'done' && !s.forLater);
 const asked = (t) => !!t?.presentation?.blocks?.some((b) => b?.type === 'question');
-const tokensOf = (t) => (t.stats?.inputTokens || 0) + (t.stats?.outputTokens || 0);
+export const tokensOf = (t) => {
+  const k = turnTokens(t);
+  return k.read + k.output;
+};
 function jobOf(s) {
   const turns = s.turns || [];
   const ended = turns.filter((t) => t.status !== 'running' && t.status !== 'held' && !t.skipped);
