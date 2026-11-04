@@ -42,6 +42,7 @@ import { pruneSeen, spareKey, spareOf, spareWhose, spareWords } from '../spare.j
 import { noticesOf, noticeWords } from '../window-notice.js';
 import { feedbackOn, openFeedback } from './feedback.js';
 import { follow as followTerm } from './term.js';
+import { paneNode, panesAt } from './panes.js';
 
 const wide = matchMedia(`(min-width: ${SPLIT_MIN_WIDTH}px)`);
 const SIDE_W = 340;
@@ -516,6 +517,7 @@ function paintHome() {
   if (next.dataset.h !== html) (next.innerHTML = html), (next.dataset.h = html);
   next.hidden = !html;
   paintSpare();
+  paintPanes();
   // What's coming up: scheduled tasks, reminders, follow-ups, crew check-ins and schedules (later.js).
   // Past the first few, Show all opens the rest in place, a heading per day; the heading sticks
   // so Show fewer stays in reach down a long list.
@@ -580,6 +582,32 @@ function paintSpare() {
   box.hidden = !all;
 }
 let notes = []; // the window changes, as painted
+
+// Panes on home (panes.js): apps pinned there, each under its bar at a fixed height (the spell's
+// split.panes height). Their nodes stay in place across repaints: re-adding one reloads its app.
+function paintPanes() {
+  const box = $('.sh-panes', home);
+  const list = panesAt('home');
+  box.hidden = !list.length;
+  box.style.setProperty('--pa-h', `${spellProp('split.panes', 'height') || 420}px`);
+  let head = $('h4', box);
+  const h = `Panes<span class="n">${list.length}</span>${slotHtml('split.panes')}`;
+  if (!head) box.prepend((head = el('<h4></h4>')));
+  if (head.dataset.h !== h) (head.innerHTML = h), (head.dataset.h = h);
+  const want = list.map(({ it }) => {
+    const n = paneNode(it, 'home');
+    n.classList.add('sh-pane');
+    return n;
+  });
+  for (const n of [...box.querySelectorAll(':scope > .pa')]) if (!want.includes(n)) n.remove();
+  let at = head;
+  for (const n of want) {
+    if (at.nextElementSibling !== n) at.after(n);
+    at = n;
+  }
+}
+bus.on('panes', () => home && !home.hidden && paintPanes());
+bus.on('stuff-list', () => home && !home.hidden && paintPanes());
 
 function onSpare(btn) {
   const x = spare[Number(btn.dataset.i)];

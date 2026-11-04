@@ -16,6 +16,7 @@ import { checkout, cloneRoot, discoverRepos, originAt } from '../services/places
 import { expand } from '../util.js';
 import { triggerView } from '../triggers.js';
 import { REVIEW_VALUES } from '../services/review.js';
+import { panesProblem } from '../../web/js/pane-bridge.js';
 
 // On a wisp Grid (its hostd sets WISP_GRID_URL): the grid, and this wisp's own address there, so
 // the page offers connecting through the grid instead of SSH. preview: where a page the agent
@@ -61,6 +62,7 @@ export function register(r, app) {
     if (body.defaults?.spareCard !== undefined && !['on', 'off'].includes(body.defaults.spareCard)) return c.send(400, { error: 'spareCard must be on or off' });
     if (body.defaults?.drainWatch !== undefined && !['on', 'off'].includes(body.defaults.drainWatch)) return c.send(400, { error: 'drainWatch must be on or off' });
     if (body.defaults?.webhookTriggers !== undefined && !['on', 'off'].includes(body.defaults.webhookTriggers)) return c.send(400, { error: 'webhookTriggers must be on or off' });
+    if (body.defaults?.panes !== undefined && panesProblem(body.defaults.panes)) return c.send(400, { error: panesProblem(body.defaults.panes) });
     if (body.defaults?.updateChannel !== undefined && !Object.hasOwn(CHANNELS, body.defaults.updateChannel)) return c.send(400, { error: `updateChannel must be one of ${Object.keys(CHANNELS).join(', ')}` });
     const channelWas = store.config.defaults.updateChannel;
     if (body.defaults) Object.assign(store.config.defaults, Object.fromEntries(Object.entries(body.defaults).filter(([k]) => !locked[k])));

@@ -53,6 +53,7 @@ export function connect() {
     if (!prev) dropPending(s);
     const was = prev && sectionOf(prev); // before the update: a compare task's section depends on all its runs
     S.sessions.set(s.id, s);
+    bus.emit('summary', s.id); // panes that watch tasks (panes.js)
     // A section change moves the card (a follow-up sends it from "Needs you" to "Working").
     // If the user is watching it, the view follows it there; otherwise whatever they're
     // reading stays put. Marking done or archiving is the exception: the card leaves the
@@ -91,6 +92,7 @@ export function connect() {
     S.open.delete(id);
     saveOpen();
     keepInPlace(feedAnchor(id), renderFeed);
+    bus.emit('summary', id);
   });
   es.addEventListener('config', () => (loadConfig(), bus.emit('config')));
   es.addEventListener('remote', () => bus.emit('remote'));
@@ -200,7 +202,10 @@ export function setConfig(config) {
   if (S.sessions.size) renderFeed();
   else paintCrew();
   paintOffers(); // kit files proposed under an open task's answer
+  // The pinned apps (the panes setting, yours or a spell's): only when they changed.
+  if (config.defaults?.panes !== lastPanes) (lastPanes = config.defaults?.panes), bus.emit('panes');
 }
+let lastPanes;
 
 // The phone app opens a computer's page from its cache before the tunnel is up (mobile/www/app.js)
 // and passes the tunnel's progress here (WispSshPlugin.toPage). Up: catch up now instead of on

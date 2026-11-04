@@ -10,6 +10,7 @@ import { MIME } from '../http/static.js';
 import { bad, clip, newId } from '../util.js';
 import { normalizeTags } from '../../web/js/tags.js';
 import { dbSpec } from '../app-db.js';
+import { grantOf, usesOf } from '../../web/js/pane-bridge.js';
 
 export const MAX_STUFF = 500 * 1024 * 1024;
 const MAX_TEXT = 2 * 1024 * 1024; // text saved from a reply (a doc, a snippet)
@@ -69,8 +70,18 @@ function fields(body = {}) {
 }
 
 // What makes up an item's content (the rest is yours: title, note, tags, star, where it's from).
-const CONTENT = ['kind', 'name', 'mime', 'size', 'path', 'source', 'lang', 'excerpt', 'url', 'entry', 'files', 'db', 'by'];
+const CONTENT = ['kind', 'name', 'mime', 'size', 'path', 'source', 'lang', 'excerpt', 'url', 'entry', 'files', 'db', 'uses', 'by'];
 const content = (it) => ({ ...Object.fromEntries(CONTENT.filter((k) => it[k] !== undefined).map((k) => [k, it[k]])), at: it.updatedAt || it.at });
+
+// An update (or Back to the version before) may ask for less: what you allowed shrinks with it,
+// and a new ask waits for you to allow it.
+function pruneGrant(it, uses) {
+  if (!uses?.length) delete it.uses;
+  const allowed = grantOf(uses || [], it.allowed);
+  if (allowed.length) it.allowed = allowed;
+  else delete it.allowed;
+  return it;
+}
 
 // --- what an agent reads (wisp_stuff, @-mentions in a prompt) --------------------------------------
 
@@ -109,7 +120,7 @@ export function stuffDetail(x, { text = true } = {}) {
     try {
       walk(x.path);
     } catch {}
-    body = `\n  ${x.files} file${x.files === 1 ? '' : 's'}: ${files.join(', ')}${x.files > files.length ? ', …' : ''}\n  The user launches it from My Stuff (wisp serves it on a port of its own).${x.db ? `\n  It has a database (SQLite, "db" in its wisp-app.json${x.db.seed ? `, made from ${x.db.seed}` : ''}): its pages use it with import { sql } from '/_wisp/db.js'.` : ''}`;
+    body = `\n  ${x.files} file${x.files === 1 ? '' : 's'}: ${files.join(', ')}${x.files > files.length ? ', …' : ''}\n  The user launches it from My Stuff (wisp serves it on a port of its own).${x.db ? `\n  It has a database (SQLite, "db" in its wisp-app.json${x.db.seed ? `, made from ${x.db.seed}` : ''}): its pages use it with import { sql } from '/_wisp/db.js'.` : ''}${x.uses?.length ? `\n  It uses wisp (${x.uses.join(', ')}; allowed: ${x.allowed?.length ? x.allowed.join(', ') : 'nothing yet'}) through <script src="/_wisp/pane.js"></script> when it's pinned as a pane.` : ''}`;
   }
   return `${stuffLine(x)}${body}\n  ${UPDATE[x.kind] || 'To change it, wisp_save with id and path (the new file).'} Don't change files in My Stuff's own folder.`;
 }
@@ -200,7 +211,7 @@ export class Stuff {
     const title = it.titled ? it.title : old.title;
     const next = { ...old, ...it, title, id: old.id, at: old.at, from: old.from, updatedAt: Date.now(), rev: (old.rev || 1) + 1, prev: content(old) };
     if (!it.db) delete next.db; // the new version has no database (its data stays, for a later one)
-    return next;
+    return pruneGrant(next, it.uses);
   }
 
   // Swap an item with its previous version.
@@ -211,7 +222,7 @@ export class Stuff {
     const back = { ...it };
     for (const k of CONTENT) delete back[k];
     const { at: _at, ...prev } = it.prev;
-    return this.#save({ ...back, ...prev, updatedAt: Date.now(), rev: (it.rev || 1) + 1, prev: was });
+    return this.#save(pruneGrant({ ...back, ...prev, updatedAt: Date.now(), rev: (it.rev || 1) + 1, prev: was }, prev.uses));
   }
 
   // Where new content for an item goes: a new id, or the item's own when it's an update.
@@ -306,6 +317,15 @@ export class Stuff {
     return this.#save({ ...it, ...f });
   }
 
+  // What you allowed a pane to use (web/js/pane-bridge.js): only what its wisp-app.json asks for.
+  allow(id, uses) {
+    const it = this.byId.get(id);
+    if (!it || it.kind !== 'app') throw bad('That’s not an app in My Stuff.', 404);
+    const allowed = grantOf(it.uses || [], uses);
+    const { allowed: _a, ...rest } = it;
+    return this.#save(allowed.length ? { ...rest, allowed } : rest);
+  }
+
   // Async: on Windows a file the app's server is still closing blocks its folder for a moment, and
   // rmSync's retries would block the very event loop that closes it.
   async remove(id) {
@@ -334,6 +354,12 @@ export class Stuff {
     let db;
     try {
       db = dbSpec(manifest, (f) => fs.existsSync(path.join(src, f)));
+    } catch (err) {
+      throw bad(err.message);
+    }
+    let uses;
+    try {
+      uses = usesOf(manifest);
     } catch (err) {
       throw bad(err.message);
     }
@@ -373,6 +399,7 @@ export class Stuff {
       files,
       entry,
       ...(db && { db }),
+      ...(uses.length && { uses }),
       at: Date.now(),
       by: opts.by || 'you',
       path: dest,

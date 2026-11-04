@@ -655,3 +655,13 @@ body.wisp-mobile #feed .item.sw-gone { transition: height 0.2s var(--ease), marg
    to x 88 (16px past the green one): Back's box starts there, not under them (its -10px margin). */
 body.electron.mac.split.stack :is(.split-head, .crew-view .cv-top, .org-view .cv-top) { padding-left: 98px; }
 body.electron.mac.split.stack .sh-bar { padding-left: 82px; }
+
+/* Panes on home (panes.js): apps from My Stuff pinned here, a bar over a frame of fixed height
+   (--pa-h, the spell's split.panes height) so nothing below moves while one loads. */
+.sh-panes { margin-top: 30px; display: flex; flex-direction: column; gap: 12px; }
+.sh-panes[hidden] { display: none; }
+.sh-panes > h4 { display: flex; gap: 6px; margin: 0 0 -6px; padding: 0 13px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.sh-panes > h4 .n { color: var(--faint); }
+.sh-pane { height: var(--pa-h, 420px); border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+/* Stacked (a phone, a narrow window), home is a page: a pane takes most of the window's height. */
+body.stack .sh-pane { height: min(var(--pa-h, 420px), calc(100dvh - 140px)); }

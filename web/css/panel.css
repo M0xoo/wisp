@@ -686,3 +686,27 @@ body.wisp-mobile .ed-head .ed-probs { min-height: 44px; }
 .ed-lsp .i { width: 13px; height: 13px; color: var(--accent); }
 .ed-lsp[hidden] { display: none; }
 .side-panel.stacked .ed-lsp span { display: none; } /* a phone-wide head: its spark alone (named), the file name whole */
+
+/* A pane (panes.js): an app pinned beside tasks, filling the panel under its own small bar. The
+   same node on home (split.css .sh-pane) sets its height; here it takes what the panel has. */
+.pn-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pn-pane[hidden] { display: none; }
+.pn-pane > .pa { flex: 1; min-height: 0; }
+.pn-pane > .pa[hidden] { display: none; }
+.pa { display: flex; flex-direction: column; min-height: 0; }
+.pa-bar { display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 6px 0 12px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--ink-2); }
+.pa-bar .grow { flex: 1; }
+.pa-ic { display: inline-flex; color: var(--muted); }
+.pa-ic .i { width: 13px; height: 13px; }
+.pa-name { min-width: 0; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pa-need { color: var(--faint); white-space: nowrap; }
+.pa-need[hidden], .pa-allow[hidden] { display: none; }
+.pa-stage { position: relative; flex: 1; min-height: 0; background: var(--bg); }
+.pa-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--bg); }
+.pa-wait { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; font-size: 13px; color: var(--muted); }
+.pa.ready .pa-wait { display: none; }
+.pa-wait i { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--accent); animation: ap-spin 0.8s linear infinite; }
+.pa-off { margin: 0; padding: 18px 16px; display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--muted); }
+.pa-off .i { flex: none; width: 14px; height: 14px; margin-top: 2px; }
+.touch .pa-bar { min-height: 44px; }
+.touch .pa-bar .icon-btn { width: 40px; height: 40px; }

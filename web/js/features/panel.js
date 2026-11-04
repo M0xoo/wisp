@@ -44,6 +44,7 @@ import { changesClick, changesOf, CHANGES_HTML, loadChanges, paintChanges } from
 import { editorFor } from './editor.js';
 import { forgetWatch, loadWatch, paintWatch, WATCH_HTML, watchClick, watchTitle } from './watch.js';
 import { BROWSER_HTML, paintBrowser, sandboxed } from './sandbox-browser.js';
+import { paneNode, panesAt } from './panes.js';
 import { appRunning, loadRun, paintRun, RUN_HTML, runClick, runLabel, runOf, startRun, stopRun, wireRun } from './run.js';
 
 const PANEL_W = 480;
@@ -66,6 +67,8 @@ const tabOf = () => {
   const tab = pageOn() ? page.tab : pref.tab || spellProp('panel', 'tab') || 'changes';
   if (tab === 'browser' && !sandboxed(S.sessions.get(target()))) return 'changes';
   if (tab === 'preview' && !hasTree(S.sessions.get(target()))) return 'changes';
+  // A pane (panes.js): the app's tab while it's pinned beside tasks.
+  if (tab?.startsWith('pane:') && !panesAt('task').some((x) => `pane:${x.it.id}` === tab)) return 'changes';
   return tab === 'watch' && !S.sessions.get(target())?.watch ? 'changes' : tab;
 };
 
@@ -99,6 +102,7 @@ const panel = el(`
     ${RUN_HTML}
     ${WATCH_HTML}
     ${BROWSER_HTML}
+    <section class="pn-pane" hidden></section>
   </aside>`);
 $('#stage').append(panel);
 const view = new TermView($('.pn-shell', panel), { shown: () => !panel.hidden && $('.pn-shell', panel).hidden === false });
@@ -228,14 +232,18 @@ function paintName() {
     ...(s?.watch ? [['watch', 'eye', 'Watch', watchTitle(shown)]] : []),
     // A sandboxed task's browser, live (sandbox-browser.js): last, so the others never move.
     ...(sandboxed(s) ? [['browser', 'web', 'Browser', 'The sandbox’s browser, live: what the agent drives']] : []),
+    // Apps pinned beside tasks (panes.js), in the order they were pinned, after wisp's own.
+    ...panesAt('task').map(({ it }) => [`pane:${it.id}`, 'app', it.title, `${it.title}: pinned from My Stuff`]),
   ];
   const html = tabs.map(([k, ic, label, title]) => `<button role="tab" data-tab="${k}" class="${k === tab ? 'on' : ''}" aria-selected="${k === tab}" tabindex="${k === tab ? 0 : -1}" title="${esc(title || label)}">${icon(ic)}<span>${esc(label)}</span></button>`).join('');
   const head = $('.pn-tabs', panel);
   if (head.dataset.h !== html) (head.innerHTML = html), (head.dataset.h = html);
-  panel.setAttribute('aria-label', { shell: 'Shell', preview: 'Preview', watch: 'Watch', changes: 'Changes', pr: 'Pull request', browser: 'Browser' }[tab]);
+  const pane = tab.startsWith('pane:');
+  panel.setAttribute('aria-label', pane ? tabs.find((t) => t[0] === tab)?.[2] || 'Pane' : { shell: 'Shell', preview: 'Preview', watch: 'Watch', changes: 'Changes', pr: 'Pull request', browser: 'Browser' }[tab]);
   for (const [k, sel] of Object.entries(TAB_SECTION)) $(sel, panel).hidden = tab !== k;
-  // Watch is about the page, not the folder: no place line.
-  panel.classList.toggle('on-watch', tab === 'watch' || tab === 'browser');
+  $('.pn-pane', panel).hidden = !pane;
+  // Watch is about the page, not the folder: no place line. Nor is a pane.
+  panel.classList.toggle('on-watch', tab === 'watch' || tab === 'browser' || pane);
   const acts = $('.pn-acts', panel);
   const btns = slotHtml('panel.head', s);
   if (acts.dataset.h !== btns) (acts.innerHTML = btns), (acts.dataset.h = btns);
@@ -248,7 +256,19 @@ function paintBody() {
   else if (tab === 'watch') paintWatch($('.pn-watch', panel), shown);
   else if (tab === 'browser') paintBrowser($('.pn-browser', panel), shown, () => tabOf() === 'browser' && paintBody());
   else if (tab === 'preview') paintRun($('.pn-run', panel), shown);
+  else if (tab.startsWith('pane:')) paintPane(tab.slice(5));
   else paintPr();
+}
+
+// A pane: each app's node is made once and kept in the section (moving a frame reloads it); the
+// one for this tab shows, and hears which task is open.
+function paintPane(id) {
+  const box = $('.pn-pane', panel);
+  const pin = panesAt('task').find((x) => x.it.id === id);
+  if (!pin) return;
+  const node = paneNode(pin.it, 'task', shown);
+  if (node.parentNode !== box) box.append(node);
+  for (const n of box.children) n.hidden = n !== node;
 }
 
 // --- the place line: which computer, which folder, what's not shipped ------------------------
@@ -869,6 +889,14 @@ bus.on('task', (id) => cxOn(id) && refreshCx(id));
 bus.on('review', (id) => !panel.hidden && shown === id && tabOf() === 'pr' && paintPr()); // review by another harness moved on (paintPr writes only what changed)
 bus.on('spells', () => !panel.hidden && (paintWidth(), paintName(), paintBody()));
 bus.on('panel:close', () => close());
+// Pinned or unpinned (the panes setting, yours or a spell's): the tabs follow.
+bus.on('panes', () => {
+  if (panel.hidden) return;
+  for (const n of [...$('.pn-pane', panel).children]) if (!panesAt('task').some((x) => x.it.id === n.dataset.app)) n.remove();
+  paintName();
+  paintBody();
+});
+bus.on('stuff-list', () => !panel.hidden && panesAt('task').length && paintName());
 // Watch: the agent moved its page, or its task started or stopped (the caption's dot). Shown, it
 // fetches it now; else the next look does. A page just
 // put up on the task you're looking at opens here by itself, unless you're in its shell or reading

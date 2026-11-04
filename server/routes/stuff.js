@@ -126,6 +126,11 @@ export function register(r, app) {
     }),
   );
 
+  // Allow a pane what its wisp-app.json "uses" (web/js/pane-bridge.js): you, once, when you pin it.
+  // DELETE takes it all back. A spell can pin a pane but never allow it anything.
+  r.route('POST', '/stuff/:id/allow', one(async (c, it) => c.send(200, view(stuff.allow(it.id, (await c.body()).uses)))));
+  r.route('DELETE', '/stuff/:id/allow', one((c, it) => c.send(200, view(stuff.allow(it.id, [])))));
+
   // Back to the version before the last change (an agent's update, or yours).
   r.route('POST', '/stuff/:id/restore', one((c, it) => c.send(200, view(stuff.restore(it.id)))));
 
