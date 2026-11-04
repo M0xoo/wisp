@@ -56,7 +56,7 @@ ${latest}
 - You share the main task's folder: the files here are its work as it is right now (${read}) What you change lands in that work, and the main task may be editing at the same time.
 - Run what the user asks and edit what they ask, when they ask. Don't start changes of your own: this is a discussion, the main task does the work.
 - wisp checks every write before it happens. A file the main task hasn't touched goes through. One it changed elsewhere goes through with a warning. Lines it changed are a clash: the user sees a card here, and if they accept, wisp tells the main task. If they keep the main task's version your call is refused: don't retry it, and say what to tell the main task instead.
-- Commits, pushes, resets, stashes, rebases, merges and the like rewrite the main task's work: they count as clashes, and so does a command that removes or writes over a file it changed (\`rm\`, \`>\`, \`sed -i\`, \`cp\`…). wisp's own Ship, rollback, fork, goals and terminal stay on the main task. You can't start tasks, delegate or edit the crew.
+- Commits, pushes, resets, stashes, rebases, merges and the like rewrite the main task's work: they count as clashes, and so does a command that removes or writes over a file it changed (\`rm\`, \`>\`, \`sed -i\`, \`patch\`, \`cp\`…). wisp's own Ship, rollback, fork, goals and terminal stay on the main task. You can't start tasks, delegate or edit the crew.
 ${latest}
 - Answer as for any wisp task, wisp presentation block included.`;
 }
@@ -326,11 +326,11 @@ const cleanPath = (p, cwd) => {
 const expands = (a) => /[*?[{$~]/.test(a);
 const plain = (args) => args.filter((a) => !a.startsWith('-'));
 
-// The files of a `sed -i` or `perl -i` (nothing without it): what's left after the flags and the
-// script, which can hold anything (`s/a*/b/` is no wildcard). scripted: the short flags that bring
-// their own script, so the first plain argument is a file.
-function inPlaceFiles(args, scripted) {
-  if (!args.some((a) => /^-[^-MmI]*i/.test(a) || /^--in-place(=|$)/.test(a))) return [];
+// The files of a `sed -i`, `perl -i` or `ruby -i` (nothing without it): what's left after the flags
+// and the script, which can hold anything (`s/a*/b/` is no wildcard). scripted: the short flags that
+// bring their own script, so the first plain argument is a file. inPlace: the flag that says it.
+function inPlaceFiles(args, scripted, inPlace = /^-[^-MmI]*i/) {
+  if (!args.some((a) => inPlace.test(a) || /^--in-place(=|$)/.test(a))) return [];
   const paths = [];
   let script = false;
   for (let j = 0; j < args.length; j++) {
@@ -346,6 +346,66 @@ function inPlaceFiles(args, scripted) {
     } else paths.push(a);
   }
   return script ? paths : paths.slice(1);
+}
+
+// The files of a gawk `-i inplace` (nothing without it): the flags, then the program unless -f, -e
+// or -E brought it, then the files.
+function awkFiles(args) {
+  const paths = [];
+  let inPlace = false;
+  let script = false;
+  for (let j = 0; j < args.length; j++) {
+    const a = args[j];
+    if (a === '--') {
+      paths.push(...args.slice(j + 1));
+      break;
+    }
+    const long = /^--(include|load|file|exec|source|assign|field-separator)(=.*)?$/.exec(a);
+    const short = /^-([ifeEvFl])(.*)$/.exec(a);
+    if (long || short) {
+      const flag = long ? { include: 'i', file: 'f', exec: 'E', source: 'e' }[long[1]] : short[1];
+      const value = (long ? long[2]?.slice(1) : short[2]) || args[++j];
+      if (flag === 'i') inPlace ||= /^inplace(\.awk)?$/.test(value || '');
+      if (['f', 'e', 'E'].includes(flag)) script = true;
+    } else if (a === '-' || !a.startsWith('-')) paths.push(a);
+  }
+  if (!inPlace) return [];
+  return script ? paths : paths.slice(1);
+}
+
+// What a `patch` writes: the -o file, the file it names, or (usually) the ones its diff names, which
+// come from a file or stdin and can't be read here: '*', every file of main's. --dry-run writes nothing.
+function patchTargets(args) {
+  const paths = [];
+  let out = null;
+  let dir = '';
+  for (let j = 0; j < args.length; j++) {
+    const a = args[j];
+    if (a === '--') {
+      paths.push(...args.slice(j + 1));
+      break;
+    }
+    if (a === '--dry-run' || a === '--check') return [];
+    const long = /^--(input|output|directory|strip|reject-file|fuzz|ifdef|get|debug|prefix|basename-prefix|suffix|version-control|reject-format|quoting-style)(=.*)?$/.exec(a);
+    if (long) {
+      const value = long[2]?.slice(1) ?? args[++j];
+      if (long[1] === 'output') out = value;
+      if (long[1] === 'directory') dir = value;
+    } else if (a === '-' || !a.startsWith('-')) paths.push(a);
+    else if (!a.startsWith('--')) {
+      for (let k = 1; k < a.length; k++) {
+        if (a[k] === 'C') return []; // BSD's --check
+        if (!'BDFVYdgioprxz'.includes(a[k])) continue; // these take a value, here or as the next argument
+        const value = a.slice(k + 1) || args[++j];
+        if (a[k] === 'o') out = value;
+        if (a[k] === 'd') dir = value;
+        break;
+      }
+    }
+  }
+  const at = (f) => (dir && !f.startsWith('/') ? `${dir}/${f}` : f);
+  if (out !== null) return out === '-' ? [] : [at(out)];
+  return paths.length && paths[0] !== '-' ? [at(paths[0])] : ['*'];
 }
 
 // Where a cp, install or rsync lands, and what it brings.
@@ -414,6 +474,12 @@ export function commandClash(command, { files = [], cwd = '' } = {}) {
       for (const a of plain(args)) reach(a, removed, true);
     } else if (prog === 'sed' || prog === 'gsed' || prog === 'perl') {
       for (const a of inPlaceFiles(args, prog === 'perl' ? /^-[^i]*[eE]/ : /^-[^i]*[ef]/)) reach(a, written);
+    } else if (prog === 'ruby') {
+      for (const a of inPlaceFiles(args, /^-[^i]*e/, /^-[^-rIEe]*i/)) reach(a, written);
+    } else if (prog === 'awk' || prog === 'gawk') {
+      for (const a of awkFiles(args)) reach(a, written);
+    } else if (prog === 'patch') {
+      for (const a of patchTargets(args)) reach(a, written);
     } else if (prog === 'tee') {
       for (const a of plain(args)) reach(a, written);
     } else if (prog === 'truncate') {
