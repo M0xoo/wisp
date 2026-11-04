@@ -125,6 +125,53 @@ test('a side discussion works in the main task’s folder behind the gate, hears
   assert.equal((await call(`/sessions/${s.id}/side`, { text: '/side' })).status, 400);
 });
 
+test('every lean setting keeps a side discussion behind the gate, with its tools', async () => {
+  const gated = (r) => {
+    assert.equal(flag(r, '--permission-mode'), 'default', 'acceptEdits would write without asking the gate');
+    assert.equal(flag(r, '--permission-prompt-tool'), 'mcp__wisp__approve');
+    assert.deepEqual(JSON.parse(flag(r, '--settings')).permissions.ask, ['Edit', 'MultiEdit', 'Write', 'NotebookEdit', 'Bash']);
+    assert.match(flag(r, '--append-system-prompt'), /# wisp side discussion/, 'Claude Code’s prompt stays: this isn’t the retro’s --system-prompt');
+    assert.match(flag(r, '--mcp-config'), /"wisp"/, 'the approve tool’s server');
+    for (const dropped of ['--tools', '--strict-mcp-config', '--disable-slash-commands', '--system-prompt']) assert.ok(!r.argv.includes(dropped), `${dropped} would disarm the side`);
+  };
+  const repo = makeRepo();
+  const s = await api('/sessions', { prompt: 'fix add() please', cwd: repo, agent: 'claude', mode: 'auto' });
+  await settled(s.id, 1);
+  try {
+    for (const [leanRuns, nonessential] of [['off', undefined], ['on', undefined], ['all', '1']]) {
+      await api('/config', { defaults: { leanRuns } }, 'PATCH');
+      const side = await api(`/sessions/${s.id}/side`, { text: `/side lean ${leanRuns}?` });
+      assert.equal(side.mode, 'edits');
+      await settled(side.id, 1);
+      const r = runs().at(-1);
+      gated(r);
+      assert.equal(r.nonessential, nonessential, `leanRuns ${leanRuns}`);
+    }
+    // A task's own choice wins over the setting, and is no way round the gate either.
+    await api('/config', { defaults: { leanRuns: 'off' } }, 'PATCH');
+    const side = await api(`/sessions/${s.id}/side`, { text: '/side my own lean?' });
+    await settled(side.id, 1);
+    await api(`/sessions/${side.id}`, { lean: 'on' }, 'PATCH');
+    await api(`/sessions/${side.id}/reply`, { text: 'again' });
+    await settled(side.id, 2);
+    gated(runs().at(-1));
+    assert.equal(runs().at(-1).nonessential, '1');
+
+    // And the gate still decides on a lean run: a clash is a card, and nothing is written.
+    await api('/config', { defaults: { leanRuns: 'all' } }, 'PATCH');
+    const { id, dir } = await mainTask();
+    const was = edited(dir, 'math.js');
+    const clash = await api(`/sessions/${id}/side`, { text: 'SIDEEDIT math.js|return a + b;|return b + a;' });
+    const held = await asking(clash.id);
+    assert.equal(runs().at(-1).nonessential, '1');
+    await api(`/sessions/${clash.id}/clash`, { askId: held.ask.id, action: 'keep' });
+    await settled(clash.id, 1);
+    assert.equal(edited(dir, 'math.js'), was, 'nothing written');
+  } finally {
+    await api('/config', { defaults: { leanRuns: 'on' } }, 'PATCH');
+  }
+});
+
 test('the tour, unknown harnesses and bare messages are refused', async () => {
   const repo = makeRepo();
   const s = await api('/sessions', { prompt: 'hi', cwd: repo, agent: 'claude' });
