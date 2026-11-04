@@ -15,6 +15,27 @@ const MAX_OPEN = 32;
 const MAX_ROWS = 10_000;
 const open = new Map(); // file -> DatabaseSync, least recently used first
 
+// In PRAGMA user_version while a seed runs (apps can't set it: no PRAGMA in their SQL). The query
+// limit covers the seed, and each of its statements commits: a worker stopped halfway leaves a file
+// that looks made, and without this the app would stay half seeded for good.
+const SEEDING = 0x77697370;
+
+const remove = (file) => {
+  for (const f of [file, `${file}-wal`, `${file}-shm`]) fs.rmSync(f, { force: true, maxRetries: 5 });
+};
+
+function connect(file, maxBytes) {
+  const d = new DatabaseSync(file);
+  try {
+    // A cap on its size: max_page_count counts pages of page_size (4096 on a new file).
+    d.exec(`PRAGMA busy_timeout = 2000; PRAGMA page_size = 4096; PRAGMA journal_mode = WAL; PRAGMA max_page_count = ${Math.max(16, Math.ceil(maxBytes / 4096))};`);
+  } catch (err) {
+    d.close();
+    throw err;
+  }
+  return d;
+}
+
 function db(file, { seed, maxBytes }) {
   let d = open.get(file);
   if (d) {
@@ -22,15 +43,26 @@ function db(file, { seed, maxBytes }) {
     open.set(file, d);
     return d;
   }
-  const fresh = !fs.existsSync(file);
-  d = new DatabaseSync(file);
+  d = connect(file, maxBytes);
+  let seeding = false;
   try {
-    // A cap on its size: max_page_count counts pages of page_size (4096 on a new file).
-    d.exec(`PRAGMA page_size = 4096; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 2000; PRAGMA max_page_count = ${Math.max(16, Math.ceil(maxBytes / 4096))};`);
-    if (fresh && seed) d.exec(seed);
+    if (d.prepare('PRAGMA user_version').get().user_version === SEEDING) {
+      d.close();
+      d = null;
+      remove(file);
+      d = connect(file, maxBytes);
+    }
+    // No tables yet: new, or left by a worker stopped before its seed's first commit.
+    if (seed && !d.prepare('SELECT 1 FROM sqlite_schema LIMIT 1').get()) {
+      d.exec(`PRAGMA user_version = ${SEEDING};`);
+      seeding = true;
+      d.exec(seed);
+      d.exec('PRAGMA user_version = 0;');
+    }
   } catch (err) {
-    d.close();
-    if (fresh) for (const f of [file, `${file}-wal`, `${file}-shm`]) fs.rmSync(f, { force: true });
+    d?.close();
+    if (!seeding) throw err;
+    remove(file);
     throw new Error(`The app's seed.sql failed: ${err.message}`);
   }
   open.set(file, d);
