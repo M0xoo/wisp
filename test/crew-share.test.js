@@ -74,6 +74,7 @@ test('a blueprint: who a member is, checked; never a folder or a machine', () =>
   assert.throws(() => normalizeBlueprint({ name: 'Scout', kit: [{ kind: 'skill', name: 'x', body: 'y' }] }), /kit: Say when x should be used/);
   assert.throws(() => normalizeBlueprint({ name: '<b>' }), /name: up to 24/);
   assert.throws(() => normalizeBlueprint({ name: 'Scout', team: [{ crew: 'scout' }] }), /delegate to themselves/);
+  assert.equal(normalizeBlueprint({ name: 'Scout', team: Array.from({ length: 8 }, () => ({ agent: 'codex' })) }).team.length, 8, 'a shared member keeps every delegate');
   assert.throws(() => normalizeBlueprints([{ name: 'Scout' }, { name: 'scout' }]), /members\[1\] \(scout\): two members share/);
   assert.throws(() => normalizeBlueprints([{ name: 'Scout', team: [{ crew: 'quill' }] }]), /delegates to quill, who isn't in this file/);
   assert.deepEqual(normalizeBlueprints([{ name: 'Scout', team: [{ crew: 'quill' }] }, { name: 'Quill' }])[0].team, [{ crew: 'quill' }]);
@@ -180,6 +181,14 @@ test('the import review: names that clash, a harness not here, delegates left ou
   assert.equal((await api('/crew/import', { text: JSON.stringify({ wispSpell: 1, id: 'x', name: 'X' }), dryRun: true })).spell.id, 'x');
   await assert.rejects(api('/crew/import', { text: 'not json' }), /That isn't JSON/);
   await assert.rejects(api('/crew/import', { url: 'http://example.com/x.crew.json' }), /https URL or gist/);
+});
+
+test('import keeps every delegate of a big team', async () => {
+  const team = Array.from({ length: 8 }, (_, i) => ({ agent: 'codex', name: `d${i}` }));
+  const file = { wispCrew: 1, members: [{ name: 'Wide', role: 'Lead', team }] };
+  const { members: [wide] } = await api('/crew/import', { text: JSON.stringify(file) });
+  assert.deepEqual(wide.team.map((t) => t.name), team.map((t) => t.name));
+  await api(`/crew/${wide.id}`, undefined, 'DELETE');
 });
 
 test('import: paused, with their triggers and delegates; a CI watcher needs a project; all or none', async () => {

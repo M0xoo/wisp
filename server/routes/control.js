@@ -5,7 +5,7 @@
 // run's token; subagents never get these tools.
 
 import { adapters } from '../adapters/index.js';
-import { MAX_SUBAGENTS, normalizeTeam } from '../subagents.js';
+import { normalizeTeam } from '../subagents.js';
 import { sessionText } from './internal.js';
 import { clip, MODES } from '../util.js';
 
@@ -254,7 +254,7 @@ export function register(r, app) {
     const team = [...(s.subagents || [])];
     const errors = [];
     const out = [];
-    for (const t of tasks.slice(0, 12)) {
+    for (const t of tasks) {
       if (t?.subagent || !(t?.agent || t?.machine || t?.name)) {
         out.push(t);
         continue;
@@ -269,7 +269,6 @@ export function register(r, app) {
         const m = t.machine ? machineOf(t.machine) : null;
         const agent = String(t.agent || 'auto');
         await checkHarness(agent, m);
-        if (team.length >= MAX_SUBAGENTS) throw new Error(`A task has at most ${MAX_SUBAGENTS} subagents; delegate to one it has (${team.map((x) => x.name).join(', ')}).`);
         const base = slug(t.name) || slug(m ? `${agent}-${m.name}` : agent) || 'helper';
         const [member] = app.relay.placeTeam([{ name: base, agent, model: t.model, effort: t.effort, use: t.use, machine: m ? m.id : '' }], null);
         const next = normalizeTeam([...team, member], adapters);

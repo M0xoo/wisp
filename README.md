@@ -421,7 +421,7 @@ Coming from Google Jules (read-only from 11 November 2026, closed on 31 December
 
 ## Delegate
 
-The launcher's **Delegate** button gives the lead agent a team it can hand parts of the task to (the API calls them subagents). The lead gets a `delegate` tool on wisp's MCP server, and its harness's own subagent tool is switched off, so every helper is one you picked. Up to 6 members, 12 agents counting copies. Each member has:
+The launcher's **Delegate** button gives the lead agent a team it can hand parts of the task to (the API calls them subagents). The lead gets a `delegate` tool on wisp's MCP server, and its harness's own subagent tool is switched off, so every helper is one you picked. Add as many members as you like. Each member has:
 
 - **Where it runs.** *With the lead* (the default) works in the lead's folder and sees its edits as they happen. Pick **this computer** or one of your [machines](#machines) to put it elsewhere: the GPU box for the heavy refactor, a fast desktop for the test suite.
 - **Harness, model and thinking level** from what's installed where it runs, so each machine can use its own model.

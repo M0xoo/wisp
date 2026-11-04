@@ -884,7 +884,7 @@ button.org-person:hover { background: var(--bg-2); }
 .org-acts .ghost.sm { gap: 6px; }
 .org-acts .ghost.sm .i { width: 13px; height: 13px; }
 .org-acts .icon-btn { margin-left: auto; }
-.menu.org-menu { min-width: 220px; }
+.menu.org-menu { min-width: 220px; max-height: calc(100dvh - 16px); overflow-y: auto; }
 .menu.org-menu button { gap: 8px; }
 .menu.org-menu small { color: var(--faint); font-size: 12.5px; }
 .menu.org-menu hr { margin: 4px 0; border: 0; border-top: 1px solid var(--line); }

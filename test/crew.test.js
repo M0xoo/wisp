@@ -440,6 +440,29 @@ test('a member follows up on the task that tagged it by itself, and you reply in
   assert.equal((await api(`/sessions/${task.id}`)).turns.length, 3);
 });
 
+test('a member keeps every delegate you pick, and joins a task with a big team when it follows up', async () => {
+  const team = Array.from({ length: 13 }, (_, i) => ({ agent: 'codex', name: `d${i}` }));
+  const wide = await api('/crew', { name: 'Wide', role: 'Lead', agent: 'claude', cwd: repo, team: team.slice(0, 8) });
+  assert.equal(wide.team.length, 8);
+  const more = await api(`/crew/${wide.id}`, { team }, 'PATCH');
+  assert.deepEqual(more.team.map((x) => x.name), team.map((x) => x.name), 'thirteen rows through PATCH');
+  assert.equal((await api(`/crew/${wide.id}`)).team.length, 13, 'and they stayed');
+  const { session } = await api(`/crew/${wide.id}/jobs`, { prompt: 'Look around' });
+  assert.equal(session.team.length, 13, 'its job gets all of them');
+  await ended(session.id);
+  await api(`/crew/${wide.id}`, undefined, 'DELETE');
+
+  const task = await api('/sessions', { prompt: 'a task with a big team', cwd: repo, agent: 'claude', worktree: false, subagents: team.slice(0, 8) });
+  await ended(task.id);
+  await api(`/sessions/${task.id}/reply`, { text: '@Ada CREWFOLLOW have a look' });
+  const t = await until(async () => {
+    const x = await api(`/sessions/${task.id}`);
+    return x.turns.length === 2 && x.turns[1].status !== 'running' && x;
+  });
+  assert.equal(t.subagents.length, 9, 'Ada joined the eight already there');
+  assert.equal(t.subagents.at(-1).crew, ada.id);
+});
+
 test('a member has delegates of its own, other crew members too, but never itself and no loops', async () => {
   const bo = await api('/crew', { name: 'Bo', role: 'Tester', agent: 'claude', cwd: repo, team: [{ crew: ada.id, name: 'ada', label: 'Ada' }, { agent: 'codex', use: 'tests' }] });
   assert.deepEqual(bo.team.map((x) => x.crew || x.agent), [ada.id, 'codex']);

@@ -7,9 +7,7 @@
 import { blocksToMarkdown } from './render.js';
 import { bad } from './util.js';
 
-export const MAX_SUBAGENTS = 6; // rows in the team
 export const MAX_COPIES = 5; // parallel copies of one row
-export const MAX_INSTANCES = 12; // copies across the whole team
 const EFFORT = /^[\w-]{1,20}$/;
 const MAX_USE = 300;
 const PLACE = /^[\w-]{1,40}$/; // 'here' (this computer) or a machine id
@@ -22,10 +20,13 @@ const slug = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').re
 // machine: where it runs, as the wisp you launched from names places: '' with the lead, 'here'
 // (that wisp's computer) or a machine id. place: that place's name, for the lead and the cards.
 // upstream: the wisp that sent this task runs the member, not this one (it's a machine).
+// A team is as big as the user picks. What bounds it is the OS, not wisp: the roster goes in the
+// lead's system prompt and WISP_TEAM, and Linux allows 128 KiB per string (some 470 crew rows):
+// past that the run ends with an error saying so (runner.js, #spawned).
 export function normalizeTeam(list, adapters) {
   if (!Array.isArray(list)) return [];
   const taken = new Set();
-  const team = list.slice(0, MAX_SUBAGENTS).map((m) => {
+  return list.map((m) => {
     // A member of the user's crew (server/crew.js): it runs as its own job, in its own folder, on
     // the harness it's set up with. label/role: how the lead hears of it. upstream: the crew is the
     // wisp's that sent this task (this one is a machine), so that wisp starts its jobs.
@@ -50,9 +51,6 @@ export function normalizeTeam(list, adapters) {
     const where = machine && { machine, place: String(m.place || '').replace(/\s+/g, ' ').trim().slice(0, 40), ...(m.upstream === true && { upstream: true }) };
     return { name, agent, model: typeof m.model === 'string' ? m.model.slice(0, 120) : '', effort: EFFORT.test(m.effort || '') ? m.effort : '', use, count, ...where };
   });
-  const total = team.reduce((n, m) => n + m.count, 0);
-  if (total > MAX_INSTANCES) throw bad(`At most ${MAX_INSTANCES} subagents in all (this team has ${total}).`);
-  return team;
 }
 
 // The sessions a member runs as: itself, or one per copy (`#` can't appear in a name, so no clashes).

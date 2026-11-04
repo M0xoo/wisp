@@ -543,7 +543,7 @@ git worktree remove ../app-auth`)}
 
     <section>
       <h2 id="team">Give the lead a team</h2>
-      <p>The launcher’s <b>Delegate</b> button sets up a team of up to 6 members. Each has a place (with the lead, this computer or one of your machines), a harness, a model and thinking level, a name, a <b>Use for</b> note that tells the lead when to pick it, and a copies count:</p>
+      <p>The launcher’s <b>Delegate</b> button sets up a team, as big as you like. Each has a place (with the lead, this computer or one of your machines), a harness, a model and thinking level, a name, a <b>Use for</b> note that tells the lead when to pick it, and a copies count:</p>
       ${fig.delegate}
       <div class="table"><table>
         <thead><tr><th>Member</th><th>Harness</th><th>Use for</th></tr></thead>

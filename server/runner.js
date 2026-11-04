@@ -933,7 +933,7 @@ export class Runner extends EventEmitter {
     const out = [];
     const claimed = new Set(); // copies handed a task in this call
     const busy = (name) => claimed.has(name) || this.live.has(lead.children?.[name]);
-    for (const task of Array.isArray(tasks) ? tasks.slice(0, 12) : []) {
+    for (const task of Array.isArray(tasks) ? tasks : []) {
       const want = String(task?.subagent || '').trim();
       const m = team.find((x) => x.name === want || copies(x).includes(want));
       const prompt = String(task?.prompt || '').trim();
@@ -1210,6 +1210,20 @@ export class Runner extends EventEmitter {
     };
   }
 
+  // spawn itself can throw (the system prompt and the roster go on the command line and in the
+  // env, and the OS caps those): without this the turn would stay running with nothing behind it.
+  #spawned(session, turn, team, start) {
+    try {
+      return start();
+    } catch (err) {
+      const big = err.code === 'E2BIG' || err.code === 'ENAMETOOLONG';
+      const text = big ? `This run's instructions are too long for this computer to start it${team.length ? `: its team has ${team.length} delegates` : ''}. (${err.message})` : err.message;
+      this.#finishTurn(session, turn, { isError: true, text });
+      this.#touch(session);
+      return null;
+    }
+  }
+
   // grants: harness rules allowing what the user approved, for this turn only. once: a mode for
   // this turn only (an approved retry the harness can't scope runs in Full auto).
   #startTurn(session, prompt, attachments = [], { grants = [], once, by, reports, later, goal } = {}) {
@@ -1291,7 +1305,7 @@ export class Runner extends EventEmitter {
     const main = session.sideOf ? this.store.get(session.sideOf.id) || null : null;
     if (main) session.sideOf.cwd = workdir(main); // where the main task works now (it may have moved)
     const said = session.sideOf ? sidePrompt(main, text, (t) => adapters[t.agent || main?.agent]?.name || t.agent || main?.agent) : text;
-    const handle = adapter.run({
+    const handle = this.#spawned(session, turn, team, () => adapter.run({
       prompt: [handoff, still, turn.later ? laterNote(turn.later) : '', said].filter(Boolean).join('\n\n'),
       attachments,
       cwd: workdir(session),
@@ -1318,7 +1332,8 @@ export class Runner extends EventEmitter {
           linger = setTimeout(release, waiting ? BACKGROUND_MAX_MS : LINGER_MS);
         }
       },
-    });
+    }));
+    if (!handle) return;
     // Ends the run exactly once: on exit, LINGER_MS after the result, or when a follow-up arrives.
     const release = () => {
       if (released) return;

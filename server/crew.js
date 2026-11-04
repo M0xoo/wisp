@@ -22,7 +22,7 @@
 import { blocksToMarkdown } from './render.js';
 import { cronMatches, nextRun, parseCron, readSchedule } from './triggers.js';
 import { adapters } from './adapters/index.js';
-import { MAX_SUBAGENTS, normalizeTeam } from './subagents.js';
+import { normalizeTeam } from './subagents.js';
 import { bad, MODES, newId, truncate } from './util.js';
 import { KIT_BODY_MAX, KIT_MAX, KIT_TOTAL_MAX, RULES_NAME, SKILL_NAME, parseSkillMd, skillMd, skillName } from '../web/js/skill-md.js';
 import fs from 'node:fs';
@@ -746,16 +746,16 @@ export class Crew {
   }
 
   // A member that follows up on a task joins its delegates, so its agent can hand the work back
-  // (check my fix). Not a subagent's or a delegated job's (no loops), nor past a full team.
+  // (check my fix). Not a subagent's or a delegated job's (no loops).
   #joinTeam(task, m) {
     const have = task.subagents || [];
     if (task.parentId || task.delegated || task.crew?.job === 'delegated' || task.crew?.id === m.id) return undefined;
-    if (have.some((x) => x.crew === m.id) || have.length >= MAX_SUBAGENTS) return undefined;
+    if (have.some((x) => x.crew === m.id)) return undefined;
     const use = `${m.role ? `${m.role}. ` : ''}They followed up in this task: hand your work back to them when it should be checked`;
     try {
       return normalizeTeam([...have, { crew: m.id, name: handleOf(m.name), label: m.name, role: m.role, agent: m.agent, use }], adapters);
     } catch {
-      return undefined; // too many copies in all: the follow-up still goes, without them
+      return undefined; // a row's harness is gone: the follow-up still goes, without them
     }
   }
 
