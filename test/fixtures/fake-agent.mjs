@@ -599,7 +599,9 @@ if (name === 'claude') {
       out({ type: 'user', session_id: session, message: { content: [{ type: 'tool_result', tool_use_id: 't4', content: ' M math.js' }] } });
     }
     out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't2', name: 'Edit', input: { file_path: target, old_string: 'a - b', new_string: 'a + b' } }] } });
-    fs.writeFileSync(target, after);
+    // As a real Edit: no change, no write, so a follow-up doesn't bring back a file that was removed
+    // (an empty one) or truncate one a test is reading.
+    if (after !== before) fs.writeFileSync(target, after);
     if (stdin.includes('ENVFILE')) {
       // .env masking (server/env-mask.js): read a .env file with a command, then change a value in it.
       const envFile = path.join(process.cwd(), '.env');
