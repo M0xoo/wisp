@@ -184,12 +184,29 @@ export function subagentParts(t) {
   return [agentsWord(x), x.model ? modelWords(x.model) : '', x.output ? `${tokenWords(x.output)} of ${tokenWords(total)} output` : ''].filter(Boolean);
 }
 
-// Its tooltip: every subagent type, the tokens per model, and the page-reads note.
+// Subagents on Haiku (Settings → Usage, defaults.subagentModel). The share of the turn's output
+// written by subagents on the task's own model (stats.subagents[].same), 0–1.
+export const SUBAGENT_OFFER_AT = 0.4;
+export function sameModelShare(t) {
+  const total = turnOutput(t);
+  if (!total) return 0;
+  return (t?.stats?.subagents || []).filter((x) => x.same).reduce((a, x) => a + (Number.isFinite(x.output) && x.output > 0 ? x.output : 0), 0) / total;
+}
+// Offer "Run subagents on Haiku" on a Claude turn whose same-model subagents wrote ≥40% of its
+// output, when the setting is still the task's model and this turn ran that way.
+export function offerSubagentModel(t, setting = '', agent = t?.agent) {
+  return agent === 'claude' && !setting && !t?.run?.subagentModel && sameModelShare(t) >= SUBAGENT_OFFER_AT;
+}
+const SUBAGENT_NAMES = { haiku: 'Haiku', sonnet: 'Sonnet' };
+
+// Its tooltip: every subagent type, the tokens per model, the page-reads note, and the subagent
+// model the turn ran with.
 export function subagentTip(t) {
   const st = t?.stats || {};
   const total = turnOutput(t);
   const subs = (st.subagents || []).map((x) => `${agentsWord(x)}${x.model ? ` on ${modelWords(x.model)}` : ''}: ${tokenWords(x.output)} of ${tokenWords(total)} output tokens, ${tokenWords(x.read)} read`);
   const models = (st.models || []).map((m) => `${modelWords(m.model)} ${tokenWords(m.output)} out / ${tokenWords(m.input + m.cacheRead + m.cacheWrite)} in`);
   const notes = [...new Set((st.subagents || []).map(insteadWords).filter(Boolean))];
-  return [subs.length ? `Subagents: ${subs.join('; ')}` : '', models.length ? `By model: ${models.join(', ')}` : '', ...notes].filter(Boolean).join('. ');
+  const on = SUBAGENT_NAMES[t?.run?.subagentModel];
+  return [subs.length ? `Subagents: ${subs.join('; ')}` : '', models.length ? `By model: ${models.join(', ')}` : '', ...notes, on ? `Subagents on ${on} (Settings → Usage)` : ''].filter(Boolean).join('. ');
 }

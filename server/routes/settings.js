@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { adapters } from '../adapters/index.js';
+import { SUBAGENT_MODELS } from '../adapters/claude.js';
 import { STOP_AT, STOP_BY, STOP_KEYS } from '../budget.js';
 import { KINDS } from '../preferences.js';
 import { normalizePreset } from '../subagents.js';
@@ -60,6 +61,7 @@ export function register(r, app) {
     if (body.defaults?.review !== undefined && !REVIEW_VALUES.includes(body.defaults.review)) return c.send(400, { error: `review must be one of ${REVIEW_VALUES.join(', ')}` });
     if (body.defaults?.leanRuns !== undefined && !LEAN_VALUES.includes(body.defaults.leanRuns)) return c.send(400, { error: `leanRuns must be one of ${LEAN_VALUES.join(', ')}` });
     if (body.defaults?.harnessAsk !== undefined && !['on', 'off'].includes(body.defaults.harnessAsk)) return c.send(400, { error: 'harnessAsk must be on or off' });
+    if (body.defaults?.subagentModel !== undefined && !SUBAGENT_MODELS.includes(body.defaults.subagentModel)) return c.send(400, { error: 'subagentModel must be \'\' (the task’s model), haiku or sonnet' });
     if (body.defaults?.windowNotice !== undefined && !['on', 'off'].includes(body.defaults.windowNotice)) return c.send(400, { error: 'windowNotice must be on or off' });
     if (body.defaults?.spareCard !== undefined && !['on', 'off'].includes(body.defaults.spareCard)) return c.send(400, { error: 'spareCard must be on or off' });
     if (body.defaults?.drainWatch !== undefined && !['on', 'off'].includes(body.defaults.drainWatch)) return c.send(400, { error: 'drainWatch must be on or off' });

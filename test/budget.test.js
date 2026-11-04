@@ -920,7 +920,7 @@ test('subagent tally: per type, output from modelUsage past the main thread, one
   const models = modelsOf({ 'claude-opus-5-5': { outputTokens: 9000 }, 'claude-haiku-4-5': { outputTokens: 400 } });
   const subs = t.take({ models, mainOut: 3000 });
   assert.deepEqual(subs, [
-    { type: 'web-fetch', calls: 2, read: 105 + 100, output: 6000, model: 'claude-opus-5-5', instead: 'WebFetch' },
+    { type: 'web-fetch', calls: 2, read: 105 + 100, output: 6000, model: 'claude-opus-5-5', same: true, instead: 'WebFetch' }, // same: the main thread's model
     { type: 'Explore', calls: 1, read: 100, output: 400, model: 'claude-haiku-4-5' },
   ]);
   assert.equal(t.take(), undefined, 'take clears it');
@@ -929,7 +929,7 @@ test('subagent tally: per type, output from modelUsage past the main thread, one
   t2.init(['Read', 'WebFetch']);
   t2.call('a1', 'Agent', { subagent_type: 'web-fetch' });
   t2.result('a1', { usage: { input_tokens: 7, output_tokens: 70 }, resolvedModel: 'claude-sonnet-4-5' });
-  assert.deepEqual(t2.take({ models: modelsOf({ 'claude-sonnet-4-5': { outputTokens: 500 } }) }), [{ type: 'web-fetch', calls: 1, read: 7, output: 70, model: 'claude-sonnet-4-5' }], 'WebFetch was there: no note');
+  assert.deepEqual(t2.take({ models: modelsOf({ 'claude-sonnet-4-5': { outputTokens: 500 } }) }), [{ type: 'web-fetch', calls: 1, read: 7, output: 70, model: 'claude-sonnet-4-5' }], 'WebFetch was there: no note; no main-thread message, so not same');
   // modelUsage adds up over a process's results: each keeps what's new.
   const first = { 'claude-haiku-5-5': { inputTokens: 6, outputTokens: 299, cacheReadInputTokens: 39658, cacheCreationInputTokens: 36759 } };
   const second = { 'claude-haiku-5-5': { inputTokens: 10, outputTokens: 302, cacheReadInputTokens: 68461, cacheCreationInputTokens: 37421 } };
@@ -976,7 +976,7 @@ test('a Claude run with web-fetch agents and no WebFetch lands models and subage
     process.env.FAKE_TOOLS = 'Read,Edit,Bash,Agent';
     const a = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', worktree: false });
     const t = (await ended(a.id, 'review')).turns[0];
-    assert.deepEqual(t.stats.subagents, [{ type: 'web-fetch', calls: 3, read: 3150, output: 27000, model: 'claude-opus-5-5', instead: 'WebFetch' }]);
+    assert.deepEqual(t.stats.subagents, [{ type: 'web-fetch', calls: 3, read: 3150, output: 27000, model: 'claude-opus-5-5', same: true, instead: 'WebFetch' }]);
     assert.deepEqual(t.stats.models.map((m) => [m.model, m.output]), [['claude-opus-5-5', 41000], ['claude-haiku-4-5-20251001', 120]]);
     assert.deepEqual(subagentParts(t), ['3 web-fetch agents', 'Opus 5.5', '27k of 41k output']);
     delete process.env.FAKE_SUBAGENTS;

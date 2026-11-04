@@ -1330,6 +1330,11 @@ export class Runner extends EventEmitter {
     const main = session.sideOf ? this.store.get(session.sideOf.id) || null : null;
     if (main) session.sideOf.cwd = workdir(main); // where the main task works now (it may have moved)
     const said = session.sideOf ? sidePrompt(main, text, (t) => adapters[t.agent || main?.agent]?.name || t.agent || main?.agent) : text;
+    // Subagents on Haiku (Settings → Usage): Claude Code's subagents run on this model. A lead with a
+    // team has no subagents of its own. The turn keeps it, so its receipt can say so.
+    const delegating = team.length > 0 && !!this.bridge;
+    const subagentModel = session.agent === 'claude' && !delegating ? this.store.config?.defaults?.subagentModel || '' : '';
+    if (subagentModel) turn.run = { ...turn.run, subagentModel };
     const handle = this.#spawned(session, turn, team, () => adapter.run({
       prompt: [handoff, still, turn.later ? laterNote(turn.later) : '', said].filter(Boolean).join('\n\n'),
       attachments,
@@ -1342,7 +1347,8 @@ export class Runner extends EventEmitter {
       effort: session.effort || '',
       systemPrompt: this.#systemPrompt(session, adapter, team),
       // A lead with a team delegates through wisp, so the harness's own subagent tool is switched off.
-      delegating: team.length > 0 && !!this.bridge,
+      delegating,
+      subagentModel,
       mcpServers: this.#mcpServers(session, adapter, team, mode),
       accountEnv: this.#accountEnv(session),
       untrusted: !!project,
