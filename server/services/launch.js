@@ -57,6 +57,12 @@ export function createLaunch(app) {
   async function launch(body, origin = null, { crew = null, unattended = false, yours = null } = {}) {
     // crewJob: a job the wisp that owns a crew member sent here, with the member's note (server/crew.js).
     crew ||= crewJobOf(body.crewJob);
+    // One you gave that member just now, there (yours): asked about here, with your yes as confirmLimit.
+    if (crew?.yours) {
+      const { yours: _, ...rest } = crew;
+      crew = rest;
+      yours ||= { confirm: body.confirmLimit === true };
+    }
     // "/terminal fix it": a terminal session (Babysitting mode) whatever the setting says. What a
     // terminal can't do goes unused (a goal, a team, compare runs): you drive it yourself there.
     const asTerminal = terminalAsk(body.prompt);

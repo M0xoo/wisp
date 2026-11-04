@@ -355,3 +355,46 @@ test('your job for a crew member near the limit: asked about, and Send anyway st
   const next = await until(() => srv.store.all().find((s) => s.crew?.id === ada.id && s.turns[0]?.prompt === 'after that'), { timeout: 10_000 });
   await notHeld(next);
 });
+
+test('your job for a crew member on another computer: the yes goes with it, so it starts there, not held', async () => {
+  const repo = makeRepo();
+  let n = 0;
+  const near = () => srv.budget.record('claude', 'default', { windows: [{ id: 'seven_day', used: 0.995, resetsAt: Date.now() + (80 + ++n) * H, ms: 168 * H }] });
+  const m = await api('/crew', { name: 'Ottilie', role: 'Tester', agent: 'claude', cwd: repo, mode: 'edits', parallel: 3 });
+  // Her computer is this same wisp: what #startAway sends goes to POST /sessions here, as it would there.
+  const sent = [];
+  const was = srv.crew.remote;
+  srv.crew.get(m.id).machine = 'away01';
+  srv.crew.remote = {
+    ...was,
+    launch: async (body) => {
+      const { machine, ...rest } = body;
+      sent.push(rest);
+      const r = await call('/sessions', rest);
+      if (r.status >= 400) throw Object.assign(new Error(r.body.error), { status: r.status, hold: r.body.hold });
+      return [r.body];
+    },
+  };
+  try {
+    near();
+    const asked = await call(`/crew/${m.id}/jobs`, { prompt: 'check the build' });
+    assert.equal(asked.status, 409, `asked first, there as here: ${JSON.stringify(asked.body)}`);
+    assert.equal(asked.body.hold?.id, 'seven_day');
+
+    near();
+    const yes = await api(`/crew/${m.id}/jobs`, { prompt: 'check the build', confirmLimit: true });
+    const full = await settled(yes.session.id);
+    assert.equal(full.turns[0].status, 'done', `Start anyway starts it there: ${full.turns[0].status}`);
+    assert.equal(full.held, undefined);
+
+    // A job of hers that nobody gave just now (a check-in) still starts held there.
+    near();
+    const ci = await api(`/crew/${m.id}/checkin`, {});
+    assert.equal((await api(`/sessions/${ci.session.id}`)).turns[0].status, 'held', 'a check-in is hers: held');
+    await api(`/sessions/${ci.session.id}/held`, { action: 'skip' }, 'POST');
+    assert.equal(sent.at(-1).confirmLimit, undefined, 'no yes sent with a check-in');
+  } finally {
+    srv.crew.remote = was;
+    srv.crew.get(m.id).machine = '';
+  }
+});
