@@ -699,13 +699,13 @@ export class Machines extends EventEmitter {
   #relay(m, event, d) {
     const q = (id) => qualify(id, m.id);
     const cache = this.#cacheOf(m.id);
-    if (!ownId(event === 'finished' ? d.session?.id : event === 'activity' || event === 'turn' ? d.sessionId : d.id)) return;
+    if (!ownId(event === 'finished' ? d.session?.id : event === 'activity' || event === 'turn' || event === 'goal-run' ? d.sessionId : d.id)) return;
     if (event === 'summary') {
       if (d.agent === 'wisp' || d.delegated) return; // its own welcome tour, a delegate's run (services/relay.js)
       cache.set(d.id, d);
       return this.onEvent('summary', this.summary(m.id, d));
     }
-    if (event === 'activity' || event === 'turn') return this.onEvent(event, { ...d, sessionId: q(d.sessionId) });
+    if (event === 'activity' || event === 'turn' || event === 'goal-run') return this.onEvent(event, { ...d, sessionId: q(d.sessionId) });
     if (event === 'finished') {
       if (d.session?.agent === 'wisp' || d.session?.delegated) return;
       cache.set(d.session.id, d.session);

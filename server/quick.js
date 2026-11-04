@@ -25,8 +25,17 @@ export function cheapest(agents) {
 }
 
 // pick: { agent, model, effort? }. Resolves with the parsed JSON object from the reply, or null (no harness, timeout, no JSON).
-export function askJson({ agents, prompt, cwd, timeoutMs = 90_000, pick = cheapest(agents) }) {
+// onEvent(e): every event of the run as the harness sends it, plus { type: 'timeout' } when the time
+// limit stops it; for who keeps a record of the run (server/goal-runs.js). It can't break the run.
+export function askJson({ agents, prompt, cwd, timeoutMs = 90_000, pick = cheapest(agents), onEvent }) {
   if (!pick || !adapters[pick.agent]) return Promise.resolve(null);
+  const tell = (e) => {
+    try {
+      onEvent?.(e);
+    } catch (err) {
+      console.warn(`wisp: recording a side run: ${err.message}`);
+    }
+  };
   return new Promise((resolve) => {
     let text = '';
     let handle;
@@ -44,12 +53,17 @@ export function askJson({ agents, prompt, cwd, timeoutMs = 90_000, pick = cheape
         attachments: [],
         onEvent: (e) => {
           if (e.type === 'result') text = e.isError ? '' : e.text || '';
+          tell(e);
         },
       });
-    } catch {
+    } catch (err) {
+      tell({ type: 'result', isError: true, text: err.message });
       return resolve(null);
     }
-    const timer = setTimeout(() => handle.stop(), timeoutMs);
+    const timer = setTimeout(() => {
+      tell({ type: 'timeout', ms: timeoutMs });
+      handle.stop();
+    }, timeoutMs);
     handle.done.then(() => {
       clearTimeout(timer);
       resolve(readJson(text));

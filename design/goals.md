@@ -21,8 +21,8 @@ harness, and visible the whole time. Code: `server/goal.js`, `web/js/features/go
 
 ## Backend
 
-`session.goal = { text, round, status, from, setAt, endedAt?, why?, checks[], fresh? }`,
-each check `{ turnId, round, verdict, why, next?, progress?, tests?, changed, at }`.
+`session.goal = { text, round, status, from, setAt, endedAt?, why?, checks[], fresh?, running? }`,
+each check `{ turnId, round, verdict, why, next?, progress?, tests?, changed, at, run? }`.
 
 - **Set**: `goal: { text }` on `POST /sessions` (a prompt that is just `/goal …` too), `/goal`
   in a follow-up, or `PUT /sessions/:id/goal`. On an idle task it's checked at once (it may already
@@ -49,6 +49,17 @@ each check `{ turnId, round, verdict, why, next?, progress?, tests?, changed, at
   (so it holds back All); none answering → paused, *couldn't check*. The check's `why` is the tally
   (*2 of 3 judges say met (all must agree)*) and the first dissenter's reason; `next` joins the
   dissenters' next steps, by name. A PUT without `judges` keeps them; `[]` clears them.
+- **Records** (`server/goal-runs.js`): every checker that ran gets one, a turn's shape in
+  `~/.wisp/goal-runs/<task>/<run>.json`, filled from the same events (`askJson`'s `onEvent`, the
+  runner's `stepOf`), `run` on its vote (or on the check, for wisp's own). Not a session: 5 judges
+  over 50 rounds would be 250 tasks for every list, summary and start to walk, each save bumping
+  the summaries' epoch. So they never reach the list, Needs you, ⌘K, notifications, usage or the
+  crew. One that timed out, stopped or gave no JSON keeps what it got (`end`). A judge not installed
+  or gone from the crew has none. 40 KB of prompt and the latest 200 steps / 120 KB per record; only
+  what `checks` points at stays, so a goal keeps its last 50, and Drop goal or deleting the task
+  removes them. Archive keeps them. `GET /sessions/:id/goal-runs/:run`, masked like a turn: a .env
+  file's output has Reveal, its lines in the prompt's diff are masked. `goal-run` SSE events carry
+  the steps of one under way; `goal.running` names those while it's `checking`.
 - **Not for** subagents, delegates, crew jobs, spells, the tour.
 
 ## UX
@@ -69,6 +80,18 @@ each check `{ turnId, round, verdict, why, next?, progress?, tests?, changed, at
   remembered (`defaults.goalJudges`, `goalVote`). In the band, after the condition: each judge's
   face tinted by its last vote (met green, can't red, no answer faded) and *2/3*; the tooltip has
   each judge's vote and why.
+- **Goal checks** (`checksPopover`): from the band's faces, its check line (a button once there's
+  a check, for a goal without judges too) and **Goal checks…** in the menus and ⌘K. Each judge's
+  last vote and why, then *Earlier rounds*: a row per round with a tinted face per judge, each of
+  which opens that judge's check. Without judges a row per round opens it. A row with no record
+  (an old goal, a judge that never ran) isn't a link. During a check the rows say *Checking*, and
+  open the run once it has started (*After the project's tests* until then).
+- **A check's page** (`web/js/features/goal-run.js`): laid over the open task, on its box, so the
+  task stays open and Back (the page's own, the head's, Esc, the phone's) finds it where it was.
+  On top which judge, the round, the vote and the why, at once from what opened it (real shapes
+  below until the record comes); then *What wisp asked it*, folded like a long prompt, the task's
+  own transcript and *What it saw*. Under way it grows live, with no Stop (Stop is the task's).
+  Read-only: no reply box, band, Ship or task keys.
 - **Band** on top of the open task (sticky on a wide pane), two fixed rows so nothing jumps:
   the mark, *Done when*, the condition (one line), the state, a menu; then a 120px progress track
   (the last check's estimate, last round's as a shadow behind it, the delta beside it), the round,
@@ -85,5 +108,5 @@ each check `{ turnId, round, verdict, why, next?, progress?, tests?, changed, at
   *paused its goal*, with the last check.
 - **Spells**: `goal.band` (slot and part), `goal.text`, `goal.track`, `goal.check`, `card.goal`,
   `launcher.goal`, `launcher.goalLine`, `launcher.goalJudges`, `composer.goal`, `composer.goalLine`,
-  `goal.judges`, the `target` and `judge` icons. A spell's old `goalRounds` loads
+  `goal.judges`, `goal.checks`, `goal.run`, `goal.runHead`, `goal.runVote`, `goal.runPrompt`, the `target` and `judge` icons. A spell's old `goalRounds` loads
   with a warning.

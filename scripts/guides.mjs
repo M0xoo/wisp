@@ -786,7 +786,7 @@ npx wisp-agents --agent antigravity "add a test"   # or pick one`)}
         <li><b>The agent’s report, as a claim.</b> It goes in last and is labelled as what the agent says, not as evidence.</li>
       </ol>
       <p>The checker answers <i>met</i>, <i>not yet</i> or <i>can’t be done</i>, with why. A <i>met</i> needs evidence it saw for itself and tests that don’t disagree; otherwise it counts as not yet. Not yet sends the task back with what’s missing and the next step.</p>
-      <p>For a second opinion, add <b>Judges</b> from the <i>Done when</i> line (or <i>Edit goal…</i>), picked like delegates: any harness with its model and thinking level, or someone from your crew. Each judge reads the work on its own, and you pick how their votes add up: <b>All</b> must say it’s met, a <b>Majority</b>, or <b>Any</b> one. The band shows each judge’s vote; the task goes back with what the dissenting judges want.</p>
+      <p>For a second opinion, add <b>Judges</b> from the <i>Done when</i> line (or <i>Edit goal…</i>), picked like delegates: any harness with its model and thinking level, or someone from your crew. Each judge reads the work on its own, and you pick how their votes add up: <b>All</b> must say it’s met, a <b>Majority</b>, or <b>Any</b> one. The band shows each judge’s vote; the task goes back with what the dissenting judges want. Click a judge in the goal band to read its check like a task: what it was told, what it ran and how it voted, for every round.</p>
       ${fig.goal}
     </section>
 

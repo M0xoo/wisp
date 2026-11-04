@@ -92,6 +92,23 @@ export function maskTurn(t) {
   };
 }
 
+// A diff inside a text (what a goal check was told): the lines of a .env file's hunks. Its headers
+// and every other file's lines stay as they are.
+export function maskDiffs(text) {
+  if (typeof text !== 'string') return text;
+  let env = false;
+  return text
+    .split('\n')
+    .map((l) => {
+      const head = /^diff --git a\/.+ b\/(.+)$/.exec(l) || /^\+\+\+ b\/(.+)$/.exec(l);
+      if (head) return (env = isEnvFile(head[1])), l;
+      if (!env) return l;
+      if (!/^(?:[ +\-@\\]|index |new file|deleted file)/.test(l)) return (env = false), l;
+      return /^[+-](?![+-]{2})/.test(l) ? l[0] + maskLine(l.slice(1)) : l;
+    })
+    .join('\n');
+}
+
 // A session as the page gets it (with its childSessions).
 export function maskSession(s) {
   if (!s || typeof s !== 'object') return s;

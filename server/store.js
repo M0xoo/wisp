@@ -52,6 +52,7 @@ export class Store {
     this.dir = path.join(home, 'sessions');
     this.lightDir = path.join(this.dir, LIGHT);
     this.shots = path.join(home, 'shots');
+    this.goalRuns = path.join(home, 'goal-runs'); // what each goal check said and did: server/goal-runs.js
     fs.mkdirSync(this.lightDir, { recursive: true });
     this.sessions = new Map();
     this.timers = new Map();
@@ -383,6 +384,7 @@ export class Store {
     fs.rmSync(file, { force: true });
     fs.rmSync(path.join(this.lightDir, `${id}.json`), { force: true });
     fs.rmSync(path.join(this.shots, id), { recursive: true, force: true });
+    fs.rmSync(path.join(this.goalRuns, id), { recursive: true, force: true });
   }
 
   // Agents save screenshots (and recordings) to /tmp, which macOS clears. Copy every local image

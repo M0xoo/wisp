@@ -2,7 +2,7 @@
 // wait, presentation, reply, btw, queue, answer, revert, rollback, exec, takeover, stop, file.
 // Ids of the form <id>@<machine> are passed through to that machine's wisp (proxy.js).
 
-import { maskOn, maskSession, unmasked } from '../env-mask.js';
+import { maskDiffs, maskOn, maskSession, maskTurn, unmasked } from '../env-mask.js';
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
@@ -273,7 +273,8 @@ export function register(r, app) {
     'GET',
     '/sessions/:id/unmasked',
     one((c, s) => {
-      const value = unmasked(s, c.query);
+      const run = app.goals.runs.read(s.id, c.query.get('turn')); // a step of a goal check's record
+      const value = unmasked(run ? { turns: [run.turn] } : s, c.query);
       c.send(value ? 200 : 404, value ? { value } : { error: 'Nothing to reveal there any more.' });
     }),
   );
@@ -548,6 +549,18 @@ export function register(r, app) {
     'DELETE',
     '/sessions/:id/goal',
     one((c, s) => (app.goals.drop(s) ? c.send(200, { ok: true }) : c.send(404, { error: 'This task has no goal.' }))),
+  );
+
+  // What one goal check said and did (server/goal-runs.js): the id on a vote, or on a check by wisp.
+  r.route(
+    'GET',
+    '/sessions/:id/goal-runs/:run',
+    one((c, s) => {
+      const run = app.goals.runs.read(s.id, c.params.run);
+      if (!run) return c.send(404, { error: 'That check isn’t kept any more.' });
+      if (!maskOn(store.config)) return c.send(200, run);
+      c.send(200, { ...run, turn: { ...maskTurn(run.turn), prompt: maskDiffs(run.turn.prompt) } });
+    }),
   );
 
   // A side question (/btw): answered next to the run, which carries on. text may keep its /btw.

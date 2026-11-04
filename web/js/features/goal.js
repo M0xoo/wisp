@@ -13,7 +13,7 @@ import { toast, toastError } from '../ui/toast.js';
 import { fmtDuration } from '../blocks.js';
 import { whenLabel } from '../core/format.js';
 import { slotHtml } from './spells.js';
-import { judgesEditor, liveJudges, paintJudgesBtn, votesHtml, votesPopover } from './judges.js';
+import { checksPopover, judgesEditor, liveJudges, paintJudgesBtn, votesHtml } from './judges.js';
 
 const LIVE = new Set(['working', 'checking']);
 // The state, in the band's fixed column. The row's pill has the round instead; the band's second
@@ -70,6 +70,7 @@ function bandHtml(s) {
   const delta = p != null && was != null && p !== was ? p - was : null;
   const ended = !LIVE.has(g.status);
   const primary = ['paused', 'out'].includes(g.status) ? `<button class="ghost xs gb-go" data-g="resume">${icon('play')}Resume goal</button>` : '';
+  const checked = hasChecks(g); // the check line opens them
   const history = (g.checks || []).map((c) => `Round ${c.round}: ${c.verdict === 'met' ? 'met' : c.verdict === 'not_yet' ? 'not yet' : c.verdict === 'impossible' ? 'can’t be done' : 'not checked'}${c.progress != null ? ` (${c.progress}%)` : ''}`).join('\n');
   return `
     <section class="goal-band g-${g.status}" aria-label="Goal">
@@ -85,7 +86,7 @@ function bandHtml(s) {
         <span class="gb-pct">${p == null ? '–' : `${p}%`}${delta ? `<small class="${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '+' : '−'}${Math.abs(delta)}</small>` : ''}</span>
         ${votesHtml(g)}
         ${ended ? '' : `<span class="gb-round">Round ${g.round}</span>`}
-        <span class="gb-check" title="${g.held && g.why ? esc(g.why) : checkLine(g).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()}${g.status === 'paused' && !g.held && g.why && g.checks?.at(-1)?.why ? ` · ${esc(g.checks.at(-1).why)}` : ''}">${checkLine(g)}</span>
+        <${checked ? 'button' : 'span'} class="gb-check"${checked ? ' data-g="checks" aria-haspopup="dialog"' : ''} title="${g.held && g.why ? esc(g.why) : checkLine(g).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()}${g.status === 'paused' && !g.held && g.why && g.checks?.at(-1)?.why ? ` · ${esc(g.checks.at(-1).why)}` : ''}">${checkLine(g)}</${checked ? 'button' : 'span'}>
         ${primary}${slotHtml('goal.band', S.sessions.get(s.id))}
       </div>
     </section>`;
@@ -119,11 +120,24 @@ export function wireGoalSlot(slot, id) {
     const b = e.target.closest('[data-g]');
     if (!b) return;
     if (b.dataset.g === 'menu') goalMenu(id, b);
-    else if (b.dataset.g === 'judges') S.sessions.get(id)?.goal && votesPopover(S.sessions.get(id).goal, b);
+    else if (b.dataset.g === 'judges' || b.dataset.g === 'checks') checksPopover(id, b);
     else goalAction(id, b.dataset.g);
   });
   slot.addEventListener('dblclick', (e) => {
     if (e.target.closest('.gb-text')) editGoal(id, e.target.closest('.goal-band'));
+  });
+}
+
+const hasChecks = (g) => !!(g?.checks?.length || (g?.status === 'checking' && g.running?.length));
+
+// Goal checks… from a menu or ⌘K: the popover needs the band, so the task opens first if it isn't.
+async function openChecks(id, anchor) {
+  const { fetchFull, reveal } = await import('./feed.js');
+  if (!S.nodes.get(id)?.body?.isConnected) reveal(id);
+  await fetchFull(id);
+  requestAnimationFrame(() => {
+    const at = anchor?.isConnected ? anchor : $('.gb-check', S.nodes.get(id)?.body);
+    if (at) checksPopover(id, at);
   });
 }
 
@@ -134,6 +148,7 @@ export function goalActions(s) {
   if (!g) return [{ a: 'goal-set', label: 'Set goal…', icon: 'target' }];
   return [
     { a: 'goal-set', label: 'Edit goal…', icon: 'target' },
+    ...(hasChecks(g) ? [{ a: 'goal-checks', label: 'Goal checks…', icon: 'judge' }] : []),
     ...(LIVE.has(g.status) ? [{ a: 'goal-pause', label: 'Pause goal', icon: 'pause' }] : g.status !== 'met' && g.status !== 'handed' ? [{ a: 'goal-resume', label: 'Resume goal', icon: 'play' }] : []),
     { a: 'goal-drop', label: 'Drop goal', icon: 'x' },
   ];
@@ -142,6 +157,7 @@ export const goalMenuHtml = (s) => goalActions(s).map((x) => `<button data-a="${
 
 export function runGoalAction(a, id, anchor) {
   if (a === 'goal-set') editGoal(id, anchor);
+  if (a === 'goal-checks') openChecks(id, anchor);
   if (a === 'goal-pause') goalAction(id, 'pause');
   if (a === 'goal-resume') goalAction(id, 'resume');
   if (a === 'goal-drop') goalAction(id, 'drop');

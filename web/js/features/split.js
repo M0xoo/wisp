@@ -32,6 +32,7 @@ import { slotHtml, spellProp } from './spells.js';
 import { avatarHtml, crewBack, crewDot, crewViewShown, leaveCrew, memberById, paintCrewView, underMember } from './crew.js';
 import { leaveOrg, orgShown, paintOrg } from './org.js';
 import { leavePlan, paintPlan, planShown } from './plan-view.js';
+import { closeGoalRun, paintGoalRun } from './goal-run.js';
 import { leaveStuff, paintStuff, stuffShown } from './stuff.js';
 import { openUpcoming, upcoming, upcomingByDay, upcomingRow } from './later.js';
 import { paintGoal } from './goal.js';
@@ -115,6 +116,7 @@ export function goHome({ focus = true } = {}) {
 // Back (Esc, the head's ×, the stacked page's Back, the phone's Back): a crew job goes back to its
 // member's thread, the thread home. Stacked, home is the list.
 export function goBack({ focus = false } = {}) {
+  if (closeGoalRun()) return; // a goal check's page: back to its task, as it was
   // A delegate's task goes back up to the task it was opened from (its lead), wherever it is.
   const up = splitOpen() && backTarget(splitOpen());
   if (up) return void reveal(up);
@@ -342,6 +344,7 @@ export function paintSplit() {
   paintOrg(); // …and so does the Org page (org.js)
   paintPlan(); // …and a scheduled task's page (plan-view.js)
   paintStuff(); // …and My Stuff (stuff.js)
+  paintGoalRun(); // a goal check's page goes when its task does (goal-run.js)
   const crew = crewViewShown() || orgShown() || planShown() || stuffShown();
   const stacked = isStacked();
   if (s || crew) homeAsked = false;

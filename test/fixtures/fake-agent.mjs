@@ -23,6 +23,8 @@
 //                usage-policy error, as Claude Code does; DECLINEME: a plain "I can't help with that"
 //   FAKE_DELAY   ms to work before answering (screenshots of live runs)
 //   FAKE_GOAL_DELAY  ms a goal check takes (screenshots of a check)
+//   FAKE_GOAL_STEPS  claude's goal checks read and run things first (goal-runs)
+//   FAKE_HANG_STEP  ms before a hanging judge says one more thing (a step arriving live)
 //   FAKE_GOAL_SCRIPT  JSON [{ why, next, progress }]: what each goal check says (screenshots)
 //   FAKE_LINGER  ms to stay alive after the result, as a real CLI flushing on its way out does
 //   FAKE_MCP_POLICY=1  copilot: warn that an organization policy blocked wisp's MCP server
@@ -234,6 +236,22 @@ if (stdin.includes('You check whether a coding agent reached its goal')) {
   const after = Number(/\[met after (\d+)\]/.exec(goal)?.[1] || 0);
   // A judge (several check one goal): "[judge codex: met]" is how that harness votes.
   const judged = new RegExp(`\\[judge ${name}: (met|not_yet|impossible)\\]`).exec(goal)?.[1];
+  // FAKE_GOAL_STEPS: a check that reads a file and runs git first, as a judge does (claude's shape).
+  if (process.env.FAKE_GOAL_STEPS && name === 'claude') {
+    out({ type: 'system', subtype: 'init', session_id: 'goal-check' });
+    out({ type: 'assistant', message: { content: [{ type: 'text', text: 'I will read the code first.' }, { type: 'tool_use', id: 'g1', name: 'Bash', input: { command: 'git status --short', description: 'Check the work' } }] } });
+    out({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'g1', content: ' M math.js' }] } });
+  }
+  // "[judge codex: silent]" answers in prose, "[judge codex: hang]" never ends (the time limit stops it).
+  const odd = new RegExp(`\\[judge ${name}: (silent|hang)\\]`).exec(goal)?.[1];
+  if (odd === 'silent') {
+    answer('I looked around but I would rather not say.', 'goal-check');
+    process.exit(0);
+  }
+  if (odd === 'hang') {
+    if (name === 'claude') setTimeout(() => out({ type: 'assistant', message: { content: [{ type: 'text', text: 'Still reading the code…' }] } }), Number(process.env.FAKE_HANG_STEP || 0));
+    await new Promise(() => setInterval(() => {}, 1000));
+  }
   const verdict = judged || (/\[impossible\]/.test(goal) ? 'impossible' : after && n >= after ? 'met' : 'not_yet');
   // FAKE_GOAL_SCRIPT: JSON [{ why, next, progress }] per check, for screenshots.
   const said = JSON.parse(process.env.FAKE_GOAL_SCRIPT || '[]')[n - 1] || {};

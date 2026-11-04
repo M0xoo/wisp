@@ -278,6 +278,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     hold: (s) => app.reserve.forTask(s),
     schedule: (s, entry) => app.later.add(s, entry),
     crew: (id) => app.crew?.get(id), // a crew member who judges a goal, on their own harness
+    broadcast: (event, d) => app.broadcast(event, d.item && maskOn(store.config) ? { ...d, item: maskStep(d.item, d.run) } : d), // .env output masked
   });
   app.installer = createInstaller(app);
   runner.on('started', ({ session }) => {

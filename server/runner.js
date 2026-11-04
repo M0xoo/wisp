@@ -77,6 +77,28 @@ export function clipOutput(text) {
   return `${head}\n… ${lines > 1 ? `${lines} lines` : `${cut.length} characters`} cut …\n${tail}`;
 }
 
+// A harness's event as a transcript step. A goal's check records its run with these too
+// (server/goal-runs.js), so it reads like a task's.
+export function stepOf(ev) {
+  const item = { t: Date.now(), kind: ev.type === 'tool' ? ev.kind : ev.type === 'text' ? 'text' : 'error' };
+  if (ev.type === 'tool') {
+    Object.assign(item, { label: ev.label, file: ev.file, detail: ev.detail });
+    if (ev.id) item.call = String(ev.id); // a tool_output later finds its call by this
+    if (ev.output && OUTPUT_KINDS.has(item.kind)) item.output = clipOutput(ev.output);
+  } else if (ev.type === 'text') item.label = ev.text.slice(0, MAX_TEXT);
+  else item.label = `${ev.name || 'Tool'} failed: ${ev.text}`;
+  return item;
+}
+
+// What a call returned, on its step: matched to the call by the harness's id. The step, or null.
+export function stepOutput(activity, ev) {
+  const item = ev.id && activity.findLast((a) => a.call === String(ev.id));
+  const output = clipOutput(ev.text);
+  if (!item || !OUTPUT_KINDS.has(item.kind) || !output.trim()) return null;
+  item.output = output;
+  return item;
+}
+
 // Where the agent actually works: its own worktree when it has one, else the project folder.
 // A side discussion (/side, server/side.js) reads its main task's folder.
 export const workdir = (s) => s.sideOf?.cwd || s.worktree?.cwd || s.cwd;
@@ -1426,13 +1448,7 @@ export class Runner extends EventEmitter {
       case 'tool':
       case 'tool_error':
       case 'text': {
-        const item = { t: Date.now(), kind: ev.type === 'tool' ? ev.kind : ev.type === 'text' ? 'text' : 'error' };
-        if (ev.type === 'tool') {
-          Object.assign(item, { label: ev.label, file: ev.file, detail: ev.detail });
-          if (ev.id) item.call = String(ev.id); // a tool_output later finds its call by this
-          if (ev.output && OUTPUT_KINDS.has(item.kind)) item.output = clipOutput(ev.output);
-        } else if (ev.type === 'text') item.label = ev.text.slice(0, MAX_TEXT);
-        else item.label = `${ev.name || 'Tool'} failed: ${ev.text}`;
+        const item = stepOf(ev);
         turn.activity.push(item);
         // The transcript says how many of the oldest steps it no longer has.
         if (turn.activity.length > MAX_ACTIVITY) turn.trimmed = (turn.trimmed || 0) + turn.activity.splice(0, turn.activity.length - MAX_ACTIVITY).length;
@@ -1441,11 +1457,9 @@ export class Runner extends EventEmitter {
         return;
       }
       case 'tool_output': {
-        // What a call returned, for the transcript: matched to the call by the harness's id.
-        const item = ev.id && turn.activity.findLast((a) => a.call === String(ev.id));
-        const output = clipOutput(ev.text);
-        if (!item || !OUTPUT_KINDS.has(item.kind) || !output.trim()) return;
-        item.output = output;
+        // What a call returned, for the transcript.
+        const item = stepOutput(turn.activity, ev);
+        if (!item) return;
         this.emit('activity', { sessionId: session.id, turnId: turn.id, item, update: true });
         this.store.save(session);
         return;

@@ -49,6 +49,8 @@ export function onKey(e) {
   }
   if (typing || e.metaKey || e.ctrlKey || e.altKey || !$('#overlay').hidden) return;
   const k = e.key.toLowerCase();
+  // A goal check's page is read-only: the task's keys (Mark done, Ship it…) wait under it.
+  if (S.goalRun && !['n', 'j', 'k'].includes(k)) return;
   const id = S.focus && S.nodes.has(S.focus) ? S.focus : null;
   // A spell's key (only keys wisp doesn't use itself: spells can't take over built-in ones).
   const combo = `${e.shiftKey ? 'shift+' : ''}${k}`;

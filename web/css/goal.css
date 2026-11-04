@@ -106,6 +106,8 @@ body.split.pane-wide #feed .item.open > .it-body > .goal-slot { position: sticky
 .gbj-n { min-width: 3.2ch; font-size: 12.5px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
 /* Each judge's vote and why, from the band. */
 .menu.jv-pop { z-index: 60; width: min(380px, calc(100vw - 16px)); padding: 6px; }
+.menu.jv-pop button.jv-row { align-items: flex-start; height: auto; margin: 0; padding: 8px; }
+.menu.jv-pop button.jv-round { height: auto; margin: 0; padding: 4px 8px; }
 .jv-h { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px 8px; }
 .jv-h b { font-size: 13px; font-weight: 600; color: var(--ink); }
 .jv-h small { font-size: 12.5px; color: var(--muted); }
@@ -192,3 +194,64 @@ body.wisp-mobile .gb-more { width: 44px; height: 44px; }
 /* A phone's prompt box: Goal goes to its icon, a 30px square like its neighbours (lit, a narrower
    box read as squeezed); the bar scrolls with Send pinned when they don't all fit. */
 @container launcher (max-width: 520px) { .l-bar .goal-btn > span { display: none; } }
+
+/* The band's check line opens the goal's checks (judges.js). */
+button.gb-check { padding: 0; border: 0; background: none; text-align: left; cursor: pointer; font: inherit; font-size: 12.5px; }
+button.gb-check:hover { color: var(--ink); }
+button.gb-check:focus-visible { outline: 0; border-radius: 4px; box-shadow: 0 0 0 2px var(--accent-soft); }
+
+/* The checks popover: rows that open a check's page, and the rounds before. */
+button.jv-row, button.jv-round { width: 100%; border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+button.jv-row:hover, button.jv-round:hover { background: var(--bg-2); }
+button.jv-row:focus-visible, button.jv-round:focus-visible, .jr-face:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), inset 0 0 0 1px var(--accent); }
+.jv-sec { padding: 10px 8px 4px; font-size: 12.5px; color: var(--muted); }
+.jv-rounds { max-height: min(240px, 36vh); overflow-y: auto; overscroll-behavior: contain; }
+.jv-round { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 4px 8px; border-radius: 8px; }
+.jr-n { flex: none; min-width: 58px; font-size: 12.5px; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.jr-why { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; color: var(--muted); }
+.jr-faces { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; }
+.menu.jv-pop .jr-face { position: relative; display: grid; place-items: center; flex: none; width: 28px; height: 28px; margin: 0; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ink); }
+.menu.jv-pop button.jr-face { cursor: pointer; }
+.menu.jv-pop button.jr-face:hover { background: var(--bg-2); }
+.jr-face > :not(.cr-av) { display: block; width: 13px; height: 13px; }
+.jr-face .mono { background: currentColor; -webkit-mask: var(--logo) center / contain no-repeat; mask: var(--logo) center / contain no-repeat; }
+.jr-face::after { content: ''; position: absolute; left: calc(50% + 2px); top: calc(50% + 2px); width: 7px; height: 7px; border-radius: 50%; background: var(--line-2); box-shadow: 0 0 0 1.5px var(--surface-2); }
+.jr-face.v-met::after { background: var(--good); }
+.jr-face.v-impossible::after { background: var(--bad); }
+.jr-face.v-not_yet::after { background: var(--warn); }
+.jr-face.v-unchecked { opacity: 0.5; filter: grayscale(1); }
+.jv-round.v-met .jv-vote { color: var(--good); }
+.jv-round.v-impossible .jv-vote { color: var(--bad); }
+.jv-round.v-not_yet .jv-vote { color: color-mix(in srgb, var(--warn) 85%, var(--ink)); }
+body.wisp-mobile .menu.jv-pop .jr-face { width: 44px; height: 44px; }
+/* 44px to tap, the line where it was: a border, so the clamped text's next line can't show in it. */
+body.wisp-mobile button.gb-check { border-width: 7px 0 19px; border-style: solid; border-color: transparent; margin-block: -7px -19px; }
+body.wisp-mobile .jv-row, body.wisp-mobile .jv-round { min-height: 44px; }
+
+/* A goal check's page (goal-run.js): over the open task, on its box (split.js keeps --sb-*). */
+.goal-run { position: fixed; z-index: 4; top: var(--sb-top); left: var(--sb-left); width: var(--sb-w); height: var(--sb-h); overflow-y: auto; overscroll-behavior: contain; background: var(--bg); outline: 0; }
+.goal-run[hidden] { display: none; }
+.gr-page { padding: 14px max(24px, calc((var(--sb-w) - var(--read-w)) / 2)) 48px; }
+.gr-head { margin-bottom: 18px; }
+.gr-back { margin: 0 0 12px -8px; }
+.gr-who { display: flex; align-items: center; gap: 10px; min-height: 32px; }
+.gr-who .jv-face { width: 28px; height: 28px; }
+.gr-name { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.gr-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; color: var(--ink); }
+.gr-name small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; color: var(--muted); }
+.gr-vote { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.gr-vote .i { width: 14px; height: 14px; }
+.gr-vote.v-met { color: var(--good); }
+.gr-vote.v-impossible { color: var(--bad); }
+.gr-vote.v-not_yet { color: color-mix(in srgb, var(--warn) 85%, var(--ink)); }
+.gr-why, .gr-next, .gr-end { margin: 10px 0 0; font-size: 14px; line-height: 1.5; color: var(--ink); }
+.gr-next, .gr-end { font-size: 13px; color: var(--ink-2); }
+.gr-next b { font-weight: 600; color: var(--ink); margin-right: 4px; }
+.gr-end { color: var(--muted); }
+.goal-run .tx { margin-top: 4px; }
+.goal-run .w-panel { margin-top: 12px; }
+.gr-skel .ask { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+.gr-skel .sk { display: block; height: 11px; border-radius: 4px; background: var(--line); }
+.gr-sk-step { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 2px; }
+.gr-skel .gr-sk-ic { flex: none; width: 15px; height: 15px; border-radius: 50%; }
+body.stack .gr-back { display: none; }
