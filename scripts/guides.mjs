@@ -773,15 +773,38 @@ npx wisp-agents --agent antigravity "add a test"   # or pick one`)}
           <tr><td>Early 2027</td><td>The Mac app starts winding down. It gets new models and critical bug fixes until then, and Conductor deletes all user data when the app shuts down</td></tr>
         </tbody>
       </table></div>
-      <p>If you only use local workspaces, nothing is urgent, and Conductor says it hopes to have something new by then. If you use Cloud, do these before 13 November:</p>
+      <p>If you only use local workspaces, the app isn’t urgent, and Conductor says it hopes to have something new by then. Your Claude Code chats have a shorter clock: see <a href="#in-progress">work in progress</a>. If you use Cloud, do these before 13 November:</p>
       <ol class="doc-steps">
         <li><b>Push your branches.</b> Commit and push anything you want to keep from a cloud workspace while its agent can still take messages.</li>
         <li><b>Transfer what you’re still working on.</b> Right-click a cloud workspace and choose <b>Transfer to local</b> to move it and its chats to your Mac.</li>
         <li><b>Export everything else.</b> Settings → Account → <b>Export data</b> downloads an archive of your Conductor data. Keep it private.</li>
         <li><b>Write down your Cloud Computer.</b> Copy its setup scripts, installed software and the names of its environment variables and secrets. The announcement doesn’t say whether the export includes them.</li>
         <li><b>Find what calls Conductor.</b> Note every script, bot or service that uses a routine’s webhook URL or the Conductor API, so you can point it somewhere else.</li>
+        <li><b>Clean up access last.</b> Once your work is out, rotate any API keys, tokens and passwords you entered in Cloud. Then remove the Conductor GitHub App: on GitHub, Settings → Applications for your account, or Settings → GitHub Apps for an organization.</li>
       </ol>
-      <p class="muted">Dates and steps from <a href="https://www.conductor.build/announcement" target="_blank" rel="noopener">Conductor’s announcement</a>.</p>
+      <p class="muted">Dates and the first three steps from <a href="https://www.conductor.build/announcement" target="_blank" rel="noopener">Conductor’s announcement</a>.</p>
+    </section>
+
+    <section>
+      <h2 id="in-progress">Work in progress</h2>
+      <p>A local Conductor workspace is an ordinary git worktree, so you can carry on in it without an import. <a href="https://www.conductor.build/docs/concepts/git-worktrees" target="_blank" rel="noopener">Conductor keeps them</a> in <code>~/conductor/workspaces/&lt;repo&gt;/&lt;workspace&gt;</code>. Older versions used <code>&lt;repo&gt;/.conductor/&lt;workspace&gt;</code>. <code>git worktree list</code> in your repo shows where each one is, and a workspace you moved with Transfer to local should be under <code>~/conductor/</code> too.</p>
+      <ol class="doc-steps">
+        <li><b>Don’t archive it in Conductor yet.</b> The migration guides from <a href="https://docs.paradev.com/migrate-from-conductor" target="_blank" rel="noopener">Paradev</a> and <a href="https://www.onorca.dev/docs/migrate-from-conductor" target="_blank" rel="noopener">Orca</a> both say archiving deletes the folder, and uncommitted work exists nowhere else. Quit Conductor while you work in it, and keep <code>~/conductor/</code> until you’re done.</li>
+        <li><b>Open the folder with worktrees off.</b> In New task, choose <b>Other folder…</b>, add the workspace folder’s path and switch <b>Worktree</b> to <b>In place</b>. Or from a terminal:
+${sh(`wisp "Finish the retry logic" --no-worktree \\
+  --cwd ~/conductor/workspaces/app/lisbon`)}
+          The agent starts on that branch with your uncommitted changes and untracked files. With worktrees on, wisp would start a new branch from <code>origin/main</code> and leave that work behind. <b>In place</b> stays set for new tasks, so switch it back afterwards.
+        </li>
+        <li><b>Ship from the task.</b> <b>Ship it</b> needs a task with its own worktree, so ask the agent to commit, push and open the PR, or do it in the side panel’s <b>Shell</b>. <b>Changes</b> lists only what the task edits, so use <code>git diff</code> in Shell to see the work you came in with. Archiving or deleting the task leaves the folder alone.</li>
+      </ol>
+      <p>wisp can’t show a Conductor chat as a task, but the agents keep their own copies: Conductor’s docs say <a href="https://www.conductor.build/docs/faq" target="_blank" rel="noopener">Claude Code and Codex store their files</a> in <code>~/.claude</code> and <code>~/.codex</code>. Claude Code keeps each chat under <code>~/.claude/projects</code> by folder, so you can reopen it from the same path, in wisp’s Shell or any terminal:</p>
+${sh(`cd ~/conductor/workspaces/app/lisbon
+claude --resume`)}
+      <p>Claude Code’s picker <a href="https://code.claude.com/docs/en/sessions" target="_blank" rel="noopener">leaves out chats started through its Agent SDK</a> or <code>claude -p</code>. If yours isn’t listed, its session ID is the file name in <code>~/.claude/projects/&lt;folder&gt;/</code> (the folder’s path with each symbol as <code>-</code>), and <code>claude --resume &lt;id&gt;</code> opens it. For Codex, run <code>codex resume</code> in the folder.</p>
+      <p>Claude Code <a href="https://code.claude.com/docs/en/claude-directory" target="_blank" rel="noopener">deletes transcripts after 30 days</a> by default. To keep yours for longer, raise <code>cleanupPeriodDays</code> in <code>~/.claude/settings.json</code> now, since a deleted chat can’t be resumed:</p>
+      <pre data-lang="json"><code>{
+  "cleanupPeriodDays": 365
+}</code></pre>
     </section>
 
     <section>
@@ -790,7 +813,7 @@ npx wisp-agents --agent antigravity "add a test"   # or pick one`)}
       <div class="table"><table>
         <thead><tr><th>In Conductor</th><th>In wisp</th></tr></thead>
         <tbody>
-          <tr><td>Local workspace</td><td>A task in its own git worktree and branch from <code>origin/main</code></td></tr>
+          <tr><td>Local workspace</td><td>A task in its own git worktree and branch from <code>origin/main</code>. To carry on in a workspace you already have, use <a href="#in-progress">In place</a></td></tr>
           <tr><td>Cloud workspace</td><td>A task on <a href="/guides/use-wisp-cloud.html">wisp Cloud</a>, on <a href="/guides/self-host-wisp-grid.html">your own Grid</a>, or on a machine you added: each runs when your laptop is shut</td></tr>
           <tr><td><code>scripts.setup</code></td><td><code>.wisp/worktree.json</code>: <code>"setup"</code> runs in each new worktree</td></tr>
           <tr><td>Run button, <code>scripts.run</code></td><td><code>"run"</code> in the same file: the side panel’s <b>Preview</b> runs it from the worktree and shows the app beside the task</td></tr>
@@ -807,8 +830,20 @@ npx wisp-agents --agent antigravity "add a test"   # or pick one`)}
           <tr><td>Create PR, Checks tab, merge</td><td><b>Ship it</b> commits, pushes and opens the PR; the card follows checks and reviews; <b>Merge</b> squash-merges and syncs your local main</td></tr>
           <tr><td>Checkpoints</td><td>Checkpoints: restore to before any turn, or revert one file</td></tr>
           <tr><td>Linked directories</td><td>One task across several folders, with a worktree and a PR per repo</td></tr>
+          <tr><td>Conductor for iOS, with Cloud workspaces</td><td>wisp’s page in any phone browser, on wisp Cloud or your own Grid. On an iPhone, add it to the Home Screen; alerts come through ntfy. It isn’t a native app</td></tr>
+          <tr><td>Remote control: your iPhone on your Mac’s local workspaces</td><td><a href="/guides/reach-your-computer-from-your-phone.html">Add the computer to wisp Cloud</a> or your own Grid, with <b>Machines</b> → <i>Reach this computer from anywhere</i> or <code>wisp computer on</code>. Then open it from your account page in any browser. It stays reachable while it’s on and running wisp</td></tr>
         </tbody>
       </table></div>
+    </section>
+
+    <section>
+      <h2 id="gain">What you gain</h2>
+      <ul class="doc-list">
+        <li><b>Windows and Linux.</b> Conductor is a Mac app. wisp runs on macOS, Linux and Windows, as a download or with <code>npx wisp-agents</code>.</li>
+        <li><b>Other machines.</b> <b>Run on</b> sends a task to <a href="/guides/run-coding-agents-on-multiple-machines.html">any computer you can reach over SSH</a> or added to the grid, with its worktrees, diffs and Ship it over there.</li>
+        <li><b>Local tasks on any phone.</b> Remote control needs Conductor’s iOS app. A computer you add to the grid opens in a browser, Android included.</li>
+        <li><b>Open source.</b> wisp is MIT, so <a href="#switch-off">no one can switch off</a> the copy you run.</li>
+      </ul>
     </section>
 
     <section>
@@ -818,7 +853,7 @@ npx wisp-agents --agent antigravity "add a test"   # or pick one`)}
         <li><b>Multiplayer.</b> Each person has their own wisp, so there are no shared workspaces, shared chats or <i>Reassign to</i>. Share work through branches and PRs. You can <a href="/guides/share-crew-members.html">share crew members</a>.</li>
         <li><b>The Cloud Computer.</b> There’s no organization-wide environment with builds. Each person’s box starts from the same image, and what the agent installs in its home folder stays there. Repeatable steps belong in <code>"setup"</code>.</li>
         <li><b>Several actions.</b> <code>"run"</code> is one command per repo, not a menu of named actions, and there’s no <code>run_mode</code> or Spotlight testing.</li>
-        <li><b>Your chats.</b> wisp can’t import Conductor’s chats. Keep the export, and restart work from its branch.</li>
+        <li><b>Your chats.</b> wisp can’t import Conductor’s chats into a task. Keep the export, and <a href="#in-progress">reopen Claude Code and Codex chats</a> from the same folder, or restart work from the branch.</li>
         <li><b>Environment variables in settings.</b> wisp has no key for them. Keep values in an ignored <code>.env</code> file, which is copied into the worktree for your app to read, not set for the agent. wisp also skips <code>!</code> lines in <code>.worktreeinclude</code>, so check any file that uses them.</li>
         <li><b>SSH and file sync.</b> A wisp Cloud box has no SSH or sync to your computer. Use the side panel’s <b>Shell</b>, or run tasks on a machine of your own.</li>
         <li><b>A native iPhone app.</b> On an iPhone, wisp Cloud is a Home Screen app with alerts through ntfy. Android has a prototype app you build from the repo, and any phone browser works.</li>
@@ -879,7 +914,7 @@ command = "pnpm dev --port $CONDUCTOR_PORT"</code></pre>
 `,
       faq: [
         ['Do I need to leave Conductor now?', 'Only if you use Cloud, which goes read-only on 13 November 2026. The Mac app keeps working and gets new models and critical bug fixes until it starts winding down in early 2027.'],
-        ['Can wisp import my Conductor chats or workspaces?', 'No. Push your branches and keep Conductor’s export. A branch on GitHub opens in wisp like any other; the chat history doesn’t come with it.'],
+        ['Can wisp import my Conductor chats or workspaces?', 'Not as tasks, but a local workspace still works. Open its folder with worktrees off (In place, or --no-worktree) and the agent carries on with your uncommitted changes. Claude Code chats stay in ~/.claude/projects, so claude --resume reopens them from the same folder until they age out, after 30 days by default. For Cloud work, push your branches and keep Conductor’s export.'],
         ['Can I keep my .conductor/settings.toml?', 'You can leave it in the repo, but this release doesn’t read it. Copy your setup and run commands into .wisp/worktree.json. Reading it directly is due in the next release.'],
         ['Can my team share one workspace, like Multiplayer?', 'No. Everyone has their own wisp, and work is shared through branches and PRs. A team can run its own Grid so that each person gets a sandboxed wisp on the same server.'],
         ['Is it free?', 'wisp is free and MIT. wisp Cloud is free during the preview. The agents run on your own plans and accounts, and wisp doesn’t charge for or resell model usage.'],
