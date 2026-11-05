@@ -7,7 +7,7 @@
 // worktree a file, or a hunk, is staged or unstaged and what's staged committed (VS Code's way).
 
 import { countChanges, copy } from '../blocks.js';
-import { diffLines, hunks, opensFirst } from '../diff.js';
+import { diffLines, hunks, opensNow } from '../diff.js';
 import { esc, highlight, langOf } from '../md.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
@@ -27,7 +27,7 @@ const BADGE = { A: ['A', 'add'], M: ['M', 'mod'], D: ['D', 'del'], R: ['R', 'ren
 
 const data = new Map(); // task id -> { files, base, git, at, error } the last answer
 const open = new Map(); // task id -> Set of paths whose diff shows
-const opened = new Set(); // task ids whose first files have opened: what you fold after that stays folded
+const handled = new Set(); // task ids where you opened, folded or viewed a file: from then on none opens by itself
 const whole = new Map(); // task id -> Set of paths shown past SHOWN_LINES
 const unfolded = new Set(); // task ids with their generated files shown (and the 200+ ones)
 const loading = new Map(); // task id -> the request on its way (one at a time, the last one wins)
@@ -125,7 +125,7 @@ export const changesOf = (id) => data.get(id);
 // A diff row's key: its new number, or its old one for a line only removed. Comments find it by that.
 export const rowKey = (o) => (o.op === '-' ? (o.a != null ? `o${o.a}` : '') : o.b != null ? `n${o.b}` : '');
 // Open a file's diff (a comment on it was clicked in the tray); paint it after.
-export const openFile = (id, path) => setOf(open, id).add(path);
+export const openFile = (id, path) => (handled.add(id), setOf(open, id).add(path));
 // Files whose diff opens at a click (Expand all, or by themselves): not the folded generated ones, or
 // ones too long to read at a glance or already viewed.
 function openable(id, files, seen = seenOf(id)) {
@@ -176,12 +176,9 @@ export function paintChanges(sec, id) {
   const seen = seenOf(id);
   const nSeen = files.filter((f) => isSeen(id, f, seen)).length;
   const canOpen = openable(id, files, seen);
-  // The first time this task's files show, the diff is there without a click. A comment clicked in
-  // the tray may have opened one already: that one is what you came for.
-  if (!opened.has(id)) {
-    opened.add(id);
-    if (!openSet.size && spellProp('panel.changes', 'autoOpen') !== false) for (const f of opensFirst(canOpen)) openSet.add(f.path);
-  }
+  // The diff is there without a click, for files that arrive during a run too, as a reload would
+  // show them. Once you've opened, folded or viewed one (a comment in the tray counts), what's open is yours.
+  if (!handled.has(id) && spellProp('panel.changes', 'autoOpen') !== false) for (const f of opensNow(canOpen, openSet)) openSet.add(f.path);
   const allOpen = canOpen.length > 0 && canOpen.every((f) => openSet.has(f.path));
   const from = d.git ? `<span class="cx-vs" title="Compared with ${esc(d.base)} where this branch left it, uncommitted changes included">vs ${esc(d.base)}</span>` : '<span class="cx-vs" title="Not a git diff: the edits wisp saw the agent make">edits wisp saw</span>';
   setHtml(
@@ -429,6 +426,7 @@ export function changesClick(e, id, ctx) {
   if (a === 'cx-all') {
     const set = setOf(open, id);
     const can = openable(id, d?.files || []);
+    handled.add(id);
     if (can.every((f) => set.has(f.path))) set.clear();
     else for (const f of can) set.add(f.path);
     return (ctx.repaint(), true);
@@ -459,6 +457,7 @@ export function changesClick(e, id, ctx) {
   }
   if (a === 'cx-toggle') {
     const set = setOf(open, id);
+    handled.add(id);
     set.has(path) ? set.delete(path) : set.add(path);
     return (ctx.repaint(), true);
   }
@@ -467,6 +466,7 @@ export function changesClick(e, id, ctx) {
     const f = d?.files?.find((x) => x.path === path);
     if (!f) return true;
     const on = !isSeen(id, f);
+    handled.add(id);
     setSeen(id, f, on);
     if (on) setOf(open, id).delete(path);
     return (ctx.repaint(), true);

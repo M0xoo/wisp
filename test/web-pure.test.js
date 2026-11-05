@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { esc, md, inlineMd, highlight, langOf } from '../web/js/md.js';
-import { diffLines, hunks, countChanges, opensFirst } from '../web/js/diff.js';
+import { diffLines, hunks, countChanges, opensFirst, opensNow } from '../web/js/diff.js';
 import { ago, fmtSize, money, pct } from '../web/js/core/format.js';
 import * as bus from '../web/js/core/bus.js';
 import { shared } from '../web/js/core/api.js';
@@ -339,4 +339,11 @@ test('Changes opens the first file, or every one when there are three or fewer',
   assert.deepEqual(opensFirst(files(1)).map((f) => f.path), ['f0']);
   assert.deepEqual(opensFirst(files(3)).map((f) => f.path), ['f0', 'f1', 'f2']);
   assert.deepEqual(opensFirst(files(4)).map((f) => f.path), ['f0']);
+  // As files arrive: a few all open, past that only with nothing open yet.
+  const now = (n, open) => opensNow(files(n), new Set(open)).map((f) => f.path);
+  assert.deepEqual(now(0, []), []);
+  assert.deepEqual(now(2, ['f0']), ['f0', 'f1']);
+  assert.deepEqual(now(3, ['f0', 'f1']), ['f0', 'f1', 'f2']);
+  assert.deepEqual(now(4, []), ['f0']);
+  assert.deepEqual(now(4, ['f2']), [], 'one open already: a new first file stays shut');
 });
