@@ -669,6 +669,7 @@ test('commands: rm of a file main changed is a clash; Apply tells main', async (
   });
   assert.match(m.turns[1].prompt, /rm math\.js/);
   await settled(id, 2);
+  assert.ok(!fs.existsSync(path.join(dir, 'math.js')), 'main’s follow-up doesn’t bring it back');
 });
 
 test('commands: writing over a file main changed is a card that names it; Keep leaves it, Apply runs it and tells main', async () => {
