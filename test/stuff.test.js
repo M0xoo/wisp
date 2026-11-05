@@ -469,6 +469,29 @@ test('app data: a query that never ends is stopped, and the next one works', { s
   }
 });
 
+test('app data: waiting to open the file isn’t the query taking too long', { skip: !sqlite && 'needs node:sqlite' }, async () => {
+  const http = await import('node:http');
+  const { createAppDb } = await import('../server/app-db.js');
+  const db = createAppDb({ timeoutMs: 800 });
+  const file = path.join(tmp('db-open'), 'a.sqlite');
+  const made = new sqlite.DatabaseSync(file);
+  made.exec('CREATE TABLE t (v TEXT);');
+  const s = http.createServer((req, res) => db.handle(req, res, { file }));
+  await new Promise((r) => s.listen(0, '127.0.0.1', r));
+  try {
+    // Locked past the limit, as a stopped worker's locks are on Windows and a stalled disk is.
+    made.exec('BEGIN EXCLUSIVE;');
+    const free = setTimeout(() => made.exec('COMMIT;'), 1200);
+    const r = await fetch(`http://127.0.0.1:${s.address().port}/_wisp/db`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sql: 'SELECT 1 AS one', params: [] }) });
+    clearTimeout(free);
+    assert.deepEqual((await r.json()).rows, [{ one: 1 }]);
+  } finally {
+    made.close();
+    db.close();
+    s.close();
+  }
+});
+
 // With the default time limit: the 800 ms above is there to stop a query quickly, and an INSERT on
 // a loaded Windows box can take all of it (run 41839676469), which isn't the cap saying no.
 test('app data: the size cap holds', { skip: !sqlite && 'needs node:sqlite' }, async () => {
@@ -498,8 +521,9 @@ test('app data: the size cap holds', { skip: !sqlite && 'needs node:sqlite' }, a
 test('app data: a seed stopped halfway is run again, whole, and data already there stays', { skip: !sqlite && 'needs node:sqlite' }, async () => {
   const http = await import('node:http');
   const { createAppDb } = await import('../server/app-db.js');
-  // Long enough for a cold start on a loaded Windows box (the quick seed below has to finish in it).
-  const db = createAppDb({ timeoutMs: 2500 });
+  // The default limit, as an app gets: the quick seed below is 4 commits, and in a disk stall on
+  // Windows a commit took about 0.8 s (run 42015585913), so a shorter one stopped it for real.
+  const db = createAppDb();
   const dir = tmp('db-seed');
   const file = path.join(dir, 'a.sqlite');
   const forever = 'WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT count(*) FROM c;';
@@ -516,7 +540,8 @@ test('app data: a seed stopped halfway is run again, whole, and data already the
     assert.deepEqual([stopped.status, /stopped/.test(stopped.error)], [503, true], JSON.stringify(stopped));
 
     seed = "CREATE TABLE t (v TEXT); INSERT INTO t VALUES ('seeded');";
-    assert.deepEqual((await q(tables)).rows, [{ name: 't' }], 'the half made database is gone and the seed ran');
+    const seeded = await q(tables);
+    assert.deepEqual(seeded.rows, [{ name: 't' }], `the half made database is gone and the seed ran: ${JSON.stringify(seeded)}`);
     await q("INSERT INTO t VALUES ('mine')");
 
     // Opened again, in a new worker: finished seeds don't run twice.
