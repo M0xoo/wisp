@@ -41,7 +41,9 @@ before(async () => {
   const port = await freePort();
   base = `http://127.0.0.1:${port}`;
   srv = await startServer({ port, handleSignals: false });
-  srv.later.stop(); // nothing fires on its own here
+  // Nothing fires on its own here: a test calls tick() itself. A timer left running starts a test's
+  // trigger whenever it lands, and on a loaded machine that's mid-test (triggers tick every 20 s).
+  for (const timer of [srv.later, srv.triggers, srv.crew, srv.liveLimits]) timer.stop();
 });
 after(() => {
   srv.shutdown();
@@ -801,9 +803,8 @@ const codexTask = async () => {
   await until(() => !srv.runner.live.has(s.id));
   return srv.store.get(s.id);
 };
-// This trigger's schedule comes due, and no other's. The timer stays out: reads are counted here.
+// This trigger's schedule comes due, and no other's.
 const runTrigger = async (t) => {
-  srv.triggers.stop();
   const list = srv.store.config.triggers;
   const was = list.map((x) => x.enabled);
   list.forEach((x) => Object.assign(x, { enabled: x.id === t.id, lastMinute: null }));
