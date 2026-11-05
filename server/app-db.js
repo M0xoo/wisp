@@ -17,6 +17,9 @@ import { bundlePath } from './bundle.js';
 
 const WORKER = fileURLToPath(new URL('./app-db-worker.js', import.meta.url));
 const BODY_LIMIT = 1024 * 1024;
+// For the worker to open the file, before the query's own limit starts (app-db-worker.js): a lock
+// left by a stopped worker or a slow disk isn't the query being slow, but a hung file still ends.
+const OPEN_MS = 15_000;
 // Nothing that reaches past the app's own file (ATTACH writes anywhere), loads code, or changes
 // the limits set on it. Whole words, so a string that merely says them is refused too: rare.
 const DENY = /\b(attach|detach|pragma|vacuum|load_extension|sqlite_dbpage)\b/i;
@@ -67,7 +70,7 @@ export function createAppDb({ maxBytes = 10 * 1024 * 1024, timeoutMs = 5000 } = 
     me.on('message', (m) => {
       const w = m.id && me.waiting.get(m.id);
       if (!w) return;
-      if (m.started) return w.arm();
+      if (m.started) return w.limit();
       me.waiting.delete(m.id);
       clearTimeout(w.timer);
       w.resolve(m);
@@ -94,16 +97,17 @@ export function createAppDb({ maxBytes = 10 * 1024 * 1024, timeoutMs = 5000 } = 
     }
     const id = ++seq;
     return new Promise((resolve) => {
-      // Timed from when the worker says it started, not from sending, and judged only after the
+      // Timed from when the worker says it started (its file is open), not from sending, and judged only after the
       // answers already in the pipe are read (setImmediate runs after them): a busy wisp that reads
       // its messages late (a loaded CI box) would otherwise run the timer first and stop a query
       // that took a millisecond.
       const w = { resolve, timer: null };
-      w.arm = () => {
+      w.arm = (ms, error) => {
+        clearTimeout(w.timer);
         const stop = () => {
           if (me.waiting.get(id) !== w) return;
           me.waiting.delete(id);
-          resolve({ error: `That query took over ${timeoutMs / 1000} s and was stopped.`, status: 503 });
+          resolve({ error, status: 503 });
           // The only way to stop a query in node:sqlite. The next query starts a new worker at once.
           if (child === me) child = null;
           // Never wait forever on it: a worker that won't die is still replaced after a while.
@@ -112,9 +116,11 @@ export function createAppDb({ maxBytes = 10 * 1024 * 1024, timeoutMs = 5000 } = 
           }));
           me.kill('SIGKILL');
         };
-        w.timer = setTimeout(() => setImmediate(stop), timeoutMs);
+        w.timer = setTimeout(() => setImmediate(stop), ms);
       };
+      w.limit = () => w.arm(timeoutMs, `That query took over ${timeoutMs / 1000} s and was stopped.`);
       me.waiting.set(id, w);
+      w.arm(OPEN_MS, `This app’s data took over ${OPEN_MS / 1000} s to open.`);
       me.channel?.ref();
       me.send({ ...msg, id }, (err) => err && resolve({ error: err.message, status: 503 }));
     }).finally(() => {

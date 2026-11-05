@@ -1,7 +1,7 @@
 // The child process that runs apps' SQL (app-db.js): node:sqlite is synchronous and can't be
 // interrupted, so a query that never ends (a recursive CTE) takes this process down, not wisp or
 // the grid. Messages in: { id, op: 'query', file, sql, params, seed, maxBytes } or
-// { id, op: 'close', file }. Out: { id, started } first, then { id, rows } | { id, changes, lastId } | { id, error }.
+// { id, op: 'close', file }. Out: { id, started } once its file is open, then { id, rows } | { id, changes, lastId } | { id, error }.
 
 import fs from 'node:fs';
 
@@ -36,11 +36,13 @@ function connect(file, maxBytes) {
   return d;
 }
 
-function db(file, { seed, maxBytes }) {
+// started(): the file is open, and the query's time limit begins. A seed counts as the query.
+function db(file, { seed, maxBytes }, started) {
   let d = open.get(file);
   if (d) {
     open.delete(file);
     open.set(file, d);
+    started();
     return d;
   }
   d = connect(file, maxBytes);
@@ -52,6 +54,7 @@ function db(file, { seed, maxBytes }) {
       remove(file);
       d = connect(file, maxBytes);
     }
+    started();
     // No tables yet: new, or left by a worker stopped before its seed's first commit.
     if (seed && !d.prepare('SELECT 1 FROM sqlite_schema LIMIT 1').get()) {
       d.exec(`PRAGMA user_version = ${SEEDING};`);
@@ -81,15 +84,13 @@ const plain = (row) => {
 };
 
 process.on('message', (m) => {
-  // The parent times the query from here (app-db.js).
-  process.send({ id: m.id, started: true });
   try {
     if (m.op === 'close') {
       open.get(m.file)?.close();
       open.delete(m.file);
       return process.send({ id: m.id, ok: true });
     }
-    const stmt = db(m.file, m).prepare(m.sql);
+    const stmt = db(m.file, m, () => process.send({ id: m.id, started: true })).prepare(m.sql);
     // Reads give rows; writes say what changed (with RETURNING: its rows).
     if (/^\s*(select|with|values)\b/i.test(m.sql) || /\breturning\b/i.test(m.sql)) {
       const rows = stmt.all(...m.params);
