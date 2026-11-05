@@ -13,6 +13,10 @@
 .hd-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .hd-acts .i { width: 13px; height: 13px; }
 .hd-x { top: 8px; translate: none; }
+/* Compact now: a ghost after the row's two answers, its prices quiet beside it. The two wrap as one,
+   onto a line of their own, so a narrow box never moves Send and the prices stay by their button. */
+.hd-compact-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.hd-compact-note { min-width: 0; font-size: 12.5px; line-height: 1.35; color: var(--muted); font-variant-numeric: tabular-nums; text-wrap: pretty; }
 @media (pointer: coarse) { .hd-acts button { min-height: 44px; } .hd-x { width: 32px; height: 32px; top: 4px; right: 4px; } }
 
 /* A run held for the reset: the card under its prompt, built like the usage-limit one. */

@@ -73,7 +73,8 @@ export class Guard {
         if (!runs.has(acc)) runs.set(acc, []);
         runs.get(acc).push([t.endedAt, u]);
         // Subagents and Auto's repair rounds run inside a task you already said yes to.
-        if (s.parentId || s.delegated || t.by === 'wisp') return;
+        // A compaction neither: a $0.7 turn says nothing about what a follow-up costs.
+        if (s.parentId || s.delegated || t.by === 'wisp' || t.by === 'compact') return;
         (i ? followUp : first).push(u);
         const key = !i && originKey(s);
         if (key) (own.get(key) || own.set(key, []).get(key)).push(u);
@@ -96,7 +97,7 @@ export class Guard {
     if (kind === 'first') return h.own.get(originKey({ origin, crew })) || h.first;
     const base = h.followUp || h.first;
     // A follow-up on a task whose runs have been big is likely big too.
-    const mine = (session?.turns || []).filter((t) => (t.agent || session.agent) === agent && t.status !== 'held').map((t) => unitsOf(t.stats)).filter(Boolean);
+    const mine = (session?.turns || []).filter((t) => (t.agent || session.agent) === agent && t.status !== 'held' && t.by !== 'compact').map((t) => unitsOf(t.stats)).filter(Boolean);
     if (!mine.length) return base;
     const m = median(mine);
     return base ? [base[0], Math.max(base[1], m), Math.max(base[2], m)] : [m, m, m];

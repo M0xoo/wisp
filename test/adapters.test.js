@@ -310,6 +310,12 @@ test('claude: the context and the cache TTL come from the main thread\'s last me
   // A message after the compact: that message's size, the smaller context.
   [r] = await results('compact-more');
   assert.equal(r.stats.contextTokens, 9030);
+  // A turn that compacted on its way is an ordinary answer: no stats.compact, its own text.
+  for (const kind of ['compact', 'compact-sub', 'compact-more']) {
+    [r] = await results(kind);
+    assert.ok(!('compact' in r.stats), kind);
+    assert.doesNotMatch(r.text, /^Compacted/, kind);
+  }
   // Two results from one process: the second didn't inherit the first's.
   const two = await results('twice');
   assert.equal(two.length, 2);

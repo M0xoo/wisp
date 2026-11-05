@@ -26,6 +26,7 @@ import { infraError } from './router.js';
 import { refusalOf } from './refusal.js';
 import { vendorOf } from '../web/js/vendors.js';
 import { goalNote, goalView } from './goal.js';
+import { compactOffer, compactUntil } from '../web/js/cold-cache.js';
 import { kitNote } from './crew.js';
 import { planOf, toolSet, unitsOf } from './budget.js';
 import { watchView } from './watch.js';
@@ -220,10 +221,19 @@ export function listSummary(s, store) {
 // What a failure's hero says: the error's first line. The rest stays in its terminal block.
 const firstLine = (text) => clip(String(text || '').split('\n').find((l) => l.trim()) || '', 200);
 
+// Compact now for the list, which has no turns: the offer, and when it ends by itself (the page
+// goes by that, since a kept summary doesn't age). web/js/cold-cache.js.
+function compactSummary(s) {
+  const offer = compactOffer(s);
+  return offer ? { compactOffer: { ...offer, until: compactUntil(s) } } : {};
+}
+
 export function summarize(s, store) {
   const project = store?.projectFor(s.cwd);
   const last = s.turns.at(-1);
-  const hero = heroOf(last?.presentation);
+  // A compact turn reports nothing of its own: the row goes on saying what the last answer said.
+  const report = last?.by === 'compact' && last.status === 'done' ? s.turns.findLast((t) => t.by !== 'compact') : last;
+  const hero = heroOf(report?.presentation);
   // Only a running turn's last step is shown (and reading activity loads a task's heavy fields: store.js).
   const lastAct = last?.status === 'running' ? last.activity?.findLast?.((a) => a.kind !== 'text') : null;
   // A lead blocked on its subagents says who it's waiting for.
@@ -262,7 +272,7 @@ export function summarize(s, store) {
     ...(last?.status === 'held' && { held: (({ kind, label, used, to, line, resetsAt, until, waiting, harness, project }) => (project ? { kind, project: { count: project.items.length, ...(project.changed && { changed: true }), ...(project.setup && { setup: project.setup }) } } : harness ? { kind, harness } : { kind, label, used, to, line, resetsAt, until, ...(waiting && { waiting: true }) }))(last.held) }),
     ...(s.watch && { watch: watchView(s) }), // a page its agent keeps updating beside it (server/watch.js)
     ...(s.tags?.length && { tags: s.tags }), // topic words its agent set with wisp_tag, for search (web/js/tags.js)
-    live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || 'Starting up' : s.auto?.busy ? s.auto.label : s.goal?.status === 'checking' ? 'Checking the goal' : '',
+    live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || (last.by === 'compact' ? 'Compacting' : 'Starting up') : s.auto?.busy ? s.auto.label : s.goal?.status === 'checking' ? 'Checking the goal' : '',
     term: openTerms.has(s.id) || undefined, // taken over in the page: a terminal is open
     ...(s.tui && { tui: true }), // a terminal session: it opens on the agent's own CLI (services/tui.js)
     asks: !!s.ask || !!last?.presentation?.blocks?.some((b) => b.type === 'question'),
@@ -318,7 +328,8 @@ export function summarize(s, store) {
     ...relaysOf(s, store),
     // The condition it keeps going for (server/goal.js): its state, round and checks.
     ...(s.goal && { goal: goalView(s.goal) }),
-    followups: s.turns.slice(1).filter((t) => t.by !== 'wisp').length, // yours, not Auto's repair rounds
+    followups: s.turns.slice(1).filter((t) => t.by !== 'wisp' && t.by !== 'compact').length, // yours, not Auto's repair rounds or a compaction
+    ...compactSummary(s),
     // Auto's steps after the run: a hand-over, the best-of-2 pick.
     auto: s.auto
       ? {
@@ -476,7 +487,7 @@ export class Runner extends EventEmitter {
       ...(session.account && { account: session.account }),
       mode: opts.mode || session.mode,
       attachments: attachments.map(({ id, name, mime, size }) => ({ id, name, mime, size })),
-      ...(opts.by === 'wisp' && { by: 'wisp' }),
+      ...((opts.by === 'wisp' || opts.by === 'compact') && { by: opts.by }),
       ...(opts.by === 'wisp' && opts.goal && { goal: opts.goal }),
       ...(opts.by === 'later' && opts.later && { later: opts.later }),
       startedAt: now,
@@ -550,10 +561,13 @@ export class Runner extends EventEmitter {
     if (!MODES.has(mode) || mode === session.mode || session.sideOf) mode = undefined; // a side discussion's mode is its harness's (sideMode)
     run = changedRun(session, run);
     if (session.parentId || session.sideOf || (team && JSON.stringify(team) === JSON.stringify(session.subagents || []))) team = undefined;
-    if (by !== 'wisp' && by !== 'later') this.pipeline?.cancel(session);
-    if (by !== 'wisp') this.goals?.cancel(session);
-    if (by !== 'wisp') delete session.queueHeld; // you're back: a queue a Stop held carries on after this
-    const extra = { ...(by === 'wisp' && goal && { goal }), ...(mode && { mode }), ...(run && { run }), ...(team && { team }), ...(grants?.length && { grants }), ...(MODES.has(once) && { once }), ...((by === 'wisp' || by === 'later') && { by }), ...(by === 'later' && later && { later }), ...(side && { side }) };
+    // by: 'compact': Compact now (POST /sessions/:id/compact). Housekeeping, not a word from you:
+    // what was going on carries on, and its turn checks nothing.
+    const compact = by === 'compact';
+    if (by !== 'wisp' && by !== 'later' && !compact) this.pipeline?.cancel(session);
+    if (by !== 'wisp' && !compact) this.goals?.cancel(session);
+    if (by !== 'wisp' && !compact) delete session.queueHeld; // you're back: a queue a Stop held carries on after this
+    const extra = { ...(by === 'wisp' && goal && { goal }), ...(mode && { mode }), ...(run && { run }), ...(team && { team }), ...(grants?.length && { grants }), ...(MODES.has(once) && { once }), ...((by === 'wisp' || by === 'later' || compact) && { by }), ...(by === 'later' && later && { later }), ...(side && { side }) };
     if (session.ask && !Object.keys(extra).length) {
       this.answer(session, text);
       return { answered: true };
@@ -1373,6 +1387,8 @@ export class Runner extends EventEmitter {
     const turn = this.#newTurn(session, prompt, attachments, mode);
     if (session.relay) turn.relay = { state: 'pending' }; // until the relay picks it up
     if (by === 'wisp') turn.by = 'wisp'; // sent by wisp (Auto's repair round), not by you
+    if (by === 'compact') turn.by = by;
+    if (by === 'compact' && (session.state === 'done' || session.state === 'review')) turn.was = { state: session.state, unread: !!session.unread }; // it goes back there
     if (side) turn.side = side; // ...from that side discussion: what changed in the shared work
     if (project) turn.untrusted = true; // ran without the repo's hooks and servers
     if (by === 'wisp' && goal) turn.goal = goal; // ...going back to work on the goal: its round
@@ -1381,7 +1397,7 @@ export class Runner extends EventEmitter {
     if (by === 'later' && later) turn.later = later;
     if (turn.later?.by && turn.later.by !== 'user') session.laterChain = (session.laterChain || 0) + 1;
     else if (by !== 'wisp') delete session.laterChain;
-    delete session.reminder; // a reminder on it is answered by carrying on
+    if (by !== 'compact') delete session.reminder; // a reminder on it is answered by carrying on
     if (reports) turn.reports = true; // ...with the reports of delegates that finished after the lead's turn
     // Side questions still being answered move to the new turn: the old one folds away on the card.
     const prev = session.turns.at(-1);
@@ -1406,8 +1422,8 @@ export class Runner extends EventEmitter {
     if (session.goal && !session.goal.from) session.goal.from = turn.id; // its changes are measured from here
     session.state = 'running';
     session.unread = false;
-    delete session.archived;
-    delete session.forLater; // new work: when it ends it lands in Needs you, not back in For later
+    if (by !== 'compact') delete session.archived;
+    if (by !== 'compact') delete session.forLater; // new work: when it ends it lands in Needs you, not back in For later
     this.#touch(session, { turn: turn.id });
     this.#touchLead(session);
     this.emit('started', { session, turn });
@@ -1444,7 +1460,8 @@ export class Runner extends EventEmitter {
     const subagentModel = session.agent === 'claude' && !delegating ? this.store.config?.defaults?.subagentModel || '' : '';
     if (subagentModel) turn.run = { ...turn.run, subagentModel };
     const handle = this.#spawned(session, turn, team, () => adapter.run({
-      prompt: [handoff, still, turn.later ? laterNote(turn.later) : '', said].filter(Boolean).join('\n\n'),
+      // Anything in front of /compact stops it being a command.
+      prompt: by === 'compact' ? prompt : [handoff, still, turn.later ? laterNote(turn.later) : '', said].filter(Boolean).join('\n\n'),
       attachments,
       cwd: workdir(session),
       dirs: [...alsoDirs((session.parentId && this.store.get(session.parentId)) || main || session), ...(session.crew ? this.crewDirs(session) : [])], // the task's other folders (a subagent's are its lead's), a crew job's skills
@@ -1502,6 +1519,16 @@ export class Runner extends EventEmitter {
     handle.release = release;
     this.live.set(session.id, handle);
     handle.done.finally(release);
+  }
+
+  // Would a run of this task start held, on the changed harness's or the repo's card? Compact now
+  // doesn't: it's refused instead (its own card would only stand in the way of a one-click action).
+  startsHeld(session) {
+    const w = this.harnessWatch;
+    const bin = adapters[session.agent]?.bin?.();
+    if (w && bin && this.store.config?.defaults?.harnessAsk === 'on' && w.suspect(session.agent, bin)) return true;
+    const project = session.relay ? null : this.projectPending(session);
+    return !!project && !project.items.every((x) => session.projectWithout?.includes(x.id));
   }
 
   // Project trust (server/project-trust.js): what a run of this task would run from its repo (Claude
@@ -1740,8 +1767,8 @@ export class Runner extends EventEmitter {
       turn.status = 'done';
       turn.raw = ev.text; // kept so the turn can be re-parsed if the parser improves
       turn.presentation = parsePresentation(ev.text);
-      if (turn.plain) delete turn.presentation.fallback; // asked for plain text (wisp blocks off), so it isn't a slip
-      if (session.crew) crewOut = this.crewTurn(session, turn) || {}; // its memory comes out of the report
+      if (turn.plain || turn.stats?.compact) delete turn.presentation.fallback; // asked for plain text (wisp blocks off), or no answer at all: not a slip
+      if (session.crew && turn.by !== 'compact') crewOut = this.crewTurn(session, turn) || {}; // its memory comes out of the report
       this.store.keepImages(session, turn);
       this.store.keepDocs?.(session, turn);
       this.store.keepTasks?.(turn);
@@ -1761,9 +1788,10 @@ export class Runner extends EventEmitter {
     // A follow-up starts as soon as this run lets go: stay in Working rather than flash through Needs you.
     const handing = this.live.has(session.id) && (interrupted || (session.queue.length > 0 && !session.queueHeld));
     if (handing) this.handing.add(session.id);
-    const checks = !handing && !!this.pipeline?.wants(session, turn, ev);
+    const compact = turn.by === 'compact';
+    const checks = !handing && !compact && !!this.pipeline?.wants(session, turn, ev);
     // No Auto step: the goal (if any) is checked now. With one, Auto's settle() hands over to it.
-    const goal = !handing && !checks && !!this.goals?.wants(session, turn, ev);
+    const goal = !handing && !checks && !compact && !!this.goals?.wants(session, turn, ev);
     const holding = checks || goal;
     session.state = holding || handing ? 'running' : 'review';
     session.unread = !holding && !handing;
@@ -1773,8 +1801,16 @@ export class Runner extends EventEmitter {
     if (waits) this.#waitsForReset(session, turn);
     // A crew check-in that found nothing (archived too), or a delegated job (its lead reads the
     // answer): filed under Done, nobody is pinged.
-    const quiet = ((crewOut.quiet || crewOut.filed) && !holding && !handing) || waits;
-    if (quiet) Object.assign(session, { state: 'done', unread: false, ...(crewOut.quiet && { archived: true }) });
+    // A compaction is housekeeping: the task goes back to where it was and nobody is pinged. One
+    // that failed or was stopped shows like any run, also from Archived or For later.
+    const back = (compact && turn.status === 'done' && !handing && turn.was) || null;
+    delete turn.was;
+    if (compact && !back) {
+      delete session.archived;
+      delete session.forLater;
+    }
+    const quiet = ((crewOut.quiet || crewOut.filed) && !holding && !handing) || waits || !!back;
+    if (quiet) Object.assign(session, { state: 'done', unread: false, ...(crewOut.quiet && { archived: true }) }, back);
     if (crewOut.quiet && !holding && !handing) turn.quiet = true; // for the member's track record (usage.js crewStats)
     // A crew report worth reading but not urgent: filed in For later, unread, and nobody is pinged.
     const parked = !!crewOut.later && !quiet && !holding && !handing && !crewOut.filed;

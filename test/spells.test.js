@@ -278,6 +278,13 @@ test('bringing in worktrees: the offer and its buttons are parts a spell can res
   assert.ok(problems({ ...base0, parts: { 'launcher.bringInNow': { style: { color: 'red' } } } }).some((x) => /launcher\.bringInNow/.test(x)));
 });
 
+test('Compact now: a button can run it, a hook never can, and its button and prices are parts', () => {
+  assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'card.menu', label: 'Compact', do: { compact: true } }, { slot: 'composer.bar', label: 'Compact', do: { compact: true } }] }), []);
+  assert.ok(problems({ ...base0, hooks: [{ on: 'turn.finished', do: { compact: true } }] }).some((x) => /a hook can only/.test(x)), 'never automatic');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['hold.compact', 'hold.compactNote', 'menu.compact', 'turn.compact'] } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['hold.compactPrice'] } }).length);
+});
+
 test('forks: a fork button acts on the card\'s task, its chips, turn button and start line are parts', () => {
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'card.menu', icon: 'fork', label: 'Try with Codex', do: { fork: { prompt: 'Try it another way', agent: 'codex', mode: 'plan' } } }] }), []);
   assert.ok(problems({ ...base0, buttons: [{ slot: 'card.menu', label: 'x', do: { fork: { agent: 'codex' } } }] }).some((x) => /fork needs a prompt: what the fork should try/.test(x)));

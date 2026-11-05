@@ -500,6 +500,30 @@ Every page check also fails on an uncaught page error or a `console.error`.
   - 8: at 1000 the short form *Cache cold: re-reads about 480k* with the number whole. Under about 950 wide, or at 1000 with the side panel open, it's cut short; its title holds the whole line. Fork… stays whole.
 - **Suite** (`test/cold-cache.test.js`, `test/adapters.test.js`, `test/spells.test.js`), **Manual** (real Chrome)
 
+### WEB-55b · Compact now
+- **Preconditions:** the fake harness with `FAKE_CONTEXT=1h`, a Claude task with one finished turn (about 480k tokens, Opus). A window near the line (`FAKE_LIMITS`) for the hold row.
+- **Steps:**
+  1. Open the task's More, right-click it, and open ⌘K.
+  2. Type a follow-up that crosses your line, so the hold row shows. Press **Compact now**.
+  3. Age a turn past 60 minutes, then past 75. Try a task under 200k, a Codex task, a side discussion and a task whose last turn hit a limit.
+  4. Compact a task marked Done, one you've read in review, one unread, an archived one and one in For later. Compact one with a goal. Make one fail (`FAKE_FAIL`).
+  5. Make the server refuse (end the task's cache between opening the menu and clicking).
+  6. With `FAKE_COMPACT=none`, press Compact now.
+  7. Cast a spell with a `card.menu` button `{ "compact": true }`, and one with `ui: { hide: ['hold.compact', 'hold.compactNote', 'menu.compact', 'turn.compact'] }`.
+  8. Send a follow-up after a compact, then hover Compact now in each place.
+  9. Look at 1440, 1000 and 390 wide, light and dark, side by side and stacked.
+- **Expected:**
+  - 1: **Compact now** in all three, with *About $0.74 now, $3.84 once the cache is cold*: a dim second line in the menus, which are as wide as on a task without the offer.
+  - 2: Working at once, with a quiet *Compact now* line (no `/compact` bubble) and a *Compacting* panel; the row says *Compacting* too. No hold, no ask. The draft stays in the box, and the answer above stays open and doesn't move. The turn ends on *Compacted from 481k to 10k tokens.*, the row keeps that answer's verdict and line, and the cold line and the offer are gone.
+  - 3: at 60 minutes the offer's gone while the cold line isn't up yet; past 75 only Fork…. None of the others offers it.
+  - 4: each stays where it was, read or unread, and nobody is pinged; the goal isn't checked and isn't cancelled. The failed one shows like any run, in Needs you.
+  - 5: the turn rolls back and a red toast says why.
+  - 6: *Not enough messages to compact.*, the cold line stays true, and the offer goes.
+  - 7: the button compacts; the four parts go.
+  - 8: the compact folds to one muted row with what it did. Each tooltip says the prices are estimates at API list prices and that a plan pays no dollars.
+  - 9: at 390 the row's Send anyway and Wait until stay on their line; Compact now and its prices wrap under them, inside the box.
+- **Suite** (`test/compact.test.js`, `test/cold-cache.test.js`), **Manual** (real Chrome)
+
 ### WEB-56 · The keyboard stays in the reply box after Send
 - **Preconditions:** a finished task, open; the fake harness with `FAKE_DELAY=1500`.
 - **Steps:**

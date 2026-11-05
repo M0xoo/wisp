@@ -10,6 +10,7 @@ import { $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { toastError } from '../ui/toast.js';
 import { holdFor, holdTo } from '../limit-hold.js';
+import { compactNote, compactTip } from '../cold-cache.js';
 import { renderFeed } from './feed.js';
 import { aheadLabel, whenTip } from './later.js';
 import { accountOf, agentName } from './runners.js';
@@ -64,14 +65,18 @@ function landing(h, kind) {
 // Esc keeps editing.
 // row: the row's element; ta: the box; h: holdNow() or the server's hold; kind: first | followUp.
 // go(), wait(at), keep(): what each does (the row is gone by then).
-export function showHold(row, ta, h, { kind = 'first', go, wait }) {
+// compact: { offer, run } on a follow-up to a large warm task (compactable in actions.js): Compact
+// now beside the rest, with both prices. The draft stays in the box.
+export function showHold(row, ta, h, { kind = 'first', go, wait, compact }) {
   hideHold(row);
+  const shrink = kind === 'followUp' && h.used < 1 ? compact : null;
   const send = kind === 'followUp' ? 'Send anyway' : 'Start anyway';
   const at = h.resetsAt && h.resetsAt > Date.now() + 60_000 ? h.resetsAt : null;
   row.innerHTML = `<p class="hd-say">${esc(`${whose(h)} ${lower(h.label)} window is at ${pct(h.used)}`)}${esc(landing(h, kind))}</p>
     <div class="hd-acts">
       <button type="button" class="primary sm" data-hd="go" title="${esc(send)} (Enter)">${esc(send)}</button>
       ${at ? `<button type="button" class="ghost sm" data-hd="wait" title="${esc(`${whenTip(at)} (⌥Enter)`)}">${icon('clock')}Wait until ${esc(aheadLabel(at))}</button>` : ''}
+      ${shrink ? `<span class="hd-compact-wrap"><button type="button" class="ghost sm hd-compact" data-hd="compact" title="${esc(compactTip(shrink.offer))}">${icon('minus')}Compact now</button><span class="hd-compact-note" title="${esc(compactTip(shrink.offer))}">${esc(compactNote(shrink.offer))}</span></span>` : ''}
     </div>
     <button type="button" class="att-x hd-x" data-hd="keep" aria-label="Keep editing" title="Keep editing (Esc)">${icon('x')}</button>`;
   row.hidden = false;
@@ -81,6 +86,7 @@ export function showHold(row, ta, h, { kind = 'first', go, wait }) {
     hideHold(row);
     if (what === 'go') go();
     else if (what === 'wait') wait(at);
+    else if (what === 'compact') shrink.run();
     ta?.focus();
   };
   row.onclick = (e) => {

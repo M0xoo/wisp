@@ -8,6 +8,7 @@ import { esc } from '../md.js';
 import { addToCrew, memberById, openCrew } from './crew.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
+import { compactNote, compactTip } from '../cold-cache.js';
 import { isForLater, MOBILE, S } from '../core/state.js';
 import { keyHint } from '../ui/kbd.js';
 import { overlay } from '../ui/overlay.js';
@@ -16,7 +17,8 @@ import { toast, toastError, tryApi } from '../ui/toast.js';
 import { autosize } from './attachments.js';
 import { saveAsRecipe } from './automations.js';
 import { compareView } from './compare.js';
-import { collapse, expand, handOff, renderFeed, setFocus } from './feed.js';
+import { collapse, expand, handOff, renderFeed, scheduleRefetch, setFocus } from './feed.js';
+import { startOptimistic } from './composer.js';
 import { sideable, sideDraft } from './side.js';
 import { launchBehind } from './launcher.js';
 import { shareable, shareTask } from './share.js';
@@ -206,6 +208,7 @@ export function moreMenu(id, anchor) {
       ${s.agentSessionId ? `<button data-a="copy">${icon('copy')}Copy resume command</button>` : ''}
       ${MOBILE ? '' : `<button data-a="folder">${icon('folder')}Open project in editor</button>`}
       ${forkable(sum) ? `<button data-a="fork">${icon('fork')}Fork…${keyHint('⇧F')}</button>` : ''}
+      ${compactItem(id)}
       ${sideable(sum) ? `<button data-a="side">${icon('discuss')}Side discussion…</button>` : ''}
       ${shareable(sum) ? `<button data-a="share">${icon('share')}Share…</button>` : ''}
       ${mergeLabel(sum) ? `<button data-a="merge">${icon('check')}${mergeLabel(sum)}</button>` : ''}
@@ -236,6 +239,7 @@ export function moreMenu(id, anchor) {
     if (a === 'takeover') takeOver(id);
     if (a === 'copy-id') copyTaskId(id);
     if (a === 'fork') forkTask(id);
+    if (a === 'compact') compactTask(id);
     if (a === 'side') sideDraft(id);
     if (a === 'share') shareTask(id);
     if (a === 'merge') mergePr(id);
@@ -284,6 +288,7 @@ export function taskMenu(id, e) {
       <button data-a="copy-id">${icon('copy')}Copy task ID</button>
       ${s.sideOf ? '' : `<button data-a="rerun">${icon('rerun')}Rerun…${keyHint('⇧R')}</button>`}
       ${forkable(s) ? `<button data-a="fork">${icon('fork')}Fork…${keyHint('⇧F')}</button>` : ''}
+      ${compactItem(id)}
       ${sideable(s) ? `<button data-a="side">${icon('discuss')}Side discussion…</button>` : ''}
       ${shareable(s) ? `<button data-a="share">${icon('share')}Share…</button>` : ''}
       ${shippable(s) ? `<button data-a="ship">${icon('send')}${shipLabel(s)}${keyHint('S')}</button>` : ''}
@@ -315,6 +320,7 @@ export function taskMenu(id, e) {
     if (a === 'copy-id') copyTaskId(id);
     if (a === 'rerun') rerun(id);
     if (a === 'fork') forkTask(id);
+    if (a === 'compact') compactTask(id);
     if (a === 'side') sideDraft(id);
     if (a === 'share') shareTask(id);
     if (a === 'ship') shipDialog(id);
@@ -497,6 +503,34 @@ export async function rerun(id) {
     }
   });
   requestAnimationFrame(() => (ta.focus(), ta.setSelectionRange(ta.value.length, ta.value.length)));
+}
+
+// Compact now (web/js/cold-cache.js): the offer on this task now, or null. From the summary, the
+// one thing that's always current here: S.full can be a closed task's old copy, and most rows have
+// none. The server sends the offer with when it ends, and refuses a stale one all the same.
+export function compactable(id) {
+  const sum = S.sessions.get(id);
+  const o = sum?.compactOffer;
+  if (!o || Date.now() >= o.until || sum.state === 'running' || sum.state === 'waiting') return null;
+  const budget = S.agents?.find((a) => a.id === sum.agent)?.budget || [];
+  return budget.some((b) => b.account === (sum.account || 'default') && b.windows?.some((w) => w.used >= 1)) ? null : o;
+}
+
+const compactItem = (id) => {
+  const o = compactable(id);
+  return o ? `<button data-a="compact" title="${esc(compactTip(o))}">${icon('minus')}Compact now<span class="mi-compact-note">${esc(compactNote(o))}</span></button>` : '';
+};
+
+export async function compactTask(id) {
+  const undo = startOptimistic(id, '/compact', null, { live: 'Compacting', by: 'compact' });
+  try {
+    await api(`/sessions/${id}/compact`, { method: 'POST' });
+    if (undo) scheduleRefetch(id); // the summary that follows says "running" too, so it won't refetch by itself
+    else toast('Compacting');
+  } catch (err) {
+    undo?.();
+    toastError(err);
+  }
 }
 
 // Fork: a new task that carries on from one of this one's turns (the latest by default), with

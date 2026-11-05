@@ -132,7 +132,7 @@ export class Pipeline {
   #canEscalate(session) {
     const a = session.auto;
     // A fresh worktree from the same base, or the second run would build on the first one's mess.
-    return a.strategy === 'single' && !a.escalatedTo && !!session.worktree && !session.turns.some((t, i) => i > 0 && t.by !== 'wisp');
+    return a.strategy === 'single' && !a.escalatedTo && !!session.worktree && !session.turns.some((t, i) => i > 0 && t.by !== 'wisp' && t.by !== 'compact');
   }
 
   #stage(session, turn, stage, label) {

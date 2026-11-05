@@ -97,7 +97,17 @@ including your own sends, with an estimate, and keeps what it holds in Needs you
   `--warn` at that line.
 
 Spells: `settings.limitHold`, the `harness.usage` part. The hold row and the held card aren't parts:
-they need you, like a due reminder.
+they need you, like a due reminder. **Compact now** in the row is (`hold.compact`,
+`hold.compactNote`): it's an offer, not the question.
+
+**Compact now** (`compactOffer`, web/js/cold-cache.js): on a follow-up to a Claude task of 200k
+tokens or more whose cache is warm, the row also offers to shrink it, with both prices; so do the
+task's menus and ⌘K. The prices are estimates at API list prices: the tooltip says so (`compactTip`), the line doesn't. In the task it's one quiet line, not a `/compact` bubble; the answer above stays open and keeps the row's verdict. Stricter than the cold line: it ends at the TTL, not at TTL × 1.25, since 17 of 38
+caches were already gone by 60-75 min. `POST /sessions/:id/compact` isn't checked: it's what you do
+near the line, so it's never held. It's refused when the offer isn't there or a window is used up.
+Its turn (`by: 'compact'`) still counts against the window, but isn't a sample for a follow-up's
+estimate. The task goes back to where it was (Done, review with its unread, Archived, For later) and
+nobody is pinged, unless the compact fails. It's only ever a click: a spell's button can run it, a hook can't.
 
 ## Not yet
 

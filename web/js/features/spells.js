@@ -288,6 +288,8 @@ export async function runAction(spell, action, ctx = {}) {
         return m.archive(need().id);
       case 'forLater':
         return m.forLater(need().id);
+      case 'compact':
+        return m.compact(need().id);
       case 'exec': {
         const command = fill(v);
         if (!(await confirmExec(spell, command))) return;

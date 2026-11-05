@@ -49,11 +49,67 @@ export function coldReply(s, { run, moving, terminal } = {}, at = Date.now()) {
   return c?.cold ? c : null;
 }
 
+// Compact now: a large warm Claude task can shrink before its cache lapses, so the next reply reads
+// a summary instead of the whole conversation. One click, never by itself.
+export const COMPACT_MIN = 200_000;
+// Estimates, from reports/2026-11-05-rerank23: the summary writes about 20k output, the next turn
+// writes about 30k to the cache.
+const COMPACT_OUTPUT = 20_000;
+const COMPACT_WRITE = 30_000;
+// USD per million tokens, API list, by the main thread's model: input, cache read, output.
+const PRICES = {
+  'claude-opus-5-5': [4, 0.2, 20],
+  'claude-sonnet-5-5': [2, 0.2, 10],
+  'claude-fable-5-1': [10, 0.25, 50],
+  'claude-fable-5': [10, 0.25, 50],
+};
+const WRITE_1H = 2; // a cache write, as a multiple of input
+const WRITE_5M = 1.25;
+
+const bareModel = (id) => String(id || '').replace(/\[1m\]$/i, '').replace(/-\d{8}$/, '');
+
+// The model the main thread ran on: stats.models has its subagents' too, and most output doesn't
+// say which is which. A context this large is the main thread's, so it's the one that read most.
+function mainModel(st) {
+  const subs = new Set((st?.subagents || []).filter((x) => !x.same && x.model).map((x) => bareModel(x.model)));
+  const read = (m) => (m.input || 0) + (m.cacheRead || 0) + (m.cacheWrite || 0);
+  return (st?.models || []).map((m) => ({ id: bareModel(m.model), read: read(m) })).filter((m) => !subs.has(m.id)).sort((a, b) => b.read - a.read)[0]?.id || '';
+}
+
+// When the offer ends: the TTL, not the cold line's coldAt. 17 of 38 caches were already gone at
+// 60-75 min, and compacting a dead cache reads the whole conversation at the price it's meant to save.
+export function compactUntil(s, at = Date.now()) {
+  const c = coldCache(s, at);
+  return c ? c.coldAt - c.ttlMs * (GRACE - 1) : 0;
+}
+
+// { tokens, compact, cold } when this task can be compacted now, or null. compact and cold are the
+// USD estimates of compacting now and of the same reply after the cache lapses; null on a model
+// with no price here, which shows tokens only.
+export function compactOffer(s, at = Date.now()) {
+  if (s?.agent !== 'claude' || s.sideOf || s.parentId || s.delegated || s.relay || s.kind || s.tui) return null; // the relay doesn't carry by: 'compact'
+  const c = coldCache(s, at);
+  if (!c || c.tokens < COMPACT_MIN || at >= compactUntil(s, at)) return null;
+  const turns = s.turns;
+  const last = turns.at(-1);
+  if (last.limit || last.stats?.compact?.none) return null; // a limited session can't compact; one that just failed won't now
+  const price = PRICES[mainModel(turns.findLast((t) => t.stats?.contextTokens && t.stats.cacheTtlMs).stats)];
+  if (!price) return { tokens: c.tokens, compact: null, cold: null };
+  const [input, read, output] = price;
+  const write = input * (c.ttlMs > 300_000 ? WRITE_1H : WRITE_5M);
+  return { tokens: c.tokens, compact: (c.tokens * read + COMPACT_OUTPUT * output + COMPACT_WRITE * write) / 1e6, cold: (c.tokens * write) / 1e6 };
+}
+
 const about = (tokens) => tokenWords(Math.round(tokens / 10_000) * 10_000); // 483214 → "480k"
 
 export const coldLine = (tokens) => `Cache gone cold: this reply re-reads about ${about(tokens)}`;
 // When the bar can't hold coldLine: the number is the point, so this form keeps it.
 export const coldLineShort = (tokens) => `Cache cold: re-reads about ${about(tokens)}`;
+const usd = (x) => `$${x.toFixed(2)}`;
+// Beside Compact now: both prices, or the size alone on a model with no price here.
+export const compactNote = (o) => (o.compact == null ? `About ${about(o.tokens)} tokens` : `About ${usd(o.compact)} now, ${usd(o.cold)} once the cache is cold`);
+// Their tooltip: the note stays short, and on a plan those dollars are only a comparison.
+export const compactTip = (o) => `Shrinks this conversation to a summary, so the next reply reads that instead.${o.compact == null ? '' : ' Estimates at API list prices. On a plan you pay no dollars: it counts against your usage window.'}`;
 export const coldLineAhead = (tokens) => `Cache will have gone cold by then: this reply re-reads about ${about(tokens)}`;
 export const coldLineMaybe = (tokens) => `Cache may have gone cold by then: if so, this reply re-reads about ${about(tokens)}`;
 

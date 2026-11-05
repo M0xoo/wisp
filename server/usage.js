@@ -227,7 +227,7 @@ function jobOf(s) {
     approvals,
     questions: asks - approvals + ended.filter(asked).length,
     // Yours, on its job: not wisp's own rounds, and not an answer to a question it asked.
-    followups: s.turns ? turns.slice(1).filter((t, i) => t.by !== 'wisp' && t.by !== 'later' && !asked(turns[i])).length : s.followups || 0,
+    followups: s.turns ? turns.slice(1).filter((t, i) => t.by !== 'wisp' && t.by !== 'later' && t.by !== 'compact' && !asked(turns[i])).length : s.followups || 0,
     pr: s.pr?.state === 'merged' ? 'merged' : s.pr?.state === 'open' ? 'open' : '',
     cost: 0,
     priced: false,

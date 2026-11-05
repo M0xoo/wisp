@@ -106,7 +106,7 @@ R.hero = (b, ctx) => {
   // In a task, the head above already shows this title, and its bar the latest turn's state: don't
   // say them twice.
   const echo = ctx.trail && b.title && b.title === ctx.session?.title;
-  const own = ctx.trail && ctx.isLatest;
+  const own = ctx.trail && (ctx.isLatest || ctx.answer);
   return el(`
     <div class="b-hero st-${status}${echo ? ' echo' : ''}${own ? ' own' : ''}">
       <div class="aura"></div>

@@ -21,6 +21,8 @@
 //                compact_boundary, compact-more goes on with a message after it, compact-sub has
 //                only a subagent's message after it, twice reports a result first and then a
 //                second with no message
+//   FAKE_COMPACT     claude: none, a /compact with nothing to compact (no boundary, success)
+//   FAKE_REPLAY      claude: print this .jsonl as its stream and exit (a recorded run)
 //   FAKE_SUBAGENTS   claude: that many background web-fetch Agent calls on Opus, as claude 2.1.316
 //                    (on CLAUDE_CODE_SUBAGENT_MODEL's model when it's set, as Claude Code does)
 //                    streams them, and modelUsage on its result (Opus 41k output, 14k the main thread's)
@@ -75,7 +77,9 @@
 // <file>|<content>, SIDERUN <command>.
 
 import { execFileSync, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
 
@@ -223,10 +227,45 @@ function fakeContext(session, kind) {
   // The latest request wrote nothing: it gives the size, the TTL stays the earlier message's.
   say({ input_tokens: 20, cache_read_input_tokens: 481000, cache_creation_input_tokens: 0, output_tokens: 5, ...(split && { cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 } }) });
   say({ input_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 0 }, { model: '<synthetic>' });
-  if (kind.startsWith('compact')) out({ type: 'system', subtype: 'compact_boundary', session_id: session, compact_metadata: { trigger: 'manual', pre_tokens: 481020 } });
+  if (kind.startsWith('compact')) compactBoundary(session, 481020, 9521);
   if (kind === 'compact-more') say({ input_tokens: 30, cache_read_input_tokens: 9000, cache_creation_input_tokens: 0, output_tokens: 5 });
   if (kind === 'compact-sub') say({ input_tokens: 1, cache_read_input_tokens: 900000, cache_creation_input_tokens: 0, output_tokens: 1 }, { parent_tool_use_id: 't1' });
   if (kind === 'twice') out({ type: 'result', subtype: 'success', is_error: false, result: 'first', session_id: session, num_turns: 2, usage: { input_tokens: 30, output_tokens: 10 } });
+}
+
+// As claude 2.1.316 reports one (test/fixtures/claude-compact.jsonl).
+function compactBoundary(session, pre, post) {
+  const [head, anchor, tail] = ['head', 'anchor', 'tail'].map((x) => `uuid-${x}`);
+  out({ type: 'system', subtype: 'compact_boundary', session_id: session, uuid: 'uuid-boundary', compact_metadata: { trigger: 'manual', pre_tokens: pre, post_tokens: post, cumulative_dropped_tokens: pre - post, duration_ms: 6445, preserved_segment: { head_uuid: head, anchor_uuid: anchor, tail_uuid: tail }, preserved_messages: { anchor_uuid: anchor, uuids: [head, tail], all_uuids: [head, tail] } }, logical_parent_uuid: tail });
+}
+
+// What the CLI's counters hold for the conversation in this folder: as it restores them on --resume,
+// total_cost_usd and modelUsage add up over its runs. Kept once a turn reports them (FAKE_CONTEXT,
+// a /compact). A new conversation starts over.
+function counters(run) {
+  const file = path.join(process.env.CLAUDE_CONFIG_DIR || os.tmpdir(), `fake-counters-${createHash('sha1').update(process.cwd()).digest('hex')}.json`);
+  const had = resumeId && fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null;
+  const was = had || { costUSD: 0, inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 };
+  const now = Object.fromEntries(Object.keys(was).map((k) => [k, Math.round((was[k] + (run[k] || 0)) * 1e9) / 1e9]));
+  fs.writeFileSync(file, JSON.stringify(now));
+  return { total_cost_usd: now.costUSD, modelUsage: { 'claude-opus-5-5': now } };
+}
+
+// /compact, as claude 2.1.316 reports it (test/fixtures/claude-compact.jsonl): the boundary comes
+// before the result, which says nothing itself: no text, no turns, no usage, cumulative counters.
+function compactRun(session) {
+  const none = process.env.FAKE_COMPACT === 'none';
+  out({ type: 'system', subtype: 'status', status: 'compacting', session_id: session });
+  out({ type: 'system', subtype: 'status', status: null, ...(!none && { compact_result: 'success' }), session_id: session });
+  out({ type: 'system', subtype: 'init', session_id: session, slash_commands: ['compact'] });
+  if (!none) {
+    compactBoundary(session, 481020, 9521);
+    out({ type: 'user', message: { role: 'user', content: 'This session is being continued from a previous conversation that ran out of context.' }, session_id: session, parent_tool_use_id: null, uuid: 'uuid-anchor', isReplay: false, isSynthetic: true });
+    out({ type: 'user', message: { role: 'user', content: '<local-command-stdout>Compacted </local-command-stdout>' }, session_id: session, parent_tool_use_id: null, uuid: 'uuid-stdout', isReplay: true });
+  }
+  const usage = { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 };
+  const spent = none ? {} : { costUSD: 0.0071867, inputTokens: 2047, outputTokens: 1795, cacheReadInputTokens: 34352, cacheCreationInputTokens: 23141 };
+  out({ is_error: false, duration_api_ms: 0, num_turns: 0, stop_reason: null, session_id: session, usage, ...counters(spent), permission_denials: [], subtype: 'success', result: none ? 'Not enough messages to compact.' : '', local_command: 'compact', type: 'result', duration_ms: 6509 });
 }
 
 // A plain answer in this harness's own output shape (side questions, goal checks).
@@ -622,11 +661,20 @@ if (name === 'claude' && (stdin.includes('REFUSEME') || stdin.includes('DECLINEM
   out({ type: 'result', subtype: 'success', is_error: policy, result: said, session_id: session, duration_ms: 5, num_turns: 1, total_cost_usd: 0.001 });
   process.exit(0);
 }
+if (name === 'claude' && process.env.FAKE_REPLAY) {
+  process.stdout.write(fs.readFileSync(process.env.FAKE_REPLAY, 'utf8'));
+  process.exit(0);
+}
+
 if (name === 'claude') {
   if (process.env.FAKE_ORPHANS && resumeId) {
     out({ type: 'system', subtype: 'task_notification', session_id: session });
     out({ type: 'system', subtype: 'init', session_id: session });
     out({ type: 'result', subtype: 'success', is_error: false, result: '', session_id: session, duration_ms: 74, num_turns: 0, total_cost_usd: 0.01 });
+  }
+  if (stdin.trim() === '/compact') {
+    compactRun(session);
+    process.exit(0);
   }
   out({ type: 'system', subtype: 'init', session_id: session, claude_code_version: process.env.FAKE_CLI_VERSION || '9.9.9', apiKeySource: process.env.FAKE_API_KEY_SOURCE || 'none', ...(process.env.FAKE_TOOLS && { tools: process.env.FAKE_TOOLS.split(',') }) });
   out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: target } }] } });
@@ -702,7 +750,7 @@ if (name === 'claude') {
         out({ type: 'system', subtype: 'init', session_id: session });
         out({ type: 'result', subtype: 'success', is_error: false, result: final('background done'), session_id: session });
       }
-    } else out({ type: 'result', subtype: 'success', is_error: false, result: final(answer), session_id: session, duration_ms: 5, num_turns: 3, total_cost_usd: 0.01 * runsSoFar, usage: { input_tokens: 10, output_tokens: process.env.FAKE_SUBAGENTS ? 14000 : 5, ...(process.env.FAKE_CACHE_READ && { cache_read_input_tokens: Number(process.env.FAKE_CACHE_READ), cache_creation_input_tokens: 20 }) }, ...(process.env.FAKE_SUBAGENTS && { modelUsage: fakeModelUsage() }), permission_denials: refused ? [{ tool_name: 'Bash', tool_use_id: 't9', tool_input: { command: 'npm publish', description: 'Publish' } }] : [] });
+    } else out({ type: 'result', subtype: 'success', is_error: false, result: final(answer), session_id: session, duration_ms: 5, num_turns: 3, total_cost_usd: 0.01 * runsSoFar, usage: { input_tokens: 10, output_tokens: process.env.FAKE_SUBAGENTS ? 14000 : 5, ...(process.env.FAKE_CACHE_READ && { cache_read_input_tokens: Number(process.env.FAKE_CACHE_READ), cache_creation_input_tokens: 20 }) }, ...(process.env.FAKE_SUBAGENTS && { modelUsage: fakeModelUsage() }), ...(process.env.FAKE_CONTEXT && counters({ costUSD: resumeId ? 0.0031232 : 0.01, inputTokens: 10, outputTokens: 5, cacheReadInputTokens: 480000, cacheCreationInputTokens: 1000 })), permission_denials: refused ? [{ tool_name: 'Bash', tool_use_id: 't9', tool_input: { command: 'npm publish', description: 'Publish' } }] : [] });
   }
 } else if (name === 'codex') {
   out({ type: 'thread.started', thread_id: session });

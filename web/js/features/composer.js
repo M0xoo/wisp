@@ -12,7 +12,7 @@ import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
 import { here, MOBILE, S, saveOpen } from '../core/state.js';
 import { toast, toastError } from '../ui/toast.js';
-import { forkable, forkTask, toggleDone } from './actions.js';
+import { compactable, compactTask, forkable, forkTask, toggleDone } from './actions.js';
 import { openTerm, termFailed, termStarted } from './term.js';
 import { acceptFiles, attachTray, autosize } from './attachments.js';
 import { askBtw, askCrew, btwTipShown } from './btw.js';
@@ -790,8 +790,10 @@ async function replyInTerminal(id, ta, text, said, notes, attachments, files) {
 // is (Wait until leaves the box and its files alone).
 function holdReply(id, ta, row, h, held = null) {
   if (!row) return;
+  const offer = compactable(id);
   showHold(row, ta, h, {
     kind: 'followUp',
+    compact: offer && { offer, run: () => compactTask(id) },
     go: () => sendReply(id, held ?? ta?.value ?? '', { confirm: true }),
     wait: async (at) => {
       const n = S.nodes.get(id);
@@ -852,7 +854,7 @@ async function moveWithReply(id, text, { attachments, mode, run, team, place, no
 // Show a follow-up as started right away: the card moves to Working with the prompt as a live
 // turn. Only when it will start now, not when it queues or interrupts a run already working.
 // Returns an undo for a failed send, or null when nothing changed.
-export function startOptimistic(id, text, files, { answering, mode, run, team, live: label }) {
+export function startOptimistic(id, text, files, { answering, mode, run, team, live: label, by }) {
   const full = S.full.get(id);
   const sum = S.sessions.get(id);
   if (!full || !sum) return null;
@@ -861,6 +863,7 @@ export function startOptimistic(id, text, files, { answering, mode, run, team, l
   const now = Date.now();
   const turn = { id: `pending-${now}`, prompt: text, status: 'running', startedAt: now, activity: [], attachments: (files || []).filter((f) => f.id).map((f) => ({ id: f.id, name: f.name, mime: f.mime })) };
   if (mode) turn.mode = mode;
+  if (by) turn.by = by;
   if (run) Object.assign(turn, run);
   const nextFull = { ...full, state: 'running', ask: null, turns: answering ? full.turns : [...full.turns, turn], ...(mode && { mode }), ...run, ...(team && { subagents: team }) };
   const nextSum = { ...sum, state: 'running', live: label || (answering ? 'Picking up your answer' : run && run.agent !== full.agent ? `Handing over to ${agentName(run.agent)}` : 'Starting up'), updatedAt: now, ...(mode && { mode }), ...run };

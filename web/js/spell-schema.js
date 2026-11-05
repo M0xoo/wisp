@@ -217,6 +217,10 @@ export const PARTS = {
   'composer.hint': '.composer .c-hint',
   'composer.cold': '.composer .c-cold', // Cache gone cold: what a reply to a large idle task re-reads (web/js/cold-cache.js)
   'composer.coldFork': '.composer .c-cold-fork', // its Fork… button
+  'hold.compact': '.hd-compact', // Compact now in the hold row
+  'hold.compactNote': '.hd-compact-note', // its two prices
+  'menu.compact': '.menu button[data-a="compact"]', // Compact now in the task's menus
+  'turn.compact': '#feed .turn.compact-turn', // a Compact now turn in the task, open or folded
   'limit.cold': '.b-limit .lm-cold', // what a wait to the reset may re-read, on the usage-limit card under Wait until
   'composer.ship': '.composer .c-ship',
   'composer.done': '.composer .c-done',
@@ -638,6 +642,7 @@ export const ACTIONS = {
   ship: { kind: 'acts', doc: '{ "ship": true } open Ship it for the card\'s task' },
   done: { kind: 'acts', doc: '{ "done": true } mark the card\'s task done' },
   archive: { kind: 'acts', doc: '{ "archive": true } archive the card\'s task' },
+  compact: { kind: 'acts', doc: '{ "compact": true } compact the card\'s task now: a large Claude task whose cache is still warm (refused otherwise). Buttons only: never from a hook' },
   forLater: { kind: 'acts', doc: '{ "forLater": true } save the card\'s task for later (a finished one; it leaves Needs you for For later)' },
   notify: { kind: 'acts', doc: '{ "notify": "text" } a desktop notification / toast (hooks: your phone, if linked)' },
   webhook: { kind: 'runs', doc: '{ "webhook": "https://…" } POST the task summary as JSON to a URL (hooks)' },
