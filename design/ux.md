@@ -137,6 +137,9 @@ A task's actions are offered in several places: the right-click menu, the open t
 - Floating things (toasts, the FAB, popovers) never cover the reply box, Send or the open card's
   buttons. If a floating button would sit on content, drop it on that width (the phone's floating
   *Collapse*, #269).
+- The clash card (`/side`) says each thing once, so its answers sit above the reply box on a phone:
+  no second box for the main task's lines when the diff already shows them, and no text box of its
+  own, the reply box says *Or say what to do instead*.
 
 ## Several accounts on wisp Grids
 

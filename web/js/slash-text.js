@@ -48,6 +48,11 @@ export function btwQuestion(text) {
 // The opening message in "/side why did it pick sqlite?" ('' for a bare /side), or null when it
 // isn't one. The server reads it the same way (server/side.js), for the CLI and the phone.
 const SIDE_CMD = /^\/side(?:\s+|$)/i;
+// The clash card: the main task's lines are the ones the side's diff already shows in red. An edit's
+// old text comes without its indent, so lines are compared trimmed.
+const trimmed = (t) => t.split('\n').map((l) => l.trim()).join('\n').trim();
+export const sameLines = (a, b) => !!b && trimmed(a) === trimmed(b);
+
 export function sideAsk(text) {
   const t = String(text || '').trim();
   return SIDE_CMD.test(t) ? t.replace(SIDE_CMD, '').trim() : null;

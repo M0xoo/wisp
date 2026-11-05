@@ -442,6 +442,14 @@ test('commandClash: what follows a heredoc, an apostrophe in a comment or a chai
   assert.deepEqual(commandClash('rm a.js; echo x > b.js', { files: ['a.js', 'b.js'], cwd: '/repo' }).files, ['a.js', 'b.js']);
 });
 
+test('sameLines: the clash card shows main’s lines once when the diff’s red already says them', () => {
+  assert.equal(page.sameLines('  return a + b;', 'return a + b;'), true, 'an edit’s old text comes without its indent');
+  assert.equal(page.sameLines('  one\n    two\n', 'one\ntwo'), true);
+  assert.equal(page.sameLines('return a + b + 1;', 'return a + b;'), false);
+  assert.equal(page.sameLines('one\n…\ntwo', 'one\ntwo'), false, 'two ranges of main’s aren’t the one block the side replaces');
+  assert.equal(page.sameLines('one', ''), false);
+});
+
 // --- through a real server -----------------------------------------------------------------------
 
 const edited = (dir, f = 'math.js') => fs.readFileSync(path.join(dir, f), 'utf8');

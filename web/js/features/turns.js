@@ -874,32 +874,26 @@ function renderConnectorCard(s) {
 }
 
 // A side discussion's clash card (side.js). The first button applies, after the server's recheck: a
-// card that no longer holds comes back redrawn, with a toast.
+// card that no longer holds comes back redrawn, with a toast. Words go in the reply box (keeps main's
+// version, composer.js).
 function renderClashCard(s) {
   const a = s.ask;
   const node = el(clashCardHtml(a));
-  const send = async (body, said) => {
+  node.addEventListener('click', async (e) => {
+    const b = e.target.closest('.opt');
+    if (!b) return;
     node.classList.add('sent');
-    const undo = startOptimistic(s.id, said, null, { answering: true });
+    const undo = startOptimistic(s.id, a.options[b.dataset.i], null, { answering: true });
     try {
-      await api(`/sessions/${s.id}/${body.text ? 'answer' : 'clash'}`, { method: 'POST', body });
+      await api(`/sessions/${s.id}/clash`, { method: 'POST', body: { askId: a.id, action: b.dataset.i === '0' ? 'apply' : 'keep', sig: a.clash.sig } });
       if (undo) scheduleRefetch(s.id);
-    } catch (e) {
+    } catch (err) {
       node.classList.remove('sent');
       undo?.();
-      toastError(e);
+      toastError(err);
       scheduleRefetch(s.id);
     }
-  };
-  node.addEventListener('click', (e) => {
-    const b = e.target.closest('.opt');
-    if (b) send({ askId: a.id, action: b.dataset.i === '0' ? 'apply' : 'keep', sig: a.clash.sig }, a.options[b.dataset.i]);
   });
-  $('form', node).onsubmit = (e) => {
-    e.preventDefault();
-    const text = $('input', node).value.trim();
-    if (text) send({ text }, text);
-  };
   return node;
 }
 

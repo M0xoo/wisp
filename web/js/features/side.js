@@ -11,7 +11,7 @@ import { S } from '../core/state.js';
 import { toast, toastError } from '../ui/toast.js';
 import { popover } from '../ui/popover.js';
 import { expand, reveal } from './feed.js';
-import { sideAsk } from '../slash-text.js';
+import { sameLines, sideAsk } from '../slash-text.js';
 import { launchBehind } from './launcher.js';
 import { paintMeta } from './turns.js';
 
@@ -94,22 +94,26 @@ const CLASH_WHY = {
 const proposedHtml = (p) => `${p.before ? p.before.split('\n').map((l) => `<span class="clash-del">${esc(l) || ' '}</span>`).join('') : ''}${p.after.split('\n').map((l) => `<span class="clash-add">${esc(l) || ' '}</span>`).join('')}`;
 
 // The clash card: in the side discussion, before the write, whatever mode the main task is in. Only
-// here: the main task's run never pauses for it. An approval, so spells can't reach it.
+// here: the main task's run never pauses for it. An approval, so spells can't reach it. It says each
+// thing once, so its answers fit above the reply box on a phone: main's lines aren't repeated when the
+// diff already shows them, and "what to do instead" is typed in the reply box.
 export function clashCardHtml(a) {
   const c = a.clash;
   const of = esc(c.mainTitle);
   const side = c.command ? `<pre class="perm-detail">${esc(c.command)}</pre>` : `<pre class="perm-detail clash-diff">${proposedHtml(c.proposed)}</pre>`;
-  const main = c.main.length ? `<div class="clash-label">The main task’s ${esc(c.main.map(range).join(', '))}</div><pre class="perm-detail">${esc(c.main.map((m) => m.text).join('\n…\n'))}</pre>` : c.files?.length && (c.why !== 'writes' || c.files.length > 1) ? `<div class="clash-label">Files of the main task it ${c.why === 'writes' ? 'writes over' : 'removes'}</div><pre class="perm-detail">${esc(c.files.join('\n'))}</pre>` : '';
+  const lines = esc(c.main.map(range).join(', '));
+  const mainText = c.main.map((m) => m.text).join('\n…\n');
+  const said = !c.command && c.main.length && sameLines(mainText, c.proposed.before);
+  const main = said ? '' : c.main.length ? `<div class="clash-label">The main task’s ${lines}</div><pre class="perm-detail">${esc(mainText)}</pre>` : c.files?.length && (c.why !== 'writes' || c.files.length > 1) ? `<div class="clash-label">Files of the main task it ${c.why === 'writes' ? 'writes over' : 'removes'}</div><pre class="perm-detail">${esc(c.files.join('\n'))}</pre>` : '';
   return `
     <div class="ask-card perm clash">
       <div class="q-head">${icon('warn')}<span>${c.kind === 'cleared' ? 'No clash any more' : 'Clash with the main task'}</span></div>
       <p class="q-text">${c.command ? 'Run this command?' : `<code>${esc(c.file)}</code>`}</p>
       <p class="q-context">${c.moved ? `<b>The main task moved while this waited.</b> ` : ''}${esc(c.why === 'writes' ? `This command writes over ${moreFiles(c.files)}, which the main task changed.` : CLASH_WHY[c.kind] || '')} Main task: ${of}.</p>
-      <div class="clash-label">${c.command ? 'This side discussion wants to run' : 'This side discussion’s change'}</div>
+      <div class="clash-label">${c.command ? 'This side discussion wants to run' : said ? `Change to the main task’s ${lines}` : 'This side discussion’s change'}</div>
       ${side}
       ${main}
       <div class="q-opts">${a.options.map((o, i) => `<button class="opt ${i === 0 ? 'go' : 'no'}" data-i="${i}"><span class="k">${i + 1}</span>${esc(o)}</button>`).join('')}</div>
-      <form class="q-own"><input class="input" aria-label="Say what to do instead" placeholder="Or say what to do instead (keeps main’s version)…"><button class="ghost sm">Send</button></form>
     </div>`;
 }
 
