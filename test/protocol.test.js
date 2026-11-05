@@ -102,3 +102,75 @@ test('a quick answer may be plain text: the agent does not wrap "13" in a report
   assert.equal(blocks[0].type, 'markdown');
   assert.equal(blocks[0].text, '13');
 });
+
+// A tiny harness for wisp's MCP server: lines in, replies back by id.
+async function mcpServer(env) {
+  const { spawn } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const srv = spawn(process.execPath, [fileURLToPath(new URL('../server/mcp-ask.js', import.meta.url))], { env: { ...process.env, WISP_TOKEN: 't', WISP_SESSION: 's', ...env } });
+  const replies = new Map();
+  let buf = '';
+  srv.stdout.on('data', (d) => {
+    buf += d;
+    for (let i; (i = buf.indexOf('\n')) >= 0; buf = buf.slice(i + 1)) if (buf.slice(0, i).trim()) { const r = JSON.parse(buf.slice(0, i)); replies.set(r.id, r); }
+  });
+  return {
+    srv,
+    send: (id, method, params) => srv.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`),
+    reply: async (id) => {
+      for (let i = 0; !replies.has(id) && i < 200; i++) await new Promise((r) => setTimeout(r, 20));
+      return replies.get(id);
+    },
+  };
+}
+
+// Claude Code's plan mode refuses every MCP tool that doesn't say it's read-only, whatever
+// --allowedTools says: "Cannot call mcp__wisp__ask_user while in plan mode."
+test('a plan-mode agent can still ask, tag and read: those tools say they are read-only, what acts does not', async () => {
+  const { srv, send, reply } = await mcpServer({ WISP_URL: 'http://127.0.0.1:1', WISP_APPROVE: '1', WISP_WATCH: '1' });
+  send(1, 'tools/list', {});
+  const { tools } = (await reply(1)).result;
+  srv.kill();
+  const readOnly = tools.filter((t) => t.annotations?.readOnlyHint).map((t) => t.name);
+  for (const n of ['ask_user', 'wisp_tag', 'resume_later', 'wisp_watch', 'wisp_blocks', 'wisp_stats', 'wisp_sessions', 'wisp_session', 'wisp_stuff', 'wisp_crew', 'wisp_connectors', 'wisp_available']) assert.ok(readOnly.includes(n), n);
+  for (const n of ['wisp_launch', 'wisp_task', 'wisp_save', 'wisp_pr', 'wisp_crew_edit', 'wisp_connector_add']) assert.ok(tools.some((t) => t.name === n) && !readOnly.includes(n), n);
+});
+
+// A read-only tool may run beside another, and a task holds one question at a time: the second
+// would replace the first, which then reads as cancelled.
+test('two ask_user calls at once reach the user one after the other, and both get their answer', async () => {
+  const http = await import('node:http');
+  const asked = [];
+  const answered = new Set();
+  const web = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => { body += d; });
+    req.on('end', () => {
+      res.setHeader('content-type', 'application/json');
+      if (req.method === 'POST') {
+        asked.push(JSON.parse(body).question);
+        res.end(JSON.stringify({ id: String(asked.length) }));
+      } else {
+        const id = req.url.split('/').pop();
+        res.end(JSON.stringify(answered.has(id) ? { answer: `yes ${id}` } : { pending: true }));
+      }
+    });
+  });
+  await new Promise((r) => web.listen(0, '127.0.0.1', r));
+  const { srv, send, reply } = await mcpServer({ WISP_URL: `http://127.0.0.1:${web.address().port}` });
+  try {
+    send(1, 'tools/call', { name: 'ask_user', arguments: { question: 'first?' } });
+    send(2, 'tools/call', { name: 'ask_user', arguments: { question: 'second?' } });
+    for (let i = 0; !asked.length && i < 200; i++) await new Promise((r) => setTimeout(r, 10));
+    await new Promise((r) => setTimeout(r, 200));
+    assert.deepEqual(asked, ['first?'], 'the second waits for the first');
+    answered.add('1');
+    assert.match((await reply(1)).result.content[0].text, /yes 1/);
+    answered.add('2');
+    assert.match((await reply(2)).result.content[0].text, /yes 2/);
+    assert.deepEqual(asked, ['first?', 'second?']);
+  } finally {
+    srv.kill();
+    web.close();
+  }
+});
