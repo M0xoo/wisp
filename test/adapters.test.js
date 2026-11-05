@@ -280,6 +280,46 @@ test('claude: a resume that first reports stopped background tasks still ends on
   assert.ok(events.some((e) => e.type === 'change'), 'the work after it is reported too');
 });
 
+test('claude: the context and the cache TTL come from the main thread\'s last messages, never a subagent\'s', async () => {
+  const results = async (kind) => {
+    process.env.FAKE_CONTEXT = kind;
+    try {
+      return (await run('claude').done).filter((e) => e.type === 'result');
+    } finally {
+      delete process.env.FAKE_CONTEXT;
+    }
+  };
+  // 481,020 is the last real main-thread request: not the subagent's 902,001, not the summed result.
+  let [r] = await results('1h');
+  assert.deepEqual([r.stats.contextTokens, r.stats.cacheTtlMs], [481020, 3600000]);
+  [r] = await results('5m');
+  assert.deepEqual([r.stats.contextTokens, r.stats.cacheTtlMs], [481020, 300000]);
+  [r] = await results('both');
+  assert.equal(r.stats.contextTokens, 481020);
+  assert.ok(!('cacheTtlMs' in r.stats), 'written both ways: unknown');
+  [r] = await results('none');
+  assert.equal(r.stats.contextTokens, 481020);
+  assert.ok(!('cacheTtlMs' in r.stats), 'no split: unknown');
+  // A /compact at the end: the size is gone and says so with a 0, the TTL stays.
+  [r] = await results('compact');
+  assert.strictEqual(r.stats.contextTokens, 0, 'no number after a compact: an explicit 0');
+  assert.equal(r.stats.cacheTtlMs, 3600000);
+  // A subagent's message after it says nothing about the main thread: still the 0.
+  [r] = await results('compact-sub');
+  assert.strictEqual(r.stats.contextTokens, 0);
+  // A message after the compact: that message's size, the smaller context.
+  [r] = await results('compact-more');
+  assert.equal(r.stats.contextTokens, 9030);
+  // Two results from one process: the second didn't inherit the first's.
+  const two = await results('twice');
+  assert.equal(two.length, 2);
+  assert.deepEqual([two[0].stats.contextTokens, two[0].stats.cacheTtlMs], [481020, 3600000]);
+  assert.ok(!('contextTokens' in two[1].stats) && !('cacheTtlMs' in two[1].stats), 'reset once taken');
+  // No usage on any message: neither field.
+  const plain = (await run('claude').done).find((e) => e.type === 'result');
+  assert.ok(!('contextTokens' in plain.stats) && !('cacheTtlMs' in plain.stats));
+});
+
 test('claude: with unknown earlier counters, the empty zero-turn result is the baseline and the real answer pays its delta', async () => {
   process.env.FAKE_ORPHANS = '1';
   process.env.FAKE_RESTORED = '5'; // the empty result says $0.01, the real one $0.06

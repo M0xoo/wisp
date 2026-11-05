@@ -477,3 +477,23 @@ Every page check also fails on an uncaught page error or a `console.error`.
   - 5: the line goes; the rest of the turn stays.
   - 6: the whole line, limit included, wraps inside the page with nothing past the edge.
 - **Suite** (`test/what-changed.test.js`, `test/spells.test.js`), **Manual** (real Chrome)
+
+### WEB-55 · Cache gone cold
+- **Preconditions:** the fake harness with `FAKE_CONTEXT=1h`; a Claude task with one finished turn (`contextTokens` about 480k, `cacheTtlMs` 3600000). Age it by moving the turn's `endedAt` back in the stored session, or with Playwright's clock.
+- **Steps:**
+  1. Open the task with the turn 74 minutes old, then let it reach 76 with the task open.
+  2. Press **Fork…** on the line, then close the dialog. Type a reply and press Send once.
+  3. Pick another harness in the box. Type `/btw why`. Set a time with Send later.
+  4. Age a task with `FAKE_CONTEXT=5m` by 7 minutes; one with `FAKE_CONTEXT=none` by a day; a Codex task by a day; a task under 100k by a day.
+  5. Hit a usage limit on the large task with the reset 3 hours away, with Settings → Wait for the reset off, then press **Wait until**. Repeat with the reset 10 minutes away.
+  6. Cast a spell with `ui: { hide: ['composer.cold', 'composer.coldFork', 'limit.cold'] }`.
+  7. Look at 1440, 1000 and 390 wide, and in the app's page, light and dark, side by side and stacked.
+- **Expected:**
+  - 1: nothing at 74 minutes. By 76, within 30 seconds and with no reload: *Cache gone cold: this reply re-reads about 480k* and **Fork…** in the hint, with no button moved and the transcript where it was.
+  - 2: Fork… opens the Fork dialog. One Send click sends: no hold, no ask, no second step. The line goes while it runs.
+  - 3: each one replaces the line; clearing it brings the line back.
+  - 4: the 5-minute task shows it. The others show nothing.
+  - 5: *Cache will have gone cold by then: this reply re-reads about 480k* under the card's buttons, also after Wait. With the reset 10 minutes away the card has no line.
+  - 6: all three go; Send and the rest of the card stay.
+  - 7: at 1000 the short form *Cache cold: re-reads about 480k* with the number whole. Under about 950 wide, or at 1000 with the side panel open, it's cut short; its title holds the whole line. Fork… stays whole.
+- **Suite** (`test/cold-cache.test.js`, `test/adapters.test.js`, `test/spells.test.js`), **Manual** (real Chrome)

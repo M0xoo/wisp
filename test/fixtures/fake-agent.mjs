@@ -16,6 +16,11 @@
 //   FAKE_CODEX_CATALOG   codex: one more model slug in `debug models`, so its catalog moves; `bad`: not JSON
 //   FAKE_CODEX_DEBUG_WAIT  a file: `debug models` answers once it exists (a probe that ends after the turn did)
 //   FAKE_CACHE_READ  claude: cache_read_input_tokens on its result (and 20 cache writes)
+//   FAKE_CONTEXT     claude: 1h, 5m, both or none (the cache_creation split the main thread's messages
+//                carry, with a subagent's bigger usage among them); compact ends the turn on a
+//                compact_boundary, compact-more goes on with a message after it, compact-sub has
+//                only a subagent's message after it, twice reports a result first and then a
+//                second with no message
 //   FAKE_SUBAGENTS   claude: that many background web-fetch Agent calls on Opus, as claude 2.1.316
 //                    (on CLAUDE_CODE_SUBAGENT_MODEL's model when it's set, as Claude Code does)
 //                    streams them, and modelUsage on its result (Opus 41k output, 14k the main thread's)
@@ -205,6 +210,24 @@ if (process.env.FAKE_RECORD) {
 
 // FAKE_LIMITS: claude reports this rate_limit_info first (its usage windows, server/budget.js).
 if (process.env.FAKE_LIMITS && name === 'claude' && !retro && !btw) out({ type: 'rate_limit_event', rate_limit_info: JSON.parse(process.env.FAKE_LIMITS) });
+
+// FAKE_CONTEXT: as claude reports one request per message, in message.usage. The result's usage
+// sums them, so it can't give the context: this is where the size and the cache's TTL come from.
+function fakeContext(session, kind) {
+  const split = { '1h': [1000, 0], '5m': [0, 1000], both: [500, 500] }[/^(compact|twice)/.test(kind) ? '1h' : kind];
+  const usage = { input_tokens: 10, cache_read_input_tokens: 480000, cache_creation_input_tokens: 1000, output_tokens: 5, ...(split && { cache_creation: { ephemeral_1h_input_tokens: split[0], ephemeral_5m_input_tokens: split[1] } }) };
+  const say = (u, extra = {}) => out({ type: 'assistant', session_id: session, ...extra, message: { id: `ctx${Math.random()}`, model: extra.model || 'claude-opus-5-5', usage: u, content: [{ type: 'text', text: 'Working' }] } });
+  say(usage);
+  // A subagent's own context, bigger and written both ways: it must never count.
+  say({ input_tokens: 1, cache_read_input_tokens: 900000, cache_creation_input_tokens: 2000, output_tokens: 1, cache_creation: { ephemeral_1h_input_tokens: 1000, ephemeral_5m_input_tokens: 1000 } }, { parent_tool_use_id: 't1' });
+  // The latest request wrote nothing: it gives the size, the TTL stays the earlier message's.
+  say({ input_tokens: 20, cache_read_input_tokens: 481000, cache_creation_input_tokens: 0, output_tokens: 5, ...(split && { cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 } }) });
+  say({ input_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 0 }, { model: '<synthetic>' });
+  if (kind.startsWith('compact')) out({ type: 'system', subtype: 'compact_boundary', session_id: session, compact_metadata: { trigger: 'manual', pre_tokens: 481020 } });
+  if (kind === 'compact-more') say({ input_tokens: 30, cache_read_input_tokens: 9000, cache_creation_input_tokens: 0, output_tokens: 5 });
+  if (kind === 'compact-sub') say({ input_tokens: 1, cache_read_input_tokens: 900000, cache_creation_input_tokens: 0, output_tokens: 1 }, { parent_tool_use_id: 't1' });
+  if (kind === 'twice') out({ type: 'result', subtype: 'success', is_error: false, result: 'first', session_id: session, num_turns: 2, usage: { input_tokens: 30, output_tokens: 10 } });
+}
 
 // A plain answer in this harness's own output shape (side questions, goal checks).
 function answer(text, id) {
@@ -659,6 +682,7 @@ if (name === 'claude') {
     out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't3', name: 'Bash', input: { command: 'npm test', description: 'Run the tests' } }] } });
     out({ type: 'user', session_id: session, message: { content: [{ type: 'tool_result', tool_use_id: 't3', is_error: true, content: '1 failing' }] } });
     const answer = await ask();
+    if (process.env.FAKE_CONTEXT) fakeContext(session, process.env.FAKE_CONTEXT);
     const bg = process.env.FAKE_BACKGROUND;
     if (bg) {
       // Captured from claude 2.1.302: the result arrives while the task runs, then the task's

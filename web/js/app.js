@@ -12,6 +12,7 @@ import { combo } from './ui/kbd.js';
 import { openAutomations } from './features/automations.js';
 import { openPalette } from './features/commands.js';
 import { keepFromSnapshot, renderFeed, reveal, scheduleRefetch, syncUrl, toggleSection } from './features/feed.js';
+import { paintCold } from './features/composer.js';
 import { focusLauncher, renderLauncher } from './features/launcher.js';
 import { recall, startShell, syncing } from './features/cache.js';
 import { connect, loadConfig, loadSessions, setConfig } from './features/live.js';
@@ -85,6 +86,7 @@ setInterval(() => {
   const body = open && S.nodes.get(open.id)?.body;
   const t = body && $('.it-props .q-time', body);
   if (t) t.textContent = agoLong(open.updatedAt);
+  paintCold(); // the open task's cache can lapse with nothing else repainting its box
 }, 30000);
 
 if (/Electron/.test(navigator.userAgent)) document.body.classList.add('electron', /Mac/.test(navigator.platform) ? 'mac' : 'other');

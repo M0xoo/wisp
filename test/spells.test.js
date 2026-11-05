@@ -104,6 +104,14 @@ test('the overlap pill and warning (another open task changes the same files) ar
   assert.ok(p.some((x) => /card\.overlaps/.test(x)), p.join('\n'));
 });
 
+test('the cold-cache line and its Fork button are parts, on the follow-up box and the limit card', () => {
+  assert.equal(schema.PARTS['composer.cold'], '.composer .c-cold');
+  assert.equal(schema.PARTS['composer.coldFork'], '.composer .c-cold-fork');
+  assert.equal(schema.PARTS['limit.cold'], '.b-limit .lm-cold');
+  assert.deepEqual(problems({ ...base0, parts: { 'composer.cold': { style: { color: 'red' } }, 'composer.coldFork': { hide: true }, 'limit.cold': { hide: true } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'composer.colds': { hide: true } } }).some((x) => /composer\.colds: not a part/.test(x)));
+});
+
 test('comments on an answer (the tray, the block button, the bubble, the card, the marks, the sent ones) are parts', () => {
   const parts = { 'composer.comments': { hide: true }, 'answer.comment': { hide: true }, 'answer.commentBubble': { style: { borderRadius: '4px' } }, 'answer.commentCard': { style: { color: 'red' } }, 'answer.commentMark': { style: { color: 'red' } }, 'turn.comments': { hide: true } };
   assert.deepEqual(problems({ ...base0, parts }), []);

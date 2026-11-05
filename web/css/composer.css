@@ -60,6 +60,17 @@
 .menu .rot-up { rotate: -90deg; }
 .menu .rot-down { rotate: 90deg; }
 .c-hint { flex: 1; font-size: 11.5px; color: var(--faint); }
+/* Cache gone cold: the line gives way with an ellipsis, Fork… stays whole. Quiet: words, never a warning. */
+/* Clipped, so a bar with no room left loses the line rather than laying Fork… over Send later; the margin keeps its focus ring. */
+.c-cold-row { container: cold / inline-size; display: flex; align-items: center; gap: 8px; min-width: 0; overflow: clip; overflow-clip-margin: 4px; }
+.c-cold { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-cold-fork { flex: none; font-size: inherit; white-space: nowrap; }
+/* Too narrow for the long line and Fork… (widest: the app's, 273 + 8 + 44): the short form, which keeps the number. The ellipsis is what's left below that. */
+.cc-short { display: none; }
+@container cold (max-width: 326px) {
+  .cc-long { display: none; }
+  .cc-short { display: inline; }
+}
 .c-bar .mode-btn { height: 30px; min-width: 30px; padding: 0 8px; }
 /* Attach and Start later as 30px squares, the height of everything else in the bar */
 .c-bar > .icon-btn { width: 30px; height: 30px; }

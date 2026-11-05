@@ -178,6 +178,10 @@ body.wisp-mobile .att img, body.wisp-mobile .att-ic { flex: none; }
 body.hint-row .composer > .c-hint .when-chip { display: flex; font-size: 12px; }
 body.hint-row .composer > .c-hint .when-chip .link { flex: none; margin-left: auto; font-size: 12px; white-space: nowrap; }
 body.hint-row .composer > .c-hint .when-chip .att-x { flex: none; }
+/* Fork… is a 44px target in the app: the row's height comes from the box around it, not the text. */
+body.wisp-mobile .c-cold-fork { min-height: 44px; min-width: 44px; }
+/* The row is one 20px line that hides its overflow: the focus ring goes inside. */
+body.hint-row .c-cold-fork:focus-visible { outline-offset: -2px; }
 /* /btw: the pickers step back without washing out, and Send later's empty slot stays, so nothing in the bar moves. */
 body.hint-row .composer.is-btw .c-mode, body.hint-row .composer.is-btw .c-runner, body.hint-row .composer.is-btw .c-place, body.hint-row .composer.is-btw .c-team, body.hint-row .composer.is-btw .c-queue { opacity: 0.6; filter: grayscale(1); }
 body.hint-row .composer.is-btw .c-later[hidden] { display: inline-grid !important; visibility: hidden; }
