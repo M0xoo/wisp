@@ -11,7 +11,7 @@ import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
-import { turnTime } from '../core/format.js';
+import { actionCount, turnTime } from '../core/format.js';
 import { esc } from '../md.js';
 import { viewImage } from '../ui/viewer.js';
 import { openInEditor, revealFile } from './actions.js';
@@ -99,11 +99,6 @@ const ctxOf = (s, t) => ({
   keep: null,
 });
 
-const actions = (t) => {
-  const n = t.activity.filter((a) => a.kind !== 'text').length;
-  return `${n} action${n === 1 ? '' : 's'}`;
-};
-
 function workingPanel(r) {
   return el(`
     <div class="w-panel tx-panel">
@@ -112,7 +107,7 @@ function workingPanel(r) {
         <div class="w-status">
           <b>${esc(r.name)} is checking</b>
           <span class="elapsed" data-start="${r.turn.startedAt}">0s</span>
-          <span class="w-count">${actions(r.turn)}</span>
+          <span class="w-count">${actionCount(r.turn)}</span>
         </div>
       </div>
     </div>`);
@@ -207,7 +202,7 @@ function onStep(d) {
     view.scrollTop += dy;
   });
   const n = $('.w-count', view);
-  if (n) n.textContent = actions(t);
+  if (n) n.textContent = actionCount(t);
 }
 
 bus.on('goal-run', onStep);

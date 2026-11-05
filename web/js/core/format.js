@@ -43,5 +43,10 @@ export const whenLabel = (t) => {
   return fmtDate(t, today ? SHORT_TIME : { weekday: 'short', ...DAY_TIME });
 };
 
+// What a turn has done so far, for the working panel and a judge's run.
+export const actionCount = (t) => {
+  const n = t.activity.filter((a) => a.kind !== 'text').length;
+  return `${n} action${n === 1 ? '' : 's'}`;
+};
 export const money = (v) => (v >= 100 ? `$${Math.round(v)}` : `$${(v || 0).toFixed(2)}`);
 export const pct = (v) => (v === null || v === undefined ? '—' : `${Math.round(v * 100)}%`);

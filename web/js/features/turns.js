@@ -8,7 +8,7 @@ import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
-import { turnTime } from '../core/format.js';
+import { actionCount, turnTime } from '../core/format.js';
 import { toastError } from '../ui/toast.js';
 import { viewImage } from '../ui/viewer.js';
 import { popover } from '../ui/popover.js';
@@ -800,7 +800,7 @@ function renderWorking(s, t, tx) {
         <div class="w-status">
           <b>${waiting ? `${esc(agentName(s.agent))} is waiting for you` : shrink ? 'Compacting' : `${esc(agentName(s.agent))} is working`}</b>
           <span class="elapsed" data-start="${t.startedAt}">${fmtDuration(Date.now() - t.startedAt)}</span>
-          <span class="w-count"${shrink ? ' hidden' : ''}>${t.activity.filter((a) => a.kind !== 'text').length} actions</span>
+          <span class="w-count"${shrink ? ' hidden' : ''}>${actionCount(t)}</span>
         </div>
         <div class="ask-slot"></div>
         ${teamLiveHtml(s, t)}
@@ -1119,5 +1119,5 @@ export function onActivity({ sessionId, turnId, item, update }) {
   const log = $('.log', node);
   if (log && !log.hidden) log.append(actItem(item));
   const c = $('.w-count', node);
-  if (c && turn) c.textContent = `${turn.activity.filter((a) => a.kind !== 'text').length} actions`;
+  if (c && turn) c.textContent = actionCount(turn);
 }

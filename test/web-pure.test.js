@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { esc, md, inlineMd, highlight, langOf } from '../web/js/md.js';
 import { diffLines, hunks, countChanges, opensFirst, opensNow } from '../web/js/diff.js';
-import { ago, fmtSize, money, pct } from '../web/js/core/format.js';
+import { actionCount, ago, fmtSize, money, pct } from '../web/js/core/format.js';
 import * as bus from '../web/js/core/bus.js';
 import { shared } from '../web/js/core/api.js';
 import { finalAnswer, judgeResult, layout, messageText, sameStep } from '../web/js/features/transcript.js';
@@ -366,4 +366,12 @@ test('Changes opens the first file, or every one when there are three or fewer',
   assert.deepEqual(now(3, ['f0', 'f1']), ['f0', 'f1', 'f2']);
   assert.deepEqual(now(4, []), ['f0']);
   assert.deepEqual(now(4, ['f2']), [], 'one open already: a new first file stays shut');
+});
+
+test('actionCount: one action is one action, and text is not an action', () => {
+  const turn = (...kinds) => ({ activity: kinds.map((kind) => ({ kind })) });
+  assert.equal(actionCount(turn()), '0 actions');
+  assert.equal(actionCount(turn('tool')), '1 action');
+  assert.equal(actionCount(turn('tool', 'text')), '1 action');
+  assert.equal(actionCount(turn('tool', 'text', 'tool')), '2 actions');
 });
