@@ -265,6 +265,7 @@ export function subagentTally() {
 
 export default {
   id: 'claude',
+  reportsCli: true, // says its own version per run: `cli` events, no version from detect (runner.js)
   bin: () => BIN, // the program it runs (server/harness-watch.js)
   name: 'Claude Code',
   // Asks wisp before a tool call its permission mode won't allow on its own (Edits mode).
@@ -457,6 +458,8 @@ export default {
         // The tools this run had (built-ins and MCP tools): two accounts of the same harness can differ
         // (one's settings deny WebFetch), which the account comparison says (server/budget.js).
         if (Array.isArray(msg.tools)) onEvent({ type: 'tools', list: msg.tools });
+        // What the CLI was this turn (stats.cli, web/js/what-changed.js).
+        if (msg.claude_code_version) onEvent({ type: 'cli', version: String(msg.claude_code_version) });
         subagents.init(msg.tools);
       } else if (msg.type === 'system') {
         // A subagent started (claude 2.1.316 runs Agent calls in the background): its type.

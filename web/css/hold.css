@@ -29,15 +29,20 @@
 /* A harness's program changed since wisp pinned it: one line on the task's turn and under its row
    in Settings → Agents, with Trust this version. An update is plain; anything else is in --warn. */
 .hw-note[hidden] { display: none; }
-.hw-note {
+.hw-note, .wc-line {
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 6px 0 8px; padding: 8px 10px;
   border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line-2); font-size: 12.5px; line-height: 1.45; color: var(--ink-2);
 }
-.hw-note > .i { flex: none; width: 14px; height: 14px; color: var(--muted); }
-.hw-note .hw-say { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; text-wrap: pretty; }
+.hw-note > .i, .wc-line > .i { flex: none; width: 14px; height: 14px; color: var(--muted); }
+.hw-note .hw-say, .wc-line .hw-say { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; text-wrap: pretty; }
 .hw-note.hw-warn { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
 .hw-note.hw-warn > .i { color: var(--warn); }
 .sx-agents .hw-note { margin: 0 14px 10px; }
+/* What moved since the last turn (what-changed-line.js): the same box, with no button. It wraps, so
+   the icon stays on its first line, and the limit stays on the page: phones have no hover. */
+.wc-line { flex-wrap: nowrap; align-items: flex-start; }
+.wc-line > .i { margin-top: 2px; }
+.wc-line .wc-limit { color: var(--muted); }
 .hw-held .hd-say { display: flex; gap: 8px; align-items: flex-start; }
 .hw-held .hd-say .i { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--muted); }
 .hw-held.hw-warn .hd-say .i { color: var(--warn); }

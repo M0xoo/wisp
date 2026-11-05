@@ -12,6 +12,9 @@
 //   FAKE_LIMITS  claude: a rate_limit_info (JSON) it reports as a rate_limit_event before anything else
 //   FAKE_API_KEY_SOURCE  claude: its init's apiKeySource (default none: the plan)
 //   FAKE_TOOLS           claude: its init's tools, comma-separated (default: none sent)
+//   FAKE_CLI_VERSION     claude and codex: the version --version and claude's init say (default 9.9.9)
+//   FAKE_CODEX_CATALOG   codex: one more model slug in `debug models`, so its catalog moves; `bad`: not JSON
+//   FAKE_CODEX_DEBUG_WAIT  a file: `debug models` answers once it exists (a probe that ends after the turn did)
 //   FAKE_CACHE_READ  claude: cache_read_input_tokens on its result (and 20 cache writes)
 //   FAKE_SUBAGENTS   claude: that many background web-fetch Agent calls on Opus, as claude 2.1.316
 //                    (on CLAUDE_CODE_SUBAGENT_MODEL's model when it's set, as Claude Code does)
@@ -79,7 +82,8 @@ const flag = (f) => {
 
 if (argv[0] === '--version' || argv[0] === '-v') {
   // FAKE_OPENCODE_VERSION: what `opencode --version` prints (1.x by default; 2.x changed `run`'s flags).
-  console.log(name === 'claude' ? '9.9.9 (Fake Claude Code)' : name === 'opencode' ? process.env.FAKE_OPENCODE_VERSION || '1.99.0' : `fake-${name} 9.9.9`);
+  const version = process.env.FAKE_CLI_VERSION || '9.9.9';
+  console.log(name === 'claude' ? `${version} (Fake Claude Code)` : name === 'opencode' ? process.env.FAKE_OPENCODE_VERSION || '1.99.0' : name === 'codex' ? `fake-codex ${version}` : `fake-${name} 9.9.9`);
   process.exit(0);
 }
 // Sign-in checks (server/agent-login.js) run in wisp's own folder: say nothing rather than do the
@@ -99,12 +103,23 @@ if (argv[0] === '--help') {
 }
 // codex's catalog; FAKE_CODEX_NO_DEBUG: an older codex without `debug models`.
 if (name === 'codex' && argv.join(' ') === 'debug models') {
+  // On its own record: codex.jsonl counts runs.
+  if (process.env.FAKE_RECORD) {
+    fs.mkdirSync(process.env.FAKE_RECORD, { recursive: true });
+    fs.appendFileSync(path.join(process.env.FAKE_RECORD, 'codex-debug.jsonl'), JSON.stringify({ codexHome: process.env.CODEX_HOME }) + '\n');
+  }
   if (process.env.FAKE_CODEX_NO_DEBUG) process.exit(2);
+  while (process.env.FAKE_CODEX_DEBUG_WAIT && !fs.existsSync(process.env.FAKE_CODEX_DEBUG_WAIT)) await new Promise((r) => setTimeout(r, 20));
+  if (process.env.FAKE_CODEX_CATALOG === 'bad') {
+    console.log('not json');
+    process.exit(0);
+  }
   const levels = (...e) => e.map((effort) => ({ effort }));
   console.log(JSON.stringify({ models: [
     { slug: 'gpt-10-mini', display_name: 'GPT-10-Mini', visibility: 'list', priority: 6, supported_reasoning_levels: levels('low', 'high') },
     { slug: 'gpt-10', display_name: 'GPT-10', description: 'Biggest', visibility: 'list', priority: 3, supported_reasoning_levels: levels('low', 'medium', 'high', 'xhigh', 'max', 'ultra') },
     { slug: 'codex-auto-review', visibility: 'hide', priority: 1 },
+    ...(process.env.FAKE_CODEX_CATALOG ? [{ slug: process.env.FAKE_CODEX_CATALOG, visibility: 'hide', priority: 9 }] : []),
   ] }));
   process.exit(0);
 }
@@ -588,7 +603,7 @@ if (name === 'claude') {
     out({ type: 'system', subtype: 'init', session_id: session });
     out({ type: 'result', subtype: 'success', is_error: false, result: '', session_id: session, duration_ms: 74, num_turns: 0, total_cost_usd: 0.01 });
   }
-  out({ type: 'system', subtype: 'init', session_id: session, apiKeySource: process.env.FAKE_API_KEY_SOURCE || 'none', ...(process.env.FAKE_TOOLS && { tools: process.env.FAKE_TOOLS.split(',') }) });
+  out({ type: 'system', subtype: 'init', session_id: session, claude_code_version: process.env.FAKE_CLI_VERSION || '9.9.9', apiKeySource: process.env.FAKE_API_KEY_SOURCE || 'none', ...(process.env.FAKE_TOOLS && { tools: process.env.FAKE_TOOLS.split(',') }) });
   out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: target } }] } });
   if (process.env.FAKE_HANG) hang();
   else if (flag('--permission-mode') === 'default') {

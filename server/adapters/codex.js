@@ -1,9 +1,10 @@
 // Codex CLI adapter — drives `codex exec --json` (JSONL thread/turn/item events).
 
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ASK_TIMEOUT_MS, attachmentNote, clip, crewToolLabel, detectFirst, exitText, fileTracker, flatten, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
+import { ASK_TIMEOUT_MS, attachmentNote, clip, crewToolLabel, detectFirst, exitText, fileTracker, flatten, quietOutput, rel, spawnJsonl, versionIn, withProtocol } from './common.js';
 import { describeCommand } from './commands.js';
 import { codexLimits, codexRollout } from '../budget.js';
 
@@ -53,6 +54,7 @@ const toml = (v) =>
 
 export default {
   id: 'codex',
+  reportsCli: true, // says its version and catalog per run: `cli` events, no version from detect (runner.js)
   bin: () => BIN, // the program it runs (server/harness-watch.js)
   name: 'Codex',
   askTool: 'mcp__wisp__ask_user',
@@ -102,7 +104,8 @@ export default {
   // fork: `exec fork` a copy of resumeId's conversation instead of resuming it (/btw).
   // accountEnv: the account it runs on (CODEX_HOME, server/accounts.js), {} for the default.
   // lean: a side run that only answers (the retro), with codex's extras off.
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, accountEnv = {}, lean = false, onEvent }) {
+  // probe: a task's turn, which records what the CLI was (side runs don't pay for two more processes).
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, accountEnv = {}, lean = false, probe = false, onEvent }) {
     const args = ['exec', '--json', '--skip-git-repo-check'];
     let base = null;
     if (lean) {
@@ -235,11 +238,12 @@ export default {
       }
     };
 
-    return spawnJsonl({
+    const env = { ...process.env, ...accountEnv };
+    const handle = spawnJsonl({
       bin: BIN,
       args,
       cwd,
-      env: { ...process.env, ...accountEnv },
+      env,
       input,
       onEvent,
       onJson(msg) {
@@ -276,6 +280,9 @@ export default {
         if (limits) onEvent({ type: 'limits', ...limits });
       },
     });
+    // Alongside the run, never before it: it can end after the turn did (the runner keeps it).
+    if (probe) probeCli(env).then((cli) => Object.keys(cli).length && onEvent({ type: 'cli', ...cli })).catch(() => {});
+    return handle;
   },
 };
 
@@ -296,15 +303,31 @@ export function unwrapShell(cmd) {
 
 const codexHome = () => process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
 
+// `debug models` can refresh over the network: a turn doesn't wait long to say what the CLI was.
+const PROBE_MS = 5_000;
+const modelsIn = (data) => (Array.isArray(data?.models) && data.models.length ? data.models : null);
+
 // The model catalog: from the CLI, else what it cached in $CODEX_HOME after signing in or starting.
 async function catalog() {
   for (const read of [async () => JSON.parse(await quietOutput(BIN, ['debug', 'models'])), () => JSON.parse(fs.readFileSync(path.join(codexHome(), 'models_cache.json'), 'utf8'))]) {
     try {
-      const list = (await read()).models;
-      if (Array.isArray(list) && list.length) return list;
+      const list = modelsIn(await read());
+      if (list) return list;
     } catch {}
   }
   return [];
+}
+
+// What this run's CLI is, in the run's env: { version?, catalog? }. Only the CLI's own answer counts:
+// the cached copy can lag it, and a hash that falls back to it would say a catalog moved when none did.
+async function probeCli(env) {
+  const [models, line] = await Promise.all([quietOutput(BIN, ['debug', 'models'], PROBE_MS, env), quietOutput(BIN, ['--version'], PROBE_MS, env)]);
+  let list = null;
+  try {
+    list = modelsIn(JSON.parse(models));
+  } catch {}
+  const version = versionIn(line);
+  return { ...(version && { version }), ...(list && { catalog: createHash('sha1').update(JSON.stringify(list)).digest('hex').slice(0, 12) }) };
 }
 
 // Interactive codex asks "Do you trust the files in this folder?" before it starts in a folder that

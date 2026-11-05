@@ -458,3 +458,21 @@ Every page check also fails on an uncaught page error or a `console.error`.
   - 6: archive, delete and merge leave the folder and branch, and the merge confirm doesn't say it removes the worktree. The deleted task's worktree is offered again without a reload.
   - 7: the panel says *This worktree's folder is gone: showing the edits wisp saw.* (the shell line to match), and the follow-up is refused in a toast with *This worktree's folder is gone: <path>*; nothing appears at that path.
 - **Suite** (`test/bring-in.test.js`, `test/spells.test.js`), **Manual** (real Chrome)
+
+### WEB-54 · A turn says what moved in the CLI
+- **Preconditions:** the fake harness; a task with one finished turn, run with `FAKE_CLI_VERSION` and `FAKE_TOOLS` set. For Codex, `FAKE_CODEX_DEBUG_WAIT` set to a file, so its probe lands after the answer.
+- **Steps:**
+  1. Change `FAKE_CLI_VERSION` and `FAKE_TOOLS` (five new tools, one `mcp__github__create_issue`) and reply. Press **Transcript**, then go back.
+  2. Reply with nothing changed.
+  3. With the harness's change line showing on the turn too, reply, then press **Trust this version**.
+  4. On Codex, change `FAKE_CODEX_CATALOG` and reply. Scroll a little into the answer, then create the wait file.
+  5. Cast a spell with `ui: { hide: ['turn.whatChanged'] }`.
+  6. Open the task at 390px, then Back.
+- **Expected:**
+  - 1: while it runs, no line. Finished, one line under the prompt, in both views: *Since the last turn: Claude Code 1.0 → 1.1, Read, Edit, Grep and 2 more added.*, then *Possible cause, not proof; a server-side change won’t show.* An MCP tool reads *create issue (github)*.
+  - 2: no line on the new turn; the one above keeps its own when unfolded.
+  - 3: the version is on the harness's line only: nothing else moved, so no line of ours. After Trust, the version moves to our line at once.
+  - 4: *Since the last turn: Codex model catalog changed.* shows when the file appears. The answer doesn't move and its entrance doesn't play again.
+  - 5: the line goes; the rest of the turn stays.
+  - 6: the whole line, limit included, wraps inside the page with nothing past the edge.
+- **Suite** (`test/what-changed.test.js`, `test/spells.test.js`), **Manual** (real Chrome)

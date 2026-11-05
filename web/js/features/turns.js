@@ -5,6 +5,7 @@ import { countChanges, fmtDuration, renderPresentation } from '../blocks.js';
 import { esc, inlineMd, md } from '../md.js';
 import { mentionHtml } from '../mention-text.js';
 import { api } from '../core/api.js';
+import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { turnTime } from '../core/format.js';
@@ -20,6 +21,8 @@ import { projectById } from './places.js';
 import { accountMark, accountOf, agentName, DEFAULT_MODE, effortLabel, limitUntil, modelBadge, MODES } from './runners.js';
 import { heldCard } from './hold.js';
 import { harnessNote } from './harness-watch.js';
+import { whatChanged } from '../what-changed.js';
+import { whatChangedLine } from '../what-changed-line.js';
 import { scheduleFollowUp } from './later.js';
 import { handoffTargets } from '../vendors.js';
 import { compareTip, offerSubagentModel, OVERAGE, receiptOf, receiptParts, receiptTip, subagentParts, subagentTip } from '../receipt.js';
@@ -244,6 +247,7 @@ export function renderBody(id, { fresh }) {
     // Place the turn without re-inserting a node that's already here: re-parenting restarts its
     // CSS animations, so a refetch would replay the whole card's entrance.
     if (turnsEl.children[i] !== node) turnsEl.insertBefore(node, turnsEl.children[i] || null);
+    if (!folded) paintWhatChanged(s, t, node, prev?.node === node);
   });
   for (const [tid, v] of n.turnNodes) if (!keep.has(tid)) (v.node.remove(), n.turnNodes.delete(tid));
   paintBtw(id); // side questions update in place, so they don't re-render their turn
@@ -257,6 +261,31 @@ export function renderBody(id, { fresh }) {
   const landing = firstNew && tx ? $('.tx-end', firstNew) || firstNew : firstNew;
   if (landing && watched) requestAnimationFrame(() => landing.scrollIntoView({ behavior: 'smooth', block: 'start' }));
 }
+
+// What moved in the CLI since the last turn. Painted in place, outside the turn's key: stats.cli can
+// land after the answer (the Codex probe), and drawing the turn again would replay its entrance.
+// A line that comes or goes on a turn already showing holds what's below it (`late`): keepInPlace
+// holds a card, which split view keeps in the sidebar, and this moves inside the open task's body.
+function paintWhatChanged(s, t, node, late) {
+  const done = t.status !== 'running' && t.status !== 'held';
+  const noted = !!$(':scope > .hw-note[data-hw]:not([hidden])', node); // it already gives the version
+  const copy = done ? whatChangedLine(whatChanged(s, t), { name: agentName(t.agent || s.agent), noted }) : null;
+  const html = copy && `${esc(copy.said)} <span class="wc-limit">${esc(copy.limit)}</span>`;
+  const line = $(':scope > .wc-line', node);
+  const say = line && $('.hw-say', line);
+  if (line ? say.innerHTML === html : !html) return;
+  const after = (html ? [...node.children].filter((c) => c.matches('.ask, .side-warns, .hw-note')).at(-1) : line).nextElementSibling;
+  const top = late ? after?.getBoundingClientRect().top : undefined;
+  if (!html) line.remove();
+  else if (line) say.innerHTML = html;
+  else after.before(el(`<div class="wc-line">${icon('info')}<span class="hw-say">${html}</span></div>`));
+  if (top < innerHeight) scrollByPx(after.getBoundingClientRect().top - top);
+}
+
+// Trust this version took the harness's line away: the version goes back on this one.
+bus.on('agents', () => {
+  for (const id of S.open) renderBody(id, { fresh: false });
+});
 
 // Mark done / Reopen, in the task's bar and next to the composer. The state comes from the summary:
 // toggling it is optimistic and changes the summary first; the full task catches up after the echo.

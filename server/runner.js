@@ -7,6 +7,7 @@ import { EventEmitter } from 'node:events';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { adapters, detectedVersion } from './adapters/index.js';
+import { versionIn } from './adapters/common.js';
 import { systemPrompt, parsePresentation, heroOf } from './protocol.js';
 import { spellGuide } from './spell-guide.js';
 import { paneGuide } from './pane-guide.js';
@@ -37,6 +38,8 @@ const MAX_TEXT = 20_000; // an agent message, kept whole for the transcript up t
 const MAX_OUTPUT = 2_000; // what a tool call returned: its start and end past this
 // The calls whose output the transcript shows. A read returns the file and an edit a confirmation.
 const OUTPUT_KINDS = new Set(['run', 'search', 'web', 'tool', 'agent']);
+// What a running turn's CLI said about itself, until the turn ends and it goes in stats.cli.
+const cliSeen = new WeakMap();
 const LINGER_MS = 3000; // how long a CLI may keep running after it reported its result
 const BACKGROUND_MAX_MS = 60 * 60_000; // how long a turn may wait on its background tasks
 const ASK_SERVER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'mcp-ask.js');
@@ -1455,8 +1458,10 @@ export class Runner extends EventEmitter {
       untrusted: !!project,
       quiet: leanTask(session, this.store.config?.defaults), // only when asked: lean drops claude.ai connectors (server/lean.js)
       gate: !!session.sideOf && mode === 'edits', // every write waits on wisp (server/side-gate.js)
+      probe: true,
       onEvent: (ev) => {
-        if (released) return; // a lingering process we already let go of
+        // A lingering process we already let go of. A `cli` event is no process: a probe ends when it ends.
+        if (released && ev.type !== 'cli') return;
         const waiting = this.#onEvent(session, turn, ev) === 'waiting';
         // A CLI can outlive its result (flushing, or a background process it spawned holding
         // stdout open, so 'close' never fires). Don't hold the session hostage to that. A result
@@ -1636,6 +1641,17 @@ export class Runner extends EventEmitter {
         this.store?.save?.(session);
         return;
       }
+      case 'cli': {
+        const said = { ...(ev.version && { version: String(ev.version) }), ...(ev.catalog && { catalog: String(ev.catalog) }) };
+        if (turn.status === 'running') cliSeen.set(turn, { ...cliSeen.get(turn), ...said });
+        // Its probe outran a fast turn. A turn with no stats stays that way: readers go by t.stats.
+        else if (turn.stats) {
+          turn.stats.cli = { ...turn.stats.cli, ...said };
+          this.store?.save?.(session);
+          if (!this.deleting.has(session.id)) this.emit('turn', { sessionId: session.id, turnId: turn.id });
+        }
+        return;
+      }
       case 'background': {
         turn.background = ev.tasks;
         if (turn.interim) this.#waitItem(session, turn);
@@ -1654,6 +1670,17 @@ export class Runner extends EventEmitter {
         this.#finishTurn(session, turn, ev);
         return;
     }
+  }
+
+  // What the CLI was this turn: stats.cli (web/js/what-changed.js; each key only when known). A
+  // harness that reports it never gets detect's version: a stale one beside its own would read as a move.
+  #keepCli(session, turn) {
+    const agent = turn.agent || session.agent;
+    const { version = adapters[agent]?.reportsCli ? '' : versionIn(detectedVersion(agent)), catalog } = cliSeen.get(turn) || {};
+    const tools = turn.details?.tools?.hash;
+    const account = turn.account || session.account;
+    const cli = { ...(version && { version }), ...(tools && { tools }), ...(catalog && { catalog }), ...(account && { account }) };
+    if (Object.keys(cli).length) turn.stats.cli = cli;
   }
 
   // The live line while a turn waits on its background tasks.
@@ -1676,6 +1703,7 @@ export class Runner extends EventEmitter {
     delete turn.interim;
     delete turn.background;
     turn.stats = ev.stats || null;
+    if (turn.stats) this.#keepCli(session, turn);
     this.guard?.changed?.(turn.agent || session.agent); // its cost counts in the next estimate
     this.budget?.spend?.(turn.agent || session.agent, session.account || 'default', unitsOf(turn.stats), { failed: !!ev.isError && !ev.stopped });
     if (session.sideOf) this.sideGate.turnEnded(session, turn);

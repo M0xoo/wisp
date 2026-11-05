@@ -999,3 +999,8 @@ test('phone dictation: the mic is a part in New task and the reply box, with its
   assert.ok(schema.ICONS.includes('mic'));
   assert.ok(problems({ ...base0, ui: { hide: ['composer.mike'] } }).length, 'a typo is refused');
 });
+
+test('the what-changed line is a part spells can restyle or hide', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['turn.whatChanged'] }, parts: { 'turn.whatChanged': { style: { color: 'var(--muted)' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['turn.whatChange'] } }).length, 'a typo is refused');
+});
