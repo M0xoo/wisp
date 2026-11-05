@@ -86,6 +86,9 @@ The rules are written up in `docs/feed.md`; the code is `web/js/features/scroll.
   row is out of view (#190). Clicking a task focuses its reply box (#214).
 - Scrolled-to cards land below the top bar and the docked launcher (`scroll-padding-top`), not under
   them (#5).
+- A refresh never takes the keys. A row that changes list or section keeps the focus inside it
+  (`focusBack()`), so the next word goes in the box and not to a one-key shortcut. On a touch screen
+  Send lets the box go, so the keyboard drops and the run shows.
 - Escape closes the newest thing: a popover, then an overlay, then blurs a text box, then closes the
   open task. Keep that order when you add a layer.
 - Clicking the logo goes back to the prompt box, focused (#270).

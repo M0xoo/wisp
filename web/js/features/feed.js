@@ -4,7 +4,7 @@
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
-import { $, $$, beforePaint, el, icon } from '../core/dom.js';
+import { $, $$, beforePaint, el, focusBack, icon } from '../core/dom.js';
 import { ago, agoLong, STATUS_LABEL, timeAttrs } from '../core/format.js';
 import { HERE, isForLater, MOBILE, needsYou, S, save, saveOpen } from '../core/state.js';
 import { setForLater, taskDone, taskMenu, toggleDone } from './actions.js';
@@ -22,6 +22,7 @@ import { renderBody, VISIBLE_TURNS } from './turns.js';
 import { snapshotKept } from './cache.js';
 import { slotHtml } from './spells.js';
 import { swipesDone } from './swipe.js';
+import { TOUCH } from '../ui/popover.js';
 import { toastError } from '../ui/toast.js';
 import { closeOverlay } from '../ui/overlay.js';
 import { termPill } from './term.js';
@@ -207,6 +208,10 @@ export function renderFeed() {
     });
     while (box.children.length > nodes.length) box.lastElementChild.remove();
   };
+  // A row changing sections (Needs you to Working on Send) leaves one list before it reaches the
+  // next, and the open task's reply box goes with it. On a touch screen it stays let go: Send drops
+  // the keyboard, so the run shows.
+  const refocus = TOUCH.matches ? null : focusBack();
   place($('#secNeeds'), needs);
   place($('#secWorking'), working);
   // Scheduled: tasks and reminders that haven't started (rows of their own) and done tasks with
@@ -224,6 +229,7 @@ export function renderFeed() {
   nw.textContent = fresh ? `${fresh} new` : '';
   place($('#secDone'), done);
   place($('#secArchived'), archived);
+  refocus?.();
   paintFold($('#secCrew'));
 
   // The crew's live jobs, nested under their members.

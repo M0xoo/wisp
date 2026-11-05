@@ -497,3 +497,17 @@ Every page check also fails on an uncaught page error or a `console.error`.
   - 6: all three go; Send and the rest of the card stay.
   - 7: at 1000 the short form *Cache cold: re-reads about 480k* with the number whole. Under about 950 wide, or at 1000 with the side panel open, it's cut short; its title holds the whole line. Fork… stays whole.
 - **Suite** (`test/cold-cache.test.js`, `test/adapters.test.js`, `test/spells.test.js`), **Manual** (real Chrome)
+
+### WEB-56 · The keyboard stays in the reply box after Send
+- **Preconditions:** a finished task, open; the fake harness with `FAKE_DELAY=1500`.
+- **Steps:**
+  1. Click the reply box, type a follow-up and press Enter.
+  2. Type *edit* straight away.
+  3. Repeat with the row in a folded Needs you section, and at 390px wide in a browser.
+  4. Repeat in the phone app's page, tapping Send.
+- **Expected:**
+  - 1: the row moves to Working, the box empties and still has the focus ring.
+  - 2: *edit* is in the box. No toast, no Changes panel, no *Stop and take over?*.
+  - 3: the same; the transcript doesn't scroll.
+  - 4: the box lets go, so the keyboard drops and the run shows.
+- **Suite** (`test/keep-focus.test.js`), **Scripted** (`qa/web.mjs`), **Manual** (real Chrome)
