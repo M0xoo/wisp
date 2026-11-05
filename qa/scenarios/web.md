@@ -486,16 +486,18 @@ Every page check also fails on an uncaught page error or a `console.error`.
   3. Pick another harness in the box. Type `/btw why`. Set a time with Send later.
   4. Age a task with `FAKE_CONTEXT=5m` by 7 minutes; one with `FAKE_CONTEXT=none` by a day; a Codex task by a day; a task under 100k by a day.
   5. Hit a usage limit on the large task with the reset 3 hours away, with Settings → Wait for the reset off, then press **Wait until**. Repeat with the reset 10 minutes away.
-  6. Cast a spell with `ui: { hide: ['composer.cold', 'composer.coldFork', 'limit.cold'] }`.
-  7. Look at 1440, 1000 and 390 wide, and in the app's page, light and dark, side by side and stacked.
+  6. Open a task stopped by a usage limit with the turn 2 hours old, so its cache has already gone cold.
+  7. Cast a spell with `ui: { hide: ['composer.cold', 'composer.coldFork', 'limit.cold'] }`.
+  8. Look at 1440, 1000 and 390 wide, and in the app's page, light and dark, side by side and stacked.
 - **Expected:**
   - 1: nothing at 74 minutes. By 76, within 30 seconds and with no reload: *Cache gone cold: this reply re-reads about 480k* and **Fork…** in the hint, with no button moved and the transcript where it was. At 390 and in the app's page the folded box shows nothing and doesn't move: the line arrives with the bar when you tap the box, goes with it when you tap away, and stays beside a draft while the bar does.
   - 2: Fork… opens the Fork dialog. One Send click sends: no hold, no ask, no second step. The line goes while it runs.
   - 3: each one replaces the line; clearing it brings the line back.
   - 4: the 5-minute task shows it. The others show nothing.
-  - 5: *Cache will have gone cold by then: this reply re-reads about 480k* under the card's buttons, also after Wait. With the reset 10 minutes away the card has no line.
-  - 6: all three go; Send and the rest of the card stay.
-  - 7: at 1000 the short form *Cache cold: re-reads about 480k* with the number whole. Under about 950 wide, or at 1000 with the side panel open, it's cut short; its title holds the whole line. Fork… stays whole.
+  - 5: *Cache will have gone cold by then: this reply re-reads about 480k* under the card's buttons, also after Wait. With the reset 10 minutes away, inside the TTL: *Cache may have gone cold by then: if so, this reply re-reads about 480k*.
+  - 6: *Cache gone cold: this reply re-reads about 480k* once, in the reply box. The card has no cold line.
+  - 7: all three go; Send and the rest of the card stay.
+  - 8: at 1000 the short form *Cache cold: re-reads about 480k* with the number whole. Under about 950 wide, or at 1000 with the side panel open, it's cut short; its title holds the whole line. Fork… stays whole.
 - **Suite** (`test/cold-cache.test.js`, `test/adapters.test.js`, `test/spells.test.js`), **Manual** (real Chrome)
 
 ### WEB-56 · The keyboard stays in the reply box after Send
