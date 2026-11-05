@@ -583,3 +583,7 @@ Every page check also fails on an uncaught page error or a `console.error`.
   - 3: it sits at the top, clear of the bar's buttons.
   - 4: it goes within about 2 seconds, and nothing else moves.
 - **Suite** (`test/reconnecting.test.js`), **Manual** (real Chrome)
+
+### WEB-61 · No output for 12 min
+- **Steps:** with a task hanging on a fake agent (`FAKE_HANG`-style), leave it past 12 minutes, or move the page's clock forward. Reload. Send an activity event (a new step, or the result of a call that printed nothing). Then let a question reach it. Repeat with a delegate running, and with the page's stream dropped (offline in DevTools) past 12 minutes.
+- **Expected:** the panel's status row says *No output for 12 min* at its right end (a narrow row gives up the count and the time first), counts up by the minute, and is there at once after a reload. New activity clears it within a second, and so does a question. No line while a delegate works or while the page has lost its stream and hasn't read the task again. Nothing else changes: no card, no toast, Stop as before. Light and dark, split view and 390px.

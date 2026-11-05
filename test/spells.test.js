@@ -1041,3 +1041,9 @@ test('the what-changed line is a part spells can restyle or hide', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['turn.whatChanged'] }, parts: { 'turn.whatChanged': { style: { color: 'var(--muted)' } } } }), []);
   assert.ok(problems({ ...base0, ui: { hide: ['turn.whatChange'] } }).length, 'a typo is refused');
 });
+
+test('the no-output line is a part spells can restyle or hide', () => {
+  assert.equal(schema.PARTS['turn.noOutput'], '#feed .w-noout');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['turn.noOutput'] }, parts: { 'turn.noOutput': { style: { color: 'var(--muted)' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['turn.noOutputs'] } }).some((x) => /turn\.noOutputs/.test(x)), 'a typo is refused');
+});

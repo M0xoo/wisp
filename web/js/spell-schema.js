@@ -277,6 +277,7 @@ export const PARTS = {
   'turn.sideStart': '#feed .turn .side-line', // the line above a side discussion's first message
   'turn.sideWarn': '#feed .turn .side-warns', // a side discussion's rows: it touched a file the main task changed too
   'turn.whatChanged': '#feed .turn .wc-line', // the line saying what moved since the last turn: CLI version, tool set, Codex model catalog
+  'turn.noOutput': '#feed .w-noout', // No output for 12 min, in the working panel of a run gone quiet
   'card.setupWarn': '#feed .it-meta .m.setup-warn', // a worktree's .worktreeinclude copy or setup step failed
   'mention.picker': '.menu.cr-pick', // @ in a prompt box: crew, My Stuff and files
   'form.select': '.kit-sel', // a list's button in dialogs and Settings (ui/select.js)

@@ -279,8 +279,11 @@ body.stack .t-result { display: none; }
 .w-orb { padding-top: 2px; }
 .w-body { flex: 1; min-width: 0; position: relative; }
 /* One line at any width or text size: what doesn't fit wraps onto a second line the box clips, the
-   count first, then the time; the name itself ends in an ellipsis before it would wrap. */
-.w-status { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 12px; height: 1.6em; line-height: 1.6em; overflow: hidden; margin-bottom: 10px; }
+   count first, then the time; the name itself ends in an ellipsis before it would wrap.
+   No output for 12 min keeps the row's right end and never wraps: its width (turns.js, fitQuiet) comes
+   off the room the others have, so they drop as above and the row's height never changes. */
+.w-status { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 12px; height: 1.6em; line-height: 1.6em; overflow: hidden; margin-bottom: 10px; }
+.w-status.w-quiet { padding-right: calc(var(--w-noout) + 12px); }
 .w-status b { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* "… is working" has a soft light passing over it, in step with the orb's ripple. */
 .w-panel:not(.waiting) .w-status b {
@@ -290,6 +293,7 @@ body.stack .t-result { display: none; }
 }
 @keyframes w-shine { from { background-position: 100% 0; } to { background-position: 0% 0; } }
 .w-status span { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.w-status .w-noout { position: absolute; top: 1px; right: 0; } /* 1px: on the baseline of the name, as the time is */
 .ticker, .log { list-style: none; margin: 0; padding: 0; }
 .act { display: flex; align-items: center; gap: 9px; padding: 3px 0; font-size: 13px; color: var(--ink-2); min-width: 0; }
 .act span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

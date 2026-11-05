@@ -106,11 +106,14 @@ export function stepOf(ev) {
 }
 
 // What a call returned, on its step: matched to the call by the harness's id. The step, or null.
+// outAt: when it came in, nothing printed included (a quiet `until …; do sleep` is still activity):
+// a reload reads it (web/js/no-output.js).
 export function stepOutput(activity, ev) {
   const item = ev.id && activity.findLast((a) => a.call === String(ev.id));
+  if (!item || !OUTPUT_KINDS.has(item.kind)) return null;
+  item.outAt = Date.now();
   const output = clipOutput(ev.text);
-  if (!item || !OUTPUT_KINDS.has(item.kind) || !output.trim()) return null;
-  item.output = output;
+  if (output.trim()) item.output = output;
   return item;
 }
 
@@ -1595,6 +1598,9 @@ export class Runner extends EventEmitter {
       case 'tool_error':
       case 'text': {
         if (ev.type === 'tool_error' && ev.id && session.sideOf) this.sideGate.toolDone(session, turn, ev.id, true).catch(() => {});
+        // A failed call is over too: left open, a Task keeps *No output for 12 min* away for the whole turn.
+        const failed = ev.type === 'tool_error' && stepOutput(turn.activity, { id: ev.id, text: '' });
+        if (failed) this.emit('activity', { sessionId: session.id, turnId: turn.id, item: failed, update: true });
         const item = stepOf(ev);
         turn.activity.push(item);
         // The transcript says how many of the oldest steps it no longer has.
