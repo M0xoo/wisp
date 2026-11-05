@@ -1,8 +1,9 @@
 // Preview: the task's app, run from its folder (its worktree) and shown in the side panel
 // (panel.js, tab 'preview'; server/runs.js runs it). Three states, each in its final shape at once:
 //
-//   not running  the command (.wisp/worktree.json's run, a guess from package.json said to be
-//                one, or yours) in an editable box, and Run.
+//   not running  the command (.wisp/worktree.json's run, a repo's Conductor run script, a guess
+//                from package.json said to be one, or yours) in an editable box, and Run. A
+//                command of several lines gets a textarea: an input would drop the newlines.
 //   running      a slim bar (dot, address, Pick element, Logs, Restart, Stop, Open in browser) and
 //                the app in a frame; until its port answers, its output in the frame's place.
 //   failed       the exit code, its last lines, Run again.
@@ -104,12 +105,16 @@ function srcOf(id, d) {
 
 const stateOf = (d) => (d.running ? 'live' : d.command && d.exitCode !== null && d.exitCode !== undefined && !d.stopped ? 'failed' : 'idle');
 const lastLines = (tail, n) => String(tail || '').split('\n').slice(-n).join('\n');
+const cmdRows = (cmd) => Math.max(2, Math.min(6, cmd.split('\n').length)); // past 6 it scrolls
 
 function emptyHtml(id, d, failed) {
   if (!d.canRun && !failed) return `<div class="rn-msg">${icon('folder')}<p>This task has no folder to run an app from.</p></div>`;
   const cmd = drafts.get(id) ?? (failed ? d.command : d.config?.command) ?? '';
   const src = d.config?.source;
-  const said = drafts.has(id) && drafts.get(id).trim() !== (d.config?.command || '') ? '' : src === 'config' ? 'From <code>.wisp/worktree.json</code>' : src === 'package.json' ? 'From package.json: a guess. Set <code>run</code> in <code>.wisp/worktree.json</code> to fix it.' : '';
+  const said = drafts.has(id) && drafts.get(id).trim() !== (d.config?.command || '') ? '' : src === 'config' ? 'From <code>.wisp/worktree.json</code>' : src === 'conductor' ? (d.config.problem ? esc(d.config.problem) : `From <code>${esc(d.config.file)}</code>`) : src === 'package.json' ? 'From package.json: a guess. Set <code>run</code> in <code>.wisp/worktree.json</code> to fix it.' : '';
+  const attrs = 'placeholder="npm run dev" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="rnSaid"';
+  // The newline after <textarea> is the parser's to drop: a command that starts with one keeps it.
+  const box = cmd.includes('\n') ? `<textarea id="rnCmd" class="input mono rn-cmd" rows="${cmdRows(cmd)}" ${attrs}>\n${esc(cmd)}</textarea>` : `<input id="rnCmd" class="input mono rn-cmd" value="${esc(cmd)}" ${attrs}>`;
   const head = failed
     ? `<div class="rn-fail">${icon('warn')}<b>${d.signal ? `Stopped by ${esc(d.signal)}` : `Exited with code ${esc(String(d.exitCode))}`}</b></div><pre class="rn-last">${esc(lastLines(d.tail, 12)) || 'No output.'}</pre>`
     : `<div class="rn-intro">${icon('play')}<p>Run the app from this task’s folder and see it here.</p></div>`;
@@ -117,7 +122,7 @@ function emptyHtml(id, d, failed) {
     <form class="rn-form">
       <label class="rn-lbl" for="rnCmd">Command</label>
       <div class="rn-row">
-        <input id="rnCmd" class="input mono rn-cmd" value="${esc(cmd)}" placeholder="npm run dev" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="rnSaid">
+        ${box}
         <button class="primary sm rn-go" type="submit"${cmd.trim() ? '' : ' disabled'}>${icon('play')}<span>${failed ? 'Run again' : 'Run'}</span></button>
       </div>
       <p class="rn-said" id="rnSaid">${said || 'It gets <code>PORT</code>: a free port for this task.'}</p>
@@ -278,6 +283,7 @@ export function wireRun(sec, getId, { toReply }) {
   sec.addEventListener('input', (e) => {
     if (!e.target.closest('.rn-cmd')) return;
     drafts.set(getId(), e.target.value);
+    if (e.target.tagName === 'TEXTAREA') e.target.rows = cmdRows(e.target.value);
     const go = $('.rn-go', sec);
     if (go) go.disabled = !e.target.value.trim();
   });

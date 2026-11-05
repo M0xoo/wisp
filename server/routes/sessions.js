@@ -15,7 +15,7 @@ import { searchTasks } from '../search.js';
 import { cleanupCheckpoints, revertFileChange, rollbackToTurn } from '../checkpoint.js';
 import { execCommand } from '../proc.js';
 import { ensureWorktree, removeWorktree, worktreeSource } from '../git.js';
-import { runSetup } from '../worktree-setup.js';
+import { runSetup, setupEnv } from '../worktree-setup.js';
 import { MIME } from '../http/static.js';
 import { prepared, sendFile } from '../http/respond.js';
 import { blocksToMarkdown, sessionToMarkdown } from '../render.js';
@@ -639,7 +639,7 @@ export function register(r, app) {
             (async () => {
               for (const wt of trees) await ensureWorktree(wt).catch(() => {});
               for (const wt of setup) {
-                const done = await runSetup(wt.root, wt.path, wt.prepared.held.map((x) => x.command));
+                const done = await runSetup(wt.root, wt.path, wt.prepared.held.map((x) => x.command), setupEnv(wt.prepared.held[0]?.file, { root: wt.root, dir: wt.path, branch: wt.base }));
                 wt.prepared.ran = [...(wt.prepared.ran || []), ...done.ran];
                 if (done.problems.length) wt.prepared.problems = [...(wt.prepared.problems || []), ...done.problems];
                 delete wt.prepared.held;

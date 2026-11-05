@@ -25,7 +25,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ensureWorktree, gh, git, taskChanges, worktreeStatus } from '../git.js';
+import { baseRef, ensureWorktree, gh, git, taskChanges, worktreeStatus } from '../git.js';
 import { hunkKey, hunksOf, revertHunk } from '../hunks.js';
 import { maskChangesFile, maskOn, maskRow } from '../env-mask.js';
 // The page may have shown a .env file's hunk masked: its key is the masked rows'.
@@ -35,6 +35,8 @@ import { ptySupported } from '../pty.js';
 import { workdir } from '../runner.js';
 import { defaultTerminal, inWisp, openInTerminal } from '../terminal.js';
 import { bad } from '../util.js';
+import { conductorEnv } from '../conductor.js';
+import { repoOf } from '../project-trust.js';
 import { runCommand } from '../worktree-setup.js';
 import { notSide } from '../side.js';
 
@@ -165,15 +167,23 @@ export function register(r, app) {
 
   // Run the app (the panel's Preview): in the worktree, else the project folder; never a
   // folder-less task's scratch folder. The command: the page's, else .wisp/worktree.json's run,
-  // else a guess from package.json (source says which).
+  // else the repo's Conductor run script, else a guess from package.json (source says which).
   const runDir = (s) => {
     const w = s.worktree?.cwd || s.worktree?.path;
     if (w && fs.existsSync(w)) return w;
     return s.cwd && fs.existsSync(s.cwd) && !store.isScratch?.(s.cwd) ? s.cwd : null;
   };
+  // The checkout dir is in: where Conductor's file is and its workspace.
+  const runTop = (s, dir) => (s.worktree?.path && fs.existsSync(s.worktree.path) ? s.worktree.path : repoOf(dir).top);
   const runConfig = (s) => {
     const dir = runDir(s);
-    return (dir && runCommand(dir)) || (s.cwd && dir !== s.cwd && fs.existsSync(s.cwd) ? runCommand(s.cwd) : null);
+    const top = dir && runTop(s, dir);
+    const here = dir && runCommand(dir, top);
+    if (here || !s.cwd || dir === s.cwd || !fs.existsSync(s.cwd)) return here || null;
+    const from = repoOf(s.cwd).top;
+    const cfg = runCommand(s.cwd, from);
+    // Found in the project folder only (not committed): it still runs in the task's own folder.
+    return cfg?.cwd && top ? { ...cfg, cwd: path.resolve(top, path.relative(from, cfg.cwd)) } : cfg;
   };
   const NO_FOLDER = 'This task has no folder to run an app from.';
   r.route(
@@ -197,8 +207,16 @@ export function register(r, app) {
       if (app.runs.running(s.id) && !body.restart) return c.send(200, app.runs.view(s.id));
       const cfg = runConfig(s);
       const command = (body.command || '').trim() || cfg?.command;
-      if (!command) throw bad('Nothing to run: type the command that starts the app (npm run dev, …), or add "run" to .wisp/worktree.json.');
-      const v = await app.runs.start(s.id, { dir, command, port: cfg?.port || null });
+      if (!command) throw bad(`Nothing to run: ${cfg?.problem ? `${cfg.problem}. Fix it, or type` : 'type'} the command that starts the app (npm run dev, …), or add "run" to .wisp/worktree.json.`);
+      const opts = { dir, command, port: cfg?.port || null };
+      if (cfg?.source === 'conductor') {
+        // A typed command too: it's still this repo's app, and may read them.
+        const top = runTop(s, dir);
+        const branch = s.worktree?.base || (await baseRef(top).catch(() => null))?.branch;
+        const env = { root: s.worktree?.root || top, dir: top, branch };
+        Object.assign(opts, { dir: cfg.cwd || dir, ports: 10, portKey: path.basename(top), envFor: (port) => conductorEnv({ ...env, port }) });
+      }
+      const v = await app.runs.start(s.id, opts);
       app.telemetry?.track('run_app', { agent: s.agent, source: body.command ? (body.command.trim() === cfg?.command ? cfg.source : 'typed') : cfg?.source });
       c.send(200, v);
     }),

@@ -16,7 +16,7 @@ process.env.SHELL = '/bin/sh';
 installFakeBins();
 
 const { startServer } = await import('../server/index.js');
-const { cleanLine, frameable, urlIn, withPicker } = await import('../server/runs.js');
+const { Runs, cleanLine, frameable, taskPort, urlIn, withPicker } = await import('../server/runs.js');
 const { runCommand } = await import('../server/worktree-setup.js');
 
 const freePort = () =>
@@ -133,6 +133,108 @@ test('run: a command that fails says its exit code and last lines; refused witho
   assert.equal((await api(`/sessions/${q.id}/run`)).canRun, false);
   await assert.rejects(api(`/sessions/${q.id}/run`, { body: { command: 'node -v' } }), (e) => e.status === 409 && /no folder/.test(e.message));
   await assert.rejects(api('/sessions/nope/run'), (e) => e.status === 404);
+});
+
+// A child that says what it was given, on any shell, and stays when told to.
+const DUMP = `const fs = require('node:fs');
+fs.writeFileSync('env.json', JSON.stringify({ cwd: process.cwd(), env: process.env }));
+if (process.argv[2]) setInterval(() => {}, 1000);
+`;
+const told = (dir) =>
+  until(() => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(dir, 'env.json'), 'utf8'));
+    } catch {
+      return null;
+    }
+  });
+const dumper = (name) => {
+  const dir = tmp(name);
+  fs.writeFileSync(path.join(dir, 'dump.js'), DUMP);
+  return dir;
+};
+const key = (name) => `${name}-${process.pid}-${Date.now()}`;
+// A key whose first port is low in the range: from near its end, a block would wrap to the start.
+const lowKey = (name) => {
+  const base = key(name);
+  for (let i = 0; ; i++) if (taskPort(`${base}-${i}`) % 1000 < 400) return `${base}-${i}`;
+};
+
+test('run: a Conductor action starts in its own folder with Conductor’s env, CONDUCTOR_PORT = PORT, and a typed command gets them too', async () => {
+  const repo = makeClone();
+  const s = await api('/sessions', { body: { prompt: 'Fix add() so it adds', cwd: repo.dir, agent: 'claude' } });
+  const done = await settled(s.id);
+  const top = done.worktree.path;
+  const web = path.join(top, 'apps', 'web');
+  fs.mkdirSync(web, { recursive: true });
+  fs.writeFileSync(path.join(web, 'dump.js'), DUMP);
+  fs.mkdirSync(path.join(top, '.conductor'));
+  fs.writeFileSync(path.join(top, '.conductor/settings.toml'), '[scripts.run.web]\ncommand = "node dump.js"\noptions.cwd = "apps/web"\n');
+
+  const { config } = await api(`/sessions/${s.id}/run`);
+  assert.deepEqual(config, { command: 'node dump.js', port: null, source: 'conductor', file: '.conductor/settings.toml', cwd: web });
+  await api(`/sessions/${s.id}/run`, { body: {} });
+  const { cwd, env } = await told(web);
+  assert.equal(fs.realpathSync(cwd), fs.realpathSync(web));
+  assert.equal(env.CONDUCTOR_PORT, env.PORT);
+  assert.equal(env.CONDUCTOR_ROOT_PATH, done.worktree.root);
+  assert.equal(env.CONDUCTOR_WORKSPACE_PATH, top);
+  assert.equal(env.CONDUCTOR_WORKSPACE_NAME, path.basename(top));
+  assert.equal(env.CONDUCTOR_DEFAULT_BRANCH, 'main');
+  assert.equal(env.CONDUCTOR_IS_LOCAL, '1');
+  await until(async () => !(await api(`/sessions/${s.id}/run`)).running);
+
+  fs.rmSync(path.join(web, 'env.json'));
+  await api(`/sessions/${s.id}/run`, { body: { command: 'node dump.js typed' } });
+  assert.equal((await told(web)).env.CONDUCTOR_IS_LOCAL, '1');
+  await api(`/sessions/${s.id}/run`, { method: 'DELETE' });
+
+  // Unreadable: Run says why, no guess stands in, and a typed command still goes.
+  fs.writeFileSync(path.join(top, 'package.json'), JSON.stringify({ scripts: { dev: 'vite' } }));
+  fs.writeFileSync(path.join(top, 'dump.js'), DUMP);
+  fs.writeFileSync(path.join(top, '.conductor/settings.toml'), '[scripts\n');
+  const v = await api(`/sessions/${s.id}/run`);
+  assert.equal(v.config.command, null);
+  assert.match(v.config.problem, /^couldn't read \.conductor\/settings\.toml: line 1/);
+  await assert.rejects(api(`/sessions/${s.id}/run`, { body: { restart: true } }), (e) => e.status === 400 && /Nothing to run: couldn't read/.test(e.message));
+  await api(`/sessions/${s.id}/run`, { body: { command: 'node dump.js', restart: true } });
+  assert.equal((await told(top)).env.CONDUCTOR_WORKSPACE_PATH, top);
+});
+
+test('Runs: a block of ports needs them all free, past a live run’s block and a busy port; PORT is the key’s first choice', async () => {
+  const runs = new Runs();
+  const dir = dumper('run-block');
+  const portKey = lowKey('blocks');
+  const first = await runs.start('a', { dir, command: 'node dump.js stay', portKey, ports: 10, envFor: (port) => ({ FIRST: String(port) }) });
+  const { env } = await told(dir);
+  assert.equal(env.FIRST, env.PORT);
+  assert.equal(first.port, Number(env.PORT));
+  assert.ok(first.port >= taskPort(portKey));
+
+  // Same key: its first choice overlaps, it moves past the whole block.
+  const dir2 = dumper('run-block-2');
+  const second = await runs.start('b', { dir: dir2, command: 'node dump.js stay', portKey, ports: 10 });
+  assert.ok(second.port >= first.port + 10, `${second.port} past ${first.port}`);
+  // A key whose first choice lands inside the live block, wanting one port, moves too.
+  let inside = null;
+  for (let i = 0; inside === null && i < 1e6; i++) if (taskPort(`${portKey}-${i}`) === second.port + 4) inside = `${portKey}-${i}`;
+  assert.ok(inside, 'a key that lands inside the block');
+  const dir3 = dumper('run-block-3');
+  const third = await runs.start('c', { dir: dir3, command: 'node dump.js stay', portKey: inside });
+  assert.ok(third.port >= second.port + 10, `${third.port} past ${second.port}`);
+  await Promise.all(['a', 'b', 'c'].map((id) => runs.stop(id)));
+
+  // A busy port inside the block moves it past that port.
+  const busyKey = lowKey('busy');
+  const busy = taskPort(busyKey) + 3;
+  const blocker = net.createServer();
+  await new Promise((resolve) => blocker.listen(busy, '127.0.0.1', resolve));
+  const dir4 = dumper('run-block-4');
+  const fourth = await runs.start('d', { dir: dir4, command: 'node dump.js', portKey: busyKey, ports: 10 });
+  assert.ok(fourth.port > busy, `${fourth.port} past ${busy}`);
+  await told(dir4);
+  await runs.stop('d');
+  await new Promise((resolve) => blocker.close(resolve));
 });
 
 test('runCommand: .wisp/worktree.json’s run and port, else a guess from package.json', () => {

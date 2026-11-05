@@ -7,13 +7,18 @@
 //   .wisp/worktree.json       { "setup": "npm ci" | ["npm ci", "…"] } run in the new worktree, and
 //                             { "run": "npm run dev", "port": 5173 } the app, for the panel's Preview
 //   .cursor/worktrees.json    { "setup-worktree": [...] } the same, for a repo set up for Cursor
+//   .conductor/settings.toml  scripts.setup and scripts.run (or conductor.json), for one set up for
+//                             Conductor (server/conductor.js), with Conductor's env vars
 //
+// The first of those files with a setup is the setup; own run, then Conductor's, is the app.
 // Setup runs with ROOT_WORKTREE_PATH set to the checkout it came from (Cursor's name for it).
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { conductorEnv, conductorScripts, isConductorFile } from './conductor.js';
 import { gitBin } from './git.js';
 import { execFile } from './proc.js';
+import { taskPort } from './runs.js';
 
 const SETUP_TIMEOUT = 10 * 60_000;
 const DEFAULT_INCLUDE = ['.env', '.env.*'];
@@ -52,7 +57,10 @@ export async function includedPaths(root) {
   return out.split('\0').filter(Boolean).filter((rel) => tests.some((t) => t(rel, rel.endsWith('/'))));
 }
 
-export function setupCommands(root) {
+// The setup a new worktree of root runs, and the one place that decides it (the trust card lists
+// the same): { file, commands, problem? }. Cursor stays ahead of Conductor: a repo that works keeps
+// what it runs, and isn't asked again.
+export function repoSetup(root) {
   const read = (f) => {
     try {
       return JSON.parse(fs.readFileSync(path.join(root, f), 'utf8'));
@@ -60,25 +68,42 @@ export function setupCommands(root) {
       return null;
     }
   };
+  const steps = (list) => (Array.isArray(list) ? list : [list]).filter((c) => typeof c === 'string' && c.trim());
   const own = read('.wisp/worktree.json')?.setup;
+  if (own != null) return { file: '.wisp/worktree.json', commands: steps(own) };
   const cursor = read('.cursor/worktrees.json')?.['setup-worktree'];
-  const list = own ?? cursor ?? [];
-  return (Array.isArray(list) ? list : [list]).filter((c) => typeof c === 'string' && c.trim());
+  if (cursor != null) return { file: '.cursor/worktrees.json', commands: steps(cursor) };
+  const c = conductorScripts(root);
+  if (!c) return { file: null, commands: [] };
+  return { file: c.file, commands: c.setup ? [c.setup] : [], ...(c.problem && { problem: c.problem }) };
+}
+
+export const setupCommands = (root) => repoSetup(root).commands;
+
+// What a setup from `file` is told besides ROOT_WORKTREE_PATH. The port is the one a Run of this
+// workspace asks for first (routes/workspace.js), so a .env that setup writes it to stays right.
+export function setupEnv(file, { root, dir, branch }) {
+  return isConductorFile(file) ? conductorEnv({ root, dir, branch, port: taskPort(path.basename(dir)) }) : {};
 }
 
 // How to run the app from a folder (the side panel's Preview, server/runs.js): .wisp/worktree.json's
-// { "run": "npm run dev", "port": 5173 }, else a guess from package.json (scripts.dev, then
+// { "run": "npm run dev", "port": 5173 } in dir, else the Conductor run script of the checkout `top`
+// (with the folder to start in, and problem with no command when its file can't be read: a guess
+// wouldn't be what the repo asked for), else a guess from package.json (scripts.dev, then
 // scripts.start), marked as one. null: nothing to go on.
-export function runCommand(root) {
+export function runCommand(dir, top = dir) {
   let own = null;
   try {
-    own = JSON.parse(fs.readFileSync(path.join(root, '.wisp/worktree.json'), 'utf8'));
+    own = JSON.parse(fs.readFileSync(path.join(dir, '.wisp/worktree.json'), 'utf8'));
   } catch {}
   const port = Number.isInteger(own?.port) && own.port > 0 && own.port < 65536 ? own.port : null;
   if (typeof own?.run === 'string' && own.run.trim()) return { command: own.run.trim(), port, source: 'config' };
+  const c = conductorScripts(top);
+  if (c?.problem) return { command: null, port, source: 'conductor', file: c.file, problem: c.problem };
+  if (c?.run) return { command: c.run.command, port, source: 'conductor', file: c.file, cwd: c.run.cwd ? path.resolve(top, c.run.cwd) : top };
   let pkg = null;
   try {
-    pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
   } catch {}
   const s = pkg?.scripts || {};
   if (typeof s.dev === 'string') return { command: 'npm run dev', port, source: 'package.json' };
@@ -90,7 +115,7 @@ export function runCommand(root) {
 // wrong is returned (the task says so) rather than stopping the launch.
 // hold: the setup steps the repo isn't trusted for (server/project-trust.js): they don't run now but
 // wait in `held` for Trust and start (runSetup) or Run without them.
-export async function prepareWorktree(root, dir, { hold = null } = {}) {
+export async function prepareWorktree(root, dir, { hold = null, branch = null } = {}) {
   const copied = [];
   const problems = [];
   for (const rel of await includedPaths(root)) {
@@ -105,22 +130,30 @@ export async function prepareWorktree(root, dir, { hold = null } = {}) {
       problems.push(`couldn't copy ${rel}: ${err.message}`);
     }
   }
+  const { file, commands, problem } = repoSetup(root);
+  if (problem) problems.push(problem);
   if (hold?.length) return { copied, ran: [], problems, held: hold };
-  const setup = await runSetup(root, dir, setupCommands(root));
+  const setup = await runSetup(root, dir, commands, setupEnv(file, { root, dir, branch }));
   return { copied, ran: setup.ran, problems: [...problems, ...setup.problems] };
 }
 
+// A step can be a whole script: a problem names its first line.
+const firstLine = (cmd) => {
+  const [first, ...more] = cmd.trim().split(/\r?\n/);
+  return more.length ? `${first}…` : first;
+};
+
 // The setup steps, in order, in the new worktree dir; stops at the first that fails.
-export async function runSetup(root, dir, commands) {
+export async function runSetup(root, dir, commands, env = {}) {
   const ran = [];
   const problems = [];
   const shell = process.platform === 'win32' ? [process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c']] : [process.env.SHELL || '/bin/sh', ['-c']];
   for (const cmd of commands) {
     try {
-      await run(shell[0], [...shell[1], cmd], { cwd: dir, timeout: SETUP_TIMEOUT, env: { ...process.env, ROOT_WORKTREE_PATH: root } });
+      await run(shell[0], [...shell[1], cmd], { cwd: dir, timeout: SETUP_TIMEOUT, env: { ...process.env, ROOT_WORKTREE_PATH: root, ...env } });
       ran.push(cmd);
     } catch (err) {
-      problems.push(`setup \`${cmd}\` failed: ${(err.stderr || err.message).trim().split('\n').slice(-3).join(' ')}`);
+      problems.push(`setup \`${firstLine(cmd)}\` failed: ${(err.stderr || err.message).trim().split('\n').slice(-3).join(' ')}`);
       break; // the next step likely needs this one
     }
   }

@@ -94,7 +94,7 @@ Built for round 9, each on a screen wisp already had:
 | Feature | Who had it | Where in wisp |
 |---|---|---|
 | Stage, unstage and commit, by file or hunk | Codex | Changes: *Stage / Part / Staged*, hunk *Stage*, a commit row, ⌘K |
-| Run the app per worktree, preview it, pick an element | Conductor, Superset, Vibe Kanban, Cursor | The side panel's **Preview** tab (`.wisp/worktree.json` `run`/`port`), Pick |
+| Run the app per worktree, preview it, pick an element | Conductor, Superset, Vibe Kanban, Cursor | The side panel's **Preview** tab (`.wisp/worktree.json` `run`/`port`, Conductor's run script), Pick |
 | Start from an issue list | Conductor, Emdash, Vibe Kanban | New task's **Issue**: GitHub, Linear, Jira |
 | Triggers from outside | Cursor Automations | Webhook, Slack, Linear, Sentry, PagerDuty (Settings → Webhook triggers) |
 | Language intelligence | Cursor | The editor's language server: definition, references, hover, rename, completions, problems |
@@ -146,7 +146,7 @@ at 1000px with the panel open, Save shown only when there's something to save, c
 | Comment on a diff line, send it back | Cursor, Codex, Conductor | **Built** (round 6) | — |
 | Revert a hunk or a file; Viewed per file | Cursor, Codex, GitHub | **Built** (round 8), with Undo | — |
 | @ a file in the prompt | Cursor, Claude Code, Codex | **Built** (round 8) | — |
-| Worktrees with ignored files and a setup step | Cursor, Claude Code, Conductor | **Built** (round 8): `.worktreeinclude`, `.wisp/worktree.json`, Cursor's file | — |
+| Worktrees with ignored files and a setup step | Cursor, Claude Code, Conductor | **Built** (round 8): `.worktreeinclude`, `.wisp/worktree.json`, Cursor's file, Conductor's files | — |
 | Search past work by its words | Cursor, Vibe Kanban | **Built** (round 6) | — |
 | Plan usage before you start | Codex, Cursor | **Built** (round 8): beside each harness in the picker | — |
 | Stage, unstage and commit from the diff | Codex | Missing: wisp commits through Ship it | A feature on Changes |
