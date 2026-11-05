@@ -601,6 +601,40 @@ test('this computer: SSH banner, Tailscale self and authorized keys', { skip: wi
   }
 });
 
+// The grid stops an idle sandbox while wisp packs a project for it (2 minutes on a real grid, 1.5 s
+// in grid.test.js). The upload wakes it; the seed right after must go through too, not hear
+// "offline" from wisp itself while the health checks catch up.
+test('a cloud computer that’s waking takes the next request; one disconnected is offline', async () => {
+  let health = null; // held, so the machine stays waking for as long as the test needs
+  const srv = http.createServer((req, res) => {
+    req.resume();
+    if (req.url === '/api/health') {
+      health = () => res.writeHead(200, { 'content-type': 'application/json' }).end('{"version":"1"}');
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ url: req.url }));
+  });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  try {
+    const ms = new Machines({ store: { config: { machines: [{ id: 'g', name: 'box', kind: 'grid', url: `http://127.0.0.1:${srv.address().port}` }] } }, secrets: { get: () => 't' } });
+    ms.conns.set('g', { id: 'g', grid: true, state: 'asleep', token: 't', steps: [], log: [], attempt: 0 });
+    // The upload: the first request wakes it, as an asleep one always did.
+    assert.deepEqual(await ms.json('g', 'POST', '/uploads', {}), { url: '/api/uploads' });
+    await until(() => health);
+    assert.equal(ms.conns.get('g').state, 'reconnecting', 'still waking');
+    // The seed, straight after.
+    assert.deepEqual(await ms.json('g', 'POST', '/sandbox/seed', {}), { url: '/api/sandbox/seed' });
+    assert.equal(ms.usable('g'), true, 'a waking one takes work, as an asleep one does');
+    // Disconnected by hand, it's offline whatever the wake was doing.
+    ms.disconnect('g');
+    assert.equal(ms.usable('g'), false);
+    await assert.rejects(async () => ms.json('g', 'GET', '/x'), { status: 503, message: /box is offline/ });
+  } finally {
+    srv.closeAllConnections();
+    srv.close();
+  }
+});
+
 // A machine's error answers aren't always wisp's JSON (a proxy's 413, a gateway's 502 page): the
 // user sees its status and words, not a JSON parse error.
 test('a machine that refuses an upload with a non-JSON answer: its status and words, not a SyntaxError', async () => {

@@ -46,6 +46,7 @@ const GRID_STEPS = [
 const GRID_WAKE_MS = 90_000;
 const GRID_WATCH_MS = 20_000; // how often an asleep cloud computer is checked (without waking it)
 const isGrid = (m) => m?.kind === 'grid';
+const wakes = (c) => c?.state === 'asleep' || (!!c?.waking && !c.stopped); // a request gets through: the grid starts it
 const MAX_LOG = 80;
 
 const sshBin = () => process.env.WISP_SSH || 'ssh';
@@ -128,11 +129,12 @@ export class Machines extends EventEmitter {
     return this.conns.get(id)?.state === 'online';
   }
 
-  // Takes requests: online, or a cloud computer asleep (a request wakes it).
+  // Takes requests: online, or a cloud computer asleep or waking (a request wakes it, and the edge
+  // holds it until the box answers).
   usable(id) {
-    const st = this.conns.get(id)?.state;
+    const c = this.conns.get(id);
     const m = this.list.find((x) => x.id === id);
-    return st === 'online' || (st === 'asleep' && isGrid(m) && !m.computer);
+    return c?.state === 'online' || (wakes(c) && isGrid(m) && !m.computer);
   }
 
   start() {
@@ -583,8 +585,10 @@ export class Machines extends EventEmitter {
     const m = this.get(id);
     const c = this.conns.get(id);
     if (m.computer && c?.state !== 'online') throw bad(`${m.name} is offline: it comes back when that computer is on and wisp runs there.`, 503);
-    // Asleep: the request itself wakes it; the event stream follows.
-    if (isGrid(m) && c?.state === 'asleep') {
+    // Asleep: the request itself wakes it; the event stream follows. So does the one after it, while
+    // that wake is still going: a box idled out during a long job (a sandbox's project being packed)
+    // would otherwise fail that job's next call as offline.
+    if (isGrid(m) && wakes(c)) {
       this.connect(id, { retry: true }).catch(() => {});
       return { m, c: this.conns.get(id) };
     }
