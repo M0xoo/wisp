@@ -403,9 +403,11 @@ export default {
   // quiet: without Claude Code's nonessential traffic, which also drops claude.ai connectors (server/lean.js).
   // subagentModel: '' | 'haiku' | 'sonnet', the model its subagents and workflow agents run on
   // (defaults.subagentModel). Never _FORCE: an Agent call's own model, or a custom agent's, still wins.
+  // skills: 'off' runs without its slash commands and skills; plugins, agents and CLAUDE.md stay. Not
+  // on a /compact: with that flag it answers "isn't available in this environment" (claude 2.1.316).
   // gate: every write and command goes to the approve tool first (a side discussion, server/side-gate.js).
   // probe: a task's turn, which checks the sign-in it bills to (side runs don't pay for another process).
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, prior = null, unknownPrior = false, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, quiet = false, subagentModel = '', gate = false, probe = false, runEnv = {}, onEvent }) {
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, prior = null, unknownPrior = false, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, quiet = false, subagentModel = '', skills = '', gate = false, probe = false, runEnv = {}, onEvent }) {
     lean = lean && leanOk();
     const args = [
       '-p',
@@ -418,6 +420,7 @@ export default {
     if (gate) args.push('--settings', JSON.stringify({ permissions: { ask: GATED } }));
     if (lean) args.push(...LEAN);
     else if (untrusted) args.push(...UNTRUSTED);
+    if (skills === 'off' && !lean && !/^\/compact(\s|$)/.test(String(prompt).trim())) args.push('--disable-slash-commands');
     if (model) args.push('--model', model);
     if (effort) args.push('--effort', effort);
     if (chromeEnabled({ ...process.env, ...accountEnv })) args.push('--chrome');

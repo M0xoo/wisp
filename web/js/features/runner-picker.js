@@ -20,7 +20,9 @@ const ACCOUNT = { claude: 'Claude', codex: 'ChatGPT', cursor: 'Cursor', grok: 'x
 // model, picking a thinking level or an account commits it in place. pick(agent, model, effort, account).
 // places: the "Run on" picks, so the list is what's installed there rather than only on this computer.
 // back: the prompt it's for, where the caret goes once it closes.
-export function runnerPicker(anchor, { agent, model, effort, account = '', savedModel, savedEffort, savedAccount = rememberedAccount, places, auto = false, back }, pick) {
+// variant: { subagentModel, skills } offers Claude Code's What's different group under those, and
+// pick() gets it as a 5th argument ({} once the run left Claude Code: the rows are its own).
+export function runnerPicker(anchor, { agent, model, effort, account = '', savedModel, savedEffort, savedAccount = rememberedAccount, places, auto = false, back, variant }, pick) {
   const open = $('.picker');
   if (open) return open.close(), refocus(back);
   const agents = places ? harnessesAt(places, { auto }) : auto ? [AUTO, ...S.agents] : S.agents;
@@ -64,7 +66,7 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
   const left = Math.max(12, Math.min(r.left, right - width));
   const below = r.bottom + 440 < innerHeight;
   const node = el(`
-    <div class="picker" role="dialog" aria-label="Harness, model and thinking level" style="left:${left}px;width:${width}px;${below ? `top:${r.bottom + 6}px` : `bottom:${innerHeight - r.top + 6}px`}">
+    <div class="picker${variant ? ' pk-try' : ''}" role="dialog" aria-label="Harness, model and thinking level" style="left:${left}px;width:${width}px;${below ? `top:${r.bottom + 6}px` : `bottom:${innerHeight - r.top + 6}px`}">
       <div class="pk-side" role="listbox" aria-label="Harness">
         <div class="pk-head">Harness</div>
         ${agents
@@ -82,6 +84,11 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
         <div class="pk-list"></div>
         <div class="pk-effort pk-think"></div>
         <div class="pk-effort pk-acct" role="radiogroup" aria-label="Account" hidden></div>
+        <div class="pk-vary" role="group" aria-label="What’s different" hidden>
+          <div class="pk-ghead" aria-hidden="true">What’s different</div>
+          <div class="pk-effort pk-subs" role="radiogroup" aria-label="Subagents"></div>
+          <div class="pk-effort pk-skills" role="radiogroup" aria-label="Skills"></div>
+        </div>
       </div>
     </div>`);
   const input = $('.pk-search input', node);
@@ -89,6 +96,15 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
   const sideRows = $$('.pk-h', node);
   const seg = $('.pk-effort', node);
   const acctSeg = $('.pk-acct', node);
+  const varyBox = $('.pk-vary', node);
+  const subsSeg = $('.pk-subs', node);
+  const skillsSeg = $('.pk-skills', node);
+  let vary = variant ? { ...variant } : null;
+  // What pick() gets for a run on this harness.
+  const varyFor = (id) => {
+    if (vary && id !== 'claude') vary = {};
+    return vary || undefined;
+  };
   const modelOf = (id) => (id === agent ? model : savedModel(id));
   const effortOf = (id) => (id === agent ? effort : savedEffort(id, modelOf(id)));
   const accountOf = (id) => (id === agent ? account : savedAccount(id));
@@ -119,6 +135,33 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
         }),
       )
       .join('')}</span>${notes.length ? `<p class="pk-anote">${esc(notes.join(' '))}</p>` : ''}`;
+  };
+
+  // What's different (Try it two ways): Claude Code's rows, in the place of nothing on other harnesses.
+  // Subagents show what the run would use, the setting included. Like an account, a pick commits in place.
+  const paintVariant = () => {
+    const on = !!vary && focusAgent === 'claude' && !!agents.find((a) => a.id === 'claude')?.available;
+    varyBox.hidden = !on;
+    if (!on) return;
+    const seg = (key, value, label, current, tip) => `<button role="radio" aria-checked="${value === current}" class="${value === current ? 'on' : ''}" data-${key}="${value}" title="${esc(tip)}">${label}</button>`;
+    const subs = (focusAgent === agent ? vary.subagentModel : undefined) ?? S.config.defaults.subagentModel ?? '';
+    const skills = focusAgent === agent && vary.skills === 'off' ? 'off' : 'on';
+    subsSeg.innerHTML = `<span class="pk-ehead">Subagents</span><span class="pk-seg">${seg('sub', '', 'Task’s model', subs, 'Subagents run on the model this task runs on')}${seg('sub', 'haiku', 'Haiku', subs, 'Subagents run on Haiku')}${seg('sub', 'sonnet', 'Sonnet', subs, 'Subagents run on Sonnet')}</span>`;
+    skillsSeg.innerHTML = `<span class="pk-ehead">Skills</span><span class="pk-seg">${seg('skill', 'on', 'On', skills, 'Claude Code’s skills and slash commands, as usual')}${seg('skill', 'off', 'Off', skills, 'No skills or slash commands. Plugins, agents and CLAUDE.md stay')}</span>`;
+  };
+  const chooseVariant = (change, focus) => {
+    if (focusAgent !== agent) {
+      markInUse(focusAgent);
+      model = modelOf(focusAgent);
+      effort = effortOf(focusAgent);
+      account = savedAccount(focusAgent);
+      agent = focusAgent;
+    }
+    vary = { ...vary, ...change };
+    if (vary.skills !== 'off') delete vary.skills;
+    pick(agent, model, effort, account, vary);
+    paintVariant();
+    $(focus, varyBox)?.focus();
   };
 
   // Thinking is a slider, not a row of words: Default on the left, then the harness's levels. The
@@ -201,8 +244,9 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
     agent = focusAgent;
     model = m;
     effort = e;
-    pick(agent, model, effort, account);
+    pick(agent, model, effort, account, varyFor(agent));
     paintEffort();
+    paintVariant();
   };
   // Like a thinking level: commits in place, the picker stays open.
   const chooseAccount = (id) => {
@@ -215,13 +259,15 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
     }
     agent = focusAgent;
     account = id;
-    pick(agent, model, effort, account);
+    pick(agent, model, effort, account, varyFor(agent));
     paintAccounts();
+    paintVariant();
     $(`button[data-acc="${CSS.escape(id)}"]`, acctSeg)?.focus();
   };
 
   const paintModels = () => {
     const a = agents.find((x) => x.id === focusAgent);
+    paintVariant();
     sideRows.forEach((b) => b.classList.toggle('on', b.dataset.id === focusAgent));
     const models = a?.models || [{ id: '', label: 'Default' }];
     const current = focusAgent === agent ? model : savedModel(focusAgent);
@@ -354,8 +400,9 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
     model = savedModel(id);
     effort = savedEffort(id, model);
     account = savedAccount(id);
-    pick(agent, model, effort, account);
+    pick(agent, model, effort, account, varyFor(agent));
     paintAccounts();
+    paintVariant();
   };
 
   const choose = (m) => {
@@ -364,7 +411,7 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
     // Carry the thinking level over when the new model accepts it, else fall back to the saved one.
     const cur = effortOf(focusAgent);
     const e = effortsFor(focusAgent, m).includes(cur) ? cur : savedEffort(focusAgent, m);
-    if (focusAgent !== agent || m !== model || e !== effort) pick(focusAgent, m, e, accountOf(focusAgent));
+    if (focusAgent !== agent || m !== model || e !== effort) pick(focusAgent, m, e, accountOf(focusAgent), varyFor(focusAgent));
   };
   const step = (items, d) => {
     if (!items.length) return;
@@ -377,8 +424,8 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
   const keys = (e) => {
     if (document.activeElement?.closest?.('.sx-login')) return; // pasting a sign-in code
     const inSide = sideRows.includes(document.activeElement);
-    // The rows under the models (thinking levels, accounts), top to bottom.
-    const groups = [seg, acctSeg].filter((g) => !g.hidden).map((g) => $$('.pk-slider, .pk-seg button', g));
+    // The rows under the models (thinking levels, accounts, what's different), top to bottom.
+    const groups = [seg, acctSeg, ...(varyBox.hidden ? [] : [subsSeg, skillsSeg])].filter((g) => !g.hidden).map((g) => $$('.pk-slider, .pk-seg button', g));
     const gi = groups.findIndex((g) => g.includes(document.activeElement));
     const inSeg = gi >= 0;
     const segBtns = groups[gi] || [];
@@ -406,6 +453,8 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
       e.preventDefault();
       const b = document.activeElement;
       if (b.matches('.pk-slider')) return close(), (back || anchor).focus();
+      if (b.dataset.sub !== undefined) return chooseVariant({ subagentModel: b.dataset.sub }, `button[data-sub="${b.dataset.sub}"]`);
+      if (b.dataset.skill !== undefined) return chooseVariant({ skills: b.dataset.skill }, `button[data-skill="${b.dataset.skill}"]`);
       return b.dataset.acc !== undefined ? chooseAccount(b.dataset.acc) : chooseEffort(b.dataset.e);
     }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -438,7 +487,7 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
       close();
       (back || anchor).focus();
       const m = savedModel(id);
-      pick(id, m, savedEffort(id, m), savedAccount(id));
+      pick(id, m, savedEffort(id, m), savedAccount(id), varyFor(id));
     }
   };
   // Sign-ins started from the picker: the harnesses signed out here or on the Run on machine.
@@ -465,6 +514,11 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
   acctSeg.onclick = (e) => {
     const b = e.target.closest('button[data-acc]');
     if (b) chooseAccount(b.dataset.acc);
+  };
+  varyBox.onclick = (e) => {
+    const b = e.target.closest('button');
+    if (b?.dataset.sub !== undefined) chooseVariant({ subagentModel: b.dataset.sub }, `button[data-sub="${b.dataset.sub}"]`);
+    else if (b?.dataset.skill !== undefined) chooseVariant({ skills: b.dataset.skill }, `button[data-skill="${b.dataset.skill}"]`);
   };
 
   paintModels();

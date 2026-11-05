@@ -7,6 +7,8 @@
 .tog-btn:hover { background: var(--bg-2); color: var(--ink); }
 .tog-btn.on { color: var(--ink); } /* on reads as ink beside the muted offs: no colour needed */
 .tog-btn:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
+.tog-btn[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; } /* still takes the click: it says why in a toast */
+.tog-btn[aria-disabled='true']:hover { background: transparent; color: var(--muted); }
 .vs-mark { font: 600 11.5px var(--mono); }
 .q-vs { font: 600 11.5px var(--mono); color: var(--accent-ink); padding: 1px 5px; border-radius: 5px; background: var(--accent-soft); }
 
@@ -36,6 +38,7 @@
 .item.run .it-title { font-size: 13px; font-weight: 400; color: var(--ink-2); white-space: nowrap; }
 .item.run .it-title b { font-weight: 600; color: var(--ink); }
 .run-model { margin-left: 8px; color: var(--muted); }
+.run-v { color: var(--muted); } /* what tells Try it two ways' rows apart, on a line every row already has */
 .item.run .it-sub, .item.run .q-live { font-size: 12.5px; }
 .run-logo { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: var(--bg-2); color: var(--ink); }
 .run-logo > * { display: block; width: 11px; height: 11px; }
@@ -160,6 +163,9 @@ body.split:not(.pane-wide) .it-meta .m.side-of { display: none; } /* the line ab
 .compare-modal { --cmp-top: 56px; --cmp-label: 84px; --cmp-gap: 12px; width: min(1280px, 100%); height: 92dvh; max-height: none; display: flex; flex-direction: column; padding-top: 0; padding-bottom: 0; scrollbar-gutter: stable; }
 .compare-modal > header { position: sticky; top: 0; z-index: 3; flex: none; height: var(--cmp-top); margin: 0 -20px; padding: 0 12px 0 20px; background: var(--surface); }
 .cmp-prompt { flex: none; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: var(--bg-2); font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; max-height: calc(3 * 1.5em + 16px); overflow: auto; }
+/* Try it two ways: what differed. Weight and ink, no box: the first thing read under the prompt */
+.cmp-diff { flex: none; margin: 0 0 12px; font-size: 13px; font-weight: 500; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; }
+.cmp-diff.same { font-weight: 400; color: var(--muted); }
 /* The spacing between cells is the gap between the run columns, and hangs 12px into the dialog's
    padding at each edge: every column of numbers starts on its run's column below. */
 .cmp-scroll { flex: none; margin: 0 calc(-1 * var(--cmp-gap)) 8px; }
@@ -182,7 +188,10 @@ body.split:not(.pane-wide) .it-meta .m.side-of { display: none; } /* the line ab
 .cmp-head { position: sticky; top: var(--cmp-top); z-index: 1; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); border-radius: 11px 11px 0 0; background: var(--surface-2); }
 .cmp-who { display: flex; flex-direction: column; margin-right: auto; min-width: 0; }
 .cmp-who b { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cmp-who small { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmp-who small { display: flex; font-size: 11.5px; color: var(--muted); overflow: hidden; white-space: pre; }
+/* One line: the model and thinking, shared by both runs, are cut before the variant that isn't */
+.cmp-who small > span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cmp-who .cmp-base:not(:last-child) { flex-shrink: 10000; min-width: 2ch; }
 .cmp-head .pill { flex: none; }
 .cmp-body { flex: 1; min-height: 160px; padding: 12px; overflow-x: clip; background: var(--surface); }
 /* A report beside others is a column, not a page: its headline and numbers step down to the dialog's scale. */
@@ -224,6 +233,7 @@ body.wisp-mobile .cmp-foot .ghost.xs { min-height: 44px; }
   .cmp-table td[data-row='plan'] { height: 43px; font-size: 11.5px; white-space: normal; }
   .cmp-table td[data-row='files'] { white-space: normal; }
   .cmp-who small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+  .cmp-who small > span { display: inline; overflow: visible; }
   .compare-modal[data-n='4'] .cmp-scroll { overflow-x: auto; overscroll-behavior-x: contain; }
   .compare-modal[data-n='4'] .cmp-table { min-width: 460px; } /* the fourth column peeks in */
   .compare-modal[data-n='4'] thead td, .compare-modal[data-n='4'] tbody th { position: sticky; left: 0; z-index: 1; background: var(--surface); }

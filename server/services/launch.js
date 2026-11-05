@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { adapters, listAgents } from '../adapters/index.js';
+import { SUBAGENT_MODELS } from '../adapters/claude.js';
 import { aboveCap, cappedFrom, overCap } from '../capped.js';
 import { btwQuestion } from '../btw.js';
 import { sideAsk } from '../side.js';
@@ -26,6 +27,14 @@ const OWN_FOLDER = ['spell', 'pane'];
 export const MAX_COMPARE = 4;
 export const MAX_ALSO = 8; // extra folders one task may work in
 
+// Try it two ways: a run's variant. A silently dropped one would be two identical paid runs, so
+// it's refused, unlike an account or a level that can't be used. Absent subagentModel: not set.
+function checkVariant(r, agent) {
+  if (r.subagentModel !== undefined && !SUBAGENT_MODELS.includes(r.subagentModel)) throw bad("subagentModel must be '' (the task's model), haiku or sonnet");
+  if (r.skills !== undefined && r.skills !== 'off') throw bad("skills must be 'off', or left out");
+  if ((r.subagentModel !== undefined || r.skills !== undefined) && agent !== 'claude') throw bad('Subagents and Skills are Claude Code only');
+}
+
 // also: more folders the task works in besides cwd (a backend and its web app, say). Each must be
 // a directory; repeats, cwd itself and folders inside one already listed are dropped.
 export function alsoDirs(list, cwd) {
@@ -44,6 +53,22 @@ export function alsoDirs(list, cwd) {
   }
   if (out.length > MAX_ALSO) throw bad(`A task can work in up to ${MAX_ALSO + 1} folders.`);
   return out;
+}
+
+// What differs between a trial's runs: [{ key, values: one per run, in run order }], only the keys
+// whose values aren't all equal. accountOf: the account a run gets. Subagents as they'd really run.
+function trialDiffers(runners, defaults, accountOf) {
+  const reads = {
+    agent: (r) => r.agent,
+    model: (r) => r.model || '',
+    effort: (r) => r.effort || '',
+    account: (r) => accountOf(r) || '',
+    subagentModel: (r) => (r.agent === 'claude' ? r.subagentModel ?? defaults.subagentModel ?? '' : ''),
+    skills: (r) => (r.skills === 'off' ? 'off' : 'on'),
+  };
+  return Object.entries(reads)
+    .map(([key, read]) => ({ key, values: runners.map(read) }))
+    .filter((x) => new Set(x.values).size > 1);
 }
 
 export function createLaunch(app) {
@@ -71,7 +96,7 @@ export function createLaunch(app) {
     // "/terminal fix it": a terminal session (Babysitting mode) whatever the setting says. What a
     // terminal can't do goes unused (a goal, a team, compare runs): you drive it yourself there.
     const asTerminal = terminalAsk(body.prompt);
-    if (asTerminal !== null) body = { ...body, prompt: asTerminal, tui: true, tuiAsked: true, goal: undefined, compare: undefined, subagents: undefined, preset: undefined };
+    if (asTerminal !== null) body = { ...body, prompt: asTerminal, tui: true, tuiAsked: true, goal: undefined, compare: undefined, subagents: undefined, preset: undefined, trial: undefined, subagentModel: undefined, skills: undefined };
     // "/goal all tests pass" as the whole prompt: that's the goal, and the task is to reach it.
     const asGoal = !body.goal && !body.tuiAsked && goalCommand(body.prompt);
     if (asGoal) body = { ...body, goal: asGoal, prompt: asGoal };
@@ -86,6 +111,9 @@ export function createLaunch(app) {
     if (kind) body = { ...body, scratch: true, mode: 'edits', compare: undefined, subagents: undefined, preset: undefined, worktree: false };
     // scratch: no project folder (general questions); the task gets an empty directory of its own.
     const scratch = body.scratch === true;
+    // Try it two ways: each run keeps its own worktree. In place, or with no folder, both would work
+    // in one folder. Here, not with the other refusals: a scratch folder is made on the next line.
+    if (body.trial === true && (scratch || body.worktree === false)) throw bad('Try it two ways needs a project in git: each run keeps its own worktree.');
     const cwd = scratch ? (dry ? store.home : store.scratchDir(newId())) : expand(body.cwd || process.cwd());
     if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) throw bad(`Not a directory: ${cwd}`);
     const also = scratch ? [] : alsoDirs(body.also, cwd);
@@ -93,25 +121,41 @@ export function createLaunch(app) {
     const preset = body.preset && store.config.teams.find((t) => t.id === body.preset);
     if (body.preset && !preset && !body.subagents) throw bad(`no such subagent preset: ${body.preset}`);
     const subagents = normalizeTeam(body.subagents ?? preset?.members, adapters);
-    // compare: more { agent, model, effort, account } to run the same task on, side by side. 'auto' is
-    // resolved here: the router picks a harness and model (a different one per compare run).
+    // Which harness Auto picks isn't known yet: not for a variant, or for a copy of the lead. Before
+    // the router runs, as its scout can cost a model call.
+    const trial = body.trial === true;
+    if (trial && body.agent === 'auto') throw bad('Pick a harness first');
+    for (const r of [body, ...(Array.isArray(body.compare) ? body.compare : [])]) if (r?.agent === 'auto') checkVariant(r, 'auto');
+    // compare: more { agent, model, effort, account, subagentModel, skills } to run the same task on,
+    // side by side. 'auto' is resolved here: the router picks a harness and model (a different one
+    // per compare run).
     const resolved = await app.auto.resolve(body, await app.auto.agents(), { team: subagents.length > 0, cwd });
     // A launch routed by another wisp (this is a machine) arrives with its route: Auto's steps
     // (check, repair) still run here, where the files are.
     const isRoute = (x) => x && typeof x === 'object' && typeof x.key === 'string';
-    const runners = [{ agent: resolved.agent, model: resolved.model, effort: resolved.effort, route: resolved.route ?? body.route }, ...(resolved.compare || [])].slice(0, body.tuiAsked ? 1 : MAX_COMPARE).map((r, i) => {
+    const runners = [{ agent: resolved.agent, model: resolved.model, effort: resolved.effort, route: resolved.route ?? body.route, subagentModel: body.subagentModel, skills: body.skills }, ...(resolved.compare || [])].slice(0, body.tuiAsked ? 1 : MAX_COMPARE).map((r, i) => {
       const agent = r.agent || (i ? d.agent : '') || 'claude';
       if (!adapters[agent]) throw bad(`unknown agent: ${agent}`);
+      checkVariant(r, agent);
       // account: which of the harness's accounts (server/accounts.js), each run's own pick; none = your last pick, else the first free.
       const want = i ? r.account : agent === resolved.agent && body.account;
       const account = typeof want === 'string' && /^[\w-]{1,40}$/.test(want) ? want : '';
-      return { agent, model: r.model ?? (i ? d.models?.[agent] || '' : ''), effort: /^[\w-]{1,20}$/.test(r.effort || '') ? r.effort : '', account, ...(isRoute(r.route) && { route: r.route }) };
+      return { agent, model: r.model ?? (i ? d.models?.[agent] || '' : ''), effort: /^[\w-]{1,20}$/.test(r.effort || '') ? r.effort : '', account, ...(isRoute(r.route) && { route: r.route }), ...(r.subagentModel !== undefined && { subagentModel: r.subagentModel }), ...(r.skills && { skills: r.skills }) };
     });
+    // Try it two ways: one harness you picked, two runs that have edits to compare. Refused here,
+    // before any worktree, and on dry too.
+    if (trial && (resolved.route ?? body.route)) throw bad('Pick a harness first');
+    if (trial && runners.length < 2) throw bad('Try it two ways needs two runs.');
+    if (trial && body.mode === 'plan') throw bad('Try it two ways needs edits to compare, so it doesn’t run in Plan.');
     if (unattended) {
       await app.reserve?.fresh?.(runners[0].agent, runners[0].account);
       const h = app.reserve?.check(runners[0].agent, runners[0].account);
       if (h) throw Object.assign(bad(h.why, 409), { held: h });
     }
+    const byHand = !origin && !crew && !body.delegated;
+    const differs = trial ? trialDiffers(runners, d, (r) => runner.accountFor(r.agent, r.account, byHand)) : [];
+    // A lead with a team has no subagents of its own (runner.js): the variant would change nothing.
+    if (subagents.length && (runners.some((r) => r.subagentModel) || differs.some((x) => x.key === 'subagentModel'))) throw bad('A lead with a team has no subagents of its own: clear the team to try another subagent model.');
     const strategy = body.tuiAsked ? 'single' : ['single', 'best2', 'compare'].includes(resolved.autoStrategy) ? resolved.autoStrategy : runners.length > 1 ? 'compare' : 'single';
     const mode = MODES.has(body.mode) ? body.mode : 'auto';
     // A task a channel started, or one that task started: every way in comes through here.
@@ -139,7 +183,9 @@ export function createLaunch(app) {
     if (app.guard && !moved && !delegated && crew?.job !== 'delegated') {
       const auto = !!(origin || (crew && !yours));
       const confirmed = yours ? yours.confirm === true : body.confirmLimit === true;
-      const checks = runners.map((r) => ({ agent: r.agent, account: runner.accountFor(r.agent, r.account, !auto), kind: 'first', origin, crew }));
+      const runs = runners.map((r) => ({ agent: r.agent, account: runner.accountFor(r.agent, r.account, !auto) || 'default' }));
+      // Runs on one account go at once, so they're asked about as one: others don't add up.
+      const checks = runs.map((r) => ({ ...r, kind: 'first', origin, crew, together: runs.filter((x) => x.agent === r.agent && x.account === r.account).length }));
       hold = checks.map((x) => app.guard.check(x)).find(Boolean) || null;
       if (hold && !auto) {
         if (!confirmed) throw Object.assign(bad(holdMessage(hold), 409), { hold });
@@ -149,7 +195,9 @@ export function createLaunch(app) {
     }
     if (dry) return [];
     // Terminal sessions (Settings → General): the agent's own CLI in the page, started on the prompt.
-    const tui = startsInTerminal(body, { on: d.terminalSessions === 'on', agent: runners[0].agent, origin, crew, kind, goal, comparing, team: subagents.length > 0, hold });
+    // A variant is wisp's to apply: the CLI in a terminal wouldn't run it.
+    const variant = runners[0].subagentModel !== undefined || !!runners[0].skills;
+    const tui = startsInTerminal(body, { on: d.terminalSessions === 'on', agent: runners[0].agent, origin, crew, kind, goal, comparing: comparing || variant, team: subagents.length > 0, hold });
     // Typed /terminal: refused only where no terminal can open. A crew job, schedule or spell that
     // says it, or one held near your usage limit, runs as wisp drives it (nobody's at its terminal).
     if (body.tuiAsked && !tui && !origin && !crew && !kind && !hold) throw bad(`/terminal opens the agent's own CLI in a terminal, on ${process.platform === 'win32' ? 'macOS or Linux (not Windows)' : `a harness that can resume its sessions (${adapters[runners[0].agent]?.name || runners[0].agent} can't)`}.`);
@@ -187,7 +235,7 @@ export function createLaunch(app) {
         return made.map((worktree) => ({ cwd: dir, ...(worktree && { worktree }) }));
       }),
     );
-    const made = runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, kind, goal, hold, tui, capped, ...(crew && !i && { crew }), ...(kind && { title: `${kind === 'pane' ? 'Pane' : 'Spell'}: ${String(body.prompt).trim().split('\n')[0].slice(0, 60)}` }), ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
+    const made = runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, kind, goal, hold, tui, capped, ...(trial && { trial: { differs, kept: null } }), ...(crew && !i && { crew }), ...(kind && { title: `${kind === 'pane' ? 'Pane' : 'Spell'}: ${String(body.prompt).trim().split('\n')[0].slice(0, 60)}` }), ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
     if (tui) openTui(app, made[0], { prompt: String(body.prompt).trim() + attachmentNote(attachments), cols: body.cols, rows: body.rows });
     return made;
   }
@@ -225,7 +273,13 @@ export function createLaunch(app) {
     if (body.subagents || preset) body = { ...body, subagents: app.relay.placeTeam(body.subagents || preset.members, mid), preset: undefined };
     // Every project runs anywhere: its folders become the ones on that place, cloned there first if need be.
     body = await app.places.placeBody(body, mid);
-    if (!mid) return (await launch(body, origin, opts)).map((x) => summarize(x, store));
+    // A count, nothing else: how many use it (a machine's wisp is told this one counted it).
+    const counted = () => body.trial === true && !body.counted && !opts.dry && app.telemetry?.track('try_two_ways');
+    if (!mid) {
+      const out = (await launch(body, origin, opts)).map((x) => summarize(x, store));
+      counted();
+      return out;
+    }
     // Auto for a machine: routed here, with the harnesses that machine has; its outcomes come
     // back through the summaries it streams (auto.signals), so one router learns from every place.
     const routed = await app.auto.resolve(body, machines.agentsOf(mid) || [], { team: !!(body.subagents?.length || body.preset), place: machines.get(mid).name });
@@ -235,7 +289,8 @@ export function createLaunch(app) {
     const sendBody = { ...routed, tui: body.tui ?? store.config.defaults.terminalSessions === 'on' };
     delete sendBody.scout;
     if (!sendBody.compare?.length && !body.compare) delete sendBody.compare;
-    const out = await machines.launch(mid, { ...sendBody, attachments: await pushUploads(mid, body.attachments), ...(origin && { origin }) });
+    const out = await machines.launch(mid, { ...sendBody, attachments: await pushUploads(mid, body.attachments), ...(origin && { origin }), ...(body.trial === true && { counted: true }) });
+    counted();
     (out.group || [out]).forEach((x, i) => routes[i] && app.router.record(qualify(x.id, mid), routes[i]));
     const known = out.scratch || store.projectFor(out.cwd, mid);
     // A sandbox's folder is that task's alone: not a project of its own in the list.

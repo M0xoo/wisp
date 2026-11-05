@@ -12,7 +12,7 @@
 //   (Budget.rate, server/budget.js), never more than the window's whole use over wisp's units in
 //   it. Before two points have moved, no estimate: only a window already past the line holds.
 // Runs going on the same account count at half their estimate, so automations that fire together
-// don't all slip under the line.
+// don't all slip under the line. Runs of one launch sharing an account are summed (`together`).
 
 import { unitsOf } from './budget.js';
 import { holdFor, holdLine, holdTo, nextLine } from '../web/js/limit-hold.js';
@@ -126,39 +126,41 @@ export class Guard {
   }
 
   // An account's windows for the rule (web/js/limit-hold.js): with the line (after any yes) and
-  // what a run like this adds, as shares. what: { kind, origin, crew, session }; kind 'both' gives
-  // the page first and followUp.
+  // what a run like this adds, as shares. what: { kind, origin, crew, session, together }; kind
+  // 'both' gives the page first and followUp. together: runs of this launch on this account, which
+  // go at once (the rule sums them the same way on the page: `running` is the part not to multiply).
   windows(agent, account, what = {}) {
     account ||= 'default';
     const line = holdLine(this.setting());
     const list = this.budget.windows(agent, account);
     if (!list.length) return [];
     const running = this.#running(agent, account);
+    const together = what.together || 1;
     const kinds = what.kind === 'both' ? ['first', 'followUp'] : [what.kind || 'first'];
     return list.map((w) => {
       const r = this.rate(agent, account, w);
       const est = {};
       for (const k of kinds) {
         const u = this.units(agent, { ...what, kind: k });
-        est[k] = r ? (u || [0, 0, 0]).map((x) => (x + running) * r) : [0, 0, 0];
+        est[k] = r ? (u || [0, 0, 0]).map((x) => (x * together + running) * r) : [0, 0, 0];
       }
-      return { id: w.id, label: w.label, used: w.used, resetsAt: w.resetsAt, line: nextLine(line, this.budget.acked(agent, account, w.id, w.resetsAt)), est };
+      return { id: w.id, label: w.label, used: w.used, resetsAt: w.resetsAt, line: nextLine(line, this.budget.acked(agent, account, w.id, w.resetsAt)), est, running: r ? running * r : 0 };
     });
   }
 
   // The window a run would take past its line: { agent, account, id, label, used, to, resetsAt,
   // line } (web/js/limit-hold.js holdFor), or null.
-  check({ agent, account, kind = 'first', origin, crew, session } = {}) {
+  check({ agent, account, kind = 'first', origin, crew, session, together = 1 } = {}) {
     if (!agent || holdLine(this.setting()) === null) return null;
     account ||= 'default';
-    const h = holdFor(this.windows(agent, account, { kind, origin, crew, session }), kind);
+    const h = holdFor(this.windows(agent, account, { kind, origin, crew, session, together }), kind);
     return h && { agent, account, ...h };
   }
 
   // You said yes: every window this run would cross asks again only higher up, or after its reset.
-  confirm({ agent, account, kind = 'first', origin, crew, session } = {}) {
+  confirm({ agent, account, kind = 'first', origin, crew, session, together = 1 } = {}) {
     account ||= 'default';
-    for (const w of this.windows(agent, account, { kind, origin, crew, session })) {
+    for (const w of this.windows(agent, account, { kind, origin, crew, session, together })) {
       const h = holdFor([w], kind);
       if (h) this.budget.ack(agent, account, w.id, w.resetsAt, w.line);
     }
@@ -174,7 +176,7 @@ export class Guard {
   view(agent) {
     return this.budget.view(agent).map((b) => {
       const extra = new Map(this.windows(agent, b.account, { kind: 'both' }).map((w) => [w.id, w]));
-      return { ...b, windows: b.windows.map((w) => ({ ...w, line: extra.get(w.id)?.line ?? null, est: extra.get(w.id)?.est })) };
+      return { ...b, windows: b.windows.map((w) => ({ ...w, line: extra.get(w.id)?.line ?? null, est: extra.get(w.id)?.est, running: extra.get(w.id)?.running ?? 0 })) };
     });
   }
 }

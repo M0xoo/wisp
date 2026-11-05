@@ -652,6 +652,26 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Steps:** with a task hanging on a fake agent (`FAKE_HANG`-style), leave it past 12 minutes, or move the page's clock forward. Reload. Send an activity event (a new step, or the result of a call that printed nothing). Then let a question reach it. Repeat with a delegate running, and with the page's stream dropped (offline in DevTools) past 12 minutes.
 - **Expected:** the panel's status row says *No output for 12 min* at its right end (a narrow row gives up the count and the time first), counts up by the minute, and is there at once after a reload. New activity clears it within a second, and so does a question. No line while a delegate works or while the page has lost its stream and hasn't read the task again. Nothing else changes: no card, no toast, Stop as before. Light and dark, split view and 390px.
 
+### WEB-62 · Try it two ways
+- **Preconditions:** a git project, Claude Code and one other harness. In first-run the button isn't there.
+- **Steps:**
+  1. On Auto, hover and click **Try it two ways**. In Plan, the same. On a phone width, tap it.
+  2. Pick Claude Code, Edits mode. Click **Try it two ways**, then set Subagents to Haiku in *What's different*. Tab and the arrows reach those rows. Click the button again.
+  3. In the picker, pick another harness, then Claude Code again.
+  4. Set Subagents to Haiku again and send. With *Ask near the limit* close, watch the hold row; refuse the launch once (a team set on the lead).
+  5. When both finish, open **Compare**, then **Keep this** on run B. Reload.
+  6. **Rerun** run B. Pick another harness, then Claude Code. Set Skills off in a new try, send, reply, and run Compact now (or type `/compact`) on it.
+  7. Run `wisp --agent claude --try subagents=haiku "…"`, then without `--agent`.
+- **Expected:**
+  - 1: disabled (dimmed, no hover fill) with a title saying why, and a tap toasts the same words. Nothing is added.
+  - 2: the pill reads the lead vs the copy with *Subagents on Haiku*, on one line at every width: the words end in `…` and the tooltip has the rest; a phone's bar scrolls sideways instead, with Send pinned. The second click opens the same run's picker, no third run.
+  - 3: the rows go with Claude Code, and the variant with them.
+  - 4: the page's hold row counts both runs on one account, without a round trip. A refused launch brings the runs back in the pill with a red toast.
+  - 5: the task's two rows differ on their second line (*Subagents on Haiku · …*). Under the prompt, *Subagents: Opus → Haiku* (*Same setup on both runs* when nothing differs), and each column's small line tells the runs apart. **Keep this** asks *Keep run B?* and toasts *Kept run B.* The kept run's `trial.kept` is set on both.
+  - 6: Rerun shows and keeps the variant, and another harness drops it. *Skills off* adds `--disable-slash-commands` to each turn, but not to `/compact`, which compacts.
+  - 7: the two runs land as one task; without `--agent`, *--try needs --agent: pick a harness first*.
+- **Suite** (`test/try-two-ways.test.js`, `test/spells.test.js`), **Manual** (real Chrome)
+
 ### WEB-64 · An IME's Enter doesn't send
 - **Steps:** with a Japanese, Chinese or Korean input method in Safari, type a word in New task and press Enter to pick it.
 - **Expected:** the word goes in the box and nothing is sent; the next Enter sends. Safari ends the composition before that keydown, so `isComposing` is already false and only keyCode 229 tells.

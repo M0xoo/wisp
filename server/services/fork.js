@@ -98,6 +98,9 @@ export function createFork(app) {
       attachments: app.uploads.resolve(attachments),
       worktree,
       subagents: s.subagents || [],
+      // Try it two ways: a fork of a variant run is that variant, while it stays on Claude Code.
+      ...(run.agent === 'claude' && s.subagentModel !== undefined && { subagentModel: s.subagentModel }),
+      ...(run.agent === 'claude' && s.skills && { skills: s.skills }),
       history: history(s.turns.slice(0, n)),
       forkedFrom: { id: s.id, title: s.title, turn: n, of: s.turns.length },
     });

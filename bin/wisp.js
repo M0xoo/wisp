@@ -55,6 +55,8 @@ const HELP = `usage:
 
 launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|antigravity|grok|copilot  --model ID  --effort LEVEL
                 --cwd DIR  --also DIR (repeatable)  --wait  --json  --no-worktree  --compare agent[:model],…
+                --try subagents=haiku|sonnet|task  --try skills=off  run it twice on --agent, the second with
+                that changed (repeatable or comma separated); Compare says what differed
                 --yes  go ahead although it takes a usage window past your Ask near the limit line
 options:        --port N  --browser  --no-open  --json  --version`;
 
@@ -63,7 +65,7 @@ const LS_STATES = ['running', 'waiting', 'review', 'done'];
 // grid/cli.js's GRID_COMMANDS (not imported: every command would load the grid). A test keeps them equal.
 const GRID_SUB = new Set(['dev', 'init', 'serve', 'doctor', 'rotate-key', 'backup', 'users', 'waitlist', 'help']);
 const argv = process.argv.slice(2);
-const flags = { open: true, browser: false, port: Number(process.env.WISP_PORT) || 4477, mode: null, agent: null, model: null, effort: null, cwd: null, also: [], json: false, wait: false, yes: false, queue: undefined, state: null, limit: null, project: false, worktree: undefined, compare: null, draft: false, days: null };
+const flags = { open: true, browser: false, port: Number(process.env.WISP_PORT) || 4477, mode: null, agent: null, model: null, effort: null, cwd: null, also: [], json: false, wait: false, yes: false, queue: undefined, state: null, limit: null, project: false, worktree: undefined, compare: null, try: [], draft: false, days: null };
 const words = [];
 let literal = false;
 for (let i = 0; i < argv.length; i++) {
@@ -94,6 +96,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--no-worktree') flags.worktree = false;
   else if (a === '--worktree') flags.worktree = true;
   else if (a === '--compare') flags.compare = argv[++i].split(',').filter(Boolean).map((x) => ({ agent: x.split(':')[0], model: x.split(':').slice(1).join(':') || undefined }));
+  else if (a === '--try') flags.try.push(argv[++i]);
   else if (a === '--draft') flags.draft = true;
   else if (a === '--on') flags.on = true;
   else if (a === '--all') flags.all = true;
@@ -122,6 +125,19 @@ const die = (msg) => {
   process.exit(1);
 };
 
+// --try: the second run's change. What's wrong with it is said here, before anything has to start.
+let tried = null;
+if (flags.try.length && !command) {
+  const { tryProblem, tryRuns } = await import('../server/client.js');
+  const problem = tryProblem(flags);
+  if (problem) die(problem);
+  try {
+    tried = tryRuns(flags.try);
+  } catch (e) {
+    die(e.message);
+  }
+}
+
 // --- commands that only talk to the API (and start a headless wisp if none is running) ---
 
 if (command === 'grid') {
@@ -135,7 +151,7 @@ if (command === 'grid') {
   skill(words[1]);
 } else if (command && command !== 'add') {
   await scripted(command, words.slice(1)).catch((e) => die(e.message));
-} else if (!command && words.length && (flags.json || flags.wait)) {
+} else if (!command && words.length && (flags.json || flags.wait || tried)) {
   await scripted('launch', words).catch((e) => die(e.message));
 } else {
   await interactive();
@@ -154,7 +170,7 @@ async function scripted(cmd, args) {
   };
   switch (cmd) {
     case 'launch': {
-      const s = await wisp.launch({ prompt: args.join(' '), cwd, also: flags.also, agent: flags.agent || undefined, mode: flags.mode || undefined, model: flags.model ?? undefined, effort: flags.effort ?? undefined, worktree: flags.worktree, compare: flags.compare || undefined, confirmLimit: flags.yes || undefined });
+      const s = await wisp.launch({ prompt: args.join(' '), cwd, also: flags.also, agent: flags.agent || undefined, mode: flags.mode || undefined, model: flags.model ?? undefined, effort: flags.effort ?? undefined, worktree: flags.worktree, compare: tried ? [{ agent: flags.agent, model: flags.model ?? undefined, effort: flags.effort ?? undefined, ...tried }] : flags.compare || undefined, trial: tried ? true : undefined, confirmLimit: flags.yes || undefined });
       if (s.group && !flags.wait) return out(s, s.group.map((x) => `  ◌ launched on ${x.agent}: ${x.title}  (${x.id})`).join('\n'));
       if (!flags.wait) return out(s, `  ◌ launched: ${s.title}  (${s.id})`);
       if (!flags.json) console.error(`  ◌ launched: ${s.title}  (${s.id}) — waiting…`);
