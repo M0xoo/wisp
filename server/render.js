@@ -68,7 +68,7 @@ const R = {
       .filter(Boolean)
       .join('\n\n');
   },
-  terminal: (b) => fence(`$ ${str(b.command)}\n${str(b.output)}${b.exitCode !== undefined && b.exitCode !== 0 ? `\n[exit ${b.exitCode}]` : ''}`, 'console'),
+  terminal: (b) => fence(`${b.command ? `$ ${str(b.command)}\n` : ''}${str(b.output)}${b.exitCode !== undefined && b.exitCode !== 0 ? `\n[exit ${b.exitCode}]` : ''}`, 'console'),
   compare: (b) => ['before', 'after'].map((k) => `**${str(b[k]?.label) || (k === 'before' ? 'Before' : 'After')}**\n${list(b[k]?.items).map((i) => `- ${str(i)}`).join('\n')}`).join('\n\n'),
   flow: (b) => {
     const nodes = list(b.nodes);

@@ -217,6 +217,9 @@ export function listSummary(s, store) {
   return sum;
 }
 
+// What a failure's hero says: the error's first line. The rest stays in its terminal block.
+const firstLine = (text) => clip(String(text || '').split('\n').find((l) => l.trim()) || '', 200);
+
 export function summarize(s, store) {
   const project = store?.projectFor(s.cwd);
   const last = s.turns.at(-1);
@@ -1147,7 +1150,7 @@ export class Runner extends EventEmitter {
             : null;
     const blocks = presentation?.blocks?.length
       ? [...presentation.blocks]
-      : [{ type: 'hero', title: 'Something went wrong', summary: error || 'The run on the other machine ended without a report.', status: 'blocked' }];
+      : [{ type: 'hero', title: `${adapters[child.agent]?.name || 'This harness'} failed`, summary: firstLine(error) || 'The run on the other machine ended without a report.', status: 'blocked' }];
     if (note) blocks.splice(blocks[0]?.type === 'hero' ? 1 : 0, 0, note);
     turn.presentation = { ...(presentation || {}), blocks };
     turn.stats = stats || null;
@@ -1727,8 +1730,8 @@ export class Runner extends EventEmitter {
       turn.status = 'error';
       turn.presentation = {
         blocks: [
-          { type: 'hero', title: 'Something went wrong', summary: 'The agent run ended with an error.', status: 'blocked' },
-          { type: 'terminal', command: `${session.agent} run`, output: ev.text || 'No output.', exitCode: 1 },
+          { type: 'hero', title: `${adapters[session.agent]?.name || 'This harness'} failed`, summary: firstLine(ev.text) || 'It ended without saying why.', status: 'blocked' },
+          { type: 'terminal', output: ev.text || 'No output.', exitCode: 1 },
           { type: 'next', items: ['Try again', 'Explain what went wrong'] },
         ],
       };
@@ -1814,7 +1817,7 @@ export class Runner extends EventEmitter {
       blocks: [
         // No time here: the card under it says when, in the page's own time format.
         { type: 'hero', title: `${from?.label || adapters[session.agent]?.name || 'This harness'} is at its usage limit`, summary: others.length ? 'Wait for the reset, continue on another of your accounts, or hand the task to another agent.' : 'Wait for the reset, or hand the task to another agent.', status: 'blocked' },
-        { type: 'terminal', command: `${session.agent} run`, output: ev.text || 'No output.', exitCode: 1 },
+        { type: 'terminal', output: ev.text || 'No output.', exitCode: 1 },
       ],
     };
   }
@@ -1861,7 +1864,7 @@ export class Runner extends EventEmitter {
       blocks: [
         { type: 'hero', title: `${name} refused: too many devices signed in`, summary: `Your ${name} account has as many devices or sessions open as its plan allows, so it turned this run down. Your usage isn’t used up.`, status: 'blocked' },
         { type: 'checklist', title: 'What you can do', items: [{ text: `Close ${name} on another computer, in your editor or in its app, or sign out there`, done: false }, { text: 'Then Rerun this task, or hand it to another agent', done: false }] },
-        { type: 'terminal', command: `${session.agent} run`, output: ev.text || 'No output.', exitCode: 1 },
+        { type: 'terminal', output: ev.text || 'No output.', exitCode: 1 },
       ],
     };
   }

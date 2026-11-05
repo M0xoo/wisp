@@ -524,8 +524,12 @@ R.chart = (b, ctx) => {
   return node;
 };
 
+// Failures stored before wisp stopped writing `claude run` on them: nothing ever ran that line, and
+// running it starts the harness in the task's folder.
+const madeUp = (cmd, ctx) => [ctx.turn?.agent, ctx.session?.agent].some((a) => a && cmd === `${a} run`);
+
 R.terminal = (b, ctx) => {
-  const cmd = String(b.command || '');
+  const cmd = madeUp(String(b.command || ''), ctx) ? '' : String(b.command || '');
   const key = `term:${cmd}`;
   const prev = cmd && ctx.turn?.actionRuns?.[key];
   const exitCode = prev ? prev.exitCode : b.exitCode;
@@ -533,12 +537,14 @@ R.terminal = (b, ctx) => {
   const node = el(`
     <div class="b-term">
       <div class="term-head"><span class="lights"><i></i><i></i><i></i></span><span class="title">${esc(b.title || ctx.session?.cwd?.split('/').pop() || 'terminal')}</span>${exitCode !== undefined ? `<span class="exit ${ok ? 'ok' : 'bad'}">exit ${esc(exitCode)}</span>` : ''}${cmd && ctx.exec ? `<button class="term-run" title="Run command again">${icon('rerun')}<span>Run</span></button>` : ''}</div>
-      <pre><span class="cmd"><span class="ps">$</span> <span class="typed"></span><span class="caret"></span></span>\n<span class="out"></span></pre>
+      <pre>${cmd ? '<span class="cmd"><span class="ps">$</span> <span class="typed"></span><span class="caret"></span></span>\n' : ''}<span class="out"></span></pre>
     </div>`);
   const typed = node.querySelector('.typed');
   const out = node.querySelector('.out');
   out.textContent = String(prev ? prev.output : b.output || '').replace(/\s+$/, '');
-  if (quiet() || prev) {
+  if (!cmd) {
+    node.classList.add('ran'); // Output alone, like a failure's reason: nothing to wait for.
+  } else if (quiet() || prev) {
     typed.textContent = cmd;
     node.classList.add('ran');
   } else {
