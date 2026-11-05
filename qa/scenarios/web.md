@@ -223,6 +223,7 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Steps:** a task in a repo with a GitHub remote → *Ship it*, then *Merge* after CI.
 - **Expected:** commit, push and PR opened; card follows checks; Merge squash-merges and syncs
   local main.
+- **Comments waiting:** add two comments, don't send them → Ship it and Merge each show *2 comments not sent yet: they go with your next follow-up*. The buttons still work, Merge isn't red for it (a failing or running check still is), and the comments stay over the reply box after the ship and the merge.
 - **Suite** (`test/ship.test.js`, fake `gh`) · **Manual** against a real repo
 - **Two tasks, same files:** two open tasks in one repo edit the same lines → both cards show an
   amber *Clash* pill (icon only on a phone), the open card's warning names the other task and the

@@ -37,6 +37,7 @@ stays put**, and **what needs you is easy to find**.
 - Menus and popovers go through `popover()` (`web/js/ui/popover.js`): outside click and Escape close
   the newest one and put focus back on its anchor (or `back`, the text box it serves, so you keep
   typing). Pickers opened from a box keep that box looking focused while they're open (#16, #178).
+- **A warning before Ship it or Merge is a line, never a hold.** One sentence, the button stays. Merge turns red only for what's wrong with the PR (checks, review, a clash), not for something on your side, like comments you haven't sent.
 
 ## Loading
 

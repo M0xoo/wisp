@@ -1,6 +1,7 @@
 // Ship it: worktree → commit → PR → checks → merge.
 
 import { esc } from '../md.js';
+import { unsentLine } from '../comment-text.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
@@ -8,6 +9,7 @@ import { S } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toast, toastError } from '../ui/toast.js';
 import { ask } from '../ui/confirm.js';
+import { commentCount } from './comment-store.js';
 import { overlapWarning } from './overlaps.js';
 
 // fix: the session's conflictFix ({ step, why }) while wisp resolves the PR's merge conflicts itself.
@@ -250,6 +252,9 @@ function renderShipRun(node, id, run) {
   if ($('.ship-acts', node).innerHTML !== acts) $('.ship-acts', node).innerHTML = acts;
 }
 
+// Known on the click, so the skeleton has it too and the dialog doesn't grow when it fills in.
+const unsentHint = (id) => (commentCount(id) ? `<p class="hint warn ship-unsent">${esc(unsentLine(commentCount(id)))}</p>` : '');
+
 // The dialog opens on the click with its real shape (header, route, fields, button) as
 // placeholders, guessed from the card; GET /ship (git and gh, which can take a second) fills it in.
 function shipSkel(s) {
@@ -263,6 +268,7 @@ function shipSkel(s) {
       <label class="ship-field"><span>Commit message${open ? '' : ' · PR title'}</span><span class="input sk-box"><i class="sk sk-title"></i></span></label>
       ${open ? '' : `<label class="ship-field"><span>Pull request description</span><span class="textarea sk-box sk-area"><i class="sk"></i><i class="sk"></i><i class="sk sk-short"></i></span></label>
       <label class="check ship-check"><input type="checkbox" disabled> Open as a draft</label>`}
+      ${unsentHint(s.id)}
       <div class="ship-foot"><span class="muted xs">Runs <code>git commit</code>, <code>git push</code>${open ? '' : ' and <code>gh pr create</code>'} in ${repos > 1 ? 'each worktree with changes, one PR per repo' : 'the worktree'}.</span><button class="primary sm" disabled>${icon('send')}${open ? 'Commit & push' : repos > 1 ? 'Commit, push & open PRs' : 'Commit, push & open PR'}</button></div>`;
 }
 
@@ -303,6 +309,7 @@ export async function shipDialog(id) {
       ${open ? '' : `<label class="ship-field"><span>Pull request description</span><textarea class="textarea mono" name="body" rows="9" spellcheck="false"></textarea></label>
       <label class="check ship-check"><input type="checkbox" name="draft"> Open as a draft</label>`}
       ${overlapWarning(S.sessions.get(id)) ? `<p class="hint warn ship-overlap">${esc(overlapWarning(S.sessions.get(id))).replace(/\n/g, '<br>')}</p>` : ''}
+      ${unsentHint(id)}
       ${noRemote ? `<p class="hint bad">${info.repos ? 'These repos have' : 'This repo has'} no <code>origin</code> remote, so there is nowhere to push.</p>` : nothing ? '<p class="hint">Nothing to ship yet: the branch has no changes.</p>' : ''}
       <div class="ship-foot"><span class="muted xs">Runs <code>git commit</code>, <code>git push</code>${open ? '' : ' and <code>gh pr create</code>'} in ${info.repos ? 'each worktree with changes, one PR per repo' : 'the worktree'}.</span><button class="primary sm" data-a="go" ${nothing || noRemote ? 'disabled' : ''}>${icon('send')}${open ? 'Commit & push' : info.repos ? 'Commit, push & open PRs' : 'Commit, push & open PR'}</button></div>`;
   $('.close', node).onclick = close;
@@ -379,7 +386,9 @@ export async function mergePr(id) {
   // A worktree brought in from another tool stays, whatever the merge does (bring-in.js).
   const removed = shipped.filter((x) => !(s.foreign && x.pr === s.pr)).length;
   const after = local ? `, then fast-forward your local base branch${local > 1 ? 'es' : ''}${removed ? ` and remove the worktree${removed > 1 ? 's' : ''}` : ''}` : '';
-  if (!(await ask(`Squash-merge ${what}${after}?${warn ? `\n\n${warn}` : ''}`, { ok: several ? 'Merge PRs' : 'Merge PR', danger: !!warn }))) return;
+  // Comments waiting are a line too, but they don't turn Merge red: nothing about the PR is wrong.
+  const lines = [warn, unsentLine(commentCount(id))].filter(Boolean).join('\n');
+  if (!(await ask(`Squash-merge ${what}${after}?${lines ? `\n\n${lines}` : ''}`, { ok: several ? 'Merge PRs' : 'Merge PR', danger: !!warn }))) return;
   toast(several ? `Merging ${open.length} PRs…` : `Merging PR #${open[0].pr.number}…`);
   try {
     const r = await api(`/sessions/${id}/merge`, { method: 'POST', body: {} });
