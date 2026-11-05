@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { esc, md, inlineMd, highlight, langOf } from '../web/js/md.js';
-import { diffLines, hunks, countChanges } from '../web/js/diff.js';
+import { diffLines, hunks, countChanges, opensFirst } from '../web/js/diff.js';
 import { ago, fmtSize, money, pct } from '../web/js/core/format.js';
 import * as bus from '../web/js/core/bus.js';
 import { shared } from '../web/js/core/api.js';
@@ -331,4 +331,12 @@ test('toCron reads a schedule in words, and cronWords reads it back', () => {
   // Nothing is guessed: a word it doesn't know, or what one cron line can't say, is refused.
   for (const t of ['', 'banana', 'monday standup', 'every 2 weeks', 'last day of the month', 'every 90 minutes', 'at 25', 'at 9am and 5:30pm', 'every 15 min at 9am']) assert.equal(toCron(t), null, t);
   assert.equal(cronWords('0 9 1 6 *'), null, 'months stay as cron');
+});
+
+test('Changes opens the first file, or every one when there are three or fewer', () => {
+  const files = (n) => Array.from({ length: n }, (_, i) => ({ path: `f${i}` }));
+  assert.deepEqual(opensFirst(files(0)), []);
+  assert.deepEqual(opensFirst(files(1)).map((f) => f.path), ['f0']);
+  assert.deepEqual(opensFirst(files(3)).map((f) => f.path), ['f0', 'f1', 'f2']);
+  assert.deepEqual(opensFirst(files(4)).map((f) => f.path), ['f0']);
 });

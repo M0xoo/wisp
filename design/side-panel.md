@@ -202,7 +202,11 @@ diff.* A diff of the project folder would hold the user's own work too.
    its +/−, that unfolds in place. Past 200 files, *and 54 more*.
 4. **A diff** opens under its row (`.b-diff.bare` rows, numbered by the new file; captured edits are
    snippets, so unnumbered with a gap row between). Its row sticks to the top while you read it.
-   Past 300 lines, *Show 940 more lines*. A rename starts with *Renamed from old.js*.
+   Past 300 lines, *Show 940 more lines*. A rename starts with *Renamed from old.js*. The first time
+   a task's files show, the first one opens by itself, or all of them when there are three or
+   fewer: only files **Expand all** would open count, so generated, 300+ line and viewed files
+   don't. Once per task in that page: what you fold stays folded, and files that arrive later stay
+   shut. Spell prop `panel.changes` `autoOpen: false` turns it off.
 5. **Comments on lines** (`comments.js`), as on GitHub: a **+** over the sign of the line under the
    pointer (absolute, so the code never moves), or the line number clicked or tapped; shift-click
    (touch: tap while the card is open) a second line for the lines between. Same card, tray and

@@ -69,7 +69,7 @@ export function views({ tasks, goal }) {
     'task.composer-goal': async (p) => (await first()(p), await click(p, '.it-dock .composer textarea'), await click(p, '.it-dock .c-goal')),
     'task.transcript': bar('transcript'),
     'task.changes': async (p) => (await bar('changes')(p), await p.waitForTimeout(600)),
-    'task.changes-diff': async (p) => (await bar('changes')(p), await p.waitForTimeout(600), await click(p, '.cx-row:visible')),
+    'task.changes-diff': async (p) => (await bar('changes')(p), await p.waitForTimeout(600)),
     'task.editor': async (p) => {
       await bar('changes')(p);
       await p.waitForTimeout(600);
