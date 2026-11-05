@@ -19,7 +19,7 @@
 import { esc } from '../md.js';
 import * as bus from '../core/bus.js';
 import { $, $$, beforePaint, el, icon } from '../core/dom.js';
-import { ago, fmtDate, SHORT_TIME, STATUS_LABEL, timeAttrs, whenLabel } from '../core/format.js';
+import { ago, fmtDate, SHORT_TIME, STATUS_LABEL, statusKey, statusPill, timeAttrs, whenLabel } from '../core/format.js';
 import { inGrid, isForLater, load, MOBILE, needsYou, S, save } from '../core/state.js';
 import { dismissInstall, installHint } from './homescreen.js';
 import { SPLIT_MIN_WIDTH } from '../spell-schema.js';
@@ -414,7 +414,7 @@ export function paintHead(s) {
     s.state === 'waiting'
       ? `<span class="pill st-waiting"><i></i>Asking</span>`
       : s.state === 'review'
-        ? `<span class="pill st-${s.status}"><i></i>${STATUS_LABEL[s.status] || STATUS_LABEL.done}</span>`
+        ? statusPill(s)
         : s.state === 'running'
           ? `<span class="pill st-running"><i></i>Working</span>`
           : '';
@@ -521,7 +521,7 @@ function paintHome() {
           (s) => `<button class="sh-task c-${s.color}" data-id="${s.id}">
             ${(s.crew && crewDot(s)) || (s.reminder ? `<span class="q-dot auto">${icon('bell')}</span>` : qDot(s, { ring: false }))}
             <span class="sh-t" title="${esc(s.title)}">${esc(s.title)}</span>
-            <span class="sh-s ${s.state === 'waiting' ? 'asking' : s.reminder ? 'reminder' : ''}">${s.state === 'waiting' ? 'Asking' : s.reminder ? 'Reminder' : esc(STATUS_LABEL[s.status] || STATUS_LABEL.done)}</span>
+            <span class="sh-s ${s.state === 'waiting' ? 'asking' : s.reminder ? 'reminder' : ''}">${s.state === 'waiting' ? 'Asking' : s.reminder ? 'Reminder' : esc(STATUS_LABEL[statusKey(s)] || STATUS_LABEL.done)}</span>
             <span class="q-time" ${timeAttrs(s.updatedAt)}>${ago(s.updatedAt)}</span>
           </button>`,
         )

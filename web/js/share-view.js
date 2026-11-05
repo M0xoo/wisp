@@ -24,7 +24,7 @@ const agentName = (a) => NAME[a] || a || 'An agent';
 const logo = (a) => (!LOGO[a] ? icon('spark') : MONO.has(a) ? `<i class="mono" style="--logo:url(/logos/${LOGO[a]}.svg)"></i>` : `<img src="/logos/${LOGO[a]}.svg" alt="">`);
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const heroOf = (t) => (t?.presentation?.blocks || []).find((b) => b?.type === 'hero');
-const statusOf = (t) => (t?.status === 'error' ? 'blocked' : t?.status === 'stopped' ? 'partial' : heroOf(t)?.status || 'done');
+const statusOf = (t) => t?.halt || (t?.status === 'error' ? 'failed' : t?.status === 'stopped' ? 'partial' : heroOf(t)?.status || 'done');
 
 // Buttons in a report (Next, actions) act on the task in wisp: here a toast, wisp's own, says how
 // to get it there, with the link to copy.

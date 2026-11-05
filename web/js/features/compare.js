@@ -7,7 +7,7 @@ import { mentionHtml } from '../mention-text.js';
 import { api } from '../core/api.js';
 import { on } from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
-import { STATUS_LABEL } from '../core/format.js';
+import { STATUS_LABEL, statusKey } from '../core/format.js';
 import { S } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toast, toastError } from '../ui/toast.js';
@@ -27,7 +27,7 @@ const fetchRun = (id) => api(`/sessions/${id}?lean=1`); // the plain URL sends e
 const metricsKey = (x) => JSON.stringify([x?.state, x?.status, x?.turnCount, x?.plan || null]);
 
 function pillOf(f, sum) {
-  return isLive(f) ? { cls: 'pill st-waiting', text: f.state === 'waiting' ? 'Asking' : 'Working' } : { cls: `pill st-${sum.status || 'info'}`, text: STATUS_LABEL[sum.status] || STATUS_LABEL.done };
+  return isLive(f) ? { cls: 'pill st-waiting', text: f.state === 'waiting' ? 'Asking' : 'Working' } : { cls: `pill st-${statusKey(sum)}`, text: STATUS_LABEL[statusKey(sum)] || STATUS_LABEL.done };
 }
 
 export async function compareView(id) {

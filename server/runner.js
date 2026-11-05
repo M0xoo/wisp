@@ -24,6 +24,7 @@ import { LIMIT_CARRY_ON, laterNote, laterView } from './later.js';
 import { HOMES as ACCOUNT_HOMES } from './accounts.js';
 import { infraError } from './router.js';
 import { refusalOf } from './refusal.js';
+import { haltOf } from '../web/js/core/format.js';
 import { vendorOf } from '../web/js/vendors.js';
 import { goalNote, goalView } from './goal.js';
 import { compactOffer, compactUntil } from '../web/js/cold-cache.js';
@@ -265,6 +266,7 @@ export function summarize(s, store) {
     later: laterView(s), // follow-ups and reminders scheduled on it (server/later.js)
     reminder: s.reminder ? { text: s.reminder.text, at: s.reminder.at, setAt: s.reminder.setAt, by: s.reminder.by, ...(s.reminder.from && { from: s.reminder.from }), ...(s.reminder.missed && { missed: true }) } : undefined,
     status: last?.status === 'running' || s.auto?.busy || s.goal?.status === 'checking' ? 'running' : last?.status === 'held' ? 'held' : hero?.status || (last?.status === 'error' ? 'blocked' : 'info'),
+    ...(haltOf(last) && { halt: haltOf(last) }), // it failed, hit a limit or was refused: the row's word (web/js/core/format.js)
     preview: hero?.summary || '',
     // Ask near the limit (server/guard.js): it waits, held before it started or was sent.
     // ...or a changed harness (server/harness-watch.js, Ask before running a changed harness) waits for Trust.
@@ -1897,6 +1899,7 @@ export class Runner extends EventEmitter {
   // and what to do. The account isn't marked: it has room the moment one sign-in goes.
   #deviceLimit(session, turn, ev) {
     const name = adapters[session.agent]?.name || 'This harness';
+    turn.devices = true;
     turn.presentation = {
       blocks: [
         { type: 'hero', title: `${name} refused: too many devices signed in`, summary: `Your ${name} account has as many devices or sessions open as its plan allows, so it turned this run down. Your usage isn’t used up.`, status: 'blocked' },

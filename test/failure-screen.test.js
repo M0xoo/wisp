@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import net from 'node:net';
 import path from 'node:path';
 import { installFakeBins, makeRepo, tmp, until } from './helpers.js';
+import { haltOf, STATUS_LABEL, statusKey } from '../web/js/core/format.js';
 
 process.env.WISP_HOME = tmp('failure-wisp');
 process.env.WISP_UPDATE_CHECK = '0';
@@ -88,7 +89,9 @@ const failed = async (agent = 'claude') => {
     return x.state === 'review' && x.turns.at(-1).status !== 'running' && x;
   }, { timeout: 30_000 });
 };
+const { shareTurn } = await import('../server/services/share.js');
 const block = (s, type) => s.turns.at(-1).presentation.blocks.find((b) => b.type === type);
+const rowOf = async (s) => (await api('/sessions')).find((x) => x.id === s.id);
 
 before(async () => {
   repo = makeRepo();
@@ -121,17 +124,40 @@ test('a failed run: the hero gives the first line of the error, and the terminal
   assert.equal(t.command, undefined);
   assert.match(t.output, /not logged in/);
   assert.deepEqual(block(s, 'next').items.slice(0, 1), ['Try again']);
+  const row = await rowOf(s);
+  assert.equal(row.status, 'blocked', 'spells and panes keep reading status');
+  assert.equal(row.halt, 'failed');
 });
 
 test('the limit and device-limit cards invent no command', async () => {
   process.env.FAKE_LIMIT_ONCE = path.join(tmp('failure-limit'), 'hit');
   const limited = await failed();
   assert.ok(limited.turns.at(-1).limit, 'a limit card');
+  assert.equal((await rowOf(limited)).halt, 'limit');
   assert.equal(block(limited, 'terminal').command, undefined);
 
   process.env.FAKE_LIMIT_ONCE = path.join(tmp('failure-devices'), 'hit');
   process.env.FAKE_LIMIT_TEXT = 'Too many active sessions: you are signed in on too many devices.';
   const devices = await failed('codex');
   assert.match(block(devices, 'hero').title, /too many devices/);
+  assert.equal((await rowOf(devices)).halt, 'refused');
   assert.equal(block(devices, 'terminal').command, undefined);
+});
+
+test('a blocked row says which: Failed, At limit, Refused, and Blocked only for the agent\'s own', () => {
+  const word = (turn) => {
+    const key = statusKey({ status: 'blocked', halt: haltOf(turn) });
+    return [key, STATUS_LABEL[key]];
+  };
+  assert.deepEqual(word({ status: 'error' }), ['failed', 'Failed']);
+  assert.deepEqual(word({ status: 'error', limit: { until: 1 } }), ['limit', 'At limit']);
+  assert.deepEqual(word({ status: 'done', refusal: { kind: 'policy' } }), ['refused', 'Refused']);
+  assert.deepEqual(word({ status: 'error', devices: true }), ['refused', 'Refused']);
+  assert.deepEqual(word({ status: 'done' }), ['blocked', 'Blocked']);
+  assert.equal(statusKey({ status: 'done', halt: 'failed' }), 'done', 'a word only ever replaces Blocked');
+});
+
+test('a shared turn keeps the word', () => {
+  assert.equal(shareTurn({ id: 't', prompt: 'x', status: 'error', limit: { until: 1 } }).halt, 'limit');
+  assert.equal(shareTurn({ id: 't', prompt: 'x', status: 'done' }).halt, undefined);
 });

@@ -189,8 +189,8 @@ body.split #feed .item.open > .it-skel .sk-turns { padding-left: 0; padding-righ
   background: color-mix(in srgb, var(--tone) 9%, transparent);
 }
 .pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--tone); }
-.pill.st-partial, .pill.st-waiting { --tone: var(--warn); }
-.pill.st-blocked { --tone: var(--bad); }
+.pill.st-partial, .pill.st-waiting, .pill.st-limit, .pill.st-refused { --tone: var(--warn); }
+.pill.st-blocked, .pill.st-failed { --tone: var(--bad); }
 .pill.st-info { --tone: var(--accent); }
 
 .turns { padding: 6px 18px 8px; }

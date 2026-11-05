@@ -251,6 +251,7 @@ export const PARTS = {
   'card.sub': '#feed .it-sub',
   'card.live': '#feed .q-live',
   'card.side': '#feed .it-side',
+  'card.status': '#feed .it-side .pill[class*="st-"]', // Finished, Blocked, Failed, At limit, Refused…
   'card.pr': '#feed .it-side .pill.pr',
   // Another open task changes the same files: the pill, and the warning above the follow-up box.
   'card.overlap': '#feed .it-side .pill.overlap',

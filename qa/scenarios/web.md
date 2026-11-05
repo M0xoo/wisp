@@ -549,7 +549,7 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Expected:**
   - 1: *Claude Code failed* with `fake: not logged in (401)` in the hero and on the row. The terminal shows the output as it arrives, with no `$` line, no typing and no **Run**. Never *Something went wrong*.
   - 2: **Try again** sends a follow-up.
-  - 3: both terminals have no `$` line and no **Run**.
+  - 3: both terminals have no `$` line and no **Run**. The rows read *At limit* and *Refused* in amber; the failed one in step 1 reads *Failed* in red. An agent's own blocked report still reads *Blocked*.
   - 4: the same, on the stored task.
   - 5: that block keeps its `$` line and **Run**.
 - **Suite** (`test/failure-screen.test.js`), **Manual** (real Chrome)

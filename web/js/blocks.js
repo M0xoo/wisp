@@ -4,7 +4,7 @@
 import { md, esc, inlineMd, highlight, langOf } from './md.js';
 import { diffLines, hunks, countChanges } from './diff.js';
 import { load, MOBILE, save, S } from './core/state.js';
-import { agoLong, STATUS_LABEL } from './core/format.js';
+import { agoLong, haltOf, STATUS_LABEL, statusKey, statusPill } from './core/format.js';
 import { imageButtons, bindImageButtons, imageName, saveImage, CAN_SAVE } from './ui/image.js';
 import { ask } from './ui/confirm.js';
 import { docBody, docStats, docTitle, readDoc } from './ui/reader.js';
@@ -96,7 +96,8 @@ const R = {};
 
 R.hero = (b, ctx) => {
   const status = ['done', 'partial', 'blocked', 'info'].includes(b.status) ? b.status : 'done';
-  const label = { done: 'Finished', partial: 'Partly done', blocked: 'Blocked', info: 'Report' }[status];
+  const key = statusKey({ status, halt: haltOf(ctx.turn) });
+  const label = { partial: 'Partly done' }[key] || STATUS_LABEL[key];
   const st = ctx.turn?.stats || {};
   const meta = ctx.trail ? [] : [
     ctx.turn?.startedAt && ctx.turn?.endedAt > ctx.turn.startedAt ? fmtDuration(ctx.turn.endedAt - ctx.turn.startedAt) : '',
@@ -110,7 +111,7 @@ R.hero = (b, ctx) => {
   return el(`
     <div class="b-hero st-${status}${echo ? ' echo' : ''}${own ? ' own' : ''}">
       <div class="aura"></div>
-      ${own ? '' : `<div class="hero-top"><span class="pill st-${status}"><i></i>${label}</span>${meta.map((m) => `<span class="meta">${esc(m)}</span>`).join('')}</div>`}
+      ${own ? '' : `<div class="hero-top"><span class="pill st-${key}"><i></i>${label}</span>${meta.map((m) => `<span class="meta">${esc(m)}</span>`).join('')}</div>`}
       ${echo ? '' : `<h2>${esc(b.title || 'Finished')}</h2>`}
       ${b.summary ? `<p>${inlineMd(b.summary)}</p>` : ''}
     </div>`);
@@ -1056,7 +1057,7 @@ function taskPill(t) {
   if (t.archived) return `<span class="pill st-done"><i></i>Archived</span>`;
   if (t.state === 'running') return `<span class="pill st-running"><i></i>Working</span>`;
   if (t.state === 'waiting') return `<span class="pill st-waiting"><i></i>Asking</span>`;
-  if (t.state === 'review') return `<span class="pill st-${esc(t.status || 'done')}"><i></i>${STATUS_LABEL[t.status] || STATUS_LABEL.done}</span>`;
+  if (t.state === 'review') return statusPill(t);
   return `<span class="pill st-done"><i></i>Done</span>`;
 }
 
