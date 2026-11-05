@@ -19,7 +19,7 @@ import { copy } from '../blocks.js';
 import { esc, highlight, md } from '../md.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
-import { api, track } from '../core/api.js';
+import { api, reach, refused, track } from '../core/api.js';
 import { fmtDate, fmtSize } from '../core/format.js';
 import { load, MOBILE, S, save } from '../core/state.js';
 import { clampToViewport, popover, TOUCH } from '../ui/popover.js';
@@ -199,9 +199,9 @@ async function saveRemote(p, { s, turn, key, name }) {
 
 async function upload(file, params) {
   const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v));
-  const r = await fetch(`/api/stuff/upload?${q}`, { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: file });
+  const r = await reach(`/api/stuff/upload?${q}`, { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: file });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || r.statusText);
+  if (!r.ok) throw refused(r, j);
   return j;
 }
 
@@ -250,7 +250,7 @@ function removeItem(it) {
 }
 
 async function textOf(it) {
-  const r = await fetch(fileUrl(it));
+  const r = await reach(fileUrl(it));
   if (!r.ok) throw new Error('The file is gone.');
   return r.text();
 }
@@ -601,7 +601,7 @@ async function showInFolder(it) {
   } catch (err) {
     if (err.status !== 409) return toastError(err);
     // Through a proxy, the file is on the computer running wisp: its path is what's useful here.
-    const { path } = await fetch(`/api/stuff/${it.id}/reveal`, { method: 'POST', headers: { 'content-type': 'application/json' } }).then((r) => r.json());
+    const { path } = await reach(`/api/stuff/${it.id}/reveal`, { method: 'POST', headers: { 'content-type': 'application/json' } }).then((r) => r.json());
     await navigator.clipboard?.writeText(path).catch(() => {});
     toast(`The file is on the computer running wisp. Copied its path: <code>${esc(path)}</code>`);
   }
