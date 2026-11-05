@@ -27,7 +27,8 @@
 // connectors (MCP servers every task gets, server/connectors.js); secret values never pass through
 // the agent: the sign-in card takes them.
 // With WISP_READONLY (a /side discussion, server/side.js): only the tools that read, ask or show,
-// and `approve`, where its writes meet the clash check.
+// and `approve`, where its writes meet the clash check. Those tools also carry readOnlyHint, the
+// only thing that lets a Claude Code task call them in plan mode (--allowedTools doesn't).
 // With WISP_SPELLS (a Cast a spell task): `wisp_spells`, `wisp_spell_schema`, `wisp_spell_data` and
 // `wisp_spell_check`, to write a spell for the user to keep.
 
@@ -40,6 +41,7 @@ const { WISP_URL, WISP_TOKEN, WISP_SESSION, WISP_TURN, WISP_APPROVE, WISP_SPELLS
 // gate. Nothing that starts tasks or edits your setup.
 const READ_ONLY_TOOLS = ['approve', 'ask_user', 'resume_later', 'wisp_tag', 'wisp_watch', 'wisp_blocks', 'wisp_stats', 'wisp_sessions', 'wisp_session', 'wisp_stuff', 'wisp_crew', 'wisp_connectors', 'wisp_available'];
 const offered = (name) => !WISP_READONLY || READ_ONLY_TOOLS.includes(name);
+const hinted = (t) => (READ_ONLY_TOOLS.includes(t.name) ? { ...t, annotations: { readOnlyHint: true } } : t);
 const WAIT_S = 240; // wisp_task wait / wisp_launch wait=true, unless the agent asks for longer
 const MAX_WAIT_S = 1800;
 let TEAM = [];
@@ -630,9 +632,17 @@ async function waitFor(id) {
   }
 }
 
-async function askUser(args) {
-  const { id } = await call(`/api/internal/ask`, { session: WISP_SESSION, ...args });
-  return (await waitFor(id))?.answer ?? null;
+// One at a time: a task holds one question, and a read-only tool may run beside another, so a
+// second one sent at once would replace the first, which would then read as cancelled.
+let lastAsk = Promise.resolve();
+function askUser(args) {
+  const ask = async () => {
+    const { id } = await call(`/api/internal/ask`, { session: WISP_SESSION, ...args });
+    return (await waitFor(id))?.answer ?? null;
+  };
+  const turn = lastAsk.then(ask, ask);
+  lastAsk = turn;
+  return turn;
 }
 
 async function approve({ tool_name: tool, input = {}, tool_use_id }) {
@@ -657,7 +667,7 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     if (method === 'initialize') {
       send({ id, result: { protocolVersion: params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'wisp', version: '0.1.0' } } });
     } else if (method === 'tools/list') {
-      send({ id, result: { tools: [TOOL, LATER, TAG, PR, ...(WISP_WATCH ? [WATCH] : []), SAVE, STUFF, BLOCKS, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...CONTROL_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...TEAM_TOOLS, ...(WISP_SPELLS ? SPELL_TOOLS : [])].filter((t) => offered(t.name)) } });
+      send({ id, result: { tools: [TOOL, LATER, TAG, PR, ...(WISP_WATCH ? [WATCH] : []), SAVE, STUFF, BLOCKS, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...CONTROL_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...TEAM_TOOLS, ...(WISP_SPELLS ? SPELL_TOOLS : [])].filter((t) => offered(t.name)).map(hinted) } });
     } else if (method === 'tools/call' && !offered(params?.name)) {
       send({ id, result: { isError: true, content: [{ type: 'text', text: 'Not available in a side discussion: it only reads and changes nothing.' }] } });
     } else if (method === 'tools/call' && params?.name === 'ask_user') {
