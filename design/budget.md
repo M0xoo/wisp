@@ -292,6 +292,10 @@ Design by Sana (2026-11-01).
   takes over, never a model's own bucket (`normalModelSlug`) or `premium`. None: the codex entry,
   as before. A frozen entry is only caught once one of its resets passes: up to a week on a plan
   with no 5-hour window.
+- **A plan with no 5-hour window** (secondary sources say Pro, OpenAI hasn't confirmed): the weekly
+  window may come in either slot, and a slot with no length is skipped. One bar; `hold`, the reads and
+  Shrink need nothing else. An account that loses the window is told once as *gone*, never as a length
+  change. Until its reset, the old window's last numbers stand and can hold work: at most 5 hours.
 - **Terms**: reads the account the work would run on and nothing else; never switches accounts or
   spends a reset.
 

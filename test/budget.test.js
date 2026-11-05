@@ -1178,6 +1178,182 @@ test('Codex reporting only its weekly window (primary empty) has no 5-hour row',
   assert.equal(b.resetAt('codex', 'default'), R * 1000, 'Wait until: the weekly reset');
 });
 
+// --- A Codex account with no 5-hour window -----------------------------------------------------------
+
+// Secondary sources say Pro has none; OpenAI hasn't said, nor how the answer would look. So each shape
+// it could take: the weekly window in either slot, or beside a slot with no length.
+const WEEK_MS = 7 * 24 * H;
+const weekly = (used, resetsAt) => ({ usedPercent: used, windowDurationMins: 10080, resetsAt: Math.floor(resetsAt / 1000) });
+const NO_FIVE = {
+  'weekly first': (w) => ({ limitId: 'codex', primary: w, secondary: null }),
+  'weekly second': (w) => ({ limitId: 'codex', primary: null, secondary: w }),
+  'an empty slot first': (w) => ({ limitId: 'codex', primary: { usedPercent: 0, windowDurationMins: null, resetsAt: null }, secondary: w }),
+};
+const shapes = Object.entries(NO_FIVE);
+const answer = (shape, used, resetsAt) => ({ rateLimitsByLimitId: { codex: shape(weekly(used, resetsAt)) } });
+
+test('no 5-hour window: codexLive reads the one weekly bar, whichever slot it’s in', () => {
+  const R = NOW_MS + 3 * 24 * H;
+  for (const [name, shape] of shapes) {
+    const l = codexLive(answer(shape, 40, R), { now: NOW_MS });
+    assert.deepEqual(l.windows.map(({ id, used, resetsAt, ms }) => ({ id, used, resetsAt, ms })), [{ id: 'seven_day', used: 0.4, resetsAt: R, ms: WEEK_MS }], name);
+    assert.equal(l.complete, true, `${name}: it lists every window, so an old 5-hour one can go`);
+    assert.equal(l.rejected, undefined, name);
+    assert.equal(codexLive(answer(shape, 100, R), { now: NOW_MS }).rejected, 'seven_day', `${name}: full`);
+    assert.equal(codexLive({ rateLimits: shape(weekly(40, R)) }, { now: NOW_MS }).windows[0].id, 'seven_day', `${name}: under rateLimits alone`);
+    let now = NOW_MS;
+    const b = new Budget(tmp('no-five-bars'), { now: () => now });
+    b.record('codex', 'default', { ...l, read: true });
+    const v = b.view('codex')[0];
+    assert.deepEqual(v.windows.map((w) => [w.id, w.label, w.used, w.ms]), [['seven_day', 'Weekly', 0.4, WEEK_MS]], `${name}: one bar, no empty 5-hour row`);
+    assert.deepEqual(b.windows('codex', 'default').map((w) => w.id), ['seven_day'], name);
+    now = R + 1;
+    assert.deepEqual(b.view('codex')[0].windows.map((w) => [w.used, w.resetsAt]), [[0, null]], `${name}: past its reset it reads as fresh`);
+  }
+});
+
+test('no 5-hour window: frozen goes by the weekly reset alone', () => {
+  const skew = 4 * 60_000;
+  const later = NOW_MS + 3 * 24 * H;
+  for (const [name, shape] of shapes) {
+    const moved = (ours, theirs) => usedOf({ rateLimitsByLimitId: { codex: shape(weekly(ours, NOW_MS - H)), plus: shape(weekly(theirs, later)) } });
+    assert.equal(moved(50, 7), 0.07, `${name}: reset gone, the new id takes over`);
+    assert.equal(usedOf({ rateLimits: shape(weekly(9, later)), rateLimitsByLimitId: { codex: shape(weekly(50, NOW_MS - H)) } }), 0.09, `${name}: or rateLimits`);
+    assert.equal(usedOf({ rateLimitsByLimitId: { codex: shape(weekly(50, later)), plus: shape(weekly(7, later + H)) } }), 0.5, `${name}: a live entry stays, whatever else is listed`);
+    assert.equal(usedOf({ rateLimitsByLimitId: { codex: shape(weekly(50, NOW_MS - skew)), plus: shape(weekly(7, later)) } }), 0.5, `${name}: clock skew isn’t frozen`);
+    assert.equal(usedOf({ rateLimitsByLimitId: { codex: shape(weekly(50, NOW_MS - H)), spark: shape(weekly(2, later)) } }), 0.02, `${name}: an id we don’t know is the new limit`);
+    assert.equal(usedOf({ rateLimitsByLimitId: { codex: shape(weekly(50, NOW_MS - H)), spark: { ...shape(weekly(2, later)), normalModelSlug: 'gpt-x' } } }), 0.5, `${name}: a model’s own bucket never takes over`);
+  }
+  // A frozen 5-hour-and-weekly entry whose successor has no 5-hour window: the account is on it now.
+  const old = { primary: { usedPercent: 90, windowDurationMins: 300, resetsAt: NOW_S - 3600 }, secondary: weekly(50, later) };
+  const next = codexLive({ rateLimitsByLimitId: { codex: old, plus: NO_FIVE['weekly first'](weekly(7, later)) } }, { now: NOW_MS });
+  assert.deepEqual(next.windows.map((w) => [w.id, w.used]), [['seven_day', 0.07]]);
+});
+
+test('no 5-hour window: the stale read and hold, whichever slot the week is in', async (t) => {
+  t.mock.method(console, 'warn', () => {});
+  for (const [name, shape] of shapes) {
+    let used = 80;
+    let fail = false;
+    const h = reader({
+      read: () => {
+        if (fail) throw new Error('offline');
+        return answer(shape, used, R());
+      },
+    });
+    const start = h.now;
+    const R = () => start + 3 * 24 * H;
+    const go = async () => {
+      await h.live.before('codex', 'default');
+      return h.budget.hold('codex', 'default', 0.75);
+    };
+    const held = await go();
+    assert.deepEqual(h.reads, ['default'], `${name}: no reading reads`);
+    assert.deepEqual([held.window, held.label, held.used, held.until], ['seven_day', 'Weekly', 0.8, R()], `${name}: it waits for the weekly reset`);
+    assert.equal(holdWhy(held, 'Codex'), 'Codex’s weekly window is at 80%, past your 75%', name);
+    h.now += 14 * MIN;
+    used = 10;
+    assert.ok(await go(), `${name}: 14 minutes on the reading stands`);
+    assert.equal(h.reads.length, 1, name);
+    h.now += MIN;
+    assert.equal(await go(), null, `${name}: the read frees it`);
+    assert.equal(h.reads.length, 2, name);
+    used = 90;
+    h.now += 15 * MIN;
+    fail = true;
+    assert.equal(await go(), null, `${name}: a failed read goes on what wisp knew`);
+    assert.equal(h.budget.windows('codex', 'default')[0].used, 0.1, name);
+    fail = false;
+    h.now += 15 * MIN;
+    assert.ok(await go(), `${name}: the line again`);
+    h.now = R() + 1;
+    fail = true;
+    assert.equal(await go(), null, `${name}: past the reset an old reading holds nothing, even if the read fails`);
+    assert.equal(h.budget.resetAt('codex', 'default'), null, name);
+  }
+});
+
+test('no 5-hour window: a frozen weekly entry with nothing to replace it holds nothing once its reset is gone', async () => {
+  for (const [name, shape] of shapes) {
+    const h = reader({ read: () => answer(shape, 90, h.now - H) });
+    h.budget.record('codex', 'default', { windows: [{ id: 'seven_day', used: 0.9, resetsAt: h.now - H, ms: WEEK_MS }] });
+    h.now += 16 * MIN;
+    await h.live.before('codex', 'default');
+    assert.equal(h.reads.length, 1, name);
+    assert.equal(h.budget.hold('codex', 'default', 0.75), null, `${name}: wisp can’t say until when`);
+    assert.equal(h.budget.windows('codex', 'default')[0].used, 0, `${name}: the bar reads fresh, not 90%`);
+  }
+});
+
+test('no 5-hour window: a banked weekly reset the read finds lets held work go', async () => {
+  for (const [name, shape] of shapes) {
+    let R;
+    let used = 80;
+    const h = reader({ read: () => answer(shape, used, R) });
+    R = h.now + 3 * 24 * H;
+    const resets = [];
+    h.budget.onReset = (agent, account, ids) => resets.push([agent, account, ids]);
+    await h.live.before('codex', 'default');
+    assert.ok(h.budget.hold('codex', 'default', 0.75), name);
+    h.now += 16 * MIN;
+    used = 0;
+    R = h.now + 7 * 24 * H;
+    await h.live.before('codex', 'default');
+    assert.deepEqual(resets, [['codex', 'default', ['seven_day']]], name);
+    assert.equal(h.budget.hold('codex', 'default', 0.75), null, name);
+  }
+});
+
+test('an account loses its 5-hour window: told once as gone, never as a length change; the weekly period goes on', () => {
+  for (const [name, shape] of shapes) {
+    let now = 7_000 * H;
+    const b = new Budget(tmp('no-five-loses'), { now: () => now });
+    const R7 = now + 4 * 24 * H;
+    const R5 = now + 2 * H;
+    const fiveW = { usedPercent: 90, windowDurationMins: 300, resetsAt: Math.floor(R5 / 1000) };
+    b.record('codex', 'default', { ...codexLive({ rateLimits: { primary: fiveW, secondary: weekly(30, R7) } }, { now }), read: true });
+    assert.deepEqual(b.view('codex')[0].windows.map((w) => w.id), ['five_hour', 'seven_day'], name);
+    const report = (used) => b.record('codex', 'default', { ...codexLive(answer(shape, used, R7), { now }), read: true });
+    now += 10 * MIN;
+    report(31);
+    const v = b.view('codex')[0];
+    assert.equal(v.notices, undefined, `${name}: not told yet: a report can skip one`);
+    assert.deepEqual(v.windows.map((w) => [w.id, w.used]), [['five_hour', 0.9], ['seven_day', 0.31]], `${name}: its last numbers stand until its reset`);
+    assert.equal(b.hold('codex', 'default', 0.75).until, R5, `${name}: at worst the old 5-hour window holds until its own reset`);
+    assert.equal(b.hold('codex', 'default', 0.75).label, '5-hour', name);
+    now = R5 + 1;
+    report(32);
+    assert.deepEqual(b.view('codex')[0].windows.map((w) => w.id), ['seven_day'], `${name}: past its reset, no empty row`);
+    assert.equal(b.hold('codex', 'default', 0.75), null, name);
+    assert.equal(b.resetAt('codex', 'default'), null, name);
+    const told = [];
+    for (let i = 0; i < 6 * 24; i++) {
+      now += 10 * 60_000;
+      report(33);
+      for (const n of b.view('codex')[0].notices || []) if (!told.some((x) => x.window === n.window && x.at === n.at)) told.push(n);
+    }
+    assert.deepEqual(told.map((n) => [n.kind, n.window]), [['gone', 'five_hour']], `${name}: told once`);
+    assert.equal(b.state.codex.default.windows.five_hour, undefined, name);
+    assert.deepEqual(b.periods('codex', 'default', 'seven_day'), [], `${name}: the weekly period never closed`);
+    assert.equal(b.windows('codex', 'default')[0].resetsAt, R7, name);
+    assert.equal(b.windows('codex', 'default')[0].used, 0.33, name);
+  }
+});
+
+test('an account gets its 5-hour window back: told as new, the weekly window untouched', () => {
+  for (const [name, shape] of shapes) {
+    let now = 8_000 * H;
+    const b = new Budget(tmp('no-five-back'), { now: () => now });
+    const R7 = now + 4 * 24 * H;
+    b.record('codex', 'default', codexLive(answer(shape, 30, R7), { now }));
+    now += H;
+    b.record('codex', 'default', codexLive({ rateLimits: { primary: { usedPercent: 5, windowDurationMins: 300, resetsAt: Math.floor((now + 4 * H) / 1000) }, secondary: weekly(31, R7) } }, { now }));
+    const v = b.view('codex')[0];
+    assert.deepEqual(v.windows.map((w) => [w.id, w.used]), [['five_hour', 0.05], ['seven_day', 0.31]], name);
+    assert.deepEqual(v.notices.map((n) => [n.kind, n.window]), [['new', 'five_hour']], name);
+  }
+});
+
 // --- Past your plan: runs billed beyond the plan's windows -----------------------------------------
 
 test('past your plan: Claude’s extra usage and a Codex credit drop flag the run; “overage” is never a window', () => {
