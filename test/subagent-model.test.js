@@ -18,7 +18,7 @@ installFakeBins();
 const { startServer } = await import('../server/index.js');
 const { adapters } = await import('../server/adapters/index.js');
 const { SUBAGENT_MODELS } = await import('../server/adapters/claude.js');
-const { offerSubagentModel, sameModelShare, subagentTip, SUBAGENT_OFFER_AT } = await import('../web/js/receipt.js');
+const { offerSubagentModel, sameModelShare, subagentTip, SUBAGENT_OFFER, SUBAGENT_OFFER_AT } = await import('../web/js/receipt.js');
 
 let srv;
 let base;
@@ -99,6 +99,11 @@ test('the setting: refused unless one of the three; a Claude task runs its subag
   } finally {
     await api('/config', { defaults: { subagentModel: '' } }, 'PATCH');
   }
+});
+
+test('receipt: the offer says where Haiku pays off', () => {
+  assert.match(SUBAGENT_OFFER, /^Run subagents on Haiku\b/);
+  assert.match(SUBAGENT_OFFER, /best on large repos and read-heavy work/);
 });
 
 test('receipt: the offer needs ≥40% of the output from subagents on the task’s model, a Claude turn, and the setting unset', () => {
