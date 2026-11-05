@@ -485,7 +485,7 @@ export function updateDock(id) {
     ? 'This is the tour — launch a real wisp from the box at the top'
     : s.ask
       ? s.ask.clash
-        ? 'Or say what to do instead (keeps main’s version)…'
+        ? `Or say what to do instead (keeps ${s.ask.clash.by ? 'its' : 'main’s'} version)…`
         : s.ask.permission
         ? `Or tell ${name} what to do instead (denies this call)…`
         : `Answer ${name}…`

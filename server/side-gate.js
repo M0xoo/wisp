@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { git, gitSync } from './git.js';
 import { MAX_SNAPSHOT } from './paths.js';
-import { SIDE_APPLY, SIDE_KEEP, addOwn, clashCheck, commandClash, mainChanges, sideKept, sideTell } from './side.js';
+import { SIDE_APPLY, SIDE_APPLY_OTHER, SIDE_KEEP, SIDE_KEEP_OTHER, addOwn, clashCheck, commandClash, mainChanges, ownLines, sideKept, sideTell } from './side.js';
 
 const MAX_SHOWN = 4000; // of a proposed change or main's lines, on the card
 const MAX_LINES = 40;
@@ -76,6 +76,10 @@ export function createSideGate({ store, workdir, change, warn, ask, tell, answer
   const windows = new Map(); // tool call id → a command's before, to compare after it ran
 
   const mainOf = (side) => store.get(side.sideOf.id) || null;
+  // The main task's other side discussions: they share the folder, so git shows their work too,
+  // but it isn't main's. A clash with one still waits on a card, naming it, and main isn't told.
+  const othersOf = (side) => (mainOf(side)?.sides || []).filter((id) => id !== side.id).map((id) => store.get(id)).filter((o) => o?.sideOwn);
+  const byOf = (o) => ({ id: o.id, title: o.title });
   const runningEdits = (main, rel) => {
     const t = main?.turns.at(-1);
     if (t?.status !== 'running') return [];
@@ -87,7 +91,8 @@ export function createSideGate({ store, workdir, change, warn, ask, tell, answer
     const cwd = workdir(side);
     const diff = tryGit(cwd, ['diff', 'HEAD', '-U0', '--no-color', '--no-ext-diff', '--', rel]);
     const whole = !diff && !!tryGit(cwd, ['ls-files', '--others', '--exclude-standard', '--', rel]).trim();
-    return mainChanges({ diff, whole, content, running: runningEdits(mainOf(side), rel), own: side.sideOwn?.[rel] || [] });
+    const own = [side, ...othersOf(side)].flatMap((o) => o.sideOwn?.[rel] || []);
+    return mainChanges({ diff, whole, content, running: runningEdits(mainOf(side), rel), own });
   }
 
   // The verdict on a tool call's writes, worst first. A MultiEdit's later edits may not be in the
@@ -102,7 +107,12 @@ export function createSideGate({ store, workdir, change, warn, ask, tell, answer
       if (outside) continue; // not the shared work
       const content = readText(abs);
       const main = look(side, rel, content);
-      const v = { ...clashCheck({ content, main, tool: w.tool, old: w.old }), file: rel, w, content };
+      let v = clashCheck({ content, main, tool: w.tool, old: w.old });
+      for (const o of othersOf(side)) {
+        const theirs = clashCheck({ content, main: ownLines(content, o.sideOwn[rel]), tool: w.tool, old: w.old });
+        if (WORST[theirs.level] > WORST[v.level]) v = { ...theirs, by: byOf(o) };
+      }
+      v = { ...v, file: rel, w, content };
       if (WORST[v.level] > WORST[worst.level]) worst = v;
     }
     return { ...worst, file: worst.file || at?.rel || '' };
@@ -121,21 +131,48 @@ export function createSideGate({ store, workdir, change, warn, ask, tell, answer
       lines: v.lines || [],
       proposed: { before: clip(v.w.old ?? ''), after: clip(v.w.text) },
       main: shown,
+      ...(v.by && { by: v.by }),
       ...extra,
     };
-    return { ...card, sig: sha(JSON.stringify([v.level, card.kind, card.main.map((m) => m.text), card.proposed])) };
+    return { ...card, sig: sha(JSON.stringify([v.level, card.kind, card.main.map((m) => m.text), card.proposed, ...(v.by ? [v.by.id] : [])])) };
   }
 
-  const commandCard = (side, command, v, files) => ({ kind: 'command', command: clip(command), files: v.files || [], why: v.why, mainTitle: mainOf(side)?.title || side.sideOf.title, main: [], lines: [], sig: sha(JSON.stringify([command, v.files || [], files])) });
+  const commandCard = (side, command, v, files) => ({ kind: 'command', command: clip(command), files: v.files || [], why: v.why, mainTitle: mainOf(side)?.title || side.sideOf.title, main: [], lines: [], ...(v.by && { by: v.by }), sig: sha(JSON.stringify([command, v.files || [], files, ...(v.by ? [v.by.id] : [])])) });
 
-  const askCard = (side, card) => ask(side, { question: card.why === 'writes' ? `This command writes over ${card.files[0]}${card.files.length > 1 ? ` and ${card.files.length - 1} more` : ''}` : card.kind === 'command' ? 'This command rewrites work the main task shares' : `This clashes with the main task in ${card.file}`, options: [SIDE_APPLY, SIDE_KEEP], clash: card });
+  const askOptions = (card) => (card.by ? [SIDE_APPLY_OTHER, SIDE_KEEP_OTHER] : [SIDE_APPLY, SIDE_KEEP]);
+  const whose = (card) => (card.by ? 'another side discussion' : 'the main task');
+  const askCard = (side, card) => ask(side, { question: card.why === 'writes' ? `This command writes over ${card.files[0]}${card.files.length > 1 ? ` and ${card.files.length - 1} more` : ''}${card.by ? `, changed by ${whose(card)}` : ''}` : card.kind === 'command' ? `This command rewrites work ${whose(card)} ${card.by ? 'changed' : 'shares'}` : `This clashes with ${whose(card)} in ${card.file}`, options: askOptions(card), clash: card });
+
+  // Files only another side discussion changed: file → that discussion. One main changed too stays
+  // main's, whoever else has lines in it.
+  function othersFiles(side, dirty) {
+    const out = new Map();
+    const cwd = workdir(side);
+    for (const o of othersOf(side)) {
+      for (const f of Object.keys(o.sideOwn)) {
+        if (!out.has(f) && dirty.includes(f) && !side.sideOwn?.[f] && !look(side, f, readText(path.join(cwd, f)))) out.set(f, byOf(o));
+      }
+    }
+    return out;
+  }
 
   // Everything main changed, by file, for commands: what git says plus its running turn.
-  function mainFilesOf(side, dirty) {
+  function mainFilesOf(side, dirty, theirs) {
     const t = mainOf(side)?.turns.at(-1);
     const live = t?.status === 'running' ? (t.changes || []).map((c) => c.file) : [];
     const own = Object.keys(side.sideOwn || {});
-    return [...new Set([...dirty.filter((f) => !own.includes(f)), ...live])].sort();
+    return [...new Set([...dirty.filter((f) => !own.includes(f) && !theirs.has(f)), ...live])].sort();
+  }
+
+  // The verdict on a command, main's first: { v, files }, files being main's.
+  function commandCheck(side, command, dirty) {
+    const cwd = workdir(side);
+    const theirs = othersFiles(side, dirty);
+    const files = mainFilesOf(side, dirty, theirs);
+    const v = commandClash(command, { files, cwd });
+    if (v.level !== 'none' || !theirs.size) return { v, files };
+    const other = commandClash(command, { files: [...theirs.keys()], cwd });
+    return { v: other.level === 'none' ? v : { ...other, by: theirs.get(other.files[0]) }, files };
   }
 
   // A hash per dirty file: what a command changed is what differs after it.
@@ -209,8 +246,7 @@ export function createSideGate({ store, workdir, change, warn, ask, tell, answer
       if (tool === 'Bash') {
         const command = String(input.command || '');
         const cwd = workdir(side);
-        const files = mainFilesOf(side, await dirtyFiles(cwd));
-        const v = commandClash(command, { files, cwd });
+        const { v, files } = commandCheck(side, command, await dirtyFiles(cwd));
         const open = async () => {
           if (useId) windows.set(useId, { before: await snapshot(cwd), files, command, during: (mainOf(side)?.turns.at(-1)?.changes || []).map((c) => `${c.file}:${c.edits?.length || 0}`) });
         };
@@ -223,7 +259,7 @@ export function createSideGate({ store, workdir, change, warn, ask, tell, answer
       if (!WRITES.has(tool)) return { decision: 'allow' }; // it reads, fetches or asks: nothing of the work's
       const v = check(side, tool, input);
       if (v.level === 'clash') return { id: askCard(side, cardOf(side, v)), pending: { tool, input, useId } };
-      if (v.level === 'overlap') warn(side, turn, { kind: 'overlap', file: v.file, main: mainOf(side)?.title || side.sideOf.title });
+      if (v.level === 'overlap') warn(side, turn, { kind: 'overlap', file: v.file, ...(v.by ? { main: v.by.title, by: 'side' } : { main: mainOf(side)?.title || side.sideOf.title }) });
       record(side, turn, tool, input);
       return { decision: 'allow' };
     },
@@ -234,28 +270,30 @@ export function createSideGate({ store, workdir, change, warn, ask, tell, answer
       const ask = side.ask;
       const turn = side.turns.at(-1);
       if (action !== 'apply') {
-        answered(side, { decision: 'deny', message: sideKept(words), label: `You kept the main task’s version: ${ask.clash.file || ask.clash.command}${words ? ` (“${words}”)` : ''}` });
+        answered(side, { decision: 'deny', message: sideKept(words, !!ask.clash.by), label: `You kept ${ask.clash.by ? 'the other side discussion’s' : 'the main task’s'} version: ${ask.clash.file || ask.clash.command}${words ? ` (“${words}”)` : ''}` });
         return { kept: true };
       }
       const bash = pending.tool === 'Bash';
       let fresh;
       if (bash) {
-        const files = mainFilesOf(side, dirtyNow(workdir(side)));
-        fresh = commandCard(side, pending.input.command, commandClash(pending.input.command, { files, cwd: workdir(side) }), files);
+        const { v, files } = commandCheck(side, pending.input.command, dirtyNow(workdir(side)));
+        fresh = commandCard(side, pending.input.command, v, files);
       } else {
         const v = check(side, pending.tool, pending.input);
         fresh = v.level === 'clash' ? cardOf(side, v) : { ...ask.clash, kind: 'cleared', main: [], sig: sha(`cleared:${v.level}:${v.file}`) };
       }
       if (fresh.sig !== (sig || ask.clash.sig)) {
         ask.clash = { ...fresh, moved: true };
-        ask.question = fresh.kind === 'cleared' ? `The main task moved: ${fresh.file} no longer clashes` : 'The main task moved: this still clashes';
+        ask.options = askOptions(fresh);
+        const who = fresh.by ? 'That side discussion' : 'The main task';
+        ask.question = fresh.kind === 'cleared' ? `${who} moved: ${fresh.file} no longer clashes` : `${who} moved: this still clashes`;
         touch(side, turn);
         return { stale: true };
       }
       if (!bash) record(side, turn, pending.tool, pending.input);
       const what = bash ? { command: pending.input.command, file: fresh.files?.[0] } : { file: fresh.file, lines: fresh.lines, before: fresh.proposed.before, after: fresh.proposed.after };
-      noteTell(side, pending.useId, sideTell(side, what, turn?.prompt));
-      answered(side, { decision: 'allow', label: `You applied it and told the main task: ${fresh.file || fresh.command}` });
+      if (!fresh.by) noteTell(side, pending.useId, sideTell(side, what, turn?.prompt));
+      answered(side, { decision: 'allow', label: `You applied it${fresh.by ? '' : ' and told the main task'}: ${fresh.file || fresh.command}` });
       return { applied: true };
     },
 

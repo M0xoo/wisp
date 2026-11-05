@@ -31,7 +31,10 @@ export const SIDE_DENIED = 'This is a read-only side discussion: this harness ca
 // The clash card's two answers (server/side-gate.js), and what the agent hears after Keep.
 export const SIDE_APPLY = 'Apply and tell main task';
 export const SIDE_KEEP = 'Keep main’s version';
-export const sideKept = (words) => `The user kept the main task's version: nothing was changed.${words ? ` They said: ${words}` : ''} Do not retry this change. Say what the user could tell the main task instead (a follow-up they can send there).`;
+// The same two when the lines are another side discussion's: the main task has no part in it.
+export const SIDE_APPLY_OTHER = 'Apply it';
+export const SIDE_KEEP_OTHER = 'Keep the other discussion’s version';
+export const sideKept = (words, other = false) => `The user kept the ${other ? 'other side discussion' : 'main task'}'s version: nothing was changed.${words ? ` They said: ${words}` : ''} Do not retry this change. Say what the user could tell ${other ? 'that side discussion' : 'the main task'} instead (a follow-up they can send there).`;
 
 // The system prompt's part for a side discussion: what it is, and what it may do. name: the
 // harness's, when it can't ask before a write.
@@ -119,6 +122,12 @@ function ownRanges(content, o) {
   return [at.reduce((best, x) => (Math.abs(x[0] - o.at) < Math.abs(best[0] - o.at) ? x : best))];
 }
 
+// Another side discussion's changed lines in one file, in mainChanges' shape, for clashCheck.
+export function ownLines(content, own = []) {
+  const lines = own.flatMap((o) => ownRanges(content, o)).map(([from, to]) => ({ from, to }));
+  return lines.length ? { lines: lines.sort((a, b) => a.from - b.from) } : null;
+}
+
 // What's left of a line range after taking the side's ranges out.
 function minus({ from, to }, mine) {
   let left = [{ from, to }];
@@ -133,7 +142,7 @@ function minus({ from, to }, mine) {
 //   content  the file now
 //   running  main's running turn's edits of it ({ after }): what git may no longer show (it
 //            committed). One that can't be placed, with no hunks to go by, makes it unknown.
-//   own      the side's own blocks ({ text, gone?, at, all? }, addOwn): no longer main's
+//   own      side discussions' blocks ({ text, gone?, at, all? }, addOwn): no longer main's
 export function mainChanges({ diff = '', whole = false, content = null, running = [], own = [] }) {
   const lines = lf(content).replace(/\n$/, '').split('\n').length;
   const all = whole || (!!diff.trim() && !parseHunks(diff).length);

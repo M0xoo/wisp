@@ -77,18 +77,19 @@ export function sideLine(of) {
 // an overlap is only said, and a command that hit main's file has already told the main task.
 export function sideWarnRows(t) {
   if (!t.sideWarn?.length) return null;
-  return el(`<ul class="side-warns">${t.sideWarn.map((w) => `<li class="side-warn">${icon('warn')}<span><code>${esc(w.file)}</code> ${w.kind === 'command' ? 'also changed by' : 'is being changed by'} the main task, <b>${esc(w.main)}</b>${w.kind === 'command' ? ': a command here changed it, and the main task was told' : ', on other lines'}</span></li>`).join('')}</ul>`);
+  return el(`<ul class="side-warns">${t.sideWarn.map((w) => `<li class="side-warn">${icon('warn')}<span><code>${esc(w.file)}</code> ${w.kind === 'command' ? 'also changed by' : 'is being changed by'} ${w.by === 'side' ? 'another side discussion' : 'the main task'}, <b>${esc(w.main)}</b>${w.kind === 'command' ? ': a command here changed it, and the main task was told' : ', on other lines'}</span></li>`).join('')}</ul>`);
 }
 
 const moreFiles = (f) => `${f[0]}${f.length > 1 ? ` and ${f.length - 1} more` : ''}`;
 const range = (r) => (r.from === r.to ? `line ${r.from}` : r.from > r.to ? `after line ${r.to}` : `lines ${r.from}–${r.to}`);
 const CLASH_WHY = {
-  lines: 'These are lines the main task changed.',
-  write: 'This replaces a file the main task changed.',
-  unlocated: 'wisp can’t tell which lines this touches, in a file the main task changed.',
-  command: 'This command rewrites work the main task shares.',
-  cleared: 'The main task moved: it no longer touches these lines.',
+  lines: (who) => `These are lines ${who} changed.`,
+  write: (who) => `This replaces a file ${who} changed.`,
+  unlocated: (who) => `wisp can’t tell which lines this touches, in a file ${who} changed.`,
+  command: (who) => `This command rewrites work ${who} ${who === 'the main task' ? 'shares' : 'changed'}.`,
+  cleared: (who) => `${cap(who)} moved: it no longer touches these lines.`,
 };
+const cap = (t) => t[0].toUpperCase() + t.slice(1);
 
 // A diff of what the side wants, as lines: what goes, what comes.
 const proposedHtml = (p) => `${p.before ? p.before.split('\n').map((l) => `<span class="clash-del">${esc(l) || ' '}</span>`).join('') : ''}${p.after.split('\n').map((l) => `<span class="clash-add">${esc(l) || ' '}</span>`).join('')}`;
@@ -99,18 +100,20 @@ const proposedHtml = (p) => `${p.before ? p.before.split('\n').map((l) => `<span
 // diff already shows them, and "what to do instead" is typed in the reply box.
 export function clashCardHtml(a) {
   const c = a.clash;
-  const of = esc(c.mainTitle);
+  const of = esc(c.by?.title || c.mainTitle);
+  const who = c.by ? 'another side discussion' : 'the main task'; // the lines may be a sibling's (server/side-gate.js)
+  const their = c.by ? 'That discussion’s' : 'The main task’s';
   const side = c.command ? `<pre class="perm-detail">${esc(c.command)}</pre>` : `<pre class="perm-detail clash-diff">${proposedHtml(c.proposed)}</pre>`;
   const lines = esc(c.main.map(range).join(', '));
   const mainText = c.main.map((m) => m.text).join('\n…\n');
   const said = !c.command && c.main.length && sameLines(mainText, c.proposed.before);
-  const main = said ? '' : c.main.length ? `<div class="clash-label">The main task’s ${lines}</div><pre class="perm-detail">${esc(mainText)}</pre>` : c.files?.length && (c.why !== 'writes' || c.files.length > 1) ? `<div class="clash-label">Files of the main task it ${c.why === 'writes' ? 'writes over' : 'removes'}</div><pre class="perm-detail">${esc(c.files.join('\n'))}</pre>` : '';
+  const main = said ? '' : c.main.length ? `<div class="clash-label">${their} ${lines}</div><pre class="perm-detail">${esc(mainText)}</pre>` : c.files?.length && (c.why !== 'writes' || c.files.length > 1) ? `<div class="clash-label">Files of ${c.by ? 'that discussion' : 'the main task'} it ${c.why === 'writes' ? 'writes over' : 'removes'}</div><pre class="perm-detail">${esc(c.files.join('\n'))}</pre>` : '';
   return `
     <div class="ask-card perm clash">
-      <div class="q-head">${icon('warn')}<span>${c.kind === 'cleared' ? 'No clash any more' : 'Clash with the main task'}</span></div>
+      <div class="q-head">${icon('warn')}<span>${c.kind === 'cleared' ? 'No clash any more' : `Clash with ${who}`}</span></div>
       <p class="q-text">${c.command ? 'Run this command?' : `<code>${esc(c.file)}</code>`}</p>
-      <p class="q-context">${c.moved ? `<b>The main task moved while this waited.</b> ` : ''}${esc(c.why === 'writes' ? `This command writes over ${moreFiles(c.files)}, which the main task changed.` : CLASH_WHY[c.kind] || '')} Main task: ${of}.</p>
-      <div class="clash-label">${c.command ? 'This side discussion wants to run' : said ? `Change to the main task’s ${lines}` : 'This side discussion’s change'}</div>
+      <p class="q-context">${c.moved ? `<b>${cap(who)} moved while this waited.</b> ` : ''}${esc(c.why === 'writes' ? `This command writes over ${moreFiles(c.files)}, which ${who} changed.` : CLASH_WHY[c.kind]?.(who) || '')} ${c.by ? 'Side discussion' : 'Main task'}: ${of}.</p>
+      <div class="clash-label">${c.command ? 'This side discussion wants to run' : said ? `Change to ${c.by ? 'that discussion’s' : 'the main task’s'} ${lines}` : 'This side discussion’s change'}</div>
       ${side}
       ${main}
       <div class="q-opts">${a.options.map((o, i) => `<button class="opt ${i === 0 ? 'go' : 'no'}" data-i="${i}"><span class="k">${i + 1}</span>${esc(o)}</button>`).join('')}</div>
