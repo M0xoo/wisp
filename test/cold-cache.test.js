@@ -2,6 +2,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 
 const { coldCache, coldLine, coldLineAhead, coldLineShort, coldReply, GRACE, LARGE } = await import('../web/js/cold-cache.js');
 
@@ -182,4 +183,11 @@ test('the short form keeps the same rounded number', () => {
   assert.equal(coldLineShort(483_214), 'Cache cold: re-reads about 480k');
   assert.equal(coldLineShort(1_234_567), 'Cache cold: re-reads about 1.2M');
   assert.equal(coldLineShort(996_000), 'Cache cold: re-reads about 1M');
+});
+
+test('a phone: the line folds with the bar, not with .awake, so a kept draft stays still', () => {
+  const css = fs.readFileSync(new URL('../web/css/split.css', import.meta.url), 'utf8');
+  const fold = css.match(/^(body\.split\.stack #feed \.item\.open \.composer:not\(\.awake\)[^\n]*?) \.c-bar\b/m)?.[1];
+  assert.ok(fold, 'the rule that folds the bar');
+  assert.ok(css.includes(`${fold} > .c-hint:has(> .c-cold-row)`), 'the line folds on the same conditions');
 });

@@ -29,6 +29,9 @@ narrow browser's under the media query (the reply box's mode button is icon-only
   in the app and in a browser up to 720px, `body.hint-row`). Flex text inside a bar that doesn't wrap
   squeezes into a word-wide column. Anything
   that changes with what's typed keeps its slot, so Send and the input never move sideways.
+- A folded reply box is one quiet line. A line that only informs (*Cache gone cold*) folds with the
+  bar, on the bar's own conditions, so it arrives with the buttons and a kept draft doesn't move. A line
+  you set yourself (a send time) stays.
 - A status line stays one line at any width and text size: what doesn't fit drops whole, least
   important first (the working panel's action count, then its time), and the name ends in `…`
   (`.w-status`: wrap onto a second line the box clips). A placeholder stays one line and fades out

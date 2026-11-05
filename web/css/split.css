@@ -510,8 +510,10 @@ body.split #feed .item.open > .it-body .composer { box-shadow: var(--shadow-1); 
 /* Side by side the follow-up box keeps its bar: folding it moved the notices above it ~30px each
    time focus left. Stacked (a phone) it's one quiet line until you click into it (or it has
    something in it), where the keyboard moves the page anyway; once you're in it, it stays open
-   through its pickers (.awake, composer.js) until you move elsewhere. */
-body.split.stack #feed .item.open .composer:not(.awake):not(.g-on):not(:has(.reply:focus)):not(:has(.open)):has(.reply:placeholder-shown):not(:has(.tray:not([hidden]))) .c-bar { display: none; }
+   through its pickers (.awake, composer.js) until you move elsewhere. The cold line (body.hint-row:
+   a row of its own) folds with the bar, so a task going cold never moves the quiet box. */
+body.split.stack #feed .item.open .composer:not(.awake):not(.g-on):not(:has(.reply:focus)):not(:has(.open)):has(.reply:placeholder-shown):not(:has(.tray:not([hidden]))) .c-bar,
+body.split.stack #feed .item.open .composer:not(.awake):not(.g-on):not(:has(.reply:focus)):not(:has(.open)):has(.reply:placeholder-shown):not(:has(.tray:not([hidden]))) > .c-hint:has(> .c-cold-row) { display: none; }
 body.split #feed .item.open .composer:not(.awake):not(:has(.reply:focus)) { box-shadow: none; }
 body.split #feed .item.open > .it-body > .it-dock { padding: 14px 0 16px; }
 
