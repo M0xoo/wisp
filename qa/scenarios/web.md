@@ -559,10 +559,12 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Steps:**
   1. Type a reply and press Enter.
   2. Open Changes, or any panel not loaded yet.
+  3. Stop wisp answering instead (`kill -STOP` its process). On a finished task, and on a running one with two queued follow-ups, type a reply and press Enter. After the toast, `kill -CONT` it and press Enter again.
 - **Expected:**
   - 1: a red toast above the reply box says *Can’t reach wisp. Check the connection and try again.*, and the text stays in the box. Never *Failed to fetch*.
   - 2: the same words in the panel.
-- **Suite** (`test/api-errors.test.js`), **Manual** (real Chrome)
+  - 3: the box empties and a finished task shows Working at once. By 20 s the text is back, the toast says *wisp took too long to answer. Try again.* and the finished task is back in Needs you. Sent again, the reply runs once (the stalled request may land first: one new turn, not two), the task doesn't stay on Working, and both queued follow-ups are still there, also after Stop.
+- **Suite** (`test/api-errors.test.js`, `test/reply-send.test.js`, `test/reply-once.test.js`), **Manual** (real Chrome)
 
 ### WEB-59 · Old worktrees: what goes, what stays, and that it comes back
 - **Steps:** with finished worktree tasks (one with an uncommitted file, one with an open PR, one kept with *Keep worktree*, one running, and a folder in `worktrees/` no task knows), open Settings → Worktrees. Set *Clean up automatically* to 3 days; click **Clean up N**; Remove the uncommitted one; reply to a cleaned task.
