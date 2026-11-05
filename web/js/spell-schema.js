@@ -389,6 +389,7 @@ export const PARTS = {
   // The review's list of what the user ruled out (and Done when) it checked the diff against, and
   // on a finding that breaks one, the user's words.
   'panel.pr.review.constraints': '#sidePanel .pn-xrv .xrv-cons',
+  'panel.pr.review.coverage': '#sidePanel .pn-xrv .xrv-cover',
   'panel.pr.review.rule': '#sidePanel .pn-xrv .xrv-rule',
   'panel.checks': '#sidePanel .pn-checks',
   'panel.conversation': '#sidePanel .pn-talk',

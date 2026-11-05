@@ -10,23 +10,60 @@ import { gitBin } from './git.js';
 
 const MAX_DIFF = 24_000;
 
-// The run's changes against its base: tracked diff plus new files.
-export function diffOf(dir, base = 'HEAD') {
+const UNTRACKED_SHOWN = 30;
+const UNTRACKED_CHARS = 4000;
+
+// text in pieces, each starting at a line that begins with `mark`; what comes before the first is
+// the first piece. Not a /^/m regex: that also matches after a bare \r inside a line of code.
+export function splitAt(text, mark) {
+  const at = [0];
+  for (let i = text.indexOf(`\n${mark}`); i !== -1; i = text.indexOf(`\n${mark}`, i + 1)) at.push(i + 1);
+  return at.map((from, n) => text.slice(from, at[n + 1]));
+}
+
+// The path a section of `git diff` is about: the new name of a rename or copy, else its header.
+// Diff lines all start with +, - or a space, so neither can match inside the code. The prefixes are
+// optional for diff.noprefix and diff.mnemonicPrefix. A path git still quotes (a tab, a quote)
+// keeps its escapes: it won't match `files`, so it reads as not reviewed, the safe way round.
+const unquote = (p) => p.replace(/^"(.*)"$/, '$1');
+function sectionPath(text) {
+  const to = text.match(/(?:^|\n)(?:rename|copy) to (.+)/);
+  if (to) return unquote(to[1]);
+  const m = text.match(/^diff --git "?(?:[a-z]\/)?(.*?)"? "?(?:[a-z]\/)?\1"?(?:\n|$)/);
+  return m ? m[1] : text.split('\n')[0].replace(/^diff --git /, '');
+}
+
+// The run's changes against its base, per file: { sections: [{ path, text, cut? }], files } with
+// every changed path in `files`, so a file with no section (past the untracked cap, or the diff
+// failed) can be told from one that didn't change. failed: git answered neither, so an empty list
+// says nothing. A linked node_modules is an untracked file to git, not a change.
+export function diffSections(dir, base = 'HEAD') {
   const run = (args) => {
     try {
       return execFileSync(gitBin(), args, { cwd: dir, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 << 20, timeout: 15_000 }).toString();
     } catch {
-      return '';
+      return null;
     }
   };
-  let out = run(['diff', base, '--', '.', ':(exclude)node_modules']);
-  for (const f of run(['ls-files', '--others', '--exclude-standard']).split('\n').filter(Boolean).slice(0, 30)) {
+  const list = (out) => (out || '').split('\0').filter(Boolean);
+  const paths = ['--', '.', ':(exclude)node_modules'];
+  const tracked = run(['-c', 'core.quotepath=off', 'diff', base, ...paths]);
+  const listed = run(['diff', '--name-only', '-z', base, ...paths]);
+  const untracked = list(run(['ls-files', '-z', '--others', '--exclude-standard']));
+  const sections = tracked ? splitAt(tracked, 'diff --git ').map((text) => ({ path: sectionPath(text), text })) : [];
+  for (const f of untracked.slice(0, UNTRACKED_SHOWN)) {
     try {
-      out += `\n--- /dev/null\n+++ b/${f}\n${fs.readFileSync(path.join(dir, f), 'utf8').slice(0, 4000).split('\n').map((l) => `+${l}`).join('\n')}`;
+      const body = fs.readFileSync(path.join(dir, f), 'utf8');
+      const text = `\n--- /dev/null\n+++ b/${f}\n${body.slice(0, UNTRACKED_CHARS).split('\n').map((l) => `+${l}`).join('\n')}`;
+      sections.push({ path: f, text, ...(body.length > UNTRACKED_CHARS && { cut: true }) });
     } catch {}
   }
-  return out;
+  const files = [...new Set([...list(listed), ...untracked.filter((f) => !/^node_modules(\/|$)/.test(f)), ...sections.map((s) => s.path)])];
+  return { sections, files, ...(tracked === null && listed === null && { failed: true }) };
 }
+
+// The same as one string: tracked diff plus new files.
+export const diffOf = (dir, base = 'HEAD') => diffSections(dir, base).sections.map((s) => s.text).join('');
 
 const changed = (d) => d.split('\n').filter((l) => /^[+-](?![+-])/.test(l)).length;
 

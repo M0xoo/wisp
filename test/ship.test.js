@@ -338,10 +338,22 @@ test('review by another harness: off by default; on, another harness reviews the
     const again = await until(async () => (reviews().length === before + 3 && (await summaryOf(s.id)).review?.status === 'done' ? summaryOf(s.id) : null));
     assert.deepEqual(again.review.findings, []);
     assert.equal(again.review.summary, 'Looks right');
+    assert.deepEqual([again.review.coverage.seen, again.review.coverage.missing], [again.review.coverage.files, []]);
+    // More new files than the reviewer gets: no findings is not a pass, and the summary says what it read.
+    const wt = (await session(s.id)).worktree.path;
+    const extra = Array.from({ length: 33 }, (_, i) => path.join(wt, `extra-${String(i).padStart(2, '0')}.txt`));
+    for (const f of extra) fs.writeFileSync(f, 'x');
+    await api(`/sessions/${s.id}/review`, { body: {} });
+    const part = await until(async () => (reviews().length === before + 4 && (await summaryOf(s.id)).review?.status === 'done' ? summaryOf(s.id) : null));
+    const { coverage } = part.review;
+    assert.deepEqual(coverage.missing, ['extra-30.txt', 'extra-31.txt', 'extra-32.txt']);
+    assert.equal(coverage.seen, coverage.files - 3);
+    assert.equal(part.review.summary, 'No issues in what it read.');
+    for (const f of extra) fs.rmSync(f);
     // A harness picked by name reviews, even the author's own.
     await api('/config', { method: 'PATCH', body: { defaults: { review: 'claude' } } });
     await api(`/sessions/${s.id}/review`, { body: {} });
-    await until(async () => (await summaryOf(s.id)).review?.status === 'done' && reviews().length === before + 4);
+    await until(async () => (await summaryOf(s.id)).review?.status === 'done' && reviews().length === before + 5);
     assert.equal((await summaryOf(s.id)).review.by.agent, 'claude');
     // Merge isn't blocked by it.
     const merged = await api(`/sessions/${s.id}/merge`, { body: {} });

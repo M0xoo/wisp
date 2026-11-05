@@ -36,7 +36,7 @@ import { draftInto } from './composer.js';
 import { paintMini } from './turns.js';
 import { expand } from './feed.js';
 import { agentName } from './runners.js';
-import { fixPr, mergePr, prsOf, reviewState, shipDialog, shippable, startReview } from './ship.js';
+import { fixPr, mergePr, partOfDiff, prsOf, reviewState, shipDialog, shippable, startReview } from './ship.js';
 import { slotHtml, spellProp } from './spells.js';
 import { isSplit, isStacked, relayout, splitOpen } from './split.js';
 import { connect, SCREEN_HTML, termState, TermView, TOUCH } from './term-view.js';
@@ -522,7 +522,7 @@ function verdict(p, s) {
   // Review by another harness: Merge stays, but the line says it isn't reviewed or what it found.
   const rv = s?.pr?.number === p.number ? reviewState(s) : null;
   if (rv && rv.kind !== 'pass') {
-    const why = rv.kind === 'running' ? 'being reviewed' : rv.kind === 'issues' ? `review found ${rv.n} issue${rv.n > 1 ? 's' : ''}` : rv.kind === 'tests' ? 'tests fail on its head' : 'not reviewed';
+    const why = rv.kind === 'running' ? 'being reviewed' : rv.kind === 'issues' ? rv.part ? `${rv.n} issue${rv.n > 1 ? 's' : ''}, partly reviewed` : `review found ${rv.n} issue${rv.n > 1 ? 's' : ''}` : rv.kind === 'tests' ? 'tests fail on its head' : rv.label === 'Partly reviewed' ? 'partly reviewed' : 'not reviewed';
     return { tone: rv.kind === 'issues' || rv.kind === 'tests' ? 'fail' : 'pending', text: `Can merge · ${why}`, btn: ['merge', 'Merge', 'ghost'] };
   }
   return { tone: 'pass', text: rv ? 'Ready to merge · reviewed' : 'Ready to merge', btn: ['merge', 'Merge', 'primary'] };
@@ -531,6 +531,35 @@ function verdict(p, s) {
 // Review by another harness: who reviewed, the tests on the PR's head, and each finding with
 // Send to agent; Review again (or Review now) at the foot.
 const SEV = { high: 'High', medium: 'Medium', low: 'Low' };
+// How much of the diff the reviewer had. A whole diff is one quiet line. A partial one is a box above
+// the summary, so "No issues…" is never read first, naming the first few files it didn't have, with
+// the rest behind the fold. Reviews from before this was recorded have no coverage, and no line.
+const COVER_NAMES = 6;
+function coverHtml(c, id) {
+  if (!c?.files) return '';
+  const code = (f) => `<code>${esc(f)}</code>`;
+  const part = partOfDiff(c, code);
+  if (!part) return `<p class="xrv-cover">Reviewed ${c.files === 1 ? 'the one file' : `all ${c.files} files`}.</p>`;
+  const room = fold(id, 'coverage') ? Infinity : COVER_NAMES;
+  const named = c.cut.length + c.missing.length;
+  const cut = c.cut.slice(0, room);
+  const gone = c.missing.slice(0, room - cut.length);
+  const list = (names, rest) => {
+    const words = names.map(code);
+    return rest ? `${words.join(', ')}, and ${rest} more` : words.join(', ');
+  };
+  const unnamed = c.files - c.seen - named; // past coverage's cap
+  const left = c.missing.length - gone.length + unnamed;
+  const notRead = gone.length ? list(gone, left) : left ? `${left} other file${left > 1 ? 's' : ''}` : '';
+  const oneFile = c.files === 1 && !c.seen; // the first line already named it
+  return `<div class="xrv-cover partial">${icon('warn')}<div>
+    <p class="xrv-cover-h">Reviewed ${part}.</p>
+    ${cut.length && !oneFile ? `<p>Partly read: ${list(cut, c.cut.length - cut.length)}.</p>` : ''}
+    ${notRead ? `<p>Not reviewed: ${notRead}.</p>` : ''}
+    ${named <= COVER_NAMES ? '' : room === Infinity ? `<button class="pn-fold" data-fold="coverage">${icon('chevron')}Fold the list</button>` : `<button class="pn-fold shut" data-fold="coverage">Show all${icon('chevron', 'chev')}</button>`}
+  </div></div>`;
+}
+
 function xreviewHtml(s, p, canAsk) {
   if (s?.pr?.number !== p.number || p.state !== 'OPEN') return '';
   const v = reviewState(s);
@@ -552,11 +581,20 @@ function xreviewHtml(s, p, canAsk) {
       </li>`)
     .join('');
   // What the user ruled out (and Done when) that the reviewer checked the diff against; a broken one says so.
+  // On a partial review a rule not broken in what it read may still be broken in what it didn't: no tick.
   const broken = new Set(r.findings.filter((f) => f.constraint).map((f) => f.constraint));
+  const partial = !!partOfDiff(r.coverage);
+  const unbroken = partial ? ['unsure', 'minus'] : ['held', 'check'];
   const cons = r.constraints?.length
-    ? `<div class="xrv-cons"><p class="xrv-cons-h">Checked against what you said</p><ul>${r.constraints.map((c, i) => `<li class="${broken.has(i + 1) ? 'broken' : 'held'}">${icon(broken.has(i + 1) ? 'x' : 'check')}<span>${esc(c)}</span></li>`).join('')}</ul></div>`
+    ? `<div class="xrv-cons"><p class="xrv-cons-h">${partial ? 'Only partly checked' : 'Checked'} against what you said</p><ul>${r.constraints
+        .map((c, i) => {
+          const [cls, ic] = broken.has(i + 1) ? ['broken', 'x'] : unbroken;
+          return `<li class="${cls}">${icon(ic)}<span>${esc(c)}</span></li>`;
+        })
+        .join('')}</ul></div>`
     : '';
-  return `<section class="pn-xrv">${head}<p class="xrv-sum">${esc(r.summary || '')}</p>${tests}${cons}${items ? `<ul>${items}</ul>` : ''}<div class="xrv-foot">${canAsk && r.findings.length > 1 ? `<button class="ghost xs" data-a="send" data-kind="findings" title="Put every finding in the reply box for the agent">${icon('send')}<span>Send all to agent</span></button>` : ''}<span class="grow"></span>${again}</div></section>`;
+  const cover = coverHtml(r.coverage, s.id);
+  return `<section class="pn-xrv">${head}${partial ? cover : ''}<p class="xrv-sum">${esc(r.summary || '')}</p>${partial ? '' : cover}${tests}${cons}${items ? `<ul>${items}</ul>` : ''}<div class="xrv-foot">${canAsk && r.findings.length > 1 ? `<button class="ghost xs" data-a="send" data-kind="findings" title="Put every finding in the reply box for the agent">${icon('send')}<span>Send all to agent</span></button>` : ''}<span class="grow"></span>${again}</div></section>`;
 }
 
 function checksHtml(id, p, canAsk) {

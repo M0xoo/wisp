@@ -272,6 +272,16 @@ textarea.rn-cmd { height: auto; padding: 6px 10px; line-height: 1.5; white-space
 /* Review by another harness: summary, the tests on the PR's head, findings by severity */
 .pn-xrv h4 .n { margin-left: 6px; color: var(--bad); }
 .xrv-sum { margin: 0 0 6px; color: var(--ink-2); line-height: 1.5; }
+.xrv-cover { margin: 0 0 6px; color: var(--muted); font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.xrv-cover.partial {
+  display: flex; align-items: flex-start; gap: 7px; margin: 0 0 8px; padding: 8px 10px; border-radius: 9px; color: var(--ink-2);
+  background: color-mix(in srgb, var(--warn) 7%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 28%, var(--line));
+}
+.xrv-cover.partial > .i { width: 13px; height: 13px; flex: none; margin-top: 2px; color: var(--warn); }
+.xrv-cover.partial > div { min-width: 0; }
+.xrv-cover p { margin: 2px 0 0; }
+.xrv-cover p.xrv-cover-h { margin: 0; color: var(--ink); font-weight: 500; }
+.xrv-cover .pn-fold { display: flex; }
 .xrv-tests { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; color: var(--muted); font-size: 12.5px; }
 .xrv-tests .i { width: 13px; height: 13px; flex: none; color: var(--good); }
 .xrv-tests.fail .i { color: var(--bad); }
@@ -286,6 +296,7 @@ textarea.rn-cmd { height: auto; padding: 6px 10px; line-height: 1.5; white-space
 .xrv-cons .i { width: 13px; height: 13px; flex: none; margin-top: 2px; color: var(--good); }
 .xrv-cons li.broken { color: var(--ink); }
 .xrv-cons li.broken .i { color: var(--bad); }
+.xrv-cons li.unsure .i { color: var(--muted); }
 .xrv-rule { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
 .xrv-rule q { color: var(--ink-2); }
 .xrv-f { padding: 10px 0; border-top: 1px solid var(--line); }
