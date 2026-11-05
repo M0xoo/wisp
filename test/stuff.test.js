@@ -426,10 +426,10 @@ test('app data: an app whose wisp-app.json asks gets its own SQLite database, ma
   assert.throws(() => srv.stuff.addApp(noSeed, {}), /No missing\.sql/);
 });
 
-test('app data: a query that never ends is stopped, and the next one works; the size cap holds', { skip: !sqlite && 'needs node:sqlite' }, async () => {
+test('app data: a query that never ends is stopped, and the next one works', { skip: !sqlite && 'needs node:sqlite' }, async () => {
   const http = await import('node:http');
   const { createAppDb } = await import('../server/app-db.js');
-  const db = createAppDb({ maxBytes: 64 * 1024, timeoutMs: 800 });
+  const db = createAppDb({ timeoutMs: 800 });
   const file = path.join(tmp('db-unit'), 'a.sqlite');
   // Made here, not by a seed: making a file can take the whole 800 ms on a loaded Windows box.
   const made = new sqlite.DatabaseSync(file);
@@ -446,12 +446,6 @@ test('app data: a query that never ends is stopped, and the next one works; the 
     assert.deepEqual([forever.status, /stopped/.test(forever.error)], [503, true]);
     const next = await q('SELECT 1 AS one');
     assert.deepEqual(next.rows, [{ one: 1 }], `a fresh worker takes over: ${JSON.stringify(next)}`);
-    let full;
-    for (let i = 0; i < 40 && !full; i++) {
-      const r = await q('INSERT INTO t VALUES (?)', ['x'.repeat(8000)]);
-      if (r.error) full = r;
-    }
-    assert.match(full?.error || '', /full \(0 MB at most\)|full/);
 
     // A wisp too busy to read the answer in time (a loaded CI box) doesn't stop a quick query.
     const real = globalThis.setTimeout;
@@ -469,6 +463,32 @@ test('app data: a query that never ends is stopped, and the next one works; the 
     } finally {
       globalThis.setTimeout = real;
     }
+  } finally {
+    db.close();
+    s.close();
+  }
+});
+
+// With the default time limit: the 800 ms above is there to stop a query quickly, and an INSERT on
+// a loaded Windows box can take all of it (run 41839676469), which isn't the cap saying no.
+test('app data: the size cap holds', { skip: !sqlite && 'needs node:sqlite' }, async () => {
+  const http = await import('node:http');
+  const { createAppDb } = await import('../server/app-db.js');
+  const db = createAppDb({ maxBytes: 64 * 1024 });
+  const file = path.join(tmp('db-cap'), 'a.sqlite');
+  const made = new sqlite.DatabaseSync(file);
+  made.exec('CREATE TABLE t (v TEXT);');
+  made.close();
+  const s = http.createServer((req, res) => db.handle(req, res, { file }));
+  await new Promise((r) => s.listen(0, '127.0.0.1', r));
+  try {
+    let full;
+    for (let i = 0; i < 40 && !full; i++) {
+      const r = await fetch(`http://127.0.0.1:${s.address().port}/_wisp/db`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sql: 'INSERT INTO t VALUES (?)', params: ['x'.repeat(8000)] }) });
+      const j = await r.json();
+      if (j.error) full = j;
+    }
+    assert.match(full?.error || '', /full \(0 MB at most\)/);
   } finally {
     db.close();
     s.close();
