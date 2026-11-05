@@ -28,6 +28,7 @@ import { bad, clip, expand, MODES } from '../util.js';
 import { APP_MAX_STATE } from '../../web/js/app-doc.js';
 import { watchDoc } from '../watch.js';
 import { TAKEOVER_NOTE, tuiArgv } from '../services/tui.js';
+import { sendOnce } from '../services/send-once.js';
 import { terminalAsk } from '../../web/js/slash-text.js';
 import { compactOffer } from '../../web/js/cold-cache.js';
 
@@ -87,6 +88,23 @@ export function register(r, app) {
     if (!s) return c.send(404, { error: 'no such session' });
     return fn(c, s);
   };
+  // A follow-up with a sendId goes once, however many times it's sent (services/send-once.js).
+  const sent = sendOnce();
+  const once = (fn) =>
+    one(async (c, s) => {
+      const { sendId } = await c.body();
+      if (typeof sendId !== 'string' || !sendId || sendId.length > 64) return fn(c, s);
+      let first = false;
+      const [status, data] = await sent(`${s.id}:${sendId}`, async () => {
+        first = true;
+        let out;
+        await fn({ ...c, send: (...answer) => (out = answer) }, s);
+        return out;
+      });
+      // The page shows it as started again, and no run is coming to say otherwise: tell it what's so.
+      if (!first) app.sessionChanged(s);
+      c.send(status, data);
+    });
   // The welcome tour runs no agent: nothing to follow up, revert or roll back.
   const notTour = (s, what) => {
     if (s.agent === 'wisp') throw bad(`This is the tour — launch a real wisp to ${what}.`);
@@ -420,7 +438,7 @@ export function register(r, app) {
   r.route(
     'POST',
     '/sessions/:id/reply',
-    one(async (c, s) => {
+    once(async (c, s) => {
       const { text, attachments, queue, mode, agent, model, effort, account, machine, subagents, preset, confirmLimit, goal } = await c.body();
       if (!text?.trim()) return c.send(400, { error: 'text required' });
       notTour(s, 'follow up');
@@ -731,7 +749,7 @@ export function register(r, app) {
   r.route(
     'POST',
     '/sessions/:id/answer',
-    one(async (c, s) => {
+    once(async (c, s) => {
       const { text } = await c.body();
       if (!text?.trim()) return c.send(400, { error: 'text required' });
       c.send(200, { ok: runner.answer(s, text.trim()) });

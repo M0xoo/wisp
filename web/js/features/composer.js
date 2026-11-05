@@ -37,6 +37,7 @@ import { coldLine, coldLineShort, coldReply } from '../cold-cache.js';
 import { parseWhen } from '../when.js';
 import { addPlan, aheadLabel, followUpItems, planAsk, planSaid, scheduleFollowUp, timeMenu, whenTip } from './later.js';
 import { keyedRows, queuedItems } from './queued.js';
+import { sendFollowUp } from './reply-send.js';
 import { hideHold, holdNow, showHold } from './hold.js';
 import { micFor, micHtml } from './dictate.js';
 import { commentCount, commentTray, paintCommentTray, restoreComments, takeComments, withPending } from './comments.js';
@@ -739,8 +740,8 @@ export async function sendReply(id, text, { confirm = false } = {}) {
   const undo = startOptimistic(id, text, files, { answering, mode, run, team: team?.team });
   try {
     const out = await (answering && !withGoal
-      ? api(`/sessions/${id}/answer`, { method: 'POST', body: { text } })
-      : api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments, queue: queueing(), mode, ...run, ...(team && { subagents: team.team }), ...(withGoal && { goal: { text: withGoal.text } }), ...(confirm && { confirmLimit: true }) } }));
+      ? sendFollowUp(id, 'answer', { text })
+      : sendFollowUp(id, 'reply', { text, attachments, queue: queueing(), mode, ...run, ...(team && { subagents: team.team }), ...(withGoal && { goal: { text: withGoal.text } }), ...(confirm && { confirmLimit: true }) }));
     // A wisp on another computer from before goals rode on follow-ups sends it but drops the goal.
     if (withGoal && !out?.goal) {
       unGoal();
@@ -773,7 +774,7 @@ async function replyInTerminal(id, ta, text, said, notes, attachments, files) {
   const live = !!S.sessions.get(id)?.term;
   openTerm(id, { starting: !live });
   try {
-    await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments } });
+    await sendFollowUp(id, 'reply', { text, attachments });
     if (!live) termStarted(id, true);
   } catch (err) {
     if (!live) termFailed(id);
