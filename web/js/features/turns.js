@@ -6,7 +6,7 @@ import { esc, inlineMd, md } from '../md.js';
 import { mentionHtml } from '../mention-text.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
-import { $, $$, el, icon } from '../core/dom.js';
+import { $, $$, beforePaint, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { turnTime } from '../core/format.js';
 import { toastError } from '../ui/toast.js';
@@ -33,6 +33,7 @@ import { renderOverlapStrip } from './overlaps.js';
 import { changesButton, openPanel, paintDoor, shellButton, shellLive, watchButton } from './panel.js';
 import { paintSplit } from './split.js';
 import { copiesOf, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize } from './team.js';
+import { noOutputLine, stream } from '../no-output.js';
 import { appendStep, KIND_ICON, pickView, renderLiveTranscript, renderTranscript, sameStep, transcriptOn, updateStep } from './transcript.js';
 import { paintCard } from './spells.js';
 import { paintGoal, wireGoalSlot } from './goal.js';
@@ -820,6 +821,9 @@ function renderWorking(s, t, tx) {
   const tip = btwTip(s.id);
   if (tip && tx) $('.w-actions', node).prepend(tip);
   else if (tip) $('.peek', node).after(tip);
+  const quiet = el(`<span class="w-noout" data-turn="${esc(t.id)}" hidden></span>`);
+  $('.w-status', node).append(quiet);
+  if (stream.ok(s.id, Date.now())) paintQuiet(quiet, s, t, Date.now()); // past 12 min on a reload: there at once
   const ticker = $('.ticker', node);
   if (ticker)
     t.activity
@@ -852,6 +856,38 @@ function renderWorking(s, t, tx) {
     if (!log.hidden) log.innerHTML = t.activity.map((a) => actItem(a).outerHTML).join('');
   };
   return node;
+}
+
+function paintQuiet(n, s, t, now) {
+  const text = noOutputLine(s, t, now);
+  if (!text && !n.textContent) return;
+  if (n.textContent !== text) {
+    n.textContent = text;
+    n.hidden = !text;
+  }
+  if (n.isConnected) fitQuiet(n);
+  else beforePaint(() => fitQuiet(n)); // a panel still being built
+}
+
+// The row makes room for the line as wide as it shows now: none while a spell hides it, so the count
+// and the time are back. Every tick, as a spell can come and go with the words unchanged.
+function fitQuiet(n) {
+  const w = n.offsetWidth;
+  const row = n.parentElement;
+  row.classList.toggle('w-quiet', w > 0);
+  if (row.style.getPropertyValue('--w-noout') !== `${w}px`) row.style.setProperty('--w-noout', `${w}px`);
+}
+
+// The 1 s tick: from the task as it is now, not as it was rendered, so new activity or a question
+// clears the line. A copy the stream can't vouch for keeps what's shown (no-output.js freshness).
+export function paintNoOutput() {
+  const now = Date.now();
+  for (const n of $$('.w-noout')) {
+    const id = n.closest('.item[data-id]')?.dataset.id;
+    const s = id && S.full.get(id);
+    const t = s?.turns.find((x) => x.id === n.dataset.turn);
+    if (t && stream.ok(id, now)) paintQuiet(n, s, t, now);
+  }
 }
 
 // A line in the ticker and the activity log. A message (kept whole for the transcript) shows its start.

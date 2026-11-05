@@ -15,6 +15,8 @@ import { keepFromSnapshot, renderFeed, reveal, scheduleRefetch, syncUrl, toggleS
 import { paintCold } from './features/composer.js';
 import { focusLauncher, renderLauncher } from './features/launcher.js';
 import { recall, startShell, syncing } from './features/cache.js';
+import { paintNoOutput } from './features/turns.js';
+import { stream } from './no-output.js';
 import { connect, loadConfig, loadSessions, setConfig } from './features/live.js';
 import { paintGetApp } from './features/getapp.js';
 import { loadMachines, openComputers, openMachines, setMachines } from './features/machines.js';
@@ -73,6 +75,7 @@ $('#feed').addEventListener('keydown', (e) => {
 // elapsed timers + "ago" stamps
 setInterval(() => {
   $$('.elapsed[data-start]').forEach((n) => (n.textContent = fmtDuration(Date.now() - Number(n.dataset.start))));
+  paintNoOutput();
 }, 1000);
 setInterval(() => {
   for (const [id, n] of S.nodes) {
@@ -135,8 +138,10 @@ function paintSnapshot(snap) {
 (async () => {
   const snap = recall();
   if (snap?.config && snap.sessions) {
+    stream.drop(); // a copy from last time: nothing vouches for it until it's read again
     paintSnapshot(snap);
     syncing(true);
+    stream.hello(Date.now()); // from here the stream comes first, then the reads
   }
   // The stream first: anything that changes while the lists load arrives on it. Its `hello` loads
   // the lists too, and shares the requests below while they're out (live.js).

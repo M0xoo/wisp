@@ -19,6 +19,8 @@ const { GoalRuns, refsOf } = await import('../server/goal-runs.js');
 const { Store } = await import('../server/store.js');
 const { askJson } = await import('../server/quick.js');
 const { maskDiffs } = await import('../server/env-mask.js');
+const { adapters } = await import('../server/adapters/index.js');
+const { noOutputLine } = await import('../web/js/no-output.js');
 
 let srv;
 let base;
@@ -65,6 +67,61 @@ test('askJson hands every event to onEvent, and its answer is the same with or w
   assert.ok(['text', 'tool', 'tool_output', 'result'].every((t) => seen.includes(t)), seen.join());
   const thrown = await askJson({ agents, prompt, cwd: makeRepo(), pick: { agent: 'claude', model: '' }, onEvent: () => { throw new Error('no'); } });
   assert.equal(thrown.verdict, 'met', 'a recorder that throws breaks nothing');
+});
+
+test('a call that printed nothing still reaches the page: its update carries the stamp', async () => {
+  const s = await api('/sessions', { prompt: 'do it', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: 'it works [met after 1]' } });
+  const done = await landed(s.id);
+  const runs = srv.runner.goals.runs;
+  const rec = runs.start(srv.store.get(s.id), { turnId: done.turns[0].id, round: 1, prompt: 'x', name: 'A' });
+  runs.event(rec, { type: 'tool', kind: 'run', id: 'c1', label: 'Waiting', detail: 'until x; do sleep 5; done' });
+  const heard = [];
+  const was = runs.onChange;
+  runs.onChange = (e) => {
+    heard.push(e);
+    was?.(e);
+  };
+  runs.event(rec, { type: 'tool_output', id: 'c1', text: '' });
+  runs.onChange = was;
+  runs.finish(rec, null);
+  assert.equal(heard.length, 1);
+  assert.equal(heard[0].update, true);
+  assert.equal(typeof heard[0].item.outAt, 'number');
+  assert.equal(heard[0].item.output, undefined);
+});
+
+test('a failed call closes its step: the page hears it, and the error step stays as it was', { concurrency: false }, async (t) => {
+  const real = adapters.claude.run;
+  t.after(() => (adapters.claude.run = real));
+  adapters.claude.run = ({ onEvent }) => {
+    onEvent({ type: 'tool', id: 'X', kind: 'agent', label: 'Delegating: read the repo' });
+    onEvent({ type: 'tool', id: 'R', kind: 'read', label: 'Reading a.js', file: 'a.js' });
+    onEvent({ type: 'tool_error', id: 'X', name: 'Task', text: 'boom' });
+    onEvent({ type: 'tool_error', id: 'R', name: 'Read', text: 'no such file' });
+    onEvent({ type: 'result', text: 'done' });
+    return { done: Promise.resolve(), stop() {} };
+  };
+  const heard = [];
+  const listen = (e) => heard.push(e);
+  srv.runner.on('activity', listen);
+  t.after(() => srv.runner.off('activity', listen));
+  const s = await api('/sessions', { prompt: 'do it', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
+  const done = await landed(s.id);
+  const steps = done.turns[0].activity.filter((a) => a.label);
+  const call = steps.find((a) => a.call === 'X');
+  assert.equal(typeof call.outAt, 'number', 'closed');
+  const updates = heard.filter((e) => e.sessionId === s.id && e.update);
+  assert.equal(updates.length, 1, 'only the step that can be stamped');
+  assert.equal(updates[0].item.call, 'X', 'the old step');
+  assert.equal(updates[0].turnId, done.turns[0].id);
+  assert.equal(updates[0].item.outAt, call.outAt);
+  const errors = steps.filter((a) => a.kind === 'error');
+  assert.deepEqual(errors.map((a) => a.label), ['Task failed: boom', 'Read failed: no such file']);
+  assert.ok(errors.every((a) => !a.call && !a.outAt), 'the error step as it was');
+  assert.equal(steps.find((a) => a.call === 'R').outAt, undefined, 'read steps stay as they are');
+  // What the fix is for: a run stuck after a failed Task gets its line.
+  const stuck = { ...done.turns[0], status: 'running', activity: [call, errors[0]] };
+  assert.match(noOutputLine({ state: 'running' }, stuck, errors[0].t + 13 * 60_000), /^No output for 13 min$/);
 });
 
 test('each judge that ran has a record the vote points at; one not installed has none', async () => {

@@ -29,6 +29,7 @@ import { applyTheme } from './theme.js';
 import { checkBuild, syncing } from './cache.js';
 import { streamDown, streamUp } from './reconnecting.js';
 import { homeScreenTags } from './homescreen.js';
+import { stream } from '../no-output.js';
 
 let es = null;
 let hiddenAt = 0;
@@ -36,6 +37,7 @@ let helloed = false;
 let firstStream = 0; // when the page opened its first stream
 
 export function connect() {
+  if (es) stream.drop(); // a new stream: the old one may have been dead for a while
   es?.close();
   firstStream ||= performance.now();
   es = new EventSource('/api/events');
@@ -45,6 +47,7 @@ export function connect() {
     if (this === es) {
       syncing(true);
       streamDown();
+      stream.drop();
     }
     if (this.readyState === EventSource.CLOSED && this === es) setTimeout(() => this === es && connect(), 3000);
   });
@@ -122,6 +125,9 @@ export function connect() {
     $('#launcher')?.placesChanged?.();
     bus.emit('agents');
   });
+  es.addEventListener('ping', () => {
+    stream.heard(Date.now());
+  });
   es.addEventListener('preferences', () => bus.emit('preferences'));
   es.addEventListener('stuff', () => bus.emit('stuff'));
   // Also after sleep or a reconnect: everything may have changed meanwhile.
@@ -129,6 +135,7 @@ export function connect() {
   // already have everything since; it waits for them instead of asking again.
   es.addEventListener('hello', () => {
     streamUp();
+    stream.hello(Date.now());
     const fresh = (load) => (helloed ? load() : load.since(firstStream));
     fresh(loadSessions)
       .then(() => syncing(false))
@@ -157,6 +164,11 @@ addEventListener('online', () => {
   if (!es) return;
   connect();
   for (const id of S.open) scheduleRefetch(id, 0); // the task on screen doesn't wait for the stream's hello
+});
+
+// The open task's copy came from the server: fetchOnce in feed.js, after every hello.
+bus.on('task', (id) => {
+  stream.read(id);
 });
 
 // Hide .env values turned on or off (Settings → Privacy): the open tasks come again masked or not.
@@ -234,6 +246,7 @@ function onTunnel(line) {
     tunnelToast = toast(`Can’t reach <b>${esc(COMPUTER || 'this computer')}</b>: ${esc(why)}`, { tone: 'bad', timeout: 600_000, action: { label: 'Computers', run: openComputers } });
   } else if (kind === 'lost') {
     syncing(true);
+    stream.drop();
   }
 }
 if (MOBILE) {
