@@ -69,3 +69,5 @@ export function countChanges(edits = []) {
 
 // Which of the files to read open by themselves when Changes first shows them: a few all, else the first.
 export const opensFirst = (files) => (files.length <= 3 ? files : files.slice(0, 1));
+// The same as files arrive, with some open already: past a few, one open is enough.
+export const opensNow = (files, open) => (files.length <= 3 || !open.size ? opensFirst(files) : []);

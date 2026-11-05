@@ -316,6 +316,36 @@ try {
     const many = await opened(['open-a.js', 'open-b.js', 'open-c.js', 'open-d.js']);
     ok(many.rows > 3 && many.open === 1, `only the first of many opens: ${many.open} of ${many.rows}`);
     await changes(many.t).click();
+    // Files that arrive with Changes open: a first look with nothing to open doesn't use up the opening,
+    // a few all open as they would after a reload, and your fold stops it.
+    const t = await launch({ prompt: 'say hello', cwd: makeClone().dir, mode: 'auto' });
+    const dir = (await settled(t.id)).worktree.path;
+    execFileSync('git', ['checkout', 'origin/main', '--', 'math.js'], { cwd: dir }); // the fake's edit: nothing of its own to open
+    const refresh = async () => {
+      await p.evaluate(() => dispatchEvent(new Event('focus')));
+      await p.waitForTimeout(600);
+    };
+    const shown = () => p.evaluate(() => [...document.querySelectorAll('.pn-changes .cx-file')].filter((x) => x.offsetParent).map((x) => ({ path: x.dataset.k.slice(2), open: x.classList.contains('open') })));
+    fs.writeFileSync(path.join(dir, 'package-lock.json'), '{}\n');
+    await p.locator(`.item[data-id="${t.id}"] .it-head`).click();
+    await p.waitForTimeout(300);
+    if (!(await p.locator('.pn-changes:visible').count())) await changes(t).click();
+    await p.locator('.pn-changes .cx-fold').waitFor({ timeout: 8000 });
+    ok((await p.locator('.pn-changes .cx-file.open').count()) === 0, 'only a generated file: nothing opens');
+    fs.writeFileSync(path.join(dir, 'arrive-a.js'), 'export const a = 1;\n');
+    await refresh();
+    const one = await shown();
+    ok(one.find((f) => f.path === 'arrive-a.js')?.open, `a file arriving after a first look with nothing to open opens: ${JSON.stringify(one)}`);
+    fs.writeFileSync(path.join(dir, 'arrive-b.js'), 'export const b = 1;\n');
+    await refresh();
+    const two = await shown();
+    ok(two.filter((f) => f.open).length === two.length && two.length > 1, `a few arriving all open, as after a reload: ${JSON.stringify(two)}`);
+    await p.locator('.pn-changes .cx-file.open .cx-row').first().click();
+    fs.writeFileSync(path.join(dir, 'arrive-c.js'), 'export const c = 1;\n');
+    await refresh();
+    const three = await shown();
+    ok(three.find((f) => f.path === 'arrive-c.js') && !three.find((f) => f.path === 'arrive-c.js').open && three.filter((f) => f.open).length === two.length - 1, `after your fold nothing else opens: ${JSON.stringify(three)}`);
+    await changes(t).click();
   });
 
   await check('WEB-47', 'side panel Changes: a long folder is cut to …/, never a bare ./', async () => {
@@ -445,6 +475,7 @@ try {
     await noOverflow(q);
     await q.shot('narrow');
     await q.evaluate(() => (document.querySelector('#feedWrap').scrollTop = 40));
+    await q.locator(`.item[data-id="${fresh.id}"] .it-head`).scrollIntoViewIfNeeded(); // the click would scroll it there
     const before = (await st()).top;
     await q.locator(`.item[data-id="${fresh.id}"] .it-head`).click();
     await q.waitForTimeout(600);
