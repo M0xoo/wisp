@@ -35,6 +35,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Long file names show whole in Changes.** The Stage and Viewed controls left a name about 140px in the default 480px panel, so `changes-open-first.test.js` lost its end. A name that doesn't fit now takes the whole line and the counts and controls drop under it, in the same columns as every other row; the other rows stay one line. On a phone the counts move to the controls' line, which gives the name their room.
 - **Changes stays current after Ship it.** Changes kept showing the Commit box, Stage boxes and *2 uncommitted* until a reload, and Commit then said there was nothing to commit. They now go as soon as the ship ends, in every open window, including when the push fails after the commit landed.
 - **A side discussion keeps its link back to a long-titled task.** With a long main task title the line above its first message read *Side discussion of …*, with no title and nothing to click. The title is what's cut now, the link stays, and its focus ring isn't clipped.
 - **A side discussion's clash card keeps its answers in view on a phone.** It no longer repeats the main task's lines when the diff shows them, or a second *what to do instead* box above the reply box, so *Keep main's version* isn't under the reply box when a phone opens it.

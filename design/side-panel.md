@@ -64,10 +64,10 @@ here*, also in its ⋯), except deleted and binary files. The editor covers the 
   left, or restored / removed for a file that came or went. Added and deleted files, binaries and
   hunks cut short (*Show more*, or past what git sent) have no hunk Revert: revert the file.
 - **Stage and commit**, as VS Code's Source Control and the Codex app's review pane (`changes.js`,
-  `server/stage.js`). Only in a worktree's git diff. Each file row has a stage toggle before Viewed:
-  **+** (*Stage file*) while it has changes to stage, **−** on `--accent-soft` (*Unstage file*,
-  `aria-pressed`) once all of it is staged, an accent dot on the **+** when part of it is. It's an
-  icon, never a box, so it can't be read as Viewed's tick; a committed file keeps its empty room, so
+  `server/stage.js`). Only in a worktree's git diff. Each file row has a stage toggle before Viewed,
+  in its style and in words: *Stage* while it has changes to stage, *Staged* (`aria-pressed`, the
+  box filled) once all of it is, *Part* (the box half filled) when part of it is. A bare + or −
+  beside the counts read as one of them. A committed file keeps its empty room, so
   Viewed and the rest never move. Each hunk's head row has **Stage** / **Unstage** before Revert,
   as wide as *Unstage* either way, shown like Revert (hover or focus, always on touch, 44px in the
   app); a committed hunk has none. Under the summary, while anything is staged or still to stage,
@@ -196,7 +196,11 @@ diff.* A diff of the project folder would hold the user's own work too.
 3. **Files**, sorted by path (keeps folders together; no tree: indents eat a 360px column). A row is
    30px (44px on touch): chevron · A/M/D/R badge · the path, its folder cut from the start before
    the name shortens (full path in `title`) · `+n` `−n` in fixed 5ch columns (a zero leaves its
-   column blank) · `⋯` (*Open in editor*, desktop and not deleted; *Copy path*). Binary files say
+   column blank) · `⋯` (*Open in editor*, desktop and not deleted; *Copy path*). A file name that
+   doesn't fit beside the counts and controls takes the whole line and they drop to a 30px line
+   under it, in the same columns at the right; a long folder alone never does that, it's cut. A name
+   that doesn't fit there either is cut from its end. Phones always use two lines: the name alone,
+   then the controls at the left and the counts at the right. Binary files say
    *binary* and have no chevron; a rename with no edits says *renamed*; deleted names are struck.
    Lockfiles, `*.min.*`, `dist/` and `build/` fold into one `--faint` row, *1 generated file* with
    its +/−, that unfolds in place. Past 200 files, *and 54 more*.
