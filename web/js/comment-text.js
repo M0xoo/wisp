@@ -36,6 +36,9 @@ export function blockLabel(b = {}) {
   return clip(`${kind}${which ? ` · ${which}` : ''}`.replace(/"/g, "'").replace(/\s+/g, ' ').trim(), 72);
 }
 
+// Ship it and Merge, when comments are still waiting: a line only, never a hold.
+export const unsentLine = (n) => (n ? `⚠ ${n === 1 ? '1 comment' : `${n} comments`} not sent yet: ${n === 1 ? 'it goes' : 'they go'} with your next follow-up.` : '');
+
 export const fmtTime = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
 // A line or lines of a diff (the side panel's Changes), named by the file as it is now. Lines only

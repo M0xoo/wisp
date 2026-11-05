@@ -2,7 +2,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { blockLabel, lineComment, readComments, withComments } from '../web/js/comment-text.js';
+import { blockLabel, lineComment, readComments, unsentLine, withComments } from '../web/js/comment-text.js';
 
 test('a block is named by its kind and which one', () => {
   assert.equal(blockLabel({ type: 'diff', file: 'server/auth.js' }), 'Diff · server/auth.js');
@@ -164,4 +164,10 @@ test('a sent prompt reads diff-line comments back, next to the others', () => {
   // A blank line of code whose trailing space was trimmed on the way still reads as code.
   const trimmed = sent.replace(/^> $/m, '>');
   assert.equal(readComments(trimmed).notes[0].quote, '  if (!user) return deny()\n');
+});
+
+test('Ship it and Merge say what is still waiting, and that it is not lost', () => {
+  assert.equal(unsentLine(0), ''); // nothing waiting, no line
+  assert.equal(unsentLine(1), '⚠ 1 comment not sent yet: it goes with your next follow-up.');
+  assert.equal(unsentLine(3), '⚠ 3 comments not sent yet: they go with your next follow-up.');
 });

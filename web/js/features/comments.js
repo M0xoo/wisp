@@ -6,20 +6,14 @@
 import { esc } from '../md.js';
 import { blockLabel, fmtTime, lineComment, readComments, withComments } from '../comment-text.js';
 import { $, $$, el, icon } from '../core/dom.js';
-import { load, S, save } from '../core/state.js';
+import { S } from '../core/state.js';
 import { popover, TOUCH } from '../ui/popover.js';
 import { toast } from '../ui/toast.js';
 import { changesOf, openFile, rowKey } from './changes.js';
+import { keep, listOf, pending } from './comment-store.js';
 import { sendReply, updateDock } from './composer.js';
 import { scrollByPx, topInset } from './scroll.js';
 import { isStacked } from './split.js';
-
-// session id -> its comments, in the order they go out: { id, turn, i (block), label, kind, quote,
-// x, y, at, note }; a diff line's (kind 'line') has { file, side, from, to, mixed, first, last (its
-// rows' keys) } instead of a turn and block. Kept like drafts: a reload doesn't lose them.
-const pending = new Map(load('wisp.comments', []));
-const keep = () => save('wisp.comments', [...pending].filter(([, l]) => l.length));
-const listOf = (id) => pending.get(id) || [];
 
 // Blocks that are buttons already: commenting on them means nothing.
 const SKIP = new Set(['next', 'actions', 'question', 'blocked', 'spell']);
@@ -27,7 +21,7 @@ const SKIP = new Set(['next', 'actions', 'question', 'blocked', 'spell']);
 const SPOT = '.img-box, .pv-screen, .app-box';
 const MEDIA = '.presentation > :is(.blk-image, .blk-video, .blk-preview, .blk-app)';
 
-export const commentCount = (id) => listOf(id).length;
+export { commentCount } from './comment-store.js';
 
 // The comments for the next follow-up, in its words; take() empties the tray as it goes out, and
 // restore() puts them back if the server refuses.
