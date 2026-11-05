@@ -489,7 +489,7 @@ Every page check also fails on an uncaught page error or a `console.error`.
   6. Cast a spell with `ui: { hide: ['composer.cold', 'composer.coldFork', 'limit.cold'] }`.
   7. Look at 1440, 1000 and 390 wide, and in the app's page, light and dark, side by side and stacked.
 - **Expected:**
-  - 1: nothing at 74 minutes. By 76, within 30 seconds and with no reload: *Cache gone cold: this reply re-reads about 480k* and **Fork…** in the hint, with no button moved and the transcript where it was.
+  - 1: nothing at 74 minutes. By 76, within 30 seconds and with no reload: *Cache gone cold: this reply re-reads about 480k* and **Fork…** in the hint, with no button moved and the transcript where it was. At 390 and in the app's page the folded box shows nothing and doesn't move: the line arrives with the bar when you tap the box, goes with it when you tap away, and stays beside a draft while the bar does.
   - 2: Fork… opens the Fork dialog. One Send click sends: no hold, no ask, no second step. The line goes while it runs.
   - 3: each one replaces the line; clearing it brings the line back.
   - 4: the 5-minute task shows it. The others show nothing.
