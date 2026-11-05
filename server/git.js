@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { inConductor } from './conductor.js';
 import { execFile } from './proc.js';
 import { bad } from './util.js';
 import { prepareWorktree } from './worktree-setup.js';
@@ -125,7 +126,8 @@ const realpath = (p) => {
   }
 };
 // git prints C:/Users/runneradmin/…, the folder may be C:\Users\RUNNER~1\…: same folder.
-const samePath = (a, b) => !!a && (process.platform === 'win32' ? realpath(a).toLowerCase() === realpath(b).toLowerCase() : realpath(a) === realpath(b));
+export const pathKey = (p) => (process.platform === 'win32' ? realpath(p).toLowerCase() : realpath(p));
+export const samePath = (a, b) => !!a && pathKey(a) === pathKey(b);
 
 // A fresh worktree + branch for one session, under <home>/worktrees. Returns null outside a repo.
 // Where a launch's worktrees come from: { root, base }, or null outside a repo with commits.
@@ -156,9 +158,15 @@ export async function createWorktree({ cwd, home, id, title, source, holdSetup }
   return { path: dir, cwd: sub && !sub.startsWith('..') ? path.join(dir, sub) : dir, branch, base: base.branch, baseRef: base.ref, head: base.sha || null, remote: base.remote, root, createdAt: Date.now(), ...((prepared.copied.length || prepared.ran.length || prepared.problems.length || prepared.held) && { prepared }) };
 }
 
+// A worktree wisp didn't make (services/bring-in.js): the user's, in place, and never ours to remove,
+// recreate or tidy. The mark, and where it lives in case the mark is ever lost: createWorktree only
+// writes under <wisp home>/worktrees, so this can't catch one of wisp's own.
+export const isForeign = (wt) => !!(wt?.foreign || inConductor(wt?.path));
+
 // Archiving removes a clean worktree; a follow-up brings it back from its branch.
 export async function ensureWorktree(wt) {
   if (!wt || fs.existsSync(wt.path)) return;
+  if (isForeign(wt)) throw bad(`This worktree's folder is gone: ${wt.path}`, 409); // no prune, and no add: that would make a new folder at its path
   await quiet(git(wt.root, ['worktree', 'prune']));
   await addWorktree(wt.root, [wt.path, wt.branch]);
 }
@@ -186,6 +194,7 @@ export async function worktreeStatus(wt, { merged } = {}) {
 // force: drop uncommitted work too. The branch goes only when nothing would be lost with it.
 export async function removeWorktree(wt, { force = false, branch = false } = {}) {
   if (!wt) return { removed: false };
+  if (isForeign(wt)) return { removed: false, foreign: true }; // whatever force and branch say
   if (fs.existsSync(wt.path)) {
     const st = await worktreeStatus(wt);
     if (st.dirty && !force) return { removed: false, dirty: st.dirty };
@@ -488,8 +497,11 @@ export async function merge(wt, number) {
   await gh(dir, ['pr', 'merge', String(number), '--squash', '--match-head-commit', pr.head]);
   pr = await prView(dir, number);
   const sync = await syncBase(wt.root, wt.base);
-  await removeWorktree(wt, { force: true, branch: 'force' });
-  await quiet(git(wt.root, ['push', '--quiet', wt.remote || 'origin', '--delete', wt.branch]));
+  // Someone else's worktree and branch: not ours to tidy, here or on the remote.
+  if (!isForeign(wt)) {
+    await removeWorktree(wt, { force: true, branch: 'force' });
+    await quiet(git(wt.root, ['push', '--quiet', wt.remote || 'origin', '--delete', wt.branch]));
+  }
   return { pr, sync };
 }
 

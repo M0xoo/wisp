@@ -41,6 +41,7 @@ import { addPlan, aheadLabel, planAsk, planSaid, timeMenu, whenTip } from './lat
 import { launcherGoal, launcherGoalHtml } from './goal.js';
 import { hideHold, holdNow, showHold } from './hold.js';
 import { autoPreview } from './auto-preview.js';
+import { bringInFor, paintBringIn } from './bring-in.js';
 import { importedToast, shareCard } from './share.js';
 import { launchSize } from './term.js';
 
@@ -179,7 +180,7 @@ export function renderLauncher() {
       <button class="icon-btn" id="launchLater" aria-label="Start later" title="Start later" aria-haspopup="menu">${icon('clock')}</button>
       <button class="send" id="launch" title="Launch (Enter · Shift+Enter for newline)">${icon('enter')}</button>
     </div>
-    <div class="l-recipes"></div>
+    <div class="l-foot"><div class="l-recipes"></div><div class="l-bring" hidden></div></div>
     <div class="l-when" hidden></div>
     <div class="l-hold" role="group" aria-label="Near the usage limit" aria-live="polite" hidden></div>`;
   renderLaunchChips();
@@ -195,6 +196,7 @@ export function renderLauncher() {
   acceptFiles(box, ta, tray);
   autosize(ta, (spellProp('launcher.input', 'maxRows') || 0) * 24 || undefined);
   ta.value = S.drafts.get('home') || '';
+  paintSaveRecipe();
   ta.addEventListener('input', () => (S.drafts.set('home', ta.value), paintSaveRecipe(), readWhen(), pv?.refresh(), warmLaunch()));
   // A shared task's link pasted in the box: its card, and Enter imports it (features/share.js).
   const shareRow = $('.l-share', box);
@@ -780,6 +782,12 @@ function paintScratch() {
   if (wt) wt.hidden = pickId() === NO_FOLDER;
 }
 
+// Bring in only looks on this computer, and only in a folder of a project (bring-in.js).
+function offerBringIn() {
+  const p = launch.where.includes('') && ownPick() && projectOf();
+  bringInFor(p && !p.scratch && pathAt(p, '') ? p : null);
+}
+
 export function renderLaunchChips() {
   const box = $('#launcher .l-projects');
   if (!box) return;
@@ -841,6 +849,7 @@ export function renderLaunchChips() {
   });
   fitRow.observe(box);
   paintScratch();
+  offerBringIn();
   // A plain pick makes it the task's only folder; `add` (⌘-click, the + badge) adds it to the
   // folders or takes it out. Leaving out the first folder hands its place to the next one.
   const choose = (id, { add = false } = {}) => {
@@ -858,6 +867,7 @@ export function renderLaunchChips() {
     launch.project = storedPick();
     saveLaunch();
     paintScratch();
+    offerBringIn();
     renderLaunchRecipes();
   };
   box.onclick = (e) => {
@@ -1055,6 +1065,7 @@ function renderLaunchRecipes() {
   paintSaveRecipe();
 }
 function paintSaveRecipe() {
+  paintBringIn(); // it gives this row back while there's text
   const has = !!$('#prompt')?.value.trim();
   const save = $('#lrSave');
   if (!save) return;

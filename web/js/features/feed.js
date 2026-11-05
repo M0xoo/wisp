@@ -11,7 +11,7 @@ import { setForLater, taskDone, taskMenu, toggleDone } from './actions.js';
 import { compareView } from './compare.js';
 import { carryDock } from './composer.js';
 import { renderLaunchChips } from './launcher.js';
-import { inProject, machinePill, projectLabel } from './places.js';
+import { foreignName, inProject, machinePill, projectLabel } from './places.js';
 import { renderProjects } from './projects.js';
 import { agentById, agentName, effortLabel, harnessLogo, modelBadge } from './runners.js';
 import { scrollByPx, stage, topInset } from './scroll.js';
@@ -34,6 +34,8 @@ import { backToPlace, goBack, goHome, isSplit, isStacked, keepPlace, paintHead, 
 
 // A run held near the limit (features/hold.js), on its row: the window, and when it goes by itself.
 // One held for a changed harness (features/harness-watch.js) waits for you instead.
+// A card's line under its title. A brought-in task has no report to quote until its first real turn.
+const subOf = (s) => s.preview || (s.foreign ? `Brought in from ${foreignName(s.foreign)}` : '');
 const heldSub = (s) => (s.held.project ? (s.held.project.setup ? 'Running the repo’s setup' : 'Waits for you to trust this repo’s hooks and servers') : s.held.harness ? `Waits for you to trust ${agentName(s.agent)}` : s.held.waiting ? `Waiting for the ${s.held.label.toLowerCase()} reset` : `${s.held.label} window at ${Math.floor(s.held.used * 100)}%`);
 const heldTip = (s) => (s.held.project ? 'This repo asks to run its own programs: Trust and start, Run without them, or Skip this run' : s.held.harness ? `${agentName(s.agent)} changed since wisp last ran it: Trust and start, or Skip this run` : heldTipLimit(s));
 const heldTipLimit = (s) => `${s.held.label} window at ${Math.floor(s.held.used * 100)}% · goes by itself ${aheadLabel(s.held.until)}`;
@@ -368,7 +370,7 @@ function renderHead(n, s) {
     ${(s.crew && crewDot(s)) || (s.kind === 'reminder' ? `<span class="q-dot auto">${icon('bell')}</span>` : qDot(s))}
     <span class="it-main">
       <span class="it-title" title="${esc(s.title)}">${esc(s.title)}</span>
-      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : s.held ? `<span class="it-sub" title="${esc(heldTip(s))}">${icon('pause')}${esc(heldSub(s))}</span>` : sched ? `<span class="it-sub${s.later[0].held ? ' held' : ''}" title="${esc(laterTip(s))}">${icon(laterLine(s.later[0])[0])}${esc(laterLine(s.later[0])[1])}</span>` : `<span class="it-sub" title="${esc(s.preview || '')}">${esc(s.preview || '')}</span>`}
+      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : s.held ? `<span class="it-sub" title="${esc(heldTip(s))}">${icon('pause')}${esc(heldSub(s))}</span>` : sched ? `<span class="it-sub${s.later[0].held ? ' held' : ''}" title="${esc(laterTip(s))}">${icon(laterLine(s.later[0])[0])}${esc(laterLine(s.later[0])[1])}</span>` : `<span class="it-sub" title="${esc(subOf(s))}">${esc(subOf(s))}</span>`}
       ${runLine(s)}
       ${rowChoices(s, open)}
     </span>
@@ -514,7 +516,7 @@ function renderRunHead(n, s, { open, live, pill }) {
     <span class="run-logo">${harnessLogo(s.agent)}</span>
     <span class="it-main">
       <span class="it-title"><b>${esc(a?.name || agentName(s.agent))}</b><span class="run-model">${esc(model)}${s.effort ? ` · ${esc(effortLabel(s.effort))}` : ''}</span></span>
-      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : `<span class="it-sub" title="${esc(s.preview || '')}">${esc(s.preview || '')}</span>`}
+      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : `<span class="it-sub" title="${esc(subOf(s))}">${esc(subOf(s))}</span>`}
     </span>
     <span class="it-side">
       ${runsOf(s).some((r) => (r.machine?.id || '') !== (s.machine?.id || '')) ? `${s.machine ? machinePill(s.machine) : `<span class="q-machine" title="Runs on ${esc(HERE)}">${icon('laptop')}<span>${esc(HERE)}</span></span>`}${projectLabel(s)}` : ''}

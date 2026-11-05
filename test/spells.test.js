@@ -260,6 +260,16 @@ test('sharing a task: a pasted link\'s card and the Share dialog are parts, with
   assert.ok(problems({ ...base0, ui: { hide: ['launcher.shared'] } }).some((x) => /launcher\.shared/.test(x)));
 });
 
+test('bringing in worktrees: the offer and its buttons are parts a spell can restyle or hide', () => {
+  assert.equal(schema.PARTS['launcher.bringIn'], '#launcher .l-bring');
+  assert.equal(schema.PARTS['launcher.bringInTake'], '#launcher .l-bring-take');
+  assert.equal(schema.PARTS['launcher.bringInSkip'], '#launcher .l-bring-skip');
+  assert.equal(schema.PARTS['panel.foreign'], '#sidePanel .pn-foreign');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.bringIn', 'launcher.bringInSkip'] }, parts: { 'launcher.bringInTake': { style: { borderRadius: '6px' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['launcher.bringin'] } }).some((x) => /launcher\.bringin/.test(x)));
+  assert.ok(problems({ ...base0, parts: { 'launcher.bringInNow': { style: { color: 'red' } } } }).some((x) => /launcher\.bringInNow/.test(x)));
+});
+
 test('forks: a fork button acts on the card\'s task, its chips, turn button and start line are parts', () => {
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'card.menu', icon: 'fork', label: 'Try with Codex', do: { fork: { prompt: 'Try it another way', agent: 'codex', mode: 'plan' } } }] }), []);
   assert.ok(problems({ ...base0, buttons: [{ slot: 'card.menu', label: 'x', do: { fork: { agent: 'codex' } } }] }).some((x) => /fork needs a prompt: what the fork should try/.test(x)));

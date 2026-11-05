@@ -22,6 +22,8 @@ export function projectLabel(s) {
 // 'sandbox': a place, not a machine: a box of its own on your grid for a delegate (services/sandbox.js).
 export const SANDBOX_KEY = 'sandbox';
 export const placeName = (k) => (k === SANDBOX_KEY ? 'Sandbox' : k ? machineById(k)?.name || 'machine' : HERE);
+// The tool a brought-in worktree came from (Summary.foreign): 'conductor' reads Conductor.
+export const foreignName = (id) => (id ? `${id[0].toUpperCase()}${id.slice(1)}` : '');
 export const recentFirst = (a, b) => (b.lastUsedAt || b.addedAt) - (a.lastUsedAt || a.addedAt);
 // Every project, on every place: one that isn't on a place yet gets cloned there on first use.
 export const projects = () => [...S.config.projects].sort(recentFirst);

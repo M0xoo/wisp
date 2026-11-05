@@ -105,7 +105,7 @@ export function paceOf({ used, resetsAt, ms }, now = Date.now()) {
 
 // A run's units of work: its cost where the harness says it, else its tokens in millions.
 export function unitsOf(stats) {
-  if (!stats) return 0;
+  if (!stats || stats.baseline) return 0; // a brought-in chat's first turn has no cost of its own: not a sample
   if (typeof stats.costUsd === 'number' && stats.costUsd > 0) return stats.costUsd;
   const tokens = (stats.inputTokens || 0) - (stats.cachedInputTokens || 0) + (stats.outputTokens || 0);
   return tokens > 0 ? tokens / 1e6 : 0;

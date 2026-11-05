@@ -32,13 +32,15 @@ export function captureCheckpoint(cwd, sessionId, turnId) {
   }
   const branch = tryGit(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD']) || '';
   const untrackedRaw = tryGit(cwd, ['ls-files', '--others', '--exclude-standard'], { maxBuffer: 2 * 1024 * 1024 });
-  const untracked = untrackedRaw ? untrackedRaw.split('\n').filter(Boolean).slice(0, 500) : [];
+  const listed = untrackedRaw ? untrackedRaw.split('\n').filter(Boolean) : [];
   return {
     commit,
     head,
     dirty: !!stash,
     branch,
-    untracked,
+    untracked: listed.slice(0, 500),
+    // A list that failed or was cut can't tell what's new from what was already there: see rollback.
+    ...((untrackedRaw === null || listed.length > 500) && { untrackedCut: true }),
     at: Date.now(),
   };
 }
@@ -225,7 +227,9 @@ export function rollbackToTurn(session, turn, { restore = false } = {}) {
   const preUntracked = new Set(cp?.untracked || []);
   const curUntrackedRaw = cp?.commit ? tryGit(cwd, ['ls-files', '--others', '--exclude-standard'], { maxBuffer: 2 * 1024 * 1024 }) : null;
   const curUntracked = curUntrackedRaw ? curUntrackedRaw.split('\n').filter(Boolean).slice(0, 500) : [];
-  const newUntracked = curUntracked.filter((f) => !preUntracked.has(f));
+  // Without the whole list, a file the checkpoint didn't name may be someone's work: only what the
+  // turns recorded creating goes then, below.
+  const newUntracked = cp?.untrackedCut ? [] : curUntracked.filter((f) => !preUntracked.has(f));
 
   // Snapshot current state of all affected files + new untracked files + git tree before rolling back so Undo works.
   const preFiles = {};
@@ -262,7 +266,7 @@ export function rollbackToTurn(session, turn, { restore = false } = {}) {
           const { abs, relPath } = resolveInsideCwd(cwd, c.file);
           const inGit = readGitFile(cwd, cp.commit, relPath) !== null;
           if (!inGit) {
-            if (c.op === 'create' || (!preUntracked.has(relPath) && c.beforeFile === null)) {
+            if (c.op === 'create' || (!cp.untrackedCut && !preUntracked.has(relPath) && c.beforeFile === null)) {
               fs.rmSync(abs, { force: true });
             } else if (typeof c.beforeFile === 'string') {
               writeDiskSnapshot(abs, c.beforeFile);

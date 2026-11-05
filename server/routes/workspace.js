@@ -130,7 +130,7 @@ export function register(r, app) {
       c.send(200, {
         dir,
         gone,
-        worktree: wt ? { branch: wt.branch, base: wt.base, remote: wt.remote || null } : null,
+        worktree: wt ? { branch: wt.branch, base: wt.base, remote: wt.remote || null, foreign: wt.foreign || '' } : null,
         status: st && { dirty: st.dirty, ahead: st.ahead, unpushed: st.unpushed },
         host: os.hostname(),
         shell: { supported: ptySupported(), open: open(s), app: appHere(c), name: path.basename(shellArgv()[0]) },

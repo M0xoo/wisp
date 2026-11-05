@@ -125,7 +125,8 @@ function workspaceNote(s) {
   const wt = s.worktree;
   const also = s.also || [];
   const out = [];
-  if (wt) out.push(`You are in an isolated git worktree (${wt.path}) on branch \`${wt.branch}\`, created from \`${wt.baseRef}\` for this task only. Other agents may be working in the user's main checkout, so make every change here. Dependencies and build output (node_modules, virtualenvs, dist/) are not shared with the main checkout: install them if a command needs them. Leave your changes uncommitted unless the user asks you to commit; the user ships them from wisp (commit, push, pull request).`);
+  if (wt?.foreign) out.push(`You are in an existing git worktree (${wt.path}) on branch \`${wt.branch}\`, brought in from Conductor. It may hold uncommitted work from earlier sessions: keep it, and build on it. Don't remove this worktree or its folder, and don't stash, reset or clean it. Other agents may be working in the user's main checkout, so make every change here. Leave your changes uncommitted unless the user asks you to commit; the user ships them from wisp (commit, push, pull request).`);
+  else if (wt) out.push(`You are in an isolated git worktree (${wt.path}) on branch \`${wt.branch}\`, created from \`${wt.baseRef}\` for this task only. Other agents may be working in the user's main checkout, so make every change here. Dependencies and build output (node_modules, virtualenvs, dist/) are not shared with the main checkout: install them if a command needs them. Leave your changes uncommitted unless the user asks you to commit; the user ships them from wisp (commit, push, pull request).`);
   if (also.length) {
     const line = (a) => (a.worktree ? `- \`${a.worktree.cwd}\`: a worktree of \`${a.cwd}\` on branch \`${a.worktree.branch}\` (from \`${a.worktree.baseRef}\`). Work here, not in \`${a.cwd}\`.` : `- \`${a.cwd}\``);
     out.push(`This task spans ${also.length + 1} folders. Besides your working directory (${workdir(s)}), you work in:\n${also.map(line).join('\n')}\n\nRead and change files in all of them as the task needs, using absolute paths outside your working directory. Run each folder's commands (tests, builds) from inside that folder.${also.some((a) => a.worktree) ? ' Leave the changes there uncommitted too; Ship it opens a pull request per repo.' : ''}`);
@@ -261,6 +262,7 @@ export function summarize(s, store) {
     options: s.ask?.options?.length && !s.ask.clash ? s.ask.options : undefined, // its choices, answered from the row on a phone (not a clash: that's read before it's answered)
     approval: !!s.ask?.permission, // the question is a live approval (Allow / Deny)
     branch: s.worktree?.branch || '',
+    foreign: s.worktree?.foreign || '', // a worktree it was brought in on (services/bring-in.js): 'conductor', never removed
     // The task's other folders: their project, worktree branch and PR, for the card and the filter.
     ...(s.also?.length && {
       also: s.also.map((a) => {
@@ -1439,6 +1441,7 @@ export class Runner extends EventEmitter {
       dirs: [...alsoDirs((session.parentId && this.store.get(session.parentId)) || main || session), ...(session.crew ? this.crewDirs(session) : [])], // the task's other folders (a subagent's are its lead's), a crew job's skills
       resumeId: session.agentSessionId,
       prior: session.agentSessionId ? priorTotals(session) : null,
+      unknownPrior: !!session.agentSessionId && !!session.worktree?.foreign && !priorTotals(session), // its chat ran elsewhere (adapters/claude.js countedFrom)
       mode,
       grants,
       model: session.model,

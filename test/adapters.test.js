@@ -280,6 +280,25 @@ test('claude: a resume that first reports stopped background tasks still ends on
   assert.ok(events.some((e) => e.type === 'change'), 'the work after it is reported too');
 });
 
+test('claude: with unknown earlier counters, the empty zero-turn result is the baseline and the real answer pays its delta', async () => {
+  process.env.FAKE_ORPHANS = '1';
+  process.env.FAKE_RESTORED = '5'; // the empty result says $0.01, the real one $0.06
+  try {
+    const results = (await run('claude', { resumeId: 'prev-1', unknownPrior: true }).done).filter((e) => e.type === 'result');
+    assert.equal(results.length, 1, 'the real answer isn’t dropped');
+    const [r] = results;
+    assert.match(r.text, /Fake claude finished/);
+    assert.equal(r.stats.turns, 3);
+    assert.equal(r.stats.costUsd, 0.05);
+    assert.equal(r.stats.baseline, undefined, 'it has a cost of its own: a real sample');
+    assert.ok(Math.abs(r.stats.totals.costUsd - 0.06) < 1e-9);
+    const plain = (await run('claude', { resumeId: 'prev-1' }).done).find((e) => e.type === 'result');
+    assert.ok(Math.abs(plain.stats.costUsd - 0.06) < 1e-9, 'without the flag: as the CLI says');
+  } finally {
+    delete process.env.FAKE_RESTORED;
+  }
+});
+
 test('claude: an exported CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES does not reach the CLI', async () => {
   process.env.CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES = '1';
   try {

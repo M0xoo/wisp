@@ -439,3 +439,22 @@ Every page check also fails on an uncaught page error or a `console.error`.
   - 6: below 900px the tiles go and a row per pane shows, with no grips; widening brings the tiles back with the apps still running.
   - 7: no frame exists until a row is tapped. The page fills home with Back, the name, Reload and Unpin. Back goes pane page → home page → list, one step each, by the button, Esc or the phone's Back, and home is where it was scrolled. Reopening doesn't reload the app. Unpinning closes the page.
 - **Suite** (`test/panes.test.js`, `test/spells.test.js`), **Manual** (real Chrome)
+
+### WEB-53 · Bring in Conductor worktrees
+- **Steps:** in the QA home (`HOME` set to a temp folder), `git worktree add ~/conductor/workspaces/demo/tokyo -b dev/fix-login` in the QA repo, change a tracked file there, stage a new one, leave an untracked one, and put a non-empty `<uuid>.jsonl` in `~/.claude/projects/<the folder with every non-alphanumeric as ->/`. Add a second worktree under `~/conductor/workspaces/demo/lima`, and a detached one beside them.
+  1. Pick that project in the launcher (a chip, the sidebar filter, or adding the project). Pick No folder, another project and a machine, and come back. Hover the line, then click its words.
+  2. Type in the prompt box, then clear it.
+  3. Take *Not now*, then *Undo* on its toast. Take *Not now* again and add a new worktree there.
+  4. Bring the first ones back with `POST /api/projects/:id/foreign-worktrees/dismiss` `{ undo: paths }` and take *Bring in* (once with two worktrees, once with one). Double-click it. Open a task and its side panel.
+  5. Send a follow-up to the tokyo task and roll that turn back.
+  6. Archive it, follow up again, then delete it and pick the project again.
+  7. Rename the tokyo folder away, look at Changes and Shell in the side panel, and follow up on a task still holding it.
+- **Expected:**
+  - 1: one line under the bar, in the recipes' row: *2 worktrees from Conductor*, with *Bring in* and *Not now*. The prompt box and the bar don't move, side by side, stacked or in the first-task layout (in the app, where an empty recipes row isn't shown, the box grows under the bar). The tip and the click on its words say how many have uncommitted changes and chats to resume, the branches, and that the detached one can't be brought in. No request for No folder, a clone, a machine or a project not picked; each project is asked about once.
+  - 2: typing gives the row back to the recipes (*Save as recipe*); an empty box brings the line back, without a fade.
+  - 3: the line goes at once, with the toast *Won't offer these 2 worktrees again*. *Undo* brings it back and the server offers them again. After a second *Not now* only the new worktree is offered. A refusal of either brings back what was there, with a red toast.
+  - 4: the line goes at once and one POST goes out. After a moment the toast says *Bringing in…* (up to ~20 s offline). Then *Brought in 2 worktrees*, with the tasks in the list (stacked, you're back on the list); with one, *Brought in 1 worktree* and that task opens. Worktrees that didn't come are counted in the toast with the first reason. A refusal brings the line back with a red toast. Each task is not unread, on its branch, titled from the branch, its card says *Brought in from Conductor*, and it has one wisp turn with the list of its folder, branch, uncommitted files (*1 uncommitted file, as it was*) and chat, with no duration in its foot. The side panel says *Brought in from Conductor: archive and delete leave this folder.* Nothing in the folder changes.
+  - 5: the follow-up runs in the folder with `--resume <that uuid>`. The rollback puts all three uncommitted changes back byte for byte (the staged one comes back unstaged).
+  - 6: archive, delete and merge leave the folder and branch, and the merge confirm doesn't say it removes the worktree. The deleted task's worktree is offered again without a reload.
+  - 7: the panel says *This worktree's folder is gone: showing the edits wisp saw.* (the shell line to match), and the follow-up is refused in a toast with *This worktree's folder is gone: <path>*; nothing appears at that path.
+- **Suite** (`test/bring-in.test.js`, `test/spells.test.js`), **Manual** (real Chrome)

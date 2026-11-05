@@ -224,4 +224,26 @@ export function register(r, app) {
     app.configChanged();
     c.send(200, { ok: true });
   });
+  // Worktrees another tool left in this project's repo (services/bring-in.js). Only ever on request,
+  // for this one project. GET never touches the network.
+  r.route('GET', '/projects/:id/foreign-worktrees', async (c) => {
+    const p = project(c);
+    if (!p) return c.send(404, { error: 'no such project' });
+    const { from, items, detached } = await app.bringIn.offer(p);
+    c.send(200, { from, items, detached });
+  });
+  r.route('POST', '/projects/:id/foreign-worktrees', async (c) => {
+    const p = project(c);
+    if (!p) return c.send(404, { error: 'no such project' });
+    const { paths } = await c.body();
+    if (paths !== undefined && !(Array.isArray(paths) && paths.every((x) => typeof x === 'string'))) return c.send(400, { error: 'paths must be a list of folders' });
+    c.send(200, await app.bringIn.take(p, paths));
+  });
+  r.route('POST', '/projects/:id/foreign-worktrees/dismiss', async (c) => {
+    const p = project(c);
+    if (!p) return c.send(404, { error: 'no such project' });
+    const { undo } = await c.body();
+    if (undo !== undefined && !(Array.isArray(undo) && undo.every((x) => typeof x === 'string'))) return c.send(400, { error: 'undo must be a list of folders' });
+    c.send(200, await (undo ? app.bringIn.undismiss(p, undo) : app.bringIn.dismiss(p)));
+  });
 }

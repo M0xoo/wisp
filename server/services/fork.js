@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { adapters, listAgents } from '../adapters/index.js';
-import { ensureWorktree, forkWork } from '../git.js';
+import { ensureWorktree, forkWork, isForeign } from '../git.js';
 import { summarize, workdir } from '../runner.js';
 import { bad, MODES, newId } from '../util.js';
 
@@ -73,6 +73,7 @@ export function createFork(app) {
       cwd = store.scratchDir(id);
       if (fs.existsSync(s.cwd)) fs.cpSync(s.cwd, cwd, { recursive: true });
     } else {
+      if (isForeign(s.worktree)) await ensureWorktree(s.worktree); // its folder gone: says so, rather than "not a repo"
       worktree = await forkWork({ dir: workdir(s), wt: s.worktree, at: latest ? null : next.checkpoint, home: store.home, id, title });
       if (!worktree) throw bad('Only a task in a git repo with commits (or without a folder) can be forked: its work needs a worktree to be copied into.', 409);
       if (!latest) carryUntracked(s, at, worktree.cwd);

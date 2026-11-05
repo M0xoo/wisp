@@ -99,7 +99,7 @@ R.hero = (b, ctx) => {
   const label = { done: 'Finished', partial: 'Partly done', blocked: 'Blocked', info: 'Report' }[status];
   const st = ctx.turn?.stats || {};
   const meta = ctx.trail ? [] : [
-    ctx.turn?.endedAt && ctx.turn?.startedAt ? fmtDuration(ctx.turn.endedAt - ctx.turn.startedAt) : '',
+    ctx.turn?.startedAt && ctx.turn?.endedAt > ctx.turn.startedAt ? fmtDuration(ctx.turn.endedAt - ctx.turn.startedAt) : '',
     st.costUsd ? `$${st.costUsd.toFixed(2)}` : '',
     ctx.turn?.changes?.length ? `${ctx.turn.changes.length} file${ctx.turn.changes.length > 1 ? 's' : ''} touched` : '',
   ].filter(Boolean);
