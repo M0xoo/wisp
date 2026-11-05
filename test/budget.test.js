@@ -633,6 +633,455 @@ test('early reset, end to end: a follow-up held for the plan and one waiting at 
   }
 });
 
+// --- One read before held-back Codex work (createLiveLimits' before) --------------------------------
+
+const { createLiveLimits } = await import('../server/live-limits.js');
+const MIN = 60_000;
+// What Codex's app-server answers with its weekly window at `used` percent.
+const codexAnswer = (used, now = Date.now()) => ({ rateLimitsByLimitId: { codex: { limitId: 'codex', primary: { usedPercent: used, windowDurationMins: 10080, resetsAt: Math.floor((now + 3 * 24 * H) / 1000) } } } });
+// A reader on its own clock, with no server. h.reads: the accounts it read, in order.
+function reader({ defaults = { autoStop: '75' }, read, envFor } = {}) {
+  const h = { now: 5_000 * H, reads: [] };
+  h.budget = new Budget(tmp('live-before'), { now: () => h.now });
+  h.live = createLiveLimits({
+    store: { config: { defaults } },
+    budget: h.budget,
+    accounts: { supports: () => false, envFor: envFor || ((agent, id) => ({ CODEX_HOME: id })) },
+    waiting: () => true,
+    now: () => h.now,
+    read: async (env) => {
+      h.reads.push(env.CODEX_HOME);
+      return read ? read(env) : codexAnswer(80, h.now);
+    },
+  });
+  h.report = (id = 'default', used = 0.1) => h.budget.record('codex', id, { windows: [{ id: 'seven_day', used, resetsAt: h.now + 3 * 24 * H, ms: 7 * 24 * H }] });
+  return h;
+}
+
+test('before: no reading or one over 15 minutes old takes a read; a younger one takes none', async () => {
+  const h = reader();
+  await h.live.before('codex', '');
+  assert.deepEqual(h.reads, ['default'], 'no reading at all is stale');
+  assert.equal(h.budget.windows('codex', 'default')[0].used, 0.8, 'its numbers, as Codex said');
+  await h.live.before('codex', 'default');
+  h.now += 14 * MIN;
+  await h.live.before('codex', 'default');
+  assert.equal(h.reads.length, 1, 'still fresh');
+  h.now += MIN;
+  await h.live.before('codex', 'default');
+  assert.equal(h.reads.length, 2, '15 minutes on: another');
+  h.now += 16 * MIN;
+  h.report(); // a run reported just now
+  await h.live.before('codex', 'default');
+  assert.equal(h.reads.length, 2, 'a run’s report is a fresh reading too');
+});
+
+test('before: a failed read resolves, says so, and isn’t tried again for 15 minutes', async (t) => {
+  const warned = t.mock.method(console, 'warn', () => {});
+  for (const [what, opts] of [['a read that throws', { read: () => { throw new Error('signed out'); } }], ['no usable answer', { read: () => null }], ['an env that throws', { envFor: () => { throw new Error('no such account'); } }]]) {
+    warned.mock.resetCalls();
+    const h = reader(opts);
+    h.report();
+    h.now += 20 * MIN;
+    await assert.doesNotReject(h.live.before('codex', 'default'), what);
+    assert.equal(warned.mock.callCount(), 1, `${what}: warned`);
+    assert.match(String(warned.mock.calls[0].arguments[0]), /^wisp: codex usage: /, what);
+    assert.equal(h.budget.windows('codex', 'default')[0].used, 0.1, `${what}: the reading stands`);
+    const was = h.reads.length;
+    h.now += 14 * MIN;
+    await h.live.before('codex', 'default');
+    assert.equal(h.reads.length, was, `${what}: not again yet`);
+    assert.equal(warned.mock.callCount(), 1, `${what}: nothing new to say`);
+    h.now += MIN;
+    await h.live.before('codex', 'default');
+    assert.equal(warned.mock.callCount(), 2, `${what}: tried again after 15 minutes`);
+  }
+});
+
+test('before: only Codex, only with a stop line; Check Codex while work waits doesn’t come into it', async () => {
+  for (const [defaults, n, why] of [
+    [{ autoStop: 'off' }, 0, 'no stop line'],
+    [{}, 0, 'nothing set'],
+    [{ autoStop: '75', autoStopCodex: 'off' }, 0, 'off for Codex only'],
+    [{ autoStop: 'off', autoStopCodex: '90' }, 1, 'a line for Codex only'],
+    [{ autoStop: '75', liveLimits: 'off' }, 1, 'the polling switch off'],
+  ]) {
+    const h = reader({ defaults });
+    await h.live.before('codex', 'default');
+    assert.equal(h.reads.length, n, why);
+  }
+  const h = reader();
+  await h.live.before('claude', 'default');
+  await h.live.before('', 'default');
+  assert.deepEqual(h.reads, [], 'Claude Code has no such read');
+});
+
+test('before: callers at once share one read, and each account has its own', async () => {
+  let open;
+  const held = new Promise((r) => (open = r));
+  const h = reader({ read: () => held.then(() => codexAnswer(80, h.now)) });
+  const both = [h.live.before('codex', 'work'), h.live.before('codex', 'work'), h.live.before('codex', 'home'), h.live.before('codex', '')];
+  await new Promise((r) => setTimeout(r, 5));
+  assert.deepEqual(h.reads, ['work', 'home', 'default']);
+  open();
+  await Promise.all(both);
+  assert.deepEqual(Object.keys(h.budget.state.codex).sort(), ['default', 'home', 'work']);
+  assert.equal(h.reads.length, 3);
+});
+
+test('before and tick share the 15 minutes: a tick’s failed read counts, and a tick’s read is no run’s report', async (t) => {
+  t.mock.method(console, 'warn', () => {});
+  let fail = true;
+  const h = reader({ defaults: { autoStop: '75', liveLimits: 'on' }, read: () => {
+    if (fail) throw new Error('offline');
+    return { rateLimits: { primary: { usedPercent: 40, windowDurationMins: 10080, resetsAt: R / 1000 } } };
+  } });
+  const R = h.now + 3 * 24 * H;
+  const report = () => h.budget.record('codex', 'default', { windows: [{ id: 'seven_day', used: 0.1, resetsAt: R, ms: 7 * 24 * H }] });
+  report();
+  h.now += 20 * MIN;
+  await h.live.tick();
+  assert.equal(h.reads.length, 1);
+  await h.live.before('codex', 'default');
+  assert.equal(h.reads.length, 1, 'the tick’s try counts');
+  // The window moved 30 points with no run in the last 20 minutes: not the next run's to carry.
+  h.now += 15 * MIN;
+  fail = false;
+  report();
+  h.now += 20 * MIN;
+  await h.live.tick();
+  assert.equal(h.budget.state.codex.default.learn, undefined);
+  assert.equal(h.budget.state.codex.default.run, undefined);
+});
+
+test('a read is no run’s report: what moved in the gap isn’t learned, a run’s report in that gap still learns', () => {
+  let now = 6_000 * H;
+  const R = now + 3 * 24 * H;
+  const at = (used) => ({ windows: [{ id: 'seven_day', used, resetsAt: R, ms: 7 * 24 * H }] });
+  const read = new Budget(tmp('record-read'), { now: () => now });
+  read.record('codex', 'default', at(0.1));
+  now += 20 * MIN;
+  read.record('codex', 'default', { ...at(0.3), read: true });
+  assert.equal(read.state.codex.default.learn, undefined);
+  assert.equal(read.state.codex.default.run, undefined);
+  assert.equal(read.windows('codex', 'default')[0].used, 0.3, 'the numbers still land');
+  assert.equal(read.state.codex.default.at, now, 'and count as the latest reading');
+  const run = new Budget(tmp('record-run'), { now: () => now });
+  run.record('codex', 'default', at(0.1));
+  now += 20 * MIN;
+  run.record('codex', 'default', at(0.3));
+  assert.ok(Math.abs(run.state.codex.default.learn.seven_day.du - 0.2) < 1e-9);
+  assert.ok(Math.abs(run.state.codex.default.run.seven_day - 0.2) < 1e-9);
+});
+
+// The server's Codex reading, 20 minutes old and under the line, and no tries on record.
+const staleCodex = (used = 0.1) => {
+  delete srv.budget.state.codex;
+  srv.budget.record('codex', 'default', { windows: [{ id: 'seven_day', used, resetsAt: Date.now() + 3 * 24 * H, ms: 7 * 24 * H }] });
+  srv.budget.state.codex.default.at = Date.now() - 20 * MIN;
+  srv.liveLimits.tried.clear();
+};
+// fn(reader): reader.n counts reads, reader.answer is what the next one says (a function may throw).
+async function withStop(fn, defaults = { autoStop: '75' }) {
+  const real = srv.liveLimits.read;
+  const r = { n: 0, answer: () => codexAnswer(80) };
+  srv.liveLimits.read = async () => (r.n++, r.answer());
+  await api('/config', { defaults }, 'PATCH');
+  try {
+    await fn(r);
+  } finally {
+    srv.liveLimits.read = real;
+    await api('/config', { defaults: { autoStop: 'off', autoStopCodex: 'same', liveLimits: 'off' } }, 'PATCH');
+    delete srv.budget.state.codex;
+  }
+}
+const codexTask = async () => {
+  const s = await api('/sessions', { prompt: 'fix the add bug please', cwd: makeRepo(), agent: 'codex', worktree: false });
+  await ended(s.id, 'review');
+  await until(() => !srv.runner.live.has(s.id));
+  return srv.store.get(s.id);
+};
+// This trigger's schedule comes due, and no other's. The timer stays out: reads are counted here.
+const runTrigger = async (t) => {
+  srv.triggers.stop();
+  const list = srv.store.config.triggers;
+  const was = list.map((x) => x.enabled);
+  list.forEach((x) => Object.assign(x, { enabled: x.id === t.id, lastMinute: null }));
+  await srv.triggers.tick();
+  list.forEach((x, i) => (x.enabled = was[i]));
+  return (await api('/triggers')).find((x) => x.id === t.id);
+};
+
+test('a held-back launch: a stale reading under the line, the read says over it: skipped; a failed read runs as today', async (t) => {
+  const warned = t.mock.method(console, 'warn', () => {});
+  const repo = makeRepo();
+  const tr = await api('/triggers', { kind: 'schedule', cron: '* * * * *', prompt: 'nightly sweep', cwd: repo, agent: 'codex' });
+  const m = await api('/crew', { name: 'Nora', role: 'Watcher', agent: 'codex', cwd: repo, brief: 'Look. CREWQUIET' });
+  try {
+    await withStop(async (r) => {
+      staleCodex();
+      const before = srv.store.all().length;
+      const held = await runTrigger(tr);
+      assert.equal(r.n, 1, 'one read');
+      assert.match(held.held.why, /past your 75%/, 'launch said 409: the trigger skips and says why');
+      assert.equal(held.lastError, '');
+      assert.equal(srv.store.all().length, before, 'nothing started');
+      // A crew check-in goes through the same launch: fresh now, so no second read, and held.
+      srv.crew.get(m.id).wakeAt = Date.now() - 1000;
+      await srv.crew.tick();
+      assert.equal(r.n, 1);
+      assert.match((await api('/crew')).find((x) => x.id === m.id).held.why, /past your 75%/);
+      assert.equal(srv.store.all().length, before);
+      // No new card: nothing asks, nothing lands in Needs you.
+      assert.equal(srv.store.all().filter((s) => s.ask || s.reminder).length, 0);
+
+      staleCodex();
+      r.answer = () => {
+        throw new Error('codex app-server stopped');
+      };
+      r.n = 0;
+      const ran = await runTrigger(tr);
+      assert.equal(r.n, 1);
+      assert.equal(ran.lastError, '');
+      assert.equal(srv.store.all().length, before + 1, 'it ran, as it would have');
+      await ended(ran.lastSessionId, 'review');
+      assert.ok(warned.mock.calls.some((c) => /codex app-server stopped/.test(c.arguments[0])));
+      await until(() => !srv.runner.live.has(ran.lastSessionId));
+      srv.budget.state.codex.default.at = Date.now() - 20 * MIN; // whatever that run reported
+      await runTrigger(tr);
+      assert.equal(r.n, 1, 'no second read within 15 minutes');
+      await ended((await api('/triggers')).find((x) => x.id === tr.id).lastSessionId, 'review');
+    });
+  } finally {
+    await api(`/triggers/${tr.id}`, {}, 'DELETE');
+    await api(`/crew/${m.id}`, {}, 'DELETE');
+  }
+});
+
+test('a launch that isn’t held back reads nothing: a fresh reading, no line, Claude Code, by hand; the crew view never reads', async () => {
+  const repo = makeRepo();
+  const tr = await api('/triggers', { kind: 'schedule', cron: '* * * * *', prompt: 'nightly sweep', cwd: repo, agent: 'codex' });
+  const cl = await api('/triggers', { kind: 'schedule', cron: '* * * * *', prompt: 'nightly sweep', cwd: repo, agent: 'claude' });
+  const m = await api('/crew', { name: 'Noor', role: 'Watcher', agent: 'codex', cwd: repo, brief: 'Look. CREWQUIET' });
+  try {
+    const go = async (x) => {
+      const out = await runTrigger(x);
+      await ended(out.lastSessionId, 'review');
+      await until(() => !srv.runner.live.has(out.lastSessionId));
+    };
+    await withStop(async (r) => {
+      srv.budget.record('claude', 'default', { windows: [{ id: 'seven_day', used: 0.1, resetsAt: Date.now() + 3 * 24 * H, ms: 7 * 24 * H }] });
+      staleCodex();
+      await api('/crew'); // Crew.view calls reserve.check on every render
+      assert.equal(r.n, 0, 'the crew view');
+      const held = (await api(`/crew`)).find((x) => x.id === m.id);
+      assert.equal(held.held, undefined);
+      const s = await codexTask();
+      assert.equal(r.n, 0, 'started by hand');
+      await api(`/sessions/${s.id}`);
+      staleCodex();
+      await api(`/triggers/${tr.id}/run`, {});
+      assert.equal(r.n, 0, 'Run now');
+      await until(() => srv.store.all().filter((x) => x.origin?.id === tr.id).every((x) => !srv.runner.live.has(x.id)));
+      staleCodex();
+      await go(cl);
+      assert.equal(r.n, 0, 'Claude Code has no such read');
+      staleCodex();
+      srv.budget.state.codex.default.at = Date.now() - 14 * MIN;
+      await go(tr);
+      assert.equal(r.n, 0, 'a reading under 15 minutes old');
+    });
+    await withStop(async (r) => {
+      staleCodex();
+      await go(tr);
+      assert.equal(r.n, 0, 'no stop line');
+    }, { autoStop: 'off' });
+    await withStop(async (r) => {
+      staleCodex();
+      r.answer = () => codexAnswer(10);
+      await go(tr);
+      assert.equal(r.n, 1, 'Check Codex while work waits off, a stop line on: still reads');
+    }, { autoStop: '75', liveLimits: 'off' });
+  } finally {
+    await api(`/triggers/${tr.id}`, {}, 'DELETE');
+    await api(`/triggers/${cl.id}`, {}, 'DELETE');
+    await api(`/crew/${m.id}`, {}, 'DELETE');
+  }
+});
+
+test('a held-back follow-up: read first, moved to the reset in silence; yours or a reminder reads nothing; a failed read sends it', async (t) => {
+  t.mock.method(console, 'warn', () => {});
+  await withStop(async (r) => {
+    const s = await codexTask();
+    const pasts = () => s.later.forEach((l) => (l.at = Date.now() - 1000));
+    srv.later.add(s, { text: 'mine', by: 'user', in: 2 });
+    srv.later.add(s, { text: 'ping me', by: 'agent', in: 2, remind: true });
+    pasts();
+    srv.later.add(s, { text: 'not yet', by: 'agent', in: 5 });
+    staleCodex();
+    const nothing = s.later.find((l) => l.text === 'not yet');
+    s.later = s.later.filter((l) => l === nothing);
+    await srv.later.tick();
+    assert.equal(r.n, 0, 'not due');
+    s.later = [];
+    srv.later.add(s, { text: 'ping me', by: 'agent', in: 2, remind: true });
+    pasts();
+    await srv.later.tick();
+    assert.equal(r.n, 0, 'a reminder runs nothing');
+    delete s.reminder;
+    s.state = 'review';
+    s.later = [];
+    srv.later.add(s, { text: 'mine', by: 'user', in: 2 });
+    pasts();
+    await srv.later.tick();
+    assert.equal(r.n, 0, 'yours goes whatever the plan says');
+    await ended(s.id, 'review');
+    await until(() => !srv.runner.live.has(s.id));
+
+    staleCodex();
+    const turns = s.turns.length;
+    const { unread } = s;
+    s.later = [];
+    srv.later.add(s, { text: 'look at CI again', by: 'agent', in: 2 });
+    pasts();
+    await srv.later.tick();
+    assert.equal(r.n, 1, 'one read');
+    assert.equal(s.turns.length, turns, 'held');
+    assert.ok(s.later[0].at > Date.now() + 24 * H, 'moved to the reset');
+    assert.match(s.later[0].held.why, /weekly window is at 80%, past your 75%/);
+    assert.deepEqual([s.ask, s.reminder, s.unread], [undefined, undefined, unread], 'no new card');
+
+    staleCodex();
+    r.answer = () => {
+      throw new Error('offline');
+    };
+    r.n = 0;
+    s.later = [];
+    srv.later.add(s, { text: 'carry on then', by: 'agent', in: 2 });
+    pasts();
+    await srv.later.tick();
+    assert.equal(r.n, 1);
+    const x = await until(async () => {
+      const y = await api(`/sessions/${s.id}`);
+      return y.turns.length === turns + 1 && y.turns.at(-1).status === 'done' && y;
+    }, { timeout: 30_000 });
+    assert.equal(x.turns.at(-1).prompt, 'carry on then', 'as it would have');
+  });
+});
+
+test('a held-back trigger follow-up to an open task: read first, skipped; Run now reads nothing; a failed read sends it', async (t) => {
+  t.mock.method(console, 'warn', () => {});
+  await withStop(async (r) => {
+    const s = await codexTask();
+    s.state = 'review';
+    const tr = { id: 'tr-open', kind: 'ci', name: 'CI', prompt: 'CI failed on {branch}', tasks: { 'wisp/x': s.id } };
+    staleCodex();
+    await assert.rejects(srv.triggers.fire(tr, { branch: 'wisp/x' }), (e) => /past your 75%/.test(e.message) && !!e.held);
+    assert.equal(r.n, 1);
+    assert.equal(s.turns.length, 1);
+    staleCodex(0.8);
+    r.n = 0;
+    await srv.triggers.fire(tr, { branch: 'wisp/x' }, { manual: true });
+    assert.equal(r.n, 0, 'by hand: no read');
+    await until(() => s.turns.length === 2 && s.turns[1].status === 'done', { timeout: 30_000 });
+    await until(() => !srv.runner.live.has(s.id));
+    s.state = 'review';
+    staleCodex();
+    r.answer = () => {
+      throw new Error('offline');
+    };
+    const out = await srv.triggers.fire(tr, { branch: 'wisp/x' });
+    assert.equal(r.n, 1);
+    assert.equal(out.followUp, true, 'as it would have');
+    await until(() => s.turns.length === 3 && s.turns[2].status === 'done', { timeout: 30_000 });
+  });
+});
+
+test('a held-back goal round: read first, the round waits under Scheduled; a failed read sends it', async (t) => {
+  t.mock.method(console, 'warn', () => {});
+  await withStop(async (r) => {
+    staleCodex();
+    srv.budget.state.codex.default.at = Date.now() - 20 * MIN;
+    const s = await api('/sessions', { prompt: 'make it work', cwd: makeRepo(), agent: 'codex', mode: 'edits', goal: { text: 'it works [met after 2]' } });
+    const x = await until(async () => {
+      const y = await api(`/sessions/${s.id}`);
+      return y.goal?.held && y;
+    }, { timeout: 30_000 });
+    assert.equal(r.n, 1, 'one read');
+    assert.equal(x.turns.length, 1, 'round 2 didn’t start');
+    assert.deepEqual([x.state, x.unread, x.goal.status, x.goal.round], ['done', false, 'paused', 2], 'under Scheduled, nobody pinged');
+    assert.match(x.goal.why, /^Waits for your plan: /);
+
+    staleCodex();
+    r.n = 0;
+    r.answer = () => {
+      throw new Error('offline');
+    };
+    const b = await api('/sessions', { prompt: 'make it work', cwd: makeRepo(), agent: 'codex', mode: 'edits', goal: { text: 'it works [met after 2]' } });
+    const done = await until(async () => {
+      const y = await api(`/sessions/${b.id}`);
+      return y.goal?.status === 'met' && y;
+    }, { timeout: 30_000 });
+    assert.equal(r.n, 1);
+    assert.equal(done.turns.length, 2, 'round 2 went');
+  });
+});
+
+test('a goal dropped during the read doesn’t start its round', async () => {
+  await withStop(async (r) => {
+    let open;
+    const held = new Promise((y) => (open = y));
+    staleCodex();
+    r.answer = () => held.then(() => codexAnswer(10));
+    const s = await api('/sessions', { prompt: 'make it work', cwd: makeRepo(), agent: 'codex', mode: 'edits', goal: { text: 'it works [met after 3]' } });
+    await until(() => r.n === 1, { timeout: 30_000 });
+    await api(`/sessions/${s.id}/goal`, { action: 'pause' }, 'PATCH');
+    open();
+    await new Promise((y) => setTimeout(y, 50));
+    const x = await api(`/sessions/${s.id}`);
+    assert.equal(x.turns.length, 1);
+    assert.equal(x.goal.status, 'paused');
+    assert.equal(x.goal.round, 1, 'its round wasn’t counted');
+  });
+});
+
+// --- codexLive: a limit that moved to a new id ---------------------------------------------------
+
+const NOW_S = 1_800_000_000;
+const NOW_MS = NOW_S * 1000;
+const snap = (used, resetsIn, more = {}) => ({ primary: { usedPercent: used, windowDurationMins: 300, resetsAt: NOW_S + resetsIn }, ...more });
+const usedOf = (res) => codexLive(res, { now: NOW_MS })?.windows[0].used;
+
+test('codexLive: the normal codex entry wins over a later side bucket; a reset just gone isn’t frozen', () => {
+  const res = { rateLimits: snap(1, 90_000), rateLimitsByLimitId: { codex: snap(50, 3600), codex_bengalfox: snap(2, 90_000, { normalModelSlug: 'gpt-x' }), other: snap(3, 90_000) } };
+  assert.equal(usedOf(res), 0.5);
+  assert.equal(usedOf({ rateLimitsByLimitId: { codex: snap(50, -240), other: snap(3, 90_000) } }), 0.5, 'clock skew: 4 minutes back');
+  assert.equal(usedOf({ rateLimitsByLimitId: { codex: { primary: { usedPercent: 50, windowDurationMins: 300, resetsAt: null } }, other: snap(3, 90_000) } }), 0.5, 'no resets at all: not frozen');
+});
+
+test('codexLive: a frozen codex entry gives way to a newer entry or to rateLimits', () => {
+  assert.equal(usedOf({ rateLimitsByLimitId: { codex: snap(50, -3600), plus: snap(7, 3600) } }), 0.07, 'a new id');
+  assert.equal(usedOf({ rateLimits: snap(9, 3600), rateLimitsByLimitId: { codex: snap(50, -3600) } }), 0.09, 'rateLimits');
+  assert.equal(usedOf({ rateLimits: snap(9, 3600), rateLimitsByLimitId: { codex: snap(50, -3600), plus: snap(7, 7200) } }), 0.07, 'the latest reset');
+  assert.equal(usedOf({ rateLimitsByLimitId: { codex: { primary: snap(50, 3600).primary, secondary: { usedPercent: 60, windowDurationMins: 10080, resetsAt: NOW_S - 3600 } }, plus: snap(7, 3600) } }), 0.07, 'one window gone is enough');
+});
+
+test('codexLive: a frozen codex entry stays when all there is are side buckets', () => {
+  const frozen = snap(50, -3600);
+  assert.equal(usedOf({ rateLimitsByLimitId: { codex: frozen, spark: snap(2, 3600, { normalModelSlug: 'gpt-x' }) } }), 0.5, 'a model’s own bucket');
+  assert.equal(usedOf({ rateLimitsByLimitId: { codex: frozen, premium: snap(2, 3600) } }), 0.5, 'premium');
+  assert.equal(usedOf({ rateLimits: snap(2, 3600, { limitId: 'premium' }), rateLimitsByLimitId: { codex: frozen } }), 0.5, 'premium in rateLimits');
+  assert.equal(usedOf({ rateLimits: frozen, rateLimitsByLimitId: { codex: frozen, plus: snap(2, -7200) } }), 0.5, 'as frozen as it is');
+  assert.equal(usedOf({ rateLimitsByLimitId: { codex: frozen, plus: { primary: null } } }), 0.5, 'no usable window');
+});
+
+test('codexLive: no codex entry reads rateLimits; garbage reads nothing', () => {
+  assert.equal(usedOf({ rateLimits: snap(9, 3600) }), 0.09);
+  assert.equal(usedOf({ rateLimits: snap(9, -3600), rateLimitsByLimitId: { other: snap(3, 3600) } }), 0.09, 'as today');
+  for (const res of [null, undefined, 'x', 3, {}, { rateLimits: 'x' }, { rateLimitsByLimitId: 'x' }, { rateLimitsByLimitId: { codex: 7 } }]) assert.equal(codexLive(res, { now: NOW_MS }), null, JSON.stringify(res));
+  assert.equal(usedOf({ rateLimitsByLimitId: { codex: snap(50, -3600), x: null, y: 'z', w: 3 } }), 0.5, 'junk beside it');
+});
+
 test('spare allowance: /agents carries what the home card needs, and the switch only takes on or off', async () => {
   await assert.rejects(api('/config', { defaults: { spareCard: 'yes' } }, 'PATCH'), /spareCard must be on or off/);
   const { spareOf } = await import('../web/js/spare.js');
@@ -1186,4 +1635,23 @@ test('receipt tokens: modelUsage counts in when it holds more than usage (its su
   assert.deepEqual(receiptParts(receiptOf(t)), ['66k tokens', '80% cache']);
   const small = { stats: { inputTokens: 10, cacheReadTokens: 31000, cacheWriteTokens: 20, outputTokens: 5, models: [{ model: 'x', input: 1, output: 1, cacheRead: 0, cacheWrite: 0 }], totals: {} } };
   assert.deepEqual(receiptParts(receiptOf(small)), ['31k tokens', '99% cache'], 'usage is larger: usage');
+});
+
+// Sh scripts: the point is a process that goes away mid-handshake, and that takes no Windows shim.
+test('readCodex: an app-server that closes its stdin rejects; the EPIPE doesn’t reach the process', { skip: process.platform === 'win32' }, async () => {
+  const { readCodex } = await import('../server/live-limits.js');
+  const dir = tmp('codex-epipe');
+  const bin = path.join(dir, 'codex');
+  fs.writeFileSync(bin, `#!/bin/sh\nread x\necho '{"id":1,"result":{}}'\nexec 0<&-\nsleep 1\n`);
+  fs.chmodSync(bin, 0o755);
+  const stray = [];
+  const seen = (err) => stray.push(err);
+  process.on('uncaughtException', seen);
+  try {
+    await assert.rejects(readCodex({ bin, timeout: 5000 }));
+    await new Promise((r) => setTimeout(r, 100));
+    assert.deepEqual(stray.map((e) => e.code), []);
+  } finally {
+    process.off('uncaughtException', seen);
+  }
 });

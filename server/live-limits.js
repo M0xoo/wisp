@@ -5,11 +5,19 @@
 // early (OpenAI's banked resets), Budget.record sees it and the waiting work goes (onReset).
 // Claude Code has no such read: its windows come only with a run, as before. wisp never redeems a
 // reset credit (account/rateLimitResetCredit/consume): that's the user's to spend.
+//
+// One read before held-back work (before()): with an Automations stop line set for Codex, work
+// nobody started by hand reads the account first when its last reading is over 15 minutes old. It
+// needs no switch: it's a single read, only when you've set a stop line and work is about to start,
+// and it spends nothing. Without it a line meant to protect your chats would judge by old numbers:
+// once chats and Codex share one allowance, they move the windows between runs. A failed read
+// changes nothing: the work goes on what wisp knew, as it did before.
 
 import { spawn, killTree } from './proc.js';
-import { codexLive } from './budget.js';
+import { codexLive, stopFor } from './budget.js';
 
 const EVERY_MS = 10 * 60_000;
+const STALE_MS = 15 * 60_000;
 const TICK_MS = 60_000;
 const MAX_BACKOFF_MS = 60 * 60_000;
 const TIMEOUT_MS = 15_000;
@@ -31,6 +39,7 @@ export function readCodex({ bin = process.env.WISP_CODEX_BIN || 'codex', env = {
     const timer = setTimeout(() => end(new Error('codex app-server didn’t answer')), timeout);
     const send = (m) => child.stdin.write(`${JSON.stringify(m)}\n`);
     child.on('error', (err) => end(err));
+    child.stdin.on('error', (err) => end(err)); // it went mid-handshake: EPIPE here would take wisp down
     child.on('exit', () => end(new Error('codex app-server stopped')));
     child.stdout.on('data', (d) => {
       buf += d;
@@ -61,8 +70,36 @@ export function readCodex({ bin = process.env.WISP_CODEX_BIN || 'codex', env = {
 // read(env): the read (tests pass a fake: no network there).
 export function createLiveLimits({ store, budget, accounts, waiting, read = (env) => readCodex({ env }), now = () => Date.now() }) {
   const due = new Map(); // account → { at, backoff }
+  const reading = new Map(); // account → before()'s read in flight
+  // One go at it, whatever came of it: a read that fails is not tried again at every gate.
+  const readOnce = async (id) => {
+    try {
+      const limits = codexLive(await live.read(accounts.envFor('codex', id)), { now: now() });
+      if (!limits) throw new Error('no usage in its answer');
+      budget.record('codex', id, { ...limits, read: true });
+    } catch (err) {
+      console.warn(`wisp: codex usage: ${err.message}`);
+    }
+  };
   const live = {
     read,
+    tried: new Map(), // account → when a read last began (before() and tick())
+    // Just before work that a stop line could hold back. Resolves when the reading is as fresh as
+    // it'll get; never rejects, and never blocks the run. check() stays synchronous and reads nothing.
+    before(agent, account) {
+      if (agent !== 'codex' || !stopFor(store.config.defaults, 'codex')) return;
+      const id = account || 'default';
+      const at = budget.state.codex?.[id]?.at;
+      if (at && now() - at < STALE_MS) return;
+      if (reading.has(id)) return reading.get(id);
+      const last = live.tried.get(id);
+      if (last !== undefined && now() - last < STALE_MS) return;
+      live.tried.set(id, now());
+      // In a .finally, not in readOnce: that one can end before there's a promise to forget.
+      const p = readOnce(id).finally(() => reading.delete(id));
+      reading.set(id, p);
+      return p;
+    },
     // One pass: each Codex account with work waiting on it, when its next read is due.
     async tick() {
       if (store.config.defaults.liveLimits !== 'on') return 0;
@@ -70,9 +107,10 @@ export function createLiveLimits({ store, budget, accounts, waiting, read = (env
       for (const id of accounts.supports('codex') ? accounts.list('codex').map((a) => a.id) : ['default']) {
         const d = due.get(id);
         if ((d && d.at > now()) || !waiting('codex', id)) continue;
+        live.tried.set(id, now());
         try {
-          const limits = codexLive(await live.read(accounts.envFor('codex', id)));
-          if (limits) budget.record('codex', id, limits);
+          const limits = codexLive(await live.read(accounts.envFor('codex', id)), { now: now() });
+          if (limits) budget.record('codex', id, { ...limits, read: true });
           due.set(id, { at: now() + EVERY_MS, backoff: 0 });
           n++;
         } catch (err) {

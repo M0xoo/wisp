@@ -1765,7 +1765,7 @@ ssh devbox`)}
     <section>
       <h2 id="all-accounts">Every account’s windows on one page, no menu-bar app</h2>
       <p>With a work and a personal plan on Claude Code and a Codex plan, that’s six windows to keep an eye on, and the usual answer is a menu-bar app per vendor that polls each account. Plan budget lists them all in one place: each account’s 5-hour and weekly windows, how much is gone, when each resets and when you’d run out at this pace. It’s the same page on your desktop, in a browser and on your phone, because it’s part of wisp.</p>
-      <aside class="g-note"><b>Where the numbers come from</b><p>wisp reads what the CLI reports on each run, so an account shows its windows as of its last run there, and a window whose reset has passed reads as fresh. It doesn’t poll the providers; the one opt-in exception is <i>Check Codex while work waits</i>.</p></aside>
+      <aside class="g-note"><b>Where the numbers come from</b><p>wisp reads what the CLI reports on each run, so an account shows its windows as of its last run there, and a window whose reset has passed reads as fresh. It doesn’t poll the providers; the two exceptions are Codex only: <i>Check Codex while work waits</i>, which is opt-in, and a single check before held-back work starts once you’ve set a stop line for Codex and its last reading is over 15 minutes old.</p></aside>
     </section>
 
     <section>
@@ -1790,7 +1790,7 @@ ssh devbox`)}
     </section>
 `,
       faq: [
-        ['Does wisp ask Anthropic or OpenAI for my usage?', 'No. It reads what the CLI already reports on each run. The one exception is opt-in: Check Codex while work waits asks Codex’s app-server how its windows stand while work waits for a reset, which spends nothing.'],
+        ['Does wisp ask Anthropic or OpenAI for my usage?', 'No. It reads what the CLI already reports on each run. The two exceptions are Codex only, and neither spends anything: Check Codex while work waits, which is opt-in, asks Codex’s app-server how its windows stand while work waits for a reset; and with a stop line set for Codex, held-back work asks once before it starts when the last reading is over 15 minutes old.'],
         ['How exact is a task’s share?', 'Approximate. The CLIs report whole percents, Claude Code once per run, and tasks that ran at the same time split what moved between two reports by how long each ran.'],
         ['What goes in Copy report?', 'The harness and account, the window, when it resets in UTC, how many runs and how much work since the drain began, the share of the window they took, and what the same work took over the two weeks before.'],
         ['Which harnesses does this cover?', 'Claude Code and Codex, the two whose CLIs report their usage windows. Settings → Usage also shows spend and turns for every harness.'],

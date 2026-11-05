@@ -477,7 +477,7 @@ export function openapi({ version, port }) {
       },
       '/usage/periods': {
         get: {
-          summary: 'Allowance per window, for each account: period by period what was used, how much was outside wisp and what 1% cost, and a weekly shrink reading (null until 2 full weekly periods per side). Used and outside are null for a period wisp has no reading of; per1 is null when there is too little to say; rough means the cost came from differences of cumulative totals. Reads every turn: asked for, not on GET /agents',
+          summary: 'Allowance per window, for each account: period by period what was used, how much was outside wisp and what 1% cost, and a weekly shrink reading (null until 2 full weekly periods per side, and for Codex also across its December 2026 plan change). Used and outside are null for a period wisp has no reading of; per1 is null when there is too little to say; rough means the cost came from differences of cumulative totals. Reads every turn: asked for, not on GET /agents',
           responses: {
             200: json({
               type: 'object',

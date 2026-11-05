@@ -209,8 +209,9 @@ export class Triggers {
   // launch(body, origin, { unattended }) starts a session like POST /api/sessions; assign(crewId, work) hands it
   // to a crew member instead; followUp(s, text) queues a follow-up on a task; onChange() after state changes.
   // hold(s): what holds back automations on a task's account (Settings → Usage → Automations stop at).
-  constructor({ store, launch, assign = null, followUp = null, onChange = () => {}, gh = ghCli, hold = () => null, now = () => Date.now() }) {
-    Object.assign(this, { store, launch, assign, followUp, onChange, gh, hold, now });
+  // fresh(s): resolves once that account's reading is fresh enough for hold to go by.
+  constructor({ store, launch, assign = null, followUp = null, onChange = () => {}, gh = ghCli, hold = () => null, fresh = null, now = () => Date.now() }) {
+    Object.assign(this, { store, launch, assign, followUp, onChange, gh, hold, fresh, now });
     this.busy = new Set();
   }
 
@@ -367,6 +368,7 @@ export class Triggers {
     const branch = t.kind === 'ci' ? String(vars.branch || '') : '';
     const open = branch && this.#taskFor(t, branch);
     if (open) {
+      if (!manual) await this.fresh?.(open);
       const h = !manual && this.hold(open);
       if (h) throw Object.assign(new Error(h.why), { held: h });
       const out = (await this.followUp(open, prompt)) || { id: open.id };

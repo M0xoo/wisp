@@ -295,3 +295,67 @@ test('allowance: a period that ended with no report since still reads as closed'
   assert.deepEqual([w.periods.length, w.periods[0].end, w.periods[0].used, w.periods[0].inWisp, !!w.periods[0].open], [1, end, 0.6, 0.2, false]);
   near(w.periods[0].outside, 0.4);
 });
+
+// --- Codex's December plan change ------------------------------------------------------------------
+
+const DAY = 24 * H;
+const dec = (m, d, y = 2026) => Date.UTC(y, m, d);
+const ending = (ends, per1 = 1) => ends.map((end) => ({ ...full(0, per1), end })); // newest first
+
+test('shrinkOf: Codex, four full periods before December 1 still read', () => {
+  const r = shrinkOf(ending([dec(10, 30), dec(10, 23), dec(10, 16), dec(10, 9)]), 'codex');
+  assert.equal(r.state, 'same');
+  assert.equal(shrinkOf(ending([dec(11, 1), dec(10, 24), dec(10, 17), dec(10, 10)]), 'codex').state, 'same', 'one ending at the very start is still before');
+});
+
+test('shrinkOf: Codex says nothing from the first period that ends in December', () => {
+  const before = [dec(10, 25), dec(10, 18), dec(10, 11), dec(10, 4)];
+  assert.equal(shrinkOf(ending([dec(11, 2), ...before.slice(0, 3)]), 'codex'), null, 'one ending December 2');
+  assert.equal(shrinkOf(ending([dec(11, 9), dec(11, 2), ...before]), 'codex'), null, 'two after, older ones behind them');
+  assert.equal(shrinkOf(ending([dec(11, 29), dec(11, 22), dec(11, 15), dec(11, 8)]), 'codex'), null, 'four inside December');
+  assert.equal(shrinkOf(ending([dec(0, 7, 2027), dec(11, 31), dec(11, 24), dec(11, 17)]), 'codex'), null, 'a period that began in December doesn’t count');
+});
+
+test('shrinkOf: Codex reads again on four full periods wholly after January 1', () => {
+  const after = [dec(0, 29, 2027), dec(0, 22, 2027), dec(0, 15, 2027), dec(0, 8, 2027)];
+  assert.equal(shrinkOf(ending(after), 'codex').state, 'same', 'the first began on January 1');
+  assert.equal(shrinkOf(ending(after.slice(0, 3)), 'codex'), null, 'three after, nothing else');
+  assert.equal(shrinkOf(ending([...after.slice(0, 3), dec(0, 1, 2027), dec(11, 25), dec(11, 18), dec(11, 11)]), 'codex'), null, 'three after, older ones don’t fill in');
+  const r = shrinkOf(ending([...after, dec(0, 1, 2027), dec(11, 25)]).map((p, i) => (i < 2 ? { ...p, per1: 2, work: 100 } : p)), 'codex');
+  assert.equal(r.state, 'more', 'only the periods after it, two against two');
+  assert.equal(r.from, after[3]);
+});
+
+test('shrinkOf: the change is Codex’s; Claude Code, or no agent, reads across December', () => {
+  const across = ending([dec(11, 16), dec(11, 9), dec(11, 2), dec(10, 25)]);
+  assert.equal(shrinkOf(across, 'claude').state, 'same');
+  assert.equal(shrinkOf(across).state, 'same');
+});
+
+test('allowance: Codex’s row keeps its periods and only the reading goes quiet', () => {
+  let now = dec(11, 10);
+  const run = (b, agent) => {
+    const start = dec(10, 11);
+    const sessions = [];
+    now = start - H; // wisp was reading the account before the first of them began
+    b.record(agent, 'default', { windows: [{ id: 'seven_day', used: 0.01, resetsAt: start, ms: WEEK }] });
+    for (let i = 1; i <= 4; i++) {
+      const end = start + i * WEEK;
+      now = end - WEEK + H;
+      b.record(agent, 'default', { windows: [{ id: 'seven_day', used: 0.01, resetsAt: end, ms: WEEK }] });
+      sessions.push({ id: `s${i}`, agent, turns: [{ startedAt: end - H, stats: agent === 'claude' ? { costUsd: 5 } : { inputTokens: 5e6 * i }, plan: [{ agent, account: 'default', window: 'seven_day', used: 0.4, resetsAt: end }] }] });
+      now = end - 30 * 60_000;
+      b.record(agent, 'default', { windows: [{ id: 'seven_day', used: 0.5, resetsAt: end, ms: WEEK }] });
+    }
+    now = start + 4 * WEEK + H;
+    b.record(agent, 'default', { windows: [{ id: 'seven_day', used: 0.02, resetsAt: start + 5 * WEEK, ms: WEEK }] });
+    now += DAY;
+    return allowance(b, sessions, { now })[0].windows[0];
+  };
+  const clock = () => now;
+  const claude = run(new Budget(tmp('allowance-dec-claude'), { now: clock }), 'claude');
+  assert.equal(claude.shrink?.state, 'same', 'the same periods read for Claude Code');
+  const codex = run(new Budget(tmp('allowance-dec-codex'), { now: clock }), 'codex');
+  assert.equal(codex.shrink, null);
+  assert.ok(codex.periods.filter((p) => p.full).length >= 4, 'its period rows stay');
+});

@@ -6,8 +6,8 @@ and can let a task wait for the reset instead of stopping.
 
 ## Where the numbers come from
 
-wisp reads what the CLI already reports on every run (the one exception: *Check Codex while work
-waits*, below):
+wisp reads what the CLI already reports on every run (two exceptions, Codex only: *Check Codex
+while work waits* and the read before held-back work, both under **Live read** below):
 
 | Harness | Source | Windows |
 |---|---|---|
@@ -191,6 +191,12 @@ fires an event, notifies or touches a hold, and no setting is needed.
   wisp, newest first. Under 4: null, and the row says nothing. Two against two, so one odd week
   can't speak; each side is its work over its share, so a big week weighs more than a small one. At
   −20% or lower *less*, +20% or higher *more*, else *same*.
+- **A plan change** (`PLAN_CHANGE`, Codex only: 1 December 2026 to 1 January 2027): Plus, Pro and
+  Business share one allowance with ChatGPT then, chats move the window and `#sharers` can't tell
+  them apart, so 1% before and after aren't the same 1%. OpenAI says *starting in December* and names
+  no day, so the whole month is the change. Once a fair period ends after `from`, only periods
+  wholly past `to` count: Shrink says nothing until there are 4 of those. Period rows stay. If it
+  slips past December, move `to`.
 - **What moved in the CLI** (`cli`, from `stats.cli`, which only newer turns have): optional, read
   with care, and a field counts only with both sides known. No data, no key. A reading says the
   moves across its sides, and only when it isn't *same*: a cause to look at, not a verdict.
@@ -265,6 +271,27 @@ Design by Sana (2026-11-01).
   Nothing waiting: no traffic. Never `account/rateLimitResetCredit/consume`: a credit is the user's
   to spend. Claude Code has no free read (its `rate_limit_event` comes only inside a model call, and a
   private OAuth endpoint with a scraped token is off-limits): it keeps learning with its next run.
+- **Read before held-back work** (`liveLimits.before`, `app.reserve.fresh`): with an Automations
+  stop line on Codex, an unattended launch, a follow-up nobody sent by hand (a pass ahead of
+  `Later.tick`'s loop), a trigger's follow-up to an open task and a goal's next round read the
+  account first when its reading is over 15 minutes old (no reading counts as old). At most one read
+  per account per 15 minutes, failed ones included (`tried`, which `tick` sets too), and callers at
+  once share it. It needs no switch and ignores `defaults.liveLimits`, which governs the polling: it's
+  a single read, only when you've set a stop line and work is about to start, it spends nothing,
+  and without it a line meant to protect your chats would read old numbers. A failed read warns and
+  changes nothing: the work goes on what wisp knew. A reading past the line only feeds the silent
+  waits above: no card, no new hold. `reserve.check` stays synchronous and never reads (`Crew.view`
+  calls it on every render). Hand-started runs never read, and the review gate
+  (`services/review.js`, whose `maybe()` is synchronous) isn't covered.
+- **`record(…, { read: true })`**: both kinds of read pass it. A read is no run's report, so what
+  moved since the last reading doesn't land in `acc.learn` or `acc.run`: it may be chats, and Ask near
+  the limit and Drain watch would charge it to the next run.
+- **Frozen entries** (`codexLive`): if OpenAI moves the limit to a new id, `rateLimitsByLimitId.codex`
+  may stay with its old numbers. An entry with a reset over 5 minutes in the past is frozen (a live
+  answer never reports a reset that's gone), and `rateLimits` or the other entry with the latest reset
+  takes over, never a model's own bucket (`normalModelSlug`) or `premium`. None: the codex entry,
+  as before. A frozen entry is only caught once one of its resets passes: up to a week on a plan
+  with no 5-hour window.
 - **Terms**: reads the account the work would run on and nothing else; never switches accounts or
   spends a reset.
 

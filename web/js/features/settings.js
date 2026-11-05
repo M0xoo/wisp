@@ -232,7 +232,7 @@ export function openSettings(opts) {
             ${Object.entries(STOP_KEYS)
               .map(([id, k]) => {
                 const name = esc(S.agents.find((x) => x.id === id)?.name || id);
-                const desc = id === 'codex' ? 'Its own line. ChatGPT and Codex are moving to one shared allowance: a lower line here leaves the rest for your chats' : 'Its own line. Same follows Automations stop at';
+                const desc = id === 'codex' ? 'Its own line. From December, Plus, Pro and Business plans share one allowance across ChatGPT and Codex: a lower line here leaves room for your chats. With a line set, wisp asks Codex how its windows stand before an automation starts if the last reading is over 15 minutes old (nothing is spent)' : 'Its own line. Same follows Automations stop at';
                 const seg = `<fieldset class="pk-seg us-by" data-key="${k}" aria-label="Automations stop at, ${name}">${STOP_BY.map((v) => `<button type="button" data-v="${v}">${v === 'same' ? 'Same' : v === 'off' ? 'Off' : `${v}%`}</button>`).join('')}</fieldset>`;
                 return `<div class="sx-row us-by-row" data-agent="${id}"><div class="sx-text"><b class="us-by-name"><span class="model-logo">${harnessLogo(id)}</span>${name}</b><small>${desc}</small></div><div class="sx-ctl">${seg}</div></div>`;
               })
