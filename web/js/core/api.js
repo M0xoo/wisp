@@ -8,12 +8,29 @@ const early = (path) => {
   return r?.catch(() => null);
 };
 
+// No answer at all: a person reads this, not the browser's own words ("Failed to fetch", "Load
+// failed", "signal timed out"). The tests in test/api-errors.test.js hold them to it.
+const CANT_REACH = 'Can’t reach wisp. Check the connection and try again.';
+const TOO_SLOW = 'wisp took too long to answer. Try again.';
+
+// fetch() that fails in wisp's words. For a call that can't go through api().
+export const reach = (url, opts) =>
+  fetch(url, opts).catch((err) => {
+    if (err?.name !== 'TypeError' && err?.name !== 'TimeoutError') throw err;
+    throw new Error(err.name === 'TimeoutError' ? TOO_SLOW : CANT_REACH);
+  });
+
+// A refused response as an Error: the server's message, or, from a proxy or tunnel in front of a wisp
+// that's gone, the same words as no answer. statusText is empty over HTTP/2.
+export const refused = (r, j) =>
+  Object.assign(new Error(j.error || (r.status >= 502 && r.status <= 504 ? CANT_REACH : r.statusText || 'wisp couldn’t do that. Try again.')), { status: r.status });
+
 // timeout (ms): give up on a request that's still out by then. On a phone a dead connection can
 // look open for minutes, and a load others wait on (an open task's copy) would hold them all.
 export async function api(path, { method = 'GET', body, priority, timeout } = {}) {
   const r =
     (method === 'GET' && (await early(path))) ||
-    (await fetch(`/api${path}`, {
+    (await reach(`/api${path}`, {
       method,
       priority, // a fetch ahead goes 'low', so the one waited for isn't queued behind it
       signal: timeout ? AbortSignal.timeout(timeout) : undefined,
@@ -22,7 +39,7 @@ export async function api(path, { method = 'GET', body, priority, timeout } = {}
       body: body !== undefined ? JSON.stringify(body) : undefined,
     }));
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw Object.assign(new Error(j.error || r.statusText), { status: r.status, ...(j.hold && { hold: j.hold }), ...(j.sandboxLogin && { sandboxLogin: true }) }); // hold: Ask near the limit (server/guard.js); sandboxLogin: services/sandbox.js
+  if (!r.ok) throw Object.assign(refused(r, j), { ...(j.hold && { hold: j.hold }), ...(j.sandboxLogin && { sandboxLogin: true }) }); // hold: Ask near the limit (server/guard.js); sandboxLogin: services/sandbox.js
   return j;
 }
 
@@ -46,13 +63,13 @@ export function shared(load) {
 
 // An attachment: the raw bytes, with its name and type in the query. Resolves to { id }.
 export async function upload(file, { name, type }) {
-  const r = await fetch(`/api/uploads?name=${encodeURIComponent(name)}&type=${encodeURIComponent(type)}`, {
+  const r = await reach(`/api/uploads?name=${encodeURIComponent(name)}&type=${encodeURIComponent(type)}`, {
     method: 'POST',
     headers: { 'content-type': 'application/octet-stream' },
     body: file,
   });
-  const j = await r.json();
-  if (!r.ok) throw new Error(j.error);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw refused(r, j);
   return j;
 }
 

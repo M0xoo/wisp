@@ -8,7 +8,7 @@
 
 import { esc } from '../md.js';
 import { copy } from '../blocks.js';
-import { api } from '../core/api.js';
+import { api, reach, refused } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { icon } from '../core/dom.js';
 import { inGrid } from '../core/state.js';
@@ -29,10 +29,10 @@ export function mountApiKeys(box, { grid = null } = {}) {
   // One call for both ways in, with api()'s errors. An older grid has no /_grid/keys: nothing to show.
   const call = async (p, { method = 'GET', body } = {}) => {
     if (!grid) return api(`/cloud${p}`, { method, body });
-    const r = await fetch(`/_grid${p}`, { method, credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: body !== undefined ? JSON.stringify(body) : undefined });
+    const r = await reach(`/_grid${p}`, { method, credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: body !== undefined ? JSON.stringify(body) : undefined });
     const j = await r.json().catch(() => ({}));
     if (method === 'GET' && r.status === 404) return { grid: null, keys: [] };
-    if (!r.ok) throw Object.assign(new Error(j.error || r.statusText), { status: r.status });
+    if (!r.ok) throw refused(r, j);
     return method === 'GET' ? { grid: { host: new URL(grid.url).host, handle: new URL(grid.address).hostname.split('.')[0] }, ...j } : j;
   };
   let v = null; // GET /keys

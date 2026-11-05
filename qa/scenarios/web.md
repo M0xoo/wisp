@@ -529,3 +529,13 @@ Every page check also fails on an uncaught page error or a `console.error`.
   - 4: the same, on the stored task.
   - 5: that block keeps its `$` line and **Run**.
 - **Suite** (`test/failure-screen.test.js`), **Manual** (real Chrome)
+
+### WEB-58 · No connection, in wisp's words
+- **Preconditions:** a finished task open, then the browser offline (DevTools, or `ctx.setOffline(true)`).
+- **Steps:**
+  1. Type a reply and press Enter.
+  2. Open Changes, or any panel not loaded yet.
+- **Expected:**
+  - 1: a red toast above the reply box says *Can’t reach wisp. Check the connection and try again.*, and the text stays in the box. Never *Failed to fetch*.
+  - 2: the same words in the panel.
+- **Suite** (`test/api-errors.test.js`), **Manual** (real Chrome)
