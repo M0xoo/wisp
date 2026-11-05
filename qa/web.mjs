@@ -4,7 +4,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { until } from '../test/helpers.js';
+import { makeClone, until } from '../test/helpers.js';
 import { api, CHROME, ok, OUT, playwright, ROOT, runner, startWisp } from './lib.mjs';
 
 const PORT = Number(process.env.QA_WEB_PORT) || 4493;
@@ -19,7 +19,7 @@ const check = (id, title, fn) =>
       throw err;
     }
   });
-const w = await startWisp({ port: PORT });
+const w = await startWisp({ port: PORT, extraEnv: { FAKE_GH_STATE: path.join(OUT, 'web-gh.json') } });
 const { chromium } = playwright();
 const browser = await chromium.launch({ executablePath: CHROME, headless: process.env.HEADED !== '1' });
 const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
@@ -258,6 +258,40 @@ try {
     await p.shot('diff');
     await press(p, 'Escape');
     p.clean();
+  });
+
+  await check('WEB-47', 'side panel Changes: Ship it empties the commit box and the counts, in every window', async () => {
+    fs.rmSync(path.join(OUT, 'web-gh.json'), { force: true });
+    const repo = makeClone();
+    const m = await launch({ prompt: 'Fix add()', cwd: repo.dir, mode: 'auto' });
+    const dir = (await settled(m.id)).worktree.path;
+    const q = await page();
+    const other = await page(); // a second window hears of it from the server alone
+    const open = async (x) => {
+      await x.goto(`${w.url}/`);
+      await x.locator(`.item[data-id="${m.id}"]`).first().click({ position: { x: 100, y: 16 } });
+      await x.waitForSelector(`#splitHead[data-id="${m.id}"]`, { timeout: 10000 });
+      await blur(x);
+      await x.keyboard.press('d');
+      await x.waitForSelector('.cx-commit:not([hidden])', { timeout: 10000 });
+      ok(/uncommitted/.test(await x.locator('.pn-place').innerText()), 'uncommitted before the ship');
+    };
+    await open(q);
+    await open(other);
+    await blur(q);
+    await q.keyboard.press('s');
+    await q.locator('.ship-modal .primary').click();
+    await until(async () => (await session(m.id)).pr, { timeout: 15000, what: 'the PR' });
+    for (const x of [q, other]) {
+      await x.waitForSelector('.cx-commit', { state: 'hidden', timeout: 5000 });
+      await until(async () => !/uncommitted/.test(await x.locator('.pn-place').innerText()), { timeout: 5000, what: 'the counts' });
+      ok((await x.locator('.cx-row').count()) > 0, 'the branch keeps its files');
+      ok(!(await x.locator('.cx-row button.cx-stage').count()), 'no Stage on committed files');
+      x.clean();
+    }
+    ok(!execFileSync('git', ['status', '--short'], { cwd: dir, encoding: 'utf8' }).trim(), 'the worktree is clean');
+    await q.context().close();
+    await other.context().close();
   });
 
   await check('WEB-47', 'side panel Changes: a long folder is cut to …/, never a bare ./', async () => {

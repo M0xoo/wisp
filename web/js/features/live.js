@@ -66,6 +66,7 @@ export function connect() {
     if (!!prev?.term !== !!s.term && S.nodes.has(s.id)) updateDock(s.id); // the follow-up box says it's in a terminal
     else if (JSON.stringify(prev?.later || null) !== JSON.stringify(s.later || null) && S.nodes.has(s.id)) updateDock(s.id); // its scheduled follow-ups, above the box
     if (JSON.stringify([prev?.pr, prev?.also, prev?.prs, prev?.toShip, prev?.state, prev?.shipping, prev?.review]) !== JSON.stringify([s.pr, s.also, s.prs, s.toShip, s.state, s.shipping, s.review])) renderPrStrip(s.id);
+    if (prev?.shipping && !s.shipping) bus.emit('shipped', s.id); // landed here or in another window: Changes looks again
     if (JSON.stringify(prev?.review || null) !== JSON.stringify(s.review || null)) bus.emit('review', s.id); // the PR panel's review section
     if (JSON.stringify(prev?.overlaps || null) !== JSON.stringify(s.overlaps || null)) renderOverlapStrip(s.id);
     if (prev?.state !== s.state || prev?.pr?.state !== s.pr?.state) spellEvent('summary');

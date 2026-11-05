@@ -2,6 +2,7 @@
 
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
+import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
@@ -322,30 +323,38 @@ export async function shipDialog(id) {
     renderPrStrip(id);
     const strip = S.nodes.get(id)?.body?.querySelector('.pr-strip');
     if (strip && !strip.hidden) strip.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    api(`/sessions/${id}/ship`, { method: 'POST', body: values }).then(
-      (pr) => {
-        const s = S.sessions.get(id);
-        // Everything just went up: no Push to #n until the server's recheck finds something new.
-        // Several repos: their PRs come with the server's next summary.
-        if (s) S.sessions.set(id, { ...s, ...(!pr.prs && { pr: { ...s.pr, ...pr } }), shipping: null, toShip: s.toShip && { ...s.toShip, dirty: 0, unpushed: 0, ...(s.toShip.repos !== undefined && { repos: 0 }) } });
-        ships.delete(id);
-        renderPrStrip(id);
-        const what = pr.prs ? pr.prs.map((x) => `<b>${esc(x.repo)} #${x.number}</b>`).join(', ') : `<b>PR #${pr.number}</b>`;
-        toast(`${icon('branch')} ${open ? 'Pushed to' : pr.prs ? 'PRs:' : 'Opened'} ${what}`, { action: { label: 'Open', run: () => window.open(pr.url, '_blank') }, timeout: 8000 });
-      },
-      (err) => {
-        if (ships.has(id)) ships.get(id).error = err.message;
-        const s = S.sessions.get(id);
-        if (s) S.sessions.set(id, { ...s, shipping: null });
-        renderPrStrip(id);
-        toastError(err, { timeout: 10_000 });
-      },
-    );
+    sendShip(id, values, open);
   };
   $('[data-a="go"]', node).onclick = () => {
     go();
   };
   requestAnimationFrame(() => (title || $('[data-a="go"]', node)).focus());
+}
+
+// The dialog's closed and the strip follows the stages. The folder moved either way: a push that
+// fails comes after the commit landed, so Changes and the place line look again on both ('shipped').
+export function sendShip(id, values, open) {
+  return api(`/sessions/${id}/ship`, { method: 'POST', body: values }).then(
+    (pr) => {
+      const s = S.sessions.get(id);
+      // Everything just went up: no Push to #n until the server's recheck finds something new.
+      // Several repos: their PRs come with the server's next summary.
+      if (s) S.sessions.set(id, { ...s, ...(!pr.prs && { pr: { ...s.pr, ...pr } }), shipping: null, toShip: s.toShip && { ...s.toShip, dirty: 0, unpushed: 0, ...(s.toShip.repos !== undefined && { repos: 0 }) } });
+      ships.delete(id);
+      renderPrStrip(id);
+      bus.emit('shipped', id);
+      const what = pr.prs ? pr.prs.map((x) => `<b>${esc(x.repo)} #${x.number}</b>`).join(', ') : `<b>PR #${pr.number}</b>`;
+      toast(`${icon('branch')} ${open ? 'Pushed to' : pr.prs ? 'PRs:' : 'Opened'} ${what}`, { action: { label: 'Open', run: () => window.open(pr.url, '_blank') }, timeout: 8000 });
+    },
+    (err) => {
+      if (ships.has(id)) ships.get(id).error = err.message;
+      const s = S.sessions.get(id);
+      if (s) S.sessions.set(id, { ...s, shipping: null });
+      renderPrStrip(id);
+      bus.emit('shipped', id);
+      toastError(err, { timeout: 10_000 });
+    },
+  );
 }
 
 export async function mergePr(id) {

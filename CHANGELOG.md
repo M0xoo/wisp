@@ -31,6 +31,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Changes stays current after Ship it.** Changes kept showing the Commit box, Stage boxes and *2 uncommitted* until a reload, and Commit then said there was nothing to commit. They now go as soon as the ship ends, in every open window, including when the push fails after the commit landed.
 - **A side discussion keeps its link back to a long-titled task.** With a long main task title the line above its first message read *Side discussion of …*, with no title and nothing to click. The title is what's cut now, the link stays, and its focus ring isn't clipped.
 - **A side discussion's clash card keeps its answers in view on a phone.** It no longer repeats the main task's lines when the diff shows them, or a second *what to do instead* box above the reply box, so *Keep main's version* isn't under the reply box when a phone opens it.
 - **A second side discussion no longer blames the main task.** When one side discussion had changed a file, another side discussion's card said those lines were the main task's, and Apply sent the main task a message about a file it never touched. The card and the warning row now name the side discussion, Apply and Keep leave the main task out of it, and lines the main task did change stay its own.
