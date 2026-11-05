@@ -97,7 +97,11 @@ test('a worktree git can’t read is not taken for a clean one', async () => {
   const { add, worktrees } = setup();
   const s = await add('moved');
   fs.writeFileSync(path.join(s.worktree.path, 'work.txt'), 'x');
-  fs.writeFileSync(path.join(s.worktree.path, '.git'), 'gitdir: /nowhere/.git/worktrees/x\n'); // its repo moved
+  // Its repo moved. Replaced, not overwritten: git hides a worktree's .git file on Windows, and
+  // opening a hidden file with 'w' is refused (EPERM) there.
+  const link = path.join(s.worktree.path, '.git');
+  fs.rmSync(link);
+  fs.writeFileSync(link, 'gitdir: /nowhere/.git/worktrees/x\n');
   fs.utimesSync(s.worktree.path, 0, 0);
   await assert.rejects(folderOnly(s.worktree));
   await worktrees.sweep();
