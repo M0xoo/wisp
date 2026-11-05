@@ -105,6 +105,7 @@ test('the overlap pill and warning (another open task changes the same files) ar
 });
 
 test('the cold-cache line and its Fork button are parts, on the follow-up box and the limit card', () => {
+  assert.equal(schema.PARTS.reconnecting, '#reconnecting');
   assert.equal(schema.PARTS['composer.cold'], '.composer .c-cold');
   assert.equal(schema.PARTS['composer.coldFork'], '.composer .c-cold-fork');
   assert.equal(schema.PARTS['limit.cold'], '.b-limit .lm-cold');

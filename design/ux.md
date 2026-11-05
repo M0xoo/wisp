@@ -22,6 +22,15 @@ stays put**, and **what needs you is easy to find**.
 - Something that can't run right now says why in a toast (*Still working — stop it first or let it
   finish.*); it doesn't silently do nothing.
 
+## When wisp stops answering
+
+The live stream down for 4 seconds puts *Reconnecting to wisp…* on the open pane's head, or at the top
+of home and the list, on every layout and in the app (`features/reconnecting.js`). It's a status, not
+a question: no buttons, it never covers a title or a pill, it goes when the stream's `hello` arrives, and
+it changes nothing a run does. While it shows, the working panel's motion stops: it can't say a run is
+moving. A blip under 4 seconds shows nothing. Don't add a second connection signal; a refused action
+still gets its toast.
+
 ## Asking and telling
 
 - **Confirm** with `ask()` from `web/js/ui/confirm.js`, never the browser's `confirm()`/`alert()`/

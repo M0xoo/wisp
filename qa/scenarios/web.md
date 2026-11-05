@@ -568,3 +568,16 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Steps:** with finished worktree tasks (one with an uncommitted file, one with an open PR, one kept with *Keep worktree*, one running, and a folder in `worktrees/` no task knows), open Settings → Worktrees. Set *Clean up automatically* to 3 days; click **Clean up N**; Remove the uncommitted one; reply to a cleaned task.
 - **Expected:** rows show size, last use and when each goes, sizes and states arrive without the rows moving. Clean up asks once, then takes only idle clean tasks: the uncommitted, open PR, kept and running rows stay. Remove on the uncommitted one asks and names what's lost; on a running task it's disabled. The leftover goes only by its own Remove. The reply brings the folder back on its branch, with `.env`.
 
+### WEB-60 · wisp stops answering
+- **Preconditions:** a running task open, then wisp killed (`kill -9`).
+- **Steps:**
+  1. Watch the page for 4 seconds.
+  2. Wait one more second, at 1440, 1000 and 390px, in both themes and in the app.
+  3. On home and, stacked, on the list.
+  4. Start wisp again.
+- **Expected:**
+  - 1: nothing shows, so a blip never flashes.
+  - 2: *Reconnecting to wisp…* sits on the head's bottom edge, over no title or pill, and the working panel's dots and shine stop.
+  - 3: it sits at the top, clear of the bar's buttons.
+  - 4: it goes within about 2 seconds, and nothing else moves.
+- **Suite** (`test/reconnecting.test.js`), **Manual** (real Chrome)

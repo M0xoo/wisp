@@ -370,6 +370,21 @@ body:has(:is(textarea, input, [contenteditable="true"]):focus) .ts-badge::after 
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .sh-title[contenteditable='true'] { white-space: normal; background: var(--surface-2); box-shadow: 0 0 0 3px var(--accent-soft); padding: 0 4px; cursor: text; }
+/* wisp stopped answering (features/reconnecting.js): sits on the head's bottom edge, over the open
+   pane's middle, where it covers neither the title nor what's under it. Under toasts and dialogs. */
+.reconnecting {
+  position: fixed; z-index: 30; top: var(--sb-top); left: calc(var(--sb-left) + var(--sb-w) / 2); translate: -50% -50%;
+  display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 11px; white-space: nowrap; pointer-events: none;
+  border: 1px solid var(--line-2); border-radius: 13px; background: var(--surface); color: var(--ink-2);
+  box-shadow: var(--shadow-1); font-size: 12px; animation: fade-in 0.2s var(--ease) backwards;
+}
+.reconnecting[hidden] { display: none; }
+/* Home or the list: no open pane, so the top of the window, level with the top bar's buttons. */
+body.no-stage .reconnecting { top: calc(env(safe-area-inset-top, 0px) + 28px); left: 50%; }
+body.wisp-mobile.no-stage .reconnecting { top: calc(env(safe-area-inset-top, 0px) + 57px); } /* the app's top bar is full: on its bottom edge */
+.reconnecting::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+/* It can't say a run is moving: only that it was. */
+body.stream-down .w-panel .orb.live, body.stream-down .w-panel .w-status b { animation-play-state: paused; }
 .split-head.st-done .sh-title { color: var(--ink-2); } /* done, but still the heading you read */
 .sh-acts { flex: none; display: flex; align-items: center; gap: 4px; }
 /* the head's buttons share the icon buttons' 32px; one whose label folds away is a 32px square */

@@ -121,6 +121,7 @@ body.wisp-mobile .it-head:is(:active, .pressed), body.wisp-mobile .task-head:is(
 body.wisp-mobile .topbar::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; opacity: 0; pointer-events: none; transition: opacity 0.3s;
   background: linear-gradient(90deg, transparent, var(--accent), transparent) 0 0 / 40% 100% no-repeat; }
 body.wisp-mobile.syncing .topbar::after { opacity: 1; animation: syncing 1.1s ease-in-out infinite; }
+body.wisp-mobile.stream-down.syncing .topbar::after { opacity: 0; animation: none; } /* Reconnecting… says it (split.css) */
 @keyframes syncing { from { background-position: -40% 0; } to { background-position: 140% 0; } }
 
 /* ---------- phone app: reach, size and type ---------- */

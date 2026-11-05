@@ -27,6 +27,7 @@ import { loadUpdate, renderUpdate } from './update.js';
 import { applyView } from './split.js';
 import { applyTheme } from './theme.js';
 import { checkBuild, syncing } from './cache.js';
+import { streamDown, streamUp } from './reconnecting.js';
 import { homeScreenTags } from './homescreen.js';
 
 let es = null;
@@ -41,7 +42,10 @@ export function connect() {
   // The browser retries a dropped stream by itself, but gives up for good after an HTTP error
   // (a tunnel that is half back up can answer one): start a new one then.
   es.addEventListener('error', function () {
-    if (this === es) syncing(true);
+    if (this === es) {
+      syncing(true);
+      streamDown();
+    }
     if (this.readyState === EventSource.CLOSED && this === es) setTimeout(() => this === es && connect(), 3000);
   });
   es.addEventListener('summary', (e) => {
@@ -124,6 +128,7 @@ export function connect() {
   // The first one: boot asked for the lists right after opening the stream, so those answers
   // already have everything since; it waits for them instead of asking again.
   es.addEventListener('hello', () => {
+    streamUp();
     const fresh = (load) => (helloed ? load() : load.since(firstStream));
     fresh(loadSessions)
       .then(() => syncing(false))
@@ -223,6 +228,7 @@ function onTunnel(line) {
     if (es?.readyState !== EventSource.OPEN) connect();
   } else if (kind === 'fail') {
     syncing(false);
+    streamUp(); // the toast below says it, with Computers
     tunnelToast?.remove();
     const why = rest.replace(/^\S+ ?/, '') || 'the connection failed';
     tunnelToast = toast(`Can’t reach <b>${esc(COMPUTER || 'this computer')}</b>: ${esc(why)}`, { tone: 'bad', timeout: 600_000, action: { label: 'Computers', run: openComputers } });
