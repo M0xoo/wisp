@@ -160,12 +160,26 @@ export function codexLimits(rl) {
 }
 
 // What Codex's app-server answers to account/rateLimits/read → codexLimits' input (its own fields
-// in camelCase), or null. The codex limit, not another one (premium) it may also list.
-export function codexLive(res) {
-  const rl = res?.rateLimitsByLimitId?.codex || res?.rateLimits;
-  if (!rl || typeof rl !== 'object') return null;
+// in camelCase), or null. The codex limit, not another one (premium, or a model's own bucket:
+// normalModelSlug) it may also list. If OpenAI moves the limit to a new id, the codex entry stays in
+// the answer with its old numbers: a live answer never gives a reset that's already gone, so such
+// an entry is frozen and the bucket with the latest reset takes its place. That only shows once one
+// of its resets passes: up to a week on a plan with no 5-hour window.
+const FROZEN_SKEW_MS = 5 * 60_000; // clocks disagree a little
+export function codexLive(res, { now = Date.now() } = {}) {
   const w = (x) => x && Number.isFinite(x.usedPercent) && { used_percent: x.usedPercent, window_minutes: x.windowDurationMins, resets_at: x.resetsAt };
-  return codexLimits({ primary: w(rl.primary), secondary: w(rl.secondary), rate_limit_reached_type: rl.rateLimitReachedType || null });
+  const limitsOf = (rl) => (rl && typeof rl === 'object' ? codexLimits({ primary: w(rl.primary), secondary: w(rl.secondary), rate_limit_reached_type: rl.rateLimitReachedType || null }) : null);
+  const resets = (rl) => [rl.primary, rl.secondary].map((x) => toMs(x?.resetsAt)).filter(Boolean);
+  const frozen = (rl) => resets(rl).some((at) => at < now - FROZEN_SKEW_MS);
+  const byId = res?.rateLimitsByLimitId;
+  const main = byId?.codex;
+  const limits = limitsOf(main);
+  if (!limits) return limitsOf(res?.rateLimits);
+  if (!frozen(main)) return limits;
+  const side = (id, rl) => rl.normalModelSlug || id === 'premium' || rl.limitId === 'premium';
+  const latest = (rl) => Math.max(0, ...resets(rl));
+  const [next] = [['', res.rateLimits], ...Object.entries(byId)].filter(([id, rl]) => id !== 'codex' && limitsOf(rl) && !side(id, rl) && !frozen(rl)).sort((a, b) => latest(b[1]) - latest(a[1]));
+  return next ? limitsOf(next[1]) : limits;
 }
 
 // The rate_limits Codex wrote last into a thread's session file (CODEX_HOME/sessions/yyyy/mm/dd/
@@ -237,7 +251,8 @@ export class Budget {
 
   // What a run reported: { windows: [{ id, used, resetsAt, ms }], rejected?, overage?, credits? }.
   // Returns 'extra' or 'credits' when this report says the run is billed past the plan, else null.
-  record(agent, account, { windows = [], complete = false, overage = false, credits } = {}) {
+  // read: from Check Codex or the read before held-back work, not from a run.
+  record(agent, account, { windows = [], complete = false, overage = false, credits, read = false } = {}) {
     if (!agent || !Array.isArray(windows)) return null;
     account ||= 'default';
     let past = overage ? 'extra' : null;
@@ -257,8 +272,8 @@ export class Budget {
     const early = [];
     // Readings close together come from runs at work: what moved in between is theirs (Ask near
     // the limit learns its rate from it). Use outside wisp in that time counts too, which only
-    // makes wisp ask a little sooner.
-    const close = acc.at && this.now() - acc.at <= LEARN_GAP;
+    // makes wisp ask a little sooner. A read is no run's report: chats it sees aren't the next run's.
+    const close = !read && acc.at && this.now() - acc.at <= LEARN_GAP;
     for (const w of windows) {
       if (!w?.id || !Number.isFinite(w.used)) continue;
       const was = acc.windows[w.id];

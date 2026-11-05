@@ -79,9 +79,10 @@ export class Later {
   // changed(s): a session's fields changed (persist + summary). configChanged(): config.later did.
   // notify(s): a reminder came due (the page's notification, the phone).
   // hold(s): what holds back a follow-up nobody sent by hand (Automations stop at), or null.
+  // fresh(s): resolves once its account's reading is fresh enough for hold to go by.
   // goalRound(s, l): a goal's next round that waited for the plan goes now (server/goal.js).
-  constructor({ store, runner, launch, uploads = null, changed = () => {}, configChanged = () => {}, notify = () => {}, hold = () => null, goalRound = null, now = () => Date.now() }) {
-    Object.assign(this, { store, runner, launch, uploads, changed, configChanged, notify, hold, goalRound, now });
+  constructor({ store, runner, launch, uploads = null, changed = () => {}, configChanged = () => {}, notify = () => {}, hold = () => null, fresh = null, goalRound = null, now = () => Date.now() }) {
+    Object.assign(this, { store, runner, launch, uploads, changed, configChanged, notify, hold, fresh, goalRound, now });
     store.config.later ||= [];
   }
 
@@ -349,7 +350,17 @@ export class Later {
 
   // --- the clock ----------------------------------------------------------------------------
 
+  // Before the loop, not in it: state would change under an await there, and tick has no re-entry
+  // guard. Only follow-ups the hold could stop: not yours, not a reminder.
+  async #readFirst() {
+    if (!this.fresh) return;
+    const now = this.now();
+    const could = (l) => l.at <= now && !l.remind && l.by !== 'user';
+    await Promise.all(this.store.all().filter((s) => !s.archived && s.later?.some(could) && this.#free(s)).map((s) => this.fresh(s)));
+  }
+
   async tick() {
+    await this.#readFirst();
     const now = this.now();
     let fired = 0;
     for (const p of this.plans.filter((x) => x.at <= now)) {

@@ -109,7 +109,8 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 export class Goals {
   // deps: { store, runner, agents(), defaults(), projectOf(session), track?(event, props),
-  //         hold?(session) → what holds back automations on its account, schedule?(session, entry) → Later.add,
+  //         hold?(session) → what holds back automations on its account, fresh?(session) → a reading
+  //         fresh enough for hold to go by, schedule?(session, entry) → Later.add,
   //         crew?(id) → a crew member, for one who judges, broadcast?(event, data), checkMs? }
   constructor(deps) {
     Object.assign(this, deps);
@@ -301,6 +302,8 @@ export class Goals {
       this.tokens.delete(session.id);
       return this.runner.settle(session);
     }
+    await this.fresh?.(session);
+    if (!live()) return this.#tidy(session);
     g.round++;
     g.status = 'working';
     this.tokens.delete(session.id);

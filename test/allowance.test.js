@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { allowance, MIN_SHARE, periodsOf, shrinkOf, turnCosts } from '../server/allowance.js';
-import { Budget } from '../server/budget.js';
+import { Budget, codexLimits } from '../server/budget.js';
 import { tmp } from './helpers.js';
 
 const H = 3600_000;
@@ -294,4 +294,142 @@ test('allowance: a period that ended with no report since still reads as closed'
   const [{ windows: [w] }] = allowance(b, [task(turn(end - 30 * 60_000, 2, { plan: [plan(end, 0.2)] }))], { now });
   assert.deepEqual([w.periods.length, w.periods[0].end, w.periods[0].used, w.periods[0].inWisp, !!w.periods[0].open], [1, end, 0.6, 0.2, false]);
   near(w.periods[0].outside, 0.4);
+});
+
+// --- Codex's December plan change ------------------------------------------------------------------
+
+const DAY = 24 * H;
+const dec = (m, d, y = 2026) => Date.UTC(y, m, d);
+const ending = (ends, per1 = 1) => ends.map((end) => ({ ...full(0, per1), end })); // newest first
+
+test('shrinkOf: Codex, four full periods before December 1 still read', () => {
+  const r = shrinkOf(ending([dec(10, 30), dec(10, 23), dec(10, 16), dec(10, 9)]), 'codex');
+  assert.equal(r.state, 'same');
+  assert.equal(shrinkOf(ending([dec(11, 1), dec(10, 24), dec(10, 17), dec(10, 10)]), 'codex').state, 'same', 'one ending at the very start is still before');
+});
+
+test('shrinkOf: Codex says nothing from the first period that ends in December', () => {
+  const before = [dec(10, 25), dec(10, 18), dec(10, 11), dec(10, 4)];
+  assert.equal(shrinkOf(ending([dec(11, 2), ...before.slice(0, 3)]), 'codex'), null, 'one ending December 2');
+  assert.equal(shrinkOf(ending([dec(11, 9), dec(11, 2), ...before]), 'codex'), null, 'two after, older ones behind them');
+  assert.equal(shrinkOf(ending([dec(11, 29), dec(11, 22), dec(11, 15), dec(11, 8)]), 'codex'), null, 'four inside December');
+  assert.equal(shrinkOf(ending([dec(0, 7, 2027), dec(11, 31), dec(11, 24), dec(11, 17)]), 'codex'), null, 'a period that began in December doesn’t count');
+});
+
+test('shrinkOf: Codex reads again on four full periods wholly after January 1', () => {
+  const after = [dec(0, 29, 2027), dec(0, 22, 2027), dec(0, 15, 2027), dec(0, 8, 2027)];
+  assert.equal(shrinkOf(ending(after), 'codex').state, 'same', 'the first began on January 1');
+  assert.equal(shrinkOf(ending(after.slice(0, 3)), 'codex'), null, 'three after, nothing else');
+  assert.equal(shrinkOf(ending([...after.slice(0, 3), dec(0, 1, 2027), dec(11, 25), dec(11, 18), dec(11, 11)]), 'codex'), null, 'three after, older ones don’t fill in');
+  const r = shrinkOf(ending([...after, dec(0, 1, 2027), dec(11, 25)]).map((p, i) => (i < 2 ? { ...p, per1: 2, work: 100 } : p)), 'codex');
+  assert.equal(r.state, 'more', 'only the periods after it, two against two');
+  assert.equal(r.from, after[3]);
+});
+
+test('shrinkOf: the change is Codex’s; Claude Code, or no agent, reads across December', () => {
+  const across = ending([dec(11, 16), dec(11, 9), dec(11, 2), dec(10, 25)]);
+  assert.equal(shrinkOf(across, 'claude').state, 'same');
+  assert.equal(shrinkOf(across).state, 'same');
+});
+
+test('allowance: Codex’s row keeps its periods and only the reading goes quiet', () => {
+  let now = dec(11, 10);
+  const run = (b, agent) => {
+    const start = dec(10, 11);
+    const sessions = [];
+    now = start - H; // wisp was reading the account before the first of them began
+    b.record(agent, 'default', { windows: [{ id: 'seven_day', used: 0.01, resetsAt: start, ms: WEEK }] });
+    for (let i = 1; i <= 4; i++) {
+      const end = start + i * WEEK;
+      now = end - WEEK + H;
+      b.record(agent, 'default', { windows: [{ id: 'seven_day', used: 0.01, resetsAt: end, ms: WEEK }] });
+      sessions.push({ id: `s${i}`, agent, turns: [{ startedAt: end - H, stats: agent === 'claude' ? { costUsd: 5 } : { inputTokens: 5e6 * i }, plan: [{ agent, account: 'default', window: 'seven_day', used: 0.4, resetsAt: end }] }] });
+      now = end - 30 * 60_000;
+      b.record(agent, 'default', { windows: [{ id: 'seven_day', used: 0.5, resetsAt: end, ms: WEEK }] });
+    }
+    now = start + 4 * WEEK + H;
+    b.record(agent, 'default', { windows: [{ id: 'seven_day', used: 0.02, resetsAt: start + 5 * WEEK, ms: WEEK }] });
+    now += DAY;
+    return allowance(b, sessions, { now })[0].windows[0];
+  };
+  const clock = () => now;
+  const claude = run(new Budget(tmp('allowance-dec-claude'), { now: clock }), 'claude');
+  assert.equal(claude.shrink?.state, 'same', 'the same periods read for Claude Code');
+  const codex = run(new Budget(tmp('allowance-dec-codex'), { now: clock }), 'codex');
+  assert.equal(codex.shrink, null);
+  assert.ok(codex.periods.filter((p) => p.full).length >= 4, 'its period rows stay');
+});
+
+// --- A Codex account with no 5-hour window ------------------------------------------------------------
+
+// What a Codex run reports, with the weekly window in either slot and maybe a 5-hour one first.
+const weekOf = (used, end) => ({ used_percent: used * 100, window_minutes: 10080, resets_at: end / 1000 });
+const SLOTS = { 'weekly first': (w) => ({ primary: w }), 'weekly second': (w) => ({ secondary: w }) };
+
+test('allowance: a Codex account with no 5-hour window has one weekly row, and Shrink reads it', () => {
+  for (const [name, slot] of Object.entries(SLOTS)) {
+    let now;
+    const b = new Budget(tmp('allowance-no-five'), { now: () => now });
+    const start = dec(9, 2); // far from December: nothing here is about the plan change
+    const sessions = [];
+    now = start - H;
+    b.record('codex', 'default', codexLimits(slot(weekOf(0.01, start))));
+    for (let i = 1; i <= 4; i++) {
+      const end = start + i * WEEK;
+      now = end - WEEK + H;
+      b.record('codex', 'default', codexLimits(slot(weekOf(0.01, end))));
+      const work = i >= 3 ? 10e6 : 5e6; // what 1% buys doubles over the newest two
+      sessions.push({ id: `s${i}`, agent: 'codex', turns: [{ startedAt: end - H, stats: { inputTokens: work }, plan: [{ agent: 'codex', account: 'default', window: 'seven_day', used: 0.4, resetsAt: end }] }] });
+      now = end - 30 * 60_000;
+      b.record('codex', 'default', codexLimits(slot(weekOf(0.5, end))));
+    }
+    now = start + 4 * WEEK + H;
+    b.record('codex', 'default', codexLimits(slot(weekOf(0.02, start + 5 * WEEK))));
+    const [row] = allowance(b, sessions, { now });
+    assert.deepEqual(row.windows.map((w) => w.id), ['seven_day'], `${name}: no 5-hour row`);
+    const [week] = row.windows;
+    assert.equal(week.periods.filter((p) => p.full).length, 4, name);
+    assert.equal(week.periods.find((p) => p.full).ms, WEEK, `${name}: exactly a week, or Shrink wouldn’t count it`);
+    assert.equal(week.shrink?.state, 'more', name);
+    near(week.shrink.change, 1, name);
+  }
+});
+
+test('allowance: Codex losing its 5-hour window in December: quiet through the change, then reads only what came after', () => {
+  for (const [name, slot] of Object.entries(SLOTS)) {
+    let now;
+    const b = new Budget(tmp('allowance-loses-five'), { now: () => now });
+    const clear = dec(0, 1, 2027);
+    const start = clear - 12 * WEEK;
+    const LAST = 6; // the last period with a 5-hour window ends November 20
+    const sessions = [];
+    const report = (used, end) => {
+      const five = { used_percent: 10, window_minutes: 300, resets_at: (now + 2 * H) / 1000 };
+      b.record('codex', 'default', codexLimits(end <= start + LAST * WEEK ? { primary: five, secondary: weekOf(used, end) } : slot(weekOf(used, end))));
+    };
+    const reading = (i) => {
+      now = start + i * WEEK + H;
+      report(0.02, start + (i + 1) * WEEK);
+      return allowance(b, sessions, { now })[0].windows.find((w) => w.id === 'seven_day');
+    };
+    now = start - H;
+    report(0.01, start);
+    for (let i = 1; i <= 16; i++) {
+      const end = start + i * WEEK;
+      now = end - WEEK + H;
+      report(0.01, end);
+      sessions.push({ id: `s${i}`, agent: 'codex', turns: [{ startedAt: end - H, stats: { inputTokens: i >= 15 ? 10e6 : 5e6 }, plan: [{ agent: 'codex', account: 'default', window: 'seven_day', used: 0.4, resetsAt: end }] }] });
+      now = end - 30 * 60_000;
+      report(0.5, end);
+      const week = reading(i);
+      if (i === LAST) assert.equal(week.shrink?.state, 'same', `${name}: with both windows it reads`);
+      if (i >= 8 && i <= 15) assert.equal(week.shrink, null, `${name}: period ${i} is quiet`);
+      if (i === 16) {
+        assert.equal(week.shrink?.state, 'more', `${name}: the newest two against the two before them`);
+        assert.equal(week.shrink.from, clear + WEEK, name);
+        assert.equal(week.periods.filter((p) => p.full).length >= 4, true, `${name}: rows stay`);
+      }
+    }
+    assert.deepEqual(allowance(b, sessions, { now })[0].windows.map((w) => w.id), ['seven_day'], `${name}: the 5-hour row left`);
+  }
 });

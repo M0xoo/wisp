@@ -11,6 +11,10 @@ const MIN_READING = 0.1; // the same, for a period to count to the reading
 const SIDE = 2; // full periods on each side of the reading
 const MOVE = 0.2; // how far the cost of 1% moves before it says so
 const CLI_FIELDS = ['version', 'tools', 'catalog'];
+// OpenAI says 'starting in December' and names no day, so the whole month is the change: Plus, Pro
+// and Business share one allowance with ChatGPT then, chats move the window and #sharers can't tell
+// them apart. If it slips past December, move `to`.
+const PLAN_CHANGE = { codex: { from: Date.UTC(2026, 11, 1), to: Date.UTC(2027, 0, 1) } };
 
 const tidy = (x) => Math.round(x * 1e7) / 1e7; // differences of totals leave float dust
 const unitFor = (agent) => (agent === 'claude' ? 'usd' : 'mtok');
@@ -174,17 +178,20 @@ function movesAcross(periods, from, to) {
 }
 
 // Does 1% of a weekly window buy less than it did? The newest full periods against the ones before,
-// or null, which means the row says nothing at all.
-export function shrinkOf(periods) {
-  const fair = periods.filter((p) => p.ms === WEEK && p.full && p.per1 !== null && p.inWisp >= MIN_READING);
+// or null, which means the row says nothing at all. Across a plan change the two sides aren't the
+// same 1%: from the first period that ends after it starts, only periods wholly past it count.
+export function shrinkOf(periods, agent) {
+  let fair = periods.filter((p) => p.ms === WEEK && p.full && p.per1 !== null && p.inWisp >= MIN_READING);
+  const change = PLAN_CHANGE[agent];
+  if (change && fair.some((p) => p.end > change.from)) fair = fair.filter((p) => p.end - p.ms >= change.to);
   if (fair.length < SIDE * 2) return null;
   const sides = [fair.slice(0, SIDE), fair.slice(SIDE, SIDE * 2)];
   const [recent, before] = sides.map((xs) => sum(xs, 'work') / (sum(xs, 'inWisp') * 100));
-  const change = Math.round((recent / before - 1) * 1e6) / 1e6;
-  const state = change <= -MOVE ? 'less' : change >= MOVE ? 'more' : 'same';
+  const moved = Math.round((recent / before - 1) * 1e6) / 1e6;
+  const state = moved <= -MOVE ? 'less' : moved >= MOVE ? 'more' : 'same';
   const from = sides[1].at(-1).end;
   const cli = state === 'same' ? null : movesAcross(periods, from, sides[0][0].end);
-  return { state, change, recent, before, unit: fair[0].unit, from, ...(sides.flat().some((p) => p.rough) && { rough: true }), ...(cli && { cli }) };
+  return { state, change: moved, recent, before, unit: fair[0].unit, from, ...(sides.flat().some((p) => p.rough) && { rough: true }), ...(cli && { cli }) };
 }
 
 // Every account's windows with their history: [{ agent, account, windows: [{ id, label, periods,
@@ -199,7 +206,7 @@ export function allowance(budget, sessions, { now = budget.now() } = {}) {
         const raw = acc.windows?.[w.id];
         const ended = raw?.resetsAt && raw.resetsAt <= now ? [raw] : [];
         const periods = periodsOf(sessions, agent, account, w, { closed: [...budget.periods(agent, account, w.id), ...ended], since: acc.shape?.since, now, ledger });
-        return { id: w.id, label: w.label, periods, shrink: shrinkOf(periods) };
+        return { id: w.id, label: w.label, periods, shrink: shrinkOf(periods, agent) };
       });
       out.push({ agent, account, windows });
     }

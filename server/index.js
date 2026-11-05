@@ -281,6 +281,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     track: (e, p) => app.telemetry.track(e, p),
     // Automations stop at: a round past it waits for the reset, as a scheduled follow-up.
     hold: (s) => app.reserve.forTask(s),
+    fresh: (s) => app.reserve.freshTask(s),
     schedule: (s, entry) => app.later.add(s, entry),
     crew: (id) => app.crew?.get(id), // a crew member who judges a goal, on their own harness
     broadcast: (event, d) => app.broadcast(event, d.item && maskOn(store.config) ? { ...d, item: maskStep(d.item, d.run) } : d), // .env output masked
@@ -384,6 +385,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     store,
     launch: async (body, origin, opts) => (await app.launcher.launchAny(body, origin, opts))[0],
     hold: (s) => app.reserve.forTask(s),
+    fresh: (s) => app.reserve.freshTask(s),
     // A trigger that sends its work to a crew member: the member's job, or its place in the queue.
     assign: async (crewId, work) => {
       const m = app.crew.get(crewId);
@@ -408,6 +410,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     changed: (s) => app.sessionChanged(s),
     configChanged: () => app.configChanged(),
     hold: (s) => app.reserve.forTask(s),
+    fresh: (s) => app.reserve.freshTask(s),
     goalRound: (s, l) => app.goals.carryOn(s, l),
     // A reminder came due: the page notifies, and so does the phone.
     notify: (s) => {
@@ -425,6 +428,10 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       return h && { ...h, why: holdWhy(h, adapters[agent]?.name || agent, accounts.multi(agent) ? accounts.get(agent, h.account)?.label : '') };
     },
     forTask: (s) => app.reserve.check(s.agent, s.account || 'default'),
+    // Just before a gate (held-back work only): one free read when the reading is old. check()
+    // stays synchronous: Crew.view calls it on every render and must never read.
+    fresh: (agent, account = '') => app.liveLimits?.before(agent, account || runner.accountOf(agent)),
+    freshTask: (s) => app.reserve.fresh(s.agent, s.account || 'default'),
   };
   // At a usage limit with Settings → Wait for the reset on: the task carries on in the same
   // conversation once the window resets. null: it asks you (the limit card) as before. limit: which

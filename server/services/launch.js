@@ -107,6 +107,7 @@ export function createLaunch(app) {
       return { agent, model: r.model ?? (i ? d.models?.[agent] || '' : ''), effort: /^[\w-]{1,20}$/.test(r.effort || '') ? r.effort : '', account, ...(isRoute(r.route) && { route: r.route }) };
     });
     if (unattended) {
+      await app.reserve?.fresh?.(runners[0].agent, runners[0].account);
       const h = app.reserve?.check(runners[0].agent, runners[0].account);
       if (h) throw Object.assign(bad(h.why, 409), { held: h });
     }
