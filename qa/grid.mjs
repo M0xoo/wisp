@@ -292,7 +292,10 @@ try {
     await p.goto(`${GRID}/`);
     const f = p.locator('form[action="/account/delete"]');
     await f.locator('input[name=confirm]').fill(B.handle);
+    // Its answer, not the load state: the page we're on already counts as loaded until it comes.
+    const answer = p.waitForResponse((r) => r.url().endsWith('/account/delete'), { timeout: 30_000 });
     await f.locator('button').click();
+    ok((await answer).status() === 200, 'delete refused');
     await p.waitForLoadState('domcontentloaded');
     await shot(p, 'deleted');
     ok(/Account deleted/.test(await p.textContent('body')), 'no "Account deleted" page');
