@@ -153,6 +153,19 @@ export function modelsOf(modelUsage, prev) {
   return list.length ? list : undefined;
 }
 
+// On --resume the CLI starts from the conversation's saved counters: total_cost_usd and modelUsage
+// hold its earlier runs too, while usage is this run's alone. It can also start from zero (another
+// account's login folder), so prior (the last turn's stats.totals) counts only when the counters
+// grew by at least what this run's main thread wrote.
+export function restoredFrom(msg, prior) {
+  if (!prior || !(msg.total_cost_usd >= prior.costUsd)) return false;
+  const now = Object.values(msg.modelUsage || {}).reduce((a, u) => a + n0(u?.outputTokens), 0);
+  const was = (prior.models || []).reduce((a, m) => a + n0(m.output), 0);
+  return now - was >= n0(msg.usage?.output_tokens);
+}
+// A modelsOf list back in modelUsage's shape, for modelsOf's prev.
+const modelUsageOf = (list) => list && Object.fromEntries(list.map((m) => [m.model, Object.fromEntries(Object.entries(MODEL_KEYS).map(([k, key]) => [key, m[k]]))]));
+
 export function subagentTally() {
   const calls = new Map(); // Agent tool_use id -> { type, model, msgs: Map(message id -> { model, read, output }), total }
   let tools = null; // init's tools, when it sent them
@@ -322,7 +335,7 @@ export default {
   // subagentModel: '' | 'haiku' | 'sonnet', the model its subagents and workflow agents run on
   // (defaults.subagentModel). Never _FORCE: an Agent call's own model, or a custom agent's, still wins.
   // gate: every write and command goes to the approve tool first (a side discussion, server/side-gate.js).
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, quiet = false, subagentModel = '', gate = false, onEvent }) {
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, prior = null, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, quiet = false, subagentModel = '', gate = false, onEvent }) {
     lean = lean && leanOk();
     const args = [
       '-p',
@@ -362,6 +375,7 @@ export default {
     let sawResult = false;
     const subagents = subagentTally();
     let lastModels = null; // the last result's modelUsage (it adds up over the process)
+    let counted; // the counters this process started from, once its first result says (see restoredFrom)
     let refused = false; // an assistant message the API ended with stop_reason "refusal" (server/refusal.js)
     let early = null; // an empty result that came before our prompt was answered (see below)
     const pendingTools = new Map(); // tool_use_id -> name, to flag failed tool results
@@ -430,6 +444,13 @@ export default {
         }
       } else if (msg.type === 'result') {
         const ev = resultEvent(msg);
+        if (counted === undefined) {
+          counted = restoredFrom(msg, prior) ? prior : null;
+          lastModels = modelUsageOf(counted?.models) || null;
+        }
+        if (counted) ev.stats.costUsd = Math.max(0, Math.round((msg.total_cost_usd - counted.costUsd) * 1e7) / 1e7);
+        // What the next --resume starts from. Its presence says stats.models is this turn's alone.
+        ev.stats.totals = { costUsd: msg.total_cost_usd, models: modelsOf(msg.modelUsage) };
         // On --resume, background tasks the last run left behind come back as a task
         // notification queued ahead of our prompt. The CLI answers it with an empty,
         // zero-turn result, then goes on to the prompt and reports a second result. Ending the

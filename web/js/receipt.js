@@ -26,6 +26,10 @@ export const OVERAGE = {
   api: { label: 'API credit', tip: 'Billed to an API key, not your plan: Claude Code found an API key (ANTHROPIC_API_KEY or an apiKeyHelper) and used it' },
 };
 
+// stats.models of a turn. Before stats.totals, a resumed turn's models held the whole conversation
+// so far (server/adapters/claude.js restoredFrom), so an older turn is read from usage alone.
+const modelsIn = (st) => (st?.totals && st.models) || [];
+
 // What a turn read (its cache reads and writes counted in), of that from the cache, and wrote.
 export function turnTokens(t) {
   const st = t?.stats || {};
@@ -35,8 +39,9 @@ export function turnTokens(t) {
   const cached = anthropic ? n(st.cacheReadTokens) : Math.min(n(st.cachedInputTokens), read);
   // Claude's modelUsage (stats.models) counts every model the run used, its subagents' included,
   // which usage can leave out: the larger of the two is the turn's.
-  if (st.models?.length) {
-    const m = st.models.reduce((a, x) => ({ read: a.read + n(x.input) + n(x.cacheRead) + n(x.cacheWrite), cached: a.cached + n(x.cacheRead), output: a.output + n(x.output) }), { read: 0, cached: 0, output: 0 });
+  const models = modelsIn(st);
+  if (models.length) {
+    const m = models.reduce((a, x) => ({ read: a.read + n(x.input) + n(x.cacheRead) + n(x.cacheWrite), cached: a.cached + n(x.cacheRead), output: a.output + n(x.output) }), { read: 0, cached: 0, output: 0 });
     if (m.read + m.output > read + n(st.outputTokens)) return m;
   }
   return { read, cached, output: n(st.outputTokens) };
@@ -162,7 +167,7 @@ export function modelWords(id) {
 export function turnOutput(t) {
   const st = t?.stats || {};
   const n = (x) => (Number.isFinite(x) && x > 0 ? x : 0);
-  const models = (st.models || []).reduce((a, m) => a + n(m.output), 0);
+  const models = modelsIn(st).reduce((a, m) => a + n(m.output), 0);
   const subs = (st.subagents || []).reduce((a, x) => a + n(x.output), 0);
   return Math.max(models, n(st.outputTokens), subs);
 }
@@ -205,7 +210,7 @@ export function subagentTip(t) {
   const st = t?.stats || {};
   const total = turnOutput(t);
   const subs = (st.subagents || []).map((x) => `${agentsWord(x)}${x.model ? ` on ${modelWords(x.model)}` : ''}: ${tokenWords(x.output)} of ${tokenWords(total)} output tokens, ${tokenWords(x.read)} read`);
-  const models = (st.models || []).map((m) => `${modelWords(m.model)} ${tokenWords(m.output)} out / ${tokenWords(m.input + m.cacheRead + m.cacheWrite)} in`);
+  const models = modelsIn(st).map((m) => `${modelWords(m.model)} ${tokenWords(m.output)} out / ${tokenWords(m.input + m.cacheRead + m.cacheWrite)} in`);
   const notes = [...new Set((st.subagents || []).map(insteadWords).filter(Boolean))];
   const on = SUBAGENT_NAMES[t?.run?.subagentModel];
   return [subs.length ? `Subagents: ${subs.join('; ')}` : '', models.length ? `By model: ${models.join(', ')}` : '', ...notes, on ? `Subagents on ${on} (Settings → Usage)` : ''].filter(Boolean).join('. ');

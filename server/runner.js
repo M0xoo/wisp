@@ -57,6 +57,13 @@ export function approvalDecision(text) {
 }
 
 // The follow-up that retries what a turn's permissions refused, once the user allowed it.
+// What the harness's counters held after this conversation's last turn. A turn from before
+// stats.totals kept the counters themselves in costUsd and models.
+function priorTotals(session) {
+  const st = session.turns.findLast((t) => t.stats && (t.agent || session.agent) === session.agent)?.stats;
+  return st ? st.totals || { costUsd: st.costUsd, models: st.models } : null;
+}
+
 function retryPrompt(items, scoped) {
   const list = items.map((b) => `- ${b.tool}${b.detail ? `: \`${b.detail}\`` : ''}`).join('\n');
   const how = scoped ? 'I allowed exactly these for this follow-up' : 'This follow-up runs in Full auto, so nothing is blocked';
@@ -1431,6 +1438,7 @@ export class Runner extends EventEmitter {
       cwd: workdir(session),
       dirs: [...alsoDirs((session.parentId && this.store.get(session.parentId)) || main || session), ...(session.crew ? this.crewDirs(session) : [])], // the task's other folders (a subagent's are its lead's), a crew job's skills
       resumeId: session.agentSessionId,
+      prior: session.agentSessionId ? priorTotals(session) : null,
       mode,
       grants,
       model: session.model,

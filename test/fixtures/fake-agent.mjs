@@ -16,6 +16,8 @@
 //   FAKE_SUBAGENTS   claude: that many background web-fetch Agent calls on Opus, as claude 2.1.316
 //                    (on CLAUDE_CODE_SUBAGENT_MODEL's model when it's set, as Claude Code does)
 //                    streams them, and modelUsage on its result (Opus 41k output, 14k the main thread's)
+//   FAKE_RESTORED    claude: on --resume, that many earlier runs' total_cost_usd and modelUsage still
+//                    in the counters of its result, as the CLI restores them
 //   FAKE_RATE_LIMIT  opencode: log a rate-limit error to stderr, then go quiet for good as the
 //                real CLI does while it retries (`recover`: carry on with the turn after it)
 //   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
@@ -387,6 +389,7 @@ const resumeId =
   : argv.includes('resume') ? argv[argv.indexOf('resume') + 1] : undefined;
 // copilot is handed the id of a new session (--session-id) rather than making one up.
 const session = resumeId || (name === 'copilot' && flag('--session-id')) || `${name}-session-1`;
+var runsSoFar = 1 + (resumeId ? Number(process.env.FAKE_RESTORED || 0) : 0);
 const fullAuto = argv.includes('--dangerously-bypass-approvals-and-sandbox') || argv.includes('--auto') || argv.includes('--allow-all') || flag('--permission-mode') === 'bypassPermissions';
 const allowedPublish = fullAuto || argv.slice(argv.indexOf('--allowedTools') + 1).includes('Bash(npm publish)') || argv.includes('--allow-tool=shell(npm publish)') || JSON.parse(process.env.OPENCODE_CONFIG_CONTENT || '{}').permission?.bash?.['npm publish'] === 'allow';
 const publishing = /BLOCKED|blocked by your permissions/.test(stdin); // the task, or wisp's retry of it
@@ -658,7 +661,7 @@ if (name === 'claude') {
         out({ type: 'system', subtype: 'init', session_id: session });
         out({ type: 'result', subtype: 'success', is_error: false, result: final('background done'), session_id: session });
       }
-    } else out({ type: 'result', subtype: 'success', is_error: false, result: final(answer), session_id: session, duration_ms: 5, num_turns: 3, total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: process.env.FAKE_SUBAGENTS ? 14000 : 5, ...(process.env.FAKE_CACHE_READ && { cache_read_input_tokens: Number(process.env.FAKE_CACHE_READ), cache_creation_input_tokens: 20 }) }, ...(process.env.FAKE_SUBAGENTS && { modelUsage: fakeModelUsage() }), permission_denials: refused ? [{ tool_name: 'Bash', tool_use_id: 't9', tool_input: { command: 'npm publish', description: 'Publish' } }] : [] });
+    } else out({ type: 'result', subtype: 'success', is_error: false, result: final(answer), session_id: session, duration_ms: 5, num_turns: 3, total_cost_usd: 0.01 * runsSoFar, usage: { input_tokens: 10, output_tokens: process.env.FAKE_SUBAGENTS ? 14000 : 5, ...(process.env.FAKE_CACHE_READ && { cache_read_input_tokens: Number(process.env.FAKE_CACHE_READ), cache_creation_input_tokens: 20 }) }, ...(process.env.FAKE_SUBAGENTS && { modelUsage: fakeModelUsage() }), permission_denials: refused ? [{ tool_name: 'Bash', tool_use_id: 't9', tool_input: { command: 'npm publish', description: 'Publish' } }] : [] });
   }
 } else if (name === 'codex') {
   out({ type: 'thread.started', thread_id: session });
@@ -818,6 +821,11 @@ if (process.env.FAKE_LINGER) await new Promise((r) => setTimeout(r, Number(proce
 // FAKE_SUBAGENTS' modelUsage: Opus wrote 41k (14k the main thread's, the rest its subagents'), and a
 // Haiku side call 120. With CLAUDE_CODE_SUBAGENT_MODEL the subagents' 27k move to that model.
 function fakeModelUsage() {
+  const u = oneRunUsage();
+  for (const m of Object.values(u)) for (const k of ['inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens']) m[k] *= runsSoFar;
+  return u;
+}
+function oneRunUsage() {
   const sub = { haiku: 'claude-haiku-4-5-20251001', sonnet: 'claude-sonnet-4-5-20250929' }[process.env.CLAUDE_CODE_SUBAGENT_MODEL];
   const u = { 'claude-opus-5-5': { inputTokens: 4000, outputTokens: 41000, cacheReadInputTokens: 20000, cacheCreationInputTokens: 0, costUSD: 1.2 }, 'claude-haiku-4-5-20251001': { inputTokens: 900, outputTokens: 120, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 } };
   if (!sub) return u;

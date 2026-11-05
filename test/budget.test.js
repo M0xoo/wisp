@@ -895,7 +895,8 @@ test('compare on /agents: only for a harness with several accounts', async () =>
 
 // Where a turn's tokens went (check-in 14): tokens per model from the result's modelUsage, and per
 // subagent type from the messages carrying each Agent call's id as parent_tool_use_id.
-const { modelsOf, subagentTally } = await import('../server/adapters/claude.js');
+const { modelsOf, restoredFrom, subagentTally } = await import('../server/adapters/claude.js');
+const { usage, tokensOf } = await import('../server/usage.js');
 const { modelWords, subagentParts, subagentTip, insteadWords, turnOutput } = await import('../web/js/receipt.js');
 const { whereSubagents } = await import('../server/budget.js');
 
@@ -940,7 +941,7 @@ test('subagent tally: per type, output from modelUsage past the main thread, one
 
 test('receipt: where the tokens went, by subagent and by model, and page reads run as an agent', () => {
   assert.deepEqual(['claude-opus-5-5', 'claude-haiku-4-5-20251001', 'claude-3-5-sonnet-20241022', 'claude-sonnet-4-5[1m]', 'opus', 'gpt-5.5'].map(modelWords), ['Opus 5.5', 'Haiku 4.5', 'Sonnet 3.5', 'Sonnet 4.5 (1M)', 'Opus', 'gpt-5.5']);
-  const t = { stats: { inputTokens: 10, outputTokens: 5, models: [{ model: 'claude-opus-5-5', input: 4000, output: 41000, cacheRead: 20000, cacheWrite: 0 }, { model: 'claude-haiku-4-5', input: 900, output: 120, cacheRead: 0, cacheWrite: 0 }], subagents: [{ type: 'web-fetch', calls: 3, model: 'claude-opus-5-5', read: 3150, output: 27000, instead: 'WebFetch' }] } };
+  const t = { stats: { inputTokens: 10, outputTokens: 5, models: [{ model: 'claude-opus-5-5', input: 4000, output: 41000, cacheRead: 20000, cacheWrite: 0 }, { model: 'claude-haiku-4-5', input: 900, output: 120, cacheRead: 0, cacheWrite: 0 }], totals: {}, subagents: [{ type: 'web-fetch', calls: 3, model: 'claude-opus-5-5', read: 3150, output: 27000, instead: 'WebFetch' }] } };
   assert.equal(turnOutput(t), 41120);
   assert.deepEqual(subagentParts(t), ['3 web-fetch agents', 'Opus 5.5', '27k of 41k output']);
   assert.equal(insteadWords(t.stats.subagents[0]), 'Claude Code ran page reads as an agent on Opus 5.5 on this account');
@@ -990,9 +991,62 @@ test('a Claude run with web-fetch agents and no WebFetch lands models and subage
   }
 });
 
+// On --resume the CLI starts from the conversation's saved counters: total_cost_usd and modelUsage
+// hold its earlier runs too, usage only this one.
+test('a resumed Claude run counts its own cost and tokens, not the conversation’s so far', async () => {
+  const cwd = makeRepo();
+  try {
+    process.env.FAKE_SUBAGENTS = '3';
+    const a = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', worktree: false });
+    await ended(a.id, 'review');
+    for (const [i, restored] of [[1, '1'], [2, '2'], [3, '']]) {
+      process.env.FAKE_RESTORED = restored; // '': it started over, so there's nothing to take off
+      await api(`/sessions/${a.id}/reply`, { text: 'and again' });
+      await until(async () => {
+        const x = await api(`/sessions/${a.id}`);
+        return x.turns.length === i + 1 && x.state === 'review';
+      });
+    }
+    const { turns } = await api(`/sessions/${a.id}`);
+    assert.deepEqual(turns.map((t) => t.stats.costUsd), [0.01, 0.01, 0.01, 0.01]);
+    assert.deepEqual(turns.map((t) => t.stats.models[0].output), [41000, 41000, 41000, 41000]);
+    assert.deepEqual(turns.map((t) => t.stats.subagents[0].output), [27000, 27000, 27000, 27000]);
+    const u = usage([{ id: 's', agent: 'claude', cwd, turns }], { now: Date.now() });
+    assert.equal(u.total.cost, 0.04);
+    assert.equal(u.total.outputTokens, 4 * 41120);
+  } finally {
+    delete process.env.FAKE_SUBAGENTS;
+    delete process.env.FAKE_RESTORED;
+  }
+});
+
+test('restoredFrom: what the counters hold past the last turn must cover what this run wrote', () => {
+  const prior = { costUsd: 2, models: [{ model: 'o', input: 0, output: 1000, cacheRead: 0, cacheWrite: 0 }] };
+  const msg = (cost, out, main) => ({ total_cost_usd: cost, modelUsage: { o: { outputTokens: out } }, usage: { output_tokens: main } });
+  assert.equal(restoredFrom(msg(3, 1500, 500), prior), true);
+  assert.equal(restoredFrom(msg(3, 1000, 0), prior), true, 'a zero-turn result');
+  assert.equal(restoredFrom(msg(3, 600, 600), prior), false, 'fewer than before: it started over');
+  assert.equal(restoredFrom(msg(1, 1500, 500), prior), false, 'a cost that went down');
+  assert.equal(restoredFrom(msg(3, 1500, 500), null), false, 'nothing to restore');
+  assert.equal(restoredFrom(msg(3, 1500, 500), { models: prior.models }), false, 'no cost on record');
+});
+
+test('usage totals are the receipt’s, and a turn from before stats.totals isn’t read from its models', () => {
+  const now = Date.now();
+  const model = { model: 'o', input: 1, output: 900, cacheRead: 5000, cacheWrite: 0 };
+  const stats = { inputTokens: 10, cacheReadTokens: 100, outputTokens: 50 };
+  const turn = (st) => ({ startedAt: now - 1000, endedAt: now, status: 'done', stats: st });
+  const u = usage([{ id: 'a', agent: 'claude', cwd: '/x', turns: [turn({ ...stats, models: [model], totals: {} })] }], { now });
+  assert.deepEqual([u.total.inputTokens, u.total.outputTokens], [5001, 900], 'subagents counted, as on the receipt');
+  const old = usage([{ id: 'b', agent: 'claude', cwd: '/x', turns: [turn({ ...stats, models: [model] })] }], { now });
+  assert.deepEqual([old.total.inputTokens, old.total.outputTokens], [110, 50], 'older models hold the whole conversation');
+  assert.deepEqual(receiptOf(turn({ ...stats, models: [model] })).tokens, 160);
+  assert.equal(tokensOf(turn({ ...stats, models: [model], totals: {} })), 5901);
+});
+
 test('receipt tokens: modelUsage counts in when it holds more than usage (its subagents)', () => {
-  const t = { stats: { inputTokens: 10, cacheReadTokens: 31000, cacheWriteTokens: 20, outputTokens: 5, models: [{ model: 'claude-opus-5-5', input: 4000, output: 41000, cacheRead: 20000, cacheWrite: 0 }, { model: 'claude-haiku-4-5', input: 900, output: 120, cacheRead: 0, cacheWrite: 0 }] } };
+  const t = { stats: { inputTokens: 10, cacheReadTokens: 31000, cacheWriteTokens: 20, outputTokens: 5, models: [{ model: 'claude-opus-5-5', input: 4000, output: 41000, cacheRead: 20000, cacheWrite: 0 }, { model: 'claude-haiku-4-5', input: 900, output: 120, cacheRead: 0, cacheWrite: 0 }], totals: {} } };
   assert.deepEqual(receiptParts(receiptOf(t)), ['66k tokens', '80% cache']);
-  const small = { stats: { inputTokens: 10, cacheReadTokens: 31000, cacheWriteTokens: 20, outputTokens: 5, models: [{ model: 'x', input: 1, output: 1, cacheRead: 0, cacheWrite: 0 }] } };
+  const small = { stats: { inputTokens: 10, cacheReadTokens: 31000, cacheWriteTokens: 20, outputTokens: 5, models: [{ model: 'x', input: 1, output: 1, cacheRead: 0, cacheWrite: 0 }], totals: {} } };
   assert.deepEqual(receiptParts(receiptOf(small)), ['31k tokens', '99% cache'], 'usage is larger: usage');
 });
