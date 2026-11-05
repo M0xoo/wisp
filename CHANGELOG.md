@@ -37,6 +37,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **A pane opened as a page keeps its name on the row.** On a phone or in a narrow window, a pane with all its access showed its name about 8px above Back, Reload and Unpin. It now sits level with them, and only moves up when a line under it says what the pane still asks for.
 - **Long file names show whole in Changes.** The Stage and Viewed controls left a name about 140px in the default 480px panel, so `changes-open-first.test.js` lost its end. A name that doesn't fit now takes the whole line and the counts and controls drop under it, in the same columns as every other row; the other rows stay one line. On a phone the counts move to the controls' line, which gives the name their room.
 - **Changes stays current after Ship it.** Changes kept showing the Commit box, Stage boxes and *2 uncommitted* until a reload, and Commit then said there was nothing to commit. They now go as soon as the ship ends, in every open window, including when the push fails after the commit landed.
 - **A goal check's page shows everything the judge said.** The words in a judge's last message before its vote were dropped from the transcript of its check; they now show as its last message.
