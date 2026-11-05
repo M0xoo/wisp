@@ -209,6 +209,14 @@ test('judges: with All, one dissent keeps it going and says what that judge want
   assert.match(done.turns[1].prompt, /Judges: 2 of 3 judges say met \(all must agree\)\.\s+What's missing: opencode: check 1/);
 });
 
+test('judges: the tally of a single judge reads as one', async () => {
+  const s = await api('/sessions', { prompt: 'do it', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: 'it works [judge claude: not_yet]', judges: JUDGES.slice(0, 1) } });
+  const done = await landed(s.id);
+  const c = done.goal.checks[0];
+  assert.equal(c.tally, '0 of 1 judge says met (the judge decides)');
+  assert.match(done.turns[1].prompt, /Judges: 0 of 1 judge says met \(the judge decides\)\./);
+});
+
 test('judges: with Any, one met is enough; a majority saying impossible ends it', async () => {
   const any = await api('/sessions', { prompt: 'do it', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: 'x [judge codex: met] [judge claude: not_yet]', judges: JUDGES.slice(0, 2), vote: 'any' } });
   assert.equal((await landed(any.id)).goal.status, 'met');
