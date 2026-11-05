@@ -828,6 +828,7 @@ function onSpare(btn) {
 // writes what changed: a new --sb-* on body restyles the whole page.
 let lastBox = '';
 function measure() {
+  document.body.classList.toggle('no-stage', $('#splitStage').hidden); // Reconnecting… has no pane to sit on
   // Stacked with no task open there's no box: keep the last one, so Back and the next open don't
   // write --sb-* twice (each write restyles the whole page; the phone's box never moves).
   if (isStacked() && $('#splitStage').hidden) return;

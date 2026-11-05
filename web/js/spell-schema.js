@@ -301,6 +301,7 @@ export const PARTS = {
   'sidebar.nav': '#splitNav',
   'sidebar.account': '#splitMe',
   'sidebar.grip': '#splitGrip',
+  reconnecting: '#reconnecting', // Reconnecting to wisp…: over the open pane while the page has lost wisp
   'split.main': '#splitMain',
   'split.home': '#splitHome',
   'split.greeting': '#splitHome .sh-hello',

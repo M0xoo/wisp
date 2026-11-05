@@ -47,7 +47,8 @@ toasts, docs, guides, README).
 - Errors: what went wrong and what to do, in a sentence (*Still working — stop it first or let it
   finish.*). No stack traces, codes or "Something went wrong". The browser's words never reach a
   person: no answer at all is *Can’t reach wisp. Check the connection and try again.*, and any new
-  `fetch` goes through `api()` or `reach()` (`web/js/core/api.js`).
+  `fetch` goes through `api()` or `reach()` (`web/js/core/api.js`). While the page waits for the
+  stream to come back it says *Reconnecting to wisp…*, the word machines use too.
 - Confirms: the question in the first paragraph, the consequence after a blank line, the action on
   the button.
 
