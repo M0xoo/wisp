@@ -147,6 +147,7 @@ export const PARTS = {
   'share.dialog': '.share-modal',
   'compare.table': '.compare-modal .cmp-table', // Compare: the runs' numbers side by side
   'compare.note': '.compare-modal .cmp-note', // Compare: the plan total and the sentence against the first run
+  'compare.diff': '.compare-modal .cmp-diff', // Compare: what differed between a Try it two ways' runs
   'autoPreview.panel': '.auto-pop',
   'autoPreview.alternatives': '.auto-pop .ap-alt',
   'autoPreview.suggest': '.auto-pop .ap-sug',
@@ -159,7 +160,9 @@ export const PARTS = {
   'picker.accounts': '.picker .pk-acct',
   // The Thinking slider in the harness picker (its fill and wisps grow with the level).
   'picker.thinking': '.picker .pk-think',
+  'picker.vary': '.picker .pk-vary', // Try it two ways: the What's different group
   'launcher.compare': '#compareBtn',
+  'launcher.tryTwo': '#tryTwoBtn', // Try it two ways: the same harness twice, one setting changed
   'launcher.team': '#teamBtn',
   'launcher.issue': '#launcher .issue-btn', // Issue: start from one of the project's open issues (GitHub, Linear)
   'issues.picker': '.palette.issues', // the list of issues it opens

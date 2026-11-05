@@ -15,6 +15,8 @@ checks the same thing.
 
 - **Line**: Settings → Usage → *Ask near the limit*, `defaults.limitHold`: `off | 80 | 90 | 95`,
   default `90` (spell-lockable).
+- Runs of one launch on one account are summed (`together`, server and page): `(x × together +
+  running) × rate`. Runs on different accounts or harnesses aren't.
 - **Hold** when `used + p75 estimate ≥ line` for any window of the account (`holdFor`). With no
   estimate yet, that's `used ≥ line`. The window nearest its limit is the one named.
 - **After a yes** the window asks again only at the next step (95%, then 99%), or after it resets

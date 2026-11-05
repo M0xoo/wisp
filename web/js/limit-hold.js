@@ -22,15 +22,19 @@ export function nextLine(line, acked) {
 }
 
 // windows: an account's, as the server shows them (server/guard.js view): [{ id, label, used,
-// resetsAt, line, est: { first: [lo, mid, hi], followUp: [lo, mid, hi] } }], shares of the window
-// a run like this adds (the running ones on the account included). kind: 'first' | 'followUp'.
+// resetsAt, line, est: { first: [lo, mid, hi], followUp: [lo, mid, hi] }, running }], shares of the
+// window a run like this adds (`running` of it, the ones going on the account). kind: 'first' |
+// 'followUp'. together: runs of one launch on this account: the estimate counts each of them, and
+// what's already going once (server/guard.js gets there with its own `together`).
 // The window that would cross its line, the one nearest its limit when several would, as
 // { id, label, used, to: [lo, hi], resetsAt, line }, or null.
-export function holdFor(windows, kind = 'first') {
+export function holdFor(windows, kind = 'first', together = 1) {
   let out = null;
   for (const w of windows || []) {
     if (!(w?.line > 0) || !Number.isFinite(w.used)) continue;
-    const [lo = 0, mid = 0, hi = 0] = w.est?.[kind] || [];
+    const going = w.running || 0;
+    const est = w.est?.[kind] || [];
+    const [lo = 0, mid = 0, hi = 0] = together > 1 ? est.map((x) => (x - going) * together + going) : est;
     const at = w.used + mid;
     if (at < w.line || (out && at <= out.at)) continue;
     out = { id: w.id, label: w.label, used: w.used, to: [Math.min(1, w.used + lo), Math.min(1, w.used + hi)], resetsAt: w.resetsAt || null, line: w.line, at };
