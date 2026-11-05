@@ -45,6 +45,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **A stopped task says why on its row.** A crash, a usage limit and a refusal all read a red *Blocked*, the same as an agent that stopped to explain. The list, ⌘K, older turns and shared tasks now say *Failed* in red, *At limit* or *Refused* in amber; *Blocked* stays for the agent's own report.
 - **A pane opened as a page keeps its name on the row.** On a phone or in a narrow window, a pane with all its access showed its name about 8px above Back, Reload and Unpin. It now sits level with them, and only moves up when a line under it says what the pane still asks for.
 - **Long file names show whole in Changes.** The Stage and Viewed controls left a name about 140px in the default 480px panel, so `changes-open-first.test.js` lost its end. A name that doesn't fit now takes the whole line and the counts and controls drop under it, in the same columns as every other row; the other rows stay one line. On a phone the counts move to the controls' line, which gives the name their room.
 - **The page says when it has lost wisp.** With wisp gone, a task kept saying *working* and its timer kept counting until you tried to send. After 4 seconds *Reconnecting to wisp…* now shows on the task's header, or at the top of home and the list, on every width and in the phone app, where the old line sat behind the task page. It goes as soon as wisp is back.

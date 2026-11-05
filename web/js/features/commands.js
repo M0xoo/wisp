@@ -8,7 +8,7 @@ import { esc } from '../md.js';
 import { palette } from '../palette.js';
 import { api } from '../core/api.js';
 import { $ } from '../core/dom.js';
-import { ago, STATUS_LABEL } from '../core/format.js';
+import { ago, STATUS_LABEL, statusKey } from '../core/format.js';
 import { isForLater, MOBILE, S, save } from '../core/state.js';
 import { shortcuts } from '../ui/kbd.js';
 import { closeOverlay, overlay } from '../ui/overlay.js';
@@ -115,7 +115,7 @@ function paletteItems() {
 
   const sessions = [...S.sessions.values()].filter((s) => !s.pending).sort((a, b) => a.archived - b.archived || b.updatedAt - a.updatedAt);
   for (const s of sessions) {
-    const state = s.archived ? 'Archived' : s.state === 'review' ? STATUS_LABEL[s.status] || 'Review' : STATE_LABEL[s.state] || s.state;
+    const state = s.archived ? 'Archived' : s.state === 'review' ? STATUS_LABEL[statusKey(s)] || 'Review' : STATE_LABEL[s.state] || s.state;
     items.push({
       group: 'Tasks',
       label: s.title,

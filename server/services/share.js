@@ -31,6 +31,7 @@ import { redactSecrets } from '../secret-scan.js';
 import { normalizeTeam } from '../subagents.js';
 import { workdir } from '../runner.js';
 import { bad, MODES, newId, truncate } from '../util.js';
+import { haltOf } from '../../web/js/core/format.js';
 import { parseSkillMd } from '../../web/js/skill-md.js';
 import { checkout } from './places.js';
 import { gridTargets } from './publish.js';
@@ -95,6 +96,7 @@ export function shareTurn(t, runOf = () => null) {
     effort: t.effort || '',
     mode: t.mode || '',
     status: t.status === 'running' || t.status === 'held' ? 'stopped' : t.status || 'done',
+    ...(haltOf(t) && { halt: haltOf(t) }),
     startedAt: t.startedAt || null,
     endedAt: t.endedAt || null,
     presentation: t.presentation || null,

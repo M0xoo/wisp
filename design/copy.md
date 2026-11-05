@@ -14,6 +14,7 @@ Use these, everywhere in the page, the app, the site and the CHANGELOG:
 | *Needs you*, *Working*, *Done*, *Archived* | Inbox, Running, Completed |
 | *Bring in* (worktrees another tool left: the action, everywhere; toast *Brought in 3 worktrees*) | import, migrate, adopt |
 | *Finished* (the agent's verdict) | Completed, Success |
+| *Blocked* (the agent says it stopped and why); *Failed* (the run crashed), *At limit* (a usage limit), *Refused* (the model or account turned it down) are wisp's own | one word for all four; *Error*, *Limit reached* |
 | *Mark done* / *Reopen* | Close / Resolve |
 | *Rerun…* | Replay (that's a separate presentation, under More) |
 | *side question* (`/btw`: one answer under the turn), *side discussion* (`/side`: a task of its own in the main task's folder, with a *clash* card before it changes lines the main task or another side discussion changed; *Side* on its row) | side chat, aside, thread; *side panel* is the Changes/PR/Shell panel, not these |

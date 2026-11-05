@@ -5,7 +5,7 @@ import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, beforePaint, el, focusBack, icon } from '../core/dom.js';
-import { ago, agoLong, STATUS_LABEL, timeAttrs } from '../core/format.js';
+import { ago, agoLong, statusPill, timeAttrs } from '../core/format.js';
 import { HERE, isForLater, MOBILE, needsYou, S, save, saveOpen } from '../core/state.js';
 import { setForLater, taskDone, taskMenu, toggleDone } from './actions.js';
 import { compareView } from './compare.js';
@@ -365,7 +365,7 @@ function renderHead(n, s) {
         : s.reminder && s.state === 'review'
         ? `<span class="pill st-reminder" title="${esc(s.reminder.text)}">${icon('bell')}Reminder</span>`
         : s.state === 'review'
-          ? `<span class="pill st-${s.status}"><i></i>${STATUS_LABEL[s.status] || STATUS_LABEL.done}</span>`
+          ? statusPill(s)
           : '';
   if (runsOf(s).length > 1) return renderRunHead(n, s, { open, live, pill });
   // In Scheduled, the time column is when its follow-up goes (and there's no pill for it).

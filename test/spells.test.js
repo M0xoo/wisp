@@ -344,6 +344,10 @@ test('panes: the pane tab, the home panes and their bars are parts; Panes takes 
   assert.ok(problems({ ...base0, settings: { panes: ['board@home'] } }).some((x) => /settings\.panes: a string/.test(x)));
 });
 
+test('the row\'s status pill is a part', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['card.status'] }, parts: { 'card.status': { style: { opacity: '0.8' } } } }), []);
+});
+
 test('drafts: the section and its rows are parts', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['section.drafts'] }, parts: { 'drafts.row': { style: { opacity: '0.8' } } } }), []);
 });
