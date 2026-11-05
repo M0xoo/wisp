@@ -1,7 +1,8 @@
 // Users and how they get in: identities (one per provider account), browser sessions, devices
 // (wisp on a computer or phone, with a bearer token), device codes (RFC 8628) and one-time
 // tickets that carry a sign-in from the grid's own address to <handle>.<domain>, and computers
-// (a device's own wisp, added to the grid and reached at <name>--<handle>.<domain>).
+// (a device's own wisp, added to the grid and reached at <name>--<handle>.<domain>), and API keys
+// (a script's way in to the user's own wisp, and nowhere else).
 //
 // Every token we hand out is random; only its SHA-256 is stored.
 
@@ -15,6 +16,7 @@ const WINDOW_MS = 7 * DAY; // how far back auto seats look at the load
 const CODE_TTL_MS = 10 * 60_000;
 const TICKET_TTL_MS = 60_000;
 const USER_CODE = 'BCDFGHJKLMNPQRSTVWXZ'; // no vowels: no words; no 0/O, 1/I
+const MAX_API_KEYS = 20; // live ones, per user
 export const bad = (message, status = 400) => Object.assign(new Error(message), { status });
 // What people with a seat can ask for next, in the order the account page shows them.
 export const MACHINE_WANTS = ['more', 'bigger', 'gpu'];
@@ -228,7 +230,8 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
 
   // --- browser sessions --------------------------------------------------------------------
 
-  // scope: 'grid' (the grid's own pages) or 'i:<user id>' (that user's wisp, at its own address).
+  // scope: 'grid' (the grid's own pages), 'i:<user id>' (that user's wisp, at its own address) or
+  // 'p:<label>' (the preview addresses of that box or computer).
   function createSession(userId, scope, ua = '') {
     const t = token('', 32);
     db.run('INSERT INTO sessions (id_hash, user_id, scope, created_at, expires_at, last_seen_at, ua) VALUES (?, ?, ?, ?, ?, ?, ?)', sha256(t), userId, scope, now(), now() + cfg.sessionDays * DAY, now(), String(ua).slice(0, 200));
@@ -259,17 +262,22 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
 
   // --- tickets: a sign-in carried to <handle>.<domain> --------------------------------------
 
-  function ticket(userId) {
+  // scope 'preview:<label>': opens that label's preview addresses and nothing else. None: the
+  // user's wisp, computers and sandboxes, never a preview address.
+  function ticket(userId, scope = null) {
     const t = token('', 24);
-    db.run('INSERT INTO tickets (hash, user_id, expires_at) VALUES (?, ?, ?)', sha256(t), userId, now() + TICKET_TTL_MS);
+    db.run('INSERT INTO tickets (hash, user_id, expires_at, scope) VALUES (?, ?, ?, ?)', sha256(t), userId, now() + TICKET_TTL_MS, scope);
     return t;
   }
 
-  function useTicket(t) {
+  // preview: the label, when the caller is a preview address. A ticket for somewhere else is
+  // refused and not spent.
+  function useTicket(t, { preview = null } = {}) {
     if (!t) return null;
     const h = sha256(t);
     const row = db.get('SELECT * FROM tickets WHERE hash = ?', h);
     if (!row || row.used_at || row.expires_at < now()) return null;
+    if (row.scope !== (preview ? `preview:${preview}` : null)) return null;
     db.run('UPDATE tickets SET used_at = ? WHERE hash = ?', now(), h);
     db.run('DELETE FROM tickets WHERE expires_at < ?', now() - DAY);
     return userById(row.user_id);
@@ -346,6 +354,43 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
     return r.changes > 0;
   }
 
+  // --- API keys: a script's way in to the user's own wisp -------------------------------------
+  //
+  // Apart from devices on purpose: device() never takes a key, so a key opens only what edgeAuth
+  // lets it, and none of the grid's own API (sign-in links, computers, tunnels, sites, shares).
+
+  function createApiKey(userId, name) {
+    const n = typeof name === 'string' ? name.trim() : '';
+    if (!n) throw bad('Give the key a name.');
+    if (n.length > 60) throw bad('Keep a key’s name to 60 characters.');
+    const live = db.get('SELECT COUNT(*) AS n FROM api_keys WHERE user_id = ? AND revoked_at IS NULL', userId).n;
+    if (live >= MAX_API_KEYS) throw bad(`You have ${MAX_API_KEYS} API keys, the most a grid keeps. Revoke one first.`, 409);
+    const t = token('wgk_', 32);
+    const row = { id: randomBytes(6).toString('hex'), name: n, hint: t.slice(-4), created_at: now(), last_used_at: null };
+    db.run('INSERT INTO api_keys (id, user_id, name, token_hash, hint, created_at) VALUES (?, ?, ?, ?, ?, ?)', row.id, userId, row.name, sha256(t), row.hint, row.created_at);
+    audit(userId, 'apikey.create', { id: row.id });
+    return { ...row, key: t };
+  }
+
+  function apiKey(bearer) {
+    const t = /^Bearer\s+(\S+)$/i.exec(String(bearer || ''))?.[1];
+    if (!t) return null;
+    const k = db.get('SELECT * FROM api_keys WHERE token_hash = ?', sha256(t));
+    if (!k || k.revoked_at) return null;
+    const u = userById(k.user_id);
+    if (!u || u.disabled) return null;
+    if (!k.last_used_at || now() - k.last_used_at > 60_000) db.run('UPDATE api_keys SET last_used_at = ? WHERE id = ?', now(), k.id);
+    return { user: u, key: k };
+  }
+
+  const apiKeys = (userId) => db.all('SELECT id, name, hint, created_at, last_used_at FROM api_keys WHERE user_id = ? AND revoked_at IS NULL ORDER BY created_at DESC, rowid DESC', userId);
+
+  function revokeApiKey(userId, id) {
+    const r = db.run('UPDATE api_keys SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL', now(), id, userId);
+    if (r.changes) audit(userId, 'apikey.revoke', { id });
+    return r.changes > 0;
+  }
+
   // --- computers: a device's own wisp, reached through the grid ------------------------------
 
   // The device's computer (one each), added or renamed. Its label is its address under the
@@ -403,5 +448,5 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
     invite(); // their seat goes to whoever waited longest
   }
 
-  return { allowed, seats, sample, waitFor, waitlist, invite, wishMachines, machineWish, machineWishes, isAdmin, signIn, unlink, createSession, session, endSession, endAll, ticket, useTicket, deviceCode, pendingCode, answerCode, pollCode, device, revokeDevice, devices, addComputer, computers, computer, computerByLabel, seenComputer, removeComputer, identities, byHandle, userById, instance, setDisabled, remove, audit, normalCode };
+  return { allowed, seats, sample, waitFor, waitlist, invite, wishMachines, machineWish, machineWishes, isAdmin, signIn, unlink, createSession, session, endSession, endAll, ticket, useTicket, deviceCode, pendingCode, answerCode, pollCode, device, revokeDevice, devices, createApiKey, apiKey, apiKeys, revokeApiKey, addComputer, computers, computer, computerByLabel, seenComputer, removeComputer, identities, byHandle, userById, instance, setDisabled, remove, audit, normalCode };
 }

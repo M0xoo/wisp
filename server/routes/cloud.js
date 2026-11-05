@@ -1,14 +1,24 @@
 // /api/cloud: sign in to a wisp Grid; your cloud computer then shows up under Machines.
 // /api/computer: this computer on that grid, reached from your phone and other computers.
 // /api/sandbox: /sandbox's boxes on that grid, and the Claude sign-in they all start with.
+// /api/cloud/keys: API keys for scripting a cloud wisp, kept on that grid, for a desktop signed in to it.
 
 export function register(r, app) {
+  // send() takes no headers, so no-store goes on the response first: refusals carry it too.
+  const keys = (fn) => async (c) => {
+    c.res.setHeader('cache-control', 'no-store');
+    app.apiKeys.guard(c.req);
+    await fn(c);
+  };
   r.route('POST', '/cloud/signin', async (c) => {
     const b = await c.body();
     c.send(201, await app.cloud.start(b.url, { addComputer: b.addComputer === true }));
   });
   r.route('GET', '/cloud/signin/:id', (c) => c.send(200, app.cloud.get(c.params.id)));
   r.route('DELETE', '/cloud/signin/:id', (c) => c.send(200, app.cloud.cancel(c.params.id)));
+  r.route('GET', '/cloud/keys', keys(async (c) => c.send(200, await app.apiKeys.list())));
+  r.route('POST', '/cloud/keys', keys(async (c) => c.send(201, await app.apiKeys.create((await c.body()).name))));
+  r.route('DELETE', '/cloud/keys/:id', keys(async (c) => c.send(200, await app.apiKeys.revoke(c.params.id))));
   r.route('GET', '/computer', (c) => {
     app.computer.fresh(); // Machines is open: your other computers, looked up again
     c.send(200, app.computer.view());

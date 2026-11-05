@@ -4,15 +4,26 @@ import fs from 'node:fs';
 import { pipeFrom } from '../http/respond.js';
 import { splitId } from '../machines.js';
 
+// An upload is whatever was sent, served from wisp's own address: a page in one must not run there.
+const inert = (res) => {
+  res.setHeader('x-content-type-options', 'nosniff');
+  res.setHeader('content-security-policy', 'sandbox');
+};
+
 export function register(r, app) {
   const { uploads, machines } = app;
 
   r.route('POST', '/uploads', async (c) => c.send(201, await uploads.receive(c.req, { name: c.query.get('name'), type: c.query.get('type') })));
   r.route('GET', '/uploads/:id', async (c) => {
     const at = splitId(c.params.id);
-    if (at) return pipeFrom(c.res, await machines.stream(at.machine, 'GET', `/uploads/${at.id}`));
+    if (at) {
+      const from = await machines.stream(at.machine, 'GET', `/uploads/${at.id}`);
+      inert(c.res); // pipeFrom passes on only its type and length
+      return pipeFrom(c.res, from);
+    }
     const u = uploads.get(c.params.id);
     if (!u || !fs.existsSync(u.path)) return c.send(404, { error: 'not found' });
+    inert(c.res);
     c.res.writeHead(200, { 'content-type': u.mime, 'content-length': fs.statSync(u.path).size });
     fs.createReadStream(u.path).pipe(c.res);
   });

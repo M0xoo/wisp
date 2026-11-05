@@ -136,7 +136,8 @@ export function connectHtml(grid, row) {
       ${row('Devices you let in', `Desktops and phones signed in to it. Sign one out on your ${g} account page.`, `<a class="ghost sm btn-link" href="${esc(grid.url)}/account" target="_blank" rel="noopener">${icon('external')}Account</a>`)}
     </div>
     <p class="hint">It sleeps when nothing’s going on, and wakes when you open it, send it a task, or a schedule is due. Your tasks, files and sign-ins stay on it.</p>
-    <div class="sx-sandbox"></div>`;
+    <div class="sx-sandbox"></div>
+    <div class="sx-keys"></div>`;
 }
 
 // Machines → this computer on your wisp Grid: your phone and your other computers, signed in to the

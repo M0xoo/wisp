@@ -316,6 +316,12 @@ test('sandboxes: the card in Settings → Cloud is a part', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['panel.browser'] } }), []);
 });
 
+test('API keys: the card in Settings → Cloud and the one-time reveal are parts', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.cloud.keys', 'settings.cloud.keys.reveal'] }, parts: { 'settings.cloud.keys': { style: { borderRadius: '6px' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['settings.cloud.key'] } }).length, 'a typo is refused');
+  assert.ok(problems({ ...base0, ui: { hide: ['settings.cloud.keys.revealed'] } }).length, 'a typo is refused');
+});
+
 test('panes: the pane tab, the home panes and their bars are parts; Panes takes buttons and a height; panes is a setting a spell can pin with', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['panel.pane.tab', 'split.pane.bar'] }, parts: { 'panel.pane': { style: { background: 'var(--surface)' } }, 'split.pane': { style: { borderRadius: '6px' } }, 'panel.pane.bar': { style: { opacity: '0.9' } }, 'split.panes': { props: { height: 600 } } } }), []);
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'split.panes', label: 'My Stuff', do: { open: 'https://example.com' } }] }), []);

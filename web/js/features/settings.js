@@ -17,6 +17,7 @@ import { loadConfig } from './live.js';
 import { openComputers, openMachines } from './machines.js';
 import { cloudPane, connectHtml, mountGridHere } from './cloud.js';
 import { mountSandboxes } from './sandbox.js';
+import { mountApiKeys } from './api-keys.js';
 import { loginControl, loginPanel, typingLogin, wireLogins } from './agent-login.js';
 import { accountCount, accountsHtml, gridAccountsNote, manyAccounts, wireAccounts } from './accounts.js';
 import { memorySummary, openMemory, setLearning } from './memory.js';
@@ -201,7 +202,7 @@ export function openSettings(opts) {
 `
           }
         </section>
-        ${MOBILE ? '' : '<section class="sx-pane" data-pane="cloud"><div class="sx-cloud"></div><div class="sx-sandbox"></div></section>'}
+        ${MOBILE ? '' : '<section class="sx-pane" data-pane="cloud"><div class="sx-cloud"></div><div class="sx-sandbox"></div><div class="sx-keys"></div></section>'}
         <section class="sx-pane" data-pane="memory">
           <div class="sx-group">
             ${row('Learn from tasks', 'A short retro after each task keeps preferences and lessons', '<button class="switch" id="learn" role="switch"></button>')}
@@ -987,10 +988,12 @@ export function openSettings(opts) {
         copy(grid.address, e.currentTarget);
       };
       mountSandboxes($('.sx-sandbox', node)); // a cloud computer makes sandboxes on its own grid
+      mountApiKeys($('.sx-keys', node), { grid });
     } else {
       $('#openMachines', node).onclick = () => openMachines({ host: host('machines') });
       cloudPane($('.sx-cloud', node));
       mountSandboxes($('.sx-sandbox', node));
+      mountApiKeys($('.sx-keys', node));
       // This computer on your wisp Grid, as in Machines: phones and other computers reach it there.
       mountGridHere($('.mc-grid', node));
       $('#reachRecheck', node).onclick = () => {
