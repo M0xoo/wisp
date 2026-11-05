@@ -886,6 +886,13 @@ bus.on('edit', (id) => {
   cxEdit = setTimeout(() => cxOn(id) && refreshCx(id), 1000);
 });
 bus.on('task', (id) => cxOn(id) && refreshCx(id));
+// Ship it committed: the list, its Stage boxes and the place line's counts all changed. On another
+// tab Changes still looks now, or its next paint shows the last answer.
+bus.on('shipped', (id) => {
+  if (shown === id && !panel.hidden) loadSpace(id);
+  if (cxOn(id)) refreshCx(id);
+  else if (changesOf(id)) loadChanges(id, { root: cxRoot(id) });
+});
 bus.on('review', (id) => !panel.hidden && shown === id && tabOf() === 'pr' && paintPr()); // review by another harness moved on (paintPr writes only what changed)
 bus.on('spells', () => !panel.hidden && (paintWidth(), paintName(), paintBody()));
 bus.on('panel:close', () => close());

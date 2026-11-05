@@ -31,6 +31,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Changes stays current after Ship it.** Changes kept showing the Commit box, Stage boxes and *2 uncommitted* until a reload, and Commit then said there was nothing to commit. They now go as soon as the ship ends, in every open window, including when the push fails after the commit landed.
 - **A side discussion keeps its link back to a long-titled task.** With a long main task title the line above its first message read *Side discussion of …*, with no title and nothing to click. The title is what's cut now, the link stays, and its focus ring isn't clipped.
 - **A side discussion's clash card keeps its answers in view on a phone.** It no longer repeats the main task's lines when the diff shows them, or a second *what to do instead* box above the reply box, so *Keep main's version* isn't under the reply box when a phone opens it.
 - **A Claude Code follow-up no longer counts the whole task again.** On `--resume` the CLI's cost and per-model counters carry on from the last run, and wisp took them for that turn's, so every follow-up's cost, receipt and model split held all the turns before it: Usage, crew usage and the budget's units added them up again (cost read about 3.6x high on real tasks). A turn now counts what it spent, subagents included, and Usage's tokens are the receipt's. Turns from before this keep their old cost; their tokens read from the turn's own usage.
