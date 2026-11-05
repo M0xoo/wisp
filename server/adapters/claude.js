@@ -419,11 +419,27 @@ export default {
       if ([...next.keys()].join(' ') !== was) onEvent({ type: 'background', tasks: [...next.values()] });
     };
 
+    // The main thread's last request: what a reply reads back if the cache lapses (web/js/cold-cache.js).
+    // result.usage can't say: it sums every request of the turn. Each message's usage is one request.
+    let contextTokens = 0;
+    let cacheTtlMs = 0; // 0: unknown
+    let compacted = false; // a /compact with no main-thread request since: the size is gone, and says 0
+    const noteContext = (msg) => {
+      const u = msg.message?.usage;
+      if (!u || msg.parent_tool_use_id) return; // a subagent's context is its own
+      const size = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+      if (size) [contextTokens, compacted] = [size, false]; // 0: a <synthetic> message
+      // The TTL the provider wrote with, read from the latest message that wrote any. Both: unknown.
+      const { ephemeral_1h_input_tokens: h1, ephemeral_5m_input_tokens: m5 } = u.cache_creation || {};
+      if (h1 || m5) cacheTtlMs = h1 && m5 ? 0 : h1 ? 3_600_000 : 300_000;
+    };
+
     const onJson = (msg) => {
       if (msg.session_id) onEvent({ type: 'session', id: msg.session_id });
 
       if (msg.type === 'assistant') {
         subagents.message(msg);
+        noteContext(msg);
         if (msg.message?.stop_reason === 'refusal') refused = true;
         for (const part of msg.message?.content || []) {
           if (part.type === 'text' && part.text.trim()) {
@@ -462,6 +478,7 @@ export default {
         if (msg.claude_code_version) onEvent({ type: 'cli', version: String(msg.claude_code_version) });
         subagents.init(msg.tools);
       } else if (msg.type === 'system') {
+        if (msg.subtype === 'compact_boundary') [contextTokens, compacted] = [0, true];
         // A subagent started (claude 2.1.316 runs Agent calls in the background): its type.
         if (msg.subtype === 'task_started' && msg.task_type === 'local_agent' && msg.tool_use_id) subagents.call(msg.tool_use_id, 'Agent', { subagent_type: msg.subagent_type });
         // background_tasks_changed carries the full list; task_started/task_notification are the
@@ -494,6 +511,9 @@ export default {
           return;
         }
         sawResult = true;
+        if (contextTokens || compacted) ev.stats.contextTokens = contextTokens;
+        if (cacheTtlMs) ev.stats.cacheTtlMs = cacheTtlMs;
+        [contextTokens, cacheTtlMs, compacted] = [0, 0, false]; // one process can report several results
         // modelUsage adds up over the process: this result's part is what's new since the last.
         const models = modelsOf(msg.modelUsage, lastModels);
         if (msg.modelUsage) lastModels = msg.modelUsage;

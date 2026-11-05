@@ -20,6 +20,7 @@ import { feedbackOn, rateTurn, whyForm } from './feedback.js';
 import { projectById } from './places.js';
 import { accountMark, accountOf, agentName, DEFAULT_MODE, effortLabel, limitUntil, modelBadge, MODES } from './runners.js';
 import { heldCard } from './hold.js';
+import { coldCache, coldLine, coldLineAhead } from '../cold-cache.js';
 import { harnessNote } from './harness-watch.js';
 import { whatChanged } from '../what-changed.js';
 import { whatChangedLine } from '../what-changed-line.js';
@@ -523,6 +524,9 @@ function limitCard(s, t) {
     : '';
   // Waiting: the follow-up sits above the reply box (Later); the card says it's been picked.
   const waiting = (S.sessions.get(s.id)?.later || []).some((x) => x.text === CARRY_ON);
+  // Waiting to the reset can outlast the cache: the reply then re-reads everything (web/js/cold-cache.js).
+  const cold = l.until ? coldCache(s, l.until) : null;
+  const coldNote = cold?.cold ? (coldCache(s)?.cold ? coldLine(cold.tokens) : coldLineAhead(cold.tokens)) : '';
   const node = el(`<div class="b-limit${waiting ? ' resolved' : ''}">
       <div class="lm-acts">
         ${l.until ? `<button class="primary sm" data-lm="wait" title="Schedules a follow-up for ${esc(at)}">${icon('clock')}Wait until ${esc(at)}</button>` : ''}
@@ -530,6 +534,7 @@ function limitCard(s, t) {
         ${to ? `<button class="ghost sm" data-lm="agent" data-agent="${esc(to.id)}">${icon('agent')}Hand to ${esc(to.name || agentName(to.id))}</button>` : ''}
         ${l.extra ? `<a class="ghost sm" href="${esc(l.extra)}" target="_blank" rel="noopener">${icon('external')}Get extra usage</a>` : ''}
       </div>
+      ${coldNote ? `<p class="lm-note lm-cold">${esc(coldNote)}</p>` : ''}
       ${note ? `<p class="lm-note">${esc(note)}</p>` : ''}
     </div>`);
   const lock = (on) => {

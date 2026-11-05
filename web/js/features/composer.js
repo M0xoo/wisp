@@ -12,7 +12,7 @@ import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
 import { here, MOBILE, S, saveOpen } from '../core/state.js';
 import { toast, toastError } from '../ui/toast.js';
-import { toggleDone } from './actions.js';
+import { forkable, forkTask, toggleDone } from './actions.js';
 import { openTerm, termFailed, termStarted } from './term.js';
 import { acceptFiles, attachTray, autosize } from './attachments.js';
 import { askBtw, askCrew, btwTipShown } from './btw.js';
@@ -33,6 +33,7 @@ import { paintCard, runAction, spellProp } from './spells.js';
 import { spellSlash } from './launcher.js';
 import { cast } from './spell-ui.js';
 import { canLead, copiesOf, memberLabel, paintTeamBtn, teamEditor } from './team.js';
+import { coldLine, coldLineShort, coldReply } from '../cold-cache.js';
 import { parseWhen } from '../when.js';
 import { addPlan, aheadLabel, followUpItems, planAsk, planSaid, scheduleFollowUp, timeMenu, whenTip } from './later.js';
 import { keyedRows, queuedItems } from './queued.js';
@@ -203,6 +204,7 @@ export function renderDock(id) {
       whenShown.delete(id);
       sendReply(id, ta.value);
     }
+    if (e.target.closest('.c-cold-fork')) forkTask(id);
     if (e.target.closest('.c-when-clear')) {
       armedAt.delete(id);
       readWhen(id);
@@ -526,6 +528,21 @@ export function updateDock(id) {
     : `Sending now: follow-ups interrupt ${name}. Click to queue them instead.`;
 }
 
+// Cache gone cold (web/js/cold-cache.js): only words in the hint, Send stays as it is.
+const COLD_TIP = 'The prompt cache for this task has lapsed, so a reply reads the whole conversation back in. That costs far more than a reply while it’s warm.';
+function coldHtml(id, s) {
+  const c = coldReply(s, { run: S.replyRunners.get(id), moving: S.replyPlaces.has(id), terminal: !!S.sessions.get(id)?.term });
+  if (!c) return '';
+  const line = coldLine(c.tokens);
+  // Both forms, CSS shows the one that fits (.c-cold-row's container query). The title opens with the full line.
+  return `<span class="c-cold-row"><span class="c-cold" title="${esc(`${line}. ${COLD_TIP}`)}"><span class="cc-long">${esc(line)}</span><span class="cc-short">${esc(coldLineShort(c.tokens))}</span></span>${forkable(s) ? '<button type="button" class="link c-cold-fork">Fork…</button>' : ''}</span>`;
+}
+
+// The cache lapses with the task sitting open and nothing else repainting it (app.js's 30s tick).
+export function paintCold() {
+  for (const id of S.open) if (S.nodes.has(id)) paintSide(id);
+}
+
 // "/btw …" in the box: a side question, so the composer says it won't interrupt anything, and the
 // mode and harness pickers (which are for the next follow-up) step back.
 function paintSide(id) {
@@ -550,7 +567,7 @@ function paintSide(id) {
       ? `<span class="when-chip${passed(id) ? ' passed' : ''}" title="${esc(whenTip(w.at))}">${icon('clock')}<span>${passed(id) ? `${esc(aheadLabel(w.at))} has passed` : `Sends at ${esc(aheadLabel(w.at))}`}</span><button type="button" class="att-x c-when-clear" aria-label="Clear the time" title="Clear the time">${icon('x')}</button></span>`
       : w
         ? `<span class="when-chip" title="${esc(whenTip(w.at))}">${icon(w.reminder ? 'bell' : 'clock')}<span>${w.reminder ? `Reminds you at ${esc(aheadLabel(w.at))}` : `Sends at ${esc(aheadLabel(w.at))}`}</span>${w.reminder ? '' : '<button type="button" class="link c-when-now">Send now</button>'}<button type="button" class="att-x c-when-x" aria-label="Not a time" title="Not a time">${icon('x')}</button></span>`
-        : '';
+        : coldHtml(id, s);
   const hint = $('.c-hint', comp);
   if (hint.dataset.h !== html) (hint.innerHTML = html), (hint.dataset.h = html);
 }
