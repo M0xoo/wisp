@@ -698,6 +698,7 @@ body.wisp-mobile .mp-route { height: 44px; padding: 0 10px; }
 .tb-dot { opacity: 0.6; }
 .tb-over { color: var(--warn); }
 .trail-bar .link { font-size: 12.5px; }
+.trail-bar .tb-sub-switch { text-align: left; } /* it wraps on a phone, under left-aligned counts */
 /* Activity counts double as the Activity toggle, so the bar carries no separate "Activity" link. */
 .tb-acts { display: inline-flex; align-items: center; gap: 10px; margin: -3px -6px; padding: 3px 6px; border-radius: 6px; color: inherit; transition: color 0.15s, background 0.15s; }
 .tb-acts:hover, .tb-acts.on { color: var(--ink); background: var(--bg-2); }

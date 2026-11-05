@@ -26,7 +26,7 @@ import { whatChanged } from '../what-changed.js';
 import { whatChangedLine } from '../what-changed-line.js';
 import { scheduleFollowUp } from './later.js';
 import { handoffTargets } from '../vendors.js';
-import { compareTip, offerSubagentModel, OVERAGE, receiptOf, receiptParts, receiptTip, subagentParts, subagentTip } from '../receipt.js';
+import { compareTip, offerSubagentModel, SUBAGENT_OFFER, OVERAGE, receiptOf, receiptParts, receiptTip, subagentParts, subagentTip } from '../receipt.js';
 import { scrollByPx, topInset, watching } from './scroll.js';
 import { prsOf, renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
@@ -631,7 +631,7 @@ function agentsHtml(t, agent) {
   if (!parts.length) return '';
   const offer = offerSubagentModel(t, S.config?.defaults?.subagentModel || '', agent);
   return `<span class="tb tb-agents" title="${esc(subagentTip(t))}">${parts.map((p) => `<span>${esc(p)}</span>`).join('<span class="tb-dot" aria-hidden="true">·</span>')}</span>` +
-    (offer ? `<button class="link xs tb-sub-switch" data-a="subagent-model" title="Subagents on the task’s model wrote most of this turn. Pick the model they run on in Settings → Usage">Run subagents on Haiku</button>` : '');
+    (offer ? `<button class="link xs tb-sub-switch" data-a="subagent-model" title="Subagents on the task’s model wrote most of this turn. Pick the model they run on in Settings → Usage">${esc(SUBAGENT_OFFER)}</button>` : '');
 }
 
 // A crew member's job that came from another task (delegated, tagged, asked to check on it): its

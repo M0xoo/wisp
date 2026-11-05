@@ -202,6 +202,8 @@ export function sameModelShare(t) {
 export function offerSubagentModel(t, setting = '', agent = t?.agent) {
   return agent === 'claude' && !setting && !t?.run?.subagentModel && sameModelShare(t) >= SUBAGENT_OFFER_AT;
 }
+// Haiku saved 75% on a 52k-line repo and nothing on a 10k-line one: the offer says where it pays off.
+export const SUBAGENT_OFFER = 'Run subagents on Haiku: best on large repos and read-heavy work';
 const SUBAGENT_NAMES = { haiku: 'Haiku', sonnet: 'Sonnet' };
 
 // Its tooltip: every subagent type, the tokens per model, the page-reads note, and the subagent
