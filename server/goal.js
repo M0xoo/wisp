@@ -423,7 +423,7 @@ export class Goals {
     const need = votesNeeded(g.vote, n);
     const met = count('met');
     const rule = n === 1 ? 'the judge decides' : g.vote === 'all' ? 'all must agree' : g.vote === 'any' ? 'one is enough' : `${need} of ${n} must agree`;
-    const tally = `${met} of ${n} judge${n === 1 ? '' : 's'} say met (${rule})`;
+    const tally = `${met} of ${n} judge${n === 1 ? ' says' : 's say'} met (${rule})`;
     const named = (v) => (n > 1 ? `${v.name}: ${v.why}` : v.why);
     const shared = { tally, votes, ...(tests && tests.verdict !== 'skip' && { tests: { verdict: tests.verdict, command: tests.command } }) };
     if (met >= need) return { ...shared, verdict: 'met', why: clip(named(votes.find((v) => v.verdict === 'met')), 300), next: '', progress: 100 };
