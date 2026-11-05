@@ -64,6 +64,20 @@ test('the catalog moved, with the version beside it', () => {
   assert.deepEqual(said(turn({ version: '1', catalog: 'a' }), turn({ version: '2', catalog: 'b' })), { version: ['1', '2'], catalog: true });
 });
 
+test('the catalog: the models added, removed and changed, from a hash per model', () => {
+  const a = turn({ catalog: 'c1', models: { 'gpt-a': '1', 'gpt-b': '2', 'gpt-c': '3' } });
+  const b = turn({ catalog: 'c2', models: { 'gpt-a': '1', 'gpt-b': '9', 'gpt-d': '4' } });
+  assert.deepEqual(said(a, b), { catalog: { added: ['gpt-d'], removed: ['gpt-c'], changed: ['gpt-b'] } });
+});
+
+test('the catalog: an older turn, or a move no model shows, is true, not a guess', () => {
+  const a = turn({ catalog: 'c1', models: { 'gpt-a': '1' } });
+  assert.deepEqual(said(turn({ catalog: 'c0' }), a), { catalog: true }, 'the turn before has one hash');
+  assert.deepEqual(said(a, turn({ catalog: 'c2' })), { catalog: true }, 'this turn has one hash');
+  assert.deepEqual(said(a, turn({ catalog: 'c2', models: { 'gpt-a': '1' } })), { catalog: true }, 'the list only moved around');
+  assert.equal(said(a, turn({ catalog: 'c1', models: { 'gpt-a': '2' } })), null, 'the whole list is the same: nothing moved');
+});
+
 test('a field is compared only when both turns have it', () => {
   assert.equal(said(turn({ version: '1.0.0' }), turn({ catalog: 'a' })), null);
   assert.equal(said(turn({ catalog: 'a', version: '1' }), turn({ version: '1' })), null, 'a probe that failed');
@@ -104,6 +118,14 @@ test('the line: each thing that moved, and the limit that goes with it', () => {
   assert.deepEqual(line({ tools: true }), { said: 'Since the last turn: tool set changed.', limit: ONE });
   assert.deepEqual(whatChangedLine({ catalog: true }, { name: 'Codex' }), { said: 'Since the last turn: Codex model catalog changed.', limit: ONE });
   assert.deepEqual(line({ version: ['1', '2'], tools: { added: ['WebFetch'], removed: [] }, catalog: true }), { said: 'Since the last turn: Claude Code 1 → 2, WebFetch added, Claude Code model catalog changed.', limit: MANY });
+});
+
+test('the line: the catalog names its models, up to 3, then a count', () => {
+  const line = (catalog) => whatChangedLine({ catalog }, { name: 'Codex' }).said;
+  assert.equal(line(true), 'Since the last turn: Codex model catalog changed.');
+  assert.equal(line({ added: [], removed: [], changed: ['gpt-6'] }), 'Since the last turn: Codex model catalog changed (gpt-6 changed).');
+  assert.equal(line({ added: ['a'], removed: ['b'], changed: ['c', 'd'] }), 'Since the last turn: Codex model catalog changed (a added, b removed, c and 1 more changed).');
+  assert.equal(line({ added: ['a', 'b', 'c', 'd'], removed: ['e'], changed: ['f', 'g'] }), 'Since the last turn: Codex model catalog changed (a, b, c and 1 more added, 1 model removed, 2 models changed).');
 });
 
 test('the line: up to 3 tools by name, then a count', () => {
@@ -203,17 +225,18 @@ test('codex: version and catalog per turn, the hash over the parsed list, and it
   const s = await launch('codex');
   await turnsDone(s.id, 1);
   let x = await landed(s.id, 0, 'catalog');
-  assert.deepEqual(Object.keys(x.turns[0].stats.cli).sort(), ['account', 'catalog', 'version'], 'this harness has accounts here');
+  assert.deepEqual(Object.keys(x.turns[0].stats.cli).sort(), ['account', 'catalog', 'models', 'version'], 'this harness has accounts here');
   assert.equal(x.turns[0].stats.cli.version, '0.5.0', 'the bare version, not `fake-codex 0.5.0`');
   const models = JSON.parse(execFileSync(process.env.WISP_CODEX_BIN || 'codex', ['debug', 'models'], { encoding: 'utf8', shell: process.platform === 'win32' })).models;
   assert.equal(x.turns[0].stats.cli.catalog, sha(JSON.stringify(models)));
+  assert.deepEqual(x.turns[0].stats.cli.models, Object.fromEntries(models.map((m) => [m.slug, sha(JSON.stringify(m))])));
 
   process.env.FAKE_CODEX_CATALOG = 'gpt-11';
   await followUp(s.id);
   await turnsDone(s.id, 2);
   x = await landed(s.id, 1, 'catalog');
   assert.notEqual(x.turns[1].stats.cli.catalog, x.turns[0].stats.cli.catalog);
-  assert.deepEqual(whatChanged(x, x.turns[1]), { catalog: true });
+  assert.deepEqual(whatChanged(x, x.turns[1]), { catalog: { added: ['gpt-11'], removed: [], changed: [] } });
 });
 
 test('codex: a probe that ends after the turn did still lands', { concurrency: false }, async (t) => {
@@ -242,6 +265,7 @@ test('codex without `debug models`, or with garbage from it: no catalog, no erro
     const x = await landed(s.id, 0, 'version'); // the probe is over: the version came in the same event
     assert.equal(x.turns[0].status, 'done');
     assert.equal(x.turns[0].stats.cli.catalog, undefined);
+    assert.equal(x.turns[0].stats.cli.models, undefined);
     assert.deepEqual(x.turns[0].activity.filter((a) => /debug|catalog/i.test(a.label || '')), [], 'not a line in the task');
     delete process.env[key];
   }

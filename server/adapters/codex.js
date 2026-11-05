@@ -322,6 +322,7 @@ const codexHome = () => process.env.CODEX_HOME || path.join(os.homedir(), '.code
 
 // `debug models` can refresh over the network: a turn doesn't wait long to say what the CLI was.
 const PROBE_MS = 5_000;
+const hashOf = (x) => createHash('sha1').update(JSON.stringify(x)).digest('hex').slice(0, 12);
 const modelsIn = (data) => (Array.isArray(data?.models) && data.models.length ? data.models : null);
 
 // The model catalog: from the CLI, else what it cached in $CODEX_HOME after signing in or starting.
@@ -338,13 +339,17 @@ async function catalog() {
 // What this run's CLI is, in the run's env: { version?, catalog? }. Only the CLI's own answer counts:
 // the cached copy can lag it, and a hash that falls back to it would say a catalog moved when none did.
 async function probeCli(env) {
-  const [models, line] = await Promise.all([quietOutput(BIN, ['debug', 'models'], PROBE_MS, env), quietOutput(BIN, ['--version'], PROBE_MS, env)]);
+  const [out, line] = await Promise.all([quietOutput(BIN, ['debug', 'models'], PROBE_MS, env), quietOutput(BIN, ['--version'], PROBE_MS, env)]);
   let list = null;
   try {
-    list = modelsIn(JSON.parse(models));
+    list = modelsIn(JSON.parse(out));
   } catch {}
   const version = versionIn(line);
-  return { ...(version && { version }), ...(list && { catalog: createHash('sha1').update(JSON.stringify(list)).digest('hex').slice(0, 12) }) };
+  if (!list) return { ...(version && { version }) };
+  // One hash per model too, so a move can name which: { slug: hash }. An entry with no slug counts
+  // towards `catalog` only.
+  const models = Object.fromEntries(list.filter((m) => m?.slug).map((m) => [String(m.slug), hashOf(m)]));
+  return { ...(version && { version }), catalog: hashOf(list), ...(Object.keys(models).length && { models }) };
 }
 
 // Interactive codex asks "Do you trust the files in this folder?" before it starts in a folder that

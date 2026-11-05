@@ -473,7 +473,7 @@ Every page check also fails on an uncaught page error or a `console.error`.
   - 1: while it runs, no line. Finished, one line under the prompt, in both views: *Since the last turn: Claude Code 1.0 → 1.1, Read, Edit, Grep and 2 more added.*, then *Possible cause, not proof; a server-side change won’t show.* An MCP tool reads *create issue (github)*.
   - 2: no line on the new turn; the one above keeps its own when unfolded.
   - 3: the version is on the harness's line only: nothing else moved, so no line of ours. After Trust, the version moves to our line at once.
-  - 4: *Since the last turn: Codex model catalog changed.* shows when the file appears. The answer doesn't move and its entrance doesn't play again.
+  - 4: *Since the last turn: Codex model catalog changed (gpt-11 added).*, with the slug you set, shows when the file appears. The answer doesn't move and its entrance doesn't play again.
   - 5: the line goes; the rest of the turn stays.
   - 6: the whole line, limit included, wraps inside the page with nothing past the edge.
 - **Suite** (`test/what-changed.test.js`, `test/spells.test.js`), **Manual** (real Chrome)

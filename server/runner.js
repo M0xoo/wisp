@@ -1644,7 +1644,7 @@ export class Runner extends EventEmitter {
         return;
       }
       case 'cli': {
-        const said = { ...(ev.version && { version: String(ev.version) }), ...(ev.catalog && { catalog: String(ev.catalog) }) };
+        const said = { ...(ev.version && { version: String(ev.version) }), ...(ev.catalog && { catalog: String(ev.catalog) }), ...(ev.models && { models: ev.models }) };
         if (turn.status === 'running') cliSeen.set(turn, { ...cliSeen.get(turn), ...said });
         // Its probe outran a fast turn. A turn with no stats stays that way: readers go by t.stats.
         else if (turn.stats) {
@@ -1678,10 +1678,10 @@ export class Runner extends EventEmitter {
   // harness that reports it never gets detect's version: a stale one beside its own would read as a move.
   #keepCli(session, turn) {
     const agent = turn.agent || session.agent;
-    const { version = adapters[agent]?.reportsCli ? '' : versionIn(detectedVersion(agent)), catalog } = cliSeen.get(turn) || {};
+    const { version = adapters[agent]?.reportsCli ? '' : versionIn(detectedVersion(agent)), catalog, models } = cliSeen.get(turn) || {};
     const tools = turn.details?.tools?.hash;
     const account = turn.account || session.account;
-    const cli = { ...(version && { version }), ...(tools && { tools }), ...(catalog && { catalog }), ...(account && { account }) };
+    const cli = { ...(version && { version }), ...(tools && { tools }), ...(catalog && { catalog }), ...(models && { models }), ...(account && { account }) };
     if (Object.keys(cli).length) turn.stats.cli = cli;
   }
 
