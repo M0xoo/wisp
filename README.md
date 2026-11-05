@@ -419,6 +419,8 @@ Turn worktrees off in Settings → *Worktree per task*, with the launcher's **Wo
 
 Coming from Google Jules (read-only from 11 November 2026, closed on 31 December)? [Moving off Jules](https://trywisp.dev/guides/moving-off-jules.html) maps its tasks, setup scripts, environment variables and scheduled tasks onto wisp.
 
+Coming from Conductor (Cloud read-only from 13 November 2026, shut down on 20 November)? [Moving off Conductor](https://trywisp.dev/guides/moving-off-conductor.html) says what to export and maps its workspaces, scripts and routines onto wisp, with what has no equivalent.
+
 ## Delegate
 
 The launcher's **Delegate** button gives the lead agent a team it can hand parts of the task to (the API calls them subagents). The lead gets a `delegate` tool on wisp's MCP server, and its harness's own subagent tool is switched off, so every helper is one you picked. Add as many members as you like. Each member has:
