@@ -26,7 +26,9 @@ function setup({ defaults = { worktreeCleanup: '7' }, config = {} } = {}) {
     fs.utimesSync(worktree.path, 0, 0); // long untouched
     return s;
   };
-  return { app, add, home, repo, store, worktrees: createWorktrees(app) };
+  // The machine's free disk stays out of it: under 10 GB a real sweep takes idle folders before their days.
+  const worktrees = createWorktrees(app);
+  return { app, add, home, repo, store, worktrees: { ...worktrees, sweep: (opts) => worktrees.sweep({ low: 0, ...opts }) } };
 }
 const there = (s) => fs.existsSync(s.worktree.path);
 const now = () => Date.now();
