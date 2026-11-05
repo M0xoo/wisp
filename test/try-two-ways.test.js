@@ -287,7 +287,7 @@ test('refused: a trial without a worktree per run, in place or with no folder; n
   await Promise.all(plain.group.map((x) => ended(x.id)));
 });
 
-test('/terminal drops the variant with the compare runs: a terminal can’t carry them', async () => {
+test('/terminal drops the variant with the compare runs: a terminal can’t carry them', { skip: process.platform === 'win32' && '/terminal is refused on Windows' }, async () => {
   const s = await api('/sessions', { prompt: '/terminal look around', cwd: makeRepo(), agent: 'claude', compare: [{ agent: 'claude', skills: 'off' }], trial: true, subagentModel: 'haiku' });
   assert.equal(s.group, undefined);
   assert.equal(s.subagentModel, undefined);
