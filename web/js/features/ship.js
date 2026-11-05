@@ -374,8 +374,11 @@ export async function mergePr(id) {
     .join('\n');
   const what = several ? `these ${open.length} PRs (${open.map((x) => `${x.repo} #${x.pr.number}`).join(', ')})` : `PR #${open[0].pr.number}${open[0].pr.draft ? ' (marks it ready first)' : ''}`;
   // Only the PRs Ship it opened have a local base branch and a worktree; attached ones merge on GitHub alone.
-  const local = shippedPrs(s).filter((x) => x.pr.state === 'OPEN').length;
-  const after = local ? `, then fast-forward your local base branch${local > 1 ? 'es' : ''} and remove the worktree${local > 1 ? 's' : ''}` : '';
+  const shipped = shippedPrs(s).filter((x) => x.pr.state === 'OPEN');
+  const local = shipped.length;
+  // A worktree brought in from another tool stays, whatever the merge does (bring-in.js).
+  const removed = shipped.filter((x) => !(s.foreign && x.pr === s.pr)).length;
+  const after = local ? `, then fast-forward your local base branch${local > 1 ? 'es' : ''}${removed ? ` and remove the worktree${removed > 1 ? 's' : ''}` : ''}` : '';
   if (!(await ask(`Squash-merge ${what}${after}?${warn ? `\n\n${warn}` : ''}`, { ok: several ? 'Merge PRs' : 'Merge PR', danger: !!warn }))) return;
   toast(several ? `Merging ${open.length} PRs…` : `Merging PR #${open[0].pr.number}…`);
   try {

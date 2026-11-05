@@ -171,6 +171,23 @@ export function openapi({ version, port }) {
         patch: { summary: 'Rename or recolor', requestBody: body({ type: 'object', properties: { name: { type: 'string' }, color: { type: 'string' } } }), responses: { 200: json(ref('Project')), 404: err[404] } },
         delete: { summary: 'Remove the project (sessions are kept)', responses: { 200: ok, 404: err[404] } },
       },
+      '/projects/{pid}/foreign-worktrees': {
+        parameters: [{ name: 'pid', in: 'path', required: true, schema: { type: 'string' } }],
+        get: { summary: 'The Conductor worktrees of this project’s repo that can be brought in: from `git worktree list`, minus what a task already holds and what was dismissed. Empty for a project with no folder here. Never fetches', responses: { 200: json(ref('ForeignWorktrees')), 404: err[404] } },
+        post: {
+          summary: 'Bring them in: each becomes a task in place, on its own path and branch, with nothing run or written there. The list is worked out again here, and a path not offered now lands in `missed`',
+          requestBody: body({ type: 'object', properties: { paths: { type: 'array', items: { type: 'string' }, description: 'The worktrees to take; left out: all that are offered' } } }),
+          responses: { 200: json({ type: 'object', required: ['tasks', 'missed'], properties: { tasks: { type: 'array', items: ref('Summary') }, missed: { type: 'array', items: { type: 'object', required: ['path', 'why'], properties: { path: { type: 'string' }, why: { type: 'string' } } } } } }), 400: err[400], 404: err[404] },
+        },
+      },
+      '/projects/{pid}/foreign-worktrees/dismiss': {
+        parameters: [{ name: 'pid', in: 'path', required: true, schema: { type: 'string' } }],
+        post: {
+          summary: 'Not now: stop offering the worktrees offered now. One made later is still offered. With `undo`, those folders are offered again instead',
+          requestBody: body({ type: 'object', properties: { undo: { type: 'array', items: { type: 'string' }, description: 'The `paths` of an earlier dismiss to offer again; unknown ones are ignored' } } }),
+          responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, skipped: { type: 'integer', description: 'How many were dismissed by this call' }, paths: { type: 'array', items: { type: 'string' }, description: 'The folders dismissed by this call' } } }), 400: err[400], 404: err[404] },
+        },
+      },
       '/launch/warm': { post: { summary: 'A task is being typed for this folder: fetch its repo now, so the launch starts without waiting on the network', requestBody: body({ type: 'object', properties: { cwd: { type: 'string' } } }), responses: { 200: ok } } },
       '/sessions': {
         get: {
@@ -848,6 +865,29 @@ export function openapi({ version, port }) {
         Health: { type: 'object', properties: { ok: { type: 'boolean' }, name: { const: 'wisp' }, version: { type: 'string' }, apiVersion: { type: 'integer' }, pid: { type: 'integer' }, url: { type: 'string' } } },
         Agent: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, available: { type: 'boolean' }, version: { type: 'string' }, models: { type: 'array', items: { type: 'object' } }, efforts: { type: 'array', items: { type: 'string' } }, hasKey: { type: ['boolean', 'null'], description: 'opencode only: signed in to a provider or has an API key in the environment (false: its free models alone)' }, setup: { type: 'object', description: 'Only while not found: how to get it on that OS', properties: { tip: { type: 'string' }, command: { type: 'string' }, url: { type: 'string' } } }, budget: { type: 'array', description: 'How much of each account’s usage windows is gone, as its CLI last reported (Claude, Codex). hitAt: when it runs out at this pace, if before the reset. where: the tasks that used most of the longest window, and where.subagents: its share by subagent type ({ type, calls, model, output, used, instead })', items: { type: 'object', properties: { account: { type: 'string', description: 'default: the CLI’s own' }, at: { type: 'integer' }, windows: { type: 'array', items: { type: 'object', properties: { id: { type: 'string', description: 'five_hour, seven_day, …' }, label: { type: 'string' }, used: { type: 'number', minimum: 0, maximum: 1 }, resetsAt: { type: ['integer', 'null'] }, hitAt: { type: ['integer', 'null'] } } } }, overage: { type: 'object', description: 'Past your plan: runs on this account billed beyond the plan in the last 7 days (kind: extra = Claude extra usage, credits = Codex credits, api = an API key). Each such turn also has turn.overage { kind, at }', properties: { runs: { type: 'integer' }, at: { type: 'integer' }, kind: { type: 'string', enum: ['extra', 'credits', 'api'] }, sid: { type: 'string', description: 'the last one’s task' } } }, notices: { type: 'array', description: 'Window changes (defaults.windowNotice, on unless off): a window that appeared (new), went (gone), changed length (length: wasMs) or moved its reset off its schedule (reset: wasResetsAt), until dismissed', items: { type: 'object', properties: { window: { type: 'string' }, kind: { type: 'string', enum: ['new', 'gone', 'length', 'reset'] }, label: { type: 'string' }, wasLabel: { type: 'string' }, ms: { type: ['integer', 'null'] }, wasMs: { type: ['integer', 'null'] }, resetsAt: { type: ['integer', 'null'] }, wasResetsAt: { type: ['integer', 'null'] }, at: { type: 'integer' } } } } } } }, compare: { type: 'array', description: 'Tokens per turn by account, only with several accounts: per model this harness ran on two or more accounts in the last 7 days, each account’s median finished turn (output and input tokens; input counts cache reads and writes) and the share it read from the cache, once each account shown has 5 turns on that model. A diagnostic: wisp never picks an account from it', items: { type: 'object', properties: { model: { type: 'string', description: '\'\' for the harness default' }, accounts: { type: 'array', items: { type: 'object', properties: { account: { type: 'string' }, turns: { type: 'integer' }, output: { type: 'integer' }, input: { type: 'integer' }, cache: { type: ['number', 'null'] }, missing: { type: 'array', items: { type: 'string' }, description: 'Tools another account in this row had on its latest turn and this one did not (Claude Code’s init tool list, wisp’s own MCP tools left out)' } } } } } } }, pinnedAt: { type: 'integer', description: 'Harness watch: when wisp pinned its program (path, size, sha256, version)' }, changed: { type: 'object', description: 'Harness watch: its program is not the pinned one. kind: update (version up, same install folder) or warn', properties: { kind: { type: 'string', enum: ['update', 'warn'] }, from: { type: 'object' }, to: { type: 'object' }, at: { type: 'integer' } } } } },
         Project: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, path: { type: 'string' }, color: { type: 'string' } } },
+        ForeignWorktrees: {
+          type: 'object',
+          required: ['from', 'items', 'detached'],
+          properties: {
+            from: { type: 'string', description: 'The tool they came from: Conductor' },
+            items: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['path', 'branch', 'name', 'dirty', 'chat', 'from'],
+                properties: {
+                  path: { type: 'string' },
+                  branch: { type: 'string', description: 'As git has it now' },
+                  name: { type: 'string', description: 'The folder’s name' },
+                  dirty: { type: 'integer', description: 'Lines of `git status --porcelain`' },
+                  chat: { type: 'boolean', description: 'A Claude conversation was found for this folder, and resumes on the next message' },
+                  from: { type: 'string', enum: ['conductor'] },
+                },
+              },
+            },
+            detached: { type: 'integer', description: 'Worktrees here with no branch: counted, not offered' },
+          },
+        },
         Webhook: { type: 'object', required: ['url'], properties: { url: { type: 'string', format: 'uri' }, events: { type: 'array', items: { enum: ['session.finished', 'session.waiting'] } } } },
         Launch: {
           type: 'object',
@@ -1018,6 +1058,7 @@ export function openapi({ version, port }) {
             createdAt: { type: 'integer' },
             updatedAt: { type: 'integer' },
             branch: { type: 'string', description: 'Worktree branch, if it has one' },
+            foreign: { type: 'string', description: "'conductor': a worktree it was brought in on, which wisp never removes; '' otherwise" },
             pr: { type: ['object', 'null'], description: 'Its pull request, once shipped' },
             shipping: { type: ['object', 'null'], description: "{ step: start | commit | push | pr, update } while Ship it runs" },
             review: { type: ['object', 'null'], description: "Review by another harness of the PR's head (defaults.review): { status: running | done | failed | held, head, current (of the PR's head now), by: { agent, model }, summary, findings: [{ severity: high | medium | low, file, line, text }], tests: { verdict, command, passed, failed }, coverage: how much of the diff the reviewer was given, when it was computed: { files, seen (files whole), chars, seenChars, cut: [paths only partly in it], missing: [paths not in it], more (names dropped past 50 between cut and missing, left out when 0) }; seen < files is a partial review, and with no findings its summary is wisp's own, why }" },

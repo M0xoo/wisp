@@ -895,7 +895,8 @@ test('compare on /agents: only for a harness with several accounts', async () =>
 
 // Where a turn's tokens went (check-in 14): tokens per model from the result's modelUsage, and per
 // subagent type from the messages carrying each Agent call's id as parent_tool_use_id.
-const { modelsOf, restoredFrom, subagentTally } = await import('../server/adapters/claude.js');
+const { costSince, countedFrom, modelsOf, restoredFrom, subagentTally } = await import('../server/adapters/claude.js');
+const { unitsOf } = await import('../server/budget.js');
 const { usage, tokensOf } = await import('../server/usage.js');
 const { modelWords, subagentParts, subagentTip, insteadWords, turnOutput } = await import('../web/js/receipt.js');
 const { whereSubagents } = await import('../server/budget.js');
@@ -1018,6 +1019,29 @@ test('a resumed Claude run counts its own cost and tokens, not the conversationâ
     delete process.env.FAKE_SUBAGENTS;
     delete process.env.FAKE_RESTORED;
   }
+});
+
+test('countedFrom: a chat with unknown earlier counters takes its first result as the baseline', () => {
+  const usageOf = (output) => ({ 'claude-haiku-5-5': { inputTokens: 10, outputTokens: output } });
+  const first = { total_cost_usd: 4.25, modelUsage: usageOf(9000), usage: { output_tokens: 50 } };
+  const counted = countedFrom(first, null, true);
+  assert.equal(counted.costUsd, 4.25);
+  assert.equal(costSince(first, counted), 0);
+  assert.deepEqual(modelsOf(first.modelUsage, first.modelUsage), undefined, 'no model deltas on it');
+  const second = { total_cost_usd: 4.3, modelUsage: usageOf(9200), usage: { output_tokens: 200 } };
+  assert.equal(costSince(second, counted), 0.05, 'a second result in the process counts from it');
+  assert.deepEqual(modelsOf(second.modelUsage, first.modelUsage), [{ model: 'claude-haiku-5-5', input: 0, output: 200, cacheRead: 0, cacheWrite: 0 }]);
+  // The flag changes nothing else: no flag, and a known prior, as before.
+  assert.equal(countedFrom(first, null), null);
+  assert.equal(countedFrom(first, null, false), null);
+  const prior = { costUsd: 4, models: [{ model: 'claude-haiku-5-5', output: 8000 }] };
+  assert.equal(countedFrom(first, prior), prior);
+  assert.equal(countedFrom(first, prior, true), prior);
+  assert.equal(countedFrom({ total_cost_usd: 3, modelUsage: usageOf(100), usage: { output_tokens: 100 } }, prior, true), null, 'started over: counted as is');
+  assert.equal(countedFrom({ usage: { output_tokens: 5 } }, null, true), null, 'no cost reported: nothing to start from');
+  // Not a sample: nothing divides by it, and estimates and Drain watch skip it.
+  assert.equal(unitsOf({ costUsd: 0, baseline: true, inputTokens: 5000, outputTokens: 900 }), 0);
+  assert.equal(unitsOf({ costUsd: 0, inputTokens: 5000, outputTokens: 900 }), 0.0059, 'an ordinary zero-cost run still counts its tokens');
 });
 
 test('restoredFrom: what the counters hold past the last turn must cover what this run wrote', () => {

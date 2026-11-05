@@ -419,7 +419,7 @@ Turn worktrees off in Settings → *Worktree per task*, with the launcher's **Wo
 
 Coming from Google Jules (read-only from 11 November 2026, closed on 31 December)? [Moving off Jules](https://trywisp.dev/guides/moving-off-jules.html) maps its tasks, setup scripts, environment variables and scheduled tasks onto wisp.
 
-Coming from Conductor (Cloud read-only from 13 November 2026, shut down on 20 November)? [Moving off Conductor](https://trywisp.dev/guides/moving-off-conductor.html) says what to export and maps its workspaces, scripts and routines onto wisp, with what has no equivalent.
+Coming from Conductor (Cloud read-only from 13 November 2026, shut down on 20 November)? [Moving off Conductor](https://trywisp.dev/guides/moving-off-conductor.html) says what to export and maps its workspaces, scripts and routines onto wisp, with what has no equivalent. Add the project to wisp and it offers the worktrees Conductor left in that repo: **Bring in** makes each a task right where it is, with its uncommitted changes and its Claude chat, and wisp never removes one.
 
 ## Delegate
 

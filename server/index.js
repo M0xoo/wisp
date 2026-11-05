@@ -51,6 +51,7 @@ import { serveStatic, warmStatic } from './http/static.js';
 import { trustedProxy } from './http/trust.js';
 import { previewPort, previewRequest, previewUpgrade } from './http/preview.js';
 import { createAuto } from './services/auto.js';
+import { createBringIn } from './services/bring-in.js';
 import { Goals } from './goal.js';
 import { scoutNote } from './scout.js';
 import { createFeedback } from './services/feedback.js';
@@ -285,7 +286,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     if (app.router.route(session.id)) return;
     if (session.route) return app.router.record(session.id, session.route);
     // A run you picked yourself: what you pick is Auto's best clue, and how it went counts half.
-    if (session.kind || session.crew || session.origin || session.parentId || session.delegated || session.moved || !session.turns?.length) return;
+    if (session.kind || session.crew || session.origin || session.parentId || session.delegated || session.moved || session.worktree?.foreign || !session.turns?.length) return;
     const first = session.turns[0];
     const seen = app.router.observe({ agent: session.agent, model: session.model || '', effort: session.effort || '', prompt: first.prompt, attachments: (first.attachments || []).length });
     if (seen) app.router.record(session.id, { key: seen.key, type: seen.type, label: session.agent, manual: true, at: Date.now() });
@@ -327,6 +328,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     onDone: (id) => app.auto.detect({ fresh: id }).then(() => app.broadcast('agents', {}), () => {}),
   });
   app.launcher = createLaunch(app);
+  app.bringIn = createBringIn(app);
   app.terms = new Terms({
     onChange: (id) => {
       const s = store.get(id);

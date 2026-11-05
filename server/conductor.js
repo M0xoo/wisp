@@ -10,6 +10,7 @@
 // config would run the wrong thing, and this one runs programs.
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 const TOML = '.conductor/settings.toml';
@@ -17,6 +18,30 @@ const JSON_FILE = 'conductor.json';
 const win = process.platform === 'win32';
 
 export const isConductorFile = (file) => file === TOML || file === JSON_FILE;
+
+// Where Conductor keeps worktrees. Compared by real path (macOS's /tmp is /private/tmp) and, for a
+// folder that's gone, as spelled; home is asked each time, not read at import.
+const real = (p) => {
+  try {
+    return fs.realpathSync.native(p);
+  } catch {
+    return path.resolve(p);
+  }
+};
+const fold = (p) => (win ? p.toLowerCase() : p);
+const inside = (p, dir) => {
+  const rel = path.relative(fold(dir), fold(p));
+  return !!rel && rel.split(path.sep)[0] !== '..' && !path.isAbsolute(rel);
+};
+const spellings = (p) => [...new Set([path.resolve(p), real(p)])];
+const under = (p, dirs) => spellings(p).some((x) => dirs.some((d) => spellings(d).some((y) => inside(x, y))));
+
+// One of Conductor's workspaces of the repo checked out at `root`: what wisp may offer to bring in.
+export const conductorWorkspace = (p, root, home = os.homedir()) => under(p, [path.join(home, 'conductor', 'workspaces'), path.join(home, 'conductor', 'cloud-workspaces'), path.join(root, '.conductor')]);
+
+// Anywhere that looks like Conductor's, marked or not: the second lock on a worktree that isn't
+// wisp's to remove (git.js isForeign). Wider than the offer on purpose.
+export const inConductor = (p, home = os.homedir()) => !!p && (String(p).split(/[\\/]/).includes('.conductor') || under(String(p), [path.join(home, 'conductor')]));
 
 // A number or a date: read so the document parses, never used, so never converted.
 class Opaque {

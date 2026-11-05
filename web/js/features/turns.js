@@ -324,7 +324,7 @@ export function paintMeta(id) {
   box.title = [agentName(s.agent), s.model, s.effort && `${effortLabel(s.effort)} thinking`, mode?.label, where, s.worktree?.branch].filter(Boolean).join(' · ');
   box.innerHTML = `
     ${mode && mode !== DEFAULT_MODE ? `<span class="m mode m-${mode.id}" title="${esc(mode.hint)}">${icon(mode.icon)}${esc(mode.label)}</span>` : ''}
-    ${s.worktree ? `<span class="m branch" title="${esc(`Worktree: ${s.worktree.path}\nFrom ${s.worktree.baseRef}${preparedLine(s.worktree.prepared)}`)}">${icon('branch')}${branchHtml(s.worktree.branch)}</span>` : ''}
+    ${s.worktree ? `<span class="m branch" title="${esc(`Worktree: ${s.worktree.path}\n${s.worktree.foreign ? 'Brought in, not made by wisp' : `From ${s.worktree.baseRef}`}${preparedLine(s.worktree.prepared)}`)}">${icon('branch')}${branchHtml(s.worktree.branch)}</span>` : ''}
     ${s.worktree?.prepared?.problems?.length ? `<span class="m setup-warn" title="${esc(s.worktree.prepared.problems.join('\n'))}">${icon('warn')}Worktree setup failed</span>` : ''}
     ${(s.also || []).map((a, i) => `<span class="m also c-${summary.also?.[i]?.color || 'slate'}" title="${esc(`Also works in ${a.cwd}${a.worktree ? `\nWorktree: ${a.worktree.path}\nBranch ${a.worktree.branch}, from ${a.worktree.baseRef}` : ''}`)}"><i class="p-dot"></i>${esc(summary.also?.[i]?.project || a.cwd.split(/[\\/]/).pop())}</span>`).join('')}
     ${s.subagents?.length ? `<span class="m team-m" title="${esc(s.subagents.map((m) => `@${m.name}${copiesOf(m) > 1 ? ` ×${copiesOf(m)}` : ''}: ${memberLabel(m)}${m.use ? ` — ${m.use}` : ''}`).join('\n'))}">${icon('agent')}${teamSize(s.subagents)} delegate${teamSize(s.subagents) > 1 ? 's' : ''}</span>` : ''}
@@ -634,7 +634,7 @@ function renderTurn(s, t, isLatest, fold, tx) {
   const ask = el(`
     <div class="ask${t.by === 'wisp' ? ' by-wisp' : ''}">
       ${from ? `<div class="ask-by ask-from">${icon('crew')}${from.label}${from.open ? `<button class="link" data-from="${esc(from.id)}">“${esc(from.title)}”</button>` : `<span>“${esc(from.title)}”</span>`}</div>` : ''}
-      ${t.side ? `<div class="ask-by ask-from">${icon('discuss')}<span>Sent by wisp from side discussion&nbsp;</span>${S.sessions.has(t.side.id) ? `<button class="link" data-from="${esc(t.side.id)}">“${esc(t.side.title)}”</button>` : `<span>“${esc(t.side.title)}”</span>`}</div>` : t.by === 'wisp' ? `<div class="ask-by">${icon(t.goal ? 'target' : 'spark')}${t.reports ? 'Sent by wisp when your subagents finished' : t.goal ? 'Sent back by wisp: the goal isn’t met yet' : 'Sent by wisp after its test run'}</div>` : ''}
+      ${t.side ? `<div class="ask-by ask-from">${icon('discuss')}<span>Sent by wisp from side discussion&nbsp;</span>${S.sessions.has(t.side.id) ? `<button class="link" data-from="${esc(t.side.id)}">“${esc(t.side.title)}”</button>` : `<span>“${esc(t.side.title)}”</span>`}</div>` : t.by === 'wisp' ? `<div class="ask-by">${icon(t.goal ? 'target' : 'spark')}${t.reports ? 'Sent by wisp when your subagents finished' : t.goal ? 'Sent back by wisp: the goal isn’t met yet' : s.worktree?.foreign && t.id === s.turns[0]?.id ? 'Written by wisp, nothing ran' : 'Sent by wisp after its test run'}</div>` : ''}
       ${missing ? `<div class="ask-goal"><b>Still missing</b> ${esc(missing)}${next ? `<span>Next: ${esc(next)}</span>` : ''}</div>` : ''}
       ${sent ? sent.html : ''}
       <div class="ask-text ${long ? 'clamped' : ''}" ${missing || (sent && !said.trim()) ? 'hidden' : ''}>${mentionHtml(esc(cut ? said.slice(0, PROMPT_CUT) : said))}</div>
@@ -970,7 +970,7 @@ function renderTrail(s, t, tx) {
     <div class="trail">
       <div class="trail-bar">
         ${acts.length && !tx ? `<button class="tb-acts" data-tab="activity" title="Show activity">${parts.length ? parts.map(([ic, l, n]) => `<span class="tb" title="${n} ${l}">${icon(ic)}${n}<span class="tb-l"> ${l}</span></span>`).join('') : 'Activity'}</button>` : ''}
-        ${t.endedAt ? `<span class="tb">${fmtDuration(t.endedAt - t.startedAt)}</span>` : ''}
+        ${t.endedAt > t.startedAt ? `<span class="tb">${fmtDuration(t.endedAt - t.startedAt)}</span>` : ''}
         ${st.costUsd ? `<span class="tb">$${st.costUsd.toFixed(2)}</span>` : ''}
         ${receiptHtml(t, s)}
         <span class="grow"></span>

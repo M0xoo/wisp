@@ -35,6 +35,7 @@ import { toast, toastError } from '../ui/toast.js';
 import { draftInto } from './composer.js';
 import { paintMini } from './turns.js';
 import { expand } from './feed.js';
+import { foreignName } from './places.js';
 import { agentName } from './runners.js';
 import { fixPr, mergePr, partOfDiff, prsOf, reviewState, shipDialog, shippable, startReview } from './ship.js';
 import { slotHtml, spellProp } from './spells.js';
@@ -91,7 +92,8 @@ const panel = el(`
       <button class="icon-btn pn-close" title="Hide side panel (])" aria-label="Hide side panel">${icon('x')}</button>
     </header>
     <div class="pn-place"></div>
-    <p class="pn-note" hidden></p>
+    <p class="pn-note pn-foreign" hidden></p>
+    <p class="pn-note pn-says" hidden></p>
     <section class="pn-shell" hidden>
       ${SCREEN_HTML}
       <div class="pn-msg" hidden></div>
@@ -296,20 +298,26 @@ function paintPlace() {
     ${shellOn ? `<button class="icon-btn xs pn-end" title="End shell" aria-label="End shell">${icon('stop')}</button>` : ''}`;
   const node = $('.pn-place', panel);
   if (node.dataset.h !== html) (node.innerHTML = html), (node.dataset.h = html);
+  // A worktree brought in from another tool (bring-in.js) is that tool's: wisp never removes it.
+  const foreign = w?.worktree?.foreign || s?.foreign || '';
+  const theirs = $('.pn-foreign', panel);
+  const said = foreign && w && !w.error && !w.gone ? `${icon('info')}Brought in from ${esc(foreignName(foreign))}: archive and delete leave this folder.` : '';
+  if (theirs.dataset.h !== said) (theirs.innerHTML = said), (theirs.dataset.h = said);
+  theirs.hidden = !said;
   // One line under it when the folder needs a word: not a worktree, gone with its merge, shared with the agent.
-  const note = $('.pn-note', panel);
+  const note = $('.pn-says', panel);
   const live = s?.state === 'running' || s?.state === 'waiting';
   const cx = tabOf() === 'changes' && changesOf(shown);
   // Changes says where its list comes from instead: not git's when there's no worktree to diff.
   const text = cx
     ? cx.files && !cx.git
-      ? `${icon('info')}${w?.gone ? 'The worktree was removed after the merge: showing the edits wisp saw.' : 'Not a worktree: showing the edits wisp saw, not a git diff.'}`
+      ? `${icon('info')}${w?.gone ? (foreign ? 'This worktree’s folder is gone: showing the edits wisp saw.' : 'The worktree was removed after the merge: showing the edits wisp saw.') : 'Not a worktree: showing the edits wisp saw, not a git diff.'}`
       : ''
     : w && !w.error
       ? !w.worktree
         ? `${icon('warn')}Not a worktree: commands here change your project folder.`
         : w.gone
-          ? `${icon('info')}The worktree went with the merge: the shell opens in the project folder.`
+          ? `${icon('info')}${foreign ? 'This worktree’s folder is gone' : 'The worktree went with the merge'}: the shell opens in the project folder.`
           : live
             ? `${esc(agentName(s.agent))} is working in this folder too.`
             : ''

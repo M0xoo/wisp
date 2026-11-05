@@ -199,6 +199,9 @@ export const PARTS = {
   'launcher.more': '#launchMore', // More options: the rest of the bar, until the first task
   'launcher.when': '#launcher .l-when',
   'launcher.recipes': '#launcher .l-recipes',
+  'launcher.bringIn': '#launcher .l-bring', // the offer to bring in a project's Conductor worktrees
+  'launcher.bringInTake': '#launcher .l-bring-take',
+  'launcher.bringInSkip': '#launcher .l-bring-skip',
   'launcher.fab': '#promptFab',
   composer: '.composer',
   'composer.input': '.composer .reply',
@@ -382,6 +385,7 @@ export const PARTS = {
   'panel.changes.stageHunk': '#sidePanel .cx-hk-stage', // a hunk's Stage / Unstage, beside its Revert
   'panel.changes.commit': '#sidePanel .cx-commit', // the commit row under the summary: message, count, Commit
   'panel.place': '#sidePanel .pn-place',
+  'panel.foreign': '#sidePanel .pn-foreign', // the line on a task brought in from another tool: that its folder stays
   'panel.shell': '#sidePanel .pn-shell',
   'panel.pr': '#sidePanel .pn-pr',
   'panel.pr.review': '#sidePanel .pn-xrv',

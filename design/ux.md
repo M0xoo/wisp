@@ -63,6 +63,9 @@ stays put**, and **what needs you is easy to find**.
   box stays at the top (or bottom in the phone app). An open follow-up box stays open when you
   switch tasks or use its pickers (#178, #215).
 - Counts in different places agree (project chip counts match Needs you, #209).
+- A line that shows up after the page has painted takes a row that's already laid out, it doesn't
+  add one: Bring in's offer shares a grid cell with the launcher's recipes (`.l-foot`), which stay
+  in the cell, hidden, holding the height. Text in the box gives the row back to them.
 - Empty states are useful or absent: we removed the "Nothing needs you" line (#197) rather than show
   filler.
 

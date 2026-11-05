@@ -83,6 +83,31 @@ body.wisp-mobile .launcher .lp-chip.add.pick:is(:not(:only-child), :not(:has(> s
 @media (hover: none) { .lp-also:not(.x) { opacity: 1; transform: none; pointer-events: auto; } }
 /* narrow, with "+N" (whose list has No folder too): it goes icon-only unless picked */
 @container launcher (max-width: 520px) { .l-projects.folded .lp-chip.none:not(.on) span { display: none; } }
+/* The row under the bar: recipes, and Bring in's line in the same cell. The line takes the recipes'
+   place without moving anything: they keep their size, hidden, so the box's height holds. */
+.l-foot { display: grid; grid-template-columns: minmax(0, 1fr); }
+.l-foot > * { grid-area: 1 / 1; }
+.launcher.bring-on .l-recipes { visibility: hidden; }
+.l-bring { display: flex; align-items: center; gap: 6px; min-width: 0; margin: 8px -12px -10px; padding: 7px 14px 8px; font-size: 12.5px; color: var(--ink-2); }
+.l-bring[hidden], .launcher.when-on .l-bring, .launcher.hold-on .l-bring { display: none; }
+.l-bring.fresh { animation: fade-in 0.2s var(--ease); }
+.l-bring-n { display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; margin-right: auto; color: inherit; }
+.l-bring-n span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.l-bring-n .i { width: 13px; height: 13px; flex: none; color: var(--muted); }
+.l-bring .ghost { flex: none; }
+.l-bring .l-bring-take { font-weight: 500; color: var(--ink); }
+/* no hover on touch: the button needs its own edge, or it reads as text */
+@media (hover: none) { .l-bring .l-bring-take { border: 1px solid var(--line-2); } }
+/* 44px to a thumb, and the line stays whole at 390px: the icon goes before the words do */
+body.wisp-mobile .l-bring { gap: 4px; }
+body.wisp-mobile .l-bring .ghost { height: 44px; padding: 0 6px; }
+body.wisp-mobile .l-bring-n { min-height: 44px; }
+body.wisp-mobile .l-bring-n .i { display: none; }
+.split-home .launcher .l-bring { margin-top: 2px; padding-top: 2px; }
+.launcher.docked:not(:focus-within):not(:has(.open)) .l-foot { display: none; }
+.bring-tip { max-width: min(320px, calc(100vw - 16px)); padding: 8px 12px; font-size: 12.5px; color: var(--ink-2); }
+.bring-tip p { margin: 0; line-height: 1.6; }
+.bring-tip code { display: block; font: 11.5px/1.7 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
 /* recipes: one-click prompts under the launch bar */
 .l-recipes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px -12px -10px; padding: 7px 14px 8px; border-top: 1px solid var(--line); }
 /* the label sits on the chips' centre line, whatever their height (44px on phones) */

@@ -12,6 +12,7 @@ Use these, everywhere in the page, the app, the site and the CHANGELOG:
 | task | session, wisp, job (the code says `session`; the page doesn't) |
 | *New task* | New wisp |
 | *Needs you*, *Working*, *Done*, *Archived* | Inbox, Running, Completed |
+| *Bring in* (worktrees another tool left: the action, everywhere; toast *Brought in 3 worktrees*) | import, migrate, adopt |
 | *Finished* (the agent's verdict) | Completed, Success |
 | *Mark done* / *Reopen* | Close / Resolve |
 | *Rerun…* | Replay (that's a separate presentation, under More) |

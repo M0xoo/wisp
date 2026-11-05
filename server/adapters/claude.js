@@ -163,6 +163,15 @@ export function restoredFrom(msg, prior) {
   const was = (prior.models || []).reduce((a, m) => a + n0(m.output), 0);
   return now - was >= n0(msg.usage?.output_tokens);
 }
+// The counters this process started from, from its first result, or null: it started from zero.
+// unknownPrior: a chat that ran elsewhere (services/bring-in.js). Its counters hold all it ever spent
+// and the chat can't be read to learn how much, so that first result is the baseline: one turn
+// undercounts, rather than a whole conversation overcounting on one turn.
+export function countedFrom(msg, prior, unknownPrior = false) {
+  if (restoredFrom(msg, prior)) return prior;
+  return unknownPrior && !prior && Number.isFinite(msg.total_cost_usd) ? { costUsd: msg.total_cost_usd, models: modelsOf(msg.modelUsage) } : null;
+}
+export const costSince = (msg, counted) => Math.max(0, Math.round((msg.total_cost_usd - counted.costUsd) * 1e7) / 1e7);
 // A modelsOf list back in modelUsage's shape, for modelsOf's prev.
 const modelUsageOf = (list) => list && Object.fromEntries(list.map((m) => [m.model, Object.fromEntries(Object.entries(MODEL_KEYS).map(([k, key]) => [key, m[k]]))]));
 
@@ -299,6 +308,27 @@ export default {
       return false;
     }
   },
+  // The newest conversation kept for this folder, or null. Names and sizes only: nothing here opens
+  // a transcript, and it never looks in another project's folder. agent-*.jsonl are subagents'.
+  latestSession(cwd, env = process.env) {
+    const dir = path.join(env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'projects', realDir(cwd).replace(/[^a-zA-Z0-9]/g, '-'));
+    let names;
+    try {
+      names = fs.readdirSync(dir);
+    } catch {
+      return null;
+    }
+    let best = null;
+    let at = -1;
+    for (const name of names) {
+      if (!/^[0-9a-f-]{36}\.jsonl$/i.test(name)) continue;
+      try {
+        const st = fs.statSync(path.join(dir, name));
+        if (st.isFile() && st.size > 0 && st.mtimeMs > at) [best, at] = [name.slice(0, -'.jsonl'.length), st.mtimeMs];
+      } catch {} // gone since the readdir
+    }
+    return best;
+  },
   trust: (dir) => trustFolder(dir),
 
   // How to get it, shown in Settings → Agents and the picker while it isn't found (this OS's steps).
@@ -335,7 +365,7 @@ export default {
   // subagentModel: '' | 'haiku' | 'sonnet', the model its subagents and workflow agents run on
   // (defaults.subagentModel). Never _FORCE: an Agent call's own model, or a custom agent's, still wins.
   // gate: every write and command goes to the approve tool first (a side discussion, server/side-gate.js).
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, prior = null, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, quiet = false, subagentModel = '', gate = false, onEvent }) {
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, prior = null, unknownPrior = false, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, quiet = false, subagentModel = '', gate = false, onEvent }) {
     lean = lean && leanOk();
     const args = [
       '-p',
@@ -445,10 +475,11 @@ export default {
       } else if (msg.type === 'result') {
         const ev = resultEvent(msg);
         if (counted === undefined) {
-          counted = restoredFrom(msg, prior) ? prior : null;
+          counted = countedFrom(msg, prior, unknownPrior);
           lastModels = modelUsageOf(counted?.models) || null;
         }
-        if (counted) ev.stats.costUsd = Math.max(0, Math.round((msg.total_cost_usd - counted.costUsd) * 1e7) / 1e7);
+        if (counted) ev.stats.costUsd = costSince(msg, counted);
+        if (counted && counted !== prior && !ev.stats.costUsd) ev.stats.baseline = true; // no measure of this run: see unitsOf
         // What the next --resume starts from. Its presence says stats.models is this turn's alone.
         ev.stats.totals = { costUsd: msg.total_cost_usd, models: modelsOf(msg.modelUsage) };
         // On --resume, background tasks the last run left behind come back as a task
