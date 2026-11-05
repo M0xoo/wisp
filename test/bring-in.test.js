@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { installFakeBins, makeClone, makeRepo, records, same, taskRuns, tmp, until, win } from './helpers.js';
+import { installFakeBins, makeClone, makeRepo, records, same, sleep, taskRuns, tmp, until, win } from './helpers.js';
 
 // Before any server code: os.homedir() is where Conductor's folders and Claude's transcripts are.
 const HOME = tmp('bring-home');
@@ -132,7 +132,20 @@ function layout({ clone = false, setup } = {}) {
   fs.writeFileSync(path.join(tokyo, 'scratch.txt'), 'not added yet\n');
   return { repo, name, tokyo, lima, old, add, made };
 }
-const claudeFolder = (dir) => path.join(HOME, '.claude', 'projects', fs.realpathSync(dir).replace(/[^a-zA-Z0-9]/g, '-'));
+// The folder as git names it, which is what wisp looks up: on Windows TMP can be the 8.3 RUNNER~1.
+const claudeFolder = (dir) => path.join(HOME, '.claude', 'projects', fs.realpathSync.native(dir).replace(/[^a-zA-Z0-9]/g, '-'));
+// Windows won't move a folder while a git is running in it, and wisp's check of the new task may be.
+async function moveAway(from, to) {
+  for (let i = 0; ; i++) {
+    try {
+      return fs.renameSync(from, to);
+    } catch (err) {
+      if (err.code !== 'EBUSY' && err.code !== 'EPERM') throw err;
+      if (i >= 40) throw err;
+      await sleep(250);
+    }
+  }
+}
 function chatIn(dir, id, { bytes = 'x', at } = {}) {
   const folder = claudeFolder(dir);
   fs.mkdirSync(folder, { recursive: true });
@@ -526,7 +539,7 @@ test('removeWorktree leaves one alone whatever it’s told: no status, no remove
 test('a gone folder is a readable refusal: never recreated, never pruned, and the panel still loads', async () => {
   const { l, s } = await brought();
   const held = path.join(tmp('bring-hold'), 'tokyo');
-  fs.renameSync(l.tokyo, held);
+  await moveAway(l.tokyo, held);
   const tried = await traced(() => call('POST', `/sessions/${s.id}/reply`, { text: 'carry on' }));
   noTidying(tried.calls);
   assert.equal(tried.out.status, 409);
@@ -560,7 +573,7 @@ test('a gone folder is a readable refusal: never recreated, never pruned, and th
   assert.ok(!fs.existsSync(l.tokyo));
 
   // Back in place: it works again, and git never forgot it.
-  fs.renameSync(held, l.tokyo);
+  await moveAway(held, l.tokyo);
   assert.ok(gitIn(l.repo, 'worktree', 'list', '--porcelain').includes(`worktree ${fs.realpathSync(l.tokyo)}`));
   await reply(s.id, 'carry on');
   await settled(s.id, 2);
