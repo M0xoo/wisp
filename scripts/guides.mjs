@@ -815,12 +815,12 @@ claude --resume`)}
         <tbody>
           <tr><td>Local workspace</td><td>A task in its own git worktree and branch from <code>origin/main</code>. To carry on in a workspace you already have, use <a href="#in-progress">In place</a></td></tr>
           <tr><td>Cloud workspace</td><td>A task on <a href="/guides/use-wisp-cloud.html">wisp Cloud</a>, on <a href="/guides/self-host-wisp-grid.html">your own Grid</a>, or on a machine you added: each runs when your laptop is shut</td></tr>
-          <tr><td><code>scripts.setup</code></td><td><code>.wisp/worktree.json</code>: <code>"setup"</code> runs in each new worktree</td></tr>
-          <tr><td>Run button, <code>scripts.run</code></td><td><code>"run"</code> in the same file: the side panel’s <b>Preview</b> runs it from the worktree and shows the app beside the task</td></tr>
+          <tr><td><code>scripts.setup</code></td><td>Read from <code>.conductor/settings.toml</code> or <code>conductor.json</code>, and run in each new worktree. <code>"setup"</code> in <code>.wisp/worktree.json</code> comes first if you have one</td></tr>
+          <tr><td>Run button, <code>scripts.run</code></td><td>Read from the same files: the side panel’s <b>Preview</b> runs it from the worktree and shows the app beside the task. <code>"run"</code> in <code>.wisp/worktree.json</code> wins if you set one</td></tr>
           <tr><td><code>scripts.archive</code></td><td>No equivalent. See <a href="#gaps">below</a></td></tr>
           <tr><td>Files to copy, <code>.worktreeinclude</code></td><td><code>.worktreeinclude</code>, the same file. Move <code>file_include_globs</code> into it. Without one, wisp copies the root’s <code>.env</code> and <code>.env.*</code> files</td></tr>
-          <tr><td><code>CONDUCTOR_ROOT_PATH</code></td><td><code>ROOT_WORKTREE_PATH</code> in setup steps</td></tr>
-          <tr><td><code>CONDUCTOR_PORT</code></td><td><code>PORT</code> in the run command: one port that wisp keeps for the task, not a range of ten</td></tr>
+          <tr><td><code>CONDUCTOR_ROOT_PATH</code> and the other <code>CONDUCTOR_*</code> variables</td><td>Set for your Conductor scripts as they are. In <code>.wisp/worktree.json</code>, setup steps use <code>ROOT_WORKTREE_PATH</code></td></tr>
+          <tr><td><code>CONDUCTOR_PORT</code></td><td>The first of ten free ports in a row, as in Conductor. In <code>.wisp/worktree.json</code>, the run command gets <code>PORT</code>: one port that wisp keeps for the task</td></tr>
           <tr><td>Routines with a webhook</td><td><b>Webhook triggers</b>: a secret URL that starts a task</td></tr>
           <tr><td>Routines on a cron or GitHub event</td><td><b>Schedule</b>, <b>CI failed</b> and <b>Issue labelled</b> triggers, or a crew member with a schedule</td></tr>
           <tr><td>Conductor API, MCP server</td><td>The <code>wisp</code> CLI (with <code>--json</code>), an HTTP API with an OpenAPI document, a JS SDK and <code>wisp mcp</code>. See <a href="/integrations.html">integrations</a></td></tr>
@@ -852,7 +852,7 @@ claude --resume`)}
         <li><b><code>scripts.archive</code>.</b> wisp has no step that runs when a task is archived. If yours removes something outside the worktree, run that cleanup yourself or ask the agent to do it before you archive.</li>
         <li><b>Multiplayer.</b> Each person has their own wisp, so there are no shared workspaces, shared chats or <i>Reassign to</i>. Share work through branches and PRs. You can <a href="/guides/share-crew-members.html">share crew members</a>.</li>
         <li><b>The Cloud Computer.</b> There’s no organization-wide environment with builds. Each person’s box starts from the same image, and what the agent installs in its home folder stays there. Repeatable steps belong in <code>"setup"</code>.</li>
-        <li><b>Several actions.</b> <code>"run"</code> is one command per repo, not a menu of named actions, and there’s no <code>run_mode</code> or Spotlight testing.</li>
+        <li><b>Several actions.</b> wisp runs one command per repo, not a menu of named actions: of several, the one with <code>default = true</code>, or else the first. There’s no <code>run_mode</code> or Spotlight testing.</li>
         <li><b>Your chats.</b> wisp can’t import Conductor’s chats into a task. Keep the export, and <a href="#in-progress">reopen Claude Code and Codex chats</a> from the same folder, or restart work from the branch.</li>
         <li><b>Environment variables in settings.</b> wisp has no key for them. Keep values in an ignored <code>.env</code> file, which is copied into the worktree for your app to read, not set for the agent. wisp also skips <code>!</code> lines in <code>.worktreeinclude</code>, so check any file that uses them.</li>
         <li><b>SSH and file sync.</b> A wisp Cloud box has no SSH or sync to your computer. Use the side panel’s <b>Shell</b>, or run tasks on a machine of your own.</li>
@@ -864,23 +864,18 @@ claude --resume`)}
       <h2 id="set-up">Set up a repo the Conductor way</h2>
       <ol class="doc-steps">
         <li><b>Start wisp in the repo</b> with <code>npx wisp-agents</code>. It runs on macOS, Linux and Windows. Sign in to the agent CLIs you want, and to the <a href="https://cli.github.com" target="_blank" rel="noopener">GitHub CLI</a> (<code>gh auth login</code>) so Ship it can open PRs.</li>
-        <li><b>Copy your scripts</b> from <code>.conductor/settings.toml</code> or <code>conductor.json</code> into <code>.wisp/worktree.json</code>, swapping the variable names. This:
+        <li><b>Keep your scripts.</b> wisp reads <code>.conductor/settings.toml</code> or <code>conductor.json</code> in the repo as it is, so this works with no changes, and <code>$CONDUCTOR_PORT</code> is set:
           <pre data-lang="toml"><code>[scripts]
 setup = "pnpm install"
 
 [scripts.run.dev]
 command = "pnpm dev --port $CONDUCTOR_PORT"</code></pre>
-          becomes:
-          <pre data-lang="json"><code>{
-  "setup": ["pnpm install"],
-  "run": "pnpm dev --port $PORT"
-}</code></pre>
+          wisp doesn’t read <code>.conductor/settings.local.toml</code>, <code>environment_variables</code> or what’s kept only in Conductor’s app. If a script lives only in the app, copy it into <code>.conductor/settings.toml</code> or <code>.wisp/worktree.json</code>. If wisp can’t read a file for sure, it uses none of it, and the task and Run say why.
         </li>
         <li><b>Bring your ignored files.</b> Keep <code>.worktreeinclude</code> if you have one. If you set <code>file_include_globs</code>, move those patterns into a new <code>.worktreeinclude</code>. A list of your own replaces wisp’s default, so add <code>.env</code> and <code>.env.*</code> if you still want them.</li>
         <li><b>Send a task off.</b> In Plan and Edits, the first run in a repo lists the setup step and waits for <b>Trust and start</b>.</li>
         <li><b>Open Preview</b> in the side panel to run the app from that task’s worktree, then read the report and press <b>Ship it</b> (<kbd>S</kbd>).</li>
       </ol>
-      <aside class="g-note"><b>Coming in the next release.</b> wisp is due to read <code>.conductor/settings.toml</code> and <code>conductor.json</code> itself. It isn’t out yet, so copy your scripts by hand for now.</aside>
     </section>
 
     <section>
@@ -915,7 +910,7 @@ command = "pnpm dev --port $CONDUCTOR_PORT"</code></pre>
       faq: [
         ['Do I need to leave Conductor now?', 'Only if you use Cloud, which goes read-only on 13 November 2026. The Mac app keeps working and gets new models and critical bug fixes until it starts winding down in early 2027.'],
         ['Can wisp import my Conductor chats or workspaces?', 'Not as tasks, but a local workspace still works. Open its folder with worktrees off (In place, or --no-worktree) and the agent carries on with your uncommitted changes. Claude Code chats stay in ~/.claude/projects, so claude --resume reopens them from the same folder until they age out, after 30 days by default. For Cloud work, push your branches and keep Conductor’s export.'],
-        ['Can I keep my .conductor/settings.toml?', 'You can leave it in the repo, but this release doesn’t read it. Copy your setup and run commands into .wisp/worktree.json. Reading it directly is due in the next release.'],
+        ['Can I keep my .conductor/settings.toml?', 'Yes. wisp reads it, or conductor.json, and runs your setup and run scripts with the same CONDUCTOR_* variables. .wisp/worktree.json comes first if you add one. It doesn’t read settings.local.toml, environment_variables or scripts.archive.'],
         ['Can my team share one workspace, like Multiplayer?', 'No. Everyone has their own wisp, and work is shared through branches and PRs. A team can run its own Grid so that each person gets a sandboxed wisp on the same server.'],
         ['Is it free?', 'wisp is free and MIT. wisp Cloud is free during the preview. The agents run on your own plans and accounts, and wisp doesn’t charge for or resell model usage.'],
       ],
