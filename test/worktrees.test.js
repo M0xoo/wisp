@@ -26,7 +26,9 @@ function setup({ defaults = { worktreeCleanup: '7' }, config = {} } = {}) {
     fs.utimesSync(worktree.path, 0, 0); // long untouched
     return s;
   };
-  return { app, add, home, repo, store, worktrees: createWorktrees(app) };
+  // The machine's free disk stays out of it: under 10 GB a real sweep takes idle folders before their days.
+  const worktrees = createWorktrees(app);
+  return { app, add, home, repo, store, worktrees: { ...worktrees, sweep: (opts) => worktrees.sweep({ low: 0, ...opts }) } };
 }
 const there = (s) => fs.existsSync(s.worktree.path);
 const now = () => Date.now();
@@ -97,7 +99,11 @@ test('a worktree git can’t read is not taken for a clean one', async () => {
   const { add, worktrees } = setup();
   const s = await add('moved');
   fs.writeFileSync(path.join(s.worktree.path, 'work.txt'), 'x');
-  fs.writeFileSync(path.join(s.worktree.path, '.git'), 'gitdir: /nowhere/.git/worktrees/x\n'); // its repo moved
+  // Its repo moved. Replaced, not overwritten: git hides a worktree's .git file on Windows, and
+  // opening a hidden file with 'w' is refused (EPERM) there.
+  const link = path.join(s.worktree.path, '.git');
+  fs.rmSync(link);
+  fs.writeFileSync(link, 'gitdir: /nowhere/.git/worktrees/x\n');
   fs.utimesSync(s.worktree.path, 0, 0);
   await assert.rejects(folderOnly(s.worktree));
   await worktrees.sweep();
