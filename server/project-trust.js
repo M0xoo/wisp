@@ -1,10 +1,11 @@
 // Project trust: a repo can make the agent run its own programs. Claude Code runs the hooks in
 // .claude/settings.json (and settings.local.json) and starts the servers in .mcp.json, without
 // asking, in `-p` (how wisp runs it), whatever the permission mode, Plan included. wisp itself runs
-// the setup in .wisp/worktree.json (or .cursor/worktrees.json) on each new worktree. So before the
-// first run in a repo, and again when one of those changes, wisp lists what the repo would run and
-// waits: Trust and start, Run without them (claude with --setting-sources user --strict-mcp-config,
-// no setup), or Skip. What you trusted is kept per repo (the main checkout, so its worktrees share
+// the setup in .wisp/worktree.json (or .cursor/worktrees.json, or Conductor's
+// .conductor/settings.toml or conductor.json) on each new worktree. So before the first run in a
+// repo, and again when one of those changes, wisp lists what the repo would run and waits: Trust
+// and start, Run without them (claude with --setting-sources user --strict-mcp-config, no setup),
+// or Skip. What you trusted is kept per repo (the main checkout, so its worktrees share
 // it) as one hash per item: a new or changed hook asks again, one that's gone doesn't matter.
 // A repo with none of these files runs as before. Settings → Privacy → projectAsk ('off' to stop).
 // Full auto (mode 'auto') never asks: choosing it means don't ask me, so it runs them all, as before.
@@ -13,6 +14,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { repoSetup } from './worktree-setup.js';
 
 const FILE = 'project-trust.json';
 // Claude Code settings keys whose value is a program it runs (besides hooks).
@@ -112,12 +114,10 @@ export function claudeItems(dir) {
   return out;
 }
 
-// The setup steps a new worktree of `root` would run (server/worktree-setup.js setupCommands, same order).
+// The setup steps a new worktree of `root` would run: repoSetup's, so the card can't differ from what runs.
 export function setupItems(root) {
-  const own = readJson(path.join(root, '.wisp/worktree.json'))?.setup;
-  const file = own != null ? '.wisp/worktree.json' : '.cursor/worktrees.json';
-  const list = own ?? readJson(path.join(root, '.cursor/worktrees.json'))?.['setup-worktree'] ?? [];
-  return (Array.isArray(list) ? list : [list]).filter((c) => typeof c === 'string' && c.trim()).map((command, i) => item({ kind: 'setup', file, name: `step ${i + 1}`, command }));
+  const { file, commands } = repoSetup(root);
+  return commands.map((command, i) => item({ kind: 'setup', file, name: `step ${i + 1}`, command }));
 }
 
 export const asks = (defaults, mode) => defaults?.projectAsk !== 'off' && mode !== 'auto';

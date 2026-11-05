@@ -149,7 +149,7 @@ export async function createWorktree({ cwd, home, id, title, source, holdSetup }
   fs.mkdirSync(path.dirname(dir), { recursive: true });
   await addWorktree(root, ['--no-track', '-b', branch, dir, base.ref]);
   // What git ignores (.env …) and the repo's setup step, as other worktree tools bring them along
-  const prepared = await prepareWorktree(root, dir, { hold: holdSetup?.(root) || null });
+  const prepared = await prepareWorktree(root, dir, { hold: holdSetup?.(root) || null, branch: base.branch });
   if (prepared.problems.length) console.warn(`wisp: worktree ${dir}: ${prepared.problems.join('; ')}`);
   // Launched from a subfolder of the repo: keep working in that subfolder.
   const sub = path.relative(realpath(root), realpath(cwd));

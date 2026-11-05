@@ -20,6 +20,7 @@ process.env.FAKE_RECORD = RECORD;
 installFakeBins();
 const { startServer } = await import('../server/index.js');
 const { ProjectTrust, claudeItems, setupItems, repoOf } = await import('../server/project-trust.js');
+const { taskPort } = await import('../server/runs.js');
 
 let srv;
 let base;
@@ -250,6 +251,86 @@ test('a new worktree’s setup waits for Trust and start, and never runs on Run 
   const wt3 = (await api(`/sessions/${s3.id}`)).worktree;
   assert.equal((await last(s3.id)).held, undefined);
   assert.ok(fs.existsSync(path.join(wt3.path, 'setup-ran')));
+});
+
+// Run as a repo's setup: what it was told, on any shell.
+const DUMP = `require('node:fs').writeFileSync('setup-env.json', JSON.stringify(Object.fromEntries(Object.entries(process.env).filter(([k]) => k.startsWith('CONDUCTOR_') || k === 'ROOT_WORKTREE_PATH'))));`;
+const toldTo = (wt) => JSON.parse(fs.readFileSync(path.join(wt.path, 'setup-env.json'), 'utf8'));
+const conductorRepo = () => {
+  const cwd = makeRepo();
+  fs.writeFileSync(path.join(cwd, 'dump.js'), DUMP);
+  execFileSync('git', ['add', 'dump.js'], { cwd, stdio: 'ignore' });
+  execFileSync('git', ['commit', '-qm', 'dump'], { cwd, stdio: 'ignore' });
+  return cwd;
+};
+const setScript = (cwd, command) => {
+  fs.mkdirSync(path.join(cwd, '.conductor'), { recursive: true });
+  fs.writeFileSync(path.join(cwd, '.conductor/settings.toml'), `"$schema" = "x"\n\n[scripts]\nsetup = """\n${command}\n"""\n`);
+};
+
+test('a Conductor setup waits for Trust and start, runs with Conductor’s env, asks again when it changes', async () => {
+  const cwd = conductorRepo();
+  setScript(cwd, 'node dump.js');
+  const launch = () => api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'codex', mode: 'edits', worktree: true });
+
+  const s = await launch();
+  const t = await held(s.id);
+  assert.deepEqual(t.held.project.items.map((x) => [x.kind, x.file, x.command]), [['setup', '.conductor/settings.toml', 'node dump.js']]);
+  const wt = (await api(`/sessions/${s.id}`)).worktree;
+  assert.ok(!fs.existsSync(path.join(wt.path, 'setup-env.json')), 'nothing ran before trust');
+  await api(`/sessions/${s.id}/held`, { action: 'start' });
+  await ended(s.id);
+  assert.deepEqual(toldTo(wt), {
+    ROOT_WORKTREE_PATH: wt.root,
+    CONDUCTOR_ROOT_PATH: wt.root,
+    CONDUCTOR_WORKSPACE_PATH: wt.path,
+    CONDUCTOR_WORKSPACE_NAME: path.basename(wt.path),
+    CONDUCTOR_DEFAULT_BRANCH: wt.base,
+    CONDUCTOR_PORT: String(taskPort(path.basename(wt.path))),
+    CONDUCTOR_IS_LOCAL: '1',
+  });
+
+  // Trusted: the next worktree runs it unasked, with its own workspace.
+  const s2 = await launch();
+  await ended(s2.id);
+  const wt2 = (await api(`/sessions/${s2.id}`)).worktree;
+  assert.equal((await last(s2.id)).held, undefined);
+  assert.equal(toldTo(wt2).CONDUCTOR_WORKSPACE_PATH, wt2.path);
+
+  // A changed command asks again; Run without them doesn't run it.
+  setScript(cwd, 'node dump.js --again');
+  const s3 = await launch();
+  const t3 = await held(s3.id);
+  assert.equal(t3.held.project.changed, true);
+  assert.deepEqual(t3.held.project.items.map((x) => x.command), ['node dump.js --again']);
+  const wt3 = (await api(`/sessions/${s3.id}`)).worktree;
+  await api(`/sessions/${s3.id}/held`, { action: 'without' });
+  await ended(s3.id);
+  assert.ok(!fs.existsSync(path.join(wt3.path, 'setup-env.json')), 'Run without them doesn’t run it');
+});
+
+test('Full auto runs a Conductor setup unasked; a setup from wisp’s own file gets none of Conductor’s vars; an unreadable file is said, not run', async () => {
+  const cwd = conductorRepo();
+  setScript(cwd, 'node dump.js');
+  const s = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'codex', mode: 'auto', worktree: true });
+  await ended(s.id);
+  const wt = (await api(`/sessions/${s.id}`)).worktree;
+  assert.equal((await last(s.id)).held, undefined);
+  assert.equal(toldTo(wt).CONDUCTOR_IS_LOCAL, '1');
+
+  write(cwd, '.wisp/worktree.json', { setup: 'node dump.js' });
+  const s2 = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'codex', mode: 'auto', worktree: true });
+  await ended(s2.id);
+  assert.deepEqual(Object.keys(toldTo((await api(`/sessions/${s2.id}`)).worktree)), ['ROOT_WORKTREE_PATH']);
+
+  fs.rmSync(path.join(cwd, '.wisp'), { recursive: true });
+  fs.writeFileSync(path.join(cwd, '.conductor/settings.toml'), '[scripts]\nsetup = "node dump.js\n');
+  const s3 = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'codex', mode: 'edits', worktree: true });
+  await ended(s3.id);
+  const wt3 = (await api(`/sessions/${s3.id}`)).worktree;
+  assert.equal((await last(s3.id)).held, undefined, 'nothing to hold');
+  assert.ok(!fs.existsSync(path.join(wt3.path, 'setup-env.json')));
+  assert.match(wt3.prepared.problems.join(), /couldn't read \.conductor\/settings\.toml: line 2: unterminated/);
 });
 
 test('Full auto never asks: hooks, servers and a new worktree’s setup run as before; Edits still holds; switching a held task to Full auto starts it', async () => {

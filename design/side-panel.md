@@ -456,16 +456,21 @@ The task's app, run from its worktree and shown beside it (`server/runs.js`, `we
 as Conductor's Run script or Vibe Kanban's dev-server preview. The tab sits after Shell, only on a
 task with a worktree (that never changes for a task, so nothing moves); Watch stays last.
 
-- **How it runs:** `.wisp/worktree.json`'s `run` (and optional `port`), else a guess from
-  package.json (`npm run dev`, else `npm start`), else what you type. In the worktree, with `PORT`
+- **How it runs:** `.wisp/worktree.json`'s `run` (and optional `port`), else the repo's Conductor
+  run script (`.conductor/settings.toml`, or `conductor.json`), else a guess from package.json
+  (`npm run dev`, else `npm start`), else what you type. In the worktree, with `PORT`
   set to a port wisp keeps for the task while it's free (41000 + its id's hash) unless the config
   sets one, and `BROWSER=none`. Its own process group: **Stop** ends what it started (Windows:
   `taskkill /T`). Deleting or archiving the task, or quitting wisp, stops it. The last 2000 lines of
   output are kept, colours stripped. Its address is the first local URL it prints, else `PORT`.
 - **Not running:** the intro (`i-play`, *Run the app from this task's folder and see it here.*), a
-  *Command* label, the command in a `.input.mono` box and a primary **Run**. The line under it says
-  where the command came from: *From `.wisp/worktree.json`*, or *From package.json: a guess. Set
-  `run` in `.wisp/worktree.json` to fix it.* Your edits to the box are kept per task.
+  *Command* label, the command in a `.input.mono` box and a primary **Run**. A command of several
+  lines (a Conductor script) gets a textarea with the same classes, as tall as its lines up to 6,
+  then it scrolls; Enter there is a new line, **Run** stays at the top of the row. The line under
+  it says where the command came from: *From `.wisp/worktree.json`*, *From
+  `.conductor/settings.toml`* (a file that can't be read says so instead: *couldn't read
+  `.conductor/settings.toml`: line 3: …*), or *From package.json: a guess. Set `run` in
+  `.wisp/worktree.json` to fix it.* Your edits to the box are kept per task.
 - **Running:** a 36px bar under the place line: a dot (amber, pulsing, *Starting · `npm run dev`*
   until the port answers; then green, *Running · localhost:41664*), then **Pick element**
   (`i-target`), **Logs** (`i-terminal`, pressed while open), **Restart** (`i-replay`), **Stop**

@@ -173,8 +173,9 @@ body.side-right .pn-grip { left: auto; right: -4px; }
 .rn-lbl { color: var(--muted); font-size: 12.5px; }
 .rn-row { display: flex; gap: 8px; }
 .rn-cmd { flex: 1; min-width: 0; }
-.rn-go { flex: none; }
-.rn-said { margin: 0; color: var(--faint); font-size: 12.5px; line-height: 1.5; }
+textarea.rn-cmd { height: auto; padding: 6px 10px; line-height: 1.5; white-space: pre; overflow: auto; resize: none; } /* a command of several lines; each stays one line, so rows match */
+.rn-go { flex: none; align-self: flex-start; }
+.rn-said { margin: 0; color: var(--faint); font-size: 12.5px; line-height: 1.5; overflow-wrap: anywhere; } /* a problem can quote a long name or path */
 .rn-said code { font: 11.5px var(--mono); color: var(--muted); }
 .rn-msg { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--muted); text-align: center; font-size: 13px; }
 .rn-msg .i { width: 20px; height: 20px; color: var(--faint); }

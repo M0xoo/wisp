@@ -1,10 +1,10 @@
 // Run the app: a task's dev server, started from its folder (its worktree) and shown in the side
 // panel's Preview (web/js/features/run.js), as Conductor's Run script or Vibe Kanban's preview.
 // One per task. The command comes from .wisp/worktree.json's run (worktree-setup.js runCommand),
-// a guess from package.json, or the page. It runs in a process group of its own (on Windows its
-// tree goes with taskkill /T) with PORT set to a port wisp picks for the task (stable while it's
-// free), or the config's. Its output's last lines are kept; the first local address it prints is
-// where it listens, else PORT.
+// a repo's Conductor run script, a guess from package.json, or the page. It runs in a process group
+// of its own (on Windows its tree goes with taskkill /T) with PORT set to a port wisp picks for the
+// task (stable while it's free), or the config's. Its output's last lines are kept; the first local
+// address it prints is where it listens, else PORT.
 //
 // The panel shows the app through a small proxy on a port of its own (proxy below): the same app,
 // minus X-Frame-Options and CSP frame-ancestors, with one script added to its pages that lets the
@@ -64,12 +64,21 @@ const answers = (port, timeout = 400) =>
     c.once('error', () => done(false));
   });
 
+// The port a key asks for first.
+export const taskPort = (key) => APP_BASE + hash(key) % SPAN;
+const block = (port, width) => Array.from({ length: width }, (_, i) => port + i);
+const allFree = async (ports, taken) => {
+  for (const p of ports) if (taken.has(p) || !(await listenable(p)) || (await answers(p, 150))) return false;
+  return true;
+};
+
 // A port for the task: the same one each time while it's free, so the app keeps its storage.
-async function pickPort(id, base, taken) {
-  const h = hash(id);
+// width: how many in a row it needs, from that one up.
+async function pickPort(key, base, taken, width = 1) {
+  const h = hash(key);
   for (let i = 0; i < 60; i++) {
     const p = base + ((h + i) % SPAN);
-    if (!taken.has(p) && (await listenable(p)) && !(await answers(p, 150))) return p;
+    if (await allFree(block(p, width), taken)) return p;
   }
   return new Promise((resolve) => {
     const s = net.createServer().listen(0, '127.0.0.1', () => {
@@ -150,23 +159,24 @@ export class Runs {
     };
   }
 
-  // Start the app in dir. Stops the one running first.
-  async start(id, { dir, command, port: fixed = null, env = process.env }) {
+  // Start the app in dir. Stops the one running first. portKey: what its port hangs on (the task).
+  // ports: how many in a row it gets, from PORT up. envFor(port): more env, once PORT is known.
+  async start(id, { dir, command, port: fixed = null, env = process.env, portKey = id, ports = 1, envFor }) {
     if (this.running(id)) await this.stop(id);
-    const taken = new Set([...this.map.values()].filter((r) => !r.exited).flatMap((r) => [r.port, r.proxyPort]));
-    const port = fixed || (await pickPort(id, APP_BASE, taken));
-    taken.add(port);
+    const taken = new Set([...this.map.values()].filter((r) => !r.exited).flatMap((r) => [...block(r.port, r.ports), r.proxyPort]));
+    const port = fixed || (await pickPort(portKey, APP_BASE, taken, ports));
+    for (const p of block(port, ports)) taken.add(p);
     const proxyPort = await pickPort(`${id}:proxy`, PROXY_BASE, taken);
     const [bin, args] = win ? [env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `"${command}"`]] : [env.SHELL || '/bin/sh', ['-c', command]];
     const child = spawn(bin, args, {
       cwd: dir,
-      env: { ...env, PORT: String(port), BROWSER: 'none' }, // BROWSER: dev servers that open a tab don't
+      env: { ...env, ...envFor?.(port), PORT: String(port), BROWSER: 'none' }, // BROWSER: dev servers that open a tab don't
       detached: !win, // its own process group: Stop ends what it started too
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
       windowsVerbatimArguments: win,
     });
-    const r = { id, command, dir, port, proxyPort, child, lines: [], partial: '', count: 0, url: null, ready: false, exited: false, code: null, signal: null, stopped: false, startedAt: Date.now(), endedAt: null, clients: new Set() };
+    const r = { id, command, dir, port, ports, proxyPort, child, lines: [], partial: '', count: 0, url: null, ready: false, exited: false, code: null, signal: null, stopped: false, startedAt: Date.now(), endedAt: null, clients: new Set() };
     this.map.set(id, r);
     const out = (chunk) => this.#out(r, chunk);
     child.stdout.on('data', out);
