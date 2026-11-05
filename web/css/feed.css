@@ -206,7 +206,11 @@ body.split #feed .item.open > .it-skel .sk-turns { padding-left: 0; padding-righ
 .fork-line .link { font-size: inherit; }
 /* A side discussion's line: a long title gives way, the read-only note stays whole */
 .side-line > span { min-width: 0; max-width: 100%; }
-.side-line .sl-of { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Flex, so the title itself is what's cut: a button can't be split, and the box's own ellipsis would
+   swallow it whole. The title clips itself, or the box would clip its focus ring too. */
+.side-line .sl-of { display: flex; gap: 0.3em; min-width: 0; white-space: nowrap; }
+.side-line .sl-of .link, .side-line .sl-of b { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.side-line .sl-of .link:focus-visible { outline-offset: 0; }
 .side-line .sl-ro { flex: none; }
 body.split:not(.pane-wide) .side-line .sl-ro { display: none; }
 body.split.pane-wide .fork-line .fl-narrow, body.split:not(.pane-wide) .fork-line .fl-wide { display: none; }

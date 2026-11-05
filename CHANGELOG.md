@@ -29,6 +29,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **A side discussion keeps its link back to a long-titled task.** With a long main task title the line above its first message read *Side discussion of …*, with no title and nothing to click. The title is what's cut now, the link stays, and its focus ring isn't clipped.
 - **A side discussion's clash card keeps its answers in view on a phone.** It no longer repeats the main task's lines when the diff shows them, or a second *what to do instead* box above the reply box, so *Keep main's version* isn't under the reply box when a phone opens it.
 - **The reply box in a phone browser stays one row.** Up to 720px wide, *Side question · …* and a read time are one line above the buttons, ending in `…`, instead of a word-wide column that tripled the box. Typing `/btw` moves neither Send nor the input sideways, and no button squeezes: the bar scrolls sideways with Send pinned, as in the app.
 - **Archiving a task right after it finishes removes its clean worktree.** In the seconds a CLI takes to exit after its result, the task already shows as done, but archiving it left the worktree on disk for good. Archive now lets that CLI go, as Ship it does, and removes the worktree at once.
