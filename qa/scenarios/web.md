@@ -513,3 +513,19 @@ Every page check also fails on an uncaught page error or a `console.error`.
   - 3: the same; the transcript doesn't scroll.
   - 4: the box lets go, so the keyboard drops and the run shows.
 - **Suite** (`test/keep-focus.test.js`), **Scripted** (`qa/web.mjs`), **Manual** (real Chrome)
+
+### WEB-57 · A failed run says why
+- **Preconditions:** the fake harness with `FAKE_FAIL=1`, then `FAKE_LIMIT_ONCE=<file>` for a usage limit.
+- **Steps:**
+  1. Start a task and open it the moment it fails.
+  2. Press **Try again** on the failed task.
+  3. Hit a usage limit on another task. Hit a too-many-devices refusal on a Codex task (`FAKE_LIMIT_TEXT`).
+  4. Open a task with a stored failure whose terminal block has `command: 'claude run'`.
+  5. Open a task whose report has a terminal block with a real command.
+- **Expected:**
+  - 1: *Claude Code failed* with `fake: not logged in (401)` in the hero and on the row. The terminal shows the output as it arrives, with no `$` line, no typing and no **Run**. Never *Something went wrong*.
+  - 2: **Try again** sends a follow-up.
+  - 3: both terminals have no `$` line and no **Run**.
+  - 4: the same, on the stored task.
+  - 5: that block keeps its `$` line and **Run**.
+- **Suite** (`test/failure-screen.test.js`), **Manual** (real Chrome)
