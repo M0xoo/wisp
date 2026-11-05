@@ -55,6 +55,10 @@ needs a reason.
 - Short labels stay whole (`white-space: nowrap; flex: none`); the long thing next to them
   (a branch, a computer name) is the one that shrinks with `…` (`min-width: 0; text-overflow: ellipsis`).
   Badges and menu titles never break onto two lines: move the hint below instead (#255, #268).
+- A bar with a word and a value (*Running · localhost:41454*) keeps the word and lets the value go
+  whole when it can't fit, rather than cut it to fragments (`.rn-state`): put the value on a clipped
+  second line. The value stays in the `title` and is still read out. Keep it for a value you can
+  reach another way (Logs, Open in browser); a name the row depends on shrinks with `…` as above.
 
 ## Buttons and controls
 
