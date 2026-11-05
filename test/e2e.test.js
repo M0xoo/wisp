@@ -13,6 +13,9 @@ process.env.FAKE_RECORD = RECORD;
 const lastRun = (bin) => taskRuns(RECORD, bin).at(-1);
 process.env.WISP_HOME = tmp('e2e-home');
 process.env.WISP_UPDATE_CHECK = '0'; // no registry calls from tests
+// No retro on its idle timer: one that starts during another test inherits its FAKE_HANG, and then it
+// holds retros' one-at-a-time queue until the file ends. Marking a task done still runs one at once.
+process.env.WISP_RETRO_IDLE_MS = '3600000';
 installFakeBins();
 
 const { startServer } = await import('../server/index.js');
