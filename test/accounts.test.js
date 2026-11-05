@@ -194,6 +194,26 @@ test('the harness list carries its accounts; a launch runs on the account you pi
   assert.equal(records(RECORD, 'claude').findLast((r) => r.stdin.includes('and the docs')).configDir, CLAUDE_HOME);
 });
 
+test('compare: each run goes on the account you picked for it, and only then', async () => {
+  const CONFIG = path.join(process.env.WISP_HOME, 'accounts', 'claude', 'pers');
+  // The same harness on two accounts, the second picked in its own runner pill.
+  const { group: [a, b] } = await api('/sessions', { prompt: 'compare on two accounts', cwd: makeRepo(), agent: 'claude', account: 'default', compare: [{ agent: 'claude', account: 'pers' }] });
+  assert.deepEqual([a.account, b.account], ['default', 'pers']);
+  await Promise.all([settled(a.id), settled(b.id)]);
+  const dirs = records(RECORD, 'claude').filter((r) => r.stdin.includes('compare on two accounts')).map((r) => r.configDir);
+  assert.deepEqual(dirs.sort(), [CLAUDE_HOME, CONFIG].sort(), 'the CLI ran on each');
+  // The first run's pick stays its own: a compare run with none gets your last pick, as before.
+  const { group: [c, d] } = await api('/sessions', { prompt: 'compare with one pick', cwd: makeRepo(), agent: 'claude', account: 'pers', compare: [{ agent: 'claude' }] });
+  assert.deepEqual([c.account, d.account], ['pers', 'default']);
+  await Promise.all([settled(c.id), settled(d.id)]);
+  // A name that isn't one is no pick; neither is another harness's account on a harness with one login.
+  const { group: [e, f, g] } = await api('/sessions', { prompt: 'compare with no real pick', cwd: makeRepo(), agent: 'claude', compare: [{ agent: 'claude', account: '../pers' }, { agent: 'codex', account: 'pers' }] });
+  assert.equal(e.account, 'default');
+  assert.equal(f.account, 'default');
+  assert.equal(g.account, undefined);
+  await Promise.all([settled(e.id), settled(f.id), settled(g.id)]);
+});
+
 test('a usage limit asks what next: wisp never moves the task to another account by itself', async () => {
   const marker = path.join(tmp('acc-limit'), 'hit');
   process.env.FAKE_LIMIT_ONCE = marker;
@@ -222,6 +242,10 @@ test('a usage limit asks what next: wisp never moves the task to another account
     const byHand = await api('/sessions', { prompt: 'another one', cwd: makeRepo(), agent: 'claude', worktree: false });
     assert.equal(byHand.account, 'pers');
     await settled(byHand.id);
+    // A compare run you picked Work for stays on Work, limit or not; one with no pick skips it.
+    const { group: [, kept, free] } = await api('/sessions', { prompt: 'compare past the limit', cwd: makeRepo(), agent: 'claude', account: 'pers', compare: [{ agent: 'claude', account: 'default' }, { agent: 'claude' }] });
+    assert.deepEqual([kept.account, free.account], ['default', 'pers']);
+    await Promise.all([settled(kept.id), settled(free.id)]);
   } finally {
     delete process.env.FAKE_LIMIT_ONCE;
   }

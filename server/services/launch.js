@@ -92,7 +92,7 @@ export function createLaunch(app) {
     const preset = body.preset && store.config.teams.find((t) => t.id === body.preset);
     if (body.preset && !preset && !body.subagents) throw bad(`no such subagent preset: ${body.preset}`);
     const subagents = normalizeTeam(body.subagents ?? preset?.members, adapters);
-    // compare: more { agent, model, effort } to run the same task on, side by side. 'auto' is
+    // compare: more { agent, model, effort, account } to run the same task on, side by side. 'auto' is
     // resolved here: the router picks a harness and model (a different one per compare run).
     const resolved = await app.auto.resolve(body, await app.auto.agents(), { team: subagents.length > 0, cwd });
     // A launch routed by another wisp (this is a machine) arrives with its route: Auto's steps
@@ -101,8 +101,9 @@ export function createLaunch(app) {
     const runners = [{ agent: resolved.agent, model: resolved.model, effort: resolved.effort, route: resolved.route ?? body.route }, ...(resolved.compare || [])].slice(0, body.tuiAsked ? 1 : MAX_COMPARE).map((r, i) => {
       const agent = r.agent || (i ? d.agent : '') || 'claude';
       if (!adapters[agent]) throw bad(`unknown agent: ${agent}`);
-      // account: which of the harness's accounts (server/accounts.js); none = your last pick, else the first free.
-      const account = !i && typeof body.account === 'string' && /^[\w-]{1,40}$/.test(body.account) && agent === resolved.agent ? body.account : '';
+      // account: which of the harness's accounts (server/accounts.js), each run's own pick; none = your last pick, else the first free.
+      const want = i ? r.account : agent === resolved.agent && body.account;
+      const account = typeof want === 'string' && /^[\w-]{1,40}$/.test(want) ? want : '';
       return { agent, model: r.model ?? (i ? d.models?.[agent] || '' : ''), effort: /^[\w-]{1,20}$/.test(r.effort || '') ? r.effort : '', account, ...(isRoute(r.route) && { route: r.route }) };
     });
     if (unattended) {
