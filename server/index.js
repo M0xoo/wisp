@@ -66,6 +66,7 @@ import { phoneActions } from './services/phone.js';
 import { createShip } from './services/ship.js';
 import { createReview } from './services/review.js';
 import { createOverlaps } from './services/overlaps.js';
+import { createWorktrees } from './services/worktrees.js';
 import { trackTurns } from './services/telemetry.js';
 import { Uploads } from './services/uploads.js';
 import { Stuff } from './services/stuff.js';
@@ -90,6 +91,7 @@ import * as proxyRoutes from './routes/proxy.js';
 import * as sessionRoutes from './routes/sessions.js';
 import * as shipRoutes from './routes/ship.js';
 import * as workspaceRoutes from './routes/workspace.js';
+import * as worktreeRoutes from './routes/worktrees.js';
 import * as lspRoutes from './routes/lsp.js';
 import { stopAll as stopLanguageServers } from './lsp.js';
 import * as spellRoutes from './routes/spells.js';
@@ -100,7 +102,7 @@ import * as issueRoutes from './routes/issues.js';
 export { API_VERSION };
 
 // Order matters only where patterns overlap: the machine proxy claims <id>@<machine> first.
-const ROUTES = [hookRoutes, metaRoutes, autoRoutes, internalRoutes, controlRoutes, uploadRoutes, stuffRoutes, settingsRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, workspaceRoutes, lspRoutes, spellRoutes, crewRoutes, connectorRoutes, issueRoutes];
+const ROUTES = [hookRoutes, metaRoutes, autoRoutes, internalRoutes, controlRoutes, uploadRoutes, stuffRoutes, settingsRoutes, worktreeRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, workspaceRoutes, lspRoutes, spellRoutes, crewRoutes, connectorRoutes, issueRoutes];
 
 // Idle keep-alive connections are closed by the client first (Node's fetch: 4s, browsers: longer
 // but they retry). With Node's 5s default the two raced, and a request sent on a socket the
@@ -473,6 +475,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   // Phone: answers and follow-ups coming back from ntfy / Telegram.
   app.remote = new Remote({ store, onChange: () => app.broadcast('remote', {}), ...phoneActions(app) });
   app.overlaps = createOverlaps(app);
+  app.worktrees = createWorktrees(app); // old worktrees: the hourly cleanup, Settings → Worktrees
+  app.worktrees.start();
   app.review = createReview(app); // review by another harness before Merge (defaults.review)
   app.ship = createShip(app);
   createSpellHooks(app);
@@ -551,6 +555,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     app.machines.stop(); // the tunnels go; wisp over there keeps running, agents and all
     app.ship.stop();
     app.overlaps.stop();
+    app.worktrees.stop();
     app.cloud.stop();
     app.computer.stop();
     app.sandbox.stop();

@@ -1,6 +1,7 @@
 // What you can do to a session: done, archive, delete, rename, rerun, revert, take over, open files,
 // and the menus that offer it. Local changes apply at once and roll back if the server refuses.
 
+import { setKeepWorktree } from './worktrees.js';
 import { laterMenuHtml, runLaterAction } from './later.js';
 import { copy } from '../blocks.js';
 import { esc } from '../md.js';
@@ -219,6 +220,7 @@ export function moreMenu(id, anchor) {
       ${laterMenuHtml(sum)}
       ${goalMenuHtml(sum)}
       ${forLaterMenuHtml(sum)}
+      ${keepItem(sum)}
       ${canRollback ? `<button data-a="rollback">${icon(rolledBack ? 'rerun' : 'replay')}${rolledBack ? 'Re-apply latest turn' : 'Restore to before latest turn'}</button>` : ''}
       ${sum.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : sum.state !== 'running' && sum.state !== 'waiting' ? `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>` : ''}
       ${slotHtml('card.menu', sum).replace(/class="ghost sm sp-btn"/g, 'class="sp-menu"').replace(/<button /g, `<button data-task="${id}" `)}
@@ -256,6 +258,7 @@ export function moreMenu(id, anchor) {
     }
     if (a === 'folder') openInEditor(s, '.');
     if (a === 'rollback') rollbackTurn(id, lastTurn?.id, rolledBack);
+    if (a === 'keep-worktree' || a === 'unkeep-worktree') setKeepWorktree(id, a === 'keep-worktree');
     if (a === 'save-later' || a === 'unsave') setForLater(id, a === 'save-later');
     if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
     if (a === 'delete') deleteSession(id);
@@ -264,6 +267,9 @@ export function moreMenu(id, anchor) {
   // More room above than under its button (the details column's More sits low): open upwards.
   if (r.bottom + 6 + menu.offsetHeight > innerHeight - 8) menu.style.top = `${Math.max(8, r.top - 6 - menu.offsetHeight)}px`;
 }
+
+// The cleanup leaves a kept task's folder alone. A worktree brought in isn't wisp's to remove anyway.
+const keepItem = (s) => (s.branch && !s.foreign ? `<button data-a="${s.keepWorktree ? 'unkeep' : 'keep'}-worktree">${icon('pin')}${s.keepWorktree ? 'Stop keeping worktree' : 'Keep worktree'}</button>` : '');
 
 // Right-click on a feed item.
 export function taskMenu(id, e) {
@@ -293,6 +299,7 @@ export function taskMenu(id, e) {
       ${laterMenuHtml(s)}
       ${goalMenuHtml(s)}
       ${forLaterMenuHtml(s)}
+      ${keepItem(s)}
       ${busy || s.archived ? '' : `<button data-a="done">${icon('done')}${s.state === 'done' ? 'Reopen' : 'Mark done'}${keyHint('E')}</button>`}
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : busy ? '' : `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>`}
       ${slotHtml('card.menu', s).replace(/class="ghost sm sp-btn"/g, 'class="sp-menu"').replace(/<button /g, `<button data-task="${s.id}" `)}
@@ -323,6 +330,7 @@ export function taskMenu(id, e) {
     if (a?.startsWith('later-') || a?.startsWith('held-')) runLaterAction(a, s, null, { x: e.clientX, y: e.clientY });
     if (a?.startsWith('goal-')) runGoalAction(a, id, null);
     if (a === 'done') toggleDone(id);
+    if (a === 'keep-worktree' || a === 'unkeep-worktree') setKeepWorktree(id, a === 'keep-worktree');
     if (a === 'save-later' || a === 'unsave') setForLater(id, a === 'save-later');
     if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
     if (a === 'delete') deleteSession(id);

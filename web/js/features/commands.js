@@ -1,6 +1,7 @@
 // The ⌘K palette's contents: actions on the focused session, every session, app actions, recipes
 // and project filters. palette.js draws it.
 
+import { setKeepWorktree } from './worktrees.js';
 import { laterActions, runLaterAction } from './later.js';
 import { goalActions, runGoalAction } from './goal.js';
 import { esc } from '../md.js';
@@ -104,6 +105,7 @@ function paletteItems() {
     if (member) items.push({ group: g, label: `Open ${member.name}`, sub, icon: 'crew', keywords: 'crew agent member', run: () => openCrew(member.id) });
     else if (!cur.parentId && cur.agent !== 'wisp') items.push({ group: g, label: 'Add to crew…', sub, icon: 'crew', keywords: 'crew agent assistant persistent schedule avatar', run: () => addToCrew(id) });
     items.push({ group: g, label: 'Transcript', sub: transcriptOn(id) ? `On · ${sub}` : sub, icon: 'transcript', kbd: 'V', keywords: 'transcript log messages steps tool calls verbose activity history', run: () => withCard(id, () => toggleTranscript(id)) });
+    if (cur.branch && !cur.foreign) items.push({ group: g, label: cur.keepWorktree ? 'Stop keeping worktree' : 'Keep worktree', sub, icon: 'pin', keywords: 'worktree disk cleanup pin folder', run: () => setKeepWorktree(id, !cur.keepWorktree) });
     items.push({ group: g, label: 'Rename', sub, icon: 'pen', kbd: 'M', run: () => withCard(id, () => rename(id)) });
     items.push({ group: g, label: 'Delete task', sub, icon: 'trash', kbd: '⌫', keywords: 'remove', run: () => deleteSession(id) });
   }

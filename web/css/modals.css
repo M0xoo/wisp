@@ -528,3 +528,28 @@ button.bg-task:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--acc
 .menu.ask-pop .ap-acts .primary { color: var(--bg); }
 .menu.ask-pop .ap-acts .primary:hover { background: var(--ink); }
 .menu.ask-pop .ap-acts .primary.bad, .menu.ask-pop .ap-acts .primary.bad:hover { background: var(--bad); color: #fff; }
+/* Settings → Worktrees: size and state in fixed columns, so a row's actions don't move */
+.wtr-sum .sx-text small { text-wrap: pretty; }
+.wtr-sum .wtr-total { font-size: 15px; font-variant-numeric: tabular-nums; }
+.wtr-filters { margin: 10px 14px; padding: 2px; width: fit-content; max-width: calc(100% - 28px); border: 0; }
+.wtr-row { display: grid; grid-template-columns: minmax(0, 1fr) 118px 64px auto; align-items: center; gap: 12px; min-height: 52px; padding: 7px 14px; border-top: 1px solid var(--line); }
+.wtr-who { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
+.wtr-who > b, .wtr-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; color: var(--ink); text-align: left; }
+.wtr-who small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
+.wtr-state, .wtr-size { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.wtr-state.warn { color: var(--warn); }
+.wtr-size { text-align: right; }
+.wtr-acts { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.wtr-acts [aria-pressed="true"] { color: var(--ink); background: var(--bg-2); }
+.wtr-more { display: block; width: 100%; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 12.5px; }
+.wtr-more[hidden] { display: none; }
+.wtr-empty { margin: 0; padding: 18px 14px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+.wtr-sk1, .wtr-sk2, .wtr-sk3, .wtr-sk4 { display: block; height: 11px; margin: 3px 0; }
+.wtr-sk1 { width: 220px; max-width: 100%; }
+.wtr-sk2 { width: 150px; max-width: 100%; }
+.wtr-sk3 { width: 56px; }
+.wtr-sk4 { width: 92px; }
+@media (max-width: 640px) {
+  .wtr-row { grid-template-columns: minmax(0, 1fr) auto auto; padding: 10px 14px; row-gap: 6px; }
+  .wtr-who { grid-column: 1 / -1; }
+}

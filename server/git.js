@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { inConductor } from './conductor.js';
 import { execFile } from './proc.js';
 import { bad } from './util.js';
-import { prepareWorktree } from './worktree-setup.js';
+import { copyIncluded, prepareWorktree } from './worktree-setup.js';
 
 // git by its full path, found once: a bare `git` makes every spawn walk PATH (about 50 ms a call on
 // macOS, against 3 ms), and macOS's /usr/bin/git is a shim that asks xcrun on every call.
@@ -163,12 +163,16 @@ export async function createWorktree({ cwd, home, id, title, source, holdSetup }
 // writes under <wisp home>/worktrees, so this can't catch one of wisp's own.
 export const isForeign = (wt) => !!(wt?.foreign || inConductor(wt?.path));
 
+const removing = new Map(); // folder → its removal under way
+
 // Archiving removes a clean worktree; a follow-up brings it back from its branch.
 export async function ensureWorktree(wt) {
+  await removing.get(wt?.path); // being removed right now: wait, then bring it back
   if (!wt || fs.existsSync(wt.path)) return;
   if (isForeign(wt)) throw bad(`This worktree's folder is gone: ${wt.path}`, 409); // no prune, and no add: that would make a new folder at its path
   await quiet(git(wt.root, ['worktree', 'prune']));
   await addWorktree(wt.root, [wt.path, wt.branch]);
+  await copyIncluded(wt.root, wt.path); // the ignored files it had (.env …); its setup isn't run again
 }
 
 // { dirty: changed paths, ahead: commits past the base, unpushed: commits not on the remote branch, exists }
@@ -191,15 +195,32 @@ export async function worktreeStatus(wt, { merged } = {}) {
   return { exists: true, dirty: porcelain ? porcelain.split('\n').length : 0, ahead, unpushed: pushed ?? ahead };
 }
 
+// What only this folder holds, for a cleanup that must not guess: changed paths, plus one if HEAD
+// has left the task's branch (a follow-up wouldn't find those commits). Throws when git can't tell,
+// as for a repo that moved, where worktreeStatus reads as clean.
+export async function folderOnly(wt) {
+  const [porcelain, head, tip] = await Promise.all([git(wt.path, ['status', '--porcelain']), git(wt.path, ['rev-parse', 'HEAD']), wt.branch ? git(wt.root, ['rev-parse', `refs/heads/${wt.branch}`]) : null]);
+  return (porcelain ? porcelain.split('\n').length : 0) + (wt.branch && head !== tip ? 1 : 0);
+}
+
 // force: drop uncommitted work too. The branch goes only when nothing would be lost with it.
-export async function removeWorktree(wt, { force = false, branch = false } = {}) {
+// strict: anything folderOnly finds (or can't tell) keeps it. still: asked last thing before the
+// folder goes, for a cleanup that a follow-up may have overtaken.
+export function removeWorktree(wt, opts) {
+  const job = dropWorktree(wt, opts).finally(() => removing.delete(wt?.path));
+  removing.set(wt?.path, job.catch(() => {}));
+  return job;
+}
+
+async function dropWorktree(wt, { force = false, branch = false, strict = false, still } = {}) {
   if (!wt) return { removed: false };
   if (isForeign(wt)) return { removed: false, foreign: true }; // whatever force and branch say
   if (fs.existsSync(wt.path)) {
-    const st = await worktreeStatus(wt);
-    if (st.dirty && !force) return { removed: false, dirty: st.dirty };
-    await quiet(git(wt.root, ['worktree', 'remove', '--force', wt.path]));
-    fs.rmSync(wt.path, { recursive: true, force: true });
+    const dirty = strict ? await folderOnly(wt).catch(() => 1) : (await worktreeStatus(wt)).dirty;
+    if (dirty && !force) return { removed: false, dirty };
+    if (still && !still()) return { removed: false };
+    await quiet(git(wt.root, ['worktree', 'remove', '--force', wt.path], { timeout: 5 * 60_000 })); // a large node_modules takes a while
+    await fs.promises.rm(wt.path, { recursive: true, force: true });
     await quiet(git(wt.root, ['worktree', 'prune']));
   }
   let branchDeleted = false;

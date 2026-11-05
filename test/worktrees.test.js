@@ -1,0 +1,175 @@
+// Old worktrees: what the cleanup may remove, what it never touches, and that the work comes back.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { makeRepo, tmp, until } from './helpers.js';
+import { createWorktree, ensureWorktree, folderOnly } from '../server/git.js';
+import { createWorktrees } from '../server/services/worktrees.js';
+
+const DAY = 86_400_000;
+const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+
+// A wisp's worth of stubs around real repos and real worktrees.
+function setup({ defaults = { worktreeCleanup: '7' }, config = {} } = {}) {
+  const home = tmp('wt-clean-');
+  const repo = makeRepo();
+  const sessions = new Map();
+  const live = new Map();
+  const store = { home, config: { defaults, ...config }, all: () => [...sessions.values()], get: (id) => sessions.get(id), saveConfig: () => {} };
+  const app = { store, runner: { live, working: (s) => live.has(s.id) } };
+  const add = async (id, fields = {}) => {
+    const worktree = await createWorktree({ cwd: repo, home, id, title: id });
+    const s = { id, title: id, cwd: repo, state: 'done', queue: [], turns: [], worktree, createdAt: 0, updatedAt: 0, ...fields };
+    sessions.set(id, s);
+    fs.utimesSync(worktree.path, 0, 0); // long untouched
+    return s;
+  };
+  return { app, add, home, repo, store, worktrees: createWorktrees(app) };
+}
+const there = (s) => fs.existsSync(s.worktree.path);
+const now = () => Date.now();
+
+test('an idle, clean worktree goes after the days set; its branch stays and a follow-up brings it back', async () => {
+  const { add, repo, worktrees, store } = setup();
+  const old = await add('old');
+  git(old.worktree.path, 'commit', '--allow-empty', '-q', '-m', 'work');
+  const tip = git(old.worktree.path, 'rev-parse', 'HEAD');
+  const recent = await add('recent', { updatedAt: now() - 2 * DAY });
+  await worktrees.sweep();
+  assert.equal(there(old), false);
+  assert.equal(there(recent), true);
+  assert.equal(git(repo, 'rev-parse', old.worktree.branch), tip, 'commits are on the branch');
+  assert.equal(store.config.worktreeCleaned.count, 1);
+  await ensureWorktree(old.worktree);
+  assert.equal(git(old.worktree.path, 'rev-parse', 'HEAD'), tip);
+});
+
+test('a folder brought back for a look is not removed under the user the next hour', async () => {
+  const { add, worktrees } = setup();
+  const s = await add('back');
+  await worktrees.sweep();
+  assert.equal(there(s), false);
+  await ensureWorktree(s.worktree); // Changes opened on the finished task
+  await worktrees.sweep();
+  assert.equal(there(s), true);
+});
+
+test('restoring brings the ignored files a new worktree gets', async () => {
+  const { add, repo, worktrees } = setup();
+  fs.appendFileSync(path.join(repo, '.git/info/exclude'), '.env\n');
+  fs.writeFileSync(path.join(repo, '.env'), 'A=1\n');
+  const s = await add('env');
+  await worktrees.sweep();
+  assert.equal(there(s), false);
+  await ensureWorktree(s.worktree);
+  assert.equal(fs.readFileSync(path.join(s.worktree.path, '.env'), 'utf8'), 'A=1\n');
+});
+
+test('never touched: uncommitted work, a commit off the branch, kept, For later, open PR, in use', async () => {
+  const { add, app, worktrees } = setup();
+  const dirty = await add('dirty');
+  fs.writeFileSync(path.join(dirty.worktree.path, 'new.txt'), 'x');
+  fs.utimesSync(dirty.worktree.path, 0, 0);
+  const detached = await add('detached');
+  git(detached.worktree.path, 'checkout', '-q', '--detach');
+  git(detached.worktree.path, 'commit', '--allow-empty', '-q', '-m', 'only here');
+  fs.utimesSync(detached.worktree.path, 0, 0);
+  const kept = await add('kept', { keepWorktree: true });
+  const later = await add('later', { forLater: { at: 1, by: 'user' } });
+  const pr = await add('pr', { pr: { state: 'OPEN' } });
+  const running = await add('running', { state: 'running' });
+  const queued = await add('queued', { queue: ['more'] });
+  const live = await add('live');
+  app.runner.live.set(live.id, {});
+  const lead = await add('lead', { state: 'waiting' });
+  const child = await add('child', { parentId: lead.id });
+  const shell = await add('shell');
+  app.shells = { get: (id) => (id === shell.id ? {} : undefined) };
+  await worktrees.sweep();
+  for (const s of [dirty, detached, kept, later, pr, running, queued, live, lead, child, shell]) assert.equal(there(s), true, s.id);
+  const status = Object.fromEntries(worktrees.view().items.map((x) => [x.id, x.status]));
+  assert.deepEqual(status, { dirty: 'dirty', detached: 'dirty', kept: 'kept', later: 'parked', pr: 'pr', running: 'busy', queued: 'busy', live: 'busy', lead: 'busy', child: 'busy', shell: 'busy' });
+});
+
+test('a worktree git can’t read is not taken for a clean one', async () => {
+  const { add, worktrees } = setup();
+  const s = await add('moved');
+  fs.writeFileSync(path.join(s.worktree.path, 'work.txt'), 'x');
+  fs.writeFileSync(path.join(s.worktree.path, '.git'), 'gitdir: /nowhere/.git/worktrees/x\n'); // its repo moved
+  fs.utimesSync(s.worktree.path, 0, 0);
+  await assert.rejects(folderOnly(s.worktree));
+  await worktrees.sweep();
+  assert.equal(there(s), true);
+  assert.equal(worktrees.view().items[0].status, 'unreadable');
+});
+
+test('off never removes; the default waits its days from the upgrade, not the task’s age', async () => {
+  const off = setup({ defaults: { worktreeCleanup: 'off' } });
+  const a = await off.add('a');
+  await off.worktrees.sweep();
+  assert.equal(there(a), true);
+
+  const fresh = setup({ defaults: {}, config: { worktreeCleanupFrom: now() } });
+  const b = await fresh.add('b');
+  await fresh.worktrees.sweep();
+  assert.equal(there(b), true, 'nothing goes the day wisp is updated');
+  await fresh.worktrees.sweep({ now: now() + 15 * DAY });
+  assert.equal(there(b), false, '14 days on');
+});
+
+test('a low disk takes the oldest idle first, before the days, and stops at enough', async () => {
+  const { add, worktrees } = setup({ defaults: { worktreeCleanup: '30' } });
+  const oldest = await add('oldest', { updatedAt: now() - 5 * DAY });
+  const today = await add('today', { updatedAt: now() - 3_600_000 });
+  fs.utimesSync(today.worktree.path, new Date(now() - 3_600_000), new Date(now() - 3_600_000));
+  await worktrees.sweep({ low: Infinity, enough: Infinity });
+  assert.equal(there(oldest), false);
+  assert.equal(there(today), true, 'less than a day idle stays, however low the disk');
+});
+
+test('by hand: Clean up now, one with uncommitted work only with force, nothing in use', async () => {
+  const { add, worktrees } = setup({ defaults: { worktreeCleanup: 'off' } });
+  const idle = await add('idle');
+  const dirty = await add('dirty');
+  fs.writeFileSync(path.join(dirty.worktree.path, 'new.txt'), 'x');
+  const running = await add('running', { state: 'running' });
+  await worktrees.scan();
+  assert.equal(worktrees.view().ready, 1);
+  assert.deepEqual(await worktrees.clean({}), { queued: 1, skipped: [] });
+  await until(() => !there(idle) && !worktrees.view().cleaning);
+  await assert.rejects(worktrees.clean({ ids: ['dirty'] }), /uncommitted/);
+  await assert.rejects(worktrees.clean({ ids: ['running'], force: true }), /in use/);
+  assert.equal(there(running), true);
+  await worktrees.clean({ ids: ['dirty'], force: true });
+  await until(() => !there(dirty) && !worktrees.view().cleaning);
+  assert.equal(worktrees.view().last.count, 1);
+});
+
+test('leftovers: listed, removed only when named, and only folders in worktrees/', async () => {
+  const { add, home, repo, worktrees } = setup();
+  await add('task', { updatedAt: now() });
+  const left = path.join(home, 'worktrees', 'by-hand');
+  git(repo, 'worktree', 'add', '-q', '-b', 'by-hand', left);
+  fs.writeFileSync(path.join(home, 'worktrees', 'shot.png'), 'x');
+  await worktrees.sweep();
+  assert.equal(fs.existsSync(left), true, 'the cleanup leaves them');
+  assert.deepEqual(worktrees.view().leftovers.map((x) => x.name), ['by-hand']);
+  await assert.rejects(worktrees.clean({ leftovers: ['../sessions'] }), /Not a leftover/);
+  await assert.rejects(worktrees.clean({ leftovers: ['shot.png'] }), /Not a leftover/);
+  await worktrees.clean({ leftovers: ['by-hand'] });
+  await until(() => !fs.existsSync(left));
+  assert.equal(git(repo, 'branch', '--list', 'by-hand').includes('by-hand'), true, 'its branch stays');
+  assert.equal(git(repo, 'worktree', 'list').includes('by-hand'), false, 'git forgot it');
+});
+
+test('sizes and free disk come with the list', { skip: process.platform === 'win32' }, async () => {
+  const { add, worktrees } = setup();
+  await add('sized', { updatedAt: now() });
+  await worktrees.scan();
+  const v = worktrees.view();
+  assert.ok(v.items[0].size > 0);
+  assert.equal(v.size, v.items[0].size);
+  assert.ok(v.disk.free > 0);
+});
