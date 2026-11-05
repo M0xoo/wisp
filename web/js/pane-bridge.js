@@ -19,7 +19,7 @@ export const PANE_USES = {
   'tasks:write': 'Ask to start tasks and send follow-ups (you confirm each one), and mark tasks done',
   'prs:read': 'See your tasks’ pull requests',
   'crew:read': 'See your crew: names, roles and what they’re doing',
-  'usage:read': 'See your usage windows: how much of each is gone and when it resets',
+  'usage:read': 'See your usage windows: how much of each is gone, when it resets, and what each period cost',
 };
 
 // Each call the frame can make, and what it needs.
@@ -47,7 +47,7 @@ export const CALL_DOCS = {
   'tasks.done': { call: 'wisp.tasks.done(id)', returns: 'true. No card' },
   'prs.list': { call: 'wisp.prs.list()', returns: "[{ number, url, state, draft, checks, review, conflict, repo, task (id), title }], each task's pull requests" },
   'crew.list': { call: 'wisp.crew.list()', returns: '[{ id, name, role, busy, nextAt }]' },
-  'usage.accounts': { call: 'wisp.usage.accounts()', returns: '[{ agent, agentName, account, windows: [{ id, label, used (0 to 1), resetsAt (ms) | null }], burnPerHour (share of the window burnWindow names, per hour, since it started) | null, burnWindow }], one per account. windows is empty when the harness reports none. burnPerHour is null when it is too early to tell; never make one up' },
+  'usage.accounts': { call: 'wisp.usage.accounts()', returns: '[{ agent, agentName, account, windows: [{ id, label, used (0 to 1), resetsAt (ms) | null, periods, shrink }], burnPerHour (share of the window burnWindow names, per hour, since it started) | null, burnWindow }], one per account. windows is empty when the harness reports none. burnPerHour is null when it is too early to tell; never make one up. periods: newest first, at most 12: [{ end (ms), ms, used | null, inWisp, outside | null, work, unit: "usd"|"mtok", per1 | null, rough?, open?, full?, cut?, cli?: { version?: [from, to], tools?, catalog? } }]. used and outside are null when wisp has no reading of that period, and outside can read low (shares of a move can sum past it). per1 is the work 1% of the window took; null means too little to say. rough: the cost came from differences of cumulative totals, so show it as ≈. open: the current period; cut: it ended before its reset. shrink: weekly windows only, null until there are 2 full periods per side, and null means say nothing: { state: "less"|"same"|"more", change, recent, before, unit, from (ms), rough?, cli? }. Both are [] and null when history can’t be read' },
 };
 
 // The scopes that change something. A grant of one is tied to the app's code (effectiveGrant).
@@ -322,17 +322,55 @@ export function burnOf(windows = [], now = Date.now()) {
   return { burnPerHour: null, burnWindow: '' };
 }
 
-// GET /agents' budget as a frame sees it: a row per account, what a window is and when it resets.
+// A period of GET /usage/periods (server/allowance.js) as a frame sees it: numbers, booleans, the
+// unit, and the CLI's version as words.
+const numOr = (x) => (Number.isFinite(x) ? x : null);
+const unitOf = (u) => (u === 'usd' ? 'usd' : 'mtok');
+function lightCli(c) {
+  const v = Array.isArray(c?.version) ? { version: c.version.slice(0, 2).map((x) => scrubSecrets(String(x))) } : null;
+  const out = { ...v, ...(c?.tools && { tools: true }), ...(c?.catalog && { catalog: true }) };
+  return Object.keys(out).length ? { cli: out } : null;
+}
+const lightPeriod = (p) => ({
+  end: numOr(p.end),
+  ms: numOr(p.ms),
+  used: numOr(p.used),
+  inWisp: numOr(p.inWisp),
+  outside: numOr(p.outside),
+  work: numOr(p.work),
+  unit: unitOf(p.unit),
+  per1: numOr(p.per1),
+  ...(p.rough && { rough: true }),
+  ...(p.open && { open: true }),
+  ...(p.full && { full: true }),
+  ...(p.cut && { cut: true }),
+  ...lightCli(p.cli),
+});
+const SHRINK = ['less', 'same', 'more'];
+const lightShrink = (r) => (SHRINK.includes(r?.state) ? { state: r.state, change: numOr(r.change), recent: numOr(r.recent), before: numOr(r.before), unit: unitOf(r.unit), from: numOr(r.from), ...(r.rough && { rough: true }), ...lightCli(r.cli) } : null);
+
+// GET /agents' budget as a frame sees it: a row per account, what a window is and when it resets,
+// and from GET /usage/periods (history, by the budget's account id) what each period cost.
 // No emails, plans, sign-in states or anything else an account carries.
-export function lightAccounts(agents = [], now = Date.now()) {
+export function lightAccounts(agents = [], now = Date.now(), history = []) {
   const out = [];
   for (const a of agents) {
     if (!a?.available || a.id === 'auto') continue;
-    const row = (label, list = []) => ({ agent: a.id, agentName: scrubSecrets(a.name || a.id), account: label, windows: list.map((w) => ({ id: w.id, label: scrubSecrets(w.label || ''), used: Math.min(1, Math.max(0, Number(w.used) || 0)), resetsAt: w.resetsAt || null })), ...burnOf(list, now) });
+    const past = (id, w) => history.find((h) => h?.agent === a.id && h.account === id)?.windows?.find((x) => x.id === w.id);
+    const row = (label, list = [], id = '') => ({
+      agent: a.id,
+      agentName: scrubSecrets(a.name || a.id),
+      account: label,
+      windows: list.map((w) => {
+        const h = past(id, w);
+        return { id: w.id, label: scrubSecrets(w.label || ''), used: Math.min(1, Math.max(0, Number(w.used) || 0)), resetsAt: w.resetsAt || null, periods: (h?.periods || []).map(lightPeriod), shrink: lightShrink(h?.shrink) };
+      }),
+      ...burnOf(list, now),
+    });
     const accounts = a.accounts || [];
     const named = (id) => (accounts.length > 1 ? accountWords(accounts.find((x) => x.id === id)?.label, accounts.findIndex((x) => x.id === id) + 1) : '');
     const seen = new Set();
-    for (const b of a.budget || []) (seen.add(b.account), out.push(row(named(b.account), b.windows)));
+    for (const b of a.budget || []) (seen.add(b.account), out.push(row(named(b.account), b.windows, b.account)));
     for (const x of accounts) if (!seen.has(x.id) && (accounts.length > 1 || !seen.size)) (seen.add(x.id), out.push(row(named(x.id))));
     if (!seen.size) out.push(row(''));
   }

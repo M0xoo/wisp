@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { adapters } from '../adapters/index.js';
+import { allowance } from '../allowance.js';
 import { compareAccounts, whereItWent, whereSubagents } from '../budget.js';
 import { tools } from '../git.js';
 import { openapi } from '../openapi.js';
@@ -170,6 +171,9 @@ export function register(r, app) {
 
   // Spend and outcomes. ?days=7|30|90
   r.route('GET', '/usage', (c) => c.send(200, usage(store.all(), { days: Number(c.query.get('days')) || 30, project: (s) => store.projectFor(s.cwd) })));
+  // Each window's periods, period by period (server/allowance.js). It reads every turn, so it's asked
+  // for, not carried on GET /agents.
+  r.route('GET', '/usage/periods', (c) => c.send(200, { accounts: app.budget ? allowance(app.budget, store.all()) : [] }));
   // Tool calls by kind, harness, project and day (what wisp_stats tells agents).
   r.route('GET', '/usage/tools', (c) =>
     c.send(200, toolStats(store.all(), { days: Math.min(Math.max(Number(c.query.get('days')) || 30, 1), 365), project: (s) => store.projectFor(s.cwd), filter: { agent: c.query.get('agent') || '', project: c.query.get('project') || '' } })),

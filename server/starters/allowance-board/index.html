@@ -24,21 +24,69 @@
   .bar { grid-row: 2; grid-column: 1 / -1; height: 6px; border-radius: 99px; background: var(--bg-2); overflow: hidden; }
   .bar i { display: block; height: 100%; border-radius: 99px; background: var(--ink-2); transition: width 0.3s var(--ease); }
   .win.high .bar i { background: var(--bad); }
+  /* A window's recent periods. Fixed columns, the same in every window and card; the period takes what's left. */
+  .hist { grid-row: 3; grid-column: 1 / -1; width: 100%; margin-top: 4px; table-layout: fixed; border-collapse: collapse; font-size: 11.5px; line-height: 1.4; }
+  .hist col.c-out { width: 78px; }
+  .hist col.c-used { width: 38px; }
+  .hist col.c-cost { width: 84px; }
+  .hist th, .hist td { padding: 1px 0 1px 6px; font-weight: 400; text-align: right; vertical-align: baseline; white-space: nowrap; overflow: hidden; }
+  .hist th:first-child, .hist td:first-child { padding-left: 0; text-align: left; }
+  .hist thead th { padding-bottom: 2px; color: var(--faint); border-bottom: 1px solid var(--line); }
+  .hist tbody tr:first-child > * { padding-top: 3px; }
+  .hist tbody th { white-space: normal; }
+  .hist tbody th span { white-space: nowrap; }
+  .hist .early { color: var(--faint); }
+  .hist .out { color: var(--ink-2); }
+  .hist td.moved { padding: 0 0 2px; color: var(--faint); text-align: left; white-space: normal; overflow-wrap: anywhere; }
+  .reading { grid-row: 4; grid-column: 1 / -1; margin: 2px 0 0; font-size: 11.5px; line-height: 1.4; overflow-wrap: anywhere; }
+  #foot { margin: 8px 0 0; font-size: 11.5px; color: var(--muted); }
+  #foot:empty { display: none; }
+  /* The narrowest tiles: Outside wisp takes two lines and the columns close up. */
+  @media (max-width: 320px) {
+    .hist thead th { white-space: normal; vertical-align: bottom; }
+    .hist col.c-out { width: 50px; }
+    .hist col.c-used { width: 36px; }
+    .hist col.c-cost { width: 58px; }
+  }
   .ph .sk { height: 11px; border-radius: 6px; }
   .ph .head .sk { width: 40%; }
+  .ph .bar i { height: 100%; background: var(--bg-2); }
+  .ph .hist td .sk { width: 32px; height: 9px; margin: 3px 0 3px auto; }
+  .ph .hist td:first-child .sk { width: 56px; margin-left: 0; }
 </style>
 </head>
 <body>
 <p id="note" role="status"></p>
 <div id="list">
-  <article class="card ph" aria-hidden="true"><div class="head"><i class="sk"></i></div><i class="sk"></i><i class="sk"></i></article>
-  <article class="card ph" aria-hidden="true"><div class="head"><i class="sk"></i></div><i class="sk"></i><i class="sk"></i></article>
+  <article class="card ph" aria-hidden="true">
+    <div class="head"><i class="sk"></i></div>
+    <div class="win">
+      <i class="sk"></i><i class="sk"></i><i></i>
+      <div class="bar"><i class="sk"></i></div>
+      <table class="hist">
+        <colgroup><col><col class="c-out"><col class="c-used"><col class="c-cost"></colgroup>
+        <tbody>
+          <tr><td><i class="sk"></i></td><td><i class="sk"></i></td><td><i class="sk"></i></td><td><i class="sk"></i></td></tr>
+          <tr><td><i class="sk"></i></td><td><i class="sk"></i></td><td><i class="sk"></i></td><td><i class="sk"></i></td></tr>
+          <tr><td><i class="sk"></i></td><td><i class="sk"></i></td><td><i class="sk"></i></td><td><i class="sk"></i></td></tr>
+          <tr><td><i class="sk"></i></td><td><i class="sk"></i></td><td><i class="sk"></i></td><td><i class="sk"></i></td></tr>
+          <tr><td><i class="sk"></i></td><td><i class="sk"></i></td><td><i class="sk"></i></td><td><i class="sk"></i></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </article>
 </div>
+<p id="foot"></p>
 <script src="/_wisp/pane.js"></script>
 <script>
   const list = document.getElementById('list');
   const note = document.getElementById('note');
+  const foot = document.getElementById('foot');
+  list.append(list.firstElementChild.cloneNode(true)); // two placeholder cards, one in the markup
   const cards = new Map(); // agent and account -> { node, head, rate, none, wins: window id -> its nodes }
+  const SHOWN = 4; // periods in a window's history
+  const DAY = 24 * 3600_000;
+  const DASH = '–';
   const add = (parent, tag, cls) => {
     const n = document.createElement(tag);
     if (cls) n.className = cls;
@@ -49,6 +97,41 @@
   const put = (node, text) => {
     if (node.textContent !== text) node.textContent = text;
   };
+  const tip = (node, text) => {
+    if (node.title !== text) node.title = text;
+  };
+  const show = (node, on) => {
+    if (node.hidden === on) node.hidden = !on;
+  };
+  const pctOf = (x) => (x > 0 && x < 0.005 ? '<1%' : `${Math.round(x * 100)}%`);
+  // $11.40, or 0.40M in tokens. Under a cent it says so: $0.00 would read as free.
+  function amount(x, unit, rough) {
+    const [pre, post] = unit === 'usd' ? ['$', ''] : ['', 'M'];
+    return `${rough ? '≈' : ''}${x < 0.005 ? `<${pre}0.01` : `${pre}${x.toFixed(2)}`}${post}`;
+  }
+  const endOf = (at) => {
+    const d = new Date(at);
+    return `${d.toLocaleDateString('en', { weekday: 'short' })} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+  // A window of a day or longer ends at the same weekday and time each period: only a date tells its rows apart.
+  const dayOf = new Intl.DateTimeFormat([], { day: 'numeric', month: 'short' });
+  // What moved in the CLI, in the text: phones have no hover.
+  function movedIn(name, cli) {
+    const what = [cli.tools && 'tool set changed', cli.catalog && 'model catalog changed'].filter(Boolean);
+    const words = cli.version ? [`${name} ${cli.version[0]} → ${cli.version[1]}`, ...what].join(', ') : `${name}: ${what.join(', ')}`;
+    return `${words}. Possible cause, not proof.`;
+  }
+  // Whether 1% buys what it did, or '' when wisp has nothing to say. It can't know why.
+  // said: the CLI lines already on the rows shown, which it doesn't repeat.
+  function readingOf(s, name, said) {
+    if (!s || s.change === null || s.recent === null || s.before === null) return '';
+    const vs = `${amount(s.recent, s.unit, s.rough)} vs ${amount(s.before, s.unit, s.rough)}${s.unit === 'usd' ? '' : ' tokens'}`;
+    const line = s.state === 'same'
+      ? `No change: 1% did about the same work as the 2 weeks before (${vs}).`
+      : `1% did ${Math.round(Math.abs(s.change) * 100)}% ${s.state} work than the 2 weeks before (${vs}). That can be the work itself, not your plan.`;
+    const moved = s.cli ? movedIn(name, s.cli) : '';
+    return moved && !said.includes(moved) ? `${line} ${moved}` : line;
+  }
   function resetsIn(at) {
     if (!at) return 'no reset time';
     const m = Math.max(0, Math.round((at - Date.now()) / 60000));
@@ -81,44 +164,121 @@
     win.bar = bar;
     win.fill = add(bar, 'i');
     win.when = add(node, 'span', 'when');
+    makeHist(win, w);
+    win.reading = add(node, 'p', 'reading');
+    win.reading.hidden = true;
     return win;
+  }
+  // The table and its rows are made once and reused: a refresh only writes what changed.
+  function makeHist(win, w) {
+    const table = add(win.node, 'table', 'hist');
+    table.setAttribute('aria-label', `${w.label}: recent periods`);
+    table.hidden = true;
+    const cols = add(table, 'colgroup');
+    for (const c of ['', 'c-out', 'c-used', 'c-cost']) add(cols, 'col', c);
+    const head = add(add(table, 'thead'), 'tr');
+    const heads = ['Period', 'Outside wisp', 'Used', 'For 1%'].map((text) => {
+      const th = add(head, 'th');
+      th.scope = 'col';
+      th.textContent = text;
+      return th;
+    });
+    heads[1].title = 'Used, less what went through wisp. It can read low.';
+    heads[3].title = 'The work 1% of this window took.';
+    win.cost = heads[3];
+    const body = add(table, 'tbody');
+    win.hist = table;
+    win.rows = Array.from({ length: SHOWN }, () => {
+      const node = add(body, 'tr');
+      const when = add(node, 'th');
+      when.scope = 'row';
+      const row = { node, end: add(when, 'span'), early: null, outside: add(node, 'td', 'out'), used: add(node, 'td'), per1: add(node, 'td') };
+      row.moved = add(body, 'tr');
+      row.moved.hidden = true;
+      row.line = add(row.moved, 'td', 'moved');
+      row.line.colSpan = 4;
+      row.when = when;
+      return row;
+    });
+  }
+  function paintRow(row, p, name) {
+    show(row.node, !!p);
+    show(row.moved, !!p?.cli);
+    if (!p) return;
+    const long = p.ms >= DAY;
+    put(row.end, p.open ? 'Now' : long ? dayOf.format(p.end) : endOf(p.end));
+    tip(row.end, p.open ? '' : `Ended ${long ? endOf(p.end) : new Date(p.end).toLocaleString()}`);
+    if (p.cut && !row.early) {
+      row.when.append(' ');
+      row.early = add(row.when, 'span', 'early');
+      row.early.textContent = 'ended early';
+      row.early.title = 'Ended before its reset, so it isn’t a whole period.';
+    }
+    if (row.early) show(row.early, !!p.cut);
+    const none = 'wisp has no reading of this period';
+    put(row.outside, p.outside === null ? DASH : pctOf(p.outside));
+    tip(row.outside, p.outside === null ? none : '');
+    put(row.used, p.used === null ? DASH : pctOf(p.used));
+    tip(row.used, p.used === null ? none : '');
+    put(row.per1, p.per1 === null ? DASH : amount(p.per1, p.unit, p.rough));
+    tip(row.per1, p.per1 === null ? 'Too little to say' : '');
+    if (p.cli) put(row.line, movedIn(name, p.cli));
+  }
+  // Returns whether anything on it reads ≈, which is what the footnote explains.
+  function paintHist(win, w, name) {
+    const past = (w.periods || []).slice(0, SHOWN);
+    const has = past.some((p) => !p.open); // an open period alone is the bar over again
+    show(win.hist, has);
+    const unit = past[0]?.unit;
+    put(win.cost, unit === 'mtok' ? 'Tokens for 1%' : 'For 1%');
+    win.rows.forEach((row, i) => paintRow(row, has ? past[i] : null, name));
+    const said = has ? past.filter((p) => p.cli).map((p) => movedIn(name, p.cli)) : [];
+    const line = readingOf(w.shrink, name, said);
+    put(win.reading, line);
+    show(win.reading, !!line);
+    return (has && past.some((p) => p.rough && p.per1 !== null)) || (!!line && !!w.shrink.rough);
   }
   function paintCard(card, r) {
     const name = r.account ? `${r.agentName} · ${r.account}` : r.agentName;
     put(card.name, name);
-    card.name.title = name;
+    tip(card.name, name);
     put(card.rate, rateOf(r));
-    card.rate.hidden = !card.rate.textContent;
-    card.none.hidden = r.windows.length > 0;
+    show(card.rate, !!card.rate.textContent);
+    show(card.none, !r.windows.length);
     const seen = new Set();
+    let rough = false;
     for (const w of r.windows) {
       seen.add(w.id);
       if (!card.wins.has(w.id)) card.wins.set(w.id, makeWin(card, w));
       const win = card.wins.get(w.id);
       const pct = Math.round(w.used * 100);
       put(win.label, w.label);
-      win.label.title = w.label;
+      tip(win.label, w.label);
       put(win.pct, `${pct}%`);
       put(win.when, resetsIn(w.resetsAt));
-      win.bar.setAttribute('aria-valuenow', String(pct));
-      win.fill.style.width = `${Math.min(100, pct)}%`;
+      if (win.bar.getAttribute('aria-valuenow') !== String(pct)) win.bar.setAttribute('aria-valuenow', String(pct));
+      if (win.fill.style.width !== `${Math.min(100, pct)}%`) win.fill.style.width = `${Math.min(100, pct)}%`;
       win.node.classList.toggle('high', w.used >= 0.9);
+      if (paintHist(win, w, r.agentName)) rough = true;
     }
     for (const [id, win] of card.wins) if (!seen.has(id)) (win.node.remove(), card.wins.delete(id));
+    return rough;
   }
   function paint(rows) {
     note.textContent = rows.length ? '' : 'No harness is set up yet.';
     list.querySelectorAll('.ph').forEach((n) => n.remove());
     const seen = new Set();
+    let rough = false;
     rows.forEach((r, i) => {
       const key = `${r.agent}\0${r.account}`;
       seen.add(key);
       if (!cards.has(key)) cards.set(key, makeCard());
       const card = cards.get(key);
-      paintCard(card, r);
+      if (paintCard(card, r)) rough = true;
       if (list.children[i] !== card.node) list.insertBefore(card.node, list.children[i] || null);
     });
     for (const [key, card] of cards) if (!seen.has(key)) (card.node.remove(), cards.delete(key));
+    put(foot, rough ? '≈ worked out from a running total.' : '');
   }
   function refresh() {
     wisp.usage.accounts().then(paint, (err) => {

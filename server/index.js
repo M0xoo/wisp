@@ -193,6 +193,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
 
   // Apps in My Stuff, each on a port of its own while launched (services/apps.js).
   app.apps = new Apps({ stuff: app.stuff, onChange: () => events.broadcast('stuff', {}) });
+  stuffRoutes.followStarters(app.stuff);
   app.publish = createPublish(app); // an app's public link on your wisp Grid (services/publish.js)
   runner.stuff = app.stuff; // @-mentions of My Stuff in prompts (mentions.js)
 

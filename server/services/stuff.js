@@ -493,6 +493,19 @@ export class Stuff {
     return this.#save(this.#keep(old, { ...it, ...fields(opts), titled: !!(fields(opts).title || manifest.name) }));
   }
 
+  // A starter is copied in once, so wisp's newer one follows only a copy nobody changed: its folder
+  // hashes to a version wisp shipped (was, oldest first). Anything else is yours or an agent's, and
+  // so is a copy you went back to with Restore: prev is then a later version than what's there.
+  // The normal update: rev + 1, prev kept, and the title and what you allowed stay.
+  followStarter(it, src, was = []) {
+    const now = this.#hash(it);
+    if (!now || !was.includes(now)) return null;
+    const uses = usesOf(JSON.parse(fs.readFileSync(path.join(src, 'wisp-app.json'), 'utf8')));
+    const order = [...was, appHash(src, uses)];
+    if (it.prev?.path && order.indexOf(appHash(it.prev.path, it.prev.uses)) > order.indexOf(now)) return null;
+    return this.addApp(src, { replace: it.id, by: it.by, title: it.title });
+  }
+
   // A picture of an app (a screenshot the agent took), for its card.
   #cover(src, tag) {
     if (kindOf(src) !== 'image' || !fs.statSync(src).isFile()) throw bad('cover has to be a picture (png, jpg, webp, svg).');

@@ -7,8 +7,11 @@
 // comes early (OpenAI's banked resets) lets that work go at once: onReset.
 //
 // ~/.wisp/budget.json: { [agent]: { [account]: { at, windows: { [id]: { used, resetsAt, ms } },
-// learn: { [id]: { du, units } }, acks: { [id]: { resetsAt, line } } } } }
+// learn: { [id]: { du, units } }, acks: { [id]: { resetsAt, line } },
+// periods: { [id]: [{ resetsAt, ms, used, cut? }] } } } }
 // used: 0..1, resetsAt: ms, ms: the window's length (for the pace). account: 'default' for the CLI's own.
+// periods: each window's closed periods, oldest first, with their last reading. cut: it ended before
+// its reset (an early reset, a moved one). server/allowance.js reads them (design/budget.md).
 //
 // Two uses on top of the numbers (design/budget.md):
 // - Automations stop at (defaults.autoStop): work nobody started by hand (check-ins, triggers, goal
@@ -52,11 +55,12 @@ export const stopFor = (defaults = {}, agent) => {
   return stopAtOf(STOP_AT.includes(own) ? own : defaults.autoStop);
 };
 // Two reports of the same window period: Codex's reset can drift when it only says "in n seconds".
-const samePeriod = (a, b) => !!a && !!b && Math.abs(a - b) < 10 * 60_000;
+export const samePeriod = (a, b) => !!a && !!b && Math.abs(a - b) < 10 * 60_000;
 // A window that reset before its time (a banked reset): its old reset hadn't come, now much less is
 // used, and the new reset is a period later. Codex's drifting "in n seconds" alone never counts.
 export const resetEarly = (was, next, now) =>
   !!was?.resetsAt && was.resetsAt > now && !!next.resetsAt && next.resetsAt - was.resetsAt > 10 * 60_000 && (was.used - next.used >= 0.25 || (next.used < 0.05 && was.used >= 0.1));
+const PERIOD_KEEP = 40; // closed periods remembered per window
 const MAX_LEDGER = 100; // turns remembered per account between two reports
 const MAX_WINDOWS = 6; // a CLI that starts reporting dozens doesn't grow the file
 const clamp = (n) => Math.min(1, Math.max(0, n));
@@ -273,6 +277,7 @@ export class Budget {
       // How far it moved since the last report: in a new period, all of what's used now.
       const d = !was ? 0 : samePeriod(was.resetsAt, next.resetsAt) ? next.used - was.used : was.resetsAt && was.resetsAt <= now ? next.used : 0;
       if (d > 0 && share.length) for (const [k, part] of share) this.onShare(k.sid, k.tid, { agent, account, window: w.id, used: d * part, resetsAt: next.resetsAt });
+      if (was?.resetsAt && !samePeriod(was.resetsAt, next.resetsAt)) this.#closePeriod(acc, w.id, was, now);
       acc.windows[w.id] = next;
     }
     if (this.#shape(acc, windows, complete, early, now)) moved = true;
@@ -281,6 +286,24 @@ export class Budget {
     if (moved) this.onChange();
     if (early.length) this.onReset(agent, account, early);
     return past;
+  }
+
+  // A period is over: keep its last reading. Runs at the same time can report out of order, so the
+  // same period can close twice: the higher reading stands, and one that reached its reset wins.
+  #closePeriod(acc, id, was, now) {
+    const list = ((acc.periods ||= {})[id] ||= []);
+    const cut = was.resetsAt > now;
+    const e = list.find((x) => samePeriod(x.resetsAt, was.resetsAt));
+    if (e) {
+      e.used = Math.max(e.used, was.used);
+      if (!cut) delete e.cut;
+    } else list.push({ resetsAt: was.resetsAt, ms: was.ms, used: was.used, ...(cut && { cut: true }) });
+    acc.periods[id] = list.sort((a, b) => a.resetsAt - b.resetsAt).slice(-PERIOD_KEEP);
+  }
+
+  // A window's closed periods, oldest first.
+  periods(agent, account, id) {
+    return [...(this.state[agent]?.[account || 'default']?.periods?.[id] || [])];
   }
 
   // --- past your plan: runs billed beyond the plan's windows ---------------------------------------

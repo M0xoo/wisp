@@ -411,14 +411,14 @@ Every page check also fails on an uncaught page error or a `console.error`.
   3. **Allow…** on its bar, save again, then call `wisp.tasks.done()` from the pane.
   4. ⌘K → **Make a pane…**, and My Stuff → **Make a pane**. Press **Add** on Agent board, then **Allow and pin**.
   5. Drag a card to Done; press **Done** on another; **Follow up** on a third and Send and Cancel on wisp's card. Do more than 6 writes in a minute.
-  6. **Add** Allowance board, **Allow and pin**.
+  6. **Add** Allowance board, **Allow and pin**. Give `budget.json` closed periods (`periods`) and tasks with `stats` and `plan` on those weeks, then call `wisp.usage.accounts()` from the pane.
 - **Expected:**
   - 1: the task runs in Edits in an empty folder, on this computer. A toast says *Pinned Fake pane on home* and the pane shows there with *No access yet*: no Allow card opens, nothing is allowed.
   - 2: the pane shows the new version with no empty frame between, and the node stays where it is.
   - 3: after that second save the bar says *Changed since allowed*, and the call is refused with no card.
   - 4: Add asks from the Allow card on that click, and nothing is added to `allowed` until you press it. Add twice gives one item.
   - 5: cards land in the right columns with harness, account, machine, crew name, PR and time. Done works both ways, by finger too: on a narrow pane the columns stack, Done's heading stays at the bottom edge to drop on, and the grip is 44px to a finger; cancelling wisp's card shows *You didn’t send it.* on the task's card, as does *Slow down*.
-  - 6: a row per account and a bar per window with *resets in …*; a harness with no windows says so; no burn rate until it can be told.
+  - 6: a row per account and a bar per window with *resets in …*; a harness with no windows says so; no burn rate until it can be told. Each window carries `periods` (newest first, `used` and `outside` null for a period known only from its turns, `rough` on differences) and `shrink`, which stays null until 2 full weekly periods per side. With `/usage/periods` failing the board keeps its windows, with `periods: []`. A copy of the board from an earlier wisp updates at the next start (v2, Restore brings it back); a changed copy, or one you went back to, stays.
 - **Suite** (`test/panes.test.js`), **Manual** (real Chrome)
 
 ### WEB-52 · Home panes: tiles, sizes, a spell's layout, rows and pages

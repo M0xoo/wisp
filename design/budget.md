@@ -153,6 +153,53 @@ plan their week around those resets. Moris's queue (#5), 2026-11-03.
   *Window changes*.
 - **Terms.** Advice only: no action button, nothing switches.
 
+## Allowance per window
+
+People say a plan's percent buys less than it used to, and can't show it (the same complaint Drain
+watch hears over hours, here over weeks). `GET /usage/periods` and `wisp.usage.accounts()` give the
+Allowance board each window's periods; `server/allowance.js` is pure and reads tasks and
+`budget.json`. On demand only, never on `GET /agents`: it scans every turn. A diagnostic: nothing
+fires an event, notifies or touches a hold, and no setting is needed.
+
+- **Closed periods.** `Budget.record` keeps `acc.periods[id]`: `{ resetsAt, ms, used, cut? }`, 40 per
+  window, when a report's reset isn't the same period as the last one's. *cut*: it ended before its
+  reset (an early or moved reset), so its reading isn't a whole period's. Runs at the same time can
+  report out of order, so a period can close twice: the higher reading stands and a real close
+  clears *cut*.
+- **`used` lands only from this version on.** Older periods are known from `turn.plan` alone, so
+  they show in-wisp only (`used`, `outside` null) and can't count to a reading. A window past its
+  reset with no report since is still in `acc.windows`: it counts as closed.
+- **Outside wisp first.** `outside` = `used` − `inWisp`. `inWisp` sums the plan shares, capped at 1
+  and at `used`: shares can sum past `used` (concurrent reports each count a move), so outside can
+  read low, never high.
+- **Work is every turn on the account** with `startedAt` in the period, not the turns with a plan
+  row: shares land on whichever turn is there when a whole percent ticks, about a third of them. A
+  cut period stops where the next began, so turns after an early reset don't count twice.
+  A period with no reading counts only from its first turn with a plan row: `turn.plan` can begin
+  partway through one, and all its work over a share traced at its end reads as a huge cost.
+- **Turn cost** (`turnCosts`). Claude: `stats.costUsd` with `stats.totals`. Older turns kept the
+  running total in `costUsd` (#602), so the cost is the difference inside the task. Codex: tokens
+  in millions (`unitsOf`'s formula), also as a difference, because `turn.completed.usage` is the
+  thread's total and a resume carries it on (`codex-rs/exec` `usage_from_last_total`, seen in real
+  `codex_exec` rollouts). A lower total means the counters started over: the turn counts in full.
+  Differences are `rough` and show as ≈. Forked and shared turns and `stats.baseline` update the
+  total but give no work: they're copies, or have no cost of their own.
+- **`per1`** = work per 1% of the window, null under 5% in wisp: one rounded percent would swing it.
+- **`full`**: closed at its reset, with a reading, the window's own length, and wisp was reading the
+  account before it began (`acc.shape.since`). Anything less isn't a whole period to compare.
+- **The reading** (`shrinkOf`, weekly windows only): the full periods with `per1` and at least 10% in
+  wisp, newest first. Under 4: null, and the row says nothing. Two against two, so one odd week
+  can't speak; each side is its work over its share, so a big week weighs more than a small one. At
+  −20% or lower *less*, +20% or higher *more*, else *same*.
+- **What moved in the CLI** (`cli`, from `stats.cli`, which only newer turns have): optional, read
+  with care, and a field counts only with both sides known. No data, no key. A reading says the
+  moves across its sides, and only when it isn't *same*: a cause to look at, not a verdict.
+- **A starter nobody changed follows wisp's.** A starter is copied once, so a board added earlier
+  would never get this. `wisp-app.json`'s `was` lists folder hashes wisp shipped (`appHash`, oldest
+  first; a change to a starter appends the hash it had). At boot a copy with one of them updates
+  through the normal path: rev + 1, prev kept, title and grants as they were. Any other hash was
+  changed by you or an agent and stays. So does a copy you went back to with Restore.
+
 ## Not yet
 
 - Asking before a run takes a window past a line: design/hold.md (Ask near the limit).

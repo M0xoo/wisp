@@ -41,6 +41,23 @@ export function starters() {
 }
 const starterKey = (id) => `starter:${id}`;
 
+// At boot: copies of a starter nobody changed follow the version wisp ships. Its wisp-app.json's
+// "was" lists the folder hashes wisp shipped before (appHash, oldest first): each change to a
+// starter appends the hash it had. A starter that can't be read never stops wisp.
+export function followStarters(stuff, dir = STARTERS) {
+  for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!d.isDirectory()) continue;
+    try {
+      const src = path.join(dir, d.name);
+      const { was } = JSON.parse(fs.readFileSync(path.join(src, 'wisp-app.json'), 'utf8'));
+      const it = Array.isArray(was) && stuff.findKey(starterKey(d.name));
+      if (it) stuff.followStarter(it, src, was);
+    } catch (err) {
+      console.warn(`wisp: starter ${d.name}: ${err.message}`);
+    }
+  }
+}
+
 export function register(r, app) {
   const { stuff, store } = app;
   // What the page sees, with whether an app is running and on which port.

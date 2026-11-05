@@ -449,6 +449,66 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object' }) },
         },
       },
+      '/usage/periods': {
+        get: {
+          summary: 'Allowance per window, for each account: period by period what was used, how much was outside wisp and what 1% cost, and a weekly shrink reading (null until 2 full weekly periods per side). Used and outside are null for a period wisp has no reading of; per1 is null when there is too little to say; rough means the cost came from differences of cumulative totals. Reads every turn: asked for, not on GET /agents',
+          responses: {
+            200: json({
+              type: 'object',
+              properties: {
+                accounts: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      agent: { type: 'string' },
+                      account: { type: 'string', description: 'The account’s id, default for the CLI’s own' },
+                      windows: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            id: { type: 'string' },
+                            label: { type: 'string' },
+                            periods: {
+                              type: 'array',
+                              description: 'Newest first, at most 12',
+                              items: {
+                                type: 'object',
+                                properties: {
+                                  end: { type: 'integer', description: 'The period’s reset, ms' },
+                                  ms: { type: 'integer', nullable: true },
+                                  used: { type: 'number', nullable: true },
+                                  inWisp: { type: 'number' },
+                                  outside: { type: 'number', nullable: true },
+                                  work: { type: 'number' },
+                                  unit: { type: 'string', enum: ['usd', 'mtok'] },
+                                  per1: { type: 'number', nullable: true, description: 'Work per 1% of the window' },
+                                  rough: { type: 'boolean' },
+                                  open: { type: 'boolean', description: 'The current period' },
+                                  full: { type: 'boolean', description: 'Closed at its reset, read from before it began: it can count to a reading' },
+                                  cut: { type: 'boolean', description: 'It ended before its reset' },
+                                  cli: { type: 'object', description: 'What moved in the CLI against the period before: version [from, to], tools, catalog. Absent when nothing did' },
+                                },
+                              },
+                            },
+                            shrink: {
+                              type: 'object',
+                              nullable: true,
+                              description: 'Weekly windows only: what 1% cost in the last 2 full periods against the 2 before. A diagnostic',
+                              properties: { state: { type: 'string', enum: ['less', 'same', 'more'] }, change: { type: 'number' }, recent: { type: 'number' }, before: { type: 'number' }, unit: { type: 'string' }, from: { type: 'integer' }, rough: { type: 'boolean' }, cli: { type: 'object' } },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            }),
+          },
+        },
+      },
       '/usage/tools': {
         get: {
           summary: 'Tool calls by kind, harness, project and day, with turns, cost and success rate (what wisp_stats tells agents)',
