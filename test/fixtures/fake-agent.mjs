@@ -113,7 +113,7 @@ if (name === 'codex' && argv.join(' ') === 'debug models') {
   // On its own record: codex.jsonl counts runs.
   if (process.env.FAKE_RECORD) {
     fs.mkdirSync(process.env.FAKE_RECORD, { recursive: true });
-    fs.appendFileSync(path.join(process.env.FAKE_RECORD, 'codex-debug.jsonl'), JSON.stringify({ codexHome: process.env.CODEX_HOME }) + '\n');
+    fs.appendFileSync(path.join(process.env.FAKE_RECORD, 'codex-debug.jsonl'), JSON.stringify({ codexHome: process.env.CODEX_HOME, pid: process.pid }) + '\n');
   }
   if (process.env.FAKE_CODEX_NO_DEBUG) process.exit(2);
   while (process.env.FAKE_CODEX_DEBUG_WAIT && !fs.existsSync(process.env.FAKE_CODEX_DEBUG_WAIT)) await new Promise((r) => setTimeout(r, 20));

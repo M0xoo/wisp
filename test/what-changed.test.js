@@ -233,6 +233,27 @@ test('codex: a probe that ends after the turn did still lands', { concurrency: f
   await until(() => JSON.parse(fs.readFileSync(path.join(process.env.WISP_HOME, 'sessions', `${s.id}.json`), 'utf8')).turns[0].stats.cli?.catalog === x.turns[0].stats.cli.catalog, { what: 'saved' });
 });
 
+test('codex: a `debug models` that hangs is stopped after 5 s: the version lands, no catalog', { concurrency: false }, async (t) => {
+  t.after(() => FAKE.forEach((k) => delete process.env[k]));
+  process.env.FAKE_CODEX_DEBUG_WAIT = path.join(tmp('wc-gate'), 'never');
+  const from = Date.now();
+  const s = await launch('codex');
+  const ended = await turnsDone(s.id, 1);
+  assert.equal(ended.turns[0].status, 'done', 'the turn never waits for it');
+  const x = await landed(s.id, 0, 'version'); // sooner than quietOutput's own 15 s: PROBE_MS is what ended it
+  assert.ok(Date.now() - from >= 4_900, `the probe got its 5 s, not ${Date.now() - from} ms`);
+  assert.equal(x.turns[0].stats.cli.catalog, undefined);
+  const { pid } = records(RECORD, 'codex-debug').at(-1);
+  const gone = () => {
+    try {
+      return !process.kill(pid, 0);
+    } catch {
+      return true;
+    }
+  };
+  await until(gone, { what: 'the hung `debug models` gone' });
+});
+
 test('codex without `debug models`, or with garbage from it: no catalog, no error, no line', { concurrency: false }, async (t) => {
   t.after(() => FAKE.forEach((k) => delete process.env[k]));
   for (const [key, value] of [['FAKE_CODEX_NO_DEBUG', '1'], ['FAKE_CODEX_CATALOG', 'bad']]) {
