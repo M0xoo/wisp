@@ -12,7 +12,15 @@ const CANT_REACH = 'Can’t reach wisp. Check the connection and try again.';
 // A server that took the request and never answers: only the page's own limit ends it.
 const silent = (seen) => (url, opts) => {
   seen.push({ url, body: JSON.parse(opts.body) });
-  return new Promise((_, reject) => opts.signal?.addEventListener('abort', () => reject(opts.signal.reason)));
+  // A request out holds the process open, as its socket would. AbortSignal.timeout's timer doesn't,
+  // and before Node 25 a test whose loop runs empty is cancelled, with every test after it.
+  return new Promise((_, reject) => {
+    const open = setTimeout(() => reject(new Error('nothing ended the request')), 5000);
+    opts.signal?.addEventListener('abort', () => {
+      clearTimeout(open);
+      reject(opts.signal.reason);
+    });
+  });
 };
 const fine = (seen, json = { queued: false }) => async (url, opts) => {
   seen.push({ url, body: JSON.parse(opts.body) });
