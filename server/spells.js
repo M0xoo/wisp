@@ -84,6 +84,7 @@ function checkAction(a, where, p, { hook = false, panels = new Set(), data = new
     case 'done':
     case 'archive':
     case 'forLater':
+    case 'compact':
       return { [k]: true };
     case 'setLaunch':
     case 'launchWith':
@@ -456,6 +457,7 @@ export function describeSpell(s) {
       done: () => 'marks the task done',
       archive: () => 'archives the task',
       forLater: () => 'saves the task for later',
+      compact: () => 'compacts the task',
       notify: () => 'notifies you',
       webhook: () => `POSTs the task to ${v}`,
       exec: () => `runs \`${clip(v, 60)}\``,

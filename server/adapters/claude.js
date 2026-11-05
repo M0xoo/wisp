@@ -8,6 +8,7 @@ import { describeCommand } from './commands.js';
 import { claudeLimits } from '../budget.js';
 import { COSTLY_ENV, PARENT_SESSION_ENV } from '../pty.js';
 import { LEAN_ENV } from '../lean.js';
+import { tokenWords } from '../../web/js/receipt.js';
 
 const DEFAULT_BIN = process.env.WISP_CLAUDE_BIN || 'claude';
 let BIN = DEFAULT_BIN;
@@ -424,6 +425,8 @@ export default {
     let contextTokens = 0;
     let cacheTtlMs = 0; // 0: unknown
     let compacted = false; // a /compact with no main-thread request since: the size is gone, and says 0
+    let boundary = null; // the last compact_boundary's compact_metadata, until a result takes it
+    let unshrunk = null; // a status that says compacting failed: { error }, until a boundary says it worked
     const noteContext = (msg) => {
       const u = msg.message?.usage;
       if (!u || msg.parent_tool_use_id) return; // a subagent's context is its own
@@ -478,7 +481,8 @@ export default {
         if (msg.claude_code_version) onEvent({ type: 'cli', version: String(msg.claude_code_version) });
         subagents.init(msg.tools);
       } else if (msg.type === 'system') {
-        if (msg.subtype === 'compact_boundary') [contextTokens, compacted] = [0, true];
+        if (msg.subtype === 'compact_boundary') [contextTokens, compacted, boundary, unshrunk] = [0, true, msg.compact_metadata || {}, null];
+        if (msg.subtype === 'status' && msg.compact_result) unshrunk = msg.compact_result === 'success' ? null : { error: String(msg.compact_error || msg.error || '').trim() };
         // A subagent started (claude 2.1.316 runs Agent calls in the background): its type.
         if (msg.subtype === 'task_started' && msg.task_type === 'local_agent' && msg.tool_use_id) subagents.call(msg.tool_use_id, 'Agent', { subagent_type: msg.subagent_type });
         // background_tasks_changed carries the full list; task_started/task_notification are the
@@ -506,14 +510,21 @@ export default {
         // notification queued ahead of our prompt. The CLI answers it with an empty,
         // zero-turn result, then goes on to the prompt and reports a second result. Ending the
         // turn on the first one would drop the real answer, so hold it in case it's all we get.
-        if (!ev.isError && !ev.text.trim() && !msg.num_turns) {
+        // A compaction reports the same empty, zero-turn result, and that one is final: it never
+        // goes on to a prompt. A boundary or local_command says which one this is.
+        const local = msg.local_command === 'compact';
+        if (!ev.isError && !ev.text.trim() && !msg.num_turns && !boundary && !local && !unshrunk) {
           early = ev;
           return;
         }
         sawResult = true;
+        // A turn that auto-compacted on its way has a boundary too: that one is an ordinary answer.
+        if (!ev.isError && boundary && (local || !msg.num_turns)) compactedResult(ev, boundary);
+        // A /compact that didn't: "Not enough messages to compact." ends in success with no boundary.
+        else if (!ev.isError && (local || (unshrunk && !ev.text.trim()))) notCompacted(ev, unshrunk?.error);
         if (contextTokens || compacted) ev.stats.contextTokens = contextTokens;
         if (cacheTtlMs) ev.stats.cacheTtlMs = cacheTtlMs;
-        [contextTokens, cacheTtlMs, compacted] = [0, 0, false]; // one process can report several results
+        [contextTokens, cacheTtlMs, compacted, boundary, unshrunk] = [0, 0, false, null, null]; // one process can report several results
         // modelUsage adds up over the process: this result's part is what's new since the last.
         const models = modelsOf(msg.modelUsage, lastModels);
         if (msg.modelUsage) lastModels = msg.modelUsage;
@@ -549,6 +560,19 @@ export default {
 
 
 
+
+// A compaction's result says nothing itself (result: ''): the boundary has the numbers.
+function compactedResult(ev, { pre_tokens: pre, post_tokens: post }) {
+  const known = Number.isFinite(pre) && Number.isFinite(post);
+  ev.stats.compact = known ? { pre, post } : {};
+  if (!ev.text.trim()) ev.text = known ? `Compacted from ${tokenWords(pre)} to ${tokenWords(post)} tokens.` : 'Compacted.';
+}
+
+// stats.compact.none: nothing shrank, so the context stays as it was (contextTokens stays unset).
+function notCompacted(ev, error) {
+  ev.stats.compact = { none: true };
+  ev.text = error || ev.text.trim() || 'Nothing was compacted.';
+}
 
 function resultEvent(msg) {
   return {

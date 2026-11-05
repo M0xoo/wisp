@@ -238,6 +238,14 @@ body.stack .t-result { display: none; }
 
 .ask { position: relative; margin: 0 0 20px; padding: 10px 14px; border-radius: var(--radius); background: var(--bg-2); }
 .ask-text { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); font-size: 14px; }
+/* Compact now, in a task: a plain line in place of a prompt, and a step quieter when folded. */
+.compact-turn .ask { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; padding: 0; background: none; }
+.compact-turn .ask:has(.t-unfold) { padding-right: 40px; }
+.compact-turn .ask-text { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px; color: var(--muted); }
+.compact-turn .ask-text .i { flex: none; width: 13px; height: 13px; }
+.compact-turn .ask time { margin-left: auto; font-variant-numeric: tabular-nums; }
+.compact-turn .t-unfold { top: -2px; }
+.turn.compact-turn .t-prompt { color: var(--muted); }
 .ask-text.clamped { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .ask-foot { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
 .ask time { font-size: 11.5px; color: var(--faint); }

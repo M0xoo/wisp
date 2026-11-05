@@ -29,6 +29,7 @@ import { APP_MAX_STATE } from '../../web/js/app-doc.js';
 import { watchDoc } from '../watch.js';
 import { TAKEOVER_NOTE, tuiArgv } from '../services/tui.js';
 import { terminalAsk } from '../../web/js/slash-text.js';
+import { compactOffer } from '../../web/js/cold-cache.js';
 
 export const MAX_WAIT_S = 290; // long-poll cap per request; clients loop (fetch drops headers after 300s)
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
@@ -452,6 +453,31 @@ export function register(r, app) {
       // agent / model / effort / account: run this follow-up (and the ones after it) on another harness, model or account.
       const run = agent !== undefined || model !== undefined || effort !== undefined || account !== undefined ? await followUpRun(s, { agent, model, effort, account }) : undefined;
       c.send(200, await launcher.replyTo(s, text.trim(), app.uploads.resolve(attachments), queue, mode, run, team, { confirm: confirmLimit === true, goal }));
+    }),
+  );
+
+  // Compact now (web/js/cold-cache.js): the card's own action on a large warm task. It's what you
+  // do near the limit, so it doesn't go through app.guard: no check, no ack, never a held turn.
+  // When it isn't offered it's refused. A hand-typed /compact stays a guarded follow-up.
+  r.route(
+    'POST',
+    '/sessions/:id/compact',
+    one(async (c, s) => {
+      notTour(s, 'compact');
+      notSide(s, 'compact');
+      const refused = () => {
+        if (app.terms.get(s.id)?.code === null) return 'This task is open in a terminal. Carry on there, or end the terminal first.';
+        if (!compactOffer(s)) return 'This task can’t be compacted now: it takes a large Claude task whose cache is still warm.';
+        if (app.budget?.windows(s.agent, s.account || 'default').some((w) => w.used >= 1)) return 'This account’s usage window is used up: compacting has to wait for the reset.';
+        return runner.startsHeld(s) ? 'wisp has a question about this harness or repo first: send a follow-up to answer it.' : '';
+      };
+      if (refused()) return c.send(409, { error: refused() });
+      await ensureTrees(s);
+      const after = refused(); // a second click while the worktree came back
+      if (after) return c.send(409, { error: after });
+      const out = runner.reply(s, '/compact', [], { by: 'compact' });
+      telemetry.track('compact', { agent: s.agent });
+      c.send(200, out);
     }),
   );
 

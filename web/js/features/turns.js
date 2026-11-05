@@ -198,7 +198,15 @@ export function renderBody(id, { fresh }) {
   // A new turn re-folds everything older, so the latest exchange is what's open by default.
   const latestId = s.turns.at(-1)?.id;
   const newTurn = n.latestTurn !== latestId;
-  if (newTurn) (n.unfolded.clear(), (n.latestTurn = latestId));
+  if (newTurn) {
+    n.unfolded.clear();
+    n.latestTurn = latestId;
+    // Compact now is housekeeping: the answer you were reading stays open above it.
+    if (s.turns.at(-1)?.by === 'compact') {
+      const answer = s.turns.findLast((t) => t.by !== 'compact');
+      if (answer) n.unfolded.add(answer.id);
+    }
+  }
   // Folding the last answer when a follow-up starts can take a screen or more out of the card
   // above the composer. Hold the composer still, so the new exchange lands where the user was
   // typing instead of the whole card sliding off the top of the screen.
@@ -467,12 +475,16 @@ function openMoved(next) {
   setFocus(next);
 }
 
+// A Compact now turn, folded: what it did, or that nothing happened yet.
+const compactSaid = (t) => t.presentation?.blocks?.find((b) => b.type === 'markdown')?.text || 'Compact now';
+
 function renderFoldedTurn(t, unfold) {
   const hero = t.presentation?.blocks?.find((b) => b.type === 'hero');
   const sent = !t.goal && sentComments(t.prompt);
-  const said = sent ? sent.rest.trim() || `${sent.count} comment${sent.count > 1 ? 's' : ''}${sent.lines === sent.count ? ' on the changes' : sent.lines ? '' : ' on the answer'}` : t.prompt;
+  const shrank = t.by === 'compact';
+  const said = shrank ? compactSaid(t) : sent ? sent.rest.trim() || `${sent.count} comment${sent.count > 1 ? 's' : ''}${sent.lines === sent.count ? ' on the changes' : sent.lines ? '' : ' on the answer'}` : t.prompt;
   const node = el(`
-    <article class="turn folded${t.goal ? ' goal-turn' : ''}" data-turn="${t.id}">
+    <article class="turn folded${t.goal ? ' goal-turn' : ''}${shrank ? ' compact-turn' : ''}" data-turn="${t.id}">
       <button class="t-fold" title="Show this exchange">
         ${icon('chevron', 'chev')}
         <span class="t-prompt">${t.by === 'wisp' ? '<b class="t-by">wisp</b> ' : ''}${t.goal ? `Round ${Number(t.goal) || ''}: what’s still missing`.replace('Round : ', '') : `${sent ? icon('comment', 't-cm') : ''}${mentionHtml(esc(said.slice(0, 300).replace(/\s+/g, ' ')), { link: false })}`}</span>
@@ -664,7 +676,15 @@ function renderTurn(s, t, isLatest, fold, tx) {
   const cpBranch = cp?.branch && cp.branch !== s.worktree?.branch ? cp.branch : '';
   const cpLabel = cp?.head ? `${cpBranch ? `${cpBranch}@` : ''}${cp.head.slice(0, 7)}${cp.dirty ? '*' : ''}` : '';
   const from = t.id === s.turns[0]?.id && fromTask(s);
-  const ask = el(`
+  const shrink = t.by === 'compact';
+  node.classList.toggle('compact-turn', shrink);
+  // Compact now is a click, not something you said: one quiet line instead of a /compact bubble.
+  const ask = shrink ? el(`
+    <div class="ask">
+      <div class="ask-text">${icon('minus')}Compact now</div>
+      ${turnTime(t.startedAt)}
+      ${fold ? `<button class="ghost xs t-unfold" title="Collapse this exchange">${icon('chevron', 'chev')}</button>` : ''}
+    </div>`) : el(`
     <div class="ask${t.by === 'wisp' ? ' by-wisp' : ''}">
       ${from ? `<div class="ask-by ask-from">${icon('crew')}${from.label}${from.open ? `<button class="link" data-from="${esc(from.id)}">“${esc(from.title)}”</button>` : `<span>“${esc(from.title)}”</span>`}</div>` : ''}
       ${t.side ? `<div class="ask-by ask-from">${icon('discuss')}<span>Sent by wisp from side discussion&nbsp;</span>${S.sessions.has(t.side.id) ? `<button class="link" data-from="${esc(t.side.id)}">“${esc(t.side.title)}”</button>` : `<span>“${esc(t.side.title)}”</span>`}</div>` : t.by === 'wisp' ? `<div class="ask-by">${icon(t.goal ? 'target' : 'spark')}${t.reports ? 'Sent by wisp when your subagents finished' : t.goal ? 'Sent back by wisp: the goal isn’t met yet' : s.worktree?.foreign && t.id === s.turns[0]?.id ? 'Written by wisp, nothing ran' : 'Sent by wisp after its test run'}</div>` : ''}
@@ -722,7 +742,9 @@ function renderTurn(s, t, isLatest, fold, tx) {
   } else {
     const ctx = ctxFor(s, t, isLatest);
     // The trail under it carries the time, cost and files, so the hero doesn't repeat them.
-    const out = tx ? renderTranscript(s, t, ctx) : renderPresentation(t.presentation, { ...ctx, trail: true });
+    // answer: the turn a Compact now under it left open keeps its look, so nothing moves on the click.
+    const answer = !isLatest && s.turns.at(-1)?.by === 'compact' && t === s.turns.findLast((x) => x.by !== 'compact');
+    const out = tx ? renderTranscript(s, t, ctx) : renderPresentation(t.presentation, { ...ctx, trail: true, answer });
     if (isLatest && (t.limit || t.refusal) && s.state !== 'running') {
       const card = el('<div class="blk blk-limit"></div>');
       card.style.setProperty('--d', '110ms'); // right after the hero
@@ -770,20 +792,21 @@ function renderGoalCheck(s) {
 // keeps only the status, the question, the team and Stop.
 function renderWorking(s, t, tx) {
   const waiting = !!s.ask;
+  const shrink = t.by === 'compact'; // one step, nothing to count or show
   const node = el(`
     <div class="w-panel ${waiting ? 'waiting' : ''} ${tx ? 'tx-panel' : ''}">
       <div class="w-orb"><div class="orb live"><i></i><i></i><i></i></div></div>
       <div class="w-body">
         <div class="w-status">
-          <b>${waiting ? `${esc(agentName(s.agent))} is waiting for you` : `${esc(agentName(s.agent))} is working`}</b>
+          <b>${waiting ? `${esc(agentName(s.agent))} is waiting for you` : shrink ? 'Compacting' : `${esc(agentName(s.agent))} is working`}</b>
           <span class="elapsed" data-start="${t.startedAt}">${fmtDuration(Date.now() - t.startedAt)}</span>
-          <span class="w-count">${t.activity.filter((a) => a.kind !== 'text').length} actions</span>
+          <span class="w-count"${shrink ? ' hidden' : ''}>${t.activity.filter((a) => a.kind !== 'text').length} actions</span>
         </div>
         <div class="ask-slot"></div>
         ${teamLiveHtml(s, t)}
         ${tx ? '' : '<ul class="ticker"></ul>'}
         <div class="w-actions">
-          ${tx ? '' : '<button class="link xs peek">Show all activity</button>'}
+          ${tx ? '' : `<button class="link xs peek"${shrink ? ' hidden' : ''}>Show all activity</button>`}
           ${s.queue?.length ? `<span class="w-queued">${s.queue.length} follow-up${s.queue.length > 1 ? 's' : ''} queued</span>` : ''}
           <span class="grow"></span>
           ${S.sessions.get(s.id)?.watch ? `<button class="ghost sm w-watch">${icon('eye')}Watch</button>` : ''}

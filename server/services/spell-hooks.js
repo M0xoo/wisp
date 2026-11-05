@@ -85,7 +85,7 @@ export function createSpellHooks(app) {
   }
 
   runner.on('ended', ({ session, turn, interrupted }) => {
-    if (interrupted || turn.status === 'stopped') return;
+    if (interrupted || turn.status === 'stopped' || turn.by === 'compact') return; // a hook's reply would undo the click
     fire(turn.status === 'error' ? 'turn.failed' : 'turn.finished', session, turn);
   });
   runner.on('started', ({ session }) => {

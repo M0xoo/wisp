@@ -989,7 +989,7 @@ export class Crew {
 
   #ended({ session: s, turn, interrupted }) {
     const m = this.get(s.crew?.id);
-    if (!m || interrupted) return;
+    if (!m || interrupted || turn.by === 'compact') return;
     const quiet = turn.status === 'done' && !!s.archived && QUIET_JOBS.has(s.crew.job);
     m.log.unshift(logEntry(s, turn, { quiet }));
     m.log.length = Math.min(m.log.length, LOG_MAX);

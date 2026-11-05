@@ -99,7 +99,7 @@ export function palette({ items, overlay, deep, placeholder = 'Search tasks, #to
       .map(({ it, idx, hit = [] }, i) => {
         const head = it.group !== group ? `<div class="pal-group">${esc((group = it.group))}</div>` : '';
         const lead = it.dot ? `<i class="p-dot c-${esc(it.dot)}"></i>` : icon(it.icon || 'arrow');
-        return `${head}<div class="pal-row ${i === sel ? 'on' : ''}" role="option" data-i="${i}" aria-selected="${i === sel}">
+        return `${head}<div class="pal-row ${i === sel ? 'on' : ''}" role="option" data-i="${i}" aria-selected="${i === sel}"${it.tip ? ` title="${esc(it.tip)}"` : ''}>
           <span class="pal-lead">${lead}</span>
           <span class="pal-label">${highlight(it.label, idx, esc)}</span>
           ${!it.fill && it.tags?.length && input.value.trim() ? tagsHtml(it.tags, hit) : ''}

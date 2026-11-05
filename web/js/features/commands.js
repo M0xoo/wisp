@@ -12,7 +12,8 @@ import { ago, STATUS_LABEL } from '../core/format.js';
 import { isForLater, MOBILE, S, save } from '../core/state.js';
 import { shortcuts } from '../ui/kbd.js';
 import { closeOverlay, overlay } from '../ui/overlay.js';
-import { canSaveForLater, deleteSession, forkable, forkTask, rename, rerun, rollbackTurn, setArchived, setForLater, takeOver, toggleDone } from './actions.js';
+import { compactNote, compactTip } from '../cold-cache.js';
+import { canSaveForLater, compactable, compactTask, deleteSession, forkable, forkTask, rename, rerun, rollbackTurn, setArchived, setForLater, takeOver, toggleDone } from './actions.js';
 import { openAutomations, recipeParams, runRecipe, saveAsRecipe } from './automations.js';
 import { compareView } from './compare.js';
 import { collapseAll, expand, feedToTop, renderFeed, reveal } from './feed.js';
@@ -85,6 +86,8 @@ function paletteItems() {
     if (!cur.sideOf) items.push({ group: g, label: 'Take over', sub, icon: 'terminal', keywords: 'terminal take over carry on yourself cli', kbd: 'T', run: () => takeOver(id) });
     if (!cur.sideOf) items.push({ group: g, label: 'Rerun…', sub, icon: 'rerun', kbd: '⇧R', keywords: 'retry again restart model harness', run: () => rerun(id) });
     if (forkable(cur)) items.push({ group: g, label: 'Fork…', sub, icon: 'fork', kbd: '⇧F', keywords: 'branch copy duplicate try another way split', run: () => forkTask(id) });
+    const offer = compactable(id);
+    if (offer) items.push({ group: g, label: 'Compact now', sub: compactNote(offer), tip: compactTip(offer), icon: 'minus', keywords: 'compact shrink context cache smaller /compact', run: () => compactTask(id) });
     if (sideable(cur)) items.push({ group: g, label: 'Side discussion…', sub, icon: 'discuss', keywords: 'side talk discuss review explain ask run edit /side', run: () => sideDraft(id) });
     if (shippable(cur)) items.push({ group: g, label: shipLabel(cur), sub, icon: 'send', kbd: 'S', keywords: 'commit push pull request pr github', run: () => shipDialog(id) });
     if (mergeLabel(cur)) items.push({ group: g, label: mergeLabel(cur), sub, icon: 'check', keywords: 'squash github', run: () => mergePr(id) });

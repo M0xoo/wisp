@@ -717,6 +717,13 @@ export function openapi({ version, port }) {
         patch: { summary: 'Change a scheduled follow-up ({ item, at | in, text }), send it now ({ item, now: true }) or snooze a reminder that came due ({ item: "reminder", at | in })', requestBody: body({ type: 'object', properties: { item: { type: 'string' }, at: { type: ['integer', 'string'] }, in: { type: 'number' }, text: { type: 'string' }, now: { type: 'boolean' } }, required: ['item'] }), responses: { 200: json({ type: 'object' }), 400: err[400], 404: err[404] } },
         delete: { summary: 'Cancel a scheduled follow-up', parameters: [{ name: 'item', in: 'query', required: true, schema: { type: 'string' } }], responses: { 200: ok, 404: err[404] } },
       },
+      '/sessions/{id}/compact': {
+        parameters: [id],
+        post: {
+          summary: 'Compact now: shrink a large Claude task while its cache is warm (summary.compactOffer). Runs /compact as a turn of its own, without the limit check; never held',
+          responses: { 200: ok, 404: err[404], 409: json(ref('Error'), 'Not offered: too small, not warm, a side discussion, a used-up window, or a question waiting') },
+        },
+      },
       '/sessions/{id}/held': {
         parameters: [id],
         post: { summary: 'A run held near the usage limit, for a changed harness (held.harness) or for a repo’s untrusted hooks, MCP servers or worktree setup (held.project, server/project-trust.js; its turn lists them). start: now (a changed harness or the repo is trusted first, then a held setup runs); without (repo only): this task runs without them and without the setup; wait: for the reset (limit only); skip: it never runs', requestBody: body({ type: 'object', required: ['action'], properties: { action: { enum: ['start', 'wait', 'without', 'skip'] } } }), responses: { 200: json(ref('Summary')), 400: err[400], 404: err[404] } },
@@ -1123,6 +1130,7 @@ export function openapi({ version, port }) {
           type: 'object',
           properties: {
             id: { type: 'string' },
+            compactOffer: { type: 'object', description: 'Compact now is offered: tokens, the USD estimates compact and cold (null on a model wisp has no price for), and until (ms): when the offer ends', properties: { tokens: { type: 'number' }, compact: { type: 'number', nullable: true }, cold: { type: 'number', nullable: true }, until: { type: 'number' } } },
             title: { type: 'string' },
             agent: { type: 'string' },
             cwd: { type: 'string' },
