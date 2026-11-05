@@ -23,7 +23,7 @@ npm test            # everything
 
 - No new runtime dependencies. The server is plain Node, the page is vanilla JS with no build step.
 - Every piece of UI you add must be reachable from a spell (`web/js/spell-schema.js`).
-- New test files go in the `test` script in `package.json`, or `npm test` skips them.
+- New test files go in `test/`, named `*.test.js`: `npm test` finds them.
 - User-facing changes get a line under *Unreleased* in [CHANGELOG.md](CHANGELOG.md).
 
 ## Pull requests
