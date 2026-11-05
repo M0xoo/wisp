@@ -217,7 +217,7 @@ export const PARTS = {
   'composer.hint': '.composer .c-hint',
   'composer.cold': '.composer .c-cold', // Cache gone cold: what a reply to a large idle task re-reads (web/js/cold-cache.js)
   'composer.coldFork': '.composer .c-cold-fork', // its Fork… button
-  'limit.cold': '.b-limit .lm-cold', // the same line on the usage-limit card, under Wait until
+  'limit.cold': '.b-limit .lm-cold', // what a wait to the reset may re-read, on the usage-limit card under Wait until
   'composer.ship': '.composer .c-ship',
   'composer.done': '.composer .c-done',
   'composer.queue': '.composer .c-queue',

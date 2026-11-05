@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const { coldCache, coldLine, coldLineAhead, coldLineShort, coldReply, GRACE, LARGE } = await import('../web/js/cold-cache.js');
+const { coldCache, coldLine, coldLineAhead, coldLineShort, coldReply, GRACE, LARGE, limitColdLine } = await import('../web/js/cold-cache.js');
 
 const H = 3_600_000;
 const M = 60_000;
@@ -190,4 +190,26 @@ test('a phone: the line folds with the bar, not with .awake, so a kept draft sta
   const fold = css.match(/^(body\.split\.stack #feed \.item\.open \.composer:not\(\.awake\)[^\n]*?) \.c-bar\b/m)?.[1];
   assert.ok(fold, 'the rule that folds the bar');
   assert.ok(css.includes(`${fold} > .c-hint:has(> .c-cold-row)`), 'the line folds on the same conditions');
+});
+
+// Tasks that woke at a reset went cold at 34 and 55 minutes of a 1h TTL: a stopped task's cache
+// doesn't keep to the check above, so the card says so whatever the TTL says.
+test('the limit card: inside the TTL it may have gone cold, past it it will have', () => {
+  const coldAt = T0 + H * GRACE;
+  assert.equal(limitColdLine(big(), T0 + 34 * M, T0 + M), 'Cache may have gone cold by then: if so, this reply re-reads about 480k');
+  assert.equal(limitColdLine(big(), T0 + 2 * M, T0 + M), 'Cache may have gone cold by then: if so, this reply re-reads about 480k', 'however soon the reset');
+  assert.equal(limitColdLine(big(), coldAt, T0 + M), 'Cache will have gone cold by then: this reply re-reads about 480k');
+  assert.equal(limitColdLine(big(), T0 + 3 * H, T0 + M), coldLineAhead(480_000));
+});
+
+test('the limit card leaves a cache that has already gone cold to the reply box', () => {
+  const coldAt = T0 + H * GRACE;
+  assert.equal(limitColdLine(big(), T0 + 9 * H, coldAt - 1), coldLineAhead(480_000));
+  assert.equal(limitColdLine(big(), T0 + 9 * H, coldAt), '');
+  assert.equal(coldReply(big(), {}, coldAt).tokens, 480_000, 'the box has it');
+});
+
+test('the limit card stays quiet where the line never shows', () => {
+  assert.equal(limitColdLine(task([turn(stats(99_999))]), T0 + 3 * H, T0 + M), '');
+  assert.equal(limitColdLine(task([turn({ outputTokens: 40 })]), T0 + 3 * H, T0 + M), '');
 });

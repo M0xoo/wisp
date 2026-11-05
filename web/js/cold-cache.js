@@ -55,3 +55,13 @@ export const coldLine = (tokens) => `Cache gone cold: this reply re-reads about 
 // When the bar can't hold coldLine: the number is the point, so this form keeps it.
 export const coldLineShort = (tokens) => `Cache cold: re-reads about ${about(tokens)}`;
 export const coldLineAhead = (tokens) => `Cache will have gone cold by then: this reply re-reads about ${about(tokens)}`;
+export const coldLineMaybe = (tokens) => `Cache may have gone cold by then: if so, this reply re-reads about ${about(tokens)}`;
+
+// The usage-limit card's line for a reply at the reset, or ''. GRACE doesn't hold here: of 3 tasks
+// that woke at a reset, 2 went cold inside a 1h TTL (34 and 55 min), so inside it the card says may.
+// Already cold, the reply box says so (coldReply) and the card doesn't say it twice.
+export function limitColdLine(s, until, now = Date.now()) {
+  const c = coldCache(s, until);
+  if (!c || now >= c.coldAt) return '';
+  return c.cold ? coldLineAhead(c.tokens) : coldLineMaybe(c.tokens);
+}
