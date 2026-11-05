@@ -31,10 +31,14 @@ export async function detectFirst(bin, fallbacks, pinned = false) {
   return { ...found, bin };
 }
 
+// A CLI's version line ("codex-cli 0.163.0", "2.1.316 (Claude Code)") as the bare version, or ''.
+export const versionIn = (line) => String(line || '').match(/\d+(?:\.\d+)+[^\s,)]*/)?.[0] || '';
+
 // Run `bin args` and resolve with stdout, or '' on any failure. Used for model discovery.
-export function quietOutput(bin, args, timeout = 15_000) {
+// env: the whole environment it runs with, when it isn't wisp's own (an account's CODEX_HOME).
+export function quietOutput(bin, args, timeout = 15_000, env) {
   return new Promise((resolve) => {
-    execFile(bin, args, { timeout, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => resolve(err ? '' : stdout));
+    execFile(bin, args, { timeout, maxBuffer: 4 * 1024 * 1024, ...(env && { env }) }, (err, stdout) => resolve(err ? '' : stdout));
   });
 }
 

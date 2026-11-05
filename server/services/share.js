@@ -69,6 +69,13 @@ export function redactDeep(v) {
   return { value: walk(v), hits };
 }
 
+// stats.cli.account is which of your logins ran it: that one stays here.
+function sharedStats({ cli, ...stats }) {
+  if (!cli) return stats;
+  const { account, ...rest } = cli;
+  return Object.keys(rest).length ? { ...stats, cli: rest } : stats;
+}
+
 // A turn as it's shared: what it asked and reported, and the files it touched. Nothing that only
 // makes sense here (checkpoints, attachments' files, side questions, comments). Its delegations
 // point at the shared run (task.runs[key]) and that run's turn: runOf(sessionId, turnId) → { run, turn }.
@@ -93,7 +100,7 @@ export function shareTurn(t, runOf = () => null) {
     presentation: t.presentation || null,
     raw: truncate(t.raw || '', 20_000),
     changes,
-    ...(t.stats && { stats: t.stats }),
+    ...(t.stats && { stats: sharedStats(t.stats) }),
     ...(t.rolledBackAt && { rolledBackAt: t.rolledBackAt }),
     ...(t.delegations?.length && {
       delegations: t.delegations.map((d) => ({ id: d.id, name: d.name, member: d.member || d.name, ...(d.crew && { crew: true }), agent: d.agent || '', model: d.model || '', effort: d.effort || '', prompt: textMentions(d.prompt || ''), startedAt: d.startedAt || null, ...runOf(d.sessionId, d.turnId) })),
