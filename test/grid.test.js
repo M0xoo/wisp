@@ -283,6 +283,7 @@ test('deleting an account: typed handle and CSRF, then its box, files, secrets, 
   const token = grid.accounts.pollCode(code.device_code, 5).token;
   const me = () => browser().go(`${base}/api/me`, { headers: { authorization: `Bearer ${token}`, accept: 'application/json' } });
   assert.equal((await me()).status, 200);
+  grid.accounts.createApiKey(eve.id, 'Eve’s script');
 
   const page = await b.go(`${base}/`);
   assert.match(page.text, /action="\/account\/delete"/);
@@ -304,7 +305,7 @@ test('deleting an account: typed handle and CSRF, then its box, files, secrets, 
   assert.match(String(done.headers['set-cookie']), /Max-Age=0/);
   assert.ok(!grid.accounts.byHandle('eve'));
   assert.ok(!fs.existsSync(folder), 'the box’s files, agent logins included');
-  for (const t of ['sessions', 'devices', 'identities', 'instances', 'user_secrets', 'keys', 'tickets', 'device_codes']) assert.equal(grid.db.get(`SELECT COUNT(*) AS n FROM ${t} WHERE user_id = ?`, eve.id).n, 0, t);
+  for (const t of ['sessions', 'devices', 'api_keys', 'identities', 'instances', 'user_secrets', 'keys', 'tickets', 'device_codes']) assert.equal(grid.db.get(`SELECT COUNT(*) AS n FROM ${t} WHERE user_id = ?`, eve.id).n, 0, t);
   assert.deepEqual(grid.db.all('SELECT action FROM audit WHERE user_id = ?', eve.id).map((r) => r.action), ['user.delete'], 'only that it happened');
   assert.equal(grid.hostd.inst.has(eve.id), false);
   assert.equal((await b.go(`${origin}/`)).status, 404, 'its address is gone');
@@ -1885,4 +1886,426 @@ test('an update swaps its folder in even while Windows still holds a file a visi
   await until(() => fs.readdirSync(path.join(dataDir, 'sites')).length === 1, { what: 'only the new version left' });
   sites.close();
   db.close();
+});
+
+// --- API keys: a script's way in to its user's own wisp, and nowhere else ---------------------
+
+const bearer = (t) => ({ authorization: `Bearer ${t}`, accept: 'application/json' });
+// A user with a device (not through /api/device/code: it has a per-address limit these would use
+// up), and a key made through the grid's API as wisp makes it.
+async function keyUser(email) {
+  const user = grid.accounts.signIn({ provider: 'dev', subject: email, email, emailVerified: true, login: email.split('@')[0] });
+  const code = grid.accounts.deviceCode('Laptop (wisp)');
+  grid.accounts.answerCode(code.user_code, user.id, true);
+  const device = grid.accounts.pollCode(code.device_code, 5).token;
+  const make = (name = 'script') => browser().go(`${base}/api/keys`, { method: 'POST', body: { name }, headers: bearer(device) });
+  return { device, user, make, url: cfg.instanceUrl(user.handle), list: async () => (await browser().go(`${base}/api/keys`, { headers: bearer(device) })).json.keys };
+}
+const liveKeys = (id) => grid.db.get('SELECT COUNT(*) AS n FROM api_keys WHERE user_id = ? AND revoked_at IS NULL', id).n;
+
+test('API keys: create returns the key once; lists never carry the key or its hash', async () => {
+  const u = await keyUser('kai@example.com');
+  const r = await u.make('  Deploy script  ');
+  assert.equal(r.status, 201, r.text);
+  assert.equal(r.headers['cache-control'], 'no-store');
+  assert.match(r.json.key, /^wgk_[\w-]{43}$/);
+  assert.deepEqual(Object.keys(r.json).sort(), ['createdAt', 'hint', 'id', 'key', 'lastUsedAt', 'name']);
+  assert.deepEqual([r.json.name, r.json.hint, r.json.lastUsedAt], ['Deploy script', r.json.key.slice(-4), null]);
+  await u.make('Newer');
+  const got = await browser().go(`${base}/api/keys`, { headers: bearer(u.device) });
+  assert.equal(got.headers['cache-control'], 'no-store');
+  assert.deepEqual(got.json.keys.map((k) => k.name), ['Newer', 'Deploy script'], 'newest first');
+  assert.deepEqual(Object.keys(got.json.keys[1]).sort(), ['createdAt', 'hint', 'id', 'lastUsedAt', 'name']);
+  assert.ok(!got.text.includes(r.json.key));
+  assert.doesNotMatch(got.text, /token_hash|revoked_at|wgk_/);
+  const row = grid.db.get('SELECT token_hash FROM api_keys WHERE id = ?', r.json.id);
+  assert.ok(!got.text.includes(row.token_hash));
+});
+
+test('API keys: only the hash is at rest; the key is in no column of api_keys or audit', async () => {
+  const u = await keyUser('kim@example.com');
+  const { json } = await u.make('Hash check');
+  const db = await openDb(cfg.dataDir); // a second connection: what's in the file, not in memory
+  try {
+    const row = db.get('SELECT * FROM api_keys WHERE id = ?', json.id);
+    assert.equal(row.token_hash, createHash('sha256').update(json.key).digest('base64url'));
+    assert.equal(row.hint.length, 4);
+    const body = json.key.slice(4);
+    for (const r of [...db.all('SELECT * FROM api_keys WHERE user_id = ?', u.user.id), ...db.all('SELECT * FROM audit WHERE user_id = ?', u.user.id)]) {
+      assert.ok(!JSON.stringify(r).includes(body), JSON.stringify(r));
+    }
+    const made = db.all("SELECT meta FROM audit WHERE user_id = ? AND action = 'apikey.create'", u.user.id);
+    assert.deepEqual(made.map((r) => JSON.parse(r.meta)), [{ id: json.id }], 'its id, not its name');
+  } finally {
+    db.close();
+  }
+});
+
+test('API keys: a key reaches its own wisp through the edge; none, or a typo, is a json 401', async () => {
+  const u = await keyUser('kit-key@example.com');
+  const { json: k } = await u.make();
+  const health = await browser().go(`${u.url}/api/health`, { headers: bearer(k.key) });
+  assert.equal(health.status, 200, health.text);
+  assert.equal(health.json.name, 'wisp');
+  assert.equal(health.json.url, u.url);
+  const sessions = await browser().go(`${u.url}/api/sessions`, { headers: { authorization: `Bearer ${k.key}`, accept: '*/*' } });
+  assert.equal(sessions.status, 200, 'as curl asks');
+  assert.ok(Array.isArray(sessions.json));
+  const launched = await browser().go(`${u.url}/api/sessions`, { method: 'POST', body: { prompt: 'from a script', agent: 'claude' }, headers: bearer(k.key) });
+  assert.equal(launched.status, 201, launched.text);
+  for (const headers of [{ accept: '*/*' }, { accept: '*/*', authorization: 'Bearer wgk_typo' }, { accept: '*/*', authorization: `Bearer ${k.key.slice(0, -1)}` }, { accept: '*/*', authorization: k.key }]) {
+    const r = await browser().go(`${u.url}/api/sessions`, { headers });
+    assert.equal(r.status, 401, JSON.stringify(headers));
+    assert.deepEqual(r.json, { error: 'Sign in again.' });
+    assert.match(r.headers['content-type'], /json/);
+  }
+  const url = await browser().go(`${u.url}/api/sessions?key=${k.key}`, { headers: { accept: '*/*' } });
+  assert.equal(url.status, 401, 'never from the query string');
+});
+
+test('API keys: revoked, the same call is 401; another user’s id is a 404 and leaves it working', async () => {
+  const u = await keyUser('kaz@example.com');
+  const other = await keyUser('kay@example.com');
+  const { json: k } = await u.make();
+  const call = () => browser().go(`${u.url}/api/health`, { headers: bearer(k.key) });
+  assert.equal((await call()).status, 200);
+  const foreign = await browser().go(`${base}/api/keys/${k.id}`, { method: 'DELETE', headers: { ...bearer(other.device), 'content-type': 'application/json' } });
+  assert.deepEqual([foreign.status, foreign.json.error], [404, 'No such key.']);
+  assert.equal((await browser().go(`${base}/api/keys/abcdef012345`, { method: 'DELETE', headers: bearer(u.device) })).status, 404);
+  assert.equal((await call()).status, 200, 'still works');
+  const gone = await browser().go(`${base}/api/keys/${k.id}`, { method: 'DELETE', headers: bearer(u.device) });
+  assert.deepEqual([gone.status, gone.json, gone.headers['cache-control']], [200, { ok: true }, 'no-store']);
+  const after = await call();
+  assert.deepEqual([after.status, after.json], [401, { error: 'Sign in again.' }]);
+  assert.deepEqual(await u.list(), [], 'a revoked key isn’t listed');
+  assert.equal((await browser().go(`${base}/api/keys/${k.id}`, { method: 'DELETE', headers: bearer(u.device) })).status, 404, 'revoked once');
+  assert.deepEqual(grid.db.all("SELECT action FROM audit WHERE user_id = ? AND action LIKE 'apikey.%' ORDER BY id", u.user.id).map((r) => r.action), ['apikey.create', 'apikey.revoke']);
+});
+
+test('API keys: another user’s wisp refuses a key, even beside a valid cookie for that wisp', async () => {
+  const owner = await keyUser('kes@example.com');
+  const { json: k } = await owner.make();
+  const b = browser();
+  await devSignIn(b, 'kev@example.com');
+  const { origin } = await openWisp(b);
+  assert.equal((await b.go(`${origin}/_grid/state`, { headers: { accept: 'application/json' } })).status, 200, 'the cookie opens it alone');
+  const r = await b.go(`${origin}/_grid/state`, { headers: bearer(k.key) });
+  assert.deepEqual([r.status, r.json], [401, { error: 'Sign in again.' }]);
+  assert.equal((await browser().go(`${origin}/api/health`, { headers: bearer(k.key) })).status, 401);
+});
+
+test('API keys: last used is empty at first, set on use, kept for a minute, then moves', async () => {
+  const u = await keyUser('kip@example.com');
+  const { json: k } = await u.make();
+  const used = () => grid.db.get('SELECT last_used_at AS t FROM api_keys WHERE id = ?', k.id).t;
+  const age = (ms) => {
+    const t = Date.now() - ms;
+    grid.db.run('UPDATE api_keys SET last_used_at = ? WHERE id = ?', t, k.id);
+    return t;
+  };
+  const call = () => browser().go(`${u.url}/_grid/state`, { headers: bearer(k.key) });
+  assert.equal(used(), null);
+  assert.equal((await u.list())[0].lastUsedAt, null);
+  const t0 = Date.now();
+  assert.equal((await call()).status, 200);
+  assert.ok(used() >= t0, 'set by the first use');
+  assert.equal((await u.list())[0].lastUsedAt, used());
+  const recent = age(30_000);
+  await call();
+  assert.equal(used(), recent, 'not rewritten within a minute');
+  const old = age(61_000);
+  await call();
+  assert.ok(used() > old + 60_000, 'moves once the last is older than a minute');
+});
+
+test('API keys: refused on a computer’s address, a sandbox’s, the tunnel and all of the grid’s own API', async () => {
+  const u = await keyUser('kor@example.com');
+  const { json: k } = await u.make();
+  // A computer: its device gets through, a key doesn't.
+  const c = (await browser().go(`${base}/api/computers`, { method: 'POST', body: { name: 'Kor desk' }, headers: bearer(u.device) })).json;
+  assert.equal((await browser().go(`${c.url}/_grid/state`, { headers: bearer(u.device) })).status, 200);
+  for (const p of ['/_grid/state', '/api/health']) assert.deepEqual((await browser().go(`${c.url}${p}`, { headers: bearer(k.key) })).status, 401, p);
+  assert.equal((await browser().go(`${c.url}/_grid/preview?port=3000`, { method: 'POST', body: {}, headers: bearer(k.key) })).status, 401);
+  // A sandbox: its own token gets through, a key doesn't.
+  const { row } = grid.sandboxes.create(u.user, 'Kor box');
+  const sb = cfg.instanceUrl(row.label);
+  assert.equal((await browser().go(`${sb}/_grid/state`, { headers: bearer(grid.sandboxes.bearer(row)) })).status, 200);
+  for (const p of ['/_grid/state', '/api/health']) assert.equal((await browser().go(`${sb}${p}`, { headers: bearer(k.key) })).status, 401, p);
+  grid.sandboxes.remove(row);
+  // The grid's own API: nothing there knows a key.
+  const asks = [['GET', '/api/me'], ['POST', '/api/device/link'], ['POST', '/api/device/revoke'], ['GET', '/api/computers'], ['POST', '/api/computers'], ['DELETE', `/api/computers/${c.id}`], ['GET', '/api/sites'], ['GET', '/api/shares/mine'], ['GET', '/api/sandboxes'], ['POST', '/api/sandboxes'], ['GET', '/api/keys'], ['POST', '/api/keys'], ['DELETE', `/api/keys/${k.id}`]];
+  for (const [method, p] of asks) {
+    const r = await browser().go(`${base}${p}`, { method, ...(method === 'POST' && { body: {} }), headers: bearer(k.key) });
+    assert.equal(r.status, 401, `${method} ${p}`);
+  }
+  assert.equal(liveKeys(u.user.id), 1, 'nothing made or revoked by a key');
+  // The tunnel: a device's way in, not a key's.
+  const answer = await new Promise((resolve, reject) => {
+    const sock = net.connect(cfg.listen.port, '127.0.0.1', () => sock.write(`GET /api/computers/${c.id}/tunnel HTTP/1.1\r\nHost: ${new URL(base).host}\r\nUpgrade: wisp-tunnel\r\nConnection: Upgrade\r\nAuthorization: Bearer ${k.key}\r\n\r\n`));
+    let got = '';
+    sock.on('data', (d) => (got += d));
+    sock.on('close', () => resolve(got));
+    sock.on('error', reject);
+  });
+  assert.match(answer, /^HTTP\/1\.1 401/);
+});
+
+test('API keys: through its own wisp a key can’t manage keys', async () => {
+  const u = await keyUser('kol@example.com');
+  const { json: k } = await u.make();
+  const before = grid.db.get('SELECT COUNT(*) AS n FROM api_keys WHERE user_id = ?', u.user.id).n;
+  const asKey = (method, p, body) => browser().go(`${u.url}/api${p}`, { method, ...(body && { body }), headers: { ...bearer(k.key), 'content-type': 'application/json' } });
+  for (const [method, p, body] of [['GET', '/cloud/keys'], ['POST', '/cloud/keys', { name: 'second' }], ['DELETE', `/cloud/keys/${k.id}`]]) {
+    const r = await asKey(method, p, body);
+    assert.deepEqual([r.status, r.json], [403, { error: 'An API key can’t manage API keys.' }], `${method} ${p}`);
+    assert.equal(r.headers['cache-control'], 'no-store');
+  }
+  assert.equal(grid.db.get('SELECT COUNT(*) AS n FROM api_keys WHERE user_id = ?', u.user.id).n, before, 'no key was made');
+  assert.equal(liveKeys(u.user.id), 1, 'none revoked');
+});
+
+test('API keys: the box’s real secret makes no key, on the grid or through its own wisp', async () => {
+  const u = await keyUser('kob@example.com');
+  const secret = grid.secrets.ensure(u.user.id, 'wisp-proxy');
+  const box = { authorization: `Box kob ${secret}`, accept: 'application/json', 'content-type': 'application/json' };
+  // What Box still opens is unchanged; /api/keys isn't part of it.
+  assert.equal((await browser().go(`${base}/api/sites`, { headers: box })).status, 200);
+  const made = await browser().go(`${base}/api/keys`, { method: 'POST', body: { name: 'from the box' }, headers: box });
+  assert.equal(made.status, 401, made.text);
+  assert.equal((await browser().go(`${base}/api/keys`, { headers: box })).status, 401);
+  assert.equal(liveKeys(u.user.id), 0);
+  const { json: k } = await u.make();
+  assert.equal((await browser().go(`${base}/api/keys/${k.id}`, { method: 'DELETE', headers: box })).status, 401);
+  assert.equal(liveKeys(u.user.id), 1, 'nor revoke one');
+
+  // On the box: with the proxy secret from its environment the wisp takes it for the edge, and
+  // still has no grid to make keys on.
+  const local = await until(async () => {
+    await browser().go(`${u.url}/api/health`, { headers: bearer(k.key) });
+    const port = grid.hostd.port(u.user.id);
+    if (!port) return false;
+    const ask = (opts = {}) => fetch(`http://127.0.0.1:${port}/api/cloud/keys`, { ...opts, headers: { ...opts.headers, 'x-wisp-proxy-secret': secret } }).then(async (r) => ({ status: r.status, json: await r.json() }));
+    return Promise.all([ask(), ask({ method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"name":"agent"}' })]).catch(() => false);
+  }, { what: 'the box’s own port' });
+  assert.deepEqual(local[0], { status: 200, json: { grid: null, keys: [] } });
+  assert.equal(local[1].status, 409);
+  assert.match(local[1].json.error, /Sign in to a wisp Grid first/);
+  assert.equal(liveKeys(u.user.id), 1, 'no key from the box');
+});
+
+const previewAt = (label, port = 5173) => cfg.instanceUrl(`p${port}--${label}`);
+
+test('a preview ticket opens only its own label’s preview addresses: refused, and not spent, on the wisp, a computer, a sandbox or another’s preview', async () => {
+  const u = await keyUser('kam@example.com');
+  const { json: k } = await u.make();
+  const c = (await browser().go(`${base}/api/computers`, { method: 'POST', body: { name: 'Kam desk' }, headers: bearer(u.device) })).json;
+  const { row } = grid.sandboxes.create(u.user, 'Kam box');
+  const sb = cfg.instanceUrl(row.label);
+  const labels = ['kam', new URL(c.url).hostname.split('.')[0], row.label];
+  const b = browser();
+  await devSignIn(b, 'kam@example.com');
+  await b.go((await b.go(`${base}/go`)).location); // the cookie on its address, without waking the box
+  const link = (from, headers) => browser().go(`${from}/_grid/preview?port=6080&path=/x`, { method: 'POST', body: {}, headers }).then((r) => (assert.equal(r.status, 200, r.text), r.json.url));
+  const cookie = await b.go(`${u.url}/_grid/preview?port=3000&path=/x`, { method: 'POST', body: {}, headers: { origin: u.url } });
+  assert.equal(cookie.status, 200, cookie.text);
+  const links = {
+    'a sandbox’s token': await link(sb, bearer(grid.sandboxes.bearer(row))),
+    'an API key': await link(u.url, bearer(k.key)),
+    'a cookie': cookie.json.url,
+    '/go?preview': (await b.go(`${base}/go?preview=3000&path=/x`)).location,
+  };
+  for (const [who, url] of Object.entries(links)) {
+    const { search, hostname } = new URL(url);
+    const own = /^p\d+--([^.]+)\./.exec(hostname)[1];
+    assert.ok(labels.includes(own), own);
+    for (const at of [u.url, c.url, sb, ...labels.filter((l) => l !== own).map((l) => previewAt(l))]) {
+      const r = await browser().go(`${at}/_grid/auth${search}`);
+      assert.equal(r.status, 302, `${who} at ${at}`);
+      assert.match(r.location, /\/go/, `${who} at ${at}: back to sign in`);
+      assert.equal(r.headers['set-cookie'], undefined, `${who} at ${at}: no session`);
+    }
+    const page = browser();
+    const r = await page.go(url);
+    assert.equal(r.location, '/x', `${who}: still good on its preview address`);
+    assert.match(String(r.headers['set-cookie']), /wisp_grid=/);
+    assert.match((await browser().go(url)).location, /\/go\?preview=/, `${who}: once`);
+  }
+  grid.sandboxes.remove(row);
+  // A ticket for the user's own addresses is no good on a preview's, and isn't spent there.
+  const t = grid.accounts.ticket(u.user.id);
+  const on = await browser().go(`${previewAt('kam')}/_grid/auth?t=${t}&r=/y`);
+  assert.match(on.location, /\/go\?preview=/);
+  assert.equal(on.headers['set-cookie'], undefined);
+  assert.equal((await browser().go(`${u.url}/_grid/auth?t=${t}&r=/y`)).location, '/y');
+  assert.equal(grid.db.get('SELECT COUNT(*) AS n FROM sessions WHERE user_id = ? AND scope = ?', u.user.id, `i:${u.user.id}`).n, 2, 'only the two sign-ins');
+  assert.deepEqual(grid.db.all("SELECT DISTINCT scope FROM sessions WHERE user_id = ? AND scope LIKE 'p:%' ORDER BY scope", u.user.id).map((x) => x.scope), ['p:kam', `p:${row.label}`].sort());
+});
+
+test('a preview cookie is good for its own label only: replayed on a computer’s or a sandbox’s preview it’s a 401, over HTTP and websocket', async () => {
+  const u = await keyUser('kaj@example.com');
+  const { json: k } = await u.make();
+  const c = (await browser().go(`${base}/api/computers`, { method: 'POST', body: { name: 'Kaj desk' }, headers: bearer(u.device) })).json;
+  const computer = new URL(c.url).hostname.split('.')[0];
+  const { row } = grid.sandboxes.create(u.user, 'Kaj box');
+  const json = { accept: 'application/json' };
+  const carrying = (value, at) => {
+    const b = browser();
+    b.jar.set(new URL(at).host, new Map([['wisp_grid', value]]));
+    return b;
+  };
+  // A real cookie, spent on the user's own preview address with a key's link.
+  const link = await browser().go(`${u.url}/_grid/preview?port=3000`, { method: 'POST', body: {}, headers: bearer(k.key) });
+  const own = browser();
+  await own.go(link.json.url);
+  const value = own.jar.get(new URL(link.json.url).host).get('wisp_grid');
+  assert.ok(value);
+  assert.equal((await own.go(`${previewAt('kaj', 3000)}/x`, { headers: json })).status, 503, 'in on its own label: only asleep');
+  for (const label of [computer, row.label]) {
+    const at = previewAt(label);
+    const r = await carrying(value, at).go(`${at}/x`, { headers: json });
+    assert.deepEqual([r.status, r.json], [401, { error: 'Sign in again.' }], label);
+    assert.match(await wsEcho(carrying(value, at), at), /^HTTP\/1\.1 401/, `${label}: websocket`);
+  }
+  // A session that does belong there gets past the check (the computer is offline): it's not refusing everyone.
+  const there = browser();
+  const at = previewAt(computer);
+  await there.go(`${at}/_grid/auth?t=${grid.accounts.ticket(u.user.id, `preview:${computer}`)}`);
+  assert.equal((await there.go(`${at}/x`, { headers: json })).status, 503);
+  // A session from before this: scope p:<user id>. Nothing honours it, and a browser walks the sign-in back.
+  const old = grid.accounts.createSession(u.user.id, `p:${u.user.id}`);
+  const home = previewAt('kaj', 3000);
+  assert.equal((await carrying(old, home).go(`${home}/x`, { headers: json })).status, 401);
+  assert.match((await carrying(old, home).go(`${home}/x`)).location, /\/go\?preview=3000&path=/);
+  assert.match(await wsEcho(carrying(old, home), home), /^HTTP\/1\.1 401/);
+  grid.sandboxes.remove(row);
+});
+
+test('/_grid/keys: the browser’s cookie makes, lists and revokes keys, with the box asleep; nothing else can', async () => {
+  const u = await keyUser('kig@example.com');
+  const { json: old } = await u.make('From the desktop');
+  const b = browser();
+  await devSignIn(b, 'kig@example.com');
+  await b.go((await b.go(`${base}/go`)).location); // the cookie on its address, without waking the box
+  const asleep = () => assert.equal(grid.hostd.inst.has(u.user.id), false, 'hostd never heard of it');
+  const page = (method, p, body, headers = { origin: u.url }) => b.go(`${u.url}/_grid/keys${p}`, { method, ...(body && { body }), headers: { accept: 'application/json', 'content-type': 'application/json', ...headers } });
+  const list = await page('GET', '');
+  assert.deepEqual([list.status, list.headers['cache-control'], list.json.keys.map((k) => k.name)], [200, 'no-store', ['From the desktop']]);
+  assert.deepEqual(Object.keys(list.json.keys[0]).sort(), ['createdAt', 'hint', 'id', 'lastUsedAt', 'name'], 'as /api/keys answers');
+  const made = await page('POST', '', { name: ' From Settings ' });
+  assert.deepEqual([made.status, made.headers['cache-control'], made.json.name], [201, 'no-store', 'From Settings']);
+  assert.match(made.json.key, /^wgk_/);
+  assert.deepEqual((await page('GET', '')).json.keys.map((k) => k.name), ['From Settings', 'From the desktop']);
+  assert.deepEqual([(await page('POST', '', { name: '' })).status, (await page('POST', '', { name: '' })).json.error], [400, 'Give the key a name.']);
+  asleep();
+
+  // A key, a device and nobody: refused, and it stays asleep.
+  const refused = { error: 'API keys are made from Settings, in a browser.' };
+  for (const auth of [bearer(made.json.key), bearer(u.device)]) {
+    for (const [method, p, body] of [['GET', ''], ['POST', '', { name: 'x' }], ['DELETE', `/${old.id}`]]) {
+      const r = await browser().go(`${u.url}/_grid/keys${p}`, { method, ...(body && { body }), headers: auth });
+      assert.deepEqual([r.status, r.json], [403, refused], `${method} ${p}`);
+    }
+  }
+  for (const [method, body] of [['GET'], ['POST', { name: 'x' }]]) assert.equal((await browser().go(`${u.url}/_grid/keys`, { method, ...(body && { body }), headers: { accept: 'application/json' } })).status, 401, method);
+  // Another site, or a post with no Origin, with the cookie.
+  for (const origin of ['https://evil.example', undefined]) {
+    const r = await page('POST', '', { name: 'x' }, origin ? { origin } : {});
+    assert.deepEqual([r.status, r.json], [403, { error: 'forbidden origin' }], String(origin));
+  }
+  assert.equal(liveKeys(u.user.id), 2, 'nothing made or revoked');
+  // A sandbox's address has none, for anyone who gets in there.
+  const { row } = grid.sandboxes.create(u.user, 'Kig box');
+  const sb = await browser().go(`${cfg.instanceUrl(row.label)}/_grid/keys`, { headers: bearer(grid.sandboxes.bearer(row)) });
+  assert.equal(sb.status, 404);
+  grid.sandboxes.remove(row);
+
+  assert.deepEqual([(await page('DELETE', '/abcdef012345')).status, (await page('DELETE', '/abcdef012345')).json.error], [404, 'No such key.']);
+  assert.equal((await page('DELETE', '/not-hex')).status, 404);
+  assert.equal((await page('GET', '/not-hex')).status, 404);
+  const gone = await page('DELETE', `/${made.json.id}`);
+  assert.deepEqual([gone.status, gone.json, gone.headers['cache-control']], [200, { ok: true }, 'no-store']);
+  assert.equal((await browser().go(`${u.url}/_grid/state`, { headers: bearer(made.json.key) })).status, 401, 'revoked');
+  asleep();
+  assert.equal(grid.hostd.state(u.user.id), 'stopped');
+  // Someone else's id, with a good cookie: not theirs to revoke.
+  const other = await keyUser('kib@example.com');
+  const { json: theirs } = await other.make();
+  assert.equal((await page('DELETE', `/${theirs.id}`)).status, 404);
+  assert.equal(liveKeys(other.user.id), 1);
+});
+
+test('API keys: a disabled user’s key stops, and a deleted user’s keys go', async () => {
+  const u = await keyUser('kem@example.com');
+  const { json: k } = await u.make();
+  const call = () => browser().go(`${u.url}/_grid/state`, { headers: bearer(k.key) });
+  assert.equal((await call()).status, 200);
+  grid.accounts.setDisabled(u.user.id, true);
+  assert.equal((await call()).status, 401);
+  assert.equal(grid.accounts.apiKey(`Bearer ${k.key}`), null);
+  grid.accounts.setDisabled(u.user.id, false);
+  assert.equal((await call()).status, 200);
+  grid.accounts.remove(u.user.id);
+  assert.equal(grid.db.get('SELECT COUNT(*) AS n FROM api_keys WHERE user_id = ?', u.user.id).n, 0);
+  assert.equal(grid.accounts.apiKey(`Bearer ${k.key}`), null);
+});
+
+test('API keys: the box never sees the key; it hears x-wisp-proxy-via only for a key; 21st key and empty names refused; 600 calls a minute', async () => {
+  const u = await keyUser('kat@example.com');
+  const { json: k } = await u.make();
+  // A stand-in for the user's box, to read what the edge sends it.
+  const seen = [];
+  const box = http.createServer((req, res) => {
+    seen.push(req.headers);
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end('{}');
+  });
+  const port = Number((await listen(box)).split(':').pop());
+  const { state, port: realPort } = grid.hostd;
+  grid.hostd.state = function (id) {
+    return id === u.user.id ? 'running' : state.call(this, id);
+  };
+  grid.hostd.port = function (id) {
+    return id === u.user.id ? port : realPort.call(this, id);
+  };
+  try {
+    const r = await browser().go(`${u.url}/api/health?x=1`, { headers: { ...bearer(k.key), cookie: 'a=1', 'x-wisp-proxy-via': 'cookie', 'x-wisp-proxy-secret': 'guess' } });
+    assert.equal(r.status, 200, r.text);
+    const h = seen.at(-1);
+    assert.equal(h.authorization, undefined, 'authorization stays on the grid');
+    assert.equal(h.cookie, undefined);
+    assert.equal(h['x-wisp-proxy-via'], 'key');
+    assert.equal(h['x-wisp-proxy-secret'], grid.secrets.ensure(u.user.id, 'wisp-proxy'));
+    assert.ok(!JSON.stringify(h).includes(k.key.slice(4)), 'the key is nowhere in what it got');
+    await browser().go(`${u.url}/api/health`, { headers: { ...bearer(u.device), 'x-wisp-proxy-via': 'key' } });
+    assert.equal(seen.at(-1)['x-wisp-proxy-via'], undefined, 'a device isn’t a key, and can’t be taken for one');
+    assert.equal(seen.at(-1).authorization, undefined);
+
+    let last = null;
+    const count = seen.length;
+    for (let i = 0; i < 599; i++) last = await browser().go(`${u.url}/api/health`, { headers: bearer(k.key) });
+    assert.equal(last.status, 200, 'the 600th of the minute, counting the first call above');
+    const over = await browser().go(`${u.url}/api/health`, { headers: bearer(k.key) });
+    assert.deepEqual([over.status, over.json], [429, { error: 'Too many requests. Wait a minute.' }]);
+    assert.equal(seen.length - count, 599, 'the 601st is refused before the box');
+  } finally {
+    delete grid.hostd.state;
+    delete grid.hostd.port;
+    box.close();
+  }
+  // 20 live keys at most; revoking one frees a place. A name is required, and 60 characters at most.
+  while (liveKeys(u.user.id) < 20) grid.accounts.createApiKey(u.user.id, `key ${liveKeys(u.user.id)}`);
+  const full = await u.make('one too many');
+  assert.equal(full.status, 409);
+  assert.match(full.json.error, /20 API keys.*Revoke one first/);
+  assert.equal(liveKeys(u.user.id), 20);
+  assert.equal(grid.accounts.revokeApiKey(u.user.id, k.id), true);
+  assert.equal((await u.make('room again')).status, 201);
+  assert.equal(grid.accounts.revokeApiKey(u.user.id, k.id), false, 'once');
+  grid.accounts.revokeApiKey(u.user.id, (await u.list())[0].id);
+  for (const name of ['', '   ', 'x'.repeat(61), undefined, null, 7]) {
+    const r = await browser().go(`${base}/api/keys`, { method: 'POST', body: { name }, headers: bearer(u.device) });
+    assert.equal(r.status, 400, JSON.stringify(name));
+    assert.match(r.json.error, /name/);
+  }
+  assert.equal(liveKeys(u.user.id), 19);
 });

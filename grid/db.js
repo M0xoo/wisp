@@ -67,6 +67,16 @@ const MIGRATIONS = [
      id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
      label TEXT UNIQUE NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL);
    CREATE INDEX sandboxes_user ON sandboxes(user_id);`,
+  // API keys (grid/accounts.js): a script's way in to its user's own wisp, and nowhere else. hint:
+  // the key's last 4 characters, so a person can tell keys apart; the key itself is never kept.
+  `CREATE TABLE api_keys (
+     id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL,
+     token_hash TEXT UNIQUE NOT NULL, hint TEXT NOT NULL, created_at INTEGER NOT NULL, last_used_at INTEGER, revoked_at INTEGER);
+   CREATE INDEX api_keys_user ON api_keys(user_id);`,
+  // What a ticket is good for. 'preview:<label>': that one box's or computer's preview addresses (a
+  // preview link, which anything on a box can ask for, must never become a session anywhere else).
+  // NULL: the user's own addresses, never a preview's.
+  `ALTER TABLE tickets ADD COLUMN scope TEXT;`,
 ];
 
 export async function openDb(dataDir) {

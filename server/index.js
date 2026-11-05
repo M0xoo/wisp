@@ -35,6 +35,7 @@ import { turnServers } from './connectors.js';
 import { createCloud } from './services/cloud.js';
 import { createComputer } from './services/computer.js';
 import { createSandbox } from './services/sandbox.js';
+import { createApiKeys } from './services/api-keys.js';
 import { createAgentLogin } from './agent-login.js';
 import { Router } from './router.js';
 import { Accounts, useAccounts } from './accounts.js';
@@ -308,6 +309,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.cloud = createCloud(app);
   app.computer = createComputer(app);
   app.sandbox = createSandbox(app); // /sandbox: a task in a fresh box on your grid (services/sandbox.js)
+  app.apiKeys = createApiKeys(app); // keys for scripting a cloud wisp, kept on the grid (services/api-keys.js)
   // Signing in to a harness from the page; once in, its models are looked up again.
   const loginStates = new Map();
   app.accounts = accounts;

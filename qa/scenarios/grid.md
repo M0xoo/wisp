@@ -166,6 +166,32 @@ Users are `ada@example.com` (handle `ada`) and `bob@example.com` (handle `bob`),
   The card and the tab fit 390px, light and dark. A delegate placed on **Sandbox** and a crew member
   on **A sandbox of their own** each get one; deleting the lead or the member removes it.
 
+### GRID-30 · API keys: scripting a cloud wisp
+*Automated in `test/grid.test.js`; the card by hand*
+- **Preconditions:** a grid; a user signed in to their cloud wisp, and a desktop wisp signed in to
+  the same grid.
+- **Steps:** in the cloud wisp, Settings → Connect → **API keys** (the browser asks the grid at
+  `/_grid/keys`; the box isn't involved): name one and **Create key**; **Copy**, **Done**.
+  `curl -H "Authorization: Bearer wgk_…" https://<handle>.<domain>/api/sessions`. Open Settings →
+  Cloud → **API keys** on the desktop (it asks through `/api/cloud/keys` with its device sign-in).
+  Try the key on `<computer>.<domain>`, `sb-<id>--<handle>.<domain>`, the grid's `/api/me`, and on
+  its own wisp's `/api/cloud/keys` and `/_grid/keys`. **Revoke** it and run the first `curl` again.
+- **Expected:** the box empties at once and the row shows before the key arrives; the key shows once,
+  and is gone after Done, after leaving the pane or closing Settings, and on reload. The `curl`
+  answers and *Last used* moves; the desktop lists the same key. The computer, the sandbox and
+  `/api/me` answer 401, `/api/cloud/keys` 403 (*An API key can’t manage API keys.*), `/_grid/keys`
+  403 (*API keys are made from Settings, in a browser.*). After Revoke, which asks first, the `curl`
+  is 401. From a shell on the box, the Box secret on the grid's `/api/keys` is 401 and
+  `localhost:<port>/api/cloud/keys` makes nothing (`grid: null`, 409 on POST), and a preview link's
+  `/_grid/auth?t=…` opens only its preview address, never `<handle>.<domain>`. A desktop signed in to
+  no grid, a sandbox's page and an older grid show no card, and the phone app never does. The card
+  fits 390px, light and dark. A preview link's ticket and cookie open only that box's or computer's
+  preview addresses, and an uploaded page doesn't run (`/api/uploads/<id>`: `content-security-policy:
+  sandbox`) while images, text and PDFs still show.
+- **Risk:** a key is everything you can do in your wisp, running tasks included. Revoking stops the
+  key, not what it started: if a leaked key was used, treat the box as compromised. A page the box
+  serves to a signed-in person can reach `/_grid/keys`.
+
 ### GRID-24 · Caddy on-demand TLS and DNS
 *Manual*
 - **Expected:** a new handle gets a certificate on first visit; an unknown name is refused (Caddy's

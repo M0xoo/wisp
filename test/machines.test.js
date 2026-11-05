@@ -349,6 +349,15 @@ test('connect, add a project, launch, follow up, delegate and stop wisp over the
   assert.equal(full.turns.length, 1);
   assert.ok(full.turns[0].attachments[0].id.endsWith(`@${m.id}`));
   assert.equal(await fetch(`${base}/api/uploads/${full.turns[0].attachments[0].id}`).then((r) => r.text()), 'remember the milk');
+  // Whatever was uploaded is inert on wisp's own address, here and when it comes from a machine.
+  const page = await (await fetch(`${base}/api/uploads?name=x.html`, { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: '<script>document.title = "ran"</script>' })).json();
+  assert.equal(page.mime, 'text/html; charset=utf-8');
+  for (const id of [page.id, full.turns[0].attachments[0].id]) {
+    const r = await fetch(`${base}/api/uploads/${id}`);
+    assert.equal(r.headers.get('x-content-type-options'), 'nosniff', id);
+    assert.equal(r.headers.get('content-security-policy'), 'sandbox', id);
+    await r.text();
+  }
   const md = await fetch(`${base}/api/sessions/${s.id}/presentation?format=markdown`).then((r) => r.text());
   assert.ok(md.length > 0);
 

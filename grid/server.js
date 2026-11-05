@@ -4,13 +4,14 @@
 //                       device, and the device API (/api/device/*) wisp on computers and phones use
 //   <handle>.<domain>   the edge: that user's own wisp, started on demand by hostd and proxied
 //                       (HTTP + SSE) in trusted-proxy mode. Signed in by a host-only cookie (set
-//                       from a one-time ticket) or a device's bearer token.
+//                       from a one-time ticket), a device's bearer token, or an API key (wgk_…,
+//                       made in wisp's Settings: this address only, for scripts).
 //   <name>--<handle>.<domain>
 //                       a computer the user added (wisp on their desktop), signed in the same way
 //                       and sent through the tunnel that computer holds open (grid/tunnels.js).
 //   p<port>--<handle>.<domain>
 //                       a page the agent left running in that user's box (localhost:<port> there),
-//                       for the preview block: its own sign-in (scope p:<user id>), then through
+//                       for the preview block: its own sign-in (scope p:<label>), then through
 //                       their wisp, which passes it on to that port (server/http/preview.js).
 //                       Boxes only (hostd.previews): a process wisp's loopback is the grid's own.
 //   p<port>--<name>--<handle>.<domain>
@@ -262,6 +263,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     const got = Buffer.from(m[2]);
     return got.length === want.length && timingSafeEqual(got, want) ? u : null;
   };
+  const keyView = (k) => ({ id: k.id, name: k.name, hint: k.hint, createdAt: k.created_at, lastUsedAt: k.last_used_at ?? null });
   // A user's computer, or a 404.
   const ownComputer = (userId, id) => {
     const c = accounts.computer(id);
@@ -465,6 +467,14 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         }
         return send(404, { error: 'not found' });
       }
+      // API keys, for scripts, from wisp on a computer: a device token only. Not the Box secret, which
+      // anything on the box can read; a cloud wisp's person makes keys at its edge (/_grid/keys).
+      const ak = /^\/api\/keys(?:\/([a-f0-9]{1,32}))?$/.exec(p);
+      if (ak) {
+        const who = accounts.device(req.headers.authorization)?.user;
+        if (!who) return send(401, { error: 'Sign in again: this device isn’t known here (removed, or a typo in the token).' });
+        return manageKeys(req, who, ak[1], send);
+      }
       const dev = accounts.device(req.headers.authorization);
       if (!dev) return send(401, { error: 'Sign in again: this device isn’t known here (removed, or a typo in the token).' });
       if (req.method === 'GET' && p === '/api/me') return send(200, { user: userView(dev.user), instance: instanceView(dev.user), device: { id: dev.device.id, name: dev.device.name } });
@@ -662,7 +672,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       const label = c && c.user_id === s.user.id ? c.label : sb && sb.user_id === s.user.id ? sb.label : s.user.handle;
       const pport = /^\d{1,5}$/.test(url.searchParams.get('preview') || '') && (previews || (!!c && label === c.label)) ? Number(url.searchParams.get('preview')) : 0;
       const to = pport ? previewUrl(label, pport) : cfg.instanceUrl(label);
-      return redirect(res, `${to}/_grid/auth?t=${accounts.ticket(s.user.id)}&r=${encodeURIComponent(safePath(url.searchParams.get('path')))}`);
+      return redirect(res, `${to}/_grid/auth?t=${accounts.ticket(s.user.id, pport ? `preview:${label}` : null)}&r=${encodeURIComponent(safePath(url.searchParams.get('path')))}`);
     }
 
     if (p === '/activate') {
@@ -744,6 +754,23 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     return page(messagePage({ cfg, title: 'Not found', text: 'There’s nothing here.', link: ['/', 'Home'] }), 404);
   }
 
+  // Listing, making and revoking API keys, for /api/keys and /_grid/keys. send answers no-store
+  // (json()): a new key is in the POST's answer.
+  async function manageKeys(req, user, id, send) {
+    try {
+      if (req.method === 'GET' && !id) return send(200, { keys: accounts.apiKeys(user.id).map(keyView) });
+      if (req.method === 'POST' && !id) {
+        limit(`apikey|${user.id}`, 30);
+        const made = accounts.createApiKey(user.id, (await readBody(req)).name);
+        return send(201, { ...keyView(made), key: made.key });
+      }
+      if (req.method === 'DELETE' && id) return accounts.revokeApiKey(user.id, id) ? send(200, { ok: true }) : send(404, { error: 'No such key.' });
+    } catch (err) {
+      return send(err.status || 400, { error: err.message });
+    }
+    return send(404, { error: 'not found' });
+  }
+
   // A device removed: its computer too, and the tunnel that computer holds.
   function revokeDevice(userId, deviceId) {
     const gone = accounts.computers(userId).filter((c) => c.device_id === deviceId);
@@ -783,10 +810,14 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
 
   // box: what hostd runs (the user, or one of their sandboxes). A sandbox also opens with its own
   // token, and never with a cookie from the user's own address (cookies are per address anyway).
-  function edgeAuth(req, user, box = user, row = null) {
+  // keys: whether an API key opens it: only the user's own wisp, never a computer or a sandbox.
+  // Another user's key is refused outright, even beside a good cookie, like a device's token.
+  function edgeAuth(req, user, box = user, row = null, keys = false) {
     if (row && sandboxes.byBearer(req.headers.authorization)?.id === row.id) return { via: 'sandbox', user };
     const d = accounts.device(req.headers.authorization);
     if (d) return d.user.id === user.id ? { via: 'device', user: d.user } : null;
+    const k = keys && accounts.apiKey(req.headers.authorization);
+    if (k) return k.user.id === user.id ? { via: 'key', user: k.user, key: k.key } : null;
     const s = accounts.session(cookies(req)[names.wisp], `i:${box.id}`);
     return s ? { via: 'cookie', user: s.user } : null;
   }
@@ -828,13 +859,30 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         return json(res, err.status || 429, { error: err.message });
       }
     }
-    const who = hook ? { via: 'hook', user } : edgeAuth(req, user, box, row);
+    const who = hook ? { via: 'hook', user } : edgeAuth(req, user, box, row, row === null);
     if (!who) {
       if (wantsHtml(req)) return redirect(res, `${back}${back.includes('?') ? '&' : '?'}path=${encodeURIComponent(p + url.search)}`);
       return json(res, 401, { error: 'Sign in again.' });
     }
+    if (who.via === 'key') {
+      try {
+        limit(`apikeyuse|${who.key.id}`, 600);
+      } catch (err) {
+        return json(res, err.status || 429, { error: err.message });
+      }
+    }
     // A page elsewhere can't post to someone's wisp with their cookie.
     if (req.method !== 'GET' && req.method !== 'HEAD' && who.via === 'cookie' && req.headers.origin !== origin) return json(res, 403, { error: 'forbidden origin' });
+    // API keys, from the person's browser only: its cookie stays here, and the box never hears of
+    // it. Answered by the grid, so it works while the box sleeps, and never wakes it.
+    const kp = /^\/_grid\/keys(?:\/(.*))?$/.exec(p);
+    if (kp) {
+      const send = (status, body) => json(res, status, body);
+      if (row) return send(404, { error: 'not found' });
+      if (who.via !== 'cookie') return send(403, { error: 'API keys are made from Settings, in a browser.' });
+      if (kp[1] !== undefined && !/^[a-f0-9]{1,32}$/.test(kp[1])) return send(404, { error: 'No such key.' });
+      return manageKeys(req, user, kp[1], send);
+    }
     if (p === '/_grid/preview' && req.method === 'POST') return previewLink(res, url, user, box.handle, previews);
 
     if (p === '/_grid/state') {
@@ -864,7 +912,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     }
     const port = hostd.port(box.id);
     if (!port) return json(res, 503, { error: 'It’s still waking up.', waking: true }, { 'retry-after': '2' });
-    proxy(req, res, port, box, secret);
+    proxy(req, res, port, box, secret, who.via);
   }
 
   // ---- a computer the user added: the same sign-in as their wisp, then through its tunnel ----
@@ -914,7 +962,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     const raw = url.searchParams.get('port') || '';
     const port = /^\d{1,5}$/.test(raw) ? Number(raw) : 0;
     if (!allowed || port < 1 || port > 65535) return json(res, 400, { error: 'No preview for that port here.' });
-    return json(res, 200, { url: `${previewUrl(label, port)}/_grid/auth?t=${accounts.ticket(user.id)}&r=${encodeURIComponent(safePath(url.searchParams.get('path')))}` });
+    return json(res, 200, { url: `${previewUrl(label, port)}/_grid/auth?t=${accounts.ticket(user.id, `preview:${label}`)}&r=${encodeURIComponent(safePath(url.searchParams.get('path')))}` });
   }
 
   // The user whose page this is, if the request carries their preview cookie. Only cookies: a
@@ -922,7 +970,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
   function previewAuth(req, h) {
     const user = h.computer ? accounts.userById(h.computer.user_id) : h.sandbox ? accounts.userById(h.sandbox.user_id) : accounts.byHandle(h.handle);
     if (!user || user.disabled) return { user: null, ok: false };
-    return { user, ok: !!accounts.session(cookies(req)[names.wisp], `p:${user.id}`) };
+    const s = accounts.session(cookies(req)[names.wisp], `p:${h.label}`); // this box or computer only
+    return { user, ok: s?.user.id === user.id };
   }
 
   // What it gets: the page's own cookies and headers without the grid's sign-in, and the port.
@@ -952,9 +1001,9 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     if (!user) return html(res, 404, messagePage({ cfg, title: 'No such page', text: 'Nothing answers at this address.', link: [cfg.publicUrl, 'Home'] }));
     const back = `${cfg.publicUrl}/go?preview=${h.port}${h.computer ? `&computer=${h.computer.id}` : h.sandbox ? `&sandbox=${h.sandbox.id}` : ''}`;
     if (p === '/_grid/auth') {
-      const u = accounts.useTicket(url.searchParams.get('t'));
+      const u = accounts.useTicket(url.searchParams.get('t'), { preview: h.label });
       if (!u || u.id !== user.id) return redirect(res, back);
-      const t = accounts.createSession(user.id, `p:${user.id}`, req.headers['user-agent']);
+      const t = accounts.createSession(user.id, `p:${h.label}`, req.headers['user-agent']);
       return redirect(res, safePath(url.searchParams.get('r')), { 'set-cookie': previewCookie(names.wisp, t, cfg.sessionDays * 86400) });
     }
     if (!ok) {
@@ -1013,7 +1062,9 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     socket.on('close', () => up.destroy());
   }
 
-  function proxy(req, res, port, box, secret) {
+  // via: how the grid signed them in. Only 'key' is passed on, for what wisp won't do for a key
+  // (server/services/api-keys.js); x-wisp-proxy* from outside is dropped, so it can't be claimed.
+  function proxy(req, res, port, box, secret, via) {
     // A request on its way keeps its wisp up; a page's event stream doesn't (it stays open for
     // hours): wisp counts open pages itself, and leaves out a desktop relaying them (/api/status).
     if (!req.url.startsWith('/api/events')) res.on('close', hostd.begin(box.id));
@@ -1024,6 +1075,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       'x-forwarded-host': req.headers.host,
       'x-forwarded-proto': cfg.scheme,
       'x-forwarded-for': clientIp(req),
+      ...(via === 'key' && { 'x-wisp-proxy-via': 'key' }),
     });
     const up = http.request({ host: '127.0.0.1', port, method: req.method, path: req.url, headers }, (r) => {
       const out = {};

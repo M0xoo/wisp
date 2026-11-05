@@ -199,6 +199,11 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
 - **Devices.** wisp on a computer or a phone signs in with the device flow (RFC 8628). It shows a
   code, you allow it at `/activate`, and the device gets a `wgd_…` token. Your account page lists
   every device with a Remove button.
+- **API keys.** Settings → Connect in your wisp (or Settings → Cloud on a desktop signed in to the
+  grid) makes `wgk_…` keys for scripts; only their SHA-256 is stored. A key opens your own wisp and
+  none of the grid's API, your computers or your sandboxes. Within your wisp it's everything you can
+  do there, running tasks included. Revoking stops the key, not what it already started: if a leaked
+  key was used, treat the box as compromised.
 - **Deleting an account.** The account page has *Delete your account* (type your handle), and
   `wisp grid users --delete <handle> --yes` does the same for an admin. The account is disabled
   first (no session or device gets in), then its box stops and its files go (home, agent logins,
