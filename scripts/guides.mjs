@@ -839,7 +839,7 @@ claude --resume`)}
           <tr><td><code>CONDUCTOR_PORT</code></td><td>The first of ten free ports in a row, as in Conductor. In <code>.wisp/worktree.json</code>, the run command gets <code>PORT</code>: one port that wisp keeps for the task</td></tr>
           <tr><td>Routines with a webhook</td><td><b>Webhook triggers</b>: a secret URL that starts a task</td></tr>
           <tr><td>Routines on a cron or GitHub event</td><td><b>Schedule</b>, <b>CI failed</b> and <b>Issue labelled</b> triggers, or a crew member with a schedule</td></tr>
-          <tr><td>Conductor API, MCP server</td><td>The <code>wisp</code> CLI (with <code>--json</code>), an HTTP API with an OpenAPI document, a JS SDK and <code>wisp mcp</code>. See <a href="/integrations.html">integrations</a></td></tr>
+          <tr><td>Conductor API, MCP server</td><td>The <code>wisp</code> CLI (with <code>--json</code>), an HTTP API with an OpenAPI document, a JS SDK and <code>wisp mcp</code>. See <a href="/integrations.html">integrations</a>. On wisp Cloud or your own Grid, the HTTP API takes an <a href="#automation">API key</a></td></tr>
           <tr><td>From issue to PR</td><td>New task’s <b>Issue</b> button lists GitHub issues, and Linear issues assigned to you with a Linear connector</td></tr>
           <tr><td>Diff comments sent to the agent</td><td>In <b>Changes</b>, comment on a line of the diff and send it back</td></tr>
           <tr><td>Review action</td><td><b>Review by another harness</b>: a different agent checks the PR before you merge</td></tr>
@@ -905,7 +905,15 @@ command = "pnpm dev --port $CONDUCTOR_PORT"</code></pre>
         <li><b>Limits.</b> At most one task per trigger every 30 seconds. You can sign calls with an HMAC secret, and <b>Regenerate</b> replaces the URL.</li>
         <li><b>Where the URL lives.</b> On wisp Cloud or your own Grid it’s public, and a call wakes a sleeping box. On your own computer it’s local, so put a tunnel in front.</li>
       </ul>
-      <p>The HTTP API answers on the computer wisp runs on, for scripts there. wisp Cloud has no API keys page, so a script elsewhere should start work through a webhook trigger. Bots that poll a transcript need a rethink; wisp can POST to your own webhook when a task finishes or starts waiting.</p>
+      <p>On your own computer, the HTTP API answers locally, for scripts there. On wisp Cloud or your own Grid (0.58.0 or later), a script anywhere can call it with a <code>wgk_…</code> API key. Make one in Settings → Connect in your cloud wisp, or Settings → Cloud on a desktop signed in to that Grid. You see it once. Then send it as a bearer token to your wisp’s address:</p>
+      ${sh(`curl https://you.grid.trywisp.dev/api/sessions \\
+  -H "Authorization: Bearer $WISP_KEY"`)}
+      <ul class="doc-list">
+        <li><b>What a key can do.</b> Everything you can do in that wisp, running tasks included, and only there: not your computers, sandboxes or account. Keys have no scopes, so for a caller you trust less, use a webhook trigger.</li>
+        <li><b>Revoking.</b> <b>Revoke</b> stops the key, not what it already started. If a leaked key was used, treat the box as compromised.</li>
+        <li><b>A sleeping box.</b> A call with a key wakes it, so the first one can take a moment. A 503 with <code>retry-after</code> means try again.</li>
+      </ul>
+      <p>A bot that polled a transcript can long-poll <code>GET /api/sessions/:id/wait</code> and read <code>GET /api/sessions/:id/presentation</code>, or wisp can POST to your own webhook when a task finishes or starts waiting.</p>
     </section>
 
     <section>
