@@ -1,5 +1,6 @@
 // What moved in the CLI since the task's last comparable turn, from stats.cli (server/runner.js):
-// { version?: [from, to], tools?: { added, removed } | true, catalog?: true }, or null. DOM-free.
+// { version?: [from, to], tools?: { added, removed } | true, catalog?: { added, removed, changed } | true },
+// or null. DOM-free.
 // A field counts only when both turns have it, so a first turn, an old turn or a failed probe says
 // nothing. Another harness or account has its own catalog and tools: skipped past, never compared.
 
@@ -17,6 +18,15 @@ function toolsMoved(session, from, to) {
   return added.length || removed.length ? { added, removed } : true;
 }
 
+// Per model when both turns have the hashes (stats.cli.models, Codex); older turns have one hash.
+function catalogMoved(was, now) {
+  if (!was || !now) return true;
+  const added = Object.keys(now).filter((m) => !(m in was));
+  const removed = Object.keys(was).filter((m) => !(m in now));
+  const changed = Object.keys(now).filter((m) => m in was && was[m] !== now[m]);
+  return added.length || removed.length || changed.length ? { added, removed, changed } : true;
+}
+
 export function whatChanged(session, turn) {
   const cur = turn?.stats?.cli;
   const turns = session?.turns;
@@ -29,7 +39,7 @@ export function whatChanged(session, turn) {
   const out = {
     ...(moved('version') && { version: [prev.version, cur.version] }),
     ...(moved('tools') && { tools: toolsMoved(session, prev.tools, cur.tools) }),
-    ...(moved('catalog') && { catalog: true }),
+    ...(moved('catalog') && { catalog: catalogMoved(prev.models, cur.models) }),
   };
   return Object.keys(out).length ? out : null;
 }
