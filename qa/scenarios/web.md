@@ -539,3 +539,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
   - 1: a red toast above the reply box says *Can’t reach wisp. Check the connection and try again.*, and the text stays in the box. Never *Failed to fetch*.
   - 2: the same words in the panel.
 - **Suite** (`test/api-errors.test.js`), **Manual** (real Chrome)
+
+### WEB-59 · Old worktrees: what goes, what stays, and that it comes back
+- **Steps:** with finished worktree tasks (one with an uncommitted file, one with an open PR, one kept with *Keep worktree*, one running, and a folder in `worktrees/` no task knows), open Settings → Worktrees. Set *Clean up automatically* to 3 days; click **Clean up N**; Remove the uncommitted one; reply to a cleaned task.
+- **Expected:** rows show size, last use and when each goes, sizes and states arrive without the rows moving. Clean up asks once, then takes only idle clean tasks: the uncommitted, open PR, kept and running rows stay. Remove on the uncommitted one asks and names what's lost; on a running task it's disabled. The leftover goes only by its own Remove. The reply brings the folder back on its branch, with `.env`.
+

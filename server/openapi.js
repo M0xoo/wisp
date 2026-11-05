@@ -137,6 +137,26 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, tracked: { type: 'boolean' } } }) },
         },
       },
+      '/worktrees': {
+        get: {
+          summary: 'Worktrees on disk: per task, why each stays or when it goes, leftover folders, sizes and free disk',
+          responses: { 200: json({ type: 'object' }) },
+        },
+      },
+      '/worktrees/clean': {
+        post: {
+          summary: 'Remove worktrees in the background; branches stay, and a follow-up brings a folder back',
+          requestBody: body({
+            type: 'object',
+            properties: {
+              ids: { type: 'array', items: { type: 'string' }, description: 'Task ids. Without ids or leftovers: every worktree idle for a day or more' },
+              leftovers: { type: 'array', items: { type: 'string' }, description: 'Folder names no task knows' },
+              force: { type: 'boolean', description: 'Also drop uncommitted work in the tasks named' },
+            },
+          }),
+          responses: { 200: json({ type: 'object', properties: { queued: { type: 'integer' }, skipped: { type: 'array', items: { type: 'string' } } } }), 400: err[400] },
+        },
+      },
       '/config': {
         get: { summary: 'Launcher defaults, projects, webhooks', responses: { 200: json({ type: 'object' }) } },
         patch: {
@@ -219,7 +239,7 @@ export function openapi({ version, port }) {
         },
         patch: {
           summary: 'Rename, mark done/review, mark read, archive',
-          requestBody: body({ type: 'object', properties: { title: { type: 'string' }, state: { enum: ['done', 'review'] }, unread: { type: 'boolean' }, lean: { type: ['string', 'null'], enum: ['on', 'off', null], description: 'Lean runs for this task only (Claude Code without its nonessential traffic): on, off, or null to follow defaults.leanRuns (off: never; on, the default: only wisp’s own side runs; all: every Claude run)' }, archived: { type: 'boolean' }, forLater: { type: ['boolean', 'number'], description: 'Save a finished task for later (true, or the time it was saved, to put it back in its place) or unsave it (false)' }, discardWorktree: { type: 'boolean', description: 'Remove the worktree and its uncommitted changes (a compare run you did not keep)' } } }),
+          requestBody: body({ type: 'object', properties: { title: { type: 'string' }, state: { enum: ['done', 'review'] }, unread: { type: 'boolean' }, keepWorktree: { type: 'boolean', description: 'The worktree cleanup leaves this task’s folder alone' }, lean: { type: ['string', 'null'], enum: ['on', 'off', null], description: 'Lean runs for this task only (Claude Code without its nonessential traffic): on, off, or null to follow defaults.leanRuns (off: never; on, the default: only wisp’s own side runs; all: every Claude run)' }, archived: { type: 'boolean' }, forLater: { type: ['boolean', 'number'], description: 'Save a finished task for later (true, or the time it was saved, to put it back in its place) or unsave it (false)' }, discardWorktree: { type: 'boolean', description: 'Remove the worktree and its uncommitted changes (a compare run you did not keep)' } } }),
           responses: { 200: json(ref('Summary')), 404: err[404] },
         },
         delete: { summary: 'Stop and delete. Its worktree is removed; its branch too unless it has commits', responses: { 200: ok, 404: err[404] } },
@@ -1133,6 +1153,7 @@ export function openapi({ version, port }) {
             overlaps: { type: 'array', description: 'Other open tasks in the same repo that change the same files: [{ id, title, files, more, conflicts }]. conflicts lists the files merging both would leave conflicted ([] if they merge cleanly, null if git is older than 2.38). Absent when there are none.' },
             groupId: { type: ['string', 'null'], description: 'Shared by sessions launched together with compare' },
             origin: { type: ['object', 'null'], description: '{ kind: recipe | trigger, id, name } when not launched by hand' },
+            keepWorktree: { type: 'boolean', description: 'The worktree cleanup leaves this task’s folder alone (PATCH keepWorktree)' },
             lean: { enum: ['on', 'off'], description: 'This task’s own lean runs choice (PATCH lean), when it has one' },
           },
         },

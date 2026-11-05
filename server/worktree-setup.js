@@ -116,6 +116,16 @@ export function runCommand(dir, top = dir) {
 // hold: the setup steps the repo isn't trusted for (server/project-trust.js): they don't run now but
 // wait in `held` for Trust and start (runSetup) or Run without them.
 export async function prepareWorktree(root, dir, { hold = null, branch = null } = {}) {
+  const { copied, problems } = await copyIncluded(root, dir);
+  const { file, commands, problem } = repoSetup(root);
+  if (problem) problems.push(problem);
+  if (hold?.length) return { copied, ran: [], problems, held: hold };
+  const setup = await runSetup(root, dir, commands, setupEnv(file, { root, dir, branch }));
+  return { copied, ran: setup.ran, problems: [...problems, ...setup.problems] };
+}
+
+// The ignored files .worktreeinclude names, from the checkout into dir. Never throws.
+export async function copyIncluded(root, dir) {
   const copied = [];
   const problems = [];
   for (const rel of await includedPaths(root)) {
@@ -130,11 +140,7 @@ export async function prepareWorktree(root, dir, { hold = null, branch = null } 
       problems.push(`couldn't copy ${rel}: ${err.message}`);
     }
   }
-  const { file, commands, problem } = repoSetup(root);
-  if (problem) problems.push(problem);
-  if (hold?.length) return { copied, ran: [], problems, held: hold };
-  const setup = await runSetup(root, dir, commands, setupEnv(file, { root, dir, branch }));
-  return { copied, ran: setup.ran, problems: [...problems, ...setup.problems] };
+  return { copied, problems };
 }
 
 // A step can be a whole script: a problem names its first line.

@@ -365,6 +365,13 @@ test('later: Scheduled, Coming up, the follow-up rows, Send later and the time c
   assert.ok(problems({ ...base0, settings: { readTimes: 'sometimes' } }).some((x) => /readTimes/.test(x) && /on \| off/.test(x)));
 });
 
+test('worktree cleanup: a setting with its days, and Settings → Worktrees as parts', () => {
+  assert.deepEqual(problems({ ...base0, settings: { worktreeCleanup: '7' } }), []);
+  assert.deepEqual(problems({ ...base0, settings: { worktreeCleanup: 'off' } }), []);
+  assert.ok(problems({ ...base0, settings: { worktreeCleanup: '5' } }).some((x) => /worktreeCleanup/.test(x) && /off \| 3 \| 7 \| 14 \| 30/.test(x)));
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.worktrees.list'] } }), []);
+});
+
 test('plan budget: its group in Settings → Usage is a part; Wait for the reset (limitWait) is a setting', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.budget'] }, parts: { 'settings.budget': { style: { fontSize: '12px' } } } }), []);
   assert.deepEqual(problems({ ...base0, settings: { limitWait: 'on' } }), []);

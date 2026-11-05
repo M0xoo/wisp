@@ -434,6 +434,9 @@ export const PARTS = {
   // The pill on each machine saying where it comes from (Over SSH, Cloud, Your computer · via grid).
   'machines.kind': '.mc-kind',
   // Settings → Cloud: your cloud computers, and signing in to a wisp Grid.
+  'settings.worktrees': '.wtr-box', // Settings → Worktrees
+  'settings.worktrees.cleanup': '.wtr-auto', // Clean up automatically
+  'settings.worktrees.list': '.wtr-list', // The worktrees on disk
   'settings.cloud': '.sx-cloud',
   'settings.cloud.computer': '.cl-card',
   'settings.cloud.signin': '.cl-signin',
@@ -660,6 +663,7 @@ export const SETTINGS = {
   terminal: ['auto', 'wisp', 'terminal', 'iterm', 'warp', 'cmux', 'wt', 'powershell', 'cmd', 'ghostty', 'kitty', 'wezterm', 'gnome-terminal', 'konsole', 'xfce4-terminal', 'alacritty', 'xterm'],
   transcript: ['on', 'off'],
   worktree: ['on', 'off'],
+  worktreeCleanup: ['off', '3', '7', '14', '30'], // days a task's worktree may sit idle
   followUp: ['queue', 'interrupt'],
   mode: ['plan', 'edits', 'auto'],
   agent: 'string',

@@ -270,6 +270,7 @@ export function summarize(s, store) {
     options: s.ask?.options?.length && !s.ask.clash ? s.ask.options : undefined, // its choices, answered from the row on a phone (not a clash: that's read before it's answered)
     approval: !!s.ask?.permission, // the question is a live approval (Allow / Deny)
     branch: s.worktree?.branch || '',
+    keepWorktree: !!s.keepWorktree, // the cleanup leaves its folder alone (services/worktrees.js)
     foreign: s.worktree?.foreign || '', // a worktree it was brought in on (services/bring-in.js): 'conductor', never removed
     // The task's other folders: their project, worktree branch and PR, for the card and the filter.
     ...(s.also?.length && {

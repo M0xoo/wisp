@@ -14,6 +14,8 @@ this covers how the code is laid out and the rules a change has to follow.
   ships with (`GET /stuff/starters`), `crew.js` runs the crew
   (named long-lived agents: their schedule, queue, memory and `@Name` mentions; their jobs are tasks).
   `accounts.js` keeps a harness's several accounts (a login folder each, linked to the CLI's own).
+  `services/worktrees.js` removes idle tasks' worktrees (`defaults.worktreeCleanup`, a low disk) and
+  answers Settings → Worktrees; only what a follow-up can bring back goes on its own.
 - `web/`: the page, vanilla JS as native ES modules, no build step. `index.html` holds the markup
   and the icon sprite, `css/` has one stylesheet per area (linked in order in `index.html`),
   `js/core/` (state, api, bus, DOM helpers), `js/ui/` (toasts, dialogs, popovers, keys) and

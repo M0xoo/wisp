@@ -292,6 +292,9 @@ export function register(r, app) {
       if (s.state === 'done' && was !== 'done') app.triggers?.taskEvent('done', s), app.later?.taskDone(s); // and what waited for it (/after) starts
       if (body.state === 'review' && s.state === 'done') s.state = 'review';
       if (typeof body.unread === 'boolean') s.unread = body.unread;
+      // Keep worktree: the cleanup leaves this task's folder alone (services/worktrees.js).
+      if (body.keepWorktree === true) s.keepWorktree = true;
+      if (body.keepWorktree === false) delete s.keepWorktree;
       // Lean runs for this task only (server/lean.js): 'on' | 'off', null back to the setting.
       if (body.lean !== undefined && body.lean !== null && !['on', 'off'].includes(body.lean)) throw bad('lean must be on, off or null', 400);
       if (body.lean === null) delete s.lean;

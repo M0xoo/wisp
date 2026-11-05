@@ -31,6 +31,7 @@ import { copySetupCommand, INSTALLABLE, installHarness, isInstalling, loadTools,
 import { clearPicks } from './transcript.js';
 import { repaintViews } from './turns.js';
 import { openUsage } from './usage.js';
+import { mountWorktrees } from './worktrees.js';
 import { HOLD_DEFAULT, HOLD_LINES } from '../limit-hold.js';
 
 // Review by another harness: off, whichever other harness is installed, or one of them (by name).
@@ -76,10 +77,12 @@ const settingsPanes = (grid = inGrid()) => [
   { id: 'memory', label: 'Memory', icon: 'text', lede: "Learned from your tasks and added to every agent's prompt. What you ask always wins." },
   { id: 'automations', label: 'Automations', icon: 'bolt', lede: 'Saved prompts, and the triggers that launch them for you.' },
   { id: 'spells', label: 'Spells', icon: 'wizard', lede: 'Changes to wisp itself: buttons, panels, blocks, looks and behaviour. Cast one, or add one a colleague sent.' },
+  { id: 'worktrees', label: 'Worktrees', icon: 'branch', lede: 'Each task’s own copy of your repo, and how long it stays on this computer.' },
   { id: 'usage', label: 'Usage', icon: 'stats', lede: 'Spend and outcomes over the last 7 days.' },
   { id: 'privacy', label: 'Privacy', icon: 'info', lede: 'What wisp sends about itself (never prompts, paths or code), and what it hides on screen.' },
 ];
 let settingsPane = 'general';
+let refreshWorktrees = () => {}; // the Worktrees pane, looked at when it opens
 
 // What a re-check turned up: harnesses found or gone, and model lists that grew or shrank.
 function recheckSummary(before, after) {
@@ -217,6 +220,7 @@ export function openSettings(opts) {
           </div>
         </section>
         <section class="sx-pane sp-pane" data-pane="spells"></section>
+        <section class="sx-pane" data-pane="worktrees"><div class="wtr-box"></div></section>
         <section class="sx-pane" data-pane="usage">
           <div class="us-tiles sx-usage"><div class="it-loading"><span class="orb tiny"></span>Adding it up…</div></div>
           <div class="sx-group">${row('Charts and breakdowns', 'Per day, per project and per harness · model', '<button class="ghost sm" id="openUsage">Open usage</button>')}${crewList().length ? row('Crew track record', 'How each member did: jobs, finished, check-ins, spend', '<button class="ghost sm" id="openRecord">Open</button>') : ''}</div>
@@ -279,6 +283,7 @@ export function openSettings(opts) {
     toList(true);
     $(`.sx-nav [data-pane="${settingsPane}"]`, node)?.focus({ preventScroll: true });
   };
+  refreshWorktrees = mountWorktrees($('.wtr-box', node));
   spellsPane($('[data-pane="spells"].sx-pane', node));
   // force: a repaint the person asked for (an account added, renamed); a background one waits while
   // a code is pasted or an account named, since it would wipe what's typed.
@@ -381,6 +386,7 @@ export function openSettings(opts) {
     node.dataset.pane = id;
     $('.sx-lede', node).textContent = p.lede;
     $('.sx-main', node).scrollTop = 0;
+    if (id === 'worktrees') refreshWorktrees();
     // Checked when the pane opens: it knocks on the SSH port and asks tailscale.
     if (id === 'machines' && !reachChecked && !MOBILE && !grid) {
       reachChecked = true;
@@ -959,7 +965,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', leanRuns: 'select[name="leanRuns"]', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers', review: 'select[name="review"]', subagentModel: 'select[name="subagentModel"]' };
+  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', worktreeCleanup: '#wtrCleanup', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', leanRuns: 'select[name="leanRuns"]', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers', review: 'select[name="review"]', subagentModel: 'select[name="subagentModel"]' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

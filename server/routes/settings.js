@@ -19,6 +19,7 @@ import { triggerView } from '../triggers.js';
 import { REVIEW_VALUES } from '../services/review.js';
 import { panesProblem } from '../../web/js/pane-bridge.js';
 import { LEAN_VALUES } from '../lean.js';
+import { SETTINGS } from '../../web/js/spell-schema.js';
 
 // On a wisp Grid (its hostd sets WISP_GRID_URL): the grid, and this wisp's own address there, so
 // the page offers connecting through the grid instead of SSH. preview: where a page the agent
@@ -60,6 +61,7 @@ export function register(r, app) {
     if (body.defaults?.maskEnvFiles !== undefined && !['on', 'off'].includes(body.defaults.maskEnvFiles)) return c.send(400, { error: 'maskEnvFiles must be on or off' });
     if (body.defaults?.review !== undefined && !REVIEW_VALUES.includes(body.defaults.review)) return c.send(400, { error: `review must be one of ${REVIEW_VALUES.join(', ')}` });
     if (body.defaults?.leanRuns !== undefined && !LEAN_VALUES.includes(body.defaults.leanRuns)) return c.send(400, { error: `leanRuns must be one of ${LEAN_VALUES.join(', ')}` });
+    if (body.defaults?.worktreeCleanup !== undefined && !SETTINGS.worktreeCleanup.includes(body.defaults.worktreeCleanup)) return c.send(400, { error: `worktreeCleanup must be one of ${SETTINGS.worktreeCleanup.join(', ')}` });
     if (body.defaults?.harnessAsk !== undefined && !['on', 'off'].includes(body.defaults.harnessAsk)) return c.send(400, { error: 'harnessAsk must be on or off' });
     if (body.defaults?.subagentModel !== undefined && !SUBAGENT_MODELS.includes(body.defaults.subagentModel)) return c.send(400, { error: 'subagentModel must be \'\' (the task’s model), haiku or sonnet' });
     if (body.defaults?.windowNotice !== undefined && !['on', 'off'].includes(body.defaults.windowNotice)) return c.send(400, { error: 'windowNotice must be on or off' });
