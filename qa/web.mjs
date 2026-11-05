@@ -335,6 +335,14 @@ try {
       return { width: d.getBoundingClientRect().width, need: c.measureText('…/').width };
     });
     ok(width + 0.5 >= need, `the folder is ${width.toFixed(1)}px wide, "…/" needs ${need.toFixed(1)}px`);
+    // A long name drops the controls under it rather than being cut, and they keep their columns.
+    const long = await p.locator('.pn-changes .cx-file[data-path$="indeed.css"]').evaluate((f) => {
+      const b = f.querySelector('.base');
+      const col = (n) => Math.round(n.querySelector('.cx-more').getBoundingClientRect().right);
+      return { shown: b.clientWidth, full: b.scrollWidth, same: [...document.querySelectorAll('.pn-changes .cx-file')].every((x) => col(x) === col(f)) };
+    });
+    ok(long.shown >= long.full, `the name shows ${long.shown}px of ${long.full}px`);
+    ok(long.same, 'the controls are in the same column on every row');
     await p.shot('changes');
     await press(p, 'Escape');
     p.clean();

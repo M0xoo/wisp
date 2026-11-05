@@ -516,10 +516,13 @@ body.split.stack #feed .item.open .pr-strip:not(.ship-run) .pr-go .i { width: 15
 .cx-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 12px; }
 .cx-file { border-bottom: 1px solid var(--line); }
 .cx-file.cx-new { animation: fade-in 0.12s var(--ease); }
-.cx-head { display: flex; align-items: center; min-width: 0; background: var(--bg); }
+/* A name too long to sit beside its counts and controls takes the whole line and they drop under it,
+   in the same columns at the right. Other rows stay one line; a long folder alone never wraps (.dir). */
+.cx-head { display: flex; flex-wrap: wrap; align-items: center; min-width: 0; background: var(--bg); }
+.cx-acts { flex: none; display: flex; align-items: center; min-height: 30px; padding-left: 4px; margin-left: auto; }
 .cx-file.open > .cx-head { position: sticky; top: 0; z-index: 1; border-bottom: 1px solid var(--line); }
 .cx-row {
-  flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; height: 30px; padding: 0 4px 0 8px;
+  flex: 1 1 auto; display: flex; align-items: center; gap: 8px; min-width: 0; height: 30px; padding: 0 4px 0 8px;
   border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
 }
 .cx-row:disabled { cursor: default; opacity: 1; }
@@ -531,13 +534,14 @@ body.split.stack #feed .item.open .pr-strip:not(.ship-run) .pr-go .i { width: 15
 .cx-row .badge { width: 18px; height: 18px; font-size: 10.5px; border-radius: 5px; }
 /* The folder shrinks first, cut from its start; then the name, from its end. */
 .cx-row .path { flex: 1 1 auto; display: flex; min-width: 0; font-size: 12.5px; }
-/* At least its ellipsis and last slash ("…/"): squeezed thinner, one dot of the ellipsis read as "./". */
-.cx-row .path .dir { flex: 0 1000 auto; min-width: 2ch; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+/* At least its ellipsis and last slash ("…/"): squeezed thinner, one dot of the ellipsis read as "./".
+   Width 0 so only the name counts towards wrapping; it then grows into what's free, up to its text. */
+.cx-row .path .dir { flex: 1 0 0; width: 0; max-width: max-content; min-width: 2ch; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
 .cx-row .path .base { flex: 0 1 auto; min-width: 3ch; overflow: hidden; text-overflow: ellipsis; }
 .cx-file.gone .path .base { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
 .cx-row .rev-tag { flex: none; font-size: 11.5px; padding: 0 5px; }
 .cx-file:has(.rev-tag) .path .base { text-decoration: line-through; color: var(--muted); }
-.cx-n { flex: none; width: 5ch; text-align: right; font: 500 11.5px var(--mono); font-variant-numeric: tabular-nums; }
+.cx-n { flex: none; width: 5ch; margin-right: 8px; text-align: right; font: 500 11.5px var(--mono); font-variant-numeric: tabular-nums; }
 .cx-word { width: calc(10ch + 8px); color: var(--faint); font: 11.5px var(--sans); }
 .cx-more, .cx-edit { flex: none; width: 24px; height: 24px; margin-right: 6px; border-radius: 7px; color: var(--faint); }
 .cx-edit { margin-right: 0; }
@@ -556,13 +560,12 @@ body.split.stack #feed .item.open .pr-strip:not(.ship-run) .pr-go .i { width: 15
 .cx-viewed[aria-pressed='true'] { color: var(--ink-2); }
 .cx-viewed[aria-pressed='true'] .cx-box { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
 .cx-viewed[aria-pressed='true'] .cx-box .i { opacity: 1; }
-.cx-file.viewed .cx-row .path, .cx-file.viewed .cx-row .cx-n { color: var(--faint); }
+.cx-file.viewed .cx-row .path, .cx-file.viewed .cx-n { color: var(--faint); }
 .cx-file.viewed .cx-row .badge { background: var(--bg-2); color: var(--faint); }
 .cx-seen { flex: none; color: var(--faint); font-size: 11.5px; }
 
-/* Stage, before Viewed (VS Code's + and −): a plain + while the file has changes to stage, − on the
-   accent's tint once it's all staged, a dot on the + when part of it is. Not a box, so it never reads
-   as Viewed's tick. A committed file keeps the empty room, so nothing to its right moves. */
+/* Stage, before Viewed and in its style, in words (a bare + or − beside the counts read as one of
+   them): Stage, Part, Staged. A committed file keeps the empty room, so nothing to its right moves. */
 .cx-stage { flex: none; display: inline-flex; align-items: center; gap: 6px; width: 68px; height: 24px; padding: 0 4px; margin-right: 2px; border-radius: 7px; font-size: 12.5px; color: var(--muted); }
 .cx-stage.none { display: inline-block; }
 .cx-stage:hover { color: var(--ink); }
@@ -690,11 +693,13 @@ body.wisp-mobile .ed-head .ed-probs { min-height: 44px; }
 .ed-rename { padding: 10px; width: 280px; }
 .ed-rn { display: grid; gap: 6px; font-size: 12.5px; color: var(--muted); }
 .ed-rn b { color: var(--ink); font-weight: 500; }
-/* A phone's file row: the name and counts on top, Stage · Viewed · ⋯ on a line under, so the name stays whole */
-.side-panel.stacked .cx-head { flex-wrap: wrap; row-gap: 0; }
+/* A phone's file row: the name alone on top, Stage · Viewed · ⋯ and the counts on a line under, so the name stays whole */
+.side-panel.stacked .cx-head { row-gap: 0; }
 .side-panel.stacked .cx-head > .cx-row { flex: 1 0 100%; }
-.side-panel.stacked .cx-head > .cx-stage:not(.none) { margin-left: 28px; }
-.side-panel.stacked .cx-head > .cx-stage.none { width: 0; margin-left: 28px; }
+.side-panel.stacked .cx-acts { flex: 1 0 100%; min-height: 0; padding-left: 28px; margin-left: 0; }
+.side-panel.stacked .cx-acts > .cx-stage.none { width: 0; }
+.side-panel.stacked .cx-acts > .cx-n { order: 1; }
+.side-panel.stacked .cx-acts > .cx-n:first-child { margin-left: auto; }
 .ed-lsp { flex: none; gap: 5px; color: var(--muted); }
 .ed-lsp .i { width: 13px; height: 13px; color: var(--accent); }
 .ed-lsp[hidden] { display: none; }

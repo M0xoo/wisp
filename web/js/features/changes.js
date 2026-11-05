@@ -231,12 +231,14 @@ function paintFile(node, id, f, git, seen, staging) {
       <button class="cx-row" data-a="cx-toggle" aria-expanded="${isOpen}" title="${esc(title)}"${f.binary || !f.rows?.length ? ' disabled' : ''}>
         <span class="cx-chev">${f.binary || !f.rows?.length ? '' : icon('chevron')}</span>
         <span class="badge ${cls}">${ch}</span>${pathOf(f.path)}${f.reverted ? '<span class="rev-tag">Reverted</span>' : ''}
-        ${nums}
       </button>
+      <div class="cx-acts">
+      ${nums}
       ${staging ? stageBtn(f) : ''}
       <button class="cx-viewed" data-a="cx-viewed" aria-pressed="${seen}" title="${seen ? 'Viewed: untick to review it again' : 'Mark as viewed: folds it until its diff changes'}" aria-label="Viewed ${esc(f.path)}"><span class="cx-box">${icon('check')}</span><span class="cx-vw">Viewed</span></button>
       ${editable(f) ? `<button class="icon-btn xs cx-edit" data-a="cx-edit" title="Edit here" aria-label="Edit ${esc(f.path)}">${icon('pen')}</button>` : ''}
       <button class="icon-btn xs cx-more" data-a="cx-more" title="More" aria-label="More for ${esc(f.path)}">${icon('dots')}</button>
+      </div>
     </div>`;
   node.classList.toggle('open', isOpen);
   node.classList.toggle('gone', f.status === 'D');
