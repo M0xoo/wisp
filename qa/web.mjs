@@ -650,6 +650,22 @@ try {
     p.clean();
   });
 
+  await check('WEB-56', 'the keyboard stays in the reply box after Send', async () => {
+    const m = await launch({ prompt: 'Keys after Send', mode: 'auto' });
+    await settled(m.id);
+    await p.locator(`.item[data-id="${m.id}"]`).click();
+    const box = p.locator('.composer textarea:visible').first();
+    await box.click();
+    await box.fill('One more thing');
+    await p.keyboard.press('Enter');
+    await p.locator(`#secWorking .item[data-id="${m.id}"]`).waitFor();
+    await p.keyboard.type('edit');
+    ok((await box.inputValue()) === 'edit', `the box has "${await box.inputValue()}"`);
+    ok(!(await p.locator('.ask-pop').count()), 'a shortcut asked to take over');
+    await box.fill('');
+    p.clean();
+  });
+
   await check('WEB-49', 'Home Screen app: full screen and its own cache only when standalone', async () => {
     // A browser tab: no class, the viewport as it was, no manifest (this isn't a Grid).
     const tab = await p.evaluate(() => [document.documentElement.classList.contains('standalone'), document.querySelector('meta[name="viewport"]').content, !!document.querySelector('link[rel="manifest"]')]);
