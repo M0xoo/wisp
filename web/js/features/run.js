@@ -34,7 +34,7 @@ export const runLabel = (id) => (appRunning(id) ? 'Stop app' : 'Run app');
 
 export const RUN_HTML = `
   <section class="pn-run" hidden>
-    <div class="rn-bar" hidden></div>
+    <div class="rn-bar" role="group" aria-label="Running app" tabindex="-1" hidden></div>
     <div class="rn-empty" hidden></div>
     <div class="rn-body" hidden><div class="rn-box"></div><div class="rn-log" hidden><pre></pre></div></div>
   </section>`;
@@ -141,7 +141,20 @@ function barHtml(id, d) {
     <button class="ghost xs rn-logs" data-a="run-logs" aria-pressed="${logsOn.has(id) || !ready}"${ready ? '' : ' disabled'} title="Logs: the app’s output">${icon('terminal')}<span>Logs</span></button>
     <button class="icon-btn xs" data-a="run-restart" title="Restart" aria-label="Restart">${icon('replay')}</button>
     <button class="icon-btn xs rn-stop" data-a="run-stop" title="Stop app" aria-label="Stop app">${icon('stop')}</button>
-    <a class="icon-btn xs" href="${esc(d.url || '#')}" target="_blank" rel="noopener" title="Open in browser" aria-label="Open in browser">${icon('external')}</a>`;
+    <a class="icon-btn xs" data-a="run-open" href="${esc(d.url || '#')}" target="_blank" rel="noopener" title="Open in browser" aria-label="Open in browser">${icon('external')}</a>`;
+}
+
+// The bar is rebuilt when its state changes: what had the keys keeps them, on the bar itself when
+// that control is gone or off for now (Logs while it restarts).
+export function paintBar(bar, html) {
+  if (bar.dataset.h === html) return;
+  const had = document.activeElement;
+  const mine = had && bar.contains(had);
+  bar.innerHTML = html;
+  bar.dataset.h = html;
+  if (!mine) return;
+  const same = had.dataset.a && bar.querySelector(`[data-a="${had.dataset.a}"]`);
+  (same && !same.disabled ? same : bar).focus();
 }
 
 const SKELETON = '<div class="rn-sk" aria-hidden="true"><i class="sk rn-sk-line"></i><i class="sk rn-sk-input"></i><i class="sk rn-sk-line short"></i></div>';
@@ -161,6 +174,9 @@ export function paintRun(sec, id) {
   }
   const st = stateOf(d);
   sec.dataset.state = st;
+  // The keyboard's place before this paint hides it. A pointer's isn't moved: on a phone a box that
+  // takes focus opens the keyboard.
+  const keys = document.activeElement?.matches?.(':focus-visible') ? document.activeElement : null;
   if (st !== 'live') {
     bar.hidden = body.hidden = true;
     empty.hidden = false;
@@ -170,13 +186,14 @@ export function paintRun(sec, id) {
     empty.dataset.id = id;
     dropFrame(sec);
     stopPoll();
+    if (keys && bar.contains(keys)) $('.rn-cmd', empty)?.focus(); // stopped or exited: on to the command
     return;
   }
   empty.hidden = true;
   delete empty.dataset.h;
   bar.hidden = body.hidden = false;
-  const b = barHtml(id, d);
-  if (bar.dataset.h !== b) (bar.innerHTML = b), (bar.dataset.h = b);
+  paintBar(bar, barHtml(id, d));
+  if (keys && empty.contains(keys)) bar.focus(); // Run: Tab goes on through the bar
   // Until the port answers, its output fills the frame's place: something is happening.
   const log = $('.rn-log', sec);
   const box = $('.rn-box', sec);
@@ -291,7 +308,11 @@ export function wireRun(sec, getId, { toReply }) {
     const d = e.data;
     if (!frame || e.source !== frame.node.contentWindow || d?.wisp !== 'pick') return;
     if (d.type === 'ready' && !frame.pickable) (frame.pickable = true), changed(frame.id);
-    if (d.type === 'off' && frame.picking) (frame.picking = false), changed(frame.id);
+    if (d.type === 'off' && frame.picking) {
+      frame.picking = false;
+      changed(frame.id);
+      $('.rn-pick', frame.node.closest('.pn-run'))?.focus(); // Escape in the page: back to what started it
+    }
     if (d.type === 'picked' && typeof d.tag === 'string' && typeof d.selector === 'string') {
       frame.picking = false;
       changed(frame.id);

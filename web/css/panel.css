@@ -146,6 +146,7 @@ body.side-right .pn-grip { left: auto; right: -4px; }
 @media (prefers-reduced-motion: reduce) { .rn-dot { animation: none; } }
 .rn-state { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .rn-state code, .rn-addr { font: 11.5px var(--mono); color: var(--ink-2); }
+.rn-bar:focus-visible { outline-offset: -2px; } /* Run by keyboard lands here: its neighbours would cover an outer ring */
 .rn-bar .grow { flex: 1; min-width: 4px; }
 .rn-bar .icon-btn { flex: none; width: 28px; height: 28px; border-radius: 7px; }
 .rn-bar .icon-btn .i { width: 14px; height: 14px; }
