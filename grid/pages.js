@@ -698,15 +698,17 @@ export function accountPage({ cfg, user, instance, machine = {}, devices, comput
 // it changed (a computer came online or went away, the cloud wisp woke or fell asleep), and the page
 // fetches itself and swaps only the [data-live] rows that differ, so the rest (an open "Add a
 // computer", a half-typed field) stays as it is. Missed events (the stream dropped, the tab came
-// back from the cache) are caught up the same way.
-const LIVE = `<script>(()=>{let t=0,opened=false;
+// back from the cache) are caught up the same way. Not once a form is on its way: its own answer is
+// the next page (deleting your account stops your wisp, an event, and a reload would drop that answer).
+const LIVE = `<script>(()=>{let t=0,opened=false,leaving=false;
 const morph=(cur,next)=>{const a=[...cur.children],b=[...next.children];if(!b.length&&!a.length){if(cur.innerHTML!==next.innerHTML)cur.innerHTML=next.innerHTML;return}
 b.forEach((n,i)=>{const o=a[i];if(!o)return cur.append(n);if(o.tagName==='DETAILS'&&n.tagName==='DETAILS')n.open=o.open;if(o.outerHTML!==n.outerHTML)o.replaceWith(n)});a.slice(b.length).forEach((o)=>o.remove())};
-const sync=async()=>{try{const r=await fetch('/',{cache:'no-store',headers:{accept:'text/html'}});if(!r.ok)return;const doc=new DOMParser().parseFromString(await r.text(),'text/html');const fresh=doc.querySelectorAll('[data-live]');if(!fresh.length)return location.reload();
+const sync=async()=>{try{const r=await fetch('/',{cache:'no-store',headers:{accept:'text/html'}});if(!r.ok||leaving)return;const doc=new DOMParser().parseFromString(await r.text(),'text/html');const fresh=doc.querySelectorAll('[data-live]');if(!fresh.length)return location.reload();
 fresh.forEach((n)=>{const cur=document.querySelector('[data-live="'+n.dataset.live+'"]');if(cur)morph(cur,n)})}catch{}};
 const soon=()=>{clearTimeout(t);t=setTimeout(sync,150)};
 const es=new EventSource('/events');es.addEventListener('change',soon);es.onopen=()=>{if(opened)soon();opened=true};
-addEventListener('pageshow',(e)=>{if(e.persisted)soon()})})()</script>`;
+addEventListener('submit',(e)=>{if(!e.defaultPrevented)leaving=true});
+addEventListener('pageshow',(e)=>{if(e.persisted){leaving=false;soon()}})})()</script>`;
 
 // Opens the Android app (its intent filter in mobile/android/…/AndroidManifest.xml).
 export const APP_URL = 'dev.trywisp.mobile://signed-in';
