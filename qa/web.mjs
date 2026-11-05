@@ -294,6 +294,30 @@ try {
     await other.context().close();
   });
 
+  await check('WEB-47', 'side panel Changes: the first file opens, or all of three or fewer, and a fold stays', async () => {
+    const changes = (t) => p.locator(`.item[data-id="${t.id}"] [data-a="changes"]`).filter({ visible: true }).first();
+    const opened = async (files) => {
+      const t = await launch({ prompt: 'fix the add function' });
+      const s = await settled(t.id);
+      const dir = s.worktree?.cwd || s.cwd;
+      for (const f of files) fs.writeFileSync(path.join(dir, f), 'export const x = 1;\n');
+      await p.locator(`.item[data-id="${t.id}"] .it-head`).click();
+      await p.waitForTimeout(300);
+      if (!(await p.locator('.pn-changes:visible').count())) await changes(t).click(); // a second click puts it away
+      await p.locator('.pn-changes .cx-file.open').first().waitFor({ timeout: 8000 });
+      return { t, rows: await p.locator('.pn-changes .cx-file').count(), open: await p.locator('.pn-changes .cx-file.open').count() };
+    };
+    const few = await opened(['open-a.js']);
+    ok(few.rows <= 3 && few.open === few.rows, `every one of a few opens: ${few.open} of ${few.rows}`);
+    await p.locator('.pn-changes .cx-file.open .cx-row').first().click();
+    await p.evaluate(() => dispatchEvent(new Event('focus')));
+    await p.waitForTimeout(600);
+    ok((await p.locator('.pn-changes .cx-file.open').count()) === few.open - 1, 'a file you fold stays folded');
+    const many = await opened(['open-a.js', 'open-b.js', 'open-c.js', 'open-d.js']);
+    ok(many.rows > 3 && many.open === 1, `only the first of many opens: ${many.open} of ${many.rows}`);
+    await changes(many.t).click();
+  });
+
   await check('WEB-47', 'side panel Changes: a long folder is cut to …/, never a bare ./', async () => {
     const t = await launch({ prompt: 'fix the add function' });
     const s = await settled(t.id);

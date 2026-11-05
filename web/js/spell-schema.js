@@ -565,7 +565,9 @@ export const PART_PROPS = {
   // tab: what it opens on (the toggle, ]), until you open another; swipe: false stops swiping a
   // task page left (and the panel right) bringing it in and out in the phone app
   panel: { width: 'px', tab: ['changes', 'pr', 'shell', 'preview', 'watch', 'browser'], swipe: 'bool' },
-  'panel.changes': { generated: 'bool' }, // lockfiles and build output listed, not folded under one row (off)
+  // generated: lockfiles and build output listed, not folded under one row (off); autoOpen: the first
+  // file's diff, or all when there are three or fewer, opens by itself (on)
+  'panel.changes': { generated: 'bool', autoOpen: 'bool' },
   'panel.pr': { bots: 'bool' }, // bots' comments shown, not folded under one row (off)
 };
 
