@@ -1,10 +1,12 @@
 // Compare: one task, several harnesses, side by side.
 
-import { countChanges, fmtDuration, renderPresentation } from '../blocks.js';
+import { renderPresentation } from '../blocks.js';
+import { compareRows, compareSentence, planShares } from '../compare-metrics.js';
 import { esc } from '../md.js';
 import { mentionHtml } from '../mention-text.js';
 import { api } from '../core/api.js';
-import { $, el, icon } from '../core/dom.js';
+import { on } from '../core/bus.js';
+import { $, $$, el, icon } from '../core/dom.js';
 import { STATUS_LABEL } from '../core/format.js';
 import { S } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
@@ -15,65 +17,151 @@ import { agentName, effortLabel, harnessLogo } from './runners.js';
 import { ctxFor } from './turns.js';
 import { ask } from '../ui/confirm.js';
 
-function turnMetrics(t) {
-  const lines = (t?.changes || []).reduce((acc, c) => {
-    const n = countChanges(c.edits);
-    return { add: acc.add + n.add, del: acc.del + n.del };
-  }, { add: 0, del: 0 });
-  const tests = (t?.presentation?.blocks || []).filter((b) => b?.type === 'tests');
-  return {
-    time: t?.endedAt ? t.endedAt - t.startedAt : null,
-    cost: t?.stats?.costUsd,
-    files: t?.changes?.length || 0,
-    ...lines,
-    tests: tests.length ? { passed: tests.reduce((a, b) => a + (Number(b.passed) || 0), 0), failed: tests.reduce((a, b) => a + (Number(b.failed) || 0), 0) } : null,
-    asks: (t?.activity || []).filter((a) => a.kind === 'ask').length,
-  };
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const REFETCH_MS = 250; // a burst of summaries is one fetch
+const isLive = (x) => x?.state === 'running' || x?.state === 'waiting';
+const fetchRun = (id) => api(`/sessions/${id}?lean=1`); // the plain URL sends every edit's whole file for nothing
+
+// A summary changing any of this means the numbers moved. A share lands with a later report, so
+// plan is the signal for those; a run's live line isn't in it and fetches nothing.
+const metricsKey = (x) => JSON.stringify([x?.state, x?.status, x?.turnCount, x?.plan || null]);
+
+function pillOf(f, sum) {
+  return isLive(f) ? { cls: 'pill st-waiting', text: f.state === 'waiting' ? 'Asking' : 'Working' } : { cls: `pill st-${sum.status || 'info'}`, text: STATUS_LABEL[sum.status] || STATUS_LABEL.done };
 }
 
 export async function compareView(id) {
   const s0 = S.sessions.get(id);
   if (!s0?.groupId) return;
   const group = [...S.sessions.values()].filter((x) => x.groupId === s0.groupId).sort((a, b) => a.createdAt - b.createdAt);
-  const fulls = (await Promise.all(group.map((g) => api(`/sessions/${g.id}`).catch(() => null)))).filter(Boolean);
+  // Read before fetching: a summary that lands during the fetch shows as a change once it's open.
+  const keys = new Map(group.map((g) => [g.id, metricsKey(g)]));
+  const fulls = (await Promise.all(group.map((g) => fetchRun(g.id).catch(() => null)))).filter(Boolean).sort((a, b) => a.createdAt - b.createdAt);
+  const runs = fulls.map((f, i) => ({ id: f.id, full: f, letter: LETTERS[i] || '', key: keys.get(f.id), shown: null, seq: 0, timer: null }));
+  const n = fulls.length;
+  const prompt = fulls[0]?.turns[0]?.prompt || '';
   const node = el(`
-    <div class="modal compare-modal">
+    <div class="modal compare-modal" data-n="${Math.min(n, 4)}" style="--n:${n}">
       <header><h2>Compare</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
-      <p class="cmp-prompt">${mentionHtml(esc(fulls[0]?.turns[0]?.prompt || ''))}</p>
-      <div class="cmp-grid" style="--n:${fulls.length}"></div>
+      <p class="cmp-prompt"${prompt.length > 240 ? ' tabindex="0"' : ''}>${mentionHtml(esc(prompt))}</p>
+      <div class="cmp-scroll"${n > 3 ? ' tabindex="0" role="region" aria-label="Each run\'s numbers"' : ''}>
+      <table class="cmp-table">
+        <thead><tr><td></td>${runs.map((r) => `<th scope="col"><span class="cmp-run"><b class="cmp-letter">${r.letter}</b><span title="${esc(agentName(r.full.agent))}">${esc(agentName(r.full.agent))}</span></span></th>`).join('')}</tr></thead>
+        <tbody>${compareRows(fulls)
+          .map((row) => `<tr><th scope="row"${row.tip ? ` title="${esc(row.tip)}"` : ''}>${esc(row.label)}</th>${runs.map((r) => `<td data-row="${row.key}" data-run="${r.id}"></td>`).join('')}</tr>`)
+          .join('')}</tbody>
+      </table>
+      </div>
+      <p class="cmp-note"><span class="cmp-total"></span> <span class="cmp-sentence"></span></p>
+      <div class="cmp-grid"></div>
     </div>`);
-  const close = overlay(node);
+  let closed = false;
+  const close = overlay(node, {
+    onClose: () => {
+      closed = true;
+      for (const r of runs) clearTimeout(r.timer);
+    },
+  });
   $('.close', node).onclick = close;
   const grid = $('.cmp-grid', node);
-  for (const f of fulls) {
-    const sum = S.sessions.get(f.id) || {};
-    const t = f.turns.at(-1);
-    const mx = turnMetrics(t);
-    const live = f.state === 'running' || f.state === 'waiting';
-    const col = el(`
+  for (const r of runs) {
+    const f = r.full;
+    const who = `${esc(f.model || 'Default model')}${f.effort ? ` · ${esc(effortLabel(f.effort))}` : ''}`;
+    r.col = el(`
       <section class="cmp-col" data-id="${f.id}">
         <div class="cmp-head">
+          <b class="cmp-letter">${r.letter}</b>
           <span class="rb-logo">${harnessLogo(f.agent)}</span>
-          <span class="cmp-who"><b>${esc(agentName(f.agent))}</b><small>${esc(f.model || 'Default model')}${f.effort ? ` · ${esc(effortLabel(f.effort))}` : ''}</small></span>
-          ${live ? `<span class="pill st-waiting"><i></i>${f.state === 'waiting' ? 'Asking' : 'Working'}</span>` : `<span class="pill st-${sum.status || 'info'}"><i></i>${STATUS_LABEL[sum.status] || STATUS_LABEL.done}</span>`}
+          <span class="cmp-who"><b>${esc(agentName(f.agent))}</b><small title="${who}">${who}</small></span>
+          <span class="pill"><i></i> </span>
         </div>
-        <dl class="cmp-stats">
-          <div><dt>Time</dt><dd>${mx.time !== null ? fmtDuration(mx.time) : '—'}</dd></div>
-          <div><dt>Cost</dt><dd>${typeof mx.cost === 'number' ? `$${mx.cost.toFixed(2)}` : '—'}</dd></div>
-          <div><dt>Files</dt><dd>${mx.files} <span class="plus">+${mx.add}</span> <span class="minus">−${mx.del}</span></dd></div>
-          <div><dt>Tests</dt><dd>${mx.tests ? `<span class="${mx.tests.failed ? 'minus' : 'plus'}">${mx.tests.passed} ✓ ${mx.tests.failed ? `${mx.tests.failed} ✗` : ''}</span>` : '—'}</dd></div>
-          <div><dt>Asked</dt><dd>${mx.asks}</dd></div>
-        </dl>
-        <div class="cmp-body"></div>
+        <div class="cmp-body"><p class="muted xs cmp-live"></p></div>
         <div class="cmp-foot">
           <button class="ghost xs" data-a="open">${icon('chevron')}Open card</button>
           <span class="grow"></span>
-          <button class="primary sm" data-a="keep" ${live ? 'disabled title="Still working"' : ''}>${icon('check')}Keep this</button>
+          <button class="primary sm" data-a="keep">${icon('check')}Keep this</button>
         </div>
       </section>`);
-    $('.cmp-body', col).append(live ? el(`<p class="muted xs">${esc(sum.live || 'Working…')}</p>`) : renderPresentation(t?.presentation, ctxFor(f, t, false)));
-    grid.append(col);
+    grid.append(r.col);
   }
+  const cells = new Map($$('td[data-row]', node).map((td) => [`${td.dataset.row} ${td.dataset.run}`, td]));
+  const shown = new Map(); // td → the html it holds (reading innerHTML back gives the browser's spelling)
+
+  // A run's head and live line, from its summary or the last fetch when it has none (a task removed).
+  const paintRun = (r) => {
+    const sum = S.sessions.get(r.id) || {};
+    const f = sum.state ? { ...r.full, state: sum.state } : r.full;
+    const live = isLive(f);
+    const pill = $('.pill', r.col);
+    const { cls, text } = pillOf(f, sum);
+    if (pill.className !== cls) pill.className = cls;
+    if (pill.lastChild.nodeValue !== text) pill.lastChild.nodeValue = text;
+    const keep = $('[data-a="keep"]', r.col);
+    if (keep.disabled !== live) keep.disabled = live;
+    const title = live ? 'Still working' : '';
+    if (keep.title !== title) keep.title = title;
+    if (r.shown !== null) return;
+    const line = $('.cmp-live', r.col);
+    const words = sum.live || 'Working…';
+    if (line && line.textContent !== words) line.textContent = words;
+  };
+
+  // The report goes in once per finished turn: a body the reader is scrolling isn't rebuilt. Waits
+  // for the fetch, not the summary: only the fetch has the report.
+  const paintBody = (r) => {
+    const f = r.full;
+    const t = f.turns.at(-1);
+    if (isLive(f) || t?.status === 'running' || r.shown === (t?.id ?? '')) return;
+    r.shown = t?.id ?? '';
+    $('.cmp-body', r.col).replaceChildren(renderPresentation(t?.presentation, ctxFor(f, t, false)));
+  };
+
+  const paint = () => {
+    const list = runs.map((r) => r.full);
+    for (const row of compareRows(list)) {
+      row.cells.forEach((c, i) => {
+        const td = cells.get(`${row.key} ${runs[i].id}`);
+        if (shown.get(td) !== c.html) {
+          shown.set(td, c.html);
+          td.innerHTML = c.html;
+        }
+        if (td.title !== (c.tip || '')) td.title = c.tip || '';
+      });
+    }
+    const set = (sel, text) => {
+      const n = $(sel, node);
+      if (n.textContent !== text) n.textContent = text;
+    };
+    set('.cmp-total', planShares(list).total);
+    set('.cmp-sentence', compareSentence(list));
+    for (const r of runs) {
+      paintRun(r);
+      paintBody(r);
+    }
+  };
+
+  const refetch = async (r) => {
+    r.timer = null;
+    if (closed || !node.isConnected) return;
+    const seq = ++r.seq;
+    const f = await fetchRun(r.id).catch(() => null); // a failed fetch keeps the last numbers
+    if (seq !== r.seq || !f || closed || !node.isConnected) return;
+    r.full = f;
+    paint();
+  };
+  const onSummary = (sid) => {
+    const r = runs.find((x) => x.id === sid);
+    const sum = S.sessions.get(sid);
+    if (!r || !sum || closed) return;
+    paintRun(r);
+    const key = metricsKey(sum);
+    if (key === r.key) return;
+    r.key = key;
+    r.timer ??= setTimeout(() => refetch(r), REFETCH_MS);
+  };
+  paint();
+  on('summary', onSummary, { node });
+  for (const r of runs) onSummary(r.id);
   grid.onclick = async (e) => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     const keep = e.target.closest('.cmp-col')?.dataset.id;

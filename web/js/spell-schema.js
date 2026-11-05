@@ -145,6 +145,8 @@ export const PARTS = {
   'launcher.share': '#launcher .l-share',
   // Share… on a task: the dialog (who can open it, its work, the link).
   'share.dialog': '.share-modal',
+  'compare.table': '.compare-modal .cmp-table', // Compare: the runs' numbers side by side
+  'compare.note': '.compare-modal .cmp-note', // Compare: the plan total and the sentence against the first run
   'autoPreview.panel': '.auto-pop',
   'autoPreview.alternatives': '.auto-pop .ap-alt',
   'autoPreview.suggest': '.auto-pop .ap-sug',
