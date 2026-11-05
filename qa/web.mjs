@@ -637,6 +637,33 @@ try {
     await q.context().close();
   });
 
+  await check('WEB-52', 'a pane opened as a page: its name sits on the row, or over what it still asks for', async () => {
+    const it = (await api(w.url, '/api/stuff/starters/agent-board', {})).json;
+    await api(w.url, '/api/config', { defaults: { panes: `${it.id}@home` } }, 'PATCH');
+    const q = await page({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+    const middle = () => q.evaluate(() => {
+      const mid = (n) => { const r = n.getBoundingClientRect(); return r.top + r.height / 2; };
+      const bar = document.querySelector('.pa-open .pa-bar');
+      return { name: mid(bar.querySelector('.pa-name')), back: mid(bar.querySelector('.sh-back')), need: !bar.querySelector('.pa-need').hidden };
+    });
+    await q.goto(w.url);
+    await q.locator('text=New task').first().click();
+    await q.locator(`.sh-pane-row[data-pane="${it.id}"]`).click();
+    await q.waitForSelector('.pa-open.pa-needs .pa-need:not([hidden])');
+    const asking = await middle();
+    ok(asking.name < asking.back, `with a line under it the name is at ${asking.name}, Back at ${asking.back}`);
+    await api(w.url, `/api/stuff/${it.id}/allow`, { uses: it.uses });
+    await q.reload();
+    await q.locator('text=New task').first().click();
+    await q.locator(`.sh-pane-row[data-pane="${it.id}"]`).click();
+    await q.waitForSelector('.pa-open:not(.pa-needs) .pa-frame');
+    const allowed = await middle();
+    ok(!allowed.need && Math.abs(allowed.name - allowed.back) <= 1, `alone on its row the name is at ${allowed.name}, Back at ${allowed.back}`);
+    q.clean();
+    await q.context().close();
+    await api(w.url, '/api/config', { defaults: { panes: '' } }, 'PATCH');
+  });
+
   await check('WEB-31', 'docs site builds and renders', async () => {
     execFileSync(process.execPath, [path.join(ROOT, 'scripts/site.mjs')], { cwd: ROOT, stdio: 'ignore' });
     for (const [label, vp] of [['desktop', { width: 1440, height: 900 }], ['phone', { width: 390, height: 844 }]]) {

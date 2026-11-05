@@ -438,8 +438,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
   - 4: the spell's layout shows at once, with two columns and the third pane on a second row; a drag saves over it; removing the spell shows equal tiles again, not the sizes from under the spell.
   - 5: one under the other at the read width, with no boundary grip; then no grips at all.
   - 6: below 900px the tiles go and a row per pane shows, with no grips; widening brings the tiles back with the apps still running.
-  - 7: no frame exists until a row is tapped. The page fills home with Back, the name, Reload and Unpin. Back goes pane page → home page → list, one step each, by the button, Esc or the phone's Back, and home is where it was scrolled. Reopening doesn't reload the app. Unpinning closes the page.
-- **Suite** (`test/panes.test.js`, `test/spells.test.js`), **Manual** (real Chrome)
+  - 7: no frame exists until a row is tapped. The page fills home with Back, the name, Reload and Unpin. The name sits in the middle of the row, or above the line saying what the pane still asks for. Back goes pane page → home page → list, one step each, by the button, Esc or the phone's Back, and home is where it was scrolled. Reopening doesn't reload the app. Unpinning closes the page.
+- **Automated** (`qa/web.mjs`, the name on the page), **Suite** (`test/panes.test.js`, `test/spells.test.js`), **Manual** (real Chrome)
 
 ### WEB-53 · Bring in Conductor worktrees
 - **Steps:** in the QA home (`HOME` set to a temp folder), `git worktree add ~/conductor/workspaces/demo/tokyo -b dev/fix-login` in the QA repo, change a tracked file there, stage a new one, leave an untracked one, and put a non-empty `<uuid>.jsonl` in `~/.claude/projects/<the folder with every non-alphanumeric as ->/`. Add a second worktree under `~/conductor/workspaces/demo/lima`, and a detached one beside them.
