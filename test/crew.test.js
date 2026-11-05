@@ -167,8 +167,11 @@ test('the schedule: cron minutes once each, wake-ups, paused members never', () 
   const at = new Date(2026, 9, 25, 9, 0, 10).getTime();
   const m = { cron: '0 9 * * *', paused: false, wakeAt: null, lastMinute: null };
   assert.equal(dueNow(m, at), true);
+  const nine = new Date(2026, 9, 25, 9, 0, 0).getTime();
+  assert.equal(nextCheckin(m, at), nine, 'the minute it’s in counts until its check-in has run');
   m.lastMinute = Math.floor(at / 60_000);
   assert.equal(dueNow(m, at), false, 'once per minute');
+  assert.equal(nextCheckin(m, at), nine + 24 * 3600_000, 'once it has run, the next one is ahead');
   assert.equal(dueNow({ ...m, cron: '', wakeAt: at - 1 }, at), true);
   assert.equal(dueNow({ ...m, paused: true, wakeAt: at - 1 }, at), false);
   assert.equal(nextCheckin({ ...m, wakeAt: at + 60_000 }, at), at + 60_000, 'a wake-up before the schedule comes first');
@@ -574,7 +577,8 @@ test('a task joins the crew: its folder, harness and first prompt become the mem
   assert.equal(cy.agent, 'claude');
   assert.equal(cy.model, 'opus');
   assert.equal(cy.brief, 'Keep the changelog tidy');
-  assert.ok(cy.nextAt > Date.now());
+  // Not "> now": in the minute its schedule matches, that minute is next (the schedule test above).
+  assert.ok(cy.nextAt > Date.now() - 60_000);
   const sum = (await api('/sessions')).find((x) => x.id === s.id);
   assert.deepEqual(jobOf(sum), { id: cy.id, job: 'task' });
   await assert.rejects(api(`/sessions/${s.id}/crew`, { name: 'Dee' }), /already Cy’s/);
