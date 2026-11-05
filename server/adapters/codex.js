@@ -52,6 +52,24 @@ const SANDBOX = {
 const toml = (v) =>
   Array.isArray(v) ? `[${v.map(toml).join(',')}]` : typeof v === 'object' ? `{${Object.entries(v).map(([k, x]) => `${k}=${toml(x)}`).join(',')}}` : JSON.stringify(v);
 
+// turn.completed's usage is the thread's running total, not the turn's: `exec resume` and `exec fork`
+// start from its saved counters. prior (the last turn's stats.totals, or its stats from before them)
+// is taken off, unless the counters are behind it: they started over, so nothing is restored. A turn
+// that ended with no usage passes prior on, and the next one counts what it spent.
+export function turnUsage(usage, prior, thread) {
+  if (!usage) return prior ? { totals: prior } : {};
+  const n = (x) => (Number.isFinite(x) && x > 0 ? x : 0);
+  const now = { inputTokens: n(usage.input_tokens), cachedInputTokens: n(usage.cached_input_tokens), outputTokens: n(usage.output_tokens) };
+  const from = prior && now.inputTokens >= n(prior.inputTokens) && now.outputTokens >= n(prior.outputTokens) ? prior : {};
+  const cached = Math.max(0, now.cachedInputTokens - n(from.cachedInputTokens));
+  return {
+    inputTokens: now.inputTokens - n(from.inputTokens),
+    ...(cached && { cachedInputTokens: cached }), // Ask near the limit counts what wasn't cached (server/guard.js)
+    outputTokens: now.outputTokens - n(from.outputTokens),
+    totals: { ...now, thread }, // what the next resume starts from
+  };
+}
+
 export default {
   id: 'codex',
   reportsCli: true, // says its version and catalog per run: `cli` events, no version from detect (runner.js)
@@ -105,7 +123,8 @@ export default {
   // accountEnv: the account it runs on (CODEX_HOME, server/accounts.js), {} for the default.
   // lean: a side run that only answers (the retro), with codex's extras off.
   // probe: a task's turn, which records what the CLI was (side runs don't pay for two more processes).
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, accountEnv = {}, lean = false, probe = false, onEvent }) {
+  // prior: the thread's counters after its last turn (stats.totals), see turnUsage.
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, prior = null, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, accountEnv = {}, lean = false, probe = false, onEvent }) {
     const args = ['exec', '--json', '--skip-git-repo-check'];
     let base = null;
     if (lean) {
@@ -174,9 +193,7 @@ export default {
         text: ok ? lastMessage : text,
         stats: {
           durationMs: Date.now() - started,
-          inputTokens: usage?.input_tokens,
-          ...(usage?.cached_input_tokens && { cachedInputTokens: usage.cached_input_tokens }), // Ask near the limit counts what wasn't cached (server/guard.js)
-          outputTokens: usage?.output_tokens,
+          ...turnUsage(usage, prior, thread),
         },
       });
     };

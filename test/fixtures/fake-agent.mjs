@@ -21,6 +21,8 @@
 //                    streams them, and modelUsage on its result (Opus 41k output, 14k the main thread's)
 //   FAKE_RESTORED    claude: on --resume, that many earlier runs' total_cost_usd and modelUsage still
 //                    in the counters of its result, as the CLI restores them
+//                    codex: that many earlier runs in turn.completed's usage, which is the thread's
+//                    running total (with 2 cached input tokens a run)
 //   FAKE_RATE_LIMIT  opencode: log a rate-limit error to stderr, then go quiet for good as the
 //                real CLI does while it retries (`recover`: carry on with the turn after it)
 //   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
@@ -692,7 +694,7 @@ if (name === 'claude') {
     out({ type: 'item.completed', item: { id: 'i1', type: 'file_change', changes: [{ path: target, kind: 'update' }, { path: 'notes.txt', kind: 'add' }], status: 'completed' } });
     const answer = await ask();
     out({ type: 'item.completed', item: { id: 'i2', type: 'agent_message', text: final(answer) } });
-    out({ type: 'turn.completed', usage: { input_tokens: 10, cached_input_tokens: 0, output_tokens: 5 } });
+    out({ type: 'turn.completed', usage: { input_tokens: 10 * runsSoFar, cached_input_tokens: process.env.FAKE_RESTORED ? 2 * runsSoFar : 0, output_tokens: 5 * runsSoFar } });
   }
 } else if (name === 'opencode') {
   const base = { sessionID: session, timestamp: Date.now() };

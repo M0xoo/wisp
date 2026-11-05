@@ -61,10 +61,12 @@ export function approvalDecision(text) {
 
 // The follow-up that retries what a turn's permissions refused, once the user allowed it.
 // What the harness's counters held after this conversation's last turn. A turn from before
-// stats.totals kept the counters themselves in costUsd and models.
+// stats.totals kept the counters themselves in costUsd and models, or Codex's in its tokens. Codex
+// totals name their thread: another account's turns ran on a thread of their own.
 function priorTotals(session) {
-  const st = session.turns.findLast((t) => t.stats && (t.agent || session.agent) === session.agent)?.stats;
-  return st ? st.totals || { costUsd: st.costUsd, models: st.models } : null;
+  const here = (st) => !st.totals?.thread || st.totals.thread === session.agentSessionId;
+  const st = session.turns.findLast((t) => t.stats && (t.agent || session.agent) === session.agent && here(t.stats))?.stats;
+  return st ? st.totals || { costUsd: st.costUsd, models: st.models, inputTokens: st.inputTokens, cachedInputTokens: st.cachedInputTokens, outputTokens: st.outputTokens } : null;
 }
 
 function retryPrompt(items, scoped) {

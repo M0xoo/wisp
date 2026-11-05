@@ -897,6 +897,7 @@ test('compare on /agents: only for a harness with several accounts', async () =>
 // subagent type from the messages carrying each Agent call's id as parent_tool_use_id.
 const { costSince, countedFrom, modelsOf, restoredFrom, subagentTally } = await import('../server/adapters/claude.js');
 const { unitsOf } = await import('../server/budget.js');
+const { turnUsage } = await import('../server/adapters/codex.js');
 const { usage, tokensOf } = await import('../server/usage.js');
 const { modelWords, subagentParts, subagentTip, insteadWords, turnOutput } = await import('../web/js/receipt.js');
 const { whereSubagents } = await import('../server/budget.js');
@@ -1042,6 +1043,67 @@ test('countedFrom: a chat with unknown earlier counters takes its first result a
   // Not a sample: nothing divides by it, and estimates and Drain watch skip it.
   assert.equal(unitsOf({ costUsd: 0, baseline: true, inputTokens: 5000, outputTokens: 900 }), 0);
   assert.equal(unitsOf({ costUsd: 0, inputTokens: 5000, outputTokens: 900 }), 0.0059, 'an ordinary zero-cost run still counts its tokens');
+});
+
+// codex exec's turn.completed prints the thread's running totals: three identical turns against a
+// local mock say 1000, 2000, 3000 input tokens on codex-cli 0.163.0 (`exec resume` and `exec fork`).
+test('a resumed Codex run counts its own tokens, not the thread’s so far', async () => {
+  const cwd = makeRepo();
+  const follow = async (id, restored, n) => {
+    process.env.FAKE_RESTORED = restored;
+    await api(`/sessions/${id}/reply`, { text: 'and again' });
+    await until(async () => {
+      const x = await api(`/sessions/${id}`);
+      return x.turns.length === n && x.state !== 'running' && x.turns.at(-1).status !== 'running';
+    }, { timeout: 30_000 });
+  };
+  try {
+    process.env.FAKE_RESTORED = '0'; // a first run has nothing to restore
+    const a = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'codex', worktree: false });
+    await ended(a.id, 'review');
+    await follow(a.id, '1', 2);
+    await follow(a.id, '2', 3);
+    // A turn that died before turn.completed says nothing, and the counters carry on past it.
+    process.env.FAKE_FAIL = '1';
+    await follow(a.id, '2', 4);
+    delete process.env.FAKE_FAIL;
+    await follow(a.id, '3', 5);
+    await follow(a.id, '', 6); // started over: less than the last turn's, so nothing to take off
+    const { turns } = await api(`/sessions/${a.id}`);
+    const ran = turns.filter((t) => t.stats?.inputTokens !== undefined);
+    assert.deepEqual(ran.map((t) => t.stats.inputTokens), [10, 10, 10, 10, 10]);
+    assert.deepEqual(ran.map((t) => t.stats.outputTokens), [5, 5, 5, 5, 5]);
+    assert.deepEqual(ran.map((t) => t.stats.cachedInputTokens), [2, 2, 2, 2, undefined]);
+    assert.equal(unitsOf(ran[1].stats), 13 / 1e6, 'what Ask near the limit and Drain watch read');
+
+    // A turn from before stats.totals kept the counters themselves in its token stats.
+    const stored = srv.runner.store.get(a.id).turns.at(-1).stats;
+    delete stored.totals;
+    await follow(a.id, '1', 7);
+    const old = (await api(`/sessions/${a.id}`)).turns.at(-1).stats;
+    assert.equal(old.inputTokens, 10);
+
+    // Another account keeps its own thread (ACCOUNT_HOMES.codex.resumes false): its counters don't count.
+    srv.runner.store.get(a.id).turns.at(-1).stats.totals.thread = 'another-thread';
+    await follow(a.id, '1', 8);
+    const other = (await api(`/sessions/${a.id}`)).turns.at(-1).stats;
+    assert.equal(other.inputTokens, 10, 'taken off the turn before, on this thread');
+  } finally {
+    delete process.env.FAKE_FAIL;
+    delete process.env.FAKE_RESTORED;
+  }
+});
+
+test('turnUsage: the turn is the thread’s totals past the last turn', () => {
+  const usage = { input_tokens: 2000, cached_input_tokens: 200, output_tokens: 20 };
+  const totals = { inputTokens: 2000, cachedInputTokens: 200, outputTokens: 20, thread: 't' };
+  assert.deepEqual(turnUsage(usage, null, 't'), { inputTokens: 2000, cachedInputTokens: 200, outputTokens: 20, totals });
+  const prior = { inputTokens: 1000, cachedInputTokens: 100, outputTokens: 10, thread: 't' };
+  assert.deepEqual(turnUsage(usage, prior, 't'), { inputTokens: 1000, cachedInputTokens: 100, outputTokens: 10, totals });
+  assert.deepEqual(turnUsage(usage, { inputTokens: 5000, outputTokens: 50 }, 't'), { inputTokens: 2000, cachedInputTokens: 200, outputTokens: 20, totals }, 'started over');
+  assert.deepEqual(turnUsage(null, prior, 't'), { totals: prior }, 'no usage: the next turn counts from the same place');
+  assert.deepEqual(turnUsage(null, null, 't'), {});
+  assert.deepEqual(turnUsage(usage, { costUsd: undefined, models: undefined }, 't').inputTokens, 2000, 'a last turn that ran nothing');
 });
 
 test('restoredFrom: what the counters hold past the last turn must cover what this run wrote', () => {
