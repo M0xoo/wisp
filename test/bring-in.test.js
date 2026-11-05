@@ -574,7 +574,7 @@ test('a gone folder is a readable refusal: never recreated, never pruned, and th
 
   // Back in place: it works again, and git never forgot it.
   await moveAway(held, l.tokyo);
-  assert.ok(gitIn(l.repo, 'worktree', 'list', '--porcelain').includes(`worktree ${fs.realpathSync(l.tokyo)}`));
+  assert.ok(gitIn(l.repo, 'worktree', 'list', '--porcelain').split('\n').some((x) => x.startsWith('worktree ') && same(x.slice('worktree '.length), l.tokyo)));
   await reply(s.id, 'carry on');
   await settled(s.id, 2);
   kept(l);
