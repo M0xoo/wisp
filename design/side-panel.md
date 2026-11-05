@@ -506,6 +506,10 @@ task with a worktree (that never changes for a task, so nothing moves); Watch st
   on, or after a failure, it opens Preview on that.
 - **Phones:** the fifth segment of the page's head (equal widths); the bar is 44px with 40px
   buttons.
+- **Keyboard:** the bar's rebuilt as its state changes, so what had focus keeps it (`paintBar`), or the
+  bar itself (`.rn-bar`, `tabindex=-1`) when that control is off for now. Run by keyboard lands on the
+  bar, Stop or an exit on the command, Escape in the page on Pick. A pointer's focus isn't moved: on a
+  phone a box that takes focus opens the keyboard.
 
 ## Spells
 
