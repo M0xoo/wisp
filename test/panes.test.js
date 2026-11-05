@@ -7,12 +7,13 @@ import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { installFakeBins, tmp } from './helpers.js';
 import { appFor, argsOf, burnOf, CALL_DOCS, dragShares, effectiveGrant, fitShares, grantOf, launchBody, lightAccounts, lightPrs, lightTask, MIN_TILE, missingOf, notWhile, PANE_APP_CSP, PANE_CALLS, PANE_CLIENT, PANE_CSP, PANE_USES, PANE_WRITES, paneFrameCsp, PANE_KIT, paneNeed, paneStale, panesProblem, panesString, paneWidthsProblem, paneWrapperDoc, parsePanes, refusal, runsFullAuto, scrubSecrets, showInvisible, TILE_GAP, tileColumns, tileEdges, tileFrom, tileSaved, tileShares, usesOf } from '../web/js/pane-bridge.js';
 import { appHash, scanApp } from '../server/services/stuff.js';
 import { paneGuide, PANE_EXAMPLE, paneReference } from '../server/pane-guide.js';
-import { starters } from '../server/routes/stuff.js';
+import { followStarters, starters } from '../server/routes/stuff.js';
 import { isPaneAsk } from '../web/js/slash-text.js';
 import { createPublish } from '../server/services/publish.js';
 import { packAttached } from '../server/services/share.js';
@@ -303,7 +304,7 @@ test('usage: light per-account rows, no email or anything else an account carrie
   ];
   const rows = lightAccounts(agents, now);
   assert.deepEqual(rows.map((r) => [r.agent, r.agentName, r.account, r.windows.length]), [['claude', 'Claude Code', 'Main', 2], ['claude', 'Claude Code', 'Account 2', 1], ['claude', 'Claude Code', 'Idle', 0], ['codex', 'Codex', '', 0], ['grok', 'Grok', '', 0]]);
-  assert.deepEqual(rows[0].windows[0], { id: 'five_hour', label: '5-hour', used: 0.5, resetsAt: now + 3 * H });
+  assert.deepEqual(rows[0].windows[0], { id: 'five_hour', label: '5-hour', used: 0.5, resetsAt: now + 3 * H, periods: [], shrink: null });
   assert.equal(rows[0].windows[1].used, 1, 'kept to 0–1');
   assert.equal(rows[0].burnPerHour, 0.25, '50% of the 5-hour window in its first 2 hours');
   assert.equal(rows[0].burnWindow, '5-hour');
@@ -318,6 +319,30 @@ test('usage: light per-account rows, no email or anything else an account carrie
   assert.equal(burnOf([], now).burnPerHour, null);
   const scrubbed = lightAccounts([{ id: 'a', name: 'A', available: true, accounts: [{ id: 'x', label: 'API_KEY=abc' }, { id: 'y', label: 'b' }], budget: [{ account: 'x', windows: [] }] }], now);
   assert.doesNotMatch(JSON.stringify(scrubbed), /abc/);
+});
+
+test('usage: a window carries its periods and reading, by the budget’s account id, and nothing else', () => {
+  const H = 3_600_000;
+  const now = 1e12;
+  const email = 'ada@example.com';
+  const agents = [{ id: 'claude', name: 'Claude Code', available: true, accounts: [{ id: 'default', label: 'Main', email }, { id: 'w', label: 'Work', email }], budget: [{ account: 'default', windows: [{ id: 'seven_day', label: 'Weekly', used: 0.4, resetsAt: now + H, ms: 168 * H }, { id: 'five_hour', label: '5-hour', used: 0.1, resetsAt: now + H, ms: 5 * H }] }, { account: 'w', windows: [{ id: 'seven_day', label: 'Weekly', used: 0.2, resetsAt: now + H, ms: 168 * H }] }] }];
+  const period = { end: now + H, ms: 168 * H, used: 0.4, inWisp: 0.3, outside: 0.1, work: 6, unit: 'usd', per1: 0.2, rough: true, open: true, cut: false, sessions: ['secret-task'], note: 'API_KEY=abc', cli: { version: ['1.0', 'sk-abcdefghijklmnop1234'], tools: 'hash', account: 'w', extra: 1 } };
+  const closed = { end: now - H, ms: 168 * H, used: null, inWisp: 0.2, outside: null, work: 0, unit: 'usd', per1: null, full: false };
+  const shrink = { state: 'less', change: -0.3, recent: 0.1, before: 0.14, unit: 'usd', from: 5, rough: true, cli: { catalog: 'hash' }, tasks: ['secret-task'] };
+  const history = [{ agent: 'claude', account: 'default', windows: [{ id: 'seven_day', label: 'Weekly', periods: [period, closed], shrink }] }, { agent: 'codex', account: 'w', windows: [{ id: 'seven_day', periods: [closed], shrink }] }];
+  const [main, work] = lightAccounts(agents, now, history);
+  const week = main.windows[0];
+  assert.deepEqual(week.periods[0], { end: now + H, ms: 168 * H, used: 0.4, inWisp: 0.3, outside: 0.1, work: 6, unit: 'usd', per1: 0.2, rough: true, open: true, cli: { version: ['1.0', '[redacted]'], tools: true } });
+  assert.deepEqual([week.periods[1].used, week.periods[1].outside, week.periods[1].per1], [null, null, null], 'null stays null: it means no reading');
+  assert.deepEqual(week.shrink, { state: 'less', change: -0.3, recent: 0.1, before: 0.14, unit: 'usd', from: 5, rough: true, cli: { catalog: true } });
+  assert.deepEqual([main.windows[1].periods, main.windows[1].shrink], [[], null], 'a window with no history');
+  assert.deepEqual([work.windows[0].periods, work.windows[0].shrink], [[], null], 'another account’s or harness’s history isn’t this one’s');
+  assert.doesNotMatch(JSON.stringify([main, work]), /ada@|secret-task|abc|sk-|"account":"w"|"extra"|"note"/);
+  assert.deepEqual(lightAccounts(agents, now, [])[0].windows[0].periods, [], 'none at all');
+  assert.equal(lightAccounts(agents, now)[0].windows[0].shrink, null);
+  assert.equal(lightAccounts(agents, now, [{ agent: 'claude', account: 'default', windows: [{ id: 'seven_day', shrink: { state: '<b>', change: 1 } }] }])[0].windows[0].shrink, null, 'only a known state');
+  assert.match(PANE_USES['usage:read'], /what each period cost/);
+  assert.match(CALL_DOCS['usage.accounts'].returns, /periods/);
 });
 
 test('light shapes: a task carries its harness, account and machine by name, wherever it runs', () => {
@@ -416,10 +441,14 @@ test('paneCall: refuses what wasn’t allowed before calling anything, and answe
   set('navigator', { platform: 'MacIntel', userAgent: 'node', clipboard: undefined });
   let grant = (id) => ({ allowed: S.stuff.find((x) => x.id === id)?.allowed || [], changed: false }); // what GET /stuff/:id/grant answers
   let S;
+  const week = { id: 'seven_day', label: 'Weekly', used: 0.4, resetsAt: 9e12, ms: 6048e5 };
+  const boards = [{ id: 'claude', name: 'Claude Code', available: true, budget: [{ account: 'default', windows: [week] }] }];
+  let history = null; // GET /usage/periods fails
   set('fetch', async (url, o) => {
     calls.push([String(url), o?.method || 'GET', o?.body]);
     const asked = /\/stuff\/(\w+)\/grant$/.exec(String(url));
-    const body = asked ? grant(asked[1]) : { id: 'n1', title: 'New' };
+    if (/\/usage\/periods$/.test(url) && !history) return { ok: false, status: 500, statusText: 'no', headers: new Map(), json: async () => ({ error: 'no' }), text: async () => '' };
+    const body = asked ? grant(asked[1]) : /\/usage\/periods$/.test(url) ? { accounts: history } : /\/agents$/.test(url) ? boards : { id: 'n1', title: 'New' };
     return { ok: true, status: 200, headers: new Map([['content-type', 'application/json']]), json: async () => body, text: async () => JSON.stringify(body) };
   });
   set('setInterval', () => 0);
@@ -473,6 +502,23 @@ test('paneCall: refuses what wasn’t allowed before calling anything, and answe
     S.config.defaults.mode = 'edits';
     for (let i = 0; i < 3; i++) await paneCall(f, 'tasks.launch', [{ prompt: `go ${i}` }], opts);
     await assert.rejects(paneCall(f, 'tasks.launch', [{ prompt: 'one more' }], opts), /Slow down/);
+    // usage.accounts: history comes on its own call, and a failed one leaves the windows.
+    S.stuff.push({ id: 'a2', kind: 'app', title: 'Allowance', uses: ['usage:read'], allowed: ['usage:read'] });
+    const board = { id: 'a2', where: 'home', writes: [] };
+    const [bare] = await paneCall(board, 'usage.accounts', []);
+    assert.deepEqual([bare.windows[0].used, bare.windows[0].periods, bare.windows[0].shrink], [0.4, [], null], 'the board keeps its windows');
+    const realNow = Date.now;
+    Date.now = () => realNow() + 31_000; // past both caches
+    try {
+      history = [{ agent: 'claude', account: 'default', windows: [{ id: 'seven_day', periods: [{ end: 5, ms: 6048e5, used: 0.4, inWisp: 0.2, outside: 0.2, work: 2, unit: 'usd', per1: 0.1 }], shrink: null }] }];
+      const [full] = await paneCall(board, 'usage.accounts', []);
+      assert.equal(full.windows[0].periods[0].per1, 0.1);
+      const asks = calls.filter(([u]) => /\/usage\/periods$/.test(u)).length;
+      await paneCall(board, 'usage.accounts', []);
+      assert.equal(calls.filter(([u]) => /\/usage\/periods$/.test(u)).length, asks, 'its own 30 s cache: every pane, not each');
+    } finally {
+      Date.now = realNow;
+    }
 
     // Cancel: nothing goes, and it still counted.
     f = { id: 'a1', key: 'x', where: 'home', writes: [] };
@@ -854,6 +900,82 @@ test('starters: listed from their folders, added once, grant and pin nothing', a
   await assert.rejects(api('/stuff/starters/nope', {}), (e) => e.status === 404);
   await api(`/stuff/${it.id}`, undefined, 'DELETE');
   assert.equal((await api('/stuff/starters')).starters.find((s) => s.id === 'agent-board').added, null, 'removed: it can be added again');
+});
+
+test('a starter nobody changed follows wisp’s; a changed one stays', async () => {
+  const starter = (html, was) => {
+    const dir = tmp('starter');
+    fs.writeFileSync(path.join(dir, 'index.html'), html);
+    fs.writeFileSync(path.join(dir, 'wisp-app.json'), JSON.stringify({ name: 'Board', uses: ['usage:read'], ...(was && { was }) }));
+    return dir;
+  };
+  const uses = ['usage:read'];
+  const old = starter('<p>old</p>');
+  const before = appHash(old, uses);
+  const shipped = starter('<p>new</p>', [before]);
+  const added = (src = old) => {
+    const it = srv.stuff.addApp(src, { by: 'wisp', from: { key: `starter:t${Math.random()}` } });
+    return srv.stuff.allow(it.id, uses);
+  };
+  const html = (it) => fs.readFileSync(path.join(it.path, 'index.html'), 'utf8');
+
+  const same = added();
+  srv.stuff.update(same.id, { title: 'My board', note: 'mine' });
+  const it = srv.stuff.followStarter(srv.stuff.get(same.id), shipped, [before]);
+  assert.equal(html(it), '<p>new</p>');
+  assert.deepEqual([it.id, it.rev, it.title, it.note, it.by], [same.id, 2, 'My board', 'mine', 'wisp'], 'the same item, one version on, still yours');
+  assert.deepEqual([it.uses, it.allowed], [uses, uses], 'uses stay and the grant survives');
+  assert.ok(it.prev?.path && fs.existsSync(it.prev.path), 'what it was stays for Restore');
+  assert.equal(srv.stuff.followStarter(it, shipped, [before]), null, 'already there: nothing to do');
+  assert.ok(paneStale(1, it), 'a pinned pane reloads');
+
+  // Went back on purpose: it stays back, also after the next boot.
+  const back = srv.stuff.restore(it.id);
+  assert.equal(srv.stuff.followStarter(back, shipped, [before]), null, 'Restore sticks');
+  assert.equal(html(srv.stuff.get(it.id)), '<p>old</p>');
+
+  // Two versions on: a copy that already followed once follows again.
+  const middle = appHash(shipped, uses);
+  const newer = starter('<p>newer</p>', [before, middle]);
+  const twice = srv.stuff.followStarter(srv.stuff.followStarter(srv.stuff.get(added().id), shipped, [before]), newer, [before, middle]);
+  assert.equal(html(twice), '<p>newer</p>');
+  assert.equal(twice.rev, 3);
+
+  // Changed by you or an agent: any other hash stays.
+  const changed = added();
+  fs.appendFileSync(path.join(changed.path, 'index.html'), '<p>mine</p>');
+  assert.equal(srv.stuff.followStarter(changed, shipped, [before]), null);
+  assert.equal(srv.stuff.get(changed.id).rev || 1, 1);
+  assert.match(html(srv.stuff.get(changed.id)), /mine/);
+  const updated = srv.stuff.addApp(starter('<p>an agent’s</p>'), { replace: added().id });
+  assert.equal(srv.stuff.followStarter(updated, shipped, [before]), null);
+
+  // At boot: by the item's key, from the folder wisp ships; a broken one stops nothing.
+  const dir = tmp('starters');
+  fs.cpSync(shipped, path.join(dir, 'follows'), { recursive: true });
+  fs.cpSync(shipped, path.join(dir, 'not-added'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'broken'));
+  const copy = srv.stuff.addApp(old, { by: 'wisp', from: { key: 'starter:follows' } });
+  followStarters(srv.stuff, dir);
+  assert.equal(html(srv.stuff.get(copy.id)), '<p>new</p>');
+  assert.equal(srv.stuff.get(copy.id).rev, 2);
+  followStarters(srv.stuff, dir);
+  assert.equal(srv.stuff.get(copy.id).rev, 2, 'once');
+
+  // What wisp ships: a folder hash each, and never the version it is now.
+  for (const s of starters()) {
+    const src = fileURLToPath(new URL(`../server/starters/${s.id}/`, import.meta.url));
+    const { was = [] } = JSON.parse(fs.readFileSync(path.join(src, 'wisp-app.json'), 'utf8'));
+    assert.ok(was.every((h) => /^[0-9a-f]{64}$/.test(h)), s.id);
+    assert.ok(!was.includes(appHash(src, s.uses)), `${s.id}: a shipped hash is an earlier version`);
+  }
+  assert.equal(JSON.parse(fs.readFileSync(new URL('../server/starters/allowance-board/wisp-app.json', import.meta.url), 'utf8')).was.length, 1);
+  assert.equal('was' in (await api('/stuff/starters')).starters[0], false, 'not the page’s business');
+});
+
+test('GET /usage/periods answers with every account’s history', async () => {
+  const r = await api('/usage/periods');
+  assert.ok(Array.isArray(r.accounts));
 });
 
 // A real run: the harness calls wisp_save over the bridge, as an agent does.

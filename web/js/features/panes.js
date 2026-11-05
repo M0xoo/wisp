@@ -337,6 +337,16 @@ async function agentsNow() {
   return agents.list;
 }
 
+// Each window's periods (GET /usage/periods), on its own clock: it reads every turn. If it fails the
+// board keeps its windows, with no history.
+let periods = { at: 0, list: null };
+async function periodsNow() {
+  if (periods.list && Date.now() - periods.at < 30_000) return periods.list;
+  const list = await api('/usage/periods').then((r) => r.accounts || [], () => []);
+  periods = { at: Date.now(), list };
+  return list;
+}
+
 // One call from a frame: checked, then done. Resolves with what goes back, or throws why not.
 // deps: what a test puts in place of the card, the frame list and sending.
 export async function paneCall(f, method, raw, deps = {}) {
@@ -398,8 +408,10 @@ export async function paneCall(f, method, raw, deps = {}) {
       return lightPrs(S.sessions.values());
     case 'crew.list':
       return (S.config.crew || []).map(lightMember);
-    case 'usage.accounts':
-      return lightAccounts(await agentsNow(), Date.now());
+    case 'usage.accounts': {
+      const [list, history] = await Promise.all([agentsNow(), periodsNow()]);
+      return lightAccounts(list, Date.now(), history);
+    }
   }
   throw new Error(`wisp has no ${method}().`);
 }

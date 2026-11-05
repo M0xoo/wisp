@@ -135,6 +135,57 @@ test('Budget keeps each account’s windows, reads a passed reset as fresh, know
   assert.deepEqual(b.view('codex'), []);
 });
 
+test('closed periods: a window’s new period keeps the last one’s reading', () => {
+  let now = 1_000 * H;
+  const b = new Budget(tmp('budget-periods'), { now: () => now });
+  const WEEK = 7 * 24 * H;
+  const report = (used, resetsAt) => b.record('claude', 'default', { windows: [{ id: 'seven_day', used, resetsAt, ms: WEEK }] });
+  const first = now + 24 * H;
+  report(0.2, first);
+  report(0.6, first);
+  assert.deepEqual(b.periods('claude', 'default', 'seven_day'), [], 'the same period closes nothing');
+  now = first + H;
+  report(0.03, first + WEEK);
+  assert.deepEqual(b.periods('claude', 'default', 'seven_day'), [{ resetsAt: first, ms: WEEK, used: 0.6 }]);
+  assert.deepEqual(new Budget(b.file.replace(/budget\.json$/, ''), { now: () => now }).periods('claude', 'default', 'seven_day').length, 1, 'kept on disk');
+  assert.deepEqual(b.periods('claude', 'other', 'seven_day'), []);
+  // Codex's drifting "in n seconds" is the same period.
+  report(0.04, first + WEEK + 60_000);
+  assert.equal(b.periods('claude', 'default', 'seven_day').length, 1);
+});
+
+test('closed periods: an early reset is cut, and a report out of order merges', () => {
+  let now = 1_000 * H;
+  const b = new Budget(tmp('budget-cut'), { now: () => now });
+  const WEEK = 7 * 24 * H;
+  const report = (used, resetsAt) => b.record('codex', 'default', { windows: [{ id: 'seven_day', used, resetsAt, ms: WEEK }] });
+  const [a, c] = [now + 3 * 24 * H, now + 7 * 24 * H];
+  report(0.5, a);
+  report(0.02, c); // a banked reset: its old reset hadn't come
+  assert.deepEqual(b.periods('codex', 'default', 'seven_day'), [{ resetsAt: a, ms: WEEK, used: 0.5, cut: true }]);
+  // A run that started before reports the old period again, higher, once it's really over.
+  now = a + H;
+  report(0.7, a);
+  report(0.03, c);
+  now = c + H;
+  report(0.4, c); // the same period as c, still current
+  report(0.01, c + WEEK);
+  assert.deepEqual(b.periods('codex', 'default', 'seven_day').map((p) => [p.resetsAt, p.used, !!p.cut]), [[a, 0.7, false], [c, 0.4, false]], 'the higher reading, a real close clears cut, sorted');
+});
+
+test('closed periods: forty are kept per window', () => {
+  let now = 1_000 * H;
+  const b = new Budget(tmp('budget-keep'), { now: () => now });
+  for (let i = 0; i < 45; i++) {
+    b.record('claude', 'default', { windows: [{ id: 'five_hour', used: 0.1 + i / 100, resetsAt: now + H, ms: 5 * H }] });
+    now += 2 * H;
+  }
+  const list = b.periods('claude', 'default', 'five_hour');
+  assert.equal(list.length, 40);
+  assert.ok(list.every((p, i) => !i || p.resetsAt > list[i - 1].resetsAt), 'oldest first');
+  assert.ok(Math.abs(list.at(-1).used - 0.53) < 1e-9, 'the newest stay');
+});
+
 const limited = (reset) => ({ status: 'rejected', rateLimitType: 'five_hour', utilization: 1, resetsAt: Math.round(reset / 1000), unifiedWindows: { five_hour: { utilization: 1, resetsAt: Math.round(reset / 1000) }, seven_day: { utilization: 0.4, resetsAt: Math.round((reset + 3 * 24 * H) / 1000) } } });
 
 test('a run’s windows reach the harness list; a limit on one account asks, with the reset the CLI said', async () => {

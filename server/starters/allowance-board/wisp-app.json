@@ -1,5 +1,6 @@
 {
   "name": "Allowance board",
-  "description": "How much of each account's usage windows is gone, when they reset, and how fast they're going.",
-  "uses": ["usage:read"]
+  "description": "How much of each account's usage windows is gone, when they reset, how fast they're going, and what each recent period cost.",
+  "uses": ["usage:read"],
+  "was": ["637dd450a9332dc95a079e268e2915f6e2b7fb61eea52c9e53eb6b525a91a5f3"]
 }
