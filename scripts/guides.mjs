@@ -788,8 +788,24 @@ npx wisp-agents --agent antigravity "add a test"   # or pick one`)}
     <section>
       <h2 id="in-progress">Work in progress</h2>
       <p>A local Conductor workspace is an ordinary git worktree, so you can carry on in it without an import. <a href="https://www.conductor.build/docs/concepts/git-worktrees" target="_blank" rel="noopener">Conductor keeps them</a> in <code>~/conductor/workspaces/&lt;repo&gt;/&lt;workspace&gt;</code>. Older versions used <code>&lt;repo&gt;/.conductor/&lt;workspace&gt;</code>. <code>git worktree list</code> in your repo shows where each one is, and a workspace you moved with Transfer to local should be under <code>~/conductor/</code> too.</p>
+      <p><b>Don’t archive it in Conductor yet.</b> The migration guides from <a href="https://docs.paradev.com/migrate-from-conductor" target="_blank" rel="noopener">Paradev</a> and <a href="https://www.onorca.dev/docs/migrate-from-conductor" target="_blank" rel="noopener">Orca</a> both say archiving deletes the folder, and uncommitted work exists nowhere else. Quit Conductor while you work in it, and keep <code>~/conductor/</code> until you’re done.</p>
+      <p><b>On wisp 0.58.0 or later, bring it in:</b></p>
       <ol class="doc-steps">
-        <li><b>Don’t archive it in Conductor yet.</b> The migration guides from <a href="https://docs.paradev.com/migrate-from-conductor" target="_blank" rel="noopener">Paradev</a> and <a href="https://www.onorca.dev/docs/migrate-from-conductor" target="_blank" rel="noopener">Orca</a> both say archiving deletes the folder, and uncommitted work exists nowhere else. Quit Conductor while you work in it, and keep <code>~/conductor/</code> until you’re done.</li>
+        <li><b>Pick the repo.</b> In New task, choose the project your workspaces came from, or add it. When the prompt box is empty and wisp finds Conductor’s worktrees of that repo, it shows one line, such as <i>3 worktrees from Conductor</i>.</li>
+        <li><b>Press Bring in.</b> Each worktree becomes a task right where it is, on its own branch, with its uncommitted changes as they were. wisp runs no setup and writes nothing in the folder. <b>Not now</b> stops offering those folders.</li>
+        <li><b>Send a message.</b> If wisp finds a Claude chat for that folder in <code>~/.claude</code>, your message resumes the newest one on Claude Code. If not, it starts a new chat on your default harness, and the task’s first report says which happened.</li>
+        <li><b>Ship from the task.</b> <b>Ship it</b> and <b>Merge</b> work as usual. Archive, delete and merge all leave the folder and its branch in place, because they’re Conductor’s to remove.</li>
+      </ol>
+      <aside class="g-note"><b>What Bring in doesn’t do</b>
+        <ul class="doc-list">
+          <li><b>It looks in three places.</b> On the computer wisp runs on, it reads only <code>~/conductor/workspaces</code>, <code>~/conductor/cloud-workspaces</code> and <code>&lt;repo&gt;/.conductor</code>. A worktree anywhere else isn’t offered, and neither is one with no branch checked out. Work still in Conductor Cloud isn’t on your computer, so transfer it first.</li>
+          <li><b>Claude chats only.</b> It doesn’t resume Codex chats, or a folder’s older Claude chats. Reopen those as shown below.</li>
+          <li><b>It doesn’t copy the chat into the task.</b> The agent has the conversation, but the task starts with a short report instead of your earlier messages.</li>
+          <li><b>It’s untested on a real Conductor install.</b> It has only run against worktrees set up to match Conductor’s layout. If yours aren’t offered, open them in place.</li>
+        </ul>
+      </aside>
+      <p><b>On wisp 0.57.0, or for a folder that isn’t offered, open it in place:</b></p>
+      <ol class="doc-steps">
         <li><b>Open the folder with worktrees off.</b> In New task, choose <b>Other folder…</b>, add the workspace folder’s path and switch <b>Worktree</b> to <b>In place</b>. Or from a terminal:
 ${sh(`wisp "Finish the retry logic" --no-worktree \\
   --cwd ~/conductor/workspaces/app/lisbon`)}
@@ -797,7 +813,7 @@ ${sh(`wisp "Finish the retry logic" --no-worktree \\
         </li>
         <li><b>Ship from the task.</b> <b>Ship it</b> needs a task with its own worktree, so ask the agent to commit, push and open the PR, or do it in the side panel’s <b>Shell</b>. <b>Changes</b> lists only what the task edits, so use <code>git diff</code> in Shell to see the work you came in with. Archiving or deleting the task leaves the folder alone.</li>
       </ol>
-      <p>wisp can’t show a Conductor chat as a task, but the agents keep their own copies: Conductor’s docs say <a href="https://www.conductor.build/docs/faq" target="_blank" rel="noopener">Claude Code and Codex store their files</a> in <code>~/.claude</code> and <code>~/.codex</code>. Claude Code keeps each chat under <code>~/.claude/projects</code> by folder, so you can reopen it from the same path, in wisp’s Shell or any terminal:</p>
+      <p>For a chat Bring in doesn’t resume, or after opening a folder in place, reopen it yourself. A task can’t show a Conductor chat’s messages, but the agents keep their own copies: Conductor’s docs say <a href="https://www.conductor.build/docs/faq" target="_blank" rel="noopener">Claude Code and Codex store their files</a> in <code>~/.claude</code> and <code>~/.codex</code>. Claude Code keeps each chat under <code>~/.claude/projects</code> by folder, so you can reopen it from the same path, in wisp’s Shell or any terminal:</p>
 ${sh(`cd ~/conductor/workspaces/app/lisbon
 claude --resume`)}
       <p>Claude Code’s picker <a href="https://code.claude.com/docs/en/sessions" target="_blank" rel="noopener">leaves out chats started through its Agent SDK</a> or <code>claude -p</code>. If yours isn’t listed, its session ID is the file name in <code>~/.claude/projects/&lt;folder&gt;/</code> (the folder’s path with each symbol as <code>-</code>), and <code>claude --resume &lt;id&gt;</code> opens it. For Codex, run <code>codex resume</code> in the folder.</p>
@@ -813,7 +829,7 @@ claude --resume`)}
       <div class="table"><table>
         <thead><tr><th>In Conductor</th><th>In wisp</th></tr></thead>
         <tbody>
-          <tr><td>Local workspace</td><td>A task in its own git worktree and branch from <code>origin/main</code>. To carry on in a workspace you already have, use <a href="#in-progress">In place</a></td></tr>
+          <tr><td>Local workspace</td><td>A task in its own git worktree and branch from <code>origin/main</code>. To carry on in a workspace you already have, <a href="#in-progress">bring it in or use In place</a></td></tr>
           <tr><td>Cloud workspace</td><td>A task on <a href="/guides/use-wisp-cloud.html">wisp Cloud</a>, on <a href="/guides/self-host-wisp-grid.html">your own Grid</a>, or on a machine you added: each runs when your laptop is shut</td></tr>
           <tr><td><code>scripts.setup</code></td><td>Read from <code>.conductor/settings.toml</code> or <code>conductor.json</code>, and run in each new worktree. <code>"setup"</code> in <code>.wisp/worktree.json</code> comes first if you have one</td></tr>
           <tr><td>Run button, <code>scripts.run</code></td><td>Read from the same files: the side panel’s <b>Preview</b> runs it from the worktree and shows the app beside the task. <code>"run"</code> in <code>.wisp/worktree.json</code> wins if you set one</td></tr>
@@ -853,7 +869,7 @@ claude --resume`)}
         <li><b>Multiplayer.</b> Each person has their own wisp, so there are no shared workspaces, shared chats or <i>Reassign to</i>. Share work through branches and PRs. You can <a href="/guides/share-crew-members.html">share crew members</a>.</li>
         <li><b>The Cloud Computer.</b> There’s no organization-wide environment with builds. Each person’s box starts from the same image, and what the agent installs in its home folder stays there. Repeatable steps belong in <code>"setup"</code>.</li>
         <li><b>Several actions.</b> wisp runs one command per repo, not a menu of named actions: of several, the one with <code>default = true</code>, or else the first. There’s no <code>run_mode</code> or Spotlight testing.</li>
-        <li><b>Your chats.</b> wisp can’t import Conductor’s chats into a task. Keep the export, and <a href="#in-progress">reopen Claude Code and Codex chats</a> from the same folder, or restart work from the branch.</li>
+        <li><b>Your chats.</b> <a href="#in-progress">Bring in</a> resumes a workspace’s newest Claude chat, but a task never shows a Conductor chat’s earlier messages. For the rest, keep the export, <a href="#in-progress">reopen Claude Code and Codex chats</a> from the same folder, or restart work from the branch.</li>
         <li><b>Environment variables in settings.</b> wisp has no key for them. Keep values in an ignored <code>.env</code> file, which is copied into the worktree for your app to read, not set for the agent. wisp also skips <code>!</code> lines in <code>.worktreeinclude</code>, so check any file that uses them.</li>
         <li><b>SSH and file sync.</b> A wisp Cloud box has no SSH or sync to your computer. Use the side panel’s <b>Shell</b>, or run tasks on a machine of your own.</li>
         <li><b>A native iPhone app.</b> On an iPhone, wisp Cloud is a Home Screen app with alerts through ntfy. Android has a prototype app you build from the repo, and any phone browser works.</li>
@@ -909,7 +925,7 @@ command = "pnpm dev --port $CONDUCTOR_PORT"</code></pre>
 `,
       faq: [
         ['Do I need to leave Conductor now?', 'Only if you use Cloud, which goes read-only on 13 November 2026. The Mac app keeps working and gets new models and critical bug fixes until it starts winding down in early 2027.'],
-        ['Can wisp import my Conductor chats or workspaces?', 'Not as tasks, but a local workspace still works. Open its folder with worktrees off (In place, or --no-worktree) and the agent carries on with your uncommitted changes. Claude Code chats stay in ~/.claude/projects, so claude --resume reopens them from the same folder until they age out, after 30 days by default. For Cloud work, push your branches and keep Conductor’s export.'],
+        ['Can wisp import my Conductor chats or workspaces?', 'Local worktrees, yes. From wisp 0.58.0, Bring in makes each worktree in ~/conductor/workspaces, ~/conductor/cloud-workspaces or <repo>/.conductor a task where it is, with its uncommitted changes, and your next message resumes its newest Claude chat. It hasn’t been tried on a real Conductor install yet. Earlier messages don’t show in the task, and Codex chats don’t resume. On 0.57.0, or for a folder it doesn’t offer, open the folder with worktrees off (In place, or --no-worktree). Claude Code chats stay in ~/.claude/projects, so claude --resume reopens them from the same folder until they age out, after 30 days by default. For Cloud work, push your branches and keep Conductor’s export.'],
         ['Can I keep my .conductor/settings.toml?', 'Yes. wisp reads it, or conductor.json, and runs your setup and run scripts with the same CONDUCTOR_* variables. .wisp/worktree.json comes first if you add one. It doesn’t read settings.local.toml, environment_variables or scripts.archive.'],
         ['Can my team share one workspace, like Multiplayer?', 'No. Everyone has their own wisp, and work is shared through branches and PRs. A team can run its own Grid so that each person gets a sandboxed wisp on the same server.'],
         ['Is it free?', 'wisp is free and MIT. wisp Cloud is free during the preview. The agents run on your own plans and accounts, and wisp doesn’t charge for or resell model usage.'],
