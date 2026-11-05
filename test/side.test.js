@@ -172,6 +172,13 @@ test('every lean setting keeps a side discussion behind the gate, with its tools
   }
 });
 
+test('a long main title cuts the title, never the whole link: the box itself has no ellipsis to swallow a button', () => {
+  const css = fs.readFileSync(new URL('../web/css/feed.css', import.meta.url), 'utf8');
+  const rule = (sel) => css.split('\n').find((l) => l.startsWith(`${sel} {`) || l.startsWith(`${sel},`)) || '';
+  assert.doesNotMatch(rule('.side-line .sl-of'), /overflow|text-overflow/);
+  assert.match(rule('.side-line .sl-of .link'), /min-width: 0; overflow: hidden; text-overflow: ellipsis/);
+});
+
 test('the tour, unknown harnesses and bare messages are refused', async () => {
   const repo = makeRepo();
   const s = await api('/sessions', { prompt: 'hi', cwd: repo, agent: 'claude' });

@@ -171,7 +171,7 @@ Every page check also fails on an uncaught page error or a `console.error`.
 
 ### WEB-22c · `/side` side discussion
 - **Steps:** on a finished worktree task, follow up with `/side why that approach?`; again from More, right-click and ⌘K (*Side discussion…* puts `/side ` in the box). Send a bare `/side`. In the side discussion, follow up once more, then follow up on the main task and ask the side discussion about it. Check its / menu, More, right-click and ⌘K. Click its *Side discussion of …* line; on the main task, click *N side discussions*. Repeat at 390px (stacked) and in dark.
-- **Expected:** the box clears at once, a row with the *Side* pill appears and opens; the main task counts it. A bare `/side` shows the hint and sends nothing. The side discussion has no mode, team, computer or goal buttons, no Rerun, Take over or Ship it, and no `/side` or `/goal` in its / menu; its answers know what the main task did since. The line and chip go back and forth.
+- **Expected:** the box clears at once, a row with the *Side* pill appears and opens; the main task counts it. A bare `/side` shows the hint and sends nothing. The side discussion has no mode, team, computer or goal buttons, no Rerun, Take over or Ship it, and no `/side` or `/goal` in its / menu; its answers know what the main task did since. The line and chip go back and forth; with a long main task title the line still shows the start of it as a link, cut with `…`, and Tab draws its whole ring.
 - **Suite** (`test/side.test.js`), **Manual** (the page)
 
 ### WEB-22d · A side discussion changes the work
