@@ -11,7 +11,7 @@ import { diffLines, hunks, countChanges, opensFirst } from '../web/js/diff.js';
 import { ago, fmtSize, money, pct } from '../web/js/core/format.js';
 import * as bus from '../web/js/core/bus.js';
 import { shared } from '../web/js/core/api.js';
-import { finalAnswer, layout, messageText, sameStep } from '../web/js/features/transcript.js';
+import { finalAnswer, judgeResult, layout, messageText, sameStep } from '../web/js/features/transcript.js';
 import { historyStep, MAX_SENT, remember } from '../web/js/prompt-history.js';
 import { isSpirit, parseSpirit, rollSpirit, SPIRIT, spiritCode, spiritDefs, spiritSvg } from '../web/js/spirit.js';
 import { decode, encode, mentionHtml, plain } from '../web/js/mention-text.js';
@@ -166,6 +166,26 @@ test("transcript: the final answer is the turn's last message(s), shown as block
   // No answer (stopped, failed): every message stays.
   assert.equal(finalAnswer({ activity: [{ kind: 'text', label: 'hi' }] }).size, 0);
   assert.equal(finalAnswer({ raw: 'A different answer', activity: [{ kind: 'text', label: 'Looking around.' }] }).size, 0);
+});
+
+// A real judge's last message (a Haiku check, stored run 8d60531e5748): prose, then its vote.
+test("a judge's words around its vote stay on the page of its check", () => {
+  const vote = '{"verdict": "met", "why": "Each file opens with an accurate comment.", "evidence": ["src/c.js line 1"], "next": "", "progress": 100}';
+  const prose = 'src/c.js likewise starts with a one-line comment saying it exports a function returning "c".';
+  const raw = `${prose}\n\n\`\`\`json\n${vote}\n\`\`\``;
+  const t = { raw, activity: [{ kind: 'run' }, { kind: 'text', label: raw }] };
+  assert.deepEqual([...finalAnswer(t)], [1], 'its last message goes from the timeline');
+  const r = judgeResult({ evidence: ['src/c.js line 1'], turn: t });
+  assert.equal(r.notes, prose, 'its words come back without the vote');
+  assert.match(r.blocks[0].text, /What it saw/);
+  // A bare object, another key first, or words after it.
+  assert.equal(judgeResult({ turn: { raw: `Fine.\n${vote}` } }).notes, 'Fine.');
+  assert.equal(judgeResult({ turn: { raw: 'Fine. {"why": "x", "verdict": "met"} Done.' } }).notes, 'Fine.\n\nDone.');
+  // Nothing but the vote: no message.
+  assert.equal(judgeResult({ turn: { raw: vote } }).notes, undefined);
+  assert.equal(judgeResult({ turn: { raw: `\`\`\`json\n${vote}\n\`\`\`` } }).notes, undefined);
+  assert.equal(judgeResult({ turn: { raw: '' } }).notes, undefined);
+  assert.deepEqual(judgeResult({ turn: {} }).blocks, []);
 });
 
 test('transcript: a message mid-run hides the presentation it is writing', () => {

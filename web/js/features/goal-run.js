@@ -18,7 +18,7 @@ import { openInEditor, revealFile } from './actions.js';
 import { faceOf, SAID, VOTE_ICON } from './judges.js';
 import { agentName, modelBadge } from './runners.js';
 import { paintSplit, splitOpen } from './split.js';
-import { appendStep, renderLiveTranscript, renderTranscript, sameStep, updateStep } from './transcript.js';
+import { appendStep, judgeResult, renderLiveTranscript, renderTranscript, sameStep, updateStep } from './transcript.js';
 
 S.goalRun = null; // { task, run, hint }: not kept over a reload, the task is
 let view = null;
@@ -99,12 +99,6 @@ const ctxOf = (s, t) => ({
   keep: null,
 });
 
-// What it backed its vote with, where a task has its result. Its reply as such is this.
-function resultOf(r) {
-  const text = [r.evidence?.length ? `**What it saw**\n\n${r.evidence.map((x) => `- ${x}`).join('\n')}` : ''].filter(Boolean).join('\n\n');
-  return { blocks: text ? [{ type: 'markdown', text }] : [] };
-}
-
 const actions = (t) => {
   const n = t.activity.filter((a) => a.kind !== 'text').length;
   return `${n} action${n === 1 ? '' : 's'}`;
@@ -127,7 +121,7 @@ function workingPanel(r) {
 function paintRecord(r) {
   rec = r;
   const s = S.full.get(S.goalRun.task) || S.sessions.get(S.goalRun.task);
-  const t = { ...r.turn, presentation: resultOf(r) };
+  const t = { ...r.turn, presentation: judgeResult(r) };
   rec.turn = t;
   const ctx = ctxOf(s, t);
   view.innerHTML = `<div class="gr-page">${headHtml(r)}${askHtml(r)}<div class="gr-turn"></div></div>`;

@@ -52,6 +52,16 @@ export function finalAnswer(t) {
   return out;
 }
 
+// A goal check's result (goal-run.js): finalAnswer takes its last message off the timeline, and its
+// vote shows in the page's head, so what it backed the vote with goes here, and its own words around
+// the JSON come back as a message.
+const VOTE = /(?:```\w*\s*)?\{(?=\s*")(?=[\s\S]*"verdict")[\s\S]*\}(?:\s*```)?/;
+export function judgeResult(r) {
+  const text = r.evidence?.length ? `**What it saw**\n\n${r.evidence.map((x) => `- ${x}`).join('\n')}` : '';
+  const notes = String(r.turn?.raw || '').split(VOTE).map((x) => x.trim()).filter(Boolean).join('\n\n');
+  return { blocks: text ? [{ type: 'markdown', text }] : [], ...(notes && { notes }) };
+}
+
 // A message as it reads mid-run: the presentation it ends with is on its way, not prose to show.
 export const messageText = (text) => {
   const s = String(text || '');
