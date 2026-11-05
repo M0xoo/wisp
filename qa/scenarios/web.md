@@ -161,7 +161,7 @@ Every page check also fails on an uncaught page error or a `console.error`.
 
 ### WEB-21 · Compare two harnesses
 - **Steps:** launch with `compare: ['codex']`.
-- **Expected:** two sessions in one group, each on its own branch; the compare row shows both.
+- **Expected:** two sessions in one group, each on its own branch; the compare row shows both. Compare opens with a `.cmp-table` (the same rows always: Time, Cost, Tokens, Cache, Agent steps, Plan, Files, Tests, Asked; totals over all of a run's turns, `—` for what's unknown) and, under it, `.cmp-note`: the plan total when runs overlap on one account (their cells marked ≈) and a sentence against run A that never says which is better. With Compare open, a run finishing or a share landing repaints in place: cells, pill and Keep this change without a node being re-inserted, the report swaps in once, and the dialog keeps its scroll.
 - **Automated** (API), **Suite**
 
 ### WEB-22 · `/btw` side question

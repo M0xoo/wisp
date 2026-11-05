@@ -155,19 +155,81 @@ body.split:not(.pane-wide) .it-meta .m.side-of { display: none; } /* the line ab
 .ship-modal .sk-short { width: 40%; }
 .ship-modal.loading .ship-check { opacity: 0.5; }
 
-.compare-modal { width: min(1280px, 100%); max-height: 92vh; display: flex; flex-direction: column; }
-.cmp-prompt { margin: -6px 0 14px; padding: 8px 12px; border-radius: 10px; background: var(--bg-2); font-size: 13px; white-space: pre-wrap; max-height: 96px; overflow: auto; }
-.cmp-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(var(--n), minmax(280px, 1fr)); gap: 12px; overflow-x: auto; }
-.cmp-col { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
-.cmp-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+/* Compare is one scroller: the dialog. Its height is fixed so a report landing never re-centres it;
+   the header, a run's head and its Keep this stick, so they stay in reach however long a report is. */
+.compare-modal { --cmp-top: 56px; --cmp-label: 84px; --cmp-gap: 12px; width: min(1280px, 100%); height: 92dvh; max-height: none; display: flex; flex-direction: column; padding-top: 0; padding-bottom: 0; scrollbar-gutter: stable; }
+.compare-modal > header { position: sticky; top: 0; z-index: 3; flex: none; height: var(--cmp-top); margin: 0 -20px; padding: 0 12px 0 20px; background: var(--surface); }
+.cmp-prompt { flex: none; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: var(--bg-2); font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; max-height: calc(3 * 1.5em + 16px); overflow: auto; }
+/* The spacing between cells is the gap between the run columns, and hangs 12px into the dialog's
+   padding at each edge: every column of numbers starts on its run's column below. */
+.cmp-scroll { flex: none; margin: 0 calc(-1 * var(--cmp-gap)) 8px; }
+.cmp-table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: var(--cmp-gap) 0; font-size: 13px; line-height: 18px; font-variant-numeric: tabular-nums; }
+.cmp-table th, .cmp-table td { padding: 3px 0 3px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmp-table tbody tr:last-child > * { border-bottom: 0; }
+.cmp-table thead td, .cmp-table tbody th { width: var(--cmp-label); padding-left: 0; font-size: 12.5px; color: var(--muted); }
+.cmp-table thead th { padding-bottom: 5px; font-size: 12.5px; font-weight: 500; color: var(--ink-2); }
+/* What has a tip says so: a dotted line under it. Touch has no hover: a tap shows it in the kit's bubble. */
+.cmp-table tbody th[title], .cmp-table td[title]:not([title='']) { text-decoration: underline dotted var(--faint); text-underline-offset: 3px; cursor: help; }
+.cmp-run { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.cmp-run > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cmp-letter { flex: none; display: inline-grid; place-items: center; width: 18px; height: 18px; border: 1px solid var(--line-2); border-radius: 5px; font-size: 11.5px; line-height: 1; font-weight: 500; color: var(--muted); }
+.cmp-total { color: var(--ink-2); }
+/* Room for the sentence before it arrives: the runs under it stay put when it lands. */
+.compare-modal { --cmp-lines: 2; }
+.cmp-note { flex: none; margin: 0 0 12px; min-height: calc(var(--cmp-lines) * 1.5em); font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.cmp-grid { flex: 1 0 auto; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: var(--cmp-gap); margin: 0 0 12px calc(var(--cmp-label) + var(--cmp-gap)); } /* the margin, not the dialog's padding: padding would leave a strip of report under a stuck Keep this */
+.cmp-col { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.cmp-head { position: sticky; top: var(--cmp-top); z-index: 1; display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); border-radius: 11px 11px 0 0; background: var(--surface-2); }
 .cmp-who { display: flex; flex-direction: column; margin-right: auto; min-width: 0; }
+.cmp-who b { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmp-who small { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cmp-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 0; padding: 8px 12px; border-bottom: 1px solid var(--line); }
-.cmp-stats div { display: flex; flex-direction: column; gap: 2px; }
-.cmp-stats dt { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); }
-.cmp-stats dd { margin: 0; font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.cmp-body { flex: 1; min-height: 160px; max-height: 58vh; overflow: auto; padding: 12px; background: var(--surface); }
-.cmp-foot { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--line); }
+.cmp-head .pill { flex: none; }
+.cmp-body { flex: 1; min-height: 160px; padding: 12px; overflow-x: clip; background: var(--surface); }
+/* A report beside others is a column, not a page: its headline and numbers step down to the dialog's scale. */
+.cmp-body .b-hero h2 { margin: 8px 0 4px; font: 600 14px/1.35 var(--sans); letter-spacing: 0; }
+.cmp-body .stat .num { font-size: 18px; }
+.cmp-foot { position: sticky; bottom: 0; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--line); border-radius: 0 0 11px 11px; background: var(--surface-2); }
+.cmp-foot > button { flex: none; white-space: nowrap; }
+body.wisp-mobile .compare-modal { --cmp-top: 64px; }
+body.wisp-mobile .cmp-foot .ghost.xs { min-height: 44px; }
+@media (hover: none) {
+  .cmp-table tr { position: relative; }
+  .cmp-table tbody th[title]:hover::after, .cmp-table td[title]:not([title='']):hover::after {
+    content: attr(title); position: absolute; z-index: 2; left: var(--cmp-label); bottom: 100%; width: min(240px, 60vw); padding: 5px 8px; border-radius: 6px;
+    background: var(--ink); color: var(--bg); font-size: 11.5px; line-height: 1.4; white-space: normal; pointer-events: none;
+  }
+}
+/* A column under 240px is too thin for a report: four go two by two, then three one under another. */
+@media (max-width: 1180px) {
+  .compare-modal[data-n='4'] { --cmp-lines: 3; }
+  .compare-modal[data-n='4'] .cmp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-left: 0; }
+}
+@media (max-width: 920px) {
+  .compare-modal[data-n='3'] { --cmp-lines: 3; }
+  .compare-modal[data-n='3'] .cmp-grid { grid-template-columns: minmax(0, 1fr); margin-left: 0; }
+}
+/* Phones: the whole screen, the table edge to edge, the runs one under another. */
+@media (max-width: 720px) {
+  .overlay:has(> .compare-modal) { padding: 0; }
+  .compare-modal[data-n] { --cmp-top: calc(56px + env(safe-area-inset-top)); --cmp-label: 92px; --cmp-gap: 0px; --cmp-lines: 4; width: 100%; height: 100dvh; padding: 0 16px; border: 0; border-radius: 0; box-shadow: none; }
+  .compare-modal[data-n='3'], .compare-modal[data-n='4'] { --cmp-lines: 7; }
+  body.wisp-mobile .compare-modal[data-n] { --cmp-top: calc(64px + env(safe-area-inset-top)); }
+  .compare-modal > header { margin: 0 -16px; padding: env(safe-area-inset-top) 8px 0 16px; }
+  .cmp-scroll { margin: 0 -16px 8px; }
+  .cmp-table th, .cmp-table td { padding-left: 8px; }
+  .cmp-table th:last-child, .cmp-table td:last-child { padding-right: 8px; }
+  .cmp-table thead td, .cmp-table tbody th { padding-left: 16px; }
+  .compare-modal[data-n='3'] .cmp-run, .compare-modal[data-n='4'] .cmp-run { flex-direction: column; align-items: flex-start; gap: 2px; }
+  /* A share's window can be long (12% of weekly Opus): two lines, held from the start so it lands in place. */
+  .cmp-table td[data-row='plan'] { height: 43px; font-size: 11.5px; white-space: normal; }
+  .cmp-table td[data-row='files'] { white-space: normal; }
+  .cmp-who small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+  .compare-modal[data-n='4'] .cmp-scroll { overflow-x: auto; overscroll-behavior-x: contain; }
+  .compare-modal[data-n='4'] .cmp-table { min-width: 460px; } /* the fourth column peeks in */
+  .compare-modal[data-n='4'] thead td, .compare-modal[data-n='4'] tbody th { position: sticky; left: 0; z-index: 1; background: var(--surface); }
+  .compare-modal[data-n] .cmp-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; margin-left: 0; }
+  .cmp-foot { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+}
 
 
 /* Ship it in flight: the PR row turns into a track of stages that fills in as they run */

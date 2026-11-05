@@ -13,6 +13,7 @@ const NAMES = { five_hour: '5-hour', seven_day: 'weekly', seven_day_opus: 'weekl
 // The longest window first: with the 5-hour one gone on some plans, the week is what people count.
 const LENGTH = { seven_day: 7 * DAY, seven_day_opus: 7 * DAY - 1, seven_day_sonnet: 7 * DAY - 2, five_hour: 5 * 36e5 };
 const lengthOf = (id) => LENGTH[id] ?? (Number(/^w(\d+)m$/.exec(id)?.[1]) * 60_000 || 0);
+export const longestFirst = (a, b) => lengthOf(b.window) - lengthOf(a.window);
 
 export function windowName(id) {
   if (NAMES[id]) return NAMES[id];
@@ -55,7 +56,7 @@ export function receiptOf(t) {
   for (const p of t?.plan || []) if (p?.window && p.used > 0) by[p.window] = (by[p.window] || 0) + p.used;
   const plan = Object.entries(by)
     .map(([window, used]) => ({ window, used }))
-    .sort((a, b) => lengthOf(b.window) - lengthOf(a.window));
+    .sort(longestFirst);
   const overage = OVERAGE[t?.overage?.kind] ? t.overage.kind : '';
   if (!tokens && !plan.length && !overage) return null;
   return { tokens, cache: read && cached ? cached / read : null, plan, overage };
@@ -69,7 +70,7 @@ export function tokenWords(n) {
 }
 
 // "<1%" for a share too small to round to one, and never "100%" for one that isn't all of it.
-const pct = (x) => (x > 0 && x < 0.005 ? '<1%' : x < 1 && x > 0.99 ? '99%' : `${Math.round(x * 100)}%`);
+export const pct = (x) => (x > 0 && x < 0.005 ? '<1%' : x < 1 && x > 0.99 ? '99%' : `${Math.round(x * 100)}%`);
 
 // The line's parts, in order: ["38k tokens", "71% cache", "3% of weekly"]. Only the longest window
 // is on the line; the tooltip has every window.
