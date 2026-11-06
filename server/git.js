@@ -54,7 +54,7 @@ export function run(bin, args, { cwd, timeout = 60_000, env } = {}) {
       // git and gh lead with "fatal:" / "error:"; otherwise the tail is the useful part.
       const lines = String(stderr || '').trim().split('\n').filter(Boolean);
       const why = lines.find((l) => /^(fatal|error)\b/i.test(l)) || lines.slice(-3).join(' ') || err.message;
-      reject(Object.assign(new Error(why), { code: err.code }));
+      reject(Object.assign(new Error(why), { code: err.code, stdout: String(stdout || '') }));
     });
   });
 }

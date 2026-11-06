@@ -78,15 +78,15 @@ export function phoneActions(app) {
   const placeOf = (ctx, mid) => (mid === 'sandbox' ? 'sandbox' : (mid && ctx.machines.find((m) => m.id === mid)?.name) || '');
 
   // A member's model, effort and mode for one job: only what differs from theirs.
-  function memberRun(m, p, cap) {
-    const { mode, refused } = capMode(p.mode, cap, m.mode);
+  function memberRun(m, p, cap, fallback) {
+    const { mode, refused } = capMode(p.mode, cap, fallback ?? m.mode);
     if (refused) throw bad(refused);
     return { ...(p.model && { model: p.model }), ...(p.effort && { effort: p.effort }), ...(mode !== m.mode && { mode }) };
   }
 
-  function crewAck(m, p, run, out, ctx) {
+  function crewAck(m, p, run, out, ctx, fallback) {
     const queued = out.queued !== undefined;
-    const shown = run.mode || p.mode;
+    const shown = run.mode || p.mode || (fallback && m.mode);
     return ackCrew({
       name: m.name,
       ahead: queued ? out.queued - 1 + app.crew.busy(m) : null,
@@ -111,23 +111,25 @@ export function phoneActions(app) {
       return { agent: ops?.s.agent || '', machine: splitId(sessionId)?.machine || '' };
     },
     // A parsed message (grammar.js) with nothing wrong with it. → { ack, session | queued }.
-    // cap: the most this chat may ask for (policy.js capMode). thread: where it answers, kept with
-    // a crew job that has to wait (server/crew.js).
-    startParsed: async (p, { channel, name, sender = '', cap = 'auto', thread = null, ctx = null }) => {
+    // cap: the most this chat may ask for (policy.js capMode). fallback: the mode when none was asked
+    // for; without one, the launcher's or the member's. about: what the prompt says the message is
+    // about (policy.js untrusted). thread: where it answers, kept with a crew job that has to wait
+    // (server/crew.js).
+    startParsed: async (p, { channel, name, sender = '', cap = 'auto', fallback, about = '', thread = null, ctx = null }) => {
       ctx ||= await context();
       const origin = { kind: channel, name };
-      const prompt = untrusted(p.prompt, { channel: name, sender });
+      const prompt = untrusted(p.prompt, { channel: name, sender, about });
       if (p.crew) {
-        const run = memberRun(p.crew, p, cap);
+        const run = memberRun(p.crew, p, cap, fallback);
         const out = await app.crew.assign(p.crew, { prompt, job: 'task', origin, tagged: p.tagged, ...(Object.keys(run).length && { run }), thread });
         count('start', 'crew');
-        return { ...out, ack: crewAck(p.crew, p, run, out, ctx) };
+        return { ...out, ack: crewAck(p.crew, p, run, out, ctx, fallback) };
       }
       const d = store.config.defaults;
       const project = p.project || ctx.defaultProject;
       const agent = p.agent || d.agent || 'claude';
       const model = p.model ?? d.models?.[agent] ?? (agent === (d.agent || 'claude') ? d.model : '') ?? '';
-      const { mode, refused } = capMode(p.mode, cap, d.mode || 'auto');
+      const { mode, refused } = capMode(p.mode, cap, fallback ?? (d.mode || 'auto'));
       if (refused) throw bad(refused);
       const machine = p.machine ?? (project.machine || undefined);
       const [s] = await app.launcher.launchAny({ prompt, cwd: project.path, machine, agent, model, ...(p.effort && { effort: p.effort }), mode, ...(p.tagged.length && { subagents: p.tagged.map((m) => taggedDelegate(m)) }) }, origin);
@@ -157,7 +159,8 @@ export function phoneActions(app) {
       return `${{ running: 'Working', waiting: 'Waiting for you', review: 'Ready for review', done: 'Done' }[s.state] || s.state}: ${s.title}${q ? ` (${q} queued${s.queueHeld ? ', held' : ''})` : ''}`;
     },
     // A follow-up in a thread, as `act` sends one, wrapped, with any `with` from the message.
-    run: async (sessionId, p, { name, sender = '', cap = 'auto', later, btw = false }) => {
+    // approvals false: a channel that can't answer a tool approval (policy.js approvalsHere).
+    run: async (sessionId, p, { name, sender = '', cap = 'auto', later, btw = false, about = '', approvals = true }) => {
       const ops = await sessionOps(sessionId).catch((err) => ({ error: err.message }));
       if (ops?.error) return `Can’t reach it: ${ops.error}`;
       if (!ops) return 'That session is gone.';
@@ -165,7 +168,8 @@ export function phoneActions(app) {
       if (s.agent === 'wisp') return 'That is the tour; it can’t take follow-ups.';
       if (s.kind === 'reminder') return 'A reminder has no agent to follow up with. Start a new task instead.';
       if (app.terms.get(s.id)?.code === null && !s.tui) return 'This task is open in a terminal. Carry on there, or end the terminal first.';
-      const text = untrusted(p.prompt, { channel: name, sender });
+      if (!approvals && (s.ask?.permission || s.ask?.clash || s.ask?.connector)) return 'That’s waiting for an approval, which only wisp can give: answer it there.';
+      const text = untrusted(p.prompt, { channel: name, sender, about: s.ask ? '' : about });
       if (btw) return followUp(ops, sessionId, `/btw ${text}`, later);
       const asked = capMode(p.mode, cap, s.mode);
       if (asked.refused) return asked.refused;
@@ -183,14 +187,14 @@ export function phoneActions(app) {
     },
     // @Ada in a task's thread: the mention path (crew.ask). Their answer shows on the task, and comes
     // back to this thread under their name.
-    mention: async (sessionId, p, { name, sender = '', cap = 'auto', thread = null, ctx = null }) => {
+    mention: async (sessionId, p, { name, sender = '', cap = 'auto', fallback, about = '', thread = null, ctx = null }) => {
       const s = store.get(sessionId);
       if (!s) throw bad('@names only reach tasks on this computer.');
       ctx ||= await context();
-      const run = memberRun(p.crew, p, cap);
-      const out = await app.crew.ask(p.crew, s, untrusted(p.prompt, { channel: name, sender }), [], p.tagged, { thread, shown: p.prompt, ...(Object.keys(run).length && { run }) });
+      const run = memberRun(p.crew, p, cap, fallback);
+      const out = await app.crew.ask(p.crew, s, untrusted(p.prompt, { channel: name, sender, about }), [], p.tagged, { thread, shown: p.prompt, ...(Object.keys(run).length && { run }) });
       count('thread', 'mention');
-      return { ...out, ack: crewAck(p.crew, p, run, out, ctx) };
+      return { ...out, ack: crewAck(p.crew, p, run, out, ctx, fallback) };
     },
     // /new from Telegram: the launcher's remembered harness, model and mode, like `wisp "…"`.
     launch: async ({ project, prompt }) => {
