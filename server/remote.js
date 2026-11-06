@@ -2,11 +2,12 @@
 // outbound connections only (wisp polls them), so nothing has to reach this machine.
 //
 // This is the hub: the config, the public API and the fan-out. Each channel's wire is in
-// server/channels/ (ntfy.js, telegram.js), and what they all share is there too: policy.js (who may
+// server/channels/ (ntfy.js, telegram.js, github.js), and what they all share is there too: policy.js (who may
 // speak, what may leave), grammar.js and lists.js (what a message can say).
 
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { KIND } from './channels/channel.js';
+import { Github } from './channels/github.js';
 import { scrubOut, defuse } from './channels/policy.js';
 import { Ntfy } from './channels/ntfy.js';
 import { Telegram } from './channels/telegram.js';
@@ -22,13 +23,14 @@ export class Remote {
   // phone: the rest of services/phone.js, what the channel layer needs of wisp.
   constructor({ store, act, launch = async () => null, onChange = () => {}, ...phone }) {
     Object.assign(this, { store, act, launch, onChange, phone });
-    this.status = { ntfy: null, telegram: null };
+    this.status = { ntfy: null, telegram: null, github: null };
     this.tgElsewhere = new Map(); // Telegram message id -> session id, for sessions on a machine (server/machines.js)
     this.away = new Map(); // session id on a machine -> { channel, by, last }: what s.remote holds for one here
-    this.channels = { ntfy: new Ntfy(this), telegram: new Telegram(this) };
+    this.channels = { ntfy: new Ntfy(this), telegram: new Telegram(this), github: new Github(this) };
     this.ac = null;
     this.ntfyPollMs = 4000;
     this.tgLongPoll = 25;
+    this.ghPollMs = 60_000; // per repo
     this.tgOffset = 0;
   }
 
@@ -52,12 +54,13 @@ export class Remote {
     this.stop();
     const ac = (this.ac = new AbortController());
     const c = this.cfg;
-    const { ntfy, telegram } = this.channels;
+    const { ntfy, telegram, github } = this.channels;
     if (ntfy.ready) ntfy.start(ac.signal);
     if (telegram.ready) {
       if (!c.telegram.chatId && !c.telegram.linkCode) (c.telegram.linkCode = String(randomInt(100000, 999999))), this.store.saveConfig();
       telegram.start(ac.signal);
     }
+    if (github.ready) github.start(ac.signal);
   }
 
   stop() {
@@ -92,28 +95,31 @@ export class Remote {
     if (!this.on || !s || s.agent === 'wisp') return;
     const event = s.state === 'waiting' ? 'waiting' : 'finished';
     const chosen = (this.cfg.events || ['waiting', 'finished']).includes(event);
+    const from = this.startedFrom(s);
+    const github = from?.channel === 'github'; // reported there whatever the events say; send knows
     if (!this.channels.telegram.options) {
-      if (chosen) await this.send(this.message(s, summary), s);
+      if (chosen || github) await this.send(this.message(s, summary), s, { skip: chosen ? [] : ['ntfy', 'telegram'] });
       return;
     }
     // Work that came from a channel answers there, whatever the events say. Anything else, a
     // scheduled check-in included, goes only where the Phone events already send it.
-    const from = this.startedFrom(s);
-    const skip = chosen || from ? [] : ['telegram'];
+    const skip = chosen || from?.channel === 'telegram' ? [] : ['telegram'];
     if (!chosen) skip.push('ntfy');
-    if (skip.length === 2) return;
+    if (skip.length === 2 && !github) return;
     const msg = this.message(s, summary);
     if (from?.by) msg.title = `${from.by}: ${msg.title}`;
     await this.send(msg, s, { skip });
   }
 
   async send(msg, s = null, { skip = [] } = {}) {
-    const { ntfy, telegram } = this.channels;
+    const { ntfy, telegram, github } = this.channels;
     const out = this.#safe(msg);
     const jobs = [];
-    const go = (c) => jobs.push(c.publish(out, s).then(() => c.mark({ ok: true }), (e) => c.mark({ ok: false, error: e.message })));
+    const go = (c, m = out) => jobs.push(c.publish(m, s).then(() => c.mark({ ok: true }), (e) => c.mark({ ok: false, error: e.message })));
     if (ntfy.ready && !skip.includes('ntfy')) go(ntfy);
     if (telegram.linked && !skip.includes('telegram')) go(telegram);
+    // Only the tasks it started, and always the safe path: a report there is public to a repo.
+    if (github.ready && this.startedFrom(s)?.channel === 'github') go(github, this.#safe(msg));
     await Promise.all(jobs);
     return jobs.length;
   }
@@ -193,11 +199,12 @@ export class Remote {
         options: !!c.telegram?.options,
         project: c.telegram?.project || '',
       },
+      github: { enabled: !!c.github?.enabled, publicReports: !!c.github?.publicReports, login: this.channels.github.login, repos: this.channels.github.watched, error: this.status.github?.error || '' },
       status: this.status,
     };
   }
 
-  // PUT body: { events, ntfy: {…}, telegram: {…, unlink} }. Masked tokens mean "unchanged".
+  // PUT body: { events, ntfy: {…}, telegram: {…, unlink}, github: {…} }. Masked tokens mean "unchanged".
   update(body = {}) {
     const c = this.cfg;
     const keep = (v, prev) => (typeof v === 'string' && v.startsWith('••••') ? prev : v);
@@ -228,6 +235,12 @@ export class Remote {
         ...(relink && { chatId: null, chatName: '', linkCode: token ? String(randomInt(100000, 999999)) : '' }),
         ...((body.telegram.options ?? wasOn) && { options: true }), // absent when off: the config stays as it was
       };
+    }
+    if (body.github) {
+      const prev = c.github || {};
+      const enabled = !!(body.github.enabled ?? prev.enabled);
+      // Switched on again: what was said while it was off isn't for it, not even to call it stale.
+      c.github = { enabled, publicReports: !!(body.github.publicReports ?? prev.publicReports), repos: enabled && !prev.enabled ? {} : prev.repos || {} };
     }
     this.store.saveConfig();
     this.start();
