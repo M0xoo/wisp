@@ -16,7 +16,7 @@ import { historyStep, MAX_SENT, remember } from '../web/js/prompt-history.js';
 import { isSpirit, parseSpirit, rollSpirit, SPIRIT, spiritCode, spiritDefs, spiritSvg } from '../web/js/spirit.js';
 import { decode, encode, mentionHtml, plain } from '../web/js/mention-text.js';
 import { clock24, cronWords, toCron } from '../web/js/schedule.js';
-import { atTail, noteScroll, ownSend, ownWaiting, turnChange } from '../web/js/tail.js';
+import { atTail, landStart, landing, noteScroll, ownSend, ownWaiting, turnChange } from '../web/js/tail.js';
 
 test('esc escapes HTML and treats null as empty', () => {
   assert.equal(esc(`<a href="x">'&'</a>`), '&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
@@ -385,6 +385,19 @@ test('atTail: within 40px of the end, not 41', () => {
   assert.equal(atTail(scroller(0)), true);
   assert.equal(atTail(scroller(40)), true);
   assert.equal(atTail(scroller(41)), false);
+});
+
+test('landing: on its way to a turn for a second, unless the reader scrolled up', () => {
+  const box = scroller(0);
+  noteScroll(box);
+  const n = {};
+  assert.equal(landing(n, box, 1000), false, 'nothing started');
+  landStart(n, 1000);
+  assert.equal(landing(n, box, 1999), true, 'far from the end, and still following');
+  assert.equal(landing(n, box, 2000), false, 'it was over by then');
+  box.scrollTop -= 30;
+  noteScroll(box);
+  assert.equal(landing(n, box, 1500), false, 'the reader took over');
 });
 
 test('atTail: one slow scroll up has left the tail, and coming back down returns to it', () => {

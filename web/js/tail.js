@@ -7,6 +7,7 @@
 const SLACK = 40; // how near the end still counts as at the end, like the crew thread (crew.js)
 const LEFT = 2; // once you've scrolled up: a slow 30px up has left, and isn't pulled back
 const OWN_MS = 15000; // a send that has no turn yet: past this, the next turn isn't its answer
+const LAND_MS = 1000; // a smooth scroll to a turn: long enough for it to arrive
 
 const gapOf = (box) => box.scrollHeight - box.clientHeight - box.scrollTop;
 
@@ -23,6 +24,14 @@ export function noteScroll(box) {
 }
 
 export const atTail = (box) => gapOf(box) <= (seen.get(box)?.up ? LEFT : SLACK);
+
+// Scrolling to a turn takes a moment, and all that time the view is far from the end. A render in
+// that moment still follows, and a row changing section (which kills a smooth scroll: its card
+// leaves the page) sends it on again, or the reader stops halfway. Scrolling up calls it off.
+export const landStart = (n, now = Date.now()) => {
+  n.landUntil = now + LAND_MS;
+};
+export const landing = (n, box, now = Date.now()) => n.landUntil > now && !seen.get(box)?.up;
 
 // Down to the very end, only if that moves anything: any write cancels a smooth scroll in flight.
 export function toEnd(box) {

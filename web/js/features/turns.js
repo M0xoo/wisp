@@ -28,7 +28,7 @@ import { scheduleFollowUp } from './later.js';
 import { handoffTargets } from '../vendors.js';
 import { compareTip, offerSubagentModel, SUBAGENT_OFFER, OVERAGE, receiptOf, receiptParts, receiptTip, subagentParts, subagentTip } from '../receipt.js';
 import { atTail, scrollByPx, topInset, topTurn } from './scroll.js';
-import { noteScroll, ownWaiting, toEnd, turnChange } from '../tail.js';
+import { landing, landStart, noteScroll, ownWaiting, toEnd, turnChange } from '../tail.js';
 import { prsOf, renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
 import { changesButton, openPanel, paintDoor, shellButton, shellLive, watchButton } from './panel.js';
@@ -108,7 +108,8 @@ export function renderBody(id, { fresh, byHand }) {
   // send may move the view; anything else holds the turn at the top of it (docs/feed.md).
   const kept = !fresh && S.open.has(id) && !!n.body?.querySelector('.turns');
   const change = turnChange({ turns: s.turns, known: n.turnNodes, last: n.latestTurn, flagged: ownWaiting(n) });
-  const follow = kept && ((!byHand && atTail(n.body)) || change.own);
+  const flying = kept && !byHand && landing(n, n.body);
+  const follow = kept && ((!byHand && (atTail(n.body) || flying)) || change.own);
   const place = kept && !follow ? topTurn(n.body) : null;
   if (change.own) n.ownUntil = 0;
 
@@ -314,9 +315,11 @@ export function renderBody(id, { fresh, byHand }) {
   }
   paintLatest(id);
   // A transcript was being read at its tail: its result lands right there, so show that, not the prompt.
-  const landing = firstNew && (tx ? $('.tx-end', firstNew) || firstNew : firstNew);
-  if (landing && follow) requestAnimationFrame(() => land(landing));
-  else if (follow && live) toEnd(body); // a re-render can add more than the slack: a panel, a queue row
+  const target = firstNew && (tx ? $('.tx-end', firstNew) || firstNew : firstNew);
+  if (target && follow) {
+    landStart(n);
+    requestAnimationFrame(() => land(target));
+  } else if (follow && live && !flying) toEnd(body); // a re-render can add more than the slack: a panel, a queue row
 }
 
 const land = (node) => node.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
@@ -341,7 +344,16 @@ function goLatest(id) {
   const node = n?.turnNodes.get(n.latestTurn)?.node;
   n.missed = false;
   paintLatest(id);
-  if (node) land((transcriptOn(id) && $('.tx-end', node)) || node);
+  if (!node) return;
+  landStart(n);
+  land((transcriptOn(id) && $('.tx-end', node)) || node);
+}
+
+// The open task's card just left the page and came back (feed.js): a scroll on its way goes on.
+export function landAgain(id) {
+  const n = S.nodes.get(id);
+  const node = n?.turnNodes.get(n.latestTurn)?.node;
+  if (node && landing(n, n.body)) land((transcriptOn(id) && $('.tx-end', node)) || node);
 }
 
 // What moved in the CLI since the last turn. Painted in place, outside the turn's key: stats.cli can

@@ -18,7 +18,7 @@ import { scrollByPx, showRow, stage, topInset } from './scroll.js';
 import { prOf, prPill, shipPill } from './ship.js';
 import { overlapPill } from './overlaps.js';
 import { teamStack } from './team.js';
-import { renderBody, VISIBLE_TURNS } from './turns.js';
+import { landAgain, renderBody, VISIBLE_TURNS } from './turns.js';
 import { snapshotKept } from './cache.js';
 import { slotHtml } from './spells.js';
 import { swipesDone } from './swipe.js';
@@ -182,7 +182,10 @@ function keepReading() {
   return () => {
     if (!body.isConnected) return;
     const lost = y >= 1 && body.scrollTop < 1;
-    if (lost) body.scrollTop = y;
+    if (lost) {
+      body.scrollTop = y;
+      landAgain(body.closest('.item')?.dataset.id);
+    }
     if (entering || !(lost || body.getAnimations().length)) return;
     for (const a of body.getAnimations({ subtree: true })) if (a.effect.getComputedTiming().iterations !== Infinity) a.finish();
   };
