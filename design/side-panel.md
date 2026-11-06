@@ -28,6 +28,10 @@ here*, also in its ⋯), except deleted and binary files. The editor covers the 
 (its own 42px head: Back, the path in `--mono` cut at the start, *Saved / Unsaved / Saving…*, then
 **Save**), so there's one thing on screen and Back is where the tabs were.
 
+- **The head keeps its order of need.** Back never shrinks, the state is one short word, and the
+  file name takes what's left. While the agent works the word stays *Unsaved* and why Save is off
+  is the tip on both; touch has no tips, so there the word is *Agent working*. Under 540px of head
+  the language offer is its spark alone, still named and with its tip.
 - **The browser's own text box.** The code is highlighted (`highlight`, the diff's colours) in a
   `<pre>` under a transparent `<textarea>`: selection, IME, spellcheck off, undo and the caret are
   native. Line numbers sit in a sticky gutter. 12.5px mono at 1.6, like the diff.
@@ -45,8 +49,8 @@ here*, also in its ⋯), except deleted and binary files. The editor covers the 
   definition, ⇧F12 references, hover (a quiet card above the name, mono), F2 rename across files
   (saved file, idle agent), and problems: the line number wavy-underlined in `--bad` / `--warn`
   with the message as its tip, and *n problems* in the head listing them. Without one, the text
-  search answers (`GET /grep?def=`) and a note offers *Install TypeScript support* once (Not now
-  remembers).
+  search answers (`GET /grep?def=`) and the head offers *Add TypeScript support* (a quiet button
+  that moves nothing).
 - **Revert a hunk, or the file.** In a git diff every hunk (the lines between two *n unchanged
   lines* gaps) has **Revert** on its first line at the visible right edge: sticky inside the
   sideways scroll and out of the flow, so the code never moves. It shows on hover or focus
