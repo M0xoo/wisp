@@ -144,7 +144,11 @@ body.side-right .pn-grip { left: auto; right: -4px; }
 .rn-dot { width: 7px; height: 7px; flex: none; margin-right: 6px; border-radius: 50%; background: var(--warn); animation: wt-pulse 1.2s ease-in-out infinite; }
 .rn-dot.on { background: var(--good); animation: none; }
 @media (prefers-reduced-motion: reduce) { .rn-dot { animation: none; } }
-.rn-state { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* The word always shows. What follows it drops to a second line that's clipped once there's less
+   room than an address needs, so a narrow bar says "Running", never "Running · loca…". A longer
+   command still gets the room there is, with its ellipsis. */
+.rn-state { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-content: flex-start; align-items: baseline; height: 1lh; min-width: 0; overflow: hidden; }
+.rn-where { flex: 1 1 0; min-width: 114px; margin-left: .3em; overflow: hidden; text-overflow: ellipsis; }
 .rn-state code, .rn-addr { font: 11.5px var(--mono); color: var(--ink-2); }
 .rn-bar:focus-visible { outline-offset: -2px; } /* Run by keyboard lands here: its neighbours would cover an outer ring */
 .rn-bar .grow { flex: 1; min-width: 4px; }

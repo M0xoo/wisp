@@ -135,7 +135,7 @@ function barHtml(id, d) {
   const pickOk = frame?.id === id && frame.pickable;
   const canPick = !!d.proxyUrl && !srcOf(id, d).far;
   return `<i class="rn-dot${ready ? ' on' : ''}" aria-hidden="true"></i>
-    <span class="rn-state" title="${esc([d.url, d.command].filter(Boolean).join(' · '))}">${ready ? `Running · <span class="rn-addr">${esc(where)}</span>` : `Starting · <code>${esc(d.command || '')}</code>`}</span>
+    <span class="rn-state" title="${esc([d.url, d.command].filter(Boolean).join(' · '))}">${ready ? `Running<span class="rn-where">· <span class="rn-addr">${esc(where)}</span></span>` : `Starting<span class="rn-where">· <code>${esc(d.command || '')}</code></span>`}</span>
     <span class="grow"></span>
     ${canPick ? `<button class="ghost xs rn-pick" data-a="run-pick" aria-pressed="${!!frame?.picking}"${ready && pickOk ? '' : ' disabled'} title="${ready && pickOk ? 'Pick element: click one in the page to name it in the reply box' : 'Pick element (once the page has loaded)'}">${icon('target')}<span>Pick</span></button>` : ''}
     <button class="ghost xs rn-logs" data-a="run-logs" aria-pressed="${logsOn.has(id) || !ready}"${ready ? '' : ' disabled'} title="Logs: the app’s output">${icon('terminal')}<span>Logs</span></button>
