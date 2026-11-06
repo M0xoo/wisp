@@ -27,6 +27,14 @@ const freePort = () =>
     });
   });
 
+// A server on that port, or null when something else already has it.
+const hold = (port) =>
+  new Promise((resolve) => {
+    const s = net.createServer();
+    s.once('error', () => resolve(null));
+    s.listen(port, '127.0.0.1', () => resolve(s));
+  });
+
 let srv;
 let base;
 async function api(p, { method, body } = {}) {
@@ -225,10 +233,13 @@ test('Runs: a block of ports needs them all free, past a live run’s block and 
   await Promise.all(['a', 'b', 'c'].map((id) => runs.stop(id)));
 
   // A busy port inside the block moves it past that port.
-  const busyKey = lowKey('busy');
-  const busy = taskPort(busyKey) + 3;
-  const blocker = net.createServer();
-  await new Promise((resolve) => blocker.listen(busy, '127.0.0.1', resolve));
+  // Ports here are also Linux's outgoing ones, and other test files use them: hold one that's free.
+  let busyKey, busy, blocker;
+  while (!blocker) {
+    busyKey = lowKey('busy');
+    busy = taskPort(busyKey) + 3;
+    blocker = await hold(busy);
+  }
   const dir4 = dumper('run-block-4');
   const fourth = await runs.start('d', { dir: dir4, command: 'node dump.js', portKey: busyKey, ports: 10 });
   assert.ok(fourth.port > busy, `${fourth.port} past ${busy}`);
