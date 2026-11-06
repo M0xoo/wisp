@@ -1,4 +1,5 @@
-// Projects: the filter chips in the top bar and the dialog that adds, renames and removes them.
+// Projects: the filter chips in the top bar, the right-click menu on a project, and the dialogs
+// that add, edit and remove them.
 
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
@@ -124,45 +125,124 @@ export function renderProjects() {
         { id: '+manage', label: 'Manage projects…', icon: 'settings' },
       ],
       onPick: (id) => (id === '+manage' ? openProjects() : setFilter(id)),
+      menu: projectMenu,
     });
   $$('.p-chip[data-id]:not([data-id="all"])').forEach((b) =>
     b.addEventListener('contextmenu', (e) => {
       e.preventDefault();
-      projectMenu(b.dataset.id, e);
+      projectMenu(b.dataset.id, e, b);
     }),
   );
   $('#manageProjects').onclick = () => openProjects();
 }
 
-function projectMenu(id, e) {
+// Everything that shows a project, after the page changed it without waiting for the server.
+function repaintProjects() {
+  renderFeed(); // repaints the top bar's chips too
+  renderLaunchChips();
+}
+
+async function removeProject(id) {
+  const was = { projects: S.config.projects, filter: S.filter, pick: launch.picks[''], also: launch.also[''], project: launch.project };
+  const setFilter = (f) => save('wisp.filter', (S.filter = f));
+  S.config.projects = was.projects.filter((p) => p.id !== id);
+  if (S.filter === id) setFilter('all');
+  repaintProjects(); // the launcher moves off it if it was picked
+  saveLaunch();
+  try {
+    await api(`/projects/${id}`, { method: 'DELETE' });
+    await loadConfig();
+  } catch (err) {
+    if (!projectById(id)) S.config.projects = was.projects;
+    setFilter(was.filter);
+    launch.picks[''] = was.pick;
+    if (was.also) launch.also[''] = was.also;
+    launch.project = was.project;
+    repaintProjects();
+    saveLaunch();
+    toastError(err);
+  }
+}
+
+// Right-click on a project, wherever one shows: the top of the sidebar, New task's "in" row, and
+// the list behind either one's "+N". anchor: what the confirm sits by.
+export function projectMenu(id, e, anchor) {
   const p = projectById(id);
   if (!p) return;
   $('.menu.project')?.close();
+  // The keyboard's menu key has no pointer: open by the chip.
+  const box = anchor?.getBoundingClientRect();
+  const x = e.clientX || box?.left || 0;
+  const y = e.clientY || box?.bottom || 0;
   const menu = el(`
-    <div class="menu project" style="top:${e.clientY}px;left:${e.clientX}px">
-      <button data-a="manage">${icon('pen')}Manage projects…</button>
-      <button data-a="delete" class="danger">${icon('trash')}Remove project</button>
+    <div class="menu project" role="menu" aria-label="${esc(p.name)}" style="top:${y}px;left:${x}px">
+      <button data-a="edit" role="menuitem">${icon('pen')}Edit project…</button>
+      <button data-a="delete" class="danger" role="menuitem">${icon('trash')}Remove project</button>
     </div>`);
   menu.onclick = async (ev) => {
     const a = ev.target.closest('button')?.dataset.a;
+    if (!a) return;
     close();
-    if (a === 'manage') openProjects();
-    if (a === 'delete' && (await ask(`Remove “${p.name}” from wisp?\n\nIts tasks and files are kept.`, { ok: 'Remove project', danger: true }))) {
-      try {
-        await api(`/projects/${id}`, { method: 'DELETE' });
-      } catch (err) {
-        return toastError(err);
-      }
-      if (S.filter === id) {
-        S.filter = 'all';
-        save('wisp.filter', S.filter);
-      }
-      await loadConfig();
-      renderFeed();
-    }
+    if (a === 'edit') editProject(id);
+    if (a === 'delete' && (await ask(`Remove “${p.name}” from wisp?\n\nIts tasks and files are kept.`, { ok: 'Remove project', danger: true, anchor }))) removeProject(id);
   };
   const close = popover(menu);
-  clampToViewport(menu, e.clientX, e.clientY);
+  clampToViewport(menu, x, y);
+}
+
+// One project's name and colour. Saving closes at once; a refusal puts them back with a toast.
+function editProject(id) {
+  const p = projectById(id);
+  if (!p) return;
+  let color = p.color;
+  const title = (c) => c[0].toUpperCase() + c.slice(1);
+  const node = el(`
+    <form class="modal project-edit">
+      <header><h2>Edit project</h2><button type="button" class="icon-btn close" title="Close">${icon('x')}</button></header>
+      <label class="pe-field"><span>Name</span><input class="input" name="name" value="${esc(p.name)}" spellcheck="false" autocomplete="off"></label>
+      <div class="pe-field"><span id="peColour">Colour</span><div class="pe-colours" role="radiogroup" aria-labelledby="peColour">${COLORS.map(
+        (c) => `<button type="button" class="swatch c-${c}" role="radio" aria-checked="${c === color}" aria-label="${title(c)}" title="${title(c)}" data-c="${c}"><i class="p-dot"></i></button>`,
+      ).join('')}</div></div>
+      <p class="hint pe-where">${esc(projectTitle(p))}</p>
+      <div class="pe-foot"><button type="button" class="ghost" data-a="cancel">Cancel</button><button class="primary">Save</button></div>
+    </form>`);
+  const close = present(node);
+  const name = $('[name="name"]', node);
+  const saveBtn = $('.pe-foot .primary', node);
+  name.oninput = () => {
+    saveBtn.disabled = !name.value.trim();
+  };
+  $('.pe-colours', node).onclick = (e) => {
+    const b = e.target.closest('[data-c]');
+    if (!b) return;
+    color = b.dataset.c;
+    $$('[data-c]', node).forEach((x) => x.setAttribute('aria-checked', x === b));
+  };
+  $('[data-a="cancel"]', node).onclick = () => {
+    close();
+  };
+  node.onsubmit = async (e) => {
+    e.preventDefault();
+    const was = { name: p.name, color: p.color };
+    const next = { name: name.value.trim(), color };
+    if (!next.name) return;
+    close();
+    if (next.name === was.name && next.color === was.color) return;
+    Object.assign(projectById(id) || {}, next);
+    repaintProjects();
+    try {
+      await api(`/projects/${id}`, { method: 'PATCH', body: next });
+      await loadConfig();
+    } catch (err) {
+      Object.assign(projectById(id) || {}, was);
+      repaintProjects();
+      toastError(err);
+    }
+  };
+  setTimeout(() => {
+    name.focus();
+    name.select();
+  }, 60);
 }
 
 const COLORS = ['violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'orange', 'indigo'];

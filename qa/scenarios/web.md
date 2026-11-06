@@ -55,6 +55,11 @@ Every page check also fails on an uncaught page error or a `console.error`.
   the task runs on what the preview showed (`route.pinned`).
 - **Suite** (`test/router.test.js`), **Manual** (the popover)
 
+### WEB-04d · Right-click a project
+- **Preconditions:** three projects, one with a task; then 14 more for the *+N* lists.
+- **Steps:** right-click a project at the top of the sidebar, in New task's *in* row and in the list behind each *+N*. **Edit project…**: change the name and the colour, **Save**; again with **Enter**; again with **Escape**; clear the name. **Remove project**: **Cancel**, then confirm, on the project that's picked and filtered. Repeat with the server refusing `PATCH` and `DELETE`. Right-click *No folder*. At 390px (dark) and in the app do the same with a long press.
+- **Expected:** every place offers *Edit project…* and *Remove project*. The dialog opens on the name, selected, with the folder under it; a blank name can't be saved. Chips change at once; removed, the chip goes at once, the filter returns to All and New task picks another project; its tasks and files are kept. A refusal puts everything back with a red toast. *No folder* has no menu. Light and dark, split view and 390px.
+
 ### WEB-04c · Start a task from an issue
 - **Preconditions:** a project whose origin is on GitHub with open issues (fake `gh`: `issues` in its state file), and one without a GitHub remote.
 - **Steps:** at 1440px pick the project in New task and click **Issue** at the right end of the Recipes row (on a first run open *More options*). Type a word of a title, then three letters of one not in the 50 newest; pick one. With a draft in the box, pick another and press **Undo**. Pick the project with no remote; pick No folder and watch Issue go, then ⌘K → *Start from an issue…*; pick a project, sign gh out and open it again. ⌘K → *Start from an issue…* from an open task. Add a Linear connector with `LINEAR_API_KEY`, open it again and pick *Linear issues assigned to you*. At 390px (dark) and in the phone app do the same with taps.

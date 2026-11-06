@@ -9,6 +9,7 @@
 //   also      { has(id), toggle(id) }: each row gets a + that adds the project to the task (✓ once
 //             it's in) without closing the list; ⌘/Ctrl/Shift+Enter does the same from the keyboard
 //   back      the prompt it's for, where the caret goes once it closes
+//   menu      (id, event, anchor) => …, a right-click on a project's row; the list closes for it
 
 import { esc } from '../md.js';
 import { $, el, icon } from '../core/dom.js';
@@ -16,7 +17,7 @@ import { byScore, fuzzy, highlight, recency } from '../fuzzy.js';
 import { popover, refocus } from '../ui/popover.js';
 import { projectTitle } from './places.js';
 
-export function projectList(anchor, { projects, current, meta = () => '', extras = [], onPick, also = null, label = 'Projects', back }) {
+export function projectList(anchor, { projects, current, meta = () => '', extras = [], onPick, also = null, label = 'Projects', back, menu }) {
   if ($('.menu.pm')) return $('.menu.pm').close(), refocus(back);
   const node = el(`
     <div class="menu pm" role="dialog" aria-label="${esc(label)}">
@@ -77,6 +78,15 @@ export function projectList(anchor, { projects, current, meta = () => '', extras
     if (also && !r.classList.contains('pm-x') && (e.target.closest('[data-also]') || e.metaKey || e.ctrlKey || e.shiftKey)) return toggle(r);
     pick(r.dataset.id);
   };
+  if (menu) {
+    node.oncontextmenu = (e) => {
+      const r = e.target.closest('.pm-row:not(.pm-x)');
+      if (!r) return;
+      e.preventDefault();
+      close();
+      menu(r.dataset.id, e, anchor);
+    };
+  }
   node.onmousemove = (e) => {
     const r = e.target.closest('.pm-row');
     if (r && !r.classList.contains('act')) mark(rows().indexOf(r), false);

@@ -158,6 +158,15 @@ body.wisp-mobile .lb-open { display: none; }
 .prow .premove { width: 28px; height: 28px; } /* the row's two buttons, colour and remove, one size */
 .swatch:hover { background: var(--bg-2); }
 .swatch .p-dot { width: 12px; height: 12px; }
+/* Edit project: a right-click on a project, in the top bar or New task */
+.modal.project-edit { width: min(400px, 100%); }
+.pe-field { display: grid; gap: 5px; margin-bottom: 12px; font-size: 12.5px; color: var(--muted); }
+.pe-field .input { width: 100%; }
+.pe-colours { display: flex; flex-wrap: wrap; gap: 2px; margin-left: -6px; }
+.pe-colours .swatch[aria-checked="true"] { background: var(--bg-2); box-shadow: inset 0 0 0 1px var(--line-2); }
+.project-edit .pe-where { margin: 0 0 14px; overflow-wrap: anywhere; white-space: pre-line; }
+.pe-foot { display: flex; justify-content: flex-end; gap: 8px; }
+body.wisp-mobile .pe-colours .swatch { width: 44px; height: 44px; }
 .prow-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .pname { border: 0; background: transparent; outline: 0; font-weight: 600; padding: 0; border-radius: 4px; }
 .pname:focus { box-shadow: 0 0 0 3px var(--accent-soft); }

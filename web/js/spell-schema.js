@@ -501,6 +501,9 @@ export const PARTS = {
   // and the line on a turn that ran without them. The card that waits for you is not a part.
   'settings.projectAsk': '.sx-row:has(#projectAsk)',
   'project.without': '.pt-without',
+  // The right-click menu on a project (top bar, New task, the +N list) and its Edit project dialog.
+  'project.menu': '.menu.project',
+  'project.edit': '.project-edit',
   'budget.drain': '.sx-budget .bg-drain',
   // …and the Check Codex while work waits row.
   'settings.liveLimits': '.sx-budget .sx-row:has(#liveLimits)',
