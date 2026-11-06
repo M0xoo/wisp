@@ -28,7 +28,7 @@ import { viewImage } from '../ui/viewer.js';
 import { readDoc } from '../ui/reader.js';
 import { copyImage, saveImage, CAN_SAVE } from '../ui/image.js';
 import { collapse, renderFeed, reveal as revealTask } from './feed.js';
-import { goBack, goHome, isSplit, isStacked, splitOpen } from './split.js';
+import { goBack, goNew, isSplit, isStacked, splitOpen } from './split.js';
 import { cleanTitle } from '../mention-text.js';
 import { boxUrl, isLoopback, previewSandbox } from '../preview-spec.js';
 import { gridLink } from '../grid-link.js';
@@ -462,7 +462,7 @@ function flash(btn, text) {
 export { launchApp };
 
 export function mentionInNew(it) {
-  goHome();
+  goNew();
   const ta = $('#prompt');
   if (!ta?.mentions) return;
   const title = cleanTitle(it.title);

@@ -34,7 +34,7 @@ import { makePane } from './pane-make.js';
 import { goalAsk, HOME_SLASH, isGoalDrop, isPaneAsk, SANDBOX_HINT, sandboxAsk, SPELL_HINT, spellAsk, terminalAsk } from '../slash-text.js';
 import { historyStep, remember } from '../prompt-history.js';
 import { micFor, micHtml } from './dictate.js';
-import { goBack, goHome, isSplit, isStacked, sideShown, stackPage } from './split.js';
+import { goBack, goNew, goPrompt, isSplit, isStacked, sideShown, stackPage } from './split.js';
 import { addressedTo, openCrew } from './crew.js';
 import { parseWhen } from '../when.js';
 import { addPlan, aheadLabel, planAsk, planSaid, timeMenu, whenTip } from './later.js';
@@ -703,7 +703,7 @@ export function renderLauncher() {
       // A terminal session (Settings → General) opens at once: its terminal is where you carry on.
       if (started.length === 1 && started[0].tui && !asTerminal) expand(started[0].id);
       if (!started.length) {
-        if (opened) goHome(); // the prompt comes back where it was typed
+        if (opened) goPrompt(); // the prompt comes back where it was typed
         goalBack();
         if (!ta.value) ((ta.value = prompt), ta.dispatchEvent(new Event('input')));
         tray.restore(files);
@@ -722,7 +722,7 @@ export function renderLauncher() {
       const opened = pending.some((id) => S.open.has(id));
       for (const id of pending) S.sessions.delete(id);
       renderFeed();
-      if (opened) goHome();
+      if (opened) goPrompt();
       sent?.landed([]);
       if (!err.shown) return goalBack(), toastError(err);
       // The clone failed (its toast says why): the task goes back in the box.
@@ -1226,8 +1226,8 @@ export function openIssuePicker() {
 }
 
 export function focusLauncher() {
-  // The prompt box is home, in the main pane (stacked: a page over the list).
-  if (isSplit()) return goHome();
+  // New task, in the main pane (stacked: a page over the list).
+  if (isSplit()) return goNew();
   // Docked under the top bar it opens where it is, so you keep your place in the feed.
   if (!$('#launcher').classList.contains('docked')) stage.scrollTo({ top: 0, behavior: 'smooth' });
   $('#prompt')?.focus({ preventScroll: true });

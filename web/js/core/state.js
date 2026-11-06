@@ -72,12 +72,19 @@ export class Drafts extends Map {
   }
 }
 
+// Settings → General → Start on (kept here by live.js, so it's known before the first paint): a
+// launch opens Home unless it says Last task. A reload isn't a launch: you stay on your task.
+function startsFresh() {
+  if (load('wisp.startOn', 'home') === 'last' || typeof performance === 'undefined') return false;
+  return performance.getEntriesByType?.('navigation')[0]?.type === 'navigate';
+}
+
 export const S = {
   sessions: new Map(), // id -> summary
   listToken: '', // the phone's last task list, for ?since= (features/live.js loadSessions)
   deleting: new Set(), // ids swiped away whose delete waits for its Undo toast to go (actions.js)
   full: new Map(), // id -> full session, for expanded items
-  open: new Set(MOBILE ? [] : load('wisp.open', [])), // expanded item ids (the phone app starts on the list)
+  open: new Set(MOBILE || startsFresh() ? [] : load('wisp.open', [])), // expanded item ids (the phone app starts on the list)
   recent: load('wisp.recent', []), // task ids, the one you opened last first (features/switcher.js)
   nodes: new Map(), // id -> { card, head, body, turnNodes, tray, showAll, unfolded, latestTurn }
   tasks: new Map(), // compare task key -> { card, head, runs, lead }

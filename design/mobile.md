@@ -90,9 +90,9 @@ narrow browser's under the media query (the reply box's mode button is icon-only
 - Store-required destructive paths (*Delete your account*) are a quiet `--bad` underlined link
   under *Sign out*, 48px tall, never a filled button; they open the grid's own page for it
   (`/account#delete`), which does the confirming.
-- It opens on the **computers list**, never straight into the last computer. The wisp logo in the
-  top bar goes back to it (a browser's logo stays the way home); the list has no Back button of its
-  own, the phone's Back returns.
+- It opens on the **computers list**, never straight into the last computer. *Computers* in the
+  avatar's menu goes back to it; the list has no Back button of its own, the phone's Back returns.
+  The wisp logo opens Home over the task list, as in a narrow browser (design/today.md).
 - **Back** closes the newest dialog, menu or open task, then leaves the computer. Anything that opens
   and should close on Back registers with `onBack(close)` (`web/js/ui/back.js`); `popover()` and
   overlays already do.
@@ -100,7 +100,7 @@ narrow browser's under the media query (the reply box's mode button is icon-only
   title (two lines at most) and the `split.head` slot; Back returns to the list where it was. It
   takes one history entry while it shows (`onBack`), however many tasks you go through on it.
 - *New task* is the floating button (`fab.js`) over the list (the list's own New task row is hidden
-  in the app): it opens home as a page, the prompt box focused. Sending goes back to the list, where
+  in the app): it opens New task as a page, the prompt box focused. Sending goes back to the list, where
   the new task shows; Back leaves it, and the draft stays.
 - The app starts on the list, never inside a task it had open.
 - Name the computer you're on with `HERE` / `here` (`state.js`), never a literal *This computer*: in

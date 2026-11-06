@@ -236,7 +236,7 @@ body.split .task-runs { padding: 0 4px 4px; }
 /* ---------- the main pane ---------- */
 .split-main[hidden], .split-home[hidden], .split-head[hidden], .split-stage[hidden] { display: none; }
 
-/* Home: the prompt box, then what's waiting on you (up to 5, the sidebar has the rest; a spell can
+/* New task (Home is further down): the prompt box, then what's waiting on you (up to 5, the sidebar has the rest; a spell can
    hide it through the split.next part), then the tips. */
 .split-home {
   flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center;
@@ -776,3 +776,94 @@ body.stack .pa-open .pa-frame { height: calc(100% - env(safe-area-inset-bottom))
 body.electron.mac.split.stack .pa-open .pa-bar { padding-left: 98px; }
 body.electron.split.stack .pa-open .pa-bar { -webkit-app-region: drag; }
 body.electron.split.stack .pa-open .pa-bar button { position: relative; z-index: 2; -webkit-app-region: no-drag; } /* above .split-drag, which stays on home */
+
+/* Home (features/today.js, design/today.md): New task's box with what's going on under the prompt.
+   Grey unless it matters. Rows keep their columns; the sentence's two lines keep their height. */
+.sh-today[hidden], .td-sec[hidden], .td-rows[hidden], .td-all[hidden] { display: none; }
+.sh-today { margin-top: 26px; display: flex; flex-direction: column; }
+.td-status { min-height: 44px; padding: 0 4px; display: flex; flex-direction: column; gap: 3px; }
+.td-line { margin: 0; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-sub { margin: 0; font-size: 12.5px; line-height: 18px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-sk { display: none; }
+.td-status.loading .td-line, .td-status.loading .td-sub { display: none; }
+.td-status.loading .td-sk { display: block; margin: 5px 0 4px; }
+.td-status.loading .td-sk + .td-sk { width: min(420px, 60%); margin: 5px 0 0; }
+.td-top:empty { display: none; }
+.td-top { padding: 6px 4px 0; display: flex; gap: 6px; }
+.td-sec { margin-top: 22px; }
+.td-sec h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; padding: 0 4px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.td-sec .n { color: var(--faint); }
+.td-sec .tip-more { margin-right: -6px; font-weight: 400; }
+
+/* Needs you: who, what they ask, Open task. Anywhere on the card opens it too. */
+.td-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 10px; }
+.td-card { display: flex; flex-direction: column; gap: 6px; min-height: 164px; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--surface); cursor: pointer; transition: background 0.15s; }
+.td-card:hover { background: var(--surface-2); }
+.td-card .td-c { display: block; min-width: 0; }
+.td-card > .td-c:nth-child(3) { flex: 1; }
+.td-card .ghost { border: 1px solid var(--line-2); }
+.td-card-head { display: flex; align-items: center; gap: 8px; min-height: 22px; }
+.td-card-head .td-by { flex: 1; }
+.td-card .sh-s { flex: none; }
+.td-q { font-size: 13px; line-height: 18px; font-weight: 500; color: var(--ink); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+.td-why { font-size: 12.5px; line-height: 17px; color: var(--muted); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.td-by { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12.5px; color: var(--muted); }
+.td-face { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; }
+.td-who { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Done today: a heading that unfolds its rows. */
+.td-fold { display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 6px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.td-fold:hover { color: var(--ink-2); }
+.td-fold .chev { flex: none; width: 12px; height: 12px; color: var(--faint); transition: transform 0.2s var(--ease); }
+.td-fold[aria-expanded='true'] .chev { transform: rotate(90deg); }
+.td-sec h4.td-fold-h { margin: 0; padding: 0; }
+.td-rows { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.td-rows .sh-task .q-time { min-width: 28px; text-align: right; font-variant-numeric: tabular-nums; }
+.td-c { display: contents; }
+
+/* Working: who, what, how far, when. Fixed columns, so a refresh moves nothing. */
+.td-board { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.td-row { display: grid; grid-template-columns: 116px minmax(0, 1fr) 134px 34px; gap: 12px; align-items: center; width: 100%; min-height: 56px; padding: 8px 14px; border-bottom: 1px solid var(--line); text-align: left; transition: background 0.15s; }
+.td-row:last-child { border-bottom: 0; }
+.td-row:hover { background: var(--surface-2); }
+.td-what { display: flex; flex-direction: column; min-width: 0; }
+.td-t { font-size: 13px; line-height: 18px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-l { display: flex; align-items: center; gap: 8px; min-height: 18px; min-width: 0; font-size: 12.5px; line-height: 18px; color: var(--muted); }
+.td-proj { display: inline-flex; align-items: center; gap: 5px; flex: 0 1 auto; min-width: 0; max-width: 45%; font-size: 12.5px; color: var(--muted); }
+.td-proj > span, .td-s { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-s { flex: 1 1 0; }
+.td-card-head .td-proj { max-width: 40%; }
+.td-stage { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.td-dots { display: flex; gap: 3px; flex: none; }
+.td-dots:empty { display: none; }
+.td-dots i { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--line-2); }
+.td-dots i.past { background: var(--ink-2); border-color: var(--ink-2); }
+.td-dots i.cur { background: var(--accent); border-color: var(--accent); }
+.td-row .q-time { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Coming up and usage: one quiet line each, no tiles. */
+.td-lines { display: flex; flex-direction: column; gap: 2px; margin-top: 18px; }
+.td-quiet { display: flex; align-items: center; gap: 6px; max-width: 100%; align-self: flex-start; padding: 3px 4px; border-radius: 6px; font-size: 12.5px; color: var(--muted); transition: color 0.15s; }
+.td-quiet[hidden] { display: none; }
+.td-quiet:hover { color: var(--ink-2); }
+.td-quiet > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-quiet .i { flex: none; width: 12px; height: 12px; color: var(--faint); }
+.td-quiet[aria-expanded='true'] .chev { transform: rotate(90deg); }
+.td-quiet .chev { transition: transform 0.2s var(--ease); }
+
+/* Stacked: the same order, one column; the sentence may take two lines and keeps room for them. */
+body.split.stack .sh-today { margin-top: 20px; }
+body.split.stack .td-status { min-height: 62px; padding: 0; }
+body.split.stack .td-line { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+body.split.stack .td-cards { grid-template-columns: minmax(0, 1fr); }
+body.split.stack .td-card { min-height: 0; }
+body.split.stack .td-sec h4 { padding: 0; }
+body.split.stack .td-quiet { padding: 0; min-height: 44px; }
+body.split.stack .td-quiet > span { white-space: normal; }
+body.split.stack .td-lines { gap: 0; margin-top: 10px; }
+body.split.stack .td-fold { min-height: 44px; padding: 0; }
+body.split.stack .td-card .ghost { align-self: flex-start; min-height: 44px; padding: 0 14px; }
+body.split.stack .td-row { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; min-height: 60px; padding: 10px 12px; }
+body.split.stack .td-row > .td-c:nth-child(2) > .td-what { grid-column: 1 / -1; }
+body.split.stack .td-row > .td-c:nth-child(3) > .td-stage { grid-column: 1 / -1; grid-row: 3; margin-top: 2px; }
+body.split.stack .td-row > .td-c:nth-child(4) > .q-time { grid-column: 2; grid-row: 1; }

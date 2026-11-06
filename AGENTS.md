@@ -120,10 +120,11 @@ The page has one layout, split view (the feed and its `view` setting are gone; a
 sets `view` loads with a warning). The task list's cards (`S.nodes`) are rows in the sidebar; at
 most one is open: its head stays in the list and its `.it-body` is `position: fixed` over
 `#splitStage` (split.js keeps `--sb-*` on that box), so code that looks things up through `n.card`
-keeps working. Under `SPLIT_MIN_WIDTH` (900px), and always in the phone app, the panes stack
-(`body.stack`, `isStacked()`): the list fills the window, and a task, a crew member's thread or home
-opens over it as a page (`body.stack-page`, set only by `paintSplit`) with Back (`goBack()`; `goHome()`
-is New task). Side by side the crew is a rail beside the list (`body.has-rail`, `crewRailOn()` in
+keeps working. With nothing open it's Home or New task, two pages of `#splitHome` (`goHome()`,
+`goNew()`, `features/today.js`, design/today.md). Under `SPLIT_MIN_WIDTH` (900px), and always in the
+phone app, the panes stack (`body.stack`, `isStacked()`): the list fills the window, and a task, a
+crew member's thread, Home or New task opens over it as a page (`body.stack-page`, set only by
+`paintSplit`) with Back (`goBack()`). Side by side the crew is a rail beside the list (`body.has-rail`, `crewRailOn()` in
 split.js, design/crew.md) and `--side-w` stays the list's own width; stacked, it's the Crew section.
 Scrolling goes through `web/js/features/scroll.js` (`scrollByPx`, `keepInPlace`,
 `feedAnchor`, `topInset`, `watching`): use it instead of touching `#stage` directly.

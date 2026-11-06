@@ -4,7 +4,7 @@ import { esc } from '../md.js';
 import { api, shared } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $ } from '../core/dom.js';
-import { COMPUTER, MOBILE, S, nameHere, saveOpen, setAgents } from '../core/state.js';
+import { COMPUTER, MOBILE, S, nameHere, save, saveOpen, setAgents } from '../core/state.js';
 import { toast } from '../ui/toast.js';
 import { keepSignIns } from './agent-login.js';
 import { paintAutoBtn } from './automations.js';
@@ -204,6 +204,7 @@ export const loadConfig = shared(async () => {
 export function setConfig(config) {
   const pinned = S.config?.defaults?.panes;
   S.config = config;
+  save('wisp.startOn', config.defaults?.startOn === 'last' ? 'last' : 'home'); // read before the next launch's first paint
   if ((config.defaults?.panes || '') !== (pinned || '')) queueMicrotask(() => bus.emit('panes')); // an agent's save pinned it
   nameHere();
   homeScreenTags();

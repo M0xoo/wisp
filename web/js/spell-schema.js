@@ -33,6 +33,7 @@ export const SLOTS = {
   'plan.head': "A scheduled task's page (opened from its row under Scheduled): a button in its header, before Start now.",
   'stuff.head': 'My Stuff (what you and your agents kept from tasks): a button in its header, before Add files.',
   'split.panes': "Split view's home: a button on the Panes heading (the apps pinned on home).",
+  'today.top': 'Home (the overview): a button under the sentence that says what is going on.',
   'split.upcoming': "Split view's home: a button on the Coming up heading (scheduled tasks, reminders, follow-ups, check-ins).",
   'goal.band': "The open task's goal band: a button on its second line, after the last check (acts on that task).",
 };
@@ -316,7 +317,19 @@ export const PARTS = {
   'split.main': '#splitMain',
   'split.home': '#splitHome',
   'split.greeting': '#splitHome .sh-hello',
-  'split.next': '#splitHome .sh-next:not(.sh-coming)',
+  'split.next': '#splitHome .sh-next:not(.sh-coming), #splitHome .td-needs, #splitHome .td-ready', // Needs you: New task's rows, Home's cards and rows to review
+  // Home, the overview (features/today.js): a page of the same box as New task.
+  'view.today': '#splitHome.is-today',
+  'today.sentence': '#splitHome .td-status', // the sentence and the line under it
+  'today.needs': '#splitHome .td-needs', // Needs you: what asks something of you
+  'today.card': '#splitHome .td-card', // one of them
+  'today.ready': '#splitHome .td-ready', // Ready for review: finished and unread, open PRs
+  'today.working': '#splitHome .td-working',
+  'today.row': '#splitHome .td-row', // a task in those two: who, what and its project, how far, when
+  'today.stage': '#splitHome .td-stage', // its dots and word
+  'today.done': '#splitHome .td-done', // Done today, folded
+  'today.coming': '#splitHome .td-coming', // Coming up's quiet line; it unfolds split.upcoming
+  'today.plans': '#splitHome .td-plans', // Left in your plans, one quiet line; opens Settings → Usage
   'split.upcoming': '#splitHome .sh-coming', // Coming up: what runs next, soonest first
   'split.upcoming.more': '#splitHome .sh-coming .sh-more', // Show all / Show fewer, past the first `count`
   'split.upcoming.day': '#splitHome .sh-coming .sh-day', // a day's heading in the full list (Today, Tomorrow, Fri 31 Oct)
@@ -511,6 +524,7 @@ export const PARTS = {
   'settings.liveLimits': '.sx-budget .sx-row:has(#liveLimits)',
   'settings.webhookTriggers': '.sx-row:has(#hookTriggers)',
   'settings.spareCard': '.sx-budget .sx-row:has(#spareCard)',
+  'settings.startOn': '.sx-row:has(.start-seg)', // Settings → General → Start on
   'settings.windowNotice': '.sx-budget .sx-row:has(#windowNotice)',
   'settings.windowNotice.line': '.sx-budget .bg-note', // the line in an account's block, with ×
   // A hook trigger's editor (features/automations.js): its URL with Copy and Regenerate, and its last deliveries.
@@ -583,6 +597,8 @@ export const PART_PROPS = {
   'split.main': { readWidth: 'px' },
   'split.details': { width: 'px' },
   'split.home': { greeting: 'string' },
+  'today.needs': { count: 'int' }, // cards shown (6)
+  'today.working': { count: 'int' }, // rows shown before Show all (12)
   'crew.page': { swipe: 'bool' }, // false stops swiping a thread left bringing in its About page (the phone app)
   'crew.record': { tips: 'bool' }, // the suggestion line under a member's numbers (on)
   'section.crew': { rows: 'int' }, // full rows shown when nobody's busy (2); the rest fold. Not with the crew rail: every member has its face
@@ -635,7 +651,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'comment', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'grip', 'crew', 'org', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell', 'stuff', 'star', 'image', 'grid', 'app', 'eye', 'share', 'pin', 'judge', 'box', 'issue', 'discuss', 'camera', 'video', 'mic'];
+export const ICONS = ['home', 'check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'comment', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'grip', 'crew', 'org', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell', 'stuff', 'star', 'image', 'grid', 'app', 'eye', 'share', 'pin', 'judge', 'box', 'issue', 'discuss', 'camera', 'video', 'mic'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click
@@ -719,6 +735,7 @@ export const SETTINGS = {
   drainWatch: ['on', 'off'],
   // Spare allowance: home's card when a weekly window resets soon with much of it unused (on unless off).
   spareCard: ['on', 'off'],
+  startOn: ['home', 'last'], // what a launch opens side by side and in a narrow window: Home, or the task left open
   // Window changes: a line in Settings → Usage and on home when a plan's usage window changes (on unless off).
   windowNotice: ['on', 'off'],
   // Subagents on Haiku: the model Claude Code's subagents run on, '' for the task's own (Settings → Usage).

@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Today: a mockup</title>
+<link rel="stylesheet" href="../../web/css/tokens.css">
+<link rel="stylesheet" href="../../web/css/crew.css">
+<style>
+/* A mockup of the Today view (design/today.md). wisp's tokens and spirits; the data is a sample. */
+:root[data-theme='dark']{--on-accent:var(--bg)} /* missing from tokens.css in forced dark */
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.app{display:grid;grid-template-columns:64px 280px 1fr;min-height:100vh}
+.rail{background:var(--sunk);display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0;position:sticky;top:0;height:100vh}
+.rail .nav{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:var(--muted);position:relative}
+.rail .nav.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-1)}
+.rail .nav svg{width:20px;height:20px}
+.badge{position:absolute;top:5px;right:5px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--ink);color:var(--bg);font-size:11px;line-height:16px;font-weight:600}
+.rail hr{width:28px;border:0;border-top:1px solid var(--line-2);margin:6px 0}
+.rail .face{width:32px;height:32px}
+.face{display:block;flex:none}
+.phonebar{display:none}
+.side{background:var(--rail);border-right:1px solid var(--line);padding:14px 10px;position:sticky;top:0;height:100vh;overflow:hidden;font-size:13px}
+.side h5{margin:14px 6px 4px;font:600 12px/1 var(--sans);color:var(--muted)}
+.side .it{display:flex;gap:8px;padding:5px 6px;color:var(--ink-2);white-space:nowrap;overflow:hidden}
+.side .it i{width:7px;height:7px;border-radius:50%;background:var(--line-2);flex:none;margin-top:6px}
+.side .it span{overflow:hidden;text-overflow:ellipsis}
+.side .newt{display:block;width:100%;text-align:left;padding:6px;font-weight:600;border-radius:8px;background:var(--bg-2)}
+.main{min-width:0;padding:40px 48px 110px}
+.wrap{max-width:760px;margin:0 auto}
+/* The prompt stays first and never moves: what's going on sits under it, whatever its length. */
+.hello{font:600 26px/1.2 var(--display);letter-spacing:-.02em;margin:0 0 18px}
+.box{border:1px solid var(--line-2);border-radius:14px;background:var(--surface);box-shadow:var(--shadow-1);padding:12px 12px 8px}
+.box textarea{width:100%;border:0;outline:0;resize:none;background:none;color:var(--ink);font:15px/1.45 var(--sans);height:48px}
+.box .tools{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:13px}
+.box .chip{padding:4px 9px;border-radius:8px;background:var(--bg-2)}
+.box .send{margin-left:auto}
+.chips{display:flex;gap:6px;margin-top:8px;color:var(--muted);font-size:13px;padding:0 4px;flex-wrap:wrap}
+.chips span{padding:3px 8px}
+.status{margin-top:30px}
+.tips{margin-top:26px}
+.tips .tip{display:block;width:100%;text-align:left;padding:7px 0;border-top:1px solid var(--line)}
+.tips .tip b{font-weight:600}
+.tips .tip span{color:var(--muted);font-size:13px;display:block}
+.tips h2 button{margin-left:auto;color:var(--muted);font-weight:500}
+.keys{color:var(--faint);font-size:12.5px;margin-top:18px}
+.keys kbd{font:12px var(--mono);border:1px solid var(--line-2);border-radius:4px;padding:0 4px}
+
+/* The top: the situation in words. The second line's slot keeps its height, so nothing jumps. */
+.date{color:var(--faint);font-size:13px;margin-bottom:6px}
+.sentence{font:600 15px/1.35 var(--sans);margin:0}
+.subline{min-height:44px;margin-top:4px;display:flex;gap:14px;align-items:flex-start;color:var(--muted);font-size:13px}
+.subline p{margin:0;flex:1;max-width:68ch}
+.subline b{color:var(--ink);font-weight:600}
+.ghost{border:1px solid var(--line-2);border-radius:8px;padding:5px 11px;font-size:13px;background:var(--surface);white-space:nowrap}
+.ghost:hover{background:var(--bg-2)}
+.primary{background:var(--accent);color:var(--on-accent);border-radius:8px;padding:5px 12px;font-size:13px;white-space:nowrap}
+h2{font:600 13px/1 var(--sans);color:var(--muted);margin:22px 0 10px;display:flex;gap:8px;align-items:baseline}
+h2 .n{color:var(--faint);font-weight:500}
+
+/* Needs you: answer it here. An answered card stays put, so the next button never slides under the pointer. */
+.turns{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.turn{border:1px solid var(--line-2);border-radius:var(--radius);background:var(--surface);padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow-1);min-height:186px}
+.turn .who{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:13px}
+.turn .face{width:22px;height:22px}
+.turn .kind{margin-left:auto;font-size:13px;color:var(--faint);white-space:nowrap}
+.turn .kind.warn{color:var(--warn)}
+.turn .q{font-weight:600;line-height:1.35}
+.turn .why{color:var(--muted);font-size:13px}
+.turn .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:4px;align-items:center;min-height:36px}
+.turn.sent .q,.turn.sent .why{color:var(--faint)}
+.turn .sentl{font-size:13px;color:var(--muted)}
+.turn .sentl button{text-decoration:underline;margin-left:8px}
+
+/* Rows: who, what, how far, when. Fixed columns, so a refresh moves nothing. */
+.board{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);overflow:hidden}
+.row{display:grid;grid-template-columns:116px minmax(0,1fr) 138px 36px;gap:12px;width:100%;text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);align-items:center}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--surface-2)}
+.row .by{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:13px;min-width:0}
+.row .by .face{width:22px;height:22px}
+.row .by span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .t{font-weight:600;display:block}
+.row .l{color:var(--muted);font-size:13px;display:block}
+.row .new{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:2px}
+.row .when{color:var(--faint);font-size:13px;text-align:right;font-variant-numeric:tabular-nums}
+.stage{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.dots{display:flex;gap:3px;flex:none}
+.dots i{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--line-2)}
+.dots i.past{background:var(--ink-2);border-color:var(--ink-2)}
+.dots i.cur{background:var(--accent);border-color:var(--accent)}
+.dim .t{font-weight:500;color:var(--ink-2)}
+.foldh{all:unset;cursor:pointer}
+.foot{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px}
+.tile{border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;background:var(--surface)}
+.tile h3{margin:0 0 8px;font:600 13px/1 var(--sans);color:var(--muted)}
+.tile .r{display:flex;justify-content:space-between;gap:12px;padding:3px 0;font-size:13px}
+.tile .r span:last-child{color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+.fuel{height:4px;border-radius:2px;background:var(--bg-2);margin:3px 0 7px;overflow:hidden}
+.fuel i{display:block;height:100%;background:var(--ink-2)}
+
+/* The mockup's own controls */
+.dock{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;background:var(--surface);border:1px solid var(--line-2);border-radius:12px;box-shadow:var(--shadow-2);padding:5px;display:flex;gap:8px;align-items:center;font-size:13px}
+.dock .lab{color:var(--faint);padding-left:8px}
+.seg{display:flex;gap:2px}
+.seg button{padding:5px 10px;border-radius:8px;color:var(--muted);white-space:nowrap}
+.seg button.on{background:var(--bg-2);color:var(--ink);font-weight:600}
+.toast{position:fixed;left:50%;bottom:66px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:7px 12px;border-radius:8px;font-size:13px;z-index:30}
+
+/* Stacked: same order, one column. Reached from the list's bar. */
+@media (max-width:899px){
+  .app{grid-template-columns:1fr}
+  .rail,.side{display:none}
+  .phonebar{display:flex;gap:4px;position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--line);padding:6px 8px}
+  .phonebar button{flex:1;min-height:44px;border-radius:8px;color:var(--muted);position:relative}
+  .phonebar button.on{background:var(--bg-2);color:var(--ink);font-weight:600}
+  .phonebar .badge{position:static;margin-left:6px;display:inline-block}
+  .main{padding:16px 16px 90px}
+  .hello{font-size:19px;margin-bottom:10px}
+  .subline{flex-direction:column;gap:8px;min-height:64px}
+  .turns{grid-template-columns:1fr}
+  .turn{min-height:0}
+  .turn .acts .ghost,.turn .acts .primary{min-height:44px;padding:0 14px}
+  .row{grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:12px 14px;min-height:60px}
+  .row .by{grid-column:1;grid-row:1}
+  .row .when{grid-column:2;grid-row:1}
+  .row .what{grid-column:1 / -1;grid-row:2}
+  .row .stage{grid-column:1 / -1;grid-row:3}
+  .foot{grid-template-columns:1fr}
+  .dock{left:6px;right:6px;bottom:6px;transform:none;justify-content:center}
+  .dock .lab{display:none}
+  .seg button{padding:5px 7px;font-size:12px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="rail" id="rail" aria-label="wisp"></nav>
+  <aside class="side" aria-hidden="true"><b style="display:block;padding:2px 6px 10px">wisp</b><span class="newt">New task</span><h5>Needs you</h5><div class="it"><i></i><span>Kilo Code is the best next project</span></div><div class="it"><i></i><span>Plan limits</span></div><h5>Working</h5><div class="it"><i></i><span>Rebase PR #658 (branch wisp/the-owner…</span></div><div class="it"><i></i><span>add ctrl + tab to switch betwen ses…</span></div><div class="it"><i></i><span>i should bel able to right click on…</span></div><h5>Done</h5><div class="it"><i></i><span>Issue moved to the Recipes row</span></div></aside>
+  <div style="min-width:0">
+    <div class="phonebar"><button>Tasks</button><button class="on">Home<b class="badge" id="pb"></b></button></div>
+    <main class="main"><div class="wrap" id="view"></div></main>
+  </div>
+</div>
+<div class="dock" aria-label="Mockup controls">
+  <span class="lab">Try</span><div class="seg" id="scn"></div>
+  <div class="seg"><button id="theme">Dark</button></div>
+</div>
+<script type="module">
+import { rollSpirit, spiritSvg, spiritDefs } from '../../web/js/spirit.js';
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const LIVE = { working: 'live', asking: 'ask', idle: 'idle' };
+const face = (n, state = 'idle') => `<span class="face c-x">${spiritSvg(rollSpirit(n), { seed: n, state: LIVE[state] || 'idle', label: n })}</span>`;
+document.body.insertAdjacentHTML('afterbegin', spiritDefs());
+
+const STEPS = ['Asked', 'Working', 'Checks', 'Your review', 'Merged'];
+// A sample built from one real evening. A row is one piece of work; a crew chain is several tasks.
+const WORK = [
+  { title: 'wisp from anywhere', line: 'Telegram works end to end. Coder is fixing 13 review notes.', by: 'Sana + Coder', face: 'Sana', stage: 1, word: 'Working', when: '2m', away: 1 },
+  { title: 'Task list holds still', line: 'PR #658 is rebasing, checks start next.', by: 'Sana', face: 'Sana', stage: 2, word: 'Checks', when: '4m' },
+  { title: 'Ctrl+Tab between tasks', line: 'PR #662 is open and merges cleanly.', by: 'Claude Code', face: 'Claude Code', stage: 2, word: 'Checks', when: '6m' },
+  { title: 'Right-click a project', line: 'Edit and delete work. Waiting on PR checks.', by: 'Codex', face: 'Codex', stage: 2, word: 'Checks', when: '6m' },
+];
+const DONE = [
+  { title: 'Issue sits in the Recipes row', line: 'Merged as #661.', by: 'Gucci', face: 'Gucci', when: '15m', away: 1 },
+  { title: 'Crew rail', line: 'Merged as #659.', by: 'Gucci', face: 'Gucci', when: '17m', away: 1 },
+  { title: 'Task list stays put', line: 'Merged as #655.', by: 'Bugsy', face: 'Bugsy', when: '1h', away: 1 },
+  { title: 'Sign in from the task', line: 'Merged as #654.', by: 'Sana', face: 'Sana', when: '2h', away: 1 },
+];
+const CARDS = [
+  { id: 'kilo', name: 'Kilo Code', from: 'Moris', kind: 'Asking', q: 'Start on Kilo Code as the next open source project?', why: 'Highest merge rate of the 9 checked, and it answers first-time PRs in days.', acts: ['Start on it', 'Not this one'] },
+  { id: 'plan', name: 'Plan limits', from: 'Mokhles', kind: 'Holds up 2 tasks', warn: 1, q: 'Plan limits fix goes in 0.58.0 and pushes the release a day. OK?', why: 'wisp is holding automations on a window your account no longer has.', acts: ['Push it a day', 'Ship without it'] },
+  { id: 'publish', name: 'Publish check', stuck: 1, from: 'Bugsy', kind: 'Looks stuck', warn: 1, q: 'Publish check has made no progress for 1h 40', why: 'The same macOS test failed 3 times at test/stuff.test.js:607.', acts: ['Open task', 'Follow up'] },
+];
+const TIPS = [['Compare two harnesses', 'Run one prompt on both and pick the better result.'], ['Ask from your phone', 'Answer a question while a task keeps running.'], ['Give a task a Done when', 'It keeps going until the condition holds.']];
+const AHEAD = [['Morning check-ins, 3 crew', '9:00'], ['0.58.0 release', 'Tue 10 Nov']];
+const FUEL = [['Claude Code, weekly', 62, 'Thu 21:00'], ['Codex, weekly', 18, 'Sun 9:00']];
+
+const st = { scn: 'busy', sent: new Map(), read: false, doneOpen: false };
+const list = (xs) => (xs.length < 2 ? xs[0] : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+const view = document.getElementById('view');
+
+function top(open) {
+  const need = open.filter((c) => !c.stuck).map((c) => c.name);
+  const stuck = open.filter((c) => c.stuck).map((c) => c.name);
+  const a = [];
+  if (need.length) a.push(`${list(need)} need${need.length === 1 ? 's' : ''} you.`);
+  if (stuck.length) a.push(`${list(stuck)} look${stuck.length === 1 ? 's' : ''} stuck.`);
+  return a.join(' ') || (st.scn === 'quiet' ? 'All quiet.' : `${list(WORK.slice(0, 2).map((w) => w.title))} are working.`);
+}
+const stage = (w) => `<span class="stage"><span class="dots">${STEPS.map((_, i) => `<i class="${i < w.stage ? 'past' : i === w.stage ? 'cur' : ''}"></i>`).join('')}</span>${esc(w.word)}</span>`;
+const row = (w, done) => `<button class="row ${done ? 'dim' : ''}" data-toast="Opened ${esc(w.title)}" aria-label="${esc(w.title)}">
+  <span class="by">${face(w.face, done ? 'idle' : 'working')}<span>${esc(w.by)}</span></span>
+  <span class="what"><span class="t">${st.scn === 'back' && !st.read && w.away ? '<i class="new"></i>' : ''}${esc(w.title)}</span><span class="l">${esc(w.line)}</span></span>
+  ${done ? '<span class="stage">Merged</span>' : stage(w)}
+  <span class="when">${esc(w.when)}</span></button>`;
+
+function paint() {
+  const quiet = st.scn === 'quiet';
+  const cards = quiet ? [] : CARDS;
+  const open = cards.filter((c) => !st.sent.has(c.id));
+  const away = st.scn === 'back' && !st.read;
+  const sub = away
+    ? `<p><b>While you were away, 19:00 to 23:00:</b> 4 PRs merged, Telegram started working, and Publish check stopped moving.</p><button class="ghost" data-read>Mark as read</button>`
+    : quiet ? `<p>Nothing is running. Next: morning check-ins at 9:00.</p>`
+    : `<p>${WORK.length} working. Last done 15m ago: Issue sits in the Recipes row.</p>`;
+  const needs = cards.length ? `<h2>Needs you<span class="n">${open.length || ''}</span></h2><div class="turns">${cards.map((c) => {
+    const sent = st.sent.get(c.id);
+    return `<article class="turn ${sent ? 'sent' : ''}">
+      <div class="who">${face(c.from, 'asking')}<span>${esc(c.from)}</span><span class="kind ${c.warn ? 'warn' : ''}">${esc(c.kind)}</span></div>
+      <div class="q">${esc(c.q)}</div><div class="why">${esc(c.why)}</div>
+      <div class="acts">${sent ? `<span class="sentl">Sent: ${esc(sent)}<button data-undo="${c.id}">Undo</button></span>`
+        : c.stuck ? c.acts.map((a) => `<button class="ghost" data-toast="${esc(a)}">${esc(a)}</button>`).join('')
+        : c.acts.map((a, i) => `<button class="${i ? 'ghost' : 'primary'}" data-answer="${c.id}">${esc(a)}</button>`).join('')}</div>
+    </article>`; }).join('')}</div>` : '';
+  const working = quiet ? '' : `<h2>Working<span class="n">${WORK.length}</span></h2><div class="board">${WORK.map((w) => row(w)).join('')}</div>`;
+  const showDone = away || st.doneOpen;
+  const done = `<h2><button class="foldh" data-fold aria-expanded="${showDone}">Done today</button><span class="n">${DONE.length}</span></h2>${showDone ? `<div class="board">${DONE.map((w) => row(w, 1)).join('')}</div>` : ''}`;
+  const foot = `<div class="foot"><div class="tile"><h3>Coming up</h3>${AHEAD.map(([a, b]) => `<div class="r"><span>${esc(a)}</span><span>${esc(b)}</span></div>`).join('')}</div>
+    <div class="tile"><h3>Left in your plans</h3>${FUEL.map(([a, p, r]) => `<div class="r"><span>${esc(a)}</span><span>${p}% left · resets ${esc(r)}</span></div><div class="fuel"><i style="width:${p}%"></i></div>`).join('')}</div></div>`;
+  const prompt = `<h1 class="hello">What should wisp do next?</h1><div class="box"><textarea placeholder="Describe a task" aria-label="Prompt box"></textarea><div class="tools"><span class="chip">Claude Code</span><span class="chip">wisp</span><span class="chip">Auto</span><button class="primary send" data-toast="Started the task">Send</button></div></div><div class="chips"><span>Recipes</span><span>Fix a bug</span><span>Review a PR</span><span>Issue</span></div>`;
+  const tips = `<section class="tips"><h2>Tips<button data-toast="Other tips">More tips</button></h2>${TIPS.map(([a, b]) => `<button class="tip" data-toast="Opened the guide"><b>${esc(a)}</b><span>${esc(b)}</span></button>`).join('')}</section><p class="keys"><kbd>J</kbd> <kbd>K</kbd> move through tasks · <kbd>↵</kbd> open · <kbd>E</kbd> done · <kbd>[</kbd> hide the list</p>`;
+  view.innerHTML = `${prompt}<section class="status"><h2 class="sentence">${esc(top(open))}</h2><div class="subline">${sub}</div>${needs}${working}${done}${foot}</section>${tips}`;
+  const n = open.length;
+  document.getElementById('pb').textContent = n || ''; document.getElementById('pb').hidden = !n;
+  document.getElementById('rail').innerHTML = ['Sana', 'Moris', 'Gucci', 'Bugsy', 'Mokhles', '3ezdin'].map((m) => face(m)).join('');
+  document.getElementById('scn').innerHTML = [['busy', 'Right now'], ['back', 'Back after 4h'], ['quiet', 'All quiet']].map(([v, l]) => `<button data-scn="${v}" class="${st.scn === v ? 'on' : ''}">${l}</button>`).join('');
+}
+function toast(msg) {
+  document.querySelector('.toast')?.remove();
+  const t = document.createElement('div');
+  t.className = 'toast'; t.role = 'status'; t.textContent = msg;
+  document.body.append(t);
+  setTimeout(() => t.remove(), 2400);
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  const d = b.dataset;
+  if (d.scn) { st.scn = d.scn; st.read = false; st.sent.clear(); st.doneOpen = false; paint(); }
+  else if (d.fold !== undefined) { st.doneOpen = !st.doneOpen; paint(); }
+  else if (d.read !== undefined) { st.read = true; paint(); }
+  else if (d.toast) toast(d.toast);
+  else if (d.answer) { st.sent.set(d.answer, b.textContent); paint(); }
+  else if (d.undo) { st.sent.delete(d.undo); paint(); }
+  else if (b.id === 'theme') {
+    const dark = document.documentElement.dataset.theme !== 'dark';
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    b.textContent = dark ? 'Light' : 'Dark';
+  }
+});
+const p = new URLSearchParams(location.search);
+if (p.get('scn')) st.scn = p.get('scn');
+if (p.get('theme')) { document.documentElement.dataset.theme = p.get('theme'); document.getElementById('theme').textContent = p.get('theme') === 'dark' ? 'Light' : 'Dark'; }
+paint();
+</script>
+</body>
+</html>

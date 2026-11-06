@@ -153,14 +153,16 @@ try {
     await page.locator('#machinesBtn').tap();
     const req = await nav;
     ok(new URL(req.url()).searchParams.get('from') === COMPUTER, `went to ${req.url()}`);
-    // The logo goes there too (only in the app: a browser's logo stays the way home). A new page:
+    // The logo opens Home over the list, with Back: the list is what the app opens on. A new page:
     // Chrome's error page for https://localhost lands late and would cut off a goto on this one.
     const logo = await ctx.newPage();
     await logo.goto(`${wisp.url}/?m=${COMPUTER}`);
-    await logo.waitForSelector('body.wisp-mobile');
-    const viaLogo = logo.waitForRequest((r) => r.url().startsWith('https://localhost/'), { timeout: 5000 });
+    await logo.waitForSelector('#promptFab');
     await logo.locator('#topbar .brand').tap();
-    ok(new URL((await viaLogo).url()).searchParams.get('from') === COMPUTER, 'the logo did not go to the computers list');
+    await logo.waitForSelector('#splitHome.is-today:not([hidden])');
+    ok(await logo.evaluate(() => document.body.classList.contains('stack-page') && document.activeElement?.id !== 'prompt'), 'the logo did not open Home, without the keyboard');
+    await logo.evaluate(() => history.back());
+    await logo.waitForFunction(() => !document.body.classList.contains('stack-page'));
     await ctx.close();
   });
 

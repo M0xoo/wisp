@@ -16,10 +16,15 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Expected:** all 200; health has `version` = `package.json`'s; status has `live`, `clients`.
 - **Automated**
 
+### WEB-02b · Home and New task
+- **Preconditions:** window 1440×900, tasks asking, finished and working; one with an open PR.
+- **Steps:** open `/`. Type a draft, click **New task**, click the wisp icon, press `N`, press Esc. Open a task from a row, Esc. Reload on an open task. Close the window and open `/` again; then a link to a task. Settings → General → **Start on**: *Last task*, and open `/` again.
+- **Expected:** `/` opens Home: the sentence under the prompt box (*X needs you.*, else *N working.*, *N ready for review.*, *All quiet.*), Needs you cards with Open task, Ready for review and Working rows (who, title, project and a line, stage dots and a word, time), Done today folded, a quiet line each for Coming up (unfolds its list) and usage (opens Settings → Usage), tips, keys. No *Looks stuck*; a running task silent for 10 minutes says *Quiet for N min* in grey. New task looks as it always did. The draft, its attachments and chips stay across both pages, and the prompt keeps focus. Esc from a task goes Home, on New task too. A reload stays on the task; a new start opens Home unless Start on says Last task; a link always opens its task. No row moves or replays when another task changes; before the list arrives the sentence is a placeholder, not *All quiet*. Stacked and in the app the list comes first, the wisp icon opens Home over it, Back returns. Light and dark, side by side and 390px.
+
 ### WEB-02 · First paint: split view home
 - **Preconditions:** window 1440×900, fresh home.
 - **Steps:** open `/`, look at the launcher, then press **More options**.
-- **Expected:** sidebar with *New task*, *Needs you* listing *Welcome to wisp*; the home shows
+- **Expected:** sidebar with *New task*, *Needs you* listing *Welcome to wisp*; Home shows
   *What should wisp do next?*, the launcher as on a first run (prompt box, permission mode, harness, **More options**, Send;
   no place, compare, team, goal, worktree or later), and **More options** opens the rest for good (the place as a laptop
   icon titled *Runs on this computer…*; *More options* goes)

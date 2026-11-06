@@ -35,7 +35,7 @@ import { openUsage } from './usage.js';
 import { activeSpells, runAction } from './spells.js';
 import { openCast } from './spell-ui.js';
 import { openMakePane } from './pane-make.js';
-import { isSplit, isStacked, sideShown, splitOpen, toggleSidebar } from './split.js';
+import { goHome, isSplit, isStacked, sideShown, splitOpen, toggleSidebar } from './split.js';
 import { openPanel, panelLabel, reviewLabel, runApp, runAppLabel, toggle as togglePanel } from './panel.js';
 import { setTheme, themePref } from './theme.js';
 import { addToCrew, cadenceLabel, crewEditor, crewList, memberById, openCrew } from './crew.js';
@@ -157,6 +157,7 @@ function paletteItems() {
 
   const a = 'Actions';
   items.push(
+    { group: a, label: 'Home', icon: 'home', keywords: 'today overview what is going on', run: () => goHome() },
     { group: a, label: 'New task', icon: 'plus', kbd: 'N', keywords: 'launch create prompt task', run: focusLauncher },
     { group: a, label: 'Start from an issue…', icon: 'issue', keywords: 'github linear issue ticket bug new task launch', run: () => (focusLauncher(), openIssuePicker()) },
     { group: a, label: S.showDone ? 'Hide done' : 'Show done', icon: 'done', keywords: 'toggle finished', run: () => $('#secDone .sec-toggle').click() },

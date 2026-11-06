@@ -15,6 +15,7 @@ that matches your change:
 | [mobile.md](mobile.md) | Phones: narrow browsers vs the Android app (`MOBILE`), touch targets, Back, what to hide |
 | [copy.md](copy.md) | Words: the names wisp uses, labels, toasts, CHANGELOG lines |
 | [site.md](site.md) | trywisp.dev (`docs/`): generated pages, cache busting, install text |
+| [today.md](today.md) | Home: the overview under the prompt box, what it's for, its order and rules |
 | [crew.md](crew.md) | The crew: naming, where it sits, spirits (avatars), memory and context |
 | [later.md](later.md) | Later: scheduled follow-ups, tasks and reminders |
 | [for-later.md](for-later.md) | For later: finished tasks (and crew reports) parked to look at again |

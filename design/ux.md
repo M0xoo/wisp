@@ -111,7 +111,7 @@ The rules are written up in `docs/feed.md`; the code is `web/js/features/scroll.
 
 - Split view is the only layout (the feed is gone). From 900px the list and the open task sit side
   by side; under 900px, and always in the phone app, they stack (`body.stack`): the list fills the
-  window, and a task, a crew member's thread or home (New task) opens over it as a page
+  window, and a task, a crew member's thread, Home or New task opens over it as a page
   (`body.stack-page`) whose head starts with **Back** (icon only, *Back to tasks*, or *Back to
   ‹member›* for a crew job). A change to a row, task bar, composer or details is checked in **both**
   (`split.css` holds the stacked rules at its end).
@@ -126,8 +126,17 @@ The rules are written up in `docs/feed.md`; the code is `web/js/features/scroll.
   saved in the browser (`wisp.panes`). Stacked they're rows that open as a page with Back (no grips,
   and no frame until tapped). A frame never moves in the DOM: a pane that isn't showing is
   `display: none`, so its app keeps running.
-- Split view's home always lists what needs you under **Needs you**, above the tips. Tips show only
-  on the side-by-side home: never stacked or in the phone app.
+- **Home and New task are two pages of one box** (`#splitHome`, `homePage()`, design/today.md): the
+  prompt box, tips and panes are the same nodes, so one draft stays with its attachments and focus,
+  and no pane reloads. Home opens at start in a wide window (Settings → General → *Start on*; a
+  reload isn't a start, a link to a task always wins) and from the wisp icon, Esc from a task and a
+  task marked done. *New task*, `N` and the phone's button open New task. Stacked, the list comes
+  first and either page opens over it with Back. Put a new thing under the prompt on the page that
+  needs it, not on both.
+- Both pages always say what needs you under **Needs you**, above the tips. Tips show only side by
+  side: never stacked or in the phone app.
+- **Rows on Home keep their node** (`syncRows`, features/today.js): it repaints after every feed
+  render, so only the cell that changed is written. Never rebuild a list of faces from one HTML string.
 
 ## Same actions, same names
 

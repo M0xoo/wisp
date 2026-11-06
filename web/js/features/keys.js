@@ -12,7 +12,7 @@ import { backToTop } from './scroll.js';
 import { shipDialog, shippable } from './ship.js';
 import { toggleTranscript } from './turns.js';
 import { activeSpells, runAction } from './spells.js';
-import { goBack, isStacked, splitOpen, stackPage, toggleSidebar } from './split.js';
+import { goBack, homePage, isSplit, isStacked, splitOpen, stackPage, toggleSidebar } from './split.js';
 import { orgEscape } from './org.js';
 import { changesButton, close as closePanel, openPanel, panelShown, reviewLabel, shellKey, toggle as togglePanel } from './panel.js';
 
@@ -43,8 +43,8 @@ export function onKey(e) {
     // Stacked, Shell or PR is a page over the task: Esc goes back to the task first.
     if (isStacked() && panelShown()) return closePanel();
     if (orgEscape()) return; // Org: done picking a member's delegates first
-    // A crew job → its member's thread → home (stacked: the list).
-    if (S.crewOpen || S.orgOpen || S.planOpen || S.stuffOpen || splitOpen() || stackPage()) goBack();
+    // A crew job → its member's thread → Home (stacked: the list). New task goes Home too.
+    if (S.crewOpen || S.orgOpen || S.planOpen || S.stuffOpen || splitOpen() || stackPage() || (isSplit() && homePage() === 'new')) goBack();
     return;
   }
   if (typing || e.metaKey || e.ctrlKey || e.altKey || !$('#overlay').hidden) return;

@@ -7,7 +7,7 @@ import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { money, pct } from '../core/format.js';
-import { COMPUTER, MOBILE, S, inGrid, setAgents } from '../core/state.js';
+import { COMPUTER, MOBILE, S, inGrid, setAgents, save } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { openRouter } from './auto.js';
@@ -145,6 +145,7 @@ export function openSettings(opts) {
             ${row('Interactive answers', 'Agents may answer with a small page you use in place, like a slider with a live preview or a list to pick from. It runs sandboxed, with no network, and sends nothing until you click Send', '<button class="switch" id="appsOn" role="switch"></button>')}
           </div>
           <div class="sx-group">
+            ${MOBILE ? '' : row('Start on', 'What wisp opens when it starts. A link to a task always opens that task', `<fieldset class="pk-seg start-seg">${[['home', 'Home'], ['last', 'Last task']].map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join('')}</fieldset>`)}
             ${row('Theme', 'System follows your computer’s light or dark setting', `<fieldset class="pk-seg theme-seg">${[['system', 'laptop', 'System'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']].map(([v, i, l]) => `<button type="button" data-v="${v}">${icon(i)}${l}</button>`).join('')}</fieldset>`)}
           </div>
           <div class="sx-group">
@@ -867,6 +868,21 @@ export function openSettings(opts) {
   };
   paintTx();
   // Theme: switches at once, and back if the save is refused.
+  // Start on: at once, and back if refused; kept in this browser too, for the first paint (state.js).
+  const startSetting = () => (S.config.defaults.startOn === 'last' ? 'last' : 'home');
+  const paintStart = () => $$('.start-seg button', node).forEach((b) => b.classList.toggle('on', b.dataset.v === startSetting()));
+  $$('.start-seg button', node).forEach((b) => {
+    b.onclick = async () => {
+      const was = S.config.defaults.startOn;
+      S.config.defaults.startOn = b.dataset.v;
+      paintStart();
+      const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { startOn: b.dataset.v } } }));
+      if (!saved) S.config.defaults.startOn = was;
+      save('wisp.startOn', startSetting());
+      paintStart();
+    };
+  });
+  paintStart();
   const paintTheme = () => $$('.theme-seg button', node).forEach((b) => b.classList.toggle('on', b.dataset.v === themePref()));
   $$('.theme-seg button', node).forEach((b) => {
     b.onclick = () => {
@@ -965,7 +981,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', worktreeCleanup: '#wtrCleanup', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', leanRuns: 'select[name="leanRuns"]', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers', review: 'select[name="review"]', subagentModel: 'select[name="subagentModel"]' };
+  const LOCKABLE = { theme: '.theme-seg', startOn: '.start-seg', transcript: '#txDefault', worktree: '#wtDefault', worktreeCleanup: '#wtrCleanup', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', leanRuns: 'select[name="leanRuns"]', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers', review: 'select[name="review"]', subagentModel: 'select[name="subagentModel"]' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

@@ -130,7 +130,7 @@ try {
     const again = steps.some((x) => x.name.endsWith(id));
     await step(`${again ? 're' : ''}open ${id}`, opened(id), () => page.locator(`.item[data-id="${id}"] .it-head`).first().click());
   }
-  await step('New task', { page: vis('#splitHome') }, () => page.keyboard.press('Escape').then(() => page.locator('#topbar .brand').click()));
+  await step('New task', { page: vis('#splitHome') }, () => page.keyboard.press('Escape').then(() => page.locator('#splitNew').click()));
   await step('type in the prompt', { page: `document.querySelector('#prompt').value.endsWith('x')` }, () => page.locator('#prompt').pressSequentially('fix the flaky test x', { delay: 30 }));
   await page.locator('#prompt').fill('');
   await step('avatar menu', { page: menuOpen }, () => page.locator('#meBtn').click());
@@ -142,7 +142,7 @@ try {
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
   // Launch: Enter to the new task's card, and to its first answer (a fake agent).
-  await page.locator('#topbar .brand').click();
+  await page.locator('#splitNew').click();
   await page.locator('#prompt').fill('qa: say hi');
   const before = await page.evaluate(() => new Set([...document.querySelectorAll('#feed .item[data-id]')].map((e) => e.dataset.id)).size);
   await step('launch (Enter)', { page: `document.querySelectorAll('#feed .item[data-id]').length > ${before}` }, () => page.locator('#prompt').press('Enter'));

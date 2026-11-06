@@ -374,6 +374,11 @@ test('later: Scheduled, Coming up, the follow-up rows, Send later and the time c
   assert.deepEqual(problems({ ...base0, ui: { hide: ['section.scheduled', 'split.upcoming', 'card.later', 'composer.sendLater', 'launcher.later'] }, parts: { 'composer.later': { style: { fontSize: '12px' } }, 'scheduled.row': { style: { opacity: '0.8' } }, 'split.upcoming': { props: { count: 8 } }, 'split.upcoming.day': { style: { color: 'var(--accent)' } } } }), []);
   assert.deepEqual(problems({ ...base0, ui: { hide: ['split.upcoming.more'] } }), []);
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'split.upcoming', label: 'All', do: { open: 'https://example.com' } }] }), []);
+  // Home, the overview: its parts, its slot, and what opens at start.
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['today.done', 'today.plans', 'today.ready', 'today.coming'] }, settings: { startOn: 'last' }, parts: { 'today.needs': { props: { count: 3 } }, 'today.working': { props: { count: 20 } }, 'today.row': { style: { opacity: '0.8' } }, 'today.card': { style: { opacity: '0.8' } }, 'today.sentence': { style: { color: 'var(--accent)' } }, 'today.stage': { style: { color: 'var(--accent)' } } } }), []);
+  assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'today.top', label: 'Standup', do: { open: 'https://example.com' } }] }), []);
+  assert.ok(problems({ ...base0, settings: { startOn: 'list' } }).length, 'only Home or the last task');
+  assert.ok(problems({ ...base0, parts: { 'today.working': { props: { count: 41 } } } }).some((x) => /count: int from 1 to 40/.test(x)));
   assert.ok(problems({ ...base0, parts: { 'split.upcoming': { props: { count: 41 } } } }).some((x) => /count: int from 1 to 40/.test(x)));
   // The crew's folded row and how many full rows it keeps.
   assert.deepEqual(problems({ ...base0, parts: { 'section.crew': { props: { rows: 4 } }, 'crew.strip': { style: { opacity: '0.8' } } } }), []);

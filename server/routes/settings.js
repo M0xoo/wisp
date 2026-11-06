@@ -65,6 +65,7 @@ export function register(r, app) {
     if (body.defaults?.harnessAsk !== undefined && !['on', 'off'].includes(body.defaults.harnessAsk)) return c.send(400, { error: 'harnessAsk must be on or off' });
     if (body.defaults?.subagentModel !== undefined && !SUBAGENT_MODELS.includes(body.defaults.subagentModel)) return c.send(400, { error: 'subagentModel must be \'\' (the task’s model), haiku or sonnet' });
     if (body.defaults?.windowNotice !== undefined && !['on', 'off'].includes(body.defaults.windowNotice)) return c.send(400, { error: 'windowNotice must be on or off' });
+    if (body.defaults?.startOn !== undefined && !SETTINGS.startOn.includes(body.defaults.startOn)) return c.send(400, { error: 'startOn must be home or last' });
     if (body.defaults?.spareCard !== undefined && !['on', 'off'].includes(body.defaults.spareCard)) return c.send(400, { error: 'spareCard must be on or off' });
     if (body.defaults?.drainWatch !== undefined && !['on', 'off'].includes(body.defaults.drainWatch)) return c.send(400, { error: 'drainWatch must be on or off' });
     if (body.defaults?.webhookTriggers !== undefined && !['on', 'off'].includes(body.defaults.webhookTriggers)) return c.send(400, { error: 'webhookTriggers must be on or off' });

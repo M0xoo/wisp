@@ -13,13 +13,14 @@ import { openAutomations } from './features/automations.js';
 import { openPalette } from './features/commands.js';
 import { keepFromSnapshot, renderFeed, reveal, scheduleRefetch, syncUrl, toggleSection } from './features/feed.js';
 import { paintCold } from './features/composer.js';
-import { focusLauncher, renderLauncher } from './features/launcher.js';
+import { goHome, tickHome } from './features/split.js';
+import { renderLauncher } from './features/launcher.js';
 import { recall, startShell, syncing } from './features/cache.js';
 import { paintNoOutput } from './features/turns.js';
 import { stream } from './no-output.js';
 import { connect, loadConfig, loadSessions, setConfig } from './features/live.js';
 import { paintGetApp } from './features/getapp.js';
-import { loadMachines, openComputers, openMachines, setMachines } from './features/machines.js';
+import { loadMachines, openMachines, setMachines } from './features/machines.js';
 import { askNotify } from './features/notify.js';
 import { onKey } from './features/keys.js';
 import { initSwitcher } from './features/switcher.js';
@@ -48,18 +49,12 @@ $('#searchBtn').onclick = openPalette;
 $('#machinesBtn').onclick = () => openMachines();
 $('#autoBtn').onclick = () => openAutomations({ tab: (S.config.triggers || []).length && !(S.config.recipes || []).length ? 'triggers' : 'recipes' });
 $('#updateBtn').onclick = installUpdate;
-// The logo goes back to the prompt box: split view's home, or the top of the feed. A modified
-// click still opens the link (a new tab or window). In the phone app it goes to your computers.
+// The logo goes Home (stacked: over the list). A modified click still opens the link (a new tab or window).
 $('#topbar .brand').onclick = (e) => {
   if (e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
   e.preventDefault();
-  if (MOBILE) openComputers();
-  else focusLauncher();
+  goHome({ focus: !MOBILE });
 };
-if (MOBILE) {
-  $('#topbar .brand').title = 'Your computers';
-  $('#topbar .brand').setAttribute('aria-label', 'Your computers');
-}
 $('#searchBtn').title = `Search (${combo('K')})`;
 $('#searchBtn .mod-k').textContent = combo('K');
 // Section headings fold their section (a button inside one, like Crew's +, does its own thing).
@@ -91,6 +86,7 @@ setInterval(() => {
   const body = open && S.nodes.get(open.id)?.body;
   const t = body && $('.it-props .q-time', body);
   if (t) t.textContent = agoLong(open.updatedAt);
+  tickHome(); // Home's rows say how long ago too
   paintCold(); // the open task's cache can lapse with nothing else repainting its box
 }, 30000);
 

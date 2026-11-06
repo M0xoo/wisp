@@ -1,9 +1,9 @@
 // Split view: the task list in a sidebar, the open task in the main pane. The cards are the feed's
 // own (same nodes, same code paths): in split view at most one is open, its head stays in the
 // sidebar and its body is laid over the main pane (position: fixed to #splitStage's box), so
-// everything that looks things up through the card keeps working. Home, with nothing open, is the
-// prompt box. It's the only layout: below SPLIT_MIN_WIDTH, and always in the phone app, it stacks
-// (body.stack): the list fills the window, and a task, a crew member's thread or home (New task)
+// everything that looks things up through the card keeps working. With nothing open it's the prompt
+// box, on Home (what's going on, features/today.js) or New task. It's the only layout: below SPLIT_MIN_WIDTH, and always in the phone app, it stacks
+// (body.stack): the list fills the window, and a task, a crew member's thread, Home or New task
 // opens over it as a page of its own, with Back (the head's button, Esc, the phone's Back) to the list.
 // The top bar becomes the sidebar's head, its corner a round avatar (you on the grid) whose menu holds
 // Machines, Automations, Get the app and Settings, so the list keeps its height and the open task the
@@ -35,6 +35,7 @@ import { leavePlan, paintPlan, planShown } from './plan-view.js';
 import { closeGoalRun, paintGoalRun } from './goal-run.js';
 import { leaveStuff, paintStuff, stuffShown } from './stuff.js';
 import { openUpcoming, upcoming, upcomingByDay, upcomingRow } from './later.js';
+import { comingShown, paintPlans, paintToday, todayClick } from './today.js';
 import { paintGoal } from './goal.js';
 import { backTarget, trailOf } from './lineage.js';
 import { dismissNotice, noticesOn, noticeTip, noticeWhen, planLine } from './budget.js';
@@ -111,13 +112,21 @@ export function toggleSidebar() {
   paintViewBtn();
 }
 
-// Stacked: home shows as a page only once asked for (New task); otherwise nothing open is the list.
+// What the prompt box's page shows with nothing open: Home (the overview, features/today.js) or
+// New task. Two pages of #splitHome: the box, tips and panes stay where they are, so one draft
+// survives the switch with its attachments, chips and focus, and no pane reloads.
+let page = 'home';
+export const homePage = () => page;
+
+// Stacked: Home and New task show as a page only once asked for; otherwise nothing open is the list.
 let homeAsked = false;
 // Stacked and something's open over the list: a task, a member's thread or home.
 export const stackPage = () => document.body.classList.contains('stack-page');
 
-// Nothing open: the prompt box, focused (New task).
-export function goHome({ focus = true } = {}) {
+// Nothing open: the prompt box, focused, on Home or New task.
+function openPage(to, { focus = true } = {}) {
+  if (page !== to) home.scrollTop = 0;
+  page = to;
   leaveCrew(); // a crew member's thread too
   leaveOrg(); // and the Org page
   leavePlan(); // and a scheduled task's page
@@ -128,6 +137,9 @@ export function goHome({ focus = true } = {}) {
   paintSplit();
   if (focus) $('#prompt')?.focus({ preventScroll: true });
 }
+export const goHome = (o) => openPage('home', o); // the wisp icon, Esc from a task, a task marked done
+export const goNew = (o) => openPage('new', o); // New task, N, the phone's button
+export const goPrompt = (o) => openPage(page, o); // the page the prompt was typed on
 
 // Back (Esc, the head's ×, the stacked page's Back, the phone's Back): a crew job goes back to its
 // member's thread, the thread home. Stacked, a pane's page goes back to home, and home is the list.
@@ -376,7 +388,10 @@ export function paintSplit() {
   $('#splitHead').hidden = !s;
   const shown = !!s && $('#splitStage').hidden;
   $('#splitStage').hidden = !s;
-  $('#splitNew').classList.toggle('on', !s && !crew && !stacked);
+  $('#splitNew').classList.toggle('on', !s && !crew && !stacked && page === 'new');
+  const brand = $('#topbar .brand');
+  if (!s && !crew && page === 'home') brand.setAttribute('aria-current', 'page');
+  else brand.removeAttribute('aria-current');
   const side = slotHtml('sidebar.top');
   const host = $('#spSide');
   if (host.dataset.h !== side) (host.innerHTML = side), (host.dataset.h = side);
@@ -523,13 +538,16 @@ function paintDetails(s, pill) {
 
 function paintHome() {
   $('.sh-hello', home).textContent = spellProp('split.home', 'greeting') || 'What should wisp do next?';
+  const today = page === 'home';
+  home.classList.toggle('is-today', today);
+  if ($('.sh-today', home).hidden === today) $('.sh-today', home).hidden = !today;
   // The tasks waiting on you, one click each: home doubles as the inbox. The sidebar's Needs you,
   // plus what the crew wants from you on other tasks' jobs (a question, a report you haven't read),
   // with their faces; their own tasks are in Needs you already.
   const crew = [...S.sessions.values()].filter((s) => underMember(s) && !s.pending && needsYou(s));
   const all = [...groups().needs, ...crew].sort((a, b) => (b.state === 'waiting') - (a.state === 'waiting') || b.updatedAt - a.updatedAt);
   const needs = all.slice(0, 5);
-  const html = needs.length
+  const html = needs.length && !today
     ? `<h4>Needs you<span class="n">${all.length > needs.length ? `${needs.length} of ${all.length}` : all.length}</span></h4>${needs
         .map(
           (s) => `<button class="sh-task c-${s.color}" data-id="${s.id}">
@@ -559,9 +577,16 @@ function paintHome() {
     : '';
   const coming = $('.sh-coming', home);
   if (coming.dataset.h !== up) (coming.innerHTML = up), (coming.dataset.h = up);
-  coming.hidden = !up;
+  coming.hidden = !up || (today && !comingShown());
+  if (today) paintToday(home, { ready: listed || S.sessions.size > 0, ahead });
   $('.sh-fb', home).hidden = !feedbackOn();
-  $('.sh-keys', home).innerHTML = '<kbd>J</kbd><kbd>K</kbd> move through tasks · <kbd>↵</kbd> open · <kbd>E</kbd> done · <kbd>Esc</kbd> back here · <kbd>[</kbd> hide the list';
+  $('.sh-keys', home).innerHTML = `<kbd>J</kbd><kbd>K</kbd> move through tasks · <kbd>↵</kbd> open · <kbd>E</kbd> done · <kbd>Esc</kbd> ${today ? 'back here' : 'home'} · <kbd>[</kbd> hide the list`;
+}
+let listed = false; // the server's list is in: an empty Home is then really quiet
+
+// Times on Home move with the clock (app.js); its rows write only what changed.
+export function tickHome() {
+  if (isSplit() && !home.hidden && page === 'home') paintHome();
 }
 
 // Spare allowance (web/js/spare.js): a weekly window about to reset with much of it unused, under
@@ -906,7 +931,8 @@ function paintViewBtn() {
 viewBtn.onclick = () => {
   toggleSidebar();
 };
-$('#splitNew').onclick = () => goHome();
+$('#splitNew').onclick = () => goNew();
+
 $('#splitHead').addEventListener('click', (e) => {
   if (e.target.closest('.sh-close')) return goBack({ focus: true });
   if (e.target.closest('.sh-back')) return goBack();
@@ -923,6 +949,10 @@ let shown = []; // Coming up's rows, as painted
 let upAll = load('wisp.upAll', false); // Coming up shows everything, not only the next few
 home.addEventListener('click', (e) => {
   if (e.target.closest('.sh-back')) return goBack();
+  if (todayClick(e)) {
+    paintHome();
+    return;
+  }
   const pane = e.target.closest('.sh-pane-row');
   if (pane) return openPane(pane.dataset.pane);
   if (e.target.closest('.sh-more')) {
@@ -952,7 +982,7 @@ home.addEventListener('click', (e) => {
   }
   const up = e.target.closest('.sh-up');
   if (up) return openUpcoming(shown[up.dataset.up], up, e);
-  const id = e.target.closest('.sh-task')?.dataset.id;
+  const id = e.target.closest('.sh-task, .td-card, .td-row')?.dataset.id;
   if (!id) return;
   if (S.sessions.get(id)?.crew) return reveal(id); // under its member, Crew unfolded
   setFocus(id, { scroll: false });
@@ -997,7 +1027,14 @@ wide.addEventListener('change', () => {
 bus.on('spells', applyView);
 // A window moved (server/budget.js broadcasts 'agents'): the spare card follows, while home shows.
 bus.on('agents', () => {
-  if (isSplit() && !home.hidden) paintSpare();
+  if (isSplit() && !home.hidden) {
+    paintSpare();
+    if (page === 'home') paintPlans(home);
+  }
+});
+bus.on('listed', () => {
+  listed = true;
+  if (isSplit() && !home.hidden && !splitOpen()) paintHome();
 });
 bus.on('config', paintMe);
 bus.on('machines', paintMe);

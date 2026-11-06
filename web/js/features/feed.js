@@ -920,7 +920,7 @@ export function handOff(id) {
     if (had) collapse(id);
     apply(); // don't wait for the live update to drop the card
     renderFeed();
-    // The phone app goes back to the list it came from; elsewhere to New task.
+    // The phone app goes back to the list it came from; elsewhere Home.
     if (had) return MOBILE ? goBack() : goHome({ focus: !isStacked() }); // no phone keyboard popping up
     if (nextUp && S.nodes.has(nextUp)) setFocus(nextUp);
   };

@@ -136,6 +136,7 @@
       <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M14.5 4.5v15M16.8 8.5h1.4M16.8 11.5h1.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
       <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.8 12s3.4-6.3 9.2-6.3 9.2 6.3 9.2 6.3-3.4 6.3-9.2 6.3S2.8 12 2.8 12z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.8" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
       <symbol id="i-shell" viewBox="0 0 24 24"><path d="M5 7.5l4.5 4.5L5 16.5M12 17h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-home" viewBox="0 0 24 24"><path d="M4.5 11 12 4.5l7.5 6.5M6.5 9.5V19a1 1 0 001 1h9a1 1 0 001-1V9.5M10 20v-5.5h4V20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-feed" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="5" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="5" y="11.5" width="14" height="8.5" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
       <symbol id="i-bug" viewBox="0 0 24 24"><path d="M8 9.5a4 4 0 018 0V15a4 4 0 01-8 0V9.5zM12 11v8M9 6.5 7.5 4.5M15 6.5l1.5-2M8 11.5H4.5M19.5 11.5H16M8 15.5l-3 1.5M16 15.5l3 1.5M8.2 8.5h7.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-issue" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 7.6v5.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="12" cy="16.1" r="1.15" fill="currentColor"/></symbol>
@@ -171,7 +172,7 @@
       </div>
     </nav>
     <header class="topbar" id="topbar">
-      <a class="brand" href="#/" aria-label="wisp" title="wisp">
+      <a class="brand" href="#/" aria-label="Home" title="Home">
         <span class="orb tiny"></span>
       </a>
       <div class="projects" id="projects"></div>
@@ -228,7 +229,7 @@
       </div>
       <div class="feed-empty" id="feedEmpty" hidden></div>
     </div>
-    <!-- The main pane (features/split.js): home is the prompt box; an open task shows its header
+    <!-- The main pane (features/split.js): Home and New task are the prompt box with what's under it; an open task shows its header
          here and its body is laid over #splitStage. Stacked, it's a page over the list. -->
     <section class="split-main" id="splitMain" hidden>
       <div class="split-drag" aria-hidden="true"></div>
@@ -236,6 +237,20 @@
         <!-- Stacked (narrow windows, the phone app), home is a page over the list: Back to it. -->
         <div class="sh-bar"><button class="icon-btn sh-back" title="Back to tasks" aria-label="Back to tasks"><svg class="i"><use href="#i-back"/></svg></button><h2 class="sh-hello">What should wisp do next?</h2></div>
         <div class="sh-launch"></div>
+        <!-- Home's overview (features/today.js, design/today.md). Home and New task are two pages of
+             this box: the prompt box, tips and panes are the same nodes, so nothing moves or reloads. -->
+        <div class="sh-today" hidden>
+          <div class="td-status"><p class="td-line"></p><p class="td-sub"></p><span class="sk sk-line td-sk"></span><span class="sk sk-line td-sk"></span></div>
+          <div class="td-top"></div>
+          <section class="td-sec td-needs" hidden><h4>Needs you<span class="n"></span></h4><div class="td-cards"></div></section>
+          <section class="td-sec td-ready" hidden><h4>Ready for review<span class="n"></span><button type="button" class="tip-more td-all" data-all="ready" hidden></button></h4><div class="td-board"></div></section>
+          <section class="td-sec td-working" hidden><h4>Working<span class="n"></span><button type="button" class="tip-more td-all" data-all="working" hidden></button></h4><div class="td-board"></div></section>
+          <section class="td-sec td-done" hidden><h4 class="td-fold-h"><button type="button" class="td-fold" data-fold="done" aria-expanded="false"><svg class="i chev"><use href="#i-chevron"/></svg><span>Done today</span><span class="n"></span></button><button type="button" class="tip-more td-all" data-all="done" hidden></button></h4><div class="td-rows" hidden></div></section>
+          <div class="td-lines">
+            <button type="button" class="td-quiet td-coming" aria-expanded="false" hidden><svg class="i chev"><use href="#i-chevron"/></svg><span></span></button>
+            <button type="button" class="td-quiet td-plans" hidden><svg class="i"><use href="#i-stats"/></svg><span></span></button>
+          </div>
+        </div>
         <div class="sh-next"></div>
         <div class="sh-spare" hidden></div>
         <!-- Apps from My Stuff pinned on home (panes.js). -->
