@@ -264,6 +264,8 @@ Agents run with real permissions, so every user's wisp needs a wall around it.
   `wisp grid doctor` says so.
   [`deploy/firewall.sh`](deploy/firewall.sh) puts the containers on their own bridge, with no
   traffic between them and none to the host, to the cloud metadata service, or to mail servers.
+  The one door to the host is the grid's own public HTTPS, which a box calls like anyone on the
+  internet (Publish, Share, `/sandbox`).
   Each gets its own resolv.conf, because Docker's built-in DNS can't be reached from gVisor.
 - **`process` (dev only):** every user's wisp runs as the same OS user. Fine for `wisp grid dev`
   and for yourself; it doesn't keep users apart.
