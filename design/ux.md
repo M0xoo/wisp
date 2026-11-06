@@ -86,11 +86,23 @@ still gets its toast.
 
 The rules are written up in `docs/feed.md`; the code is `web/js/features/scroll.js`.
 
-- Go through `scroll.js` (`scrollByPx`, `keepInPlace`, `feedAnchor`, `watching`, `topInset`); never
+- Go through `scroll.js` (`scrollByPx`, `keepInPlace`, `feedAnchor`, `atTail`, `topInset`); never
   set `#stage.scrollTop` yourself. A plain `scrollTop` write cancels a smooth scroll in flight.
-- A background re-render holds the row at the top of the list in place (`keepInPlace(feedAnchor(id),
-  renderFeed)`). A row that changes section never drags the list after it, the open task's included:
-  the list moves when you scroll it, press J / K, or open a row that's out of view (`showRow`).
+- You own the scroll: nothing that happens by itself (a run finishing, a turn starting, a queued
+  follow-up, a compact, a goal round, a refetch) moves what you're reading. `watching()` only says
+  a task is the open one; never ask it whether someone is reading.
+- The one exception is the tail. `atTail(box)` (`web/js/tail.js`): within 40px of the end new output
+  keeps you there, and once you scroll up you've left it, even by 30px, until you come back down.
+  A new scroller that follows its output asks this, like the crew thread and the task's body do.
+- Your own send moves the view once, to your prompt. The real turn replacing the pending one isn't
+  new (`turnChange`), and a send with no pending turn flags the next one (`ownSend`). What only
+  queues moves nothing.
+- Nothing is lost by staying put: the *Latest* pill over the reply box says something landed while
+  you were away from the tail, and takes you there.
+- The list holds still: a background re-render keeps the row under the top of the list in place
+  (`keepInPlace(feedAnchor(id), renderFeed)`). A row that changes section never drags the list after
+  it, the open task's included: the list moves when you scroll it, press J / K, or open a row that's
+  out of view (`showRow`).
 - Leaving the list (Mark done, Archive, Delete) from the open task goes to New task, never to
   another task. From a row in the list, focus moves to the next card, which lands where the old
   one sat (`handOff`).

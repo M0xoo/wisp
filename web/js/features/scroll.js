@@ -6,6 +6,8 @@
 import { $, $$ } from '../core/dom.js';
 import { MOBILE, S } from '../core/state.js';
 
+export { atTail } from '../tail.js';
+
 export const stage = $('#stage');
 
 const split = () => document.body.classList.contains('split');
@@ -31,6 +33,15 @@ export const barCover = (body) => {
   return $('.it-bar', body)?.offsetHeight || 0;
 };
 
+// The turn at the top of a task's body: its id, where its head sits now and where the body starts
+// showing. A place to hold across a render (turns.js) or to come back to (split.js).
+export function topTurn(body) {
+  const inset = body.getBoundingClientRect().top + barCover(body);
+  const turn = $$('.turn', body).find((t) => t.getBoundingClientRect().bottom > inset);
+  return turn ? { id: turn.dataset.turn, top: turn.getBoundingClientRect().top, inset } : null;
+}
+
+// In split view this means 'this task is the open one', not 'the user is reading it': that's atTail.
 // Whether the user is reading a card, not just catching its edge at the top or bottom of the
 // screen: it crosses the middle of the viewport, or it's focused and a fair share of it shows.
 // Anything that moves the page on a card's behalf asks this first.

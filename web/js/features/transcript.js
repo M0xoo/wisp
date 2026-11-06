@@ -7,6 +7,7 @@ import { maskBar, revealedOf } from '../env-mask.js';
 import { esc, md } from '../md.js';
 import { $, el, icon } from '../core/dom.js';
 import { load, S, save } from '../core/state.js';
+import { atTail, toEnd } from '../tail.js';
 
 export const KIND_ICON = { check: 'check', read: 'read', edit: 'pen', run: 'terminal', search: 'search', web: 'web', agent: 'agent', plan: 'plan', tool: 'tool', text: 'text', error: 'warn', ask: 'ask', answer: 'check', wait: 'ask', background: 'clock', account: 'clock', watch: 'eye' };
 
@@ -202,11 +203,12 @@ export function renderLiveTranscript(s, t, ctx) {
   return node;
 }
 
-// A new step. In a running turn it goes at the end, and the working panel under the timeline holds
-// still on screen while the timeline grows above it, so watching a run reads like a chat; scrolled
-// away, nothing moves. A finished turn still gets wisp's own steps after the agent's answer (Auto
-// checking the tests): they go above the end marker, and what you're reading below doesn't move.
-export function appendStep(turnNode, item, t, scrollBy) {
+// A new step. In a running turn it goes at the end: at the tail of `box` (the scroller it shows in)
+// you stay at the end, so watching a run reads like a chat; away from the tail nothing moves, even
+// with the working panel on screen. A finished turn still gets wisp's own steps after the agent's
+// answer (Auto checking the tests): they go above the end marker, and what you're reading below
+// doesn't move.
+export function appendStep(turnNode, item, t, scrollBy, box) {
   const list = $('.tx-list', turnNode);
   const reg = list && registry.get(list);
   if (!reg) return;
@@ -215,13 +217,14 @@ export function appendStep(turnNode, item, t, scrollBy) {
   if (!html) return;
   reg.push(item);
   const end = $(':scope > .tx-end', list);
-  const anchor = live ? $('.w-panel', turnNode) : end;
-  const r = anchor?.getBoundingClientRect();
-  const held = !r ? null : live ? (r.bottom > 0 && r.top < innerHeight ? r.top : null) : r.bottom <= 0 ? r.top : null;
+  const tail = live && !!box && atTail(box); // before the step goes in: it may be taller than the slack
+  const r = live ? null : end?.getBoundingClientRect();
+  const held = r && r.bottom <= 0 ? r.top : null;
   const li = el(html);
   li.classList.add('new');
   list.insertBefore(li, end);
-  if (held !== null) scrollBy(anchor.getBoundingClientRect().top - held);
+  if (tail) toEnd(box);
+  if (held !== null) scrollBy(end.getBoundingClientRect().top - held);
 }
 
 // A step that changed after it was shown (its output came in).

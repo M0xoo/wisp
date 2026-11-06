@@ -16,6 +16,7 @@ import { clampToViewport, popover } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { ask } from '../ui/confirm.js';
 import { autosize } from './attachments.js';
+import { ownSend } from '../tail.js';
 import { runnerTip } from './runners.js';
 
 // Rows by key, each with the HTML it shows and what wires it (once, when made). A row being edited
@@ -105,12 +106,17 @@ const editQueued = (id, q, text) =>
   );
 
 // Send now: off the list at once; the turn it starts (or the interrupt) comes with the server's update.
-const sendQueued = (id, q) =>
-  changeQueue(
+const sendQueued = async (id, q) => {
+  const n = S.nodes.get(id);
+  if (n) ownSend(n); // the user's own send: the turn it starts is the one the view goes to
+  const sent = await changeQueue(
     id,
     S.full.get(id).queue.filter((x) => x.id !== q.id),
     () => api(`/sessions/${id}/queue`, { method: 'PATCH', body: { item: q.id, now: true } }),
   );
+  if (!sent && n) n.ownUntil = 0;
+  return sent;
+};
 
 // Combine these (in the queue's order) into the first of them: one follow-up saying each in turn.
 function mergeQueued(id, ids) {

@@ -26,7 +26,7 @@ import { SPLIT_MIN_WIDTH } from '../spell-schema.js';
 import { onBack } from '../ui/back.js';
 import { popover } from '../ui/popover.js';
 import { collapse, expand, groups, headPills, qDot, renderFeed, reveal, setFocus } from './feed.js';
-import { barCover, stage } from './scroll.js';
+import { barCover, stage, topTurn } from './scroll.js';
 import { paintMini, placePr, renderBody } from './turns.js';
 import { partHidden, slotHtml, spellProp } from './spells.js';
 import { avatarHtml, crewBack, crewDot, crewViewShown, leaveCrew, memberById, paintCrew, paintCrewView, underMember } from './crew.js';
@@ -319,9 +319,8 @@ export function keepPlace(id) {
   places.delete(id); // the newest go last, so the oldest go first
   if (body.scrollTop < 1) return savePlaces();
   const end = body.scrollTop + body.clientHeight >= body.scrollHeight - 4;
-  const top = body.getBoundingClientRect().top + barCover(body);
-  const turn = $$('.turn', body).find((t) => t.getBoundingClientRect().bottom > top);
-  places.set(id, { end, turn: turn?.dataset.turn, dy: turn ? turn.getBoundingClientRect().top - top : 0, top: body.scrollTop, showAll: n.showAll });
+  const at = topTurn(body);
+  places.set(id, { end, turn: at?.id, dy: at ? at.top - at.inset : 0, top: body.scrollTop, showAll: n.showAll });
   savePlaces();
 }
 

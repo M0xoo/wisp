@@ -13,6 +13,7 @@ import { $, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { actionCount, turnTime } from '../core/format.js';
 import { esc } from '../md.js';
+import { noteScroll } from '../tail.js';
 import { viewImage } from '../ui/viewer.js';
 import { openInEditor, revealFile } from './actions.js';
 import { faceOf, SAID, VOTE_ICON } from './judges.js';
@@ -38,6 +39,7 @@ const ENDS = {
 function shell() {
   if (view) return view;
   view = el('<div class="goal-run" id="goalRun" role="region" aria-label="Goal check" tabindex="-1" hidden></div>');
+  view.addEventListener('scroll', () => noteScroll(view), { passive: true });
   document.body.append(view);
   view.addEventListener('click', (e) => {
     if (e.target.closest('.gr-back')) return closeGoalRun();
@@ -198,9 +200,15 @@ function onStep(d) {
   }
   if (t.activity.some((a) => sameStep(a, d.item))) return; // it was in the record already
   t.activity.push(d.item);
-  appendStep($('.gr-turn', view), d.item, t, (dy) => {
-    view.scrollTop += dy;
-  });
+  appendStep(
+    $('.gr-turn', view),
+    d.item,
+    t,
+    (dy) => {
+      view.scrollTop += dy;
+    },
+    view,
+  );
   const n = $('.w-count', view);
   if (n) n.textContent = actionCount(t);
 }

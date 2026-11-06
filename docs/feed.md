@@ -1,9 +1,10 @@
 # The feed: task states, moves and scrolling
 
 How a task moves through the feed in the web UI, and what the page does with your scroll position
-and focus when it moves. The code is in `web/js/features/`: `feed.js` (`groups()`, `taskOf()`,
-`handOff()`), `scroll.js` (`watching()`, `keepInPlace()`, `feedAnchor()`, `showRow()`) and `live.js` (the `summary`
-event handler).
+and focus: nothing that happens by itself moves what you're reading, only the tail follows. The code
+is in `web/js/features/`: `feed.js` (`groups()`, `taskOf()`, `handOff()`), `turns.js` (`renderBody()`),
+`scroll.js` (`keepInPlace()`, `feedAnchor()`, `showRow()`, `topTurn()`) and `live.js` (the `summary` event handler),
+and `web/js/tail.js` (`atTail()`, `turnChange()`).
 
 ## Sections
 
@@ -75,31 +76,48 @@ Compare runs keep the prompt as their title: one run's headline shouldn't name t
 
 ## Scroll and focus rules
 
-1. **What you're reading never moves on its own.** When the feed re-renders because something
-   changed elsewhere (a task finishes, asks, starts, is deleted from the CLI, the stream
-   reconnects), the first card under the top bar and docked launcher is held in place (`feedAnchor` + `keepInPlace`).
-   At the very top of the page nothing is held, so new cards push the list down.
-2. **The list holds still when a row changes section.** A follow-up or answer takes the open task's
-   row to Working, finishing or Stop brings it back to Needs you, Reopen and Unarchive bring it back
-   too: the list stays where it was, even if the row leaves the screen. The main pane still shows the
-   task. The list moves when you scroll it, press j / k, or open a row that's out of view.
-3. **Cards you weren't watching fold when they finish.** A card left open while it ran collapses
+Five rules decide what scrolls. *Watching* is no longer a question they can ask: in split view
+`watching()` only means the task is the open one, so they go by where the reader is (`atTail()`).
+
+1. **You own the scroll.** Only your own action moves a scroller. Nothing that happens by itself (a
+   run finishing, a turn starting, a queued follow-up, a compact, a goal round, a refetch, an event
+   from another task) moves what you're reading. A render holds the turn at the top of the view
+   (`topTurn`, `renderBody`), and the answer you may be reading stays open when a new turn starts.
+2. **One exception, the tail.** At the end of the running task (`atTail()`: within 40px), new output
+   keeps you at the end and its result lands where you can see it. As soon as you scroll up you've
+   left the tail, even 30px (the slack is then 2px), and nothing moves, with the working panel on
+   screen or not, until you come back to within 40px of the end. The crew thread works the same way.
+3. **Your own action moves the view once.** Sending a follow-up brings your prompt to the top, one
+   time: the real turn taking over from the pending one isn't a new turn, and a follow-up that
+   interrupts the run or a queued one you Send now does the same when its turn comes. A follow-up
+   that merely queues moves nothing: it starts by itself later. Opening a task from a search or a
+   toast brings its row into view: opening a card, *Open* on a toast or notification, ⌘K, and
+   j / k scroll the card's header under the top bar.
+4. **The sidebar holds still.** A follow-up or answer takes the open task's row to Working, finishing
+   or Stop brings it back to Needs you, Reopen and Unarchive bring it back too: the list stays where
+   it was, even if the row leaves the screen, and the main pane still shows the task. The list only
+   moves when you scroll it, press J / K, or open a row that's out of view (`showRow`). When the feed
+   re-renders because something changed elsewhere, the first row showing is held in place
+   (`feedAnchor` + `keepInPlace`). At the very top of the list nothing is held, so new rows push it
+   down.
+5. **Nothing is lost by staying put.** When something lands while you're away from the tail, a small
+   *Latest* pill over the reply box takes you there. It goes when you click it, reach the tail, or
+   the latest turn's head comes on screen.
+
+The rest:
+
+6. **Cards you weren't watching fold when they finish.** A card left open while it ran collapses
    when it lands in Needs you, unless you're watching it in a focused window.
-4. **Taking a card out hands off to the next one.** Mark done, Archive and Delete focus the card
+7. **Taking a card out hands off to the next one.** Mark done, Archive and Delete focus the card
    below (or above, at the end of the list) and put it exactly where the old one sat
    (`handOff`), so E / A / j keep working from the same spot.
-5. **Navigation brings the header into view.** Opening a card, *Open* on a toast or notification,
-   ⌘K, and j / k scroll the card's header under the top bar. A card taller than the screen is
-   aligned by its top so its header shows.
-6. **New output scrolls in only while you watch.** When a turn starts or finishes in a card you're
-   watching, the new turn scrolls to the top; otherwise nothing moves.
-7. **Collapse all (C) and Esc keep your place.** Collapse all centres the card you were reading;
+8. **Collapse all (C) and Esc keep your place.** Collapse all centres the card you were reading;
    Esc folds the focused card and keeps its header on screen.
-8. **A new project filter starts at the top of the feed.**
-9. **A task you launch from the box is confirmed, not chased.** Its row lands in Working, usually
-   below everything in Needs you. If it shows, the wisp flies from the launcher to it. If it doesn't,
-   the list stays where it was and a *Sent to Claude* toast offers **Open**. Stacked, the list is what
-   you see, so the row scrolls into view and flashes (on the phone, to the middle, with the toast).
+9. **A new project filter starts at the top of the feed.**
+10. **A task you launch from the box is confirmed, not chased.** Its row lands in Working, usually
+    below everything in Needs you. If it shows, the wisp flies from the launcher to it. If it doesn't,
+    the list stays where it was and a *Sent to Claude* toast offers **Open**. Stacked, the list is what
+    you see, so the row scrolls into view and flashes (on the phone, to the middle, with the toast).
 
 "Under the top bar" means below the stage's `scroll-padding-top` (top bar + docked launcher),
 read at runtime by `topInset()`.

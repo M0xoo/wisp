@@ -76,6 +76,11 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Expected:** the box clears at once, a second turn runs and renders below the first.
 - **Automated**
 
+### WEB-06c · The reader holds, the tail follows, Latest says what landed
+- **Steps:** on a task with a long answer, scroll to the middle of it and let a follow-up run and finish (sent from the API, so it starts by itself). Click **Latest**. Then scroll to the very end and let another run and finish. Then send a follow-up from the box.
+- **Expected:** in the middle nothing moves, within 1px, the answer stays open, and a *Latest* pill shows over the reply box without moving it. It goes on the click, which lands on the latest turn. At the end the view follows and the new answer lands on screen with no pill. Your own send moves the view once, to your prompt.
+- **Automated**
+
 ### WEB-06b · Rename keeps the task open
 - **Steps:** open a task; click its title in the header, type a new name, **Enter**. Click it again, type, **Escape**. Do the same with **M** on a row in the list.
 - **Expected:** Enter saves the name and Escape puts the old one back; the task stays open both times (no close, no Back to home or the list).
