@@ -25,7 +25,7 @@ import { toast, toastError, tryApi } from '../ui/toast.js';
 import { PART_LABEL, PARTS, SPIRIT, isSpirit, parseSpirit, rollSpirit, spiritCode, spiritDefs, spiritSvg } from '../spirit.js';
 import { collapse, placeCards, renderFeed, reveal } from './feed.js';
 import { mentionBox } from './mentions.js';
-import { goBack, isSplit, isStacked, splitOpen } from './split.js';
+import { crewRailOn, goBack, isSplit, isStacked, splitOpen } from './split.js';
 import { projectList } from './project-list.js';
 import { runnerPicker } from './runner-picker.js';
 import { MODES, agentName, harnessesAt, harnessLogo, modeMenu, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
@@ -283,21 +283,29 @@ function stripHtml(folded) {
   return `<span class="cr-faces">${faces.map(face).join('')}</span><button class="cr-fold" type="button" aria-expanded="false"><span class="cr-sub">${esc(words)}</span>${icon('chevron', 'chev')}</button>`;
 }
 
+// A job kept in the list whatever else: it's open, or about to be.
+const held = (s) => underMember(s) && (S.open.has(s.id) || pinned.has(s.id));
+
 // Blocks keyed by member, rows rewritten only when what they say changed and never re-appended (a
 // spirit would restart its animation). Returns the job cards it placed, so the feed keeps them.
 export function paintCrew() {
+  const railed = crewRailOn();
   sec.hidden = !('crew' in S.config); // until the config lands
   $('h4 .n', sec).textContent = crewList().length || '';
   if (S.crewOpen && !memberById(S.crewOpen)) setOpen(null);
   const states = new Map(crewList().map((m) => [m.id, memberState(m)]));
   const list = sortCrew(crewList(), states);
-  const { full, busyIds } = crewRows(list, states);
-  wasFull = full;
-  const folded = list.filter((m) => !full.has(m.id));
+  // With the rail the section keeps only what an open job needs: its card (the body hangs off it).
+  const { full, busyIds } = railed ? { full: new Set(list.filter((m) => states.get(m.id).jobs.some(held)).map((m) => m.id)), busyIds: new Set() } : crewRows(list, states);
+  if (railed) {
+    paintRail(list, states);
+    if (!full.size) sec.hidden = true;
+  } else wasFull = full;
+  const folded = railed ? [] : list.filter((m) => !full.has(m.id));
   const shown = [];
-  const want = list.length ? list.filter((m) => full.has(m.id)) : [null];
+  const want = list.length || railed ? list.filter((m) => full.has(m.id)) : [null];
   if (folded.length) want.push('strip');
-  else if (S.crewAll && list.length > (spellProp('section.crew', 'rows') || ROWS_MIN) + 1) want.push('fewer');
+  else if (!railed && S.crewAll && list.length > (spellProp('section.crew', 'rows') || ROWS_MIN) + 1) want.push('fewer');
   want.forEach((m, i) => {
     const key = m === 'strip' || m === 'fewer' ? m : m ? m.id : 'empty';
     let block = box.children[i];
@@ -345,7 +353,8 @@ export function paintCrew() {
     }
     if (!inline) for (const v of $$(':scope > .crew-view', block)) v.remove();
     // An idle member filling the minimum keeps one finished job under it; the rest are in its thread.
-    const { list: jobs, more } = memberJobs(m, st, busyIds.has(m.id) || S.crewAll ? JOBS_MAX : 1);
+    const { list: all, more } = memberJobs(m, st, busyIds.has(m.id) || S.crewAll ? JOBS_MAX : 1);
+    const jobs = railed ? all.filter(held) : all;
     placeCards($('.cr-jobs', block), jobs);
     shown.push(...jobs);
     const mb = $('.cr-more', block);
@@ -358,25 +367,197 @@ export function paintCrew() {
   return shown;
 }
 
+// --- the crew rail -------------------------------------------------------------------------------
+//
+// Side by side, the crew is a column of faces beside the list (split.js crewRailOn): the same order,
+// moods and statuses as the section, one tile a member. Tiles stay in the DOM and only CSS order
+// moves them, so a spirit never restarts; a tile's contents change only when what they say does.
+const rail = $('#crewRail');
+const railFaces = $('.cl-faces', rail);
+const railAdd = $('.cl-add', rail);
+const railNodes = new Map(); // member id → its tile
+let railOrder = [];
+
+const faceTile = (id) =>
+  el(`<button class="cl-face" type="button" data-crew="${id}" tabindex="-1"><span class="cl-av"></span><i class="cl-dot" hidden></i><span class="cl-live" hidden><span class="orb live"></span><b hidden></b></span></button>`);
+
+function paintRail(list, states) {
+  for (const n of $$('.cl-sk', railFaces)) n.remove();
+  railOrder = list.map((m) => m.id);
+  list.forEach((m, i) => {
+    const st = states.get(m.id);
+    let b = railNodes.get(m.id);
+    if (!b) {
+      b = faceTile(m.id);
+      railNodes.set(m.id, b);
+      railFaces.append(b);
+    }
+    if (b.style.order !== String(i)) b.style.order = i;
+    const face = `${st.mood}:${m.avatar}:${m.color}:${m.name}`;
+    if (b.dataset.h !== face) {
+      $('.cl-av', b).innerHTML = avatarHtml(m, { size: 30, dot: false });
+      b.dataset.h = face;
+    }
+    const dot = $('.cl-dot', b);
+    dot.hidden = !st.asks && !st.unread;
+    dot.classList.toggle('asks', st.asks);
+    const live = $('.cl-live', b);
+    const n = st.live.length;
+    live.hidden = !n;
+    const count = $('b', live);
+    count.hidden = n < 2;
+    if (count.textContent !== String(n)) count.textContent = n;
+    b.classList.toggle('paused', !!m.paused);
+    b.setAttribute('aria-label', `${m.name}${m.role ? `, ${m.role}` : ''}: ${statusLine(m, st).text}`);
+  });
+  for (const [id, b] of railNodes)
+    if (!railOrder.includes(id)) {
+      b.remove();
+      railNodes.delete(id);
+    }
+  const none = !list.length && 'crew' in S.config;
+  rail.classList.toggle('empty', none);
+  railAdd.dataset.tip = none ? 'Add someone to your crew' : 'Add a crew member';
+  railAdd.dataset.sub = none ? 'A named agent that checks in, reports, and answers to @name' : '';
+  railAdd.setAttribute('aria-label', railAdd.dataset.tip);
+  const slot = slotHtml('crew.rail');
+  const host = $('#railSlot');
+  if (host.dataset.h !== slot) (host.innerHTML = slot), (host.dataset.h = slot);
+  if ('crew' in S.config && load('wisp.crewN', null) !== list.length) save('wisp.crewN', list.length); // the next first paint's faces
+  paintRailOn();
+  paintRailFade();
+  if (railTip.at?.isConnected) tipBody(railTip.at);
+  else hideTip();
+}
+
+// The open member's tile is the selected one, a job of its open or its thread. One stop for Tab:
+// the arrows go from there (the DOM's order isn't the rail's).
+function paintRailOn() {
+  const job = splitOpen();
+  const id = (job && S.sessions.get(job)?.crew?.id) || S.crewOpen;
+  for (const [mid, b] of railNodes) {
+    const on = mid === id;
+    if (b.classList.contains('on') !== on) b.classList.toggle('on', on);
+    if (on) b.setAttribute('aria-current', 'true');
+    else b.removeAttribute('aria-current');
+  }
+  const stop = railFaces.contains(document.activeElement) ? document.activeElement : railNodes.get(id) || railNodes.get(railOrder[0]);
+  for (const b of railNodes.values()) b.tabIndex = b === stop ? 0 : -1;
+}
+
+// With more members than room the rail scrolls with no scrollbar: the edge with more fades.
+function paintRailFade() {
+  const { scrollTop: t, scrollHeight: h, clientHeight: c } = railFaces;
+  railFaces.classList.toggle('up', t > 1);
+  railFaces.classList.toggle('down', t + c < h - 1);
+}
+railFaces.addEventListener('scroll', () => (paintRailFade(), hideTip()), { passive: true });
+new ResizeObserver(paintRailFade).observe(railFaces);
+
+// Its tooltip: name, role and status, beside the rail on the list. On the page, not in the rail:
+// the rail scrolls, so anything inside it is clipped. A native title would stack with it.
+const railTip = { node: el('<div class="cl-tip" role="tooltip" hidden></div>'), at: null, timer: 0, left: 0 };
+document.body.append(railTip.node);
+function tipBody(t) {
+  const m = t.dataset.crew && memberById(t.dataset.crew);
+  const line = m && statusLine(m, memberState(m));
+  const html = m
+    ? `<span class="cl-tname"><b>${esc(m.name)}</b>${m.role ? `<span class="cr-role">${esc(m.role)}</span>` : ''}</span><span class="cr-sub ${line.cls}">${esc(line.text)}</span>`
+    : `<span class="cl-tname"><b>${esc(t.dataset.tip)}</b></span>${t.dataset.sub ? `<span class="cr-sub">${esc(t.dataset.sub)}</span>` : ''}`;
+  if (railTip.html === html) return;
+  railTip.html = html;
+  railTip.node.innerHTML = html;
+  placeTip(t);
+}
+function placeTip(t) {
+  const n = railTip.node;
+  const r = t.getBoundingClientRect();
+  const box = rail.getBoundingClientRect();
+  const gap = 8;
+  const right = document.body.classList.contains('side-right');
+  n.style.left = `${right ? box.left - gap - n.offsetWidth : box.right + gap}px`;
+  n.style.top = `${Math.max(8, Math.min(r.top + r.height / 2 - n.offsetHeight / 2, innerHeight - n.offsetHeight - 8))}px`;
+}
+function showTip(t) {
+  clearTimeout(railTip.timer);
+  const go = () => {
+    railTip.at = t;
+    railTip.node.hidden = false;
+    railTip.html = '';
+    tipBody(t);
+  };
+  // A moment's wait the first time, none going from face to face.
+  if (railTip.at || Date.now() - railTip.left < 400) go();
+  else railTip.timer = setTimeout(go, 160);
+}
+function hideTip() {
+  clearTimeout(railTip.timer);
+  if (railTip.at) railTip.left = Date.now();
+  railTip.at = null;
+  railTip.node.hidden = true;
+}
+const tipTarget = (e) => e.target.closest?.('.cl-face, .cl-btn');
+rail.addEventListener('pointerover', (e) => {
+  const t = tipTarget(e);
+  if (t && e.pointerType === 'mouse' && t !== railTip.at) showTip(t);
+});
+rail.addEventListener('pointerout', (e) => {
+  if (tipTarget(e) && !e.relatedTarget?.closest?.('.cl-face, .cl-btn')) hideTip();
+});
+rail.addEventListener('focusin', (e) => {
+  const t = tipTarget(e);
+  if (t?.matches(':focus-visible')) showTip(t);
+  if (t?.matches('.cl-face')) paintRailOn();
+});
+rail.addEventListener('focusout', hideTip);
+
+rail.addEventListener('click', (e) => {
+  hideTip();
+  const face = e.target.closest('.cl-face');
+  if (face) return openMember(face.dataset.crew);
+  if (e.target.closest('.cl-add')) crewEditor();
+});
+rail.addEventListener('contextmenu', (e) => {
+  const face = e.target.closest('.cl-face');
+  if (!face) return;
+  e.preventDefault();
+  hideTip();
+  memberMenu(face.dataset.crew, { x: e.clientX, y: e.clientY });
+});
+rail.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') hideTip();
+  const face = e.target.closest('.cl-face');
+  if (!face) return;
+  const at = railOrder.indexOf(face.dataset.crew);
+  const to = { ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: railOrder.length - 1 }[e.key];
+  if (to === undefined) return;
+  e.preventDefault();
+  e.stopPropagation();
+  railNodes.get(railOrder[Math.max(0, Math.min(to, railOrder.length - 1))])?.focus();
+});
+
 // Leaving the section lets a row that went quiet fold again.
+const inCrew = () => sec.matches(':hover') || sec.contains(document.activeElement) || rail.matches(':hover') || rail.contains(document.activeElement);
 const release = () => {
-  if (!holding || sec.matches(':hover') || sec.contains(document.activeElement)) return;
+  if (!holding || inCrew()) return;
   holding = false;
   if (S.sessions.size) renderFeed();
   else paintCrew();
 };
-sec.addEventListener('pointerenter', () => {
-  holding = true;
-});
-sec.addEventListener('focusin', () => {
-  holding = true;
-});
-sec.addEventListener('pointerleave', () => {
-  requestAnimationFrame(release);
-});
-sec.addEventListener('focusout', () => {
-  requestAnimationFrame(release);
-});
+for (const box of [sec, rail]) {
+  box.addEventListener('pointerenter', () => {
+    holding = true;
+  });
+  box.addEventListener('focusin', () => {
+    holding = true;
+  });
+  box.addEventListener('pointerleave', () => {
+    requestAnimationFrame(release);
+  });
+  box.addEventListener('focusout', () => {
+    requestAnimationFrame(release);
+  });
+}
 const showAll = (on) => {
   S.crewAll = on;
   // Asked to fold: don't hold the rows that were shown (on a phone the tap leaves :hover and focus
@@ -499,6 +680,7 @@ export function paintCrewView() {
     v.paint();
   }
   for (const r of $$('.cr-row.open', box)) r.classList.toggle('open', !!S.crewOpen && r.closest('.cr-member').dataset.crew === S.crewOpen);
+  paintRailOn();
 }
 export const crewViewShown = () => isSplit() && !!S.crewOpen && !splitOpen();
 

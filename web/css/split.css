@@ -1,11 +1,11 @@
 /* ---------- split view (features/split.js): tasks in a sidebar, the open one in the main pane ---------- */
 /* The page stops scrolling as a whole: the sidebar and the open task scroll on their own. The top
    bar is the sidebar's head (the rest behind its avatar), so the open task has the full height. */
-:root { --side-w: 340px; --read-w: 860px; --det-w: 232px; }
+:root { --side-w: 340px; --read-w: 860px; --det-w: 232px; --rail-w: 0px; }
 .view-btn[aria-pressed='true'] { color: var(--ink); }
 
 body.split .stage {
-  display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
+  display: grid; grid-template-columns: calc(var(--side-w) + var(--rail-w)) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden; scrollbar-gutter: auto;
 }
 body.split .feed-wrap {
@@ -21,9 +21,24 @@ html.standalone body.split .stage { padding: env(safe-area-inset-top) env(safe-a
 html.standalone body.split.stack:not(.stack-page) .stage { background: var(--rail); } /* the list's colour under the status bar and beside the notch */
 html.standalone body.split .feed-wrap { padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
 html.standalone body.split:not(.stack) #feed .item.open > .it-body > .it-dock { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
-body.split.side-right .stage { grid-template-columns: minmax(0, 1fr) var(--side-w); }
+body.split.side-right .stage { grid-template-columns: minmax(0, 1fr) calc(var(--side-w) + var(--rail-w)); }
 body.split.side-right .topbar, body.split.side-right .feed-wrap { grid-column: 2; border-right: 0; border-left: 1px solid var(--line); }
 body.split.side-right .split-main { grid-column: 1; }
+
+/* The crew rail (crew.css): a slim column on the sidebar's outer edge, on the sunk surface, with the
+   list as a raised panel beside it. --rail-w is what the sidebar gains (56px of rail, 8px of gutter
+   on the inner side); --side-w stays the panel's own width, so rows keep theirs, and the first
+   column is the two together. The panel is the head and the list, joined at their shared edge. */
+body.has-rail:not(.side-hidden) { --rail-w: 64px; }
+body.has-rail:not(.side-hidden) .stage { background: var(--sunk); }
+body.has-rail:not(.side-hidden) .split-grip { left: calc(var(--rail-w) + var(--side-w) - 7.5px); }
+body.has-rail.side-right:not(.side-hidden) .split-grip { left: auto; right: calc(var(--rail-w) + var(--side-w) - 7.5px); }
+body.has-rail .split-main { background: var(--bg); }
+body.has-rail:not(.side-hidden) .topbar, body.has-rail:not(.side-hidden) .feed-wrap { --rail: var(--surface); }
+body.split.has-rail:not(.side-hidden) .topbar { margin: 8px 8px 0 56px; border: 1px solid var(--line); border-bottom: 0; border-radius: 11px 11px 0 0; }
+body.split.has-rail:not(.side-hidden) .feed-wrap { margin: 0 8px 8px 56px; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 11px 11px; }
+body.split.has-rail.side-right:not(.side-hidden) .topbar { margin: 8px 56px 0 8px; }
+body.split.has-rail.side-right:not(.side-hidden) .feed-wrap { margin: 0 56px 8px 8px; }
 
 /* The sidebar's head: the brand and the icon buttons on one line, the project filter under them. */
 body.split .topbar {
@@ -120,12 +135,12 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
 
 /* The grip: an invisible strip on the sidebar's edge, a hairline when grabbed. */
 .split-grip {
-  position: absolute; z-index: 6; top: 0; bottom: 0; left: calc(var(--side-w) - 3px); width: 7px; cursor: col-resize;
+  position: absolute; z-index: 6; top: 0; bottom: 0; left: calc(var(--rail-w) + var(--side-w) - 3px); width: 7px; cursor: col-resize;
   touch-action: none;
 }
 .split-grip::after { content: ''; position: absolute; inset: 0 3px; background: transparent; transition: background 0.15s; }
 .split-grip:hover::after, body.resizing .split-grip::after { background: var(--line-2); }
-body.split.side-right .split-grip { left: auto; right: calc(var(--side-w) - 4px); }
+body.split.side-right .split-grip { left: auto; right: calc(var(--rail-w) + var(--side-w) - 4px); }
 .split-grip[hidden] { display: none; }
 
 /* ---------- the sidebar: the feed's own groups and cards, as rows ---------- */
@@ -406,6 +421,7 @@ body.electron.split.side-hidden.side-right .split-drag { right: calc(var(--bar-w
 body.electron.mac.split .topbar { padding-left: 14px; }
 body.electron.mac.split:not(.side-right) .topbar .brand { margin-left: 74px; }
 body.electron.mac.split.side-hidden:not(.side-right) .topbar { padding-left: 88px; }
+body.electron.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .brand { margin-left: 20px; } /* the window buttons sit across the rail and the panel */
 body.electron.mac.split.side-right .split-head { padding-left: max(88px, var(--pad, 24px)); }
 .split-stage { flex: 1; min-height: 0; }
 

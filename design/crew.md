@@ -19,17 +19,35 @@ Named agents that stay on hand and keep working: *Scout · CI watcher*, *Quill �
 A member is like a teammate you keep a conversation with. Everything about it happens in one place,
 its thread; its work never mixes with your tasks.
 
-- **The list.** The *Crew* section is pinned above *Working*, in the task list, the one you
-  need first: asking you, then working for you, then an unread report, then the ones you send the
+- **The rail.** Side by side (900px up), the crew is a slim rail on the sidebar's outer edge, on the
+  sunk surface (`--sunk`), with the list as a raised panel beside it (`crew-rail` in `crew.css`,
+  `paintRail` in `crew.js`): one 44px tile a member, then Org and **+**, which stay put while the faces
+  scroll. The panel keeps `--side-w`; the rail and its gutter add 64px (`--rail-w`) on top, so a row is
+  as wide as it always was. Same order as the section below, same moods. On a face, no words needed:
+  a live chip on its corner while it works (`.orb.live`, with how many past one), an amber dot while
+  it asks you, the accent dot for a report you haven't read, dimmed and asleep when paused. The open
+  member has the raised tile, and so has the member whose job is open. Tiles never change size, and
+  order is CSS `order`, so a tile stays in the DOM when it moves and its spirit never restarts. Hover
+  or keyboard focus brings a tooltip beside the rail with its name, role and status line; a click
+  opens its thread, right-click its menu, Tab stops once on the rail and the arrow keys (Home, End)
+  walk it. Jobs have no rows here: they're in the thread. A job that's open keeps its card in
+  `#secCrew`, out of sight, because a task's body hangs off its card. No crew yet: only the +, dashed,
+  where the first face will be, and its tooltip invites you. The rail goes with the list when it's
+  hidden (`[`, or the side panel needing the room).
+- **The Crew section** is the rail's stacked form: under 900px and always in the phone app, or with
+  `sidebar` `crewRail: false`, or when a spell hides `crew.rail` (a hidden rail makes way, it doesn't
+  leave a hole; hiding `section.crew` takes the rail too). There it's pinned above *Working*, in the
+  task list, the one you need first: asking you, then working for you, then an unread report, then the ones you send the
   most work (jobs you handed them or @-tagged them in, last 30 days; ties: the latest, then when they
   joined), paused ones last. The @ picker uses the same order. The order holds while the pointer or
   focus is in the section, so a row never moves under the cursor. Besides its place, what changes is its status line (*Asking you:
   …*, *Running tests · 2 jobs*, *Reported: …*, *Looks again 14:30*, *Every 30 min*, *Paused*), the
   dot on its face (amber: asking you; blue: a report you haven't read) and its spirit's mood. Under a
-  member sit its recent jobs as ordinary cards: live first (asking you, working, an unread report),
+  member (in the section) sit its recent jobs as ordinary cards: live first (asking you, working, an unread report),
   then the ones it finished, newest first, until you mark them done or archive them; three at most (plus the one open),
-  and an open member keeps every live one. Quiet check-ins are archived, so only the thread has them. Crew jobs never show in *Needs you*, *Working* or *Done*; the one section they join is *For later*, when you save one there or the member files a non-urgent report there (for-later.md).
-- **Compact.** A busy member always has its row: asking you, on a job, an unread report, a job open
+  and an open member keeps every live one. Quiet check-ins are archived, so only the thread has them. Jobs run for another task (delegated, an `@mention`, a check on it) never show in *Needs you*, *Working* or *Done*; the one section they join is *For later*, when you save one there or the member files a non-urgent report there (for-later.md).
+- **Compact** (the section; with the rail every member has its face, so there's no folded row and
+  `section.crew` `rows` does nothing). A busy member always has its row: asking you, on a job, an unread report, a job open
   in the main pane, a spell's change to review. A member only making its rounds (a check-in) isn't
   busy, or scheduled members would pop in and out all day; its face moves instead, and a check-in
   that reports gets the row. Idle members fill up to two rows (in that order, one finished job card
@@ -39,7 +57,7 @@ its thread; its work never mixes with your tasks.
   A row that went quiet folds only once the pointer and focus leave the section, so nothing moves
   under the cursor; a single quiet member never folds alone.
 - **Opening a member** is opening a task: its thread takes the main pane (any open task closes), or
-  stacked, a page with Back. The row looks selected.
+  stacked, a page with Back. Its tile or row looks selected.
 - **The thread**: a task's header (face, name, role, state, Pause, ⋯, close), then its jobs oldest
   first, each what was asked and where from (*You*, *Check-in*, *Tagged in “…”*, *Delegated by
   “…”*, *Trigger …*) and the member's answer: working (its live line), asking you (the question, its
@@ -52,7 +70,7 @@ its thread; its work never mixes with your tasks.
   *About Ada* page with Back, the way a task's side panel comes in (side-panel.md → Swipe, the same
   feel and numbers, `panel-swipe.js`); dragging it right, Back or the phone's Back return to the
   thread. `crew.page.swipe: false` turns it off; the page is the `crew.about` part.
-- **When it needs you**: the row and its face say so, a notification names it, and either opens the
+- **When it needs you**: its face (and row) say so, a notification names it, and either opens the
   thread at that job, where you answer without opening anything else. Answering is optimistic: the
   job carries on at once and goes back to asking if the server refuses.
 - **When it finishes**: the answer fills in on its job, the row says *Reported: …*, a notification
@@ -70,7 +88,7 @@ its thread; its work never mixes with your tasks.
 - **Delegates**: a member has a team like a task's (any harness, other crew members, never itself);
   every job of its gets it. A job that was itself delegated hands nothing on to the crew, so members
   can't loop; one on another machine can't reach the crew here.
-- **Org** (`web/js/features/org.js`): the small button beside **+** on the heading (and ⌘K) opens the whole
+- **Org** (`web/js/features/org.js`): the button above **+** on the rail (beside it on the section's heading; and ⌘K) opens the whole
   crew as a chart in the main pane, like a thread (stacked: a page with Back). Members who hand out
   work sit on top, their delegates a tier below, and arrows run from a member to each delegate; other
   harnesses are logos on the card. Members with no arrows sit under *Not connected*. Cards have one
@@ -91,7 +109,7 @@ its thread; its work never mixes with your tasks.
   wisp) until **Reset layout** (with Undo). Cards stay inside the chart's width and it grows down;
   on a narrower pane than the one you arranged on, it scrolls sideways rather than squeezing. Placed
   by hand, an arrow takes the short way: out of the side facing the delegate, one bend, in.
-- With no crew yet, the section is one dashed row that invites you to add someone. It's useful, so it
+- With no crew yet, the section (stacked) is one dashed row that invites you to add someone. It's useful, so it
   stays (ux.md: empty states are useful or absent).
 
 ## Track record

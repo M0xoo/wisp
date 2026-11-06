@@ -371,6 +371,13 @@ test('later: Scheduled, Coming up, the follow-up rows, Send later and the time c
   assert.deepEqual(problems({ ...base0, parts: { 'section.crew': { props: { rows: 4 } }, 'crew.strip': { style: { opacity: '0.8' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'section.crew': { props: { rows: 0 } } } }).some((x) => /rows: int from 1 to 40/.test(x)));
   assert.ok(problems({ ...base0, parts: { 'section.crew': { props: { rows: '3' } } } }).some((x) => /rows: int from 1 to 40/.test(x)));
+  // The crew rail: its parts, an icon button in its slot, and a switch that gives the section back.
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['crew.rail'] }, parts: { sidebar: { props: { crewRail: false } }, 'crew.rail': { style: { opacity: '0.9' } }, 'crew.rail.face': { style: { borderRadius: '50%' } } } }), []);
+  assert.deepEqual(normalizeSpell({ ...base0, parts: { sidebar: { props: { crewRail: false } } } }).spell.parts.sidebar.props, { crewRail: false });
+  assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'crew.rail', label: 'Standup', icon: 'bell', do: { open: 'https://example.com' } }] }), []);
+  assert.ok(schema.SLOTS['crew.rail'] && !schema.CARD_SLOTS.has('crew.rail'));
+  assert.ok(problems({ ...base0, parts: { sidebar: { props: { crewRail: 'off' } } } }).some((x) => /crewRail: bool/.test(x)));
+  assert.match(schema.PARTS['crew.org'], /#crewRail \.cl-org/);
   // Track record (a member's, with Compare crew inside) are parts; the suggestion line is a switch.
   assert.deepEqual(problems({ ...base0, parts: { 'crew.record': { props: { tips: false }, style: { opacity: '0.9' } }, 'crew.compare': { hide: true }, 'crew.record.subject': { style: { fontSize: '15px' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'crew.record': { props: { tips: 'no' } } } }).some((x) => /tips: bool/.test(x)));

@@ -28,6 +28,7 @@ export const SLOTS = {
   'term.head': "A button in the header of a task's terminal (take over in wisp), before End (acts on that task).",
   'panel.head': "The side panel beside the open task (Changes, PR, Shell, Preview, Watch): a button in its head (acts on that task).",
   'crew.page': "A crew member's thread: a button in its header, next to Pause.",
+  'crew.rail': 'The crew rail beside the task list (side by side): an icon button above Org and Add a crew member.',
   'org.head': 'The Org page (who on the crew hands work to whom): a button in its header, before Add member.',
   'plan.head': "A scheduled task's page (opened from its row under Scheduled): a button in its header, before Start now.",
   'stuff.head': 'My Stuff (what you and your agents kept from tasks): a button in its header, before Add files.',
@@ -85,6 +86,10 @@ export const PARTS = {
   'crew.row': '#secCrew .cr-row',
   'crew.avatar': '.cr-av',
   'crew.strip': '#secCrew .cr-strip', // the quiet members folded into one row of faces
+  // The crew rail beside the list (side by side): one tile a member, Org and + at the bottom. The
+  // sidebar's crewRail prop turns it off for the section; hiding it (or section.crew) does too.
+  'crew.rail': '#crewRail',
+  'crew.rail.face': '#crewRail .cl-face',
   // A member's thread: the main pane in split view, in place in the feed.
   'crew.page': '.crew-view',
   'crew.thread': '.crew-view .cv-thread',
@@ -109,7 +114,7 @@ export const PARTS = {
   // the review a spell's member needs before it resumes, nor the note saying which spell it's from:
   // a spell mustn't hide what gates its own members.
   // Org (org.js): the whole crew as a chart of who hands work to whom, opened from the Crew heading.
-  'crew.org': '#secCrew .cr-org', // the Org button on the Crew heading
+  'crew.org': '#secCrew .cr-org, #crewRail .cl-org', // the Org button, on the Crew heading or the rail
   'org.page': '.org-view',
   'org.chart': '.org-view .org-chart',
   'org.card': '.org-view .org-card', // a member in the chart
@@ -569,13 +574,13 @@ export const PART_PROPS = {
   // swipeRight / swipeLeft: what swiping a row does in the phone app (done / later unless set)
   card: { density: ['compact', 'comfortable'], swipeRight: ['done', 'later', 'archive', 'delete', 'off'], swipeLeft: ['done', 'later', 'archive', 'delete', 'off'] },
   'card.sub': { lines: 'int' },
-  sidebar: { width: 'px', side: ['left', 'right'], details: ['minimal', 'full'] }, // side: left unless set
+  sidebar: { width: 'px', side: ['left', 'right'], details: ['minimal', 'full'], crewRail: 'bool' }, // side: left unless set; crewRail: false puts the Crew section back in the list
   'split.main': { readWidth: 'px' },
   'split.details': { width: 'px' },
   'split.home': { greeting: 'string' },
   'crew.page': { swipe: 'bool' }, // false stops swiping a thread left bringing in its About page (the phone app)
   'crew.record': { tips: 'bool' }, // the suggestion line under a member's numbers (on)
-  'section.crew': { rows: 'int' }, // full rows shown when nobody's busy (2); the rest fold
+  'section.crew': { rows: 'int' }, // full rows shown when nobody's busy (2); the rest fold. Not with the crew rail: every member has its face
   'org.chart': { movable: 'bool' }, // cards can be moved by hand (on); off keeps the automatic tiers
   'stuff.page': { view: ['grid', 'list'], group: ['time', 'task'], cardWidth: 'px' }, // until you pick one there; cardWidth: a card's least width in the grid
   tips: { count: 'int' },

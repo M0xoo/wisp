@@ -123,7 +123,9 @@ most one is open: its head stays in the list and its `.it-body` is `position: fi
 keeps working. Under `SPLIT_MIN_WIDTH` (900px), and always in the phone app, the panes stack
 (`body.stack`, `isStacked()`): the list fills the window, and a task, a crew member's thread or home
 opens over it as a page (`body.stack-page`, set only by `paintSplit`) with Back (`goBack()`; `goHome()`
-is New task). Scrolling goes through `web/js/features/scroll.js` (`scrollByPx`, `keepInPlace`,
+is New task). Side by side the crew is a rail beside the list (`body.has-rail`, `crewRailOn()` in
+split.js, design/crew.md) and `--side-w` stays the list's own width; stacked, it's the Crew section.
+Scrolling goes through `web/js/features/scroll.js` (`scrollByPx`, `keepInPlace`,
 `feedAnchor`, `topInset`, `watching`): use it instead of touching `#stage` directly.
 
 ## Conventions
