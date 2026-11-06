@@ -90,7 +90,7 @@ input[type='checkbox'] { width: 15px; height: 15px; margin: 0; flex: none; accen
   --s: 18px; border-radius: 0;
   background:
     radial-gradient(circle closest-side, transparent calc(var(--orb-r) - 36%), var(--accent) calc(var(--orb-r) - 12%), transparent var(--orb-r)),
-    color-mix(in srgb, var(--ink) 22%, transparent);
+    var(--orb-rest, color-mix(in srgb, var(--ink) 22%, transparent));
   -webkit-mask: radial-gradient(circle closest-side, #000 52%, transparent 60%) 0 0 / 33.34% 33.34%;
   mask: radial-gradient(circle closest-side, #000 52%, transparent 60%) 0 0 / 33.34% 33.34%;
   animation: orb-ripple 1.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;

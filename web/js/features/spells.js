@@ -424,6 +424,8 @@ export function slotHtml(slot, session = null) {
           return `<button class="auto-btn sp-btn" ${attrs(spell, kind, i)} title="${tip(spell, b)}">${ic || icon('wizard')}${label}${n}</button>`;
         case 'float':
           return `<button class="sp-fab${b.primary ? ' primary' : ''}" ${attrs(spell, kind, i)} title="${tip(spell, b)}" aria-label="${esc(b.label || b.icon)}">${ic || icon('wizard')}${b.label ? `<span class="sp-fab-l">${esc(b.label)}</span>` : ''}${n}</button>`;
+        case 'crew.rail':
+          return `<button class="cl-btn sp-btn" ${attrs(spell, kind, i)} data-tip="${esc(b.label || spell.name)}" aria-label="${esc(b.label || b.icon)}">${ic || icon('wizard')}${n}</button>`;
         case 'card.hover':
           return `<button class="it-quick sp-quick" ${attrs(spell, kind, i)} title="${tip(spell, b)}" aria-label="${esc(b.label || b.icon)}">${ic || icon('wizard')}</button>`;
         case 'launcher.chips':
@@ -517,6 +519,9 @@ function styleSheet(spells) {
 }
 
 // A prop a part has from the spells that are on (the last spell wins).
+// A part a spell hides (ui.hide), for what has to make way rather than leave a hole.
+export const partHidden = (part) => activeSpells().some((s) => s.ui?.hide?.includes(part));
+
 export function spellProp(part, key) {
   let v;
   for (const s of activeSpells()) if (s.parts?.[part]?.props?.[key] !== undefined) v = s.parts[part].props[key];

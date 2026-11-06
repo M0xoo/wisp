@@ -28,8 +28,8 @@ import { popover } from '../ui/popover.js';
 import { collapse, expand, groups, headPills, qDot, renderFeed, reveal, setFocus } from './feed.js';
 import { barCover, stage } from './scroll.js';
 import { paintMini, placePr, renderBody } from './turns.js';
-import { slotHtml, spellProp } from './spells.js';
-import { avatarHtml, crewBack, crewDot, crewViewShown, leaveCrew, memberById, paintCrewView, underMember } from './crew.js';
+import { partHidden, slotHtml, spellProp } from './spells.js';
+import { avatarHtml, crewBack, crewDot, crewViewShown, leaveCrew, memberById, paintCrew, paintCrewView, underMember } from './crew.js';
 import { leaveOrg, orgShown, paintOrg } from './org.js';
 import { leavePlan, paintPlan, planShown } from './plan-view.js';
 import { closeGoalRun, paintGoalRun } from './goal-run.js';
@@ -59,6 +59,20 @@ const DETAILS_PANE_H = 520;
 export const isSplit = () => document.body.classList.contains('split');
 // One pane at a time: the list, or what's open over it as a page.
 export const isStacked = () => MOBILE || !wide.matches;
+
+// The crew rail (crew.js): beside the list, side by side. Off (stacked, or a spell's choice, or a
+// spell hiding the rail or the crew) the Crew section is in the list. Before the config lands
+// the spells aren't known: it stays as it last was (index.html).
+export function crewRailOn() {
+  if (isStacked()) return false;
+  if (!('crew' in S.config)) return load('wisp.crewRail', true) !== false;
+  return spellProp('sidebar', 'crewRail') !== false && !partHidden('crew.rail') && !partHidden('section.crew');
+}
+// What the rail and its gutter add to the sidebar's --side-w, which is the panel's width alone
+// (--rail-w, split.css). railEdge: from the window's edge to the grip, less the panel: the rail and
+// half the gutter the grip sits in.
+export const railW = () => (crewRailOn() && !listHidden() ? 64 : 0);
+const railEdge = () => (railW() ? 60 : 0);
 
 // The task open in the main pane (null on home).
 export const splitOpen = () => (isSplit() ? [...S.open].find((id) => S.nodes.get(id)?.card.isConnected) || null : null);
@@ -856,7 +870,7 @@ addEventListener('resize', measure);
 
 // Sidebar width, side and detail, and the reading width: a drag wins over a spell's width, which
 // wins over the default. Double-clicking the grip forgets the drag.
-const clampW = (w) => Math.round(Math.min(Math.max(w, 220), Math.max(260, Math.min(720, innerWidth - 420))));
+const clampW = (w) => Math.round(Math.min(Math.max(w, 220), Math.max(260, Math.min(720, innerWidth - 420 - railW()))));
 function paintProps() {
   const root = document.documentElement.style;
   root.setProperty('--side-w', `${clampW(load('wisp.sideW', null) ?? spellProp('sidebar', 'width') ?? SIDE_W)}px`);
@@ -867,6 +881,9 @@ function paintProps() {
   document.body.classList.toggle('side-full', spellProp('sidebar', 'details') === 'full');
   document.body.classList.toggle('stack', isStacked());
   document.body.classList.toggle('side-hidden', listHidden());
+  const rail = crewRailOn();
+  document.body.classList.toggle('has-rail', rail);
+  if (!isStacked() && load('wisp.crewRail', true) !== rail) save('wisp.crewRail', rail); // the next first paint (index.html)
   beforePaint(measure);
 }
 
@@ -951,7 +968,7 @@ grip.addEventListener('pointerdown', (e) => {
   const right = document.body.classList.contains('side-right');
   let w = null;
   const move = (ev) => {
-    w = clampW(right ? innerWidth - ev.clientX : ev.clientX);
+    w = clampW((right ? innerWidth - ev.clientX : ev.clientX) - railEdge());
     document.documentElement.style.setProperty('--side-w', `${w}px`);
     beforePaint(measure); // pointer moves can come faster than frames
   };
@@ -972,6 +989,9 @@ grip.addEventListener('dblclick', () => {
 // Crossing SPLIT_MIN_WIDTH stacks the panes or lays them side by side, what's open staying open.
 wide.addEventListener('change', () => {
   paintProps();
+  // The crew changes place: the rail or the Crew section, and an open job's card with it.
+  if (S.sessions.size) renderFeed();
+  else paintCrew();
   paintSplit();
 });
 bus.on('spells', applyView);

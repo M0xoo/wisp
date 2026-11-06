@@ -1525,7 +1525,7 @@ claude remote-control      # press space for a QR code, scan it with the Claude 
         <tbody>${Object.entries(SLOTS).map(([k, d]) => `<tr><td><code>${k}</code></td><td>${esc(d)}</td></tr>`).join('')}</tbody>
       </table></div>
       <p>Panels open as a <code>dialog</code>, a side <code>drawer</code>, pinned on home (<code>feed</code>, under the prompt box), or inside an open <code>card</code>. To restyle or hide something, a spell names a part (<code>card.title</code>, <code>launcher.input</code>, <code>topbar.machines</code>, …) and sets a short list of allowed CSS properties, props such as <code>density</code> or <code>monospace</code>, or the order of the card head. In the phone app, <code>card</code>'s <code>swipeRight</code> and <code>swipeLeft</code> pick what swiping a row does (<code>done</code> and <code>later</code> unless set): <code>done</code>, <code>later</code>, <code>archive</code>, <code>delete</code> or <code>off</code>. There, swiping a task to the left brings in its side panel (Changes, PR, Shell); <code>panel</code>'s <code>swipe</code> set to <code>false</code> turns that off. Swiping a crew member's thread to the left brings in its About page; <code>crew.page</code>'s <code>swipe</code> set to <code>false</code> turns that off.</p>
-      <p>The split view (tasks in a sidebar, the open one beside it; on a phone the open one is a page with Back) is a spell’s too: the <code>sidebar</code> part takes <code>width</code>, <code>side</code> (<code>left</code>, the default, or <code>right</code>) and <code>details</code> (<code>full</code> shows the model, machine and project on every row), <code>split.main</code> takes a <code>readWidth</code>, <code>split.home</code> a <code>greeting</code> over the prompt box, <code>split.details</code> (the open task’s details column, with its PR and actions) a <code>width</code>, and the <code>sidebar.top</code>, <code>split.head</code> and <code>split.details</code> slots take buttons.</p>
+      <p>The split view (tasks in a sidebar, the open one beside it; on a phone the open one is a page with Back) is a spell’s too: the <code>sidebar</code> part takes <code>width</code>, <code>side</code> (<code>left</code>, the default, or <code>right</code>) and <code>details</code> (<code>full</code> shows the model, machine and project on every row), <code>split.main</code> takes a <code>readWidth</code>, <code>split.home</code> a <code>greeting</code> over the prompt box, <code>split.details</code> (the open task’s details column, with its PR and actions) a <code>width</code>, and the <code>sidebar.top</code>, <code>split.head</code> and <code>split.details</code> slots take buttons. Beside the list sits the crew rail (the <code>crew.rail</code> and <code>crew.rail.face</code> parts, the <code>crew.rail</code> slot for an icon button): <code>crewRail: false</code> on <code>sidebar</code> puts the Crew section back in the list.</p>
     </section>
 
     <section>
@@ -1959,14 +1959,14 @@ vercel --prod`)}
       h1: 'Organize your crew of agents',
       card: 'A chart of which agent hands work to which, with + or a drag to change it.',
       description: 'See your wisp crew as an org chart: which long-lived agent hands work to which, and to Codex or Claude Code on other harnesses. Add a delegate with + or a drag.',
-      lede: 'Once you have a few crew members in wisp (a CI watcher, a PR reviewer, a tech lead who plans the week), you need to see who hands work to whom. <b>Org</b> on the Crew heading opens them as a chart: a card per member, an arrow to each delegate, and a click or a drag to change it.',
+      lede: 'Once you have a few crew members in wisp (a CI watcher, a PR reviewer, a tech lead who plans the week), you need to see who hands work to whom. <b>Org</b> at the bottom of the crew rail opens them as a chart: a card per member, an arrow to each delegate, and a click or a drag to change it.',
       shot: ['org', 'wisp’s Org page: Ada, a tech lead, hands work to Scout and Quill and three Codex copies; Quill hands work to Echo'],
       body: `
     <section>
       <h2 id="open">Open the chart</h2>
       <ol class="doc-steps">
-        <li><b>Start wisp</b> and add a few crew members (<b>+</b> on the Crew heading). ${install()}</li>
-        <li>Click <b>Org</b> on the Crew heading, or ⌘K → <i>Org</i>. Each member is a card with their schedule; agents on other harnesses (Codex ×3) show as logos on the card that delegates to them.</li>
+        <li><b>Start wisp</b> and add a few crew members (<b>+</b> at the bottom of the crew rail). ${install()}</li>
+        <li>Click <b>Org</b> at the bottom of the crew rail, or ⌘K → <i>Org</i>. Each member is a card with their schedule; agents on other harnesses (Codex ×3) show as logos on the card that delegates to them.</li>
       </ol>
     </section>
 

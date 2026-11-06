@@ -120,6 +120,82 @@ body.split .cr-side { align-self: start; height: 21px; }
   .cr-face { pointer-events: none; }
 }
 
+/* ---------- the crew rail: a face a member beside the list, side by side only ---------- */
+/* split.css keeps its room (--rail-w) and raises the list beside it. Stacked, and in the phone app,
+   there's no rail: the Crew section above shows. Tiles are 44px and never change size: selecting
+   one, a badge coming or going, moves nothing. */
+.crew-rail { display: none; }
+body.has-rail:not(.side-hidden) .crew-rail {
+  position: absolute; z-index: 5; top: env(safe-area-inset-top, 0); bottom: 0; left: 0; width: 56px;
+  display: flex; flex-direction: column; align-items: center; padding: 8px 0;
+}
+body.has-rail.side-right:not(.side-hidden) .crew-rail { left: auto; right: 0; }
+body.electron.mac.has-rail:not(.side-right) .crew-rail { padding-top: 44px; } /* clear of the window buttons */
+/* The members scroll, Org and + stay. The scrollbar has no room here: the wheel and the arrow keys
+   scroll, and the edge that has more fades (.up, .down: paintRailFade). */
+.cl-faces {
+  flex: 0 1 auto; min-height: 0; align-self: stretch; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 3px 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+}
+.cl-faces::-webkit-scrollbar { display: none; }
+.cl-faces.down { -webkit-mask: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); mask: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); }
+.cl-faces.up { -webkit-mask: linear-gradient(to top, #000 calc(100% - 28px), transparent); mask: linear-gradient(to top, #000 calc(100% - 28px), transparent); }
+.cl-faces.up.down { -webkit-mask: linear-gradient(to bottom, transparent, #000 28px, #000 calc(100% - 28px), transparent); mask: linear-gradient(to bottom, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
+.cl-sk { flex: none; width: 32px; height: 32px; margin: 6px; border-radius: 50%; background: var(--line-2); }
+.cl-foot { flex: none; margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 8px; }
+.cl-foot::before { content: ''; width: 20px; height: 1px; margin-bottom: 4px; background: var(--line-2); }
+.cl-slot { display: contents; }
+.cl-face, .cl-btn {
+  position: relative; flex: none; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid transparent;
+  border-radius: var(--radius); transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.cl-btn { color: var(--muted); }
+.cl-btn[hidden] { display: none; }
+.cl-btn .i { width: 18px; height: 18px; }
+.cl-face:hover, .cl-btn:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+.cl-face:focus-visible, .cl-btn:focus-visible { border-radius: var(--radius); outline-offset: 0; }
+.cl-face:active, .cl-btn:active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+/* The open member (a job of its counts): the raised tile, the same surface as the list beside it. */
+.cl-face.on, .cl-btn.on { background: var(--surface); border-color: var(--line); box-shadow: var(--shadow-1); color: var(--ink); }
+/* Paused: dimmed, its spirit asleep. */
+.cl-face.paused .cr-av { opacity: 0.5; }
+/* Asking you: amber. A report you haven't read: the accent. Their place on the face is the row's. */
+.cl-dot { position: absolute; top: 3px; right: 3px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--sunk); background: var(--accent); }
+.cl-dot.asks { background: var(--warn); }
+.cl-face.on .cl-dot { border-color: var(--surface); }
+/* Working: the page's own live mark, in a chip on its corner, with how many past one. */
+.cl-live {
+  position: absolute; right: 0; bottom: 0; display: flex; align-items: center; gap: 3px; height: 16px; padding: 0 3px;
+  border-radius: 99px; background: var(--surface); box-shadow: 0 0 0 1px var(--line-2);
+  font-size: 11.5px; font-weight: 600; line-height: 1; color: var(--accent-ink); font-variant-numeric: tabular-nums;
+}
+.cl-live .orb.live { --s: 10px; --orb-rest: color-mix(in srgb, var(--accent) 45%, transparent); } /* this small, grey dots read as nothing */
+/* No crew yet: the + is the rail, where the first face will be, and says so. */
+.crew-rail.empty .cl-foot { margin-top: 0; padding-top: 3px; }
+.crew-rail.empty .cl-foot::before { display: none; }
+.crew-rail.empty .cl-add { border: 1px dashed var(--line-2); }
+.crew-rail.empty .cl-add:hover { border-color: var(--faint); }
+/* The list keeps a job that's open but has no row: it's laid over the pane like any open task, its
+   row out of the way (no room, nothing to reach). Fixed, so that scrolling to the card can't move
+   the list. */
+body.has-rail #secCrew { position: fixed; z-index: 3; top: 0; left: 0; width: 0; height: 0; margin: 0; overflow: hidden; visibility: hidden; }
+body.has-rail #secCrew > .cr-list { display: flex; }
+body.has-rail #feed .item.open > .it-body { visibility: visible; }
+/* The rail's tooltip: to the side of the rail, on the page, so the rail's scroller can't clip it.
+   Over the list and menus (40), under dialogs (50). */
+.cl-tip {
+  position: fixed; z-index: 45; display: flex; flex-direction: column; gap: 1px; width: max-content; max-width: 280px; padding: 7px 11px;
+  border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-2);
+  pointer-events: none; animation: fade-in 0.12s var(--ease);
+}
+.cl-tip[hidden] { display: none; }
+.cl-tip .cl-tname { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.cl-tip b { flex: none; font-size: 13px; font-weight: 600; color: var(--ink); }
+.cl-tip .cr-role { flex: 0 1 auto; }
+.cl-tip .cr-sub { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; white-space: normal; overflow-wrap: anywhere; color: var(--muted); }
+.cl-tip .cr-sub.live { color: var(--accent-ink); }
+.cl-tip .cr-sub.asks { color: var(--warn); }
+
 /* ---------- the editor and the spirit maker ---------- */
 .crew-edit { width: min(640px, 100%); }
 .kit-edit { width: min(720px, 100%); }

@@ -159,6 +159,17 @@
   </svg>
 
   <main class="stage" id="stage">
+    <!-- The crew rail (features/crew.js): one face a member beside the list, side by side only.
+         Stacked, the Crew section in the list shows instead. Faces move with CSS order, never in
+         the DOM, so a spirit never restarts. -->
+    <nav class="crew-rail" id="crewRail" aria-label="Crew">
+      <div class="cl-faces" role="toolbar" aria-orientation="vertical" aria-label="Crew members"></div>
+      <div class="cl-foot">
+        <span class="cl-slot" id="railSlot"></span>
+        <button class="cl-btn cl-org" type="button" aria-label="Org: who on your crew hands work to whom" aria-pressed="false" data-tip="Org" data-sub="Who on your crew hands work to whom" hidden><svg class="i"><use href="#i-org"/></svg></button>
+        <button class="cl-btn cl-add" type="button" aria-label="Add a crew member" data-tip="Add a crew member"><svg class="i"><use href="#i-plus"/></svg></button>
+      </div>
+    </nav>
     <header class="topbar" id="topbar">
       <a class="brand" href="#/" aria-label="wisp" title="wisp">
         <span class="orb tiny"></span>
@@ -283,6 +294,14 @@
     document.body.classList.add('split');
     if (stack) document.body.classList.add('stack');
     if (hidden) document.body.classList.add('side-hidden');
+    if (!stack && get('wisp.crewRail') !== false) {
+      // The rail keeps its room from the first paint, a placeholder per face it had last time.
+      document.body.classList.add('has-rail');
+      var n = get('wisp.crewN');
+      n = n === null ? 3 : Math.min(n, 12);
+      q('#crewRail .cl-faces').innerHTML = new Array(n + 1).join('<i class="sk cl-sk"></i>');
+      if (n) q('#crewRail .cl-org').hidden = false;
+    }
     ['#splitMain', '#splitGrip', '#splitTop'].forEach(function (s) { q(s).hidden = false; });
   })();</script>
   <script type="module" src="/js/app.js"></script>

@@ -14,6 +14,7 @@ blocks or none.** Components use the variables only.
 | Token | Use |
 |---|---|
 | `--bg`, `--bg-2`, `--rail` | page, hover fills / wells, side rails |
+| `--sunk` | under a raised panel: the crew rail and its gutter. Darker than `--surface` in both themes |
 | `--surface`, `--surface-2` | cards and panels; tinted panels and form fields |
 | `--ink`, `--ink-2` | main text; secondary text that must still read (open done task titles use `--ink-2`, not grey) |
 | `--muted` | labels, inactive icons |
@@ -37,7 +38,8 @@ needs a reason.
   once had a 3px accent stripe that curved with the radius (#11); emphasis now goes on the full 1px
   border (`color-mix` of the state colour into the line).
 - Radii: 8–11px for controls and cards (`--radius` is 10px), 99px for pills. Match the neighbours.
-- Shadows only on things that float (menus, toasts, dialogs, the docked launcher).
+- Shadows only on things that float (menus, toasts, dialogs, the docked launcher), and the tile that
+  shows the rail's open member (`--shadow-1`, raised off `--sunk`).
 
 ## Type
 

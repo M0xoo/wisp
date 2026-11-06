@@ -206,13 +206,15 @@ export function paintOrg() {
   beforePaint(drawEdges);
 }
 
-// The Org button on the Crew heading: there once someone's on the crew, pressed while it's open.
+// The Org button, on the Crew heading or the crew rail: there once someone's on the crew, pressed
+// while it's open.
+const ORG_BTNS = '#secCrew .cr-org, #crewRail .cl-org';
 function paintButton() {
-  const b = $('#secCrew .cr-org');
-  if (!b) return;
-  b.hidden = !crewList().length;
-  b.classList.toggle('on', orgShown());
-  b.setAttribute('aria-pressed', orgShown());
+  for (const b of $$(ORG_BTNS)) {
+    if ('crew' in S.config) b.hidden = !crewList().length;
+    b.classList.toggle('on', orgShown());
+    b.setAttribute('aria-pressed', orgShown());
+  }
 }
 
 function paintTop(list, g) {
@@ -868,11 +870,12 @@ function endDrag() {
   drawEdges();
 }
 
-// The Org button on the Crew heading (index.html).
-$('#secCrew .cr-org')?.addEventListener('click', () => {
-  if (orgShown()) goBack({ focus: true });
-  else openOrg();
-});
+// The Org buttons (index.html).
+for (const b of $$(ORG_BTNS))
+  b.addEventListener('click', () => {
+    if (orgShown()) goBack({ focus: true });
+    else openOrg();
+  });
 // The details beside the chart on a wide pane, under it otherwise: follows the pane, not the window.
 function paintWide() {
   if (view && !view.node.hidden) view.node.classList.toggle('wide', $('#splitMain').clientWidth >= WIDE);

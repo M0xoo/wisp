@@ -39,7 +39,7 @@ import { foreignName } from './places.js';
 import { agentName } from './runners.js';
 import { fixPr, mergePr, partOfDiff, prsOf, reviewState, shipDialog, shippable, startReview } from './ship.js';
 import { slotHtml, spellProp } from './spells.js';
-import { isSplit, isStacked, relayout, splitOpen } from './split.js';
+import { isSplit, isStacked, railW, relayout, splitOpen } from './split.js';
 import { connect, SCREEN_HTML, termState, TermView, TOUCH } from './term-view.js';
 import { changesClick, changesOf, CHANGES_HTML, loadChanges, paintChanges } from './changes.js';
 import { editorFor } from './editor.js';
@@ -162,7 +162,7 @@ function paintWidth() {
   // the page first, on every task opened.
   const root = document.documentElement;
   const side = parseFloat(root.style.getPropertyValue('--side-w') || getComputedStyle(root).getPropertyValue('--side-w')) || 340;
-  const max = Math.max(MIN_W, innerWidth - side * (squeezed() ? 0 : 1) - TASK_MIN);
+  const max = Math.max(MIN_W, innerWidth - (side + railW()) * (squeezed() ? 0 : 1) - TASK_MIN);
   const w = Math.round(Math.min(Math.max(pref.w ?? spellProp('panel', 'width') ?? PANEL_W, MIN_W), max));
   // A custom property on the root restyles the whole page: only when it changes.
   if (w !== paintWidth.w) document.documentElement.style.setProperty('--panel-w', `${(paintWidth.w = w)}px`);

@@ -6,8 +6,8 @@
    design/side-panel.md has the why. */
 :root { --panel-w: 480px; }
 
-body.split.panel-open:not(.stack) .stage { grid-template-columns: var(--side-w) minmax(0, 1fr) var(--panel-w); }
-body.split.panel-open.side-right:not(.stack) .stage { grid-template-columns: var(--panel-w) minmax(0, 1fr) var(--side-w); }
+body.split.panel-open:not(.stack) .stage { grid-template-columns: calc(var(--side-w) + var(--rail-w)) minmax(0, 1fr) var(--panel-w); }
+body.split.panel-open.side-right:not(.stack) .stage { grid-template-columns: var(--panel-w) minmax(0, 1fr) calc(var(--side-w) + var(--rail-w)); }
 body.split.panel-open.side-hidden:not(.stack) .stage { grid-template-columns: 0 minmax(0, 1fr) var(--panel-w); }
 body.split.panel-open.side-hidden.side-right:not(.stack) .stage { grid-template-columns: var(--panel-w) minmax(0, 1fr) 0; }
 body.split.panel-open.side-right:not(.stack) .topbar, body.split.panel-open.side-right:not(.stack) .feed-wrap { grid-column: 3; }
