@@ -92,7 +92,6 @@ setInterval(() => {
   paintCold(); // the open task's cache can lapse with nothing else repainting its box
 }, 30000);
 
-if (/Electron/.test(navigator.userAgent)) document.body.classList.add('electron', /Mac/.test(navigator.platform) ? 'mac' : 'other');
 if (MOBILE) {
   document.body.classList.add('wisp-mobile');
   // Its prompt box waits folded at the bottom until tapped: no keyboard popping up on open.

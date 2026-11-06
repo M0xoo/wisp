@@ -4,7 +4,8 @@
   --bg: #ffffff;
   --bg-2: #f3f3f2;
   --rail: #f7f7f6;
-  --sunk: #f1f1ef; /* under raised panels: the crew rail and its gutter */
+  --sunk: #ffffff; /* around the task panel: the crew rail and its gutter */
+  --panel: #f7f7f6; /* the task panel beside the rail */
   --surface: #ffffff;
   --surface-2: #f9f9f8;
   --ink: #171717;
@@ -62,7 +63,8 @@
     --bg: #111111;
     --bg-2: #1e1e1e;
     --rail: #151515;
-    --sunk: #0c0c0c;
+    --sunk: #111111;
+    --panel: #171717;
     --surface: #171717;
     --surface-2: #1a1a1a;
     --ink: #ededed;
@@ -107,7 +109,8 @@
   --bg: #111111;
   --bg-2: #1e1e1e;
   --rail: #151515;
-  --sunk: #0c0c0c;
+  --sunk: #111111;
+  --panel: #171717;
   --surface: #171717;
   --surface-2: #1a1a1a;
   --ink: #ededed;
