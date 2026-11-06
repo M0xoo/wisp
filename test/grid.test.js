@@ -1743,11 +1743,12 @@ test('grid usage stats: off unless grid.json turns them on; fixed values, users 
   assert.throws(() => loadConfig({ dataDir: tmp('grid-tel'), env: {}, overrides: { domain: 'wisp.localhost', auth: { dev: true }, telemetry: 'yes' } }), /telemetry/);
 });
 
+let piaToken; // the grid gives one address 20 device codes, and this file has used them by the end
 test('an app published from My Stuff: a public link on the grid, updated in place, unpublished, and only by its owner', async () => {
   const { Stuff } = await import('../server/services/stuff.js');
   const { createPublish } = await import('../server/services/publish.js');
   const { packDir } = await import('../server/bundle.js');
-  const token = await deviceToken('pia@example.com', 'Pia’s laptop (wisp)');
+  const token = (piaToken = await deviceToken('pia@example.com', 'Pia’s laptop (wisp)'));
   const auth = (t) => ({ authorization: `Bearer ${t}`, accept: 'application/json' });
   const me = (await browser().go(`${base}/api/me`, { headers: auth(token) })).json.user;
 
@@ -1852,6 +1853,53 @@ test('a published app with data: its own database on the grid, for everyone with
   assert.ok(fs.existsSync(file));
   await pub.unpublish(it.id);
   await until(() => !fs.existsSync(file), { what: 'its data removed' });
+});
+
+test('the grid keeps secrets out of a published app, whatever an older wisp sent', async () => {
+  const { packDir } = await import('../server/bundle.js');
+  const { gridJson } = await import('../server/grid-client.js');
+  const token = piaToken || (await deviceToken('pia@example.com', 'Pia’s laptop (wisp)'));
+  const auth = { authorization: `Bearer ${token}`, accept: 'application/json' };
+  const me = (await browser().go(`${base}/api/me`, { headers: auth })).json.user;
+  // What a 0.57.0 wisp sends: packDir with no filter, straight to the route.
+  const src = tmp('old-client');
+  for (const [f, text] of Object.entries({ 'index.html': 'hello', '.env': 'A=1', '.env.local': 'B=2', '.htaccess': 'x', '.config/a.json': '{}', 'sub/.env': 'C=3', 'sub/tls.key': 'k', 'server.pem': 'p', 'credentials.json': '{}', 'app.js': '1', 'app.js.map': '{}', '.well-known/assetlinks.json': '[]' })) {
+    fs.mkdirSync(path.dirname(path.join(src, f)), { recursive: true });
+    fs.writeFileSync(path.join(src, f), text);
+  }
+  const put = (key, q = 'title=Old') => gridJson(`${base}/api/sites/${key}?${q}`, { method: 'PUT', headers: auth, raw: packDir(src).body });
+  const r = await put('old1');
+  assert.equal(r.status, 200);
+  const { url } = r.body;
+  const row = grid.db.get('SELECT id, files FROM sites WHERE key = ?', 'old1');
+  const dir = path.join(cfg.dataDir, 'sites', row.id);
+  const left = fs.readdirSync(dir, { recursive: true }).map((f) => f.split(path.sep).join('/')).sort();
+  for (const f of ['.env', '.env.local', 'sub/.env', 'sub/tls.key', 'server.pem', 'credentials.json', 'app.js.map']) assert.ok(!left.includes(f), `${f} was kept`);
+  assert.equal(row.files, 5, left.join(' '));
+  assert.equal((await browser().go(url)).text, 'hello');
+  assert.equal((await browser().go(`${url}.well-known/assetlinks.json`)).status, 200);
+
+  // A version from before this fix is still on the disk: serve says no all the same.
+  for (const f of ['.env', 'sub/.env', 'app.js.map', 'tls.key', 'credentials.json']) {
+    fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+    fs.writeFileSync(path.join(dir, f), 'leak');
+  }
+  fs.mkdirSync(path.join(dir, '.git'));
+  fs.writeFileSync(path.join(dir, '.git', 'config'), 'leak');
+  fs.mkdirSync(path.join(dir, '.hidden'));
+  fs.writeFileSync(path.join(dir, '.hidden', 'index.html'), 'leak');
+  for (const p of ['.env', 'sub/.env', '.ENV', '%2eenv', 'sub%2F.env', 'x/..%2f.env', '.htaccess', '.config/a.json', '.git/config', '.hidden/', 'app.js.map', 'tls.key', 'credentials.json']) {
+    const got = await browser().go(`${url}${p}`);
+    assert.notEqual(got.text, 'leak', p);
+    assert.equal(got.status, 404, p);
+  }
+  assert.equal((await browser().go(`${url}app.js`)).status, 200);
+
+  // An entry nobody may open is no entry.
+  const hid = await put('old2', `title=Hid&entry=${encodeURIComponent('.config/a.json')}`);
+  assert.equal(hid.status, 400);
+  assert.match(hid.body.error, /No \.config\/a\.json in the app/);
+  assert.equal(fs.readdirSync(path.join(cfg.dataDir, 'sites')).filter((f) => f.includes('.new-')).length, 0);
 });
 
 test('an update swaps its folder in even while Windows still holds a file a visitor just read', async () => {

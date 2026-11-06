@@ -11,6 +11,7 @@ import { MIME } from '../http/static.js';
 import { bad, clip, newId } from '../util.js';
 import { normalizeTags } from '../../web/js/tags.js';
 import { dbSpec } from '../app-db.js';
+import { privateFile } from '../bundle.js';
 import { effectiveGrant, grantOf, usesOf, WRITE_USES } from '../../web/js/pane-bridge.js';
 
 export const MAX_STUFF = 500 * 1024 * 1024;
@@ -25,7 +26,7 @@ const TEXTY = new Set([...CODE, ...[...DOC].filter((e) => e !== '.pdf')]);
 export const KINDS = ['image', 'video', 'doc', 'code', 'file', 'link', 'app'];
 export const MAX_APP = 200 * 1024 * 1024;
 const MAX_APP_FILES = 5000;
-// Left out of an app's copy: what a build or a package manager makes again.
+// Left out of an app's copy: what a build or a package manager makes again (and privateFile's secrets).
 const SKIP = new Set(['node_modules', '.git', '.hg', '.svn', '.DS_Store', '.next', '.cache', '.turbo', '.venv', '__pycache__']);
 
 // A code block's language → the extension its file is saved under.
@@ -458,7 +459,7 @@ export class Stuff {
         const a = path.join(from, d.name);
         const b = path.join(to, d.name);
         if (d.isDirectory()) copy(a, b);
-        else if (d.isFile()) {
+        else if (d.isFile() && !privateFile(path.relative(src, a))) {
           size += fs.statSync(a).size;
           if (++files > MAX_APP_FILES || size > MAX_APP) throw bad(`That app is too big for My Stuff (${MAX_APP_FILES} files, 200 MB at most, without node_modules).`, 413);
           fs.copyFileSync(a, b);

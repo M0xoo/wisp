@@ -180,11 +180,11 @@ const SAVE = {
       app: {
         type: 'string',
         description:
-          'Or an app: a folder with index.html (or wisp-app.json naming { name, entry, description, db }). node_modules and .git are left out. ' +
+          'Or an app: a folder with index.html (or wisp-app.json naming { name, entry, description, db }). node_modules, .git, .env files, credentials, keys and source maps are left out. ' +
           'An app that keeps data (a demo\'s todos, form entries, scores) can have its own SQLite database: "db": true in wisp-app.json, ' +
           'or "db": "seed.sql" to make its tables (and sample rows) from that file in the app the first time. Its pages use it with ' +
           "import { sql } from '/_wisp/db.js'; then await sql('SELECT * FROM todos WHERE done = ?', 0) gives rows, and a write gives { changes, lastId }. " +
-          'One statement per call, ? for values; no ATTACH or PRAGMA. A published app has one database for everyone who opens its link: no secrets in it.',
+          'One statement per call, ? for values; no ATTACH or PRAGMA. A published app has one database for everyone who opens its link: anyone with the link can read and change its data, so no personal data and no secrets in it.',
       },
       cover: { type: 'string', description: 'With app: a screenshot of it (png/jpg), for its card.' },
       id: { type: 'string', description: 'Update this item instead of adding one: new content (path, text, url or app) and/or title, note, tags.' },
@@ -202,6 +202,7 @@ const SAVE = {
         description:
           'With an app (new, or id alone to act on one they have): true puts it on the user\'s wisp Grid at a public link anyone can open ' +
           '(no sign-in), or updates the link it has with this version; the answer gives the link: send it to the user. false takes the link down. ' +
+          'A key or token in its files stops the publish: the answer says which file and line; take it out and publish again. ' +
           'Only when the user asks to publish, deploy, host or share it. Needs them signed in to a wisp Grid (Settings → Cloud), or running in their cloud wisp.',
       },
     },

@@ -1935,7 +1935,7 @@ vercel --prod`)}
     <section>
       <h2 id="update">Change it, keep the link</h2>
       <p><i>@Pricing page demo make yearly the default</i>: the agent saves a new version in place, and <b>Update public link</b> puts it at the same address. <b>Unpublish</b> takes it down, as does removing the app from My Stuff. Your grid account page lists everything you published, with Unpublish.</p>
-      <aside class="g-note"><b>Good to know</b><p>Apps are static: no server code of their own. One whose <code>wisp-app.json</code> says <code>"db": true</code> gets a SQLite database, used from its pages with <code>import { sql } from '/_wisp/db.js'</code>; published, the grid keeps one database for everyone who opens the link.</p></aside>
+      <aside class="g-note"><b>Good to know</b><p>Apps are static: no server code of their own. One whose <code>wisp-app.json</code> says <code>"db": true</code> gets a SQLite database, used from its pages with <code>import { sql } from '/_wisp/db.js'</code>; published, the grid keeps one database for everyone who opens the link, and anyone with the link can read and change its data, so no personal data in it. <code>.env</code> files, credentials, keys and source maps never leave with an app, and a key or token in its files stops the publish.</p></aside>
     </section>
 
     <section>

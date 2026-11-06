@@ -387,6 +387,9 @@ async function restoreItem(it) {
   }
 }
 
+// A published app's database is open to its visitors, by design: say so where the link is.
+const OPEN_DATA = 'Anyone with the link can read and change this app’s data, so no personal data in it.';
+
 // Publish: the app goes up to your wisp Grid (server/services/publish.js) at a link anyone can
 // open, while this computer is off. Again after a change: the same link, the new version.
 const behind = (it) => !!it.published && (it.published.rev || 1) !== (it.rev || 1);
@@ -402,7 +405,7 @@ async function publishApp(it) {
       () => true,
       () => false,
     );
-    toast(`${it.published ? 'Updated' : 'Published'} at <code>${esc(bare(next.published.url))}</code>: anyone with the link can open it.${copied ? ' Link copied.' : ''}`, { action: { label: 'Open', run: () => window.open(next.published.url, '_blank', 'noopener') } });
+    toast(`${it.published ? 'Updated' : 'Published'} at <code>${esc(bare(next.published.url))}</code>: anyone with the link can open it.${next.db ? ` ${OPEN_DATA}` : ''}${copied ? ' Link copied.' : ''}`, { action: { label: 'Open', run: () => window.open(next.published.url, '_blank', 'noopener') } });
     track('stuff_publish');
   } catch (err) {
     swap(it.id, it);
@@ -555,6 +558,7 @@ function paintStuffBlock(node) {
       <span class="sb-meta">${icon(k.icon)}${meta.map((m) => `<i>${esc(m)}</i>`).join('')}${it ? `<button class="link sb-page" data-a="page">In My Stuff</button>` : ''}</span>
       ${b.note ? `<span class="sb-note">${esc(b.note)}</span>` : it?.excerpt && it.kind === 'app' ? `<span class="sb-note">${esc(it.excerpt)}</span>` : ''}
       ${it?.published ? `<span class="sb-pub">${icon('web')}<a href="${esc(it.published.url)}" target="_blank" rel="noopener" title="Its public link: anyone can open it">${esc(bare(it.published.url))}</a><button class="st-pub" data-a="pubcopy" title="Copy the public link">${icon('copy')}<span>Copy link</span></button></span>` : ''}
+      ${it?.published && it.db ? `<span class="sb-note sb-open">${OPEN_DATA}</span>` : ''}
     </span>
     ${go}`;
   node.classList.toggle('missing', !it);
@@ -1116,6 +1120,7 @@ function paintCard(card, it) {
       <b class="st-title" title="${esc(it.title)}">${esc(it.title)}</b>
       <span class="st-sub">${icon(k.icon)}<span>${esc(meta.join(' · '))}</span>${ver}${pubPill(it)}<time title="${esc(fmtDate(it.at, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }))}">${esc(when(it.at))}</time></span>
       ${it.note ? `<span class="st-note">${esc(it.note)}</span>` : ''}
+      ${it.published && it.db ? `<span class="st-note st-open">${OPEN_DATA}</span>` : ''}
       ${it.tags?.length ? `<span class="st-tags">${it.tags.map((t) => `<i>#${esc(t)}</i>`).join('')}</span>` : ''}
       ${fromTitle && grouping() !== 'task' ? `<button class="st-from" data-a="${task ? 'from' : ''}" ${task ? '' : 'disabled'} title="${task ? 'Open the task it came from' : 'The task it came from is gone'}">${icon('agent')}<span>${esc(fromTitle)}</span></button>` : ''}
     </div>`;

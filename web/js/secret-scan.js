@@ -19,21 +19,23 @@ const PATTERNS = [
   ['a secret value', /\b[\w-]*(api[_-]?key|secret|token|passw(or)?d|private[_-]?key)\b["']?\s*[:=]\s*["']?(?!<|\$\{|\$[A-Z_]|xxx|\*\*\*|your[_-]|example|placeholder|changeme)[A-Za-z0-9/+_.=-]{16,}/i],
 ];
 
-// text → [{ line, what }], one per line at most (the first kind that matches it).
-export function scanSecrets(text) {
+const EVERY = PATTERNS.map(([what, re]) => [what, new RegExp(re.source, `${re.flags}g`)]);
+
+// text → [{ line, what }], one per line at most (the first kind that matches it). real, for text
+// where a match can be harmless, is asked about each one: real(what, value, { lines, i, end, where }).
+export function scanSecrets(text, real, where) {
   const out = [];
-  String(text || '')
-    .split(/\r?\n/)
-    .forEach((l, i) => {
-      const hit = PATTERNS.find(([, re]) => re.test(l));
-      if (hit) out.push({ line: i + 1, what: hit[0] });
-    });
+  const lines = String(text || '').split(/\r?\n/);
+  lines.forEach((l, i) => {
+    const hit = real ? EVERY.find(([what, re]) => [...l.matchAll(re)].some((m) => real(what, m[0], { lines, i, end: m.index + m[0].length, where }))) : PATTERNS.find(([, re]) => re.test(l));
+    if (hit) out.push({ line: i + 1, what: hit[0] });
+  });
   return out;
 }
 
 // Several named texts ({ where: text }) → [{ where, line, what }].
-export function scanAll(texts) {
-  return Object.entries(texts).flatMap(([where, text]) => scanSecrets(text).map((h) => ({ where, ...h })));
+export function scanAll(texts, real) {
+  return Object.entries(texts).flatMap(([where, text]) => scanSecrets(text, real, where).map((h) => ({ where, ...h })));
 }
 
 // The same text with every secret in it replaced by [redacted: what it was], for text that leaves

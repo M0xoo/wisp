@@ -7,9 +7,42 @@ import path from 'node:path';
 
 const MAX_FILES = 5000;
 
-// Every file under dir, relative paths with forward slashes.
-export function packDir(dir, { maxBytes = Infinity } = {}) {
+// What never goes in an app, saved or published: files that hold secrets, and source maps (they
+// hand out the source). One list for My Stuff, Publish and the grid.
+const ENV = /^\.env(\..*)?$/;
+const PRIVATE = [
+  ENV,
+  /\.env$/,
+  /^\.envrc$/,
+  /^\.?credentials(\.(json|ya?ml|toml|ini|txt|csv|xml))?$/,
+  /^client_secret.*\.json$/,
+  /^service[-_]?account.*\.json$/,
+  /^secrets?\.(json|ya?ml|toml)$/,
+  /^\.(npmrc|netrc|pgpass|pypirc|htpasswd|git-credentials|dockercfg)$/,
+  /\.(pem|key|p12|pfx|jks|keystore|ppk)$/,
+  /^id_(rsa|dsa|ecdsa|ed25519)$/,
+  /\.map$/,
+];
+const segments = (rel) => String(rel).toLowerCase().split(/[\\/]/);
+
+// A file's path in an app: is it one of those?
+export function privateFile(rel) {
+  const dirs = segments(rel);
+  const name = dirs.pop();
+  return PRIVATE.some((re) => re.test(name)) || dirs.some((d) => ENV.test(d));
+}
+
+// May a visitor of a published app open this file? Nothing private and no dotfile, but .well-known
+// (a domain's own proofs and links), which only means anything at the top.
+export function publicFile(rel) {
+  return !privateFile(rel) && segments(rel).every((s, i) => !s.startsWith('.') || (i === 0 && s === '.well-known'));
+}
+
+// Every file under dir, relative paths with forward slashes. skip(path) leaves a file out: the
+// caller says, because a shared task's files aren't an app. list keeps each path with its bytes.
+export function packDir(dir, { maxBytes = Infinity, skip } = {}) {
   const parts = [];
+  const list = [];
   let size = 0;
   let files = 0;
   const walk = (d, rel) => {
@@ -17,7 +50,7 @@ export function packDir(dir, { maxBytes = Infinity } = {}) {
       const abs = path.join(d, e.name);
       const r = rel ? `${rel}/${e.name}` : e.name;
       if (e.isDirectory()) walk(abs, r);
-      else if (e.isFile()) {
+      else if (e.isFile() && !skip?.(r)) {
         const data = fs.readFileSync(abs);
         size += data.length;
         if (++files > MAX_FILES || size > maxBytes) throw Object.assign(new Error('too big'), { tooBig: true });
@@ -25,11 +58,12 @@ export function packDir(dir, { maxBytes = Infinity } = {}) {
         const len = Buffer.alloc(4);
         len.writeUInt32BE(head.length);
         parts.push(len, head, data);
+        list.push({ path: r, data });
       }
     }
   };
   walk(dir, '');
-  return { body: Buffer.concat(parts), size, files };
+  return { body: Buffer.concat(parts), size, files, list };
 }
 
 // A file's path from a bundle, or null when it would land outside the folder.
@@ -39,8 +73,9 @@ export function bundlePath(p) {
   return parts.every((x) => x && x !== '.' && x !== '..') ? parts.join('/') : null;
 }
 
-// Write a bundle into dir (which it makes). Throws on anything malformed.
-export function unpackTo(buf, dir) {
+// Write a bundle into dir (which it makes), but for the files skip(path) names. Throws on anything
+// malformed. What it returns counts what it wrote.
+export function unpackTo(buf, dir, { skip } = {}) {
   fs.mkdirSync(dir, { recursive: true });
   let at = 0;
   let files = 0;
@@ -60,6 +95,10 @@ export function unpackTo(buf, dir) {
     const rel = bundlePath(head.path);
     const len = Number(head.size);
     if (!rel || !Number.isInteger(len) || len < 0 || at + len > buf.length) throw new Error(`The bundle has a bad file: ${String(head.path).slice(0, 80)}`);
+    if (skip?.(rel)) {
+      at += len;
+      continue;
+    }
     if (++files > MAX_FILES) throw new Error(`More than ${MAX_FILES} files.`);
     const file = path.join(dir, ...rel.split('/'));
     fs.mkdirSync(path.dirname(file), { recursive: true });

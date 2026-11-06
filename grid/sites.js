@@ -11,14 +11,16 @@
 //
 // Files: <data>/sites/<id>/. A new version is unpacked beside it and swapped in, so a visitor never
 // sees half of one. wisp on a computer or in a box sends it (server/services/publish.js), keyed by
-// its item in My Stuff, so publishing the same app again updates the same link.
+// its item in My Stuff, so publishing the same app again updates the same link. wisp leaves secrets
+// out before it sends (server/bundle.js), but a link is public and a client can be old or anything:
+// here too they're dropped on receipt, and serve opens no dotfile, kept or from an older version.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { appFile, seedOf, serveDb, typeOf } from '../server/services/apps.js';
 import { createAppDb, dbSpec } from '../server/app-db.js';
-import { unpackTo } from '../server/bundle.js';
+import { privateFile, publicFile, unpackTo } from '../server/bundle.js';
 import { bad } from './accounts.js';
 
 export const SITE_DEFAULTS = { enabled: true, maxBytes: 50 * 1024 * 1024, perUser: 20, dbBytes: 10 * 1024 * 1024 };
@@ -62,6 +64,11 @@ export function createSites({ db, cfg, log = () => {} }) {
       }
     }
   };
+  // A file a visitor may open, as appFile finds it: the check goes on what it resolved to.
+  const visible = (dir, pathname, entry) => {
+    const file = appFile(dir, pathname, entry);
+    return file && publicFile(path.relative(dir, file)) ? file : null;
+  };
   const view = (s) => ({ key: s.key, title: s.title, url: urlOf(s), files: s.files, size: s.size, createdAt: s.created_at, updatedAt: s.updated_at });
 
   const byLabel = (label) => {
@@ -83,12 +90,12 @@ export function createSites({ db, cfg, log = () => {} }) {
     const tmp = path.join(root, `${id}.new-${randomBytes(3).toString('hex')}`);
     let got;
     try {
-      got = unpackTo(buf, tmp);
+      got = unpackTo(buf, tmp, { skip: privateFile });
     } catch (err) {
       fs.rmSync(tmp, { recursive: true, force: true });
       throw bad(err.message);
     }
-    if (!got.files || !appFile(tmp, '/', start)) {
+    if (!got.files || !visible(tmp, '/', start)) {
       fs.rmSync(tmp, { recursive: true, force: true });
       throw bad(`No ${start} in the app.`);
     }
@@ -151,7 +158,7 @@ export function createSites({ db, cfg, log = () => {} }) {
       res.writeHead(405, { allow: 'GET, HEAD', ...head });
       return res.end();
     }
-    const file = appFile(dirOf(s.id), new URL(req.url, 'http://x').pathname, s.entry);
+    const file = visible(dirOf(s.id), pathname, s.entry);
     if (!file) {
       res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store', ...head });
       return res.end('Not found in this app.');
