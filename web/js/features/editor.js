@@ -176,13 +176,18 @@ function paintState() {
   if (!cur) return;
   const d = dirty();
   const working = live(cur.id);
-  // Save is off only with a reason said beside it: nothing to save, saving, or the agent at work
-  $('.ed-state', cur.sec).textContent = cur.busy ? 'Saving…' : d && working ? 'Agent working: save when it stops' : d ? 'Unsaved' : 'Saved';
-  $('.ed-state', cur.sec).classList.toggle('dirty', d && !cur.busy);
+  // The word stays short, so the file name and Back keep their room. Why Save is off is the tip on
+  // both; touch has no tips, so there the word says it
+  const held = d && working && !cur.busy;
+  const why = held ? 'The agent is working on this task: save once it stops' : '';
+  const state = $('.ed-state', cur.sec);
+  state.textContent = cur.busy ? 'Saving…' : held && (MOBILE || matchMedia('(hover: none)').matches) ? 'Agent working' : d ? 'Unsaved' : 'Saved';
+  state.title = why;
+  state.classList.toggle('dirty', d && !cur.busy);
   const btn = $('.ed-save', cur.sec);
   btn.disabled = !d || cur.busy || working;
   btn.style.visibility = d || cur.busy ? '' : 'hidden'; // "Saved" says it: no dead button beside it (its room stays)
-  btn.title = working ? 'The agent is working on this task: save once it stops' : `Save (${combo('S')})`;
+  btn.title = why || `Save (${combo('S')})`;
 }
 
 function note(html) {
@@ -381,7 +386,7 @@ async function renameSymbol(t) {
     if (!to || to === name) return;
     try {
       const res = await api(`/sessions/${ed.id}/lsp`, { method: 'POST', body: { op: 'rename', path: ed.path, text: t.value, line, col, newName: to } });
-      if (!res.lsp) return toast('Rename needs language support for this file: install it from the note above');
+      if (!res.lsp) return toast(res.install ? `Rename needs ${esc(res.install)} support: add it at the top of the file` : 'Rename needs language support for this file');
       toast(`Renamed <b>${esc(name)}</b> to <b>${esc(to)}</b> in ${res.count} place${res.count === 1 ? '' : 's'}, ${res.files.length} file${res.files.length === 1 ? '' : 's'}`);
       if (cur === ed) (await load(true), ed.onSaved?.());
     } catch (err) {

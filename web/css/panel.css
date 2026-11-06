@@ -654,10 +654,11 @@ body.split.stack #feed .item.open .pr-strip:not(.ship-run) .pr-go .i { width: 15
 /* ---------- the editor (editor.js): a changed file, over Changes, edited in place ---------- */
 .pn-edit[hidden] { display: none; }
 .pn-edit { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
-.ed-head { flex: none; display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 6px; border-bottom: 1px solid var(--line); } /* the panel head's height */
+.ed-head { container: ed-head / inline-size; flex: none; display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 6px; border-bottom: 1px solid var(--line); } /* the panel head's height */
+.ed-head .ed-back { flex: none; } /* a long path never squeezes the way out */
 .ed-head .ed-save { height: 28px; transition: none; } /* it lights the moment you type, not 150ms later */
 .ed-path { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; font: 11.5px var(--mono); color: var(--ink-2); }
-.ed-state { flex: 0 1 auto; min-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: 12.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.ed-state { flex: none; min-width: 52px; white-space: nowrap; text-align: right; font-size: 12.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
 .ed-state.dirty { color: var(--warn); }
 .ed-note { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin: 0; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--ink-2); background: color-mix(in srgb, var(--warn) 7%, transparent); }
 .ed-note > .i { width: 14px; height: 14px; flex: none; color: var(--warn); }
@@ -708,7 +709,7 @@ body.wisp-mobile .ed-head .ed-probs { min-height: 44px; }
 .ed-lsp { flex: none; gap: 5px; color: var(--muted); }
 .ed-lsp .i { width: 13px; height: 13px; color: var(--accent); }
 .ed-lsp[hidden] { display: none; }
-.side-panel.stacked .ed-lsp span { display: none; } /* a phone-wide head: its spark alone (named), the file name whole */
+@container ed-head (max-width: 540px) { .ed-lsp span { display: none; } } /* a tight head: its spark alone (named), the file name whole */
 
 /* A pane (panes.js): an app pinned beside tasks, filling the panel under its own small bar. The
    same node on home (split.css .sh-pane) is a tile; here it takes what the panel has. */
