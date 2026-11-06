@@ -46,6 +46,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **A subagent no longer gets the whole conversation's output on its receipt.** A resumed Claude turn whose last turn stored no per-model counters took `modelUsage` for its own, so it could read *246k of 246k output* when the subagent wrote 18k. That turn now shows only the main thread's tokens, with its subagents' calls and model, and the next turn is exact. Older stored turns no longer show a subagent output figure, and it no longer counts toward the Haiku offer or Settings → Usage.
 - **Preview's bar no longer cuts its address to a fragment.** On a narrow phone or window the bar read *Running · loca…*. Where the address won't fit whole it now says *Running* or *Starting* alone; the address stays in Logs and Open in browser, and wider screens show it as before.
 - **A stopped task says why on its row.** A crash, a usage limit and a refusal all read a red *Blocked*, the same as an agent that stopped to explain. The list, ⌘K, older turns and shared tasks now say *Failed* in red, *At limit* or *Refused* in amber; *Blocked* stays for the agent's own report.
 - **A pane opened as a page keeps its name on the row.** On a phone or in a narrow window, a pane with all its access showed its name about 8px above Back, Reload and Unpin. It now sits level with them, and only moves up when a line under it says what the pane still asks for.

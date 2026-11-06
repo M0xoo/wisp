@@ -1576,7 +1576,7 @@ const { costSince, countedFrom, modelsOf, restoredFrom, subagentTally } = await 
 const { unitsOf } = await import('../server/budget.js');
 const { turnUsage } = await import('../server/adapters/codex.js');
 const { usage, tokensOf } = await import('../server/usage.js');
-const { modelWords, subagentParts, subagentTip, insteadWords, turnOutput } = await import('../web/js/receipt.js');
+const { modelWords, subagentParts, subagentTip, insteadWords, turnOutput, sameModelShare, offerSubagentModel, turnTokens } = await import('../web/js/receipt.js');
 const { whereSubagents } = await import('../server/budget.js');
 
 test('subagent tally: per type, output from modelUsage past the main thread, one message id once; modelUsage deltas', () => {
@@ -1636,9 +1636,9 @@ test('where it went: subagents, a turn’s share of the window split by the outp
   const R = NOW + 2 * 864e5;
   const plan = (used) => [{ agent: 'claude', account: 'default', window: 'seven_day', used, resetsAt: R }];
   const sessions = [
-    { id: 'a', turns: [{ stats: { outputTokens: 10000, subagents: [{ type: 'web-fetch', calls: 2, model: 'claude-opus-5-5', read: 10, output: 5000, instead: 'WebFetch' }] }, plan: plan(0.1) }] },
-    { id: 'b', turns: [{ stats: { outputTokens: 4000, subagents: [{ type: 'web-fetch', calls: 1, model: 'claude-opus-5-5', read: 10, output: 1000 }, { type: 'Explore', calls: 1, model: 'claude-haiku-4-5', read: 5, output: 3000 }] }, plan: plan(0.04) }] },
-    { id: 'c', turns: [{ stats: { outputTokens: 4000, subagents: [{ type: 'Explore', calls: 9, output: 4000 }] }, plan: [{ ...plan(0.5)[0], account: 'work' }] }] },
+    { id: 'a', turns: [{ stats: { totals: {}, outputTokens: 5000, subagents: [{ type: 'web-fetch', calls: 2, model: 'claude-opus-5-5', read: 10, output: 5000, instead: 'WebFetch' }] }, plan: plan(0.1) }] },
+    { id: 'b', turns: [{ stats: { totals: {}, outputTokens: 0, subagents: [{ type: 'web-fetch', calls: 1, model: 'claude-opus-5-5', read: 10, output: 1000 }, { type: 'Explore', calls: 1, model: 'claude-haiku-4-5', read: 5, output: 3000 }] }, plan: plan(0.04) }] },
+    { id: 'c', turns: [{ stats: { totals: {}, outputTokens: 0, subagents: [{ type: 'Explore', calls: 9, output: 4000 }] }, plan: [{ ...plan(0.5)[0], account: 'work' }] }] },
     { id: 'd', turns: [{ stats: { outputTokens: 4000 }, plan: plan(0.2) }] },
   ];
   const w = whereSubagents(sessions, 'claude', 'default', 'seven_day', R);
@@ -1667,6 +1667,67 @@ test('a Claude run with web-fetch agents and no WebFetch lands models and subage
   } finally {
     delete process.env.FAKE_SUBAGENTS;
     delete process.env.FAKE_TOOLS;
+  }
+});
+
+// Task 6f3272b8089a, turn 3, stored before #602: modelUsage held the whole conversation (260,711),
+// so the subagent's share read 260,711 - 14,438. Its transcript says it wrote 18,468.
+const OLD_TURN = { agent: 'claude', stats: { outputTokens: 14438, models: [{ model: 'claude-opus-5-5', input: 432, output: 260711, cacheRead: 43268183, cacheWrite: 1228181 }], subagents: [{ type: 'general-purpose', calls: 1, read: 503596, output: 246273, model: 'claude-opus-5-5', same: true }] } };
+
+test('subagent output: what the transcript says, once the turn’s own modelUsage is known', () => {
+  const t = subagentTally();
+  t.message({ message: { id: 'x', model: 'claude-opus-5-5', usage: { output_tokens: 1 } } });
+  t.call('a1', 'Agent', { subagent_type: 'general-purpose' });
+  t.message({ parent_tool_use_id: 'a1', message: { id: 'm1', model: 'claude-opus-5-5', usage: { input_tokens: 1, output_tokens: 1 } } });
+  const models = modelsOf({ 'claude-opus-5-5': { outputTokens: 260711 } }, { 'claude-opus-5-5': { outputTokens: 227805 } });
+  assert.equal(t.take({ models, mainOut: 14438 })[0].output, 18468);
+});
+
+test('subagent output: a stored turn from before stats.totals says none, rather than the conversation’s', () => {
+  assert.deepEqual(subagentParts(OLD_TURN), ['1 general-purpose agent', 'Opus 5.5']);
+  assert.equal(turnOutput(OLD_TURN), 14438);
+  assert.doesNotMatch(subagentTip(OLD_TURN), /246k/);
+  assert.equal(sameModelShare(OLD_TURN), 0);
+  assert.equal(offerSubagentModel(OLD_TURN), false, 'no Haiku offer from a number that isn’t the turn’s');
+  const plan = [{ agent: 'claude', account: 'default', window: 'seven_day', used: 0.1, resetsAt: NOW + 864e5 }];
+  const [w] = whereSubagents([{ id: 'a', turns: [{ ...OLD_TURN, plan }] }], 'claude', 'default', 'seven_day', NOW + 864e5);
+  assert.deepEqual([w.calls, w.output, w.used], [1, 0, 0], 'it can’t use 17 times the turn’s share of the window');
+});
+
+test('subagent output: with no modelUsage the turn’s total is the main thread’s plus theirs, not the bigger of the two', () => {
+  const t = { stats: { totals: {}, outputTokens: 900, subagents: [{ type: 'Explore', calls: 1, model: 'claude-opus-5-5', read: 1, output: 3000 }] } };
+  assert.equal(turnOutput(t), 3900);
+  assert.deepEqual(subagentParts(t), ['1 Explore agent', 'Opus 5.5', '3k of 4k output']);
+});
+
+test('a resumed Claude run whose last turn left no models: the counters hold the conversation and can’t be split', async () => {
+  const cwd = makeRepo();
+  try {
+    const a = await api('/sessions', { prompt: 'fix the add bug please', cwd, agent: 'claude', worktree: false });
+    await ended(a.id, 'review');
+    const again = async (i, restored) => {
+      process.env.FAKE_RESTORED = restored;
+      await api(`/sessions/${a.id}/reply`, { text: 'and again' });
+      await until(async () => {
+        const x = await api(`/sessions/${a.id}`);
+        return x.turns.length === i + 1 && x.state === 'review';
+      });
+      return (await api(`/sessions/${a.id}`)).turns[i];
+    };
+    process.env.FAKE_SUBAGENTS = '3';
+    const t = await again(1, '1'); // modelUsage: two runs' worth, and nothing stored to take off
+    assert.equal(t.stats.costUsd, 0.01);
+    assert.equal(t.stats.models, undefined, 'not this turn’s alone, so not stored as if it were');
+    assert.deepEqual(t.stats.subagents.map((x) => [x.type, x.calls, x.output]), [['web-fetch', 3, 0]]);
+    assert.equal(turnOutput(t), 14000);
+    assert.equal(turnTokens(t).output, 14000);
+    assert.deepEqual(subagentParts(t), ['3 web-fetch agents', 'Opus 5.5']);
+    const u = await again(2, '2'); // it kept the counters: the next turn is exact again
+    assert.equal(u.stats.models[0].output, 41000);
+    assert.equal(u.stats.subagents[0].output, 27000);
+  } finally {
+    delete process.env.FAKE_SUBAGENTS;
+    delete process.env.FAKE_RESTORED;
   }
 });
 

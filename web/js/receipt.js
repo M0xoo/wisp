@@ -30,6 +30,9 @@ export const OVERAGE = {
 // stats.models of a turn. Before stats.totals, a resumed turn's models held the whole conversation
 // so far (server/adapters/claude.js restoredFrom), so an older turn is read from usage alone.
 const modelsIn = (st) => (st?.totals && st.models) || [];
+// The same for a subagent's output: without stats.totals it came from those models, so it can be the
+// conversation's. The call, its model and what it read still stand.
+export const subagentOutput = (st, x) => (st?.totals && Number.isFinite(x?.output) && x.output > 0 ? x.output : 0);
 
 // What a turn read (its cache reads and writes counted in), of that from the cache, and wrote.
 export function turnTokens(t) {
@@ -164,13 +167,14 @@ export function modelWords(id) {
   return /^(opus|sonnet|haiku|fable)$/i.test(s) ? cap(s) : s;
 }
 
-// All the output the turn wrote, its subagents' included (modelUsage has them; usage may not).
+// All the output the turn wrote, its subagents' included (modelUsage has them; usage is the main
+// thread's alone, so with no modelUsage the two add up).
 export function turnOutput(t) {
   const st = t?.stats || {};
   const n = (x) => (Number.isFinite(x) && x > 0 ? x : 0);
   const models = modelsIn(st).reduce((a, m) => a + n(m.output), 0);
-  const subs = (st.subagents || []).reduce((a, x) => a + n(x.output), 0);
-  return Math.max(models, n(st.outputTokens), subs);
+  const subs = (st.subagents || []).reduce((a, x) => a + subagentOutput(st, x), 0);
+  return Math.max(models, n(st.outputTokens) + subs);
 }
 
 const agentsWord = (x) => `${x.calls} ${x.type} agent${x.calls === 1 ? '' : 's'}`;
@@ -186,8 +190,8 @@ export function insteadWords(x) {
 export function subagentParts(t) {
   const x = t?.stats?.subagents?.[0];
   if (!x) return [];
-  const total = turnOutput(t);
-  return [agentsWord(x), x.model ? modelWords(x.model) : '', x.output ? `${tokenWords(x.output)} of ${tokenWords(total)} output` : ''].filter(Boolean);
+  const output = subagentOutput(t.stats, x);
+  return [agentsWord(x), x.model ? modelWords(x.model) : '', output ? `${tokenWords(output)} of ${tokenWords(turnOutput(t))} output` : ''].filter(Boolean);
 }
 
 // Subagents on Haiku (Settings → Usage, defaults.subagentModel). The share of the turn's output
@@ -196,7 +200,7 @@ export const SUBAGENT_OFFER_AT = 0.4;
 export function sameModelShare(t) {
   const total = turnOutput(t);
   if (!total) return 0;
-  return (t?.stats?.subagents || []).filter((x) => x.same).reduce((a, x) => a + (Number.isFinite(x.output) && x.output > 0 ? x.output : 0), 0) / total;
+  return (t?.stats?.subagents || []).filter((x) => x.same).reduce((a, x) => a + subagentOutput(t.stats, x), 0) / total;
 }
 // Offer "Run subagents on Haiku" on a Claude turn whose same-model subagents wrote ≥40% of its
 // output, when the setting is still the task's model and this turn ran that way.
@@ -212,7 +216,10 @@ const SUBAGENT_NAMES = { haiku: 'Haiku', sonnet: 'Sonnet' };
 export function subagentTip(t) {
   const st = t?.stats || {};
   const total = turnOutput(t);
-  const subs = (st.subagents || []).map((x) => `${agentsWord(x)}${x.model ? ` on ${modelWords(x.model)}` : ''}: ${tokenWords(x.output)} of ${tokenWords(total)} output tokens, ${tokenWords(x.read)} read`);
+  const subs = (st.subagents || []).map((x) => {
+    const output = subagentOutput(st, x);
+    return `${agentsWord(x)}${x.model ? ` on ${modelWords(x.model)}` : ''}: ${output ? `${tokenWords(output)} of ${tokenWords(total)} output tokens, ` : ''}${tokenWords(x.read)} read`;
+  });
   const models = modelsIn(st).map((m) => `${modelWords(m.model)} ${tokenWords(m.output)} out / ${tokenWords(m.input + m.cacheRead + m.cacheWrite)} in`);
   const notes = [...new Set((st.subagents || []).map(insteadWords).filter(Boolean))];
   const on = SUBAGENT_NAMES[t?.run?.subagentModel];

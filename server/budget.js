@@ -32,7 +32,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { writeJsonAtomic } from './util.js';
-import { COMPARE_DAYS, COMPARE_MIN, median, turnOutput, turnTokens } from '../web/js/receipt.js';
+import { COMPARE_DAYS, COMPARE_MIN, median, subagentOutput, turnOutput, turnTokens } from '../web/js/receipt.js';
 
 const H = 3600_000;
 // What wisp calls each window, and how long it is when the CLI doesn't say.
@@ -663,10 +663,11 @@ export function whereSubagents(sessions, agent, account, win, resetsAt, { limit 
       const total = turnOutput(t);
       for (const x of subs) {
         const e = by.get(x.type) || { type: x.type, calls: 0, output: 0, used: 0, models: new Map() };
+        const output = subagentOutput(t.stats, x);
         e.calls += x.calls || 0;
-        e.output += x.output || 0;
-        e.used += total ? (used * (x.output || 0)) / total : 0;
-        if (x.model) e.models.set(x.model, (e.models.get(x.model) || 0) + (x.output || 0) + 1);
+        e.output += output;
+        e.used += total ? (used * output) / total : 0;
+        if (x.model) e.models.set(x.model, (e.models.get(x.model) || 0) + output + 1);
         if (x.instead) e.instead = x.instead;
         by.set(x.type, e);
       }
