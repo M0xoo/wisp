@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { adapters, detectedVersion, listAgents } from '../adapters/index.js';
+import { adapters, detectedVersion } from '../adapters/index.js';
 import { btwQuestion } from '../btw.js';
 import { notSide, sideAsk } from '../side.js';
 import { goalView } from '../goal.js';
@@ -108,17 +108,6 @@ export function register(r, app) {
   // The welcome tour runs no agent: nothing to follow up, revert or roll back.
   const notTour = (s, what) => {
     if (s.agent === 'wisp') throw bad(`This is the tour — launch a real wisp to ${what}.`);
-  };
-  // A follow-up's harness switch, checked: a harness that's installed here, on a lead (not a subagent).
-  const followUpRun = async (s, { agent, model, effort, account }) => {
-    agent = agent ? String(agent) : s.agent;
-    if (agent !== s.agent) {
-      if (s.parentId) throw bad('A subagent runs on the harness its lead picked for it.');
-      if (!adapters[agent]) throw bad(`Unknown harness: ${agent}`);
-      const found = (await listAgents()).find((a) => a.id === agent);
-      if (!found?.available) throw bad(`${adapters[agent].name} isn't installed on this computer.`);
-    }
-    return { agent, ...(model !== undefined && { model: String(model || '') }), ...(effort !== undefined && { effort: String(effort || '') }), ...(account !== undefined && { account: String(account || '') }) };
   };
   // A follow-up's new team, checked like a launch's: only a lead has one.
   const followUpTeam = (s, { subagents, preset }) => {
@@ -469,7 +458,7 @@ export function register(r, app) {
       if (typeof machine === 'string' && machine && s.sideOf) throw bad('A side discussion stays with its main task: move that one instead.', 409);
       if (typeof machine === 'string' && machine && !aside) return c.send(200, await app.mover.move(s.id, machine, { text: text.trim(), attachments, mode, agent, model, effort, team }));
       // agent / model / effort / account: run this follow-up (and the ones after it) on another harness, model or account.
-      const run = agent !== undefined || model !== undefined || effort !== undefined || account !== undefined ? await followUpRun(s, { agent, model, effort, account }) : undefined;
+      const run = agent !== undefined || model !== undefined || effort !== undefined || account !== undefined ? await launcher.followUpRun(s, { agent, model, effort, account }) : undefined;
       c.send(200, await launcher.replyTo(s, text.trim(), app.uploads.resolve(attachments), queue, mode, run, team, { confirm: confirmLimit === true, goal }));
     }),
   );

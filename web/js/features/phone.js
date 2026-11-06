@@ -36,14 +36,17 @@ export async function openPhone({ host } = {}) {
     const tg = r.telegram;
     const projects = S.config.projects || [];
     const lastUsed = [...projects].sort(recentFirst)[0];
-    $('.ph-body', node).innerHTML = `
+    const held = node.contains(document.activeElement) ? document.activeElement.dataset.sw : ''; // the repaint replaces it
+    const body = $('.ph-body', node);
+    body.style.minHeight = `${body.getBoundingClientRect().height}px`; // it never shrinks while open: a switch stays under the pointer, and a scrolled dialog stays scrolled
+    body.innerHTML = `
       <div class="settings-modal ph-sec">
         <div class="setting"><span>Send me</span>
           <label class="check"><input type="checkbox" data-ev="waiting" ${r.events.includes('waiting') ? 'checked' : ''}> Questions</label>
           <label class="check"><input type="checkbox" data-ev="finished" ${r.events.includes('finished') ? 'checked' : ''}> Finished tasks</label></div>
       </div>
       <section class="ph-sec">
-        <h4>ntfy <span class="muted xs">· tap a button on the notification to answer</span>${status(r.status.ntfy)}<button class="switch" data-sw="ntfy" role="switch" aria-checked="${r.ntfy.enabled}"></button></h4>
+        <h4>ntfy <span class="muted xs">· tap a button on the notification to answer</span>${status(r.status.ntfy)}<button class="switch" data-sw="ntfy" role="switch" aria-checked="${r.ntfy.enabled}" aria-label="ntfy"></button></h4>
         <div class="settings-modal">
           <label><span>Topic</span><input class="input mono" data-ntfy="topic" value="${esc(r.ntfy.topic)}" placeholder="wisp-…" spellcheck="false"></label>
           <label><span>Server</span><input class="input mono" data-ntfy="server" value="${esc(r.ntfy.server)}" spellcheck="false"></label>
@@ -52,7 +55,7 @@ export async function openPhone({ host } = {}) {
         <p class="hint">Install the ntfy app and subscribe to the topic. Anyone who knows the topic name can read it, so keep it long and random; answers are signed, so nobody else can send them.</p>
       </section>
       <section class="ph-sec">
-        <h4>Telegram <span class="muted xs">· buttons, or reply to a message in your own words</span>${status(r.status.telegram)}<button class="switch" data-sw="telegram" role="switch" aria-checked="${tg.enabled}"></button></h4>
+        <h4>Telegram <span class="muted xs">· buttons, or reply to a message in your own words</span>${status(r.status.telegram)}<button class="switch" data-sw="telegram" role="switch" aria-checked="${tg.enabled}" aria-label="Telegram"></button></h4>
         <div class="settings-modal">
           <label><span>Bot token</span><input class="input mono" data-tg="token" value="${esc(tg.token)}" placeholder="123456:ABC… from @BotFather" spellcheck="false" type="password"></label>
         </div>
@@ -66,14 +69,21 @@ export async function openPhone({ host } = {}) {
         ${
           tg.linked
             ? `<div class="ph-start">
-          <div class="ph-row"><span class="grow">Start tasks from Telegram</span><button class="switch" data-sw="tgStart" role="switch" aria-checked="${tg.allowStart}"></button></div>
+          <div class="ph-row"><span class="grow">Start tasks from Telegram</span><button class="switch" data-sw="tgStart" role="switch" aria-checked="${tg.allowStart}" aria-label="Start tasks from Telegram"></button></div>
           ${
             tg.allowStart
-              ? `<div class="settings-modal"><label><span>Default project</span><select class="input" data-tg="project">
+              ? `<div class="ph-options">
+            <div class="ph-row"><span class="grow">Say what you’d type in wisp</span><button class="switch" data-sw="tgOptions" role="switch" aria-checked="${tg.options}" aria-label="Say what you’d type in wisp"></button></div>
+            <p class="hint">Plain messages start tasks, and you pick crew, project, machine, model and mode right in them: <code>@ada in api with opus plan: fix the login test</code>. A group chat stops at Edits. Off, tasks start with <code>/new</code> as before.</p>
+          </div>
+          <div class="settings-modal"><label><span>Default project</span><select class="input" data-tg="project">
               <option value="">Last used${lastUsed ? ` (${esc(lastUsed.name)})` : ''}</option>
               ${projects.map((p) => `<option value="${esc(p.id)}" ${p.id === tg.project ? 'selected' : ''}>${esc(p.name)}${p.machine ? ` · ${esc(placeName(p.machine))}` : ''}</option>`).join('')}
             </select></label></div>
-          <p class="hint">Send <code>/new fix the flaky login test</code> to start a task in the default project, or <code>/new @${esc(projects[0]?.name || 'project')} …</code> to pick one; <code>/projects</code> lists them. Tasks use the launcher's harness, model and mode. Only your linked chat can start them.</p>`
+          <div class="ph-how">
+            <p class="hint ${tg.options ? 'ph-off' : ''}">Send <code>/new fix the flaky login test</code> to start a task in the default project, or <code>/new @${esc(projects[0]?.name || 'project')} …</code> to pick one; <code>/projects</code> lists them. Tasks use the launcher's harness, model and mode. Only your linked chat can start them.</p>
+            <p class="hint ${tg.options ? '' : 'ph-off'}">Anything you leave out comes from the launcher, and the task runs in the default project. Send <code>help</code> to see what you can say, or start with <code>:</code> to send a message as written. Only your linked chat can start them.</p>
+          </div>`
               : '<p class="hint">Off: the bot only answers and follows up on tasks you started here.</p>'
           }
         </div>`
@@ -81,6 +91,7 @@ export async function openPhone({ host } = {}) {
         }
       </section>
       <div class="ship-foot"><span class="grow"></span><button class="ghost sm" data-act="test">${icon('send')}Send a test</button></div>`;
+    if (held) $(`[data-sw="${held}"]`, node)?.focus({ preventScroll: true });
   };
   node.addEventListener('change', (e) => {
     const t = e.target;
@@ -98,6 +109,7 @@ export async function openPhone({ host } = {}) {
     }
     if (sw === 'telegram') return put({ telegram: { enabled: !r.telegram.enabled, token: r.telegram.token } });
     if (sw === 'tgStart') return put({ telegram: { allowStart: !r.telegram.allowStart } });
+    if (sw === 'tgOptions') return put({ telegram: { options: !r.telegram.options } });
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'unlink') return put({ telegram: { enabled: r.telegram.enabled, token: r.telegram.token, unlink: true } });
     if (act === 'test') {

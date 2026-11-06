@@ -16,6 +16,7 @@ import { teamNote, copies, SUBAGENT_ASK, AWAY_SUBAGENT, delegationReport, stillW
 import { handoffNote, mapEffort } from './handoff.js';
 import { openTerms } from './pty.js';
 import { agentPrompt, plainMentions } from './mentions.js';
+import { messageOf } from './channels/policy.js';
 import { BTW_SYSTEM, BTW_TIMEOUT_MS, MAX_BTW, btwAnswer, btwPrompt } from './btw.js';
 import { SIDE_APPLY, SIDE_APPLY_OTHER, SIDE_DENIED, SIDE_KEEP, SIDE_KEEP_OTHER, sideNote, sidePrompt } from './side.js';
 import { createSideGate } from './side-gate.js';
@@ -201,7 +202,7 @@ export function restartReason(env = process.env) {
 }
 
 function autoTitle(prompt) {
-  const line = plainMentions(prompt).trim().split('\n')[0].replace(/\s+/g, ' ');
+  const line = plainMentions(messageOf(prompt) ?? prompt).trim().split('\n')[0].replace(/\s+/g, ' ');
   return line.length > 64 ? `${line.slice(0, 63)}…` : line;
 }
 

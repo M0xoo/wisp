@@ -934,6 +934,14 @@ test("a question's choices in a phone's card row are a part spells can restyle o
   assert.ok(problems({ ...base0, parts: { 'card.choices': { props: { lines: 2 } } } }).some((x) => /card\.choices/.test(x)));
 });
 
+test("the Phone dialog's Say what you'd type in wisp row is a part spells can restyle or hide", () => {
+  assert.equal(schema.PARTS['phone.options'], '.phone-modal .ph-options');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['phone.options'] }, parts: { 'phone.options': { style: { opacity: '0.8' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'phone.options': { props: { lines: 2 } } } }).some((x) => /phone\.options/.test(x)));
+  // The switch is the remote config's, not a default a spell could lock.
+  assert.ok(!('telegram.options' in schema.SETTINGS) && !('options' in schema.SETTINGS));
+});
+
 test("the phone's New task button is a part spells can restyle or hide", () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.fab'] }, parts: { 'launcher.fab': { style: { borderRadius: '12px' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'launcher.fab': { props: { size: 2 } } } }).some((x) => /launcher\.fab/.test(x)));

@@ -92,6 +92,8 @@
 .us-table th:first-child, .us-table td:first-child { text-align: left; color: var(--ink); }
 .us-proj, .us-runner { display: inline-flex; align-items: center; gap: 6px; }
 
+/* Grows downward: its switches add rows, and a centred dialog would slide them under the pointer */
+.phone-modal:not(.embedded) { align-self: start; margin-top: max(0px, calc(7vh - 20px)); }
 .phone-modal .ph-sec h4 { display: flex; align-items: center; gap: 8px; }
 .phone-modal .ph-sec h4 .switch { margin-left: auto; }
 .phone-modal .settings-modal { width: auto; padding: 0; border: 0; box-shadow: none; background: none; }
@@ -102,6 +104,12 @@
 .ph-ok .i, .ph-bad .i { width: 12px; height: 12px; }
 .ph-start { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
 .ph-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px; }
+.ph-options { margin-bottom: 10px; }
+.ph-options .hint { margin-top: 0; }
+/* Both ways of starting a task hold the cell, so the switch above never moves what's below it */
+.ph-how { display: grid; }
+.ph-how > .hint { grid-area: 1 / 1; }
+.ph-how > .ph-off { visibility: hidden; }
 
 /* Skipped by Settings → Usage → Automations stop at: not a failure, so no red */
 .au-held { display: flex; align-items: center; gap: 5px; color: var(--muted) !important; }

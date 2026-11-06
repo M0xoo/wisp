@@ -331,6 +331,7 @@ body.wisp-mobile label.check { min-height: 44px; } /* the box is small; its line
 /* Settings and dialogs in the app: switches keep their 34×20 look in a 44px hit (a clear border), and
    lists, fields, chips and segments take a thumb */
 body.wisp-mobile .switch { box-sizing: content-box; border: 12px solid transparent; border-left-width: 5px; border-right-width: 5px; border-radius: 15px / 22px; margin: -12px -5px; background-clip: padding-box; }
+body.wisp-mobile .ph-row { min-height: 44px; margin-bottom: 0; } /* two switches in a row: their targets would overlap */
 body.wisp-mobile :is(.sx select, .modal input:not([type=checkbox]):not([type=radio]), .modal select, .chip-tog, .sp-qr, .sx .ghost.xs, .sf-opt) { min-height: 44px; }
 body.wisp-mobile :is(.sx .seg button, .sx [role=radiogroup] button, .pk-seg button, .rr-run :is(.runner-btn, .mode-btn), .modal .runner-btn, .modal .mode-btn, .sf-opt, .stuff-view .seg button) { min-width: 44px; min-height: 44px; }
 body.wisp-mobile :is(.goal-pop, .stuff-view) .link { min-height: 44px; display: inline-flex; align-items: center; }
