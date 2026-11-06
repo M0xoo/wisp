@@ -711,6 +711,33 @@ try {
     await api(w.url, '/api/config', { defaults: { panes: '' } }, 'PATCH');
   });
 
+  await check('WEB-63', 'a launch leaves the list where it is: the toast says it went, Open shows the row', async () => {
+    const list = await Promise.all(Array.from({ length: 25 }, (_, i) => launch({ prompt: `Long list ${i}` })));
+    for (const s of list) await settled(s.id);
+    const q = await page({ viewport: { width: 1440, height: 700 } });
+    await q.goto(w.url);
+    await q.locator('#feed .item').first().waitFor();
+    await q.fill('#prompt', 'Launched with a long list');
+    const landed = q.waitForResponse((r) => r.request().method() === 'POST' && new URL(r.url()).pathname === '/api/sessions');
+    await q.keyboard.press('Enter');
+    const toast = q.locator('.toast', { hasText: 'Sent to' });
+    await toast.waitFor({ timeout: 3000 });
+    const top = () => q.evaluate(() => document.querySelector('#feedWrap').scrollTop);
+    ok((await top()) === 0, `the list moved to ${await top()}`);
+    await landed;
+    await q.waitForTimeout(50); // the toast's Open knows the task now
+    // In one go: this fake run ends in a moment, and its row then moves with the list held.
+    const shown = await q.evaluate(() => {
+      document.querySelector('.toast .t-act').click();
+      const b = document.querySelector('#feedWrap').getBoundingClientRect();
+      const r = document.querySelector('#feed .item.open .it-head').getBoundingClientRect();
+      return r.top >= b.top + document.querySelector('#splitTop').offsetHeight && r.bottom <= b.bottom;
+    });
+    ok(shown, 'Open left the row out of view');
+    q.clean();
+    await q.context().close();
+  });
+
   await check('WEB-31', 'docs site builds and renders', async () => {
     execFileSync(process.execPath, [path.join(ROOT, 'scripts/site.mjs')], { cwd: ROOT, stdio: 'ignore' });
     for (const [label, vp] of [['desktop', { width: 1440, height: 900 }], ['phone', { width: 390, height: 844 }]]) {

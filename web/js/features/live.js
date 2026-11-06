@@ -10,12 +10,12 @@ import { keepSignIns } from './agent-login.js';
 import { paintAutoBtn } from './automations.js';
 import { updateDock } from './composer.js';
 import { paintCrew, paintOffers } from './crew.js';
-import { renderFeed, scheduleRefetch, sectionOf } from './feed.js';
+import { renderFeed, scheduleRefetch } from './feed.js';
 import { dropPending, renderLaunchChips } from './launcher.js';
 import { loadMachines, openComputers, paintMachinesBtn, setMachines } from './machines.js';
 import { notifyFinished, notifyReminder } from './notify.js';
 import { renderProjects } from './projects.js';
-import { feedAnchor, keepFollowing, keepInPlace, watching } from './scroll.js';
+import { feedAnchor, keepInPlace } from './scroll.js';
 import { openSettings } from './settings.js';
 import { renderPrStrip } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
@@ -58,16 +58,11 @@ export function connect() {
     if (S.deleting.has(s.id)) return; // swiped away, its Undo still showing
     const prev = S.sessions.get(s.id);
     if (!prev) dropPending(s);
-    const was = prev && sectionOf(prev); // before the update: a compare task's section depends on all its runs
     S.sessions.set(s.id, s);
     bus.emit('summary', s.id); // panes that watch tasks (panes.js)
-    // A section change moves the card (a follow-up sends it from "Needs you" to "Working").
-    // If the user is watching it, the view follows it there; otherwise whatever they're
-    // reading stays put. Marking done or archiving is the exception: the card leaves the
-    // list and focus goes to the next one instead.
-    const moved = prev && was !== sectionOf(s);
-    const follow = moved && s.state !== 'done' && !s.archived && watching(s.id);
-    follow ? keepFollowing(S.nodes.get(s.id).card, renderFeed) : keepInPlace(feedAnchor(s.id), renderFeed);
+    // A section change moves the row (a follow-up sends it from "Needs you" to "Working"), the open
+    // task's too: the list stays where it was, and the main pane still shows the task.
+    keepInPlace(feedAnchor(s.id), renderFeed);
     // The full task too when only it is behind: an optimistic Mark done / Reopen already set the summary.
     if (prev?.state !== s.state || prev?.queued !== s.queued || (S.full.get(s.id) && S.full.get(s.id).state !== s.state)) scheduleRefetch(s.id);
     if (!!prev?.term !== !!s.term && S.nodes.has(s.id)) updateDock(s.id); // the follow-up box says it's in a terminal

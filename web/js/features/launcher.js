@@ -26,7 +26,7 @@ import { openProjects } from './projects.js';
 import { runnerPicker } from './runner-picker.js';
 import { needsSetup, nudgeSetup, renderSetup } from './setup.js';
 import { accountOf, agentName, agentsAt, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt, harnessLogo, MAX_RUNNERS, modeMenu, MODES, paintRunnerBtn, runnerTip, savedAccount, savedEffort, savedModel } from './runners.js';
-import { feedAnchor, keepInPlace, stage, topInset } from './scroll.js';
+import { feedAnchor, keepInPlace, rowShows, stage, topInset } from './scroll.js';
 import { canLead, paintTeamBtn, teamEditor } from './team.js';
 import { activeSpells, launcherParts, runAction, spellProp } from './spells.js';
 import { cast } from './spell-ui.js';
@@ -34,7 +34,7 @@ import { makePane } from './pane-make.js';
 import { goalAsk, HOME_SLASH, isGoalDrop, isPaneAsk, SANDBOX_HINT, sandboxAsk, SPELL_HINT, spellAsk, terminalAsk } from '../slash-text.js';
 import { historyStep, remember } from '../prompt-history.js';
 import { micFor, micHtml } from './dictate.js';
-import { goBack, goHome, isSplit, isStacked, stackPage } from './split.js';
+import { goBack, goHome, isSplit, isStacked, sideShown, stackPage } from './split.js';
 import { addressedTo, openCrew } from './crew.js';
 import { parseWhen } from '../when.js';
 import { addPlan, aheadLabel, planAsk, planSaid, timeMenu, whenTip } from './later.js';
@@ -659,9 +659,8 @@ export function renderLauncher() {
     renderFeed();
     const ghost = S.nodes.get(pending[0])?.card;
     if (asTerminal) expand(pending[0]);
-    else showLaunched(btn, ghost);
-    // The phone's prompt page has closed onto the list: say it went (no keyboard popping back up).
-    const sent = MOBILE && !asTerminal ? sentNote(toCrew[0]?.name || agentName(runner.agent)) : null;
+    // The phone's prompt page has closed onto the list, or the new row is out of view: say it went.
+    const sent = !asTerminal && showLaunched(btn, ghost) ? sentNote(toCrew[0]?.name || agentName(runner.agent)) : null;
     if (!MOBILE && !asTerminal) ta.focus();
     try {
       for (const [i, t] of targets.entries()) {
@@ -1169,22 +1168,28 @@ function handOver(pendingId, id) {
   S.open.add(id);
 }
 
-// A new card lands in Working, below everything in "Needs you", so it's often off-screen. Scroll
-// it into view (just enough) and flash it; the flying wisp only plays when the card is already
-// on screen, since the launcher it starts from may scroll away or fold into the dock.
-// On the phone the button it flew from is gone with the prompt page, and 'nearest' leaves the
-// card under the floating New task button: it always comes to the middle of the list.
-function showLaunched(btn, card) {
-  if (!card) return;
+// A new row lands in Working, below everything in "Needs you", so it's often off-screen. Beside the
+// list it stays where you left it: the wisp flies to a row that shows, and for one that doesn't, the
+// answer is true: a toast says it went. Stacked, the list is what you see: the row comes into view
+// (just enough) and flashes. On the phone the button it flew from is gone with the prompt page,
+// and 'nearest' leaves the row under the floating New task button: it always comes to the middle.
+export function showLaunched(btn, card) {
+  if (!isStacked()) {
+    if (!sideShown() || !rowShows(card)) return true;
+    launchedFx(btn, card);
+    return false;
+  }
+  if (!card) return MOBILE;
   const r = card.getBoundingClientRect();
-  if (!MOBILE && r.top >= topInset() && r.bottom <= innerHeight) return launchedFx(btn, card);
+  if (!MOBILE && r.top >= topInset() && r.bottom <= innerHeight) return launchedFx(btn, card), false;
   card.scrollIntoView({ block: MOBILE ? 'center' : 'nearest', behavior: 'smooth' });
   card.classList.add('arrived');
   setTimeout(() => card.classList.remove('arrived'), 1600);
+  return MOBILE;
 }
 
-// Sent from the phone: a toast says so, with Open for the task once the server has it (tapped
-// before then, it opens when it lands). Nothing started (refused, failed, a busy crew member's
+// A toast says it went, with Open for the task once the server has it (tapped before then, it
+// opens when it lands). Nothing started (refused, failed, a busy crew member's
 // queue with its own toast): it goes, and the error or the prompt back in the box says why.
 function sentNote(who) {
   let id = null;

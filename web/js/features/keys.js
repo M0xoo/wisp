@@ -72,7 +72,7 @@ export function onKey(e) {
     const i = ids.indexOf(id);
     const next = i < 0 ? ids[0] : ids[k === 'j' ? Math.min(ids.length - 1, i + 1) : Math.max(0, i - 1)];
     setFocus(next);
-    expand(next, { scroll: false }); // moving opens the task beside the list
+    expand(next); // moving opens the task beside the list
   } else if ((k === 'o' || (k === 'enter' && !e.target.closest('button, a'))) && id) {
     e.preventDefault();
     toggle(id);

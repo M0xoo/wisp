@@ -57,18 +57,22 @@ export function keepInPlace(card, change) {
   else scrollByPx(dy);
 }
 
-// A re-render that moves a card the user is watching (a follow-up sends it to Working): the view
-// follows it. In split view that card is the open task's row in the sidebar, and if it lands where
-// it still shows, the list stays where it was rather than scrolling to it.
-export function keepFollowing(card, change) {
-  if (!split() || !card?.isConnected) return keepInPlace(card, change);
-  const top = card.getBoundingClientRect().top;
-  keepInPlace(feedAnchor(card.dataset.id), change);
-  if (!card.isConnected) return;
-  const box = sideBox().getBoundingClientRect();
+// Where the task list starts showing rows, under its pinned head (New task, My Stuff).
+const listTop = () => sideBox().getBoundingClientRect().top + ($('#splitTop')?.offsetHeight || 0);
+
+// Whether a row of the task list shows there.
+export function rowShows(card) {
+  if (!card?.isConnected) return false;
   const r = card.getBoundingClientRect();
-  if (r.top >= box.top + ($('#splitTop')?.offsetHeight || 0) && r.bottom <= box.bottom) return;
-  sideBox().scrollTop += r.top - top;
+  return r.top >= listTop() && r.bottom <= sideBox().getBoundingClientRect().bottom;
+}
+
+// A row you asked for (search, Open on a toast): the list moves, once, only if it's out of view.
+// By hand: scrollIntoView can't see the pinned head and would leave a row coming from above under it.
+export function showRow(card) {
+  if (!card?.isConnected || rowShows(card)) return;
+  const r = card.getBoundingClientRect();
+  sideBox().scrollTop += r.top < listTop() ? r.top - listTop() : r.bottom - sideBox().getBoundingClientRect().bottom;
 }
 
 // Any write to scrollTop cancels a smooth scroll in flight (j/k, Open, a launch), so only
@@ -98,7 +102,7 @@ export function feedAnchor(id) {
   const box = split() ? sideBox() : stage;
   if (box.scrollTop < 1) return null;
   const moving = id && S.nodes.get(id)?.card;
-  const inset = split() ? box.getBoundingClientRect().top + ($('#splitTop')?.offsetHeight || 0) : topInset();
+  const inset = split() ? listTop() : topInset();
   for (const card of $$('#feed .item')) {
     const r = card.getBoundingClientRect();
     if (r.bottom > inset) return card === moving ? null : card;
