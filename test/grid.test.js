@@ -310,7 +310,7 @@ test('deleting an account: typed handle and CSRF, then its box, files, secrets, 
   assert.equal(grid.hostd.inst.has(eve.id), false);
   assert.equal((await b.go(`${origin}/`)).status, 404, 'its address is gone');
   assert.equal((await me()).status, 401, 'and its devices');
-  assert.doesNotMatch((await b.go(`${base}/`)).text, /account\/delete/, 'signed out');
+  assert.doesNotMatch((await b.go(`${base}/account`)).text, /account\/delete/, 'signed out');
 });
 
 test('every `wisp grid` subcommand reaches the grid, not a task: `wisp grid waitlist` lists it', async () => {
