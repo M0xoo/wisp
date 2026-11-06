@@ -30,6 +30,11 @@
   transform: scale(0.98) translateY(-4px); transition: transform 0.18s var(--ease);
 }
 .overlay.on .palette { transform: none; }
+/* ⌃Tab (switcher.js): shown while Ctrl is held, over what you're reading, and never takes the focus */
+.switcher {
+  position: fixed; z-index: 65; top: min(14vh, 120px); left: 50%; translate: -50% 0;
+  width: min(560px, calc(100vw - 32px)); transform: none;
+}
 .pal-input { flex: none; display: flex; align-items: center; gap: 10px; padding: 0 16px; height: 54px; border-bottom: 1px solid var(--line); }
 .pal-input .i { width: 18px; height: 18px; color: var(--faint); }
 .pal-input input { flex: 1; border: 0; outline: 0; background: transparent; font-size: 16px; color: var(--ink); }

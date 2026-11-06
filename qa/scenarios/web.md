@@ -126,6 +126,11 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Expected:** J/K open the next/previous task; N focuses the prompt; Esc goes back home.
 - **Automated**
 
+### WEB-14b · ⌃Tab: switch tasks
+- **Steps:** with 3+ tasks, open A, then B. In the reply box tap ⌃Tab; tap it again. Hold Ctrl, press Tab twice, let go. Hold Ctrl, press Tab, press Esc, let go. Repeat from the task's Shell, and from My Stuff. Filter the list to a project.
+- **Expected:** a tap goes back to the last task with nothing drawn, and the keys stay in a reply box; again returns. Held, the list shows the latest tasks with the task on screen first and the next one marked; Tab steps, ⇧Tab steps back, letting go opens it. Esc stays put. The Shell's terminal gets no Tab. Only that project's tasks are listed. A browser tab can't get ⌃Tab (Chrome keeps it), so the real key is checked in the desktop app (DESK-07b).
+- **Automated** (key events sent to the page)
+
 ### WEB-15 · Settings: every pane opens
 - **Steps:** open Settings, click each pane (General, Notifications, Agents, Auto, Machines,
   Cloud, Memory, Automations, Spells, Usage, Privacy).

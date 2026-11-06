@@ -411,6 +411,33 @@ try {
     p.clean();
   });
 
+  await check('WEB-14b', 'ctrl+tab switches tasks', async () => {
+    const head = () => p.locator('#splitHead').getAttribute('data-id');
+    await press(p, 'Escape');
+    await press(p, 'j');
+    await p.waitForTimeout(400);
+    const a = await head();
+    await press(p, 'j');
+    await p.waitForTimeout(400);
+    const b = await head();
+    await p.keyboard.press('Control+Tab');
+    await p.waitForTimeout(400);
+    ok((await head()) === a, 'a tap goes back to the last task');
+    ok(!(await p.locator('.switcher').count()), 'a tap draws nothing');
+    await p.keyboard.press('Control+Tab');
+    await p.waitForTimeout(400);
+    ok((await head()) === b, 'a second tap returns');
+    await p.keyboard.down('Control');
+    await p.keyboard.press('Tab');
+    await p.keyboard.press('Tab');
+    await p.waitForTimeout(200);
+    ok(await p.locator('.switcher .pal-row.on').count(), 'held, the list shows');
+    await p.keyboard.press('Escape');
+    await p.keyboard.up('Control');
+    await p.waitForTimeout(300);
+    ok((await head()) === b && !(await p.locator('.switcher').count()), 'Esc stays put');
+  });
+
   await check('WEB-14', 'keyboard: J / K / N / Esc', async () => {
     await press(p, 'Escape');
     await press(p, 'j');

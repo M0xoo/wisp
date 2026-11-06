@@ -58,6 +58,8 @@ export const PARTS = {
   'topbar.automations': '#autoBtn',
   'topbar.search': '#searchBtn',
   'palette.tags': '.palette .pal-tags', // a task's topics (wisp_tag) on its row in ⌘K
+  switcher: '.switcher', // ⌃Tab's list of the tasks you were last on
+  'switcher.row': '.switcher .pal-row',
   // You, the round avatar in the top bar's corner, and its menu: your account on the grid, then
   // Machines, Automations, Get the app and Settings (the topbar.* parts of those name its rows).
   'topbar.account': '#meBtn',

@@ -78,6 +78,7 @@ export const S = {
   deleting: new Set(), // ids swiped away whose delete waits for its Undo toast to go (actions.js)
   full: new Map(), // id -> full session, for expanded items
   open: new Set(MOBILE ? [] : load('wisp.open', [])), // expanded item ids (the phone app starts on the list)
+  recent: load('wisp.recent', []), // task ids, the one you opened last first (features/switcher.js)
   nodes: new Map(), // id -> { card, head, body, turnNodes, tray, showAll, unfolded, latestTurn }
   tasks: new Map(), // compare task key -> { card, head, runs, lead }
   focus: null, // id of the keyboard-focused item
@@ -96,6 +97,10 @@ export const S = {
   replyTeams: new Map(), // session id → { team, preset } of subagents its next follow-up gives the lead
 };
 export const saveOpen = () => save('wisp.open', [...S.open]);
+export const noteRecent = (id) => {
+  S.recent = [id, ...S.recent.filter((x) => x !== id)].slice(0, 50);
+  save('wisp.recent', S.recent);
+};
 export const setAgents = (list) => ((S.agents = list), save('wisp.agents', list));
 
 // Where the launcher sends a prompt: '' = this computer, else machine ids. Several run in parallel,

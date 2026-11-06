@@ -1029,6 +1029,8 @@ test('start from an issue: New task\'s Issue button and the issue picker are par
   assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.issue'] }, parts: { 'issues.picker': { style: { borderRadius: '6px' } } } }), []);
   assert.equal(schema.PARTS['launcher.issue'], '#launcher .issue-btn');
   assert.equal(schema.PARTS['issues.picker'], '.palette.issues');
+  assert.equal(schema.PARTS.switcher, '.switcher');
+  assert.equal(schema.PARTS['switcher.row'], '.switcher .pal-row');
   assert.ok(schema.ICONS.includes('issue'));
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'launcher.bar', icon: 'issue', label: 'Bugs', do: { prompt: 'Fix the open bugs' } }] }).filter((x) => /icon/.test(x)), []);
   assert.ok(problems({ ...base0, parts: { 'launcher.issues': { hide: true } } }).some((x) => /launcher\.issues/.test(x)));
