@@ -196,6 +196,7 @@ wisp skill install                # install the wisp skill for Claude Code (--ag
 | `--wait`, `-w` | Wait for the run to finish or ask, then print the presentation |
 | `--no-worktree` | Edit the folder in place instead of a fresh worktree (default in git repos: a worktree) |
 | `--compare a[:model],…` | Also run the task on these harnesses, each in its own worktree |
+| `--try subagents=haiku\|sonnet\|task` · `--try skills=off` | Run the task twice on `--agent claude`, the second run with that changed, each in its own worktree; **Compare** says what differed |
 | `--json` | Machine-readable output |
 | `--browser`, `-b` | Use the browser instead of the desktop app |
 | `--no-open` | Just run the server; open nothing |
@@ -664,7 +665,7 @@ The retro gets the current lists along with the digest, so when you change your 
 
 wisp sends anonymous usage stats and error reports to [PostHog](https://posthog.com) so we can see which agents people use and what breaks. The code is in [`server/telemetry.js`](server/telemetry.js).
 
-**What is sent:** a random install id (not tied to you or your machine), the wisp, OS, Node and agent CLI versions, and per run: agent, model, mode, effort, status, duration, token counts and cost, how many files changed, and which presentation block types came back. Also a few steps by name: signing in to an agent (started, done, failed), signing in to wisp Cloud (and whether it's the hosted grid, never your grid's address), and the *Get the app* card (opened, clicked, hidden). Errors include a stack trace and message with your home directory and file paths removed, cut to 500 characters.
+**What is sent:** a random install id (not tied to you or your machine), the wisp, OS, Node and agent CLI versions, and per run: agent, model, mode, effort, status, duration, token counts and cost, how many files changed, and which presentation block types came back. Also a few steps by name: signing in to an agent (started, done, failed), signing in to wisp Cloud (and whether it's the hosted grid, never your grid's address), and the *Get the app* card (opened, clicked, hidden). A count each time you start *Try it two ways*, with nothing else in it. Errors include a stack trace and message with your home directory and file paths removed, cut to 500 characters.
 
 **Never sent:** prompts, replies, agent output, file contents, project names, paths or repo URLs.
 

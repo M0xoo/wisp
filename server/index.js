@@ -618,5 +618,5 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       .catch(() => {});
   }
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, stuff: app.stuff, remote: app.remote, liveLimits: app.liveLimits, resetEarly: app.resetEarly, machines: app.machines, computer: app.computer, sandbox: app.sandbox, secrets: app.secrets, accounts: app.accounts, auto: app.auto, broadcast: app.broadcast, routes };
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, stuff: app.stuff, remote: app.remote, liveLimits: app.liveLimits, resetEarly: app.resetEarly, machines: app.machines, computer: app.computer, sandbox: app.sandbox, secrets: app.secrets, accounts: app.accounts, auto: app.auto, launcher: app.launcher, broadcast: app.broadcast, routes };
 }

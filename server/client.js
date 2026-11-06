@@ -19,6 +19,27 @@ export { DEFAULT_PORT };
 const BIN = fileURLToPath(new URL('../bin/wisp.js', import.meta.url));
 const MAX_WAIT_CALL = 280; // seconds per long-poll; fetch gives up on headers after 300s
 
+// `--try subagents=haiku,skills=off` (repeatable): the second run's change, as compare[] takes it.
+export function tryRuns(list) {
+  const out = {};
+  for (const x of list.flatMap((v) => String(v).split(',')).filter(Boolean)) {
+    const [key, value] = x.split('=');
+    if (key === 'subagents' && ['haiku', 'sonnet', 'task'].includes(value)) out.subagentModel = value === 'task' ? '' : value;
+    else if (key === 'skills' && value === 'off') out.skills = 'off';
+    else throw new Error('Use --try subagents=haiku|sonnet|task or --try skills=off');
+  }
+  return out;
+}
+
+// Why `--try` can't go with these flags, or null. Said here: nothing has to start to refuse it.
+export function tryProblem({ agent, compare, mode, worktree }) {
+  if (!agent || agent === 'auto') return '--try needs --agent: pick a harness first';
+  if (compare) return '--try is its own comparison: leave out --compare';
+  if (mode === 'plan') return '--try needs edits to compare, so it doesn’t run in Plan mode';
+  if (worktree === false) return '--try keeps a worktree per run: leave out --no-worktree';
+  return null;
+}
+
 export const wispHome = () => process.env.WISP_HOME || path.join(os.homedir(), '.wisp');
 
 // The running server advertises itself in ~/.wisp/server.json. Stale files (dead pid) are ignored.
@@ -148,14 +169,17 @@ export class WispClient {
   // machine: run it on one of the user's machines (id; '' or none = this computer).
   // confirmLimit: the user agreed to go ahead although it takes a usage window past their Ask near
   // the limit line (refused with 409 and `hold` otherwise, server/guard.js).
-  async launch({ prompt, cwd = process.cwd(), also, agent, mode, model, effort, attachments, worktree, compare, subagents, preset, kind, machine, confirmLimit } = {}) {
+  // subagentModel: '' | haiku | sonnet, skills: 'off' (here and on each compare entry): Claude Code
+  // only. trial: Try it two ways, a compare of one setup with one change: Compare says what differed.
+  async launch({ prompt, cwd = process.cwd(), also, agent, mode, model, effort, attachments, worktree, compare, subagents, preset, kind, machine, confirmLimit, subagentModel, skills, trial } = {}) {
     if (!agent || !mode || model === undefined) {
       const { defaults = {} } = await this.config();
       agent ||= defaults.agent || 'auto';
       mode ||= defaults.mode || 'auto';
       model ??= defaults.models?.[agent] ?? (agent === defaults.agent ? defaults.model || '' : '');
     }
-    return this.request('POST', '/sessions', { prompt, cwd: path.resolve(cwd), also: also?.length ? also.map((d) => path.resolve(d)) : undefined, agent, mode, model, effort, attachments, worktree, compare, subagents, preset, kind, machine, confirmLimit });
+    if (trial) compare = compare?.map((c) => ({ ...c, model: c.model ?? model })); // a copy of the lead: its model as the launch settled it
+    return this.request('POST', '/sessions', { prompt, cwd: path.resolve(cwd), also: also?.length ? also.map((d) => path.resolve(d)) : undefined, agent, mode, model, effort, attachments, worktree, compare, subagents, preset, kind, machine, confirmLimit, subagentModel, skills, trial });
   }
 
   // Ship it: commit the session's worktree, push its branch, open (or update) the PR.

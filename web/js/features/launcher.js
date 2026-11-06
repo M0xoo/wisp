@@ -171,6 +171,7 @@ export function renderLauncher() {
         <button class="auto-pv" id="autoPv" aria-haspopup="dialog" hidden></button>
         <button class="vs-btn vs-add" id="compareBtn" aria-label="Compare">${icon('plus')}</button>
       </div>
+      <button class="tog-btn" id="tryTwoBtn" aria-haspopup="dialog" aria-label="Try it two ways">${icon('rerun')}<span>Try it two ways</span></button>
       <button class="tog-btn team-btn" id="teamBtn" aria-haspopup="dialog"></button>
       ${MOBILE ? `<button class="tog-btn issue-btn" aria-haspopup="dialog" title="Start from one of the project’s open issues">${icon('issue')}<span>Issue</span></button>` : ''}
       <button class="tog-btn l-more" id="launchMore" title="Run on another computer, compare, delegate, a goal, a worktree, start later, start from an issue">${icon('dots')}<span>More options</span></button>
@@ -249,6 +250,7 @@ export function renderLauncher() {
     curMode = id;
     S.config.defaults.mode = id;
     paintMode();
+    paintTry();
     api('/config', { method: 'PATCH', body: { defaults: { mode: id } } }).catch(() => {});
   };
   paintMode();
@@ -261,6 +263,7 @@ export function renderLauncher() {
   const paintRunner = () => {
     paintRunnerBtn(runnerBtn, agent?.id, curModel, curEffort, curAccount);
     runnerBtn.title = compare.length || agent?.id === 'auto' ? runnerTip(agent?.id, curModel, curEffort, curAccount) : `Harness, model and thinking level${curEffort ? `\nThinking: ${effortLabel(curEffort)}` : ''}`;
+    paintTry();
   };
 
   launcherGoal(box, ta);
@@ -300,6 +303,36 @@ export function renderLauncher() {
       api('/config', { method: 'PATCH', body: { defaults: { subagents: team, teamPreset } } }).catch(() => {});
     });
 
+  // Try it two ways: a copy of the lead beside it, with one setting changed in its picker. Disabled
+  // says so on click too: a phone has no tooltip.
+  const tryBtn = $('#tryTwoBtn', box);
+  const tryRefused = () => {
+    if (agent?.id === 'auto') return 'Pick a harness first';
+    if (curMode === 'plan') return 'Try it two ways needs edits to compare: switch out of Plan';
+    return compare.length >= MAX_RUNNERS - 1 && !compare.some((c) => c.trial) ? `Up to ${MAX_RUNNERS} runs side by side` : '';
+  };
+  function paintTry() {
+    const why = tryRefused();
+    tryBtn.setAttribute('aria-disabled', String(!!why));
+    tryBtn.title = why || 'Try it two ways: run this task twice on this harness, changing one setting. Compare says what differed';
+    // The pill folds a copy that only differs by its variant down to those words (launcher.css).
+    const c = compare[0];
+    const copy = $('.runner-btn.cmp-x', runners);
+    copy?.classList.toggle('same', !!c?.trial && c.agent === agent?.id && c.model === curModel && c.effort === curEffort && !!$('.rb-v', copy));
+  }
+  tryBtn.onclick = () => {
+    const why = tryRefused();
+    if (why) {
+      toast(esc(why), { tone: 'bad' });
+      return;
+    }
+    if (!compare.some((c) => c.trial)) {
+      compare = [...compare, { agent: agent.id, model: curModel, effort: curEffort, account: curAccount || undefined, trial: true }];
+      paintCompare();
+    }
+    $$('.runner-btn.cmp-x', runners)[compare.findIndex((c) => c.trial)]?.click();
+  };
+
   // Compare: more harnesses get the same task (up to MAX_RUNNERS in all); picks here don't touch
   // the launcher defaults. Each extra sits behind a "vs" that removes it; the button at the end
   // adds the next one. Past two, the pill folds the names away and keeps the logos.
@@ -313,13 +346,16 @@ export function renderLauncher() {
     // The bar's labels fold too: a class rather than :has(), which restyled the whole page on any change.
     runners.parentElement.classList.toggle('l-cmp', n > 0);
     runners.parentElement.classList.toggle('l-many', n > 1);
+    const trial = n === 1 && !!compare[0].trial;
+    runners.classList.toggle('trial', trial);
+    runners.parentElement.classList.toggle('l-try', trial);
     for (const x of $$('.cmp-x', runners)) x.remove();
     compare.forEach((c, i) => {
       const name = agentName(c.agent);
       const del = el(`<button class="vs-btn vs-del cmp-x" data-i="${i}" title="Remove ${esc(name)} from the comparison" aria-label="Remove ${esc(name)}"><span>vs</span>${icon('x')}</button>`);
       const btn = el(`<button class="runner-btn cmp-x" data-i="${i}" aria-haspopup="dialog"></button>`);
-      paintRunnerBtn(btn, c.agent, c.model, c.effort, c.account);
-      btn.title = runnerTip(c.agent, c.model, c.effort, c.account);
+      paintRunnerBtn(btn, c.agent, c.model, c.effort, c.account, c);
+      btn.title = runnerTip(c.agent, c.model, c.effort, c.account, c);
       vsBtn.before(del, btn);
     });
     vsBtn.hidden = n >= MAX_RUNNERS - 1;
@@ -352,8 +388,10 @@ export function renderLauncher() {
       (compare.length ? $$('.vs-del', runners)[Math.min(i, compare.length - 1)] : vsBtn).focus();
       return;
     }
-    runnerPicker(x, { ...compare[i], savedModel, savedEffort, places: launch.where, back: ta }, (id, model, effort, account) => {
-      compare = compare.map((c, k) => (k === i ? { agent: id, model, effort, account: account || undefined } : c));
+    const was = compare[i];
+    const variant = was.trial ? { ...(was.subagentModel !== undefined && { subagentModel: was.subagentModel }), ...(was.skills && { skills: was.skills }) } : undefined;
+    runnerPicker(x, { ...was, variant, savedModel, savedEffort, places: launch.where, back: ta }, (id, model, effort, account, picked) => {
+      compare = compare.map((c, k) => (k === i ? { agent: id, model, effort, account: account || undefined, ...(c.trial && { trial: true, ...picked }) } : c));
       paintCompare();
     });
   });
@@ -613,9 +651,11 @@ export function renderLauncher() {
       const first = over?.agent ? { agent: over.agent, account: savedAccount(over.agent) } : { agent: agent?.id, account: curAccount };
       // "@Ada …" runs on Ada's harness, here (one on another computer: the server asks there).
       const runs = toCrew.length ? toCrew.filter((m) => !m.machine).map((m) => ({ agent: m.agent, account: '', here: true })) : [first, ...compare];
+      // Runs of this launch on one account go at once, so they're summed (a crew job goes on its own).
+      const together = (r) => (r.here ? 1 : runs.filter((x) => x.agent === r.agent && (x.account || '') === (r.account || '')).length);
       for (const t of targets) {
         for (const r of runs) {
-          const h = holdNow(r.agent, r.account || '', 'first', r.here ? S.agents : agentsAt(t.k));
+          const h = holdNow(r.agent, r.account || '', 'first', r.here ? S.agents : agentsAt(t.k), together(r));
           if (h) return holdLaunch({ agent: r.agent, account: r.account || 'default', ...h }, over);
         }
       }
@@ -677,7 +717,7 @@ export function renderLauncher() {
         targets.map((t, i) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && (!cmp.length || typedTerm) ? false : undefined, progress: t.sandbox ? pending[i] : undefined, compare: cmp.length && !typedTerm ? cmp : undefined, subagents: !typedTerm && team.length && canLead(runner.agent) ? team : undefined, goal: typedTerm ? undefined : goal, confirmLimit: confirm || undefined, autoPin: pin, autoOverride: corrected || undefined, ...cells },
+            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && (!cmp.length || typedTerm) ? false : undefined, progress: t.sandbox ? pending[i] : undefined, compare: cmp.length && !typedTerm ? cmp.map(({ trial, ...c }) => c) : undefined, trial: !typedTerm && cmp.some((c) => c.trial) ? true : undefined, subagents: !typedTerm && team.length && canLead(runner.agent) ? team : undefined, goal: typedTerm ? undefined : goal, confirmLimit: confirm || undefined, autoPin: pin, autoOverride: corrected || undefined, ...cells },
           }),
         ),
       );

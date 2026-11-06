@@ -23,15 +23,15 @@ const lower = (label) => String(label || 'usage').replace(/^\w/, (c) => c.toLowe
 
 // The window a run of `agent` on `account` would take past its line, or null. list: a place's
 // harness list (S.agents here). An account wisp would pick itself ('' with several) isn't known
-// yet: the server checks that one.
-export function holdNow(agent, account, kind = 'first', list = S.agents) {
+// yet: the server checks that one. together: runs of one launch on this account.
+export function holdNow(agent, account, kind = 'first', list = S.agents, together = 1) {
   if (!agent || agent === 'auto') return null;
   const a = list?.find((x) => x.id === agent);
   if (!a?.budget?.length) return null;
   const many = a.accounts?.length > 1;
   if (many && !account) return null;
   const b = a.budget.find((x) => x.account === (many ? account : 'default'));
-  return b ? holdFor(b.windows, kind) : null;
+  return b ? holdFor(b.windows, kind, together) : null;
 }
 
 // The window of a harness (one account, or any) that's at or past its line, fullest first, for

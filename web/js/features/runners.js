@@ -6,6 +6,7 @@ import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { whenLabel } from '../core/format.js';
 import { popover, refocus } from '../ui/popover.js';
+import { variantWords } from '../compare-metrics.js';
 import { machineById, usable } from './places.js';
 
 export const MODES = [
@@ -88,11 +89,12 @@ export const effortLabel = (e) => ({ xhigh: 'X-High' })[e] || e.charAt(0).toUppe
 // account: the task's account id; named only when its harness has more than one.
 // crew: { name, face } when a crew member ran it: their face stands in for the logo, and the
 // tooltip names them before the harness and model.
-export function modelBadge(agent, model, effort, route, account, crew) {
+// variant: Try it two ways' { subagentModel, skills }, what tells a group's rows apart.
+export function modelBadge(agent, model, effort, route, account, crew, variant) {
   if (agent === 'wisp') return '';
   const label = (model && agentById(agent)?.models?.find((x) => x.id === model)?.label) || model || 'Default model';
   const acc = accountOf(agent, account);
-  const tip = `${crew ? `${crew.name} · ` : ''}${route ? routeTip(route) : `${agentName(agent)} · ${label}${effort ? ` · ${effortLabel(effort)} thinking` : ''}`}${acc ? ` · ${acc.label}` : ''}`;
+  const tip = `${crew ? `${crew.name} · ` : ''}${route ? routeTip(route) : `${agentName(agent)} · ${label}${effort ? ` · ${effortLabel(effort)} thinking` : ''}`}${acc ? ` · ${acc.label}` : ''}${variantTail(variant)}`;
   const logo = crew ? crew.face : harnessLogo(agent);
   return `<span class="model-logo${crew ? ' by-crew' : ''}${route ? ' routed' : ''}" role="img" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">${logo}${acc ? accountMark(acc) : ''}</span>`;
 }
@@ -110,6 +112,10 @@ export const accountMark = (acc, cls = 'acc-i') => `<i class="${cls}" aria-hidde
 // One time phrase everywhere: "at its limit until 9 pm" (the time as wisp writes it elsewhere).
 export const limitUntil = (acc) => whenLabel(acc?.until);
 export const limitLine = (acc) => `at its limit${acc?.until ? ` until ${limitUntil(acc)}` : ''}`;
+
+// Try it two ways: a run's variant as words (compare-metrics.js), with the setting it goes against.
+export const runVariant = (v) => variantWords(v, S.config?.defaults?.subagentModel || '');
+const variantTail = (v) => runVariant(v).map((x) => ` · ${x}`).join('');
 
 // The account is remembered per harness too; '' is Auto (wisp picks).
 export function savedAccount(id) {
@@ -149,20 +155,21 @@ export function savedEffort(id, model) {
 export const MAX_RUNNERS = 4;
 
 // A runner button's tooltip, for when the pill is too full to show names.
-export function runnerTip(agentId, model, effort, account) {
+export function runnerTip(agentId, model, effort, account, variant) {
   const a = agentById(agentId);
   const m = (a?.models || []).find((x) => x.id === model);
-  return [a?.name || agentName(agentId), m?.label || model || 'Default model', effort && effortLabel(effort), accountOf(agentId, account)?.label].filter(Boolean).join(' · ');
+  return [a?.name || agentName(agentId), m?.label || model || 'Default model', effort && effortLabel(effort), accountOf(agentId, account)?.label, ...runVariant(variant)].filter(Boolean).join(' · ');
 }
 
 // The harness · model · thinking button, as in the launcher. agent '' reads "Launcher default".
 // account: shown as its own part (and an initial on the logo); nothing for Auto ('').
-export function paintRunnerBtn(btn, agentId, model, effort, account) {
+// variant: Try it two ways' { subagentModel, skills }, on the end.
+export function paintRunnerBtn(btn, agentId, model, effort, account, variant) {
   const a = agentById(agentId);
   const m = (a?.models || []).find((x) => x.id === model);
   const acc = accountOf(agentId, account);
   btn.innerHTML = agentId
-    ? `<span class="rb-logo">${harnessLogo(agentId)}${acc ? accountMark(acc) : ''}</span><span class="rb-h">${esc(a?.name || agentName(agentId))}</span><span class="rb-m${m && m.id ? '' : ' def'}">${esc(m && m.id ? m.label : 'Default')}</span>${effort ? `<span class="rb-e">${esc(effortLabel(effort))}</span>` : ''}${acc ? `<span class="rb-a">${esc(acc.label)}</span>` : ''}${icon('chevron', 'chev')}`
+    ? `<span class="rb-logo">${harnessLogo(agentId)}${acc ? accountMark(acc) : ''}</span><span class="rb-h">${esc(a?.name || agentName(agentId))}</span><span class="rb-m${m && m.id ? '' : ' def'}">${esc(m && m.id ? m.label : 'Default')}</span>${effort ? `<span class="rb-e">${esc(effortLabel(effort))}</span>` : ''}${acc ? `<span class="rb-a">${esc(acc.label)}</span>` : ''}${runVariant(variant).map((x) => `<span class="rb-v">${esc(x)}</span>`).join('')}${icon('chevron', 'chev')}`
     : `<span class="rb-logo">${icon('spark')}</span><span class="rb-h">Launcher default</span>${icon('chevron', 'chev')}`;
 }
 

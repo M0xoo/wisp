@@ -105,6 +105,9 @@ export function createMove(app) {
       mode: mode || s.mode,
       attachments,
       ...(s.groupId && { groupId: s.groupId }),
+      // Try it two ways: its variant goes with it, while it stays on Claude Code.
+      ...(run.agent === 'claude' && s.subagentModel !== undefined && { subagentModel: s.subagentModel }),
+      ...(run.agent === 'claude' && s.skills && { skills: s.skills }),
       // team: a new one picked with this follow-up. Members placed from here are placed again for where it goes.
       ...((team ?? s.subagents)?.length && { subagents: (team ?? s.subagents).map(({ upstream, ...m }) => m) }),
       moved: { from: where(from), title: s.title, turns: history(s, from), packs, ...(s.origin && { origin: s.origin }) },

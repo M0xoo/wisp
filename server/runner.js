@@ -264,6 +264,8 @@ export function summarize(s, store) {
     model: s.model,
     effort: s.effort || '',
     ...(s.account && { account: s.account }), // which of the harness's accounts it runs on (server/accounts.js)
+    ...(s.subagentModel !== undefined && { subagentModel: s.subagentModel }), // its own, over the setting ('' is the task's model)
+    ...(s.skills && { skills: s.skills }),
     ...(planOf(s) && { plan: planOf(s) }), // its share of each kind of usage window (server/budget.js)
     state: s.state,
     unread: s.unread,
@@ -422,7 +424,7 @@ export class Runner extends EventEmitter {
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
   // also: the task's other folders, [{ cwd, worktree }] (services/launch.js).
   // history / title / moved: a task moved here from another place, with the turns it had there.
-  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null, goal = null, forkedFrom = null, sideOf = null, hold = null, sharedFrom = null, idle = false, tui = false }) {
+  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null, goal = null, forkedFrom = null, sideOf = null, hold = null, sharedFrom = null, idle = false, tui = false, subagentModel, skills = '', trial = null }) {
     if (!adapters[agent] && !(relay && agent === 'auto')) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
@@ -461,6 +463,9 @@ export class Runner extends EventEmitter {
       ...(delegated && { delegated }), // a delegate's run for a lead elsewhere: { lead, name }
       ...(crew && { crew }), // a crew member's job: { id, job, from?, reply? } (server/crew.js)
       ...(route && { route }), // how Auto picked agent, model and level (server/router.js)
+      ...(subagentModel !== undefined && { subagentModel }), // its own, over defaults.subagentModel: '' is the task's model
+      ...(skills === 'off' && { skills }), // Claude Code without its skills (adapters/claude.js)
+      ...(trial && { trial }), // Try it two ways: { differs, kept } (services/launch.js)
     };
     if (goal && !parentId && !delegated) this.goals?.attach(session, goal);
     this.store.put(session);
@@ -1471,8 +1476,10 @@ export class Runner extends EventEmitter {
     // Subagents on Haiku (Settings → Usage): Claude Code's subagents run on this model. A lead with a
     // team has no subagents of its own. The turn keeps it, so its receipt can say so.
     const delegating = team.length > 0 && !!this.bridge;
-    const subagentModel = session.agent === 'claude' && !delegating ? this.store.config?.defaults?.subagentModel || '' : '';
+    const subagentModel = session.agent === 'claude' && !delegating ? (session.subagentModel ?? this.store.config?.defaults?.subagentModel) || '' : '';
     if (subagentModel) turn.run = { ...turn.run, subagentModel };
+    const skills = session.agent === 'claude' && session.skills === 'off' ? 'off' : '';
+    if (skills) turn.run = { ...turn.run, skills };
     const handle = this.#spawned(session, turn, team, () => adapter.run({
       // Anything in front of /compact stops it being a command.
       prompt: by === 'compact' ? prompt : [handoff, still, turn.later ? laterNote(turn.later) : '', said].filter(Boolean).join('\n\n'),
@@ -1490,6 +1497,7 @@ export class Runner extends EventEmitter {
       // A lead with a team delegates through wisp, so the harness's own subagent tool is switched off.
       delegating,
       subagentModel,
+      skills,
       mcpServers: this.#mcpServers(session, adapter, team, mode),
       accountEnv: this.#accountEnv(session),
       untrusted: !!project,

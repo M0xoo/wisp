@@ -318,6 +318,14 @@ export function register(r, app) {
       if (body.lean !== undefined && body.lean !== null && !['on', 'off'].includes(body.lean)) throw bad('lean must be on, off or null', 400);
       if (body.lean === null) delete s.lean;
       else if (body.lean) s.lean = body.lean;
+      // Try it two ways: Keep this. Every run of the trial says which one you kept.
+      if (body.trialKept === true && s.trial) {
+        const runs = s.groupId ? store.all().filter((x) => x.groupId === s.groupId && x.trial) : [s];
+        for (const x of runs) {
+          x.trial = { ...x.trial, kept: s.id };
+          if (x !== s) app.sessionChanged(x);
+        }
+      }
       // Moved to another place by the wisp that shows it (services/move.js): where it went.
       if (body.movedTo && typeof body.movedTo === 'object') s.movedTo = { id: String(body.movedTo.id || ''), place: String(body.movedTo.place || '') };
       // The team can change between turns; the next turn's lead sees the new roster.

@@ -29,6 +29,35 @@ const isLive = (s) => s?.state === 'running' || s?.state === 'waiting';
 const letter = (i) => String.fromCharCode(65 + i);
 const listed = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0] || '');
 
+// Try it two ways: a run's variant in words, for the pill, tooltips and Compare's columns. Its
+// subagents on the task's model only say so when the setting would have them on another (setting:
+// defaults.subagentModel).
+const SUBAGENT_NAME = { haiku: 'Haiku', sonnet: 'Sonnet' };
+export function variantWords(v, setting = '') {
+  const out = [];
+  if (v?.subagentModel) out.push(`Subagents on ${SUBAGENT_NAME[v.subagentModel] || v.subagentModel}`);
+  else if (v?.subagentModel === '' && setting) out.push('Subagents on task’s model');
+  if (v?.skills === 'off') out.push('Skills off');
+  return out;
+}
+
+const level = (e) => (!e ? 'Default' : e === 'xhigh' ? 'X-High' : e.charAt(0).toUpperCase() + e.slice(1));
+
+// session.trial.differs in words: "Subagents: Opus → Haiku · Skills: on → off". names: the page's
+// agent(id), model(id) and account(id), and taskModel: what '' subagents run on (run A's model).
+export function differsWords(differs, { agent = (x) => x, model = (x) => x, account = (x) => x || 'Default', taskModel = 'Task’s model' } = {}) {
+  if (!differs?.length) return 'Same setup on both runs';
+  const rows = {
+    agent: ['Harness', agent],
+    model: ['Model', (x) => (x ? model(x) : 'Default')],
+    effort: ['Thinking', level],
+    account: ['Account', account],
+    subagentModel: ['Subagents', (x) => SUBAGENT_NAME[x] || x || taskModel],
+    skills: ['Skills', (x) => x],
+  };
+  return differs.map(({ key, values }) => `${rows[key]?.[0] || key}: ${values.map(rows[key]?.[1] || String).join(' → ')}`).join(' · ');
+}
+
 // What the page's fmtDuration writes (blocks.js touches the DOM on import).
 function duration(ms) {
   const s = Math.round(ms / 1000);
