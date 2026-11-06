@@ -41,6 +41,11 @@ here*, also in its ⋯), except deleted and binary files. The editor covers the 
   **Load theirs** or **Keep mine**, never a silent overwrite.
 - **Esc goes back to Changes**, asking (`ask`, by Back) when there's unsaved work. The editor
   belongs to its task: moving to another task hides it, and coming back shows it as you left it.
+- **The caret and the keyboard stay put.** A file opens at its first line, caret there (a line it
+  was opened at wins). *Load theirs* and a rename keep your line. A picker, Rename or *Cancel* on
+  Discard gives the keyboard back to the file; Esc gives it to the file's row in Changes (*Edit
+  here*, More when the row folds it, *Open file…* when it has no row). `refocus()` skips all of
+  this on a touch screen, where it would bring the keyboard up.
 - **Any file, any line.** *Open file…* (Changes' summary, ⌘K *Open a file…*, ⌘P in the editor) is the
   palette over the folder's files, changed ones first, and once three letters are typed an *In
   files* group of matching lines (`GET /grep?q=`), each opening at its line. ⌘-click (Ctrl-click) a

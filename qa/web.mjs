@@ -770,6 +770,37 @@ try {
     p.clean();
   });
 
+  await check('WEB-69', 'the editor: a file opens at its first line, and the keyboard stays with it', async () => {
+    const m = await launch({ prompt: 'Add a long file', mode: 'auto' });
+    const s = await settled(m.id);
+    fs.writeFileSync(path.join(s.worktree.path, 'long.js'), 'export const a = 1;\n'.repeat(400));
+    const q = await page(); // its own window: the side panel stays open
+    await q.goto(w.url);
+    await q.locator(`.item[data-id="${m.id}"]`).click();
+    await q.getByRole('button', { name: /^Changes/ }).filter({ visible: true }).first().click();
+    const pen = q.locator('[data-a="cx-edit"][aria-label="Edit long.js"]');
+    await pen.click();
+    const code = q.locator('.pn-edit textarea');
+    await code.waitFor();
+    await until(() => q.evaluate(() => document.activeElement.matches('.pn-edit textarea')));
+    const place = () => q.evaluate(() => [document.querySelector('.ed-scroll').scrollTop, document.querySelector('.pn-edit textarea').selectionStart]);
+    ok(String(await place()) === '0,0', `it opened at ${await place()}`);
+    await q.keyboard.type('x');
+    await q.keyboard.press('Escape');
+    await q.locator('.ask-pop').waitFor();
+    await q.keyboard.press('Escape');
+    await until(() => q.evaluate(() => document.activeElement.matches('.pn-edit textarea')));
+    await q.keyboard.press('Control+p');
+    await q.locator('.pal-input, #overlay input').first().waitFor();
+    await q.keyboard.press('Escape');
+    await until(() => q.evaluate(() => document.activeElement.matches('.pn-edit textarea')));
+    await code.fill((await code.inputValue()).slice(1));
+    await q.keyboard.press('Escape');
+    await until(() => q.evaluate(() => document.activeElement.matches('[data-a="cx-edit"][aria-label="Edit long.js"]')));
+    q.clean();
+    await q.context().close();
+  });
+
   await check('WEB-49', 'Home Screen app: full screen and its own cache only when standalone', async () => {
     // A browser tab: no class, the viewport as it was, no manifest (this isn't a Grid).
     const tab = await p.evaluate(() => [document.documentElement.classList.contains('standalone'), document.querySelector('meta[name="viewport"]').content, !!document.querySelector('link[rel="manifest"]')]);

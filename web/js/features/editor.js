@@ -11,7 +11,7 @@ import { MOBILE, S } from '../core/state.js';
 import { ask } from '../ui/confirm.js';
 import { combo } from '../ui/kbd.js';
 import { overlay } from '../ui/overlay.js';
-import { popover } from '../ui/popover.js';
+import { popover, refocus } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { palette } from '../palette.js';
 import { changesOf } from './changes.js';
@@ -68,13 +68,28 @@ export async function openEditor(panel, id, path, { onClose, onSaved, line } = {
 export async function closeEditor({ force = false } = {}) {
   if (!cur) return true;
   const ed = cur;
-  if (!force && dirty() && !(await ask(`Discard your changes to ${ed.path}?`, { ok: 'Discard', danger: true, anchor: $('.ed-back', ed.sec) }))) return false;
+  if (!force && dirty() && !(await ask(`Discard your changes to ${ed.path}?`, { ok: 'Discard', danger: true, anchor: $('.ed-back', ed.sec) }))) {
+    if (cur === ed) keysBack();
+    return false;
+  }
   if (cur !== ed) return true;
   cur = null;
   ed.sec.remove();
+  refocus(rowOf(ed));
   ed.onClose?.();
   return true;
 }
+
+// Where the keyboard goes as the editor closes: the file's row in Changes (Edit here, or More when
+// the row folds it), else Open file…
+function rowOf({ panel, path }) {
+  const row = [...panel.querySelectorAll('.pn-changes .cx-file')].find((n) => n.dataset.path === path);
+  return [...(row ? [$('.cx-edit', row), $('.cx-more', row)] : []), $('.cx-find', panel)].find((b) => b?.offsetParent);
+}
+
+// The keyboard back in the file, caret and scroll where they were; a picker over it does this as it closes
+const keysBack = () => refocus(ta(), { preventScroll: true });
+const picker = (node) => overlay(node, { onClose: keysBack });
 
 const ta = () => cur && $('textarea', cur.sec);
 const dirty = () => !!cur && !!ta() && ta().value !== cur.saved;
@@ -92,11 +107,15 @@ async function load(theirs = false) {
   if (cur !== ed) return;
   ed.hash = f.hash;
   ed.saved = f.text;
+  // Loading the file again (Load theirs, a rename) keeps your place in it
+  const place = ta() && [ta().selectionStart, $('.ed-scroll', ed.sec).scrollTop];
   if (theirs || !ta()) paintBody(f.text);
+  if (place) (ta().setSelectionRange(place[0], place[0]), ($('.ed-scroll', ed.sec).scrollTop = place[1]));
   note('');
   paintState();
-  if (!MOBILE) ta()?.focus();
+  if (!MOBILE) ta()?.focus({ preventScroll: true });
   if (ed.line) goLine(ed.line);
+  ed.line = 0; // once: a later Load theirs stays where you are
   checkProblems();
 }
 
@@ -112,6 +131,7 @@ function paintBody(text) {
     </div>`;
   const t = ta();
   t.value = text;
+  t.setSelectionRange(0, 0); // a new value leaves the caret after the last line, and focus would scroll there
   const lang = langOf(cur.path);
   const rows = changesOf(cur.id)?.files?.find((f) => f.path === cur.path)?.rows || [];
   let added = new Set(rows.filter((r) => r.op === '+' && r.b != null).map((r) => r.b));
@@ -248,7 +268,7 @@ export async function openFileFinder(panel, id, { onClose, onSaved } = {}) {
   });
   // Changed files lead, as in Changes
   items.sort((a, b) => b.rank - a.rank);
-  palette({ items, overlay: (node) => overlay(node), deep: grepIn(panel, id, { onClose, onSaved }), placeholder: `Find a file or text in this task’s folder${r.more ? ` (names: the first ${r.files.length.toLocaleString()})` : ''}…` });
+  palette({ items, overlay: (node) => overlay(node, { onClose: () => (ta() ? keysBack() : refocus($('.cx-find', panel))) }), deep: grepIn(panel, id, { onClose, onSaved }), placeholder: `Find a file or text in this task’s folder${r.more ? ` (names: the first ${r.files.length.toLocaleString()})` : ''}…` });
 }
 
 // Put the caret at the start of line n and bring it into view, a little below the top.
@@ -306,7 +326,7 @@ function goTo(hits, title) {
   const ed = cur;
   const opts = { onClose: ed.onClose, onSaved: ed.onSaved };
   if (hits.length === 1) return openEditor(ed.panel, ed.id, hits[0].path, { ...opts, line: hits[0].line });
-  palette({ items: hits.map((h) => ({ group: `${hits.length} ${title}`, label: `${h.path.split('/').pop()}:${h.line}`, sub: h.text, icon: 'file', keywords: h.path, run: () => openEditor(ed.panel, ed.id, h.path, { ...opts, line: h.line }) })), overlay: (node) => overlay(node), placeholder: `${hits.length} ${title}…` });
+  palette({ items: hits.map((h) => ({ group: `${hits.length} ${title}`, label: `${h.path.split('/').pop()}:${h.line}`, sub: h.text, icon: 'file', keywords: h.path, run: () => openEditor(ed.panel, ed.id, h.path, { ...opts, line: h.line }) })), overlay: picker, placeholder: `${hits.length} ${title}…` });
 }
 
 // ⌘-click or F12: where the name under the caret is defined. The language server's answer when
@@ -360,7 +380,7 @@ async function complete(t) {
   const typed = t.value.slice(start, end);
   palette({
     items: r.items.map((x) => ({ group: 'Complete', label: x.label, sub: x.detail, icon: 'spark', run: () => (t.focus(), t.setSelectionRange(start, end), document.execCommand('insertText', false, x.insert)) })),
-    overlay: (node) => overlay(node),
+    overlay: picker,
     placeholder: typed ? `Complete ${typed}…` : 'Complete…',
   });
 }
@@ -383,6 +403,7 @@ async function renameSymbol(t) {
     e.preventDefault();
     const to = input.value.trim();
     close();
+    keysBack();
     if (!to || to === name) return;
     try {
       const res = await api(`/sessions/${ed.id}/lsp`, { method: 'POST', body: { op: 'rename', path: ed.path, text: t.value, line, col, newName: to } });
@@ -413,7 +434,7 @@ async function checkProblems() {
 function problemsList() {
   const ed = cur;
   if (!ed?.problemList?.length) return;
-  palette({ items: ed.problemList.map((d) => ({ group: d.severity === 'error' ? 'Errors' : 'Warnings and notes', label: `Line ${d.line}`, sub: d.message, icon: 'warn', run: () => goLine(d.line) })), overlay: (node) => overlay(node), placeholder: `${ed.problemList.length} problems in ${ed.path.split('/').pop()}…` });
+  palette({ items: ed.problemList.map((d) => ({ group: d.severity === 'error' ? 'Errors' : 'Warnings and notes', label: `Line ${d.line}`, sub: d.message, icon: 'warn', run: () => goLine(d.line) })), overlay: picker, placeholder: `${ed.problemList.length} problems in ${ed.path.split('/').pop()}…` });
 }
 
 // Rest the pointer on a name: what it is, from the language server (types, signatures, docs).
