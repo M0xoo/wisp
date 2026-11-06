@@ -22,7 +22,7 @@ import { mentionBox } from './mentions.js';
 import { askNotify } from './notify.js';
 import { MACHINE_STATE, machineById, pathAt, placeName, placeOf, placesOf, projectById, projects, projectTitle, usable } from './places.js';
 import { projectList } from './project-list.js';
-import { openProjects } from './projects.js';
+import { openProjects, projectMenu } from './projects.js';
 import { runnerPicker } from './runner-picker.js';
 import { needsSetup, nudgeSetup, renderSetup } from './setup.js';
 import { accountOf, agentName, agentsAt, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt, harnessLogo, MAX_RUNNERS, modeMenu, MODES, paintRunnerBtn, runnerTip, savedAccount, savedEffort, savedModel } from './runners.js';
@@ -893,6 +893,7 @@ export function renderLaunchChips() {
         },
         label: 'Projects',
         back: $('#prompt'),
+        menu: projectMenu,
         extras: [
           { id: NO_FOLDER, label: 'No folder', icon: 'text' },
           { id: '+add', label: addOn ? `Another folder on ${placeName(addOn)}…` : 'Other folder…', icon: 'folder' },
@@ -909,6 +910,13 @@ export function renderLaunchChips() {
     if (add) openProjects({ focusAdd: true, machine: add.dataset.add || null });
     const conn = e.target.closest('[data-connect]');
     if (conn) connectMachine(conn.dataset.connect);
+  };
+  // Right-click a project: Edit project…, Remove project. No folder and a clone aren't one yet.
+  box.oncontextmenu = (e) => {
+    const chip = e.target.closest('.lp-chip[data-id]');
+    if (!chip || !projectById(chip.dataset.id)) return;
+    e.preventDefault();
+    projectMenu(chip.dataset.id, e, chip);
   };
   renderLaunchRecipes();
   paintWhereBtn();

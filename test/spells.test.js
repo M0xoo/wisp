@@ -104,6 +104,14 @@ test('the overlap pill and warning (another open task changes the same files) ar
   assert.ok(p.some((x) => /card\.overlaps/.test(x)), p.join('\n'));
 });
 
+test('the right-click menu on a project and its Edit project dialog are parts', () => {
+  assert.equal(schema.PARTS['project.menu'], '.menu.project');
+  assert.equal(schema.PARTS['project.edit'], '.project-edit');
+  assert.deepEqual(problems({ ...base0, parts: { 'project.menu': { hide: true }, 'project.edit': { style: { borderRadius: '4px' } } } }), []);
+  const p = problems({ ...base0, parts: { 'project.menus': { hide: true } } });
+  assert.ok(p.some((x) => /project\.menus/.test(x)), p.join('\n'));
+});
+
 test('the cold-cache line and its Fork button are parts, on the follow-up box and the limit card', () => {
   assert.equal(schema.PARTS.reconnecting, '#reconnecting');
   assert.equal(schema.PARTS['composer.cold'], '.composer .c-cold');
