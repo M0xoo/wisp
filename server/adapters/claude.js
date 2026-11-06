@@ -233,6 +233,8 @@ export function subagentTally() {
         parts.push(...by.values());
       }
       // A model's output from modelUsage, past what the main thread and fixed totals account for.
+      // None (modelUsage can't be split, see unsplit): the messages' snapshots aren't output either.
+      if (!models) for (const p of parts) if (!p.fixed) p.output = 0;
       const mainModel = main || models?.[0]?.model || '';
       for (const m of models || []) {
         const on = parts.filter((p) => p.model === m.model && !p.fixed);
@@ -408,6 +410,7 @@ export default {
     const subagents = subagentTally();
     let lastModels = null; // the last result's modelUsage (it adds up over the process)
     let counted; // the counters this process started from, once its first result says (see restoredFrom)
+    let unsplit = false; // the next result's modelUsage can't be told from the conversation's
     let refused = false; // an assistant message the API ended with stop_reason "refusal" (server/refusal.js)
     let early = null; // an empty result that came before our prompt was answered (see below)
     const pendingTools = new Map(); // tool_use_id -> name, to flag failed tool results
@@ -501,6 +504,9 @@ export default {
         if (counted === undefined) {
           counted = countedFrom(msg, prior, unknownPrior);
           lastModels = modelUsageOf(counted?.models) || null;
+          // Restored, from a turn that left no models: this modelUsage is the whole conversation
+          // with nothing to take off. It's still the baseline for the next result and the next run.
+          unsplit = !!counted && !counted.models?.length;
         }
         if (counted) ev.stats.costUsd = costSince(msg, counted);
         if (counted && counted !== prior && !ev.stats.costUsd) ev.stats.baseline = true; // no measure of this run: see unitsOf
@@ -526,7 +532,8 @@ export default {
         if (cacheTtlMs) ev.stats.cacheTtlMs = cacheTtlMs;
         [contextTokens, cacheTtlMs, compacted, boundary, unshrunk] = [0, 0, false, null, null]; // one process can report several results
         // modelUsage adds up over the process: this result's part is what's new since the last.
-        const models = modelsOf(msg.modelUsage, lastModels);
+        const models = unsplit ? undefined : modelsOf(msg.modelUsage, lastModels);
+        unsplit = false;
         if (msg.modelUsage) lastModels = msg.modelUsage;
         if (models) ev.stats.models = models;
         const subs = subagents.take({ models, mainOut: msg.usage?.output_tokens });

@@ -107,7 +107,7 @@ test('receipt: the offer says where Haiku pays off', () => {
 });
 
 test('receipt: the offer needs ≥40% of the output from subagents on the task’s model, a Claude turn, and the setting unset', () => {
-  const turn = (same, other, total = 100) => ({ stats: { outputTokens: total, subagents: [{ type: 'Explore', calls: 1, output: same, model: 'claude-opus-5-5', same: true }, { type: 'web-fetch', calls: 1, output: other, model: 'claude-haiku-4-5' }].filter((x) => x.output) } });
+  const turn = (same, other, total = 100) => ({ stats: { totals: {}, outputTokens: 10, models: [{ model: 'claude-opus-5-5', input: 0, output: total, cacheRead: 0, cacheWrite: 0 }], subagents: [{ type: 'Explore', calls: 1, output: same, model: 'claude-opus-5-5', same: true }, { type: 'web-fetch', calls: 1, output: other, model: 'claude-haiku-4-5' }].filter((x) => x.output) } });
   assert.equal(SUBAGENT_OFFER_AT, 0.4);
   assert.equal(offerSubagentModel(turn(40, 0), '', 'claude'), true, 'exactly 40%');
   assert.equal(offerSubagentModel(turn(39, 30), '', 'claude'), false, 'other-model subagents don’t count');
