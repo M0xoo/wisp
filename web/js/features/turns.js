@@ -42,6 +42,8 @@ import { crewFace, paintOffers } from './crew.js';
 import { keepCtx, stuffBlock } from './stuff.js';
 import { paintMarks, sentComments } from './comments.js';
 import { clashCardHtml, sideWarnRows, sideChips, sideLine, sidesMenu } from './side.js';
+import { typingLogin } from './agent-login.js';
+import { signInCard } from './sign-in-card.js';
 
 export function ctxFor(s, turn, isLatest) {
   return {
@@ -224,10 +226,12 @@ export function renderBody(id, { fresh }) {
     const revKey = `${t.rolledBackAt || 0}:${(t.changes || []).map((c) => (c.reverted ? 1 : 0)).join('')}`;
     // .env masking turned on or off (Settings → Privacy): the turn is drawn again with or without it.
     const envKey = t.changes?.some((c) => c.masked) || t.activity?.some((x) => x.masked) ? 'm' : '';
-    const key = `${t.status}${t.held?.waiting ? '-waiting' : ''}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + (s.ask?.clash?.sig || '') + (t.sideWarn?.length || '') + s.queue?.length + !!summary.watch : ''}|${subKey(s, t)}|${tx}|${isLatest ? s.goal?.status || '' : ''}|${envKey}`;
+    const key = `${t.status}${t.held?.waiting ? '-waiting' : ''}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + (s.ask?.clash?.sig || '') + (t.sideWarn?.length || '') + s.queue?.length + !!summary.watch : ''}|${subKey(s, t)}|${tx}|${isLatest ? s.goal?.status || '' : ''}|${envKey}|${t.signedOut?.stillIn ? 'still' : ''}`;
     const prev = n.turnNodes.get(t.id);
     let node = prev?.node;
-    if (!prev || prev.key !== key) {
+    // A code or key being typed into the turn's sign-in card: drawing it again would take the box away.
+    const typing = prev && isLatest && t.signedOut && typingLogin(prev.node);
+    if (!prev || (prev.key !== key && !typing)) {
       const toggle = () => {
         // A stub (the phone fetched only the latest turns): it opens once the whole task is here.
         if (t.stub) {
@@ -746,10 +750,10 @@ function renderTurn(s, t, isLatest, fold, tx) {
     // answer: the turn a Compact now under it left open keeps its look, so nothing moves on the click.
     const answer = !isLatest && s.turns.at(-1)?.by === 'compact' && t === s.turns.findLast((x) => x.by !== 'compact');
     const out = tx ? renderTranscript(s, t, ctx) : renderPresentation(t.presentation, { ...ctx, trail: true, answer });
-    if (isLatest && (t.limit || t.refusal) && s.state !== 'running') {
+    if (isLatest && (t.limit || t.refusal || t.signedOut) && s.state !== 'running') {
       const card = el('<div class="blk blk-limit"></div>');
       card.style.setProperty('--d', '110ms'); // right after the hero
-      card.append(t.limit ? limitCard(s, t) : refusalCard(s, t));
+      card.append(t.limit ? limitCard(s, t) : t.signedOut ? signInCard(s, t) : refusalCard(s, t));
       const hero = $('.blk-hero', out);
       hero ? hero.after(card) : out.prepend(card);
     }

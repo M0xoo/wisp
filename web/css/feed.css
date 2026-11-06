@@ -189,7 +189,7 @@ body.split #feed .item.open > .it-skel .sk-turns { padding-left: 0; padding-righ
   background: color-mix(in srgb, var(--tone) 9%, transparent);
 }
 .pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--tone); }
-.pill.st-partial, .pill.st-waiting, .pill.st-limit, .pill.st-refused { --tone: var(--warn); }
+.pill.st-partial, .pill.st-waiting, .pill.st-limit, .pill.st-signedOut, .pill.st-refused { --tone: var(--warn); }
 .pill.st-blocked, .pill.st-failed { --tone: var(--bad); }
 .pill.st-info { --tone: var(--accent); }
 
@@ -413,6 +413,54 @@ body.stack .t-result { display: none; }
 .b-limit.resolved .lm-acts { opacity: 0.55; pointer-events: none; }
 .lm-note { margin: 8px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
 @media (pointer: coarse) { .lm-acts button, .lm-acts a { min-height: 44px; } }
+/* A signed-out turn's sign-in card (features/sign-in-card.js). The row keeps one height through every
+   state: Sign in, Cancel and Try again share the first slot, and what it says sits in the row. The
+   login's own link, code and box follow, as part of the card rather than a box in it. */
+.b-signin .sx-login-ctl { display: contents; }
+.b-signin .lm-acts .primary, .b-signin .lm-acts [data-login-cancel], .b-signin .sx-login.bad .primary { min-width: 88px; justify-content: center; }
+.b-signin .lm-acts [data-login-cancel] { border: 1px solid var(--line-2); } /* fills the slot Sign in had */
+.b-signin .lm-acts button { max-width: 100%; min-width: 0; }
+.b-signin .si-lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-signin .si-said { margin: 0 0 0 auto; min-height: 30px; font-size: 13px; }
+.b-signin .si-said[hidden] { display: none; }
+.b-signin .si-said.sx-login-wait { order: -1; margin-left: 0; }
+.b-limit.b-signin.resolved .lm-acts { opacity: 1; } /* what it says stays readable: only the buttons are off */
+.b-signin .lm-acts button:disabled { opacity: 0.55; }
+.b-signin .sx-login { margin: 12px 0 0; padding: 12px 0 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; }
+.b-signin .sx-login-code { padding: 0 6px 0 12px; }
+.b-signin .sx-login-code .mono { font-size: 14px; }
+.b-signin .si-check { min-height: 32px; } /* the height of the box it replaces */
+.b-signin .sx-login.bad button { align-self: flex-start; }
+.b-signin.si-bare .lm-acts { display: none; }
+.b-signin.si-bare .sx-login { margin: 0; padding: 0; border-top: 0; flex-direction: column-reverse; }
+.b-signin .si-sk { display: block; border-radius: 8px; background: linear-gradient(90deg, var(--bg-2) 0%, var(--line) 40%, var(--bg-2) 80%) 0 0 / 300% 100%; animation: shimmer 1.4s linear infinite; }
+.b-signin .si-sk-line { width: 60%; height: 20px; }
+.b-signin .si-sk-btn { width: 183px; height: 30px; }
+.b-signin .si-sk-box { min-height: 32px; }
+.b-signin .si-sk-code { width: 180px; min-height: 34px; }
+.b-signin .si-sk-para { width: 90%; height: 20px; }
+.b-signin .si-sk-key { min-height: 32px; }
+@media (prefers-reduced-motion: reduce) { .b-signin .si-sk { animation: none; } }
+@media (max-width: 720px) {
+  .b-signin .sx-login-row .input { flex: 1 1 100%; min-width: 0; }
+  .b-signin .sx-key .input { flex: 1 1 0; }
+  .b-signin .sx-login-row .btn-link, .b-signin [data-login-form] button { flex: 1 1 100%; justify-content: center; }
+  .b-signin .si-sk-btn { width: 100%; }
+  .b-signin .si-start { min-height: 40px; } /* the step it gives way to takes two lines here */
+  .b-signin .si-sk-para { width: 100%; height: 60px; }
+  .b-signin .si-check, .b-signin .si-sk-box { min-height: 70px; } /* the box and Continue, one above the other */
+  .b-signin .si-check { align-items: flex-start; }
+  .b-signin .si-check .spin { margin-top: 3px; }
+}
+@media (pointer: coarse) {
+  .b-signin .si-said, .b-signin .sx-login .primary, .b-signin .sx-login .ghost, .b-signin .sx-login .btn-link, .b-signin .sx-login .icon-btn { min-height: 44px; }
+  .b-signin .sx-login .icon-btn { min-width: 44px; }
+  .b-signin .sx-login .input { height: 44px; font-size: 16px; } /* iOS zooms into anything smaller */
+  .b-signin .si-check, .b-signin .si-sk-btn, .b-signin .si-sk-box, .b-signin .si-sk-key, .b-signin .si-sk-code { min-height: 44px; }
+}
+@media (pointer: coarse) and (max-width: 720px) {
+  .b-signin .si-check, .b-signin .si-sk-box { min-height: 96px; }
+}
 .b-blocked .q-head { margin-bottom: 8px; }
 .b-blocked.resolved .q-head { color: var(--muted); }
 .bl-state { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-weight: 500; color: var(--muted); }

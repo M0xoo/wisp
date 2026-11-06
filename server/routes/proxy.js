@@ -93,4 +93,9 @@ export function register(r, app) {
 
   r.route(METHODS, '/sessions/:id', proxy, remote);
   r.route(METHODS, '/sessions/:id/:action', proxy, remote);
+  // A failed turn's sign-in card: arming and Try again happen on the wisp where the login runs.
+  r.route('POST', '/sessions/:id/turns/:turn/:step', async (c) => {
+    const at = splitId(c.params.id);
+    c.send(200, await machines.json(at.machine, 'POST', `/sessions/${at.id}/turns/${encodeURIComponent(c.params.turn)}/${encodeURIComponent(c.params.step)}`, await c.body()));
+  }, remote);
 }

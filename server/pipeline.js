@@ -43,6 +43,9 @@ export class Pipeline {
   wants(session, turn, ev) {
     const a = session.auto;
     if (!a || session.parentId || ev.stopped || session.mode === 'plan') return false;
+    // Signed out: the turn's card asks you to sign in (runner #signedOut). Another harness or model
+    // wouldn't be what you asked for, and nobody chose it.
+    if (turn.signedOut) return false;
     // At its limit: not the model's fault, so the task moves on whatever the hand-over setting says.
     if (ev.isError) return !!infraError(ev.text) || (this.settings().escalate && this.#canEscalate(session));
     return a.strategy === 'best2';

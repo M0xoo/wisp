@@ -554,6 +554,26 @@ Every page check also fails on an uncaught page error or a `console.error`.
   - 5: that block keeps its `$` line and **Run**.
 - **Suite** (`test/failure-screen.test.js`), **Manual** (real Chrome)
 
+### WEB-57b · Sign in from the failed turn
+- **Preconditions:** the fake harness with `FAKE_SIGNED_OUT=<file>` (the first run is signed out, later ones work) and `fake-login` as the Claude CLI's login.
+- **Steps:**
+  1. Start a Claude task. Open it when it ends.
+  2. Press **Sign in**, open the link, paste the code in the card. Type part of it first and let a run elsewhere update the page.
+  3. Repeat on a task, but sign in from Settings → Agents instead; go back to the task.
+  4. Type `/login` in a signed-out task's reply box; then in a healthy task's.
+  5. Press **Sign in**, then **Mark done** on the task, then finish the login.
+  6. A task whose run says signed out while `claude auth status` says `loggedIn: true`.
+  7. A task on a Claude CLI below 2.1.318 (`FAKE_CLI_VERSION`).
+- **Expected:**
+  - 1: *Claude Code is signed out*, the real line in the terminal block, **Sign in** there at first paint. The row reads *Signed out* in amber. Auto doesn't move the task.
+  - 2: the paste box keeps its text and focus. Sign in, Cancel and Try again share one slot; from *Starting the sign-in…* through the link to *Checking the code…* the card keeps its height. *Continue* lights up once there's a code. On a phone the box and *Continue* each take the full width and stay above the keyboard. *Signed in. Sending your request again…*, then one new turn in the same conversation.
+  - 3: no run starts by itself. The card says *Signed in* with **Try again**, which sends it once.
+  - 4: nothing is sent to the agent. The signed-out task's sign-in starts; the healthy task opens Settings → Agents.
+  - 5: *Signed in. Sending your request again…*, no new turn, then within about 8 s *Signed in* with **Try again**, unlocked.
+  - 6: moments after the run ends the hero becomes *Claude Code couldn’t use its sign-in*, the row reads *Failed*, and the card has **Try again** and **Sign in again**, no **Sign in**. The raw line stays.
+  - 7: the card carries the note about Claude Code before 2.1.318.
+- **Suite** (`test/sign-in.test.js`), **Manual** (real Chrome)
+
 ### WEB-58 · No connection, in wisp's words
 - **Preconditions:** a finished task open, then the browser offline (DevTools, or `ctx.setOffline(true)`).
 - **Steps:**

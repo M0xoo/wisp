@@ -251,7 +251,7 @@ export const PARTS = {
   'card.sub': '#feed .it-sub',
   'card.live': '#feed .q-live',
   'card.side': '#feed .it-side',
-  'card.status': '#feed .it-side .pill[class*="st-"]', // Finished, Blocked, Failed, At limit, Refused…
+  'card.status': '#feed .it-side .pill[class*="st-"]', // Finished, Blocked, Failed, At limit, Signed out, Refused…
   'card.pr': '#feed .it-side .pill.pr',
   // Another open task changes the same files: the pill, and the warning above the follow-up box.
   'card.overlap': '#feed .it-side .pill.overlap',
@@ -363,6 +363,8 @@ export const PARTS = {
   // A turn its harness turned down (server/refusal.js): the card under its hero (Hand to <another
   // harness>, with the same prompt). Not a question: the task goes on without it, so it can be hidden.
   'turn.refusal': '#feed .turn .b-refusal',
+  // A turn whose harness is signed out: the card under its hero. Not a question either: the task goes on without it.
+  'turn.signIn': '#feed .turn .b-signin',
   'split.actions': 'body.split #feed .item.open .it-bar > .it-actions',
   // Take over in wisp: the task's terminal (a sheet, over the open task in split view, full
   // screen on a phone), its header, the screen and the phone's row of keys (Esc, Tab, Ctrl, arrows).

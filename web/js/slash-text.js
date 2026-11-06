@@ -10,11 +10,12 @@ export const SLASH = [
   { name: 'bug', args: 'what happened', hint: 'Report a bug in wisp to the wisp team', bare: true }, // alone: opens the dialog on Something broke
   { name: 'draft', args: 'task', hint: 'Save a new task to Drafts, to start when you want' },
   { name: 'after', args: 'task, then prompt', hint: 'Start a new task once that task is done' },
+  { name: 'login', args: '', hint: 'Sign in to this task’s harness', bare: true }, // wisp's own, never sent to the agent
 ];
 // The new-task box: there's no run to ask on the side (or talk over) yet, and a goal starts a task. /terminal starts
 // one in the agent's own terminal, whatever Settings → Babysitting mode says.
 export const HOME_SLASH = [
-  ...SLASH.filter((c) => c.name !== 'btw' && c.name !== 'side').map((c) => (c.name === 'goal' ? { ...c, hint: 'Start a task that keeps going until it holds' } : c)),
+  ...SLASH.filter((c) => c.name !== 'btw' && c.name !== 'side' && c.name !== 'login').map((c) => (c.name === 'goal' ? { ...c, hint: 'Start a task that keeps going until it holds' } : c)),
   { name: 'terminal', args: 'task', hint: 'Start it in the agent’s own terminal (Babysitting mode)' },
   { name: 'sandbox', args: 'task', hint: 'Run it in a fresh box of its own on your wisp Grid' },
 ];
@@ -35,6 +36,9 @@ export function terminalAsk(text) {
   const t = String(text || '').trim();
   return TERMINAL_CMD.test(t) ? t.replace(TERMINAL_CMD, '').trim() : null;
 }
+
+// A bare /login in a task's reply box: wisp's sign-in, not a message for the agent.
+export const isLogin = (text) => /^\/login$/i.test(String(text || '').trim());
 
 const BTW_CMD = /^\/btw(?:\s+|$)/i;
 export const isBtw = (text) => BTW_CMD.test(String(text || '').trimStart());

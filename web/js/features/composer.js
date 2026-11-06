@@ -2,7 +2,7 @@
 // side questions (/btw), which don't interrupt the run.
 
 import { esc } from '../md.js';
-import { btwQuestion, goalAsk, isBtw, isGoalDrop, SIDE_HINT, sideAsk, SLASH, SPELL_HINT, spellAsk } from '../slash-text.js';
+import { btwQuestion, goalAsk, isBtw, isLogin, isGoalDrop, SIDE_HINT, sideAsk, SLASH, SPELL_HINT, spellAsk } from '../slash-text.js';
 import { sideable, startSide } from './side.js';
 
 // A follow-up box's / menu: /side only where it can start one, /goal not on a side discussion.
@@ -31,6 +31,8 @@ import { slashMenu } from './slash.js';
 import { renderBody } from './turns.js';
 import { paintCard, runAction, spellProp } from './spells.js';
 import { spellSlash } from './launcher.js';
+import { CAN } from './agent-login.js';
+import { startSignIn } from './sign-in-card.js';
 import { cast } from './spell-ui.js';
 import { canLead, copiesOf, memberLabel, paintTeamBtn, teamEditor } from './team.js';
 import { coldLine, coldLineShort, coldReply } from '../cold-cache.js';
@@ -691,6 +693,13 @@ export async function sendReply(id, text, { confirm = false } = {}) {
     if (!goal) return editGoal(id, ta);
     if (isGoalDrop(goal)) return S.sessions.get(id)?.goal ? goalAction(id, 'drop') : toast('This task has no goal to drop.');
     return setGoal(id, goal);
+  }
+  // /login: the card of a turn that failed signed out, else Settings. A harness wisp can't sign in hears it as a message.
+  if (isLogin(text) && CAN.has(s.turns.at(-1)?.agent || s.agent)) {
+    if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
+    S.drafts.delete(id);
+    if (!startSignIn(n?.card)) import('./settings.js').then((m) => m.openSettings({ pane: s.machine ? 'machines' : 'agents' }));
+    return;
   }
   if (isFeedback(text)) {
     if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));

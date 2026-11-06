@@ -9,6 +9,10 @@
 //
 // A harness with several accounts (server/accounts.js) signs each one in on its own: the same login
 // with that account's folder in the env, kept apart by `account` (none or 'default': the CLI's own).
+//
+// A run that fails because its harness is signed out says so in the CLI's own words: `authFailed`
+// on each harness, read by signedOutBy (server/runner.js #signedOut), and the turn shows a sign-in
+// card that sends the request again once this finishes (`onSignedIn`).
 
 import { spawn } from './proc.js'; // runs npm's .cmd shims on Windows
 import fs from 'node:fs';
@@ -20,22 +24,26 @@ import { shq } from './shq.js';
 const TIMEOUT_MS = 15 * 60_000;
 const KEEP_MS = 5 * 60_000;
 const MAX_OUT = 8000;
+// Longer than this and a failed run is quoting the words, not saying them: signed-out errors are one
+// or two lines, and agy's, the longest, is about 800 with its sign-in link.
+const AUTH_FAILED_MAX = 1200;
 
 // What each harness's login is. bin: the CLI (WISP_<ID>_BIN overrides, as the adapters do).
 // signedIn(out): true, false, or null when the answer isn't one we know (then nothing is hidden).
 // keys: env vars that sign the CLI in without a login. logout: the CLI's sign-out arguments, or a
-// function that does it when the CLI has no such command.
+// function that does it when the CLI has no such command. authFailed: what a run says when it's
+// signed out, from real runs on an empty HOME and the CLI's own strings (signedOutBy).
 const said = (out) => (/not (logged|signed) in/i.test(out) ? false : /(logged|signed) in/i.test(out) ? true : null);
 export const LOGINS = {
-  claude: { bin: 'claude', env: 'WISP_CLAUDE_BIN', args: ['auth', 'login', '--claudeai'], logout: ['auth', 'logout'], status: ['auth', 'status'], keys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX'], signedIn: (out) => ({ true: true, false: false })[/"loggedIn":\s*(true|false)/.exec(out)?.[1]] ?? null },
-  codex: { bin: 'codex', env: 'WISP_CODEX_BIN', args: ['login', '--device-auth'], logout: ['logout'], status: ['login', 'status'], keys: ['OPENAI_API_KEY', 'CODEX_API_KEY'], signedIn: said },
-  cursor: { bin: 'cursor-agent', env: 'WISP_CURSOR_BIN', args: ['login'], logout: ['logout'], status: ['status'], keys: ['CURSOR_API_KEY'], signedIn: said, extraEnv: { NO_OPEN_BROWSER: '1' } },
-  grok: { bin: 'grok', env: 'WISP_GROK_BIN', args: ['login', '--device-auth'], logout: ['logout'], status: ['models'], keys: ['XAI_API_KEY'], signedIn: (out) => (/not authenticated/i.test(out) ? false : /logged in/i.test(out) ? true : null) },
+  claude: { bin: 'claude', env: 'WISP_CLAUDE_BIN', args: ['auth', 'login', '--claudeai'], logout: ['auth', 'logout'], status: ['auth', 'status'], keys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX'], signedIn: (out) => ({ true: true, false: false })[/"loggedIn":\s*(true|false)/.exec(out)?.[1]] ?? null, authFailed: /^(?:Not logged in|Login expired|OAuth token revoked|Login reached its time limit|Authentication required|Failed to authenticate)\b|please run \/login|run \/login to (?:sign in|re-?authenticate)|oauth (?:access )?token has (?:expired|been revoked)|authentication_error|authentication_failed/im },
+  codex: { bin: 'codex', env: 'WISP_CODEX_BIN', args: ['login', '--device-auth'], logout: ['logout'], status: ['login', 'status'], keys: ['OPENAI_API_KEY', 'CODEX_API_KEY'], signedIn: said, authFailed: /could not be refreshed|please (?:log out and )?sign in again|no codex credentials|run `?codex login|\b401 Unauthorized\b|refresh_token_invalidated/i },
+  cursor: { bin: 'cursor-agent', env: 'WISP_CURSOR_BIN', args: ['login'], logout: ['logout'], status: ['status'], keys: ['CURSOR_API_KEY'], signedIn: said, extraEnv: { NO_OPEN_BROWSER: '1' }, authFailed: /^(?:Error: )?(?:Authentication required|Not logged in)\b|run '(?:cursor-)?agent login'/im },
+  grok: { bin: 'grok', env: 'WISP_GROK_BIN', args: ['login', '--device-auth'], logout: ['logout'], status: ['models'], keys: ['XAI_API_KEY'], signedIn: (out) => (/not authenticated/i.test(out) ? false : /logged in/i.test(out) ? true : null), authFailed: /^(?:Error: )?Not signed in\b|run `?grok login|run \/login to|re-authenticate/im },
   // agy has no login command: a first prompt without a login prints Google's link and reads the
   // code back, then answers it. Its own wait for the code is short (about a minute). It only asks
   // on a terminal, so on Linux (a wisp Grid) it gets one from script(1). Signing out is only /logout
   // inside its own TUI, so wisp removes the login where agy keeps it.
-  antigravity: { bin: 'agy', env: 'WISP_ANTIGRAVITY_BIN', args: ['-p', 'Reply with OK.'], tty: true, logout: () => forgetAgy(), status: ['models'], keys: ['GEMINI_API_KEY'], signedIn: (out, code) => (/sign in|authenticat/i.test(out) ? false : code === 0 ? true : null) },
+  antigravity: { bin: 'agy', env: 'WISP_ANTIGRAVITY_BIN', args: ['-p', 'Reply with OK.'], tty: true, logout: () => forgetAgy(), status: ['models'], keys: ['GEMINI_API_KEY'], signedIn: (out, code) => (/sign in|authenticat/i.test(out) ? false : code === 0 ? true : null), authFailed: /authentication (?:required|failed or timed out|timed out)|not logged into antigravity/i },
   // Not a harness: GitHub for git push and pull requests (Ship it), on a box with no other way in.
   // Afterwards git uses gh's login, and commits get your GitHub name if git has none.
   gh: { bin: 'gh', env: 'WISP_GH_BIN', tool: true, args: ['auth', 'login', '--web', '--hostname', 'github.com', '--git-protocol', 'https', '--skip-ssh-key'], logout: ['auth', 'logout', '--hostname', 'github.com'], status: ['auth', 'status', '--hostname', 'github.com'], keys: ['GH_TOKEN', 'GITHUB_TOKEN'], signedIn: said, after: () => gitFromGh() },
@@ -55,8 +63,18 @@ export const KEYS = {
     ],
     // opencode's data folder (xdg-basedir: the same rule on every OS).
     file: (env = process.env, home = os.homedir()) => path.join(env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'opencode', 'auth.json'),
+    // A bad key. A paid provider with no key at all says 'Unexpected server error', which can't be
+    // told from any other: that stays an ordinary failure.
+    authFailed: /invalid credential|invalid api key|\b401\b|unauthorized/i,
   },
 };
+
+// Whether a failed run's text says its harness is signed out. Copilot has no sign-in here, so no card.
+export function signedOutBy(agent, text) {
+  const words = LOGINS[agent]?.authFailed || KEYS[agent]?.authFailed;
+  const t = String(text ?? '');
+  return !!words && t.length <= AUTH_FAILED_MAX && words.test(t);
+}
 
 function readAuth(file) {
   let text;
@@ -208,7 +226,9 @@ export function whoIs(id, out, env = process.env) {
 }
 
 // accounts: server/accounts.js, for harnesses with more than one (null: only the CLI's own).
-export function createAgentLogin({ onChange = () => {}, onDone = () => {}, accounts = null } = {}) {
+// onDone(id): its sign-in changed either way (logout and removing a key too). onSignedIn(id, acc): a
+// login or a key just finished, which is what a failed run's sign-in card waits for.
+export function createAgentLogin({ onChange = () => {}, onDone = () => {}, onSignedIn = () => {}, accounts = null } = {}) {
   const flows = new Map(); // harness id, or id/account -> flow
   const keyOf = (id, acc) => (acc && acc !== 'default' ? `${id}/${acc}` : id);
   // The account's folder in the env (made ready first); {} for the CLI's own.
@@ -237,7 +257,13 @@ export function createAgentLogin({ onChange = () => {}, onDone = () => {}, accou
     Object.assign(f, { state, error });
     if (f.child && f.child.exitCode === null) f.child.kill();
     changed(id, acc);
-    if (state === 'done') Promise.resolve(LOGINS[id].after?.()).catch(() => {}).finally(() => onDone(id));
+    if (state === 'done')
+      Promise.resolve(LOGINS[id].after?.())
+        .catch(() => {})
+        .finally(() => {
+          onDone(id);
+          onSignedIn(id, acc);
+        });
     setTimeout(() => flows.get(keyOf(id, acc)) === f && flows.delete(keyOf(id, acc)), KEEP_MS).unref?.();
   }
 
@@ -341,6 +367,7 @@ export function createAgentLogin({ onChange = () => {}, onDone = () => {}, accou
     setKey(id, pid, key) {
       const v = setKey(id, pid, key);
       onDone(id);
+      onSignedIn(id, '');
       return v;
     },
     removeKey(id, pid) {

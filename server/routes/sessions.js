@@ -474,6 +474,28 @@ export function register(r, app) {
     }),
   );
 
+  // A turn that failed signed out (runner #signedOut): its card's Sign in says the login or key
+  // about to start should send the request again. Answering { armed: false } still lets it sign in.
+  const busyTerminal = (s) => app.terms.get(s.id)?.code === null;
+  r.route(
+    'POST',
+    '/sessions/:id/turns/:turnId/sign-in',
+    one((c, s) => c.send(200, { armed: !busyTerminal(s) && runner.armSignIn(s, c.params.turnId) })),
+  );
+  // Try again, or Continue on <account>, from that card. Done already (another tab, the sign-in
+  // itself): a quiet { rerun: false }.
+  r.route(
+    'POST',
+    '/sessions/:id/turns/:turnId/rerun',
+    once(async (c, s) => {
+      const { account } = await c.body();
+      const signedOut = s.turns.find((t) => t.id === c.params.turnId)?.signedOut;
+      if (account !== undefined && !signedOut?.others?.some((a) => a.id === account)) return c.send(400, { error: 'Pick one of the accounts on the card.' });
+      if (busyTerminal(s)) return c.send(409, { error: 'This task is open in a terminal. Carry on there, or end the terminal first.' });
+      c.send(200, await runner.rerunSignedOut(s, c.params.turnId, { account }));
+    }),
+  );
+
   // Compact now (web/js/cold-cache.js): the card's own action on a large warm task. It's what you
   // do near the limit, so it doesn't go through app.guard: no check, no ack, never a held turn.
   // When it isn't offered it's refused. A hand-typed /compact stays a guarded follow-up.

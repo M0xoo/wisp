@@ -62,7 +62,7 @@ body.share-view { margin: 0; min-height: 100dvh; background: var(--bg); color: v
 .sv-head.split-head { padding: 10px 0; position: sticky; top: 48px; z-index: 5; background: var(--bg); }
 .sv-head .sv-back { margin-left: -6px; }
 .sv-head .q-dot { --pc: var(--good); background: var(--pc); }
-.sv-head .q-dot:is(.st-partial, .st-blocked, .st-failed, .st-limit, .st-refused) { --pc: var(--warn); }
+.sv-head .q-dot:is(.st-partial, .st-blocked, .st-failed, .st-limit, .st-signedOut, .st-refused) { --pc: var(--warn); }
 .sv-turns { padding-top: 22px; }
 .sv-turns .turn { scroll-margin-top: 120px; }
 .sv-turns .ask-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; }

@@ -16,13 +16,13 @@
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
-import { $, icon } from '../core/dom.js';
+import { $, el, icon } from '../core/dom.js';
 import { S, setAgents } from '../core/state.js';
 import { toast, toastError } from '../ui/toast.js';
 import { copy } from '../blocks.js';
 
 export const CAN = new Set(['claude', 'codex', 'cursor', 'grok', 'antigravity', 'gh', 'opencode']);
-const KEYED = new Set(['opencode']);
+export const KEYED = new Set(['opencode']);
 const NAMES = { claude: 'Claude', codex: 'ChatGPT', grok: 'xAI', antigravity: 'Google', gh: 'GitHub' };
 const scopes = new Map(); // place -> { logins: Map(harness[@account] -> state), drafts: Map(harness[@account] -> pasted code) }
 const of = (scope) => {
@@ -35,17 +35,34 @@ const key = (id, acc) => (accKey(acc) ? `${id}@${accKey(acc)}` : id);
 const path = (scope, id, rest = '', acc = '') => `${scope ? `/machines/${scope}` : ''}/agents/${id}/${rest || 'login'}${accKey(acc) ? `?account=${encodeURIComponent(accKey(acc))}` : ''}`;
 const busy = (l) => l?.state === 'running' || l?.state === 'waiting';
 const at = (scope, id, acc = '') => `data-scope="${esc(scope)}" data-agent="${esc(id)}" data-account="${esc(accKey(acc))}"`;
+export const loginAt = at; // a button of your own that wireLogins answers (`data-login`)
 
 // acc: one account's control, in its row of Settings → Agents. That row says "Signed out" itself
 // and keeps Sign out in its ⋯ menu, so the control is only Sign in or Cancel.
-export const loginControl = (id, scope = '', acc) => (CAN.has(id) ? `<span class="sx-login-ctl" ${at(scope, id, acc)} data-login-ctl>${control(id, scope, acc)}</span>` : '');
+// card: the one on a signed-out turn (features/sign-in-card.js), at the size of the buttons beside it.
+export const loginControl = (id, scope = '', acc, card = false) => (CAN.has(id) ? `<span class="sx-login-ctl" ${at(scope, id, acc)} data-login-ctl${card ? '="card"' : ''}>${control(id, scope, acc, card)}</span>` : '');
 export const loginState = (id, scope = '', acc = '') => of(scope).logins.get(key(id, acc)) || {};
+// A failed run said it's signed out (turn: its id), so Sign in shows at first paint, before the
+// look-up, and stays when the CLI can't say (signedIn: null). Once per turn: a repaint of the turn
+// keeps what's known since, in the same state as the link, the code and the draft.
+export function seedSignIn(scope, id, acc = '', { turn, open } = {}) {
+  const { logins } = of(scope);
+  const was = logins.get(key(id, acc)) || {};
+  if (was.seeded === turn) return;
+  const { signedIn, ...rest } = was; // eslint-disable-line no-unused-vars
+  logins.set(key(id, acc), { ...rest, seeded: turn, ...(open && { open: true }) });
+}
 
-function control(id, scope, acc) {
+function control(id, scope, acc, card) {
   const l = of(scope).logins.get(key(id, acc)) || {};
+  if (card) {
+    if (busy(l)) return `<button class="ghost sm" data-login-cancel ${at(scope, id, acc)}>Cancel</button>`;
+    // Failed: the panel has Try again, and two buttons would do the same thing.
+    return l.signedIn === true || l.state === 'failed' ? '' : `<button class="primary sm" data-login ${at(scope, id, acc)}>${icon('lock')}Sign in</button>`;
+  }
   if (acc !== undefined) {
     if (busy(l)) return `<button class="ghost xs" data-login-cancel ${at(scope, id, acc)}>Cancel</button>`;
-    const out = l.signedIn === false || (l.signedIn !== true && accountOut(scope, id, acc));
+    const out = l.signedIn === false || (l.signedIn !== true && (l.seeded || accountOut(scope, id, acc)));
     return out ? `<button class="primary xs" data-login ${at(scope, id, acc)}>Sign in</button>` : '';
   }
   if (KEYED.has(id)) {
@@ -61,27 +78,46 @@ function control(id, scope, acc) {
   return '';
 }
 
-export function loginPanel(id, scope = '', acc = '') {
+// What comes after 'Starting the sign-in…' on the card, so the steps land in a box already that size.
+const PASTES_BACK = new Set(['claude', 'antigravity']);
+const SHOWS_CODE = new Set(['codex', 'grok', 'gh']);
+const startingShape = (id) => {
+  const step = '<span class="si-sk si-sk-line"></span>';
+  const btn = '<span class="si-sk si-sk-btn"></span>';
+  if (PASTES_BACK.has(id)) return `${btn}${step}<span class="si-sk si-sk-box"></span>`;
+  if (SHOWS_CODE.has(id)) return `${btn}${step}<span class="si-sk si-sk-code"></span>${step}`;
+  return btn;
+};
+
+// card: on a signed-out turn. It sits in the card rather than in a row, so it holds its shape
+// through the states: placeholders while starting, a numbered step for the paste, and one primary.
+export function loginPanel(id, scope = '', acc = '', card = false) {
   if (!CAN.has(id)) return '';
   const { logins, drafts } = of(scope);
   const l = logins.get(key(id, acc)) || {};
-  const attrs = `${at(scope, id, acc)} data-login-panel`;
-  if (KEYED.has(id)) return keysPanel(id, scope, l, attrs);
+  const attrs = `${at(scope, id, acc)} data-login-panel${card ? ' data-card' : ''}`;
+  if (KEYED.has(id)) return keysPanel(id, scope, l, attrs, card);
   if (!busy(l) && l.state !== 'failed') return `<div class="sx-login" ${attrs} hidden></div>`;
-  if (l.state === 'failed') return `<div class="sx-login bad" ${attrs}><p>${esc(l.error || 'Sign-in didn’t finish.')}</p><button class="ghost sm" data-login ${at(scope, id, acc)}>Try again</button></div>`;
+  if (l.state === 'failed') return `<div class="sx-login bad" ${attrs}><p>${esc(l.error || 'Sign-in didn’t finish.')}</p><button class="${card ? 'primary' : 'ghost'} sm" data-login ${at(scope, id, acc)}>Try again</button></div>`;
   // Claude shows a code on its page to paste back here; Codex and GitHub show one to type there.
   const paste = (id === 'claude' && !l.checking) || l.needsInput;
+  const draft = drafts.get(key(id, acc)) || '';
+  // On the card the step keeps its line through Checking the code, so the panel doesn't shrink.
+  const pasteStep = card && l.url && !l.code && (paste || l.checking) ? '<p><b>2.</b> Paste the code it shows you:</p>' : '';
   return `<div class="sx-login" ${attrs}>
-      ${l.url ? '' : '<p class="sx-login-wait"><i class="spin"></i>Starting the sign-in…</p>'}
+      ${l.url ? '' : `<p class="sx-login-wait si-start"><i class="spin"></i>Starting the sign-in…</p>${card ? startingShape(id) : ''}`}
       ${l.url ? `<p><b>1.</b> Open the sign-in page and sign in${NAMES[id] ? ` with your ${NAMES[id]} account` : ''}.</p><div class="sx-login-row"><a class="primary sm btn-link" href="${esc(l.url)}" target="_blank" rel="noopener">${icon('external')}Open the sign-in page</a></div>` : ''}
       ${l.code ? `<p><b>2.</b> Enter this code there:</p><div class="sx-login-code"><span class="mono">${esc(l.code)}</span><button class="icon-btn" data-login-copy="${esc(l.code)}" title="Copy the code">${icon('copy')}</button></div><p class="sx-login-wait"><i class="spin"></i>Waiting for you to finish there…</p>` : ''}
-      ${l.url && l.checking && !l.needsInput ? '<p class="sx-login-wait"><i class="spin"></i>Checking the code…</p>' : ''}
-      ${l.url && paste && !l.code ? `<form class="sx-login-row" data-login-form ${at(scope, id, acc)}><input class="input mono" name="code" placeholder="Paste the code the page shows" autocomplete="off" spellcheck="false" value="${esc(drafts.get(key(id, acc)) || '')}"><button class="primary sm" type="submit">Continue</button></form>` : ''}
+      ${pasteStep}
+      ${l.url && l.checking && !l.needsInput ? '<p class="sx-login-wait si-check"><i class="spin"></i>Checking the code…</p>' : ''}
+      ${l.url && paste && !l.code ? `<form class="sx-login-row" data-login-form ${at(scope, id, acc)}><input class="input mono" name="code" placeholder="${card ? 'Paste the code here' : 'Paste the code the page shows'}" aria-label="Code from the sign-in page" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(draft)}"><button class="primary sm" type="submit"${card && !draft.trim() ? ' disabled' : ''}>Continue</button></form>` : ''}
     </div>`;
 }
 
 // A key per provider: saved ones can be removed, the rest have a box to paste one into.
-function keysPanel(id, scope, l, attrs) {
+function keysPanel(id, scope, l, attrs, card) {
+  // On the card it's open from the start: its shape until the look-up answers.
+  if (card && l.open && !l.providers) return `<div class="sx-login" ${attrs}><span class="si-sk si-sk-para"></span><span class="si-sk si-sk-key"></span><span class="si-sk si-sk-key"></span></div>`;
   if (!l.open || !l.providers) return `<div class="sx-login" ${attrs} hidden></div>`;
   const site = String(l.url || '').replace(/^https?:\/\//, '');
   return `<div class="sx-login" ${attrs}>
@@ -157,15 +193,24 @@ const accountChanged = (scope) => !scope && refreshAgents();
 export const typingLogin = (box) => !!document.activeElement?.closest?.('[data-login-form], [data-key-form]') && box.contains(document.activeElement);
 
 // Buttons, the paste box and updates for every place shown in box. places(): [[scope, [ids]]]; an
-// id may be `harness@account` for one account's sign-in.
-export function wireLogins(box, places) {
+// id may be `harness@account` for one account's sign-in. arm(scope, id, acc): awaited before a login
+// or a key goes to the server; if it throws, neither does.
+export function wireLogins(box, places, { arm } = {}) {
   const repaint = (scope, id, acc = '') => {
     const sel = `[data-scope="${CSS.escape(scope)}"][data-agent="${CSS.escape(id)}"][data-account="${CSS.escape(accKey(acc))}"]`;
     const panel = $(`${sel}[data-login-panel]`, box);
-    if (panel && ![...panel.querySelectorAll('form')].some((f) => f.contains(document.activeElement))) panel.outerHTML = loginPanel(id, scope, acc);
+    if (panel && ![...panel.querySelectorAll('form')].some((f) => f.contains(document.activeElement))) {
+      // Only when it changed: the CLI's output moves on between steps, and a redraw restarts the spinner.
+      const next = el(loginPanel(id, scope, acc, panel.hasAttribute('data-card')));
+      if (!next.isEqualNode(panel)) panel.replaceWith(next);
+    }
     const ctl = $(`${sel}[data-login-ctl]`, box);
-    // An account's row has its own control (only Sign in / Cancel); the harness row the full one.
-    if (ctl) ctl.innerHTML = control(id, scope, ctl.closest('[data-acc-row]') ? acc : undefined);
+    if (ctl) {
+      const had = ctl.contains(document.activeElement);
+      // An account's row has its own control (only Sign in / Cancel); the harness row the full one.
+      ctl.innerHTML = control(id, scope, ctl.closest('[data-acc-row]') ? acc : undefined, ctl.dataset.loginCtl === 'card');
+      if (had) $('button', ctl)?.focus({ preventScroll: true }); // Sign in became Cancel: the keys stay on it
+    }
   };
   const set = (scope, id, v, acc = '') => {
     const { logins } = of(scope);
@@ -193,9 +238,13 @@ export function wireLogins(box, places) {
     };
     polls.set(k, setTimeout(tick, 1200));
   };
-  const load = (scope, id, acc = '') =>
+  // A look-up that started before Sign in or Cancel may land after it, and would say 'idle' over a
+  // login that's running: the click's own answer has the news.
+  let moves = 0;
+  const load = (scope, id, acc = '', seen = moves) =>
     api(path(scope, id, KEYED.has(id) ? 'keys' : '', acc))
       .then((v) => {
+        if (seen !== moves) return;
         set(scope, id, v, acc);
         if (busy(v)) follow(scope, id, acc);
       })
@@ -237,12 +286,15 @@ export function wireLogins(box, places) {
       }
       if (b.matches('[data-login]')) {
         // At once: the panel, filled in as the CLI talks.
+        moves++;
         set(scope, id, { state: 'running', url: '', code: '', error: '', needsInput: false, checking: false }, acc);
+        await arm?.(scope, id, acc);
         set(scope, id, await api(path(scope, id, '', acc), { method: 'POST', body: {} }), acc);
         follow(scope, id, acc);
       } else if (b.matches('[data-login-cancel]')) {
         // At once: 'Starting the sign-in…' and Cancel go. The view back (and the 'agent-login' event,
         // for a sign-in cancelled elsewhere) says 'cancelled' too.
+        moves++;
         set(scope, id, { state: 'cancelled', url: '', code: '', needsInput: false, checking: false }, acc);
         set(scope, id, await api(path(scope, id, '', acc), { method: 'DELETE' }), acc);
       } else {
@@ -267,7 +319,10 @@ export function wireLogins(box, places) {
   });
   box.addEventListener('input', (e) => {
     const f = e.target.closest('[data-login-form]');
-    if (f) of(f.dataset.scope || '').drafts.set(key(f.dataset.agent, f.dataset.account), e.target.value);
+    if (!f) return;
+    of(f.dataset.scope || '').drafts.set(key(f.dataset.agent, f.dataset.account), e.target.value);
+    // On the card one button is the next step: Open the sign-in page, then this once there's a code.
+    if (f.closest('[data-card]')) $('button[type="submit"]', f).disabled = !e.target.value.trim();
   });
   box.addEventListener('submit', async (e) => {
     const k = e.target.closest('[data-key-form]');
@@ -284,6 +339,7 @@ export function wireLogins(box, places) {
       const name = l.providers.find((p) => p.id === pid)?.name || pid;
       set(scope, id, { providers: l.providers.map((p) => (p.id === pid ? { ...p, set: true } : p)) });
       try {
+        await arm?.(scope, id, '');
         set(scope, id, await api(path(scope, id, 'keys'), { method: 'POST', body: { provider: pid, key } }));
         toast(`Saved your opencode <b>${esc(name)}</b> key. Its models show up in a moment`);
       } catch (err) {
