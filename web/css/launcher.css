@@ -6,9 +6,9 @@
 .launcher.drop, .composer.drop { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 /* index.html's first paint: same height as the real launcher, so nothing jumps when it fills in */
 .launcher.skel .l-projects { min-height: 35px; }
-.launcher.skel .l-bar { height: 38px; }
-.launcher.skel .l-recipes { height: 40px; }
-@container launcher (max-width: 480px) { .launcher.skel .l-recipes { height: 90px; } } /* its hint wraps on phones */
+.launcher.skel .l-bar { height: 36px; }
+.launcher.skel .l-recipes { height: 34px; }
+@container launcher (max-width: 400px) { .launcher.skel .l-recipes { height: 90px; } } /* its hint wraps on phones */
 /* Where the chips and buttons will be (the same sizes, so they wrap the same), instead of an empty
    box that fills up piece by piece. */
 .launcher.skel .l-recipes { flex-direction: column; align-items: flex-start; gap: 10px; padding-top: 12px; }
@@ -52,12 +52,6 @@ body.wisp-mobile .launcher .lp-chip.add.pick:is(:not(:only-child), :not(:has(> s
 .lp-chip:hover { border-color: var(--line-2); background: var(--surface-2); }
 .lp-chip.on { background: var(--bg-2); border-color: var(--line-2); color: var(--ink); font-weight: 500; }
 #wtBtn[hidden] { display: none; }
-/* Issue (features/issues.js): an action at the end of the project row, a chip's height; on a narrow
-   screen its icon. The phone app has it in its bar instead, which scrolls sideways (launcher.js). */
-.l-projects .lp-issue { height: 27px; padding: 0 9px; font-size: 12.5px; vertical-align: top; }
-.l-projects .lp-issue .i { width: 14px; height: 14px; }
-@container launcher (max-width: 480px) { .l-projects .lp-issue span { display: none; } .l-projects .lp-issue { width: 27px; min-width: 27px; padding: 0; } }
-.launcher.docked:not(:focus-within) .lp-issue { display: none; }
 .lp-chip.none .i { width: 13px; height: 13px; color: var(--muted); }
 .lp-chip.none.on .i { color: var(--ink); }
 .lp-chip.add { color: var(--muted); border-style: dashed; }
@@ -109,7 +103,8 @@ body.wisp-mobile .l-bring-n .i { display: none; }
 .bring-tip p { margin: 0; line-height: 1.6; }
 .bring-tip code { display: block; font: 11.5px/1.7 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
 /* recipes: one-click prompts under the launch bar */
-.l-recipes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px -12px -10px; padding: 7px 14px 8px; border-top: 1px solid var(--line); }
+.l-recipes { display: flex; align-items: flex-start; gap: 6px; margin: 8px -12px -10px; padding: 7px 14px 8px; border-top: 1px solid var(--line); }
+.lr-list { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
 /* the label sits on the chips' centre line, whatever their height (44px on phones) */
 .l-recipes .l-in { display: inline-flex; align-items: center; gap: 5px; align-self: center; line-height: 1.55; }
 .l-recipes .l-in .i { width: 13px; height: 13px; color: var(--muted); }
@@ -119,6 +114,22 @@ body.wisp-mobile .l-bring-n .i { display: none; }
 .l-recipes .lp-chip[hidden] { display: none; }
 .rc-f { font-style: normal; color: var(--faint); margin-left: -3px; }
 .lr-empty { margin-right: 2px; }
+/* with no recipes the hint gives way, so Issue and Save as recipe don't add a line under a box being typed in */
+@container launcher (min-width: 401px) {
+  .lr-list.bare { flex-wrap: nowrap; }
+  .lr-empty { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lr-list.bare > .l-in, .lr-list.bare > .lp-chip { flex: none; }
+}
+/* Issue (features/issues.js): the row's other way to start from something, pinned to its right end
+   beside the recipes, which wrap on their own; narrow, its icon in a circle. The phone app has it in
+   its bar instead, which scrolls sideways (launcher.js). */
+.l-recipes .issue-btn { flex: none; color: var(--muted); }
+.l-recipes .issue-btn:hover { color: var(--ink); }
+.l-recipes .issue-btn .i { width: 14px; height: 14px; }
+@container launcher (max-width: 480px) {
+  .l-recipes .issue-btn { width: 24px; padding: 0; justify-content: center; }
+  .l-recipes .issue-btn span { display: none; }
+}
 .launcher textarea, .composer textarea {
   display: block; width: 100%; resize: none; border: 0; outline: 0; background: transparent; padding: 8px 4px;
   font-size: 14px; line-height: 1.55; color: var(--ink); min-height: 64px;

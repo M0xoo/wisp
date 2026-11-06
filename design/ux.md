@@ -76,6 +76,9 @@ still gets its toast.
 - A line that shows up after the page has painted takes a row that's already laid out, it doesn't
   add one: Bring in's offer shares a grid cell with the launcher's recipes (`.l-foot`), which stay
   in the cell, hidden, holding the height. Text in the box gives the row back to them.
+- New task's rows each hold one kind of thing: the row over the prompt is places, the bar under it is
+  how the task runs, the Recipes row is what to start from (recipes, and **Issue** pinned at its right
+  end, shown only with a project picked). An action that fits none of them doesn't go in a row of places.
 - Empty states are useful or absent: we removed the "Nothing needs you" line (#197) rather than show
   filler.
 
