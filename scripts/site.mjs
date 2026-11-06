@@ -395,6 +395,7 @@ function agentPage(a) {
         <li><b>A report instead of a transcript.</b> When the run ends you read a headline, the numbers that changed, the real diff from its own edits, the test run and what to do next.</li>
         <li><b>Questions mid-run.</b> When it needs a decision, the card moves to <em>Needs you</em> and you get a notification, on your desktop or your phone.</li>
         <li><b>Ship it.</b> One click commits, pushes and opens the pull request; the card follows CI and review, and <b>Merge</b> syncs your local main.</li>
+        <li><b>One board for all of it.</b> ${esc(a.name)} tasks sit beside your other harnesses’ on the <a href="/guides/one-board-for-all-your-coding-agents.html">Agent board</a>, across your accounts and machines.</li>
         <li><b>Take over any time.</b> Press <kbd>T</kbd> and your terminal opens in the worktree with <code>${esc(a.resume)}</code>.</li>
       </ul>
     </section>
@@ -535,10 +536,10 @@ const DEMOS = {
 
 // The guides' sections on the index, in this order (each guide's `topic`).
 const TOPICS = [
-  ['agents', 'Agents side by side', 'Several agents on one repo, compared, as a team, or until the tests pass.'],
+  ['agents', 'Agents side by side', 'Several agents on one repo, compared, as a team, or until the tests pass, and one board for all of them.'],
   ['machines', 'Machines and phones', 'Your other computers over SSH or the grid, and your agents from your phone.'],
   ['cloud', 'wisp Cloud', 'Agents that keep working with every lid shut, on our server or yours.'],
-  ['yours', 'Make it yours', 'Change wisp itself, bring a second account, share an agent with your team.'],
+  ['yours', 'Make it yours', 'Change wisp itself, pin your own panes, bring a second account, share an agent with your team.'],
 ];
 const plain = (html) => html.replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/g, ' ');
 // Minutes to read the words (figures and code count a little).
