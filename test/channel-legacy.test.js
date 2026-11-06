@@ -10,6 +10,7 @@ import { test, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import http from 'node:http';
+import path from 'node:path';
 import { createServer as netServer } from 'node:net';
 import { installFakeBins, isolateAgentConfigs, makeRepo, tmp, until } from './helpers.js';
 
@@ -726,7 +727,7 @@ test('end to end: link, question on both channels, forged and real taps, reply, 
   await until(async () => (await session(s.id)).state === 'waiting');
   const note = await until(() => net.ntfy.find((p) => p.body.title.includes('❓')));
   const q = await until(() => net.tg.find((m) => m.text?.includes('Proceed with the fix?')));
-  const project = (await session(s.id)).project || repo.split('/').pop();
+  const project = (await session(s.id)).project || path.basename(repo);
   const title = (await session(s.id)).title;
   const ask = (await session(s.id)).ask;
   assert.deepEqual(normal([q], [s.id, ask.id])[0], {
