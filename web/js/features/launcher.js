@@ -227,7 +227,7 @@ export function renderLauncher() {
   };
   $('#attach', box).onclick = tray.pick;
   micFor($('#mic', box), ta);
-  // The phone app's bar scrolls sideways: Issue goes there, after Delegate, instead of the project row.
+  // The phone app's bar scrolls sideways: Issue goes there, after Delegate, instead of the recipes row.
   if (MOBILE)
     $('.l-bar .issue-btn', box).onclick = () => {
       openIssuePicker();
@@ -830,10 +830,7 @@ export function renderLaunchChips() {
     ? `<button class="lp-chip add pick" data-add="${addOn}" title="Another folder${addOn ? ` on ${esc(placeName(addOn))}` : ''}">${icon('folder')}${list.length > CHIPS ? '' : '<span>Other folder…</span>'}</button>`
     : `<button class="lp-chip add" data-add="${addOn}">${icon('folder')}${addOn ? `Pick a project on ${esc(placeName(addOn))}…` : 'Choose a folder…'}</button>`;
   const none = `<button class="lp-chip none ${pick === NO_FOLDER ? 'on' : ''}" data-id="${NO_FOLDER}" title="No folder: a general ask, with no project and no worktree. The agent gets an empty scratch directory.">${icon('text')}<span>No folder</span></button>`;
-  // Issue: start from one of the picked project's open issues (features/issues.js). In this row, by
-  // the project it lists from: the bar under the prompt has no room left for it at 1440px.
-  const issue = MOBILE ? '' : `<button class="tog-btn issue-btn lp-issue" id="issueBtn" data-issue="1" aria-haspopup="dialog" title="Start from one of the project’s open issues (GitHub, or Linear when connected)">${icon('issue')}<span>Issue</span></button>`;
-  const html = `<span class="l-in">in</span><span class="lp-group">${chips}${more}${none}${add}${issue}${offline}</span>`;
+  const html = `<span class="l-in">in</span><span class="lp-group">${chips}${more}${none}${add}${offline}</span>`;
   // Unchanged chips stay as they were folded: fitting measures the row once per chip it folds.
   if (box.dataset.h !== html) {
     box.dataset.h = html;
@@ -870,7 +867,6 @@ export function renderLaunchChips() {
     renderLaunchRecipes();
   };
   box.onclick = (e) => {
-    if (e.target.closest('[data-issue]')) return void openIssuePicker();
     const chip = e.target.closest('.lp-chip[data-id]');
     if (chip) {
       choose(chip.dataset.id, { add: !!e.target.closest('[data-also]') || e.metaKey || e.ctrlKey || e.shiftKey });
@@ -1036,7 +1032,9 @@ function whereMenu(anchor, back) {
 }
 
 // Recipes for the picked project (and the ones tied to none), one click from the launcher.
-// With text in the box, "Save as recipe" turns it into one.
+// With text in the box, "Save as recipe" turns it into one. Issue starts from something too, so it
+// sits here, at the end: a project's issues, and only with a project picked (the phone app has it in
+// its bar). Recipes wrap beside it, so it's never alone on a line.
 function renderLaunchRecipes() {
   const row = $('#launcher .l-recipes');
   if (!row) return;
@@ -1044,12 +1042,16 @@ function renderLaunchRecipes() {
   const all = S.config.recipes || [];
   const list = all.filter((r) => !r.cwd || r.cwd === path).sort((a, b) => (b.lastRunAt || 0) - (a.lastRunAt || 0));
   const hidden = all.length - list.length;
-  row.innerHTML = `
+  const issue = MOBILE || !ownPick() ? '' : `<button class="lp-chip issue-btn" id="issueBtn" data-issue="1" aria-haspopup="dialog" aria-label="Start from an issue" title="Start from one of the project’s open issues (GitHub, or Linear when connected)">${icon('issue')}<span>Issue</span></button>`;
+  const html = `<div class="lr-list${list.length ? '' : ' bare'}">
     <span class="l-in">${icon('bolt')}Recipes</span>
     ${list.map((r) => `<button class="lp-chip rc" data-recipe="${esc(r.id)}" title="${esc(r.prompt.replace(/\s+/g, ' ').slice(0, 200))}">${esc(r.name)}${recipeParams(r.prompt).length ? '<i class="rc-f">…</i>' : ''}</button>`).join('')}
     ${list.length ? '' : `<span class="muted xs lr-empty">${hidden ? `None for this project · ${hidden} elsewhere` : 'Prompts you send again and again, one click away'}</span>`}
     <button class="lp-chip add" id="lrSave" hidden>${icon('plus')}Save as recipe</button>
-    <button class="lp-chip add" id="lrNew">${icon('plus')}New</button>`;
+    <button class="lp-chip add" id="lrNew">${icon('plus')}New</button>
+  </div>${issue}`;
+  // Compared: a live refresh must leave the buttons alone, one may be under the pointer or have focus.
+  if (row.dataset.h !== html) (row.innerHTML = html), (row.dataset.h = html);
   row.onclick = (e) => {
     const b = e.target.closest('button');
     if (!b) return;
@@ -1057,6 +1059,7 @@ function renderLaunchRecipes() {
       const r = all.find((x) => x.id === b.dataset.recipe);
       return r && runRecipe({ ...r, params: recipeParams(r.prompt) });
     }
+    if (b.dataset.issue) return void openIssuePicker();
     const draft = { name: '', prompt: '', cwd: path || '', mode: $('#launcher').mode?.() };
     if (b.id === 'lrSave') openAutomations({ tab: 'recipes', edit: { type: 'recipe', draft: { ...draft, prompt: $('#prompt').value.trim() } } });
     if (b.id === 'lrNew') openAutomations({ tab: 'recipes', edit: { type: 'recipe', draft } });
