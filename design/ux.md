@@ -85,14 +85,16 @@ The rules are written up in `docs/feed.md`; the code is `web/js/features/scroll.
 
 - Go through `scroll.js` (`scrollByPx`, `keepInPlace`, `feedAnchor`, `watching`, `topInset`); never
   set `#stage.scrollTop` yourself. A plain `scrollTop` write cancels a smooth scroll in flight.
-- A background re-render holds the card under the top bar in place (`keepInPlace(feedAnchor(id),
-  renderFeed)`). A card you're watching that moves section is followed; one that only peeks in at
-  the edge is not.
+- A background re-render holds the row at the top of the list in place (`keepInPlace(feedAnchor(id),
+  renderFeed)`). A row that changes section never drags the list after it, the open task's included:
+  the list moves when you scroll it, press J / K, or open a row that's out of view (`showRow`).
 - Leaving the list (Mark done, Archive, Delete) from the open task goes to New task, never to
   another task. From a row in the list, focus moves to the next card, which lands where the old
   one sat (`handOff`).
-- In split view, opening a task doesn't scroll the sidebar (#135), and only scrolls it when the
-  row is out of view (#190). Clicking a task focuses its reply box (#214).
+- In split view, clicking a row doesn't scroll the sidebar (#135). Opening one from search or a
+  toast scrolls it only when the row is out of view (#190). Clicking a task focuses its reply box
+  (#214). A launch from New task leaves the list too: a row that doesn't show gets the *Sent to*
+  toast with Open.
 - Scrolled-to cards land below the top bar and the docked launcher (`scroll-padding-top`), not under
   them (#5).
 - A refresh never takes the keys. A row that changes list or section keeps the focus inside it

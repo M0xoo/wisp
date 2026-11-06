@@ -25,7 +25,7 @@ import { placeMenu } from './place-menu.js';
 import { machineById, pathAt, placeName, projectById } from './places.js';
 import { runnerPicker } from './runner-picker.js';
 import { accountMark, accountOf, agentById, agentName, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt, harnessLogo, modeMenu, MODES, runnerTip, savedAccount, savedEffort, savedModel } from './runners.js';
-import { feedAnchor, keepFollowing, keepInPlace, watching } from './scroll.js';
+import { feedAnchor, keepInPlace } from './scroll.js';
 import { shipDialog } from './ship.js';
 import { slashMenu } from './slash.js';
 import { renderBody } from './turns.js';
@@ -880,8 +880,7 @@ export function startOptimistic(id, text, files, { answering, mode, run, team, l
   const apply = (f, sm) => {
     S.full.set(id, f);
     S.sessions.set(id, sm);
-    const card = S.nodes.get(id)?.card;
-    watching(id) ? keepFollowing(card, renderFeed) : keepInPlace(feedAnchor(id), renderFeed);
+    keepInPlace(feedAnchor(id), renderFeed);
     renderBody(id, { fresh: false });
   };
   apply(nextFull, nextSum);

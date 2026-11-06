@@ -2,7 +2,7 @@
 
 How a task moves through the feed in the web UI, and what the page does with your scroll position
 and focus when it moves. The code is in `web/js/features/`: `feed.js` (`groups()`, `taskOf()`,
-`handOff()`), `scroll.js` (`watching()`, `keepInPlace()`, `feedAnchor()`) and `live.js` (the `summary`
+`handOff()`), `scroll.js` (`watching()`, `keepInPlace()`, `feedAnchor()`, `showRow()`) and `live.js` (the `summary`
 event handler).
 
 ## Sections
@@ -79,11 +79,10 @@ Compare runs keep the prompt as their title: one run's headline shouldn't name t
    changed elsewhere (a task finishes, asks, starts, is deleted from the CLI, the stream
    reconnects), the first card under the top bar and docked launcher is held in place (`feedAnchor` + `keepInPlace`).
    At the very top of the page nothing is held, so new cards push the list down.
-2. **A card you're watching is followed.** If the card that changes section is the one you're
-   reading (`watching()`: it crosses the middle of the screen, or it's focused and at least a third
-   of it shows), the view moves with it: a follow-up or answer takes it to Working, finishing or
-   Stop brings it back to Needs you, Reopen and Unarchive bring it back too. A card whose edge
-   just peeks in at the top or bottom of the screen is not "watched".
+2. **The list holds still when a row changes section.** A follow-up or answer takes the open task's
+   row to Working, finishing or Stop brings it back to Needs you, Reopen and Unarchive bring it back
+   too: the list stays where it was, even if the row leaves the screen. The main pane still shows the
+   task. The list moves when you scroll it, press j / k, or open a row that's out of view.
 3. **Cards you weren't watching fold when they finish.** A card left open while it ran collapses
    when it lands in Needs you, unless you're watching it in a focused window.
 4. **Taking a card out hands off to the next one.** Mark done, Archive and Delete focus the card
@@ -97,9 +96,10 @@ Compare runs keep the prompt as their title: one run's headline shouldn't name t
 7. **Collapse all (C) and Esc keep your place.** Collapse all centres the card you were reading;
    Esc folds the focused card and keeps its header on screen.
 8. **A new project filter starts at the top of the feed.**
-9. **A task you launch from the box is shown.** Its card lands in Working, usually below
-   everything in Needs you. If it's off-screen, the feed scrolls just enough to show it and the
-   card flashes; if it's already on screen, the wisp flies from the launcher to it.
+9. **A task you launch from the box is confirmed, not chased.** Its row lands in Working, usually
+   below everything in Needs you. If it shows, the wisp flies from the launcher to it. If it doesn't,
+   the list stays where it was and a *Sent to Claude* toast offers **Open**. Stacked, the list is what
+   you see, so the row scrolls into view and flashes (on the phone, to the middle, with the toast).
 
 "Under the top bar" means below the stage's `scroll-padding-top` (top bar + docked launcher),
 read at runtime by `topInset()`.

@@ -14,7 +14,7 @@ import { renderLaunchChips } from './launcher.js';
 import { foreignName, inProject, machinePill, projectLabel } from './places.js';
 import { renderProjects } from './projects.js';
 import { agentById, agentName, effortLabel, harnessLogo, modelBadge } from './runners.js';
-import { scrollByPx, stage, topInset } from './scroll.js';
+import { scrollByPx, showRow, stage, topInset } from './scroll.js';
 import { prOf, prPill, shipPill } from './ship.js';
 import { overlapPill } from './overlaps.js';
 import { teamStack } from './team.js';
@@ -31,7 +31,7 @@ import { aheadLabel, isScheduled, laterLine, laterPill, laterTip, nextAt, planRo
 import { crewDot, crewFace, memberById, paintCrew, pinJob, underMember } from './crew.js';
 import { openUnlisted, pruneSubs, subsUnder } from './lineage.js';
 import { sideDoes } from './side.js';
-import { backToPlace, goBack, goHome, isSplit, isStacked, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
+import { backToPlace, goBack, goHome, isSplit, isStacked, keepPlace, paintHead, paintSplit, sideShown, sidebar, splitOpen } from './split.js';
 
 // A run held near the limit (features/hold.js), on its row: the window, and when it goes by itself.
 // One held for a changed harness (features/harness-watch.js) waits for you instead.
@@ -346,7 +346,7 @@ function item(s) {
       setFocus(s.id, { scroll: false });
       taskMenu(s.id, e);
     });
-    if (S.open.has(s.id)) expand(s.id, { scroll: false });
+    if (S.open.has(s.id)) expand(s.id);
   }
   renderHead(n, s);
   if (S.open.has(s.id)) paintHead(s);
@@ -616,7 +616,7 @@ export function toggle(id) {
   S.open.has(id) ? collapse(id) : expand(id);
 }
 
-export async function expand(id, { scroll = true } = {}) {
+export async function expand(id) {
   const n = S.nodes.get(id);
   if (!n) return;
   // One task at a time, in the main pane (or, stacked, as a page over the list).
@@ -889,12 +889,18 @@ export function reveal(id) {
   }
   renderFeed();
   setFocus(id, { scroll: false });
-  if (!S.open.has(id)) return expand(id);
+  const shown = () => !isStacked() && sideShown() && showRow(S.nodes.get(id)?.card); // stacked, the task opens over the list
+  if (!S.open.has(id)) {
+    const opening = expand(id);
+    shown(); // an open row has its own height
+    return opening;
+  }
   // Already open: it's the one the address names now (the last opened).
   S.open.delete(id);
   S.open.add(id);
   saveOpen();
   syncUrl();
+  shown();
 }
 
 export const feedIds = () => $$('#feed .item[data-id]:not(.pending)').map((x) => x.dataset.id);
