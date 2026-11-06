@@ -14,7 +14,8 @@ blocks or none.** Components use the variables only.
 | Token | Use |
 |---|---|
 | `--bg`, `--bg-2`, `--rail` | page, hover fills / wells, side rails |
-| `--sunk` | under a raised panel: the crew rail and its gutter. Darker than `--surface` in both themes |
+| `--sunk` | around the task panel: the crew rail and its gutter. Equals `--bg` in both themes, so the rail and the main area are one surface |
+| `--panel` | the task panel beside the rail: lighter than `--sunk` in dark, darker in light |
 | `--surface`, `--surface-2` | cards and panels; tinted panels and form fields |
 | `--ink`, `--ink-2` | main text; secondary text that must still read (open done task titles use `--ink-2`, not grey) |
 | `--muted` | labels, inactive icons |

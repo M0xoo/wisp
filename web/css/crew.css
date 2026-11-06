@@ -130,7 +130,7 @@ body.has-rail:not(.side-hidden) .crew-rail {
   display: flex; flex-direction: column; align-items: center; padding: 8px 0;
 }
 body.has-rail.side-right:not(.side-hidden) .crew-rail { left: auto; right: 0; }
-body.electron.mac.has-rail:not(.side-right) .crew-rail { padding-top: 44px; } /* clear of the window buttons */
+body.electron.mac.has-rail:not(.side-right) .crew-rail { padding-top: 41px; } /* clear of the window buttons, the first face level with the panel */
 /* The members scroll, Org and + stay. The scrollbar has no room here: the wheel and the arrow keys
    scroll, and the edge that has more fades (.up, .down: paintRailFade). */
 .cl-faces {
@@ -156,13 +156,13 @@ body.electron.mac.has-rail:not(.side-right) .crew-rail { padding-top: 44px; } /*
 .cl-face:focus-visible, .cl-btn:focus-visible { border-radius: var(--radius); outline-offset: 0; }
 .cl-face:active, .cl-btn:active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
 /* The open member (a job of its counts): the raised tile, the same surface as the list beside it. */
-.cl-face.on, .cl-btn.on { background: var(--surface); border-color: var(--line); box-shadow: var(--shadow-1); color: var(--ink); }
+.cl-face.on, .cl-btn.on { background: var(--panel); border-color: var(--line); box-shadow: var(--shadow-1); color: var(--ink); }
 /* Paused: dimmed, its spirit asleep. */
 .cl-face.paused .cr-av { opacity: 0.5; }
 /* Asking you: amber. A report you haven't read: the accent. Their place on the face is the row's. */
 .cl-dot { position: absolute; top: 3px; right: 3px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--sunk); background: var(--accent); }
 .cl-dot.asks { background: var(--warn); }
-.cl-face.on .cl-dot { border-color: var(--surface); }
+.cl-face.on .cl-dot { border-color: var(--panel); }
 /* Working: the page's own live mark, in a chip on its corner, with how many past one. */
 .cl-live {
   position: absolute; right: 0; bottom: 0; display: flex; align-items: center; gap: 3px; height: 16px; padding: 0 3px;

@@ -35,10 +35,12 @@ shell's.
 - Automated: qa/desktop.mjs
 
 ## DESK-03 · Title bar on macOS (hiddenInset)
-- **Steps:** in split view, with the list hidden (`[`), and in a window under 900px wide (stacked: the
+- **Steps:** in split view with the crew rail, with the list hidden (`[`), and in a window under 900px wide (stacked: the
   list, then a task's page with Back), look at the top-left.
 - **Expected:** nothing clickable under the traffic lights (x 12–76, y 10–36): the brand and the
-  topbar buttons sit to their right. The top bar (and split head) drags the window; its buttons
+  topbar buttons sit to their right. With the rail the lights, the sidebar button, search and you
+  share a strip on the rail's surface, no logo; the list's panel starts under it, level with the
+  first face. The strip drags the window too. The top bar (and split head) drags the window; its buttons
   still click.
 - Automated: qa/desktop.mjs (hit-test under the lights, `desktop-lights-*.png`). Dragging the
   window by the top bar: Manual.

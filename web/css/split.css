@@ -34,7 +34,7 @@ body.has-rail:not(.side-hidden) .stage { background: var(--sunk); }
 body.has-rail:not(.side-hidden) .split-grip { left: calc(var(--rail-w) + var(--side-w) - 7.5px); }
 body.has-rail.side-right:not(.side-hidden) .split-grip { left: auto; right: calc(var(--rail-w) + var(--side-w) - 7.5px); }
 body.has-rail .split-main { background: var(--bg); }
-body.has-rail:not(.side-hidden) .topbar, body.has-rail:not(.side-hidden) .feed-wrap { --rail: var(--surface); }
+body.has-rail:not(.side-hidden) .topbar, body.has-rail:not(.side-hidden) .feed-wrap { --rail: var(--panel); }
 body.split.has-rail:not(.side-hidden) .topbar { margin: 8px 8px 0 56px; border: 1px solid var(--line); border-bottom: 0; border-radius: 11px 11px 0 0; }
 body.split.has-rail:not(.side-hidden) .feed-wrap { margin: 0 8px 8px 56px; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 11px 11px; }
 body.split.has-rail.side-right:not(.side-hidden) .topbar { margin: 8px 56px 0 8px; }
@@ -421,7 +421,17 @@ body.electron.split.side-hidden.side-right .split-drag { right: calc(var(--bar-w
 body.electron.mac.split .topbar { padding-left: 14px; }
 body.electron.mac.split:not(.side-right) .topbar .brand { margin-left: 74px; }
 body.electron.mac.split.side-hidden:not(.side-right) .topbar { padding-left: 88px; }
-body.electron.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .brand { margin-left: 20px; } /* the window buttons sit across the rail and the panel */
+/* With the rail the window buttons are wider than it (x 16-68, electron/main.js), so the head's first
+   line becomes a strip on the rail's surface: the buttons, the sidebar button beside them, search and
+   you on the right. The panel starts under it, level with the first face, at the project filter. */
+body.electron.mac.split.has-rail:not(.side-right, .side-hidden) .topbar { margin: 0 8px 0 56px; padding: 9px 10px 0 22px; border: 0; border-radius: 0; background: none; }
+body.electron.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .brand { display: none; }
+body.electron.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .view-btn { order: -1; margin-right: auto; }
+body.electron.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .search-btn:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+body.electron.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .projects {
+  flex-basis: calc(100% + 32px); min-height: 49px; margin: 3px -10px 0 -22px; padding: 10px 10px 4px;
+  border: 1px solid var(--line); border-bottom: 0; border-radius: 11px 11px 0 0; background: var(--panel);
+}
 body.electron.mac.split.side-right .split-head { padding-left: max(88px, var(--pad, 24px)); }
 .split-stage { flex: 1; min-height: 0; }
 

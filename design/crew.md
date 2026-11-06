@@ -23,7 +23,9 @@ its thread; its work never mixes with your tasks.
   sunk surface (`--sunk`), with the list as a raised panel beside it (`crew-rail` in `crew.css`,
   `paintRail` in `crew.js`): one 44px tile a member, then Org and **+**, which stay put while the faces
   scroll. The panel keeps `--side-w`; the rail and its gutter add 64px (`--rail-w`) on top, so a row is
-  as wide as it always was. Same order as the section below, same moods. On a face, no words needed:
+  as wide as it always was. In the Mac app, on the left, the window buttons are wider than the rail, so
+  the sidebar's head line is a strip on the rail's surface: the buttons, the sidebar button, then
+  search and you on the right, no logo. The panel starts under it (44px), level with the first face. Same order as the section below, same moods. On a face, no words needed:
   a live chip on its corner while it works (`.orb.live`, with how many past one), an amber dot while
   it asks you, the accent dot for a report you haven't read, dimmed and asleep when paused. The open
   member has the raised tile, and so has the member whose job is open. Tiles never change size, and
