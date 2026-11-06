@@ -108,7 +108,7 @@ next:
   email on it for `seats.holdDays`, and whoever signs in with that verified email gets it.
   The grid sends no mail: `wisp grid waitlist` lists who's waiting and who has a seat held, to
   write to.
-- **More machines:** each account has one cloud wisp. *Add a cloud machine* on the account page
+- **More machines:** each account has one cloud wisp. *Add a cloud machine* on the Home page
   puts the user on a list for more machines, a bigger one or GPUs (`POST /machines/waitlist`,
   with what they'd run on it); `wisp grid waitlist` lists them too.
 - **`allow`:** an account must match at least one rule. A verified email is required for email and
@@ -123,7 +123,7 @@ People publish apps from My Stuff in wisp (or ask an agent to): the grid keeps t
 `<data>/sites/` and serves them to anyone at `<app>--app--<handle>.<domain>`, without sign-in
 and while their wisp sleeps. An app whose `wisp-app.json` asks for one gets a SQLite database
 there too (`/_wisp/db`, run in a child process that's killed after 5 s; no ATTACH or PRAGMA).
-Each user's account page lists what they published, with Unpublish.
+Each user's Home page lists what they published, with Unpublish.
 
 ```json
 "sites": { "enabled": true, "maxBytes": 52428800, "perUser": 20, "dbBytes": 10485760 }
@@ -197,14 +197,14 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
   only. Cookies never cover more than one subdomain, so one person's wisp page can't read or set
   another's. A POST to someone's wisp must come from their own address.
 - **Devices.** wisp on a computer or a phone signs in with the device flow (RFC 8628). It shows a
-  code, you allow it at `/activate`, and the device gets a `wgd_…` token. Your account page lists
+  code, you allow it at `/activate`, and the device gets a `wgd_…` token. Your Account page lists
   every device with a Remove button.
 - **API keys.** Settings → Connect in your wisp (or Settings → Cloud on a desktop signed in to the
   grid) makes `wgk_…` keys for scripts; only their SHA-256 is stored. A key opens your own wisp and
   none of the grid's API, your computers or your sandboxes. Within your wisp it's everything you can
   do there, running tasks included. Revoking stops the key, not what it already started: if a leaked
   key was used, treat the box as compromised.
-- **Deleting an account.** The account page has *Delete your account* (type your handle), and
+- **Deleting an account.** The Account page (`/account`) has *Delete your account* (type your handle), and
   `wisp grid users --delete <handle> --yes` does the same for an admin. The account is disabled
   first (no session or device gets in), then its box stops and its files go (home, agent logins,
   the log), then its sessions, devices, sealed secrets and the account itself. The logins stay

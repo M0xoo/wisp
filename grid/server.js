@@ -573,9 +573,9 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     }
     // HEAD too: link checkers (ad review, unfurlers) probe with it, and a 404 there reads as a dead page
     if ((req.method === 'GET' || req.method === 'HEAD') && (p === '/' || p === '/account')) {
-      if (!s) return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: url.searchParams.get('return') || '', analytics: stats.pages, ua: req.headers['user-agent'] }));
+      if (!s) return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: url.searchParams.get('return') || (p === '/account' ? '/account' : ''), analytics: stats.pages, ua: req.headers['user-agent'] }));
       const u = s.user;
-      return page(accountPage({ cfg, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, machine: { cpus: hostd.container.cpus, memory: hostd.container.memory, wish: accounts.machineWish(u.id) }, devices: accounts.devices(u.id), computers: accounts.computers(u.id).map((c) => ({ ...computerView(c), deviceId: c.device_id })), sites: sites.list(u.id).map(sites.view), identities: accounts.identities(u.id), providers, csrf: csrfFor(s), flash: url.searchParams.get('m') || '' }));
+      return page(accountPage({ cfg, view: p === '/account' ? 'account' : 'home', offers: { sites: sites.opts.enabled, sandboxes: sandboxes.opts.enabled }, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, machine: { cpus: hostd.container.cpus, memory: hostd.container.memory, wish: accounts.machineWish(u.id) }, devices: accounts.devices(u.id), computers: accounts.computers(u.id).map((c) => ({ ...computerView(c), deviceId: c.device_id })), sites: sites.list(u.id).map(sites.view), identities: accounts.identities(u.id), providers, csrf: csrfFor(s), flash: url.searchParams.get('m') || '' }));
     }
     if (req.method === 'GET' && p === '/events') {
       if (!s) return json(res, 401, { error: 'Sign in again.' });
@@ -653,7 +653,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
           if (s) accounts.endSession(cookies(req)[names.grid]);
           headers['set-cookie'].push(setCookie(names.grid, accounts.createSession(user.id, 'grid', req.headers['user-agent']), cfg.sessionDays * 86400));
         }
-        return redirect(res, linkTo ? `/?m=${encodeURIComponent(`${prov.label} connected.`)}` : ret, headers);
+        return redirect(res, linkTo ? `/account?m=${encodeURIComponent(`${prov.label} connected.`)}` : ret, headers);
       } catch (err) {
         log(`grid: sign-in with ${id} failed: ${err.message}`);
         if (!linkTo) stats.funnel('grid_auth_failed', visitor, { provider: id, reason: err.full ? 'full' : err.status === 403 ? 'refused' : 'error' });
@@ -714,7 +714,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       if ((m = /^\/devices\/([a-f0-9]+)\/revoke$/.exec(p))) {
         await needCsrf();
         revokeDevice(s.user.id, m[1]);
-        return redirect(res, `/?m=${encodeURIComponent('Device removed.')}`);
+        return redirect(res, `/account?m=${encodeURIComponent('Device removed.')}`);
       }
       if ((m = /^\/computers\/([a-f0-9]+)\/remove$/.exec(p))) {
         await needCsrf();
@@ -733,7 +733,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       if (p === '/identities/unlink') {
         const body = await needCsrf();
         accounts.unlink(s.user.id, String(body.provider || ''));
-        return redirect(res, '/');
+        return redirect(res, '/account');
       }
       if (p === '/account/delete') {
         const body = await needCsrf();

@@ -31,12 +31,18 @@ Users are `ada@example.com` (handle `ada`) and `bob@example.com` (handle `bob`),
 - **Steps:** **Continue with Dev sign-in** → Email `ada@example.com`, Name `Ada` → **Sign in**.
 - **Expected:** lands on the account page (*Hi Ada*); the top right shows the handle `ada`.
 
-### GRID-04 · Account page
-*Automated: qa/grid.mjs* (`grid-account-desktop.png`, `grid-account-phone.png`)
-- **Expected:** *Cloud wisp* row with **Open** (`/go`) and its state (*Asleep* before first open,
-  **Sleep** when running); *Add a cloud machine* (Soon); *Your computers* with *Add a computer*: **In a terminal** (`npx wisp-agents computer on --grid wisp.localhost:8090`,
-  copyable) and **With the app** (the three Machines steps), switching without a reload;
-  *Devices*; *Delete your account*; **Sign out everywhere**. Fits 390px with no sideways scroll.
+### GRID-04 · Home and Account
+*Automated: qa/grid.mjs* (`grid-home-desktop.png`, `grid-home-phone.png`, `grid-account-desktop.png`, `grid-account-phone.png`)
+- **Expected:** `/` is **Home**: the cloud wisp with a picture of the app, its state (*Asleep* before
+  first open, **Sleep** when running, nothing moves between them), **Open** (`/go`), its address and
+  machine; *Add a cloud machine* (Soon); on a new account the three first steps; *Your computers* as
+  cards with *Add a computer*: **In a terminal** (`npx wisp-agents computer on --grid wisp.localhost:8090`,
+  copyable) and **With the app** (the three Machines steps), switching without a reload; *Published
+  apps* when there are any; *What your grid can do*, whose tiles say what's already true (*4 published*,
+  *Phone connected*). `/account` is **Account**, a tab in the header (the avatar goes there too):
+  *Signed-in devices*, *How you sign in*, **Sign out**, **Sign out everywhere**, *Delete your account*.
+  A live change (a computer comes online, the wisp wakes) keeps an open *Add a computer* and a
+  half-typed confirm as they are. Both fit 390px with no sideways scroll.
 
 ### GRID-05 · Open → your own wisp
 *Automated: qa/grid.mjs* (`grid-cloud-wisp-desktop.png`)

@@ -29,6 +29,7 @@ const I = {
   bolt: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3L5.5 13.5H12L11 21l7.5-10.5H12L13 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
   gpu: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="9.5" y="9.5" width="5" height="5" rx=".8" fill="currentColor" opacity=".35"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
   x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7.5 8.5L12 4l4.5 4.5M5 13.5V19a1.5 1.5 0 001.5 1.5h11A1.5 1.5 0 0019 19v-5.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   moon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
 };
 const logo = (id) => I[id] || I[id.split(':')[0]] || (id === 'dev' ? I.code : I.key);
@@ -342,48 +343,68 @@ a{color:inherit}p{margin:0}h1,h2,h3{margin:0;letter-spacing:-.01em}svg{flex:none
 .brand{display:flex;align-items:center;gap:8px;font-weight:650;font-size:16px;text-decoration:none;letter-spacing:-.02em}
 .mark{width:24px;height:13px;flex:none;background:linear-gradient(90deg,var(--ink) 72%,var(--accent) 90%);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 45 24%22%3E%3Cpath d=%22M1.1,7L1.6,6.9L1.8,7.1L2.1,7.4L2.5,7.9L2.9,8.8L3.2,9.8L3.6,11L3.9,12.4L4.3,13.8L4.7,15.4L5.1,17L5.6,18.6L5.9,19.7L6.5,20.7L7.1,21.6L7.9,22.4L9,23L10.2,23.3L11.5,23.3L12.7,22.9L13.7,22.2L14.7,21.3L15.5,20.2L16.2,19L16.8,17.9L17.3,16.6L17.9,15.3L18.4,14L19,12.7L19.5,11.5L20,10.3L20.5,9.4L20.9,8.7L21.1,8.4L20.9,8.5L19.9,8.7L18.8,8.5L18.6,8.3L18.8,8.6L19.1,9.3L19.5,10.2L19.9,11.4L20.4,12.6L20.9,14L21.4,15.3L21.9,16.7L22.4,18L23,19.1L23.7,20.4L24.6,21.5L25.6,22.4L26.8,23.1L28.2,23.5L29.6,23.5L30.9,23L32,22.3L32.8,21.4L33.5,20.3L34.1,19.1L34.5,17.9L34.9,16.4L35.2,14.9L35.5,13.4L35.6,11.8L35.7,10.4L35.7,8.9L35.6,7.6L35.3,6.3L35,5.1L34.4,4L33.6,3.1L32.6,2.6L31.6,2.4L30.7,2.6L30,3.1L29.6,3.8L29.4,4.5L29.5,5.3L29.9,6L30.3,6.7L31,7.2L31.9,7.7L33,8L34.2,8.1L35,8L35.8,7.9L36.6,7.8L37.3,7.6L37.9,7.3L38.6,7L39.2,6.6L39.8,6.2L40.3,5.8L40.8,5.4L41.3,4.9L41.7,4.4L41.8,4.2L41.9,3.8L41.8,3.5L41.6,3.3L41.3,3.1L41,3.1L40.7,3.1L40.4,3.3L40,3.8L39.6,4.2L39.2,4.5L38.8,4.9L38.3,5.2L37.8,5.5L37.3,5.8L36.7,6L36.1,6.2L35.5,6.3L34.9,6.4L34.2,6.4L33.2,6.3L32.5,6.1L31.9,5.8L31.6,5.5L31.3,5.2L31.3,4.9L31.3,4.6L31.4,4.5L31.4,4.5L31.4,4.5L31.5,4.6L31.6,4.6L31.9,4.9L32.2,5.4L32.4,6L32.5,6.8L32.5,7.7L32.4,8.8L32.2,10L32,11.3L31.6,12.6L31.2,13.9L30.7,15.1L30.2,16.4L29.8,17.2L29.4,17.8L29.1,18.2L28.8,18.4L28.7,18.4L28.8,18.4L29,18.3L29,18.3L29,18.2L28.8,18L28.4,17.5L28.1,16.6L27.7,15.7L27.3,14.6L26.9,13.4L26.5,12.1L26.1,10.7L25.6,9.4L25.2,8L24.7,6.8L24.1,5.6L23.3,4.4L22,3.3L19.9,2.7L17.8,3.3L16.6,4.4L15.8,5.5L15.1,6.7L14.6,7.9L14,9.3L13.5,10.7L13.1,12L12.6,13.4L12.2,14.7L11.8,15.8L11.5,16.7L11.1,17.6L10.8,18.2L10.5,18.5L10.4,18.6L10.4,18.7L10.5,18.7L10.6,18.7L10.5,18.8L10.3,18.6L10,18.3L9.7,17.8L9.3,17.2L8.7,15.7L8.1,14.2L7.4,12.8L6.8,11.4L6.2,10L5.6,8.8L5,7.7L4.3,6.7L3.5,5.9L2.7,5.3L1.6,5.1L0.7,5.4L0.4,5.5L0.2,5.7L0.1,6L0.1,6.3L0.2,6.6L0.5,6.9L0.8,7Z%22/%3E%3Cpath d=%22M7.5,20.9a2.3,2.3 0 1 0 4.6,0a2.3,2.3 0 1 0 -4.6,0M8,21a2.3,2.3 0 1 0 4.7,0a2.3,2.3 0 1 0 -4.7,0M8.6,21a2.4,2.4 0 1 0 4.7,0a2.4,2.4 0 1 0 -4.7,0M9.1,20.7a2.4,2.4 0 1 0 4.8,0a2.4,2.4 0 1 0 -4.8,0M15.8,6.4a3,3 0 1 0 6,0a3,3 0 1 0 -6,0M16.4,5.9a3,3 0 1 0 6.1,0a3,3 0 1 0 -6.1,0M16.9,5.7a3,3 0 1 0 6.1,0a3,3 0 1 0 -6.1,0M17.4,5.9a3,3 0 1 0 6.1,0a3,3 0 1 0 -6.1,0M17.9,6.4a3,3 0 1 0 6.1,0a3,3 0 1 0 -6.1,0M25.3,20.7a2.6,2.6 0 1 0 5.3,0a2.6,2.6 0 1 0 -5.3,0M25.9,20.9a2.6,2.6 0 1 0 5.2,0a2.6,2.6 0 1 0 -5.2,0M26.6,20.9a2.6,2.6 0 1 0 5.2,0a2.6,2.6 0 1 0 -5.2,0M27.3,20.7a2.5,2.5 0 1 0 5.1,0a2.5,2.5 0 1 0 -5.1,0M30,3.5a1.1,1.1 0 1 0 2.1,0a1.1,1.1 0 1 0 -2.1,0M29.7,3.8a1,1 0 1 0 2,0a1,1 0 1 0 -2,0%22/%3E%3Ccircle cx=%2242.4%22 cy=%222.5%22 r=%222.6%22/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 45 24%22%3E%3Cpath d=%22M1.1,7L1.6,6.9L1.8,7.1L2.1,7.4L2.5,7.9L2.9,8.8L3.2,9.8L3.6,11L3.9,12.4L4.3,13.8L4.7,15.4L5.1,17L5.6,18.6L5.9,19.7L6.5,20.7L7.1,21.6L7.9,22.4L9,23L10.2,23.3L11.5,23.3L12.7,22.9L13.7,22.2L14.7,21.3L15.5,20.2L16.2,19L16.8,17.9L17.3,16.6L17.9,15.3L18.4,14L19,12.7L19.5,11.5L20,10.3L20.5,9.4L20.9,8.7L21.1,8.4L20.9,8.5L19.9,8.7L18.8,8.5L18.6,8.3L18.8,8.6L19.1,9.3L19.5,10.2L19.9,11.4L20.4,12.6L20.9,14L21.4,15.3L21.9,16.7L22.4,18L23,19.1L23.7,20.4L24.6,21.5L25.6,22.4L26.8,23.1L28.2,23.5L29.6,23.5L30.9,23L32,22.3L32.8,21.4L33.5,20.3L34.1,19.1L34.5,17.9L34.9,16.4L35.2,14.9L35.5,13.4L35.6,11.8L35.7,10.4L35.7,8.9L35.6,7.6L35.3,6.3L35,5.1L34.4,4L33.6,3.1L32.6,2.6L31.6,2.4L30.7,2.6L30,3.1L29.6,3.8L29.4,4.5L29.5,5.3L29.9,6L30.3,6.7L31,7.2L31.9,7.7L33,8L34.2,8.1L35,8L35.8,7.9L36.6,7.8L37.3,7.6L37.9,7.3L38.6,7L39.2,6.6L39.8,6.2L40.3,5.8L40.8,5.4L41.3,4.9L41.7,4.4L41.8,4.2L41.9,3.8L41.8,3.5L41.6,3.3L41.3,3.1L41,3.1L40.7,3.1L40.4,3.3L40,3.8L39.6,4.2L39.2,4.5L38.8,4.9L38.3,5.2L37.8,5.5L37.3,5.8L36.7,6L36.1,6.2L35.5,6.3L34.9,6.4L34.2,6.4L33.2,6.3L32.5,6.1L31.9,5.8L31.6,5.5L31.3,5.2L31.3,4.9L31.3,4.6L31.4,4.5L31.4,4.5L31.4,4.5L31.5,4.6L31.6,4.6L31.9,4.9L32.2,5.4L32.4,6L32.5,6.8L32.5,7.7L32.4,8.8L32.2,10L32,11.3L31.6,12.6L31.2,13.9L30.7,15.1L30.2,16.4L29.8,17.2L29.4,17.8L29.1,18.2L28.8,18.4L28.7,18.4L28.8,18.4L29,18.3L29,18.3L29,18.2L28.8,18L28.4,17.5L28.1,16.6L27.7,15.7L27.3,14.6L26.9,13.4L26.5,12.1L26.1,10.7L25.6,9.4L25.2,8L24.7,6.8L24.1,5.6L23.3,4.4L22,3.3L19.9,2.7L17.8,3.3L16.6,4.4L15.8,5.5L15.1,6.7L14.6,7.9L14,9.3L13.5,10.7L13.1,12L12.6,13.4L12.2,14.7L11.8,15.8L11.5,16.7L11.1,17.6L10.8,18.2L10.5,18.5L10.4,18.6L10.4,18.7L10.5,18.7L10.6,18.7L10.5,18.8L10.3,18.6L10,18.3L9.7,17.8L9.3,17.2L8.7,15.7L8.1,14.2L7.4,12.8L6.8,11.4L6.2,10L5.6,8.8L5,7.7L4.3,6.7L3.5,5.9L2.7,5.3L1.6,5.1L0.7,5.4L0.4,5.5L0.2,5.7L0.1,6L0.1,6.3L0.2,6.6L0.5,6.9L0.8,7Z%22/%3E%3Cpath d=%22M7.5,20.9a2.3,2.3 0 1 0 4.6,0a2.3,2.3 0 1 0 -4.6,0M8,21a2.3,2.3 0 1 0 4.7,0a2.3,2.3 0 1 0 -4.7,0M8.6,21a2.4,2.4 0 1 0 4.7,0a2.4,2.4 0 1 0 -4.7,0M9.1,20.7a2.4,2.4 0 1 0 4.8,0a2.4,2.4 0 1 0 -4.8,0M15.8,6.4a3,3 0 1 0 6,0a3,3 0 1 0 -6,0M16.4,5.9a3,3 0 1 0 6.1,0a3,3 0 1 0 -6.1,0M16.9,5.7a3,3 0 1 0 6.1,0a3,3 0 1 0 -6.1,0M17.4,5.9a3,3 0 1 0 6.1,0a3,3 0 1 0 -6.1,0M17.9,6.4a3,3 0 1 0 6.1,0a3,3 0 1 0 -6.1,0M25.3,20.7a2.6,2.6 0 1 0 5.3,0a2.6,2.6 0 1 0 -5.3,0M25.9,20.9a2.6,2.6 0 1 0 5.2,0a2.6,2.6 0 1 0 -5.2,0M26.6,20.9a2.6,2.6 0 1 0 5.2,0a2.6,2.6 0 1 0 -5.2,0M27.3,20.7a2.5,2.5 0 1 0 5.1,0a2.5,2.5 0 1 0 -5.1,0M30,3.5a1.1,1.1 0 1 0 2.1,0a1.1,1.1 0 1 0 -2.1,0M29.7,3.8a1,1 0 1 0 2,0a1,1 0 1 0 -2,0%22/%3E%3Ccircle cx=%2242.4%22 cy=%222.5%22 r=%222.6%22/%3E%3C/svg%3E") center/contain no-repeat}
 .chipx{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:99px;border:1px solid var(--line-2);font-size:12.5px;color:var(--muted)}
-.top .me{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
-.av{width:26px;height:26px;border-radius:50%;background:var(--bg-2);display:grid;place-items:center;font-weight:600;font-size:12px;color:var(--ink);overflow:hidden}.av img{width:100%;height:100%}
-.main{max-width:760px;margin:0 auto;padding:36px 24px 72px}
+.top .me{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);min-width:0}.top .me a{display:flex;align-items:center;gap:10px;text-decoration:none;min-width:0}.top .who{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+.top.wide{padding:0 max(24px,calc((100% - 1120px)/2))}
+.navt{display:flex;align-self:stretch;gap:4px;margin-left:8px}.navt a{display:flex;align-items:center;position:relative;padding:0 10px;font-size:13px;font-weight:500;color:var(--muted);text-decoration:none}.navt a:hover{color:var(--ink)}.navt a[aria-current]{color:var(--ink)}.navt a[aria-current]::after{content:'';position:absolute;left:10px;right:10px;bottom:-1px;height:1px;background:var(--ink)}
+.av{width:26px;height:26px;border-radius:50%;background:var(--bg-2);display:grid;place-items:center;font-weight:600;font-size:12.5px;color:var(--ink);overflow:hidden}.av img{width:100%;height:100%}
+.main{max-width:760px;margin:0 auto;padding:36px 24px 72px}.main.wide{max-width:1168px;padding-top:28px}
 .h1{font-size:24px;font-weight:650;letter-spacing:-.02em}.sub{margin-top:4px;color:var(--muted)}
-.primary{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:36px;padding:0 15px;border-radius:10px;border:0;background:var(--ink);color:var(--bg);font:550 13.5px var(--sans);text-decoration:none;cursor:pointer}.primary:hover{opacity:.86}.primary svg{width:15px;height:15px}
+.primary{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:36px;padding:0 15px;border-radius:10px;border:0;background:var(--ink);color:var(--bg);font:550 13px var(--sans);text-decoration:none;cursor:pointer}.primary:hover{opacity:.86}.primary svg{width:15px;height:15px}
 .ghost{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border-radius:9px;border:1px solid transparent;background:transparent;color:var(--ink-2);font:500 13px var(--sans);text-decoration:none;cursor:pointer}.ghost:hover{background:var(--bg-2)}.ghost.danger{color:var(--bad)}.ghost.line{border-color:var(--line-2)}.ghost svg{width:14px;height:14px}
 .state{display:flex;align-items:center;gap:8px;font-weight:600}.state i{width:9px;height:9px;border-radius:50%;background:var(--faint)}
 .state.running i{background:var(--good);box-shadow:0 0 0 4px color-mix(in srgb,var(--good) 18%,transparent)}.state.starting i,.state.stopping i,.state.queued i{background:var(--warn);animation:blink 1.1s infinite}
 @keyframes blink{50%{opacity:.35}}
-.kinds{margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.k{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}.k b{font-size:13.5px}.k p{margin-top:2px;color:var(--muted);font-size:12.5px;line-height:1.45}
 .w-ic{flex:none;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--bg-2);color:var(--muted)}.w-ic svg{width:18px;height:18px}.w-ic.cloud{background:var(--accent-soft);color:var(--accent)}
 .w{display:flex;align-items:flex-start;gap:12px;padding:14px}.group>.w+.w{border-top:1px solid var(--line)}
-.w-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}.w-tx small{color:var(--muted);font-size:12.5px;line-height:1.45}.w-tx small.mono{font:11.5px var(--mono);color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.w-name{display:flex;align-items:center;gap:8px;min-width:0}.w-name b{font-size:14.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pill{flex:none;font-size:11px;font-weight:550;padding:1px 8px;border-radius:99px;border:1px solid var(--line-2);color:var(--muted);white-space:nowrap}.pill.cloud{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
-.w .state{font-size:13px}
-.w-acts{flex:none;display:flex;gap:8px;align-items:center;align-self:center}.primary.off{opacity:.45;cursor:default}
-details.w.add{display:block;padding:0}.group>.w+details.w{border-top:1px solid var(--line)}
+.w-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}.w-tx small{color:var(--muted);font-size:12.5px;line-height:1.45}
+.pill{flex:none;font-size:11.5px;font-weight:550;padding:1px 8px;border-radius:99px;border:1px solid var(--line-2);color:var(--muted);white-space:nowrap}.pill.cloud{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
+.primary.off{opacity:.45;cursor:default}
+details.w.add{display:block;padding:0}
 details.add>summary{display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer;list-style:none}details.add>summary::-webkit-details-marker{display:none}
-details.add .w-tx b{font-size:14px}details.add .chev svg{width:16px;height:16px;color:var(--muted);transition:transform .15s}details.add[open] .chev svg{transform:rotate(90deg)}
+details.add .w-tx b,button.w.add-m .w-tx b{font-size:13px;font-weight:600}details.add .chev svg{width:16px;height:16px;color:var(--muted);transition:transform .15s}details.add[open] .chev svg{transform:rotate(90deg)}
 .steps{list-style:none;margin:0;padding:0 14px 16px 60px;display:flex;flex-direction:column;gap:14px}
-.steps li{display:flex;gap:10px}.steps .n{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:var(--bg);font-size:12px;font-weight:650}
-.steps li>div{flex:1;min-width:0}.steps b{font-size:13.5px}.steps p{margin-top:2px;color:var(--muted);font-size:12.5px;line-height:1.45}.steps a{color:var(--accent)}.steps .copy{max-width:360px}.steps code{font:11.5px var(--mono);white-space:nowrap;padding:1px 4px;border-radius:4px;background:var(--bg-2);color:var(--ink)}
+.steps li{display:flex;gap:10px}.steps .n{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:var(--bg);font-size:11.5px;font-weight:600}
+.steps li>div{flex:1;min-width:0}.steps b{font-size:13px}.steps p{margin-top:2px;color:var(--muted);font-size:12.5px;line-height:1.45}.steps a{color:var(--accent)}.steps .copy{max-width:520px}.steps code{font:11.5px var(--mono);white-space:nowrap;padding:1px 4px;border-radius:4px;background:var(--bg-2);color:var(--ink)}
 .how>input{position:absolute;opacity:0;pointer-events:none}.seg{display:inline-flex;gap:2px;margin:0 14px 14px 60px;padding:2px;border-radius:9px;border:1px solid var(--line);background:var(--bg-2)}
 .seg label{display:flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:7px;font-size:12.5px;font-weight:550;color:var(--muted);cursor:pointer;white-space:nowrap}.seg svg{width:14px;height:14px}.seg label:hover{color:var(--ink)}
 #addCli:checked~.seg [for=addCli],#addApp:checked~.seg [for=addApp]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--line)}
 #addCli:focus-visible~.seg [for=addCli],#addApp:focus-visible~.seg [for=addApp]{outline:2px solid var(--accent);outline-offset:1px}
 #addCli:checked~.p-app,#addApp:checked~.p-cli{display:none}
-h2.sec .n{font-weight:400;color:var(--faint);margin-left:6px}.hint{margin:-4px 0 10px;color:var(--muted);font-size:12.5px}
-.url{display:inline-flex;align-items:center;gap:6px;font:12.5px var(--mono);color:var(--muted)}
-h2.sec{margin:34px 0 10px;font-size:13px;font-weight:600;color:var(--muted)}
+h2.sec .n{font-weight:400;font-size:12.5px;color:var(--muted);margin-left:6px;font-variant-numeric:tabular-nums}.hint{margin:-6px 0 12px;color:var(--muted);font-size:12.5px}
+h2.sec{margin:36px 0 12px;font-size:14px;font-weight:600;color:var(--ink);scroll-margin-top:72px}
 .group{border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
 .r{display:flex;align-items:center;gap:12px;padding:12px 14px}.r+.r{border-top:1px solid var(--line)}
 .r .ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:var(--bg-2);color:var(--muted)}.r .ic svg,.r .ic img{width:17px;height:17px}
-.r .tx{flex:1;min-width:0}.r .tx b{font-weight:600;font-size:13.5px}.r .tx small{display:block;color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis}
-.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.tile{padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}.tile svg{width:18px;height:18px;color:var(--accent)}.tile b{display:block;margin-top:10px;font-size:13.5px}.tile p{margin-top:4px;color:var(--muted);font-size:12.5px}
-.copy{margin-top:10px;display:flex;align-items:center;gap:6px;height:30px;padding:0 6px 0 10px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);font:12px var(--mono);cursor:pointer;width:100%}.copy span{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.copy svg{width:13px;height:13px;color:var(--muted)}
-.logos{display:flex;gap:6px;margin-top:10px}.logos img,.logos svg{width:16px;height:16px}
-.flash{margin-top:18px;padding:10px 14px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface-2);font-size:13.5px}.flash.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
-.foot{margin-top:40px;display:flex;gap:6px;flex-wrap:wrap}
+.r .tx{flex:1;min-width:0}.r .tx b{font-weight:600;font-size:13px;overflow-wrap:anywhere}.r .tx small{display:block;color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis}
+.copy{margin-top:10px;display:flex;align-items:center;gap:6px;height:30px;padding:0 6px 0 10px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface);font:11.5px var(--mono);color:var(--ink);cursor:pointer;width:100%}.copy span{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.copy svg{width:13px;height:13px;color:var(--muted)}
+.logos{display:flex;gap:6px;align-items:center}.logos img,.logos svg{width:16px;height:16px}
+/* Home: the cloud wisp with a picture of it, your computers and apps as cards, then what to try. */
+.hero{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);border:1px solid var(--line);border-radius:12px;background:var(--surface-2);overflow:hidden}
+.h-main{padding:28px;min-width:0}.h-shot{position:relative;min-width:0;overflow:hidden}
+.h-shot a{position:absolute;top:28px;left:0;width:150%;border:1px solid var(--line-2);border-radius:10px 0 0 0;overflow:hidden;background:var(--surface)}.h-shot picture,.t-shot picture{display:block}.h-shot img,.t-shot img{display:block;width:100%;height:auto}
+.h-state{margin-top:20px}.h-line{margin-top:4px;min-height:3em;color:var(--muted);font-size:12.5px;line-height:1.5}
+.h-acts{margin-top:14px;display:flex;align-items:center;gap:8px}.h-acts .primary{min-width:120px}.h-acts .off{visibility:hidden}
+.h-facts{margin:20px 0 0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 14px;align-items:center;font-size:12.5px}.h-facts dt{color:var(--muted)}.h-facts dd{margin:0;min-width:0;overflow-wrap:anywhere}.h-facts .copy{margin:0}
+.h-more{grid-column:1/-1;border-top:1px solid var(--line);background:var(--surface-2);position:relative}
+.path{margin-top:12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:0;list-style:none}.path li{display:flex;gap:10px;padding:14px;border:1px solid var(--line);border-radius:12px}.path .n{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--bg-2);color:var(--ink);font-size:11.5px;font-weight:600}.path li:first-child .n{background:var(--ink);color:var(--bg)}.path b{font-size:13px;font-weight:600}.path p{margin-top:2px;color:var(--muted);font-size:12.5px;line-height:1.45}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.cards+.group{margin-top:12px}.cards:empty{display:none}
+.c{display:flex;flex-direction:column;gap:10px;min-width:0;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
+.c-head{display:flex;align-items:center;gap:12px;min-width:0}.c-name{flex:1;min-width:0}.c-name b{display:block;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.c-name .state{font-size:12.5px;font-weight:500}.c-name small{display:block;color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.c .copy{margin:0}
+.c-acts{margin-top:auto;display:flex;align-items:center;gap:8px}.c-acts .primary{height:32px;padding:0 12px}.c-acts form{margin-left:auto}.ghost.quiet{color:var(--muted)}.ghost.quiet:hover{color:var(--bad)}
+.can{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.t{position:relative;display:flex;flex-direction:column;min-width:0;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);transition:border-color .15s,background-color .15s}.t:hover{border-color:var(--line-2);background:var(--surface-2)}
+.t>b{margin-top:12px;font-size:13px;font-weight:600}.t>p,.t-tx>p{margin-top:4px;margin-bottom:14px;color:var(--muted);font-size:12.5px;line-height:1.45}
+.t-foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:20px}
+.t-go{display:inline-flex;align-items:center;gap:5px;padding:0;border:0;background:none;color:var(--ink);font:500 12.5px var(--sans);text-decoration:none;cursor:pointer;white-space:nowrap}.t-go svg{width:13px;height:13px;color:var(--muted);transition:transform .15s}.t:hover .t-go svg{transform:translateX(2px)}.t-go::after{content:'';position:absolute;inset:0;border-radius:12px}.t-go:focus-visible{outline:none}.t-go:focus-visible::after{outline:2px solid var(--accent);outline-offset:2px}
+.t-on{display:inline-flex;align-items:center;gap:5px;min-width:0;color:var(--good);font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.t-on svg{width:13px;height:13px}
+.t.big{grid-column:span 2;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;padding:0;overflow:hidden}.t-tx{display:flex;flex-direction:column;padding:16px 0 16px 16px;min-width:0}.t-tx>b{margin-top:12px;font-size:13px;font-weight:600}
+.t-shot{position:relative;min-height:190px;overflow:hidden}.t-shot picture{position:absolute;top:16px;left:0;width:110%;border:1px solid var(--line-2);border-radius:10px 0 0 0;overflow:hidden;background:var(--surface)}
+/* Account: who you are and the way round on the left, one column of what you can change. */
+.acct{display:grid;grid-template-columns:220px minmax(0,1fr);gap:48px;align-items:start}.a-side{position:sticky;top:84px;min-width:0}.a-who{display:flex;align-items:center;gap:10px;min-width:0}.a-who .av{flex:none;width:36px;height:36px;font-size:14px}.a-who div{min-width:0}.a-who b,.a-who small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.a-who b{font-size:13px;font-weight:600}.a-who small{color:var(--muted);font-size:12.5px}
+.a-nav{margin-top:18px;display:flex;flex-direction:column;gap:2px}.a-nav a{padding:6px 10px;margin-left:-10px;border-radius:8px;font-size:13px;color:var(--muted);text-decoration:none}.a-nav a:hover{background:var(--bg-2);color:var(--ink)}
+.a-main{min-width:0;max-width:720px}.a-main h2.sec:first-of-type{margin-top:24px}
+.flash{margin:0 0 18px;padding:10px 14px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface-2);font-size:13.5px}.flash.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
 .code{font:600 30px/1 var(--mono);letter-spacing:.14em;text-align:center;padding:22px;border:1px dashed var(--line-2);border-radius:12px;background:var(--surface-2);margin:18px 0}
 .input{width:100%;height:40px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);padding:0 12px;font:15px var(--mono);letter-spacing:.08em;text-transform:uppercase}
 .input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
@@ -440,17 +461,23 @@ button.w.add-m .w-tx b{font-size:14px}button.w.add-m .chev svg{width:16px;height
 /* Device pages' answers (Allow, Continue, Back to the app): 40px here, 48px on a phone's thumb. */
 .tall{height:40px}
 @media (max-width:640px){.tall,.narrow .input{height:48px}.narrow .input{font-size:16px}}
-@media (max-width:640px){.tiles{grid-template-columns:1fr}.kinds{grid-template-columns:1fr}.main{padding:24px 16px 56px}.w{flex-wrap:wrap}.w-acts{width:100%;padding-left:46px}.w-acts .primary{flex:1}.steps{padding-left:14px}.seg{margin-left:14px}.top{padding:0 16px}.top .who{display:none}.top .me .ghost{height:48px}.r.del{flex-wrap:wrap}.r.del .tx{flex-basis:calc(100% - 44px)}.r.del .input{flex:1;width:auto}}
+@media (max-width:899px){.hero{grid-template-columns:minmax(0,1fr)}.h-shot{height:230px;margin-left:20px}.h-shot a{top:0;width:130%}.cards,.can{grid-template-columns:repeat(2,minmax(0,1fr))}.path{grid-template-columns:minmax(0,1fr)}.acct{grid-template-columns:minmax(0,1fr);gap:18px}.a-side{position:static}.a-nav{display:none}.a-main h2.sec:first-of-type{margin-top:18px}}
+@media (max-width:640px){.main,.main.wide{padding:20px 16px 56px}.top,.top.wide{padding:0 16px;gap:8px}.top .who{display:none}.navt{margin-left:0;gap:0}.navt a{padding:0 8px}.navt a[aria-current]::after{left:8px;right:8px}.h-main{padding:20px}.h-acts .primary{flex:1}.h-shot{height:190px}.cards,.can{grid-template-columns:minmax(0,1fr)}.t.big{grid-column:auto;grid-template-columns:minmax(0,1fr);gap:0}.t-tx{padding:16px}.t-shot{display:none}.steps{padding-left:14px}.seg{margin-left:14px}.r.wrap{flex-wrap:wrap}.r.wrap .tx{flex-basis:calc(100% - 44px)}.r.del{flex-wrap:wrap}.r.del .tx{flex-basis:calc(100% - 44px)}.r.del .input{flex:1;width:auto}}
+@media (max-width:370px){.top .chipx{display:none}}
+@media (pointer:coarse){.navt a,.t-go,.top .me a{min-height:44px}.c-acts .primary,.c-acts .ghost,.h-acts .primary,.h-acts .ghost,.a-main .ghost{height:44px}.copy{height:44px}}
+@media (prefers-reduced-motion:reduce){.t,.t-go svg{transition:none}.state i{animation:none!important}}
 .wait{pointer-events:none;opacity:.75}.wait::after{content:'';width:12px;height:12px;flex:none;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:wait-spin .7s linear infinite}@keyframes wait-spin{to{transform:rotate(360deg)}}
 `;
 
-function appPage({ cfg, title, user = null, csrf = '', body, head = '', narrow = false }) {
+function appPage({ cfg, title, user = null, csrf = '', body, head = '', narrow = false, tab = '' }) {
   const initial = esc((user?.name || user?.handle || '?').trim()[0]?.toUpperCase() || '?');
+  const avatar = `<span class="av">${user?.avatar ? `<img src="${esc(user.avatar)}" alt="">` : initial}</span>`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)} · ${esc(cfg.name)}</title><meta name="referrer" content="same-origin"><link rel="icon" href="${A}/icon.svg"><style>${APP_CSS}</style>${head}</head><body>
-<header class="top"><a class="brand" href="${esc(cfg.publicUrl)}/"><span class="mark"></span>wisp</a><span class="chipx">${I.cloud.replace('<svg', '<svg width="13" height="13"')}${esc(tag(cfg))}</span>
-${user ? `<div class="me"><span class="who">${esc(user.handle)}</span><span class="av">${user.avatar ? `<img src="${esc(user.avatar)}" alt="">` : initial}</span>${csrf ? `<form class="inline" method="post" action="/signout"><input type="hidden" name="csrf" value="${esc(csrf)}"><button class="ghost">Sign out</button></form>` : ''}</div>` : ''}</header>
-<main class="main${narrow ? ' narrow' : ''}">${body}</main>${PENDING}</body></html>`;
+<header class="top${tab ? ' wide' : ''}"><a class="brand" href="${esc(cfg.publicUrl)}/"><span class="mark"></span>wisp</a><span class="chipx">${I.cloud.replace('<svg', '<svg width="13" height="13"')}${esc(tag(cfg))}</span>
+${tab ? `<nav class="navt" aria-label="Your grid"><a href="/"${tab === 'home' ? ' aria-current="page"' : ''}>Home</a><a href="/account"${tab === 'account' ? ' aria-current="page"' : ''}>Account</a></nav>` : ''}
+${tab ? `<div class="me"><a href="/account" title="Your account"><span class="who">${esc(user.handle)}</span>${avatar}</a></div>` : user ? `<div class="me"><span class="who">${esc(user.handle)}</span>${avatar}${csrf ? `<form class="inline" method="post" action="/signout"><input type="hidden" name="csrf" value="${esc(csrf)}"><button class="ghost">Sign out</button></form>` : ''}</div>` : ''}</header>
+<main class="main${narrow ? ' narrow' : ''}${tab ? ' wide' : ''}">${body}</main>${PENDING}</body></html>`;
 }
 
 const STATE = { running: 'Running', queued: 'Waiting for room', starting: 'Waking up', stopping: 'Going to sleep', stopped: 'Asleep' };
@@ -463,10 +490,9 @@ const ago = (t) => {
   return new Date(t).toISOString().slice(0, 10);
 };
 
-// Signed in: every wisp you can open, said plainly. Two kinds: the cloud wisp (runs here, on the
-// grid) and your own computers (wisp runs on them; the grid only relays to them). Then how to add
-// a computer, where to open them from, and the account's devices and sign-ins. One column of rows,
-// so it reads the same on a phone.
+// Signed in, two pages behind one header. Home (/): the cloud wisp with a picture of it, your own
+// computers and published apps as cards, then what to try next, each tile saying so when the grid
+// knows it's already done. Account (/account): devices, sign-ins, sign out, delete.
 // What a cloud wisp could be next (grid/accounts.js MACHINE_WANTS): what each is, for the account
 // page's "Add a cloud machine". Only one per account for now; these are on a waitlist.
 const WANTS = [
@@ -554,115 +580,157 @@ f.addEventListener('change',paint);f.addEventListener('submit',(e)=>{e.preventDe
 const link=()=>{const h=/^#machines(?:[/](more|bigger|gpu))?$/.exec(location.hash);if(!h)return;history.replaceState(null,'',location.pathname+location.search);const b=h[1]&&f.querySelector('[name=want_'+h[1]+']');if(b&&!b.checked){b.checked=true;d.dataset.state='pick';paint()}if(!d.open)d.showModal()};
 paint();link();addEventListener('hashchange',link)})()</script>`;
 
-export function accountPage({ cfg, user, instance, machine = {}, devices, computers = [], sites = [], identities, providers, csrf, flash: msg = '', tone = '' }) {
+export function accountPage({ cfg, view = 'home', offers = {}, user, instance, machine = {}, devices, computers = [], sites = [], identities, providers, csrf, flash: msg = '', tone = '' }) {
+  const hidden = `<input type="hidden" name="csrf" value="${esc(csrf)}">`;
+  const flash = msg ? `<div class="flash ${tone}">${esc(msg)}</div>` : '';
+  if (view === 'account') return accountView({ cfg, user, devices, computers, identities, providers, csrf, hidden, flash });
+  return homeView({ cfg, offers, user, instance, machine, devices, computers, sites, csrf, hidden, flash });
+}
+
+const bare = (u) => u.replace(/^https?:\/\//, '');
+const copyBtn = (v, label) => `<button class="copy" type="button" data-copy="${esc(v)}" title="Copy ${esc(v)}" aria-label="Copy ${esc(v)}"><span>${esc(label || v)}</span>${I.copy}</button>`;
+const COPY_JS = `<script>document.addEventListener('click',async(e)=>{const b=e.target.closest('[data-copy]');if(!b)return;try{await navigator.clipboard.writeText(b.dataset.copy);const s=b.querySelector('span'),t=s.dataset.was||s.textContent;s.dataset.was=t;s.textContent='Copied';setTimeout(()=>s.textContent=t,1200)}catch{}})</script>`;
+
+// What the state means now. Every state has its own line: "Asleep since…" under Waking up reads wrong.
+function cloudLine(st, instance) {
+  if (st === 'running') return `Started ${ago(instance.started_at)}. Sleeps by itself when nothing’s going on.`;
+  if (st === 'starting') return 'A few seconds. It opens as soon as it’s up.';
+  if (st === 'queued') return 'The grid is busy. It starts as soon as there’s room.';
+  if (st === 'stopping') return 'Your tasks and files stay where they are.';
+  return instance.stopped_at ? `Went to sleep ${ago(instance.stopped_at)}. Opening it wakes it in a few seconds.` : 'Starts the first time you open it, in a few seconds.';
+}
+
+// The cloud wisp's block, one size in every state: the line keeps its two rows, Sleep keeps its
+// place while it's hidden, and a schedule fills a row that's already there.
+function cloudBlock({ st, instance, machine, url, hidden }) {
+  const spec = [machine.cpus && `${machine.cpus} vCPU`, size(machine.memory), 'sleeps when idle'].filter(Boolean).join(' · ');
+  return `<div class="h-state"><div class="state ${esc(st)}"><i></i>${STATE[st] || esc(st)}</div><p class="h-line">${cloudLine(st, instance)}</p></div><div class="h-acts"><a class="primary" href="/go">Open${I.arrow}</a><form class="inline${st === 'running' ? '' : ' off'}" method="post" action="/instance/stop">${hidden}<button class="ghost line">${I.moon}Sleep</button></form></div><dl class="h-facts"><dt>Address</dt><dd>${copyBtn(url, bare(url))}</dd><dt>Machine</dt><dd>${esc(spec)}</dd><dt>Next schedule</dt><dd>${instance.next_wake_at ? esc(new Date(instance.next_wake_at).toLocaleString()) : 'Nothing scheduled'}</dd></dl>`;
+}
+
+const computerCard = (c, hidden) => `<div class="c">
+      <div class="c-head"><span class="w-ic">${I.laptop}</span><div class="c-name"><b title="${esc(c.name)}">${esc(c.name)}</b><div class="state ${c.online ? 'running' : 'stopped'}"><i></i>${c.online ? 'Online' : `Offline${c.lastSeenAt ? ` · last seen ${ago(c.lastSeenAt)}` : ''}`}</div></div></div>
+      ${copyBtn(c.url, bare(c.url))}
+      <div class="c-acts">${c.online ? `<a class="primary" href="/go?computer=${esc(c.id)}">Open${I.arrow}</a>` : `<span class="primary off" aria-disabled="true" title="Back when it’s switched on and wisp runs there.">Open${I.arrow}</span>`}<form class="inline" method="post" action="/computers/${esc(c.id)}/remove">${hidden}<button class="ghost quiet" title="Take it off the grid. wisp on it keeps running.">Remove</button></form></div>
+    </div>`;
+
+const siteCard = (x, hidden) => `<div class="c">
+      <div class="c-head"><span class="w-ic">${I.globe}</span><div class="c-name"><b title="${esc(x.title)}">${esc(x.title)}</b><small>Updated ${ago(x.updatedAt)} · ${x.files} file${x.files === 1 ? '' : 's'}</small></div></div>
+      ${copyBtn(x.url, bare(x.url).replace(/\/$/, ''))}
+      <div class="c-acts"><a class="ghost line" href="${esc(x.url)}" target="_blank" rel="noopener">Open${I.arrow}</a><form class="inline" method="post" action="/sites/${esc(x.key)}/remove">${hidden}<button class="ghost quiet" title="Take it offline: the link stops working. It stays in My Stuff.">Unpublish</button></form></div>
+    </div>`;
+
+// The way in, for someone who hasn't opened anything yet. Only what the grid can see ends it: it
+// can't tell whether an agent is signed in, so these are steps to read, not boxes to tick.
+const firstSteps = () => `<ol class="path">
+      <li><span class="n">1</span><div><b>Open your cloud wisp</b><p>It starts in a few seconds.</p></div></li>
+      <li><span class="n">2</span><div><b>Sign in to an agent</b><p>Settings → Agents: a link and a code, no terminal.</p></div></li>
+      <li><span class="n">3</span><div><b>Send a task, close the laptop</b><p>The report waits for you here and on your phone.</p></div></li>
+    </ol>`;
+
+// One tile: what you get, one next step, and what's already true when the grid knows it. The step
+// stays where it is either way, so a tile doesn't change shape when it fills in.
+function tile({ icon, title, text, on = '', go, href, add = false }) {
+  const step = add ? `<button class="t-go" type="button" data-add>${go}${I.arrow}</button>` : `<a class="t-go" href="${esc(href)}"${/^https?:/.test(href) ? ' target="_blank" rel="noopener"' : ''}>${go}${I.arrow}</a>`;
+  return `<div class="t"><span class="w-ic">${icon}</span><b>${title}</b><p>${text}</p><div class="t-foot">${step}${on ? `<span class="t-on">${I.check}${esc(on)}</span>` : ''}</div></div>`;
+}
+
+function tiles({ offers, instance, devices, computers, sites, host }) {
+  const phone = devices.some((d) => /phone/i.test(d.name));
+  const n = computers.length;
+  return `<div class="t big"><div class="t-tx"><span class="w-ic cloud">${I.moon}</span><b>Keeps working with your laptop closed</b><p>Leave a task running or schedule one. Your cloud wisp wakes for it, does the work and goes back to sleep. The report waits for you.</p><div class="t-foot"><a class="t-go" href="/go">Schedule a task${I.arrow}</a>${instance.next_wake_at ? `<span class="t-on">${I.check}Scheduled</span>` : ''}</div></div><div class="t-shot" aria-hidden="true">${shot('report', '')}</div></div>${[
+    tile({ icon: I.key, title: 'Bring your own agents', text: `Sign in to Claude Code, Codex and GitHub in Settings → Agents. A link and a code, no terminal.`, go: 'Sign in to an agent', href: '/go' }),
+    offers.sites === false
+      ? ''
+      : tile({ icon: I.globe, title: 'Publish an app', text: 'From My Stuff, an app an agent built goes up at a public link, and stays up while your wisp sleeps.', on: sites.length ? `${sites.length} published` : '', go: sites.length ? 'See your apps' : 'Publish from My Stuff', href: sites.length ? '#apps' : '/go' }),
+    offers.sandboxes === false ? '' : tile({ icon: I.stack, title: 'A fresh box for one task', text: 'Start a task with /sandbox and it gets a box of its own, deleted with the task.', go: 'Try /sandbox', href: '/go' }),
+    tile({ icon: I.phone, title: 'On your phone', text: `Sign in with ${esc(host)} in the wisp app, or add your cloud wisp to an iPhone’s Home Screen.`, on: phone ? 'Phone connected' : '', go: 'How to set it up', href: 'https://trywisp.dev/guides/use-wisp-cloud' }),
+    tile({ icon: I.share, title: 'Share a task', text: 'Share… on a task makes a link to what it did, with a passkey if you want one.', go: 'Pick a task', href: '/go' }),
+    tile({ icon: I.laptop, title: 'Reach your own computers', text: 'Your phone and other computers open them through the grid. No SSH, no open ports.', on: n ? `${n} added` : '', go: 'Add a computer', add: true }),
+    tile({ icon: I.code, title: 'API keys for scripts', text: 'Settings → Connect makes a key, so a script can start tasks in your cloud wisp.', go: 'Make a key', href: '/go' }),
+  ].join('')}`;
+}
+
+function homeView({ cfg, offers, user, instance, machine, devices, computers, sites, csrf, hidden, flash }) {
   const st = instance.state;
   const url = cfg.instanceUrl(user.handle);
   const host = new URL(cfg.publicUrl).host;
-  const bare = (u) => u.replace(/^https?:\/\//, '');
-  const linked = new Set(identities.map((i) => i.provider));
-  const canLink = [...providers.values()].filter((p) => !linked.has(p.id) && p.id !== 'dev');
-  const hidden = `<input type="hidden" name="csrf" value="${esc(csrf)}">`;
-  const copyBtn = (v, label) => `<button class="copy" type="button" data-copy="${esc(v)}" title="Copy"><span>${esc(label || v)}</span>${I.copy}</button>`;
-  const cloudLine =
-    st === 'running'
-      ? `Running since ${ago(instance.started_at)}. Sleeps by itself when nothing’s going on.`
-      : instance.stopped_at
-        ? `Asleep since ${ago(instance.stopped_at)}. Opening it wakes it in a few seconds.`
-        : 'Starts the first time you open it, in a few seconds.';
-  const byDevice = new Map(computers.map((c) => [c.deviceId, c]));
   const online = computers.filter((c) => c.online).length;
   // wisp computer on (bin/wisp.js) signs in to grid.trywisp.dev unless told another grid.
   const cliAdd = `npx wisp-agents computer on${host === 'grid.trywisp.dev' ? '' : ` --grid ${host}`}`;
-
-  const cloudRow = `<div class="w">
-      <span class="w-ic cloud">${I.cloud}</span>
-      <div class="w-tx">
-        <div class="w-name"><b>Cloud wisp</b><span class="pill cloud">Cloud</span></div>
-        <div class="state ${esc(st)}"><i></i>${STATE[st] || esc(st)}</div>
-        <small>${cloudLine}${instance.next_wake_at ? ` Next schedule: ${new Date(instance.next_wake_at).toLocaleString()}.` : ''}</small>
-        <small class="mono">${esc(bare(url))}</small>
-      </div>
-      <div class="w-acts">
-        <a class="primary" href="/go">Open${I.arrow}</a>
-        ${st === 'running' ? `<form class="inline" method="post" action="/instance/stop">${hidden}<button class="ghost line">${I.moon}Sleep</button></form>` : ''}
-      </div>
-    </div>`;
-  const computerRow = (c) => `<div class="w">
-      <span class="w-ic">${I.laptop}</span>
-      <div class="w-tx">
-        <div class="w-name"><b>${esc(c.name)}</b><span class="pill">Your computer</span></div>
-        <div class="state ${c.online ? 'running' : 'stopped'}"><i></i>${c.online ? 'Online' : 'Offline'}</div>
-        <small>${c.online ? 'wisp runs on this computer; the grid relays to it.' : `Back when it’s switched on and wisp runs there.${c.lastSeenAt ? ` Last seen ${ago(c.lastSeenAt)}.` : ''}`}</small>
-        <small class="mono">${esc(bare(c.url))}</small>
-      </div>
-      <div class="w-acts">
-        ${c.online ? `<a class="primary" href="/go?computer=${esc(c.id)}">Open${I.arrow}</a>` : `<span class="primary off" aria-disabled="true">Offline</span>`}
-        <form class="inline" method="post" action="/computers/${esc(c.id)}/remove">${hidden}<button class="ghost danger" title="Take it off the grid. wisp on it keeps running.">Remove</button></form>
-      </div>
-    </div>`;
+  const fresh = !instance.started_at && !instance.stopped_at && !computers.length && !sites.length && !devices.length;
+  const apps = sites.length
+    ? `<h2 class="sec" id="apps">Published apps <span class="n">${sites.length}</span></h2><p class="hint">Anyone with the link can open them, while your wisp sleeps too; search engines don’t list them.</p><div class="cards">${sites.map((x) => siteCard(x, hidden)).join('')}</div>`
+    : '';
 
   return appPage({
     cfg,
-    title: 'Your wisp',
+    title: 'Home',
     user,
     csrf,
-    body: `${msg ? `<div class="flash ${tone}">${esc(msg)}</div>` : ''}
-      <h1 class="h1">Hi ${esc((user.name || user.handle).split(' ')[0])}</h1>
-      <p class="sub">Your wisps on ${esc(host)}. Open any of them here, in the phone app, or from wisp on another computer.</p>
-
-      <div class="kinds">
-        <div class="k"><span class="w-ic cloud">${I.cloud}</span><div><b>Cloud wisp</b><p>Runs here on the grid, so it works while your computers are off. One per account.</p></div></div>
-        <div class="k"><span class="w-ic">${I.laptop}</span><div><b>Your computers</b><p>wisp on your own desktop or laptop, reached through the grid. Your files and agents stay on it.</p></div></div>
-      </div>
-
-      <h2 class="sec">Cloud</h2>
-      <div class="group" data-live="cloud">${cloudRow}${addMachineRow(machine.wish)}</div>
+    tab: 'home',
+    body: `${flash}
+      <section class="hero" aria-labelledby="hi">
+        <div class="h-main">
+          <h1 class="h1" id="hi">Hi ${esc((user.name || user.handle).split(' ')[0])}</h1>
+          <p class="sub">Your cloud wisp runs here on ${esc(host)}, so it keeps working while your computers are off.</p>
+          <div data-live="cloud">${cloudBlock({ st, instance, machine, url, hidden })}</div>
+        </div>
+        <div class="h-shot"><a href="/go" tabindex="-1" aria-hidden="true">${shot('app', '')}</a></div>
+        <div class="h-more" data-live="wish">${addMachineRow(machine.wish)}</div>
+      </section>
+      <div data-live="start">${fresh ? firstSteps() : ''}</div>
 
       <h2 class="sec">Your computers <span class="n" data-live="online">${computers.length ? `${online} of ${computers.length} online` : ''}</span></h2>
-      <div class="group" data-live="computers">${computers.map(computerRow).join('')}
-        <details class="w add"${computers.length ? '' : ' open'}>
-          <summary><span class="w-ic">${I.plus}</span><div class="w-tx"><b>Add a computer</b><small>One command in a terminal, or a few clicks in the app. No SSH, no open ports.</small></div><span class="chev">${I.chev}</span></summary>
-          <div class="how">
-            <input type="radio" name="addHow" id="addCli" checked><input type="radio" name="addHow" id="addApp">
-            <div class="seg" role="presentation"><label for="addCli">${I.code}In a terminal</label><label for="addApp">${I.laptop}With the app</label></div>
-            <ol class="steps p-cli">
-              <li><span class="n">1</span><div><b>Run this on that computer</b><p>Node 20 or later. It starts wisp in the background if it isn’t running. Have wisp already? <code>wisp computer on</code> does the same.</p>${copyBtn(cliAdd)}</div></li>
-              <li><span class="n">2</span><div><b>Allow it here</b><p>It prints a code and opens a page from this grid; on a server, open the link it prints in any browser, even your phone’s. Check the code matches and press <i>Allow</i>. The computer then shows up in this list, and in the phone app.</p></div></li>
-            </ol>
-            <ol class="steps p-app">
-              <li><span class="n">1</span><div><b>Run wisp on that computer</b><p>The desktop app from <a href="https://trywisp.dev" target="_blank" rel="noopener">trywisp.dev</a>, or <code>npx wisp-agents</code> in a terminal.</p></div></li>
-              <li><span class="n">2</span><div><b>Open Machines → Reach this computer from anywhere</b><p>Type this grid’s address and press <i>Sign in and add it</i>:</p>${copyBtn(host)}</div></li>
-              <li><span class="n">3</span><div><b>Allow it here</b><p>A page from this grid opens with a code. Check it matches and press <i>Allow</i>. The computer then shows up in this list, and in the phone app.</p></div></li>
-            </ol>
-          </div>
-        </details>
-      </div>
+      <p class="hint">wisp on your own desktop or laptop, reached through the grid. Your files and agents stay on it.</p>
+      <div class="cards" data-live="computers">${computers.map((c) => computerCard(c, hidden)).join('')}</div>
+      <div class="group"><details class="w add" id="add">
+        <summary><span class="w-ic">${I.plus}</span><div class="w-tx"><b>Add a computer</b><small>One command in a terminal, or a few clicks in the app. No SSH, no open ports.</small></div><span class="chev">${I.chev}</span></summary>
+        <div class="how">
+          <input type="radio" name="addHow" id="addCli" checked><input type="radio" name="addHow" id="addApp">
+          <div class="seg" role="presentation"><label for="addCli">${I.code}In a terminal</label><label for="addApp">${I.laptop}With the app</label></div>
+          <ol class="steps p-cli">
+            <li><span class="n">1</span><div><b>Run this on that computer</b><p>Node 20 or later. It starts wisp in the background if it isn’t running. Have wisp already? <code>wisp computer on</code> does the same.</p>${copyBtn(cliAdd)}</div></li>
+            <li><span class="n">2</span><div><b>Allow it here</b><p>It prints a code and opens a page from this grid; on a server, open the link it prints in any browser, even your phone’s. Check the code matches and press <i>Allow</i>. The computer then shows up in this list, and in the phone app.</p></div></li>
+          </ol>
+          <ol class="steps p-app">
+            <li><span class="n">1</span><div><b>Run wisp on that computer</b><p>The desktop app from <a href="https://trywisp.dev" target="_blank" rel="noopener">trywisp.dev</a>, or <code>npx wisp-agents</code> in a terminal.</p></div></li>
+            <li><span class="n">2</span><div><b>Open Machines → Reach this computer from anywhere</b><p>Type this grid’s address and press <i>Sign in and add it</i>:</p>${copyBtn(host)}</div></li>
+            <li><span class="n">3</span><div><b>Allow it here</b><p>A page from this grid opens with a code. Check it matches and press <i>Allow</i>. The computer then shows up in this list, and in the phone app.</p></div></li>
+          </ol>
+        </div>
+      </details></div>
 
-      ${
-        sites.length
-          ? `<h2 class="sec">Published apps <span class="n">${sites.length}</span></h2>
-      <p class="hint">Apps you published from My Stuff in wisp. Anyone with the link can open them; search engines don’t list them.</p>
-      <div class="group" data-live="sites">${sites
-        .map(
-          (x) => `<div class="r"><span class="ic">${I.globe}</span><div class="tx"><b>${esc(x.title)}</b><small>Updated ${ago(x.updatedAt)} · ${x.files} file${x.files === 1 ? '' : 's'}</small>${copyBtn(x.url, bare(x.url).replace(/\/$/, ''))}</div>
-          <a class="ghost line" href="${esc(x.url)}" target="_blank" rel="noopener">Open${I.arrow}</a>
-          <form class="inline" method="post" action="/sites/${esc(x.key)}/remove">${hidden}<button class="ghost danger" title="Take it offline: the link stops working. It stays in My Stuff.">Unpublish</button></form></div>`,
-        )
-        .join('')}</div>`
-          : ''
-      }
+      <div data-live="sites">${apps}</div>
 
-      <h2 class="sec">Open them from anywhere</h2>
-      <div class="group">
-        <div class="r"><span class="ic">${I.globe}</span><div class="tx"><b>Any browser</b><small>Press Open above. Each wisp has its own address; you sign in once per browser.</small></div></div>
-        <div class="r"><span class="ic">${I.phone}</span><div class="tx"><b>The wisp phone app</b><small>Sign in with ${esc(host)}: your cloud wisp and every computer here are listed, one tap to open.</small></div></div>
-        <div class="r"><span class="ic">${I.laptop}</span><div class="tx"><b>wisp on another computer</b><small>Once added (above), its Machines lists your cloud wisp and your other computers, and runs tasks on them.</small></div></div>
-      </div>
+      <h2 class="sec">What your ${/^cloud$/i.test(tag(cfg)) ? 'cloud' : 'grid'} can do</h2>
+      <div class="can" data-live="can">${tiles({ offers, instance, devices, computers, sites, host })}</div>
+      ${machinesDialog({ machine, user, hidden })}
+      ${COPY_JS}${MACHINES_JS}${HOME_JS}${LIVE}`,
+  });
+}
 
-      <h2 class="sec">Agents in your cloud wisp</h2>
-      <div class="group"><div class="r"><span class="ic">${I.key}</span><div class="tx"><b>Sign in to Claude Code, Codex and GitHub</b><small>In the cloud wisp: Settings → Agents → Sign in. A link and a code, no terminal. Your computers use the agents signed in on them.</small><div class="logos">${AGENTS.slice(0, 2).map(([f]) => `<img src="${A}/${f}" alt="">`).join('')}${I.github}</div></div><a class="ghost line" href="/go">Open${I.arrow}</a></div></div>
+// Add a computer from anywhere on the page. An old link to the account's Delete lands on its new page.
+const HOME_JS = `<script>(()=>{if(location.hash==='#delete')location.replace('/account#delete');document.addEventListener('click',(e)=>{if(!e.target.closest('[data-add]'))return;const d=document.getElementById('add');d.open=true;d.scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'});d.querySelector('summary').focus({preventScroll:true})})})()</script>`;
 
-      <h2 class="sec">Signed-in devices</h2>
+function accountView({ cfg, user, devices, computers, identities, providers, csrf, hidden, flash }) {
+  const linked = new Set(identities.map((i) => i.provider));
+  const canLink = [...providers.values()].filter((p) => !linked.has(p.id) && p.id !== 'dev');
+  const byDevice = new Map(computers.map((c) => [c.deviceId, c]));
+  const initial = esc((user.name || user.handle || '?').trim()[0]?.toUpperCase() || '?');
+  return appPage({
+    cfg,
+    title: 'Account',
+    user,
+    csrf,
+    tab: 'account',
+    body: `${flash}<div class="acct">
+      <aside class="a-side">
+        <div class="a-who"><span class="av">${user.avatar ? `<img src="${esc(user.avatar)}" alt="">` : initial}</span><div><b title="${esc(user.name || user.handle)}">${esc(user.name || user.handle)}</b><small title="${esc(user.email || user.handle)}">${esc(user.email || user.handle)}</small></div></div>
+        <nav class="a-nav" aria-label="Account"><a href="#devices">Signed-in devices</a><a href="#ways">How you sign in</a><a href="#out">Sign out</a><a href="#delete">Delete your account</a></nav>
+      </aside>
+      <div class="a-main">
+      <h1 class="h1">Account</h1>
+      <h2 class="sec" id="devices">Signed-in devices</h2>
       <p class="hint">Apps that can open your wisps. Removing a computer’s device also takes it off the grid.</p>
       <div class="group" data-live="devices">${
         devices.length
@@ -670,13 +738,13 @@ export function accountPage({ cfg, user, instance, machine = {}, devices, comput
               .map((d) => {
                 const c = byDevice.get(d.id);
                 return `<div class="r"><span class="ic">${/phone/i.test(d.name) ? I.phone : I.laptop}</span><div class="tx"><b>${esc(d.name)}</b><small>${c ? `On the grid as ${esc(c.name)} · ` : ''}added ${ago(d.created_at)} · last used ${ago(d.last_seen_at)}</small></div>
-            <form class="inline" method="post" action="/devices/${esc(d.id)}/revoke">${hidden}<button class="ghost danger">Remove</button></form></div>`;
+            <form class="inline" method="post" action="/devices/${esc(d.id)}/revoke">${hidden}<button class="ghost quiet">Remove</button></form></div>`;
               })
               .join('')
           : `<div class="r"><span class="ic">${I.laptop}</span><div class="tx"><b>No devices yet</b><small>wisp on a computer and the phone app sign in here once, with a code.</small></div></div>`
       }</div>
 
-      <h2 class="sec">How you sign in</h2>
+      <h2 class="sec" id="ways">How you sign in</h2>
       <div class="group">${identities
         .map(
           (i) => `<div class="r"><span class="ic">${logo(i.provider)}</span><div class="tx"><b>${esc(providers.get(i.provider)?.label || i.provider)}</b><small>${esc(i.login || i.email || '')}</small></div>
@@ -685,12 +753,18 @@ export function accountPage({ cfg, user, instance, machine = {}, devices, comput
         .join('')}
         ${canLink.map((p) => `<div class="r"><span class="ic">${logo(p.id)}</span><div class="tx"><b>${esc(p.label)}</b><small>Connect it too, and either one signs you in</small></div><a class="ghost line" href="/auth/${encodeURIComponent(p.id)}/start?link=1">Connect</a></div>`).join('')}
       </div>
+
+      <h2 class="sec" id="out">Sign out</h2>
+      <div class="group">
+        <div class="r wrap"><span class="ic">${I.globe}</span><div class="tx"><b>This browser</b><small>Your cloud wisp keeps running.</small></div><form class="inline" method="post" action="/signout">${hidden}<button class="ghost line">Sign out</button></form></div>
+        <div class="r wrap"><span class="ic">${I.shield}</span><div class="tx"><b>Every browser</b><small>Signs this account out of the grid in every browser. Devices stay signed in: remove them above.</small></div><form class="inline" method="post" action="/signout?all=1">${hidden}<button class="ghost line">Sign out everywhere</button></form></div>
+      </div>
+
       <h2 class="sec" id="delete">Delete your account</h2>
       <div class="group"><form class="r del" method="post" action="/account/delete"><span class="ic">${I.trash}</span><div class="tx"><b>Delete your account and your cloud wisp</b><small>Your cloud wisp, its files and your agents’ sign-ins there are deleted for good. Your computers keep their own wisp.</small></div>
         ${hidden}<input class="input" name="confirm" placeholder="Type ${esc(user.handle)}" aria-label="Type ${esc(user.handle)} to confirm" autocomplete="off" autocapitalize="none" spellcheck="false" required pattern="${esc(user.handle)}"><button class="ghost line danger">Delete</button></form></div>
-      <div class="foot"><form class="inline" method="post" action="/signout?all=1">${hidden}<button class="ghost">Sign out everywhere</button></form></div>
-      ${machinesDialog({ machine, user, hidden })}
-      <script>document.addEventListener('click',async(e)=>{const b=e.target.closest('[data-copy]');if(!b)return;try{await navigator.clipboard.writeText(b.dataset.copy);const s=b.querySelector('span'),t=s.textContent;s.textContent='Copied';setTimeout(()=>s.textContent=t,1200)}catch{}})</script>${MACHINES_JS}${LIVE}`,
+      </div></div>
+      ${LIVE}`,
   });
 }
 
@@ -703,7 +777,7 @@ export function accountPage({ cfg, user, instance, machine = {}, devices, comput
 const LIVE = `<script>(()=>{let t=0,opened=false,leaving=false;
 const morph=(cur,next)=>{const a=[...cur.children],b=[...next.children];if(!b.length&&!a.length){if(cur.innerHTML!==next.innerHTML)cur.innerHTML=next.innerHTML;return}
 b.forEach((n,i)=>{const o=a[i];if(!o)return cur.append(n);if(o.tagName==='DETAILS'&&n.tagName==='DETAILS')n.open=o.open;if(o.outerHTML!==n.outerHTML)o.replaceWith(n)});a.slice(b.length).forEach((o)=>o.remove())};
-const sync=async()=>{try{const r=await fetch('/',{cache:'no-store',headers:{accept:'text/html'}});if(!r.ok||leaving)return;const doc=new DOMParser().parseFromString(await r.text(),'text/html');const fresh=doc.querySelectorAll('[data-live]');if(!fresh.length)return location.reload();
+const sync=async()=>{try{const r=await fetch(location.pathname,{cache:'no-store',headers:{accept:'text/html'}});if(!r.ok||leaving)return;const doc=new DOMParser().parseFromString(await r.text(),'text/html');const fresh=doc.querySelectorAll('[data-live]');if(!fresh.length)return location.reload();
 fresh.forEach((n)=>{const cur=document.querySelector('[data-live="'+n.dataset.live+'"]');if(cur)morph(cur,n)})}catch{}};
 const soon=()=>{clearTimeout(t);t=setTimeout(sync,150)};
 const es=new EventSource('/events');es.addEventListener('change',soon);es.onopen=()=>{if(opened)soon();opened=true};
