@@ -12,6 +12,8 @@ export function shortcuts() {
     [combo('K'), 'Search & commands'],
     [`N · ${combo('L')}`, 'New task (focus the prompt box)'],
     ['J / K', 'Next / previous item'],
+    // Chrome never hands ⌃Tab to a page: only the desktop app has this one.
+    ...(window.wispDesktop ? [[IS_MAC ? '⌃⇥' : 'Ctrl+Tab', 'Last task: tap to jump back, hold Ctrl and Tab through the list']] : []),
     ['O / ↵', 'Expand / collapse item'],
     ['/', 'Follow up on item'],
     ['E', 'Mark done'],

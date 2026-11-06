@@ -6,7 +6,7 @@ import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, beforePaint, el, focusBack, icon } from '../core/dom.js';
 import { ago, agoLong, statusPill, timeAttrs } from '../core/format.js';
-import { HERE, isForLater, MOBILE, needsYou, S, save, saveOpen } from '../core/state.js';
+import { HERE, isForLater, MOBILE, needsYou, noteRecent, S, save, saveOpen } from '../core/state.js';
 import { setForLater, taskDone, taskMenu, toggleDone } from './actions.js';
 import { compareView } from './compare.js';
 import { carryDock } from './composer.js';
@@ -623,6 +623,7 @@ export async function expand(id) {
   for (const o of [...S.open]) if (o !== id) collapse(o);
   S.open.add(id);
   saveOpen();
+  noteRecent(id);
   n.card.classList.add('open');
   paintGroup(n.card);
   renderHead(n, S.sessions.get(id));

@@ -66,6 +66,12 @@ async function deepSearch(q) {
   });
 }
 
+// A task's line under search, and in ⌃Tab's list: where it lives, how it stands, how long ago.
+export function taskSub(s) {
+  const state = s.archived ? 'Archived' : s.state === 'review' ? STATUS_LABEL[statusKey(s)] || 'Review' : STATE_LABEL[s.state] || s.state;
+  return `${s.project} · ${state} · ${ago(s.updatedAt)}`;
+}
+
 function paletteItems() {
   const items = [];
   const cur = S.focus && S.sessions.get(S.focus);
@@ -115,11 +121,10 @@ function paletteItems() {
 
   const sessions = [...S.sessions.values()].filter((s) => !s.pending).sort((a, b) => a.archived - b.archived || b.updatedAt - a.updatedAt);
   for (const s of sessions) {
-    const state = s.archived ? 'Archived' : s.state === 'review' ? STATUS_LABEL[statusKey(s)] || 'Review' : STATE_LABEL[s.state] || s.state;
     items.push({
       group: 'Tasks',
       label: s.title,
-      sub: `${s.project} · ${state} · ${ago(s.updatedAt)}`,
+      sub: taskSub(s),
       dot: s.color,
       keywords: [s.preview, s.live, s.question, agentName(s.agent)].filter(Boolean).join(' '),
       tags: s.tags,

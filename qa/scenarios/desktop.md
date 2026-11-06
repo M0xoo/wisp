@@ -64,6 +64,11 @@ shell's.
   the app menu. ⌘C/⌘V/⌘A work in the prompt box; View → Reload and Toggle Developer Tools work.
 - Automated: qa/desktop.mjs (menu roles). Shortcuts: Manual.
 
+## DESK-07b · ⌃Tab reaches the page
+- **Steps:** with 3+ tasks and the app focused, press the real ⌃Tab on the keyboard, then hold Ctrl and press Tab twice.
+- **Expected:** the Window menu doesn't take the key: the task switches. ⌃⇥ shows in the shortcuts dialog (`?`) here and not in a browser tab.
+- Manual
+
 ## DESK-08 · Follows the system theme
 - **Steps:** switch macOS Appearance (or `nativeTheme.themeSource`) between light and dark.
 - **Expected:** the page follows at once (theme setting *System*); text stays readable in both.

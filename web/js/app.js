@@ -22,6 +22,7 @@ import { paintGetApp } from './features/getapp.js';
 import { loadMachines, openComputers, openMachines, setMachines } from './features/machines.js';
 import { askNotify } from './features/notify.js';
 import { onKey } from './features/keys.js';
+import { initSwitcher } from './features/switcher.js';
 import { backToTop, onScroll, stage } from './features/scroll.js';
 import { promptFab } from './features/fab.js';
 import { pressFeedback } from './ui/press.js';
@@ -35,6 +36,7 @@ import './features/swipe.js';
 import './features/panel-swipe.js';
 
 document.addEventListener('keydown', onKey);
+initSwitcher();
 stage.addEventListener('scroll', onScroll, { passive: true });
 if (MOBILE) promptFab(); // the phone opens the prompt box from a floating New task button
 if (MOBILE) pressFeedback(); // what you touch shows it while your finger is down
