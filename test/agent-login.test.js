@@ -266,3 +266,27 @@ test('detecting again: ?fresh=<id> redoes only that harness; an older detection 
   assert.ok(Array.isArray(a) && Array.isArray(b));
   assert.deepEqual(await srv.auto.agents(), b);
 });
+
+test('onSignedIn: a login or a key that landed, not a logout or a key removed', async () => {
+  const { createAgentLogin } = await import('../server/agent-login.js');
+  const seen = [];
+  const done = [];
+  const l = createAgentLogin({ onSignedIn: (id, acc) => seen.push([id, acc]), onDone: (id) => done.push(id) });
+  await l.logout('gh');
+  l.setKey('opencode', 'opencode', 'sk-one');
+  assert.deepEqual(seen, [['opencode', '']]);
+  l.removeKey('opencode', 'opencode');
+  assert.deepEqual(seen, [['opencode', '']], 'removing a key signs nothing in');
+  l.start('gh');
+  for (let i = 0; i < 1200 && seen.length < 2; i++) await new Promise((r) => setTimeout(r, 25));
+  assert.deepEqual(seen.at(-1), ['gh', '']);
+  await l.logout('gh');
+  assert.equal(seen.length, 2);
+  assert.ok(done.length >= 4);
+  // cancelled: nothing landed.
+  l.start('gh');
+  l.cancel('gh');
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(seen.length, 2);
+  l.stop();
+});

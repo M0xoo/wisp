@@ -107,6 +107,37 @@ wisp **never** moves a task to another account by itself. Auto may still hand a 
 *harness* at a limit (`#moveOn`): each account stays within its own limits. A rate limit (429 /
 overloaded) changes nothing about accounts.
 
+## Signed out
+
+A run that ends with the harness saying it's signed out (`signedOutBy`, each harness's `authFailed`
+in `server/agent-login.js`; under 1200 characters, so a long failure quoting the words doesn't
+count) gets `turn.signedOut = { agent, account, scope, others }` and the hero *Claude Code is signed
+out*. The card under it (`web/js/features/sign-in-card.js`, spell part `turn.signIn`) is the same
+login as Settings → Agents, for that harness and account, or the key box for opencode:
+
+- **Sign in** arms the turn (`POST /sessions/:id/turns/:turnId/sign-in`), and the login landing sends
+  the request again in the same conversation. Only a turn you asked for: not a subagent's, a side
+  discussion's, one wisp sent, or a plain-answer turn; those say *Sign in, then Try again.*
+- Signed in from anywhere else (Settings, a terminal): *Signed in* and **Try again**; nothing runs by itself.
+- **Continue on Personal**: only a click, never by itself, as at a limit. Sign-in isn't a limit, so
+  there's no wait and no hold: Auto leaves the task alone (it would otherwise escalate to another
+  harness), and a crew or scheduled job gets the same card, in Full auto too.
+- The card is the usage-limit card's family (`.b-limit`) and holds its shape: Sign in, Cancel and Try again
+  share the row's first slot, *Signed in* sits in that row, and the panel (`loginPanel(…, card)`, flat in
+  the card under a hairline) has placeholders while starting and keeps its height through *Checking the
+  code…*. A failed sign-in has one Try again, in the panel, where Sign in was.
+- `turn.signedOut.stillIn`: the words alone can be wrong (Codex answers 401 in an outage while signed
+  in; a Claude refresh race), so wisp asks the CLI once (`authStatus`, not awaited). Signed in: the hero
+  becomes *Codex is refusing requests* or *Claude Code couldn’t use its sign-in*, the row reads *Failed*,
+  and the card leads with **Try again**, **Sign in again** beside it. No answer changes nothing.
+- `turn.signedOut.oldCli`: Claude Code before 2.1.318, where signing in can stop other running jobs on
+  that login. The card says so.
+- A rerun the server declines (the task was filed, a terminal opened): after 8 s without a new turn the
+  card goes from *Sending your request again…* back to *Signed in* with **Try again**.
+- `turn.signedOut.rerun`, saved before anything is sent, is what makes it once. Copilot has no
+  sign-in here, so no card. A paid opencode provider with no key says only *Unexpected server
+  error*: that stays an ordinary failure.
+
 ## Terms *(legal)*
 
 Karen (crew, legal) checked Anthropic's and OpenAI's terms on 2026-10-26 (full report in her

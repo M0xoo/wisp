@@ -1,12 +1,12 @@
 // Small display formatters shared across the page.
 
 // The agent's own verdict. Not "Done": that's the list a task goes to when you mark it done.
-export const STATUS_LABEL = { done: 'Finished', partial: 'Partial', blocked: 'Blocked', failed: 'Failed', limit: 'At limit', refused: 'Refused', info: 'Report', held: 'Held' };
+export const STATUS_LABEL = { done: 'Finished', partial: 'Partial', blocked: 'Blocked', failed: 'Failed', limit: 'At limit', refused: 'Refused', signedOut: 'Signed out', info: 'Report', held: 'Held' };
 
 // Blocked is the agent's own word: it stopped and says why. A run that never got that far gets
-// wisp's: it failed, hit a usage limit or was refused. Each one needs something else from you, so
+// wisp's: it failed, hit a usage limit, was signed out or was refused. Each one needs something else from you, so
 // the list says which (`halt` on a task's summary); `status` stays 'blocked' for spells and panes.
-export const haltOf = (t) => (t?.limit ? 'limit' : t?.refusal || t?.devices ? 'refused' : t?.status === 'error' ? 'failed' : '');
+export const haltOf = (t) => (t?.limit ? 'limit' : t?.signedOut && !t.signedOut.stillIn ? 'signedOut' : t?.refusal || t?.devices ? 'refused' : t?.status === 'error' ? 'failed' : '');
 export const statusKey = (s) => (s.status === 'blocked' && s.halt) || s.status || 'done';
 export const statusPill = (s) => `<span class="pill st-${statusKey(s)}"><i></i>${STATUS_LABEL[statusKey(s)] || STATUS_LABEL.done}</span>`;
 

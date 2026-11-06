@@ -27,7 +27,7 @@ import { Triggers } from './triggers.js';
 import { Crew } from './crew.js';
 import { LIMIT_CARRY_ON, Later } from './later.js';
 import { syncSpellCrew } from './crew-share.js';
-import { removeWorktree } from './git.js';
+import { ensureWorktree, removeWorktree } from './git.js';
 import { Remote } from './remote.js';
 import { Machines, splitId } from './machines.js';
 import { Secrets } from './secrets.js';
@@ -324,6 +324,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     accounts,
     onChange: (v) => {
       app.broadcast('agent-login', v);
+      if (v.state === 'failed' || v.state === 'cancelled') runner.disarmSignIn(v.agent, v.account);
       const k = `${v.agent}/${v.account || ''}`;
       if (loginStates.get(k) === v.state) return;
       loginStates.set(k, v.state);
@@ -332,7 +333,17 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     },
     // Only that harness is looked up again: the rest (opencode's model list, …) would take seconds.
     onDone: (id) => app.auto.detect({ fresh: id }).then(() => app.broadcast('agents', {}), () => {}),
+    // A failed run's sign-in card asked for this: its request goes again (not into a task you have
+    // open in a terminal: two agents on one conversation would trample each other).
+    onSignedIn: (id, acc) => runner.signInDone(id, acc, { skip: (s) => app.terms.get(s.id)?.code === null }),
   });
+  runner.uploads = app.uploads;
+  runner.authStatus = (id, acc) => app.agentLogin.status(id, acc); // a signed-out turn's one question to the CLI
+  // What a follow-up needs before it runs (launcher.replyTo), for a rerun that doesn't come through it.
+  runner.readyToRun = async (s) => {
+    for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
+    if (s.sideOf) await app.forker.sideFolder(s);
+  };
   app.launcher = createLaunch(app);
   app.bringIn = createBringIn(app);
   app.terms = new Terms({

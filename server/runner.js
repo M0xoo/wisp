@@ -23,6 +23,7 @@ import { bad, clip, MODES, newId } from './util.js';
 import { LIMIT_CARRY_ON, laterNote, laterView } from './later.js';
 import { HOMES as ACCOUNT_HOMES } from './accounts.js';
 import { infraError } from './router.js';
+import { KEYS as KEY_LOGINS, signedOutBy } from './agent-login.js';
 import { refusalOf } from './refusal.js';
 import { haltOf } from '../web/js/core/format.js';
 import { vendorOf } from '../web/js/vendors.js';
@@ -148,6 +149,13 @@ function workspaceNote(s) {
 // Fields left out keep the session's; a new harness without a model gets its default.
 // No effort with a switch to another harness (Hand to <harness> on the refusal and limit cards): the
 // task keeps its thinking level, as that harness (and model) names it, not its default (handoff.js).
+// How long Sign in on a turn's card waits for its login: a login gives up after 15 minutes.
+const SIGN_IN_MS = 16 * 60_000;
+const signInAccount = (acc) => (acc && acc !== 'default' ? acc : '');
+// Before this version, signing in can stop other running jobs on the same login.
+const CLAUDE_SAFE_SIGN_IN = '2.1.318';
+const before = (v, min) => !!v && v.localeCompare(min, 'en', { numeric: true }) < 0;
+
 function changedRun(session, run) {
   if (!run || typeof run !== 'object') return null;
   const agent = run.agent || session.agent;
@@ -361,6 +369,7 @@ export class Runner extends EventEmitter {
     this.live = new Map(); // sessionId -> adapter handle
     this.stopping = new Set();
     this.interrupting = new Set();
+    this.signIns = new Map(); // turn id -> { sessionId, agent, account, until }: reruns a sign-in waits on (armSignIn)
     this.handing = new Set(); // ids whose run ended with a follow-up waiting to start: they stay in Working
     this.deleting = new Set(); // ids being deleted: their run ends quietly, no card back in Needs you, no "ready"
     this.answers = new Map(); // askId -> answer, until the MCP server picks it up
@@ -1789,7 +1798,8 @@ export class Runner extends EventEmitter {
     // A usage limit: the turn asks you what next (or waits for the reset, below).
     if (ev.isError && !ev.stopped) this.#atLimit(session, turn, ev);
     // Turned down: the turn offers to hand the same prompt to another of your harnesses.
-    if (!ev.stopped && !turn.limit) this.#refused(session, turn, ev);
+    if (!ev.stopped && ev.isError && !turn.limit && !turn.devices) this.#signedOut(session, turn, ev);
+    if (!ev.stopped && !turn.limit && !turn.signedOut) this.#refused(session, turn, ev);
     // A lead that ends its turn without reading what its delegates finished gets it as a follow-up.
     if (!ev.stopped && !session.parentId) this.#reportBack(session, { ending: true });
     // Auto checks the work before it reaches you: the session stays in Working meanwhile.
@@ -1865,6 +1875,109 @@ export class Runner extends EventEmitter {
         { type: 'terminal', output: ev.text || 'No output.', exitCode: 1 },
       ],
     };
+  }
+
+  // Its harness is signed out (server/agent-login.js signedOutBy): the hero says so and the card
+  // under it (turn.signedOut) signs in where you are. Nothing waits or pauses: Auto leaves it alone
+  // (pipeline.js wants) and a crew or scheduled job gets the same card. wisp never moves it to
+  // another account by itself; `others` are the accounts the card offers. `scope` stays '' here: a
+  // session on a machine lives on that machine's wisp, and the page knows which one it's on.
+  // A subagent's failure goes to its lead as it is.
+  #signedOut(session, turn, ev) {
+    if (session.parentId || session.relay) return;
+    const agent = turn.agent || session.agent;
+    if (!ev.authFailed && !signedOutBy(agent, ev.text)) return;
+    const account = turn.account || session.account || '';
+    const multi = !!this.accounts?.multi?.(agent);
+    const others = multi ? this.accounts.list(agent).filter((a) => a.id !== (account || 'default') && a.state === 'ready').map(({ id, label, kind }) => ({ id, label, kind })) : [];
+    const oldCli = agent === 'claude' && before(turn.stats?.cli?.version || versionIn(detectedVersion(agent)), CLAUDE_SAFE_SIGN_IN);
+    turn.signedOut = { agent, account, scope: '', others, ...(oldCli && { oldCli }) };
+    const how = KEY_LOGINS[agent] ? 'Add your API key' : 'Sign in';
+    turn.presentation = {
+      blocks: [
+        { type: 'hero', title: `${adapters[agent]?.name || 'This harness'} is signed out`, summary: this.#rerunsItself(session, turn) ? `${how} and wisp sends your request again, in this same conversation.` : `${how}, then Try again.`, status: 'blocked' },
+        { type: 'terminal', output: ev.text || 'No output.', exitCode: 1 },
+      ],
+    };
+    this.#askCli(session, turn, agent, account);
+  }
+
+  // The words alone can be wrong: Codex answers 401 in an outage while signed in (openai/codex#48237),
+  // and a Claude refresh race fails a run on a good login. So the CLI is asked, once, beside the
+  // turn's end: signed in, and the hero stops asking for a sign-in. No answer changes nothing.
+  async #askCli(session, turn, agent, account) {
+    try {
+      const said = await this.authStatus?.(agent, account);
+      if (said?.signedIn !== true || this.store.get(session.id) !== session || session.turns.at(-1) !== turn || !turn.signedOut || turn.signedOut.rerun) return;
+      turn.signedOut.stillIn = true;
+      const name = adapters[agent]?.name || 'This harness';
+      const hero = agent === 'codex' ? { title: `${name} is refusing requests`, summary: 'It says it’s signed in, but the service answered 401, so signing in again is unlikely to help. Try again in a while.' } : { title: `${name} couldn’t use its sign-in`, summary: 'It says it’s signed in now, so this may have been a hiccup. Try again.' };
+      turn.presentation.blocks = turn.presentation.blocks.map((b) => (b.type === 'hero' ? { ...b, ...hero } : b));
+      this.store?.save?.(session);
+      this.#touch(session, { turn: turn.id });
+    } catch {}
+  }
+
+  // Whether signing in sends this turn's request again by itself: only what you asked for, as you
+  // asked it (or a follow-up you scheduled). Anything else gets Try again.
+  #rerunsItself(session, turn) {
+    return !session.parentId && !session.delegated && !session.sideOf && !session.tui && !turn.plain && (!turn.by || turn.by === 'later');
+  }
+
+  // Sign in on a turn's card: this login or key, when it lands, sends the request again. In memory
+  // on purpose: a login flow doesn't survive a restart either. Keyed on the turn, so two tabs arm one.
+  armSignIn(session, turnId) {
+    const turn = session.turns.at(-1);
+    if (turn?.id !== turnId || !turn.signedOut || turn.signedOut.rerun || !this.#rerunsItself(session, turn)) return false;
+    const { agent, account } = turn.signedOut;
+    this.signIns.set(turnId, { sessionId: session.id, agent, account: signInAccount(account), until: Date.now() + SIGN_IN_MS });
+    return true;
+  }
+
+  // That login was cancelled or failed.
+  disarmSignIn(agent, account) {
+    const acc = signInAccount(account);
+    for (const [id, x] of this.signIns) if (x.agent === agent && x.account === acc) this.signIns.delete(id);
+  }
+
+  // A login or key finished here. Only armed turns run: a sign-in from Settings or a terminal leaves
+  // the card saying Signed in with Try again. skip(session): it can't run now (open in a terminal).
+  async signInDone(agent, account, { skip } = {}) {
+    const acc = signInAccount(account);
+    for (const [id, x] of [...this.signIns]) {
+      if (x.until < Date.now()) this.signIns.delete(id);
+      if (x.agent !== agent || x.account !== acc || !this.signIns.delete(id)) continue;
+      const session = this.store?.get?.(x.sessionId);
+      // Filed meanwhile (marked done, archived): it moved on, the card stays for when you're back.
+      if (!session || session.archived || session.state === 'done' || skip?.(session)) continue;
+      await this.rerunSignedOut(session, id).catch((err) => console.warn(`wisp: rerun after sign-in: ${err.message}`));
+    }
+  }
+
+  // The failed request again, in the same conversation: Sign in's rerun, Try again, or Continue on
+  // <account> from the card. turn.signedOut.rerun is what makes it once: saved before anything is
+  // sent, it holds across two tabs, a phone, a refresh, a replayed event and a restart.
+  async rerunSignedOut(session, turnId, { account } = {}) {
+    const turn = session.turns.at(-1);
+    // An error as the latest turn means no run is going; a CLI lingering after it is let go by reply().
+    const can = () => session.turns.at(-1) === turn && session.state !== 'running' && !session.queue.length;
+    if (turn?.id !== turnId || !turn.signedOut || turn.signedOut.rerun || turn.status !== 'error' || !can()) return { rerun: false };
+    turn.signedOut.rerun = Date.now();
+    this.store?.save?.(session, { now: true });
+    try {
+      await this.readyToRun?.(session); // an idle task's worktree may have gone meanwhile
+      if (!can()) return { rerun: false };
+      const run = account ? { account } : undefined;
+      // Turns keep an upload's id and name, a run needs its file.
+      const files = turn.attachments?.length ? (this.uploads?.resolve?.(turn.attachments.map((a) => a.id)) ?? turn.attachments) : [];
+      const hold = session.parentId || session.delegated ? null : this.guard?.check?.({ agent: session.agent, account: account ?? session.account, kind: 'followUp', session });
+      this.reply(session, turn.prompt, files, { hold, run });
+      return { rerun: true };
+    } catch (err) {
+      delete turn.signedOut.rerun; // it never went: the card offers it again
+      this.store?.save?.(session, { now: true });
+      throw err;
+    }
   }
 
   // The harness turned the task down (server/refusal.js): the hero says so, and the card under it

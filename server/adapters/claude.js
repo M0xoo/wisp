@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, crewToolLabel, detectFirst, exitText, flatten, helpEfforts, helpText, rel, spawnJsonl } from './common.js';
 import { describeCommand } from './commands.js';
+import { signedOutBy } from '../agent-login.js';
 import { claudeLimits } from '../budget.js';
 import { COSTLY_ENV, PARENT_SESSION_ENV } from '../pty.js';
 import { LEAN_ENV } from '../lean.js';
@@ -409,6 +410,7 @@ export default {
     let lastModels = null; // the last result's modelUsage (it adds up over the process)
     let counted; // the counters this process started from, once its first result says (see restoredFrom)
     let refused = false; // an assistant message the API ended with stop_reason "refusal" (server/refusal.js)
+    let authFailed = ''; // the words of an assistant message with error: 'authentication_failed' (no model wrote it)
     let early = null; // an empty result that came before our prompt was answered (see below)
     const pendingTools = new Map(); // tool_use_id -> name, to flag failed tool results
     // Background tasks (run_in_background shells, background subagents) still running. While any
@@ -444,6 +446,7 @@ export default {
         subagents.message(msg);
         noteContext(msg);
         if (msg.message?.stop_reason === 'refusal') refused = true;
+        if (msg.error === 'authentication_failed' && !msg.parent_tool_use_id) authFailed = flatten(msg.message?.content || []) || msg.error;
         for (const part of msg.message?.content || []) {
           if (part.type === 'text' && part.text.trim()) {
             onEvent({ type: 'text', text: part.text });
@@ -497,7 +500,7 @@ export default {
           setBackground(next);
         }
       } else if (msg.type === 'result') {
-        const ev = resultEvent(msg);
+        const ev = resultEvent(msg, authFailed);
         if (counted === undefined) {
           counted = countedFrom(msg, prior, unknownPrior);
           lastModels = modelUsageOf(counted?.models) || null;
@@ -574,11 +577,17 @@ function notCompacted(ev, error) {
   ev.text = error || ev.text.trim() || 'Nothing was compacted.';
 }
 
-function resultEvent(msg) {
+// A failed sign-in can end with is_error false (subtype success, zero API time), which would read
+// as a finished task. Only when no model answered: a real API duration is the agent's own answer,
+// whatever it says, and the words alone never count there.
+const unanswered = (msg, authFailed) => !(msg.duration_api_ms > 0) && (!!authFailed || (msg.duration_api_ms === 0 && signedOutBy('claude', msg.result)));
+
+function resultEvent(msg, authFailed = '') {
   return {
     type: 'result',
-    text: msg.result ?? '',
-    isError: !!msg.is_error || (msg.subtype && msg.subtype !== 'success'),
+    text: msg.result || authFailed,
+    isError: !!msg.is_error || (msg.subtype && msg.subtype !== 'success') || unanswered(msg, authFailed),
+    ...(authFailed && { authFailed: true }),
     ...(msg.stop_reason && { stopReason: msg.stop_reason }),
     stats: {
       costUsd: msg.total_cost_usd,

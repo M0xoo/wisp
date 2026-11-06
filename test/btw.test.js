@@ -32,7 +32,7 @@ test('spellAsk reads "/spell …" in the launcher and follow-ups', () => {
 
 test('the / menu offers the commands a half-typed one could be', () => {
   const names = (t) => page.slashMatches(t).map((c) => c.name);
-  assert.deepEqual(names('/'), ['btw', 'side', 'goal', 'spell', 'feedback', 'bug', 'draft', 'after']);
+  assert.deepEqual(names('/'), ['btw', 'side', 'goal', 'spell', 'feedback', 'bug', 'draft', 'after', 'login']);
   assert.deepEqual(names('/g'), ['goal']);
   assert.equal(page.goalAsk('/goal all tests pass'), 'all tests pass');
   assert.equal(page.goalAsk('/goal'), '');

@@ -591,6 +591,21 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object', properties: { answered: { type: 'boolean' }, queued: { type: 'boolean' }, interrupted: { type: 'boolean' }, ahead: { type: 'integer' }, btw: ref('Btw') } }), 400: err[400], 409: json(ref('Hold'), 'Near the usage limit') },
         },
       },
+      '/sessions/{id}/turns/{turnId}/sign-in': {
+        parameters: [id, { name: 'turnId', in: 'path', required: true, schema: { type: 'string' } }],
+        post: {
+          summary: 'A latest turn that failed signed out (turn.signedOut): the next login or key for its harness and account, within 16 minutes, sends its request again. armed: false when this turn can’t go by itself (a subagent’s, one wisp sent, or a newer turn): sign in, then use /rerun',
+          responses: { 200: json({ type: 'object', properties: { armed: { type: 'boolean' } } }), 404: err[404] },
+        },
+      },
+      '/sessions/{id}/turns/{turnId}/rerun': {
+        parameters: [id, { name: 'turnId', in: 'path', required: true, schema: { type: 'string' } }],
+        post: {
+          summary: 'Send a signed-out turn’s request again, once, in the same conversation. rerun: false when it already went or a newer turn, a queue or a run stands in the way',
+          requestBody: body({ type: 'object', properties: { account: { type: 'string', description: 'Continue on this account: one of turn.signedOut.others' }, sendId: { type: 'string', maxLength: 64, description: 'As on /reply' } } }),
+          responses: { 200: json({ type: 'object', properties: { rerun: { type: 'boolean' } } }), 400: err[400], 404: err[404], 409: err[400] },
+        },
+      },
       '/sessions/{id}/btw': {
         parameters: [id],
         post: {

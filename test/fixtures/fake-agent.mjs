@@ -9,6 +9,8 @@
 //   FAKE_FAIL=1  exit 1 with an error on stderr, no result
 //   FAKE_LIMIT_ONCE=<file>  the first run hits a usage limit (stderr, exit 1); later runs work
 //   FAKE_LIMIT_TEXT  what that first run prints instead of the usual session-limit line
+//   FAKE_SIGNED_OUT  claude: its run ends with the CLI's real signed-out result (`Not logged in · Please
+//                run /login`). 1: every run; a file: only the first, as FAKE_LIMIT_ONCE
 //   FAKE_LIMITS  claude: a rate_limit_info (JSON) it reports as a rate_limit_event before anything else
 //   FAKE_API_KEY_SOURCE  claude: its init's apiKeySource (default none: the plan)
 //   FAKE_TOOLS           claude: its init's tools, comma-separated (default: none sent)
@@ -648,6 +650,14 @@ const ask = async () => {
 // grok's own words (docs/user-guide/14-headless-mode.md), split over two writes as a pipe may.
 if (refused && name === 'grok') process.stderr.write('permission required: Edit calc.py was not run, as a headless run ca'), process.stderr.write('nnot ask for approval\n');
 if (refused && name === 'opencode') process.stderr.write('\x1b[93m\x1b[1m! \x1b[0mpermission requested: bash (npm publish); auto-rejecting\n');
+
+// Claude Code signed out, as it really ends a run on an empty HOME.
+if (name === 'claude' && !retro && process.env.FAKE_SIGNED_OUT && (process.env.FAKE_SIGNED_OUT === '1' || !fs.existsSync(process.env.FAKE_SIGNED_OUT))) {
+  if (process.env.FAKE_SIGNED_OUT !== '1') fs.writeFileSync(process.env.FAKE_SIGNED_OUT, name);
+  out({ type: 'system', subtype: 'init', session_id: session, claude_code_version: process.env.FAKE_CLI_VERSION || '9.9.9' });
+  out({ type: 'result', subtype: 'success', is_error: true, result: 'Not logged in · Please run /login', terminal_reason: 'api_error', session_id: session, duration_ms: 5, num_turns: 0, total_cost_usd: 0 });
+  process.exit(0);
+}
 
 // Claude Code's refusal, in its own words: the API stops with stop_reason "refusal" and the CLI
 // ends the turn with its usage-policy error. DECLINEME: the model just says no, nothing changed.
