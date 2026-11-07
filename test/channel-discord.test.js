@@ -130,7 +130,7 @@ async function caughtUp(chat) {
 
 test('off by default: no connection, token checked and masked, the invite needs an id', async () => {
   const view = (await api('/remote')).discord;
-  assert.deepEqual(view, { enabled: false, token: '', appId: '', connected: false, bot: '', guilds: 0, senders: 0, linkCode: '', box: false, error: '' });
+  assert.deepEqual(view, { enabled: false, token: '', appId: '', invite: '', connected: false, bot: '', guilds: 0, senders: 0, linkCode: '', box: false, error: '' });
   await assert.rejects(api('/remote', { method: 'PUT', body: { discord: { token: 'nope' } } }), /doesn’t look like a bot token/);
   await assert.rejects(api('/remote', { method: 'PUT', body: { discord: { appId: 'abc' } } }), /long number/);
   await assert.rejects(api('/remote/discord/invite'), /application ID/);
@@ -150,6 +150,10 @@ test('on a cloud computer it won’t turn on, and says why; a config from elsewh
     delete process.env.WISP_GRID_URL;
   }
   assert.equal(fake.calls.length, 0);
+});
+
+test('the page says the same words as the refusal on a cloud computer', () => {
+  assert.ok(fs.readFileSync(new URL('../web/js/features/phone.js', import.meta.url), 'utf8').includes(NOT_ON_A_BOX));
 });
 
 test('switched on: identify with no privileged intent, /wisp registered, the view filled in', async () => {
@@ -173,6 +177,7 @@ test('switched on: identify with no privileged intent, /wisp registered, the vie
   assert.ok(cmd.options.filter((o) => o.autocomplete).length === 4);
   const invite = await api('/remote/discord/invite');
   assert.equal(invite.url, `https://discord.com/oauth2/authorize?client_id=${fake.appId}&scope=bot+applications.commands&permissions=${PERMISSIONS}`);
+  assert.equal(v.discord.invite, invite.url, 'the page needs no second call for it');
   assert.equal(BigInt(PERMISSIONS), (1n << 10n) | (1n << 11n) | (1n << 16n) | (1n << 35n) | (1n << 38n));
   // A masked token means unchanged, and keeps the code.
   const again = await api('/remote', { method: 'PUT', body: { discord: { token: put.discord.token } } });
@@ -499,6 +504,7 @@ test('a DM: no thread, a reply to wisp’s message follows up, a plain message s
   const report = await nextPost(chat);
   assert.match(report.content, /Reply to this message to answer or follow up\./);
   assert.equal(report.message_reference?.message_id, ack.id, 'its report answers the task’s last message');
+  await until(() => srv.store.get(s.id).remote.discord.ids.includes(report.id), { what: 'wisp to remember its report' }); // the fake has it before wisp hears back
   dm('with sonnet carry on', { type: 19, message_reference: { message_id: report.id } });
   assert.equal(await next(chat), '✓ Sent · Sonnet');
   await until(async () => (await session(s.id)).turns.length === 2);
@@ -1082,6 +1088,20 @@ test('fatal close codes stop it and say what to do; saving settings starts it ag
     assert.deepEqual([fake.calls.length, fake.identifies.length + fake.resumes.length], [calls, beats], 'it doesn’t try again');
     await api('/remote', { method: 'PUT', body: { discord: { enabled: true } } });
   }
+  await connected();
+});
+
+test('a new token drops what went wrong with the last one', async () => {
+  await connected();
+  const { senders } = srv.store.config.remote.discord;
+  fake.close(4004);
+  await until(async () => /refused the token/.test((await api('/remote')).discord.error), { what: 'the refusal' });
+  fake.silent = true; // connected or not, the view right after the save has no old error
+  const put = await api('/remote', { method: 'PUT', body: { discord: { token: 'new.token.here' } } });
+  assert.deepEqual([put.discord.error, put.discord.appId, put.discord.invite, put.status.discord], ['', '', '', null]);
+  fake.silent = false;
+  await api('/remote', { method: 'PUT', body: { discord: { token: TOKEN } } });
+  srv.store.config.remote.discord.senders = senders; // a new token unlinks; the next tests are linked
   await connected();
 });
 

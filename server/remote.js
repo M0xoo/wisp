@@ -257,6 +257,7 @@ export class Remote {
         enabled: !!c.discord?.enabled,
         token: mask(c.discord?.token),
         appId: c.discord?.appId || '',
+        invite: c.discord?.appId ? inviteUrl(c.discord.appId) : '',
         connected: this.channels.discord.connected,
         bot: this.channels.discord.me?.name || '',
         guilds: this.channels.discord.guilds.size,

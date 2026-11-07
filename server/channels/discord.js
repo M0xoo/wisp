@@ -149,6 +149,7 @@ export class Discord extends Channel {
   reset() {
     Object.assign(this, { me: null, session: null, seq: null, commandsFor: '', connected: false });
     this.guilds.clear();
+    this.hub.status.discord = null; // what went wrong was the last one's
   }
 
   // --- REST -------------------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 // Phone: questions and finished tasks over ntfy or Telegram, answered from there, and tasks started
-// from a GitHub comment or in Slack.
+// from a GitHub comment, in Slack or in Discord.
 
 import { copy } from '../blocks.js';
 import { esc } from '../md.js';
@@ -11,13 +11,13 @@ import { present } from '../ui/overlay.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { placeName, recentFirst } from './places.js';
 
-export const PHONE_HINT = 'ntfy, Telegram, GitHub or Slack: reach wisp from your phone';
+export const PHONE_HINT = 'ntfy, Telegram, GitHub, Slack or Discord: reach wisp from your phone';
 
 export function phoneSummary(r) {
   if (!r) return '';
   const on = [r.ntfy.enabled && r.ntfy.topic && 'ntfy', r.telegram.enabled && r.telegram.linked && 'Telegram'].filter(Boolean);
-  const all = [...on, r.github?.enabled && 'GitHub', r.slack?.enabled && 'Slack'].filter(Boolean).join(' + ');
-  if (!on.length) return all || 'Off'; // the events are what ntfy and Telegram send; GitHub and Slack answer where they were asked
+  const all = [...on, r.github?.enabled && 'GitHub', r.slack?.enabled && 'Slack', r.discord?.enabled && 'Discord'].filter(Boolean).join(' + ');
+  if (!on.length) return all || 'Off'; // the events are what ntfy and Telegram send; the others answer where they were asked
   return `${all} · ${r.events.map((e) => (e === 'waiting' ? 'questions' : 'finished')).join(' & ')}`;
 }
 
@@ -41,6 +41,17 @@ function slackTrouble(error) {
   if (code === 'not_allowed_token_type') return 'Slack got the wrong kind of token. The app token starts with <code>xapp-</code>, from Basic Information; the bot token with <code>xoxb-</code>, from OAuth &amp; Permissions.';
   if (code) return `Slack refused a token (<code>${code}</code>). Copy both again from <a href="https://api.slack.com/apps" target="_blank" rel="noopener">api.slack.com/apps</a> and paste them here. A reinstalled app has new ones.`;
   return `${esc(error)} wisp keeps trying.`;
+}
+
+// The same words as server/channels/discord.js NOT_ON_A_BOX.
+const DISCORD_NO_BOX = 'Discord can’t run on a cloud computer yet: it sleeps when it’s idle, and the connection to Discord would die with it. Set it up on a computer that stays on.';
+const PORTAL = 'https://discord.com/developers/applications';
+
+// What's wrong with the Discord channel, in words. Some of what it says already ends in what to do,
+// and a close code it won't retry mustn't promise that it will.
+function discordTrouble(error) {
+  if (/refused the token|unauthorized/i.test(error)) return `Discord refused the token. Make a new one in the <a href="${PORTAL}" target="_blank" rel="noopener">Developer Portal</a> under Bot → Reset Token and paste it here.`;
+  return /Update wisp|wisp doesn’t do|Developer Portal|wisp will wait/.test(error) ? esc(error) : `${esc(error)} wisp keeps trying.`;
 }
 
 // Settings → Agents, at its git / GitHub row (as tips.js does).
@@ -107,14 +118,59 @@ export async function openPhone({ host } = {}) {
             <div class="ph-more" hidden></div>
           </div>
         </section>
+        <section class="ph-sec ph-chan ph-dc">
+          <h4>Discord <span class="muted xs"><span class="ph-dot">· </span>mention the bot, DM it, or use /wisp</span><span class="ph-st"></span><button class="switch" data-sw="discord" role="switch" aria-checked="false" aria-label="Discord"></button></h4>
+          <p class="hint ph-rules"></p>
+          <div class="ph-err" hidden></div>
+          <div class="ph-on" hidden>
+            <div class="ph-who"></div>
+            <ol class="ph-steps">
+              <li>
+                <span class="ph-num" data-step="1"></span>
+                <div class="ph-step">
+                  <b>Create the application</b>
+                  <p class="hint">In the Developer Portal pick <i>New Application</i> and name it. wisp needs no privileged intent, so leave Message Content and the others off.</p>
+                  <div class="ph-acts"><a class="primary sm" href="${PORTAL}" target="_blank" rel="noopener">${icon('external')}discord.com/developers</a></div>
+                </div>
+              </li>
+              <li>
+                <span class="ph-num" data-step="2"></span>
+                <div class="ph-step">
+                  <b>Paste the bot token</b>
+                  <div class="settings-modal">
+                    <label><span>Bot token</span><input class="input mono" data-dc="token" placeholder="From Bot → Reset Token" spellcheck="false" autocomplete="off" type="password"></label>
+                  </div>
+                  <p class="hint">In the application, open Bot and press Reset Token. wisp connects as soon as it’s in.</p>
+                </div>
+              </li>
+              <li>
+                <span class="ph-num" data-step="3"></span>
+                <div class="ph-step">
+                  <b>Add it to a server</b>
+                  <p class="hint">The link works once the bot has connected. It asks only for what wisp uses: reading and sending messages, and threads.</p>
+                  <div class="ph-acts ph-invite"></div>
+                </div>
+              </li>
+              <li>
+                <span class="ph-num" data-step="4"></span>
+                <div class="ph-step">
+                  <b>Link yourself</b>
+                  <div class="ph-code"></div>
+                </div>
+              </li>
+            </ol>
+            <div class="ph-more" hidden></div>
+          </div>
+        </section>
         <div class="ship-foot"><span class="grow"></span><button class="ghost sm" data-act="test">${icon('send')}Send a test</button></div>
       </div>
     </div>`);
   const close = present(node, host);
   let r;
-  let saving = 0; // GitHub and Slack saves on their way: what comes back meanwhile is older than the page
+  let saving = 0; // channel saves on their way: what comes back meanwhile is older than the page
   let missed = false; // a remote event came during a save
   let changeTokens = false; // Slack: asked to see the steps again once it's all set up
+  let changeToken = false; // the same for Discord
   const manifest = api('/remote/slack/manifest').catch(() => null);
   const shown = new WeakMap();
   const fill = (box, html) => {
@@ -158,6 +214,17 @@ export async function openPhone({ host } = {}) {
     box.hidden = !html;
     fill(box, html ? `<p class="hint">${icon('warn')}<span>${html}</span></p>${button}` : '');
   };
+  // Slack and Discord: a number per step, a tick once it's done.
+  const ticks = (sec, done) => {
+    for (const [i, ok] of done.entries()) {
+      const num = $(`[data-step="${i + 1}"]`, sec);
+      num.classList.toggle('ok', ok);
+      fill(num, ok ? icon('check') : String(i + 1));
+    }
+  };
+  const linked = (n) => (n ? `${n} ${n === 1 ? 'person' : 'people'} linked` : 'nobody linked yet');
+  const codeLine = (act, code, lead) => `<p class="hint">${lead} <code>link ${esc(code)}</code> <button class="ghost xs" data-act="${act}">${icon('copy')}Copy</button></p>`;
+  const firstCode = (act, code) => (code ? `${codeLine(act, code, 'In a DM to the bot, send')}<p class="hint">Each code links one person, and the next shows here.</p>` : '<p class="hint">Your code shows here once the bot token is in.</p>');
   const paintSlack = () => {
     const s = r.slack;
     const st = r.status.slack;
@@ -178,27 +245,55 @@ export async function openPhone({ host } = {}) {
     const n = s.senders;
     const who = $('.ph-who', sec);
     who.hidden = !s.connected;
-    fill(who, `<span>Connected to <b>${esc(s.team || 'your workspace')}</b> as <b>${esc(s.bot || 'wisp')}</b>, ${n ? `${n} ${n === 1 ? 'person' : 'people'} linked` : 'nobody linked yet'}</span>${n ? '<button class="link xs" data-act="skUnlink">Unlink</button>' : ''}${n && !steps ? '<button class="link xs" data-act="skTokens">Change tokens</button>' : ''}`);
+    fill(who, `<span>Connected to <b>${esc(s.team || 'your workspace')}</b> as <b>${esc(s.bot || 'wisp')}</b>, ${linked(n)}</span>${n ? '<button class="link xs" data-act="skUnlink">Unlink</button>' : ''}${n && !steps ? '<button class="link xs" data-act="skTokens">Change tokens</button>' : ''}`);
     $('.ph-steps', sec).hidden = !steps;
-    const done = [!!(s.appToken || s.botToken), tokens, n > 0];
-    for (const [i, ok] of done.entries()) {
-      const num = $(`[data-step="${i + 1}"]`, sec);
-      num.classList.toggle('ok', ok);
-      fill(num, ok ? icon('check') : String(i + 1));
-    }
+    ticks(sec, [!!(s.appToken || s.botToken), tokens, n > 0]);
     for (const k of ['appToken', 'botToken']) {
       const input = $(`[data-sk="${k}"]`, sec);
       if (input !== document.activeElement && input.value !== s[k]) input.value = s[k]; // never under someone's typing
     }
-    const code = (lead) => `<p class="hint">${lead} <code>link ${esc(s.linkCode)}</code> <button class="ghost xs" data-act="skCode">${icon('copy')}Copy</button></p>`;
-    fill($('.ph-code', sec), s.linkCode ? `${code('In a DM to the bot, send')}<p class="hint">Each code links one person, and the next shows here.</p>` : '<p class="hint">Your code shows here once the bot token is in.</p>');
+    fill($('.ph-code', sec), firstCode('skCode', s.linkCode));
     const more = $('.ph-more', sec);
     more.hidden = steps;
-    fill(more, !steps && s.linkCode ? code('To link someone else, they send the bot') : '');
+    fill(more, !steps && s.linkCode ? codeLine('skCode', s.linkCode, 'To link someone else, they send the bot') : '');
+  };
+  const paintDiscord = () => {
+    const d = r.discord;
+    const st = r.status.discord;
+    const sec = $('.ph-dc', node);
+    hold(sec);
+    const sw = $('[data-sw="discord"]', node);
+    sw.setAttribute('aria-checked', d.enabled && !d.box);
+    sw.disabled = d.box;
+    const on = d.enabled && !d.box;
+    const error = on && d.token ? d.error || st?.error || '' : '';
+    fill($('.ph-st', sec), !on ? '' : !d.token ? '<span class="ph-wait">Not set up</span>' : error ? `<span class="ph-bad">${icon('warn')}Not working</span>` : d.connected ? status({ ok: true }) : '<span class="ph-wait">Checking…</span>');
+    $('.ph-rules', sec).hidden = d.box;
+    fill($('.ph-rules', sec), `It runs only while ${esc(here)} is awake, and what’s sent meanwhile can be lost. Only people you link count. In a thread, mention the bot or use <code>/wisp</code> to follow up: it doesn’t read plain messages. Full auto can’t be asked for from Discord.`);
+    trouble(sec, d.box ? esc(DISCORD_NO_BOX) : error ? discordTrouble(error) : '');
+    $('.ph-on', sec).hidden = !on;
+    const steps = !(d.connected && d.senders) || changeToken;
+    const n = d.senders;
+    const g = d.guilds;
+    const add = (cls) => `<a class="${cls}" href="${esc(d.invite)}" target="_blank" rel="noopener">`;
+    const who = $('.ph-who', sec);
+    // There from the start: when the bot connects it says so in place, and the steps stay put.
+    fill(who, !d.connected ? '<span>Not connected yet</span>' : `<span>Connected as <b>${esc(d.bot || 'wisp')}</b> in ${g ? `${g} ${g === 1 ? 'server' : 'servers'}` : 'no server yet'}, ${linked(n)}</span>${n ? '<button class="link xs" data-act="dcUnlink">Unlink</button>' : ''}${n && !steps ? `<button class="link xs" data-act="dcToken">Change token</button>${d.invite ? `${add('link xs')}Add to a server</a>` : ''}` : ''}`);
+    $('.ph-steps', sec).hidden = !steps;
+    ticks(sec, [!!d.token, !!d.token, g > 0, n > 0]);
+    const input = $('[data-dc="token"]', sec);
+    if (input !== document.activeElement && input.value !== d.token) input.value = d.token; // never under someone's typing
+    // In its final shape before there's a link: what's below stays where it is when it comes.
+    fill($('.ph-invite', sec), d.invite ? `${add('primary sm')}${icon('external')}Add to a server</a><button class="ghost sm" data-act="dcInvite">${icon('copy')}Copy link</button>` : `<button class="primary sm" disabled>${icon('external')}Add to a server</button><button class="ghost sm" disabled>${icon('copy')}Copy link</button>`);
+    fill($('.ph-code', sec), firstCode('dcCode', d.linkCode));
+    const more = $('.ph-more', sec);
+    more.hidden = steps;
+    fill(more, !steps && d.linkCode ? codeLine('dcCode', d.linkCode, 'To link someone else, they send the bot') : '');
   };
   const paintChannels = () => {
     paintGithub();
     paintSlack();
+    paintDiscord();
   };
   // A change while a save is on its way can be newer than what the save answers: looked at after it.
   const refresh = async () => {
@@ -208,7 +303,7 @@ export async function openPhone({ host } = {}) {
     if (saving) missed = true;
     if (saving || !next || !node.isConnected) return;
     r = next;
-    // GitHub and Slack paint in place, so a status can show while a token is being typed; .ph-body can't
+    // The channels paint in place, so a status can show while a token is being typed; .ph-body can't
     if (node.contains(document.activeElement) && document.activeElement.matches('.ph-body input')) paintChannels();
     else paint();
   };
@@ -226,21 +321,32 @@ export async function openPhone({ host } = {}) {
   };
   const flip = (channel, key) => {
     const was = r[channel][key];
+    const up = r[channel].connected;
     r[channel][key] = !was;
-    if (channel === 'slack') r.slack.connected = false; // a new connection: Working again once it says so
-    return saveChannel({ [channel]: { [key]: !was } }, () => (r[channel][key] = was));
+    if (channel === 'slack' || channel === 'discord') r[channel].connected = false; // a new connection: Working again once it says so
+    return saveChannel({ [channel]: { [key]: !was } }, () => Object.assign(r[channel], { [key]: was, connected: up }));
   };
   // A token arrives whole, so a paste saves at once; on change for one typed by hand.
   const saveToken = async (input) => {
-    const k = input.dataset.sk;
+    const channel = input.dataset.sk ? 'slack' : 'discord';
+    const k = input.dataset.sk || input.dataset.dc;
     const v = input.value.trim();
-    const was = r.slack[k];
-    if (v === was) return;
-    r.slack[k] = v ? '••••' : '';
-    const ok = await saveChannel({ slack: { [k]: v } }, () => (r.slack[k] = was));
-    input.value = r.slack[k];
-    if (ok) changeTokens = false;
-    if (ok) paintSlack();
+    const was = r[channel];
+    const st = r.status[channel];
+    if (v === was[k]) return;
+    r[channel] = { ...was, [k]: v ? '••••' : '' };
+    if (channel === 'discord') {
+      // Another bot: its application, its servers and its people aren't this one's.
+      Object.assign(r.discord, { connected: false, bot: '', guilds: 0, senders: 0, appId: '', invite: '', error: '' });
+      r.status.discord = null;
+    }
+    const ok = await saveChannel({ [channel]: { [k]: v } }, () => {
+      r[channel] = was;
+      r.status[channel] = st;
+    });
+    input.value = r[channel][k];
+    if (ok) changeTokens = changeToken = false;
+    if (ok) paintChannels();
   };
   const paint = () => {
     const tg = r.telegram;
@@ -310,10 +416,14 @@ export async function openPhone({ host } = {}) {
     if (t.dataset.ntfy) put({ ntfy: { ...r.ntfy, [t.dataset.ntfy]: t.value.trim() } });
     if (t.dataset.tg === 'token') put({ telegram: { enabled: r.telegram.enabled, token: t.value.trim() } });
     if (t.dataset.tg === 'project') put({ telegram: { project: t.value } });
-    if (t.dataset.sk) saveToken(t);
+    if (t.dataset.sk || t.dataset.dc) saveToken(t);
+  });
+  // A token pasted after the mask would read as the mask, and so as unchanged: it replaces it.
+  node.addEventListener('focusin', (e) => {
+    if (e.target.dataset?.dc) e.target.select();
   });
   node.addEventListener('paste', (e) => {
-    if (e.target.dataset?.sk) setTimeout(() => saveToken(e.target)); // once the text is in the box
+    if (e.target.dataset?.sk || e.target.dataset?.dc) setTimeout(() => saveToken(e.target)); // once the text is in the box
   });
   node.addEventListener('click', async (e) => {
     const sw = e.target.closest('[data-sw]')?.dataset.sw;
@@ -328,6 +438,7 @@ export async function openPhone({ host } = {}) {
     if (sw === 'github') return flip('github', 'enabled');
     if (sw === 'ghPublic') return flip('github', 'publicReports');
     if (sw === 'slack') return flip('slack', 'enabled');
+    if (sw === 'discord') return flip('discord', 'enabled');
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'unlink') return put({ telegram: { enabled: r.telegram.enabled, token: r.telegram.token, unlink: true } });
     if (act === 'ghFix') {
@@ -353,6 +464,24 @@ export async function openPhone({ host } = {}) {
       r.slack.senders = 0;
       changeTokens = false;
       return saveChannel({ slack: { unlink: true } }, () => (r.slack.senders = was));
+    }
+    if (act === 'dcInvite') {
+      await copy(r.discord.invite);
+      return toast('Link copied');
+    }
+    if (act === 'dcCode') {
+      await copy(`link ${r.discord.linkCode}`);
+      return toast('Copied');
+    }
+    if (act === 'dcToken') {
+      changeToken = true;
+      return paintDiscord();
+    }
+    if (act === 'dcUnlink') {
+      const was = r.discord.senders;
+      r.discord.senders = 0;
+      changeToken = false;
+      return saveChannel({ discord: { unlink: true } }, () => (r.discord.senders = was));
     }
     if (act === 'test') {
       try {
