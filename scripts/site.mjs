@@ -536,6 +536,7 @@ const DEMOS = {
 // The guides' sections on the index, in this order (each guide's `topic`).
 const TOPICS = [
   ['agents', 'Agents side by side', 'Several agents on one repo, compared, as a team, or until the tests pass.'],
+  ['compare', 'wisp compared', 'wisp next to the other agent apps, from their own docs, with where each is better.'],
   ['machines', 'Machines and phones', 'Your other computers over SSH or the grid, and your agents from your phone.'],
   ['cloud', 'wisp Cloud', 'Agents that keep working with every lid shut, on our server or yours.'],
   ['yours', 'Make it yours', 'Change wisp itself, bring a second account, share an agent with your team.'],
