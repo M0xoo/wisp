@@ -584,6 +584,7 @@ test('bots, webhooks, itself, system messages, and guild messages that don’t m
   fake.message({ content: '@everyone look', channel_id: c, mention_everyone: true, author: author() });
   await caughtUp(c);
   assert.equal(inRoom(c).length, 1);
+  assert.deepEqual(fake.threads.filter((t) => t.channel === c), [], 'no task either');
 
   const own = `D${BOT}`;
   dm('my own report', { user: BOT, channel: own });
@@ -710,6 +711,25 @@ test('buttons an agent’s long labels break: Discord refuses them, and the word
   assert.match(post.content, /Which\?/);
 });
 
+test('a button that starts a turn: yes on a task in Edits, no on one in Full auto, where only words are capped', async () => {
+  const chat = `D${ME}`;
+  const question = [{ type: 'hero', status: 'done', title: 'T', summary: 'S' }, { type: 'question', question: 'Which?', options: ['One', 'Two'] }];
+  const q = await reported(question);
+  const s = srv.store.all().at(-1);
+  const custom_id = q.components[0].components[0].custom_id;
+  const pressInDm = () => fake.interact({ type: 3, data: { custom_id }, user: author(), channel_id: chat, guild_id: undefined });
+  srv.store.get(s.id).mode = 'auto'; // switched in wisp meanwhile
+  pressInDm();
+  assert.equal(await next(chat), 'Say that in words here, so it runs in Edits at most.');
+  assert.equal((await session(s.id)).turns.length, 1);
+  srv.store.get(s.id).mode = 'edits';
+  pressInDm();
+  assert.match(await next(chat), /^✓ Sent/);
+  await until(async () => (await session(s.id)).turns.length === 2);
+  await settled(s.id);
+  await next(chat);
+});
+
 test('reports: only tasks started here, whatever the Phone events say; a task from wisp posts nothing', async () => {
   const events = srv.store.config.remote.events;
   srv.store.config.remote.events = [];
@@ -737,9 +757,20 @@ test('heartbeats carry the sequence number, and Discord can ask for one', async 
   const n = fake.beats.length;
   await until(() => fake.beats.length >= n + 3, { what: 'heartbeats' });
   assert.ok(fake.beats.at(-1) > 0, 'with the last seq');
-  const before = fake.beats.length;
+  // On a long interval, so a beat now can only be the answer to Discord's ask.
+  fake.heartbeat = 3_600_000;
+  const r = fake.resumes.length;
+  fake.op(7);
+  await until(() => fake.resumes.length > r);
+  await connected();
+  const sent = fake.beats.length;
   fake.op(1);
-  await until(() => fake.beats.length > before);
+  await until(() => fake.beats.length > sent, { what: 'a beat on request' });
+  fake.heartbeat = 20;
+  const again = fake.resumes.length;
+  fake.op(7);
+  await until(() => fake.resumes.length > again);
+  await connected();
 });
 
 test('an unacked heartbeat ends the connection, and it resumes where it was', async () => {
