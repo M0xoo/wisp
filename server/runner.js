@@ -1223,8 +1223,13 @@ export class Runner extends EventEmitter {
     if (lead.turns.at(-1).status === 'running') return;
     if (turn.status !== 'stopped') this.#reportBack(lead);
     // The last one it waited on was stopped (you stopped it, or the lead with it): nothing comes
-    // back, so the lead lands. You did it, so nobody is pinged.
-    else if (lead.state === 'running' && !this.live.has(lead.id) && !lead.auto?.busy && lead.goal?.status !== 'checking' && !this.deleting.has(lead.id) && !this.#awaiting(lead).length) this.settle(lead, { quiet: true });
+    // back, so the lead lands. You did it, so nobody is pinged. Its CLI may still linger after its
+    // result (a slow machine's exit, or a Stop that hasn't landed yet): then it lands when that run
+    // lets go (release() settles a handed one quietly), not never.
+    else if (lead.state === 'running' && !lead.auto?.busy && lead.goal?.status !== 'checking' && !this.deleting.has(lead.id) && !this.#awaiting(lead).length) {
+      if (this.live.has(lead.id)) this.handing.add(lead.id);
+      else this.settle(lead, { quiet: true });
+    }
   }
 
   // The lead's last turn's delegations still at work whose report it hasn't had. While there are

@@ -327,6 +327,9 @@ test('a lead whose turn ends while its delegates work stays Working, and finishe
 });
 
 test('stopping a lead that waits on its delegates stops them and lands it, with nothing sent back', async () => {
+  // Its CLI still lingers after the result when you stop it (as on a slow machine): the lead
+  // lands once the last of them lets go, whichever goes first.
+  process.env.FAKE_LINGER = '2000'; // under the 3 s linger, so the lead's run is still live at the stop
   const s = await api('/sessions', { prompt: 'DELEGATE SLOW and DELEGATE NOWAIT then stop', cwd: makeRepo(), agent: 'claude', worktree: false, subagents: [{ agent: 'codex' }] });
   const fin = finishedFor(s.id);
   try {
@@ -343,6 +346,7 @@ test('stopping a lead that waits on its delegates stops them and lands it, with 
     assert.deepEqual(fin.seen, [], 'you stopped it: no ping');
   } finally {
     fin.off();
+    delete process.env.FAKE_LINGER;
   }
 });
 
