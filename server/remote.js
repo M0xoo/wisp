@@ -27,6 +27,7 @@ export class Remote {
     this.tgElsewhere = new Map(); // Telegram message id -> session id, for sessions on a machine (server/machines.js)
     this.away = new Map(); // session id on a machine -> { channel, by, last }: what s.remote holds for one here
     this.channels = { ntfy: new Ntfy(this), telegram: new Telegram(this), github: new Github(this) };
+    for (const [id, a] of Object.entries(store.config?.remote?.github?.away || {})) this.away.set(id, { channel: 'github', last: null, ...a });
     this.ac = null;
     this.ntfyPollMs = 4000;
     this.tgLongPoll = 25;
@@ -240,7 +241,7 @@ export class Remote {
       const prev = c.github || {};
       const enabled = !!(body.github.enabled ?? prev.enabled);
       // Switched on again: what was said while it was off isn't for it, not even to call it stale.
-      c.github = { enabled, publicReports: !!(body.github.publicReports ?? prev.publicReports), repos: enabled && !prev.enabled ? {} : prev.repos || {} };
+      c.github = { ...prev, enabled, publicReports: !!(body.github.publicReports ?? prev.publicReports), repos: enabled && !prev.enabled ? {} : prev.repos || {} };
     }
     this.store.saveConfig();
     this.start();

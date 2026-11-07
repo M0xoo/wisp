@@ -753,6 +753,62 @@ test('that one turn on a public repo is the fixed line; the shot survives a rest
   assert.equal(srv.store.get(t.id).remote?.ghOnce, undefined);
 });
 
+test('a task on another machine keeps its issue across a restart: it reports, and /wisp follows up', async () => {
+  const n = nextIssue();
+  const id = 'abc@m1';
+  const ch = () => srv.remote.channels.github;
+  ch().threadStarted({ id }, { channel: 'github', repo: PRIVATE, number: n, comment: 1 }, { name: 'Ada' });
+  assert.equal(srv.remote.away.get(id).gh, `${PRIVATE}#${n}`);
+  srv.remote.markStarted('tg1@m1', 'telegram', 'Ada'); // Telegram's stay memory, as they were
+  const disk = JSON.parse(fs.readFileSync(path.join(process.env.WISP_HOME, 'config.json'), 'utf8'));
+  assert.equal(disk.remote.github.away[id].gh, `${PRIVATE}#${n}`, 'on disk at once');
+  assert.equal(disk.remote.github.away['tg1@m1'], undefined);
+
+  // A settings change doesn't lose it.
+  await api('/remote', { method: 'PUT', body: { github: { publicReports: false } } });
+  assert.ok(srv.store.config.remote.github.away[id]);
+
+  halt();
+  await boot();
+  await until(() => repoState(PRIVATE));
+  assert.deepEqual(srv.remote.startedFrom({ id }), { channel: 'github', last: null, by: 'Ada', gh: `${PRIVATE}#${n}`, at: srv.remote.away.get(id).at });
+  assert.equal(srv.remote.away.has('tg1@m1'), false);
+
+  const turns = [{ id: 't1', status: 'done', presentation: { blocks: [{ type: 'hero', status: 'done', title: 'From away', summary: 'Done over there' }] } }];
+  await srv.remote.notify({ id, state: 'review', title: 'Away task', turns }, { project: 'p' });
+  const report = await nextOn(n);
+  assert.match(report, /^Ada: ✅ p: Away task/);
+  assert.match(report, /Done over there/);
+
+  const sent = [];
+  srv.machines.json = async (mid, method, p, body) => {
+    if (method === 'GET') return { id: 'abc', agent: 'claude', state: 'review', mode: 'plan', title: 'Away task', turns };
+    sent.push({ mid, method, p, body });
+    return { queued: false };
+  };
+  srv.machines.session = (mid, s) => ({ ...s, id: `${s.id}@${mid}` });
+  const before = srv.store.all().length;
+  comment(n, '/wisp and the next thing');
+  assert.equal(await nextOn(n), line('✓ Sent'));
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].p, '/sessions/abc/reply');
+  assert.match(sent[0].body.text, /<message>\nand the next thing\n<\/message>/);
+  assert.equal(srv.store.all().length, before, 'not another task');
+});
+
+test('the kept threads stop at 200, oldest out', () => {
+  const ch = srv.remote.channels.github;
+  const n = 777777;
+  for (let i = 0; i < 205; i++) {
+    srv.remote.markStarted(`x${i}@m1`, 'github');
+    ch.threadStarted({ id: `x${i}@m1` }, { channel: 'github', repo: PRIVATE, number: n, comment: 1 }, null);
+  }
+  const kept = Object.keys(srv.store.config.remote.github.away);
+  assert.equal(kept.length, 200);
+  assert.ok(!kept.includes('x4@m1'));
+  assert.ok(kept.includes('x204@m1'));
+});
+
 test('wisp’s own comments and what isn’t a command do nothing', async () => {
   const n = nextIssue();
   for (const body of [
