@@ -430,6 +430,19 @@ test('with channels not in grid.json, /_in/ is a 404, nothing is kept or woken, 
   }
 });
 
+test('switched off, what was held still goes after its hour', async () => {
+  const g = await boot({ channels: { enabled: false, sweepMs: 30 } });
+  const ada = g.user('ada');
+  const old = Date.now() - 2 * 60 * 60_000;
+  g.grid.db.run("INSERT INTO channel_inbox (user_id, channel, event_key, headers, body, size, at) VALUES (?, 'telegram', 'k', '{\"s\":\"x\"}', x'00', 1, ?)", ada.id, old);
+  await until(() => g.rows(ada).length === 0, { what: 'the sweep' });
+  const again = await boot({ channels: { enabled: false, sweepMs: 1e9 } });
+  const bob = again.user('bob');
+  again.grid.db.run("INSERT INTO channel_inbox (user_id, channel, event_key, headers, body, size, at) VALUES (?, 'telegram', 'k', '{}', x'00', 1, ?)", bob.id, old);
+  again.grid.inbox.resume();
+  assert.equal(again.rows(bob).length, 0, 'and a restart sweeps too');
+});
+
 test('channels on: a wrong token, a wrong shape or a GET gets the same 404 as off', async () => {
   const g = await boot();
   const ada = g.user('ada');
@@ -455,7 +468,7 @@ test('channels on: a wrong token, a wrong shape or a GET gets the same 404 as of
   assert.deepEqual(JSON.parse(held.rows(bob)[0].headers), { [SECRET]: 's' });
 });
 
-test('the limits: per token, then per address', async () => {
+test('the limits: a known token by its own, an unknown one by address', async () => {
   const g = await boot();
   const ada = g.user('ada');
   const { url } = await g.url(ada);
@@ -463,9 +476,10 @@ test('the limits: per token, then per address', async () => {
   let last;
   for (let i = 0; i < 121; i++) last = await g.post(ada, url, update(i));
   assert.equal(last.status, 429);
-  let ip;
-  for (let i = 0; i < 480; i++) ip = await call(g.port, 'ada.wisp.localhost', `/_in/${'b'.repeat(43)}`);
-  assert.equal(ip.status, 429);
+  // Telegram posts every user's webhook from a few addresses: a known token doesn't count against one.
+  const bad = () => call(g.port, 'ada.wisp.localhost', `/_in/${'b'.repeat(43)}`);
+  for (let i = 0; i < 600; i++) assert.equal((await bad()).status, 404, `unknown token ${i}`);
+  assert.equal((await bad()).status, 429);
 });
 
 test('channels in grid.json: what’s accepted, what’s refused', () => {

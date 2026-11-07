@@ -869,11 +869,15 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     const none = () => json(res, 404, { error: 'not found' });
     if (!inbox.on || req.method !== 'POST') return none();
     try {
-      limit(`in|${clientIp(req)}`, 600);
       const m = IN_PATH.exec(url.pathname);
       const hit = m && inbox.byToken(m[1]);
       const user = hit && accounts.byHandle(handle);
-      if (!user || user.disabled || user.id !== hit.user_id) return none();
+      // By address only for what no one knows: a sender like Telegram posts every user's webhook
+      // from a few addresses, so a known token has its own limit and doesn't count here.
+      if (!user || user.disabled || user.id !== hit.user_id) {
+        limit(`in|${clientIp(req)}`, 600);
+        return none();
+      }
       limit(`intok|${user.id}|${hit.channel}`, 120);
       await inbox.accept(user, hit.channel, req);
       return json(res, 200, { ok: true });

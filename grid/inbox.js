@@ -165,14 +165,15 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
     db.run('DELETE FROM channel_inbox WHERE at < ?', before);
   }
 
-  const sweeper = on ? setInterval(() => {
+  // Switched off too: what it held stays in the clear until this takes it.
+  const sweeper = setInterval(() => {
     try {
       sweep();
     } catch (err) {
       log(`grid: inbox sweep: ${err.message}`);
     }
-  }, opts.sweepMs) : null;
-  sweeper?.unref?.();
+  }, opts.sweepMs);
+  sweeper.unref?.();
 
   return {
     on,
@@ -209,8 +210,8 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
 
     // After a restart: everyone with something held.
     resume() {
-      if (!on) return;
       sweep();
+      if (!on) return;
       for (const r of db.all('SELECT DISTINCT user_id FROM channel_inbox WHERE done_at IS NULL')) {
         const u = accounts.userById(r.user_id);
         if (u) drain(u);
