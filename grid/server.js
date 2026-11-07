@@ -42,7 +42,7 @@ import { SANDBOX_LABEL, createSandboxes } from './sandboxes.js';
 import { SITE_LABEL, createSites, readRaw } from './sites.js';
 import { createGridTelemetry } from './telemetry.js';
 import { TUNNEL_PROTOCOL, createTunnels, hostOnly } from './tunnels.js';
-import { isShare, shareNoWorker } from '../server/http/share.js';
+import { SHARE_LANDING, isShare, shareNoWorker } from '../server/http/share.js';
 
 const BODY_LIMIT = 64 * 1024;
 const ASSETS = new URL('./assets/', import.meta.url);
@@ -862,7 +862,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     }
     const who = hook ? { via: 'hook', user } : edgeAuth(req, user, box, row, row === null);
     if (!who) {
-      if (wantsHtml(req)) return redirect(res, `${back}${back.includes('?') ? '&' : '?'}path=${encodeURIComponent(p + url.search)}`);
+      // A share with no worker (server/http/share.js) is a browser's page too: signed in, the same answer.
+      if (wantsHtml(req) || isShare(req)) return redirect(res, `${back}${back.includes('?') ? '&' : '?'}path=${encodeURIComponent(isShare(req) ? SHARE_LANDING : p + url.search)}`);
       return json(res, 401, { error: 'Sign in again.' });
     }
     if (who.via === 'key') {
@@ -937,7 +938,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     }
     const who = edgeAuth(req, user);
     if (!who) {
-      if (wantsHtml(req)) return redirect(res, `${back}&path=${encodeURIComponent(p + url.search)}`);
+      if (wantsHtml(req) || isShare(req)) return redirect(res, `${back}&path=${encodeURIComponent(isShare(req) ? SHARE_LANDING : p + url.search)}`);
       return json(res, 401, { error: 'Sign in again.' });
     }
     if (isShare(req)) return shareNoWorker(req, res);

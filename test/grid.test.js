@@ -227,9 +227,10 @@ test('a share that found no service worker: a 303 to the page, whatever Origin i
     assert.deepEqual([r.status, r.location], [303, '/?shared=none'], String(from));
   }
   assert.equal(grid.hostd.state(box), 'stopped', 'it didn’t wake the box');
-  // Signed out it's the sign-in, like any other path.
-  const anon = await browser().go(`${origin}/share`, { method: 'POST' });
+  // Signed out it's the sign-in, and then the same page, not a line of JSON.
+  const anon = await browser().go(`${origin}/share`, { method: 'POST', headers: { accept: '*/*' } });
   assert.equal(anon.status, 302);
+  assert.match(anon.location, /\/go\?path=%2F%3Fshared%3Dnone$/);
 });
 
 test('the edge: no cookie → sign in; another user’s cookie doesn’t open it; posts from another site are refused', async () => {

@@ -887,6 +887,9 @@ try {
     await share(q, {}, [shared()]);
     await chips(q).first().waitFor();
     ok((await boxOf(q)) === 'Take a look at the attached file.', 'files alone can still be sent');
+    // The harness list landing or a settings change repaints the launcher: the chips stay.
+    await q.evaluate(() => import('/js/features/launcher.js').then((m) => m.renderLauncher()));
+    ok((await chips(q).count()) === 1, 'a repaint dropped the shared file');
     await q.evaluate(() => localStorage.removeItem('wisp.drafts'));
     await q.reload();
     await painted(q);

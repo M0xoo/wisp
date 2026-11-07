@@ -1250,6 +1250,7 @@ tmux attach -t agent`)}
       card: 'Android’s share sheet opens New task with it already in the box. On an iPhone, a Shortcut you build sends it to your cloud wisp.',
       description: 'Send a link, text, picture or PDF from your phone to wisp: Android’s share sheet opens New task with it attached, and an iPhone Shortcut starts a task on your cloud wisp with an API key.',
       lede: 'To send a link, text or picture to your coding agents from your phone, share it to wisp. On Android, the share sheet opens <b>New task</b> with it in the box and attached, ready to send. On an iPhone, Apple has no share target for web apps, so a Shortcut you build sends it to your cloud wisp.',
+      figure: fig.reach,
       body: `
     <section>
       <h2 id="android">On Android</h2>
