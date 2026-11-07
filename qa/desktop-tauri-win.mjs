@@ -184,7 +184,7 @@ await check('TAURI-W00', 'setup.exe /S installs the app', async () => {
   await until(() => fs.existsSync(EXE), { timeout: 120_000, every: 500, what: 'wisp.exe' });
 });
 
-await check('TAURI-W02b', 'a 1366×768 laptop: stops at the screen as Electron does', async () => {
+await check('TAURI-W02b', 'a 1366×768 laptop: stops at the screen’s edges', async () => {
   one('resolution', 1366, 768);
   await sleep(1500);
   await launch(PORT, { connect: false });
@@ -218,7 +218,7 @@ await check('TAURI-W02', 'window: titled wisp, 1380×900 as a whole, centred, as
   ok(w.title === 'wisp', `title "${w.title}"`);
   ok(w.width === 1380 && w.height === 900, `${w.width}×${w.height}`);
   ok(w.x === Math.floor((s.workWidth - 1380) / 2) && w.y === Math.floor((s.workHeight - 900) / 2), `at ${w.x},${w.y}`);
-  // By its corner with a real mouse: moving it from a script goes round the limit, here and on Electron.
+  // By its corner with a real mouse: moving it from a script goes round the limit.
   await toFront();
   one('drag', w.x + w.width - 5, w.y + w.height - 5, -1200, -800);
   await sleep(600);
@@ -315,7 +315,7 @@ await check('TAURI-W06b', 'previews stay in their frame; frames have no IPC and 
   console.log(`  a preview frame: ${JSON.stringify(inside)}`);
   ok(!inside.bridge && inside.invoke !== 'ALLOWED', `a preview frame: ${JSON.stringify(inside)}`);
   // A frame moving to a page of another site stays a frame, as on macOS. (To another app's scheme
-  // WebView2 asks first, "This site is trying to open…", which is better than Electron's silence.)
+  // WebView2 asks first, "This site is trying to open…", which is better than silence.)
   await A.page.evaluate(() => { qaf.src = 'https://example.net/qa-frame'; });
   await sleep(1200);
   ok(!fs.existsSync(LOG), `a frame’s navigation left the app: ${fs.existsSync(LOG) && fs.readFileSync(LOG, 'utf8')}`);
@@ -400,7 +400,7 @@ await check('TAURI-W08', 'follows the system’s theme, live', async () => {
   await sleep(500);
 });
 
-await check('TAURI-W09', 'the count shows on the taskbar icon as on Electron, the window keeps its name', async () => {
+await check('TAURI-W09', 'the count shows on the taskbar icon, the window keeps its name', async () => {
   const set = (t) => A.page.evaluate((v) => { document.title = v; }, t);
   await set('wisp');
   await sleep(800);
@@ -466,7 +466,7 @@ await check('TAURI-W18b', 'another app in front: the page knows, once, as WebVie
 });
 
 await check('TAURI-W18', 'a task that finishes in a minimized window is a toast in Action Center', async () => {
-  // As Electron from the first page: no one is ever asked, and notify.js sends nothing before this.
+  // From the first page: no one is ever asked, and notify.js sends nothing before this.
   ok((await A.page.evaluate(() => Notification.permission)) === 'granted', `permission ${await A.page.evaluate(() => Notification.permission)}`);
   const refused = await A.page.evaluate(() => window.__TAURI_INTERNALS__.invoke('plugin:notification|notify', { options: { title: 'x' } }).then(() => 'allowed', () => 'refused'));
   ok(refused === 'refused', `the plugin’s own command reaches the page: ${refused}`);
@@ -503,7 +503,7 @@ await check('TAURI-W19', 'Reload and Force Reload, by their keys', async () => {
   }
 });
 
-await check('TAURI-W20', 'the right-click menu holds what Electron’s does, no Inspect, no Back or Print', async () => {
+await check('TAURI-W20', 'the right-click menu holds spelling, Copy Link and editing, no Inspect, no Back or Print', async () => {
   await restore();
   await toFront();
   await A.page.evaluate(() => { const b = document.createElement('div'); b.id = 'qaCtx'; b.style.cssText = 'position:fixed;left:300px;top:200px;z-index:99999;background:#888;padding:20px'; b.innerHTML = '<a href="https://example.com/qa">a link here</a><br><br><textarea>some text</textarea><p>plain text</p>'; document.body.append(b); });

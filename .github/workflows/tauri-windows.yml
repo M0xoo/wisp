@@ -5,8 +5,8 @@ name: tauri windows
 #   desktop  qa/desktop-tauri-win.mjs: WebView2's CDP for the page, real mouse, keys and Win32 for the rest
 #   web      qa/web.mjs in Chrome on the same runner, then in the app's own WebView2
 #   migrate  a real v0.57.0, then this installer over it (qa/install.mjs --only migrate)
-# Electron stays what users get: this builds with the `qa` feature, which no release has, and its
-# artifact isn't named desktop-*, which is what release.yml publishes.
+# This builds with the `qa` feature, which no release has, and its artifact isn't named desktop-*,
+# which is what release.yml publishes.
 on:
   pull_request:
     paths:

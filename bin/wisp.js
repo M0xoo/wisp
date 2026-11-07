@@ -14,12 +14,10 @@
 //   wisp grid <dev|init|serve|…>  run wisp for many people on your own server (grid/)
 
 import { exec, spawn } from 'node:child_process';
-import fs, { existsSync } from 'node:fs';
+import fs from 'node:fs';
 import os from 'node:os';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { wispAppBinary } from './mac-app.js';
 
 const HELP = `usage:
   wisp                          open wisp
@@ -420,20 +418,8 @@ async function interactive() {
     running = true;
   } catch {}
 
-  // The desktop app (Electron is an optional dependency) runs the server in its own process, so
-  // it outlives this terminal. Without Electron, or with --browser/--no-open, serve from here.
-  // A task or `add` sent to an already-running wisp just goes over the API, no window.
-  const electron = flags.open && !flags.browser && (!running || !words.length) ? electronBinary() : null;
-  if (electron) {
-    const child = spawn(electron, [fileURLToPath(new URL('..', import.meta.url))], {
-      detached: true,
-      stdio: 'ignore',
-      env: { ...process.env, WISP_PORT: String(flags.port) },
-    });
-    child.unref();
-    if (!running) await waitForServer(api);
-    console.log(`\n  ◌ wisp is open\n`);
-  } else if (!running) {
+  // Serve from here unless a wisp is already running; a task or `add` sent to it just goes over the API.
+  if (!running) {
     const { startServer } = await import('../server/index.js');
     // WISP_HOST: in a wisp Grid container the edge reaches wisp through a published port.
     await startServer({ port: flags.port, ...(process.env.WISP_HOST && { host: process.env.WISP_HOST }) });
@@ -447,7 +433,7 @@ async function interactive() {
     if (url) console.log(`  ◌ cloning ${words[1]}…`);
     const p = await api('/projects', url ? { repo: words[1] } : { path: path.resolve(words[1] || process.cwd()) }).catch((e) => console.error(`  ✗ ${e.message}`));
     if (p) console.log(`  ✓ project added: ${p.name}  (${p.path})`);
-    if (running || electron) process.exit(0);
+    if (running) process.exit(0);
   } else if (words.length) {
     const cfg = await api('/config');
     const agent = flags.agent || cfg.defaults.agent;
@@ -456,34 +442,12 @@ async function interactive() {
     const s = await api('/sessions', { prompt: words.join(' '), cwd, agent, mode: flags.mode || cfg.defaults.mode, model, effort: flags.effort || '' });
     console.log(`  ◌ launched: ${s.title}`);
     openPath = `/#/s/${s.id}`;
-    if (running || electron) process.exit(0); // the running wisp will show it in the queue
+    if (running) process.exit(0); // the running wisp will show it in the queue
   }
 
-  if (electron) process.exit(0);
   if (flags.open) {
     const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start ""' : 'xdg-open';
     exec(`${cmd} "${base}${openPath}"`);
   }
 }
 
-function electronBinary() {
-  try {
-    const bin = createRequire(import.meta.url)('electron'); // the electron package exports its binary path
-    if (typeof bin !== 'string' || !existsSync(bin)) return null;
-    return process.platform === 'darwin' ? wispAppBinary(bin) : bin;
-  } catch {
-    return null;
-  }
-}
-
-async function waitForServer(api) {
-  for (let i = 0; i < 150; i++) {
-    try {
-      return await api('/config');
-    } catch {
-      await new Promise((r) => setTimeout(r, 200));
-    }
-  }
-  console.error('  ✗ the wisp app did not start in time — try `wisp --browser`');
-  process.exit(1);
-}

@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import { section, notes, nightlyNotes } from '../scripts/release-notes.mjs';
 import { nightlyVersion } from '../scripts/nightly-version.mjs';
 import { newer } from '../server/update.js';
+import { appFiles, artefacts } from '../desktop/scripts/package.mjs';
 
 // Windows checkouts have CRLF line ends; the patterns below match \n.
 const read = (f) => fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
@@ -30,20 +31,21 @@ test('the current version has release notes', () => {
 });
 
 test('the desktop app ships the files npm ships, and the downloads keep their names', () => {
-  const config = read('packaging/desktop/electron-builder.yml');
-  const files = [...config.matchAll(/^ {2}- ([\w.-]+(?:\/\*\*)?)$/gm)].map((m) => m[1].replace('/**', '/'));
   const pkg = JSON.parse(read('package.json'));
-  assert.deepEqual(files.filter((f) => f !== 'package.json').sort(), [...pkg.files].sort());
+  const files = appFiles(pkg);
+  for (const f of pkg.files) assert.ok(files.includes(f.replace(/\/$/, '')), f);
   // The site, the release notes and the app's updater link to these names (releases/latest/download/…).
-  for (const name of ['wisp-mac-${arch}.${ext}', 'wisp-mac-${arch}.dmg', 'wisp-windows-${arch}-setup.${ext}', 'wisp-linux-${arch}.${ext}']) assert.ok(config.includes(`artifactName: ${name}`), name);
+  const built = ['aarch64-apple-darwin', 'x86_64-apple-darwin', 'x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc'].flatMap(artefacts);
+  assert.deepEqual(built.sort(), ['wisp-mac-arm64.dmg', 'wisp-mac-arm64.zip', 'wisp-mac-x64.dmg', 'wisp-mac-x64.zip', 'wisp-windows-arm64-setup.exe', 'wisp-windows-x64-setup.exe']);
   const linked = [...notes(read('CHANGELOG.md'), pkg.version).matchAll(/download\/(wisp-[\w.-]+)\)/g)].map((m) => m[1]);
   assert.ok(linked.length >= 8);
   for (const f of linked) assert.match(f, /^wisp-(mac-(arm64|x64)\.dmg|windows-(arm64|x64)-setup\.exe|linux-(arm64|x64)\.(AppImage|deb))$/);
 });
 
-test('the release workflow builds with that config and publishes last', () => {
+test('the release workflow builds the Tauri app and publishes last', () => {
   const wf = read('.github/workflows/release.yml');
-  assert.match(wf, /--config packaging\/desktop\/electron-builder\.yml/);
+  assert.match(wf, /\n  desktop:\n(?:.*\n)*?\s+uses: \.\/\.github\/workflows\/tauri-package\.yml\n/);
+  assert.doesNotMatch(wf, /electron-builder/i);
   assert.match(wf, /scripts\/release-notes\.mjs/);
   assert.match(wf, /gh release create "\$TAG" --draft/);
   assert.match(wf, /needs: \[plan, release, npm\]/); // the release goes public after npm

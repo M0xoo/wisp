@@ -8,8 +8,8 @@ name: release
 # Stable and beta: merge a PR that bumps package.json's version (with its CHANGELOG section).
 # A version with a `-` (0.38.0-beta.1) is a beta: npm `next`, a GitHub prerelease, no Homebrew.
 # Either way this:
-#   1. builds the desktop app: macOS dmg + zip (Apple silicon, Intel), Windows installer (x64, Arm),
-#      Linux AppImage + deb (x64, Arm)
+#   1. builds the desktop app on Tauri (tauri-package.yml): macOS dmg + zip (Apple silicon, Intel),
+#      Windows installer (x64, Arm), and runs the install gate on them; Linux has no build yet
 #   2. creates the GitHub release v<version> as a draft with the CHANGELOG notes, the downloads and
 #      SHA256SUMS.txt
 #   3. publishes wisp-agents to npm (with provenance)
@@ -18,9 +18,8 @@ name: release
 #   5. bumps the Homebrew tap (M0xoo/homebrew-tap) to the new npm tarball
 # A push only releases a version npm doesn't have yet. Run it by hand (Actions → release → Run
 # workflow) to finish one that stopped half way: every step skips what's already done. With
-# "dry run" ticked it only builds the desktop apps (kept as the run's artifacts): try a branch with
-# `gh workflow run release --ref <branch> -f dry_run=true`. A dry run also builds the Tauri app beside
-# them (tauri-package.yml): unpublished, nothing else needs it, and it reports sizes and the install gate.
+# "dry run" ticked it only builds the desktop apps and runs the install gate (kept as the run's
+# artifacts): try a branch with `gh workflow run release --ref <branch> -f dry_run=true`.
 #
 # Nightly: when the nightly workflow (the full matrix, three times over) passes on main, this
 # builds that commit as <next patch>-nightly.<yyyymmdd>.<hhmm> (scripts/nightly-version.mjs),
@@ -36,11 +35,8 @@ name: release
 #
 # Secrets (all optional):
 #   HOMEBREW_TAP_TOKEN          a token that can push to M0xoo/homebrew-tap; without it the tap is skipped
-#   MAC_CSC_LINK, MAC_CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
-#                               Developer ID certificate (base64 .p12) and notarization; without
-#                               them the app is signed ad hoc and macOS asks to confirm the first open
-#   WIN_CSC_LINK, WIN_CSC_KEY_PASSWORD
-#                               Windows code signing; without them SmartScreen warns on first run
+# The apps aren't signed: the Mac one is signed ad hoc (desktop/scripts/package.mjs, MAC_SIGN_IDENTITY
+# for a Developer ID) and macOS asks to confirm the first open; SmartScreen warns on Windows.
 
 on:
   push:
@@ -67,9 +63,6 @@ concurrency:
 
 permissions:
   contents: read
-
-env:
-  BUILDER: electron-builder@26.15.3
 
 jobs:
   plan:
@@ -130,79 +123,15 @@ jobs:
         if: steps.stable.outputs.go == 'true'
         run: node scripts/release-notes.mjs "${{ steps.stable.outputs.version }}" > /dev/null
 
+  # The same build for every channel. A nightly's version is stamped into package.json first: the
+  # app reads it from there, and it has to say it's a nightly to update from it.
   desktop:
     needs: plan
     if: needs.plan.outputs.go == 'true'
-    name: desktop (${{ matrix.name }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - { name: macOS, os: macos-latest, args: --mac --arm64 --x64 }
-          - { name: Windows, os: windows-latest, args: --win --x64 --arm64 }
-          - { name: Linux, os: ubuntu-latest, args: --linux --x64 --arm64 }
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ needs.plan.outputs.sha }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      # Only for node_modules/electron/package.json (the Electron version); the builder downloads
-      # Electron for each target itself.
-      - run: npm ci --ignore-scripts --no-audit --no-fund
-      # The app reads its version from package.json: a nightly has to say it's one to update from it.
-      - name: Stamp the nightly version
-        if: needs.plan.outputs.channel == 'nightly'
-        run: npm version "${{ needs.plan.outputs.version }}" --no-git-tag-version --allow-same-version
-      - name: Build
-        shell: bash
-        env:
-          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-        run: |
-          extra=()
-          if [ "$RUNNER_OS" = macOS ] && [ -n "$MAC_CSC_LINK" ]; then
-            export CSC_LINK="$MAC_CSC_LINK" CSC_KEY_PASSWORD="$MAC_CSC_KEY_PASSWORD"
-            [ -n "$APPLE_ID" ] && extra+=(-c.mac.notarize=true)
-          elif [ "$RUNNER_OS" = Windows ] && [ -n "$WIN_CSC_LINK" ]; then
-            export CSC_LINK="$WIN_CSC_LINK" CSC_KEY_PASSWORD="$WIN_CSC_KEY_PASSWORD"
-          else
-            export CSC_IDENTITY_AUTO_DISCOVERY=false
-            [ "$RUNNER_OS" = macOS ] && extra+=(-c.mac.identity=-) # ad hoc: Apple silicon runs nothing unsigned
-          fi
-          npx --yes "$BUILDER" --config packaging/desktop/electron-builder.yml ${{ matrix.args }} "${extra[@]}"
-          # Linux targets say x86_64 / amd64 for x64, and a two-arch Windows build adds a combined
-          # installer: keep the names the site and the updater link to (wisp-<os>-<x64|arm64>…).
-          cd dist/desktop
-          for f in wisp-linux-x86_64.* wisp-linux-amd64.*; do [ -e "$f" ] && mv "$f" "$(echo "$f" | sed -E 's/x86_64|amd64/x64/')"; done
-          rm -f wisp-windows-setup.exe
-          ls -la wisp-*
-      - uses: actions/upload-artifact@v4
-        with:
-          name: desktop-${{ matrix.name }}
-          if-no-files-found: error
-          path: |
-            dist/desktop/wisp-*.dmg
-            dist/desktop/wisp-*.zip
-            dist/desktop/wisp-*.exe
-            dist/desktop/wisp-*.AppImage
-            dist/desktop/wisp-*.deb
-
-  # Dry runs only, and no job needs this one: Electron stays what users get.
-  tauri:
-    needs: [plan, desktop]
-    if: needs.plan.outputs.dry == 'true' && needs.plan.outputs.channel == 'stable'
     uses: ./.github/workflows/tauri-package.yml
     with:
       ref: ${{ needs.plan.outputs.sha }}
+      version: ${{ needs.plan.outputs.channel == 'nightly' && needs.plan.outputs.version || '' }}
 
   release:
     needs: [plan, desktop]

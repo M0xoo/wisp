@@ -1,6 +1,5 @@
-// wisp desktop shell on Tauri. As in electron/main.js the window loads the same page the browser
-// mode serves. Electron's main process is Node; Tauri has none, so the unchanged server runs as a
-// child on a real Node binary (desktop/entry.mjs, src/server.rs). Logic lives there, not here.
+// wisp's desktop app on Tauri. The window loads the same page the browser mode serves. Tauri has
+// no Node, so the unchanged server runs as a child on a real Node binary (desktop/entry.mjs, src/server.rs). Logic lives there, not here.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 

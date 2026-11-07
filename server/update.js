@@ -29,7 +29,7 @@ const TAP = 'm0xoo/tap/wisp-agents';
 // <prefix>/Cellar/wisp-agents/<version>/libexec/lib/node_modules/wisp-agents
 const CELLAR = /^(.*)[\\/]Cellar[\\/]wisp-agents[\\/]/;
 // The desktop app keeps wisp's files unpacked in wisp.app/Contents/Resources/app (resources\app on
-// Windows and Linux). Releases name their downloads without a version, see packaging/desktop.
+// Windows and Linux). Releases name their downloads without a version, see desktop/scripts/package.mjs.
 const PACKAGED = /[\\/](Contents[\\/]Resources|resources)[\\/]app$/;
 const RELEASES = 'https://api.github.com/repos/M0xoo/wisp/releases';
 export const DOWNLOADS = 'https://github.com/M0xoo/wisp/releases/latest';
@@ -249,15 +249,14 @@ export class Updater {
   }
 
   // Same port as now (wisp may have been started with --port), so the open tab finds it again.
-  relaunchCommand(desktop = !!(process.versions.electron || this.shell)) {
+  relaunchCommand(desktop = !!this.shell) {
     if (this.method === 'app') {
       const q = (p) => `"${p}"`; // cmd.exe takes no JSON escapes
       const { open, remove, installer } = this.swap || {};
-      // NSIS: /S installs silently over this copy, then the new one starts: --force-run is how
-      // electron-builder's installer says so, /R Tauri's (.onInstSuccess in its installer.nsi). An
-      // Electron build stays exactly as it was, and desktop/src-tauri/installer-hooks.nsh gives
-      // Tauri's installer --force-run, for the builds already out.
-      if (this.platform === 'win32') return `${q(installer)} /S ${this.shell === 'tauri' ? '/R' : '--force-run'}`;
+      // NSIS: /S installs silently over this copy, then /R starts the new one (.onInstSuccess in Tauri's
+      // installer.nsi). Builds already out say --force-run, which desktop/src-tauri/installer-hooks.nsh
+      // takes for /R.
+      if (this.platform === 'win32') return `${q(installer)} /S /R`;
       if (this.platform === 'darwin') {
         // Tauri's shell is this process's parent and outlives it by a moment, holding the single-instance
         // lock: a new app opened meanwhile hands over to the old one and quits, and nothing comes back.
@@ -267,7 +266,7 @@ export class Updater {
       return `${q(open)} >/dev/null 2>&1`;
     }
     const args = `${desktop ? '' : ' --browser --no-open'} --port ${this.port}`; // desktop: reopen the app; browser: keep the tab
-    const node = JSON.stringify(process.versions.electron ? 'node' : process.execPath); // Electron's is no node, Tauri's is
+    const node = JSON.stringify(process.execPath);
     return this.method === 'npx' ? `npx -y ${PKG.name}@${this.tag}${args}` : `${node} ${JSON.stringify(path.join(this.home(), 'bin', 'wisp.js'))}${args}`;
   }
 }
@@ -294,7 +293,7 @@ function run(cmd, env = {}) {
   });
 }
 
-// Electron's binary only acts as node with this set; never leak it into the relaunched app.
+// Builds of wisp from before Tauri ran their children with this set: never pass it on to what we start.
 function withoutElectronNode() {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
@@ -313,8 +312,6 @@ const start = Date.now();
 })();`;
 
 function handOff(port, cmd) {
-  const electron = process.versions.electron;
-  const env = electron ? { ...withoutElectronNode(), ELECTRON_RUN_AS_NODE: '1' } : process.env;
-  const child = spawn(process.execPath, ['-e', WAITER, String(port), cmd], { detached: true, stdio: 'ignore', env });
+  const child = spawn(process.execPath, ['-e', WAITER, String(port), cmd], { detached: true, stdio: 'ignore', env: withoutElectronNode() });
   child.unref();
 }

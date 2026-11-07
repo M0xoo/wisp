@@ -12,7 +12,7 @@ import { toast } from '../ui/toast.js';
 export const APP_URL = 'https://trywisp.dev/#install';
 const HIDDEN = 'wisp.getApp.hidden';
 
-export const inBrowser = () => !MOBILE && !window.wispDesktop && !/Electron/.test(navigator.userAgent) && matchMedia('(pointer: fine)').matches;
+export const inBrowser = () => !MOBILE && !window.wispDesktop && matchMedia('(pointer: fine)').matches;
 
 export function paintGetApp() {
   const b = $('#getAppBtn');

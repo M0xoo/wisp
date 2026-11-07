@@ -1,5 +1,5 @@
-// The Node side of the Tauri shell (desktop/src-tauri): the same unchanged server the Electron app
-// runs in its main process, here as a child of the shell on a real Node binary.
+// The Node side of the Tauri shell (desktop/src-tauri): the same unchanged server `wisp` runs from
+// a terminal, here as a child of the shell on a real Node binary.
 //
 // stdin is a pipe only the shell holds. It closes when the shell quits, crashes or is killed -9, so
 // this process can never outlive it. stdout lines starting with `wisp:shell ` are for the shell.
@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readShellPath } from '../electron/shell-path.js';
+import { readShellPath } from './shell-path.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.WISP_PORT) || 4477;
@@ -30,8 +30,8 @@ process.stdin.resume();
 process.stdout.on('error', () => {});
 const say = (word) => process.stdout.write(`wisp:shell ${word}\n`);
 
-// An app started from Finder or the Dock has a minimal PATH. Like electron/main.js: start on the PATH
-// read last time and ask the login shell again behind it (true when its PATH changed).
+// An app started from Finder or the Dock has a minimal PATH. Start on the PATH read last time
+// and ask the login shell again behind it (true when its PATH changed).
 function inheritShellPath() {
   if (process.platform === 'win32' || !DATA) return null;
   const file = path.join(DATA, 'shell-path');
@@ -53,7 +53,7 @@ function inheritShellPath() {
 }
 
 // Dev: web/ edits reload the window, server/ or desktop/ edits relaunch the app. Agents run in this
-// process, so a relaunch waits until nothing is running (electron/main.js has the same rule).
+// process, so a relaunch waits until nothing is running.
 function watchForDev() {
   const root = path.join(here, '..');
   let timer;

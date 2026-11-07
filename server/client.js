@@ -57,7 +57,7 @@ export class WispClient {
       detached: true,
       stdio: 'ignore',
       windowsHide: true,
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, // an Electron app using this SDK: its execPath is Electron
     });
     child.unref();
     const end = Date.now() + timeoutMs;

@@ -40,6 +40,13 @@ install_app() {
     x86_64) arch=x64 ;;
     *) die "no wisp app for this Mac ($(uname -m))" ;;
   esac
+  # The app's page needs Safari 16.4, so macOS 13.3 (LSMinimumSystemVersion): older, it wouldn't open.
+  local mac
+  mac="$(sw_vers -productVersion 2>/dev/null || true)"
+  case "$mac" in
+    '' | 13.[3-9]* | 1[4-9]* | [2-9][0-9]*) ;;
+    *) die "the wisp app needs macOS 13.3 or later, and this Mac has $mac. wisp in the browser works here: curl -fsSL https://trywisp.dev/install.sh | bash" ;;
+  esac
   local base zip want got dest # tmp stays global: the EXIT trap reads it
   if [ "$VERSION" = latest ]; then base="https://github.com/M0xoo/wisp/releases/latest/download"
   elif [ "$VERSION" = nightly ]; then base="https://github.com/M0xoo/wisp/releases/download/nightly"
