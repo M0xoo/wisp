@@ -1006,6 +1006,14 @@ test("a Slack trigger's People field is a part spells can restyle or hide", () =
   assert.ok(problems({ ...base0, parts: { 'automations.slackPeople': { props: { lines: 2 } } } }).some((x) => /automations\.slackPeople/.test(x)));
 });
 
+test("the Phone dialog's Email section is a part spells can restyle or hide", () => {
+  assert.equal(schema.PARTS['phone.email'], '.phone-modal .ph-em');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['phone.email'] }, parts: { 'phone.email': { style: { opacity: '0.8' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'phone.email': { props: { lines: 2 } } } }).some((x) => /phone\.email/.test(x)));
+  // Who may send is the remote config's, not a default a spell could lock.
+  assert.ok(!('email.enabled' in schema.SETTINGS) && !('email.sender' in schema.SETTINGS) && !('sender' in schema.SETTINGS));
+});
+
 test("the phone's New task button is a part spells can restyle or hide", () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.fab'] }, parts: { 'launcher.fab': { style: { borderRadius: '12px' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'launcher.fab': { props: { size: 2 } } } }).some((x) => /launcher\.fab/.test(x)));

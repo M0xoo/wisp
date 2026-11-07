@@ -458,7 +458,7 @@ export function paintMeta(id) {
     ${s.sharedFrom ? `<a class="m fork-from" href="${esc(s.sharedFrom.url)}" target="_blank" rel="noreferrer" title="${esc(`Shared by ${s.sharedFrom.name || s.sharedFrom.handle}${s.sharedFrom.skills?.length ? `\nWith their skills: ${s.sharedFrom.skills.join(', ')}` : ''}\nOpen the shared page`)}">${icon('share')}<span>From <b>${esc(s.sharedFrom.handle ? `@${s.sharedFrom.handle}` : s.sharedFrom.name)}</b></span></a>` : ''}
     ${summary.shared ? `<button class="m forks" data-a="share" title="${esc(`Shared${summary.shared.locked ? ' with a passkey' : ''}: ${summary.shared.url}`)}">${icon('share')}Shared</button>` : ''}
     ${forks.length ? `<button class="m forks" data-a="forks" title="${forks.length > 1 ? 'Tasks forked from this one' : 'Open the task forked from this one'}"${forks.length > 1 ? ' aria-haspopup="menu"' : ''}>${icon('fork')}${forks.length} fork${forks.length > 1 ? 's' : ''}</button>` : ''}
-    ${s.origin ? `<span class="m" title="${s.origin.kind === 'telegram' ? 'Started from Telegram' : `Launched by a ${esc(s.origin.kind)}`}">${icon({ recipe: 'bolt', trigger: 'replay', telegram: 'send' }[s.origin.kind] || 'spark')}${esc(s.origin.name)}</span>` : ''}`;
+    ${s.origin ? `<span class="m" title="${s.origin.kind === 'telegram' ? 'Started from Telegram' : s.origin.kind === 'email' ? 'Started by email' : `Launched by a ${esc(s.origin.kind)}`}">${icon({ recipe: 'bolt', trigger: 'replay', telegram: 'send' }[s.origin.kind] || 'spark')}${esc(s.origin.name)}</span>` : ''}`;
 }
 
 // A long branch gives way in the middle, so where it starts and its id at the end both stay:
