@@ -297,6 +297,9 @@
     if (me && me.av) { q('#meBtn').innerHTML = me.av; q('#splitMe').innerHTML = me.html; if (me.href) q('#splitMe').href = me.href; q('#splitMe').title = me.title; }
     document.body.classList.add('split');
     if (stack) document.body.classList.add('stack');
+    // Something shared to wisp (features/share-in.js) opens on New task, not on the list first.
+    var a = window.wispAndroid;
+    if (stack && (/[?&]shared=/.test(location.search) || (a && a.hasShare && a.hasShare()))) document.body.classList.add('stack-page');
     if (hidden) document.body.classList.add('side-hidden');
     if (!stack && get('wisp.crewRail') !== false) {
       // The rail keeps its room from the first paint, a placeholder per face it had last time.

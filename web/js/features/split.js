@@ -116,6 +116,11 @@ let homeAsked = false;
 // Stacked and something's open over the list: a task, a member's thread or home.
 export const stackPage = () => document.body.classList.contains('stack-page');
 
+// Stacked and about to go home anyway (a share arriving): the first paint already shows it.
+export const askHome = () => {
+  homeAsked = isStacked();
+};
+
 // Nothing open: the prompt box, focused (New task).
 export function goHome({ focus = true } = {}) {
   leaveCrew(); // a crew member's thread too

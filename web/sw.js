@@ -10,8 +10,15 @@
 // round trips. Whenever the page comes from the network (installing, after an update), the files it
 // names that aren't here yet come together from /_pack (server/http/static.js). The first open
 // waits for the install before it loads its modules (index.html's boot script).
+// A share from the phone's share sheet (the manifest's share_target) is the one POST it answers:
+// the form goes in a cache of its own and the page reads it (js/share-form.js, features/share-in.js).
+// Any site's form can land here too: what's kept only ever waits for the person to press Send.
 
 const CACHE = 'wisp-shell';
+// Not worth losing the worker over: without it a share reaches the server, which says what to do.
+try {
+  importScripts('/js/share-form.js');
+} catch {}
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
@@ -22,9 +29,17 @@ self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   const url = new URL(req.url);
+  if (req.method === 'POST' && url.origin === location.origin && url.pathname === '/share' && self.wispShareForm) return e.respondWith(keepShare(req));
   if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/') || url.pathname.startsWith('/_grid/') || url.pathname === '/sw.js') return;
   e.respondWith(req.mode === 'navigate' ? page() : file(req));
 });
+
+// 303: the reload of a page that came from a POST must not post again. A form that can't be read
+// gets an id with nothing behind it, and the page says so.
+async function keepShare(req) {
+  const id = await self.wispShareForm.keep(req).catch(() => 'unread');
+  return Response.redirect(new URL(`/?shared=${id}`, location.origin).href, 303);
+}
 
 // Every path is the same page (the app routes itself): one cached copy under '/'. Once it's
 // cached the network isn't asked here at all; the page checks the build itself.
