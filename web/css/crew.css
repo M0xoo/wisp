@@ -184,8 +184,8 @@ body.electron.mac.has-rail:not(.side-right) .crew-rail { padding-top: 41px; } /*
 body.has-rail #secCrew { position: fixed; z-index: 3; top: 0; left: 0; width: 0; height: 0; margin: 0; overflow: hidden; visibility: hidden; }
 body.has-rail #secCrew > .cr-list { display: flex; }
 body.has-rail #feed .item.open > .it-body { visibility: visible; }
-/* The rail's tooltip: to the side of the rail, on the page, so the rail's scroller can't clip it.
-   Over the list and menus (40), under dialogs (50). */
+/* The rail's tooltip (Org, +) and a face's card: to the side of the rail, on the page, so the rail's
+   scroller can't clip them. Over the list and menus (40), under dialogs (50). */
 .cl-tip {
   position: fixed; z-index: 45; display: flex; flex-direction: column; gap: 1px; width: max-content; max-width: 280px; padding: 7px 11px;
   border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-2);
@@ -198,6 +198,44 @@ body.has-rail #feed .item.open > .it-body { visibility: visible; }
 .cl-tip .cr-sub { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; white-space: normal; overflow-wrap: anywhere; color: var(--muted); }
 .cl-tip .cr-sub.live { color: var(--accent-ink); }
 .cl-tip .cr-sub.asks { color: var(--warn); }
+/* A face's card: a fixed width, its top on the face's, the rows scrolling in what the window leaves.
+   ::before bridges the gap to the rail, so the pointer stays on the card crossing it. */
+.cl-card {
+  position: fixed; z-index: 45; display: flex; flex-direction: column; width: min(320px, calc(100vw - 16px)); padding: 4px;
+  border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-2);
+  animation: fade-in 0.12s var(--ease);
+}
+.cl-card[hidden] { display: none; }
+.cl-card::before { content: ''; position: absolute; top: 0; bottom: 0; right: 100%; width: 9px; }
+body.side-right .cl-card::before { right: auto; left: 100%; }
+.cl-head, .cl-row, .cl-more { border-radius: calc(var(--radius) - 2px); text-align: left; }
+.cl-head:hover, .cl-row:not(:disabled):hover, .cl-more:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.cl-head:active, .cl-row:not(:disabled):active, .cl-more:active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.cl-head { flex: none; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 1px; width: 100%; min-width: 0; height: auto; padding: 5px 8px; }
+.cl-head .cl-tname { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.cl-head b { flex: none; font-size: 13px; font-weight: 600; color: var(--ink); }
+.cl-head .cr-role { flex: 0 1 auto; }
+.cl-head .cr-sub { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; white-space: normal; overflow-wrap: anywhere; color: var(--muted); }
+.cl-head .cr-sub.live { color: var(--accent-ink); }
+.cl-head .cr-sub.asks { color: var(--warn); }
+.cl-none { margin: 0; padding: 2px 8px 5px; font-size: 12.5px; text-align: left; color: var(--faint); }
+.cl-rows { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--line); overflow-y: auto; overscroll-behavior: contain; }
+.cl-rows:empty { display: none; }
+/* Marker, title, then what it's doing or when, in a column that never moves. */
+.cl-row { flex: none; display: grid; grid-template-columns: 14px minmax(0, 1fr) 58px; align-items: center; gap: 8px; width: 100%; min-height: 30px; padding: 0 8px; }
+.cl-row:focus-visible, .cl-head:focus-visible, .cl-more:focus-visible { outline-offset: -2px; }
+.cl-row.on { background: var(--bg-2); }
+.cl-row:disabled { opacity: 0.5; cursor: not-allowed; }
+.cl-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--ink); }
+.cl-mark { display: grid; place-items: center; width: 14px; height: 14px; }
+.cl-mark .orb.live { --s: 12px; --orb-rest: color-mix(in srgb, var(--accent) 45%, transparent); }
+.cl-mark::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--line-2); }
+.cl-mark[data-m='live']::before { display: none; }
+.cl-mark[data-m='asks']::before { width: 8px; height: 8px; background: var(--warn); }
+.cl-mark[data-m='unread']::before { width: 8px; height: 8px; background: var(--accent); }
+.cl-row .q-time { min-width: 0; overflow: hidden; white-space: nowrap; }
+.cl-more { flex: none; display: block; width: 100%; min-height: 30px; padding: 0 8px 0 30px; font-size: 12.5px; color: var(--muted); }
+.cl-more:hover { color: var(--ink); }
 
 /* ---------- the editor and the spirit maker ---------- */
 .crew-edit { width: min(640px, 100%); }
