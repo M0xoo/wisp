@@ -93,7 +93,7 @@ test('the updater reports the app on the Tauri layout, Node beside wisp’s file
   u.swap = { open: '/Applications/wisp.app', remove: '/tmp/old.app' };
   assert.equal(u.relaunchCommand(false), 'rm -rf "/tmp/old.app"; open "/Applications/wisp.app"', 'no Electron needed to relaunch');
   // The shell looks for wisp's files exactly there.
-  assert.match(read('desktop/src-tauri/src/main.rs'), /resource_dir\(\)\.ok\(\)\.map\(\|r\| r\.join\("app"\)\)/);
+  assert.match(read('desktop/src-tauri/src/main.rs'), /resource_dir\(\)\.ok\(\)\.map\(\|r\| r\.join\(if cfg!\(windows\) \{ "resources\/app" \} else \{ "app" \}\)\)/);
 });
 
 test('capabilities: IPC for exactly wisp’s origin and port, nothing wider', () => {

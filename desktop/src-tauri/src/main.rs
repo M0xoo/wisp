@@ -187,10 +187,11 @@ fn boot(app: AppHandle, port: u16) {
 }
 
 // WISP_* are for running from a checkout. A built app has both under its resources (the same
-// Contents/Resources/app the updater looks for, server/update.js PACKAGED).
+// Contents/Resources/app the updater looks for, server/update.js PACKAGED). On Windows the resource
+// folder is the exe's, so there it's resources\app (desktop/scripts/package.mjs).
 fn root(app: &AppHandle) -> Option<PathBuf> {
   let entry = |p: &PathBuf| p.join("desktop/entry.mjs").exists();
-  let packaged = app.path().resource_dir().ok().map(|r| r.join("app"));
+  let packaged = app.path().resource_dir().ok().map(|r| r.join(if cfg!(windows) { "resources/app" } else { "app" }));
   let checkout = cfg!(debug_assertions).then(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."));
   std::env::var_os("WISP_ROOT").map(PathBuf::from).into_iter().chain(packaged).chain(checkout).find(entry)
 }
