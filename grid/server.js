@@ -421,8 +421,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
         const channel = url.searchParams.get('channel');
         if (!inbox.knows(channel)) return send(404, { error: 'not found' });
         limit(`inurl|${who.id}`, 60);
-        // held: the grid owns this webhook (grid/route.js), so the box leaves it alone.
-        return send(200, { ...inbox.urlFor(who, channel), ...(routes.held(who.id, channel) && { held: true }) });
+        // held: the grid owns this bot's webhook (grid/route.js), so the box leaves it alone.
+        return send(200, { ...inbox.urlFor(who, channel), ...(routes.held(who.id, channel, url.searchParams.get('bot')) && { held: true }) });
       }
       if (inbox.on && req.method === 'POST' && p === '/api/channels/url/rotate') {
         const who = boxUser(req.headers.authorization);

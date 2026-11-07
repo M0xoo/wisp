@@ -344,7 +344,8 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
   account page (the grid's own origin, session and CSRF token, out of reach of `/_grid/*` and of a page
   a box serves) takes the bot token and the allowed Telegram user ids; the grid calls `setWebhook` with
   a URL at `<domain>/_route/<token>` and a secret of its own, and seals all of it in `user_secrets`. A
-  box is told only `held: true` by `GET /api/channels/url`, so it leaves the webhook alone. A box
+  box names its bot by its public id on `GET /api/channels/url` and is told only `held: true` when
+  that's the bot the grid holds, so it leaves that webhook alone; any other bot sets its own. A box
   holding the same bot token can still repoint the webhook, which stops routing for its owner, but
   Telegram never returns a secret, so it can't sign a message. At the edge: bad secret 403, then 200,
   then only a private chat with an allowed, non-bot sender, not a forward, naming one of that user's own computers

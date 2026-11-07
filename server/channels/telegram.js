@@ -134,7 +134,7 @@ export class Telegram extends Channel {
         let found = null;
         if (box) {
           try {
-            found = await channelUrl(box, this.name);
+            found = await channelUrl(box, this.name, String(this.cfg.token).split(':')[0]);
           } catch (err) {
             if (!this.cfg.hook) return false; // no webhook to get in the way: poll while the grid can't be reached
             throw new Error(`the grid: ${err.message}`);

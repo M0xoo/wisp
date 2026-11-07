@@ -842,6 +842,19 @@ test('a box on a grid without the hub: Slack says it can’t be reached, in the 
   assert.equal(v.slack.connected, false);
 });
 
+test('the grid holds another bot: this box sets its own webhook and isn’t deaf', async (t) => {
+  const api = `http://127.0.0.1:${fake.address().port}`;
+  const own = await boot({ channels: { enabled: true, retryMs: 40, route: true, telegramApi: api }, idleMs: 60_000 });
+  t.after(() => own.grid.close());
+  const BOT = '888:box-own';
+  own.grid.secrets.seal(own.ada.id, 'route:telegram', JSON.stringify({ bot: '777:held', name: 'heldbot', secret: 'g'.repeat(64), senders: [String(CHAT)] }));
+  own.grid.db.run('INSERT INTO channel_routes (user_id, channel, token_hash, created_at) VALUES (?, ?, ?, ?)', own.ada.id, 'telegram', 'h2', Date.now());
+  tg.calls.length = 0;
+  await own.ok('/remote', { method: 'PUT', body: { telegram: { enabled: true, token: BOT } } });
+  await until(() => called('setWebhook').some((c) => c.bot === `bot${BOT}`), { what: 'its own webhook' });
+  assert.match(called('setWebhook').find((c) => c.bot === `bot${BOT}`).url, /\/_in\//);
+});
+
 test('the grid holds the webhook: the box sets none, takes what’s verified, and leaves it up when switched off', async (t) => {
   const api = `http://127.0.0.1:${fake.address().port}`;
   const HELD = '777:held'; // earlier tests' boxes still poll TOKEN

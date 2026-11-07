@@ -541,11 +541,24 @@ test('a name two computers share gets its line from the grid, and neither hears 
   assert.equal(g.got(ada).length, 0);
 });
 
+test('held is per bot: only the bot the grid holds, and no token for finding out', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  await g.link(ada);
+  const ask = (q) => call(g.port, 'wisp.localhost', `/api/channels/url?channel=telegram${q}`, { method: 'GET', headers: { authorization: g.boxAuth(ada) } });
+  assert.equal((await ask('&bot=123')).json.held, true);
+  // Another bot in the box: it needs a webhook of its own, or it's deaf and shows OK.
+  assert.equal((await ask('&bot=999')).json.held, undefined);
+  assert.ok((await ask('&bot=999')).json.url.includes('/_in/'));
+  // A box too old to say which bot sets its own, rather than sit deaf.
+  assert.equal((await ask('')).json.held, undefined);
+});
+
 test('a box that asks gets nothing: it’s told the webhook is held, and no more', async () => {
   const g = await boot();
   const ada = g.user('ada');
   await g.link(ada);
-  const before = await call(g.port, 'wisp.localhost', '/api/channels/url?channel=telegram', { method: 'GET', headers: { authorization: g.boxAuth(ada) } });
+  const before = await call(g.port, 'wisp.localhost', '/api/channels/url?channel=telegram&bot=123', { method: 'GET', headers: { authorization: g.boxAuth(ada) } });
   assert.equal(before.json.held, true);
   for (const s of [g.hook().secret, BOT, new URL(g.hook().url).pathname.split('/').pop()]) assert.ok(!before.text.includes(s));
 });

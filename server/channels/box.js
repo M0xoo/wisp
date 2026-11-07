@@ -12,10 +12,11 @@ export function boxGrid(env = process.env) {
   return { grid, auth: `Box ${new URL(env.WISP_PUBLIC_URL).hostname.split('.')[0]} ${secret}` };
 }
 
-// { url, dropped } ({ address, dropped } for email), or null when this grid has no hub (off, or
-// older), or no mail. Rejects when it can't tell.
-export async function channelUrl(box, channel) {
-  const r = await gridJson(`${box.grid}/api/channels/url?channel=${encodeURIComponent(channel)}`, { headers: { authorization: box.auth }, timeout: 10_000 });
+// { url, dropped, held? } ({ address, dropped } for email), or null when this grid has no hub (off, or
+// older), or no mail. Rejects when it can't tell. bot: which bot this box has, by its public id: held
+// says the grid owns that one's webhook.
+export async function channelUrl(box, channel, bot = '') {
+  const r = await gridJson(`${box.grid}/api/channels/url?channel=${encodeURIComponent(channel)}${bot ? `&bot=${encodeURIComponent(bot)}` : ''}`, { headers: { authorization: box.auth }, timeout: 10_000 });
   if (r.status === 404 || r.status === 401) return null;
   if (r.status !== 200 || !(r.body.url || r.body.address)) throw new Error(r.body.error || `it said ${r.status}`);
   return r.body;

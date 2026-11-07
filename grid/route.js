@@ -183,7 +183,10 @@ export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit
     set,
     remove,
     get: (userId) => (on ? open(userId) : null),
-    held: (userId, channel) => on && !!db.get('SELECT 1 FROM channel_routes WHERE user_id = ? AND channel = ?', userId, channel),
+    // Whether the grid owns the webhook of the bot a box has. A bot's id is public and the first part of
+    // its token, so a box can say which it means and learn nothing else. Another bot, or none named, has
+    // to set its own: told otherwise it would sit deaf and show OK.
+    held: (userId, channel, bot) => on && channel === 'telegram' && !!bot && open(userId)?.bot.split(':')[0] === bot,
     // For the account page: never the token or the secret.
     view(userId) {
       if (!on) return null;
