@@ -10,6 +10,7 @@ import { present } from '../ui/overlay.js';
 import { clampToViewport, popover } from '../ui/popover.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { clones, isRepo, repoLabel, repoName, startClone } from './clones.js';
+import { inPick } from './crew.js';
 import { feedToTop, groups, renderFeed } from './feed.js';
 import { renderLaunchChips } from './launcher.js';
 import { loadConfig } from './live.js';
@@ -24,8 +25,8 @@ let fitBar; // refits the chips when the bar's width changes
 const fitProjects = () => fitBar?.fit?.();
 
 export function renderProjects() {
-  const all = [...S.sessions.values()].filter((s) => !s.archived);
-  // The same tasks the list's Needs you holds, so the numbers agree.
+  const all = [...S.sessions.values()].filter((s) => !s.archived && inPick(s));
+  // The same tasks the list's Needs you holds, so the numbers agree (the rail's pick narrows both).
   const { needs } = groups('all');
   const stats = (pid) => {
     const l = pid === 'all' ? all : all.filter((s) => inProject(s, pid));

@@ -87,6 +87,7 @@ export const S = {
   machines: [], // other computers over SSH: GET /api/machines, kept fresh by the 'machines' event
   sandboxes: [], // /sandbox's boxes (same list, m.sandbox): each one task's, so never a place to pick
   filter: load('wisp.filter', 'all'),
+  crewPick: load('wisp.crewPick', null), // the member the rail narrows the list to (crew.js crewPick)
   showDone: load('wisp.showDone', false),
   showArchived: false,
   folded: new Set(load('wisp.folded', [])), // Needs you, Crew and Working sections the user folded

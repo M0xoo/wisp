@@ -92,6 +92,7 @@ export const PARTS = {
   // sidebar's crewRail prop turns it off for the section; hiding it (or section.crew) does too.
   'crew.rail': '#crewRail',
   'crew.rail.face': '#crewRail .cl-face',
+  'crew.rail.all': '#crewRail .cl-all', // All, above the faces: every task in the list again
   // A member's thread: the main pane in split view, in place in the feed.
   'crew.page': '.crew-view',
   'crew.thread': '.crew-view .cv-thread',
@@ -140,6 +141,7 @@ export const PARTS = {
   launcher: '#launcher',
   'launcher.input': '#prompt',
   'launcher.projects': '#launcher .l-projects',
+  'launcher.for': '#launcher .l-for', // For Ada: who the prompt goes to, with a member picked on the rail
   'launcher.attach': '#attach',
   'launcher.mic': '#mic', // the phone app's Dictate button (features/dictate.js)
   'launcher.where': '#whereBtn',

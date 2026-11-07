@@ -35,7 +35,7 @@ import { goalAsk, HOME_SLASH, isGoalDrop, isPaneAsk, SANDBOX_HINT, sandboxAsk, S
 import { historyStep, remember } from '../prompt-history.js';
 import { micFor, micHtml } from './dictate.js';
 import { goBack, goHome, isSplit, isStacked, sideShown, stackPage } from './split.js';
-import { addressedTo, openCrew } from './crew.js';
+import { addressedTo, avatarHtml, crewPick, memberById, openCrew, pickedPrompt, setCrewPick } from './crew.js';
 import { parseWhen } from '../when.js';
 import { addPlan, aheadLabel, planAsk, planSaid, timeMenu, whenTip } from './later.js';
 import { launcherGoal, launcherGoalHtml } from './goal.js';
@@ -114,6 +114,8 @@ export function spellSlash(text) {
 }
 
 bus.on('spells:launcher', () => $('#launcher:not(.skel)') && renderLauncher());
+bus.on('crewPick', () => $('#launcher')?.paintFor?.());
+bus.on('config', () => $('#launcher')?.paintFor?.()); // the member's name, once it's known
 // A /sandbox launch's placeholder says where it's at (services/sandbox.js): making, starting, copying.
 bus.on('sandbox-step', ({ key, live }) => {
   const card = S.sessions.get(key);
@@ -159,6 +161,7 @@ export function renderLauncher() {
     <div class="l-projects"></div>
     <div class="l-setup" hidden></div>
     <div class="l-share" aria-live="polite" hidden></div>
+    <div class="l-for" hidden></div>
     <textarea id="prompt" rows="2" spellcheck="false"></textarea>
     ${launcherGoalHtml()}
     <div class="l-bar">
@@ -197,11 +200,46 @@ export function renderLauncher() {
   autosize(ta, (spellProp('launcher.input', 'maxRows') || 0) * 24 || undefined);
   ta.value = S.drafts.get('home') || '';
   paintSaveRecipe();
-  ta.addEventListener('input', () => (S.drafts.set('home', ta.value), paintSaveRecipe(), readWhen(), pv?.refresh(), warmLaunch()));
+  ta.addEventListener('input', () => (S.drafts.set('home', ta.value), paintSaveRecipe(), paintFor(), readWhen(), pv?.refresh(), warmLaunch()));
   // A shared task's link pasted in the box: its card, and Enter imports it (features/share.js).
   const shareRow = $('.l-share', box);
   ta.parentNode.before(shareRow);
   const sharing = shareCard(shareRow, ta);
+  // A member picked on the rail: the prompt is for it, as if it began with @Ada, and the box stays
+  // as typed. × takes it off this prompt; the pick stays. A typed @Other wins, and a command, a
+  // pane or a shared link aren't jobs: the chip gives way, keeping its row so the box doesn't jump.
+  const forRow = $('.l-for', box);
+  ta.parentNode.before(forRow);
+  let dropped = null; // the pick × took off this prompt
+  let forPick = null;
+  const pickedFor = () => {
+    const m = memberById(crewPick());
+    return m && dropped !== m.id ? m : null;
+  };
+  const forWho = () => (isPaneAsk(ta.value.trim()) || sharing.active() ? null : pickedPrompt(ta.value, pickedFor()));
+  const paintFor = () => {
+    const pick = crewPick();
+    if (pick !== forPick) {
+      forPick = pick;
+      dropped = null;
+    }
+    const m = pickedFor();
+    const html = m ? `<span class="when-chip">${avatarHtml(m, { size: 16, dot: false })}<span>For ${esc(m.name)}</span><button type="button" class="att-x" aria-label="Not for ${esc(m.name)}" title="Not for ${esc(m.name)}">${icon('x')}</button></span>` : '';
+    if (forRow.dataset.h !== html) (forRow.innerHTML = html), (forRow.dataset.h = html);
+    forRow.hidden = !m;
+    forRow.classList.toggle('off', !!m && !forWho());
+  };
+  forRow.onclick = (e) => {
+    if (!e.target.closest('.att-x')) return;
+    dropped = crewPick();
+    paintFor();
+    readWhen();
+    ta.focus();
+  };
+  box.paintFor = () => {
+    paintFor();
+    readWhen();
+  };
   // While focus is elsewhere, the placeholder advertises the shortcut that brings you back.
   // The phone (or any touch-only screen) has no keyboard shortcut to advertise.
   const hint = () => (ta.placeholder = spellProp('launcher.input', 'placeholder') || (document.activeElement === ta || MOBILE || matchMedia('(hover: none)').matches
@@ -445,7 +483,7 @@ export function renderLauncher() {
     clearTimeout(whenTimer);
     if (!ta.value.trim()) notTime = false;
     const text = ta.value;
-    const ok = !armed && S.config.defaults?.readTimes !== 'off' && !notTime && !spellAsk(text.trim()) && !spellSlash(text.trim()) && !isFeedback(text.trim()) && !planAsk(text.trim()) && !addressedTo(text).members.length;
+    const ok = !armed && S.config.defaults?.readTimes !== 'off' && !notTime && !spellAsk(text.trim()) && !spellSlash(text.trim()) && !isFeedback(text.trim()) && !planAsk(text.trim()) && !addressedTo(text).members.length && !forWho();
     if (!ok || !parseWhen(text)) return (when = null), paintWhen();
     whenTimer = setTimeout(() => ((when = parseWhen(ta.value)), paintWhen()), 250);
   };
@@ -469,13 +507,14 @@ export function renderLauncher() {
     });
   laterBtn.onclick = pickTime;
   paintWhen();
+  paintFor();
   box.whenNow = () => armed || when; // Enter reads it (keydown below)
 
   // Near the limit (features/hold.js): the row offers Start anyway and Wait until the reset, which
   // is Start later at that time. The prompt stays in the box until one of them goes.
   const holdRow = $('.l-hold', box);
   // A job for a crew member ("@Ada …") has no Start later, so no Wait until either.
-  const holdLaunch = (h, over) => showHold(holdRow, ta, addressedTo(ta.value).members.length ? { ...h, resetsAt: null } : h, { kind: 'first', go: () => go(over, { confirm: true }), wait: (at) => go(over, { at }) });
+  const holdLaunch = (h, over) => showHold(holdRow, ta, addressedTo(ta.value).members.length || forWho() ? { ...h, resetsAt: null } : h, { kind: 'first', go: () => go(over, { confirm: true }), wait: (at) => go(over, { at }) });
 
   // over: a spell's launchWith ({ agent, model, effort, mode, text }) for this one launch.
   // at: start it then instead (Start later, or the time read from the box); now: ignore that time.
@@ -552,6 +591,9 @@ export function renderLauncher() {
     // /draft <task>: kept in Drafts until you start it. /after <task> <prompt>: starts once that task is done.
     const held = planAsk(prompt);
     if (held?.error) return toast(held.error);
+    // The rail's member (forWho) takes it from here: from now on it's "@Ada …", as if typed. The
+    // box keeps `prompt`, what you wrote, for when it has to come back. A spell's harness wins.
+    const toSend = (!over?.agent && forWho()) || prompt;
     // One run per place picked under "Run on", all in the picked project: a place that has no
     // checkout of it yet gets one first (the server clones it there).
     const targets = launch.where.map((k) => ({ k, m: k ? machineById(k) : null, project: projectOf(), clone: cloneById(pickId()), also: ownPick() ? alsoIds().map(projectById).filter(Boolean) : [] }));
@@ -559,8 +601,8 @@ export function renderLauncher() {
     // "@Ada …" is a job for Ada, in her own folder: sent once, wherever else the box points.
     // "/terminal …" (also "@Ada /terminal …"): one task on one place, in your own terminal; the
     // crew named, Done when, the team and compare runs go unused (the server drops them too).
-    const addr = addressedTo(prompt);
-    const typedTerm = terminalAsk(addr.members.length ? addr.rest : prompt) !== null;
+    const addr = addressedTo(toSend);
+    const typedTerm = terminalAsk(addr.members.length ? addr.rest : toSend) !== null;
     const toCrew = typedTerm ? [] : addr.members;
     if (toCrew.length || typedTerm) targets.length = 1;
     // One sandbox, made by this wisp, whatever Run on points at: it's a place of its own. Its card
@@ -573,7 +615,7 @@ export function renderLauncher() {
     if (now || held) armed = null; // Alt+Enter: now, whatever time was set; a draft or /after has none
     // A time set with the clock that went by while you typed: pick another, the draft waits.
     if (!at && passed()) return paintWhen(), pickTime();
-    const w = held ? { rest: held.rest, how: held.how, reminder: false } : now ? null : at ? { at, rest: prompt, reminder: false } : armed ? { at: armed.at, rest: prompt, reminder: false } : when;
+    const w = held ? { rest: held.rest, how: held.how, reminder: false } : now ? null : at ? { at, rest: toSend, reminder: false } : armed ? { at: armed.at, rest: toSend, reminder: false } : when;
     if (w) {
       const t = targets[0];
       if (!t.project) return toast('Pick a project that’s ready first: this one is still cloning.', { tone: 'bad' });
@@ -599,6 +641,8 @@ export function renderLauncher() {
         if (!ta.value) (armed = was), (ta.value = prompt), ta.dispatchEvent(new Event('input'));
         return;
       }
+      dropped = null;
+      paintFor();
       return toast(said || `${w.reminder ? 'Reminds you' : 'Starts'} ${esc(aheadLabel(w.at))}`);
     }
     // Delegates on machines that aren't connected: connecting now has them ready by the first delegation.
@@ -637,12 +681,13 @@ export function renderLauncher() {
     const goalBack = box.goalTaken?.(goal) || (() => {});
     // A repo still cloning gets a stand-in project; its card says so until the clone lands.
     const fetching = (t) => t.k && [t.project, ...t.also].some((p) => p && !p.scratch && !pathAt(p, t.k)); // not on that machine yet
-    const pending = targets.map((t) => addPending(prompt, t.project ? t : { ...t, project: { id: t.clone.id, name: t.clone.name, path: '', color: 'slate' } }, runner, t.clone ? `Cloning ${t.clone.label}` : fetching(t) ? `Cloning ${t.project.name} on ${placeName(t.k)}` : typedSandbox !== null ? 'Starting a sandbox' : undefined));
+    const pending = targets.map((t) => addPending(toCrew.length ? addr.rest : toSend, t.project ? t : { ...t, project: { id: t.clone.id, name: t.clone.name, path: '', color: 'slate' } }, runner, t.clone ? `Cloning ${t.clone.label}` : fetching(t) ? `Cloning ${t.project.name} on ${placeName(t.k)}` : typedSandbox !== null ? 'Starting a sandbox' : undefined));
     // A terminal session (/terminal, or Settings → General) opens at once, still starting up: its
     // terminal is where you carry on, so there's nothing to wait for on the prompt page. The server
     // decides (services/tui.js); this is its guess for the things the page knows.
     const asTerminal = targets.length === 1 && (typedTerm || (!cmp.length && !toCrew.length && !goal && !typedGoal && !(team.length && canLead(runner.agent)) && S.config.defaults.terminalSessions === 'on'));
     if (asTerminal) S.sessions.get(pending[0]).tui = true;
+    if (toCrew.length) S.sessions.get(pending[0]).crew = { id: toCrew[0].id, job: 'task' }; // its row is the member's from the start, so a pick shows it
     if (cmp.length) (compare = []), paintCompare();
     ta.value = '';
     S.drafts.delete('home');
@@ -676,7 +721,7 @@ export function renderLauncher() {
         targets.map((t, i) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && (!cmp.length || typedTerm) ? false : undefined, progress: t.sandbox ? pending[i] : undefined, compare: cmp.length && !typedTerm ? cmp : undefined, subagents: !typedTerm && team.length && canLead(runner.agent) ? team : undefined, goal: typedTerm ? undefined : goal, confirmLimit: confirm || undefined, autoPin: pin, autoOverride: corrected || undefined, ...cells },
+            body: { prompt: toSend, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && (!cmp.length || typedTerm) ? false : undefined, progress: t.sandbox ? pending[i] : undefined, compare: cmp.length && !typedTerm ? cmp : undefined, subagents: !typedTerm && team.length && canLead(runner.agent) ? team : undefined, goal: typedTerm ? undefined : goal, confirmLimit: confirm || undefined, autoPin: pin, autoOverride: corrected || undefined, ...cells },
           }),
         ),
       );
@@ -711,6 +756,8 @@ export function renderLauncher() {
         if (held && ta.value.trim() === prompt) holdLaunch(held, over);
         return;
       }
+      dropped = null; // × was for that prompt
+      paintFor();
       if (corrected && override === corrected) override = null;
       if (backToAuto) {
         const goal = backToAuto;
@@ -1149,6 +1196,7 @@ export async function launchBehind({ prompt, cwd, runner, machine, sideOf = null
     S.filter = 'all';
     save('wisp.filter', S.filter);
   }
+  if (crewPick() && !sideOf) setCrewPick(null); // a recipe or a rerun is a task of yours: its row has to show
   renderFeed();
   const card = S.nodes.get(ghost)?.card;
   if (card) (card.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), card.classList.add('arrived'), setTimeout(() => card.classList.remove('arrived'), 1600));

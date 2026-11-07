@@ -130,6 +130,12 @@ body.wisp-mobile .l-bring-n .i { display: none; }
   .l-recipes .issue-btn { width: 24px; padding: 0; justify-content: center; }
   .l-recipes .issue-btn span { display: none; }
 }
+/* For Ada: a member picked on the rail. Giving way to a typed @Other it keeps its row, so the box
+   under your caret doesn't move. */
+.l-for { display: flex; align-items: center; min-height: 24px; padding: 0 2px 4px; }
+.l-for[hidden] { display: none; }
+.l-for.off { visibility: hidden; }
+.l-for .when-chip { height: 24px; }
 .launcher textarea, .composer textarea {
   display: block; width: 100%; resize: none; border: 0; outline: 0; background: transparent; padding: 8px 4px;
   font-size: 14px; line-height: 1.55; color: var(--ink); min-height: 64px;

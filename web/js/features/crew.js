@@ -23,9 +23,9 @@ import { popover } from '../ui/popover.js';
 import { ask } from '../ui/confirm.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { PART_LABEL, PARTS, SPIRIT, isSpirit, parseSpirit, rollSpirit, spiritCode, spiritDefs, spiritSvg } from '../spirit.js';
-import { collapse, placeCards, renderFeed, reveal } from './feed.js';
+import { collapse, feedToTop, groups, placeCards, renderFeed, reveal } from './feed.js';
 import { mentionBox } from './mentions.js';
-import { crewRailOn, goBack, isSplit, isStacked, splitOpen } from './split.js';
+import { crewRailOn, goBack, goHome, isSplit, isStacked, splitOpen } from './split.js';
 import { projectList } from './project-list.js';
 import { runnerPicker } from './runner-picker.js';
 import { MODES, agentName, harnessesAt, harnessLogo, modeMenu, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
@@ -70,7 +70,43 @@ export function inNeeds(s) {
   return inNeedsNow.has(s.id);
 }
 // In the list's Needs you right now: a project filter leaves it under its member.
-const inList = (s) => inNeeds(s) && (S.filter === 'all' || inProject(s, S.filter));
+const inList = (s) => {
+  const need = inNeeds(s); // first: it keeps count of what's open
+  const pick = crewPick();
+  return (pick ? s.crew?.id === pick : need) && (S.filter === 'all' || inProject(s, S.filter));
+};
+
+// The member picked on the rail: the list beside it shows only its jobs (groups() in feed.js) and
+// New task is for it. Only with the rail: stacked, or a spell's choice, a saved pick waits unused.
+// Until the config lands the member can't be known: it holds, so a reload doesn't flash the whole list.
+export function crewPick() {
+  const id = S.crewPick;
+  if (!id || !crewRailOn()) return null;
+  return !('crew' in S.config) || memberById(id) ? id : null;
+}
+export const inPick = (s) => {
+  const pick = crewPick();
+  return !pick || s?.crew?.id === pick;
+};
+export function setCrewPick(id) {
+  S.crewPick = id;
+  save('wisp.crewPick', id);
+}
+// A face picks its member and opens its thread; picked already, it's All.
+export function pickMember(id) {
+  if (crewPick() === id) return pickAll();
+  setCrewPick(id);
+  openMember(id);
+  feedToTop();
+}
+// Everything again: a member's thread goes home with it; a task that's open stays open.
+export function pickAll() {
+  const thread = crewViewShown();
+  setCrewPick(null);
+  if (thread) goHome({ focus: false });
+  renderFeed();
+  feedToTop();
+}
 
 // When it checks in, in words. Any other cron is read out (web/js/schedule.js), or shows as itself.
 export const CADENCES = [
@@ -298,6 +334,8 @@ function stripHtml(folded) {
 // A job kept in the list whatever else: it's open, or about to be.
 const held = (s) => underMember(s) && !inList(s) && (S.open.has(s.id) || pinned.has(s.id));
 
+let shownPick = null;
+
 // Blocks keyed by member, rows rewritten only when what they say changed and never re-appended (a
 // spirit would restart its animation). Returns the job cards it placed, so the feed keeps them.
 export function paintCrew() {
@@ -305,6 +343,12 @@ export function paintCrew() {
   sec.hidden = !('crew' in S.config); // until the config lands
   $('h4 .n', sec).textContent = crewList().length || '';
   if (S.crewOpen && !memberById(S.crewOpen)) setOpen(null);
+  if (S.crewPick && 'crew' in S.config && !memberById(S.crewPick)) setCrewPick(null); // removed: back to All
+  const pick = crewPick();
+  if (pick !== shownPick) {
+    shownPick = pick;
+    bus.emit('crewPick'); // New task's chip; also when the window narrows and the pick stops counting
+  }
   const states = new Map(crewList().map((m) => [m.id, memberState(m)]));
   const list = sortCrew(crewList(), states);
   // With the rail the section keeps only what an open job needs: its card (the body hangs off it).
@@ -387,8 +431,10 @@ export function paintCrew() {
 const rail = $('#crewRail');
 const railFaces = $('.cl-faces', rail);
 const railAdd = $('.cl-add', rail);
+const railAll = $('.cl-all', rail);
 const railNodes = new Map(); // member id → its tile
 let railOrder = [];
+const railTiles = () => [railAll, ...railOrder.map((id) => railNodes.get(id))].filter((b) => b && !b.hidden);
 
 const faceTile = (id) =>
   el(`<button class="cl-face" type="button" data-crew="${id}" tabindex="-1"><span class="cl-av"></span><i class="cl-dot" hidden></i><span class="cl-live" hidden><span class="orb live"></span><b hidden></b></span></button>`);
@@ -429,6 +475,8 @@ function paintRail(list, states) {
     }
   const none = !list.length && 'crew' in S.config;
   rail.classList.toggle('empty', none);
+  railAll.hidden = !list.length; // no faces, nothing to pick from
+  paintRailAll();
   railAdd.dataset.tip = none ? 'Add someone to your crew' : 'Add a crew member';
   railAdd.dataset.sub = none ? 'A named agent that checks in, reports, and answers to @name' : '';
   railAdd.setAttribute('aria-label', railAdd.dataset.tip);
@@ -442,19 +490,33 @@ function paintRail(list, states) {
   else hideTip();
 }
 
-// The open member's tile is the selected one, a job of its open or its thread. One stop for Tab:
-// the arrows go from there (the DOM's order isn't the rail's).
+// All's dot: what clicking it would bring back, so a pick never hides a question. Amber for a
+// question, the accent for an unread report, as on a face. Nothing picked: the list shows it all.
+function paintRailAll() {
+  const pick = crewPick();
+  const out = pick ? groups(S.filter, null).needs.filter((t) => t.crew?.id !== pick && needsYou(t)) : [];
+  const asks = out.some((t) => t.state === 'waiting');
+  const dot = $('.cl-dot', railAll);
+  dot.hidden = !out.length;
+  dot.classList.toggle('asks', asks);
+  const label = out.length ? `All tasks: ${asks ? 'something is asking you' : 'an unread report'}` : 'All tasks';
+  if (railAll.getAttribute('aria-label') !== label) railAll.setAttribute('aria-label', label);
+}
+
+// One tile is selected: what the list beside the rail shows, All or the picked member. One stop
+// for Tab: the arrows go from there (the DOM's order isn't the rail's).
 function paintRailOn() {
-  const job = splitOpen();
-  const id = (job && S.sessions.get(job)?.crew?.id) || S.crewOpen;
-  for (const [mid, b] of railNodes) {
-    const on = mid === id;
+  const pick = crewPick();
+  const sel = (pick && railNodes.get(pick)) || railAll;
+  const tiles = railTiles();
+  for (const b of [railAll, ...railNodes.values()]) {
+    const on = b === sel;
     if (b.classList.contains('on') !== on) b.classList.toggle('on', on);
     if (on) b.setAttribute('aria-current', 'true');
     else b.removeAttribute('aria-current');
   }
-  const stop = railFaces.contains(document.activeElement) ? document.activeElement : railNodes.get(id) || railNodes.get(railOrder[0]);
-  for (const b of railNodes.values()) b.tabIndex = b === stop ? 0 : -1;
+  const stop = tiles.includes(document.activeElement) ? document.activeElement : tiles.includes(sel) ? sel : tiles[0];
+  for (const b of [railAll, ...railNodes.values()]) b.tabIndex = b === stop ? 0 : -1;
 }
 
 // With more members than room the rail scrolls with no scrollbar: the edge with more fades.
@@ -519,14 +581,15 @@ rail.addEventListener('pointerout', (e) => {
 rail.addEventListener('focusin', (e) => {
   const t = tipTarget(e);
   if (t?.matches(':focus-visible')) showTip(t);
-  if (t?.matches('.cl-face')) paintRailOn();
+  if (t?.matches('.cl-face, .cl-all')) paintRailOn();
 });
 rail.addEventListener('focusout', hideTip);
 
 rail.addEventListener('click', (e) => {
   hideTip();
+  if (e.target.closest('.cl-all')) return pickAll();
   const face = e.target.closest('.cl-face');
-  if (face) return openMember(face.dataset.crew);
+  if (face) return pickMember(face.dataset.crew);
   if (e.target.closest('.cl-add')) crewEditor();
 });
 rail.addEventListener('contextmenu', (e) => {
@@ -538,14 +601,15 @@ rail.addEventListener('contextmenu', (e) => {
 });
 rail.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') hideTip();
-  const face = e.target.closest('.cl-face');
-  if (!face) return;
-  const at = railOrder.indexOf(face.dataset.crew);
-  const to = { ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: railOrder.length - 1 }[e.key];
+  const tile = e.target.closest('.cl-face, .cl-all');
+  if (!tile) return;
+  const tiles = railTiles();
+  const at = tiles.indexOf(tile);
+  const to = { ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: tiles.length - 1 }[e.key];
   if (to === undefined) return;
   e.preventDefault();
   e.stopPropagation();
-  railNodes.get(railOrder[Math.max(0, Math.min(to, railOrder.length - 1))])?.focus();
+  tiles[Math.max(0, Math.min(to, tiles.length - 1))]?.focus();
 });
 
 // Leaving the section lets a row that went quiet fold again.
@@ -620,6 +684,7 @@ bus.on('machines', () => (S.sessions.size ? renderFeed() : paintCrew())); // a m
 // another task opens); in the feed it unfolds under its row. entry: a job to bring into view.
 export function openMember(id, { entry = null } = {}) {
   if (!memberById(id)) return;
+  if (crewPick() && crewPick() !== id) setCrewPick(null); // another member's thread (Org, ⌘K): the rail mustn't say someone else
   crewHooks.back = null; // the Org page sets it again when it opened this one
   crewHooks.leave?.(); // a member takes the pane: the Org page goes
   if (isSplit()) for (const o of [...S.open]) collapse(o);
@@ -1843,6 +1908,15 @@ export function addressedTo(text) {
     rest = rest.slice(len);
   }
   return { members, rest: rest.trim() };
+}
+
+// New task with a member picked on the rail (launcher.js): what goes out is `@Ada …`, as the @
+// picker writes it, so it takes the same road as a typed one. A typed @Other wins, and a slash
+// command isn't a job: null, it goes as typed.
+export function pickedPrompt(text, m) {
+  const t = String(text || '').trim();
+  if (!m || t.startsWith('/') || addressedTo(t).members.length) return null;
+  return `@[${m.name.replace(/[\]\n]/g, '')}](crew:${m.id}) ${t}`;
 }
 
 // --- @ in a prompt box ---------------------------------------------------------------------------------

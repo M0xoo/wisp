@@ -6,6 +6,7 @@ import { $, el } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { esc } from '../md.js';
 import { taskSub } from './commands.js';
+import { inPick } from './crew.js';
 import { feedIds, reveal } from './feed.js';
 import { inProject } from './places.js';
 import { splitOpen } from './split.js';
@@ -17,7 +18,7 @@ let sw = null; // { ids, sel, from, node, timer, reply }
 
 const fits = (id) => {
   const s = S.sessions.get(id);
-  return !!s && !s.archived && !s.pending && !S.deleting.has(id) && (S.filter === 'all' || inProject(s, S.filter));
+  return !!s && !s.archived && !s.pending && !S.deleting.has(id) && (S.filter === 'all' || inProject(s, S.filter)) && inPick(s);
 };
 
 function start(back) {
