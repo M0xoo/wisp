@@ -5,7 +5,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { makeClone, until } from '../test/helpers.js';
-import { api, CHROME, ok, OUT, playwright, ROOT, runner, startWisp } from './lib.mjs';
+import { api, launchBrowser, ok, OUT, ROOT, runner, startWisp } from './lib.mjs';
 
 const PORT = Number(process.env.QA_WEB_PORT) || 4493;
 const { check: run, done } = runner('web');
@@ -20,8 +20,7 @@ const check = (id, title, fn) =>
     }
   });
 const w = await startWisp({ port: PORT, extraEnv: { FAKE_GH_STATE: path.join(OUT, 'web-gh.json') } });
-const { chromium } = playwright();
-const browser = await chromium.launch({ executablePath: CHROME, headless: process.env.HEADED !== '1' });
+const browser = await launchBrowser({ headless: process.env.HEADED !== '1' });
 const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
 
 // A page that records uncaught errors and console.error; `clean()` throws if there were any.
@@ -31,7 +30,9 @@ async function page(opts = {}) {
   p.errors = [];
   p.on('pageerror', (e) => p.errors.push(e.message));
   p.on('console', (m) => {
-    if (m.type() === 'error' && !/favicon|ERR_CONNECTION_REFUSED/.test(m.text())) p.errors.push(m.text());
+    // WebKit logs a fetch cut off by a reload as an access control failure, and Playwright's own
+    // screenshot style as refused by a sandboxed frame's CSP. Neither is the page's.
+    if (m.type() === 'error' && !/favicon|ERR_CONNECTION_REFUSED|due to access control checks|Refused to apply a stylesheet/.test(m.text())) p.errors.push(m.text());
   });
   p.clean = () => ok(!p.errors.length, `console errors: ${p.errors.slice(0, 3).join(' | ')}`);
   p.shot = (name) => p.screenshot({ path: path.join(OUT, `web-${name}.png`) });
@@ -105,6 +106,8 @@ try {
     const blocks = await p.locator('.it-body .blk:visible').count();
     await p.shot('welcome');
     ok(blocks > 5, `only ${blocks} blocks rendered`);
+    const dash = await p.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.b-flow .wire.back')).strokeDasharray));
+    ok(dash > 1, `the flow's loop has a dash of ${dash}px: WebKit draws nothing under 1`);
     p.clean();
   });
 
@@ -693,6 +696,22 @@ try {
     p.clean();
   });
 
+  await check('WEB-64', 'the Enter that picks an IME word sends nothing', async () => {
+    await p.locator('#splitNew:visible, #promptFab:visible').first().click();
+    const box = p.locator('#prompt');
+    await box.fill('こんにちは');
+    // As Safari sends it: the composition already ended, the keydown still says 229.
+    await box.evaluate((b) => {
+      const e = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true });
+      Object.defineProperty(e, 'keyCode', { value: 229 });
+      b.dispatchEvent(e);
+    });
+    await p.waitForTimeout(300);
+    ok((await box.inputValue()) === 'こんにちは', 'the box was sent');
+    await box.fill('');
+    p.clean();
+  });
+
   await check('WEB-49', 'Home Screen app: full screen and its own cache only when standalone', async () => {
     // A browser tab: no class, the viewport as it was, no manifest (this isn't a Grid).
     const tab = await p.evaluate(() => [document.documentElement.classList.contains('standalone'), document.querySelector('meta[name="viewport"]').content, !!document.querySelector('link[rel="manifest"]')]);
@@ -772,7 +791,7 @@ try {
       await q.route(/^https?:\/\/(?!localhost)/, (r) => r.abort());
       await q.goto('file://' + path.join(ROOT, 'docs/index.html'));
       await q.waitForTimeout(1500);
-      q.errors = q.errors.filter((e) => !/net::ERR_FAILED|posthog|Failed to load resource|CORS|file:/.test(e));
+      q.errors = q.errors.filter((e) => !/net::ERR_FAILED|posthog|Failed to load resource|CORS|file:|Origin null/.test(e));
       await noOverflow(q);
       await q.shot(`site-${label}`);
       q.clean();

@@ -27,6 +27,10 @@ Playwright stays out of the repo (wisp has no dependencies): the scripts load it
 (default `/tmp/wisp-qa-pw`) and drive the system Chrome (`CHROME` to use another). The grid needs
 Node 22.13+.
 
+`QA_ENGINE=webkit` runs `qa/web.mjs` and `qa/views.mjs` on Playwright's WebKit instead, the engine
+of the Tauri app on a Mac (`cd /tmp/wisp-qa-pw && npx playwright-core install webkit`). What's
+known to differ, and the lowest version, is in [scenarios/desktop.md](scenarios/desktop.md).
+
 ## Isolation
 
 Nothing touches your own wisp. Every script starts its own wisp with a temp `WISP_HOME`, its own
@@ -41,6 +45,7 @@ so a wisp.app you have open keeps its single-instance lock.
 | web | 4493 (`QA_WEB_PORT`) |
 | buttons | 4497 (`QA_BUTTONS_PORT`) |
 | ui-audit | 4498 (`QA_AUDIT_PORT`) |
+| views | 4499 (`QA_VIEWS_PORT`) |
 | desktop | 4520–4529 (`QA_DESKTOP_PORT` for the first app, 4521) |
 | desktop-tauri | 4761–4765 (`QA_TAURI_PORT`) |
 | mobile | 4540–4549 |
@@ -62,6 +67,9 @@ heights, a label clipped without `…`, and buttons that overlap. Every measurem
 `qa/out/buttons/`. `QUICK=1` measures at rest only; `WIDTHS=390 THEMES=dark` narrows it.
 
 ## Every view, every size: the scorecard's numbers
+
+`node qa/views.mjs` opens every view at 1440 and 390px, light and dark, in one engine, and fails on
+a view that won't open or logs an error (shots in `qa/out/views-<engine>/`).
 
 `node qa/ui-audit.mjs` opens the same views as `buttons.mjs` (`qa/views.mjs`: New task and its menus
 and pickers, a task with its goal, panels, dialogs and menus, crew and Org, My Stuff, the palette,

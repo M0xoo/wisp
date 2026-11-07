@@ -4,6 +4,8 @@
 //   PW_DIR   a folder with playwright-core installed (default /tmp/wisp-qa-pw):
 //            mkdir -p /tmp/wisp-qa-pw && npm i --prefix /tmp/wisp-qa-pw playwright-core
 //   CHROME   Chrome to drive (default: the system Google Chrome)
+//   QA_ENGINE=webkit  drive Playwright's WebKit instead (the Mac engine of the Tauri app):
+//            cd /tmp/wisp-qa-pw && npx playwright-core install webkit
 
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -29,6 +31,12 @@ export function playwright() {
     throw new Error(`playwright-core not found in ${dir}: npm i --prefix ${dir} playwright-core`);
   }
 }
+
+export const ENGINE = process.env.QA_ENGINE === 'webkit' ? 'webkit' : 'chrome';
+export const launchBrowser = (opts = {}) => {
+  const { chromium, webkit } = playwright();
+  return ENGINE === 'webkit' ? webkit.launch(opts) : chromium.launch({ executablePath: CHROME, ...opts });
+};
 
 // The env a QA wisp runs with: fake agents first on PATH, no telemetry, nothing of the user's.
 export function qaEnv(extra = {}) {
