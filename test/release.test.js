@@ -33,7 +33,8 @@ test('the desktop app ships the files npm ships, and the downloads keep their na
   const config = read('packaging/desktop/electron-builder.yml');
   const files = [...config.matchAll(/^ {2}- ([\w.-]+(?:\/\*\*)?)$/gm)].map((m) => m[1].replace('/**', '/'));
   const pkg = JSON.parse(read('package.json'));
-  assert.deepEqual(files.filter((f) => f !== 'package.json').sort(), [...pkg.files].sort());
+  // desktop/entry.mjs is on npm for the Tauri shell (bin/desktop-shell.js); Electron doesn't run it.
+  assert.deepEqual(files.filter((f) => f !== 'package.json').sort(), pkg.files.filter((f) => f !== 'desktop/entry.mjs').sort());
   // The site, the release notes and the app's updater link to these names (releases/latest/download/…).
   for (const name of ['wisp-mac-${arch}.${ext}', 'wisp-mac-${arch}.dmg', 'wisp-windows-${arch}-setup.${ext}', 'wisp-linux-${arch}.${ext}']) assert.ok(config.includes(`artifactName: ${name}`), name);
   const linked = [...notes(read('CHANGELOG.md'), pkg.version).matchAll(/download\/(wisp-[\w.-]+)\)/g)].map((m) => m[1]);
