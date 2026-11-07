@@ -469,6 +469,20 @@ export function openapi({ version, port }) {
       '/machines/{mid}/discover': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }], get: { summary: 'Git repos found on the machine that are not projects yet', responses: { 200: json({ type: 'array', items: { type: 'object' } }) } } },
       '/remote/slack/manifest': { get: { summary: 'The Slack app manifest to create your app from (api.slack.com/apps → From a manifest): Socket Mode on, app_mention and message.im, and the bot scopes. The app-level token it then needs takes connections:write', responses: { 200: json({ type: 'object' }) } } },
       '/remote/discord/invite': { get: { summary: 'The link that adds your bot to a server: bot and applications.commands, with View Channels, Send Messages, Read Message History, Create Public Threads and Send Messages in Threads. Needs the application ID', responses: { 200: json({ type: 'object', properties: { url: { type: 'string' }, permissions: { type: 'string' } } }), 400: err[400] } } },
+      '/channels/inbound': {
+        post: {
+          summary: 'A channel message held by wisp Grid for this cloud wisp (grid/inbox.js). From the grid only: refused off a grid, and without its proxy secret and its mark, which nothing from outside can set',
+          requestBody: body({ type: 'object', required: ['channel', 'body'], properties: { channel: { type: 'string' }, headers: { type: 'object', description: 'What the channel sent that the channel needs to verify it' }, body: { type: 'string', description: 'The raw request, base64' }, at: { type: 'integer', description: 'When the grid took it, ms' }, dropped: { type: 'integer', description: 'Messages the grid lost for this channel and hasn’t told this wisp of' } } }),
+          responses: { 200: json({ type: 'object' }), 400: err[400], 403: json({ type: 'object' }), 404: err[404], 409: json({ type: 'object' }) },
+        },
+      },
+      '/channels/rotate': {
+        post: {
+          summary: 'Replace this cloud wisp’s inbound URL for a channel, when it leaked: the grid drops the old one, then the channel is pointed at the new one. Messages held keep working. 502: the grid or the channel failed; if the URL did change, wisp keeps setting it by itself. 409: no webhook here',
+          requestBody: body({ type: 'object', required: ['channel'], properties: { channel: { type: 'string' } } }),
+          responses: { 200: json({ type: 'object' }), 404: err[404], 409: json({ type: 'object' }), 502: json({ type: 'object' }) },
+        },
+      },
       '/remote/test': { post: { summary: 'Send a test message to the enabled channels', responses: { 200: json({ type: 'object' }), 400: err[400] } } },
       '/usage': {
         get: {

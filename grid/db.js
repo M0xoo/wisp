@@ -77,6 +77,20 @@ const MIGRATIONS = [
   // preview link, which anything on a box can ask for, must never become a session anywhere else).
   // NULL: the user's own addresses, never a preview's.
   `ALTER TABLE tickets ADD COLUMN scope TEXT;`,
+  // Channels on a box (grid/inbox.js): one unguessable URL per user and channel, and what came to it
+  // while the box slept. The token itself is sealed in user_secrets; dropped: lost messages the box
+  // hasn't been told about. event_key stops a sender's retry; a delivered row keeps only that, until
+  // its hour is up.
+  `CREATE TABLE channel_urls (
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, channel TEXT NOT NULL,
+     token_hash TEXT UNIQUE NOT NULL, created_at INTEGER NOT NULL, dropped INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (user_id, channel));
+   CREATE TABLE channel_inbox (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     channel TEXT NOT NULL, event_key TEXT NOT NULL, headers TEXT NOT NULL, body BLOB NOT NULL,
+     size INTEGER NOT NULL, at INTEGER NOT NULL, tries INTEGER NOT NULL DEFAULT 0,
+     next_at INTEGER NOT NULL DEFAULT 0, done_at INTEGER, UNIQUE (user_id, event_key));
+   CREATE INDEX channel_inbox_held ON channel_inbox(user_id, done_at, id);`,
 ];
 
 export async function openDb(dataDir) {

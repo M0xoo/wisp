@@ -19,7 +19,8 @@ name: release
 # A push only releases a version npm doesn't have yet. Run it by hand (Actions → release → Run
 # workflow) to finish one that stopped half way: every step skips what's already done. With
 # "dry run" ticked it only builds the desktop apps (kept as the run's artifacts): try a branch with
-# `gh workflow run release --ref <branch> -f dry_run=true`.
+# `gh workflow run release --ref <branch> -f dry_run=true`. A dry run also builds the Tauri app beside
+# them (tauri-package.yml): unpublished, nothing else needs it, and it reports sizes and the install gate.
 #
 # Nightly: when the nightly workflow (the full matrix, three times over) passes on main, this
 # builds that commit as <next patch>-nightly.<yyyymmdd>.<hhmm> (scripts/nightly-version.mjs),
@@ -194,6 +195,14 @@ jobs:
             dist/desktop/wisp-*.exe
             dist/desktop/wisp-*.AppImage
             dist/desktop/wisp-*.deb
+
+  # Dry runs only, and no job needs this one: Electron stays what users get.
+  tauri:
+    needs: plan
+    if: needs.plan.outputs.dry == 'true'
+    uses: ./.github/workflows/tauri-package.yml
+    with:
+      ref: ${{ needs.plan.outputs.sha }}
 
   release:
     needs: [plan, desktop]

@@ -62,6 +62,21 @@ async function until(fn, ms = 30_000, what = '') {
 }
 const cli = (...args) => execFileSync(process.execPath, [WISP, 'grid', ...args, '--data', data], { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 
+// Telegram, for GRID-31: answers everything, and keeps what it heard.
+const tg = { calls: [], hook: null, msg: 100 };
+const fakeTelegram = http.createServer(async (rq, rs) => {
+  let t = '';
+  for await (const c of rq) t += c;
+  const method = new URL(rq.url, 'http://x').pathname.split('/').pop();
+  const b = t ? JSON.parse(t) : {};
+  tg.calls.push({ method, ...b });
+  if (method === 'setWebhook') tg.hook = b;
+  rs.writeHead(200, { 'content-type': 'application/json', connection: 'close' });
+  rs.end(JSON.stringify({ ok: true, result: method === 'sendMessage' ? { message_id: ++tg.msg } : method === 'getWebhookInfo' ? { url: tg.hook?.url || '' } : true }));
+});
+await new Promise((r) => fakeTelegram.listen(0, '127.0.0.1', r));
+fs.writeFileSync(path.join(data, 'grid.json'), JSON.stringify({ channels: { enabled: true }, hostd: { env: { WISP_TELEGRAM_API: `http://127.0.0.1:${fakeTelegram.address().port}` } } }));
+
 const { check, done } = runner('grid');
 const log = fs.openSync(path.join(OUT, 'grid-server.log'), 'w');
 const grid = spawn(process.execPath, [WISP, 'grid', 'dev', '--fake-agents', '--port', String(PORT), '--data', data, '--idle', String(IDLE), '--fake-delay', '800'], { env, stdio: ['ignore', log, log] });
@@ -258,6 +273,29 @@ try {
     ok((await state()) === 'running', 'not running after the wake');
   });
 
+  await check('GRID-31', 'a Telegram message reaches a sleeping box: 200 first, woken, handled once, asleep again', async () => {
+    const state = async () => (await req(`${inst(A.handle)}/_grid/state`, { headers: bearer(token) })).json?.state;
+    const put = await req(`${inst(A.handle)}/api/remote`, { method: 'PUT', headers: bearer(token), body: { telegram: { enabled: true, token: '123:qa' } } });
+    ok(put.status === 200, `PUT /api/remote → ${put.status} ${put.text.slice(0, 120)}`);
+    await until(() => tg.hook, 10_000, 'setWebhook');
+    ok(tg.hook.url.startsWith(`${inst(A.handle)}/_in/`), `webhook set to ${tg.hook.url}`);
+    await until(async () => (await state()) === 'stopped', (IDLE + 30) * 1000, 'the box to stop');
+    const hook = (body, secret = tg.hook.secret_token, url = tg.hook.url) => req(url, { method: 'POST', headers: { 'x-telegram-bot-api-secret-token': secret }, body });
+    const t = Date.now();
+    const r = await hook({ update_id: 1, message: { message_id: 1, text: `/link ${put.json.telegram.linkCode}`, chat: { id: 42, first_name: 'QA' }, date: Math.floor(t / 1000) } });
+    const took = Date.now() - t;
+    ok(r.status === 200, `the webhook → ${r.status}`);
+    ok(took < 1000, `the 200 took ${took} ms: it waited for the box`);
+    await until(() => tg.calls.some((c) => c.method === 'sendMessage' && /Linked to wisp/.test(c.text)), 30_000, 'the reply');
+    await hook({ update_id: 1, message: { message_id: 1, text: 'a retry', chat: { id: 42 } } });
+    await sleep(1000);
+    ok(tg.calls.filter((c) => c.method === 'sendMessage').length === 1, 'handled more than once');
+    ok(tg.calls.filter((c) => c.method === 'setWebhook').length === 1, 'a wake set the webhook again');
+    ok(!tg.calls.some((c) => c.method === 'getUpdates'), 'a box with a webhook polled');
+    ok((await hook({}, 's', tg.hook.url.replace(/[^/]+$/, 'x'.repeat(43)))).status === 404, 'a wrong token wasn’t a 404');
+    await until(async () => (await state()) === 'stopped', (IDLE + 30) * 1000, 'the box to sleep again by itself');
+  });
+
   await check('GRID-11', 'Account lists the device; Remove revokes its token', async () => {
     const p = A.page;
     await p.goto(`${GRID}/account`);
@@ -320,6 +358,7 @@ try {
   });
 } finally {
   await browser.close().catch(() => {});
+  fakeTelegram.close();
   grid.kill('SIGTERM');
   await new Promise((r) => {
     grid.once('exit', r);

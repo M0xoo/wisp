@@ -199,6 +199,19 @@ Users are `ada@example.com` (handle `ada`) and `bob@example.com` (handle `bob`),
   key, not what it started: if a leaked key was used, treat the box as compromised. A page the box
   serves to a signed-in person can reach `/_grid/keys`.
 
+### GRID-31 · A Telegram message reaches a sleeping box
+*`qa/grid.mjs`* (fake Telegram, `channels` in the dev grid's `grid.json`); `test/channel-inbound.test.js`
+for the rest
+- **Steps:** turn Telegram on in a cloud wisp; let the box sleep; call the webhook URL it set with the
+  `secret_token` it set, sending the link code.
+- **Expected:** `setWebhook` to `<handle>.<domain>/_in/<token>`, no `getUpdates`; the 200 comes back
+  before the box is up; it wakes, links, and answers once; it sleeps again by itself. A wrong token
+  at that address is a 404. Without `channels` in `grid.json`, `/_in/` is a 404 and the box polls. A
+  stranger's message is refused by the box with a 403 and no answer; three wakes like that and the next
+  is low priority, one per 10 minutes. `POST /api/channels/rotate` moves the webhook to a new URL with
+  the same secret, and the old URL is a 404.
+- **Against production:** only when the owner deploys: a throwaway account, one real Telegram bot.
+
 ### GRID-24 · Caddy on-demand TLS and DNS
 *Manual*
 - **Expected:** a new handle gets a certificate on first visit; an unknown name is refused (Caddy's
