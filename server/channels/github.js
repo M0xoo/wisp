@@ -12,9 +12,9 @@
 import { gh, git } from '../git.js';
 import { truncate } from '../util.js';
 import { Channel, sleep } from './channel.js';
-import { parseMessage, stripFormatting } from './grammar.js';
-import { LISTS, refusal } from './lists.js';
-import { RateLimit, capMode, defuse, gate, hideNames, noMedia, scrubOut } from './policy.js';
+import { converse, firstPart, surface } from './conversation.js';
+import { stripFormatting } from './grammar.js';
+import { RateLimit, defuse, gate, noMedia, scrubOut } from './policy.js';
 
 const REPOS_FRESH_MS = 60 * 60_000;
 const ME_FRESH_MS = 60 * 60_000;
@@ -56,7 +56,6 @@ const noPing = (text) => text.replace(/(^|\W)@(?=[a-z0-9])/gim, '$1@​');
 const seconds = (iso) => Math.floor(Date.parse(iso) / 1000);
 const nowIso = () => new Date().toISOString().replace(/\.\d+Z$/, 'Z');
 const header = (head, name) => new RegExp(`^${name}:\\s*(.+?)\\s*$`, 'im').exec(head)?.[1] || '';
-const firstPart = (line) => `${String(line).split(':')[0].replace(/\.$/, '')}.`;
 
 // `gh api --include`: the status line and headers, a blank line, the body.
 function splitInclude(out) {
@@ -273,80 +272,34 @@ export class Github extends Channel {
     const open = await this.#open(repo);
     const ctx = { ...(await phone.context()), defaultProject: project };
     const text = stripFormatting(/^new(\s|$)/i.test(cmd) ? `/${cmd}` : cmd || 'help', 'github');
-    const plain = (t) => this.#post(repo, number, t);
-    const say = (t) => plain(open ? t : hideNames(t, ctx, `${text}\n${project.name}`));
-    const refuse = (problems) => say(refusal(open ? problems : problems.map((x) => ({ ...x, choices: [] }))));
-    const list = (p, c) => {
-      if (open) return say(LISTS[p.command](c, p.arg));
-      if (p.command === 'help') return plain(LISTS.help({})); // the grammar, with nothing of yours in its example
-      if (p.command !== 'status') return plain(NO_LIST);
-      return plain(`${c.tasks.filter((s) => s.state === 'running').length} running, ${c.tasks.filter((s) => s.state === 'waiting').length} waiting: see them in wisp.`);
-    };
+    const { say, refuse, list } = surface({ ctx, post: (t) => this.#post(repo, number, t), open, typed: `${text}\n${project.name}`, noList: NO_LIST });
     const sessionId = await this.#threadOf(at);
-    if (sessionId) {
-      const p = parseMessage(text, { ...ctx, thread: await phone.threadCtx(sessionId) });
-      if (p.command !== 'new') return this.#inThread(sessionId, p, ctx, at, { say, list, open, refuse });
-    }
-    const p = parseMessage(text, ctx);
-    if (p.command && p.command !== 'new') {
-      phone.count?.('list', p.command);
-      if (LISTS[p.command]) return list(p, ctx);
-      return say('There’s no task on this one yet.'); // stop, done, /btw
-    }
-    if (p.problems.length) {
-      phone.count?.('refused', p.problems[0].kind);
-      return refuse(p.problems);
-    }
-    if (!p.prompt) return say(p.crew ? `Tell ${p.crew.name} what to do after the name.` : 'What should it do? Say it after the options.');
-    const asked = capMode(p.mode, CAP, FALLBACK);
-    if (asked.refused) {
-      phone.count?.('refused', 'mode');
-      return say(`${asked.refused}\n\nNothing started.`);
-    }
-    if (!p.crew && !p.project && !ctx.defaultProject) return say('No projects yet. Open a folder in wisp first.');
-    let out;
-    try {
-      out = await phone.startParsed(p, { channel: this.name, name: NAME, sender: at.login, cap: CAP, fallback: FALLBACK, about: this.#about(at), thread: this.#thread(at), ctx });
-    } catch (err) {
-      return say(`Couldn’t start it${open ? `: ${truncate(err.message, 300)}` : '. wisp can say why if you start it there.'}`);
-    }
-    await say(out.ack);
-  }
-
-  async #inThread(sessionId, p, ctx, at, { say, list, open, refuse }) {
-    const hub = this.hub;
-    const phone = hub.phone;
-    const line = (text) => (open ? text : firstPart(text)); // a title or an error is past the first colon
-    if (LISTS[p.command] && p.command !== 'status') return list(p, ctx);
-    if (p.command === 'stop') return say(await phone.stop(sessionId));
-    if (p.command === 'status') return say(line(await phone.status(sessionId)));
-    if (p.command === 'done') return say(await hub.act({ sessionId, kind: 'done', ref: '', index: 0 }));
-    if (p.problems.length) return refuse(p.problems);
-    const sender = at.login;
-    if (p.crew) {
-      if (!p.prompt) return say(`Tell ${p.crew.name} what to do after the name.`);
-      try {
-        const out = await phone.mention(sessionId, p, { name: NAME, sender, cap: CAP, fallback: FALLBACK, about: this.#about(at), thread: this.#thread(at), ctx });
-        await say(out.ack);
-      } catch (err) {
-        await say(`Couldn’t ask them${open ? `: ${truncate(err.message, 300)}` : '.'}`);
-      }
-      return;
-    }
-    const btw = p.command === 'btw';
-    if (!p.prompt) return say(btw ? 'Type your question after /btw.' : 'What should it do? Say it after the options.');
-    const asked = capMode(p.mode, CAP, p.mode);
-    if (asked.refused) return say(asked.refused);
-    const later = (text) => say(open ? text : 'The answer is on the task in wisp.').catch(() => {});
-    const once = !btw && !this.#mine(sessionId) ? this.#reportOnce(sessionId, at.key) : null;
-    try {
-      const sent = await phone.run(sessionId, p, { name: NAME, sender, cap: CAP, later, btw, about: this.#about(at), approvals: this.approvalsHere });
-      if (!sent.startsWith('✓')) once?.(); // refused: no turn is coming
-      await say(line(sent));
-    } catch (err) {
-      once?.();
-      await say(`Couldn’t send that${open ? `: ${truncate(err.message, 300)}` : '.'}`);
-    }
+    return converse(
+      {
+        phone,
+        hub: this.hub,
+        ctx,
+        channel: this.name,
+        name: NAME,
+        sender: at.login,
+        cap: CAP,
+        fallback: FALLBACK,
+        about: this.#about(at),
+        approvals: this.approvalsHere,
+        say,
+        list,
+        refuse,
+        thread: () => this.#thread(at),
+        noThread: 'There’s no task on this one yet.',
+        quiet: (line) => (open ? line : firstPart(line)), // a title or an error is past the first colon
+        runLine: (line) => (open ? line : firstPart(line)),
+        later: (t) => say(open ? t : 'The answer is on the task in wisp.').catch(() => {}),
+        beforeRun: (id) => (this.#mine(id) ? null : this.#reportOnce(id, at.key)),
+        failed: (what, err) => (open ? `Couldn’t ${what}: ${truncate(err.message, 300)}` : what === 'start it' ? 'Couldn’t start it. wisp can say why if you start it there.' : `Couldn’t ${what}.`),
+      },
+      text,
+      sessionId,
+    );
   }
 
   // A task from wisp, followed up from here: this turn's report comes back, and nothing after it. On

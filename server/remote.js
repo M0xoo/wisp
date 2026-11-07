@@ -7,11 +7,12 @@
 
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { KIND } from './channels/channel.js';
+import { inBox, newLinkCode } from './channels/conversation.js';
 import { Github } from './channels/github.js';
 import { ranInstead } from './channels/lists.js';
 import { needsWisp, scrubOut, defuse } from './channels/policy.js';
 import { Ntfy } from './channels/ntfy.js';
-import { NOT_ON_A_BOX, Slack, inBox, newLinkCode } from './channels/slack.js';
+import { NOT_ON_A_BOX, Slack } from './channels/slack.js';
 import { Telegram } from './channels/telegram.js';
 import { bad, truncate } from './util.js';
 
