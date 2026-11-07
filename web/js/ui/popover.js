@@ -84,8 +84,8 @@ export const TOUCH = matchMedia('(hover: none) and (pointer: coarse)');
 
 // Put the caret back in the prompt a menu served, except on a touch screen, where focusing it
 // would pop the keyboard up over what you just picked.
-export function refocus(box) {
-  if (box && !TOUCH.matches) box.focus();
+export function refocus(box, opts) {
+  if (box && !TOUCH.matches) box.focus(opts);
 }
 
 // Keep a floating node inside the visible area (the visual viewport: what the keyboard leaves).

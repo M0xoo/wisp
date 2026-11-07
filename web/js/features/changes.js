@@ -243,7 +243,11 @@ function paintFile(node, id, f, git, seen, staging) {
   node.hidden = going.has(`${id}\n${f.path}`);
   const h = $('.cx-head', node);
   if (!h) node.innerHTML = head;
-  else if (node.dataset.h !== head) h.outerHTML = head;
+  else if (node.dataset.h !== head) {
+    const keys = h.contains(document.activeElement) && document.activeElement.dataset.a; // a repaint leaves the keyboard on its button
+    h.outerHTML = head;
+    if (keys) $(`[data-a="${keys}"]`, node)?.focus();
+  }
   node.dataset.h = head;
   node.dataset.path = f.path;
   // The diff is drawn once per version of the file, so its sideways scroll stays while it updates.
