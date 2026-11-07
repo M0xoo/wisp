@@ -6,7 +6,8 @@
 //   fake.envelope(obj)        any envelope as it is (the same one twice is a retry)
 //   fake.drop()               the connection goes, with no goodbye
 //   fake.disconnect(reason)   Slack's own `disconnect` message
-//   fake.fail(method, reply)  the next call of method gets { status, headers, body }
+//   fake.fail(method, reply)  the next call of method gets { status, headers, body }, or with
+//                             { reset: true } its connection is cut and it gets nothing
 //   fake.revoked = true       every token stops working
 //   fake.noCustomize = true   the bot has no chat:write.customize
 //   fake.deaf = true         pings go unanswered, and the socket stays up
@@ -118,6 +119,7 @@ export class FakeSlack {
       res.end(JSON.stringify(o));
     };
     const fail = this.#fails.get(method)?.shift();
+    if (fail?.reset) return req.socket.destroy();
     if (fail) return send(fail.status || 200, fail.body || {}, fail.headers);
     if (this.revoked) return send(200, { ok: false, error: 'token_revoked' });
     const app = method === 'apps.connections.open';

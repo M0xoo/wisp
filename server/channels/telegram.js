@@ -7,7 +7,7 @@
 // a task. Off, every path here is the one it always was.
 
 import { truncate } from '../util.js';
-import { Channel, CODE, KIND, sleep } from './channel.js';
+import { Channel, CODE, KIND, resend, sleep } from './channel.js';
 import { converse } from './conversation.js';
 import { findProject, stripFormatting } from './grammar.js';
 import { LISTS, refusal } from './lists.js';
@@ -55,12 +55,12 @@ export class Telegram extends Channel {
 
   async api(method, body, signal) {
     const base = (process.env.WISP_TELEGRAM_API || 'https://api.telegram.org').replace(/\/+$/, '');
-    const r = await fetch(`${base}/bot${this.cfg.token}/${method}`, {
+    const r = await resend(() => fetch(`${base}/bot${this.cfg.token}/${method}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
       signal: signal || AbortSignal.timeout(15_000),
-    });
+    }), method === 'sendMessage' ? undefined : 1); // the poll has its own way back; a tap's answer is past its moment
     const j = await r.json().catch(() => ({}));
     if (!j.ok) throw new Error(`Telegram: ${j.description || r.status}`);
     return j.result;

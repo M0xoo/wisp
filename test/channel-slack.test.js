@@ -245,6 +245,58 @@ test('a task from a channel: start, ack, question, answer, report, follow-up', a
   assert.equal(tasksIn(m.thread).length, 1);
 });
 
+test('a first reply whose connection is cut goes again, once, ahead of the question', async () => {
+  fake.fail('chat.postMessage', { reset: true });
+  const m = mention(`in ${name} plan: ASK before you touch the cut connection`);
+  assert.match(await next(m.thread), /^▶ /);
+  assert.match(await next(m.thread), /^❓ /);
+  assert.equal(inThread(m.thread).filter((p) => p.text.startsWith('▶')).length, 1);
+  mention('Yes', { thread_ts: m.ts });
+  assert.equal(await next(m.thread), '✓ Answered');
+  await settled((await taskIn(m.thread)).id);
+  await next(m.thread);
+});
+
+test('a first reply Slack can’t be reached for: Settings says so, and it goes ahead of the next post', async () => {
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    for (let i = 0; i < 3; i++) fake.fail('chat.postMessage', { reset: true });
+    const m = mention(`in ${name} plan: ASK before you touch the dead connection`);
+    await until(async () => /fetch failed/.test((await api('/remote')).status.slack?.error), { what: 'the error in Settings' });
+    assert.match(await next(m.thread), /^▶ /);
+    assert.match(await next(m.thread), /^❓ /);
+    assert.equal(inThread(m.thread).filter((p) => p.text.startsWith('▶')).length, 1);
+    mention('Yes', { thread_ts: m.ts });
+    assert.equal(await next(m.thread), '✓ Answered');
+    await settled((await taskIn(m.thread)).id);
+    await next(m.thread);
+  } finally {
+    console.warn = warn;
+  }
+});
+
+test('a reply that doesn’t reach Slack never says the follow-up failed: it went, and a resend would run it twice', async () => {
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const m = mention(`in ${name} plan: a task to follow up on`);
+    await next(m.thread);
+    const s = await taskIn(m.thread);
+    await settled(s.id);
+    await next(m.thread);
+    for (let i = 0; i < 3; i++) fake.fail('chat.postMessage', { reset: true });
+    mention('one more thing', { thread_ts: m.ts });
+    await until(async () => (await session(s.id)).turns.length === 2);
+    await settled(s.id);
+    assert.match(await next(m.thread), /^✅ /);
+    await caughtUp(m.thread);
+    assert.deepEqual(inThread(m.thread).filter((p) => /Couldn’t/.test(p.text)), []);
+  } finally {
+    console.warn = warn;
+  }
+});
+
 test('a DM: plain replies in the thread follow up, `with` moves it, new starts another', async () => {
   const m = dm('fix the DM thing');
   assert.equal(await next(m.thread), `▶ ${name} · Claude Code · Plan\n  Fix the DM thing`, 'a DM shows the project');
@@ -393,6 +445,23 @@ test('a crew member: Plan by default, posted under their name, plain without the
   assert.match((await session(s.id)).turns[1].prompt, /carry on/, 'the task it was on, not the job that answered');
   await settled(s.id);
   await next(t.thread);
+});
+
+test('a mention whose reply doesn’t reach Slack never says Ada wasn’t asked: the job is running', async () => {
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const t = dm('a task for Ada to look at');
+    await next(t.thread);
+    await settled((await taskIn(t.thread)).id);
+    await next(t.thread);
+    for (let i = 0; i < 3; i++) fake.fail('chat.postMessage', { reset: true });
+    dm('@ada look at this', { thread_ts: t.ts });
+    await until(() => inThread(t.thread).some((p) => /^Ada: /.test(p.text)), { what: 'the job’s report' });
+    assert.deepEqual(inThread(t.thread).filter((p) => /Couldn’t/.test(p.text)), []);
+  } finally {
+    console.warn = warn;
+  }
 });
 
 test('a stranger in a channel: silence, by id and not by name; bots and edits too', async () => {

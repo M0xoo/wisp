@@ -290,6 +290,7 @@ export class Github extends Channel {
         list,
         refuse,
         thread: () => this.#thread(at),
+        owe: (send) => this.owe(at.key, send),
         noThread: 'There’s no task on this one yet.',
         quiet: (line) => (open ? line : firstPart(line)), // a title or an error is past the first colon
         runLine: (line) => (open ? line : firstPart(line)),
@@ -375,6 +376,7 @@ export class Github extends Channel {
     const at = key.lastIndexOf('#');
     const [repo, number] = [key.slice(0, at), Number(key.slice(at + 1))];
     await this.answering.get(key)?.catch(() => {}); // a quick task's report comes after the first reply
+    await this.pay(key);
     // That line can quote a command, so it goes by the repo alone: publicReports doesn't reach it.
     const mine = await this.#isPrivate(repo);
     const wait = this.waiting(s, { bare: !mine });

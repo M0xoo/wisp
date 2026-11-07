@@ -210,6 +210,33 @@ test('a task: start, ack, question, answer, report, follow-up', async () => {
   assert.ok(c.id);
 });
 
+test('a first reply GitHub refused goes ahead of the question, not never', async () => {
+  const n = nextIssue();
+  fs.writeFileSync(`${STATE}.refuse`, '');
+  comment(n, `/wisp in ${name} plan: ASK before you touch the refused comment`);
+  assert.match(await nextOn(n), /^▶ /);
+  assert.match(await nextOn(n), /^❓ /);
+  comment(n, '/wisp Yes');
+  assert.match(await nextOn(n), /^✓ Answered/);
+  await settled((await startedOn(n)).id);
+  await nextOn(n);
+});
+
+test('a reply GitHub refused never says the follow-up failed, and the report still comes', async () => {
+  const n = nextIssue();
+  comment(n, `/wisp in ${name} plan: a task to follow up on`);
+  await nextOn(n);
+  const s = await startedOn(n);
+  await settled(s.id);
+  await nextOn(n);
+  fs.writeFileSync(`${STATE}.refuse`, '');
+  comment(n, '/wisp one more thing');
+  await until(async () => (await session(s.id)).turns.length === 2);
+  await settled(s.id);
+  assert.match(await nextOn(n), /^✅ /);
+  assert.deepEqual(on(n).filter((b) => /Couldn’t/.test(b)), []);
+});
+
 test('a PR by reference; options in the comment; `in` moves it; /wisp new starts another', async () => {
   const n = nextIssue();
   comment(n, `/wisp in ${openName} with opus high edits: read the code`, { pr: true });

@@ -11,7 +11,7 @@
 // one at a time per thread. Not on a Cloud box: it sleeps, and this socket would go with it.
 
 import { truncate } from '../util.js';
-import { Channel, sleep } from './channel.js';
+import { Channel, resend, sleep } from './channel.js';
 import { Linking, Turns, converse, firstPart, inBox, surface } from './conversation.js';
 import { stripFormatting } from './grammar.js';
 import { RateLimit, Seen, defuse, gate, scrubOut } from './policy.js';
@@ -84,12 +84,12 @@ export class Slack extends Channel {
   async api(method, body = {}, { token = this.cfg.botToken, tries = POST_TRIES, signal } = {}) {
     const base = (process.env.WISP_SLACK_API || 'https://slack.com/api').replace(/\/+$/, '');
     for (let left = tries; ; left--) {
-      const r = await fetch(`${base}/${method}`, {
+      const r = await resend(() => fetch(`${base}/${method}`, {
         method: 'POST',
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json; charset=utf-8' },
         body: JSON.stringify(body),
         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
-      });
+      }), tries);
       if (r.status === 429) {
         const retryAfter = Number(r.headers.get('retry-after')) || 1;
         if (left <= 1) throw Object.assign(new Error('Slack: ratelimited'), { code: 'ratelimited', retryAfter });
@@ -244,6 +244,7 @@ export class Slack extends Channel {
         list,
         refuse,
         thread: () => this.#thread(e, root),
+        owe: (send) => this.owe(`${e.channel}:${root}`, send),
         noThread: NO_THREAD,
         quiet: (line) => (dm ? line : firstPart(line)), // a title is past the first colon
         btwHelp: 'Type your question after btw.',
@@ -290,7 +291,9 @@ export class Slack extends Channel {
   async publish(msg, s) {
     const t = s?.remote?.slack || this.hub.away.get(s?.id)?.slack;
     if (!t) return;
-    await this.turns.settled(`${t.channel}:${t.ts}`); // a quick task's report comes after the first reply
+    const key = `${t.channel}:${t.ts}`;
+    await this.turns.settled(key); // a quick task's report comes after the first reply
+    await this.pay(key);
     const by = this.hub.startedFrom(s)?.by;
     const wait = this.waiting(s);
     if (wait === '') return;

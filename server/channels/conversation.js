@@ -4,6 +4,7 @@
 //   c: { phone, hub, ctx, name, sender, cap, fallback?, about?, approvals, say, list, refuse,
 //        thread(): where a task started here answers, noThread: the line for `stop` out of a thread,
 //        stale?(p): a line when the message points at something gone, acked?(thread, sent),
+//        owe?(send): → keeps a first reply that couldn't go, for the next thing said in that thread,
 //        quiet?(line): status with less in it, runLine?(line): so a follow-up's answer, later?(text),
 //        beforeRun?(sessionId): → undo, failed?(what, err), btwHelp? }
 
@@ -75,7 +76,8 @@ async function start(c, p) {
   } catch (err) {
     return say((c.failed || failedLine)('start it', err));
   }
-  const sent = await say(out.ack);
+  const ack = () => say(out.ack);
+  const sent = await (c.owe ? ack().catch(c.owe(ack)) : ack());
   c.acked?.(thread, sent);
 }
 
@@ -90,13 +92,14 @@ async function inThread(c, sessionId, p) {
   if (p.crew) {
     if (!p.prompt) return say(`Tell ${p.crew.name} what to do after the name.`);
     const thread = await c.thread(p);
+    let out;
     try {
-      const out = await phone.mention(sessionId, p, { name: c.name, sender: c.sender, cap: c.cap, ...(c.fallback && { fallback: c.fallback }), ...(c.about && { about: c.about }), thread, ctx });
-      const sent = await say(out.ack);
-      c.acked?.(thread, sent);
+      out = await phone.mention(sessionId, p, { name: c.name, sender: c.sender, cap: c.cap, ...(c.fallback && { fallback: c.fallback }), ...(c.about && { about: c.about }), thread, ctx });
     } catch (err) {
-      await say((c.failed || failedLine)('ask them', err));
+      return say((c.failed || failedLine)('ask them', err));
     }
+    const sent = await say(out.ack);
+    c.acked?.(thread, sent);
     return;
   }
   const btw = p.command === 'btw';
