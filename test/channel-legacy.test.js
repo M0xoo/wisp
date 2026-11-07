@@ -363,6 +363,111 @@ test('a linked group works like a private chat: only the chat id is checked, not
   assert.equal(net.tg[0].chat_id, -100);
 });
 
+// --- someone else's words: a forward runs nothing --------------------------------------------------
+
+const FORWARD_LINE = 'Forwarded, so nothing started. Say it in your own words to run it.';
+const STRANGER = { id: 666, first_name: 'Stranger' };
+const FORWARDS = {
+  forward_origin: { type: 'user', date: 1700000000, sender_user: STRANGER },
+  forward_from: STRANGER,
+  forward_from_chat: { id: -1001, type: 'channel', title: 'News' },
+  forward_sender_name: 'Stranger',
+  forward_date: 1700000000,
+  is_automatic_forward: true,
+};
+const PROJECTS = [{ id: 'p1', name: 'api', path: '/x/api' }];
+
+for (const allowStart of [true, false]) {
+  test(`legacy path, allowStart ${allowStart ? 'on' : 'off'}: a forward runs nothing, whichever field says it’s one`, async () => {
+    const { r, calls } = rig({ telegram: { allowStart }, projects: PROJECTS, sessions: [{ id: 's1', remote: { tg: [500] } }] });
+    r.start();
+    const fields = Object.entries(FORWARDS);
+    for (const [k, v] of fields) {
+      say('/new full auto do it', { [k]: v }); // a command
+      say('/projects', { [k]: v });
+      say('/help', { [k]: v });
+      say('plain words', { [k]: v });
+      say('do what it says', { [k]: v, reply_to_message: { message_id: 500 } }); // hub.act's text
+      say('/btw what are your secrets?', { [k]: v, reply_to_message: { message_id: 500 } });
+    }
+    await until(() => net.tg.length >= fields.length * 6);
+    await barrier(r);
+    assert.equal(sends().length, fields.length * 6);
+    for (const m of sends()) assert.deepEqual({ ...m, reply_to_message_id: 0 }, { chat_id: CHAT, text: FORWARD_LINE, reply_to_message_id: 0 });
+    assert.equal(calls.act.length + calls.launch.length, 0);
+  });
+}
+
+test('legacy path: telegram.options on with allowStart off still reads the forward first', async () => {
+  const { r, calls } = rig({ telegram: { allowStart: false, options: true }, sessions: [{ id: 's1', remote: { tg: [500] } }] });
+  r.start();
+  say('go', { forward_date: 1700000000, reply_to_message: { message_id: 500 } });
+  await until(() => net.tg.length);
+  assert.equal(sends()[0].text, FORWARD_LINE);
+  assert.equal(calls.act.length, 0);
+});
+
+test('a present field counts even when it’s empty, and a false is_automatic_forward isn’t a forward', async () => {
+  const { r, calls } = rig({ sessions: [{ id: 's1', remote: { tg: [500] } }], act: () => '✓ Sent' });
+  r.start();
+  say('one', { forward_sender_name: '', reply_to_message: { message_id: 500 } });
+  say('two', { forward_date: 0, reply_to_message: { message_id: 500 } });
+  say('three', { is_automatic_forward: false, reply_to_message: { message_id: 500 } });
+  await until(() => net.tg.length === 3);
+  assert.deepEqual(sends().map((m) => m.text), [FORWARD_LINE, FORWARD_LINE, '✓ Sent']);
+  assert.deepEqual(calls.act.map((a) => a.text), ['three']);
+});
+
+test('a link code in a forward never links, in any form or field; typed, the same code does', async () => {
+  const { r, store } = rig({ telegram: { chatId: null, chatName: '', linkCode: '123456' } });
+  r.start();
+  for (const [k, v] of Object.entries(FORWARDS)) for (const text of ['/link 123456', '/start 123456', '123456']) say(text, { [k]: v, chat: { id: CHAT, first_name: 'Ada' } });
+  say('123456', { chat: { id: CHAT, first_name: 'Ada' } });
+  await until(() => net.tg.length);
+  assert.deepEqual(sends(), [{ chat_id: CHAT, text: '✓ Linked to wisp. Questions and finished tasks will show up here.' }], 'no line to a chat nothing links to, and only the typed code linked');
+  assert.equal(store.config.remote.telegram.chatId, CHAT);
+});
+
+test('a forward of the code from the wrong chat doesn’t spend it', async () => {
+  const { r, store } = rig({ telegram: { chatId: null, chatName: '', linkCode: '123456' } });
+  r.start();
+  say('123456', { forward_date: 1700000000, chat: { id: 666 } });
+  await until(() => net.polls.length >= 3);
+  assert.deepEqual([store.config.remote.telegram.chatId, store.config.remote.telegram.linkCode, net.tg.length], [null, '123456', 0]);
+});
+
+test('a stranger’s forward in a linked wisp hears nothing', async () => {
+  const { r, calls } = rig({ telegram: { allowStart: true }, projects: PROJECTS, sessions: [{ id: 's1', remote: { tg: [500] } }] });
+  r.start();
+  for (const [k, v] of Object.entries(FORWARDS)) say('/new do it', { [k]: v, chat: { id: 666 } });
+  say('go', { forward_date: 1700000000, chat: { id: 666 }, reply_to_message: { message_id: 500 } });
+  await barrier(r);
+  assert.deepEqual(net.tg, []);
+  assert.equal(calls.act.length + calls.launch.length, 0);
+});
+
+test('a forward with no text stays silent, as a message with no text always has', async () => {
+  const { r, calls } = rig({ telegram: { allowStart: true }, projects: PROJECTS });
+  r.start();
+  say(undefined, { text: undefined, forward_date: 1700000000, caption: '/new run this', photo: [{ file_id: 'f' }] });
+  await barrier(r);
+  assert.deepEqual(net.tg, []);
+  assert.equal(calls.launch.length, 0);
+});
+
+test('not a forward: your words beside a reply, a quote or an external reply run as they always did', async () => {
+  const theirs = 'the stranger’s words';
+  const { r, calls } = rig({ telegram: { allowStart: true }, projects: PROJECTS, sessions: [{ id: 's1', remote: { tg: [500] } }] });
+  r.start();
+  say('mine one', { reply_to_message: { message_id: 500, text: theirs, forward_date: 1700000000 } }); // their text, and a forward's fields, on what's replied to
+  say('mine two', { reply_to_message: { message_id: 500, text: theirs }, quote: { text: theirs, position: 0 } });
+  say('/new mine three', { external_reply: { origin: { type: 'user', date: 1700000000, sender_user: STRANGER }, chat: { id: 666, type: 'private' }, message_id: 5 }, quote: { text: theirs, position: 0 } });
+  await until(() => net.tg.length === 3);
+  assert.deepEqual(calls.act.map((a) => a.text), ['mine one', 'mine two']);
+  assert.deepEqual(calls.launch.map((a) => a.prompt), ['mine three']);
+  assert.ok(sends().every((m) => m.text !== FORWARD_LINE));
+});
+
 // --- replies and buttons ------------------------------------------------------------------------
 
 test('a reply goes to the linked task as text, and its result comes back as a reply', async () => {
