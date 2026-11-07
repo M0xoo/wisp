@@ -50,6 +50,7 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object' }), 400: err[400] },
         },
       },
+      '/load': { get: { summary: 'The RAM/CPU guard (server/load.js): free memory %, CPU load % of cores, runs going, the limits in force and what holds automations back (null: nothing)', responses: { 200: json({ type: 'object', properties: { memFreePct: { type: ['number', 'null'] }, cpu: { type: ['number', 'null'] }, pressure: { type: 'number', description: 'Linux PSI some avg10' }, runs: { type: 'integer' }, at: { type: 'integer' }, limits: { type: 'object', properties: { floor: { type: ['integer', 'null'] }, ceiling: { type: ['integer', 'null'] }, maxRuns: { type: ['integer', 'null'] } } }, held: { type: ['object', 'null'], properties: { kind: { enum: ['memory', 'cpu', 'runs'] }, why: { type: 'string' } } } } }) } } },
       '/agents': { get: { summary: 'Installed harnesses with their models and thinking levels (?fresh=1 detects again)', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
       '/router': {
         get: { summary: 'Auto: the goal, settings, every harness · model with its learned chance of success and cost, and recent routes', responses: { 200: json({ type: 'object' }) } },

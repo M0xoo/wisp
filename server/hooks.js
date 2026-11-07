@@ -178,7 +178,7 @@ export async function deliver(app, token, req, { now = Date.now() } = {}) {
     .hook(t, got.vars)
     .then((s) => {
       if (s?.id) d.session = s.id;
-      else Object.assign(d, { result: 'skipped', why: t.held?.why ? `Held for your plan: ${t.held.why}` : 'Nothing started' });
+      else Object.assign(d, { result: 'skipped', why: t.held?.why ? (t.held.load ? t.held.why : `Held for your plan: ${t.held.why}`) : 'Nothing started' });
     })
     .catch((err) => Object.assign(d, { result: 'rejected', why: String(err.message || err).slice(0, 200) }))
     .finally(() => app.configChanged());

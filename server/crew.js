@@ -480,8 +480,8 @@ export class Crew {
   #held(m) {
     if (m.paused || elsewhere(m)) return null;
     const h = this.hold(m);
-    if (h) return { why: h.why, until: h.until };
-    return m.held?.until > this.now() ? { why: m.held.why, until: m.held.until } : null;
+    if (h) return { why: h.why, until: h.until, ...(h.load && { load: true }) };
+    return m.held?.until > this.now() ? { why: m.held.why, until: m.held.until, ...(m.held.load && { load: true }) } : null;
   }
 
   // A window of this harness reset early (server/budget.js onReset): members skipped for its plan
@@ -819,10 +819,11 @@ export class Crew {
     // Held for the plan (Automations stop at): skipped, not failed. Skips in a row share one line
     // of its log, so a member on a 15-minute schedule doesn't fill it.
     if (err.held) {
-      m.held = { at: this.now(), why: err.message, until: err.held.until, agent: err.held.agent };
+      // load: the machine held it (server/load.js), not the plan.
+      m.held = { at: this.now(), why: err.message, until: err.held.until, agent: err.held.agent, ...(err.held.load && { load: true }) };
       const top = m.log[0];
       if (top?.skipped) Object.assign(top, { at: this.now(), skipped: top.skipped + 1, summary: truncate(err.message, 160) });
-      else m.log.unshift({ at: this.now(), job: w.job, title: 'Skipped: waits for the plan', summary: truncate(err.message, 160), status: 'partial', skipped: 1 });
+      else m.log.unshift({ at: this.now(), job: w.job, title: err.held.load ? 'Skipped: the computer is busy' : 'Skipped: waits for the plan', summary: truncate(err.message, 160), status: 'partial', skipped: 1 });
       m.log.length = Math.min(m.log.length, LOG_MAX);
       if (w.reply) this.#answer(w.reply, { status: 'error', error: `${m.name} didn’t start: ${err.message}` });
       return this.#changed();

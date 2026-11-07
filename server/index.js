@@ -41,6 +41,7 @@ import { Router } from './router.js';
 import { Accounts, useAccounts } from './accounts.js';
 import { useConfig as useLean } from './lean.js';
 import { Budget, addShare, holdWhy, stopFor, drainWhy } from './budget.js';
+import { Load } from './load.js';
 import { createLiveLimits, readCodex } from './live-limits.js';
 import { Guard } from './guard.js';
 import { HarnessWatch } from './harness-watch.js';
@@ -270,6 +271,18 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     },
   });
 
+  // The RAM/CPU guard (server/load.js, design/budget.md → Machine load): sampled every 10 s.
+  // Every live handle is a run: subagents and delegates count, though they never wait. Off under
+  // node --test: the suite's servers run on CI boxes of every size (test/load.test.js turns it on).
+  app.load = new Load({ runs: () => runner.live.size, defaults: () => store.config.defaults, off: !!process.env.NODE_TEST_CONTEXT, onChange: () => app.broadcast('config', {}) });
+  // A run you start by hand goes anyway; when memory is short the page toasts so (once a minute).
+  let shortToldAt = 0;
+  app.loadWarn = () => {
+    const short = app.load.short();
+    if (!short || Date.now() - shortToldAt < 60_000) return;
+    shortToldAt = Date.now();
+    app.broadcast('load', short);
+  };
   // Auto: the router, and what feeds it outcomes.
   app.router = new Router(store.home);
   app.auto = createAuto(app);
@@ -389,7 +402,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     followUp: (s, text, { queue = false, team } = {}) => app.launcher.replyTo(s, text, [], queue, undefined, undefined, team, { auto: true }),
     onChange: () => app.broadcast('config', {}),
     exists: (dir) => fs.existsSync(dir) && fs.statSync(dir).isDirectory(),
-    hold: (m) => (m.agent && m.agent !== 'auto' ? app.reserve.check(m.agent) : null),
+    hold: (m) => app.load.hold() || (m.agent && m.agent !== 'auto' ? app.reserve.plan(m.agent) : null),
   });
   // A quiet check-in is archived as it ends: its worktree goes like any archived task's.
   runner.on('ended', ({ session: s }) => {
@@ -436,8 +449,11 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   // Automations stop at (Settings → Usage): work nobody started by hand (check-ins, triggers, goal
   // rounds, agents' own follow-ups) waits while the account it would run on is past that share of a
   // usage window, and goes on at the reset. null: it can run. See design/budget.md.
+  // The machine comes first (server/load.js): short on memory, a CPU over its ceiling or every run
+  // slot taken holds the same work, whatever plan it would run on. { load: true } tells them apart.
   app.reserve = {
-    check(agent, account = '') {
+    check: (agent, account = '') => app.load.hold() || app.reserve.plan(agent, account),
+    plan(agent, account = '') {
       const h = budget.hold(agent, account || runner.accountOf(agent), stopFor(store.config.defaults, agent));
       return h && { ...h, why: holdWhy(h, adapters[agent]?.name || agent, accounts.multi(agent) ? accounts.get(agent, h.account)?.label : '') };
     },
@@ -461,7 +477,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   // A window of agent's account reset early (server/budget.js onReset, from a run's report or from
   // Check Codex while work waits): follow-ups and held runs on that plan come due now, crew members
   // and triggers skipped for it stop saying so, and the phone hears how many started.
-  const planFree = (agent, account) => !app.reserve.check(agent, account) && !budget.resetAt(agent, account);
+  const planFree = (agent, account) => !app.reserve.plan(agent, account) && !budget.resetAt(agent, account);
   app.resetEarly = (agent, account) => {
     const n = app.later.pullForward(agent, account, planFree);
     if (!planFree(agent, account)) return n; // another window still holds it (the weekly one, say)
@@ -497,6 +513,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.remote = new Remote({ store, onChange: () => app.broadcast('remote', {}), ...phoneActions(app) });
   app.overlaps = createOverlaps(app);
   app.worktrees = createWorktrees(app); // old worktrees: the hourly cleanup, Settings → Worktrees
+  // Memory under the floor or the CPU over its ceiling (server/load.js): no sweep, no du, until the next hour.
+  app.worktrees.setBusy(() => app.load.busy());
   app.worktrees.start();
   app.review = createReview(app); // review by another harness before Merge (defaults.review)
   app.ship = createShip(app);
@@ -575,6 +593,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     app.later.stop();
     app.remote.stop();
     app.liveLimits.stop();
+    app.load.stop();
     app.machines.stop(); // the tunnels go; wisp over there keeps running, agents and all
     app.ship.stop();
     app.overlaps.stop();
@@ -608,6 +627,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.later.start();
   app.remote.start();
   app.liveLimits.start();
+  app.load.start();
   app.machines.start();
   app.computer.start();
   app.sandbox.start();
@@ -623,5 +643,5 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       .catch(() => {});
   }
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, stuff: app.stuff, remote: app.remote, liveLimits: app.liveLimits, resetEarly: app.resetEarly, machines: app.machines, computer: app.computer, sandbox: app.sandbox, secrets: app.secrets, accounts: app.accounts, auto: app.auto, broadcast: app.broadcast, routes };
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, stuff: app.stuff, remote: app.remote, liveLimits: app.liveLimits, load: app.load, reserve: app.reserve, worktrees: app.worktrees, launcher: app.launcher, resetEarly: app.resetEarly, machines: app.machines, computer: app.computer, sandbox: app.sandbox, secrets: app.secrets, accounts: app.accounts, auto: app.auto, broadcast: app.broadcast, routes };
 }

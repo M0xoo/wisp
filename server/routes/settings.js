@@ -48,6 +48,8 @@ export function register(r, app) {
     spells: app.spells.forPage(),
     spellsSafe: app.spells.safe,
   });
+  // The RAM/CPU guard's reading (server/load.js), for Settings → Usage → Machine load.
+  r.route('GET', '/load', (c) => c.send(200, app.load.reading()));
   r.route('GET', '/config', (c) =>
     c.send(200, { ...view(), home: os.homedir(), cwd: process.cwd(), cloneDir: cloneRoot(store.config), terminals: terminals(), defaultTerminal: defaultTerminal(), takeoverInline: inWisp(store.config.defaults.terminal || defaultTerminal()), grid: gridInfo(app), preview: process.env.WISP_PREVIEW_URL || app.computer?.previewUrl?.() || '', telemetry: { available: !envDisabled(), enabled: telemetry.enabled }, feedback: feedbackAvailable() }),
   );
@@ -63,6 +65,7 @@ export function register(r, app) {
     if (body.defaults?.maskEnvFiles !== undefined && !['on', 'off'].includes(body.defaults.maskEnvFiles)) return c.send(400, { error: 'maskEnvFiles must be on or off' });
     if (body.defaults?.review !== undefined && !REVIEW_VALUES.includes(body.defaults.review)) return c.send(400, { error: `review must be one of ${REVIEW_VALUES.join(', ')}` });
     if (body.defaults?.leanRuns !== undefined && !LEAN_VALUES.includes(body.defaults.leanRuns)) return c.send(400, { error: `leanRuns must be one of ${LEAN_VALUES.join(', ')}` });
+    for (const k of ['memoryFloor', 'cpuCeiling', 'maxRuns']) if (body.defaults?.[k] !== undefined && !SETTINGS[k].includes(body.defaults[k])) return c.send(400, { error: `${k} must be one of ${SETTINGS[k].join(', ')}` });
     if (body.defaults?.worktreeCleanup !== undefined && !SETTINGS.worktreeCleanup.includes(body.defaults.worktreeCleanup)) return c.send(400, { error: `worktreeCleanup must be one of ${SETTINGS.worktreeCleanup.join(', ')}` });
     if (body.defaults?.worktreeMax !== undefined && !SETTINGS.worktreeMax.includes(body.defaults.worktreeMax)) return c.send(400, { error: `worktreeMax must be one of ${SETTINGS.worktreeMax.join(', ')}` });
     if (body.defaults?.harnessAsk !== undefined && !['on', 'off'].includes(body.defaults.harnessAsk)) return c.send(400, { error: 'harnessAsk must be on or off' });
