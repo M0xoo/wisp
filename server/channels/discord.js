@@ -16,7 +16,7 @@ import { truncate } from '../util.js';
 import { CODE, Channel, KIND, sleep } from './channel.js';
 import { Linking, Turns, converse, firstPart, inBox, surface } from './conversation.js';
 import { stripFormatting } from './grammar.js';
-import { RateLimit, Seen, allowed, defuse, gate, scrubOut } from './policy.js';
+import { RateLimit, Seen, allowed, defuse, gate, needsWisp, scrubOut } from './policy.js';
 import { openWs } from './ws.js';
 
 const CAP = 'edits';
@@ -414,7 +414,7 @@ export class Discord extends Channel {
     this.turns.queue(d.channel_id, async () => {
       if (more.length || !this.hub.verify({ k, s, r, i: Number(i), sig })) return say('That button doesn’t work any more.');
       const local = this.hub.store.get(s);
-      if (local?.ask?.permission) return say('That’s waiting for an approval, which only wisp can give: answer it there.');
+      if (needsWisp(local?.ask)) return say('That’s waiting for an approval, which only wisp can give: answer it there.');
       // A reply starts a turn, and a button can't say which mode: that's for words, which are capped.
       if (KIND[k] === 'reply' && (!local || local.mode === 'auto')) return say('Say that in words here, so it runs in Edits at most.');
       const result = await this.hub.act({ sessionId: s, kind: KIND[k], ref: r, index: Number(i) });
@@ -544,7 +544,7 @@ export class Discord extends Channel {
   }
 
   #buttons(msg, s) {
-    if (s.ask?.permission) return []; // words, and an answer in wisp
+    if (needsWisp(s.ask)) return []; // words, and an answer in wisp
     const buttons = (msg.actions || []).slice(0, MAX_BUTTONS).map((a) => ({
       type: 2,
       style: a.kind === 'done' ? 2 : 1,
@@ -561,8 +561,8 @@ export class Discord extends Channel {
     const title = by && !msg.title.startsWith(`${by}: `) ? `${by}: ${msg.title}` : msg.title;
     const choices = components.length ? [] : (msg.actions || []).filter((a) => a.kind !== 'done').map((a) => a.label);
     const here = t.thread ? `Mention ${this.me?.name || 'wisp'} here, or use /wisp, to answer or follow up.` : 'Reply to this message to answer or follow up.';
-    const how = s.ask?.permission ? 'This one is a tool approval: answer it in wisp.' : here;
-    return [title, msg.text, choices.length && !s.ask?.permission ? `Choices: ${choices.join(' · ')}` : '', how].filter(Boolean).join('\n\n');
+    const how = needsWisp(s.ask) ? 'This one is a tool approval: answer it in wisp.' : here;
+    return [title, msg.text, choices.length && !needsWisp(s.ask) ? `Choices: ${choices.join(' · ')}` : '', how].filter(Boolean).join('\n\n');
   }
 
   // The first reply went out: a reply to it reaches the task, whenever that started.

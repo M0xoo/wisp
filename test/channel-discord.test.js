@@ -319,6 +319,33 @@ test('buttons: a forged one, a stranger’s press, a tool approval', async () =>
   await next(at);
 });
 
+test('a clash card and a connector wait for wisp too: no buttons, and neither a press nor words answer them', async () => {
+  const only = 'That’s waiting for an approval, which only wisp can give: answer it there.';
+  for (const extra of [{ clash: { kind: 'file', file: 'a.js' } }, { connector: { id: 'x', name: 'X', kind: 'oauth' } }]) {
+    const m = mention('ASK what to do', { channel: newRoom() });
+    const t = await threadOf(m);
+    await next(t);
+    const s = await taskIn(t);
+    const asked = await nextPost(t);
+    const good = asked.components[0].components[0].custom_id;
+    const live = srv.store.get(s.id);
+    Object.assign(live.ask, extra);
+    await srv.remote.notify(live, { project: 'p' });
+    const card = await nextPost(t);
+    assert.equal(card.components, undefined, 'words, no buttons');
+    assert.match(card.content, /answer it in wisp/);
+    assert.doesNotMatch(card.content, /Choices:/);
+    press(good, { channel: t });
+    assert.equal(await next(t), only);
+    mention('allow', { channel: t });
+    assert.equal(await next(t), only);
+    assert.ok((await session(s.id)).ask, 'still waiting');
+    await api(`/sessions/${s.id}/stop`, { method: 'POST' });
+    await settled(s.id);
+    await next(t);
+  }
+});
+
 test('/wisp: acked at once, options make the same parse, the reply is edited, the task gets a thread', async () => {
   const c = newRoom();
   const phone = hub().phone;
