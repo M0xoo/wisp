@@ -373,7 +373,12 @@ test('the tools themselves name their own session: arguments can’t change it',
   const server = fileURLToPath(new URL('../server/mcp-ask.js', import.meta.url));
   const child = spawn(process.execPath, [server], { env: { ...process.env, ...env }, stdio: ['pipe', 'pipe', 'inherit'] });
   const lines = [];
-  child.stdout.on('data', (b) => lines.push(...String(b).trim().split('\n').map((l) => JSON.parse(l))));
+  let rest = ''; // a pipe can split a long reply (tools/list is over 8 KB): only whole lines are JSON
+  child.stdout.on('data', (b) => {
+    const parts = (rest + b).split('\n');
+    rest = parts.pop();
+    lines.push(...parts.filter((l) => l.trim()).map((l) => JSON.parse(l)));
+  });
   const rpc = (id, method, params) => {
     child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`);
     return until(() => lines.find((l) => l.id === id));
