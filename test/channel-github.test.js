@@ -27,9 +27,11 @@ const ME = { id: 7, login: 'mokh' };
 const PRIVATE = 'acme/repo';
 const PUBLIC = 'acme/open';
 const state = { user: ME, repos: { [PRIVATE]: { private: true }, [PUBLIC]: { private: false } }, comments: [], prs: {} };
+// gh is polled every 40 ms: each write is a new file (see fake-gh.mjs), never one a gh may have open.
+let version = 0;
 const write = () => {
   fs.writeFileSync(`${STATE}.tmp`, JSON.stringify(state));
-  fs.renameSync(`${STATE}.tmp`, STATE);
+  fs.renameSync(`${STATE}.tmp`, `${STATE}.v${++version}`);
 };
 
 let srv;
