@@ -1,6 +1,6 @@
 // Sharing to wisp from a phone's share sheet: the manifest's share_target, what the service worker
 // does with the POST, the caps, and what the server says when no worker took it. The page's side
-// runs in real Chrome (WEB-66 in qa/web.mjs), the Android app's in its own scenario (MOB-33).
+// runs in real Chrome (WEB-67 in qa/web.mjs), the Android app's in its own scenario (MOB-33).
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';

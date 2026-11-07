@@ -10,7 +10,7 @@ import { api, launchBrowser, ok, OUT, ROOT, runner, startWisp } from './lib.mjs'
 const PORT = Number(process.env.QA_WEB_PORT) || 4493;
 const { check: run, done } = runner('web');
 // A failing check leaves a screenshot of the main page behind (web-fail-<id>.png).
-// ONLY=WEB-66 runs that scenario alone (several: comma-separated).
+// ONLY=WEB-67 runs that scenario alone (several: comma-separated).
 const only = process.env.ONLY?.split(',');
 const check = (id, title, fn) =>
   (!only || only.includes(id)) &&
@@ -819,7 +819,7 @@ try {
     await q.context().close();
   });
 
-  await check('WEB-66', 'a share from the Home Screen app opens New task, in the box and attached', async () => {
+  await check('WEB-67', 'a share from the Home Screen app opens New task, in the box and attached', async () => {
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
     const shared = (name = 'screenshot.png') => ({ name, mimeType: 'image/png', buffer: png });
     // What the share sheet does: a multipart POST to the manifest's action.
