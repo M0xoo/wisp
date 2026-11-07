@@ -97,6 +97,9 @@ export function readDelivery(t, raw, headers, now = Date.now()) {
     if (e.type !== 'app_mention' && e.type !== 'message') return { skip: `A ${e.type} event` };
     if (e.subtype || e.bot_id) return { skip: 'A bot’s message, or an edit' };
     if (t.channel && e.channel !== t.channel) return { skip: `Another channel (${e.channel})` };
+    if (!e.user) return { skip: 'No sender on it' };
+    // By Slack's id, never a name. A trigger saved before people had to be named has none, and stays open.
+    if (t.users?.length && !t.users.includes(e.user)) return { skip: 'Not one of the allowed people' };
     const text = String(e.text || '').replace(/<@[A-Z0-9]+>\s*/g, '').trim();
     if (t.keyword && !text.toLowerCase().includes(t.keyword.toLowerCase())) return { skip: `No “${t.keyword}” in it` };
     // A mention in a channel the app reads arrives twice (message and app_mention): one task.

@@ -116,6 +116,19 @@ export function nextRun(c, from = Date.now()) {
 // --- config ----------------------------------------------------------------------------------
 
 
+const SLACK_MEMBER = /^[UW][A-Z0-9]{6,20}$/;
+const WHERE_MEMBER = 'In Slack: their profile → ⋯ → Copy member ID.';
+
+// Who may start a Slack trigger, by the id Slack never changes.
+function slackUsers(list) {
+  if (!Array.isArray(list)) throw bad('users is a list of Slack member IDs.');
+  const users = [...new Set(list.map((u) => String(u).trim().toUpperCase()))];
+  if (users.length > 50) throw bad('At most 50 people can start a trigger.');
+  const wrong = users.find((u) => !SLACK_MEMBER.test(u));
+  if (wrong !== undefined) throw bad(`“${wrong.slice(0, 40)}” isn’t a Slack member ID (U0123ABC). ${WHERE_MEMBER}`);
+  return users;
+}
+
 // crew: the members a trigger may send its work to (server/crew.js). One that does runs as that
 // member's job, in the member's folder, so it needs no folder of its own.
 export function normalizeTrigger(body, prev = null, { recipes = [], crew = [] } = {}) {
@@ -144,6 +157,11 @@ export function normalizeTrigger(body, prev = null, { recipes = [], crew = [] } 
   if ((kind === 'slack' || kind === 'linear') && !secret) throw bad(kind === 'slack' ? 'Paste your Slack app’s signing secret (Basic Information → App Credentials).' : 'Paste the webhook’s signing secret from Linear (Settings → API → Webhooks).');
   const channel = kind === 'slack' ? String(v('channel')).trim().toUpperCase() : '';
   if (kind === 'slack' && !/^[A-Z0-9]{6,20}$/.test(channel)) throw bad('Give the Slack channel’s ID (C0123456789): in Slack, the channel’s name → About, at the bottom.');
+  const users = kind === 'slack' ? slackUsers(v('users', [])) : [];
+  // Pausing a trigger or changing a leaked URL changes nothing about who may start it, and has to
+  // stay possible on an old one with nobody named.
+  const housekeeping = prev?.kind === 'slack' && Object.keys(body).every((k) => k === 'enabled' || k === 'regenerate');
+  if (kind === 'slack' && !users.length && !housekeeping) throw bad(`Name who may start this: at least one Slack member ID (U0123ABC). ${WHERE_MEMBER}`);
   const header = kind === 'webhook' ? String(v('header', 'X-Hub-Signature-256')).trim() || 'X-Hub-Signature-256' : '';
   if (header && !/^[\w-]{1,60}$/.test(header)) throw bad('The signature header is a header name, like X-Hub-Signature-256.');
   const mode = String(v('mode', kind === 'issues' || hook ? 'plan' : 'auto'));
@@ -168,13 +186,14 @@ export function normalizeTrigger(body, prev = null, { recipes = [], crew = [] } 
     label,
     every: Math.min(Math.max(Number(v('every', 5)) || 5, 1), 1440), // minutes between GitHub polls
     // Hooks: the URL's token (body.regenerate: a new one, the old URL stops working), the secret
-    // that signs deliveries, Slack's channel and keyword, and the last five deliveries.
+    // that signs deliveries, Slack's channel, keyword and who may start it, and the last five deliveries.
     ...(hook && {
       token: !body.regenerate && prev?.token ? prev.token : newToken(),
       secret,
       header,
       channel,
       keyword: kind === 'slack' ? String(v('keyword')).trim().slice(0, 60) : '',
+      ...(kind === 'slack' && { users }),
       deliveries: prev?.deliveries || [],
       lastHookAt: prev?.lastHookAt || null,
     }),
@@ -194,6 +213,7 @@ export function normalizeTrigger(body, prev = null, { recipes = [], crew = [] } 
 export function triggerView(t) {
   const { seen, tasks, secret, ...rest } = t;
   if (HOOK_KINDS.has(t.kind)) rest.hasSecret = !!secret;
+  if (t.kind === 'slack') rest.open = !t.users?.length; // saved before people had to be named: anyone in the channel can start it
   let next = null;
   if (t.kind === 'schedule' && t.enabled) {
     try {

@@ -1130,6 +1130,8 @@ export function openapi({ version, port }) {
             header: { type: 'string', description: 'webhook: the header carrying the signature (default X-Hub-Signature-256), hex or sha256=hex' },
             channel: { type: 'string', description: 'slack: the channel id (C0123456789) whose mentions and messages start tasks' },
             keyword: { type: 'string', description: 'slack: only messages with this word' },
+            users: { type: 'array', maxItems: 50, items: { type: 'string', pattern: '^[UW][A-Z0-9]{6,20}$' }, description: 'slack: the member IDs who may start it (in Slack: their profile → ⋯ → Copy member ID). A new or edited trigger needs at least one' },
+            open: { type: 'boolean', readOnly: true, description: 'slack: saved before people had to be named, so anyone in the channel can start it. Pausing it or a new URL still work; any other edit needs users' },
             deliveries: { type: 'array', readOnly: true, description: 'webhook/slack/linear: the last five calls', items: { type: 'object', properties: { at: { type: 'integer' }, result: { enum: ['started', 'skipped', 'rejected'] }, why: { type: 'string' }, session: { type: ['string', 'null'] } } } },
             every: { type: 'integer', description: 'ci/issues: minutes between polls' },
             agent: { type: 'string' },
