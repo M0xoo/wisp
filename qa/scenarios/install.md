@@ -29,7 +29,8 @@ this on macOS, Windows and Linux through `.github/workflows/tauri-package.yml`.
 | INST-20–22, 24 Windows installer | Manual | CI (dry run): `/S` per user, `resources\app`, `node\node.exe`, `method: app`; `/S /R` (a Tauri app) and `/S --force-run` (a build already out) each start it again |
 | INST-23 the update line on Electron's installer | CI probe, run by hand: the checks below | Not this row: INST-22, 24 |
 | INST-40–46 from Electron to Tauri on Windows | | CI (`tauri-windows.yml`, `--only migrate`): a real v0.57.0, then this installer, and v0.57.0's own update onto it, below |
-| Linux AppImage, .deb | Manual | Stays on Electron until WebKitGTK can tell a frame from the page |
+| INST-50–53 Linux .deb and AppImage | Manual | CI (dry run, x64 and arm64 under Xvfb): the .deb installs `/usr/bin/wisp` with wisp and Node in `/usr/lib/wisp`, WebKitGTK in Depends; its app is `method: app` with no download of its own; the AppImage starts on its own Node under its mount; and updates itself through `POST /api/update` |
+| Linux .deb over a newer .deb, Electron's .deb (`wisp-agents`) replaced | Manual | Manual |
 | INST-30 download links | Automated: names checked, each link answers | Same names: the same links |
 | Gatekeeper on a browser download | Manual | Manual: Open Anyway on a real quarantined file, ad hoc signature |
 | Site Download button, clicked | Manual | Manual |

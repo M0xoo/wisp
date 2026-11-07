@@ -11,6 +11,7 @@ after a change that touches more than one surface.
 | Desktop app | [scenarios/desktop.md](scenarios/desktop.md) (`DESK-*`) | `node qa/desktop.mjs` | `electron .` through Playwright's `_electron`: window, title bar, preload, links, theme, updater, attach, quit |
 | Desktop app (Tauri, macOS) | [scenarios/desktop.md](scenarios/desktop.md) (`TAURI-*`) | `node qa/desktop-tauri.mjs` | builds `desktop/src-tauri --features qa` (needs Rust) and drives it through a local socket (`src/qa.rs`): WKWebView has no WebDriver |
 | Desktop app (Tauri, Windows) | [scenarios/desktop.md](scenarios/desktop.md) (`TAURI-W*`) | `node qa/desktop-tauri-win.mjs` | the installer built with `--features qa` on windows-latest (`tauri-windows.yml`, CI only: it replaces the machine's wisp): the page through WebView2's CDP, the rest by real mouse, keys and Win32 (`qa/win32.ps1`); `--web` runs `qa/web.mjs` in its WebView2 |
+| Desktop app (Tauri, Linux) | [scenarios/desktop.md](scenarios/desktop.md) (`TAURI-L*`) | `xvfb-run -a dbus-run-session -- node qa/desktop-tauri-linux.mjs` | builds `desktop/src-tauri --features qa` and drives it through a local socket (`src/qa_linux.rs`): Preview frames and the page's way out on WebKitGTK; ubuntu-latest in `tauri.yml` |
 | Install paths | [scenarios/install.md](scenarios/install.md) (`INST-*`) | `node qa/install.mjs` | npm, npx, `install.sh`, the Homebrew steps, and the Tauri downloads from `desktop/scripts/package.mjs`: every way in, from real artefacts, published nowhere |
 | Android app | [scenarios/mobile.md](scenarios/mobile.md) (`MOB-*`) | `node qa/mobile.mjs` | the computers screen and wisp's page as the app's WebView sees it; APK, Gradle and emulator steps are in the scenarios |
 
@@ -51,6 +52,7 @@ so a wisp.app you have open keeps its single-instance lock.
 | desktop | 4520–4529 (`QA_DESKTOP_PORT` for the first app, 4521) |
 | desktop-tauri | 4761–4765 (`QA_TAURI_PORT`) |
 | desktop-tauri-win | 4781–4784 (`QA_TAURI_PORT`) |
+| desktop-tauri-linux | 4791–4794 (`QA_TAURI_PORT`) |
 | install | 4771–4800 (`QA_INSTALL_PORT`) |
 | mobile | 4540–4549 |
 | mobile-perf | 4550 (`PERF_PORT`) |

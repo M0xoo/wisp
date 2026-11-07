@@ -30,7 +30,7 @@ const ARTEFACTS = path.resolve(argOf('--artefacts', path.join(ROOT, 'dist/tauri'
 const OLD_ELECTRON = argOf('--old-electron');
 const ONLY = argOf('--only', 'npm,script,brew,app,links').split(',');
 const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-const [MAC, WIN] = [process.platform === 'darwin', process.platform === 'win32'];
+const [MAC, WIN, LINUX] = [process.platform === 'darwin', process.platform === 'win32', process.platform === 'linux'];
 const SYSTEM = WIN ? process.env.PATH : '/usr/bin:/bin:/usr/sbin:/sbin';
 const TMP = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-install-')));
 const dirIn = (name) => fs.mkdtempSync(path.join(TMP, `${name}-`));
@@ -627,6 +627,142 @@ async function windowsRows() {
   }
 }
 
+// --- Linux: the .deb and the AppImage, on a display (xvfb-run -a dbus-run-session -- node qa/install.mjs) ---
+const exeOf = (pid) => fs.readlinkSync(`/proc/${pid}/exe`);
+const envOf = (pid) => Object.fromEntries(fs.readFileSync(`/proc/${pid}/environ`, 'utf8').split('\0').filter(Boolean).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
+
+// An AppImage is its runtime and a squashfs after it: unpack, change what `edit` changes, pack again
+// behind the same runtime, with the same compression.
+function repackImage(src, dest, edit) {
+  const work = dirIn('appimage');
+  sh(src, ['--appimage-extract'], { cwd: work });
+  const root = path.join(work, 'squashfs-root');
+  edit(path.join(root, 'usr/lib/wisp/resources/app'));
+  const offset = Number(sh(src, ['--appimage-offset']).trim());
+  const comp = sh('unsquashfs', ['-s', '-o', String(offset), src]).match(/^Compression (\w+)/m)?.[1] || 'gzip';
+  const fsImage = path.join(work, 'fs.sqfs');
+  sh('mksquashfs', [root, fsImage, '-root-owned', '-noappend', '-comp', comp, '-quiet']);
+  const fd = fs.openSync(src, 'r');
+  const runtime = Buffer.alloc(offset);
+  fs.readSync(fd, runtime, 0, offset, 0);
+  fs.closeSync(fd);
+  fs.writeFileSync(dest, Buffer.concat([runtime, fs.readFileSync(fsImage)]), { mode: 0o755 });
+  fs.rmSync(work, { recursive: true, force: true });
+  return dest;
+}
+
+async function linuxRows() {
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+  const [image, deb] = artefacts(hostTarget());
+  const all = fs.existsSync(ARTEFACTS) ? fs.readdirSync(ARTEFACTS).filter((f) => /^wisp-/.test(f)) : [];
+  if (!all.includes(image) || !all.includes(deb)) return notRun.push(['Linux AppImage, .deb, self-update', `no ${image} and ${deb} in ${ARTEFACTS}`]);
+  if (!process.env.DISPLAY) return notRun.push(['Linux AppImage, .deb, self-update', 'no display: run it under xvfb-run -a dbus-run-session']);
+  const noNode = '/usr/bin:/bin:/usr/sbin:/sbin';
+  const clean = (port, extra = {}) => ({ ...machine({ WISP_PORT: String(port), ...extra }, { withNode: false }), PATH: noNode });
+  const lib = '/usr/lib/wisp';
+
+  await check('INST-50', `the .deb installs: /usr/bin/wisp, wisp and Node under ${lib}, WebKitGTK as a dependency`, async () => {
+    ok(process.env.CI, 'CI only: it installs into /usr with sudo');
+    const info = sh('dpkg-deb', ['-f', path.join(ARTEFACTS, deb)]);
+    ok(/^Package: wisp$/m.test(info), info);
+    ok(/^Depends:.*libwebkit2gtk-4\.1/m.test(info), `no WebKitGTK in Depends: ${info}`);
+    ok(new RegExp(`^Architecture: ${arch === 'x64' ? 'amd64' : 'arm64'}$`, 'm').test(info), info);
+    sh('sudo', ['apt-get', 'install', '-y', '--no-install-recommends', path.join(ARTEFACTS, deb)], { env: { ...process.env, DEBIAN_FRONTEND: 'noninteractive' } });
+    ok(fs.existsSync('/usr/bin/wisp'), 'no /usr/bin/wisp');
+    ok(fs.existsSync(path.join(lib, 'resources/app/desktop/entry.mjs')), 'no resources/app');
+    ok(sh(path.join(lib, 'node/bin/node'), ['--version']).trim() === `v${NODE_VERSION}`, 'node --version');
+    ok(fs.existsSync('/usr/share/applications/wisp.desktop'), 'no menu entry');
+  });
+  const a = nextPort++;
+  await check('INST-51', 'the installed .deb: server on the bundled Node, the updater calls it the app, with no download of its own', async () => {
+    ok(fs.existsSync('/usr/bin/wisp'), 'not installed');
+    const shell = start('/usr/bin/wisp', [], clean(a));
+    const h = await up(a, 'the app');
+    ok(exeOf(h.pid) === path.join(lib, 'node/bin/node'), `the server runs on ${exeOf(h.pid)}`);
+    ok(shellOf(h.pid) === shell.pid, 'the server is not the shell’s child');
+    const update = await getUpdate(a);
+    ok(update.method === 'app', `update method ${update.method}`);
+    ok(!envOf(h.pid).APPIMAGE, 'a .deb thinks it’s an AppImage');
+    const u = new Updater({ port: a, env: envOf(h.pid), platform: 'linux', arch, root: path.join(lib, 'resources/app') });
+    ok(u.assetName() === null, `a .deb would download ${u.assetName()}`);
+    shell.kill('SIGKILL');
+    await until(() => !alive(h.pid), { timeout: 20_000, what: 'Node to go with its shell' });
+    await down(a);
+    sh('sudo', ['apt-get', 'remove', '-y', 'wisp']);
+  });
+
+  const apps = dirIn('appimages');
+  const img = path.join(apps, image);
+  fs.copyFileSync(path.join(ARTEFACTS, image), img);
+  fs.chmodSync(img, 0o755);
+  const b = nextPort++;
+  await check('INST-52', 'the AppImage starts: server on its own Node, under its mount, the updater calls it the app', async () => {
+    const shell = start(img, [], clean(b));
+    const h = await up(b, 'the AppImage');
+    try {
+      ok(/\/\.mount_[^/]+\/usr\/lib\/wisp\/node\/bin\/node$/.test(exeOf(h.pid)), `the server runs on ${exeOf(h.pid)}`);
+      ok(envOf(h.pid).APPIMAGE === img, `APPIMAGE is ${envOf(h.pid).APPIMAGE}`);
+      ok((await getUpdate(b)).method === 'app', 'update method');
+      ok(new Updater({ port: b, env: envOf(h.pid), platform: 'linux', arch, root: '/x/resources/app' }).assetName() === image, 'not its own download');
+      ok((await fetch(`http://127.0.0.1:${b}/`)).ok, 'the page');
+    } finally {
+      process.kill(shellOf(h.pid), 'SIGKILL');
+    }
+    await until(() => !alive(h.pid), { timeout: 20_000, what: 'Node to go with its shell' });
+    await down(b);
+    await until(() => shell.exitCode !== null || shell.signalCode !== null, { timeout: 20_000, what: 'the AppImage to unmount and go' });
+  });
+
+  // The app's own update, end to end, as on a Mac (INST-16b): POST /api/update in the running
+  // AppImage, its own hand-off. One line differs from a user's copy: RELEASES, so the list comes from here.
+  const [ma, mi, pa] = PKG.version.split('-')[0].split('.').map(Number);
+  const version = `${ma}.${mi}.${pa + 1}`;
+  const patch = (app) => {
+    const code = path.join(app, 'server/update.js');
+    const was = fs.readFileSync(code, 'utf8');
+    const patched = was.replace(/const RELEASES = '[^']+';/, 'const RELEASES = process.env.QA_RELEASES;');
+    ok(patched !== was, 'RELEASES has moved');
+    fs.writeFileSync(code, patched);
+  };
+  const c = nextPort++;
+  await check('INST-53', 'an AppImage updates itself: POST /api/update swaps the file and the new one comes up', async () => {
+    const old = repackImage(img, path.join(dirIn('home-apps'), image), patch);
+    const newer = repackImage(img, path.join(dirIn('newer'), image), (app) => {
+      patch(app);
+      const pkg = path.join(app, 'package.json');
+      fs.writeFileSync(pkg, JSON.stringify({ ...JSON.parse(fs.readFileSync(pkg, 'utf8')), version }, null, 2));
+    });
+    const body = fs.readFileSync(newer);
+    const digest = `sha256:${sha256(newer)}`;
+    const releases = http.createServer((req, res) => res.end(req.url === `/${image}` ? body : JSON.stringify({ tag_name: `v${version}`, assets: [{ name: image, browser_download_url: `http://127.0.0.1:${releases.address().port}/${image}`, digest }] })));
+    await new Promise((r) => releases.listen(0, '127.0.0.1', r));
+    const first = start(old, [], clean(c, { QA_RELEASES: `http://127.0.0.1:${releases.address().port}` }));
+    const h = await up(c, 'the old AppImage');
+    const offer = await until(async () => {
+      const u = await (await fetch(`http://127.0.0.1:${c}/api/update?check=1`)).json();
+      return u.available && u;
+    }, { timeout: 20_000, what: 'the update on offer' });
+    ok(offer.method === 'app' && offer.latest === version, JSON.stringify(offer));
+    const r = await fetch(`http://127.0.0.1:${c}/api/update`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    ok(r.status === 202, `POST /api/update: ${r.status} ${await r.text()}`);
+    const fresh = await until(() => health(c).then((x) => x.version === version && x, () => null), { timeout: 60_000, every: 200, what: `wisp ${version} on ${c}` }).catch((err) => {
+      const procs = sh('ps', ['-eo', 'pid,ppid,args']).split('\n').filter((l) => /wisp|\.mount_|node/.test(l)).map((l) => l.slice(0, 140));
+      throw new Error(`${err.message}. Old server ${alive(h.pid) ? 'still up' : 'gone'}, file ${sha256(old) === sha256(newer) ? 'swapped' : 'not swapped'}. Running: ${procs.join(' | ') || 'nothing'}`);
+    });
+    try {
+      ok(sha256(old) === sha256(newer), 'the file was not replaced');
+      ok(envOf(fresh.pid).APPIMAGE === old, `the new one is ${envOf(fresh.pid).APPIMAGE}`);
+      ok(/\/usr\/lib\/wisp\/node\/bin\/node$/.test(exeOf(fresh.pid)), `on ${exeOf(fresh.pid)}`);
+      await until(() => first.exitCode !== null || first.signalCode !== null, { timeout: 20_000, what: 'the old AppImage to go' });
+      ok((await getUpdate(c)).method === 'app', 'the new one isn’t the app');
+    } finally {
+      process.kill(shellOf(fresh.pid), 'SIGKILL');
+      releases.close();
+    }
+    await down(c);
+  });
+}
+
 // --- from Electron to Tauri on Windows: the real last release, then this build ---
 const ELECTRON = '0.57.0';
 // electron-builder's install and Apps keys, by its GUID for dev.wisp.app (UUID v5 in its namespace).
@@ -810,6 +946,7 @@ async function main() {
   if (ONLY.includes('brew')) await brewRows();
   if (ONLY.includes('app') && MAC) await macRows();
   if (ONLY.includes('app') && WIN) await windowsRows();
+  if (ONLY.includes('app') && LINUX) await linuxRows();
   if (ONLY.includes('migrate') && WIN) await migrateRows();
   if (ONLY.includes('links')) await linkRows();
   for (const child of live) child.kill();
@@ -817,7 +954,7 @@ async function main() {
     ['Mac dmg/zip downloaded in a browser: Gatekeeper, Open Anyway', 'needs a real quarantined download; ad hoc here, as Electron without its secrets'],
     ['Site Download button, clicked', 'INST-30 reads the links and HEADs them; a click is by hand'],
     ['Real `brew install`', 'tap bumped only after npm; INST-08 and 09 cover the formula and its steps'],
-    ['Linux AppImage, .deb', 'stay on Electron: unchanged, built by electron-builder'],
+    ['Linux .deb updated by a newer .deb, and Electron’s .deb (wisp-agents) replaced by this one', 'by hand: apt on a real desktop'],
   );
   const failed = results.filter((r) => !r.ok);
   const lines = ['| Row | Result |', '|---|---|', ...results.map((r) => `| ${r.id} ${r.title} | ${r.ok ? 'ran: pass' : `ran: FAIL, ${r.error}`} |`), ...notRun.map(([p, why]) => `| ${p} | NOT RUN: ${why} |`), ...manual.map(([p, why]) => `| ${p} | Manual: ${why} |`)];
