@@ -183,7 +183,7 @@ test('the bridge is the main frame’s, with pickFolder and nothing else', () =>
   assert.match(main, /\.initialization_script\(INIT\)/);
   assert.doesNotMatch(main, /initialization_script_for_all_frames/);
   assert.match(read('desktop/src-tauri/src/init.js'), /wispDesktop = Object\.freeze\(\{ pickFolder: /);
-  assert.match(read('web/index.html'), /if \(window\.wispDesktop\) document\.body\.classList\.add\('electron'/);
+  assert.match(read('web/index.html'), /if \(window\.wispDesktop\) document\.body\.classList\.add\('desktop'/);
 });
 
 // Measured on v0.57.0 on Windows: a real mouse on the top bar leaves the window where it was.

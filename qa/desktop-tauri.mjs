@@ -147,8 +147,8 @@ await check('TAURI-01', 'boots, its server is a Node child, the page loads', asy
   A.serverPid = health.json.pid;
   const parent = execFileSync('ps', ['-o', 'ppid=', '-p', String(A.serverPid)], { encoding: 'utf8' }).trim();
   ok(Number(parent) === A.proc.pid, `server's parent ${parent}, shell ${A.proc.pid}`);
-  const b = await A.js(`({ electron: document.body.classList.contains('electron'), mac: document.body.classList.contains('mac') })`);
-  ok(b.electron && b.mac, `body classes ${JSON.stringify(b)}`);
+  const b = await A.js(`({ desktop: document.body.classList.contains('desktop'), mac: document.body.classList.contains('mac') })`);
+  ok(b.desktop && b.mac, `body classes ${JSON.stringify(b)}`);
   await shot('boot');
 });
 

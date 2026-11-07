@@ -208,7 +208,7 @@ await check('TAURI-W01', 'boots: the page, and a server that is the shell’s No
   ok(node.toLowerCase() === path.join(path.dirname(EXE), 'node/node.exe').toLowerCase(), `the server runs on ${node}`);
   ok((await api(A.url, '/api/update')).json?.method === 'app', 'the updater doesn’t call it the app');
   const cls = await A.page.evaluate(() => document.body.className);
-  ok(/\belectron\b/.test(cls) && /\bother\b/.test(cls) && !/\bmac\b/.test(cls), `body classes: ${cls}`);
+  ok(/\bdesktop\b/.test(cls) && /\bother\b/.test(cls) && !/\bmac\b/.test(cls), `body classes: ${cls}`);
   shot('boot');
 });
 
