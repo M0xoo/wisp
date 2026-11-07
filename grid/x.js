@@ -64,7 +64,6 @@ export const DM = Object.freeze({
 });
 
 export const COST = Object.freeze({ post: 5, dmIn: 10, reply: 10, dmOut: 15 }); // tenths of a cent
-export const TRIES_429 = 4; // of one DM: X's limit may not lift for hours, and the result stays in wisp
 export const PER_IP = 1200; // webhooks a minute from one address, before anything is read
 
 const WEBHOOK_MAX = 512 * 1024;
@@ -76,7 +75,7 @@ const REPLY_MAX = 40 * 1024; // the box stops at 30 000 characters
 const DM_MAX = 9500; // X's limit is 10 000: room for a line break's luck
 const TEXT_MAX = 25_000;
 const SEND_TRIES = 3;
-const RETRY_MS = 60_000; // a 429 with no Retry-After, a refusal
+const RETRY_MS = 60_000; // a refusal, or a 429 that says nothing of when: doubled each time, to an hour
 const BROKEN_MS = 2000; // a connection that broke: nobody refused anything
 const SWEEP_MS = 60_000;
 const HOUR_MS = 60 * 60_000;
@@ -264,9 +263,13 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
 
   // --- what goes out --------------------------------------------------------------------------------
 
+  // When X's window opens again, in ms from now: its own x-rate-limit-reset (epoch seconds, docs.x.com →
+  // rate limits), or a Retry-After (seconds) where that's what comes. The later of the two.
+  const windowMs = (h) => Math.max(0, (Number(h.get('x-rate-limit-reset')) || 0) * 1000 - Date.now(), (Number(h.get('retry-after')) || 0) * 1000);
+
   async function post(path, body, auth) {
     const r = await fetch(`${api}${path}`, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15_000), headers: { 'content-type': 'application/json', authorization: auth }, body: JSON.stringify(body) });
-    if (!r.ok) throw Object.assign(new Error(`X said ${r.status}`), { status: r.status, retryAfter: Number(r.headers.get('retry-after')) || 0 });
+    if (!r.ok) throw Object.assign(new Error(`X said ${r.status}`), { status: r.status, waitMs: windowMs(r.headers), timed: r.headers.has('x-rate-limit-reset') || r.headers.has('retry-after') });
     return r.json().catch(() => ({}));
   }
 
@@ -309,13 +312,11 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
           db.run('UPDATE x_links SET dm_open = 0 WHERE user_id = ?', userId); // closed, or blocked: they have to write again
           return;
         }
+        // X's limit can last a day: the row stays, first in line, so nothing behind it passes it, and
+        // goes when its thread does. Each try X refused was refunded, so waiting costs nothing.
         if (err.status === 429) {
-          if (row.tries + 1 >= TRIES_429) {
-            log('grid: X: a DM was given up on after its 429s: it stays in wisp.');
-            db.run('DELETE FROM x_outbox WHERE id = ?', row.id);
-            continue;
-          }
-          db.run('UPDATE x_outbox SET tries = tries + 1, next_at = ? WHERE id = ?', Date.now() + (err.retryAfter ? err.retryAfter * 1000 : RETRY_MS), row.id);
+          const wait = err.timed ? err.waitMs : Math.min(RETRY_MS * 2 ** row.tries, HOUR_MS);
+          db.run('UPDATE x_outbox SET tries = tries + 1, next_at = ? WHERE id = ?', Date.now() + Math.max(wait, 1000), row.id);
           continue;
         }
         log(`grid: X: a DM didn’t go: ${err.message}`);

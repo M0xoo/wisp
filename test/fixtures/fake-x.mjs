@@ -5,7 +5,8 @@
 //
 //   const x = await startFakeX(creds); x.url is WISP_X_API.
 //   x.tweets, x.dms, x.webhooks, x.subscriptions, x.revoked  what it heard
-//   x.fail('tweets', 429)  the next post answers that; 'dms' the same
+//   x.fail('tweets', 429)  the next post answers that; 'dms' the same. A 429 carries X's
+//     x-rate-limit-* headers, its window a second from now: x.rateHeaders = () => ({ ... }) for others
 //   x.people.set(id, { username })  who an OAuth sign-in comes back as: x.signingIn = id
 //   x.mention(...), x.reply(...), x.retweet(...), x.dm(...)  deliver a signed event to the webhook
 
@@ -126,7 +127,7 @@ export async function startFakeX(creds = CREDS) {
     if (p === '/2/tweets' && req.method === 'POST') {
       if (!oauth1Good(req, `${x.url}${p}`, creds)) return json(401, { title: 'Unauthorized' });
       const status = x.fails.tweets.shift();
-      if (status) return json(status, { title: 'no' }, status === 429 ? { 'retry-after': '1' } : {});
+      if (status) return json(status, { title: 'no' }, status === 429 ? x.rateHeaders() : {});
       const b = JSON.parse(raw);
       const id = String(nextTweet++);
       x.tweets.push({ id, text: b.text, to: b.reply?.in_reply_to_tweet_id, body: b });
@@ -136,7 +137,7 @@ export async function startFakeX(creds = CREDS) {
     if (m && req.method === 'POST') {
       if (!oauth1Good(req, `${x.url}${p}`, creds)) return json(401, { title: 'Unauthorized' });
       const status = x.fails.dms.shift();
-      if (status) return json(status, { title: 'no' }, status === 429 ? { 'retry-after': '1' } : {});
+      if (status) return json(status, { title: 'no' }, status === 429 ? x.rateHeaders() : {});
       if (!x.dmed.has(m[1])) return json(403, { title: 'Forbidden', detail: 'You cannot send messages to this user.' });
       const b = JSON.parse(raw);
       if ([...b.text].length > 10_000) return json(400, { title: 'Too long' });
@@ -197,6 +198,8 @@ export async function startFakeX(creds = CREDS) {
     const payload = { direct_message_events: [{ id, created_timestamp: String(at), message_create: { sender_id: sender, target: { recipient_id: creds.bot.id }, message_data: { text } } }] };
     return x.deliver(envelope('dm.received', payload, o), o);
   };
+  // As X's rate limits answer (docs.x.com, rate limits): the reset is in epoch seconds.
+  x.rateHeaders = () => ({ 'x-rate-limit-limit': '15', 'x-rate-limit-remaining': '0', 'x-rate-limit-reset': String(Math.ceil(Date.now() / 1000)) });
   x.fail = (what, status, n = 1) => {
     for (let i = 0; i < n; i++) x.fails[what].push(status);
   };

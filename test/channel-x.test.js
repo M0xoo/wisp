@@ -1241,7 +1241,7 @@ test('a DM while over the cap still opens DMs', { timeout: 60_000 }, async () =>
   }
 });
 
-test('X’s refusal costs nothing, and a 429 doesn’t go on for ever', { timeout: 60_000 }, async () => {
+test('X’s refusal costs nothing, and a long 429 keeps the report: its pieces wait, in order, and go', { timeout: 60_000 }, async () => {
   const fake = await startFakeX();
   const env = await boot({ api: fake });
   try {
@@ -1256,11 +1256,45 @@ test('X’s refusal costs nothing, and a 429 doesn’t go on for ever', { timeou
     await fake.mention({ author: '333', text: '@wispbot refused' });
     await until(() => mills() === start + xMod.COST.post, { what: 'the reply refunded' });
     env.grid.db.run('INSERT INTO x_threads (user_id, thread, conversation, at) VALUES (?, ?, ?, ?)', p.user.id, 't1', 't1', Date.now());
-    fake.fail('dms', 429, xMod.TRIES_429 + 5);
-    assert.equal((await replyAs(p, { thread: 't1', text: 'never gets through' }, env)).status, 200);
-    await until(() => env.grid.db.get('SELECT count(*) n FROM x_outbox').n === 0, { what: 'given up on', timeout: 15_000 });
-    assert.equal(fake.fails.dms.length, 5, 'it stopped trying');
-    assert.equal(mills(), start + xMod.COST.post, 'and none of those tries cost anything');
+    fake.fail('dms', 429, 6); // more than any number of tries it could give up after
+    const text = Array.from({ length: 3 }, (_, i) => `part${i} ${'word '.repeat(1800)}`).join('\n');
+    assert.equal((await replyAs(p, { thread: 't1', text }, env)).status, 200);
+    await until(() => fake.fails.dms.length === 0, { what: 'every 429 answered', timeout: 20_000 });
+    const parts = () => fake.dms.filter((d) => /^part\d /.test(d.text)).map((d) => d.text.slice(0, 5));
+    await until(() => parts().length === 3, { what: 'all three', timeout: 10_000 });
+    assert.deepEqual(parts(), ['part0', 'part1', 'part2'], 'nothing lost and nothing passed the piece X held up');
+    assert.equal(env.grid.db.get('SELECT count(*) n FROM x_outbox').n, 0);
+    assert.equal(mills(), start + xMod.COST.post + 3 * xMod.COST.dmOut, 'only what went cost anything');
+  } finally {
+    await env.grid.close();
+    await fake.close();
+    x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
+  }
+});
+
+test('a 429 waits for X’s x-rate-limit-reset, and Retry-After where that’s what comes', { timeout: 60_000 }, async () => {
+  const fake = await startFakeX();
+  const env = await boot({ api: fake });
+  try {
+    const p = await env.person('dee');
+    await linkX(env, p, '333');
+    await fake.dm({ sender: '333', text: 'hi' });
+    await until(() => fake.dms.length === 1, { what: 'the line' });
+    env.grid.db.run('INSERT INTO x_threads (user_id, thread, conversation, at) VALUES (?, ?, ?, ?)', p.user.id, 't1', 't1', Date.now());
+    const reset = Math.floor(Date.now() / 1000) + 3;
+    fake.rateHeaders = () => ({ 'x-rate-limit-limit': '15', 'x-rate-limit-remaining': '0', 'x-rate-limit-reset': String(reset) });
+    fake.fail('dms', 429);
+    assert.equal((await replyAs(p, { thread: 't1', text: 'after the window' }, env)).status, 200);
+    await until(() => env.grid.db.get('SELECT tries FROM x_outbox')?.tries === 1, { what: 'the 429' });
+    assert.ok(env.grid.db.get('SELECT next_at FROM x_outbox').next_at >= reset * 1000, 'not before X’s window opens');
+    await until(() => fake.dms.some((d) => d.text === 'after the window'), { what: 'sent once the window opened', timeout: 10_000 });
+    assert.ok(Date.now() >= reset * 1000);
+    fake.rateHeaders = () => ({ 'retry-after': '2' });
+    fake.fail('dms', 429);
+    const asked = Date.now();
+    assert.equal((await replyAs(p, { thread: 't1', text: 'after retry-after' }, env)).status, 200);
+    await until(() => fake.dms.some((d) => d.text === 'after retry-after'), { what: 'sent after Retry-After', timeout: 10_000 });
+    assert.ok(Date.now() - asked >= 2000);
   } finally {
     await env.grid.close();
     await fake.close();
