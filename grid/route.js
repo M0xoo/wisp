@@ -119,7 +119,8 @@ export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit
     try {
       r = await tunnels.ask(c.id, { path: '/api/channels/routed', headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body), [ROUTE_MARK]: 'grid' }, body });
     } catch {
-      return lost(`${c.name} didn’t answer, so this may or may not have started. Open wisp there to check.`);
+      // It may be running: the thread stays, or its report would have nowhere to go.
+      return say(route, m.chat.id, `${c.name} didn’t answer, so this may or may not have started. Open wisp there to check.`, m.message_id, thread);
     }
     if (!r) return lost(offline);
     let j = {};

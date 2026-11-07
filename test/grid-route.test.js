@@ -616,6 +616,42 @@ test('a report: a device with the thread posts to that chat, and that’s all it
   assert.equal(g.tg.sent().length, 21);
 });
 
+test('no answer from the computer: it may have started, so the thread stays and its report gets through', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  await g.link(ada);
+  const c = await g.computer(ada, 'laptop');
+  // It takes the task, and the tunnel drops before the answer gets back.
+  c.answer = () => {
+    c.dial.close();
+    return { status: 200, body: { reply: '▶ Started' } };
+  };
+  await g.send(message('on laptop fix it', { id: 8800 }));
+  await until(() => g.tg.sent().length, { what: 'the line' });
+  assert.match(g.tg.sent()[0].text, /may or may not have started/);
+  const { thread } = routedTo(c)[0].body;
+  const r = await call(g.port, 'wisp.localhost', '/api/channels/reply', { headers: { authorization: `Bearer ${c.token}`, 'content-type': 'application/json' }, body: JSON.stringify({ thread, text: '✅ Done' }) });
+  assert.equal(r.status, 200, r.text);
+  assert.equal(g.tg.sent().at(-1).text, '✅ Done');
+  // And a reply to that line reaches the same computer once it's back.
+  c.answer = () => ({ status: 200, body: { reply: '✓ Sent' } });
+  c.dial = c.tunnel();
+  await until(() => g.grid.tunnels.online(c.id), { what: 'it back' });
+  await g.send(message('and the tests', { reply: 501 }));
+  await until(() => routedTo(c).length === 2, { what: 'the follow-up' });
+  assert.equal(routedTo(c)[1].body.thread, thread);
+});
+
+test('a computer that refuses leaves no thread', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  await g.link(ada);
+  await g.computer(ada, 'laptop', () => ({ status: 403, body: { off: true, reply: 'No.' } }));
+  await g.send(message('on laptop fix it'));
+  await until(() => g.tg.sent().length, { what: 'the line' });
+  assert.equal(g.grid.db.get('SELECT count(*) n FROM channel_threads').n, 0);
+});
+
 test('a follow-up: a reply to what the grid sent goes back to that computer, in that thread', async () => {
   const g = await boot();
   const ada = g.user('ada');
