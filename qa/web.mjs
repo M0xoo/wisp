@@ -211,6 +211,29 @@ try {
     p.clean();
   });
 
+  await check('WEB-06d', 'the overlap warning arriving keeps a reader at the end there', async () => {
+    const room = await p.addStyleTag({ content: '#feed .item.open .turn { min-height: 1400px; }' });
+    // The server sends overlaps seconds after a run ends: here it comes with the reader exactly at the end.
+    const gap = await p.evaluate(async (id) => {
+      const [{ S }, { renderOverlapStrip }] = await Promise.all([import('/js/core/state.js'), import('/js/features/overlaps.js')]);
+      const s = S.sessions.get(id);
+      const body = document.querySelector('#feed .item.open > .it-body');
+      const had = s.overlaps;
+      s.overlaps = [];
+      renderOverlapStrip(id);
+      body.scrollTop = body.scrollHeight;
+      s.overlaps = [{ id: 'other', title: 'Another task', files: ['math.js'] }];
+      renderOverlapStrip(id);
+      const left = body.scrollHeight - body.clientHeight - body.scrollTop;
+      s.overlaps = had;
+      renderOverlapStrip(id);
+      return left;
+    }, first.id);
+    ok(gap <= 1, `the strip left the reader ${gap}px from the end`);
+    await room.evaluate((x) => x.remove());
+    p.clean();
+  });
+
   await check('WEB-06b', 'rename keeps the task open', async () => {
     const head = p.locator(`#splitHead:not([hidden])[data-id="${first.id}"]`);
     const title = head.locator('.sh-title');
