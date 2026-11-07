@@ -497,6 +497,9 @@ const publishing = /BLOCKED|blocked by your permissions/.test(stdin); // the tas
 const refused = publishing && !allowedPublish;
 const final = (answer) => {
   const blocks = [{ type: 'hero', title: `Fake ${name} finished`, summary: answer ? `Answer was: ${answer}` : refused ? 'npm publish was blocked.' : publishing ? 'Published.' : 'No question asked.', status: 'done' }];
+  // TOPIC[…]: the hero names what was asked (wisp titles the task with it).
+  const topic = /TOPIC\[([^\]]*)\]/.exec(stdin)?.[1];
+  if (topic !== undefined) blocks[0].topic = topic;
   if (refused && name === 'codex') blocks.push({ type: 'blocked', items: [{ tool: 'shell', detail: 'npm publish', why: 'needs network access' }] });
   // FAILTESTS: the report shows a failing test run (what spell hooks react to).
   if (stdin.includes('FAILTESTS') && !stdin.includes('Fix them')) blocks.push({ type: 'tests', command: 'npm test', passed: 3, failed: 1 });

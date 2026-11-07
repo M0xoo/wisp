@@ -186,11 +186,46 @@ test('a prompt that mentions another task: the agent reads it with wisp_session 
   assert.match(sent, /<wisp-tasks>[\s\S]*wisp_session` \(mcp__wisp__wisp_session\)/);
   assert.equal(done.turns[0].prompt, `Carry on from @[mention target: fix add()](wisp:${a.id}) please`, 'stored as typed');
   const summary = done.turns.at(-1).presentation.blocks[0].summary;
-  assert.match(summary, /read # Fake claude finished/);
+  assert.match(summary, /read # mention target: fix add\(\)/, 'named after what was asked, not the hero');
   assert.match(summary, /listed \d+ tasks?(, the newest 2)?\. Read one with wisp_session; show one in your answer with a task block\./);
 
   // Both reads need the run's token.
   for (const p of [`/api/internal/session/${b.id}?of=${a.id}`, `/api/internal/sessions/${b.id}`]) assert.equal((await fetch(`${base}${p}`)).status, 403);
+});
+
+test('a task is named after its first answer\'s topic, else its prompt; never after the hero title', async () => {
+  const cwd = makeRepo();
+  const done = async (id) => until(async () => {
+    const x = await session(id);
+    return x.state === 'review' && x;
+  });
+  const start = (body) => api('/sessions', { cwd, agent: 'claude', mode: 'plan', worktree: false, ...body });
+  // The hero names the subject: that's the title, trimmed and clipped to 64.
+  const a = await done((await start({ prompt: 'please look at TOPIC[  Rate limit on /login  ] for me' })).id);
+  assert.equal(a.turns[0].presentation.blocks[0].title, 'Fake claude finished');
+  assert.equal(a.title, 'Rate limit on /login');
+  const long = await done((await start({ prompt: `TOPIC[${'x'.repeat(100)}]` })).id);
+  assert.equal(long.title, `${'x'.repeat(63)}…`);
+  // No topic (or an empty one): the prompt's first line stays, not the hero's outcome.
+  const b = await done((await start({ prompt: 'fix the flaky login test\nsecond line' })).id);
+  assert.equal(b.title, 'fix the flaky login test');
+  const blank = await done((await start({ prompt: 'blank topic TOPIC[ ]' })).id);
+  assert.equal(blank.title, 'blank topic TOPIC[ ]');
+  // A name you gave it while it ran stays (renamed while it waits on a question).
+  const c = await start({ prompt: 'ASK first, TOPIC[Something else]' });
+  await until(async () => (await session(c.id)).state === 'waiting');
+  await fetch(`${base}/api/sessions/${c.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Mine' }) });
+  await api(`/sessions/${c.id}/answer`, { text: 'Yes' });
+  const named = await done(c.id);
+  assert.equal(named.turns[0].presentation.blocks[0].topic, 'Something else');
+  assert.equal(named.title, 'Mine');
+  // A follow-up's topic doesn't rename it.
+  await api(`/sessions/${a.id}/reply`, { text: 'and TOPIC[Another subject]' });
+  await until(async () => (await session(a.id)).turns.length === 2 && (await session(a.id)).state === 'review');
+  assert.equal((await session(a.id)).title, 'Rate limit on /login');
+  // Compare runs keep the prompt's title.
+  const { group } = await start({ prompt: 'compare TOPIC[Compared subject]', compare: [{ agent: 'claude' }] });
+  for (const g of group) assert.equal((await done(g.id)).title, 'compare TOPIC[Compared subject]');
 });
 
 test('a follow-up can switch harness and model: the new harness gets the turns it missed, switching back resumes', async () => {
