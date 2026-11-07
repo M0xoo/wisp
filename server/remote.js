@@ -118,11 +118,11 @@ export class Remote {
     const { ntfy, telegram, github } = this.channels;
     const out = this.#safe(msg);
     const jobs = [];
-    const go = (c, m = out) => jobs.push(c.publish(m, s).then(() => c.mark({ ok: true }), (e) => c.mark({ ok: false, error: e.message })));
+    const go = (c) => jobs.push(c.publish(out, s).then(() => c.mark({ ok: true }), (e) => c.mark({ ok: false, error: e.message })));
     if (ntfy.ready && !skip.includes('ntfy')) go(ntfy);
     if (telegram.linked && !skip.includes('telegram')) go(telegram);
-    // Only what it started or followed up, and always the safe path: a report there is public to a repo.
-    if (github.ready && github.reports(s)) go(github, this.#safe(msg));
+    // Only what it started or followed up: a report there is public to a repo.
+    if (github.ready && github.reports(s)) go(github);
     await Promise.all(jobs);
     return jobs.length;
   }
