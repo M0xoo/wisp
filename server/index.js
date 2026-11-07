@@ -43,6 +43,7 @@ import { useConfig as useLean } from './lean.js';
 import { Budget, addShare, holdWhy, stopFor, drainWhy } from './budget.js';
 import { Load } from './load.js';
 import { Machine } from './machine.js';
+import { HarnessDisk } from './harness-disk.js';
 import { createLiveLimits, readCodex } from './live-limits.js';
 import { Guard } from './guard.js';
 import { HarnessWatch } from './harness-watch.js';
@@ -281,7 +282,10 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   // What agents cost this computer (server/machine.js, design/machine.md): per task RAM/CPU, what
   // finished runs left running, a day of points; Pause automations and the battery hold go through
   // app.load above. Off under node --test like the guard (test/machine.test.js drives its own).
-  app.machine = new Machine({ home: store.home, runner, store, load: app.load, worktrees: () => app.worktrees, crewName: (id) => app.crew?.get?.(id)?.name || '', summary: (s) => runner.emit('summary', summarize(s, store)), onChange: () => app.broadcast('config', {}), res: taskRes, off: !!process.env.NODE_TEST_CONTEXT });
+  app.machine = new Machine({ home: store.home, runner, store, load: app.load, worktrees: () => app.worktrees, crewName: (id) => app.crew?.get?.(id)?.name || '', summary: (s) => runner.emit('summary', summarize(s, store)), onChange: () => app.broadcast('config', {}), res: taskRes, off: !!process.env.NODE_TEST_CONTEXT, crew: () => app.crew, launch: (body) => app.launcher.launchAny(body) });
+  // The harnesses' own folders (server/harness-disk.js): du only, every 6 h at most. Not under
+  // node --test, which would measure the real ~/.claude (test/machine.test.js drives its own).
+  if (!process.env.NODE_TEST_CONTEXT) app.machine.harness = new HarnessDisk({ inUse: (name) => app.machine.procs.some((p) => p.command.includes(name)), busy: () => app.load.busy() });
   // A run you start by hand goes anyway; when memory is short the page toasts so (once a minute).
   let shortToldAt = 0;
   app.loadWarn = () => {

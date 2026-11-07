@@ -14,6 +14,7 @@
 // system shows other processes' env) finds the tag on ones wisp never saw.
 
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -80,6 +81,34 @@ export function parseWin(text, { now = Date.now() } = {}) {
   return (Array.isArray(j) ? j : [j]).filter((p) => p && Number.isInteger(p.ProcessId)).map((p) => ({ pid: p.ProcessId, ppid: p.ParentProcessId || 0, rss: Number(p.WorkingSetSize) || 0, cpu: 0, time: Number(p.T) || 0, since: Number(p.S) || now, command: String(p.CommandLine || '').slice(0, COMMAND_MAX) }));
 }
 
+// macOS: what Activity Monitor shows as a process's Memory is phys_footprint, not RSS (RSS leaves out
+// compressed memory and counts shared pages). ps has no column for it and `top -l 1` costs ~0.5 s of
+// CPU over every process, so the system perl asks proc_pid_rusage for only the pids wisp tracks:
+// __proc_info(PROC_INFO_CALL_PIDRUSAGE = 9, pid, RUSAGE_INFO_V0, …), phys_footprint at byte 72.
+// About 15 ms for 60 pids, no root (another user's process is refused, and keeps its RSS).
+export const FOOTPRINT_PL = 'for my $p (@ARGV) { my $b = "\\0" x 512; print "$p ", unpack("x72 Q", $b), "\\n" if syscall(336, 9, $p + 0, 0, 0, $b, 0) == 0 }';
+export function parseFootprints(text) {
+  const out = new Map();
+  for (const line of String(text).split('\n')) {
+    const m = /^(\d+) (\d+)$/.exec(line.trim());
+    if (m && Number(m[2]) > 0) out.set(Number(m[1]), Number(m[2]));
+  }
+  return out;
+}
+
+// What a group of left-behind processes is called: the program and the script or subcommand
+// before the first flag (`node …/bin/wisp.js`, `npm run dev`), so three test servers on three
+// ports read as one line.
+export function commandKey(command) {
+  const words = String(command).trim().split(/\s+/);
+  const lead = [];
+  for (const w of words) {
+    if (w.startsWith('-') || lead.length >= 3) break;
+    lead.push(w);
+  }
+  return lead.join(' ') || String(command).slice(0, 80);
+}
+
 // /proc/<pid>/environ: NUL-separated.
 export const tagInEnviron = (text) => String(text).split('\0').find((x) => x.startsWith('WISP_TASK='))?.slice(10) || null;
 
@@ -114,14 +143,17 @@ const run = (cmd, args) =>
   });
 const readText = (file) => fs.promises.readFile(file, 'utf8').catch(() => null);
 const sum = (list, k) => list.reduce((n, x) => n + (x[k] || 0), 0);
+const groupId = (key) => createHash('sha1').update(key).digest('hex').slice(0, 10);
 const round = (n, d = 1) => (n == null || !Number.isFinite(n) ? null : Math.round(n * 10 ** d) / 10 ** d);
 
 export class Machine {
   // runner: live handles (each with the pid of its CLI). store: tasks and config. worktrees():
   // services/worktrees. load: server/load.js. crewName(id): a member's name. summary(s): send the
   // task's summary again (its res moved). onChange(): config changed (pause). off: no ticks (tests).
-  constructor({ home, runner, store, worktrees = () => null, load = null, crewName = () => '', summary = () => {}, onChange = () => {}, res = new Map(), platform = process.platform, exec = run, readFile = readText, now = () => Date.now(), pid = process.pid, kill = (p, sig) => process.kill(p, sig), o = os, off = false } = {}) {
-    Object.assign(this, { home, runner, store, worktrees, load, crewName, summary, onChange, res, platform, exec, readFile, now, pid, kill, o, off });
+  constructor({ home, runner, store, worktrees = () => null, load = null, crewName = () => '', summary = () => {}, onChange = () => {}, res = new Map(), platform = process.platform, exec = run, readFile = readText, now = () => Date.now(), pid = process.pid, kill = (p, sig) => process.kill(p, sig), o = os, off = false, harness = null, crew = () => null, launch = null } = {}) {
+    // harness: server/harness-disk.js (the harnesses' own folders). crew() / launch(body): where a
+    // File a fix goes (Bugsy, else a task in the project).
+    Object.assign(this, { home, runner, store, worktrees, load, crewName, summary, onChange, res, platform, exec, readFile, now, pid, kill, o, off, harness, crew, launch });
     // The folder a left-behind command line names, matched as the platform writes paths: on Windows
     // a command line may use / or \\ and any case for the same folder (C:/Users vs c:\\users).
     const p = platform === 'win32' ? path.win32 : path.posix;
@@ -135,6 +167,8 @@ export class Machine {
     this.trees = new Map(); // task id -> Set of pids, for the runs going now
     this.ancestors = new Set();
     this.leftovers = [];
+    this.groups = []; // the leftovers by the command that started them and the task (File a fix)
+    this.memory = platform === 'darwin' ? 'footprint' : 'rss'; // what rss means: 'rss' when the footprint can't be read
     this.lastRead = 0;
     this.lastLive = 0;
     this.battery = null;
@@ -297,15 +331,45 @@ export class Machine {
       const t = this.tags.get(p.pid)?.task;
       if (t || (orphan(p) && this.#pathKey(p.command).includes(this.wtDir))) for (const pid of this.#descendants(p.pid, kids)) if (!inTree.has(pid) && !ours(pid)) left.add(pid);
     }
-    this.leftovers = [...left]
-      .map((pid) => byPid.get(pid))
-      .filter((p) => now - p.since >= LEFT_MS)
-      .map((p) => {
-        const t = this.tags.get(p.pid)?.task;
-        return { pid: p.pid, command: p.command, rss: p.rss, cpu: round(p.cpu), task: known(t) ? t : null, since: p.since };
-      })
-      .sort((a, b) => b.rss - a.rss);
+    await this.#footprints(byPid, [...inTree, ...left, this.pid]);
+    const old = [...left].map((pid) => byPid.get(pid)).filter((p) => now - p.since >= LEFT_MS);
+    const taskOf = (pid) => {
+      const t = this.tags.get(pid)?.task;
+      return known(t) ? t : null;
+    };
+    this.leftovers = old.map((p) => ({ pid: p.pid, command: p.command, rss: p.rss, cpu: round(p.cpu), task: taskOf(p.pid), since: p.since })).sort((a, b) => b.rss - a.rss);
+    // Grouped by what started them: each one's topmost left-behind ancestor, and the task. A child
+    // with no task of its own takes its root's.
+    const rootOf = (p) => {
+      let r = p;
+      for (let n = 0; n < 64 && left.has(r.ppid) && byPid.has(r.ppid); n++) r = byPid.get(r.ppid);
+      return r;
+    };
+    const groups = new Map();
+    for (const l of this.leftovers) {
+      const root = rootOf(byPid.get(l.pid));
+      const task = taskOf(root.pid) || l.task;
+      const command = commandKey(root.command);
+      const id = groupId(`${task || ''}\0${command}`);
+      const g = groups.get(id) || { id, command, task, count: 0, rss: 0, cpu: 0, pids: [], commands: [], since: l.since };
+      Object.assign(g, { count: g.count + 1, rss: g.rss + l.rss, cpu: round(g.cpu + (l.cpu || 0)), since: Math.min(g.since, l.since) });
+      g.pids.push(l.pid);
+      if (!g.commands.includes(l.command) && g.commands.length < 10) g.commands.push(l.command);
+      groups.set(id, g);
+    }
+    this.groups = [...groups.values()].sort((a, b) => b.rss - a.rss);
     Object.assign(this, { procs: list, byPid, trees, ancestors, at: now });
+  }
+
+  // macOS: rss becomes phys_footprint for the pids wisp shows (one perl call); on any failure, RSS.
+  async #footprints(byPid, pids) {
+    if (this.platform !== 'darwin') return;
+    const want = [...new Set(pids)].filter((pid) => byPid.has(pid));
+    if (!want.length) return;
+    const out = await this.exec('/usr/bin/perl', ['-e', FOOTPRINT_PL, ...want.map(String)]);
+    const got = out == null ? new Map() : parseFootprints(out);
+    this.memory = got.size ? 'footprint' : 'rss';
+    for (const [pid, bytes] of got) if (byPid.has(pid)) byPid.get(pid).rss = bytes;
   }
 
   // Per running task: { rss, cpu, procs } summed over its tree.
@@ -364,6 +428,48 @@ export class Machine {
     t.unref?.();
     this.leftovers = this.leftovers.filter((l) => l.pid !== n);
     return { stopped: n, since };
+  }
+
+  // --- File a fix ---
+
+  // POST /machine/fix { group }: a job for the crew's Bugsy (a member named or handled bugsy), or
+  // without one a task in the project the processes came from, with their command lines and
+  // "kill what you spawn". By hand, through the crew's own assign or the launcher: nothing here
+  // runs the processes or stops them. { crew?, session?, queued? }.
+  async fileFix(id) {
+    await this.tick({ force: true });
+    const g = this.groups.find((x) => x.id === String(id || ''));
+    if (!g) throw bad('Those processes aren’t left behind any more.', 404);
+    const s = g.task ? this.store.get(g.task) : null;
+    const project = s && (this.store.projectFor?.(s.cwd)?.path || s.worktree?.root || s.cwd);
+    const mins = (ms) => `${Math.max(1, Math.round((this.now() - ms) / 60_000))} min`;
+    const mb = (b) => `${Math.round(b / 1024 ** 2)} MB`;
+    const rows = g.pids.map((pid) => this.leftovers.find((l) => l.pid === pid)).filter(Boolean).slice(0, 20);
+    const prompt = [
+      `A run left ${g.count} process${g.count === 1 ? '' : 'es'} running after it ended: wisp found ${g.count === 1 ? 'it' : 'them'} on this computer, and the user asked for a fix.`,
+      '',
+      s ? `From the task "${s.title || s.id}" (${s.id})${project ? `, in ${project}` : ''}.` : 'No task is known for them: their folder is under wisp’s worktrees.',
+      `Started by: ${g.command}`,
+      'Still running:',
+      ...rows.map((l) => `- pid ${l.pid}, ${mb(l.rss)}, up ${mins(l.since)}: ${l.command}`),
+      '',
+      'Find what starts these (a test helper, a QA script, a dev server a script forgets) and make it kill what it spawns, even when the run is stopped or fails: spawn in a process group of its own (detached) and kill the group on exit, SIGINT and SIGTERM, and in the tests\' after() hooks. Don\'t stop these processes yourself: the user does that from This Mac. Say which file and what you changed.',
+    ].join('\n');
+    const crew = this.crew?.();
+    const bugsy = crew?.find?.('bugsy') || null;
+    if (bugsy) {
+      const out = await crew.assign(bugsy, { prompt, job: 'task' });
+      return { crew: bugsy.id, ...(out.session && { session: out.session.id }), ...(out.queued && { queued: out.queued }) };
+    }
+    if (!project) throw bad('No Bugsy on your crew, and no task to file it in: start one in the project these came from.', 409);
+    const [made] = await this.launch({ prompt, cwd: project });
+    return { session: made?.id };
+  }
+
+  async cleanHarness(ids) {
+    if (!this.harness) return { removed: 0, freed: 0 };
+    await this.tick({ force: true }); // a cwd file a running process names stays
+    return this.harness.clean(ids);
   }
 
   // --- history ---
@@ -455,11 +561,16 @@ export class Machine {
       crew.set(t.crew, c);
     }
     const reclaim = this.reclaim(wt);
+    let h0 = null;
+    try {
+      h0 = this.harness?.view() || null;
+    } catch {}
+    if (h0) reclaim.push(h0);
     const self = this.byPid.get(this.pid);
     const at = batteryLimit(this.store?.config?.defaults);
     return {
       at: now,
-      mem: { total: this.o.totalmem(), freePct: round(r.memFreePct), pressure: r.pressure ?? null },
+      mem: { total: this.o.totalmem(), freePct: round(r.memFreePct), pressure: r.pressure ?? null, per: this.memory },
       cpu: { pct: round(r.cpu), cores: this.o.availableParallelism?.() || this.o.cpus().length || 1 },
       disk: { free: wt?.disk?.free ?? null, total: wt?.disk?.total ?? null, worktrees: wt?.size ?? null, reclaimable: sum(reclaim, 'bytes') },
       wisp: { rss: self?.rss ?? process.memoryUsage().rss, cpu: self ? round(self.cpu) : null },
@@ -467,6 +578,7 @@ export class Machine {
       tasks,
       crew: [...crew.values()].sort((a, b) => b.rss - a.rss),
       leftovers: this.leftovers,
+      leftoverGroups: this.groups,
       history: this.history,
       reclaim,
     };

@@ -15,7 +15,8 @@ process.env.WISP_UPDATE_CHECK = '0';
 process.env.CLAUDE_CONFIG_DIR = tmp('machine-claude-home');
 installFakeBins();
 const { startServer } = await import('../server/index.js');
-const { Machine, parsePs, parseWin, parseEtime, parseBatt, tagInEnviron, untilText, HISTORY_MS, POINT_MS, KILL_MS, RES_RSS } = await import('../server/machine.js');
+const { HarnessDisk, harnessFolders, parseDu, CRASH_MIN_MS, CWD_MIN_MS } = await import('../server/harness-disk.js');
+const { Machine, parsePs, parseFootprints, commandKey, parseWin, parseEtime, parseBatt, tagInEnviron, untilText, HISTORY_MS, POINT_MS, KILL_MS, RES_RSS } = await import('../server/machine.js');
 
 let srv;
 let base;
@@ -53,14 +54,14 @@ const line = (pid, ppid, rssMb, cpu, etime, command) => `${String(pid).padStart(
 // A Machine on stubs: tasks in a map, runs in runner.live, ps output the test sets.
 function rig({ platform = 'darwin', tasks = {}, live = {}, files = {}, defaults = {}, home = HOME } = {}) {
   const clock = { t: 10_000_000_000 };
-  const out = { ps: '', pmset: '', win: '' };
+  const out = { ps: '', pmset: '', win: '', perl: null };
   const killed = [];
   const summaries = [];
   const sessions = new Map(Object.entries(tasks).map(([id, s]) => [id, { id, title: id, ...s }]));
   const config = { defaults };
   const store = { get: (id) => sessions.get(id), config, saveConfig: () => {} };
   const runner = { live: new Map(Object.entries(live)) };
-  const exec = async (cmd) => (cmd === 'ps' ? out.ps : cmd === 'pmset' ? out.pmset : cmd === 'powershell' ? out.win : null);
+  const exec = async (cmd) => (cmd === 'ps' ? out.ps : cmd === 'pmset' ? out.pmset : cmd === 'powershell' ? out.win : cmd === '/usr/bin/perl' ? out.perl : null);
   const m = new Machine({ home, runner, store, platform, exec, readFile: async (f) => files[f] ?? null, now: () => clock.t, pid: 50, kill: (pid, sig) => killed.push([pid, sig]), summary: (s) => summaries.push(s.id), o: { totalmem: () => 24 * 1024 ** 3, availableParallelism: () => 8, cpus: () => [] } });
   return { m, clock, out, killed, summaries, runner, store, sessions };
 }
@@ -374,8 +375,10 @@ test('reclaim: merged or closed PRs, Done, finished crew jobs and clean leftover
 
 test('GET /machine: the shape design/machine.md promises; WISP_TASK reaches the agent', async () => {
   const v = await api('/machine');
-  assert.deepEqual(Object.keys(v), ['at', 'mem', 'cpu', 'disk', 'wisp', 'guard', 'tasks', 'crew', 'leftovers', 'history', 'reclaim']);
-  assert.deepEqual(Object.keys(v.mem), ['total', 'freePct', 'pressure']);
+  assert.deepEqual(Object.keys(v), ['at', 'mem', 'cpu', 'disk', 'wisp', 'guard', 'tasks', 'crew', 'leftovers', 'leftoverGroups', 'history', 'reclaim']);
+  assert.deepEqual(Object.keys(v.mem), ['total', 'freePct', 'pressure', 'per']);
+  assert.deepEqual(await api('/machine/harness/clean', {}), { removed: 0, freed: 0 }, 'no harness folders under node --test');
+  await assert.rejects(api('/machine/fix', { group: 'nope' }), (err) => err.status === 404);
   assert.deepEqual(Object.keys(v.cpu), ['pct', 'cores']);
   assert.deepEqual(Object.keys(v.disk), ['free', 'total', 'worktrees', 'reclaimable']);
   assert.deepEqual(Object.keys(v.wisp), ['rss', 'cpu']);
@@ -402,4 +405,153 @@ test('GET /machine: the shape design/machine.md promises; WISP_TASK reaches the 
     delete process.env.FAKE_RECORD;
     srv.runner.live.set = orig;
   }
+});
+
+// --- F1 (a): phys_footprint on macOS -------------------------------------------------------------
+
+test('macOS: a process’s memory is its phys_footprint, read for the tracked pids only; RSS when perl can’t', async () => {
+  assert.deepEqual([...parseFootprints('100 1089674240\n101 0\njunk\n102 5\n')], [[100, 1089674240], [102, 5]]);
+  const { m, out } = rig({ tasks: { t1: { state: 'running' } }, live: { t1: { pid: 100 } } });
+  const asked = [];
+  const exec = m.exec;
+  m.exec = async (cmd, args) => (cmd === '/usr/bin/perl' && asked.push(args.slice(2)), exec(cmd, args));
+  out.ps = [line(1, 0, 20, 0, '9-00:00:00', '/sbin/launchd'), line(50, 1, 90, 1, '1-00:00:00', 'node wisp'), line(100, 50, 800, 10, '03:00', 'claude -p'), line(101, 100, 100, 0, '03:00', 'node --test'), line(999, 1, 500, 0, '03:00', 'Safari')].join('\n');
+  out.perl = `100 ${1039 * MB}\n50 ${120 * MB}\n`;
+  await m.tick({ force: true });
+  assert.deepEqual(asked, [['100', '101', '50']], 'only the run’s tree, leftovers and wisp: one call');
+  const v = m.view();
+  assert.equal(v.mem.per, 'footprint');
+  assert.equal(v.tasks[0].rss, 1039 * MB + 100 * MB, 'the footprint where it read, RSS for the pid it couldn’t');
+  assert.equal(v.wisp.rss, 120 * MB);
+  out.perl = null; // no perl, or it failed
+  await m.tick({ force: true });
+  assert.equal(m.view().mem.per, 'rss');
+  assert.equal(m.view().tasks[0].rss, 900 * MB);
+  const linux = rig({ platform: 'linux', tasks: { t1: { state: 'running' } }, live: { t1: { pid: 100 } } });
+  linux.out.ps = out.ps;
+  await linux.m.tick({ force: true });
+  assert.equal(linux.m.view().mem.per, 'rss');
+});
+
+// --- F1 (c): left behind, grouped, and File a fix ------------------------------------------------
+
+test('left behind is grouped by the command that started them and the task; children go with their root', async () => {
+  assert.equal(commandKey('node /w/qa-npm-shell/testtree/bin/wisp.js --port 61000'), 'node /w/qa-npm-shell/testtree/bin/wisp.js');
+  assert.equal(commandKey('npm run dev -- --port 3000'), 'npm run dev');
+  const { m, out } = rig({ tasks: { qa: { state: 'review', title: 'QA the npm shell' } } });
+  const srvLine = (pid, port) => line(pid, 1, 100, 1, '30:00', `node /w/qa-npm-shell/testtree/bin/wisp.js --port ${port} WISP_TASK=qa`);
+  out.ps = [line(50, 1, 90, 1, '1-00:00:00', 'node wisp'), srvLine(301, 61001), srvLine(302, 61002), srvLine(303, 61003), line(304, 303, 40, 0, '30:00', 'esbuild --service=0.19'), line(400, 1, 300, 0, '30:00', `npm run dev WISP_TASK=qa`)].join('\n');
+  await m.tick({ force: true });
+  const g = m.view().leftoverGroups;
+  assert.deepEqual(g.map((x) => [x.command, x.task, x.count, x.pids.sort()]), [
+    ['node /w/qa-npm-shell/testtree/bin/wisp.js', 'qa', 4, [301, 302, 303, 304]],
+    ['npm run dev', 'qa', 1, [400]],
+  ]);
+  assert.equal(g[0].rss, 340 * MB);
+  assert.equal(g[0].commands.length, 4);
+  assert.match(g[0].id, /^[0-9a-f]{10}$/);
+});
+
+test('File a fix: a task for Bugsy with the command lines and “kill what you spawn”; else a task in the project; else refused', async () => {
+  const tasks = { qa: { state: 'review', title: 'QA the npm shell', cwd: '/w/wisp-tree' } };
+  const { m, out, store } = rig({ tasks });
+  store.projectFor = (cwd) => (cwd.startsWith('/w/') ? { path: '/w/wisp' } : null);
+  out.ps = [line(50, 1, 90, 1, '1-00:00:00', 'node wisp'), line(301, 1, 100, 1, '30:00', 'node bin/wisp.js --port 61001 WISP_TASK=qa'), line(302, 1, 100, 1, '30:00', 'node bin/wisp.js --port 61002 WISP_TASK=qa'), line(600, 1, 50, 0, '30:00', `node ${HOME}/worktrees/x/server.js`)].join('\n');
+  await m.tick({ force: true });
+  const [fromQa, orphan] = [m.groups.find((x) => x.task === 'qa'), m.groups.find((x) => !x.task)];
+  const assigned = [];
+  const launched = [];
+  m.launch = async (body) => (launched.push(body), [{ id: 'fix1' }]);
+  // Bugsy on the crew: its own assign, as a task given by hand.
+  const bugsy = { id: 'b1', name: 'Bugsy' };
+  m.crew = () => ({ find: (k) => (k === 'bugsy' ? bugsy : null), assign: async (mem, job) => (assigned.push([mem.id, job]), { session: { id: 'job1' } }) });
+  assert.deepEqual(await m.fileFix(fromQa.id), { crew: 'b1', session: 'job1' });
+  const [[who, job]] = assigned;
+  assert.equal(who, 'b1');
+  assert.equal(job.job, 'task');
+  assert.match(job.prompt, /left 2 processes running/);
+  assert.match(job.prompt, /From the task "QA the npm shell" \(qa\), in \/w\/wisp\./);
+  assert.match(job.prompt, /pid 301, 100 MB, up 30 min: node bin\/wisp\.js --port 61001/);
+  assert.match(job.prompt, /kill what it spawns/);
+  assert.match(job.prompt, /Don't stop these processes yourself/);
+  // No Bugsy: a task in the project the task was in.
+  m.crew = () => ({ find: () => null });
+  assert.deepEqual(await m.fileFix(fromQa.id), { session: 'fix1' });
+  assert.equal(launched[0].cwd, '/w/wisp');
+  assert.match(launched[0].prompt, /kill what it spawns/);
+  // No Bugsy and no task: nowhere to file it.
+  await assert.rejects(m.fileFix(orphan.id), (err) => err.status === 409 && /No Bugsy/.test(err.message));
+  await assert.rejects(m.fileFix('gone'), (err) => err.status === 404);
+});
+
+// --- F1 (b): the harnesses' own disk -----------------------------------------------------------
+
+test('harness folders: each harness’s own, by env and platform', () => {
+  const mac = harnessFolders({ home: '/Users/a', platform: 'darwin', env: { CODEX_HOME: '/x/codex' }, tmp: '/var/T', uid: 501 });
+  const paths = (id) => mac.find((h) => h.id === id).parts.map((p) => p.path);
+  assert.deepEqual(paths('claude'), ['/Users/a/.claude', '/Users/a/Library/Application Support/Claude/vm_bundles', '/tmp/claude-501', '/var/T/claude-501']);
+  assert.deepEqual(paths('codex'), ['/x/codex', '/Users/a/Library/Application Support/Codex']);
+  assert.ok(mac.find((h) => h.id === 'codex').crash.includes('/x/codex/Crashpad'));
+  assert.match(mac.find((h) => h.id === 'claude').how, /cleanupPeriodDays/);
+  const linux = harnessFolders({ home: '/home/a', platform: 'linux', env: { XDG_DATA_HOME: '/d', CLAUDE_CONFIG_DIR: '/c' }, tmp: '/tmp', uid: 1000 });
+  assert.deepEqual(linux.find((h) => h.id === 'opencode').parts.map((p) => p.path), ['/d/opencode', '/home/a/.cache/opencode']);
+  assert.deepEqual(linux.find((h) => h.id === 'claude').parts.map((p) => p.path), ['/c', '/tmp/claude-1000']);
+  assert.deepEqual(linux.find((h) => h.id === 'cursor').crash, [], 'no Library off a Mac');
+  assert.deepEqual([...parseDu('12\t/a b/c\njunk\n3\t/d\n')], [['/a b/c', 12 * 1024], ['/d', 3 * 1024]]);
+});
+
+test('harness disk: du sizes, only crash dumps and stale unused cwd files removable, and no file ever read', async () => {
+  const home = tmp('machine-harness-home');
+  const tmpDir = tmp('machine-harness-tmp');
+  const mk = (p, bytes, ageMs) => {
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, 'x'.repeat(bytes));
+    const t = (Date.now() - ageMs) / 1000;
+    fs.utimesSync(p, t, t);
+    return p;
+  };
+  const H = 3_600_000;
+  mk(path.join(home, '.claude', '.credentials.json'), 50, 9 * 24 * H);
+  mk(path.join(home, '.claude', 'projects', 'p', 'chat.jsonl'), 500, 9 * 24 * H);
+  mk(path.join(home, '.codex', 'auth.json'), 10, 9 * 24 * H);
+  const dump = mk(path.join(home, '.codex', 'Crashpad', 'completed', 'a.dmp'), 1000, 2 * H);
+  const fresh = mk(path.join(home, '.codex', 'Crashpad', 'pending', 'b.dmp'), 1000, CRASH_MIN_MS / 2);
+  const settings = mk(path.join(home, '.codex', 'Crashpad', 'settings.dat'), 40, 9 * 24 * H);
+  const agyCrash = mk(path.join(home, '.gemini', 'antigravity', 'crashes', 'x.txt'), 300, 5 * H);
+  const stale = mk(path.join(tmpDir, 'claude-1a2b-cwd'), 20, CWD_MIN_MS + H);
+  const used = mk(path.join(tmpDir, 'claude-3c4d-cwd'), 20, CWD_MIN_MS + H);
+  const young = mk(path.join(tmpDir, 'claude-5e6f-cwd'), 20, H);
+  const other = mk(path.join(tmpDir, 'claude-notes.txt'), 20, CWD_MIN_MS + H);
+  // Reading a file is never allowed: only names and stat.
+  const fsx = new Proxy(fs, { get: (t, k) => (['readFileSync', 'openSync', 'createReadStream', 'readFile'].includes(k) ? () => assert.fail(`read ${String(k)}`) : t[k]) });
+  const dus = [];
+  const run = async (paths) => (dus.push(paths), paths.map((p) => `${p.endsWith('.claude') ? 4000 : p.endsWith('.codex') ? 2000 : 7}\t${p}`).join('\n'));
+  // Only the test's own temp folder: never the real /tmp.
+  const h = new HarnessDisk({ home, platform: process.platform === 'win32' ? 'win32' : 'linux', env: {}, tmp: tmpDir, tmps: [tmpDir], uid: 999, run, fsx, inUse: (name) => name === 'claude-3c4d-cwd' });
+  assert.equal(h.view(), null, 'nothing until the first look');
+  await h.look();
+  assert.deepEqual(dus, [[path.join(home, '.claude'), path.join(home, '.codex'), path.join(home, '.gemini')]], 'one du, of folders that are there');
+  const v = h.view();
+  assert.equal(v.kind, 'harness');
+  assert.deepEqual(v.harnesses.map((x) => [x.id, x.bytes, x.removable.count]), [['claude', 4000 * 1024, 1], ['codex', 2000 * 1024, 1], ['antigravity', 7 * 1024, 1]]);
+  assert.deepEqual(v.harnesses[0].parts, [{ label: 'Claude Code', path: `~${path.sep}.claude`, bytes: 4000 * 1024 }]);
+  assert.deepEqual([v.count, v.bytes, v.ids], [3, 1000 + 300 + 20, ['claude', 'codex', 'antigravity']]);
+  assert.equal(v.total, (4000 + 2000 + 7) * 1024);
+  assert.match(v.harnesses[1].how, /Codex/);
+  // Remove Codex's only: its old dump goes; the fresh one, its settings and its sign-in stay.
+  assert.deepEqual(await h.clean(['codex']), { removed: 1, freed: 1000 });
+  assert.deepEqual([dump, fresh, settings].map((p) => fs.existsSync(p)), [false, true, true]);
+  await h.look();
+  assert.deepEqual(await h.clean(), { removed: 2, freed: 320 });
+  assert.deepEqual([agyCrash, stale, used, young, other].map((p) => fs.existsSync(p)), [false, false, true, true, true]);
+  assert.ok(fs.existsSync(path.join(home, '.claude', '.credentials.json')) && fs.existsSync(path.join(home, '.claude', 'projects', 'p', 'chat.jsonl')) && fs.existsSync(path.join(home, '.codex', 'auth.json')));
+});
+
+test('harness disk in GET /machine: a reclaim group of its own, its removable bytes in disk.reclaimable', async () => {
+  const { m } = rig();
+  m.worktrees = () => ({ view: () => ({ items: [], leftovers: [], size: 0, disk: { free: 1, total: 2 } }) });
+  m.harness = { view: () => ({ kind: 'harness', count: 2, bytes: 5000, ids: ['codex'], total: 9e9, measuredAt: 1, harnesses: [] }) };
+  const v = m.view();
+  assert.deepEqual(v.reclaim.map((g) => g.kind), ['harness']);
+  assert.equal(v.disk.reclaimable, 5000);
 });
