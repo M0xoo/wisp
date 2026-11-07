@@ -286,7 +286,7 @@
        SPLIT_MIN_WIDTH): under it, and in the phone app, the panes stack. applyView() takes over. -->
   <script>(function () {
     var q = function (s) { return document.querySelector(s); };
-    if (/Electron/.test(navigator.userAgent)) document.body.classList.add('electron', /Mac/.test(navigator.platform) ? 'mac' : 'other'); // the rail's width depends on it
+    if (/Electron/.test(navigator.userAgent) || window.wispDesktop) document.body.classList.add('electron', /Mac/.test(navigator.platform) ? 'mac' : 'other'); // the rail's width depends on it
     var get = function (k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
     var stack = document.body.classList.contains('wisp-mobile') || !matchMedia('(min-width: 900px)').matches;
     var hidden = !stack && get('wisp.sideHidden');

@@ -1,0 +1,8 @@
+{
+  "identifier": "wisp-page",
+  "description": "wisp's own page, on exactly this origin and port. __PORT__ is filled in at start (src/main.rs): previews of user apps live on other localhost ports and must never reach IPC.",
+  "local": false,
+  "remote": { "urls": ["http://localhost:__PORT__/*"] },
+  "windows": ["main"],
+  "permissions": ["allow-pick-folder", "allow-start-drag", "allow-zoom-window"]
+}

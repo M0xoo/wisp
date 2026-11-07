@@ -9,6 +9,7 @@ Run the automated ones from the repo root (needs `npm install` for Electron, and
 
 ```sh
 node qa/desktop.mjs        # DESK-01…14, screenshots in qa/out/desktop-*.png
+node qa/desktop-tauri.mjs  # the Tauri shell, TAURI-*, macOS with Rust
 ```
 
 Each app it starts has its own `WISP_HOME`, port (4521, 4522) and `--user-data-dir`. That matters:
@@ -17,6 +18,37 @@ its own user-data dir a second app hits `requestSingleInstanceLock()`, quits, an
 It also drops `WISP_DEV` (dev mode pins `--remote-debugging-port=9339`) and points
 `WISP_*_BIN` at wisp's fake agents, because `inheritShellPath()` replaces `PATH` with the login
 shell's.
+
+## The Tauri shell, beside Electron
+
+`desktop/` runs the same page in the system WebView with the unchanged server as a Node child. Users
+don't get it yet. `node qa/desktop-tauri.mjs` (macOS, needs Rust, runs its own build with the QA
+driver `desktop/src-tauri/src/qa.rs`) is the Tauri column below: AppKit events go through NSApp, so
+they take a real key's road through the menu, but they aren't a hand on a keyboard. Switching needs all
+of this on macOS, Windows and Linux, `qa/web.mjs` on each engine and one Electron→Tauri self-update seen.
+
+| Scenario | Electron | Tauri (macOS) |
+|---|---|---|
+| DESK-01 boots | Automated | TAURI-01: the server is the shell's Node child |
+| DESK-02 window | Automated | TAURI-02 |
+| DESK-03 title bar | Automated; dragging Manual | TAURI-03 (buttons at x 16, y 18), TAURI-16: which spots ask to drag, double-click zooms, the title band moves; a drag by a real mouse: Manual |
+| DESK-04 console | Automated | TAURI-04 |
+| DESK-05 bridge | Automated; picker Manual | TAURI-05; picker Manual |
+| DESK-06 links | Automated | TAURI-06; TAURI-06b previews and sandboxed frames stay put; TAURI-17 IPC refused off wisp's origin and port |
+| DESK-07 menu | Automated; keys Manual | TAURI-07: menus, typing, ⌘A ⌘C ⌘X ⌘V ⌘Z in the prompt box, ⌘Q |
+| DESK-07b ⌃Tab | Manual | TAURI-07b: the key reaches the page; tap and hold: Manual |
+| DESK-08 theme | Automated | TAURI-08 |
+| DESK-09 badge | Automated | TAURI-09 |
+| DESK-10 a task | Automated | TAURI-10, TAURI-10b stacked |
+| DESK-11 updater (git) | Automated | TAURI-11 |
+| DESK-12 second launch | Automated | TAURI-12 |
+| DESK-13 quit | Automated; close and reopen Manual | TAURI-13: close hides, a launch brings it back, ⌘Q stops agents cleanly; Dock reopen: Manual |
+| DESK-14 attach | Automated | TAURI-14 |
+| DESK-15 context menu | Manual | Manual: WebKit's own menu; no Inspect in a release build |
+| (none) | | TAURI-10c `<a download>` goes to ~/Downloads without asking; TAURI-15 kill -9 leaves no orphan |
+
+Notifications don't work on Tauri yet (WKWebView has no `Notification`: PR 2), nor does the
+bundled Node or an update (PR 3).
 
 ## DESK-01 · Boots and starts its own server
 - **Preconditions:** nothing listening on the port.

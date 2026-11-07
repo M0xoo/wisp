@@ -21,6 +21,7 @@
     "app": "node bin/wisp.js",
     "dev": "WISP_DEV=1 node bin/wisp.js",
     "dev:web": "node --watch-path=server bin/wisp.js --no-open",
+    "dev:tauri": "node desktop/dev.mjs",
     "test": "node scripts/test.mjs",
     "site": "node scripts/site.mjs",
     "test:real": "node test/real-clis.mjs",
