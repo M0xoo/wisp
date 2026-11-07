@@ -153,6 +153,15 @@ test('webhook triggers: the switch is a setting, its row and a hook’s URL and 
   assert.ok(problems({ ...base0, ui: { hide: ['automations.hook'] } }).some((x) => /automations\.hook isn't a part/.test(x)));
 });
 
+test('Accept tasks from channels: a spell can force it off and hide the row, never turn it on', () => {
+  assert.deepEqual(schema.SETTINGS.acceptChannels, ['off']);
+  assert.deepEqual(problems({ ...base0, settings: { acceptChannels: 'off' } }), []);
+  const p = problems({ ...base0, settings: { acceptChannels: 'on' } });
+  assert.ok(p.some((x) => /acceptChannels/.test(x) && /off/.test(x)), p.join('\n'));
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.acceptChannels'] } }), []);
+  assert.equal(schema.PARTS['settings.acceptChannels'], '.sx-row:has(#acceptChannels)');
+});
+
 test('reviewing in Changes: a hunk’s Revert, the Viewed toggle and its count are parts', () => {
   const parts = { 'panel.changes.revertHunk': { style: { color: 'var(--bad)' } }, 'panel.changes.viewed': { hide: true }, 'panel.changes.viewedCount': { style: { fontSize: '12.5px' } } };
   assert.deepEqual(problems({ ...base0, parts }), []);

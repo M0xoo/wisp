@@ -841,3 +841,64 @@ test('a box on a grid without the hub: Slack says it can’t be reached, in the 
   assert.match(v.status.slack.error, /can’t reach this computer/);
   assert.equal(v.slack.connected, false);
 });
+
+test('the grid holds another bot: this box sets its own webhook and isn’t deaf', async (t) => {
+  const api = `http://127.0.0.1:${fake.address().port}`;
+  const own = await boot({ channels: { enabled: true, retryMs: 40, route: true, telegramApi: api }, idleMs: 60_000 });
+  t.after(() => own.grid.close());
+  const BOT = '888:box-own';
+  own.grid.secrets.seal(own.ada.id, 'route:telegram', JSON.stringify({ bot: '777:held', name: 'heldbot', secret: 'g'.repeat(64), senders: [String(CHAT)] }));
+  own.grid.db.run('INSERT INTO channel_routes (user_id, channel, token_hash, created_at) VALUES (?, ?, ?, ?)', own.ada.id, 'telegram', 'h2', Date.now());
+  tg.calls.length = 0;
+  await own.ok('/remote', { method: 'PUT', body: { telegram: { enabled: true, token: BOT } } });
+  await until(() => called('setWebhook').some((c) => c.bot === `bot${BOT}`), { what: 'its own webhook' });
+  assert.match(called('setWebhook').find((c) => c.bot === `bot${BOT}`).url, /\/_in\//);
+});
+
+test('a running box asks again: the grid took its bot since, so it neither rotates nor takes the webhook down', async (t) => {
+  const api = `http://127.0.0.1:${fake.address().port}`;
+  const BOT = '666:running';
+  const mine = (m) => called(m).filter((c) => c.bot === `bot${BOT}`);
+  const own = await boot({ channels: { enabled: true, retryMs: 40, route: true, telegramApi: api }, idleMs: 60_000 });
+  t.after(() => own.grid.close());
+  tg.calls.length = 0;
+  await own.ok('/remote', { method: 'PUT', body: { telegram: { enabled: true, token: BOT } } });
+  await until(() => mine('setWebhook').length === 1, { what: 'its own webhook' });
+  await until(async () => (await own.ok('/remote')).status.telegram?.webhook === true, { what: 'wisp on it' });
+  // Connected on the account page while this box runs: nothing tells it.
+  own.grid.secrets.seal(own.ada.id, 'route:telegram', JSON.stringify({ bot: BOT, name: 'wispbot', secret: 'g'.repeat(64), senders: [String(CHAT)] }));
+  own.grid.db.run('INSERT INTO channel_routes (user_id, channel, token_hash, created_at) VALUES (?, ?, ?, ?)', own.ada.id, 'telegram', 'h3', Date.now());
+  assert.equal((await own.api('/channels/rotate', { method: 'POST', body: { channel: 'telegram' } })).status, 409);
+  assert.equal(mine('setWebhook').length, 1, 'a rotate would have taken the webhook back');
+  await own.ok('/remote', { method: 'PUT', body: { telegram: { enabled: false } } });
+  await until(() => !own.grid.routes.shared(own.ada.id), { what: 'the box letting go of the bot' });
+  assert.equal(mine('deleteWebhook').length, 0, 'the grid’s now, not this box’s to take down');
+});
+
+test('the grid holds the webhook: the box sets none, takes what’s verified, and leaves it up when switched off', async (t) => {
+  const api = `http://127.0.0.1:${fake.address().port}`;
+  const HELD = '777:held'; // earlier tests' boxes still poll TOKEN
+  const mine = (m) => called(m).filter((c) => c.bot === `bot${HELD}`);
+  const own = await boot({ channels: { enabled: true, retryMs: 40, route: true, telegramApi: api }, idleMs: 60_000 });
+  t.after(() => own.grid.close());
+  await own.ok('/projects', { body: { path: makeRepo() } });
+  own.grid.secrets.seal(own.ada.id, 'route:telegram', JSON.stringify({ bot: HELD, name: 'wispbot', secret: 'g'.repeat(64), senders: [String(CHAT)] }));
+  own.grid.db.run('INSERT INTO channel_routes (user_id, channel, token_hash, created_at) VALUES (?, ?, ?, ?)', own.ada.id, 'telegram', 'h', Date.now());
+  tg.calls.length = 0;
+  const view = await own.ok('/remote', { method: 'PUT', body: { telegram: { enabled: true, token: HELD } } });
+  await until(async () => (await own.ok('/remote')).status.telegram?.webhook === true, { what: 'wisp told the grid holds it' });
+  assert.equal(mine('setWebhook').length, 0, 'not this box’s to set');
+  assert.equal(mine('getUpdates').length, 0, 'and it doesn’t poll');
+  const code = view.telegram.linkCode;
+  const update = { update_id: 77, message: { message_id: 7, date: Math.floor(Date.now() / 1000), text: code, chat: { id: CHAT, type: 'private', first_name: 'Ada' }, from: { id: CHAT, first_name: 'Ada' } } };
+  await own.grid.inbox.hold(own.ada, 'telegram', Buffer.from(JSON.stringify(update)), { verified: true });
+  await until(() => sent().some((c) => /Linked/.test(c.text)), { what: 'the box linking from a verified message' });
+  // An unverified one has no secret to pass here.
+  await own.grid.inbox.hold(own.ada, 'telegram', Buffer.from(JSON.stringify({ ...update, update_id: 78 })));
+  await sleep(300);
+  assert.equal(sent().filter((c) => /Linked/.test(c.text)).length, 1);
+  assert.equal((await own.api('/channels/rotate', { method: 'POST', body: { channel: 'telegram' } })).status, 409);
+  await own.ok('/remote', { method: 'PUT', body: { telegram: { enabled: false } } });
+  await sleep(200);
+  assert.equal(mine('deleteWebhook').length, 0, 'switched off in the box, the grid’s webhook stays');
+});

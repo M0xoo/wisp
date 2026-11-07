@@ -109,6 +109,8 @@ export function loadConfig({ dataDir, overrides = {}, env = process.env } = {}) 
   if (ch != null) {
     if (!isObj(ch) || (ch.enabled != null && typeof ch.enabled !== 'boolean')) throw new Error('channels: { enabled, maxRows, maxBytes }, enabled true or false.');
     for (const k of ['maxRows', 'maxBytes']) if (ch[k] != null && !whole(ch[k], 1)) throw new Error(`channels.${k}: a whole number above 0.`);
+    if (ch.route != null && typeof ch.route !== 'boolean') throw new Error('channels.route: true or false (`on laptop` from a message, grid/README.md → Channels).');
+    if (ch.route && !ch.enabled) throw new Error('channels.route needs channels.enabled: what isn’t for a computer goes to the box through the inbox.');
   }
   const mail = cfg.mail;
   if (mail != null) {

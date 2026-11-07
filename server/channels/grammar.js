@@ -1,7 +1,7 @@
 // What you'd type in the launcher, in a message: @ada in api on laptop with opus high plan: fix it.
 // Options are read only from the front, and end at `:` or the first word that isn't one, so a
 // sentence that happens to hold "with" or "in" is never eaten. Pure: ctx holds everything it may
-// look at.
+// look at, and it imports nothing of wisp's, so wisp Grid reads the same grammar (parseRoute below).
 //
 // ctx: { projects, machines: [{ id, name, kind, computer, usable, agents | null }], agents (here),
 //        adapters (every harness wisp knows), crew, goals, defaultProject, defaultAgent, sandbox,
@@ -12,7 +12,7 @@
 // sent as a sentence. Resolving then checks them in order, machine, project, model, because the
 // chosen machine decides which models are valid.
 
-import { crewMentions } from '../crew.js';
+import { crewMentions } from './mentions.js';
 
 // /new @name: exact name, then name prefix, then anywhere in the name or path.
 export function findProject(projects, q) {
@@ -97,12 +97,15 @@ const modelKnown = (ctx, w) => placeList(ctx).some((a) => a.id !== 'wisp' && mat
 const effortKnown = (ctx, w) => placeList(ctx).some((a) => (a.efforts || []).includes(w) || modelIds(a).some((m) => m.efforts?.includes(w)));
 
 // A bare in/on: a whole name (longest first, names may have spaces), else the unique name a word
-// starts. A comma says it's a sentence ("in app, the button…"), so no prefix then.
-function pickName(list, s) {
+// starts. A comma says it's a sentence ("in app, the button…"), so no prefix then. exact: whole names
+// only, and one that fits two is ambiguous (a router: "on mac" isn't enough to send work somewhere).
+function pickName(list, s, exact = false) {
   const text = s.toLowerCase();
   for (const x of [...list].sort((a, b) => b.name.length - a.name.length)) {
     const n = x.name.toLowerCase();
     if (text.startsWith(n) && (text.length === n.length || /^[\s:：,*_~`]/.test(text.slice(n.length)))) {
+      const twins = exact ? list.filter((y) => y.name.toLowerCase() === n) : [];
+      if (twins.length > 1) return { ambiguous: twins, word: x.name, rest: s.slice(x.name.length).trimStart() };
       const t = token(s.slice(x.name.length));
       const tail = s.slice(x.name.length);
       if (t.word === '' && t.raw) return { item: x, rest: t.after, colon: t.colon || COLON.test(tail) };
@@ -112,6 +115,7 @@ function pickName(list, s) {
   const t = token(s);
   const whole = list.filter((x) => x.name.toLowerCase() === t.low); // **api**: marks hid it above
   if (whole.length === 1) return { item: whole[0], rest: t.after, colon: t.colon };
+  if (exact) return whole.length ? { ambiguous: whole, word: t.word, rest: t.after } : null;
   if (!t.word || t.comma || t.word.length < 2 || NOT_A_NAME.has(t.low)) return null;
   const hits = list.filter((x) => x.name.toLowerCase().startsWith(t.low));
   if (hits.length === 1) return { item: hits[0], rest: t.after, colon: t.colon };
@@ -139,7 +143,7 @@ function readPlace(t, o, ctx, { list, kind, word, special }) {
   const s = t.after;
   if (!s) return null;
   const own = special?.(s);
-  const hit = own || pickName(list, s);
+  const hit = own || pickName(list, s, !!ctx.exact);
   if (hit?.ambiguous) {
     problem(o, 'ambiguous', `“${hit.word}” could be ${hit.ambiguous.length} ${kind}s.`, namesOf(hit.ambiguous));
     return { rest: hit.rest, stop: true };
@@ -406,6 +410,31 @@ function readCommand(text, ctx) {
   // "models laptop": a list for a place, if that's a place; else it's a sentence.
   if (name === 'models' && w[2] && (ctx.machines || []).some((m) => lower(m.name).startsWith(lower(w[2])))) return { name, arg: w[2].trim() };
   return null;
+}
+
+// What a router needs of a message, for one that knows computers and nothing else (wisp Grid, which
+// holds no projects, models or crew: those are the computer's to read). → { machine, text }, with the
+// message as it should reach that computer, `on <name>` gone; { problems } when the name fits several;
+// null for anything else, which isn't this router's. `on <name>` comes first, after an optional /new:
+// a router can't tell an option from a word, so "in production on build drop the table" is a sentence,
+// and so is "fix it on laptop". Whole names only, so "on mac" isn't Mac Studio. "cloud" and "here"
+// aren't computers: they stay the box's.
+export function parseRoute(text, computers = []) {
+  const whole = String(text ?? '').trim();
+  if (COLON.test(whole)) return null;
+  const ctx = { exact: true, machines: computers.some((m) => lower(m.name) === 'cloud') ? computers : [...computers, { id: '', name: 'cloud' }] };
+  const cmd = readCommand(whole, ctx);
+  if (cmd && cmd.name !== 'new') return null;
+  const src = cmd ? cmd.arg : whole;
+  const t = token(src);
+  if (t.low !== 'on') return null;
+  const o = fresh();
+  const step = readOption(t, src, o, ctx, 0);
+  if (o.problems.length) return o.problems[0].kind === 'ambiguous' ? { problems: o.problems } : null;
+  if (!step || step.stop || !computers.some((m) => m.id === o.machine)) return null;
+  const said = `${step.colon ? ': ' : ''}${step.rest}`.trim();
+  if (!said.replace(COLON, '').trim()) return null; // nothing to do there: not a task, and the box can say so
+  return { machine: o.machine, text: cmd ? `/new ${said}` : said };
 }
 
 // text (already through stripFormatting) → what it asks for. problems: why it can't start, each

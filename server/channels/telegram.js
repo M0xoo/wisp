@@ -12,7 +12,7 @@
 
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { truncate } from '../util.js';
-import { boxGrid, channelUrl, rotateUrl } from './box.js';
+import { botMark, boxGrid, channelUrl, rotateUrl } from './box.js';
 import { Channel, CODE, KIND, lostLine, resend, sleep } from './channel.js';
 import { converse } from './conversation.js';
 import { findProject, stripFormatting } from './grammar.js';
@@ -134,7 +134,7 @@ export class Telegram extends Channel {
         let found = null;
         if (box) {
           try {
-            found = await channelUrl(box, this.name);
+            found = await channelUrl(box, this.name, botMark(this.cfg.token));
           } catch (err) {
             if (!this.cfg.hook) return false; // no webhook to get in the way: poll while the grid can't be reached
             throw new Error(`the grid: ${err.message}`);
@@ -151,6 +151,13 @@ export class Telegram extends Channel {
           return false;
         }
         if (found.dropped) await this.dropped(found.dropped);
+        // The grid owns the webhook (grid/route.js): one call here would take it back.
+        if (found.held) {
+          if (!this.cfg.hook?.held) this.cfg.hook = { held: true, seen: this.cfg.hook?.seen || [] };
+          this.hub.store.saveConfig();
+          this.mark({ ok: true, error: '', webhook: true });
+          return true;
+        }
         await this.#setHook(found.url, timed);
         if (!signal.aborted) this.mark({ ok: true, error: '', webhook: true });
         return true;
@@ -206,7 +213,9 @@ export class Telegram extends Channel {
     if (this.takingDown.has(token)) return;
     this.takingDown.add(token);
     try {
-      await this.#inTurn(() => this.api('deleteWebhook', {}, undefined, token));
+      // The grid may have taken this bot since this box last asked: then it isn't this box's to take
+      // down. Can't tell: it's tried again at the next start.
+      if (!(await this.#gridHolds(token))) await this.#inTurn(() => this.api('deleteWebhook', {}, undefined, token));
       this.#unmark(token);
       if (this.hub.status.telegram?.error?.startsWith(NOT_REMOVED)) this.mark({ ok: true, error: '' });
     } catch (err) {
@@ -214,6 +223,13 @@ export class Telegram extends Channel {
     } finally {
       this.takingDown.delete(token);
     }
+  }
+
+  async #gridHolds(token) {
+    const box = boxGrid();
+    if (!box) return false;
+    const gone = !this.ready || this.cfg.token !== token;
+    return !!(await channelUrl(box, this.name, botMark(token), { gone }))?.held;
   }
 
   #unmark(token) {
@@ -228,6 +244,14 @@ export class Telegram extends Channel {
   async rotate() {
     const box = boxGrid();
     if (!box || !this.ready || !this.cfg.hook) return { status: 409, body: { error: 'Telegram has no webhook here.' } };
+    // The grid may have taken this bot since this box last asked: a new URL would take it back.
+    const found = await channelUrl(box, this.name, botMark(this.cfg.token)).catch((err) => ({ error: err.message }));
+    if (found?.error) return { status: 502, body: { error: `Couldn’t ask the grid: ${found.error}` } };
+    if (found?.held) {
+      this.cfg.hook = { held: true, seen: this.cfg.hook.seen || [] };
+      this.hub.store.saveConfig();
+      return { status: 409, body: { error: 'The grid holds this bot’s webhook, so there’s no URL here to rotate.' } };
+    }
     const { url } = await rotateUrl(box, this.name);
     try {
       await this.#setHook(url, () => AbortSignal.timeout(15_000));
@@ -239,12 +263,17 @@ export class Telegram extends Channel {
   }
 
   // A message the grid held. Only Telegram knows this secret, and only a retry repeats an update.
-  async inbound(raw, headers = {}) {
+  // verified: the grid owns the webhook and checked its own secret (grid/route.js). Only its delivery
+  // can say so (routes/channels.js), and at worst that lets this box talk to itself.
+  async inbound(raw, headers = {}, { verified = false } = {}) {
+    if (verified && this.ready) this.cfg.hook ||= { held: true, seen: [] };
     const hook = this.ready && this.cfg.hook;
-    if (!hook?.secret) return { status: 409, body: { error: 'Telegram isn’t on here.' } };
-    const got = Buffer.from(String(headers['x-telegram-bot-api-secret-token'] ?? ''));
-    const want = Buffer.from(hook.secret);
-    if (got.length !== want.length || !timingSafeEqual(got, want)) return { status: 403, body: { error: 'Wrong secret token.' } };
+    if (!hook || (!verified && !hook.secret)) return { status: 409, body: { error: 'Telegram isn’t on here.' } };
+    if (!verified) {
+      const got = Buffer.from(String(headers['x-telegram-bot-api-secret-token'] ?? ''));
+      const want = Buffer.from(hook.secret);
+      if (got.length !== want.length || !timingSafeEqual(got, want)) return { status: 403, body: { error: 'Wrong secret token.' } };
+    }
     let u;
     try {
       u = JSON.parse(raw.toString('utf8'));

@@ -418,6 +418,8 @@ h2.sec{margin:36px 0 12px;font-size:14px;font-weight:600;color:var(--ink);scroll
 @keyframes pulse{0%,100%{transform:scale(.86);opacity:.75}50%{transform:scale(1);opacity:1}}
 form.inline{display:inline}
 .r.del .input{width:170px;height:32px;font:13px var(--sans);letter-spacing:0;text-transform:none}
+.route-f{display:grid;gap:12px;padding:14px}.route-f label{display:grid;gap:6px}.route-f label span{font-size:13px;font-weight:600}.route-f .input{font:14px var(--sans);letter-spacing:0;text-transform:none}.route-f .hint{margin:0}.route-f .primary{justify-self:start}.route-warn .ic,.route-warn b{color:var(--warn)}.route-warn .tx small{white-space:normal}
+@media (max-width:640px){.route-f .input{font-size:16px}}
 .pill.soon{color:var(--muted);background:var(--bg-2);border-color:transparent}.pill.listed{display:inline-flex;align-items:center;gap:4px;color:var(--good);border-color:color-mix(in srgb,var(--good) 35%,var(--line))}.pill.listed svg{width:11px;height:11px}.pill.ok{color:var(--good);border-color:color-mix(in srgb,var(--good) 35%,var(--line))}
 button.w.add-m{width:100%;align-items:center;border:0;border-top:1px solid var(--line);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;border-radius:0 0 12px 12px}button.w.add-m:hover{background:var(--bg-2)}button.w.add-m:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 button.w.add-m .w-tx b{font-size:14px}button.w.add-m .chev svg{width:16px;height:16px;color:var(--muted)}
@@ -586,10 +588,10 @@ f.addEventListener('change',paint);f.addEventListener('submit',(e)=>{e.preventDe
 const link=()=>{const h=/^#machines(?:[/](more|bigger|gpu))?$/.exec(location.hash);if(!h)return;history.replaceState(null,'',location.pathname+location.search);const b=h[1]&&f.querySelector('[name=want_'+h[1]+']');if(b&&!b.checked){b.checked=true;d.dataset.state='pick';paint()}if(!d.open)d.showModal()};
 paint();link();addEventListener('hashchange',link)})()</script>`;
 
-export function accountPage({ cfg, view = 'home', offers = {}, user, instance, machine = {}, devices, computers = [], sites = [], identities, providers, csrf, flash: msg = '', tone = '' }) {
+export function accountPage({ cfg, view = 'home', offers = {}, user, instance, machine = {}, devices, computers = [], sites = [], identities, providers, route = null, csrf, flash: msg = '', tone = '' }) {
   const hidden = `<input type="hidden" name="csrf" value="${esc(csrf)}">`;
   const flash = msg ? `<div class="flash ${tone}">${esc(msg)}</div>` : '';
-  if (view === 'account') return accountView({ cfg, user, devices, computers, identities, providers, csrf, hidden, flash });
+  if (view === 'account') return accountView({ cfg, user, devices, computers, identities, providers, route, csrf, hidden, flash });
   return homeView({ cfg, offers, user, instance, machine, devices, computers, sites, csrf, hidden, flash });
 }
 
@@ -718,7 +720,30 @@ function homeView({ cfg, offers, user, instance, machine, devices, computers, si
 // Add a computer from anywhere on the page. An old link to the account's Delete lands on its new page.
 const HOME_JS = `<script>(()=>{if(location.hash==='#delete')location.replace('/account#delete');document.addEventListener('click',(e)=>{if(!e.target.closest('[data-add]'))return;const d=document.getElementById('add');d.open=true;d.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'});d.querySelector('summary').focus({preventScroll:true})})})()</script>`;
 
-function accountView({ cfg, user, devices, computers, identities, providers, csrf, hidden, flash }) {
+const routeWarn = (title, text) => `<div class="r route-warn"><span class="ic">${I.shield}</span><div class="tx"><b>${title}</b><small>${text}</small></div></div>`;
+
+// A bot for `on laptop` (grid/route.js). What was given here never shows again, only that it's set.
+function routeSection(route, computers, hidden) {
+  const name = esc(computers[0]?.name || 'laptop');
+  const n = route.senders.length;
+  return `<h2 class="sec" id="route">Telegram to your computers</h2>
+      <p class="hint">Tell your bot <code>on ${name} fix the login</code> and it runs on that computer, once that computer has switched on <b>Settings → Notifications → Accept tasks from channels</b> itself. The grid reads these messages and your cloud wisp is never asked. The bot does nothing else: anything else gets a line saying so.</p>
+      <div class="group" data-live="route">${
+        route.set
+          ? `<div class="r wrap"><span class="ic">${I.shield}</span><div class="tx"><b>${route.bot ? `@${esc(route.bot)}` : 'Your bot'}</b><small>${n === 1 ? 'One person' : `${n} people`} can send: ${esc(route.senders.join(', '))}</small></div><form class="inline" method="post" action="/channels/route/remove">${hidden}<button class="ghost quiet">Remove</button></form></div>${
+              route.moved ? routeWarn('The webhook moved', 'Telegram no longer sends this bot’s messages to the grid, so they aren’t reaching your computers. Something else with this bot’s token set it. Remove the bot here and connect it again.') : ''
+            }${route.shared ? routeWarn('Your cloud wisp also has this bot', 'Anything on your cloud wisp can read this bot’s token, and with it your messages and reports, or speak as this bot. It can’t start anything on your computers. Make a new bot with BotFather, then Remove this one and connect that.') : ''}`
+          : `<form class="route-f" method="post" action="/channels/route" autocomplete="off">${hidden}
+        <label><span>Bot token</span><input class="input" name="token" type="password" placeholder="From BotFather" autocomplete="off" autocapitalize="none" spellcheck="false" required></label>
+        <label><span>Who may send</span><input class="input" name="senders" inputmode="numeric" placeholder="Your Telegram user id" autocomplete="off" required></label>
+        <p class="hint">Make a new bot for this with BotFather, not the one your cloud wisp uses. Anything on your cloud wisp can read that bot’s token, and with it what goes through here. The grid keeps this token sealed and sets the webhook with a secret of its own.</p>
+        <button class="primary">Connect</button></form>`
+      }</div>
+
+      `;
+}
+
+function accountView({ cfg, user, devices, computers, identities, providers, route, csrf, hidden, flash }) {
   const linked = new Set(identities.map((i) => i.provider));
   const canLink = [...providers.values()].filter((p) => !linked.has(p.id) && p.id !== 'dev');
   const byDevice = new Map(computers.map((c) => [c.deviceId, c]));
@@ -732,7 +757,7 @@ function accountView({ cfg, user, devices, computers, identities, providers, csr
     body: `${flash}<div class="acct">
       <aside class="a-side">
         <div class="a-who"><span class="av">${user.avatar ? `<img src="${esc(user.avatar)}" alt="">` : initial}</span><div><b title="${esc(user.name || user.handle)}">${esc(user.name || user.handle)}</b><small title="${esc(user.email || user.handle)}">${esc(user.email || user.handle)}</small></div></div>
-        <nav class="a-nav" aria-label="Account"><a href="#devices">Signed-in devices</a><a href="#ways">How you sign in</a><a href="#out">Sign out</a><a href="#delete">Delete your account</a></nav>
+        <nav class="a-nav" aria-label="Account"><a href="#devices">Signed-in devices</a>${route ? '<a href="#route">Telegram to your computers</a>' : ''}<a href="#ways">How you sign in</a><a href="#out">Sign out</a><a href="#delete">Delete your account</a></nav>
       </aside>
       <div class="a-main">
       <h1 class="h1">Account</h1>
@@ -750,7 +775,7 @@ function accountView({ cfg, user, devices, computers, identities, providers, csr
           : `<div class="r"><span class="ic">${I.laptop}</span><div class="tx"><b>No devices yet</b><small>wisp on a computer and the phone app sign in here once, with a code.</small></div></div>`
       }</div>
 
-      <h2 class="sec" id="ways">How you sign in</h2>
+      ${route ? routeSection(route, computers, hidden) : ''}<h2 class="sec" id="ways">How you sign in</h2>
       <div class="group">${identities
         .map(
           (i) => `<div class="r"><span class="ic">${logo(i.provider)}</span><div class="tx"><b>${esc(providers.get(i.provider)?.label || i.provider)}</b><small>${esc(i.login || i.email || '')}</small></div>

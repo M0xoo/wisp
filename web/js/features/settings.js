@@ -22,6 +22,7 @@ import { loginControl, loginPanel, typingLogin, wireLogins } from './agent-login
 import { accountCount, accountsHtml, gridAccountsNote, manyAccounts, wireAccounts } from './accounts.js';
 import { memorySummary, openMemory, setLearning } from './memory.js';
 import { IOS_HOME, notifyOn, notifyPermission, requestNotify } from './notify.js';
+import { acceptRowHidden } from '../accept-row.js';
 import { PHONE_HINT, openPhone, phoneSummary } from './phone.js';
 import { paintReachable, reachableBox, reachableHtml } from './reachable.js';
 import { machinesSummary } from './places.js';
@@ -160,6 +161,7 @@ export function openSettings(opts) {
           </div>
           <div class="sx-group">
             ${row('Phone', `<span class="phone-hint">${PHONE_HINT}</span>`, '<button class="ghost sm" id="openPhone">Set up</button>')}
+            ${row('Accept tasks from channels', 'Send <code>on laptop fix the login</code> to wisp on Cloud, with this computer’s name, and it starts a task here: Plan unless you ask, Edits at most, never Full auto. Only this computer can turn this on', '<button class="switch" id="acceptChannels" role="switch" aria-label="Accept tasks from channels"></button>')}
           </div>
         </section>
         <section class="sx-pane" data-pane="agents">
@@ -758,6 +760,28 @@ export function openSettings(opts) {
   };
   paintHt();
   bus.on('config', paintHt, { node });
+  // Accept tasks from channels (server/channels/routed.js): instant, rolled back if refused. Only
+  // this computer can turn it on, so that's refused through the grid; off works from anywhere.
+  const ac = $('#acceptChannels', node);
+  let acSeen = false;
+  const paintAc = () => {
+    const on = S.config.defaults.acceptChannels === 'on';
+    ac.setAttribute('aria-checked', on);
+    ac.closest('.sx-row').hidden = acceptRowHidden({ mobile: MOBILE, box: !!S.config.cloudBox, on, seen: acSeen });
+    acSeen ||= on;
+  };
+  ac.onclick = async () => {
+    const was = S.config.defaults.acceptChannels;
+    S.config.defaults.acceptChannels = was === 'on' ? 'off' : 'on';
+    paintAc();
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { acceptChannels: S.config.defaults.acceptChannels } } }));
+    if (!saved) {
+      S.config.defaults.acceptChannels = was;
+      paintAc();
+    }
+  };
+  paintAc();
+  bus.on('config', paintAc, { node });
   // Ask near the limit (features/hold.js): instant, rolled back on a refusal. The bars repaint with
   // the line (budget.js tone), and the harness list brings the new lines on its next broadcast.
   const holdSetting = () => (HOLD_LINES.includes(S.config.defaults.limitHold) ? S.config.defaults.limitHold : HOLD_DEFAULT);
@@ -965,7 +989,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', worktreeCleanup: '#wtrCleanup', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', leanRuns: 'select[name="leanRuns"]', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers', review: 'select[name="review"]', subagentModel: 'select[name="subagentModel"]' };
+  const LOCKABLE = { acceptChannels: '#acceptChannels', theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', worktreeCleanup: '#wtrCleanup', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', leanRuns: 'select[name="leanRuns"]', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers', review: 'select[name="review"]', subagentModel: 'select[name="subagentModel"]' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

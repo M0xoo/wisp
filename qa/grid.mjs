@@ -74,7 +74,7 @@ const fakeTelegram = http.createServer(async (rq, rs) => {
   tg.calls.push({ method, ...b });
   if (method === 'setWebhook') tg.hook = b;
   rs.writeHead(200, { 'content-type': 'application/json', connection: 'close' });
-  rs.end(JSON.stringify({ ok: true, result: method === 'sendMessage' ? { message_id: ++tg.msg } : method === 'getWebhookInfo' ? { url: tg.hook?.url || '' } : true }));
+  rs.end(JSON.stringify({ ok: true, result: method === 'sendMessage' ? { message_id: ++tg.msg } : method === 'getWebhookInfo' ? { url: tg.hook?.url || '' } : method === 'getMe' ? { id: 1, username: 'qa_bot' } : true }));
 });
 await new Promise((r) => fakeTelegram.listen(0, '127.0.0.1', r));
 // Slack, for GRID-32: its Web API, which is all a box calls.
@@ -109,7 +109,7 @@ const signedMail = (to, { from, id, dmarc = 'GRAY', subject, signed = true }) =>
   j.Signature = createSign('RSA-SHA256').update(['Message', 'MessageId', 'Timestamp', 'TopicArn', 'Type'].map((k) => `${k}\n${j[k]}\n`).join('')).sign(sns.privateKey, 'base64');
   return j;
 };
-fs.writeFileSync(path.join(data, 'grid.json'), JSON.stringify({ channels: { enabled: true }, mail: { domain: `mail.${DOMAIN}`, inbound: { provider: 'ses', topicArn: TOPIC, keys: [sns.publicKey.export({ type: 'spki', format: 'pem' })], dkimKeys: { 'sel._domainkey.sender.example': keyRecord(dkim.publicKey)[0].join('') } }, outbound: { provider: 'ses', region: 'eu-west-1', accessKeyId: 'AKIAQA', secretAccessKey: 'qa-not-a-secret', endpoint: `http://127.0.0.1:${fakeSes.address().port}` } }, hostd: { env: { WISP_TELEGRAM_API: `http://127.0.0.1:${fakeTelegram.address().port}`, WISP_SLACK_API: `http://127.0.0.1:${fakeSlack.address().port}` } } }));
+fs.writeFileSync(path.join(data, 'grid.json'), JSON.stringify({ channels: { enabled: true, route: true, telegramApi: `http://127.0.0.1:${fakeTelegram.address().port}` }, mail: { domain: `mail.${DOMAIN}`, inbound: { provider: 'ses', topicArn: TOPIC, keys: [sns.publicKey.export({ type: 'spki', format: 'pem' })], dkimKeys: { 'sel._domainkey.sender.example': keyRecord(dkim.publicKey)[0].join('') } }, outbound: { provider: 'ses', region: 'eu-west-1', accessKeyId: 'AKIAQA', secretAccessKey: 'qa-not-a-secret', endpoint: `http://127.0.0.1:${fakeSes.address().port}` } }, hostd: { env: { WISP_TELEGRAM_API: `http://127.0.0.1:${fakeTelegram.address().port}`, WISP_SLACK_API: `http://127.0.0.1:${fakeSlack.address().port}` } } }));
 
 const { check, done } = runner('grid');
 const log = fs.openSync(path.join(OUT, 'grid-server.log'), 'w');
@@ -395,6 +395,44 @@ try {
     ok((await refusal()) === 'dkim', `the box’s refusal of an unsigned mail: ${await refusal()}`);
     ok(sent.length === 1, `${sent.length} replies: a stranger or a forgery was answered`);
     await until(async () => (await state()) === 'stopped', (IDLE + 30) * 1000, 'the box to sleep again by itself');
+  });
+
+  await check('GRID-34', '`on laptop`: the grid owns the webhook, says offline itself, and a Box secret gets nothing', async () => {
+    const p = A.page;
+    await p.goto(`${GRID}/account#route`);
+    ok(/new bot/i.test(await p.textContent('.route-f')), 'the form doesn’t ask for a new bot');
+    await p.fill('.route-f input[name=token]', '123:route-bot');
+    await p.fill('.route-f input[name=senders]', '42');
+    await p.click('.route-f .primary');
+    await p.waitForSelector('[data-live=route] .r');
+    const text = await p.textContent('[data-live=route]');
+    ok(/@qa_bot/.test(text) && /42/.test(text), `the page says ${text}`);
+    ok(!(await p.content()).includes('123:route-bot'), 'the page shows the token');
+    ok(tg.hook.url.startsWith(`${GRID}/_route/`) && tg.hook.secret_token, `webhook set to ${tg.hook.url}`);
+    const c = await req(`${GRID}/api/computers`, { method: 'POST', headers: bearer(token), body: { name: 'qa laptop' } });
+    ok(c.status === 200, `POST /api/computers → ${c.status}`);
+    const hook = (body, secret = tg.hook.secret_token) => req(tg.hook.url, { method: 'POST', headers: { 'x-telegram-bot-api-secret-token': secret }, body });
+    const m = (id, text2) => ({ update_id: id, message: { message_id: id, date: Math.floor(Date.now() / 1000), text: text2, from: { id: 42, first_name: 'QA' }, chat: { id: 42, type: 'private' } } });
+    const before = tg.calls.filter((x) => x.method === 'sendMessage').length;
+    ok((await hook(m(900, 'on qa laptop fix it'), 'x'.repeat(64))).status === 403, 'a wrong secret wasn’t a 403');
+    ok((await hook(m(901, 'on qa laptop fix it'))).status === 200, 'the webhook');
+    await until(() => tg.calls.filter((x) => x.method === 'sendMessage').length > before, 10_000, 'the line');
+    const line = () => tg.calls.findLast((x) => x.method === 'sendMessage').text; // the open page asks getWebhookInfo too
+    ok(/qa laptop is offline/.test(line()), `the line: ${line()}`);
+    const said = tg.calls.filter((x) => x.method === 'sendMessage').length;
+    ok((await hook(m(902, 'fix it'))).status === 200, 'the webhook, not a route');
+    await until(() => tg.calls.filter((x) => x.method === 'sendMessage').length > said, 10_000, 'what the bot does');
+    ok(/only reaches your computers/.test(line()), `the line: ${line()}`);
+    const held = tg.hook.url;
+    tg.hook = { ...tg.hook, url: `${GRID}/elsewhere` };
+    await p.goto(`${GRID}/account#route`);
+    ok(/webhook moved/i.test(await p.textContent('[data-live=route]')), 'the page didn’t say the webhook moved');
+    tg.hook = { ...tg.hook, url: held };
+    const box = (await req(`${GRID}/api/channels/reply`, { method: 'POST', headers: { authorization: 'Box x y' }, body: { thread: 'a.b', text: 'x' } }));
+    ok(box.status === 401, `a Box secret at /api/channels/reply → ${box.status}`);
+    await p.click('[data-live=route] form button');
+    await p.waitForSelector('.route-f');
+    ok((await req(`${GRID}/api/computers/${c.json.id}`, { method: 'DELETE', headers: bearer(token) })).status === 200, 'removing the computer');
   });
 
   await check('GRID-11', 'Account lists the device; Remove revokes its token', async () => {

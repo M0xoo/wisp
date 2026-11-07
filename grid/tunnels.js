@@ -10,6 +10,7 @@ import http2 from 'node:http2';
 export const TUNNEL_PROTOCOL = 'wisp-tunnel';
 const PING_MS = 25_000; // keeps proxies on the way (Caddy, NAT) from dropping an idle tunnel
 const WINDOW = 1 << 20;
+const ASK_MAX = 64 * 1024;
 // Hop-by-hop, or not allowed in HTTP/2.
 const HOP = new Set(['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'te', 'trailer', 'host', 'http2-settings']);
 
@@ -94,6 +95,39 @@ export function createTunnels({ log = () => {}, onChange = () => {} } = {}) {
     return true;
   }
 
+  // A request of the grid's own, not a person's: its answer back here, { status, body } (null
+  // offline). Rejects if it can't be asked, or takes longer than timeoutMs. The computer is the
+  // user's: what it says is cut off at ASK_MAX.
+  function ask(id, { method = 'POST', path, headers = {}, body = '', timeoutMs = 30_000 }) {
+    const t = live.get(id);
+    if (!t || t.session.destroyed) return Promise.resolve(null);
+    return new Promise((resolve, reject) => {
+      let s;
+      try {
+        s = t.session.request({ ':method': method, ':path': path, ':authority': 'computer', ...headers });
+      } catch (err) {
+        return reject(err);
+      }
+      const timer = setTimeout(() => s.close(http2.constants.NGHTTP2_CANCEL), timeoutMs);
+      timer.unref?.();
+      let status = 0;
+      let size = 0;
+      const chunks = [];
+      s.on('response', (h) => (status = h[':status']));
+      s.on('data', (d) => {
+        size += d.length;
+        if (size <= ASK_MAX) chunks.push(d);
+      });
+      s.on('error', () => {});
+      s.on('close', () => {
+        clearTimeout(timer);
+        if (!status) return reject(new Error('no answer'));
+        resolve({ status, body: Buffer.concat(chunks).toString('utf8') });
+      });
+      s.end(body);
+    });
+  }
+
   // A websocket for the computer (a preview's live reload): one stream, with the Upgrade it asked
   // for in x-wisp-upgrade (HTTP/2 has no Upgrade header), its bytes both ways once the computer
   // says 200 (the page's own 101 comes inside). False offline.
@@ -129,6 +163,7 @@ export function createTunnels({ log = () => {}, onChange = () => {} } = {}) {
   return {
     accept,
     forward,
+    ask,
     upgrade,
     online: (id) => !!live.get(id) && !live.get(id).session.destroyed,
     since: (id) => live.get(id)?.since || null,

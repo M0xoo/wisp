@@ -23,6 +23,9 @@
 //   <domain>/_mail/<provider>
 //                       the mail provider's webhook, for every user's address (grid/mail.js). Off
 //                       unless grid.json has mail.
+//   <domain>/_route/<token>
+//                       a bot the user gave their account page: its webhook, which the grid owns
+//                       and verifies, for `on laptop` (grid/route.js). Off unless channels.route.
 //   sb-<id>--<handle>.<domain>
 //                       a sandbox (grid/sandboxes.js): a box of its own for one task, started and
 //                       stopped like the user's own, opened with its own token (or a ticket).
@@ -41,9 +44,10 @@ import { MACHINE_WANTS, createAccounts, bad } from './accounts.js';
 import { createProviders, newFlow } from './auth/providers.js';
 import { openDb } from './db.js';
 import { Hostd } from './hostd.js';
-import { IN_PATH, createInbox } from './inbox.js';
+import { BODY_MAX, IN_PATH, createInbox, readCapped } from './inbox.js';
 import { MAIL_PATH, createMail } from './mail.js';
 import { APP_URL, accountPage, activatePage, devSignInPage, messagePage, sharePassPage, shareViewPage, signInPage, wakingPage } from './pages.js';
+import { ROUTE_MARK, ROUTE_PATH, createRoutes } from './route.js';
 import { createSecrets, ensureMaster } from './secrets.js';
 import { MEDIA_TYPES, SHARE_ID, createShares } from './shares.js';
 import { SANDBOX_LABEL, createSandboxes } from './sandboxes.js';
@@ -243,6 +247,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
     });
   const inbox = createInbox({ db, cfg, secrets, accounts, hostd, deliver: toBox, delivered: (row) => row.channel === 'email' && mail?.delivered(row), log });
   const mail = inbox.on && cfg.mail ? createMail({ db, cfg, inbox, accounts, log, resolveTxt }) : null;
+  const routes = createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit, log });
   hostd.on('change', (e) => {
     if (shut) return;
     if (e.state === 'running' && !e.user.sandbox) inbox.drain(e.user);
@@ -370,6 +375,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
     };
     const signInFirst = (ret) => redirect(res, `/signin?return=${encodeURIComponent(ret)}`);
 
+    if (p === '/_route' || p.startsWith('/_route/')) return routeIn(req, res, p);
+
     // Device API: other origins (the phone app) call it with a bearer token, so CORS is open
     // and cookies are never involved.
     if (p.startsWith('/api/')) {
@@ -414,7 +421,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
         const channel = url.searchParams.get('channel');
         if (!inbox.knows(channel)) return send(404, { error: 'not found' });
         limit(`inurl|${who.id}`, 60);
-        return send(200, inbox.urlFor(who, channel));
+        // held: the grid owns this bot's webhook (grid/route.js), so the box leaves it alone.
+        return send(200, { ...inbox.urlFor(who, channel), ...(routes.boxAsked(who.id, channel, url.searchParams.get('bot'), url.searchParams.has('gone')) && { held: true }) });
       }
       if (inbox.on && req.method === 'POST' && p === '/api/channels/url/rotate') {
         const who = boxUser(req.headers.authorization);
@@ -588,6 +596,12 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
         revokeDevice(dev.user.id, dev.device.id);
         return send(200, { ok: true });
       }
+      // A computer's report on a routed message (grid/route.js): past the device check on purpose, so
+      // a Box secret, which anything on a box can read, never gets this far.
+      if (routes.on && req.method === 'POST' && p === '/api/channels/reply') {
+        await routes.reply(dev, await readBody(req));
+        return send(200, { ok: true });
+      }
       return send(404, { error: 'not found' });
     }
 
@@ -657,7 +671,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
     if ((req.method === 'GET' || req.method === 'HEAD') && (p === '/' || p === '/account')) {
       if (!s) return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: url.searchParams.get('return') || (p === '/account' ? '/account' : ''), analytics: stats.pages, ua: req.headers['user-agent'] }));
       const u = s.user;
-      return page(accountPage({ cfg, view: p === '/account' ? 'account' : 'home', offers: { sites: sites.opts.enabled, sandboxes: sandboxes.opts.enabled }, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, machine: { cpus: hostd.container.cpus, memory: hostd.container.memory, wish: accounts.machineWish(u.id) }, devices: accounts.devices(u.id), computers: accounts.computers(u.id).map((c) => ({ ...computerView(c), deviceId: c.device_id })), sites: sites.list(u.id).map(sites.view), identities: accounts.identities(u.id), providers, csrf: csrfFor(s), flash: url.searchParams.get('m') || '' }));
+      return page(accountPage({ cfg, view: p === '/account' ? 'account' : 'home', offers: { sites: sites.opts.enabled, sandboxes: sandboxes.opts.enabled }, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, machine: { cpus: hostd.container.cpus, memory: hostd.container.memory, wish: accounts.machineWish(u.id) }, devices: accounts.devices(u.id), computers: accounts.computers(u.id).map((c) => ({ ...computerView(c), deviceId: c.device_id })), sites: sites.list(u.id).map(sites.view), identities: accounts.identities(u.id), providers, route: p === '/account' ? await routes.view(u.id) : null, csrf: csrfFor(s), flash: url.searchParams.get('m') || '', tone: url.searchParams.get('tone') === 'bad' ? 'bad' : '' }));
     }
     if (req.method === 'GET' && p === '/events') {
       if (!s) return json(res, 401, { error: 'Sign in again.' });
@@ -812,6 +826,28 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
         notify(s.user.id);
         return redirect(res, `/?m=${encodeURIComponent('Unpublished: that link no longer works.')}`);
       }
+      // A bot for `on laptop`: only here, on the grid's own origin, with this session and its CSRF
+      // token (grid/route.js). Never at <handle>/_grid/*, which a page a box serves can reach.
+      if (routes.on && p === '/channels/route') {
+        const body = await needCsrf();
+        limit(`routeset|${s.user.id}`, 10);
+        const back = (m, bad) => redirect(res, `/account?m=${encodeURIComponent(m)}${bad ? '&tone=bad' : ''}`);
+        try {
+          const name = await routes.set(s.user, body);
+          notify(s.user.id);
+          return back(`${name ? `@${name}` : 'Your bot'} is connected.`);
+        } catch (err) {
+          if (err.status !== 400) log(`grid: route for ${s.user.handle}: ${err.message}`);
+          return back(err.status === 400 ? err.message : 'That didn’t work: Telegram couldn’t be reached. Try again.', true);
+        }
+      }
+      if (routes.on && p === '/channels/route/remove') {
+        await needCsrf();
+        const shared = routes.shared(s.user.id);
+        await routes.remove(s.user);
+        notify(s.user.id);
+        return redirect(res, `/account?m=${encodeURIComponent(shared ? 'Removed. Your cloud wisp sets its own webhook the next time it starts.' : 'Removed. That bot no longer reaches your computers.')}`);
+      }
       if (p === '/identities/unlink') {
         const body = await needCsrf();
         accounts.unlink(s.user.id, String(body.provider || ''));
@@ -881,6 +917,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
       throw bad('Your files couldn’t be deleted just now, so your account is still here. Try again in a minute.', 409);
     }
     const gone = accounts.computers(u.id);
+    await routes.remove(u);
     sites.removeAll(u.id);
     shares.removeAll(u.id);
     accounts.remove(u.id);
@@ -925,6 +962,31 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
     } catch (err) {
       if (err.status === 429) return json(res, 429, { error: err.message });
       log(`grid: inbox for ${handle}: ${err.message}`);
+      return res.headersSent ? res.end() : json(res, 500, { error: 'Something went wrong on the grid.' });
+    }
+  }
+
+  // A bot's webhook, which the grid owns (grid/route.js). The 200 comes after the grid has decided and
+  // held what it's holding, so a failure gets Telegram's retry; only the forward happens after it.
+  // Nothing here logs the path: it holds the token.
+  async function routeIn(req, res, p) {
+    const none = () => json(res, 404, { error: 'not found' });
+    if (!routes.on || req.method !== 'POST') return none();
+    try {
+      const m = ROUTE_PATH.exec(p);
+      const hit = m ? routes.check(m[1], req.headers['x-telegram-bot-api-secret-token']) : null;
+      if (!hit) {
+        limit(`in|${clientIp(req)}`, 600);
+        return hit === false ? json(res, 403, { error: 'forbidden' }) : none();
+      }
+      limit(`intok|${hit.user.id}|route`, 120);
+      const raw = await readCapped(req, BODY_MAX);
+      const next = routes.take(hit.user, hit.route, raw);
+      json(res, 200, { ok: true });
+      next?.().catch((err) => log(`grid: route for ${hit.user.handle}: ${err.message}`)); // not what the person said
+    } catch (err) {
+      if (err.status === 429) return json(res, 429, { error: err.message });
+      log(`grid: route: ${err.message}`);
       return res.headersSent ? res.end() : json(res, 500, { error: 'Something went wrong on the grid.' });
     }
   }
@@ -1056,7 +1118,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
     if (p === '/_grid/state') return json(res, 200, { state: tunnels.online(c.id) ? 'running' : 'offline', name: c.name });
     // Like the wisp edge: the grid's own sign-in stays here; the computer only learns who asked where.
     const headers = {};
-    for (const [k, v] of Object.entries(req.headers)) if (k !== 'cookie' && k !== 'authorization' && !k.startsWith('x-wisp-proxy') && k !== 'x-wisp-preview' && k !== 'x-wisp-upgrade' && !k.startsWith('x-forwarded')) headers[k] = v;
+    for (const [k, v] of Object.entries(req.headers)) if (k !== 'cookie' && k !== 'authorization' && !k.startsWith('x-wisp-proxy') && k !== 'x-wisp-preview' && k !== 'x-wisp-upgrade' && k !== ROUTE_MARK && !k.startsWith('x-forwarded')) headers[k] = v;
     Object.assign(headers, { 'x-forwarded-host': String(req.headers.host || ''), 'x-forwarded-proto': cfg.scheme, 'x-forwarded-for': clientIp(req) });
     if (tunnels.forward(c.id, req, res, headers)) return;
     const text = `wisp on ${c.name} isn’t connected to the grid right now. It comes back when that computer is on and wisp runs there.`;
@@ -1311,6 +1373,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
     secrets,
     hostd,
     inbox,
+    routes,
     sandboxes,
     tunnels,
     server,
@@ -1318,6 +1381,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
     async close() {
       clearInterval(sampler);
       inbox.stop();
+      routes.stop();
       sites.close();
       const closed = Promise.all(servers.map((x) => new Promise((r) => x.close(r))));
       tunnels.closeAll();

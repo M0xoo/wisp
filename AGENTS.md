@@ -14,7 +14,8 @@ this covers how the code is laid out and the rules a change has to follow.
   ships with (`GET /stuff/starters`), `crew.js` runs the crew
   (named long-lived agents: their schedule, queue, memory and `@Name` mentions; their jobs are tasks).
   `channels/` is how wisp is reached from outside: `policy.js` (who may speak, what may leave),
-  `grammar.js` and `lists.js` (what a message can say), `channel.js` (the base class) and one file per
+  `grammar.js` (imports only `mentions.js`, so the grid can read it too) and `lists.js` (what a message
+  can say), `channel.js` (the base class) and one file per
   channel (`github.js` polls through `gh`, and on a public repo reports only a fixed line; `slack.js`
   holds a Socket Mode connection through `ws.js`, a WebSocket client that knows no channel, and
   refuses to run on a grid box, which sleeps; `discord.js` does the same over a gateway connection,
@@ -63,7 +64,8 @@ this covers how the code is laid out and the rules a change has to follow.
   nothing from wisp) and the database (`node:sqlite`, so grid code needs Node 22.13+; nothing else
   does). wisp itself
   only knows trusted-proxy mode (`server/http/trust.js`), `GET /api/status`, and cloud computers
-  as machines with `kind: 'grid'` (`server/machines.js`, `server/services/cloud.js`). `grid/inbox.js`
+  as machines with `kind: 'grid'` (`server/machines.js`, `server/services/cloud.js`). `grid/route.js` is `on laptop`
+  from a channel, on a bot of its own: the grid owns that webhook, and a box is never asked and gains no reach. `grid/inbox.js`
   holds channels' webhooks (`/_in/<token>`, off unless `grid.json` has `channels`), answers them at
   once and delivers to the box's `POST /api/channels/inbound`, which verifies them itself
   (`Channel.inbound()`, `server/routes/channels.js`). Only delivery carries `x-wisp-proxy-via: inbox`;
