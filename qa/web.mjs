@@ -282,6 +282,22 @@ try {
     p.clean();
   });
 
+  await check('WEB-07', 'a long question keeps its answers above the reply box', async () => {
+    const s = await launch({ prompt: 'ASKLONG before you fix it' });
+    await until(async () => (await session(s.id)).state === 'waiting', { timeout: 20000, what: 'waiting state' });
+    await p.locator(`.item[data-id="${s.id}"]`).click();
+    await p.getByRole('button', { name: /Yes$/ }).first().waitFor({ timeout: 5000 });
+    const seen = await p.evaluate(() => {
+      const box = document.querySelector('.item.open .composer').getBoundingClientRect().top;
+      return [...document.querySelectorAll('.ask-card .opt')].map((o) => o.getBoundingClientRect().bottom <= box);
+    });
+    ok(seen.length === 2 && seen.every(Boolean), `answers on screen: ${seen}`);
+    await p.shot('question-long');
+    await p.getByRole('button', { name: /Yes$/ }).first().click();
+    await settled(s.id, ['review', 'done']);
+    p.clean();
+  });
+
   await check('WEB-08', 'approve in Edits mode', async () => {
     const s = await launch({ prompt: 'APPROVE then publish', mode: 'edits' });
     await until(async () => (await session(s.id)).state === 'waiting', { timeout: 20000, what: 'approval' });

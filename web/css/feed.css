@@ -271,7 +271,7 @@ body.stack .t-result { display: none; }
 /* ---------- working panel (not `.working` — the feed group and head badge use that) ---------- */
 .w-panel {
   display: flex; gap: 14px; padding: 16px 18px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line);
-  animation: rise 0.4s var(--ease) both; position: relative; overflow: hidden;
+  animation: rise 0.4s var(--ease) both; position: relative; overflow: clip;
 }
 .w-panel.waiting { border-color: color-mix(in srgb, var(--warn) 35%, var(--line)); }
 /* The card inside carries the warn frame; two nested orange boxes read as one shouting. */
@@ -375,6 +375,17 @@ body.stack .t-result { display: none; }
 .q-text { margin: 6px 0 12px; font: 600 17px/1.4 var(--display); letter-spacing: -0.015em; color: var(--ink); }
 .q-context { margin: -4px 0 12px; font-size: 13px; color: var(--ink-2); }
 .q-opts { display: flex; flex-wrap: wrap; gap: 8px; }
+/* A long question keeps its answers on screen: they stop above the reply box and the text scrolls
+   under them. Negative margins take their padding back, so a card that fits looks as it did, and the
+   bottom reaches into the dock's fade so no text shows below them. On a short window they'd cover
+   the question, so there they stay in the text. */
+@media (min-height: 560px) {
+  .ask-card .q-opts {
+    position: sticky; bottom: calc(var(--dock-h, 14px) - 14px); z-index: 1; max-height: 45dvh; overflow-y: auto;
+    margin: -8px -3px -12px; padding: 8px 3px 12px; background: var(--surface);
+    box-shadow: 0 -6px 6px -2px var(--surface);
+  }
+}
 .opt {
   display: inline-flex; align-items: center; gap: 9px; min-height: 34px; padding: 6px 12px 6px 8px; border-radius: 8px;
   border: 1px solid var(--line-2); background: var(--surface); font-weight: 500; text-align: left; transition: border-color 0.15s, background 0.15s;
