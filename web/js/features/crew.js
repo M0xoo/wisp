@@ -441,7 +441,7 @@ let railOrder = [];
 const railTiles = () => [railAll, ...railOrder.map((id) => railNodes.get(id))].filter((b) => b && !b.hidden);
 
 const faceTile = (id) =>
-  el(`<button class="cl-face" type="button" data-crew="${id}" tabindex="-1"><span class="cl-av"></span><i class="cl-dot" hidden></i><span class="cl-live" hidden><span class="orb live"></span><b hidden></b></span></button>`);
+  el(`<button class="cl-face" type="button" data-crew="${id}" tabindex="-1"><i class="cl-pip"></i><span class="cl-av"></span><i class="cl-dot" hidden></i><span class="cl-live" hidden><span class="orb live"></span><b hidden></b></span></button>`);
 
 function paintRail(list, states) {
   for (const n of $$('.cl-sk', railFaces)) n.remove();

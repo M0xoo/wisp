@@ -64,6 +64,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **The Haiku offer says where it pays off.** The offer under a turn now reads *Run subagents on Haiku: best on large repos and read-heavy work*: Haiku saved 75% on a 52k-line repo and nothing on a 10k-line one.
 - **Panes stay where wisp put them, and say what they can't promise.** A pane's frame can no longer send what it read away by navigating itself to another address, and an app that doesn't use wisp can no longer frame wisp's page to steal your clicks. Secrets in a task's title, summary or live line are redacted before a pane gets them. The Allow card no longer says an app can't reach the internet, which wasn't true: browsers don't apply these rules to WebRTC, so it now tells you to treat what a pane reads as visible to whoever wrote it, and says so plainly when the app's code uses WebRTC.
 - **Full auto no longer asks before a repo's hooks, MCP servers and worktree setup run.** Full auto already skips every approval, so a task in it runs them as before the trust card, unasked, and a new worktree sets itself up at once. Plan and Edits still wait on the card, and a run held on it starts when you switch the task to Full auto.
+- **The picked crew member stands out in the rail.** The tile the list is showing (All or a member) now has a long pip on the rail's outer edge and a firmer outline, so it reads at a glance in light and dark. Hovering another face only tints it and shows a short pip, so hover and the pick no longer look alike.
 
 ### Fixed
 
