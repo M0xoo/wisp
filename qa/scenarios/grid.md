@@ -206,7 +206,10 @@ for the rest
   `secret_token` it set, sending the link code.
 - **Expected:** `setWebhook` to `<handle>.<domain>/_in/<token>`, no `getUpdates`; the 200 comes back
   before the box is up; it wakes, links, and answers once; it sleeps again by itself. A wrong token
-  at that address is a 404. Without `channels` in `grid.json`, `/_in/` is a 404 and the box polls.
+  at that address is a 404. Without `channels` in `grid.json`, `/_in/` is a 404 and the box polls. A
+  stranger's message is refused by the box with a 403 and no answer; three wakes like that and the next
+  is low priority, one per 10 minutes. `POST /api/channels/rotate` moves the webhook to a new URL with
+  the same secret, and the old URL is a 404.
 - **Against production:** only when the owner deploys: a throwaway account, one real Telegram bot.
 
 ### GRID-24 · Caddy on-demand TLS and DNS

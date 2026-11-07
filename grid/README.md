@@ -232,7 +232,10 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
 - **Channels.** `POST <handle>.<domain>/_in/<token>` is the one way in that never signs in. Its token
   works only at its owner's address, only its SHA-256 is looked up (the token itself is sealed), and
   the grid checks nothing else: the box verifies each message (`grid/inbox.js`). A box asks for its URL
-  with its Box secret (`GET /api/channels/url`) and only ever gets its own.
+  with its Box secret (`GET /api/channels/url`) and only ever gets its own, and can replace it
+  (`POST /api/channels/url/rotate`). Anyone can message a bot, so a wake has to be earned: after three
+  with nothing the box accepted, a wake is a scheduled one (evicts nobody, no use of the box), at most
+  one per 10 minutes. Known tokens are limited per token, unknown ones per address.
 - **Room.** A box starts while fewer than `hostd.maxRunning` are up and, with the container
   driver, the host has `admit.reserveMb + admit.boxMb` MiB available (`MemAvailable`; defaults
   1024 + 1024; `"admit": false` counts boxes only). When it doesn't, hostd stops the box that has
