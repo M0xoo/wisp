@@ -992,6 +992,20 @@ test("the Phone dialog's Slack section is a part spells can restyle or hide", ()
   assert.ok(!('slack.enabled' in schema.SETTINGS) && !('appToken' in schema.SETTINGS) && !('botToken' in schema.SETTINGS));
 });
 
+test("the Phone dialog's X section is a part spells can restyle or hide", () => {
+  assert.equal(schema.PARTS['phone.x'], '.phone-modal .ph-x');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['phone.x'] }, parts: { 'phone.x': { style: { opacity: '0.8' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'phone.x': { props: { lines: 2 } } } }).some((x) => /phone\.x/.test(x)));
+});
+
+test('a spell can force X off, and can never turn it on', () => {
+  assert.deepEqual(schema.SETTINGS.acceptX, ['off']);
+  assert.deepEqual(problems({ ...base0, settings: { acceptX: 'off' } }), []);
+  for (const v of ['on', true, 'plan']) assert.ok(problems({ ...base0, settings: { acceptX: v } }).some((x) => /acceptX/.test(x)), String(v));
+  // Whether it's on is the owner's switch in the remote config, not a default a spell could set.
+  assert.ok(!('x.enabled' in schema.SETTINGS) && !('x' in schema.SETTINGS));
+});
+
 test("a Slack trigger's People field is a part spells can restyle or hide", () => {
   assert.equal(schema.PARTS['automations.slackPeople'], '.auto-modal .k-people');
   assert.deepEqual(problems({ ...base0, ui: { hide: ['automations.slackPeople'] }, parts: { 'automations.slackPeople': { style: { opacity: '0.8' } } } }), []);

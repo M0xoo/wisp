@@ -1,5 +1,5 @@
 // Phone: questions and finished tasks over ntfy or Telegram, answered from there, and tasks started
-// from a GitHub comment or in Slack.
+// from a GitHub comment, in Slack, or from a post on X on a cloud computer.
 
 import { copy } from '../blocks.js';
 import { esc } from '../md.js';
@@ -16,7 +16,7 @@ export const PHONE_HINT = 'ntfy, Telegram, GitHub or Slack: reach wisp from your
 export function phoneSummary(r) {
   if (!r) return '';
   const on = [r.ntfy.enabled && r.ntfy.topic && 'ntfy', r.telegram.enabled && r.telegram.linked && 'Telegram'].filter(Boolean);
-  const all = [...on, r.github?.enabled && 'GitHub', r.slack?.enabled && 'Slack'].filter(Boolean).join(' + ');
+  const all = [...on, r.github?.enabled && 'GitHub', r.slack?.enabled && 'Slack', r.x?.enabled && 'X'].filter(Boolean).join(' + ');
   if (!on.length) return all || 'Off'; // the events are what ntfy and Telegram send; GitHub and Slack answer where they were asked
   return `${all} · ${r.events.map((e) => (e === 'waiting' ? 'questions' : 'finished')).join(' & ')}`;
 }
@@ -42,6 +42,14 @@ function slackTrouble(error) {
   if (code) return `Slack refused a token (<code>${code}</code>). Copy both again from <a href="https://api.slack.com/apps" target="_blank" rel="noopener">api.slack.com/apps</a> and paste them here. A reinstalled app has new ones.`;
   return `${esc(error)} wisp keeps trying.`;
 }
+
+// Why the last post did nothing: in public it only got the fixed line, so this is where they find out.
+const X_REFUSED = {
+  off: 'The last post didn’t run: X was off here. wisp told you by DM.',
+  mode: 'The last post asked for Full auto, which can’t be asked for from X.',
+  computer: 'The last post named another computer. From X, tasks run on this cloud computer for now.',
+  sender: 'The last message didn’t say who it was from, so it was ignored.',
+};
 
 // Settings → Agents, at its git / GitHub row (as tips.js does).
 function openToolsRow() {
@@ -105,6 +113,16 @@ export async function openPhone({ host } = {}) {
               </li>
             </ol>
             <div class="ph-more" hidden></div>
+          </div>
+        </section>
+        <section class="ph-sec ph-chan ph-x" hidden>
+          <h4>X <span class="muted xs"><span class="ph-dot">· </span>mention the bot in a post, and the result comes by DM</span><span class="ph-st"></span><button class="switch" data-sw="x" role="switch" aria-checked="false" aria-label="X"></button></h4>
+          <p class="hint">A post from your linked account wakes this cloud computer. One fixed line answers in public, and everything else stays in your DMs. Each task gets its own worktree, in Plan unless you ask for Edits. Full auto can’t be asked for from X, and approvals stay here.</p>
+          <div class="ph-err" hidden></div>
+          <div class="ph-on" hidden>
+            <div class="ph-who"></div>
+            <p class="hint">Say what you’d type in wisp, after the bot’s name: <code>in api with opus plan: fix the flaky test</code>. Answer by DM to follow up.</p>
+            <div class="ph-acts"><a class="ghost sm" data-x="account" target="_blank" rel="noopener">${icon('external')}<span></span></a></div>
           </div>
         </section>
         <div class="ship-foot"><span class="grow"></span><button class="ghost sm" data-act="test">${icon('send')}Send a test</button></div>
@@ -196,9 +214,46 @@ export async function openPhone({ host } = {}) {
     more.hidden = steps;
     fill(more, !steps && s.linkCode ? code('To link someone else, they send the bot') : '');
   };
+  const paintX = () => {
+    const m = r.x;
+    const sec = $('.ph-x', node);
+    sec.hidden = !m?.offered; // only a cloud computer, on a grid that has X
+    if (sec.hidden) return;
+    hold(sec);
+    const spell = S.config.lockedBy?.acceptX;
+    const st = r.status.x;
+    const sw = $('[data-sw="x"]', node);
+    sw.setAttribute('aria-checked', m.enabled);
+    sw.disabled = m.forcedOff;
+    const stop = m.forcedOff ? `The spell ${esc(spell?.name || '')} keeps X off here. Turn it off in Settings → Spells to change this.` : '';
+    const problem =
+      stop ||
+      (!m.enabled
+        ? ''
+        : !m.linked
+          ? 'Link your X account on your account page. Until then wisp ignores every post.'
+          : m.paused
+            ? 'X is paused on this grid for now.'
+            : m.capped
+              ? 'X has reached its limit for today. It’s back at 00:00 UTC.'
+              : !m.dmOpen
+                ? `Send <b>@${esc(m.bot)}</b> a DM once. X lets the bot write only to someone who wrote first, so until then results wait in wisp.`
+                : m.error
+                  ? esc(m.error)
+                  : X_REFUSED[st?.refused] || '');
+    fill($('.ph-st', sec), !m.enabled ? '' : problem ? `<span class="ph-bad">${icon('warn')}Not working</span>` : `<span class="ph-ok">${icon('check')}Working</span>`);
+    trouble(sec, problem);
+    $('.ph-on', sec).hidden = !m.enabled;
+    fill($('.ph-who', sec), m.linked ? `Linked as <b>@${esc(m.handle)}</b>. Mention <b>@${esc(m.bot)}</b> in a post.` : `Not linked yet. The bot is <b>@${esc(m.bot)}</b>.`);
+    const link = $('[data-x="account"]', sec);
+    link.href = m.account;
+    link.className = m.linked ? 'ghost sm' : 'primary sm';
+    fill($('span', link), m.linked ? 'Account page' : 'Link your X account');
+  };
   const paintChannels = () => {
     paintGithub();
     paintSlack();
+    paintX();
   };
   // A change while a save is on its way can be newer than what the save answers: looked at after it.
   const refresh = async () => {
@@ -328,6 +383,7 @@ export async function openPhone({ host } = {}) {
     if (sw === 'github') return flip('github', 'enabled');
     if (sw === 'ghPublic') return flip('github', 'publicReports');
     if (sw === 'slack') return flip('slack', 'enabled');
+    if (sw === 'x') return flip('x', 'enabled');
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'unlink') return put({ telegram: { enabled: r.telegram.enabled, token: r.telegram.token, unlink: true } });
     if (act === 'ghFix') {
@@ -365,6 +421,18 @@ export async function openPhone({ host } = {}) {
     }
   });
   bus.on('remote', refresh, { node });
+  // The link is made on the account page, in another tab: looked at again on coming back.
+  const freshX = async () => {
+    if (!node.isConnected) return removeEventListener('focus', freshX);
+    if (!r?.x?.offered) return;
+    const x = await api('/channels/x').catch(() => null);
+    if (x && node.isConnected) {
+      r.x = x;
+      paintX();
+    }
+  };
+  addEventListener('focus', freshX);
   r = await api('/remote').catch((err) => (toastError(err), null));
   if (r) paint();
+  freshX();
 }
