@@ -12,6 +12,7 @@ const A = '/_grid/a';
 const I = {
   github: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.04 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.58.23 2.75.11 3.04.74.81 1.19 1.83 1.19 3.09 0 4.41-2.7 5.38-5.26 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>',
   google: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.67-.22-2.45H12v4.64h6.45a5.52 5.52 0 0 1-2.4 3.62v3h3.88c2.27-2.09 3.57-5.17 3.57-8.81Z"/><path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.94-2.9l-3.88-3.01c-1.07.72-2.45 1.15-4.06 1.15-3.13 0-5.78-2.11-6.72-4.95H1.27v3.11A12 12 0 0 0 12 24Z"/><path fill="#FBBC05" d="M5.28 14.29a7.2 7.2 0 0 1 0-4.58V6.6H1.27a12 12 0 0 0 0 10.8l4.01-3.11Z"/><path fill="#EA4335" d="M12 4.77c1.76 0 3.34.61 4.59 1.8l3.44-3.44A11.97 11.97 0 0 0 12 0 12 12 0 0 0 1.27 6.6l4.01 3.11C6.22 6.88 8.87 4.77 12 4.77Z"/></svg>',
+  x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.8 3h3.1l-6.8 7.8 8 10.2h-6.3l-4.9-6.4L5.3 21H2.2l7.3-8.3L1.8 3h6.4l4.4 5.9L17.8 3Zm-1.1 16.2h1.7L7.4 4.7H5.6l11.1 14.5Z"/></svg>',
   key: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M11 12l8-8M16 7l2.5 2.5M14 9l2 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
   code: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -586,10 +587,10 @@ f.addEventListener('change',paint);f.addEventListener('submit',(e)=>{e.preventDe
 const link=()=>{const h=/^#machines(?:[/](more|bigger|gpu))?$/.exec(location.hash);if(!h)return;history.replaceState(null,'',location.pathname+location.search);const b=h[1]&&f.querySelector('[name=want_'+h[1]+']');if(b&&!b.checked){b.checked=true;d.dataset.state='pick';paint()}if(!d.open)d.showModal()};
 paint();link();addEventListener('hashchange',link)})()</script>`;
 
-export function accountPage({ cfg, view = 'home', offers = {}, user, instance, machine = {}, devices, computers = [], sites = [], identities, providers, csrf, flash: msg = '', tone = '' }) {
+export function accountPage({ cfg, view = 'home', offers = {}, user, instance, machine = {}, devices, computers = [], sites = [], identities, x = null, providers, csrf, flash: msg = '', tone = '' }) {
   const hidden = `<input type="hidden" name="csrf" value="${esc(csrf)}">`;
   const flash = msg ? `<div class="flash ${tone}">${esc(msg)}</div>` : '';
-  if (view === 'account') return accountView({ cfg, user, devices, computers, identities, providers, csrf, hidden, flash });
+  if (view === 'account') return accountView({ cfg, user, devices, computers, identities, x, providers, csrf, hidden, flash });
   return homeView({ cfg, offers, user, instance, machine, devices, computers, sites, csrf, hidden, flash });
 }
 
@@ -718,7 +719,26 @@ function homeView({ cfg, offers, user, instance, machine, devices, computers, si
 // Add a computer from anywhere on the page. An old link to the account's Delete lands on its new page.
 const HOME_JS = `<script>(()=>{if(location.hash==='#delete')location.replace('/account#delete');document.addEventListener('click',(e)=>{if(!e.target.closest('[data-add]'))return;const d=document.getElementById('add');d.open=true;d.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'});d.querySelector('summary').focus({preventScroll:true})})})()</script>`;
 
-function accountView({ cfg, user, devices, computers, identities, providers, csrf, hidden, flash }) {
+// X on the account page: only on a grid that has it, and only here, on the grid's own address. A
+// link reaches this person's box, so it's made with a session and a CSRF token, never from a box.
+function xSection({ x, hidden }) {
+  if (!x) return '';
+  const bot = `<b>@${esc(x.bot)}</b>`;
+  const dm = x.dmOpen ? `Results come by DM from ${bot}.` : `One step left: DM ${bot} once, or results can’t reach you.`;
+  const state = x.paused ? 'X is paused on this grid for now.' : x.capped ? 'X has reached its limit for today. It’s back at 00:00 UTC.' : '';
+  const spend = x.spend ? `<p class="hint">Admin: X cost ${(x.spend.cents / 100).toFixed(2)} of ${(x.spend.cap / 100).toFixed(2)} dollars today, with ${x.spend.strangers} stranger${x.spend.strangers === 1 ? '' : 's'} ignored.</p>` : '';
+  return `
+      <h2 class="sec" id="x">X</h2>
+      <p class="hint">Post <code>@${esc(x.bot)} fix the flaky login test</code> and your cloud wisp runs it. One fixed line answers in public, and the result comes by DM. Protected accounts won’t work: X doesn’t deliver their posts. Turn it on in your wisp, in Settings → Phone → X.</p>
+      <div class="group">
+        <div class="r wrap"><span class="ic">${I.x}</span><div class="tx"><b>${x.linked ? `@${esc(x.handle)}` : 'Link your X account'}</b><small>${x.linked ? dm : `This doesn’t sign you in. When it’s linked, finish by sending ${bot} a DM once.`}</small></div>
+        ${x.linked ? `<form class="inline" method="post" action="/account/x/unlink">${hidden}<button class="ghost line">Unlink</button></form>` : `<form class="inline" method="post" action="/account/x/link">${hidden}<button class="ghost line">Link X</button></form>`}</div>
+      </div>
+      <p class="hint">${state ? `${state} ` : ''}To unlink, use the button here or send ${bot} the word <code>stop</code> in a DM.</p>${spend}
+`;
+}
+
+function accountView({ cfg, user, devices, computers, identities, x, providers, csrf, hidden, flash }) {
   const linked = new Set(identities.map((i) => i.provider));
   const canLink = [...providers.values()].filter((p) => !linked.has(p.id) && p.id !== 'dev');
   const byDevice = new Map(computers.map((c) => [c.deviceId, c]));
@@ -732,7 +752,7 @@ function accountView({ cfg, user, devices, computers, identities, providers, csr
     body: `${flash}<div class="acct">
       <aside class="a-side">
         <div class="a-who"><span class="av">${user.avatar ? `<img src="${esc(user.avatar)}" alt="">` : initial}</span><div><b title="${esc(user.name || user.handle)}">${esc(user.name || user.handle)}</b><small title="${esc(user.email || user.handle)}">${esc(user.email || user.handle)}</small></div></div>
-        <nav class="a-nav" aria-label="Account"><a href="#devices">Signed-in devices</a><a href="#ways">How you sign in</a><a href="#out">Sign out</a><a href="#delete">Delete your account</a></nav>
+        <nav class="a-nav" aria-label="Account"><a href="#devices">Signed-in devices</a><a href="#ways">How you sign in</a>${x ? '<a href="#x">X</a>' : ''}<a href="#out">Sign out</a><a href="#delete">Delete your account</a></nav>
       </aside>
       <div class="a-main">
       <h1 class="h1">Account</h1>
@@ -759,7 +779,7 @@ function accountView({ cfg, user, devices, computers, identities, providers, csr
         .join('')}
         ${canLink.map((p) => `<div class="r"><span class="ic">${logo(p.id)}</span><div class="tx"><b>${esc(p.label)}</b><small>Connect it too, and either one signs you in</small></div><a class="ghost line" href="/auth/${encodeURIComponent(p.id)}/start?link=1">Connect</a></div>`).join('')}
       </div>
-
+${xSection({ x, hidden })}
       <h2 class="sec" id="out">Sign out</h2>
       <div class="group">
         <div class="r wrap"><span class="ic">${I.globe}</span><div class="tx"><b>This browser</b><small>Your cloud wisp keeps running.</small></div><form class="inline" method="post" action="/signout">${hidden}<button class="ghost line">Sign out</button></form></div>

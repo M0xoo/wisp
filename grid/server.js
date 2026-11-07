@@ -20,6 +20,9 @@
 //   <handle>.<domain>/_in/<token>
 //                       a channel's webhook, for that user's box (grid/inbox.js): answered and held
 //                       by the grid, then delivered. Off unless grid.json has channels.
+//   <domain>/_x/webhook, <domain>/_grid/x/*, <domain>/account/x/*
+//                       X (grid/x.js): its webhook for everybody's posts, a box's own way to answer,
+//                       and linking on the account page. All 404 unless grid.json has X.
 //   sb-<id>--<handle>.<domain>
 //                       a sandbox (grid/sandboxes.js): a box of its own for one task, started and
 //                       stopped like the user's own, opened with its own token (or a ticket).
@@ -46,6 +49,7 @@ import { SANDBOX_LABEL, createSandboxes } from './sandboxes.js';
 import { SITE_LABEL, createSites, readRaw } from './sites.js';
 import { createGridTelemetry } from './telemetry.js';
 import { TUNNEL_PROTOCOL, createTunnels, hostOnly } from './tunnels.js';
+import { PER_IP as X_PER_IP, X_WEBHOOK, createX } from './x.js';
 import { SHARE_LANDING, isShare, shareNoWorker } from '../server/http/share.js';
 
 const BODY_LIMIT = 64 * 1024;
@@ -224,7 +228,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       up.on('error', reject);
       up.end(data);
     });
-  const inbox = createInbox({ db, cfg, secrets, accounts, hostd, deliver: toBox, log });
+  const inbox = createInbox({ db, cfg, secrets, accounts, hostd, deliver: toBox, delivered: (row) => x?.delivered(row), still: (row) => x?.still(row) ?? row.channel !== 'x', log });
+  const x = inbox.on && cfg.x ? createX({ db, cfg, inbox, accounts, log }) : null;
   hostd.on('change', (e) => {
     if (shut) return;
     if (e.state === 'running' && !e.user.sandbox) inbox.drain(e.user);
@@ -326,6 +331,36 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       if (/^[a-z0-9-]+$/.test(handle)) return { kind: 'edge', handle };
     }
     return { kind: 'unknown' };
+  }
+
+  // X's webhook. It never signs in: its signature does that, checked in grid/x.js. The answer leaves
+  // before anything X-bound or box-bound does.
+  async function xIn(req, res, url) {
+    if (!x) return json(res, 404, { error: 'not found' });
+    limit(`xin|${clientIp(req)}`, X_PER_IP);
+    if (req.method === 'GET') {
+      const out = x.crc(url.searchParams.get('crc_token'));
+      return json(res, out.status, out.body);
+    }
+    if (req.method !== 'POST') return json(res, 404, { error: 'not found' });
+    const out = await x.webhook(req);
+    return json(res, out.status, out.body);
+  }
+
+  // A cloud wisp on X: its link's state, and answering a thread its box accepted. Its Box secret is
+  // readable by agents, so it gets no reach by this: no recipient, no token, no way to link.
+  async function xBox(req, res, url) {
+    const send = (status, body) => json(res, status, body);
+    const state = url.pathname === '/_grid/x/state' && req.method === 'GET';
+    if (!x || !(state || (url.pathname === '/_grid/x/reply' && req.method === 'POST'))) return send(404, { error: 'not found' });
+    const who = boxUser(req.headers.authorization);
+    if (!who) return send(401, { error: 'Only a cloud computer can ask this.' });
+    try {
+      limit(`xbox|${who.id}`, 120);
+      return send(200, state ? x.state(who) : await x.reply(who, await readBody(req)));
+    } catch (err) {
+      return send(err.status || 500, { error: err.status ? err.message : 'Something went wrong on the grid.' });
+    }
   }
 
   // ---- the grid's own pages and API ----
@@ -624,7 +659,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     if ((req.method === 'GET' || req.method === 'HEAD') && (p === '/' || p === '/account')) {
       if (!s) return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: url.searchParams.get('return') || (p === '/account' ? '/account' : ''), analytics: stats.pages, ua: req.headers['user-agent'] }));
       const u = s.user;
-      return page(accountPage({ cfg, view: p === '/account' ? 'account' : 'home', offers: { sites: sites.opts.enabled, sandboxes: sandboxes.opts.enabled }, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, machine: { cpus: hostd.container.cpus, memory: hostd.container.memory, wish: accounts.machineWish(u.id) }, devices: accounts.devices(u.id), computers: accounts.computers(u.id).map((c) => ({ ...computerView(c), deviceId: c.device_id })), sites: sites.list(u.id).map(sites.view), identities: accounts.identities(u.id), providers, csrf: csrfFor(s), flash: url.searchParams.get('m') || '' }));
+      return page(accountPage({ cfg, view: p === '/account' ? 'account' : 'home', offers: { sites: sites.opts.enabled, sandboxes: sandboxes.opts.enabled }, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, machine: { cpus: hostd.container.cpus, memory: hostd.container.memory, wish: accounts.machineWish(u.id) }, devices: accounts.devices(u.id), computers: accounts.computers(u.id).map((c) => ({ ...computerView(c), deviceId: c.device_id })), sites: sites.list(u.id).map(sites.view), identities: accounts.identities(u.id), x: x?.view(u, { admin: accounts.isAdmin(u.id) }) ?? null, providers, csrf: csrfFor(s), flash: url.searchParams.get('m') || '' }));
     }
     if (req.method === 'GET' && p === '/events') {
       if (!s) return json(res, 401, { error: 'Sign in again.' });
@@ -643,6 +678,20 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     if (req.method === 'GET' && p === '/signin') {
       if (s && !url.searchParams.get('link')) return redirect(res, safePath(url.searchParams.get('return')));
       return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: safePath(url.searchParams.get('return'), ''), analytics: stats.pages, ua: req.headers['user-agent'] }));
+    }
+
+    // Back from linking X. A link, never a sign-in: signed out, it's nothing.
+    if (x && req.method === 'GET' && p === '/account/x/callback') {
+      if (!s) return signInFirst('/account');
+      limit(`xlink|${s.user.id}`, 10);
+      try {
+        const handle = await x.linkFinish(s, url.searchParams);
+        return redirect(res, `/account?m=${encodeURIComponent(`${handle ? `@${handle}` : 'X'} linked. DM @${cfg.x.bot.handle} once to finish.`)}#x`);
+      } catch (err) {
+        if (err.status === 429) throw err;
+        log(`grid: linking X failed: ${err.status || err.message}`);
+        return redirect(res, `/account?m=${encodeURIComponent(err.status ? err.message : 'X didn’t answer. Try again.')}#x`);
+      }
     }
 
     // Sign in with a provider: out to it with state + PKCE (+ nonce), back with a code.
@@ -783,6 +832,16 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         const body = await needCsrf();
         accounts.unlink(s.user.id, String(body.provider || ''));
         return redirect(res, '/account');
+      }
+      if (x && p === '/account/x/link') {
+        await needCsrf();
+        limit(`xlink|${s.user.id}`, 10);
+        return redirect(res, x.linkStart(s));
+      }
+      if (x && p === '/account/x/unlink') {
+        await needCsrf();
+        x.unlink(s.user.id);
+        return redirect(res, `/account?m=${encodeURIComponent('X unlinked.')}#x`);
       }
       if (p === '/account/delete') {
         const body = await needCsrf();
@@ -1204,6 +1263,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' });
         return res.end(h.kind === 'root' ? 'User-agent: *\nDisallow: /api/\nDisallow: /auth/\nDisallow: /activate\nDisallow: /go\n' : 'User-agent: *\nDisallow: /\n');
       }
+      if (h.kind === 'root' && url.pathname === X_WEBHOOK) return await xIn(req, res, url);
+      if (h.kind === 'root' && url.pathname.startsWith('/_grid/x/')) return await xBox(req, res, url);
       if (h.kind === 'root') return await root(req, res, url);
       if (h.kind === 'edge') return await edge(req, res, url, h.handle);
       if (h.kind === 'computer') return await computerEdge(req, res, url, h.computer);
@@ -1268,6 +1329,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
   }
   const server = servers[0];
   inbox.resume(); // what a restart left held
+  x?.start(); // after listening: X calls back with a CRC while the webhook is made
 
   return {
     cfg,
@@ -1276,6 +1338,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     secrets,
     hostd,
     inbox,
+    x,
     sandboxes,
     tunnels,
     server,
@@ -1283,6 +1346,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     async close() {
       clearInterval(sampler);
       inbox.stop();
+      await x?.close();
       sites.close();
       const closed = Promise.all(servers.map((x) => new Promise((r) => x.close(r))));
       tunnels.closeAll();

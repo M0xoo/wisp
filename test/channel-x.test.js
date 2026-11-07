@@ -97,7 +97,7 @@ async function linkX(env, p, xId, username = `user${xId}`) {
   const csrf = /action="\/account\/x\/link"[\s\S]*?name="csrf" value="([^"]+)"/.exec(page.text)?.[1];
   assert.ok(csrf, 'the account page offers to link X');
   const out = await p.b.go(`${env.root}/account/x/link`, { method: 'POST', form: { csrf }, headers: { origin: env.root } });
-  assert.equal(out.status, 303, out.text);
+  assert.equal(out.status, 302, out.text);
   const atX = await fetch(out.location, { redirect: 'manual' });
   assert.equal(atX.status, 302);
   return p.b.go(atX.headers.get('location'));
@@ -272,11 +272,9 @@ test('`in <project>` picks a project; `@project` isn’t read, so it can’t tag
 test('`on laptop` says it isn’t available yet, and runs nothing', { timeout: 60_000 }, async () => {
   const done = await awake(ada);
   const ran = (await tasks(ada)).length;
-  const before = dmsTo(ADA_X).length;
   await x.mention({ author: ADA_X, text: '@wispbot on laptop fix the bug' });
   await settled();
-  await until(() => dmsTo(ADA_X).length > before, { what: 'the line' });
-  assert.match(dmsTo(ADA_X).at(-1).text, /isn’t available yet/);
+  await until(() => dmsTo(ADA_X).some((d) => /isn’t available yet/.test(d.text)), { what: 'the line' });
   await sleep(200);
   assert.equal((await tasks(ada)).length, ran);
   // A sentence that starts the same way isn't refused.
@@ -290,12 +288,12 @@ test('`on laptop` says it isn’t available yet, and runs nothing', { timeout: 6
 test('Plan by default, Edits if asked, Full auto refused with a line', { timeout: 60_000 }, async () => {
   const done = await awake(ada);
   const ran = (await tasks(ada)).length;
-  const before = dmsTo(ADA_X).length;
-  await x.mention({ author: ADA_X, text: '@wispbot with full auto: drop everything' });
+  const lines = () => dmsTo(ADA_X).filter((d) => /Full auto isn’t allowed/.test(d.text)).length;
+  const before = lines();
+  await x.mention({ author: ADA_X, text: '@wispbot full auto: drop everything' });
   await x.mention({ author: ADA_X, text: '@wispbot auto: drop everything' });
   await settled();
-  await until(() => dmsTo(ADA_X).length >= before + 2, { what: 'two lines' });
-  for (const d of dmsTo(ADA_X).slice(before)) assert.match(d.text, /Full auto isn’t allowed/);
+  await until(() => lines() === before + 2, { what: 'two lines' });
   assert.equal((await tasks(ada)).length, ran, 'nothing started');
   await threadFor(ada, ADA_X, 'edits: rename the helper');
   const s = await until(async () => (await tasks(ada)).find((t) => /rename the helper/.test(t.title || '')), { what: 'that task' });
@@ -307,11 +305,9 @@ test('off on the box: dropped, with a DM saying how to turn it on', { timeout: 6
   const done = await awake(bob);
   await bob.ok('/remote', { method: 'PUT', body: { x: { enabled: false } } });
   const ran = (await tasks(bob)).length;
-  const before = dmsTo(BOB_X).length;
   await x.mention({ author: BOB_X, text: '@wispbot delete the logs' });
   await settled();
-  await until(() => dmsTo(BOB_X).length > before, { what: 'the DM' });
-  assert.match(dmsTo(BOB_X).at(-1).text, /Settings → Phone → X/);
+  await until(() => dmsTo(BOB_X).some((d) => /Settings → Phone → X/.test(d.text)), { what: 'the DM' });
   assert.equal((await tasks(bob)).length, ran);
   const r = await bob.ok('/remote');
   assert.equal(r.status.x?.refused, 'off', 'Settings says why');
@@ -344,6 +340,7 @@ test('another person’s linked account reaches their own box, never this one', 
   assert.equal((await tasks(ada)).length, adaRan);
   // In Ada's own conversation, too: it's who wrote it that counts.
   const hers = await threadFor(ada, ADA_X, 'a thread of ada’s');
+  await until(async () => (await tasks(ada)).find((t) => /a thread of ada/.test(t.title || '')), { what: 'ada’s task' });
   const bobNow = (await tasks(bob)).length;
   const adaNow = (await tasks(ada)).length;
   await x.reply({ author: BOB_X, text: '@wispbot in that thread', conversation: hers.id, to: mine(hers)[0]?.id });
@@ -374,6 +371,7 @@ test('a handle change means nothing: it goes by the numeric id', { timeout: 60_0
   await x.mention({ author: EVE_X, text: '@wispbot @old-name it is me' });
   await sleep(150);
   assert.equal((await tasks(ada)).length, eveRan);
+  g.grid.db.run('UPDATE x_links SET handle = ? WHERE user_id = ?', 'ada', ada.user.id);
   done();
 });
 
@@ -585,15 +583,19 @@ test('a row held when they said stop never reaches the box', { timeout: 60_000 }
   const env = await boot({ api: await startFakeX() });
   try {
     const p = await env.person('dee');
-    await p.ok('/status').catch(() => {});
     await linkX(env, p, '333');
     await env.fake.dm({ sender: '333', text: 'hi' });
     await until(() => env.fake.dms.length, { what: 'the welcome' });
-    env.grid.hostd.ensure = () => new Promise(() => {}); // it never gets there: held, as a slow wake
+    const { ensure } = env.grid.hostd;
+    env.grid.hostd.ensure = () => Promise.reject(new Error('later')); // held, as a slow wake
     await env.fake.mention({ author: '333', text: '@wispbot never run' });
+    await until(() => held(env) === 1, { what: 'held' });
     await env.fake.dm({ sender: '333', text: 'stop' });
     await until(() => env.fake.dms.length === 2, { what: 'unlinked' });
-    assert.equal(env.grid.x.still({ channel: 'x', headers: JSON.stringify({ 'x-wisp-x-sender': '333' }) }), false);
+    env.grid.hostd.ensure = ensure.bind(env.grid.hostd);
+    await env.grid.inbox.drain(p.user);
+    assert.equal(held(env), 0);
+    assert.equal(env.grid.hostd.state(p.user.id), 'stopped', 'never woken for it');
     assert.equal(env.grid.x.still({ channel: 'telegram', headers: '{}' }), true);
   } finally {
     await env.grid.close();
@@ -683,17 +685,16 @@ test('a thread expires', async () => {
 
 test('scrubbed here too, and chunked within X’s DM limit', async () => {
   const p = await threadFor(ada, ADA_X, 'scrub');
-  const before = dmsTo(ADA_X).length;
   const secret = `ghp_${'a1B2'.repeat(9)}`;
   assert.equal((await replyAs(ada, { thread: p.id, text: `the token is ${secret}` })).status, 200);
-  await until(() => dmsTo(ADA_X).length > before, { what: 'the DM' });
-  assert.ok(!dmsTo(ADA_X).at(-1).text.includes(secret));
-  assert.match(dmsTo(ADA_X).at(-1).text, /took a secret out/);
-  const n = dmsTo(ADA_X).length;
+  const said = await until(() => dmsTo(ADA_X).find((d) => /^the token is/.test(d.text)), { what: 'the DM' });
+  assert.ok(!said.text.includes(secret));
+  assert.match(said.text, /took a secret out/);
   const long = 'line of the report\n'.repeat(1400); // 26 600 characters
   assert.equal((await replyAs(ada, { thread: p.id, text: long })).status, 200);
-  await until(() => dmsTo(ADA_X).slice(n).map((d) => d.text).join('').replace(/\s/g, '').length === long.replace(/\s/g, '').length, { what: 'all of it', timeout: 8000 });
-  const parts = dmsTo(ADA_X).slice(n);
+  const pieces = () => dmsTo(ADA_X).filter((d) => d.text.startsWith('line of the report'));
+  await until(() => pieces().map((d) => d.text).join('').replace(/\s/g, '').length === long.replace(/\s/g, '').length, { what: 'all of it', timeout: 8000 });
+  const parts = pieces();
   assert.ok(parts.length >= 3);
   for (const d of parts) assert.ok([...d.text].length <= 10_000);
   const big = await replyAs(ada, { thread: p.id, text: 'x'.repeat(41 * 1024) });
@@ -841,14 +842,12 @@ test('the check comes before the spending: a burst can’t go past the cap by mo
   try {
     const p = await env.person('dee');
     await linkX(env, p, '333');
-    env.grid.hostd.ensure = () => new Promise(() => {}); // the box stays out of it: only spend is measured
+    env.grid.hostd.ensure = () => Promise.reject(new Error('later')); // the box stays out of it: only spend is measured
     const posts = await Promise.all(Array.from({ length: 10 }, (_, i) => fake.mention({ author: '333', text: `@wispbot n${i}` })));
     await until(() => env.grid.db.get('SELECT tripped FROM x_spend')?.tripped === 1, { what: 'tripped' });
     await sleep(150);
-    const spent = env.grid.db.get('SELECT mills FROM x_spend').mills;
-    assert.ok(spent <= 40 + xMod.COST.post + xMod.COST.reply, `spent ${spent}`);
-    assert.equal(fake.tweets.length, Math.ceil(fake.tweets.length), 'counted');
-    assert.ok(fake.tweets.length <= 3, `${fake.tweets.length} replies`);
+    assert.equal(fake.tweets.length, 2, 'what 40 tenths buys, inbound counted: 5 + 10 + 5 + 10');
+    assert.equal(env.grid.db.get('SELECT mills FROM x_spend').mills, 10 * xMod.COST.post + 2 * xMod.COST.reply, 'all ten arrivals, billed, and two replies');
     assert.ok(posts.every((r) => r.status === 200), 'X is answered 200 anyway');
   } finally {
     await env.grid.close();
@@ -963,7 +962,7 @@ test('linking: PKCE, the right scopes, and nothing of X’s tokens is kept', asy
   const issued = x.issued.at(-1);
   assert.equal(issued.scope, 'users.read tweet.read offline.access');
   assert.ok(x.revoked.includes(issued.refresh), 'handed back at once');
-  const dump = JSON.stringify([...g.grid.db.all('SELECT * FROM x_links'), ...g.grid.db.all('SELECT * FROM x_flows'), ...g.grid.db.all('SELECT * FROM audit'), ...g.grid.db.all('SELECT name FROM user_secrets')]);
+  const dump = JSON.stringify([...g.grid.db.all('SELECT * FROM x_links'), ...g.grid.db.all('SELECT * FROM x_flows'), ...g.grid.db.all('SELECT * FROM audit'), ...g.grid.db.all('SELECT * FROM user_secrets')]);
   assert.ok(!dump.includes(issued.access) && !dump.includes(issued.refresh));
   assert.ok(auditOf('x.link').some((a) => a.user_id === ada.user.id));
 });
@@ -972,14 +971,18 @@ test('the account page says what linking needs, and shows the link only on the g
   const page = await ada.b.go(`${g.root}/account`);
   assert.match(page.text, /@ada/);
   assert.match(page.text, /[Pp]rotected accounts won’t work/);
-  assert.match(page.text, /DM <b>@wispbot<\/b> once/);
-  assert.match(page.text, /stop/);
+  assert.match(page.text, /Results come by DM from <b>@wispbot<\/b>/);
+  assert.match(page.text, /the word <code>stop<\/code>/);
   const fresh = await g.person('gil');
   const p2 = await fresh.b.go(`${g.root}/account`);
   assert.match(p2.text, /action="\/account\/x\/link"/);
+  assert.match(p2.text, /a DM once/);
+  assert.match(p2.text, /doesn’t sign you in/);
+  await linkX(g, fresh, '889');
+  assert.match((await fresh.b.go(`${g.root}/account`)).text, /DM <b>@wispbot<\/b> once, or results can’t reach you/);
   // The box's own origin has no such route: it's proxied, never the grid's.
   const edge = await ada.b.go(`${g.cfg.instanceUrl('ada')}/account/x/link`, { method: 'POST', form: { csrf: 'a' } });
-  assert.notEqual(edge.status, 303);
+  assert.notEqual(edge.status, 302);
 });
 
 test('linking needs the session and its CSRF token; a flow is one person’s, and one time', async () => {
@@ -988,7 +991,8 @@ test('linking needs the session and its CSRF token; a flow is one person’s, an
   assert.equal(noCsrf.status, 403);
   const page = await p.b.go(`${g.root}/account`);
   const csrf = /action="\/account\/x\/link"[\s\S]*?name="csrf" value="([^"]+)"/.exec(page.text)[1];
-  assert.equal((await g.call('/account/x/link', { headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: `csrf=${encodeURIComponent(csrf)}` })).status, 403, 'no session');
+  const noSession = await g.call('/account/x/link', { headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: `csrf=${encodeURIComponent(csrf)}` });
+  assert.ok(noSession.status === 302 && /signin/.test(noSession.headers.location), 'no session');
   const foreign = await p.b.go(`${g.root}/account/x/link`, { method: 'POST', form: { csrf }, headers: { origin: 'http://ada.wisp.localhost' } });
   assert.equal(foreign.status, 403, 'a page on a box can’t post it');
 
@@ -1020,7 +1024,7 @@ test('the Box secret can’t link, unlink or read tokens', async () => {
     ['/account/x/callback?state=a&code=b', { method: 'GET', headers: auth }],
   ]) {
     const r = await g.call(p, o);
-    assert.ok([303, 403].includes(r.status) && !/oauth2\/authorize/.test(r.headers.location || ''), `${p}: ${r.status}`);
+    assert.ok([302, 403].includes(r.status) && !/oauth2\/authorize/.test(r.headers.location || ''), `${p}: ${r.status}`);
   }
   assert.ok(g.grid.db.get('SELECT 1 FROM x_links WHERE user_id = ?', ada.user.id));
   const state = await g.call('/_grid/x/state', { method: 'GET', headers: auth });
@@ -1050,11 +1054,10 @@ test('unlinking X isn’t losing a sign-in method: one identity is enough to do 
   const page = await p.b.go(`${g.root}/account`);
   const csrf = /action="\/account\/x\/unlink"[\s\S]*?name="csrf" value="([^"]+)"/.exec(page.text)[1];
   const r = await p.b.go(`${g.root}/account/x/unlink`, { method: 'POST', form: { csrf }, headers: { origin: g.root } });
-  assert.equal(r.status, 303);
+  assert.equal(r.status, 302);
   assert.ok(!g.grid.db.get('SELECT 1 FROM x_links WHERE user_id = ?', p.user.id));
   assert.equal(g.grid.db.get('SELECT count(*) n FROM identities WHERE user_id = ?', p.user.id).n, 1);
   assert.ok(auditOf('x.unlink').some((a) => a.user_id === p.user.id));
-  assert.equal((await g.call('/identities/unlink', { body: 'x' })).status >= 400, true);
   assert.throws(() => g.grid.accounts.unlink(p.user.id, 'x'), /Keep at least one way/);
 });
 
@@ -1071,7 +1074,8 @@ test('the per-address limit stops a flood before it’s read', async () => {
   const fake = await startFakeX();
   const env = await boot({ api: fake });
   try {
-    const hits = await Promise.all(Array.from({ length: xMod.PER_IP + 5 }, () => env.call(WEBHOOK, { body: '{}' })));
+    const hits = [];
+    for (let left = xMod.PER_IP + 5; left > 0; left -= 50) hits.push(...(await Promise.all(Array.from({ length: Math.min(50, left) }, () => env.call(WEBHOOK, { body: '{}' })))));
     assert.ok(hits.some((r) => r.status === 429));
     assert.ok(!hits.some((r) => r.status === 200));
   } finally {

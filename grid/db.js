@@ -91,6 +91,31 @@ const MIGRATIONS = [
      size INTEGER NOT NULL, at INTEGER NOT NULL, tries INTEGER NOT NULL DEFAULT 0,
      next_at INTEGER NOT NULL DEFAULT 0, done_at INTEGER, UNIQUE (user_id, event_key));
    CREATE INDEX channel_inbox_held ON channel_inbox(user_id, done_at, id);`,
+  // X (grid/x.js). x_links: who a post is from, by X's numeric id. Apart from identities on purpose:
+  // that table is what signs in. dm_open: they've written to the bot, so it may write to them.
+  // x_flows: a link on its way, bound to the session that started it. x_seen: event and post ids
+  // already taken, so a retry does nothing even after a restart. x_threads: what a box accepted, which
+  // is all it may answer. x_outbox: what hasn't gone yet. x_sent: a box's replies of the last hour.
+  // x_spend: what a UTC day cost, in tenths of a cent, and the strangers who mentioned the bot.
+  `CREATE TABLE x_links (
+     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, x_id TEXT UNIQUE NOT NULL,
+     handle TEXT NOT NULL DEFAULT '', dm_open INTEGER NOT NULL DEFAULT 0, linked_at INTEGER NOT NULL);
+   CREATE TABLE x_flows (
+     state_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     session_hash TEXT NOT NULL, verifier TEXT NOT NULL, expires_at INTEGER NOT NULL);
+   CREATE TABLE x_seen (key TEXT PRIMARY KEY, at INTEGER NOT NULL);
+   CREATE TABLE x_threads (
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, thread TEXT NOT NULL,
+     conversation TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (user_id, thread));
+   CREATE INDEX x_threads_conversation ON x_threads(user_id, conversation);
+   CREATE TABLE x_outbox (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     thread TEXT, text TEXT NOT NULL, at INTEGER NOT NULL, tries INTEGER NOT NULL DEFAULT 0, next_at INTEGER NOT NULL DEFAULT 0);
+   CREATE INDEX x_outbox_user ON x_outbox(user_id, id);
+   CREATE TABLE x_sent (user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, at INTEGER NOT NULL);
+   CREATE INDEX x_sent_user ON x_sent(user_id, at);
+   CREATE TABLE x_spend (
+     day TEXT PRIMARY KEY, mills INTEGER NOT NULL DEFAULT 0, strangers INTEGER NOT NULL DEFAULT 0, tripped INTEGER NOT NULL DEFAULT 0);`,
 ];
 
 export async function openDb(dataDir) {
