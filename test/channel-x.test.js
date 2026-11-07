@@ -1089,6 +1089,86 @@ test('the strangers’ ceiling is hard: X’s subscriptions go, audited once, an
   }
 });
 
+test('a hard stop lasts the day: everyone sees it, and the next day’s sweep listens again by itself', { timeout: 60_000 }, async () => {
+  const fake = await startFakeX();
+  const env = await boot({ api: fake, xCfg: { ...CREDS, strangerSpendCents: 2 } });
+  try {
+    await until(() => fake.subscriptions.length === 3, { what: 'subscribed' });
+    const p = await env.person('dee');
+    await linkX(env, p, '333');
+    for (let i = 0; i < 6; i++) await fake.mention({ author: `9${i}`, text: '@wispbot spam' });
+    await until(() => fake.subscriptions.length === 0, { what: 'unsubscribed' });
+    assert.equal(env.grid.x.view(p.user).stopped, true, 'a person sees it, not only an admin');
+    assert.equal(env.grid.x.view(p.user, { admin: true }).spend.stopped, true);
+    const state = await env.call('/_grid/x/state', { method: 'GET', headers: { authorization: p.auth } });
+    assert.equal(state.json().capped, true, 'the box says it’s back at 00:00 UTC');
+    assert.match((await p.b.go(`${env.root}/account`)).text, /stopped listening for today/);
+    // Midnight UTC: the sweep, no restart.
+    env.grid.db.run("UPDATE x_spend SET day = '2000-01-01'");
+    env.grid.x.sweep();
+    await until(() => fake.subscriptions.length === 3, { what: 'listening again' });
+    await until(() => env.grid.x.view(p.user, { admin: true }).spend.stopped === false, { what: 'not stopped' });
+    assert.equal(env.grid.x.view(p.user).stopped, false);
+    env.grid.x.sweep();
+    await sleep(100);
+    assert.equal(fake.subscriptions.length, 3, 'once: a sweep that finds it listening does nothing');
+  } finally {
+    await env.grid.close();
+    await fake.close();
+    x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
+  }
+});
+
+test('a ceiling raised in grid.json, and a restart, listen again the same day', { timeout: 60_000 }, async () => {
+  const fake = await startFakeX();
+  const env = await boot({ api: fake, xCfg: { ...CREDS, strangerSpendCents: 2 } });
+  try {
+    await until(() => fake.subscriptions.length === 3, { what: 'subscribed' });
+    for (let i = 0; i < 6; i++) await fake.mention({ author: `9${i}`, text: '@wispbot spam' });
+    await until(() => fake.subscriptions.length === 0, { what: 'unsubscribed' });
+    await env.grid.close();
+    env.cfg.x.strangerSpendCents = 1000;
+    env.grid = await startGrid(env.cfg, { log: () => {} });
+    await until(() => fake.subscriptions.length === 3, { what: 'restored' });
+    assert.equal(env.grid.db.get('SELECT hard FROM x_spend').hard, 0);
+  } finally {
+    await env.grid.close();
+    await fake.close();
+    x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
+  }
+});
+
+test('dailySpendCents 0 is X off: nothing listens, nothing runs, and no ceiling trips', { timeout: 60_000 }, async () => {
+  const fake = await startFakeX();
+  const env = await boot({ api: fake });
+  try {
+    await until(() => fake.subscriptions.length === 3, { what: 'subscribed' });
+    const p = await env.person('dee');
+    await linkX(env, p, '333');
+    await env.grid.close();
+    env.cfg.x.dailySpendCents = 0;
+    env.cfg.x.strangerSpendCents = 0;
+    env.grid = await startGrid(env.cfg, { log: () => {} });
+    await until(() => fake.subscriptions.length === 0, { what: 'what was there is removed' });
+    await fake.mention({ author: '9', text: '@wispbot spam' });
+    const { post } = await fake.mention({ author: '333', text: '@wispbot do it' });
+    await fake.dm({ sender: '333', text: 'hi' });
+    await sleep(150);
+    assert.equal(mine(post, fake).length, 0);
+    assert.equal(fake.dms.length, 0);
+    assert.equal(env.grid.db.get("SELECT count(*) n FROM channel_inbox WHERE channel = 'x'").n, 0);
+    assert.equal(auditOf('x.hard', env).length, 0, 'off isn’t a ceiling tripping');
+    assert.equal(env.grid.x.view(p.user).paused, true);
+    env.grid.x.sweep();
+    await sleep(100);
+    assert.equal(fake.subscriptions.length, 0, 'and the sweep doesn’t bring it back');
+  } finally {
+    await env.grid.close();
+    await fake.close();
+    x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
+  }
+});
+
 test('the linked cap: past it no replies, no DMs, nothing wakes; audited once; and twice the cap is hard too', { timeout: 60_000 }, async () => {
   const fake = await startFakeX();
   const env = await boot({ api: fake, xCfg: { ...CREDS, dailySpendCents: 5 } });

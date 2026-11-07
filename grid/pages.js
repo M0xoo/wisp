@@ -725,8 +725,8 @@ function xSection({ x, hidden }) {
   if (!x) return '';
   const bot = `<b>@${esc(x.bot)}</b>`;
   const dm = x.dmOpen ? `Results come by DM from ${bot}.` : `One step left: DM ${bot} once, or results can’t reach you.`;
-  const state = x.paused ? 'X is paused on this grid for now.' : x.capped ? 'X has reached its limit for today. It’s back at 00:00 UTC.' : '';
-  const spend = x.spend ? `<p class="hint">Admin: X cost ${(x.spend.cents / 100).toFixed(2)} of ${(x.spend.cap / 100).toFixed(2)} dollars today, and ${(x.spend.strangerCents / 100).toFixed(2)} on ${x.spend.strangers} stranger${x.spend.strangers === 1 ? '' : 's'} ignored.${x.spend.stopped ? ' It passed a ceiling and stopped listening: see the grid’s log for how to restore it.' : ''}</p>` : '';
+  const state = x.paused ? 'X is paused on this grid for now.' : x.stopped ? 'X stopped listening for today on this grid. It’s back at 00:00 UTC.' : x.capped ? 'X has reached its limit for today. It’s back at 00:00 UTC.' : '';
+  const spend = x.spend ? `<p class="hint">Admin: X cost ${(x.spend.cents / 100).toFixed(2)} of ${(x.spend.cap / 100).toFixed(2)} dollars today, and ${(x.spend.strangerCents / 100).toFixed(2)} on ${x.spend.strangers} stranger${x.spend.strangers === 1 ? '' : 's'} ignored.${x.spend.stopped ? ' It passed a ceiling and stopped listening until 00:00 UTC: see the grid’s log to restore it sooner.' : ''}${x.spend.down ? ` X isn’t listening: ${esc(x.spend.down)}.` : ''}</p>` : '';
   return `
       <h2 class="sec" id="x">X</h2>
       <p class="hint">Post <code>@${esc(x.bot)} fix the flaky login test</code> and your cloud wisp runs it. One fixed line answers in public, and the result comes by DM. Protected accounts won’t work: X doesn’t deliver their posts. Turn it on in your wisp, in Settings → Phone → X.</p>

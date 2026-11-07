@@ -182,7 +182,7 @@ What a person has to do, since an agent can't:
    agent's output.
 4. **Restart the grid.** Once listening it creates the webhook at `https://<domain>/_x/webhook` (X
    allows no port there, and asks the CRC at once) and subscribes the bot to `post.mention.create`,
-   `post.reply.create` and `dm.received`. A failure is a log line, and the next start tries again.
+   `post.reply.create` and `dm.received`. A failure is a log line, and the sweep tries again each minute.
 
 What it costs: 0.5¢ a mention, including strangers', 1¢ a reply, 1.5¢ a DM out and 1¢ a DM in, so about
 3¢ a task. Each is counted per UTC day in `x_spend`, and refunded when X refuses.
@@ -192,9 +192,12 @@ What it costs: 0.5¢ a mention, including strangers', 1¢ a reply, 1.5¢ a DM ou
   their account page.
 - **`strangerSpendCents`** is apart, so a flood of mentions can't spend what linked people's replies need.
 - **X bills whatever it delivers**, so two ceilings are hard: `strangerSpendCents`, and twice
-  `dailySpendCents`. At either the grid deletes its subscriptions (one `x.hard` in `audit`, and a log line
-  that says this): wait for 00:00 UTC or raise the ceiling, then restart the grid to restore them. Nothing
-  brings them back by itself.
+  `dailySpendCents`. At either the grid deletes its subscriptions for the rest of that UTC day (one
+  `x.hard` in `audit`, and a log line that says this), and the account page tells everyone X stopped for
+  today. The first sweep after 00:00 UTC subscribes again by itself. To restore it sooner, raise the
+  ceiling past what the day has cost and restart the grid.
+- **`"dailySpendCents": 0`** is X off: no subscriptions (a start removes any there are), nothing runs, and
+  the account page says X is paused.
 - **The real limit is X's prepaid credit, with auto-recharge off.** The counters are the grid's own
   estimate of X's bill, and they can't see an event that never arrived or a price that changed.
 

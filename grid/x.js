@@ -18,8 +18,10 @@
 //   - What a day costs. Anyone can mention the bot, and X bills for it, so strangers count in a pool of
 //     their own: they can't spend what linked people's replies need. dailySpendCents is linked people's,
 //     and past it nothing goes out or wakes until 00:00 UTC. X keeps billing whatever it delivers, so
-//     strangerSpendCents, and twice dailySpendCents, are hard: the subscriptions are taken away, and
-//     a person restores them with a restart. No box can spend more than piecesPerDay.
+//     strangerSpendCents, and twice dailySpendCents, are hard: the subscriptions are taken away for
+//     the rest of that UTC day, and the first sweep of the next one subscribes again (so does a restart
+//     with a ceiling raised past what the day has cost). dailySpendCents 0 is X off, not a cap of
+//     nothing. No box can spend more than piecesPerDay.
 //
 // A link isn't an identity. identities is what signs in, what isAdmin and allow lists read: x_links
 // has none of that, so taking over an X account reaches a box, as it must, and never a grid account.
@@ -193,6 +195,7 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
   const authorizeUrl = opts.api === 'https://api.x.com' ? 'https://x.com/i/oauth2/authorize' : `${opts.api}/i/oauth2/authorize`;
   const redirectUri = `${cfg.publicUrl}/account/x/callback`;
   const cap = opts.dailySpendCents * 10;
+  const off = opts.dailySpendCents === 0; // X off: nothing listens, and nothing is a ceiling tripping
   const sends = new Set(); // sends on their way, so close() can wait for them
   const pumping = new Map(); // user id -> the outbox being sent
   const again = new Set(); // user ids with more for it than it knew
@@ -224,11 +227,13 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
   }
 
   // X bills what it delivers, whatever wisp does with it: the only way to stop that is to stop listening.
+  // Until the day is over: x.stopped stays in meta, and everyone is shown it, until X listens again.
   function stopListening(why) {
     if (!db.run('UPDATE x_spend SET hard = 1 WHERE day = ? AND hard = 0', today()).changes) return;
+    set('x.stopped', today());
     accounts.audit(null, 'x.hard', { day: today(), why });
-    log(`grid: X stopped listening: ${why} passed its ceiling, so its subscriptions are removed and X bills nothing more. To restore them, wait for 00:00 UTC or raise the ceiling in grid.json, then restart the grid.`);
-    track(unsubscribe().catch((err) => log(`grid: X: the subscriptions are still there: ${err.message}. It tries again every minute.`)));
+    log(`grid: X stopped listening: ${why} passed its ceiling, so its subscriptions are removed and X bills nothing more. It listens again at 00:00 UTC by itself; to restore it sooner, raise the ceiling in grid.json and restart the grid.`);
+    tend();
   }
 
   // Everything that costs money asks here first. No await between the check and the count, so a burst
@@ -493,6 +498,49 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
     }
   }
 
+  const subscribed = () => EVENTS.filter((e) => meta(`x.sub.${e}`));
+  const listening = () => !!meta('x.webhook') && subscribed().length === EVENTS.length && !meta('x.stopped');
+
+  // What X should be sending, made so: nothing while off or past a ceiling today, everything otherwise.
+  // One at a time, and once more if asked while it ran: a stop can't pass a subscribe on its way.
+  async function converge() {
+    if (off || day()?.hard) {
+      if (subscribed().length) await unsubscribe();
+      return;
+    }
+    if (opts.paused || listening()) return;
+    const was = meta('x.stopped');
+    await register();
+    db.run("DELETE FROM meta WHERE k IN ('x.stopped', 'x.down')");
+    if (was) log('grid: X is listening again.');
+  }
+  let tending = null;
+  let tendAgain = false;
+  function tend() {
+    if (stopped) return Promise.resolve();
+    if (tending) {
+      tendAgain = true;
+      return tending;
+    }
+    tending = track(
+      (async () => {
+        do {
+          tendAgain = false;
+          try {
+            await converge();
+          } catch (err) {
+            // Once per reason, not every minute: the sweep keeps trying.
+            if (meta('x.down') !== err.message) log(`grid: X: ${off || day()?.hard ? 'the subscriptions are still there' : 'not listening'}: ${err.message}. It tries again every minute.`);
+            set('x.down', err.message);
+          }
+        } while (tendAgain && !stopped);
+      })().finally(() => {
+        tending = null;
+      }),
+    );
+    return tending;
+  }
+
   function sweep() {
     db.run('DELETE FROM x_seen WHERE at < ?', Date.now() - SEEN_MS);
     db.run('DELETE FROM x_flows WHERE expires_at < ?', Date.now());
@@ -501,8 +549,8 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
     db.run('DELETE FROM x_sent WHERE at < ?', Date.now() - HOUR_MS);
     db.run('DELETE FROM x_rate WHERE at < ?', Date.now() - HOUR_MS);
     db.run('DELETE FROM x_day WHERE day < ?', today());
-    if (day()?.hard) track(unsubscribe().catch((err) => log(`grid: X: the subscriptions are still there: ${err.message}.`)));
-    if (opts.paused) return;
+    tend(); // a new UTC day listens again
+    if (opts.paused || off) return;
     for (const r of db.all('SELECT DISTINCT o.user_id FROM x_outbox o JOIN x_links l ON l.user_id = o.user_id WHERE l.dm_open = 1')) pump(r.user_id);
   }
   const sweeper = setInterval(() => {
@@ -515,11 +563,16 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
   sweeper.unref?.();
 
   return {
-    paused: !!opts.paused,
+    paused: !!opts.paused || off,
     sweep,
     start() {
-      if (opts.paused || day()?.hard) return; // hard: until tomorrow, or a higher ceiling and a new day's row
-      setImmediate(() => register().catch((err) => log(`grid: X: the webhook isn’t set up: ${err.message}`)));
+      // A ceiling raised past what today cost: the day's stop is over.
+      const d = day();
+      if (!off && d?.hard && d.stranger_mills < opts.strangerSpendCents * 10 && d.mills < cap * 2) {
+        db.run('UPDATE x_spend SET hard = 0 WHERE day = ?', today());
+        log('grid: X: its ceiling is above what today cost, so it listens again.');
+      }
+      setImmediate(tend); // CRC runs while this waits, so it has to come after the grid is listening
     },
     close() {
       stopped = true;
@@ -540,6 +593,7 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
       if (!raw) return { status: 413, body: { error: 'Too big.' } };
       if (!verified(raw, req.headers, { clientSecret: opts.clientSecret, consumerSecret: bot.consumerSecret })) return { status: 403, body: { error: 'Not signed.' } };
       if (!isObject(raw)) return { status: 403, body: { error: 'Not an event.' } };
+      if (off) return { status: 200, body: { ok: true } }; // what X sends before it hears it's off
       const ev = readEvent(raw);
       if (ev && first(`e:${ev.id}`)) {
         if (ev.kind === 'post') takePost(ev);
@@ -593,17 +647,18 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
         linked: !!l,
         handle: l?.handle || '',
         dmOpen: !!l?.dm_open,
-        paused: !!opts.paused,
+        paused: !!opts.paused || off,
         capped: spent() >= cap,
+        stopped: !!meta('x.stopped'), // past a ceiling: until X listens again, which is tomorrow
         on: boxOn(user.id),
-        ...(admin && { spend: { cents: Math.round(spent() / 10), cap: opts.dailySpendCents, strangers: day()?.strangers || 0, strangerCents: Math.round((day()?.stranger_mills || 0) / 10), stopped: !!day()?.hard } }),
+        ...(admin && { spend: { cents: Math.round(spent() / 10), cap: opts.dailySpendCents, strangers: day()?.strangers || 0, strangerCents: Math.round((day()?.stranger_mills || 0) / 10), stopped: !!meta('x.stopped'), down: meta('x.down') || '' } }),
       };
     },
 
     // For the box: what Settings shows. The Box secret gets nothing it could use.
     state(user) {
-      const { bot: handle, linked, handle: mine, dmOpen, paused, capped, on } = this.view(user);
-      return { bot: handle, linked, handle: mine, dmOpen, paused, capped, on, account: `${cfg.publicUrl}/account#x` };
+      const { bot: handle, linked, handle: mine, dmOpen, paused, capped, stopped: hard, on } = this.view(user);
+      return { bot: handle, linked, handle: mine, dmOpen, paused, capped: capped || hard, on, account: `${cfg.publicUrl}/account#x` }; // either way, back at 00:00 UTC
     },
 
     // The box's switch, as it told us. It's only whether a wake is worth it: an agent with the Box secret
