@@ -608,8 +608,7 @@ test('forwards count against the sender’s limit, and past it are told once', a
     const two = await answerTo(say('two', FORWARD));
     assert.match(two.text, /^That’s a lot of messages/);
     const three = say('three', FORWARD);
-    srv.remote.channels.telegram.limit = limit;
-    await handled();
+    await answerTo(say('done', { from: { id: 8, first_name: 'Ada' } })); // someone else, so past the limit's own silence
     assert.equal(net.sent.find((m) => m.reply_to_message_id === three), undefined);
   } finally {
     srv.remote.channels.telegram.limit = limit;

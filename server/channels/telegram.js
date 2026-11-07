@@ -22,6 +22,11 @@ const COMMANDS = [
   ['machines', 'Your machines and who’s online'],
   ['status', 'What’s running and waiting'],
 ];
+const FORWARD_FIELDS = ['forward_origin', 'forward_from', 'forward_from_chat', 'forward_sender_name', 'forward_date', 'is_automatic_forward'];
+
+// A forward's text is someone else's, but it arrives as the linked person's message, so it must not
+// run as theirs. The old fields count too: Bot API 7.0 replaced them, and old payloads still have them.
+const forwarded = (m) => FORWARD_FIELDS.some((f) => m[f] != null && m[f] !== false);
 
 export class Telegram extends Channel {
   constructor(hub) {
@@ -117,6 +122,12 @@ export class Telegram extends Channel {
     }
     const m = u.message;
     if (!m?.text) return;
+    if (forwarded(m)) {
+      const g = gate({ sender: m.chat.id, senders: [t.chatId], limit: this.limit, rateKey: m.from?.id });
+      const line = g.ok ? 'Forwarded, so nothing started. Say it in your own words to run it.' : g.reply;
+      if (line) await say(line, { reply_to_message_id: m.message_id });
+      return;
+    }
     if (!t.chatId) {
       // Linking: only the chat that sends the code shown in wisp's settings gets attached.
       if (t.linkCode && m.text.replace(/^\/(start|link)\s*/, '').trim() === t.linkCode) {

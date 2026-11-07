@@ -380,6 +380,7 @@ const PROJECTS = [{ id: 'p1', name: 'api', path: '/x/api' }];
 for (const allowStart of [true, false]) {
   test(`legacy path, allowStart ${allowStart ? 'on' : 'off'}: a forward runs nothing, whichever field says it’s one`, async () => {
     const { r, calls } = rig({ telegram: { allowStart }, projects: PROJECTS, sessions: [{ id: 's1', remote: { tg: [500] } }] });
+    r.channels.telegram.limit.max = 1000; // this test is one busy sender
     r.start();
     const fields = Object.entries(FORWARDS);
     for (const [k, v] of fields) {
