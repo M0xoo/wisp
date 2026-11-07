@@ -282,6 +282,9 @@ test('sharing a task: a pasted link\'s card and the Share dialog are parts, with
   assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.share'] }, parts: { 'share.dialog': { style: { borderRadius: '6px' } } } }), []);
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'card.menu', icon: 'share', label: 'Share', do: { toast: 'hi' } }] }).filter((x) => /icon/.test(x)), []);
   assert.ok(problems({ ...base0, ui: { hide: ['launcher.shared'] } }).some((x) => /launcher\.shared/.test(x)));
+  assert.equal(schema.PARTS['launcher.sharedNote'], '#launcher .l-shared');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.sharedNote'] }, parts: { 'launcher.sharedNote': { style: { color: 'var(--ink)' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'launcher.sharednote': { style: { color: 'red' } } } }).some((x) => /launcher\.sharednote/.test(x)));
 });
 
 test('bringing in worktrees: the offer and its buttons are parts a spell can restyle or hide', () => {

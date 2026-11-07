@@ -141,7 +141,7 @@ bus.on('listed', () => ((listed = true), paintFirstRun()));
 // Something shared in (share-in.js): below what's typed, its files in the tray; nothing starts.
 // fallback: the words for files that came with none, on an empty box only.
 // files: for tray.hold. Any site can get here (share-form.js), so it says so until it's sent; kept
-// over a reload like the draft. No spell part: like the spell review, it's there to be read.
+// over a reload like the draft.
 const earlyFiles = [];
 export function fillLauncher(text, files = [], { when, fallback = '' } = {}) {
   const box = $('#launcher');
