@@ -1152,6 +1152,15 @@ test('telemetry: counts only, never what was said', async () => {
   assert.ok(!JSON.stringify(seen).includes('secret plan'));
 });
 
+test('a day’s guesses spent: Unlink starts the count again, and the owner’s new code links', async () => {
+  srv.store.config.remote.slack.linkGuess = { day: new Date().toISOString().slice(0, 10), wrong: 0, spent: 50 };
+  const v = await api('/remote', { method: 'PUT', body: { slack: { unlink: true } } });
+  assert.equal(srv.store.config.remote.slack.linkGuess, undefined, 'the count goes with the code');
+  await connected();
+  const l = dm(`link ${v.slack.linkCode}`, { user: ME });
+  assert.match(await next(l.thread), /^✓ Linked to wisp/);
+});
+
 test('unlinking: everyone goes, a new code, and they’re strangers again; off stops it', async () => {
   const before = (await api('/remote')).slack.linkCode;
   const v = await api('/remote', { method: 'PUT', body: { slack: { unlink: true } } });

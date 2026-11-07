@@ -339,7 +339,7 @@ export const PARTS = {
   'split.pane.grip': '#splitHome .sh-grip', // the handles between panes and under them: hide them and the sizes are the spell's
   'split.pane.row': '#splitHome .sh-pane-row', // a pane's row when stacked (a phone, a narrow window): it opens as a page
   'split.spare': '#splitHome .sh-spare',
-  'split.spare.start': '#splitHome .sh-spare .sp-start', // Use <harness>: picks that harness and account in the prompt box
+  'split.spare.start': '#splitHome .sh-spare .spr-start', // Use <harness>: picks that harness and account in the prompt box
   // Window changes (web/js/window-notice.js): a row when a plan's usage window appears, goes, changes length or moves its reset.
   'split.windowNotice': '#splitHome .sh-spare .wn-card',
   'split.feedback': '#splitHome .sh-fb', // Hit a bug, or an idea: opens Send feedback (hidden when feedback is off)
@@ -465,15 +465,16 @@ export const PARTS = {
   'phone.github': '.phone-modal .ph-gh', // Phone → GitHub: comment /wisp on an issue or PR
   'phone.slack': '.phone-modal .ph-sk', // Phone → Slack: its status, setup steps and who's linked
   'phone.discord': '.phone-modal .ph-dc', // Phone → Discord: its status, setup steps and who's linked
+  'phone.discordUrl': '.phone-modal .ph-dc .ph-endpoint', // Phone → Discord, on a cloud computer: the Interactions Endpoint URL to copy
   'phone.email': '.phone-modal .ph-em', // Phone → Email, on a cloud computer: the secret address and who may send
   // Settings → Cloud: your cloud computers, and signing in to a wisp Grid.
   'settings.worktrees': '.wtr-box', // Settings → Worktrees
   'settings.worktrees.cleanup': '.wtr-auto', // Clean up automatically
   'settings.worktrees.list': '.wtr-list', // The worktrees on disk
   'settings.cloud': '.sx-cloud',
-  'settings.cloud.computer': '.cl-card',
-  'settings.cloud.signin': '.cl-signin',
-  'settings.cloud.add': '.cl-add', // Add an account, once you have one (opens the sign-in)
+  'settings.cloud.computer': '.cg-card',
+  'settings.cloud.signin': '.cg-signin',
+  'settings.cloud.add': '.cg-add', // Add an account, once you have one (opens the sign-in)
   'settings.cloud.sandboxes': '.sbx-card', // Sandboxes: /sandbox's boxes and the Claude sign-in they start with
   'settings.cloud.keys': '.key-card', // API keys: for scripting a cloud wisp
   'settings.cloud.keys.reveal': '.key-new', // A new API key, shown once

@@ -148,7 +148,7 @@ plan their week around those resets. Moris's queue (#5), 2026-11-03.
   *… is gone: it no longer reports one*. Weekday and time; the tooltip has the dates and when wisp
   saw it.
 - **Where**: a line in the account's block in Settings → Usage (`.bg-note`, under the bars), and
-  a row in home's `.sh-spare` box after the spare rows (`.sp-card.wn-card`: logo, line, ×; at most
+  a row in home's `.sh-spare` box after the spare rows (`.spr-card.wn-card`: logo, line, ×; at most
   two, newest first). Setting `windowNotice` (on unless off, spell-lockable), Settings → Usage →
   *Window changes*.
 - **Terms.** Advice only: no action button, nothing switches.

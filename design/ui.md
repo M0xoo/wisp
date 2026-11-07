@@ -78,6 +78,15 @@ Use what's in `web/css/tokens.css` and `web/css/base.css`; don't style a control
 - Disabled is `opacity` ~0.5 and `cursor: not-allowed`, not hidden, unless the action can never
   apply in that context.
 
+## Class names
+
+`web/css` is one namespace: a class's own rule (`.x { … }`, `.x:hover`) lives in one stylesheet,
+and an area's prefix (`cx-` Changes, `cn-` Connectors, `cl-` crew rail, `cg-` Settings → Cloud)
+belongs to that area alone. Grep all of `web/css` and `web/js` before naming a new one: two areas
+sharing `.cx-box` broke Connectors for five days (#720), and `.cl-card` floated Cloud's account
+card over its pane. `test/css-clash.test.js` fails on a class styled in two stylesheets; a
+component split across files on purpose goes on its list with why.
+
 ## Icons
 
 - One sprite in `web/index.html` (`<symbol id="i-name">`), drawn with `icon('name')` from

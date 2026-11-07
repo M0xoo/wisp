@@ -1805,8 +1805,11 @@ export class Runner extends EventEmitter {
       this.store.keepTasks?.(turn);
       this.#keepStuff(session, turn);
       const hero = heroOf(turn.presentation);
-      // Compare runs keep the prompt's title: they're one task, and one run's headline shouldn't name it.
-      if (hero?.title && session.titleAuto && session.turns.length === 1 && !session.groupId) session.title = hero.title;
+      // The first answer names the task after what was asked (its hero's topic), never after what the
+      // agent did (its title): with no topic the prompt's first line stays. Compare runs keep the
+      // prompt's title: they're one task, and one run's answer shouldn't name it.
+      const topic = typeof hero?.topic === 'string' ? clip(hero.topic, 64) : '';
+      if (topic && session.titleAuto && session.turns.length === 1 && !session.groupId) session.title = topic;
     }
     if (!ev.stopped) blockedCard(turn);
     // A usage limit: the turn asks you what next (or waits for the reset, below).

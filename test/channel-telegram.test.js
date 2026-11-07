@@ -824,3 +824,27 @@ test('busy is told in the ack; a queued job keeps its run and thread across a re
     srv.crew.launch = launch;
   }
 });
+
+test('on a box Telegram never reaches another machine: not by /new, not by a project, and none is listed', async () => {
+  const c = srv.store.config;
+  const was = c.machines;
+  const usable = srv.machines.usable;
+  c.machines = [...(c.machines || []), { id: 'm1', name: 'laptop', target: 'x' }];
+  srv.machines.usable = () => true;
+  const phone = srv.remote.phone;
+  const far = { name: 'far', path: '/far', machine: 'm1' };
+  const said = /doesn’t reach other machines/;
+  assert.equal((await phone.context()).machines.length > 0, true, 'a computer has them');
+  process.env.WISP_GRID_URL = 'https://grid.example';
+  try {
+    assert.deepEqual((await phone.context()).machines, []);
+    await assert.rejects(srv.remote.launch({ project: far, prompt: 'go' }), said);
+    await assert.rejects(phone.startParsed({ prompt: 'go', tagged: [], notes: [], crew: null, machine: 'm1', project: { name, path: api2.repo || '/x' } }, { channel: 'telegram', name: 'Telegram', ctx: await phone.context() }), said);
+    await assert.rejects(phone.startParsed({ prompt: 'go', tagged: [], notes: [], crew: null, project: far }, { channel: 'telegram', name: 'Telegram', ctx: await phone.context() }), said);
+  } finally {
+    delete process.env.WISP_GRID_URL;
+    c.machines = was;
+    srv.machines.usable = usable;
+  }
+});
+

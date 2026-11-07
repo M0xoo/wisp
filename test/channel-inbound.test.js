@@ -8,10 +8,12 @@
 import { createHmac } from 'node:crypto';
 import { test as nodeTest, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { generateKeyPairSync, sign } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import { browser, installFakeBins, isolateAgentConfigs, makeRepo, sleep, tmp, until } from './helpers.js';
+import { FakeDiscord } from './fixtures/fake-discord.mjs';
 import { FakeSlack } from './fixtures/fake-slack.mjs';
 
 const sqlite = await import('node:sqlite').then(
@@ -87,11 +89,11 @@ let nextUpdate = 1000;
 let msgId = 1;
 
 // A grid with one user, signed in by cookie. hostd.env sends the box to fake Telegram.
-async function boot({ channels = { enabled: true, retryMs: 40 }, idleMs = 1400 } = {}) {
+async function boot({ channels = { enabled: true, retryMs: 40 }, idleMs = 1400, env = {} } = {}) {
   const dataDir = fs.realpathSync(tmp('inbound-grid'));
   ensureMaster(dataDir);
   const port = await freePort();
-  const cfg = loadConfig({ dataDir, env: {}, overrides: { domain: 'wisp.localhost', listen: { host: '127.0.0.1', port }, auth: { dev: true }, hostd: { idleMs, checkMs: 100, path: fakeBin, env: { WISP_TELEGRAM_API: `http://127.0.0.1:${fake.address().port}`, WISP_SLACK_API: slack.api, FAKE_DELAY: '50' } }, ...(channels && { channels }) } });
+  const cfg = loadConfig({ dataDir, env: {}, overrides: { domain: 'wisp.localhost', listen: { host: '127.0.0.1', port }, auth: { dev: true }, hostd: { idleMs, checkMs: 100, path: fakeBin, env: { WISP_TELEGRAM_API: `http://127.0.0.1:${fake.address().port}`, WISP_SLACK_API: slack.api, FAKE_DELAY: '50', ...env } }, ...(channels && { channels }) } });
   const logs = [];
   const grid = await startGrid(cfg, { log: (m) => logs.push(m) });
   grid.db.run('INSERT INTO users (id, handle, created_at) VALUES (?, ?, ?)', 'u-ada', 'ada', Date.now());
@@ -902,4 +904,125 @@ test('the grid holds the webhook: the box sets none, takes what’s verified, an
   await own.ok('/remote', { method: 'PUT', body: { telegram: { enabled: false } } });
   await sleep(200);
   assert.equal(mine('deleteWebhook').length, 0, 'switched off in the box, the grid’s webhook stays');
+});
+
+// --- Discord: the same box, with an edge that answers before it's up --------------------------------
+
+const DISCORD_TOKEN = 'MTEx.secret-part.bot-token-secret';
+const D_ME = '111111';
+const D_STRANGER = '222222';
+const dc = new FakeDiscord();
+dc.token = DISCORD_TOKEN;
+dc.lag('/commands', 300); // CI's macOS was this slow once: connected means /wisp is there
+const keypair = () => {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  return { privateKey, hex: Buffer.from(publicKey.export({ format: 'jwk' }).x, 'base64url').toString('hex') };
+};
+let d; // the grid for these tests
+let url = '';
+const keys = keypair();
+dc.verifyKey = keys.hex;
+const signedBy = (privateKey, raw) => {
+  const ts = String(Math.floor(Date.now() / 1000));
+  return { 'x-signature-ed25519': sign(null, Buffer.from(ts + raw), privateKey).toString('hex'), 'x-signature-timestamp': ts };
+};
+// Discord calling the URL pasted in the Developer Portal.
+function interact(i, { privateKey = keys.privateKey, to = url, headers } = {}) {
+  const u = new URL(to);
+  const data = JSON.stringify(i);
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port: u.port, method: 'POST', path: u.pathname, headers: { host: u.host, 'content-type': 'application/json', 'content-length': Buffer.byteLength(data), ...(headers ?? signedBy(privateKey, data)) } }, (res) => {
+      let t = '';
+      res.on('data', (c) => (t += c));
+      res.on('end', () => resolve({ status: res.statusCode, json: t ? JSON.parse(t) : null }));
+    });
+    req.on('error', reject);
+    req.end(data);
+  });
+}
+const prompt = (user, text, o = {}) => dc.interaction({ type: 2, member: { user: { id: user } }, data: { name: 'wisp', options: [{ name: 'prompt', value: text }] }, channel: { type: 0 }, channel_id: 'CG', ...o });
+const dState = () => d.grid.hostd.state(d.ada.id);
+const dAsleep = () => until(() => dState() === 'stopped', { what: 'the box asleep', timeout: 20_000 });
+const dTasks = async () => (await d.ok('/sessions')).filter((s) => s.title !== 'Welcome to wisp').length;
+
+test('Discord on a box: its key reaches the grid, no socket, and Discord’s check of the URL is answered while it sleeps', { timeout: 60_000 }, async () => {
+  await dc.start();
+  d = await boot({ env: { WISP_DISCORD_API: dc.api } });
+  await d.ok('/projects', { body: { path: makeRepo() } });
+  await d.ok('/remote', { method: 'PUT', body: { discord: { enabled: true, token: DISCORD_TOKEN, publicKey: keys.hex } } });
+  const v = await until(async () => {
+    const x = (await d.ok('/remote')).discord;
+    return x.connected && x.endpoint ? x : null;
+  }, { what: 'connected', timeout: 15_000 });
+  url = v.endpoint;
+  assert.ok(url.startsWith(`${d.origin}/_in/`), url);
+  assert.equal(dc.connects, 0, 'no socket on a box');
+  assert.equal(dc.calls.filter((c) => c.route === 'GET /gateway/bot').length, 0);
+  assert.equal(dc.commands.length, 1);
+  await dAsleep();
+  const r = await interact({ id: '1', type: 1 });
+  assert.deepEqual([r.status, r.json], [200, { type: 1 }]);
+  assert.equal(dState(), 'stopped');
+  assert.equal((await interact({ id: '1', type: 1 }, { privateKey: keypair().privateKey })).status, 401);
+});
+
+test('a /wisp on a sleeping box: type 5 first, it wakes, links once, edits the reply, and sleeps again', { timeout: 60_000 }, async () => {
+  await dAsleep();
+  const code = (await d.ok('/remote')).discord.linkCode;
+  await dAsleep();
+  const i = prompt(D_ME, `link ${code}`, { guild_id: undefined, member: undefined, user: { id: D_ME }, channel_id: `D${D_ME}`, channel: { type: 1 } });
+  const t = Date.now();
+  const r = await interact(i);
+  const took = Date.now() - t;
+  assert.deepEqual([r.status, r.json], [200, { type: 5 }]);
+  assert.ok(took < 1000, `answered after ${took} ms`);
+  await until(() => dc.edits.some((e) => e.token === i.token && /^✓ Linked to wisp/.test(e.content)), { what: 'the edit', timeout: 20_000 });
+  assert.equal(dc.callbacks.length, 0, 'the grid answered: the box never does');
+  assert.equal(dc.connects, 0);
+  await dAsleep();
+  const task = prompt(D_ME, 'plan: look around');
+  assert.deepEqual((await interact(task)).json, { type: 5 });
+  await interact(task); // the same delivery again
+  await until(() => dc.edits.some((e) => e.token === task.token), { what: 'the edit', timeout: 20_000 });
+  await until(async () => (await dTasks()) === 1, { what: 'the task' });
+  await sleep(300);
+  assert.equal(await dTasks(), 1, 'once');
+  await dAsleep();
+});
+
+test('a stranger on a sleeping box: a guild’s, or a DM’s that isn’t a code, is answered at the edge and wakes nothing; a code comes to the box', { timeout: 60_000 }, async () => {
+  await dAsleep();
+  const n = dc.posts.length + dc.edits.length;
+  const i = prompt(D_STRANGER, 'plan: mine now');
+  const r = await interact(i);
+  assert.deepEqual([r.json.type, r.json.data.flags], [4, 64], 'only they see it');
+  await sleep(300);
+  assert.equal(dState(), 'stopped');
+  const inDm = (text) => prompt(D_STRANGER, text, { guild_id: undefined, member: undefined, user: { id: D_STRANGER }, channel_id: `D${D_STRANGER}`, channel: { type: 1 } });
+  const hello = await interact(inDm('hello'));
+  assert.deepEqual([hello.json.type, hello.json.data.flags], [4, 64], 'how to link, to them only');
+  assert.match(hello.json.data.content, /To link, use `\/wisp` here with `link`/);
+  await sleep(300);
+  assert.equal(dState(), 'stopped', 'a DM that isn’t a code wakes nothing');
+  const dm = inDm('link 000000');
+  assert.deepEqual((await interact(dm)).json, { type: 5 });
+  await until(() => dc.edits.some((e) => e.token === dm.token && /^That isn’t the code/.test(e.content)), { what: 'its one line', timeout: 20_000 });
+  assert.equal(dc.posts.length, n - dc.edits.length + 1);
+  assert.equal(await dTasks(), 1);
+  await dAsleep();
+});
+
+test('the box doesn’t take the grid’s word: a key changed on the grid gets past the edge and stops at the box', { timeout: 60_000 }, async () => {
+  const thief = keypair();
+  d.grid.inbox.setKey(d.ada, 'discord', thief.hex);
+  const i = prompt(D_ME, 'plan: forged', { channel_id: 'CF' });
+  assert.deepEqual((await interact(i, { privateKey: thief.privateKey })).json, { type: 5 });
+  await until(() => d.grid.db.get('SELECT count(*) n FROM channel_inbox WHERE user_id = ? AND done_at IS NULL', d.ada.id).n === 0, { what: 'delivered', timeout: 20_000 });
+  assert.equal(await dTasks(), 1);
+  assert.ok(!dc.edits.some((e) => e.token === i.token));
+  d.grid.inbox.setKey(d.ada, 'discord', keys.hex);
+  const r = await d.api('/channels/inbound', { body: { channel: 'discord', headers: {}, body: 'e30=' }, headers: { 'x-wisp-proxy-via': 'inbox' } });
+  assert.equal(r.status, 403, 'from outside');
+  await d.grid.close();
+  dc.stop();
 });

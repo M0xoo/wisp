@@ -189,7 +189,7 @@ test('wisp mcp: tools/list, launch with wait, list, the crew', async () => {
     assert.match(text, /state: \*\*review\*\*/);
     assert.match(text, /## Fake claude finished/);
     const listed = await rpc('tools/call', { name: 'wisp_list', arguments: { limit: 3 } });
-    assert.match(listed.result.content[0].text, /Fake claude finished/);
+    assert.match(listed.result.content[0].text, /\*\*fix it\*\*/, 'listed by what was asked, not by the hero');
     const bad = await rpc('tools/call', { name: 'wisp_get', arguments: { id: 'nope' } });
     assert.equal(bad.result.isError, true);
     // The crew: added in the server's folder, changed and removed by @handle.

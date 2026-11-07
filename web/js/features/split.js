@@ -580,11 +580,11 @@ function paintSpare() {
     .map((x, i) => {
       const who = `${x.name}${x.accountLabel ? ` (${x.accountLabel})` : ''}`;
       const tip = `Resets ${whenLabel(x.resetsAt)}. What’s left then doesn’t carry over. wisp never switches accounts for you.${x.at ? ` Last reported ${whenLabel(x.at)}.` : ''}`;
-      return `<div class="sp-card" aria-label="${esc(spareWords(x, spareWhen(x.resetsAt)))}" data-i="${i}">
+      return `<div class="spr-card" aria-label="${esc(spareWords(x, spareWhen(x.resetsAt)))}" data-i="${i}">
         <span class="model-logo">${harnessLogo(x.agent)}</span>
-        <span class="sp-text" title="${esc(tip)}"><b>${Math.round(x.left * 100)}%</b>${esc(` of ${spareWhose(x)} left · resets ${spareWhen(x.resetsAt)}`)}</span>
-        <button type="button" class="ghost sm sp-start" data-spare="start" data-i="${i}" title="${esc(`Pick ${who} in the prompt box`)}">${esc(`Use ${x.name}`)}</button>
-        <button type="button" class="icon-btn sp-x" data-spare="x" data-i="${i}" title="Hide until the window resets" aria-label="Hide until the window resets">${icon('x')}</button>
+        <span class="spr-text" title="${esc(tip)}"><b>${Math.round(x.left * 100)}%</b>${esc(` of ${spareWhose(x)} left · resets ${spareWhen(x.resetsAt)}`)}</span>
+        <button type="button" class="ghost sm spr-start" data-spare="start" data-i="${i}" title="${esc(`Pick ${who} in the prompt box`)}">${esc(`Use ${x.name}`)}</button>
+        <button type="button" class="icon-btn spr-x" data-spare="x" data-i="${i}" title="Hide until the window resets" aria-label="Hide until the window resets">${icon('x')}</button>
       </div>`;
     })
     .join('');
@@ -592,19 +592,19 @@ function paintSpare() {
   notes = noticesOn() ? noticesOf(S.agents).slice(0, 2) : [];
   const nhtml = notes
     .map(
-      (n, i) => `<div class="sp-card wn-card" role="status">
+      (n, i) => `<div class="spr-card wn-card" role="status">
         <span class="model-logo">${harnessLogo(n.agent)}</span>
-        <span class="sp-text" title="${esc(noticeTip(n))}">${esc(noticeWords(n, noticeWhen))}</span>
-        <button type="button" class="icon-btn sp-x" data-wnote="${i}" title="Hide until this window changes again" aria-label="Hide until this window changes again">${icon('x')}</button>
+        <span class="spr-text" title="${esc(noticeTip(n))}">${esc(noticeWords(n, noticeWhen))}</span>
+        <button type="button" class="icon-btn spr-x" data-wnote="${i}" title="Hide until this window changes again" aria-label="Hide until this window changes again">${icon('x')}</button>
       </div>`,
     )
     .join('');
   // On a wisp Grid in an iPhone's browser: add wisp to the Home Screen (homescreen.js), first in the box.
   const install = installHint()
-    ? `<div class="sp-card hs-install" role="note">
+    ? `<div class="spr-card hs-install" role="note">
         <span class="model-logo">${icon('phone')}</span>
-        <span class="sp-text">Add wisp to your Home Screen: tap Share ${icon('share', 'hs-share')}, then Add to Home Screen</span>
-        <button type="button" class="icon-btn sp-x" data-install="x" title="Hide this" aria-label="Hide this">${icon('x')}</button>
+        <span class="spr-text">Add wisp to your Home Screen: tap Share ${icon('share', 'hs-share')}, then Add to Home Screen</span>
+        <button type="button" class="icon-btn spr-x" data-install="x" title="Hide this" aria-label="Hide this">${icon('x')}</button>
       </div>`
     : '';
   const all = install + html + nhtml;
