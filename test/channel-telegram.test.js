@@ -6,7 +6,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { createServer as netServer } from 'node:net';
-import { installFakeBins, isolateAgentConfigs, makeRepo, tmp, until } from './helpers.js';
+import { installFakeBins, isolateAgentConfigs, makeRepo, sleep, tmp, until } from './helpers.js';
 
 process.env.FAKE_RECORD = tmp('tg-record');
 process.env.WISP_HOME = tmp('tg-home');
@@ -83,6 +83,7 @@ before(async () => {
       if (net.dropNext && b.reply_to_message_id === net.dropNext) return req.socket.destroy(); // Telegram never hears it, or its answer never comes back
       const message_id = ++net.msg;
       net.sent.push({ ...b, message_id });
+      if (net.lag) await sleep(net.lag); // Telegram has it, wisp hasn't heard back yet
       return json({ ok: true, result: { message_id } });
     }
     if (method === 'getMe') return json({ ok: true, result: { username: 'wispbot' } });
@@ -474,14 +475,20 @@ test('a group is capped at Edits: Full auto refused, defaults held down, follow-
 });
 
 test('a task started in wisp still takes a reply, and options apply there too', async () => {
-  const s = await api('/sessions', { body: { prompt: 'plain task', cwd: api2.repo, agent: 'claude', worktree: false } });
-  await settled(s.id);
-  const m = await until(() => net.sent.find((x) => x.text.includes('plain task') || srv.store.get(s.id).remote?.tg?.includes(x.message_id)));
-  assert.equal(srv.store.get(s.id).remote.started, undefined);
-  assert.equal(m.reply_to_message_id, undefined, 'not a thread: nothing started it there');
-  const r = reply(srv.store.get(s.id).remote.tg.at(-1), 'with sonnet from the phone');
-  assert.equal((await answerTo(r)).text, '✓ Sent · Sonnet');
-  await settled(s.id);
+  net.lag = 300; // a slow answer from Telegram: what's sent is in net.sent before wisp links it
+  try {
+    const s = await api('/sessions', { body: { prompt: 'plain task', cwd: api2.repo, agent: 'claude', worktree: false } });
+    await settled(s.id);
+    // Linked, not only sent: Telegram (net.sent) has a message before wisp hears its id back.
+    const m = await until(() => net.sent.find((x) => srv.store.get(s.id).remote?.tg?.includes(x.message_id)));
+    assert.equal(srv.store.get(s.id).remote.started, undefined);
+    assert.equal(m.reply_to_message_id, undefined, 'not a thread: nothing started it there');
+    const r = reply(srv.store.get(s.id).remote.tg.at(-1), 'with sonnet from the phone');
+    assert.equal((await answerTo(r)).text, '✓ Sent · Sonnet');
+    await settled(s.id);
+  } finally {
+    net.lag = 0;
+  }
 });
 
 test('telemetry: counts only, never what was said', async () => {
