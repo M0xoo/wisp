@@ -212,6 +212,23 @@ for the rest
   the same secret, and the old URL is a 404.
 - **Against production:** only when the owner deploys: a throwaway account, one real Telegram bot.
 
+### GRID-32 · A Slack message reaches a sleeping box
+*`qa/grid.mjs`* (fake Slack, `channels` in the dev grid's `grid.json`); `test/channel-inbound.test.js`
+for the rest
+- **Steps:** on a cloud wisp, copy the Slack manifest; turn Slack on with a signing secret and a bot
+  token (no app token); send Slack's `url_verification` to the manifest's `request_url`; let the box
+  sleep; send it again; then call that URL with a signed DM holding the link code.
+- **Expected:** the manifest has `request_url` at `<handle>.<domain>/_in/<token>` and
+  `socket_mode_enabled: false`; the URL check gets its challenge back with the box up and a 503 with it
+  asleep, and that doesn't wake it. A signed DM gets its 200 before the box is up; it wakes, links, and
+  answers once; a retry signed anew changes nothing; it sleeps again by itself. A bad signature, or a
+  timestamp over 5 minutes older than the grid's own arrival time, is refused by the box with a 403 and
+  no answer, and so is a stranger; a message held longer than that for a wake still runs. An edit or a
+  bot's message isn't held: no row, no wake, no strike. Without
+  `channels` in `grid.json` the manifest route is a 409 and Slack says it can't reach the computer.
+- **Against production:** only when the owner deploys: a throwaway account and a real Slack app. This
+  is the only way to see Slack's own URL check and retries.
+
 ### GRID-24 · Caddy on-demand TLS and DNS
 *Manual*
 - **Expected:** a new handle gets a certificate on first visit; an unknown name is refused (Caddy's

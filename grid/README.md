@@ -134,19 +134,23 @@ on what people publish.
 
 ### Channels
 
-A box sleeps, and a Telegram bot polled from a sleeping box is deaf. With this on, each cloud wisp
-that turns Telegram on sets a webhook to its own `https://<handle>.<domain>/_in/<token>`: the grid
-answers at once, keeps the message in `grid.db`, wakes the box and delivers it. Messages are kept for
-an hour at most and wiped as they're delivered. A channel never keeps a box awake.
+A box sleeps, and a Telegram bot polled from a sleeping box is deaf, as is a socket to Slack. With
+this on, each cloud wisp that turns Telegram on sets a webhook to its own
+`https://<handle>.<domain>/_in/<token>`, and one that turns Slack on gets a manifest with such a URL
+as its `request_url`: the grid answers at once, keeps the message in `grid.db`, wakes the box and
+delivers it. Messages are kept for an hour at most and wiped as they're delivered. A channel never
+keeps a box awake. The one thing that isn't held is Slack's `url_verification`: it goes straight to a
+box that's up, and gets a 503 from a sleeping one, which it doesn't wake. Slack's edits, deletions
+and bots' messages (wisp's own replies among them) get a 200 and go no further: no box acts on them.
 
 ```json
 "channels": { "enabled": true, "maxRows": 200, "maxBytes": 2097152 }
 ```
 
-Off unless it's there, and then `/_in/` is a 404 and boxes poll as before. `maxRows` and `maxBytes` are
+Off unless it's there, and then `/_in/` is a 404, boxes poll Telegram as before, and Slack says it can't reach them. `maxRows` and `maxBytes` are
 per user: past them a message is dropped and counted, and the box says so in the chat. Telegram only
-calls https on port 443, 80, 88 or 8443, so an `http` grid can't use this: Settings → Phone shows
-why. The URL's token is the only thing guarding it: keep it out of any access log you turn on.
+calls https on port 443, 80, 88 or 8443, and Slack only https, so an `http` grid can't use this:
+Settings → Phone shows why. The URL's token is the only thing guarding it: keep it out of any access log you turn on.
 
 ### Sandboxes
 

@@ -20,7 +20,6 @@ import { REVIEW_VALUES } from '../services/review.js';
 import { panesProblem } from '../../web/js/pane-bridge.js';
 import { LEAN_VALUES } from '../lean.js';
 import { SETTINGS } from '../../web/js/spell-schema.js';
-import { slackManifest } from '../channels/slack.js';
 
 // On a wisp Grid (its hostd sets WISP_GRID_URL): the grid, and this wisp's own address there, so
 // the page offers connecting through the grid instead of SSH. preview: where a page the agent
@@ -133,7 +132,7 @@ export function register(r, app) {
   // Phone: ntfy / Telegram settings (secrets masked), and a test message.
   r.route('GET', '/remote', (c) => c.send(200, remote.view()));
   r.route('PUT', '/remote', async (c) => c.send(200, remote.update(await c.body())));
-  r.route('GET', '/remote/slack/manifest', (c) => c.send(200, slackManifest()));
+  r.route('GET', '/remote/slack/manifest', async (c) => c.send(200, await remote.channels.slack.manifest()));
   r.route('GET', '/remote/discord/invite', (c) => c.send(200, remote.discordInvite()));
   r.route('POST', '/remote/test', async (c) => {
     const sent = await remote.send({ title: '✨ wisp', text: 'Test from wisp: questions and finished tasks will show up like this.', actions: [] });

@@ -14,18 +14,32 @@
 // Nothing a message said goes to a log or to audit: channel and size only. The body and headers sit
 // in the database in the clear until they're delivered, as the box's own files do on its disk.
 //
-// A channel here is a row of CHANNELS: what's worth keeping of its request, and its event id.
+// A channel here is a row of CHANNELS: what's worth keeping of its request, its event id, and which
+// request can't be held (live): a sender checking its URL wants the box's answer in that same call.
+// That goes through only to a box already up, and never wakes one: setup happens with wisp open, and
+// a sender told 503 tries again. skip is what no box acts on, so it isn't held: a wake for it would
+// be refused and count as a strike. It's unsigned here, but forging one only drops the forger's own
+// request.
 
 import { createHash } from 'node:crypto';
 import { sha256, token } from './secrets.js';
 
 export const IN_PATH = /^\/_in\/([A-Za-z0-9_-]{32,64})$/;
 
-const CHANNELS = { telegram: { headers: ['x-telegram-bot-api-secret-token'], eventId: (j) => j?.update_id } };
+// Slack posts an edit, a deletion and wisp's own replies like any message; a file is the one subtype
+// that is someone speaking (#event, server/channels/slack.js).
+const slackNoise = (e) => !!e && (!!e.bot_id || (!!e.subtype && e.subtype !== 'file_share'));
+
+const CHANNELS = {
+  telegram: { headers: ['x-telegram-bot-api-secret-token'], eventId: (j) => j?.update_id },
+  slack: { headers: ['x-slack-signature', 'x-slack-request-timestamp'], eventId: (j) => j?.event_id, live: (j) => j?.type === 'url_verification', skip: (j) => slackNoise(j?.event) },
+};
 const BODY_MAX = 256 * 1024;
 const READ_MS = 15_000; // a body that takes longer isn't a webhook
 const TTL_MS = 60 * 60_000; // a message this old is stale anyway (STALE_S)
 const MAX_TRIES = 5;
+const LIVE_MS = 2500; // Slack gives a URL check 3 s
+const NOT_UP = { status: 503, body: { error: 'wisp is asleep: try again with it open.' } };
 const DEFAULTS = { maxRows: 200, maxBytes: 2 * 1024 * 1024, ttlMs: TTL_MS, retryMs: 2000, wakeRetryMs: 30_000, wakeStrikes: 3, wakeGapMs: 10 * 60_000, sweepMs: 60_000 };
 
 // The body, or null when it's over max (read to the end and dropped, so the 200 still gets there).
@@ -54,14 +68,20 @@ function readCapped(req, max) {
   });
 }
 
+const parsed = (body) => {
+  try {
+    return JSON.parse(body.toString('utf8'));
+  } catch {
+    return null;
+  }
+};
+
 // channel_inbox's key for a request: the channel's own event id, else the body's hash, and what it
 // came with. An id alone could be taken: anyone holding the URL could post the next update_id with a
-// bad secret, and the real update would hit that row and vanish. A sender's retry repeats both.
-function eventKey(channel, body, headers) {
-  let id;
-  try {
-    id = CHANNELS[channel].eventId(JSON.parse(body.toString('utf8')));
-  } catch {}
+// bad secret, and the real update would hit that row and vanish. A retry that repeats both is the
+// same row; one signed anew (Slack may) is a row of its own, and the box's seen list stops it.
+function eventKey(channel, j, body, headers) {
+  const id = CHANNELS[channel].eventId(j);
   return `${channel}:${id ?? createHash('sha256').update(body).digest('base64url')}:${sha256(headers)}`;
 }
 
@@ -139,7 +159,7 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
       const done = hostd.begin(user.id, { touch: false }); // not stopped under it, and it isn't use
       let status = 0;
       try {
-        status = await deliver(port, fresh, { channel: row.channel, headers: JSON.parse(row.headers), body: Buffer.from(row.body).toString('base64'), at: row.at, dropped });
+        ({ status } = await deliver(port, fresh, { channel: row.channel, headers: JSON.parse(row.headers), body: Buffer.from(row.body).toString('base64'), at: row.at, dropped }));
       } catch {}
       done();
       if (stopped) return;
@@ -165,6 +185,21 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
       .finally(() => busy.delete(user.id));
     busy.set(user.id, p);
     return p;
+  }
+
+  // The box's answer to the sender, for a request that can't wait. Asleep or starting: not now.
+  async function live(user, channel, headers, body) {
+    const port = hostd.state(user.id) === 'running' && hostd.port(user.id);
+    if (!port) return NOT_UP;
+    const done = hostd.begin(user.id, { touch: false });
+    try {
+      const out = await deliver(port, user, { channel, headers, body: body.toString('base64'), at: Date.now() }, { timeout: opts.liveMs ?? LIVE_MS });
+      return out.status < 500 ? out : NOT_UP;
+    } catch {
+      return NOT_UP;
+    } finally {
+      done();
+    }
   }
 
   // Past their hour: gone. One that never got there counts as lost; a delivered one just stops
@@ -216,15 +251,26 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
 
     // Keep what came, and say so; the wake happens after the answer has left. Too big, or over the
     // caps: dropped and counted, still a 200, since a retry storm from the sender helps nobody.
+    // → { status, body } when the box answers this one itself, or nothing: held.
     async accept(user, channel, req) {
       const body = await readCapped(req, BODY_MAX);
-      if (!body) return count(user.id, channel);
-      const kept = Object.fromEntries(CHANNELS[channel].headers.filter((h) => typeof req.headers[h] === 'string').map((h) => [h, req.headers[h]]));
+      if (!body) {
+        count(user.id, channel);
+        return;
+      }
+      const row = CHANNELS[channel];
+      const kept = Object.fromEntries(row.headers.filter((h) => typeof req.headers[h] === 'string').map((h) => [h, req.headers[h]]));
+      const j = parsed(body);
+      if (row.live?.(j)) return live(user, channel, kept, body);
+      if (row.skip?.(j)) return;
       const headers = JSON.stringify(kept);
       const size = body.length + headers.length;
       const held = pending(user.id);
-      if (held.n >= opts.maxRows || held.bytes + size > opts.maxBytes) return count(user.id, channel);
-      db.run('INSERT INTO channel_inbox (user_id, channel, event_key, headers, body, size, at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, event_key) DO NOTHING', user.id, channel, eventKey(channel, body, headers), headers, body, size, Date.now());
+      if (held.n >= opts.maxRows || held.bytes + size > opts.maxBytes) {
+        count(user.id, channel);
+        return;
+      }
+      db.run('INSERT INTO channel_inbox (user_id, channel, event_key, headers, body, size, at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, event_key) DO NOTHING', user.id, channel, eventKey(channel, j, body, headers), headers, body, size, Date.now());
       setImmediate(() => drain(user));
     },
 

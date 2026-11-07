@@ -4,6 +4,7 @@
 //   node qa/grid.mjs            (QA_GRID_PORT=8090 by default; screenshots in qa/out/grid-*.png)
 
 import { execFileSync, spawn } from 'node:child_process';
+import { createHmac } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
@@ -75,7 +76,17 @@ const fakeTelegram = http.createServer(async (rq, rs) => {
   rs.end(JSON.stringify({ ok: true, result: method === 'sendMessage' ? { message_id: ++tg.msg } : method === 'getWebhookInfo' ? { url: tg.hook?.url || '' } : true }));
 });
 await new Promise((r) => fakeTelegram.listen(0, '127.0.0.1', r));
-fs.writeFileSync(path.join(data, 'grid.json'), JSON.stringify({ channels: { enabled: true }, hostd: { env: { WISP_TELEGRAM_API: `http://127.0.0.1:${fakeTelegram.address().port}` } } }));
+// Slack, for GRID-32: its Web API, which is all a box calls.
+const sl = { posted: [] };
+const fakeSlack = http.createServer(async (rq, rs) => {
+  let t = '';
+  for await (const c of rq) t += c;
+  if (rq.url.endsWith('/chat.postMessage')) sl.posted.push(JSON.parse(t));
+  rs.writeHead(200, { 'content-type': 'application/json', connection: 'close' });
+  rs.end(JSON.stringify({ ok: true, user_id: 'UBOT', bot_id: 'BBOT', user: 'wisp', team: 'QA' }));
+});
+await new Promise((r) => fakeSlack.listen(0, '127.0.0.1', r));
+fs.writeFileSync(path.join(data, 'grid.json'), JSON.stringify({ channels: { enabled: true }, hostd: { env: { WISP_TELEGRAM_API: `http://127.0.0.1:${fakeTelegram.address().port}`, WISP_SLACK_API: `http://127.0.0.1:${fakeSlack.address().port}` } } }));
 
 const { check, done } = runner('grid');
 const log = fs.openSync(path.join(OUT, 'grid-server.log'), 'w');
@@ -296,6 +307,43 @@ try {
     await until(async () => (await state()) === 'stopped', (IDLE + 30) * 1000, 'the box to sleep again by itself');
   });
 
+  await check('GRID-32', 'a Slack message reaches a sleeping box: URL checked, 200 first, woken, handled once, asleep again', async () => {
+    const state = async () => (await req(`${inst(A.handle)}/_grid/state`, { headers: bearer(token) })).json?.state;
+    const SIGNING = 'qa-signing-secret-0123456789abcdef';
+    const call = (payload, { ts = Math.floor(Date.now() / 1000), secret = SIGNING } = {}) => {
+      const body = JSON.stringify(payload);
+      return req(url, { method: 'POST', headers: { 'x-slack-request-timestamp': String(ts), 'x-slack-signature': `v0=${createHmac('sha256', secret).update(`v0:${ts}:${body}`).digest('hex')}` }, body });
+    };
+    const m = await req(`${inst(A.handle)}/api/remote/slack/manifest`, { headers: bearer(token) });
+    ok(m.status === 200, `the manifest → ${m.status} ${m.text.slice(0, 120)}`);
+    const url = m.json.settings.event_subscriptions.request_url;
+    ok(url?.startsWith(`${inst(A.handle)}/_in/`), `request_url ${url}`);
+    ok(m.json.settings.socket_mode_enabled === false, 'the manifest still asks for a socket');
+    const put = await req(`${inst(A.handle)}/api/remote`, { method: 'PUT', headers: bearer(token), body: { slack: { enabled: true, signingSecret: SIGNING, botToken: 'xoxb-qa' } } });
+    ok(put.status === 200, `PUT /api/remote → ${put.status} ${put.text.slice(0, 120)}`);
+    const urlCheck = { type: 'url_verification', challenge: 'qa-challenge', token: 'x' };
+    const up = await call(urlCheck);
+    ok(up.status === 200 && up.json.challenge === 'qa-challenge', `the URL check, box up → ${up.status} ${up.text}`);
+    await until(async () => (await state()) === 'stopped', (IDLE + 30) * 1000, 'the box to stop');
+    ok((await call(urlCheck)).status === 503, 'the URL check of a sleeping box wasn’t a 503');
+    await sleep(1000);
+    ok((await state()) === 'stopped', 'the URL check woke the box');
+    const t = Date.now();
+    const s = Math.floor(t / 1000);
+    const dm = { type: 'event_callback', event_id: 'EvQA1', event_time: s, event: { type: 'message', channel_type: 'im', user: 'U0QA', text: `link ${put.json.slack.linkCode}`, channel: 'D1', ts: `${s}.000100`, client_msg_id: 'qa-1' } };
+    const r = await call(dm);
+    const took = Date.now() - t;
+    ok(r.status === 200, `the event → ${r.status}`);
+    ok(took < 1000, `the 200 took ${took} ms: it waited for the box`);
+    await until(() => sl.posted.some((p) => /Linked to wisp/.test(p.text)), 30_000, 'the reply');
+    const bad = await call({ ...dm, event_id: 'EvQA2' }, { secret: 'not-the-signing-secret' });
+    ok(bad.status === 200, 'the grid can’t tell a bad signature, and answers the same');
+    await call(dm, { ts: s + 1 }); // a retry, signed anew
+    await sleep(1000);
+    ok(sl.posted.length === 1, `handled more than once: ${sl.posted.length} posts`);
+    await until(async () => (await state()) === 'stopped', (IDLE + 30) * 1000, 'the box to sleep again by itself');
+  });
+
   await check('GRID-11', 'Account lists the device; Remove revokes its token', async () => {
     const p = A.page;
     await p.goto(`${GRID}/account`);
@@ -359,6 +407,7 @@ try {
 } finally {
   await browser.close().catch(() => {});
   fakeTelegram.close();
+  fakeSlack.close();
   grid.kill('SIGTERM');
   await new Promise((r) => {
     grid.once('exit', r);

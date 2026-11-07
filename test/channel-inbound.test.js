@@ -1,16 +1,18 @@
-// Telegram on a sleeping cloud wisp, end to end: real Hostd (process driver), real wisp with fake
-// agents, fake Telegram on loopback. A box goes to sleep, a webhook wakes it, the message is handled
+// Telegram and Slack on a sleeping cloud wisp, end to end: real Hostd (process driver), real wisp with
+// fake agents, fake Telegram and Slack on loopback. A box goes to sleep, a webhook wakes it, the message is handled
 // once, and it goes back to sleep by itself. Also: who may reach POST /api/channels/inbound (a forged
 // header from outside can't), a bad secret, a stale message, a stranger, setWebhook's failure, and a
 // box on a grid without the hub, which keeps polling. A computer's polling is
 // test/channel-legacy.test.js, which this work leaves untouched.
 
+import { createHmac } from 'node:crypto';
 import { test as nodeTest, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import { browser, installFakeBins, isolateAgentConfigs, makeRepo, sleep, tmp, until } from './helpers.js';
+import { FakeSlack } from './fixtures/fake-slack.mjs';
 
 const sqlite = await import('node:sqlite').then(
   () => true,
@@ -43,6 +45,7 @@ const freePort = () =>
 
 // Telegram: what it heard, and what it holds about the webhook.
 const tg = { calls: [], msg: 100, hook: { url: '' }, setFail: 0, setMs: 0, delFail: 0 };
+const slack = new FakeSlack();
 const called = (m) => tg.calls.filter((c) => c.method === m);
 const sent = () => called('sendMessage');
 const fake = http.createServer(async (req, res) => {
@@ -88,8 +91,9 @@ async function boot({ channels = { enabled: true, retryMs: 40 }, idleMs = 1400 }
   const dataDir = fs.realpathSync(tmp('inbound-grid'));
   ensureMaster(dataDir);
   const port = await freePort();
-  const cfg = loadConfig({ dataDir, env: {}, overrides: { domain: 'wisp.localhost', listen: { host: '127.0.0.1', port }, auth: { dev: true }, hostd: { idleMs, checkMs: 100, path: fakeBin, env: { WISP_TELEGRAM_API: `http://127.0.0.1:${fake.address().port}`, FAKE_DELAY: '50' } }, ...(channels && { channels }) } });
-  const grid = await startGrid(cfg, { log: () => {} });
+  const cfg = loadConfig({ dataDir, env: {}, overrides: { domain: 'wisp.localhost', listen: { host: '127.0.0.1', port }, auth: { dev: true }, hostd: { idleMs, checkMs: 100, path: fakeBin, env: { WISP_TELEGRAM_API: `http://127.0.0.1:${fake.address().port}`, WISP_SLACK_API: slack.api, FAKE_DELAY: '50' } }, ...(channels && { channels }) } });
+  const logs = [];
+  const grid = await startGrid(cfg, { log: (m) => logs.push(m) });
   grid.db.run('INSERT INTO users (id, handle, created_at) VALUES (?, ?, ?)', 'u-ada', 'ada', Date.now());
   const ada = grid.accounts.byHandle('ada');
   const origin = cfg.instanceUrl('ada');
@@ -105,7 +109,7 @@ async function boot({ channels = { enabled: true, retryMs: 40 }, idleMs = 1400 }
     assert.ok(r.status < 300, `${p}: ${r.status} ${r.text}`);
     return r.json;
   };
-  return { grid, cfg, port, ada, origin, api, ok, b };
+  return { grid, cfg, port, ada, origin, api, ok, b, logs };
 }
 
 // Telegram calling the URL it was given, whatever the box is doing.
@@ -136,6 +140,7 @@ const asleep = () => until(() => state() === 'stopped', { what: 'the box asleep'
 before(async () => {
   if (!sqlite) return;
   await new Promise((r) => fake.listen(0, '127.0.0.1', r));
+  await slack.start();
   g = await boot();
   await g.ok('/projects', { body: { path: makeRepo() } });
   const view = await g.ok('/remote', { method: 'PUT', body: { telegram: { enabled: true, token: TOKEN, allowStart: true } } });
@@ -144,8 +149,10 @@ before(async () => {
 });
 after(async () => {
   await g?.grid.close();
-  await g?.other?.grid.close();
+  await old?.grid.close();
+  await old?.other?.grid.close();
   fake.close();
+  if (sqlite) slack.stop(); // never started on a Node with no node:sqlite
 });
 
 test('on a box Telegram takes a webhook to its own URL, with a random secret, and never polls', async () => {
@@ -500,4 +507,337 @@ test('a box on a grid without the hub polls as it always did, and a webhook left
   assert.equal(tg.hook.url, '');
   await until(() => called('getUpdates').length > polls, { what: 'polling again' });
   assert.ok(tg.calls.findLastIndex((c) => c.method === 'deleteWebhook') < tg.calls.findLastIndex((c) => c.method === 'getUpdates'));
+});
+
+// Slack, the same way: real grid, real box, fake Slack (Web API only: there's no socket on a box).
+const SIGNING = 'signing-secret-of-the-app-0123456';
+const BOT = 'xoxb-1-box-bot-token';
+const ME = 'U0LINKED';
+const STRANGER = 'U0STRANGE';
+let hookUrl;
+let old; // the Telegram grid, closed at the end
+let evId = 1;
+let slackTs = 10;
+
+const nowS = () => Math.floor(Date.now() / 1000);
+const tsOf = (s = nowS()) => `${s}.${String(++slackTs).padStart(6, '0')}`;
+const signed = (body, ts = nowS(), secret = SIGNING) => ({ 'x-slack-request-timestamp': String(ts), 'x-slack-signature': `v0=${createHmac('sha256', secret).update(`v0:${ts}:${body}`).digest('hex')}` });
+const event = (text, { user = ME, channel = 'D1', id = `Ev${evId++}`, at = nowS(), ...more } = {}) => ({ type: 'event_callback', team_id: 'T1', api_app_id: 'A1', event_id: id, event_time: at, event: { type: 'message', channel_type: 'im', user, text, channel, ts: tsOf(at), client_msg_id: `cm-${id}`, ...more } });
+const mention = (text, o = {}) => {
+  const e = event(`<@UBOT> ${text}`, { channel: 'C1', ...o });
+  delete e.event.channel_type;
+  e.event.type = 'app_mention';
+  return e;
+};
+// Slack calling the Request URL from the manifest. → { status, json }
+function slackCall(payload, { url = hookUrl, ts, headers, secret } = {}) {
+  const u = new URL(url);
+  const body = typeof payload === 'string' ? payload : JSON.stringify(payload);
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port: u.port, method: 'POST', path: u.pathname, headers: { host: u.host, 'content-type': 'application/json', 'content-length': Buffer.byteLength(body), ...(headers || signed(body, ts, secret)) } }, (res) => {
+      let t = '';
+      res.on('data', (d) => (t += d));
+      res.on('end', () => {
+        let json = {};
+        try {
+          json = JSON.parse(t);
+        } catch {}
+        resolve({ status: res.statusCode, json });
+      });
+    });
+    req.on('error', reject);
+    req.end(body);
+  });
+}
+// What delivery does, by hand, with the time the grid would stamp on it.
+async function slackDirect(payload, { ts, at = Date.now(), dropped, headers, secret, mark = true } = {}) {
+  const body = JSON.stringify(payload);
+  const port = g.grid.hostd.port(g.ada.id);
+  const r = await fetch(`http://127.0.0.1:${port}/api/channels/inbound`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-wisp-proxy-secret': g.grid.secrets.ensure(g.ada.id, 'wisp-proxy'), ...(mark && { 'x-wisp-proxy-via': 'inbox' }) }, body: JSON.stringify({ channel: 'slack', headers: headers || signed(body, ts, secret), body: Buffer.from(body).toString('base64'), at, dropped }) });
+  return { status: r.status, json: await r.json() };
+}
+const slackPosted = (re) => slack.posted.filter((p) => re.test(p.text));
+const held = () => g.grid.db.get("SELECT count(*) n FROM channel_inbox WHERE channel = 'slack' AND done_at IS NULL").n;
+const slackRows = () => g.grid.db.get("SELECT count(*) n FROM channel_inbox WHERE channel = 'slack'").n;
+
+test('Slack on a box: the manifest carries its own URL and no socket, and turning on needs no app token', async () => {
+  old = g;
+  g = await boot();
+  await g.ok('/projects', { body: { path: makeRepo() } });
+  const m = await g.ok('/remote/slack/manifest');
+  hookUrl = m.settings.event_subscriptions.request_url;
+  assert.ok(hookUrl.startsWith(`${g.origin}/_in/`), hookUrl);
+  assert.equal(m.settings.socket_mode_enabled, false);
+  assert.deepEqual(m.settings.event_subscriptions.bot_events, ['app_mention', 'message.im']);
+  assert.equal((await g.api('/remote', { method: 'PUT', body: { slack: { signingSecret: 'short' } } })).status, 400);
+  const view = await g.ok('/remote', { method: 'PUT', body: { slack: { enabled: true } } });
+  assert.equal(view.slack.enabled, true);
+  assert.equal(view.slack.box, true);
+  assert.equal(view.slack.connected, false, 'nothing to go on yet');
+});
+
+test('Slack’s URL check before there’s a signing secret: the challenge comes back, and nothing else gets in', async () => {
+  const done = await awake();
+  const ch = await slackCall({ type: 'url_verification', challenge: 'first', token: 'x' }, { headers: {} });
+  assert.equal(ch.status, 200);
+  assert.deepEqual(ch.json, { challenge: 'first' });
+  assert.equal(await slackCall(event('hello'), { headers: {} }).then((r) => r.status), 200);
+  await until(() => held() === 0, { what: 'finished with' });
+  assert.equal(slack.posted.length, 0);
+  done();
+});
+
+test('Slack: signing secret and bot token set it going, with no socket; secrets stay masked', async () => {
+  const view = await g.ok('/remote', { method: 'PUT', body: { slack: { signingSecret: SIGNING, botToken: BOT } } });
+  assert.equal(view.slack.signingSecret, `••••${SIGNING.slice(-4)}`);
+  assert.ok(!JSON.stringify(await g.ok('/config')).includes(SIGNING));
+  const on = await until(async () => {
+    const v = await g.ok('/remote');
+    return v.slack.connected ? v : null;
+  }, { what: 'it says it’s working' });
+  assert.equal(on.slack.team, 'Acme');
+  assert.equal(on.status.slack.ok, true);
+  assert.equal(slack.opens, 0, 'a box never opens a socket');
+  assert.equal(slack.calls.filter((c) => c.method === 'apps.connections.open').length, 0);
+  g.linkCode = on.slack.linkCode;
+});
+
+test('Slack’s URL check once a secret is set: signed or refused', async () => {
+  const done = await awake();
+  const payload = { type: 'url_verification', challenge: 'again', token: 'x' };
+  assert.deepEqual((await slackCall(payload)).json, { challenge: 'again' });
+  assert.equal((await slackCall(payload, { secret: 'wrong-secret-wrong-secret' })).status, 403);
+  await until(async () => /signature/.test((await g.ok('/remote')).status.slack?.error), { what: 'said in status' });
+  assert.deepEqual((await slackCall(payload)).json, { challenge: 'again' });
+  await until(async () => !(await g.ok('/remote')).status.slack?.error, { what: 'the error gone' });
+  done();
+});
+
+test('Slack: a bad URL check from whoever holds the URL doesn’t stay up: any verified event clears it, a forged one doesn’t', async () => {
+  const done = await awake();
+  const wrong = 'wrong-secret-wrong-secret';
+  const error = async () => (await g.ok('/remote')).status.slack?.error;
+  assert.equal((await slackCall({ type: 'url_verification', challenge: 'x', token: 'x' }, { secret: wrong })).status, 403);
+  await until(async () => /signature/.test(await error()), { what: 'said in status' });
+  assert.equal((await slackDirect(mention('hello', { user: STRANGER }), { secret: wrong })).status, 403);
+  assert.match(await error(), /signature/, 'a forged event isn’t proof of anything');
+  assert.equal((await slackDirect(mention('hello', { user: STRANGER }))).status, 403, 'a stranger, but signed by Slack');
+  await until(async () => !(await error()), { what: 'the error gone' });
+  done();
+});
+
+test('Slack: through the grid, an edit and wisp’s own echo aren’t held; a person’s file is', async () => {
+  const done = await awake();
+  const rows = slackRows();
+  const edit = event('edited', { subtype: 'message_changed' });
+  delete edit.event.user;
+  for (const e of [edit, event('wisp’s reply', { user: 'UBOT', bot_id: 'BBOT' })]) assert.equal((await slackCall(e)).status, 200);
+  assert.equal(slackRows(), rows);
+  assert.equal((await slackCall(event('here', { subtype: 'file_share', user: STRANGER }))).status, 200);
+  assert.equal(slackRows(), rows + 1);
+  await until(() => held() === 0, { what: 'delivered' });
+  done();
+});
+
+test('Slack: a stranger’s link code gets them linked, a wrong one doesn’t, and the box says so to the grid', async () => {
+  const done = await awake();
+  assert.equal((await slackDirect(event('link 000000', { user: STRANGER }))).status, 403);
+  await until(() => slackPosted(/isn’t the code/).length === 1, { what: 'the wrong code told' });
+  assert.equal((await slackDirect(event(`link ${g.linkCode}`))).status, 200);
+  await until(() => slackPosted(/Linked to wisp/).length === 1, { what: 'linked' });
+  assert.equal((await g.ok('/remote')).slack.senders, 1);
+  done();
+});
+
+test('Slack: a box idle-stopped, a signed DM wakes it, the task starts once, retries change nothing, and it sleeps again', { timeout: 60_000 }, async () => {
+  await g.ok('/status');
+  const ran = await tasks();
+  await asleep();
+  const e = event('fix the bug');
+  const body = JSON.stringify(e);
+  const first = signed(body);
+  const t = Date.now();
+  assert.equal((await slackCall(body, { headers: first })).status, 200);
+  const took = Date.now() - t;
+  assert.ok(took < 800, `the 200 took ${took} ms`);
+  await until(() => slackPosted(/^▶/).length === 1, { what: 'the task', timeout: 30_000 });
+  await until(() => held() === 0, { what: 'delivered' });
+  const done = g.grid.hostd.begin(g.ada.id, { touch: false });
+  const rows = slackRows();
+  // Slack's retries: the same signature stops at the grid, one signed anew goes through to the box.
+  const retry = { 'x-slack-retry-num': '1', 'x-slack-retry-reason': 'http_timeout' };
+  assert.equal((await slackCall(body, { headers: { ...first, ...retry } })).status, 200);
+  assert.equal(slackRows(), rows);
+  assert.equal((await slackCall(body, { headers: { ...signed(body, nowS() + 1), ...retry } })).status, 200);
+  assert.equal(slackRows(), rows + 1);
+  await until(() => held() === 0, { what: 'the retry delivered' });
+  assert.equal((await slackDirect(e)).json.duplicate, true);
+  await sleep(150);
+  assert.equal(slackPosted(/^▶/).length, 1);
+  assert.equal(await tasks(), ran + 1);
+  done();
+  await asleep();
+});
+
+test('Slack: the seen list outlives the box, so an event redelivered after it slept isn’t run twice', { timeout: 60_000 }, async () => {
+  const done = await awake();
+  const ran = await tasks();
+  const e = event('only once please');
+  assert.equal((await slackDirect(e)).status, 200);
+  await until(() => slackPosted(/^▶/).length === 2, { what: 'the task' });
+  await until(async () => !(await g.ok('/status')).live, { what: 'quiet' });
+  done();
+  await g.grid.hostd.stop(g.ada.id);
+  const again = await awake();
+  assert.equal((await slackDirect(e)).json.duplicate, true);
+  assert.equal(await tasks(), ran + 1);
+  again();
+});
+
+test('Slack: a mention on a box just woken is read without the bot’s own name', { timeout: 60_000 }, async () => {
+  const done = await awake();
+  const e = mention('help');
+  assert.equal((await slackDirect(e)).status, 200);
+  const reply = slack.posted.filter((p) => p.thread_ts === e.event.ts);
+  assert.equal(reply.length, 1);
+  assert.match(reply[0].text, /Say what you’d type in wisp/);
+  done();
+});
+
+test('Slack: a bad signature, a missing one and an old timestamp are refused by the box, and the grid doesn’t retry', { timeout: 60_000 }, async () => {
+  const done = await awake();
+  const ran = await tasks();
+  const e = event('steal it');
+  assert.equal((await slackDirect(e, { secret: 'wrong-secret-wrong-secret' })).status, 403);
+  assert.equal((await slackDirect(e, { headers: {} })).status, 403);
+  // Those didn't burn its id: the real one, whose signature does match, still goes through.
+  assert.equal((await slackDirect(e)).status, 200);
+  await until(() => slackPosted(/^▶/).length === 3, { what: 'the real one' });
+  assert.equal(await tasks(), ran + 1);
+  // A captured body sent again later: the grid stamps its own time on it, so it's old.
+  const replayed = event('replayed');
+  assert.equal((await slackCall(replayed, { ts: nowS() - 6 * 60 })).status, 200);
+  await until(() => held() === 0, { what: 'finished with' });
+  assert.equal((await slackDirect(replayed, { ts: nowS() - 6 * 60 })).status, 403);
+  assert.equal((await slackDirect(replayed, { ts: nowS() + 6 * 60 })).status, 403);
+  await sleep(100);
+  assert.equal(slack.posted.filter((p) => p.thread_ts === replayed.event.ts).length, 0);
+  assert.equal(await tasks(), ran + 1);
+  done();
+});
+
+test('Slack: at comes from the grid alone: without its mark a back-dated delivery gets nowhere', async () => {
+  const done = await awake();
+  const ran = await tasks();
+  const old = nowS() - 3600;
+  assert.equal((await slackDirect(event('back-dated', { at: old }), { ts: old, at: old * 1000, mark: false })).status, 403);
+  await sleep(100);
+  assert.equal(await tasks(), ran);
+  // A time from the future can't stretch the window either.
+  assert.equal((await slackDirect(event('from the future'), { ts: nowS() - 6 * 60, at: Date.now() + 3600_000 })).status, 403);
+  done();
+});
+
+test('Slack: a message held half an hour for a wake still runs: it’s judged by when the grid took it', { timeout: 60_000 }, async () => {
+  await g.ok('/status');
+  const ran = await tasks();
+  await asleep();
+  const then = nowS() - 30 * 60;
+  const e = event('held for a long time', { at: then });
+  const body = JSON.stringify(e);
+  const headers = JSON.stringify(signed(body, then));
+  g.grid.db.run('INSERT INTO channel_inbox (user_id, channel, event_key, headers, body, size, at) VALUES (?, ?, ?, ?, ?, ?, ?)', g.ada.id, 'slack', `slack:${e.event_id}:held`, headers, Buffer.from(body), body.length, then * 1000);
+  g.grid.inbox.drain(g.ada);
+  const n = slackPosted(/^▶/).length;
+  await until(() => slackPosted(/^▶/).length === n + 1, { what: 'the task', timeout: 30_000 });
+  assert.equal(slackPosted(/arrived while wisp was offline/).length, 0);
+  await until(() => held() === 0, { what: 'delivered' });
+  assert.equal(await tasks(), ran + 1);
+});
+
+test('Slack: a stranger is a 403 each time, with one line in a DM and silence in a channel; wisp’s own echo is a 403 too', async () => {
+  const done = await awake();
+  const ran = await tasks();
+  // By thread: a task from an earlier test can still report in its own.
+  const said = (e) => slack.posted.filter((p) => p.thread_ts === e.event.ts);
+  const dm = event('hello', { user: STRANGER, channel: 'D9' });
+  assert.equal((await slackDirect(dm)).status, 403);
+  assert.equal((await slackDirect(dm)).status, 403, 'the same one again isn’t a pass');
+  assert.equal(said(dm).length, 1);
+  assert.match(said(dm)[0].text, /only answers people linked/);
+  const edited = event('edited', { subtype: 'message_changed' });
+  delete edited.event.user;
+  const quiet = [mention('hello', { user: STRANGER }), event('wisp’s reply', { user: 'UBOT', bot_id: 'BBOT' }), edited];
+  for (const e of quiet) assert.equal((await slackDirect(e)).status, 403);
+  await sleep(100);
+  for (const e of quiet) assert.equal(said(e).length, 0);
+  assert.equal(await tasks(), ran);
+  assert.equal((await slackDirect(event('help'))).status, 200, 'someone linked');
+  assert.equal((await slackDirect({ type: 'app_rate_limited', team_id: 'T1' })).status, 400);
+  done();
+});
+
+test('Slack: lost messages are told in the thread of one that got through, once, and a forged one says nothing', async () => {
+  const done = await awake();
+  const n = slackPosted(/didn’t reach wisp/).length;
+  assert.equal((await slackDirect(event('forged'), { secret: 'wrong-secret-wrong-secret', dropped: 2 })).status, 403);
+  await sleep(100);
+  assert.equal(slackPosted(/didn’t reach wisp/).length, n);
+  const e = event('help');
+  assert.equal((await slackDirect(e, { dropped: 2 })).status, 200);
+  const line = slackPosted(/2 messages didn’t reach wisp/);
+  assert.equal(line.length, n + 1);
+  assert.equal(line.at(-1).thread_ts, e.event.ts);
+  assert.equal((await g.ok('/remote')).status.slack.dropped, 2);
+  done();
+});
+
+test('Slack: nothing a message said goes to the grid’s log or audit', async () => {
+  const words = 'a-very-private-sentence';
+  const done = await awake();
+  await slackCall(event(words));
+  await slackCall(event(words, { user: STRANGER }));
+  await until(() => held() === 0, { what: 'finished with' });
+  const audit = JSON.stringify(g.grid.db.all('SELECT * FROM audit'));
+  assert.ok(!audit.includes(words));
+  assert.ok(!g.logs.join('\n').includes(words));
+  assert.equal(JSON.stringify(g.grid.db.all("SELECT body, headers FROM channel_inbox WHERE channel = 'slack' AND done_at IS NOT NULL")).includes(words), false);
+  done();
+});
+
+test('Slack: rotate gives a new URL for Slack’s settings, and the old one is a 404', async () => {
+  const done = await awake();
+  const r = await g.ok('/channels/rotate', { body: { channel: 'slack' } });
+  assert.notEqual(r.url, hookUrl);
+  assert.ok(r.url.startsWith(`${g.origin}/_in/`));
+  assert.equal((await slackCall(event('help'))).status, 404);
+  hookUrl = r.url;
+  assert.equal((await slackCall(event('help'))).status, 200);
+  assert.equal((await g.ok('/remote/slack/manifest')).settings.event_subscriptions.request_url, hookUrl);
+  done();
+});
+
+test('Slack: switched off, a message still in the grid is refused, and unlinking keeps the URL', async () => {
+  const done = await awake();
+  const v = await g.ok('/remote', { method: 'PUT', body: { slack: { unlink: true } } });
+  assert.equal(v.slack.senders, 0);
+  assert.equal((await slackDirect(event('hello'))).status, 403);
+  await g.ok('/remote', { method: 'PUT', body: { slack: { enabled: false } } });
+  assert.equal((await slackDirect(event('hello'))).status, 409);
+  assert.equal((await slackCall({ type: 'url_verification', challenge: 'x' })).status, 409);
+  done();
+});
+
+test('a box on a grid without the hub: Slack says it can’t be reached, in the manifest route and in status', { timeout: 60_000 }, async () => {
+  const o = old.other;
+  await o.ok('/status');
+  assert.equal((await o.api('/remote/slack/manifest')).status, 409);
+  assert.match((await o.api('/remote/slack/manifest')).json.error, /can’t reach this computer/);
+  await o.ok('/remote', { method: 'PUT', body: { slack: { enabled: true, signingSecret: SIGNING, botToken: BOT } } });
+  const v = await until(async () => {
+    const x = await o.ok('/remote');
+    return x.status.slack?.error ? x : null;
+  }, { what: 'the error' });
+  assert.match(v.status.slack.error, /can’t reach this computer/);
+  assert.equal(v.slack.connected, false);
 });
