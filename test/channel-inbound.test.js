@@ -841,3 +841,29 @@ test('a box on a grid without the hub: Slack says it can’t be reached, in the 
   assert.match(v.status.slack.error, /can’t reach this computer/);
   assert.equal(v.slack.connected, false);
 });
+
+test('the grid holds the webhook: the box sets none, takes what’s verified, and leaves it up when switched off', async (t) => {
+  const api = `http://127.0.0.1:${fake.address().port}`;
+  const own = await boot({ channels: { enabled: true, retryMs: 40, route: true, telegramApi: api }, idleMs: 60_000 });
+  t.after(() => own.grid.close());
+  await own.ok('/projects', { body: { path: makeRepo() } });
+  own.grid.secrets.seal(own.ada.id, 'route:telegram', JSON.stringify({ bot: TOKEN, name: 'wispbot', secret: 'g'.repeat(64), senders: [String(CHAT)] }));
+  own.grid.db.run('INSERT INTO channel_routes (user_id, channel, token_hash, created_at) VALUES (?, ?, ?, ?)', own.ada.id, 'telegram', 'h', Date.now());
+  tg.calls.length = 0;
+  const view = await own.ok('/remote', { method: 'PUT', body: { telegram: { enabled: true, token: TOKEN } } });
+  await until(async () => (await own.ok('/remote')).status.telegram?.webhook === true, { what: 'wisp told the grid holds it' });
+  assert.equal(called('setWebhook').length, 0, 'not this box’s to set');
+  assert.equal(called('getUpdates').length, 0, 'and it doesn’t poll');
+  const code = view.telegram.linkCode;
+  const update = { update_id: 77, message: { message_id: 7, date: Math.floor(Date.now() / 1000), text: code, chat: { id: CHAT, type: 'private', first_name: 'Ada' }, from: { id: CHAT, first_name: 'Ada' } } };
+  await own.grid.inbox.hold(own.ada, 'telegram', Buffer.from(JSON.stringify(update)), { verified: true });
+  await until(() => sent().some((c) => /Linked/.test(c.text)), { what: 'the box linking from a verified message' });
+  // An unverified one has no secret to pass here.
+  await own.grid.inbox.hold(own.ada, 'telegram', Buffer.from(JSON.stringify({ ...update, update_id: 78 })));
+  await sleep(300);
+  assert.equal(sent().filter((c) => /Linked/.test(c.text)).length, 1);
+  assert.equal((await own.api('/channels/rotate', { method: 'POST', body: { channel: 'telegram' } })).status, 409);
+  await own.ok('/remote', { method: 'PUT', body: { telegram: { enabled: false } } });
+  await sleep(200);
+  assert.equal(called('deleteWebhook').length, 0, 'switched off in the box, the grid’s webhook stays');
+});

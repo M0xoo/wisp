@@ -724,7 +724,7 @@ function routeSection(route, computers, hidden) {
   const name = esc(computers[0]?.name || 'laptop');
   const n = route.senders.length;
   return `<h2 class="sec" id="route">Telegram to your computers</h2>
-      <p class="hint">Tell your bot <code>on ${name} fix the login</code> and it runs on that computer, once that computer has switched on <b>Settings → Phone → Accept tasks from channels</b> itself. The grid reads these messages and your cloud wisp is never asked. Everything else still goes to your cloud wisp.</p>
+      <p class="hint">Tell your bot <code>on ${name} fix the login</code> and it runs on that computer, once that computer has switched on <b>Settings → Notifications → Accept tasks from channels</b> itself. The grid reads these messages and your cloud wisp is never asked. Everything else still goes to your cloud wisp.</p>
       <div class="group" data-live="route">${
         route.set
           ? `<div class="r wrap"><span class="ic">${I.shield}</span><div class="tx"><b>${route.bot ? `@${esc(route.bot)}` : 'Your bot'}</b><small>${n === 1 ? 'One person' : `${n} people`} can send: ${esc(route.senders.join(', '))}</small></div><form class="inline" method="post" action="/channels/route/remove">${hidden}<button class="ghost quiet">Remove</button></form></div>`

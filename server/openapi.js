@@ -476,6 +476,13 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object' }), 400: err[400], 403: json({ type: 'object' }), 404: err[404], 409: json({ type: 'object' }) },
         },
       },
+      '/channels/routed': {
+        post: {
+          summary: 'A message wisp Grid routed to this computer (`on laptop` from a channel, grid/route.js). Through the tunnel only, and refused unless this computer switched on Accept tasks from channels: Plan by default, Edits at most, Full auto refused, this computer’s own projects only. { reply } is what the grid says in the chat',
+          requestBody: body({ type: 'object', required: ['text', 'thread', 'id'], properties: { channel: { type: 'string' }, name: { type: 'string' }, text: { type: 'string', description: 'The message without `on <computer>`' }, sender: { type: 'string' }, id: { type: 'string', description: 'The channel’s event id: seen once' }, at: { type: 'integer', description: 'When it was sent, in seconds: an old one is refused' }, thread: { type: 'string', description: 'All this computer holds of the chat: what its report goes back under' }, follow: { type: 'boolean', description: 'A reply in that thread' } } }),
+          responses: { 200: json({ type: 'object' }), 400: err[400], 403: json({ type: 'object' }), 404: err[404], 409: json({ type: 'object' }), 429: json({ type: 'object' }), 500: json({ type: 'object' }) },
+        },
+      },
       '/channels/rotate': {
         post: {
           summary: 'Replace this cloud wisp’s inbound URL for a channel, when it leaked: the grid drops the old one, then the channel is pointed at the new one. Messages held keep working. 502: the grid or the channel failed; if the URL did change, wisp keeps setting it by itself. 409: no webhook here',

@@ -91,6 +91,8 @@ function call(port, host, p, { method = 'POST', headers = {}, body } = {}) {
 const running = [];
 after(async () => {
   for (const f of running.reverse()) await f();
+  // A real wisp that was on a grid leaves a timer running that nothing here can reach.
+  setTimeout(() => process.exit(process.exitCode || 0), 50);
 });
 
 let updates = 9000;
@@ -583,4 +585,145 @@ test('a follow-up: a reply to what the grid sent goes back to that computer, in 
   assert.equal(follow.thread, thread);
   assert.equal(follow.text, 'now do the other one');
   assert.equal(g.got(ada).length, 0);
+});
+
+// --- a real wisp at the far end -------------------------------------------------------------------
+
+// Signed in to the grid and on it, as Machines → Reach this computer from anywhere does it.
+async function computerHere(g, email) {
+  process.env.WISP_HOME = tmp('route-home');
+  const repo = makeRepo();
+  const { startServer } = await import('../server/index.js');
+  const app = await startServer({ port: await freePort(), handleSignals: false });
+  const local = browser();
+  const api = (p, o = {}) => local.go(`${app.url}/api${p}`, { method: o.method || (o.body ? 'POST' : 'GET'), body: o.body, headers: { accept: 'application/json', origin: app.url, ...o.headers } });
+  running.push(async () => {
+    await app.computer.disable().catch(() => {});
+    app.shutdown();
+    app.server.closeAllConnections?.();
+    app.server.close();
+  });
+  assert.ok((await api('/projects', { method: 'POST', body: { path: repo } })).status < 300);
+  const s = await api('/cloud/signin', { method: 'POST', body: { url: g.base.replace('http://', '') } });
+  assert.equal(s.status, 201, s.text);
+  const b = browser();
+  const code = new URL(s.json.verifyUrl).searchParams.get('code');
+  const user = g.grid.accounts.signIn({ provider: 'dev', subject: email, email, emailVerified: true, name: 'ada' });
+  b.jar.set(new URL(g.base).host, new Map([['grid', g.grid.accounts.createSession(user.id, 'grid', 'test')]]));
+  const page = await b.go(s.json.verifyUrl);
+  const csrf = /name="csrf" value="([^"]+)"/.exec(page.text)[1];
+  await b.go(`${g.base}/activate`, { method: 'POST', form: { csrf, code, answer: 'allow' }, headers: { origin: g.base } });
+  await until(async () => (await api(`/cloud/signin/${s.json.id}`)).json.state === 'done', { what: 'the sign-in' });
+  const on = await api('/computer', { method: 'POST', body: { on: true } });
+  assert.equal(on.status, 200, on.text);
+  await until(async () => (await api('/computer')).json.state === 'online', { what: 'its tunnel' });
+  return { app, api, user, name: on.json.name, id: on.json.id, url: on.json.url };
+}
+
+test('a real wisp: switch off, then on; Plan, Edits, Full auto refused, stale, a replay, the report, a follow-up', async () => {
+  const g = await boot();
+  const here = await computerHere(g, 'ada@example.com');
+  const { api, app, user, name } = here;
+  await g.link(user);
+  const said = () => g.tg.sent().at(-1)?.text || '';
+  const sends = async (text, o) => {
+    const n = g.tg.sent().length;
+    await g.send(message(text, o));
+    await until(() => g.tg.sent().length > n, { what: `an answer to ${text}` });
+    return said();
+  };
+  const tasks = () => app.store.all().filter((s) => s.remote?.routed);
+
+  // Off by default.
+  assert.match(await sends(`on ${name} fix the login`), /doesn’t accept tasks/);
+  assert.equal(tasks().length, 0);
+
+  // From a browser or phone through the grid, it can't be turned on.
+  const phone = g.device(user, 'Phone (wisp app)');
+  const cookieless = await call(g.port, new URL(here.url).hostname, '/api/config', { method: 'PATCH', headers: { authorization: `Bearer ${phone}`, 'content-type': 'application/json' }, body: JSON.stringify({ defaults: { acceptChannels: 'on' } }) });
+  assert.equal(cookieless.status, 403, cookieless.text);
+  assert.match(cookieless.text, /on the computer itself/);
+  assert.notEqual(app.store.config.defaults.acceptChannels, 'on');
+  // Nor can a request on this computer pose as the grid: the mark is the tunnel's.
+  assert.equal((await api('/channels/routed', { method: 'POST', headers: { 'x-wisp-route': 'grid', 'x-wisp-tunnel': 'x'.repeat(48) }, body: { text: 'x', thread: 't', id: '1' } })).status, 403);
+  // A signed-in phone at the computer's own address can't send what only the grid sends.
+  assert.equal((await call(g.port, new URL(here.url).hostname, '/api/channels/routed', { headers: { authorization: `Bearer ${phone}`, 'content-type': 'application/json', 'x-wisp-route': 'grid' }, body: JSON.stringify({ text: 'x', thread: 't', id: '2' }) })).status, 403);
+
+  assert.equal((await api('/config', { method: 'PATCH', body: { defaults: { acceptChannels: 'on' } } })).status, 200);
+
+  // Full auto: refused, however it's asked.
+  assert.match(await sends(`on ${name} full auto: delete it`), /Full auto isn’t allowed/);
+  assert.equal(tasks().length, 0);
+
+  // Stale: sent while wisp was off.
+  assert.match(await sends(`on ${name} old news`, { date: now() - 3600 }), /didn’t run/);
+  assert.equal(tasks().length, 0);
+
+  // Plan unless asked.
+  assert.match(await sends(`on ${name} fix the login`), /Fix the login/);
+  await until(() => tasks().length === 1, { what: 'the task' });
+  const [plan] = tasks();
+  assert.equal(plan.mode, 'plan');
+  assert.match(plan.turns[0].prompt, /<message>\nfix the login\n<\/message>/, 'wrapped as untrusted');
+  assert.match(plan.turns[0].prompt, /untrusted input from Telegram/);
+  assert.ok(!JSON.stringify(plan).includes(BOT), 'the computer holds no bot');
+  assert.ok(!JSON.stringify(app.store.config).includes(BOT));
+
+  // Its report comes back through the grid, under the message that asked.
+  await until(() => g.tg.sent().some((x) => /✅|🟡|📝/.test(x.text)), { what: 'the report', timeout: 15_000 });
+  const report = g.tg.sent().find((x) => /✅|🟡|📝/.test(x.text));
+  assert.equal(String(report.chat_id), '42');
+
+  // Replay: the same update, the grid stops it; the same id at the computer stops there too.
+  const u = message(`on ${name}: edits: run it twice`);
+  await g.send(u);
+  await until(() => tasks().length === 2, { what: 'the second task' });
+  await g.send(u);
+  await sleep(150);
+  assert.equal(tasks().length, 2);
+  await until(() => tasks().every((s) => s.state !== 'running'), { what: 'them to finish', timeout: 15_000 });
+
+  // A follow-up: a reply to its report, in its thread, on this computer.
+  const n = plan.turns.length;
+  await sends('and the tests too', { reply: report.id ?? g.tg.msg });
+  await until(() => app.store.get(plan.id).turns.length > n || tasks().some((s) => s.turns.length > 1), { what: 'the follow-up' });
+  assert.equal(g.got(user).length, 0, 'the box heard none of it');
+});
+
+test('a real wisp: a message stays on this computer, no machine, no crew, no delegate', async () => {
+  const g = await boot();
+  const here = await computerHere(g, 'bo@example.com');
+  const { api, app, user, name } = here;
+  await g.link(user);
+  await api('/config', { method: 'PATCH', body: { defaults: { acceptChannels: 'on' } } });
+  const sends = async (text) => {
+    const n = g.tg.sent().length;
+    await g.send(message(text));
+    await until(() => g.tg.sent().length > n, { what: `an answer to ${text}` });
+    return g.tg.sent().at(-1).text;
+  };
+  app.store.config.projects.push({ id: 'sshp', name: 'faraway', path: '/srv/x', machine: 'm-far' });
+  assert.match(await sends(`in faraway on ${name}: fix it`), /No project/);
+  assert.match(await sends(`@ada on ${name} fix it`), /No crew member or project/);
+  assert.match(await sends(`on ${name} status`), /Only a task/);
+  assert.equal(app.store.all().filter((s) => s.remote?.routed).length, 0);
+});
+
+test('a spell can’t turn it on, and one that forces it off stops it', async () => {
+  const g = await boot();
+  const here = await computerHere(g, 'cy@example.com');
+  const { api, user, name } = here;
+  await g.link(user);
+  const spell = (v) => ({ wispSpell: 1, id: 'door', name: 'Door', version: '1.0.0', settings: { acceptChannels: v } });
+  const on = await api('/spells', { method: 'POST', body: { spell: spell('on'), enable: true } });
+  assert.ok(on.status >= 400, on.text);
+  assert.match(on.text, /acceptChannels/);
+  await api('/config', { method: 'PATCH', body: { defaults: { acceptChannels: 'on' } } });
+  const off = await api('/spells', { method: 'POST', body: { spell: spell('off'), enable: true } });
+  assert.ok(off.status < 300, off.text);
+  assert.equal((await api('/config')).json.defaults.acceptChannels, 'off');
+  assert.ok((await api('/config')).json.lockedBy.acceptChannels);
+  await g.send(message(`on ${name} fix it`));
+  await until(() => g.tg.sent().length, { what: 'the line' });
+  assert.match(g.tg.sent()[0].text, /doesn’t accept tasks/);
 });

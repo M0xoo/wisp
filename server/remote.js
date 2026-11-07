@@ -4,7 +4,7 @@
 // (channels/box.js), and so does mail.
 //
 // This is the hub: the config, the public API and the fan-out. Each channel's wire is in
-// server/channels/ (ntfy.js, telegram.js, github.js, slack.js, discord.js, email.js), and what they all share is there too: policy.js (who may
+// server/channels/ (ntfy.js, telegram.js, github.js, slack.js, discord.js, email.js, routed.js), and what they all share is there too: policy.js (who may
 // speak, what may leave), grammar.js and lists.js (what a message can say).
 
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
@@ -18,6 +18,7 @@ import { needsWisp, scrubOut, defuse } from './channels/policy.js';
 import { Ntfy } from './channels/ntfy.js';
 import { boxGrid } from './channels/box.js';
 import { NO_HUB, Slack } from './channels/slack.js';
+import { Routed } from './channels/routed.js';
 import { Telegram } from './channels/telegram.js';
 import { bad, truncate } from './util.js';
 
@@ -35,7 +36,7 @@ export class Remote {
     this.status = { ntfy: null, telegram: null, github: null, slack: null, discord: null, email: null };
     this.tgElsewhere = new Map(); // Telegram message id -> session id, for sessions on a machine (server/machines.js)
     this.away = new Map(); // session id on a machine -> { channel, by, last }: what s.remote holds for one here
-    this.channels = { ntfy: new Ntfy(this), telegram: new Telegram(this), github: new Github(this), slack: new Slack(this), discord: new Discord(this), email: new Email(this) };
+    this.channels = { ntfy: new Ntfy(this), telegram: new Telegram(this), github: new Github(this), slack: new Slack(this), discord: new Discord(this), email: new Email(this), routed: new Routed(this) };
     for (const channel of ['github', 'slack', 'discord', 'email']) for (const [id, a] of Object.entries(store.config?.remote?.[channel]?.away || {})) this.away.set(id, { channel, last: null, ...a });
     this.ac = null;
     this.ntfyPollMs = 4000;
@@ -158,8 +159,8 @@ export class Remote {
 
   // The channels that answer where they were asked, and only there.
   #reporting() {
-    const { github, slack, discord, email } = this.channels;
-    return [github, slack, discord, email].filter((c) => c.ready);
+    const { github, slack, discord, email, routed } = this.channels;
+    return [github, slack, discord, email, routed].filter((c) => c.ready);
   }
 
   // Who a task is reported as. An ask only wisp can answer, in a subagent, a side discussion or a
@@ -325,7 +326,7 @@ export class Remote {
       // Switched off, unlinked or another bot: its webhook goes too. Still linked and on, it stays.
       if (prev.hook && (relink || !c.telegram.enabled)) {
         delete c.telegram.hook;
-        if (prev.token) this.channels.telegram.unhook(prev.token);
+        if (prev.token && !prev.hook.held) this.channels.telegram.unhook(prev.token); // held: the grid's, not this box's to take down
       }
     }
     if (body.github) {

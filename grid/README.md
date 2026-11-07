@@ -210,6 +210,16 @@ own Gmail address. The box's Settings → Phone → Email shows the refusal.
 
 Only 2 to 4 say anything about forgery. If one of them starts a task, turn `mail` off and don't ship it.
 
+`"route": true` beside `enabled` adds `on laptop`: a person connects their bot on their account page
+(*Telegram to your computers*), and a message that names one of their computers runs there, with the
+box never asked. Off, `/_route/` is a 404 and the page doesn't show it. It needs https, for the same
+reason. The bot can't also be polled from a computer: Telegram allows a webhook or `getUpdates`, not
+both.
+
+```json
+"channels": { "enabled": true, "route": true }
+```
+
 ### Sandboxes
 
 `/sandbox <task>` in wisp asks the grid for a box of its own for that task (`grid/sandboxes.js`):
@@ -329,6 +339,24 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
   with a 2xx, to the address it came from, within `sendPerHour`, scrubbed here as well. A refused
   stranger's mail holds no thread. What an agent on a box can still do is mail whoever got past that
   box's own allowed sender, if it rewrites it, within the same limit.
+- **`on laptop`** (`grid/route.js`). A box must never reach a computer, and anything on a box can read
+  its Box secret, its `/_in` URL and any webhook secret it made. So the grid doesn't reuse them. The
+  account page (the grid's own origin, session and CSRF token, out of reach of `/_grid/*` and of a page
+  a box serves) takes the bot token and the allowed Telegram user ids; the grid calls `setWebhook` with
+  a URL at `<domain>/_route/<token>` and a secret of its own, and seals all of it in `user_secrets`. A
+  box is told only `held: true` by `GET /api/channels/url`, so it leaves the webhook alone. A box
+  holding the same bot token can still repoint the webhook, which stops routing for its owner, but
+  Telegram never returns a secret, so it can't sign a message. At the edge: bad secret 403, then 200,
+  then only a private chat with an allowed, non-bot sender, naming one of that user's own computers
+  (`parseRoute` in `server/channels/grammar.js`, the same grammar, imported pure). That goes through
+  the computer's tunnel to `POST /api/channels/routed`, which refuses a request from anywhere else:
+  each tunnel stream carries a random mark only that process knows, and `computerEdge` drops
+  `x-wisp-route` from what signed-in people send. Everything else goes to the box through the inbox,
+  flagged `verified`, without the secret. Nothing is held for a computer: offline or switched off, the
+  grid says so in the chat. The computer never gets the bot token: `POST /api/channels/reply` takes
+  its device token and a thread minted for that one message, bound to that computer and chat, for
+  seven days. A Box secret gets a 401 there, and a reply in the chat to something sent for a thread
+  goes back to that computer.
 - **Room.** A box starts while fewer than `hostd.maxRunning` are up and, with the container
   driver, the host has `admit.reserveMb + admit.boxMb` MiB available (`MemAvailable`; defaults
   1024 + 1024; `"admit": false` counts boxes only). When it doesn't, hostd stops the box that has

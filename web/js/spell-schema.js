@@ -524,6 +524,7 @@ export const PARTS = {
   // …and the Check Codex while work waits row.
   'settings.liveLimits': '.sx-budget .sx-row:has(#liveLimits)',
   'settings.webhookTriggers': '.sx-row:has(#hookTriggers)',
+  'settings.acceptChannels': '.sx-row:has(#acceptChannels)',
   'settings.spareCard': '.sx-budget .sx-row:has(#spareCard)',
   'settings.windowNotice': '.sx-budget .sx-row:has(#windowNotice)',
   'settings.windowNotice.line': '.sx-budget .bg-note', // the line in an account's block, with ×
@@ -755,6 +756,10 @@ export const SETTINGS = {
   // Webhook triggers: a trigger's secret URL (POST /api/hooks/<token>) starts tasks from Slack,
   // Linear or anything else (server/hooks.js). Off, those URLs answer 404.
   webhookTriggers: ['on', 'off'],
+  // Accept tasks from channels: a message wisp Grid routes here (`on laptop`, grid/route.js). A spell
+  // can force it off, never on: POST /api/spells comes through the tunnel like anything else, and a
+  // computer switches this on itself (server/routes/settings.js).
+  acceptChannels: ['off'],
   // Panes: My Stuff apps pinned beside tasks or on home, "<app id or name>@task,<app>@home"
   // (web/js/pane-bridge.js). A spell pins them; what they may use you allow yourself.
   panes: 'string',

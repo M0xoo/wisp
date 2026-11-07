@@ -151,6 +151,13 @@ export class Telegram extends Channel {
           return false;
         }
         if (found.dropped) await this.dropped(found.dropped);
+        // The grid owns the webhook (grid/route.js): one call here would take it back.
+        if (found.held) {
+          if (!this.cfg.hook?.held) this.cfg.hook = { held: true, seen: this.cfg.hook?.seen || [] };
+          this.hub.store.saveConfig();
+          this.mark({ ok: true, error: '', webhook: true });
+          return true;
+        }
         await this.#setHook(found.url, timed);
         if (!signal.aborted) this.mark({ ok: true, error: '', webhook: true });
         return true;
@@ -227,7 +234,7 @@ export class Telegram extends Channel {
   // and it keeps the updates, so nothing is lost. If that fails the old URL is dead, so #hooked takes over.
   async rotate() {
     const box = boxGrid();
-    if (!box || !this.ready || !this.cfg.hook) return { status: 409, body: { error: 'Telegram has no webhook here.' } };
+    if (!box || !this.ready || !this.cfg.hook || this.cfg.hook.held) return { status: 409, body: { error: 'Telegram has no webhook here.' } };
     const { url } = await rotateUrl(box, this.name);
     try {
       await this.#setHook(url, () => AbortSignal.timeout(15_000));
@@ -239,12 +246,17 @@ export class Telegram extends Channel {
   }
 
   // A message the grid held. Only Telegram knows this secret, and only a retry repeats an update.
-  async inbound(raw, headers = {}) {
+  // verified: the grid owns the webhook and checked its own secret (grid/route.js). Only its delivery
+  // can say so (routes/channels.js), and at worst that lets this box talk to itself.
+  async inbound(raw, headers = {}, { verified = false } = {}) {
+    if (verified && this.ready) this.cfg.hook ||= { held: true, seen: [] };
     const hook = this.ready && this.cfg.hook;
-    if (!hook?.secret) return { status: 409, body: { error: 'Telegram isn’t on here.' } };
-    const got = Buffer.from(String(headers['x-telegram-bot-api-secret-token'] ?? ''));
-    const want = Buffer.from(hook.secret);
-    if (got.length !== want.length || !timingSafeEqual(got, want)) return { status: 403, body: { error: 'Wrong secret token.' } };
+    if (!hook || (!verified && !hook.secret)) return { status: 409, body: { error: 'Telegram isn’t on here.' } };
+    if (!verified) {
+      const got = Buffer.from(String(headers['x-telegram-bot-api-secret-token'] ?? ''));
+      const want = Buffer.from(hook.secret);
+      if (got.length !== want.length || !timingSafeEqual(got, want)) return { status: 403, body: { error: 'Wrong secret token.' } };
+    }
     let u;
     try {
       u = JSON.parse(raw.toString('utf8'));

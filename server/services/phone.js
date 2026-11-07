@@ -105,6 +105,9 @@ export function phoneActions(app) {
   return {
     context,
     count,
+    // A routed message's way back: through the grid, which holds the bot (channels/routed.js).
+    onGrid: () => !!app.computer?.view().on,
+    gridReply: (thread, text) => app.computer.reply(thread, text),
     // A queued job's thread got its first reply: that's kept with the job.
     threadSaved: () => app.crew?.changed(),
     // Where a thread's follow-up runs, for the models `with` may name.

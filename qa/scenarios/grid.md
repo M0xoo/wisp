@@ -248,6 +248,23 @@ for the rest
   one from a domain signed by another, which has to be refused. Tests can't show this: nobody has
   run real SES content, whose line ends the signature check depends on, through it.
 
+### GRID-34 · `on laptop` from a message: the grid routes, the box isn't asked
+*`qa/grid.mjs`* (fake Telegram); `test/grid-route.test.js` for the rest, a real wisp at the far end included
+- **Steps:** with `channels.route` in `grid.json`, Account → *Telegram to your computers*: paste a bot
+  token and your Telegram user id, Connect. Send the webhook `on <computer> fix it` from that id, with
+  the computer offline, then online with *Accept tasks from channels* off, then on. Remove.
+- **Expected:** `setWebhook` to `<domain>/_route/<token>` with a secret the grid made; the page shows the
+  bot and the ids, never the token. Offline: "<name> is offline", nothing arrives later. Off: the line
+  says how to turn it on. On: a Plan task on the computer, its ack and report in the chat; `full auto:`
+  refused; a reply to the report is a follow-up there. The box isn't woken for any of it, and anything
+  else reaches it `verified`. A wrong secret is a 403, a wrong token a 404. `GET /api/channels/url` says
+  `held: true` and no more; `POST /api/channels/reply` with a Box secret is a 401. *Accept tasks from
+  channels* can't be changed through the grid (403 on `PATCH /api/config` there), and a spell can only
+  force it off. Fits 390px, light and dark.
+- **Risk:** the box holding the same bot token can repoint the webhook. That stops routing and reaches
+  nothing. Removing the bot leaves the box without a webhook until it next starts.
+- **Against production:** only when the owner deploys: a throwaway account, one real Telegram bot.
+
 ### GRID-24 · Caddy on-demand TLS and DNS
 *Manual*
 - **Expected:** a new handle gets a certificate on first visit; an unknown name is refused (Caddy's

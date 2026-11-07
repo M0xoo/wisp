@@ -126,6 +126,8 @@ export function createComputer(app) {
     view,
     sync,
     previewUrl,
+    // A report on a message the grid routed here: thread is all this computer holds of that chat.
+    reply: (thread, text) => call(account(), 'POST', '/api/channels/reply', { thread, text }),
     // Show local pages in previews: on or off, read by the tunnel on each request.
     previews(on) {
       const c = conf();

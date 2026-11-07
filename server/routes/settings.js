@@ -20,6 +20,7 @@ import { REVIEW_VALUES } from '../services/review.js';
 import { panesProblem } from '../../web/js/pane-bridge.js';
 import { LEAN_VALUES } from '../lean.js';
 import { SETTINGS } from '../../web/js/spell-schema.js';
+import { fromTunnel } from '../grid-tunnel.js';
 
 // On a wisp Grid (its hostd sets WISP_GRID_URL): the grid, and this wisp's own address there, so
 // the page offers connecting through the grid instead of SSH. preview: where a page the agent
@@ -40,6 +41,7 @@ export function register(r, app) {
     remote: undefined,
     defaults: { ...store.config.defaults },
     lockedBy: app.spells.settings().lockedBy,
+    cloudBox: !!app.publicUrl, // a box has no tunnel: Accept tasks from channels means nothing there
     recipes: [...store.config.recipes, ...app.spells.recipes()],
     crew: app.crew ? app.crew.list.map((m) => app.crew.view(m)) : store.config.crew, // with nextAt and what's running
     triggers: store.config.triggers.map(triggerView), // with nextAt, for split home's Coming up
@@ -67,6 +69,9 @@ export function register(r, app) {
     if (body.defaults?.windowNotice !== undefined && !['on', 'off'].includes(body.defaults.windowNotice)) return c.send(400, { error: 'windowNotice must be on or off' });
     if (body.defaults?.spareCard !== undefined && !['on', 'off'].includes(body.defaults.spareCard)) return c.send(400, { error: 'spareCard must be on or off' });
     if (body.defaults?.drainWatch !== undefined && !['on', 'off'].includes(body.defaults.drainWatch)) return c.send(400, { error: 'drainWatch must be on or off' });
+    if (body.defaults?.acceptChannels !== undefined && !['on', 'off'].includes(body.defaults.acceptChannels)) return c.send(400, { error: 'acceptChannels must be on or off' });
+    // A computer switches this on itself: not from a phone, and not from anything that holds a way in through the grid.
+    if (body.defaults?.acceptChannels !== undefined && body.defaults.acceptChannels !== store.config.defaults.acceptChannels && fromTunnel(c.req)) return c.send(403, { error: 'Change this on the computer itself, in Settings there.' });
     if (body.defaults?.webhookTriggers !== undefined && !['on', 'off'].includes(body.defaults.webhookTriggers)) return c.send(400, { error: 'webhookTriggers must be on or off' });
     if (body.defaults?.panes !== undefined && panesProblem(body.defaults.panes)) return c.send(400, { error: panesProblem(body.defaults.panes) });
     if (body.defaults?.updateChannel !== undefined && !Object.hasOwn(CHANNELS, body.defaults.updateChannel)) return c.send(400, { error: `updateChannel must be one of ${Object.keys(CHANNELS).join(', ')}` });
