@@ -215,6 +215,16 @@ test('the rules: a masked server frame, a reserved bit, a stray continuation, a 
   }
 });
 
+test('a masked frame from a server is refused for that, and nothing of it is read as a message', async () => {
+  const { ws, c } = await connect();
+  let heard = 0;
+  ws.on('message', () => heard++);
+  const end = closed(ws);
+  c.socket.write(frame(1, 'x', { mask: true }));
+  assert.deepEqual(await end, { code: 1002, reason: 'A server’s frames aren’t masked.' });
+  assert.equal(heard, 0);
+});
+
 test('frames right behind the 101, in the same write, aren’t lost', async () => {
   const server = http.createServer();
   servers.push(server);

@@ -409,6 +409,12 @@ test('a stranger in a channel: silence, by id and not by name; bots and edits to
   await caughtUp(a.thread);
   assert.equal(inThread(a.thread).length, 1, 'only the answer to the last message');
   assert.equal(srv.store.all().length, count);
+
+  // In a DM a stranger gets a line, but this bot's own message isn't one: it would answer itself.
+  const own = dm('my own report', { user: 'UBOT' });
+  dm('and a bot', { thread_ts: own.ts, bot_id: 'B9' });
+  await caughtUp(own.thread);
+  assert.equal(inThread(own.thread).length, 1);
 });
 
 test('duplicates: a retried envelope, a redelivered event, one message as two events; each acked', async () => {
