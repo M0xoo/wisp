@@ -10,10 +10,12 @@
 //   fake.close(code)       the gateway closes with a code
 //   fake.fail(match, reply)  the next REST call matching gets { status, headers, body }
 //   fake.deaf = true       heartbeats go unacked
+//   fake.silent = true     a new socket hears no hello
+//   fake.slowClose = true  a close frame isn't answered: the client gives up on its own
 //   fake.revoked = true    REST answers 401, and identify closes with 4004
 //   fake.noThreads = code  creating a thread fails with that code
 //   fake.threadChannels    channel ids that are threads; the ones made here are too
-//   fake.posts, callbacks, edits, threads, commands, identifies, resumes, beats, calls: what happened
+//   fake.posts, callbacks, edits, threads, commands, identifies, resumes, beats, calls, connects: what happened
 
 import http from 'node:http';
 import { acceptUpgrades, frame, readFrames } from './fake-slack.mjs';
@@ -35,6 +37,9 @@ export class FakeDiscord {
   closes = [];
   sockets = new Set();
   deaf = false;
+  silent = false;
+  slowClose = false;
+  connects = 0;
   revoked = false;
   noThreads = 0;
   threadChannels = new Set();
@@ -116,13 +121,16 @@ export class FakeDiscord {
 
   #connected(socket) {
     this.sockets.add(socket);
+    this.connects++;
     const state = {};
     socket.on('close', () => this.sockets.delete(socket));
+    socket.on('end', () => socket.destroy()); // an upgraded socket stays half open otherwise
     const op = (o) => socket.write(frame(1, JSON.stringify(o)));
     socket.on('data', (chunk) => {
       for (const f of readFrames(state, chunk)) {
         if (f.op === 8) {
           this.closes.push(f.payload.length >= 2 ? f.payload.readUInt16BE(0) : 1005);
+          if (this.slowClose) continue;
           socket.write(frame(8, f.payload));
           socket.end();
         }
@@ -152,7 +160,7 @@ export class FakeDiscord {
         }
       }
     });
-    op({ op: 10, d: { heartbeat_interval: this.heartbeat } });
+    if (!this.silent) op({ op: 10, d: { heartbeat_interval: this.heartbeat } });
   }
 
   #write(o) {

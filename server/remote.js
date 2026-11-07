@@ -40,6 +40,7 @@ export class Remote {
     this.slackBackoffMs = 1000; // the first wait after a lost connection; it doubles
     this.slackPingMs = 30_000;
     this.discordBackoffMs = 1000; // the same
+    this.discordHelloMs = 30_000; // how long a new socket has to say hello, as Slack
     this.discordIdentifyMs = 5000; // Discord's limit between identifies
     this.discordInvalidMs = 1000; // the least it waits after an invalid session
     this.discordJitter = Math.random; // where in the first interval the first heartbeat falls

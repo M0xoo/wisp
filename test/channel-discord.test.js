@@ -943,6 +943,55 @@ test('a session Discord won’t resume starts over; so does a close that ends it
   await connected();
 });
 
+test('a socket that never says hello is given up on', async () => {
+  await connected();
+  const keep = hub().discordHelloMs;
+  hub().discordHelloMs = 30;
+  try {
+    const n = fake.connects;
+    fake.silent = true;
+    fake.drop();
+    await until(() => fake.connects >= n + 2, { what: 'a second try after no hello' });
+    fake.silent = false;
+    await connected();
+  } finally {
+    fake.silent = false;
+    hub().discordHelloMs = keep;
+  }
+});
+
+test('a resume URL that’s gone: a few tries, then a new session', async () => {
+  await connected();
+  const ids = fake.identifies.length;
+  ch().session.url = `ws://127.0.0.1:${await freePort()}/gone`;
+  fake.drop();
+  await until(() => fake.identifies.length > ids, { what: 'an identify on the gateway’s own URL' });
+  await connected();
+});
+
+test('saving settings: the old socket closing late leaves the new connection alone', async () => {
+  // Beats too far apart to end a socket on a busy machine: only the old one may go here.
+  fake.heartbeat = 60_000;
+  try {
+    const was = fake.connects;
+    fake.drop();
+    await until(() => fake.connects > was, { what: 'a calm socket' });
+    await connected();
+    const started = fake.identifies.length + fake.resumes.length;
+    fake.slowClose = true;
+    await api('/remote', { method: 'PUT', body: { discord: { enabled: true } } });
+    await until(() => fake.sockets.size === 2 && fake.identifies.length + fake.resumes.length > started, { what: 'the new connection' });
+    await connected();
+    await until(() => fake.sockets.size === 1, { what: 'the old socket to give up' });
+    assert.equal((await api('/remote')).discord.connected, true);
+    assert.ok(ch().session, 'and its session stays');
+  } finally {
+    fake.slowClose = false;
+    fake.heartbeat = 20;
+    fake.drop();
+  }
+});
+
 test('fatal close codes stop it and say what to do; saving settings starts it again', async () => {
   for (const [code, re] of [
     [4004, /Discord refused the token/],

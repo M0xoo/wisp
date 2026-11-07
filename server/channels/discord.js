@@ -27,6 +27,7 @@ const MAX_IDS = 20; // messages of a task a reply can point at
 const MAX_BUTTONS = 25;
 const BACKOFF_MAX_MS = 5 * 60_000;
 const TRIES = 3;
+const RESUME_TRIES = 3; // connections in a row that got nowhere before a resume URL is given up on
 const EPOCH = 1420070400000n; // what a snowflake counts from
 const GUILDS = 1 << 0;
 const GUILD_MESSAGES = 1 << 9;
@@ -117,6 +118,7 @@ export class Discord extends Channel {
     this.turns = new Turns();
     this.me = null; // { id, name }: who this bot is
     this.connected = false;
+    this.socket = null; // the latest
     this.guilds = new Set();
     this.session = null; // { id, url }: what a resume needs, with seq
     this.seq = null;
@@ -205,7 +207,7 @@ export class Discord extends Channel {
         wait = (err.retryAfter || 0) * 1000;
       }
       if (signal.aborted) return;
-      fails++;
+      if (++fails >= RESUME_TRIES) this.session = null; // its URL may be gone for good: the gateway's, then
       await sleep(Math.max(wait, Math.min(this.hub.discordBackoffMs * 2 ** (fails - 1), BACKOFF_MAX_MS)), signal);
     }
   }
@@ -226,12 +228,15 @@ export class Discord extends Channel {
   // now: Discord asked for a new one; wait: not before this long; fatal: why it won't come back.
   async #listen(url, signal) {
     const ws = await openWs(`${url.replace(/\/+$/, '')}/?v=10&encoding=json`, { signal });
+    this.socket = ws;
     return new Promise((resolve) => {
       const end = { ready: false, now: false, wait: 0, fatal: '' };
       const send = (op, d) => ws.send(JSON.stringify({ op, d }));
       let timer = null;
       let acked = true;
       let every = 0;
+      const hello = setTimeout(() => ws.destroy('Discord never said hello.'), this.hub.discordHelloMs); // a silent peer won't answer a close either
+      hello.unref?.();
       // A laptop that slept leaves a socket that looks open: no ack by the next beat ends it.
       const beat = () => {
         if (!acked) return ws.destroy('Discord stopped answering.');
@@ -242,10 +247,16 @@ export class Discord extends Channel {
       };
       ws.on('close', (code, reason) => {
         clearTimeout(timer);
+        clearTimeout(hello);
+        // Settings were saved: the next connection may be up by now, and what's left is its own.
+        if (signal.aborted) {
+          if (this.socket === ws) this.connected = false;
+          return resolve(end);
+        }
         this.connected = false;
         if (FATAL[code]) end.fatal = FATAL[code];
         if (START_AGAIN.has(code)) this.session = null;
-        if (!signal.aborted && !end.fatal && !end.now && !end.wait) this.#down(reason || 'The connection to Discord dropped.');
+        if (!end.fatal && !end.now && !end.wait) this.#down(reason || 'The connection to Discord dropped.');
         resolve(end);
       });
       ws.on('message', (text) => {
@@ -256,6 +267,7 @@ export class Discord extends Channel {
           return;
         }
         if (m.op === OP.hello) {
+          clearTimeout(hello);
           every = m.d.heartbeat_interval;
           timer = setTimeout(beat, every * this.hub.discordJitter());
           timer.unref?.();
