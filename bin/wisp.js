@@ -471,7 +471,6 @@ async function interactive() {
   }
 }
 
-
 async function waitForServer(api) {
   for (let i = 0; i < 150; i++) {
     try {

@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import { section, notes, nightlyNotes } from '../scripts/release-notes.mjs';
 import { nightlyVersion } from '../scripts/nightly-version.mjs';
 import { newer } from '../server/update.js';
-import { appFiles, artefacts } from '../desktop/scripts/package.mjs';
+import { appFiles, artefacts, shellArtefact } from '../desktop/scripts/package.mjs';
 
 // Windows checkouts have CRLF line ends; the patterns below match \n.
 const read = (f) => fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
@@ -49,6 +49,21 @@ test('the release workflow builds the Tauri app and publishes last', () => {
   assert.match(wf, /scripts\/release-notes\.mjs/);
   assert.match(wf, /gh release create "\$TAG" --draft/);
   assert.match(wf, /needs: \[plan, release, npm\]/); // the release goes public after npm
+});
+
+test('a release and a nightly publish the shell alone for each build, or stop', () => {
+  const wf = read('.github/workflows/release.yml');
+  const pkg = read('.github/workflows/tauri-package.yml');
+  // package.mjs writes them beside the downloads, so they ride in desktop-* with the rest.
+  assert.equal(pkg.match(/name: desktop-(mac|windows)\n\s+if-no-files-found: error\n\s+path: dist\/tauri\/wisp-\*\n/g)?.length, 2);
+  const gates = [...wf.matchAll(/- name: The shell archives are there\n\s+run: for a in ([\w -]+); do test -s "out\/wisp-shell-\$a\.tar\.gz"/g)];
+  assert.equal(gates.length, 2, 'the release job and the nightly job');
+  const triples = ['aarch64-apple-darwin', 'x86_64-apple-darwin', 'x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc'];
+  for (const [, list] of gates) assert.deepEqual(list.split(' ').map((a) => `wisp-shell-${a}.tar.gz`), triples.map(shellArtefact));
+  for (const job of ['Draft the release', 'Update the nightly release']) {
+    const at = wf.indexOf(job); // each job checks what it downloaded, before it publishes
+    assert.ok(wf.lastIndexOf('The shell archives are there', at) > wf.lastIndexOf('pattern: desktop-*', at), job);
+  }
 });
 
 test('a nightly is the next patch, stamped with the UTC date and time, and sorts where it should', () => {

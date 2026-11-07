@@ -151,6 +151,9 @@ jobs:
           pattern: desktop-*
           merge-multiple: true
           path: out
+      # wisp from npm opens its window from these (bin/desktop-shell.js): without one, a tab.
+      - name: The shell archives are there
+        run: for a in mac-arm64 mac-x64 windows-x64 windows-arm64; do test -s "out/wisp-shell-$a.tar.gz" || { echo "::error::no wisp-shell-$a.tar.gz"; exit 1; }; done
       - name: Draft the release and upload the downloads
         run: |
           node scripts/release-notes.mjs "$TAG" > notes.md
@@ -237,6 +240,8 @@ jobs:
           pattern: desktop-*
           merge-multiple: true
           path: out
+      - name: The shell archives are there
+        run: for a in mac-arm64 mac-x64 windows-x64 windows-arm64; do test -s "out/wisp-shell-$a.tar.gz" || { echo "::error::no wisp-shell-$a.tar.gz"; exit 1; }; done
       - name: Update the nightly release
         run: |
           node scripts/release-notes.mjs --nightly "$VERSION" "$SHA" > notes.md
