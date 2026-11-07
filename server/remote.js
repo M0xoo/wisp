@@ -15,7 +15,8 @@ import { Github } from './channels/github.js';
 import { ranInstead } from './channels/lists.js';
 import { needsWisp, scrubOut, defuse } from './channels/policy.js';
 import { Ntfy } from './channels/ntfy.js';
-import { NOT_ON_A_BOX, Slack } from './channels/slack.js';
+import { boxGrid } from './channels/box.js';
+import { NO_HUB, Slack } from './channels/slack.js';
 import { Telegram } from './channels/telegram.js';
 import { bad, truncate } from './util.js';
 
@@ -249,6 +250,7 @@ export class Remote {
         enabled: !!c.slack?.enabled,
         appToken: mask(c.slack?.appToken),
         botToken: mask(c.slack?.botToken),
+        signingSecret: mask(c.slack?.signingSecret),
         connected: this.channels.slack.connected,
         team: this.channels.slack.me?.team || '',
         bot: this.channels.slack.me?.name || '',
@@ -327,14 +329,16 @@ export class Remote {
     if (body.slack) {
       const prev = c.slack || {};
       const enabled = !!(body.slack.enabled ?? prev.enabled);
-      if (enabled && inBox()) throw bad(NOT_ON_A_BOX);
+      if (enabled && inBox() && !boxGrid()) throw bad(NO_HUB); // a sandbox: one task's box, with no way in. A grid with the hub off says so in status
       const token = (v, was) => (v === undefined ? was : keep(v, was)) || ''; // missing = unchanged
-      const [appToken, botToken] = [token(body.slack.appToken, prev.appToken), token(body.slack.botToken, prev.botToken)];
+      const [appToken, botToken, signingSecret] = [token(body.slack.appToken, prev.appToken), token(body.slack.botToken, prev.botToken), token(body.slack.signingSecret, prev.signingSecret)];
       if (appToken && !/^xapp-\S+$/.test(appToken)) throw bad('The app-level token starts with xapp-.');
       if (botToken && !/^xoxb-\S+$/.test(botToken)) throw bad('The bot token starts with xoxb-.');
+      if (signingSecret && !/^\S{16,}$/.test(signingSecret)) throw bad('That isn’t a signing secret: copy it from Basic Information → App Credentials.');
       const relink = body.slack.unlink || botToken !== (prev.botToken || ''); // another workspace, other people
-      c.slack = { ...prev, enabled, appToken, botToken, senders: relink ? [] : prev.senders || [], linkCode: relink || !prev.linkCode ? newLinkCode() : prev.linkCode };
+      c.slack = { ...prev, enabled, appToken, botToken, signingSecret, senders: relink ? [] : prev.senders || [], linkCode: relink || !prev.linkCode ? newLinkCode() : prev.linkCode };
       this.channels.slack.customize = true;
+      if (inBox()) this.channels.slack.connected = false; // no socket to close: Working again once it says so
     }
     if (body.discord) {
       const prev = c.discord || {};

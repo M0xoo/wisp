@@ -122,7 +122,7 @@ async function inThread(c, sessionId, p) {
   await say(line);
 }
 
-const same = (a, b) => {
+export const same = (a, b) => {
   const [x, y] = [Buffer.from(String(a)), Buffer.from(String(b))];
   return x.length === y.length && timingSafeEqual(x, y);
 };

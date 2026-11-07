@@ -13,7 +13,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { truncate } from '../util.js';
 import { boxGrid, channelUrl, rotateUrl } from './box.js';
-import { Channel, CODE, KIND, resend, sleep } from './channel.js';
+import { Channel, CODE, KIND, lostLine, resend, sleep } from './channel.js';
 import { converse } from './conversation.js';
 import { findProject, stripFormatting } from './grammar.js';
 import { LISTS, refusal } from './lists.js';
@@ -273,8 +273,7 @@ export class Telegram extends Channel {
   async dropped(n) {
     this.mark({ dropped: n });
     if (!this.linked) return;
-    const line = n === 1 ? 'One message didn’t reach wisp while it was asleep. Send it again to run it.' : `${n} messages didn’t reach wisp while it was asleep. Send them again to run them.`;
-    await this.api('sendMessage', { chat_id: this.cfg.chatId, text: line }).catch(() => {});
+    await this.api('sendMessage', { chat_id: this.cfg.chatId, text: lostLine(n) }).catch(() => {});
   }
 
   async #from(u) {

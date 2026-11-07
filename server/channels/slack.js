@@ -1,6 +1,11 @@
-// Slack, two-way, on a computer: `@wisp in api with opus plan: fix it` in a channel, or a DM to the
-// bot, starts a task and answers in a thread. Socket Mode: wisp dials out, nothing has to reach this
+// Slack, two-way: `@wisp in api with opus plan: fix it` in a channel, or a DM to the bot, starts a
+// task and answers in a thread. On a computer, Socket Mode: wisp dials out, nothing has to reach this
 // machine. Off by default, with the user's own app (slackManifest) and two tokens.
+//
+// A cloud wisp sleeps, and a socket would go with it. There Slack posts HTTP events to its URL on the
+// grid (grid/inbox.js), which answers Slack's 3 s, holds the event and wakes the box; inbound() checks
+// the signature, with the signing secret and bot token in place of the app token. From there both
+// ways are one path: #behind, #event, and gate, grammar and task.
 //
 // Only people linked by a code shown in wisp may speak, by their stable user id. In a channel others
 // can read what's said, so lists and refusals there carry none of your names, and a stranger gets
@@ -8,13 +13,15 @@
 // stays in wisp.
 //
 // Every envelope is acked the moment it arrives (Slack resends after 3 s), then the work runs behind,
-// one at a time per thread. Not on a Cloud box: it sleeps, and this socket would go with it.
+// one at a time per thread.
 
-import { truncate } from '../util.js';
-import { Channel, resend, sleep } from './channel.js';
-import { Linking, Turns, converse, firstPart, inBox, surface } from './conversation.js';
+import { slackOk } from '../hooks.js';
+import { bad, truncate } from '../util.js';
+import { boxGrid, channelUrl, rotateUrl } from './box.js';
+import { Channel, lostLine, resend, sleep } from './channel.js';
+import { Linking, Turns, converse, firstPart, inBox, same, surface } from './conversation.js';
 import { stripFormatting } from './grammar.js';
-import { RateLimit, Seen, defuse, gate, scrubOut } from './policy.js';
+import { RateLimit, Seen, allowed, defuse, gate, scrubOut } from './policy.js';
 import { openWs } from './ws.js';
 
 const CAP = 'edits';
@@ -24,17 +31,21 @@ const MAX_TEXT = 3900; // Slack's advice: past 4000 a message is split or cut
 const BACKOFF_MAX_MS = 5 * 60_000;
 const HELLO_MS = 30_000;
 const POST_TRIES = 3;
-export const NOT_ON_A_BOX = 'Slack can’t run on a cloud computer yet: it sleeps when it’s idle, and the connection to Slack would die with it. Set it up on a computer that stays on.';
+const SEEN_EVENTS = 200; // kept in the config: a box's memory ends when it sleeps
+const CHALLENGE_MAX = 512;
+export const NO_HUB = 'Slack can’t reach this computer: its grid doesn’t hold messages for it. Set Slack up on a computer that stays on.';
 const STRANGER = 'This wisp only answers people linked to it. To link, send `link` and the code shown in wisp → Settings → Phone → Slack, here.';
 const NO_LIST = 'That list isn’t shown in a channel: see it in wisp, or ask here in a DM.';
 const NO_THREAD = 'Do that in a task’s thread.';
 // What won't change by trying again: new tokens or a new app setting are needed.
 const FOR_GOOD = new Set(['invalid_auth', 'not_authed', 'account_inactive', 'token_revoked', 'token_expired', 'no_permission', 'missing_scope', 'not_allowed_token_type', 'org_login_required', 'team_access_not_granted', 'link_disabled']);
 const FIX = 'Check the tokens in wisp → Settings → Phone → Slack.';
+const WRONG_SECRET = 'Slack’s signature doesn’t match the signing secret.';
 
-// The app to create at api.slack.com/apps → From a manifest. Socket Mode, so no URLs. The app-level
-// token it then needs (xapp-…) takes the connections:write scope.
-export function slackManifest() {
+// The app to create at api.slack.com/apps → From a manifest. On a computer Socket Mode, so no URLs,
+// and the app-level token it then needs (xapp-…) takes the connections:write scope. url: a cloud
+// wisp's own, where Slack posts its events instead.
+export function slackManifest({ url = '' } = {}) {
   return {
     display_information: { name: 'wisp', description: 'Start and steer your wisp tasks from Slack.', background_color: '#1a1a1a' },
     features: {
@@ -43,10 +54,10 @@ export function slackManifest() {
     },
     oauth_config: { scopes: { bot: ['app_mentions:read', 'chat:write', 'chat:write.customize', 'im:history'] } },
     settings: {
-      event_subscriptions: { bot_events: ['app_mention', 'message.im'] },
+      event_subscriptions: { ...(url && { request_url: url }), bot_events: ['app_mention', 'message.im'] },
       interactivity: { is_enabled: false },
       org_deploy_enabled: false,
-      socket_mode_enabled: true,
+      socket_mode_enabled: !url,
       token_rotation_enabled: false,
     },
   };
@@ -77,7 +88,8 @@ export class Slack extends Channel {
 
   get ready() {
     const c = this.cfg;
-    return !!(c?.enabled && c.appToken && c.botToken && !inBox());
+    if (!c?.enabled || !c.botToken) return false;
+    return inBox() ? !!(boxGrid() && c.signingSecret) : !!c.appToken;
   }
 
   // Tokens go in a header, and an error is only ever Slack's own short code.
@@ -104,14 +116,19 @@ export class Slack extends Channel {
 
   // --- the connection ---------------------------------------------------------------------------
 
+  async #whoAmI(signal) {
+    const me = await this.api('auth.test', {}, { tries: 1, signal });
+    this.me = { user: me.user_id, bot: me.bot_id, name: me.user || 'wisp', team: me.team || '' };
+  }
+
   async start(signal) {
+    if (inBox()) return this.#overHttp(signal);
     let fails = 0;
     while (!signal.aborted) {
       let wait = 0;
       let again = false;
       try {
-        const me = await this.api('auth.test', {}, { tries: 1, signal });
-        this.me = { user: me.user_id, bot: me.bot_id, name: me.user || 'wisp', team: me.team || '' };
+        await this.#whoAmI(signal);
         const { url } = await this.api('apps.connections.open', {}, { token: this.cfg.appToken, tries: 1, signal });
         const end = await this.#listen(url, signal);
         if (end.heard) fails = 0;
@@ -128,6 +145,45 @@ export class Slack extends Channel {
       fails++;
       await sleep(Math.max(wait, Math.min(this.hub.slackBackoffMs * 2 ** (fails - 1), BACKOFF_MAX_MS)), signal);
     }
+  }
+
+  // On a box nothing stays open: this is one look at the tokens and the way in. Slack calls when it
+  // has something, and that wakes this box.
+  async #overHttp(signal) {
+    for (let fails = 0; !signal.aborted; fails++) {
+      try {
+        await this.#whoAmI(signal);
+        if (!(await this.hookUrl())) return this.#down(NO_HUB);
+        if (signal.aborted) return;
+        this.connected = true;
+        this.mark({ ok: true, connected: true, error: '' });
+        return;
+      } catch (err) {
+        if (signal.aborted) return;
+        this.#down(FOR_GOOD.has(err.code) ? `${err.message}. ${FIX}` : err.message);
+        if (FOR_GOOD.has(err.code)) return;
+        await sleep(Math.min(this.hub.slackBackoffMs * 2 ** fails, BACKOFF_MAX_MS), signal);
+      }
+    }
+  }
+
+  // This cloud wisp's URL for Slack's events, or '': its grid holds nothing for it.
+  async hookUrl() {
+    const box = boxGrid();
+    if (!box) return '';
+    const found = await channelUrl(box, this.name);
+    if (found?.dropped) await this.dropped(found.dropped);
+    return found?.url || '';
+  }
+
+  // The manifest to paste: a computer's, or on a box the one with its URL.
+  async manifest() {
+    if (!inBox()) return slackManifest();
+    const url = await this.hookUrl().catch((err) => {
+      throw bad(`The grid didn’t give this wisp its URL: ${err.message}.`, 502);
+    });
+    if (!url) throw bad(NO_HUB, 409);
+    return slackManifest({ url });
   }
 
   #down(error) {
@@ -186,20 +242,96 @@ export class Slack extends Channel {
     });
   }
 
-  // The work, behind the ack: one at a time in a thread, side by side across threads.
-  #behind(payload) {
+  // The work, behind the ack: one at a time in a thread, side by side across threads. now: when it
+  // arrived, for an event that waited at the grid. → done when it's been dealt with.
+  #behind(payload, now) {
     const e = payload?.event;
-    if (!e) return;
+    if (!e) return null;
     const key = `${e.channel}:${e.thread_ts || e.ts}`;
-    this.turns.queue(key, () => this.#event(payload, e, key), (err) => {
+    return this.turns.queue(key, () => this.#event(payload, e, key, now), (err) => {
       console.warn(`wisp: slack: ${err.message}`);
       this.mark({ error: err.message });
     });
   }
 
+  // --- an event the grid held: a cloud wisp ---------------------------------------------------
+
+  // at: when the grid took it, and only the grid can say (the proxy secret and its mark,
+  // routes/channels.js). Slack's five minutes are judged from then, so a row that waited for a wake
+  // isn't old, and a signed body sent again later is: the grid stamps its own time on that. Anything
+  // later than now is treated as now. Past that signature an event's id stops a repeat, kept in the
+  // config as a box forgets the rest when it sleeps.
+  async inbound(raw, headers = {}, { at } = {}) {
+    const c = this.cfg;
+    if (!c?.enabled || !boxGrid()) return { status: 409, body: { error: 'Slack isn’t on here.' } };
+    let j = null;
+    try {
+      j = JSON.parse(raw.toString('utf8'));
+    } catch {}
+    const checking = j?.type === 'url_verification';
+    const now = Date.now();
+    const taken = Math.min(Number.isFinite(at) && at > 0 ? at : now, now);
+    if (c.signingSecret) {
+      const wrong = slackOk(c.signingSecret, raw, headers, taken);
+      if (wrong) {
+        if (checking) this.mark({ ok: false, error: WRONG_SECRET }); // wisp is open: the likeliest slip in setup
+        return { status: 403, body: { error: wrong } };
+      }
+    }
+    if (checking) {
+      if (typeof j.challenge !== 'string' || j.challenge.length > CHALLENGE_MAX) return { status: 400, body: { error: 'No challenge.' } };
+      if (this.hub.status.slack?.error === WRONG_SECRET) this.mark({ ok: true, error: '' });
+      return { status: 200, body: { challenge: j.challenge } }; // before a secret too: Slack checks the URL before it can be pasted, and echoing one word does nothing
+    }
+    if (!this.ready) return { status: 409, body: { error: 'Slack isn’t on here.' } };
+    if (j?.type !== 'event_callback' || !j.event_id || !j.event) return { status: 400, body: { error: 'Not an event.' } };
+    const e = j.event;
+    try {
+      if (!this.me) await this.#whoAmI(); // a mention names the bot, and this can beat start()
+    } catch (err) {
+      return { status: 503, body: { error: err.message } };
+    }
+    // It really came from Slack: this 403 tells the grid nobody here wanted it, so a stranger's wake
+    // stops being paid for (grid/inbox.js).
+    const ours = this.#ours(e);
+    const stranger = !ours && { status: 403, body: { error: 'Not from someone linked.' } };
+    const ids = [j.event_id, e.client_msg_id && `m:${e.client_msg_id}`].filter(Boolean);
+    if (ids.some((id) => c.seen?.includes(id))) return stranger || { status: 200, body: { ok: true, duplicate: true } };
+    c.seen = [...(c.seen || []), ...ids].slice(-SEEN_EVENTS);
+    if (ours) c.spoke = { chat: e.channel, ts: e.thread_ts || e.ts };
+    this.hub.store.saveConfig();
+    await this.#behind(j, taken);
+    return stranger || { status: 200, body: { ok: true } };
+  }
+
+  // Someone linked, or the code that links them.
+  #ours(e) {
+    const c = this.cfg;
+    if (allowed(e.user, c.senders)) return true;
+    if (e.bot_id || !e.user || String(e.channel)[0] !== 'D') return false;
+    const code = /^link\s+(\S+)$/i.exec(stripFormatting(e.text, 'slack', { bot: this.me?.user }))?.[1];
+    return !!code && !!c.linkCode && same(code, c.linkCode);
+  }
+
+  // Told in the last thread where someone linked spoke: there's no other place that's known to be theirs.
+  async dropped(n) {
+    this.mark({ dropped: n });
+    const spoke = this.cfg?.spoke;
+    if (spoke) await this.#post(spoke.chat, spoke.ts, lostLine(n)).catch(() => {});
+  }
+
+  // A leaked URL: the old one stops at the grid. Slack has no call for this with a bot token, so the
+  // new one goes back to whoever asked, for the app's settings. Its secret and seen list stay.
+  async rotate() {
+    const box = boxGrid();
+    if (!box || !this.ready) return { status: 409, body: { error: 'Slack isn’t on here.' } };
+    const { url } = await rotateUrl(box, this.name);
+    return { status: 200, body: { ok: true, url } };
+  }
+
   // --- what a message does ----------------------------------------------------------------------
 
-  async #event(payload, e, key) {
+  async #event(payload, e, key, now) {
     const hub = this.hub;
     const c = this.cfg;
     if (e.type !== 'app_mention' && !(e.type === 'message' && e.channel_type === 'im')) return;
@@ -213,7 +345,7 @@ export class Slack extends Channel {
     const link = dm ? /^link(?:\s+(\S+))?$/i.exec(text) : null;
     if (link) return this.tried.first(id) ? this.linking.attempt(e.user, link[1], raw) : undefined;
     const seen = { first: (x) => this.seen.first(x) && (!e.client_msg_id || this.seen.first(`m:${e.client_msg_id}`)) };
-    const g = gate({ sender: e.user, senders: c.senders || [], id, at: Number(e.ts), seen, limit: this.limit, dm, strangerLine: STRANGER });
+    const g = gate({ sender: e.user, senders: c.senders || [], id, at: Number(e.ts), now, seen, limit: this.limit, dm, strangerLine: STRANGER });
     if (!g.ok) {
       hub.phone.count?.('refused', g.why);
       if (g.why === 'stranger' && (!this.tried.first(id) || !this.strangers.hit(e.user).ok)) return;

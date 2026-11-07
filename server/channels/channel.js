@@ -3,8 +3,9 @@
 //   ready        configured well enough to send
 //   start(signal)  listen until the signal aborts (a poll loop, a socket)
 //   publish(msg, s)  send { title, text, actions } about session s (or nothing in particular)
-//   inbound(raw, headers)  a message the grid held for this cloud wisp (routes/channels.js): verify
-//                it and handle it → { status, body }. A 4xx is final, and only a 2xx means it was for wisp and handled.
+//   inbound(raw, headers, { at })  a message the grid held for this cloud wisp (routes/channels.js):
+//                verify it and handle it → { status, body }. at: when the grid took it. A 4xx is final,
+//                and only a 2xx means it was for wisp and handled.
 //   dropped(n)   the grid lost n of this channel's messages (a full grid, an hour asleep)
 //   rotate()     replace this cloud wisp's inbound URL, and point the channel at the new one
 // Inbound goes through policy.js's gate() and grammar.js's parseMessage(), then the hub's phone
@@ -16,6 +17,7 @@ const AWAY_MAX = 200;
 export const KIND = { a: 'answer', r: 'reply', d: 'done' };
 export const CODE = { answer: 'a', reply: 'r', done: 'd' };
 const SEND_TRIES = 3;
+export const lostLine = (n) => (n === 1 ? 'One message didn’t reach wisp while it was asleep. Send it again to run it.' : `${n} messages didn’t reach wisp while it was asleep. Send them again to run them.`);
 export const sleep = (ms, signal) => new Promise((r) => (signal?.aborted ? r() : (setTimeout(r, ms).unref?.(), signal?.addEventListener('abort', r, { once: true }))));
 
 // A post whose connection broke: fetch rejects with a TypeError and no answer, where a kept-alive
