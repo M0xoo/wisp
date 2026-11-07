@@ -209,14 +209,12 @@ for (const [text, want] of [
   ['on Mac Studio plan: fix it', { machine: 'c2', text: 'plan: fix it' }],
   ['on mac studio fix it', { machine: 'c2', text: 'fix it' }],
   ['on **laptop** fix it', { machine: 'c1', text: 'fix it' }],
-  ['in api on laptop fix it', { machine: 'c1', text: 'in api fix it' }],
-  ['in api on laptop with opus high plan: fix it', { machine: 'c1', text: 'in api with opus high plan: fix it' }],
-  ['with gpt-5 high on laptop: fix it', { machine: 'c1', text: 'with gpt-5 high : fix it' }],
-  ['with claude opus-4 on laptop fix it', { machine: 'c1', text: 'with claude opus-4 fix it' }],
-  ['#api on laptop fix it', { machine: 'c1', text: '#api fix it' }],
-  ['@ada on laptop fix it', { machine: 'c1', text: '@ada fix it' }],
+  ['on laptop in api fix it', { machine: 'c1', text: 'in api fix it' }],
+  ['on laptop in api with opus high plan: fix it', { machine: 'c1', text: 'in api with opus high plan: fix it' }],
+  ['on laptop #api fix it', { machine: 'c1', text: '#api fix it' }],
+  ['on laptop @ada fix it', { machine: 'c1', text: '@ada fix it' }],
   ['/new on laptop status', { machine: 'c1', text: '/new status' }],
-  ['/new in api on laptop fix it', { machine: 'c1', text: '/new in api fix it' }],
+  ['/new on laptop in api fix it', { machine: 'c1', text: '/new in api fix it' }],
   ['on laptop full auto: delete it', { machine: 'c1', text: 'full auto: delete it' }],
   // What isn't a route: the box's, as today. A router takes whole names: a word that only starts one
   // is the start of a sentence.
@@ -245,6 +243,11 @@ for (const [text, want] of [
   ['models on laptop', null],
   ['', null],
   ['in the login page on laptop fix it', null],
+  ['in api on laptop fix it', null],
+  ['with opus on laptop fix it', null],
+  ['#api on laptop fix it', null],
+  ['@ada on laptop fix it', null],
+  ['/new in api on laptop fix it', null],
   ['#123 on laptop fix it', null],
 ]) {
   test(`parseRoute: ${JSON.stringify(text)}`, () => {
@@ -264,7 +267,7 @@ test('parseRoute: a name two computers share is said, not guessed', () => {
 test('what the grid hands on reads the same on the computer', () => {
   const ctx = { projects: [{ name: 'api', path: '/api' }], machines: [], adapters: [], agents: [], crew: [] };
   for (const [text, want] of [
-    ['in api on laptop fix it', { project: 'api', prompt: 'fix it' }],
+    ['on laptop in api fix it', { project: 'api', prompt: 'fix it' }],
     ['on laptop: in api fix it', { project: null, prompt: 'in api fix it' }],
     ['on laptop plan: fix it', { project: null, prompt: 'fix it', mode: 'plan' }],
     ['on laptop full auto: fix it', { project: null, prompt: 'fix it', mode: 'auto' }],

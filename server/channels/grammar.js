@@ -143,7 +143,7 @@ function readPlace(t, o, ctx, { list, kind, word, special }) {
   const s = t.after;
   if (!s) return null;
   const own = special?.(s);
-  const hit = own || pickName(list, s, !!ctx.blind);
+  const hit = own || pickName(list, s, !!ctx.exact);
   if (hit?.ambiguous) {
     problem(o, 'ambiguous', `“${hit.word}” could be ${hit.ambiguous.length} ${kind}s.`, namesOf(hit.ambiguous));
     return { rest: hit.rest, stop: true };
@@ -232,33 +232,9 @@ function readMode(t, o, count) {
   return { rest: last.after, colon: last.colon };
 }
 
-// parseRoute's `with`: no models to check against, so one to three words, up to the next option.
-const OPTION_WORD = /^(?:on|in|with|plan|edits|full|full-auto)$|^[@#]/i;
-function skipWith(t) {
-  let cur = token(t.after);
-  if (!cur.word || OPTION_WORD.test(cur.word)) return null;
-  for (let n = 1; n < 3 && !cur.colon; n++) {
-    const next = token(cur.after);
-    if (!next.word || OPTION_WORD.test(next.word)) break;
-    if (!MODEL_SHAPE.test(next.word) && !/^(?:low|medium|high|xhigh|max|opus|sonnet|haiku)$/i.test(next.word)) break;
-    cur = next;
-  }
-  return { rest: cur.after, colon: cur.colon };
-}
-
 // One option at the front of s. → { rest, colon?, stop? }, or null when this isn't one.
 function readOption(t, s, o, ctx, count) {
   const thread = !!ctx.thread;
-  if (ctx.blind) {
-    // Only machines are known here: what's the machine's to judge is stepped over, one word each.
-    if (t.word[0] === '@' && t.word.length > 1 && !t.word.includes('/')) return { rest: t.after, colon: t.colon };
-    if (t.word[0] === '#' && t.word.length > 1) return /^\d+$/.test(t.word.slice(1)) ? null : { rest: t.after, colon: t.colon };
-    if (t.low === 'with' && !t.colon) return skipWith(t);
-    if (t.low === 'in' && !t.colon) {
-      const v = token(t.after);
-      return !v.word || NOT_A_NAME.has(v.low) || OPTION_WORD.test(v.word) ? null : { rest: v.after, colon: v.colon };
-    }
-  }
   if (t.word[0] === '@' && !t.word.includes('/')) {
     // crewMentions reads the whole text, so it gets it without this word's marks.
     const src = `${t.word}${t.colon ? ':' : t.comma ? ',' : ''}${s.slice(t.raw.length)}`;
@@ -439,34 +415,26 @@ function readCommand(text, ctx) {
 // What a router needs of a message, for one that knows computers and nothing else (wisp Grid, which
 // holds no projects, models or crew: those are the computer's to read). → { machine, text }, with the
 // message as it should reach that computer, `on <name>` gone; { problems } when the name fits several;
-// null for anything else, which isn't this router's. Read from the front like parseMessage, so
-// "fix it on laptop" is a sentence, and whole names only, so "on mac" isn't Mac Studio. "cloud" and
-// "here" aren't computers: they stay the box's.
+// null for anything else, which isn't this router's. `on <name>` comes first, after an optional /new:
+// a router can't tell an option from a word, so "in production on build drop the table" is a sentence,
+// and so is "fix it on laptop". Whole names only, so "on mac" isn't Mac Studio. "cloud" and "here"
+// aren't computers: they stay the box's.
 export function parseRoute(text, computers = []) {
   const whole = String(text ?? '').trim();
   if (COLON.test(whole)) return null;
-  const ctx = { blind: true, machines: computers.some((m) => lower(m.name) === 'cloud') ? computers : [...computers, { id: '', name: 'cloud' }] };
+  const ctx = { exact: true, machines: computers.some((m) => lower(m.name) === 'cloud') ? computers : [...computers, { id: '', name: 'cloud' }] };
   const cmd = readCommand(whole, ctx);
   if (cmd && cmd.name !== 'new') return null;
   const src = cmd ? cmd.arg : whole;
+  const t = token(src);
+  if (t.low !== 'on') return null;
   const o = fresh();
-  let rest = src;
-  for (let count = 0; rest; count++) {
-    const t = token(rest);
-    if (!t.word) return null;
-    const step = readOption(t, rest, o, ctx, count);
-    if (o.problems.length) return o.problems[0].kind === 'ambiguous' ? { problems: o.problems } : null;
-    if (!step || step.stop) return null;
-    if (o.machine !== undefined) {
-      if (!computers.some((m) => m.id === o.machine)) return null;
-      const said = `${src.slice(0, src.length - rest.length)}${step.colon ? ': ' : ''}${step.rest}`.trim();
-      if (!said.replace(COLON, '').trim()) return null; // nothing to do there: not a task, and the box can say so
-      return { machine: o.machine, text: cmd ? `/new ${said}` : said };
-    }
-    rest = step.rest;
-    if (step.colon) return null;
-  }
-  return null;
+  const step = readOption(t, src, o, ctx, 0);
+  if (o.problems.length) return o.problems[0].kind === 'ambiguous' ? { problems: o.problems } : null;
+  if (!step || step.stop || !computers.some((m) => m.id === o.machine)) return null;
+  const said = `${step.colon ? ': ' : ''}${step.rest}`.trim();
+  if (!said.replace(COLON, '').trim()) return null; // nothing to do there: not a task, and the box can say so
+  return { machine: o.machine, text: cmd ? `/new ${said}` : said };
 }
 
 // text (already through stripFormatting) → what it asks for. problems: why it can't start, each

@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findProject, parseMessage, stripFormatting } from '../server/channels/grammar.js';
+import { findProject, parseMessage, parseRoute, stripFormatting } from '../server/channels/grammar.js';
 import claudeAdapter from '../server/adapters/claude.js';
 import { ackCrew, ackTask, crew as crewList, example, help, machines as machineList, modelLabel, modelNote, models, projects as projectList, ranInstead, refusal, status } from '../server/channels/lists.js';
 
@@ -400,3 +400,28 @@ test('ranInstead: the stats’ main-thread model, when it isn’t what the task 
   assert.equal(ranInstead('haiku', { totals: {} }), '');
   assert.equal(ranInstead('haiku', { models: sonnet.models }), '');
 });
+
+// A router sends work somewhere else, so it reads less than parseMessage: `on <name>` first, after an
+// optional /new. A sentence with "on build" further along stays a sentence, whatever comes before it.
+const ROUTE_TABLE = [
+  ['on build run the tests', { machine: 'b', text: 'run the tests' }],
+  ['/new on build run the tests', { machine: 'b', text: '/new run the tests' }],
+  ['on build in api run the tests', { machine: 'b', text: 'in api run the tests' }],
+  ['on build plan: run the tests', { machine: 'b', text: 'plan: run the tests' }],
+  ['in general on build the tests are slow', null],
+  ['with care on build delete the logs', null],
+  ['in production on build drop the table', null],
+  ['in api on build run the tests', null],
+  ['with opus on build run the tests', null],
+  ['plan on build run the tests', null],
+  ['#api on build run the tests', null],
+  ['@ada on build run the tests', null],
+  ['/new in production on build drop the table', null],
+];
+for (const [text, want] of ROUTE_TABLE) {
+  test(`route: ${text}`, () => {
+    const got = parseRoute(text, [{ id: 'b', name: 'build' }]);
+    if (!want) return assert.equal(got, null, JSON.stringify(got));
+    assert.deepEqual({ machine: got.machine, text: got.text.trim() }, want);
+  });
+}
