@@ -1084,12 +1084,13 @@ export async function runApp(id) {
   const command = d?.command || d?.config?.command;
   if (command && d?.canRun !== false) startRun(id, { command });
 }
-// The picked element: a line added to what's in the reply box (stacked, back to the task first).
+// The picked element: added under what's in the reply box, the caret on a line of its own for what
+// to change (stacked, back to the task first). It waits there: nothing sends it but you.
 function addToReply(id, line) {
   if (isStacked()) close();
   const ta = $('.reply', S.nodes.get(id)?.card);
   if (!ta) return;
-  const text = ta.value.trim() ? `${ta.value.replace(/\s*$/, '')}\n${line} ` : `${line} `;
+  const text = ta.value.trim() ? `${ta.value.replace(/\s*$/, '')}\n${line}\n` : `${line}\n`;
   draftInto(id, text);
 }
 export const watchItem = (s) => (s?.watch ? `<button data-a="watch">${icon('eye')}Watch</button>` : '');

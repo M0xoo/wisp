@@ -10,8 +10,8 @@
 //
 // The frame loads the app through wisp's proxy for it (its own port: framable, and a small script
 // in its pages that does the picking). Pick element is there once that script says hello: a click
-// on an element puts a line naming it into the task's reply box. Without the proxy (it couldn't
-// start) the frame shows the app itself and Pick isn't offered.
+// on an element describes it in the task's reply box. Without the proxy (it couldn't start) the
+// frame shows the app itself and Pick isn't offered.
 // Run, Stop and Restart change the page first and roll back with a toast if the server refuses.
 
 import { esc } from '../md.js';
@@ -137,7 +137,7 @@ function barHtml(id, d) {
   return `<i class="rn-dot${ready ? ' on' : ''}" aria-hidden="true"></i>
     <span class="rn-state" title="${esc([d.url, d.command].filter(Boolean).join(' · '))}">${ready ? `Running<span class="rn-where">· <span class="rn-addr">${esc(where)}</span></span>` : `Starting<span class="rn-where">· <code>${esc(d.command || '')}</code></span>`}</span>
     <span class="grow"></span>
-    ${canPick ? `<button class="ghost xs rn-pick" data-a="run-pick" aria-pressed="${!!frame?.picking}"${ready && pickOk ? '' : ' disabled'} title="${ready && pickOk ? 'Pick element: click one in the page to name it in the reply box' : 'Pick element (once the page has loaded)'}">${icon('target')}<span>Pick</span></button>` : ''}
+    ${canPick ? `<button class="ghost xs rn-pick" data-a="run-pick" aria-pressed="${!!frame?.picking}"${ready && pickOk ? '' : ' disabled'} title="${ready && pickOk ? 'Pick element: click one in the page to describe it in the reply box' : 'Pick element (once the page has loaded)'}">${icon('target')}<span>Pick</span></button>` : ''}
     <button class="ghost xs rn-logs" data-a="run-logs" aria-pressed="${logsOn.has(id) || !ready}"${ready ? '' : ' disabled'} title="Logs: the app’s output">${icon('terminal')}<span>Logs</span></button>
     <button class="icon-btn xs" data-a="run-restart" title="Restart" aria-label="Restart">${icon('replay')}</button>
     <button class="icon-btn xs rn-stop" data-a="run-stop" title="Stop app" aria-label="Stop app">${icon('stop')}</button>
@@ -254,8 +254,22 @@ function poll(sec, id) {
 }
 const stopPoll = () => (clearTimeout(timer), (timer = null));
 
-// The picked element, as a line for the agent: what it is, its text, and where to find it.
-export const pickLine = ({ tag, text, selector }) => `In the preview, ${tag}${text ? ` "${text}"` : ''} (selector: ${selector}):`;
+// The page in the frame is the app's, so what it says is cut here too, each part to one line: one
+// pick stays well under 2,000 characters whatever the page sends.
+const pickPart = (v, n) => {
+  const s = String(v ?? '').replace(/\s+/g, ' ').trim();
+  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+};
+
+// The picked element, for the agent: what it is, where to find it, its markup and how it looks.
+export function pickLine({ tag, text, selector, path, html, styles }) {
+  const at = pickPart(path, 120);
+  const said = pickPart(text, 80);
+  return [`In the preview${at && at !== '/' ? ` at ${at}` : ''}, ${pickPart(tag, 200)}${said ? ` "${said}"` : ''} (selector: ${pickPart(selector, 300)}):`, html && `HTML: ${pickPart(html, 800)}`, styles && `Styles: ${pickPart(styles, 400)}`].filter(Boolean).join('\n');
+}
+
+// A pick counts only while you're picking: the page can post what it likes at any time.
+export const pickedText = (picking, d) => (picking && d?.type === 'picked' && typeof d.tag === 'string' && typeof d.selector === 'string' ? pickLine(d) : null);
 
 function accentHex() {
   const ctx = document.createElement('canvas').getContext('2d');
@@ -313,10 +327,11 @@ export function wireRun(sec, getId, { toReply }) {
       changed(frame.id);
       $('.rn-pick', frame.node.closest('.pn-run'))?.focus(); // Escape in the page: back to what started it
     }
-    if (d.type === 'picked' && typeof d.tag === 'string' && typeof d.selector === 'string') {
+    const text = pickedText(frame.picking, d);
+    if (text) {
       frame.picking = false;
       changed(frame.id);
-      toReply(frame.id, pickLine({ tag: d.tag.slice(0, 200), text: String(d.text || '').slice(0, 80), selector: d.selector.slice(0, 300) }));
+      toReply(frame.id, text);
     }
   });
 }

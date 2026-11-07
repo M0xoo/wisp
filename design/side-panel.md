@@ -501,10 +501,18 @@ task with a worktree (that never changes for a task, so nothing moves); Watch st
   machine's task, or the phone app (it reaches wisp through a tunnel), gets a line saying the
   address is the task's computer's and may not load here, and no Pick.
 - **Pick element** is enabled once the page's script says hello (it says so again after each load).
-  Pressed: the pointer outlines the element under it in `--accent` with its `tag.class` above; a
-  click names it in the task's reply box, added under what's there, and focuses it:
-  *In the preview, `<button class="primary">` "Save" (selector: `main > form > button.primary`):*.
-  Escape or Pick again ends it. Stacked, the page goes back to the task first.
+  Pressed: the cursor is a crosshair over everything in the page, the pointer outlines the element
+  under it in `--accent` with its `tag.class` above; a click doesn't reach the app. It describes
+  the element in the task's reply box, added under what's there, as plain text you can edit:
+  *In the preview at /settings, `<button class="primary">` "Save" (selector: `main > form > button.primary`):*,
+  then a line *HTML:* (its markup, three levels down, about 600 characters, the rest as …; no
+  scripts, no svg paths) and a line *Styles:* (size, display, margin, padding, gap, colour,
+  background, font, border, radius; what's at its default stays out). The page's first address has
+  no *at*. One pick stays under 2,000 characters whatever the page sends (`pickLine` cuts it again:
+  the page is the app's). What's in a password or hidden field never comes along. The box takes
+  the focus with the caret on a new line for what to change; nothing sends until you do. Picks
+  count only while Pick is pressed, so a page can't write in the box by itself. Escape or Pick
+  again ends it. Stacked, the page goes back to the task first.
 - **Actions:** *Run app* / *Stop app* (`i-play` / `i-stop`) in More, the right-click menu and ⌘K.
   *Run app* opens Preview and runs the last command, the config's or the guess; with nothing to go
   on, or after a failure, it opens Preview on that.
