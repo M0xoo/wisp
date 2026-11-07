@@ -14,6 +14,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -26,6 +29,10 @@ import org.json.JSONObject;
  * outlast the activity, so the files are copied at once into a folder of the app's cache, and
  * read from there by wisp's page (web/js/features/share-in.js) when one is up. That folder goes
  * when the page has them, or on the next start of the app.
+ *
+ * The bridge (window.wispAndroid) reaches every frame, a task's preview included, so an agent's
+ * page can call it. What's shared goes only to whoever holds this share's token (Token), and
+ * MainActivity hands that out only through evaluateJavascript, which runs in the main frame.
  */
 final class Shared {
     // The page's caps too (web/js/share-form.js).
@@ -33,6 +40,41 @@ final class Shared {
     static final long MAX_BYTES = 20L * 1024 * 1024;
     private static final int CHUNK = 192 * 1024;
     private static final String DIR = "shared";
+
+    /** A random key to one share: read once, then good only for fetching what that read named. */
+    static final class Token {
+        private final String value;
+        private boolean claimed;
+
+        Token() {
+            byte[] b = new byte[24];
+            new SecureRandom().nextBytes(b);
+            StringBuilder s = new StringBuilder();
+            for (byte x : b) s.append(String.format("%02x", x));
+            value = s.toString();
+        }
+
+        @Override
+        public String toString() {
+            return value;
+        }
+
+        private boolean matches(String got) {
+            return got != null && MessageDigest.isEqual(value.getBytes(StandardCharsets.UTF_8), got.getBytes(StandardCharsets.UTF_8));
+        }
+
+        /** The one read: true once, for the right token. */
+        synchronized boolean claim(String got) {
+            if (claimed || !matches(got)) return false;
+            claimed = true;
+            return true;
+        }
+
+        /** The files and the clean-up: only after the claim, and only with the same token. */
+        synchronized boolean holds(String got) {
+            return claimed && matches(got);
+        }
+    }
 
     private static final class Item {
         final File file;
@@ -53,6 +95,7 @@ final class Shared {
     private final List<Item> items = new ArrayList<>();
     private final File dir;
     private int left;
+    final Token token = new Token();
     volatile boolean ready;
 
     private Shared(Context c, Intent intent) {

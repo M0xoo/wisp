@@ -179,9 +179,18 @@ public class MainActivity extends BridgeActivity {
         return true;
     }
 
-    // wisp's page takes it when told (or at boot, if this comes first); the list repaints its note.
+    // Tells the page there's a share. wisp's page gets its token in the event, in the main frame:
+    // the only way to it, since any frame can reach the bridge. Without one, the list repaints its note.
     private void offerShare() {
-        js("window.dispatchEvent(new Event('wisp-share'))");
+        runOnUiThread(() -> {
+            Shared s = shared;
+            boolean give = s != null && s.ready && wispPage(getBridge().getWebView().getUrl());
+            JSONObject detail = new JSONObject();
+            try {
+                if (give) detail.put("token", s.token.toString());
+            } catch (org.json.JSONException ignored) {}
+            js("window.dispatchEvent(new CustomEvent('wisp-share', { detail: " + detail + " }))");
+        });
     }
 
     // A computer on an older wisp has no page to take it: say so, and keep it for another computer.
@@ -303,32 +312,40 @@ public class MainActivity extends BridgeActivity {
         }
 
         // Something shared to wisp (web/js/features/share-in.js, and the list's note in mobile/www).
+        // Any frame gets here: this and askShare say nothing about what was shared, and the rest
+        // answer only to the share's token (Shared.Token), which only the main frame is told.
         @JavascriptInterface
-        public boolean sharePending() {
+        public boolean hasShare() {
             return shared != null;
         }
 
-        // Once: the page has it from here. The list's note only asks whether one is waiting.
+        // The page at boot: the answer is the event, in the main frame, never a return value.
         @JavascriptInterface
-        public String takeShare() {
+        public void askShare() {
+            offerShare();
+        }
+
+        @JavascriptInterface
+        public String takeShare(String token) {
             Shared s = shared;
-            if (s == null || !s.ready) return "";
+            if (s == null || !s.ready || !s.token.claim(token)) return "";
             shared = null;
             taking = s;
             return s.json();
         }
 
         @JavascriptInterface
-        public String shareChunk(int file, double offset) {
+        public String shareChunk(String token, int file, double offset) {
             Shared s = taking;
-            return s == null ? "" : s.chunk(file, (long) offset);
+            return s == null || !s.token.holds(token) ? "" : s.chunk(file, (long) offset);
         }
 
         @JavascriptInterface
-        public void shareDone() {
+        public void shareDone(String token) {
             Shared s = taking;
+            if (s == null || !s.token.holds(token)) return;
             taking = null;
-            if (s != null) s.delete();
+            s.delete();
         }
 
         // Download (web/js/ui/image.js): the answer comes back as a `wisp-saved` event with this id.

@@ -260,6 +260,18 @@ test('Android: wisp takes shares of text, images and PDFs, and keeps its other w
   assert.ok(filters.some((f) => f.includes('action.VIEW') && f.includes('android:scheme="dev.trywisp.mobile"')), 'the grid’s link back');
 });
 
+test('Android: what was shared answers only to its token, and the token only reaches the main frame', () => {
+  const java = fs.readFileSync(path.join(ANDROID, 'java/dev/trywisp/mobile/MainActivity.java'), 'utf8');
+  const page = fs.readFileSync(path.join(WEB, 'js/features/share-in.js'), 'utf8');
+  assert.match(java, /public String takeShare\(String token\)/);
+  assert.match(java, /public String shareChunk\(String token,/);
+  assert.match(java, /public void shareDone\(String token\)/);
+  assert.match(java, /public void askShare\(\) \{\s+offerShare\(\);\s+\}/, 'askShare answers with the event, not a value');
+  assert.doesNotMatch(java.slice(java.indexOf('class Notify')), /token\.toString\(\)/, 'no bridge method returns the token');
+  assert.match(java, /CustomEvent\('wisp-share', \{ detail: /);
+  assert.match(page, /e\.detail\?\.token/);
+});
+
 test('Android: same caps as the page, and its own files are never shared out', () => {
   const java = fs.readFileSync(path.join(ANDROID, 'java/dev/trywisp/mobile/Shared.java'), 'utf8');
   assert.match(java, new RegExp(`MAX_FILES = ${MAX_FILES};`));

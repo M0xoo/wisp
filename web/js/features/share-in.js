@@ -42,7 +42,7 @@ export function receive({ title, text, url, files = [], count = files.length, le
 
 // Decided before the first paint, so the page doesn't show the list and then jump to New task.
 export function sharedWaiting() {
-  const waiting = !!shareId() || (MOBILE && !!window.wispAndroid?.sharePending?.());
+  const waiting = !!shareId() || (MOBILE && !!window.wispAndroid?.hasShare?.());
   if (waiting) {
     keepPage();
     askHome();
@@ -65,10 +65,10 @@ async function fromWorker() {
 const toBytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 
 // One file through the bridge, a piece at a time, handing the page back between pieces.
-async function androidFile(i, { name, type }) {
+async function androidFile(token, i, { name, type }) {
   const parts = [];
   for (let at = 0; ; ) {
-    const bytes = toBytes(window.wispAndroid.shareChunk(i, at));
+    const bytes = toBytes(window.wispAndroid.shareChunk(token, i, at));
     if (!bytes.length) break;
     parts.push(bytes);
     at += bytes.length;
@@ -77,20 +77,23 @@ async function androidFile(i, { name, type }) {
   return new File(parts, name, { type });
 }
 
+// MainActivity says a share is here, with its token. Only this frame can hear that: the bridge
+// itself reaches every frame, a task's preview included, and answers no one without the token.
 // Read the moment it's offered, then Android's copy goes: nothing shared stays on the phone.
-async function fromAndroid() {
-  const raw = window.wispAndroid?.takeShare?.();
+async function fromAndroid(e) {
+  const token = e.detail?.token;
+  const raw = token && window.wispAndroid?.takeShare?.(token);
   if (!raw) return;
   const { files: list = [], ...words } = JSON.parse(raw);
   receive({ ...words, count: list.length }); // the words don't wait for the files
   try {
     const files = [];
-    for (const [i, f] of list.entries()) files.push(await androidFile(i, f));
+    for (const [i, f] of list.entries()) files.push(await androidFile(token, i, f));
     if (files.length) fillLauncher('', files, { when: reachable() });
   } catch {
     say('Couldn’t read what you shared. Share it again.');
   } finally {
-    window.wispAndroid.shareDone();
+    window.wispAndroid.shareDone(token);
   }
 }
 
@@ -98,6 +101,6 @@ async function fromAndroid() {
 export function receiveShared() {
   fromWorker();
   if (!MOBILE) return;
-  fromAndroid();
   addEventListener('wisp-share', fromAndroid);
+  window.wispAndroid?.askShare?.(); // one that came during boot: the answer is that same event
 }

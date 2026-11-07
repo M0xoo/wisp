@@ -245,7 +245,7 @@ function paintIntro() {
 // Something shared to wisp waits here until a computer is open (MainActivity): this says so,
 // instead of a share that seems to have gone nowhere.
 function paintShared() {
-  const on = !!window.wispAndroid?.sharePending?.();
+  const on = !!window.wispAndroid?.hasShare?.();
   const out = !on ? '' : `<p class="tip">${icon('arrow')}<span>${machines.length ? 'What you shared is waiting. Open a computer and it lands in New task.' : 'What you shared is waiting. Sign in or add a computer and it lands in New task.'}</span></p>`;
   const box = $('#sharedNote');
   box.hidden = !on;
