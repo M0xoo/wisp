@@ -4,6 +4,7 @@
 
 import { adapters } from '../adapters/index.js';
 import { BTW_TIMEOUT_MS } from '../btw.js';
+import { cappedAt, tighter } from '../capped.js';
 import { ackCrew, ackTask, modelLabel, modelNote } from '../channels/lists.js';
 import { capMode, needsWisp, untrusted } from '../channels/policy.js';
 import { taggedDelegate } from '../crew.js';
@@ -120,9 +121,11 @@ export function phoneActions(app) {
       ctx ||= await context();
       const origin = { kind: channel, name };
       const prompt = untrusted(p.prompt, { channel: name, sender, about });
+      // Below Full auto, the task and all it starts stay under the cap (server/capped.js).
+      const capped = cappedAt(cap);
       if (p.crew) {
         const run = memberRun(p.crew, p, cap, fallback);
-        const out = await app.crew.assign(p.crew, { prompt, job: 'task', origin, tagged: p.tagged, ...(Object.keys(run).length && { run }), thread });
+        const out = await app.crew.assign(p.crew, { prompt, job: 'task', origin, tagged: p.tagged, ...(Object.keys(run).length && { run }), ...(capped && { capped }), thread });
         count('start', 'crew');
         return { ...out, ack: crewAck(p.crew, p, run, out, ctx, fallback) };
       }
@@ -133,7 +136,7 @@ export function phoneActions(app) {
       const { mode, refused } = capMode(p.mode, cap, fallback ?? (d.mode || 'auto'));
       if (refused) throw bad(refused);
       const machine = p.machine ?? (project.machine || undefined);
-      const [s] = await app.launcher.launchAny({ prompt, cwd: project.path, machine, agent, model, ...(p.effort && { effort: p.effort }), mode, ...(p.tagged.length && { subagents: p.tagged.map((m) => taggedDelegate(m)) }) }, origin);
+      const [s] = await app.launcher.launchAny({ prompt, cwd: project.path, machine, agent, model, ...(p.effort && { effort: p.effort }), mode, ...(capped && { capped }), ...(p.tagged.length && { subagents: p.tagged.map((m) => taggedDelegate(m)) }) }, origin);
       app.broadcast('config', {});
       app.remote.threadStarted(s, thread, null);
       count('start', p.agent || p.model || p.effort ? 'with' : 'plain');
@@ -173,7 +176,8 @@ export function phoneActions(app) {
       if (!approvals && needsWisp(s.ask)) return 'That’s waiting for an approval, which only wisp can give: answer it there.';
       const text = untrusted(p.prompt, { channel: name, sender, about: s.ask ? '' : about });
       if (btw) return followUp(ops, sessionId, `/btw ${text}`, later);
-      const asked = capMode(p.mode, cap, s.mode);
+      // The task's own cap holds whichever chat this comes from; only you, in wisp, lift it.
+      const asked = capMode(p.mode, tighter(cap, s.capped), s.mode);
       if (asked.refused) return asked.refused;
       const moved = p.agent || p.model || p.effort;
       // A crew job keeps the member's harness, as its first turn did (crew.js #jobRun).
@@ -196,8 +200,10 @@ export function phoneActions(app) {
       const s = store.get(sessionId);
       if (!s) throw bad('@names only reach tasks on this computer.');
       ctx ||= await context();
-      const run = memberRun(p.crew, p, cap, fallback);
-      const out = await app.crew.ask(p.crew, s, untrusted(p.prompt, { channel: name, sender, about }), [], p.tagged, { thread, shown: p.prompt, ...(Object.keys(run).length && { run }) });
+      const most = tighter(cap, s.capped);
+      const capped = cappedAt(most);
+      const run = memberRun(p.crew, p, most, fallback);
+      const out = await app.crew.ask(p.crew, s, untrusted(p.prompt, { channel: name, sender, about }), [], p.tagged, { thread, shown: p.prompt, capped, ...(Object.keys(run).length && { run }) });
       count('thread', 'mention');
       return { ...out, ack: crewAck(p.crew, p, run, out, ctx, fallback) };
     },

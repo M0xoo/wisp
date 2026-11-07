@@ -9,7 +9,7 @@ export const STALE_S = 10 * 60; // a channel can keep messages for a day: don't 
 const SEEN_MAX = 1000;
 const RATE_MAX = 20; // messages per sender
 const RATE_WINDOW_MS = 60_000;
-const MODE_RANK = { plan: 0, edits: 1, auto: 2 };
+export const MODE_RANK = { plan: 0, edits: 1, auto: 2 };
 export const MODE_LABEL = { plan: 'Plan', edits: 'Edits', auto: 'Full auto' };
 
 // Tool approvals from the channel itself. Telegram's and ntfy's buttons have always done it; a

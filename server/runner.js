@@ -6,6 +6,8 @@
 import { EventEmitter } from 'node:events';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { sessionToken } from './agent-token.js';
+import { cappedRefusal } from './capped.js';
 import { adapters, detectedVersion } from './adapters/index.js';
 import { versionIn } from './adapters/common.js';
 import { systemPrompt, parsePresentation, heroOf } from './protocol.js';
@@ -423,7 +425,7 @@ export class Runner extends EventEmitter {
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
   // also: the task's other folders, [{ cwd, worktree }] (services/launch.js).
   // history / title / moved: a task moved here from another place, with the turns it had there.
-  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null, goal = null, forkedFrom = null, sideOf = null, hold = null, sharedFrom = null, idle = false, tui = false }) {
+  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null, goal = null, forkedFrom = null, sideOf = null, hold = null, sharedFrom = null, idle = false, tui = false, capped = null }) {
     if (!adapters[agent] && !(relay && agent === 'auto')) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
@@ -449,6 +451,7 @@ export class Runner extends EventEmitter {
       ...(forkedFrom && { forkedFrom }), // { id, title, turn, of }: forked from that task's turn (services/fork.js)
       ...(sideOf && { sideOf }), // { id, title, cwd }: a side discussion about that task (server/side.js)
       ...(sharedFrom && { sharedFrom }), // { id, url, host, handle, name, title, kit? }: imported from a share (services/share.js)
+      ...(capped && { capped }), // { mode }: started from a channel at that cap (server/capped.js)
       ...(kind && { kind }), // 'spell': a Cast a spell task (server/spell-guide.js); 'pane': Make a pane (server/pane-guide.js)
       ...(worktree && { worktree }),
       ...(also.length && { also }),
@@ -1127,9 +1130,15 @@ export class Runner extends EventEmitter {
       let child = this.store.get(lead.children?.[slot]);
       // A member on another machine: the wisp that reaches it runs it there (services/relay.js).
       const relay = m.crew ? { machine: 'here', crew: m.crew, place: m.label || m.name, upstream: true } : m.machine ? { machine: m.machine, place: m.place || '', ...(m.upstream && { upstream: true }) } : null;
+      if (relay && lead.capped) {
+        out.push({ subagent: want, error: cappedRefusal('send work to another machine') });
+        continue;
+      }
       if (child && (relay || adapters[child.agent])) {
         child.cwd = workdir(lead); // follows the lead if its worktree moved
         child.mode = lead.mode; // and its mode, if a follow-up switched it
+        if (lead.capped) child.capped = lead.capped; // and its cap, or that you lifted it
+        else delete child.capped;
         if (relay) child.relay = relay; // the member may have moved between turns
         else delete child.relay;
         this.#startTurn(child, prompt);
@@ -1142,7 +1151,7 @@ export class Runner extends EventEmitter {
           continue;
         }
         const run = pick ? { agent: pick.agent, model: pick.model, effort: pick.effort || '', route: pick.route } : { agent: m.agent, model: m.model, effort: m.effort };
-        child = this.create({ prompt, cwd: workdir(lead), ...run, mode: lead.mode, parentId: lead.id, member: slot, relay });
+        child = this.create({ prompt, cwd: workdir(lead), ...run, mode: lead.mode, parentId: lead.id, member: slot, relay, capped: lead.capped });
         (lead.children ||= {})[slot] = child.id;
       }
       const d = { id: newId(), name: slot, member: m.name, agent: child.agent, model: child.model, effort: child.effort, ...(m.crew ? { crew: m.crew } : relay && { place: relay.place }), sessionId: child.id, turnId: child.turns.at(-1).id, prompt, startedAt: Date.now(), owed: true }; // owed until the lead has its report
@@ -1357,11 +1366,12 @@ export class Runner extends EventEmitter {
         env: {
           ELECTRON_RUN_AS_NODE: '1',
           WISP_URL: this.bridge.url,
-          WISP_TOKEN: this.bridge.token,
+          WISP_TOKEN: sessionToken(this.bridge.token, session.id),
           WISP_SESSION: session.id,
           WISP_TURN: session.turns.at(-1)?.id || '', // so a run's leftover helper can tell its turn is over
           ...(adapter.approveTool && { WISP_APPROVE: '1' }),
           ...(session.kind === 'spell' && { WISP_SPELLS: '1' }),
+          ...(session.capped && { WISP_CAPPED: '1' }), // the routes hold the cap; this only hides what they'd refuse
           ...(session.sideOf && { WISP_READONLY: '1' }), // a side discussion: wisp's tools that read, ask or show, plus the gate (server/side.js)
           ...(this.store.config?.defaults?.watch !== 'off' && { WISP_WATCH: '1' }),
           ...(team.length && { WISP_TEAM: JSON.stringify(team.map((m) => ({ name: m.name, agent: m.crew ? `${m.label || m.name} of the user's crew${m.role ? `, ${m.role}` : ''}` : adapters[m.agent]?.name || m.agent, model: m.crew ? 'own folder and memory' : m.model, effort: m.effort, use: m.use, count: m.count || 1, copies: copies(m), ...(m.machine && { place: m.place || 'another machine' }) }))) }),
@@ -1496,6 +1506,7 @@ export class Runner extends EventEmitter {
       untrusted: !!project,
       quiet: leanTask(session, this.store.config?.defaults), // only when asked: lean drops claude.ai connectors (server/lean.js)
       gate: !!session.sideOf && mode === 'edits', // every write waits on wisp (server/side-gate.js)
+      capped: !!session.capped, // the harness keeps its shell off wisp's API (server/capped.js)
       probe: true,
       onEvent: (ev) => {
         // A lingering process we already let go of. A `cli` event is no process: a probe ends when it ends.

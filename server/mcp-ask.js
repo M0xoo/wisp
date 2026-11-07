@@ -29,6 +29,8 @@
 // With WISP_READONLY (a /side discussion, server/side.js): only the tools that read, ask or show,
 // and `approve`, where its writes meet the clash check. Those tools also carry readOnlyHint, the
 // only thing that lets a Claude Code task call them in plan mode (--allowedTools doesn't).
+// With WISP_CAPPED (a task a channel started at a mode cap, server/capped.js): without the tools that
+// only change or read your setup. A courtesy: the routes refuse them whatever this offers.
 // With WISP_SPELLS (a Cast a spell task): `wisp_spells`, `wisp_spell_schema`, `wisp_spell_data` and
 // `wisp_spell_check`, to write a spell for the user to keep.
 
@@ -36,11 +38,13 @@ import readline from 'node:readline';
 import { CREW_TOOLS } from './crew-tools.js';
 import { blockDocs } from './protocol.js';
 
-const { WISP_URL, WISP_TOKEN, WISP_SESSION, WISP_TURN, WISP_APPROVE, WISP_SPELLS, WISP_WATCH, WISP_READONLY } = process.env;
+const { WISP_URL, WISP_TOKEN, WISP_SESSION, WISP_TURN, WISP_APPROVE, WISP_SPELLS, WISP_WATCH, WISP_READONLY, WISP_CAPPED } = process.env;
 // A side discussion's tools (server/side.js): reading, asking you, the page beside the task, the
 // gate. Nothing that starts tasks or edits your setup.
 const READ_ONLY_TOOLS = ['approve', 'ask_user', 'resume_later', 'wisp_tag', 'wisp_watch', 'wisp_blocks', 'wisp_stats', 'wisp_sessions', 'wisp_session', 'wisp_stuff', 'wisp_crew', 'wisp_connectors', 'wisp_available'];
-const offered = (name) => !WISP_READONLY || READ_ONLY_TOOLS.includes(name);
+const CAPPED_OFF = ['wisp_crew_add', 'wisp_crew_edit', 'wisp_crew_kit', 'wisp_crew_remove', 'wisp_connectors', 'wisp_connector_add', 'wisp_connector_signin'];
+const cappedOff = (name) => !!WISP_CAPPED && CAPPED_OFF.includes(name);
+const offered = (name) => (!WISP_READONLY || READ_ONLY_TOOLS.includes(name)) && !cappedOff(name);
 const hinted = (t) => (READ_ONLY_TOOLS.includes(t.name) ? { ...t, annotations: { readOnlyHint: true } } : t);
 const WAIT_S = 240; // wisp_task wait / wisp_launch wait=true, unless the agent asks for longer
 const MAX_WAIT_S = 1800;
@@ -611,7 +615,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function call(path, body, method = body ? 'POST' : 'GET') {
   const res = await fetch(`${WISP_URL}${path}`, {
     method,
-    headers: { 'content-type': 'application/json', 'x-wisp-token': WISP_TOKEN },
+    headers: { 'content-type': 'application/json', 'x-wisp-token': WISP_TOKEN, 'x-wisp-session': WISP_SESSION },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw new Error(`wisp ${res.status}: ${await res.text()}`);
@@ -638,7 +642,7 @@ async function waitFor(id) {
 let lastAsk = Promise.resolve();
 function askUser(args) {
   const ask = async () => {
-    const { id } = await call(`/api/internal/ask`, { session: WISP_SESSION, ...args });
+    const { id } = await call(`/api/internal/ask`, { ...args, session: WISP_SESSION });
     return (await waitFor(id))?.answer ?? null;
   };
   const turn = lastAsk.then(ask, ask);
@@ -670,14 +674,14 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     } else if (method === 'tools/list') {
       send({ id, result: { tools: [TOOL, LATER, TAG, PR, ...(WISP_WATCH ? [WATCH] : []), SAVE, STUFF, BLOCKS, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...CONTROL_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...TEAM_TOOLS, ...(WISP_SPELLS ? SPELL_TOOLS : [])].filter((t) => offered(t.name)).map(hinted) } });
     } else if (method === 'tools/call' && !offered(params?.name)) {
-      send({ id, result: { isError: true, content: [{ type: 'text', text: 'Not available in a side discussion: it only reads and changes nothing.' }] } });
+      send({ id, result: { isError: true, content: [{ type: 'text', text: cappedOff(params?.name) ? 'Refused: this task was started from a channel with a mode cap, so it can\'t use this. Say so in your report; the user can do it in wisp.' : 'Not available in a side discussion: it only reads and changes nothing.' }] } });
     } else if (method === 'tools/call' && params?.name === 'ask_user') {
       const answer = await askUser(params.arguments || {});
       const text = answer === null ? 'The user did not answer (the question was cancelled). Use your best judgment and note the assumption.' : `The user answered: ${answer}`;
       send({ id, result: { content: [{ type: 'text', text }] } });
     } else if (method === 'tools/call' && params?.name === 'resume_later') {
       const a = params.arguments || {};
-      send({ id, result: { content: [{ type: 'text', text: (await call(`/api/internal/later`, { session: WISP_SESSION, ...a })).text }] } });
+      send({ id, result: { content: [{ type: 'text', text: (await call(`/api/internal/later`, { ...a, session: WISP_SESSION })).text }] } });
     } else if (method === 'tools/call' && params?.name === 'wisp_tag') {
       const r = await call(`/api/internal/tags`, { session: WISP_SESSION, tags: params.arguments?.tags });
       send({ id, result: { content: [{ type: 'text', text: r.text }] } });
@@ -685,10 +689,10 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
       const r = await call(`/api/internal/prs`, { session: WISP_SESSION, pr: params.arguments?.pr, remove: !!params.arguments?.remove });
       send({ id, result: { content: [{ type: 'text', text: r.text }] } });
     } else if (method === 'tools/call' && WISP_WATCH && params?.name === 'wisp_watch') {
-      const r = await call(`/api/internal/watch`, { session: WISP_SESSION, ...(params.arguments || {}) });
+      const r = await call(`/api/internal/watch`, { ...(params.arguments || {}), session: WISP_SESSION });
       send({ id, result: { content: [{ type: 'text', text: r.text }] } });
     } else if (method === 'tools/call' && params?.name === 'wisp_save') {
-      const r = await call(`/api/internal/stuff`, { session: WISP_SESSION, ...(params.arguments || {}) });
+      const r = await call(`/api/internal/stuff`, { ...(params.arguments || {}), session: WISP_SESSION });
       send({ id, result: { content: [{ type: 'text', text: r.text }] } });
     } else if (method === 'tools/call' && params?.name === 'wisp_stuff') {
       const a = params.arguments || {};

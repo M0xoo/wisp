@@ -88,7 +88,7 @@ export default {
   // grants: { permission, patterns } the user allowed after `run` rejected them, for this turn.
   // fork: continue a copy of resumeId's session instead of the session itself (/btw).
   // gate: every write and command waits on wisp first (a side discussion, server/opencode-gate.js).
-  run({ prompt, attachments = [], cwd, resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], gate = false, onEvent }) {
+  run({ prompt, attachments = [], cwd, resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], gate = false, capped = false, onEvent }) {
     // The prompt goes on stdin; `run` appends piped stdin to the (empty) message.
     // Errors to stderr: the only place a rate limit shows up (see RATE_LIMITED).
     const args = ['run', '--format', 'json', '--print-logs', '--log-level', V2 ? 'error' : 'ERROR'];
@@ -107,13 +107,17 @@ export default {
     }
     const env = { ...process.env };
     const allow = grants.filter((g) => g && typeof g.permission === 'string' && Array.isArray(g.patterns));
-    if (Object.keys(mcp).length || allow.length || gate) {
+    if (Object.keys(mcp).length || allow.length || gate || capped) {
       const inline = env.OPENCODE_CONFIG_CONTENT ? safeJson(env.OPENCODE_CONFIG_CONTENT) : {};
       const permission = typeof inline.permission === 'object' ? { ...inline.permission } : inline.permission ? { '*': inline.permission } : {};
       // Its built-in `task` subagents would bypass the user's team.
       if (delegating) permission.task = 'deny';
       // Behind the gate `run` must not auto-reject them itself, and its subagents stay out of it.
       if (gate) Object.assign(permission, { edit: 'allow', bash: 'allow', task: 'deny' });
+      // capped (server/capped.js): opencode has no sandbox and allows everything by default, so a shell
+      // would reach wisp's loopback API. Commands wait for you, as in Claude's Edits: `run` refuses them
+      // and Allow on the card retries with exactly that command. A page's fetch too.
+      if (capped && mode !== 'auto') Object.assign(permission, { bash: 'ask', webfetch: 'ask' });
       for (const g of allow) {
         const was = permission[g.permission];
         permission[g.permission] = { ...(typeof was === 'object' ? was : was && { '*': was }), ...Object.fromEntries(g.patterns.map((p) => [String(p), 'allow'])) };

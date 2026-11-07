@@ -1,6 +1,8 @@
 // Connectors: MCP servers every task's agent gets (server/connectors.js). Secrets go in and never
 // come back out: the page sees which keys are set, not their values.
 
+import { connectorCall, speaksFor } from '../agent-token.js';
+import { cappedRefusal } from '../capped.js';
 import { createConnectorAuth } from '../connector-auth.js';
 import { connectorView, foundServers, normalizeConnector, ownNames, probe, REACH, storeSecrets } from '../connectors.js';
 
@@ -154,7 +156,7 @@ export function register(r, app) {
     'POST',
     '/internal/connectors/:id/token',
     async (c) => {
-      if (c.req.headers['x-wisp-token'] !== app.token) return c.send(403, { error: 'bad token' });
+      if (!connectorCall(c.req.headers['x-wisp-token'], app.token)) return c.send(403, { error: 'bad token' });
       const x = find(c);
       if (!x) return c.send(404, { error: 'no such connector' });
       const { force } = await c.body();
@@ -166,11 +168,14 @@ export function register(r, app) {
   // --- The agent's tools (mcp-ask.js): wisp_connectors, wisp_connector_add, wisp_connector_signin ---
   // Only the user's own tasks change connectors: not a subagent, nor a crew member's job. Secret
   // values never pass through the agent: it names the keys, the user fills them in on a card.
-  const session = (c) => (c.req.headers['x-wisp-token'] !== app.token ? null : store.get(c.params.sid));
   const tool = (fn, { change = false } = {}) => async (c) => {
-    if (c.req.headers['x-wisp-token'] !== app.token) return c.send(403, { error: 'bad token' });
-    const s = session(c);
+    if (!speaksFor(c.req.headers['x-wisp-token'], app.token, c.params.sid)) return c.send(403, { error: 'bad token' });
+    const s = store.get(c.params.sid);
     if (!s) return c.send(404, { error: 'no such session' });
+    if (s.capped) {
+      const error = cappedRefusal('read or change the user\'s connectors');
+      return c.send(200, { error, text: error });
+    }
     if (change && (s.parentId || s.crew)) return c.send(200, { error: 'Only a task the user started can change their connectors; a subagent or a crew member’s job can’t. Tell the user what to add instead.' });
     try {
       c.send(200, await fn(s, (c.req.method === 'GET' ? {} : await c.body()) || {}));

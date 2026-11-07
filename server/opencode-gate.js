@@ -9,7 +9,7 @@ const POLL_MS = 1500;
 async function call(path, body) {
   const res = await fetch(`${WISP_URL}${path}`, {
     method: body ? 'POST' : 'GET',
-    headers: { 'content-type': 'application/json', 'x-wisp-token': WISP_TOKEN },
+    headers: { 'content-type': 'application/json', 'x-wisp-token': WISP_TOKEN, 'x-wisp-session': WISP_SESSION },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw new Error(`wisp ${res.status}`);
