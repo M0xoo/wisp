@@ -26,10 +26,13 @@ const newest = () => {
 // wisp runs gh from several places at once (Ship it, the minute poll of every open PR, the PR
 // panel). Only the commands that change something write the state file, and they read and write it
 // under a lock: a reader that wrote back what it read, or two writers at once, lost what another
-// call had just saved (a PR Ship it had created, then "no pull requests found").
+// call had just saved (a PR Ship it had created, then "no pull requests found"). Readers take the
+// lock too, only while they read: writeFileSync empties the file before it fills it, and a view in
+// between read nothing ("Unexpected end of JSON input").
 const writes = (argv[0] === 'pr' && ['create', 'ready', 'merge'].includes(argv[1])) || (argv[0] === 'gist' && argv[1] === 'create');
-if (writes) {
-  const lock = `${file}.lock`;
+const lock = `${file}.lock`;
+const unlock = () => fs.rmSync(lock, { recursive: true, force: true });
+if (fs.existsSync(path.dirname(file))) {
   const nap = new Int32Array(new SharedArrayBuffer(4));
   for (;;) {
     try {
@@ -39,15 +42,20 @@ if (writes) {
       if (err.code !== 'EEXIST') throw err;
       // A gh killed while it held the lock (a test's timeout) never takes it away.
       try {
-        if (Date.now() - fs.statSync(lock).mtimeMs > 10_000) fs.rmSync(lock, { recursive: true, force: true });
+        if (Date.now() - fs.statSync(lock).mtimeMs > 10_000) unlock();
       } catch {}
       Atomics.wait(nap, 0, 0, 5);
     }
   }
-  process.on('exit', () => fs.rmSync(lock, { recursive: true, force: true })); // also after fail()
+  if (writes) process.on('exit', unlock); // also after fail()
 }
 const stateFile = newest();
-const state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : {};
+let state;
+try {
+  state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : {};
+} finally {
+  if (!writes) unlock();
+}
 state.prs ||= {};
 const save = () => writes && fs.writeFileSync(file, JSON.stringify(state, null, 2));
 const flag = (f) => (argv.includes(f) ? argv[argv.indexOf(f) + 1] : undefined);

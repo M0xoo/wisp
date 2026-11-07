@@ -30,6 +30,22 @@ test('a pr view running beside a pr create never loses the PR it made', async ()
   }
 });
 
+test('a pr view waits out a pr create caught halfway through writing the state file', async () => {
+  const state = path.join(tmp('fake-gh'), 'gh.json');
+  await create(state, 'first');
+  const whole = fs.readFileSync(state, 'utf8');
+  // A create holds the lock while writeFileSync has emptied the file and not yet written it: the
+  // window two CI runs hit ('Unexpected end of JSON input' from a view). Held here on purpose.
+  fs.mkdirSync(`${state}.lock`);
+  fs.writeFileSync(state, '');
+  const view = gh(state, 'pr', 'view', '1', '--json', 'number');
+  setTimeout(() => {
+    fs.writeFileSync(state, whole);
+    fs.rmSync(`${state}.lock`, { recursive: true });
+  }, 300);
+  assert.equal(JSON.parse(await view).number, 1);
+});
+
 test('pr creates at the same time each get their own number', async () => {
   const state = path.join(tmp('fake-gh'), 'gh.json');
   await Promise.all(Array.from({ length: 6 }, (_, i) => create(state, `c${i}`)));
