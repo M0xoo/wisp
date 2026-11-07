@@ -83,8 +83,8 @@ const FATAL = {
 };
 const START_AGAIN = new Set([1000, 1001, 4007, 4009]); // the session is over: identify, not resume
 
-// What the slash command looks like. Mode has no Full auto to pick.
-export function slashCommand() {
+// What the slash command looks like. Mode has no Full auto to pick, and a box reaches no machine.
+export function slashCommand({ box = inBox() } = {}) {
   const named = (name, description) => ({ type: 3, name, description, autocomplete: true });
   return {
     name: 'wisp',
@@ -95,7 +95,7 @@ export function slashCommand() {
       { type: 3, name: 'prompt', description: 'What to do, or help, status, stop', required: true },
       named('crew', 'A crew member'),
       named('project', 'Where it runs'),
-      named('machine', 'Which computer'),
+      ...(box ? [] : [named('machine', 'Which computer')]),
       named('model', 'Which model'),
       { type: 3, name: 'mode', description: 'How far it may go', choices: [{ name: 'Plan', value: 'plan' }, { name: 'Edits', value: 'edits' }] },
     ],
@@ -540,7 +540,7 @@ export class Discord extends Channel {
     const pairs = {
       crew: () => (ctx.crew || []).map((m) => [m.name, handleOf(m.name)]),
       project: () => (ctx.projects || []).map((p) => [p.name, p.name]),
-      machine: () => ['here', ...(ctx.machines || []).filter((m) => m.usable).map((m) => m.name)].map((n) => [n, n]),
+      machine: () => (inBox() ? [] : ['here', ...(ctx.machines || []).filter((m) => m.usable).map((m) => m.name)]).map((n) => [n, n]),
       model: () => [...new Set((ctx.agents || []).filter((a) => a.available).flatMap((a) => (a.models || []).filter((m) => m.id).map((m) => m.id)))].map((n) => [n, n]),
     }[o?.name];
     const typed = String(o?.value || '').toLowerCase();

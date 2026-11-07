@@ -1355,6 +1355,7 @@ test('unlinking: everyone goes, a new code, and they’re strangers again; off c
 });
 
 test('the pure parts', () => {
+  assert.ok(slashCommand().options.some((o) => o.name === 'machine'), 'a computer keeps its machine option');
   assert.equal(slashText({ prompt: 'fix it' }), 'fix it');
   assert.equal(slashText({ prompt: 'fix it', crew: 'ada', project: 'api', machine: 'laptop', model: 'opus', mode: 'plan' }), '@ada in api on laptop with opus plan: fix it');
   const s = (t, o) => stripFormatting(t, 'discord', o);
@@ -1601,6 +1602,38 @@ test('a box: strangers can’t push an id out of seen: all under 14 minutes stay
   assert.ok(c.seen.every((id) => Date.now() - snowflakeMs(id) < 14 * 60_000), 'older ones go');
   assert.equal((await held(first)).status, 403);
   assert.equal(fake.deletes.filter((x) => x.token === first.token).length, 1, 'the repeat did nothing');
+});
+
+test('a box: a message never reaches another machine: not named, not by a project, not by a crew member, and it isn’t offered', async () => {
+  const c = srv.store.config;
+  const was = { machines: c.machines, usable: srv.machines.usable };
+  c.machines = [...(c.machines || []), { id: 'm1', name: 'laptop', target: 'x' }];
+  srv.machines.usable = () => true;
+  const phone = hub().phone;
+  try {
+    assert.deepEqual((await phone.context()).machines, [], 'nothing to pick from');
+    assert.ok(!slashCommand().options.some((o) => o.name === 'machine'), 'no machine option on a box');
+    const far = { name: 'far', path: '/far', machine: 'm1' };
+    const parsed = { prompt: 'go', tagged: [], notes: [], project: null, crew: null };
+    const said = /doesn’t reach other machines/;
+    await assert.rejects(phone.startParsed({ ...parsed, machine: 'm1', project: { name, path: repo } }, { channel: 'discord', name: 'Discord', ctx: await phone.context() }), said);
+    await assert.rejects(phone.startParsed({ ...parsed, project: far }, { channel: 'discord', name: 'Discord', ctx: await phone.context() }), said);
+    await assert.rejects(phone.startParsed({ ...parsed, crew: { name: 'Ada', machine: 'm1' } }, { channel: 'discord', name: 'Discord', ctx: await phone.context() }), said);
+    await assert.rejects(srv.remote.launch({ project: far, prompt: 'go' }), said);
+    await assert.rejects(phone.mention(srv.store.all()[0].id, { ...parsed, crew: { name: 'Ada', machine: 'm1' } }, { name: 'Discord' }), said);
+    assert.match(await phone.status('abc@m1'), said, 'nor a follow-up on a task there');
+    const count = srv.store.all().length;
+    const d = command(ME, 'on laptop plan: look', { channel_id: 'CB9' });
+    await held(d);
+    const edit = await until(() => fake.edits.find((e) => e.token === d.token), { what: 'the edit' });
+    assert.match(edit.content, /No machine/);
+    assert.equal(srv.store.all().length, count);
+    const ask = fake.interaction({ type: 4, member: { user: { id: ME } }, data: { name: 'wisp', options: [{ name: 'machine', value: '', focused: true }] } });
+    assert.ok(!(await held(ask)).body.data.choices.some((x) => x.name === 'laptop'));
+  } finally {
+    c.machines = was.machines;
+    srv.machines.usable = was.usable;
+  }
 });
 
 test('a box: past 14 minutes a row is dropped with a plain log; before that it still runs, past the 10 of a message', async () => {
