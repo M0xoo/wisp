@@ -320,7 +320,8 @@ ${(m.links || []).length ? `\n### Tasks you're part of\n\nYou were tagged in or 
 ### Memory and reporting
 
 Put one \`crew\` block last in your final message's blocks. wisp reads it and doesn't show it to the user:
-{"type":"crew","remember":["…"],"notebook":"…","wakeIn":30,"quiet":true,"forLater":true,"followUp":{"task":"<id>","text":"…"}}
+{"type":"crew","topic":"…","remember":["…"],"notebook":"…","wakeIn":30,"quiet":true,"forLater":true,"followUp":{"task":"<id>","text":"…"}}
+- topic: the subject of this job as a short noun phrase (≤6 words), when your answer has no hero to carry one (a quick answer in plain text, then only this block); wisp names the task with it.
 - remember: lasting facts to add to your notebook: ids, versions and states you'll compare against next time, the user's preferences for this job, open threads. Other jobs of yours may write at the same time, so add lines with remember rather than rewriting.
 - notebook: the whole notebook rewritten, only to tidy it (it has ${m.notebook.length} characters; keep it under ${NOTEBOOK_SOFT}). Drop what's stale.
 - wakeIn: minutes until wisp should start a fresh check-in (at least ${WAKE_MIN}), when you want to do your standing job again sooner than your schedule. To carry on with *this* job instead (wait for a deploy or a run, then finish what you started, with this context), call resume_later.
@@ -358,6 +359,8 @@ export function takeCrewBlock(presentation) {
     if (typeof b.notebook === 'string') out.notebook = b.notebook;
     if (Number(b.wakeIn) > 0) out.wakeIn = Number(b.wakeIn);
     if (b.quiet === true) out.quiet = true;
+    // A quick answer has no hero: the crew block names its task (runner.#finishTurn reads it).
+    if (typeof b.topic === 'string' && b.topic.trim() && !presentation.topic) presentation.topic = b.topic.trim().slice(0, 200);
     if (b.forLater === true) out.forLater = true;
     if (Array.isArray(b.kit))
       for (const k of b.kit) if (k && typeof k === 'object') (out.kit ||= []).push({ kind: String(k.kind || ''), name: String(k.name || '').trim().slice(0, 64), description: String(k.description || '').slice(0, 1024), body: String(k.body || '').slice(0, KIT_BODY_MAX) });
@@ -367,6 +370,11 @@ export function takeCrewBlock(presentation) {
   out.remember = out.remember.slice(0, 12);
   if (out.followUps) out.followUps = out.followUps.slice(0, 3);
   if (out.kit) out.kit = out.kit.slice(0, OFFER_FILES);
+  // Only a crew block: a quick answer's text (its notes) is the report, else a hero says so.
+  if (!presentation.blocks.length && presentation.notes) {
+    presentation.blocks = [{ type: 'markdown', text: presentation.notes }];
+    delete presentation.notes;
+  }
   if (!presentation.blocks.length) presentation.blocks = [{ type: 'hero', title: 'Nothing new', summary: '', status: 'info' }];
   return out;
 }

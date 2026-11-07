@@ -496,6 +496,10 @@ const allowedPublish = fullAuto || argv.slice(argv.indexOf('--allowedTools') + 1
 const publishing = /BLOCKED|blocked by your permissions/.test(stdin); // the task, or wisp's retry of it
 const refused = publishing && !allowedPublish;
 const final = (answer) => {
+  // QUICK[…]: a quick answer, plain text then a wisp block with only its topic (no hero). For a crew
+  // member, CREWQUICK[…]: plain text then only a crew block that carries the topic.
+  const quick = /(CREW)?QUICK\[([^\]]*)\]/.exec(stdin);
+  if (quick) return `Yes, it's merged.\n\`\`\`wisp\n${JSON.stringify(quick[1] ? { blocks: [{ type: 'crew', topic: quick[2] }] } : { topic: quick[2], blocks: [] })}\n\`\`\``;
   const blocks = [{ type: 'hero', title: `Fake ${name} finished`, summary: answer ? `Answer was: ${answer}` : refused ? 'npm publish was blocked.' : publishing ? 'Published.' : 'No question asked.', status: 'done' }];
   // TOPIC[…]: the hero names what was asked (wisp titles the task with it).
   const topic = /TOPIC\[([^\]]*)\]/.exec(stdin)?.[1];

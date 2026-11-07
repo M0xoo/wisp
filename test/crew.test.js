@@ -163,6 +163,22 @@ test('a job hands memory back in a hidden crew block: lines added, a rewrite, a 
   assert.equal(only.blocks[0].type, 'hero');
 });
 
+test('a quick answer from a crew member: its crew block names the task, its text is the report', () => {
+  const p = { notes: 'Yes, merged in #728.', blocks: [{ type: 'crew', topic: '  Title generator merge ', remember: ['728 merged'] }] };
+  assert.deepEqual(takeCrewBlock(p), { remember: ['728 merged'] });
+  assert.equal(p.topic, 'Title generator merge');
+  assert.deepEqual(p.blocks, [{ type: 'markdown', text: 'Yes, merged in #728.' }], 'the text, not Nothing new');
+  assert.equal(p.notes, undefined, 'shown once');
+  // The wisp block's own topic wins; a blank one names nothing.
+  const own = { topic: 'Mine', blocks: [{ type: 'hero', title: 'x' }, { type: 'crew', topic: 'Other' }] };
+  takeCrewBlock(own);
+  assert.equal(own.topic, 'Mine');
+  const blank = { blocks: [{ type: 'crew', topic: ' ' }] };
+  takeCrewBlock(blank);
+  assert.equal(blank.topic, undefined);
+  assert.equal(blank.blocks[0].title, 'Nothing new');
+});
+
 test('the schedule: cron minutes once each, wake-ups, paused members never', () => {
   const at = new Date(2026, 9, 25, 9, 0, 10).getTime();
   const m = { cron: '0 9 * * *', paused: false, wakeAt: null, lastMinute: null };
@@ -339,6 +355,13 @@ test('@Name at the start of a prompt is a job for them; past their limit, work w
   assert.ok(m.wakeAt > Date.now() + 25 * 60_000, 'it asked to look again in 30 minutes');
   assert.ok(m.nextAt <= m.wakeAt);
   await ended(m.jobList[0].id);
+});
+
+test('@Name with a quick answer: the crew block\'s topic names the job', async () => {
+  const s = await api('/sessions', { prompt: '@Ada did it merge? CREWQUICK[Title generator merge]', cwd: repo });
+  const done = await ended(s.id);
+  assert.equal(done.title, 'Title generator merge');
+  assert.deepEqual(done.turns[0].presentation.blocks, [{ type: 'markdown', text: "Yes, it's merged." }]);
 });
 
 test('@Name starting a follow-up: they answer on the task, under the message', async () => {
