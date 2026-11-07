@@ -35,7 +35,12 @@ export function createTunnels({ log = () => {}, onChange = () => {} } = {}) {
     // The computer hung up. The HTTP server's sockets are half-open, so without this the tunnel
     // would count as up until the next ping failed, and the computer show as online meanwhile.
     socket.on('end', () => session.destroy());
-    const ping = setInterval(() => session.ping(() => {}), PING_MS);
+    // 'close' comes only once the socket has closed, a while after destroy(): a ping due in between
+    // would throw from this timer, where nothing catches it, and take the grid down.
+    const ping = setInterval(() => {
+      if (session.destroyed || session.closed) return clearInterval(ping);
+      session.ping(() => {});
+    }, PING_MS);
     ping.unref();
     session.on('close', () => {
       clearInterval(ping);
