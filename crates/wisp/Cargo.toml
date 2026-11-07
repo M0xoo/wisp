@@ -1,0 +1,19 @@
+[package]
+name = "wisp"
+description = "The wisp binary: the CLI, the plugin groups (the only place features are named) and the kernel services"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "wisp"
+path = "src/main.rs"
+
+[dependencies]
+wisp-kernel.workspace = true
+wisp-api.workspace = true
+
+[lints]
+workspace = true

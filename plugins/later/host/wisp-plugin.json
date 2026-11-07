@@ -1,0 +1,14 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.later",
+  "name": "later",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "follow-ups and reminders scheduled on tasks, For later, /after plans",
+  "kind": "plugin",
+  "server": { "builtin": "wisp_later" },
+  "permissions": [],
+  "requires": {},
+  "provides": {},
+  "contributes": {}
+}

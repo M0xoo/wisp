@@ -1,0 +1,16 @@
+[package]
+name = "wisp-mcp-api"
+description = "contract of wisp.mcp: its commands (rpc, tools, asks), events, the tool point and the session flags"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+wisp-kernel.workspace = true
+
+[lints]
+workspace = true

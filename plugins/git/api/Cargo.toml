@@ -1,0 +1,17 @@
+[package]
+name = "wisp-git-api"
+description = "wisp.git's contract: git.service@1 (repo handles), its row types, and the exec/blob ports it runs on"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wisp-kernel.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+
+[lints]
+workspace = true

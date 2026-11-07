@@ -1,0 +1,126 @@
+// The task list (v1's feed in the sidebar): the project chips, what plugins put on top, then every
+// section in one VirtualList (5k tasks: only the rows on screen exist), with one shared row menu.
+// Server data comes from the entity store through the model's memoised sections; what's open comes
+// from navigation; the rest (whose menu is open, the dialogs) is local to this list.
+
+import { createEffect, createMemo, Match, on, Show, Switch, type JSX } from 'solid-js';
+import { ContextMenu, EmptyState, Stack, VirtualList, useSignal, type IconName, type MenuEntry } from '@wisp/ui';
+import type { EntityKey } from '@wisp/client';
+import type { ExtensionProps, ResolvedExtension } from '@wisp/shell/contract';
+import { copyId, setUnread, toggleArchived, toggleDone, toggleForLater, togglePin } from '../actions.ts';
+import { flatten, itemKey, type Item } from '../model/flat.ts';
+import { rowMenu } from '../model/menu.ts';
+import { useShell } from '../shell.ts';
+import { KIND, type Session } from '../types.ts';
+import { buildEnv } from './build-env.ts';
+import { DeleteDialog, RenameDialog } from './Dialogs.tsx';
+import { Env, useEnv, type ListEnv } from './env.ts';
+import { GroupRow, PlanRow, SectionHead } from './OtherRows.tsx';
+import { ProjectChips } from './ProjectChips.tsx';
+import { revealIn } from './reveal.ts';
+import { Slot } from './Slot.tsx';
+import { TaskRow } from './TaskRow.tsx';
+
+/** px of a row not measured yet: three lines (title, what it's doing, where it runs) */
+export const ROW_ESTIMATE = 58;
+
+export function TaskList(props: ExtensionProps): JSX.Element {
+  const env = buildEnv(useShell(), props.client);
+  return (
+    <Env.Provider value={env}>
+      <ListBody />
+    </Env.Provider>
+  );
+}
+
+function ListBody(): JSX.Element {
+  const env = useEnv();
+  const t = env.shell.t;
+  const sections = useSignal(env.model.sections);
+  const view = useSignal(env.model.view.value);
+  const toggled = createMemo(() => new Set(view().toggled));
+  const items = createMemo(() => flatten(sections(), { toggled: toggled(), open: env.open(), split: env.split() }));
+  const plugins = useSignal(env.shell.extensions('shell.row:menu'));
+  const menu = createMemo<MenuEntry[]>(() => menuFor(env, plugins()));
+  const box: { el?: HTMLElement } = {};
+  // the keyboard's task (j / k, the palette) scrolls its row into view
+  createEffect(on(env.selected, (k) => k !== undefined && box.el && revealIn(box.el, items(), k, ROW_ESTIMATE), { defer: true }));
+  return (
+    <Stack gap="2" grow part="list.sidebar">
+      <ProjectChips />
+      <Slot input="shell.list:top" layout="stack" />
+      <Show when={items().length > 0} fallback={<EmptyState icon="spark" compact title={t(view().filter !== 'all' ? 'shell-list.empty.project' : 'shell-list.empty.all')} part="list.empty" />}>
+        <ContextMenu items={menu()} onSelect={(v) => pick(env, v, plugins())} part="list.menu">
+          <VirtualList ref={(el) => (box.el = el)} items={items()} key={itemKey} estimate={ROW_ESTIMATE} overscan={8} grow aria-label={t('shell-list.list.label')} part="list.rows">
+            {(item) => <ItemView item={item()} />}
+          </VirtualList>
+        </ContextMenu>
+      </Show>
+      <RenameDialog />
+      <DeleteDialog />
+    </Stack>
+  );
+}
+
+function ItemView(props: { readonly item: Item }): JSX.Element {
+  const env = useEnv();
+  const sections = useSignal(env.model.sections);
+  const head = (): Extract<Item, { t: 'head' }> | undefined => (props.item.t === 'head' ? props.item : undefined);
+  const entry = (): Extract<Item, { t: 'entry' }>['entry'] | undefined => (props.item.t === 'entry' ? props.item.entry : undefined);
+  const nested = (): Extract<Item, { t: 'run' | 'sub' }> | undefined => (props.item.t === 'run' || props.item.t === 'sub' ? props.item : undefined);
+  return (
+    <Switch>
+      <Match when={head()}>{(h) => <SectionHead id={h().id} count={h().count} open={h().open} entries={sections()[h().id]} />}</Match>
+      <Match when={(() => { const e = entry(); return e?.kind === 'task' ? e : undefined; })()}>{(e) => <TaskRow k={e().key} />}</Match>
+      <Match when={(() => { const e = entry(); return e?.kind === 'group' ? e : undefined; })()}>{(e) => <GroupRow entry={e()} />}</Match>
+      <Match when={(() => { const e = entry(); return e?.kind === 'plan' ? e : undefined; })()}>{(e) => <PlanRow plan={e().plan} />}</Match>
+      <Match when={nested()}>{(n) => <TaskRow k={n().key} nested={n().t} />}</Match>
+    </Switch>
+  );
+}
+
+const sessionOf = (env: ListEnv, key: EntityKey): Session | undefined => env.client.entities.peek<Session>(KIND.session, key) as Session | undefined;
+
+/** The open row's menu: the list's actions, and what plugins attached to shell.row:menu. */
+function menuFor(env: ListEnv, plugins: readonly ResolvedExtension[]): MenuEntry[] {
+  const key = env.menuFor();
+  const s = key === undefined ? undefined : sessionOf(env, key);
+  if (!key || !s) return [];
+  const session = (): { id: string; agent: string } => ({ ...s, id: key });
+  const extra = plugins
+    .filter((x) => x.def.bar && (x.def.if?.({ client: env.client, config: x.config, session }) ?? true))
+    .map((x) => ({ value: `x:${x.id}`, label: env.shell.t(x.def.bar?.label ?? x.id), icon: (x.def.bar?.icon ?? 'dots') as IconName }));
+  return rowMenu({ s, t: env.shell.t, plugins: extra, keys: env.keys });
+}
+
+/** A choice in the row menu. */
+function pick(env: ListEnv, value: string, plugins: readonly ResolvedExtension[]): void {
+  const key = env.menuFor();
+  const s = key === undefined ? undefined : sessionOf(env, key);
+  if (!key || !s) return;
+  const a = env.actions;
+  switch (value) {
+    case 'open':
+      return env.openTask(key);
+    case 'rename':
+      return env.askRename(key);
+    case 'copy-id':
+      return void copyId(a, key, (text) => env.shell.platform.copy(text));
+    case 'later':
+      return toggleForLater(a, key);
+    case 'pin':
+      return togglePin(a, key);
+    case 'read':
+      return setUnread(a, key, !s.unread);
+    case 'done':
+      return toggleDone(a, key);
+    case 'archive':
+      return toggleArchived(a, key);
+    case 'delete':
+      return env.askDelete(key);
+    default: {
+      const x = plugins.find((p) => `x:${p.id}` === value);
+      x?.def.bar?.select?.({ client: env.client, config: x.config, session: () => ({ ...s, id: key }) });
+    }
+  }
+}

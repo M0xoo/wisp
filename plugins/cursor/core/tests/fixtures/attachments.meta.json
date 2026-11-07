@@ -1,0 +1,25 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "attachments": [
+      {
+        "path": "/tmp/wisp-g6-att/notes.pdf",
+        "mime": "application/pdf",
+        "size": 2048
+      }
+    ]
+  },
+  "drop": [
+    "stats.durationMs"
+  ],
+  "argv": [
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--trust"
+  ]
+}

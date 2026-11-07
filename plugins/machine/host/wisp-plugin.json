@@ -1,0 +1,13 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.machine",
+  "name": "This Mac",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "What agents cost this computer, the RAM/CPU and usage-limit holds, stopping what runs left behind, and Watch.",
+  "server": { "builtin": "wisp-machine" },
+  "requires": { "wisp.runtime": "^2" },
+  "permissions": ["proc:spawn", "http:route", "runtime:get"],
+  "activation": ["onStartup"],
+  "contributes": {}
+}

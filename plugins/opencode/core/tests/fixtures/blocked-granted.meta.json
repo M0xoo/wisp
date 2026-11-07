@@ -1,0 +1,29 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "prompt": "BLOCKED publish it",
+    "grants": [
+      {
+        "permission": "bash",
+        "patterns": [
+          "npm publish"
+        ]
+      }
+    ]
+  },
+  "drop": [
+    "stats.durationMs"
+  ],
+  "argv": [
+    "run",
+    "--format",
+    "json",
+    "--print-logs",
+    "--log-level",
+    "ERROR"
+  ]
+}

@@ -1,0 +1,2120 @@
+{
+ "about": "v1 spell part names (web/js/spell-schema.js PARTS) and the data-part each maps to in v2. A spell written against v1 names keeps loading; the shell reads this to apply its styles.",
+ "parts": [
+  {
+   "v1": "topbar",
+   "part": "topbar",
+   "selector": "#topbar"
+  },
+  {
+   "v1": "topbar.brand",
+   "part": "topbar.brand",
+   "selector": "#topbar .brand"
+  },
+  {
+   "v1": "topbar.projects",
+   "part": "topbar.projects",
+   "selector": "#projects"
+  },
+  {
+   "v1": "topbar.machines",
+   "part": "topbar.machines",
+   "selector": "#machinesBtn"
+  },
+  {
+   "v1": "topbar.getapp",
+   "part": "topbar.getapp",
+   "selector": "#getAppBtn"
+  },
+  {
+   "v1": "getapp.card",
+   "part": "getapp.card",
+   "selector": ".getapp"
+  },
+  {
+   "v1": "topbar.automations",
+   "part": "topbar.automations",
+   "selector": "#autoBtn"
+  },
+  {
+   "v1": "topbar.search",
+   "part": "topbar.search",
+   "selector": "#searchBtn"
+  },
+  {
+   "v1": "palette.tags",
+   "part": "palette.tags",
+   "selector": ".palette .pal-tags"
+  },
+  {
+   "v1": "switcher",
+   "part": "switcher",
+   "selector": ".switcher"
+  },
+  {
+   "v1": "switcher.row",
+   "part": "switcher.row",
+   "selector": ".switcher .pal-row"
+  },
+  {
+   "v1": "topbar.account",
+   "part": "topbar.account",
+   "selector": "#meBtn"
+  },
+  {
+   "v1": "account.menu",
+   "part": "account.menu",
+   "selector": "#meMenu"
+  },
+  {
+   "v1": "topbar.settings",
+   "part": "topbar.settings",
+   "selector": "#settingsBtn"
+  },
+  {
+   "v1": "topbar.view",
+   "part": "topbar.view",
+   "selector": "#viewBtn"
+  },
+  {
+   "v1": "feed",
+   "part": "feed",
+   "selector": "#feed"
+  },
+  {
+   "v1": "section.needs",
+   "part": "section.needs",
+   "selector": "#secNeeds"
+  },
+  {
+   "v1": "section.working",
+   "part": "section.working",
+   "selector": "#secWorking"
+  },
+  {
+   "v1": "section.scheduled",
+   "part": "section.scheduled",
+   "selector": "#secScheduled"
+  },
+  {
+   "v1": "scheduled.row",
+   "part": "scheduled.row",
+   "selector": "#secScheduled .plan-row"
+  },
+  {
+   "v1": "plan.page",
+   "part": "plan.page",
+   "selector": ".plan-view"
+  },
+  {
+   "v1": "plan.prompt",
+   "part": "plan.prompt",
+   "selector": ".plan-view .pv-box"
+  },
+  {
+   "v1": "plan.details",
+   "part": "plan.details",
+   "selector": ".plan-view .pv-side"
+  },
+  {
+   "v1": "plan.actions",
+   "part": "plan.actions",
+   "selector": ".plan-view .pv-side .it-actions"
+  },
+  {
+   "v1": "section.drafts",
+   "part": "section.drafts",
+   "selector": "#secDrafts"
+  },
+  {
+   "v1": "drafts.row",
+   "part": "drafts.row",
+   "selector": "#secDrafts .plan-row"
+  },
+  {
+   "v1": "section.forLater",
+   "part": "section.forLater",
+   "selector": "#secForLater"
+  },
+  {
+   "v1": "section.done",
+   "part": "section.done",
+   "selector": "#secDone"
+  },
+  {
+   "v1": "section.heading",
+   "part": "section.heading",
+   "selector": "#feed .f-group > h4"
+  },
+  {
+   "v1": "section.crew",
+   "part": "section.crew",
+   "selector": "#secCrew"
+  },
+  {
+   "v1": "crew.row",
+   "part": "crew.row",
+   "selector": "#secCrew .cr-row"
+  },
+  {
+   "v1": "crew.avatar",
+   "part": "crew.avatar",
+   "selector": ".cr-av"
+  },
+  {
+   "v1": "crew.strip",
+   "part": "crew.strip",
+   "selector": "#secCrew .cr-strip"
+  },
+  {
+   "v1": "crew.rail",
+   "part": "crew.rail",
+   "selector": "#crewRail"
+  },
+  {
+   "v1": "crew.rail.face",
+   "part": "crew.rail.face",
+   "selector": "#crewRail .cl-face"
+  },
+  {
+   "v1": "crew.rail.all",
+   "part": "crew.rail.all",
+   "selector": "#crewRail .cl-all"
+  },
+  {
+   "v1": "crew.rail.pick",
+   "part": "crew.rail.pick",
+   "selector": "#crewRail .cl-pip"
+  },
+  {
+   "v1": "crew.rail.card",
+   "part": "crew.rail.card",
+   "selector": ".cl-card"
+  },
+  {
+   "v1": "crew.rail.card.head",
+   "part": "crew.rail.card.head",
+   "selector": ".cl-card .cl-head"
+  },
+  {
+   "v1": "crew.rail.card.row",
+   "part": "crew.rail.card.row",
+   "selector": ".cl-card .cl-row"
+  },
+  {
+   "v1": "crew.rail.card.all",
+   "part": "crew.rail.card.all",
+   "selector": ".cl-card .cl-more"
+  },
+  {
+   "v1": "crew.page",
+   "part": "crew.page",
+   "selector": ".crew-view"
+  },
+  {
+   "v1": "crew.thread",
+   "part": "crew.thread",
+   "selector": ".crew-view .cv-thread"
+  },
+  {
+   "v1": "crew.details",
+   "part": "crew.details",
+   "selector": ".crew-view .cv-about"
+  },
+  {
+   "v1": "crew.about",
+   "part": "crew.about",
+   "selector": ".crew-view .cv-page"
+  },
+  {
+   "v1": "crew.compose",
+   "part": "crew.compose",
+   "selector": ".crew-view .cv-dock"
+  },
+  {
+   "v1": "crew.editor",
+   "part": "crew.editor",
+   "selector": ".crew-edit"
+  },
+  {
+   "v1": "crew.kit",
+   "part": "crew.kit",
+   "selector": ".crew-view .cv-kit"
+  },
+  {
+   "v1": "crew.record",
+   "part": "crew.record",
+   "selector": ".crew-record"
+  },
+  {
+   "v1": "crew.record.subject",
+   "part": "crew.record.subject",
+   "selector": ".crew-record .rec-subject"
+  },
+  {
+   "v1": "crew.compare",
+   "part": "crew.compare",
+   "selector": ".crew-record .rec-compare"
+  },
+  {
+   "v1": "crew.kitEditor",
+   "part": "crew.kitEditor",
+   "selector": ".kit-edit"
+  },
+  {
+   "v1": "crew.notebookEditor",
+   "part": "crew.notebookEditor",
+   "selector": ".nb-edit"
+  },
+  {
+   "v1": "crew.kitGenerate",
+   "part": "crew.kitGenerate",
+   "selector": ".kit-gen"
+  },
+  {
+   "v1": "crew.offer",
+   "part": "crew.offer",
+   "selector": ".crew-view .cv-offer"
+  },
+  {
+   "v1": "turn.kitOffer",
+   "part": "turn.kitOffer",
+   "selector": "#feed .t-offers"
+  },
+  {
+   "v1": "crew.editor.events",
+   "part": "crew.editor.events",
+   "selector": ".crew-edit .ce-events"
+  },
+  {
+   "v1": "crew.org",
+   "part": "crew.org",
+   "selector": "#secCrew .cr-org, #crewRail .cl-org"
+  },
+  {
+   "v1": "org.page",
+   "part": "org.page",
+   "selector": ".org-view"
+  },
+  {
+   "v1": "org.chart",
+   "part": "org.chart",
+   "selector": ".org-view .org-chart"
+  },
+  {
+   "v1": "org.card",
+   "part": "org.card",
+   "selector": ".org-view .org-card"
+  },
+  {
+   "v1": "org.details",
+   "part": "org.details",
+   "selector": ".org-view .org-side"
+  },
+  {
+   "v1": "org.reset",
+   "part": "org.reset",
+   "selector": ".org-view .org-reset"
+  },
+  {
+   "v1": "stuff.button",
+   "part": "stuff.button",
+   "selector": "#splitStuff"
+  },
+  {
+   "v1": "stuff.topButton",
+   "part": "stuff.topButton",
+   "selector": "#stuffTop"
+  },
+  {
+   "v1": "stuff.page",
+   "part": "stuff.page",
+   "selector": ".stuff-view"
+  },
+  {
+   "v1": "stuff.filters",
+   "part": "stuff.filters",
+   "selector": ".stuff-view .sf-bar"
+  },
+  {
+   "v1": "stuff.card",
+   "part": "stuff.card",
+   "selector": ".stuff-view .st-card"
+  },
+  {
+   "v1": "stuff.save",
+   "part": "stuff.save",
+   "selector": ".stuff-save"
+  },
+  {
+   "v1": "stuff.launch",
+   "part": "stuff.launch",
+   "selector": ".stuff-view .st-launch"
+  },
+  {
+   "v1": "stuff.makePane",
+   "part": "stuff.makePane",
+   "selector": ".stuff-view .sf-make"
+  },
+  {
+   "v1": "stuff.makePane.dialog",
+   "part": "stuff.makePane.dialog",
+   "selector": ".modal.pane-make"
+  },
+  {
+   "v1": "stuff.public",
+   "part": "stuff.public",
+   "selector": ".stuff-view .st-pub"
+  },
+  {
+   "v1": "crew.share",
+   "part": "crew.share",
+   "selector": ".crew-share"
+  },
+  {
+   "v1": "crew.import",
+   "part": "crew.import",
+   "selector": ".crew-import"
+  },
+  {
+   "v1": "section.archived",
+   "part": "section.archived",
+   "selector": "#secArchived"
+  },
+  {
+   "v1": "toTop",
+   "part": "toTop",
+   "selector": "#toTop"
+  },
+  {
+   "v1": "launcher",
+   "part": "launcher",
+   "selector": "#launcher"
+  },
+  {
+   "v1": "launcher.input",
+   "part": "launcher.input",
+   "selector": "#prompt"
+  },
+  {
+   "v1": "launcher.projects",
+   "part": "launcher.projects",
+   "selector": "#launcher .l-projects"
+  },
+  {
+   "v1": "launcher.for",
+   "part": "launcher.for",
+   "selector": "#launcher .l-for"
+  },
+  {
+   "v1": "launcher.attach",
+   "part": "launcher.attach",
+   "selector": "#attach"
+  },
+  {
+   "v1": "launcher.mic",
+   "part": "launcher.mic",
+   "selector": "#mic"
+  },
+  {
+   "v1": "launcher.where",
+   "part": "launcher.where",
+   "selector": "#whereBtn"
+  },
+  {
+   "v1": "launcher.mode",
+   "part": "launcher.mode",
+   "selector": "#mode"
+  },
+  {
+   "v1": "launcher.harness",
+   "part": "launcher.harness",
+   "selector": "#runner"
+  },
+  {
+   "v1": "launcher.autoPreview",
+   "part": "launcher.autoPreview",
+   "selector": "#autoPv"
+  },
+  {
+   "v1": "launcher.share",
+   "part": "launcher.share",
+   "selector": "#launcher .l-share"
+  },
+  {
+   "v1": "launcher.sharedNote",
+   "part": "launcher.sharedNote",
+   "selector": "#launcher .l-shared"
+  },
+  {
+   "v1": "share.dialog",
+   "part": "share.dialog",
+   "selector": ".share-modal"
+  },
+  {
+   "v1": "compare.table",
+   "part": "compare.table",
+   "selector": ".compare-modal .cmp-table"
+  },
+  {
+   "v1": "compare.note",
+   "part": "compare.note",
+   "selector": ".compare-modal .cmp-note"
+  },
+  {
+   "v1": "compare.diff",
+   "part": "compare.diff",
+   "selector": ".compare-modal .cmp-diff"
+  },
+  {
+   "v1": "autoPreview.panel",
+   "part": "autoPreview.panel",
+   "selector": ".auto-pop"
+  },
+  {
+   "v1": "autoPreview.alternatives",
+   "part": "autoPreview.alternatives",
+   "selector": ".auto-pop .ap-alt"
+  },
+  {
+   "v1": "autoPreview.suggest",
+   "part": "autoPreview.suggest",
+   "selector": ".auto-pop .ap-sug"
+  },
+  {
+   "v1": "router.sources",
+   "part": "router.sources",
+   "selector": ".router-modal .ro-sources"
+  },
+  {
+   "v1": "router.rules",
+   "part": "router.rules",
+   "selector": ".router-modal .ro-rule"
+  },
+  {
+   "v1": "runner.account",
+   "part": "runner.account",
+   "selector": ".rb-a"
+  },
+  {
+   "v1": "picker.accounts",
+   "part": "picker.accounts",
+   "selector": ".picker .pk-acct"
+  },
+  {
+   "v1": "picker.thinking",
+   "part": "picker.thinking",
+   "selector": ".picker .pk-think"
+  },
+  {
+   "v1": "picker.vary",
+   "part": "picker.vary",
+   "selector": ".picker .pk-vary"
+  },
+  {
+   "v1": "launcher.compare",
+   "part": "launcher.compare",
+   "selector": "#compareBtn"
+  },
+  {
+   "v1": "launcher.tryTwo",
+   "part": "launcher.tryTwo",
+   "selector": "#tryTwoBtn"
+  },
+  {
+   "v1": "launcher.team",
+   "part": "launcher.team",
+   "selector": "#teamBtn"
+  },
+  {
+   "v1": "launcher.issue",
+   "part": "launcher.issue",
+   "selector": "#launcher .issue-btn"
+  },
+  {
+   "v1": "issues.picker",
+   "part": "issues.picker",
+   "selector": ".palette.issues"
+  },
+  {
+   "v1": "delegate.panel",
+   "part": "delegate.panel",
+   "selector": ".team-pop"
+  },
+  {
+   "v1": "delegate.lead",
+   "part": "delegate.lead",
+   "selector": ".team-pop .tp-lead"
+  },
+  {
+   "v1": "delegate.place",
+   "part": "delegate.place",
+   "selector": ".team-pop .tp-row .tp-place"
+  },
+  {
+   "v1": "delegate.live",
+   "part": "delegate.live",
+   "selector": ".team-live .tl-row"
+  },
+  {
+   "v1": "delegate.waiting",
+   "part": "delegate.waiting",
+   "selector": "#feed .w-panel.team-wait"
+  },
+  {
+   "v1": "delegate.open",
+   "part": "delegate.open",
+   "selector": ".sub-task .sub-open"
+  },
+  {
+   "v1": "task.from",
+   "part": "task.from",
+   "selector": ".ask .ask-from"
+  },
+  {
+   "v1": "task.latest",
+   "part": "task.latest",
+   "selector": ".latest-pill"
+  },
+  {
+   "v1": "delegate.go",
+   "part": "delegate.go",
+   "selector": ".sub .sub-go"
+  },
+  {
+   "v1": "delegate.row",
+   "part": "delegate.row",
+   "selector": "#feed .item.is-sub"
+  },
+  {
+   "v1": "delegate.dock",
+   "part": "delegate.dock",
+   "selector": ".it-body .sub-dock"
+  },
+  {
+   "v1": "split.trail",
+   "part": "split.trail",
+   "selector": "#splitHead .sh-trail"
+  },
+  {
+   "v1": "launcher.worktree",
+   "part": "launcher.worktree",
+   "selector": "#wtBtn"
+  },
+  {
+   "v1": "launcher.goal",
+   "part": "launcher.goal",
+   "selector": "#goalBtn"
+  },
+  {
+   "v1": "launcher.goalLine",
+   "part": "launcher.goalLine",
+   "selector": "#launcher .l-goal"
+  },
+  {
+   "v1": "launcher.goalJudges",
+   "part": "launcher.goalJudges",
+   "selector": "#judgesBtn"
+  },
+  {
+   "v1": "goal.band",
+   "part": "goal.band",
+   "selector": "#feed .item.open .goal-band"
+  },
+  {
+   "v1": "goal.text",
+   "part": "goal.text",
+   "selector": "#feed .item.open .goal-band .gb-text"
+  },
+  {
+   "v1": "goal.track",
+   "part": "goal.track",
+   "selector": "#feed .item.open .goal-band .gb-track"
+  },
+  {
+   "v1": "goal.check",
+   "part": "goal.check",
+   "selector": "#feed .item.open .goal-band .gb-check"
+  },
+  {
+   "v1": "goal.judges",
+   "part": "goal.judges",
+   "selector": "#feed .item.open .goal-band .gb-judges"
+  },
+  {
+   "v1": "goal.checks",
+   "part": "goal.checks",
+   "selector": ".menu.jv-pop"
+  },
+  {
+   "v1": "goal.run",
+   "part": "goal.run",
+   "selector": ".goal-run"
+  },
+  {
+   "v1": "goal.runHead",
+   "part": "goal.runHead",
+   "selector": ".goal-run .gr-head"
+  },
+  {
+   "v1": "goal.runVote",
+   "part": "goal.runVote",
+   "selector": ".goal-run .gr-vote"
+  },
+  {
+   "v1": "goal.runPrompt",
+   "part": "goal.runPrompt",
+   "selector": ".goal-run .gr-prompt"
+  },
+  {
+   "v1": "card.goal",
+   "part": "card.goal",
+   "selector": "#feed .goal-pill"
+  },
+  {
+   "v1": "launcher.send",
+   "part": "launcher.send",
+   "selector": "#launch"
+  },
+  {
+   "v1": "launcher.later",
+   "part": "launcher.later",
+   "selector": "#launchLater"
+  },
+  {
+   "v1": "launcher.more",
+   "part": "launcher.more",
+   "selector": "#launchMore"
+  },
+  {
+   "v1": "launcher.when",
+   "part": "launcher.when",
+   "selector": "#launcher .l-when"
+  },
+  {
+   "v1": "launcher.recipes",
+   "part": "launcher.recipes",
+   "selector": "#launcher .l-recipes"
+  },
+  {
+   "v1": "launcher.bringIn",
+   "part": "launcher.bringIn",
+   "selector": "#launcher .l-bring"
+  },
+  {
+   "v1": "launcher.bringInTake",
+   "part": "launcher.bringInTake",
+   "selector": "#launcher .l-bring-take"
+  },
+  {
+   "v1": "launcher.bringInSkip",
+   "part": "launcher.bringInSkip",
+   "selector": "#launcher .l-bring-skip"
+  },
+  {
+   "v1": "launcher.fab",
+   "part": "launcher.fab",
+   "selector": "#promptFab"
+  },
+  {
+   "v1": "composer",
+   "part": "composer",
+   "selector": ".composer"
+  },
+  {
+   "v1": "composer.input",
+   "part": "composer.input",
+   "selector": ".composer .reply"
+  },
+  {
+   "v1": "composer.attach",
+   "part": "composer.attach",
+   "selector": ".composer .c-attach"
+  },
+  {
+   "v1": "composer.mic",
+   "part": "composer.mic",
+   "selector": ".composer .c-mic"
+  },
+  {
+   "v1": "composer.attachMenu",
+   "part": "composer.attachMenu",
+   "selector": ".menu.att-menu"
+  },
+  {
+   "v1": "composer.mode",
+   "part": "composer.mode",
+   "selector": ".composer .c-mode"
+  },
+  {
+   "v1": "composer.harness",
+   "part": "composer.harness",
+   "selector": ".composer .c-runner"
+  },
+  {
+   "v1": "composer.place",
+   "part": "composer.place",
+   "selector": ".composer .c-place"
+  },
+  {
+   "v1": "composer.team",
+   "part": "composer.team",
+   "selector": ".composer .c-team"
+  },
+  {
+   "v1": "composer.goal",
+   "part": "composer.goal",
+   "selector": ".composer .c-goal"
+  },
+  {
+   "v1": "composer.goalLine",
+   "part": "composer.goalLine",
+   "selector": ".composer .c-goal-line"
+  },
+  {
+   "v1": "composer.hint",
+   "part": "composer.hint",
+   "selector": ".composer .c-hint"
+  },
+  {
+   "v1": "composer.cold",
+   "part": "composer.cold",
+   "selector": ".composer .c-cold"
+  },
+  {
+   "v1": "composer.coldFork",
+   "part": "composer.coldFork",
+   "selector": ".composer .c-cold-fork"
+  },
+  {
+   "v1": "hold.compact",
+   "part": "hold.compact",
+   "selector": ".hd-compact"
+  },
+  {
+   "v1": "hold.compactNote",
+   "part": "hold.compactNote",
+   "selector": ".hd-compact-note"
+  },
+  {
+   "v1": "menu.compact",
+   "part": "menu.compact",
+   "selector": ".menu button[data-a=\"compact\"]"
+  },
+  {
+   "v1": "turn.compact",
+   "part": "turn.compact",
+   "selector": "#feed .turn.compact-turn"
+  },
+  {
+   "v1": "limit.cold",
+   "part": "limit.cold",
+   "selector": ".b-limit .lm-cold"
+  },
+  {
+   "v1": "composer.ship",
+   "part": "composer.ship",
+   "selector": ".composer .c-ship"
+  },
+  {
+   "v1": "composer.done",
+   "part": "composer.done",
+   "selector": ".composer .c-done"
+  },
+  {
+   "v1": "composer.queue",
+   "part": "composer.queue",
+   "selector": ".composer .c-queue"
+  },
+  {
+   "v1": "composer.later",
+   "part": "composer.later",
+   "selector": ".composer .cq.later"
+  },
+  {
+   "v1": "composer.queued",
+   "part": "composer.queued",
+   "selector": ".composer .cq:not(.later)"
+  },
+  {
+   "v1": "composer.sendLater",
+   "part": "composer.sendLater",
+   "selector": ".composer .c-later"
+  },
+  {
+   "v1": "composer.when",
+   "part": "composer.when",
+   "selector": ".composer .when-chip"
+  },
+  {
+   "v1": "composer.send",
+   "part": "composer.send",
+   "selector": ".composer .send"
+  },
+  {
+   "v1": "composer.btwTip",
+   "part": "composer.btwTip",
+   "selector": ".w-tip"
+  },
+  {
+   "v1": "composer.comments",
+   "part": "composer.comments",
+   "selector": ".composer .cmt-tray"
+  },
+  {
+   "v1": "composer.sendComments",
+   "part": "composer.sendComments",
+   "selector": ".composer .cmt-send"
+  },
+  {
+   "v1": "answer.comment",
+   "part": "answer.comment",
+   "selector": ".cmt-add"
+  },
+  {
+   "v1": "answer.commentBubble",
+   "part": "answer.commentBubble",
+   "selector": ".cmt-bubble"
+  },
+  {
+   "v1": "answer.commentCard",
+   "part": "answer.commentCard",
+   "selector": ".cmt-card"
+  },
+  {
+   "v1": "answer.commentMark",
+   "part": "answer.commentMark",
+   "selector": ".cmt-mark"
+  },
+  {
+   "v1": "turn.comments",
+   "part": "turn.comments",
+   "selector": "#feed .ask-notes"
+  },
+  {
+   "v1": "card",
+   "part": "card",
+   "selector": "#feed .item"
+  },
+  {
+   "v1": "card.head",
+   "part": "card.head",
+   "selector": "#feed .it-head"
+  },
+  {
+   "v1": "card.dot",
+   "part": "card.dot",
+   "selector": "#feed .it-head .q-dot"
+  },
+  {
+   "v1": "card.title",
+   "part": "card.title",
+   "selector": "#feed .it-title"
+  },
+  {
+   "v1": "card.sub",
+   "part": "card.sub",
+   "selector": "#feed .it-sub"
+  },
+  {
+   "v1": "card.live",
+   "part": "card.live",
+   "selector": "#feed .q-live"
+  },
+  {
+   "v1": "card.side",
+   "part": "card.side",
+   "selector": "#feed .it-side"
+  },
+  {
+   "v1": "card.status",
+   "part": "card.status",
+   "selector": "#feed .it-side .pill[class*=\"st-\"]"
+  },
+  {
+   "v1": "card.pr",
+   "part": "card.pr",
+   "selector": "#feed .it-side .pill.pr"
+  },
+  {
+   "v1": "card.overlap",
+   "part": "card.overlap",
+   "selector": "#feed .it-side .pill.overlap"
+  },
+  {
+   "v1": "card.overlapNote",
+   "part": "card.overlapNote",
+   "selector": "#feed .overlap-strip"
+  },
+  {
+   "v1": "card.model",
+   "part": "card.model",
+   "selector": "#feed .it-side .model-logo"
+  },
+  {
+   "v1": "card.machine",
+   "part": "card.machine",
+   "selector": "#feed .it-side .q-machine"
+  },
+  {
+   "v1": "card.run",
+   "part": "card.run",
+   "selector": "#feed .it-run"
+  },
+  {
+   "v1": "card.project",
+   "part": "card.project",
+   "selector": "#feed .it-side .q-proj"
+  },
+  {
+   "v1": "card.time",
+   "part": "card.time",
+   "selector": "#feed .it-side .q-time"
+  },
+  {
+   "v1": "card.later",
+   "part": "card.later",
+   "selector": "#feed .it-side .later-pill"
+  },
+  {
+   "v1": "card.quickDone",
+   "part": "card.quickDone",
+   "selector": "#feed .it-quick"
+  },
+  {
+   "v1": "card.quickLater",
+   "part": "card.quickLater",
+   "selector": "#feed .it-later"
+  },
+  {
+   "v1": "card.choices",
+   "part": "card.choices",
+   "selector": "#feed .it-choices"
+  },
+  {
+   "v1": "card.swipe",
+   "part": "card.swipe",
+   "selector": "#feed .it-swipe"
+  },
+  {
+   "v1": "card.body",
+   "part": "card.body",
+   "selector": "#feed .it-body"
+  },
+  {
+   "v1": "card.forkedFrom",
+   "part": "card.forkedFrom",
+   "selector": "#feed .it-meta .m.fork-from"
+  },
+  {
+   "v1": "card.forks",
+   "part": "card.forks",
+   "selector": "#feed .it-meta .m.forks"
+  },
+  {
+   "v1": "card.sideOf",
+   "part": "card.sideOf",
+   "selector": "#feed .it-meta .m.side-of"
+  },
+  {
+   "v1": "card.sides",
+   "part": "card.sides",
+   "selector": "#feed .it-meta .m.sides"
+  },
+  {
+   "v1": "card.sidePill",
+   "part": "card.sidePill",
+   "selector": "#feed .it-head .pill.side-pill"
+  },
+  {
+   "v1": "turn.sideStart",
+   "part": "turn.sideStart",
+   "selector": "#feed .turn .side-line"
+  },
+  {
+   "v1": "turn.sideWarn",
+   "part": "turn.sideWarn",
+   "selector": "#feed .turn .side-warns"
+  },
+  {
+   "v1": "turn.whatChanged",
+   "part": "turn.whatChanged",
+   "selector": "#feed .turn .wc-line"
+  },
+  {
+   "v1": "turn.noOutput",
+   "part": "turn.noOutput",
+   "selector": "#feed .w-noout"
+  },
+  {
+   "v1": "card.setupWarn",
+   "part": "card.setupWarn",
+   "selector": "#feed .it-meta .m.setup-warn"
+  },
+  {
+   "v1": "mention.picker",
+   "part": "mention.picker",
+   "selector": ".menu.cr-pick"
+  },
+  {
+   "v1": "form.select",
+   "part": "form.select",
+   "selector": ".kit-sel"
+  },
+  {
+   "v1": "form.selectMenu",
+   "part": "form.selectMenu",
+   "selector": ".menu.kit-menu"
+  },
+  {
+   "v1": "mention.file",
+   "part": "mention.file",
+   "selector": ".cr-pick .fl-pick"
+  },
+  {
+   "v1": "turn.fork",
+   "part": "turn.fork",
+   "selector": "#feed .tb-fork"
+  },
+  {
+   "v1": "turn.receipt",
+   "part": "turn.receipt",
+   "selector": "#feed .turn .tb-receipt"
+  },
+  {
+   "v1": "turn.overage",
+   "part": "turn.overage",
+   "selector": "#feed .turn .tb-over"
+  },
+  {
+   "v1": "turn.agents",
+   "part": "turn.agents",
+   "selector": "#feed .turn .tb-agents"
+  },
+  {
+   "v1": "turn.agents.switch",
+   "part": "turn.agents.switch",
+   "selector": "#feed .turn .tb-sub-switch"
+  },
+  {
+   "v1": "settings.subagentModel",
+   "part": "settings.subagentModel",
+   "selector": ".sx-row:has(select[name=\"subagentModel\"])"
+  },
+  {
+   "v1": "turn.forkStart",
+   "part": "turn.forkStart",
+   "selector": "#feed .fork-line:not(.side-line)"
+  },
+  {
+   "v1": "sidebar",
+   "part": "sidebar",
+   "selector": "body.split .feed-wrap"
+  },
+  {
+   "v1": "sidebar.foot",
+   "part": "sidebar.foot",
+   "selector": "#meBtn"
+  },
+  {
+   "v1": "sidebar.new",
+   "part": "sidebar.new",
+   "selector": "#splitNew"
+  },
+  {
+   "v1": "sidebar.nav",
+   "part": "sidebar.nav",
+   "selector": "#splitNav"
+  },
+  {
+   "v1": "sidebar.account",
+   "part": "sidebar.account",
+   "selector": "#splitMe"
+  },
+  {
+   "v1": "sidebar.grip",
+   "part": "sidebar.grip",
+   "selector": "#splitGrip"
+  },
+  {
+   "v1": "reconnecting",
+   "part": "reconnecting",
+   "selector": "#reconnecting"
+  },
+  {
+   "v1": "split.main",
+   "part": "split.main",
+   "selector": "#splitMain"
+  },
+  {
+   "v1": "split.home",
+   "part": "split.home",
+   "selector": "#splitHome"
+  },
+  {
+   "v1": "split.greeting",
+   "part": "split.greeting",
+   "selector": "#splitHome .sh-hello"
+  },
+  {
+   "v1": "split.next",
+   "part": "split.next",
+   "selector": "#splitHome .sh-next:not(.sh-coming)"
+  },
+  {
+   "v1": "split.upcoming",
+   "part": "split.upcoming",
+   "selector": "#splitHome .sh-coming"
+  },
+  {
+   "v1": "split.upcoming.more",
+   "part": "split.upcoming.more",
+   "selector": "#splitHome .sh-coming .sh-more"
+  },
+  {
+   "v1": "split.upcoming.day",
+   "part": "split.upcoming.day",
+   "selector": "#splitHome .sh-coming .sh-day"
+  },
+  {
+   "v1": "home.install",
+   "part": "home.install",
+   "selector": "#splitHome .hs-install"
+  },
+  {
+   "v1": "split.panes",
+   "part": "split.panes",
+   "selector": "#splitHome .sh-panes"
+  },
+  {
+   "v1": "split.pane",
+   "part": "split.pane",
+   "selector": "#splitHome .sh-pane"
+  },
+  {
+   "v1": "split.pane.bar",
+   "part": "split.pane.bar",
+   "selector": "#splitHome .sh-pane .pa-bar"
+  },
+  {
+   "v1": "split.pane.grip",
+   "part": "split.pane.grip",
+   "selector": "#splitHome .sh-grip"
+  },
+  {
+   "v1": "split.pane.row",
+   "part": "split.pane.row",
+   "selector": "#splitHome .sh-pane-row"
+  },
+  {
+   "v1": "split.spare",
+   "part": "split.spare",
+   "selector": "#splitHome .sh-spare"
+  },
+  {
+   "v1": "split.spare.start",
+   "part": "split.spare.start",
+   "selector": "#splitHome .sh-spare .spr-start"
+  },
+  {
+   "v1": "split.windowNotice",
+   "part": "split.windowNotice",
+   "selector": "#splitHome .sh-spare .wn-card"
+  },
+  {
+   "v1": "split.feedback",
+   "part": "split.feedback",
+   "selector": "#splitHome .sh-fb"
+  },
+  {
+   "v1": "tips",
+   "part": "tips",
+   "selector": "#splitHome .sh-tips"
+  },
+  {
+   "v1": "tips.setup",
+   "part": "tips.setup",
+   "selector": "#splitHome .sh-tips .tip-setup"
+  },
+  {
+   "v1": "tips.grid",
+   "part": "tips.grid",
+   "selector": "#splitHome .sh-tips .tip-grid"
+  },
+  {
+   "v1": "tips.tools",
+   "part": "tips.tools",
+   "selector": "#splitHome .sh-tips .tip-tool"
+  },
+  {
+   "v1": "split.head",
+   "part": "split.head",
+   "selector": "#splitHead"
+  },
+  {
+   "v1": "split.title",
+   "part": "split.title",
+   "selector": "#splitHead .sh-title"
+  },
+  {
+   "v1": "split.back",
+   "part": "split.back",
+   "selector": ".split-main .sh-back"
+  },
+  {
+   "v1": "split.body",
+   "part": "split.body",
+   "selector": "body.split #feed .item.open > .it-body"
+  },
+  {
+   "v1": "split.details",
+   "part": "split.details",
+   "selector": "body.split #feed .item.open > .it-body > .it-bar"
+  },
+  {
+   "v1": "split.pr",
+   "part": "split.pr",
+   "selector": "body.split #feed .item.open .it-bar > .pr-strip"
+  },
+  {
+   "v1": "split.pr.review",
+   "part": "split.pr.review",
+   "selector": ".pr-strip .pr-rv"
+  },
+  {
+   "v1": "split.shell",
+   "part": "split.shell",
+   "selector": "body.split #feed .item.open .it-actions > .it-shell"
+  },
+  {
+   "v1": "split.shellDoor",
+   "part": "split.shellDoor",
+   "selector": "body.split #feed .item.open .it-bar > .shell-door"
+  },
+  {
+   "v1": "list.placeholder",
+   "part": "list.placeholder",
+   "selector": "#feedSkel"
+  },
+  {
+   "v1": "split.placeholder",
+   "part": "split.placeholder",
+   "selector": "body.split #feed .item.open > .it-skel"
+  },
+  {
+   "v1": "split.watch",
+   "part": "split.watch",
+   "selector": "body.split #feed .item.open .it-actions > .it-watch"
+  },
+  {
+   "v1": "split.changes",
+   "part": "split.changes",
+   "selector": "body.split #feed .item.open .it-actions > .it-changes"
+  },
+  {
+   "v1": "split.mini",
+   "part": "split.mini",
+   "selector": "body.split #feed .item.open .it-mini > .im-row"
+  },
+  {
+   "v1": "details.account",
+   "part": "details.account",
+   "selector": "body.split #feed .item.open .it-props .model-logo .acc-i"
+  },
+  {
+   "v1": "details.plan",
+   "part": "details.plan",
+   "selector": "body.split #feed .item.open .it-props > .plan-used"
+  },
+  {
+   "v1": "turn.refusal",
+   "part": "turn.refusal",
+   "selector": "#feed .turn .b-refusal"
+  },
+  {
+   "v1": "turn.signIn",
+   "part": "turn.signIn",
+   "selector": "#feed .turn .b-signin"
+  },
+  {
+   "v1": "split.actions",
+   "part": "split.actions",
+   "selector": "body.split #feed .item.open .it-bar > .it-actions"
+  },
+  {
+   "v1": "term",
+   "part": "term",
+   "selector": "#term .tm-box"
+  },
+  {
+   "v1": "term.head",
+   "part": "term.head",
+   "selector": "#term .tm-head"
+  },
+  {
+   "v1": "term.screen",
+   "part": "term.screen",
+   "selector": "#term .tm-screen"
+  },
+  {
+   "v1": "term.keys",
+   "part": "term.keys",
+   "selector": "#term .tm-keys"
+  },
+  {
+   "v1": "panel",
+   "part": "panel",
+   "selector": "#sidePanel"
+  },
+  {
+   "v1": "panel.tabs",
+   "part": "panel.tabs",
+   "selector": "#sidePanel .pn-tabs"
+  },
+  {
+   "v1": "panel.changes",
+   "part": "panel.changes",
+   "selector": "#sidePanel .pn-changes"
+  },
+  {
+   "v1": "panel.changes.summary",
+   "part": "panel.changes.summary",
+   "selector": "#sidePanel .cx-sum"
+  },
+  {
+   "v1": "panel.changes.list",
+   "part": "panel.changes.list",
+   "selector": "#sidePanel .cx-list"
+  },
+  {
+   "v1": "panel.changes.edit",
+   "part": "panel.changes.edit",
+   "selector": "#sidePanel .cx-edit"
+  },
+  {
+   "v1": "panel.changes.open",
+   "part": "panel.changes.open",
+   "selector": "#sidePanel .cx-find"
+  },
+  {
+   "v1": "panel.editor",
+   "part": "panel.editor",
+   "selector": "#sidePanel .pn-edit"
+  },
+  {
+   "v1": "panel.editor.code",
+   "part": "panel.editor.code",
+   "selector": "#sidePanel .ed-scroll"
+  },
+  {
+   "v1": "panel.editor.save",
+   "part": "panel.editor.save",
+   "selector": "#sidePanel .ed-save"
+  },
+  {
+   "v1": "panel.editor.problems",
+   "part": "panel.editor.problems",
+   "selector": "#sidePanel .ed-probs"
+  },
+  {
+   "v1": "panel.editor.hover",
+   "part": "panel.editor.hover",
+   "selector": "#sidePanel .ed-hover"
+  },
+  {
+   "v1": "panel.changes.comment",
+   "part": "panel.changes.comment",
+   "selector": "#sidePanel .cmt-line-add"
+  },
+  {
+   "v1": "panel.changes.commentMark",
+   "part": "panel.changes.commentMark",
+   "selector": "#sidePanel .cmt-mark.cmt-line"
+  },
+  {
+   "v1": "panel.changes.revertHunk",
+   "part": "panel.changes.revertHunk",
+   "selector": "#sidePanel .cx-hk-rev"
+  },
+  {
+   "v1": "panel.changes.viewed",
+   "part": "panel.changes.viewed",
+   "selector": "#sidePanel .cx-viewed"
+  },
+  {
+   "v1": "panel.changes.viewedCount",
+   "part": "panel.changes.viewedCount",
+   "selector": "#sidePanel .cx-seen"
+  },
+  {
+   "v1": "panel.changes.stage",
+   "part": "panel.changes.stage",
+   "selector": "#sidePanel .cx-stage"
+  },
+  {
+   "v1": "panel.changes.stageHunk",
+   "part": "panel.changes.stageHunk",
+   "selector": "#sidePanel .cx-hk-stage"
+  },
+  {
+   "v1": "panel.changes.commit",
+   "part": "panel.changes.commit",
+   "selector": "#sidePanel .cx-commit"
+  },
+  {
+   "v1": "panel.place",
+   "part": "panel.place",
+   "selector": "#sidePanel .pn-place"
+  },
+  {
+   "v1": "panel.foreign",
+   "part": "panel.foreign",
+   "selector": "#sidePanel .pn-foreign"
+  },
+  {
+   "v1": "panel.shell",
+   "part": "panel.shell",
+   "selector": "#sidePanel .pn-shell"
+  },
+  {
+   "v1": "panel.pr",
+   "part": "panel.pr",
+   "selector": "#sidePanel .pn-pr"
+  },
+  {
+   "v1": "panel.pr.review",
+   "part": "panel.pr.review",
+   "selector": "#sidePanel .pn-xrv"
+  },
+  {
+   "v1": "panel.pr.review.again",
+   "part": "panel.pr.review.again",
+   "selector": "#sidePanel .pn-xrv [data-a=\"xreview\"]"
+  },
+  {
+   "v1": "panel.pr.review.constraints",
+   "part": "panel.pr.review.constraints",
+   "selector": "#sidePanel .pn-xrv .xrv-cons"
+  },
+  {
+   "v1": "panel.pr.review.coverage",
+   "part": "panel.pr.review.coverage",
+   "selector": "#sidePanel .pn-xrv .xrv-cover"
+  },
+  {
+   "v1": "panel.pr.review.rule",
+   "part": "panel.pr.review.rule",
+   "selector": "#sidePanel .pn-xrv .xrv-rule"
+  },
+  {
+   "v1": "panel.checks",
+   "part": "panel.checks",
+   "selector": "#sidePanel .pn-checks"
+  },
+  {
+   "v1": "panel.conversation",
+   "part": "panel.conversation",
+   "selector": "#sidePanel .pn-talk"
+  },
+  {
+   "v1": "panel.files",
+   "part": "panel.files",
+   "selector": "#sidePanel .pn-files"
+  },
+  {
+   "v1": "panel.pane",
+   "part": "panel.pane",
+   "selector": "#sidePanel .pn-pane"
+  },
+  {
+   "v1": "panel.pane.tab",
+   "part": "panel.pane.tab",
+   "selector": "#sidePanel .pn-tabs [data-tab^=\"pane:\"]"
+  },
+  {
+   "v1": "panel.pane.bar",
+   "part": "panel.pane.bar",
+   "selector": "#sidePanel .pn-pane .pa-bar"
+  },
+  {
+   "v1": "panel.watch",
+   "part": "panel.watch",
+   "selector": "#sidePanel .pn-watch"
+  },
+  {
+   "v1": "panel.browser",
+   "part": "panel.browser",
+   "selector": "#sidePanel .pn-browser"
+  },
+  {
+   "v1": "panel.preview",
+   "part": "panel.preview",
+   "selector": "#sidePanel .pn-run"
+  },
+  {
+   "v1": "panel.preview.bar",
+   "part": "panel.preview.bar",
+   "selector": "#sidePanel .rn-bar"
+  },
+  {
+   "v1": "panel.preview.run",
+   "part": "panel.preview.run",
+   "selector": "#sidePanel .rn-go"
+  },
+  {
+   "v1": "panel.preview.pick",
+   "part": "panel.preview.pick",
+   "selector": "#sidePanel .rn-pick"
+  },
+  {
+   "v1": "panel.preview.logs",
+   "part": "panel.preview.logs",
+   "selector": "#sidePanel .rn-log"
+  },
+  {
+   "v1": "watch.caption",
+   "part": "watch.caption",
+   "selector": "#sidePanel .wt-cap"
+  },
+  {
+   "v1": "watch.run",
+   "part": "watch.run",
+   "selector": "#sidePanel .wt-run"
+  },
+  {
+   "v1": "settings",
+   "part": "settings",
+   "selector": ".modal.sx"
+  },
+  {
+   "v1": "settings.nav",
+   "part": "settings.nav",
+   "selector": ".sx-nav"
+  },
+  {
+   "v1": "settings.head",
+   "part": "settings.head",
+   "selector": ".sx-top"
+  },
+  {
+   "v1": "settings.updates",
+   "part": "settings.updates",
+   "selector": ".sx-updates"
+  },
+  {
+   "v1": "settings.reachable",
+   "part": "settings.reachable",
+   "selector": ".sx-reach"
+  },
+  {
+   "v1": "machines.howto",
+   "part": "machines.howto",
+   "selector": ".mc-howto"
+  },
+  {
+   "v1": "machines.letin",
+   "part": "machines.letin",
+   "selector": ".mc-letin"
+  },
+  {
+   "v1": "machines.cloud",
+   "part": "machines.cloud",
+   "selector": ".mc-grid"
+  },
+  {
+   "v1": "machines.grid.here",
+   "part": "machines.grid.here",
+   "selector": ".gh-row"
+  },
+  {
+   "v1": "machines.grid.previews",
+   "part": "machines.grid.previews",
+   "selector": ".gh-pv"
+  },
+  {
+   "v1": "machines.kind",
+   "part": "machines.kind",
+   "selector": ".mc-kind"
+  },
+  {
+   "v1": "phone.options",
+   "part": "phone.options",
+   "selector": ".phone-modal .ph-options"
+  },
+  {
+   "v1": "phone.github",
+   "part": "phone.github",
+   "selector": ".phone-modal .ph-gh"
+  },
+  {
+   "v1": "phone.slack",
+   "part": "phone.slack",
+   "selector": ".phone-modal .ph-sk"
+  },
+  {
+   "v1": "phone.discord",
+   "part": "phone.discord",
+   "selector": ".phone-modal .ph-dc"
+  },
+  {
+   "v1": "phone.discordUrl",
+   "part": "phone.discordUrl",
+   "selector": ".phone-modal .ph-dc .ph-endpoint"
+  },
+  {
+   "v1": "phone.email",
+   "part": "phone.email",
+   "selector": ".phone-modal .ph-em"
+  },
+  {
+   "v1": "settings.worktrees",
+   "part": "settings.worktrees",
+   "selector": ".wtr-box"
+  },
+  {
+   "v1": "settings.worktrees.cleanup",
+   "part": "settings.worktrees.cleanup",
+   "selector": ".wtr-auto"
+  },
+  {
+   "v1": "settings.worktrees.list",
+   "part": "settings.worktrees.list",
+   "selector": ".wtr-list"
+  },
+  {
+   "v1": "settings.cloud",
+   "part": "settings.cloud",
+   "selector": ".sx-cloud"
+  },
+  {
+   "v1": "settings.cloud.computer",
+   "part": "settings.cloud.computer",
+   "selector": ".cg-card"
+  },
+  {
+   "v1": "settings.cloud.signin",
+   "part": "settings.cloud.signin",
+   "selector": ".cg-signin"
+  },
+  {
+   "v1": "settings.cloud.add",
+   "part": "settings.cloud.add",
+   "selector": ".cg-add"
+  },
+  {
+   "v1": "settings.cloud.sandboxes",
+   "part": "settings.cloud.sandboxes",
+   "selector": ".sbx-card"
+  },
+  {
+   "v1": "settings.cloud.keys",
+   "part": "settings.cloud.keys",
+   "selector": ".key-card"
+  },
+  {
+   "v1": "settings.cloud.keys.reveal",
+   "part": "settings.cloud.keys.reveal",
+   "selector": ".key-new"
+  },
+  {
+   "v1": "settings.connect",
+   "part": "settings.connect",
+   "selector": ".sx-connect"
+  },
+  {
+   "v1": "settings.agent.signin",
+   "part": "settings.agent.signin",
+   "selector": ".sx-login"
+  },
+  {
+   "v1": "settings.accounts",
+   "part": "settings.accounts",
+   "selector": ".sx-accts"
+  },
+  {
+   "v1": "settings.connectors",
+   "part": "settings.connectors",
+   "selector": ".cn-box"
+  },
+  {
+   "v1": "connectors.row",
+   "part": "connectors.row",
+   "selector": ".cn-row"
+  },
+  {
+   "v1": "connectors.import",
+   "part": "connectors.import",
+   "selector": ".cn-found"
+  },
+  {
+   "v1": "settings.budget",
+   "part": "settings.budget",
+   "selector": ".sx-budget"
+  },
+  {
+   "v1": "settings.autoStop",
+   "part": "settings.autoStop",
+   "selector": ".sx-budget .sx-row:has(.us-stop)"
+  },
+  {
+   "v1": "budget.where",
+   "part": "budget.where",
+   "selector": ".sx-budget .bg-where"
+  },
+  {
+   "v1": "budget.subagents",
+   "part": "budget.subagents",
+   "selector": ".sx-budget .bg-sub"
+  },
+  {
+   "v1": "budget.banked",
+   "part": "budget.banked",
+   "selector": ".sx-budget .bg-bank"
+  },
+  {
+   "v1": "budget.overage",
+   "part": "budget.overage",
+   "selector": ".sx-budget .bg-over"
+  },
+  {
+   "v1": "budget.compare",
+   "part": "budget.compare",
+   "selector": ".sx-budget .bg-cmp"
+  },
+  {
+   "v1": "settings.load",
+   "part": "settings.load",
+   "selector": ".sx-load"
+  },
+  {
+   "v1": "machine.chip",
+   "part": "machine.chip",
+   "selector": "#machineChip"
+  },
+  {
+   "v1": "machine.pane",
+   "part": "machine.pane",
+   "selector": ".mh-box"
+  },
+  {
+   "v1": "machine.gauges",
+   "part": "machine.gauges",
+   "selector": ".mh-box .mh-gauges"
+  },
+  {
+   "v1": "machine.using",
+   "part": "machine.using",
+   "selector": ".mh-box .mh-using"
+  },
+  {
+   "v1": "machine.leftBehind",
+   "part": "machine.leftBehind",
+   "selector": ".mh-box .mh-left"
+  },
+  {
+   "v1": "machine.freeUp",
+   "part": "machine.freeUp",
+   "selector": ".mh-box .mh-free"
+  },
+  {
+   "v1": "machine.automations",
+   "part": "machine.automations",
+   "selector": ".mh-box .mh-auto"
+  },
+  {
+   "v1": "machine.day",
+   "part": "machine.day",
+   "selector": ".mh-box .mh-day"
+  },
+  {
+   "v1": "card.ram",
+   "part": "card.ram",
+   "selector": ".item .q-res"
+  },
+  {
+   "v1": "settings.autoStopBy",
+   "part": "settings.autoStopBy",
+   "selector": ".sx-budget .us-by-row"
+  },
+  {
+   "v1": "settings.drainWatch",
+   "part": "settings.drainWatch",
+   "selector": ".sx-budget .sx-row:has(#drainWatch)"
+  },
+  {
+   "v1": "harness.change",
+   "part": "harness.change",
+   "selector": ".hw-note"
+  },
+  {
+   "v1": "settings.harnessAsk",
+   "part": "settings.harnessAsk",
+   "selector": ".sx-row:has(#harnessAsk)"
+  },
+  {
+   "v1": "settings.leanRuns",
+   "part": "settings.leanRuns",
+   "selector": ".sx-row:has(select[name=\"leanRuns\"])"
+  },
+  {
+   "v1": "settings.review",
+   "part": "settings.review",
+   "selector": ".sx-row:has(select[name=\"review\"])"
+  },
+  {
+   "v1": "env.masked",
+   "part": "env.masked",
+   "selector": ".env-mask"
+  },
+  {
+   "v1": "env.reveal",
+   "part": "env.reveal",
+   "selector": ".env-mask .env-reveal"
+  },
+  {
+   "v1": "settings.maskEnvFiles",
+   "part": "settings.maskEnvFiles",
+   "selector": ".sx-row:has(#maskEnv)"
+  },
+  {
+   "v1": "settings.projectAsk",
+   "part": "settings.projectAsk",
+   "selector": ".sx-row:has(#projectAsk)"
+  },
+  {
+   "v1": "project.without",
+   "part": "project.without",
+   "selector": ".pt-without"
+  },
+  {
+   "v1": "project.menu",
+   "part": "project.menu",
+   "selector": ".menu.project"
+  },
+  {
+   "v1": "project.edit",
+   "part": "project.edit",
+   "selector": ".project-edit"
+  },
+  {
+   "v1": "budget.drain",
+   "part": "budget.drain",
+   "selector": ".sx-budget .bg-drain"
+  },
+  {
+   "v1": "settings.liveLimits",
+   "part": "settings.liveLimits",
+   "selector": ".sx-budget .sx-row:has(#liveLimits)"
+  },
+  {
+   "v1": "settings.webhookTriggers",
+   "part": "settings.webhookTriggers",
+   "selector": ".sx-row:has(#hookTriggers)"
+  },
+  {
+   "v1": "settings.acceptChannels",
+   "part": "settings.acceptChannels",
+   "selector": ".sx-row:has(#acceptChannels)"
+  },
+  {
+   "v1": "settings.spareCard",
+   "part": "settings.spareCard",
+   "selector": ".sx-budget .sx-row:has(#spareCard)"
+  },
+  {
+   "v1": "settings.windowNotice",
+   "part": "settings.windowNotice",
+   "selector": ".sx-budget .sx-row:has(#windowNotice)"
+  },
+  {
+   "v1": "settings.windowNotice.line",
+   "part": "settings.windowNotice.line",
+   "selector": ".sx-budget .bg-note"
+  },
+  {
+   "v1": "automations.hookUrl",
+   "part": "automations.hookUrl",
+   "selector": ".auto-modal .au-hook"
+  },
+  {
+   "v1": "automations.deliveries",
+   "part": "automations.deliveries",
+   "selector": ".auto-modal .au-deliv"
+  },
+  {
+   "v1": "automations.slackPeople",
+   "part": "automations.slackPeople",
+   "selector": ".auto-modal .k-people"
+  },
+  {
+   "v1": "harness.usage",
+   "part": "harness.usage",
+   "selector": ".rp-usage"
+  },
+  {
+   "v1": "viewer",
+   "part": "viewer",
+   "selector": ".lb"
+  },
+  {
+   "v1": "viewer.bar",
+   "part": "viewer.bar",
+   "selector": ".lb-bar"
+  },
+  {
+   "v1": "viewer.nav",
+   "part": "viewer.nav",
+   "selector": ".lb-nav"
+  },
+  {
+   "v1": "image.tools",
+   "part": "image.tools",
+   "selector": ".b-image .img-tools"
+  },
+  {
+   "v1": "video",
+   "part": "video",
+   "selector": ".b-video"
+  },
+  {
+   "v1": "video.tools",
+   "part": "video.tools",
+   "selector": ".b-video .img-tools"
+  },
+  {
+   "v1": "preview",
+   "part": "preview",
+   "selector": ".b-preview"
+  },
+  {
+   "v1": "preview.head",
+   "part": "preview.head",
+   "selector": ".b-preview .pv-head"
+  },
+  {
+   "v1": "preview.stage",
+   "part": "preview.stage",
+   "selector": ".b-preview .pv-stage"
+  },
+  {
+   "v1": "preview.foot",
+   "part": "preview.foot",
+   "selector": ".b-preview .pv-foot"
+  },
+  {
+   "v1": "map",
+   "part": "map",
+   "selector": ".b-map"
+  },
+  {
+   "v1": "map.head",
+   "part": "map.head",
+   "selector": ".b-map .mp-head"
+  },
+  {
+   "v1": "map.stage",
+   "part": "map.stage",
+   "selector": ".b-map .mp-stage"
+  },
+  {
+   "v1": "map.list",
+   "part": "map.list",
+   "selector": ".b-map .mp-list"
+  },
+  {
+   "v1": "doc",
+   "part": "doc",
+   "selector": ".b-doc"
+  },
+  {
+   "v1": "doc.preview",
+   "part": "doc.preview",
+   "selector": ".b-doc .doc-page"
+  },
+  {
+   "v1": "doc.reader",
+   "part": "doc.reader",
+   "selector": ".dr"
+  },
+  {
+   "v1": "doc.contents",
+   "part": "doc.contents",
+   "selector": ".dr-toc"
+  },
+  {
+   "v1": "task",
+   "part": "task",
+   "selector": ".b-task"
+  },
+  {
+   "v1": "task.open",
+   "part": "task.open",
+   "selector": ".b-task .tk-open"
+  },
+  {
+   "v1": "stuff.block",
+   "part": "stuff.block",
+   "selector": ".b-stuff"
+  },
+  {
+   "v1": "stuff.block.go",
+   "part": "stuff.block.go",
+   "selector": ".b-stuff .sb-go"
+  },
+  {
+   "v1": "stuff.block.public",
+   "part": "stuff.block.public",
+   "selector": ".b-stuff .sb-pub"
+  },
+  {
+   "v1": "stuff.frame",
+   "part": "stuff.frame",
+   "selector": ".ap"
+  },
+  {
+   "v1": "stuff.frame.publish",
+   "part": "stuff.frame.publish",
+   "selector": ".ap .ap-pub"
+  },
+  {
+   "v1": "block.app",
+   "part": "block.app",
+   "selector": ".b-app"
+  },
+  {
+   "v1": "block.app.head",
+   "part": "block.app.head",
+   "selector": ".b-app .app-head"
+  },
+  {
+   "v1": "toasts",
+   "part": "toasts",
+   "selector": "#toasts"
+  },
+  {
+   "v1": "toast",
+   "part": "toast",
+   "selector": "#toasts .toast"
+  },
+  {
+   "v1": "toast.glyph",
+   "part": "toast.glyph",
+   "selector": "#toasts .t-glyph"
+  },
+  {
+   "v1": "toast.action",
+   "part": "toast.action",
+   "selector": "#toasts .t-act"
+  },
+  {
+   "v1": "toast.timer",
+   "part": "toast.timer",
+   "selector": "#toasts .t-time"
+  },
+  {
+   "v1": "toast.clear",
+   "part": "toast.clear",
+   "selector": "#toasts .toasts-clear"
+  }
+ ]
+}

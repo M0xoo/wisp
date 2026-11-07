@@ -1,0 +1,68 @@
+{
+  "$comment": "Capability sets (plan §6.5, §7.2.4, ADR-0008): who may do what, as data. Default deny; a deny always beats an allow. agent:capped is v1's server/capped.js and the refusals in routes/control.js, internal.js and connectors.js, in v1's words. plugin:<id> sets come from each plugin's manifest permissions, crew:<name> and pane:<id> are made on demand.",
+  "modes": ["plan", "edits", "auto"],
+  "modeLabels": { "plan": "Plan", "edits": "Edits", "auto": "Full auto" },
+  "cappedRefusal": "Refused: this task was started from a channel with a mode cap, so it can't {what}. Say so in your report; the user can do it in wisp.",
+  "sets": [
+    { "id": "user:full", "allow": ["*"] },
+    { "id": "kernel", "allow": ["*"] },
+    {
+      "id": "agent:session",
+      "allow": [
+        "runtime:*", "session:*", "stuff:*", "crew:*", "git:*", "fs:*", "topic:read", "ask:*", "later:*", "goal:*",
+        "connectors:*", "machines:*", "sandbox:*", "prs:*", "notice:send", "plugins:read", "blob:*", "budget:read"
+      ],
+      "deny": [
+        { "permission": "plugins:install", "why": "install a plugin: the user installs plugins" },
+        { "permission": "secrets:*", "why": "read the user’s secrets" },
+        { "permission": "settings:write{scope:server}", "why": "change wisp’s settings" }
+      ]
+    },
+    {
+      "id": "box",
+      "allow": ["*"],
+      "deny": [
+        { "permission": "machines:*", "why": "reach other machines from a grid box" },
+        { "permission": "update:*", "why": "update wisp on a grid box: the grid does" },
+        { "permission": "notify:native", "why": "show a desktop notification on a grid box" },
+        { "permission": "proc:spawn{sandbox:none}", "why": "run a process outside the box sandbox" }
+      ]
+    },
+    {
+      "id": "apikey",
+      "allow": ["runtime:*", "session:*", "stuff:read", "stuff:save", "topic:read", "crew:read", "budget:read"],
+      "deny": [
+        { "permission": "apikeys:*", "why": "make or revoke API keys" },
+        { "permission": "plugins:*", "why": "change plugins" },
+        { "permission": "secrets:*", "why": "read secrets" }
+      ]
+    },
+    { "id": "preview", "allow": ["topic:read", "session:read", "stuff:read", "blob:read"] },
+    { "id": "grid:inbox", "allow": ["channels:inbound"] },
+    { "id": "grid:route", "allow": ["channels:routed"] }
+  ],
+  "aboveMode": [
+    { "permission": "runtime:start{mode:{mode}}", "why": "start a task at {label}, above this task’s {cap}" },
+    { "permission": "session:mode{to:{mode}}", "why": "switch a task to {label}, above this task’s {cap}" }
+  ],
+  "capped": [
+    { "permission": "machines:*", "what": "run anything on another machine or in a sandbox" },
+    { "permission": "sandbox:*", "what": "start a sandbox" },
+    { "permission": "runtime:delegate{to:machine}", "what": "send work to another machine" },
+    { "permission": "runtime:start{project:other}", "what": "start a task in another project" },
+    { "permission": "session:read{project:other}", "what": "read a task of another project" },
+    { "permission": "session:act{started:other}", "what": "act on a task it didn’t start" },
+    { "permission": "session:mode{task:other}", "what": "change another task’s mode" },
+    { "permission": "connectors:*", "what": "read or change the user's connectors" },
+    { "permission": "stuff:publish", "what": "put anything on a public link, or take one down" },
+    { "permission": "stuff:save{project:other}", "what": "change an item of another project" },
+    { "permission": "stuff:save{from:outside}", "what": "save a file from outside its folder" },
+    { "permission": "stuff:read{project:other}", "what": "read an item of another project" },
+    { "permission": "fs:read{scope:outside}", "what": "show a file from outside its folders" },
+    { "permission": "prs:read{by:url}", "what": "read a PR by URL: give its number in this task’s repo" },
+    { "permission": "crew:write", "what": "change the user’s crew" },
+    { "permission": "crew:read{project:other}", "what": "read a member of another project" },
+    { "permission": "session:list{project:other}", "what": "read a task of another project" }
+  ],
+  "crew": { "deny": [{ "permission": "crew:write", "why": "change the crew it belongs to" }] }
+}

@@ -1,0 +1,40 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "lean": true,
+    "mode": "plan",
+    "systemPrompt": "# wisp retro\nReply with JSON."
+  },
+  "drop": [
+    "stats.durationMs"
+  ],
+  "argv": [
+    "exec",
+    "--json",
+    "--skip-git-repo-check",
+    "-c",
+    "features.plugins=false",
+    "-c",
+    "features.apps=false",
+    "-c",
+    "features.multi_agent=false",
+    "-c",
+    "features.skill_search=false",
+    "-c",
+    "features.browser_use=false",
+    "-c",
+    "features.computer_use=false",
+    "-c",
+    "features.goals=false",
+    "-c",
+    "features.code_mode_host=false",
+    "-c",
+    "model_instructions_file=\"/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-codex-39596-mw71bc1m9n75.md\"",
+    "-c",
+    "sandbox_mode=\"read-only\""
+  ]
+}

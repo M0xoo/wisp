@@ -1,0 +1,18 @@
+{
+  "exit": {
+    "code": null,
+    "signal": "SIGTERM",
+    "stderr": ""
+  },
+  "opts": {},
+  "stopAfter": 2,
+  "drop": [
+    "stats.durationMs"
+  ],
+  "argv": [
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--trust"
+  ]
+}

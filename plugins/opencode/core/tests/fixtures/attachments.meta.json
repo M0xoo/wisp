@@ -1,0 +1,29 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "attachments": [
+      {
+        "path": "/tmp/wisp-g6-att/shot one.png",
+        "mime": "image/png",
+        "size": 3
+      }
+    ]
+  },
+  "drop": [
+    "stats.durationMs"
+  ],
+  "argv": [
+    "run",
+    "--format",
+    "json",
+    "--print-logs",
+    "--log-level",
+    "ERROR",
+    "--file",
+    "/tmp/wisp-g6-att/shot one.png"
+  ]
+}

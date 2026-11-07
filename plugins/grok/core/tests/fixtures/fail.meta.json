@@ -1,0 +1,21 @@
+{
+  "exit": {
+    "code": 1,
+    "signal": null,
+    "stderr": "fake: not logged in (401)\n"
+  },
+  "opts": {},
+  "argv": [
+    "--prompt-file",
+    "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-grok-1GEiHr/prompt.md",
+    "--output-format",
+    "streaming-messages-json",
+    "--permission-mode",
+    "acceptEdits",
+    "--rules",
+    "# You are running inside wisp\nAnswer with a ```wisp block.\n",
+    "--disallowed-tools",
+    "ask_user_question",
+    "--no-auto-update"
+  ]
+}

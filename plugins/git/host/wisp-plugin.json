@@ -1,0 +1,34 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.git",
+  "name": "Git",
+  "version": "2.0.0",
+  "api": "1",
+  "description": "Git for every other plugin: repo handles (git.service@1), status, diffs from the merge-base, worktrees, staging and commits. Every git call runs async through the proc service.",
+  "server": { "builtin": "wisp-git" },
+  "provides": { "git.service": { "version": "1.0.0" } },
+  "permissions": ["proc:exec{bin:git}", "proc:exec{bin:gh}"],
+  "activation": ["onService:git.service", "onCommand:git.*"],
+  "contributes": {
+    "commands": ["git.status", "git.changes", "git.revert", "git.stage", "git.commit", "git.tools", "git.clone"],
+    "permissions": {
+      "git:repo": "open a repo handle",
+      "git:read": "read refs, branches, files and worktrees",
+      "git:status": "read a folder's status",
+      "git:diff": "read diffs and Changes",
+      "git:fetch": "fetch from a remote",
+      "git:worktree.add": "add a worktree",
+      "git:worktree.remove": "remove or prune worktrees",
+      "git:stage": "stage and unstage",
+      "git:apply": "apply a patch",
+      "git:revert": "put files or hunks back as the base had them",
+      "git:commit": "commit",
+      "git:push": "push, or delete a remote branch",
+      "git:branch.delete": "delete a local branch",
+      "git:merge.ff": "fast-forward the user's base branch",
+      "git:snapshot": "snapshot the folder as a commit, or as a patch",
+      "git:clone": "clone a repo",
+      "git:watch": "hear when a repo changes"
+    }
+  }
+}

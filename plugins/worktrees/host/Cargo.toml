@@ -1,0 +1,26 @@
+[package]
+name = "wisp-worktrees"
+description = "wisp.worktrees plugin: worktree sessions, their setup, cleanup, Done folders and project trust, over git.service@1 and the proc service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wisp-kernel.workspace = true
+wisp-proc.workspace = true
+wisp-git-api.workspace = true
+wisp-worktrees-api.workspace = true
+wisp-worktrees-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

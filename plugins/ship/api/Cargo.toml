@@ -1,0 +1,17 @@
+[package]
+name = "wisp-ship-api"
+description = "wisp.ship's contract: Ship it (commit, push, PR), PR follow-up and merge; row types, commands, events"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wisp-kernel.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+
+[lints]
+workspace = true

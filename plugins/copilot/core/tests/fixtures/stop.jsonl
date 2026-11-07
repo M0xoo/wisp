@@ -1,0 +1,5 @@
+{"type":"session.mcp_server_status_changed","data":{"serverName":"github-mcp-server","status":"connected"},"id":"e1","timestamp":"2026-11-07T23:29:21.490Z","parentId":null,"ephemeral":true}
+{"type":"user.message","data":{"content":"# You are running inside wisp\nAnswer with a ```wisp block.\n\n---\n\n# Task\n\nfix the add bug","turnId":"0"},"id":"e2","timestamp":"2026-11-07T23:29:21.509Z","parentId":"e1"}
+{"type":"assistant.turn_start","data":{"turnId":"0"},"id":"e3","timestamp":"2026-11-07T23:29:21.509Z","parentId":"e2"}
+{"type":"assistant.message","data":{"messageId":"m1","content":"Reading math.js first.","toolRequests":[{"toolCallId":"c1","name":"view","arguments":{"path":"@CWD@/math.js"}}]},"id":"e4","timestamp":"2026-11-07T23:29:21.509Z","parentId":"e3"}
+{"type":"tool.execution_start","data":{"toolCallId":"c1","toolName":"view","arguments":{"path":"@CWD@/math.js"},"turnId":"0"},"id":"e5","timestamp":"2026-11-07T23:29:21.509Z","parentId":"e4"}

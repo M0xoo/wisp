@@ -1,0 +1,3 @@
+{"type":"thread.started","thread_id":"codex-btw"}
+{"type":"item.completed","item":{"id":"b1","type":"agent_message","text":"Side answer (digest): what is 2+2?"}}
+{"type":"turn.completed","usage":{"input_tokens":4,"cached_input_tokens":0,"output_tokens":2}}

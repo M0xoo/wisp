@@ -1,0 +1,25 @@
+[package]
+name = "wisp-discord"
+description = "wisp.discord: the Discord transport for wisp.channels (gateway, slash commands, interactions on a grid box)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+wisp-channels-api.workspace = true
+wisp-channels-core.workspace = true
+wisp-discord-core.workspace = true
+wisp-kernel.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[lints]
+workspace = true

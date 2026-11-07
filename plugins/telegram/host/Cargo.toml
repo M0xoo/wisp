@@ -1,0 +1,25 @@
+[package]
+name = "wisp-telegram"
+description = "wisp.telegram: the Telegram transport for wisp.channels (long poll or webhook, buttons, link codes)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+wisp-channels-api.workspace = true
+wisp-channels-core.workspace = true
+wisp-kernel.workspace = true
+wisp-telegram-core.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

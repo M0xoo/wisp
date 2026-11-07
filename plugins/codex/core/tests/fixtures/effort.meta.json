@@ -1,0 +1,25 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "model": "m-1",
+    "effort": "high"
+  },
+  "drop": [
+    "stats.durationMs"
+  ],
+  "argv": [
+    "exec",
+    "--json",
+    "--skip-git-repo-check",
+    "-c",
+    "sandbox_mode=\"workspace-write\"",
+    "-m",
+    "m-1",
+    "-c",
+    "model_reasoning_effort=\"high\""
+  ]
+}

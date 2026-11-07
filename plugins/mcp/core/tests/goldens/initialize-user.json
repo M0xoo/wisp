@@ -1,0 +1,10 @@
+{
+ "protocolVersion": "2025-06-18",
+ "capabilities": {
+  "tools": {}
+ },
+ "serverInfo": {
+  "name": "wisp"
+ },
+ "instructions": "wisp runs coding agents in the background. Launch with wisp_launch, then wisp_wait / wisp_get for the result; wisp_reply to follow up or answer a question. wisp_crew* manage the user's crew of long-lived agents."
+}

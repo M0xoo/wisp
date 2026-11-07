@@ -1,0 +1,13 @@
+[package]
+name = "wisp-settings-api"
+description = "contract of wisp.settings"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

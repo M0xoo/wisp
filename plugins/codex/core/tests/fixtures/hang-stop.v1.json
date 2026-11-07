@@ -1,0 +1,20 @@
+[
+ {
+  "type": "session",
+  "id": "codex-session-1"
+ },
+ {
+  "type": "tool",
+  "id": "i0",
+  "kind": "run",
+  "label": "Running tests",
+  "detail": "/bin/bash -lc 'npm test'"
+ },
+ {
+  "type": "result",
+  "isError": true,
+  "stopped": true,
+  "text": "codex exited with SIGTERM",
+  "stats": {}
+ }
+]

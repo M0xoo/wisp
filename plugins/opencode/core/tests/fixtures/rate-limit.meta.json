@@ -1,0 +1,24 @@
+{
+  "exit": {
+    "code": null,
+    "signal": "SIGTERM",
+    "stderr": "timestamp=2026-10-18T22:48:58.147Z level=ERROR run=df7c9c30 message=\"stream error\" providerID=opencode modelID=big-pickle small=false agent=build mode=primary error.error=\"AI_APICallError: Rate limit exceeded. Please try again later.\"\n"
+  },
+  "opts": {
+    "model": "opencode/big-pickle"
+  },
+  "drop": [
+    "stats.durationMs"
+  ],
+  "note": "recorded with WISP_RATE_LIMIT_GRACE_MS=300: v1 stopped it; the replay exits at once with the logged error",
+  "argv": [
+    "run",
+    "--format",
+    "json",
+    "--print-logs",
+    "--log-level",
+    "ERROR",
+    "--model",
+    "opencode/big-pickle"
+  ]
+}

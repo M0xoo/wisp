@@ -9,6 +9,8 @@ members = [
   "plugins/*/api",
   "plugins/*/core",
   "plugins/*/host",
+  "apps/grid",
+  "apps/grid/boxd",
 ]
 exclude = ["native"]
 
@@ -25,10 +27,97 @@ repository = "https://github.com/M0xoo/wisp"
 wisp-kernel = { path = "crates/wisp-kernel" }
 wisp-store = { path = "crates/wisp-store" }
 wisp-sync = { path = "crates/wisp-sync" }
+wisp-protocol = { path = "crates/wisp-protocol" }
 wisp-proc = { path = "crates/wisp-proc" }
 wisp-api = { path = "crates/wisp-api" }
 wisp-testkit = { path = "crates/wisp-testkit" }
+wisp-harness-kit = { path = "crates/wisp-harness-kit" }
+# wisp.runtime (owned by the runtime agent): every plugin that starts, reads or reacts to a task uses the api
+wisp-runtime-api = { path = "plugins/runtime/api" }
+wisp-runtime-core = { path = "plugins/runtime/core" }
+# plugin contracts and cores (owned by the stuff/plugins/telemetry/update/settings agent)
+wisp-plugins-api = { path = "plugins/plugins/api" }
+wisp-plugins-core = { path = "plugins/plugins/core" }
+wisp-settings-api = { path = "plugins/settings/api" }
+wisp-settings-core = { path = "plugins/settings/core" }
+wisp-stuff-api = { path = "plugins/stuff/api" }
+wisp-stuff-core = { path = "plugins/stuff/core" }
+wisp-telemetry-api = { path = "plugins/telemetry/api" }
+wisp-telemetry-core = { path = "plugins/telemetry/core" }
+wisp-update-api = { path = "plugins/update/api" }
+wisp-update-core = { path = "plugins/update/core" }
+# plugin contracts and cores (owned by the crew-row agent: crew, goal, later, budget, router, automations, learn)
+wisp-crew-api = { path = "plugins/crew/api" }
+wisp-crew-core = { path = "plugins/crew/core" }
+wisp-goal-api = { path = "plugins/goal/api" }
+wisp-goal-core = { path = "plugins/goal/core" }
+wisp-later-api = { path = "plugins/later/api" }
+wisp-later-core = { path = "plugins/later/core" }
+wisp-budget-api = { path = "plugins/budget/api" }
+wisp-budget-core = { path = "plugins/budget/core" }
+wisp-router-api = { path = "plugins/router/api" }
+wisp-router-core = { path = "plugins/router/core" }
+wisp-automations-api = { path = "plugins/automations/api" }
+wisp-automations-core = { path = "plugins/automations/core" }
+wisp-learn-api = { path = "plugins/learn/api" }
+wisp-learn-core = { path = "plugins/learn/core" }
+# git, worktrees, ship, issues, review (owned by the git agent)
+wisp-git-api = { path = "plugins/git/api" }
+wisp-git-core = { path = "plugins/git/core" }
+wisp-worktrees-api = { path = "plugins/worktrees/api" }
+wisp-worktrees-core = { path = "plugins/worktrees/core" }
+wisp-ship-api = { path = "plugins/ship/api" }
+wisp-ship-core = { path = "plugins/ship/core" }
+wisp-issues-api = { path = "plugins/issues/api" }
+wisp-issues-core = { path = "plugins/issues/core" }
+wisp-review-api = { path = "plugins/review/api" }
+wisp-review-core = { path = "plugins/review/core" }
+# terminal, lsp, machine (owned by the proc/terminal agent)
+wisp-terminal-api = { path = "plugins/terminal/api" }
+wisp-terminal-core = { path = "plugins/terminal/core" }
+wisp-lsp-api = { path = "plugins/lsp/api" }
+wisp-lsp-core = { path = "plugins/lsp/core" }
+wisp-machine-api = { path = "plugins/machine/api" }
+wisp-machine-core = { path = "plugins/machine/core" }
+# channels, its transports, mcp, connectors (owned by the channels agent)
+wisp-channels-api = { path = "plugins/channels/api" }
+wisp-channels-core = { path = "plugins/channels/core" }
+wisp-slack-core = { path = "plugins/slack/core" }
+wisp-discord-core = { path = "plugins/discord/core" }
+wisp-telegram-core = { path = "plugins/telegram/core" }
+wisp-ntfy-core = { path = "plugins/ntfy/core" }
+wisp-github-core = { path = "plugins/github/core" }
+wisp-email-core = { path = "plugins/email/core" }
+wisp-mcp-api = { path = "plugins/mcp/api" }
+wisp-mcp-core = { path = "plugins/mcp/core" }
+wisp-connectors-api = { path = "plugins/connectors/api" }
+wisp-connectors-core = { path = "plugins/connectors/core" }
+# harness runners and accounts (owned by the harness agent)
+wisp-claude-core = { path = "plugins/claude/core" }
+wisp-codex-core = { path = "plugins/codex/core" }
+wisp-cursor-core = { path = "plugins/cursor/core" }
+wisp-opencode-core = { path = "plugins/opencode/core" }
+wisp-copilot-core = { path = "plugins/copilot/core" }
+wisp-grok-core = { path = "plugins/grok/core" }
+wisp-antigravity-core = { path = "plugins/antigravity/core" }
+wisp-accounts-api = { path = "plugins/accounts/api" }
+wisp-accounts-core = { path = "plugins/accounts/core" }
 # third party: each one pinned and justified (ADR-0013)
+# apps/grid (wisp-grid): the edge proxies raw HTTP/1, SSE, websockets and tunnels (hyper, not axum),
+# seals user secrets (AES-256-GCM + HKDF, same format as v1), checks share passkeys (scrypt, v1 hashes),
+# verifies OIDC id_tokens (RS256/ES256), DKIM and SNS signatures (RSA, Ed25519, X.509). All RustCrypto,
+# kept on the digest 0.10 line that sha2/hmac already pin.
+aes-gcm = "0.10"
+ed25519-dalek = { version = "2", default-features = false, features = ["std", "pkcs8", "pem"] }
+hkdf = "0.12"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["http1", "http2", "server", "client"] }
+hyper-util = { version = "0.1", features = ["tokio", "server", "server-auto", "client-legacy", "http1", "http2"] }
+p256 = { version = "0.13", default-features = false, features = ["std", "ecdsa", "pkcs8", "pem"] }
+rsa = { version = "0.9", features = ["sha2", "pem"] }
+scrypt = { version = "0.11", default-features = false }
+url = "2"
+x509-cert = { version = "0.2", default-features = false, features = ["pem"] }
 anyhow = "1"
 async-trait = "0.1"
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "json", "query", "tokio", "ws"] }
@@ -41,6 +130,7 @@ http = "1"
 libc = "0.2"
 portable-pty = "0.9"
 rand = "0.9"
+regex = "1.13"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "stream", "http2"] }
 rusqlite = { version = "0.41", features = ["bundled", "functions", "serde_json", "blob"] }
 serde = { version = "1", features = ["derive"] }
@@ -56,6 +146,13 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["f
 ts-rs = { version = "12", features = ["serde-json-impl"] }
 uuid = { version = "1", features = ["v7", "serde"] }
 zstd = "0.14"
+# crates/wisp-api: compressed answers. Brotli q4 for big JSON and q11 for the web bundle and /_pack
+# (every browser takes br), gzip level 1 for clients that don't (v1 http/respond.js, http/static.js).
+brotli = { version = "9", default-features = false, features = ["std"] }
+flate2 = "1"
+# wisp-proc's reviewed sys module on Windows: Job Objects (kill a tree with 0 orphans) and the process
+# table (Toolhelp). The same pinned line wisp-native used.
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Diagnostics_ToolHelp", "Win32_System_JobObjects", "Win32_System_Threading"] }
 
 # Plan §9.2: forbid unsafe (crates/wisp-proc's sys module is the reviewed exception), clippy pedantic with a
 # short allow list, no unwrap/expect/panic/todo outside tests, stdout is never printed to by libraries.

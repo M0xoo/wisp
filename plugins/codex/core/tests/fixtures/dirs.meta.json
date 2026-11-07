@@ -1,0 +1,26 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "dirs": [
+      "/tmp/wisp-g6-also-web"
+    ]
+  },
+  "drop": [
+    "stats.durationMs"
+  ],
+  "argv": [
+    "exec",
+    "--json",
+    "--skip-git-repo-check",
+    "-c",
+    "sandbox_mode=\"workspace-write\"",
+    "-c",
+    "sandbox_workspace_write.writable_roots=[\"/tmp/wisp-g6-also-web\"]",
+    "--add-dir",
+    "/tmp/wisp-g6-also-web"
+  ]
+}

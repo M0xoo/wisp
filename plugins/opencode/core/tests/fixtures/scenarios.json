@@ -1,0 +1,158 @@
+[
+ {
+  "name": "turn",
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "plan",
+  "opts": {
+   "mode": "plan",
+   "model": "m-1"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "auto",
+  "opts": {
+   "mode": "auto",
+   "model": "m-1"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "effort",
+  "opts": {
+   "model": "fake/model-a",
+   "effort": "high"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "resume",
+  "prompt": "and add a test",
+  "opts": {
+   "resumeId": "prev-1"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "fork",
+  "prompt": "and add a test",
+  "opts": {
+   "resumeId": "prev-1",
+   "fork": true
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "attachments",
+  "opts": {
+   "attachments": [
+    {
+     "path": "/tmp/wisp-g6-att/shot one.png",
+     "mime": "image/png",
+     "size": 3
+    }
+   ]
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "blocked",
+  "prompt": "BLOCKED publish it",
+  "note": "run auto-rejects npm publish and says so on stderr",
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "blocked-granted",
+  "prompt": "BLOCKED publish it",
+  "opts": {
+   "grants": [
+    {
+     "permission": "bash",
+     "patterns": [
+      "npm publish"
+     ]
+    }
+   ]
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "btw",
+  "prompt": "# wisp btw\n\nThe task so far.\n\n## Side question\n\nwhat is 2+2?",
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "btw-fork",
+  "prompt": "# wisp btw\n\nThe task so far.\n\n## Side question\n\nwhat is 2+2?",
+  "opts": {
+   "resumeId": "prev-1",
+   "fork": true
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "hang-stop",
+  "env": {
+   "FAKE_HANG": "1"
+  },
+  "stopAfter": 2,
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "fail",
+  "env": {
+   "FAKE_FAIL": "1"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "rate-limit",
+  "env": {
+   "FAKE_RATE_LIMIT": "1"
+  },
+  "opts": {
+   "model": "opencode/big-pickle"
+  },
+  "note": "recorded with WISP_RATE_LIMIT_GRACE_MS=300: v1 stopped it; the replay exits at once with the logged error",
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "rate-limit-recover",
+  "env": {
+   "FAKE_RATE_LIMIT": "recover"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ }
+]

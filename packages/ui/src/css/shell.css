@@ -1,0 +1,69 @@
+/* The app frame (src/shell/Frame.tsx): the top bar over the list, main and side panes. Split puts
+   them side by side; stack shows one page and keeps the others mounted (display: none), so nothing
+   re-renders on the way back. The frame fills the viewport and never scrolls itself: each pane
+   scrolls inside. */
+@layer kit {
+  [data-kit='frame'] {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--bg);
+    color: var(--ink);
+    --k-sb-w: var(--sb-w, var(--size-popover));
+    --k-side-w: var(--side-w, 42%);
+  }
+  [data-kit='frame'][data-contained] { position: relative; inset: auto; height: var(--size-dialog-sm); border: var(--size-hairline) solid var(--line); }
+  [data-kit='frame-top'] {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    height: calc(var(--bar-h) + var(--space-2) * 2);
+    padding: var(--space-2) var(--space-4);
+    padding-top: max(var(--space-2), env(safe-area-inset-top));
+    border-bottom: var(--size-hairline) solid var(--line);
+    background: var(--bg);
+    min-width: 0;
+  }
+  [data-kit='frame-body'] {
+    flex: 1 1 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: var(--k-sb-w) minmax(0, 1fr);
+  }
+  [data-kit='frame'][data-side] > [data-kit='frame-body'] { grid-template-columns: var(--k-sb-w) minmax(0, 1fr) var(--k-side-w); }
+  [data-kit='frame'][data-list='closed'] > [data-kit='frame-body'] { grid-template-columns: 0 minmax(0, 1fr); }
+  [data-kit='frame'][data-list='closed'][data-side] > [data-kit='frame-body'] { grid-template-columns: 0 minmax(0, 1fr) var(--k-side-w); }
+  [data-kit='frame-pane'] {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  [data-kit='frame-pane'][data-pane='list'] { background: var(--rail); border-right: var(--size-hairline) solid var(--line); }
+  [data-kit='frame'][data-list='closed'] [data-kit='frame-pane'][data-pane='list'] { visibility: hidden; border: 0; }
+  [data-kit='frame-pane'][data-pane='side'] { border-left: var(--size-hairline) solid var(--line); }
+  [data-kit='frame-grip'] {
+    position: absolute;
+    top: 0;
+    right: calc(var(--space-2) * -1);
+    width: var(--space-4);
+    height: 100%;
+    cursor: col-resize;
+    z-index: var(--z-raised);
+    touch-action: none;
+  }
+  [data-kit='frame-grip']:hover { background: linear-gradient(to right, transparent calc(50% - var(--size-hairline)), var(--line-2) 0, var(--line-2) calc(50% + var(--size-hairline)), transparent 0); }
+
+  /* Stack: one page, full width, the others kept but not drawn. */
+  [data-kit='frame'][data-layout='stack'] > [data-kit='frame-body'] { display: flex; }
+  [data-kit='frame'][data-layout='stack'] [data-kit='frame-pane'] { flex: 1 1 0; border: 0; }
+  [data-kit='frame'][data-layout='stack'] [data-kit='frame-pane']:not([data-active]) { display: none; }
+  [data-kit='frame'][data-layout='stack'] [data-kit='frame-pane'][data-pane='list'] { background: var(--bg); }
+  [data-kit='frame'][data-layout='stack'] > [data-kit='frame-top'] { padding-left: var(--space-3); padding-right: var(--space-3); }
+}

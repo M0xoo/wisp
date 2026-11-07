@@ -1,0 +1,12 @@
+[
+ { "name": "turn", "note": "view, reasoning, a subagent's message (hidden), edit with old_str, create, bash, the final text" },
+ { "name": "resume", "prompt": "and add a test", "opts": { "resumeId": "prev-1" }, "note": "a follow-up: no protocol, the session it resumes" },
+ { "name": "plan", "opts": { "mode": "plan" } },
+ { "name": "ask", "prompt": "fix the add bug ASK", "opts": { "mcpServers": {"wisp":{"command":"node","args":["/tmp/rsh-g6/mcp.mjs"],"env":{"WISP_SESSION":"s1"}}} }, "note": "wisp's ask_user over MCP (wisp-ask_user)" },
+ { "name": "mcp-policy", "env": { "FAKE_MCP_POLICY": "1" }, "opts": { "mcpServers": {"wisp":{"command":"node","args":["/tmp/rsh-g6/mcp.mjs"],"env":{"WISP_SESSION":"s1"}}} }, "note": "an organization policy blocked wisp's MCP server" },
+ { "name": "session-error", "env": { "FAKE_SESSION_ERROR": "You have exceeded your premium request allowance." } },
+ { "name": "blocked", "prompt": "BLOCKED publish it", "note": "a shell permission it could not ask about: blocked with its --allow-tool rule" },
+ { "name": "blocked-allowed", "prompt": "BLOCKED publish it", "opts": { "grants": [["shell(npm publish)"]] } },
+ { "name": "stop", "env": { "FAKE_HANG": "1" }, "stopAfter": 3 },
+ { "name": "fail", "env": { "FAKE_FAIL": "1" } }
+]

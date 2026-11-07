@@ -1,0 +1,22 @@
+{"type":"session.mcp_server_status_changed","data":{"serverName":"github-mcp-server","status":"connected"},"id":"e1","timestamp":"2026-11-07T23:29:19.578Z","parentId":null,"ephemeral":true}
+{"type":"user.message","data":{"content":"# You are running inside wisp\nAnswer with a ```wisp block.\n\n---\n\n# Task\n\nBLOCKED publish it","turnId":"0"},"id":"e2","timestamp":"2026-11-07T23:29:19.595Z","parentId":"e1"}
+{"type":"assistant.turn_start","data":{"turnId":"0"},"id":"e3","timestamp":"2026-11-07T23:29:19.595Z","parentId":"e2"}
+{"type":"assistant.message","data":{"messageId":"m1","content":"Reading math.js first.","toolRequests":[{"toolCallId":"c1","name":"view","arguments":{"path":"@CWD@/math.js"}}]},"id":"e4","timestamp":"2026-11-07T23:29:19.595Z","parentId":"e3"}
+{"type":"tool.execution_start","data":{"toolCallId":"c1","toolName":"view","arguments":{"path":"@CWD@/math.js"},"turnId":"0"},"id":"e5","timestamp":"2026-11-07T23:29:19.595Z","parentId":"e4"}
+{"type":"tool.execution_complete","data":{"toolCallId":"c1","success":true,"result":{"content":"export function add(a, b) {\n  return a - b;\n}\n// uncommitted\n"},"turnId":"0"},"id":"e6","timestamp":"2026-11-07T23:29:19.595Z","parentId":"e5"}
+{"type":"assistant.reasoning","data":{"reasoningId":"r1","content":"fixing"},"id":"e7","timestamp":"2026-11-07T23:29:19.595Z","parentId":"e6"}
+{"type":"assistant.message","data":{"messageId":"s1","content":"subagent chatter"},"id":"e8","timestamp":"2026-11-07T23:29:19.595Z","parentId":"e7","agentId":"sub-1"}
+{"type":"tool.execution_start","data":{"toolCallId":"c2","toolName":"edit","arguments":{"path":"@CWD@/math.js","old_str":"a - b","new_str":"a + b"},"turnId":"0"},"id":"e9","timestamp":"2026-11-07T23:29:19.595Z","parentId":"e8"}
+{"type":"tool.execution_complete","data":{"toolCallId":"c2","success":true,"result":{"content":"File @CWD@/math.js updated with changes."},"turnId":"0"},"id":"e10","timestamp":"2026-11-07T23:29:19.596Z","parentId":"e9"}
+{"type":"tool.execution_start","data":{"toolCallId":"c3","toolName":"create","arguments":{"path":"@CWD@/notes.txt","file_text":"new file\n"},"turnId":"0"},"id":"e11","timestamp":"2026-11-07T23:29:19.598Z","parentId":"e10"}
+{"type":"tool.execution_complete","data":{"toolCallId":"c3","success":true,"result":{"content":"Created file @CWD@/notes.txt with 9 characters"},"turnId":"0"},"id":"e12","timestamp":"2026-11-07T23:29:19.598Z","parentId":"e11"}
+{"type":"tool.execution_start","data":{"toolCallId":"c4","toolName":"bash","arguments":{"command":"npm test","description":"Run the tests"},"turnId":"0"},"id":"e13","timestamp":"2026-11-07T23:29:19.599Z","parentId":"e12"}
+{"type":"tool.execution_complete","data":{"toolCallId":"c4","success":true,"result":{"content":"1 failing\n<exited with exit code 1>"},"turnId":"0"},"id":"e14","timestamp":"2026-11-07T23:29:19.599Z","parentId":"e13"}
+{"type":"tool.execution_start","data":{"toolCallId":"c6","toolName":"bash","arguments":{"command":"npm publish","description":"Publish the package"},"turnId":"0"},"id":"e15","timestamp":"2026-11-07T23:29:19.599Z","parentId":"e14"}
+{"type":"tool.execution_complete","data":{"toolCallId":"c6","success":true,"result":{"content":"+ fake@1.0.0"},"turnId":"0"},"id":"e16","timestamp":"2026-11-07T23:29:19.599Z","parentId":"e15"}
+{"type":"assistant.turn_end","data":{"turnId":"0"},"id":"e17","timestamp":"2026-11-07T23:29:19.599Z","parentId":"e16"}
+{"type":"assistant.turn_start","data":{"turnId":"1"},"id":"e18","timestamp":"2026-11-07T23:29:19.599Z","parentId":"e17"}
+{"type":"assistant.message","data":{"messageId":"m2","content":"All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake copilot finished\",\"summary\":\"Published.\",\"status\":\"done\"}]}\n```","toolRequests":[]},"id":"e19","timestamp":"2026-11-07T23:29:19.600Z","parentId":"e18"}
+{"type":"assistant.turn_end","data":{"turnId":"1"},"id":"e20","timestamp":"2026-11-07T23:29:19.600Z","parentId":"e19"}
+{"type":"assistant.idle","data":{},"id":"e21","timestamp":"2026-11-07T23:29:19.600Z","parentId":"e20","ephemeral":true}
+{"type":"result","timestamp":"2026-11-07T23:29:19.600Z","sessionId":"11111111-2222-4333-8444-555555555555","exitCode":0,"usage":{"premiumRequests":1,"totalApiDurationMs":4,"sessionDurationMs":6,"codeChanges":{"linesAdded":2,"linesRemoved":1,"filesModified":["@CWD@/math.js","@CWD@/notes.txt"]}}}

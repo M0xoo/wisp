@@ -23,36 +23,66 @@ impl Request {
         self.params.get(name).map(String::as_str)
     }
     pub fn query(&self, name: &str) -> Option<&str> {
-        self.query.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str())
+        self.query
+            .iter()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.as_str())
     }
     pub fn header(&self, name: &str) -> Option<&str> {
-        self.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(name)).map(|(_, v)| v.as_str())
+        self.headers
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(name))
+            .map(|(_, v)| v.as_str())
     }
     pub fn json<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
-        serde_json::from_slice(&self.body).map_err(|e| crate::WireError::invalid(format!("body: {e}")))
+        serde_json::from_slice(&self.body)
+            .map_err(|e| crate::WireError::invalid(format!("body: {e}")))
     }
 }
 
 #[derive(Debug)]
 pub enum Response {
-    Json { status: u16, body: serde_json::Value },
+    Json {
+        status: u16,
+        body: serde_json::Value,
+    },
     /// a JSON answer serialised once, with its ETag and compressed copies kept (the task list)
-    Prepared { status: u16, body: Arc<serde_json::Value> },
-    Bytes { status: u16, content_type: String, body: Vec<u8>, headers: Vec<(String, String)> },
-    Text { status: u16, content_type: String, body: String },
+    Prepared {
+        status: u16,
+        body: Arc<serde_json::Value>,
+    },
+    Bytes {
+        status: u16,
+        content_type: String,
+        body: Vec<u8>,
+        headers: Vec<(String, String)>,
+    },
+    Text {
+        status: u16,
+        content_type: String,
+        body: String,
+    },
     /// a stream owned by the route (SSE, terminal output)
-    Stream { content_type: String, body: tokio::sync::mpsc::Receiver<Vec<u8>> },
-    Redirect { status: u16, location: String },
+    Stream {
+        content_type: String,
+        body: tokio::sync::mpsc::Receiver<Vec<u8>>,
+    },
+    Redirect {
+        status: u16,
+        location: String,
+    },
 }
 
 impl Response {
     pub fn ok(body: impl serde::Serialize) -> Result<Self> {
-        let body = serde_json::to_value(body).map_err(|e| crate::WireError::internal(e.to_string()))?;
+        let body =
+            serde_json::to_value(body).map_err(|e| crate::WireError::internal(e.to_string()))?;
         Ok(Self::Json { status: 200, body })
     }
 }
 
-pub type Handler = Arc<dyn Fn(Ctx, Call, Request) -> BoxFuture<'static, Result<Response>> + Send + Sync>;
+pub type Handler =
+    Arc<dyn Fn(Ctx, Call, Request) -> BoxFuture<'static, Result<Response>> + Send + Sync>;
 
 pub struct Route {
     pub method: &'static str,
@@ -72,8 +102,46 @@ pub struct Route {
 
 impl std::fmt::Debug for Route {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Route").field("method", &self.method).field("pattern", &self.pattern).field("permission", &self.permission).finish_non_exhaustive()
+        f.debug_struct("Route")
+            .field("method", &self.method)
+            .field("pattern", &self.pattern)
+            .field("permission", &self.permission)
+            .finish_non_exhaustive()
     }
 }
 
 pub const ROUTES: crate::Point<Route> = crate::Point::new("kernel.http", 1);
+
+// ---- additive (wisp-api/edge agent, 2026-11-08): what the edge needs from plugins, as data ----
+
+/// `Route::permission` of a route callable from outside (a trigger's secret URL, a webhook): no Host,
+/// Origin or JSON check and no capability check; the handler verifies its own secret or signature.
+pub const OPEN: &str = "open";
+/// As `OPEN`, and a call doesn't count as activity for `GET /api/status` (a channel's inbound message
+/// must never keep a cloud box awake; the work it starts does that).
+pub const OPEN_QUIET: &str = "open:quiet";
+
+/// What a plugin reports for `GET /api/status`, which the grid reads to stop an idle box.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Liveness {
+    /// turns running
+    pub live: u32,
+    /// side questions (/btw) running
+    pub sides: u32,
+    /// terminals and shells open
+    pub terms: u32,
+    /// channels with work in flight
+    pub channels: u32,
+    /// the last run start, turn or end (ms since the epoch); the edge adds non-GET requests
+    pub last_activity_at: Option<i64>,
+    /// the next scheduled wake (a trigger, a crew check-in, a later): the grid wakes the box then
+    pub next_wake_at: Option<i64>,
+}
+
+/// A plugin's part of `GET /api/status`. Called on each status read: keep it a few atomic loads.
+pub trait StatusPart: Send + Sync + 'static {
+    fn liveness(&self) -> Liveness;
+}
+
+pub const STATUS: crate::Point<dyn StatusPart> = crate::Point::new("kernel.status", 1);

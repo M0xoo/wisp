@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <style>
+      /* the stub shell's frame only (dev page, never shipped): the real shell lays this out */
+      [data-part='dev.shell'] { min-height: 100vh; }
+      [data-part='dev.sidebar'] { width: 320px; flex: none; min-height: 100vh; }
+      [data-part='dev.main'] { min-width: 0; }
+    </style>
+    <title>wisp.later ui</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- the kit sheet, as the shell loads it (tools/check keeps CSS imports out of plugin code) -->
+    <script type="module">import "@wisp/ui/kit.css";</script>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>

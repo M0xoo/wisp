@@ -1,0 +1,26 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "mode": "plan",
+    "model": "m-1"
+  },
+  "drop": [
+    "stats.durationMs"
+  ],
+  "argv": [
+    "run",
+    "--format",
+    "json",
+    "--print-logs",
+    "--log-level",
+    "ERROR",
+    "--agent",
+    "plan",
+    "--model",
+    "m-1"
+  ]
+}

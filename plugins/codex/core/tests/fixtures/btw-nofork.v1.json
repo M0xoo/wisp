@@ -1,0 +1,9 @@
+[
+ {
+  "type": "result",
+  "isError": true,
+  "stopped": false,
+  "text": "error: unknown option 'fork'",
+  "stats": {}
+ }
+]

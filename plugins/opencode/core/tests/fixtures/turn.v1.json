@@ -1,0 +1,83 @@
+[
+ {
+  "type": "session",
+  "id": "opencode-session-1"
+ },
+ {
+  "type": "tool",
+  "id": "c-read",
+  "kind": "read",
+  "label": "Reading math.js",
+  "file": "math.js",
+  "output": "export function add(a, b) {\n  return a - b;\n}\n// uncommitted\n"
+ },
+ {
+  "type": "tool_output",
+  "id": "c-read",
+  "text": ""
+ },
+ {
+  "type": "tool",
+  "id": "c-edit",
+  "kind": "edit",
+  "label": "Editing math.js",
+  "file": "math.js",
+  "output": "Edit applied"
+ },
+ {
+  "type": "change",
+  "file": "math.js",
+  "op": "edit",
+  "edits": [
+   {
+    "before": "a - b",
+    "after": "a + b"
+   }
+  ]
+ },
+ {
+  "type": "tool_output",
+  "id": "c-edit",
+  "text": ""
+ },
+ {
+  "type": "tool",
+  "id": "c-write",
+  "kind": "edit",
+  "label": "Writing notes.txt",
+  "file": "notes.txt",
+  "output": ""
+ },
+ {
+  "type": "tool_output",
+  "id": "c-write",
+  "text": ""
+ },
+ {
+  "type": "tool",
+  "id": "c-bash",
+  "kind": "run",
+  "label": "Run the tests",
+  "detail": "npm test",
+  "output": "1 failing"
+ },
+ {
+  "type": "tool_output",
+  "id": "c-bash",
+  "text": ""
+ },
+ {
+  "type": "text",
+  "text": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake opencode finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```"
+ },
+ {
+  "type": "result",
+  "isError": false,
+  "stopped": false,
+  "text": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake opencode finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```",
+  "stats": {
+   "inputTokens": 10,
+   "outputTokens": 5
+  }
+ }
+]

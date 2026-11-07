@@ -1,0 +1,20 @@
+[package]
+name = "wisp-connectors"
+description = "wisp.connectors plugin: wiring to the kernel, store, secrets, proc and HTTP routes"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+wisp-connectors-api.workspace = true
+wisp-connectors-core.workspace = true
+wisp-kernel.workspace = true
+
+[lints]
+workspace = true

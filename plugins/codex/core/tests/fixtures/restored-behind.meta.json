@@ -1,0 +1,28 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "prompt": "and add a test",
+    "resumeId": "prev-1",
+    "prior": {
+      "inputTokens": 100,
+      "outputTokens": 50
+    }
+  },
+  "drop": [
+    "stats.durationMs"
+  ],
+  "note": "counters behind prior: they started over, nothing is taken off",
+  "argv": [
+    "exec",
+    "--json",
+    "--skip-git-repo-check",
+    "-c",
+    "sandbox_mode=\"workspace-write\"",
+    "resume",
+    "prev-1"
+  ]
+}

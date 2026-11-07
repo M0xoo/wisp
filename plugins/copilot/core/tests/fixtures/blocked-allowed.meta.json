@@ -1,0 +1,26 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "prompt": "BLOCKED publish it",
+    "grants": [
+      [
+        "shell(npm publish)"
+      ]
+    ]
+  },
+  "argv": [
+    "--output-format",
+    "json",
+    "--allow-tool=write",
+    "--session-id",
+    "11111111-2222-4333-8444-555555555555",
+    "--no-ask-user",
+    "--usage-output-file",
+    "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-copilot-t9XPtF/usage.json",
+    "--allow-tool=shell(npm publish)"
+  ]
+}

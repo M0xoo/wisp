@@ -1,0 +1,41 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.ship",
+  "name": "Ship it",
+  "version": "2.0.0",
+  "api": "1",
+  "description": "Ship it: commit what a worktree task left, push its branch, open or update its PR; follow its checks and reviews, fix conflicts with a follow-up, squash-merge the reviewed head and fast-forward the user's checkout.",
+  "kind": "plugin",
+  "server": { "builtin": "wisp-ship" },
+  "requires": { "git.service": "^1" },
+  "provides": {},
+  "permissions": [
+    "git:repo",
+    "git:status",
+    "git:read",
+    "git:fetch",
+    "git:commit",
+    "git:push",
+    "git:merge.ff",
+    "git:worktree.add",
+    "git:worktree.remove",
+    "git:branch.delete",
+    "proc:exec{bin:gh}"
+  ],
+  "activation": ["onCommand:ship.*", "onEvent:turn.finished"],
+  "contributes": {
+    "commands": ["ship.track", "ship.view", "ship.ship", "ship.refresh", "ship.details", "ship.merge", "ship.attach", "ship.fix_conflicts", "ship.recheck", "ship.check_log"],
+    "permissions": {
+      "ship:track": "track a task's repos for Ship it",
+      "ship:view": "see what a task would ship",
+      "ship:ship": "commit, push and open a pull request",
+      "ship:refresh": "ask GitHub about a task's pull requests",
+      "ship:details": "read a task's pull requests in full",
+      "ship:merge": "squash-merge a task's pull requests",
+      "ship:attach": "attach a pull request to a task",
+      "ship:fix_conflicts": "ask a task to merge its base in",
+      "ship:recheck": "recheck what a task has to ship",
+      "ship:check_log": "read a failing check's log"
+    }
+  }
+}

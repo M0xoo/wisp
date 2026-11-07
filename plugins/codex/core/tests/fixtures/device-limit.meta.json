@@ -1,0 +1,18 @@
+{
+  "exit": {
+    "code": 1,
+    "signal": null,
+    "stderr": "Too many active sessions: you are signed in on too many devices.\n"
+  },
+  "opts": {},
+  "drop": [
+    "stats.durationMs"
+  ],
+  "argv": [
+    "exec",
+    "--json",
+    "--skip-git-repo-check",
+    "-c",
+    "sandbox_mode=\"workspace-write\""
+  ]
+}

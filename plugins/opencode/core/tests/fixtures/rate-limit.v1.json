@@ -1,0 +1,12 @@
+[
+ {
+  "type": "result",
+  "isError": true,
+  "stopped": false,
+  "text": "AI_APICallError: Rate limit exceeded. Please try again later.",
+  "stats": {
+   "inputTokens": 0,
+   "outputTokens": 0
+  }
+ }
+]

@@ -1,0 +1,15 @@
+{
+  "name": "@wisp/core-${os}-${arch}",
+  "version": "${version}",
+  "description": "The wisp binary for ${os}-${arch} (${triple}). Installed by wisp-agents; not meant to be used directly.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/M0xoo/wisp.git",
+    "directory": "npm/platform"
+  },
+  "os": ["${os}"],
+  "cpu": ["${arch}"],
+  "files": ["bin"],
+  "preferUnplugged": true
+}

@@ -19,6 +19,8 @@ import { createScope, type Scope } from './scope.ts';
 import { createSettings, type Settings, type TypedSettings } from './settings.ts';
 import type { Timers } from './clock.ts';
 import type { Json, PeerId, SettingDecl, Warn } from './types.ts';
+import type { Topic } from '@wisp/protocol';
+import type { Vars } from './i18n.ts';
 import { createTranscripts, type Transcript, type Transcripts } from './transcript.ts';
 import { createViews, type ViewDecl, type ViewHandle, type ViewRegistry } from './views.ts';
 
@@ -50,6 +52,16 @@ export interface PluginClient {
   navigate(intent: Intent): void;
   /** a task's events, tail first, paged backwards; owned by `owner` (the task view) */
   transcript<T = unknown>(peer: PeerId, sessionId: string, owner?: Scope): Transcript<T>;
+  /** translates a key of any registered catalogue (the plugin's own, or the kit's) */
+  t(key: string, vars?: Vars): string;
+  /** keeps `topic` of `peer` live while `owner` lives (the plugin's scope by default); passive never wakes a box */
+  watch(peer: PeerId, topic: Topic, owner?: Scope, opts?: { passive?: boolean }): void;
+  /** the peers this client reaches, read-only: which are there, how each is, what each offers */
+  readonly peers: Pick<Peers, 'list' | 'status' | 'info' | 'name' | 'hasFeature'>;
+  /** this client's own wisp (ClientOptions.home) */
+  readonly home: PeerId;
+  /** kind 5: text and files being written, keyed (entity, field), kept across reloads (the composer's drafts) */
+  readonly drafts: Drafts;
 }
 
 export interface Client {
@@ -96,6 +108,7 @@ export function createClient(o: ClientOptions): Client {
     persist.write([{ ns: 'nav', key: 'last', value: url }]).catch(() => {});
   };
   const nav = createNavigation({ scope, width: o.width, views, warn, onChange: saveNav, ...(o.history && { history: o.history }) });
+  const readPeers: PluginClient['peers'] = { list: peers.list, status: peers.status, info: peers.info, name: peers.name, hasFeature: peers.hasFeature };
   const rows = persistEntities({ writer, persist, scope, warn, linkOf: (p) => peers.save(p) });
 
   const client: Client = {
@@ -158,6 +171,11 @@ export function createClient(o: ClientOptions): Client {
       run: (cmd, args) => commands.run(cmd, args),
       navigate: (intent) => nav.navigate(intent),
       transcript: (peer, sessionId, owner = ps) => transcripts.open(peer, sessionId, owner),
+      t: (key, vars) => i18n.t(key, vars),
+      watch: (peer, topic, owner = ps, opts) => peers.watch(peer, topic, owner, opts),
+      peers: readPeers,
+      home: o.home,
+      drafts,
     };
   }
 

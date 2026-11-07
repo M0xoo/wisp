@@ -1,0 +1,9 @@
+[
+ { "name": "turn", "note": "read_file, thinking, a batch (search_replace + write) run before it streamed, a failing command, the result" },
+ { "name": "resume", "prompt": "and add a test", "opts": { "resumeId": "prev-1" } },
+ { "name": "auto", "opts": { "mode": "auto" } },
+ { "name": "ask", "prompt": "fix the add bug ASK", "opts": { "mcpServers": {"wisp":{"command":"node","args":["/tmp/rsh-g6/mcp.mjs"],"env":{"WISP_SESSION":"s1"}}} }, "note": "use_tool wisp__ask_user: no 'waiting' line, its answer as output" },
+ { "name": "blocked", "prompt": "BLOCKED publish it", "note": "a headless refusal named on stderr, split over two writes" },
+ { "name": "stop", "env": { "FAKE_HANG": "1" }, "stopAfter": 2 },
+ { "name": "fail", "env": { "FAKE_FAIL": "1" } }
+]

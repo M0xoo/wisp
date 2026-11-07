@@ -1,0 +1,91 @@
+/* Home's column, tips, pinned setup cards, the phone's floating New task, and spirits
+   (src/home/). Tips are content text (they wrap); titles, CTAs and badges are control text. */
+@layer kit {
+  [data-kit='home-column'] {
+    display: flex; flex-direction: column; gap: var(--space-8);
+    width: 100%; max-width: calc(var(--size-prose) + 2 * var(--space-8)); margin-inline: auto;
+    padding: var(--space-9) var(--space-8) var(--space-9);
+  }
+  [data-kit='home-column'][data-stacked] {
+    max-width: none; gap: var(--space-7);
+    padding: var(--space-4) var(--space-7) calc(var(--space-9) + env(safe-area-inset-bottom, 0px));
+  }
+
+  [data-kit='tip'] {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: var(--space-4);
+    padding: var(--space-3) var(--space-4); margin-inline: calc(-1 * var(--space-4));
+    border-radius: var(--radius-md); color: var(--ink-2); font-size: var(--fs-md); line-height: var(--lh-snug); text-decoration: none;
+    transition: background var(--dur-fast) var(--ease);
+  }
+  [data-kit='tip'] > [data-kit='icon'] { margin-top: var(--space-1); color: var(--accent); }
+  [data-kit='tip'] > [data-kit='icon'][data-part='ui.tip.go'] { color: var(--faint); opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+  [data-kit='tip']:hover { background: var(--bg-2); }
+  [data-kit='tip']:hover > [data-kit='icon'][data-part='ui.tip.go'], [data-kit='tip']:focus-visible > [data-kit='icon'][data-part='ui.tip.go'] { opacity: 1; }
+  [data-kit='tip']:focus-visible { outline: var(--size-ring) solid var(--accent); outline-offset: 0; }
+  [data-kit='tip-text'] { min-width: 0; text-wrap: pretty; }
+  [data-kit='tip-text'] [data-kit='markdown'] > p { margin: 0; }
+  @media (hover: none) { [data-kit='tip'] > [data-kit='icon'][data-part='ui.tip.go'] { opacity: 1; } }
+
+  [data-kit='pinned'] {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-6);
+    width: 100%; padding: var(--space-6) var(--space-7); text-align: start;
+    background: var(--surface); border: var(--size-hairline) solid var(--line); border-radius: var(--radius-lg);
+    color: var(--ink); transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+  }
+  [data-kit='pinned']:hover { border-color: var(--line-2); background: var(--surface-2); }
+  [data-kit='pinned']:focus-visible { outline: var(--size-ring) solid var(--accent); outline-offset: var(--space-1); }
+  [data-kit='pinned']:active { transform: scale(0.99); }
+  [data-kit='pinned-badge'] {
+    display: grid; place-items: center; flex: none; width: var(--size-control-md); height: var(--size-control-md);
+    border-radius: var(--radius-md); background: var(--accent-soft); color: var(--accent);
+  }
+  [data-kit='pinned-text'] { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+  [data-kit='pinned-title'] { font-size: var(--fs-md); font-weight: var(--fw-semibold); }
+  [data-kit='pinned-line'] { font-size: var(--fs-sm); color: var(--muted); line-height: var(--lh-snug); text-wrap: pretty; }
+  [data-kit='pinned-cta'] { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--accent-ink); }
+
+  [data-kit='fab'] {
+    position: fixed; z-index: var(--z-raised);
+    right: calc(var(--space-7) + env(safe-area-inset-right, 0px)); bottom: calc(var(--space-7) + env(safe-area-inset-bottom, 0px));
+    display: grid; place-items: center; width: calc(var(--size-touch) + var(--space-4)); height: calc(var(--size-touch) + var(--space-4));
+    border-radius: var(--radius-pill); background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-2);
+    transition: opacity var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
+  }
+  [data-kit='fab']:active { transform: scale(0.96); }
+  [data-kit='fab']:focus-visible { outline: var(--size-ring) solid var(--accent); outline-offset: var(--space-2); }
+  [data-kit='fab'][data-give-way] { opacity: 0; transform: translateY(var(--space-8)); pointer-events: none; }
+
+  /* spirits glow in their member's colour: lighter at the heart, the colour at the edge */
+  [data-kit='spirit'] { display: block; width: 100%; height: 100%; overflow: visible; --k-sp-b: var(--k-pc, var(--pc-violet)); --k-sp-a: color-mix(in srgb, var(--k-sp-b) 42%, var(--spirit-shine)); }
+  [data-kit='spirit'][data-color='violet'] { --k-pc: var(--pc-violet); }
+  [data-kit='spirit'][data-color='teal'] { --k-pc: var(--pc-teal); }
+  [data-kit='spirit'][data-color='amber'] { --k-pc: var(--pc-amber); }
+  [data-kit='spirit'][data-color='rose'] { --k-pc: var(--pc-rose); }
+  [data-kit='spirit'][data-color='sky'] { --k-pc: var(--pc-sky); }
+  [data-kit='spirit'][data-color='lime'] { --k-pc: var(--pc-lime); }
+  [data-kit='spirit'][data-color='orange'] { --k-pc: var(--pc-orange); }
+  [data-kit='spirit'][data-color='indigo'] { --k-pc: var(--pc-indigo); }
+  [data-kit='spirit-float'], [data-kit='spirit-eyes'], [data-kit='spirit-pupil'], [data-kit='spirit-scan'], [data-kit='spirit-beacon'], [data-kit='spirit-halo'], [data-kit='spirit-bolt'] { transform-box: fill-box; transform-origin: center; }
+  [data-kit='spirit'][data-state='idle'] [data-kit='spirit-float'] { animation: kit-sp-breathe 4.8s var(--ease) infinite; transform-origin: 50% 90%; }
+  [data-kit='spirit'][data-state='live'] { filter: drop-shadow(0 0 var(--space-3) color-mix(in srgb, var(--k-sp-b) 55%, transparent)); }
+  [data-kit='spirit'][data-state='live'] [data-kit='spirit-float'] { animation: kit-sp-float 2.4s ease-in-out infinite; }
+  [data-kit='spirit'][data-state='live'] [data-kit='spirit-pupil'] { animation: kit-sp-glance 3.2s ease-in-out infinite; }
+  [data-kit='spirit'][data-state='live'] [data-kit='spirit-scan'] { animation: kit-sp-scan 1.4s ease-in-out infinite alternate; }
+  [data-kit='spirit'][data-state='live'] [data-kit='spirit-beacon'], [data-kit='spirit'][data-state='live'] [data-kit='spirit-bolt'] { animation: kit-sp-beacon 1.2s ease-in-out infinite; }
+  [data-kit='spirit'][data-state='asks'] [data-kit='spirit-float'] { animation: kit-sp-hop 1.6s var(--ease) infinite; transform-origin: 50% 100%; }
+  [data-kit='spirit'][data-state='sleep'] { opacity: 0.8; }
+  [data-kit='spirit'][data-state='sleep'] [data-kit='spirit-float'] { animation: kit-sp-breathe 7s ease-in-out infinite; transform-origin: 50% 90%; }
+  [data-kit='spirit']:not([data-state='sleep']) [data-kit='spirit-eyes'] { animation: kit-sp-blink 5.5s infinite; animation-delay: var(--k-blink, 0s); }
+  [data-kit='spirit-halo'] { animation: kit-sp-halo 3.6s ease-in-out infinite; }
+  @keyframes kit-sp-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.03, 0.97); } }
+  @keyframes kit-sp-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6%); } }
+  @keyframes kit-sp-glance { 0%, 40%, 100% { transform: translateX(0); } 50%, 70% { transform: translateX(8%); } 80%, 90% { transform: translateX(-8%); } }
+  @keyframes kit-sp-scan { from { transform: translateX(0); } to { transform: translateX(260%); } }
+  @keyframes kit-sp-beacon { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @keyframes kit-sp-hop { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-12%); } }
+  @keyframes kit-sp-blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+  @keyframes kit-sp-halo { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4%); } }
+  @media (prefers-reduced-motion: reduce) {
+    [data-kit='spirit'] [data-kit='spirit-float'], [data-kit='spirit'] [data-kit='spirit-eyes'], [data-kit='spirit'] [data-kit='spirit-pupil'], [data-kit='spirit'] [data-kit='spirit-scan'], [data-kit='spirit'] [data-kit='spirit-beacon'], [data-kit='spirit'] [data-kit='spirit-bolt'], [data-kit='spirit'] [data-kit='spirit-halo'] { animation: none; }
+  }
+}

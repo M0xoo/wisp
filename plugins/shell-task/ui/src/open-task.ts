@@ -1,0 +1,23 @@
+// Which task is open, as an entity key: nav names a session by id (a key `<peer>:<id>`, or a bare id
+// of the home peer, the first one the client has).
+import { entityKey, type Client, type EntityKey, type Nav } from '@wisp/client';
+
+export function keyOf(client: Client, id: string): EntityKey | undefined {
+  if (id.includes(':')) return id as EntityKey;
+  const home = client.peers.list()()[0];
+  return home ? entityKey(home, id) : undefined;
+}
+
+export function openTaskKey(client: Client, nav: Nav): EntityKey | undefined {
+  return nav.main.kind === 'task' ? keyOf(client, nav.main.id) : undefined;
+}
+
+export type SidePane = 'changes' | 'shell' | 'pr' | 'watch';
+
+/** The pane open beside the task: the side kinds nav knows, plus the watch view (`shell-task.watch`). */
+export function sideOf(nav: Nav): { pane: SidePane; id: string } | undefined {
+  const s = nav.side;
+  if (s.kind === 'changes' || s.kind === 'shell' || s.kind === 'pr') return { pane: s.kind, id: s.id };
+  if (s.kind === 'view' && s.id === 'shell-task.watch' && nav.main.kind === 'task') return { pane: 'watch', id: nav.main.id };
+  return undefined;
+}

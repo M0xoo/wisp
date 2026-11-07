@@ -1,0 +1,19 @@
+{
+  "exit": {
+    "code": null,
+    "signal": "SIGTERM",
+    "stderr": ""
+  },
+  "opts": {},
+  "stopAfter": 2,
+  "drop": [
+    "stats.durationMs"
+  ],
+  "argv": [
+    "exec",
+    "--json",
+    "--skip-git-repo-check",
+    "-c",
+    "sandbox_mode=\"workspace-write\""
+  ]
+}

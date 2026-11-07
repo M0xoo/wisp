@@ -130,3 +130,33 @@ test('a share link names a task: the URL wins over the last place', async () => 
   assert.deepEqual(client.nav.nav().main, { kind: 'task', id: 'box:s2' as EntityKey });
   client.dispose();
 });
+
+test('a plugin translates, watches topics in its scope and reads peers, nothing more', async () => {
+  const { client } = make();
+  const inputs: string[] = [];
+  const link = { peer: A, cursor: null, handle: (i: { kind: string; topic?: string }) => (inputs.push(`${i.kind} ${i.topic ?? ''}`.trim()), []), save: () => ({}) as never };
+  await client.start([{ peer: A, name: 'laptop', transport: fakeTransport(), link }]);
+  const mac = client.plugin('machine');
+  mac.strings({ 'machine.title': 'This {os}' });
+  assert.equal(mac.t('machine.title', { os: 'Mac' }), 'This Mac');
+  assert.equal(mac.home, A);
+  assert.deepEqual(mac.peers.list()(), [A]);
+  assert.equal(mac.peers.name(A), 'laptop');
+  const pane = mac.scope.child('pane');
+  mac.watch(A, 'plugin:wisp.machine:snapshot', pane);
+  assert.ok(inputs.includes('subscribe plugin:wisp.machine:snapshot'));
+  pane.dispose();
+  assert.ok(inputs.includes('unsubscribe plugin:wisp.machine:snapshot'), 'the owner scope ends the subscription');
+  assert.equal('add' in mac.peers, false, 'a plugin cannot add or remove peers');
+  client.dispose();
+});
+
+test('a plugin writes drafts into the one drafts store (the composer keeps its text there)', async () => {
+  const { client } = make();
+  const composer = client.plugin('wisp.shell-composer');
+  composer.drafts.set('box:s1', 'text', 'half a reply');
+  assert.equal(client.drafts.get('box:s1', 'text')(), 'half a reply');
+  composer.drafts.clear('box:s1', 'text');
+  assert.equal(client.drafts.get('box:s1', 'text')(), undefined);
+  client.dispose();
+});

@@ -1,0 +1,21 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "mode": "plan"
+  },
+  "argv": [
+    "--output-format",
+    "json",
+    "--mode",
+    "plan",
+    "--session-id",
+    "11111111-2222-4333-8444-555555555555",
+    "--no-ask-user",
+    "--usage-output-file",
+    "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-copilot-wT8r9q/usage.json"
+  ]
+}

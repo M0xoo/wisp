@@ -1,0 +1,3 @@
+{"sessionID":"opencode-btw","timestamp":1794094138058,"type":"step_start","part":{"type":"step-start","messageID":"b1"}}
+{"sessionID":"opencode-btw","timestamp":1794094138058,"type":"text","part":{"type":"text","messageID":"b1","text":"Side answer (forked): what is 2+2?"}}
+{"sessionID":"opencode-btw","timestamp":1794094138058,"type":"step_finish","part":{"type":"step-finish","messageID":"b1","tokens":{"input":4,"output":2},"cost":0}}

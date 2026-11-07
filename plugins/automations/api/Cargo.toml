@@ -1,0 +1,21 @@
+[package]
+name = "wisp-automations-api"
+description = "wisp.automations contract: commands, events, hooks, services and row types (triggers, watchers, recipes, cron schedules, inbound webhooks)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+regex.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+wisp-kernel.workspace = true
+
+[dev-dependencies]
+rand.workspace = true
+
+[lints]
+workspace = true

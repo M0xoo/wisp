@@ -1,0 +1,14 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.router",
+  "name": "router",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "Auto: picks a harness, model and effort per task (bandit), classifies limits",
+  "kind": "plugin",
+  "server": { "builtin": "wisp_router" },
+  "permissions": [],
+  "requires": {},
+  "provides": {},
+  "contributes": {}
+}

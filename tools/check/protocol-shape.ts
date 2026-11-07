@@ -2,7 +2,7 @@
 // adding a field, message, command or topic is fine; removing or changing one needs PROTO + 1.
 // Shared by the protocol rule and protocol-snapshot.ts (which writes packages/protocol/snapshots).
 
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import ts from 'typescript';
 
 export const PROTOCOL_INDEX = 'packages/protocol/src/index.ts';
@@ -114,7 +114,10 @@ export function readProtocol(root: string, file = PROTOCOL_INDEX): Snapshot & { 
     const sym = e.flags & ts.SymbolFlags.Alias ? c.getAliasedSymbol(e) : e;
     if (!(sym.flags & (ts.SymbolFlags.Interface | ts.SymbolFlags.TypeAlias))) continue;
     const decl = sym.declarations?.[0];
-    if (!decl || decl.getSourceFile() !== sf) continue; // re-exported helpers are not wire shapes
+    // wire shapes are declared in the entry or in its generated/ folder (the Rust types, ADR-0013);
+    // anything else re-exported is a helper
+    const from = decl?.getSourceFile();
+    if (!decl || !from || (from !== sf && !from.fileName.startsWith(join(dirname(abs), 'generated') + '/'))) continue;
     types[e.name] = describe(c, c.getDeclaredTypeOfSymbol(sym), 0, true);
     lines[e.name] = decl.getSourceFile().getLineAndCharacterOfPosition(decl.getStart()).line + 1;
   }

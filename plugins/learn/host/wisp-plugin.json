@@ -1,0 +1,14 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.learn",
+  "name": "learn",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "preferences learned from retros",
+  "kind": "plugin",
+  "server": { "builtin": "wisp_learn" },
+  "permissions": [],
+  "requires": {},
+  "provides": {},
+  "contributes": {}
+}

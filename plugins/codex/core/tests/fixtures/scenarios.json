@@ -1,0 +1,222 @@
+[
+ {
+  "name": "turn",
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "plan",
+  "opts": {
+   "mode": "plan",
+   "model": "m-1"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "auto",
+  "opts": {
+   "mode": "auto",
+   "model": "m-1"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "effort",
+  "opts": {
+   "model": "m-1",
+   "effort": "high"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "dirs",
+  "opts": {
+   "dirs": [
+    "/tmp/wisp-g6-also-web"
+   ]
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "dirs-resume",
+  "prompt": "more",
+  "opts": {
+   "dirs": [
+    "/tmp/wisp-g6-also-web"
+   ],
+   "resumeId": "prev-1"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "resume",
+  "prompt": "and add a test",
+  "opts": {
+   "resumeId": "prev-1"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "restored",
+  "prompt": "and add a test",
+  "env": {
+   "FAKE_RESTORED": "2"
+  },
+  "opts": {
+   "resumeId": "prev-1",
+   "prior": {
+    "inputTokens": 20,
+    "cachedInputTokens": 4,
+    "outputTokens": 10,
+    "thread": "prev-1"
+   }
+  },
+  "note": "edge case 8: turn.completed's usage is the thread's running total; this turn's is total - prior",
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "restored-behind",
+  "prompt": "and add a test",
+  "env": {
+   "FAKE_RESTORED": "2"
+  },
+  "opts": {
+   "resumeId": "prev-1",
+   "prior": {
+    "inputTokens": 100,
+    "outputTokens": 50
+   }
+  },
+  "note": "counters behind prior: they started over, nothing is taken off",
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "restored-no-prior",
+  "prompt": "and add a test",
+  "env": {
+   "FAKE_RESTORED": "2"
+  },
+  "opts": {
+   "resumeId": "prev-1"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "fork",
+  "prompt": "and add a test",
+  "opts": {
+   "resumeId": "prev-1",
+   "fork": true
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "capped",
+  "opts": {
+   "capped": true
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "lean",
+  "opts": {
+   "lean": true,
+   "mode": "plan",
+   "systemPrompt": "# wisp retro\nReply with JSON."
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "blocked",
+  "prompt": "BLOCKED publish it",
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "btw",
+  "prompt": "# wisp btw\n\nThe task so far.\n\n## Side question\n\nwhat is 2+2?",
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "btw-fork",
+  "prompt": "# wisp btw\n\nThe task so far.\n\n## Side question\n\nwhat is 2+2?",
+  "opts": {
+   "resumeId": "prev-1",
+   "fork": true
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "btw-nofork",
+  "prompt": "# wisp btw\n\nThe task so far.\n\n## Side question\n\nwhat is 2+2?",
+  "env": {
+   "FAKE_BTW": "nofork"
+  },
+  "opts": {
+   "resumeId": "prev-1",
+   "fork": true
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "hang-stop",
+  "env": {
+   "FAKE_HANG": "1"
+  },
+  "stopAfter": 2,
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "fail",
+  "env": {
+   "FAKE_FAIL": "1"
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ },
+ {
+  "name": "device-limit",
+  "env": {
+   "FAKE_LIMIT_ONCE": "/tmp/rsh-g6-hx/limit-codex",
+   "FAKE_LIMIT_TEXT": "Too many active sessions: you are signed in on too many devices."
+  },
+  "drop": [
+   "stats.durationMs"
+  ]
+ }
+]

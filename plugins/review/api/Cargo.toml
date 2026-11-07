@@ -1,0 +1,17 @@
+[package]
+name = "wisp-review-api"
+description = "wisp.review's contract: review by another harness on a PR's head, its rows, commands, events and the points it reads through"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+wisp-kernel.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,2 @@
+{"type":"system","subtype":"init","session_id":"cursor-agent-btw"}
+{"type":"result","subtype":"success","is_error":false,"result":"Side answer (digest): what is 2+2?","session_id":"cursor-agent-btw","duration_ms":4,"num_turns":1,"total_cost_usd":0.002}

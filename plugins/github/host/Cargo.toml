@@ -1,0 +1,25 @@
+[package]
+name = "wisp-github"
+description = "wisp.github: the GitHub transport for wisp.channels (gh api polling, mentions, issue replies)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+wisp-channels-api.workspace = true
+wisp-channels-core.workspace = true
+wisp-kernel.workspace = true
+wisp-github-core.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

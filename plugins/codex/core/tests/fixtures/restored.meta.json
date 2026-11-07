@@ -1,0 +1,30 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "prompt": "and add a test",
+    "resumeId": "prev-1",
+    "prior": {
+      "inputTokens": 20,
+      "cachedInputTokens": 4,
+      "outputTokens": 10,
+      "thread": "prev-1"
+    }
+  },
+  "drop": [
+    "stats.durationMs"
+  ],
+  "note": "edge case 8: turn.completed's usage is the thread's running total; this turn's is total - prior",
+  "argv": [
+    "exec",
+    "--json",
+    "--skip-git-repo-check",
+    "-c",
+    "sandbox_mode=\"workspace-write\"",
+    "resume",
+    "prev-1"
+  ]
+}

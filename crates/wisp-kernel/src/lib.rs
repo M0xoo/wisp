@@ -13,8 +13,30 @@ pub mod error;
 pub mod http;
 pub mod ids;
 pub mod manifest;
+pub mod services;
 
+pub mod activation;
+pub mod exec;
+pub mod perm;
+pub mod resolve;
+pub mod semver;
+pub mod spell;
+
+mod activate;
+mod call;
+mod diag;
+mod dispatch;
+mod events;
+mod hooks;
 mod host;
+mod kernel_api;
+mod life;
+mod manifest_check;
+mod manifest_contrib;
+mod reg;
+mod routes;
+mod settings;
+mod state;
 
 use std::any::Any;
 use std::future::Future;
@@ -26,8 +48,14 @@ use serde_json::Value;
 
 pub use caps::{Caller, CapabilitySet};
 pub use error::{Code, Result, WireError};
+pub use call::MAX_DEPTH;
+pub use diag::FailureRecord;
+pub use events::{EventEnvelope, QUEUE_CAP};
+pub use exec::{ExecOptions, ExecPlugin, ExecSpawner};
 pub use host::{App, Ctx, Kernel, PluginStatus, Setup};
-pub use manifest::Manifest;
+pub use kernel_api::{CommitHook, Declarative, RouteEntry};
+pub use manifest::{Manifest, ManifestError, SettingDecl};
+pub use settings::{SettingInfo, SettingsBackend};
 pub use tokio_util::sync::CancellationToken;
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -60,9 +88,15 @@ pub trait Hook: 'static {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Verdict<C> {
     Continue,
-    Modify { ctx: C },
+    Modify {
+        ctx: C,
+    },
     /// `then`: follow-up commands the kernel runs after, as new root calls
-    Veto { code: String, message: String, then: Vec<FollowUp> },
+    Veto {
+        code: String,
+        message: String,
+        then: Vec<FollowUp>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, serde::Deserialize)]
@@ -90,7 +124,11 @@ pub struct InterceptOpts {
 
 impl Default for InterceptOpts {
     fn default() -> Self {
-        Self { priority: 0, failure: Failure::Open, timeout_ms: 200 }
+        Self {
+            priority: 0,
+            failure: Failure::Open,
+            timeout_ms: 200,
+        }
     }
 }
 
@@ -104,7 +142,11 @@ pub struct Point<T: ?Sized + Send + Sync + 'static> {
 
 impl<T: ?Sized + Send + Sync + 'static> Point<T> {
     pub const fn new(id: &'static str, version: u32) -> Self {
-        Self { id, version, _t: std::marker::PhantomData }
+        Self {
+            id,
+            version,
+            _t: std::marker::PhantomData,
+        }
     }
 }
 
@@ -123,7 +165,7 @@ pub trait Service: 'static {
 /// capability set, a cancellation token, and the events it emitted (published after it commits).
 #[derive(Debug, Clone)]
 pub struct Call {
-    pub(crate) inner: Arc<host::CallInner>,
+    pub(crate) inner: Arc<call::CallInner>,
 }
 
 impl Call {
@@ -141,11 +183,32 @@ impl Call {
     }
     /// fails with `forbidden` unless the caller's capability set holds `permission`
     pub fn require(&self, permission: &str) -> Result<()> {
-        host::require(&self.inner, permission)
+        call::require(&self.inner, permission)
     }
     /// true inside an interceptor: writes are refused
     pub fn read_only(&self) -> bool {
         self.inner.read_only
+    }
+    /// A new root call (depth 0, fresh trace) speaking for `caller`: how the edge, MCP and tests start one.
+    /// Additive (wisp-git agent, 2026-11-08): service providers need it to test their permission checks.
+    pub fn new_root(caller: Caller) -> Self {
+        // outside a kernel: the built-in sets (capabilities.json); a plugin set holds its own namespace only
+        let set = caps::builtin(&caller.set);
+        Self {
+            inner: Arc::new(call::CallInner {
+                root: ids::uuid7(),
+                depth: 0,
+                stack: Vec::new(),
+                caller,
+                cancel: CancellationToken::new(),
+                read_only: false,
+                set,
+                via: None,
+                via_set: None,
+                kernel: std::sync::Weak::new(),
+                tx: None,
+            }),
+        }
     }
 }
 
@@ -177,7 +240,10 @@ pub struct PluginGroup {
 
 impl std::fmt::Debug for PluginGroup {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PluginGroup").field("plugins", &self.plugins.len()).field("disabled", &self.disabled).finish()
+        f.debug_struct("PluginGroup")
+            .field("plugins", &self.plugins.len())
+            .field("disabled", &self.disabled)
+            .finish()
     }
 }
 

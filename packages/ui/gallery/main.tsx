@@ -7,6 +7,10 @@ import { ContentGallery } from './sections/content.tsx';
 import { RichGallery } from './sections/rich.tsx';
 import { ControlsGallery } from './sections/controls.tsx';
 import { CompositesGallery } from './sections/composites.tsx';
+import { SettingsGallery } from './sections/settings.tsx';
+import { BlocksGallery } from './sections/blocks.tsx';
+import { ShellGallery } from './sections/shell.tsx';
+import { TerminalGallery } from './sections/terminal.tsx';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -44,6 +48,10 @@ function Gallery(): JSX.Element {
         <RichGallery />
         <ControlsGallery />
         <CompositesGallery />
+        <SettingsGallery />
+        <BlocksGallery />
+        <ShellGallery />
+        <TerminalGallery />
       </Stack>
     </Box>
   );

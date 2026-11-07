@@ -1,0 +1,9 @@
+{"sessionID":"prev-1","timestamp":1794094132754,"type":"step_start","part":{"type":"step-start","messageID":"m1"}}
+{"sessionID":"prev-1","timestamp":1794094132754,"type":"tool_use","part":{"type":"tool","tool":"read","callID":"c-read","messageID":"m1","state":{"status":"completed","input":{"filePath":"@CWD@/math.js"},"output":"export function add(a, b) {\n  return a - b;\n}\n// uncommitted\n","metadata":{}}}}
+{"sessionID":"prev-1","timestamp":1794094132754,"type":"tool_use","part":{"type":"tool","tool":"edit","callID":"c-edit","messageID":"m1","state":{"status":"completed","input":{"filePath":"@CWD@/math.js","oldString":"a - b","newString":"a + b"},"output":"Edit applied","metadata":{}}}}
+{"sessionID":"prev-1","timestamp":1794094132754,"type":"tool_use","part":{"type":"tool","tool":"write","callID":"c-write","messageID":"m1","state":{"status":"completed","input":{"filePath":"@CWD@/notes.txt","content":"new file\n"},"output":"","metadata":{}}}}
+{"sessionID":"prev-1","timestamp":1794094132754,"type":"tool_use","part":{"type":"tool","tool":"bash","callID":"c-bash","messageID":"m1","state":{"status":"completed","input":{"command":"npm test","description":"Run the tests"},"output":"1 failing","metadata":{}}}}
+{"sessionID":"prev-1","timestamp":1794094132754,"type":"step_finish","part":{"type":"step-finish","messageID":"m1","tokens":{"input":7,"output":3},"cost":0}}
+{"sessionID":"prev-1","timestamp":1794094132754,"type":"step_start","part":{"type":"step-start","messageID":"m2"}}
+{"sessionID":"prev-1","timestamp":1794094132754,"type":"text","part":{"type":"text","messageID":"m2","text":"All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake opencode finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```"}}
+{"sessionID":"prev-1","timestamp":1794094132754,"type":"step_finish","part":{"type":"step-finish","messageID":"m2","tokens":{"input":3,"output":2},"cost":0}}

@@ -1,0 +1,29 @@
+[package]
+name = "wisp-stuff"
+description = "wisp.stuff plugin: My Stuff's commands and v1 routes, the CAS-backed shelf, apps' servers and databases, uploads, the v1 import"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+axum.workspace = true
+base64.workspace = true
+blake3.workspace = true
+http.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+wisp-kernel.workspace = true
+wisp-stuff-api.workspace = true
+wisp-stuff-core.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros"] }
+
+[lints]
+workspace = true

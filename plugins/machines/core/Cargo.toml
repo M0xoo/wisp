@@ -1,0 +1,17 @@
+[package]
+name = "wisp-machines-core"
+description = "wisp.machines's pure core: parsers, deciders and state machines, sans-IO (no tokio, fs, net or clock)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+wisp-machines-api = { path = "../api" }
+wisp-protocol.workspace = true
+
+[lints]
+workspace = true

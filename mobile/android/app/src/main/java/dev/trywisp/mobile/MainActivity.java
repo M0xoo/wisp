@@ -33,6 +33,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(WispSshPlugin.class);
+        registerPlugin(Notifications.class);
         super.onCreate(savedInstanceState);
         Alerts.channels(this);
         askPermission = registerForActivityResult(new ActivityResultContracts.RequestPermission(), (granted) -> {
@@ -63,6 +64,7 @@ public class MainActivity extends BridgeActivity {
         // here, not to onNewIntent. Not on a re-create, which would open it again.
         if (savedInstanceState == null) {
             openTask = taskOf(getIntent());
+            opened(getIntent());
             Shared.clear(this); // a share the app was killed holding
             receive(getIntent());
         }
@@ -105,6 +107,7 @@ public class MainActivity extends BridgeActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
+                if (WispSshPlugin.back()) return; // the bundle (v2) closes what's open, or calls leave
                 WebView web = getBridge().getWebView();
                 if (web.canGoBack()) {
                     web.goBack();
@@ -150,11 +153,19 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        if (receive(intent)) return;
+        if (receive(intent) || opened(intent)) return;
         String task = taskOf(intent);
         if (task == null || getBridge() == null) return;
         if (wispPage(getBridge().getWebView().getUrl())) open(task);
         else openTask = task;
+    }
+
+    // v2: a notification the bundle posted (Notifications.schedule) goes back to the bundle.
+    private static boolean opened(Intent intent) {
+        String target = intent == null ? null : intent.getStringExtra(Alerts.EXTRA_TARGET);
+        if (target == null) return false;
+        WispSshPlugin.opened(target);
+        return true;
     }
 
     private static String taskOf(Intent intent) {

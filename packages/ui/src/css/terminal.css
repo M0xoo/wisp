@@ -1,0 +1,65 @@
+/* <Terminal> (src/terminal): a dark screen in both themes (--term-*), rows of cells in the mono
+   face, the hidden input on the cursor, and the phone's key row. */
+@layer kit {
+  [data-kit='term'] { display: flex; flex-direction: column; min-height: 0; flex: 1; background: var(--term-bg); color: var(--term-ink); }
+  [data-kit='term-screen'] {
+    position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: var(--space-5) var(--space-6);
+    background: var(--k-term-edge, var(--term-bg)); cursor: text; scrollbar-color: var(--term-line) transparent;
+  }
+  [data-kit='term'][data-fixed] { flex: none; }
+  [data-kit='term'][data-fixed] [data-kit='term-screen'] { flex: none; height: calc(var(--k-term-lines) * var(--k-term-lh, 1.3em) + 2 * var(--space-5)); }
+  [data-kit='term-rows'] { font: var(--fs-md) / 1.3 var(--mono); font-variant-ligatures: none; white-space: pre; }
+  [data-kit='term-row'] { height: var(--k-term-lh, 1.3em); line-height: var(--k-term-lh, 1.3em); overflow: hidden; }
+  /* Scrollback rows off screen skip layout and paint: a reopened terminal brings thousands. */
+  [data-kit='term-back'] > [data-kit='term-row'] { content-visibility: auto; contain-intrinsic-size: auto var(--k-term-lh, 1.3em); }
+  /* Coloured cells fill the whole row, not just the glyphs: TUIs that paint their own background
+     would otherwise show stripes between rows. */
+  [data-kit='term-row'] > span { display: inline-block; height: 100%; vertical-align: top; }
+  [data-kit='term-row'] [data-f~='b'] { font-weight: var(--fw-semibold); }
+  [data-kit='term-row'] [data-f~='d'] { opacity: 0.6; }
+  [data-kit='term-row'] [data-f~='i'] { font-style: italic; }
+  [data-kit='term-row'] [data-f~='u'] { text-decoration: underline; }
+  [data-kit='term-row'] [data-f~='s'] { text-decoration: line-through; }
+  [data-kit='term-row'] [data-f~='u'][data-f~='s'] { text-decoration: underline line-through; }
+  [data-kit='term-row'] [data-w2] { width: 2ch; }
+  [data-kit='term-row'] [data-cur] { background: var(--term-ink); color: var(--term-bg); }
+  [data-kit='term']:not([data-focused]) [data-kit='term-row'] [data-cur] { background: transparent; color: inherit; outline: var(--size-hairline) solid var(--term-soft); outline-offset: calc(var(--size-hairline) * -1); }
+  [data-kit='term'][data-ended] [data-kit='term-screen'] { cursor: pointer; }
+  [data-kit='term-live-box'] { position: relative; }
+  /* Until the program draws its first screen: the shape of a terminal filling in, not a black box. */
+  [data-kit='term-wait'] { position: absolute; inset: var(--space-5) var(--space-6) auto; display: flex; flex-direction: column; gap: var(--space-4); pointer-events: none; font: var(--fs-md) var(--mono); color: var(--term-dim); }
+  [data-kit='term-wait'] ~ [data-kit='term-rows'] { visibility: hidden; }
+  [data-kit='term-wait'] i { display: block; height: var(--space-5); border-radius: var(--radius-xs); background: linear-gradient(90deg, var(--term-line) 0%, var(--term-dim) 40%, var(--term-line) 80%) 0 0 / 300% 100%; opacity: 0.35; animation: k-term-shimmer 1.4s linear infinite; }
+  [data-kit='term-wait'] i:nth-of-type(1) { width: 38%; margin-top: var(--space-3); }
+  [data-kit='term-wait'] i:nth-of-type(2) { width: 72%; }
+  [data-kit='term-wait'] i:nth-of-type(3) { width: 56%; }
+  [data-kit='term-wait'] i:nth-of-type(4) { width: 64%; }
+  @keyframes k-term-shimmer { to { background-position: -300% 0; } }
+  @media (prefers-reduced-motion: reduce) { [data-kit='term-wait'] i { animation: none; } }
+  [data-kit='term-probe'] { position: absolute; visibility: hidden; white-space: pre; }
+  /* The input the keys go to: on the cursor (for the IME), invisible. 16px keeps phones from zooming. */
+  [data-kit='term-input'] {
+    position: absolute; left: var(--k-term-x, 0); top: var(--k-term-y, 0); width: var(--space-1); height: var(--k-term-lh, 1.3em);
+    padding: 0; border: 0; margin: 0; opacity: 0; resize: none; overflow: hidden;
+    font-size: var(--fs-xl); color: transparent; background: transparent; caret-color: transparent; outline: none;
+  }
+  /* The phone's key row: one line that scrolls sideways, never two (design/layout.md). */
+  [data-kit='term-keys'] {
+    display: flex; flex: none; flex-wrap: nowrap; gap: var(--space-3); overflow-x: auto; scrollbar-width: none;
+    padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom));
+    background: var(--surface); border-top: var(--size-hairline) solid var(--line);
+  }
+  [data-kit='term-key'] {
+    flex: none; min-width: var(--size-touch); height: var(--size-control-lg); padding: 0 var(--space-5); border-radius: var(--radius-md);
+    border: var(--size-hairline) solid var(--line); background: var(--bg-2); color: var(--ink);
+    font: var(--fw-medium) var(--fs-md) var(--mono); touch-action: manipulation; user-select: none; cursor: pointer;
+  }
+  [data-kit='term-key'][data-on] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+  [data-kit='term-key']:focus-visible { outline: var(--size-ring) solid var(--accent); outline-offset: var(--size-hairline); }
+  @media (max-width: 640px) {
+    [data-kit='term'][data-fixed] { flex: none; }
+  [data-kit='term'][data-fixed] [data-kit='term-screen'] { flex: none; height: calc(var(--k-term-lines) * var(--k-term-lh, 1.3em) + 2 * var(--space-5)); }
+  [data-kit='term-rows'] { font-size: var(--fs-sm); }
+    [data-kit='term-screen'] { padding: var(--space-4); }
+  }
+}

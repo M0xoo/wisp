@@ -1,0 +1,116 @@
+/* The crew's faces and rail (src/crew/, design/crew.md). A spirit glows in its member's colour
+   (--k-pc) from one gradient; its mood (data-mood) moves it, and nothing moves under
+   prefers-reduced-motion. The rail is a column of fixed 44px tiles; CSS order moves a tile so its
+   spirit never restarts. */
+@layer kit {
+  [data-kit='spirit'], [data-kit='face'] { --k-pc: var(--pc-slate); }
+  [data-color='violet'] { --k-pc: var(--pc-violet); }
+  [data-color='teal'] { --k-pc: var(--pc-teal); }
+  [data-color='amber'] { --k-pc: var(--pc-amber); }
+  [data-color='rose'] { --k-pc: var(--pc-rose); }
+  [data-color='sky'] { --k-pc: var(--pc-sky); }
+  [data-color='lime'] { --k-pc: var(--pc-lime); }
+  [data-color='orange'] { --k-pc: var(--pc-orange); }
+  [data-color='indigo'] { --k-pc: var(--pc-indigo); }
+  [data-kit='spirit'] {
+    --k-sp-b: var(--k-pc); --k-sp-a: color-mix(in srgb, var(--k-pc) 42%, var(--spirit-shine));
+    display: block; width: 100%; height: 100%; overflow: visible;
+  }
+  [data-kit='spirit-stop-a'] { stop-color: var(--k-sp-a); }
+  [data-kit='spirit-stop-b'] { stop-color: var(--k-sp-b); }
+  [data-kit='spirit-scan'], [data-kit='spirit-beacon'] { fill: var(--k-sp-a); }
+  [data-kit='spirit-horns'] { fill: var(--k-sp-b); }
+  [data-kit='spirit'] [data-kit^='spirit-'] { transform-box: fill-box; transform-origin: center; }
+  [data-kit='spirit'][data-mood='idle'] [data-kit='spirit-float'] { animation: k-sp-breathe 4.8s var(--ease) infinite; transform-origin: 50% 90%; }
+  [data-kit='spirit']:not([data-mood='sleep']) [data-kit='spirit-eyes'] { animation: k-sp-blink 5.5s infinite; animation-delay: var(--k-blink, 0s); }
+  [data-kit='spirit'][data-mood='live'] { filter: drop-shadow(0 0 var(--space-3) color-mix(in srgb, var(--k-pc) 55%, transparent)); }
+  [data-kit='spirit'][data-mood='live'] [data-kit='spirit-float'] { animation: k-sp-float 2.4s ease-in-out infinite; }
+  [data-kit='spirit'][data-mood='live'] [data-kit='spirit-pupil'] { animation: k-sp-glance 3.2s ease-in-out infinite; }
+  [data-kit='spirit'][data-mood='live'] [data-kit='spirit-scan'] { animation: k-sp-scan 1.4s ease-in-out infinite alternate; }
+  [data-kit='spirit'][data-mood='live'] [data-kit='spirit-beacon'], [data-kit='spirit'][data-mood='live'] [data-kit='spirit-bolt'] { animation: k-sp-beacon 1.2s ease-in-out infinite; }
+  [data-kit='spirit'][data-mood='asks'] [data-kit='spirit-float'] { animation: k-sp-hop 1.6s var(--ease) infinite; transform-origin: 50% 100%; }
+  [data-kit='spirit'][data-mood='sleep'] { opacity: 0.8; }
+  [data-kit='spirit'][data-mood='sleep'] [data-kit='spirit-float'] { animation: k-sp-breathe 7s ease-in-out infinite; transform-origin: 50% 90%; }
+  [data-kit='spirit-halo'] { animation: k-sp-halo 3.6s ease-in-out infinite; }
+  @keyframes k-sp-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.03, 0.97); } }
+  @keyframes k-sp-blink { 0%, 93%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+  @keyframes k-sp-float { 0%, 100% { transform: translateY(1px) rotate(-2deg); } 50% { transform: translateY(-2px) rotate(2deg); } }
+  @keyframes k-sp-glance { 0%, 20%, 100% { transform: translateX(0); } 35%, 50% { transform: translateX(2px); } 65%, 80% { transform: translateX(-2px); } }
+  @keyframes k-sp-scan { from { transform: translateX(0); } to { transform: translateX(16px); } }
+  @keyframes k-sp-beacon { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @keyframes k-sp-hop { 0%, 60%, 100% { transform: translateY(0) scale(1, 1); } 70% { transform: translateY(0) scale(1.06, 0.9); } 82% { transform: translateY(-4px) scale(0.96, 1.05); } }
+  @keyframes k-sp-halo { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
+  @media (prefers-reduced-motion: reduce) {
+    [data-kit='spirit'] [data-kit^='spirit-'] { animation: none; }
+  }
+
+  /* the face: a disc of the member's colour, the spirit a little larger than it */
+  [data-kit='face'] {
+    --k-face: var(--size-avatar-lg);
+    position: relative; flex: none; display: inline-grid; place-items: center;
+    width: var(--k-face); height: var(--k-face); border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--k-pc) 13%, var(--surface)); line-height: 1;
+  }
+  [data-kit='face'][data-size='xs'] { --k-face: var(--size-avatar-sm); }
+  [data-kit='face'][data-size='sm'] { --k-face: var(--size-avatar-md); }
+  [data-kit='face'][data-size='lg'] { --k-face: var(--size-touch); }
+  [data-kit='face'][data-size='xl'] { --k-face: calc(var(--size-avatar-lg) * 2); }
+  [data-kit='face'] > [data-kit='spirit'] { width: 112%; height: 112%; margin-top: -8%; }
+  [data-kit='face-emoji'] { font-size: calc(var(--k-face) * 0.55); }
+  [data-kit='face'][data-dim] { opacity: 0.5; }
+  [data-kit='face-dot'], [data-kit='crew-tile-dot'] {
+    position: absolute; inset-inline-end: calc(var(--size-hairline) * -1); inset-block-start: calc(var(--size-hairline) * -1);
+    width: var(--size-dot-lg); height: var(--size-dot-lg); border-radius: var(--radius-pill);
+    background: var(--accent); box-shadow: 0 0 0 var(--size-ring) var(--surface);
+  }
+  [data-kit='face-dot'][data-tone='asks'], [data-kit='crew-tile-dot'][data-tone='asks'] { background: var(--warn); }
+
+  /* the rail: All, the faces (scrolling, no scrollbar), Org and + */
+  [data-kit='crew-rail'] {
+    display: flex; flex-direction: column; align-items: center; gap: var(--space-2);
+    width: 64px; height: 100%; min-height: 0;
+    padding-block: var(--space-4); background: var(--sunk); flex: none;
+  }
+  [data-kit='crew-rail-head'], [data-kit='crew-rail-foot'] { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); flex: none; }
+  [data-kit='crew-rail-faces'] {
+    display: flex; flex-direction: column; align-items: center; gap: var(--space-2);
+    min-height: 0; flex: 1 1 auto; overflow-y: auto; scrollbar-width: none; padding-block: var(--space-1);
+  }
+  [data-kit='crew-rail-faces']::-webkit-scrollbar { display: none; }
+  [data-kit='crew-tile'] {
+    position: relative; flex: none; display: grid; place-items: center; order: var(--k-order, 0);
+    width: var(--size-touch); height: var(--size-touch); border-radius: var(--radius-xl);
+    background: transparent; color: var(--muted); border: var(--size-hairline) solid transparent;
+    transition: background var(--dur-fast) var(--ease);
+  }
+  [data-kit='crew-tile']:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+  [data-kit='crew-tile'][aria-current='true'] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); border-color: var(--line); }
+  [data-kit='crew-tile']:focus-visible { outline: var(--size-ring) solid var(--accent); outline-offset: var(--size-ring); }
+  [data-kit='crew-tile'][data-dashed] { border: var(--size-hairline) dashed var(--line-2); }
+  [data-kit='crew-tile'][data-dim] [data-kit='face'] { opacity: 0.5; }
+  [data-kit='crew-tile-pip'] {
+    position: absolute; inset-inline-start: calc(var(--space-5) * -1); inset-block: var(--space-6);
+    width: var(--space-1); border-radius: var(--radius-pill); background: var(--ink); opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease), inset-block var(--dur-fast) var(--ease);
+  }
+  [data-kit='crew-rail'][data-side='right'] [data-kit='crew-tile-pip'] { inset-inline-start: auto; inset-inline-end: calc(var(--space-5) * -1); }
+  [data-kit='crew-tile']:hover [data-kit='crew-tile-pip'] { opacity: 0.5; inset-block: var(--space-7); }
+  [data-kit='crew-tile'][aria-current='true'] [data-kit='crew-tile-pip'] { opacity: 1; inset-block: var(--space-4); }
+  [data-kit='crew-tile'] > [data-kit='crew-tile-dot'] { inset-inline-end: var(--space-2); inset-block-start: var(--space-2); }
+  [data-kit='crew-tile-live'] {
+    position: absolute; inset-inline-end: 0; inset-block-end: 0; display: inline-flex; align-items: center; gap: var(--space-1);
+    padding: var(--space-1); border-radius: var(--radius-pill); background: var(--surface); box-shadow: var(--shadow-1);
+  }
+  [data-kit='crew-tile-orb'] { width: var(--size-dot); height: var(--size-dot); border-radius: var(--radius-pill); background: var(--good); animation: k-live-orb 1.4s ease-in-out infinite; }
+  [data-kit='crew-tile-n'] { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--ink); font-variant-numeric: tabular-nums; padding-inline-end: var(--space-1); line-height: 1; }
+  @keyframes k-live-orb { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  @media (prefers-reduced-motion: reduce) { [data-kit='crew-tile-orb'] { animation: none; } }
+
+  /* the card beside the rail: its top on the face's; it scrolls in what the window leaves */
+  [data-kit='crew-card'] {
+    position: fixed; inset-inline-start: var(--k-x); inset-block-start: var(--k-y); z-index: var(--z-menu);
+    width: var(--size-popover); max-height: calc(100vh - var(--k-y) - var(--space-4)); overflow-y: auto;
+    display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-3);
+    background: var(--surface); border: var(--size-hairline) solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-2);
+  }
+}

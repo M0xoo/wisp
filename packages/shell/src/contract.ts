@@ -4,7 +4,9 @@
 // use exactly this API (no private API for first-party code, plan §6.0.3).
 
 import type { Component, JSX } from 'solid-js';
-import type { Client, PluginClient, Nav } from '@wisp/client';
+import type { Client, PluginClient, Nav, Intent } from '@wisp/client';
+import type { Toaster } from '@wisp/ui';
+import type { Platform } from './platform/types.ts';
 
 /** Inputs the shell's own extensions offer. v1 spell SLOTS map 1:1 (`feed.top` → `shell.list:top`). */
 export const INPUTS = {
@@ -65,6 +67,15 @@ export const INPUTS = {
   'shell.app:overlay': null,
   'shell.settings:pane': null,
   'shell.block:renderer': null,
+  // added 2026-11-08 (additive): the areas the frame renders, each one extension (the last
+  // registered, or an override) — shell-list fills the list, shell-home/shell-task the screens
+  'shell.sidebar:list': null,
+  'shell.screen:home': null,
+  'shell.screen:task': null,
+  'shell.screen:crew': null,
+  'shell.side:changes': null,
+  'shell.side:shell': null,
+  'shell.side:pr': null,
 } as const satisfies Record<string, string | null>;
 
 export type InputId = keyof typeof INPUTS;
@@ -74,6 +85,10 @@ export interface ExtensionProps<C = Record<string, unknown>> {
   client: PluginClient;
   config: C;
   session?: () => { id: string; agent: string; [k: string]: unknown } | undefined;
+  /** added: inside a bar input, the form the Toolbar gives the item ('full' = icon and label) */
+  form?: 'full' | 'icon';
+  /** added: on a screen or side input, the entity it shows (a task's key, a crew member's id) */
+  id?: string;
 }
 
 export interface ExtensionDef<C = Record<string, unknown>> {
@@ -82,7 +97,13 @@ export interface ExtensionDef<C = Record<string, unknown>> {
   /** lazy(() => import('./X.tsx')): a plugin's code loads on first show */
   component: Component<ExtensionProps<C>>;
   /** collapsed form in a bar (design/layout.md §2): required for anything attached to a bar input */
-  bar?: { icon: string; label: string; priority: number | 'pin' };
+  bar?: {
+    icon: string;
+    label: string;
+    priority: number | 'pin';
+    /** added: what choosing it from the bar's More menu does (default: nothing) */
+    select?: (p: ExtensionProps<C>) => void;
+  };
   config?: { parse(v: unknown): C; default: C };
   if?: (p: ExtensionProps<C>) => boolean;
   /** an override replaces the extension with this id */
@@ -97,6 +118,8 @@ export interface ViewDef<P = unknown> {
   parse(params: unknown): P;
   component: Component<{ client: PluginClient; params: P }>;
   title?(params: P): string;
+  /** added: an overlay view's presentation (default 'dialog'; a sheet on phones either way) */
+  overlay?: 'viewer' | 'dialog' | 'sheet';
 }
 
 /** A Settings pane. */
@@ -129,6 +152,12 @@ export interface PluginUiDef {
   catalogue?: Record<string, string>;
   /** runs once when the plugin's UI activates; everything registered belongs to its scope */
   setup?(client: PluginClient): void;
+  /** added: how this plugin configures the tree (a spell's PART_PROPS, moves, removals) */
+  tree?: TreeConfig;
+  /** added: what it adds to the command palette (⌘K) */
+  palette?: PaletteSourceDef[];
+  /** added: its keyboard shortcuts (only keys the shell doesn't use itself, see BUILT_IN_KEYS) */
+  shortcuts?: ShortcutDef[];
 }
 
 export interface ShellApi {
@@ -136,6 +165,123 @@ export interface ShellApi {
   nav: () => Nav;
   register(def: PluginUiDef): void;
   render(root: HTMLElement): () => void;
+  // added 2026-11-08 (additive)
+  /** what the screens read through useShell() */
+  readonly context: ShellContext;
+  /** register returns nothing (frozen); this switches a plugin's UI off again: its scope ends */
+  unregister(id: string): void;
+  dispose(): void;
+}
+
+// ---------- added 2026-11-08 (additive): tree config, palette, shortcuts, the shell context ----------
+
+/** A plugin's say over other extensions. Later plugins win over earlier ones, key by key. */
+export interface TreeConfig {
+  /** extensions (by id) that no longer show */
+  disable?: string[];
+  /** an extension's config, checked by its own `config.parse` (a bad value keeps the default) */
+  config?: Record<string, unknown>;
+  /** moves an extension to another input */
+  attach?: Record<string, ExtensionDef['attachTo']>;
+  /** an extension's place among its siblings (lower first) */
+  order?: Record<string, number>;
+}
+
+/** An extension as the shell resolved it: where it sits, its parsed config, its place. */
+export interface ResolvedExtension {
+  readonly id: string;
+  readonly plugin: string;
+  readonly def: ExtensionDef;
+  readonly config: Record<string, unknown>;
+  readonly order: number;
+}
+
+/** One row of the command palette (v1 web/js/palette.js items). */
+export interface PaletteItem {
+  id: string;
+  /** an i18n key or already-translated text: the group heading ("This task", "Go to") */
+  group: string;
+  label: string;
+  sub?: string;
+  icon?: string;
+  /** the shortcut hint shown on the row ('E', '⇧R') */
+  kbd?: string;
+  /** extra words it matches */
+  keywords?: string;
+  /** topic words: "#auth" in the query keeps only items tagged auth */
+  tags?: readonly string[];
+  /** ms: when it was last touched; recent items rank higher */
+  at?: number;
+  /** a fixed rank inside its group (lower first) when the query is empty */
+  rank?: number;
+  /** choosing it types this into the input instead of running anything */
+  fill?: string;
+  run?(): void;
+}
+
+export interface PaletteContext {
+  client: PluginClient;
+  nav: Nav;
+  /** the task the keyboard is on (or the open one) */
+  focused: string | undefined;
+}
+
+export interface PaletteSourceDef {
+  id: string;
+  /** with an empty query, sources show in this order (lower first) */
+  order?: number;
+  items(ctx: PaletteContext): readonly PaletteItem[];
+  /** more items for a query from the peer (past work by its words); they follow the rest */
+  deep?(query: string, ctx: PaletteContext, signal: AbortSignal): Promise<readonly PaletteItem[]>;
+}
+
+/** 'e', 'shift+r', 'mod+k' (⌘ on a Mac, Ctrl elsewhere), 'ctrl+`', 'escape', '?' */
+export type KeyCombo = string;
+
+export interface ShortcutContext {
+  client: PluginClient;
+  nav: Nav;
+  focused: string | undefined;
+  event: KeyboardEvent;
+}
+
+export interface ShortcutDef {
+  id: string;
+  keys: KeyCombo;
+  /** i18n key: the row in the shortcuts sheet (?) */
+  label: string;
+  group?: 'general' | 'task' | 'list' | (string & {});
+  /** 'idle' (default): not while typing or with an overlay up · 'always': even mid-sentence ·
+   * 'task': idle, and a task is focused */
+  when?: 'idle' | 'always' | 'task';
+  /** false: not handled, the key goes on */
+  run(ctx: ShortcutContext): boolean | void;
+}
+
+export type ThemePref = 'system' | 'light' | 'dark';
+
+/** What every screen reads through useShell(): the shell's own state and services. */
+export interface ShellContext {
+  readonly client: Client;
+  readonly nav: () => Nav;
+  navigate(intent: Intent): void;
+  /** t('key', vars): every user-facing string */
+  t(key: string, vars?: Readonly<Record<string, string | number>>): string;
+  readonly toast: Toaster;
+  readonly platform: Platform;
+  readonly theme: { pref(): ThemePref; resolved(): 'light' | 'dark'; set(pref: ThemePref): Promise<void> };
+  /** the task the keyboard is on (j/k, a row's focus): UI state the list and the keys share */
+  readonly selection: { get(): string | undefined; set(key: string | undefined): void };
+  /** the list beside the task (split view): `[` folds it */
+  readonly sidebar: { open(): boolean; toggle(): void; width(): number; setWidth(px: number): void };
+  /** named things a shortcut can focus ('launcher' for ⌘L, 'reply' for /): the owner registers */
+  readonly focusTargets: { provide(name: string, focus: () => void): () => void; focus(name: string): boolean };
+  readonly palette: { open(query?: string): void };
+  /** the extensions on one input, resolved (overrides, disable, attach, config, order) */
+  extensions(input: string): () => readonly ResolvedExtension[];
+  settingsPanes(): () => readonly SettingsPaneDef[];
+  block(type: string): BlockRendererDef | undefined;
+  view(kind: string): ViewDef | undefined;
 }
 
 export type { JSX };

@@ -1,0 +1,18 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {},
+  "drop": [
+    "stats.durationMs"
+  ],
+  "note": "its shell call is rejected (no --force): a tool_error and a blocked event",
+  "argv": [
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--trust"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.goal",
+  "name": "goal",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "goals: rounds, verdicts, judges, stalls",
+  "kind": "plugin",
+  "server": { "builtin": "wisp_goal" },
+  "permissions": [],
+  "requires": {},
+  "provides": {},
+  "contributes": {}
+}

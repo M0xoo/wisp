@@ -1,0 +1,14 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.automations",
+  "name": "automations",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "triggers, watchers, recipes, cron schedules, inbound webhooks",
+  "kind": "plugin",
+  "server": { "builtin": "wisp_automations" },
+  "permissions": [],
+  "requires": {},
+  "provides": {},
+  "contributes": {}
+}

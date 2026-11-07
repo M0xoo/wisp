@@ -1,0 +1,20 @@
+[package]
+name = "wisp-slack-core"
+description = "wisp.slack's pure logic: Socket Mode envelopes and acks, the v0 request signature, event to message extraction, mrkdwn for what leaves. Sans-IO."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+hmac.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+thiserror.workspace = true
+wisp-kernel.workspace = true
+
+[lints]
+workspace = true

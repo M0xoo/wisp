@@ -1,0 +1,19 @@
+{
+  "exit": {
+    "code": null,
+    "signal": "SIGTERM",
+    "stderr": ""
+  },
+  "opts": {},
+  "stopAfter": 3,
+  "argv": [
+    "--output-format",
+    "json",
+    "--allow-tool=write",
+    "--session-id",
+    "11111111-2222-4333-8444-555555555555",
+    "--no-ask-user",
+    "--usage-output-file",
+    "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-copilot-FNLHs0/usage.json"
+  ]
+}

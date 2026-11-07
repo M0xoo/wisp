@@ -1,0 +1,79 @@
+[
+ {
+  "type": "session",
+  "id": "prev-1"
+ },
+ {
+  "type": "text",
+  "text": "Reading math.js first."
+ },
+ {
+  "type": "tool",
+  "id": "c1",
+  "kind": "read",
+  "label": "Reading math.js",
+  "file": "math.js"
+ },
+ {
+  "type": "tool_output",
+  "id": "c1",
+  "text": "export function add(a, b) {\n  return a - b;\n}\n// uncommitted\n"
+ },
+ {
+  "type": "thinking"
+ },
+ {
+  "type": "tool",
+  "id": "c2",
+  "kind": "edit",
+  "label": "Editing math.js",
+  "file": "math.js"
+ },
+ {
+  "type": "change",
+  "file": "math.js",
+  "op": "edit",
+  "edits": [
+   {
+    "before": "a - b",
+    "after": "a + b"
+   }
+  ]
+ },
+ {
+  "type": "tool",
+  "id": "c3",
+  "kind": "edit",
+  "label": "Writing notes.txt",
+  "file": "notes.txt"
+ },
+ {
+  "type": "tool_output",
+  "id": "c3",
+  "text": "Created file @CWD@/notes.txt with 9 characters"
+ },
+ {
+  "type": "tool",
+  "id": "c4",
+  "kind": "run",
+  "label": "Run the tests",
+  "detail": "npm test"
+ },
+ {
+  "type": "tool_output",
+  "id": "c4",
+  "text": "1 failing\n<exited with exit code 1>"
+ },
+ {
+  "type": "text",
+  "text": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake copilot finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```"
+ },
+ {
+  "type": "result",
+  "isError": false,
+  "text": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake copilot finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```",
+  "stats": {
+   "durationMs": 6
+  }
+ }
+]

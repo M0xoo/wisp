@@ -1,0 +1,11 @@
+/* Answer blocks: the column, each block's entrance, the plain-text note and the unknown block
+   (v1 .presentation / .blk). A block rises once, when its answer is first shown; data-still turns
+   that off for an answer shown before. */
+@layer kit {
+  [data-kit='answer'] { display: flex; flex-direction: column; gap: var(--space-7); min-width: 0; }
+  [data-kit='answer-block'] { min-width: 0; animation: kit-rise var(--dur-enter) var(--ease) both; animation-delay: var(--k-answer-d, 0ms); }
+  [data-kit='answer'][data-still] [data-kit='answer-block'] { animation: none; }
+  [data-kit='answer-note'] { font-size: var(--fs-sm); color: var(--muted); }
+  [data-kit='answer-unknown'] { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+  [data-kit='answer-unknown-note'] { font-size: var(--fs-sm); color: var(--muted); }
+}

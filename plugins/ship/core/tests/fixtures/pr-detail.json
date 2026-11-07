@@ -1,0 +1,33 @@
+{
+  "number": 1,
+  "url": "https://github.com/acme/repo/pull/1",
+  "title": "fix: add adds",
+  "state": "OPEN",
+  "isDraft": false,
+  "reviewDecision": "APPROVED",
+  "mergeStateStatus": "CLEAN",
+  "headRefOid": "1111111111111111111111111111111111111111",
+  "headRefName": "wisp/fix-add-so-it-adds-0193ab",
+  "baseRefName": "main",
+  "mergedAt": null,
+  "body": "Fixes add().",
+  "author": { "login": "M0xoo" },
+  "additions": 3,
+  "deletions": 1,
+  "changedFiles": 1,
+  "files": [{ "path": "add.js", "additions": 3, "deletions": 1 }],
+  "reviews": [
+    { "author": { "login": "lena" }, "state": "COMMENTED", "body": "", "submittedAt": "2026-10-28T10:00:00Z" },
+    { "author": { "login": "lena" }, "state": "APPROVED", "body": "Looks right.", "submittedAt": "2026-10-28T11:00:00Z" }
+  ],
+  "comments": [
+    { "author": { "login": "vercel" }, "body": "Preview ready", "createdAt": "2026-10-28T09:00:00Z", "url": "https://github.com/acme/repo/pull/1#c1" },
+    { "author": { "login": "sam" }, "body": "Does it handle negatives?", "createdAt": "2026-10-28T09:30:00Z", "url": "https://github.com/acme/repo/pull/1#c2" }
+  ],
+  "statusCheckRollup": [
+    { "__typename": "CheckRun", "name": "test (22)", "workflowName": "PR", "status": "COMPLETED", "conclusion": "SUCCESS", "startedAt": "2026-10-28T09:00:00Z", "completedAt": "2026-10-28T09:01:05Z", "detailsUrl": "https://github.com/acme/repo/actions/runs/1/job/1" },
+    { "__typename": "CheckRun", "name": "lint", "workflowName": "PR", "status": "COMPLETED", "conclusion": "FAILURE", "startedAt": "2026-10-28T09:00:00Z", "completedAt": "2026-10-28T09:00:20Z", "detailsUrl": "https://github.com/acme/repo/actions/runs/1/job/2" },
+    { "__typename": "StatusContext", "context": "deploy/preview", "state": "PENDING", "targetUrl": "https://vercel.com/x" }
+  ],
+  "updatedAt": "2026-10-28T11:00:00Z"
+}

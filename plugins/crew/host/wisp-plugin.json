@@ -1,0 +1,14 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.crew",
+  "name": "crew",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "crew members: schedules, check-ins, jobs, mentions, notebooks, sharing",
+  "kind": "plugin",
+  "server": { "builtin": "wisp_crew" },
+  "permissions": [],
+  "requires": {},
+  "provides": {},
+  "contributes": {}
+}

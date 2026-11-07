@@ -1,0 +1,20 @@
+[
+ {
+  "type": "session",
+  "id": "opencode-btw"
+ },
+ {
+  "type": "text",
+  "text": "Side answer (forked): what is 2+2?"
+ },
+ {
+  "type": "result",
+  "isError": false,
+  "stopped": false,
+  "text": "Side answer (forked): what is 2+2?",
+  "stats": {
+   "inputTokens": 4,
+   "outputTokens": 2
+  }
+ }
+]

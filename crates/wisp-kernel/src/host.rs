@@ -1,51 +1,53 @@
 //! The host: `App` (boot), `Setup` (what a plugin registers), `Ctx` (what a plugin uses at runtime).
-//! The signatures here are the contract; the kernel agent owns the implementation behind them.
-
-use std::any::{Any, TypeId};
-use std::collections::HashMap;
+//! The signatures here are the contract; the bodies delegate to `dispatch`, `hooks`, `life` and
+//! `kernel_api`. More `impl` blocks for these types (all additive) are in `kernel_api.rs`.
+use std::any::Any;
 use std::future::Future;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
-use crate::caps::Caller;
+use crate::call::CallInner;
+use crate::caps::{Caller, Compiled};
+use crate::events::{EventEnvelope, Payload, SubFn};
 use crate::http::Route;
 use crate::manifest::Manifest;
-use crate::{BoxFuture, Call, Clock, Command, Event, Hook, InterceptOpts, KernelService, Plugin, PluginGroup, Point, Result, Service, Verdict, WireError};
+use crate::state::{Erased, KernelState};
+use crate::{BoxFuture, Call, Clock, Command, Event, Hook, InterceptOpts, KernelService, PluginGroup, Point, Result, Service, Verdict, WireError};
 
-#[derive(Debug)]
-pub(crate) struct CallInner {
-    pub(crate) root: String,
-    pub(crate) depth: u32,
-    pub(crate) stack: Vec<String>,
-    pub(crate) caller: Caller,
-    pub(crate) cancel: CancellationToken,
-    pub(crate) read_only: bool,
-}
-
-pub(crate) fn require(call: &CallInner, permission: &str) -> Result<()> {
-    if crate::caps::allowed(&call.caller, permission) {
-        Ok(())
-    } else {
-        Err(WireError::forbidden(format!("{} may not {permission}", call.caller.set)))
-    }
-}
-
-type Erased = Arc<dyn Any + Send + Sync>;
 pub(crate) type CmdFn = Arc<dyn Fn(Ctx, Call, Value) -> BoxFuture<'static, Result<Value>> + Send + Sync>;
-pub(crate) type HookFn = Arc<dyn Fn(Ctx, Call, Value) -> BoxFuture<'static, Verdict<Value>> + Send + Sync>;
-pub(crate) type EventFn = Arc<dyn Fn(Ctx, Value) -> BoxFuture<'static, ()> + Send + Sync>;
+pub(crate) type HookFn = Arc<dyn Fn(Ctx, Call, Value) -> BoxFuture<'static, Result<Verdict<Value>>> + Send + Sync>;
 pub(crate) type StartFn = Box<dyn FnOnce(Ctx) -> BoxFuture<'static, Result<()>> + Send>;
+
+/// The typed handler of command `C`: dispatch downcasts to it and skips the JSON round trip.
+pub(crate) struct TypedCmd<C: Command>(pub(crate) Arc<dyn Fn(Ctx, Call, C::Args) -> BoxFuture<'static, Result<C::Out>> + Send + Sync>);
+/// The typed interceptor of hook `H`.
+pub(crate) struct TypedHook<H: Hook>(pub(crate) Arc<dyn Fn(Ctx, Call, H::Ctx) -> BoxFuture<'static, Verdict<H::Ctx>> + Send + Sync>);
+
+pub(crate) struct CmdReg {
+    pub(crate) id: String,
+    pub(crate) permission: Option<String>,
+    pub(crate) read_only: bool,
+    pub(crate) json: CmdFn,
+    pub(crate) typed: Option<Erased>,
+}
+
+pub(crate) struct HookReg {
+    pub(crate) hook: String,
+    pub(crate) opts: InterceptOpts,
+    pub(crate) json: HookFn,
+    pub(crate) typed: Option<Erased>,
+}
 
 /// What a plugin registers in `setup`. Everything belongs to the plugin's scope.
 pub struct Setup {
     pub(crate) plugin: String,
     pub(crate) ctx: Ctx,
-    pub(crate) commands: Vec<(&'static str, Option<&'static str>, bool, CmdFn)>,
-    pub(crate) hooks: Vec<(&'static str, InterceptOpts, HookFn)>,
-    pub(crate) events: Vec<(&'static str, EventFn)>,
-    pub(crate) points: Vec<(&'static str, u32, Erased)>,
+    pub(crate) commands: Vec<CmdReg>,
+    pub(crate) hooks: Vec<HookReg>,
+    pub(crate) events: Vec<(String, SubFn)>,
+    pub(crate) points: Vec<(String, u32, Erased, Option<Value>)>,
     pub(crate) services: Vec<(&'static str, u32, Erased)>,
     pub(crate) starts: Vec<StartFn>,
 }
@@ -56,7 +58,15 @@ impl std::fmt::Debug for Setup {
     }
 }
 
+fn bad(code: &str, message: String) -> Verdict<Value> {
+    Verdict::Veto { code: code.into(), message, then: Vec::new() }
+}
+
 impl Setup {
+    pub(crate) fn new(ctx: Ctx) -> Self {
+        Self { plugin: ctx.inner.plugin.clone(), ctx, commands: Vec::new(), hooks: Vec::new(), events: Vec::new(), points: Vec::new(), services: Vec::new(), starts: Vec::new() }
+    }
+
     /// The plugin's own context, for handlers to capture.
     pub fn ctx(&self) -> Ctx {
         self.ctx.clone()
@@ -70,7 +80,8 @@ impl Setup {
         Fut: Future<Output = Result<C::Out>> + Send + 'static,
     {
         let f = Arc::new(f);
-        let erased: CmdFn = Arc::new(move |ctx, call, args| {
+        let g = f.clone();
+        let json: CmdFn = Arc::new(move |ctx, call, args| {
             let f = f.clone();
             Box::pin(async move {
                 let args: C::Args = serde_json::from_value(args).map_err(|e| WireError::invalid(format!("{}: {e}", C::ID)))?;
@@ -78,7 +89,8 @@ impl Setup {
                 serde_json::to_value(out).map_err(|e| WireError::internal(e.to_string()))
             })
         });
-        self.commands.push((C::ID, C::PERMISSION, C::READ_ONLY, erased));
+        let typed = TypedCmd::<C>(Arc::new(move |ctx, call, args| Box::pin(g(ctx, call, args))));
+        self.commands.push(CmdReg { id: C::ID.to_owned(), permission: C::PERMISSION.map(str::to_owned), read_only: C::READ_ONLY, json, typed: Some(Arc::new(typed)) });
     }
 
     /// Takes part in hook `H`, ordered by `opts.priority`.
@@ -89,23 +101,23 @@ impl Setup {
         Fut: Future<Output = Verdict<H::Ctx>> + Send + 'static,
     {
         let f = Arc::new(f);
-        let erased: HookFn = Arc::new(move |ctx, call, v| {
+        let g = f.clone();
+        let json: HookFn = Arc::new(move |ctx, call, v| {
             let f = f.clone();
             Box::pin(async move {
-                let Ok(hctx) = serde_json::from_value::<H::Ctx>(v) else {
-                    return Verdict::Veto { code: "invalid".into(), message: format!("{}: bad context", H::ID), then: Vec::new() };
-                };
-                match f(ctx, call, hctx).await {
+                let Ok(hctx) = serde_json::from_value::<H::Ctx>(v) else { return Ok(bad("invalid", format!("{}: bad context", H::ID))) };
+                Ok(match f(ctx, call, hctx).await {
                     Verdict::Continue => Verdict::Continue,
                     Verdict::Modify { ctx } => match serde_json::to_value(ctx) {
                         Ok(ctx) => Verdict::Modify { ctx },
-                        Err(e) => Verdict::Veto { code: "internal".into(), message: e.to_string(), then: Vec::new() },
+                        Err(e) => bad("internal", e.to_string()),
                     },
                     Verdict::Veto { code, message, then } => Verdict::Veto { code, message, then },
-                }
+                })
             })
         });
-        self.hooks.push((H::ID, opts, erased));
+        let typed = TypedHook::<H>(Arc::new(move |ctx, call, c| Box::pin(g(ctx, call, c))));
+        self.hooks.push(HookReg { hook: H::ID.to_owned(), opts, json, typed: Some(Arc::new(typed)) });
     }
 
     /// Subscribes to `E`, delivered after commit, in order, at least once (dedupe by seq).
@@ -116,20 +128,21 @@ impl Setup {
         Fut: Future<Output = ()> + Send + 'static,
     {
         let f = Arc::new(f);
-        let erased: EventFn = Arc::new(move |ctx, v| {
+        let sub: SubFn = Arc::new(move |ctx, env: Arc<EventEnvelope>| {
             let f = f.clone();
             Box::pin(async move {
-                if let Ok(e) = serde_json::from_value::<E>(v) {
+                if let Some(e) = env.get::<E>() {
                     f(ctx, e).await;
                 }
+                Ok(())
             })
         });
-        self.events.push((E::TYPE, erased));
+        self.events.push((E::TYPE.to_owned(), sub));
     }
 
     /// Adds an implementation to a list point owned by some plugin.
     pub fn contribute<T: ?Sized + Send + Sync + 'static>(&mut self, point: &Point<T>, item: Arc<T>) {
-        self.points.push((point.id, point.version, Arc::new(item)));
+        self.points.push((point.id.to_owned(), point.version, Arc::new(item), None));
     }
 
     /// Adds an HTTP route (the `kernel.http` point).
@@ -160,8 +173,12 @@ pub struct Ctx {
 
 pub(crate) struct CtxInner {
     pub(crate) plugin: String,
+    pub(crate) id: Arc<str>,
     pub(crate) scope: CancellationToken,
-    pub(crate) kernel: Arc<crate::host::KernelState>,
+    /// weak: a plugin's handles never keep a stopped kernel alive
+    pub(crate) kernel: Weak<KernelState>,
+    /// `plugin:<id>`: the plugin's manifest permissions
+    pub(crate) set: Option<Arc<Compiled>>,
 }
 
 impl std::fmt::Debug for Ctx {
@@ -170,12 +187,16 @@ impl std::fmt::Debug for Ctx {
     }
 }
 
-#[derive(Default)]
-pub(crate) struct KernelState {
-    pub(crate) services: std::sync::RwLock<HashMap<TypeId, Erased>>,
-}
-
 impl Ctx {
+    pub(crate) fn new(k: &Arc<KernelState>, plugin: &str, scope: CancellationToken) -> Self {
+        let set = k.caps.get(&format!("plugin:{plugin}"));
+        Self { inner: Arc::new(CtxInner { plugin: plugin.to_owned(), id: Arc::from(plugin), scope, kernel: Arc::downgrade(k), set }) }
+    }
+
+    pub(crate) fn k(&self) -> Result<Arc<KernelState>> {
+        self.inner.kernel.upgrade().ok_or_else(|| WireError::unavailable("the kernel has stopped"))
+    }
+
     pub fn plugin(&self) -> &str {
         &self.inner.plugin
     }
@@ -198,8 +219,7 @@ impl Ctx {
 
     /// A kernel service the install provided (store, proc, net, secrets, paths, clock).
     pub fn service<T: KernelService>(&self) -> Result<Arc<T>> {
-        let map = self.inner.kernel.services.read().map_err(|_| WireError::internal("services lock"))?;
-        map.get(&TypeId::of::<T>()).and_then(|v| v.clone().downcast::<T>().ok()).ok_or_else(|| WireError::new(crate::Code::ServiceGone, std::any::type_name::<T>()))
+        self.k()?.service::<T>().ok_or_else(|| WireError::new(crate::Code::ServiceGone, std::any::type_name::<T>()))
     }
 
     pub fn clock(&self) -> Result<Arc<dyn Clock>> {
@@ -208,39 +228,41 @@ impl Ctx {
 
     /// Runs command `C` as part of `call` (depth + 1, same trace and caller).
     pub fn run<C: Command>(&self, call: &Call, args: C::Args) -> BoxFuture<'static, Result<C::Out>> {
-        crate::host::dispatch::<C>(self.clone(), call.clone(), args)
+        crate::dispatch::typed::<C>(self.clone(), call.clone(), args)
     }
 
     /// Runs hook `H`'s interceptors in order. Ok: the (possibly modified) context. Err(vetoed): refused.
     pub fn run_hook<H: Hook>(&self, call: &Call, hctx: H::Ctx) -> BoxFuture<'static, Result<H::Ctx>> {
-        crate::host::run_hook::<H>(self.clone(), call.clone(), hctx)
+        crate::hooks::typed::<H>(self.clone(), call.clone(), hctx)
     }
 
     /// Records `e`; it is published after the call that emitted it commits.
     pub fn emit<E: Event>(&self, call: &Call, e: &E) {
-        crate::host::emit(self, call, E::TYPE, serde_json::to_value(e).unwrap_or(Value::Null));
+        crate::dispatch::emit(self, call, E::TYPE, Payload::Typed(Arc::new(e.clone())));
     }
 
     pub fn contributions<T: ?Sized + Send + Sync + 'static>(&self, point: &Point<T>) -> Vec<Arc<T>> {
-        crate::host::contributions(self, point)
+        self.k().map(|k| crate::kernel_api::contributions(&k, point).into_iter().map(|(_, t)| t).collect()).unwrap_or_default()
     }
 
     /// The provider of `S`, or `service_gone`. Required services are checked when the set resolves.
     pub fn use_service<S: Service>(&self) -> Result<Arc<S::Api>> {
-        crate::host::use_service::<S>(self)
+        crate::kernel_api::use_service::<S>(&self.k()?)
     }
 
     /// A root call made by this plugin itself (a timer, a subscriber), speaking as `plugin:<id>`.
     pub fn root_call(&self) -> Call {
-        Call {
-            inner: Arc::new(CallInner {
-                root: crate::ids::uuid7(),
-                depth: 0,
-                stack: Vec::new(),
-                caller: Caller { set: format!("plugin:{}", self.inner.plugin), session: None, plugin: Some(self.inner.plugin.clone()) },
-                cancel: self.inner.scope.child_token(),
-                read_only: false,
-            }),
+        let caller = Caller::plugin(&self.inner.plugin);
+        let cancel = self.inner.scope.child_token();
+        match self.inner.kernel.upgrade() {
+            Some(k) => CallInner::detached(&k, caller, Some(self.inner.id.clone()), cancel).into_call(),
+            None => {
+                let mut c = Call::new_root(caller);
+                if let Some(inner) = Arc::get_mut(&mut c.inner) {
+                    inner.cancel = cancel;
+                }
+                c
+            }
         }
     }
 }
@@ -272,7 +294,7 @@ impl App {
     #[must_use]
     pub fn service<T: KernelService>(self, value: T) -> Self {
         if let Ok(mut map) = self.state.services.write() {
-            map.insert(TypeId::of::<T>(), Arc::new(value));
+            map.insert(std::any::TypeId::of::<T>(), Arc::new(value) as Arc<dyn Any + Send + Sync>);
         }
         self
     }
@@ -286,7 +308,7 @@ impl App {
     /// Resolves the set (topological by requires/extends, refusals with reasons), runs every setup,
     /// then every `on_start`. Returns the running kernel.
     pub async fn start(self) -> Result<Kernel> {
-        crate::host::start(self).await
+        crate::life::start(self).await
     }
 }
 
@@ -305,20 +327,25 @@ impl std::fmt::Debug for Kernel {
 impl Kernel {
     /// A command by id with JSON args, as the edge, MCP and the sync layer call it.
     pub fn call(&self, caller: Caller, cmd: &str, args: Value) -> BoxFuture<'static, Result<Value>> {
-        crate::host::call_json(self.clone(), caller, cmd.to_owned(), args)
+        crate::dispatch::edge(self.state.clone(), caller, cmd.to_owned(), args)
     }
     /// Every contribution to `point`, across plugins that are on.
     pub fn contributions<T: ?Sized + Send + Sync + 'static>(&self, point: &Point<T>) -> Vec<Arc<T>> {
-        crate::host::kernel_contributions(self, point)
+        crate::kernel_api::contributions(&self.state, point).into_iter().map(|(_, t)| t).collect()
+    }
+    /// Each contribution to `point` with the context of the plugin that made it: the edge calls a
+    /// `kernel.http` route's handler with its owner's `Ctx`. Additive (wisp-api/edge agent, 2026-11-08).
+    pub fn contributions_owned<T: ?Sized + Send + Sync + 'static>(&self, point: &Point<T>) -> Vec<(Ctx, Arc<T>)> {
+        crate::kernel_api::contributions(&self.state, point)
     }
     pub fn status(&self) -> Vec<PluginStatus> {
-        crate::host::status(self)
+        crate::life::status(&self.state)
     }
     pub fn set_enabled(&self, plugin: &str, on: bool) -> BoxFuture<'static, Result<()>> {
-        crate::host::set_enabled(self.clone(), plugin.to_owned(), on)
+        crate::life::set_enabled(self.state.clone(), plugin.to_owned(), on)
     }
     pub fn manifests(&self) -> Vec<Manifest> {
-        crate::host::manifests(self)
+        crate::life::manifests(&self.state)
     }
 }
 
@@ -331,40 +358,4 @@ pub struct PluginStatus {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
     pub builtin: bool,
-}
-
-// ---- implementation seams: the kernel agent replaces these bodies (signatures stay) ----
-
-pub(crate) fn dispatch<C: Command>(_ctx: Ctx, _call: Call, _args: C::Args) -> BoxFuture<'static, Result<C::Out>> {
-    Box::pin(async { Err(WireError::unavailable(format!("{}: kernel dispatch not built yet", C::ID))) })
-}
-pub(crate) fn run_hook<H: Hook>(_ctx: Ctx, _call: Call, hctx: H::Ctx) -> BoxFuture<'static, Result<H::Ctx>> {
-    Box::pin(async move { Ok(hctx) })
-}
-pub(crate) fn emit(_ctx: &Ctx, _call: &Call, _ty: &'static str, _v: Value) {}
-pub(crate) fn contributions<T: ?Sized + Send + Sync + 'static>(_ctx: &Ctx, _p: &Point<T>) -> Vec<Arc<T>> {
-    Vec::new()
-}
-pub(crate) fn use_service<S: Service>(_ctx: &Ctx) -> Result<Arc<S::Api>> {
-    Err(WireError::new(crate::Code::ServiceGone, S::ID))
-}
-pub(crate) async fn start(app: App) -> Result<Kernel> {
-    let _ = Setup::ctx;
-    let _ = (&app.group, Plugin::manifest as fn(&dyn Plugin) -> Manifest);
-    Ok(Kernel { state: app.state })
-}
-pub(crate) fn call_json(_k: Kernel, _caller: Caller, cmd: String, _args: Value) -> BoxFuture<'static, Result<Value>> {
-    Box::pin(async move { Err(WireError::unavailable(format!("{cmd}: kernel dispatch not built yet"))) })
-}
-pub(crate) fn kernel_contributions<T: ?Sized + Send + Sync + 'static>(_k: &Kernel, _p: &Point<T>) -> Vec<Arc<T>> {
-    Vec::new()
-}
-pub(crate) fn status(_k: &Kernel) -> Vec<PluginStatus> {
-    Vec::new()
-}
-pub(crate) fn set_enabled(_k: Kernel, _plugin: String, _on: bool) -> BoxFuture<'static, Result<()>> {
-    Box::pin(async { Ok(()) })
-}
-pub(crate) fn manifests(_k: &Kernel) -> Vec<Manifest> {
-    Vec::new()
 }

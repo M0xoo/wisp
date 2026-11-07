@@ -1,0 +1,26 @@
+[
+ {
+  "type": "session",
+  "id": "codex-btw"
+ },
+ {
+  "type": "text",
+  "text": "Side answer (digest): what is 2+2?"
+ },
+ {
+  "type": "result",
+  "isError": false,
+  "stopped": false,
+  "text": "Side answer (digest): what is 2+2?",
+  "stats": {
+   "inputTokens": 4,
+   "outputTokens": 2,
+   "totals": {
+    "inputTokens": 4,
+    "cachedInputTokens": 0,
+    "outputTokens": 2,
+    "thread": "codex-btw"
+   }
+  }
+ }
+]

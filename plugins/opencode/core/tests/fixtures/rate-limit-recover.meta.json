@@ -1,0 +1,19 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": "timestamp=2026-10-18T22:48:58.147Z level=ERROR run=df7c9c30 message=\"stream error\" providerID=opencode modelID=big-pickle small=false agent=build mode=primary error.error=\"AI_APICallError: Rate limit exceeded. Please try again later.\"\n"
+  },
+  "opts": {},
+  "drop": [
+    "stats.durationMs"
+  ],
+  "argv": [
+    "run",
+    "--format",
+    "json",
+    "--print-logs",
+    "--log-level",
+    "ERROR"
+  ]
+}

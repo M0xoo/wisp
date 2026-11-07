@@ -1,0 +1,122 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.stuff",
+  "name": "My Stuff",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "My Stuff: what you and your agents kept from tasks (pictures, videos, docs, code, files, links and apps), the apps' launches and databases, the panes wisp ships, and uploads",
+  "kind": "plugin",
+  "server": {
+    "builtin": "wisp_stuff"
+  },
+  "permissions": [
+    "blob:read",
+    "blob:write",
+    "fs:read{scope:home}",
+    "fs:write{scope:stuff}",
+    "net:listen{host:127.0.0.1}",
+    "topic:write{topic:stuff}",
+    "topic:write{topic:uploads}"
+  ],
+  "requires": {},
+  "provides": {},
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "id": "stuff.list",
+        "title": "List My Stuff",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.get",
+        "title": "Read one item",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.find",
+        "title": "Find in My Stuff (wisp_stuff)",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.describe",
+        "title": "One item in full, for an agent",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.grant",
+        "title": "What a pane may use now",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.save",
+        "title": "Save to My Stuff"
+      },
+      {
+        "id": "stuff.update",
+        "title": "Edit an item"
+      },
+      {
+        "id": "stuff.restore",
+        "title": "Back to the version before"
+      },
+      {
+        "id": "stuff.remove",
+        "title": "Remove from My Stuff"
+      },
+      {
+        "id": "stuff.allow",
+        "title": "Allow a pane what it asks for"
+      },
+      {
+        "id": "stuff.setPublished",
+        "title": "Record where an app is published"
+      },
+      {
+        "id": "stuff.launch",
+        "title": "Launch an app"
+      },
+      {
+        "id": "stuff.stop",
+        "title": "Stop an app"
+      },
+      {
+        "id": "stuff.resetData",
+        "title": "Reset an app's data"
+      },
+      {
+        "id": "stuff.upload",
+        "title": "Read an attachment",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.uploads",
+        "title": "Read attachments",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.removeUpload",
+        "title": "Remove an attachment"
+      }
+    ],
+    "events": [
+      "stuff.saved",
+      "stuff.removed",
+      "stuff.launched"
+    ],
+    "topics": [
+      "stuff",
+      "uploads"
+    ],
+    "settings": [
+      {
+        "key": "stuff.panes",
+        "type": "string",
+        "default": "",
+        "title": "Panes: <app>@task or <app>@home, comma separated"
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.budget",
+  "name": "budget",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "usage windows, Automations stop at, banked resets, the before:run budget guard, compare metrics",
+  "kind": "plugin",
+  "server": { "builtin": "wisp_budget" },
+  "permissions": [],
+  "requires": {},
+  "provides": {},
+  "contributes": {}
+}

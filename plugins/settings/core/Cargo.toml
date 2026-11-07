@@ -1,0 +1,13 @@
+[package]
+name = "wisp-settings-core"
+description = "pure, sans-IO logic of wisp.settings"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

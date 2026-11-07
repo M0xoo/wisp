@@ -1,0 +1,22 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "prompt": "and add a test",
+    "resumeId": "prev-1"
+  },
+  "drop": [
+    "stats.durationMs"
+  ],
+  "argv": [
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--trust",
+    "--resume",
+    "prev-1"
+  ]
+}

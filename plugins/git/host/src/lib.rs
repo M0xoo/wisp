@@ -1,0 +1,108 @@
+//! wisp-git (`wisp.git`): provides `git.service@1` (plan §6.11.1, the worked example of a plugin service)
+//! and the `git.*` commands. Every git and gh call runs async through the kernel's proc service
+//! (`wisp_proc::Proc`): nothing blocks a runtime thread, and the pure logic lives in wisp-git-core.
+
+mod changes;
+pub mod commands;
+mod error;
+mod read;
+mod repo;
+pub mod run;
+pub mod service;
+mod shared;
+mod write;
+
+use std::sync::Arc;
+
+use wisp_git_api::commands::{Clone as CloneCmd, Commit, GetChanges, GetStatus, GetTools, Revert, Stage};
+use wisp_git_api::{Blobs, GitServiceV1};
+use wisp_kernel::{Manifest, Plugin, Result, Setup, WireError};
+use wisp_proc::Proc;
+
+pub use error::GitError;
+pub use repo::RepoImpl;
+pub use service::{GitServiceImpl, Service};
+pub use shared::Now;
+
+#[derive(Debug, Default)]
+pub struct GitPlugin {
+    /// a git to run instead of the one found on PATH (tests; v1's WISP_GIT_BIN)
+    pub git_bin: Option<String>,
+}
+
+/// The service on its own, for an install or a test that has a proc service but no kernel yet.
+pub fn service(proc: Proc, blobs: Option<Arc<dyn Blobs>>, now: Now, git_bin: Option<String>) -> Arc<GitServiceImpl> {
+    GitServiceImpl::new(run::Git::new(proc, git_bin), blobs, now)
+}
+
+fn system_now() -> Now {
+    Arc::new(|| std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX)))
+}
+
+impl Plugin for GitPlugin {
+    fn manifest(&self) -> Manifest {
+        Manifest::embedded(include_str!("../wisp-plugin.json"))
+    }
+
+    fn setup(&self, s: &mut Setup) -> Result<()> {
+        let ctx = s.ctx();
+        let proc = ctx.service::<Proc>()?;
+        let blobs = ctx.service::<Arc<dyn Blobs>>().ok().map(|b| (*b).clone());
+        let now: Now = match ctx.clock() {
+            Ok(c) => Arc::new(move || c.now_ms()),
+            Err(_) => system_now(),
+        };
+        let svc = service((*proc).clone(), blobs, now, self.git_bin.clone());
+        s.provide::<GitServiceV1>(Arc::new(Service(svc.clone())));
+        let w = |e: GitError| WireError::from(e);
+        let sv = svc.clone();
+        s.command::<GetStatus, _, _>(move |_ctx, _call, a| {
+            let sv = sv.clone();
+            async move {
+                let (r, _l) = commands::handle(&sv, &a.path).await.map_err(w)?;
+                r.inner.status().await.map_err(w)
+            }
+        });
+        let sv = svc.clone();
+        s.command::<GetChanges, _, _>(move |_ctx, _call, a| {
+            let sv = sv.clone();
+            async move { commands::changes(&sv, a).await.map_err(w) }
+        });
+        let sv = svc.clone();
+        s.command::<Revert, _, _>(move |_ctx, _call, a| {
+            let sv = sv.clone();
+            async move { commands::revert(&sv, a).await.map_err(w) }
+        });
+        let sv = svc.clone();
+        s.command::<Stage, _, _>(move |_ctx, _call, a| {
+            let sv = sv.clone();
+            async move { commands::stage(&sv, a).await.map_err(w) }
+        });
+        let sv = svc.clone();
+        s.command::<Commit, _, _>(move |_ctx, _call, a| {
+            let sv = sv.clone();
+            async move { commands::commit(&sv, a).await.map_err(w) }
+        });
+        let sv = Service(svc.clone());
+        s.command::<GetTools, _, _>(move |_ctx, call, ()| {
+            let sv = sv.clone();
+            async move { wisp_git_api::GitService::tools(&sv, &call).await }
+        });
+        let sv = Service(svc);
+        s.command::<CloneCmd, _, _>(move |_ctx, call, a| {
+            let sv = sv.clone();
+            async move { wisp_git_api::GitService::clone_repo(&sv, &call, a).await }
+        });
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn manifest_is_valid() {
+        let m = wisp_kernel::Plugin::manifest(&super::GitPlugin::default());
+        assert_eq!(m.id, "wisp.git");
+        assert!(m.provides.contains_key("git.service"));
+    }
+}

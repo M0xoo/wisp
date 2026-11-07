@@ -1,0 +1,22 @@
+{
+  "name": "@wisp/mobile",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The Android app's side of the bundle (plan §7.3): reaches every saved computer through the native bridge (sshj tunnels, wisp Grid) over the sync protocol.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@wisp/client": "*",
+    "@wisp/protocol": "*",
+    "@wisp/shell": "*"
+  },
+  "devDependencies": {
+    "@wisp/sync": "*"
+  },
+  "scripts": {
+    "test": "node --test --test-reporter=dot \"test/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

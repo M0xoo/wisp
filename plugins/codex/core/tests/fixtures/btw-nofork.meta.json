@@ -1,0 +1,24 @@
+{
+  "exit": {
+    "code": 1,
+    "signal": null,
+    "stderr": "error: unknown option 'fork'\n"
+  },
+  "opts": {
+    "prompt": "# wisp btw\n\nThe task so far.\n\n## Side question\n\nwhat is 2+2?",
+    "resumeId": "prev-1",
+    "fork": true
+  },
+  "drop": [
+    "stats.durationMs"
+  ],
+  "argv": [
+    "exec",
+    "--json",
+    "--skip-git-repo-check",
+    "-c",
+    "sandbox_mode=\"workspace-write\"",
+    "fork",
+    "prev-1"
+  ]
+}

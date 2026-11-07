@@ -1,0 +1,82 @@
+{
+ "format": "One JSON object. Required: wispSpell (1), id (lowercase-dashes), name. Everything else is optional.",
+ "fields": [
+  [
+   "version",
+   "\"1.0.0\" — bump it when you change a spell the user already has"
+  ],
+  [
+   "description",
+   "one sentence"
+  ],
+  [
+   "harnesses",
+   "[\"*\"] or e.g. [\"claude\",\"codex\"]: which harnesses its prompt rules, blocks and hooks apply to"
+  ],
+  [
+   "when",
+   "{ project: [names|ids|paths], agent: [...], mode: [...] } scope for prompt rules, blocks and hooks"
+  ],
+  [
+   "data",
+   "{ name: { wisp: \"/path?query\" } | { gh: [args], cwd?: \"task\", refresh?: seconds } } — fetched by wisp; script functions receive them as their first argument { name: value }. gh args may use {field} templates over the card's task (e.g. \"{pr.number}\")."
+  ],
+  [
+   "buttons",
+   "[{ id?, slot, label, icon?, title?, badge?: { count: \"<data>\" } | { text: \"{field}\" } | { fn, with: [data] }, group?: \"name\" (float only: folds into one button), corner?: \"bottom-left\", when?: {hasPr, prState, state, status, agent, project, unread, hasBranch} (card slots), do }]"
+  ],
+  [
+   "chips",
+   "[{ slot: \"card.head\" | \"launcher.chips\" | \"composer.chips\", text: \"{field} template\" | fn: \"<script fn>\" (returns a string), with?: [data], tone?: good|bad|warn|info|neutral, icon?, title?, when?, do? }]"
+  ],
+  [
+   "panels",
+   "[{ id, title, icon?, as: dialog|drawer|feed|card, slot?: card.top|card.bottom (as card), data: [names], render: \"<script fn>\", refresh?: { every: seconds, on: [summary, finished] } }] — render returns an array of wisp presentation blocks (stats, chart, markdown, checklist, files, callout, steps, tree, flow, terminal, code, actions with url…, preview, map, app)"
+  ],
+  [
+   "blocks",
+   "[{ type, doc: \"one-line JSON example + when to use it\", summary: \"{field} template for text-only places\", render: \"<script fn>\" }] — new presentation blocks agents can use; render(block) returns wisp blocks"
+  ],
+  [
+   "parts",
+   "{ \"<part>\": { style?: { cssProp: value }, props?: {...}, order?: [...] (card.head only) } }"
+  ],
+  [
+   "ui",
+   "{ hide: [parts], tokens: { \"--accent\": \"#7c5cff\" }, dark: { … tokens for dark mode } }"
+  ],
+  [
+   "prompt",
+   "[\"text\", { text, when }] — added to agents' system prompts while the spell is on"
+  ],
+  [
+   "settings",
+   "{ key: value } — wins over the user's setting while the spell is on (theme: \"dark\" keeps wisp dark)"
+  ],
+  [
+   "slash",
+   "[{ name, args?, hint?, do }] — /name in a follow-up box; {args} in do's text is what the user typed after it"
+  ],
+  [
+   "commands",
+   "[{ label, keywords?, icon?, key?, do }] — ⌘K items (key: a single key like \"g\" or \"shift+g\", only when no built-in uses it)"
+  ],
+  [
+   "hooks",
+   "[{ on, if?, max?, do }] — on: turn.finished | turn.failed | session.started | session.waiting; if: { status, testsFailed, agent, project, hasPr, mode }; do: one of reply, done, archive, forLater, notify, webhook; max: times per task (default 1)"
+  ],
+  [
+   "recipes",
+   "[{ name, prompt with {params}, agent?, mode? }] — saved prompts"
+  ],
+  [
+   "crew",
+   "[{ key, name, role?, avatar?, brief, cron?: \"5-field cron\" (empty: only when asked), on?: [finished | done | ci], mode?: plan|edits|auto, agent?, model?, effort?, parallel?: 1-5, kit?: [{ kind: skill|rules, name, description (skills), body }], team?: [{ crew: \"<key of another member here>\" } | { agent }] }] — crew members the spell brings (at most 10). They join paused; the user reviews each and picks its project (one that starts when CI fails needs one). The spell owns who they are: change them by bumping the version. Prefer mode plan for a reviewer or watcher"
+  ],
+  [
+   "script",
+   "JS with `export function name(data, ctx) { return … }` functions. It runs in a sandbox with no network, no DOM and no wisp API: it can only compute and return values (blocks, strings, numbers, lists of links). To make something interactive, return an app block: { type: \"app\", title, html: \"<style>…</style>…<script>…</script>\", height?, fallback?: [blocks] }. wisp runs its html in a sandboxed frame with no network, themed by wisp's CSS variables (var(--ink), --surface, --line, --accent, …); in it, wisp.send(text) offers text for the user to send to the task as a follow-up, wisp.save(obj) / wisp.state keep its state. Make it work from 320px wide. ctx: { session } (the card's task summary, when there is one), { block } for agent blocks (the block is also the first argument)."
+  ]
+ ],
+ "templates": "{field} in text, labels, links and gh args is filled from the card's task summary: id, title, state, status, agent, model, mode, project, branch, cwd, preview, pr.number, pr.url, pr.state, pr.checks …; in slash commands {args} too. Missing fields become empty."
+}

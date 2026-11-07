@@ -12,6 +12,16 @@ look stays wisp's (the kit carries it). The behaviour stays v1's: read the v1 mo
 `web/js/`, and the QA scenarios in `qa/scenarios/` for your area, before you write anything. Where v1 has a
 known bug pattern (plan §4.6.1), the new state design fixes it by construction.
 
+## Data while the Rust backend is being built
+
+The Rust backend is being written in parallel. Until `wisp` serves `/api/events`, develop against the
+**mock peer** that the shell agent builds in `apps/web/dev/mock-peer.ts`: an in-memory peer speaking the sync
+protocol, seeded with realistic data shaped like v1's sessions, crew, machines and stuff, that answers
+commands. Row types: use `@wisp/protocol`'s generated types once `crates/wisp-protocol` exports them
+(`packages/protocol/src/generated/`); until then the shapes in v1's `server/runner.js` `summarize()` and
+the TS reference (`git show v2-ts-server-reference:plugins/runtime/api/src/index.ts`) are the truth. Keep
+your own type imports in one file per plugin (`src/types.ts`), so switching to generated types is one edit.
+
 ## Where the code goes
 
 - A plugin's UI lives in `plugins/<plugin>/ui` (`@wisp-plugin/<plugin>-ui`): Solid `.tsx`, built only
@@ -42,7 +52,8 @@ known bug pattern (plan §4.6.1), the new state design fixes it by construction.
 ## Done means
 
 - `.agents/bin/monoflow verify --package=<each of your packages>` passes.
-- Your screens run in the real app (`npm run dev`, against the real v2 server with fake harnesses), and you
+- Your screens run in the real app (`npm run dev:web` against the mock peer, and against the Rust `wisp`
+  once it serves), and you
   checked them in real Chrome at 1440, 900, 390 and 320 px, light and dark, side by side and stacked
   (playwright-core in /tmp, system Chrome). Screenshots go in /tmp/v2-shots/<area>/, listed in your report.
 - `node qa/layout.mjs --area=<area>` passes (no wrapped control text, no bar on two rows).
