@@ -40,6 +40,7 @@ globalThis.setInterval = () => 0; // the page's pollers would keep the test runn
 const { S } = await import('../web/js/core/state.js');
 const { groups, reveal, sectionOpen } = await import('../web/js/features/feed.js');
 const { inNeeds, memberJobs, memberState } = await import('../web/js/features/crew.js');
+const { cardJobs } = await import('../web/js/crew-jobs.js');
 
 const ada = { id: 'ada', name: 'Ada', log: [] };
 let at = 0;
@@ -161,4 +162,12 @@ test('a job not for another task was never under its member', () => {
   put('sent', { crew: { id: 'ada', job: 'task' }, unread: true });
   assert.equal(inNeeds(S.sessions.get('sent')), false);
   assert.deepEqual(ids(groups().needs), ['sent']);
+});
+
+test('the rail’s hover card still lists a job that sits in Needs you: the face counts it', () => {
+  job('asks', { state: 'waiting' });
+  job('report', { unread: true });
+  job('working', { state: 'running' });
+  assert.deepEqual(jobs(), ['working'], 'the section leaves them to Needs you');
+  assert.deepEqual(ids(cardJobs(memberState(ada))), ['asks', 'working', 'report']);
 });

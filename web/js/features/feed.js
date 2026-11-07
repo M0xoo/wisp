@@ -613,7 +613,7 @@ export function setFocus(id, { scroll = true } = {}) {
 }
 
 // Unless something else took the keys meanwhile (another task opened, the search typed into).
-function focusReply(id) {
+export function focusReply(id) {
   if (splitOpen() !== id) return;
   const a = document.activeElement;
   if (a && a !== document.body && !a.closest('.it-head')) return;

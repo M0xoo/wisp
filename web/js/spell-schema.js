@@ -93,6 +93,11 @@ export const PARTS = {
   'crew.rail': '#crewRail',
   'crew.rail.face': '#crewRail .cl-face',
   'crew.rail.all': '#crewRail .cl-all', // All, above the faces: every task in the list again
+  // A face's hover card: on the page, not in the rail (the rail would clip it).
+  'crew.rail.card': '.cl-card',
+  'crew.rail.card.head': '.cl-card .cl-head',
+  'crew.rail.card.row': '.cl-card .cl-row',
+  'crew.rail.card.all': '.cl-card .cl-more',
   // A member's thread: the main pane in split view, in place in the feed.
   'crew.page': '.crew-view',
   'crew.thread': '.crew-view .cv-thread',

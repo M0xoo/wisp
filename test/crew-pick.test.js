@@ -41,7 +41,7 @@ for (const n of ['HTMLElement', 'HTMLTextAreaElement', 'HTMLInputElement', 'HTML
 globalThis.setInterval = () => 0; // the page's pollers would keep the test running
 const { S } = await import('../web/js/core/state.js');
 const { expand, groups, reveal } = await import('../web/js/features/feed.js');
-const { addressedTo, crewPick, inPick, memberJobs, memberState, openMember, pickedPrompt, setCrewPick } = await import('../web/js/features/crew.js');
+const { addressedTo, crewPick, inPick, memberJobs, memberState, openMember, pickedPrompt, pickMember, pickThread, setCrewPick } = await import('../web/js/features/crew.js');
 
 const ada = { id: 'adaada', name: 'Ada', log: [] };
 const bob = { id: 'bobbob', name: 'Bob', log: [] };
@@ -161,6 +161,19 @@ test('another member’s thread clears the pick; its own keeps it', () => {
   assert.equal(S.crewPick, ada.id);
   try { openMember(bob.id); } catch {}
   assert.equal(S.crewPick, null);
+});
+
+test('the hover card’s head and last row pick the member, from All or another pick, and never toggle', () => {
+  try { pickThread(ada.id); } catch {}
+  assert.equal(crewPick(), ada.id, 'from All');
+  assert.equal(S.crewOpen, ada.id);
+  setCrewPick(bob.id);
+  try { pickThread(ada.id); } catch {}
+  assert.equal(crewPick(), ada.id, 'the rail and the pane name the same member');
+  try { pickThread(ada.id); } catch {}
+  assert.equal(crewPick(), ada.id, 'the card says Open: a second click stays');
+  try { pickMember(ada.id); } catch {}
+  assert.equal(crewPick(), null, 'the face is the toggle');
 });
 
 test('setCrewPick is saved under wisp.crewPick', () => {

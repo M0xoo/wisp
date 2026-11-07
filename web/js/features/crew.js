@@ -12,8 +12,8 @@ import { esc, md } from '../md.js';
 import { cleanTitle, plain } from '../mention-text.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
-import { $, $$, el, icon } from '../core/dom.js';
-import { ago, STATUS_LABEL, timeAttrs, whenLabel } from '../core/format.js';
+import { $, $$, beforePaint, el, icon } from '../core/dom.js';
+import { ago, STATUS_LABEL, statusKey, timeAttrs, whenLabel } from '../core/format.js';
 import { fmtDuration } from '../blocks.js';
 import { HERE, isForLater, launch, load, MOBILE, needsYou, S, save } from '../core/state.js';
 import { canSaveForLater, setForLater } from './actions.js';
@@ -23,7 +23,7 @@ import { popover } from '../ui/popover.js';
 import { ask } from '../ui/confirm.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { PART_LABEL, PARTS, SPIRIT, isSpirit, parseSpirit, rollSpirit, spiritCode, spiritDefs, spiritSvg } from '../spirit.js';
-import { collapse, feedToTop, groups, placeCards, renderFeed, reveal } from './feed.js';
+import { collapse, feedToTop, focusReply, groups, placeCards, renderFeed, reveal } from './feed.js';
 import { mentionBox } from './mentions.js';
 import { crewRailOn, goBack, goHome, isSplit, isStacked, splitOpen } from './split.js';
 import { projectList } from './project-list.js';
@@ -40,6 +40,7 @@ import { importCrew, reviewChange, shareMember } from './crew-share.js';
 import { trackRecord } from './crew-record.js';
 import { stuffCount, stuffMatches, stuffSub, stuffThumbHtml } from './stuff.js';
 import { TEMPLATES } from '../crew-templates.js';
+import { byUrgency, cardJobs, CARD_ROWS, headingForCard, holdRows, jobMark, standing, stepRow } from '../crew-jobs.js';
 import { cronWords, toCron } from '../schedule.js';
 
 // The spirits' glows, defined once for the whole page.
@@ -95,6 +96,11 @@ export function setCrewPick(id) {
 // A face picks its member and opens its thread; picked already, it's All.
 export function pickMember(id) {
   if (crewPick() === id) return pickAll();
+  pickThread(id);
+}
+// Its thread, with the rail on it. The hover card's way in too: bare openMember would leave the rail
+// on someone else, and the card says Open, so it never toggles back to All.
+export function pickThread(id) {
   setCrewPick(id);
   openMember(id);
   feedToTop();
@@ -201,11 +207,9 @@ export function pinJob(id) {
 // unread report, then the finished ones, newest first. Ones you marked done or archived are only in
 // its thread.
 export function memberJobs(m, st, max = JOBS_MAX) {
-  const rank = (s) => (s.pending || s.state === 'running' ? 1 : s.state === 'waiting' ? 0 : s.state === 'review' && s.unread ? 2 : 3);
-  const list = [...st.jobs.filter((s) => underMember(s) && !inList(s) && ((!s.archived && s.state !== 'done') || s.state === 'running' || s.state === 'waiting' || S.open.has(s.id) || pinned.has(s.id)))];
-  list.sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
+  const list = st.jobs.filter((s) => underMember(s) && !inList(s) && (standing(s) || S.open.has(s.id) || pinned.has(s.id))).sort(byUrgency);
   const open = S.crewOpen === m.id;
-  const keep = list.filter((s, i) => i < max || (open && rank(s) < 3) || S.open.has(s.id) || pinned.has(s.id));
+  const keep = list.filter((s, i) => i < max || (open && jobMark(s)) || S.open.has(s.id) || pinned.has(s.id));
   return { list: keep, more: list.length - keep.length };
 }
 
@@ -467,6 +471,7 @@ function paintRail(list, states) {
     if (count.textContent !== String(n)) count.textContent = n;
     b.classList.toggle('paused', !!m.paused);
     b.setAttribute('aria-label', `${m.name}${m.role ? `, ${m.role}` : ''}: ${statusLine(m, st).text}`);
+    b.setAttribute('aria-keyshortcuts', document.body.classList.contains('side-right') ? 'ArrowLeft' : 'ArrowRight'); // into its card
   });
   for (const [id, b] of railNodes)
     if (!railOrder.includes(id)) {
@@ -488,6 +493,8 @@ function paintRail(list, states) {
   paintRailFade();
   if (railTip.at?.isConnected) tipBody(railTip.at);
   else hideTip();
+  if (card.at?.isConnected) paintCard();
+  else hideCard();
 }
 
 // All's dot: what clicking it would bring back, so a pick never hides a question. Amber for a
@@ -525,33 +532,45 @@ function paintRailFade() {
   railFaces.classList.toggle('up', t > 1);
   railFaces.classList.toggle('down', t + c < h - 1);
 }
-railFaces.addEventListener('scroll', () => (paintRailFade(), hideTip()), { passive: true });
+railFaces.addEventListener(
+  'scroll',
+  () => {
+    paintRailFade();
+    hideTip();
+    // The arrow keys scroll the rail to the face they land on: that card stays, with its face.
+    if (card.at && card.at === document.activeElement) placeCard();
+    else hideCard();
+  },
+  { passive: true },
+);
 new ResizeObserver(paintRailFade).observe(railFaces);
 
-// Its tooltip: name, role and status, beside the rail on the list. On the page, not in the rail:
-// the rail scrolls, so anything inside it is clipped. A native title would stack with it.
+// Org and +: a plain tooltip beside the rail, on the page, not in the rail: the rail scrolls, so
+// anything inside it is clipped. A native title would stack with it.
 const railTip = { node: el('<div class="cl-tip" role="tooltip" hidden></div>'), at: null, timer: 0, left: 0 };
 document.body.append(railTip.node);
 function tipBody(t) {
-  const m = t.dataset.crew && memberById(t.dataset.crew);
-  const line = m && statusLine(m, memberState(m));
-  const html = m
-    ? `<span class="cl-tname"><b>${esc(m.name)}</b>${m.role ? `<span class="cr-role">${esc(m.role)}</span>` : ''}</span><span class="cr-sub ${line.cls}">${esc(line.text)}</span>`
-    : `<span class="cl-tname"><b>${esc(t.dataset.tip)}</b></span>${t.dataset.sub ? `<span class="cr-sub">${esc(t.dataset.sub)}</span>` : ''}`;
+  const html = `<span class="cl-tname"><b>${esc(t.dataset.tip)}</b></span>${t.dataset.sub ? `<span class="cr-sub">${esc(t.dataset.sub)}</span>` : ''}`;
   if (railTip.html === html) return;
   railTip.html = html;
   railTip.node.innerHTML = html;
   placeTip(t);
 }
+// Beside the rail on the list, on whichever side the list is. Both the tooltip and the card.
+const RAIL_GAP = 8;
+function railLeft(n) {
+  const box = rail.getBoundingClientRect();
+  const x = document.body.classList.contains('side-right') ? box.left - RAIL_GAP - n.offsetWidth : box.right + RAIL_GAP;
+  return Math.max(8, Math.min(x, innerWidth - n.offsetWidth - 8));
+}
 function placeTip(t) {
   const n = railTip.node;
   const r = t.getBoundingClientRect();
-  const box = rail.getBoundingClientRect();
-  const gap = 8;
-  const right = document.body.classList.contains('side-right');
-  n.style.left = `${right ? box.left - gap - n.offsetWidth : box.right + gap}px`;
+  n.style.left = `${railLeft(n)}px`;
   n.style.top = `${Math.max(8, Math.min(r.top + r.height / 2 - n.offsetHeight / 2, innerHeight - n.offsetHeight - 8))}px`;
 }
+// A moment's wait the first time, none going from one to the next.
+const railWarm = () => railTip.at || card.at || Date.now() - railTip.left < 400;
 function showTip(t) {
   clearTimeout(railTip.timer);
   const go = () => {
@@ -560,8 +579,7 @@ function showTip(t) {
     railTip.html = '';
     tipBody(t);
   };
-  // A moment's wait the first time, none going from face to face.
-  if (railTip.at || Date.now() - railTip.left < 400) go();
+  if (railWarm()) go();
   else railTip.timer = setTimeout(go, 160);
 }
 function hideTip() {
@@ -570,23 +588,285 @@ function hideTip() {
   railTip.at = null;
   railTip.node.hidden = true;
 }
-const tipTarget = (e) => e.target.closest?.('.cl-face, .cl-btn');
+
+// A face's card: who it is, then the tasks it's on, each one click away. Same place as the tooltip,
+// but you can go into it: the 8px to it are bridged (.cl-card::before), and leaving the face or the
+// card gives CARD_GRACE to arrive. While it's up the rail holds (inCrew), the rows hold their order
+// and take updates in place: nothing is rebuilt and nothing moves under the pointer.
+const CARD_WAIT = 160; // first hover
+const CARD_GRACE = 180; // leaving, before it closes
+const CARD_SWITCH = 90; // to another face: long enough to cross one on the way to a row
+const card = {
+  node: el(`<div class="cl-card" role="group" hidden>
+    <button class="cl-head" type="button" tabindex="-1"></button>
+    <p class="cl-none" hidden></p>
+    <div class="cl-rows"></div>
+    <button class="cl-more" type="button" tabindex="-1" hidden></button>
+  </div>`),
+  at: null, // the face it belongs to
+  next: null, // a face waiting for CARD_SWITCH
+  timer: 0,
+  leaving: 0,
+  closing: false, // card.leaving is running
+  ids: [], // its rows, in the order they hold
+  rows: new Map(), // job id → row
+  x: 0, // the pointer, and where it was when it left the card's face
+  y: 0,
+  fromX: 0,
+  fromY: 0,
+};
+document.body.append(card.node);
+const cardHead = $('.cl-head', card.node);
+const cardRows = $('.cl-rows', card.node);
+const cardMore = $('.cl-more', card.node);
+const cardNone = $('.cl-none', card.node);
+const inCard = () => card.node.matches(':hover') || card.node.contains(document.activeElement);
+
+const setText = (n, text) => {
+  if (n.textContent !== text) n.textContent = text;
+};
+// What a row says on its right: what it's doing, or when it finished.
+function jobSide(s) {
+  if (s.pending) return 'Starting';
+  if (s.state === 'waiting') return 'Asking';
+  if (s.state === 'running') return 'Working';
+  const key = statusKey(s);
+  return key === 'done' || key === 'info' ? ago(s.updatedAt) : STATUS_LABEL[key] || STATUS_LABEL.done;
+}
+function paintJobRow(row, s) {
+  const mark = jobMark(s);
+  const dot = row.firstElementChild;
+  if (dot.dataset.m !== mark) {
+    dot.dataset.m = mark;
+    dot.innerHTML = mark === 'live' ? '<span class="orb live"></span>' : '';
+  }
+  const title = cleanTitle(s.title);
+  setText(row.children[1], title);
+  if (row.title !== title) row.title = title;
+  setText(row.children[2], jobSide(s));
+  row.disabled = !!s.pending; // the placeholder has nothing to open yet
+  const open = S.open.has(s.id);
+  if (row.classList.contains('on') !== open) row.classList.toggle('on', open);
+}
+function paintCard() {
+  const m = memberById(card.at.dataset.crew);
+  if (!m) return hideCard();
+  const st = memberState(m);
+  const line = statusLine(m, st);
+  // Under the pointer or the keys the head keeps its height, or the rows would slide.
+  if (!inCard()) {
+    const head = `<span class="cl-tname"><b>${esc(m.name)}</b>${m.role ? `<span class="cr-role">${esc(m.role)}</span>` : ''}</span><span class="cr-sub ${line.cls}">${esc(line.text)}</span>`;
+    if (cardHead.dataset.h !== head) (cardHead.innerHTML = head), (cardHead.dataset.h = head);
+    cardHead.title = `Open ${m.name}’s thread`;
+    card.node.setAttribute('aria-label', `${m.name}’s tasks`);
+  }
+  const jobs = cardJobs(st);
+  card.ids = holdRows(card.ids, jobs.map((s) => s.id), (id) => !S.sessions.has(id));
+  card.ids.forEach((id, i) => {
+    let row = card.rows.get(id);
+    if (!row) {
+      row = el(`<button class="cl-row" type="button" data-job="${esc(id)}" tabindex="-1"><span class="cl-mark"></span><span class="cl-title"></span><span class="q-time"></span></button>`);
+      card.rows.set(id, row);
+    }
+    if (cardRows.children[i] !== row) cardRows.insertBefore(row, cardRows.children[i] || null);
+    const s = S.sessions.get(id);
+    if (s) paintJobRow(row, s);
+    else {
+      // Gone from wisp while it's up: the row stays where it was, dead, until the card closes.
+      row.disabled = true;
+      setText(row.children[2], 'Gone');
+    }
+  });
+  for (const [id, row] of card.rows)
+    if (!card.ids.includes(id)) {
+      row.remove();
+      card.rows.delete(id);
+    }
+  cardNone.hidden = card.ids.length > 0;
+  if (!cardNone.hidden) setText(cardNone, m.nextAt && !m.paused ? `Next check-in ${whenLabel(m.nextAt)}` : 'Nothing going on');
+  const all = st.jobs.length + st.sent.length;
+  cardMore.hidden = jobs.length <= CARD_ROWS;
+  if (!cardMore.hidden) setText(cardMore, `All ${all} in the thread`);
+  if (!inCard()) placeCard();
+}
+// Its top on the face's, so rows that arrive grow it downward and move nothing. It scrolls in what
+// the window leaves.
+function placeCard() {
+  const n = card.node;
+  const r = card.at.getBoundingClientRect();
+  const scrolled = cardRows.scrollTop;
+  n.style.maxHeight = '';
+  const top = Math.max(8, Math.min(r.top - 1, innerHeight - n.offsetHeight - 8));
+  n.style.left = `${railLeft(n)}px`;
+  n.style.top = `${top}px`;
+  n.style.maxHeight = `${innerHeight - top - 8}px`;
+  cardRows.scrollTop = scrolled;
+}
+// Whatever brought the pointer back, the card isn't closing.
+function keepCard() {
+  clearTimeout(card.timer);
+  clearTimeout(card.leaving);
+  card.closing = false;
+  card.next = null;
+}
+function showCard(face) {
+  keepCard();
+  hideTip();
+  if (card.at === face) return;
+  // Another face's card: its rows go, they were that member's.
+  for (const row of card.rows.values()) row.remove();
+  card.rows.clear();
+  card.ids = [];
+  card.at = face;
+  card.node.hidden = false;
+  cardRows.scrollTop = 0;
+  paintCard();
+}
+function hideCard() {
+  keepCard();
+  if (!card.at) return;
+  railTip.left = Date.now();
+  card.at = null;
+  card.node.hidden = true;
+  requestAnimationFrame(release);
+}
+// The pointer came onto a face. Once a card is up, the switch waits a beat: on the way to a row the
+// pointer can cross the next face, and a card that changes under it is a card you can't reach.
+function hoverFace(face) {
+  const moving = !!card.next || card.closing;
+  keepCard();
+  if (face === card.at) return;
+  hideTip();
+  if (card.at) {
+    if (!moving) (card.fromX = card.x), (card.fromY = card.y); // where it left the card's face
+    card.next = face;
+    card.timer = setTimeout(() => showCard(face), CARD_SWITCH);
+  } else if (railWarm()) showCard(face);
+  else card.timer = setTimeout(() => showCard(face), CARD_WAIT);
+}
+const armClose = () => {
+  clearTimeout(card.leaving);
+  card.leaving = setTimeout(() => {
+    card.closing = false;
+    if (!inCard() && !card.at?.matches(':hover') && document.activeElement !== card.at) hideCard();
+  }, CARD_GRACE);
+};
+function leaveCard() {
+  const moving = !!card.next || card.closing;
+  keepCard();
+  if (!card.at) return;
+  if (!moving) (card.fromX = card.x), (card.fromY = card.y);
+  card.closing = true;
+  armClose();
+}
+// Still crossing the rail toward the card: that's no reason to show the face it's over, or to close
+// the card. Going along the rail is.
+function crossing(e) {
+  card.x = e.clientX;
+  card.y = e.clientY;
+  if (!card.next && !card.closing) return;
+  const out = e.clientX - card.fromX;
+  if (!headingForCard(document.body.classList.contains('side-right') ? -out : out, e.clientY - card.fromY)) return;
+  if (card.closing) return armClose();
+  const face = card.next;
+  clearTimeout(card.timer);
+  card.timer = setTimeout(() => showCard(face), CARD_SWITCH);
+}
+// Opening a thing from the card: it closes first, so it's gone before the pane changes.
+function cardGo(run) {
+  const id = card.at?.dataset.crew;
+  hideCard();
+  run(id);
+}
+function openJob(id) {
+  crewHooks.leave?.(); // the Org page takes the pane: a job does too
+  // Ready to type, like a click on its card. The row that had the keys has just gone.
+  Promise.resolve(reveal_(id)).then(() => beforePaint(() => focusReply(id)));
+}
+card.node.addEventListener('click', (e) => {
+  const row = e.target.closest('.cl-row');
+  if (row) return cardGo(() => openJob(row.dataset.job));
+  if (e.target.closest('.cl-head, .cl-more')) cardGo(pickThread);
+});
+card.node.addEventListener('pointerenter', keepCard);
+card.node.addEventListener('pointerleave', leaveCard);
+card.node.addEventListener('focusout', leaveCard);
+card.node.addEventListener('focusin', keepCard);
+const cardStops = () => $$('.cl-head, .cl-row:not(:disabled), .cl-more:not([hidden])', card.node);
+// Into the rows from the face: the first one, or the head when there are none.
+function enterCard(face) {
+  showCard(face);
+  (cardStops()[1] || cardHead).focus();
+}
+card.node.addEventListener('keydown', (e) => {
+  const face = card.at;
+  if (!face) return;
+  const back = document.body.classList.contains('side-right') ? 'ArrowRight' : 'ArrowLeft';
+  if (e.key === back) {
+    e.preventDefault();
+    e.stopPropagation();
+    return face.focus();
+  }
+  // Tab leaves from the face, so the page's order goes on from the rail, not from the end of the body.
+  if (e.key === 'Tab') return face.focus();
+  const stops = cardStops();
+  const to = stepRow(e.key, stops.indexOf(e.target), stops.length);
+  if (to === null) return;
+  e.preventDefault();
+  e.stopPropagation();
+  stops[to].focus();
+});
+// Escape first takes back what the card has, before anything else on the page hears it: from inside
+// it to the face, then closed.
+addEventListener(
+  'keydown',
+  (e) => {
+    if (e.key !== 'Escape' || !card.at) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (card.node.contains(document.activeElement)) card.at.focus();
+    else hideCard();
+  },
+  true,
+);
+addEventListener('resize', () => {
+  hideCard();
+  hideTip();
+});
+
+const tipTarget = (e) => e.target.closest?.('.cl-btn');
+const faceTarget = (e) => e.target.closest?.('.cl-face');
 rail.addEventListener('pointerover', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  const face = faceTarget(e);
+  if (face) return hoverFace(face);
   const t = tipTarget(e);
-  if (t && e.pointerType === 'mouse' && t !== railTip.at) showTip(t);
+  if (!t || t === railTip.at) return;
+  hideCard();
+  showTip(t);
 });
 rail.addEventListener('pointerout', (e) => {
-  if (tipTarget(e) && !e.relatedTarget?.closest?.('.cl-face, .cl-btn')) hideTip();
+  const to = e.relatedTarget?.closest?.('.cl-face, .cl-btn');
+  if (faceTarget(e) && !to) leaveCard();
+  if (tipTarget(e) && !to) hideTip();
 });
+rail.addEventListener('pointermove', crossing, { passive: true });
 rail.addEventListener('focusin', (e) => {
+  const face = faceTarget(e);
+  if (face) paintRailOn();
+  if (face?.matches(':focus-visible')) return showCard(face);
   const t = tipTarget(e);
   if (t?.matches(':focus-visible')) showTip(t);
-  if (t?.matches('.cl-face, .cl-all')) paintRailOn();
+  if (t?.matches('.cl-all')) paintRailOn();
 });
-rail.addEventListener('focusout', hideTip);
+rail.addEventListener('focusout', () => {
+  hideTip();
+  leaveCard();
+});
 
 rail.addEventListener('click', (e) => {
   hideTip();
+  hideCard();
   if (e.target.closest('.cl-all')) return pickAll();
   const face = e.target.closest('.cl-face');
   if (face) return pickMember(face.dataset.crew);
@@ -597,12 +877,19 @@ rail.addEventListener('contextmenu', (e) => {
   if (!face) return;
   e.preventDefault();
   hideTip();
+  hideCard();
   memberMenu(face.dataset.crew, { x: e.clientX, y: e.clientY });
 });
 rail.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') hideTip();
   const tile = e.target.closest('.cl-face, .cl-all');
   if (!tile) return;
+  // Into a face's card. All has none: this key does nothing there.
+  if (tile.matches('.cl-face') && e.key === (document.body.classList.contains('side-right') ? 'ArrowLeft' : 'ArrowRight')) {
+    e.preventDefault();
+    e.stopPropagation();
+    return enterCard(tile);
+  }
   const tiles = railTiles();
   const at = tiles.indexOf(tile);
   const to = { ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: tiles.length - 1 }[e.key];
@@ -612,15 +899,16 @@ rail.addEventListener('keydown', (e) => {
   tiles[Math.max(0, Math.min(to, tiles.length - 1))]?.focus();
 });
 
-// Leaving the section lets a row that went quiet fold again.
-const inCrew = () => sec.matches(':hover') || sec.contains(document.activeElement) || rail.matches(':hover') || rail.contains(document.activeElement);
+// Leaving the section lets a row that went quiet fold again. An open card counts as being there:
+// the rail holds while the pointer crosses to it, and until it closes.
+const inCrew = () => !!card.at || sec.matches(':hover') || sec.contains(document.activeElement) || rail.matches(':hover') || rail.contains(document.activeElement);
 const release = () => {
   if (!holding || inCrew()) return;
   holding = false;
   if (S.sessions.size) renderFeed();
   else paintCrew();
 };
-for (const box of [sec, rail]) {
+for (const box of [sec, rail, card.node]) {
   box.addEventListener('pointerenter', () => {
     holding = true;
   });
@@ -1389,7 +1677,7 @@ function buildView(id) {
 // A job opened in full: the task, under its member in the list (and in the main pane in split view).
 function reveal_(id) {
   if (!S.sessions.has(id)) return toast('That task is no longer in wisp.', { tone: 'bad' });
-  reveal(id);
+  return reveal(id);
 }
 
 // The details: one fact a row like a task's, the actions, then the notebook, brief and tasks.

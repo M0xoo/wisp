@@ -30,10 +30,21 @@ is a row in the list; the rail's pick (below) turns the list into that member's 
   a live chip on its corner while it works (`.orb.live`, with how many past one), an amber dot while
   it asks you, the accent dot for a report you haven't read, dimmed and asleep when paused. Tiles never change size, and
   order is CSS `order`, so a tile stays in the DOM when it moves and its spirit never restarts. Hover
-  or keyboard focus brings a tooltip beside the rail with its name, role and status line; right-click
-  its menu; Tab stops once on the rail and the arrow keys (Home, End) walk it, All included. Jobs have
-  no rows on the rail. A job outside the list that's open keeps its card in `#secCrew`, out of sight,
-  because a task's body hangs off its card.
+  or keyboard focus brings its card beside the rail: name, role and status line (click them for the
+  member's thread, picked), then a row for each task, the same order as the section (`web/js/crew-jobs.js`), up to 6,
+  then *All N in the thread*. It lists every job the face counts, check-ins and jobs you sent too,
+  not only the ones that sit under the member in the section. A row opens the task through `reveal`,
+  like any other way in, so a job with no card gets one and one that needs you lands on its Needs you row. Nothing to show: one quiet line. You can
+  go into the card: the gap is bridged, leaving gives 180 ms to arrive, a switch to another face
+  waits 90 ms, and both wait again while the pointer keeps crossing toward the card, however steeply
+  (`headingForCard`). Going along the rail, it just switches. While it's up the rail holds, rows keep their order and take updates in place,
+  and a newcomer only goes last. Its top sits on the face's so that rows arriving grow it downward.
+  It's a `group` of buttons, not a tooltip: `ArrowRight` goes in (`ArrowLeft` with the list on the
+  right), up and down walk it, Enter opens, Escape goes back to the face, Tab leaves from the rail.
+  Touch never shows it. All, Org and **+** keep a plain tooltip: they have no card, so `ArrowRight` does
+  nothing there. Right-click a face for its menu; Tab stops once on the rail and the arrow keys (Home,
+  End) walk it, All included. Jobs have no rows on the rail. A job outside the list that's open keeps
+  its card in `#secCrew`, out of sight, because a task's body hangs off its card.
 - **The pick.** The rail picks what the panel beside it shows, like a workspace switcher, and one
   tile is raised: that choice. All is the default: the list as it always was. A click on a face picks
   the member (`S.crewPick`, saved as `wisp.crewPick`, a removed member falls back to All) and opens its
@@ -45,8 +56,10 @@ is a row in the list; the rail's pick (below) turns the list into that member's 
   the project filter. None yet: *No tasks for Ada yet.* Nothing goes to the server and rows that stay
   aren't touched. **A pick never hides a question:** All takes the amber or accent dot while something
   it would bring back asks you or has an unread report, and the tab title still counts everything.
-  Opening what the pick hides (a notification, a link, search, a recipe, another member's thread)
-  clears it, the way such a task clears a project filter. **New task** under a pick shows *For Ada ×*
+  Opening what the pick hides (a notification, a link, search, a recipe, another member's thread, a
+  row in another member's card) clears it, the way such a task clears a project filter. The card's
+  head and last row always pick the member and open its thread, so the rail and the pane name the same
+  one; only the face itself toggles back to All, because *Open Ada's thread* must not close it. **New task** under a pick shows *For Ada ×*
   over the box, nothing in the text, and sends `@Ada …`: the same road as typing it, so the queue is
   the same and no time is read from the text. A typed `@Other` wins and a slash command, a pane or a
   shared link isn't a job: the chip gives way and keeps its row, so the box doesn't move under your
