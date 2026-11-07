@@ -33,21 +33,22 @@ this covers how the code is laid out and the rules a change has to follow.
   `js/core/` (state, api, bus, DOM helpers), `js/ui/` (toasts, dialogs, popovers, keys) and
   `js/features/` (feed, split view, launcher, composer, settings, spells, …).
 - `web/js/spell-schema.js`: what spells may touch. DOM-free and shared by the server and the page.
-- `desktop/`: the Tauri shell, being built beside Electron (`electron/` stays what users get until the
-  gate in `qa/scenarios/desktop.md` is met). `src-tauri/` is Rust, kept small: window, menu, links and a
-  Node child that runs the unchanged server through `entry.mjs`; stdin is its leash, so it can't
-  outlive the shell. `scripts/package.mjs` builds the downloads under electron-builder's names, with the pinned Node of
-  `scripts/fetch-node.mjs` beside wisp's files: `.github/workflows/tauri-package.yml`, on release dry runs
-  only. Electron builds already out can't change and update onto this one, so the shell answers them: on a Mac
+- `desktop/`: the desktop app, a Tauri shell. `src-tauri/` is Rust, kept small: window, menu, links and a
+  Node child that runs the unchanged server through `entry.mjs` (PATH from the login shell: `shell-path.js`);
+  stdin is its leash, so it can't outlive the shell. `scripts/package.mjs` builds the downloads under the
+  names the site and the updater link to, with the pinned Node of `scripts/fetch-node.mjs` beside wisp's
+  files: `.github/workflows/tauri-package.yml`, release.yml's desktop job for every channel, with the install
+  gate (`qa/install.mjs`) on what it built. The app was Electron up to 0.58.0; Electron builds already out
+  can't change and update onto this one, so the shell answers them: on a Mac
   it's Node when run with `ELECTRON_RUN_AS_NODE` (`macos::be_node_for_electron`), and `installer-hooks.nsh` gives
   Tauri's installer their `--force-run`. `src/init.js` is the page's bridge, its `Notification` (`src/notify.rs`,
   tauri-plugin-notification) and its drag regions (WebKit has no
   `-webkit-app-region`: a new rule in the CSS goes there too, a test checks). Linux is blocked: a release
   build doesn't compile until `on_navigation` can tell a frame from the page (`qa/scenarios/desktop.md`). IPC is one capability
-  for exactly `http://localhost:<port>` (`capability.json`). `src/windows.rs` is what Electron does on
-  Windows by itself (window size, taskbar badge, menu keys, right-click menu); `installer-hooks.nsh` takes
-  an Electron copy away on install. `.github/workflows/tauri-windows.yml` runs it all on windows-latest.
-  `npm run dev:tauri`; not on npm.
+  for exactly `http://localhost:<port>` (`capability.json`). `src/windows.rs` is what a desktop app does on
+  Windows and Tauri doesn't (window size, taskbar badge, menu keys, right-click menu); `installer-hooks.nsh`
+  and `remove-electron.mjs` take an Electron copy away on install. `.github/workflows/tauri-windows.yml` runs it all on windows-latest.
+  `npm run dev`. The page knows it's in the app by `body.desktop` (`web/index.html`); not on npm.
 - `mobile/`: the Android app (Capacitor + sshj). It shows wisp's own page through an SSH tunnel
   and starts wisp with `server/machines/bootstrap.js` (keep that file and `server/shq.js` free of
   Node imports). The page sees `MOBILE` (`web/js/core/state.js`): hide desktop-only actions there.
@@ -83,7 +84,7 @@ this covers how the code is laid out and the rules a change has to follow.
   scripts that run them against an isolated wisp with fake agents (`node qa/web.mjs`, …). Not part
   of `npm test`; see `qa/README.md`. A change to a flow they cover updates its scenario.
 - `design/`: how wisp looks and behaves (UI, UX, phones, words, the site) and the checklist for a UI
-  change. Read `design/README.md` before touching `web/`, `mobile/`, `electron/`, `desktop/` or `docs/`.
+  change. Read `design/README.md` before touching `web/`, `mobile/`, `desktop/` or `docs/`.
 
 ## Commands
 
@@ -188,7 +189,7 @@ Scrolling goes through `web/js/features/scroll.js` (`scrollByPx`, `keepInPlace`,
   `docs/index.html`, `docs/integrations.md`, `docs/install.sh`, `scripts/guides.mjs`).
 - `main` is protected: work on a branch and open a PR.
 - Releasing is merging the version bump: `.github/workflows/release.yml` sees a version npm doesn't
-  have and builds the desktop app (`packaging/desktop/electron-builder.yml`), drafts the GitHub
+  have and builds the desktop app (`tauri-package.yml`), drafts the GitHub
   release from that version's CHANGELOG section (`scripts/release-notes.mjs`, so the bump needs a
   `## [x.y.z] - date` section), publishes to npm, publishes the release, then bumps the Homebrew tap
   from `packaging/homebrew/wisp-agents.rb`. Nobody runs `npm publish` by hand, and no one approves

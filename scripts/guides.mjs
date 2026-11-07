@@ -2397,7 +2397,7 @@ vercel --prod`)}
     <section>
       <h2 id="better">Where cmux is better</h2>
       <ul class="doc-list">
-        <li><b>It’s a real terminal.</b> Native Swift on libghostty, ${ext('https://github.com/manaflow-ai/cmux', 'not Electron')}. wisp’s desktop app is Electron, and it isn’t trying to be your terminal.</li>
+        <li><b>It’s a real terminal.</b> Native Swift on libghostty, ${ext('https://github.com/manaflow-ai/cmux', 'not Electron')}. wisp’s desktop app is a small Tauri window around its page, and it isn’t trying to be your terminal.</li>
         <li><b>Any agent.</b> If it runs in a terminal, it runs in cmux. wisp supports the seven harnesses it has adapters for.</li>
         <li><b>Install.</b> Notarized for macOS. wisp’s builds aren’t signed yet.</li>
         <li><b>iPhone.</b> There’s an iOS app in beta, on a paid plan. wisp has no native iPhone app.</li>

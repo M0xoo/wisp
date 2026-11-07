@@ -1,5 +1,5 @@
-// The PATH of the user's login shell, for an app started from Finder or the Dock (electron/main.js).
-// No Electron imports, so the tests can run it.
+// The PATH of the user's login shell, for an app started from Finder or the Dock (desktop/entry.mjs).
+// Plain Node, so the tests can run it.
 
 import { execFile } from 'node:child_process';
 

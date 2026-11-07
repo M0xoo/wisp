@@ -1,4 +1,4 @@
-// What Electron does on Windows by itself and Tauri doesn't. Numbers in qa/scenarios/desktop.md.
+// What a desktop app does on Windows and Tauri doesn't by itself. Numbers in qa/scenarios/desktop.md.
 
 use tauri::image::Image;
 use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewWindow};
@@ -6,7 +6,7 @@ use webview2_com::Microsoft::Web::WebView2::Win32::{ICoreWebView2ContextMenuItem
 use webview2_com::{take_pwstr, AcceleratorKeyPressedEventHandler, ContextMenuRequestedEventHandler};
 use windows::core::{Interface, PWSTR};
 
-// Electron's width and height are the whole window, centred, and it stops at the screen's edges.
+// wisp's width and height are the whole window, centred, stopping at the screen's edges.
 // Tauri's are the page inside the frame, wherever Windows puts it: on a 1366×768 laptop that's past
 // the right edge and under the taskbar.
 pub fn place(w: &WebviewWindow, width: f64, height: f64) -> tauri::Result<()> {
@@ -34,7 +34,7 @@ const DIGITS: [[u8; 7]; 10] = [
 ];
 const PLUS: [u8; 7] = [0, 0x04, 0x04, 0x1f, 0x04, 0x04, 0];
 
-// A dark circle with the number in white, 99+ past that, as Electron draws it.
+// A dark circle with the number in white, 99+ past that.
 fn badge_pixels(count: i64) -> Vec<u8> {
   let text: Vec<&[u8; 7]> = if count > 99 { vec![&DIGITS[9], &DIGITS[9], &PLUS] } else { count.to_string().bytes().map(|b| &DIGITS[usize::from(b - b'0')]).collect() };
   let scale = if text.len() == 1 { 3 } else { 2 };
@@ -62,7 +62,7 @@ pub fn badge(w: &WebviewWindow, count: Option<i64>) {
   let _ = w.set_overlay_icon(count.map(|n| Image::new_owned(badge_pixels(n), SIZE as u32, SIZE as u32)));
 }
 
-// Electron has no menu of its own, so wisp's holds spelling, Copy Link and editing (electron/main.js).
+// wisp's right-click menu holds spelling, Copy Link and editing.
 // WebView2's adds what a browser has: Back, Refresh and Print in an app that has no pages, and
 // submenus (More tools, Writing direction, the second named only `other`), which wisp's has none of.
 const NOT_IN_THE_APP: [&str; 13] = ["back", "forward", "reload", "saveAs", "print", "share", "createQrCode", "webCapture", "webSelect", "inspectElement", "emoji", "openLinkInNewWindow", "saveLinkAs"];

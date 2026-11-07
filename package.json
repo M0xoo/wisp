@@ -10,7 +10,6 @@
   "files": [
     "bin/",
     "CHANGELOG.md",
-    "electron/",
     "grid/",
     "server/",
     "skills/",
@@ -19,13 +18,13 @@
   "scripts": {
     "start": "node bin/wisp.js",
     "app": "node bin/wisp.js",
-    "dev": "WISP_DEV=1 node bin/wisp.js",
+    "dev": "node desktop/dev.mjs",
     "dev:web": "node --watch-path=server bin/wisp.js --no-open",
     "dev:tauri": "node desktop/dev.mjs",
     "test": "node scripts/test.mjs",
     "site": "node scripts/site.mjs",
     "test:real": "node test/real-clis.mjs",
-    "prepublishOnly": "node --check bin/wisp.js && node --check bin/mac-app.js && node -e \"import('./server/index.js').then(() => import('./server/mcp-wisp.js'))\" && node --check electron/main.js"
+    "prepublishOnly": "node --check bin/wisp.js && node -e \"import('./server/index.js').then(() => import('./server/mcp-wisp.js'))\""
   },
   "engines": {
     "node": ">=20"
@@ -61,7 +60,6 @@
   "bugs": {
     "url": "https://github.com/M0xoo/wisp/issues"
   },
-  "main": "electron/main.js",
   "exports": {
     ".": "./server/client.js",
     "./client": "./server/client.js",
@@ -69,8 +67,5 @@
     "./protocol": "./server/protocol.js",
     "./render": "./server/render.js",
     "./package.json": "./package.json"
-  },
-  "optionalDependencies": {
-    "electron": "^44.8.0"
   }
 }

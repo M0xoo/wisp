@@ -5,7 +5,7 @@
 //   node desktop/scripts/fetch-node.mjs [triple] [dest]
 //
 // To move to a new Node: change NODE_VERSION and each sha256 from
-// https://nodejs.org/dist/v<version>/SHASUMS256.txt. Linux has none: it stays on Electron.
+// https://nodejs.org/dist/v<version>/SHASUMS256.txt. Linux has none yet: its shell doesn't build (src/main.rs).
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -26,7 +26,7 @@ export const TARGETS = {
 
 export const hostTarget = (platform = process.platform, arch = process.arch) => {
   const triple = { darwin: { arm64: 'aarch64-apple-darwin', x64: 'x86_64-apple-darwin' }, win32: { arm64: 'aarch64-pc-windows-msvc', x64: 'x86_64-pc-windows-msvc' } }[platform]?.[arch];
-  if (!triple) throw new Error(`no Tauri build for ${platform} ${arch}: Linux stays on Electron`);
+  if (!triple) throw new Error(`no Tauri build for ${platform} ${arch}: Linux has none yet`);
   return triple;
 };
 

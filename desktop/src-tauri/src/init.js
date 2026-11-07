@@ -55,27 +55,27 @@
   // WebKit has no -webkit-app-region, so these are the same rules as web/css/responsive.css and
   // web/css/split.css, in their order: [selector, drags the window]. A test keeps them in step.
   const REGIONS = [
-    ["body.electron .topbar", true],
-    ["body.electron .crew-rail", true],
-    ["body.electron .crew-rail button", false],
-    ["body.electron .topbar button", false],
-    ["body.electron .topbar a", false],
-    ["body.electron .topbar .projects", false],
-    ["body.electron .overlay", false],
-    ["body.electron .overlay *", false],
-    ["body.electron .menu", false],
-    ["body.electron .menu *", false],
-    ["body.electron .toasts", false],
-    ["body.electron .toasts *", false],
-    ["body.electron.split .split-head", true],
-    ["body.electron.split .split-head button", false],
-    ["body.electron.split .split-head a", false],
-    ["body.electron.split .split-head .sh-title", false],
-    ["body.electron.split.side-hidden .split-head", false],
-    ["body.electron.split.side-hidden .split-head .sh-row", true],
+    ["body.desktop .topbar", true],
+    ["body.desktop .crew-rail", true],
+    ["body.desktop .crew-rail button", false],
+    ["body.desktop .topbar button", false],
+    ["body.desktop .topbar a", false],
+    ["body.desktop .topbar .projects", false],
+    ["body.desktop .overlay", false],
+    ["body.desktop .overlay *", false],
+    ["body.desktop .menu", false],
+    ["body.desktop .menu *", false],
+    ["body.desktop .toasts", false],
+    ["body.desktop .toasts *", false],
+    ["body.desktop.split .split-head", true],
+    ["body.desktop.split .split-head button", false],
+    ["body.desktop.split .split-head a", false],
+    ["body.desktop.split .split-head .sh-title", false],
+    ["body.desktop.split.side-hidden .split-head", false],
+    ["body.desktop.split.side-hidden .split-head .sh-row", true],
     [".split-drag", true],
-    ["body.electron.split.stack .pa-open .pa-bar", true],
-    ["body.electron.split.stack .pa-open .pa-bar button", false],
+    ["body.desktop.split.stack .pa-open .pa-bar", true],
+    ["body.desktop.split.stack .pa-open .pa-bar button", false],
   ];
   // The nearest element with a rule decides, as the regions of a child cut into its parent's.
   const drags = (target) => {
@@ -85,13 +85,13 @@
     }
     return false;
   };
-  // Only where the page is the title bar. Windows has a title bar of its own, and there Electron's
-  // regions do nothing: a click on the top bar is a click, and the window stays where it is. WebView2
+  // Only where the page is the title bar. Windows has a title bar of its own, and there the
+  // regions must do nothing: a click on the top bar is a click, and the window stays where it is. WebView2
   // would honour them, so they're turned off.
   if (/Mac/.test(navigator.platform)) {
     addEventListener('mousedown', (e) => {
       if (e.button !== 0 || e.ctrlKey || !drags(e.target)) return;
-      e.preventDefault(); // as in Electron, a drag region isn't the page's: no focus, no selection
+      e.preventDefault(); // a drag region isn't the page's: no focus, no selection
       invoke(e.detail === 2 ? 'zoom_window' : 'start_drag');
     }, true);
   } else {

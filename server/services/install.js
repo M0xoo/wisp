@@ -18,7 +18,7 @@ const TIMEOUT_MS = 5 * 60_000;
 export function npmInstall(pkg, dir, { npm = process.env.WISP_NPM || 'npm', timeout = TIMEOUT_MS } = {}) {
   fs.mkdirSync(dir, { recursive: true });
   const env = { ...process.env };
-  delete env.ELECTRON_RUN_AS_NODE; // the desktop app's node mode must not leak into npm
+  delete env.ELECTRON_RUN_AS_NODE; // a pre-Tauri build's node mode must not leak into npm
   return new Promise((resolve, reject) => {
     const child = spawn(npm, ['install', '--prefix', dir, '--no-audit', '--no-fund', '--loglevel=error', `${pkg}@latest`], { env, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';

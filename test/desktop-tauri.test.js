@@ -68,11 +68,13 @@ test('entry.mjs: starts on the saved PATH and asks the login shell behind it', {
   await gone;
 });
 
-test('telemetry tells the Tauri shell from Electron and the browser', () => {
+test('telemetry tells the Tauri shell from the browser, and sends no Electron version', () => {
   const was = process.env.WISP_DESKTOP;
   process.env.WISP_DESKTOP = 'tauri';
   try {
-    assert.equal(new Telemetry({ home: tmp('tauri-tel') }, { post: async () => {} }).common.shell, 'tauri');
+    const { common } = new Telemetry({ home: tmp('tauri-tel') }, { post: async () => {} });
+    assert.equal(common.shell, 'tauri');
+    assert.ok(!('electron' in common));
   } finally {
     if (was === undefined) delete process.env.WISP_DESKTOP;
     else process.env.WISP_DESKTOP = was;
@@ -91,7 +93,7 @@ test('the updater reports the app on the Tauri layout, Node beside wisp’s file
   assert.equal(u.method, 'app');
   assert.equal(u.assetName(), 'wisp-mac-arm64.zip');
   u.swap = { open: '/Applications/wisp.app', remove: '/tmp/old.app' };
-  assert.equal(u.relaunchCommand(false), 'rm -rf "/tmp/old.app"; open "/Applications/wisp.app"', 'no Electron needed to relaunch');
+  assert.equal(u.relaunchCommand(false), 'rm -rf "/tmp/old.app"; open "/Applications/wisp.app"', 'nothing but open to relaunch');
   // The shell looks for wisp's files exactly there.
   assert.match(read('desktop/src-tauri/src/main.rs'), /resources\(app\)\.map\(\|r\| r\.join\(if cfg!\(windows\) \{ "resources\/app" \} else \{ "app" \}\)\)/);
 });
@@ -116,7 +118,7 @@ test('capabilities: IPC for exactly wisp’s origin and port, nothing wider', ()
   assert.doesNotMatch(cargo, /tauri-plugin-(shell|fs|http)/);
 });
 
-test('macOS: the version the page’s CSS needs, and Tab reaches links like Electron', () => {
+test('macOS: the version the page’s CSS needs, and Tab reaches links', () => {
   assert.equal(JSON.parse(read('desktop/src-tauri/tauri.conf.json')).bundle.macOS.minimumSystemVersion, '13.3');
   assert.match(read('desktop/src-tauri/src/macos.rs'), /setTabFocusesLinks: true/);
   assert.match(read('desktop/src-tauri/src/main.rs'), /macos::tab_reaches_links\(&window\)/);
@@ -181,7 +183,7 @@ test('the bridge is the main frame’s, with pickFolder and nothing else', () =>
   assert.match(main, /\.initialization_script\(INIT\)/);
   assert.doesNotMatch(main, /initialization_script_for_all_frames/);
   assert.match(read('desktop/src-tauri/src/init.js'), /wispDesktop = Object\.freeze\(\{ pickFolder: /);
-  assert.match(read('web/index.html'), /\/Electron\/\.test\(navigator\.userAgent\) \|\| window\.wispDesktop/);
+  assert.match(read('web/index.html'), /if \(window\.wispDesktop\) document\.body\.classList\.add\('desktop'/);
 });
 
 // Measured on v0.57.0 on Windows: a real mouse on the top bar leaves the window where it was.
@@ -191,7 +193,7 @@ test('only on a Mac is the page the title bar: Windows keeps its own, and a clic
   assert.equal(mac.document.adoptedStyleSheets.length, 0);
   const win = notificationShim('Win32');
   assert.equal(win.on.mousedown, undefined);
-  // WebView2 honours -webkit-app-region, which Electron's framed window ignores.
+  // WebView2 honours -webkit-app-region, which a window with its own title bar must not.
   assert.match(win.document.adoptedStyleSheets[0].css, /-webkit-app-region: no-drag !important/);
 });
 
@@ -231,10 +233,11 @@ test('the drag regions match every -webkit-app-region rule in the stylesheets', 
   assert.deepEqual(sorted(table), sorted(rules));
 });
 
-test('the shell is beside Electron: no dependency, nothing on npm', () => {
+test('the shell is the only desktop app: no dependency for it, and Electron is gone', () => {
   const pkg = JSON.parse(read('package.json'));
   const all = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.optionalDependencies };
-  assert.ok(!Object.keys(all).some((d) => /tauri/.test(d)));
-  assert.ok(!pkg.files.some((f) => f.startsWith('desktop')));
-  assert.ok(all.electron, 'Electron stays until the switch');
+  assert.deepEqual(Object.keys(all), [], 'wisp has no dependencies');
+  assert.ok(!('main' in pkg), 'no Electron entry point');
+  assert.ok(!pkg.files.some((f) => /electron/.test(f)));
+  for (const gone of ['electron', 'packaging/desktop', 'bin/mac-app.js', 'qa/desktop.mjs']) assert.ok(!fs.existsSync(path.join(ROOT, gone)), `${gone} is still there`);
 });

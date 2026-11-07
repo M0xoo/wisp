@@ -1,12 +1,12 @@
-// Builds the Tauri app as a download, under the names electron-builder uses
-// (packaging/desktop/electron-builder.yml): wisp-mac-<arch>.dmg and .zip, wisp-windows-<arch>-setup.exe.
-// Nothing here is released yet: .github/workflows/tauri-package.yml keeps them as a dry run's artifacts.
+// Builds the desktop app as a download, under the names the site, install.sh and the updater link to:
+// wisp-mac-<arch>.dmg and .zip, wisp-windows-<arch>-setup.exe. .github/workflows/tauri-package.yml
+// runs it for every release (release.yml's desktop job).
 //
 //   node desktop/scripts/package.mjs [--target <triple>] [--out dist/tauri] [--features qa] [--skip-build]
 //
 // Needs Rust. TAURI_CLI picks the CLI ("cargo tauri" here if you have it), MAC_SIGN_IDENTITY a
-// Developer ID (ad hoc otherwise, as in release.yml without its secrets: Apple silicon runs nothing
-// unsigned). Mac only: dmg and zip. Windows only: the installer. Linux stays on Electron.
+// Developer ID (ad hoc otherwise, as in release.yml: Apple silicon runs nothing unsigned). Mac only:
+// dmg and zip. Windows only: the installer. Linux has no build yet.
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -19,15 +19,15 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const SHELL = path.join(ROOT, 'desktop/src-tauri');
 const STAGE = path.join(SHELL, 'stage'); // gitignored
 export const CLI = '@tauri-apps/cli@2.12.4';
-export const ENTITLEMENTS = path.join(ROOT, 'packaging/desktop/entitlements.mac.plist');
+export const ENTITLEMENTS = path.join(ROOT, 'desktop/entitlements.mac.plist');
 
 export const isMac = (triple) => triple.endsWith('apple-darwin');
 export const archOf = (triple) => (triple.startsWith('aarch64') ? 'arm64' : 'x64');
 export const artefacts = (triple) => (isMac(triple) ? [`wisp-mac-${archOf(triple)}.dmg`, `wisp-mac-${archOf(triple)}.zip`] : [`wisp-windows-${archOf(triple)}-setup.exe`]);
 
-// What goes in the app: what npm ships (electron-builder's list too), plus the Node side of the shell.
+// What goes in the app: what npm ships, plus the Node side of the shell.
 export function appFiles(pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))) {
-  return ['package.json', ...pkg.files.map((f) => f.replace(/\/$/, '')), 'desktop/entry.mjs', 'desktop/remove-electron.mjs'];
+  return ['package.json', ...pkg.files.map((f) => f.replace(/\/$/, '')), 'desktop/entry.mjs', 'desktop/shell-path.js', 'desktop/remove-electron.mjs'];
 }
 
 // A separate config, never tauri.conf.json: tauri-build fails on resources that aren't there, and
@@ -41,7 +41,7 @@ export function overlay(triple) {
     bundle: {
       targets: mac ? ['app'] : ['nsis'],
       resources: { 'stage/app/': mac ? 'app/' : 'resources/app/', 'stage/node/': 'node/' },
-      // %LOCALAPPDATA%, so the updater can replace it without admin rights (as electron-builder.yml).
+      // %LOCALAPPDATA%, so the updater can replace it without admin rights.
       ...(mac ? {} : { windows: { nsis: { installMode: 'currentUser', installerHooks: 'installer-hooks.nsh' } } }),
     },
   };
@@ -77,7 +77,7 @@ function packMac(triple, out) {
   run('codesign', ...signArgs(app, identity));
   run('codesign', '--verify', '--strict', '--verbose=1', app);
   const [dmg, zip] = artefacts(triple).map((f) => path.join(out, f));
-  // ditto as electron-builder does: keeps Node's executable bit, and wisp.app at the top of the zip.
+  // ditto: keeps Node's executable bit, and wisp.app at the top of the zip.
   fs.rmSync(zip, { force: true });
   run('ditto', '-c', '-k', '--sequesterRsrc', '--keepParent', app, zip);
   const room = fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-dmg-'));
