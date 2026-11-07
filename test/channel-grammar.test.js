@@ -4,7 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { findProject, parseMessage, stripFormatting } from '../server/channels/grammar.js';
-import { crew as crewList, example, help, machines as machineList, models, projects as projectList, refusal, status } from '../server/channels/lists.js';
+import claudeAdapter from '../server/adapters/claude.js';
+import { ackCrew, ackTask, crew as crewList, example, help, machines as machineList, modelLabel, modelNote, models, projects as projectList, ranInstead, refusal, status } from '../server/channels/lists.js';
 
 const claude = { id: 'claude', name: 'Claude Code', available: true, models: [{ id: '', label: 'Default' }, { id: 'opus', label: 'Opus' }, { id: 'sonnet', label: 'Sonnet' }, { id: 'haiku', label: 'Haiku' }], efforts: ['low', 'medium', 'high', 'xhigh', 'max'] };
 const codexThere = { id: 'codex', name: 'Codex', available: true, models: [{ id: '', label: 'Default' }, { id: 'gpt-5', label: 'GPT-5', efforts: ['low', 'high'] }, { id: 'gpt-5-mini', label: 'GPT-5 mini' }], efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] };
@@ -359,4 +360,43 @@ test('a refusal lists the choices and says nothing started', () => {
   const text = refusal(parseMessage('on nothere: fix it', ctx).problems);
   assert.match(text, /No machine “nothere”\.\nChoices: laptop, mac mini, mid, desktop, my cloud/);
   assert.match(text, /Nothing started\./);
+});
+
+test('the ack names the model that runs: the Claude CLI puts the haiku alias on Sonnet in plan', () => {
+  const note = 'Plan runs on Sonnet here, not Haiku: the Claude CLI picks it.';
+  const ctx = { adapters: [claudeAdapter, { id: 'codex', name: 'Codex', models: [] }] };
+  assert.equal(modelLabel(ctx, 'claude', 'haiku', '', 'plan'), 'Sonnet');
+  assert.equal(modelLabel(ctx, 'claude', 'haiku', 'high', 'plan'), 'Sonnet high');
+  assert.equal(modelNote(ctx, 'claude', 'haiku', 'plan'), note);
+  for (const [model, mode, label] of [['haiku', 'edits', 'Haiku'], ['haiku', 'auto', 'Haiku'], ['sonnet', 'plan', 'Sonnet'], ['opus', 'plan', 'Opus'], ['', 'plan', 'Claude Code']]) {
+    assert.equal(modelLabel(ctx, 'claude', model, '', mode), label);
+    assert.equal(modelNote(ctx, 'claude', model, mode), '');
+  }
+  // The full id stays on Haiku (seen on claude 2.1.318), and a harness without a table says nothing.
+  assert.equal(modelLabel(ctx, 'claude', 'claude-haiku-5-5', '', 'plan'), 'claude-haiku-5-5');
+  assert.equal(modelNote(ctx, 'claude', 'claude-haiku-5-5', 'plan'), '');
+  assert.equal(modelNote(ctx, 'codex', 'haiku', 'plan'), '');
+  assert.equal(modelLabel(ctx, 'codex', 'haiku', '', 'plan'), 'haiku');
+
+  const label = modelLabel(ctx, 'claude', 'haiku', '', 'plan');
+  assert.equal(ackTask({ project: 'api', label, mode: 'plan', task: 'look', notes: ['', note] }), `▶ api · Sonnet · Plan\n  Look\n${note}`);
+  assert.equal(ackCrew({ name: 'Ada', label, mode: 'plan', task: 'look', notes: [note] }), `▶ Ada has it · Sonnet · Plan\n  Look\n${note}`);
+});
+
+test('ranInstead: the stats’ main-thread model, when it isn’t what the task asked for', () => {
+  const stats = (...models) => ({ totals: {}, models: models.map(([model, input, output = 0]) => ({ model, input, output })) });
+  const sonnet = stats(['claude-sonnet-5-5', 9000, 500]);
+  assert.equal(ranInstead('haiku', sonnet), 'claude-sonnet-5-5');
+  assert.equal(ranInstead('claude-haiku-5-5', sonnet), 'claude-sonnet-5-5');
+  // The same model by alias, full id, dated id or [1m], and nothing asked for: nothing to say.
+  for (const asked of ['sonnet', 'Sonnet', 'claude-sonnet-5-5', 'claude-sonnet-5-5[1m]', '', undefined]) assert.equal(ranInstead(asked, sonnet), '', asked);
+  assert.equal(ranInstead('sonnet', stats(['claude-sonnet-5-5-20261001', 9000])), '');
+  // Most output isn't the main thread: a side call or a subagent that wrote more doesn't count.
+  const busy = { ...stats(['claude-haiku-5-5', 300, 40000], ['claude-opus-5-5', 90000, 2000]), subagents: [{ type: 'x', model: 'claude-haiku-5-5', output: 40000 }] };
+  assert.equal(ranInstead('opus', busy), '');
+  assert.equal(ranInstead('sonnet', busy), 'claude-opus-5-5');
+  // No stats, no models, or models that may be the whole conversation's.
+  assert.equal(ranInstead('haiku', null), '');
+  assert.equal(ranInstead('haiku', { totals: {} }), '');
+  assert.equal(ranInstead('haiku', { models: sonnet.models }), '');
 });

@@ -2,6 +2,7 @@
 // to a message. Text only, from the same ctx as the grammar. Every list ends with a working example
 // in the user's own names: that's how people learn this.
 
+import { bareModel, mainModel } from '../../web/js/cold-cache.js';
 import { handleOf } from '../crew.js';
 import { truncate } from '../util.js';
 import { MODE_LABEL } from './policy.js';
@@ -92,12 +93,25 @@ export const refusal = (problems) =>
     4000,
   );
 
-// Opus high, Sonnet, or the harness when it runs on its default model.
-export function modelLabel(ctx, agent, model, effort) {
+// What the harness runs instead of that model in that mode, where it's known to (adapters/index.js).
+const overrideOf = (ctx, agent, model, mode) => (ctx.adapters || []).find((a) => a.id === agent)?.modelOverride?.({ model, mode });
+export const modelNote = (ctx, agent, model, mode) => overrideOf(ctx, agent, model, mode)?.note || '';
+
+// The model a finished turn's main thread ran on (read most, not a subagent's: cold-cache.js), when
+// the task asked for another, as the stats name it. An alias is the same model as its full id. A
+// turn without stats.totals may hold earlier turns' models (adapters/claude.js).
+export function ranInstead(asked, stats) {
+  const want = bareModel(asked).toLowerCase();
+  const ran = stats?.totals ? mainModel(stats).toLowerCase() : '';
+  return want && ran && ran !== want && !ran.startsWith(`${want}-`) && !ran.split('-').includes(want) ? ran : '';
+}
+
+// Opus high, Sonnet, or the harness when it runs on its default model. With a mode: what really runs.
+export function modelLabel(ctx, agent, model, effort, mode) {
   if (agent === 'auto') return `Auto${model ? ` ${model}` : ''}`;
   const a = [...(ctx.agents || []), ...(ctx.adapters || [])].find((x) => x.id === agent);
   const m = model && (a?.models || []).find((x) => x.id === model);
-  return [m?.label || model || a?.name || agent, effort].filter(Boolean).join(' ');
+  return [overrideOf(ctx, agent, model, mode)?.label || m?.label || model || a?.name || agent, effort].filter(Boolean).join(' ');
 }
 
 const taskLine = (t) => {

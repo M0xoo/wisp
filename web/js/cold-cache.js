@@ -66,11 +66,11 @@ const PRICES = {
 const WRITE_1H = 2; // a cache write, as a multiple of input
 const WRITE_5M = 1.25;
 
-const bareModel = (id) => String(id || '').replace(/\[1m\]$/i, '').replace(/-\d{8}$/, '');
+export const bareModel = (id) => String(id || '').replace(/\[1m\]$/i, '').replace(/-\d{8}$/, '');
 
 // The model the main thread ran on: stats.models has its subagents' too, and most output doesn't
 // say which is which. A context this large is the main thread's, so it's the one that read most.
-function mainModel(st) {
+export function mainModel(st) {
   const subs = new Set((st?.subagents || []).filter((x) => !x.same && x.model).map((x) => bareModel(x.model)));
   const read = (m) => (m.input || 0) + (m.cacheRead || 0) + (m.cacheWrite || 0);
   return (st?.models || []).map((m) => ({ id: bareModel(m.model), read: read(m) })).filter((m) => !subs.has(m.id)).sort((a, b) => b.read - a.read)[0]?.id || '';

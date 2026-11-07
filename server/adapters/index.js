@@ -13,6 +13,8 @@
 //                                                  answers, so a side discussion may edit (server/side-gate.js)
 //     fork?: true                                  run({ resumeId, fork: true }) works on a copy of
 //                                                  that conversation, leaving it as it is (/btw)
+//     modelOverride?({ model, mode }): { label, note }  what the CLI really runs instead of that model
+//                                                  in that mode, where it's known to (server/channels/lists.js)
 //     permission?(tool, input, cwd): { tool, action, detail, why? }   what a live approval is about
 //     detect(): Promise<{ available, version?, error?, models? }>   models overrides the static list
 //     setup?(platform): { tip, command?, url? }    how to get it on that OS, sent while it isn't found

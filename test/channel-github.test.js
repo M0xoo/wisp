@@ -617,8 +617,8 @@ test('a followed-up turn says each approval, and its report still comes after th
   assert.equal(srv.store.get(s.id).remote?.ghOnce, undefined, 'one shot');
 });
 
-async function reported(r, n, summary, title = 'A title', extra = []) {
-  comment(n, '/wisp report something', { in: r });
+async function reported(r, n, summary, title = 'A title', extra = [], ask = 'report something') {
+  comment(n, `/wisp ${ask}`, { in: r });
   await nextOn(n, r);
   const s = await startedOn(n, r);
   await settled(s.id);
@@ -629,6 +629,16 @@ async function reported(r, n, summary, title = 'A title', extra = []) {
   await srv.remote.notify(live, { project: 'p' });
   return nextOn(n, r);
 }
+
+test('the model that really ran: in a private report, never on a public repo', async () => {
+  process.env.FAKE_SUBAGENTS = '1'; // its modelUsage: Opus the main thread, a Haiku side call
+  try {
+    assert.match(await reported(PRIVATE, nextIssue(), 'Done it', 'A title', [], 'with sonnet report something'), /\n\nRan on claude-opus-5-5, not sonnet\.\n/);
+    assert.equal(await reported(PUBLIC, nextIssue(), 'Done it', 'A title', [], 'with sonnet report something'), line('✅ wisp finished this.'));
+  } finally {
+    delete process.env.FAKE_SUBAGENTS;
+  }
+});
 
 test('what leaves: a secret is taken out, and no mention works', async () => {
   const token = `ghp_${'a1B2'.repeat(10)}`;
