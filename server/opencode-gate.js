@@ -5,6 +5,7 @@
 
 const { WISP_URL, WISP_TOKEN, WISP_SESSION } = process.env;
 const POLL_MS = 1500;
+const GONE_POLLS = 200; // a wisp down this long isn't restarting (server/mcp-ask.js says why)
 
 async function call(path, body) {
   const res = await fetch(`${WISP_URL}${path}`, {
@@ -12,17 +13,26 @@ async function call(path, body) {
     headers: { 'content-type': 'application/json', 'x-wisp-token': WISP_TOKEN },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`wisp ${res.status}`);
+  if (!res.ok) throw Object.assign(new Error(`wisp ${res.status}`), { status: res.status });
   return res.json();
 }
 
 async function wait(id) {
-  for (;;) {
+  for (let down = 0; down < GONE_POLLS; ) {
     await new Promise((r) => setTimeout(r, POLL_MS));
-    const r = await call(`/api/internal/ask/${id}`).catch(() => null); // wisp restarting: keep waiting
-    if (r?.answer !== undefined) return r;
-    if (r?.cancelled) return null;
+    let r;
+    try {
+      r = await call(`/api/internal/ask/${id}`);
+      down = 0;
+    } catch (err) {
+      if (err.status >= 400 && err.status < 500) return null; // each start of wisp has a new token: it can't answer
+      down++;
+      continue;
+    }
+    if (r.answer !== undefined) return r;
+    if (r.cancelled) return null;
   }
+  return null;
 }
 
 // OpenCode's tool call as the gate reads it, a list since one patch touches several files. A tool

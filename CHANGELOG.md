@@ -130,6 +130,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [0.57.0] - 2026-11-03
 - **A phone tap can't repeat after a restart.** ntfy sends taps of the same second again, and wisp forgot which it had handled when it restarted, so a Done could close a task you had reopened since. wisp now keeps the last ids with its place in ntfy.
 - **wisp stops at once just after it starts.** Compressing the phone's bundle at startup held up the exit, so stopping wisp or a Grid box in its first seconds took 4 s, and 10 s or more on a busy machine.
+- **A stopped or crashed run no longer leaves wisp's MCP helper running.** If the harness died while a question, a permission prompt or a delegation was waiting, its helper kept polling every 1.5 s for good, even across a restart, which could never answer it. It now exits with the harness, and a wait ends once wisp is gone: at once if a restarted wisp refuses it, or after 5 minutes down. The agent is told the question wasn't answered, and a permission prompt is refused. OpenCode's gate does the same.
 
 ### Added
 
