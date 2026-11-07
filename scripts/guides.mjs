@@ -54,6 +54,22 @@ export function guides(h) {
   const json = (obj) => `<pre data-lang="json"><code>${esc(JSON.stringify(obj, null, 2).replace(/\[\s*\n((?:\s*(?:"(?:[^"\\]|\\.)*"|-?\d[\d.]*|true|false|null),?\n)+)\s*\]/g, (m, items) => `[${items.split('\n').map((x) => x.trim()).filter(Boolean).join(' ')}]`))}</code></pre>`;
   const claude = h.agents.find((a) => a.id === 'claude');
   const codex = h.agents.find((a) => a.id === 'codex');
+  // The compare pages: one wording of wisp's side, and every rival claim links to the rival's own page.
+  const ext = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
+  const WISP = {
+    agents: 'Claude Code, Codex, Cursor, opencode, Antigravity, Grok, Copilot',
+    desktop: 'macOS, Windows, Linux. Builds aren’t signed yet',
+    phone: 'Any phone browser, a Home Screen web app on iPhone with wisp Cloud, and an Android prototype you build from the repo. No native iPhone app',
+    hosted: '<a href="/guides/use-wisp-cloud.html">wisp Cloud</a>: sign in and the agents run on a server. Free during the preview',
+    licence: 'MIT',
+  };
+  const vsTable = (name, rows) => `<div class="table"><table>
+        <thead><tr><th></th><th>${name}</th><th>wisp</th></tr></thead>
+        <tbody>
+          ${rows.map(([k, them, us]) => `<tr><th scope="row">${k}</th><td>${them}</td><td>${us}</td></tr>`).join('\n          ')}
+        </tbody>
+      </table></div>`;
+  const READ_ON = '<p class="muted">From each project’s own README and docs on 7 November 2026. We read them; we didn’t run them. They move fast: check before you choose.</p>';
 
   return [
     {
@@ -844,6 +860,7 @@ claude --resume`)}
         <li><b>Local tasks on any phone.</b> Remote control needs Conductor’s iOS app. A computer you add to the grid opens in a browser, Android included.</li>
         <li><b>Open source.</b> wisp is MIT, so <a href="#switch-off">no one can switch off</a> the copy you run.</li>
       </ul>
+      <p>Still choosing? <a href="/guides/conductor-alternatives.html">Conductor alternatives</a> sets wisp next to six other apps, from their own docs, and says where each is better.</p>
     </section>
 
     <section>
@@ -919,7 +936,7 @@ command = "pnpm dev --port $CONDUCTOR_PORT"</code></pre>
         ['Can my team share one workspace, like Multiplayer?', 'No. Everyone has their own wisp, and work is shared through branches and PRs. A team can run its own Grid so that each person gets a sandboxed wisp on the same server.'],
         ['Is it free?', 'wisp is free and MIT. wisp Cloud is free during the preview. The agents run on your own plans and accounts, and wisp doesn’t charge for or resell model usage.'],
       ],
-      related: ['use-wisp-cloud', 'self-host-wisp-grid', 'moving-off-jules'],
+      related: ['conductor-alternatives', 'use-wisp-cloud', 'self-host-wisp-grid'],
     },
 
     {
@@ -1989,6 +2006,504 @@ vercel --prod`)}
         ['Can I keep the automatic layout?', 'Yes. Reset layout goes back to it, and a spell can lock it with org.chart movable: false.'],
       ],
       related: ['multi-agent-coding', 'share-crew-members', 'run-coding-agents-in-the-background'],
+    },
+
+    {
+      slug: 'conductor-alternatives',
+      topic: 'compare',
+      cloud: true,
+      title: 'Conductor alternatives compared: six apps next to wisp',
+      h1: 'Conductor alternatives',
+      card: 'Conductor Cloud goes read-only on 13 November and shuts down on 20 November 2026. Orca, Paradev, Paseo, T3 Code, cmux, Multica and wisp side by side, and who should pick which.',
+      description: 'Leaving Conductor? Orca, Paradev, Paseo, T3 Code, cmux, Multica and wisp compared from their own docs: phones, where agents run, Conductor migration help, and who should pick which.',
+      lede: `Conductor Cloud goes read-only on 13 November 2026 and shuts down on 20 November. If you want the closest thing to Conductor with a guided move, look at Orca or Paradev first. If you’d rather stop watching agents and read what they did, with a crew that keeps working and a cloud wisp with nothing to install, try wisp.`,
+      shot: ['report', 'A wisp report: what the agent changed, the diff and the test run, ready to ship'],
+      body: `
+    <section>
+      <h2 id="first">Before you choose</h2>
+      <p>Get your work out first. ${ext('https://www.conductor.build/announcement', 'Conductor’s announcement')} says Cloud stops taking messages on 13 November and that deletion of Cloud data begins on 20 November. The Mac app keeps getting new models and critical fixes until early 2027, so local users have more time. <a href="/guides/moving-off-conductor.html">Moving off Conductor</a> lists what to export, whichever app you pick next.</p>
+    </section>
+
+    <section>
+      <h2 id="table">Seven options side by side</h2>
+      <div class="table"><table>
+        <thead><tr><th></th><th>What it is</th><th>Phone</th><th>Where agents run</th><th>Help leaving Conductor</th></tr></thead>
+        <tbody>
+          <tr><th scope="row"><a href="/guides/wisp-vs-orca.html">Orca</a></th><td>Desktop app for a fleet of agents in worktrees</td><td>iOS app and Android APK, in beta, read-mostly</td><td>Machines and cloud accounts you control</td><td>${ext('https://www.onorca.dev/docs/migrate-from-conductor', 'Migration guide')}, opens workspaces in place</td></tr>
+          <tr><th scope="row"><a href="/guides/wisp-vs-paradev.html">Paradev</a></th><td>Mac app for CLI agents in parallel</td><td>iPhone and iPad on Pro, iOS 26 or later</td><td>Your Mac, your server, or its cloud on Team and Ultra</td><td>${ext('https://docs.paradev.com/migrate-from-conductor', 'Local')} and ${ext('https://docs.paradev.com/migrate-from-conductor-cloud', 'Cloud')} guides, imports worktrees</td></tr>
+          <tr><th scope="row"><a href="/guides/wisp-vs-paseo.html">Paseo</a></th><td>One app for many agents on desktop, mobile, web and CLI</td><td>iOS and Android apps</td><td>Your own machines</td><td>${ext('https://paseo.sh/alternatives/conductor', 'A comparison page')}</td></tr>
+          <tr><th scope="row"><a href="/guides/wisp-vs-t3-code.html">T3 Code</a></th><td>A control surface for agent harnesses, free</td><td>iOS and Android apps, as a remote</td><td>Your desktop, a server or a VPS</td><td>No guide found</td></tr>
+          <tr><th scope="row"><a href="/guides/wisp-vs-cmux.html">cmux</a></th><td>Native macOS terminal for agents</td><td>iOS beta on TestFlight, paid</td><td>Your Mac. Cloud machines are paid, in early access</td><td>${ext('https://cmux.com/compare/cmux-vs-conductor', 'A comparison page')}</td></tr>
+          <tr><th scope="row"><a href="/guides/wisp-vs-multica.html">Multica</a></th><td>Issue board where agents are teammates</td><td>No App Store app or Android client yet</td><td>Your own machine, through its daemon</td><td>No guide found</td></tr>
+          <tr><th scope="row">wisp</th><td>Tasks you send off and read back as reports, plus a long-lived crew</td><td>${WISP.phone}</td><td>Your computers, your other machines, or wisp Cloud</td><td><a href="/guides/moving-off-conductor.html">Migration guide</a>, carries on in a workspace with <b>In place</b></td></tr>
+        </tbody>
+      </table></div>
+      ${READ_ON}
+    </section>
+
+    <section>
+      <h2 id="which">Which one fits</h2>
+      <ul class="doc-list">
+        <li><b><a href="/guides/wisp-vs-orca.html">Orca</a></b> if you want Conductor’s shape with more of everything: worktrees, a browser per worktree, a long list of agents, and a guide that covers Conductor Cloud.</li>
+        <li><b><a href="/guides/wisp-vs-paradev.html">Paradev</a></b> if you’re on a Mac, want a guided import, and will pay for mobile, automations or a managed cloud.</li>
+        <li><b><a href="/guides/wisp-vs-paseo.html">Paseo</a></b> if you want full phone apps on your own machines, and a project whose privacy policy says it sends no analytics.</li>
+        <li><b><a href="/guides/wisp-vs-t3-code.html">T3 Code</a></b> if you want a free app with phone apps in both stores, and your computer stays on.</li>
+        <li><b><a href="/guides/wisp-vs-cmux.html">cmux</a></b> if what you liked most was terminals, and you’d rather manage them yourself on a native Mac app.</li>
+        <li><b><a href="/guides/wisp-vs-multica.html">Multica</a></b> if your team wants humans and agents on one issue board.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="wisp">Where wisp fits</h2>
+      <p>wisp asks you to work differently from Conductor, so it’s worth saying how:</p>
+      <ul class="doc-list">
+        <li><b>You read what the agents did.</b> Each task runs in its own worktree and ends with a one-screen report: what changed, the diff, the test run. You don’t sit with the transcript, and a question waits in <i>Needs you</i>.</li>
+        <li><b>The crew keeps working.</b> Crew members are named agents with a role, a schedule and a notebook. They check CI, read new PRs and report when something changed.</li>
+        <li><b>Auto picks the harness.</b> It chooses the harness, model and thinking level per task from what worked before, and shows you the pick before you send.</li>
+        <li><b>Cloud needs no install.</b> Sign in at grid.trywisp.dev and you get your own wisp on a server, where the agents run with your laptop shut. You still bring your own agent plans.</li>
+      </ul>
+      <p>wisp is behind on trust at install. There’s no native iPhone app, the desktop builds aren’t signed yet, and the community is far smaller than any of these six: it’s one owner and a crew. Bring in, which turns the worktrees Conductor left in a repo into tasks, is due in the next release. Today you open each one yourself with <a href="/guides/moving-off-conductor.html#in-progress">In place</a>.</p>
+    </section>
+`,
+      faq: [
+        ['What is the closest app to Conductor?', 'Orca and Paradev, by shape: desktop apps with agents in worktrees, and both have Conductor migration guides. Paradev is mainly for Mac; Orca also runs on Windows and Linux.'],
+        ['Do I have to leave Conductor now?', 'Only if you use Cloud, which goes read-only on 13 November 2026. The Mac app keeps working and gets new models and critical bug fixes until early 2027.'],
+        ['Which alternative runs agents with no install at all?', 'wisp Cloud runs them on a server after you sign in, free during the preview, on one small server that suits one person better than a team’s heavy builds. Paradev’s cloud is on its paid Team and Ultra plans, and cmux Cloud is paid and in early access.'],
+        ['Can I try several?', 'Yes. They all drive the agent CLIs you already use, so you can try them on one repo as long as two agents don’t edit the same folder.'],
+      ],
+      related: ['moving-off-conductor', 'wisp-vs-orca', 'wisp-vs-paradev'],
+    },
+
+    {
+      slug: 'wisp-vs-orca',
+      topic: 'compare',
+      cloud: true,
+      title: 'wisp vs Orca: where each is better, and which to pick',
+      h1: 'wisp vs Orca',
+      card: 'Orca gives you a fleet of agents in a desktop app, with a browser, terminals and diffs. wisp sends tasks off and hands you reports. Where each is better, from their own docs.',
+      description: 'wisp vs Orca compared from their own docs: agents, phones, signed builds, hosting and browser tools. Where Orca is better, where wisp is different, and which one to pick.',
+      lede: `Orca is the bigger project and the better pick if you want to run a fleet of agents from a desktop app, with a browser and diffs beside each one. wisp suits the opposite habit: send tasks off, read a report of what each agent did, let a named crew keep working, and use wisp Cloud with nothing to install.`,
+      shot: ['report', 'A wisp report with the diff and the test run, read after the agent finished'],
+      body: `
+    <section>
+      <h2 id="table">Side by side</h2>
+      ${vsTable('Orca', [
+        ['In its own words', `“${ext('https://github.com/stablyai/orca', 'The AI Orchestrator for 100x builders')}”`, 'Launch agents in the background and read what they hand back'],
+        ['Agents', `${ext('https://github.com/stablyai/orca', 'More than 30 named')}, plus any CLI agent`, WISP.agents],
+        ['Desktop', `macOS, Windows, Linux. Mac builds are ${ext('https://www.onorca.dev/docs/install', 'signed and notarized')}`, WISP.desktop],
+        ['Phone', `${ext('https://www.onorca.dev/docs/mobile', 'iOS app and Android APK')}, in beta: a read-mostly companion paired to a desktop`, WISP.phone],
+        ['Hosting', `${ext('https://www.onorca.dev/docs/ways-to-run', 'No managed hosting')}: remote modes use machines and cloud accounts you control`, WISP.hosted],
+        ['Click an element, send it to the agent', `Yes, ${ext('https://www.onorca.dev/docs/browser/design-mode', 'Design Mode')}`, 'Not yet'],
+        ['Comment on a diff line', `${ext('https://www.onorca.dev/docs/review/annotate-ai-diff', 'Yes')}, sent back as a batch`, 'Yes, in <b>Changes</b>'],
+        ['Licence', 'MIT', WISP.licence],
+      ])}
+      ${READ_ON}
+    </section>
+
+    <section>
+      <h2 id="different">Where wisp is different</h2>
+      <ul class="doc-list">
+        <li><b>You read instead of watching.</b> Orca puts each agent’s chat or terminal, diff and browser in front of you. wisp runs each task headless in its own worktree and ends it with a one-screen report: what changed, the diff, the tests. Questions wait in <i>Needs you</i>.</li>
+        <li><b>A crew that stays.</b> wisp’s crew are named agents with a role, a schedule, a notebook and their own skills. You can @mention them in any prompt. Orca has ${ext('https://www.onorca.dev/docs/cli/automations', 'scheduled automations')}, and its docs mark its ${ext('https://www.onorca.dev/docs/cli/orchestration', 'orchestration panel')} as experimental and temporarily unavailable.</li>
+        <li><b>Auto picks the harness.</b> For each task wisp chooses the harness, model and thinking level from what worked before, shows the pick before you send, and learns from merges and follow-ups.</li>
+        <li><b>Nothing to install.</b> Sign in to wisp Cloud and the agents run on a server with your laptop shut. You bring your own agent plans. It’s a preview on one small server, so it suits one person better than a team’s heavy builds.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="better">Where Orca is better</h2>
+      <ul class="doc-list">
+        <li><b>Installing with confidence.</b> Orca’s Mac builds are signed and notarized, and its ${ext('https://github.com/stablyai/orca', 'Windows builds are signed')} too. wisp’s aren’t signed yet, so on a Mac the easy way in is a curl one-liner or <i>Open Anyway</i>.</li>
+        <li><b>iPhone.</b> Orca has an iOS app. wisp has a Home Screen web app, on wisp Cloud only.</li>
+        <li><b>Browser work.</b> Every worktree gets ${ext('https://www.onorca.dev/docs/browser/overview', 'a real Chromium browser')}, and Design Mode sends a clicked element to the agent. wisp’s Preview can’t do that yet.</li>
+        <li><b>Desktop dictation.</b> Orca ${ext('https://www.onorca.dev/docs/settings', 'has it')}. wisp’s is on Android only.</li>
+        <li><b>Reach.</b> Far more agents, more git hosts, and a far larger community than wisp, which is one owner and a crew.</li>
+        <li><b>Leaving Conductor.</b> Orca’s ${ext('https://www.onorca.dev/docs/migrate-from-conductor', 'migration guide')} opens workspaces in place, reads <code>conductor.json</code> and covers Cloud.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="pick">Pick Orca if</h2>
+      <ul class="doc-list">
+        <li>You like being in the room while agents work, with terminals, diffs and a browser in one window.</li>
+        <li>You do a lot of UI work and want to click an element and hand it to the agent.</li>
+        <li>You need signed builds, an iOS app, or an agent wisp doesn’t run.</li>
+      </ul>
+      <h2 id="pick-wisp">Pick wisp if</h2>
+      <ul class="doc-list">
+        <li>You’d rather send work off and read the result than keep a fleet in view.</li>
+        <li>You want long-lived agents that check in on a schedule and remember what they saw.</li>
+        <li>You want hosted agents with no install and no cloud account of your own to set up.</li>
+      </ul>
+    </section>
+`,
+      faq: [
+        ['Is Orca free?', 'Orca’s site says it’s free and open source, under MIT. wisp is free and MIT too, and wisp Cloud is free during the preview. Both run on your own agent plans.'],
+        ['Does Orca host my agents?', 'Its docs say it doesn’t sell managed hosting: remote modes use machines and cloud accounts you control. wisp Cloud runs them on a hosted server, as a preview.'],
+        ['Can I use both on one repo?', 'Yes. Both drive the agent CLIs and use git worktrees, so they don’t get in each other’s way unless two agents edit the same folder.'],
+        ['Does wisp have an iPhone app?', 'No native one. On wisp Cloud you add wisp to the Home Screen, and alerts come through ntfy.'],
+      ],
+      related: ['conductor-alternatives', 'wisp-vs-paradev', 'use-wisp-cloud'],
+    },
+
+    {
+      slug: 'wisp-vs-t3-code',
+      topic: 'compare',
+      cloud: true,
+      title: 'wisp vs T3 Code: where each is better, and which to pick',
+      h1: 'wisp vs T3 Code',
+      card: 'T3 Code is a free control surface for agent harnesses, with phone apps in both stores. wisp sends tasks off and hands you reports. Where each is better, from their own docs.',
+      description: 'wisp vs T3 Code compared from their own docs: phone apps, where agents run, running one prompt on several models, and price. Where T3 Code is better, and which one to pick.',
+      lede: `T3 Code is the better pick if you want a native app on your phone that drives agents on a computer you leave on. wisp is for handing work off: tasks come back as reports, a named crew keeps working on a schedule, Auto picks the harness, and wisp Cloud runs the agents with nothing to install.`,
+      shot: ['picker', 'wisp’s Auto: the harness, model and thinking level it picked for this task, shown before you send'],
+      body: `
+    <section>
+      <h2 id="table">Side by side</h2>
+      ${vsTable('T3 Code', [
+        ['In its own words', `An “${ext('https://github.com/pingdotgg/t3code', 'agent harness control surface')}”`, 'Launch agents in the background and read what they hand back'],
+        ['Agents', `${ext('https://github.com/pingdotgg/t3code', 'Codex, Claude, Cursor, Grok Build, OpenCode, Antigravity and fx')}, plus ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/providers-acp.md', 'ACP Registry agents')}`, WISP.agents],
+        ['Desktop', `${ext('https://github.com/pingdotgg/t3code', 'Windows, macOS and Linux')}, and a web app`, WISP.desktop],
+        ['Phone', `iOS and Android apps. ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/faq.md', '“The phone is a remote”')}: your computer does the work and stays on`, WISP.phone],
+        ['Where agents run', 'Your desktop, a server or a VPS', WISP.hosted],
+        ['One prompt on several models', `${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/thread-sidebar.md', 'Yes')}: Shift-click models, each gets its own thread and worktree`, 'Yes, <b>Compare</b>: a run per harness, side by side, keep the better one'],
+        ['Price', `Free: “${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/faq.md', 'no way to pay us')}”. More machines on its relay come with T3 Chat plans`, 'Free. wisp Cloud is free during the preview'],
+        ['Licence', 'MIT', WISP.licence],
+      ])}
+      ${READ_ON}
+    </section>
+
+    <section>
+      <h2 id="different">Where wisp is different</h2>
+      <ul class="doc-list">
+        <li><b>The report.</b> Each wisp task ends with a one-screen report of what changed, with the diff and the tests, so you read a result instead of a thread.</li>
+        <li><b>The crew.</b> Named agents with a role, a schedule, a notebook and skills check in and report when something changed. T3 Code has ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/project-settings.md', 'scheduled tasks')}; wisp’s crew keep a notebook from job to job.</li>
+        <li><b>Auto.</b> wisp picks the harness, model and thinking level per task from what worked before, and shows the pick before you send.</li>
+        <li><b>A hosted wisp.</b> T3 Code’s phone needs your computer on. wisp Cloud runs the agents on a server with every lid shut, and you sign in with nothing to install. It’s a preview on one small server.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="better">Where T3 Code is better</h2>
+      <ul class="doc-list">
+        <li><b>Phone apps.</b> It has apps for iOS and Android. wisp has no native iPhone app, and its Android app is a prototype you build from the repo.</li>
+        <li><b>Voice.</b> ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/voice-input.md', 'Dictate into the composer')}. wisp’s dictation is on Android only.</li>
+        <li><b>Git hosts.</b> ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/source-control.md', 'GitHub, GitLab, Forgejo, Gitea, Bitbucket and Azure DevOps')}. wisp’s Ship it goes through the GitHub CLI.</li>
+        <li><b>PR watching.</b> It checks a PR every two minutes and wakes the agent when a check fails. wisp gets there with a <b>CI failed</b> trigger you set up.</li>
+        <li><b>Community.</b> Far larger than wisp’s, which is one owner and a crew.</li>
+      </ul>
+      <aside class="g-note"><b>Early software, both of them.</b> T3 Code’s README says to expect bugs and that it’s mostly not accepting contributions yet. wisp is young too, and its desktop builds aren’t signed.</aside>
+    </section>
+
+    <section>
+      <h2 id="pick">Pick T3 Code if</h2>
+      <ul class="doc-list">
+        <li>Your phone is where you want to drive agents, and a computer of yours is always on.</li>
+        <li>You work on GitLab, Bitbucket or another host besides GitHub.</li>
+        <li>You want to choose each model yourself and fan a prompt out across them.</li>
+      </ul>
+      <h2 id="pick-wisp">Pick wisp if</h2>
+      <ul class="doc-list">
+        <li>You want finished work to read, rather than threads to follow.</li>
+        <li>You want agents that keep their own memory and run on a schedule.</li>
+        <li>You don’t have a computer that stays on, and want the agents hosted.</li>
+      </ul>
+    </section>
+`,
+      faq: [
+        ['Is T3 Code free?', 'Yes. Its FAQ says there’s no way to pay for it, and that its relay has a machine limit that goes up with T3 Chat plans. wisp is free too, and both use your own agent plans.'],
+        ['Does T3 Code run agents in the cloud?', 'Its FAQ says agents run wherever T3 Code runs: your desktop, a server or a VPS, and the phone is a remote. wisp Cloud is a hosted wisp where the agents run on our server.'],
+        ['Can I run one prompt on several agents?', 'In both. T3 Code does it with Shift-click in the model picker; wisp does it with Compare.'],
+        ['Does wisp have a phone app?', 'An Android prototype you build from the repo, a Home Screen web app on iPhone with wisp Cloud, and any phone browser. There’s no native iPhone app.'],
+      ],
+      related: ['conductor-alternatives', 'wisp-vs-paseo', 'run-coding-agents-in-the-background'],
+    },
+
+    {
+      slug: 'wisp-vs-paseo',
+      topic: 'compare',
+      cloud: true,
+      title: 'wisp vs Paseo: where each is better, and which to pick',
+      h1: 'wisp vs Paseo',
+      card: 'Paseo is one interface for your agents on desktop, mobile, web and CLI, on your own machines. wisp sends tasks off and hands you reports. Where each is better, from their own docs.',
+      description: 'wisp vs Paseo compared from their own docs: phone apps, agents, self-hosting, telemetry and voice. Where Paseo is better, where wisp is different, and which one to pick.',
+      lede: `Paseo is the better pick if you want the same full app on your phone and desktop, driving agents on your own machines, with no analytics sent. wisp is built around reading results: tasks come back as reports, a named crew keeps working, Auto picks the harness, and wisp Cloud needs no install.`,
+      shot: ['app', 'The wisp task list with tasks that need you and a finished report open beside it'],
+      body: `
+    <section>
+      <h2 id="table">Side by side</h2>
+      ${vsTable('Paseo', [
+        ['In its own words', `“${ext('https://github.com/getpaseo/paseo', 'an open source agentic development environment')} for desktop, mobile, web, and CLI”`, 'Launch agents in the background and read what they hand back'],
+        ['Agents', `${ext('https://paseo.sh/docs/supported-providers.md', 'Claude Code, Codex, OpenCode, Pi, Antigravity and Muse Code')}, and an ACP catalog of 30 or more`, WISP.agents],
+        ['Desktop', `${ext('https://paseo.sh/download', 'macOS, Windows, Linux')}, web, and a server through npm or Nix`, WISP.desktop],
+        ['Phone', `iOS and Android. “${ext('https://github.com/getpaseo/paseo', 'The mobile app is the full app')}”`, WISP.phone],
+        ['Where agents run', `${ext('https://github.com/getpaseo/paseo', 'Self-hosted')}: your own machines. ${ext('https://paseo.sh/hub', 'Hub')} is a separate service, free to self-host or paid per seat`, WISP.hosted],
+        ['Same task on two agents', `${ext('https://paseo.sh/docs/parallel-development.md', 'Yes')}, compare their results`, 'Yes, <b>Compare</b>'],
+        ['Usage data', `${ext('https://paseo.sh/privacy', 'None sent')}: no analytics, telemetry or crash reports`, '<a href="/privacy.html">Anonymous usage stats</a>, on until you turn them off'],
+        ['Licence', `${ext('https://github.com/getpaseo/paseo/blob/main/LICENSE', 'Apache 2.0')}, third-party parts under their own`, WISP.licence],
+      ])}
+      ${READ_ON}
+    </section>
+
+    <section>
+      <h2 id="different">Where wisp is different</h2>
+      <ul class="doc-list">
+        <li><b>The report.</b> Each wisp task ends with a one-screen report of what changed, with the diff and the tests. You read that, and the transcript stays out of the way.</li>
+        <li><b>The crew.</b> wisp’s crew are named agents with a notebook they keep from job to job. Paseo’s ${ext('https://paseo.sh/docs/schedules.md', 'schedules and heartbeats')} run agents on a timer, and its ${ext('https://paseo.sh/docs/agent-profiles.md', 'agent profiles')} are saved settings.</li>
+        <li><b>Auto.</b> wisp picks the harness, model and thinking level per task from what worked before, and shows you the pick before you send.</li>
+        <li><b>Nothing to install.</b> wisp Cloud is your own wisp on a hosted server, with the agents running there. It’s a preview on one small server.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="better">Where Paseo is better</h2>
+      <ul class="doc-list">
+        <li><b>Phones.</b> iOS and Android apps. wisp has no native iPhone app, and its Android app is a prototype you build from the repo.</li>
+        <li><b>Privacy by default.</b> Paseo’s policy says it sends no analytics. wisp sends anonymous usage stats unless you switch them off in Settings or set <code>WISP_TELEMETRY=0</code>.</li>
+        <li><b>Voice.</b> ${ext('https://paseo.sh/docs/voice.md', 'Local-first dictation and a voice mode')}. wisp’s dictation is on Android only.</li>
+        <li><b>Agents.</b> A longer list, through ACP.</li>
+        <li><b>Install.</b> Its ${ext('https://github.com/getpaseo/paseo/blob/main/packages/desktop/electron-builder.yml', 'desktop build config')} notarizes Mac builds. wisp’s builds aren’t signed yet.</li>
+        <li><b>Community.</b> Its README says one person builds it, and so far that’s true of wisp as well, but Paseo’s following is far larger.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="pick">Pick Paseo if</h2>
+      <ul class="doc-list">
+        <li>You want the full app on your phone, on iPhone or Android.</li>
+        <li>You want no analytics from day one, and your own machines only.</li>
+        <li>You talk to your agents as much as you type.</li>
+      </ul>
+      <h2 id="pick-wisp">Pick wisp if</h2>
+      <ul class="doc-list">
+        <li>You want a short report per task instead of a live view.</li>
+        <li>You want named agents with memory that keep working for you.</li>
+        <li>You want a hosted option with nothing to install.</li>
+      </ul>
+    </section>
+`,
+      faq: [
+        ['Is Paseo free?', 'Its site says it’s free and open source. Hub, a separate service, can be self-hosted for free, or used hosted with a free tier and a paid per-seat plan. wisp is free too, and wisp Cloud is free during the preview.'],
+        ['Does wisp send telemetry?', 'Anonymous usage stats and error reports, tied to a random ID, with no prompts, code or names. Turn them off in Settings → Privacy, or with WISP_TELEMETRY=0 or DO_NOT_TRACK=1.'],
+        ['Can Paseo run with my laptop closed?', 'On a machine of yours that stays on. wisp works the same way on your own machines, and wisp Cloud adds a hosted server.'],
+      ],
+      related: ['conductor-alternatives', 'wisp-vs-t3-code', 'organize-your-ai-agent-crew'],
+    },
+
+    {
+      slug: 'wisp-vs-cmux',
+      topic: 'compare',
+      cloud: true,
+      title: 'wisp vs cmux: where each is better, and which to pick',
+      h1: 'wisp vs cmux',
+      card: 'cmux is a native macOS terminal for coding agents. wisp is a task list that hands you reports. They solve different problems: here is where each is better, from their own docs.',
+      description: 'wisp vs cmux compared from their own docs: a native macOS terminal next to a task list with reports. Platforms, worktrees, phones, cloud and licence, and which one to pick.',
+      lede: `cmux is the better pick if you want to stay in terminals: it’s a native macOS terminal built on Ghostty, with notifications for your agents. wisp is a level up from the terminal: each task gets its own worktree and comes back as a report, a crew keeps working, Auto picks the harness, and wisp Cloud needs no install.`,
+      shot: ['app', 'The wisp task list: agents sorted into Needs you, Working and Done, with a report open'],
+      body: `
+    <section>
+      <h2 id="table">Side by side</h2>
+      ${vsTable('cmux', [
+        ['In its own words', `“${ext('https://github.com/manaflow-ai/cmux', 'A Ghostty-based macOS terminal')} with vertical tabs and notifications for AI coding agents”`, 'Launch agents in the background and read what they hand back'],
+        ['Agents', `${ext('https://github.com/manaflow-ai/cmux', '“All of them”')}: it’s a terminal, so any CLI runs`, WISP.agents],
+        ['Desktop', `macOS, in Swift and AppKit, ${ext('https://cmux.com/docs/changelog', 'notarized')}. ${ext('https://cmux.com/linux.md', 'cmux Browser')} is a separate Linux product`, WISP.desktop],
+        ['Phone', `${ext('https://cmux.com/docs/ios', 'iOS beta on TestFlight')}, on a ${ext('https://cmux.com/pricing', 'paid plan')}`, WISP.phone],
+        ['Worktree per agent', `${ext('https://cmux.com/compare/multiple-claude-code-agents-parallel', 'Not by default')}`, 'Yes, every task, unless you choose <b>In place</b>'],
+        ['Hosted', `${ext('https://cmux.com/docs/cloud', 'cmux Cloud')}, persistent Linux machines, paid and in early access`, WISP.hosted],
+        ['Licence', `${ext('https://github.com/manaflow-ai/cmux/blob/main/LICENSE', 'GPL-3.0-or-later')} for the app, BUSL-1.1 for its server parts`, WISP.licence],
+      ])}
+      ${READ_ON}
+    </section>
+
+    <section>
+      <h2 id="different">Where wisp is different</h2>
+      <ul class="doc-list">
+        <li><b>You don’t supervise.</b> cmux says it ${ext('https://cmux.com/compare/cmux-vs-conductor', 'can replace the terminal supervision layer')}, so you still watch terminals, in a better window. wisp runs agents headless and ends each task with a one-screen report: what changed, the diff, the tests.</li>
+        <li><b>A task, start to PR.</b> Each wisp task has its own worktree and branch, and <b>Ship it</b> commits, pushes and opens the PR.</li>
+        <li><b>The crew.</b> Named agents with a role, a schedule and a notebook check in and report when something changed.</li>
+        <li><b>Auto.</b> wisp picks the harness, model and thinking level per task from what worked before.</li>
+        <li><b>More places.</b> wisp runs on macOS, Windows and Linux, and wisp Cloud is free during its preview, with nothing to install.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="better">Where cmux is better</h2>
+      <ul class="doc-list">
+        <li><b>It’s a real terminal.</b> Native Swift on libghostty, ${ext('https://github.com/manaflow-ai/cmux', 'not Electron')}. wisp’s desktop app is Electron, and it isn’t trying to be your terminal.</li>
+        <li><b>Any agent.</b> If it runs in a terminal, it runs in cmux. wisp supports the seven harnesses it has adapters for.</li>
+        <li><b>Install.</b> Notarized for macOS. wisp’s builds aren’t signed yet.</li>
+        <li><b>iPhone.</b> There’s an iOS app in beta, on a paid plan. wisp has no native iPhone app.</li>
+        <li><b>Subscription failover.</b> ${ext('https://cmux.com/docs/coderouter', 'CodeRouter')} moves across your subscriptions.</li>
+        <li><b>Community.</b> Far larger than wisp’s, which is one owner and a crew.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="pick">Pick cmux if</h2>
+      <ul class="doc-list">
+        <li>You live in a terminal on a Mac and want it fast and native.</li>
+        <li>You want to see every agent’s session and step in by hand.</li>
+        <li>You run agents wisp doesn’t support.</li>
+      </ul>
+      <h2 id="pick-wisp">Pick wisp if</h2>
+      <ul class="doc-list">
+        <li>You’re on Windows or Linux, or don’t want to manage panes.</li>
+        <li>You want a worktree, a report and a PR for every task without setting it up.</li>
+        <li>You want agents working while you’re away from every terminal.</li>
+      </ul>
+    </section>
+`,
+      faq: [
+        ['Can I use cmux and wisp together?', 'Yes. They do different jobs. wisp can run in the background while you use cmux as your terminal, and you can open a wisp task’s worktree there and resume the agent by hand.'],
+        ['Does cmux run on Windows or Linux?', 'The terminal is a macOS app. Its Linux download is cmux Browser, a separate product.'],
+        ['Is cmux free?', 'Its pricing page has a free plan, with paid plans for cmux Cloud machines and the iOS app. wisp is free, and wisp Cloud is free during the preview.'],
+      ],
+      related: ['conductor-alternatives', 'wisp-vs-paradev', 'run-multiple-claude-code-agents-in-parallel'],
+    },
+
+    {
+      slug: 'wisp-vs-multica',
+      topic: 'compare',
+      cloud: true,
+      title: 'wisp vs Multica: where each is better, and which to pick',
+      h1: 'wisp vs Multica',
+      card: 'Multica is an issue board where agents are teammates. wisp is one person’s task list and crew. The closest ideas on this list, from opposite ends. From their own docs.',
+      description: 'wisp vs Multica compared from their own docs: an issue board for teams next to one person’s crew. Agents, hosting, phones and licence, and which one to pick.',
+      lede: `Multica is the better pick for a team that wants humans and agents on one issue board, with squads and shared workspaces. wisp is built for one person: tasks come back as reports you read, a crew of named agents keeps working, Auto picks the harness, and wisp Cloud runs them on a server with nothing to install.`,
+      shot: ['org', 'wisp’s crew as an org chart: who hands work to whom'],
+      body: `
+    <section>
+      <h2 id="table">Side by side</h2>
+      ${vsTable('Multica', [
+        ['In its own words', `“${ext('https://github.com/multica-ai/multica', 'a source-available workspace')} where you assign work to AI coding agents the way you’d assign it to a teammate”`, 'Launch agents in the background and read what they hand back'],
+        ['Long-lived agents', `${ext('https://multica.ai/docs/agents', 'Named agents')} on the board, and ${ext('https://multica.ai/docs/squads', 'squads')} with a leader`, 'Crew: named agents with a role, a schedule, a notebook and an org chart'],
+        ['Scheduled work', `${ext('https://multica.ai/docs/autopilots', 'Autopilots')}, on a schedule or from a webhook`, 'Crew schedules and triggers'],
+        ['Made for', 'A team sharing a workspace', 'One person. Each person has their own wisp; a team can run its own Grid'],
+        ['Agents', `${ext('https://github.com/multica-ai/multica', 'More than 20')} coding tools`, WISP.agents],
+        ['Desktop', `Web, plus ${ext('https://multica.ai/docs/desktop-app', 'macOS, Windows and Linux')}`, WISP.desktop],
+        ['Phone', `${ext('https://multica.ai/docs/mobile-app', 'Not on the App Store yet')}: build from source on a Mac. No Android client yet`, WISP.phone],
+        ['Hosted', `A hosted workspace, but ${ext('https://multica.ai/download', 'cloud runtimes aren’t live yet')}, so agents run on your own machine`, WISP.hosted],
+        ['Licence', `${ext('https://www.multica.ai/licensing', 'Source-available')}: Apache 2.0 plus conditions. Free inside your own organization; hosting it for others needs a commercial licence`, `${WISP.licence}, server included`],
+      ])}
+      ${READ_ON}
+    </section>
+
+    <section>
+      <h2 id="different">Where wisp is different</h2>
+      <ul class="doc-list">
+        <li><b>You read a report.</b> Multica shows an execution log. A wisp task ends with a one-screen report of what changed, with the diff and the tests, built to read in a minute.</li>
+        <li><b>The crew is yours.</b> Crew members answer to one person. They keep a notebook, have their own skills and take jobs by @mention, with no board to keep up.</li>
+        <li><b>Auto.</b> wisp picks the harness, model and thinking level per task from what worked before, and shows the pick before you send.</li>
+        <li><b>Agents on a server today.</b> wisp Cloud runs them with nothing to install and your laptop shut. It’s a preview on one small server.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="better">Where Multica is better</h2>
+      <ul class="doc-list">
+        <li><b>Teams.</b> Humans and agents share a board, with roles, squads and access scopes. wisp has no shared workspace: work moves through branches and PRs.</li>
+        <li><b>Where work comes from.</b> An issue board with comments and @mentions is the whole product, and ${ext('https://multica.ai/docs/mentioning-agents', 'several agents can take one comment')}. wisp’s <b>Issue</b> button reads GitHub and Linear issues, and doesn’t try to be a tracker.</li>
+        <li><b>Agents.</b> More of them than wisp’s seven.</li>
+        <li><b>Self-hosting a team.</b> Docker Compose or Helm, for a board everyone shares. wisp’s Grid gives each person a sandboxed wisp.</li>
+        <li><b>Community.</b> Far larger than wisp’s, which is one owner and a crew. wisp’s desktop builds also aren’t signed yet.</li>
+      </ul>
+      <aside class="g-note"><b>iPhone.</b> Neither has an app in the App Store. Multica’s you build from source; wisp’s is a Home Screen web app on wisp Cloud.</aside>
+    </section>
+
+    <section>
+      <h2 id="pick">Pick Multica if</h2>
+      <ul class="doc-list">
+        <li>You’re a team, and want agents assigned work the way people are.</li>
+        <li>Your work already lives as issues, and you want it all on one board.</li>
+        <li>You want to self-host for one organization, and its licence fits.</li>
+      </ul>
+      <h2 id="pick-wisp">Pick wisp if</h2>
+      <ul class="doc-list">
+        <li>You work alone or in a small group, and want agents working for you personally.</li>
+        <li>You want a report per task, not a board to keep up.</li>
+        <li>You want agents hosted today, or a plain MIT licence.</li>
+      </ul>
+    </section>
+`,
+      faq: [
+        ['Is Multica open source?', 'It calls itself source-available. Its licence is Apache 2.0 with conditions on top: you can use it inside your own organization, but a hosted service for others or embedding it in a commercial product needs a commercial licence. wisp is MIT.'],
+        ['Can my team share a wisp?', 'No. Everyone has their own wisp, and work is shared through branches and PRs. A team can run its own Grid, so each person gets a sandboxed wisp on the same server, and can share crew members.'],
+        ['Does Multica run agents in its cloud?', 'Its download page says cloud runtimes aren’t live yet, so agents run on your machine through its daemon. wisp Cloud runs them on a server, as a preview.'],
+      ],
+      related: ['conductor-alternatives', 'organize-your-ai-agent-crew', 'share-crew-members'],
+    },
+
+    {
+      slug: 'wisp-vs-paradev',
+      topic: 'compare',
+      cloud: true,
+      title: 'wisp vs Paradev: where each is better, and which to pick',
+      h1: 'wisp vs Paradev',
+      card: 'Paradev, formerly Superset, is a Mac app for running CLI agents in parallel, with paid mobile and automations. wisp sends tasks off and hands you reports. From their own docs.',
+      description: 'wisp vs Paradev (formerly Superset) compared from their own docs: platforms, phones, plans, automations and Conductor import. Where Paradev is better, and which one to pick.',
+      lede: `Paradev, formerly Superset, is the better pick if you’re on a Mac, want a guided move off Conductor, and will pay for mobile, automations or a managed cloud. wisp runs on Windows and Linux too, and is built around reading results: tasks end in reports, a crew keeps working, Auto picks the harness, and wisp Cloud needs no install.`,
+      shot: ['report', 'A wisp report: the summary, the diff and the test run for one finished task'],
+      body: `
+    <section>
+      <h2 id="table">Side by side</h2>
+      ${vsTable('Paradev', [
+        ['In its own words', `“${ext('https://github.com/ParadevAI/Paradev', 'a desktop app for running CLI coding agents in parallel')}”`, 'Launch agents in the background and read what they hand back'],
+        ['Agents', `${ext('https://github.com/ParadevAI/Paradev', 'More than 20 fully supported')}, plus any CLI`, WISP.agents],
+        ['Desktop', `${ext('https://docs.paradev.com/faq', 'macOS')}. Linux is “experimental and untested”; Windows is “planned with no date”`, WISP.desktop],
+        ['Phone', `${ext('https://docs.paradev.com/mobile', 'iPhone and iPad')} with iOS 26 or later and Pro. Android isn’t available yet`, WISP.phone],
+        ['Automations', `${ext('https://docs.paradev.com/automations', 'A schedule, or events')} from GitHub, Slack, Linear, Sentry and more, on Pro`, 'Schedules, CI failed, Issue labelled and webhooks, free'],
+        ['Hosted', `${ext('https://docs.paradev.com/cloud-workspaces', 'Cloud sandboxes')} on Team or Ultra, or ${ext('https://docs.paradev.com/bring-your-own-cloud', 'your own Linux server')}`, WISP.hosted],
+        ['Click an element, send it to the agent', `Yes, ${ext('https://docs.paradev.com/browser', 'Design')}`, 'Not yet'],
+        ['Price', `${ext('https://paradev.com/pricing', 'Free for local work')}. Paid plans add remote access, automations, mobile and cloud`, 'Free. wisp Cloud is free during the preview'],
+        ['Licence', 'MIT', WISP.licence],
+      ])}
+      ${READ_ON}
+    </section>
+
+    <section>
+      <h2 id="different">Where wisp is different</h2>
+      <ul class="doc-list">
+        <li><b>You read a report.</b> Each task runs headless in its own worktree and ends with a one-screen report: what changed, the diff, the tests. Questions wait in <i>Needs you</i>.</li>
+        <li><b>The crew.</b> Named agents with a role, a schedule and a notebook keep working between your tasks, and you @mention them from any prompt.</li>
+        <li><b>Auto.</b> wisp picks the harness, model and thinking level per task from what worked before, and shows the pick before you send.</li>
+        <li><b>Every platform, no plan.</b> wisp runs on macOS, Windows and Linux. Automations cost nothing, and neither does reaching your computer from a phone, on wisp Cloud’s free preview or your own Grid. wisp Cloud is a preview on one small server, so don’t compare it with a metered cloud for a team.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="better">Where Paradev is better</h2>
+      <ul class="doc-list">
+        <li><b>Leaving Conductor.</b> Separate guides for ${ext('https://docs.paradev.com/migrate-from-conductor', 'local')} and ${ext('https://docs.paradev.com/migrate-from-conductor-cloud', 'Cloud')}, with a right-click import of your worktrees that’s out today. wisp’s Bring in is due in the next release; until then you open each one with <a href="/guides/moving-off-conductor.html#in-progress">In place</a>.</li>
+        <li><b>iPhone and iPad.</b> A native app, on Pro. wisp has no native iPhone app.</li>
+        <li><b>Design.</b> Click an element in its browser and the agent gets the DOM, computed styles and the React component. wisp can’t do that yet.</li>
+        <li><b>Events.</b> Its automations start from more services than wisp’s triggers do.</li>
+        <li><b>A cloud for teams.</b> Plans with metered hours per seat. wisp Cloud is one small server, and team work on your own server means running a Grid.</li>
+        <li><b>Install.</b> Its ${ext('https://github.com/ParadevAI/Paradev/blob/main/apps/desktop/electron-builder.ts', 'build config')} notarizes Mac builds. wisp’s builds aren’t signed yet.</li>
+        <li><b>Community.</b> Far larger than wisp’s, which is one owner and a crew.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="pick">Pick Paradev if</h2>
+      <ul class="doc-list">
+        <li>You’re on a Mac and coming from Conductor today.</li>
+        <li>You want a native iPhone app or event automations, and a paid plan is fine.</li>
+        <li>Your team wants a managed cloud with seats.</li>
+      </ul>
+      <h2 id="pick-wisp">Pick wisp if</h2>
+      <ul class="doc-list">
+        <li>You’re on Windows or Linux, or use an Android phone.</li>
+        <li>You want reports to read and a crew that keeps working.</li>
+        <li>You want remote access, automations and a hosted preview at no cost.</li>
+      </ul>
+    </section>
+`,
+      faq: [
+        ['Is Paradev the same as Superset?', 'Yes. Paradev is the name Superset goes by now.'],
+        ['Does Paradev run on Windows?', 'Its FAQ says Windows is planned with no date, and that Linux is experimental and untested. wisp runs on macOS, Windows and Linux.'],
+        ['Is the Paradev desktop app free?', 'Its README says the desktop app is free forever. Remote access, automations and mobile are on Pro, and cloud is on Team and above. wisp is free, and wisp Cloud is free during the preview.'],
+        ['Can I bring my Conductor worktrees into wisp?', 'Today, open each one with In place and the agent carries on with your uncommitted changes. Bring in, which does this for you, is due in the next release.'],
+      ],
+      related: ['conductor-alternatives', 'wisp-vs-orca', 'moving-off-conductor'],
     },
   ];
 }
