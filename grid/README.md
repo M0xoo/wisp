@@ -290,13 +290,19 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
   notification never says which domain signed, `PASS` can rest on SPF alone, and an
   `Authentication-Results` line can be written by anyone. So the proof is ours: `grid/dkim.js` verifies
   the signatures over the raw bytes (RFC 6376, `rsa-sha256` and `ed25519-sha256`, no `l=`, `from` in
-  `h=`), with the key from the signer's DNS, and one has to have `d=` equal to the From's domain.
+  `h=`, as `subject` and `date` have to be: one can become the prompt, the other decides if it's
+  fresh), with the key from the signer's DNS, and one has to have `d=` equal to the From's domain.
   Equal, not relaxed, because relaxed alignment needs the public suffix list: a subdomain signed by
   its parent is refused, and so is a company domain signed by its provider's. It needs SNS's Base64
   encoding: UTF8 can change bytes, so it proves nothing. Verification happens after SNS's signature
   and only for a real address, so a guess costs no DNS lookup. A message refused here still reaches
-  the box as `unproved`, which is how Settings says why. A From with more than one address, a header
-  section with a bare CR or LF (two parsers could split it differently), a quoted name holding `<`, a
+  the box as `unproved`, which is how Settings says why. If only DNS stood in the way, for a signature
+  by the From's own domain, the webhook answers 503 and holds nothing, so SNS brings the message back;
+  nothing passes on a DNS failure, and once SNS's retries run out that message is gone, with nothing in
+  Settings. SNS's default retries last seconds: a longer delivery policy on the subscription rides out
+  a longer outage, up to the 15 minutes a signed notification is good for. A From with more than one
+  address, a header section with a bare CR or LF (two parsers could split it differently), a quoted
+  name holding `<`, a
   second `Subject` or `Date`, or a From SES reads as someone else are all unprovable.
   Addresses are 160 random bits, looked up by SHA-256 and sealed like a URL;
   they aren't webhooks (`/_in/<address>` is a 404). Sending takes the Box secret, which anything on a

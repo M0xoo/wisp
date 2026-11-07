@@ -46,6 +46,7 @@ const THREADS_MAX = 100; // per user
 const CERTS_MAX = 8;
 const DEFAULTS = { sendPerHour: 30, threadDays: 7 };
 const HOUR_MS = 60 * 60_000;
+const AGAIN = 'again'; // no verdict yet: only ever becomes a 503, never a header
 
 const refused = (message, status) => Object.assign(new Error(message), { status });
 const MSG_ID = /^<[\x21-\x3b\x3d\x3f-\x7e]{1,250}>$/;
@@ -365,11 +366,16 @@ export function createMail({ db, cfg, inbox, accounts, log = () => {}, resolveTx
 
   // 'pass', or why not. d= has to be the From's domain exactly: relaxed alignment needs the public
   // suffix list, and that's a dependency. So a From on a subdomain of its signer is refused.
+  // AGAIN when only DNS stood in the way of the From's own domain: SNS has the message and we don't,
+  // so it can bring it back. Only that domain: a failed lookup elsewhere can't prove anything anyway,
+  // and a sender mustn't be able to get retries by adding a signature from a domain that doesn't answer.
   async function proved(got, m) {
     if (got.verdict !== 'unproved' || !got.exact || !m.from || !sameSender(got.named, m.from)) return got.verdict;
     const domainOfFrom = m.from.slice(m.from.lastIndexOf('@') + 1);
     const signatures = await verifyDkim(got.content, { resolveTxt: lookup });
-    return signatures.some((s) => s.ok && s.d === domainOfFrom) ? 'pass' : 'unproved';
+    const own = signatures.filter((s) => s.d === domainOfFrom);
+    if (own.some((s) => s.ok)) return 'pass';
+    return own.some((s) => s.dns) ? AGAIN : 'unproved';
   }
 
   // One recipient's copy.
@@ -383,8 +389,9 @@ export function createMail({ db, cfg, inbox, accounts, log = () => {}, resolveTx
   return {
     domain,
 
-    // The provider's webhook. Only a bad signature is an error: anything signed gets its 200, so the
-    // provider stops, and an address that doesn't exist looks like any other.
+    // The provider's webhook. A bad signature is an error, and a 503 asks for the message again while
+    // DNS is down. Anything else signed gets its 200, so the provider stops, and an address that
+    // doesn't exist looks like any other.
     async webhook(req) {
       const raw = await inbox.read(req, WEBHOOK_MAX);
       if (!raw) return { status: 413, body: { error: 'Too big.' } };
@@ -403,6 +410,7 @@ export function createMail({ db, cfg, inbox, accounts, log = () => {}, resolveTx
       // Last, so neither a stranger's guess at an address nor a forged webhook costs a DNS lookup.
       if (real.length && wanted(m, got.source)) {
         const verdict = await proved(got, m);
+        if (verdict === AGAIN) return { status: 503, body: { error: 'Try again.' } };
         for (const user of real) take(user, m, verdict);
       }
       return { status: 200, body: { ok: true } };

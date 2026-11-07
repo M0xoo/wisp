@@ -117,7 +117,7 @@ test('c= has defaults: none is simple/simple, one word is the header’s and the
 
 test('an empty body has its own hash under each canonicalization', async () => {
   const raw = 'From: a@x.example\r\nDate: Fri, 06 Nov 2026 10:00:00 +0000\r\n\r\n';
-  for (const c of ['relaxed/relaxed', 'relaxed/simple']) assert.equal((await one(sign({ c, h: 'from:date' }, raw))).ok, true, c);
+  for (const c of ['relaxed/relaxed', 'relaxed/simple']) assert.equal((await one(sign({ c, h: 'from:subject:date' }, raw))).ok, true, c);
 });
 
 test('folding: a folded signature, in either canonicalization', async () => {
@@ -132,7 +132,7 @@ test('several signatures: each judged alone, in order, and at most five', async 
   const broken = raw.replace(/(b=[A-Za-z0-9+/]{8})/, (m) => `${m.slice(0, -1)}${m.endsWith('A') ? 'B' : 'A'}`);
   assert.deepEqual((await check(broken, table)).map((r) => [r.d, r.ok]), [['x.example', false], ['evil.example', true]]);
   let many = MSG;
-  for (let i = 0; i < 7; i++) many = dkimSign(many, { d: 'x.example', s: `s${i}`, key: ed.privateKey, h: 'from' });
+  for (let i = 0; i < 7; i++) many = dkimSign(many, { d: 'x.example', s: `s${i}`, key: ed.privateKey });
   const resolveTxt = dns({});
   const out = await verifyDkim(Buffer.from(many, 'latin1'), { resolveTxt, now: NOW });
   assert.equal(out.length, 5);
@@ -140,16 +140,16 @@ test('several signatures: each judged alone, in order, and at most five', async 
 });
 
 test('headers are taken bottom-up: an unsigned one on top changes nothing a signature covers', async () => {
-  const raw = 'From: a@x.example\r\nSubject: first\r\nSubject: second\r\n\r\nhi\r\n';
-  const signed = sign({ h: 'from:subject' }, raw);
+  const raw = 'From: a@x.example\r\nDate: Fri, 06 Nov 2026 10:00:00 +0000\r\nSubject: first\r\nSubject: second\r\n\r\nhi\r\n';
+  const signed = sign({ h: 'from:date:subject' }, raw);
   assert.equal((await one(signed)).ok, true);
   assert.equal((await one(`Subject: on top\r\n${signed}`)).ok, true, 'added above the signed instance');
   await refused(signed.replace('Subject: second', 'Subject: changed'), /signature/);
   assert.equal((await one(signed.replace('Subject: first', 'Subject: not covered'))).ok, true, 'only the bottom one was signed');
-  const twice = sign({ h: 'from:subject:subject' }, raw);
+  const twice = sign({ h: 'from:date:subject:subject' }, raw);
   await refused(twice.replace('Subject: first', 'Subject: changed'), /signature/);
-  assert.equal((await one(sign({ h: 'from:from' }, raw))).ok, true, 'a name with no instance left adds nothing');
-  await refused(`From: evil@evil.example\r\n${sign({ h: 'from:from' }, raw)}`, /signature/);
+  assert.equal((await one(sign({ h: 'from:from:date:subject' }, raw))).ok, true, 'a name with no instance left adds nothing');
+  await refused(`From: evil@evil.example\r\n${sign({ h: 'from:from:date:subject' }, raw)}`, /signature/);
 });
 
 test('refused: l=, whatever it covers', async () => {
@@ -162,8 +162,14 @@ test('refused: rsa-sha1, and any algorithm that isn’t on the list', async () =
   await refused(sign().replace('a=ed25519-sha256', 'a=rsa-md5'), /algorithm/);
 });
 
-test('refused: an h= without from', async () => {
-  await refused(sign({ h: 'to:subject:date' }), /from/);
+test('refused: an h= without from, subject or date: each can change what runs, or how old it looks', async () => {
+  await refused(sign({ h: 'to:subject:date' }), /from is not in h=/);
+  await refused(sign({ h: 'from:to:date' }), /subject is not in h=/);
+  await refused(sign({ h: 'from:to:subject' }), /date is not in h=/);
+  assert.equal((await one(sign({ h: 'FROM : Subject : DATE' }))).ok, true, 'any case, any spacing');
+  const none = 'From: a@x.example\r\n\r\nhi\r\n';
+  assert.equal((await one(sign({}, none))).ok, true, 'signed as absent: none can be added');
+  await refused(`Subject: added\r\n${sign({}, none)}`, /signature/);
 });
 
 test('refused: x= in the past; a future x= and none are fine', async () => {
@@ -253,6 +259,15 @@ test('a key record that isn’t one, or isn’t alone, proves nothing', async ()
   await refused(sign(), /key/, { 'sel._domainkey.x.example': [['v=DKIM2; k=ed25519; p=11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=']] });
 });
 
+test('a DNS failure says so in a field of its own; no other refusal does', async () => {
+  assert.equal((await one(sign(), {})).dns, true);
+  for (const [raw, table] of [[sign().replace('thanks', 'nope'), {}], [sign({ tags: 'i=@evil.example' }), {}], [sign(), { 'sel._domainkey.x.example': [['v=DKIM1; k=ed25519; p=']] }], [sign(), { 'sel._domainkey.x.example': [] }]]) {
+    const r = await one(raw, table);
+    assert.equal(r.ok, false);
+    assert.equal(r.dns, undefined, r.why);
+  }
+});
+
 test('a DNS failure is a refusal and never an exception', async () => {
   await refused(sign(), /DNS|lookup/, {});
   const r = await verifyDkim(Buffer.from(sign(), 'latin1'), { resolveTxt: () => { throw new Error('boom'); }, now: NOW });
@@ -275,6 +290,7 @@ test('a lookup that never answers ends at 5 seconds, in a refusal', async () => 
     const [r] = await pending;
     assert.equal(r.ok, false);
     assert.match(r.why, /DNS|lookup/);
+    assert.equal(r.dns, true);
   } finally {
     mock.timers.reset();
   }

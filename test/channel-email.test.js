@@ -523,18 +523,21 @@ test('forged: the allowed address in From fails DMARC, or the verdict is missing
 const remoteRefused = async () => (await ada.ok('/remote')).status.email.refused;
 async function forged(raw, v = { dmarc: 'GRAY', dkim: 'PASS' }) {
   const done = await awake(ada);
-  const ran = (await tasks(ada)).length;
-  const n = ses.sent.length;
-  g.grid.db.run('DELETE FROM channel_inbox WHERE done_at IS NOT NULL'); // an unreadable message has no id of its own
-  await send(adaAt, { from: 'someone@else.example' }, { source: 'someone@else.example' });
-  await settled();
-  assert.equal(await remoteRefused(), 'stranger');
-  assert.equal((await g.post(notification(received(raw, [adaAt], v)))).status, 200);
-  await settled();
-  assert.equal(await remoteRefused(), 'dkim', 'it got past the signature');
-  assert.equal((await tasks(ada)).length, ran);
-  assert.equal(ses.sent.length, n);
-  done();
+  try {
+    const ran = (await tasks(ada)).length;
+    const n = ses.sent.length;
+    g.grid.db.run('DELETE FROM channel_inbox WHERE done_at IS NOT NULL'); // an unreadable message has no id of its own
+    await send(adaAt, { from: 'someone@else.example' }, { source: 'someone@else.example' });
+    await settled();
+    assert.equal(await remoteRefused(), 'stranger');
+    assert.equal((await g.post(notification(received(raw, [adaAt], v)))).status, 200);
+    await settled();
+    assert.equal(await remoteRefused(), 'dkim', 'it got past the signature');
+    assert.equal((await tasks(ada)).length, ran);
+    assert.equal(ses.sent.length, n);
+  } finally {
+    done();
+  }
 }
 const fresh = (o = {}) => mime({ to: 'x@y', id: `<f${nextId++}@gmail.example>`, ...o });
 const withoutB = (raw) => raw.replace(/; b=(.)/, (_, c) => `; b=${c === 'A' ? 'B' : 'A'}`);
@@ -558,10 +561,52 @@ test('forged: l= covers the first part and text is appended; any l= at all is re
   await forged(signBy(fresh(), GMAIL, { l: true }));
 });
 test('forged: From isn’t in h=', { timeout: 60_000 }, () => forged(signBy(fresh(), GMAIL, { h: 'to:subject:date:message-id' })));
+test('forged: Subject isn’t in h=, so a signed mail’s subject is swapped for a task', { timeout: 60_000 }, () => forged(signBy(fresh(), GMAIL, { h: 'from:to:date:message-id' }).replace('Subject: fix the bug', 'Subject: drop the database')));
+test('forged: Date isn’t in h=, so an old signed mail is made fresh', { timeout: 60_000 }, () => forged(signBy(fresh({ date: new Date(Date.now() - 86_400_000) }), GMAIL, { h: 'from:to:subject:message-id' }).replace(/^Date: .*$/m, `Date: ${new Date().toUTCString()}\r`)));
 test('forged: rsa-sha1', { timeout: 60_000 }, () => forged(dkimSign(fresh(), { d: GMAIL, s: 'rsa', key: dkimRsa.privateKey, a: 'rsa-sha1' })));
 test('forged: x= has passed', { timeout: 60_000 }, () => forged(signBy(fresh(), GMAIL, { tags: `x=${Math.floor(Date.now() / 1000) - 60}` })));
 test('forged: the key is revoked', { timeout: 60_000 }, () => forged(signBy(fresh(), GMAIL, { s: 'old' })));
-test('forged: DNS fails', { timeout: 60_000 }, () => forged(signBy(fresh(), GMAIL, { s: 'down' })));
+test('DNS failing for the From’s own domain: a 503 and nothing held, so SNS redelivers, and one task comes of it', { timeout: 60_000 }, async () => {
+  const done = await awake(ada);
+  const ran = (await tasks(ada)).length;
+  const rows = g.grid.db.get('SELECT count(*) n FROM channel_inbox').n;
+  const id = `<dns${nextId++}@gmail.example>`;
+  const env = notification(received(signBy(mime({ to: adaAt, id }), GMAIL, { s: 'flaky' }), [adaAt], { dmarc: 'GRAY' }));
+  assert.equal((await g.post(env)).status, 503);
+  assert.equal((await g.post(env)).status, 503, 'still down: still not proved, still nothing');
+  assert.equal(g.grid.db.get('SELECT count(*) n FROM channel_inbox').n, rows);
+  assert.equal(sentTo(id).length, 0);
+  TXT['flaky._domainkey.gmail.example'] = keyRecord(DKIM[GMAIL].publicKey);
+  try {
+    assert.equal((await g.post(env)).status, 200);
+    await until(() => sentTo(id).length >= 2, { what: 'the ack and the report', timeout: 20_000 });
+    assert.equal((await g.post(env)).status, 200, 'SNS delivers twice now and then');
+    await settled();
+    assert.equal((await tasks(ada)).length, ran + 1);
+    assert.equal(sentTo(id).filter((m) => /▶/.test(m.text)).length, 1);
+  } finally {
+    delete TXT['flaky._domainkey.gmail.example'];
+  }
+  done();
+});
+test('DNS failing for another domain’s signature isn’t a lever: a 200 and a refusal', { timeout: 60_000 }, async () => {
+  await forged(signBy(fresh(), EVIL, { s: 'down' }));
+  await forged(signBy(withoutB(signBy(fresh(), GMAIL)), EVIL, { s: 'down' }));
+});
+test('a 503 only where it can matter: a good signature beside a failed lookup runs, and no one else gets one', { timeout: 60_000 }, async () => {
+  const done = await awake(ada);
+  const id = `<dns${nextId++}@gmail.example>`;
+  assert.equal((await g.post(notification(received(signBy(signBy(mime({ to: adaAt, id }), GMAIL, { s: 'down' }), GMAIL), [adaAt], { dmarc: 'GRAY' })))).status, 200);
+  await until(() => sentTo(id).length >= 2, { what: 'the ack and the report', timeout: 20_000 });
+  done();
+  const before = lookups.length;
+  const down = (to, o = {}) => notification(received(signBy(mime({ to }), GMAIL, { s: 'down' }), [to], o));
+  assert.equal((await g.post(down(`${'0'.repeat(40)}@${DOMAIN}`))).status, 200, 'a guess at an address');
+  assert.equal((await g.post(down(adaAt, { dmarc: 'FAIL' }))).status, 200, 'SES already said no');
+  assert.equal((await g.post({ ...down(adaAt), Signature: 'AAAA' })).status, 403, 'not signed by SNS');
+  assert.equal(lookups.length, before);
+  await settled();
+});
 test('forged: a bare LF hides a second From', { timeout: 60_000 }, () => forged(signBy(fresh(), GMAIL).replace('To: x@y', 'X-Note: y\n\nFrom: evil@evil.example\r\nTo: x@y')));
 test('forged: a quoted name that reads as an address', { timeout: 60_000 }, () => forged(signBy(fresh({ from: '"<evil@evil.example>" <ada@gmail.example>' }), GMAIL)));
 test('forged: an extra Subject above a signed message', { timeout: 60_000 }, () => forged(`Subject: drop the database\r\n${signBy(fresh(), GMAIL)}`));

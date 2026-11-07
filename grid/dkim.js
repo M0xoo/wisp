@@ -12,6 +12,9 @@ import { Resolver } from 'node:dns/promises';
 const SIGNATURES_MAX = 5;
 const DNS_TIMEOUT_MS = 5000;
 const RSA_MIN_BITS = 1024;
+// What wisp acts on: unsigned, a Subject could become the prompt, and a Date decide a message is fresh.
+const MUST_SIGN = ['from', 'subject', 'date'];
+const DNS_FAILED = 'DNS lookup failed';
 const KINDS = { 'rsa-sha256': 'rsa', 'ed25519-sha256': 'ed25519' };
 const ED25519_SPKI = Buffer.from('302a300506032b6570032100', 'hex'); // what comes before p= as DER
 const LABEL = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
@@ -140,7 +143,7 @@ async function problem(field, fields, body, tags, d, { resolveTxt, now }) {
   const [headHow, bodyHow] = [c[1], c[2] ?? 'simple'];
   if (tags.has('q') && !tags.get('q').split(':').map((x) => x.trim()).includes('dns/txt')) return 'q= is not dns/txt';
   const names = tags.get('h').split(':').map((n) => n.trim().toLowerCase());
-  if (!names.includes('from')) return 'from is not in h=';
+  for (const name of MUST_SIGN) if (!names.includes(name)) return `${name} is not in h=`;
   const selector = tags.get('s').toLowerCase();
   if (d.length > 253 || !DOMAIN.test(d) || !SELECTOR.test(selector)) return 'bad d= or s=';
   const i = tags.get('i') ?? `@${d}`;
@@ -159,7 +162,7 @@ async function problem(field, fields, body, tags, d, { resolveTxt, now }) {
   try {
     txt = await askDns(`${selector}._domainkey.${d}`, resolveTxt);
   } catch {
-    return 'DNS lookup failed';
+    return DNS_FAILED;
   }
   if (!Array.isArray(txt) || txt.length !== 1 || !Array.isArray(txt[0])) return 'no usable key';
   const record = tagList(txt[0].join(''));
@@ -188,7 +191,8 @@ async function problem(field, fields, body, tags, d, { resolveTxt, now }) {
 }
 
 // raw: the message's bytes. [{ d, ok, why }], one per signature tried, from the top: [] for a message
-// with none, or whose headers can't be read one way. Lookups run together, so 5 s is the whole wait.
+// with none, or whose headers can't be read one way. dns: true marks the one failure a later try could
+// turn out differently; it never makes ok true. Lookups run together, so 5 s is the whole wait.
 export async function verifyDkim(raw, { resolveTxt = lookupTxt, now = Date.now } = {}) {
   const section = headerFields(Buffer.from(raw).toString('latin1'));
   if (!section) return [];
@@ -199,7 +203,7 @@ export async function verifyDkim(raw, { resolveTxt = lookupTxt, now = Date.now }
       const d = tags?.get('d')?.toLowerCase() ?? '';
       try {
         const why = await problem(field, section.fields, section.body, tags, d, { resolveTxt, now });
-        return { d, ok: !why, why };
+        return { d, ok: !why, why, ...(why === DNS_FAILED && { dns: true }) };
       } catch (err) {
         return { d, ok: false, why: `unreadable: ${err.message}` };
       }
