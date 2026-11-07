@@ -132,6 +132,22 @@ Each user's Home page lists what they published, with Unpublish.
 They're arbitrary pages on your domain's subdomains: turn `enabled` off if you can't keep an eye
 on what people publish.
 
+### Channels
+
+A box sleeps, and a Telegram bot polled from a sleeping box is deaf. With this on, each cloud wisp
+that turns Telegram on sets a webhook to its own `https://<handle>.<domain>/_in/<token>`: the grid
+answers at once, keeps the message in `grid.db`, wakes the box and delivers it. Messages are kept for
+an hour at most and wiped as they're delivered. A channel never keeps a box awake.
+
+```json
+"channels": { "enabled": true, "maxRows": 200, "maxBytes": 2097152 }
+```
+
+Off unless it's there, and then `/_in/` is a 404 and boxes poll as before. `maxRows` and `maxBytes` are
+per user: past them a message is dropped and counted, and the box says so in the chat. Telegram only
+calls https on port 443, 80, 88 or 8443, so an `http` grid can't use this: Settings → Phone shows
+why. The URL's token is the only thing guarding it: keep it out of any access log you turn on.
+
 ### Sandboxes
 
 `/sandbox <task>` in wisp asks the grid for a box of its own for that task (`grid/sandboxes.js`):
@@ -213,6 +229,10 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
   page is open and nothing has happened for `hostd.idleMs`, it stops that wisp. It also notes when
   the wisp's next scheduled task is due and starts it for that. A desktop watching a cloud computer
   doesn't keep it awake: the stream it opens is marked `x-wisp-relay`.
+- **Channels.** `POST <handle>.<domain>/_in/<token>` is the one way in that never signs in. Its token
+  works only at its owner's address, only its SHA-256 is looked up (the token itself is sealed), and
+  the grid checks nothing else: the box verifies each message (`grid/inbox.js`). A box asks for its URL
+  with its Box secret (`GET /api/channels/url`) and only ever gets its own.
 - **Room.** A box starts while fewer than `hostd.maxRunning` are up and, with the container
   driver, the host has `admit.reserveMb + admit.boxMb` MiB available (`MemAvailable`; defaults
   1024 + 1024; `"admit": false` counts boxes only). When it doesn't, hostd stops the box that has

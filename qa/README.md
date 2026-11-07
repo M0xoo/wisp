@@ -7,7 +7,7 @@ after a change that touches more than one surface.
 | Surface | Scenarios | Script | What it drives |
 |---|---|---|---|
 | Web (browser mode) | [scenarios/web.md](scenarios/web.md) (`WEB-*`) | `node qa/web.mjs` | `wisp --no-open` in Chrome: launcher, cards, questions, approvals, settings, spells, recipes, CLI, MCP, docs site |
-| wisp Grid | [scenarios/grid.md](scenarios/grid.md) (`GRID-*`) | `node qa/grid.mjs` | `wisp grid dev --fake-agents`: sign-in, account, `/go`, cloud wisp, isolation, device flow, idle stop, admin commands |
+| wisp Grid | [scenarios/grid.md](scenarios/grid.md) (`GRID-*`) | `node qa/grid.mjs` | `wisp grid dev --fake-agents`: sign-in, account, `/go`, cloud wisp, isolation, device flow, idle stop, a channel waking a box, admin commands |
 | Desktop app | [scenarios/desktop.md](scenarios/desktop.md) (`DESK-*`) | `node qa/desktop.mjs` | `electron .` through Playwright's `_electron`: window, title bar, preload, links, theme, updater, attach, quit |
 | Desktop app (Tauri, macOS) | [scenarios/desktop.md](scenarios/desktop.md) (`TAURI-*`) | `node qa/desktop-tauri.mjs` | builds `desktop/src-tauri --features qa` (needs Rust) and drives it through a local socket (`src/qa.rs`): WKWebView has no WebDriver |
 | Android app | [scenarios/mobile.md](scenarios/mobile.md) (`MOB-*`) | `node qa/mobile.mjs` | the computers screen and wisp's page as the app's WebView sees it; APK, Gradle and emulator steps are in the scenarios |
