@@ -196,6 +196,16 @@ export function parseMail(raw) {
 
 const asciiHeader = (s) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.from(s).toString('base64')}?=`);
 
+// `Name: <id> <id>`, wrapped so no line gets long: a thread's ids can run to thousands of characters.
+function foldIds(name, list) {
+  const lines = [`${name}:`];
+  for (const id of list) {
+    if (lines.at(-1).length + 1 + id.length > LINE_MAX && lines.at(-1) !== `${name}:`) lines.push(` ${id}`);
+    else lines[lines.length - 1] += ` ${id}`;
+  }
+  return lines.join('\r\n');
+}
+
 // A plain-text message, every line of it decided here. A stray line break in a header would write a
 // header of the sender's choosing, so what can't hold one is refused, and a subject is flattened.
 export function composeMail({ from, to, subject, text, messageId, inReplyTo, references = [], date = new Date() }) {
@@ -208,7 +218,7 @@ export function composeMail({ from, to, subject, text, messageId, inReplyTo, ref
     `Date: ${date.toUTCString()}`,
     `Message-ID: ${messageId}`,
     `In-Reply-To: ${inReplyTo}`,
-    `References: ${references.join(' ')}`,
+    foldIds('References', references),
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=utf-8',
     'Content-Transfer-Encoding: base64',
@@ -330,11 +340,18 @@ const OUTBOUND = { ses: sesSender };
 
 // --- the grid's side -------------------------------------------------------------------------------
 
+// A dev grid has no real senders, so grid.json can name their keys. Nothing else skips DNS.
+export function dkimLookup(cfg, inbound) {
+  const keys = cfg.auth?.dev ? inbound.dkimKeys : null;
+  return keys ? async (name) => [[keys[name]]] : undefined;
+}
+
 // Whether the provider's own reading of From, if it gave one, is the one address we read.
 const sameSender = (named, from) => named == null || (Array.isArray(named) && named.length === 1 && mailbox(String(named[0])) === from);
 
 export function createMail({ db, cfg, inbox, accounts, log = () => {}, resolveTxt }) {
   const opts = { ...DEFAULTS, ...cfg.mail };
+  const lookup = resolveTxt ?? dkimLookup(cfg, opts.inbound);
   const provider = INBOUND[opts.inbound.provider](opts.inbound);
   const sender = OUTBOUND[opts.outbound.provider](opts.outbound);
   const domain = opts.domain.toLowerCase();
@@ -351,7 +368,7 @@ export function createMail({ db, cfg, inbox, accounts, log = () => {}, resolveTx
   async function proved(got, m) {
     if (got.verdict !== 'unproved' || !got.exact || !m.from || !sameSender(got.named, m.from)) return got.verdict;
     const domainOfFrom = m.from.slice(m.from.lastIndexOf('@') + 1);
-    const signatures = await verifyDkim(got.content, { resolveTxt });
+    const signatures = await verifyDkim(got.content, { resolveTxt: lookup });
     return signatures.some((s) => s.ok && s.d === domainOfFrom) ? 'pass' : 'unproved';
   }
 

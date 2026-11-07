@@ -30,7 +30,7 @@ const FALLBACK = 'plan';
 const NAME = 'Email';
 const SEEN_MAX = 200; // kept in config: a box's memory ends when it sleeps
 const IDS_MAX = 50;
-const REPLY_MAX = 30_000;
+const REPLY_MAX = 30_000; // bytes: the grid's limit is, and a character can be four of them
 const ADDRESS = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 const REPLY_LINE = '↩ Reply above this line to answer or follow up.';
 export const NOT_ON_A_BOX = 'Email only works on a cloud computer.';
@@ -86,8 +86,18 @@ function htmlText(html) {
 // A message's text, whichever way it came: the plain part if it has one, else its HTML.
 export const mailWords = (m) => ownWords(m?.text?.trim() ? m.text : htmlText(m?.html ?? ''));
 
-const fromSubject = (s) => String(s ?? '').replace(/^(?:\s*(?:fwd?|tr|wg)\s*:)+/i, '').trim();
+// A forwarded subject is someone else's words: only what the sender added above it can run.
+const isForward = (subject) => /^\s*(?:fwd?|tr|wg)\s*:/i.test(subject || '');
 const isReply = (m) => !!(m.inReplyTo || m.references?.length || /^\s*(?:re|aw|sv)\s*:/i.test(m.subject || ''));
+
+// At most max bytes of s, cut between characters.
+function clipBytes(s, max) {
+  const b = Buffer.from(s);
+  if (b.length <= max) return s;
+  let end = max - 3; // the … is three
+  while ((b[end] & 0xc0) === 0x80) end--;
+  return `${b.subarray(0, end).toString()}…`;
+}
 
 export class Email extends Channel {
   constructor(hub) {
@@ -218,7 +228,7 @@ export class Email extends Channel {
       return this.#inThread(sessionId, parseMessage(stripFormatting(own), { ...ctx, thread: await phone.threadCtx(sessionId) }), ctx, at);
     }
     if (isReply(m)) return say('wisp can’t find the task this answers, so nothing ran. Send a new message to start one.');
-    const subject = fromSubject(m.subject);
+    const subject = isForward(m.subject) ? '' : String(m.subject ?? '').trim();
     const text = stripFormatting([subject, own].filter(Boolean).join('\n\n'));
     const p = parseMessage(text || 'help', ctx);
     if (p.command && p.command !== 'new') {
@@ -293,7 +303,7 @@ export class Email extends Channel {
   // Only ever a reply: at.id is a message this box accepted, and the grid holds where it came from.
   async #say(at, text) {
     const box = boxGrid();
-    const clean = truncate(scrubOut(text).text, REPLY_MAX);
+    const clean = clipBytes(scrubOut(text).text, REPLY_MAX);
     const subject = /^\s*re:/i.test(at.subject) ? at.subject : `Re: ${at.subject || 'your message'}`;
     const { messageId } = await mailReply(box, { replyTo: at.id, subject: scrubOut(subject, { note: false }).text, text: `${REPLY_LINE}\n\n${clean}` });
     if (at.sessionId && messageId) this.#thread(at.sessionId, (t) => ({ ...t, ids: [...t.ids, messageId].slice(-IDS_MAX) }));

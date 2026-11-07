@@ -57,7 +57,8 @@ function discordTrouble(error) {
 
 // Why the last message was ignored: the sender heard nothing, so this is where they find out.
 const EMAIL_REFUSED = {
-  dmarc: 'The last message was ignored: its domain didn’t vouch for it (no DMARC pass). Gmail, Outlook and iCloud do this for you; your own domain needs DKIM signing.',
+  dmarc: 'The last message was ignored: its domain didn’t vouch for it (no DMARC pass). Your provider has to DKIM-sign your mail with your address’s own domain.',
+  dkim: 'The last message was ignored: wisp couldn’t prove it came from that address, because it had no valid signature from that address’s own domain. A message here can start an agent on your computer, so wisp refuses what it can’t prove.',
   stranger: 'The last message was ignored: it came from another address.',
   date: 'The last message was ignored: it had no date, so wisp couldn’t tell how old it was.',
 };
@@ -173,7 +174,7 @@ export async function openPhone({ host } = {}) {
         </section>
         <section class="ph-sec ph-chan ph-em" hidden>
           <h4>Email <span class="muted xs"><span class="ph-dot">· </span>mail a task, and the answer comes back</span><span class="ph-st"></span><button class="switch" data-sw="email" role="switch" aria-checked="false" aria-label="Email"></button></h4>
-          <p class="hint">Mail your secret address from the address you allow, and wisp replies to you there. Anyone else gets no answer. Attachments aren’t read yet, and Full auto can’t be asked for from there.</p>
+          <p class="hint">Your mail provider has to DKIM-sign with the same domain as your address. Consumer Gmail and iCloud do. A company domain signed by its provider’s domain won’t pass, and neither will a subdomain signed by its parent. Mail your secret address from the address you allow, and wisp replies to you there. Anyone else gets no answer. Attachments aren’t read yet, and Full auto can’t be asked for from there.</p>
           <div class="ph-on" hidden>
             <div class="settings-modal">
               <label><span>Send from</span><input class="input mono" data-em="sender" placeholder="you@example.com" spellcheck="false" autocomplete="off" inputmode="email"></label>

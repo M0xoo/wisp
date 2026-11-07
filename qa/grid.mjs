@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { dkimSign, keyRecord } from '../test/fixtures/dkim-sign.mjs';
 import { CHROME, OUT, ROOT, ok, playwright, runner } from './lib.mjs';
 
 const PORT = Number(process.env.QA_GRID_PORT) || 8090;
@@ -99,14 +100,16 @@ const fakeSes = http.createServer(async (rq, rs) => {
 await new Promise((r) => fakeSes.listen(0, '127.0.0.1', r));
 const TOPIC = 'arn:aws:sns:eu-west-1:111122223333:qa-mail';
 const sns = generateKeyPairSync('rsa', { modulusLength: 2048 });
-const signedMail = (to, { from, id, dmarc = 'PASS', subject }) => {
-  const raw = `From: ${from}\r\nTo: ${to}\r\nSubject: ${subject}\r\nMessage-ID: ${id}\r\nDate: ${new Date().toUTCString()}\r\n\r\nplease\r\n`;
+const dkim = generateKeyPairSync('ed25519'); // sender.example's key, pinned for the dev grid: no DNS here
+const signedMail = (to, { from, id, dmarc = 'GRAY', subject, signed = true }) => {
+  const plain = `From: ${from}\r\nTo: ${to}\r\nSubject: ${subject}\r\nMessage-ID: ${id}\r\nDate: ${new Date().toUTCString()}\r\n\r\nplease\r\n`;
+  const raw = signed ? dkimSign(plain, { d: from.split('@')[1], key: dkim.privateKey }) : plain;
   const Message = JSON.stringify({ notificationType: 'Received', mail: { source: from }, receipt: { recipients: [to], dmarcVerdict: { status: dmarc }, dkimVerdict: { status: dmarc }, action: { type: 'SNS', topicArn: TOPIC, encoding: 'BASE64' } }, content: Buffer.from(raw).toString('base64') });
   const j = { Type: 'Notification', MessageId: id, TopicArn: TOPIC, Message, Timestamp: new Date().toISOString(), SignatureVersion: '2', SigningCertURL: 'https://sns.eu-west-1.amazonaws.com/qa.pem' };
   j.Signature = createSign('RSA-SHA256').update(['Message', 'MessageId', 'Timestamp', 'TopicArn', 'Type'].map((k) => `${k}\n${j[k]}\n`).join('')).sign(sns.privateKey, 'base64');
   return j;
 };
-fs.writeFileSync(path.join(data, 'grid.json'), JSON.stringify({ channels: { enabled: true }, mail: { domain: `mail.${DOMAIN}`, inbound: { provider: 'ses', topicArn: TOPIC, keys: [sns.publicKey.export({ type: 'spki', format: 'pem' })] }, outbound: { provider: 'ses', region: 'eu-west-1', accessKeyId: 'AKIAQA', secretAccessKey: 'qa-not-a-secret', endpoint: `http://127.0.0.1:${fakeSes.address().port}` } }, hostd: { env: { WISP_TELEGRAM_API: `http://127.0.0.1:${fakeTelegram.address().port}`, WISP_SLACK_API: `http://127.0.0.1:${fakeSlack.address().port}` } } }));
+fs.writeFileSync(path.join(data, 'grid.json'), JSON.stringify({ channels: { enabled: true }, mail: { domain: `mail.${DOMAIN}`, inbound: { provider: 'ses', topicArn: TOPIC, keys: [sns.publicKey.export({ type: 'spki', format: 'pem' })], dkimKeys: { 'sel._domainkey.sender.example': keyRecord(dkim.publicKey)[0].join('') } }, outbound: { provider: 'ses', region: 'eu-west-1', accessKeyId: 'AKIAQA', secretAccessKey: 'qa-not-a-secret', endpoint: `http://127.0.0.1:${fakeSes.address().port}` } }, hostd: { env: { WISP_TELEGRAM_API: `http://127.0.0.1:${fakeTelegram.address().port}`, WISP_SLACK_API: `http://127.0.0.1:${fakeSlack.address().port}` } } }));
 
 const { check, done } = runner('grid');
 const log = fs.openSync(path.join(OUT, 'grid-server.log'), 'w');
@@ -383,11 +386,14 @@ try {
     ok(sent[0].Destination.ToAddresses.join() === me, `sent to ${sent[0].Destination.ToAddresses}`);
     ok(/^In-Reply-To: <qa1@sender\.example>\r?$/m.test(out), 'not threaded');
     ok((await hook(signedMail(to, { from: 'evil@evil.example', id: '<qa2@evil.example>', subject: 'status' }))).status === 200, 'a stranger’s mail wasn’t taken quietly');
+    const refusal = async () => (await req(`${inst(A.handle)}/api/remote`, { headers: bearer(token) })).json.status.email?.refused;
     ok((await hook(signedMail(to, { from: me, id: '<qa3@sender.example>', subject: 'status', dmarc: 'FAIL' }))).status === 200, 'a forged mail wasn’t taken quietly');
     await sleep(1500);
+    ok((await refusal()) === 'dmarc', `the box’s refusal of a failed verdict: ${await refusal()}`);
+    ok((await hook(signedMail(to, { from: me, id: '<qa4@sender.example>', subject: 'status', signed: false }))).status === 200, 'an unsigned mail wasn’t taken quietly');
+    await sleep(1500);
+    ok((await refusal()) === 'dkim', `the box’s refusal of an unsigned mail: ${await refusal()}`);
     ok(sent.length === 1, `${sent.length} replies: a stranger or a forgery was answered`);
-    const refused = (await req(`${inst(A.handle)}/api/remote`, { headers: bearer(token) })).json.status.email?.refused;
-    ok(refused === 'dmarc', `the box’s last refusal: ${refused}`);
     await until(async () => (await state()) === 'stopped', (IDLE + 30) * 1000, 'the box to sleep again by itself');
   });
 
