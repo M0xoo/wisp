@@ -8,7 +8,7 @@ import { IOS, S, STANDALONE } from '../core/state.js';
 import { toast } from '../ui/toast.js';
 import { reveal } from './feed.js';
 import { watching } from './scroll.js';
-import { avatarHtml, crewInView, memberById, openMember } from './crew.js';
+import { avatarHtml, crewInView, memberById } from './crew.js';
 
 const app = typeof window !== 'undefined' ? window.wispAndroid : null;
 
@@ -73,8 +73,9 @@ export function notifyFinished(s) {
   const member = s.crew && memberById(s.crew.id);
   if (member && crewInView(member.id) && focused()) return;
   const head = member ? `<b>${esc(member.name)}</b>${s.state === 'waiting' ? ' has a question' : ' reported'}: ${esc(s.title)}` : `${icon(s.state === 'waiting' ? 'ask' : goal ? 'target' : 'spark')} <b>${esc(s.title)}</b> ${verb}`;
-  // A member's job opens in its thread, at that job: the question to answer, or the report.
-  const open = () => (member ? openMember(member.id, { entry: s.id }) : reveal(s.id));
+  // A member's job opens as the task itself (under its member, with the member as a crumb), like any
+  // other task: the question to answer, or the report.
+  const open = () => reveal(s.id);
   toast(head, { action: { label: 'Open', run: open }, timeout: 7000, glyph: member && avatarHtml(member, { size: 26, dot: false }) });
   if (!notifyOn() || focused()) return;
   const body = s.state === 'waiting' ? s.question : goal ? `${verb[0].toUpperCase()}${verb.slice(1)}${goal.last?.why ? `: ${goal.last.why}` : ''}` : s.preview || 'Ready for review';

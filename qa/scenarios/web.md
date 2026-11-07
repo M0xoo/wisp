@@ -686,3 +686,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Steps:** in Changes press a 400-line file's pencil. Type a letter, press Esc, then Esc on the Discard card. Undo and press Esc. Open a short file, ⇧F12 on a name, Esc; ⌘P, Esc; F2, Esc; F2, type a name, Enter. In the long file put the caret on line 301, have the file change on disk, type, ⌘S, **Load theirs**. At 1440, 1000 and 390px, light and dark.
 - **Expected:** the long file opens at line 1 with the caret there, and the letter lands on it. Each Esc, Enter and Cancel leaves the keyboard in the file, caret and scroll as they were. Esc from the editor puts it on the pencil of the file's row. *Load theirs* stays on line 301. On a touch screen none of this brings the keyboard up.
 - **Suite** (`qa/web.mjs`), **Manual** (real Chrome)
+
+### WEB-70 · A crew job's toast opens the job
+- **Steps:** with a crew member, give it a job and let it report while nothing of it is on screen (or the window is in the background). Click the toast's **Open** (and, unfocused, the desktop notification). Open **Org** and do it again. Again at 390px.
+- **Expected:** the job opens as a task in the main pane (390px: a page over the list), under its member with the member as a crumb, not the member's thread, from the Org page too. The toast keeps the member's face and name.
+- **Suite** (`qa/web.mjs`), **Manual** (real Chrome)

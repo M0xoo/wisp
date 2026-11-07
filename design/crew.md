@@ -105,15 +105,16 @@ is a row in the list; the rail's pick (below) turns the list into that member's 
   *About Ada* page with Back, the way a task's side panel comes in (side-panel.md → Swipe, the same
   feel and numbers, `panel-swipe.js`); dragging it right, Back or the phone's Back return to the
   thread. `crew.page.swipe: false` turns it off; the page is the `crew.about` part.
-- **When it needs you**: its face (and row) say so, a notification names it, and either opens the
-  thread at that job, where you answer without opening anything else. Answering is optimistic: the
+- **When it needs you**: its face (and row) say so, and a notification names it. The thread's row
+  opens the thread at that job, where you answer without opening anything else; the toast's **Open**
+  and the notification open the job itself (below). Answering is optimistic: the
   job carries on at once and goes back to asking if the server refuses.
 - **When it finishes**: the answer fills in on its job, the row says *Reported: …*, a notification
   names it. Seeing it in the thread marks it read. A quiet check-in only adds its line. No toast or
   notification while its thread is on screen: it shows there.
-- **Opening a job** (**Open job**, a notification of the job itself, a link) opens it as a task in the
-  main pane, nested under its member, with the member as a crumb in the header. Esc goes from the job
-  back to the thread at that job, and from the thread home.
+- **Opening a job** (**Open job**, a job's toast or notification, a link) opens it as a task in the
+  main pane, nested under its member, with the member as a crumb in the header. Esc goes from a job
+  opened in the thread back to the thread at that job, and from the thread home.
 - **In another task**: `@Ada …` starting a follow-up is answered under the message (the task's agent
   isn't interrupted); **Reply to Ada** continues the same job, so Ada remembers the thread. A member
   tagged in or delegated by a task can follow up there by itself (`followUp`), shown as *@Ada (your
