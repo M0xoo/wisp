@@ -98,14 +98,33 @@
 .phone-modal .ph-sec h4 .switch { margin-left: auto; }
 .phone-modal .settings-modal { width: auto; padding: 0; border: 0; box-shadow: none; background: none; }
 .settings-modal label.check { padding: 0; border: 0; gap: 6px; }
-.ph-ok, .ph-bad { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 500; }
+.ph-ok, .ph-bad, .ph-wait { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 500; }
 .ph-ok { color: var(--good); }
+.ph-wait { color: var(--muted); }
 .ph-bad { color: var(--bad); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ph-ok .i, .ph-bad .i { width: 12px; height: 12px; }
 .ph-start { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
 .ph-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px; }
 .ph-options { margin-bottom: 10px; }
 .ph-options .hint { margin-top: 0; }
+/* GitHub: what it says is under the title, so a status never squeezes the title or moves the switch */
+.ph-gh-st { flex: none; }
+.ph-gh-st:empty { display: none; }
+.ph-gh-who { margin-top: 10px; font-size: 13px; overflow-wrap: anywhere; }
+.ph-gh-who[hidden] { display: none; }
+.ph-gh-err { margin-top: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.ph-gh-err[hidden] { display: none; }
+.phone-modal .ph-gh-err .hint { display: flex; gap: 6px; margin: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.ph-gh-err button { margin-left: 20px; }
+.ph-gh-err .hint .i { flex: none; width: 14px; height: 14px; margin-top: 1px; color: var(--bad); }
+.phone-modal .ph-gh .hint code { overflow-wrap: anywhere; }
+/* Narrow, the status would wrap the line beside it and move what's below: the line takes its own row */
+@media (max-width: 720px) {
+  .phone-modal .ph-gh h4 { flex-wrap: wrap; row-gap: 2px; }
+  .phone-modal .ph-gh h4 .muted { order: 1; flex-basis: 100%; }
+  .ph-gh h4 .ph-dot { display: none; }
+}
+
 /* Both ways of starting a task hold the cell, so the switch above never moves what's below it */
 .ph-how { display: grid; }
 .ph-how > .hint { grid-area: 1 / 1; }

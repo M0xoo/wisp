@@ -960,6 +960,14 @@ test("the Phone dialog's Say what you'd type in wisp row is a part spells can re
   assert.ok(!('telegram.options' in schema.SETTINGS) && !('options' in schema.SETTINGS));
 });
 
+test("the Phone dialog's GitHub section is a part spells can restyle or hide", () => {
+  assert.equal(schema.PARTS['phone.github'], '.phone-modal .ph-gh');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['phone.github'] }, parts: { 'phone.github': { style: { opacity: '0.8' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'phone.github': { props: { lines: 2 } } } }).some((x) => /phone\.github/.test(x)));
+  // Its switches are the remote config's, not defaults a spell could lock.
+  assert.ok(!('github.enabled' in schema.SETTINGS) && !('publicReports' in schema.SETTINGS));
+});
+
 test("the phone's New task button is a part spells can restyle or hide", () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.fab'] }, parts: { 'launcher.fab': { style: { borderRadius: '12px' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'launcher.fab': { props: { size: 2 } } } }).some((x) => /launcher\.fab/.test(x)));
