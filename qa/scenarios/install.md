@@ -43,7 +43,9 @@ run their own binary as Node after the swap, and by then that's the Tauri shell:
 makes it Node for that one run. On Windows they run `/S --force-run`: Tauri's installer knows only `/R`,
 and `desktop/src-tauri/installer-hooks.nsh` gives it the other word. A Tauri app sends `/R`, an Electron
 build still `--force-run`. The two install to different folders, and the same hook takes Electron's copy away (INST-40–46 below,
-INST-46 the whole update in v0.57.0's own code).
+INST-46 the whole update in v0.57.0's own code). The cmd.exe that update starts the installer from stands in
+Electron's folder, so Windows keeps it until the installer is done: `desktop/remove-electron.mjs`, hidden on the
+bundled Node, removes it then.
 
 **INST-23, Electron's NSIS installer and the updater's line.** An Electron build sends `/S --force-run`;
 this was last run on the longer `/S --force-run /R`, with `--force-run` alone as a row of it. On `windows-latest`, in a throwaway workflow on a branch, take a
@@ -87,4 +89,4 @@ v0.57.0 installer from the release:
 | INST-43 | marker files in `~/.wisp` and the profile stay; the new app on the bundled Node serves v0.57.0's task |
 | INST-44 | v0.57.0 again, left running, then the installer with `/S /NS` (no links of its own, as an interactive install makes no desktop link unless asked): Electron stopped and gone, the hook alone moved its links |
 | INST-45 | a link of the user's own that says wisp stays where it points; Tauri's uninstaller leaves `~/.wisp` |
-| INST-46 | v0.57.0's own updater, in the running app (only its release list stood in for): it downloads this installer, hands `/S --force-run` to its waiter and quits; the Tauri app comes up on 4477 on its bundled Node, Electron's folder gone, one entry, every link on Tauri |
+| INST-46 | v0.57.0's own updater, in the running app started from its own folder as its Start menu shortcut does (only its release list stood in for): it downloads this installer, hands `/S --force-run` to its waiter and quits; the Tauri app comes up on 4477 on its bundled Node, Electron's folder gone, one entry, every link on Tauri |

@@ -629,6 +629,9 @@ async function windowsRows() {
 
 // --- from Electron to Tauri on Windows: the real last release, then this build ---
 const ELECTRON = '0.57.0';
+// electron-builder's install and Apps keys, by its GUID for dev.wisp.app (UUID v5 in its namespace).
+const ELECTRON_KEYS = ['Software', 'Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall'].map((k) => `HKCU\\${k}\\1d165acf-c1c9-5f90-b510-185d627d379f`);
+const hasKey = (key) => new Promise((r) => execFile('reg', ['query', key], (err) => r(!err)));
 const ELECTRON_DIR = () => path.join(process.env.LOCALAPPDATA, 'Programs/wisp-agents'); // the npm name, not wisp
 const TAURI_DIR = () => path.join(process.env.LOCALAPPDATA, 'wisp');
 const PIN = () => path.join(process.env.APPDATA, 'Microsoft/Internet Explorer/Quick Launch/User Pinned/TaskBar/wisp.lnk');
@@ -741,6 +744,7 @@ async function migrateRows() {
   await check('INST-46', `v${ELECTRON}’s own updater moves it onto this build: Tauri comes up in its place, Electron’s copy gone`, async () => {
     ok(!(await health(4477).catch(() => null)), 'something is on 4477');
     await installElectron();
+    for (const key of ELECTRON_KEYS) ok(await hasKey(key), `v0.57.0 wrote no ${key}`);
     const code = path.join(ELECTRON_DIR(), 'resources/app/server/update.js');
     const was = fs.readFileSync(code, 'utf8');
     const patched = was.replace(/const RELEASES = '[^']+';/, 'const RELEASES = process.env.QA_RELEASES;');
@@ -752,7 +756,9 @@ async function migrateRows() {
     try {
       const env = { ...real(4477), QA_RELEASES: `http://127.0.0.1:${releases.address().port}` };
       delete env.WISP_UPDATE_CHECK;
-      const child = start(path.join(ELECTRON_DIR(), 'wisp.exe'), [], env);
+      // From its own folder, as its Start menu shortcut starts it: the cmd.exe its update runs the
+      // installer from stands there, and Windows won't delete a folder a process stands in.
+      const child = start(path.join(ELECTRON_DIR(), 'wisp.exe'), [], env, { cwd: ELECTRON_DIR() });
       const old = await up(4477, 'v0.57.0');
       const offer = await until(async () => { const u = await (await fetch('http://127.0.0.1:4477/api/update?check=1')).json(); return u.available && u; }, { timeout: 30_000, what: 'the update on offer' });
       ok(offer.method === 'app', `method ${offer.method}`);
@@ -767,6 +773,7 @@ async function migrateRows() {
       console.log(`  Tauri up as pid ${fresh.pid}, Electron ${child.exitCode === null ? 'still running' : 'gone'}`);
       await until(() => !fs.existsSync(ELECTRON_DIR()), { timeout: 30_000, every: 500, what: `${ELECTRON_DIR()} to go` });
       ok(entries().length === 1 && entries()[0].key === 'wisp', `Apps lists ${JSON.stringify(entries())}`);
+      for (const key of ELECTRON_KEYS) ok(!(await hasKey(key)), `${key} is still there`);
       ok(toTauri(links()), `links: ${JSON.stringify(links())}`);
       ok(fs.existsSync(path.join(home, 'sessions', `${opened.id}.json`)), '~/.wisp lost a task');
     } finally {

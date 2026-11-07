@@ -40,6 +40,12 @@
     ${IfNot} ${FileExists} "${ELECTRON_COPY}\wisp.exe"
       Delete "${ELECTRON_COPY}\Uninstall wisp.exe"
       RMDir "${ELECTRON_COPY}"
+      ; Started from its Start menu shortcut, Electron's update runs this installer from a cmd.exe
+      ; standing in that folder, and Windows won't delete a folder a process stands in until it's
+      ; gone, after this installer. A hidden helper on the bundled Node waits for it.
+      ${If} ${FileExists} "${ELECTRON_COPY}\*.*"
+        ExecShell "open" "$INSTDIR\node\node.exe" '"$INSTDIR\resources\app\desktop\remove-electron.mjs" "${ELECTRON_COPY}"' SW_HIDE
+      ${EndIf}
     ${EndIf}
   ${EndIf}
 

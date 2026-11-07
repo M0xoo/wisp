@@ -12,6 +12,7 @@ import { tmp } from './helpers.js';
 import { NODE_VERSION, TARGETS, fetchNode, hostTarget } from '../desktop/scripts/fetch-node.mjs';
 import { ENTITLEMENTS, appFiles, artefacts, overlay, signArgs, stage } from '../desktop/scripts/package.mjs';
 import { Updater, installMethod } from '../server/update.js';
+import { isElectronFolder, removeLeftover } from '../desktop/remove-electron.mjs';
 
 const ROOT = path.join(import.meta.dirname, '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n'); // Windows checkouts
@@ -77,6 +78,7 @@ test('the app holds what electron-builder’s does, plus the Node side of the sh
   const list = yml.slice(yml.indexOf('files:'), yml.indexOf('asar:')).matchAll(/^ {2}- ([\w.-]+?)(\/\*\*)?$/gm);
   for (const [, f] of list) assert.ok(files.includes(f), `${f} is in electron-builder.yml`);
   assert.ok(files.includes('desktop/entry.mjs'));
+  assert.ok(files.includes('desktop/remove-electron.mjs'), 'the installer runs it from resources\\app\\desktop');
   assert.ok(!JSON.parse(read('package.json')).files.some((f) => f.startsWith('desktop')), 'desktop/ is not on npm');
 });
 
@@ -88,6 +90,7 @@ test('stage copies wisp’s files and leaves node_modules out', () => {
   fs.writeFileSync(path.join(root, 'bin/wisp.js'), '//');
   fs.mkdirSync(path.join(root, 'desktop'));
   fs.writeFileSync(path.join(root, 'desktop/entry.mjs'), '//');
+  fs.writeFileSync(path.join(root, 'desktop/remove-electron.mjs'), '//');
   fs.writeFileSync(path.join(root, 'desktop/other.mjs'), '//');
   const dest = stage(root, path.join(tmp('stage'), 'app'));
   assert.ok(fs.existsSync(path.join(dest, 'bin/wisp.js')));
@@ -126,6 +129,57 @@ test('the Windows installer takes Electron’s copy away, from where v0.57.0 rea
   assert.match(hooks, /--keep-shortcuts/, 'our links have the same names as its');
   assert.match(hooks, /\$INSTDIR != "\$\{ELECTRON_COPY\}"/, 'picked as the install folder, it holds the new app');
   assert.ok(!/RMDir \/r|APPDATA\\wisp|\.wisp/.test(hooks.replace(/^;.*$/gm, '')), 'nothing here may reach user data');
+});
+
+test('a folder the update’s cmd.exe still stands in goes once it’s free, by a hidden helper', () => {
+  const hooks = read('desktop/src-tauri/installer-hooks.nsh');
+  const after = hooks.slice(hooks.indexOf('RMDir "${ELECTRON_COPY}"'));
+  assert.match(after, /\$\{If\} \$\{FileExists\} "\$\{ELECTRON_COPY\}\\\*\.\*"/, 'only when the folder is still there');
+  assert.match(after, /ExecShell "open" "\$INSTDIR\\node\\node\.exe" '"\$INSTDIR\\resources\\app\\desktop\\remove-electron\.mjs" "\$\{ELECTRON_COPY\}"' SW_HIDE/, 'no window, not waited for');
+  assert.ok(after.indexOf('ExecShell') < after.indexOf('RunAsUser'));
+});
+
+// electron-builder's per-app GUID: UUID v5 of the appId in its own namespace (NsisTarget.js).
+test('the install gate looks for Electron’s registry keys under electron-builder’s GUID for our appId', () => {
+  const ns = Buffer.from('50e065bc313411e69bab38c9862bdaf3', 'hex');
+  const appId = read('packaging/desktop/electron-builder.yml').match(/^appId: (\S+)$/m)[1];
+  const h = createHash('sha1').update(ns).update(appId).digest();
+  h[6] = (h[6] & 0x0f) | 0x50;
+  h[8] = (h[8] & 0x3f) | 0x80;
+  const x = h.subarray(0, 16).toString('hex');
+  const guid = `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`;
+  assert.ok(read('qa/install.mjs').includes(`\\\\${guid}\``), guid);
+});
+
+test('remove-electron.mjs only ever removes Programs\\wisp-agents, once it’s free', async () => {
+  assert.ok(isElectronFolder('C:\\Users\\a b\\AppData\\Local\\Programs\\wisp-agents'));
+  assert.ok(isElectronFolder('c:\\users\\x\\appdata\\local\\programs\\WISP-AGENTS'));
+  for (const bad of ['', undefined, 'C:\\Users\\x\\AppData\\Local\\wisp', 'C:\\Users\\x\\AppData\\Roaming\\wisp-agents', 'C:\\Users\\x', 'C:\\Programs']) assert.equal(isElectronFolder(bad), false, String(bad));
+  const calls = [];
+  assert.equal(await removeLeftover('C:\\Users\\x\\.wisp', { rm: (d) => calls.push(d), exists: () => false }), false);
+  assert.deepEqual(calls, [], 'nothing else is touched');
+  let busy = 3;
+  const gone = await removeLeftover('C:\\Users\\x\\AppData\\Local\\Programs\\wisp-agents', {
+    every: 1,
+    rm: (d) => {
+      calls.push(d);
+      if (busy-- > 0) throw Object.assign(new Error('EBUSY'), { code: 'EBUSY' });
+    },
+    exists: () => busy >= 0,
+  });
+  assert.equal(gone, true);
+  assert.equal(calls.length, 4, 'tried again while it was in use');
+  assert.equal(await removeLeftover('C:\\Users\\x\\AppData\\Local\\Programs\\wisp-agents', { tries: 3, every: 1, rm: () => {}, exists: () => true }), false, 'gives up');
+});
+
+test('the helper removes a real leftover folder, run as the installer runs it', () => {
+  const programs = path.join(tmp('electron-left'), 'Programs');
+  const dir = path.join(programs, 'wisp-agents');
+  fs.mkdirSync(path.join(dir, 'resources'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'resources/left'), 'x');
+  execFileSync(process.execPath, [path.join(ROOT, 'desktop/remove-electron.mjs'), dir]);
+  assert.equal(fs.existsSync(dir), false);
+  assert.ok(fs.existsSync(programs));
 });
 
 test('artefacts keep electron-builder’s names, the ones the updater, install.sh and the site ask for', () => {
