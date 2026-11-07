@@ -46,7 +46,10 @@ Settings → Usage → **Plan budget** (`.sx-budget`, spell part `settings.budge
 account (harness logo, name, the account's label when there are several), a row per window: label,
 a 6px bar (accent; `--warn` at 90% or when the pace runs out first; `--bad` when used up), the
 percent, and one line: *Resets Thu 21:00*, *Resets 15:00 · at this pace, runs out 13:40*,
-*Used up · resets 21:00*, *New window*. Before any run: *Shows each account's 5-hour and weekly
+*Used up · resets 21:00*, *New window*. A Codex account with banked resets has one more line under
+its bars (`.bg-bank`, spell part `budget.banked`): *1 banked reset, expires tomorrow 17:00*, *3
+banked resets, the next expires Thu, Nov 12, 09:00*, or just *2 banked resets* when Codex gives only
+the count; `--warn` once one expires within a day. Before any run: *Shows each account's 5-hour and weekly
 windows after its next Claude Code or Codex run.* The **Wait for the reset** switch sits under it.
 
 ## Terms
@@ -340,7 +343,14 @@ Design by Sana (2026-11-01).
   then the process goes (15 s timeout; on errors back off ×2 up to an hour). `codexLive` maps the
   answer (`rateLimitsByLimitId.codex`, camelCase) to `codexLimits`, and `Budget.record` does the rest.
   Nothing waiting: no traffic. Never `account/rateLimitResetCredit/consume`: a credit is the user's
-  to spend. Claude Code has no free read (its `rate_limit_event` comes only inside a model call, and a
+  to spend.
+- **Banked resets** (`codexBanked`): the same answer's `rateLimitResetCredits` (`availableCount`,
+  `credits: [{ id, expiresAt, status }]`, `null` when only the count is known, possibly capped).
+  Kept as `acc.banked = { count, credits, at }` until the next read; credits past `expiresAt` or not
+  `available` drop out of the count (`bankedAt`). The phone hears once per credit id, the day before
+  it expires (`liveLimits.noteBanked` every tick, `Budget.bankedDue` / `bankedSent`, from the last
+  reading, so it reads nothing); a note that couldn't go (no ntfy or Telegram) isn't marked sent.
+  No card, no hold, no button: wisp never redeems one, and never reads `~/.codex/auth.json`. Claude Code has no free read (its `rate_limit_event` comes only inside a model call, and a
   private OAuth endpoint with a scraped token is off-limits): it keeps learning with its next run.
 - **Read before held-back work** (`liveLimits.before`, `app.reserve.fresh`): with an Automations
   stop line on Codex, an unattended launch, a follow-up nobody sent by hand (a pass ahead of

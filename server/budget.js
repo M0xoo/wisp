@@ -182,6 +182,43 @@ export function codexLive(res, { now = Date.now() } = {}) {
   return next ? limitsOf(next[1]) : limits;
 }
 
+// Banked resets (OpenAI's reset credits) from the same answer: rateLimitResetCredits is
+// { availableCount, credits: [{ id, expiresAt (s, null: never), status }] | null }. credits null:
+// only the count is known. The list may be capped below the count. → { count, credits: [{ id,
+// expiresAt }] | null }, soonest first, or null when the answer doesn't say. A credit past its
+// expiry, or no longer available, isn't counted. Read only: wisp never redeems one.
+export function codexBanked(res, { now = Date.now() } = {}) {
+  const r = res?.rateLimitResetCredits;
+  if (!r || typeof r !== 'object' || !Number.isFinite(r.availableCount)) return null;
+  let count = Math.max(0, Math.floor(r.availableCount));
+  if (!Array.isArray(r.credits)) return { count, credits: null };
+  const credits = [];
+  for (const c of r.credits) {
+    if (!c || typeof c !== 'object' || (c.status && c.status !== 'available')) continue;
+    const expiresAt = toMs(c.expiresAt);
+    if (expiresAt && expiresAt <= now) {
+      count = Math.max(0, count - 1);
+      continue;
+    }
+    credits.push({ id: typeof c.id === 'string' && c.id ? c.id.slice(0, 200) : `at:${expiresAt}`, expiresAt });
+  }
+  credits.sort((a, b) => (a.expiresAt ?? Infinity) - (b.expiresAt ?? Infinity));
+  return { count: Math.max(count, credits.length), credits: credits.slice(0, 20) };
+}
+
+// What's left of a stored reading at now: credits that expired since drop out of the list and the count.
+export function bankedAt(b, now = Date.now()) {
+  if (!b || !Number.isFinite(b.count)) return null;
+  if (!Array.isArray(b.credits)) return b.count > 0 ? { count: b.count, credits: null, at: b.at || null } : null;
+  const credits = b.credits.filter((c) => !c.expiresAt || c.expiresAt > now);
+  const count = Math.max(0, b.count - (b.credits.length - credits.length));
+  return count > 0 ? { count, credits, at: b.at || null } : null;
+}
+
+// The day before a banked reset expires the phone hears of it, once per credit: those due now.
+export const BANKED_NOTE_MS = 24 * H;
+export const bankedDue = (b, sent = {}, now = Date.now()) => (bankedAt(b, now)?.credits || []).filter((c) => c.expiresAt && c.expiresAt - now <= BANKED_NOTE_MS && !sent[c.id]);
+
 // The rate_limits Codex wrote last into a thread's session file (CODEX_HOME/sessions/yyyy/mm/dd/
 // rollout-…-<thread>.jsonl), or null. A resumed thread keeps its first day's file: look back a month.
 export function codexRollout(threadId, { home = path.join(os.homedir(), '.codex'), now = Date.now() } = {}) {
@@ -252,10 +289,19 @@ export class Budget {
   // What a run reported: { windows: [{ id, used, resetsAt, ms }], rejected?, overage?, credits? }.
   // Returns 'extra' or 'credits' when this report says the run is billed past the plan, else null.
   // read: from Check Codex or the read before held-back work, not from a run.
-  record(agent, account, { windows = [], complete = false, overage = false, credits, read = false } = {}) {
+  // banked: codexBanked()'s answer (a read only), kept as it is until the next read says otherwise.
+  record(agent, account, { windows = [], complete = false, overage = false, credits, read = false, banked } = {}) {
     if (!agent || !Array.isArray(windows)) return null;
     account ||= 'default';
     let past = overage ? 'extra' : null;
+    if (banked && Number.isFinite(banked.count)) {
+      const acc = ((this.state[agent] ||= {})[account] ||= { windows: {} });
+      const same = (b) => JSON.stringify([b?.count, b?.credits]);
+      const was = same(acc.banked);
+      acc.banked = { count: banked.count, credits: banked.credits ?? null, at: this.now() };
+      if (was !== same(acc.banked)) this.onChange();
+      if (!windows.length) this.save();
+    }
     if (Number.isFinite(credits)) {
       const acc = ((this.state[agent] ||= {})[account] ||= { windows: {} });
       if (Number.isFinite(acc.credits) && credits < acc.credits - 1e-9) past = 'credits';
@@ -335,6 +381,30 @@ export class Budget {
     acc.over = list.slice(-OVER_KEEP);
     this.save();
     this.onChange();
+  }
+
+  // --- banked resets: the one phone note the day before each expires ---------------------------
+
+  // The credits of each account of agent whose note is due: [{ account, credit, count }].
+  bankedDue(agent) {
+    const now = this.now();
+    const out = [];
+    for (const [account, acc] of Object.entries(this.state[agent] || {})) {
+      const b = bankedAt(acc.banked, now);
+      for (const credit of bankedDue(acc.banked, acc.bankedSent, now)) out.push({ account, credit, count: b.count });
+    }
+    return out;
+  }
+
+  // Its note went: never again for that credit. Entries go once their credit has expired.
+  bankedSent(agent, account, credit) {
+    const acc = this.state[agent]?.[account || 'default'];
+    if (!acc) return;
+    const now = this.now();
+    const sent = Object.fromEntries(Object.entries(acc.bankedSent || {}).filter(([, at]) => !at || at > now));
+    sent[credit.id] = credit.expiresAt || 0;
+    acc.bankedSent = sent;
+    this.save();
   }
 
   // For Plan budget: { runs, at, kind, sid } over the last week, or null.
@@ -579,7 +649,8 @@ export class Budget {
       const drain = this.drain(agent, account);
       const notices = Object.values(acc.notices || {}).map((n) => ({ ...n, label: WINDOWS[n.window]?.label || labelOf(n.ms), ...(n.wasMs && { wasLabel: WINDOWS[n.wasWindow]?.label || labelOf(n.wasMs) }) }));
       const overage = this.#overView(acc, now);
-      if (windows.length || notices.length || overage) out.push({ account, at: acc.at || null, windows, ...(drain && { drain }), ...(notices.length && { notices }), ...(overage && { overage }) });
+      const banked = agent === 'codex' && bankedAt(acc.banked, now);
+      if (windows.length || notices.length || overage || banked) out.push({ account, at: acc.at || null, windows, ...(drain && { drain }), ...(notices.length && { notices }), ...(overage && { overage }), ...(banked && { banked }) });
     }
     return out;
   }

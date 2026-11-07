@@ -18,6 +18,7 @@ import { tryApi } from '../ui/toast.js';
 import { noticeWords } from '../window-notice.js';
 import { harnessLogo } from './runners.js';
 import { holdLine } from '../limit-hold.js';
+import { bankedSoon, bankedWords } from '../banked.js';
 import { COMPARE_DAYS, COMPARE_MIN, compareParts, compareWords, insteadWords, modelWords, tokenWords } from '../receipt.js';
 
 const REPORTS = new Set(['claude', 'codex']); // harnesses whose CLI says how much is gone
@@ -153,6 +154,14 @@ function overHtml(b) {
   </div>`;
 }
 
+// Banked resets (Codex's reset credits, from a read): words only, wisp never redeems one.
+function bankedHtml(b) {
+  const words = bankedWords(b.banked);
+  if (!words) return '';
+  const tip = `Reset credits on this plan, as Codex last said${b.banked.at ? ` (${whenLabel(b.banked.at)})` : ''}. wisp never redeems one: that’s yours to do in Codex`;
+  return `<div class="bg-bank${bankedSoon(b.banked) ? ' warn' : ''}" title="${esc(tip)}">${icon('rotate')}<span>${esc(words)}</span></div>`;
+}
+
 // Tokens per turn by account (server/budget.js compareAccounts): one row per model this harness ran
 // on two or more accounts this week, each account's median turn, and Copy report for a bug report to
 // the vendor. Numbers only: it never suggests an account, and wisp never switches.
@@ -219,6 +228,7 @@ export function budgetHtml(agents) {
       out.push(`<div class="bg-acct${stop ? ' stops' : ''}" data-agent="${esc(a.id)}" data-acc="${esc(b.account)}"${stop ? ` style="--stop:${stop * 100}%"` : ''}>
         <b class="bg-name"><span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}${acc ? `<span class="bg-acc">${esc(acc.label)}</span>` : ''}</b>
         ${wins}
+        ${bankedHtml(b)}
         ${overHtml(b)}
         ${noticesHtml(a, b, acc)}
         ${drainHtml(a, b)}

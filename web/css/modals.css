@@ -280,6 +280,10 @@ body.wisp-mobile .pe-colours .swatch { width: 44px; height: 44px; }
 .bg-nx { flex: none; width: 26px; height: 26px; color: var(--faint); }
 .bg-nx:hover { color: var(--ink-2); }
 .bg-nx .i { width: 12px; height: 12px; }
+/* Banked resets: how many reset credits the plan has and when the next expires, a quiet line under the bars */
+.bg-bank { grid-column: 2 / -1; display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); }
+.bg-bank .i { flex: none; width: 12px; height: 12px; }
+.bg-bank.warn { color: var(--warn); }
 /* Past your plan: runs billed beyond the plan this week, a line under the bars */
 .bg-over { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 6px 6px 10px; border-radius: 8px; border: 1px solid var(--line-2); background: color-mix(in srgb, var(--warn) 7%, transparent); }
 .bg-over .bg-di { margin-top: 0; width: 14px; height: 14px; }
