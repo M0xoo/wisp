@@ -333,6 +333,27 @@ export function serveStatic(req, res, pathname) {
 // ones it doesn't have (?have=<the versions it has>, comma-separated). The whole pack is
 // brotli'd at its best once per build (in warmStatic); a partial one, quickly, when asked.
 let packed = null;
+
+// The pack at its best is 4 s of CPU, and more on a busy machine. As one job on the thread pool it
+// holds up process.exit until it ends, so a wisp stopped just after it started took 10 s and more to
+// go. Fed in slices it's many short jobs, with the same bytes at the end. err leaves it unset.
+const SLICE = 64 * 1024;
+function brotliInPieces(body, params, done) {
+  const z = zlib.createBrotliCompress({ params });
+  const out = [];
+  z.on('data', (d) => out.push(d));
+  z.on('end', () => done(Buffer.concat(out)));
+  z.on('error', () => {});
+  let at = 0;
+  const next = () => {
+    if (at >= body.length) return z.end();
+    const slice = body.subarray(at, (at += SLICE));
+    if (z.write(slice)) setImmediate(next);
+    else z.once('drain', next);
+  };
+  next();
+}
+
 function pack(have) {
   const { build } = index();
   const all = !have.size;
@@ -346,7 +367,7 @@ function pack(have) {
   const entry = { build, body, etag: `"${hash(body)}"`, gz: null, br: null, text: true };
   if (!all) return entry;
   packed = entry;
-  zlib.brotliCompress(body, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11, [zlib.constants.BROTLI_PARAM_LGWIN]: 24, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: body.length } }, (err, br) => !err && (entry.br = br));
+  brotliInPieces(body, { [zlib.constants.BROTLI_PARAM_QUALITY]: 11, [zlib.constants.BROTLI_PARAM_LGWIN]: 24, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: body.length }, (br) => (entry.br = br));
   zlib.gzip(body, { level: 9 }, (err, gz) => !err && (entry.gz = gz));
   return entry;
 }
