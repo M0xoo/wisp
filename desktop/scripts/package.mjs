@@ -1,5 +1,6 @@
 // Builds the Tauri app as a download, under the names electron-builder uses
-// (packaging/desktop/electron-builder.yml): wisp-mac-<arch>.dmg and .zip, wisp-windows-<arch>-setup.exe.
+// (packaging/desktop/electron-builder.yml): wisp-mac-<arch>.dmg and .zip, wisp-windows-<arch>-setup.exe,
+// and the shell alone for npm, wisp-shell-<mac|windows>-<arch>.tar.gz (packShell).
 // Nothing here is released yet: .github/workflows/tauri-package.yml keeps them as a dry run's artifacts.
 //
 //   node desktop/scripts/package.mjs [--target <triple>] [--out dist/tauri] [--features qa] [--skip-build]
@@ -23,11 +24,15 @@ export const ENTITLEMENTS = path.join(ROOT, 'packaging/desktop/entitlements.mac.
 
 export const isMac = (triple) => triple.endsWith('apple-darwin');
 export const archOf = (triple) => (triple.startsWith('aarch64') ? 'arm64' : 'x64');
+export const isWindows = (triple) => triple.includes('windows');
+// The shell alone, for a wisp from npm (bin/desktop-shell.js shellAsset() names them the same way):
+// mac and windows now, linux once it builds.
+export const shellArtefact = (triple) => `wisp-shell-${isMac(triple) ? 'mac' : isWindows(triple) ? 'windows' : 'linux'}-${archOf(triple)}.tar.gz`;
 export const artefacts = (triple) => (isMac(triple) ? [`wisp-mac-${archOf(triple)}.dmg`, `wisp-mac-${archOf(triple)}.zip`] : [`wisp-windows-${archOf(triple)}-setup.exe`]);
 
 // What goes in the app: what npm ships (electron-builder's list too), plus the Node side of the shell.
 export function appFiles(pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))) {
-  return ['package.json', ...pkg.files.map((f) => f.replace(/\/$/, '')), 'desktop/entry.mjs', 'desktop/remove-electron.mjs'];
+  return [...new Set(['package.json', ...pkg.files.map((f) => f.replace(/\/$/, '')), 'desktop/entry.mjs', 'desktop/remove-electron.mjs'])];
 }
 
 // A separate config, never tauri.conf.json: tauri-build fails on resources that aren't there, and
@@ -94,6 +99,36 @@ function packWindows(triple, out) {
   fs.copyFileSync(path.join(dir, built), path.join(out, artefacts(triple)[0]));
 }
 
+// The same build without Node or wisp's files: wisp.app on a Mac, the bare binary elsewhere (Windows
+// has WebView2, the resources were the installer's files). A wisp from npm runs it on its own Node
+// and files. On a Mac the bundle's signature sealed what's gone, so it's signed again.
+const tarBin = () => (process.platform === 'win32' ? path.join(process.env.SystemRoot, 'System32/tar.exe') : 'tar');
+export function packShell(triple, out) {
+  const room = fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-shell-'));
+  try {
+    let inside;
+    if (isMac(triple)) {
+      inside = 'wisp.app';
+      run('ditto', path.join(bundleDir(triple), 'macos', 'wisp.app'), path.join(room, inside));
+      for (const dir of ['app', 'node']) fs.rmSync(path.join(room, inside, 'Contents/Resources', dir), { recursive: true, force: true });
+      run('codesign', ...signArgs(path.join(room, inside), process.env.MAC_SIGN_IDENTITY || '-'));
+      run('codesign', '--verify', '--strict', '--verbose=1', path.join(room, inside));
+    } else {
+      inside = isWindows(triple) ? 'wisp.exe' : 'wisp';
+      fs.copyFileSync(path.join(path.dirname(bundleDir(triple)), inside), path.join(room, inside));
+      fs.chmodSync(path.join(room, inside), 0o755);
+    }
+    const file = path.join(out, shellArtefact(triple));
+    fs.rmSync(file, { force: true });
+    // From inside the folder: Git Bash's GNU tar takes C:\ for a host name.
+    // COPYFILE_DISABLE: no ._ files for macOS's extended attributes.
+    execFileSync(tarBin(), ['-czf', path.relative(room, file), inside], { cwd: room, stdio: 'inherit', env: { ...process.env, COPYFILE_DISABLE: '1' } });
+    return file;
+  } finally {
+    fs.rmSync(room, { recursive: true, force: true });
+  }
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const arg = (name, fallback) => {
     const i = process.argv.indexOf(name);
@@ -111,5 +146,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     tauri(triple, config, arg('--features'));
   }
   (isMac(triple) ? packMac : packWindows)(triple, out);
+  packShell(triple, out);
   for (const f of artefacts(triple)) console.log(`${f}  ${fs.statSync(path.join(out, f)).size} bytes  (Node ${NODE_VERSION})`);
+  console.log(`${shellArtefact(triple)}  ${fs.statSync(path.join(out, shellArtefact(triple))).size} bytes  (the shell alone)`);
 }

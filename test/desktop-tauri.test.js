@@ -231,10 +231,11 @@ test('the drag regions match every -webkit-app-region rule in the stylesheets', 
   assert.deepEqual(sorted(table), sorted(rules));
 });
 
-test('the shell is beside Electron: no dependency, nothing on npm', () => {
+test('the shell is beside Electron: no dependency, nothing of it on npm but entry.mjs', () => {
   const pkg = JSON.parse(read('package.json'));
   const all = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.optionalDependencies };
   assert.ok(!Object.keys(all).some((d) => /tauri/.test(d)));
-  assert.ok(!pkg.files.some((f) => f.startsWith('desktop')));
+  // The shell itself comes from the release (bin/desktop-shell.js); it runs npm's entry.mjs.
+  assert.deepEqual(pkg.files.filter((f) => f.startsWith('desktop')), ['desktop/entry.mjs']);
   assert.ok(all.electron, 'Electron stays until the switch');
 });
