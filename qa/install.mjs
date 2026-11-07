@@ -36,6 +36,7 @@ const dirIn = (name) => fs.mkdtempSync(path.join(TMP, `${name}-`));
 const CACHE = { npm_config_cache: process.env.QA_NPM_CACHE || path.join(TMP, 'npm-cache'), npm_config_audit: 'false', npm_config_fund: 'false', npm_config_update_notifier: 'false', electron_config_cache: process.env.QA_ELECTRON_CACHE || path.join(TMP, 'electron-cache') };
 let nextPort = Number(process.env.QA_INSTALL_PORT) || 4771;
 const live = new Set();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const manual = [];
 const notRun = [];
 const sha256 = (file) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -281,7 +282,7 @@ async function brewRows() {
     ok(/rm_r electron if electron\.exist\?/.test(formula), 'rm_r');
     ok(/^ {2}url "/m.test(formula) && /^ {2}sha256 "/m.test(formula), 'release.yml seds these two lines');
     const wf = fs.readFileSync(path.join(ROOT, '.github/workflows/release.yml'), 'utf8');
-    ok(/homebrew:\n\s+needs: \[plan, publish\]/.test(wf), 'the tap follows npm and the release');
+    ok(/homebrew:\r?\n\s+needs: \[plan, publish\]/.test(wf), 'the tap follows npm and the release');
   });
   if (!tarball || WIN) return;
   const cellar = path.join(dirIn('brew'), 'Cellar/wisp-agents', PKG.version);
@@ -495,6 +496,10 @@ async function windowsRows() {
     u.swap = { installer: setup };
     const flags = u.relaunchCommand().split(`"${setup}" `)[1].split(' ');
     ok(flags.includes('/R') && flags.includes('--force-run'), flags.join(' '));
+    // What builds already out send: the update lands, the app doesn't come back. Why /R has to ship first.
+    ok((await run(flags.filter((f) => f !== '/R'))) === 0, 'the installer failed');
+    await sleep(10_000);
+    ok(!(await health(4477).catch(() => null)), 'Tauri’s installer started the app on --force-run: /R may not be needed');
     ok((await run(flags)) === 0, 'the installer failed');
     // Started as the desktop user, not as this process's child: it has none of this env, so its port is the default.
     await up(4477, 'the app the installer started');
