@@ -139,6 +139,18 @@ test('a folder the update’s cmd.exe still stands in goes once it’s free, by 
   assert.ok(after.indexOf('ExecShell') < after.indexOf('RunAsUser'));
 });
 
+// electron-builder's per-app GUID: UUID v5 of the appId in its own namespace (NsisTarget.js).
+test('the install gate looks for Electron’s registry keys under electron-builder’s GUID for our appId', () => {
+  const ns = Buffer.from('50e065bc313411e69bab38c9862bdaf3', 'hex');
+  const appId = read('packaging/desktop/electron-builder.yml').match(/^appId: (\S+)$/m)[1];
+  const h = createHash('sha1').update(ns).update(appId).digest();
+  h[6] = (h[6] & 0x0f) | 0x50;
+  h[8] = (h[8] & 0x3f) | 0x80;
+  const x = h.subarray(0, 16).toString('hex');
+  const guid = `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`;
+  assert.ok(read('qa/install.mjs').includes(`\\\\${guid}\``), guid);
+});
+
 test('remove-electron.mjs only ever removes Programs\\wisp-agents, once it’s free', async () => {
   assert.ok(isElectronFolder('C:\\Users\\a b\\AppData\\Local\\Programs\\wisp-agents'));
   assert.ok(isElectronFolder('c:\\users\\x\\appdata\\local\\programs\\WISP-AGENTS'));
