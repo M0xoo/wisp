@@ -29,5 +29,6 @@ const server = http.createServer(async (req, res) => {
   res.writeHead(200, { 'content-type': 'application/json' });
   res.end(JSON.stringify(req.url === '/api/status' ? { live: conf().live || 0, sides: 0, terms: 0, clients: 0 } : { name: 'wisp' }));
 });
-setTimeout(() => server.listen(port, '127.0.0.1'), conf().bootMs || 0);
+// INBOX_BOX_BOOT_MS: the same, for every box a grid starts (box.json is one user's).
+setTimeout(() => server.listen(port, '127.0.0.1'), conf().bootMs ?? Number(process.env.INBOX_BOX_BOOT_MS || 0));
 process.on('SIGTERM', () => process.exit(0));
