@@ -668,6 +668,30 @@ test('url_verification, box asleep: a 503 for Slack to try again, no wake, nothi
   assert.equal(g.grid.db.get('SELECT count(*) n FROM channel_inbox').n, 0);
 });
 
+test('Slack: an edit or a bot’s message is never held, so it wakes nothing and costs no strike; a person’s file is held, and a Telegram body like one too', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  const { url } = await g.url(ada, 'slack');
+  const ensure = g.grid.hostd.ensure.bind(g.grid.hostd);
+  let wakes = 0;
+  g.grid.hostd.ensure = (user, o) => (wakes++, ensure(user, o));
+  const of = (id, event) => JSON.stringify({ type: 'event_callback', event_id: id, event: { type: 'message', ...event } });
+  const noise = [of('EvE1', { subtype: 'message_changed' }), of('EvE2', { subtype: 'message_deleted' }), of('EvE3', { user: 'UBOT', bot_id: 'BBOT' }), of('EvE4', { subtype: 'bot_message' })];
+  for (const body of noise) assert.equal((await g.post(ada, url, body, SLACK)).status, 200, 'Slack still gets its 200');
+  await sleep(150);
+  assert.equal(g.rows(ada).length, 0);
+  assert.equal(wakes, 0);
+  assert.equal(g.grid.hostd.state(ada.id), 'stopped');
+  assert.equal(g.dropped(ada), 0, 'skipped isn’t lost');
+  const file = of('EvF1', { subtype: 'file_share', user: 'U1' });
+  assert.equal((await g.post(ada, url, file, SLACK)).status, 200);
+  await until(() => g.got(ada).length === 1, { what: 'the file delivered' });
+  assert.equal(wakes, 1);
+  const tg = await g.url(ada);
+  await g.post(ada, tg.url, { update_id: 7, event: { subtype: 'message_changed' } });
+  await until(() => g.got(ada).length === 2, { what: 'Telegram’s delivered' });
+});
+
 test('url_verification: what the box refuses is refused, and a box that doesn’t answer is a 503', async () => {
   const g = await boot({ channels: { enabled: true, retryMs: 30, liveMs: 200 } });
   const ada = g.user('ada');

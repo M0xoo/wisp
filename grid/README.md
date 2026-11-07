@@ -140,7 +140,8 @@ this on, each cloud wisp that turns Telegram on sets a webhook to its own
 as its `request_url`: the grid answers at once, keeps the message in `grid.db`, wakes the box and
 delivers it. Messages are kept for an hour at most and wiped as they're delivered. A channel never
 keeps a box awake. The one thing that isn't held is Slack's `url_verification`: it goes straight to a
-box that's up, and gets a 503 from a sleeping one, which it doesn't wake.
+box that's up, and gets a 503 from a sleeping one, which it doesn't wake. Slack's edits, deletions
+and bots' messages (wisp's own replies among them) get a 200 and go no further: no box acts on them.
 
 ```json
 "channels": { "enabled": true, "maxRows": 200, "maxBytes": 2097152 }

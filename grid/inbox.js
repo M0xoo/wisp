@@ -17,16 +17,22 @@
 // A channel here is a row of CHANNELS: what's worth keeping of its request, its event id, and which
 // request can't be held (live): a sender checking its URL wants the box's answer in that same call.
 // That goes through only to a box already up, and never wakes one: setup happens with wisp open, and
-// a sender told 503 tries again.
+// a sender told 503 tries again. skip is what no box acts on, so it isn't held: a wake for it would
+// be refused and count as a strike. It's unsigned here, but forging one only drops the forger's own
+// request.
 
 import { createHash } from 'node:crypto';
 import { sha256, token } from './secrets.js';
 
 export const IN_PATH = /^\/_in\/([A-Za-z0-9_-]{32,64})$/;
 
+// Slack posts an edit, a deletion and wisp's own replies like any message; a file is the one subtype
+// that is someone speaking (#event, server/channels/slack.js).
+const slackNoise = (e) => !!e && (!!e.bot_id || (!!e.subtype && e.subtype !== 'file_share'));
+
 const CHANNELS = {
   telegram: { headers: ['x-telegram-bot-api-secret-token'], eventId: (j) => j?.update_id },
-  slack: { headers: ['x-slack-signature', 'x-slack-request-timestamp'], eventId: (j) => j?.event_id, live: (j) => j?.type === 'url_verification' },
+  slack: { headers: ['x-slack-signature', 'x-slack-request-timestamp'], eventId: (j) => j?.event_id, live: (j) => j?.type === 'url_verification', skip: (j) => slackNoise(j?.event) },
 };
 const BODY_MAX = 256 * 1024;
 const READ_MS = 15_000; // a body that takes longer isn't a webhook
@@ -256,6 +262,7 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
       const kept = Object.fromEntries(row.headers.filter((h) => typeof req.headers[h] === 'string').map((h) => [h, req.headers[h]]));
       const j = parsed(body);
       if (row.live?.(j)) return live(user, channel, kept, body);
+      if (row.skip?.(j)) return;
       const headers = JSON.stringify(kept);
       const size = body.length + headers.length;
       const held = pending(user.id);
