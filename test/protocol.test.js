@@ -96,11 +96,26 @@ test('wisp_blocks answers from wisp\'s MCP server without calling wisp', async (
 });
 
 test('a quick answer may be plain text: the agent does not wrap "13" in a report', () => {
-  assert.match(SYSTEM_PROMPT, /A quick answer with nothing to show[^]*is plain text with no wisp block/);
+  assert.match(SYSTEM_PROMPT, /A quick answer with nothing to show[^]*is plain text: wisp shows it as it is/);
   // wisp shows it as it is: plain text parses as markdown.
   const { blocks } = parsePresentation('13');
   assert.equal(blocks[0].type, 'markdown');
   assert.equal(blocks[0].text, '13');
+});
+
+test('a quick answer names its task with a wisp block that holds only a topic', () => {
+  assert.match(SYSTEM_PROMPT, /one-line wisp block that only names the task[^]*\{"topic":"Title generator merge","blocks":\[\]\}/);
+  // The text is the answer, as it is: no hero, no empty report, not a slip.
+  const quick = parsePresentation('Not yet: #728 is open.\n```wisp\n{"topic":"  Title generator merge ","blocks":[]}\n```');
+  assert.deepEqual(quick, { topic: 'Title generator merge', blocks: [{ type: 'markdown', text: 'Not yet: #728 is open.' }] });
+  // No blocks key at all works too; with no text there's still something to show.
+  assert.deepEqual(parsePresentation('```wisp\n{"topic":"X"}\n```'), { topic: 'X', blocks: [{ type: 'markdown', text: '_The agent finished without a message._' }] });
+  // A full report may carry it at the top level as well.
+  const full = parsePresentation('```wisp\n{"topic":"Login","blocks":[{"type":"hero","title":"Fixed"}]}\n```');
+  assert.equal(full.topic, 'Login');
+  assert.equal(full.blocks[0].type, 'hero');
+  // An empty block with no topic (or a blank one) is still a slip, shown verbatim.
+  for (const raw of ['{"blocks":[]}', '{"topic":" ","blocks":[]}']) assert.equal(parsePresentation('hi\n```wisp\n' + raw + '\n```').fallback, true);
 });
 
 // A tiny harness for wisp's MCP server: lines in, replies back by id.

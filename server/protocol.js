@@ -29,7 +29,8 @@ description for a busy reviewer: technical, precise, skimmable. Name files, func
 numbers. No filler, no praise, no restating the task. Usually 4–8 blocks. Lead with evidence — the
 diff, the test run, the command output — over prose. Use file paths relative to the project root.
 A quick answer with nothing to show (a fact, a number, a yes or no, a sentence or two, nothing
-changed or run) is plain text with no wisp block: wisp shows it as it is.
+changed or run) is plain text: wisp shows it as it is. End it with a one-line wisp block that only names the task
+("topic", as on the hero; optional after the first turn): \`{"topic":"Title generator merge","blocks":[]}\`.
 
 ### Picking blocks
 
@@ -249,10 +250,15 @@ export function parsePresentation(text = '') {
     const open = opens[i];
     const json = readJson(text.slice(open.index + open[0].length));
     const blocks = Array.isArray(json) ? json : json?.blocks;
+    // A top-level topic names the task when no hero does (runner.#finishTurn).
+    const topic = !Array.isArray(json) && typeof json?.topic === 'string' && json.topic.trim() ? json.topic.trim() : '';
+    const extra = text.slice(0, open.index).trim();
     if (Array.isArray(blocks) && blocks.length) {
-      const extra = text.slice(0, open.index).trim();
-      return { blocks: blocks.filter((b) => b && typeof b.type === 'string'), notes: extra || undefined };
+      return { blocks: blocks.filter((b) => b && typeof b.type === 'string'), notes: extra || undefined, ...(topic && { topic }) };
     }
+    // A quick answer: plain text, then a wisp block with only its topic. The text is the answer, as
+    // it is (not a slip, so no fallback), and the block shows nothing.
+    if (topic && (blocks === undefined || Array.isArray(blocks))) return { topic, blocks: [{ type: 'markdown', text: extra || '_The agent finished without a message._' }] };
   }
   // The agent ignored (or broke) the protocol — show its answer as plain markdown, with any
   // broken wisp payload kept verbatim in a fence rather than half-rendered as prose.

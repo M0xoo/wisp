@@ -1806,9 +1806,11 @@ export class Runner extends EventEmitter {
       this.#keepStuff(session, turn);
       const hero = heroOf(turn.presentation);
       // The first answer names the task after what was asked (its hero's topic), never after what the
-      // agent did (its title): with no topic the prompt's first line stays. Compare runs keep the
-      // prompt's title: they're one task, and one run's answer shouldn't name it.
-      const topic = typeof hero?.topic === 'string' ? clip(hero.topic, 64) : '';
+      // agent did (its title): with no topic the prompt's first line stays. A quick answer has no
+      // hero: its wisp block's (or crew block's) topic names it (presentation.topic). Compare runs
+      // keep the prompt's title: they're one task, and one run's answer shouldn't name it.
+      const named = [hero?.topic, turn.presentation.topic].find((t) => typeof t === 'string' && t.trim());
+      const topic = named ? clip(named, 64) : '';
       if (topic && session.titleAuto && session.turns.length === 1 && !session.groupId) session.title = topic;
     }
     if (!ev.stopped) blockedCard(turn);

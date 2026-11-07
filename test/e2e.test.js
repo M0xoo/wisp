@@ -228,6 +228,21 @@ test('a task is named after its first answer\'s topic, else its prompt; never af
   for (const g of group) assert.equal((await done(g.id)).title, 'compare TOPIC[Compared subject]');
 });
 
+test('a quick answer (plain text, no hero) is named by its wisp block\'s topic, on the first turn only', async () => {
+  const cwd = makeRepo();
+  const done = async (id, n = 1) => until(async () => {
+    const x = await session(id);
+    return x.state === 'review' && x.turns.length === n && x;
+  });
+  const s = await done((await api('/sessions', { cwd, agent: 'claude', mode: 'plan', worktree: false, prompt: 'Did you merge it? Just answer QUICK[Title generator merge]' })).id);
+  assert.equal(s.title, 'Title generator merge');
+  const p = s.turns[0].presentation;
+  assert.deepEqual(p.blocks, [{ type: 'markdown', text: "Yes, it's merged." }], 'the text as it is: no empty report, no hero');
+  assert.equal(p.fallback, undefined);
+  await api(`/sessions/${s.id}/reply`, { text: 'and QUICK[Another subject]' });
+  assert.equal((await done(s.id, 2)).title, 'Title generator merge');
+});
+
 test('a follow-up can switch harness and model: the new harness gets the turns it missed, switching back resumes', async () => {
   const s = await api('/sessions', { prompt: 'look at add() please', cwd: makeRepo(), agent: 'claude', mode: 'edits', worktree: false });
   const turns = (n) => until(async () => {
