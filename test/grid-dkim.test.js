@@ -259,8 +259,25 @@ test('a key record that isn’t one, or isn’t alone, proves nothing', async ()
   await refused(sign(), /key/, { 'sel._domainkey.x.example': [['v=DKIM2; k=ed25519; p=11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=']] });
 });
 
-test('a DNS failure says so in a field of its own; no other refusal does', async () => {
-  assert.equal((await one(sign(), {})).dns, true);
+const failing = (code) => async () => {
+  throw Object.assign(new Error(`queryTxt ${code}`), { code });
+};
+
+test('an outage says so in a field of its own: a timeout, SERVFAIL, a refusal, or an error with no code', async () => {
+  for (const code of ['ETIMEOUT', 'ESERVFAIL', 'EREFUSED', 'ECONNREFUSED', 'ETIMEDOUT', undefined]) {
+    const [r] = await verifyDkim(Buffer.from(sign(), 'latin1'), { resolveTxt: failing(code), now: NOW });
+    assert.deepEqual(r, { d: 'x.example', ok: false, why: 'DNS lookup failed', dns: true }, code);
+  }
+});
+
+test('DNS answering that there’s no such key is a plain refusal, with no dns flag', async () => {
+  for (const code of ['ENOTFOUND', 'ENODATA']) {
+    const [r] = await verifyDkim(Buffer.from(sign(), 'latin1'), { resolveTxt: failing(code), now: NOW });
+    assert.deepEqual(r, { d: 'x.example', ok: false, why: 'no such key' }, code);
+  }
+});
+
+test('no other refusal has the dns flag', async () => {
   for (const [raw, table] of [[sign().replace('thanks', 'nope'), {}], [sign({ tags: 'i=@evil.example' }), {}], [sign(), { 'sel._domainkey.x.example': [['v=DKIM1; k=ed25519; p=']] }], [sign(), { 'sel._domainkey.x.example': [] }]]) {
     const r = await one(raw, table);
     assert.equal(r.ok, false);
@@ -268,8 +285,8 @@ test('a DNS failure says so in a field of its own; no other refusal does', async
   }
 });
 
-test('a DNS failure is a refusal and never an exception', async () => {
-  await refused(sign(), /DNS|lookup/, {});
+test('a failed lookup is a refusal and never an exception', async () => {
+  await refused(sign(), /no such key/, {});
   const r = await verifyDkim(Buffer.from(sign(), 'latin1'), { resolveTxt: () => { throw new Error('boom'); }, now: NOW });
   assert.equal(r[0].ok, false);
   const s = await verifyDkim(Buffer.from(sign(), 'latin1'), { resolveTxt: async () => 'not a list', now: NOW });

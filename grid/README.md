@@ -296,11 +296,13 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
   its parent is refused, and so is a company domain signed by its provider's. It needs SNS's Base64
   encoding: UTF8 can change bytes, so it proves nothing. Verification happens after SNS's signature
   and only for a real address, so a guess costs no DNS lookup. A message refused here still reaches
-  the box as `unproved`, which is how Settings says why. If only DNS stood in the way, for a signature
-  by the From's own domain, the webhook answers 503 and holds nothing, so SNS brings the message back;
-  nothing passes on a DNS failure, and once SNS's retries run out that message is gone, with nothing in
-  Settings. SNS's default retries last seconds: a longer delivery policy on the subscription rides out
-  a longer outage, up to the 15 minutes a signed notification is good for. A From with more than one
+  the box as `unproved`, which is how Settings says why. DNS saying there's no such key (`ENOTFOUND`,
+  `ENODATA`) is an answer, so it's refused the same way. If DNS doesn't answer (a timeout, `SERVFAIL`, a
+  refusal) for a signature by the From's own domain, and nothing else proved the message, the webhook
+  answers 503 and holds nothing, so SNS brings it back. Nothing passes on an outage, and once SNS's
+  retries run out that message is gone, with nothing in Settings. SNS's default retries last seconds: a
+  longer delivery policy on the subscription rides out a longer outage, up to the 15 minutes a signed
+  notification is good for. A From with more than one
   address, a header section with a bare CR or LF (two parsers could split it differently), a quoted
   name holding `<`, a
   second `Subject` or `Date`, or a From SES reads as someone else are all unprovable.

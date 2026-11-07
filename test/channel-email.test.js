@@ -41,8 +41,9 @@ const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 20
 const stranger = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const PEM = publicKey.export({ type: 'spki', format: 'pem' });
 
-// Each sender's DKIM key, and DNS as the grid sees it: a selector `old` that's been revoked, and
-// `down`, which never resolves. `lookups` is everything the grid asked.
+// Each sender's DKIM key, and DNS as the grid sees it: a selector `old` that's been revoked, `gone`
+// and `empty` that DNS says don't exist, and any other that's an outage (`down`, `refused`). `lookups`
+// is everything the grid asked.
 const DKIM = Object.fromEntries(['gmail.example', 'work.example', 'else.example', 'evil.example'].map((d) => [d, generateKeyPairSync('ed25519')]));
 const dkimRsa = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const TXT = Object.fromEntries(Object.entries(DKIM).map(([d, k]) => [`sel._domainkey.${d}`, keyRecord(k.publicKey)]));
@@ -51,7 +52,8 @@ TXT['old._domainkey.gmail.example'] = [['v=DKIM1; k=ed25519; p=']];
 const lookups = [];
 const resolveTxt = async (name) => {
   lookups.push(name);
-  if (!TXT[name]) throw Object.assign(new Error('queryTxt ESERVFAIL'), { code: 'ESERVFAIL' });
+  const code = name.startsWith('gone.') ? 'ENOTFOUND' : name.startsWith('empty.') ? 'ENODATA' : name.startsWith('refused.') ? 'EREFUSED' : 'ESERVFAIL';
+  if (!TXT[name]) throw Object.assign(new Error(`queryTxt ${code}`), { code });
   return TXT[name];
 };
 const signBy = (raw, d, o = {}) => dkimSign(raw, { d, key: DKIM[d].privateKey, ...o });
@@ -588,6 +590,18 @@ test('DNS failing for the From’s own domain: a 503 and nothing held, so SNS re
     delete TXT['flaky._domainkey.gmail.example'];
   }
   done();
+});
+test('DNS answering “no such key” for the From’s own domain is a 200 and a refusal, with no retry', { timeout: 60_000 }, async () => {
+  await forged(signBy(fresh(), GMAIL, { s: 'gone' }));
+  await forged(signBy(fresh(), GMAIL, { s: 'empty' }));
+});
+test('an outage of any kind gets the 503, and no answer at all holds nothing', async () => {
+  const rows = g.grid.db.get('SELECT count(*) n FROM channel_inbox').n;
+  assert.equal((await g.post(notification(received(signBy(mime({ to: adaAt }), GMAIL, { s: 'refused' }), [adaAt], { dmarc: 'GRAY' })))).status, 503);
+  assert.equal(g.grid.db.get('SELECT count(*) n FROM channel_inbox').n, rows);
+});
+test('no such key beside an outage, both for the From’s domain, still waits for the outage', async () => {
+  assert.equal((await g.post(notification(received(signBy(signBy(mime({ to: adaAt }), GMAIL, { s: 'gone' }), GMAIL, { s: 'down' }), [adaAt], { dmarc: 'GRAY' })))).status, 503);
 });
 test('DNS failing for another domain’s signature isn’t a lever: a 200 and a refusal', { timeout: 60_000 }, async () => {
   await forged(signBy(fresh(), EVIL, { s: 'down' }));

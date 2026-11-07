@@ -366,9 +366,10 @@ export function createMail({ db, cfg, inbox, accounts, log = () => {}, resolveTx
 
   // 'pass', or why not. d= has to be the From's domain exactly: relaxed alignment needs the public
   // suffix list, and that's a dependency. So a From on a subdomain of its signer is refused.
-  // AGAIN when only DNS stood in the way of the From's own domain: SNS has the message and we don't,
-  // so it can bring it back. Only that domain: a failed lookup elsewhere can't prove anything anyway,
-  // and a sender mustn't be able to get retries by adding a signature from a domain that doesn't answer.
+  // AGAIN when DNS didn't answer for the From's own domain: SNS has the message and we don't, so it
+  // can bring it back. "No such key" is an answer, so a refusal. Only that domain: an outage elsewhere
+  // can't prove anything anyway, and a sender mustn't get retries by adding a signature from a domain
+  // that doesn't answer.
   async function proved(got, m) {
     if (got.verdict !== 'unproved' || !got.exact || !m.from || !sameSender(got.named, m.from)) return got.verdict;
     const domainOfFrom = m.from.slice(m.from.lastIndexOf('@') + 1);
@@ -390,7 +391,7 @@ export function createMail({ db, cfg, inbox, accounts, log = () => {}, resolveTx
     domain,
 
     // The provider's webhook. A bad signature is an error, and a 503 asks for the message again while
-    // DNS is down. Anything else signed gets its 200, so the provider stops, and an address that
+    // DNS isn't answering. Anything else signed gets its 200, so the provider stops, and an address that
     // doesn't exist looks like any other.
     async webhook(req) {
       const raw = await inbox.read(req, WEBHOOK_MAX);

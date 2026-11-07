@@ -15,6 +15,7 @@ const RSA_MIN_BITS = 1024;
 // What wisp acts on: unsigned, a Subject could become the prompt, and a Date decide a message is fresh.
 const MUST_SIGN = ['from', 'subject', 'date'];
 const DNS_FAILED = 'DNS lookup failed';
+const NO_SUCH_KEY = new Set(['ENOTFOUND', 'ENODATA']); // DNS answered: that's a result, not an outage
 const KINDS = { 'rsa-sha256': 'rsa', 'ed25519-sha256': 'ed25519' };
 const ED25519_SPKI = Buffer.from('302a300506032b6570032100', 'hex'); // what comes before p= as DER
 const LABEL = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
@@ -161,8 +162,8 @@ async function problem(field, fields, body, tags, d, { resolveTxt, now }) {
   let txt;
   try {
     txt = await askDns(`${selector}._domainkey.${d}`, resolveTxt);
-  } catch {
-    return DNS_FAILED;
+  } catch (err) {
+    return NO_SUCH_KEY.has(err?.code) ? 'no such key' : DNS_FAILED;
   }
   if (!Array.isArray(txt) || txt.length !== 1 || !Array.isArray(txt[0])) return 'no usable key';
   const record = tagList(txt[0].join(''));
@@ -191,8 +192,9 @@ async function problem(field, fields, body, tags, d, { resolveTxt, now }) {
 }
 
 // raw: the message's bytes. [{ d, ok, why }], one per signature tried, from the top: [] for a message
-// with none, or whose headers can't be read one way. dns: true marks the one failure a later try could
-// turn out differently; it never makes ok true. Lookups run together, so 5 s is the whole wait.
+// with none, or whose headers can't be read one way. dns: true marks DNS not answering (a timeout,
+// SERVFAIL, a refusal), the one failure a later try could turn out differently; it never makes ok
+// true. Lookups run together, so 5 s is the whole wait.
 export async function verifyDkim(raw, { resolveTxt = lookupTxt, now = Date.now } = {}) {
   const section = headerFields(Buffer.from(raw).toString('latin1'));
   if (!section) return [];
