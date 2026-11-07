@@ -103,6 +103,7 @@ export function createMove(app) {
       model: run.model,
       effort: run.effort,
       mode: mode || s.mode,
+      ...(s.capped && { capped: s.capped }),
       attachments,
       ...(s.groupId && { groupId: s.groupId }),
       // team: a new one picked with this follow-up. Members placed from here are placed again for where it goes.

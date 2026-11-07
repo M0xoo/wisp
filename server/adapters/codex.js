@@ -124,7 +124,7 @@ export default {
   // lean: a side run that only answers (the retro), with codex's extras off.
   // probe: a task's turn, which records what the CLI was (side runs don't pay for two more processes).
   // prior: the thread's counters after its last turn (stats.totals), see turnUsage.
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, prior = null, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, accountEnv = {}, lean = false, probe = false, onEvent }) {
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, prior = null, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, accountEnv = {}, lean = false, probe = false, capped = false, onEvent }) {
     const args = ['exec', '--json', '--skip-git-repo-check'];
     let base = null;
     if (lean) {
@@ -143,6 +143,9 @@ export default {
     // `resume` doesn't take --sandbox, so set it through config for both paths.
     if (mode === 'auto') args.push('--dangerously-bypass-approvals-and-sandbox');
     else args.push('-c', `sandbox_mode=${toml(SANDBOX[mode] || 'workspace-write')}`);
+    // capped (server/capped.js): the sandbox has no network, wisp's loopback API included, whatever
+    // the user's config.toml says. It's why Edits is a cap at all here; wisp's tools are MCP, outside it.
+    if (capped && mode !== 'auto') args.push('-c', 'sandbox_workspace_write.network_access=false');
     // `resume` doesn't take --add-dir either: the other folders are writable roots through config.
     if (extra.length && mode !== 'auto') args.push('-c', `sandbox_workspace_write.writable_roots=${toml(extra)}`);
     if (model) args.push('-m', model);

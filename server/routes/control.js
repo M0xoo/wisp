@@ -2,10 +2,14 @@
 // wisp_task and the ad-hoc side of delegate (server/mcp-ask.js). What the user can do from the
 // page (start a task anywhere, follow one up, stop, finish or archive it, pick subagents on any
 // harness or machine), the task's agent can do when the user asks it to. Every call carries the
-// run's token; subagents never get these tools.
+// run's token, which is that session's alone (agent-token.js); subagents never get these tools. A task
+// a channel started at a mode cap gets less: server/capped.js.
 
 import { adapters } from '../adapters/index.js';
+import { speaksFor } from '../agent-token.js';
+import { aboveCap, atCap, cappedRefusal, inProject, overCap, ownProject, startedBy } from '../capped.js';
 import { normalizeTeam } from '../subagents.js';
+import { sandboxAsk } from '../../web/js/slash-text.js';
 import { sessionText } from './internal.js';
 import { clip, MODES } from '../util.js';
 
@@ -18,7 +22,7 @@ const settled = (s) => s.state === 'waiting' || (s.state !== 'running' && (!s.qu
 export function register(r, app) {
   const { store, runner, machines, telemetry, launcher } = app;
   const guarded = (fn) => async (c) => {
-    if (c.req.headers['x-wisp-token'] !== app.token) return c.send(403, { error: 'bad token' });
+    if (!speaksFor(c.req.headers['x-wisp-token'], app.token, c.params.id)) return c.send(403, { error: 'bad token' });
     const s = store.get(c.params.id);
     if (!s) return c.send(404, { error: 'no such session' });
     try {
@@ -34,10 +38,11 @@ export function register(r, app) {
     if (s.parentId || s.delegated) throw new Error(`A subagent can't ${what}: say so in your report, and your lead can.`);
   };
 
-  // A machine by id or name ('' / 'here' / this computer = null).
-  const machineOf = (key) => {
+  // A machine by id or name ('' / 'here' / this computer = null). s: the task asking.
+  const machineOf = (key, s) => {
     const k = String(key ?? '').trim();
     if (!k || /^(here|local|this computer)$/i.test(k)) return null;
+    if (s?.capped) throw new Error(cappedRefusal('run anything on another machine or in a sandbox'));
     // A sandbox: a place a delegate gets a box of its own in (services/sandbox.js), not a machine.
     if (/^sandbox$/i.test(k)) {
       if (!app.sandbox?.available()) throw new Error('Sandboxes need a wisp Grid: the user signs in to one in Settings → Cloud.');
@@ -88,20 +93,22 @@ export function register(r, app) {
         const models = (a.models || []).map((m) => m.id).filter(Boolean);
         return `- **${a.id}** (${a.name}${a.version ? ` ${a.version}` : ''})${models.length ? `: models ${models.slice(0, 15).join(', ')}${models.length > 15 ? ', …' : ''}` : ''}${a.efforts?.length ? `; thinking ${a.efforts.join(', ')}` : ''}`;
       };
-      const view = machines.view().filter((m) => !m.sandbox);
+      // A capped task picks from its own project, on this computer: nothing else of yours is named.
+      const open = !s.capped;
+      const view = open ? machines.view().filter((m) => !m.sandbox) : [];
       const machine = (m) => {
         const on = m.state === 'online';
         const list = (m.remote?.agents || []).filter((a) => a.available).map((a) => a.id);
         return `- \`${m.id}\` **${m.name}**${m.kind === 'grid' ? ' (cloud)' : ''}: ${on ? 'online' : m.state === 'asleep' ? 'asleep (wakes when it gets work)' : m.state}${list.length ? `; harnesses ${list.join(', ')}` : ''}`;
       };
       const projects = store.config.projects
-        .slice()
+        .filter((p) => open || inProject(store, s, p.path))
         .sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0))
         .slice(0, 30)
         .map((p) => `- **${p.name}** (\`${p.id}\`): ${p.path}${p.machine ? ` on ${view.find((m) => m.id === p.machine)?.name || p.machine}` : ''}`);
-      const presets = (store.config.teams || []).map((t) => `- \`${t.id}\` **${t.name}**: ${t.members.map((m) => m.crew ? `@${m.label || m.name}` : `${m.name} (${m.agent}${m.model ? ` ${m.model}` : ''}${m.machine ? ` on ${m.place || m.machine}` : ''})`).join(', ')}`);
+      const presets = (open ? store.config.teams || [] : []).map((t) => `- \`${t.id}\` **${t.name}**: ${t.members.map((m) => m.crew ? `@${m.label || m.name}` : `${m.name} (${m.agent}${m.model ? ` ${m.model}` : ''}${m.machine ? ` on ${m.place || m.machine}` : ''})`).join(', ')}`);
       const team = s.subagents || [];
-      const crew = (app.crew?.list || []).map((m) => `@${m.name}`);
+      const crew = (app.crew?.list || []).filter((m) => open || (m.cwd && inProject(store, s, m.cwd))).map((m) => `@${m.name}`);
       const d = store.config.defaults || {};
       telemetry.track('wisp_available', { agent: s.agent });
       const text = [
@@ -111,7 +118,7 @@ export function register(r, app) {
         '',
         '## Machines',
         ...(view.length ? view.map(machine) : ['None: everything runs on this computer.']),
-        ...(app.sandbox?.available() ? ['- `sandbox` **Sandbox**: a fresh box of its own on the user\'s wisp Grid for each subagent (machine: "sandbox" in delegate): it can install anything (sudo apt-get), run servers and drive a real browser (the browser connector) without touching the user\'s computers. It gets a copy of your folder; its changes come back when it finishes. Claude Code only (or auto); kept for this task, so delegating to it again finds its files and installs.'] : []),
+        ...(open && app.sandbox?.available() ? ['- `sandbox` **Sandbox**: a fresh box of its own on the user\'s wisp Grid for each subagent (machine: "sandbox" in delegate): it can install anything (sudo apt-get), run servers and drive a real browser (the browser connector) without touching the user\'s computers. It gets a copy of your folder; its changes come back when it finishes. Claude Code only (or auto); kept for this task, so delegating to it again finds its files and installs.'] : []),
         '',
         '## Projects',
         ...(projects.length ? projects : ['None yet.']),
@@ -124,6 +131,7 @@ export function register(r, app) {
         team.length ? `Its subagents: ${team.map((m) => `\`${m.name}\``).join(', ')} (delegate to them by name).` : 'No subagents yet: delegate creates them on the fly.',
         ...(crew.length ? [`The user's crew: ${crew.join(', ')} (wisp_crew reads them).`] : []),
         '',
+        ...(s.capped ? [`A channel started this task with a cap of ${s.capped.mode}: nothing it starts may go above that, leave this computer, or leave this project; it can't change the user's crew or connectors. That goes for what you delegate too.`] : []),
         'Modes: plan (read-only) | edits (auto-accept edits) | auto (no permission prompts).',
         'delegate: subagents for this task (their edits land in your folder; any harness, any machine). wisp_launch: a separate task the user follows on its own. wisp_task: follow up, stop, finish or archive a task.',
       ].join('\n');
@@ -145,11 +153,20 @@ export function register(r, app) {
       const turn = s.turns.at(-1);
       if ((turn?.launched || []).length >= MAX_LAUNCHES) throw new Error(`This turn already started ${MAX_LAUNCHES} tasks. Say in your report what else should start.`);
       if (body.mode !== undefined && !MODES.has(body.mode)) throw new Error('mode must be plan, edits or auto.');
+      if (aboveCap(body.mode, s.capped)) throw new Error(overCap(body.mode, s.capped));
+      if (s.capped && sandboxAsk(prompt) !== null) throw new Error(cappedRefusal('start a sandbox'));
       const where = folderOf(body, s);
-      const m = body.machine !== undefined ? machineOf(body.machine) : where.machine ? machineOf(where.machine) : null;
+      const m = body.machine !== undefined ? machineOf(body.machine, s) : where.machine ? machineOf(where.machine, s) : null;
       await checkHarness(body.agent, m);
-      const team = Array.isArray(body.subagents) ? body.subagents.map((x) => ({ ...x, machine: x?.machine ? machineOf(x.machine)?.id || 'here' : '' })) : undefined;
-      if (body.preset && !(store.config.teams || []).some((t) => t.id === body.preset)) throw new Error(`No subagent preset “${body.preset}”. wisp_available lists them.`);
+      const team = Array.isArray(body.subagents) ? body.subagents.map((x) => ({ ...x, machine: x?.machine ? machineOf(x.machine, s)?.id || 'here' : '' })) : undefined;
+      const preset = body.preset && (store.config.teams || []).find((t) => t.id === body.preset);
+      if (body.preset && !preset) throw new Error(`No subagent preset “${body.preset}”. wisp_available lists them.`);
+      if (s.capped) {
+        for (const x of preset?.members || []) machineOf(x.machine, s);
+        // The new task would read what's there: it stays in this project, or in a scratch folder.
+        const dirs = [...(body.scratch === true ? [] : [where.cwd]), ...(Array.isArray(body.also) ? body.also : [])].filter(Boolean).map(String);
+        if (dirs.some((dir) => !inProject(store, s, dir))) throw new Error(cappedRefusal('start a task in another project'));
+      }
       const d = store.config.defaults || {};
       const launchBody = {
         prompt,
@@ -157,7 +174,9 @@ export function register(r, app) {
         ...(Array.isArray(body.also) && { also: body.also }),
         machine: m ? m.id : '',
         agent: body.agent || d.agent || 'auto',
-        mode: body.mode || d.mode || 'auto',
+        // Asked for nothing: the user's default, which a capped task doesn't get above itself.
+        mode: body.mode || (s.capped ? atCap(s.mode, s.capped) : d.mode) || 'auto',
+        ...(s.capped && { capped: s.capped }),
         ...(body.model !== undefined && { model: String(body.model) }),
         ...(body.effort && { effort: String(body.effort) }),
         ...(typeof body.worktree === 'boolean' && { worktree: body.worktree }),
@@ -182,9 +201,10 @@ export function register(r, app) {
   r.route(
     'GET',
     '/internal/task/:id',
-    guarded((c) => {
+    guarded((c, s) => {
       const x = store.get(String(c.query.get('of') || '').trim().replace(/^wisp:/, ''));
       if (!x) throw new Error('No such task on this computer. wisp_sessions lists them.');
+      if (s.capped && !ownProject(store, s, x)) throw new Error(cappedRefusal('read a task of another project'));
       c.send(200, { state: x.state, settled: settled(x), question: x.ask?.question || null, text: sessionText(x, store) });
     }),
     opts,
@@ -202,6 +222,13 @@ export function register(r, app) {
       if (x.parentId || x.delegated) throw new Error('That is a subagent of another task; act on its lead instead.');
       if (x.id === s.parentId) throw new Error('That is your own lead.');
       if (x.agent === 'wisp') throw new Error('That is the welcome tour; it has no agent.');
+      // Only what it started, while that's still under a cap: asking any other task to do something
+      // would be doing it without the cap. The child's mode stays where it is, too.
+      if (s.capped) {
+        if (aboveCap(body.mode, s.capped)) throw new Error(overCap(body.mode, s.capped));
+        if (!startedBy(s, x) || !x.capped) throw new Error(cappedRefusal('act on a task it didn’t start'));
+        if (body.mode !== undefined && body.mode !== x.mode) throw new Error(cappedRefusal('change another task’s mode'));
+      }
       const action = String(body.action || '');
       const name = `“${x.title}” (\`${x.id}\`)`;
       telemetry.track('agent_task', { agent: s.agent, action });
@@ -266,7 +293,7 @@ export function register(r, app) {
         continue;
       }
       try {
-        const m = t.machine ? machineOf(t.machine) : null;
+        const m = t.machine ? machineOf(t.machine, s) : null;
         const agent = String(t.agent || 'auto');
         await checkHarness(agent, m);
         const base = slug(t.name) || slug(m ? `${agent}-${m.name}` : agent) || 'helper';

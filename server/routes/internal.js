@@ -1,10 +1,13 @@
 // Bridge for the MCP servers running inside an agent process (ask_user, approve, delegate, wisp_stats,
 // wisp_sessions, wisp_session, wisp_crew*). Every call
-// carries the per-run token wisp handed the agent; nothing else may use these.
+// carries the token wisp handed that session's agent (agent-token.js); nothing else may use these, and
+// it speaks for that session only. A task a channel started at a mode cap gets less: server/capped.js.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { adapters } from '../adapters/index.js';
+import { speaksFor } from '../agent-token.js';
+import { cappedRefusal, insideFolders, inProject, ownItem, ownProject } from '../capped.js';
 import { plainMentions } from '../mentions.js';
 import { blocksToMarkdown, sessionToMarkdown } from '../render.js';
 import { summarize, workdir } from '../runner.js';
@@ -43,30 +46,36 @@ export function register(r, app) {
   };
 
   const { store, runner, telemetry } = app;
-  // The token check, then the handler; a wrong token is a 403 whatever the route.
-  const guarded = (fn) => (c) => (c.req.headers['x-wisp-token'] !== app.token ? c.send(403, { error: 'bad token' }) : fn(c));
+  // The token check, then the handler; a wrong token is a 403 whatever the route, and a token only
+  // speaks for its own session: the one in the URL, or for bySession the one in the body.
+  const speaks = (c, id) => speaksFor(c.req.headers['x-wisp-token'], app.token, id);
+  const guarded = (fn) => (c) => (speaks(c, c.params.id) ? fn(c) : c.send(403, { error: 'bad token' }));
+  const bySession = (fn) => async (c) => (speaks(c, (await c.body())?.session) ? fn(c) : c.send(403, { error: 'bad token' }));
+  // The folders a capped task may hand the server a file from.
+  const folders = (s) => [workdir(s), ...(s.also || []).map((a) => a.worktree?.path || a.cwd), ...(s.parentId && store.get(s.parentId) ? [workdir(store.get(s.parentId))] : [])];
   const opts = { doc: false };
   const lead = (c) => store.get(c.params.id);
 
   r.route(
     'POST',
     '/internal/ask',
-    guarded(async (c) => {
+    bySession(async (c) => {
       const body = await c.body();
       const s = store.get(body.session);
       if (!s) return c.send(404, { error: 'no such session' });
       telemetry.track('ask_user', { agent: s.agent });
-      c.send(200, { id: runner.ask(s, body) });
+      // A question stays a question: no approval or sign-in card it could dress one up as.
+      c.send(200, { id: runner.ask(s, s.capped ? { question: body.question, context: body.context, options: body.options } : body) });
     }),
     opts,
   );
-  r.route('GET', '/internal/ask/:id', guarded((c) => c.send(200, runner.pollAnswer(c.params.id))), opts);
+  r.route('GET', '/internal/ask/:id', (c) => (speaks(c, c.req.headers['x-wisp-session']) ? c.send(200, runner.pollAnswer(c.params.id)) : c.send(403, { error: 'bad token' })), opts);
 
   // resume_later: the agent schedules a follow-up into its own task, or cancels one it made.
   r.route(
     'POST',
     '/internal/later',
-    guarded(async (c) => {
+    bySession(async (c) => {
       const body = await c.body();
       const s = store.get(body.session);
       if (!s) return c.send(404, { error: 'no such session' });
@@ -93,7 +102,7 @@ export function register(r, app) {
   r.route(
     'POST',
     '/internal/tags',
-    guarded(async (c) => {
+    bySession(async (c) => {
       const body = await c.body();
       const s = store.get(body.session);
       if (!s) return c.send(404, { error: 'no such session' });
@@ -115,10 +124,11 @@ export function register(r, app) {
   r.route(
     'POST',
     '/internal/watch',
-    guarded(async (c) => {
+    bySession(async (c) => {
       const body = await c.body();
       const s = store.get(body.session);
       if (!s) return c.send(404, { error: 'no such session' });
+      if (s.capped && body.action === 'open' && body.path && !insideFolders(path.resolve(workdir(s), String(body.path)), folders(s))) return c.send(200, { text: cappedRefusal('show a file from outside its folder') });
       const host = s.parentId && !s.crew ? store.get(s.parentId) || s : s;
       let out;
       try {
@@ -140,10 +150,12 @@ export function register(r, app) {
   r.route(
     'POST',
     '/internal/prs',
-    guarded(async (c) => {
+    bySession(async (c) => {
       const body = await c.body();
       const s = store.get(body.session);
       if (!s) return c.send(404, { error: 'no such session' });
+      // gh reads what the user can: a URL would be any repo of theirs. A number is this task's own.
+      if (s.capped && !body.remove && !/^#?\d+$/.test(String(body.pr ?? '').trim())) return c.send(200, { text: cappedRefusal('read a PR by URL: give its number in this task’s repo') });
       const host = s.parentId ? store.get(s.parentId) : null; // a subagent's PR goes on its lead's task, where the user looks
       const t = host && !s.crew ? host : s;
       const pr = await app.ship.attach(t, body.pr, { remove: !!body.remove });
@@ -162,7 +174,7 @@ export function register(r, app) {
   r.route(
     'POST',
     '/internal/stuff',
-    guarded(async (c) => {
+    bySession(async (c) => {
       const body = await c.body();
       const s = store.get(body.session);
       if (!s) return c.send(404, { error: 'no such session' });
@@ -171,6 +183,12 @@ export function register(r, app) {
       const meta = { title: body.title, note: body.note, tags: body.tags, from: fromTask(lead), by: 'agent', replace };
       const given = [body.path, body.text, body.url, body.app].filter((v) => typeof v === 'string' && v.trim()).length;
       const local = (p) => path.resolve(workdir(s), String(p));
+      if (s.capped) {
+        const said = (what) => c.send(200, { text: cappedRefusal(what) });
+        if (body.publish !== undefined) return said('put anything on a public link, or take one down');
+        if (replace && !ownItem(store, s, app.stuff.get(replace))) return said('change an item of another project');
+        if ([body.path, body.app, body.cover].some((p) => typeof p === 'string' && p.trim() && !insideFolders(local(p), folders(s)))) return said('save a file from outside its folder');
+      }
       if (given > 1 || (!given && !replace)) return c.send(400, { error: 'Give exactly one of path (a file), text (with a name like notes.md), url, or app (a folder); with id, it updates that item.' });
       let it;
       if (!given) it = app.stuff.update(replace, body); // only its title, note or tags
@@ -217,16 +235,19 @@ export function register(r, app) {
     'GET',
     '/internal/stuff/:id',
     guarded((c) => {
-      if (!store.get(c.params.id)) return c.send(404, { error: 'no such session' });
+      const s = lead(c);
+      if (!s) return c.send(404, { error: 'no such session' });
+      const mine = (it) => !s.capped || ownItem(store, s, it);
       const one = c.query.get('id');
       if (one) {
         const it = app.stuff.get(one);
+        if (it && !mine(it)) return c.send(200, { text: cappedRefusal('read an item of another project') });
         return c.send(200, { text: it ? stuffDetail({ ...it, allowed: app.stuff.grant(it).allowed }) : `No item ${one} in My Stuff.` });
       }
       const kind = c.query.get('kind') || '';
-      const all = app.stuff.search(c.query.get('query') || '', kind);
+      const all = app.stuff.search(c.query.get('query') || '', kind).filter(mine);
       const limit = Math.min(100, Number(c.query.get('limit')) || 30);
-      c.send(200, { text: all.length ? `${all.length} item${all.length > 1 ? 's' : ''} in My Stuff${all.length > limit ? ` (the newest ${limit})` : ''}:\n${all.slice(0, limit).map(stuffLine).join('\n')}\n\nRead or copy a file from its path; don't change it there. wisp_stuff with an id gives one in full (a doc's text, an app's files); wisp_save with an id updates it.` : app.stuff.list().length ? 'Nothing in My Stuff matches that.' : 'My Stuff is empty.' });
+      c.send(200, { text: all.length ? `${all.length} item${all.length > 1 ? 's' : ''} in My Stuff${all.length > limit ? ` (the newest ${limit})` : ''}:\n${all.slice(0, limit).map(stuffLine).join('\n')}\n\nRead or copy a file from its path; don't change it there. wisp_stuff with an id gives one in full (a doc's text, an app's files); wisp_save with an id updates it.` : s.capped || app.stuff.list().length ? 'Nothing in My Stuff matches that.' : 'My Stuff is empty.' });
     }),
     opts,
   );
@@ -236,7 +257,7 @@ export function register(r, app) {
   r.route(
     'POST',
     '/internal/approve',
-    guarded(async (c) => {
+    bySession(async (c) => {
       const body = await c.body();
       const s = store.get(body.session);
       if (!s) return c.send(404, { error: 'no such session' });
@@ -353,7 +374,7 @@ export function register(r, app) {
       const s = lead(c);
       if (!s) return c.send(404, { error: 'no such session' });
       const projectFor = (x) => store.projectFor(x.cwd);
-      let project = c.query.get('project') || '';
+      let project = s.capped ? 'current' : c.query.get('project') || '';
       if (project === 'current') project = projectFor(s)?.id || String(s.cwd || '').split(/[\\/]/).pop();
       const stats = toolStats(store.all(), { days: Number(c.query.get('days')) || 30, project: projectFor, filter: { agent: c.query.get('agent') || '', project } });
       telemetry.track('wisp_stats', { agent: s.agent });
@@ -376,6 +397,7 @@ export function register(r, app) {
       const all = store
         .all()
         .filter((x) => x.id !== s.id && !x.parentId && x.agent !== 'wisp' && x.id !== s.parentId)
+        .filter((x) => !s.capped || ownProject(store, s, x))
         .map((x) => summarize(x, store))
         .filter((x) => (q.archived === 'true' || !x.archived) && (!states || states.includes(x.state)))
         .filter((x) => !project || x.projectId === project || x.project === project)
@@ -401,12 +423,15 @@ export function register(r, app) {
       const s = lead(c);
       if (!s) return c.send(404, { error: 'no such session' });
       // ?member=: that one in full (brief, notebook, kit), read before changing them.
+      // A capped task sees the members of its own project, and itself.
+      const seen = (m) => !s.capped || m.id === s.crew?.id || (!!m.cwd && inProject(store, s, m.cwd));
       const key = c.query.get('member');
       if (key) {
         const m = app.crew.find(key.trim().replace(/^@/, ''));
+        if (m && !seen(m)) return c.send(200, { text: cappedRefusal('read a member of another project') });
         return c.send(200, m ? { text: memberDetail(app.crew.view(m)) } : { error: `No one called “${key}” on the user's crew. List it with wisp_crew.` });
       }
-      const list = app.crew.list.map((m) => app.crew.view(m));
+      const list = app.crew.list.filter(seen).map((m) => app.crew.view(m));
       c.send(200, { text: list.length ? `${list.length} on the user's crew:\n\n${list.map(memberLine).join('\n')}` : 'The user has no crew yet. Add a member with wisp_crew_add.' });
     }),
     opts,
@@ -415,6 +440,7 @@ export function register(r, app) {
     guarded(async (c) => {
       const s = lead(c);
       if (!s) return c.send(404, { error: 'no such session' });
+      if (s.capped) return c.send(200, { error: cappedRefusal('change the user’s crew') });
       const body = await c.body();
       try {
         c.send(200, await fn(s, body || {}, s.crew ? 'crew' : s.parentId ? 'subagent' : 'task'));
@@ -479,6 +505,7 @@ export function register(r, app) {
       const s = lead(c);
       if (!s) return c.send(404, { error: 'no such session' });
       if (s.parentId) return c.send(200, { error: 'A subagent can’t propose kit files: put them in your report, and the lead task can propose them.' });
+      if (s.capped) return c.send(200, { error: cappedRefusal('change the user’s crew') });
       const body = (await c.body()) || {};
       try {
         const m = named(body.member);
@@ -519,6 +546,7 @@ export function register(r, app) {
       const id = String(c.query.get('of') || '').trim().replace(/^wisp:/, '');
       const x = store.get(id);
       telemetry.track('wisp_session', { agent: s.agent });
+      if (x && s.capped && !ownProject(store, s, x)) return c.send(200, { text: cappedRefusal('read a task of another project') });
       if (!x) return c.send(200, { text: `No wisp task \`${id}\` on this computer. It may have been deleted, or it ran on another machine. List tasks with wisp_sessions.` });
       c.send(200, { text: sessionText(x, store, c.query.get('turn')) });
     }),

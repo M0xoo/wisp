@@ -20,6 +20,9 @@ this covers how the code is laid out and the rules a change has to follow.
   refuses to run on a grid box, which sleeps; `discord.js` does the same over a gateway connection,
   with no privileged intent); `conversation.js` is what a message does once it's through the door,
   shared by Telegram, GitHub, Slack and Discord: a new channel hands in what differs, not a copy; `remote.js` is their hub and `services/phone.js` what they ask of wisp.
+  `capped.js` is what a task a channel started below Full auto may do with wisp's tools: the routes
+  enforce it by the session a call authenticates as (`agent-token.js`: each agent's token speaks for
+  that session only), and it's copied to all it starts. A new `/internal` route or tool needs a line there.
   `accounts.js` keeps a harness's several accounts (a login folder each, linked to the CLI's own).
   `services/worktrees.js` removes idle tasks' worktrees (`defaults.worktreeCleanup`, a low disk) and
   answers Settings → Worktrees; only what a follow-up can bring back goes on its own.

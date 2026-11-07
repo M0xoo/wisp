@@ -28,6 +28,7 @@ import { bad, MODES, newId, truncate } from './util.js';
 import { KIT_BODY_MAX, KIT_MAX, KIT_TOTAL_MAX, RULES_NAME, SKILL_NAME, parseSkillMd, skillMd, skillName } from '../web/js/skill-md.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { atCap, cappedRefusal } from './capped.js';
 
 export const MAX_CREW = 12;
 export const MAX_PARALLEL = 5;
@@ -625,13 +626,13 @@ export class Crew {
   // run: this job's own model, effort or mode ("@ada with opus plan: …"). thread: the channel thread
   // it came from ({ channel, chat, message, ack }), which its answer goes back to. Both stay with a
   // job that waits in the queue, restarts included.
-  async assign(m, { prompt, job = 'task', from = null, origin = null, attachments = [], reply = null, wake = false, tagged = [], kit = false, event = '', unattended = false, confirmLimit, run = null, thread = null } = {}) {
+  async assign(m, { prompt, job = 'task', from = null, origin = null, attachments = [], reply = null, wake = false, tagged = [], kit = false, event = '', unattended = false, confirmLimit, run = null, thread = null, capped = null } = {}) {
     if (!JOBS.has(job)) job = 'task';
     run = this.#jobRun(m, run);
     const text = String(prompt || '').trim() || (job === 'checkin' ? checkinPrompt(m, { wake }) : '');
     if (!text) throw bad('Tell them what to do.');
     const extra = tagged.filter((x) => x.id !== m.id).map((x) => taggedDelegate(x, 'job'));
-    const w = { id: newId(), prompt: text, job, ...(from && { from }), ...(origin && { origin }), ...(attachments.length && { attachments }), ...(reply && { reply }), ...(wake && { wake: true }), ...(EVENT_WHAT[event] && { event }), ...(kit && { kit: true }), ...(extra.length && { team: extra }), ...(unattended && { unattended: true }), ...(typeof confirmLimit === 'boolean' && job === 'task' && !origin && !unattended && { limit: confirmLimit ? 'yes' : 'ask' }), ...(run && { run }), ...(thread && { thread }), at: this.now() };
+    const w = { id: newId(), prompt: text, job, ...(from && { from }), ...(origin && { origin }), ...(attachments.length && { attachments }), ...(reply && { reply }), ...(wake && { wake: true }), ...(EVENT_WHAT[event] && { event }), ...(kit && { kit: true }), ...(extra.length && { team: extra }), ...(unattended && { unattended: true }), ...(typeof confirmLimit === 'boolean' && job === 'task' && !origin && !unattended && { limit: confirmLimit ? 'yes' : 'ask' }), ...(run && { run }), ...(thread && { thread }), ...(capped && { capped }), at: this.now() };
     if (from?.id && (job === 'mention' || job === 'delegated' || job === 'event')) this.#link(m, from);
     if (this.busy(m) >= m.parallel || (m.paused && job !== 'task' && job !== 'mention')) {
       if (m.queue.length >= QUEUE_MAX) throw bad(`${m.name} already has ${QUEUE_MAX} jobs waiting.`, 429);
@@ -666,7 +667,7 @@ export class Crew {
 
   // What launch gets for job w of member m.
   #bodyFor(m, w) {
-    return { prompt: w.prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: w.run?.model || m.model || undefined, effort: w.run?.effort || m.effort || undefined, mode: w.run?.mode || m.mode, attachments: w.attachments || [], ...this.#teamFor(m, w.job, w.team) };
+    return { prompt: w.prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: w.run?.model || m.model || undefined, effort: w.run?.effort || m.effort || undefined, mode: w.run?.mode || m.mode, attachments: w.attachments || [], ...(w.capped && { capped: w.capped }), ...this.#teamFor(m, w.job, w.team) };
   }
 
   // now: you're there (assign), so a job of yours near the limit is asked about rather than held.
@@ -904,7 +905,7 @@ export class Crew {
   // under the message (a side entry like /btw's, with the member as who answers).
   // tagged: other members named in it, who join the job's delegates.
   // thread / run: as assign's. shown: the message as the task shows it, when text is wrapped for the job.
-  async ask(m, task, text, attachments = [], tagged = [], { thread = null, run = null, shown = text } = {}) {
+  async ask(m, task, text, attachments = [], tagged = [], { thread = null, run = null, shown = text, capped = null } = {}) {
     const turn = task.turns.at(-1);
     if (!turn) throw bad('Nothing to ask about yet.', 409);
     const entry = { id: newId(), question: shown, status: 'running', askedAt: this.now(), crew: { id: m.id, name: m.name, avatar: m.avatar, color: m.color } };
@@ -912,7 +913,7 @@ export class Crew {
     this.runner.sideChanged(task, turn);
     const reply = { sessionId: task.id, turnId: turn.id, entryId: entry.id };
     try {
-      const out = await this.assign(m, { prompt: text, job: 'mention', from: { id: task.id, title: task.title }, attachments, reply, tagged, run, thread });
+      const out = await this.assign(m, { prompt: text, job: 'mention', from: { id: task.id, title: task.title }, attachments, reply, tagged, run, thread, capped });
       if (out.session) entry.job = out.session.id;
       else entry.queued = true;
       this.runner.sideChanged(task, turn);
@@ -940,6 +941,9 @@ export class Crew {
   #delegate(lead, member, prompt) {
     const m = this.get(member.crew);
     if (!m) return { error: `${member.label || member.name} is no longer on the user's crew.` };
+    // A lead a channel started at a cap: the member's job runs under it, whatever the member's mode.
+    const { capped } = lead;
+    if (capped && elsewhere(m)) return { error: cappedRefusal('send work to another machine') };
     if (this.busy(m) >= m.parallel) return { error: `${m.name} is already running ${m.parallel} job${m.parallel > 1 ? 's' : ''}, their limit. Wait for one with subagent_results, or do it yourself.` };
     // On its machine: the lead reads the job as we last fetched it, refreshed when it's done.
     if (elsewhere(m))
@@ -947,7 +951,7 @@ export class Crew {
         .then((s) => this.remote.fetch(s.id))
         .then((full) => (this.fetched.set(full.id, full), full));
     return this.launch(
-      { prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: m.mode, ...this.#teamFor(m, 'delegated') },
+      { prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: atCap(m.mode, capped), ...(capped && { capped }), ...this.#teamFor(m, 'delegated') },
       null,
       { crew: { id: m.id, job: 'delegated', from: { id: lead.id, title: lead.title } } },
     ).then(([s]) => this.store.get(s.id));
@@ -958,7 +962,10 @@ export class Crew {
   #turnDone(s, turn) {
     const m = this.get(s.crew?.id);
     if ((!m && !s.crew?.note) || turn.status !== 'done') return {};
-    const data = takeCrewBlock(turn.presentation);
+    // A capped job (server/capped.js) writes nothing to the member, and follows up on nothing: what
+    // it was told from a channel doesn't reach their later jobs or your tasks. The block still goes.
+    const block = takeCrewBlock(turn.presentation);
+    const data = s.capped ? null : block;
     // A member of another wisp: its memory lives there, which fetches this turn's block (crewOut).
     if (m) applyMemory(m, data, this.now());
     if (m && data?.kit) this.#offer(m, s, data.kit);

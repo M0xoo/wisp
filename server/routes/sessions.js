@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { aboveCap } from '../capped.js';
 import { adapters, detectedVersion } from '../adapters/index.js';
 import { btwQuestion } from '../btw.js';
 import { notSide, sideAsk } from '../side.js';
@@ -437,6 +438,13 @@ export function register(r, app) {
       const aside = btwQuestion(text) !== null || sideAsk(text) !== null; // /btw and /side leave the task's run alone
       if (app.terms.get(s.id)?.code === null && !s.tui && !aside) return c.send(409, { error: 'This task is open in a terminal. Carry on there, or end the terminal first.' });
       if (mode !== undefined && !MODES.has(mode)) return c.send(400, { error: 'mode must be plan, edits or auto.' });
+      // You picked a higher mode for a task a channel started: that's your own act, and the cap goes
+      // for this task (server/capped.js). A channel's follow-up never asks for more than the cap
+      // (phone.run), and an agent's goes through launcher.replyTo, not here.
+      if (aboveCap(mode, s.capped)) {
+        delete s.capped;
+        store.save(s);
+      }
       // "@Ada what do you make of this?": Ada answers on the task, under the message; the task's
       // own agent isn't interrupted. Members named further in join its team for this follow-up on.
       const t = !aside && !machine ? tagged(text.trim()) : { all: [], lead: [] };

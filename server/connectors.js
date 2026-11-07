@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { connectorToken } from './agent-token.js';
 import { scanSecrets } from './secret-scan.js';
 import { bad, clip, newId, VERSION } from './util.js';
 
@@ -290,7 +291,7 @@ export function foundServers(list, { values = false } = {}) {
 // none (their tools would run outside a read-only sandbox, already approved); a harness that has a
 // server by that name in its own config keeps its own.
 // bridge: wisp's own URL and token, for the proxy to ask for a signed-in connector's fresh token.
-const proxyEnv = (home, bridge) => ({ ELECTRON_RUN_AS_NODE: '1', WISP_HOME: home, ...(bridge && { WISP_URL: bridge.url, WISP_TOKEN: bridge.token }) });
+const proxyEnv = (home, bridge) => ({ ELECTRON_RUN_AS_NODE: '1', WISP_HOME: home, ...(bridge && { WISP_URL: bridge.url, WISP_TOKEN: connectorToken(bridge.token) }) });
 
 export function turnServers(list, { agent, mode, cwd, home, bridge }) {
   if (mode === 'plan' || !REACH.includes(agent)) return {};

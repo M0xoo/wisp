@@ -12,6 +12,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { aboveCap } from '../capped.js';
 import { adapters, listAgents } from '../adapters/index.js';
 import { ensureWorktree, forkWork, isForeign } from '../git.js';
 import { summarize, workdir } from '../runner.js';
@@ -93,6 +94,7 @@ export function createFork(app) {
       also,
       ...run,
       mode: MODES.has(mode) ? mode : s.mode,
+      capped: aboveCap(mode, s.capped) ? null : s.capped, // a higher mode picked here is your own act, as on a follow-up
       attachments: app.uploads.resolve(attachments),
       worktree,
       subagents: s.subagents || [],
@@ -124,6 +126,7 @@ export function createFork(app) {
       cwd: s.cwd,
       ...run,
       mode: runner.sideMode(run.agent),
+      capped: s.capped,
       attachments: app.uploads.resolve(attachments),
       sideOf: { id: s.id, title: s.title, cwd: workdir(s) },
     });

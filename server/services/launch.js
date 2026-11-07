@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { adapters, listAgents } from '../adapters/index.js';
+import { aboveCap, cappedFrom, overCap } from '../capped.js';
 import { btwQuestion } from '../btw.js';
 import { sideAsk } from '../side.js';
 import { createWorktree, worktreeSource, ensureWorktree, removeWorktree } from '../git.js';
@@ -113,6 +114,9 @@ export function createLaunch(app) {
     }
     const strategy = body.tuiAsked ? 'single' : ['single', 'best2', 'compare'].includes(resolved.autoStrategy) ? resolved.autoStrategy : runners.length > 1 ? 'compare' : 'single';
     const mode = MODES.has(body.mode) ? body.mode : 'auto';
+    // A task a channel started, or one that task started: every way in comes through here.
+    const capped = cappedFrom(body.capped);
+    if (aboveCap(mode, capped)) throw bad(overCap(mode, capped));
     // Worktrees are on by default in git repos (off in Plan mode: nothing gets written). Compare
     // runs need one each, or the harnesses would edit the same files.
     const comparing = runners.length > 1;
@@ -155,7 +159,7 @@ export function createLaunch(app) {
       const extras = also.map((dir, i) => ({ cwd: dir, ...(made[i + 1] && { worktree: made[i + 1] }) }));
       const history = Array.isArray(moved.turns) ? moved.turns.filter((t) => t && typeof t === 'object' && typeof t.prompt === 'string') : [];
       const r = runners[0];
-      return [runner.create({ id: ids[0], prompt: body.prompt, cwd, also: extras, ...r, mode, attachments, worktree: trees[0], groupId, origin: origin || moved.origin || null, subagents: delegated ? [] : subagents, history, title: moved.title, moved: { from: String(moved.from || ''), at: Date.now() }, delegated })];
+      return [runner.create({ id: ids[0], prompt: body.prompt, cwd, also: extras, ...r, mode, attachments, worktree: trees[0], groupId, origin: origin || moved.origin || null, subagents: delegated ? [] : subagents, history, title: moved.title, moved: { from: String(moved.from || ''), at: Date.now() }, delegated, capped })];
     }
     if (wantTree) {
       const must = body.worktree === true || (comparing && mode !== 'plan');
@@ -183,7 +187,7 @@ export function createLaunch(app) {
         return made.map((worktree) => ({ cwd: dir, ...(worktree && { worktree }) }));
       }),
     );
-    const made = runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, kind, goal, hold, tui, ...(crew && !i && { crew }), ...(kind && { title: `${kind === 'pane' ? 'Pane' : 'Spell'}: ${String(body.prompt).trim().split('\n')[0].slice(0, 60)}` }), ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
+    const made = runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, kind, goal, hold, tui, capped, ...(crew && !i && { crew }), ...(kind && { title: `${kind === 'pane' ? 'Pane' : 'Spell'}: ${String(body.prompt).trim().split('\n')[0].slice(0, 60)}` }), ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
     if (tui) openTui(app, made[0], { prompt: String(body.prompt).trim() + attachmentNote(attachments), cols: body.cols, rows: body.rows });
     return made;
   }

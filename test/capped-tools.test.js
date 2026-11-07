@@ -129,6 +129,8 @@ test('launch: above the cap is refused, whatever the harness; within it, the new
 test('launch: no machine, sandbox or /sandbox; no folder or project of another; no team that gets round it', async () => {
   await withMachine(async () => {
     const s = await capped();
+    const away = path.join(repo, 'door');
+    fs.symlinkSync(other, away);
     srv.store.config.projects.push({ id: 'p-away', name: 'away', path: '/srv/away', machine: 'm-box' });
     srv.store.config.teams.push({ id: 'p-box', name: 'Box', members: [{ name: 'x', agent: 'codex', machine: 'm-box' }] });
     const refused = [
@@ -139,6 +141,8 @@ test('launch: no machine, sandbox or /sandbox; no folder or project of another; 
       [{ subagents: [{ agent: 'codex', machine: 'devbox' }] }, /machine/],
       [{ preset: 'p-box' }, /machine/],
       [{ cwd: other }, /project/],
+      [{ cwd: `${repo}/../${path.basename(other)}` }, /project/],
+      [{ cwd: away }, /project/],
       [{ also: [other] }, /project/],
     ];
     try {
@@ -152,6 +156,7 @@ test('launch: no machine, sandbox or /sandbox; no folder or project of another; 
     } finally {
       srv.store.config.projects = srv.store.config.projects.filter((p) => p.id !== 'p-away');
       srv.store.config.teams = srv.store.config.teams.filter((t) => t.id !== 'p-box');
+      fs.rmSync(away);
     }
   });
 });
@@ -180,7 +185,7 @@ test('delegate: a member of the crew runs the job at the cap, however it is set'
     const job = await srv.runner.crewDelegate(lead, { crew: m.id, name: 'wren' }, 'look at math.js');
     assert.equal(job.mode, 'edits');
     assert.deepEqual(job.capped, { mode: 'edits' });
-    await settled(job.id);
+    await until(() => !srv.runner.live.has(job.id) && srv.store.get(job.id).state === 'done');
   } finally {
     srv.crew.remove(m);
   }
@@ -252,7 +257,7 @@ test('reading: wisp_session, wisp_sessions, wisp_task wait, stats and stuff keep
   assert.match(words(await as(s.id, `/stuff/${s.id}?id=${mine.id}`)), /ours/);
 
   const stats = (await as(s.id, `/stats/${s.id}?days=30&project=${srv.store.projectFor(other).id}`)).stats;
-  assert.ok(!(stats.projects || []).some((p) => p.id === srv.store.projectFor(other).id || p.project === srv.store.projectFor(other).name), 'stats of another project stay out');
+  assert.ok(!stats.projects.some((p) => p.id === srv.store.projectFor(other).id), 'stats of another project stay out');
 });
 
 test('reading: wisp_available names no machine, other project or preset; wisp_crew keeps to its project; connectors are refused', async () => {
@@ -461,8 +466,10 @@ test('a fork or a side discussion keeps the cap; a task moved keeps it on a mach
   const { launch, agentsOf, get, summary, usable } = srv.machines;
   Object.assign(srv.machines, { launch: async (mid, body) => (sent.push(body), { id: 'r1', cwd: body.cwd, mode: body.mode }), agentsOf: () => [{ id: 'claude', available: true }], get: (id) => ({ id, name: 'devbox' }), summary: (mid, x) => x, usable: () => true });
   try {
-    const project = srv.store.projectFor(repo);
-    await srv.remote.phone.startParsed({ prompt: 'on the box', project, agent: 'claude', model: '', tagged: [], notes: [], machine: 'm-box' }, { channel: 'slack', name: 'Slack', cap: 'edits', fallback: 'edits' }).catch(() => {});
+    const project = { name: 'away', path: '/srv/away', machine: 'm-box' };
+    srv.store.config.projects.push({ id: 'p-box', ...project });
+    await srv.remote.phone.startParsed({ prompt: 'on the box', project, agent: 'claude', model: '', tagged: [], notes: [], machine: 'm-box' }, { channel: 'slack', name: 'Slack', cap: 'edits', fallback: 'edits' }).catch((err) => assert.ok(sent.length, err.message));
+    srv.store.config.projects = srv.store.config.projects.filter((p) => p.id !== 'p-box');
     assert.deepEqual(sent[0]?.capped, { mode: 'edits' }, 'the wisp over there enforces it');
   } finally {
     Object.assign(srv.machines, { launch, agentsOf, get, summary, usable });
