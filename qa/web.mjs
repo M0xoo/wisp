@@ -977,6 +977,12 @@ try {
     };
     const painted = (q) => q.waitForSelector('#launcher:not(.skel)', { state: 'attached' }); // behind the list, stacked
     const boxOf = (q) => q.evaluate(() => document.querySelector('#prompt').value);
+    // The address drops ?shared= before the share is read from the cache (share-in.js fromWorker), so
+    // share() returning isn't the box filled: wait for it, and say what it holds if it never does.
+    const landed = async (q, want, what) => {
+      await q.waitForFunction((v) => document.querySelector('#prompt').value === v, want, { timeout: 10_000 }).catch(() => {});
+      ok((await boxOf(q)) === want, `${what}: ${JSON.stringify(await boxOf(q))}`);
+    };
     const chips = (q) => q.locator('#launcher .tray .att.held');
     const note = (q) => q.locator('#launcher .l-shared:not([hidden])');
     const worker = async (q) => {
@@ -1026,7 +1032,7 @@ try {
     });
     await worker(q);
     await share(q, { text: 'Only words' });
-    ok((await boxOf(q)) === 'Only words', 'a text-only share');
+    await landed(q, 'Only words', 'a text-only share');
     await note(q).waitFor();
     await q.reload();
     await painted(q);
@@ -1075,7 +1081,7 @@ try {
     ok((await boxOf(q)) === '', `what was sent stayed gone: ${JSON.stringify(await boxOf(q))}`);
     ok(!/home/.test((await q.evaluate(() => localStorage.getItem('wisp.drafts'))) || ''), 'no draft of what was sent');
     await share(q, { text: 'The next share' });
-    ok((await boxOf(q)) === 'The next share', `the next share lands alone: ${JSON.stringify(await boxOf(q))}`);
+    await landed(q, 'The next share', 'the next share lands alone');
     await q.evaluate(() => localStorage.removeItem('wisp.drafts'));
     q.clean();
     // Signed out: the share stays unread, ?shared= with it, and lands once the server takes us.
