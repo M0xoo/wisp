@@ -14,14 +14,19 @@
 // Nothing a message said goes to a log or to audit: channel and size only. The body and headers sit
 // in the database in the clear until they're delivered, as the box's own files do on its disk.
 //
-// A channel here is a row of CHANNELS: what's worth keeping of its request, and its event id.
+// A channel here is a row of CHANNELS: what's worth keeping of its request, and its event id. X is
+// one too, but it has no webhook of its own: one for everybody on the grid's own address (grid/x.js),
+// which checks it and calls hold(). It has no URL, so nothing can be posted to it at /_in/.
 
 import { createHash } from 'node:crypto';
 import { sha256, token } from './secrets.js';
 
 export const IN_PATH = /^\/_in\/([A-Za-z0-9_-]{32,64})$/;
 
-const CHANNELS = { telegram: { headers: ['x-telegram-bot-api-secret-token'], eventId: (j) => j?.update_id } };
+const CHANNELS = {
+  telegram: { headers: ['x-telegram-bot-api-secret-token'], eventId: (j) => j?.update_id },
+  x: { headers: [], eventId: (j) => j?.id, webhook: false },
+};
 const BODY_MAX = 256 * 1024;
 const READ_MS = 15_000; // a body that takes longer isn't a webhook
 const TTL_MS = 60 * 60_000; // a message this old is stale anyway (STALE_S)
@@ -65,12 +70,15 @@ function eventKey(channel, body, headers) {
   return `${channel}:${id ?? createHash('sha256').update(body).digest('base64url')}:${sha256(headers)}`;
 }
 
-export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = () => {} }) {
+// delivered(row): a 2xx from the box, before anything else hears of it. still(row): false when a held
+// row must no longer wake or reach anyone (someone unlinked, a spend cap). It goes, uncounted.
+export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delivered = () => {}, still = () => true, log = () => {} }) {
   const opts = { ...DEFAULTS, ...cfg.channels };
   const on = opts.enabled === true;
   const busy = new Map(); // user id -> the drain running
   const timers = new Map(); // user id -> the next try
   const wakes = new Map(); // user id -> { strikes, at }: wakes since a message the box accepted, the last one's time
+  const sending = new Map(); // user id -> the delivery on its way to the box
   let stopped = false;
 
   const pending = (userId) => db.get('SELECT count(*) n, coalesce(sum(size), 0) bytes FROM channel_inbox WHERE user_id = ? AND done_at IS NULL', userId);
@@ -112,6 +120,10 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
       if (stopped) return;
       const row = db.get('SELECT * FROM channel_inbox WHERE user_id = ? AND done_at IS NULL ORDER BY id LIMIT 1', user.id);
       if (!row) return;
+      if (!still(row)) {
+        finish(row.id);
+        continue;
+      }
       const wait = row.next_at - Date.now();
       if (wait > 0) return later(user, wait); // strictly in order: nothing passes a row being retried
       if (hostd.state(user.id) !== 'running') {
@@ -138,12 +150,21 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
       const dropped = db.get('SELECT dropped FROM channel_urls WHERE user_id = ? AND channel = ?', user.id, row.channel)?.dropped || 0;
       const done = hostd.begin(user.id, { touch: false }); // not stopped under it, and it isn't use
       let status = 0;
+      let landed;
+      sending.set(user.id, new Promise((r) => (landed = r)));
       try {
         status = await deliver(port, fresh, { channel: row.channel, headers: JSON.parse(row.headers), body: Buffer.from(row.body).toString('base64'), at: row.at, dropped });
       } catch {}
       done();
-      if (stopped) return;
       const ok = status >= 200 && status < 300;
+      try {
+        if (ok) delivered(row);
+      } catch (err) {
+        log(`grid: inbox after ${row.channel}: ${err.message}`);
+      }
+      sending.delete(user.id);
+      landed();
+      if (stopped) return;
       if (ok) wakes.delete(user.id);
       if (ok && dropped) db.run('UPDATE channel_urls SET dropped = max(0, dropped - ?) WHERE user_id = ? AND channel = ?', dropped, user.id, row.channel);
       // 4xx: the box read it and said no (a bad signature, a stranger, the channel switched off). Retrying can't help.
@@ -190,7 +211,9 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
     opts,
     drain,
     sweep,
-    knows: (channel) => Object.hasOwn(CHANNELS, String(channel)),
+    knows: (channel) => Object.hasOwn(CHANNELS, String(channel)) && CHANNELS[channel].webhook !== false,
+    read: readCapped,
+    delivering: (userId) => sending.get(userId),
 
     // { url, dropped }: this user's own, made the first time. dropped: lost messages it hasn't been
     // told of, which this tells it. The token is kept sealed, so a box asking again gets the same URL.
@@ -219,7 +242,10 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
     async accept(user, channel, req) {
       const body = await readCapped(req, BODY_MAX);
       if (!body) return count(user.id, channel);
-      const kept = Object.fromEntries(CHANNELS[channel].headers.filter((h) => typeof req.headers[h] === 'string').map((h) => [h, req.headers[h]]));
+      this.hold(user, channel, body, Object.fromEntries(CHANNELS[channel].headers.filter((h) => typeof req.headers[h] === 'string').map((h) => [h, req.headers[h]])));
+    },
+
+    hold(user, channel, body, kept) {
       const headers = JSON.stringify(kept);
       const size = body.length + headers.length;
       const held = pending(user.id);
