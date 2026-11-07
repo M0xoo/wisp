@@ -7,6 +7,7 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
+import android.widget.Toast;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -26,6 +27,8 @@ public class MainActivity extends BridgeActivity {
     private volatile boolean resumed;
     private boolean clearHistory; // after falling back to the list: Back mustn't return to the error
     private String openTask; // a tapped notification's task, opened once wisp's page has loaded
+    private volatile Shared shared; // what the share sheet sent, until wisp's page takes it
+    private volatile Shared taking; // …and while it reads the files
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -58,7 +61,11 @@ public class MainActivity extends BridgeActivity {
         web.getSettings().setOffscreenPreRaster(true);
         // Tapped with the app gone (closed, or killed while the screen was off): the intent comes
         // here, not to onNewIntent. Not on a re-create, which would open it again.
-        if (savedInstanceState == null) openTask = taskOf(getIntent());
+        if (savedInstanceState == null) {
+            openTask = taskOf(getIntent());
+            Shared.clear(this); // a share the app was killed holding
+            receive(getIntent());
+        }
         // wisp's page comes from the computer through the tunnel. SSH can be up while wisp isn't
         // (it was quit or crashed there), and with nothing cached the WebView would show its own
         // error page. Instead: back to the computers list, which says what's happening, while the
@@ -86,6 +93,10 @@ public class MainActivity extends BridgeActivity {
                 if (openTask != null && wispPage(url)) {
                     open(openTask);
                     openTask = null;
+                }
+                if (shared != null) {
+                    offerShare();
+                    if (wispPage(url)) view.postDelayed(MainActivity.this::stillShared, STILL_SHARED_MS);
                 }
             }
         });
@@ -129,6 +140,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onDestroy() {
         if (isFinishing() && !WispSshPlugin.hasTunnel()) TunnelService.stop(this);
+        if (isFinishing()) Shared.clear(this); // nothing shared stays behind the app
         super.onDestroy();
     }
 
@@ -138,6 +150,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        if (receive(intent)) return;
         String task = taskOf(intent);
         if (task == null || getBridge() == null) return;
         if (wispPage(getBridge().getWebView().getUrl())) open(task);
@@ -147,6 +160,35 @@ public class MainActivity extends BridgeActivity {
     private static String taskOf(Intent intent) {
         String task = intent == null ? null : intent.getStringExtra(Alerts.EXTRA_TASK);
         return task == null || task.isEmpty() ? null : task;
+    }
+
+    // From the share sheet (Shared.java): read now, while the grant lasts, and kept in memory and
+    // the cache folder until wisp's page takes it. On the computers list the page says it's waiting
+    // (mobile/www/app.js), and opening a computer delivers it.
+    private boolean receive(Intent intent) {
+        Shared s = Shared.from(this, intent);
+        if (s == null) return false;
+        Shared before = shared;
+        shared = s;
+        if (before != null) before.delete();
+        new Thread(() -> {
+            s.read(this);
+            if (shared == s) offerShare();
+            else s.delete(); // a newer one took its place while this one was read
+        }, "wisp-share").start();
+        return true;
+    }
+
+    // wisp's page takes it when told (or at boot, if this comes first); the list repaints its note.
+    private void offerShare() {
+        js("window.dispatchEvent(new Event('wisp-share'))");
+    }
+
+    // A computer on an older wisp has no page to take it: say so, and keep it for another computer.
+    private static final long STILL_SHARED_MS = 20_000;
+    private void stillShared() {
+        if (shared == null || !shared.ready || !wispPage(getBridge().getWebView().getUrl())) return;
+        Toast.makeText(this, "This computer didn’t take what you shared. Update wisp there, or open another computer.", Toast.LENGTH_LONG).show();
     }
 
     private boolean wispPage(String url) {
@@ -258,6 +300,35 @@ public class MainActivity extends BridgeActivity {
         public void notify(String id, String title, String body) {
             if (id == null || id.isEmpty()) return;
             Alerts.task(MainActivity.this, id, title == null ? "wisp" : title, body == null ? "" : body);
+        }
+
+        // Something shared to wisp (web/js/features/share-in.js, and the list's note in mobile/www).
+        @JavascriptInterface
+        public boolean sharePending() {
+            return shared != null;
+        }
+
+        // Once: the page has it from here. The list's note only asks whether one is waiting.
+        @JavascriptInterface
+        public String takeShare() {
+            Shared s = shared;
+            if (s == null || !s.ready) return "";
+            shared = null;
+            taking = s;
+            return s.json();
+        }
+
+        @JavascriptInterface
+        public String shareChunk(int file, double offset) {
+            Shared s = taking;
+            return s == null ? "" : s.chunk(file, (long) offset);
+        }
+
+        @JavascriptInterface
+        public void shareDone() {
+            Shared s = taking;
+            taking = null;
+            if (s != null) s.delete();
         }
 
         // Download (web/js/ui/image.js): the answer comes back as a `wisp-saved` event with this id.

@@ -43,6 +43,16 @@
                 <data android:scheme="dev.trywisp.mobile" />
             </intent-filter>
 
+            <!-- The share sheet: a link, text, pictures or a PDF for New task (Shared.java). -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/*" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+
         </activity>
 
         <!-- Keeps a connected machine's tunnel open in the background (see TunnelService). -->
