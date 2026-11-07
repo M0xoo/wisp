@@ -957,9 +957,15 @@ test('a box that never sent a list is held as before, and a bad list is refused'
 test('autocomplete has its own budget, and past a cap Discord still gets a valid answer', { timeout: 30_000 }, async () => {
   const g = await boot({ ...NEVER, channels: { enabled: true, retryMs: 30, wakeRetryMs: 80, maxRows: 500 } });
   const { u, send } = await discordUser(g);
-  for (let i = 0; i < 130; i++) assert.equal((await send(interaction(String(1000 + i), { type: 4 }))).status, 200);
+  // ~250 requests: ten at a time, since one after another took over 30 s on a slow Windows runner.
+  const burst = async (n, make) => {
+    const out = [];
+    for (let i = 0; i < n; i += 10) out.push(...(await Promise.all(Array.from({ length: Math.min(10, n - i) }, (_, k) => send(make(i + k))))));
+    return out;
+  };
+  for (const r of await burst(130, (i) => interaction(String(1000 + i), { type: 4 }))) assert.equal(r.status, 200);
   assert.deepEqual((await send(interaction('2000'))).json(), { type: 5 }, 'typing cost the command nothing');
-  for (let i = 1; i < 120; i++) await send(interaction(String(2000 + i)));
+  for (const r of await burst(119, (i) => interaction(String(2001 + i)))) assert.deepEqual(r.json(), { type: 5 }, 'all within the cap');
   const over = await send(interaction('3000'));
   assert.deepEqual([over.status, over.json()], [200, BUSY]);
   await g.grid.hostd.stop(u.id).catch(() => {}); // held rows may have woken it: typing on a box that's up is the test above
