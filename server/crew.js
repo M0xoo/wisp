@@ -367,7 +367,12 @@ export function takeCrewBlock(presentation) {
   out.remember = out.remember.slice(0, 12);
   if (out.followUps) out.followUps = out.followUps.slice(0, 3);
   if (out.kit) out.kit = out.kit.slice(0, OFFER_FILES);
-  if (!presentation.blocks.length) presentation.blocks = [{ type: 'hero', title: 'Nothing new', summary: '', status: 'info' }];
+  // Only a crew block: a member answering in plain text still has to append one, so its text is
+  // the answer, shown as one with no wisp block is (parsePresentation). Nothing at all: a placeholder.
+  if (!presentation.blocks.length && presentation.notes) {
+    presentation.blocks = [{ type: 'markdown', text: presentation.notes }];
+    delete presentation.notes;
+  } else if (!presentation.blocks.length) presentation.blocks = [{ type: 'hero', title: 'Nothing new', summary: '', status: 'info' }];
   return out;
 }
 

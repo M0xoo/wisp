@@ -14,6 +14,7 @@ import { newId } from '../server/util.js';
 import { applyMemory, crewJobOf, crewMentions, crewNote, dueNow, localKit, nextCheckin, normalizeKit, offerFiles, normalizeMember, NOTEBOOK_MAX, takeCrewBlock } from '../server/crew.js';
 import { parseSkillMd } from '../web/js/skill-md.js';
 import { crewStats } from '../server/usage.js';
+import { heroOf, parsePresentation } from '../server/protocol.js';
 
 const RECORD = tmp('crew-record');
 process.env.FAKE_RECORD = RECORD;
@@ -161,6 +162,17 @@ test('a job hands memory back in a hidden crew block: lines added, a rewrite, a 
   const only = { blocks: [{ type: 'crew', quiet: true }] };
   takeCrewBlock(only);
   assert.equal(only.blocks[0].type, 'hero');
+});
+
+test('a plain-text answer with only a crew block shows its text, not "Nothing new"', () => {
+  const p = parsePresentation('Merged #723 at e9a99272.\n\n```wisp\n{"blocks":[{"type":"crew","remember":["#723 merged"]}]}\n```');
+  const data = takeCrewBlock(p);
+  assert.deepEqual(data.remember, ['#723 merged']);
+  // As a plain-text answer with no wisp block renders: its text, no hero, no "plain text" slip.
+  assert.deepEqual(p.blocks, [{ type: 'markdown', text: 'Merged #723 at e9a99272.' }]);
+  assert.equal(p.notes, undefined, 'the text shows once');
+  assert.equal(p.fallback, undefined);
+  assert.equal(heroOf(p), undefined);
 });
 
 test('the schedule: cron minutes once each, wake-ups, paused members never', () => {
