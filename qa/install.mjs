@@ -643,9 +643,16 @@ async function migrateRows() {
   const old = path.join(dirIn('electron-setup'), name);
   fs.writeFileSync(old, Buffer.from(await (await fetch(`https://github.com/M0xoo/wisp/releases/download/v${ELECTRON}/${name}`)).arrayBuffer()));
   const run = (file, args) => new Promise((resolve, reject) => spawn(file, args, { stdio: 'ignore' }).once('exit', resolve).once('error', reject));
+  // What its installer is doing while it goes: on arm64 it's an x86 NSIS, run emulated.
+  const installing = () => `holds ${fs.existsSync(ELECTRON_DIR()) ? fs.readdirSync(ELECTRON_DIR()).join(',') : 'nothing'}; running: ${sh('powershell', ['-NoProfile', '-Command', "Get-Process | Where-Object { $_.Name -match 'setup|wisp|Un_|nsis' } | ForEach-Object { $_.Name + ' ' + [int]$_.CPU + 's' }"]).trim().replace(/\r?\n/g, ', ') || 'none'}`;
   const installElectron = async () => {
+    const t0 = Date.now();
     ok((await run(old, ['/S'])) === 0, 'v0.57.0’s installer failed');
-    await until(() => fs.existsSync(path.join(ELECTRON_DIR(), 'wisp.exe')) && fs.existsSync(path.join(ELECTRON_DIR(), 'Uninstall wisp.exe')), { timeout: 120_000, every: 500, what: 'v0.57.0' });
+    console.log(`  v${ELECTRON}’s installer exited after ${Date.now() - t0} ms: ${installing()}`);
+    await until(() => fs.existsSync(path.join(ELECTRON_DIR(), 'wisp.exe')) && fs.existsSync(path.join(ELECTRON_DIR(), 'Uninstall wisp.exe')), { timeout: 300_000, every: 500, what: 'v0.57.0' }).catch((err) => {
+      throw new Error(`${err.message}: ${installing()}`);
+    });
+    console.log(`  v${ELECTRON} in place after ${Date.now() - t0} ms`);
     await sleep(2000);
   };
   // This machine's own home and profile, as a person's: no WISP_HOME, no HOME.

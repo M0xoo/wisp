@@ -33,6 +33,25 @@ public static class W {
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, uint f, IntPtr e);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessageTimeoutW(IntPtr h, uint m, IntPtr w, string l, uint f, uint t, out IntPtr r);
+  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+  public struct DEVMODE {
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName;
+    public short dmSpecVersion, dmDriverVersion, dmSize, dmDriverExtra; public int dmFields;
+    public int dmPositionX, dmPositionY, dmDisplayOrientation, dmDisplayFixedOutput;
+    public short dmColor, dmDuplex, dmYResolution, dmTTOption, dmCollate;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName;
+    public short dmLogPixels; public int dmBitsPerPel, dmPelsWidth, dmPelsHeight, dmDisplayFlags, dmDisplayFrequency;
+    public int dmICMMethod, dmICMIntent, dmMediaType, dmDitherType, dmReserved1, dmReserved2, dmPanningWidth, dmPanningHeight;
+  }
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern bool EnumDisplaySettingsW(string d, int mode, ref DEVMODE dm);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int ChangeDisplaySettingsW(ref DEVMODE dm, int flags);
+  // Set-DisplayResolution is Windows Server's: a Windows 11 runner (windows-11-arm) has none.
+  public static int Resolution(int w, int h) {
+    var dm = new DEVMODE(); dm.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
+    if (!EnumDisplaySettingsW(null, -1, ref dm)) return -100;
+    dm.dmPelsWidth = w; dm.dmPelsHeight = h; dm.dmFields = 0x80000 | 0x100000;
+    return ChangeDisplaySettingsW(ref dm, 0);
+  }
   public static List<IntPtr> Tops() { var l = new List<IntPtr>(); EnumWindows((h, p) => { l.Add(h); return true; }, IntPtr.Zero); return l; }
   public static string Text(IntPtr h) { var s = new StringBuilder(512); GetWindowTextW(h, s, 512); return s.ToString(); }
   public static string Class(IntPtr h) { var s = new StringBuilder(256); GetClassNameW(h, s, 256); return s.ToString(); }
@@ -64,7 +83,12 @@ $r = switch ($Cmd) {
   # Every window of a process, with its menu bar.
   'windows' { $id = [int]$Rest[0]; [W]::Tops() | ForEach-Object { $x = Info $_; if ($x.pid -eq $id) { $x.menu = Menus $_; $x } } }
   'screen' { $s = [System.Windows.Forms.Screen]::PrimaryScreen; @{ width = $s.Bounds.Width; height = $s.Bounds.Height; workWidth = $s.WorkingArea.Width; workHeight = $s.WorkingArea.Height } }
-  'resolution' { Set-DisplayResolution -Width ([int]$Rest[0]) -Height ([int]$Rest[1]) -Force | Out-Null; @{ ok = $true } }
+  'resolution' {
+    if (Get-Command Set-DisplayResolution -ErrorAction SilentlyContinue) { Set-DisplayResolution -Width ([int]$Rest[0]) -Height ([int]$Rest[1]) -Force | Out-Null; $code = 0 }
+    else { $code = [W]::Resolution([int]$Rest[0], [int]$Rest[1]) }
+    $s = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    @{ ok = ($code -eq 0); code = $code; width = $s.Width; height = $s.Height }
+  }
   # A part of the screen: its hash, and a PNG if there's a path.
   'crop' {
     $b = New-Object System.Drawing.Bitmap ([int]$Rest[2]), ([int]$Rest[3]); $g = [System.Drawing.Graphics]::FromImage($b); $g.CopyFromScreen([int]$Rest[0], [int]$Rest[1], 0, 0, $b.Size)

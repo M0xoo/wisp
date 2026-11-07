@@ -143,9 +143,14 @@ const restore = async () => {
   throw new Error('a second launch didn’t bring the minimized window back; its taskbar button did');
 };
 const spot = (selector) => A.page.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, selector);
+// The middle of the taskbar, where Windows 11 puts the app's button.
 const taskbar = (tag) => {
   const s = one('screen');
-  return one('crop', 640, s.height - 48, 640, 48, path.join(OUT, `desktop-tauri-win-bar-${tag}.png`)).sha;
+  return one('crop', s.width / 2 - 320, s.height - 48, 640, 48, path.join(OUT, `desktop-tauri-win-bar-${tag}.png`)).sha;
+};
+const resolution = (w, h) => {
+  const r = one('resolution', w, h);
+  ok(r.width === w && r.height === h, `the display stayed ${r.width}×${r.height} (code ${r.code})`);
 };
 
 if (!process.env.CI) {
@@ -158,7 +163,7 @@ if (!process.env.CI) {
 if (process.argv.includes('--web')) {
   if (!fs.existsSync(EXE)) await new Promise((r) => spawn(SETUP, ['/S'], { stdio: 'ignore' }).once('exit', r));
   await until(() => fs.existsSync(EXE), { timeout: 120_000, every: 500, what: 'wisp.exe' });
-  one('resolution', 1920, 1080);
+  resolution(1920, 1080);
   await launch(PORT);
   const v = await (await fetch(`http://127.0.0.1:${CDP}/json/version`)).json();
   console.log(`  qa/web.mjs in ${v.Browser}, ${ARCH}`);
@@ -186,14 +191,14 @@ await check('TAURI-W00', 'setup.exe /S installs the app', async () => {
 });
 
 await check('TAURI-W02b', 'a 1366×768 laptop: stops at the screen as Electron does', async () => {
-  one('resolution', 1366, 768);
+  resolution(1366, 768);
   await sleep(1500);
   await launch(PORT, { connect: false });
   const [w, s] = [client(), one('screen')];
   console.log(`  ${w.width}×${w.height} at ${w.x},${w.y}, work area ${s.workWidth}×${s.workHeight}`);
   ok(w.width === s.workWidth && w.height === s.workHeight && w.x === 0 && w.y === 0, `${w.width}×${w.height} at ${w.x},${w.y}: v0.57.0 is 1366×720 at 0,0`);
   await quit();
-  one('resolution', 1920, 1080);
+  resolution(1920, 1080);
   await sleep(1500);
 });
 
