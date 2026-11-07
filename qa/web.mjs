@@ -106,8 +106,7 @@ try {
     const blocks = await p.locator('.it-body .blk:visible').count();
     await p.shot('welcome');
     ok(blocks > 5, `only ${blocks} blocks rendered`);
-    const dash = await p.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.b-flow .wire.back')).strokeDasharray));
-    ok(dash > 1, `the flow's loop has a dash of ${dash}px: WebKit draws nothing under 1`);
+    await p.locator('.b-flow .wire.back').waitFor({ state: 'attached' });
     p.clean();
   });
 

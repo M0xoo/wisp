@@ -18,9 +18,9 @@ test('list rows skip layout except on WebKit, which would scroll a skipped row o
   assert.ok(open > 0 && !css.slice(open, rule).includes('\n}'), 'the rule sits inside the @supports');
 });
 
-test("a flow's dashes are real px: WebKit draws nothing for a fraction of a pathLength of 1", () => {
-  assert.doesNotMatch(read('css/blocks.css').match(/\.wire\.back \{.*/)[0], /stroke-dasharray/);
-  assert.match(read('js/blocks.js'), /getTotalLength\(\) \* FLOW_DASH/);
+test("a flow's dashed loop has a dash WebKit draws: it drops one of 0.012 on a pathLength of 1", () => {
+  assert.match(read('css/blocks.css'), /\.wire\.back \{ stroke-dasharray: 1\.2 1\.2;/);
+  assert.match(read('js/blocks.js'), /pathLength="\$\{back \? 100 : 1\}"/);
 });
 
 test('the terminal has its scrollbar colour without scrollbar-color', () => {
