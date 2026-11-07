@@ -17,12 +17,19 @@ const CAP = 'edits';
 const FALLBACK = 'plan';
 const OFF = 'That computer doesn’t accept tasks from channels. Turn on Settings → Notifications → Accept tasks from channels on it.';
 const clean = (t) => truncate(defuse(scrubOut(t).text), 4000);
+// A report that couldn't get out is the task's result and there may be nothing after it to carry it
+// (owe and pay wait for a next message), so it goes on its own. A grid restart takes seconds to minutes.
+const LATER_MS = [15_000, 60_000, 5 * 60_000, 15 * 60_000, 30 * 60_000];
+const LATE_MAX = 20; // per thread, newest dropped
+// The grid heard it and said no. Busy (429) isn't no.
+const refused = (err) => err.status >= 400 && err.status < 500 && err.status !== 429;
 
 export class Routed extends Channel {
   constructor(hub) {
     super(hub, 'routed');
     this.seen = new Seen();
     this.limit = new RateLimit();
+    this.late = new Map(); // thread -> reports waiting for the grid, oldest first
   }
 
   // Sending needs a grid to send through. The switch is for what comes in: a task already running
@@ -43,12 +50,44 @@ export class Routed extends Channel {
     const wait = this.waiting(s);
     if (wait === '') return;
     const text = clean(wait ?? `${msg.title}\n\n${msg.text}`);
-    // gridJson says a broken connection with a 502, where resend looks for fetch's TypeError.
-    await resend(() =>
-      this.hub.phone.gridReply(s.remote.routed, text).catch((err) => {
+    const ref = s.remote.routed;
+    const behind = this.late.get(ref);
+    if (behind) {
+      if (behind.length < LATE_MAX) behind.push(text); // in order, behind what's waiting
+      return;
+    }
+    await this.#post(ref, text).catch((err) => {
+      if (refused(err)) throw err;
+      this.late.set(ref, [text]);
+      this.#retry(ref);
+    });
+  }
+
+  // gridJson says a broken connection with a 502, where resend looks for fetch's TypeError.
+  #post(ref, text) {
+    return resend(() =>
+      this.hub.phone.gridReply(ref, text).catch((err) => {
         throw err.status === 502 ? new TypeError(err.message) : err;
       }),
     );
+  }
+
+  #retry(ref, tries = 0) {
+    const go = async () => {
+      const waiting = this.late.get(ref);
+      try {
+        while (waiting.length) {
+          await this.#post(ref, waiting[0]);
+          waiting.shift();
+        }
+        this.late.delete(ref);
+      } catch (err) {
+        if (!refused(err) && tries + 1 < LATER_MS.length) return this.#retry(ref, tries + 1);
+        this.late.delete(ref);
+        console.warn(`wisp: routed: a report didn’t get out: ${err.message}`);
+      }
+    };
+    setTimeout(go, this.hub.routedRetryMs ?? LATER_MS[tries]).unref?.();
   }
 
   threadStarted(s, thread, by) {

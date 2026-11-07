@@ -707,6 +707,42 @@ test('a report whose post broke goes again; one the grid refused doesn’t', asy
   assert.equal(gone.tries.length, 1);
 });
 
+test('a report lost while the grid restarts goes later, in order, and stops when the grid refuses', async () => {
+  const { Routed } = await import('../server/channels/routed.js');
+  const broken = () => Object.assign(new Error('Couldn’t reach the grid: connection refused'), { status: 502 });
+  const channel = () => {
+    const c = { down: true, tries: [], got: [], refuse: null };
+    const hub = { routedRetryMs: 15, phone: { gridReply: async (ref, text) => {
+      c.tries.push(text);
+      if (c.refuse) throw c.refuse;
+      if (c.down) throw broken();
+      c.got.push(text);
+    } }, store: {} };
+    c.ch = new Routed(hub);
+    return c;
+  };
+  const s = { id: 't', remote: { routed: 'th.sig' } };
+  const a = channel();
+  await a.ch.publish({ title: 'first', text: 'x' }, s); // resolves: nobody's waiting on it, and it isn't lost
+  await a.ch.publish({ title: 'second', text: 'y' }, s);
+  assert.equal(a.tries.length, 3, 'the second waits behind the first');
+  await sleep(60);
+  a.down = false;
+  await until(() => a.got.length === 2, { what: 'both reports' });
+  assert.match(a.got[0], /first/);
+  assert.match(a.got[1], /second/);
+
+  const b = channel();
+  await b.ch.publish({ title: 'gone', text: 'x' }, s);
+  b.refuse = Object.assign(new Error('No such thread.'), { status: 404 });
+  await until(() => b.tries.length > 3, { what: 'another try' });
+  const n = b.tries.length;
+  await sleep(60);
+  assert.equal(b.tries.length, n, 'refused for good: no more tries');
+  await b.ch.publish({ title: 'next', text: 'x' }, s).catch(() => {});
+  assert.equal(b.tries.length, n + 1, 'and nothing is left in the way');
+});
+
 // --- a real wisp at the far end -------------------------------------------------------------------
 
 // Signed in to the grid and on it, as Machines → Reach this computer from anywhere does it.
