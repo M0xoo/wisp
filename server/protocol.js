@@ -59,8 +59,9 @@ Each rule saves the user a follow-up they would otherwise type:
 
 ### Blocks
 
-- {"type":"hero","title":"<what happened, ≤8 words>","summary":"<1–2 sentences>","status":"done|partial|blocked|info"}
-  Always first.
+- {"type":"hero","title":"<what happened, ≤8 words>","topic":"<the subject of the request, ≤6 words>","summary":"<1–2 sentences>","status":"done|partial|blocked|info"}
+  Always first. "topic" is what the user asked about as a short noun phrase ("Rate limit on /login"),
+  not what you did; wisp names the task with it. Optional after the first turn.
 - {"type":"markdown","text":"<github-flavoured markdown>"}
 - {"type":"steps","title":"…","items":[{"title":"…","detail":"…","status":"done|skipped|failed"}]}
   What you did, in order.
@@ -127,7 +128,7 @@ Strings must be valid JSON (escape newlines as \\n and quotes as \\"). Example:
 
 \`\`\`wisp
 {"blocks":[
-  {"type":"hero","title":"Login now rate-limited","summary":"Added a sliding-window limiter to /login. 5 attempts per minute per IP.","status":"done"},
+  {"type":"hero","title":"Login now rate-limited","topic":"Rate limit on /login","summary":"Added a sliding-window limiter to /login. 5 attempts per minute per IP.","status":"done"},
   {"type":"diff","file":"src/auth/login.ts"},
   {"type":"tests","command":"npm test","passed":48,"failed":0,"skipped":0,"durationMs":4100},
   {"type":"callout","tone":"warn","title":"Assumption","text":"Behind a proxy, so I read the IP from X-Forwarded-For."},
