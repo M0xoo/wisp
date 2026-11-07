@@ -24,6 +24,7 @@ this on macOS, Windows and Linux through `.github/workflows/tauri-package.yml`.
 | INST-17 the app through a symlinked folder | Works | Automated: Tauri refuses `resource_dir()` there, so the shell reads the real path |
 | INST-16 self-update | Manual | Automated: the running app downloads a newer zip, swaps itself and reopens. Only the release list is stood in for |
 | INST-20–22 Windows installer | Manual | CI (dry run): `/S` per user, `resources\app`, `node\node.exe`, `method: app`, `/S --force-run /R` starts it again |
+| INST-23 the update line on Electron's installer | CI probe, run by hand: `/S --force-run /R`, then the checks below | Not this row: INST-22 |
 | Linux AppImage, .deb | Manual | Stays on Electron until WebKitGTK can tell a frame from the page |
 | INST-30 download links | Automated: names checked, each link answers | Same names: the same links |
 | Gatekeeper on a browser download | Manual | Manual: Open Anyway on a real quarantined file, ad hoc signature |
@@ -38,5 +39,23 @@ would hit the lock of any wisp.app open on the Mac, quit and focus that one.
 the app on `/R` and ignores that, so a Windows user on such a build gets the update but no restart
 until they open wisp. Only builds with `/S --force-run /R` restart on their own, so let one release
 carry it before a Tauri build goes out. The two also install to different folders
-(`%LOCALAPPDATA%\Programs\wisp` and `%LOCALAPPDATA%\wisp`): Electron's copy and its shortcuts stay
+(`%LOCALAPPDATA%\Programs\wisp-agents` and `%LOCALAPPDATA%\wisp`): Electron's copy and its shortcuts stay
 behind until something removes them.
+
+**INST-23, Electron's NSIS installer and the updater's line.** `/R` means nothing to electron-builder's
+installer; this row is what shows it. On `windows-latest`, in a throwaway workflow on a branch, take a
+release's `wisp-windows-x64-setup.exe` and a dry run's (`gh run download <id> -n desktop-Windows`). Build
+the line with `Updater.relaunchCommand()` and start it the way `server/update.js` does: its `WAITER`
+source, then the app is killed. Check, per row:
+
+- over an older copy, over the same version and on no copy: the new version is in place, exit 0
+- the app comes back by itself, on port 4477, with no arguments (`/R` isn't passed on), one `wisp.exe`
+- `/S --force-run` without `/R`, same base: same file hashes, uninstall key, shortcuts and argv
+- `/S` and `/S /R`: exit 0, installed, the app stays down, so `--force-run` is what starts it
+- still in `%LOCALAPPDATA%\Programs\wisp-agents`, with the data in `%APPDATA%\wisp-agents` kept
+- no window from the installer, its uninstaller or `cmd` (poll EnumWindows from the same session)
+
+Also over a running copy, and with the installer in a temp folder holding spaces, `(` and `&`. Last run
+2026-11-07 on windows-2025-vs2026, x64, 15 rows, all as above: 0.56.0, 0.57.0, nightly 20261106.1129
+and dry run 42347471229 ([probe](https://github.com/M0xoo/wisp/actions/runs/42350088213)). Not covered:
+arm64, Windows 10, a UAC prompt (off on the runner), and the app quitting by itself after Update.
