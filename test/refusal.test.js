@@ -220,3 +220,42 @@ test('Hand to Codex after a refusal: Codex hears the constraints, at the task\'s
     delete process.env.FAKE_RECORD;
   }
 });
+
+// One claude process reports several results: a background shell or subagent that finishes starts
+// another turn. And since claude retries a refusal (refusal_retry), a turn can see a refusal and still
+// end in success. Only a result whose own turn ended in refusal says so.
+test('claude: a refusal the CLI retried past, and the background turn after it, are not refusals', async () => {
+  const { adapters } = await import('../server/adapters/index.js');
+  const sid = 'sess-retry';
+  const say = (text, stop, extra = {}) => ({ type: 'assistant', session_id: sid, message: { id: `m-${text.length}-${stop}`, model: 'claude-opus-5-5', content: [{ type: 'text', text }], stop_reason: stop }, ...extra });
+  const result = (text, extra = {}) => ({ type: 'result', subtype: 'success', is_error: false, result: text, num_turns: 2, session_id: sid, total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: 5 }, ...extra });
+  const task = { task_id: 'bg1', description: 'npm test' };
+  const rows = [
+    { type: 'system', subtype: 'init', session_id: sid },
+    say('', 'refusal'), // the API turned the first attempt down; the CLI retries it
+    say('Started the tests in the background.', 'end_turn'),
+    { type: 'system', subtype: 'background_tasks_changed', tasks: [task], session_id: sid },
+    result('Started the tests in the background.'),
+    { type: 'system', subtype: 'task_notification', task_id: 'bg1', status: 'completed', session_id: sid },
+    { type: 'system', subtype: 'background_tasks_changed', tasks: [], session_id: sid },
+    say('The tests pass.', 'end_turn'),
+    result('The tests pass.'),
+    say('', 'refusal'), // a later turn of its own that is refused, and not retried past
+    result(CC, { is_error: true }),
+    say('Fine now.', 'end_turn', { parent_tool_use_id: 'toolu_sub' }),
+    say('', 'refusal', { parent_tool_use_id: 'toolu_sub' }), // a subagent's refusal is not the turn's
+    say('Done, the subagent could not help.', 'end_turn'),
+    result('Done, the subagent could not help.'),
+  ];
+  const f = path.join(tmp('refusal-replay'), 'stream.jsonl');
+  fs.writeFileSync(f, rows.map((r) => JSON.stringify(r)).join('\n') + '\n');
+  process.env.FAKE_REPLAY = f;
+  try {
+    const events = [];
+    await adapters.claude.run({ prompt: 'run the tests', cwd: makeRepo(), mode: 'edits', onEvent: (e) => events.push(e) }).done;
+    const said = events.filter((e) => e.type === 'result').map((e) => e.stopReason || null);
+    assert.deepEqual(said, [null, null, 'refusal', null]);
+  } finally {
+    delete process.env.FAKE_REPLAY;
+  }
+});

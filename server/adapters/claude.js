@@ -447,7 +447,10 @@ export default {
     let lastModels = null; // the last result's modelUsage (it adds up over the process)
     let counted; // the counters this process started from, once its first result says (see restoredFrom)
     let unsplit = false; // the next result's modelUsage can't be told from the conversation's
-    let refused = false; // an assistant message the API ended with stop_reason "refusal" (server/refusal.js)
+    // This turn's last main-thread message the API ended with stop_reason "refusal" (server/refusal.js).
+    // Per turn, not per process: a refusal the CLI retried past (refusal_retry) can still end in
+    // success, and a background task that finishes starts a turn of its own.
+    let refused = false;
     let authFailed = ''; // the words of an assistant message with error: 'authentication_failed' (no model wrote it)
     let early = null; // an empty result that came before our prompt was answered (see below)
     const pendingTools = new Map(); // tool_use_id -> name, to flag failed tool results
@@ -483,7 +486,8 @@ export default {
       if (msg.type === 'assistant') {
         subagents.message(msg);
         noteContext(msg);
-        if (msg.message?.stop_reason === 'refusal') refused = true;
+        const stop = msg.message?.stop_reason;
+        if (stop && !msg.parent_tool_use_id) refused = stop === 'refusal'; // a subagent's refusal isn't the turn's
         if (msg.error === 'authentication_failed' && !msg.parent_tool_use_id) authFailed = flatten(msg.message?.content || []) || msg.error;
         for (const part of msg.message?.content || []) {
           if (part.type === 'text' && part.text.trim()) {
@@ -582,7 +586,8 @@ export default {
           const input = d.tool_input || {};
           onEvent({ type: 'blocked', tool: d.tool_name, detail: detailOf(d.tool_name, input, cwd), rule: ruleOf(d.tool_name, input) });
         }
-        if (refused) ev.stopReason = 'refusal';
+        if (refused && !msg.stop_reason) ev.stopReason = 'refusal'; // the result's own stop_reason, when it has one, says
+        refused = false;
         onEvent({ ...ev, background: background.size }); // > 0: another turn and result follow when they finish
       }
     };
