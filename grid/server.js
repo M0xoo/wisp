@@ -20,6 +20,9 @@
 //   <handle>.<domain>/_in/<token>
 //                       a channel's webhook, for that user's box (grid/inbox.js): answered and held
 //                       by the grid, then delivered. Off unless grid.json has channels.
+//   <domain>/_mail/<provider>
+//                       the mail provider's webhook, for every user's address (grid/mail.js). Off
+//                       unless grid.json has mail.
 //   sb-<id>--<handle>.<domain>
 //                       a sandbox (grid/sandboxes.js): a box of its own for one task, started and
 //                       stopped like the user's own, opened with its own token (or a ticket).
@@ -39,6 +42,7 @@ import { createProviders, newFlow } from './auth/providers.js';
 import { openDb } from './db.js';
 import { Hostd } from './hostd.js';
 import { IN_PATH, createInbox } from './inbox.js';
+import { MAIL_PATH, createMail } from './mail.js';
 import { APP_URL, accountPage, activatePage, devSignInPage, messagePage, sharePassPage, shareViewPage, signInPage, wakingPage } from './pages.js';
 import { createSecrets, ensureMaster } from './secrets.js';
 import { MEDIA_TYPES, SHARE_ID, createShares } from './shares.js';
@@ -237,7 +241,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       up.on('error', reject);
       up.end(data);
     });
-  const inbox = createInbox({ db, cfg, secrets, accounts, hostd, deliver: toBox, log });
+  const inbox = createInbox({ db, cfg, secrets, accounts, hostd, deliver: toBox, delivered: (row) => row.channel === 'email' && mail?.delivered(row), log });
+  const mail = inbox.on && cfg.mail ? createMail({ db, cfg, inbox, accounts, log }) : null;
   hostd.on('change', (e) => {
     if (shut) return;
     if (e.state === 'running' && !e.user.sandbox) inbox.drain(e.user);
@@ -341,6 +346,14 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     return { kind: 'unknown' };
   }
 
+  // The mail provider's webhook. It never signs in: its signature does that, checked in grid/mail.js.
+  async function mailIn(req, res, provider) {
+    if (!mail || req.method !== 'POST' || provider !== cfg.mail.inbound.provider) return json(res, 404, { error: 'not found' });
+    limit(`mailin|${clientIp(req)}`, 600);
+    const out = await mail.webhook(req);
+    return json(res, out.status, out.body);
+  }
+
   // ---- the grid's own pages and API ----
 
   async function root(req, res, url) {
@@ -410,6 +423,13 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         if (!inbox.knows(channel)) return send(404, { error: 'not found' });
         limit(`inrot|${who.id}`, 10);
         return send(200, inbox.rotate(who, channel));
+      }
+      // A cloud wisp answering a message its box accepted. It can't name an address (grid/mail.js).
+      if (mail && req.method === 'POST' && p === '/api/channels/mail/reply') {
+        const who = boxUser(req.headers.authorization);
+        if (!who) return send(401, { error: 'Sign in again: this device isn’t known here (removed, or a typo in the token).' });
+        limit(`mailout|${who.id}`, 120);
+        return send(200, await mail.reply(who, await readBody(req)));
       }
       // Publishing an app from My Stuff (grid/sites.js): from wisp on a computer (its device token),
       // or from the cloud wisp itself, which has no device but has its trusted-proxy secret.
@@ -1217,6 +1237,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' });
         return res.end(h.kind === 'root' ? 'User-agent: *\nDisallow: /api/\nDisallow: /auth/\nDisallow: /activate\nDisallow: /go\n' : 'User-agent: *\nDisallow: /\n');
       }
+      const mailPath = h.kind === 'root' && MAIL_PATH.exec(url.pathname);
+      if (mailPath) return await mailIn(req, res, mailPath[1]);
       if (h.kind === 'root') return await root(req, res, url);
       if (h.kind === 'edge') return await edge(req, res, url, h.handle);
       if (h.kind === 'computer') return await computerEdge(req, res, url, h.computer);
