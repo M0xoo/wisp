@@ -194,7 +194,7 @@ export function register(r, app) {
         try {
           const was = it.published;
           it = await app.publish.publish(it.id);
-          launch += ` ${was ? 'Updated its public link (same address)' : 'Published it'}: ${it.published.url} — anyone with the link can open it, no sign-in. Give the user this link to share, and show the stuff block: its card has the link with Copy.`;
+          launch += ` ${was ? 'Updated its public link (same address)' : 'Published it'}: ${it.published.url} — anyone with the link can open it, no sign-in. Give the user this link to share, and show the stuff block: its card has the link with Copy.${it.db ? " Anyone with the link can read and change this app's data, so no personal data in it: tell the user that." : ''}`;
           telemetry.track('stuff_publish', { by: 'agent', update: !!was });
         } catch (err) {
           launch += ` It wasn't published: ${err.message} Tell the user.`;

@@ -37,7 +37,7 @@ export function paneReference() {
 
 { "name": "…", "description": "one line", "entry": "index.html", "uses": ["…"], "db": true }
 
-name is what its bar shows; entry defaults to index.html; db: true gives it a SQLite database of its own ("db": "seed.sql" makes its tables from that file), which its pages use with import { sql } from '/_wisp/db.js'. uses lists what it needs from wisp, from this list and nothing else:
+name is what its bar shows; entry defaults to index.html; db: true gives it a SQLite database of its own ("db": "seed.sql" makes its tables from that file), which its pages use with import { sql } from '/_wisp/db.js'; once it's published, anyone with the link can read and change that data, so no personal data in it. uses lists what it needs from wisp, from this list and nothing else:
 
 ${scopes}
 

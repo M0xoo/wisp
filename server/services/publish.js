@@ -7,7 +7,8 @@
 // The item keeps { url, account, host, handle, rev, at } so the page shows the link and whether it's behind.
 
 import { gridJson } from '../grid-client.js';
-import { packDir } from '../bundle.js';
+import { packDir, privateFile } from '../bundle.js';
+import { scanApp, secretsFound } from '../app-scan.js';
 import { bad } from '../util.js';
 
 const MAX = 200 * 1024 * 1024; // the grid says its own limit (413)
@@ -70,11 +71,13 @@ export function createPublish(app, { env = process.env } = {}) {
       const t = pick(account, it.published);
       let packed;
       try {
-        packed = packDir(it.path, { maxBytes: MAX });
+        packed = packDir(it.path, { maxBytes: MAX, skip: privateFile });
       } catch (err) {
         if (err.tooBig) throw bad('That app is too big to publish (200 MB at most).', 413);
         throw err;
       }
+      const found = scanApp(packed.list);
+      if (found.length) throw bad(secretsFound(found), 422);
       const q = new URLSearchParams({ title: it.title, entry: it.entry || 'index.html' });
       const site = await ask(t, 'PUT', `/api/sites/${encodeURIComponent(it.id)}?${q}`, { raw: packed.body });
       app.telemetry?.track('stuff_publish', { update: !!it.published, files: packed.files });

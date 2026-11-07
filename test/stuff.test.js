@@ -575,3 +575,49 @@ test('publish by an agent: wisp_save with publish says why it couldn’t, and ke
   const { systemPrompt: sp } = await import('../server/protocol.js');
   assert.match(String(sp({ agent: 'claude', tools: true }) || ''), /publish: true|^$/);
 });
+
+test('publish by an agent in Full auto: a key stops it, and the agent is told where, never what; a database is said to be open', async () => {
+  const http = (await import('node:http')).default;
+  const sent = [];
+  const fakeGrid = http.createServer((req, res) => {
+    req.resume();
+    req.on('end', () => {
+      // Only publishes: wisp also lists this account's computers, on timers of its own (computer.js).
+      if (req.method === 'PUT' && req.url.startsWith('/api/sites/')) sent.push(req.url);
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ url: 'https://demo--app--pia.grid.test/' }));
+    });
+  });
+  await new Promise((r) => fakeGrid.listen(0, '127.0.0.1', r));
+  const machine = { id: 'g1', kind: 'grid', grid: `http://127.0.0.1:${fakeGrid.address().port}`, handle: 'pia' };
+  const list = Object.getOwnPropertyDescriptor(srv.machines, 'list');
+  Object.defineProperty(srv.machines, 'list', { value: [machine], configurable: true });
+  srv.secrets.set('machines', 'g1', 'tok');
+  try {
+    const s = await task('make a demo');
+    const token = { 'x-wisp-token': srv.token };
+    const dir = path.join(srv.store.get(s.id).cwd, 'leaky');
+    fs.mkdirSync(dir, { recursive: true });
+    const key = `AKIA${'Q7ZK3M9TLB2XW4NP'}`;
+    fs.writeFileSync(path.join(dir, 'index.html'), '<p>demo</p>');
+    fs.writeFileSync(path.join(dir, 'config.js'), `\nconst k = "${key}";\n`);
+    fs.writeFileSync(path.join(dir, 'wisp-app.json'), JSON.stringify({ name: 'leaky', db: true }));
+    const out = await api('/internal/stuff', { session: s.id, app: 'leaky', publish: true }, 'POST', token);
+    assert.match(out.text, /It wasn't published: config\.js line 2 looks like an AWS access key, and this link is public\./);
+    assert.ok(!out.text.includes(key));
+    assert.equal(sent.length, 0);
+    const it = srv.stuff.list().find((x) => x.title === 'leaky');
+    assert.ok(it && !it.published);
+
+    fs.writeFileSync(path.join(dir, 'config.js'), 'const k = 1;');
+    const ok = await api('/internal/stuff', { session: s.id, id: it.id, app: 'leaky', publish: true }, 'POST', token);
+    assert.equal(sent.length, 1);
+    assert.match(ok.text, /Published it: https:\/\/demo--app--pia\.grid\.test\//);
+    assert.match(ok.text, /Anyone with the link can read and change this app's data, so no personal data in it/);
+  } finally {
+    if (list) Object.defineProperty(srv.machines, 'list', list);
+    else delete srv.machines.list;
+    srv.secrets.delete?.('machines', 'g1');
+    fakeGrid.close();
+  }
+});

@@ -263,6 +263,7 @@ body.split #stuffView { flex: 1; }
   .sf-opt span { display: none; }
   .stuff-view.list .st-meta { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title sub' 'from from'; padding-right: 12px; }
   .stuff-view.list .st-note { display: none; }
+  .stuff-view.list .st-note.st-open { display: block; grid-area: auto; grid-column: 1 / -1; }
   .stuff-view.list .st-tools { display: none; }
 }
 @container (max-width: 520px) {
@@ -374,6 +375,8 @@ button.mn.stuff:hover { background: color-mix(in srgb, var(--accent) 20%, transp
 .sb-meta i + i::before { content: '·'; margin-right: 6px; }
 .sb-meta .sb-page { margin-left: 4px; font-size: 12.5px; }
 .sb-note { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; line-height: 1.45; color: var(--muted); }
+/* The warning about a published app's data is read whole, wherever it sits. */
+.sb-note.sb-open, .st-note.st-open, .stuff-view.list .st-note.st-open { display: block; overflow: visible; -webkit-line-clamp: none; }
 .sb-go { flex: none; gap: 6px; }
 .sb-go .i { width: 13px; height: 13px; }
 @media (max-width: 520px) { .sb-pic { width: 72px; } .b-stuff { gap: 10px; } }
