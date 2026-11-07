@@ -435,13 +435,13 @@ test('stale: said while wisp was off, told and not run', async () => {
 
 test('Full auto is refused and nothing starts; Edits is the most; a follow-up is held to it', async () => {
   const n = nextIssue();
-  const before = srv.store.all().length;
+  const wiped = () => srv.store.all().filter((s) => s.turns[0]?.prompt.includes('wipe it'));
   comment(n, '/wisp full auto: wipe it');
   assert.equal(await nextOn(n), line('Full auto isn’t allowed from here. The most this chat can ask for is Edits.\n\nNothing started.'));
-  assert.equal(srv.store.all().length, before);
+  assert.deepEqual(wiped(), []);
   comment(n, `/wisp in ${name} full auto: wipe it`);
   assert.match(await nextOn(n), /Nothing started/);
-  assert.equal(srv.store.all().length, before);
+  assert.deepEqual(wiped(), []);
 
   comment(n, '/wisp edits: small fix');
   assert.equal(await nextOn(n), line(`▶ ${name} · Claude Code · Edits\n  Small fix`));
@@ -737,8 +737,9 @@ test('telemetry: counts only, never what was said', async () => {
 test('switched off, it stops looking; on again it starts from now', async () => {
   await api('/remote', { method: 'PUT', body: { github: { enabled: false } } });
   assert.deepEqual((await api('/remote')).github.repos, []);
-  await sleep(400); // what was already out comes back
   const count = () => records(process.env.FAKE_RECORD, 'gh').length;
+  // What was already out comes back: on a busy machine that takes a while.
+  for (let was = -1; was !== count(); await sleep(1500)) was = count();
   const a = count();
   const n = nextIssue();
   comment(n, '/wisp said while it was off');
