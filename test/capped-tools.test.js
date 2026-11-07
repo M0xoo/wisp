@@ -324,6 +324,20 @@ test('wisp_save: no file from outside its folder, no public link, no item of ano
   assert.match(words(await as(s.id, '/stuff', { session: s.id, path: 'math.js' })), /Saved/, 'its own file still saves');
 });
 
+test('its other tools stay its own: no PR by URL, no page from outside its folder, a question stays a question', async () => {
+  const s = await capped();
+  assert.match(words(await as(s.id, '/prs', { session: s.id, pr: 'https://github.com/acme/private/pull/1' })), /channel/);
+  const page = path.join(tmp('capped-page'), 'a.html');
+  fs.writeFileSync(page, '<p>secret</p>');
+  assert.match(words(await as(s.id, '/watch', { session: s.id, action: 'open', path: page })), /channel/);
+  assert.equal(srv.store.get(s.id).watch, undefined);
+  const { id } = await as(s.id, '/ask', { session: s.id, question: 'Sign in?', connector: { id: 'x', name: 'x', kind: 'keys', keys: [] } });
+  assert.equal(srv.store.get(s.id).ask.connector, undefined);
+  srv.runner.answer(srv.store.get(s.id), 'no');
+  assert.ok(id);
+  await settled(s.id);
+});
+
 test('a forged session id gets nowhere: a token is one session’s', async () => {
   const theirs = await settled((await person('ADHOC please review')).id);
   const s = await capped();
