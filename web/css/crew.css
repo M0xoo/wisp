@@ -158,8 +158,19 @@ body.electron.mac.has-rail:not(.side-right) .crew-rail { padding-top: 41px; } /*
 .cl-face:hover, .cl-btn:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .cl-face:focus-visible, .cl-btn:focus-visible { border-radius: var(--radius); outline-offset: 0; }
 .cl-face:active, .cl-btn:active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
-/* The open member (a job of its counts): the raised tile, the same surface as the list beside it. */
-.cl-face.on, .cl-btn.on { background: var(--panel); border-color: var(--line); box-shadow: var(--shadow-1); color: var(--ink); }
+/* The picked tile (what the list beside it holds): raised, the same surface as the list, and a pip
+   in ink on the window's edge of the rail. Hover only tints, with a short pip; the pick's is long.
+   The pip is its own element and only scales, so nothing moves. Neutral, so it never reads as a dot. */
+.cl-face.on, .cl-btn.on { background: var(--panel); border-color: var(--line-2); box-shadow: var(--shadow-1); color: var(--ink); }
+.cl-pip {
+  position: absolute; top: 50%; left: -6px; width: 4px; height: 28px; margin-top: -14px; border-radius: 0 2px 2px 0;
+  background: var(--ink); opacity: 0; transform: scaleY(0.3); pointer-events: none;
+  transition: transform 0.15s var(--ease), opacity 0.15s var(--ease);
+}
+body.side-right .cl-pip { left: auto; right: -6px; border-radius: 2px 0 0 2px; }
+.cl-face:hover .cl-pip, .cl-all:hover .cl-pip { opacity: 0.5; transform: scaleY(0.3); }
+.cl-face.on .cl-pip, .cl-all.on .cl-pip { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .cl-pip { transition: none; } }
 /* Paused: dimmed, its spirit asleep. */
 .cl-face.paused .cr-av { opacity: 0.5; }
 /* Asking you: amber. A report you haven't read: the accent. Their place on the face is the row's. */

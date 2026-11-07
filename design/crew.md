@@ -46,7 +46,8 @@ is a row in the list; the rail's pick (below) turns the list into that member's 
   End) walk it, All included. Jobs have no rows on the rail. A job outside the list that's open keeps
   its card in `#secCrew`, out of sight, because a task's body hangs off its card.
 - **The pick.** The rail picks what the panel beside it shows, like a workspace switcher, and one
-  tile is raised: that choice. All is the default: the list as it always was. A click on a face picks
+  tile is raised: that choice, with a long ink pip on the window's edge of the rail (`.cl-pip`, a
+  separate element, never a border; hover tints the tile and shows a short one). All is the default: the list as it always was. A click on a face picks
   the member (`S.crewPick`, saved as `wisp.crewPick`, a removed member falls back to All) and opens its
   thread; the raised tile says what the list holds, not what's open, so a job of Ada's opened under
   All leaves All raised. A click on All or on the picked face clears it: a member's thread goes home

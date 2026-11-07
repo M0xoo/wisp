@@ -93,6 +93,7 @@ export const PARTS = {
   'crew.rail': '#crewRail',
   'crew.rail.face': '#crewRail .cl-face',
   'crew.rail.all': '#crewRail .cl-all', // All, above the faces: every task in the list again
+  'crew.rail.pick': '#crewRail .cl-pip', // the pip on the rail's edge beside the picked tile (All or a face)
   // A face's hover card: on the page, not in the rail (the rail would clip it).
   'crew.rail.card': '.cl-card',
   'crew.rail.card.head': '.cl-card .cl-head',

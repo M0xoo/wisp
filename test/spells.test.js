@@ -407,6 +407,9 @@ test('later: Scheduled, Coming up, the follow-up rows, Send later and the time c
   assert.match(schema.PARTS['crew.org'], /#crewRail \.cl-org/);
   assert.deepEqual(problems({ ...base0, ui: { hide: ['crew.rail.all', 'launcher.for'] }, parts: { 'crew.rail.all': { style: { borderRadius: '50%' } } } }), []);
   assert.match(schema.PARTS['crew.rail.all'], /#crewRail \.cl-all/);
+  // The pick's pip: restyled or hidden like any part, and on the rail only.
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['crew.rail.pick'] }, parts: { 'crew.rail.pick': { style: { background: 'var(--accent)' } } } }), []);
+  assert.match(schema.PARTS['crew.rail.pick'], /^#crewRail \.cl-pip$/);
   assert.match(schema.PARTS['launcher.for'], /\.l-for/);
   // A face's hover card: on the page, not in the rail, so its parts don't start from #crewRail.
   for (const p of ['crew.rail.card', 'crew.rail.card.head', 'crew.rail.card.row', 'crew.rail.card.all']) assert.match(schema.PARTS[p], /^\.cl-card/, p);
