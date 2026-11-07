@@ -1,6 +1,7 @@
 // Phone: questions and finished tasks over ntfy or Telegram, answered from there, and tasks started
-// from a GitHub comment.
+// from a GitHub comment or in Slack.
 
+import { copy } from '../blocks.js';
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
@@ -10,13 +11,13 @@ import { present } from '../ui/overlay.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { placeName, recentFirst } from './places.js';
 
-export const PHONE_HINT = 'ntfy, Telegram or GitHub: reach wisp from your phone';
+export const PHONE_HINT = 'ntfy, Telegram, GitHub or Slack: reach wisp from your phone';
 
 export function phoneSummary(r) {
   if (!r) return '';
   const on = [r.ntfy.enabled && r.ntfy.topic && 'ntfy', r.telegram.enabled && r.telegram.linked && 'Telegram'].filter(Boolean);
-  const all = [...on, r.github?.enabled && 'GitHub'].filter(Boolean).join(' + ');
-  if (!on.length) return all || 'Off'; // the events are what ntfy and Telegram send; GitHub answers where it was asked
+  const all = [...on, r.github?.enabled && 'GitHub', r.slack?.enabled && 'Slack'].filter(Boolean).join(' + ');
+  if (!on.length) return all || 'Off'; // the events are what ntfy and Telegram send; GitHub and Slack answer where they were asked
   return `${all} · ${r.events.map((e) => (e === 'waiting' ? 'questions' : 'finished')).join(' & ')}`;
 }
 
@@ -27,6 +28,19 @@ function ghTrouble(error) {
   const repo = /^([\w.-]+\/[\w.-]+): /.exec(error)?.[1];
   if (repo && /HTTP 404/.test(error)) return { html: `wisp can’t read <b>${esc(repo)}</b>. Check the project’s origin, and that your <code>gh</code> account can see the repo.` };
   return { html: `${esc(error)}${/Looking again/.test(error) ? '' : ' wisp tries again every minute.'}` };
+}
+
+// The same words as server/channels/slack.js NOT_ON_A_BOX: the server only says them when refusing.
+const SLACK_NO_BOX = 'Slack can’t run on a cloud computer yet: it sleeps when it’s idle, and the connection to Slack would die with it. Set it up on a computer that stays on.';
+
+// What's wrong with the Slack channel, in words, and what to do. Slack's own code stays in the text:
+// it's what its docs and a search go by.
+function slackTrouble(error) {
+  const code = /\b(invalid_auth|not_authed|account_inactive|token_revoked|token_expired|org_login_required|team_access_not_granted|link_disabled|missing_scope|no_permission|not_allowed_token_type)\b/.exec(error)?.[1];
+  if (code === 'missing_scope' || code === 'no_permission') return `Slack says the app is missing a permission (<code>${code}</code>). The app token needs <code>connections:write</code>, and the bot the manifest’s scopes: paste the manifest again under App Manifest, reinstall the app, then paste both tokens here.`;
+  if (code === 'not_allowed_token_type') return 'Slack got the wrong kind of token. The app token starts with <code>xapp-</code>, from Basic Information; the bot token with <code>xoxb-</code>, from OAuth &amp; Permissions.';
+  if (code) return `Slack refused a token (<code>${code}</code>). Copy both again from <a href="https://api.slack.com/apps" target="_blank" rel="noopener">api.slack.com/apps</a> and paste them here. A reinstalled app has new ones.`;
+  return `${esc(error)} wisp keeps trying.`;
 }
 
 // Settings → Agents, at its git / GitHub row (as tips.js does).
@@ -40,15 +54,15 @@ function openToolsRow() {
 export async function openPhone({ host } = {}) {
   const node = el(`<div class="modal phone-modal">
       <header><h2>Phone</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
-      <p class="mem-lede">Get questions and finished tasks on your phone, and answer from there. wisp polls these services, so nothing needs to reach this machine. ntfy and Telegram receive titles, summaries and questions (with their context), never code or diffs.</p>
+      <p class="mem-lede">Get questions and finished tasks on your phone, and answer from there. wisp reaches out to these services, so nothing needs to reach this machine. ntfy and Telegram receive titles, summaries and questions (with their context), never code or diffs.</p>
       <div class="ph-body"></div>
       <div class="ph-rest" hidden>
-        <section class="ph-sec ph-gh">
-          <h4>GitHub <span class="muted xs"><span class="ph-dot">· </span>comment /wisp on an issue or PR</span><span class="ph-gh-st"></span><button class="switch" data-sw="github" role="switch" aria-checked="false" aria-label="GitHub"></button></h4>
-          <p class="hint ph-gh-rules"></p>
-          <div class="ph-gh-on" hidden>
-            <div class="ph-gh-who"></div>
-            <div class="ph-gh-err" hidden></div>
+        <section class="ph-sec ph-chan ph-gh">
+          <h4>GitHub <span class="muted xs"><span class="ph-dot">· </span>comment /wisp on an issue or PR</span><span class="ph-st"></span><button class="switch" data-sw="github" role="switch" aria-checked="false" aria-label="GitHub"></button></h4>
+          <p class="hint ph-rules"></p>
+          <div class="ph-on" hidden>
+            <div class="ph-who"></div>
+            <div class="ph-err" hidden></div>
             <p class="hint">Say what you’d type in wisp: <code>/wisp in api with opus plan: fix the flaky test</code></p>
             <div class="ph-start">
               <div class="ph-row"><span class="grow">Full reports on public repos</span><button class="switch" data-sw="ghPublic" role="switch" aria-checked="false" aria-label="Full reports on public repos"></button></div>
@@ -56,12 +70,52 @@ export async function openPhone({ host } = {}) {
             </div>
           </div>
         </section>
+        <section class="ph-sec ph-chan ph-sk">
+          <h4>Slack <span class="muted xs"><span class="ph-dot">· </span>mention wisp, or send the bot a DM</span><span class="ph-st"></span><button class="switch" data-sw="slack" role="switch" aria-checked="false" aria-label="Slack"></button></h4>
+          <p class="hint ph-rules"></p>
+          <div class="ph-err" hidden></div>
+          <div class="ph-on" hidden>
+            <div class="ph-who" hidden></div>
+            <ol class="ph-steps">
+              <li>
+                <span class="ph-num" data-step="1"></span>
+                <div class="ph-step">
+                  <b>Create the app</b>
+                  <p class="hint">Copy the manifest. At api.slack.com/apps pick <i>Create New App → From a manifest</i>, choose your workspace, paste it as JSON and install the app.</p>
+                  <div class="ph-acts"><button class="primary sm" data-act="skManifest">${icon('copy')}Copy manifest</button><a class="ghost sm" href="https://api.slack.com/apps" target="_blank" rel="noopener">${icon('external')}api.slack.com/apps</a></div>
+                </div>
+              </li>
+              <li>
+                <span class="ph-num" data-step="2"></span>
+                <div class="ph-step">
+                  <b>Paste the two tokens</b>
+                  <div class="settings-modal">
+                    <label><span>App token</span><input class="input mono" data-sk="appToken" placeholder="xapp-…" spellcheck="false" autocomplete="off" type="password"></label>
+                    <label><span>Bot token</span><input class="input mono" data-sk="botToken" placeholder="xoxb-…" spellcheck="false" autocomplete="off" type="password"></label>
+                  </div>
+                  <p class="hint">App token: Basic Information → App-Level Tokens → Generate, with the <code>connections:write</code> scope. Bot token: OAuth &amp; Permissions.</p>
+                </div>
+              </li>
+              <li>
+                <span class="ph-num" data-step="3"></span>
+                <div class="ph-step">
+                  <b>Link yourself</b>
+                  <div class="ph-code"></div>
+                </div>
+              </li>
+            </ol>
+            <div class="ph-more" hidden></div>
+          </div>
+        </section>
         <div class="ship-foot"><span class="grow"></span><button class="ghost sm" data-act="test">${icon('send')}Send a test</button></div>
       </div>
     </div>`);
   const close = present(node, host);
   let r;
-  let saving = 0; // GitHub switches on their way: what comes back meanwhile is older than the page
+  let saving = 0; // GitHub and Slack saves on their way: what comes back meanwhile is older than the page
+  let missed = false; // a remote event came during a save
+  let changeTokens = false; // Slack: asked to see the steps again once it's all set up
+  const manifest = api('/remote/slack/manifest').catch(() => null);
   const shown = new WeakMap();
   const fill = (box, html) => {
     if (shown.get(box) === html) return; // a refresh that changes nothing leaves the nodes alone
@@ -77,39 +131,116 @@ export async function openPhone({ host } = {}) {
     }
   };
   const status = (st) => (!st ? '' : st.ok ? `<span class="ph-ok">${icon('check')}Working</span>` : `<span class="ph-bad">${icon('warn')}${esc(st.error || 'Failed')}</span>`);
+  const hold = (sec) => (sec.style.minHeight = `${sec.getBoundingClientRect().height}px`); // as .ph-body: never shrinks while open
   // In place, nodes kept: a switch slides, keeps its focus, and stays under the pointer.
   const paintGithub = () => {
     const g = r.github;
     const st = r.status.github;
     const sec = $('.ph-gh', node);
-    sec.style.minHeight = `${sec.getBoundingClientRect().height}px`; // as .ph-body: never shrinks while open
+    hold(sec);
     $('[data-sw="github"]', node).setAttribute('aria-checked', g.enabled);
     $('[data-sw="ghPublic"]', node).setAttribute('aria-checked', g.publicReports);
     const error = g.enabled ? g.error || st?.error || '' : '';
     const n = g.repos.length;
     const repos = n ? `watching ${n} repo${n === 1 ? '' : 's'}` : 'no repos yet: add a project with its origin on GitHub';
-    fill($('.ph-gh-st', node), !g.enabled ? '' : error ? `<span class="ph-bad">${icon('warn')}Not working</span>` : st ? status(st) : '<span class="ph-wait">Checking…</span>');
-    fill($('.ph-gh-rules', node), `wisp reads comments through your <code>gh</code> sign-in, in the repos of your projects on ${esc(here)}. It runs only while ${esc(here)} is awake. Only your own comments count, and Full auto can’t be asked for from there.`);
-    $('.ph-gh-on', node).hidden = !g.enabled;
-    const who = $('.ph-gh-who', node);
+    fill($('.ph-st', sec), !g.enabled ? '' : error ? `<span class="ph-bad">${icon('warn')}Not working</span>` : st ? status(st) : '<span class="ph-wait">Checking…</span>');
+    fill($('.ph-rules', sec), `wisp reads comments through your <code>gh</code> sign-in, in the repos of your projects on ${esc(here)}. It runs only while ${esc(here)} is awake. Only your own comments count, and Full auto can’t be asked for from there.`);
+    $('.ph-on', sec).hidden = !g.enabled;
+    const who = $('.ph-who', sec);
     who.hidden = !g.login && !!error;
     who.title = g.repos.join('\n');
     fill(who, g.login ? `Signed in as <b>@${esc(g.login)}</b>, ${esc(repos)}` : 'Checking your <code>gh</code> sign-in…');
-    const box = $('.ph-gh-err', node);
-    box.hidden = !error;
     const t = error ? ghTrouble(error) : null;
-    fill(box, t ? `<p class="hint">${icon('warn')}<span>${t.html}</span></p>${t.fix ? `<button class="primary sm" data-act="ghFix">${t.fix}</button>` : ''}` : '');
+    trouble(sec, t?.html, t?.fix && `<button class="primary sm" data-act="ghFix">${t.fix}</button>`);
   };
-  const flipGithub = async (key) => {
-    const was = r.github[key];
-    r.github[key] = !was;
+  const trouble = (sec, html, button = '') => {
+    const box = $('.ph-err', sec);
+    box.hidden = !html;
+    fill(box, html ? `<p class="hint">${icon('warn')}<span>${html}</span></p>${button}` : '');
+  };
+  const paintSlack = () => {
+    const s = r.slack;
+    const st = r.status.slack;
+    const sec = $('.ph-sk', node);
+    hold(sec);
+    const sw = $('[data-sw="slack"]', node);
+    sw.setAttribute('aria-checked', s.enabled && !s.box);
+    sw.disabled = s.box;
+    const on = s.enabled && !s.box;
+    const tokens = !!(s.appToken && s.botToken);
+    const error = on && tokens ? s.error || st?.error || '' : '';
+    fill($('.ph-st', sec), !on ? '' : !tokens ? '<span class="ph-wait">Not set up</span>' : error ? `<span class="ph-bad">${icon('warn')}Not working</span>` : s.connected ? status({ ok: true }) : '<span class="ph-wait">Checking…</span>');
+    $('.ph-rules', sec).hidden = s.box;
+    fill($('.ph-rules', sec), `It runs only while ${esc(here)} is awake, and Slack doesn’t keep messages for it: what’s sent meanwhile is gone. Only people you link count. In a channel, mention wisp in the thread to follow up. Full auto can’t be asked for from Slack.`);
+    trouble(sec, s.box ? esc(SLACK_NO_BOX) : error ? slackTrouble(error) : '');
+    $('.ph-on', sec).hidden = !on;
+    const steps = !(s.connected && s.senders) || changeTokens;
+    const n = s.senders;
+    const who = $('.ph-who', sec);
+    who.hidden = !s.connected;
+    fill(who, `<span>Connected to <b>${esc(s.team || 'your workspace')}</b> as <b>${esc(s.bot || 'wisp')}</b>, ${n ? `${n} ${n === 1 ? 'person' : 'people'} linked` : 'nobody linked yet'}</span>${n ? '<button class="link xs" data-act="skUnlink">Unlink</button>' : ''}${n && !steps ? '<button class="link xs" data-act="skTokens">Change tokens</button>' : ''}`);
+    $('.ph-steps', sec).hidden = !steps;
+    const done = [!!(s.appToken || s.botToken), tokens, n > 0];
+    for (const [i, ok] of done.entries()) {
+      const num = $(`[data-step="${i + 1}"]`, sec);
+      num.classList.toggle('ok', ok);
+      fill(num, ok ? icon('check') : String(i + 1));
+    }
+    for (const k of ['appToken', 'botToken']) {
+      const input = $(`[data-sk="${k}"]`, sec);
+      if (input !== document.activeElement && input.value !== s[k]) input.value = s[k]; // never under someone's typing
+    }
+    const code = (lead) => `<p class="hint">${lead} <code>link ${esc(s.linkCode)}</code> <button class="ghost xs" data-act="skCode">${icon('copy')}Copy</button></p>`;
+    fill($('.ph-code', sec), s.linkCode ? `${code('In a DM to the bot, send')}<p class="hint">Each code links one person, and the next shows here.</p>` : '<p class="hint">Your code shows here once the bot token is in.</p>');
+    const more = $('.ph-more', sec);
+    more.hidden = steps;
+    fill(more, !steps && s.linkCode ? code('To link someone else, they send the bot') : '');
+  };
+  const paintChannels = () => {
     paintGithub();
+    paintSlack();
+  };
+  // A change while a save is on its way can be newer than what the save answers: looked at after it.
+  const refresh = async () => {
+    missed = !!saving;
+    if (saving) return;
+    const next = await api('/remote').catch(() => r);
+    if (saving) missed = true;
+    if (saving || !next || !node.isConnected) return;
+    r = next;
+    // GitHub and Slack paint in place, so a status can show while a token is being typed; .ph-body can't
+    if (node.contains(document.activeElement) && document.activeElement.matches('.ph-body input')) paintChannels();
+    else paint();
+  };
+  // Saves a channel's change, shown already: undo() puts it back if the server refuses.
+  const saveChannel = async (body, undo) => {
+    paintChannels();
     saving++;
-    const next = await tryApi(() => api('/remote', { method: 'PUT', body: { github: { [key]: !was } } }));
+    const next = await tryApi(() => api('/remote', { method: 'PUT', body }));
     saving--;
-    if (!next) r.github[key] = was;
+    if (!next) undo();
     else if (!saving) r = next;
-    paintGithub();
+    paintChannels();
+    if (missed) refresh();
+    return !!next;
+  };
+  const flip = (channel, key) => {
+    const was = r[channel][key];
+    r[channel][key] = !was;
+    if (channel === 'slack') r.slack.connected = false; // a new connection: Working again once it says so
+    return saveChannel({ [channel]: { [key]: !was } }, () => (r[channel][key] = was));
+  };
+  // A token arrives whole, so a paste saves at once; on change for one typed by hand.
+  const saveToken = async (input) => {
+    const k = input.dataset.sk;
+    const v = input.value.trim();
+    const was = r.slack[k];
+    if (v === was) return;
+    r.slack[k] = v ? '••••' : '';
+    const ok = await saveChannel({ slack: { [k]: v } }, () => (r.slack[k] = was));
+    input.value = r.slack[k];
+    if (ok) changeTokens = false;
+    if (ok) paintSlack();
   };
   const paint = () => {
     const tg = r.telegram;
@@ -169,7 +300,7 @@ export async function openPhone({ host } = {}) {
             : ''
         }
       </section>`);
-    paintGithub();
+    paintChannels();
     $('.ph-rest', node).hidden = false;
     if (held) $(`[data-sw="${held}"]`, node)?.focus({ preventScroll: true });
   };
@@ -179,6 +310,10 @@ export async function openPhone({ host } = {}) {
     if (t.dataset.ntfy) put({ ntfy: { ...r.ntfy, [t.dataset.ntfy]: t.value.trim() } });
     if (t.dataset.tg === 'token') put({ telegram: { enabled: r.telegram.enabled, token: t.value.trim() } });
     if (t.dataset.tg === 'project') put({ telegram: { project: t.value } });
+    if (t.dataset.sk) saveToken(t);
+  });
+  node.addEventListener('paste', (e) => {
+    if (e.target.dataset?.sk) setTimeout(() => saveToken(e.target)); // once the text is in the box
   });
   node.addEventListener('click', async (e) => {
     const sw = e.target.closest('[data-sw]')?.dataset.sw;
@@ -190,13 +325,34 @@ export async function openPhone({ host } = {}) {
     if (sw === 'telegram') return put({ telegram: { enabled: !r.telegram.enabled, token: r.telegram.token } });
     if (sw === 'tgStart') return put({ telegram: { allowStart: !r.telegram.allowStart } });
     if (sw === 'tgOptions') return put({ telegram: { options: !r.telegram.options } });
-    if (sw === 'github') return flipGithub('enabled');
-    if (sw === 'ghPublic') return flipGithub('publicReports');
+    if (sw === 'github') return flip('github', 'enabled');
+    if (sw === 'ghPublic') return flip('github', 'publicReports');
+    if (sw === 'slack') return flip('slack', 'enabled');
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'unlink') return put({ telegram: { enabled: r.telegram.enabled, token: r.telegram.token, unlink: true } });
     if (act === 'ghFix') {
       close();
       return openToolsRow();
+    }
+    if (act === 'skManifest') {
+      const m = await manifest;
+      if (!m) return toastError(new Error('Couldn’t load the manifest. Check the connection and try again.'));
+      await copy(JSON.stringify(m, null, 2));
+      return toast('Manifest copied');
+    }
+    if (act === 'skCode') {
+      await copy(`link ${r.slack.linkCode}`);
+      return toast('Copied');
+    }
+    if (act === 'skTokens') {
+      changeTokens = true;
+      return paintSlack();
+    }
+    if (act === 'skUnlink') {
+      const was = r.slack.senders;
+      r.slack.senders = 0;
+      changeTokens = false;
+      return saveChannel({ slack: { unlink: true } }, () => (r.slack.senders = was));
     }
     if (act === 'test') {
       try {
@@ -208,17 +364,7 @@ export async function openPhone({ host } = {}) {
       }
     }
   });
-  bus.on(
-    'remote',
-    async () => {
-      if (saving || (node.contains(document.activeElement) && document.activeElement.matches('input'))) return; // don't clobber typing
-      const next = await api('/remote').catch(() => r);
-      if (saving || !next || !node.isConnected) return;
-      r = next;
-      paint();
-    },
-    { node },
-  );
+  bus.on('remote', refresh, { node });
   r = await api('/remote').catch((err) => (toastError(err), null));
   if (r) paint();
 }

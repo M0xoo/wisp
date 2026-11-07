@@ -460,6 +460,7 @@ export const PARTS = {
   'machines.kind': '.mc-kind',
   'phone.options': '.phone-modal .ph-options', // Phone → Telegram → Say what you'd type in wisp: its switch and line
   'phone.github': '.phone-modal .ph-gh', // Phone → GitHub: comment /wisp on an issue or PR
+  'phone.slack': '.phone-modal .ph-sk', // Phone → Slack: its status, setup steps and who's linked
   // Settings → Cloud: your cloud computers, and signing in to a wisp Grid.
   'settings.worktrees': '.wtr-box', // Settings → Worktrees
   'settings.worktrees.cleanup': '.wtr-auto', // Clean up automatically
@@ -525,6 +526,7 @@ export const PARTS = {
   // A hook trigger's editor (features/automations.js): its URL with Copy and Regenerate, and its last deliveries.
   'automations.hookUrl': '.auto-modal .au-hook',
   'automations.deliveries': '.auto-modal .au-deliv',
+  'automations.slackPeople': '.auto-modal .k-people', // a Slack trigger's People: who may start it
   // The harness picker: how full a window at or past your Ask near the limit line is (server/guard.js).
   // The hold row and the held card aren't parts: they need you, like a due reminder.
   'harness.usage': '.rp-usage',
