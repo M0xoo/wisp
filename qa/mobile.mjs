@@ -198,6 +198,25 @@ try {
     await ctx.close();
   });
 
+  await check('MOB-34', 'a question answered from its row: New task gives way while the choices show, text from the left', async () => {
+    const asked = await api(wisp.url, '/api/sessions', { prompt: 'ASK before you fix it', cwd: wisp.repo, agent: 'claude' });
+    const id = asked.json.id;
+    await until(async () => (await api(wisp.url, `/api/sessions/${id}`)).json?.state === 'waiting', { timeout: 30_000, what: 'waiting state' });
+    const ctx = await phone(PHONES[1]);
+    const page = await ctx.newPage();
+    await page.goto(`${wisp.url}/?m=${COMPUTER}`);
+    const row = page.locator(`.item[data-id="${id}"] .it-choices`);
+    await row.waitFor({ timeout: 10_000 });
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('#promptFab')).visibility === 'hidden', null, { timeout: 3000 });
+    const left = await row.locator('button').first().evaluate((b) => getComputedStyle(b).textAlign);
+    ok(left === 'left', `row choices are aligned ${left}`);
+    await shot(page, 'row-choices');
+    await row.getByRole('button', { name: 'Yes' }).tap();
+    await until(async () => (await api(wisp.url, `/api/sessions/${id}`)).json?.state !== 'waiting', { timeout: 30_000, what: 'the answer' });
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('#promptFab')).visibility === 'visible', null, { timeout: 10_000 });
+    await ctx.close();
+  });
+
   await check('MOB-08', 'a long URL in a prompt wraps instead of widening the page', async () => {
     const url = `https://example.com/${'very-long-path-segment-'.repeat(12)}?q=${'x'.repeat(80)}`;
     const s = await api(wisp.url, '/api/sessions', { prompt: `look at ${url}`, cwd: wisp.repo, agent: 'claude' });

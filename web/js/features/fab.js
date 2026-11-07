@@ -11,4 +11,43 @@ export function promptFab() {
     goHome();
   });
   document.body.append(fab);
+  giveWay(fab);
+}
+
+// A question answered from its row (feed.js rowChoices) needs the person: while any row's choices
+// are on screen the button gives way, so it never sits on a Yes (design/ux.md, Never in the way).
+// Rows repaint their head only when it changes, so the observer sees new choices rarely.
+function giveWay(fab) {
+  const feed = document.getElementById('feed');
+  if (!feed || !('IntersectionObserver' in window)) return;
+  const seen = new Set();
+  const watched = new Set();
+  const paint = () => {
+    const away = seen.size > 0;
+    if (fab.classList.contains('away') !== away) fab.classList.toggle('away', away);
+  };
+  const io = new IntersectionObserver((entries) => {
+    for (const en of entries) {
+      if (en.isIntersecting) seen.add(en.target);
+      else seen.delete(en.target);
+    }
+    paint();
+  });
+  const sync = () => {
+    const now = new Set(feed.querySelectorAll('.it-choices'));
+    for (const c of watched) {
+      if (now.has(c)) continue;
+      io.unobserve(c);
+      watched.delete(c);
+      seen.delete(c);
+    }
+    for (const c of now) {
+      if (watched.has(c)) continue;
+      watched.add(c);
+      io.observe(c);
+    }
+    paint();
+  };
+  new MutationObserver(sync).observe(feed, { childList: true, subtree: true });
+  sync();
 }

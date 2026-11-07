@@ -247,7 +247,8 @@ body.wisp-mobile .item:not(.open) .it-title { display: -webkit-box; -webkit-box-
 /* A question's choices, answered from the row (feed.js rowChoices). */
 .it-choices { display: none; }
 body.wisp-mobile .it-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-body.wisp-mobile .it-choices .ghost { height: auto; min-height: 44px; min-width: 72px; padding: 0 16px; border: 1px solid var(--line-2); border-radius: 12px; font-size: 15px; font-weight: 500; color: var(--ink); background: var(--surface); }
+/* A long choice wraps like an answer on the open card (.opt): text from the left, not centred. */
+body.wisp-mobile .it-choices .ghost { height: auto; min-height: 44px; min-width: 72px; padding: 10px 16px; border: 1px solid var(--line-2); border-radius: 12px; font-size: 15px; font-weight: 500; line-height: 1.35; text-align: left; justify-content: flex-start; color: var(--ink); background: var(--surface); }
 body.wisp-mobile .it-choices .ghost.on { border-color: var(--accent); color: var(--accent-ink); }
 body.wisp-mobile .it-choices.sent { opacity: 0.55; pointer-events: none; }
 
@@ -263,6 +264,13 @@ body.wisp-mobile .prompt-fab {
   height: 56px; padding: 0 20px 0 16px; border-radius: 28px; background: var(--ink); color: var(--bg); font-size: 15px; font-weight: 600; box-shadow: var(--shadow-2);
 }
 body.wisp-mobile .prompt-fab .i { width: 20px; height: 20px; }
+/* …and gives way while a row's answers are on screen (fab.js giveWay), so it never sits on a Yes.
+   It fades and sinks; visibility goes last, so it can't be tapped or focused while away. */
+body.wisp-mobile .prompt-fab { transition: opacity 0.18s ease-out, transform 0.18s ease-out, visibility 0s linear 0s; }
+body.wisp-mobile .prompt-fab.away { opacity: 0; transform: translateY(12px); visibility: hidden; pointer-events: none; transition: opacity 0.18s ease-in, transform 0.18s ease-in, visibility 0s linear 0.18s; }
+@media (prefers-reduced-motion: reduce) {
+  body.wisp-mobile .prompt-fab, body.wisp-mobile .prompt-fab.away { transition: none; transform: none; }
+}
 /* Only on the list: a page (a task, home) has its own box at hand. */
 body.wisp-mobile.stack-page .prompt-fab { display: none; }
 /* …and not under a dialog, where it covered the dialog's last line. #overlay is body's child and
