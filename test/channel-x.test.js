@@ -557,6 +557,17 @@ test('X’s 429 on a DM waits and tries again', async () => {
   await until(() => dmsTo(BOB_X).some((d) => d.text === 'after the wait'), { what: 'sent after its wait', timeout: 8000 });
 });
 
+test('a 429 in the middle of a long report keeps its pieces in order', async () => {
+  const p = await threadFor(bob, BOB_X, 'order of pieces');
+  await until(() => g.grid.db.get('SELECT count(*) n FROM x_outbox WHERE user_id = ?', bob.user.id).n === 0, { what: 'bob’s queue empty', timeout: 20_000 });
+  const text = Array.from({ length: 3 }, (_, i) => `part${i} ${'word '.repeat(1800)}`).join('\n');
+  x.fail('dms', 429);
+  assert.equal((await replyAs(bob, { thread: p.id, text })).status, 200);
+  const parts = () => dmsTo(BOB_X).filter((d) => /^part\d /.test(d.text));
+  await until(() => parts().length === 3, { what: 'all three', timeout: 8000 });
+  assert.deepEqual(parts().map((d) => d.text.slice(0, 5)), ['part0', 'part1', 'part2']);
+});
+
 test('`stop` in any case unlinks at once and says so; what’s held for them goes', { timeout: 60_000 }, async () => {
   const dan = await g.person('dan');
   await linkX(g, dan, '555');

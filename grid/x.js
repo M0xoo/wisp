@@ -68,7 +68,8 @@ const REPLY_MAX = 40 * 1024; // the box stops at 30 000 characters
 const DM_MAX = 9500; // X's limit is 10 000: room for a line break's luck
 const TEXT_MAX = 25_000;
 const SEND_TRIES = 3;
-const RETRY_MS = 60_000; // a 429 with no Retry-After
+const RETRY_MS = 60_000; // a 429 with no Retry-After, a refusal
+const BROKEN_MS = 2000; // a connection that broke: nobody refused anything
 const SWEEP_MS = 60_000;
 const HOUR_MS = 60 * 60_000;
 const DAY_MS = 24 * HOUR_MS;
@@ -165,6 +166,7 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
   const sends = new Set(); // sends on their way, so close() can wait for them
   const pumping = new Map(); // user id -> the outbox being sent
   const again = new Set(); // user ids with more for it than it knew
+  const timers = new Map(); // user id -> the outbox's next try
   let stopped = false;
 
   const threadsLive = () => Date.now() - opts.threadDays * DAY_MS;
@@ -232,15 +234,19 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
     for (const piece of chunks(text)) db.run('INSERT INTO x_outbox (user_id, thread, text, at) VALUES (?, ?, ?, ?)', userId, thread, piece, Date.now());
   };
 
-  // In order, one at a time, for as long as it can. Whatever stops it, the row stays: the next DM, the
-  // next day or the next sweep carries on, and it goes when its thread does.
+  // Strictly in order, or a long report's pieces could pass each other. One at a time, for as long as
+  // it can. Whatever stops it, the row stays: the next DM, the next day or a timer carries on, and it
+  // goes when its thread does.
   async function send(userId) {
     for (;;) {
       if (stopped || opts.paused) return;
       const link = linkOf(userId);
       if (!link?.dm_open) return;
-      const row = db.get('SELECT * FROM x_outbox WHERE user_id = ? AND next_at <= ? ORDER BY id LIMIT 1', userId, Date.now());
-      if (!row || !reserve(COST.dmOut)) return;
+      const row = db.get('SELECT * FROM x_outbox WHERE user_id = ? ORDER BY id LIMIT 1', userId);
+      if (!row) return;
+      const wait = row.next_at - Date.now();
+      if (wait > 0) return later(userId, wait);
+      if (!reserve(COST.dmOut)) return;
       try {
         await sendDm(link.x_id, row.text);
         db.run('DELETE FROM x_outbox WHERE id = ?', row.id);
@@ -251,14 +257,24 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
         }
         if (err.status === 429) {
           db.run('UPDATE x_outbox SET next_at = ? WHERE id = ?', Date.now() + (err.retryAfter ? err.retryAfter * 1000 : RETRY_MS), row.id);
-          return setTimeout(() => pump(userId), err.retryAfter * 1000 || RETRY_MS).unref?.();
+          continue;
         }
         log(`grid: X: a DM didn’t go: ${err.message}`);
         if (row.tries + 1 >= SEND_TRIES) db.run('DELETE FROM x_outbox WHERE id = ?', row.id);
-        else db.run('UPDATE x_outbox SET tries = tries + 1, next_at = ? WHERE id = ?', Date.now() + RETRY_MS, row.id);
-        return;
+        else db.run('UPDATE x_outbox SET tries = tries + 1, next_at = ? WHERE id = ?', Date.now() + (err.status ? RETRY_MS : BROKEN_MS), row.id);
       }
     }
+  }
+
+  // A touch past it: a timer can fire a moment early, and the row would look not yet due.
+  function later(userId, ms) {
+    clearTimeout(timers.get(userId));
+    const t = setTimeout(() => {
+      timers.delete(userId);
+      pump(userId);
+    }, ms + 25);
+    t.unref?.();
+    timers.set(userId, t);
   }
 
   function pump(userId) {
@@ -410,6 +426,7 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
     close() {
       stopped = true;
       clearInterval(sweeper);
+      for (const t of timers.values()) clearTimeout(t);
       return Promise.allSettled([...sends]);
     },
 
