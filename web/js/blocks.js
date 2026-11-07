@@ -375,6 +375,7 @@ const orthPath = (pts, r = 10) =>
     })
     .join(' ');
 const FLOW_MIN_COL = 150; // px a column needs before the row wraps
+const FLOW_DASH = 0.012; // of the wire's length, on and off
 const FLOW_GAP = 46;
 
 R.flow = (b) => {
@@ -489,7 +490,7 @@ R.flow = (b) => {
         lx = m;
         ly = (a.cy + z.cy) / 2 - 8;
       }
-      out += `<path class="wire ${back ? 'back' : ''}" d="${d}" pathLength="1" style="--k:${i}"/>`;
+      out += `<path class="wire ${back ? 'back' : ''}" d="${d}"${back ? '' : ' pathLength="1"'} style="--k:${i}"/>`;
       // Hidden until its motion begins: before that the circle sits at 0,0, the stage's top-left corner.
       const begin = `${0.8 + i * 0.35}s`;
       if (!reduced()) out += `<circle r="3" class="spark ${back ? 'back' : ''}" visibility="hidden"><set attributeName="visibility" to="visible" begin="${begin}"/><animateMotion dur="${back ? 3.2 : 2.2}s" begin="${begin}" repeatCount="indefinite" path="${d}"/></circle>`;
@@ -497,6 +498,8 @@ R.flow = (b) => {
       if (e.label) out += `<text x="${lx}" y="${ly}" class="wire-label" text-anchor="${side ? 'start' : 'middle'}">${esc(e.label)}</text>`;
     });
     svg.innerHTML = out;
+    // The dashes of a loop, in px: WebKit draws nothing for dashes this small on a pathLength of 1.
+    for (const p of svg.querySelectorAll('.wire.back')) p.style.strokeDasharray = String(p.getTotalLength() * FLOW_DASH);
     stage.style.paddingBottom = loopBottom ? '46px' : '';
     stage.style.paddingRight = (vertical || snake) && hasBack ? '70px' : '';
     stage.style.paddingTop = loopTop || (snake && stage.style.paddingTop && hasBack) ? '22px' : '';

@@ -3,7 +3,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
+// The page's listeners: Node has no window.
+const page = {};
+globalThis.addEventListener = (type, fn) => (page[type] = fn);
 const { api, upload, reach } = await import('../web/js/core/api.js');
+delete globalThis.addEventListener;
 const real = globalThis.fetch;
 const answer = (fn) => (globalThis.fetch = fn);
 test.afterEach(() => (globalThis.fetch = real));
@@ -62,4 +66,14 @@ test('no call in web/js that can reach a person goes round reach()', () => {
     // A picture from another site has its own fallback: its link.
     assert.deepEqual(raw.filter((l) => !l.includes('fetch(src)')), [], file);
   }
+});
+
+test('a request cut off by a reload fails quietly, and only while the page is leaving', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
+  answer(() => Promise.reject(new TypeError('Load failed'))); // WebKit fails it before pagehide
+  page.beforeunload();
+  const outcome = await Promise.race([api('/tools').then(() => 'answered', () => 'failed'), new Promise((r) => setTimeout(r, 20, 'waiting'))]);
+  assert.equal(outcome, 'waiting');
+  t.mock.timers.tick(2001); // a vscode:// link fires beforeunload too, and that page stays
+  await assert.rejects(api('/tools'), { message: CANT_REACH });
 });

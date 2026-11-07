@@ -13,9 +13,19 @@ const early = (path) => {
 const CANT_REACH = 'Can’t reach wisp. Check the connection and try again.';
 const TOO_SLOW = 'wisp took too long to answer. Try again.';
 
+// A reload or a link away: WebKit fails what's still out as the page goes (Chrome just drops it),
+// before pagehide, and an error then would flash a toast or roll back what was just done. Not for
+// long: a vscode:// link fires beforeunload too, and that page stays.
+let leaving = 0;
+globalThis.addEventListener?.('beforeunload', () => {
+  leaving = Date.now();
+});
+const goingAway = () => Date.now() - leaving < 2000;
+
 // fetch() that fails in wisp's words. For a call that can't go through api().
 export const reach = (url, opts) =>
   fetch(url, opts).catch((err) => {
+    if (goingAway()) return new Promise(() => {});
     if (err?.name !== 'TypeError' && err?.name !== 'TimeoutError') throw err;
     throw new Error(err.name === 'TimeoutError' ? TOO_SLOW : CANT_REACH);
   });
