@@ -32,7 +32,8 @@ const argOf = (name, fallback) => {
   const i = process.argv.indexOf(name);
   return i > 0 ? process.argv[i + 1] : fallback;
 };
-const SETUP = path.resolve(argOf('--artefacts', path.join(ROOT, 'dist/tauri')), 'wisp-windows-x64-setup.exe');
+const ARCH = process.arch === 'arm64' ? 'arm64' : 'x64';
+const SETUP = path.resolve(argOf('--artefacts', path.join(ROOT, 'dist/tauri')), `wisp-windows-${ARCH}-setup.exe`);
 const EXE = path.join(process.env.LOCALAPPDATA, 'wisp/wisp.exe');
 const PORT = Number(process.env.QA_TAURI_PORT) || 4781;
 const CDP = PORT + 1;
@@ -160,14 +161,14 @@ if (process.argv.includes('--web')) {
   one('resolution', 1920, 1080);
   await launch(PORT);
   const v = await (await fetch(`http://127.0.0.1:${CDP}/json/version`)).json();
-  console.log(`  qa/web.mjs in ${v.Browser}`);
+  console.log(`  qa/web.mjs in ${v.Browser}, ${ARCH}`);
   await A.browser.close();
   const code = await new Promise((r) => spawn(process.execPath, [path.join(ROOT, 'qa/web.mjs')], { stdio: 'inherit', env: { ...process.env, QA_ENGINE: 'webview2', QA_CDP: `http://127.0.0.1:${CDP}` } }).once('exit', r));
   A.browser = null;
   await quit();
   process.exit(code);
 }
-console.log(`\n  desktop (Tauri, Windows) · ${SETUP}\n`);
+console.log(`\n  desktop (Tauri, Windows ${ARCH}) · ${SETUP}\n`);
 
 // Links go out through Windows, not a stub: these two land in a file instead of a browser or an editor.
 for (const scheme of ['wispqa', 'vscode']) {

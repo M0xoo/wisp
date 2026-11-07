@@ -1,12 +1,12 @@
 name: tauri windows
 
-# The Tauri window on Windows, on a built installer and a real desktop (windows-latest has one, at
-# 1024×768 until a check sets it). Three jobs on the one build, each on a clean runner:
+# The Tauri window on Windows, on a built installer and a real desktop, on x64 (windows-latest) and
+# arm64 (windows-11-arm). Three jobs on each build, each on a clean runner:
 #   desktop  qa/desktop-tauri-win.mjs: WebView2's CDP for the page, real mouse, keys and Win32 for the rest
-#   web      qa/web.mjs in Chrome on the same runner, then in the app's own WebView2
-#   migrate  a real v0.57.0, then this installer over it (qa/install.mjs --only migrate)
+#   web      qa/web.mjs in a Chromium browser on the same runner, then in the app's own WebView2
+#   migrate  a real v0.57.0 for that arch, then this installer over it (qa/install.mjs --only migrate)
 # Electron stays what users get: this builds with the `qa` feature, which no release has, and its
-# artifact isn't named desktop-*, which is what release.yml publishes.
+# artifacts aren't named desktop-*, which is what release.yml publishes.
 on:
   pull_request:
     paths:
@@ -26,48 +26,65 @@ defaults:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy: &arches
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, runner: windows-latest, target: x86_64-pc-windows-msvc }
+          - { arch: arm64, runner: windows-11-arm, target: aarch64-pc-windows-msvc }
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: rustup toolchain install stable --profile minimal && rustup default stable
+          architecture: ${{ matrix.arch }}
+      # windows-11-arm may come without Rust.
+      - run: |
+          if ! command -v rustup >/dev/null; then
+            curl -sSfL -o "$RUNNER_TEMP/rustup-init.exe" "https://static.rust-lang.org/rustup/dist/${{ matrix.target }}/rustup-init.exe"
+            "$RUNNER_TEMP/rustup-init.exe" -y --profile minimal --default-toolchain stable
+            echo "$USERPROFILE/.cargo/bin" >> "$GITHUB_PATH"
+          else
+            rustup toolchain install stable --profile minimal && rustup default stable
+          fi
       - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             desktop/src-tauri/target
-          key: tauri-windows-qa-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}-${{ github.sha }}
-          restore-keys: tauri-windows-qa-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}-
-      - run: node desktop/scripts/package.mjs --target x86_64-pc-windows-msvc --features qa
+          key: tauri-windows-qa-${{ matrix.arch }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: tauri-windows-qa-${{ matrix.arch }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}-
+      - run: node desktop/scripts/package.mjs --target ${{ matrix.target }} --features qa
       - uses: actions/upload-artifact@v4
         with:
-          name: tauri-windows-qa
+          name: tauri-windows-qa-${{ matrix.arch }}
           if-no-files-found: error
           path: dist/tauri/wisp-*
 
   desktop:
     needs: build
-    runs-on: windows-latest
+    strategy: *arches
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps: &qa
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          architecture: ${{ matrix.arch }}
       - uses: actions/download-artifact@v4
         with:
-          name: tauri-windows-qa
+          name: tauri-windows-qa-${{ matrix.arch }}
           path: dist/tauri
-      - run: npm i --prefix "$RUNNER_TEMP/pw" playwright-core
+      - run: node -p "process.arch" && npm i --prefix "$RUNNER_TEMP/pw" playwright-core
       - run: node qa/desktop-tauri-win.mjs
         if: github.job == 'desktop'
         env:
           PW_DIR: ${{ runner.temp }}/pw
-      - name: qa/web.mjs in Chrome, the baseline on this runner
+      - name: qa/web.mjs in a browser, the baseline on this runner
         if: github.job == 'web'
         continue-on-error: true
         env:
@@ -85,17 +102,19 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: tauri-windows-${{ github.job }}
+          name: tauri-windows-${{ github.job }}-${{ matrix.arch }}
           path: qa/out
 
   web:
     needs: build
-    runs-on: windows-latest
+    strategy: *arches
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps: *qa
 
   migrate:
     needs: build
-    runs-on: windows-latest
+    strategy: *arches
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps: *qa
