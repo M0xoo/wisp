@@ -6,6 +6,9 @@
 //     and for `gh api`: user, repos: { 'o/r': { private } }, comments: [{ repo, id, body, user, … }],
 //     commentsError: { status, retryAfter }, retryAfter. Posted comments go to <FAKE_GH_STATE>.posted
 //     (one JSON object a line), so a test can keep writing the state file without losing them.
+//     A test that rewrites the state while gh is being polled writes <FAKE_GH_STATE>.v<n>, a new file
+//     each time; the highest n wins over the state file. On Windows a rename over a file a gh is reading
+//     is refused, and a plain write could be read half done: a new name has neither problem.
 //   FAKE_RECORD    directory; each call appends { argv, cwd } to gh.jsonl
 
 import { execFileSync } from 'node:child_process';
@@ -14,7 +17,13 @@ import path from 'node:path';
 
 const argv = process.argv.slice(2);
 const file = process.env.FAKE_GH_STATE;
-const state = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+const newest = () => {
+  const at = fs.existsSync(path.dirname(file)) ? fs.readdirSync(path.dirname(file)).map((f) => (f.startsWith(`${path.basename(file)}.v`) ? Number(f.slice(path.basename(file).length + 2)) : 0)) : [];
+  const n = Math.max(0, ...at);
+  return n ? `${file}.v${n}` : file;
+};
+const stateFile = newest();
+const state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : {};
 state.prs ||= {};
 const save = () => fs.writeFileSync(file, JSON.stringify(state, null, 2));
 const flag = (f) => (argv.includes(f) ? argv[argv.indexOf(f) + 1] : undefined);

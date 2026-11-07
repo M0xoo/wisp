@@ -27,9 +27,11 @@ const ME = { id: 7, login: 'mokh' };
 const PRIVATE = 'acme/repo';
 const PUBLIC = 'acme/open';
 const state = { user: ME, repos: { [PRIVATE]: { private: true }, [PUBLIC]: { private: false } }, comments: [], prs: {} };
+// gh is polled every 40 ms: each write is a new file (see fake-gh.mjs), never one a gh may have open.
+let version = 0;
 const write = () => {
   fs.writeFileSync(`${STATE}.tmp`, JSON.stringify(state));
-  fs.renameSync(`${STATE}.tmp`, STATE);
+  fs.renameSync(`${STATE}.tmp`, `${STATE}.v${++version}`);
 };
 
 let srv;
@@ -97,6 +99,16 @@ before(async () => {
 after(() => {
   halt();
   setTimeout(() => process.exit(), 500).unref(); // agents held on FAKE_DELAY
+});
+
+// Windows refuses a rename over a file that's open, and a gh polling every 40 ms has it open now and then.
+test('the state can be rewritten while a gh is reading it', () => {
+  const fd = fs.openSync(`${STATE}.v${version}`, 'r');
+  try {
+    write();
+  } finally {
+    fs.closeSync(fd);
+  }
 });
 
 let cid = 5000;
