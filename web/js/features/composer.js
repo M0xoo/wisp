@@ -495,7 +495,7 @@ export function updateDock(id) {
       ? s.ask.clash
         ? `Or say what to do instead (keeps ${s.ask.clash.by ? 'its' : 'main’s'} version)…`
         : s.ask.permission
-        ? `Or tell ${name} what to do instead (denies this call)…`
+        ? 'Or say what to do instead (denies it)…' // fits a phone's box, as the clash card's does
         : `Answer ${name}…`
       : S.sessions.get(id)?.term
         ? `${name} is open in a terminal: carry on there, or end it to follow up here. /btw asks on the side`
