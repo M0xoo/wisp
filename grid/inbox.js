@@ -240,7 +240,7 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delive
     const done = hostd.begin(user.id, { touch: false });
     try {
       const out = await deliver(port, user, { channel, headers, body: body.toString('base64'), at: Date.now() }, { timeout: opts.liveMs ?? EDGE_LIVE_MS });
-      return out.status >= 200 && out.status < 300 ? out : fallback;
+      return out.status >= 200 && out.status < 300 && out.body?.type === fallback.body.type ? out : fallback; // only an answer of the kind the sender wants
     } catch {
       return fallback;
     } finally {

@@ -870,6 +870,9 @@ test('autocomplete on a box that’s up goes through live, and a box that fails 
   g.box(u, { status: 500 });
   const down = await send(interaction('15', { type: 4 }));
   assert.deepEqual([down.status, down.json()], [200, { type: 8, data: { choices: [] } }]);
+  g.box(u, {}); // a 200 that isn't an answer Discord takes
+  const junk = await send(interaction('15b', { type: 4 }));
+  assert.deepEqual([junk.status, junk.json()], [200, { type: 8, data: { choices: [] } }]);
 });
 
 test('anything else signed is refused and not held: wisp has no modals', { timeout: 30_000 }, async () => {
@@ -930,6 +933,7 @@ test('autocomplete has its own budget, and past a cap Discord still gets a valid
   for (let i = 1; i < 120; i++) await send(interaction(String(2000 + i)));
   const over = await send(interaction('3000'));
   assert.deepEqual([over.status, over.json()], [200, BUSY]);
+  await g.grid.hostd.stop(u.id).catch(() => {}); // held rows may have woken it: typing on a box that's up is the test above
   const stillTyping = await send(interaction('3001', { type: 4 }));
   assert.deepEqual([stillTyping.status, stillTyping.json()], [200, { type: 8, data: { choices: [] } }]);
   assert.equal(g.rows(u).filter((r) => r.event_key === 'discord:3000').length, 0);
