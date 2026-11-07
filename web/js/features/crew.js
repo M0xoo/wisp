@@ -1686,7 +1686,9 @@ function paintSide(m, st, side) {
   const facts = [
     ['clock', m.paused ? 'Paused' : `${cadenceLabel(m.cron)}${m.nextAt && !m.paused ? ` · next ${whenLabel(m.nextAt)}` : ''}`],
     // Settings → Usage → Automations stop at: its account is past it, so check-ins skip until the reset.
-    ...(m.held && !m.paused ? [['pause', `Waits for your plan · ${aheadLabel(m.held.until)}`, `Check-ins wait for your plan until ${whenLabel(m.held.until)}: ${m.held.why}. Check in now still runs.`]] : []),
+    // held.load: the RAM/CPU guard (server/load.js), which looks again every minute.
+    ...(m.held?.load && !m.paused ? [['pause', 'Waits for the computer', `${m.held.why}. Check-ins go on once there’s room. Check in now still runs.`]] : []),
+    ...(m.held && !m.held.load && !m.paused ? [['pause', `Waits for your plan · ${aheadLabel(m.held.until)}`, `Check-ins wait for your plan until ${whenLabel(m.held.until)}: ${m.held.why}. Check in now still runs.`]] : []),
     ...(eventsLabel(m) ? [['bolt', eventsLabel(m)]] : []),
     ['queue', `${m.parallel} job${m.parallel > 1 ? 's' : ''} at once${st.live.length ? ` · ${st.live.length} working` : ''}`],
     // Paired on one line each so the column fits a window without scrolling.

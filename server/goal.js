@@ -321,10 +321,11 @@ export class Goals {
     const g = session.goal;
     let scheduled = false;
     try {
-      scheduled = !!this.schedule?.(session, { text: prompt, by: 'wisp', goal: g.round, held: { why: h.why, until: h.until }, at: Math.max(h.until, Date.now() + 61_000) });
+      scheduled = !!this.schedule?.(session, { text: prompt, by: 'wisp', goal: g.round, held: { why: h.why, until: h.until, ...(h.load && { load: true }) }, at: Math.max(h.until, Date.now() + 61_000) });
     } catch {}
-    Object.assign(g, { status: 'paused', why: `Waits for your plan: ${h.why}`, ...(scheduled && { held: h.until }) });
-    this.runner.note(session, turn, { kind: 'goal', label: 'Next round waits for your plan' });
+    // load: the machine is short (server/load.js); its why says what it waits for.
+    Object.assign(g, { status: 'paused', why: h.load ? h.why : `Waits for your plan: ${h.why}`, ...(scheduled && { held: h.until }) });
+    this.runner.note(session, turn, { kind: 'goal', label: h.load ? 'Next round waits for the computer' : 'Next round waits for your plan' });
     if (!scheduled) return this.runner.settle(session);
     Object.assign(session, { state: 'done', unread: false });
     this.runner.refresh(session);

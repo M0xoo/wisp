@@ -47,6 +47,7 @@ import { crewList } from './crew.js';
 import { connectorsPane } from './connectors.js';
 import { budgetHtml, compareReport, dismissNotice, drainReport, STOP_AT, STOP_BY, STOP_KEYS } from './budget.js';
 import { reveal } from './feed.js';
+import { SETTINGS } from '../spell-schema.js';
 import { spellsPane } from './spell-ui.js';
 import { setTheme, themePref } from './theme.js';
 import { loadUpdate, updateState } from './update.js';
@@ -245,6 +246,13 @@ export function openSettings(opts) {
             ${row('Drain watch', 'Warns here, and on your phone when it’s set up, when an account’s last two hours of runs took twice or more its usual share of a window for the same work. Copy report puts the numbers in words for a support ticket', '<button class="switch" id="drainWatch" role="switch"></button>')}
             ${row('Ask near the limit', 'Before a task would take a 5-hour or weekly window past this, wisp asks first. Scheduled runs and crew jobs wait in Needs you', `<span class="pk-seg hold-seg">${HOLD_LINES.map((v) => `<button type="button" data-v="${v}">${v === 'off' ? 'Off' : `${v}%`}</button>`).join('')}</span>`)}
             ${row('Wait for the reset', 'At a usage limit, the task waits under Scheduled and carries on in the same conversation when the window resets. Off: it stops and asks you', '<button class="switch" id="limitWait" role="switch"></button>')}
+          </div>
+          <div class="sx-head"><div><b>Machine load</b><small>Check-ins, triggers, goal rounds and agents’ own follow-ups also wait while this computer is short. What you start always runs</small></div></div>
+          <div class="sx-group sx-load">
+            ${row('Now', '<span class="ld-now">Reading…</span>', '')}
+            ${row('Memory floor', 'They wait while free memory is under this, and go on once it’s 5 points above', `<select name="memoryFloor">${SETTINGS.memoryFloor.map((v) => `<option value="${v}" ${(d.memoryFloor || '15') === v ? 'selected' : ''}>${v === 'off' ? 'Off' : `${v}% free`}</option>`).join('')}</select>`)}
+            ${row('CPU ceiling', 'They wait once the load stays over this share of the cores for 30 seconds', `<select name="cpuCeiling">${SETTINGS.cpuCeiling.map((v) => `<option value="${v}" ${(d.cpuCeiling || '150') === v ? 'selected' : ''}>${v === 'off' ? 'Off' : `${v}%`}</option>`).join('')}</select>`)}
+            ${row('Runs at once', 'They wait while this many of wisp’s runs are going. Subagents count, but never wait. Auto: one per 3 GB of memory, at least 2', `<select name="maxRuns">${SETTINGS.maxRuns.map((v) => `<option value="${v}" ${(d.maxRuns || 'auto') === v ? 'selected' : ''}>${v === 'off' ? 'Off' : v === 'auto' ? 'Auto' : v}</option>`).join('')}</select>`)}
           </div>
         </section>
         <section class="sx-pane" data-pane="privacy">
@@ -586,6 +594,20 @@ export function openSettings(opts) {
     close();
     reveal(t.dataset.session);
   });
+  // Machine load (server/load.js): what the guard reads now, and what it holds. Read while Settings is open.
+  const paintLoad = async () => {
+    const r = await api('/load').catch(() => null);
+    const el = $('.ld-now', node);
+    if (!r || !el) return;
+    const bits = [r.memFreePct == null ? null : `${Math.round(r.memFreePct)}% memory free`, r.cpu == null ? null : `CPU at ${Math.round(r.cpu)}% of its cores`, `${r.runs} run${r.runs === 1 ? '' : 's'}${r.limits.maxRuns ? ` of ${r.limits.maxRuns}` : ''} going`].filter(Boolean);
+    el.textContent = r.held ? `${bits.join(' · ')}. ${r.held.why}` : bits.join(' · ');
+  };
+  paintLoad();
+  bus.on('config', paintLoad, { node });
+  const loadTimer = setInterval(() => {
+    if (!node.isConnected) clearInterval(loadTimer);
+    else paintLoad();
+  }, 10_000);
   // Automations stop at: instant, the bars' marks with it; rolled back on a refusal.
   const paintStop = () => {
     const v = STOP_AT.includes(S.config.defaults.autoStop) ? S.config.defaults.autoStop : 'off';
@@ -989,7 +1011,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { acceptChannels: '#acceptChannels', theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', worktreeCleanup: '#wtrCleanup', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', leanRuns: 'select[name="leanRuns"]', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers', review: 'select[name="review"]', subagentModel: 'select[name="subagentModel"]' };
+  const LOCKABLE = { acceptChannels: '#acceptChannels', theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', worktreeCleanup: '#wtrCleanup', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', leanRuns: 'select[name="leanRuns"]', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers', review: 'select[name="review"]', subagentModel: 'select[name="subagentModel"]', memoryFloor: 'select[name="memoryFloor"]', cpuCeiling: 'select[name="cpuCeiling"]', maxRuns: 'select[name="maxRuns"]' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

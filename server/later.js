@@ -474,7 +474,7 @@ export class Later {
   // Moved to the reset of the window that holds it back; Send now still sends it at once.
   #waitForPlan(s, l, h) {
     l.at = Math.max(h.until, this.now() + MIN_MS);
-    l.held = { why: h.why, until: h.until };
+    l.held = { why: h.why, until: h.until, ...(h.load && { load: true }) }; // load: the machine's, not the plan's
     s.later.sort((a, b) => a.at - b.at);
     this.changed(s);
   }

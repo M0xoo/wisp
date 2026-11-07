@@ -84,6 +84,10 @@ export function connect() {
   es.addEventListener('turn', (e) => scheduleRefetch(JSON.parse(e.data).sessionId));
   es.addEventListener('finished', (e) => (notifyFinished(JSON.parse(e.data).session), spellEvent('finished')));
   es.addEventListener('reminder', (e) => notifyReminder(JSON.parse(e.data).session));
+  // A run you started goes anyway; the computer is short on memory (server/load.js), so it says so.
+  es.addEventListener('load', (e) => {
+    toast(esc(JSON.parse(e.data).why), { timeout: 6000 });
+  });
   // A spell hook's notify, from the server.
   es.addEventListener('spell', (e) => {
     const m = JSON.parse(e.data);
