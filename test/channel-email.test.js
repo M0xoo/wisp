@@ -977,10 +977,14 @@ test('over the rate a box is refused, and a failed send is an error, not silence
   const n = ses.sent.length;
   const t = Date.now();
   for (let i = 0; i < 100; i++) g.grid.db.run('INSERT INTO mail_sent (user_id, at) VALUES (?, ?)', ada.user.id, t);
-  const r = await reply(ada, { replyTo: ada.thread.id, text: 'x' });
-  assert.equal(r.status, 429);
-  assert.equal(ses.sent.length, n);
-  g.grid.db.run('DELETE FROM mail_sent WHERE user_id = ?', ada.user.id);
+  try {
+    const r = await reply(ada, { replyTo: ada.thread.id, text: 'over the hour’s rate' });
+    assert.equal(r.status, 429);
+    // By what it said: a report of an earlier test's task can still be on its way (CI saw one).
+    assert.ok(!ses.sent.slice(n).some((m) => m.text.includes('over the hour’s rate')), 'the refused reply went out');
+  } finally {
+    g.grid.db.run('DELETE FROM mail_sent WHERE user_id = ?', ada.user.id); // or every later test is over the rate too
+  }
   assert.equal((await reply(ada, { replyTo: ada.thread.id, text: 'x'.repeat(50_000) })).status, 413);
   done();
 });
