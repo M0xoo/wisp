@@ -276,8 +276,9 @@ export function createWorktrees(app, { busy: machineBusy = () => false, capDelay
     for (const root of roots) if (fs.existsSync(root)) await pruneWorktrees(root);
   };
 
-  // Folders on disk, leftovers too: the cap counts what fills the disk.
-  const count = () => tasks().reduce((n, s) => n + held(s).length, 0) + seen.leftovers.filter((name) => fs.existsSync(path.join(dir, name))).length;
+  // Tasks' folders on disk. Not leftovers: the sweep never removes those, so counting them would
+  // only push out idle task folders in their place, every sweep.
+  const count = () => tasks().reduce((n, s) => n + held(s).length, 0);
 
   // The hourly look. Awaited in tests. { skipped: 'busy' } when the machine is short.
   async function sweep({ now = Date.now(), low = LOW_DISK, enough = ENOUGH_DISK } = {}) {

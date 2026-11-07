@@ -54,7 +54,7 @@ export function mountWorktrees(box) {
       <div class="sx-row"><div class="sx-text"><b class="wtr-total"></b><small class="wtr-disk"></small></div><div class="sx-ctl"><button class="ghost sm" data-wt="all"></button></div></div>
       <div class="sx-row wtr-auto"><div class="sx-text"><b>Clean up automatically</b><small>Removes the folder of a task left idle this long. A task whose PR is merged or closed goes at the next cleanup, a Done task after a day, and any idle one sooner if the disk runs low. Its branch stays, and replying to the task brings the folder back. Uncommitted work, kept worktrees, For later and open PRs stay.</small></div>
         <div class="sx-ctl"><select id="wtrCleanup" aria-label="Clean up automatically">${CHOICES.map(([k, l]) => `<option value="${k}" ${setting() === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
-      <div class="sx-row wtr-max"><div class="sx-text"><b>Keep at most</b><small>Past this many, the oldest idle worktrees go first, a few minutes after a new one. Ones in use, with uncommitted work, kept, For later or on an open PR stay, even over it.</small></div>
+      <div class="sx-row wtr-max"><div class="sx-text"><b>Keep at most</b><small>Past this many tasks’ worktrees, the oldest idle ones go first, a few minutes after a new one. Left over folders don’t count. Ones in use, with uncommitted work, kept, For later or on an open PR stay, even over it.</small></div>
         <div class="sx-ctl"><select id="wtrMax" aria-label="Keep at most">${MAX_CHOICES.map(([k, l]) => `<option value="${k}" ${maxSetting() === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
     </div>
     <div class="sx-group wtr-list">
