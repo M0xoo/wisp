@@ -562,7 +562,7 @@ test('forged: l= covers the first part and text is appended; any l= at all is re
 });
 test('forged: From isn’t in h=', { timeout: 60_000 }, () => forged(signBy(fresh(), GMAIL, { h: 'to:subject:date:message-id' })));
 test('forged: Subject isn’t in h=, so a signed mail’s subject is swapped for a task', { timeout: 60_000 }, () => forged(signBy(fresh(), GMAIL, { h: 'from:to:date:message-id' }).replace('Subject: fix the bug', 'Subject: drop the database')));
-test('forged: Date isn’t in h=, so an old signed mail is made fresh', { timeout: 60_000 }, () => forged(signBy(fresh({ date: new Date(Date.now() - 86_400_000) }), GMAIL, { h: 'from:to:subject:message-id' }).replace(/^Date: .*$/m, `Date: ${new Date().toUTCString()}\r`)));
+test('forged: Date isn’t in h=, so an old signed mail is made fresh', { timeout: 60_000 }, () => forged(signBy(fresh({ date: new Date(Date.now() - 86_400_000) }), GMAIL, { h: 'from:to:subject:message-id' }).replace(/^Date: [^\r]*/m, `Date: ${new Date().toUTCString()}`)));
 test('forged: rsa-sha1', { timeout: 60_000 }, () => forged(dkimSign(fresh(), { d: GMAIL, s: 'rsa', key: dkimRsa.privateKey, a: 'rsa-sha1' })));
 test('forged: x= has passed', { timeout: 60_000 }, () => forged(signBy(fresh(), GMAIL, { tags: `x=${Math.floor(Date.now() / 1000) - 60}` })));
 test('forged: the key is revoked', { timeout: 60_000 }, () => forged(signBy(fresh(), GMAIL, { s: 'old' })));
