@@ -857,7 +857,8 @@ test('a 403 backs off, shows in the view, and comes back; Retry-After on a good 
   const calls = () => records(process.env.FAKE_RECORD, 'gh').filter((r) => r.argv.some((x) => x.includes(`repos/${PRIVATE}/issues/comments?`))).length;
   const a = calls();
   await sleep(700);
-  assert.equal(calls(), a, 'left alone while it said so');
+  // A call already on its way when the view changed may land here; a poll every 40 ms would be many.
+  assert.ok(calls() <= a + 1, 'left alone while it said so');
   delete state.commentsError;
   write();
   const n = nextIssue();
@@ -906,6 +907,7 @@ test('telemetry: counts only, never what was said', async () => {
     await nextOn(n);
     await settled((await startedOn(n)).id);
     await nextOn(n);
+    await until(() => seen.some((p) => p.kind === 'report')); // counted after the post comes back
   } finally {
     srv.telemetry.track = real;
   }

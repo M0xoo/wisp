@@ -90,6 +90,7 @@ export class Github extends Channel {
     this.visibility = new Map(); // repo -> { private, at }
     this.fails = new Map(); // repo -> refusals in a row
     this.errors = new Map(); // repo -> what went wrong last
+    this.answering = new Map(); // issue -> the comment being answered
   }
 
   get cfg() {
@@ -273,7 +274,10 @@ export class Github extends Channel {
       return;
     }
     if (!number) return;
-    await this.#run({ ...at, number, pr: /\/pull\/\d+/.test(c.html_url || ''), key: `${repo}#${number}`, login: c.user.login, comment: c.id }, cmd);
+    const key = `${repo}#${number}`;
+    const work = this.#run({ ...at, number, pr: /\/pull\/\d+/.test(c.html_url || ''), key, login: c.user.login, comment: c.id }, cmd);
+    this.answering.set(key, work);
+    await work.finally(() => this.answering.get(key) === work && this.answering.delete(key));
   }
 
   // --- what a message does ----------------------------------------------------------------------
@@ -433,6 +437,7 @@ export class Github extends Channel {
     if (!key) return;
     const at = key.lastIndexOf('#');
     const [repo, number] = [key.slice(0, at), Number(key.slice(at + 1))];
+    await this.answering.get(key)?.catch(() => {}); // a quick task's report comes after the first reply
     const open = await this.#open(repo);
     await this.#post(repo, number, open ? this.#report(msg, s) : this.#fixedLine(s));
     this.hub.phone.count?.('report', open ? 'full' : 'fixed');
