@@ -324,3 +324,35 @@ test('the plan check stays the plan’s alone: an early reset isn’t blocked by
     calm();
   }
 });
+
+test('the worktree sweep skips while memory is under the floor or the CPU over its ceiling, not for full run slots', async () => {
+  const now = srv.load.now;
+  try {
+    short(9);
+    assert.deepEqual(await srv.worktrees.sweep(), { skipped: 'busy' }, 'short on memory');
+    calm();
+    assert.equal((await srv.worktrees.sweep()).skipped, undefined, 'room again: it sweeps');
+    // The CPU over 200% for a minute.
+    const t0 = Date.now();
+    srv.load.off = false;
+    srv.load.now = () => t0;
+    srv.load.feed({ memFreePct: 90, cpu: 300 });
+    srv.load.now = () => t0 + 60_000;
+    assert.equal(srv.load.hold()?.kind, 'cpu');
+    assert.deepEqual(await srv.worktrees.sweep(), { skipped: 'busy' }, 'CPU over the ceiling');
+    // Every run slot taken holds automations, but a sweep costs disk, not a run.
+    srv.load.now = now;
+    srv.load.feed({ memFreePct: 90, cpu: 10 });
+    const runs = srv.load.runs;
+    srv.load.runs = () => 99;
+    try {
+      assert.equal(srv.load.hold()?.kind, 'runs');
+      assert.equal((await srv.worktrees.sweep()).skipped, undefined);
+    } finally {
+      srv.load.runs = runs;
+    }
+  } finally {
+    srv.load.now = now;
+    calm();
+  }
+});

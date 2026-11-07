@@ -513,6 +513,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.remote = new Remote({ store, onChange: () => app.broadcast('remote', {}), ...phoneActions(app) });
   app.overlaps = createOverlaps(app);
   app.worktrees = createWorktrees(app); // old worktrees: the hourly cleanup, Settings → Worktrees
+  // Memory under the floor or the CPU over its ceiling (server/load.js): no sweep, no du, until the next hour.
+  app.worktrees.setBusy(() => app.load.busy());
   app.worktrees.start();
   app.review = createReview(app); // review by another harness before Merge (defaults.review)
   app.ship = createShip(app);
@@ -641,5 +643,5 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       .catch(() => {});
   }
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, stuff: app.stuff, remote: app.remote, liveLimits: app.liveLimits, load: app.load, reserve: app.reserve, launcher: app.launcher, resetEarly: app.resetEarly, machines: app.machines, computer: app.computer, sandbox: app.sandbox, secrets: app.secrets, accounts: app.accounts, auto: app.auto, broadcast: app.broadcast, routes };
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, stuff: app.stuff, remote: app.remote, liveLimits: app.liveLimits, load: app.load, reserve: app.reserve, worktrees: app.worktrees, launcher: app.launcher, resetEarly: app.resetEarly, machines: app.machines, computer: app.computer, sandbox: app.sandbox, secrets: app.secrets, accounts: app.accounts, auto: app.auto, broadcast: app.broadcast, routes };
 }
