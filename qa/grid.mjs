@@ -417,11 +417,12 @@ try {
     ok((await hook(m(900, 'on qa laptop fix it'), 'x'.repeat(64))).status === 403, 'a wrong secret wasn’t a 403');
     ok((await hook(m(901, 'on qa laptop fix it'))).status === 200, 'the webhook');
     await until(() => tg.calls.filter((x) => x.method === 'sendMessage').length > before, 10_000, 'the line');
-    ok(/qa laptop is offline/.test(tg.calls.at(-1).text), `the line: ${tg.calls.at(-1).text}`);
+    const line = () => tg.calls.findLast((x) => x.method === 'sendMessage').text; // the open page asks getWebhookInfo too
+    ok(/qa laptop is offline/.test(line()), `the line: ${line()}`);
     const said = tg.calls.filter((x) => x.method === 'sendMessage').length;
     ok((await hook(m(902, 'fix it'))).status === 200, 'the webhook, not a route');
     await until(() => tg.calls.filter((x) => x.method === 'sendMessage').length > said, 10_000, 'what the bot does');
-    ok(/only reaches your computers/.test(tg.calls.at(-1).text), `the line: ${tg.calls.at(-1).text}`);
+    ok(/only reaches your computers/.test(line()), `the line: ${line()}`);
     const held = tg.hook.url;
     tg.hook = { ...tg.hook, url: `${GRID}/elsewhere` };
     await p.goto(`${GRID}/account#route`);
