@@ -484,7 +484,16 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       return !!s.later?.some((l) => (l.held && mine) || (l.limit?.agent === agent && (l.limit.account || 'default') === account));
     }) ||
     ((account === runner.accountOf(agent) || account === 'default') && ((store.config.crew || []).some((m) => m.held?.until > Date.now() && (m.held.agent || m.agent) === agent) || (store.config.triggers || []).some((t) => t.held?.until > Date.now() && t.held.agent === agent)));
-  app.liveLimits = createLiveLimits({ store, budget, accounts, waiting: waitingOn, read: (env) => readCodex({ bin: adapters.codex?.binary?.(), env }) });
+  // A banked Codex reset that expires tomorrow: one phone note per credit, when ntfy or Telegram is set up.
+  app.liveLimits = createLiveLimits({
+    store,
+    budget,
+    accounts,
+    waiting: waitingOn,
+    read: (env) => readCodex({ bin: adapters.codex?.binary?.(), env }),
+    notify: (note) => (app.remote?.on ? app.remote.send(note) : null),
+    label: (account) => (accounts.multi('codex') ? accounts.get('codex', account)?.label || account : ''),
+  });
   // A spell's crew members join and leave the crew with it (server/crew-share.js).
   app.spells.onChange = () => {
     syncSpellCrew(app);
