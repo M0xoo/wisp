@@ -497,6 +497,8 @@ export const PARTS = {
   'budget.where': '.sx-budget .bg-where',
   // …Where it went: subagents: the share of that window each subagent type took.
   'budget.subagents': '.sx-budget .bg-sub',
+  // …Banked resets: a Codex account's reset credits and when the next one expires.
+  'budget.banked': '.sx-budget .bg-bank',
   // …Past your plan: an account's runs billed beyond its plan in the last 7 days.
   'budget.overage': '.sx-budget .bg-over',
   // …tokens per turn by account: each account's median turn per model this week (several accounts only).
