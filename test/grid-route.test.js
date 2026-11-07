@@ -268,6 +268,16 @@ test('what the grid hands on reads the same on the computer', () => {
   assert.equal(stripFormatting('@wispbot on laptop fix it', 'telegram', { bot: 'wispbot' }), 'on laptop fix it');
 });
 
+test('the switch in the phone app: there while it’s on, so it can be switched off from anywhere', async () => {
+  const { acceptRowHidden } = await import('../web/js/accept-row.js');
+  assert.equal(acceptRowHidden({ mobile: true, box: false, on: true }), false, 'on: the app is where you’d turn it off');
+  assert.equal(acceptRowHidden({ mobile: true, box: false, on: false }), true, 'off: the app can’t turn it on');
+  assert.equal(acceptRowHidden({ mobile: false, box: false, on: false }), false);
+  assert.equal(acceptRowHidden({ mobile: false, box: true, on: true }), true, 'a box has no tunnel');
+  // Just switched off stays in place until Settings closes: seen on counts as on.
+  assert.equal(acceptRowHidden({ mobile: true, box: false, on: false, seen: true }), false);
+});
+
 // --- the account page ------------------------------------------------------------------------------
 
 test('the page holds the bot: the grid makes the secret and owns the webhook, and nothing shows it', async () => {

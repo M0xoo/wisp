@@ -22,6 +22,7 @@ import { loginControl, loginPanel, typingLogin, wireLogins } from './agent-login
 import { accountCount, accountsHtml, gridAccountsNote, manyAccounts, wireAccounts } from './accounts.js';
 import { memorySummary, openMemory, setLearning } from './memory.js';
 import { IOS_HOME, notifyOn, notifyPermission, requestNotify } from './notify.js';
+import { acceptRowHidden } from '../accept-row.js';
 import { PHONE_HINT, openPhone, phoneSummary } from './phone.js';
 import { paintReachable, reachableBox, reachableHtml } from './reachable.js';
 import { machinesSummary } from './places.js';
@@ -759,12 +760,15 @@ export function openSettings(opts) {
   };
   paintHt();
   bus.on('config', paintHt, { node });
-  // Accept tasks from channels (server/channels/routed.js): instant, rolled back if refused, as it
-  // is from a phone: only this computer can change it.
+  // Accept tasks from channels (server/channels/routed.js): instant, rolled back if refused. Only
+  // this computer can turn it on, so that's refused through the grid; off works from anywhere.
   const ac = $('#acceptChannels', node);
+  let acSeen = false;
   const paintAc = () => {
-    ac.setAttribute('aria-checked', S.config.defaults.acceptChannels === 'on');
-    ac.closest('.sx-row').hidden = MOBILE || !!S.config.cloudBox;
+    const on = S.config.defaults.acceptChannels === 'on';
+    ac.setAttribute('aria-checked', on);
+    ac.closest('.sx-row').hidden = acceptRowHidden({ mobile: MOBILE, box: !!S.config.cloudBox, on, seen: acSeen });
+    acSeen ||= on;
   };
   ac.onclick = async () => {
     const was = S.config.defaults.acceptChannels;
