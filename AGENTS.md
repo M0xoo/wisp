@@ -42,8 +42,8 @@ this covers how the code is laid out and the rules a change has to follow.
   Tauri's installer their `--force-run`. `src/init.js` is the page's bridge, its `Notification` (`src/notify.rs`,
   tauri-plugin-notification) and its drag regions (WebKit has no
   `-webkit-app-region`: a new rule in the CSS goes there too, a test checks). On Linux WebKitGTK can't say
-  which frame a navigation is for, so `on_navigation` lets them all through and `src/linux.rs` watches the page's own
-  address instead (`qa/desktop-tauri-linux.mjs`, under Xvfb in `tauri.yml`). IPC is one capability
+  which frame a navigation is for, so `on_navigation` lets them all through and `src/linux.rs` holds the main frame's
+  response instead (`qa/desktop-tauri-linux.mjs`, under Xvfb in `tauri.yml`). IPC is one capability
   for exactly `http://localhost:<port>` (`capability.json`). `src/windows.rs` is what Electron does on
   Windows by itself (window size, taskbar badge, menu keys, right-click menu); `installer-hooks.nsh` takes
   an Electron copy away on install. `.github/workflows/tauri-windows.yml` runs it all on windows-latest.

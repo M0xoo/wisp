@@ -108,8 +108,8 @@ fn open_window(app: &AppHandle, port: u16) -> tauri::Result<()> {
     // the badge and the list have to keep up, and a window brought forward has to be current.
     .background_throttling(BackgroundThrottlingPolicy::Disabled)
     // Previews and sandboxed frames never get here on macOS (macos::keep_frames_in_place). WebKitGTK
-    // doesn't say which frame a navigation is for, so on Linux they all go through and the page's own
-    // address is watched instead (linux::keep_page_home). Windows asks for the main frame only.
+    // doesn't say which frame a navigation is for, so on Linux they all go through and the main frame's
+    // response is held instead (linux::keep_page_home). Windows asks for the main frame only.
     .on_navigation(move |url| {
       if cfg!(target_os = "linux") || any_nav() {
         return true;
