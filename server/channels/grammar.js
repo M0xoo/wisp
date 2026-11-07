@@ -5,7 +5,7 @@
 //
 // ctx: { projects, machines: [{ id, name, kind, computer, usable, agents | null }], agents (here),
 //        adapters (every harness wisp knows), crew, goals, defaultProject, defaultAgent, sandbox,
-//        thread: { agent, machine } in a task's thread }
+//        thread: { agent, machine } in a task's thread, atProject: false where @name isn't a project }
 //
 // Two steps. Reading finds where the options end, and asks only what's known anywhere: a thing that
 // exists somewhere is an option even if it can't run here, so `with gpt-5 fix it` is refused and not
@@ -29,7 +29,7 @@ const MARKS = /^[*_~`]+|[*_~`]+$/g;
 // "with gpt-9": shaped like a model, so not a sentence, even if nothing here has heard of it.
 const MODEL_SHAPE = /^[a-z]+-\d/i;
 // Words a bare in/on can't take as the start of a name: "in the login page", "on my laptop".
-const NOT_A_NAME = new Set(['a', 'an', 'the', 'my', 'our', 'your', 'this', 'that', 'these', 'those', 'all', 'it', 'its', 'one', 'some', 'any', 'each', 'every']);
+export const NOT_A_NAME = new Set(['a', 'an', 'the', 'my', 'our', 'your', 'this', 'that', 'these', 'those', 'all', 'it', 'its', 'one', 'some', 'any', 'each', 'every']);
 const HERE = /^(here|local|this computer)$/i;
 
 // A channel's own markup, gone before the grammar reads it. Text stays as written: an agent should
@@ -239,7 +239,7 @@ function readOption(t, s, o, ctx, count) {
       o.tagged.push(...more);
       return { rest: m.rest, colon: /[:：]\s*$/.test(used) };
     }
-    if (thread) return null;
+    if (thread || ctx.atProject === false) return null; // on X an @name tags a stranger: it's words
     const name = t.word.slice(1);
     if (!o.project) {
       const p = name && findProject(ctx.projects || [], name);

@@ -482,6 +482,7 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object' }), 404: err[404], 409: json({ type: 'object' }), 502: json({ type: 'object' }) },
         },
       },
+      '/channels/x': { get: { summary: 'What Settings shows of X on this cloud wisp, fresh from the grid: whether the grid has X, this person’s link, whether DMs are open, paused or over its daily cap. offered false off a grid. Switched on with PUT /remote { x: { enabled } }', responses: { 200: json({ type: 'object' }) } } },
       '/remote/test': { post: { summary: 'Send a test message to the enabled channels', responses: { 200: json({ type: 'object' }), 400: err[400] } } },
       '/usage': {
         get: {

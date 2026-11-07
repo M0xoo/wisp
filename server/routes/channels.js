@@ -3,6 +3,7 @@
 // carries signed-in people: only the grid's delivery has the mark, which the edge strips from
 // everything else (grid/server.js, proxy()). The channel then verifies the message itself.
 // POST /api/channels/rotate: this cloud wisp replaces its inbound URL.
+// GET /api/channels/x: what Settings shows of X, fresh from the grid.
 
 import { boxGrid } from '../channels/box.js';
 import { bad } from '../util.js';
@@ -21,6 +22,11 @@ export function register(r, app) {
     if (dropped > 0 && out.status >= 200 && out.status < 300) await ch.dropped(dropped);
     c.send(out.status, out.body);
     out.after?.(); // work that answers the sender: the grid has to have this 2xx first (grid/x.js)
+  });
+
+  r.route('GET', '/channels/x', async (c) => {
+    const ch = app.remote.channels.x;
+    c.send(200, await ch.refresh().catch(() => ch.view()));
   });
 
   // A channel URL that leaked: Settings has nothing for this yet, it's for the API and the agent.

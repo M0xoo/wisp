@@ -115,8 +115,8 @@ export function phoneActions(app) {
     // cap: the most this chat may ask for (policy.js capMode). fallback: the mode when none was asked
     // for; without one, the launcher's or the member's. about: what the prompt says the message is
     // about (policy.js untrusted). thread: where it answers, kept with a crew job that has to wait
-    // (server/crew.js).
-    startParsed: async (p, { channel, name, sender = '', cap = 'auto', fallback, about = '', thread = null, ctx = null }) => {
+    // (server/crew.js). worktree: true to refuse to run without one of its own.
+    startParsed: async (p, { channel, name, sender = '', cap = 'auto', fallback, about = '', thread = null, ctx = null, worktree }) => {
       ctx ||= await context();
       const origin = { kind: channel, name };
       const prompt = untrusted(p.prompt, { channel: name, sender, about });
@@ -133,7 +133,7 @@ export function phoneActions(app) {
       const { mode, refused } = capMode(p.mode, cap, fallback ?? (d.mode || 'auto'));
       if (refused) throw bad(refused);
       const machine = p.machine ?? (project.machine || undefined);
-      const [s] = await app.launcher.launchAny({ prompt, cwd: project.path, machine, agent, model, ...(p.effort && { effort: p.effort }), mode, ...(p.tagged.length && { subagents: p.tagged.map((m) => taggedDelegate(m)) }) }, origin);
+      const [s] = await app.launcher.launchAny({ prompt, cwd: project.path, machine, agent, model, ...(p.effort && { effort: p.effort }), mode, ...(worktree !== undefined && { worktree }), ...(p.tagged.length && { subagents: p.tagged.map((m) => taggedDelegate(m)) }) }, origin);
       app.broadcast('config', {});
       app.remote.threadStarted(s, thread, null);
       count('start', p.agent || p.model || p.effort ? 'with' : 'plain');

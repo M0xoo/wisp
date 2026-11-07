@@ -26,3 +26,18 @@ export async function rotateUrl(box, channel) {
   if (r.status !== 200 || !r.body.url) throw bad(`The grid didn’t rotate it: ${r.body.error || `it said ${r.status}`}.`, 502);
   return r.body;
 }
+
+// What the grid says of this person's X link, or null when it has no X.
+export async function xState(box) {
+  const r = await gridJson(`${box.grid}/_grid/x/state`, { headers: { authorization: box.auth }, timeout: 10_000 });
+  if (r.status === 404) return null;
+  if (r.status !== 200) throw new Error(r.body.error || `it said ${r.status}`);
+  return r.body;
+}
+
+// An answer in a thread this box accepted: the grid knows who to, and won't be told. { ok, held }.
+export async function xReply(box, { thread, text }) {
+  const r = await gridJson(`${box.grid}/_grid/x/reply`, { method: 'POST', headers: { authorization: box.auth }, body: { thread, text }, timeout: 20_000 });
+  if (r.status !== 200) throw new Error(r.body.error || `the grid said ${r.status}`);
+  return r.body;
+}
