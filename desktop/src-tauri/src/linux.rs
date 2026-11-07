@@ -14,7 +14,7 @@ pub fn keep_page_home(window: &WebviewWindow, home: Url, app: AppHandle) -> taur
   window.with_webview(move |wv| {
     let view = wv.inner();
     let last = Rc::new(RefCell::new(home.to_string())); // where wisp was, to go back to if it must
-    let (home2, app2) = (home.clone(), app.clone());
+    let (home2, home3, app2, last2) = (home.clone(), home.clone(), app.clone(), last.clone());
     view.connect_uri_notify(move |view| {
       let Some(uri) = view.uri().map(|u| u.to_string()) else { return };
       let Ok(url) = Url::parse(&uri) else { return };
@@ -22,16 +22,21 @@ pub fn keep_page_home(window: &WebviewWindow, home: Url, app: AppHandle) -> taur
         *last.borrow_mut() = uri;
         return;
       }
+      // Stopped before it commits, the old page stays and the view's address goes back to it once
+      // WebKit has dropped the load (a moment later, not here).
       view.stop_loading();
-      // Stopped before it committed, the view is back on wisp's page. If it isn't, back to where it was.
-      let reload = view.uri().is_some_and(|u| u.as_str() == uri);
       #[cfg(debug_assertions)]
-      eprintln!("[wisp] the page left for {uri}: stopped, {}", if reload { "reloading wisp" } else { "wisp's page kept" });
-      if reload {
-        let back = last.borrow().clone();
+      eprintln!("[wisp] the page left for {uri}: stopped");
+      crate::open_outside(&app, &url);
+    });
+    // Only if a page from elsewhere got in all the same: back to where wisp was.
+    view.connect_load_changed(move |view, event| {
+      let outside = view.uri().and_then(|u| Url::parse(&u).ok()).is_some_and(|u| !crate::stays(&u, &home3));
+      if event == LoadEvent::Committed && outside {
+        let back = last2.borrow().clone();
+        eprintln!("[wisp] a page from elsewhere committed: back to {back}");
         view.load_uri(&back);
       }
-      crate::open_outside(&app, &url);
     });
     view.connect_load_failed(move |_, _: LoadEvent, uri, err| {
       if err.matches(NetworkError::Cancelled) {

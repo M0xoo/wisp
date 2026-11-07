@@ -118,9 +118,10 @@ const previewPage = (url) => {
   return `<title>p</title><p>${url}</p>`;
 };
 const marker = `(window.__qaStay = (window.__qaStay || 0) + 1)`;
+// WebKitGTK puts the view's address back once it has dropped the stopped load, a moment later.
 const stayed = async () => {
-  const w = await A.ask({ op: 'window' });
-  ok(w.url.startsWith(A.url), `the window left wisp: ${w.url}`);
+  const back = await until(async () => (await A.ask({ op: 'window' })).url.startsWith(A.url), { timeout: 3000, what: 'the address back on wisp' }).catch(() => false);
+  ok(back, `the window left wisp: ${(await A.ask({ op: 'window' })).url}`);
   ok((await A.js('window.__qaStay || 0')) > 0, 'wisp reloaded: the page lost its state');
 };
 
