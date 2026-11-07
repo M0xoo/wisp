@@ -93,6 +93,38 @@ test('a machine\'s harnesses: Auto picks from them, they join the arms, and this
   await assert.rejects(auto.resolve(body, [there[0]], { place: 'devbox' }), /no harness installed and signed in on devbox/);
 });
 
+test('overlapping detections: looks faster than a detection can\'t starve the answer, and an older one never overwrites a newer', async () => {
+  const { createAuto } = await import('../server/services/auto.js');
+  const pending = [];
+  const list = () => new Promise((resolve) => pending.push(resolve));
+  const auto = createAuto({ store: { config: { defaults: {} } }, router: new Router(tmp('router-overlap')), runner: {}, broadcast: () => {}, telemetry: { track: () => {} }, uploads: {} }, { list });
+  const out = [{ ...AGENTS[0], available: false, signedIn: false }];
+  const signedIn = [AGENTS[0]];
+  const tick = () => new Promise((r) => setImmediate(r));
+  const first = auto.detect();
+  pending[0](out);
+  await first;
+  // A page polling GET /agents: each look starts a detection, and the next starts before it ends.
+  auto.listed();
+  for (let i = 1; i < 6; i++) {
+    auto.listed();
+    pending[i](signedIn);
+    await tick();
+  }
+  assert.equal(auto.here()[0].available, true, 'a finished detection counts though a newer one is running');
+  // One from before the sign-in ends last: it read the old state, and the newer answer stays.
+  const newest = pending.length - 1;
+  pending[newest](signedIn);
+  await tick();
+  const old = auto.detect();
+  const fresh = auto.detect();
+  pending[newest + 2](signedIn);
+  await fresh;
+  pending[newest + 1](out);
+  await old;
+  assert.equal(auto.here()[0].available, true);
+});
+
 test('learning: outcomes move the estimate, per kind of task, and survive a restart', () => {
   const home = tmp('router-learn');
   const r = new Router(home);

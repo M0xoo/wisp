@@ -11,17 +11,21 @@ import { scanProject, scoutTask } from '../scout.js';
 import { summarize } from '../runner.js';
 import { bad, newId } from '../util.js';
 
-export function createAuto(app) {
+// list: how harnesses are looked up (tests hold it open to order overlapping detections).
+export function createAuto(app, { list = listAgents } = {}) {
   const { store, router } = app;
   let agentsHere = [];
   let detecting = 0;
+  let answered = 0; // the newest detection that has finished
 
-  // The latest detection wins: an older one still running (with what it read before a sign-in)
-  // doesn't overwrite a newer answer when it finishes.
+  // An older detection still running (with what it read before a sign-in) doesn't overwrite a
+  // newer answer when it finishes. Newer ones that are only running don't count: every look at the
+  // list starts one, and looks faster than a detection would throw away every answer.
   const detect = async (opts) => {
     const n = ++detecting;
-    const agents = await listAgents(opts);
-    if (n < detecting) return agentsHere.length ? agentsHere : agents;
+    const agents = await list(opts);
+    if (n < answered) return agentsHere.length ? agentsHere : agents;
+    answered = n;
     agentsHere = agents;
     if (!backfilled) (backfilled = true), backfill();
     const added = router.sync(agents);
