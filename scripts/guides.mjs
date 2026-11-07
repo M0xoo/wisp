@@ -911,7 +911,7 @@ command = "pnpm dev --port $CONDUCTOR_PORT"</code></pre>
         <li><b>Limits.</b> At most one task per trigger every 30 seconds. You can sign calls with an HMAC secret, and <b>Regenerate</b> replaces the URL.</li>
         <li><b>Where the URL lives.</b> On wisp Cloud or your own Grid it’s public, and a call wakes a sleeping box. On your own computer it’s local, so put a tunnel in front.</li>
       </ul>
-      <p>The HTTP API answers on the computer wisp runs on, for scripts there. wisp Cloud has no API keys page, so a script elsewhere should start work through a webhook trigger. Bots that poll a transcript need a rethink; wisp can POST to your own webhook when a task finishes or starts waiting.</p>
+      <p>The HTTP API answers on the computer wisp runs on, for scripts there. From anywhere else, a script calls your cloud wisp at <code>https://&lt;handle&gt;.&lt;domain&gt;/api/…</code> with <code>Authorization: Bearer wgk_…</code>, an API key made in its Settings → <b>Connect</b> (Settings → <b>Cloud</b> on a computer signed in to the grid) that opens that one wisp and nothing else. Bots that poll a transcript need a rethink; wisp can POST to your own webhook when a task finishes or starts waiting.</p>
     </section>
 
     <section>
@@ -1267,7 +1267,7 @@ tmux attach -t agent`)}
       <h2 id="iphone">On an iPhone: build a Shortcut</h2>
       <aside class="g-note"><b>Not tried on a real iPhone yet</b><p>The request below is the one wisp’s tests send, and it’s how the API works, but nobody has run these steps on an iPhone. If a step’s name differs on yours, go by what it does. Apple signs shortcut files, so there’s no file to download: these steps are it.</p></aside>
       <p>You need <a href="/guides/use-wisp-cloud.html">wisp Cloud</a>: the Shortcut talks to your cloud wisp at its public address. A computer of yours has no public address of its own for this, and API keys only open your cloud wisp, not a computer you added to it.</p>
-      <p>First make a key: in your cloud wisp, Settings → <b>Cloud</b> → <b>API keys</b>. It starts with <code>wgk_</code> and is shown once.</p>
+      <p>First make a key: in your cloud wisp, Settings → <b>Connect</b> → <b>API keys</b> (Settings → <b>Cloud</b> in wisp on a computer signed in to the grid). It starts with <code>wgk_</code> and is shown once.</p>
       <ol class="doc-steps">
         <li>Open the <b>Shortcuts</b> app and press <b>+</b>. Name it <i>Send to wisp</i>.</li>
         <li>Press the <b>ⓘ</b> button and turn on <b>Show in Share Sheet</b>. Under what it receives, keep <b>URLs</b> and <b>Text</b>.</li>
@@ -1292,7 +1292,7 @@ Content-Type: application/json
       <ul class="doc-list">
         <li><b>It lives in your Shortcut, and nowhere else.</b> Don’t paste it into a chat, an issue, a task or a website. Nobody at wisp will ever ask you for it.</li>
         <li><b>Whoever has it can start tasks on your cloud wisp.</b> Sharing the Shortcut with someone shares the key inside it, so take it out first.</li>
-        <li><b>It can be taken back.</b> Revoke it under Settings → Cloud → API keys and make a new one. The name you gave it says which Shortcut used it.</li>
+        <li><b>It can be taken back.</b> Revoke it where you made it and make a new one. The name you gave it says which Shortcut used it.</li>
       </ul>
     </section>
 `,
