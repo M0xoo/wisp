@@ -40,7 +40,7 @@
   --radius: 10px;
   --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', system-ui, sans-serif;
   --display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', system-ui, sans-serif;
-  --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  --mono: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
   --ease: cubic-bezier(0.25, 0.8, 0.25, 1);
   --tk-k: #cf222e;
   --tk-s: #0a3069;

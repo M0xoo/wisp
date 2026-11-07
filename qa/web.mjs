@@ -5,7 +5,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { makeClone, until } from '../test/helpers.js';
-import { api, CHROME, ok, OUT, playwright, ROOT, runner, startWisp } from './lib.mjs';
+import { api, launchBrowser, ok, OUT, ROOT, runner, startWisp } from './lib.mjs';
 
 const PORT = Number(process.env.QA_WEB_PORT) || 4493;
 const { check: run, done } = runner('web');
@@ -20,8 +20,7 @@ const check = (id, title, fn) =>
     }
   });
 const w = await startWisp({ port: PORT, extraEnv: { FAKE_GH_STATE: path.join(OUT, 'web-gh.json') } });
-const { chromium } = playwright();
-const browser = await chromium.launch({ executablePath: CHROME, headless: process.env.HEADED !== '1' });
+const browser = await launchBrowser({ headless: process.env.HEADED !== '1' });
 const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
 
 // A page that records uncaught errors and console.error; `clean()` throws if there were any.
@@ -31,7 +30,9 @@ async function page(opts = {}) {
   p.errors = [];
   p.on('pageerror', (e) => p.errors.push(e.message));
   p.on('console', (m) => {
-    if (m.type() === 'error' && !/favicon|ERR_CONNECTION_REFUSED/.test(m.text())) p.errors.push(m.text());
+    // WebKit logs a fetch cut off by a reload as an access control failure, and Playwright's own
+    // screenshot style as refused by a sandboxed frame's CSP. Neither is the page's.
+    if (m.type() === 'error' && !/favicon|ERR_CONNECTION_REFUSED|due to access control checks|Refused to apply a stylesheet/.test(m.text())) p.errors.push(m.text());
   });
   p.clean = () => ok(!p.errors.length, `console errors: ${p.errors.slice(0, 3).join(' | ')}`);
   p.shot = (name) => p.screenshot({ path: path.join(OUT, `web-${name}.png`) });
@@ -105,6 +106,7 @@ try {
     const blocks = await p.locator('.it-body .blk:visible').count();
     await p.shot('welcome');
     ok(blocks > 5, `only ${blocks} blocks rendered`);
+    await p.locator('.b-flow .wire.back').waitFor({ state: 'attached' });
     p.clean();
   });
 
@@ -321,9 +323,10 @@ try {
     const t = await launch({ prompt: 'say hello', cwd: makeClone().dir, mode: 'auto' });
     const dir = (await settled(t.id)).worktree.path;
     execFileSync('git', ['checkout', 'origin/main', '--', 'math.js'], { cwd: dir }); // the fake's edit: nothing of its own to open
-    const refresh = async () => {
+    // Until the file shows: a look at Changes takes from 0.1 to 1.6 s, in any engine.
+    const refresh = async (file) => {
       await p.evaluate(() => dispatchEvent(new Event('focus')));
-      await p.waitForTimeout(600);
+      await until(async () => (await shown()).some((f) => f.path === file), { timeout: 8000, what: `${file} in Changes` });
     };
     const shown = () => p.evaluate(() => [...document.querySelectorAll('.pn-changes .cx-file')].filter((x) => x.offsetParent).map((x) => ({ path: x.dataset.k.slice(2), open: x.classList.contains('open') })));
     fs.writeFileSync(path.join(dir, 'package-lock.json'), '{}\n');
@@ -333,16 +336,16 @@ try {
     await p.locator('.pn-changes .cx-fold').waitFor({ timeout: 8000 });
     ok((await p.locator('.pn-changes .cx-file.open').count()) === 0, 'only a generated file: nothing opens');
     fs.writeFileSync(path.join(dir, 'arrive-a.js'), 'export const a = 1;\n');
-    await refresh();
+    await refresh('arrive-a.js');
     const one = await shown();
     ok(one.find((f) => f.path === 'arrive-a.js')?.open, `a file arriving after a first look with nothing to open opens: ${JSON.stringify(one)}`);
     fs.writeFileSync(path.join(dir, 'arrive-b.js'), 'export const b = 1;\n');
-    await refresh();
+    await refresh('arrive-b.js');
     const two = await shown();
     ok(two.filter((f) => f.open).length === two.length && two.length > 1, `a few arriving all open, as after a reload: ${JSON.stringify(two)}`);
     await p.locator('.pn-changes .cx-file.open .cx-row').first().click();
     fs.writeFileSync(path.join(dir, 'arrive-c.js'), 'export const c = 1;\n');
-    await refresh();
+    await refresh('arrive-c.js');
     const three = await shown();
     ok(three.find((f) => f.path === 'arrive-c.js') && !three.find((f) => f.path === 'arrive-c.js').open && three.filter((f) => f.open).length === two.length - 1, `after your fold nothing else opens: ${JSON.stringify(three)}`);
     await changes(t).click();
@@ -693,6 +696,22 @@ try {
     p.clean();
   });
 
+  await check('WEB-64', 'the Enter that picks an IME word sends nothing', async () => {
+    await p.locator('#splitNew:visible, #promptFab:visible').first().click();
+    const box = p.locator('#prompt');
+    await box.fill('こんにちは');
+    // As Safari sends it: the composition already ended, the keydown still says 229.
+    await box.evaluate((b) => {
+      const e = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true });
+      Object.defineProperty(e, 'keyCode', { value: 229 });
+      b.dispatchEvent(e);
+    });
+    await p.waitForTimeout(300);
+    ok((await box.inputValue()) === 'こんにちは', 'the box was sent');
+    await box.fill('');
+    p.clean();
+  });
+
   await check('WEB-49', 'Home Screen app: full screen and its own cache only when standalone', async () => {
     // A browser tab: no class, the viewport as it was, no manifest (this isn't a Grid).
     const tab = await p.evaluate(() => [document.documentElement.classList.contains('standalone'), document.querySelector('meta[name="viewport"]').content, !!document.querySelector('link[rel="manifest"]')]);
@@ -772,7 +791,7 @@ try {
       await q.route(/^https?:\/\/(?!localhost)/, (r) => r.abort());
       await q.goto('file://' + path.join(ROOT, 'docs/index.html'));
       await q.waitForTimeout(1500);
-      q.errors = q.errors.filter((e) => !/net::ERR_FAILED|posthog|Failed to load resource|CORS|file:/.test(e));
+      q.errors = q.errors.filter((e) => !/net::ERR_FAILED|posthog|Failed to load resource|CORS|file:|Origin null/.test(e));
       await noOverflow(q);
       await q.shot(`site-${label}`);
       q.clean();

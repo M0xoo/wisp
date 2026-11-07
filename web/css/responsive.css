@@ -305,9 +305,12 @@ body.wisp-mobile .trail-bar > .link.xs + .tb-tools { margin-left: -14px; }
 /* A long list (Done holds hundreds once scrolled through): rows off screen skip style, layout and
    paint, so a page opening over the list doesn't restyle all of them (on a desktop, unfolding Done
    or opening a task beside it). Not the open task's row: its body is fixed over the page, and
-   containment would hold it inside the row. */
-#feed .item:not(.open) { content-visibility: auto; contain-intrinsic-size: auto 64px; }
-body.wisp-mobile #feed .item:not(.open) { contain-intrinsic-size: auto 88px; }
+   containment would hold it inside the row. Not on WebKit (the only engine with that property): it
+   sizes a skipped row after scrolling to it, which leaves the row outside the list. */
+@supports not (-webkit-nbsp-mode: space) {
+  #feed .item:not(.open) { content-visibility: auto; contain-intrinsic-size: auto 64px; }
+  body.wisp-mobile #feed .item:not(.open) { contain-intrinsic-size: auto 88px; }
+}
 
 /* The phone app: every control a thumb can hit is 44px (qa/ui-audit.mjs checks each view). Rows grow;
    small inline buttons keep their look and take the room with a min-height. */

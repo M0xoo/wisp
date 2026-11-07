@@ -31,7 +31,7 @@ Every page check also fails on an uncaught page error or a `console.error`.
 ### WEB-03 · Welcome tour renders every block
 - **Steps:** open *Welcome to wisp*.
 - **Expected:** the presentation renders (hero, diff, tests, stats, …) with no block falling back
-  to raw JSON, and no console errors.
+  to raw JSON, and no console errors. The flow's dashed `resumes` loop draws, in WebKit too.
 - **Automated**
 
 ### WEB-04 · Launch a task from the launcher
@@ -629,6 +629,11 @@ Every page check also fails on an uncaught page error or a `console.error`.
 ### WEB-61 · No output for 12 min
 - **Steps:** with a task hanging on a fake agent (`FAKE_HANG`-style), leave it past 12 minutes, or move the page's clock forward. Reload. Send an activity event (a new step, or the result of a call that printed nothing). Then let a question reach it. Repeat with a delegate running, and with the page's stream dropped (offline in DevTools) past 12 minutes.
 - **Expected:** the panel's status row says *No output for 12 min* at its right end (a narrow row gives up the count and the time first), counts up by the minute, and is there at once after a reload. New activity clears it within a second, and so does a question. No line while a delegate works or while the page has lost its stream and hasn't read the task again. Nothing else changes: no card, no toast, Stop as before. Light and dark, split view and 390px.
+
+### WEB-64 · An IME's Enter doesn't send
+- **Steps:** with a Japanese, Chinese or Korean input method in Safari, type a word in New task and press Enter to pick it.
+- **Expected:** the word goes in the box and nothing is sent; the next Enter sends. Safari ends the composition before that keydown, so `isComposing` is already false and only keyCode 229 tells.
+- **Automated** (the keydown as Safari sends it). A real IME: Manual.
 
 ### WEB-63 · The list stays where you put it
 - **Run:** `qa/web.mjs` for the launch and Open; a live run by hand (`FAKE_DELAY=3000`) for the rest.

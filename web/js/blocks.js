@@ -489,7 +489,7 @@ R.flow = (b) => {
         lx = m;
         ly = (a.cy + z.cy) / 2 - 8;
       }
-      out += `<path class="wire ${back ? 'back' : ''}" d="${d}" pathLength="1" style="--k:${i}"/>`;
+      out += `<path class="wire ${back ? 'back' : ''}" d="${d}" pathLength="${back ? 100 : 1}" style="--k:${i}"/>`;
       // Hidden until its motion begins: before that the circle sits at 0,0, the stage's top-left corner.
       const begin = `${0.8 + i * 0.35}s`;
       if (!reduced()) out += `<circle r="3" class="spark ${back ? 'back' : ''}" visibility="hidden"><set attributeName="visibility" to="visible" begin="${begin}"/><animateMotion dur="${back ? 3.2 : 2.2}s" begin="${begin}" repeatCount="indefinite" path="${d}"/></circle>`;

@@ -45,6 +45,7 @@ body.split #feed .item.open > .it-body > .tui-term { margin: 0 !important; }
   background: var(--term-bg); color: var(--term-ink); cursor: text;
   scrollbar-color: #3a3a3a transparent;
 }
+.tm-screen::-webkit-scrollbar-thumb { background-color: #3a3a3a; } /* WebKit has no scrollbar-color; Chrome skips this for it */
 .tm-rows { font: var(--tm-fs, 13px) / 1.3 var(--mono); font-variant-ligatures: none; white-space: pre; }
 .tm-rows > div > div { height: var(--tm-lh, 1.3em); line-height: var(--tm-lh, 1.3em); overflow: hidden; }
 /* Scrollback rows off screen skip layout and paint: a reopened terminal brings thousands. */

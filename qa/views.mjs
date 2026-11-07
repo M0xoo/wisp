@@ -3,8 +3,10 @@
 // page in that state: New task and its menus, a task with its menus, panels and dialogs, crew,
 // My Stuff, the palette and every Settings pane.
 
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { until } from '../test/helpers.js';
-import { api, startWisp } from './lib.mjs';
+import { api, ENGINE, launchBrowser, OUT, startWisp } from './lib.mjs';
 
 export async function seededWisp(port) {
   const w = await startWisp({ port, extraEnv: { FAKE_DELAY: '300' } });
@@ -106,3 +108,42 @@ export function views({ tasks, goal }) {
 
 // The phone app has neither: projects come with its Computers, and wisp Cloud is its Computers screen.
 export const NOT_IN_APP = new Set(['projects', 'settings.cloud']);
+
+// `node qa/views.mjs` opens every view by itself, light and dark, at 1440 and 390px, in each engine
+// (QA_ENGINE): a view fails if it can't be opened or logs an error. Shots in qa/out/views-<engine>/.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const port = Number(process.env.QA_VIEWS_PORT) || 4499;
+  const seeded = await seededWisp(port);
+  const browser = await launchBrowser();
+  const dir = path.join(OUT, `views-${ENGINE}`);
+  const only = process.env.VIEWS?.split(',');
+  let pass = 0;
+  let fail = 0;
+  for (const [width, height] of [[1440, 900], [390, 844]])
+    for (const colorScheme of ['light', 'dark'])
+      for (const [name, open] of Object.entries(views(seeded))) {
+        if (only && !only.includes(name)) continue;
+        const ctx = await browser.newContext({ viewport: { width, height }, colorScheme });
+        const p = await ctx.newPage();
+        const errors = [];
+        p.on('pageerror', (e) => errors.push(e.message));
+        p.on('console', (m) => {
+          if (m.type() === 'error' && !/favicon/.test(m.text())) errors.push(m.text());
+        });
+        try {
+          await p.goto(seeded.w.url);
+          await p.locator('#feed .item[data-id]').first().waitFor({ state: 'attached' });
+          await open(p);
+          await p.screenshot({ path: path.join(dir, `${name}-${width}-${colorScheme}.png`) });
+        } catch (err) {
+          errors.push(String(err?.message || err).split('\n')[0]);
+        }
+        await ctx.close();
+        if (errors.length) console.log(`  ✗ ${name} ${width} ${colorScheme}: ${errors.slice(0, 2).join(' | ')}`);
+        errors.length ? fail++ : pass++;
+      }
+  await browser.close();
+  seeded.w.stop();
+  console.log(`\n  views (${ENGINE}): ${pass} passed, ${fail} failed · ${dir}`);
+  process.exit(fail ? 1 : 0);
+}

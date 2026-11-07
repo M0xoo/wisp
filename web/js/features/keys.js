@@ -16,6 +16,17 @@ import { goBack, isStacked, splitOpen, stackPage, toggleSidebar } from './split.
 import { orgEscape } from './org.js';
 import { changesButton, close as closePanel, openPanel, panelShown, reviewLabel, shellKey, toggle as togglePanel } from './panel.js';
 
+// Safari ends a composition before the keydown that ended it, so the Enter that picks an IME's word
+// (keyCode 229, isComposing already false) would send the box, and Escape would close what's open.
+// In Chrome that keydown still has isComposing. The Android keyboards' 229s name no such key.
+addEventListener(
+  'keydown',
+  (e) => {
+    if (e.keyCode === 229 && !e.isComposing && (e.key === 'Enter' || e.key === 'Escape')) e.stopImmediatePropagation();
+  },
+  true,
+);
+
 // Keys wisp uses itself (with or without Shift), which spells can't claim.
 const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'l', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 'shift+f', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', '\\', '[', ']', 'p', 'd', ...'123456789'.split('')]);
 

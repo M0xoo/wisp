@@ -180,3 +180,51 @@ bundled Node or an update (PR 3).
   inset), closing the window quits. Linux: `.deb` installs and updates by `.deb`; AppImage needs
   `chmod +x` (Ubuntu 24.04 may need `--no-sandbox`).
 - Manual
+
+## The page on WebKit (Tauri)
+
+The Tauri app shows the same page in WKWebView on a Mac. `QA_ENGINE=webkit node qa/web.mjs` and
+`QA_ENGINE=webkit node qa/views.mjs` run it on Playwright's WebKit, which is close to Safari but
+isn't a WKWebView: what only the app can show is under *Not seen yet*.
+
+**Lowest version: Safari 16.4, macOS 13.3.** The Tauri config says 13.0, which is too low.
+
+| Needs | Since | Without it |
+|---|---|---|
+| `color-mix()`, 174 uses | Safari 16.2 (macOS 13.1) | The declaration is dropped: backgrounds, borders and tints go. macOS 13.0 has Safari 16.1, so this alone rules it out |
+| `lh`, `@property`, import maps | Safari 16.4 (macOS 13.3) | A row's height in the panel, an orb's animation, and the scripts' cache names |
+| `@container`, `overflow: clip`, `AbortSignal.timeout` | Safari 16.0 | Covered by the above |
+| `:has()`, `dvh`, `.at()`, `findLast`, `structuredClone` | Safari 15.4 | Covered by the above |
+
+16.4 was run for real: Playwright 1.33's WebKit 16.4 build passes `web.mjs` and `views.mjs`. 16.0
+builds don't start on macOS 15, so 16.2 and 16.3 are read from the table, not run. Electron runs on
+older Macs than this: a loss to weigh at the switch.
+
+Newer features the page does without on an older Mac:
+
+| Feature | Since | On older versions |
+|---|---|---|
+| `:user-invalid` | Safari 16.5 | No red border after leaving a bad field; `aria-invalid` still gives it |
+| `::highlight`, `Highlight` | Safari 17.2 | Comments aren't marked on an answer's text (`comments.js` checks for it) |
+| `scrollbar-width` | Safari 18.2 | `::-webkit-scrollbar` does the same |
+
+### What stays different
+
+| Difference | On | Why it's left |
+|---|---|---|
+| Tab skips buttons and links, stops at text boxes and `tabindex` | WebKit | Safari's default. In the app the shell can turn on `tabFocusesLinks` (`WKPreferences`): to do in `desktop/` |
+| Clicking a button doesn't focus it: `relatedTarget` is null, focus goes to `body` | WebKit | Safari's default. Every `focusout` handler was read: none depends on it. Focus still returns on Escape |
+| No scroll anchoring | WebKit 16.4. Playwright's 27.2 has it; which Safari ships it isn't clear | The page holds still by hand: forced off on 27.2, the list moved 0.5 px as in Chrome and a reader's scroll came out the same. A late image above the reader would move them |
+| `content-visibility` off on list rows | WebKit | It left rows outside the list. A list of hundreds costs more to restyle |
+| Copying more than about 5 s after the click is refused (measured: fine at 1.5 s, refused at 7.5 s) | WebKit | Only a copy that waits on the server can hit it. Publish and Launch still say the link |
+| A terminal's scrollbar is 10 px, not 15 | WebKit | Chrome's comes from `scrollbar-color`, which WebKit doesn't have. Worth at most a column |
+| Text wraps a line sooner or later in a few places | Either | Text widths differ by a fraction of a pixel |
+| A 10 px sideways scroll in Settings at 390px | WebKit | A stale width: nothing overflows. The app's window can't get under 720 px |
+| QA log only: `Refused to apply a stylesheet`, and `due to access control checks` | WebKit | The first is Playwright's screenshot style in a frame with a CSP, the second a fetch cut off by a reload. Neither is the page's, so `web.mjs` ignores them |
+
+### Not seen yet (needs the real app)
+
+`Notification` (WKWebView has none, row 16 of the migration), window drag (`-webkit-app-region`),
+real IME input (`WEB-64` sends the keydown as Safari does), a real file dropped from Finder,
+`<a download>` and `<input type="file">`, which need the shell's delegates, and clipboard rules
+inside WKWebView.
