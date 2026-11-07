@@ -56,12 +56,12 @@ async function exec(bin: string, args: readonly string[], opts: SpawnOptions & {
     let size = 0;
     let timedOut = false;
     const timer = opts.timeoutMs ? setTimeout(() => ((timedOut = true), p.kill('SIGKILL')), opts.timeoutMs) : undefined;
-    p.stdout.on('data', (c: Buffer) => {
+    p.stdout?.on('data', (c: Buffer) => {
       size += c.length;
       if (size > max) p.kill('SIGKILL');
       else out.push(c);
     });
-    p.stderr.on('data', (c: Buffer) => err.push(c));
+    p.stderr?.on('data', (c: Buffer) => err.push(c));
     if (opts.input !== undefined) p.stdin?.end(opts.input);
     let failed: Error | undefined;
     p.on('error', (e) => (failed = e));

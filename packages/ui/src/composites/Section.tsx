@@ -51,9 +51,9 @@ export function SettingsRow(props: SettingsRowProps): JSX.Element {
   return (
     <div id={props.id} data-kit="settings-row" data-part={part()} data-wide={props.wideControl ? '' : undefined}>
       <div data-kit="settings-row-text">
-        <Show when={props.controlId} fallback={<span data-kit="settings-row-title">{props.title}</span>}>
+        <Show when={props.controlId} fallback={<span data-kit="settings-row-title" data-text="control">{props.title}</span>}>
           {(forId) => (
-            <label data-kit="settings-row-title" for={forId()}>
+            <label data-kit="settings-row-title" data-text="control" for={forId()}>
               {props.title}
             </label>
           )}

@@ -27,7 +27,7 @@ function LayoutSpecimens(): JSX.Element {
             {(s) => (
               <Stack gap="2">
                 <Text size="xs" tone="faint">gap {s}</Text>
-                <Inline gap={s} wrap={false}>
+                <Inline gap={s}>
                   <Swatch label="a" />
                   <Swatch label="b" />
                 </Inline>
@@ -38,7 +38,7 @@ function LayoutSpecimens(): JSX.Element {
         <State label="Stack, justify and align">
           <Stack gap="3"><Swatch label="one" /><Swatch label="two" /><Swatch label="three" /></Stack>
           <Box border="line" radius="md" pad="4" grow>
-            <Inline gap="4" justify="between" wrap={false}><Swatch label="start" /><Swatch label="end" /></Inline>
+            <Inline gap="4" justify="between"><Swatch label="start" /><Swatch label="end" /></Inline>
           </Box>
         </State>
       </Specimen>
@@ -122,14 +122,14 @@ function SmallSpecimens(): JSX.Element {
           <Stack gap="1">
             <For each={[0, 1, 28, 180, 60 * 30, 60 * 24 * 40]}>
               {(m) => (
-                <Inline gap="4" wrap={false}>
+                <Inline gap="4">
                   <Text size="sm">{m} min before</Text>
                   <Time at={NOW - m * MIN} now={NOW} />
                 </Inline>
               )}
             </For>
-            <Inline gap="4" wrap={false}><Text size="sm">18 min later</Text><Time at={NOW + 18 * MIN} now={NOW} /></Inline>
-            <Inline gap="4" wrap={false}><Text size="sm">2 days later</Text><Time at={NOW + 2 * 1440 * MIN} now={NOW} /></Inline>
+            <Inline gap="4"><Text size="sm">18 min later</Text><Time at={NOW + 18 * MIN} now={NOW} /></Inline>
+            <Inline gap="4"><Text size="sm">2 days later</Text><Time at={NOW + 2 * 1440 * MIN} now={NOW} /></Inline>
           </Stack>
         </State>
       </Specimen>
@@ -151,13 +151,13 @@ function SmallSpecimens(): JSX.Element {
         </State>
         <State label="dividers">
           <Box grow><Stack gap="4"><Divider /><Divider strength="strong" /></Stack></Box>
-          <Inline gap="4" wrap={false}><Text size="sm">left</Text><Divider orientation="vertical" /><Text size="sm">right</Text></Inline>
+          <Inline gap="4"><Text size="sm">left</Text><Divider orientation="vertical" /><Text size="sm">right</Text></Inline>
         </State>
       </Specimen>
       <Specimen title="Skeleton" note="Placeholders with the real thing's shape and size.">
         <State label="a list row loading">
           <Box border="line" radius="lg" pad="6" grow>
-            <Inline gap="5" wrap={false}>
+            <Inline gap="5">
               <Skeleton shape="circle" />
               <Box grow><Stack gap="3"><Skeleton width="2/3" /><Skeleton width="1/3" /></Stack></Box>
               <Skeleton shape="pill" />
@@ -176,7 +176,7 @@ function IconSpecimen(): JSX.Element {
       <Grid min="menu-min" gap="2">
         <For each={ICON_NAMES}>
           {(name) => (
-            <Inline gap="4" wrap={false}>
+            <Inline gap="4">
               <Icon name={name} tone="ink-2" />
               <Text size="xs" mono tone="muted">{name}</Text>
             </Inline>

@@ -54,9 +54,10 @@ test('test.ts: dependency cycles still run every package', () => {
 
 test('monoflow-report: both versions of verify --json read the same', () => {
   const pin = readVerify({ status: 'failed', duration_ms: 3000, total_targets: 2, affected_packages: ['b', 'a'], results: [{ target: 'a', status: 'passed', duration_ms: 1000 }, { target: 'b', status: 'failed', duration_ms: 2000 }] });
-  assert.deepEqual(pin, { status: 'failed', durationMs: 3000, affected: ['a', 'b'], failed: ['b'], durations: { a: 1, b: 2 }, total: 2 });
-  const later = readVerify({ status: 'failed', duration_ms: 10, total_targets: 3, failed: { c: 2 }, errors: [{ targets: ['d'] }] });
+  assert.deepEqual(pin, { status: 'failed', durationMs: 3000, affected: ['a', 'b'], failed: ['b'], durations: { a: 1, b: 2 }, total: 2, details: [] });
+  const later = readVerify({ status: 'failed', duration_ms: 10, total_targets: 3, failed: { c: 2 }, errors: [{ file: 'packages/d', targets: ['d'], message: 'tsc: 2 errors' }] });
   assert.deepEqual(later.failed, ['c', 'd']);
+  assert.deepEqual(later.details, ['packages/d: tsc: 2 errors']);
   assert.deepEqual(readVerify('garbage').status, 'unknown');
   const md = markdown('PR', pin, { affected_packages: ['a'], unmapped_files: ['README.md'] });
   assert.match(md, /Failed: `b`/);

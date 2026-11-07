@@ -144,6 +144,9 @@ function staticVars(m: Model): string[] {
   add('--lh-', m.lineHeight);
   add('--tracking-', m.tracking);
   add('--size-', m.size);
+  // design/layout.md names a bar's height --bar-h; it's the size token under its contract name.
+  if (m.size.some(([k]) => k === 'bar')) lines.push('--bar-h: var(--size-bar);');
+  if (m.size.some(([k]) => k === 'bar-compact')) lines.push('--bar-h-compact: var(--size-bar-compact);');
   add('--dur-', m.duration);
   for (const [k, v] of m.ease) lines.push(`${easeVar(k)}: ${v};`);
   add('--z-', m.z);

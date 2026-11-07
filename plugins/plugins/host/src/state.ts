@@ -85,7 +85,7 @@ export class State {
       const was = this.get(id);
       const now = this.#now();
       const on = o.enable === true || (was?.enabled ?? false);
-      const source = o.source !== undefined && o.source !== null ? o.source : (was?.source ?? { kind: 'local', at: now });
+      const source = o.source ? { ...o.source, at: o.source.at || now } : (was?.source ?? { kind: 'local', at: now });
       return w.upsert(this.STATE, { id, kind, enabled: on, source, at: was?.at ?? now, on_at: on && !was?.enabled ? now : (was?.on_at ?? 0) });
     });
   }

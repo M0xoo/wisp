@@ -32,6 +32,7 @@ export type { Machine, MachineDef, MachineHooks, MachinePaths, StateNode, Step, 
 // writes
 export { CommandError, defineCommand, stableJson } from './commands.ts';
 export type { CommandDef, Commands, PendingRecord, PendingView } from './commands.ts';
+export type { Paging, Transcript, Transcripts } from './transcript.ts'; // opened through createClient: the loader holds the writer
 // kind 5: drafts
 export type { Drafts } from './drafts.ts';
 // kind 6: preferences

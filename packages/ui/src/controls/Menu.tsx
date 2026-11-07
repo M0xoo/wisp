@@ -86,7 +86,7 @@ function Item(props: { readonly api: menu.Api; readonly item: MenuItem; readonly
     >
       <Show when={props.item.icon}>{(name) => <Icon name={name()} size="md" />}</Show>
       <span data-kit="menu-item-text">
-        <span data-kit="menu-item-label">{props.item.label}</span>
+        <span data-kit="menu-item-label" data-text="control">{props.item.label}</span>
         <Show when={props.item.hint}>{(hint) => <span data-kit="menu-item-hint">{hint()}</span>}</Show>
       </span>
       <Show when={props.item.checked}>
@@ -148,7 +148,7 @@ export function Menu(props: MenuProps): JSX.Element {
       >
         <span data-kit="button-content">
           <Show when={t().icon}>{(name) => <Icon name={name()} size={t().label ? 'md' : 'base'} />}</Show>
-          <Show when={t().label}>{(label) => <span data-kit="button-label">{label()}</span>}</Show>
+          <Show when={t().label}>{(label) => <span data-kit="button-label" data-text="control">{label()}</span>}</Show>
         </span>
       </button>
       <MenuContent api={api()} items={props.items} part={part()} />

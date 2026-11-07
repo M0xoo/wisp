@@ -1,5 +1,8 @@
 /* Type, icons, keys, links, pills, avatars, skeletons. */
 @layer kit {
+  /* Control text never wraps (design/layout.md §1): one line, an ellipsis when it runs out of room.
+     Times and counts keep their own fixed columns, so they never reach the ellipsis. */
+  [data-text='control'] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   [data-kit='text'] { min-width: 0; }
   [data-kit='text'][data-size='xs'], [data-kit='heading'][data-size='xs'] { font-size: var(--fs-xs); }
   [data-kit='text'][data-size='sm'], [data-kit='heading'][data-size='sm'] { font-size: var(--fs-sm); }

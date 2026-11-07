@@ -70,7 +70,7 @@ export function Select(props: SelectProps): JSX.Element {
         data-mono={flag(props.mono)}
         data-placeholder={flag(!api().hasSelectedItems)}
       >
-        <span data-kit="select-value">{api().hasSelectedItems ? api().valueAsString : (props.placeholder ?? '')}</span>
+        <span data-kit="select-value" data-text="control">{api().hasSelectedItems ? api().valueAsString : (props.placeholder ?? '')}</span>
         <Icon name="chevron" size="sm" />
       </button>
       <select {...api().getHiddenSelectProps()}>

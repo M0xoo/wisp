@@ -29,7 +29,7 @@ export function TriggerButton(props: {
     >
       <span data-kit="button-content">
         <Show when={props.look.icon}>{(name) => <Icon name={name()} size={labelled() ? 'md' : 'base'} />}</Show>
-        <Show when={props.look.label}>{(label) => <span data-kit="button-label">{label()}</span>}</Show>
+        <Show when={props.look.label}>{(label) => <span data-kit="button-label" data-text="control">{label()}</span>}</Show>
       </span>
     </button>
   );

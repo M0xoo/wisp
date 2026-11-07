@@ -1,3 +1,4 @@
+// size-ok: v1 remote.js's hub is one class, every method small; its per-channel Settings moved to the transports
 // The hub (v1 server/remote.js): the config, the fan-out, and the signed answers. Each transport owns
 // its wire and its part of Settings; the hub knows none of them by name, only their kind (a phone
 // gets the Phone events, a thread transport answers only where it was asked) and Telegram's channel
@@ -78,7 +79,6 @@ const ordered = (defs: readonly TransportDef[]): TransportDef[] =>
   [...defs].sort((a, b) => (ORDER.indexOf(a.name) + 1 || 99) - (ORDER.indexOf(b.name) + 1 || 99));
 
 export class Hub implements ChannelHub {
-  // size-ok: v1 remote.js's hub in one class, every method small; the view/update parts moved to the transports
   readonly phone: Phone;
   readonly net: Net;
   readonly box: BoxApi;

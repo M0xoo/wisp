@@ -23,7 +23,6 @@ export type * from './client-types.ts';
 export { DEFAULT_PORT };
 
 const MAX_WAIT_CALL = 280; // seconds per long-poll; fetch gives up on headers after 300s
-const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 type Env = Record<string, string | undefined>;
 
@@ -113,7 +112,10 @@ export interface ClientOptions {
   /** e.g. http://127.0.0.1:4477. Defaults to WISP_PORT, then server.json, then 4477. */
   url?: string | undefined;
   port?: number | undefined;
-  /** sent as a bearer token; defaults to WISP_TOKEN, then server.json's when it is that server */
+  /**
+   * Sent as x-wisp-token. Only when given: from the computer itself no token is needed (as in v1), and
+   * the WISP_TOKEN an agent's session has speaks for that session alone, so it is never picked up.
+   */
   token?: string | undefined;
 }
 
@@ -123,24 +125,14 @@ export interface ConnectOptions extends ClientOptions {
   timeoutMs?: number;
 }
 
-// The local server's token goes only to that server: never to a url someone else passed in.
-function tokenFor(url: string, explicit: string | undefined, info: ServerInfo | null): string | undefined {
-  if (explicit) return explicit;
-  if (process.env['WISP_TOKEN']) return process.env['WISP_TOKEN'];
-  if (!info?.token) return undefined;
-  const u = new URL(url);
-  return LOOPBACK.has(u.hostname) && Number(u.port || 80) === info.port ? info.token : undefined;
-}
-
 export class WispClient {
   readonly url: string;
-  #token: string | undefined;
+  readonly #token: string | undefined;
 
   constructor({ url, port, token }: ClientOptions = {}) {
-    const info = discover();
-    const p = port || Number(process.env['WISP_PORT']) || info?.port || DEFAULT_PORT;
+    const p = port || Number(process.env['WISP_PORT']) || (url ? 0 : discover()?.port) || DEFAULT_PORT;
     this.url = (url || `http://127.0.0.1:${p}`).replace(/\/$/, '');
-    this.#token = tokenFor(this.url, token, info);
+    this.#token = token;
   }
 
   /** Connect to the running wisp; with start (default), launch a headless one if none answers. */
@@ -157,11 +149,7 @@ export class WispClient {
     child.unref();
     const end = Date.now() + timeoutMs;
     while (Date.now() < end) {
-      if (await client.ping()) {
-        // The server it started wrote server.json (and its token) as it came up.
-        client.#token = tokenFor(client.url, opts.token, discover());
-        return client;
-      }
+      if (await client.ping()) return client;
       await sleep(150);
     }
     throw new WispError(`wisp did not start at ${client.url}`, 0);
@@ -175,7 +163,7 @@ export class WispClient {
     const isBuf = sent instanceof Uint8Array || sent instanceof ArrayBuffer;
     const headers: Record<string, string> = {};
     if (sent !== undefined) headers['content-type'] = isBuf ? 'application/octet-stream' : 'application/json';
-    if (this.#token) headers['authorization'] = `Bearer ${this.#token}`;
+    if (this.#token) headers['x-wisp-token'] = this.#token;
     const init: RequestInit = { method, headers };
     if (signal) init.signal = signal;
     if (sent !== undefined) init.body = isBuf ? sent : JSON.stringify(sent);

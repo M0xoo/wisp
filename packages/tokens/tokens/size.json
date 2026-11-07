@@ -1,5 +1,5 @@
 {
-  "$doc": "Fixed sizes: control heights, icons, avatars, hairlines and the widths floating things cap at. Not for spacing (that is space.json).",
+  "$doc": "Fixed sizes: control heights, icons, avatars, hairlines and the widths floating things cap at. Not for spacing (that is space.json). bar and bar-compact are a bar's one-line height (design/layout.md \u00a72): a bar never grows taller.",
   "hairline": "1px",
   "ring": "2px",
   "dot": "6px",
@@ -18,6 +18,8 @@
   "control-md": "32px",
   "control-lg": "36px",
   "touch": "44px",
+  "bar": "40px",
+  "bar-compact": "32px",
   "switch-w": "34px",
   "switch-h": "20px",
   "switch-knob": "16px",

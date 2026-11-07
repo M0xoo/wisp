@@ -24,6 +24,10 @@ declare function route(m: string, p: string, h: unknown): void;
 router.get('/blob/:hash', 1);
 router.delete('/api/sessions/:id', 1);
 route('POST', '/api/upload', 1);
+const routes = { add: (...a: unknown[]) => a };
+routes.add('wisp.server', 'GET', '/api/health', 1, { permission: 'x', summary: 'Liveness' });
+routes.add('wisp.server', 'GET', '/api/fs', 1, { permission: 'fs:read', doc: false });
+route('POST', '/api/inline', 1, { description: 'documented where it is registered' });
 const cache = new Map<string, number>();
 cache.get('/not/a/route');
 === apps/server/test/routes.test.ts

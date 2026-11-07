@@ -13,7 +13,7 @@ import { fakeCtx } from './fixtures/fake-ctx.ts';
 import { fakeProc, tick } from './fixtures/fake-pty.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'wisp-term-'));
-const session = (id: string, extra: Partial<Session> = {}): Session => ({ id, title: 't', agent: 'claude', model: 'm', effort: '', mode: 'edits', cwd: dir, dirs: [], state: 'review', unread: false, archived: false, createdAt: 1, updatedAt: 1, queue: [], ext: {}, ...extra }) as Session;
+const session = (id: string, extra: Partial<Session> = {}): Session => ({ id, title: 't', agent: 'claude', model: 'm', effort: '', mode: 'edits', cwd: dir, dirs: [], state: 'review', unread: false, archived: false, createdAt: 1, updatedAt: 1, queue: [], ext: {}, ...extra }) as unknown as Session;
 
 async function setup(sessions: Record<string, Session> = { s1: session('s1') }, settings: Record<string, unknown> = {}) {
   const proc = fakeProc();

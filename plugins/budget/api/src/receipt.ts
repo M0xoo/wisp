@@ -41,6 +41,8 @@ export interface StatsLike {
   cacheWriteTokens?: number;
   cachedInputTokens?: number;
   durationMs?: number;
+  /** the CLI's own turn count inside the run */
+  turns?: number;
   baseline?: boolean;
   totals?: StatsLike & { thread?: string };
   models?: ModelStat[] | Record<string, unknown>;
@@ -55,7 +57,7 @@ const modelsIn = (st: StatsLike | null | undefined): ModelStat[] => (st?.totals 
 export const subagentOutput = (st: StatsLike | null | undefined, x: SubagentStat | undefined): number => (st?.totals && n(x?.output) ? n(x?.output) : 0);
 
 /** What a turn read (its cache reads and writes counted in), of that from the cache, and wrote. */
-export function turnTokens(t: { stats?: StatsLike | null } | null | undefined): { read: number; cached: number; output: number } {
+export function turnTokens(t: { stats?: StatsLike | null | undefined } | null | undefined): { read: number; cached: number; output: number } {
   const st = t?.stats ?? {};
   const anthropic = 'cacheReadTokens' in st || 'cacheWriteTokens' in st;
   const read = anthropic ? n(st.inputTokens) + n(st.cacheReadTokens) + n(st.cacheWriteTokens) : n(st.inputTokens);
@@ -64,14 +66,14 @@ export function turnTokens(t: { stats?: StatsLike | null } | null | undefined): 
   // leave out: the larger of the two is the turn's.
   const models = modelsIn(st);
   if (models.length) {
-    const m = models.reduce((a, x) => ({ read: a.read + n(x.input) + n(x.cacheRead) + n(x.cacheWrite), cached: a.cached + n(x.cacheRead), output: a.output + n(x.output) }), { read: 0, cached: 0, output: 0 });
+    const m = models.reduce<{ read: number; cached: number; output: number }>((a, x) => ({ read: a.read + n(x.input) + n(x.cacheRead) + n(x.cacheWrite), cached: a.cached + n(x.cacheRead), output: a.output + n(x.output) }), { read: 0, cached: 0, output: 0 });
     if (m.read + m.output > read + n(st.outputTokens)) return m;
   }
   return { read, cached, output: n(st.outputTokens) };
 }
 
 /** All the output the turn wrote, its subagents' included. */
-export function turnOutput(t: { stats?: StatsLike | null } | null | undefined): number {
+export function turnOutput(t: { stats?: StatsLike | null | undefined } | null | undefined): number {
   const st = t?.stats ?? {};
   const models = modelsIn(st).reduce((a, m) => a + n(m.output), 0);
   const subs = (st.subagents ?? []).reduce((a, x) => a + subagentOutput(st, x), 0);

@@ -248,7 +248,8 @@ export const EVENTS = {
   added: 'router.added', // { added: { key, label, state }[] }
 } as const;
 
-export const TOPIC = 'router';
+/** every router row (arms, stats, routes, taste, corrections, cooling): Settings → Auto watches it */
+export const TOPIC = 'plugin:wisp.router:router' as const;
 
 // ---------- service: router.service@1 ----------
 

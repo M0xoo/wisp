@@ -1,6 +1,6 @@
 // The gallery's own frame, built from the kit like any feature: no class, no style.
 import type { JSX } from 'solid-js';
-import { Box, Heading, Stack, Inline, Text } from '../src/index.ts';
+import { Box, Heading, Stack, Text, Wrap } from '../src/index.ts';
 
 /** One component: its name, then every state in a wrapping row. */
 export function Specimen(props: { readonly title: string; readonly note?: string; readonly children: JSX.Element }): JSX.Element {
@@ -22,7 +22,7 @@ export function State(props: { readonly label: string; readonly children: JSX.El
   return (
     <Stack gap="3">
       <Text size="xs" tone="faint" weight="medium">{props.label}</Text>
-      <Inline gap="4">{props.children}</Inline>
+      <Wrap gap="4">{props.children}</Wrap>
     </Stack>
   );
 }

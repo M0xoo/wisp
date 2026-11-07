@@ -1,9 +1,11 @@
-// Stack (a column) and Inline (a row that wraps): flex layouts whose gaps come from the scale only.
+// Stack (a column), Inline (one row that never wraps) and Wrap (a group that may run onto more
+// lines): flex layouts whose gaps come from the scale only. Wrapping is a layout decision made by
+// picking Wrap; Inline has no wrap prop, so a bar can't wrap by accident (design/layout.md §5).
 import { Dynamic } from 'solid-js/web';
 import type { JSX } from 'solid-js';
 import type { Space } from '@wisp/tokens';
 import { spaceVar } from '@wisp/tokens';
-import { flag, styleOf, type KitProps, type Labelled, type WithChildren, type WithVars } from '../core/props.ts';
+import { styleOf, type KitProps, type Labelled, type WithChildren, type WithVars } from '../core/props.ts';
 import { surfaceAttrs, surfaceVars, type BoxElement, type SurfaceProps } from './Box.tsx';
 
 export type Align = 'start' | 'center' | 'end' | 'stretch' | 'baseline';
@@ -18,12 +20,14 @@ export interface FlexProps extends KitProps, WithVars, WithChildren, Labelled, S
   readonly ref?: (el: HTMLElement) => void;
 }
 
-export interface InlineProps extends FlexProps {
-  /** Wrap onto more lines when the row runs out of room (default true). */
-  readonly wrap?: boolean;
+export type InlineProps = FlexProps;
+
+export interface WrapProps extends FlexProps {
+  /** The gap between lines; defaults to `gap`. */
+  readonly rowGap?: Space;
 }
 
-function Flex(props: InlineProps & { readonly kit: 'stack' | 'inline'; readonly fallbackPart: `${string}.${string}` }): JSX.Element {
+function Flex(props: WrapProps & { readonly kit: 'stack' | 'inline' | 'wrap'; readonly fallbackPart: `${string}.${string}` }): JSX.Element {
   return (
     <Dynamic
       component={props.as ?? 'div'}
@@ -37,9 +41,11 @@ function Flex(props: InlineProps & { readonly kit: 'stack' | 'inline'; readonly 
       data-part={props.part ?? props.fallbackPart}
       data-align={props.align}
       data-justify={props.justify}
-      data-nowrap={flag(props.wrap === false)}
       {...surfaceAttrs(props)}
-      style={styleOf({ '--k-gap': spaceVar(props.gap ?? '0'), ...surfaceVars(props) }, props.vars)}
+      style={styleOf(
+        { '--k-gap': spaceVar(props.gap ?? '0'), '--k-row-gap': spaceVar(props.rowGap ?? props.gap ?? '0'), ...surfaceVars(props) },
+        props.vars,
+      )}
     >
       {props.children}
     </Dynamic>
@@ -51,7 +57,13 @@ export function Stack(props: FlexProps): JSX.Element {
   return <Flex {...props} kit="stack" fallbackPart="ui.stack" />;
 }
 
-/** Children in a row, `gap` apart, wrapping unless `wrap={false}`. Centred on the cross axis by default. */
+/** Children in one row, `gap` apart, centred on the cross axis. Never wraps: what doesn't fit shrinks
+ * (control text ends in `…`). A row of controls that must survive narrow widths is a Toolbar. */
 export function Inline(props: InlineProps): JSX.Element {
   return <Flex {...props} kit="inline" fallbackPart="ui.inline" />;
+}
+
+/** A group that may wrap onto more lines on purpose: tags, attachment chips, a question's answers. */
+export function Wrap(props: WrapProps): JSX.Element {
+  return <Flex {...props} kit="wrap" fallbackPart="ui.wrap" />;
 }

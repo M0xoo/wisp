@@ -12,6 +12,8 @@ export interface SyncClientSaved {
   /** topics whose rows the client store holds as of `cursor` */
   synced: Topic[];
   pending: Mutate[];
+  /** topics the store still holds from before, not subscribed now: [topic, the seq they are as of] */
+  held?: [Topic, number][];
 }
 
 export interface SyncClientOptions {
@@ -40,7 +42,8 @@ export class SyncClient {
   #epoch: string | null;
   #cursor: number | null;
   #topics = new Map<Topic, TopicSub>();
-  #savedSynced: Set<Topic>;
+  /** rows the client store holds for topics not synced on this stream, as of a seq of this epoch */
+  #held: Map<Topic, number>;
   #pending = new Map<string, Mutate>();
   /** the topics the open hello carried: true when resumed from the cursor, false when fresh */
   #hello = new Map<Topic, boolean>();
@@ -52,7 +55,8 @@ export class SyncClient {
     this.#o = { protoMin: PROTO_MIN, protoMax: PROTO, retryBaseMs: 500, retryMaxMs: 30_000, ...opts };
     this.#epoch = opts.saved?.epoch ?? null;
     this.#cursor = opts.saved?.cursor ?? null;
-    this.#savedSynced = new Set(opts.saved?.synced ?? []);
+    const at = opts.saved?.cursor ?? null;
+    this.#held = new Map([...(at === null ? [] : (opts.saved?.synced ?? []).map((t): [Topic, number] => [t, at])), ...(opts.saved?.held ?? [])]);
     for (const m of opts.saved?.pending ?? []) this.#pending.set(m.mid, m);
   }
 
@@ -71,7 +75,8 @@ export class SyncClient {
   /** What to persist (IndexedDB on a phone) so a restart resumes instead of starting over. */
   save(): SyncClientSaved {
     const synced = [...this.#topics].filter(([, s]) => s.synced).map(([t]) => t);
-    return { epoch: this.#epoch, cursor: this.#cursor, synced, pending: [...this.#pending.values()] };
+    const held = [...this.#held].filter(([t]) => !synced.includes(t));
+    return { epoch: this.#epoch, cursor: this.#cursor, synced, pending: [...this.#pending.values()], ...(held.length > 0 && { held }) };
   }
 
   handle(input: ClientInput, now: number): ClientOutput[] {
@@ -133,7 +138,9 @@ export class SyncClient {
     this.#hello.clear();
     for (const [t, s] of this.#topics) {
       if (s.denied) continue;
-      const resumed = canResume && (s.synced || this.#savedSynced.has(t));
+      // a topic held as of an older seq can't ride the hello's one cursor: it goes after the welcome
+      if (!s.synced && this.#held.has(t) && this.#held.get(t) !== this.#cursor) continue;
+      const resumed = canResume && (s.synced || this.#held.has(t));
       this.#hello.set(t, resumed);
       (resumed ? topics : fresh).push(t);
       if (s.activeRefs === 0) passive.push(t);
@@ -165,16 +172,18 @@ export class SyncClient {
     }
     const resume = w.resume && w.epoch === this.#epoch;
     if (!resume) this.#out.push({ kind: 'reset', peer: this.peer });
+    if (!resume) this.#held.clear(); // seqs of another epoch, or rows the reset just dropped
     for (const [t, s] of this.#topics) {
       s.synced = resume && this.#hello.get(t) === true;
       s.pages = null;
+      if (s.synced) this.#held.delete(t);
     }
-    this.#savedSynced.clear();
     this.#epoch = w.epoch;
     this.#attempt = 0;
     this.#setState('live');
-    // what changed while the hello was in flight
-    for (const [t, s] of this.#topics) if (!this.#hello.has(t) && !s.denied) this.#send(this.#subMessage(t, s));
+    // subscribed while the hello was in flight (or held as of an older seq): a held topic resumes
+    // from its seq instead of taking the whole topic
+    for (const [t, s] of this.#topics) if (!this.#hello.has(t) && !s.denied) this.#send(this.#subFirst(t, s));
     for (const t of this.#hello.keys()) if (!this.#topics.has(t)) this.#send({ t: 'unsub', topic: t });
     this.#hello.clear();
     for (const m of this.#pending.values()) this.#send(m);
@@ -272,7 +281,17 @@ export class SyncClient {
     if (!passive) s.activeRefs++;
     if (this.#state !== 'live') return;
     // the first view sends the sub; a first active view turns a passive sub into one that counts
-    if (s.refs === 1 || (!wasActive && s.activeRefs === 1)) this.#send(this.#subMessage(topic, s));
+    if (s.refs === 1) this.#send(this.#subFirst(topic, s));
+    else if (!wasActive && s.activeRefs === 1) this.#send(this.#subMessage(topic, s));
+  }
+
+  /** The first sub of a topic on this stream: from the seq the store holds it as of, if it does. */
+  #subFirst(topic: Topic, s: TopicSub): ClientMessage {
+    const since = this.#held.get(topic);
+    if (since === undefined) return this.#subMessage(topic, s);
+    this.#held.delete(topic);
+    s.synced = true; // the server pins the cursor at `since` until the delta is sent (src/server.ts)
+    return this.#subMessage(topic, s, since);
   }
 
   #unsubscribe(topic: Topic, passive: boolean): void {

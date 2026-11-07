@@ -17,15 +17,15 @@
   [data-kit='button'][data-size='lg'] { height: var(--size-control-lg); padding: var(--space-0) var(--space-7); font-size: var(--fs-lg); }
   [data-kit='button'][data-fill] { display: flex; width: 100%; }
 
-  [data-variant='primary'] { background: var(--ink); color: var(--bg); }
-  [data-variant='primary']:hover { opacity: 0.86; }
-  [data-variant='secondary'] { background: var(--surface); border-color: var(--line-2); color: var(--ink); }
-  [data-variant='secondary']:hover, [data-variant='secondary'][aria-expanded='true'] { background: var(--bg-2); }
-  [data-variant='ghost']:hover, [data-variant='ghost'][aria-expanded='true'] { background: var(--bg-2); color: var(--ink); }
-  [data-variant='danger'] { background: var(--bad); color: var(--on-accent); }
-  [data-variant='danger']:hover { opacity: 0.88; }
-  [data-variant='ghost'][data-tone='good'] { color: var(--good); }
-  [data-variant='ghost'][data-tone='bad']:hover { color: var(--bad); background: var(--del-bg); }
+  :where([data-kit='button'], [data-kit='icon-button'])[data-variant='primary'] { background: var(--ink); color: var(--bg); }
+  :where([data-kit='button'], [data-kit='icon-button'])[data-variant='primary']:hover { opacity: 0.86; }
+  :where([data-kit='button'], [data-kit='icon-button'])[data-variant='secondary'] { background: var(--surface); border-color: var(--line-2); color: var(--ink); }
+  :where([data-kit='button'], [data-kit='icon-button'])[data-variant='secondary']:hover, :where([data-kit='button'], [data-kit='icon-button'])[data-variant='secondary'][aria-expanded='true'] { background: var(--bg-2); }
+  :where([data-kit='button'], [data-kit='icon-button'])[data-variant='ghost']:hover, :where([data-kit='button'], [data-kit='icon-button'])[data-variant='ghost'][aria-expanded='true'] { background: var(--bg-2); color: var(--ink); }
+  :where([data-kit='button'], [data-kit='icon-button'])[data-variant='danger'] { background: var(--bad); color: var(--on-accent); }
+  :where([data-kit='button'], [data-kit='icon-button'])[data-variant='danger']:hover { opacity: 0.88; }
+  :where([data-kit='button'], [data-kit='icon-button'])[data-variant='ghost'][data-tone='good'] { color: var(--good); }
+  :where([data-kit='button'], [data-kit='icon-button'])[data-variant='ghost'][data-tone='bad']:hover { color: var(--bad); background: var(--del-bg); }
   [data-kit='button'][aria-pressed='true'], [data-kit='icon-button'][aria-pressed='true'] { background: var(--accent-soft); color: var(--accent-ink); }
 
   [data-kit='icon-button'] { width: var(--size-control-md); padding: 0; color: var(--muted); }
@@ -54,6 +54,6 @@
   }
   /* A tap leaves no hover background behind. */
   @media (hover: none) {
-    [data-variant='ghost']:hover { background: transparent; }
+    :where([data-kit='button'], [data-kit='icon-button'])[data-variant='ghost']:hover { background: transparent; }
   }
 }

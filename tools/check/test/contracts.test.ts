@@ -57,7 +57,7 @@ test('manifests: capability patterns and validator answers', () => {
 });
 
 test('openapi: every registered route has an entry; :id and {id} are one parameter', async () => {
-  assert.deepEqual(await run(openapi, fixture('openapi')), ['apps/server/src/extra.ts:5 openapi', 'apps/server/src/routes.ts:5 openapi']);
+  assert.deepEqual(await run(openapi, fixture('openapi')), ['apps/server/src/extra.ts:5 openapi', 'apps/server/src/extra.ts:8 warn:openapi', 'apps/server/src/routes.ts:5 openapi']);
   assert.equal(normalizePath('/api/s/:id/turns/{n}/'), '/api/s/{}/turns/{}');
 });
 

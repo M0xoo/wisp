@@ -51,6 +51,12 @@ export interface Settings {
   get<T extends Json>(key: string): T | undefined;
 }
 
+/** Checkpoints before a turn touches files, and the file as it was (checkpoint.ts, git plumbing). */
+export interface Checkpoints {
+  capture(dir: string, sessionId: string, turnId: string): Promise<Json | null>;
+  readFile(dir: string, commit: string, file: string): Promise<string | null>;
+}
+
 export interface Rt {
   readonly clock: Clock;
   readonly log: Log;
@@ -62,6 +68,7 @@ export interface Rt {
   readonly home: string;
   /** how wisp's own MCP server reaches the API; null in tests and on a box without one */
   bridge: { url: string; token: string } | null;
+  checkpoints: Checkpoints | null;
   /** runs every interceptor of a hook in order; rejects with `vetoed` when one refuses */
   hook<C>(hook: string, ctx: C): Promise<C>;
   /** publishes a plugin event once the rows it describes have committed */

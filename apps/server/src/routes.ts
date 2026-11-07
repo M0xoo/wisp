@@ -18,7 +18,7 @@ export interface MetaDeps {
   status: () => readonly StatusPart[];
   lastActivityAt: () => number;
   publicUrl: () => string;
-  openapi: () => Json;
+  openapi: () => Promise<Json>;
 }
 
 // The gate for the edge's own reads: every set that may talk to wisp at all holds it (user, agent,
@@ -80,6 +80,6 @@ export function registerMeta(d: MetaDeps): void {
   route('POST', '/api/cmd', stream((c) => d.sync.cmd(raw(c).req, raw(c).res, caller(c))), { permission: READ, summary: 'Run a command {cmd, args} by Idempotency-Key; the command checks its own permission' });
   route('GET', '/api/health', () => ({ status: 200, json: { ok: true, name: 'wisp', version: VERSION, apiVersion: API_VERSION, pid: process.pid, url: d.publicUrl() } }), { permission: READ, summary: 'Liveness, version and pid' });
   route('GET', '/api/status', () => ({ status: 200, json: status(d.status(), { clients: d.sync.looking(), lastActivityAt: d.lastActivityAt() }) }), { permission: READ, summary: 'Whether anything is going on, to stop an idle wisp' });
-  route('GET', '/api/openapi.json', () => ({ status: 200, json: d.openapi() }), { permission: READ, doc: false });
+  route('GET', '/api/openapi.json', async () => ({ status: 200, json: await d.openapi() }), { permission: READ, doc: false });
   route('GET', '/api/fs', async (c) => ({ status: 200, json: await folderSuggestions(c.query.get('q') ?? '') }), { permission: 'fs:read', doc: false });
 }

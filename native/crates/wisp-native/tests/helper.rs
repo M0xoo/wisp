@@ -244,14 +244,14 @@ fn closing_stdin_kills_every_tree_then_exits() {
 #[test]
 fn a_big_paste_goes_in_whole_while_the_program_prints() {
     let mut h = Helper::start();
-    h.send(&json!({"type": "spawn", "id": "c", "cmd": "cat", "pty": {"cols": 100, "rows": 30}}));
-    h.next(|e| e["type"] == "started");
+    // No echo: the terminal's echo of one line can land inside cat's copy of another.
+    let script = "stty -echo; echo go; exec cat";
+    h.send(&json!({"type": "spawn", "id": "c", "cmd": "sh", "args": ["-c", script], "pty": {"cols": 100, "rows": 30}}));
+    h.wait_printed("c", "go");
     let line = |i: usize| format!("pasted line {i} {}\r", "x".repeat(40));
     let text = (0..4000).map(line).collect::<Vec<_>>().concat();
     h.type_in("c", &text);
     let out = h.wait_printed("c", "pasted line 3999");
-    // Each line comes back twice (the terminal's echo and cat's copy) and the two may interleave;
-    // a line counts once one intact copy of it arrived.
     let whole = format!(" {}", "x".repeat(40));
     let intact: std::collections::BTreeSet<usize> = out
         .split("pasted line ")

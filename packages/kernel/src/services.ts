@@ -46,6 +46,20 @@ function copyArg(v: unknown, at: string): unknown {
   throw fail('invalid', `${at}: only plain data crosses a service boundary`);
 }
 
+/**
+ * A permission may take its scope from the call: `proc:spawn{bin:$0}` with spawn('claude') asks for
+ * `proc:spawn{bin:claude}`, `$1.cwd` reads a field. A missing value becomes `?`, which only a
+ * wildcard grant covers.
+ */
+export function scoped(permission: string, args: readonly unknown[]): string {
+  return permission.replace(/\$(\d+)((?:\.[A-Za-z_]\w*)*)/g, (_, i: string, path: string) => {
+    let v: unknown = args[Number(i)];
+    for (const k of path.split('.').filter(Boolean)) v = isObj(v) ? v[k] : undefined;
+    const s = typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' ? String(v) : '?';
+    return s.replace(/[,{}]/g, '_') || '?';
+  });
+}
+
 const isDisposable = (v: unknown): v is Record<string, unknown> & Disposable => isObj(v) && typeof v['dispose'] === 'function';
 const hasMethods = (v: unknown): v is Record<string, unknown> => isObj(v) && Object.values(v).some((x) => typeof x === 'function');
 
@@ -137,7 +151,7 @@ interface CallInfo {
 function call(ref: ServiceRef<unknown>, self: object, fn: (...a: unknown[]) => unknown, c: CallInfo, args: unknown[]): unknown {
   const what = `${ref.id}@${ref.major}.${c.method}`;
   if (c.h.gone) throw fail('service_gone', `${what}: ${c.h.gone}`);
-  const denied = c.env.check(c.h.consumer, c.perm);
+  const denied = c.env.check(c.h.consumer, c.perm && scoped(c.perm, args));
   if (denied) throw fail('forbidden', `${c.h.consumer} may not call ${what}: ${denied}`);
   const top = c.method.split('.')[0] ?? c.method;
   if (current.getStore()?.trace.readOnly && !(ref.readOnly ?? []).includes(c.method) && !(ref.readOnly ?? []).includes(top)) throw fail('forbidden', `${what} writes, and an interceptor may only read`);

@@ -6,11 +6,15 @@ import { i18n } from '../rules/i18n.ts';
 import { state } from '../rules/state.ts';
 import { fixture, messages, run, writeTree } from './helpers.ts';
 
-test('css: kit CSS on the token scale, no slow selectors, no !important; no CSS outside the kit', async () => {
+test('css: kit CSS on the token scale, no slow selectors, no !important, nothing wraps; no CSS outside the kit', async () => {
   assert.deepEqual(await run(css, fixture('css')), [
     'packages/ui/src/kit.css:10 css', // ends in :is()
     'packages/ui/src/kit.css:12 css', // !important
+    'packages/ui/src/kit.css:20 css', // flex-wrap: wrap on a toolbar (line 22's !important has a reason)
+    'packages/ui/src/kit.css:26 css', // white-space: normal on a button
+    'packages/ui/src/kit.css:27 css', // text-wrap: balance on control text
     'packages/ui/src/kit.css:3 css', // 13px
+    'packages/ui/src/kit.css:30 css', // pre-line on a list-row title, inside a media query
     'packages/ui/src/kit.css:5 css', // 721px media query
     'packages/ui/src/kit.css:6 css', // .stage:has
     'packages/ui/src/kit.css:7 css', // body:has

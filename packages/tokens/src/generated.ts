@@ -42,7 +42,7 @@ export type Tracking = 'body' | 'title' | 'display';
 /** Shadows, for floating things only. */
 export type Shadow = '1' | '2' | '3' | 'scrim';
 /** Fixed sizes: controls, icons, avatars, caps on floating widths. */
-export type Size = 'hairline' | 'ring' | 'dot' | 'dot-lg' | 'icon-xs' | 'icon-sm' | 'icon-md' | 'icon' | 'icon-lg' | 'avatar-sm' | 'avatar-md' | 'avatar-lg' | 'pill' | 'control-xs' | 'control-sm' | 'control-md' | 'control-lg' | 'touch' | 'switch-w' | 'switch-h' | 'switch-knob' | 'check' | 'time-col' | 'menu-min' | 'menu-max' | 'tooltip-max' | 'popover' | 'toast' | 'dialog-sm' | 'dialog-md' | 'dialog-lg' | 'sheet-max' | 'prose' | 'row-min' | 'diff-gutter' | 'lazy-chunk';
+export type Size = 'hairline' | 'ring' | 'dot' | 'dot-lg' | 'icon-xs' | 'icon-sm' | 'icon-md' | 'icon' | 'icon-lg' | 'avatar-sm' | 'avatar-md' | 'avatar-lg' | 'pill' | 'control-xs' | 'control-sm' | 'control-md' | 'control-lg' | 'touch' | 'bar' | 'bar-compact' | 'switch-w' | 'switch-h' | 'switch-knob' | 'check' | 'time-col' | 'menu-min' | 'menu-max' | 'tooltip-max' | 'popover' | 'toast' | 'dialog-sm' | 'dialog-md' | 'dialog-lg' | 'sheet-max' | 'prose' | 'row-min' | 'diff-gutter' | 'lazy-chunk';
 /** Motion durations. */
 export type Duration = 'fast' | 'base' | 'slow' | 'slower' | 'enter';
 /** Easing curves. */
@@ -69,6 +69,6 @@ export const BREAKPOINTS = {
 /** At or over this width the list and the open task sit side by side; under it they stack. */
 export const SPLIT_MIN_WIDTH = 900;
 /** Every px value in the scale (space, radius, font size, size). The kit's CSS may use no other. */
-export const PX_SCALE: readonly number[] = [0, 1, 2, 4, 6, 8, 9, 10, 11, 11.5, 12, 12.5, 13, 14, 15, 16, 18, 20, 22, 24, 26, 30, 32, 34, 36, 44, 64, 99, 220, 280, 320, 360, 400, 440, 600, 640, 720, 800];
+export const PX_SCALE: readonly number[] = [0, 1, 2, 4, 6, 8, 9, 10, 11, 11.5, 12, 12.5, 13, 14, 15, 16, 18, 20, 22, 24, 26, 30, 32, 34, 36, 40, 44, 64, 99, 220, 280, 320, 360, 400, 440, 600, 640, 720, 800];
 /** Breakpoint px values: allowed in @media and @container conditions only. */
 export const BREAKPOINT_PX: readonly number[] = [520, 640, 720, 900, 1180];

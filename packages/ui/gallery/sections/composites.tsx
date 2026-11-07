@@ -1,12 +1,21 @@
 import { createSignal, type JSX } from 'solid-js';
 import {
-  Avatar, Banner, Button, Callout, Card, Checklist, Composer, EmptyState, Grid, Icon, IconButton, Inline, ListRow, Pill,
-  Section, SettingsRow, Stack, Stats, Steps, Text, Time, Toolbar, VirtualList,
+  Avatar, Banner, Box, Button, Callout, Card, Checklist, Composer, EmptyState, Grid, Icon, IconButton, Inline, ListRow, Pill,
+  Section, SettingsRow, Stack, Stats, Steps, Text, Time, Split, Toolbar, VirtualList, type ToolbarItem,
 } from '../../src/index.ts';
 import { Area, Specimen, State } from '../frame.tsx';
 
 // A fixed clock, so the screenshots read the same every run.
 const NOW = Date.parse('2026-11-07T12:00:00Z');
+
+const noop = (): void => {};
+const BAR_ITEMS: readonly ToolbarItem[] = [
+  { id: 'mode', label: 'Full auto', icon: 'bolt', priority: 3, onSelect: noop },
+  { id: 'queue', label: 'Queue', icon: 'queue', priority: 2, onSelect: noop, pressed: true },
+  { id: 'attach', label: 'Attach', icon: 'clip', priority: 1, onSelect: noop },
+  { id: 'done', label: 'Mark done', icon: 'check', priority: 4, tone: 'good', onSelect: noop },
+  { id: 'send', label: 'Send', icon: 'send', priority: 'pin', variant: 'primary', onSelect: noop },
+];
 const MIN = 60_000;
 
 interface Row {
@@ -198,12 +207,16 @@ function Settings(): JSX.Element {
           <SettingsRow title="Theme" description="System follows your computer's setting." control={<Button size="sm" pressed={on()} onClick={() => setOn(!on())}>{on() ? 'Dark' : 'Light'}</Button>} />
           <SettingsRow title="Default folder" description="Where new tasks start." wideControl control={<Button size="sm" icon="folder">~/code/wisp</Button>} />
         </Section>
-        <Toolbar aria-label="Task actions" part="gallery.toolbar">
-          <Button size="sm" variant="ghost" tone="good" icon="check">Mark done</Button>
-          <Button size="sm" variant="ghost" icon="rerun">Rerun…</Button>
-          <Button size="sm" variant="ghost" icon="archive">Archive</Button>
-          <IconButton icon="dots" label="More" size="sm" />
-        </Toolbar>
+        <Stack gap="3">
+          <Text size="xs" tone="faint" weight="medium">Toolbar: drag the grip to narrow it. Labels fold to icons (lowest priority first), then into More; Send is pinned.</Text>
+          <Split
+            defaultSize={92}
+            min={15}
+            max={95}
+            start={<Toolbar aria-label="Reply bar" part="gallery.toolbar" items={BAR_ITEMS} />}
+            end={<Box pad="4"><Text size="xs" tone="faint">space</Text></Box>}
+          />
+        </Stack>
       </Stack>
     </Specimen>
   );

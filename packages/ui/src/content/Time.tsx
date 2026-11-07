@@ -25,6 +25,7 @@ export function Time(props: TimeProps): JSX.Element {
       datetime={Number.isFinite(at()) ? new Date(at()).toISOString() : undefined}
       title={Number.isFinite(at()) ? timeTitle(at(), now(), t, props.locale) : undefined}
       data-kit="time"
+      data-text="control"
       data-part={props.part ?? 'ui.time'}
       data-column={flag((props.layout ?? 'column') === 'column')}
     >

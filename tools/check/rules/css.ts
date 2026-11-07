@@ -5,9 +5,14 @@
 // Two uses of !important are what layered CSS needs and stay allowed: inside `@layer reset` (an
 // important declaration in the lowest layer beats every layer above it: `[hidden]` must hide), and
 // inside a user-preference query (prefers-reduced-motion, forced-colors), which must win everywhere.
+// Anywhere else it needs a written reason: a `/* !important: <why> */` comment on the line above or
+// on the same line (overriding a style a library sets inline is the usual one).
+// Layout (design/layout.md §6): no flex-wrap outside Wrap, no wrapping white-space on control parts
+// (css-layout.ts).
 
 import ts from 'typescript';
 import { scanCss, splitTop } from '../core/css-scan.ts';
+import { layoutProblems } from './css-layout.ts';
 import { finding } from '../core/report.ts';
 import { isCode, lineOf, propName, visit } from '../core/source.ts';
 import { pxScale, TOKENS_DIR } from '../core/tokens.ts';
@@ -83,9 +88,18 @@ export function importantAllowed(within: readonly string[]): boolean {
   return within.some((p) => /^@layer\s+reset\b/.test(p) || /^@media\b.*\((prefers-reduced-motion|forced-colors|prefers-contrast)\b/.test(p));
 }
 
+/** Lines a `/* !important: reason *\/` comment ends on. */
+export function importantReasons(css: string): Set<number> {
+  const lines = new Set<number>();
+  for (const m of css.matchAll(/\/\*[^*]*!important:\s*\S[\s\S]*?\*\//g)) lines.add(css.slice(0, (m.index ?? 0) + m[0].length).split('\n').length);
+  return lines;
+}
+
 function kitCss(ctx: Ctx, file: string, scale: Set<number> | undefined): Finding[] {
   const out: Finding[] = [];
-  const { preludes, decls } = scanCss(ctx.read(file));
+  const text = ctx.read(file);
+  const { preludes, decls } = scanCss(text);
+  const reasons = importantReasons(text);
   for (const p of preludes) {
     if (p.at) continue;
     for (const sel of splitTop(p.text)) {
@@ -103,10 +117,12 @@ function kitCss(ctx: Ctx, file: string, scale: Set<number> | undefined): Finding
   // px inside a string or url() is content (an inline SVG), not a length
   const lengths = (v: string): string => v.replace(/url\([^)]*\)/g, '').replace(/"[^"]*"|'[^']*'/g, '');
   for (const d of decls) {
-    if (/!\s*important/i.test(d.value) && !importantAllowed(d.within)) out.push(finding(file, d.line, ID, `!important in ${d.prop}: use the cascade layers`));
+    const reasoned = reasons.has(d.line) || reasons.has(d.line - 1);
+    if (/!\s*important/i.test(d.value) && !importantAllowed(d.within) && !reasoned) out.push(finding(file, d.line, ID, `!important in ${d.prop}: use the cascade layers`));
     if (!d.prop.startsWith('--')) checkPx(lengths(d.value), d.line);
   }
   for (const p of preludes) if (p.at) checkPx(p.text, p.line);
+  for (const p of layoutProblems(decls)) out.push(finding(file, p.line, ID, p.message));
   return out;
 }
 

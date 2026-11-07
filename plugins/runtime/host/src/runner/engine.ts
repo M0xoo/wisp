@@ -43,6 +43,8 @@ export interface CreateOpts {
   skills?: string;
   trial?: Json | null;
   capped?: Session['capped'] | null;
+  /** its blocks carry what wisp acts on (a crew job's): it answers with them even with wisp blocks off */
+  keepBlocks?: boolean;
   /** who started it by hand (not a crew job, schedule, trigger or subagent): the account pick skips one at its limit */
   byHand?: boolean;
   ext?: Record<string, Json>;

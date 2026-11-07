@@ -325,7 +325,7 @@ export interface GitService {
 }
 
 /** git.service@1. Reads are `git:read`; anything that writes a repo names what it does. */
-export const gitService = {
+export const gitService: ServiceRef<GitService> = {
   id: 'git.service',
   major: 1,
   permissions: {
@@ -368,10 +368,10 @@ export const gitService = {
     tools: 'git:read',
   },
   readOnly: ['repo', 'root', 'exists', 'isForeign', 'worktreeStatus', 'folderOnly', 'removing', 'changes', 'touched', 'clash', 'stageState', 'prView', 'tools'],
-} as const satisfies ServiceRef<GitService>;
+};
 
 /** The Repo handle's methods, checked by the same proxy as the service's. */
-export const repoHandle = {
+export const repoHandle: ServiceRef<Repo> = {
   id: 'git.repo',
   major: 1,
   permissions: {
@@ -395,7 +395,7 @@ export const repoHandle = {
     dispose: 'git:read',
   },
   readOnly: ['status', 'branches', 'branchExists', 'resolve', 'remoteUrl', 'diff', 'diffSections', 'lsFiles', 'grep', 'show', 'pin', 'onChange', 'dispose'],
-} as const satisfies ServiceRef<Repo>;
+};
 
 /** Open a repo whose lifetime is `scope`'s: released when the caller's plugin goes off. */
 export async function repoIn(git: GitService, scope: { add(d: Disposable): void }, path: string): Promise<Repo> {

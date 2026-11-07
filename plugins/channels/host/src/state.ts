@@ -8,7 +8,7 @@
 import type { Json, PluginContext, SecretsService } from '@wisp/kernel';
 import type { Migration, Store } from '@wisp/store';
 import { defineEntity } from '@wisp/store';
-import { type ChannelConfig, type Remote, type TransportDef, TOPIC, enabledKey } from '@wisp-plugin/channels-api';
+import { type ChannelConfig, type Remote, type TransportDef, TOPIC, switchOf } from '@wisp-plugin/channels-api';
 import type { HubState } from '@wisp-plugin/channels-api/kit';
 import { OTHERS } from './wisp.ts';
 
@@ -72,7 +72,7 @@ export class ChannelState {
   async load(): Promise<HubState> {
     const cfg: Record<string, ChannelConfig> = {};
     let events: string[] | undefined;
-    for (const r of this.#store.query(CONFIG)) {
+    for (const r of this.#store.query(CONFIG) as ConfigRow[]) {
       this.#rows.set(r.channel, JSON.stringify(r.data));
       if (r.channel === HUB_ROW) events = (r.data as { events?: string[] }).events;
       else cfg[r.channel] = { ...(r.data as ChannelConfig) };
@@ -80,14 +80,14 @@ export class ChannelState {
     const secret = await this.#secrets.get(SECRET);
     if (secret) this.#secretVals.set(SECRET, secret);
     const remotes: Record<string, Remote> = {};
-    for (const r of this.#store.query(THREAD)) remotes[r.session_id] = r.data as Remote;
+    for (const r of this.#store.query(THREAD) as ThreadRow[]) remotes[r.session_id] = r.data as Remote;
     return { cfg, remotes, ...(events && { events }), ...(secret && { secret }) };
   }
 
   /** A transport came on: its secrets into its config, and its switch. */
   async adopt(d: TransportDef, cfg: Record<string, ChannelConfig>): Promise<void> {
     const c = (cfg[d.name] ||= {});
-    c.enabled = this.#ctx.settings.get<boolean>(enabledKey(d.name)) === true;
+    c.enabled = this.#ctx.settings.get<boolean>(switchOf(d)) === true;
     for (const field of d.secrets ?? []) {
       const key = secretKey(d.name, field);
       const v = await this.#secrets.get(key);
@@ -120,7 +120,8 @@ export class ChannelState {
       const json = JSON.stringify(s.row);
       if (this.#rows.get(name) !== json) rows.push({ channel: name, data: s.row as Json });
       for (const [k, v] of s.secrets) secrets.set(k, v);
-      if (this.#defs().some((d) => d.name === name) && (this.#ctx.settings.get<boolean>(enabledKey(name)) === true) !== s.enabled) switches.push([enabledKey(name), s.enabled]);
+      const def = this.#defs().find((d) => d.name === name);
+      if (def && (this.#ctx.settings.get<boolean>(switchOf(def)) === true) !== s.enabled) switches.push([switchOf(def), s.enabled]);
     }
     if (rows.length) {
       this.#store.tx((w) => {

@@ -1,0 +1,19 @@
+{
+  "exit": {
+    "code": 1,
+    "signal": null,
+    "stderr": "fake: not logged in (401)\n"
+  },
+  "opts": {},
+  "argv": [
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--append-system-prompt",
+    "# You are running inside wisp\nAnswer with a ```wisp block.\n",
+    "--permission-mode",
+    "acceptEdits",
+    "--chrome",
+    "--verbose"
+  ]
+}

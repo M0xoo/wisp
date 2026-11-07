@@ -2,7 +2,7 @@
 //! one feeding its input (input.rs), one waiting for its exit.
 
 use std::io::{self, Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,7 +16,7 @@ use portable_pty::{CommandBuilder, PtySize};
 use wisp_native_sys as sys;
 
 use crate::error::{Error, Result};
-use crate::input::{self, Pace};
+use crate::input;
 use crate::out::Out;
 use crate::protocol::{Event, Spawn, Stream};
 use crate::registry::{self, Entry, Input, Shared};
@@ -70,8 +70,7 @@ pub fn spawn(req: Spawn, reg: &Shared, out: &Out) -> Result<u32> {
         thread::Builder::new().name(format!("read-{id}")).spawn(move || ctx.run(reader))?;
     }
     let (rx, writer) = (started.input_rx, started.writer);
-    let pace = started.tty.map(|tty| Pace { tty, exited: Arc::clone(&exited) });
-    thread::Builder::new().name(format!("write-{id}")).spawn(move || input::feed(&rx, writer, pace.as_ref()))?;
+    thread::Builder::new().name(format!("write-{id}")).spawn(move || input::feed(&rx, writer))?;
     let (reg, out) = (Arc::clone(reg), out.clone());
     thread::Builder::new().name(format!("wait-{id}")).spawn(move || {
         let exit = (started.wait)().unwrap_or(Exit { code: None, signal: None });
@@ -95,8 +94,6 @@ struct Started {
     readers: Vec<(Stream, Box<dyn Read + Send>)>,
     writer: Box<dyn Write + Send>,
     input_rx: Receiver<Input>,
-    /// The PTY's slave path, where macOS input pacing measures the queue.
-    tty: Option<PathBuf>,
     wait: Waiter,
 }
 
@@ -124,26 +121,13 @@ fn start_pty(req: &Spawn) -> Result<Started> {
     let writer = pair.master.take_writer().map_err(|e| Error::spawn(&req.cmd, e))?;
     let (input_tx, input_rx) = mpsc::channel();
     let tree = make_tree(pid);
-    let tty = pacing_tty(pair.master.as_ref());
     Ok(Started {
         entry: Entry { pid, tree, input: Some(input_tx), master: Some(pair.master) },
         readers: vec![(Stream::Stdout, reader)],
         writer,
         input_rx,
-        tty,
         wait: Box::new(move || wait_pty(child)),
     })
-}
-
-#[cfg(target_os = "macos")]
-fn pacing_tty(master: &dyn portable_pty::MasterPty) -> Option<PathBuf> {
-    master.tty_name()
-}
-
-/// Only macOS drops input (input.rs); elsewhere the writer simply blocks.
-#[cfg(not(target_os = "macos"))]
-fn pacing_tty(_master: &dyn portable_pty::MasterPty) -> Option<PathBuf> {
-    None
 }
 
 /// portable-pty reports a signal as strsignal(3) text; the std status underneath has the number.
@@ -180,7 +164,6 @@ fn start_pipes(req: &Spawn) -> Result<Started> {
         readers: vec![(Stream::Stdout, stdout), (Stream::Stderr, stderr)],
         writer: stdin,
         input_rx,
-        tty: None,
         wait: Box::new(move || child.wait().map(Exit::from)),
     })
 }

@@ -265,19 +265,30 @@ test('admit: a sandbox needs its own memory limit’s worth (room for its browse
 
 test('a box gets the BoxPlugins group, its trusted-proxy secret and a clean environment', async () => {
   process.env['GRID_TEST_LEAK'] = 'operator-only';
-  const r = hostd({ env: { ADMIN: 'x' }, envFor: () => ({ ADMIN: 'sandbox-loses', OWNER: 'y' }) });
-  const a = user('ada');
-  await r.h.ensure(a);
-  const home = r.h.dirs(a).home;
-  const env = await until(async () => {
+  try {
+    const r = hostd({ env: { ADMIN: 'x', OWNER: 'admin-wins' }, envFor: () => ({ OWNER: 'sandbox-loses', SANDBOX_ONLY: 'y', WISP_GROUP: 'default' }) });
+    const a = user('ada');
+    await r.h.ensure(a);
     const port = r.h.port(a.id);
-    return port ? JSON.parse(await new Promise<string>((done, fail) => http.get({ host: '127.0.0.1', port, path: '/api/status' }, (res) => {
-      let t = '';
-      res.on('data', (d: Buffer) => (t += d));
-      res.on('end', () => done(t));
-    }).on('error', fail))) as Record<string, unknown> : null;
-  });
-  assert.equal(env['oom'], '');
-  assert.ok(fs.existsSync(path.join(path.dirname(home), 'wisp')), 'its own WISP_HOME');
-  delete process.env['GRID_TEST_LEAK'];
+    assert.ok(port);
+    const env = await new Promise<Record<string, string>>((done, fail) =>
+      http
+        .get({ host: '127.0.0.1', port, path: '/_test/env' }, (res) => {
+          let t = '';
+          res.on('data', (d: Buffer) => (t += d));
+          res.on('end', () => done(JSON.parse(t) as Record<string, string>));
+        })
+        .on('error', fail),
+    );
+    assert.equal(env['GRID_TEST_LEAK'], undefined, 'nothing from the operator’s shell');
+    assert.equal(env['WISP_GROUP'], 'box', 'wisp’s own win over a sandbox’s');
+    assert.equal(env['WISP_TRUSTED_PROXY_SECRET'], 's'.repeat(40));
+    assert.equal(env['WISP_PUBLIC_URL'], 'http://ada.test');
+    assert.equal(env['OWNER'], 'admin-wins', 'hostd.env wins over a sandbox’s');
+    assert.equal(env['SANDBOX_ONLY'], 'y');
+    assert.equal(env['WISP_HOME'], r.h.dirs(a).wisp);
+    assert.equal(env['HOME'], r.h.dirs(a).home);
+  } finally {
+    delete process.env['GRID_TEST_LEAK'];
+  }
 });

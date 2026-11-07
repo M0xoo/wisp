@@ -29,12 +29,18 @@ codebase ever made. Take nothing below as optional.
 - `.agents/bin/monoflow graph impact <file>` before you change any contract or `api/` package.
 - `.agents/bin/monoflow verify --package=<your package>` after each change; `--affected` when you touched
   more than one. **This is the gate.** Don't report done until it passes.
-- `.agents/bin/monoflow checkpoint save "<what>"` before a risky step (it costs ~50 ms, and `revert` undoes it).
+- **Never run `monoflow checkpoint revert`, `monoflow commit`, `monoflow outer` or `monoflow ship` here.** This worktree is
+  shared: `checkpoint revert` runs `git read-tree -u --reset`, which deleted other agents' new files four
+  times, and `commit` starts a background loop that did the same. Use `graph`, `verify` and `checkpoint save` only.
 - Every package you create needs `test` and `typecheck` scripts in its `package.json` and its own
   `tsconfig.json` (copy `packages/protocol`'s), so monoflow verifies it.
 - Don't use `monoflow start`, `ship`, `commit` or `push`. Don't run git commit/push, stash or reset. The lead commits.
 
 ## Working with the others
+
+- **Never delete files you didn't create, and never run `git clean`, `git stash`, `git checkout -- .`,
+  `git reset` or `rm -rf` outside your own directories.** Someone deleted another agent's untracked file
+  once already. The lead commits progress often; pull nothing, push nothing.
 
 - Several agents work in this folder at once. **Touch only the directories in your brief.** If you need a
   change elsewhere, write it in your report.

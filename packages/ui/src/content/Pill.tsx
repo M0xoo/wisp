@@ -32,7 +32,7 @@ export function Pill(props: PillProps): JSX.Element {
         <span data-kit="pill-dot" data-live={flag(props.live)} />
       </Show>
       <Show when={props.icon}>{(name) => <Icon name={name()} size="xs" />}</Show>
-      <span data-kit="pill-label">{props.children}</span>
+      <span data-kit="pill-label" data-text="control">{props.children}</span>
     </span>
   );
 }

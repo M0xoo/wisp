@@ -28,9 +28,10 @@ export async function mcp(ctx: Ctx): Promise<void> {
   await serve();
 }
 
-/** The grid parses its own flags (--data, --domain, …) from the raw arguments after `grid`. */
+/** The grid parses its own flags (--data, --domain, …) from the raw arguments after `grid`; it answers its exit code. */
 export async function grid(ctx: Ctx, args: string[]): Promise<void> {
   const run = fn((await optional(() => import('@wisp/grid/cli')))?.['gridCli']);
   if (!run) ctx.die(GRID_MISSING);
-  await run(args);
+  const code = await run(args);
+  if (typeof code === 'number' && code !== 0) process.exitCode = code;
 }

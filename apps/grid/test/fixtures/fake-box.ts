@@ -31,7 +31,9 @@ const server = http.createServer((req, res) => {
     req.resume();
     return req.on('end', () => send(201, { id: `s${Date.now()}` }));
   }
+  // What it was started with, for the test that the operator's shell doesn't leak into a box.
+  if (req.url === '/_test/env') return send(200, process.env);
   send(200, { name: 'wisp' });
 });
-setTimeout(() => server.listen(port, '127.0.0.1'), Number(process.env['FAKE_BOX_BOOT_MS'] || 0));
+setTimeout(() => server.listen(port, '127.0.0.1', () => console.log(`wisp (stand-in) on ${port}`)), Number(process.env['FAKE_BOX_BOOT_MS'] || 0));
 process.on('SIGTERM', () => process.exit(0));

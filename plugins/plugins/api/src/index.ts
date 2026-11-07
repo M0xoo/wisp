@@ -147,6 +147,7 @@ export const COMMANDS = {
 export const EVENTS = {
   changed: 'plugins.changed', // { enabled: string[] }  (spell ids and plugin ids that are on)
   installed: 'plugins.installed', // { id, source, enabled, kind: Risk }  (telemetry: v1 spell_installed)
+  removed: 'plugins.removed', // { id, crew?: 'keep' | 'remove' }  (wisp.crew lets the spell's members go, or keeps them as yours)
   hook: 'plugins.hook', // { on, action, plugin }  (telemetry: v1 spell_hook)
   toast: 'plugins.toast', // { toast, plugin, session }  (a hook's notify, for the open pages)
 } as const;

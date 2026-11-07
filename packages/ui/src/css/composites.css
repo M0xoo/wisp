@@ -38,10 +38,8 @@
     [data-kit='list-row'][data-interactive]:hover { background: transparent; }
     [data-kit='list-row'][data-interactive]:active { background: var(--bg-2); }
   }
-  /* Phones: titles get two lines instead of `do a full audi…`. */
-  @media (max-width: 720px) {
-    [data-kit='list-row-title'] { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
-  }
+  /* A row title is control text (design/layout.md): one line and an ellipsis at every width, the
+     full title in its tooltip and wherever it opens. */
 
   [data-kit='card'] {
     display: flex; flex-direction: column; min-width: 0; padding: 0; margin: 0; text-align: start; color: inherit; font: inherit;

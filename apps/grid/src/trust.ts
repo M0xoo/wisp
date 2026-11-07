@@ -197,8 +197,9 @@ export type Via = keyof typeof VIA;
 // Only these: a client's own x-wisp-* headers (x-wisp-relay, x-wisp-token, x-wisp-sw, x-wisp-build,
 // x-wisp-session) are wisp's to read and go through to the box as they did in v1.
 const MARK_NAMES: ReadonlySet<string> = new Set(MARKS.map((m) => m.header));
-/** True for a header only the grid may set: one of MARKS, or the x-forwarded-* set. */
-export const isMark = (name: string): boolean => MARK_NAMES.has(name) || name.startsWith('x-forwarded');
+/** True for a header only the grid may set: one of MARKS, any x-wisp-proxy-*, or the x-forwarded-* set. */
+// x-wisp-proxy-* as a whole, as v1's edge dropped it: a box reads its trusted-proxy marks by that prefix.
+export const isMark = (name: string): boolean => MARK_NAMES.has(name) || name.startsWith('x-wisp-proxy') || name.startsWith('x-forwarded');
 
 const HOP: ReadonlySet<string> = new Set(['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'te', 'trailer']);
 export const isHop = (name: string): boolean => HOP.has(name);

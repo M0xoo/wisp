@@ -75,7 +75,7 @@ export function Button(props: ButtonProps): JSX.Element {
       <span data-kit="button-content">
         <Show when={props.icon}>{(name) => <Icon name={name()} size={props.size === 'xs' ? 'sm' : 'md'} />}</Show>
         <Show when={props.children !== undefined}>
-          <span data-kit="button-label">{props.children}</span>
+          <span data-kit="button-label" data-text="control">{props.children}</span>
         </Show>
         <Show when={props.iconEnd}>{(name) => <Icon name={name()} size="sm" />}</Show>
         <Show when={props.kbd}>{(k) => <kbd data-kit="kbd">{k()}</kbd>}</Show>

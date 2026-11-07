@@ -6,7 +6,7 @@
 import type { EventEnvelope, HttpService, Json, NetService, PluginContext, PluginDef, SecretsService } from '@wisp/kernel';
 import type { Store } from '@wisp/store';
 import { EVENTS as RUNTIME_EVENTS } from '@wisp-plugin/runtime-api';
-import { type ActArgs, COMMANDS, EVENTS, type Msg, POINT, SETTINGS, type SessionView, type SummaryView, type TransportDef, enabledKey } from '@wisp-plugin/channels-api';
+import { type ActArgs, COMMANDS, EVENTS, type Msg, POINT, SETTINGS, type SessionView, type SummaryView, type TransportDef, switchOf } from '@wisp-plugin/channels-api';
 import { Hub, bad } from '@wisp-plugin/channels-api/kit';
 import { makeBox } from './box.ts';
 import { nodeCrypto } from './crypto.ts';
@@ -67,7 +67,7 @@ export default definePlugin({
       for (const d of list) {
         if (adopted.has(d.name)) continue;
         adopted.add(d.name);
-        ctx.settings.watch(enabledKey(d.name), (v) => {
+        ctx.settings.watch(switchOf(d), (v) => {
           const c = (hub.cfg[d.name] ||= {});
           if (c.enabled === (v === true)) return;
           c.enabled = v === true;

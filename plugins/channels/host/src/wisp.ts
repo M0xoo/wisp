@@ -60,7 +60,7 @@ export function turnView(t: Turn): TurnView {
     model: t.model,
     stats: (t.stats as TurnView['stats']) ?? null,
     presentation: t.presentation ? { blocks: t.presentation.blocks } : null,
-    ...(Array.isArray(btw) && { btw: btw as TurnView['btw'] }),
+    ...(Array.isArray(btw) && { btw: btw as NonNullable<TurnView['btw']> }),
   };
 }
 
@@ -86,7 +86,7 @@ export function sessionView(s: Session, turns: readonly Turn[]): SessionView {
     cwd: s.cwd,
     ...(s.parentId && { parentId: s.parentId }),
     ...(typeof side === 'string' && { sideOf: { id: side } }),
-    ...(Object.keys(crew).length && { crew: crew as SessionView['crew'] }),
+    ...(Object.keys(crew).length && { crew: crew as NonNullable<SessionView['crew']> }),
     ...(typeof rec(ext['wisp.later'])['kind'] === 'string' && { kind: String(rec(ext['wisp.later'])['kind']) }),
     capped: (own['capped'] as SessionView['capped']) ?? null,
     ask,

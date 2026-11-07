@@ -131,6 +131,8 @@ export class SimClient {
 export class Sim {
   now = 1000;
   answers: (() => void)[] = [];
+  /** every snapshotRequest the server made, in order */
+  requests: { conn: string; topic: Topic; since: number | null }[] = [];
   frames = 0;
   bytes = 0;
   #n = 0;
@@ -159,6 +161,7 @@ export class Sim {
       } else if (o.kind === 'closeConn') {
         if (c !== undefined) this.lose(c, clients);
       } else if (o.kind === 'snapshotRequest') {
+        this.requests.push({ conn: o.conn, topic: o.topic, since: o.since });
         const answer = (): void => {
           const base = { conn: o.conn, topic: o.topic, req: o.req, seq: this.store.seq };
           // a delta needs the log back to `since`: once retention passed it, only a full snapshot will do

@@ -2,20 +2,23 @@
    the data attributes switch each rule on only where it's used. */
 @layer kit {
   [data-kit='stack'] { display: flex; flex-direction: column; gap: var(--k-gap); min-width: 0; }
-  [data-kit='inline'] { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--k-gap); min-width: 0; }
-  [data-kit='inline'][data-nowrap] { flex-wrap: nowrap; }
+  [data-kit='inline'] { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: var(--k-gap); min-width: 0; }
+  /* Wrap: the one layout that runs onto more lines (design/layout.md §5). Radio groups and extension
+     slots that may wrap opt in with data-layout='wrap'. Nothing else in the kit sets flex-wrap: wrap. */
+  [data-kit='wrap'], [data-layout='wrap'] { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: var(--k-gap); row-gap: var(--k-row-gap, var(--k-gap)); min-width: 0; }
   [data-kit='grid'] { display: grid; grid-template-columns: var(--k-cols); column-gap: var(--k-gap); row-gap: var(--k-row-gap); min-width: 0; }
   [data-kit='box'] { min-width: 0; }
+  /* Align and justify only mean something on the kit's layouts; Zag sets data-align on its own nodes. */
 
-  [data-align='start'] { align-items: flex-start; }
-  [data-align='center'] { align-items: center; }
-  [data-align='end'] { align-items: flex-end; }
-  [data-align='stretch'] { align-items: stretch; }
-  [data-align='baseline'] { align-items: baseline; }
-  [data-justify='start'] { justify-content: flex-start; }
-  [data-justify='center'] { justify-content: center; }
-  [data-justify='end'] { justify-content: flex-end; }
-  [data-justify='between'] { justify-content: space-between; }
+  :where([data-kit='stack'], [data-kit='inline'], [data-kit='wrap'], [data-kit='grid'])[data-align='start'] { align-items: flex-start; }
+  :where([data-kit='stack'], [data-kit='inline'], [data-kit='wrap'], [data-kit='grid'])[data-align='center'] { align-items: center; }
+  :where([data-kit='stack'], [data-kit='inline'], [data-kit='wrap'], [data-kit='grid'])[data-align='end'] { align-items: flex-end; }
+  :where([data-kit='stack'], [data-kit='inline'], [data-kit='wrap'], [data-kit='grid'])[data-align='stretch'] { align-items: stretch; }
+  :where([data-kit='stack'], [data-kit='inline'], [data-kit='wrap'], [data-kit='grid'])[data-align='baseline'] { align-items: baseline; }
+  :where([data-kit='stack'], [data-kit='inline'], [data-kit='wrap'], [data-kit='grid'])[data-justify='start'] { justify-content: flex-start; }
+  :where([data-kit='stack'], [data-kit='inline'], [data-kit='wrap'], [data-kit='grid'])[data-justify='center'] { justify-content: center; }
+  :where([data-kit='stack'], [data-kit='inline'], [data-kit='wrap'], [data-kit='grid'])[data-justify='end'] { justify-content: flex-end; }
+  :where([data-kit='stack'], [data-kit='inline'], [data-kit='wrap'], [data-kit='grid'])[data-justify='between'] { justify-content: space-between; }
 
   [data-pad] { padding: var(--k-pad-y) var(--k-pad-x); }
   [data-surface] { background: var(--k-surface); }
@@ -38,7 +41,7 @@
 
   /* Extension slots: a row, a column, or no box at all. Each extension is display: contents, so
      the wrapper that names it never changes the layout. */
-  [data-kit='slot'][data-layout='inline'] { display: flex; flex-wrap: wrap; align-items: center; gap: var(--k-gap); min-width: 0; }
+  [data-kit='slot'][data-layout='inline'] { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--k-gap); min-width: 0; }
   [data-kit='slot'][data-layout='stack'] { display: flex; flex-direction: column; gap: var(--k-gap); min-width: 0; }
   [data-kit='slot'][data-layout='contents'] { display: contents; }
   [data-kit='slot'][data-empty] { display: contents; }

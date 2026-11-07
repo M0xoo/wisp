@@ -49,6 +49,8 @@ export interface Peers {
   wake(peer: PeerId): Promise<void>;
   /** hands a command to the peer's link: sent now if live, else after the next welcome */
   mutate(peer: PeerId, m: { mid: string; cmd: string; args: unknown }): boolean;
+  /** asks for older rows of `topic` (a transcript page); false when the peer isn't online */
+  window(peer: PeerId, w: { req: string; topic: Topic; beforeSeq: number; limit: number }): boolean;
   save(peer: PeerId): LinkSaved | undefined;
   onLive(fn: (peer: PeerId) => void): () => void;
   onSent(fn: (peer: PeerId, mid: string) => void): () => void;
@@ -113,6 +115,12 @@ export function createPeers(o: PeersOptions): Peers {
     if (p.scope.alive) for (const out of p.link.handle(input, now())) carry(p, out);
   };
 
+  /** an op the store couldn't apply: the link starts that topic over (unsub, then a fresh sub) */
+  const drifted = (p: PeerRuntime, topic: Topic): void => {
+    o.devtools?.record({ kind: 'frame', peer: p.cfg.peer, t: `drifted ${topic}` });
+    feed(p, { kind: 'drifted', topic });
+  };
+
   function setState(p: PeerRuntime, out: Extract<ClientOutput, { kind: 'state' }>): void {
     switch (out.state) {
       case 'idle':
@@ -149,7 +157,7 @@ export function createPeers(o: PeersOptions): Peers {
       case 'snapshot':
         return o.writer.snapshot(peer, out.topic, out.rows);
       case 'entityOps':
-        for (const topic of o.writer.applyServer(peer, out.ops)) feed(p, { kind: 'drifted', topic });
+        for (const topic of o.writer.applyServer(peer, out.ops)) drifted(p, topic);
         return;
       case 'ack':
         for (const fn of on.answer) fn(peer, { t: 'ack', mid: out.mid, seq: out.seq, ...(out.result !== undefined && { result: out.result }) });
@@ -266,6 +274,12 @@ export function createPeers(o: PeersOptions): Peers {
       if (!p) return false;
       feed(p, { kind: 'mutate', mid: m.mid, cmd: m.cmd, args: m.args });
       if (p.asleep) void manager.wake(peer); // sending it a command wakes a box
+      return true;
+    },
+    window(peer, w) {
+      const p = peers.get(peer);
+      if (!p || untracked(p.status).kind !== 'online') return false;
+      feed(p, { kind: 'window', req: w.req, topic: w.topic, beforeSeq: w.beforeSeq, limit: w.limit });
       return true;
     },
     save: (peer) => peers.get(peer)?.link.save(),

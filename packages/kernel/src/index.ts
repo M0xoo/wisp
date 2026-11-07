@@ -21,7 +21,7 @@ export { Diagnostics, Ring, type Failure } from './diagnostics.ts';
 export { SettingsRegistry, type SettingInfo, type SettingsBackend } from './settings.ts';
 export { pointRef, Points, type PointDecl } from './points.ts';
 export { EventBus, type EventBusOptions } from './events.ts';
-export { defineService } from './services.ts';
+export { defineService, scoped } from './services.ts';
 export { defaultPermission, INTERCEPTOR_TIMEOUT_MAX_MS, INTERCEPTOR_TIMEOUT_MS, KERNEL_ID, MAX_DEPTH } from './dispatch.ts';
 export { eager, parseActivation, wakes, type ActivationKind } from './activation.ts';
 export type { TestHooks } from './host-types.ts';

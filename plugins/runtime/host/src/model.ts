@@ -275,6 +275,8 @@ export interface Session {
   skills?: string;
   trial?: Json;
   savedStuff?: string[];
+  /** its blocks carry what wisp acts on (a crew job): wisp blocks off doesn't apply */
+  keepBlocks?: boolean;
   /** owned by other plugins, namespaced by plugin id: ext['wisp.goal'], ext['wisp.worktrees'], … */
   ext: Record<string, Json>;
 }

@@ -3,6 +3,7 @@
 // follows packages/kernel/src/contract.ts; when the kernel's own plugin harness lands, these tests
 // can move to it unchanged (they only touch PluginContext).
 
+import { readFile } from 'node:fs/promises';
 import type {
   CallContext,
   CommandDef,
@@ -253,6 +254,21 @@ export class Bus {
       }
     }
     return { status: 404, json: { error: `no route ${method} ${p}` } };
+  }
+
+  /**
+   * Load a plugin host the way the kernel does: by package name, its wisp-plugin.json for the manifest
+   * and its default export's setup(ctx). Tests reach a dependency (wisp.git for wisp.worktrees) like
+   * this, never by importing another plugin's host.
+   */
+  async load(pkg: string): Promise<PluginContext & { scope: TestScope }> {
+    const manifestUrl = import.meta.resolve(`${pkg}/wisp-plugin.json`);
+    const manifest = JSON.parse(await readFile(new URL(manifestUrl), 'utf8')) as Manifest;
+    const mod = (await import(import.meta.resolve(pkg))) as { default?: { id: string; setup(ctx: PluginContext): void | Promise<void> } };
+    if (!mod.default) throw new Error(`${pkg} has no default export`);
+    const ctx = this.plugin(manifest.id, manifest);
+    await mod.default.setup(ctx);
+    return ctx;
   }
 
   dispose(): void {

@@ -1,0 +1,127 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.channels",
+  "name": "Channels",
+  "version": "2.0.0",
+  "api": "^1",
+  "kind": "plugin",
+  "description": "Reach wisp from outside: the phone (ntfy, Telegram), chat (Slack, Discord), GitHub, email and the grid's routed messages. Each transport is a module; every one ships off.",
+  "server": {
+    "builtin": "./src/index.ts"
+  },
+  "activation": [
+    "onStartup"
+  ],
+  "permissions": [
+    "runtime:create",
+    "runtime:followUp",
+    "runtime:stop",
+    "runtime:get",
+    "runtime:list",
+    "runtime:turns",
+    "runtime:setState",
+    "crew:list",
+    "crew:assign",
+    "crew:ask",
+    "crew:threadSaved",
+    "machines:list",
+    "machines:request",
+    "machines:sandbox.available",
+    "machines:computer.on",
+    "machines:computer.reply",
+    "workspace:projects",
+    "router:agents",
+    "router:goals",
+    "terminal:openFor",
+    "telemetry:track",
+    "mcp:ask.answer",
+    "settings:set",
+    "net:fetch",
+    "secrets:*{key:channels.*}",
+    "http:route"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "id": "channels.view",
+        "title": "Channels: view settings",
+        "optimistic": "none"
+      },
+      {
+        "id": "channels.update",
+        "title": "Channels: change settings",
+        "optimistic": "none"
+      },
+      {
+        "id": "channels.test",
+        "title": "Channels: send a test message",
+        "optimistic": "none"
+      },
+      {
+        "id": "channels.send",
+        "title": "Channels: tell the phone",
+        "optimistic": "none"
+      },
+      {
+        "id": "channels.notify",
+        "title": "Channels: tell the phone about a task",
+        "optimistic": "none"
+      },
+      {
+        "id": "channels.act",
+        "title": "Channels: act on a task from a channel",
+        "optimistic": "none"
+      },
+      {
+        "id": "channels.inbound",
+        "title": "Channels: a message the grid held",
+        "optimistic": "none"
+      },
+      {
+        "id": "channels.routed",
+        "title": "Channels: a message the grid routed here",
+        "optimistic": "none"
+      },
+      {
+        "id": "channels.rotate",
+        "title": "Channels: rotate an inbound URL",
+        "optimistic": "none"
+      },
+      {
+        "id": "channels.extra",
+        "title": "Channels: a transport's extra",
+        "optimistic": "none"
+      },
+      {
+        "id": "channels.refresh",
+        "title": "Channels: pick up transports",
+        "optimistic": "none"
+      }
+    ],
+    "events": [
+      "channels.changed",
+      "channels.started"
+    ],
+    "topics": [
+      "plugin:wisp.channels:remote"
+    ],
+    "points": [
+      {
+        "id": "channels.transport",
+        "version": 1,
+        "kind": "list"
+      }
+    ],
+    "settings": [
+      {
+        "key": "channels.acceptChannels",
+        "type": "enum",
+        "values": [
+          "on",
+          "off"
+        ],
+        "default": "off"
+      }
+    ]
+  }
+}

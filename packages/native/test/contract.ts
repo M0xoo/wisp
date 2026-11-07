@@ -63,13 +63,14 @@ export function contract(b: Backend): void {
   });
 
   it('a big paste goes in whole while the program prints (no hang, nothing dropped)', async (host) => {
-    const pty = await host.spawnPty({ cmd: 'cat' });
+    // No echo: the terminal's echo of one line can land inside cat's copy of another.
+    const pty = await host.spawnPty({ cmd: 'sh', args: ['-c', 'stty -echo; echo go; exec cat'] });
     const out = collect(pty);
+    await waitFor(() => out.text().includes('go'), 8000, 'cat');
     let text = '';
     for (let i = 0; i < 4000; i++) text += `pasted line ${i} ${'x'.repeat(40)}\r`;
     pty.write(text);
     await waitFor(() => out.text().includes('pasted line 3999'), 20_000, 'the last line');
-    // Each line comes back twice (echo and cat) and the copies may interleave: one whole copy counts.
     const whole = new Set([...out.text().matchAll(/pasted line (\d+) x{40}/g)].map((m) => m[1]));
     assert.equal(whole.size, 4000);
     pty.signal('SIGHUP');

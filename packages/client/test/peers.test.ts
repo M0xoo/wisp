@@ -189,3 +189,18 @@ test('removing a peer ends its connection and its scope', async () => {
   peers.add({ peer: A, name: 'again', transport: t }); // a removed peer can come back
   assert.throws(() => peers.add({ peer: A, name: 'x', transport: t }), /twice/);
 });
+
+test('an op the store cannot apply starts its topic over: the link unsubscribes and subscribes afresh', async () => {
+  const { peers, t, conn, scope } = await setup();
+  peers.add({ peer: A, name: 'laptop', transport: t });
+  peers.watch(A, 'session:s9', scope);
+  await settle();
+  conn()?.push(welcome());
+  await settle();
+  conn()?.frame(3, { t: 'snapshot', topic: 'session:s9', seq: 3, rows: [] }); // the link takes ops once a topic has its snapshot
+  await settle();
+  const before = t.posted.length;
+  conn()?.frame(4, { t: 'patch', seq: 4, ops: [{ topic: 'session:s9', e: 'session', id: 's9', op: 'patch', ops: [{ op: 'replace', path: '/title', value: 'x' }] }] });
+  await settle();
+  assert.deepEqual(t.posted.slice(before).map((m) => `${m.t} ${'topic' in m ? m.topic : ''}`), ['unsub session:s9', 'sub session:s9']);
+});

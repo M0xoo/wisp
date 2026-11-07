@@ -26,7 +26,7 @@ export function Stats(props: StatsProps): JSX.Element {
       <For each={props.items}>
         {(s) => (
           <div data-kit="stat" data-part={sub(part(), 'item')} data-tone={s.tone}>
-            <dt data-kit="stat-label">{s.label}</dt>
+            <dt data-kit="stat-label" data-text="control">{s.label}</dt>
             <dd data-kit="stat-value">
               {shown(s.value)}
               <Show when={s.unit}>{(u) => <span data-kit="stat-unit">{u()}</span>}</Show>

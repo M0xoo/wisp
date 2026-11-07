@@ -119,6 +119,24 @@ export const APIKEY: CapabilitySet = {
 /** A shared preview link: reads only. */
 export const PREVIEW: CapabilitySet = { id: 'preview', allow: ['topic:read', 'session:read', 'stuff:read', 'blob:read'] };
 
+/**
+ * wisp Grid delivering a channel message it held while this box slept (v1 routes/channels.js): the
+ * edge gives this set only to a request behind the grid's proxy mark with x-wisp-proxy-via: inbox.
+ */
+export const GRID_INBOX: CapabilitySet = { id: 'grid:inbox', allow: ['channels:inbound'] };
+/** A message the grid routed to this computer (`on laptop`): only through its tunnel, x-wisp-route: grid. */
+export const GRID_ROUTE: CapabilitySet = { id: 'grid:route', allow: ['channels:routed'] };
+
+/**
+ * What only the local user reaches (user:full's '*'), named so default deny is checked, not assumed:
+ * Settings → Notifications and the phone's own answers (wisp.channels).
+ */
+export const USER_ONLY: readonly string[] = [
+  'channels:view', 'channels:update', 'channels:test', 'channels:act', 'channels:rotate', 'channels:extra', 'channels:refresh',
+];
+/** What other plugins ask of the phone (budget's drain warning, an early reset, a reminder): in their manifests. */
+export const PHONE_NOTICE: readonly string[] = ['channels:send', 'channels:notify'];
+
 /** A pane or app iframe: what the user allowed from its bar, nothing by default. */
 export const paneSet = (id: string, allow: readonly string[] = []): CapabilitySet => ({ id: `pane:${id}`, allow });
 
@@ -143,7 +161,7 @@ export const allowed = (set: CapabilitySet, permission: string): boolean => expl
 /** Every set by id. Parametrised families (`crew:<name>`, `pane:<id>`, `agent:session:<mode>`) are made on demand. */
 export class CapabilityRegistry {
   readonly #sets = new Map<string, CapabilitySet>();
-  constructor(sets: readonly CapabilitySet[] = [USER_FULL, AGENT_SESSION, ...MODES.map(sessionSet), cappedSet('edits'), cappedSet('plan'), BOX, APIKEY, PREVIEW]) {
+  constructor(sets: readonly CapabilitySet[] = [USER_FULL, AGENT_SESSION, ...MODES.map(sessionSet), cappedSet('edits'), cappedSet('plan'), BOX, APIKEY, PREVIEW, GRID_INBOX, GRID_ROUTE]) {
     for (const s of sets) this.#sets.set(s.id, s);
   }
   /** Add or replace a set (a crew member's, a pane's allowed list). */

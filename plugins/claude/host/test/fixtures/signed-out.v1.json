@@ -1,0 +1,28 @@
+[
+ {
+  "type": "session",
+  "id": "claude-session-1"
+ },
+ {
+  "type": "cli",
+  "version": "9.9.9"
+ },
+ {
+  "type": "session",
+  "id": "claude-session-1"
+ },
+ {
+  "type": "result",
+  "text": "Not logged in · Please run /login",
+  "isError": true,
+  "stats": {
+   "costUsd": 0,
+   "durationMs": 5,
+   "turns": 0,
+   "totals": {
+    "costUsd": 0
+   }
+  },
+  "background": 0
+ }
+]

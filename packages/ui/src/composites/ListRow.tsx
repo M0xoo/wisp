@@ -32,7 +32,7 @@ export interface ListRowProps extends KitProps {
 /** The row's one click target: a button or link stretched over the row by CSS (::after). */
 function Hit(props: { readonly row: ListRowProps; readonly part: PartName }): JSX.Element {
   const title = (): JSX.Element => (
-    <span data-kit="list-row-title" data-part={sub(props.part, 'title')} title={props.row.title}>
+    <span data-kit="list-row-title" data-text="control" data-part={sub(props.part, 'title')} title={props.row.title}>
       {props.row.title}
     </span>
   );

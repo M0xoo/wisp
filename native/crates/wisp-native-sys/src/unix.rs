@@ -8,7 +8,6 @@ pub const SIGKILL: i32 = libc::SIGKILL;
 pub const SIGTERM: i32 = libc::SIGTERM;
 pub const SIGHUP: i32 = libc::SIGHUP;
 pub const SIGCONT: i32 = libc::SIGCONT;
-pub const O_NOCTTY: i32 = libc::O_NOCTTY;
 
 const NAMES: &[(&str, i32)] = &[
     ("SIGHUP", libc::SIGHUP),
@@ -64,17 +63,6 @@ pub fn signal_group(pgid: u32, sig: i32) -> io::Result<()> {
     // SAFETY: as for kill(2): integers only, and `target` refuses pgid 0 (our own group) and 1.
     #[allow(unsafe_code)]
     check(unsafe { libc::killpg(pgid, sig) })
-}
-
-/// Bytes waiting in a terminal's input queue (FIONREAD on its slave side).
-pub fn input_queued(tty: &impl std::os::fd::AsFd) -> io::Result<usize> {
-    use std::os::fd::AsRawFd as _;
-    let mut n: libc::c_int = 0;
-    // SAFETY: the fd is open for the borrow's lifetime, and FIONREAD writes one c_int to `n`.
-    #[allow(unsafe_code)]
-    let ret = unsafe { libc::ioctl(tty.as_fd().as_raw_fd(), libc::FIONREAD, &raw mut n) };
-    check(ret)?;
-    usize::try_from(n).map_err(|_| io::Error::from(io::ErrorKind::InvalidData))
 }
 
 /// Every process this user can see.
@@ -175,13 +163,6 @@ mod tests {
         assert_eq!(info, ProcInfo { pid: 42, ppid: 7, pgid: 42, zombie: false });
         assert!(parse_stat(9, "9 (z) Z 1 9").unwrap().zombie);
         assert_eq!(parse_stat(9, "garbage"), None);
-    }
-
-    #[test]
-    fn a_pipe_is_not_a_terminal_but_answers_fionread() {
-        let (r, mut w) = std::io::pipe().unwrap();
-        std::io::Write::write_all(&mut w, b"abc").unwrap();
-        assert_eq!(input_queued(&r).unwrap(), 3);
     }
 
     #[test]

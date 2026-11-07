@@ -57,9 +57,9 @@ export function Tabs(props: TabsProps): JSX.Element {
               data-value={item.value}
             >
               <Show when={item.icon}>{(name) => <Icon name={name()} size="md" />}</Show>
-              <span data-kit="tab-label">{item.label}</span>
+              <span data-kit="tab-label" data-text="control">{item.label}</span>
               <Show when={item.count !== undefined}>
-                <span data-kit="tab-count">{item.count}</span>
+                <span data-kit="tab-count" data-text="control">{item.count}</span>
               </Show>
             </button>
           )}

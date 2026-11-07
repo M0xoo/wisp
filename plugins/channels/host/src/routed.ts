@@ -110,7 +110,7 @@ export class Routed extends Channel {
     this.hub.timeout(typeof ms === 'number' ? ms : (LATER_MS[tries] ?? 0), () => void go());
   }
 
-  override threadStarted(s: SessionView | null, thread: Thread, by: { name: string } | null): void {
+  threadStarted(s: SessionView | null, thread: Thread, by: { name: string } | null): void {
     if (!s) return;
     thread.session = s.id;
     this.hub.markStarted(s.id, this.name, by?.name);

@@ -13,7 +13,7 @@ describe('every composite renders its data-part (default and given)', () => {
       <>
         <ListRow title="Fix the login" />
         <Card>Body</Card>
-        <Toolbar aria-label="Task actions"><button type="button">A</button></Toolbar>
+        <Toolbar aria-label="Task actions" items={[{ id: 'a', label: 'A', icon: 'check', priority: 1, onSelect: () => {} }]} />
         <Composer value="" onInput={() => {}} onSend={() => {}} placeholder="Reply…" />
         <EmptyState title="No machines yet" />
         <Banner>Reconnecting to wisp…</Banner>
@@ -133,15 +133,20 @@ describe('Composer', () => {
 
 describe('Toolbar', () => {
   test('arrow keys, Home and End move focus between its controls, wrapping', () => {
+    const noop = (): void => {};
     mount(() => (
-      <Toolbar aria-label="Task actions">
-        <button type="button" data-n="a">A</button>
-        <button type="button" data-n="b">B</button>
-        <button type="button" data-n="c" disabled>C</button>
-        <button type="button" data-n="d">D</button>
-      </Toolbar>
+      <Toolbar
+        aria-label="Task actions"
+        items={[
+          { id: 'a', label: 'A', icon: 'check', priority: 1, onSelect: noop },
+          { id: 'b', label: 'B', icon: 'rerun', priority: 1, onSelect: noop },
+          { id: 'c', label: 'C', icon: 'archive', priority: 1, onSelect: noop, disabled: true },
+          { id: 'd', label: 'D', icon: 'send', priority: 'pin', onSelect: noop },
+        ]}
+      />
     ));
-    const btn = (n: string): HTMLElement | null => document.querySelector<HTMLElement>(`[data-n="${n}"]`);
+    // The visible copy of each item, not the hidden measuring copy.
+    const btn = (n: string): HTMLElement | null => document.querySelector<HTMLElement>(`[data-kit="toolbar-item"][data-item="${n}"] button`);
     btn('a')?.focus();
     btn('a')?.dispatchEvent(key('ArrowRight'));
     expect(document.activeElement).toBe(btn('b'));

@@ -19,6 +19,7 @@ import { createScope, type Scope } from './scope.ts';
 import { createSettings, type Settings, type TypedSettings } from './settings.ts';
 import type { Timers } from './clock.ts';
 import type { Json, PeerId, SettingDecl, Warn } from './types.ts';
+import { createTranscripts, type Transcript, type Transcripts } from './transcript.ts';
 import { createViews, type ViewDecl, type ViewHandle, type ViewRegistry } from './views.ts';
 
 export interface ClientOptions {
@@ -47,6 +48,8 @@ export interface PluginClient {
   machine<S extends string, E extends string, C>(def: MachineDef<S, E, C>, ctx: C, owner?: Scope): Machine<S, E>;
   run<A, R>(cmd: CommandDef<A, R>, args: A): Promise<R>;
   navigate(intent: Intent): void;
+  /** a task's events, tail first, paged backwards; owned by `owner` (the task view) */
+  transcript<T = unknown>(peer: PeerId, sessionId: string, owner?: Scope): Transcript<T>;
 }
 
 export interface Client {
@@ -57,6 +60,7 @@ export interface Client {
   readonly views: ViewRegistry;
   readonly commands: Pick<Commands, 'run' | 'pending'>;
   readonly drafts: Drafts;
+  readonly transcripts: Transcripts;
   readonly settings: Settings;
   readonly i18n: I18n;
   readonly devtools: Devtools;
@@ -83,6 +87,7 @@ export function createClient(o: ClientOptions): Client {
   const peers = createPeers({ scope, writer, clientId: o.clientId, build: o.build, warn, devtools });
   const commands = createCommands({ reader, writer, peers, persist, devtools, warn, now: () => scope.timers.now(), ...(o.onError && { onError: o.onError }) });
   const views = createViews();
+  const transcripts = createTranscripts({ reader, writer, peers });
   const drafts = createDrafts({ scope, persist, warn });
   const settings = createSettings({ reader, commands, home: o.home, persist, warn });
   const i18n = createI18n({ dev: o.dev === true, warn });
@@ -101,6 +106,7 @@ export function createClient(o: ClientOptions): Client {
     views,
     commands,
     drafts,
+    transcripts,
     settings,
     i18n,
     devtools,
@@ -151,6 +157,7 @@ export function createClient(o: ClientOptions): Client {
       },
       run: (cmd, args) => commands.run(cmd, args),
       navigate: (intent) => nav.navigate(intent),
+      transcript: (peer, sessionId, owner = ps) => transcripts.open(peer, sessionId, owner),
     };
   }
 

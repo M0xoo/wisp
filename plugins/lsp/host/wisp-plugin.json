@@ -1,0 +1,18 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.lsp",
+  "name": "Language servers",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "Where a name is defined, where it's used, what it is and what's wrong, for the side panel's editor.",
+  "server": { "builtin": "@wisp-plugin/lsp" },
+  "requires": { "wisp.runtime": "^2" },
+  "permissions": ["runtime:get", "proc:spawn", "http:route"],
+  "activation": ["onStartup"],
+  "contributes": {
+    "commands": [
+      { "id": "lsp.ask", "title": "Ask the task's language server", "optimistic": "none" },
+      { "id": "lsp.install", "title": "Install a language server", "optimistic": "none" }
+    ]
+  }
+}

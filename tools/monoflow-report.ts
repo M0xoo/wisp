@@ -14,7 +14,12 @@ export interface VerifyReport {
   /** per-package seconds, when the version reports them */
   durations: Record<string, number>;
   total: number;
+  /** what the failures said, `package: message`, for the log */
+  details: string[];
 }
+
+const DETAIL_KEYS = ['message', 'error', 'output', 'stderr'];
+const clip = (s: string): string => (s.length > 4000 ? `${s.slice(0, 4000)}…` : s);
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
@@ -24,13 +29,25 @@ export function readVerify(raw: unknown): VerifyReport {
   const j = isObj(raw) ? raw : {};
   const failed = new Set<string>();
   const durations: Record<string, number> = {};
+  const details: string[] = [];
+  const detail = (who: string, r: Record<string, unknown>): void => {
+    const text = DETAIL_KEYS.map((k) => r[k]).find((v): v is string => typeof v === 'string' && v.length > 0);
+    if (text) details.push(`${who}: ${clip(text)}`);
+  };
   for (const r of Array.isArray(j['results']) ? j['results'] : []) {
     if (!isObj(r) || typeof r['target'] !== 'string') continue;
     durations[r['target']] = num(r['duration_ms']) / 1000;
-    if (r['status'] === 'failed' || r['status'] === 'error') failed.add(r['target']);
+    if (r['status'] === 'failed' || r['status'] === 'error') {
+      failed.add(r['target']);
+      detail(r['target'], r);
+    }
   }
   if (isObj(j['failed'])) for (const k of Object.keys(j['failed'])) failed.add(k);
-  for (const e of Array.isArray(j['errors']) ? j['errors'] : []) if (isObj(e)) for (const t of strings(e['targets'])) failed.add(t);
+  for (const e of Array.isArray(j['errors']) ? j['errors'] : []) {
+    if (!isObj(e)) continue;
+    for (const t of strings(e['targets'])) failed.add(t);
+    detail(typeof e['file'] === 'string' ? e['file'] : strings(e['targets']).join(', '), e);
+  }
   return {
     status: typeof j['status'] === 'string' ? j['status'] : 'unknown',
     durationMs: num(j['duration_ms']),
@@ -38,6 +55,7 @@ export function readVerify(raw: unknown): VerifyReport {
     failed: [...failed].sort(),
     durations,
     total: num(j['total_targets']),
+    details,
   };
 }
 
@@ -67,11 +85,25 @@ if (import.meta.main) {
     process.stderr.write('usage: node tools/monoflow-report.ts <verify.json> [--title=…] [--affected=affected.json]\n');
     process.exit(2);
   }
-  const r = readVerify(readJsonFile(file));
+  let raw: unknown;
+  try {
+    raw = readJsonFile(file);
+  } catch (e) {
+    // the verify step's exit code already failed the job; say why the report is empty
+    process.stdout.write(`monoflow: ${file} is not JSON (${e instanceof Error ? e.message : String(e)})\n`);
+    process.exit(0);
+  }
+  const r = readVerify(raw);
   const affFile = flag('affected');
-  const aff: unknown = affFile && existsSync(affFile) ? readJsonFile(affFile) : undefined;
+  let aff: unknown;
+  try {
+    aff = affFile && existsSync(affFile) ? readJsonFile(affFile) : undefined;
+  } catch {
+    aff = undefined; // an affected step that failed leaves nothing to show
+  }
   const affected = isObj(aff) ? { affected_packages: strings(aff['affected_packages']), unmapped_files: strings(aff['unmapped_files']) } : undefined;
   process.stdout.write(`monoflow: ${r.status}, ${r.total} targets, ${(r.durationMs / 1000).toFixed(1)} s${r.failed.length ? `, failed: ${r.failed.join(', ')}` : ''}\n`);
+  for (const d of r.details) process.stdout.write(`  ${d.replace(/\n/g, '\n    ')}\n`);
   if (affected) process.stdout.write(`affected: ${affected.affected_packages.join(', ') || 'none'}${affected.unmapped_files.length ? ` (+${affected.unmapped_files.length} files outside every package)` : ''}\n`);
   const summary = process.env['GITHUB_STEP_SUMMARY'];
   if (summary) appendFileSync(summary, markdown(flag('title') ?? 'monoflow verify', r, affected));

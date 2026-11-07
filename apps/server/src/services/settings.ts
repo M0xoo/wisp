@@ -31,7 +31,7 @@ export function storeSettings(store: Store, home: string): SettingsBackend {
         store.setMeta(IMPORTED, String(Date.now()));
       }
       const out: Record<string, Json> = {};
-      for (const row of store.query(SETTING)) out[row.key] = row.value as Json;
+      for (const row of store.query(SETTING)) out[String(row.key)] = row.value as Json;
       return out;
     },
     save(key, value, scope) {

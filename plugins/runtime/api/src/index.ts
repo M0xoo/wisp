@@ -217,7 +217,24 @@ export const COMMANDS = {
   quick: 'runtime.quick', // QuickArgs → QuickResult   (one short model call; no session, no turn)
   // added by the edge row (wisp.telemetry's app_started, wisp.update's harness installer): v1 listAgents()
   agents: 'runtime.agents', // { fresh?: boolean } → AgentStatus[]  (read-only; fresh: detect again)
+  // added by the crew row (wisp.later): v1 later.js #reminderTask, a reminder plan that came due
+  card: 'runtime.card', // CardArgs → { id }   (a finished task with one done turn that ran no agent)
 } as const;
+
+/** `runtime.card`: a task that is only a message (v1 `kind: 'reminder'`): state review, unread, one done turn. */
+export interface CardArgs {
+  title: string;
+  /** the turn's prompt, as the bubble shows it */
+  prompt: string;
+  /** the turn's answer blocks (a hero) */
+  blocks: Presentation['blocks'];
+  /** when the turn says it started (the plan's setAt) */
+  startedAt?: number;
+  cwd?: string;
+  agent?: string;
+  /** namespaced extras, as on StartArgs (ext['wisp.later'].kind = 'reminder' refuses follow-ups) */
+  ext?: Record<string, Json>;
+}
 
 /** `runtime.agents`: each harness and what detect() found (v1 listAgents, minus the bin path). */
 export interface AgentStatus {
@@ -244,6 +261,8 @@ export interface QuickResult {
   agent: string;
   model: string;
   costUsd?: number;
+  /** added by the crew row (goal-run records): what the call did, as a turn's activity, when kept */
+  activity?: Activity[];
 }
 
 // ---------- events (published after commit) ----------

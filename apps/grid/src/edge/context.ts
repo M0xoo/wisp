@@ -8,7 +8,7 @@ import type { GridConfig } from '../config.ts';
 import type { Db } from '../db.ts';
 import { bad } from '../errors.ts';
 import type { Hostd } from '../hostd.ts';
-import { cookie, type Limit, type Res } from '../http.ts';
+import { cookie, type limiter, type Res } from '../http.ts';
 import type { createInbox } from '../inbox.ts';
 import type { createMail } from '../mail.ts';
 import type { createRoutes } from '../route.ts';
@@ -47,7 +47,7 @@ export interface Parts {
   tunnels: Tunnels;
   stats: Stats;
   providers: Providers;
-  limit: Limit;
+  limit: ReturnType<typeof limiter>;
   log: Log;
   /** Account pages open in a browser, each with an event stream (GET /events). */
   watchers: Map<string, Set<Res>>;

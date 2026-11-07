@@ -64,7 +64,7 @@ while True:
             put(1, data)
     if fd in writable:
         try:
-            typed = typed[os.write(fd, typed[:512]):]
+            typed = typed[os.write(fd, typed[:4096]):]
         except BlockingIOError:
             pass
         except OSError:
@@ -126,11 +126,19 @@ export interface PtyPlan {
   helper: boolean;
 }
 
+/**
+ * macOS script(1) dies on a socket for stdin ("tcgetattr/ioctl: Operation not supported on
+ * socket"), and Node's stdio pipes are socketpairs, as are macOS FIFOs. A shell pipe is a real
+ * pipe, so `cat` feeds script through one; when script ends, cat is killed so the shell doesn't
+ * wait on it, and script's status is the exit status. (v1's script fallback failed this way.)
+ */
+export const DARWIN_SCRIPT = `f=$(mktemp) || exit 127; sh -c 'echo $$ > "$0"; exec cat' "$f" | { script -q /dev/null sh -c "$1"; s=$?; kill "$(cat "$f")" 2>/dev/null; rm -f "$f"; exit $s; }`;
+
 /** How to start argv on a terminal of cols × rows. */
 export function ptyCommand(argv: readonly string[], { cols, rows, platform = process.platform, py }: { cols: number; rows: number; platform?: string; py: string | null }): PtyPlan {
   if (py) return { command: py, args: ['-c', HELPER, String(rows), String(cols), ...argv], helper: true };
   const line = `stty rows ${rows} cols ${cols} 2>/dev/null; exec ${argv.map(shq).join(' ')}`;
-  if (platform === 'darwin') return { command: 'script', args: ['-q', '/dev/null', 'sh', '-c', line], helper: false };
+  if (platform === 'darwin') return { command: 'sh', args: ['-c', DARWIN_SCRIPT, 'sh', line], helper: false };
   return { command: 'script', args: ['-qfec', line, '/dev/null'], helper: false }; // util-linux
 }
 

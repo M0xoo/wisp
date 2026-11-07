@@ -14,8 +14,7 @@ export interface ServerInfo extends Extra {
   pid?: number;
   version?: string;
   apiVersion?: number;
-  /** v2: the bearer token local clients send */
-  token?: string;
+  startedAt?: number;
 }
 
 export interface Health extends Extra {

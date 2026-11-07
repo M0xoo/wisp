@@ -28,6 +28,19 @@ CSS: only the kit has CSS, and its CSS stays on the token scale with no slow sel
 @layer reset {
   [hidden] { display: none !important; }
 }
+@layer kit {
+  [data-kit='toolbar'] { display: flex; flex-wrap: wrap; }
+  /* !important: the library sets bottom inline */
+  [data-kit='toasts'] { bottom: 0 !important; }
+  [data-kit='wrap'] { display: flex; flex-wrap: wrap; }
+  [data-kit='wrap'] > [data-kit='chip'] { flex-flow: row wrap; }
+  [data-kit='inline'] { flex-flow: row nowrap; }
+  [data-kit='button'] { white-space: normal; }
+  [data-text='control'] { text-wrap: balance; }
+  [data-kit='text'] { white-space: normal; text-wrap: pretty; }
+  [data-kit='list-row-title'] { white-space: nowrap; }
+  @media (max-width: 720px) { [data-kit='list-row-title'] { white-space: pre-line; } }
+}
 @media (prefers-reduced-motion: reduce) {
   [data-kit] { animation-duration: 0.01s !important; }
 }

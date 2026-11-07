@@ -69,7 +69,7 @@ export async function sharePage(r: Root): Promise<boolean> {
 async function media(r: Root, id: string, name: string): Promise<void> {
   const { x, req, res } = r;
   const row = x.shares.get(id);
-  const file = row && (!row.pass || opened(x, req, row)) ? x.shares.media(row, name) : null;
+  const file = row && (!row.pass || opened(x, req, row)) ? await x.shares.media(row, name) : null;
   const size = file ? await fs.promises.stat(file).then((s) => s.size, () => -1) : -1;
   if (!row || !file || size < 0) return json(res, 404, { error: 'not found' });
   const m = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || ''));

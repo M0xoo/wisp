@@ -65,6 +65,8 @@
     --size-control-md: 32px;
     --size-control-lg: 36px;
     --size-touch: 44px;
+    --size-bar: 40px;
+    --size-bar-compact: 32px;
     --size-switch-w: 34px;
     --size-switch-h: 20px;
     --size-switch-knob: 16px;
@@ -83,6 +85,8 @@
     --size-row-min: 36px;
     --size-diff-gutter: 36px;
     --size-lazy-chunk: 400px;
+    --bar-h: var(--size-bar);
+    --bar-h-compact: var(--size-bar-compact);
     --dur-fast: 0.12s;
     --dur-base: 0.15s;
     --dur-slow: 0.2s;

@@ -48,6 +48,11 @@ export interface EntityWriter {
   snapshot(peer: PeerId, topic: Topic, rows: readonly { e: string; id: string; v: unknown }[]): void;
   /** the peer's cursor moved: acked commands whose effect is now in base stop overlaying it */
   advance(peer: PeerId, cursor: number): void;
+  /**
+   * Older items of a list row (a transcript page from `window`) merged under the ones held: deduped
+   * and ordered by `seqOf`. The row keeps its topics; a row not held yet joins `topic`.
+   */
+  mergeOlder(peer: PeerId, kind: string, id: string, topic: Topic, items: readonly unknown[], seqOf: (item: unknown) => number): void;
   /** the peer's cache is no longer trusted (a new epoch, or the cursor is too old) */
   resetPeer(peer: PeerId): void;
   restore(peer: PeerId, cursor: number, rows: readonly StoredRow[]): void;
@@ -199,6 +204,19 @@ export function createEntityStore(warn: Warn = () => {}): { reader: EntityReader
         }
       }
       recomputeAll(touched);
+    },
+    mergeOlder(peer, kind, id, topic, items, seqOf) {
+      if (items.length === 0) return;
+      const key = entityKey(peer, id);
+      const r = cell(kind, key);
+      const held: readonly unknown[] = Array.isArray(r.base) ? r.base : [];
+      const have = new Set(held.map(seqOf));
+      const older = items.filter((x) => !have.has(seqOf(x)));
+      if (older.length === 0) return;
+      // pages arrive older than what's held, so this is almost always a concat; sort keeps it right if not
+      r.base = [...older, ...held].sort((a, b) => seqOf(a) - seqOf(b));
+      if (r.topics.size === 0) r.topics.add(topic);
+      recomputeAll([{ kind, key }]);
     },
     advance(peer, cursor) {
       if (cursor <= cursorOf(peer)) return;

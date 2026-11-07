@@ -79,7 +79,7 @@ test("the scaffold's own api and host tests pass, builtin and exec", () => {
     made(root, 'demo', tier);
     // what npm install would link: the host imports its api by name
     mkdirSync(join(root, 'node_modules/@wisp-plugin'), { recursive: true });
-    symlinkSync(join(root, 'plugins/demo/api'), join(root, 'node_modules/@wisp-plugin/demo-api'), 'dir');
+    symlinkSync(join(root, 'plugins/demo/api'), join(root, 'node_modules/@wisp-plugin/demo-api'), process.platform === 'win32' ? 'junction' : 'dir');
     for (const half of ['api', 'host']) {
       execFileSync(process.execPath, ['--test', '--test-reporter=dot', 'test/**/*.test.ts'], { cwd: join(root, 'plugins/demo', half), stdio: 'pipe' });
     }

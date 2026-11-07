@@ -118,7 +118,8 @@ export function codexLive(res: unknown, { now = Date.now() }: { now?: number } =
   if (!frozen(main)) return limits;
   const side = (id: string, rl: Obj): boolean => !!rl['normalModelSlug'] || id === 'premium' || rl['limitId'] === 'premium';
   const latest = (rl: Obj): number => Math.max(0, ...resetsOf(rl));
-  const candidates = [['', res['rateLimits']] as const, ...Object.entries(byId ?? {})].filter((e): e is readonly [string, Obj] => isObj(e[1]));
+  const candidates: [string, Obj][] = [];
+  for (const [id, rl] of [['', res['rateLimits']] as [string, unknown], ...Object.entries(byId ?? {})]) if (isObj(rl)) candidates.push([id, rl]);
   const [next] = candidates.filter(([id, rl]) => id !== 'codex' && limitsOfLive(rl, now) && !side(id, rl) && !frozen(rl)).sort((a, b) => latest(b[1]) - latest(a[1]));
   return next ? limitsOfLive(next[1], now) : limits;
 }
