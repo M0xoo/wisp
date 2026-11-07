@@ -245,6 +245,19 @@ export function openapi({ version, port }) {
         },
         delete: { summary: 'Stop and delete. Its worktree is removed; its branch too unless it has commits', responses: { 200: ok, 404: err[404] } },
       },
+      '/sessions/{id}/folders': {
+        parameters: [id],
+        get: {
+          summary: 'Done asks about the worktree: each folder on disk the task and what ran under it hold (its other folders, its subagents\' and delegated crew jobs\' worktrees, compare runs marked done with it), not the ones in use. only: what the folder alone holds (uncommitted files, plus one when HEAD left the branch; null when git can\'t tell). onDone: defaults.worktreeOnDone',
+          parameters: [{ name: 'sizes', in: 'query', schema: { enum: ['0', '1'] }, description: '0: answer at once, size null (du takes seconds on a big folder)' }],
+          responses: { 200: json({ type: 'object', properties: { onDone: { enum: ['ask', 'remove', 'keep'] }, folders: { type: 'array', items: { type: 'object', properties: { path: { type: 'string' }, task: { type: 'string' }, title: { type: 'string' }, own: { type: 'boolean' }, branch: { type: 'string' }, size: { type: ['integer', 'null'] }, only: { type: ['integer', 'null'] }, uncommitted: { type: ['integer', 'null'] }, unpushed: { type: 'integer' }, pr: { type: ['object', 'null'] }, kept: { type: 'boolean' } } } } } }), 404: err[404] },
+        },
+        post: {
+          summary: 'The answer: remove these folders (their branches stay; a follow-up brings a folder back), forcing the ones in force (their uncommitted work goes), and keep these (keepWorktree). One that can\'t be removed is kept and listed in failed',
+          requestBody: body({ type: 'object', properties: { remove: { type: 'array', items: { type: 'string' } }, force: { type: 'array', items: { type: 'string' } }, keep: { type: 'array', items: { type: 'string' } } } }),
+          responses: { 200: json({ type: 'object', properties: { removed: { type: 'array', items: { type: 'string' } }, kept: { type: 'array', items: { type: 'string' } }, failed: { type: 'array', items: { type: 'object' } } } }), 400: err[400], 404: err[404] },
+        },
+      },
       '/sessions/{id}/ship': {
         parameters: [id],
         get: { summary: 'What would ship: { branch, base, remote, dirty, ahead, pr, title, body } (drafted from the latest presentation)', responses: { 200: json({ type: 'object' }), 400: err[400] } },

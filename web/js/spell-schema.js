@@ -715,6 +715,7 @@ export const SETTINGS = {
   worktree: ['on', 'off'],
   worktreeCleanup: ['off', '3', '7', '14', '30'], // days a task's worktree may sit idle
   worktreeMax: ['off', '20', '40', '80'], // worktree folders kept on disk before the oldest idle ones go
+  worktreeOnDone: ['ask', 'remove', 'keep'], // Done in the page: ask about its folders, remove the clean ones, or keep them
   followUp: ['queue', 'interrupt'],
   mode: ['plan', 'edits', 'auto'],
   agent: 'string',

@@ -69,6 +69,7 @@ import { createShip } from './services/ship.js';
 import { createReview } from './services/review.js';
 import { createOverlaps } from './services/overlaps.js';
 import { createWorktrees } from './services/worktrees.js';
+import { createDoneFolders } from './services/done-folders.js';
 import { trackTurns } from './services/telemetry.js';
 import { Uploads } from './services/uploads.js';
 import { Stuff } from './services/stuff.js';
@@ -406,8 +407,21 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   });
   // A quiet check-in is archived as it ends: its worktree goes like any archived task's.
   runner.on('ended', ({ session: s }) => {
-    if (s.crew && s.archived) for (const x of [s, ...(s.also || [])]) if (x.worktree) removeWorktree(x.worktree, { branch: true }).catch(() => {});
+    if (s.crew && s.archived) {
+      for (const x of [s, ...(s.also || [])]) if (x.worktree) removeWorktree(x.worktree, { branch: true }).catch(() => {});
+    }
+    // Any other crew job (and what it delegated) that ended done or for review: a clean folder with
+    // no open PR goes now, once its CLI has let go (a few seconds). The branch stays.
+    else if (s.crew && (s.state === 'done' || s.state === 'review')) tidyWhenFree(s);
   });
+  const tidyWhenFree = (s, tries = 0) => {
+    const t = setTimeout(() => {
+      if (store.get(s.id) !== s || s.state === 'running' || s.state === 'waiting') return; // a follow-up took it
+      if (runner.live.has(s.id)) return tries < 24 ? tidyWhenFree(s, tries + 1) : undefined; // still lingering: the hourly cleanup has it
+      app.doneFolders.tidy(s).catch((err) => console.warn(`wisp: done folders: ${err.message}`));
+    }, 5000);
+    t.unref?.();
+  };
   app.triggers = new Triggers({
     store,
     launch: async (body, origin, opts) => (await app.launcher.launchAny(body, origin, opts))[0],
@@ -515,6 +529,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.worktrees = createWorktrees(app); // old worktrees: the hourly cleanup, Settings → Worktrees
   // Memory under the floor or the CPU over its ceiling (server/load.js): no sweep, no du, until the next hour.
   app.worktrees.setBusy(() => app.load.busy());
+  app.doneFolders = createDoneFolders(app); // Done asks about the worktree; Done from elsewhere tidies what's clean
   app.worktrees.start();
   app.review = createReview(app); // review by another harness before Merge (defaults.review)
   app.ship = createShip(app);

@@ -321,6 +321,11 @@ try {
     await p.waitForTimeout(300);
     await press(p, 'e');
     await until(async () => (await session(first.id)).state === 'done', { timeout: 3000, what: 'done' });
+    // WEB-10b: Done asks about the worktree the fake's edit left changed; Esc leaves it.
+    await p.locator('.wd-modal .wd-row:not(.wd-wait)').first().waitFor({ timeout: 5000 });
+    ok(!(await p.locator('.wd-row input').first().isChecked()), 'a folder holding work starts unticked');
+    await p.keyboard.press('Escape');
+    await p.locator('.wd-modal').waitFor({ state: 'detached', timeout: 3000 });
     ok((await p.locator('.it-body:visible').count()) === 0 && (await p.locator('#prompt').isVisible()) && !(await p.locator('#prompt').inputValue()), 'done should go to New task (empty prompt), not open another task');
     const a = await api(w.url, `/api/sessions/${first.id}`, { archived: true }, 'PATCH');
     ok(a.status === 200 && a.json.archived, `archive ${a.status}`);

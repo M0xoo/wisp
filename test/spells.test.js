@@ -442,6 +442,9 @@ test('worktree cleanup: a setting with its days, and Settings → Worktrees as p
   assert.deepEqual(problems({ ...base0, settings: { worktreeMax: '40' } }), []);
   assert.deepEqual(problems({ ...base0, settings: { worktreeMax: 'off' } }), []);
   assert.ok(problems({ ...base0, settings: { worktreeMax: '100' } }).some((x) => /worktreeMax/.test(x) && /off \| 20 \| 40 \| 80/.test(x)));
+  // Done asks about the worktree: a spell may set what Mark done does with the folders.
+  for (const v of ['ask', 'remove', 'keep']) assert.deepEqual(problems({ ...base0, settings: { worktreeOnDone: v } }), []);
+  assert.ok(problems({ ...base0, settings: { worktreeOnDone: 'always' } }).some((x) => /worktreeOnDone/.test(x) && /ask \| remove \| keep/.test(x)));
   assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.worktrees.list'] } }), []);
 });
 
