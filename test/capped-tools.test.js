@@ -130,7 +130,7 @@ test('launch: no machine, sandbox or /sandbox; no folder or project of another; 
   await withMachine(async () => {
     const s = await capped();
     const away = path.join(repo, 'door');
-    fs.symlinkSync(other, away);
+    fs.symlinkSync(other, away, 'junction');
     srv.store.config.projects.push({ id: 'p-away', name: 'away', path: '/srv/away', machine: 'm-box' });
     srv.store.config.teams.push({ id: 'p-box', name: 'Box', members: [{ name: 'x', agent: 'codex', machine: 'm-box' }] });
     const refused = [
