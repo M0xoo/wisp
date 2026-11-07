@@ -19,7 +19,7 @@ isolateAgentConfigs();
 
 const { startServer } = await import('../server/index.js');
 const { RateLimit, STALE_S } = await import('../server/channels/policy.js');
-const { NOT_ON_A_BOX, slackManifest, slackText } = await import('../server/channels/slack.js');
+const { NO_HUB, slackManifest, slackText } = await import('../server/channels/slack.js');
 const { stripFormatting } = await import('../server/channels/grammar.js');
 
 const ME = 'U0ME';
@@ -126,16 +126,17 @@ async function caughtUp(t) {
 
 test('off by default: no connection, tokens checked, tokens masked', async () => {
   const view = (await api('/remote')).slack;
-  assert.deepEqual(view, { enabled: false, appToken: '', botToken: '', connected: false, team: '', bot: '', senders: 0, linkCode: '', box: false, error: '' });
+  assert.deepEqual(view, { enabled: false, appToken: '', botToken: '', signingSecret: '', connected: false, team: '', bot: '', senders: 0, linkCode: '', box: false, error: '' });
   await assert.rejects(api('/remote', { method: 'PUT', body: { slack: { appToken: 'nope' } } }), /starts with xapp-/);
   await assert.rejects(api('/remote', { method: 'PUT', body: { slack: { botToken: 'xapp-x' } } }), /starts with xoxb-/);
   assert.equal(fake.opens, 0);
 });
 
-test('on a cloud computer it won’t turn on, and says why; a config from elsewhere doesn’t start it', async () => {
+test('on a grid with no way in (a sandbox is one) it won’t turn on, and says why; a config from elsewhere doesn’t start it', async () => {
   process.env.WISP_GRID_URL = 'https://grid.example';
   try {
-    await assert.rejects(api('/remote', { method: 'PUT', body: { slack: { enabled: true, appToken: APP, botToken: BOT } } }), new RegExp(NOT_ON_A_BOX.slice(0, 40)));
+    await assert.rejects(api('/remote', { method: 'PUT', body: { slack: { enabled: true, appToken: APP, botToken: BOT } } }), new RegExp(NO_HUB.slice(0, 40)));
+    await assert.rejects(api('/remote/slack/manifest'), new RegExp(NO_HUB.slice(0, 40)));
     assert.equal((await api('/remote')).slack.box, true);
     assert.equal((await api('/remote')).slack.enabled, false);
     srv.store.config.remote.slack = { enabled: true, appToken: APP, botToken: BOT };
@@ -145,6 +146,25 @@ test('on a cloud computer it won’t turn on, and says why; a config from elsewh
     delete process.env.WISP_GRID_URL;
   }
   assert.equal(fake.opens, 0);
+});
+
+test('a manifest with a URL: HTTP events to it, and no socket; a computer’s never has one', () => {
+  const m = slackManifest({ url: 'https://ada.grid.example/_in/tok' });
+  assert.equal(m.settings.socket_mode_enabled, false);
+  assert.equal(m.settings.event_subscriptions.request_url, 'https://ada.grid.example/_in/tok');
+  assert.deepEqual(m.settings.event_subscriptions.bot_events, slackManifest().settings.event_subscriptions.bot_events);
+  assert.deepEqual(m.oauth_config, slackManifest().oauth_config);
+  assert.equal('request_url' in slackManifest().settings.event_subscriptions, false);
+});
+
+test('the signing secret is checked, masked and only ever sent masked', async () => {
+  await assert.rejects(api('/remote', { method: 'PUT', body: { slack: { signingSecret: 'has spaces in it, sixteen+' } } }), /signing secret/i);
+  const s = 'abcdef0123456789abcdef0123456789';
+  const view = await api('/remote', { method: 'PUT', body: { slack: { signingSecret: s } } });
+  assert.equal(view.slack.signingSecret, `••••${s.slice(-4)}`);
+  await api('/remote', { method: 'PUT', body: { slack: { signingSecret: view.slack.signingSecret } } });
+  assert.equal(srv.store.config.remote.slack.signingSecret, s, 'a masked value means unchanged');
+  delete srv.store.config.remote.slack;
 });
 
 test('the manifest: Socket Mode, the two events, the exact scopes', async () => {
