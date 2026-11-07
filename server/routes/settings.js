@@ -70,8 +70,9 @@ export function register(r, app) {
     if (body.defaults?.spareCard !== undefined && !['on', 'off'].includes(body.defaults.spareCard)) return c.send(400, { error: 'spareCard must be on or off' });
     if (body.defaults?.drainWatch !== undefined && !['on', 'off'].includes(body.defaults.drainWatch)) return c.send(400, { error: 'drainWatch must be on or off' });
     if (body.defaults?.acceptChannels !== undefined && !['on', 'off'].includes(body.defaults.acceptChannels)) return c.send(400, { error: 'acceptChannels must be on or off' });
-    // A computer switches this on itself: not from a phone, and not from anything that holds a way in through the grid.
-    if (body.defaults?.acceptChannels !== undefined && body.defaults.acceptChannels !== store.config.defaults.acceptChannels && fromTunnel(c.req)) return c.send(403, { error: 'Change this on the computer itself, in Settings there.' });
+    // A computer switches this on itself: not from a phone, and not from anything else with a way in
+    // through the grid. Off is fine from anywhere: that's what you'd reach for from a phone.
+    if (body.defaults?.acceptChannels === 'on' && store.config.defaults.acceptChannels !== 'on' && fromTunnel(c.req)) return c.send(403, { error: 'Turn this on from the computer itself, in Settings there.' });
     if (body.defaults?.webhookTriggers !== undefined && !['on', 'off'].includes(body.defaults.webhookTriggers)) return c.send(400, { error: 'webhookTriggers must be on or off' });
     if (body.defaults?.panes !== undefined && panesProblem(body.defaults.panes)) return c.send(400, { error: panesProblem(body.defaults.panes) });
     if (body.defaults?.updateChannel !== undefined && !Object.hasOwn(CHANNELS, body.defaults.updateChannel)) return c.send(400, { error: `updateChannel must be one of ${Object.keys(CHANNELS).join(', ')}` });

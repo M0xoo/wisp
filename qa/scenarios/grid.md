@@ -259,8 +259,8 @@ for the rest
   refused; a reply to the report is a follow-up there. The box isn't woken for any of it, and anything
   else reaches it `verified`. A wrong secret is a 403, a wrong token a 404. `GET /api/channels/url` says
   `held: true` and no more; `POST /api/channels/reply` with a Box secret is a 401. *Accept tasks from
-  channels* can't be changed through the grid (403 on `PATCH /api/config` there), and a spell can only
-  force it off. Fits 390px, light and dark.
+  channels* can't be turned on through the grid (403 on `PATCH /api/config` there; off works), and a
+  spell can only force it off. Fits 390px, light and dark.
 - **Risk:** the box holding the same bot token can repoint the webhook. That stops routing and reaches
   nothing. Removing the bot leaves the box without a webhook until it next starts.
 - **Against production:** only when the owner deploys: a throwaway account, one real Telegram bot.

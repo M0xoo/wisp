@@ -648,7 +648,7 @@ test('a real wisp: switch off, then on; Plan, Edits, Full auto refused, stale, a
   const phone = g.device(user, 'Phone (wisp app)');
   const cookieless = await call(g.port, new URL(here.url).hostname, '/api/config', { method: 'PATCH', headers: { authorization: `Bearer ${phone}`, 'content-type': 'application/json' }, body: JSON.stringify({ defaults: { acceptChannels: 'on' } }) });
   assert.equal(cookieless.status, 403, cookieless.text);
-  assert.match(cookieless.text, /on the computer itself/);
+  assert.match(cookieless.text, /from the computer itself/);
   assert.notEqual(app.store.config.defaults.acceptChannels, 'on');
   assert.equal((await api('/config', { method: 'PATCH', body: { defaults: { acceptChannels: 'on' } } })).status, 200);
 
@@ -657,6 +657,12 @@ test('a real wisp: switch off, then on; Plan, Edits, Full auto refused, stale, a
   // A signed-in phone at the computer's own address can't send what only the grid sends.
   assert.equal((await call(g.port, new URL(here.url).hostname, '/api/channels/routed', { headers: { authorization: `Bearer ${phone}`, 'content-type': 'application/json', 'x-wisp-route': 'grid' }, body: JSON.stringify({ text: 'x', thread: 't', id: '2' }) })).status, 403);
 
+
+  // Off is fine from a phone: that's the one you'd want from anywhere. On again is this computer's.
+  const viaGrid = (v) => call(g.port, new URL(here.url).hostname, '/api/config', { method: 'PATCH', headers: { authorization: `Bearer ${phone}`, 'content-type': 'application/json' }, body: JSON.stringify({ defaults: { acceptChannels: v } }) });
+  assert.equal((await viaGrid('off')).status, 200);
+  assert.equal((await viaGrid('on')).status, 403);
+  assert.equal((await api('/config', { method: 'PATCH', body: { defaults: { acceptChannels: 'on' } } })).status, 200);
 
   // Full auto: refused, however it's asked.
   assert.match(await sends(`on ${name} full auto: delete it`), /Full auto isn’t allowed/);

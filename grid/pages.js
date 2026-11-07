@@ -419,6 +419,7 @@ h2.sec{margin:36px 0 12px;font-size:14px;font-weight:600;color:var(--ink);scroll
 form.inline{display:inline}
 .r.del .input{width:170px;height:32px;font:13px var(--sans);letter-spacing:0;text-transform:none}
 .route-f{display:grid;gap:12px;padding:14px}.route-f label{display:grid;gap:6px}.route-f label span{font-size:13px;font-weight:600}.route-f .input{font:14px var(--sans);letter-spacing:0;text-transform:none}.route-f .hint{margin:0}.route-f .primary{justify-self:start}
+@media (max-width:640px){.route-f .input{font-size:16px}}
 .pill.soon{color:var(--muted);background:var(--bg-2);border-color:transparent}.pill.listed{display:inline-flex;align-items:center;gap:4px;color:var(--good);border-color:color-mix(in srgb,var(--good) 35%,var(--line))}.pill.listed svg{width:11px;height:11px}.pill.ok{color:var(--good);border-color:color-mix(in srgb,var(--good) 35%,var(--line))}
 button.w.add-m{width:100%;align-items:center;border:0;border-top:1px solid var(--line);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;border-radius:0 0 12px 12px}button.w.add-m:hover{background:var(--bg-2)}button.w.add-m:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 button.w.add-m .w-tx b{font-size:14px}button.w.add-m .chev svg{width:16px;height:16px;color:var(--muted)}
