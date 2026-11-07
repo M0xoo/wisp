@@ -86,7 +86,8 @@ function driver(port) {
 async function launch(port, { env: extra = {} } = {}) {
   await quit(); // what a failed check left behind
   const { env, home, bins } = qaEnv({ WISP_PORT: String(port), WISP_UPDATE_CHECK: '0', WISP_QA_PORT: String(port + 1), WISP_NODE: NODE, WISP_QA_PICK: '/tmp/qa-picked', WISP_QA_DOWNLOADS: fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-qa-dl-')), ...extra });
-  for (const [bin, k] of Object.entries(BIN_ENV)) env[`WISP_${k}_BIN`] = path.join(bins, bin);
+  for (const [bin, k] of Object.entries(BIN_ENV)) if (env[`WISP_${k}_BIN`] !== '') env[`WISP_${k}_BIN`] = path.join(bins, bin);
+  for (const [k, v] of Object.entries(env)) if (v === '') delete env[k];
   for (const k of ['ELECTRON_RUN_AS_NODE', 'WISP_DESKTOP']) delete env[k];
   const log = path.join(OUT, `desktop-tauri-${port}.log`);
   const out = fs.openSync(log, 'w');
@@ -262,6 +263,15 @@ await check('TAURI-07', 'application menu, Edit keys in the prompt box', async (
   await A.js(`(__qaT.value = '', __qaT.dispatchEvent(new Event('input', { bubbles: true })), 1)`);
 });
 
+await check('TAURI-07c', 'Tab reaches buttons and links, as in Electron', async () => {
+  await A.ask({ op: 'activate' });
+  await A.js(`(() => { document.activeElement?.blur(); const b = document.createElement('div'); b.id = 'qaTab'; b.style.cssText = 'position:fixed;left:300px;top:300px;z-index:99999'; b.innerHTML = '<input id=qaTabFrom><a id=qaTabLink href="#x">link</a><button id=qaTabButton>button</button>'; document.body.append(b); document.querySelector('#qaTabFrom').focus(); return 1; })()`);
+  const tab = (id) => A.ask({ op: 'key', chars: '\t', code: 48, mods: 0 }).then(() => until(() => A.js(`document.activeElement?.id === '${id}'`), { timeout: 5000, what: `Tab to reach #${id}` }));
+  await tab('qaTabLink');
+  await tab('qaTabButton');
+  await A.js(`(qaTab.remove(), 1)`);
+});
+
 await check('TAURI-08', 'follows the theme (light ⇄ dark)', async () => {
   const bg = () => A.js(`getComputedStyle(document.body).backgroundColor`);
   await A.ask({ op: 'theme', dark: false });
@@ -381,6 +391,86 @@ await check('TAURI-16', 'drag regions move the window, a double-click zooms it, 
   await sleep(400);
 });
 
+await check('TAURI-18', 'a task that finishes behind the window notifies, and a click opens it', async () => {
+  ok((await A.js('Notification.permission')) === 'granted', `permission ${await A.js('Notification.permission')}`);
+  const refused = await A.js(`window.__TAURI_INTERNALS__.invoke('plugin:notification|notify', { options: { title: 'x' } }).then(() => 'allowed', () => 'refused')`);
+  ok(refused === 'refused', `the plugin's own commands reach the page: ${refused}`);
+  await A.ask({ op: 'clear-delivered' });
+  await A.ask({ op: 'close' });
+  await until(async () => !(await A.js('document.hasFocus()')), { timeout: 5000, what: 'the page to lose focus' });
+  const s = await api(A.url, '/api/sessions', { prompt: 'fix the add function in math.js', cwd: makeRepo(), agent: 'claude' });
+  const [title] = await until(async () => { const d = (await A.ask({ op: 'delivered' })).delivered; return d?.length && d; }, { timeout: 30_000, what: 'macOS to hold a notification' });
+  console.log(`  delivered "${title}"`);
+  await sleep(600); // the plugin's own wait has to be on it
+  ok((await A.ask({ op: 'notify-click', title })).ok, 'no click delegate');
+  await until(async () => (await A.ask({ op: 'window' })).visible, { timeout: 5000, what: 'the window to come back' });
+  await until(() => A.js(`document.querySelector('.item.open')?.dataset.id === ${JSON.stringify(s.json.id)}`), { timeout: 8000, what: 'the task to open' });
+  ok(!(await A.ask({ op: 'delivered' })).delivered.length, 'the click left it in Notification Center');
+  await A.js(`(() => { const n = new Notification('off', { body: 'x' }); n.close(); return 1; })()`); // what notify.js may call
+});
+
+await check('TAURI-19', "View's items: Reload, Force Reload, Toggle Developer Tools", async () => {
+  const reloads = async (item) => {
+    await A.js(`(window.__qaKept = 1)`);
+    const r = await A.ask({ op: 'menu-click', top: 'View', item });
+    ok(r.ok, `${item}: ${JSON.stringify(r)}`);
+    await until(() => A.js(`window.__qaKept === undefined && document.readyState === 'complete' && !!document.querySelector('#launcher, #splitHome')`).catch(() => false), { timeout: 15_000, what: `${item} to reload the page` });
+    await sleep(600);
+  };
+  await reloads('Reload');
+  await reloads('Force Reload');
+  const open = async () => (await A.ask({ op: 'devtools' })).open;
+  ok(!(await open()), 'open before asked');
+  ok((await A.ask({ op: 'menu-click', top: 'View', item: 'Toggle Developer Tools' })).ok, 'no such item');
+  await until(open, { timeout: 8000, what: 'the inspector to open' });
+  await sleep(800);
+  ok((await A.ask({ op: 'menu-click', top: 'View', item: 'Toggle Developer Tools' })).ok, 'no such item');
+  await until(async () => !(await open()), { timeout: 8000, what: 'the inspector to close' });
+});
+
+await check('TAURI-20', 'the right-click menu: Copy Link on a link, Cut Copy Paste in a text box', async () => {
+  await A.ask({ op: 'activate' });
+  const spot = `(() => { const old = document.querySelector('#qaCtx'); old?.remove(); const b = document.createElement('div'); b.id = 'qaCtx'; b.style.cssText = 'position:fixed;left:400px;top:300px;z-index:99999;background:#888;padding:20px'; b.innerHTML = '<a href="https://example.com/qa">a link</a><br><br><textarea>some text</textarea>'; document.body.append(b); return 1; })()`;
+  await A.js(spot);
+  const open = async (x, y) => {
+    await A.ask({ op: 'right-click', x, y });
+    const { items } = await until(async () => { const r = await A.ask({ op: 'context-menu' }); return r.items && r; }, { timeout: 8000, what: 'AppKit to open a menu' });
+    return items;
+  };
+  const close = async () => {
+    await A.ask({ op: 'key', chars: '\u001b', code: 53, mods: 0 });
+    await until(async () => (await A.ask({ op: 'mode' })).mode !== 'NSEventTrackingRunLoopMode', { timeout: 5000, what: 'Escape to close the menu' });
+    await sleep(300);
+  };
+  const place = await A.js(`(() => { const r = (e) => { const b = e.getBoundingClientRect(); return [b.left + 8, b.top + b.height / 2]; }; return { link: r(qaCtx.querySelector('a')), box: r(qaCtx.querySelector('textarea')) }; })()`);
+  const link = await open(...place.link);
+  console.log(`  link: ${link}`);
+  await close();
+  ok(link.some((i) => /Copy Link/.test(i)), `no Copy Link: ${link}`);
+  await A.js(`(() => { const t = qaCtx.querySelector('textarea'); t.focus(); t.select(); return 1; })()`);
+  await sleep(300);
+  const box = await open(...place.box);
+  console.log(`  text box: ${box}`);
+  await close();
+  for (const i of ['Cut', 'Copy', 'Paste']) ok(box.includes(i), `no ${i}: ${box}`);
+  await A.js(`(qaCtx.remove(), 1)`);
+});
+
+await check('TAURI-23', 'a file dropped from Finder lands in the prompt box', async () => {
+  await A.ask({ op: 'activate' });
+  await A.js(`(location.hash = '#/', document.querySelector('#splitNew')?.click(), 1)`);
+  await sleep(600);
+  const file = path.join(os.tmpdir(), `wisp-qa-drop-${process.pid}.txt`);
+  fs.writeFileSync(file, 'dropped');
+  await A.js(`(window.__qaDrop = null, addEventListener('dragover', (e) => (window.__qaOver = (window.__qaOver || 0) + 1), true), addEventListener('drop', (e) => (window.__qaDrop = [...e.dataTransfer.files].map((f) => f.name + ':' + f.size)), true), 1)`);
+  const [x, y] = await A.js(`(() => { const r = document.querySelector('#prompt').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`);
+  console.log(`  ${JSON.stringify(await A.ask({ op: 'drop-file', path: file, x, y }))}`);
+  const got = await until(() => A.js('window.__qaDrop'), { timeout: 8000, what: 'the drop event' });
+  ok(got[0] === `${path.basename(file)}:7`, `the page got ${got}`);
+  await until(() => A.js(`document.querySelector('#launcher')?.textContent.includes(${JSON.stringify(path.basename(file))})`), { timeout: 8000, what: 'the attachment to show' });
+  fs.rmSync(file);
+});
+
 await check('TAURI-12', 'a second launch focuses the first and exits', async () => {
   const second = spawn(BINARY, [], { env: A.env, stdio: 'ignore' });
   const code = await Promise.race([new Promise((r) => second.on('exit', (c) => r(c ?? 0))), sleep(15_000).then(() => 'timeout')]);
@@ -442,6 +532,71 @@ await check('TAURI-15', 'kill -9 of the shell leaves no orphan', async () => {
   await until(async () => !(await listening(PORT)), { timeout: 10_000, what: 'the port to close' });
   ok(!fs.existsSync(path.join(A.home, 'server.json')), 'the server was not shut down cleanly');
   A = null;
+});
+
+await check('TAURI-21', 'a server that ignores the quit is killed at the 5 s limit', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-qa-stuck-'));
+  fs.mkdirSync(path.join(root, 'desktop'));
+  // Stands in for a shutdown that hangs: it answers like wisp and never reacts to stdin closing.
+  fs.writeFileSync(path.join(root, 'desktop/entry.mjs'), `import http from 'node:http';
+process.on('SIGTERM', () => {});
+process.stdin.on('data', () => {}).on('error', () => {});
+http.createServer((q, r) => { r.setHeader('content-type', q.url.startsWith('/api') ? 'application/json' : 'text/html'); r.end(q.url.startsWith('/api') ? JSON.stringify({ pid: process.pid }) : '<!doctype html><title>wisp</title><div id=launcher></div>'); }).listen(Number(process.env.WISP_PORT));
+`);
+  A = await launch(PORT, { env: { WISP_ROOT: root } });
+  const pid = (await api(A.url, '/api/health')).json.pid;
+  await A.ask({ op: 'activate' });
+  await sleep(300);
+  const at = Date.now();
+  await A.ask({ op: 'key', chars: 'q', code: 12, mods: CMD });
+  const code = await Promise.race([A.exited, sleep(12_000).then(() => 'timeout')]);
+  const took = Date.now() - at;
+  console.log(`  quit took ${took} ms, exit ${code}, child alive ${alive(pid)}`);
+  ok(code !== 'timeout', 'the shell never exited');
+  ok(took >= 4800 && took < 7000, `took ${took} ms`);
+  ok(!alive(pid), 'the stuck server survived');
+  ok(!(await listening(PORT)), 'the port stayed open');
+  A = null;
+});
+
+await check('TAURI-22', 'a CLI added to the login shell is found behind the first window', async () => {
+  // A home whose saved PATH has no grok, and a login shell that adds it, a little later.
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-qa-path-'));
+  const tools = path.join(home, 'tools');
+  fs.mkdirSync(tools);
+  fs.copyFileSync(path.join(qaEnv().bins, 'grok'), path.join(tools, 'grok'));
+  fs.chmodSync(path.join(tools, 'grok'), 0o755);
+  const data = path.join(home, 'Library/Application Support/dev.wisp.app');
+  fs.mkdirSync(data, { recursive: true });
+  fs.writeFileSync(path.join(data, 'shell-path'), '/usr/bin:/bin');
+  fs.writeFileSync(path.join(home, '.zshrc'), `sleep 4\nexport PATH="${tools}:$PATH"\n`);
+  // Asked all along, from before the window: what it said first, then what it says once it's found.
+  const seen = [];
+  const watch = setInterval(() => {
+    fetch(`http://localhost:${PORT}/api/agents`).then((r) => r.json()).then((list) => seen.push([Date.now(), !!list.find?.((a) => a.id === 'grok')?.available]), () => {});
+  }, 200);
+  A = await launch(PORT, { env: { HOME: home, SHELL: '/bin/zsh', ZDOTDIR: home, WISP_GROK_BIN: '' } });
+  await until(() => seen.at(-1)?.[1], { timeout: 12_000, what: 'grok to be found' }).finally(() => clearInterval(watch));
+  const missing = seen.filter(([, on]) => !on);
+  console.log(`  grok missing for ${missing.length} answers, then found ${seen.find(([, on]) => on)[0] - seen[0][0]} ms after the first, no restart`);
+  ok(missing.length, 'found before the login shell answered');
+  ok(fs.readFileSync(path.join(data, 'shell-path'), 'utf8').startsWith(tools), 'the new PATH was not saved');
+  await quit();
+});
+
+await check('TAURI-18b', 'another app in front: the page knows, and the task still notifies', async () => {
+  // WKWebView alone keeps saying it has focus and fires no blur, and notify.js decides on this. Its
+  // own run: a bare binary can't take the front back from whatever is there.
+  A = await launch(PORT);
+  await A.js(`(window.__qaBlur = 0, addEventListener('blur', () => window.__qaBlur++), 1)`);
+  await A.ask({ op: 'deactivate' });
+  await until(async () => !(await A.js('document.hasFocus()')), { timeout: 5000, what: 'the page to lose focus' });
+  ok((await A.js('window.__qaBlur')) === 1, 'no blur on the window');
+  ok((await A.ask({ op: 'window' })).visible, 'the window should stay on screen');
+  await api(A.url, '/api/sessions', { prompt: 'fix the add function in math.js', cwd: makeRepo(), agent: 'claude' });
+  await until(async () => (await A.ask({ op: 'delivered' })).delivered?.length, { timeout: 30_000, what: 'a notification with the window on screen' });
+  await A.ask({ op: 'clear-delivered' });
+  await quit();
 });
 
 await check('TAURI-17', 'capability: IPC only for this exact origin and port', async () => {

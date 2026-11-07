@@ -4,5 +4,5 @@
   "local": false,
   "remote": { "urls": ["http://localhost:__PORT__/*"] },
   "windows": ["main"],
-  "permissions": ["allow-pick-folder", "allow-start-drag", "allow-zoom-window"]
+  "permissions": ["allow-pick-folder", "allow-start-drag", "allow-zoom-window", "allow-notify-show", "notification:allow-is-permission-granted", "notification:allow-request-permission"]
 }

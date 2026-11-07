@@ -15,7 +15,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { CHROME, OUT, playwright } from './lib.mjs';
+import { launchBrowser, OUT } from './lib.mjs';
 import { click, NOT_IN_APP, seededWisp, views as viewsOf } from './views.mjs';
 
 const PORT = Number(process.env.QA_BUTTONS_PORT) || 4497;
@@ -136,8 +136,7 @@ function measure(state, only) {
 const { w, tasks, goal } = await seededWisp(PORT);
 const VIEWS = viewsOf({ tasks, goal });
 
-const { chromium } = playwright();
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launchBrowser();
 const results = [];
 const failed = [];
 let unhovered = 0; // buttons that couldn't be hovered or focused (covered, moved away): counted, not hidden

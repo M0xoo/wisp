@@ -35,20 +35,34 @@ of this on macOS, Windows and Linux, `qa/web.mjs` on each engine and one Electro
 | DESK-04 console | Automated | TAURI-04 |
 | DESK-05 bridge | Automated; picker Manual | TAURI-05; picker Manual |
 | DESK-06 links | Automated | TAURI-06; TAURI-06b previews and sandboxed frames stay put; TAURI-17 IPC refused off wisp's origin and port |
-| DESK-07 menu | Automated; keys Manual | TAURI-07: menus, typing, ⌘A ⌘C ⌘X ⌘V ⌘Z in the prompt box, ⌘Q |
+| DESK-07 menu | Automated; keys Manual | TAURI-07: menus, typing, ⌘A ⌘C ⌘X ⌘V ⌘Z in the prompt box, ⌘Q; TAURI-19: View's Reload, Force Reload, Toggle Developer Tools |
 | DESK-07b ⌃Tab | Manual | TAURI-07b: the key reaches the page; tap and hold: Manual |
 | DESK-08 theme | Automated | TAURI-08 |
 | DESK-09 badge | Automated | TAURI-09 |
 | DESK-10 a task | Automated | TAURI-10, TAURI-10b stacked |
 | DESK-11 updater (git) | Automated | TAURI-11 |
 | DESK-12 second launch | Automated | TAURI-12 |
-| DESK-13 quit | Automated; close and reopen Manual | TAURI-13: close hides, a launch brings it back, ⌘Q stops agents cleanly; Dock reopen: Manual |
+| DESK-13 quit | Automated; close and reopen Manual | TAURI-13: close hides, a launch brings it back, ⌘Q stops agents cleanly; TAURI-21: a stuck server is killed at the 5 s limit; Dock reopen: Manual |
 | DESK-14 attach | Automated | TAURI-14 |
-| DESK-15 context menu | Manual | Manual: WebKit's own menu; no Inspect in a release build |
+| DESK-15 context menu | Manual | TAURI-20: the menu AppKit opens on a link and in a text box; choosing an item and no Inspect in a release build: Manual |
 | (none) | | TAURI-10c `<a download>` goes to ~/Downloads without asking; TAURI-15 kill -9 leaves no orphan |
+| (none) | | TAURI-07c Tab reaches buttons and links; TAURI-18 a task behind a closed window notifies, the delegate a click reaches opens it; TAURI-18b with another app in front; TAURI-22 a CLI added to the login shell is found without a restart; TAURI-23 a file through `NSDraggingDestination` on the real view |
 
-Notifications don't work on Tauri yet (WKWebView has no `Notification`: PR 2), nor does the
-bundled Node or an update (PR 3).
+**Still by hand, on the gate:** a real banner on screen and clicking it opens the task (from a built `wisp.app`, after *Allow*); dragging the window with a mouse; a file dragged from Finder; a right-click menu item chosen; the Dock reopen; ⌃Tab held.
+
+The bundled Node and an update don't work yet (PR 3).
+
+Notifications (TAURI-18): the page's `new Notification` lands in `tauri-plugin-notification` through
+`src/init.js` and `src/notify.rs`. The check reads what macOS holds and calls the delegate a click would
+reach: the click on a banner itself is Manual. A debug build shows them under Terminal's name; a
+built `wisp.app` as itself, once *Allow* is pressed on macOS's own card (System Settings →
+Notifications → wisp).
+
+**Linux is blocked.** WebKitGTK's `decide-policy` doesn't say which frame a navigation is for and wry calls
+`on_navigation` for all of them, so a Preview tab that moves on its own would be sent to the browser
+and stopped there. Windows has no such trap (`NavigationStarting` is the main frame's) and macOS answers
+frames first (`macos.rs`). A release build for Linux doesn't compile (`compile_error!` in `main.rs`) until
+this is solved and seen on a real Linux desktop: TAURI-06b's cases, frames and a main-frame link.
 
 ## DESK-01 · Boots and starts its own server
 - **Preconditions:** nothing listening on the port.
@@ -187,7 +201,7 @@ The Tauri app shows the same page in WKWebView on a Mac. `QA_ENGINE=webkit node 
 `QA_ENGINE=webkit node qa/views.mjs` run it on Playwright's WebKit, which is close to Safari but
 isn't a WKWebView: what only the app can show is under *Not seen yet*.
 
-**Lowest version: Safari 16.4, macOS 13.3.** The Tauri config says 13.0, which is too low.
+**Lowest version: Safari 16.4, macOS 13.3.** The Tauri config says so (`minimumSystemVersion`).
 
 | Needs | Since | Without it |
 |---|---|---|
@@ -224,7 +238,6 @@ Newer features the page does without on an older Mac:
 
 ### Not seen yet (needs the real app)
 
-`Notification` (WKWebView has none, row 16 of the migration), window drag (`-webkit-app-region`),
-real IME input (`WEB-64` sends the keydown as Safari does), a real file dropped from Finder,
-`<a download>` and `<input type="file">`, which need the shell's delegates, and clipboard rules
-inside WKWebView.
+A notification's banner and a click on it, window drag by a mouse (`-webkit-app-region`), real IME input
+(`WEB-64` sends the keydown as Safari does), a real file dragged from Finder (TAURI-23 stops at AppKit's
+drop calls), `<input type="file">`, and clipboard rules inside WKWebView.

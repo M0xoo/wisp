@@ -2,10 +2,11 @@
 // asks this over a local socket (WISP_QA_PORT), one JSON line each way. It reads the real window
 // and sends real AppKit events through NSApp, so key equivalents take the same road as a keyboard's.
 
+use objc2::rc::Retained;
 use objc2::runtime::AnyObject;
-use objc2::msg_send;
-use objc2_app_kit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType, NSWindow, NSWindowButton};
-use objc2_foundation::{MainThreadMarker, NSPoint, NSString};
+use objc2::{define_class, msg_send, AllocAnyThread, DefinedClass};
+use objc2_app_kit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType, NSMenuItem, NSWindow, NSWindowButton};
+use objc2_foundation::{MainThreadMarker, NSArray, NSObject, NSPoint, NSString};
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
@@ -28,9 +29,100 @@ pub static REAL_PICKER: AtomicBool = AtomicBool::new(false);
 pub static DRAGS: AtomicU32 = AtomicU32::new(0);
 static OPENED: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
+// WISP_QA_REAL_OPEN lets it go on to the real opener: a one-off, it starts this computer's editor.
 pub fn note_opened(url: &Url) -> bool {
   OPENED.lock().unwrap().push(url.to_string());
-  true
+  std::env::var_os("WISP_QA_REAL_OPEN").is_none()
+}
+
+struct DragIvars {
+  pasteboard: Retained<NSObject>,
+  location: NSPoint,
+  window: usize,
+}
+
+define_class!(
+  #[unsafe(super(NSObject))]
+  #[name = "WispQaDrag"]
+  #[ivars = DragIvars]
+  struct QaDrag;
+
+  impl QaDrag {
+    #[unsafe(method(draggingPasteboard))]
+    fn pasteboard(&self) -> *mut NSObject { Retained::as_ptr(&self.ivars().pasteboard) as *mut _ }
+    #[unsafe(method(draggingLocation))]
+    fn location(&self) -> NSPoint { self.ivars().location }
+    #[unsafe(method(draggedImageLocation))]
+    fn image_location(&self) -> NSPoint { self.ivars().location }
+    #[unsafe(method(draggingDestinationWindow))]
+    fn window(&self) -> *mut AnyObject { self.ivars().window as *mut AnyObject }
+    #[unsafe(method(draggingSourceOperationMask))]
+    fn mask(&self) -> usize { usize::MAX }
+    #[unsafe(method(draggingSequenceNumber))]
+    fn sequence(&self) -> isize { 1 }
+    #[unsafe(method(draggingSource))]
+    fn source(&self) -> *mut AnyObject { std::ptr::null_mut() }
+    #[unsafe(method(numberOfValidItemsForDrop))]
+    fn valid(&self) -> isize { 1 }
+    #[unsafe(method(setNumberOfValidItemsForDrop:))]
+    fn set_valid(&self, _n: isize) {}
+    #[unsafe(method(animatesToDestination))]
+    fn animates(&self) -> bool { false }
+    #[unsafe(method(setAnimatesToDestination:))]
+    fn set_animates(&self, _b: bool) {}
+    #[unsafe(method(draggingFormation))]
+    fn formation(&self) -> isize { 0 }
+    #[unsafe(method(setDraggingFormation:))]
+    fn set_formation(&self, _f: isize) {}
+    #[unsafe(method(springLoadingHighlight))]
+    fn highlight(&self) -> isize { 0 }
+    #[unsafe(method(resetSpringLoading))]
+    fn reset(&self) {}
+    #[unsafe(method(enumerateDraggingItemsWithOptions:forView:classes:searchOptions:usingBlock:))]
+    fn enumerate(&self, _o: usize, _v: *mut AnyObject, _c: *mut AnyObject, _s: *mut AnyObject, _b: *mut AnyObject) {}
+  }
+);
+
+impl QaDrag {
+  unsafe fn new(file: &str, location: NSPoint, window: usize) -> Retained<Self> {
+    let pasteboard: Retained<NSObject> = msg_send![objc2::class!(NSPasteboard), pasteboardWithUniqueName];
+    let kind = NSString::from_str("NSFilenamesPboardType");
+    let kinds = NSArray::from_retained_slice(&[kind.clone()]);
+    let none: *const AnyObject = std::ptr::null();
+    let _: isize = msg_send![&*pasteboard, declareTypes: &*kinds, owner: none];
+    let files = NSArray::from_retained_slice(&[NSString::from_str(file)]);
+    let _: bool = msg_send![&*pasteboard, setPropertyList: &*files, forType: &*kind];
+    let this = Self::alloc().set_ivars(DragIvars { pasteboard, location, window });
+    msg_send![super(this), init]
+  }
+}
+
+// What's in the menu AppKit last began tracking.
+static MENU: Mutex<Option<Vec<String>>> = Mutex::new(None);
+
+unsafe fn watch_menus() {
+  static ONCE: std::sync::Once = std::sync::Once::new();
+  ONCE.call_once(|| {
+    let block = block2::RcBlock::new(|note: *mut AnyObject| {
+      let menu: *mut AnyObject = msg_send![note, object];
+      let items: Retained<NSArray<NSMenuItem>> = msg_send![menu, itemArray];
+      *MENU.lock().unwrap() = Some(items.iter().filter(|i| !i.isHidden() && !i.isSeparatorItem()).map(|i| i.title().to_string()).collect());
+    });
+    let centre: *mut AnyObject = msg_send![objc2::class!(NSNotificationCenter), defaultCenter];
+    let name = NSString::from_str("NSMenuDidBeginTrackingNotification");
+    let none: *const AnyObject = std::ptr::null();
+    let _: *mut AnyObject = msg_send![centre, addObserverForName: &*name, object: none, queue: none, usingBlock: &*block];
+    std::mem::forget(block);
+  });
+}
+
+// None until the plugin has shown one: a bare debug binary has no bundle id, and macOS no center for it.
+unsafe fn center() -> Option<Retained<AnyObject>> {
+  msg_send![objc2::class!(NSUserNotificationCenter), defaultUserNotificationCenter]
+}
+
+unsafe fn delivered() -> Vec<Retained<AnyObject>> {
+  center().map_or(vec![], |c| { let list: Retained<NSArray<AnyObject>> = msg_send![&*c, deliveredNotifications]; list.iter().collect() })
 }
 
 pub fn listen(app: AppHandle) {
@@ -184,6 +276,97 @@ fn handle(app: &AppHandle, q: &Value) -> Value {
       post(app, NSEventType::LeftMouseUp, (x + dx, y + dy));
       json!({ "ok": true })
     }
+    // What macOS holds for this app, and what a click on a banner would do: AppKit calls the
+    // delegate the plugin installed. The click itself is the one step this can't take.
+    "delivered" => main_thread(app, |_| unsafe {
+      let titles: Vec<String> = delivered().iter().map(|n| { let t: Retained<NSString> = msg_send![&**n, title]; t.to_string() }).collect();
+      json!({ "delivered": titles })
+    }),
+    "notify-click" => {
+      let title = str_of("title");
+      main_thread(app, move |_| unsafe {
+        let Some(note) = delivered().into_iter().find(|n| { let t: Retained<NSString> = msg_send![&**n, title]; t.to_string() == title }) else { return json!({ "error": "not delivered" }) };
+        let Some(center) = center() else { return json!({ "error": "no center" }) };
+        let delegate: *mut AnyObject = msg_send![&*center, delegate];
+        if delegate.is_null() { return json!({ "error": "no delegate" }) }
+        let one: Retained<AnyObject> = msg_send![objc2::class!(NSNumber), numberWithInteger: 1isize]; // ContentsClicked
+        let key = NSString::from_str("activationType");
+        let _: () = msg_send![&*note, setValue: &*one, forKey: &*key];
+        let _: () = msg_send![delegate, userNotificationCenter: &*center, didActivateNotification: &*note];
+        json!({ "ok": true })
+      })
+    }
+    "clear-delivered" => main_thread(app, |_| unsafe {
+      if let Some(c) = center() { let _: () = msg_send![&*c, removeAllDeliveredNotifications]; }
+      json!({ "ok": true })
+    }),
+    // View's own items, through AppKit: the same action a click on them sends.
+    "menu-click" => {
+      let (top, item) = (str_of("top"), str_of("item"));
+      main_thread(app, move |mtm| {
+        let bar = NSApplication::sharedApplication(mtm).mainMenu().expect("a menu");
+        let Some(menu) = bar.itemArray().iter().find(|t| t.title().to_string() == top).and_then(|t| t.submenu()) else { return json!({ "error": "no menu" }) };
+        let Some(i) = menu.itemArray().iter().position(|t| t.title().to_string() == item) else { return json!({ "error": "no item" }) };
+        menu.performActionForItemAtIndex(i as isize);
+        json!({ "ok": true })
+      })
+    }
+    #[cfg(debug_assertions)]
+    "devtools" => json!({ "open": w.is_devtools_open() }),
+    // A right click through NSApp. AppKit says what opened (`context-menu`); Escape closes it.
+    "right-click" => {
+      let (x, y, ptr) = (q["x"].as_f64().unwrap_or(0.0), q["y"].as_f64().unwrap_or(0.0), ns_window(&w));
+      main_thread(app, move |mtm| unsafe {
+        watch_menus();
+        *MENU.lock().unwrap() = None;
+        let n = &*(ptr as *const NSWindow);
+        let at = NSPoint::new(x, n.frame().size.height - y);
+        for kind in [NSEventType::RightMouseDown, NSEventType::RightMouseUp] {
+          let e = NSEvent::mouseEventWithType_location_modifierFlags_timestamp_windowNumber_context_eventNumber_clickCount_pressure(kind, at, NSEventModifierFlags(0), 0.0, n.windowNumber(), None, 0, 1, 1.0);
+          if let Some(e) = e { NSApplication::sharedApplication(mtm).postEvent_atStart(&e, false); }
+        }
+      });
+      json!({ "ok": true })
+    }
+    "context-menu" => json!({ "items": *MENU.lock().unwrap() }),
+    // A file from Finder as WebKit gets it: AppKit's NSDraggingDestination calls, on the real view.
+    "drop-file" => {
+      let (file, x, y) = (str_of("path"), q["x"].as_f64().unwrap_or(0.0), q["y"].as_f64().unwrap_or(0.0));
+      let ptr = ns_window(&w);
+      let (tx, rx) = mpsc::channel::<usize>();
+      let _ = w.with_webview(move |wv| { let _ = tx.send(wv.inner() as usize); });
+      let view = rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap_or(0);
+      let step = |sel: &'static str| {
+        let (app2, file) = (app.clone(), file.clone());
+        main_thread(&app2, move |_| unsafe {
+          let n = &*(ptr as *const NSWindow);
+          let info = QaDrag::new(&file, NSPoint::new(x, n.frame().size.height - y), ptr);
+          let view = view as *mut AnyObject;
+          match sel {
+            "enter" => { let r: usize = msg_send![view, draggingEntered: &*info]; r }
+            "update" => { let r: usize = msg_send![view, draggingUpdated: &*info]; r }
+            "perform" => { let r: bool = msg_send![view, performDragOperation: &*info]; r as usize }
+            _ => { let _: () = msg_send![view, concludeDragOperation: &*info]; 0 }
+          }
+        })
+      };
+      let pause = || std::thread::sleep(std::time::Duration::from_millis(350));
+      let entered = step("enter");
+      pause();
+      let updated = step("update");
+      pause();
+      let updated2 = step("update");
+      pause();
+      let performed = step("perform");
+      pause();
+      step("conclude");
+      json!({ "entered": entered, "updated": updated, "updated2": updated2, "performed": performed })
+    }
+    "mode" => main_thread(app, |_| unsafe {
+      let l: Retained<AnyObject> = msg_send![objc2::class!(NSRunLoop), currentRunLoop];
+      let m: Option<Retained<NSString>> = msg_send![&*l, currentMode];
+      json!({ "mode": m.map(|m| m.to_string()) })
+    }),
     "frame" => {
       let ptr = ns_window(&w);
       main_thread(app, move |_| unsafe {
@@ -218,9 +401,15 @@ fn handle(app: &AppHandle, q: &Value) -> Value {
       let _ = w.set_theme(dark.map(|d| if d { tauri::Theme::Dark } else { tauri::Theme::Light }));
       json!({ "ok": true })
     }
-    "activate" => main_thread(app, |mtm| {
-      #[allow(deprecated)]
-      NSApplication::sharedApplication(mtm).activateIgnoringOtherApps(true);
+    "activate" => {
+      main_thread(app, |mtm| {
+        #[allow(deprecated)]
+        NSApplication::sharedApplication(mtm).activateIgnoringOtherApps(true);
+      });
+      json!({ "ok": w.set_focus().is_ok() })
+    }
+    "deactivate" => main_thread(app, |mtm| {
+      NSApplication::sharedApplication(mtm).deactivate();
       json!({ "ok": true })
     }),
     "close" => {

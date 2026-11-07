@@ -82,7 +82,7 @@ pub fn on_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
     "zoom-in" => zoom((now + 10).min(300)),
     "zoom-out" => zoom(now.saturating_sub(10).max(50)),
     #[cfg(debug_assertions)]
-    "devtools" => w.open_devtools(),
+    "devtools" => if w.is_devtools_open() { w.close_devtools() } else { w.open_devtools() },
     _ => {}
   }
 }

@@ -3,9 +3,9 @@
 use block2::{Block, RcBlock};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Imp, ProtocolObject, Sel};
-use objc2::{sel, MainThreadOnly};
+use objc2::{class, msg_send, sel, MainThreadOnly};
 use objc2_app_kit::{NSBackingStoreType, NSModalResponseOK, NSOpenPanel, NSWindow, NSWindowButton, NSWindowStyleMask};
-use objc2_foundation::{MainThreadMarker, NSPoint, NSRect, NSSize, NSString, NSUserDefaults};
+use objc2_foundation::{MainThreadMarker, NSArray, NSPoint, NSRect, NSSize, NSString, NSUserDefaults};
 use objc2_web_kit::{WKNavigationAction, WKNavigationActionPolicy, WKNavigationDelegate, WKWebView};
 use std::sync::mpsc;
 use std::sync::OnceLock;
@@ -36,6 +36,16 @@ pub fn keep_frames_in_place(window: &WebviewWindow) -> tauri::Result<()> {
     let new: Imp = std::mem::transmute(decide as Decide);
     let old = objc2::ffi::method_setImplementation(method as *const _ as *mut _, new);
     let _ = DECIDE.set(std::mem::transmute::<Imp, Decide>(old.expect("wry implements it")));
+  })
+}
+
+// Safari's Tab skips buttons and links unless you ask; Electron's reaches them.
+pub fn tab_reaches_links(window: &WebviewWindow) -> tauri::Result<()> {
+  window.with_webview(|wv| unsafe {
+    let view: &WKWebView = &*wv.inner().cast();
+    let config: Retained<AnyObject> = msg_send![view, configuration];
+    let prefs: Retained<AnyObject> = msg_send![&*config, preferences];
+    let _: () = msg_send![&*prefs, setTabFocusesLinks: true];
   })
 }
 
@@ -79,6 +89,25 @@ pub fn pick_folder(window: &WebviewWindow) -> Option<String> {
 // System Settings → Desktop & Dock → Double-click a window's title bar to.
 pub fn double_click_action() -> String {
   NSUserDefaults::standardUserDefaults().stringForKey(&NSString::from_str("AppleActionOnDoubleClick")).map_or("Maximize".into(), |s| s.to_string())
+}
+
+// The plugin looks after each notification still in Notification Center, twice a second on the main
+// thread and with a thread of its own: 40 of them took a fifth of a core. So the oldest go. Main thread.
+pub fn keep_newest_notifications(keep: usize) {
+  unsafe {
+    let center: Option<Retained<AnyObject>> = msg_send![class!(NSUserNotificationCenter), defaultUserNotificationCenter];
+    let Some(center) = center else { return };
+    let list: Retained<NSArray<AnyObject>> = msg_send![&*center, deliveredNotifications];
+    let at = |n: &AnyObject| -> f64 {
+      let date: Option<Retained<AnyObject>> = msg_send![n, actualDeliveryDate];
+      date.map_or(0.0, |d| msg_send![&*d, timeIntervalSince1970])
+    };
+    let mut all: Vec<_> = list.iter().map(|n| (at(&n), n)).collect();
+    all.sort_by(|a, b| a.0.total_cmp(&b.0));
+    for (_, old) in all.iter().take(all.len().saturating_sub(keep)) {
+      let _: () = msg_send![&*center, removeDeliveredNotification: &**old];
+    }
+  }
 }
 
 // A hidden full-screen window would leave a black Space behind it.
