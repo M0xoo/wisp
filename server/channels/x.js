@@ -10,6 +10,7 @@
 //
 // Mode is Plan unless asked, Edits at most, and Full auto is refused. Each task gets its own worktree.
 // Tool approvals stay in wisp. `@project` isn't read, since it would tag a stranger: `in <project>`.
+// Tasks run on this box only: `on laptop`, a project on another machine and crew are refused with a line.
 // Words go out by DM only, and only for a thread the grid knows this box accepted: the public line is
 // the grid's, a fixed one, so a task that starts well says nothing more until its result. A refused
 // message gets its line, since that's the only way the sender finds out.
@@ -29,15 +30,21 @@ const SEEN_MAX = 200; // kept in config: a box's memory ends when it sleeps
 const REPLY_MAX = 30_000;
 const OFF_LINE = 'X is off on your wisp, so that didn’t run. Turn it on in Settings → Phone → X, then send it again.';
 const NO_COMPUTER = (word) => `Running on another computer from X isn’t available yet, so nothing started. To run it on your cloud computer, send it again without “on ${word}”.`;
+const NOT_HERE = (name) => `${name ? `${name} is` : 'That project is'} on another computer, and from X tasks run on your cloud computer for now, so nothing started.`;
+const NO_CREW = 'Crew members can’t be reached from X yet, so nothing started. Send it again without the name, or ask in wisp.';
 export const NOT_ON_A_BOX = 'X only works on a cloud computer.';
 
 // A place in `on <word>` that isn't this box. `on the login page` is a sentence; the grammar has
 // already read a known machine, and says when a word isn't one.
 function otherComputer(p) {
-  if (p.machine || p.crew?.machine) return p.machine || p.crew.machine;
+  if (p.machine) return p.machine;
   const word = /^“on (\S+)” isn’t one of your machines/.exec(p.notes.find((n) => n.startsWith('“on ')) || '')?.[1];
   return word && !NOT_A_NAME.has(word.toLowerCase()) ? word : '';
 }
+
+// The shared grammar, less delegation: naming a member further in would hand them work in their own
+// mode, Full auto included, past this channel's cap.
+const read = (text, ctx) => ({ ...parseMessage(text, ctx), tagged: [] });
 
 export class X extends Channel {
   constructor(hub) {
@@ -155,20 +162,24 @@ export class X extends Channel {
     if (m.follow) {
       const sessionId = this.#sessionOf(m.thread);
       if (!sessionId) return say('wisp can’t find the task this follows, so nothing ran. Mention me in a new post to start one.');
-      return this.#inThread(sessionId, parseMessage(m.text, { ...ctx, thread: await phone.threadCtx(sessionId) }), ctx, m, sender);
+      return this.#inThread(sessionId, read(m.text, { ...ctx, thread: await phone.threadCtx(sessionId) }), ctx, m, sender);
     }
-    const p = parseMessage(m.text || 'help', ctx);
+    const p = read(m.text || 'help', ctx);
     if (p.command && p.command !== 'new') {
       phone.count?.('list', p.command);
       return say(LISTS[p.command] ? LISTS[p.command](ctx, p.arg) : 'There’s no task on this one yet.');
     }
+    // Crew first: a member may be anywhere, in a sandbox among them, and a job doesn't get a worktree.
+    if (p.crew) return this.#refuse(say, 'crew', NO_CREW);
     const elsewhere = otherComputer(p);
     if (elsewhere) return this.#refuse(say, 'computer', NO_COMPUTER(elsewhere));
+    const place = p.project || ctx.defaultProject;
+    if (place?.machine) return this.#refuse(say, 'computer', NOT_HERE(place.name));
     if (p.problems.length) return say(refusal(p.problems));
-    if (!p.prompt) return say(p.crew ? `Tell ${p.crew.name} what to do after the name.` : 'What should it do? Say it after the options.');
+    if (!p.prompt) return say('What should it do? Say it after the options.');
     const asked = capMode(p.mode, CAP, FALLBACK);
     if (asked.refused) return this.#refuse(say, 'mode', `${asked.refused}\n\nNothing started.`);
-    if (!p.crew && !p.project && !ctx.defaultProject) return say('No projects yet. Open a folder in wisp first.');
+    if (!p.project && !ctx.defaultProject) return say('No projects yet. Open a folder in wisp first.');
     try {
       await phone.startParsed(p, { channel: this.name, name: NAME, sender: '', cap: CAP, fallback: FALLBACK, worktree: true, thread: { channel: this.name, thread: m.thread }, ctx });
     } catch (err) {
@@ -190,11 +201,7 @@ export class X extends Channel {
     if (p.command === 'status') return say(await phone.status(sessionId));
     if (p.command === 'done') return say(await hub.act({ sessionId, kind: 'done', ref: '', index: 0 }));
     if (p.problems.length) return say(refusal(p.problems));
-    if (p.crew) {
-      if (!p.prompt) return say(`Tell ${p.crew.name} what to do after the name.`);
-      await phone.mention(sessionId, p, { name: NAME, cap: CAP, fallback: FALLBACK, thread: { channel: this.name, thread: m.thread }, ctx });
-      return;
-    }
+    if (p.crew) return this.#refuse(say, 'crew', NO_CREW);
     const btw = p.command === 'btw';
     if (!p.prompt) return say(btw ? 'Type your question after /btw.' : 'What should it do? Say it after the options.');
     const asked = capMode(p.mode, CAP, p.mode);

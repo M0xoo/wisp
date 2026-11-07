@@ -53,6 +53,7 @@ export const DM = Object.freeze({
   open: 'You’re set: results come here. Send stop to unlink.',
   noTask: 'There’s no task to follow up on yet. Mention me in a post to start one, or send stop to unlink.',
   limited: 'That’s a lot of messages. Try again in an hour.',
+  truncated: 'That post was too long for me to read all of it, so it didn’t run. Send it again in fewer words.',
   stop: 'Unlinked: your posts no longer reach wisp, and nothing more comes here. Link again on your wisp account page.',
 });
 
@@ -82,7 +83,7 @@ const refused = (message, status) => Object.assign(new Error(message), { status 
 // The CRC signs what it's given with the key events are signed with, so what it may be given has to
 // be something no event can be. An event is a JSON object: X's tokens are base64, and `{` isn't in that.
 const CRC_TOKEN = /^[A-Za-z0-9+/=_-]{1,256}$/;
-export const crcShaped = (s) => CRC_TOKEN.test(String(s));
+export const crcShaped = (s) => typeof s === 'string' && CRC_TOKEN.test(s);
 const isObject = (raw) => raw[0] === 0x7b; // `{`
 
 export const crcAnswer = (crcToken, secret) => `sha256=${createHmac('sha256', secret).update(crcToken).digest('base64')}`;
@@ -112,7 +113,19 @@ export function readEvent(raw) {
   const p = d.payload;
   if (d.event_type === 'post.mention.create' || d.event_type === 'post.reply.create') {
     if (!p?.id || !p.author_id || typeof p.text !== 'string') return null;
-    return { id: d.event_uuid, kind: 'post', post: String(p.id), sender: String(p.author_id), conversation: String(p.conversation_id || p.id), text: p.text, at: Date.parse(p.created_at) };
+    const refs = Array.isArray(p.referenced_tweets) ? p.referenced_tweets : [];
+    return {
+      id: d.event_uuid,
+      kind: 'post',
+      post: String(p.id),
+      sender: String(p.author_id),
+      conversation: String(p.conversation_id || p.id),
+      text: p.text,
+      at: Date.parse(p.created_at),
+      range: Array.isArray(p.display_text_range) ? p.display_text_range : null, // where a reply's prefix ends
+      retweet: refs.some((r) => r?.type === 'retweeted') || /^RT @/.test(p.text),
+      truncated: p.truncated === true || !!p.note_tweet, // `text` is the start of a long post
+    };
   }
   if (d.event_type === 'dm.received') {
     const e = p?.direct_message_events?.[0];
@@ -125,13 +138,18 @@ export function readEvent(raw) {
 
 const ENTITIES = { amp: '&', lt: '<', gt: '>' };
 
-// A post's words: X escapes these three, and the bot's own mention isn't part of what was asked.
-export function ownWords(text, handle) {
+// A post's words: X escapes these three, and neither the bot's own mention nor a reply's prefix is
+// part of what was asked. `@alice fix it` in a reply to Alice would otherwise read as a name in wisp's
+// grammar. range: display_text_range, in code points of the text as X sent it; with none, leading
+// handles go, whoever they are.
+export function ownWords(text, handle, range = null) {
   const bot = new RegExp(`(^|[^\\w@])@${handle.replace(/\W/g, '')}(?!\\w)[\\s,:]*`, 'gi');
-  return String(text)
+  const shown = range ? [...String(text)].slice(range[0], range[1]).join('') : String(text);
+  const words = shown
     .replace(/&(amp|lt|gt);/g, (_, e) => ENTITIES[e])
     .replace(bot, '$1')
     .trim();
+  return range ? words : words.replace(/^(?:@\w+[\s,:]*)+/, '');
 }
 
 // RFC 5849, for a JSON POST (the body isn't signed). The bot posts as itself: 1.0a tokens don't expire
@@ -324,7 +342,7 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
 
   function takePost(ev) {
     const over = billed(COST.post);
-    if (ev.sender === bot.id) return;
+    if (ev.sender === bot.id || ev.retweet) return; // a retweet's words are someone else's
     const link = linkByX(ev.sender);
     if (!link) return stranger();
     if (over || opts.paused) return;
@@ -335,9 +353,10 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
       if (rate.tell && reserve(COST.reply)) publicReply(ev.post, 'limited');
       return;
     }
+    if (ev.truncated) return say(user.id, DM.truncated);
     if (!reserve(COST.reply)) return; // no money for the one reply: nothing wakes either
     const follows = liveThread(user.id, ev.conversation);
-    hold(user, link, { id: ev.post, kind: 'post', text: ownWords(ev.text, bot.handle).slice(0, TEXT_MAX), at: ev.at, thread: follows || ev.post, follow: !!follows, conversation: ev.conversation });
+    hold(user, link, { id: ev.post, kind: 'post', text: ownWords(ev.text, bot.handle, ev.range).slice(0, TEXT_MAX), at: ev.at, thread: follows || ev.post, follow: !!follows, conversation: ev.conversation });
     publicReply(ev.post, link.dm_open ? 'ack' : 'ackDm');
   }
 

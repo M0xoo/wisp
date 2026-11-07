@@ -48,6 +48,7 @@ const X_REFUSED = {
   off: 'The last post didn’t run: X was off here. wisp told you by DM.',
   mode: 'The last post asked for Full auto, which can’t be asked for from X.',
   computer: 'The last post named another computer. From X, tasks run on this cloud computer for now.',
+  crew: 'The last post named a crew member. Crew can’t be reached from X yet.',
   sender: 'The last message didn’t say who it was from, so it was ignored.',
 };
 

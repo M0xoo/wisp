@@ -7,7 +7,7 @@
 //   x.tweets, x.dms, x.webhooks, x.subscriptions, x.revoked  what it heard
 //   x.fail('tweets', 429)  the next post answers that; 'dms' the same
 //   x.people.set(id, { username })  who an OAuth sign-in comes back as: x.signingIn = id
-//   x.mention(...), x.reply(...), x.dm(...)  deliver a signed event to the webhook
+//   x.mention(...), x.reply(...), x.retweet(...), x.dm(...)  deliver a signed event to the webhook
 
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import http from 'node:http';
@@ -182,6 +182,8 @@ export async function startFakeX(creds = CREDS) {
     const payload = x.postPayload(fields);
     return x.deliver(envelope('post.reply.create', { in_reply_to_tweet_id: fields.to || payload.conversation_id, ...payload }, o), o).then((r) => ({ ...r, post: payload }));
   };
+  // A retweet is delivered as a mention of whoever the original mentioned: its text is someone else's.
+  x.retweet = ({ author, text, ...more }, o = {}) => x.mention({ author, text: `RT @someone: ${text}`, referenced_tweets: [{ type: 'retweeted', id: '1' }], ...more }, o);
   x.dm = ({ sender, text, id = `dm-${nextDm++}`, at = Date.now() }, o = {}) => {
     x.dmed.add(sender);
     const payload = { direct_message_events: [{ id, created_timestamp: String(at), message_create: { sender_id: sender, target: { recipient_id: creds.bot.id }, message_data: { text } } }] };
