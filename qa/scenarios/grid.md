@@ -223,7 +223,8 @@ for the rest
   asleep, and that doesn't wake it. A signed DM gets its 200 before the box is up; it wakes, links, and
   answers once; a retry signed anew changes nothing; it sleeps again by itself. A bad signature, or a
   timestamp over 5 minutes older than the grid's own arrival time, is refused by the box with a 403 and
-  no answer, and so is a stranger; a message held longer than that for a wake still runs. Without
+  no answer, and so is a stranger; a message held longer than that for a wake still runs. An edit or a
+  bot's message isn't held: no row, no wake, no strike. Without
   `channels` in `grid.json` the manifest route is a 409 and Slack says it can't reach the computer.
 - **Against production:** only when the owner deploys: a throwaway account and a real Slack app. This
   is the only way to see Slack's own URL check and retries.
