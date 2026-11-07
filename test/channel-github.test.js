@@ -669,7 +669,7 @@ test('a scheduled check-in never posts', async () => {
   assert.equal(srv.store.get(out.session.id).remote?.gh, undefined);
 });
 
-test('a PR with no task of its own: the task on its branch takes it, and its answer stays in wisp', async () => {
+test('a PR with no task of its own: the task on its branch takes it, and that one turn reports back', async () => {
   const s = await api('/sessions', { body: { prompt: 'on a branch', cwd: repo, agent: 'claude', worktree: true } });
   await settled(s.id);
   const branch = srv.store.get(s.id).worktree.branch;
@@ -678,26 +678,79 @@ test('a PR with no task of its own: the task on its branch takes it, and its ans
   state.prs[n] = { number: n, headRefName: branch, state: 'OPEN', url: `https://github.com/${PRIVATE}/pull/${n}` };
   write();
   comment(n, '/wisp please also do this', { pr: true });
-  assert.equal(await nextOn(n), line('✓ Sent\n\nThis task started in wisp, so its answer stays there.'));
+  assert.equal(await nextOn(n), line('✓ Sent'));
   await until(async () => (await session(s.id)).turns.length === 2);
   assert.match((await session(s.id)).turns[1].prompt, new RegExp(`GitHub PR ${PRIVATE}#${n}[\\s\\S]*please also do this`));
   await settled(s.id);
+  assert.match(await nextOn(n), /^✅ /, 'that turn’s report');
+  assert.equal(srv.store.get(s.id).remote?.ghOnce, undefined, 'one shot');
+  assert.equal(srv.store.get(s.id).remote?.started, undefined, 'still a task of wisp’s');
+
+  // The next turn, from wisp, stays there.
+  await api(`/sessions/${s.id}/reply`, { body: { text: 'from wisp this time' } });
+  await until(async () => (await session(s.id)).turns.length === 3);
+  await settled(s.id);
   await quiet(n);
+
+  // Nothing sent, so no shot: the next turn isn't this comment's.
+  const live = srv.store.get(s.id);
+  live.ask = { id: 'a1', question: 'OK?', options: ['Allow', 'Deny'], permission: { tool: 'Bash', action: 'x', detail: 'x' } };
+  comment(n, '/wisp go ahead', { pr: true });
+  assert.match(await nextOn(n), /only wisp can give/);
+  assert.equal(srv.store.get(s.id).remote?.ghOnce, undefined);
+  delete live.ask;
+  comment(n, '/wisp /btw what changed?', { pr: true });
+  assert.match(await nextOn(n), /Asking on the side/);
+  await nextOn(n);
+  assert.equal(srv.store.get(s.id).remote?.ghOnce, undefined, 'a side question is no turn');
 
   // /wisp new leaves it alone, and an issue with that number never looks for a branch.
   comment(n, '/wisp new a separate one', { pr: true });
   assert.match(await nextOn(n), /^▶ /);
   await settled((await startedOn(n)).id);
   await nextOn(n);
-  assert.equal((await session(s.id)).turns.length, 2);
+  assert.equal((await session(s.id)).turns.length, 3);
   const i = nextIssue();
   state.prs[i] = { number: i, headRefName: branch, state: 'OPEN' };
   write();
   comment(i, '/wisp an issue, not a PR');
   assert.match(await nextOn(i), /^▶ /);
-  assert.equal((await session(s.id)).turns.length, 2);
+  assert.equal((await session(s.id)).turns.length, 3);
   await settled((await startedOn(i)).id);
   await nextOn(i);
+});
+
+test('that one turn on a public repo is the fixed line; the shot survives a restart', async () => {
+  const s = await api('/sessions', { body: { prompt: 'public branch', cwd: open, agent: 'claude', worktree: true } });
+  await settled(s.id);
+  const branch = srv.store.get(s.id).worktree.branch;
+  const n = nextIssue();
+  state.prs[n] = { number: n, headRefName: branch, state: 'OPEN' };
+  write();
+  comment(n, '/wisp one more', { in: PUBLIC, pr: true });
+  assert.equal(await nextOn(n, PUBLIC), line('✓ Sent.'));
+  await until(async () => (await session(s.id)).turns.length === 2);
+  await settled(s.id);
+  assert.equal(await nextOn(n, PUBLIC), line('✅ wisp finished this.'));
+
+  const key = `${PRIVATE}#${n}`;
+  const t = await api('/sessions', { body: { prompt: 'a task from wisp', cwd: repo, agent: 'claude', worktree: false } });
+  await settled(t.id);
+  // A shot on the session, as a comment leaves it, with its turn still to end when wisp stops.
+  const live = srv.store.get(t.id);
+  live.remote = { ...live.remote, ghOnce: key };
+  srv.store.save(live, { now: true });
+  const file = path.join(process.env.WISP_HOME, 'sessions', `${t.id}.json`);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).remote.ghOnce, key, 'on disk');
+  halt();
+  await boot();
+  const back = srv.store.get(t.id);
+  assert.equal(back.remote.ghOnce, key);
+  await srv.remote.notify(back, { project: 'p' });
+  assert.match(await nextOn(n), /^✅ /);
+  await srv.remote.notify(srv.store.get(t.id), { project: 'p' });
+  await quiet(n);
+  assert.equal(srv.store.get(t.id).remote?.ghOnce, undefined);
 });
 
 test('wisp’s own comments and what isn’t a command do nothing', async () => {

@@ -96,7 +96,7 @@ export class Remote {
     const event = s.state === 'waiting' ? 'waiting' : 'finished';
     const chosen = (this.cfg.events || ['waiting', 'finished']).includes(event);
     const from = this.startedFrom(s);
-    const github = from?.channel === 'github'; // reported there whatever the events say; send knows
+    const github = this.channels.github.reports(s); // reported there whatever the events say; send knows
     if (!this.channels.telegram.options) {
       if (chosen || github) await this.send(this.message(s, summary), s, { skip: chosen ? [] : ['ntfy', 'telegram'] });
       return;
@@ -118,8 +118,8 @@ export class Remote {
     const go = (c, m = out) => jobs.push(c.publish(m, s).then(() => c.mark({ ok: true }), (e) => c.mark({ ok: false, error: e.message })));
     if (ntfy.ready && !skip.includes('ntfy')) go(ntfy);
     if (telegram.linked && !skip.includes('telegram')) go(telegram);
-    // Only the tasks it started, and always the safe path: a report there is public to a repo.
-    if (github.ready && this.startedFrom(s)?.channel === 'github') go(github, this.#safe(msg));
+    // Only what it started or followed up, and always the safe path: a report there is public to a repo.
+    if (github.ready && github.reports(s)) go(github, this.#safe(msg));
     await Promise.all(jobs);
     return jobs.length;
   }

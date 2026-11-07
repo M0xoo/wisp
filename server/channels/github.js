@@ -350,12 +350,37 @@ export class Github extends Channel {
     const asked = capMode(p.mode, CAP, p.mode);
     if (asked.refused) return say(asked.refused);
     const later = (text) => say(open ? text : 'The answer is on the task in wisp.').catch(() => {});
+    const once = !btw && !this.#mine(sessionId) ? this.#reportOnce(sessionId, at.key) : null;
     try {
       const sent = await phone.run(sessionId, p, { name: NAME, sender, cap: CAP, later, btw, about: this.#about(at), approvals: this.approvalsHere });
-      await say(`${line(sent)}${this.#mine(sessionId) ? '' : '\n\nThis task started in wisp, so its answer stays there.'}`);
+      if (!sent.startsWith('✓')) once?.(); // refused: no turn is coming
+      await say(line(sent));
     } catch (err) {
+      once?.();
       await say(`Couldn’t send that${open ? `: ${truncate(err.message, 300)}` : '.'}`);
     }
+  }
+
+  // A task from wisp, followed up from here: this turn's report comes back, and nothing after it. On
+  // the session, so a restart keeps it. Set before the turn starts, as it can finish first. → undo.
+  #reportOnce(sessionId, key) {
+    const s = this.hub.store.get(sessionId);
+    if (!s) return null;
+    s.remote = { ...s.remote, ghOnce: key };
+    this.hub.store.save(s, { now: true });
+    return () => this.#clearOnce(s);
+  }
+
+  #clearOnce(s) {
+    const { ghOnce, ...rest } = s.remote || {};
+    s.remote = rest;
+    this.hub.store.save(s, { now: true });
+    return ghOnce;
+  }
+
+  // Whether a finished turn of this task is reported here.
+  reports(s) {
+    return this.hub.startedFrom(s)?.channel === this.name || !!s?.remote?.ghOnce;
   }
 
   async #open(repo) {
@@ -399,9 +424,11 @@ export class Github extends Channel {
     await gh(undefined, ['api', `repos/${repo}/issues/${number}/comments`, '-f', `body=${clean}\n\n${MARKER}`]);
   }
 
-  // Only for a task started here: the hub asks, whatever the Phone events say.
+  // Only for a task started here, or one turn of one followed up here: the hub asks, whatever the
+  // Phone events say.
   async publish(msg, s) {
-    const key = s?.remote?.gh || this.hub.away.get(s?.id)?.gh;
+    const once = s?.remote?.ghOnce ? this.#clearOnce(this.hub.store.get(s.id) || s) : '';
+    const key = s?.remote?.gh || this.hub.away.get(s?.id)?.gh || once;
     if (!key) return;
     const at = key.lastIndexOf('#');
     const [repo, number] = [key.slice(0, at), Number(key.slice(at + 1))];
