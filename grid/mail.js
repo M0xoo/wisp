@@ -382,7 +382,7 @@ export function createMail({ db, cfg, inbox, accounts, log = () => {}, resolveTx
   // One recipient's copy.
   function take(user, m, verdict) {
     const headers = { [FROM_HEADER]: m.from, [DMARC_HEADER]: verdict, [ID_HEADER]: m.messageId };
-    inbox.hold(user, 'email', Buffer.from(JSON.stringify({ messageId: m.messageId, subject: m.subject, text: m.text, html: m.html, date: m.date, inReplyTo: m.inReplyTo, references: m.references, attachments: m.attachments })), headers);
+    inbox.hold(user, 'email', Buffer.from(JSON.stringify({ messageId: m.messageId, subject: m.subject, text: m.text, html: m.html, date: m.date, inReplyTo: m.inReplyTo, references: m.references, attachments: m.attachments })), { headers });
   }
 
   const threadsLive = () => Date.now() - opts.threadDays * 24 * HOUR_MS;

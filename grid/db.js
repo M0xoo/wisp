@@ -99,6 +99,22 @@ const MIGRATIONS = [
      PRIMARY KEY (user_id, message_id));
    CREATE TABLE mail_sent (user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, at INTEGER NOT NULL);
    CREATE INDEX mail_sent_user ON mail_sent(user_id, at);`,
+  // `on laptop` (grid/route.js). channel_routes: a bot's webhook URL, by its token's hash; the token,
+  // the bot's and the webhook's secret are sealed in user_secrets. channel_threads: one per routed
+  // message, where a computer's report goes; channel_thread_msgs: what the grid sent there, for a
+  // reply to it. verified: the grid checked this row itself, so the box doesn't have to.
+  `CREATE TABLE channel_routes (
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, channel TEXT NOT NULL,
+     token_hash TEXT UNIQUE NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (user_id, channel));
+   CREATE TABLE channel_threads (
+     id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     computer_id TEXT NOT NULL REFERENCES computers(id) ON DELETE CASCADE, channel TEXT NOT NULL,
+     chat TEXT NOT NULL, message INTEGER NOT NULL, created_at INTEGER NOT NULL);
+   CREATE TABLE channel_thread_msgs (
+     user_id TEXT NOT NULL, chat TEXT NOT NULL, message INTEGER NOT NULL,
+     thread_id TEXT NOT NULL REFERENCES channel_threads(id) ON DELETE CASCADE, at INTEGER NOT NULL,
+     PRIMARY KEY (user_id, chat, message));
+   ALTER TABLE channel_inbox ADD COLUMN verified INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 export async function openDb(dataDir) {

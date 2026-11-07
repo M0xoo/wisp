@@ -38,7 +38,7 @@ const CHANNELS = {
   // Lower case: mail systems may fold a local part. 160 bits, and it fits one (64 characters at most).
   email: { headers: [], eventId: (j) => j?.messageId || undefined, mint: () => randomBytes(20).toString('hex') },
 };
-const BODY_MAX = 256 * 1024;
+export const BODY_MAX = 256 * 1024;
 const READ_MS = 15_000; // a body that takes longer isn't a webhook
 const TTL_MS = 60 * 60_000; // a message this old is stale anyway (STALE_S)
 const MAX_TRIES = 5;
@@ -47,7 +47,7 @@ const NOT_UP = { status: 503, body: { error: 'wisp is asleep: try again with it 
 const DEFAULTS = { maxRows: 200, maxBytes: 2 * 1024 * 1024, ttlMs: TTL_MS, retryMs: 2000, wakeRetryMs: 30_000, wakeStrikes: 3, wakeGapMs: 10 * 60_000, sweepMs: 60_000 };
 
 // The body, or null when it's over max (read to the end and dropped, so the 200 still gets there).
-function readCapped(req, max) {
+export function readCapped(req, max) {
   return new Promise((resolve, reject) => {
     let size = 0;
     let chunks = [];
@@ -167,7 +167,7 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delive
       let landed;
       sending.set(user.id, new Promise((r) => (landed = r)));
       try {
-        ({ status } = await deliver(port, fresh, { channel: row.channel, headers: JSON.parse(row.headers), body: Buffer.from(row.body).toString('base64'), at: row.at, dropped }));
+        ({ status } = await deliver(port, fresh, { channel: row.channel, headers: JSON.parse(row.headers), body: Buffer.from(row.body).toString('base64'), at: row.at, dropped, ...(row.verified && { verified: true }) }));
       } catch {}
       done();
       const ok = status >= 200 && status < 300;
@@ -284,19 +284,24 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delive
       const j = parsed(body);
       if (row.live?.(j)) return live(user, channel, kept, body);
       if (row.skip?.(j)) return;
-      this.hold(user, channel, body, kept, j);
+      this.hold(user, channel, body, { headers: kept, j });
     },
 
-    hold(user, channel, body, kept, j = parsed(body)) {
+    // verified: the grid checked this one itself (grid/route.js), and it has no secret the box knows.
+    // Only the grid's own code sets it: nothing from a request does.
+    hold(user, channel, body, { headers: kept = {}, verified = false, j = parsed(body) } = {}) {
+      if (!body) return count(user.id, channel);
       const headers = JSON.stringify(kept);
       const size = body.length + headers.length;
       const held = pending(user.id);
-      if (held.n >= opts.maxRows || held.bytes + size > opts.maxBytes) {
-        count(user.id, channel);
-        return;
-      }
-      db.run('INSERT INTO channel_inbox (user_id, channel, event_key, headers, body, size, at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, event_key) DO NOTHING', user.id, channel, eventKey(channel, j, body, headers), headers, body, size, Date.now());
+      if (held.n >= opts.maxRows || held.bytes + size > opts.maxBytes) return count(user.id, channel);
+      db.run('INSERT INTO channel_inbox (user_id, channel, event_key, headers, body, size, at, verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, event_key) DO NOTHING', user.id, channel, eventKey(channel, j, body, headers), headers, body, size, Date.now(), verified ? 1 : 0);
       setImmediate(() => drain(user));
+    },
+
+    // True the first time a key comes by, for the hour a row lasts: a sender's retry stops here.
+    first(userId, key) {
+      return db.run("INSERT INTO channel_inbox (user_id, channel, event_key, headers, body, size, at, done_at) VALUES (?, 'seen', ?, '{}', x'', 0, ?, ?) ON CONFLICT(user_id, event_key) DO NOTHING", userId, key, Date.now(), Date.now()).changes > 0;
     },
 
     // After a restart: everyone with something held.

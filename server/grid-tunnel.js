@@ -9,7 +9,13 @@
 //
 // It dials again when the connection drops (Wi-Fi, sleep, a grid restart), and gives up only when
 // the grid says this computer or device is gone.
+//
+// Past this file a stream looks like any local request, so each carries x-wisp-tunnel: a random mark
+// made here, known to this process and nobody else on the computer (fromTunnel). It says which way a
+// request came, for the few things that care: what only the grid may ask, what only this computer may
+// change.
 
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import http from 'node:http';
 import http2 from 'node:http2';
 import { target } from './grid-client.js';
@@ -20,6 +26,13 @@ const RETRY_MS = [1_000, 2_000, 5_000, 15_000, 30_000];
 const IDLE_MS = 70_000; // the grid pings every 25 s: this long without a byte, the tunnel is dead
 const WINDOW = 1 << 20;
 const HOP = new Set(['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'te', 'trailer', 'host', 'http2-settings']);
+const MARK = randomBytes(24).toString('hex');
+
+export function fromTunnel(req) {
+  const got = Buffer.from(String(req.headers['x-wisp-tunnel'] ?? ''));
+  const want = Buffer.from(MARK);
+  return got.length === want.length && timingSafeEqual(got, want);
+}
 
 // url: the grid's own address. onState({ state: 'connecting'|'online'|'retrying'|'gone', error }).
 // previews(): whether pages on this computer may be shown through the grid (off by default).
@@ -47,6 +60,7 @@ export function dialTunnel({ url, id, token, port, previews = () => false, onSta
     // As a page here would: this computer's own host, and no Origin (the grid checked that one).
     out.host = `127.0.0.1:${port}`;
     delete out.origin;
+    out['x-wisp-tunnel'] = MARK;
     const up = http.request({ host: '127.0.0.1', port, method: headers[':method'], path: headers[':path'], headers: out }, (r) => {
       const rh = { ':status': r.statusCode };
       for (const [k, v] of Object.entries(r.headers)) if (!HOP.has(k)) rh[k] = v;
