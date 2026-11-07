@@ -20,6 +20,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { wispAppBinary } from './mac-app.js';
+import { desktopShell, noAppLine, shellEnv } from './desktop-shell.js';
 
 const HELP = `usage:
   wisp                          open wisp
@@ -421,16 +422,29 @@ async function interactive() {
   } catch {}
 
   // The desktop app (Electron is an optional dependency) runs the server in its own process, so
-  // it outlives this terminal. Without Electron, or with --browser/--no-open, serve from here.
+  // it outlives this terminal. Without Electron, the Tauri shell from this version's release
+  // (bin/desktop-shell.js), on this Node. With neither, or with --browser/--no-open, serve from here.
   // A task or `add` sent to an already-running wisp just goes over the API, no window.
-  const electron = flags.open && !flags.browser && (!running || !words.length) ? electronBinary() : null;
-  if (electron) {
-    const child = spawn(electron, [fileURLToPath(new URL('..', import.meta.url))], {
+  const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
+  const wantWindow = flags.open && !flags.browser && (!running || !words.length);
+  let app = wantWindow ? electronBinary() : null;
+  if (wantWindow && !app) {
+    const shell = await desktopShell({ version: JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url))).version, say: (line) => console.log(line) });
+    if (shell.exe) {
+      spawn(shell.exe, [], { detached: true, stdio: 'ignore', env: shellEnv(process.env, { port: flags.port, root }) })
+        .on('error', () => {})
+        .unref();
+      app = shell.exe; // from here on the same as Electron: the app holds the server
+    } else console.log(noAppLine(shell.message));
+  } else if (app) {
+    const child = spawn(app, [root], {
       detached: true,
       stdio: 'ignore',
       env: { ...process.env, WISP_PORT: String(flags.port) },
     });
     child.unref();
+  }
+  if (app) {
     if (!running) await waitForServer(api);
     console.log(`\n  ◌ wisp is open\n`);
   } else if (!running) {
@@ -447,7 +461,7 @@ async function interactive() {
     if (url) console.log(`  ◌ cloning ${words[1]}…`);
     const p = await api('/projects', url ? { repo: words[1] } : { path: path.resolve(words[1] || process.cwd()) }).catch((e) => console.error(`  ✗ ${e.message}`));
     if (p) console.log(`  ✓ project added: ${p.name}  (${p.path})`);
-    if (running || electron) process.exit(0);
+    if (running || app) process.exit(0);
   } else if (words.length) {
     const cfg = await api('/config');
     const agent = flags.agent || cfg.defaults.agent;
@@ -456,10 +470,10 @@ async function interactive() {
     const s = await api('/sessions', { prompt: words.join(' '), cwd, agent, mode: flags.mode || cfg.defaults.mode, model, effort: flags.effort || '' });
     console.log(`  ◌ launched: ${s.title}`);
     openPath = `/#/s/${s.id}`;
-    if (running || electron) process.exit(0); // the running wisp will show it in the queue
+    if (running || app) process.exit(0); // the running wisp will show it in the queue
   }
 
-  if (electron) process.exit(0);
+  if (app) process.exit(0);
   if (flags.open) {
     const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start ""' : 'xdg-open';
     exec(`${cmd} "${base}${openPath}"`);

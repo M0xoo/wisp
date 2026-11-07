@@ -79,7 +79,9 @@ test('the app holds what electron-builder’s does, plus the Node side of the sh
   for (const [, f] of list) assert.ok(files.includes(f), `${f} is in electron-builder.yml`);
   assert.ok(files.includes('desktop/entry.mjs'));
   assert.ok(files.includes('desktop/remove-electron.mjs'), 'the installer runs it from resources\\app\\desktop');
-  assert.ok(!JSON.parse(read('package.json')).files.some((f) => f.startsWith('desktop')), 'desktop/ is not on npm');
+  // Of desktop/, npm carries only what the shell runs under WISP_ROOT (bin/desktop-shell.js).
+  assert.deepEqual(JSON.parse(read('package.json')).files.filter((f) => f.startsWith('desktop')), ['desktop/entry.mjs']);
+  assert.equal(files.filter((f) => f === 'desktop/entry.mjs').length, 1, 'once');
 });
 
 test('stage copies wisp’s files and leaves node_modules out', () => {
@@ -229,9 +231,13 @@ test('a Tauri window started from npm reopens as an app after an update, not a b
   const cmd = u.relaunchCommand();
   assert.ok(!/--browser|--no-open/.test(cmd), cmd);
   assert.ok(cmd.endsWith(' --port 5123'), cmd);
-  assert.ok(cmd.startsWith(JSON.stringify(process.execPath)), 'its Node is a real one');
+  const wait = process.platform === 'win32' ? '' : `for i in $(seq 100); do kill -0 ${process.ppid} 2>/dev/null || break; sleep 0.1; done; `;
+  assert.ok(cmd.startsWith(`${wait}${JSON.stringify(process.execPath)}`), `its Node is a real one, once the old shell is gone: ${cmd}`);
   u.method = 'npx';
-  assert.equal(u.relaunchCommand(), 'npx -y wisp-agents@latest --port 5123');
+  assert.equal(u.relaunchCommand(), `${wait}npx -y wisp-agents@latest --port 5123`);
+  const win = new Updater({ port: 5123, env: { WISP_DESKTOP: 'tauri' }, platform: 'win32', arch: 'x64', root: tmp('upd-global') });
+  win.method = 'npx';
+  assert.equal(win.relaunchCommand(), 'npx -y wisp-agents@latest --port 5123', 'cmd.exe has no such loop');
 });
 
 test('no shell at all still relaunches as a browser server', () => {

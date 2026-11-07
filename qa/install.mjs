@@ -1,6 +1,6 @@
 // Install gate: every way into wisp, on real artefacts. Scenarios: qa/scenarios/install.md.
 //
-//   node qa/install.mjs [--artefacts dist/tauri] [--only npm,script,brew,app,links] [--old-electron <wisp-mac-<arch>.zip>]
+//   node qa/install.mjs [--artefacts dist/tauri] [--only npm,script,brew,app,shell,links] [--old-electron <wisp-mac-<arch>.zip>]
 //   node qa/install.mjs --only migrate   # Windows, CI only: a real v0.57.0, then this build
 //
 // Nothing is published and nothing of yours is touched: npm installs go to temp prefixes from `npm
@@ -18,7 +18,7 @@ import { pathToFileURL } from 'node:url';
 import { until, makeRepo } from '../test/helpers.js';
 import { OUT, ROOT, ok, qaEnv, runner, win32 } from './lib.mjs';
 import { Updater } from '../server/update.js';
-import { artefacts } from '../desktop/scripts/package.mjs';
+import { artefacts, shellArtefact } from '../desktop/scripts/package.mjs';
 import { NODE_VERSION, hostTarget } from '../desktop/scripts/fetch-node.mjs';
 
 const { check, done, results } = runner('install');
@@ -28,7 +28,7 @@ const argOf = (name, fallback) => {
 };
 const ARTEFACTS = path.resolve(argOf('--artefacts', path.join(ROOT, 'dist/tauri')));
 const OLD_ELECTRON = argOf('--old-electron');
-const ONLY = argOf('--only', 'npm,script,brew,app,links').split(',');
+const ONLY = argOf('--only', 'npm,script,brew,app,shell,links').split(',');
 const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const [MAC, WIN] = [process.platform === 'darwin', process.platform === 'win32'];
 const SYSTEM = WIN ? process.env.PATH : '/usr/bin:/bin:/usr/sbin:/sbin';
@@ -185,13 +185,14 @@ function packVersion(version, dest) {
 let tarball = null;
 async function npmRows() {
   const dest = dirIn('tar');
-  await check('INST-01', 'npm pack: wisp, and nothing of the Tauri shell', async () => {
+  await check('INST-01', 'npm pack: wisp, and of the Tauri shell only the entry.mjs it runs', async () => {
     tarball = path.join(dest, sh('npm', ['pack', '--silent', '--pack-destination', dest], { cwd: ROOT, env: { ...process.env, ...CACHE } }).trim().split('\n').pop());
     // System32's: Git Bash's GNU tar takes C:\ for a host name.
     const tar = WIN ? path.join(process.env.SystemRoot, 'System32/tar.exe') : 'tar';
     const files = sh(tar, ['-tzf', tarball]).split(/\r?\n/);
     for (const f of ['package/bin/wisp.js', 'package/server/index.js', 'package/electron/main.js', 'package/web/index.html']) ok(files.includes(f), `${f} isn't in it`);
-    ok(!files.some((f) => f.startsWith('package/desktop/')), 'desktop/ is on npm');
+    ok(files.filter((f) => f.startsWith('package/desktop/')).join() === 'package/desktop/entry.mjs', 'desktop/ beyond entry.mjs is on npm');
+    ok(files.includes('package/bin/desktop-shell.js'), 'no bin/desktop-shell.js');
     ok(!files.some((f) => f.includes('node_modules/')), 'node_modules in the tarball');
   });
   if (!tarball) return;
@@ -803,6 +804,97 @@ function linkRows() {
   });
 }
 
+// --- npm with no Electron: the shell alone from this version's release (bin/desktop-shell.js) ---
+// Windows on screen for a pid, from CGWindowList: needs no Accessibility or Screen Recording grant.
+const WINDOWS_JXA = `ObjC.import('CoreGraphics');
+function run(argv) {
+  const list = ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, 0)));
+  return list.filter((w) => String(w.kCGWindowOwnerPID) === argv[0] && w.kCGWindowLayer === 0).map((w) => w.kCGWindowBounds.Width + 'x' + w.kCGWindowBounds.Height).join(' ');
+}`;
+const windowsOf = (pid) => sh('osascript', ['-l', 'JavaScript', '-e', WINDOWS_JXA, String(pid)]).trim();
+
+async function shellRows() {
+  let name;
+  try {
+    name = shellArtefact(hostTarget());
+  } catch {
+    return notRun.push(['npm with the shell alone', `no Tauri build for ${process.platform}`]);
+  }
+  if (!fs.existsSync(path.join(ARTEFACTS, name))) return notRun.push(['npm with the shell alone (INST-25–28)', `no ${name} in ${ARTEFACTS}`]);
+  tarball ??= path.join(TMP, sh('npm', ['pack', '--silent', '--pack-destination', TMP], { cwd: ROOT, env: { ...process.env, ...CACHE } }).trim().split('\n').pop());
+  const dir = releaseDir([name]);
+  const release = await serveDir(dir);
+  const url = `http://127.0.0.1:${release.address().port}`;
+  const prefix = dirIn('prefix');
+  const env = machine({ WISP_SHELL_URL: url });
+  const wisp = binIn(prefix);
+  const root = pkgIn(prefix);
+  const shellDir = path.join(env.WISP_HOME, 'desktop', PKG.version);
+  sh('npm', ['install', '-g', tarball, '--prefix', prefix], { env });
+  fs.rmSync(path.join(root, 'node_modules/electron'), { recursive: true, force: true });
+
+  const port = nextPort++;
+  let pid = null;
+  await check('INST-25', 'npm -g, no Electron: `wisp` gets the shell from the release, checks it, and its window opens on this Node', async () => {
+    clearOpened();
+    const said = await shA(wisp, ['--port', String(port)], { env, shell: WIN });
+    ok(/getting the wisp app/.test(said) && /wisp is open/.test(said), `said: ${said}`);
+    ok(fs.readdirSync(shellDir).length, `nothing in ${shellDir}`);
+    const h = await up(port, 'the shell’s server');
+    pid = h.pid;
+    ok(h.version === PKG.version, `health says ${h.version}`);
+    ok((await getUpdate(port)).method === 'global', 'update method');
+    ok(!opened(), `a tab as well: ${opened()}`);
+    if (WIN) return manual.push(['INST-25 the window on Windows', 'the server is up on the shell; a window is seen by hand']);
+    const comm = sh('ps', ['-o', 'comm=', '-p', String(pid)]).trim();
+    ok(comm === process.execPath, `the server runs on ${comm}, not this Node`);
+    const parent = sh('ps', ['-o', 'comm=', '-p', String(shellOf(pid))]).trim();
+    ok(parent.startsWith(shellDir), `the server's parent is ${parent}`);
+    if (MAC) await until(() => windowsOf(shellOf(pid)).split(' ').some((s) => Number(s.split('x')[0]) >= 720), { timeout: 30_000, what: 'the shell’s window' });
+  });
+  // Shells running from this version's folder, by pid.
+  const shells = () => (WIN ? [] : sh('ps', ['-axo', 'pid=,command=']).split('\n').filter((l) => l.includes(shellDir)).map((l) => Number(l.trim().split(/\s+/)[0])));
+  await check('INST-26', 'the next `wisp` takes the shell from disk: no download, and hands over to the open one', async () => {
+    release.close();
+    const said = await shA(wisp, ['--port', String(port)], { env, shell: WIN });
+    ok(/wisp is open/.test(said) && !/getting/.test(said), `said: ${said}`);
+    // The second shell finds the first one's lock, shows its window and goes.
+    if (!WIN && pid) await until(() => shells().join() === String(shellOf(pid)), { timeout: 20_000, what: 'one shell' });
+  });
+  if (!WIN && pid) {
+    await check('INST-26b', 'killing the shell leaves no server and no shell behind', async () => {
+      process.kill(shellOf(pid), 'SIGKILL');
+      await until(() => !alive(pid), { timeout: 20_000, what: 'Node to go' });
+      await down(port);
+      ok(!shells().length, `shells left: ${shells()}`);
+    });
+  } else await stopPort(port).catch(() => {});
+
+  const tab = async (id, title, files, why) => {
+    const bad = dirIn('bad-release');
+    for (const [n, body] of Object.entries(files)) fs.writeFileSync(path.join(bad, n), body);
+    const s = await serveDir(bad);
+    const home = dirIn('wisp-home');
+    const p = nextPort++;
+    await check(id, title, async () => {
+      clearOpened();
+      const child = start(wisp, ['--port', String(p)], { ...env, WISP_HOME: home, WISP_SHELL_URL: `http://127.0.0.1:${s.address().port}` }, { stdio: ['ignore', 'pipe', 'ignore'] });
+      let out = '';
+      child.stdout.on('data', (d) => (out += d));
+      await up(p);
+      await until(() => /floating at/.test(out), { what: 'its line' });
+      ok(new RegExp(`no wisp app here \\(.*${why}.*\\): opening a browser tab\\. The app: https://trywisp\\.dev`).test(out), `said: ${out}`);
+      if (!WIN) await until(() => opened().includes(`localhost:${p}`), { what: 'the tab' });
+      ok(!fs.existsSync(path.join(home, 'desktop', PKG.version)), 'kept a shell');
+    });
+    s.close();
+    await stopPort(p).catch(() => {});
+  };
+  const body = fs.readFileSync(path.join(dir, name));
+  await tab('INST-27', 'a shell that doesn’t match SHA256SUMS.txt: a tab and one line', { 'SHA256SUMS.txt': `${'0'.repeat(64)}  ${name}\n`, [name]: body }, "doesn't match");
+  await tab('INST-28', 'no build for this platform in the release: a tab and one line', { 'SHA256SUMS.txt': `${'0'.repeat(64)}  wisp-shell-linux-riscv.tar.gz\n` }, `has no ${name}`);
+}
+
 async function main() {
   console.log(`\n  install gate · wisp ${PKG.version} · ${process.platform} ${process.arch} · Node ${process.version} · artefacts ${ARTEFACTS}\n`);
   if (ONLY.includes('npm') || ONLY.includes('brew')) await npmRows();
@@ -811,6 +903,7 @@ async function main() {
   if (ONLY.includes('app') && MAC) await macRows();
   if (ONLY.includes('app') && WIN) await windowsRows();
   if (ONLY.includes('migrate') && WIN) await migrateRows();
+  if (ONLY.includes('shell')) await shellRows();
   if (ONLY.includes('links')) await linkRows();
   for (const child of live) child.kill();
   manual.push(

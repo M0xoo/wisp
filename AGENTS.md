@@ -47,7 +47,10 @@ this covers how the code is laid out and the rules a change has to follow.
   for exactly `http://localhost:<port>` (`capability.json`). `src/windows.rs` is what Electron does on
   Windows by itself (window size, taskbar badge, menu keys, right-click menu); `installer-hooks.nsh` takes
   an Electron copy away on install. `.github/workflows/tauri-windows.yml` runs it all on windows-latest.
-  `npm run dev:tauri`; not on npm.
+  `npm run dev:tauri`. Only `entry.mjs` is on npm: each build also makes the shell alone
+  (`wisp-shell-<os>-<arch>.tar.gz`, no Node, no wisp files), and a wisp from npm with no Electron
+  downloads it once into `~/.wisp/desktop/<version>/`, checks it against the release's SHA256SUMS.txt and
+  runs it with `WISP_NODE`/`WISP_ROOT` (`bin/desktop-shell.js`), or opens a tab if it can't.
 - `mobile/`: the Android app (Capacitor + sshj). It shows wisp's own page through an SSH tunnel
   and starts wisp with `server/machines/bootstrap.js` (keep that file and `server/shq.js` free of
   Node imports). The page sees `MOBILE` (`web/js/core/state.js`): hide desktop-only actions there.
