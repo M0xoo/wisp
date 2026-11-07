@@ -16,6 +16,8 @@ on:
       - 'qa/install.mjs'
       - '.github/workflows/tauri-windows.yml'
   workflow_dispatch:
+  push:
+    branches: ['ci-throwaway/tauri-win-arm']
 
 permissions:
   contents: read
