@@ -216,6 +216,22 @@ test('dev sign-in, then /go opens the user’s own wisp at <handle>.<domain>, st
   assert.equal(grid.hostd.state(grid.accounts.byHandle('ada').id), 'running');
 });
 
+test('a share that found no service worker: a 303 to the page, whatever Origin it carries, and asleep it stays asleep', async () => {
+  const b = browser();
+  await devSignIn(b, 'ada@example.com');
+  const { origin } = await openWisp(b);
+  const box = grid.accounts.byHandle('ada').id;
+  await until(() => grid.hostd.state(box) === 'stopped', { what: 'its wisp to sleep' });
+  for (const from of [origin, 'https://elsewhere.test', undefined]) {
+    const r = await b.go(`${origin}/share`, { method: 'POST', headers: { 'content-type': 'multipart/form-data; boundary=x', ...(from && { origin: from }) } });
+    assert.deepEqual([r.status, r.location], [303, '/?shared=none'], String(from));
+  }
+  assert.equal(grid.hostd.state(box), 'stopped', 'it didn’t wake the box');
+  // Signed out it's the sign-in, like any other path.
+  const anon = await browser().go(`${origin}/share`, { method: 'POST' });
+  assert.equal(anon.status, 302);
+});
+
 test('the edge: no cookie → sign in; another user’s cookie doesn’t open it; posts from another site are refused', async () => {
   const anon = browser();
   const r = await anon.go(`${cfg.instanceUrl('ada')}/`);

@@ -10,7 +10,10 @@ import { api, launchBrowser, ok, OUT, ROOT, runner, startWisp } from './lib.mjs'
 const PORT = Number(process.env.QA_WEB_PORT) || 4493;
 const { check: run, done } = runner('web');
 // A failing check leaves a screenshot of the main page behind (web-fail-<id>.png).
+// ONLY=WEB-66 runs that scenario alone (several: comma-separated).
+const only = process.env.ONLY?.split(',');
 const check = (id, title, fn) =>
+  (!only || only.includes(id)) &&
   run(id, title, async () => {
     try {
       await fn();
@@ -814,6 +817,93 @@ try {
     ok(shown, 'Open left the row out of view');
     q.clean();
     await q.context().close();
+  });
+
+  await check('WEB-66', 'a share from the Home Screen app opens New task, in the box and attached', async () => {
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+    const shared = (name = 'screenshot.png') => ({ name, mimeType: 'image/png', buffer: png });
+    // What the share sheet does: a multipart POST to the manifest's action.
+    const share = async (q, fields, files = []) => {
+      await q.evaluate((f) => {
+        const form = Object.assign(document.createElement('form'), { id: 'qaShare', method: 'post', action: '/share', enctype: 'multipart/form-data' });
+        for (const [name, value] of Object.entries(f)) form.append(Object.assign(document.createElement('input'), { type: 'hidden', name, value }));
+        form.append(Object.assign(document.createElement('input'), { type: 'file', name: 'files', multiple: true }));
+        document.body.append(form);
+      }, fields);
+      await q.setInputFiles('#qaShare input[type=file]', files);
+      await q.evaluate(() => document.querySelector('#qaShare').submit());
+      await q.waitForFunction(() => !document.querySelector('#qaShare') && !location.search && !document.querySelector('#launcher.skel'));
+    };
+    const painted = (q) => q.waitForSelector('#launcher:not(.skel)', { state: 'attached' }); // behind the list, stacked
+    const boxOf = (q) => q.evaluate(() => document.querySelector('#prompt').value);
+    const chips = (q) => q.locator('#launcher .tray .att.ready');
+    const before = (await api(w.url, '/api/sessions')).json.length;
+    for (const [label, viewport, colorScheme] of [
+      ['1440-light', { width: 1440, height: 900 }, 'light'],
+      ['1440-dark', { width: 1440, height: 900 }, 'dark'],
+      ['390-light', { width: 390, height: 844 }, 'light'],
+      ['390-dark', { width: 390, height: 844 }, 'dark'],
+    ]) {
+      const q = await page({ viewport, colorScheme });
+      await q.goto(w.url);
+      await q.evaluate(async () => {
+        localStorage.setItem('wisp.drafts', JSON.stringify({ home: 'My own notes' }));
+        localStorage.setItem('wisp.theme', JSON.stringify(matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+        await navigator.serviceWorker.register('/sw.js');
+        await navigator.serviceWorker.ready;
+      });
+      await q.waitForFunction(() => navigator.serviceWorker.controller);
+      await q.reload();
+      await painted(q);
+      await share(q, { title: 'Flaky login test', text: 'CI failed again on the retry', url: 'https://example.com/runs/4821' }, [shared(), { name: 'run.log', mimeType: 'text/plain', buffer: Buffer.from('FAIL auth > login') }]);
+      await chips(q).nth(1).waitFor();
+      ok((await boxOf(q)) === 'My own notes\n\nFlaky login test\n\nCI failed again on the retry\n\nhttps://example.com/runs/4821', `the box says ${JSON.stringify(await boxOf(q))}`);
+      if (viewport.width < 900) {
+        ok(await q.evaluate(() => document.body.classList.contains('stack-page')), 'stacked: New task opens as a page');
+        ok(await q.evaluate(() => document.activeElement?.id !== 'prompt'), 'no keyboard over Send');
+      }
+      await noOverflow(q);
+      await q.shot(`share-${label}`);
+      q.clean();
+      await q.context().close();
+    }
+    const q = await page({ viewport: { width: 390, height: 844 } });
+    await q.goto(w.url);
+    await q.evaluate(async () => {
+      await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+    });
+    await q.waitForFunction(() => navigator.serviceWorker.controller);
+    await q.reload();
+    await painted(q);
+    await share(q, { text: 'Only words' });
+    ok((await boxOf(q)) === 'Only words', 'a text-only share');
+    await q.reload();
+    await painted(q);
+    ok((await boxOf(q)) === 'Only words', 'a reload adds nothing');
+    await q.evaluate(() => localStorage.removeItem('wisp.drafts'));
+    await q.reload();
+    await painted(q);
+    await share(q, {}, [shared()]);
+    await chips(q).first().waitFor();
+    ok((await boxOf(q)) === 'Take a look at the attached file.', 'files alone can still be sent');
+    await q.evaluate(() => localStorage.removeItem('wisp.drafts'));
+    await q.reload();
+    await painted(q);
+    await share(q, {}, Array.from({ length: 11 }, (_, i) => shared(`shot-${i}.png`)));
+    await chips(q).nth(9).waitFor();
+    ok((await chips(q).count()) === 10, 'ten files at most');
+    await q.waitForFunction(() => /Left out 1 file/.test(document.querySelector('#toasts').textContent));
+    ok((await api(w.url, '/api/sessions')).json.length === before, 'nothing started by itself');
+    q.clean();
+    await q.context().close();
+    // No worker: the server's answer, and the toast that says what to do.
+    const bare = await page({ viewport: { width: 390, height: 844 } });
+    await bare.goto(w.url);
+    await painted(bare);
+    await share(bare, { text: 'x' });
+    await bare.waitForFunction(() => /needs the Home Screen app/.test(document.querySelector('#toasts').textContent));
+    await bare.context().close();
   });
 
   await check('WEB-31', 'docs site builds and renders', async () => {

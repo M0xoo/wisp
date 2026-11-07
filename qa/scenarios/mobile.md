@@ -307,3 +307,10 @@ Never send builds to someone's own phone as part of QA.
 - **Run:** `qa/mobile.mjs`
 - **Steps:** in a plain browser (no app) at 412 and 360px, light and dark: open a task's reply box; type `/btw …` and clear it; type `tomorrow at 9am run the linter`. Widen the window past 720px with `/btw` still typed, and narrow it again.
 - **Expected:** as MOB-31, with the browser's 30px buttons: none squeezes, the hint is one line above them ending in `…`, and neither Send nor the input moves sideways. Past 720px the hint is back inside the bar, as on a desktop.
+
+### MOB-33 Share to wisp from another app
+- **Run:** `Gradle` (`SharedTest`), `Emulator` for the intents; a real share sheet is `Manual`.
+- **Steps:** with no computer open, share a link from another app to wisp. Then open a computer. With wisp's page up, share a picture, then three pictures, then 11 files, then text with a task open. Kill the app holding a share and open it again. Tap a task notification, and follow the grid's `dev.trywisp.mobile://` link.
+- **Expected:** the list says *What you shared is waiting*; opening a computer lands it in New task. Files show as chips and upload. Over the caps a toast says what was left out. A file:// URI or wisp's own provider is left out too. Nothing starts by itself. After it's taken the app's `cache/shared` folder is empty, and a killed app's is emptied on the next open. From Recents the old share doesn't come back. A computer on an older wisp keeps it and says so after 20 seconds. Notifications and the link back open as before.
+- **Emulator**, **Manual** (Play's build on a real phone)
+

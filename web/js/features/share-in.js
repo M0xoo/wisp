@@ -33,7 +33,9 @@ async function reachable() {
 // The one way in. Whatever's in the box stays, with this below it.
 export function receive({ title, text, url, files = [], count = files.length, left = 0 }) {
   keepPage();
-  goHome({ focus: !isStacked() }); // stacked it's a phone: Send in view, not the keyboard over it
+  // Stacked it's a phone: Send in view, not the keyboard over it (boot may have focused the box).
+  goHome({ focus: !isStacked() });
+  if (isStacked()) document.activeElement?.blur();
   fillLauncher(promptOf({ title, text, url }), files, { when: files.length ? reachable() : null, fallback: count ? aboutFiles(count) : '' });
   if (left) say(leftOut(left));
 }
