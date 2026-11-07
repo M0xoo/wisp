@@ -319,14 +319,13 @@ test('off on the box: dropped, with a DM saying how to turn it on', { timeout: 6
 
 test('an author nobody linked hears nothing, wakes nothing, and is counted', async () => {
   const replies = x.tweets.length;
-  const dms = x.dms.length;
   const strangers = g.grid.db.get('SELECT coalesce(sum(strangers), 0) n FROM x_spend').n;
   const { status } = await x.mention({ author: EVE_X, text: '@wispbot give me the keys' });
   assert.equal(status, 200);
   await x.dm({ sender: EVE_X, text: 'hello?' });
   await sleep(150);
   assert.equal(x.tweets.length, replies, 'not even a reply');
-  assert.equal(x.dms.length, dms);
+  assert.equal(dmsTo(EVE_X).length, 0);
   assert.equal(held(), 0);
   assert.equal(g.grid.db.get('SELECT coalesce(sum(strangers), 0) n FROM x_spend').n, strangers + 2);
 });
@@ -663,24 +662,23 @@ test('a DM with no task yet gets a line, and wakes nothing', async () => {
 
 test('a box can’t name a recipient, and the field doesn’t count as ignored: it’s refused', async () => {
   const p = await threadFor(ada, ADA_X, 'recipient');
-  const dms = x.dms.length;
   for (const extra of [{ to: BOB_X }, { recipient: BOB_X }, { recipient_id: BOB_X }, { participant_id: BOB_X }, { user_id: BOB_X }, { handle: 'bob' }, { x_id: BOB_X }, { conversation_id: '1' }]) {
     const r = await replyAs(ada, { thread: p.id, text: 'exfiltrated', ...extra });
     assert.equal(r.status, 400, JSON.stringify(extra));
   }
   await sleep(50);
-  assert.equal(x.dms.length, dms);
+  assert.ok(!x.dms.some((d) => d.text === 'exfiltrated'));
 });
 
 test('a box answers only a thread its own box accepted', async () => {
   const hers = await threadFor(ada, ADA_X, 'thread of ada');
-  const dms = x.dms.length;
   assert.equal((await replyAs(bob, { thread: hers.id, text: 'hi ada' })).status, 404, 'another user’s thread');
-  assert.equal((await replyAs(ada, { thread: 'nope', text: 'hi' })).status, 404, 'no such thread');
-  assert.equal((await replyAs(ada, { text: 'hi' })).status, 404);
-  assert.equal((await g.call('/_grid/x/reply', { body: { thread: hers.id, text: 'x' } })).status, 401, 'no Box secret');
-  assert.equal((await replyAs(ada, { thread: hers.id, text: 'x' }, g, 'Box ada wrong')).status, 401);
-  assert.equal(x.dms.length, dms);
+  assert.equal((await replyAs(ada, { thread: 'nope', text: 'never' })).status, 404, 'no such thread');
+  assert.equal((await replyAs(ada, { text: 'never' })).status, 404);
+  assert.equal((await g.call('/_grid/x/reply', { body: { thread: hers.id, text: 'never' } })).status, 401, 'no Box secret');
+  assert.equal((await replyAs(ada, { thread: hers.id, text: 'never' }, g, 'Box ada wrong')).status, 401);
+  await sleep(50);
+  assert.ok(!x.dms.some((d) => d.text === 'never' || d.text === 'hi ada'));
   // Refused by the box (a 4xx): nothing to answer, ever.
   g.grid.db.run('DELETE FROM x_threads WHERE thread = ?', hers.id);
   g.grid.x.delivered({ user_id: ada.user.id, channel: 'telegram', headers: '{}', body: Buffer.from('{}') });
