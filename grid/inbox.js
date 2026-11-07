@@ -250,7 +250,7 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
       const body = await readCapped(req, BODY_MAX);
       if (!body) {
         count(user.id, channel);
-        return undefined;
+        return;
       }
       const row = CHANNELS[channel];
       const kept = Object.fromEntries(row.headers.filter((h) => typeof req.headers[h] === 'string').map((h) => [h, req.headers[h]]));
@@ -261,11 +261,10 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
       const held = pending(user.id);
       if (held.n >= opts.maxRows || held.bytes + size > opts.maxBytes) {
         count(user.id, channel);
-        return undefined;
+        return;
       }
       db.run('INSERT INTO channel_inbox (user_id, channel, event_key, headers, body, size, at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, event_key) DO NOTHING', user.id, channel, eventKey(channel, j, body, headers), headers, body, size, Date.now());
       setImmediate(() => drain(user));
-      return undefined;
     },
 
     // After a restart: everyone with something held.
