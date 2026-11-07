@@ -120,9 +120,9 @@ export function packShell(triple, out) {
     }
     const file = path.join(out, shellArtefact(triple));
     fs.rmSync(file, { force: true });
-    // From inside the folder: Git Bash's GNU tar takes C:\ for a host name.
-    // COPYFILE_DISABLE: no ._ files for macOS's extended attributes.
-    execFileSync(tarBin(), ['-czf', path.relative(room, file), inside], { cwd: room, stdio: 'inherit', env: { ...process.env, COPYFILE_DISABLE: '1' } });
+    // System32's bsdtar on Windows (Git Bash's GNU tar takes C:\ for a host name). COPYFILE_DISABLE:
+    // no ._ files for macOS's extended attributes.
+    execFileSync(tarBin(), ['-czf', file, inside], { cwd: room, stdio: 'inherit', env: { ...process.env, COPYFILE_DISABLE: '1' } });
     return file;
   } finally {
     fs.rmSync(room, { recursive: true, force: true });
