@@ -475,10 +475,12 @@ try {
     ok(took < 1000, `type 5 took ${took} ms: it waited for the box`);
     await until(() => fakeDiscord.edits.some((e) => e.token === link.token && /Linked to wisp/.test(e.content)), 30_000, 'the edited reply');
     await send(link);
+    await until(async () => (await state()) === 'stopped', (IDLE + 30) * 1000, 'the box to sleep again');
     const stranger = fakeDiscord.interaction({ type: 2, member: { user: { id: '222' } }, channel: { type: 0 }, data: { name: 'wisp', options: [{ name: 'prompt', value: 'hello' }] } });
-    ok((await send(stranger)).json?.type === 5, 'a stranger wasn’t deferred');
-    await until(() => fakeDiscord.deletes.some((x) => x.token === stranger.token), 30_000, 'the stranger’s deferred reply removed');
+    const told = await send(stranger);
+    ok(told.json?.type === 4 && told.json.data.flags === 64, `a guild stranger → ${told.text}`);
     await sleep(500);
+    ok((await state()) === 'stopped', 'a guild stranger woke the box');
     ok(fakeDiscord.edits.filter((e) => e.token === link.token).length === 1, 'handled more than once');
     ok(!fakeDiscord.edits.some((e) => e.token === stranger.token), 'a stranger heard something');
     ok(!fakeDiscord.callbacks.length, 'a box answered an interaction the grid had answered');

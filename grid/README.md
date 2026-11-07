@@ -226,8 +226,11 @@ can wake. So the grid verifies Ed25519 itself and answers: a PING, type 5 for a 
 a button, held and woken, and only a box that's up sees autocomplete (never a wake for a keystroke).
 A bad signature or a timestamp over 5 minutes off is a 401, with nothing held. The public key comes
 from the box over its Box secret, like the URL: what it verifies reaches only that box, so a Discord
-message here never reaches a computer. The box checks the signature again with its own copy, deletes
-a stranger's deferred reply, and has no gateway: mentions don't work there, only `/wisp`.
+message here never reaches a computer. The box sends hashes of its linked ids with the key, so a guild
+stranger gets an ephemeral line from the grid, with nothing held and nothing woken: anyone in a server
+can run a command, and those wakes would cost the owner's. Only a DM from a stranger reaches the box,
+for a link code. The box checks the signature again with its own copy, and has no gateway: mentions
+don't work there, only `/wisp`.
 
 ### Sandboxes
 

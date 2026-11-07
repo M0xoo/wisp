@@ -245,7 +245,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
       up.on('error', reject);
       up.end(data);
     });
-  const inbox = createInbox({ db, cfg, secrets, accounts, hostd, deliver: toBox, delivered: (row) => row.channel === 'email' && mail?.delivered(row), log });
+  const inbox = createInbox({ db, cfg, secrets, accounts, hostd, deliver: toBox, delivered: (row) => row.channel === 'email' && mail?.delivered(row), limit, log });
   const mail = inbox.on && cfg.mail ? createMail({ db, cfg, inbox, accounts, log, resolveTxt }) : null;
   const routes = createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit, log });
   hostd.on('change', (e) => {
@@ -446,7 +446,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
         const channel = url.searchParams.get('channel');
         if (!inbox.knows(channel)) return send(404, { error: 'not found' });
         limit(`inkey|${who.id}`, 30);
-        inbox.setKey(who, channel, (await readBody(req)).key);
+        const { key, linked } = await readBody(req);
+        inbox.setKey(who, channel, key, linked);
         return send(200, { ok: true });
       }
       // Publishing an app from My Stuff (grid/sites.js): from wisp on a computer (its device token),
@@ -966,7 +967,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
         limit(`in|${clientIp(req)}`, 600);
         return none();
       }
-      limit(`intok|${user.id}|${hit.channel}`, 120);
+      // An edge spends its own budgets once a request is verified (inbox.accept): this only stops a flood.
+      limit(`intok|${user.id}|${hit.channel}`, inbox.edged(hit.channel) ? 1200 : 120);
       const answer = await inbox.accept(user, hit.channel, req);
       return answer ? json(res, answer.status, answer.body) : json(res, 200, { ok: true });
     } catch (err) {

@@ -3,7 +3,7 @@
 // grid gets this without the channel. A box can sleep past Discord's 3 s, so the grid answers first
 // (edge), and the box checks the same bytes again rather than take the grid's word.
 
-import { createPublicKey, verify } from 'node:crypto';
+import { createHash, createPublicKey, verify } from 'node:crypto';
 
 const PUBLIC_KEY = /^[0-9a-f]{64}$/i;
 const SIGNATURE = /^[0-9a-f]{128}$/i;
@@ -11,6 +11,15 @@ const STAMP = /^\d{1,12}$/;
 const MAX_AGE_S = 5 * 60;
 const NOT_SIGNED = { status: 401, body: { error: 'invalid request signature' } };
 const IN = { ping: 1, command: 2, component: 3, autocomplete: 4 };
+const ephemeral = (content) => ({ status: 200, body: { type: 4, data: { content, flags: 64, allowed_mentions: { parse: [] } } } });
+const NOT_LINKED = ephemeral('This wisp only answers people linked to it.');
+const BUSY = ephemeral('wisp is busy. Try again in a minute.');
+const NO_CHOICES = { type: 8, data: { choices: [] } };
+const PER_MINUTE = { command: 120, autocomplete: 300 }; // apart: typing mustn't use up what /wisp has
+
+// How a box tells its grid who's linked, without saying who.
+export const linkedHash = (id) => createHash('sha256').update(`discord:${id}`).digest('hex');
+
 // The y of every point of small order, sign bit clear (libsodium's list). Node 22's verify doesn't
 // check, and with one of these as the key, a single fixed signature verifies any message.
 const SMALL_ORDER = new Set([
@@ -46,17 +55,28 @@ export function discordSigned(key, raw, headers) {
 
 // The grid's answer to a request (a row of CHANNELS in grid/inbox.js): before any wake, and the same
 // words Discord would get from a box. A signature this old is someone replaying one. hold: it goes
-// to the box. live: to the box only if it's up, and this is the answer if it isn't.
-export function discordEdge({ key, raw, headers, now = Date.now() }) {
+// to the box. live: to the box only if it's up, and this is the answer if it isn't. bucket and
+// perMinute: its budget; busy: the answer past a cap, as Discord wants a valid one even then.
+//
+// linked (the box's hashes; null from a box that sent none): anyone in a server can run a command, and
+// a wake for them would use up the ones the owner's /wisp needs (grid/inbox.js), so a guild stranger
+// is answered here and goes no further, on no budget of the owner's. Only in a DM can a link code come.
+export function discordEdge({ key, raw, headers, linked = null, now = Date.now() }) {
   if (!raw || !discordSigned(key, raw, headers)) return NOT_SIGNED;
   if (Math.abs(now / 1000 - Number(headers['x-signature-timestamp'])) > MAX_AGE_S) return NOT_SIGNED;
-  let type;
+  let d = null;
   try {
-    ({ type } = JSON.parse(raw.toString('utf8')));
+    d = JSON.parse(raw.toString('utf8'));
   } catch {}
+  const type = d?.type;
   if (type === IN.ping) return { status: 200, body: { type: 1 } };
-  if (type === IN.command) return { status: 200, body: { type: 5 }, hold: true };
-  if (type === IN.component) return { status: 200, body: { type: 6 }, hold: true };
-  if (type === IN.autocomplete) return { status: 200, body: { type: 8, data: { choices: [] } }, live: true }; // never a wake for a keystroke
+  const stranger = !!linked && !!d?.guild_id && !linked.includes(linkedHash(d.member?.user?.id ?? d.user?.id));
+  const budget = { bucket: 'command', perMinute: PER_MINUTE.command, busy: BUSY };
+  if (type === IN.command) return stranger ? NOT_LINKED : { status: 200, body: { type: 5 }, hold: true, ...budget };
+  if (type === IN.component) return stranger ? { status: 200, body: { type: 6 } } : { status: 200, body: { type: 6 }, hold: true, ...budget };
+  if (type === IN.autocomplete) {
+    const none = { status: 200, body: NO_CHOICES };
+    return stranger ? none : { ...none, live: true, bucket: 'autocomplete', perMinute: PER_MINUTE.autocomplete, busy: none }; // never a wake for a keystroke
+  }
   return { status: 400, body: { error: 'Not an interaction wisp answers.' } };
 }

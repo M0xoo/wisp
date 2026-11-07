@@ -23,7 +23,7 @@ import { truncate } from '../util.js';
 import { boxGrid, channelUrl, rotateUrl, setChannelKey } from './box.js';
 import { CODE, Channel, KIND, lostLine, resend, sleep } from './channel.js';
 import { Linking, Turns, converse, firstPart, inBox, same, surface } from './conversation.js';
-import { discordSigned } from './discord-sign.js';
+import { discordSigned, linkedHash } from './discord-sign.js';
 import { stripFormatting } from './grammar.js';
 import { RateLimit, Seen, allowed, defuse, gate, needsWisp, scrubOut, splitNote } from './policy.js';
 import { openWs } from './ws.js';
@@ -286,7 +286,7 @@ export class Discord extends Channel {
     const key = this.ready ? c.publicKey : '';
     if (!key) this.connected = false;
     if (!key && !c.gridKey) return true;
-    if (!(await setChannelKey(box, this.name, key))) return false;
+    if (!(await setChannelKey(box, this.name, key, key ? (c.senders || []).map(linkedHash) : undefined))) return false;
     if (key !== c.gridKey) {
       c.gridKey = key;
       this.hub.store.saveConfig();
@@ -485,7 +485,12 @@ export class Discord extends Channel {
     if (link) {
       if (!this.tried.first(d.id)) return unsaid();
       if (!held) await this.#respond(d, OUT.deferred, { flags: EPHEMERAL });
-      return this.turns.queue(d.channel_id, () => this.#settle(target, () => this.linking.attempt(user.id, link[1], (t) => this.#say(target, t)), TOO_MANY), this.#oops);
+      const attempt = async () => {
+        const said = await this.linking.attempt(user.id, link[1], (t) => this.#say(target, t));
+        if (held) await this.syncKey(); // the edge has to know them before their first /wisp in a server
+        return said;
+      };
+      return this.turns.queue(d.channel_id, () => this.#settle(target, attempt, TOO_MANY), this.#oops);
     }
     // A stranger in a guild gets no answer at all: Discord shows them, and only them, that it failed.
     const say = held ? (t) => this.#say(target, t) : (t) => this.#respond(d, OUT.message, { content: discordText(t), flags: EPHEMERAL | SUPPRESS_EMBEDS, allowed_mentions: { parse: [] } });
@@ -583,6 +588,7 @@ export class Discord extends Channel {
     const age = Date.now() - snowflakeMs(d.id);
     if (age > HELD_MAX_MS) {
       console.warn(`wisp: discord: dropped a held interaction, ${Math.floor(age / 60_000)} min old: its token is about to die`);
+      if (allowed(user?.id, c.senders || [])) await this.#say({ chat: d.channel_id }, lostLine(1)).catch(() => {}); // their reply never comes: not a silence
       return { status: 410, body: { error: 'Too old.' } };
     }
     const ours = this.#ours(d, user);

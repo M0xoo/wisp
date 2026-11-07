@@ -990,13 +990,18 @@ test('a /wisp on a sleeping box: type 5 first, it wakes, links once, edits the r
   await dAsleep();
 });
 
-test('a stranger on a sleeping box: the box takes the deferred away, no task, and it sleeps again', { timeout: 60_000 }, async () => {
+test('a stranger on a sleeping box: a guild’s is answered at the edge and wakes nothing; a DM’s comes to the box and goes', { timeout: 60_000 }, async () => {
   await dAsleep();
   const n = dc.posts.length + dc.edits.length;
   const i = prompt(D_STRANGER, 'plan: mine now');
-  assert.deepEqual((await interact(i)).json, { type: 5 });
-  await until(() => dc.deletes.some((x) => x.token === i.token), { what: 'the delete', timeout: 20_000 });
-  assert.equal(dc.posts.length + dc.edits.length, n);
+  const r = await interact(i);
+  assert.deepEqual([r.json.type, r.json.data.flags], [4, 64], 'only they see it');
+  await sleep(300);
+  assert.equal(dState(), 'stopped');
+  const dm = prompt(D_STRANGER, 'hello', { guild_id: undefined, member: undefined, user: { id: D_STRANGER }, channel_id: `D${D_STRANGER}`, channel: { type: 1 } });
+  assert.deepEqual((await interact(dm)).json, { type: 5 });
+  await until(() => dc.edits.some((e) => e.token === dm.token), { what: 'its one line', timeout: 20_000 });
+  assert.equal(dc.posts.length, n - dc.edits.length + 1);
   assert.equal(await dTasks(), 1);
   await dAsleep();
 });

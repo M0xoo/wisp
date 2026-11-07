@@ -52,6 +52,8 @@ const MAX_TRIES = 5;
 const LIVE_MS = 2500; // Slack gives a URL check 3 s
 const EDGE_LIVE_MS = 2500; // Discord gives an answer 3 s
 const NOT_UP = { status: 503, body: { error: 'wisp is asleep: try again with it open.' } };
+const LINKED_MAX = 500;
+const HASH = /^[0-9a-f]{64}$/;
 const DEFAULTS = { maxRows: 200, maxBytes: 2 * 1024 * 1024, ttlMs: TTL_MS, retryMs: 2000, wakeRetryMs: 30_000, wakeStrikes: 3, wakeGapMs: 10 * 60_000, sweepMs: 60_000 };
 
 // The body, or null when it's over max (read to the end and dropped, so the 200 still gets there).
@@ -99,7 +101,7 @@ function eventKey(channel, j, body, headers) {
   return `${channel}:${id ?? createHash('sha256').update(body).digest('base64url')}:${sha256(headers)}`;
 }
 
-export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delivered = () => {}, log = () => {} }) {
+export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delivered = () => {}, limit = () => {}, log = () => {} }) {
   const opts = { ...DEFAULTS, ...cfg.channels };
   const on = opts.enabled === true;
   const busy = new Map(); // user id -> the drain running
@@ -115,6 +117,10 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delive
     count(userId, channel);
     accounts.audit(userId, 'channel.drop', { channel, size, why });
     log(`grid: inbox dropped ${size} bytes of ${channel} (${why})`);
+  };
+  const linkedOf = (user, channel) => {
+    const kept = secrets.open(user.id, `channel-linked:${channel}`);
+    return kept ? JSON.parse(kept) : null;
   };
   const finish = (id) => db.run("UPDATE channel_inbox SET done_at = ?, body = x'', headers = '{}' WHERE id = ?", Date.now(), id);
 
@@ -273,13 +279,22 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delive
     delivering: (userId) => sending.get(userId),
 
     // The key this user's edge checks with, or none ('') to refuse everything: set by this user's
-    // own box, so it can only ever open that box's URL.
-    setKey(user, channel, key) {
+    // own box, so it can only ever open that box's URL. linked: hashes of who's linked there, for the
+    // edge; none from a box that doesn't send them, and everything's held for it, as it always was.
+    setKey(user, channel, key, linked) {
       if (!CHANNELS[channel].edge) throw Object.assign(new Error('not found'), { status: 404 });
-      if (key === '') return secrets.drop(user.id, `channel-key:${channel}`);
+      if (key === '') {
+        secrets.drop(user.id, `channel-linked:${channel}`);
+        return secrets.drop(user.id, `channel-key:${channel}`);
+      }
       if (!isPublicKey(key)) throw Object.assign(new Error('A public key is 64 hex characters.'), { status: 400 });
+      if (linked !== undefined && !(Array.isArray(linked) && linked.length <= LINKED_MAX && linked.every((h) => typeof h === 'string' && HASH.test(h)))) throw Object.assign(new Error('Who’s linked is a list of hashes.'), { status: 400 });
       secrets.seal(user.id, `channel-key:${channel}`, key.toLowerCase());
+      if (linked) secrets.seal(user.id, `channel-linked:${channel}`, JSON.stringify(linked));
+      else secrets.drop(user.id, `channel-linked:${channel}`);
     },
+
+    edged: (channel) => !!CHANNELS[channel].edge,
 
     // { url, dropped }: this user's own, made the first time ({ address, dropped } for mail). dropped:
     // lost messages it hasn't been told of, which this tells it. The token is kept sealed, so a box
@@ -314,7 +329,15 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delive
     async accept(user, channel, req) {
       const row = CHANNELS[channel];
       const body = await readCapped(req, BODY_MAX);
-      const edge = row.edge?.({ key: secrets.open(user.id, `channel-key:${channel}`), raw: body, headers: req.headers });
+      const edge = row.edge?.({ key: secrets.open(user.id, `channel-key:${channel}`), linked: linkedOf(user, channel), raw: body, headers: req.headers });
+      if (edge?.bucket) {
+        try {
+          limit(`intok|${user.id}|${channel}|${edge.bucket}`, edge.perMinute);
+        } catch (err) {
+          if (err.status !== 429) throw err;
+          return edge.busy;
+        }
+      }
       if (edge && !edge.hold && !edge.live) return edge;
       if (!body) {
         count(user.id, channel);
@@ -325,7 +348,7 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delive
       const j = parsed(body);
       if (row.live?.(j)) return live(user, channel, kept, body);
       if (row.skip?.(j)) return;
-      this.hold(user, channel, body, { headers: kept, j });
+      if (!this.hold(user, channel, body, { headers: kept, j })) return edge?.busy;
       return edge;
     },
 

@@ -22,7 +22,7 @@ const { startServer } = await import('../server/index.js');
 const { RateLimit, STALE_S } = await import('../server/channels/policy.js');
 const { NO_HUB, PERMISSIONS, discordText, slashCommand, slashText, snowflakeMs } = await import('../server/channels/discord.js');
 const { stripFormatting } = await import('../server/channels/grammar.js');
-const { discordSigned, isPublicKey } = await import('../server/channels/discord-sign.js');
+const { discordSigned, isPublicKey, linkedHash } = await import('../server/channels/discord-sign.js');
 
 const ME = '111111';
 const STRANGER_ID = '222222';
@@ -1393,7 +1393,7 @@ const held = (d, privateKey = keys.privateKey) => {
 };
 const command = (user, prompt, o = {}) => fake.interaction({ type: 2, member: { user: { id: user } }, data: { name: 'wisp', options: [{ name: 'prompt', value: prompt }] }, channel: { type: 0 }, ...o });
 const inDm = (user, prompt, o = {}) => command(user, prompt, { guild_id: undefined, member: undefined, user: { id: user }, channel_id: `D${user}`, channel: { type: 1 }, ...o });
-const box = { keys: [], dropped: 0, hub: true, url: 'https://ada.grid.example/_in/the-inbox-token' };
+const box = { keys: [], linked: [], dropped: 0, hub: true, url: 'https://ada.grid.example/_in/the-inbox-token' };
 const fakeGrid = http.createServer(async (req, res) => {
   let t = '';
   for await (const c of req) t += c;
@@ -1406,6 +1406,7 @@ const fakeGrid = http.createServer(async (req, res) => {
   if (req.headers.authorization !== 'Box ada box-secret') return send(401, { error: 'no' });
   if (url.pathname === '/api/channels/url/key') {
     box.keys.push(JSON.parse(t).key);
+    box.linked.push(JSON.parse(t).linked);
     return send(200, { ok: true });
   }
   if (url.pathname === '/api/channels/url/rotate') {
@@ -1478,6 +1479,8 @@ test('a box: linked by /wisp in a DM, in the deferred response, no callback at a
   await until(() => fake.edits.some((e) => e.token === d.token && /^✓ Linked to wisp/.test(e.content)), { what: 'the edit' });
   assert.equal((await api('/remote')).discord.senders, 1);
   assert.equal(fake.callbacks.length, callbacks, 'the grid answered: a second answer fails');
+  await until(() => box.linked.at(-1)?.includes(linkedHash(ME)), { what: 'the grid told who’s linked' });
+  assert.ok(!JSON.stringify(box.linked).includes(ME), 'hashed');
 });
 
 test('a box: a command starts from the deferred state: edited, threaded, once, and a report by post', async () => {
@@ -1607,6 +1610,10 @@ test('a box: past 14 minutes a row is dropped with a plain log; before that it s
   assert.equal(out.status, 410);
   assert.ok(warned.some((l) => /discord: dropped a held interaction, 14 min old/.test(l)), warned.join('\n'));
   assert.deepEqual([fake.edits.filter((e) => e.token === old.token).length, srv.store.all().length], [0, count]);
+  assert.ok(inRoom(old.channel_id).some((p) => /One message didn’t reach wisp while it was asleep/.test(p.content)), 'someone linked is told, where they asked');
+  const theirs = command(STRANGER_ID, 'late', { id: snowflake(Date.now() - 14 * 60_000 - 1000), channel_id: 'CB8' });
+  assert.equal((await held(theirs)).status, 410);
+  assert.equal(inRoom('CB8').length, 0, 'a stranger isn’t');
   const late = command(ME, 'help', { id: snowflake(Date.now() - 12 * 60_000), channel_id: 'CB4' });
   assert.equal((await held(late)).status, 200);
   const edit = await until(() => fake.edits.find((e) => e.token === late.token), { what: 'the edit' });
