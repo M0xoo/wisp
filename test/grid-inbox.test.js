@@ -219,6 +219,17 @@ test('delivery retries with backoff, five times at most, then drops and tells th
   await until(() => g.dropped(ada) === 0, { what: 'the count reset' });
 });
 
+test('a row that runs out of tries doesn’t hold up the rows behind it', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  const { url } = await g.url(ada);
+  g.box(ada, { bootMs: 400, failIds: [1] }); // held until it's up, so B and C are waiting when A fails
+  for (const id of [1, 2, 3]) await g.post(ada, url, update(id));
+  await until(() => g.got(ada).length === 7, { what: 'the two behind it' });
+  assert.deepEqual(g.got(ada).map((m) => decoded(m).update_id), [1, 1, 1, 1, 1, 2, 3]);
+  assert.equal(g.got(ada)[5].dropped, 1, 'the next one says so');
+});
+
 test('a 4xx is the box’s last word: no retry, and nothing counted as lost', async () => {
   const g = await boot();
   const ada = g.user('ada');

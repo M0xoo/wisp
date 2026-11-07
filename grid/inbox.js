@@ -91,6 +91,7 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
     if (tries >= MAX_TRIES) {
       finish(row.id);
       lost(row.user_id, row.channel, row.size, 'tries');
+      later(user, 0); // what's behind it was waiting its turn
       return;
     }
     const next = opts.retryMs * 2 ** (tries - 1);

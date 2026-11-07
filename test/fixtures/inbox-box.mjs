@@ -1,5 +1,5 @@
 // A stand-in for a user's wisp, for grid/inbox.js's tests: `node inbox-box.mjs --no-open --port N`.
-// $HOME/box.json says how it behaves ({ bootMs, status, answerMs, live }), and every message the
+// $HOME/box.json says how it behaves ({ bootMs, status, failIds, answerMs, live }), and every message the
 // grid delivers lands in $HOME/inbound.jsonl with its HTTP headers (http).
 import fs from 'node:fs';
 import http from 'node:http';
@@ -21,7 +21,9 @@ const server = http.createServer(async (req, res) => {
     const c = conf();
     fs.appendFileSync(path.join(home, 'inbound.jsonl'), `${JSON.stringify({ ...JSON.parse(t), http: req.headers })}\n`);
     if (c.answerMs) await new Promise((r) => setTimeout(r, c.answerMs));
-    res.writeHead(c.status || 200, { 'content-type': 'application/json' });
+    // failIds: update ids it answers 500 to, whatever status says.
+    const id = c.failIds && JSON.parse(Buffer.from(JSON.parse(t).body, 'base64').toString('utf8')).update_id;
+    res.writeHead(c.failIds?.includes(id) ? 500 : c.status || 200, { 'content-type': 'application/json' });
     return res.end('{}');
   }
   res.writeHead(200, { 'content-type': 'application/json' });
