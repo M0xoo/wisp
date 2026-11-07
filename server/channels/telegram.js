@@ -14,9 +14,10 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { truncate } from '../util.js';
 import { boxGrid, channelUrl, rotateUrl } from './box.js';
 import { Channel, CODE, KIND, resend, sleep } from './channel.js';
-import { findProject, parseMessage, stripFormatting } from './grammar.js';
+import { converse } from './conversation.js';
+import { findProject, stripFormatting } from './grammar.js';
 import { LISTS, refusal } from './lists.js';
-import { RateLimit, Seen, STALE_S, capMode, defuse, gate, scrubOut } from './policy.js';
+import { RateLimit, Seen, STALE_S, defuse, gate, scrubOut } from './policy.js';
 
 const MAX_TG_IDS = 20;
 const HOOK_RETRY_MS = 30_000;
@@ -395,71 +396,27 @@ export class Telegram extends Channel {
     const ctx = await hub.phone.context();
     const replyTo = m.reply_to_message?.message_id;
     const sessionId = replyTo && this.#sessionOf(replyTo);
-    if (sessionId) {
-      const thread = await hub.phone.threadCtx(sessionId);
-      const p = parseMessage(text, { ...ctx, thread });
-      if (p.command !== 'new') return this.#inThread(sessionId, p, ctx, { m, say, list, cap });
-    }
-    const p = parseMessage(text, ctx);
-    if (p.command && p.command !== 'new') {
-      hub.phone.count?.('list', p.command);
-      if (LISTS[p.command]) return list(p, ctx);
-      return say('Reply to the task’s message to do that.'); // stop, done, /btw
-    }
-    if (replyTo && !sessionId && p.command !== 'new') return say('That message isn’t linked to a task any more. Send it without replying to start a new one.');
-    if (p.problems.length) {
-      hub.phone.count?.('refused', p.problems[0].kind);
-      return say(refusal(p.problems));
-    }
-    if (!p.prompt) return say(p.crew ? `Tell ${p.crew.name} what to do after the name.` : 'What should it do? Say it after the options.');
-    const asked = capMode(p.mode, cap, 'plan');
-    if (asked.refused) {
-      hub.phone.count?.('refused', 'mode');
-      return say(`${asked.refused}\n\nNothing started.`);
-    }
-    if (!p.crew && !p.project && !ctx.defaultProject) return say('No projects yet. Open a folder in wisp first.');
-    const thread = { channel: this.name, chat: m.chat.id, message: m.message_id, ack: null };
-    let out;
-    try {
-      out = await hub.phone.startParsed(p, { channel: this.name, name: 'Telegram', sender: m.from?.first_name || '', cap, thread, ctx });
-    } catch (err) {
-      return say(`Couldn’t start it: ${truncate(err.message, 300)}`);
-    }
-    const sent = await say(out.ack);
-    this.acked(thread, sent?.message_id);
-  }
-
-  async #inThread(sessionId, p, ctx, { m, say, list, cap }) {
-    const hub = this.hub;
-    const phone = hub.phone;
-    if (LISTS[p.command] && p.command !== 'status') return list(p, ctx);
-    if (p.command === 'stop') return say(await phone.stop(sessionId));
-    if (p.command === 'status') return say(await phone.status(sessionId));
-    if (p.command === 'done') return say(await hub.act({ sessionId, kind: 'done', ref: '', index: 0 }));
-    if (p.problems.length) return say(refusal(p.problems));
-    const later = (text) => say(text).catch(() => {});
-    const sender = m.from?.first_name || '';
-    if (p.crew) {
-      if (!p.prompt) return say(`Tell ${p.crew.name} what to do after the name.`);
-      const thread = { channel: this.name, chat: m.chat.id, message: m.message_id, ack: null };
-      let out;
-      try {
-        out = await phone.mention(sessionId, p, { name: 'Telegram', sender, cap, thread, ctx });
-      } catch (err) {
-        return say(`Couldn’t ask them: ${truncate(err.message, 300)}`);
-      }
-      const sent = await say(out.ack);
-      this.acked(thread, sent?.message_id);
-      return;
-    }
-    const btw = p.command === 'btw';
-    if (!p.prompt) return say(btw ? 'Type your question after /btw.' : 'What should it do? Say it after the options.');
-    const asked = capMode(p.mode, cap, p.mode);
-    if (asked.refused) return say(asked.refused);
-    // Only the follow-up itself: a reply that fails to reach Telegram mustn't say it wasn't sent, or
-    // it gets sent twice.
-    const line = await phone.run(sessionId, p, { name: 'Telegram', sender, cap, later, btw }).catch((err) => `Couldn’t send that: ${truncate(err.message, 300)}`);
-    await say(line);
+    return converse(
+      {
+        phone: hub.phone,
+        hub,
+        ctx,
+        channel: this.name,
+        name: 'Telegram',
+        sender: m.from?.first_name || '',
+        cap,
+        approvals: this.approvalsHere,
+        say,
+        list,
+        refuse: (problems) => say(refusal(problems)),
+        thread: () => ({ channel: this.name, chat: m.chat.id, message: m.message_id, ack: null }),
+        noThread: 'Reply to the task’s message to do that.',
+        stale: (p) => (replyTo && !sessionId && p.command !== 'new' ? 'That message isn’t linked to a task any more. Send it without replying to start a new one.' : ''),
+        acked: (thread, sent) => this.acked(thread, sent?.message_id),
+      },
+      text,
+      sessionId,
+    );
   }
 
   // The first reply went out: a reply to it reaches the task, whenever that started.

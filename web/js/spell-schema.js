@@ -463,6 +463,7 @@ export const PARTS = {
   'phone.options': '.phone-modal .ph-options', // Phone → Telegram → Say what you'd type in wisp: its switch and line
   'phone.github': '.phone-modal .ph-gh', // Phone → GitHub: comment /wisp on an issue or PR
   'phone.slack': '.phone-modal .ph-sk', // Phone → Slack: its status, setup steps and who's linked
+  'phone.discord': '.phone-modal .ph-dc', // Phone → Discord: its status, setup steps and who's linked
   // Settings → Cloud: your cloud computers, and signing in to a wisp Grid.
   'settings.worktrees': '.wtr-box', // Settings → Worktrees
   'settings.worktrees.cleanup': '.wtr-auto', // Clean up automatically

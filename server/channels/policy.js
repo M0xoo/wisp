@@ -110,6 +110,12 @@ export function scrubOut(text, { note = true } = {}) {
   return { text: note ? `${out}\n\n(wisp took ${hits === 1 ? 'a secret' : `${hits} secrets`} out of this message: open the task in wisp to see it.)` : out, hits };
 }
 
+// That note back off the end of a text, so a channel that has to shorten it can keep it. → { body, note }.
+export function splitNote(text) {
+  const at = String(text).search(/\n\n\(wisp took (?:a secret|\d+ secrets) out of this message: open the task in wisp to see it\.\)$/);
+  return at < 0 ? { body: String(text), note: '' } : { body: String(text).slice(0, at), note: String(text).slice(at + 2) };
+}
+
 const WAITING = 'Waiting for your OK in wisp';
 const WAITING_MAX = 300;
 const oneLine = (t) => String(t ?? '').replace(/\s+/g, ' ').trim();

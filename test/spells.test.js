@@ -992,6 +992,14 @@ test("the Phone dialog's Slack section is a part spells can restyle or hide", ()
   assert.ok(!('slack.enabled' in schema.SETTINGS) && !('appToken' in schema.SETTINGS) && !('botToken' in schema.SETTINGS));
 });
 
+test("the Phone dialog's Discord section is a part spells can restyle or hide", () => {
+  assert.equal(schema.PARTS['phone.discord'], '.phone-modal .ph-dc');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['phone.discord'] }, parts: { 'phone.discord': { style: { opacity: '0.8' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'phone.discord': { props: { lines: 2 } } } }).some((x) => /phone\.discord/.test(x)));
+  // Its token and who's linked aren't settings a spell could set.
+  assert.ok(!('discord.enabled' in schema.SETTINGS) && !('token' in schema.SETTINGS));
+});
+
 test("a Slack trigger's People field is a part spells can restyle or hide", () => {
   assert.equal(schema.PARTS['automations.slackPeople'], '.auto-modal .k-people');
   assert.deepEqual(problems({ ...base0, ui: { hide: ['automations.slackPeople'] }, parts: { 'automations.slackPeople': { style: { opacity: '0.8' } } } }), []);

@@ -33,7 +33,7 @@ const NOT_A_NAME = new Set(['a', 'an', 'the', 'my', 'our', 'your', 'this', 'that
 const HERE = /^(here|local|this computer)$/i;
 
 // A channel's own markup, gone before the grammar reads it. Text stays as written: an agent should
-// see what you sent, and __init__.py isn't bold. kind: 'telegram' or 'slack' (its <…> and &amp;; bot: its user id).
+// see what you sent, and __init__.py isn't bold. kind: 'telegram', 'slack' (its <…> and &amp;; bot: its user id) or 'discord'.
 export function stripFormatting(text, kind = '', { bot = '' } = {}) {
   let t = String(text ?? '').replace(/\r\n/g, '\n').replace(/[\u200b-\u200d\u2060\ufeff]/g, '').replace(/\u00a0/g, ' ').trim();
   if (kind === 'telegram') {
@@ -49,6 +49,10 @@ export function stripFormatting(text, kind = '', { bot = '' } = {}) {
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
       .replace(/&amp;/g, '&');
+  }
+  if (kind === 'discord') {
+    if (bot) t = t.replace(new RegExp(`<@!?${bot.replace(/\D/g, '')}>[\\s,:]*`, 'g'), '').trim();
+    t = t.replace(/<(https?:\/\/[^>\s]+)>/g, '$1'); // the brackets only turn its preview off
   }
   return t;
 }

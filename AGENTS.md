@@ -17,7 +17,9 @@ this covers how the code is laid out and the rules a change has to follow.
   `grammar.js` and `lists.js` (what a message can say), `channel.js` (the base class) and one file per
   channel (`github.js` polls through `gh`, and on a public repo reports only a fixed line; `slack.js`
   holds a Socket Mode connection through `ws.js`, a WebSocket client that knows no channel, and
-  refuses to run on a grid box, which sleeps); `remote.js` is their hub and `services/phone.js` what they ask of wisp.
+  refuses to run on a grid box, which sleeps; `discord.js` does the same over a gateway connection,
+  with no privileged intent); `conversation.js` is what a message does once it's through the door,
+  shared by Telegram, GitHub, Slack and Discord: a new channel hands in what differs, not a copy; `remote.js` is their hub and `services/phone.js` what they ask of wisp.
   `accounts.js` keeps a harness's several accounts (a login folder each, linked to the CLI's own).
   `services/worktrees.js` removes idle tasks' worktrees (`defaults.worktreeCleanup`, a low disk) and
   answers Settings → Worktrees; only what a follow-up can bring back goes on its own.

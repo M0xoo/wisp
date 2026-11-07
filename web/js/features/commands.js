@@ -172,7 +172,7 @@ function paletteItems() {
     { group: a, label: 'Recipes', icon: 'bolt', keywords: 'automations saved prompts templates', run: () => openAutomations({ tab: 'recipes' }) },
     { group: a, label: 'Triggers', icon: 'replay', keywords: 'automations schedule cron ci issues github', run: () => openAutomations({ tab: 'triggers' }) },
     { group: a, label: 'Usage', icon: 'stats', keywords: 'spend cost tokens outcomes success', run: () => openUsage() },
-    { group: a, label: 'Phone', icon: 'send', keywords: 'ntfy telegram github comments slack notifications mobile remote', run: () => openPhone() },
+    { group: a, label: 'Phone', icon: 'send', keywords: 'ntfy telegram github comments slack discord notifications mobile remote', run: () => openPhone() },
     // In the phone app, the app's own list of computers instead (openMachines goes there).
     ...(MOBILE
       ? [{ group: a, label: 'Your computers', icon: 'server', keywords: 'switch computer machine server add', run: () => openMachines() }]
