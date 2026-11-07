@@ -61,7 +61,7 @@ export default {
     return { ...found, ...(def?.efforts && { efforts: def.efforts }), models: [this.models[0], ...models] };
   },
 
-  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, onEvent }) {
+  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, runEnv = {}, onEvent }) {
     // grok -p doesn't read stdin, and a prompt in argv is capped on Windows: hand it over as a file.
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-grok-'));
     const promptFile = path.join(tmp, 'prompt.md');
@@ -96,7 +96,7 @@ export default {
       bin: BIN,
       args,
       cwd,
-      env: { ...process.env, GROK_DISABLE_AUTOUPDATER: '1' },
+      env: { ...process.env, ...runEnv, GROK_DISABLE_AUTOUPDATER: '1' },
       onEvent,
       onStderr(chunk) {
         const lines = (carry + chunk).split('\n');

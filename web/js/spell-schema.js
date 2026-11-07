@@ -747,6 +747,8 @@ export const SETTINGS = {
   memoryFloor: ['off', '10', '15', '20', '25'],
   cpuCeiling: ['off', '100', '150', '200'],
   maxRuns: ['off', '4', '6', '8', '12', '16', 'auto'],
+  // On battery (macOS) and under this percent, the same work waits for the charger (server/machine.js).
+  batteryHold: ['off', '20', '40'],
   // Check Codex while work waits: ask Codex's app-server how a waiting account's windows stand, so an
   // early reset lets that work go (server/live-limits.js).
   liveLimits: ['on', 'off'],

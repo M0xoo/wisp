@@ -124,7 +124,7 @@ export default {
   // lean: a side run that only answers (the retro), with codex's extras off.
   // probe: a task's turn, which records what the CLI was (side runs don't pay for two more processes).
   // prior: the thread's counters after its last turn (stats.totals), see turnUsage.
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, prior = null, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, accountEnv = {}, lean = false, probe = false, capped = false, onEvent }) {
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, prior = null, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, accountEnv = {}, lean = false, probe = false, capped = false, runEnv = {}, onEvent }) {
     const args = ['exec', '--json', '--skip-git-repo-check'];
     let base = null;
     if (lean) {
@@ -258,7 +258,7 @@ export default {
       }
     };
 
-    const env = { ...process.env, ...accountEnv };
+    const env = { ...process.env, ...accountEnv, ...runEnv };
     const handle = spawnJsonl({
       bin: BIN,
       args,

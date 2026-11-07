@@ -102,6 +102,7 @@ export function spawnJsonl({ bin, args, cwd, env, input, onJson, onClose, onEven
 
   return {
     done,
+    pid: child.pid, // the root of the run's process tree (server/machine.js)
     stop() {
       stopping = true;
       killTree(child);

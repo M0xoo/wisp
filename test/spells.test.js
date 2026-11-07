@@ -435,6 +435,13 @@ test('machine load: memoryFloor, cpuCeiling and maxRuns with their lists, and Se
   assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.load'] } }), []);
 });
 
+test('battery hold: batteryHold with its list; Pause automations is a time, not a spell setting', () => {
+  assert.deepEqual(problems({ ...base0, settings: { batteryHold: '40' } }), []);
+  assert.deepEqual(problems({ ...base0, settings: { batteryHold: 'off' } }), []);
+  assert.ok(problems({ ...base0, settings: { batteryHold: '30' } }).some((x) => /batteryHold/.test(x) && /off \| 20 \| 40/.test(x)));
+  assert.ok(problems({ ...base0, settings: { automationsPausedUntil: '0' } }).some((x) => /automationsPausedUntil/.test(x) && /not a setting spells can change/.test(x)));
+});
+
 test('worktree cleanup: a setting with its days, and Settings → Worktrees as parts', () => {
   assert.deepEqual(problems({ ...base0, settings: { worktreeCleanup: '7' } }), []);
   assert.deepEqual(problems({ ...base0, settings: { worktreeCleanup: 'off' } }), []);

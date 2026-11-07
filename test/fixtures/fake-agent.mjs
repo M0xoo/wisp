@@ -231,7 +231,7 @@ const btw = stdin.includes('# wisp btw');
 
 if (process.env.FAKE_RECORD) {
   fs.mkdirSync(process.env.FAKE_RECORD, { recursive: true });
-  fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${retro ? 'retro' : btw ? 'btw' : name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid, opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT, allowAll: process.env.COPILOT_ALLOW_ALL, configDir: process.env.CLAUDE_CONFIG_DIR, codexHome: process.env.CODEX_HOME, summaries: process.env.CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES, nonessential: process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, subagentModel: process.env.CLAUDE_CODE_SUBAGENT_MODEL, workflowSubagentModel: process.env.CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL, subagentForce: process.env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE }) + '\n');
+  fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${retro ? 'retro' : btw ? 'btw' : name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid, opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT, allowAll: process.env.COPILOT_ALLOW_ALL, configDir: process.env.CLAUDE_CONFIG_DIR, codexHome: process.env.CODEX_HOME, summaries: process.env.CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES, nonessential: process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, subagentModel: process.env.CLAUDE_CODE_SUBAGENT_MODEL, workflowSubagentModel: process.env.CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL, subagentForce: process.env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE, task: process.env.WISP_TASK }) + '\n');
 }
 
 // FAKE_LIMITS: claude reports this rate_limit_info first (its usage windows, server/budget.js).
