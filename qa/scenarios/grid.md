@@ -229,6 +229,22 @@ for the rest
 - **Against production:** only when the owner deploys: a throwaway account and a real Slack app. This
   is the only way to see Slack's own URL check and retries.
 
+### GRID-32 · Mail to the secret address reaches a sleeping box
+*`qa/grid.mjs`* (fake SES, webhooks signed with a key pinned in the dev grid's `grid.json`);
+`test/channel-email.test.js` for the rest
+- **Steps:** on a cloud wisp, Settings → Notifications → Phone → Email: turn it on, enter the address
+  you send from, copy your secret address. Let the box sleep. Mail that address.
+- **Expected:** the section shows only on a box whose grid has `mail`. The webhook is answered before
+  the box is up; it wakes, replies once, threaded (`In-Reply-To`, `References`), plain text, to the
+  allowed sender only, and sleeps again. A bad signature, or another SNS topic, is a 403 and wakes
+  nothing. A stranger and a failed DMARC verdict are a 403 at the box and no answer, and Settings says
+  why the last message was ignored. Quoted text and signatures don't run; a reply to no known task
+  starts nothing; Full auto is refused; an attachment isn't read, and the first reply says so.
+  *New address* stops the old one at once. A box can't name an address: `POST
+  /api/channels/mail/reply` takes a message id it accepted, and is limited per hour.
+- **Against production:** only when the owner deploys, once SES, DNS and an SNS topic exist
+  (`grid/README.md`): one real mail from a throwaway address.
+
 ### GRID-24 · Caddy on-demand TLS and DNS
 *Manual*
 - **Expected:** a new handle gets a certificate on first visit; an unknown name is refused (Caddy's

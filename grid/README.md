@@ -152,6 +152,41 @@ per user: past them a message is dropped and counted, and the box says so in the
 calls https on port 443, 80, 88 or 8443, and Slack only https, so an `http` grid can't use this:
 Settings → Phone shows why. The URL's token is the only thing guarding it: keep it out of any access log you turn on.
 
+### Email
+
+With `mail` as well, each user gets a secret address, and mail to it starts a task on their box (it
+wakes), with the answer sent back as a threaded reply. Settings → Phone → Email shows the address and
+takes the one address allowed to send. Off unless it's there, and then `/_mail/ses` is a 404.
+
+```json
+"mail": {
+  "domain": "mail.example.com",
+  "inbound": { "provider": "ses", "topicArn": "arn:aws:sns:eu-west-1:123456789012:wisp-mail" },
+  "outbound": { "provider": "ses", "region": "eu-west-1", "accessKeyId": "AKIA…", "secretAccessKeyFile": "secrets/ses" },
+  "sendPerHour": 30, "threadDays": 7
+}
+```
+
+`inbound.keys` (a list of PEMs) pins SNS's key instead of fetching it from
+`sns.<region>.amazonaws.com`. `sendPerHour` is per user, `threadDays` is how long a box can go on
+answering a message. The key can also be `GRID_MAIL_SECRET(_FILE)`. It stays on the grid: no box ever
+gets it.
+
+To set it up, once per grid:
+
+1. **Domain.** In SES, in a region that receives mail, verify `mail.example.com` with Easy DKIM (its
+   CNAME records), and add DMARC at `_dmarc.mail.example.com`, like `v=DMARC1; p=quarantine`.
+2. **Receiving.** Add an MX record: `mail.example.com. MX 10 inbound-smtp.<region>.amazonaws.com.`
+3. **SNS.** Create a standard topic and set its `SignatureVersion` attribute to `2` (the grid refuses
+   version 1). Don't turn on raw message delivery. Subscribe `https://<grid domain>/_mail/ses` over
+   HTTPS: the grid confirms it by itself, once `mail` is in `grid.json` and it has restarted.
+4. **Rule.** In the active receipt rule set, add a rule for `mail.example.com` with one action: *SNS*,
+   that topic, encoding Base64. Past 150 KB of mail SES bounces it: that's SNS's limit, and attachments
+   aren't read yet.
+5. **Sending.** Ask for SES production access: in the sandbox it only sends to verified addresses.
+   Make an IAM user limited to `ses:SendEmail` and `ses:SendRawEmail` on that identity, and put its
+   secret key in `secrets/ses` (0600).
+
 ### Sandboxes
 
 `/sandbox <task>` in wisp asks the grid for a box of its own for that task (`grid/sandboxes.js`):
@@ -240,6 +275,18 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
   (`POST /api/channels/url/rotate`). Anyone can message a bot, so a wake has to be earned: after three
   with nothing the box accepted, a wake is a scheduled one (evicts nobody, no use of the box), at most
   one per 10 minutes. Known tokens are limited per token, unknown ones per address.
+- **Mail.** `POST <domain>/_mail/ses` is the provider's. It's an RSA signature over the whole message,
+  from our topic only: anyone can have SNS sign for their own topic. The grid reads the message and
+  sets who it's from and the DMARC verdict in headers of its own, over the proxy secret, so nothing in
+  the mail can pass for one; the box checks those and its allowed sender. DMARC here means an aligned
+  pass: SES says `GRAY` for a `p=none` domain (gmail.com, outlook.com), so `GRAY` counts only with a
+  DKIM `PASS`, which SES defines as signed by the From's domain, never on SPF alone. A From with more
+  than one address refuses. Addresses are 160 random bits, looked up by SHA-256 and sealed like a URL;
+  they aren't webhooks (`/_in/<address>` is a 404). Sending takes the Box secret, which anything on a
+  box can read, so `POST /api/channels/mail/reply` takes no address: only a message its box accepted
+  with a 2xx, to the address it came from, within `sendPerHour`, scrubbed here as well. A refused
+  stranger's mail holds no thread. What an agent on a box can still do is mail whoever got past that
+  box's own allowed sender, if it rewrites it, within the same limit.
 - **Room.** A box starts while fewer than `hostd.maxRunning` are up and, with the container
   driver, the host has `admit.reserveMb + admit.boxMb` MiB available (`MemAvailable`; defaults
   1024 + 1024; `"admit": false` counts boxes only). When it doesn't, hostd stops the box that has
@@ -255,6 +302,7 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
 |---|---|
 | Master key | `secrets/master.json` (0600), or `GRID_MASTER_KEY` / `GRID_MASTER_KEY_FILE` |
 | OAuth client secrets | files referenced by `clientSecretFile`, or `GRID_GITHUB_CLIENT_SECRET(_FILE)` / `GRID_GOOGLE_CLIENT_SECRET(_FILE)` |
+| The mail provider's key | a file referenced by `mail.outbound.secretAccessKeyFile`, or `GRID_MAIL_SECRET(_FILE)`. Never on a box |
 | Per-user secrets the grid keeps (each wisp's proxy secret, …) | sealed in the database with AES-256-GCM, using a data key per user that is wrapped by the master key |
 | A box's proxy secret on its way in | a 0600 env file for `docker run --env-file` (boxd's folder, or the user's), never the command line |
 | Agent logins (Claude, Codex, …) | files in the box's `HOME`, the way each CLI keeps them (`~/.claude`, `~/.codex`, `~/.config/gh`, …), not encrypted. With boxd that home is in `/var/lib/wisp-grid-boxes/<id>` (root only), out of the grid user's reach. They never pass through the grid, and are deleted with the account |
