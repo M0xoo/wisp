@@ -4,7 +4,7 @@
 
 import { esc } from '../md.js';
 import { plain } from '../mention-text.js';
-import { api } from '../core/api.js';
+import { api, pageLeaving } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, beforePaint, el, icon } from '../core/dom.js';
 import { launch, load, MOBILE, S, save, saveLaunch } from '../core/state.js';
@@ -781,6 +781,9 @@ export function renderLauncher() {
           }),
         ),
       );
+      // Cut off by the page going away, not refused: the server most likely has it, so what was
+      // sent doesn't come back as a draft. If it didn't, ↑ in the box still has it.
+      if (pageLeaving() && results.every((r) => r.status === 'rejected' && !r.reason?.status)) return;
       // Near the limit there (the server knew better): the hold row, once the prompt is back.
       const held = results.find((r) => r.status === 'rejected' && r.reason.hold)?.reason.hold;
       results.forEach((r, i) => {

@@ -916,42 +916,55 @@ try {
     await chips(q).first().waitFor();
     ok((await chips(q).count()) === 1, 'a type the manifest refuses is left out');
     await q.waitForFunction(() => /Left out 1 file/.test(document.querySelector('#toasts').textContent));
+    // A reload while the task's start is on its way: the server has it, so what was sent stays gone.
+    await q.route('**/api/sessions', async (r) => {
+      if (r.request().method() !== 'POST') return r.fallback();
+      const answer = await r.fetch();
+      await new Promise((go) => setTimeout(go, 1500));
+      await r.fulfill({ response: answer }).catch(() => {});
+    });
     await q.click('#launch');
     await q.waitForFunction(() => !document.querySelector('#launcher .tray .att'));
     ok(uploads.length === 1, `Send uploads the file, once: ${uploads.length}`);
     await q.waitForFunction(() => document.querySelector('#launcher .l-shared')?.hidden !== false);
+    await q.waitForFunction(() => document.querySelector('#prompt').value === '');
+    await q.reload();
+    await painted(q);
+    await q.unroute('**/api/sessions');
+    ok((await boxOf(q)) === '', `what was sent stayed gone: ${JSON.stringify(await boxOf(q))}`);
+    ok(!/home/.test((await q.evaluate(() => localStorage.getItem('wisp.drafts'))) || ''), 'no draft of what was sent');
+    await share(q, { text: 'The next share' });
+    ok((await boxOf(q)) === 'The next share', `the next share lands alone: ${JSON.stringify(await boxOf(q))}`);
+    await q.evaluate(() => localStorage.removeItem('wisp.drafts'));
     q.clean();
-    await q.context().close();
     // Signed out: the share stays unread, ?shared= with it, and lands once the server takes us.
-    const out = await page({ viewport: { width: 390, height: 844 } });
-    await out.goto(w.url);
-    await worker(out);
-    await out.route('**/api/health', (r) => r.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"Sign in again."}' }));
-    await out.evaluate(() => {
+    await q.reload();
+    await painted(q);
+    await q.route('**/api/health', (r) => r.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"Sign in again."}' }));
+    await q.evaluate(() => {
       const form = Object.assign(document.createElement('form'), { method: 'post', action: '/share', enctype: 'multipart/form-data' });
       form.append(Object.assign(document.createElement('input'), { type: 'hidden', name: 'text', value: 'Kept through sign-in' }));
       document.body.append(form);
       form.submit();
     });
-    await out.waitForURL(/shared=/);
-    await out.waitForFunction(() => /Sign in to wisp again/.test(document.querySelector('#toasts')?.textContent || ''));
-    ok(/shared=/.test(out.url()), 'signed out, the address keeps the share');
-    await out.unroute('**/api/health');
-    await out.reload();
-    await painted(out);
-    await out.waitForFunction(() => document.querySelector('#prompt').value === 'Kept through sign-in' && !location.search);
-    await out.context().close();
+    await q.waitForURL(/shared=/);
+    await q.waitForFunction(() => /Sign in to wisp again/.test(document.querySelector('#toasts')?.textContent || ''));
+    ok(/shared=/.test(q.url()), 'signed out, the address keeps the share');
+    await q.unroute('**/api/health');
+    await q.reload();
+    await painted(q);
+    await q.waitForFunction(() => document.querySelector('#prompt').value === 'Kept through sign-in' && !location.search);
     // From another site, without a click: it lands the same way, marked, and nothing's sent.
-    const hit = await page({ viewport: { width: 390, height: 844 } });
-    await hit.goto(w.url);
-    await worker(hit);
+    await q.evaluate(() => localStorage.removeItem('wisp.drafts'));
+    await q.reload();
+    await worker(q); // sign-in dropped it
     const elsewhere = new URL(w.url).hostname === 'localhost' ? `http://127.0.0.1:${PORT}` : `http://localhost:${PORT}`;
-    await hit.route(`${elsewhere}/qa-elsewhere`, (r) => r.fulfill({ contentType: 'text/html', body: `<form id=f method=post action="${new URL(w.url).origin}/share" enctype=multipart/form-data><input type=hidden name=text value="From a site"></form><script>f.submit()</script>` }));
-    await hit.goto(`${elsewhere}/qa-elsewhere`);
-    await hit.waitForFunction(() => document.querySelector('#prompt')?.value === 'From a site' && !location.search);
-    await note(hit).waitFor();
+    await q.route(`${elsewhere}/qa-elsewhere`, (r) => r.fulfill({ contentType: 'text/html', body: `<form id=f method=post action="${new URL(w.url).origin}/share" enctype=multipart/form-data><input type=hidden name=text value="From a site"></form><script>f.submit()</script>` }));
+    await q.goto(`${elsewhere}/qa-elsewhere`);
+    await q.waitForFunction(() => document.querySelector('#prompt')?.value === 'From a site' && !location.search);
+    await note(q).waitFor();
     ok((await api(w.url, '/api/sessions')).json.length === before + 1, 'a form from another site started nothing');
-    await hit.context().close();
+    await q.context().close();
     // No worker: the server's answer, and the toast that says what to do.
     const bare = await page({ viewport: { width: 390, height: 844 } });
     await bare.goto(w.url);
