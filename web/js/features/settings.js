@@ -32,6 +32,7 @@ import { copySetupCommand, INSTALLABLE, installHarness, isInstalling, loadTools,
 import { clearPicks } from './transcript.js';
 import { repaintViews } from './turns.js';
 import { openUsage } from './usage.js';
+import { mountMachine, paneLabel } from './machine.js';
 import { mountWorktrees } from './worktrees.js';
 import { HOLD_DEFAULT, HOLD_LINES } from '../limit-hold.js';
 
@@ -79,12 +80,15 @@ const settingsPanes = (grid = inGrid()) => [
   { id: 'memory', label: 'Memory', icon: 'text', lede: "Learned from your tasks and added to every agent's prompt. What you ask always wins." },
   { id: 'automations', label: 'Automations', icon: 'bolt', lede: 'Saved prompts, and the triggers that launch them for you.' },
   { id: 'spells', label: 'Spells', icon: 'wizard', lede: 'Changes to wisp itself: buttons, panels, blocks, looks and behaviour. Cast one, or add one a colleague sent.' },
+  // This Mac / This PC / This computer: what agents cost the computer wisp runs on (machine.js).
+  { id: 'machine', label: paneLabel(), icon: 'laptop', lede: 'What your agents take from this computer: memory, CPU and disk. Stop, put off or clean up from here.' },
   { id: 'worktrees', label: 'Worktrees', icon: 'branch', lede: 'Each task’s own copy of your repo, and how long it stays on this computer.' },
   { id: 'usage', label: 'Usage', icon: 'stats', lede: 'Spend and outcomes over the last 7 days.' },
   { id: 'privacy', label: 'Privacy', icon: 'info', lede: 'What wisp sends about itself (never prompts, paths or code), and what it hides on screen.' },
 ];
 let settingsPane = 'general';
 let refreshWorktrees = () => {}; // the Worktrees pane, looked at when it opens
+let refreshMachine = () => {}; // This Mac, read while it shows
 
 // What a re-check turned up: harnesses found or gone, and model lists that grew or shrank.
 function recheckSummary(before, after) {
@@ -223,6 +227,7 @@ export function openSettings(opts) {
           </div>
         </section>
         <section class="sx-pane sp-pane" data-pane="spells"></section>
+        <section class="sx-pane" data-pane="machine"><div class="mh-host"></div></section>
         <section class="sx-pane" data-pane="worktrees"><div class="wtr-box"></div></section>
         <section class="sx-pane" data-pane="usage">
           <div class="us-tiles sx-usage"><div class="it-loading"><span class="orb tiny"></span>Adding it up…</div></div>
@@ -294,6 +299,13 @@ export function openSettings(opts) {
     $(`.sx-nav [data-pane="${settingsPane}"]`, node)?.focus({ preventScroll: true });
   };
   refreshWorktrees = mountWorktrees($('.wtr-box', node));
+  // This Mac's Review and Change go to Worktrees (with a filter) and Usage.
+  refreshMachine = mountMachine($('.mh-host', node), {
+    show: (id, filter) => {
+      show(id);
+      if (filter) $(`[data-pane="worktrees"] [data-filter="${filter}"]`, node)?.click();
+    },
+  });
   spellsPane($('[data-pane="spells"].sx-pane', node));
   // force: a repaint the person asked for (an account added, renamed); a background one waits while
   // a code is pasted or an account named, since it would wipe what's typed.
@@ -397,6 +409,7 @@ export function openSettings(opts) {
     $('.sx-lede', node).textContent = p.lede;
     $('.sx-main', node).scrollTop = 0;
     if (id === 'worktrees') refreshWorktrees();
+    if (id === 'machine') refreshMachine();
     // Checked when the pane opens: it knocks on the SSH port and asks tailscale.
     if (id === 'machines' && !reachChecked && !MOBILE && !grid) {
       reachChecked = true;

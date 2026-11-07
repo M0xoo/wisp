@@ -35,6 +35,7 @@ export const SLOTS = {
   'split.panes': "Split view's home: a button on the Panes heading (the apps pinned on home).",
   'split.upcoming': "Split view's home: a button on the Coming up heading (scheduled tasks, reminders, follow-ups, check-ins).",
   'goal.band': "The open task's goal band: a button on its second line, after the last check (acts on that task).",
+  'machine.head': 'Settings → This Mac (This PC, This computer): a button at the top of the pane, beside when it was last read.',
 };
 
 export const CARD_SLOTS = new Set(['composer.bar', 'composer.chips', 'card.head', 'card.hover', 'card.menu', 'card.top', 'card.bottom', 'split.head', 'split.details', 'term.head', 'panel.head', 'goal.band']);
@@ -502,6 +503,17 @@ export const PARTS = {
   'budget.compare': '.sx-budget .bg-cmp',
   // Settings → Usage → Machine load: the RAM/CPU guard's reading and its three knobs (server/load.js).
   'settings.load': '.sx-load',
+  // This Mac (This PC, This computer; features/machine.js): the top-bar chip that shows when the
+  // computer is short, the pane and each of its sections, and a heavy running task's RAM on its row.
+  'machine.chip': '#machineChip',
+  'machine.pane': '.mh-box',
+  'machine.gauges': '.mh-box .mh-gauges', // Memory, CPU and Disk with the last hour
+  'machine.using': '.mh-box .mh-using', // What's using it: running tasks and crew members, Stop and Later
+  'machine.leftBehind': '.mh-box .mh-left', // processes still running after their task finished
+  'machine.freeUp': '.mh-box .mh-free', // Free up space: folders wisp can give back
+  'machine.automations': '.mh-box .mh-auto', // Pause automations / Resume now and the limits
+  'machine.day': '.mh-box .mh-day', // Last 24 hours
+  'card.ram': '.item .q-res',
   // …a harness's own Automations stop at row, the Drain watch row, and its card on an account.
   'settings.autoStopBy': '.sx-budget .us-by-row',
   'settings.drainWatch': '.sx-budget .sx-row:has(#drainWatch)',

@@ -89,11 +89,12 @@ const tomorrowAt9 = () => {
 // row per choice with the time it means on the right, then Pick a time…, which turns into a field
 // in its own row (the menu keeps its size and place): its time shows where the others do, Enter
 // takes it, Escape goes back to the row.
-export function timeMenu(anchor, { back, at: point, pick }) {
+// choices: [label, at] rows instead of the usual ones (This Mac's Later ▾).
+export function timeMenu(anchor, { back, at: point, pick, choices: own }) {
   const open = $('.menu.later-menu');
   if (open) return open.close(), refocus(back);
   const now = Date.now();
-  const choices = [
+  const choices = own || [
     ['In 10 min', now + 10 * 60_000],
     ['In 30 min', now + 30 * 60_000],
     ['In 1 hour', now + 3600_000],
