@@ -5,7 +5,7 @@
 import { adapters } from '../adapters/index.js';
 import { BTW_TIMEOUT_MS } from '../btw.js';
 import { ackCrew, ackTask, modelLabel } from '../channels/lists.js';
-import { capMode, untrusted } from '../channels/policy.js';
+import { capMode, needsWisp, untrusted } from '../channels/policy.js';
 import { taggedDelegate } from '../crew.js';
 import { splitId } from '../machines.js';
 import { GOALS } from '../router.js';
@@ -168,7 +168,7 @@ export function phoneActions(app) {
       if (s.agent === 'wisp') return 'That is the tour; it can’t take follow-ups.';
       if (s.kind === 'reminder') return 'A reminder has no agent to follow up with. Start a new task instead.';
       if (app.terms.get(s.id)?.code === null && !s.tui) return 'This task is open in a terminal. Carry on there, or end the terminal first.';
-      if (!approvals && (s.ask?.permission || s.ask?.clash || s.ask?.connector)) return 'That’s waiting for an approval, which only wisp can give: answer it there.';
+      if (!approvals && needsWisp(s.ask)) return 'That’s waiting for an approval, which only wisp can give: answer it there.';
       const text = untrusted(p.prompt, { channel: name, sender, about: s.ask ? '' : about });
       if (btw) return followUp(ops, sessionId, `/btw ${text}`, later);
       const asked = capMode(p.mode, cap, s.mode);

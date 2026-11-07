@@ -383,7 +383,9 @@ export class Slack extends Channel {
     if (!t) return;
     await this.answering.get(`${t.channel}:${t.ts}`)?.catch(() => {}); // a quick task's report comes after the first reply
     const by = this.hub.startedFrom(s)?.by;
-    await this.#post(t.channel, t.ts, this.#report(msg, s, t, by), { by });
+    const wait = this.waiting(s);
+    if (wait === '') return;
+    await this.#post(t.channel, t.ts, wait ?? this.#report(msg, s, t, by), { by });
     this.hub.phone.count?.('report', 'full');
   }
 
@@ -391,8 +393,7 @@ export class Slack extends Channel {
     const title = by && !msg.title.startsWith(`${by}: `) ? `${by}: ${msg.title}` : msg.title;
     const choices = (msg.actions || []).filter((a) => a.kind !== 'done').map((a) => a.label);
     const here = String(t.channel)[0] === 'D' ? 'Reply in this thread to answer or follow up.' : `Mention ${this.me?.name || 'wisp'} in this thread to answer or follow up.`;
-    const how = s.ask?.permission ? 'This one is a tool approval: answer it in wisp.' : here;
-    return [title, msg.text, choices.length && !s.ask?.permission ? `Choices: ${choices.join(' · ')}` : '', how].filter(Boolean).join('\n\n');
+    return [title, msg.text, choices.length ? `Choices: ${choices.join(' · ')}` : '', here].filter(Boolean).join('\n\n');
   }
 
   // A task or a crew job began for this thread (a queued job, maybe after a restart), or err: it

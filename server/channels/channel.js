@@ -6,7 +6,7 @@
 // Inbound goes through policy.js's gate() and grammar.js's parseMessage(), then the hub's phone
 // (services/phone.js) does the work.
 
-import { approvalsHere } from './policy.js';
+import { Seen, approvalsHere, needsWisp, waitingLine } from './policy.js';
 
 const AWAY_MAX = 200;
 export const KIND = { a: 'answer', r: 'reply', d: 'done' };
@@ -17,6 +17,7 @@ export class Channel {
   constructor(hub, name) {
     this.hub = hub;
     this.name = name;
+    this.asksSaid = new Seen();
   }
 
   get ready() {
@@ -25,6 +26,14 @@ export class Channel {
 
   get approvalsHere() {
     return approvalsHere(this.name);
+  }
+
+  // A publish about an ask that only wisp can answer: the line to post instead of the report, or
+  // '' when this ask has been said here. null: no such ask. A restart ends every ask (runner), so
+  // memory is enough to say each once.
+  waiting(s, opts) {
+    if (this.approvalsHere || !needsWisp(s?.ask)) return null;
+    return this.asksSaid.first(s.ask.id) ? waitingLine(s.ask, opts) : '';
   }
 
   start() {}
