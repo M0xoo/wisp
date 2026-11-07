@@ -484,11 +484,13 @@ test('the bot’s own mention goes, others stay, and the bot’s own posts are s
   assert.equal(xMod.ownWords('@alice @wispbot: thanks @wispbotter', 'wispbot'), '@alice thanks @wispbotter');
   assert.equal(xMod.ownWords('a &amp;&amp; b &lt;c&gt;', 'wispbot'), 'a && b <c>', 'X escapes these in a post');
   const replies = x.tweets.length;
+  const strangers = g.grid.db.get('SELECT coalesce(sum(strangers), 0) n FROM x_spend').n;
   await x.mention({ author: CREDS.bot.id, text: '@wispbot talking to myself' });
   await x.dm({ sender: CREDS.bot.id, text: 'me too' });
   await sleep(100);
   assert.equal(x.tweets.length, replies);
   assert.equal(held(), 0);
+  assert.equal(g.grid.db.get('SELECT coalesce(sum(strangers), 0) n FROM x_spend').n, strangers, 'not even counted as someone');
 });
 
 test('a person’s rate: over it, one fixed line, then silence and nothing wakes', { timeout: 60_000 }, async () => {
@@ -923,30 +925,33 @@ test('paused: CRC still answers, events are counted, and nothing else happens', 
 
 test('no credentials, or no channels: 404 everywhere, and the page shows nothing', { timeout: 60_000 }, async () => {
   const fake = await startFakeX();
-  for (const opts of [{ xCfg: null }, { xCfg: { clientId: 'only-half' } }, { xCfg: { ...CREDS, clientSecret: '' } }, { xCfg: { ...CREDS, bot: { ...CREDS.bot, accessSecret: '' } } }, { channels: false }]) {
-    const env = await boot({ api: fake, ...opts });
-    try {
-      const p = await env.person('dee');
-      assert.equal(env.grid.x, null);
-      assert.equal(env.cfg.x, null, 'config says off');
-      assert.equal((await env.call(WEBHOOK, { method: 'GET' })).status, 404);
-      assert.equal((await env.call(`${WEBHOOK}?crc_token=a`, { method: 'GET' })).status, 404);
-      assert.equal((await env.call(WEBHOOK, { body: '{}' })).status, 404);
-      assert.equal((await env.call('/_grid/x/reply', { headers: { authorization: p.auth }, body: {} })).status, 404);
-      assert.equal((await env.call('/_grid/x/state', { method: 'GET', headers: { authorization: p.auth } })).status, 404);
-      assert.equal((await p.b.go(`${env.root}/account/x/callback?state=a&code=b`)).status, 404);
-      const page = await p.b.go(`${env.root}/account`);
-      assert.ok(!/\/account\/x\/|wispbot|Link X/.test(page.text), 'nothing on the page');
-      const csrf = /name="csrf" value="([^"]+)"/.exec(page.text)[1];
-      assert.equal((await p.b.go(`${env.root}/account/x/link`, { method: 'POST', form: { csrf } })).status, 404);
-      assert.equal((await p.b.go(`${env.root}/account/x/unlink`, { method: 'POST', form: { csrf } })).status, 404);
-    } finally {
-      await env.grid.close();
+  try {
+    for (const opts of [{ xCfg: null }, { xCfg: { clientId: 'only-half' } }, { xCfg: { ...CREDS, clientSecret: '' } }, { xCfg: { ...CREDS, bot: { ...CREDS.bot, accessSecret: '' } } }, { channels: false }]) {
+      const env = await boot({ api: fake, ...opts });
+      try {
+        const p = await env.person('dee');
+        assert.equal(env.grid.x, null);
+        assert.equal(env.cfg.x, null, 'config says off');
+        assert.equal((await env.call(WEBHOOK, { method: 'GET' })).status, 404);
+        assert.equal((await env.call(`${WEBHOOK}?crc_token=a`, { method: 'GET' })).status, 404);
+        assert.equal((await env.call(WEBHOOK, { body: '{}' })).status, 404);
+        assert.equal((await env.call('/_grid/x/reply', { headers: { authorization: p.auth }, body: {} })).status, 404);
+        assert.equal((await env.call('/_grid/x/state', { method: 'GET', headers: { authorization: p.auth } })).status, 404);
+        assert.equal((await p.b.go(`${env.root}/account/x/callback?state=a&code=b`)).status, 404);
+        const page = await p.b.go(`${env.root}/account`);
+        assert.ok(!/\/account\/x\/|wispbot|Link X/.test(page.text), 'nothing on the page');
+        const csrf = /name="csrf" value="([^"]+)"/.exec(page.text)[1];
+        assert.equal((await p.b.go(`${env.root}/account/x/link`, { method: 'POST', form: { csrf } })).status, 404);
+        assert.equal((await p.b.go(`${env.root}/account/x/unlink`, { method: 'POST', form: { csrf } })).status, 404);
+      } finally {
+        await env.grid.close();
+      }
     }
+    assert.equal(fake.webhooks.length, 0);
+  } finally {
+    await fake.close();
+    x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
   }
-  assert.equal(fake.webhooks.length, 0);
-  await fake.close();
-  x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
 });
 
 test('grid.json: secrets from a file or the env, bad numbers refused, `api` only from WISP_X_API', () => {
@@ -1019,6 +1024,8 @@ test('linking needs the session and its CSRF token; a flow is one person’s, an
   assert.ok(!g.grid.db.get('SELECT 1 FROM x_links WHERE user_id = ?', p.user.id));
   await p.b.go(back2.href);
   assert.equal(g.grid.db.get('SELECT x_id FROM x_links WHERE user_id = ?', p.user.id).x_id, '777');
+  const { sha256 } = await import('../grid/secrets.js');
+  assert.equal(g.grid.db.get('SELECT 1 FROM x_flows WHERE state_hash = ?', sha256(back2.searchParams.get('state'))), undefined, 'the flow itself is gone');
   g.grid.db.run('DELETE FROM x_links WHERE user_id = ?', p.user.id);
   await p.b.go(back2.href);
   assert.ok(!g.grid.db.get('SELECT 1 FROM x_links WHERE user_id = ?', p.user.id), 'spent');
