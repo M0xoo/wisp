@@ -1,47 +1,44 @@
 // What only WebKitGTK can do. All of it on GTK's main thread.
 
-use std::cell::RefCell;
-use std::rc::Rc;
 use tauri::{AppHandle, Url, WebviewWindow};
-use webkit2gtk::{LoadEvent, NetworkError, WebViewExt};
+use webkit2gtk::glib::prelude::Cast;
+use webkit2gtk::{LoadEvent, NetworkError, PolicyDecisionExt, PolicyDecisionType, PolicyError, ResponsePolicyDecision, ResponsePolicyDecisionExt, URIRequestExt, WebViewExt};
 
-// WebKitGTK's decide-policy doesn't say which frame a navigation is for, so on Linux on_navigation
-// lets them all through (main.rs) and this watches the page instead: the view's `uri` is the main
-// frame's alone, and a frame moving never touches it. When it leaves wisp the load is stopped before
-// it commits, so the page stays as it was, and the address goes to the browser. load-failed is the
-// main frame's too: a scheme WebKit can't load (vscode://) may only show up there.
+// WebKitGTK's navigation decision doesn't say which frame it's for, so on Linux on_navigation lets
+// them all through (main.rs) and the page is held here instead, at the response: that decision knows
+// the main frame's own document, and comes before anything of it is shown. When that's from outside
+// wisp, it's refused (wisp's page stays as it was) and the address goes to the browser. The site has
+// had the request by then; Electron's will-navigate stops it before. A scheme WebKit can't load
+// (vscode://) has no response: the main frame's load fails, and load-failed is the main frame's only.
 pub fn keep_page_home(window: &WebviewWindow, home: Url, app: AppHandle) -> tauri::Result<()> {
   window.with_webview(move |wv| {
     let view = wv.inner();
-    let last = Rc::new(RefCell::new(home.to_string())); // where wisp was, to go back to if it must
-    let (home2, home3, app2, last2) = (home.clone(), home.clone(), app.clone(), last.clone());
-    view.connect_uri_notify(move |view| {
-      let Some(uri) = view.uri().map(|u| u.to_string()) else { return };
-      let Ok(url) = Url::parse(&uri) else { return };
+    let (home2, app2) = (home.clone(), app.clone());
+    view.connect_decide_policy(move |_, decision, kind| {
+      if kind != PolicyDecisionType::Response {
+        return false;
+      }
+      let Some(response) = decision.downcast_ref::<ResponsePolicyDecision>() else { return false };
+      if !response.is_main_frame_main_resource() {
+        return false;
+      }
+      let Some(url) = response.request().and_then(|r| r.uri()).and_then(|u| Url::parse(&u).ok()) else { return false };
       if crate::stays(&url, &home) {
-        *last.borrow_mut() = uri;
-        return;
+        return false;
       }
-      // Stopped before it commits, the old page stays and the view's address goes back to it once
-      // WebKit has dropped the load (a moment later, not here).
-      view.stop_loading();
       #[cfg(debug_assertions)]
-      eprintln!("[wisp] the page left for {uri}: stopped");
+      eprintln!("[wisp] the page left for {url}: refused, sent out");
+      decision.ignore();
       crate::open_outside(&app, &url);
-    });
-    // Only if a page from elsewhere got in all the same: back to where wisp was.
-    view.connect_load_changed(move |view, event| {
-      let outside = view.uri().and_then(|u| Url::parse(&u).ok()).is_some_and(|u| !crate::stays(&u, &home3));
-      if event == LoadEvent::Committed && outside {
-        let back = last2.borrow().clone();
-        eprintln!("[wisp] a page from elsewhere committed: back to {back}");
-        view.load_uri(&back);
-      }
+      true
     });
     view.connect_load_failed(move |_, _: LoadEvent, uri, err| {
-      if err.matches(NetworkError::Cancelled) {
-        return false; // stopped above, already sent out
+      // Refused above or stopped: already sent out, or nothing to send.
+      if err.matches(PolicyError::FrameLoadInterruptedByPolicyChange) || err.matches(NetworkError::Cancelled) {
+        return false;
       }
+      #[cfg(debug_assertions)]
+      eprintln!("[wisp] the page couldn't load {uri}: {err}");
       match Url::parse(uri) {
         Ok(url) if !crate::stays(&url, &home2) => {
           crate::open_outside(&app2, &url);

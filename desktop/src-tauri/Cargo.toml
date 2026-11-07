@@ -31,7 +31,7 @@ objc2-web-kit = { version = "0.3", features = ["WKFrameInfo", "WKNavigationActio
 
 # Pinned to what wry uses: src/linux.rs talks to the same WebKitGTK view.
 [target.'cfg(target_os = "linux")'.dependencies]
-webkit2gtk = "=2.0.2"
+webkit2gtk = { version = "=2.0.2", features = ["v2_40"] } # the response decision says if it's the main frame
 
 # Pinned to what wry uses: src/windows.rs talks to the same WebView2.
 [target.'cfg(windows)'.dependencies]

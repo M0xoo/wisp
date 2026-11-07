@@ -351,10 +351,12 @@ test('Linux ships: no compile_error! left, and the page is watched where on_navi
   assert.match(main, /if cfg!\(target_os = "linux"\) \|\| any_nav\(\) \{\r?\n\s+return true;/, 'frames go through on Linux');
   assert.match(main, /linux::keep_page_home\(&window, base\(port\), app\.clone\(\)\)\?;/);
   const linux = read('desktop/src-tauri/src/linux.rs');
-  assert.match(linux, /connect_uri_notify/, 'the main frame’s address, which a frame never moves');
-  assert.match(linux, /stop_loading\(\)/);
-  assert.match(linux, /connect_load_failed/);
-  assert.match(read('desktop/src-tauri/Cargo.toml'), /\[target\.'cfg\(target_os = "linux"\)'\.dependencies\]\r?\nwebkit2gtk = "=2\.0\.2"/, 'pinned to what wry uses');
+  assert.match(linux, /kind != PolicyDecisionType::Response/, 'the response decision knows the frame; the navigation one doesn’t');
+  assert.match(linux, /if !response\.is_main_frame_main_resource\(\) \{\r?\n\s+return false;/, 'a frame’s document is never held');
+  assert.match(linux, /decision\.ignore\(\);\r?\n\s+crate::open_outside\(&app, &url\);/);
+  assert.match(linux, /connect_load_failed/, 'a scheme with no response');
+  assert.match(linux, /FrameLoadInterruptedByPolicyChange/, 'the refusal above fails the load too: not sent out twice');
+  assert.match(read('desktop/src-tauri/Cargo.toml'), /\[target\.'cfg\(target_os = "linux"\)'\.dependencies\]\r?\nwebkit2gtk = \{ version = "=2\.0\.2", features = \["v2_40"\] \}/, 'pinned to what wry uses');
 });
 
 test('the dry run builds and gates Linux on each arch’s own runner', () => {
