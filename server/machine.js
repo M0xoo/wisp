@@ -122,7 +122,10 @@ export class Machine {
   // task's summary again (its res moved). onChange(): config changed (pause). off: no ticks (tests).
   constructor({ home, runner, store, worktrees = () => null, load = null, crewName = () => '', summary = () => {}, onChange = () => {}, res = new Map(), platform = process.platform, exec = run, readFile = readText, now = () => Date.now(), pid = process.pid, kill = (p, sig) => process.kill(p, sig), o = os, off = false } = {}) {
     Object.assign(this, { home, runner, store, worktrees, load, crewName, summary, onChange, res, platform, exec, readFile, now, pid, kill, o, off });
-    this.wtDir = path.join(home || '', 'worktrees') + path.sep;
+    // The folder a left-behind command line names, matched as the platform writes paths: on Windows
+    // a command line may use / or \\ and any case for the same folder (C:/Users vs c:\\users).
+    const p = platform === 'win32' ? path.win32 : path.posix;
+    this.wtDir = this.#pathKey(p.join(home || '', 'worktrees') + p.sep);
     this.file = path.join(home || '', 'machine-history.json');
     this.procs = [];
     this.byPid = new Map();
@@ -140,6 +143,10 @@ export class Machine {
     this.unsaved = 0;
     this.ticking = null;
     this.timers = [];
+  }
+
+  #pathKey(s) {
+    return this.platform === 'win32' ? String(s).replace(/\\/g, '/').toLowerCase() : String(s);
   }
 
   start() {
@@ -288,7 +295,7 @@ export class Machine {
     for (const p of list) {
       if (inTree.has(p.pid) || ours(p.pid)) continue;
       const t = this.tags.get(p.pid)?.task;
-      if (t || (orphan(p) && p.command.includes(this.wtDir))) for (const pid of this.#descendants(p.pid, kids)) if (!inTree.has(pid) && !ours(pid)) left.add(pid);
+      if (t || (orphan(p) && this.#pathKey(p.command).includes(this.wtDir))) for (const pid of this.#descendants(p.pid, kids)) if (!inTree.has(pid) && !ours(pid)) left.add(pid);
     }
     this.leftovers = [...left]
       .map((pid) => byPid.get(pid))

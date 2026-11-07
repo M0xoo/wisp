@@ -171,6 +171,20 @@ test('an orphan with only its folder under <home>/worktrees is left behind with 
   assert.deepEqual(m.view().leftovers.map((l) => [l.pid, l.task]), [[600, null]]);
 });
 
+test('Windows: a command line under <home>\\worktrees matches whatever its slashes and case', async () => {
+  const home = 'C:\\Users\\Ada\\.wisp';
+  const { m, out } = rig({ platform: 'win32', home });
+  const proc = (pid, ppid, command) => ({ ProcessId: pid, ParentProcessId: ppid, WorkingSetSize: 100 * MB, T: 0, S: 1, CommandLine: command });
+  out.win = JSON.stringify([
+    proc(50, 4, 'node wisp'),
+    proc(600, 0, '"C:\\Program Files\\nodejs\\node.exe" C:/Users/Ada/.wisp/worktrees/wisp-x/bin/wisp.js'),
+    proc(601, 0, 'node c:\\users\\ada\\.wisp\\worktrees\\wisp-y\\server.js'),
+    proc(602, 0, 'node C:\\Users\\Ada\\.wisp\\worktrees-old\\x.js'),
+  ]);
+  await m.tick({ force: true });
+  assert.deepEqual(m.view().leftovers.map((l) => l.pid).sort(), [600, 601]);
+});
+
 // --- stop ---------------------------------------------------------------------------------------
 
 test('stop: refuses wisp, its parents, what wisp started itself and anything not a task’s; SIGTERM then SIGKILL', async () => {
