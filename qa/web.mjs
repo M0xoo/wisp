@@ -323,9 +323,10 @@ try {
     const t = await launch({ prompt: 'say hello', cwd: makeClone().dir, mode: 'auto' });
     const dir = (await settled(t.id)).worktree.path;
     execFileSync('git', ['checkout', 'origin/main', '--', 'math.js'], { cwd: dir }); // the fake's edit: nothing of its own to open
-    const refresh = async () => {
+    // Until the file shows: a look at Changes takes from 0.1 to 1.6 s, in any engine.
+    const refresh = async (file) => {
       await p.evaluate(() => dispatchEvent(new Event('focus')));
-      await p.waitForTimeout(600);
+      await until(async () => (await shown()).some((f) => f.path === file), { timeout: 8000, what: `${file} in Changes` });
     };
     const shown = () => p.evaluate(() => [...document.querySelectorAll('.pn-changes .cx-file')].filter((x) => x.offsetParent).map((x) => ({ path: x.dataset.k.slice(2), open: x.classList.contains('open') })));
     fs.writeFileSync(path.join(dir, 'package-lock.json'), '{}\n');
@@ -335,16 +336,16 @@ try {
     await p.locator('.pn-changes .cx-fold').waitFor({ timeout: 8000 });
     ok((await p.locator('.pn-changes .cx-file.open').count()) === 0, 'only a generated file: nothing opens');
     fs.writeFileSync(path.join(dir, 'arrive-a.js'), 'export const a = 1;\n');
-    await refresh();
+    await refresh('arrive-a.js');
     const one = await shown();
     ok(one.find((f) => f.path === 'arrive-a.js')?.open, `a file arriving after a first look with nothing to open opens: ${JSON.stringify(one)}`);
     fs.writeFileSync(path.join(dir, 'arrive-b.js'), 'export const b = 1;\n');
-    await refresh();
+    await refresh('arrive-b.js');
     const two = await shown();
     ok(two.filter((f) => f.open).length === two.length && two.length > 1, `a few arriving all open, as after a reload: ${JSON.stringify(two)}`);
     await p.locator('.pn-changes .cx-file.open .cx-row').first().click();
     fs.writeFileSync(path.join(dir, 'arrive-c.js'), 'export const c = 1;\n');
-    await refresh();
+    await refresh('arrive-c.js');
     const three = await shown();
     ok(three.find((f) => f.path === 'arrive-c.js') && !three.find((f) => f.path === 'arrive-c.js').open && three.filter((f) => f.open).length === two.length - 1, `after your fold nothing else opens: ${JSON.stringify(three)}`);
     await changes(t).click();
