@@ -79,6 +79,12 @@ const refused = (message, status) => Object.assign(new Error(message), { status 
 
 // --- X's wire -------------------------------------------------------------------------------------
 
+// The CRC signs what it's given with the key events are signed with, so what it may be given has to
+// be something no event can be. An event is a JSON object: X's tokens are base64, and `{` isn't in that.
+const CRC_TOKEN = /^[A-Za-z0-9+/=_-]{1,256}$/;
+export const crcShaped = (s) => CRC_TOKEN.test(String(s));
+const isObject = (raw) => raw[0] === 0x7b; // `{`
+
 export const crcAnswer = (crcToken, secret) => `sha256=${createHmac('sha256', secret).update(crcToken).digest('base64')}`;
 
 function signed(raw, header, secret) {
@@ -431,7 +437,7 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
     },
 
     crc(crcToken) {
-      if (!crcToken) return { status: 400, body: { error: 'No crc_token.' } };
+      if (!crcShaped(crcToken)) return { status: 400, body: { error: 'No crc_token.' } };
       return { status: 200, body: { response_token: crcAnswer(crcToken, opts.clientSecret) } };
     },
 
@@ -441,6 +447,7 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
       const raw = await inbox.read(req, WEBHOOK_MAX);
       if (!raw) return { status: 413, body: { error: 'Too big.' } };
       if (!verified(raw, req.headers, { clientSecret: opts.clientSecret, consumerSecret: bot.consumerSecret })) return { status: 403, body: { error: 'Not signed.' } };
+      if (!isObject(raw)) return { status: 403, body: { error: 'Not an event.' } };
       const ev = readEvent(raw);
       if (ev && first(`e:${ev.id}`)) {
         if (ev.kind === 'post') takePost(ev);
