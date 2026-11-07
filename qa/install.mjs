@@ -852,16 +852,21 @@ async function shellRows() {
     ok(parent.startsWith(shellDir), `the server's parent is ${parent}`);
     if (MAC) await until(() => windowsOf(shellOf(pid)).split(' ').some((s) => Number(s.split('x')[0]) >= 720), { timeout: 30_000, what: 'the shell’s window' });
   });
-  await check('INST-26', 'the next `wisp` takes the shell from disk: no download', async () => {
+  // Shells running from this version's folder, by pid.
+  const shells = () => (WIN ? [] : sh('ps', ['-axo', 'pid=,command=']).split('\n').filter((l) => l.includes(shellDir)).map((l) => Number(l.trim().split(/\s+/)[0])));
+  await check('INST-26', 'the next `wisp` takes the shell from disk: no download, and hands over to the open one', async () => {
     release.close();
     const said = await shA(wisp, ['--port', String(port)], { env, shell: WIN });
     ok(/wisp is open/.test(said) && !/getting/.test(said), `said: ${said}`);
+    // The second shell finds the first one's lock, shows its window and goes.
+    if (!WIN && pid) await until(() => shells().join() === String(shellOf(pid)), { timeout: 20_000, what: 'one shell' });
   });
   if (!WIN && pid) {
-    await check('INST-26b', 'killing the shell leaves no server behind', async () => {
+    await check('INST-26b', 'killing the shell leaves no server and no shell behind', async () => {
       process.kill(shellOf(pid), 'SIGKILL');
       await until(() => !alive(pid), { timeout: 20_000, what: 'Node to go' });
       await down(port);
+      ok(!shells().length, `shells left: ${shells()}`);
     });
   } else await stopPort(port).catch(() => {});
 
