@@ -12,7 +12,7 @@
 
 import { randomInt, timingSafeEqual } from 'node:crypto';
 import { truncate } from '../util.js';
-import { Channel, sleep } from './channel.js';
+import { Channel, resend, sleep } from './channel.js';
 import { parseMessage, stripFormatting } from './grammar.js';
 import { LISTS, refusal } from './lists.js';
 import { RateLimit, Seen, capMode, defuse, gate, hideNames, scrubOut } from './policy.js';
@@ -97,12 +97,12 @@ export class Slack extends Channel {
   async api(method, body = {}, { token = this.cfg.botToken, tries = POST_TRIES, signal } = {}) {
     const base = (process.env.WISP_SLACK_API || 'https://slack.com/api').replace(/\/+$/, '');
     for (let left = tries; ; left--) {
-      const r = await fetch(`${base}/${method}`, {
+      const r = await resend(() => fetch(`${base}/${method}`, {
         method: 'POST',
         headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json; charset=utf-8' },
         body: JSON.stringify(body),
         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
-      });
+      }), tries);
       if (r.status === 429) {
         const retryAfter = Number(r.headers.get('retry-after')) || 1;
         if (left <= 1) throw Object.assign(new Error('Slack: ratelimited'), { code: 'ratelimited', retryAfter });
@@ -310,7 +310,7 @@ export class Slack extends Channel {
     } catch (err) {
       return say(`Couldn’t start it: ${truncate(err.message, 300)}`);
     }
-    await say(out.ack);
+    await say(out.ack).catch(this.owe(key, () => say(out.ack)));
   }
 
   async #inThread(sessionId, p, ctx, at, { say, list, refuse }) {
@@ -325,24 +325,22 @@ export class Slack extends Channel {
     if (p.problems.length) return refuse(p.problems);
     if (p.crew) {
       if (!p.prompt) return say(`Tell ${p.crew.name} what to do after the name.`);
+      let out;
       try {
-        const out = await phone.mention(sessionId, p, { name: NAME, sender: e.user, cap: CAP, fallback: FALLBACK, thread: this.#thread(e, root), ctx });
-        await say(out.ack);
+        out = await phone.mention(sessionId, p, { name: NAME, sender: e.user, cap: CAP, fallback: FALLBACK, thread: this.#thread(e, root), ctx });
       } catch (err) {
-        await say(`Couldn’t ask them: ${truncate(err.message, 300)}`);
+        return say(`Couldn’t ask them: ${truncate(err.message, 300)}`);
       }
-      return;
+      return say(out.ack);
     }
     const btw = p.command === 'btw';
     if (!p.prompt) return say(btw ? 'Type your question after btw.' : 'What should it do? Say it after the options.');
     const asked = capMode(p.mode, CAP, p.mode);
     if (asked.refused) return say(asked.refused);
     const later = (text) => say(text).catch(() => {});
-    try {
-      await say(await phone.run(sessionId, p, { name: NAME, sender: e.user, cap: CAP, later, btw, approvals: this.approvalsHere }));
-    } catch (err) {
-      await say(`Couldn’t send that: ${truncate(err.message, 300)}`);
-    }
+    // Only the follow-up itself: a reply that fails to reach Slack mustn't say it wasn't sent, or it
+    // gets sent twice.
+    await say(await phone.run(sessionId, p, { name: NAME, sender: e.user, cap: CAP, later, btw, approvals: this.approvalsHere }).catch((err) => `Couldn’t send that: ${truncate(err.message, 300)}`));
   }
 
   #thread(e, root) {
@@ -381,7 +379,9 @@ export class Slack extends Channel {
   async publish(msg, s) {
     const t = s?.remote?.slack || this.hub.away.get(s?.id)?.slack;
     if (!t) return;
-    await this.answering.get(`${t.channel}:${t.ts}`)?.catch(() => {}); // a quick task's report comes after the first reply
+    const key = `${t.channel}:${t.ts}`;
+    await this.answering.get(key)?.catch(() => {}); // a quick task's report comes after the first reply
+    await this.pay(key);
     const by = this.hub.startedFrom(s)?.by;
     const wait = this.waiting(s);
     if (wait === '') return;

@@ -9,6 +9,7 @@
 //     A test that rewrites the state while gh is being polled writes <FAKE_GH_STATE>.v<n>, a new file
 //     each time; the highest n wins over the state file. On Windows a rename over a file a gh is reading
 //     is refused, and a plain write could be read half done: a new name has neither problem.
+//     With a file at <FAKE_GH_STATE>.refuse the next comment is refused, once.
 //   FAKE_RECORD    directory; each call appends { argv, cwd } to gh.jsonl
 
 import { execFileSync } from 'node:child_process';
@@ -58,6 +59,10 @@ function gitHubApi() {
   let m;
   if ((m = /^repos\/([^/]+\/[^/]+)$/.exec(route))) return state.repos?.[m[1]] ? reply(200, JSON.stringify(state.repos[m[1]])) : refuse(404, 'Not Found');
   if ((m = /^repos\/([^/]+\/[^/]+)\/issues\/(\d+)\/comments$/.exec(route))) {
+    if (fs.existsSync(`${file}.refuse`)) {
+      fs.rmSync(`${file}.refuse`);
+      refuse(502, 'Bad Gateway');
+    }
     const body = (argv.find((x) => x.startsWith('body=')) || '').slice('body='.length);
     const c = { id: 900000 + posted().length, repo: m[1], number: Number(m[2]), body, at: Date.now() };
     fs.appendFileSync(`${file}.posted`, `${JSON.stringify(c)}\n`);

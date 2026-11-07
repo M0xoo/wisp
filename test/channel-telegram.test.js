@@ -76,10 +76,11 @@ before(async () => {
       return json({ ok: true, result: net.updates });
     }
     if (method === 'sendMessage') {
-      if (net.dropNext && b.reply_to_message_id === net.dropNext) {
-        net.dropNext = null;
-        return req.socket.destroy(); // Telegram never hears it, or its answer never comes back
+      if (net.dropOne) {
+        net.dropOne = false;
+        return req.socket.destroy();
       }
+      if (net.dropNext && b.reply_to_message_id === net.dropNext) return req.socket.destroy(); // Telegram never hears it, or its answer never comes back
       const message_id = ++net.msg;
       net.sent.push({ ...b, message_id });
       return json({ ok: true, result: { message_id } });
@@ -202,6 +203,15 @@ test('with on a follow-up moves the task to that model, as wisp_reply does', asy
   await settled(s.id);
   const e = reply(ack.message_id, 'with haiku');
   assert.match((await answerTo(e)).text, /What should it do/);
+});
+
+test('a reply whose connection is cut goes again, once', async () => {
+  const before = net.sent.length;
+  net.dropOne = true;
+  const ack = await answerTo(say(`in ${name}: the cut connection`));
+  assert.match(ack.text, /^▶ /);
+  assert.equal(net.sent.slice(before).filter((m) => m.text.startsWith('▶')).length, 1);
+  await settled((await startedBy(ack.message_id)).id);
 });
 
 test('a reply that doesn’t reach Telegram never says the follow-up failed: it went, and a resend would run it twice', async () => {
