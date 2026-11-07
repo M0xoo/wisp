@@ -24,6 +24,12 @@ this covers how the code is laid out and the rules a change has to follow.
   `js/core/` (state, api, bus, DOM helpers), `js/ui/` (toasts, dialogs, popovers, keys) and
   `js/features/` (feed, split view, launcher, composer, settings, spells, …).
 - `web/js/spell-schema.js`: what spells may touch. DOM-free and shared by the server and the page.
+- `desktop/`: the Tauri shell, being built beside Electron (`electron/` stays what users get until the
+  gate in `qa/scenarios/desktop.md` is met). `src-tauri/` is Rust, kept small: window, menu, links and a
+  Node child that runs the unchanged server through `entry.mjs`; stdin is its leash, so it can't
+  outlive the shell. `src/init.js` is the page's bridge and its drag regions (WebKit has no
+  `-webkit-app-region`: a new rule in the CSS goes there too, a test checks). IPC is one capability
+  for exactly `http://localhost:<port>` (`capability.json`). `npm run dev:tauri`; not on npm.
 - `mobile/`: the Android app (Capacitor + sshj). It shows wisp's own page through an SSH tunnel
   and starts wisp with `server/machines/bootstrap.js` (keep that file and `server/shq.js` free of
   Node imports). The page sees `MOBILE` (`web/js/core/state.js`): hide desktop-only actions there.
@@ -52,7 +58,7 @@ this covers how the code is laid out and the rules a change has to follow.
   scripts that run them against an isolated wisp with fake agents (`node qa/web.mjs`, …). Not part
   of `npm test`; see `qa/README.md`. A change to a flow they cover updates its scenario.
 - `design/`: how wisp looks and behaves (UI, UX, phones, words, the site) and the checklist for a UI
-  change. Read `design/README.md` before touching `web/`, `mobile/`, `electron/` or `docs/`.
+  change. Read `design/README.md` before touching `web/`, `mobile/`, `electron/`, `desktop/` or `docs/`.
 
 ## Commands
 

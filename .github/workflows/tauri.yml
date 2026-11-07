@@ -1,0 +1,42 @@
+name: tauri
+
+# The Tauri shell in desktop/ sits beside Electron and ships to nobody yet: all this checks is that
+# the Rust still compiles on each OS. Nothing else in the repo needs Rust, so it's filtered to it.
+on:
+  pull_request:
+    paths: ['desktop/**', '.github/workflows/tauri.yml']
+  push:
+    branches: [main]
+    paths: ['desktop/**', '.github/workflows/tauri.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop/src-tauri
+    steps:
+      - uses: actions/checkout@v5
+      - name: WebKitGTK
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            desktop/src-tauri/target
+          key: tauri-${{ runner.os }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+          restore-keys: tauri-${{ runner.os }}-
+      - run: cargo check --locked
+      - name: The QA driver (AppKit only)
+        if: runner.os == 'macOS'
+        run: cargo check --locked --features qa

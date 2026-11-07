@@ -5,7 +5,7 @@ app or site. AGENTS.md says how the code is laid out; these files say what a UI 
 like. Most of the rules here come from a bug we shipped and then fixed: the commit is named
 where it helps.
 
-Read this file before any change under `web/`, `mobile/`, `electron/` or `docs/`, then the one
+Read this file before any change under `web/`, `mobile/`, `electron/`, `desktop/` or `docs/`, then the one
 that matches your change:
 
 | File | Covers |

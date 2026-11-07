@@ -9,6 +9,7 @@ after a change that touches more than one surface.
 | Web (browser mode) | [scenarios/web.md](scenarios/web.md) (`WEB-*`) | `node qa/web.mjs` | `wisp --no-open` in Chrome: launcher, cards, questions, approvals, settings, spells, recipes, CLI, MCP, docs site |
 | wisp Grid | [scenarios/grid.md](scenarios/grid.md) (`GRID-*`) | `node qa/grid.mjs` | `wisp grid dev --fake-agents`: sign-in, account, `/go`, cloud wisp, isolation, device flow, idle stop, admin commands |
 | Desktop app | [scenarios/desktop.md](scenarios/desktop.md) (`DESK-*`) | `node qa/desktop.mjs` | `electron .` through Playwright's `_electron`: window, title bar, preload, links, theme, updater, attach, quit |
+| Desktop app (Tauri, macOS) | [scenarios/desktop.md](scenarios/desktop.md) (`TAURI-*`) | `node qa/desktop-tauri.mjs` | builds `desktop/src-tauri --features qa` (needs Rust) and drives it through a local socket (`src/qa.rs`): WKWebView has no WebDriver |
 | Android app | [scenarios/mobile.md](scenarios/mobile.md) (`MOB-*`) | `node qa/mobile.mjs` | the computers screen and wisp's page as the app's WebView sees it; APK, Gradle and emulator steps are in the scenarios |
 
 Each scenario says how it's covered: **Automated** (the script), **Suite** (`npm test`),
@@ -41,6 +42,7 @@ so a wisp.app you have open keeps its single-instance lock.
 | buttons | 4497 (`QA_BUTTONS_PORT`) |
 | ui-audit | 4498 (`QA_AUDIT_PORT`) |
 | desktop | 4520–4529 (`QA_DESKTOP_PORT` for the first app, 4521) |
+| desktop-tauri | 4761–4765 (`QA_TAURI_PORT`) |
 | mobile | 4540–4549 |
 | mobile-perf | 4550 (`PERF_PORT`) |
 | desktop-perf | 4551 (`PERF_PORT`) |
