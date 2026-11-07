@@ -17,7 +17,7 @@
 // A channel here is a row of CHANNELS: what's worth keeping of its request, and its event id.
 
 import { createHash } from 'node:crypto';
-import { sha256 } from './secrets.js';
+import { sha256, token } from './secrets.js';
 
 export const IN_PATH = /^\/_in\/([A-Za-z0-9_-]{32,64})$/;
 
@@ -195,14 +195,24 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
     // { url, dropped }: this user's own, made the first time. dropped: lost messages it hasn't been
     // told of, which this tells it. The token is kept sealed, so a box asking again gets the same URL.
     urlFor(user, channel) {
-      const token = secrets.ensure(user.id, `channel:${channel}`);
-      db.run('INSERT INTO channel_urls (user_id, channel, token_hash, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, channel) DO NOTHING', user.id, channel, sha256(token), Date.now());
+      const sealed = secrets.ensure(user.id, `channel:${channel}`);
+      db.run('INSERT INTO channel_urls (user_id, channel, token_hash, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, channel) DO UPDATE SET token_hash = excluded.token_hash', user.id, channel, sha256(sealed), Date.now());
       const { dropped } = db.get('SELECT dropped FROM channel_urls WHERE user_id = ? AND channel = ?', user.id, channel);
       if (dropped) db.run('UPDATE channel_urls SET dropped = 0 WHERE user_id = ? AND channel = ?', user.id, channel);
-      return { url: `${cfg.instanceUrl(user.handle)}/_in/${token}`, dropped };
+      return { url: `${cfg.instanceUrl(user.handle)}/_in/${sealed}`, dropped };
     },
 
-    byToken: (token) => db.get('SELECT user_id, channel FROM channel_urls WHERE token_hash = ?', sha256(token)) || null,
+    // A new URL for a leaked one: the old token stops here. What's held and counted stays, and a box
+    // can do this freely: all it can reach is its own URL. The seal is the truth: urlFor puts the
+    // hash right if a crash comes between these two.
+    rotate(user, channel) {
+      const fresh = token('', 32);
+      secrets.seal(user.id, `channel:${channel}`, fresh);
+      db.run('UPDATE channel_urls SET token_hash = ? WHERE user_id = ? AND channel = ?', sha256(fresh), user.id, channel);
+      return { url: `${cfg.instanceUrl(user.handle)}/_in/${fresh}` };
+    },
+
+    byToken: (t) => db.get('SELECT user_id, channel FROM channel_urls WHERE token_hash = ?', sha256(t)) || null,
 
     // Keep what came, and say so; the wake happens after the answer has left. Too big, or over the
     // caps: dropped and counted, still a 200, since a retry storm from the sender helps nobody.

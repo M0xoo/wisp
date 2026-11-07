@@ -42,15 +42,15 @@ const freePort = () =>
   });
 
 // Telegram: what it heard, and what it holds about the webhook.
-const tg = { calls: [], msg: 100, hook: { url: '' }, setFail: 0, setMs: 0 };
+const tg = { calls: [], msg: 100, hook: { url: '' }, setFail: 0, setMs: 0, delFail: 0 };
 const called = (m) => tg.calls.filter((c) => c.method === m);
 const sent = () => called('sendMessage');
 const fake = http.createServer(async (req, res) => {
   let body = '';
   for await (const c of req) body += c;
-  const method = new URL(req.url, 'http://x').pathname.split('/').pop();
+  const [bot, method] = new URL(req.url, 'http://x').pathname.split('/').slice(-2);
   const b = body ? JSON.parse(body) : {};
-  tg.calls.push({ method, ...b });
+  tg.calls.push({ method, bot, ...b });
   const json = (o) => (res.writeHead(200, { 'content-type': 'application/json', connection: 'close' }), res.end(JSON.stringify(o)));
   if (method === 'setWebhook') {
     if (tg.setMs) await sleep(tg.setMs);
@@ -62,6 +62,10 @@ const fake = http.createServer(async (req, res) => {
     return json({ ok: true, result: true });
   }
   if (method === 'deleteWebhook') {
+    if (tg.delFail > 0) {
+      tg.delFail--;
+      return json({ ok: false, description: 'Too Many Requests' });
+    }
     tg.hook = { url: '' };
     return json({ ok: true, result: true });
   }
@@ -399,6 +403,63 @@ test('switched off while setWebhook is on its way: the webhook doesn’t stay be
   await until(async () => tg.hook.url && (await g.ok('/remote')).telegram.webhook === `••••${tg.hook.secret.slice(-4)}`, { what: 'one webhook, wisp’s' });
   await g.ok('/remote', { method: 'PUT', body: { telegram: { enabled: false } } });
   await until(() => tg.hook.url === '', { what: 'off again' });
+  done();
+});
+
+test('deleteWebhook failing: the mark outlives the box, holds the old bot, and the next start takes it down', { timeout: 60_000 }, async () => {
+  let done = await awake();
+  await g.ok('/remote', { method: 'PUT', body: { telegram: { enabled: true } } });
+  await until(() => tg.hook.url, { what: 'the webhook' });
+  const url = tg.hook.url;
+  const dels = called('deleteWebhook').length;
+  tg.delFail = 1;
+  await g.ok('/remote', { method: 'PUT', body: { telegram: { enabled: false, token: '456:def' } } }); // off, and another bot
+  await until(() => called('deleteWebhook').length === dels + 1, { what: 'the first try' });
+  await until(async () => /Couldn’t remove the webhook/.test((await g.ok('/remote')).status.telegram?.error), { what: 'said in status' });
+  assert.equal(tg.hook.url, url, 'Telegram still calls');
+  done();
+  await g.grid.hostd.stop(g.ada.id, 'idle');
+  assert.equal(await webhook(msg('still calling')), 200);
+  await until(() => tg.hook.url === '', { what: 'taken down by the next start' });
+  assert.equal(called('deleteWebhook').at(-1).bot, `bot${TOKEN}`, 'on the bot it was set on');
+  done = await awake();
+  await until(async () => !(await g.ok('/remote')).status.telegram?.error, { what: 'the error gone' });
+  const n = called('deleteWebhook').length;
+  await g.ok('/remote', { method: 'PUT', body: { telegram: { token: TOKEN } } }); // a start: nothing left to do
+  await sleep(100);
+  assert.equal(called('deleteWebhook').length, n);
+  done();
+});
+
+test('rotate: a new URL, the same secret and seen list, the old URL dead, and a failed setWebhook comes right', async () => {
+  const done = await awake();
+  await g.ok('/remote', { method: 'PUT', body: { telegram: { enabled: true } } });
+  await until(() => tg.hook.url, { what: 'the webhook' });
+  const code = (await g.ok('/remote')).telegram.linkCode;
+  assert.equal((await deliverDirect(msg(`/start ${code}`), tg.hook.secret)).status, 200);
+  const [first, secret] = [tg.hook.url, tg.hook.secret];
+  const m = msg('/help');
+  assert.equal((await deliverDirect(m, secret)).status, 200);
+  assert.deepEqual(await g.ok('/channels/rotate', { body: { channel: 'telegram' } }), { ok: true });
+  const second = tg.hook.url;
+  assert.notEqual(second, first);
+  assert.equal(tg.hook.secret, secret, 'held messages carry the secret they came with');
+  assert.equal((await deliverDirect(m, secret)).json.duplicate, true, 'the seen list stays');
+  const n = sent().length;
+  tg.hook.url = first;
+  assert.equal(await webhook(msg('/help')), 404, 'the old URL');
+  tg.hook.url = second;
+  assert.equal(await webhook(msg('/help')), 200);
+  await until(() => sent().length === n + 1, { what: 'the new URL works' });
+  tg.setFail = 1;
+  const r = await g.api('/channels/rotate', { body: { channel: 'telegram' } });
+  assert.equal(r.status, 502);
+  await until(() => tg.hook.url && tg.hook.url !== second, { what: 'set again by itself' });
+  assert.equal(tg.hook.secret, secret);
+  assert.equal((await g.api('/channels/rotate', { body: { channel: 'nope' } })).status, 404);
+  await g.ok('/remote', { method: 'PUT', body: { telegram: { enabled: false } } });
+  await until(() => tg.hook.url === '', { what: 'off' });
+  assert.equal((await g.api('/channels/rotate', { body: { channel: 'telegram' } })).status, 409, 'no webhook to rotate');
   done();
 });
 

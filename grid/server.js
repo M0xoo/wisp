@@ -390,6 +390,14 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         limit(`inurl|${who.id}`, 60);
         return send(200, inbox.urlFor(who, channel));
       }
+      if (inbox.on && req.method === 'POST' && p === '/api/channels/url/rotate') {
+        const who = boxUser(req.headers.authorization);
+        if (!who) return send(401, { error: 'Sign in again: this device isn’t known here (removed, or a typo in the token).' });
+        const channel = url.searchParams.get('channel');
+        if (!inbox.knows(channel)) return send(404, { error: 'not found' });
+        limit(`inrot|${who.id}`, 10);
+        return send(200, inbox.rotate(who, channel));
+      }
       // Publishing an app from My Stuff (grid/sites.js): from wisp on a computer (its device token),
       // or from the cloud wisp itself, which has no device but has its trusted-proxy secret.
       const site = /^\/api\/sites(?:\/([A-Za-z0-9_-]{1,64}))?$/.exec(p);

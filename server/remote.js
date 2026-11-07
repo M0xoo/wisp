@@ -63,6 +63,7 @@ export class Remote {
     const ac = (this.ac = new AbortController());
     const c = this.cfg;
     const { ntfy, telegram, github, slack } = this.channels;
+    telegram.retryUnhook(); // before its start, and on or off: it's off that left one behind
     if (ntfy.ready) ntfy.start(ac.signal);
     if (telegram.ready) {
       if (!c.telegram.chatId && !c.telegram.linkCode) (c.telegram.linkCode = String(randomInt(100000, 999999))), this.store.saveConfig();

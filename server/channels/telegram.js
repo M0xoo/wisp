@@ -12,7 +12,7 @@
 
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { truncate } from '../util.js';
-import { boxGrid, channelUrl } from './box.js';
+import { boxGrid, channelUrl, rotateUrl } from './box.js';
 import { Channel, CODE, KIND, resend, sleep } from './channel.js';
 import { findProject, parseMessage, stripFormatting } from './grammar.js';
 import { LISTS, refusal } from './lists.js';
@@ -20,6 +20,7 @@ import { RateLimit, Seen, STALE_S, capMode, defuse, gate, scrubOut } from './pol
 
 const MAX_TG_IDS = 20;
 const HOOK_RETRY_MS = 30_000;
+const NOT_REMOVED = 'Couldn’t remove the webhook';
 const SEEN_UPDATES = 100; // kept with the webhook: a box's memory ends when it sleeps
 const UPDATES = ['message', 'callback_query'];
 const COMMANDS = [
@@ -40,6 +41,7 @@ export class Telegram extends Channel {
     this.bot = null; // { token, name }: who this bot is, for "@wispbot …" in a group
     this.listed = ''; // the token whose commands Telegram has
     this.wire = Promise.resolve(); // webhook calls, one at a time
+    this.takingDown = new Set(); // bots a deleteWebhook is on its way for
   }
 
   get cfg() {
@@ -162,28 +164,72 @@ export class Telegram extends Channel {
     return run;
   }
 
-  // Only when Telegram doesn't already have it: messages held at the grid carry the secret they came
-  // with, so a new one on every wake would have the box refuse them all.
+  // Only when Telegram doesn't already have it. A new URL keeps the secret and the seen list: messages
+  // held at the grid carry the secret they came with, so a new one would have the box refuse them all.
   #setHook(url, timed) {
     return this.#inTurn(async () => {
       const token = this.cfg.token;
       const had = this.cfg.hook;
       if (had?.url === url && (await this.api('getWebhookInfo', {}, timed())).url === url) return;
-      const secret = randomBytes(32).toString('hex');
+      const secret = had?.secret || randomBytes(32).toString('hex');
       // Not cut off by the switch: Telegram may have taken it, and then it has to be undone.
       await this.api('setWebhook', { url, secret_token: secret, allowed_updates: UPDATES }, AbortSignal.timeout(15_000), token);
       if (this.ready && this.cfg.token === token) {
-        this.cfg.hook = { url, secret, seen: [] };
+        this.cfg.hook = { url, secret, seen: had?.seen || [] };
         this.hub.store.saveConfig();
+        this.#unmark(token); // this bot's webhook is wanted again
       } else await this.api('deleteWebhook', {}, undefined, token); // switched off meanwhile: update() saw no webhook to remove
     });
   }
 
-  // Switched off, unlinked or another bot: Telegram stops calling. token: the bot it was set on,
-  // gone from the config by now.
+  // Switched off, unlinked or another bot: Telegram stops calling. token: the bot it was set on, gone
+  // from the config by now, so it's kept in unhooking until Telegram says done. Until then each
+  // message would wake the box for a 409.
   unhook(token) {
+    this.cfg.unhooking = [...new Set([...(this.cfg.unhooking || []), token])];
     this.mark({ webhook: false });
-    return this.#inTurn(() => this.api('deleteWebhook', {}, undefined, token)).catch((err) => this.mark({ ok: false, error: `Couldn’t remove the webhook: ${err.message}`, webhook: false }));
+    return this.#takeDown(token);
+  }
+
+  // Every start, on or off (remote.js): what a failed unhook left.
+  retryUnhook() {
+    return Promise.all((this.cfg?.unhooking || []).map((token) => this.#takeDown(token)));
+  }
+
+  async #takeDown(token) {
+    if (this.takingDown.has(token)) return;
+    this.takingDown.add(token);
+    try {
+      await this.#inTurn(() => this.api('deleteWebhook', {}, undefined, token));
+      this.#unmark(token);
+      if (this.hub.status.telegram?.error?.startsWith(NOT_REMOVED)) this.mark({ ok: true, error: '' });
+    } catch (err) {
+      this.mark({ ok: false, error: `${NOT_REMOVED}: ${err.message}`, webhook: false });
+    } finally {
+      this.takingDown.delete(token);
+    }
+  }
+
+  #unmark(token) {
+    if (!this.cfg.unhooking?.includes(token)) return;
+    this.cfg.unhooking = this.cfg.unhooking.filter((t) => t !== token);
+    if (!this.cfg.unhooking.length) delete this.cfg.unhooking;
+    this.hub.store.saveConfig();
+  }
+
+  // A leaked URL: the grid drops it, then Telegram is told the new one. Until then its calls get a 404
+  // and it keeps the updates, so nothing is lost. If that fails the old URL is dead, so #hooked takes over.
+  async rotate() {
+    const box = boxGrid();
+    if (!box || !this.ready || !this.cfg.hook) return { status: 409, body: { error: 'Telegram has no webhook here.' } };
+    const { url } = await rotateUrl(box, this.name);
+    try {
+      await this.#setHook(url, () => AbortSignal.timeout(15_000));
+    } catch (err) {
+      this.hub.start();
+      return { status: 502, body: { error: `Rotated, but Telegram didn’t take the new URL yet: ${err.message}` } };
+    }
+    return { status: 200, body: { ok: true } };
   }
 
   // A message the grid held. Only Telegram knows this secret, and only a retry repeats an update.

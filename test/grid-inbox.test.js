@@ -308,6 +308,32 @@ test('one user’s token never reaches another’s box, and a box gets only its 
   assert.equal(proto.status, 404);
 });
 
+test('rotate: a box replaces its own URL; the old one is a 404, what’s held and counted stays', async () => {
+  const g = await boot({ ...NEVER });
+  const [ada, bob] = [g.user('ada'), g.user('bob')];
+  const { url } = await g.url(ada);
+  const rotate = (authorization, channel = 'telegram') => call(g.port, 'wisp.localhost', `/api/channels/url/rotate?channel=${channel}`, { headers: authorization ? { authorization } : {} });
+  assert.equal((await rotate()).status, 401);
+  assert.equal((await rotate(g.boxAuth(ada), 'nope')).status, 404);
+  await g.post(ada, url, update(1));
+  g.grid.db.run('UPDATE channel_urls SET dropped = 2 WHERE user_id = ?', ada.id);
+  const r = await rotate(g.boxAuth(ada));
+  assert.equal(r.status, 200, r.text);
+  const fresh = r.json().url;
+  assert.notEqual(fresh, url);
+  assert.equal((await g.post(ada, url, update(2))).status, 404);
+  assert.equal((await g.post(ada, fresh, update(3))).status, 200);
+  assert.equal(g.rows(ada).length, 2);
+  assert.equal(g.grid.secrets.open(ada.id, 'channel:telegram'), fresh.split('/').pop(), 'sealed');
+  assert.equal(g.grid.db.get('SELECT token_hash t FROM channel_urls WHERE user_id = ?', ada.id).t, sha256(fresh.split('/').pop()));
+  const got = await g.url(ada);
+  assert.deepEqual(got, { url: fresh, dropped: 2 }, 'the same URL from now on, the count intact');
+  assert.equal((await rotate(g.boxAuth(ada, bob))).status, 401, 'another’s secret');
+  await g.url(bob);
+  assert.equal((await rotate(g.boxAuth(bob))).status, 200);
+  assert.equal((await g.post(ada, fresh, update(4))).status, 200, 'one box’s rotate is no one else’s');
+});
+
 test('an account switched off or deleted: its URL is a 404, and what it held goes with it', async () => {
   const g = await boot(NEVER);
   const ada = g.user('ada');

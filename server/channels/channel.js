@@ -6,6 +6,7 @@
 //   inbound(raw, headers)  a message the grid held for this cloud wisp (routes/channels.js): verify
 //                it and handle it → { status, body }. A 4xx is final, and only a 2xx means it was for wisp and handled.
 //   dropped(n)   the grid lost n of this channel's messages (a full grid, an hour asleep)
+//   rotate()     replace this cloud wisp's inbound URL, and point the channel at the new one
 // Inbound goes through policy.js's gate() and grammar.js's parseMessage(), then the hub's phone
 // (services/phone.js) does the work.
 
@@ -91,6 +92,10 @@ export class Channel {
   }
 
   async dropped() {}
+
+  async rotate() {
+    return { status: 404, body: { error: 'This channel has no URL to rotate.' } };
+  }
 
   // Health for Settings: the latest result, merged over the last one.
   mark(st) {

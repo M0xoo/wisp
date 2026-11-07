@@ -2,6 +2,7 @@
 // secret is fine for this, since the answer only ever reaches this same box (grid/inbox.js).
 
 import { gridJson } from '../grid-client.js';
+import { bad } from '../util.js';
 
 // { grid, auth }, or null: not on a grid, or a sandbox, which is one task's box and has no channels.
 export function boxGrid(env = process.env) {
@@ -16,5 +17,12 @@ export async function channelUrl(box, channel) {
   const r = await gridJson(`${box.grid}/api/channels/url?channel=${encodeURIComponent(channel)}`, { headers: { authorization: box.auth }, timeout: 10_000 });
   if (r.status === 404 || r.status === 401) return null;
   if (r.status !== 200 || !r.body.url) throw new Error(r.body.error || `it said ${r.status}`);
+  return r.body;
+}
+
+// A new URL: the one it had stops working here and now. { url }.
+export async function rotateUrl(box, channel) {
+  const r = await gridJson(`${box.grid}/api/channels/url/rotate?channel=${encodeURIComponent(channel)}`, { method: 'POST', headers: { authorization: box.auth }, timeout: 10_000 });
+  if (r.status !== 200 || !r.body.url) throw bad(`The grid didn’t rotate it: ${r.body.error || `it said ${r.status}`}.`, 502);
   return r.body;
 }

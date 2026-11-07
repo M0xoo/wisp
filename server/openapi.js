@@ -475,6 +475,13 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object' }), 400: err[400], 403: json({ type: 'object' }), 404: err[404], 409: json({ type: 'object' }) },
         },
       },
+      '/channels/rotate': {
+        post: {
+          summary: 'Replace this cloud wisp’s inbound URL for a channel, when it leaked: the grid drops the old one, then the channel is pointed at the new one. Messages held keep working. 502: the grid or the channel failed; if the URL did change, wisp keeps setting it by itself. 409: no webhook here',
+          requestBody: body({ type: 'object', required: ['channel'], properties: { channel: { type: 'string' } } }),
+          responses: { 200: json({ type: 'object' }), 404: err[404], 409: json({ type: 'object' }), 502: json({ type: 'object' }) },
+        },
+      },
       '/remote/test': { post: { summary: 'Send a test message to the enabled channels', responses: { 200: json({ type: 'object' }), 400: err[400] } } },
       '/usage': {
         get: {
