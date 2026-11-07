@@ -27,16 +27,16 @@ export async function makePane(prompt) {
   return out;
 }
 
-// Add, Adding…, Pin and Added share one slot (.pm-list min-width), so a row never moves.
+// Add, Adding…, Pin and Added share one slot (.mk-list min-width), so a row never moves.
 const onHome = (s) => {
   const it = s.added && (S.stuff || []).find((x) => x.id === s.added);
   return !!it && pinnedAt(it, 'home');
 };
 const row = (s) => {
   const word = s.added ? 'Pin' : 'Add';
-  return `<li data-id="${esc(s.id)}"><b>${esc(s.name)}</b><small>${esc(s.description)}</small>${onHome(s) ? `<span class="pm-added">${icon('check')}Added</span>` : `<button type="button" class="ghost sm" data-add aria-label="${word} ${esc(s.name)}">${word}</button>`}</li>`;
+  return `<li data-id="${esc(s.id)}"><b>${esc(s.name)}</b><small>${esc(s.description)}</small>${onHome(s) ? `<span class="mk-added">${icon('check')}Added</span>` : `<button type="button" class="ghost sm" data-add aria-label="${word} ${esc(s.name)}">${word}</button>`}</li>`;
 };
-const SKELETON = '<li class="pm-sk" aria-hidden="true"><i class="sk"></i><i class="sk"></i><i class="sk"></i></li>'.repeat(2);
+const SKELETON = '<li class="mk-sk" aria-hidden="true"><i class="sk"></i><i class="sk"></i><i class="sk"></i></li>'.repeat(2);
 
 export function openMakePane(prefill = '') {
   const node = el(`
@@ -44,12 +44,12 @@ export function openMakePane(prefill = '') {
       <header><h2>${icon('app')} Make a pane</h2><button type="button" class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       <p class="hint">Say what it should show or do. An agent writes it into My Stuff and pins it. It gets nothing from wisp until you press Allow… on its bar.</p>
       ${MOBILE && isLoopback(location.href) ? '<p class="hint">Panes open when you connect through wisp Cloud, or in a browser on the computer running wisp.</p>' : ''}
-      <textarea class="textarea pm-ask" rows="3" spellcheck="false" placeholder="A pane that lists my open PRs by repo…" aria-label="What should the pane do?"></textarea>
+      <textarea class="textarea mk-ask" rows="3" spellcheck="false" placeholder="A pane that lists my open PRs by repo…" aria-label="What should the pane do?"></textarea>
       <h4>Or start from one of these</h4>
-      <ul class="pm-list">${SKELETON}</ul>
+      <ul class="mk-list">${SKELETON}</ul>
       <footer><span class="hint">Runs on ${esc(agentName(launchDefaults().agent))} in an empty folder of its own: it writes the pane, not your code.</span><button class="primary" type="submit">${icon('app')}Make it</button></footer>
     </form>`);
-  const ta = $('.pm-ask', node);
+  const ta = $('.mk-ask', node);
   ta.value = prefill;
   const close = overlay(node);
   $('.close', node).onclick = close;
@@ -71,7 +71,7 @@ export function openMakePane(prefill = '') {
   };
   setTimeout(() => ta.focus(), 50);
   let list = [];
-  const box = $('.pm-list', node);
+  const box = $('.mk-list', node);
   // My Stuff first when it hasn't loaded: Added needs it.
   Promise.all([api('/stuff/starters'), S.stuff ? null : loadStuff()]).then(
     ([out]) => {
@@ -79,7 +79,7 @@ export function openMakePane(prefill = '') {
       box.innerHTML = list.map(row).join('');
     },
     (err) => {
-      box.innerHTML = `<li class="pm-off">${esc(err.message)}</li>`;
+      box.innerHTML = `<li class="mk-off">${esc(err.message)}</li>`;
     },
   );
   box.onclick = async (e) => {
