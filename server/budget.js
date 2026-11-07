@@ -324,7 +324,7 @@ export class Budget {
   // --- past your plan: runs billed beyond the plan's windows ---------------------------------------
 
   // A run on the account was billed past its plan: kind 'extra' (Claude's extra usage), 'credits'
-  // (Codex credits) or 'api' (an API key, not the plan). Once per turn; a week is kept.
+  // (Codex credits), 'api' (an API key, not the plan) or 'profile' (a Console sign-in). Once per turn; a week is kept.
   overage(agent, account, kind, sid, tid) {
     if (!agent || !kind) return;
     const acc = ((this.state[agent] ||= {})[account || 'default'] ||= { windows: {} });

@@ -13,6 +13,9 @@
 //                run /login`). 1: every run; a file: only the first, as FAKE_LIMIT_ONCE
 //   FAKE_LIMITS  claude: a rate_limit_info (JSON) it reports as a rate_limit_event before anything else
 //   FAKE_API_KEY_SOURCE  claude: its init's apiKeySource (default none: the plan)
+//   FAKE_AUTH_PROFILE    claude: `auth status --text` prints this as its `Profile:` line (a Console sign-in)
+//   FAKE_AUTH_FAIL=1     claude: `auth status --text` exits 1 with an error
+//   FAKE_AUTH_DELAY      claude: ms `auth status --text` takes first (each call is recorded in auth.jsonl)
 //   FAKE_TOOLS           claude: its init's tools, comma-separated (default: none sent)
 //   FAKE_CLI_VERSION     claude and codex: the version --version and claude's init say (default 9.9.9)
 //   FAKE_SLOW_PROBE  a file: while it exists --version takes 1.5 s, as a cold probe does on a slow machine
@@ -105,6 +108,21 @@ if (argv[0] === '--version' || argv[0] === '-v') {
 // work below, which would leave math.js and notes.txt in the checkout.
 // Sign-out (removing an account signs it out first): nothing to do, and no prompt to work on.
 if ((name === 'claude' && argv.join(' ') === 'auth logout') || (name === 'codex' && argv.join(' ') === 'logout')) process.exit(0);
+// The sign-in a task's run bills to (server/adapters/claude.js consoleProfile), laid out like the real CLI.
+if (name === 'claude' && argv.join(' ') === 'auth status --text') {
+  if (process.env.FAKE_RECORD) {
+    fs.mkdirSync(process.env.FAKE_RECORD, { recursive: true });
+    fs.appendFileSync(path.join(process.env.FAKE_RECORD, 'auth.jsonl'), JSON.stringify({ configDir: process.env.CLAUDE_CONFIG_DIR, at: Date.now() }) + '\n');
+  }
+  if (process.env.FAKE_AUTH_DELAY) await new Promise((r) => setTimeout(r, Number(process.env.FAKE_AUTH_DELAY)));
+  if (process.env.FAKE_AUTH_FAIL) {
+    console.error('Error: could not read the sign-in');
+    process.exit(1);
+  }
+  const profile = process.env.FAKE_AUTH_PROFILE;
+  console.log(['Login method: ' + (profile ? 'Claude Console account' : 'Claude Max account'), 'Organization: ' + (profile ? 'Fake Console Org' : 'probe@example.invalid'), ...(profile ? [`Profile: ${profile}`] : [])].join('\n'));
+  process.exit(0);
+}
 if ((name === 'claude' && argv.join(' ') === 'auth status') || (name === 'codex' && argv.join(' ') === 'login status') || (name === 'cursor-agent' && argv.join(' ') === 'status')) process.exit(0);
 // --help, laid out like each real CLI's entry for its thinking-level flag (agy prints to stderr).
 if (argv[0] === '--help') {
