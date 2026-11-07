@@ -48,6 +48,11 @@ const offered = (name) => (!WISP_READONLY || READ_ONLY_TOOLS.includes(name)) && 
 const hinted = (t) => (READ_ONLY_TOOLS.includes(t.name) ? { ...t, annotations: { readOnlyHint: true } } : t);
 const WAIT_S = 240; // wisp_task wait / wisp_launch wait=true, unless the agent asks for longer
 const MAX_WAIT_S = 1800;
+// How long a wait outlasts a wisp that doesn't answer. A restart takes seconds, and even that ends
+// the wait (see poll); this is for a port that stays shut. Counted in polls, so a sleeping laptop
+// doesn't spend it.
+const POLL_MS = 1500;
+const GONE_POLLS = (Number(process.env.WISP_GONE_S) || 300) * 1000 / POLL_MS;
 let TEAM = [];
 try {
   TEAM = JSON.parse(process.env.WISP_TEAM || '[]');
@@ -559,8 +564,8 @@ async function waitTask(id, seconds) {
     try {
       r = await call(`/api/internal/task/${WISP_SESSION}?of=${encodeURIComponent(id)}`);
     } catch (err) {
-      if (Date.now() > end) throw err;
-      await sleep(1500);
+      if (Date.now() > end || (err.status >= 400 && err.status < 500)) throw err;
+      await sleep(POLL_MS);
       continue; // wisp restarting
     }
     if (r.error) throw new Error(r.error);
@@ -585,17 +590,11 @@ async function controlTool(name, a = {}) {
 }
 
 async function results(ids, wait = true) {
+  const url = `/api/internal/delegate/${WISP_SESSION}?ids=${encodeURIComponent((ids || []).join(','))}&turn=${WISP_TURN || ''}`;
   for (;;) {
-    let r;
-    try {
-      r = await call(`/api/internal/delegate/${WISP_SESSION}?ids=${encodeURIComponent((ids || []).join(','))}&turn=${WISP_TURN || ''}`);
-    } catch (err) {
-      if (!wait) throw err;
-      await sleep(1500);
-      continue; // wisp restarting — keep waiting
-    }
+    const r = await (wait ? poll(url) : call(url));
     if (r.done || !wait) return r.text;
-    await sleep(1500);
+    await sleep(POLL_MS);
   }
 }
 
@@ -618,20 +617,29 @@ async function call(path, body, method = body ? 'POST' : 'GET') {
     headers: { 'content-type': 'application/json', 'x-wisp-token': WISP_TOKEN, 'x-wisp-session': WISP_SESSION },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`wisp ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw Object.assign(new Error(`wisp ${res.status}: ${await res.text()}`), { status: res.status });
   return res.json();
+}
+
+// One read in a long wait, through a wisp that doesn't answer for a moment. Throws once it's gone:
+// a 4xx can't turn into an answer (each start of wisp has a new token, so that's a restart, or
+// someone else on this port), and neither can a port shut for GONE_POLLS.
+async function poll(path) {
+  for (let down = 0; ; ) {
+    try {
+      return await call(path);
+    } catch (err) {
+      if ((err.status >= 400 && err.status < 500) || ++down >= GONE_POLLS) throw err;
+      await sleep(POLL_MS);
+    }
+  }
 }
 
 // Poll a question until it's answered ({ answer, … }) or cancelled (null).
 async function waitFor(id) {
   for (;;) {
-    await sleep(1500);
-    let r;
-    try {
-      r = await call(`/api/internal/ask/${id}`);
-    } catch {
-      continue; // wisp restarting — keep waiting
-    }
+    await sleep(POLL_MS);
+    const r = await poll(`/api/internal/ask/${id}`).catch(() => ({ cancelled: true }));
     if (r.answer !== undefined) return r;
     if (r.cancelled) return null;
   }
@@ -658,7 +666,10 @@ async function approve({ tool_name: tool, input = {}, tool_use_id }) {
   return { behavior: 'deny', message: r.message ? `The user denied this and said: ${r.message}` : 'The user denied this. Do not retry it; carry on without it or ask how to proceed.' };
 }
 
-readline.createInterface({ input: process.stdin }).on('line', async (line) => {
+const lines = readline.createInterface({ input: process.stdin });
+// The harness is gone, or done with us (MCP's stdio shutdown), and nothing can read a reply now.
+lines.on('close', () => process.exit(0));
+lines.on('line', async (line) => {
   let msg;
   try {
     msg = JSON.parse(line);
