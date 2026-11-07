@@ -8,7 +8,7 @@ import { Remote } from '../server/remote.js';
 // A fake ntfy that keeps what's posted to <topic>-reply and answers polls as the real one does:
 // since is a time (messages from that second on) or an id (those after it).
 async function fakeNtfy(t) {
-  const fake = { taps: [], polls: [], clock: Math.floor(Date.now() / 1000) };
+  const fake = { taps: [], polls: [], clock: Math.floor(Date.now() / 1000) + 60 }; // ahead of the since wisp takes at boot, even a second later;
   const server = http.createServer((req, res) => {
     const u = new URL(req.url, 'http://x');
     const since = u.searchParams.get('since');
