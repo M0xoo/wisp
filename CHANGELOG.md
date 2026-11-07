@@ -67,6 +67,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Full auto no longer asks before a repo's hooks, MCP servers and worktree setup run.** Full auto already skips every approval, so a task in it runs them as before the trust card, unasked, and a new worktree sets itself up at once. Plan and Edits still wait on the card, and a run held on it starts when you switch the task to Full auto.
 - **The picked crew member stands out in the rail.** The tile the list is showing (All or a member) now has a long pip on the rail's outer edge and a firmer outline, so it reads at a glance in light and dark. Hovering another face only tints it and shows a short pip, so hover and the pick no longer look alike.
 - **A task is named after what you asked, not after what the agent did last.** A task used to take its first answer's headline as its name (*Connectors pane fixed and merged*), so the list read as a log of outcomes. Now the agent's report names the subject of your request (*Connectors pane*), and wisp uses that; an agent that doesn't say keeps the name from your prompt's first line. A task you renamed, and a compare task, keep theirs.
+- **A crew member's finished-job toast and notification open that task, not the member's thread.** Its **Open** (and a click on the desktop notification) opens the job as a task, under its member with the member as a crumb, like opening it from the list.
 
 ### Fixed
 

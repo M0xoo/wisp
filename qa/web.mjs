@@ -830,6 +830,47 @@ try {
     await q.context().close();
   });
 
+  await check('WEB-70', 'a crew job’s toast: Open opens that task, not the member’s thread', async () => {
+    const m = await api(w.url, '/api/crew', { name: 'Toasty', role: 'QA', cwd: w.repo, agent: 'claude' });
+    ok(m.status === 201, `crew ${m.status} ${m.text.slice(0, 200)}`);
+    const j = await api(w.url, `/api/crew/${m.json.id}/jobs`, { prompt: 'Report on the toast' });
+    ok(j.status === 201 && j.json.session, `job ${j.status} ${j.text.slice(0, 200)}`);
+    const id = j.json.session.id;
+    await settled(id);
+    for (const [name, viewport] of [['side', { width: 1440, height: 900 }], ['stacked', { width: 390, height: 844 }]]) {
+      const q = await page({ viewport });
+      await q.goto(w.url);
+      await q.waitForFunction((id) => window.S?.sessions?.has(id) || document.querySelector(`[data-id="${id}"]`), id).catch(() => {});
+      await q.evaluate(async (id) => {
+        const [{ S }, { notifyFinished }] = await Promise.all([import('/js/core/state.js'), import('/js/features/notify.js')]);
+        await new Promise((done) => (function wait() { S.sessions.has(id) ? done() : setTimeout(wait, 50); })());
+        notifyFinished(S.sessions.get(id));
+      }, id);
+      const toast = q.locator('.toast', { hasText: 'Toasty' });
+      await toast.waitFor({ timeout: 3000 });
+      await toast.locator('.t-act').click();
+      await until(() => q.evaluate((id) => import('/js/core/state.js').then(({ S }) => S.open.has(id) && !S.crewOpen), id), { timeout: 3000, what: `${name}: the job open as a task` });
+      if (name === 'stacked') ok(await q.evaluate(() => document.body.classList.contains('stack-page')), 'stacked: the job is not a page over the list');
+      else ok(await q.evaluate((id) => document.querySelector('#splitHead')?.dataset.id === id, id), 'side by side: the main pane is not the job');
+      await q.waitForTimeout(400); // past the pane's fade
+      await q.shot(`crew-toast-open-${name}`);
+      // The member is its crumb (side by side, in the pane's head).
+      if (name === 'side') ok(await q.evaluate(() => /Toasty/.test(document.querySelector('#splitHead')?.textContent || '')), 'side by side: no member crumb');
+      if (name === 'side') {
+        // From the Org page too: the job takes the pane.
+        await q.evaluate(async (id) => {
+          const [{ S }, { notifyFinished }, { openOrg }] = await Promise.all([import('/js/core/state.js'), import('/js/features/notify.js'), import('/js/features/org.js')]);
+          openOrg();
+          notifyFinished(S.sessions.get(id));
+        }, id);
+        await toast.first().locator('.t-act').click();
+        await until(() => q.evaluate((id) => import('/js/core/state.js').then(({ S }) => S.open.has(id) && !S.crewOpen && !S.orgOpen), id), { timeout: 3000, what: 'Org page: the job open as a task' });
+      }
+      q.clean();
+      await q.context().close();
+    }
+  });
+
   await check('WEB-49', 'Home Screen app: full screen and its own cache only when standalone', async () => {
     // A browser tab: no class, the viewport as it was, no manifest (this isn't a Grid).
     const tab = await p.evaluate(() => [document.documentElement.classList.contains('standalone'), document.querySelector('meta[name="viewport"]').content, !!document.querySelector('link[rel="manifest"]')]);
