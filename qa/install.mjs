@@ -412,6 +412,12 @@ async function macRows() {
     sh('/usr/bin/open', ['-n', ...pass, app]);
   });
 
+  // Tauri won't say where its resources are when the path holds a symlink.
+  const d = nextPort++;
+  const linked = path.join(dirIn('linked'), 'Apps');
+  fs.symlinkSync(installed, linked);
+  await launchChecks('INST-17', 'the .app reached through a symlinked folder', d, () => start(path.join(linked, 'wisp.app/Contents/MacOS/wisp'), [], clean(d)));
+
   // The real swap, on the real app, from a real newer zip. Only the release list is stood in for.
   const c = nextPort++;
   await check('INST-16', 'self-update: the running app swaps itself for a newer build and reopens', async () => {

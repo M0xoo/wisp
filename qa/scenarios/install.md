@@ -21,6 +21,7 @@ this on macOS, Windows and Linux through `.github/workflows/tauri-package.yml`.
 | INST-11, 12 `install.sh --app` | Same script | Automated: no Node on PATH, Node's executable bit, a bad sum refused |
 | INST-13 dmg | | Automated: holds wisp.app and Applications, Node runs from the image |
 | INST-14, 15 the app, direct and by `open -n` | DESK-01 | Automated: server on the bundled Node, none on PATH, `method: app`, no orphan after kill -9 |
+| INST-17 the app through a symlinked folder | Works | Automated: Tauri refuses `resource_dir()` there, so the shell reads the real path |
 | INST-16 self-update | Manual | Automated: the running app downloads a newer zip, swaps itself and reopens. Only the release list is stood in for |
 | INST-20–22 Windows installer | Manual | CI (dry run): `/S` per user, `resources\app`, `node\node.exe`, `method: app`, `/S --force-run /R` starts it again |
 | Linux AppImage, .deb | Manual | Stays on Electron until WebKitGTK can tell a frame from the page |
