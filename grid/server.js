@@ -17,6 +17,9 @@
 //   p<port>--<name>--<handle>.<domain>
 //                       the same for a computer they added, through its tunnel; the computer
 //                       answers only while its Show local pages in previews is on.
+//   <handle>.<domain>/_in/<token>
+//                       a channel's webhook, for that user's box (grid/inbox.js): answered and held
+//                       by the grid, then delivered. Off unless grid.json has channels.
 //   sb-<id>--<handle>.<domain>
 //                       a sandbox (grid/sandboxes.js): a box of its own for one task, started and
 //                       stopped like the user's own, opened with its own token (or a ticket).
@@ -35,6 +38,7 @@ import { MACHINE_WANTS, createAccounts, bad } from './accounts.js';
 import { createProviders, newFlow } from './auth/providers.js';
 import { openDb } from './db.js';
 import { Hostd } from './hostd.js';
+import { IN_PATH, createInbox } from './inbox.js';
 import { APP_URL, accountPage, activatePage, devSignInPage, messagePage, sharePassPage, shareViewPage, signInPage, wakingPage } from './pages.js';
 import { createSecrets, ensureMaster } from './secrets.js';
 import { MEDIA_TYPES, SHARE_ID, createShares } from './shares.js';
@@ -196,8 +200,34 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     telemetry: stats.on,
     log,
   });
+  // A channel's message on its way to a box: over the same trust path as proxy(), with a mark of
+  // its own that proxy() and previews drop from anything coming in from outside.
+  const toBox = (port, user, payload) =>
+    new Promise((resolve, reject) => {
+      const data = JSON.stringify(payload);
+      const up = http.request(
+        {
+          host: '127.0.0.1',
+          port,
+          method: 'POST',
+          path: '/api/channels/inbound',
+          timeout: cfg.channels?.deliverMs || 30_000,
+          headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data), 'x-wisp-proxy-secret': secrets.ensure(user.id, 'wisp-proxy'), 'x-wisp-proxy-via': 'inbox', 'x-forwarded-host': new URL(cfg.instanceUrl(user.handle)).host, 'x-forwarded-proto': cfg.scheme },
+        },
+        (r) => {
+          r.resume();
+          r.on('end', () => resolve(r.statusCode));
+          r.on('error', reject);
+        },
+      );
+      up.on('timeout', () => up.destroy(new Error('timeout')));
+      up.on('error', reject);
+      up.end(data);
+    });
+  const inbox = createInbox({ db, cfg, secrets, accounts, hostd, deliver: toBox, log });
   hostd.on('change', (e) => {
     if (shut) return;
+    if (e.state === 'running' && !e.user.sandbox) inbox.drain(e.user);
     stats.box(e);
     const t = Date.now();
     // A box can stop after its account is gone (deleted from the command line, maybe between
@@ -349,6 +379,16 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         if (r.error) return send(400, { error: r.error });
         notify(r.user.id);
         return send(200, { token: r.token, token_type: 'Bearer', user: userView(r.user), instance: instanceView(r.user) });
+      }
+      // A cloud wisp asking where its channel's webhook goes (grid/inbox.js). Only its Box secret, and
+      // only ever its own URL: that secret can be read on the box, and this reaches nothing past it.
+      if (inbox.on && req.method === 'GET' && p === '/api/channels/url') {
+        const who = boxUser(req.headers.authorization);
+        if (!who) return send(401, { error: 'Sign in again: this device isn’t known here (removed, or a typo in the token).' });
+        const channel = url.searchParams.get('channel');
+        if (!inbox.knows(channel)) return send(404, { error: 'not found' });
+        limit(`inurl|${who.id}`, 60);
+        return send(200, inbox.urlFor(who, channel));
       }
       // Publishing an app from My Stuff (grid/sites.js): from wisp on a computer (its device token),
       // or from the cloud wisp itself, which has no device but has its trusted-proxy secret.
@@ -823,7 +863,29 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     return s ? { via: 'cookie', user: s.user } : null;
   }
 
+  // A channel's webhook: answered here, whatever the box is doing. It never signs in, its unguessable
+  // token does that, and only at its owner's address. Nothing here logs the path: it holds the token.
+  async function channelIn(req, res, url, handle) {
+    const none = () => json(res, 404, { error: 'not found' });
+    if (!inbox.on || req.method !== 'POST') return none();
+    try {
+      limit(`in|${clientIp(req)}`, 600);
+      const m = IN_PATH.exec(url.pathname);
+      const hit = m && inbox.byToken(m[1]);
+      const user = hit && accounts.byHandle(handle);
+      if (!user || user.disabled || user.id !== hit.user_id) return none();
+      limit(`intok|${user.id}|${hit.channel}`, 120);
+      await inbox.accept(user, hit.channel, req);
+      return json(res, 200, { ok: true });
+    } catch (err) {
+      if (err.status === 429) return json(res, 429, { error: err.message });
+      log(`grid: inbox for ${handle}: ${err.message}`);
+      return res.headersSent ? res.end() : json(res, 500, { error: 'Something went wrong on the grid.' });
+    }
+  }
+
   async function edge(req, res, url, handle) {
+    if (url.pathname === '/_in' || url.pathname.startsWith('/_in/')) return channelIn(req, res, url, handle);
     const user = accounts.byHandle(handle);
     if (!user) return html(res, 404, messagePage({ cfg, title: 'No such wisp', text: `Nobody here is called ${handle}.`, link: [cfg.publicUrl, 'Home'] }));
     return boxEdge(req, res, url, { user, box: user, origin: cfg.instanceUrl(user.handle), back: `${cfg.publicUrl}/go`, secret: secrets.ensure(user.id, 'wisp-proxy') });
@@ -1193,6 +1255,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     }
   }
   const server = servers[0];
+  inbox.resume(); // what a restart left held
 
   return {
     cfg,
@@ -1200,18 +1263,21 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     accounts,
     secrets,
     hostd,
+    inbox,
     sandboxes,
     tunnels,
     server,
     url: cfg.publicUrl,
     async close() {
       clearInterval(sampler);
+      inbox.stop();
       sites.close();
       const closed = Promise.all(servers.map((x) => new Promise((r) => x.close(r))));
       tunnels.closeAll();
       for (const set of watchers.values()) for (const res of set) res.end();
       for (const x of servers) x.closeAllConnections?.();
       await hostd.close();
+      await inbox.settled();
       stats.close();
       await closed;
       shut = true;
