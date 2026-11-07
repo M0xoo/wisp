@@ -18,14 +18,19 @@ const ROOT = path.join(import.meta.dirname, '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n'); // Windows checkouts
 const MAC = ['aarch64-apple-darwin', 'x86_64-apple-darwin'];
 const WIN = ['x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc'];
+const LINUX = ['x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu'];
 
-test('fetch-node pins an official build with a sha256 for each target, and Linux has none', () => {
+test('fetch-node pins an official build with a sha256 for each target', () => {
   assert.match(NODE_VERSION, /^\d+\.\d+\.\d+$/);
-  assert.deepEqual(Object.keys(TARGETS).sort(), [...MAC, ...WIN].sort());
+  assert.deepEqual(Object.keys(TARGETS).sort(), [...MAC, ...WIN, ...LINUX].sort());
   for (const t of Object.values(TARGETS)) assert.match(t.sha256, /^[0-9a-f]{64}$/);
   assert.equal(hostTarget('darwin', 'arm64'), MAC[0]);
   assert.equal(hostTarget('win32', 'x64'), WIN[0]);
-  assert.throws(() => hostTarget('linux', 'x64'), /stays on Electron/);
+  assert.equal(hostTarget('linux', 'x64'), LINUX[0]);
+  assert.equal(hostTarget('linux', 'arm64'), LINUX[1]);
+  assert.equal(TARGETS[LINUX[0]].name, 'linux-x64');
+  assert.equal(TARGETS[LINUX[1]].name, 'linux-arm64');
+  assert.throws(() => hostTarget('freebsd', 'x64'), /no Tauri build/);
 });
 
 // A stand-in for nodejs.org: the same path, one archive laid out as the official one.
@@ -116,6 +121,17 @@ test('resources land where the shell and the updater look, on each OS', () => {
     assert.equal(bundle.resources['stage/node/'], 'node/');
     assert.equal(bundle.windows.nsis.installMode, 'currentUser', 'the updater replaces it without admin rights');
   }
+  for (const t of LINUX) {
+    const { bundle } = overlay(t);
+    assert.deepEqual(bundle.targets, ['appimage', 'deb']);
+    // resource_dir is /usr/lib/<productName>, in the AppImage's mount too (tauri-utils platform.rs).
+    assert.equal(installMethod(`/usr/lib/wisp/${bundle.resources['stage/app/'].replace(/\/$/, '')}`), 'app');
+    assert.equal(installMethod(`/tmp/.mount_wispAb12/usr/lib/wisp/${bundle.resources['stage/app/'].replace(/\/$/, '')}`), 'app');
+    assert.equal(bundle.resources['stage/node/'], 'node/');
+    assert.equal(bundle.windows, undefined);
+  }
+  // main.rs looks for the same folder: app on macOS only.
+  assert.match(read('desktop/src-tauri/src/main.rs'), /if cfg!\(target_os = "macos"\) \{ "app" \} else \{ "resources\/app" \}/);
 });
 
 test('the Windows installer takes Electron’s copy away, from where v0.57.0 really put it', () => {
@@ -188,6 +204,12 @@ test('artefacts keep electron-builder’s names, the ones the updater, install.s
   assert.deepEqual(artefacts(MAC[1]), ['wisp-mac-x64.dmg', 'wisp-mac-x64.zip']);
   assert.deepEqual(artefacts(WIN[0]), ['wisp-windows-x64-setup.exe']);
   assert.deepEqual(artefacts(WIN[1]), ['wisp-windows-arm64-setup.exe']);
+  assert.deepEqual(artefacts(LINUX[0]), ['wisp-linux-x64.AppImage', 'wisp-linux-x64.deb']);
+  assert.deepEqual(artefacts(LINUX[1]), ['wisp-linux-arm64.AppImage', 'wisp-linux-arm64.deb']);
+  const image = (arch) => new Updater({ port: 1, env: { APPIMAGE: '/x/wisp.AppImage' }, platform: 'linux', arch, root: tmp('upd') }).assetName();
+  assert.ok(artefacts(LINUX[0]).includes(image('x64')));
+  assert.ok(artefacts(LINUX[1]).includes(image('arm64')));
+  assert.equal(update('linux', 'x64'), null, 'a .deb updates by a new .deb');
   assert.ok(artefacts(MAC[0]).includes(update('darwin', 'arm64')));
   assert.ok(artefacts(MAC[1]).includes(update('darwin', 'x64')));
   assert.ok(artefacts(WIN[0]).includes(update('win32', 'x64')));
@@ -195,6 +217,7 @@ test('artefacts keep electron-builder’s names, the ones the updater, install.s
   const yml = read('packaging/desktop/electron-builder.yml');
   assert.match(yml, /artifactName: wisp-mac-\$\{arch\}\.\$\{ext\}/);
   assert.match(yml, /artifactName: wisp-windows-\$\{arch\}-setup\.\$\{ext\}/);
+  assert.match(yml, /artifactName: wisp-linux-\$\{arch\}\.\$\{ext\}/);
   assert.match(read('docs/install.sh'), /zip="wisp-mac-\$arch\.zip"/);
 });
 
@@ -314,4 +337,29 @@ test('the Mac update swaps a bundle on the Tauri layout and keeps Node executabl
   const old = u.swap.remove;
   assert.equal(fs.readFileSync(path.join(old, 'Contents/Resources/node/bin/node'), 'utf8'), '0.0.1', 'the running copy keeps its files');
   assert.equal(u.relaunchCommand(), `rm -rf "${old}"; open "${path.join(installed, 'wisp.app')}"`);
+});
+
+test('Linux ships: no compile_error! left, and the page is watched where on_navigation can’t tell a frame', () => {
+  const main = read('desktop/src-tauri/src/main.rs');
+  assert.ok(!/compile_error!/.test(main), 'a release build for Linux must compile');
+  assert.match(main, /if cfg!\(target_os = "linux"\) \|\| any_nav\(\) \{\r?\n\s+return true;/, 'frames go through on Linux');
+  assert.match(main, /linux::keep_page_home\(&window, base\(port\), app\.clone\(\)\)\?;/);
+  const linux = read('desktop/src-tauri/src/linux.rs');
+  assert.match(linux, /kind != PolicyDecisionType::Response/, 'the response decision knows the frame; the navigation one doesn’t');
+  assert.match(linux, /if !response\.is_main_frame_main_resource\(\) \{\r?\n\s+return false;/, 'a frame’s document is never held');
+  assert.match(linux, /decision\.ignore\(\);\r?\n\s+crate::open_outside\(&app, &url\);/);
+  assert.match(linux, /connect_load_failed/, 'a scheme with no response');
+  assert.match(linux, /FrameLoadInterruptedByPolicyChange/, 'the refusal above fails the load too: not sent out twice');
+  assert.match(read('desktop/src-tauri/Cargo.toml'), /\[target\.'cfg\(target_os = "linux"\)'\.dependencies\]\r?\nwebkit2gtk = \{ version = "=2\.0\.2", features = \["v2_40"\] \}/, 'pinned to what wry uses');
+});
+
+test('the dry run builds and gates Linux on each arch’s own runner', () => {
+  const pack = read('.github/workflows/tauri-package.yml');
+  const job = pack.slice(pack.indexOf('\n  linux:\n'), pack.indexOf('\n  sizes:\n'));
+  assert.match(job, /triple: x86_64-unknown-linux-gnu/);
+  assert.match(job, /os: ubuntu-22\.04-arm, triple: aarch64-unknown-linux-gnu/);
+  assert.match(job, /package\.mjs --target \$\{\{ matrix\.triple \}\}/);
+  assert.match(job, /xvfb-run -a dbus-run-session -- node qa\/install\.mjs --only \$\{\{ matrix\.rows \}\}/);
+  assert.match(job, /name: tauri-linux-\$\{\{ matrix\.arch \}\}/);
+  assert.match(pack, /needs: \[mac, windows, linux\]/);
 });
