@@ -1242,6 +1242,70 @@ tmux attach -t agent`)}
     },
 
     {
+      slug: 'share-to-wisp-from-your-phone',
+      topic: 'cloud',
+      cloud: true,
+      title: 'Send a link, text or picture to your coding agents from your phone',
+      h1: 'Share to wisp from your phone',
+      card: 'Android’s share sheet opens New task with it already in the box. On an iPhone, a Shortcut you build sends it to your cloud wisp.',
+      description: 'Send a link, text, picture or PDF from your phone to wisp: Android’s share sheet opens New task with it attached, and an iPhone Shortcut starts a task on your cloud wisp with an API key.',
+      lede: 'To send a link, text or picture to your coding agents from your phone, share it to wisp. On Android, the share sheet opens <b>New task</b> with it in the box and attached, ready to send. On an iPhone, Apple has no share target for web apps, so a Shortcut you build sends it to your cloud wisp.',
+      body: `
+    <section>
+      <h2 id="android">On Android</h2>
+      <ol class="doc-steps">
+        <li>In any app, press <b>Share</b> and pick <b>wisp</b>.</li>
+        <li>wisp opens New task with the link or text in the box and the pictures or PDFs attached. What you’d already typed stays, with this below it.</li>
+        <li>Pick the project and harness as usual, and press Send. Nothing starts until you do.</li>
+      </ol>
+      <p>A share takes 10 files and 20 MB at most; a toast says what was left out. If no computer is open, the computers list says it’s waiting, and it lands in New task when you open one.</p>
+      <p>Installed wisp from your cloud wisp in Chrome instead of the app? It’s in the share sheet too, once you’ve opened it from the Home Screen one time. A share from a browser tab can’t work: Chrome only offers an installed app, and wisp says so if one gets through.</p>
+    </section>
+
+    <section>
+      <h2 id="iphone">On an iPhone: build a Shortcut</h2>
+      <aside class="g-note"><b>Not tried on a real iPhone yet</b><p>The request below is the one wisp’s tests send, and it’s how the API works, but nobody has run these steps on an iPhone. If a step’s name differs on yours, go by what it does. Apple signs shortcut files, so there’s no file to download: these steps are it.</p></aside>
+      <p>You need <a href="/guides/use-wisp-cloud.html">wisp Cloud</a>: the Shortcut talks to your cloud wisp at its public address. A computer of yours has no public address of its own for this, and API keys only open your cloud wisp, not a computer you added to it.</p>
+      <p>First make a key: in your cloud wisp, Settings → <b>Cloud</b> → <b>API keys</b>. It starts with <code>wgk_</code> and is shown once.</p>
+      <ol class="doc-steps">
+        <li>Open the <b>Shortcuts</b> app and press <b>+</b>. Name it <i>Send to wisp</i>.</li>
+        <li>Press the <b>ⓘ</b> button and turn on <b>Show in Share Sheet</b>. Under what it receives, keep <b>URLs</b> and <b>Text</b>.</li>
+        <li>Add the action <b>Get Contents of URL</b>. For the URL, type <code>https://you.grid.trywisp.dev/api/sessions</code>, with your own handle and grid.</li>
+        <li>Press <b>Show More</b>. Set <b>Method</b> to <b>POST</b>.</li>
+        <li>Under <b>Headers</b>, add one: key <code>Authorization</code>, text <code>Bearer wgk_…</code>, your whole key after the word Bearer and a space.</li>
+        <li>Set <b>Request Body</b> to <b>JSON</b>. Add a <b>Text</b> field with key <code>prompt</code>, and for its value pick the variable <b>Shortcut Input</b>. Add a <b>Boolean</b> field with key <code>scratch</code>, set to <b>True</b>.</li>
+        <li>Optional: add <b>Show Notification</b> with <i>Sent to wisp</i>, so you see it went.</li>
+      </ol>
+      <p>Now <b>Share</b> → <b>Send to wisp</b> in Safari sends what you’re looking at. The request is this:</p>
+      <pre><code>POST https://you.grid.trywisp.dev/api/sessions
+Authorization: Bearer wgk_…
+Content-Type: application/json
+
+{ "prompt": "https://example.com/the-page", "scratch": true }</code></pre>
+      <p><code>scratch</code> runs the task in an empty folder. To run it in a project, send <code>cwd</code> with that folder’s path on your cloud computer instead. The other fields are in the API reference, under <code>POST /api/sessions</code>.</p>
+      <aside class="g-note"><b>This one starts at once</b><p>Unlike Android’s share sheet, the Shortcut doesn’t stop at the prompt box: the task starts when you share, in your default mode. To read it first, add <b>Ask for Input</b> before the request, with Shortcut Input as its default answer, and send that answer instead.</p></aside>
+    </section>
+
+    <section>
+      <h2 id="key">Your key is a secret</h2>
+      <ul class="doc-list">
+        <li><b>It lives in your Shortcut, and nowhere else.</b> Don’t paste it into a chat, an issue, a task or a website. Nobody at wisp will ever ask you for it.</li>
+        <li><b>Whoever has it can start tasks on your cloud wisp.</b> Sharing the Shortcut with someone shares the key inside it, so take it out first.</li>
+        <li><b>It can be taken back.</b> Revoke it under Settings → Cloud → API keys and make a new one. The name you gave it says which Shortcut used it.</li>
+      </ul>
+    </section>
+`,
+      faq: [
+        ['Does sharing start a task by itself?', 'On Android, no: it opens New task with what you shared, and you press Send. The iPhone Shortcut starts one at once, because it calls the API directly.'],
+        ['Can I send pictures from an iPhone?', 'Not with this Shortcut: it sends links and text. On Android, pictures and PDFs attach to New task.'],
+        ['Why is there no Shortcut to download?', 'Apple signs shortcut files, so wisp can’t publish one from its source. The steps on this page are all there is to it, and the key stays yours.'],
+        ['Does the iPhone Shortcut work with a computer of my own?', 'Not directly. API keys open your cloud wisp only, so you need wisp Cloud.'],
+        ['Has this been tested on an iPhone?', 'Not yet. The API request is tested; the Shortcut’s steps haven’t been run on a real iPhone.'],
+      ],
+      related: ['use-wisp-cloud', 'reach-your-computer-from-your-phone', 'use-codex-from-your-phone'],
+    },
+
+    {
       slug: 'claude-code-remote-control-alternative',
       topic: 'machines',
       cloud: true,
