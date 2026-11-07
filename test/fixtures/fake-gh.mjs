@@ -23,10 +23,33 @@ const newest = () => {
   const n = Math.max(0, ...at);
   return n ? `${file}.v${n}` : file;
 };
+// wisp runs gh from several places at once (Ship it, the minute poll of every open PR, the PR
+// panel). Only the commands that change something write the state file, and they read and write it
+// under a lock: a reader that wrote back what it read, or two writers at once, lost what another
+// call had just saved (a PR Ship it had created, then "no pull requests found").
+const writes = (argv[0] === 'pr' && ['create', 'ready', 'merge'].includes(argv[1])) || (argv[0] === 'gist' && argv[1] === 'create');
+if (writes) {
+  const lock = `${file}.lock`;
+  const nap = new Int32Array(new SharedArrayBuffer(4));
+  for (;;) {
+    try {
+      fs.mkdirSync(lock);
+      break;
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+      // A gh killed while it held the lock (a test's timeout) never takes it away.
+      try {
+        if (Date.now() - fs.statSync(lock).mtimeMs > 10_000) fs.rmSync(lock, { recursive: true, force: true });
+      } catch {}
+      Atomics.wait(nap, 0, 0, 5);
+    }
+  }
+  process.on('exit', () => fs.rmSync(lock, { recursive: true, force: true })); // also after fail()
+}
 const stateFile = newest();
 const state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, 'utf8')) : {};
 state.prs ||= {};
-const save = () => fs.writeFileSync(file, JSON.stringify(state, null, 2));
+const save = () => writes && fs.writeFileSync(file, JSON.stringify(state, null, 2));
 const flag = (f) => (argv.includes(f) ? argv[argv.indexOf(f) + 1] : undefined);
 const git = (...a) => execFileSync('git', a, { cwd: process.cwd(), encoding: 'utf8' }).trim();
 const fail = (msg) => (process.stderr.write(`${msg}\n`), process.exit(1));
@@ -82,6 +105,13 @@ function gitHubApi() {
 }
 
 const find = (ref) => Object.values(state.prs).find((p) => String(p.number) === String(ref) || p.url === ref || p.headRefName === ref);
+// What GitHub would say now: pushes move the head. Worked out on each read, not kept by a view.
+const fresh = (pr) => {
+  try {
+    pr.headRefOid = git('rev-parse', '--verify', '--quiet', `refs/remotes/origin/${pr.headRefName}`) || pr.headRefOid;
+  } catch {}
+  return pr;
+};
 const [a, b] = argv;
 
 if (a === 'pr' && b === 'create') {
@@ -109,16 +139,12 @@ if (a === 'pr' && b === 'create') {
   if (state.checks) pr.statusCheckRollup = state.checks; // tests flip CI results between polls
   if (state.review !== undefined) pr.reviewDecision = state.review;
   if (state.mergeable !== undefined) pr.mergeable = state.mergeable; // CONFLICTING | MERGEABLE | UNKNOWN
-  try {
-    pr.headRefOid = git('rev-parse', '--verify', '--quiet', `refs/remotes/origin/${pr.headRefName}`) || pr.headRefOid; // pushes move the head
-  } catch {}
-  if (!flag('--repo')) save(); // the GitHub channel's read: the test owns the state file then
-  console.log(JSON.stringify(pr));
+  console.log(JSON.stringify(fresh(pr)));
 } else if (a === 'pr' && b === 'ready') {
   (find(argv[2]) || fail('not found')).isDraft = false;
   save();
 } else if (a === 'pr' && b === 'merge') {
-  const pr = find(argv[2]) || fail('not found');
+  const pr = fresh(find(argv[2]) || fail('not found'));
   if (flag('--match-head-commit') !== pr.headRefOid) fail('Head branch was modified. Review and try the merge again.');
   if (pr.isDraft) fail('Pull request is still a draft');
   git('push', '--quiet', 'origin', `${pr.headRefOid}:refs/heads/${pr.baseRefName}`);
