@@ -568,6 +568,7 @@ test('Slack on a box: the manifest carries its own URL and no socket, and turnin
   hookUrl = m.settings.event_subscriptions.request_url;
   assert.ok(hookUrl.startsWith(`${g.origin}/_in/`), hookUrl);
   assert.equal(m.settings.socket_mode_enabled, false);
+  assert.equal(m.settings.interactivity.is_enabled, false, 'no request URL for clicks on a box yet');
   assert.deepEqual(m.settings.event_subscriptions.bot_events, ['app_mention', 'message.im']);
   assert.equal((await g.api('/remote', { method: 'PUT', body: { slack: { signingSecret: 'short' } } })).status, 400);
   const view = await g.ok('/remote', { method: 'PUT', body: { slack: { enabled: true } } });

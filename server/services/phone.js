@@ -219,12 +219,14 @@ export function phoneActions(app) {
       app.broadcast('config', {});
       return s;
     },
-    // later(text): a message sent after this one (Telegram), for a /btw's answer.
-    act: async ({ sessionId, kind, ref, index, text, later }) => {
+    // later(text): a message sent after this one (Telegram), for a /btw's answer. approvals false: a
+    // channel that can't answer a tool approval, as in run: ask or task may be on another machine.
+    act: async ({ sessionId, kind, ref, index, text, later, approvals }) => {
       const ops = await sessionOps(sessionId).catch((err) => ({ error: err.message }));
       if (ops?.error) return `Can’t reach it: ${ops.error}`;
       if (!ops) return 'That session is gone.';
       const { s } = ops;
+      if (approvals === false && needsWisp(s.ask)) return 'That’s waiting for an approval, which only wisp can give: answer it there.';
       if (kind === 'answer') {
         if (!s.ask || s.ask.id !== ref) return 'That question was already answered.';
         const answer = s.ask.options[index];

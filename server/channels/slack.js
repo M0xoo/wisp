@@ -12,13 +12,17 @@
 // silence; a stranger's DM gets one line. A message can't ask for more than Edits, and a tool approval
 // stays in wisp.
 //
+// A question shows a button per choice. A click isn't a message but passes the same gate: a stranger's
+// does nothing, and a button is signed for its ask, so it can't answer another. Typed answers always
+// work, and are all an app made before buttons has: without interactivity Slack sends wisp no clicks.
+//
 // Every envelope is acked the moment it arrives (Slack resends after 3 s), then the work runs behind,
 // one at a time per thread.
 
 import { slackOk } from '../hooks.js';
 import { bad, truncate } from '../util.js';
 import { boxGrid, channelUrl, rotateUrl } from './box.js';
-import { Channel, lostLine, resend, sleep } from './channel.js';
+import { CODE, Channel, KIND, lostLine, resend, sleep } from './channel.js';
 import { Linking, Turns, converse, firstPart, inBox, same, surface } from './conversation.js';
 import { stripFormatting } from './grammar.js';
 import { RateLimit, Seen, allowed, defuse, gate, scrubOut } from './policy.js';
@@ -28,6 +32,10 @@ const CAP = 'edits';
 const FALLBACK = 'plan';
 const NAME = 'Slack';
 const MAX_TEXT = 3900; // Slack's advice: past 4000 a message is split or cut
+const MAX_SECTION = 3000;
+const MAX_BUTTONS = 25;
+const MAX_LABEL = 75;
+const ACTION = 'wisp:'; // whose buttons these are; the choice itself is in the signed value
 const BACKOFF_MAX_MS = 5 * 60_000;
 const HELLO_MS = 30_000;
 const POST_TRIES = 3;
@@ -37,14 +45,18 @@ export const NO_HUB = 'Slack can’t reach this computer: its grid doesn’t hol
 const STRANGER = 'This wisp only answers people linked to it. To link, send `link` and the code shown in wisp → Settings → Phone → Slack, here.';
 const NO_LIST = 'That list isn’t shown in a channel: see it in wisp, or ask here in a DM.';
 const NO_THREAD = 'Do that in a task’s thread.';
+const DEAD_BUTTON = 'That button doesn’t work any more.';
 // What won't change by trying again: new tokens or a new app setting are needed.
 const FOR_GOOD = new Set(['invalid_auth', 'not_authed', 'account_inactive', 'token_revoked', 'token_expired', 'no_permission', 'missing_scope', 'not_allowed_token_type', 'org_login_required', 'team_access_not_granted', 'link_disabled']);
 const FIX = 'Check the tokens in wisp → Settings → Phone → Slack.';
 const WRONG_SECRET = 'Slack’s signature doesn’t match the signing secret.';
+// Blocks Slack won't take: the words go without them.
+const NO_BLOCKS = new Set(['invalid_blocks', 'invalid_blocks_format', 'msg_blocks_too_long']);
 
 // The app to create at api.slack.com/apps → From a manifest. On a computer Socket Mode, so no URLs,
-// and the app-level token it then needs (xapp-…) takes the connections:write scope. url: a cloud
-// wisp's own, where Slack posts its events instead.
+// for clicks either, and the app-level token it then needs (xapp-…) takes the connections:write
+// scope. url: a cloud wisp's own, where Slack posts its events instead. Clicks there would need a
+// request URL of their own, which isn't built: a box shows no buttons (#buttons) and asks for none.
 export function slackManifest({ url = '' } = {}) {
   return {
     display_information: { name: 'wisp', description: 'Start and steer your wisp tasks from Slack.', background_color: '#1a1a1a' },
@@ -55,7 +67,7 @@ export function slackManifest({ url = '' } = {}) {
     oauth_config: { scopes: { bot: ['app_mentions:read', 'chat:write', 'chat:write.customize', 'im:history'] } },
     settings: {
       event_subscriptions: { ...(url && { request_url: url }), bot_events: ['app_mention', 'message.im'] },
-      interactivity: { is_enabled: false },
+      interactivity: { is_enabled: !url },
       org_deploy_enabled: false,
       socket_mode_enabled: !url,
       token_rotation_enabled: false,
@@ -66,7 +78,42 @@ export function slackManifest({ url = '' } = {}) {
 // Slack's markup for what leaves: `&<>` are its control characters, so escaping them is what stops
 // <!channel>, <@U1> and <url|text> working at all. Mentions as plain words go through defuse first.
 const escapeOut = (text) => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-export const slackText = (text) => truncate(escapeOut(defuse(scrubOut(text).text)), MAX_TEXT);
+export const slackText = (text) => truncate(escapeOut(defuse(scrubOut(text).text)), MAX_TEXT).replace(/&[a-z]{0,3}…$/, '…'); // no half an entity
+
+// Measured after the escaping, so an `&` can't push a label over the limit or be cut in two.
+const buttonLabel = (text, n = MAX_LABEL) => {
+  const out = slackText(truncate(text, n));
+  return out.length <= MAX_LABEL ? out : buttonLabel(text, n - 10);
+};
+
+// Text already through slackText, in sections Slack takes: at a line where one is near, and never
+// through an entity or a surrogate pair.
+function sections(text) {
+  const out = [];
+  for (let rest = text; rest; ) {
+    let cut = rest.length;
+    if (cut > MAX_SECTION) {
+      const line = rest.lastIndexOf('\n', MAX_SECTION);
+      const amp = rest.lastIndexOf('&', MAX_SECTION - 1);
+      cut = line > MAX_SECTION / 2 ? line : amp > MAX_SECTION - 5 ? amp : MAX_SECTION;
+      if (rest.charCodeAt(cut - 1) >= 0xd800 && rest.charCodeAt(cut - 1) < 0xdc00) cut--;
+    }
+    const part = rest.slice(0, cut);
+    if (part.trim()) out.push({ type: 'section', text: { type: 'mrkdwn', text: part, verbatim: true } });
+    rest = rest.slice(cut);
+  }
+  return out;
+}
+
+// A button's value: what wisp signed, or null.
+function signedButton(value) {
+  try {
+    const b = JSON.parse(value);
+    return typeof b?.s === 'string' && typeof b.r === 'string' && Number.isInteger(b.i) ? b : null;
+  } catch {
+    return null;
+  }
+}
 
 export class Slack extends Channel {
   constructor(hub) {
@@ -238,6 +285,7 @@ export class Slack extends Channel {
         }
         if (m.envelope_id) ws.send(JSON.stringify({ envelope_id: m.envelope_id })); // first, always
         if (m.type === 'events_api') this.#behind(m.payload);
+        if (m.type === 'interactive') this.interactive(m.payload);
       });
     });
   }
@@ -330,6 +378,60 @@ export class Slack extends Channel {
     return { status: 200, body: { ok: true, url } };
   }
 
+  // A click, already acked, wherever it came in: one parsed block_actions payload, the one shape
+  // Slack sends over this socket and over a request URL. In a thread's turn, so a click and a typed
+  // answer can't both take the same ask.
+  interactive(payload) {
+    const action = payload?.type === 'block_actions' ? payload.actions?.[0] : null;
+    if (!String(action?.action_id).startsWith(ACTION)) return undefined;
+    const chat = payload.container?.channel_id || payload.channel?.id;
+    const m = payload.message; // wisp's buttons are on messages it posted, never an ephemeral one
+    if (!chat || !m?.ts) return undefined;
+    const oops = (err) => {
+      console.warn(`wisp: slack: ${err.message}`);
+      this.mark({ error: err.message });
+    };
+    const root = m.thread_ts || m.ts;
+    return this.turns.queue(`${chat}:${root}`, () => this.#click({ payload, action, chat, root, m }), oops);
+  }
+
+  // --- what a click does ------------------------------------------------------------------------
+
+  async #click({ payload, action, chat, root, m }) {
+    const hub = this.hub;
+    const user = payload.user?.id;
+    const id = payload.trigger_id || action.action_ts;
+    const only = (t) => this.api('chat.postEphemeral', { channel: chat, user, thread_ts: root, text: slackText(t), parse: 'none', link_names: false });
+    const g = gate({ sender: user, senders: this.cfg.senders || [], id: id && `click:${id}`, at: Number(action.action_ts), seen: this.seen, limit: this.limit });
+    if (!g.ok) {
+      hub.phone.count?.('refused', g.why);
+      return g.reply ? only(g.reply) : undefined;
+    }
+    const b = signedButton(action.value);
+    // Only what #buttons offers: a signature from another channel's message isn't a button here.
+    if (!b || !['answer', 'reply'].includes(KIND[b.k]) || !hub.verify(b)) return only(DEAD_BUTTON);
+    // A reply starts a turn, and a button can't say which mode: that's for words, which are capped.
+    if (KIND[b.k] === 'reply' && !this.#canReply(b.s)) return only('Say that in words here, so it runs in Edits at most.');
+    let result;
+    try {
+      result = await hub.act({ sessionId: b.s, kind: KIND[b.k], ref: b.r, index: b.i, approvals: this.approvalsHere });
+    } catch (err) {
+      return only(`Couldn’t send that: ${truncate(err.message, 300)}`);
+    }
+    if (!result.startsWith('✓')) return only(result); // already answered, or gone
+    const line = `${slackText(result)} · <@${user}>`; // who: the id gate() let in, as Slack writes a name
+    const blocks = [...(m.blocks || []).filter((x) => x.type !== 'actions'), { type: 'context', elements: [{ type: 'mrkdwn', text: line, verbatim: true }] }];
+    await this.api('chat.update', { channel: chat, ts: m.ts, text: m.text || slackText(result), blocks, parse: 'none', link_names: false }).catch((err) => {
+      if (!err.code) throw err; // no network: a post wouldn't get through either
+      return this.api('chat.postMessage', this.#body(chat, root, line));
+    });
+  }
+
+  #canReply(id) {
+    const local = this.hub.store.get(id);
+    return !!local && local.mode !== 'auto';
+  }
+
   // --- what a message does ----------------------------------------------------------------------
 
   async #event(payload, e, key, now) {
@@ -403,8 +505,23 @@ export class Slack extends Channel {
 
   // --- what leaves ------------------------------------------------------------------------------
 
-  async #post(chat, ts, text, { by = '' } = {}) {
-    const body = { channel: chat, thread_ts: ts, text: slackText(text), mrkdwn: true, parse: 'none', link_names: false, unfurl_links: false, unfurl_media: false }; // unfurling fetches URLs an agent wrote
+  // text: as it goes, through slackText.
+  #body(chat, ts, text) {
+    return { channel: chat, thread_ts: ts, text, mrkdwn: true, parse: 'none', link_names: false, unfurl_links: false, unfurl_media: false }; // unfurling fetches URLs an agent wrote
+  }
+
+  async #post(chat, ts, text, { by = '', buttons = [] } = {}) {
+    const body = this.#body(chat, ts, slackText(text));
+    if (!buttons.length) return this.#send(body, by);
+    try {
+      return await this.#send({ ...body, blocks: [...sections(body.text), { type: 'actions', elements: buttons }] }, by);
+    } catch (err) {
+      if (!NO_BLOCKS.has(err.code)) throw err;
+      return this.#send(body, by);
+    }
+  }
+
+  async #send(body, by) {
     if (by && this.customize) {
       try {
         return await this.api('chat.postMessage', { ...body, username: by, icon_emoji: ':robot_face:' });
@@ -430,8 +547,20 @@ export class Slack extends Channel {
     const by = this.hub.startedFrom(s)?.by;
     const wait = this.waiting(s);
     if (wait === '') return;
-    await this.#post(t.channel, t.ts, wait ?? this.#report(msg, s, t, by), { by });
+    await this.#post(t.channel, t.ts, wait ?? this.#report(msg, s, t, by), { by, buttons: wait === null ? this.#buttons(msg, s) : [] });
     this.hub.phone.count?.('report', 'full');
+  }
+
+  // One per choice. `Mark done` is no choice, and past the cap they're left to the Choices line.
+  #buttons(msg, s) {
+    if (inBox()) return []; // a click can't reach a box yet: see slackManifest
+    const choices = (msg.actions || []).filter((a) => a.kind === 'answer' || (a.kind === 'reply' && this.#canReply(s.id)));
+    return choices.slice(0, MAX_BUTTONS).map((a) => ({
+      type: 'button',
+      action_id: `${ACTION}${a.index}`,
+      text: { type: 'plain_text', text: buttonLabel(a.label || 'OK') },
+      value: JSON.stringify({ k: CODE[a.kind], s: s.id, r: a.ref, i: a.index, sig: this.hub.sign(s.id, a.kind, a.ref, a.index) }),
+    }));
   }
 
   #report(msg, s, t, by) {

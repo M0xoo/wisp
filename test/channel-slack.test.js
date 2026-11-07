@@ -766,7 +766,7 @@ test('a stranger’s click does nothing and says nothing; the ask stays open for
   assert.ok(fake.acks.includes(env.envelope_id), 'acked: Slack would resend it');
   assert.equal(fake.ephemeral.length, all);
   assert.equal(fake.updates.length, before);
-  assert.equal(inThread(m.thread).length, count + 2, 'only the help this test asked for');
+  assert.equal(inThread(m.thread).length, count + 1, 'only the help this test asked for');
   assert.ok(await nowOpen(s.id));
   fake.click(post, 0, { trigger_id: env.payload.trigger_id }); // the same trigger, from you: a stranger's burns nothing
   await until(() => fake.updates.length > before, { what: 'the message updated' });
