@@ -158,7 +158,7 @@ export function limiter() {
 
 // --- the grid ------------------------------------------------------------------------------
 
-export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
+export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt } = {}) {
   const db = await openDb(cfg.dataDir);
   if (cfg.auth.dev) ensureMaster(cfg.dataDir);
   const secrets = createSecrets(db, { dataDir: cfg.dataDir });
@@ -242,7 +242,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       up.end(data);
     });
   const inbox = createInbox({ db, cfg, secrets, accounts, hostd, deliver: toBox, delivered: (row) => row.channel === 'email' && mail?.delivered(row), log });
-  const mail = inbox.on && cfg.mail ? createMail({ db, cfg, inbox, accounts, log }) : null;
+  const mail = inbox.on && cfg.mail ? createMail({ db, cfg, inbox, accounts, log, resolveTxt }) : null;
   hostd.on('change', (e) => {
     if (shut) return;
     if (e.state === 'running' && !e.user.sandbox) inbox.drain(e.user);

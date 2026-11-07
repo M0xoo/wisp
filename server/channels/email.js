@@ -4,9 +4,10 @@
 // address, and nothing here runs on one.
 //
 // Who a message is from comes only from the x-wisp-mail-* headers: the grid wrote those, and they
-// reach this code beside the message, never in it. A DMARC pass and the one allowed sender, or a 403
-// and silence: an answer to a forged From would land on the person it was forged from, and that 403
-// is what tells the grid nobody wanted the wake.
+// reach this code beside the message, never in it. A verdict of 'pass' (the grid verified a DKIM
+// signature by the From's own domain) and the one allowed sender, or a 403 and silence: an answer to a
+// forged From would land on the person it was forged from, and that 403 is what tells the grid nobody
+// wanted the wake.
 //
 // Only what a person just wrote is read: quotes and signatures go first, so a command in an earlier
 // message can't run again. A reply to a task follows that task and never reads the subject, and a
@@ -167,6 +168,7 @@ export class Email extends Channel {
   async inbound(raw, headers = {}, { at: taken } = {}) {
     if (!this.ready) return { status: 409, body: { error: 'Email isn’t on here.' } };
     const [from, id] = [headers[FROM], headers[ID]];
+    if (headers[DMARC] === 'unproved') return this.#refused('dkim', 'No signature proves who it’s from.');
     if (headers[DMARC] !== 'pass') return this.#refused('dmarc', 'No DMARC pass.');
     if (typeof from !== 'string' || !from || typeof id !== 'string' || !id) return this.#refused('dmarc', 'Nobody it’s certainly from.');
     let m;

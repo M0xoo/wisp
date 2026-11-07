@@ -5,16 +5,20 @@
 // Two things sit here because a box can't be trusted with them:
 //   - Who a message is from. The provider's webhook is checked at this edge, and only this file
 //     writes the x-wisp-mail-* headers a box goes by. They reach it over the proxy secret, beside
-//     the message and never in it, so nothing a sender writes can pass for a verdict.
+//     the message and never in it, so nothing a sender writes can pass for a verdict. 'pass' means
+//     proved: the provider didn't fail DMARC, and a DKIM signature this grid verified itself
+//     (grid/dkim.js) has d= equal to the From's domain. A message here can start an agent on someone's
+//     computer, so whatever can't be proved is refused, whichever mail provider it came from.
 //   - Who a box can write to. The Box secret can be read by anything on the box, so sending takes no
-//     address: only a held thread, which exists once its box accepted a message with a DMARC pass
-//     (a 2xx), at a rate, to the address that message came from. A stranger's refused mail holds
-//     nothing, so no one can make themselves a target by writing in.
+//     address: only a held thread, which exists once its box accepted a proved message (a 2xx), at a
+//     rate, to the address that message came from. A stranger's refused mail holds nothing, so no one
+//     can make themselves a target by writing in.
 // The allowed sender itself is the box's own setting (server/channels/email.js).
 //
-// A provider is a row of INBOUND: read(raw) → null (refused), { confirm: url }, or
-// { recipients, verdict, content, source }, where verdict is 'pass' or why not. A sender is a row of
-// OUTBOUND: send({ from, to, raw }). SES over SNS is the one of each:
+// A provider is a row of INBOUND: read(raw) → null (refused), { confirm: url }, or { recipients,
+// verdict, content, source, exact, named }: verdict is 'unproved' or why not, content the message,
+// exact whether those are its bytes as sent, named who the provider read as its From, if it says. A
+// sender is a row of OUTBOUND: send({ from, to, raw }). SES over SNS is the one of each:
 //   - It signs the whole message, not a timestamp, and it's the provider with a DMARC verdict of its own.
 //   - Trust comes from AWS's key, fetched from sns.<region>.amazonaws.com, or pinned in grid.json
 //     (inbound.keys), and from the topic: anyone can get SNS to sign for their own topic, so a
@@ -23,6 +27,7 @@
 
 import { createHash, createHmac, createPublicKey, createVerify, randomBytes } from 'node:crypto';
 import { scrubOut } from '../server/channels/policy.js';
+import { headerFields, verifyDkim } from './dkim.js';
 
 export const MAIL_PATH = /^\/_mail\/([a-z]+)$/;
 export const FROM_HEADER = 'x-wisp-mail-from';
@@ -33,8 +38,9 @@ const WEBHOOK_MAX = 512 * 1024;
 const SIGNED_MAX_AGE_MS = 15 * 60_000; // SNS's own retries are over in seconds
 const TEXT_MAX = 64 * 1024; // of what's kept of a message: the held row has 256 KB
 const HTML_MAX = 128 * 1024;
-const REPLY_MAX = 40 * 1024; // the box stops at 30 000 characters
+const REPLY_MAX = 40 * 1024; // bytes: the box stops at 30 000 of them, and adds a line
 const SUBJECT_MAX = 200;
+const LINE_MAX = 78; // RFC 5322's soft limit, for a header wisp folds
 const REFS_MAX = 20;
 const THREADS_MAX = 100; // per user
 const CERTS_MAX = 8;
@@ -102,9 +108,12 @@ const encodedWords = (s) =>
     .replace(/=\?([^?\s]+)\?([bq])\?([^?\s]*)\?=/gi, (_, cs, how, data) => decodeText(how.toLowerCase() === 'b' ? Buffer.from(data, 'base64') : unencode(data.replace(/_/g, ' '), 'quoted-printable'), cs));
 
 // One part and what's inside it. Text in a part with a filename is an attachment, whatever its type.
-function walk(s, out, depth = 0) {
+function walk(s, out, depth) {
   const [head, body] = splitPart(s);
-  const list = headerList(head);
+  walkPart(headerList(head), body, out, depth);
+}
+
+function walkPart(list, body, out, depth = 0) {
   const type = withParams(first(list, 'content-type') || 'text/plain');
   const place = withParams(first(list, 'content-disposition'));
   if (type.value.startsWith('multipart/') && type.boundary && depth < 8) {
@@ -132,18 +141,27 @@ function walk(s, out, depth = 0) {
   out[key] ||= decodeText(unencode(body, first(list, 'content-transfer-encoding')), type.charset);
 }
 
-// The one mailbox of a From, or ''. Strict on purpose: DMARC vouches for a domain some parser picked
-// out of this header, and two parsers must not be able to disagree on who that was. So one address,
-// no groups, no comments, and a quoted name is only ever a name.
-function senderOf(list) {
-  const froms = list.filter(([n]) => n === 'from');
-  if (froms.length !== 1) return '';
-  const value = froms[0][1].replace(/"(?:[^"\\]|\\.)*"/g, '').trim();
+// The one mailbox in a From's value, or ''. Strict on purpose: two parsers must not be able to disagree
+// on who that was. So one address, no groups, no comments, and a quoted name is only ever a name; one
+// with an angle bracket in it reads as an address to somebody, so that's nobody.
+function mailbox(from) {
+  const names = from.match(/"(?:[^"\\]|\\.)*"/g) || [];
+  if (names.some((n) => /[<>]/.test(n))) return '';
+  const value = names.reduce((v, n) => v.replace(n, ''), from).trim();
   const m = /^[^<>,;:()@"]*<([^<>\s]+)>$/.exec(value) || /^([^<>\s]+)$/.exec(value);
   const addr = m?.[1].toLowerCase() ?? '';
   return ADDRESS.test(addr) ? addr : '';
 }
 
+function senderOf(list) {
+  const froms = list.filter(([n]) => n === 'from');
+  if (froms.length !== 1) return '';
+  // What wisp reads from a message appears once, or a copy added above a signed one could be read
+  // in its place: a signature covers the lowest instance, and `first` takes the highest.
+  return ONCE.some((name) => list.filter(([n]) => n === name).length > 1) ? '' : mailbox(froms[0][1]);
+}
+
+const ONCE = ['subject', 'date', 'message-id', 'in-reply-to', 'references'];
 const ids = (v) => (String(v).match(/<[^\s<>]+>/g) || []).filter((x) => MSG_ID.test(x));
 
 // Written by a machine: it must never get an answer, or two of them mail each other all week.
@@ -154,11 +172,10 @@ function automatic(list) {
 
 // raw (a Buffer) → what the rest of wisp reads of a message.
 export function parseMail(raw) {
-  const s = Buffer.from(raw).toString('latin1');
-  const [head] = splitPart(s);
-  const list = headerList(head);
+  const section = headerFields(Buffer.from(raw).toString('latin1'));
+  const list = (section?.fields ?? []).map((f) => [f.name, f.raw.slice(f.raw.indexOf(':') + 1).split('\r\n').map((l) => l.trim()).join(' ').trim()]);
   const out = { text: '', html: '', attachments: 0 };
-  walk(s, out);
+  if (section) walkPart(list, section.body, out);
   const claimed = list.filter(([n]) => n === 'message-id');
   const messageId = claimed.length === 1 && MSG_ID.test(claimed[0][1]) ? claimed[0][1] : '';
   return {
@@ -221,14 +238,13 @@ async function fetchKey(url) {
   return r.text();
 }
 
-// SES's verdict in one word. DMARC is pass or fail on an aligned SPF or DKIM, but SES says GRAY for a
-// domain with no policy or p=none, gmail.com and outlook.com among them, aligned or not. A dkimVerdict
-// of PASS is, by SES's own definition of its GRAY, a signature by the From's domain: that's an aligned
-// pass, whatever policy the domain publishes. GRAY by SPF alone isn't: SPF's domain is the envelope's.
+// SES's verdict in one word, and it's never 'pass': SES can refuse a message, not prove one. It says
+// GRAY for a domain with no policy or p=none, gmail.com among them, aligned or not; its dkimVerdict
+// never says which domain signed; and its DMARC PASS can rest on SPF, whose domain is the envelope's.
+// So PASS and GRAY are 'unproved' until the webhook finds a signature by the From's own domain.
 export function sesVerdict(receipt) {
   const dmarc = receipt?.dmarcVerdict?.status;
-  if (dmarc === 'PASS') return 'pass';
-  if (dmarc === 'GRAY') return receipt?.dkimVerdict?.status === 'PASS' ? 'pass' : 'gray';
+  if (dmarc === 'PASS' || dmarc === 'GRAY') return 'unproved';
   if (dmarc === 'FAIL') return 'fail';
   return dmarc ? 'failed' : 'none';
 }
@@ -280,7 +296,8 @@ export function sesInbound({ topicArn, keys = [] }, { fetchCert = fetchKey, now 
       }
       const action = m?.receipt?.action;
       if (m?.notificationType !== 'Received' || action?.type !== 'SNS' || typeof m.content !== 'string' || !Array.isArray(m.receipt.recipients)) return null;
-      return { recipients: m.receipt.recipients.map(String), verdict: sesVerdict(m.receipt), source: String(m.mail?.source ?? ''), content: Buffer.from(m.content, action.encoding === 'BASE64' ? 'base64' : 'utf8') };
+      const exact = action.encoding === 'BASE64'; // UTF8 may have changed bytes a signature covers
+      return { recipients: m.receipt.recipients.map(String), verdict: sesVerdict(m.receipt), source: String(m.mail?.source ?? ''), content: Buffer.from(m.content, exact ? 'base64' : 'utf8'), exact, named: m.mail?.commonHeaders?.from };
     },
     // SNS waits for this GET before it sends anything.
     confirm: (url) => fetch(url, { redirect: 'error', signal: AbortSignal.timeout(10_000) }),
@@ -313,7 +330,10 @@ const OUTBOUND = { ses: sesSender };
 
 // --- the grid's side -------------------------------------------------------------------------------
 
-export function createMail({ db, cfg, inbox, accounts, log = () => {} }) {
+// Whether the provider's own reading of From, if it gave one, is the one address we read.
+const sameSender = (named, from) => named == null || (Array.isArray(named) && named.length === 1 && mailbox(String(named[0])) === from);
+
+export function createMail({ db, cfg, inbox, accounts, log = () => {}, resolveTxt }) {
   const opts = { ...DEFAULTS, ...cfg.mail };
   const provider = INBOUND[opts.inbound.provider](opts.inbound);
   const sender = OUTBOUND[opts.outbound.provider](opts.outbound);
@@ -323,9 +343,20 @@ export function createMail({ db, cfg, inbox, accounts, log = () => {} }) {
     return rcpt.slice(at + 1).toLowerCase() === domain ? rcpt.slice(0, at).toLowerCase() : '';
   };
 
-  // One recipient's copy. What can't be answered, or that nobody would want woken for, stops here.
-  function take(user, m, verdict, source) {
-    if (m.auto || !source || source === '<>' || m.from.endsWith(`@${domain}`)) return;
+  // What can't be answered, or that nobody would want woken for, stops here.
+  const wanted = (m, source) => !m.auto && !!source && source !== '<>' && !m.from.endsWith(`@${domain}`);
+
+  // 'pass', or why not. d= has to be the From's domain exactly: relaxed alignment needs the public
+  // suffix list, and that's a dependency. So a From on a subdomain of its signer is refused.
+  async function proved(got, m) {
+    if (got.verdict !== 'unproved' || !got.exact || !m.from || !sameSender(got.named, m.from)) return got.verdict;
+    const domainOfFrom = m.from.slice(m.from.lastIndexOf('@') + 1);
+    const signatures = await verifyDkim(got.content, { resolveTxt });
+    return signatures.some((s) => s.ok && s.d === domainOfFrom) ? 'pass' : 'unproved';
+  }
+
+  // One recipient's copy.
+  function take(user, m, verdict) {
     const headers = { [FROM_HEADER]: m.from, [DMARC_HEADER]: verdict, [ID_HEADER]: m.messageId };
     inbox.hold(user, 'email', Buffer.from(JSON.stringify({ messageId: m.messageId, subject: m.subject, text: m.text, html: m.html, date: m.date, inReplyTo: m.inReplyTo, references: m.references, attachments: m.attachments })), headers);
   }
@@ -347,10 +378,15 @@ export function createMail({ db, cfg, inbox, accounts, log = () => {} }) {
         return { status: 200, body: { ok: true } };
       }
       const m = parseMail(got.content);
-      for (const rcpt of new Set(got.recipients.map(local).filter(Boolean))) {
+      const users = [...new Set(got.recipients.map(local).filter(Boolean))].map((rcpt) => {
         const hit = inbox.byAddress(rcpt);
-        const user = hit && accounts.userById(hit.user_id);
-        if (user && !user.disabled) take(user, m, got.verdict, got.source);
+        return hit && accounts.userById(hit.user_id);
+      });
+      const real = users.filter((u) => u && !u.disabled);
+      // Last, so neither a stranger's guess at an address nor a forged webhook costs a DNS lookup.
+      if (real.length && wanted(m, got.source)) {
+        const verdict = await proved(got, m);
+        for (const user of real) take(user, m, verdict);
       }
       return { status: 200, body: { ok: true } };
     },
