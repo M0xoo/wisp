@@ -8,7 +8,7 @@
 // (s.remote.routed), and its report goes back through the grid under that.
 
 import { truncate } from '../util.js';
-import { Channel } from './channel.js';
+import { Channel, resend } from './channel.js';
 import { parseMessage } from './grammar.js';
 import { refusal } from './lists.js';
 import { RateLimit, Seen, capMode, defuse, gate, scrubOut } from './policy.js';
@@ -42,7 +42,13 @@ export class Routed extends Channel {
   async publish(msg, s) {
     const wait = this.waiting(s);
     if (wait === '') return;
-    await this.hub.phone.gridReply(s.remote.routed, clean(wait ?? `${msg.title}\n\n${msg.text}`));
+    const text = clean(wait ?? `${msg.title}\n\n${msg.text}`);
+    // gridJson says a broken connection with a 502, where resend looks for fetch's TypeError.
+    await resend(() =>
+      this.hub.phone.gridReply(s.remote.routed, text).catch((err) => {
+        throw err.status === 502 ? new TypeError(err.message) : err;
+      }),
+    );
   }
 
   threadStarted(s, thread, by) {

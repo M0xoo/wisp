@@ -682,6 +682,28 @@ test('a follow-up: a reply to what the grid sent goes back to that computer, in 
   assert.equal(g.got(ada).length, 0);
 });
 
+test('a report whose post broke goes again; one the grid refused doesn’t', async () => {
+  const { Routed } = await import('../server/channels/routed.js');
+  const broken = Object.assign(new Error('Couldn’t reach the grid: socket hang up'), { status: 502 });
+  const channel = (answers) => {
+    const tries = [];
+    const hub = { phone: { gridReply: async (ref, text) => {
+      tries.push({ ref, text });
+      const a = answers.shift();
+      if (a) throw a;
+    } }, store: {} };
+    return { c: new Routed(hub), tries };
+  };
+  const s = { id: 't', remote: { routed: 'th.sig' } };
+  const once = channel([broken, broken]);
+  await once.c.publish({ title: '✅ Done', text: 'It works.' }, s);
+  assert.equal(once.tries.length, 3);
+  assert.equal(once.tries[2].ref, 'th.sig');
+  const gone = channel([Object.assign(new Error('No such thread.'), { status: 404 })]);
+  await assert.rejects(gone.c.publish({ title: 'x', text: 'y' }, s), /No such thread/);
+  assert.equal(gone.tries.length, 1);
+});
+
 // --- a real wisp at the far end -------------------------------------------------------------------
 
 // Signed in to the grid and on it, as Machines → Reach this computer from anywhere does it.
