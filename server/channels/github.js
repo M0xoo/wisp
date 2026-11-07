@@ -250,7 +250,7 @@ export class Github extends Channel {
     this.hub.store.saveConfig();
     const number = Number(/\/issues\/(\d+)$/.exec(c.issue_url || '')?.[1]);
     if (!g.ok) {
-      this.hub.phone.count?.('refused', g.why);
+      if (g.why !== 'duplicate') this.hub.phone.count?.('refused', g.why); // the cursor's own second comes back on every look
       if (g.reply && number) await this.#post(repo, number, g.reply);
       return;
     }

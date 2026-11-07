@@ -700,13 +700,13 @@ test('signed out: nobody may speak, and the view says why', async () => {
   write();
   await sleep(200); // a call already out comes back first
   ch.me = null;
-  const n = nextIssue();
-  comment(n, '/wisp while signed out');
   const v = await until(async () => {
     const x = await api('/remote');
     return /gh auth login/.test(x.github.error) ? x : null;
   });
   assert.equal(v.github.login, '');
+  const n = nextIssue();
+  comment(n, '/wisp while signed out');
   await sleep(200);
   assert.equal(tasksOn(n).length, 0);
   delete state.signedOut;
@@ -742,7 +742,7 @@ test('switched off, it stops looking; on again it starts from now', async () => 
   const a = count();
   const n = nextIssue();
   comment(n, '/wisp said while it was off');
-  await sleep(300);
+  await sleep(1100);
   assert.equal(count(), a, 'no calls while off');
   await api('/remote', { method: 'PUT', body: { github: { enabled: true } } });
   await watching();
