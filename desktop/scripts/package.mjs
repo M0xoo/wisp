@@ -42,7 +42,7 @@ export function overlay(triple) {
       targets: mac ? ['app'] : ['nsis'],
       resources: { 'stage/app/': mac ? 'app/' : 'resources/app/', 'stage/node/': 'node/' },
       // %LOCALAPPDATA%, so the updater can replace it without admin rights (as electron-builder.yml).
-      ...(mac ? {} : { windows: { nsis: { installMode: 'currentUser' } } }),
+      ...(mac ? {} : { windows: { nsis: { installMode: 'currentUser', installerHooks: 'installer-hooks.nsh' } } }),
     },
   };
 }

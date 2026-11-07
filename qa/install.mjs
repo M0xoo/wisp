@@ -1,6 +1,6 @@
 // Install gate: every way into wisp, on real artefacts. Scenarios: qa/scenarios/install.md.
 //
-//   node qa/install.mjs [--artefacts dist/tauri] [--only npm,script,brew,app,links]
+//   node qa/install.mjs [--artefacts dist/tauri] [--only npm,script,brew,app,links] [--old-electron <wisp-mac-<arch>.zip>]
 //
 // Nothing is published and nothing of yours is touched: npm installs go to temp prefixes from `npm
 // pack`'s tarball, install.sh reads a registry and a release folder served from this process, HOME
@@ -26,6 +26,7 @@ const argOf = (name, fallback) => {
   return i > 0 ? process.argv[i + 1] : fallback;
 };
 const ARTEFACTS = path.resolve(argOf('--artefacts', path.join(ROOT, 'dist/tauri')));
+const OLD_ELECTRON = argOf('--old-electron');
 const ONLY = argOf('--only', 'npm,script,brew,app,links').split(',');
 const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const [MAC, WIN] = [process.platform === 'darwin', process.platform === 'win32'];
@@ -416,24 +417,123 @@ async function macRows() {
     sh('/usr/bin/open', ['-n', ...pass, app]);
   });
 
+  // Finder hands an app launchd's environment. `open` passes on its own, so it starts from nothing:
+  // agents can only come from the login shell, and HOME is a temp one or they'd be found in ~/.local.
+  const e = nextPort++;
+  await check('INST-15c', 'as Finder starts it: launchd’s PATH, no node, agents from the login shell', async () => {
+    const { env, bins, home } = qaEnv({});
+    const user = dirIn('finder-home');
+    // A login shell of our own: a hosted Mac's zsh doesn't read a temp HOME's .zshrc.
+    const login = path.join(user, 'login-shell');
+    fs.writeFileSync(login, `#!/bin/sh\nprintf '__WISP__%s__WISP__' "${bins}:$PATH"\n`, { mode: 0o755 });
+    const pass = [`SHELL=${login}`, `HOME=${user}`, `WISP_HOME=${home}`, `WISP_PORT=${e}`, 'WISP_TELEMETRY=0', 'WISP_FEEDBACK=0', 'WISP_UPDATE_CHECK=0', `CLAUDE_CONFIG_DIR=${env.CLAUDE_CONFIG_DIR}`];
+    sh('/usr/bin/env', ['-i', `HOME=${user}`, '/usr/bin/open', '-n', ...pass.flatMap((p) => ['--env', p]), app]);
+    const h = await up(e, 'the app');
+    const shell = shellOf(h.pid);
+    try {
+      const path0 = sh('ps', ['eww', '-o', 'command=', '-p', String(shell)]).match(/ PATH=(\S+)/)?.[1] || '';
+      ok(!path0.includes(bins) && !/nvm|homebrew/.test(path0), `the shell's PATH is ${path0}`);
+      ok(/\/Contents\/Resources\/node\/bin\/node$/.test(sh('ps', ['-o', 'comm=', '-p', String(h.pid)]).trim()), 'not on the bundled Node');
+      ok((await getUpdate(e)).method === 'app', 'update method');
+      const saved = path.join(user, 'Library/Application Support/dev.wisp.app/shell-path');
+      const look = async () => (await (await fetch(`http://127.0.0.1:${e}/api/agents`)).json()).find((x) => x.id === 'claude');
+      await until(async () => (await look())?.available, { timeout: 20_000, what: 'claude, from the login shell' }).catch(async (err) => {
+        throw new Error(`${err.message}. Saved PATH: ${fs.existsSync(saved) ? fs.readFileSync(saved, 'utf8') : '(none)'}. Agent: ${JSON.stringify(await look())}`);
+      });
+    } finally {
+      process.kill(shell, 'SIGKILL');
+    }
+    await down(e);
+  });
+
+  await check('INST-19', 'run as Electron’s helper, the shell is Node', () => {
+    const said = sh(path.join(app, 'Contents/MacOS/wisp'), ['-p', 'process.version'], { env: { ...clean(0), ELECTRON_RUN_AS_NODE: '1' } }).trim();
+    ok(said === `v${NODE_VERSION}`, said);
+  });
+
   // Tauri won't say where its resources are when the path holds a symlink.
   const d = nextPort++;
   const linked = path.join(dirIn('linked'), 'Apps');
   fs.symlinkSync(installed, linked);
   await launchChecks('INST-17', 'the .app reached through a symlinked folder', d, () => start(path.join(linked, 'wisp.app/Contents/MacOS/wisp'), [], clean(d)));
 
+  // This build under a newer version, as a zip a release could hold.
+  const [ma, mi, pa] = PKG.version.split('-')[0].split('.').map(Number);
+  const version = `${ma}.${mi}.${pa + 1}`;
+  const up2 = dirIn('newer');
+  const bump = dirIn('bump');
+  sh('ditto', [app, path.join(bump, 'wisp.app')]);
+  const pkg = path.join(bump, 'wisp.app/Contents/Resources/app/package.json');
+  fs.writeFileSync(pkg, JSON.stringify({ ...JSON.parse(fs.readFileSync(pkg, 'utf8')), version }, null, 2));
+  sh('codesign', ['--force', '--sign', '-', path.join(bump, 'wisp.app')]);
+  sh('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', path.join(bump, 'wisp.app'), path.join(up2, zip)]);
+
+  // The app's own update, end to end: POST /api/update inside the running app, its own hand-off, the
+  // real `open`. One line differs from a user's copy: RELEASES, patched in the installed app so the
+  // release list comes from here. The Electron build is the rule that matters: its update.js is out
+  // there and can't change, and after the swap its process.execPath is the Tauri binary.
+  const updateInApp = (id, title, unpacked, args = []) =>
+    check(id, title, async () => {
+      const port = nextPort++;
+      const [apps, home, tmp, stubs, data] = ['apps', 'home', 'tmp', 'stubs', 'data'].map(dirIn);
+      sh('ditto', [unpacked, path.join(apps, 'wisp.app')]);
+      const copy = path.join(apps, 'wisp.app');
+      const code = path.join(copy, 'Contents/Resources/app/server/update.js');
+      const was = fs.readFileSync(code, 'utf8');
+      const patched = was.replace(/const RELEASES = '[^']+';/, 'const RELEASES = process.env.QA_RELEASES;');
+      ok(patched !== was, 'RELEASES has moved');
+      fs.writeFileSync(code, patched);
+      sh('codesign', ['--force', '--deep', '--sign', '-', copy]);
+
+      const body = fs.readFileSync(path.join(up2, zip));
+      const digest = `sha256:${sha256(path.join(up2, zip))}`;
+      const releases = http.createServer((req, res) => res.end(req.url === `/${zip}` ? body : JSON.stringify({ tag_name: `v${version}`, assets: [{ name: zip, browser_download_url: `http://127.0.0.1:${releases.address().port}/${zip}`, digest }] })));
+      await new Promise((r) => releases.listen(0, '127.0.0.1', r));
+      const wanted = { QA_RELEASES: `http://127.0.0.1:${releases.address().port}`, WISP_PORT: String(port), WISP_HOME: data, WISP_TELEMETRY: '0', WISP_FEEDBACK: '0', DO_NOT_TRACK: '1' };
+      // `open` is the real one and hands on this test's port and home, or the new app would take 4477.
+      // .zshrc, not .zshenv: path_helper reorders PATH after that, and Electron takes the login shell's.
+      const log = path.join(stubs, 'opened');
+      fs.writeFileSync(path.join(stubs, 'open'), `#!/bin/sh\necho "$@" >> "${log}"\nexec /usr/bin/open ${Object.entries(wanted).map(([k, v]) => `--env ${k}=${v}`).join(' ')} "$@"\n`, { mode: 0o755 });
+      fs.writeFileSync(path.join(home, '.zshrc'), `export PATH="${stubs}:$PATH"\n`);
+      const first = start(path.join(copy, 'Contents/MacOS/wisp'), args.map((a) => a.replace('%DATA%', data)), { ...wanted, HOME: home, SHELL: '/bin/zsh', TMPDIR: tmp, PATH: `${stubs}:${noNode}` });
+      await up(port, 'the old app');
+      await sleep(1500); // the login shell's PATH lands behind the server's start
+      const offer = await until(async () => {
+        const u = await (await fetch(`http://127.0.0.1:${port}/api/update?check=1`)).json();
+        return u.available && u;
+      }, { timeout: 20_000, what: 'the update on offer' });
+      ok(offer.method === 'app', `method ${offer.method}`);
+      const r = await fetch(`http://127.0.0.1:${port}/api/update`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      ok(r.status === 202, `POST /api/update: ${r.status} ${await r.text()}`);
+      const fresh = await until(() => health(port).then((x) => x.version === version && x, () => null), { timeout: 60_000, every: 200, what: `wisp ${version} on ${port}` }).catch((err) => {
+        const procs = sh('ps', ['-axo', 'pid,ppid,command']).split('\n').filter((l) => l.includes(apps)).map((l) => l.slice(0, 120));
+        throw new Error(`${err.message}. Opened: ${fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim() : '(never)'}. Running: ${procs.join(' | ') || 'nothing'}`);
+      });
+      const shell = shellOf(fresh.pid);
+      try {
+        ok(fs.existsSync(log) && fs.readFileSync(log, 'utf8').trim() === copy, 'the hand-off never reached open');
+        ok(sh('ps', ['-o', 'comm=', '-p', String(fresh.pid)]).trim() === path.join(copy, 'Contents/Resources/node/bin/node'), 'not on the new bundle’s Node');
+        ok(!/ELECTRON_RUN_AS_NODE/.test(sh('ps', ['eww', '-o', 'command=', '-p', String(fresh.pid)])), 'ELECTRON_RUN_AS_NODE reached the new app');
+        ok(!fs.readdirSync(tmp).some((d) => fs.existsSync(path.join(tmp, d, 'old.app'))), 'the old bundle stayed');
+        await until(() => !alive(first.pid), { timeout: 15_000, what: 'the old app to go' }); // a sync call may have held its exit back
+        ok((await getUpdate(port)).method === 'app', 'the new app isn’t the app');
+      } finally {
+        process.kill(shell, 'SIGKILL');
+        releases.close();
+      }
+      await down(port);
+    });
+
+  await updateInApp('INST-16b', 'self-update from inside the running app, through POST /api/update and the real open', app);
+  if (OLD_ELECTRON) {
+    const old = dirIn('electron');
+    sh('ditto', ['-xk', OLD_ELECTRON, old]);
+    await updateInApp('INST-18', `Electron→Tauri: a real Electron wisp.app (${path.basename(OLD_ELECTRON)}) updates onto this zip`, path.join(old, 'wisp.app'), ['--user-data-dir=%DATA%/electron']);
+  } else notRun.push(['Electron→Tauri self-update', 'no --old-electron <zip>: a Mac build of Electron, any version older than this one']);
+
   // The real swap, on the real app, from a real newer zip. Only the release list is stood in for.
   const c = nextPort++;
   await check('INST-16', 'self-update: the running app swaps itself for a newer build and reopens', async () => {
-    const bump = dirIn('bump');
-    sh('ditto', [app, path.join(bump, 'wisp.app')]);
-    const [ma, mi, pa] = PKG.version.split('-')[0].split('.').map(Number);
-    const version = `${ma}.${mi}.${pa + 1}`;
-    const pkg = path.join(bump, 'wisp.app/Contents/Resources/app/package.json');
-    fs.writeFileSync(pkg, JSON.stringify({ ...JSON.parse(fs.readFileSync(pkg, 'utf8')), version }, null, 2));
-    sh('codesign', ['--force', '--sign', '-', path.join(bump, 'wisp.app')]);
-    const up2 = dirIn('newer');
-    sh('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', path.join(bump, 'wisp.app'), path.join(up2, zip)]);
     const s = await serveDir(up2);
     const body = `http://127.0.0.1:${s.address().port}/${zip}`;
     const digest = `sha256:${sha256(path.join(up2, zip))}`;
@@ -483,7 +583,23 @@ async function windowsRows() {
   await check('INST-21', 'the installed app: server on the bundled Node, the updater calls it the app', async () => {
     const env = machine({ WISP_PORT: String(port) }, { withNode: false });
     start(exe, [], env);
-    const h = await up(port, 'the app');
+    // If it doesn't come up: what the shell kept, what's running, and its Node by hand, watched from inside.
+    const h = await up(port, 'the app').catch(async (err) => {
+      const log = path.join(process.env.APPDATA, 'dev.wisp.app/server.log');
+      const kept = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').slice(-1500) : '(no server.log)';
+      const running = sh('tasklist').split('\n').filter((l) => /^(wisp|node)\.exe/i.test(l)).map((l) => l.split(/\s+/).slice(0, 2).join(' ')).join(', ');
+      sh('taskkill', ['/F', '/T', '/IM', 'wisp.exe']);
+      const node = path.join(dir, 'node/node.exe');
+      const probe = `data:text/javascript,setInterval(()=>process.stderr.write('tick '+Math.round(process.uptime())+' '+process.report.getReport().libuv.filter((h)=>h.is_active).map((h)=>h.type+(h.localEndpoint?':'+h.localEndpoint.port:'')).join(' ')+'\\n'),4000).unref()`;
+      const said = [];
+      const child = spawn(node, ['--import', probe, path.join(dir, 'resources/app/desktop/entry.mjs')], { cwd: path.join(dir, 'resources/app'), env: { ...env, WISP_DESKTOP: 'tauri', WISP_DESKTOP_DATA: path.join(dir, 'data') }, stdio: ['pipe', 'pipe', 'pipe'] });
+      child.stdout.on('data', (d) => said.push(String(d)));
+      child.stderr.on('data', (d) => said.push(String(d)));
+      const code = await Promise.race([new Promise((r) => child.once('exit', r)), sleep(30_000).then(() => 'still running')]);
+      const answers = await health(port).then(() => true, () => false);
+      child.kill();
+      throw new Error(`${err.message}. Running: ${running}. server.log: ${kept}. By hand ${sh(node, ['--version']).trim()}: ${code}, answers ${answers}: ${said.join('').slice(-2500)}`);
+    });
     const update = await getUpdate(port);
     ok(update.method === 'app', `update method ${update.method}`);
     const comm = sh('powershell', ['-NoProfile', '-Command', `(Get-Process -Id ${h.pid}).Path`]).trim();
@@ -491,21 +607,23 @@ async function windowsRows() {
     sh('taskkill', ['/F', '/T', '/IM', 'wisp.exe']);
     await down(port);
   });
-  await check('INST-22', 'the update command: /S --force-run /R reinstalls and starts the app again', async () => {
-    const u = new Updater({ port, env: {}, platform: 'win32', arch, root: path.join(dir, 'resources/app') });
-    u.swap = { installer: setup };
-    const flags = u.relaunchCommand().split(`"${setup}" `)[1].split(' ');
-    ok(flags.includes('/R') && flags.includes('--force-run'), flags.join(' '));
-    // What builds already out send: the update lands, the app doesn't come back. Why /R has to ship first.
-    ok((await run(flags.filter((f) => f !== '/R'))) === 0, 'the installer failed');
-    await sleep(10_000);
-    ok(!(await health(4477).catch(() => null)), 'Tauri’s installer started the app on --force-run: /R may not be needed');
-    ok((await run(flags)) === 0, 'the installer failed');
-    // Started as the desktop user, not as this process's child: it has none of this env, so its port is the default.
-    await up(4477, 'the app the installer started');
-    sh('taskkill', ['/F', '/T', '/IM', 'wisp.exe']);
-    await down(4477);
-  });
+  // One row per caller: the Tauri app's own update, and a build already out updating onto Tauri.
+  for (const [id, label, env, want] of [
+    ['INST-22', 'a Tauri app', { WISP_DESKTOP: 'tauri' }, '/R'],
+    ['INST-24', 'an Electron build', {}, '--force-run'],
+  ]) {
+    await check(id, `${label}'s update command, /S ${want}, reinstalls and starts the app again`, async () => {
+      const u = new Updater({ port, env, platform: 'win32', arch, root: path.join(dir, 'resources/app') });
+      u.swap = { installer: setup };
+      const flags = u.relaunchCommand().split(`"${setup}" `)[1].split(' ');
+      ok(flags.join(' ') === `/S ${want}`, flags.join(' '));
+      ok((await run(flags)) === 0, 'the installer failed');
+      // Started as the desktop user, not as this process's child: it has none of this env, so its port is the default.
+      await up(4477, 'the app the installer started');
+      sh('taskkill', ['/F', '/T', '/IM', 'wisp.exe']);
+      await down(4477);
+    });
+  }
 }
 
 // --- links and what must stay out of this ---
@@ -539,7 +657,6 @@ async function main() {
     ['Site Download button, clicked', 'INST-30 reads the links and HEADs them; a click is by hand'],
     ['Real `brew install`', 'tap bumped only after npm; INST-08 and 09 cover the formula and its steps'],
     ['Linux AppImage, .deb', 'stay on Electron: unchanged, built by electron-builder'],
-    ['Electron→Tauri self-update, seen', 'needs a Tauri build on a release'],
   );
   const failed = results.filter((r) => !r.ok);
   const lines = ['| Row | Result |', '|---|---|', ...results.map((r) => `| ${r.id} ${r.title} | ${r.ok ? 'ran: pass' : `ran: FAIL, ${r.error}`} |`), ...notRun.map(([p, why]) => `| ${p} | NOT RUN: ${why} |`), ...manual.map(([p, why]) => `| ${p} | Manual: ${why} |`)];

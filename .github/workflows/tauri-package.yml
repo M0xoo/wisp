@@ -44,7 +44,12 @@ jobs:
           name: tauri-mac
           if-no-files-found: error
           path: dist/tauri/wisp-*
-      - run: node qa/install.mjs
+      # This run's Electron build, for the update onto Tauri (INST-18). macos-latest is Apple silicon.
+      - uses: actions/download-artifact@v4
+        with:
+          name: desktop-macOS
+          path: dist/electron
+      - run: node qa/install.mjs --old-electron dist/electron/wisp-mac-arm64.zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:

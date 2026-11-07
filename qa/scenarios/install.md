@@ -22,28 +22,31 @@ this on macOS, Windows and Linux through `.github/workflows/tauri-package.yml`.
 | INST-13 dmg | | Automated: holds wisp.app and Applications, Node runs from the image |
 | INST-14, 15 the app, direct and by `open -n` | DESK-01 | Automated: server on the bundled Node, none on PATH, `method: app`, no orphan after kill -9 |
 | INST-17 the app through a symlinked folder | Works | Automated: Tauri refuses `resource_dir()` there, so the shell reads the real path |
-| INST-16 self-update | Manual | Automated: the running app downloads a newer zip, swaps itself and reopens. Only the release list is stood in for |
-| INST-20–22 Windows installer | Manual | CI (dry run): `/S` per user, `resources\app`, `node\node.exe`, `method: app`, `/S --force-run /R` starts it again |
-| INST-23 the update line on Electron's installer | CI probe, run by hand: `/S --force-run /R`, then the checks below | Not this row: INST-22 |
+| INST-15c as Finder starts it | | Automated: launchd's PATH, no node, agents from the login shell |
+| INST-16, 16b self-update | Manual | Automated: the running app downloads a newer zip, swaps itself and reopens. 16b is all inside the app: `POST /api/update`, its hand-off, the real `open`; only the release list is stood in for |
+| INST-18 Electron→Tauri self-update | | Automated with `--old-electron <zip>`, in a dry run from that run's Electron build |
+| INST-19 the shell as Electron's helper | | Automated: `ELECTRON_RUN_AS_NODE=1 wisp -p` is the bundled Node |
+| INST-20–22, 24 Windows installer | Manual | CI (dry run): `/S` per user, `resources\app`, `node\node.exe`, `method: app`; `/S /R` (a Tauri app) and `/S --force-run` (a build already out) each start it again |
+| INST-23 the update line on Electron's installer | CI probe, run by hand: the checks below | Not this row: INST-22, 24 |
 | Linux AppImage, .deb | Manual | Stays on Electron until WebKitGTK can tell a frame from the page |
 | INST-30 download links | Automated: names checked, each link answers | Same names: the same links |
 | Gatekeeper on a browser download | Manual | Manual: Open Anyway on a real quarantined file, ad hoc signature |
 | Site Download button, clicked | Manual | Manual |
-| Electron→Tauri self-update | | Manual, needs a Tauri build on a release |
 
 The Electron window (INST-03f, 05f) starts the binary `bin/wisp.js` would, with its own
 `--user-data-dir`: Electron keeps that folder under the real home whatever `HOME` says, so bare `wisp`
 would hit the lock of any wisp.app open on the Mac, quit and focus that one.
 
-**Before the switch:** builds already out run `/S --force-run` on an update. Tauri's installer starts
-the app on `/R` and ignores that, so a Windows user on such a build gets the update but no restart
-until they open wisp. Only builds with `/S --force-run /R` restart on their own, so let one release
-carry it before a Tauri build goes out. The two also install to different folders
-(`%LOCALAPPDATA%\Programs\wisp-agents` and `%LOCALAPPDATA%\wisp`): Electron's copy and its shortcuts stay
-behind until something removes them.
+**Before the switch:** builds already out can't change, so the Tauri build answers them. On a Mac they
+run their own binary as Node after the swap, and by then that's the Tauri shell: `macos::be_node_for_electron`
+makes it Node for that one run. On Windows they run `/S --force-run`: Tauri's installer knows only `/R`,
+and `desktop/src-tauri/installer-hooks.nsh` gives it the other word. A Tauri app sends `/R`, an Electron
+build still `--force-run`. Left open: the two install to different folders (`%LOCALAPPDATA%\Programs\wisp-agents`
+and `%LOCALAPPDATA%\wisp`), so Electron's copy and its shortcuts stay behind until something removes them.
+The whole Electron→Tauri update on Windows hasn't been run: INST-24 is its last step only.
 
-**INST-23, Electron's NSIS installer and the updater's line.** `/R` means nothing to electron-builder's
-installer; this row is what shows it. On `windows-latest`, in a throwaway workflow on a branch, take a
+**INST-23, Electron's NSIS installer and the updater's line.** An Electron build sends `/S --force-run`;
+this was last run on the longer `/S --force-run /R`, with `--force-run` alone as a row of it. On `windows-latest`, in a throwaway workflow on a branch, take a
 release's `wisp-windows-x64-setup.exe` and a dry run's (`gh run download <id> -n desktop-Windows`). Build
 the line with `Updater.relaunchCommand()` and start it the way `server/update.js` does: its `WAITER`
 source, then the app is killed. Check, per row:

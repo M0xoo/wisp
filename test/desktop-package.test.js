@@ -143,7 +143,8 @@ test('bundled Node is signed with the entitlements it needs under the hardened r
 test('Tauri is a dry run’s extra: released nowhere, and nothing waits for it', () => {
   const wf = read('.github/workflows/release.yml');
   const job = wf.slice(wf.indexOf('\n  tauri:\n'), wf.indexOf('\n  release:\n'));
-  assert.match(job, /needs: plan\n\s+if: needs\.plan\.outputs\.dry == 'true'/);
+  // The channel too: a nightly's plan says dry=false whatever was ticked, and it must stay out of this.
+  assert.match(job, /needs: \[plan, desktop\]\r?\n\s+if: needs\.plan\.outputs\.dry == 'true' && needs\.plan\.outputs\.channel == 'stable'/);
   assert.match(job, /uses: \.\/\.github\/workflows\/tauri-package\.yml/);
   for (const line of wf.match(/^\s+needs:.*$/gm)) assert.ok(!/\btauri\b/.test(line), line);
   const pack = read('.github/workflows/tauri-package.yml');
@@ -171,13 +172,50 @@ test('no shell at all still relaunches as a browser server', () => {
   assert.match(u.relaunchCommand(), / --browser --no-open --port 5123$/);
 });
 
-test('the Windows relaunch restarts either installer', () => {
-  const u = new Updater({ port: 1, env: {}, platform: 'win32', arch: 'x64', root: 'C:\\Users\\u\\AppData\\Local\\wisp\\resources\\app' });
-  u.swap = { installer: 'C:\\t\\wisp-windows-x64-setup.exe' };
-  const cmd = u.relaunchCommand();
-  assert.match(cmd, / \/S /, 'silent: NSIS reads this one itself');
-  assert.match(cmd, / --force-run\b/, 'electron-builder');
-  assert.match(cmd, / \/R$/, 'Tauri: .onInstSuccess in its installer.nsi');
+test('the Windows relaunch says what its own installer knows, and Electron\'s stays as it was', () => {
+  const root = 'C:\\Users\\u\\AppData\\Local\\wisp\\resources\\app';
+  const cmd = (env) => {
+    const u = new Updater({ port: 1, env, platform: 'win32', arch: 'x64', root });
+    u.swap = { installer: 'C:\\t\\wisp-windows-x64-setup.exe' };
+    return u.relaunchCommand();
+  };
+  assert.equal(cmd({}), '"C:\\t\\wisp-windows-x64-setup.exe" /S --force-run', 'electron-builder');
+  assert.equal(cmd({ WISP_DESKTOP: 'tauri' }), '"C:\\t\\wisp-windows-x64-setup.exe" /S /R', 'Tauri: .onInstSuccess in its installer.nsi');
+});
+
+test('the shell is Node for an Electron build finishing its update, first thing and on macOS only', () => {
+  // The bundle is swapped before handOff runs process.execPath, which is then this binary.
+  const main = read('desktop/src-tauri/src/main.rs');
+  assert.match(main, /fn main\(\) \{\r?\n {2}#\[cfg\(target_os = "macos"\)\]\r?\n {2}macos::be_node_for_electron\(\);/);
+  assert.match(read('server/update.js'), /spawn\(process\.execPath, \['-e', WAITER/, 'if the hand-off changes, so does this');
+  const fn = read('desktop/src-tauri/src/macos.rs');
+  assert.match(fn, /var_os\("ELECTRON_RUN_AS_NODE"\)\.is_none\(\)/);
+  assert.match(fn, /\.\.\/Resources\/node\/bin\/node/);
+});
+
+test('a Tauri app opens the new build only once the old shell, and its lock, are gone', () => {
+  const mac = (env) => {
+    const u = new Updater({ port: 1, env, platform: 'darwin', arch: 'arm64', root: '/Applications/wisp.app/Contents/Resources/app' });
+    u.swap = { open: '/Applications/wisp.app', remove: '/tmp/old.app' };
+    return u.relaunchCommand();
+  };
+  assert.equal(mac({}), 'rm -rf "/tmp/old.app"; open "/Applications/wisp.app"', 'Electron stays as it was');
+  const cmd = mac({ WISP_DESKTOP: 'tauri' });
+  assert.ok(cmd.indexOf(`kill -0 ${process.ppid}`) > 0 && cmd.indexOf('kill -0') < cmd.indexOf('open "'), cmd);
+  assert.match(cmd, /seq 100/, 'and it can\'t wait for ever');
+});
+
+test('the shell gives Node a plain Windows path', () => {
+  assert.match(read('desktop/src-tauri/src/main.rs'), /strip_prefix\(r"\\\\\?\\"\)/);
+});
+
+test('Tauri\'s installer starts the app on the --force-run of builds already out', () => {
+  assert.equal(overlay('x86_64-pc-windows-msvc').bundle.windows.nsis.installerHooks, 'installer-hooks.nsh');
+  assert.equal(overlay('aarch64-apple-darwin').bundle.windows, undefined);
+  const hook = read('desktop/src-tauri/installer-hooks.nsh');
+  assert.match(hook, /!macro NSIS_HOOK_POSTINSTALL/);
+  assert.match(hook, /GetOptions\} \$CMDLINE "--force-run"/);
+  assert.match(hook, /ClearErrors/, 'GetOptions leaves the error flag alone when it finds the word');
 });
 
 test('the Mac update swaps a bundle on the Tauri layout and keeps Node executable', { skip: process.platform !== 'darwin' }, async () => {

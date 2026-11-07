@@ -11,6 +11,22 @@ use std::sync::mpsc;
 use std::sync::OnceLock;
 use tauri::{WebviewWindow, Window};
 
+// An Electron build updating onto this one swaps the bundle first, then runs its own binary with
+// ELECTRON_RUN_AS_NODE to wait for the port and open the new app (handOff in server/update.js). By
+// then that path is this binary, and builds already out can't change: without this it boots as the
+// app with the helper's arguments ignored, and the old bundle is never removed.
+pub fn be_node_for_electron() {
+  use std::os::unix::process::CommandExt;
+  if std::env::var_os("ELECTRON_RUN_AS_NODE").is_none() {
+    return;
+  }
+  let exe = std::env::current_exe().and_then(|p| p.canonicalize()).expect("this binary's path");
+  let node = exe.parent().expect("Contents/MacOS").join("../Resources/node/bin/node");
+  let err = std::process::Command::new(node).args(std::env::args_os().skip(1)).env_remove("ELECTRON_RUN_AS_NODE").exec();
+  eprintln!("[wisp] no bundled Node: {err}");
+  std::process::exit(1);
+}
+
 type Decide = unsafe extern "C-unwind" fn(*mut AnyObject, Sel, *mut WKWebView, *mut WKNavigationAction, *mut Block<dyn Fn(WKNavigationActionPolicy)>);
 static DECIDE: OnceLock<Decide> = OnceLock::new();
 

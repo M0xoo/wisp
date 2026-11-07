@@ -254,10 +254,16 @@ export class Updater {
       const q = (p) => `"${p}"`; // cmd.exe takes no JSON escapes
       const { open, remove, installer } = this.swap || {};
       // NSIS: /S installs silently over this copy, then the new one starts: --force-run is how
-      // electron-builder's installer says so, /R Tauri's. Each ignores the other's, and this has to
-      // start whichever the release holds: an Electron build updates onto a Tauri one by this line.
-      if (this.platform === 'win32') return `${q(installer)} /S --force-run /R`;
-      if (this.platform === 'darwin') return `rm -rf ${q(remove)}; open ${q(open)}`;
+      // electron-builder's installer says so, /R Tauri's (.onInstSuccess in its installer.nsi). An
+      // Electron build stays exactly as it was, and desktop/src-tauri/installer-hooks.nsh gives
+      // Tauri's installer --force-run, for the builds already out.
+      if (this.platform === 'win32') return `${q(installer)} /S ${this.shell === 'tauri' ? '/R' : '--force-run'}`;
+      if (this.platform === 'darwin') {
+        // Tauri's shell is this process's parent and outlives it by a moment, holding the single-instance
+        // lock: a new app opened meanwhile hands over to the old one and quits, and nothing comes back.
+        const wait = this.shell === 'tauri' ? `for i in $(seq 100); do kill -0 ${process.ppid} 2>/dev/null || break; sleep 0.1; done; ` : '';
+        return `rm -rf ${q(remove)}; ${wait}open ${q(open)}`;
+      }
       return `${q(open)} >/dev/null 2>&1`;
     }
     const args = `${desktop ? '' : ' --browser --no-open'} --port ${this.port}`; // desktop: reopen the app; browser: keep the tab
