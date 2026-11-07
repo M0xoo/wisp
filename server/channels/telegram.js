@@ -231,7 +231,7 @@ export class Telegram extends Channel {
         refuse: (problems) => say(refusal(problems)),
         thread: () => ({ channel: this.name, chat: m.chat.id, message: m.message_id, ack: null }),
         noThread: 'Reply to the task’s message to do that.',
-        stale: () => (replyTo && !sessionId ? 'That message isn’t linked to a task any more. Send it without replying to start a new one.' : ''),
+        stale: (p) => (replyTo && !sessionId && p.command !== 'new' ? 'That message isn’t linked to a task any more. Send it without replying to start a new one.' : ''),
         acked: (thread, sent) => this.acked(thread, sent?.message_id),
       },
       text,

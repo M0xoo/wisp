@@ -325,6 +325,14 @@ test('done from a thread closes it; a stale link gets told, not a new task', asy
   assert.match((await answerTo(y)).text, /Reply to the task’s message/);
 });
 
+test('/new as a reply to a message no task owns starts a task: it never meant that message', async () => {
+  const before = srv.store.all().length;
+  const x = reply(99998, `/new in ${name}: fix x`);
+  assert.match((await answerTo(x)).text, /^▶ /);
+  await until(() => srv.store.all().length === before + 1, { what: 'the new task' });
+  await settled(srv.store.all().at(-1).id);
+});
+
 test('/btw in a thread answers on the side, wrapped, and comes back there', async () => {
   const id = say(`in ${name}: side question target`);
   const ack = await answerTo(id);
