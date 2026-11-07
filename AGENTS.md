@@ -42,7 +42,10 @@ this covers how the code is laid out and the rules a change has to follow.
   tauri-plugin-notification) and its drag regions (WebKit has no
   `-webkit-app-region`: a new rule in the CSS goes there too, a test checks). Linux is blocked: a release
   build doesn't compile until `on_navigation` can tell a frame from the page (`qa/scenarios/desktop.md`). IPC is one capability
-  for exactly `http://localhost:<port>` (`capability.json`). `npm run dev:tauri`; not on npm.
+  for exactly `http://localhost:<port>` (`capability.json`). `src/windows.rs` is what Electron does on
+  Windows by itself (window size, taskbar badge, menu keys, right-click menu); `installer-hooks.nsh` takes
+  an Electron copy away on install. `.github/workflows/tauri-windows.yml` runs it all on windows-latest.
+  `npm run dev:tauri`; not on npm.
 - `mobile/`: the Android app (Capacitor + sshj). It shows wisp's own page through an SSH tunnel
   and starts wisp with `server/machines/bootstrap.js` (keep that file and `server/shq.js` free of
   Node imports). The page sees `MOBILE` (`web/js/core/state.js`): hide desktop-only actions there.

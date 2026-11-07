@@ -10,6 +10,7 @@ Run the automated ones from the repo root (needs `npm install` for Electron, and
 ```sh
 node qa/desktop.mjs        # DESK-01…14, screenshots in qa/out/desktop-*.png
 node qa/desktop-tauri.mjs  # the Tauri shell, TAURI-*, macOS with Rust
+node qa/desktop-tauri-win.mjs  # the Tauri app on Windows, TAURI-W*, CI only (tauri-windows.yml)
 ```
 
 Each app it starts has its own `WISP_HOME`, port (4521, 4522) and `--user-data-dir`. That matters:
@@ -63,6 +64,67 @@ Notifications → wisp).
 and stopped there. Windows has no such trap (`NavigationStarting` is the main frame's) and macOS answers
 frames first (`macos.rs`). A release build for Linux doesn't compile (`compile_error!` in `main.rs`) until
 this is solved and seen on a real Linux desktop: TAURI-06b's cases, frames and a main-frame link.
+
+## The Tauri app on Windows
+
+`.github/workflows/tauri-windows.yml` builds the installer on windows-latest (`package.mjs --features
+qa`) and runs three jobs on it, each on a clean runner: `qa/desktop-tauri-win.mjs` (TAURI-W*),
+`qa/web.mjs` in Chrome and then in the app's own WebView2, and the move from a real v0.57.0
+(`qa/scenarios/install.md`, INST-23–28). The `qa` feature adds one thing on Windows: `WISP_QA_CDP`
+opens WebView2's DevTools port, which `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` and its policy can't once
+wry names arguments of its own (tried, on the runner). The page is driven by Playwright over CDP;
+the window, mouse, keys, taskbar, menus and links by Win32 (`qa/win32.ps1`): a real pointer, real
+keys through `SendKeys`, the menu bar read with `GetMenu`, the taskbar compared pixel for pixel.
+Playwright makes every page say it has focus, so the focus checks let go of it and ask over a bare
+DevTools socket. The numbers it compares with are v0.57.0's, measured on the same runner.
+
+| Scenario | Electron (v0.57.0, measured) | Tauri (Windows) |
+|---|---|---|
+| DESK-01 boots | in the main process | TAURI-W01 ran: the server is the shell's child on the bundled `node\node.exe`, `method: app`, body `electron other` |
+| DESK-02 window | 1380×900 whole, centred (270,66 at 1920×1080); 1366×720 at 0,0 on a 1366×768 screen | TAURI-W02 ran: the same rects; a corner dragged in by a real mouse stops at a page of 720×520. TAURI-W02b ran: the 1366×768 laptop |
+| DESK-03 title bar | Windows' own; a real drag on the top bar leaves the window where it is | TAURI-W03 ran: Windows' own bar, no Mac insets; a real drag and a double-click on the page's top bar do nothing, a double-click on the real title bar maximizes and restores |
+| DESK-04 console | | TAURI-W04 ran |
+| DESK-05 bridge | | TAURI-W05 ran: `pickFolder` only, no `require`, no Get the app; the real folder dialog titled *Add project*, Esc gives null. Its button says *Select Folder*: Windows' own word, Manual to change |
+| DESK-06 links | | TAURI-W06 ran: `window.open`, `target=_blank` and a navigation go out through Windows' own protocol handler (a QA scheme and `vscode://`), `file://` doesn't, the window stays. TAURI-W06b ran: previews stay in their frame; a frame's `invoke` is refused (`not allowed by ACL`, sandboxed: `Origin header is not a valid URL`). TAURI-W17 ran: another port and `127.0.0.1` refused |
+| DESK-07 menu | File, Edit, View, Window | TAURI-W07 ran: the same four, nothing greyed out, real typing and Ctrl+A C X V Z in the prompt box. TAURI-W07c ran: Ctrl+= Ctrl+- Ctrl+0, F11 and Ctrl+M do what the menu says |
+| DESK-07b Ctrl+Tab | | TAURI-W07b ran: a real Ctrl+Tab reaches the page; held: Manual |
+| DESK-08 theme | | TAURI-W08 ran: the system switched to dark and back, live |
+| DESK-09 count | a badge on the taskbar icon, 99+ past 99 | TAURI-W09 ran: the taskbar's pixels change with (3) and (127) and come back without; the window keeps `wisp` (`qa/out/desktop-tauri-win-bar-*.png`) |
+| DESK-10 a task | | TAURI-W10 ran, TAURI-W10b ran (stacked at 800px) |
+| DESK-12 second launch | | TAURI-W12 ran: it exits, and brings a minimized first one back |
+| DESK-13 quit | closing quits | TAURI-W13 ran: a real click on X with an agent running: the shell, the server and the agent go, port closed, `server.json` removed. TAURI-W21 ran: a stuck server is killed at the 5 s limit |
+| DESK-14 attach | | TAURI-W14 ran |
+| DESK-15 context menu | Copy Link, editing, Select All | TAURI-W20 ran: what WebView2 offered (from the shell, no automation reads its menu) and a picture of what's left. Choosing an item and spelling suggestions: Manual |
+| (none) | | TAURI-W15 ran: the shell killed (`taskkill /F`, no `/T`) leaves no server, agent or port. TAURI-W18b ran: Notepad in front: one blur, from WebView2. TAURI-W18: a minimized window's finished task is a toast in Action Center, and a real click on it opens the task |
+| qa/web.mjs | | ran in the app's WebView2 (`QA_ENGINE=webview2`, `Edg/156`) and in Chrome on the same runner |
+
+**Manual on Windows:** a toast clicked once it has gone to Action Center (the plugin only hears a click
+while it's on screen; Electron's is no better), a file dropped from Explorer, spelling suggestions,
+SmartScreen's *Run anyway* on a real download, high DPI (a runner has one 100% display), Windows on
+arm64 (built by tauri-package.yml, run nowhere), and the Electron→Tauri self-update seen end to end.
+
+What the Windows shell does that Electron does by itself (`src/windows.rs`, `src/init.js`, measured
+on v0.57.0 first):
+
+- The window is 1380×900 as a whole, centred and kept on the screen. Tauri's size is the page's,
+  wherever Windows puts it: past a 1366×768 laptop's edge and under its taskbar.
+- The count is a badge on the taskbar icon. Tauri's `set_badge_count` does nothing on Windows, so the
+  shell draws one (`set_overlay_icon`), dark with white digits and 99+, as Electron's.
+- `-webkit-app-region` is off. Electron's framed window ignores it; WebView2 honours it, so the
+  page's top bar dragged the window and ate clicks.
+- WebView2 runs injected scripts in every frame: `init.js` stops in a frame, so a preview has no
+  bridge. Tauri's own IPC is there too, and checks the frame's origin: refused off wisp's.
+- `Notification.permission` is the plugin's from the first page. It was `default`: WebView2 runs each
+  script to its end, so the plugin had answered before `init.js` replaced `Notification`.
+- A minimized window has no focus. WebView2 kept saying it had, and `notify.js` stays quiet then.
+- The keys of the View and Window menus: a key pressed in the page goes to WebView2's process and
+  never reaches the menu bar, so the shell hands Ctrl+= Ctrl+- Ctrl+0 F11 Ctrl+M on.
+  `CmdOrCtrl+Plus` was never a key muda knows: Zoom In had none, on macOS too; it's `=` now.
+- Toggle Full Screen is the shell's own item (F11): muda greys out the built-in one on Windows.
+- The right-click menu leaves out what a browser has: Back, Refresh, Save as, Print, More tools,
+  Emoji, Writing direction. A menu with nothing left doesn't open.
+- The toast has no *Open* button: macOS needs an action to hear a click, Windows doesn't.
+- WebView2 fires its own focus and blur, so the shell doesn't tell it too.
 
 ## DESK-01 · Boots and starts its own server
 - **Preconditions:** nothing listening on the port.

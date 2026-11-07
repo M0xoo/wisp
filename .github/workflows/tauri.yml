@@ -37,6 +37,6 @@ jobs:
           key: tauri-${{ runner.os }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
           restore-keys: tauri-${{ runner.os }}-
       - run: cargo check --locked
-      - name: The QA driver (AppKit only)
-        if: runner.os == 'macOS'
+      - name: The QA builds (AppKit's driver, WebView2's DevTools port)
+        if: runner.os != 'Linux'
         run: cargo check --locked --features qa
