@@ -331,9 +331,9 @@ export class Remote {
       if (enabled && inBox()) throw bad(NO_DISCORD_ON_A_BOX);
       const token = (body.discord.token === undefined ? prev.token : keep(body.discord.token, prev.token)) || ''; // missing = unchanged
       if (token && !/^[\w-]+\.[\w-]+\.[\w-]+$/.test(token)) throw bad('That doesn’t look like a bot token: copy it from the Developer Portal → Bot → Reset Token.');
-      const appId = String(body.discord.appId ?? prev.appId ?? '').trim();
+      const changed = token !== (prev.token || ''); // another bot, other people, another application
+      const appId = String(body.discord.appId ?? (changed ? '' : prev.appId) ?? '').trim();
       if (appId && !/^\d{5,25}$/.test(appId)) throw bad('The application ID is a long number: Developer Portal → General Information.');
-      const changed = token !== (prev.token || ''); // another bot, other people
       const relink = body.discord.unlink || changed;
       c.discord = { ...prev, enabled, token, appId, senders: relink ? [] : prev.senders || [], linkCode: relink || !prev.linkCode ? newLinkCode() : prev.linkCode };
       if (changed) this.channels.discord.reset();

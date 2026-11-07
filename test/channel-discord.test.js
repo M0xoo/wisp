@@ -949,6 +949,41 @@ test('a revoked token stops it, says what to do, and a new one starts over; no t
   }
 });
 
+test('the application id: READY always says, an interaction’s own id answers it, a new token forgets the old', async () => {
+  await connected();
+  const c = srv.store.config.remote.discord;
+  c.appId = '777777';
+  const d = slash('help', {}, { channel: newRoom() });
+  assert.equal((await edited(d)).app, fake.appId, 'the interaction’s id, not what was saved');
+  const ids = fake.identifies.length;
+  fake.close(4009);
+  await until(() => fake.identifies.length > ids);
+  await connected();
+  assert.equal(c.appId, fake.appId, 'READY overwrites');
+
+  const [token, app] = [fake.token, fake.appId];
+  fake.token = 'MTEx.third-part.another-secret';
+  fake.appId = '666666';
+  try {
+    fake.revoked = true; // so READY can't refill it before it's read
+    const put = await api('/remote', { method: 'PUT', body: { discord: { token: fake.token } } });
+    assert.equal(put.discord.appId, '', 'another bot, another application');
+    await until(async () => /Check the token/.test((await api('/remote')).discord.error));
+    fake.revoked = false;
+    await api('/remote', { method: 'PUT', body: { discord: { enabled: true } } });
+    await connected();
+    assert.equal((await api('/remote')).discord.appId, '666666');
+    await until(() => fake.commands.some((x) => x.app === '666666'), { what: '/wisp on the new application' });
+  } finally {
+    fake.token = token;
+    fake.appId = app;
+    fake.revoked = false;
+    await api('/remote', { method: 'PUT', body: { discord: { token } } });
+    srv.store.config.remote.discord.senders = [ME];
+    await connected();
+  }
+});
+
 test('a restart: linked people stay, a queued crew job answers in its thread', async () => {
   await connected();
   const z = await api('/crew', { body: { name: 'Zed', brief: 'Watch.', cwd: repo, agent: 'claude', model: 'sonnet', mode: 'edits', parallel: 1 } });

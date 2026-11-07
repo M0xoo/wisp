@@ -105,7 +105,7 @@ export class FakeDiscord {
     }
     if ((m = /^PATCH \/webhooks\/(\d+)\/([^/]+)\/messages\/@original$/.exec(route))) {
       const id = snowflake();
-      this.edits.push({ ...body, id, token: m[2] });
+      this.edits.push({ ...body, id, app: m[1], token: m[2] });
       return send(200, { id, channel_id: 'C1' });
     }
     send(404, { message: 'Unknown route', code: 0 });

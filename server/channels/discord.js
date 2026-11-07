@@ -100,6 +100,9 @@ export const snowflakeMs = (id) => Number((BigInt(id) >> 22n) + EPOCH);
 // Requests sharing a major parameter share a limit, near enough.
 const bucketOf = (method, path) => `${method} ${/^\/(channels|webhooks|interactions)\/[^/]+/.exec(path)?.[0] || path}`;
 
+// Where an interaction's reply is edited.
+const hookOf = (d) => ({ hook: d.token, app: d.application_id });
+
 export class Discord extends Channel {
   constructor(hub) {
     super(hub, 'discord');
@@ -290,8 +293,8 @@ export class Discord extends Channel {
       this.session = { id: d.session_id, url: d.resume_gateway_url };
       this.me = { id: d.user.id, name: d.user.username };
       this.guilds = new Set((d.guilds || []).map((g) => g.id));
-      if (!this.cfg.appId && d.application?.id) {
-        this.cfg.appId = d.application.id;
+      if (d.application?.id && d.application.id !== this.cfg.appId) {
+        this.cfg.appId = d.application.id; // Discord's word over what was saved or typed
         this.hub.store.saveConfig();
       }
       this.#live();
@@ -371,13 +374,14 @@ export class Discord extends Channel {
     if (link) {
       if (!this.tried.first(d.id)) return;
       await this.#respond(d, OUT.deferred, { flags: EPHEMERAL });
-      return this.turns.queue(d.channel_id, () => this.linking.attempt(user.id, link[1], (t) => this.#say({ hook: d.token }, t)), this.#oops);
+      const target = hookOf(d);
+      return this.turns.queue(d.channel_id, () => this.linking.attempt(user.id, link[1], (t) => this.#say(target, t)), this.#oops);
     }
     // A stranger in a guild gets no answer at all: Discord shows them, and only them, that it failed.
     if (!(await this.#door({ id: d.id, user: user.id, dm, say: (t) => this.#respond(d, OUT.message, { content: discordText(t), flags: EPHEMERAL | SUPPRESS_EMBEDS, allowed_mentions: { parse: [] } }) }))) return;
     await this.#respond(d, OUT.deferred); // Discord gives this three seconds
     const inThread = THREAD_TYPES.has(d.channel?.type);
-    this.turns.queue(d.channel_id, () => this.#work({ user: user.id, dm, text, target: { chat: d.channel_id, hook: d.token }, anchor: null, ref: null, inThread }), this.#oops);
+    this.turns.queue(d.channel_id, () => this.#work({ user: user.id, dm, text, target: { chat: d.channel_id, ...hookOf(d) }, anchor: null, ref: null, inThread }), this.#oops);
   }
 
   #respond(d, type, data) {
@@ -413,7 +417,7 @@ export class Discord extends Channel {
       // A reply starts a turn, and a button can't say which mode: that's for words, which are capped.
       if (KIND[k] === 'reply' && (!local || local.mode === 'auto')) return say('Say that in words here, so it runs in Edits at most.');
       const result = await this.hub.act({ sessionId: s, kind: KIND[k], ref: r, index: Number(i) });
-      await this.rest('PATCH', this.#original(d.token), { components: [] }).catch(() => {});
+      await this.rest('PATCH', this.#original(hookOf(d)), { components: [] }).catch(() => {});
       await say(result);
     }, this.#oops);
   }
@@ -492,17 +496,18 @@ export class Discord extends Channel {
 
   // --- what leaves ------------------------------------------------------------------------------
 
-  #original(token) {
-    return `/webhooks/${this.cfg.appId}/${token}/messages/@original`;
+  // An interaction names its own application: what's saved may be another bot's.
+  #original({ hook, app }) {
+    return `/webhooks/${app || this.cfg.appId}/${hook}/messages/@original`;
   }
 
   // To an interaction's reply once, then to the place itself. No post pings anyone or embeds a URL.
   async #say(target, text, { components } = {}) {
     const body = { content: discordText(text), allowed_mentions: { parse: [] }, flags: SUPPRESS_EMBEDS, ...(components?.length && { components }) };
     if (target.hook) {
-      const hook = target.hook;
+      const path = this.#original(target);
       target.hook = null;
-      return this.rest('PATCH', this.#original(hook), body);
+      return this.rest('PATCH', path, body);
     }
     const to = `/channels/${target.chat}/messages`;
     const reply = target.reply && { message_reference: { message_id: target.reply, fail_if_not_exists: false } };
