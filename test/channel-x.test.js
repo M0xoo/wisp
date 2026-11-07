@@ -1238,6 +1238,62 @@ test('over the cap a result waits in the outbox for tomorrow, and is never lost 
   }
 });
 
+// X's tables as 97fe8b92 made them: a grid that ran that schema migrates forward, it isn't rebuilt.
+const X_AT_97FE8B92 = `CREATE TABLE x_links (
+     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, x_id TEXT UNIQUE NOT NULL,
+     handle TEXT NOT NULL DEFAULT '', dm_open INTEGER NOT NULL DEFAULT 0, linked_at INTEGER NOT NULL);
+   CREATE TABLE x_flows (
+     state_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     session_hash TEXT NOT NULL, verifier TEXT NOT NULL, expires_at INTEGER NOT NULL);
+   CREATE TABLE x_seen (key TEXT PRIMARY KEY, at INTEGER NOT NULL);
+   CREATE TABLE x_threads (
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, thread TEXT NOT NULL,
+     conversation TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (user_id, thread));
+   CREATE INDEX x_threads_conversation ON x_threads(user_id, conversation);
+   CREATE TABLE x_outbox (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     thread TEXT, text TEXT NOT NULL, at INTEGER NOT NULL, tries INTEGER NOT NULL DEFAULT 0, next_at INTEGER NOT NULL DEFAULT 0);
+   CREATE INDEX x_outbox_user ON x_outbox(user_id, id);
+   CREATE TABLE x_sent (user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, at INTEGER NOT NULL);
+   CREATE INDEX x_sent_user ON x_sent(user_id, at);
+   CREATE TABLE x_spend (
+     day TEXT PRIMARY KEY, mills INTEGER NOT NULL DEFAULT 0, strangers INTEGER NOT NULL DEFAULT 0, tripped INTEGER NOT NULL DEFAULT 0);`;
+
+test('a grid.db with X’s tables as they first shipped migrates forward: links and spend stay, view and sweep work', { timeout: 60_000 }, async () => {
+  const fake = await startFakeX();
+  const env = await boot({ api: fake });
+  try {
+    const p = await env.person('dee');
+    await env.grid.close();
+    const { DatabaseSync } = await import('node:sqlite');
+    const raw = new DatabaseSync(`${env.cfg.dataDir}/grid.db`);
+    const xs = raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'x\\_%' ESCAPE '\\'").all();
+    raw.exec(`${xs.map((t) => `DROP TABLE ${t.name};`).join(' ')} ${X_AT_97FE8B92} UPDATE meta SET v = '10' WHERE k = 'schema';`);
+    raw.prepare('INSERT INTO x_links (user_id, x_id, handle, dm_open, linked_at) VALUES (?, ?, ?, 1, ?)').run(p.user.id, '333', 'dee', Date.now());
+    raw.prepare('INSERT INTO x_spend (day, mills, strangers, tripped) VALUES (?, 40, 2, 0)').run(new Date().toISOString().slice(0, 10));
+    raw.close();
+    env.grid = await startGrid(env.cfg, { log: () => {} });
+    const v = env.grid.x.view(p.user, { admin: true });
+    assert.equal(v.linked, true);
+    assert.equal(v.handle, 'dee');
+    assert.equal(v.spend.cents, 4);
+    assert.equal(v.spend.strangers, 2);
+    assert.equal(v.spend.stopped, false);
+    env.grid.x.sweep();
+    env.grid.x.setBox(p.user.id, true);
+    assert.equal(env.grid.x.view(p.user).on, true);
+    for (const t of ['x_rate', 'x_day', 'x_boxes']) assert.ok(env.grid.db.get("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", t), t);
+    // And again: a migration that already ran isn't run twice.
+    await env.grid.close();
+    env.grid = await startGrid(env.cfg, { log: () => {} });
+    assert.equal(env.grid.x.view(p.user).linked, true);
+  } finally {
+    await env.grid.close();
+    await fake.close();
+    x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
+  }
+});
+
 test('paused: CRC still answers, events are counted, and nothing else happens', { timeout: 60_000 }, async () => {
   const fake = await startFakeX();
   const env = await boot({ api: fake, xCfg: { ...CREDS, paused: true } });

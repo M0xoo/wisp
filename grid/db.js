@@ -1,5 +1,6 @@
 // The grid's database: one SQLite file (node:sqlite, built into Node 22.13+), WAL mode, plain SQL
-// migrations below. Only the control process opens it; edges and hosts ask the control process.
+// migrations below (or a function, where one has to look first). A migration that shipped is never
+// edited: a new one follows it. Only the control process opens it; edges and hosts ask the control process.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -96,13 +97,10 @@ const MIGRATIONS = [
   // x_flows: a link on its way, bound to the session that started it. x_seen: event and post ids
   // already taken, so a retry does nothing even after a restart. x_threads: what a box accepted, which
   // is all it may answer. x_outbox: what hasn't gone yet. x_sent: a box's replies of the last hour.
-  // x_spend: what a UTC day cost, in tenths of a cent: mills is linked people's, stranger_mills is what
-  // mentions by anyone else cost, which is apart so they can't spend it; tripped: the linked cap,
-  // hard: a ceiling that took the subscriptions away. x_rate: a person's posts of the last hour.
-  // x_day: pieces a box sent today. x_boxes: boxes whose switch is on, so nobody wakes one that isn't.
+  // x_spend: what a UTC day cost, in tenths of a cent, and the strangers who mentioned the bot.
   `CREATE TABLE x_links (
      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, x_id TEXT UNIQUE NOT NULL,
-     handle TEXT NOT NULL DEFAULT '', dm_open INTEGER NOT NULL DEFAULT 0, linked_at INTEGER NOT NULL, told_at INTEGER NOT NULL DEFAULT 0);
+     handle TEXT NOT NULL DEFAULT '', dm_open INTEGER NOT NULL DEFAULT 0, linked_at INTEGER NOT NULL);
    CREATE TABLE x_flows (
      state_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
      session_hash TEXT NOT NULL, verifier TEXT NOT NULL, expires_at INTEGER NOT NULL);
@@ -118,12 +116,24 @@ const MIGRATIONS = [
    CREATE TABLE x_sent (user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, at INTEGER NOT NULL);
    CREATE INDEX x_sent_user ON x_sent(user_id, at);
    CREATE TABLE x_spend (
-     day TEXT PRIMARY KEY, mills INTEGER NOT NULL DEFAULT 0, stranger_mills INTEGER NOT NULL DEFAULT 0, strangers INTEGER NOT NULL DEFAULT 0,
-     tripped INTEGER NOT NULL DEFAULT 0, hard INTEGER NOT NULL DEFAULT 0);
-   CREATE TABLE x_rate (user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, at INTEGER NOT NULL);
-   CREATE INDEX x_rate_user ON x_rate(user_id, at);
-   CREATE TABLE x_day (user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, day TEXT NOT NULL, pieces INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, day));
-   CREATE TABLE x_boxes (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE);`,
+     day TEXT PRIMARY KEY, mills INTEGER NOT NULL DEFAULT 0, strangers INTEGER NOT NULL DEFAULT 0, tripped INTEGER NOT NULL DEFAULT 0);`,
+  // X, as it came to be (grid/x.js). The one above shipped first, so it stays as it was and this brings
+  // its tables to today's: a db that already has a column or a table (one made by an edit of the one
+  // above, before this existed) keeps it. x_links.told_at: when they were last told they're over their
+  // rate. x_spend: mills is linked people's, stranger_mills what mentions by anyone else cost, apart so
+  // they can't spend it; tripped: the linked cap; hard: a ceiling that took the subscriptions away.
+  // x_rate: a person's posts of the last hour. x_day: pieces a box sent today. x_boxes: boxes whose
+  // switch is on, so nobody wakes one that isn't.
+  (db) => {
+    const has = (table, col) => db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col);
+    if (!has('x_links', 'told_at')) db.exec('ALTER TABLE x_links ADD COLUMN told_at INTEGER NOT NULL DEFAULT 0');
+    if (!has('x_spend', 'stranger_mills')) db.exec('ALTER TABLE x_spend ADD COLUMN stranger_mills INTEGER NOT NULL DEFAULT 0');
+    if (!has('x_spend', 'hard')) db.exec('ALTER TABLE x_spend ADD COLUMN hard INTEGER NOT NULL DEFAULT 0');
+    db.exec(`CREATE TABLE IF NOT EXISTS x_rate (user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, at INTEGER NOT NULL);
+      CREATE INDEX IF NOT EXISTS x_rate_user ON x_rate(user_id, at);
+      CREATE TABLE IF NOT EXISTS x_day (user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, day TEXT NOT NULL, pieces INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, day));
+      CREATE TABLE IF NOT EXISTS x_boxes (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE);`);
+  },
 ];
 
 export async function openDb(dataDir) {
@@ -141,7 +151,8 @@ export async function openDb(dataDir) {
   for (let i = at; i < MIGRATIONS.length; i++) {
     db.exec('BEGIN');
     try {
-      db.exec(MIGRATIONS[i]);
+      if (typeof MIGRATIONS[i] === 'function') MIGRATIONS[i](db);
+      else db.exec(MIGRATIONS[i]);
       db.prepare("INSERT INTO meta (k, v) VALUES ('schema', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").run(String(i + 1));
       db.exec('COMMIT');
     } catch (err) {
