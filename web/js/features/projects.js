@@ -10,7 +10,7 @@ import { present } from '../ui/overlay.js';
 import { clampToViewport, popover } from '../ui/popover.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { clones, isRepo, repoLabel, repoName, startClone } from './clones.js';
-import { feedToTop, renderFeed, taskOf } from './feed.js';
+import { feedToTop, groups, renderFeed } from './feed.js';
 import { renderLaunchChips } from './launcher.js';
 import { loadConfig } from './live.js';
 import { connectMachine, openMachines } from './machines.js';
@@ -25,11 +25,11 @@ const fitProjects = () => fitBar?.fit?.();
 
 export function renderProjects() {
   const all = [...S.sessions.values()].filter((s) => !s.archived);
-  // The same tasks the list's Needs you holds (a comparison counts once), so the numbers agree.
-  const needs = (l) => new Set(l.map(taskOf).filter((t) => t.state === 'waiting' || t.state === 'review').map((t) => t.key || t.id)).size;
+  // The same tasks the list's Needs you holds, so the numbers agree.
+  const { needs } = groups('all');
   const stats = (pid) => {
     const l = pid === 'all' ? all : all.filter((s) => inProject(s, pid));
-    return { run: l.filter((s) => s.state === 'running').length, need: needs(l) };
+    return { run: l.filter((s) => s.state === 'running').length, need: pid === 'all' ? needs.length : needs.filter((t) => inProject(t, pid)).length };
   };
   const badges = (id) => {
     const st = stats(id);
