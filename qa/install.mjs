@@ -649,6 +649,9 @@ async function migrateRows() {
     const t0 = Date.now();
     ok((await run(old, ['/S'])) === 0, 'v0.57.0’s installer failed');
     console.log(`  v${ELECTRON}’s installer exited after ${Date.now() - t0} ms: ${installing()}`);
+    // On arm64 it exits 0 with its resources in place and not one .exe or .dll: they're the files its
+    // archive stores with 7-Zip's ARM64 filter, which its NSIS can't unpack.
+    if (fs.existsSync(path.join(ELECTRON_DIR(), 'resources.pak')) && !fs.existsSync(path.join(ELECTRON_DIR(), 'wisp.exe'))) throw new Error(`v${ELECTRON}’s installer finished without wisp.exe: ${installing()}`);
     await until(() => fs.existsSync(path.join(ELECTRON_DIR(), 'wisp.exe')) && fs.existsSync(path.join(ELECTRON_DIR(), 'Uninstall wisp.exe')), { timeout: 300_000, every: 500, what: 'v0.57.0' }).catch((err) => {
       throw new Error(`${err.message}: ${installing()}`);
     });
@@ -681,6 +684,11 @@ async function migrateRows() {
     ok(links().length === 2 && links().every((l) => l.target.toLowerCase().startsWith(ELECTRON_DIR().toLowerCase())), `links: ${JSON.stringify(links())}`);
     win32('pin', path.join(ELECTRON_DIR(), 'wisp.exe')); // pinned to the taskbar, as most people's is
   });
+  // Every row after this one stands on a working v0.57.0.
+  if (!fs.existsSync(path.join(ELECTRON_DIR(), 'wisp.exe'))) {
+    for (const id of ['INST-41', 'INST-42', 'INST-43', 'INST-44', 'INST-45', 'INST-46']) notRun.push([`${id} (${arch})`, `v${ELECTRON}’s ${name} doesn’t install a wisp.exe here (INST-40)`]);
+    return;
+  }
   await check('INST-41', `v${ELECTRON} runs a task in ~/.wisp and keeps a Chromium profile in %APPDATA%`, async () => {
     const port = nextPort++;
     const child = start(path.join(ELECTRON_DIR(), 'wisp.exe'), [], real(port));

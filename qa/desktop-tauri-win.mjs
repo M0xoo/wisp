@@ -175,6 +175,9 @@ if (process.argv.includes('--web')) {
 }
 console.log(`\n  desktop (Tauri, Windows ${ARCH}) · ${SETUP}\n`);
 
+const cover = one('clear-desktop').closed;
+if (cover.length) console.log(`  closed what covered the desktop: ${cover.join(', ')}`);
+
 // Links go out through Windows, not a stub: these two land in a file instead of a browser or an editor.
 for (const scheme of ['wispqa', 'vscode']) {
   const key = `HKCU\\Software\\Classes\\${scheme}`;
@@ -465,7 +468,9 @@ await check('TAURI-W18b', 'another app in front: the page knows, once, as WebVie
     await sleep(500);
     ok((await bare('__qaF.join()')) === 'blur', `events: ${await bare('__qaF.join()')}`);
   } finally {
-    execFileSync('taskkill', ['/F', '/IM', 'notepad.exe'], { stdio: 'ignore' });
+    try {
+      execFileSync('taskkill', ['/F', '/IM', 'notepad.exe'], { stdio: 'ignore' });
+    } catch {} // never opened: the check above says why
     await toFront();
     await attach();
   }

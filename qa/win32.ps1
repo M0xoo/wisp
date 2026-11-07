@@ -140,6 +140,22 @@ $r = switch ($Cmd) {
     $h = [Windows.UI.Notifications.ToastNotificationManager]::History.GetHistory($Rest[0])
     @{ texts = @(@($h) | ForEach-Object { @($_.Content.GetElementsByTagName('text') | ForEach-Object { $_.InnerText }) -join ' / ' }) }
   }
+  # windows-11-arm signs in to Windows 11's first-run privacy page, full screen over every window:
+  # clicks and keys go to it, and the taskbar is behind it. Only a window of Windows' own first-run
+  # pages (under SystemApps) goes, and the policy keeps it from coming back.
+  'clear-desktop' {
+    $k = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OOBE'
+    New-Item -Path $k -Force | Out-Null; Set-ItemProperty -Path $k -Name DisablePrivacyExperience -Value 1 -Type DWord
+    $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+    $closed = @()
+    foreach ($h in [W]::Tops()) {
+      $x = Info $h
+      if (-not $x.visible -or $x.width -lt $screen.Width -or $x.height -lt $screen.Height) { continue }
+      $proc = Get-Process -Id $x.pid -ErrorAction SilentlyContinue
+      if ($proc -and "$($proc.Path)" -like "$env:SystemRoot\SystemApps\*") { $closed += "$($proc.Name) ($($x.title))"; Stop-Process -Id $x.pid -Force }
+    }
+    @{ closed = $closed }
+  }
   'theme' {
     $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
     Set-ItemProperty -Path $k -Name AppsUseLightTheme -Value ([int]($Rest[0] -ne 'dark')) -Type DWord
