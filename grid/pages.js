@@ -359,13 +359,12 @@ a{color:inherit}p{margin:0}h1,h2,h3{margin:0;letter-spacing:-.01em}svg{flex:none
 .w-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}.w-tx small{color:var(--muted);font-size:12.5px;line-height:1.45}
 .pill{flex:none;font-size:11.5px;font-weight:550;padding:1px 8px;border-radius:99px;border:1px solid var(--line-2);color:var(--muted);white-space:nowrap}.pill.cloud{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
 .primary.off{opacity:.45;cursor:default}
-details.w.add{display:block;padding:0}
-details.add>summary{display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer;list-style:none}details.add>summary::-webkit-details-marker{display:none}
-details.add .w-tx b,button.w.add-m .w-tx b{font-size:13px;font-weight:600}details.add .chev svg{width:16px;height:16px;color:var(--muted);transition:transform .15s}details.add[open] .chev svg{transform:rotate(90deg)}
-.steps{list-style:none;margin:0;padding:0 14px 16px 60px;display:flex;flex-direction:column;gap:14px}
+button.w.add-m .w-tx b{font-size:13px;font-weight:600}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px}
 .steps li{display:flex;gap:10px}.steps .n{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:var(--bg);font-size:11.5px;font-weight:600}
 .steps li>div{flex:1;min-width:0}.steps b{font-size:13px}.steps p{margin-top:2px;color:var(--muted);font-size:12.5px;line-height:1.45}.steps a{color:var(--accent)}.steps .copy{max-width:520px}.steps code{font:11.5px var(--mono);white-space:nowrap;padding:1px 4px;border-radius:4px;background:var(--bg-2);color:var(--ink)}
-.how>input{position:absolute;opacity:0;pointer-events:none}.seg{display:inline-flex;gap:2px;margin:0 14px 14px 60px;padding:2px;border-radius:9px;border:1px solid var(--line);background:var(--bg-2)}
+.how{display:none;position:relative;grid-column:1/-1;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}.add[open]+.how{display:block}
+.how>input{position:absolute;opacity:0;pointer-events:none}.seg{display:inline-flex;gap:2px;margin:0 0 14px;padding:2px;border-radius:9px;border:1px solid var(--line);background:var(--bg-2)}
 .seg label{display:flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:7px;font-size:12.5px;font-weight:550;color:var(--muted);cursor:pointer;white-space:nowrap}.seg svg{width:14px;height:14px}.seg label:hover{color:var(--ink)}
 #addCli:checked~.seg [for=addCli],#addApp:checked~.seg [for=addApp]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--line)}
 #addCli:focus-visible~.seg [for=addCli],#addApp:focus-visible~.seg [for=addApp]{outline:2px solid var(--accent);outline-offset:1px}
@@ -387,7 +386,13 @@ h2.sec{margin:36px 0 12px;font-size:14px;font-weight:600;color:var(--ink);scroll
 .h-facts{margin:20px 0 0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 14px;align-items:center;font-size:12.5px}.h-facts dt{color:var(--muted)}.h-facts dd{margin:0;min-width:0;overflow-wrap:anywhere}.h-facts .copy{margin:0}
 .h-more{grid-column:1/-1;border-top:1px solid var(--line);background:var(--surface-2);position:relative}
 .path{margin-top:12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:0;list-style:none}.path li{display:flex;gap:10px;padding:14px;border:1px solid var(--line);border-radius:12px}.path .n{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--bg-2);color:var(--ink);font-size:11.5px;font-weight:600}.path li:first-child .n{background:var(--ink);color:var(--bg)}.path b{font-size:13px;font-weight:600}.path p{margin-top:2px;color:var(--muted);font-size:12.5px;line-height:1.45}
-.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.cards+.group{margin-top:12px}.cards:empty{display:none}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.cards-live{display:contents}
+.add{min-width:0;scroll-margin-top:72px}.add>summary{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;height:100%;min-height:150px;padding:14px;border:1px dashed var(--line-2);border-radius:12px;text-align:center;cursor:pointer;list-style:none;transition:background-color .15s}.add>summary::-webkit-details-marker{display:none}
+.add>summary:hover,.add[open]>summary{border-style:solid;background:var(--surface-2)}.add>summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.add-plus{display:grid;place-items:center;color:var(--muted);transition:transform .15s}.add-plus svg{width:40px;height:40px}.add-plus path{stroke-width:1.2}.add>summary:hover .add-plus{color:var(--ink)}.add[open] .add-plus{transform:rotate(45deg)}
+.add b{font-size:13px;font-weight:600}.add small{color:var(--muted);font-size:12.5px;line-height:1.45;text-wrap:balance}
+.cards-live:empty+.add{grid-column:1/-1}
 .c{display:flex;flex-direction:column;gap:10px;min-width:0;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
 .c-head{display:flex;align-items:center;gap:12px;min-width:0}.c-name{flex:1;min-width:0}.c-name b{display:block;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.c-name .state{font-size:12.5px;font-weight:500}.c-name small{display:block;color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .c .copy{margin:0}
@@ -462,10 +467,11 @@ button.w.add-m .w-tx b{font-size:14px}button.w.add-m .chev svg{width:16px;height
 .tall{height:40px}
 @media (max-width:640px){.tall,.narrow .input{height:48px}.narrow .input{font-size:16px}}
 @media (max-width:899px){.hero{grid-template-columns:minmax(0,1fr)}.h-shot{height:230px;margin-left:20px}.h-shot a{top:0;width:130%}.cards,.can{grid-template-columns:repeat(2,minmax(0,1fr))}.path{grid-template-columns:minmax(0,1fr)}.acct{grid-template-columns:minmax(0,1fr);gap:18px}.a-side{position:static}.a-nav{display:none}.a-main h2.sec:first-of-type{margin-top:18px}}
-@media (max-width:640px){.main,.main.wide{padding:20px 16px 56px}.top,.top.wide{padding:0 16px;gap:8px}.top .who{display:none}.navt{margin-left:0;gap:0}.navt a{padding:0 8px}.navt a[aria-current]::after{left:8px;right:8px}.h-main{padding:20px}.h-acts .primary{flex:1}.h-shot{height:190px}.cards,.can{grid-template-columns:minmax(0,1fr)}.t.big{grid-column:auto;grid-template-columns:minmax(0,1fr);gap:0}.t-tx{padding:16px}.t-shot{display:none}.steps{padding-left:14px}.seg{margin-left:14px}.r.wrap{flex-wrap:wrap}.r.wrap .tx{flex-basis:calc(100% - 44px)}.r.del{flex-wrap:wrap}.r.del .tx{flex-basis:calc(100% - 44px)}.r.del .input{flex:1;width:auto}}
+@media (max-width:640px){.main,.main.wide{padding:20px 16px 56px}.top,.top.wide{padding:0 16px;gap:8px}.top .who{display:none}.navt{margin-left:0;gap:0}.navt a{padding:0 8px}.navt a[aria-current]::after{left:8px;right:8px}.h-main{padding:20px}.h-acts .primary{flex:1}.h-shot{height:190px}.cards,.can{grid-template-columns:minmax(0,1fr)}.t.big{grid-column:auto;grid-template-columns:minmax(0,1fr);gap:0}.t-tx{padding:16px}.t-shot{display:none}.add>summary{display:grid;min-height:0;grid-template-columns:40px minmax(0,1fr);column-gap:12px;row-gap:1px;justify-content:stretch;text-align:left}.add-plus{grid-row:span 2}.add-plus svg{width:32px;height:32px}.r.wrap{flex-wrap:wrap}.r.wrap .tx{flex-basis:calc(100% - 44px)}.r.del{flex-wrap:wrap}.r.del .tx{flex-basis:calc(100% - 44px)}.r.del .input{flex:1;width:auto}}
 @media (max-width:370px){.top .chipx{display:none}}
 @media (pointer:coarse){.navt a,.t-go,.top .me a{min-height:44px}.c-acts .primary,.c-acts .ghost,.h-acts .primary,.h-acts .ghost,.a-main .ghost{height:44px}.copy{height:44px}}
-@media (prefers-reduced-motion:reduce){.t,.t-go svg{transition:none}.state i{animation:none!important}}
+@media (pointer:coarse) and (min-width:641px){.add>summary{min-height:176px}}
+@media (prefers-reduced-motion:reduce){.t,.t-go svg,.add>summary,.add-plus{transition:none}.state i{animation:none!important}}
 .wait{pointer-events:none;opacity:.75}.wait::after{content:'';width:12px;height:12px;flex:none;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:wait-spin .7s linear infinite}@keyframes wait-spin{to{transform:rotate(360deg)}}
 `;
 
@@ -682,10 +688,10 @@ function homeView({ cfg, offers, user, instance, machine, devices, computers, si
 
       <h2 class="sec">Your computers <span class="n" data-live="online">${computers.length ? `${online} of ${computers.length} online` : ''}</span></h2>
       <p class="hint">wisp on your own desktop or laptop, reached through the grid. Your files and agents stay on it.</p>
-      <div class="cards" data-live="computers">${computers.map((c) => computerCard(c, hidden)).join('')}</div>
-      <div class="group"><details class="w add" id="add">
-        <summary><span class="w-ic">${I.plus}</span><div class="w-tx"><b>Add a computer</b><small>One command in a terminal, or a few clicks in the app. No SSH, no open ports.</small></div><span class="chev">${I.chev}</span></summary>
-        <div class="how">
+      <div class="cards">
+        <div class="cards-live" data-live="computers">${computers.map((c) => computerCard(c, hidden)).join('')}</div>
+        <details class="add" id="add"><summary aria-controls="addHow"><span class="add-plus">${I.plus}</span><b>Add a computer</b><small>One command in a terminal, or a few clicks in the app. No SSH, no open ports.</small></summary></details>
+        <div class="how" id="addHow">
           <input type="radio" name="addHow" id="addCli" checked><input type="radio" name="addHow" id="addApp">
           <div class="seg" role="presentation"><label for="addCli">${I.code}In a terminal</label><label for="addApp">${I.laptop}With the app</label></div>
           <ol class="steps p-cli">
@@ -698,7 +704,7 @@ function homeView({ cfg, offers, user, instance, machine, devices, computers, si
             <li><span class="n">3</span><div><b>Allow it here</b><p>A page from this grid opens with a code. Check it matches and press <i>Allow</i>. The computer then shows up in this list, and in the phone app.</p></div></li>
           </ol>
         </div>
-      </details></div>
+      </div>
 
       <div data-live="sites">${apps}</div>
 
@@ -710,7 +716,7 @@ function homeView({ cfg, offers, user, instance, machine, devices, computers, si
 }
 
 // Add a computer from anywhere on the page. An old link to the account's Delete lands on its new page.
-const HOME_JS = `<script>(()=>{if(location.hash==='#delete')location.replace('/account#delete');document.addEventListener('click',(e)=>{if(!e.target.closest('[data-add]'))return;const d=document.getElementById('add');d.open=true;d.scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'});d.querySelector('summary').focus({preventScroll:true})})})()</script>`;
+const HOME_JS = `<script>(()=>{if(location.hash==='#delete')location.replace('/account#delete');document.addEventListener('click',(e)=>{if(!e.target.closest('[data-add]'))return;const d=document.getElementById('add');d.open=true;d.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'});d.querySelector('summary').focus({preventScroll:true})})})()</script>`;
 
 function accountView({ cfg, user, devices, computers, identities, providers, csrf, hidden, flash }) {
   const linked = new Set(identities.map((i) => i.provider));

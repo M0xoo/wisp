@@ -36,7 +36,8 @@ Users are `ada@example.com` (handle `ada`) and `bob@example.com` (handle `bob`),
 - **Expected:** `/` is **Home**: the cloud wisp with a picture of the app, its state (*Asleep* before
   first open, **Sleep** when running, nothing moves between them), **Open** (`/go`), its address and
   machine; *Add a cloud machine* (Soon); on a new account the three first steps; *Your computers* as
-  cards with *Add a computer*: **In a terminal** (`npx wisp-agents computer on --grid wisp.localhost:8090`,
+  cards, with *Add a computer* always the last card (the whole row with no computers), which opens
+  full width under them, moving no card: **In a terminal** (`npx wisp-agents computer on --grid wisp.localhost:8090`,
   copyable) and **With the app** (the three Machines steps), switching without a reload; *Published
   apps* when there are any; *What your grid can do*, whose tiles say what's already true (*4 published*,
   *Phone connected*). `/account` is **Account**, a tab in the header (the avatar goes there too):
