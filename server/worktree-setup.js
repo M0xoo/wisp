@@ -116,31 +116,82 @@ export function runCommand(dir, top = dir) {
 // hold: the setup steps the repo isn't trusted for (server/project-trust.js): they don't run now but
 // wait in `held` for Trust and start (runSetup) or Run without them.
 export async function prepareWorktree(root, dir, { hold = null, branch = null } = {}) {
-  const { copied, problems } = await copyIncluded(root, dir);
+  const { copied, problems, cloned } = await copyIncluded(root, dir);
   const { file, commands, problem } = repoSetup(root);
   if (problem) problems.push(problem);
-  if (hold?.length) return { copied, ran: [], problems, held: hold };
+  const shared = cloned ? { cloned } : {};
+  if (hold?.length) return { copied, ran: [], problems, held: hold, ...shared };
   const setup = await runSetup(root, dir, commands, setupEnv(file, { root, dir, branch }));
-  return { copied, ran: setup.ran, problems: [...problems, ...setup.problems] };
+  return { copied, ran: setup.ran, problems: [...problems, ...setup.problems], ...shared };
 }
 
-// The ignored files .worktreeinclude names, from the checkout into dir. Never throws.
-export async function copyIncluded(root, dir) {
+// The ignored files .worktreeinclude names, from the checkout into dir. Never throws. cloned: the
+// bytes that share the checkout's blocks rather than take new ones (Settings → This Mac says so).
+export async function copyIncluded(root, dir, opts) {
   const copied = [];
   const problems = [];
+  let cloned = 0;
   for (const rel of await includedPaths(root)) {
-    const from = path.join(root, rel);
-    const to = path.join(dir, rel);
+    const from = path.join(root, rel).replace(/[\\/]+$/, ''); // `cp -R dir/` would copy what's in it
+    const to = path.join(dir, rel).replace(/[\\/]+$/, '');
     if (fs.existsSync(to)) continue;
     try {
       fs.mkdirSync(path.dirname(to), { recursive: true });
-      fs.cpSync(from, to, { recursive: true, errorOnExist: false, verbatimSymlinks: true });
+      if (await cloneOrCopy(from, to, opts)) cloned += await diskBytes(from);
       copied.push(rel.replace(/\/$/, ''));
     } catch (err) {
       problems.push(`couldn't copy ${rel}: ${err.message}`);
     }
   }
-  return { copied, problems };
+  return { copied, problems, cloned };
+}
+
+// Copy-on-write where the file system has it: the copy shares the checkout's blocks until one side
+// writes, so a node_modules costs next to no disk (time is about the same: 100k files are metadata
+// either way), and cp runs beside the server where cpSync stopped it. Node's
+// COPYFILE_FICLONE doesn't do it on macOS (libuv writes the bytes: measured on Node 20, 22 and 25),
+// so it's the system's cp: `cp -c` (clonefile) on APFS, which falls back to copying by itself, and
+// `--reflink=always` on Linux (btrfs, XFS, bcachefs), which fails where there's none and then gets
+// a plain copy, as Windows (and a cp without the flag, BusyBox's) does. true: the blocks are shared.
+export async function cloneOrCopy(from, to, { platform = process.platform, cp = 'cp' } = {}) {
+  const viaCp = async (args) => {
+    try {
+      await run(cp, [...args, from, to], { timeout: SETUP_TIMEOUT });
+      return true;
+    } catch {
+      fs.rmSync(to, { recursive: true, force: true }); // what it got through before it gave up
+      return false;
+    }
+  };
+  if (platform === 'darwin' && (await viaCp(['-c', '-R']))) return sameApfs(from, path.dirname(to));
+  if (platform === 'linux' && (await viaCp(['-R', '--reflink=always']))) return true;
+  fs.cpSync(from, to, { recursive: true, errorOnExist: false, verbatimSymlinks: true, mode: fs.constants.COPYFILE_FICLONE });
+  return false;
+}
+
+// cp -c clones only within one APFS volume and copies quietly otherwise. The system volume is APFS
+// on every macOS wisp runs on, so its file system type stands for APFS (an HFS+ or exFAT disk differs).
+function sameApfs(a, b) {
+  try {
+    return fs.lstatSync(a).dev === fs.statSync(b).dev && fs.statfsSync(b).type === fs.statfsSync('/').type;
+  } catch {
+    return false;
+  }
+}
+
+// The disk a file or tree takes, each inode once (pnpm's hard links), symlinks not followed. Async:
+// a big node_modules is 100k files, and the server shouldn't stop for them.
+async function diskBytes(p, seen = new Set()) {
+  const st = await fs.promises.lstat(p).catch(() => null);
+  if (st?.isDirectory()) {
+    const names = await fs.promises.readdir(p).catch(() => []);
+    let total = 0;
+    for (let i = 0; i < names.length; i += 64) total += (await Promise.all(names.slice(i, i + 64).map((n) => diskBytes(path.join(p, n), seen)))).reduce((a, b) => a + b, 0);
+    return total;
+  }
+  if (!st?.isFile() || seen.has(st.ino)) return 0;
+  seen.add(st.ino);
+  return st.blocks != null ? st.blocks * 512 : st.size;
 }
 
 // A step can be a whole script: a problem names its first line.
