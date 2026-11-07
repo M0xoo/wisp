@@ -419,14 +419,16 @@ test('the seen ring keeps 200', async () => {
 
 test('stale: said while wisp was off, told and not run', async () => {
   const n = nextIssue();
-  const st = repoState(PRIVATE);
-  const back = st.since;
+  // Really off: a look already out would answer with the cursor's own comment and carry a cursor
+  // moved back under it forward again, past this one.
+  halt();
+  repoState(PRIVATE).since = iso(Date.now() - 3 * 3600_000);
+  srv.store.saveConfig();
   const old = iso(Date.now() - (STALE_S + 120) * 1000);
-  st.since = iso(Date.now() - 3 * 3600_000);
   comment(n, '/wisp from while it was off', { created_at: old, updated_at: old });
+  await boot();
   assert.match(await nextOn(n), /^That arrived while wisp was offline, so it didn’t run\./);
   assert.equal(tasksOn(n).length, 0);
-  assert.ok(back);
 });
 
 test('Full auto is refused and nothing starts; Edits is the most; a follow-up is held to it', async () => {
