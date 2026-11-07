@@ -913,6 +913,7 @@ const D_ME = '111111';
 const D_STRANGER = '222222';
 const dc = new FakeDiscord();
 dc.token = DISCORD_TOKEN;
+dc.lag('/commands', 300); // CI's macOS was this slow once: connected means /wisp is there
 const keypair = () => {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   return { privateKey, hex: Buffer.from(publicKey.export({ format: 'jwk' }).x, 'base64url').toString('hex') };
@@ -920,6 +921,7 @@ const keypair = () => {
 let d; // the grid for these tests
 let url = '';
 const keys = keypair();
+dc.verifyKey = keys.hex;
 const signedBy = (privateKey, raw) => {
   const ts = String(Math.floor(Date.now() / 1000));
   return { 'x-signature-ed25519': sign(null, Buffer.from(ts + raw), privateKey).toString('hex'), 'x-signature-timestamp': ts };

@@ -67,6 +67,7 @@ export const PERMISSIONS = String(VIEW + SEND + HISTORY + THREADS + IN_THREADS);
 export const NO_HUB = 'Discord can’t reach this computer: its grid doesn’t hold messages for it. Set Discord up on a computer that stays on.';
 const STRANGER = 'This wisp only answers people linked to it. To link, send `link` and the code shown in wisp → Settings → Phone → Discord, here.';
 const STRANGER_BOX = 'This wisp only answers people linked to it. To link, use `/wisp` here with `link` and the code shown in wisp → Settings → Phone → Discord.';
+const wrongKey = (real) => `The public key doesn’t match this application: Discord’s ends in ${String(real).slice(-6)}. Copy it again from the Developer Portal → General Information.`;
 const NO_LIST = 'That list isn’t shown here: see it in wisp, or ask in a DM.';
 const NO_THREAD = 'Do that in a task’s thread, or as a reply to its message.';
 const FIX = 'Check the token in wisp → Settings → Phone → Discord.';
@@ -250,14 +251,16 @@ export class Discord extends Channel {
         this.#endpoint(found.url);
         const [user, app, guilds] = await Promise.all(['/users/@me', '/oauth2/applications/@me', '/users/@me/guilds'].map((p) => this.rest('GET', p, undefined, { tries: 1, signal })));
         if (signal.aborted) return;
+        // Discord would only ever fail in the Portal, or say nothing: its word against what was pasted.
+        if (app.verify_key && app.verify_key.toLowerCase() !== this.cfg.publicKey) return this.#down(wrongKey(app.verify_key));
         this.me = { id: user.id, name: user.username };
         this.guilds = new Set(guilds.map((g) => g.id));
         if (app.id !== this.cfg.appId) {
           this.cfg.appId = app.id;
           this.hub.store.saveConfig();
         }
-        this.#live();
-        this.#register();
+        await this.#register(); // Connected means /wisp is there, and a failure here comes round again
+        if (!signal.aborted) this.#live();
         return;
       } catch (err) {
         if (signal.aborted) return;
@@ -421,21 +424,23 @@ export class Discord extends Channel {
   };
 
   // A box wakes often and forgets, so it keeps what it registered in the config, and a new wisp's
-  // /wisp still gets through.
-  #register() {
+  // /wisp still gets through. There it's awaited, and a refusal is the caller's.
+  async #register() {
     const app = this.cfg.appId;
     const box = inBox();
     const mark = box ? `${app}:${createHash('sha256').update(JSON.stringify(slashCommand())).digest('hex')}` : app;
     if (!app || (box ? this.cfg.commandsFor : this.commandsFor) === mark) return;
     this.commandsFor = mark;
-    this.rest('PUT', `/applications/${app}/commands`, [slashCommand()]).then(() => {
+    try {
+      await this.rest('PUT', `/applications/${app}/commands`, [slashCommand()]);
       if (!box) return;
       this.cfg.commandsFor = mark;
       this.hub.store.saveConfig();
-    }, (err) => {
+    } catch (err) {
       this.commandsFor = '';
+      if (box) throw err;
       this.#oops(err);
-    });
+    }
   }
 
   // --- who may speak ----------------------------------------------------------------------------

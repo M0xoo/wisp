@@ -8,6 +8,7 @@
 //   fake.interaction(o)    the same interaction, sent nowhere: for what comes over HTTP
 //   fake.sever(match)      the next REST call matching loses its connection, with no answer
 //   fake.deadTokens        interaction tokens past their 15 minutes
+//   fake.lag(match, ms)    every REST call matching takes that long to answer
 //   fake.drop()            the socket goes, with no goodbye
 //   fake.op(op, d)         a raw gateway op (7 reconnect, 9 invalid session, 1 heartbeat)
 //   fake.close(code)       the gateway closes with a code
@@ -56,6 +57,7 @@ export class FakeDiscord {
   verifyKey = 'ab'.repeat(32);
   #fails = [];
   #severs = [];
+  #lags = [];
   #seq = 0;
   #log = []; // every dispatch, for a resume
   #session = null;
@@ -79,6 +81,10 @@ export class FakeDiscord {
     this.#fails.push({ match, reply });
   }
 
+  lag(match, ms) {
+    this.#lags.push({ match, ms });
+  }
+
   sever(match) {
     this.#severs.push(match);
   }
@@ -94,6 +100,7 @@ export class FakeDiscord {
       res.writeHead(status, { 'content-type': 'application/json', ...headers });
       res.end(o === null ? '' : JSON.stringify(o));
     };
+    for (const l of this.#lags) if (route.includes(l.match)) await new Promise((r) => setTimeout(r, l.ms));
     const cut = this.#severs.findIndex((m) => route.includes(m));
     if (cut >= 0) {
       this.#severs.splice(cut, 1);

@@ -1421,6 +1421,7 @@ const warn = console.warn;
 test('a cloud computer: set up by paste, a bad key refused, no gateway, /wisp registered by REST once', async () => {
   await api('/remote', { method: 'PUT', body: { discord: { enabled: false, token: '' } } });
   fake.token = TOKEN; // earlier tests moved it on
+  fake.verifyKey = keys.hex;
   await new Promise((r) => fakeGrid.listen(0, '127.0.0.1', r));
   Object.assign(process.env, { WISP_GRID_URL: `http://127.0.0.1:${fakeGrid.address().port}`, WISP_TRUSTED_PROXY_SECRET: 'box-secret', WISP_PUBLIC_URL: 'https://ada.grid.example' });
   console.warn = (...a) => {
@@ -1513,6 +1514,23 @@ test('a box: a /wisp in a DM follows up on the task there: replies don’t reach
   await held(next);
   await until(() => fake.edits.some((e) => e.token === next.token), { what: 'the edit' });
   assert.equal(srv.store.all().length, count + 1);
+});
+
+test('a box: a key that isn’t the application’s says so, and isn’t Connected; the right one recovers', async () => {
+  const wrong = keypair().hex;
+  const commands = fake.commands.length;
+  await api('/remote', { method: 'PUT', body: { discord: { publicKey: wrong } } });
+  const v = await until(async () => {
+    const x = await api('/remote');
+    return x.discord.error ? x : null;
+  }, { what: 'the error' });
+  assert.equal(v.discord.connected, false);
+  assert.match(v.discord.error, new RegExp(`doesn’t match.*${keys.hex.slice(-6)}.*General Information`));
+  assert.ok(!v.discord.error.includes(TOKEN));
+  assert.equal(fake.commands.length, commands);
+  await api('/remote', { method: 'PUT', body: { discord: { publicKey: keys.hex } } });
+  await until(async () => (await api('/remote')).discord.connected, { what: 'connected again' });
+  assert.equal((await api('/remote')).discord.error, '');
 });
 
 test('a box: a stranger’s deferred response goes, nothing said, no task, and the grid hears a 403', async () => {
