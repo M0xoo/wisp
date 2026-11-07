@@ -59,7 +59,7 @@ export function openapi({ version, port }) {
               type: 'object',
               properties: {
                 at: { type: 'integer' },
-                mem: { type: 'object', properties: { total: { type: 'integer' }, freePct: { type: ['number', 'null'] }, pressure: { type: ['number', 'null'] } } },
+                mem: { type: 'object', properties: { total: { type: 'integer' }, freePct: { type: ['number', 'null'] }, pressure: { type: ['number', 'null'] }, per: { enum: ['footprint', 'rss'], description: 'What each process\'s rss is: phys_footprint (macOS, Activity Monitor\'s Memory) or RSS' } } },
                 cpu: { type: 'object', properties: { pct: { type: ['number', 'null'] }, cores: { type: 'integer' } } },
                 disk: { type: 'object', properties: { free: { type: ['number', 'null'] }, total: { type: ['number', 'null'] }, worktrees: { type: ['number', 'null'] }, reclaimable: { type: 'integer' } } },
                 wisp: { type: 'object', properties: { rss: { type: 'integer' }, cpu: { type: ['number', 'null'] } } },
@@ -67,8 +67,9 @@ export function openapi({ version, port }) {
                 tasks: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, crew: { type: ['string', 'null'] }, rss: { type: 'integer' }, cpu: { type: ['number', 'null'] }, procs: { type: 'integer' }, worktreeBytes: { type: ['number', 'null'] } } } },
                 crew: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, rss: { type: 'integer' }, cpu: { type: ['number', 'null'] }, jobs: { type: 'integer' } } } },
                 leftovers: { type: 'array', items: { type: 'object', properties: { pid: { type: 'integer' }, command: { type: 'string' }, rss: { type: 'integer' }, cpu: { type: ['number', 'null'] }, task: { type: ['string', 'null'] }, since: { type: 'integer' } } } },
+                leftoverGroups: { type: 'array', items: { type: 'object', properties: { id: { type: 'string', description: 'For POST /machine/fix' }, command: { type: 'string', description: 'The program and script that started them, before the first flag' }, task: { type: ['string', 'null'] }, count: { type: 'integer' }, rss: { type: 'integer' }, cpu: { type: ['number', 'null'] }, pids: { type: 'array', items: { type: 'integer' } }, commands: { type: 'array', items: { type: 'string' } }, since: { type: 'integer' } } } },
                 history: { type: 'array', items: { type: 'object', properties: { at: { type: 'integer' }, freePct: { type: ['number', 'null'] }, cpu: { type: ['number', 'null'] }, runs: { type: 'integer' }, held: { type: 'boolean' }, worktreeBytes: { type: ['number', 'null'] } } } },
-                reclaim: { type: 'array', items: { type: 'object', properties: { kind: { enum: ['merged', 'done', 'crew', 'leftover'] }, count: { type: 'integer' }, bytes: { type: 'integer' }, ids: { type: 'array', items: { type: 'string' }, description: 'For POST /worktrees/clean: ids, or leftovers for kind leftover' } } } },
+                reclaim: { type: 'array', items: { type: 'object', properties: { kind: { enum: ['merged', 'done', 'crew', 'leftover', 'harness'] }, total: { type: 'integer', description: 'harness: bytes of every harness folder' }, measuredAt: { type: 'integer' }, harnesses: { type: 'array', description: 'harness only', items: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, bytes: { type: 'integer' }, parts: { type: 'array', items: { type: 'object', properties: { label: { type: 'string' }, path: { type: 'string' }, bytes: { type: 'integer' } } } }, removable: { type: 'object', properties: { count: { type: 'integer' }, bytes: { type: 'integer' } } }, how: { type: 'string' } } } }, count: { type: 'integer' }, bytes: { type: 'integer' }, ids: { type: 'array', items: { type: 'string' }, description: 'For POST /worktrees/clean: ids, or leftovers for kind leftover; harness ids for POST /machine/harness/clean' } } } },
               },
             }),
           },
@@ -79,6 +80,20 @@ export function openapi({ version, port }) {
           summary: 'Stop a process a finished run left running, or one in a running task\'s tree: SIGTERM, then SIGKILL 5 s later. wisp itself and what started it are refused',
           requestBody: body({ type: 'object', required: ['pid'], properties: { pid: { type: 'integer' } } }),
           responses: { 200: json({ type: 'object', properties: { stopped: { type: 'integer' }, since: { type: 'integer' } } }), 400: err[400], 403: json(ref('Error'), 'wisp itself, or not a process of a task') },
+        },
+      },
+      '/machine/fix': {
+        post: {
+          summary: 'File a fix for a group of left-behind processes: a task for the crew\'s Bugsy, or without one a task in the project they came from, with their command lines and "kill what you spawn"',
+          requestBody: body({ type: 'object', required: ['group'], properties: { group: { type: 'string', description: 'leftoverGroups[].id' } } }),
+          responses: { 200: json({ type: 'object', properties: { crew: { type: 'string' }, session: { type: 'string' }, queued: { type: 'integer' } } }), 404: err[404], 409: json(ref('Error'), 'No Bugsy and no task to file it in') },
+        },
+      },
+      '/machine/harness/clean': {
+        post: {
+          summary: 'Remove what\'s safe in the harnesses\' own folders: crash dumps over an hour old, and Claude Code\'s claude-*-cwd temp files over a day old that no running process names. Nothing else, and no file is read',
+          requestBody: body({ type: 'object', properties: { ids: { type: 'array', items: { type: 'string' }, description: 'Harness ids; without: all' } } }),
+          responses: { 200: json({ type: 'object', properties: { removed: { type: 'integer' }, freed: { type: 'integer' } } }) },
         },
       },
       '/automations/pause': {
