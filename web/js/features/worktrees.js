@@ -10,6 +10,7 @@ import { tryApi } from '../ui/toast.js';
 import { reveal } from './feed.js';
 
 const CHOICES = [['off', 'Never'], ['3', 'After 3 days'], ['7', 'After 7 days'], ['14', 'After 14 days'], ['30', 'After 30 days']];
+const ON_DONE = [['ask', 'Ask'], ['remove', 'Remove clean ones'], ['keep', 'Keep them']]; // defaults.worktreeOnDone (features/done-folders.js)
 const CLEANUP_DEFAULT = '14'; // server/services/worktrees.js
 const PAGE = 50; // rows before Show all
 const POLL_MS = 1500;
@@ -46,11 +47,14 @@ export function mountWorktrees(box) {
   const gone = new Set(); // keys removed here, until the server's list agrees
 
   const setting = () => S.config.defaults.worktreeCleanup ?? CLEANUP_DEFAULT;
+  const onDone = () => S.config.defaults.worktreeOnDone || 'ask';
   box.innerHTML = `
     <div class="sx-group wtr-sum">
       <div class="sx-row"><div class="sx-text"><b class="wtr-total"></b><small class="wtr-disk"></small></div><div class="sx-ctl"><button class="ghost sm" data-wt="all"></button></div></div>
       <div class="sx-row wtr-auto"><div class="sx-text"><b>Clean up automatically</b><small>Removes the folder of a task left idle this long, sooner if the disk runs low. Its branch stays, and replying to the task brings the folder back. Uncommitted work, kept worktrees and open PRs stay.</small></div>
         <div class="sx-ctl"><select id="wtrCleanup" aria-label="Clean up automatically">${CHOICES.map(([k, l]) => `<option value="${k}" ${setting() === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
+      <div class="sx-row wtr-done"><div class="sx-text"><b>When a task is done</b><small>What Mark done does with the folders it and what ran under it leave on disk. Remove still asks before one with uncommitted work goes.</small></div>
+        <div class="sx-ctl"><select id="wtrOnDone" aria-label="When a task is done">${ON_DONE.map(([k, l]) => `<option value="${k}" ${onDone() === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
     </div>
     <div class="sx-group wtr-list">
       <fieldset class="pk-seg wtr-filters" aria-label="Show"></fieldset>
@@ -233,6 +237,16 @@ export function mountWorktrees(box) {
       sel.value = was;
     }
     refresh();
+  };
+  const doneSel = $('#wtrOnDone', box);
+  doneSel.onchange = async () => {
+    const was = onDone();
+    S.config.defaults.worktreeOnDone = doneSel.value;
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { worktreeOnDone: doneSel.value } } }));
+    if (!saved) {
+      S.config.defaults.worktreeOnDone = was;
+      doneSel.value = was;
+    }
   };
   paint();
   return refresh;

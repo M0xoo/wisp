@@ -712,6 +712,7 @@ export const SETTINGS = {
   transcript: ['on', 'off'],
   worktree: ['on', 'off'],
   worktreeCleanup: ['off', '3', '7', '14', '30'], // days a task's worktree may sit idle
+  worktreeOnDone: ['ask', 'remove', 'keep'], // Done in the page: ask about its folders, remove the clean ones, or keep them
   followUp: ['queue', 'interrupt'],
   mode: ['plan', 'edits', 'auto'],
   agent: 'string',
