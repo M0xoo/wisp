@@ -143,10 +143,11 @@ const restore = async () => {
   throw new Error('a second launch didn’t bring the minimized window back; its taskbar button did');
 };
 const spot = (selector) => A.page.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, selector);
-// The middle of the taskbar, where Windows 11 puts the app's button.
+// Right of the taskbar's middle, where Windows 11 puts a running app's button. Not the left: on
+// Windows 11 the search box there shows a picture that changes by itself.
 const taskbar = (tag) => {
   const s = one('screen');
-  return one('crop', s.width / 2 - 320, s.height - 48, 640, 48, path.join(OUT, `desktop-tauri-win-bar-${tag}.png`)).sha;
+  return one('crop', s.width / 2, s.height - 48, 320, 48, path.join(OUT, `desktop-tauri-win-bar-${tag}.png`)).sha;
 };
 const resolution = (w, h) => {
   const r = one('resolution', w, h);
@@ -178,6 +179,8 @@ console.log(`\n  desktop (Tauri, Windows ${ARCH}) · ${SETUP}\n`);
 const desk = one('clear-desktop');
 console.log(`  on the desktop: ${desk.seen.join(' | ') || 'nothing big'}; in front: "${desk.foreground}"; closed: ${desk.closed.join(', ') || 'nothing'}`);
 await sleep(1500);
+one('keys', '{ESC}'); // the Start menu opens as that page goes
+await sleep(500);
 shot('desktop');
 
 // Links go out through Windows, not a stub: these two land in a file instead of a browser or an editor.
@@ -360,7 +363,12 @@ await check('TAURI-W07', 'menu bar, and real keys in the prompt box', async () =
   await until(() => A.page.evaluate(() => __qaT.selectionEnd - __qaT.selectionStart === 5), { timeout: 5000, what: 'Ctrl+A' });
   one('keys', '^c');
   await sleep(200);
-  one('keys', '^x');
+  // As on macOS (qa/desktop-tauri.mjs): a cut can come before the selection has reached the editor.
+  for (let i = 0; i < 3 && (await box()) !== ''; i++) {
+    if (i) console.log(`  Ctrl+X again (${i})`);
+    one('keys', '^x');
+    await shows('', 'Ctrl+X').catch(() => {});
+  }
   await shows('', 'Ctrl+X');
   one('keys', '^v');
   await shows('hello', 'Ctrl+V');

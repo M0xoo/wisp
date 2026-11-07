@@ -141,8 +141,9 @@ $r = switch ($Cmd) {
     @{ texts = @(@($h) | ForEach-Object { @($_.Content.GetElementsByTagName('text') | ForEach-Object { $_.InnerText }) -join ' / ' }) }
   }
   # windows-11-arm signs in to Windows 11's first-run privacy page, full screen over every window:
-  # clicks and keys go to it, and the taskbar is behind it. Only Windows' own first-run hosts go
-  # (CloudExperienceHost's pages run in WWAHost), and the policy keeps the page from coming back.
+  # clicks and keys go to it, and the taskbar is behind it. Seen there: explorer's Shell_OOBEProxy
+  # 'Microsoft account' window with the page in WWAHost. Only Windows' own first-run hosts go, and
+  # the policy keeps the page from coming back.
   'clear-desktop' {
     $k = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OOBE'
     New-Item -Path $k -Force | Out-Null; Set-ItemProperty -Path $k -Name DisablePrivacyExperience -Value 1 -Type DWord
@@ -153,6 +154,8 @@ $r = switch ($Cmd) {
       if (-not $x.visible -or $x.width -lt $screen.Width / 2 -or $x.height -lt $screen.Height / 2) { continue }
       $proc = Get-Process -Id $x.pid -ErrorAction SilentlyContinue
       $seen += "$($proc.Name) [$($x.cls)] '$($x.title)' $($x.width)x$($x.height)"
+      # Explorer's frame for the page: hidden, not closed, it's explorer's.
+      if ($x.cls -eq 'Shell_OOBEProxy') { [void][W]::ShowWindow($h, 0); $closed += "hid $($x.cls) '$($x.title)'" }
       if ($proc -and ($proc.Name -in 'WWAHost', 'CloudExperienceHostBroker', 'UserOOBEBroker' -or "$($proc.Path)" -like "$env:SystemRoot\SystemApps\*CloudExperienceHost*")) { $closed += "$($proc.Name) '$($x.title)'"; Stop-Process -Id $x.pid -Force }
     }
     foreach ($n in 'WWAHost', 'CloudExperienceHostBroker', 'UserOOBEBroker') { Get-Process -Name $n -ErrorAction SilentlyContinue | ForEach-Object { $closed += "$($_.Name) (no window)"; Stop-Process -Id $_.Id -Force } }
