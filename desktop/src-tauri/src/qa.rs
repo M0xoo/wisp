@@ -122,7 +122,8 @@ unsafe fn center() -> Option<Retained<AnyObject>> {
 }
 
 unsafe fn delivered() -> Vec<Retained<AnyObject>> {
-  center().map_or(vec![], |c| { let list: Retained<NSArray<AnyObject>> = msg_send![&*c, deliveredNotifications]; list.iter().collect() })
+  // Both can be nil (an unbundled build, notifications not allowed yet).
+  center().and_then(|c| { let list: Option<Retained<NSArray<AnyObject>>> = msg_send![&*c, deliveredNotifications]; list }).map_or(vec![], |l| l.iter().collect())
 }
 
 pub fn listen(app: AppHandle) {
@@ -279,13 +280,13 @@ fn handle(app: &AppHandle, q: &Value) -> Value {
     // What macOS holds for this app, and what a click on a banner would do: AppKit calls the
     // delegate the plugin installed. The click itself is the one step this can't take.
     "delivered" => main_thread(app, |_| unsafe {
-      let titles: Vec<String> = delivered().iter().map(|n| { let t: Retained<NSString> = msg_send![&**n, title]; t.to_string() }).collect();
+      let titles: Vec<String> = delivered().iter().map(|n| { let t: Option<Retained<NSString>> = msg_send![&**n, title]; t.map_or(String::new(), |t| t.to_string()) }).collect();
       json!({ "delivered": titles })
     }),
     "notify-click" => {
       let title = str_of("title");
       main_thread(app, move |_| unsafe {
-        let Some(note) = delivered().into_iter().find(|n| { let t: Retained<NSString> = msg_send![&**n, title]; t.to_string() == title }) else { return json!({ "error": "not delivered" }) };
+        let Some(note) = delivered().into_iter().find(|n| { let t: Option<Retained<NSString>> = msg_send![&**n, title]; t.is_some_and(|t| t.to_string() == title) }) else { return json!({ "error": "not delivered" }) };
         let Some(center) = center() else { return json!({ "error": "no center" }) };
         let delegate: *mut AnyObject = msg_send![&*center, delegate];
         if delegate.is_null() { return json!({ "error": "no delegate" }) }
