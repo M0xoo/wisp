@@ -30,15 +30,6 @@ export const reach = (url, opts) =>
     throw new Error(err.name === 'TimeoutError' ? TOO_SLOW : CANT_REACH);
   });
 
-// The page going away (a reload, a closed tab) cuts off what's on its way, and that looks like no
-// answer before the page is gone. beforeunload comes first; the time limit is for one that didn't
-// lead anywhere (a download, a link to another app).
-let leavingUntil = 0;
-if (typeof addEventListener === 'function') {
-  for (const ev of ['beforeunload', 'pagehide']) addEventListener(ev, () => (leavingUntil = Date.now() + 3000));
-}
-export const pageLeaving = () => Date.now() < leavingUntil;
-
 // A refused response as an Error: the server's message, or, from a proxy or tunnel in front of a wisp
 // that's gone, the same words as no answer. statusText is empty over HTTP/2.
 export const refused = (r, j) =>
