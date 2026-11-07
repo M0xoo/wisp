@@ -1,8 +1,8 @@
 // A message wisp Grid sent here through the tunnel (`on laptop`, grid/route.js): the grid verified
 // who it's from and picked this computer, and this computer decides whether to take it. Only with
 // Accept tasks from channels on, which only this computer can switch on (routes/settings.js), and it
-// goes no further than here: this computer's own projects, no other machine, no crew. Plan unless
-// asked, Edits at most.
+// goes no further than here: this computer's own projects, no other machine, no crew (so no
+// delegates, whose mode is their own). Plan unless asked, Edits at most.
 //
 // The computer never holds the bot. All it keeps of the chat is the thread the grid gave it
 // (s.remote.routed), and its report goes back through the grid under that.
@@ -90,8 +90,7 @@ export class Routed extends Channel {
     if (!p.project && !ctx.defaultProject) return said('No projects on that computer yet. Open a folder in wisp there first.', 400);
     const started = { channel: this.name, ref: thread, ack: null };
     try {
-      // tagged: a delegate has a mode of its own, and this message's cap has to hold for all of it.
-      const out = await phone.startParsed({ ...p, tagged: [] }, { channel, name, sender, cap: CAP, fallback: FALLBACK, thread: started, ctx });
+      const out = await phone.startParsed(p, { channel, name, sender, cap: CAP, fallback: FALLBACK, thread: started, ctx });
       return said(out.ack);
     } catch (err) {
       return said(`Couldn’t start it: ${truncate(err.message, 300)}`, 500);

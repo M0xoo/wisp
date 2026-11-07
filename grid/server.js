@@ -831,11 +831,11 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
       if (routes.on && p === '/channels/route') {
         const body = await needCsrf();
         limit(`routeset|${s.user.id}`, 10);
-        const back = (m, bad) => redirect(res, `/account?m=${encodeURIComponent(m)}${bad ? '&tone=bad' : ''}#route`);
+        const back = (m, bad) => redirect(res, `/account?m=${encodeURIComponent(m)}${bad ? '&tone=bad' : ''}`);
         try {
           const name = await routes.set(s.user, body);
           notify(s.user.id);
-          return back(`${name ? `@${name}` : 'Your bot'} is connected. Your cloud wisp hands the webhook over the next time it starts.`);
+          return back(`${name ? `@${name}` : 'Your bot'} is connected.`);
         } catch (err) {
           if (err.status !== 400) log(`grid: route for ${s.user.handle}: ${err.message}`);
           return back(err.status === 400 ? err.message : 'That didn’t work: Telegram couldn’t be reached. Try again.', true);
@@ -845,7 +845,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
         await needCsrf();
         await routes.remove(s.user);
         notify(s.user.id);
-        return redirect(res, `/account?m=${encodeURIComponent('Removed. Your cloud wisp sets its own webhook the next time it starts.')}#route`);
+        return redirect(res, `/account?m=${encodeURIComponent('Removed. Your cloud wisp sets its own webhook the next time it starts.')}`);
       }
       if (p === '/identities/unlink') {
         const body = await needCsrf();

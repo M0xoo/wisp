@@ -134,7 +134,7 @@ export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit
 
   // Past the secret: Telegram says who this is. Only a person on the list, in a private chat with
   // the bot; in a group, others could read what comes back and steer what it does.
-  const person = (m, route) => !!m?.from && !m.from.is_bot && m.chat?.type === 'private' && String(m.chat.id) === String(m.from.id) && route.senders.includes(String(m.from.id));
+  const person = (m, route) => !!m?.from && !m.from.is_bot && m.chat?.type === 'private' && route.senders.includes(String(m.from.id));
 
   // → false when it isn't the grid's to act on.
   async function route(user, r, u) {

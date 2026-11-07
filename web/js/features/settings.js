@@ -160,7 +160,7 @@ export function openSettings(opts) {
           </div>
           <div class="sx-group">
             ${row('Phone', `<span class="phone-hint">${PHONE_HINT}</span>`, '<button class="ghost sm" id="openPhone">Set up</button>')}
-            ${row('Accept tasks from channels', 'A message to wisp on Cloud that says <code>on this computer</code>’s name starts a task here: Plan unless it asks, Edits at most, never Full auto. Only you can send those, and only here can this be turned on', '<button class="switch" id="acceptChannels" role="switch" aria-label="Accept tasks from channels"></button>')}
+            ${row('Accept tasks from channels', 'Send <code>on laptop fix the login</code> to wisp on Cloud, with this computer’s name, and it starts a task here: Plan unless you ask, Edits at most, never Full auto. Only this computer can turn this on', '<button class="switch" id="acceptChannels" role="switch" aria-label="Accept tasks from channels"></button>')}
           </div>
         </section>
         <section class="sx-pane" data-pane="agents">

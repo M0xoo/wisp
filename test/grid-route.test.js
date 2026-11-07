@@ -568,6 +568,11 @@ test('a report: a device with the thread posts to that chat, and that’s all it
   assert.equal((await post(c.token, { thread: 'a'.repeat(43), text: 'x' })).status, 404);
   assert.equal((await post('nope', { thread, text: 'x' })).status, 401);
   assert.equal(g.tg.sent().length, 2);
+  // A thread is a way to post to a chat: not a firehose.
+  const codes = [];
+  for (let i = 0; i < 21; i++) codes.push((await post(c.token, { thread, text: `${i}` })).status);
+  assert.equal(codes.at(-1), 429);
+  assert.equal(g.tg.sent().length, 22);
 });
 
 test('a follow-up: a reply to what the grid sent goes back to that computer, in that thread', async () => {
@@ -644,12 +649,13 @@ test('a real wisp: switch off, then on; Plan, Edits, Full auto refused, stale, a
   assert.equal(cookieless.status, 403, cookieless.text);
   assert.match(cookieless.text, /on the computer itself/);
   assert.notEqual(app.store.config.defaults.acceptChannels, 'on');
+  assert.equal((await api('/config', { method: 'PATCH', body: { defaults: { acceptChannels: 'on' } } })).status, 200);
+
   // Nor can a request on this computer pose as the grid: the mark is the tunnel's.
   assert.equal((await api('/channels/routed', { method: 'POST', headers: { 'x-wisp-route': 'grid', 'x-wisp-tunnel': 'x'.repeat(48) }, body: { text: 'x', thread: 't', id: '1' } })).status, 403);
   // A signed-in phone at the computer's own address can't send what only the grid sends.
   assert.equal((await call(g.port, new URL(here.url).hostname, '/api/channels/routed', { headers: { authorization: `Bearer ${phone}`, 'content-type': 'application/json', 'x-wisp-route': 'grid' }, body: JSON.stringify({ text: 'x', thread: 't', id: '2' }) })).status, 403);
 
-  assert.equal((await api('/config', { method: 'PATCH', body: { defaults: { acceptChannels: 'on' } } })).status, 200);
 
   // Full auto: refused, however it's asked.
   assert.match(await sends(`on ${name} full auto: delete it`), /Full auto isn’t allowed/);
@@ -703,6 +709,10 @@ test('a real wisp: a message stays on this computer, no machine, no crew, no del
     return g.tg.sent().at(-1).text;
   };
   app.store.config.projects.push({ id: 'sshp', name: 'faraway', path: '/srv/x', machine: 'm-far' });
+  app.store.config.machines.push({ id: 'm-desk', name: 'desk', kind: 'ssh' });
+  const [repo] = app.store.config.projects;
+  assert.ok((await api('/crew', { body: { name: 'Ada', role: 'x', brief: 'Watch.', cwd: repo.path, agent: 'claude', model: 'sonnet', mode: 'auto', parallel: 1 } })).status < 300);
+  assert.match(await sends(`on ${name} on desk: fix it`), /No machine/);
   assert.match(await sends(`in faraway on ${name}: fix it`), /No project/);
   assert.match(await sends(`@ada on ${name} fix it`), /No crew member or project/);
   assert.match(await sends(`on ${name} status`), /Only a task/);
