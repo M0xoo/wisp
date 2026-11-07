@@ -226,6 +226,22 @@ test('over the cap the oldest idle go until it fits; kept, dirty and open PRs st
   assert.equal(worktrees.view().max, '20');
 });
 
+test('leftovers don’t count toward the cap, so they never push idle task folders out', async () => {
+  const { add, home, repo, worktrees } = setup({ defaults: { worktreeCleanup: 'off', worktreeMax: '20' } });
+  const tasks = [];
+  for (let i = 0; i < 20; i++) tasks.push(await add(`t${i}`, { state: 'review', updatedAt: now() - (50 - i) * 3_600_000 }));
+  const left = [];
+  for (let i = 0; i < 3; i++) {
+    const p = path.join(home, 'worktrees', `left${i}`);
+    git(repo, 'worktree', 'add', '-q', '-b', `left${i}`, p);
+    left.push(p);
+  }
+  await worktrees.sweep();
+  assert.deepEqual(tasks.filter((s) => !there(s)).map((s) => s.id), [], '20 task folders, 20 allowed');
+  assert.equal(left.every((p) => fs.existsSync(p)), true, 'leftovers stay too');
+  assert.equal(worktrees.view().leftovers.length, 3);
+});
+
 test('the cap off, or not reached, removes nothing; a new folder past it sweeps a little later', async () => {
   const { add, store, worktrees } = setup({ defaults: { worktreeCleanup: 'off', worktreeMax: 'off' }, opts: { capDelay: 50 } });
   const a = await add('a', { state: 'review', updatedAt: now() - 5 * DAY });
