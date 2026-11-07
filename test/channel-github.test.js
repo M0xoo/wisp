@@ -20,8 +20,8 @@ installFakeBins();
 isolateAgentConfigs();
 
 const { startServer } = await import('../server/index.js');
-const { RateLimit, STALE_S } = await import('../server/channels/policy.js');
-const { MARKER, backoffMs, hideNames, noMedia, parseRepo, wispCommand } = await import('../server/channels/github.js');
+const { RateLimit, STALE_S, hideNames, noMedia } = await import('../server/channels/policy.js');
+const { MARKER, backoffMs, parseRepo, wispCommand } = await import('../server/channels/github.js');
 
 const ME = { id: 7, login: 'mokh' };
 const PRIVATE = 'acme/repo';

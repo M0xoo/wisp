@@ -33,14 +33,32 @@ const NOT_A_NAME = new Set(['a', 'an', 'the', 'my', 'our', 'your', 'this', 'that
 const HERE = /^(here|local|this computer)$/i;
 
 // A channel's own markup, gone before the grammar reads it. Text stays as written: an agent should
-// see what you sent, and __init__.py isn't bold. kind: 'telegram' (others come with their channels).
+// see what you sent, and __init__.py isn't bold. kind: 'telegram' or 'slack' (its <…> and &amp;; bot: its user id).
 export function stripFormatting(text, kind = '', { bot = '' } = {}) {
   let t = String(text ?? '').replace(/\r\n/g, '\n').replace(/[\u200b-\u200d\u2060\ufeff]/g, '').replace(/\u00a0/g, ' ').trim();
   if (kind === 'telegram') {
     t = t.replace(/^\/(\w+)@\w+/, '/$1'); // /new@wispbot
     if (bot) t = t.replace(new RegExp(`^@${bot.replace(/\W/g, '')}\\b[\\s,:]*`, 'i'), '').trim(); // @wispbot in a group
   }
+  if (kind === 'slack') {
+    if (bot) t = t.replace(new RegExp(`<@${bot.replace(/\W/g, '')}(?:\\|[^>]*)?>[\\s,:]*`, 'g'), '').trim();
+    t = t
+      .replace(/<((?:https?:\/\/|mailto:)[^>|]+)(?:\|([^>]*))?>/g, (_, url, label) => slackLink(url, label))
+      .replace(/<#(\w+)(?:\|([^>]*))?>/g, (_, id, name) => `#${name || id}`)
+      .replace(/<!(\w+)(?:[^>|]*)(?:\|([^>]*))?>/g, (_, what, label) => label || `@${what}`)
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&');
+  }
   return t;
+}
+
+// Slack writes a bare example.com as a link labelled example.com. A label that says something else
+// keeps its URL, so nothing is hidden from the agent.
+function slackLink(url, label) {
+  const bare = url.replace(/^mailto:/, '');
+  if (!label || label === url || label === bare || label === url.replace(/^https?:\/\//, '')) return label || bare;
+  return `${label} (${url})`;
 }
 
 // The next word, its own marks and punctuation apart from it.

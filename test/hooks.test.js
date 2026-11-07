@@ -127,7 +127,7 @@ test('webhook with a secret: no signature or a wrong one is 401, a good one (sha
 test('slack: url_verification, the signature and its 5-minute window, one channel, a keyword', async () => {
   await assert.rejects(api('/triggers', { body: { kind: 'slack', cwd: repo.dir, channel: 'C0123456' } }), (e) => e.status === 400 && /signing secret/.test(e.message));
   await assert.rejects(api('/triggers', { body: { kind: 'slack', cwd: repo.dir, secret: 'x', channel: '#general' } }), (e) => e.status === 400 && /channel’s ID/.test(e.message));
-  const t = await api('/triggers', { body: { kind: 'slack', cwd: repo.dir, agent: 'claude', secret: 'slack-secret', channel: 'C0123456', keyword: 'fix' } });
+  const t = await api('/triggers', { body: { kind: 'slack', cwd: repo.dir, agent: 'claude', secret: 'slack-secret', channel: 'C0123456', keyword: 'fix', users: ['U0000042'] } });
   const signed = (body, ts = Math.floor(Date.now() / 1000)) => {
     const raw = JSON.stringify(body);
     return [raw, { 'x-slack-request-timestamp': String(ts), 'x-slack-signature': `v0=${sign('slack-secret', `v0:${ts}:${raw}`)}` }];
@@ -137,13 +137,76 @@ test('slack: url_verification, the signature and its 5-minute window, one channe
   const [raw, h] = signed({ type: 'url_verification', challenge: 'x' });
   assert.equal((await call(t.token, raw, { ...h, 'x-slack-signature': 'v0=00' })).status, 401, 'a wrong signature');
   assert.equal((await call(t.token, ...signed({ type: 'url_verification', challenge: 'x' }, Math.floor(Date.now() / 1000) - 6 * 60))).status, 401, 'a replay from 6 minutes ago');
-  const ev = (event) => ({ type: 'event_callback', event_id: `Ev${Math.random()}`, event: { type: 'app_mention', user: 'U42', ts: String(Date.now()), ...event } });
+  const ev = (event) => ({ type: 'event_callback', event_id: `Ev${Math.random()}`, event: { type: 'app_mention', user: 'U0000042', ts: String(Date.now()), ...event } });
   const other = await call(t.token, ...signed(ev({ channel: 'C9999999', text: '<@U1> fix it' })));
   assert.match(other.json.skipped, /Another channel/);
   assert.match((await call(t.token, ...signed(ev({ channel: 'C0123456', text: '<@U1> hello' })))).json.skipped, /No “fix”/);
   assert.equal((await call(t.token, ...signed(ev({ channel: 'C0123456', text: '<@U1> please fix the login page' })))).status, 202);
   const id = await started(t.id);
-  assert.match((await api(`/sessions/${id}`)).turns[0].prompt, /Asked in Slack by <@U42> in <#C0123456>:\n\n<message>\nplease fix the login page\n<\/message>/);
+  assert.match((await api(`/sessions/${id}`)).turns[0].prompt, /Asked in Slack by <@U0000042> in <#C0123456>:\n\n<message>\nplease fix the login page\n<\/message>/);
+});
+
+// A Slack delivery, signed, to a trigger with the secret 's'.
+function slackSend(t, event) {
+  const raw = JSON.stringify({ type: 'event_callback', event_id: `Ev${Math.random()}`, event: { type: 'app_mention', channel: 'C0123456', text: 'fix it', ts: `${Date.now()}.${Math.random()}`, ...event } });
+  const ts = Math.floor(Date.now() / 1000);
+  return call(t.token, raw, { 'x-slack-request-timestamp': String(ts), 'x-slack-signature': `v0=${sign('s', `v0:${ts}:${raw}`)}` });
+}
+const slackTrigger = (o = {}) => ({ kind: 'slack', cwd: repo.dir, agent: 'claude', secret: 's', channel: 'C0123456', ...o });
+const refused = (e, re) => e.status === 400 && re.test(e.message);
+
+test('slack: only the people named start it, by id, before the keyword; no sender, no task', async () => {
+  const t = await api('/triggers', { body: slackTrigger({ keyword: 'fix', users: ['U0000042', 'W0000007'] }) });
+  assert.deepEqual(t.users, ['U0000042', 'W0000007']);
+  assert.equal(t.open, false);
+  const runs = () => srv.store.all().filter((s) => s.turns[0]?.prompt.includes('<#C0123456>')).length;
+  const before = runs();
+  assert.equal((await slackSend(t, { user: 'U9999999' })).json.skipped, 'Not one of the allowed people');
+  assert.equal((await slackSend(t, { user: 'U9999999', text: 'hello' })).json.skipped, 'Not one of the allowed people', 'before the keyword');
+  assert.equal((await slackSend(t, { user: 'u0000042' })).json.skipped, 'Not one of the allowed people', 'the id exactly');
+  assert.equal((await slackSend(t, { username: 'U0000042', user_profile: { display_name: 'U0000042' }, user: 'U9999999' })).json.skipped, 'Not one of the allowed people', 'a name counts for nothing');
+  assert.equal((await slackSend(t, { user: undefined })).json.skipped, 'No sender on it');
+  assert.equal((await slackSend(t, { user: '' })).json.skipped, 'No sender on it');
+  assert.equal(runs(), before);
+  assert.equal((await slackSend(t, { user: 'W0000007' })).status, 202);
+  await started(t.id);
+});
+
+test('slack: a new or edited trigger must name someone, as valid ids, at most 50', async () => {
+  await assert.rejects(api('/triggers', { body: slackTrigger() }), (e) => refused(e, /Slack member ID \(U0123ABC\)[\s\S]*profile → ⋯ → Copy member ID/));
+  await assert.rejects(api('/triggers', { body: slackTrigger({ users: [] }) }), (e) => refused(e, /Copy member ID/));
+  for (const bad of ['mokh', '@mokh', 'C0123456', 'U1', 'U012 3ABC', '<@U0123ABC>', ''])
+    await assert.rejects(api('/triggers', { body: slackTrigger({ users: ['U0000042', bad] }) }), (e) => refused(e, /isn’t a Slack member ID/), bad);
+  await assert.rejects(api('/triggers', { body: slackTrigger({ users: 'U0000042' }) }), (e) => refused(e, /is a list/));
+  await assert.rejects(api('/triggers', { body: slackTrigger({ users: Array.from({ length: 51 }, (_, i) => `U${String(i).padStart(7, '0')}`) }) }), (e) => refused(e, /At most 50/));
+  const fifty = await api('/triggers', { body: slackTrigger({ users: [...Array.from({ length: 50 }, (_, i) => `U${String(i).padStart(7, '0')}`), 'u0000000 '] }) });
+  assert.equal(fifty.users.length, 50, 'tidied and deduped first');
+  const edited = await api(`/triggers/${fifty.id}`, { method: 'PATCH', body: { keyword: 'x' } });
+  assert.equal(edited.users.length, 50, 'an edit that leaves it alone keeps them');
+  await assert.rejects(api(`/triggers/${fifty.id}`, { method: 'PATCH', body: { users: [] } }), (e) => refused(e, /Copy member ID/));
+  const web = await api('/triggers', { body: { kind: 'webhook', cwd: repo.dir, prompt: 'x' } });
+  assert.equal(web.users, undefined, 'only Slack has them');
+  assert.equal(web.open, undefined);
+});
+
+test('slack: a trigger saved with nobody named keeps running and says it’s open; only a real edit needs someone', async () => {
+  const t = await api('/triggers', { body: slackTrigger({ users: ['U0000042'] }) });
+  const saved = srv.store.config.triggers.find((x) => x.id === t.id);
+  delete saved.users; // as an older wisp saved it
+  const view = (await api('/triggers')).find((x) => x.id === t.id);
+  assert.equal(view.open, true);
+  assert.equal((await slackSend(saved, { user: 'U9999999' })).status, 202, 'anyone in the channel, as it always was');
+  await started(t.id);
+  assert.equal((await slackSend(saved, { user: undefined })).json.skipped, 'No sender on it');
+
+  await assert.rejects(api(`/triggers/${t.id}`, { method: 'PATCH', body: { keyword: 'x' } }), (e) => refused(e, /Copy member ID/));
+  await assert.rejects(api(`/triggers/${t.id}`, { method: 'PATCH', body: { enabled: true, name: 'x' } }), (e) => refused(e, /Copy member ID/));
+  // Pausing it and changing a leaked URL are how you make it safer, so they still work.
+  assert.equal((await api(`/triggers/${t.id}`, { method: 'PATCH', body: { enabled: false } })).enabled, false);
+  assert.notEqual((await api(`/triggers/${t.id}`, { method: 'PATCH', body: { regenerate: true } })).token, t.token);
+  assert.equal((await api(`/triggers/${t.id}`, { method: 'PATCH', body: { enabled: true } })).open, true);
+  const closed = await api(`/triggers/${t.id}`, { method: 'PATCH', body: { users: ['U0000042'] } });
+  assert.deepEqual([closed.open, closed.users], [false, ['U0000042']]);
 });
 
 test('linear: Linear-Signature over the raw body, an issue created, a label filter', async () => {

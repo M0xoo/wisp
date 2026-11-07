@@ -107,28 +107,50 @@
 .ph-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px; }
 .ph-options { margin-bottom: 10px; }
 .ph-options .hint { margin-top: 0; }
-/* GitHub: what it says is under the title, so a status never squeezes the title or moves the switch */
-.ph-gh-st { flex: none; }
-.ph-gh-st:empty { display: none; }
-.ph-gh-who { margin-top: 10px; font-size: 13px; overflow-wrap: anywhere; }
-.ph-gh-who[hidden] { display: none; }
-.ph-gh-err { margin-top: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.ph-gh-err[hidden] { display: none; }
-.phone-modal .ph-gh-err .hint { display: flex; gap: 6px; margin: 0; color: var(--ink-2); overflow-wrap: anywhere; }
-.ph-gh-err button { margin-left: 20px; }
-.ph-gh-err .hint .i { flex: none; width: 14px; height: 14px; margin-top: 1px; color: var(--bad); }
-.phone-modal .ph-gh .hint code { overflow-wrap: anywhere; }
+/* GitHub and Slack: what they say is under the title, so a status never squeezes the title or moves the switch */
+.ph-st { flex: none; }
+.ph-st:empty { display: none; }
+.ph-who { margin-top: 10px; font-size: 13px; overflow-wrap: anywhere; }
+.ph-sk .ph-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.ph-sk .ph-who > span { flex: 0 1 auto; min-width: 0; }
+.ph-err { margin-top: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.phone-modal .ph-err .hint { display: flex; gap: 6px; margin: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.ph-err button { margin-left: 20px; }
+.ph-err .hint .i { flex: none; width: 14px; height: 14px; margin-top: 1px; color: var(--bad); }
+.ph-err .hint a { color: var(--accent-ink); text-decoration: underline; }
+.phone-modal .ph-chan .hint code { overflow-wrap: anywhere; }
+/* Slack's steps: a number that turns into a tick, the step beside it */
+.ph-steps { display: flex; flex-direction: column; gap: 14px; margin: 12px 0 0; padding: 0; list-style: none; }
+.ph-steps > li { display: flex; gap: 10px; min-width: 0; }
+.ph-num { flex: none; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 1px solid var(--line-2); border-radius: 50%; font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.ph-num.ok { color: var(--good); }
+.ph-num .i { width: 12px; height: 12px; }
+.ph-step { flex: 1; min-width: 0; }
+.ph-step > b { display: block; font-size: 13px; font-weight: 500; line-height: 20px; }
+.phone-modal .ph-step .hint { margin-top: 4px; }
+.ph-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.ph-acts .i { width: 13px; height: 13px; }
+.ph-step .settings-modal label:last-child { border-bottom: 0; }
+.ph-code .ghost .i, .ph-more .ghost .i { width: 12px; height: 12px; }
+/* In a phone's browser too: a thumb is the same size as in the app */
+@media (pointer: coarse) {
+  .ph-acts .primary, .ph-acts .ghost, .ph-chan .hint .ghost, .ph-who .link, .ph-err button { min-height: 44px; }
+}
 /* Narrow, the status would wrap the line beside it and move what's below: the line takes its own row */
 @media (max-width: 720px) {
-  .phone-modal .ph-gh h4 { flex-wrap: wrap; row-gap: 2px; }
-  .phone-modal .ph-gh h4 .muted { order: 1; flex-basis: 100%; }
-  .ph-gh h4 .ph-dot { display: none; }
+  .phone-modal .ph-chan h4 { flex-wrap: wrap; row-gap: 2px; }
+  .phone-modal .ph-chan h4 .muted { order: 1; flex-basis: 100%; }
+  .ph-chan h4 .ph-dot { display: none; }
 }
 
 /* Both ways of starting a task hold the cell, so the switch above never moves what's below it */
 .ph-how { display: grid; }
 .ph-how > .hint { grid-area: 1 / 1; }
 .ph-how > .ph-off { visibility: hidden; }
+
+/* A Slack trigger from before People: open to the channel, and how to fix that */
+.au-open { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; margin-top: 4px; font-size: 12.5px; color: var(--ink-2) !important; }
+.au-open .i { width: 12px; height: 12px; flex: none; color: var(--warn); }
 
 /* Skipped by Settings → Usage → Automations stop at: not a failure, so no red */
 .au-held { display: flex; align-items: center; gap: 5px; color: var(--muted) !important; }

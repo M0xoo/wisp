@@ -8,6 +8,7 @@
 
 import { approvalsHere } from './policy.js';
 
+const AWAY_MAX = 200;
 export const KIND = { a: 'answer', r: 'reply', d: 'done' };
 export const CODE = { answer: 'a', reply: 'r', done: 'd' };
 export const sleep = (ms, signal) => new Promise((r) => (signal?.aborted ? r() : (setTimeout(r, ms).unref?.(), signal?.addEventListener('abort', r, { once: true }))));
@@ -29,6 +30,17 @@ export class Channel {
   start() {}
 
   async publish() {}
+
+  // A task on another machine has no s.remote here: its thread (fields) is kept in config, as hub.away
+  // is memory and the task outlives a restart. Read back in the hub's constructor.
+  keepAway(id, by, fields) {
+    const hub = this.hub;
+    const entry = { ...(by && { by }), ...fields, at: Date.now() };
+    Object.assign(hub.away.get(id) || {}, entry);
+    const cfg = (hub.cfg[this.name] ||= {});
+    cfg.away = Object.fromEntries(Object.entries({ ...cfg.away, [id]: entry }).slice(-AWAY_MAX));
+    hub.store.saveConfig();
+  }
 
   // Health for Settings: the latest result, merged over the last one.
   mark(st) {

@@ -150,7 +150,7 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
           const last = t.lastSessionId && S.sessions.has(t.lastSessionId) ? `<a href="#" data-session="${esc(t.lastSessionId)}">last run ${ago(t.lastRunAt)} ago</a>` : t.lastRunAt ? `last run ${ago(t.lastRunAt)} ago` : 'not run yet';
           return `<div class="au-item ${t.enabled ? '' : 'off'}" data-id="${t.id}">
             <span class="mem-ico">${icon(k.icon)}</span>
-            <div class="au-main"><b>${esc(t.name)}</b><p>${describe(t)}</p><span class="au-tags"><i>${esc(MODES.find((m) => m.id === t.mode)?.label || t.mode)}</i>${t.agent ? `<i>${esc(agentName(t.agent))}</i>` : ''}<i>${last}</i></span>${t.lastError ? `<p class="au-err">${icon('warn')}${esc(t.lastError)}</p>` : t.held?.until > Date.now() ? `<p class="au-held" title="${esc(`Waits for your plan: ${t.held.why}. Settings → Usage → Automations stop at. Run now still runs it.`)}">${icon('pause')}Skipped ${esc(ago(t.held.at))} ago for your plan · runs again after ${esc(whenLabel(t.held.until))}</p>` : ''}</div>
+            <div class="au-main"><b>${esc(t.name)}</b><p>${describe(t)}</p><span class="au-tags"><i>${esc(MODES.find((m) => m.id === t.mode)?.label || t.mode)}</i>${t.agent ? `<i>${esc(agentName(t.agent))}</i>` : ''}${t.users?.length ? `<i>${t.users.length} ${t.users.length === 1 ? 'person' : 'people'}</i>` : ''}<i>${last}</i></span>${t.open ? `<p class="au-open">${icon('warn')}<span>Anyone in the channel can start this.</span><button class="link xs" data-act="edit">Name who may</button></p>` : ''}${t.lastError ? `<p class="au-err">${icon('warn')}${esc(t.lastError)}</p>` : t.held?.until > Date.now() ? `<p class="au-held" title="${esc(`Waits for your plan: ${t.held.why}. Settings → Usage → Automations stop at. Run now still runs it.`)}">${icon('pause')}Skipped ${esc(ago(t.held.at))} ago for your plan · runs again after ${esc(whenLabel(t.held.until))}</p>` : ''}</div>
             <span class="au-acts">${TASK_KINDS.has(t.kind) || HOOK_KINDS.has(t.kind) ? '' : `<button class="ghost xs" data-act="fire" title="${t.kind === 'schedule' ? 'Run it now' : 'Check GitHub now'}">${icon('replay')}${t.kind === 'schedule' ? 'Run now' : 'Check now'}</button>`}<button class="switch" data-act="toggle" role="switch" aria-checked="${t.enabled}" title="On / off"></button><button class="icon-btn" data-act="edit" title="Edit">${icon('pen')}</button><button class="icon-btn" data-act="delete" title="Delete">${icon('trash')}</button></span>
           </div>`;
         })
@@ -226,6 +226,9 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
           <label><span class="k-secret-l">Secret</span><input class="input mono" type="password" name="secret" autocomplete="new-password" spellcheck="false">${d.hasSecret && d.kind === 'webhook' ? '<button type="button" class="link xs" data-act="no-secret">Remove</button>' : ''}</label>
           <label class="k-webhook"><span>Header</span><input class="input mono" name="header" spellcheck="false" placeholder="X-Hub-Signature-256"></label>
           <label class="k-slack"><span>Channel ID</span><input class="input mono" name="channel" spellcheck="false" placeholder="C0123456789"></label>
+          ${d.open ? `<p class="au-off k-slack">${icon('warn')}<span>Anyone in this channel can start it now. Add the people who may.</span></p>` : ''}
+          <label class="k-slack k-people"><span>People</span><input class="input mono" name="users" spellcheck="false" autocomplete="off" placeholder="U0123ABCDE, U0456FGHIJ" aria-describedby="auPeopleHow"></label>
+          <p class="au-how muted xs k-slack" id="auPeopleHow">Only these people can start it. In Slack, open someone’s profile → ⋯ → <b>Copy member ID</b>, paste it here, and separate them with commas.</p>
           <label class="k-slack"><span>Keyword</span><input class="input" name="keyword" spellcheck="false" placeholder="Any message (optional)"></label>
           <label class="k-linear"><span>Label</span><input class="input" name="linearLabel" spellcheck="false" placeholder="Any issue (optional)"></label>
           ${d.id ? `<div class="au-deliv"><span>Last calls</span><div class="au-dls">${deliveriesHtml(d)}</div></div>` : ''}
@@ -240,6 +243,7 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
         <div class="au-foot"><button type="button" class="ghost sm" data-act="cancel">Cancel</button><button class="primary sm">${d.id ? 'Save' : 'Create trigger'}</button></div>
       </form>`);
     for (const k of ['name', 'branch', 'label', 'header', 'channel', 'keyword']) $(`[name="${k}"]`, f).value = d[k] || '';
+    $('[name="users"]', f).value = (d.users || []).join(', ');
     $('[name="label"]', f).value = d.kind === 'issues' ? d.label || '' : '';
     $('[name="linearLabel"]', f).value = d.kind === 'linear' ? d.label || '' : '';
     $('[name="cron"]', f).value = d.cron ? cronWords(d.cron) || d.cron : '';
@@ -274,7 +278,7 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
       $('.k-vars', f).innerHTML = hook ? `· ${HOOK_VARS[d.kind].map((x) => `<code>${esc(x)}</code>`).join(' ')} · leave empty for the built-in prompt` : d.kind === 'ci' ? '· <code>{name} {branch} {url} {id} {sha}</code> · empty = built-in CI prompt' : d.kind === 'issues' ? '· <code>{number} {title} {body} {url} {author}</code> · empty = built-in issue prompt' : TASK_KINDS.has(d.kind) ? '· <code>{id} {title} {summary} {branch}</code> · empty = built-in prompt' : '';
       $('.au-warn', f).hidden = !((d.kind === 'issues' || hook) && $('[name="mode"]', f).value !== 'plan');
       $('.au-warn-t', f).textContent =
-        d.kind === 'issues' ? 'Issue text comes from GitHub: anyone who can open and label issues can steer this agent. Plan mode only reads; Full auto runs shell commands without asking.' : `What comes in ${d.kind === 'slack' ? 'from Slack: anyone who can post in that channel' : d.kind === 'linear' ? 'from Linear: anyone who can file an issue there' : 'at the URL: anyone who has it'} can steer this agent. Plan mode only reads; Full auto runs shell commands without asking.`;
+        d.kind === 'issues' ? 'Issue text comes from GitHub: anyone who can open and label issues can steer this agent. Plan mode only reads; Full auto runs shell commands without asking.' : `What comes in ${d.kind === 'slack' ? 'from Slack: anyone you name above' : d.kind === 'linear' ? 'from Linear: anyone who can file an issue there' : 'at the URL: anyone who has it'} can steer this agent. Plan mode only reads; Full auto runs shell commands without asking.`;
       // Sent to a crew member: they run it their way, so mode and harness are theirs.
       const crew = $('[name="crew"]', f)?.value || '';
       // The empty project: a task watcher watches every project (or the member's); otherwise it's the member's folder.
@@ -312,7 +316,7 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
       if (d.kind === 'schedule' && !toCron(v('cron').trim())) return $('[name="cron"]', f).focus();
       const body = { kind: d.kind, name: v('name'), crew: $('[name="crew"]', f)?.value || '', cwd: v('cwd'), cron: v('cron'), branch: v('branch'), label: d.kind === 'linear' ? v('linearLabel') : v('label') || 'wisp', every: Number(v('every')), recipeId: v('recipeId'), prompt: v('recipeId') ? '' : v('prompt'), mode: v('mode'), agent: d.agent || '', model: d.model || '', effort: d.effort || '' };
       // A hook's secret is sent only when typed (or removed): the server keeps the saved one.
-      if (HOOK_KINDS.has(d.kind)) Object.assign(body, { header: v('header'), channel: v('channel'), keyword: v('keyword'), ...(v('secret') ? { secret: v('secret') } : d.dropSecret ? { secret: null } : {}) });
+      if (HOOK_KINDS.has(d.kind)) Object.assign(body, { header: v('header'), channel: v('channel'), keyword: v('keyword'), ...(d.kind === 'slack' && { users: v('users').split(/[\s,]+/).filter(Boolean) }), ...(v('secret') ? { secret: v('secret') } : d.dropSecret ? { secret: null } : {}) });
       try {
         const saved = await api(d.id ? `/triggers/${d.id}` : '/triggers', { method: d.id ? 'PATCH' : 'POST', body });
         tab = 'triggers';
@@ -322,6 +326,7 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
         render();
       } catch (err) {
         toastError(err);
+        if (/member ID/.test(err.message)) $('[name="users"]', f).focus();
       }
     };
     return f;
@@ -388,7 +393,12 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
     } else {
       const tr = triggers.find((x) => x.id === itemId);
       if (act === 'new') return (editing = { type: 'trigger', draft: {} }), render();
-      if (act === 'edit') return (editing = { type: 'trigger', draft: { ...tr, kindWas: tr.kind } }), render();
+      if (act === 'edit') {
+        editing = { type: 'trigger', draft: { ...tr, kindWas: tr.kind } };
+        await render();
+        if (tr.open) $('[name="users"]', node)?.focus();
+        return;
+      }
       if (act === 'toggle') return api(`/triggers/${tr.id}`, { method: 'PATCH', body: { enabled: !tr.enabled } }).then(render).catch(toastError);
       if (act === 'delete' && (await ask(`Delete the trigger “${tr.name}”?`, { ok: 'Delete trigger', danger: true, anchor: t }))) return api(`/triggers/${tr.id}`, { method: 'DELETE' }).then(render).catch(toastError);
       if (act === 'fire') {

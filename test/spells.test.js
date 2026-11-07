@@ -974,6 +974,20 @@ test("the Phone dialog's GitHub section is a part spells can restyle or hide", (
   assert.ok(!('github.enabled' in schema.SETTINGS) && !('publicReports' in schema.SETTINGS));
 });
 
+test("the Phone dialog's Slack section is a part spells can restyle or hide", () => {
+  assert.equal(schema.PARTS['phone.slack'], '.phone-modal .ph-sk');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['phone.slack'] }, parts: { 'phone.slack': { style: { opacity: '0.8' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'phone.slack': { props: { lines: 2 } } } }).some((x) => /phone\.slack/.test(x)));
+  // Its switch and tokens are the remote config's, not defaults a spell could lock.
+  assert.ok(!('slack.enabled' in schema.SETTINGS) && !('appToken' in schema.SETTINGS) && !('botToken' in schema.SETTINGS));
+});
+
+test("a Slack trigger's People field is a part spells can restyle or hide", () => {
+  assert.equal(schema.PARTS['automations.slackPeople'], '.auto-modal .k-people');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['automations.slackPeople'] }, parts: { 'automations.slackPeople': { style: { opacity: '0.8' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'automations.slackPeople': { props: { lines: 2 } } } }).some((x) => /automations\.slackPeople/.test(x)));
+});
+
 test("the phone's New task button is a part spells can restyle or hide", () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.fab'] }, parts: { 'launcher.fab': { style: { borderRadius: '12px' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'launcher.fab': { props: { size: 2 } } } }).some((x) => /launcher\.fab/.test(x)));

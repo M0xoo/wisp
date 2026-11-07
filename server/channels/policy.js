@@ -112,3 +112,20 @@ export const defuse = (text) =>
   String(text ?? '')
     .replace(/(^|[^\w@.+-])@(?=[\p{L}\p{N}_])/gmu, '$1@\u200b')
     .replace(/<([!@#])/g, '<\u200b$1');
+
+// Where others can read: no name of yours that you didn't write there yourself, a project, a folder,
+// a machine, a crew member. What you typed stays. typed: what this message said, and anything already
+// known there (a repo's own project).
+export function hideNames(text, ctx = {}, typed = '') {
+  const said = String(typed).toLowerCase();
+  const names = [...(ctx.projects || []).flatMap((p) => [p.name, p.path]), ...(ctx.machines || []).map((m) => m.name), ...(ctx.crew || []).flatMap((m) => [m.name, m.cwd])]
+    .filter((n) => n && !said.includes(String(n).toLowerCase()))
+    .sort((a, b) => b.length - a.length);
+  let out = String(text);
+  for (const n of names) out = out.replace(new RegExp(`(?<![\\p{L}\\p{N}_-])${String(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}_-])`, 'giu'), '…');
+  return out.replace(/ · (?:on )?…/g, '').replace(/^▶ … · /gm, '▶ ');
+}
+
+// A renderer fetches an image as soon as it shows it, so an agent could carry data out in its URL.
+// `![…]` becomes a plain link and no tag is a tag: `<img`, `<iframe`, `<style`, or any other.
+export const noMedia = (text) => String(text).replace(/!(?=\[)/g, '!\u200b').replace(/<(?=[a-z/!?])/gi, '<\u200b');
