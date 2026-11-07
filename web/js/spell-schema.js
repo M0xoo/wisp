@@ -186,6 +186,7 @@ export const PARTS = {
   // A task's delegates at work (one row each, a crew member's opens its job), their reports' link to
   // that job, and the line on a crew job saying which task it came from (a link back to it).
   'delegate.live': '.team-live .tl-row',
+  'delegate.waiting': '#feed .w-panel.team-wait', // the lead's turn ended, its delegates still at work: Waiting on them, with Stop
   'delegate.open': '.sub-task .sub-open',
   'task.from': '.ask .ask-from',
   'task.latest': '.latest-pill', // over the reply box: something landed while you were away from the end

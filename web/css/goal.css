@@ -59,6 +59,10 @@ body.split.pane-wide #feed .item.open > .it-body > .goal-slot { position: sticky
 .w-panel.goal-check { margin-top: 18px; }
 .goal-check .w-status { margin-bottom: 6px; }
 .gc-what { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
+/* The same panel while a lead waits on its delegates after its turn (turns.js renderTeamWait). */
+.w-panel.team-wait { margin-top: 18px; }
+.team-wait .w-status { margin-bottom: 6px; }
+.tw-what { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
 
 /* The row's pill: a ring filled to the last check, and the round. Always the same width. */
 .pill.goal-pill { gap: 5px; --tone: var(--accent); color: var(--ink-2); background: color-mix(in srgb, var(--tone) 8%, transparent); }
