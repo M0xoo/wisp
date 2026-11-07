@@ -199,9 +199,9 @@ test('a box idle-stopped: a webhook wakes it, the task starts once, a retry chan
 });
 
 // What delivery does, by hand: to the box's port with the proxy secret and the mark.
-async function deliverDirect(update, secret, { headers = {} } = {}) {
+async function deliverDirect(update, secret, { headers = {}, dropped } = {}) {
   const port = g.grid.hostd.port(g.ada.id);
-  const r = await fetch(`http://127.0.0.1:${port}/api/channels/inbound`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-wisp-proxy-secret': g.grid.secrets.ensure(g.ada.id, 'wisp-proxy'), 'x-wisp-proxy-via': 'inbox', ...headers }, body: JSON.stringify({ channel: 'telegram', headers: { [SECRET]: secret }, body: Buffer.from(JSON.stringify(update)).toString('base64'), at: Date.now() }) });
+  const r = await fetch(`http://127.0.0.1:${port}/api/channels/inbound`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-wisp-proxy-secret': g.grid.secrets.ensure(g.ada.id, 'wisp-proxy'), 'x-wisp-proxy-via': 'inbox', ...headers }, body: JSON.stringify({ channel: 'telegram', headers: { [SECRET]: secret }, body: Buffer.from(JSON.stringify(update)).toString('base64'), at: Date.now(), dropped }) });
   return { status: r.status, json: await r.json() };
 }
 
@@ -317,6 +317,37 @@ test('off a grid the route is refused, even with the proxy secret and the mark',
     for (const k of ['WISP_TRUSTED_PROXY_SECRET', 'WISP_PUBLIC_URL', 'WISP_GRID_URL']) if (was[k] === undefined) delete process.env[k];
     else process.env[k] = was[k];
   }
+});
+
+test('the line about lost messages waits for a message that passed: a forged one says nothing', async () => {
+  const done = await awake();
+  const n = sent().length;
+  assert.equal((await deliverDirect(msg('forged'), 'a-guess', { dropped: 2 })).status, 403);
+  await sleep(100);
+  assert.equal(sent().length, n, 'told by a message nobody verified');
+  assert.equal((await deliverDirect(msg('hello'), tg.hook.secret, { dropped: 2 })).status, 200);
+  assert.ok(sent().slice(n).some((m) => /2 messages didn’t reach wisp/.test(m.text)));
+  done();
+});
+
+test('only the linked chat, or the code that links one, is accepted: a stranger gets a 403 and no answer', async () => {
+  const done = await awake();
+  const n = sent().length;
+  const refused = async (update) => assert.equal((await deliverDirect(update, tg.hook.secret)).status, 403);
+  await refused(msg('hello', { chat: 999 }));
+  await refused({ update_id: nextUpdate++, callback_query: { id: '1', data: 'x', message: { message_id: 1, chat: { id: 999 } } } });
+  const seen = msg('hello', { chat: 999 });
+  await refused(seen);
+  await refused(seen); // the same one again isn't a pass either
+  assert.equal((await deliverDirect(msg('/help'), tg.hook.secret)).status, 200, 'the linked chat');
+  assert.equal(sent().length, n + 1);
+  const sets = called('setWebhook').length;
+  const view = await g.ok('/remote', { method: 'PUT', body: { telegram: { unlink: true } } });
+  await until(() => called('setWebhook').length === sets + 1, { what: 'the new webhook' });
+  await refused(msg('000000', { chat: 999 }));
+  assert.equal((await deliverDirect(msg(`/start ${view.telegram.linkCode}`), tg.hook.secret)).status, 200, 'the right code');
+  assert.equal((await g.ok('/remote')).telegram.linked, true);
+  done();
 });
 
 test('lost messages: the sender is told once it can be', async () => {

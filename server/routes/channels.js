@@ -15,8 +15,9 @@ export function register(r, app) {
     if (typeof channel !== 'string' || typeof body !== 'string') throw bad('channel and body are needed.');
     const ch = Object.hasOwn(app.remote.channels, channel) ? app.remote.channels[channel] : null;
     if (!ch) return c.send(404, { error: 'No such channel.' });
-    if (dropped > 0) await ch.dropped(dropped);
     const out = await ch.inbound(Buffer.from(body, 'base64'), headers && typeof headers === 'object' ? headers : {});
+    // Only past the channel's check: the grid clears its count on a 2xx, so anything else comes back.
+    if (dropped > 0 && out.status >= 200 && out.status < 300) await ch.dropped(dropped);
     c.send(out.status, out.body);
   });
 }

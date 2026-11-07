@@ -198,11 +198,24 @@ export class Telegram extends Channel {
       u = JSON.parse(raw.toString('utf8'));
     } catch {}
     if (!Number.isInteger(u?.update_id)) return { status: 400, body: { error: 'Not an update.' } };
-    if (hook.seen?.includes(u.update_id)) return { status: 200, body: { ok: true, duplicate: true } };
+    // A stranger's message really came from Telegram, so its secret is good: this 403 is what tells
+    // the grid nobody wanted it, and it's a stranger's wake it stops paying for (grid/inbox.js).
+    const stranger = !this.#ours(u) && { status: 403, body: { error: 'Not from the linked chat.' } };
+    if (hook.seen?.includes(u.update_id)) return stranger || { status: 200, body: { ok: true, duplicate: true } };
     hook.seen = [...(hook.seen || []), u.update_id].slice(-SEEN_UPDATES);
     this.hub.store.saveConfig();
     await this.#from(u).catch((err) => console.warn(`wisp: telegram: ${err.message}`));
-    return { status: 200, body: { ok: true } };
+    return stranger || { status: 200, body: { ok: true } };
+  }
+
+  // From the linked chat, or, before there is one, the code that links it.
+  #ours(u) {
+    if (!this.cfg.chatId) return this.#linksIt(u.message);
+    return String((u.callback_query?.message ?? u.message)?.chat?.id) === String(this.cfg.chatId);
+  }
+
+  #linksIt(m) {
+    return !!this.cfg.linkCode && m?.text?.replace(/^\/(start|link)\s*/, '').trim() === this.cfg.linkCode;
   }
 
   async dropped(n) {
@@ -229,7 +242,7 @@ export class Telegram extends Channel {
     if (!m?.text) return;
     if (!t.chatId) {
       // Linking: only the chat that sends the code shown in wisp's settings gets attached.
-      if (t.linkCode && m.text.replace(/^\/(start|link)\s*/, '').trim() === t.linkCode) {
+      if (this.#linksIt(m)) {
         Object.assign(t, { chatId: m.chat.id, chatName: m.chat.title || [m.chat.first_name, m.chat.last_name].filter(Boolean).join(' ') || m.chat.username || '', linkCode: '' });
         hub.store.saveConfig();
         this.mark({ ok: true, error: '' });

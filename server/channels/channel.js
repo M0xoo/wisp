@@ -4,7 +4,7 @@
 //   start(signal)  listen until the signal aborts (a poll loop, a socket)
 //   publish(msg, s)  send { title, text, actions } about session s (or nothing in particular)
 //   inbound(raw, headers)  a message the grid held for this cloud wisp (routes/channels.js): verify
-//                it and handle it → { status, body }. A 4xx is final, and only a 2xx means handled.
+//                it and handle it → { status, body }. A 4xx is final, and only a 2xx means it was for wisp and handled.
 //   dropped(n)   the grid lost n of this channel's messages (a full grid, an hour asleep)
 // Inbound goes through policy.js's gate() and grammar.js's parseMessage(), then the hub's phone
 // (services/phone.js) does the work.
