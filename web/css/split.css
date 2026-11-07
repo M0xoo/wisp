@@ -271,25 +271,25 @@ body.split:not(.stack):not(.side-hidden) .sh-next .sh-task:not(.sh-up) { grid-te
 .sh-spare { margin-top: 30px; display: flex; flex-direction: column; gap: 2px; }
 .sh-spare[hidden] { display: none; }
 .sh-next:not([hidden]) + .sh-spare:not([hidden]) { margin-top: 14px; }
-.sp-card { display: grid; grid-template-columns: 13px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; min-height: 42px; padding: 5px 6px 5px 12px; border-radius: 9px; border: 1px solid transparent; transition: background 0.15s, border-color 0.15s; }
-.sp-card:hover { background: var(--surface); border-color: var(--line); }
-.sp-text { min-width: 0; font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sp-text b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
-.sp-x { width: 30px; height: 30px; color: var(--faint); }
-.sp-x:hover { color: var(--ink-2); }
-.sp-x .i { width: 13px; height: 13px; }
+.spr-card { display: grid; grid-template-columns: 13px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; min-height: 42px; padding: 5px 6px 5px 12px; border-radius: 9px; border: 1px solid transparent; transition: background 0.15s, border-color 0.15s; }
+.spr-card:hover { background: var(--surface); border-color: var(--line); }
+.spr-text { min-width: 0; font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spr-text b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.spr-x { width: 30px; height: 30px; color: var(--faint); }
+.spr-x:hover { color: var(--ink-2); }
+.spr-x .i { width: 13px; height: 13px; }
 /* Window changes (split.js paintSpare): the same row, a line and ×, no button */
-.sp-card.wn-card { grid-template-columns: 13px minmax(0, 1fr) auto; }
+.spr-card.wn-card { grid-template-columns: 13px minmax(0, 1fr) auto; }
 /* without hover (touch) the button needs its own edge, or it reads as text */
-@media (hover: none) { .sp-start { border: 1px solid var(--line); } }
+@media (hover: none) { .spr-start { border: 1px solid var(--line); } }
 /* a phone's width: the line wraps over the whole row, the button goes under it */
 @media (max-width: 520px) {
-  .sp-card { grid-template-columns: 13px minmax(0, 1fr) auto; grid-template-areas: 'l t x' '. s .'; row-gap: 2px; align-items: start; }
-  .sp-card > .model-logo { grid-area: l; margin-top: 3px; }
-  .sp-text { grid-area: t; white-space: normal; line-height: 1.4; }
-  .sp-x { grid-area: x; margin-top: -6px; }
-  .sp-start { grid-area: s; justify-self: start; margin-top: 4px; }
-  .sp-card.wn-card { grid-template-areas: 'l t x'; }
+  .spr-card { grid-template-columns: 13px minmax(0, 1fr) auto; grid-template-areas: 'l t x' '. s .'; row-gap: 2px; align-items: start; }
+  .spr-card > .model-logo { grid-area: l; margin-top: 3px; }
+  .spr-text { grid-area: t; white-space: normal; line-height: 1.4; }
+  .spr-x { grid-area: x; margin-top: -6px; }
+  .spr-start { grid-area: s; justify-self: start; margin-top: 4px; }
+  .spr-card.wn-card { grid-template-areas: 'l t x'; }
 }
 .sh-keys { margin: 18px 0 0; padding: 0 8px 0 13px; font-size: 12.5px; color: var(--faint); line-height: 2; }
 /* the prompt box at home, quieter: chips without outlines, recipes without a rule over them */

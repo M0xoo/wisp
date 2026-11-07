@@ -338,7 +338,7 @@ export const PARTS = {
   'split.pane.grip': '#splitHome .sh-grip', // the handles between panes and under them: hide them and the sizes are the spell's
   'split.pane.row': '#splitHome .sh-pane-row', // a pane's row when stacked (a phone, a narrow window): it opens as a page
   'split.spare': '#splitHome .sh-spare',
-  'split.spare.start': '#splitHome .sh-spare .sp-start', // Use <harness>: picks that harness and account in the prompt box
+  'split.spare.start': '#splitHome .sh-spare .spr-start', // Use <harness>: picks that harness and account in the prompt box
   // Window changes (web/js/window-notice.js): a row when a plan's usage window appears, goes, changes length or moves its reset.
   'split.windowNotice': '#splitHome .sh-spare .wn-card',
   'split.feedback': '#splitHome .sh-fb', // Hit a bug, or an idea: opens Send feedback (hidden when feedback is off)
