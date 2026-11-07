@@ -1,21 +1,34 @@
 // Old worktrees. Each task gets its own checkout, with its node_modules and build output, and a
 // finished task keeps it: left alone they fill the disk (hundreds of folders, gigabytes each).
 //
-// defaults.worktreeCleanup ('off', or days idle) removes the folder of a task nobody has touched
-// for that long, every hour; under LOW_DISK free it goes on to the oldest idle ones. Only what can
-// come back goes: the branch stays and a follow-up rebuilds the folder (ensureWorktree). So a task
-// that's in use, kept (keepWorktree), parked in For later, on an open PR, or with anything only its
-// folder holds is skipped, and Settings → Worktrees lists them for the user to decide.
+// The sweep runs every hour (and a few minutes after a new folder takes the count past the cap):
+// - a clean task whose PR is merged or closed goes at once, with no idle wait;
+// - a Done, clean task goes after a day idle;
+// - anything else idle goes after defaults.worktreeCleanup days ('off' turns these three off; the
+//   clock starts at the upgrade, worktreeCleanupFrom, for those who never chose);
+// - above defaults.worktreeMax folders ('off' or a count), the oldest idle ones go until it fits;
+// - under LOW_DISK free, the oldest idle ones go until there's room.
+// Only what can come back goes: the branch stays and a follow-up rebuilds the folder
+// (ensureWorktree). So a task that's in use, kept (keepWorktree), parked in For later, on an open
+// PR, or with anything only its folder holds is skipped, and Settings → Worktrees lists them.
 // Folders no task knows (leftovers) are only ever removed by hand.
+// Each sweep also runs `git worktree prune` in every repo tasks know: entries whose folder is gone
+// pile up in .git/worktrees (a thousand and more), and every `git worktree add` reads them all.
+//
+// Looking is kept cheap, as it runs while agents work: du over every folder at most every DU_MS
+// (or when a folder came or went), git status only in a folder that moved since the last look,
+// and nothing at all while busy() says the machine is short (the next hour tries again).
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { folderOnly, isForeign, removeWorktree } from '../git.js';
+import { folderOnly, isForeign, onWorktreeAdded, pruneWorktrees, removeWorktree } from '../git.js';
 import { execFile } from '../proc.js';
 import { bad } from '../util.js';
 
-export const CLEANUP_DEFAULT = '14';
+export const CLEANUP_DEFAULT = '7';
+export const MAX_DEFAULT = '40';
 const DAY = 86_400_000;
+const HOUR = 3_600_000;
 const GB = 1024 ** 3;
 const SWEEP_MS = 3_600_000;
 const FIRST_SWEEP_MS = 120_000;
@@ -24,6 +37,11 @@ const LOOKS = 6; // gits side by side
 const LOW_DISK = 10 * GB;
 const ENOUGH_DISK = 15 * GB; // a low-disk sweep stops here, so it doesn't run again next hour
 const MIN_IDLE = DAY; // the least idle a worktree is, for Clean up now or a low disk to take it
+const DONE_IDLE = DAY; // a Done task's folder
+const CAP_IDLE = HOUR; // the cap never takes a folder used this recently
+const DU_MS = 6 * HOUR; // sizes this recent stand, unless a folder came or went
+const CAP_DELAY = 3 * 60_000; // a new folder past the cap: a sweep this long after the last one
+const ENDED = new Set(['MERGED', 'CLOSED']);
 
 // Bytes each child of dir takes, by its path. Empty where there's no du (Windows): sizes just don't show.
 const folderSizes = (dir) =>
@@ -55,31 +73,58 @@ async function pool(items, size, fn) {
   }));
 }
 
-export function createWorktrees(app) {
+// busy: the machine is short (memory, load): no sweep, no du, until it isn't. capDelay: for tests.
+export function createWorktrees(app, { busy: machineBusy = () => false, capDelay = CAP_DELAY } = {}) {
   const { store, runner } = app;
   const dir = path.join(store.home, 'worktrees');
   const trees = (s) => [s, ...(s.also || [])].map((x) => x.worktree).filter((wt) => wt && !isForeign(wt));
-  let seen = { at: 0, trees: new Map(), sizes: new Map(), leftovers: [], disk: null };
+  let seen = { at: 0, trees: new Map(), sizes: new Map(), sized: 0, leftovers: [], disk: null };
+  let changed = true; // a folder came or went since the last du
   let scanning = null;
   let cleaning = null; // { done, total } while a clean-up runs
   let queue = [];
   let timers = [];
+  let capTimer = null;
+  let unhook = null;
+  let short = machineBusy;
+  const isShort = () => {
+    try {
+      return !!short();
+    } catch {
+      return false;
+    }
+  };
 
   const setting = () => store.config.defaults.worktreeCleanup ?? CLEANUP_DEFAULT;
   const idleDays = () => (setting() === 'off' ? null : Number(setting()));
+  const cap = () => {
+    const v = store.config.defaults.worktreeMax ?? MAX_DEFAULT;
+    return v === 'off' ? null : Number(v) || null;
+  };
 
+  // git status again only where something moved: the folder's own entries (mtime), or its task
+  // ran since (updatedAt: an agent's edits deep in src/ don't touch the folder's mtime). A removal
+  // always reads it again itself (strict), so a stale "clean" here never loses work.
   const look = async () => {
-    const [sizes, disk] = await Promise.all([folderSizes(dir), diskOf(dir)]);
+    const now = Date.now();
+    const sizing = changed || now - seen.sized >= DU_MS || !seen.sized;
+    const du = sizing && !(isShort() && seen.sized);
+    if (du) changed = false;
+    const [sizes, disk] = await Promise.all([du ? folderSizes(dir) : seen.sizes, diskOf(dir)]);
     const known = new Set(store.all().flatMap(trees).map((wt) => wt.path));
     const entries = await fs.promises.readdir(dir, { withFileTypes: true }).catch(() => []);
     const leftovers = entries.filter((e) => e.isDirectory() && !known.has(path.join(dir, e.name))).map((e) => e.name);
     const found = new Map();
-    const read = async (wt) => {
+    const read = async ([wt, used]) => {
       const stat = await fs.promises.stat(wt.path).catch(() => null);
-      if (stat) found.set(wt.path, { only: await folderOnly(wt).catch(() => null), touched: stat.mtimeMs });
+      if (!stat) return;
+      const was = seen.trees.get(wt.path);
+      if (was && was.only !== null && was.touched === stat.mtimeMs && was.used === used) found.set(wt.path, was);
+      else found.set(wt.path, { only: await folderOnly(wt).catch(() => null), touched: stat.mtimeMs, used });
     };
-    await pool([...store.all().flatMap(trees), ...leftovers.map((name) => ({ path: path.join(dir, name) }))], LOOKS, read);
-    seen = { at: Date.now(), trees: found, sizes, leftovers, disk };
+    const all = [...store.all().flatMap((s) => trees(s).map((wt) => [wt, s.updatedAt || 0])), ...leftovers.map((name) => [{ path: path.join(dir, name) }, 0])];
+    await pool(all, LOOKS, read);
+    seen = { at: Date.now(), trees: found, sizes, sized: du ? now : seen.sized, leftovers, disk };
   };
   const scan = () => (scanning ||= look().finally(() => (scanning = null)));
 
@@ -112,9 +157,14 @@ export function createWorktrees(app) {
   const tasks = () => store.all().filter((s) => held(s).length);
   // Upgraded into the default: the clock starts then, so no folder goes the day it arrives.
   const clockFrom = () => (store.config.defaults.worktreeCleanup === undefined ? store.config.worktreeCleanupFrom || 0 : 0);
+  // When an idle task's folder goes on its own: a merged or closed PR at once, Done after a day,
+  // the rest after the days set. null: never (cleanup off).
   const cleanAt = (s) => {
     const days = idleDays();
-    return days === null ? null : Math.max(usedAt(s), clockFrom()) + days * DAY;
+    if (days === null) return null;
+    if ([s, ...(s.also || [])].some((x) => ENDED.has(x.pr?.state))) return 0;
+    const after = Math.max(usedAt(s), clockFrom()) + days * DAY;
+    return s.state === 'done' ? Math.min(after, usedAt(s) + DONE_IDLE) : after;
   };
 
   function view({ now = Date.now() } = {}) {
@@ -141,6 +191,7 @@ export function createWorktrees(app) {
     const sized = [...items, ...leftovers].filter((x) => x.size !== null);
     return {
       cleanup: setting(),
+      max: store.config.defaults.worktreeMax ?? MAX_DEFAULT,
       items,
       leftovers,
       size: sized.length ? sized.reduce((a, x) => a + x.size, 0) : null,
@@ -178,6 +229,7 @@ export function createWorktrees(app) {
     cleaning = null;
     seen.disk = (await diskOf(dir)) || seen.disk;
     if (count) {
+      changed = true;
       store.config.worktreeCleaned = { at: Date.now(), count, freed, auto };
       store.saveConfig();
       console.log(`wisp: removed ${count} worktree${count === 1 ? '' : 's'}${auto ? ' (cleanup)' : ''}`);
@@ -218,17 +270,30 @@ export function createWorktrees(app) {
     return { queued: jobs.length, skipped };
   }
 
-  // The hourly look. Awaited in tests.
+  // Every repo tasks know, once each: what's gone from disk, git forgets.
+  const prune = async () => {
+    const roots = new Set(store.all().flatMap(trees).map((wt) => wt.root).filter(Boolean));
+    for (const root of roots) if (fs.existsSync(root)) await pruneWorktrees(root);
+  };
+
+  // Tasks' folders on disk. Not leftovers: the sweep never removes those, so counting them would
+  // only push out idle task folders in their place, every sweep.
+  const count = () => tasks().reduce((n, s) => n + held(s).length, 0);
+
+  // The hourly look. Awaited in tests. { skipped: 'busy' } when the machine is short.
   async function sweep({ now = Date.now(), low = LOW_DISK, enough = ENOUGH_DISK } = {}) {
-    const days = idleDays();
-    if (days === null || cleaning) return;
+    if (cleaning) return {};
+    if (isShort()) return { skipped: 'busy' };
     await scan();
+    await prune();
+    const days = idleDays();
+    const max = cap();
     const idle = tasks().filter((s) => standing(s) === 'idle').sort((a, b) => usedAt(a) - usedAt(b));
-    const due = idle.filter((s) => now >= cleanAt(s));
-    const jobs = new Set(due);
+    const jobs = new Set(days === null ? [] : idle.filter((s) => now >= cleanAt(s)));
+    const size = (list) => list.reduce((n, s) => n + (sizeOf(s) || 0), 0);
     // A disk running out doesn't wait for the days: the oldest go until there's room again.
-    if (seen.disk && seen.disk.free < low) {
-      let free = seen.disk.free + due.reduce((n, s) => n + (sizeOf(s) || 0), 0);
+    if (days !== null && seen.disk && seen.disk.free < low) {
+      let free = seen.disk.free + size([...jobs]);
       for (const s of idle) {
         if (free >= enough) break;
         if (jobs.has(s) || now - usedAt(s) < MIN_IDLE) continue;
@@ -236,10 +301,34 @@ export function createWorktrees(app) {
         free += sizeOf(s) || 0;
       }
     }
-    if (!jobs.size) return;
+    // Over the cap: the oldest idle go until it fits. What isn't idle stays, even over it.
+    if (max !== null) {
+      let over = count() - [...jobs].reduce((n, s) => n + held(s).length, 0) - max;
+      for (const s of idle) {
+        if (over <= 0) break;
+        if (jobs.has(s) || now - usedAt(s) < CAP_IDLE) continue;
+        jobs.add(s);
+        over -= held(s).length;
+      }
+    }
+    if (!jobs.size) return { removed: 0 };
     queue.push(...[...jobs].map((s) => ({ s, force: false })));
     await work(true);
+    return { removed: jobs.size };
   }
+
+  // A new folder: sizes are stale, and past the cap a sweep comes a few minutes on (one, however
+  // many folders a launch makes).
+  const added = () => {
+    changed = true;
+    const max = cap();
+    if (max === null || capTimer || count() <= max) return;
+    capTimer = setTimeout(() => {
+      capTimer = null;
+      sweep().catch((err) => console.warn(`wisp: worktrees: ${err.message}`));
+    }, capDelay);
+    capTimer.unref?.();
+  };
 
   function start() {
     if (!store.config.worktreeCleanupFrom) {
@@ -249,8 +338,18 @@ export function createWorktrees(app) {
     const go = () => sweep().catch((err) => console.warn(`wisp: worktrees: ${err.message}`));
     timers = [setTimeout(go, FIRST_SWEEP_MS), setInterval(go, SWEEP_MS)];
     for (const t of timers) t.unref?.();
+    unhook = onWorktreeAdded(added);
   }
-  const stop = () => timers.forEach(clearTimeout); // clears either kind
+  const stop = () => {
+    timers.forEach(clearTimeout); // clears either kind
+    clearTimeout(capTimer);
+    capTimer = null;
+    unhook?.();
+  };
+  // The machine guard plugs in here: while it says busy, sweeps and du wait for the next hour.
+  const setBusy = (fn) => {
+    short = typeof fn === 'function' ? fn : () => false;
+  };
 
-  return { view, clean, sweep, scan, start, stop };
+  return { view, clean, sweep, scan, start, stop, setBusy };
 }

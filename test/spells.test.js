@@ -430,6 +430,9 @@ test('worktree cleanup: a setting with its days, and Settings → Worktrees as p
   assert.deepEqual(problems({ ...base0, settings: { worktreeCleanup: '7' } }), []);
   assert.deepEqual(problems({ ...base0, settings: { worktreeCleanup: 'off' } }), []);
   assert.ok(problems({ ...base0, settings: { worktreeCleanup: '5' } }).some((x) => /worktreeCleanup/.test(x) && /off \| 3 \| 7 \| 14 \| 30/.test(x)));
+  assert.deepEqual(problems({ ...base0, settings: { worktreeMax: '40' } }), []);
+  assert.deepEqual(problems({ ...base0, settings: { worktreeMax: 'off' } }), []);
+  assert.ok(problems({ ...base0, settings: { worktreeMax: '100' } }).some((x) => /worktreeMax/.test(x) && /off \| 20 \| 40 \| 80/.test(x)));
   assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.worktrees.list'] } }), []);
 });
 
