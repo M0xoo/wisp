@@ -252,6 +252,8 @@ test('source: the panel’s editor reads a file of the task, saves it, and refus
 test('search: GET /search finds a task by the words of its prompt', async () => {
   const s = await api('/sessions', { body: { prompt: 'Teach the zebracorn parser to add', cwd: makeClone().dir, agent: 'claude' } });
   await settled(s.id);
+  // Named apart from its prompt (a task is named after it otherwise, and the title hit comes first).
+  await api(`/sessions/${s.id}`, { method: 'PATCH', body: { title: 'Parser work' } });
   const { hits } = await api(`/search?q=${encodeURIComponent('zebracorn parser')}`);
   assert.deepEqual(hits.map((h) => [h.id, h.where]), [[s.id, 'prompt']]);
   assert.match(hits[0].snippet, /zebracorn parser/);
