@@ -131,6 +131,7 @@ try {
     await shot(p, 'home-desktop');
     await p.click('.t-go[data-add]');
     ok(await p.locator('details#add[open]').count(), 'the tile did not open Add a computer');
+    ok(await p.locator('.cards > .cards-live + details#add + #addHow:visible').count(), 'Add a computer is not the last card, with its panel after it');
     await p.setViewportSize({ width: 390, height: 844 });
     const sideways = () => p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     const home = await sideways();

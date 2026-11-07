@@ -178,6 +178,13 @@ The grid's signed-in pages (`grid/pages.js`), server-rendered, wisp's look.
   gone) and a *Next schedule* row, so asleep, waking and running move nothing.
 - **What the page refreshes lives in `[data-live]`; what you're using doesn't.** *Add a computer* and
   the picture stay outside those blocks, so a live change never closes or repaints them.
+- **Adding is the last card of the list it adds to.** Same grid, same size as its neighbours, 1px
+  dashed `--line-2` with a big + (dashed is how wisp says "add", as in `.lp-chip.add` and the crew's
+  empty rail); solid on hover and while open. A panel can't fit in a card, so it opens as the next
+  row, full width, and the + turns into ×: nothing above it moves. The cards' `[data-live]` block is
+  `display: contents`, so a computer that arrives lands in the same grid, before the card. With
+  nothing in the list the card takes the whole row; on a phone it's one compact row. Only where
+  adding happens on this page: *Published apps* gets no card, publishing happens in wisp.
 
 ## Several accounts on wisp Grids
 

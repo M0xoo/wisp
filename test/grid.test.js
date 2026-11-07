@@ -1513,7 +1513,9 @@ test('the account page keeps up by itself: its event stream says when a computer
   const port = (await listen(local)).split(':').pop();
   const acct = browser();
   await devSignIn(acct, 'gus@example.com');
-  assert.match((await acct.go(`${base}/`)).text, /data-live="computers"/);
+  const home = (await acct.go(`${base}/`)).text;
+  // A refresh swaps the block of cards: the Add card is beside it, in the same grid, so it stays last and stays open.
+  assert.match(home, /<div class="cards">\s*<div class="cards-live" data-live="computers">.*?<\/div>\s*<details class="add" id="add">/s);
   // Signed out: no stream.
   assert.equal((await browser().go(`${base}/events`, { headers: { accept: 'text/event-stream' } })).status, 401);
   const u = new URL(base);
