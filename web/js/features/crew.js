@@ -31,7 +31,7 @@ import { runnerPicker } from './runner-picker.js';
 import { MODES, agentName, harnessesAt, harnessLogo, modeMenu, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
 import { connectMachine } from './machines.js';
 import { placeMenu } from './place-menu.js';
-import { canSandbox, machineById, pathAt, placeName, placesOf } from './places.js';
+import { canSandbox, inProject, machineById, pathAt, placeName, placesOf } from './places.js';
 import { slotHtml, spellProp } from './spells.js';
 import { paintTeamBtn, teamEditor } from './team.js';
 import { addFiles, kitClick, kitHtml, offerClick, offerHtml } from './crew-kit.js';
@@ -59,6 +59,18 @@ const pendingOf = (m) => [...S.sessions.values()].filter((s) => s.crew?.id === m
 // other, with the member's face. Saved for later: in that section either way.
 const FOR_TASK = new Set(['delegated', 'mention', 'event']);
 export const underMember = (s) => !!s?.crew && FOR_TASK.has(s.crew.job) && !!memberById(s.crew.id) && !isForLater(s);
+
+// Until it needs you (a question, a report you haven't read): then it's in Needs you with your own
+// tasks, and only there. Opening a report reads it, and its row stays until you close it.
+const inNeedsNow = new Set();
+export function inNeeds(s) {
+  if (!underMember(s) || s.pending) return false;
+  if (needsYou(s)) inNeedsNow.add(s.id);
+  else if (!S.open.has(s.id) || !needsYou({ ...s, unread: true })) inNeedsNow.delete(s.id);
+  return inNeedsNow.has(s.id);
+}
+// In the list's Needs you right now: a project filter leaves it under its member.
+const inList = (s) => inNeeds(s) && (S.filter === 'all' || inProject(s, S.filter));
 
 // When it checks in, in words. Any other cron is read out (web/js/schedule.js), or shows as itself.
 export const CADENCES = [
@@ -128,8 +140,8 @@ export function crewDot(s) {
 // One block per member: its row, then (in the feed) its thread when it's open, then its recent
 // jobs as ordinary cards, nested under it: what's live first (asking you, working, an unread
 // report), then what it finished, newest first, until you mark it done or archive it. The rest is in its thread.
-// Nothing of the crew's shows in Needs you, Working or Done (split view's home lists their
-// questions and unread reports with yours, split.js paintHome).
+// A job that needs you sits in Needs you instead (inNeeds), its member's row and dot still say so.
+// Nothing of the crew's shows in Working or Done.
 
 const sec = $('#secCrew');
 const box = $('.cr-list', sec);
@@ -152,9 +164,9 @@ export function pinJob(id) {
 // A member's jobs under it (the ones for another task), most urgent first: asking you, working, an
 // unread report, then the finished ones, newest first. Ones you marked done or archived are only in
 // its thread.
-function memberJobs(m, st, max = JOBS_MAX) {
+export function memberJobs(m, st, max = JOBS_MAX) {
   const rank = (s) => (s.pending || s.state === 'running' ? 1 : s.state === 'waiting' ? 0 : s.state === 'review' && s.unread ? 2 : 3);
-  const list = [...st.jobs.filter((s) => underMember(s) && ((!s.archived && s.state !== 'done') || s.state === 'running' || s.state === 'waiting' || S.open.has(s.id) || pinned.has(s.id)))];
+  const list = [...st.jobs.filter((s) => underMember(s) && !inList(s) && ((!s.archived && s.state !== 'done') || s.state === 'running' || s.state === 'waiting' || S.open.has(s.id) || pinned.has(s.id)))];
   list.sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
   const open = S.crewOpen === m.id;
   const keep = list.filter((s, i) => i < max || (open && rank(s) < 3) || S.open.has(s.id) || pinned.has(s.id));
@@ -284,7 +296,7 @@ function stripHtml(folded) {
 }
 
 // A job kept in the list whatever else: it's open, or about to be.
-const held = (s) => underMember(s) && (S.open.has(s.id) || pinned.has(s.id));
+const held = (s) => underMember(s) && !inList(s) && (S.open.has(s.id) || pinned.has(s.id));
 
 // Blocks keyed by member, rows rewritten only when what they say changed and never re-appended (a
 // spirit would restart its animation). Returns the job cards it placed, so the feed keeps them.

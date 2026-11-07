@@ -28,7 +28,7 @@ import { closeOverlay } from '../ui/overlay.js';
 import { termPill } from './term.js';
 import { goalPill } from './goal.js';
 import { aheadLabel, isScheduled, laterLine, laterPill, laterTip, nextAt, planRows } from './later.js';
-import { crewDot, crewFace, memberById, paintCrew, pinJob, underMember } from './crew.js';
+import { crewDot, crewFace, inNeeds, memberById, paintCrew, pinJob, underMember } from './crew.js';
 import { openUnlisted, pruneSubs, subsUnder } from './lineage.js';
 import { sideDoes } from './side.js';
 import { backToPlace, goBack, goHome, isSplit, isStacked, keepPlace, paintHead, paintSplit, sideShown, sidebar, splitOpen } from './split.js';
@@ -41,8 +41,8 @@ const heldSub = (s) => (s.held.project ? (s.held.project.setup ? 'Running the re
 const heldTip = (s) => (s.held.project ? 'This repo asks to run its own programs: Trust and start, Run without them, or Skip this run' : s.held.harness ? `${agentName(s.agent)} changed since wisp last ran it: Trust and start, or Skip this run` : heldTipLimit(s));
 const heldTipLimit = (s) => `${s.held.label} window at ${Math.floor(s.held.used * 100)}% · goes by itself ${aheadLabel(s.held.until)}`;
 
-function visible(list) {
-  return S.filter === 'all' ? list : list.filter((s) => inProject(s, S.filter));
+function visible(list, filter) {
+  return filter === 'all' ? list : list.filter((s) => inProject(s, filter));
 }
 
 // Compare runs (one launch on several harnesses, sharing a groupId) are one task in the feed
@@ -71,12 +71,12 @@ export function taskOf(s) {
   };
 }
 
-// Every task in the feed (or the sidebar), by section and in its order.
-export function groups() {
+// Every task in the feed (or the sidebar), by section and in its order. filter: a project, or 'all'.
+export function groups(filter = S.filter) {
   const every = [];
   const seen = new Set();
-  for (const s of visible([...S.sessions.values()])) {
-    if (underMember(s)) continue; // a crew job for another task: under its member (crew.js)
+  for (const s of visible([...S.sessions.values()], filter)) {
+    if (underMember(s) && !inNeeds(s)) continue; // a crew job for another task: under its member, unless it needs you (crew.js)
     if (s.parentId) continue; // a subagent opened by itself: under its lead (lineage.js)
     const t = taskOf(s);
     if (t.runs && seen.has(t.key)) continue;
@@ -767,8 +767,8 @@ export function collapse(id) {
   paintSplit();
   syncUrl();
   prefetchShown();
-  // A folded section only kept its row while it was open.
-  if (n?.card.closest('.f-group.collapsed')) renderFeed();
+  // A folded section only kept its row while it was open, and so did Needs you for a crew job you've read.
+  if (n?.card.closest('.f-group.collapsed') || underMember(S.sessions.get(id))) renderFeed();
   // Subagent rows leave with their lead: checked once whatever opens next is open.
   else queueMicrotask(() => pruneSubs() && renderFeed());
 }
@@ -872,8 +872,9 @@ export function reveal(id) {
   if (!sub) return void openUnlisted(id); // a subagent's run, from a link: under its lead
   // A subagent opened by itself sits under its lead: the lead's section and project show it.
   const s = (sub.parentId && S.sessions.get(sub.parentId)) || sub;
-  // A crew job for another task opens under the member (Crew unfolded), wherever it is in its life.
-  const crew = underMember(s);
+  // A crew job for another task opens under the member (Crew unfolded), wherever it is in its life,
+  // unless it needs you: then its row is in Needs you.
+  const crew = underMember(s) && !inNeeds(s);
   if (crew) pinJob(s.id);
   const sec = crew ? 'secCrew' : { needs: 'secNeeds', working: 'secWorking', scheduled: 'secScheduled', forLater: 'secForLater', done: 'secDone', archived: 'secArchived' }[sectionOf(s)];
   if (!sectionOpen(sec)) toggleSection(sec, true);
