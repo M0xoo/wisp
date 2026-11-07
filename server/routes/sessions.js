@@ -334,6 +334,10 @@ export function register(r, app) {
       c.send(200, summarize(s, store));
     }),
   );
+  // Done asks about the worktree (services/done-folders.js): the folders it and what ran under it
+  // hold, and the user's answer.
+  r.route('GET', '/sessions/:id/folders', one(async (c, s) => c.send(200, await app.doneFolders.list(s, { sizes: c.query.get('sizes') !== '0' }))));
+  r.route('POST', '/sessions/:id/folders', one(async (c, s) => c.send(200, await app.doneFolders.apply(s, await c.body()))));
   r.route(
     'DELETE',
     '/sessions/:id',
