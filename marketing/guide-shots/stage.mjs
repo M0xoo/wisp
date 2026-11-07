@@ -14,7 +14,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '../..');
 const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), `gshots-${p}-`));
 
-function bin() {
+function bin(extra = []) {
   const dir = tmp('bin');
   const fakes = path.join(dir, 'fake');
   fs.mkdirSync(fakes);
@@ -23,8 +23,10 @@ function bin() {
     fs.copyFileSync(path.join(ROOT, 'test/fixtures/fake-agent.mjs'), path.join(fakes, `${n}.mjs`));
     fs.writeFileSync(path.join(dir, n), launcher(path.join(HERE, 'director.mjs')));
   }
+  // Harnesses only the boards show: wisp's own fake agent answers for them.
+  for (const n of extra) fs.writeFileSync(path.join(dir, n), launcher(path.join(ROOT, 'test/fixtures/fake-agent.mjs')));
   fs.writeFileSync(path.join(dir, 'ssh'), launcher(path.join(ROOT, 'test/fixtures/fake-ssh.mjs')));
-  for (const f of ['claude', 'codex', 'ssh']) fs.chmodSync(path.join(dir, f), 0o755);
+  for (const f of ['claude', 'codex', 'ssh', ...extra]) fs.chmodSync(path.join(dir, f), 0o755);
   return { dir, fakes };
 }
 
@@ -101,13 +103,55 @@ async function stuff(home) {
   s.setPublished(demo.id, { url: 'https://pricing-demo--app--dana.grid.trywisp.dev/', account: 'grid', host: 'grid.trywisp.dev', handle: 'dana', rev: 1, at: Date.now() });
 }
 
-export async function start({ port = 4511, machinePort = 4521, gpuPort = 4522 } = {}) {
+// The Allowance board's windows, as the CLIs would have reported them, with three closed weekly
+// periods each: what the table shows, and one short of the four full periods a reading needs, so no
+// shot ever claims 1% buys less or more.
+function budget(home) {
+  const now = Date.now();
+  const H = 3_600_000;
+  const WEEK = 168 * H;
+  const win = (used, left, hours) => ({ used, resetsAt: now + left * H, ms: hours * H });
+  const plan = (five, week, closed) => {
+    const seven_day = win(...week, 168);
+    return {
+      at: now,
+      windows: { five_hour: win(...five, 5), seven_day },
+      periods: { seven_day: closed.map(([used], i) => ({ resetsAt: seven_day.resetsAt - (closed.length - i) * WEEK, ms: WEEK, used })) },
+    };
+  };
+  // Closed periods [used, share in wisp, work], oldest first, then the open one's [share, work].
+  // Work is dollars on Claude Code, tokens on Codex.
+  const accounts = [
+    ['claude', 'default', [0.62, 2.1], [0.41, 76], [[0.71, 0.58, 91], [0.84, 0.66, 108], [0.77, 0.69, 104]], [0.34, 53]],
+    ['claude', 'pers', [0.18, 3.6], [0.73, 31], [[0.52, 0.31, 37], [0.64, 0.5, 62], [0.69, 0.48, 55]], [0.56, 66]],
+    ['codex', 'default', [0.34, 3.2], [0.27, 118], [[0.46, 0.38, 19e6], [0.58, 0.47, 25e6], [0.39, 0.33, 16e6]], [0.24, 11e6]],
+  ];
+  const state = {};
+  fs.mkdirSync(path.join(home, 'sessions'), { recursive: true });
+  for (const [agent, account, five, week, closed, open] of accounts) {
+    const acc = plan(five, week, closed);
+    (state[agent] ||= {})[account] = acc;
+    const weeks = [...closed.map(([, share, work], i) => [acc.periods.seven_day[i].resetsAt, share, work]), [acc.windows.seven_day.resetsAt, ...open]];
+    weeks.forEach(([resetsAt, share, work], i) => {
+      const stats = agent === 'claude' ? { costUsd: work, totals: { costUsd: work } } : { inputTokens: work, outputTokens: 0 };
+      const id = `week${i}${agent}${account}`;
+      const startedAt = Math.min(resetsAt - 72 * H, now - H);
+      const turn = { id: 't', prompt: 'A week of work', state: 'done', agent, account, startedAt, stats, plan: [{ agent, account, window: 'seven_day', resetsAt, used: share }] };
+      fs.writeFileSync(path.join(home, 'sessions', `${id}.json`), JSON.stringify({ id, title: 'A week of work', agent, account, cwd: home, state: 'done', archived: true, createdAt: startedAt, turns: [turn] }));
+    });
+  }
+  fs.writeFileSync(path.join(home, 'budget.json'), JSON.stringify(state));
+}
+
+// boards: the extra harnesses, tasks and usage windows the Agent board and Allowance board shots need.
+export async function start({ port = 4511, machinePort = 4521, gpuPort = 4522, boards = false } = {}) {
   const parent = tmp('repos');
   const repos = Object.fromEntries(Object.keys(FILES).map((n) => [n, repo(parent, n)]));
-  const b = bin();
+  const b = bin(boards ? ['opencode', 'cursor-agent'] : []);
   const home = tmp('home');
   fs.writeFileSync(path.join(home, 'accounts.json'), JSON.stringify({ claude: [{ id: 'default', label: 'Work' }, { id: 'pers', label: 'Personal', kind: 'personal' }] }));
   await stuff(home);
+  if (boards) budget(home);
   const w = await startWisp({
     port,
     extraEnv: { WISP_HOME: home, PATH: `${b.dir}:${process.env.PATH}`, FAKE_AGENTS: b.fakes, WISP_SSH: path.join(b.dir, 'ssh'), FAKE_SSH_HOME: tmp('there'), WISP_UPDATE_CHECK: '0', FAKE_DELAY: '300', FAKE_GOAL_SCRIPT: JSON.stringify(GOAL_CHECKS) },
@@ -119,7 +163,7 @@ export async function start({ port = 4511, machinePort = 4521, gpuPort = 4522 } 
   for (const m of MEMBERS) crew[m.name] = (await api(w.url, '/api/crew', { ...m, cwd: repos['api-server'], agent: 'claude' })).json;
   const command = `${JSON.stringify(process.execPath)} ${JSON.stringify(path.join(ROOT, 'bin/wisp.js'))}`;
   const studio = (await api(w.url, '/api/machines', { name: 'studio', target: 'me@studio', port: machinePort, command })).json;
-  await api(w.url, '/api/machines', { name: 'gpu-box', target: 'me@gpu-box', port: gpuPort, command });
+  const gpu = (await api(w.url, '/api/machines', { name: 'gpu-box', target: 'me@gpu-box', port: gpuPort, command })).json;
   for (let i = 0; i < 120 && (await api(w.url, '/api/machines')).json.some((m) => m.state !== 'online'); i++) await new Promise((r) => setTimeout(r, 500));
 
   const task = async (prompt, cwd, body = {}) => (await api(w.url, '/api/sessions', { prompt, cwd: repos[cwd], agent: 'claude', ...body })).json;
@@ -134,6 +178,13 @@ export async function start({ port = 4511, machinePort = 4521, gpuPort = 4522 } 
   ids.onboarding = (await task('Onboarding: skip the empty state when a team exists', 'web-app')).id;
   ids.goal = (await task('Fix login on phones and the flaky auth tests', 'web-app', { goal: { text: 'every auth test passes and the login form fits a 390px phone', max: 10 } })).id;
   ids.stripe = (await task('Migrate billing webhooks to the new Stripe API', 'api-server')).id;
+  if (boards) {
+    await task('Retry failed webhook deliveries with backoff', 'api-server', { agent: 'opencode' });
+    await task('Remove the unused onboarding styles', 'web-app', { agent: 'cursor' });
+    await task('Run the e2e suite and fix what fails', 'web-app', { machine: gpu.id });
+    await task('Add a request id to every log line', 'api-server', { account: 'pers' });
+    await api(w.url, `/api/crew/${crew.Scout.id}/jobs`, { prompt: 'Find out why the nightly build failed' });
+  }
   // Last: once Work is at its limit, tasks started by hand go to Personal.
   ids.limit = (await task('Bump the auth SDK and fix the deprecations', 'api-server', { account: 'default' })).id;
 

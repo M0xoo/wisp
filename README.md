@@ -15,7 +15,7 @@ Launch coding agents in the background, skip the transcript, and read the presen
 [![Zero runtime deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)](package.json)
 [![Harnesses](https://img.shields.io/badge/harness-Claude%20Code%20·%20Codex%20·%20opencode%20·%20Cursor%20·%20Antigravity%20·%20Grok%20·%20Copilot-d97757)](#adding-a-harness)
 
-[Quick start](#quick-start) · [Website](https://trywisp.dev/) · [wisp Cloud](#wisp-cloud) · [Features](#features) · [My Stuff](#my-stuff) · [CLI](#cli) · [Integrations](#integrations) · [Shortcuts](#keyboard-shortcuts) · [Architecture](#architecture) · [Adding a harness](#adding-a-harness) · [Roadmap](#roadmap)
+[Quick start](#quick-start) · [Website](https://trywisp.dev/) · [wisp Cloud](#wisp-cloud) · [Features](#features) · [Agent board](#agent-board-and-panes) · [My Stuff](#my-stuff) · [CLI](#cli) · [Integrations](#integrations) · [Shortcuts](#keyboard-shortcuts) · [Architecture](#architecture) · [Adding a harness](#adding-a-harness) · [Roadmap](#roadmap)
 
 <img src="https://raw.githubusercontent.com/M0xoo/wisp/main/docs/assets/demo.gif" alt="wisp: send a task off, answer the agent's question in one click, read the report, then a crew member checks in and another takes a job by @mention" width="880" />
 
@@ -141,6 +141,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | **Compare** | Run one task on two harnesses side by side, and keep the better run. |
 | **Hand a refused task to another model** | When an agent turns down legitimate work (a usage-policy refusal, or a short *I can't help with that* from a run that changed nothing), the task offers **Hand to <another harness>** on another company's model: one click sends the prompt, its files and the turns so far. Never automatic, and never another account of the same harness. |
 | **Hand-offs keep your rules** | When a task goes to another harness (after a refusal, at a usage limit, or when you pick another one for a follow-up), the new agent's first turn opens with *What still holds*: the lines from your messages that rule something out or narrow it (*don't touch the migrations*, *only change server/auth*, *no new dependencies*) and the task's *Done when*. The thinking level carries over in the new harness's terms (Claude Code *max* becomes Codex *xhigh*). |
+| **Agent board** | One live board of every task, across every harness, account, machine and crew member: Working, Needs you, Review and Done, with Done and Follow up on each card. **Allowance board** keeps each account's usage windows on screen and shows what each period cost. Both are panes: apps pinned on home or beside your tasks, and you can have an agent make your own. See [Agent board and panes](#agent-board-and-panes). |
 | **Spells** | Change wisp itself while it runs: ask for a floating button that opens your PRs, a panel with your tool stats, a block agents can use in their reports, a different prompt box, quick replies, buttons on cards, a new look. An agent writes it as a *spell*; you try it in the window and keep it. Share one as a file, and turn any of them off to put wisp back as it was. See [Spells](#spells). |
 | **Recipes & triggers** | Saved prompts with `{params}` (`wisp run release 0.57.0`), run by hand, on a schedule, when CI fails, or when an issue is labelled. |
 | **Usage** | Every finished turn carries a receipt (*38k tokens · 71% cache · 3% of weekly*), says *Past your plan* when it was billed beyond the plan, and names the subagents that ran and which model wrote the output. Settings → Usage adds spend, success rate and questions per project and per harness · model, how much of each Claude Code and Codex plan window is left, and which subagents used it. See [Usage](#usage). |
@@ -513,6 +514,28 @@ A shelf for what your agents make, on one page in the main pane: the tray beside
 - **Publish.** Signed in to a wisp Grid (Settings → Cloud), or in your cloud wisp, **Publish** on an app (its **⋯** menu, or its bar while it runs) puts it at `<app>--app--<you>.<grid>`, for example `pricing-demo--app--you.grid.trywisp.dev`. Anyone with the link opens it, no sign-in, while your computer or cloud wisp sleeps; search engines are kept out. Or ask the agent: *“publish it”* (`wisp_save` `publish: true`) and it answers with the link. After an agent changes the app, **Update public link** puts the new version at the same address; **Unpublish** takes it down. `.env` files, credentials, keys and source maps never leave with an app, and a key or token in its own files stops the publish (the error names the file and line). A published app with a database gets one on the grid, shared by everyone who opens the link: anyone with the link can read and change its data, so no personal data in it.
 
 API: `GET`/`POST /stuff`, `PATCH`/`DELETE /stuff/:id`, `POST`/`DELETE /stuff/:id/launch`, `POST`/`DELETE /stuff/:id/publish`. Agents use `wisp_save` and `wisp_stuff`.
+
+## Agent board and panes
+
+**wisp grows with you.** A pane inside Claude Code or Cursor shows that tool's own work. wisp's panes sit on top of everything wisp runs, so one board can show Claude Code on two accounts, Codex on your GPU box and your crew's jobs together.
+
+<picture>
+  <source srcset="docs/assets/shots/dark-agent-board.webp" media="(prefers-color-scheme: dark)" />
+  <img src="docs/assets/shots/light-agent-board.webp" alt="wisp's Agent board: columns Working, Needs you, Review and Done, with cards from Claude Code on the Work and Personal accounts, Codex on the machine studio, Cursor and opencode, and the crew members Scout, Quill and Echo above the columns" width="880" />
+</picture>
+
+**Agent board** puts every task on one live board, whatever harness, account or machine it runs on, with your crew above the columns and who's working now. A task that's asking you something sits in *Needs you* wherever it runs. Drag a card to Done or press its button, on other machines too, and **Follow up** opens wisp's own card with your exact words: nothing goes until you press **Send**. Add it from ⌘K → *Make a pane…* or **Make a pane** in My Stuff, then **Allow and pin**. No agent runs for it. Guide: [One board for all your coding agents](https://trywisp.dev/guides/one-board-for-all-your-coding-agents.html).
+
+**Allowance board** keeps each account on this computer in view: how much of each 5-hour and weekly window is gone, when it resets, and how fast it's going once that can be told. Under each window it lists the recent periods, newest first: how much went outside wisp, how much was used, and what 1% of the window cost in wisp (dollars on Claude Code, millions of tokens on Codex; ≈ when worked out from running totals). After 2 full weekly periods on each side, a line compares what 1% did; before that it says nothing. Claude Code and Codex report their windows; the other harnesses say they don't yet. It's read-only, and usage stays per machine, so a machine's accounts show on that machine's wisp.
+
+<picture>
+  <source srcset="docs/assets/shots/dark-allowance.webp" media="(prefers-color-scheme: dark)" />
+  <img src="docs/assets/shots/light-allowance.webp" alt="wisp's Allowance board: Claude Code on the Work and Personal accounts and Codex, each with 5-hour and weekly bars, the percentage gone, when it resets, a rate per hour and a table of recent periods with Outside wisp, Used and For 1%" width="880" />
+</picture>
+
+**Your own panes.** Both boards are apps in [My Stuff](#my-stuff). Type *make me a pane that…* in New task (or use **Make a pane**) and an agent builds one in an empty folder, pins it, and it reloads in place as the agent changes it. Pin any app **beside tasks** (a tab next to Changes, PR and Shell) or **on home**.
+
+**What a pane can do is up to you.** Pinning grants nothing. An app lists what it needs in `wisp-app.json`'s `"uses"` (`tasks:read`, `tasks:write`, `prs:read`, `crew:read`, `usage:read`) and you allow it on its bar. It reads a task's title, state, project, branch, PR and one-line summary, never the conversation, with secrets redacted. It can't send a prompt: each task it starts and each follow-up waits on wisp's card for your click, at most 6 writes a minute, in your default harness and mode. If its code changes, `tasks:write` stops until you allow it again, and access can't grow while the task it's for, or the task that made it, runs in Full auto. Treat what a pane reads as visible to whoever wrote it: browsers don't apply wisp's limits to WebRTC, and the Allow card says so when the code uses it. Over the phone app's SSH tunnel panes don't open; through wisp Cloud they do. A spell can pin a pane (`settings.panes`) but never allow it anything.
 
 ## Checkpoints and rollback
 
