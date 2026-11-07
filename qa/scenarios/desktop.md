@@ -46,7 +46,7 @@ of this on macOS, Windows and Linux, `qa/web.mjs` on each engine and one Electro
 | DESK-14 attach | Automated | TAURI-14 |
 | DESK-15 context menu | Manual | TAURI-20: the menu AppKit opens on a link and in a text box; choosing an item and no Inspect in a release build: Manual |
 | (none) | | TAURI-10c `<a download>` goes to ~/Downloads without asking; TAURI-15 kill -9 leaves no orphan |
-| (none) | | TAURI-07c Tab reaches buttons and links; TAURI-18 a task behind a closed window notifies, the delegate a click reaches opens it; TAURI-18b with another app in front; TAURI-22 a CLI added to the login shell is found without a restart; TAURI-23 a file through `NSDraggingDestination` on the real view |
+| (none) | | TAURI-07c Tab reaches buttons and links; TAURI-07d Tab from the top of a task lands on a question's first answer, Return answers; TAURI-18 a task behind a closed window notifies, the delegate a click reaches opens it; TAURI-18b with another app in front; TAURI-22 a CLI added to the login shell is found without a restart; TAURI-23 a file through `NSDraggingDestination` on the real view |
 
 **Still by hand, on the gate:** a real banner on screen and clicking it opens the task (from a built `wisp.app`, after *Allow*); dragging the window with a mouse; a file dragged from Finder; a right-click menu item chosen; the Dock reopen; ⌃Tab held.
 
@@ -226,7 +226,7 @@ Newer features the page does without on an older Mac:
 
 | Difference | On | Why it's left |
 |---|---|---|
-| Tab skips buttons and links, stops at text boxes and `tabindex` | WebKit | Safari's default. In the app the shell can turn on `tabFocusesLinks` (`WKPreferences`): to do in `desktop/` |
+| Tab skips buttons and links, stops at text boxes and `tabindex` | Safari, Playwright's WebKit | Safari's default. Not in the app: wry and the shell turn on `tabFocusesLinks` (`WKPreferences`, `macos::tab_reaches_links`), so Tab reaches a question's answers as in Electron (TAURI-07c, TAURI-07d) |
 | Clicking a button doesn't focus it: `relatedTarget` is null, focus goes to `body` | WebKit | Safari's default. Every `focusout` handler was read: none depends on it. Focus still returns on Escape |
 | No scroll anchoring | WebKit 16.4. Playwright's 27.2 has it; which Safari ships it isn't clear | The page holds still by hand: forced off on 27.2, the list moved 0.5 px as in Chrome and a reader's scroll came out the same. A late image above the reader would move them |
 | `content-visibility` off on list rows | WebKit | It left rows outside the list. A list of hundreds costs more to restyle |
