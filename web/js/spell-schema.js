@@ -470,9 +470,9 @@ export const PARTS = {
   'settings.worktrees.cleanup': '.wtr-auto', // Clean up automatically
   'settings.worktrees.list': '.wtr-list', // The worktrees on disk
   'settings.cloud': '.sx-cloud',
-  'settings.cloud.computer': '.cl-card',
-  'settings.cloud.signin': '.cl-signin',
-  'settings.cloud.add': '.cl-add', // Add an account, once you have one (opens the sign-in)
+  'settings.cloud.computer': '.cg-card',
+  'settings.cloud.signin': '.cg-signin',
+  'settings.cloud.add': '.cg-add', // Add an account, once you have one (opens the sign-in)
   'settings.cloud.sandboxes': '.sbx-card', // Sandboxes: /sandbox's boxes and the Claude sign-in they start with
   'settings.cloud.keys': '.key-card', // API keys: for scripting a cloud wisp
   'settings.cloud.keys.reveal': '.key-new', // A new API key, shown once

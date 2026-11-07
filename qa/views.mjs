@@ -102,7 +102,7 @@ export function views({ tasks, goal }) {
     stuff: async (p) => click(p, '#splitStuff:visible, .stuff-top:visible'),
     'me-menu': async (p) => click(p, '#meBtn'),
     palette: async (p) => (await p.keyboard.press(process.platform === 'darwin' ? 'Meta+k' : 'Control+k'), await p.waitForTimeout(400)),
-    ...Object.fromEntries(['general', 'notifications', 'agents', 'auto', 'machines', 'cloud', 'memory', 'automations', 'spells', 'usage', 'privacy'].map((n) => [`settings.${n}`, settings(n)])),
+    ...Object.fromEntries(['general', 'notifications', 'agents', 'connectors', 'auto', 'machines', 'cloud', 'memory', 'automations', 'spells', 'worktrees', 'usage', 'privacy'].map((n) => [`settings.${n}`, settings(n)])),
   };
 }
 
