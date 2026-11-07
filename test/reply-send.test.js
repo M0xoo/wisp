@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const { answersAsk, sendFollowUp, REPLY_TIMEOUT } = await import('../web/js/features/reply-send.js');
 const real = globalThis.fetch;
@@ -165,6 +166,6 @@ test('a question or approval card has no answer box of its own', () => {
   assert.match(card, /undo\?\.\(\);\s*toastError\(e\);/);
   for (const dir of ['css', 'js']) {
     const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((f) => (f.isDirectory() ? walk(`${d}/${f.name}`) : [`${d}/${f.name}`]));
-    for (const f of walk(new URL(`../web/${dir}`, import.meta.url).pathname)) assert.doesNotMatch(fs.readFileSync(f, 'utf8'), /\bq-own\b/, f);
+    for (const f of walk(fileURLToPath(new URL(`../web/${dir}`, import.meta.url)))) assert.doesNotMatch(fs.readFileSync(f, 'utf8'), /\bq-own\b/, f);
   }
 });
