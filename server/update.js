@@ -85,6 +85,7 @@ export class Updater {
     this.platform = platform;
     this.arch = arch;
     this.env = env;
+    this.shell = env.WISP_DESKTOP; // read here: desktop/entry.mjs drops it once the server is up
     this.asset = null; // app: the latest release's download for this OS and CPU
     this.release = null; // app: that release's page
     this.tag = 'latest'; // npm: the dist-tag that has the version on offer
@@ -248,17 +249,19 @@ export class Updater {
   }
 
   // Same port as now (wisp may have been started with --port), so the open tab finds it again.
-  relaunchCommand(electron = !!process.versions.electron) {
+  relaunchCommand(desktop = !!(process.versions.electron || this.shell)) {
     if (this.method === 'app') {
       const q = (p) => `"${p}"`; // cmd.exe takes no JSON escapes
       const { open, remove, installer } = this.swap || {};
-      // NSIS: /S installs silently over this copy, --force-run starts the new one.
-      if (this.platform === 'win32') return `${q(installer)} /S --force-run`;
+      // NSIS: /S installs silently over this copy, then the new one starts: --force-run is how
+      // electron-builder's installer says so, /R Tauri's. Each ignores the other's, and this has to
+      // start whichever the release holds: an Electron build updates onto a Tauri one by this line.
+      if (this.platform === 'win32') return `${q(installer)} /S --force-run /R`;
       if (this.platform === 'darwin') return `rm -rf ${q(remove)}; open ${q(open)}`;
       return `${q(open)} >/dev/null 2>&1`;
     }
-    const args = `${electron ? '' : ' --browser --no-open'} --port ${this.port}`; // desktop: reopen the app; browser: keep the tab
-    const node = JSON.stringify(electron ? 'node' : process.execPath);
+    const args = `${desktop ? '' : ' --browser --no-open'} --port ${this.port}`; // desktop: reopen the app; browser: keep the tab
+    const node = JSON.stringify(process.versions.electron ? 'node' : process.execPath); // Electron's is no node, Tauri's is
     return this.method === 'npx' ? `npx -y ${PKG.name}@${this.tag}${args}` : `${node} ${JSON.stringify(path.join(this.home(), 'bin', 'wisp.js'))}${args}`;
   }
 }

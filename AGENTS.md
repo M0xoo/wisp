@@ -29,7 +29,9 @@ this covers how the code is laid out and the rules a change has to follow.
 - `desktop/`: the Tauri shell, being built beside Electron (`electron/` stays what users get until the
   gate in `qa/scenarios/desktop.md` is met). `src-tauri/` is Rust, kept small: window, menu, links and a
   Node child that runs the unchanged server through `entry.mjs`; stdin is its leash, so it can't
-  outlive the shell. `src/init.js` is the page's bridge, its `Notification` (`src/notify.rs`,
+  outlive the shell. `scripts/package.mjs` builds the downloads under electron-builder's names, with the pinned Node of
+  `scripts/fetch-node.mjs` beside wisp's files: `.github/workflows/tauri-package.yml`, on release dry runs
+  only. `src/init.js` is the page's bridge, its `Notification` (`src/notify.rs`,
   tauri-plugin-notification) and its drag regions (WebKit has no
   `-webkit-app-region`: a new rule in the CSS goes there too, a test checks). Linux is blocked: a release
   build doesn't compile until `on_navigation` can tell a frame from the page (`qa/scenarios/desktop.md`). IPC is one capability

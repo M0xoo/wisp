@@ -1,0 +1,122 @@
+name: tauri package
+
+# The Tauri app as downloads, kept as this run's artifacts and released nowhere. release.yml calls
+# this on a dry run only: `gh workflow run release --ref <branch> -f dry_run=true`. Electron stays
+# what users get. Linux has no Tauri build (it stays on Electron until WebKitGTK can tell a frame
+# from the page), so it only runs the install gate's npm rows.
+#
+# Artifacts are named tauri-*: release.yml publishes what's named desktop-*, and that must never
+# match these.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: The commit to build
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: rustup toolchain install stable --profile minimal && rustup default stable && rustup target add x86_64-apple-darwin
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: tauri-package-${{ runner.os }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+      - run: node desktop/scripts/package.mjs --target aarch64-apple-darwin
+      - run: node desktop/scripts/package.mjs --target x86_64-apple-darwin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tauri-mac
+          if-no-files-found: error
+          path: dist/tauri/wisp-*
+      - run: node qa/install.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tauri-install-gate-mac
+          path: qa/out/install.*
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: rustup toolchain install stable --profile minimal && rustup default stable && rustup target add aarch64-pc-windows-msvc
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: tauri-package-${{ runner.os }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+      - run: node desktop/scripts/package.mjs --target x86_64-pc-windows-msvc
+      - run: node desktop/scripts/package.mjs --target aarch64-pc-windows-msvc
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tauri-windows
+          if-no-files-found: error
+          path: dist/tauri/wisp-*
+      - run: node qa/install.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tauri-install-gate-windows
+          path: qa/out/install.*
+
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node qa/install.mjs --only npm,script,brew
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tauri-install-gate-linux
+          path: qa/out/install.*
+
+  sizes:
+    needs: [mac, windows]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tauri-[mw]*
+          merge-multiple: true
+          path: dist/tauri
+      - name: Sizes against Electron
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node desktop/scripts/sizes.mjs dist/tauri | tee -a "$GITHUB_STEP_SUMMARY"

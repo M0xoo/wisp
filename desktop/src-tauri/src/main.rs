@@ -186,18 +186,26 @@ fn boot(app: AppHandle, port: u16) {
   });
 }
 
+// Tauri refuses resource_dir() on macOS when the app's path holds a symlink (a linked Applications
+// folder, /tmp). The real path is as good: all this reads is the bundle the running binary is in.
+fn resources(app: &AppHandle) -> Option<PathBuf> {
+  let beside = || std::env::current_exe().ok()?.canonicalize().ok()?.parent()?.join("../Resources").canonicalize().ok();
+  app.path().resource_dir().ok().or_else(beside)
+}
+
 // WISP_* are for running from a checkout. A built app has both under its resources (the same
-// Contents/Resources/app the updater looks for, server/update.js PACKAGED).
+// Contents/Resources/app the updater looks for, server/update.js PACKAGED). On Windows the resource
+// folder is the exe's, so there it's resources\app (desktop/scripts/package.mjs).
 fn root(app: &AppHandle) -> Option<PathBuf> {
   let entry = |p: &PathBuf| p.join("desktop/entry.mjs").exists();
-  let packaged = app.path().resource_dir().ok().map(|r| r.join("app"));
+  let packaged = resources(app).map(|r| r.join(if cfg!(windows) { "resources/app" } else { "app" }));
   let checkout = cfg!(debug_assertions).then(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."));
   std::env::var_os("WISP_ROOT").map(PathBuf::from).into_iter().chain(packaged).chain(checkout).find(entry)
 }
 
 fn node(app: &AppHandle) -> PathBuf {
   let name = if cfg!(windows) { "node/node.exe" } else { "node/bin/node" };
-  let bundled = app.path().resource_dir().ok().map(|r| r.join(name)).filter(|p| p.exists());
+  let bundled = resources(app).map(|r| r.join(name)).filter(|p| p.exists());
   std::env::var_os("WISP_NODE").map(PathBuf::from).or(bundled).unwrap_or_else(|| "node".into())
 }
 
