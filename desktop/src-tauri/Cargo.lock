@@ -4772,6 +4772,8 @@ dependencies = [
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tauri-plugin-single-instance",
+ "webview2-com",
+ "windows",
 ]
 
 [[package]]

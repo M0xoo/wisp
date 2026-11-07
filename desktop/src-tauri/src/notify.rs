@@ -5,7 +5,8 @@
 use tauri::{AppHandle, Manager};
 use tauri_plugin_notification::{Action, ActionType, NotificationExt};
 
-// On macOS the plugin only waits for a click on a notification that has an action.
+// On macOS the plugin only waits for a click on a notification that has an action. Windows doesn't
+// need one, and shows it as a button Electron's toast doesn't have.
 const ON_CLICK: &str = "open";
 #[cfg(target_os = "macos")]
 const KEEP: usize = 20;
@@ -13,7 +14,10 @@ const KEEP: usize = 20;
 #[tauri::command]
 pub fn notify_show(app: AppHandle, id: i32, title: String, body: String) {
   // The app's own icon: macOS doesn't take the page's.
-  if let Err(err) = app.notification().builder().id(id).title(title).body(body).action_type_id(ON_CLICK).show() {
+  let note = app.notification().builder().id(id).title(title).body(body);
+  #[cfg(not(windows))]
+  let note = note.action_type_id(ON_CLICK);
+  if let Err(err) = note.show() {
     eprintln!("[wisp] no notification: {err}");
   }
   #[cfg(target_os = "macos")]

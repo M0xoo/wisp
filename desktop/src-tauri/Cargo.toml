@@ -29,6 +29,11 @@ objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSButton", "NSC
 objc2-foundation = { version = "0.3", features = ["NSArray", "NSData", "NSDictionary", "NSGeometry", "NSString", "NSURL", "NSURLRequest", "NSUserDefaults"] }
 objc2-web-kit = { version = "0.3", features = ["WKFrameInfo", "WKNavigationAction", "WKNavigationDelegate", "WKWebView", "WKSnapshotConfiguration", "block2", "objc2-app-kit"] }
 
+# Pinned to what wry uses: src/windows.rs talks to the same WebView2.
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
+windows = "0.62"
+
 [profile.release]
 codegen-units = 1
 lto = true

@@ -127,17 +127,18 @@ test('Linux can\'t be released until a frame can be told from the page', () => {
 });
 
 // The Notification notify.js uses, in a stand-in for the page.
-function notificationShim() {
+function notificationShim(platform = 'MacIntel', frame = false) {
   const calls = [];
   const on = {};
   const window = {
     __TAURI_INTERNALS__: { invoke: async (cmd, args) => (calls.push([cmd, args]), cmd === 'notify_show' ? null : 'granted') },
   };
-  const document = { hasFocus: () => true };
+  window.top = frame ? {} : window;
+  const document = { hasFocus: () => true, adoptedStyleSheets: [] };
   const fired = [];
-  const vm_ = { window, document, addEventListener: (name, fn) => (on[name] = fn), dispatchEvent: (e) => fired.push(e.type), Event: class { constructor(type) { this.type = type; } }, Date, Math, Map, String, Object };
+  const vm_ = { window, document, navigator: { platform }, CSSStyleSheet: class { replaceSync(css) { this.css = css; } }, addEventListener: (name, fn) => (on[name] = fn), dispatchEvent: (e) => fired.push(e.type), Event: class { constructor(type) { this.type = type; } }, Date, Math, Map, String, Object };
   vm.runInNewContext(read('desktop/src-tauri/src/init.js'), vm_);
-  return { Notification: window.Notification, calls, click: (id) => on['wisp-notify-click']({ detail: id }), document, fired, focus: (detail) => on['wisp-window-focus']({ detail }) };
+  return { on, window, Notification: window.Notification, calls, click: (id) => on['wisp-notify-click']({ detail: id }), document, fired, focus: (detail) => on['wisp-window-focus']({ detail }) };
 }
 
 test('notifications: nothing shows before permission, and a click runs that note\'s onclick', async () => {
@@ -181,6 +182,35 @@ test('the bridge is the main frame’s, with pickFolder and nothing else', () =>
   assert.doesNotMatch(main, /initialization_script_for_all_frames/);
   assert.match(read('desktop/src-tauri/src/init.js'), /wispDesktop = Object\.freeze\(\{ pickFolder: /);
   assert.match(read('web/index.html'), /\/Electron\/\.test\(navigator\.userAgent\) \|\| window\.wispDesktop/);
+});
+
+// Measured on v0.57.0 on Windows: a real mouse on the top bar leaves the window where it was.
+test('only on a Mac is the page the title bar: Windows keeps its own, and a click stays a click', () => {
+  const mac = notificationShim('MacIntel');
+  assert.ok(mac.on.mousedown);
+  assert.equal(mac.document.adoptedStyleSheets.length, 0);
+  const win = notificationShim('Win32');
+  assert.equal(win.on.mousedown, undefined);
+  // WebView2 honours -webkit-app-region, which Electron's framed window ignores.
+  assert.match(win.document.adoptedStyleSheets[0].css, /-webkit-app-region: no-drag !important/);
+});
+
+test('WebView2 runs injected scripts in every frame: a frame gets no bridge and no shims', () => {
+  const { window, on, document } = notificationShim('Win32', true);
+  assert.equal(window.wispDesktop, undefined);
+  assert.equal(window.Notification, undefined);
+  assert.equal(on['wisp-notify-click'], undefined);
+  assert.equal(document.adoptedStyleSheets.length, 0);
+});
+
+test('a Notification the plugin already called granted stays granted: Windows never asks', () => {
+  const calls = [];
+  const window = { Notification: { permission: 'granted' }, __TAURI_INTERNALS__: { invoke: async (cmd, args) => calls.push([cmd, args]) } };
+  window.top = window;
+  vm.runInNewContext(read('desktop/src-tauri/src/init.js'), { window, document: { hasFocus: () => true }, navigator: { platform: 'MacIntel' }, addEventListener: () => {}, dispatchEvent: () => {}, Event: class {}, Date, Math, Map, String, Object });
+  assert.equal(window.Notification.permission, 'granted');
+  new window.Notification('done', { body: 'x' });
+  assert.equal(calls.length, 1);
 });
 
 test('the drag regions match every -webkit-app-region rule in the stylesheets', () => {

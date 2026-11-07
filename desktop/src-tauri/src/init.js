@@ -1,15 +1,20 @@
-// Injected into wisp's page, main frame only, before its scripts run (src/main.rs).
+// Injected into wisp's page before its scripts run (src/main.rs). Main frame only on a Mac; WebView2
+// runs every injected script in every frame, a preview's too, so there it stops here. Tauri's own
+// stays in those frames, and Tauri checks the frame's own origin: capability.json refuses any other
+// (qa/desktop-tauri-win.mjs, TAURI-W06b).
 (() => {
+  if (window !== window.top) return;
   const invoke = (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args);
   window.wispDesktop = Object.freeze({ pickFolder: () => invoke('pick_folder') });
 
   // A WKWebView's Notification never shows anything. This is the part web/js/features/notify.js uses,
   // so the page has one road on every shell: the same permission flow, and onclick opens the task
-  // (src/notify.rs). The plugin's own script ran before this one and sets `permission` once it knows.
+  // (src/notify.rs). The plugin's own script ran before this one and sets `permission` once it knows,
+  // which on Windows is already: WebView2 runs each script to its end, and its promises with it.
   const notes = new Map();
   const KEEP = 200; // the newest ones a click can still find
   let seq = Math.floor(Date.now() / 1000); // ids from before a reload mustn't find a new note
-  let permission = 'default';
+  let permission = window.Notification?.permission ?? 'default';
   window.Notification = class {
     static get permission() {
       return permission;
@@ -80,9 +85,18 @@
     }
     return false;
   };
-  addEventListener('mousedown', (e) => {
-    if (e.button !== 0 || e.ctrlKey || !drags(e.target)) return;
-    e.preventDefault(); // as in Electron, a drag region isn't the page's: no focus, no selection
-    invoke(e.detail === 2 ? 'zoom_window' : 'start_drag');
-  }, true);
+  // Only where the page is the title bar. Windows has a title bar of its own, and there Electron's
+  // regions do nothing: a click on the top bar is a click, and the window stays where it is. WebView2
+  // would honour them, so they're turned off.
+  if (/Mac/.test(navigator.platform)) {
+    addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || e.ctrlKey || !drags(e.target)) return;
+      e.preventDefault(); // as in Electron, a drag region isn't the page's: no focus, no selection
+      invoke(e.detail === 2 ? 'zoom_window' : 'start_drag');
+    }, true);
+  } else {
+    const noRegions = new CSSStyleSheet();
+    noRegions.replaceSync('* { -webkit-app-region: no-drag !important; }');
+    document.adoptedStyleSheets = [noRegions];
+  }
 })();

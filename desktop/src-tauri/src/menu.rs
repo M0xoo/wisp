@@ -48,11 +48,15 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     &item("force-reload", "Force Reload", "CmdOrCtrl+Shift+R")?,
     &line()?,
     &item("zoom-reset", "Actual Size", "CmdOrCtrl+0")?,
-    &item("zoom-in", "Zoom In", "CmdOrCtrl+Plus")?,
+    &item("zoom-in", "Zoom In", "CmdOrCtrl+=")?,
     &item("zoom-out", "Zoom Out", "CmdOrCtrl+-")?,
     &line()?,
-    &PredefinedMenuItem::fullscreen(app, None)?,
   ])?;
+  #[cfg(target_os = "macos")]
+  view.append(&PredefinedMenuItem::fullscreen(app, None)?)?;
+  // Elsewhere that one stays greyed out.
+  #[cfg(not(target_os = "macos"))]
+  view.append(&item("fullscreen", "Toggle Full Screen", "F11")?)?;
   // Debug builds only: a release has no inspector, so no Inspect Element either.
   if cfg!(debug_assertions) {
     view.insert(&item("devtools", "Toggle Developer Tools", "Alt+CmdOrCtrl+I")?, 2)?;
@@ -70,17 +74,24 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
 }
 
 pub fn on_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
+  run(app, event.id().as_ref());
+}
+
+// Also the keys a page can't hand to the menu on Windows (src/windows.rs).
+pub fn run<R: Runtime>(app: &AppHandle<R>, id: &str) {
   let Some(w) = app.get_webview_window("main") else { return };
   let zoom = |to: u32| {
     ZOOM.store(to, Ordering::Relaxed);
     let _ = w.set_zoom(f64::from(to) / 100.0);
   };
   let now = ZOOM.load(Ordering::Relaxed);
-  match event.id().as_ref() {
+  match id {
     "reload" | "force-reload" => drop(w.reload()),
     "zoom-reset" => zoom(100),
     "zoom-in" => zoom((now + 10).min(300)),
     "zoom-out" => zoom(now.saturating_sub(10).max(50)),
+    "fullscreen" => drop(w.set_fullscreen(!w.is_fullscreen().unwrap_or(false))),
+    "minimize" => drop(w.minimize()),
     #[cfg(debug_assertions)]
     "devtools" => if w.is_devtools_open() { w.close_devtools() } else { w.open_devtools() },
     _ => {}
