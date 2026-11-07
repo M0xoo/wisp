@@ -22,6 +22,7 @@
 import { blocksToMarkdown } from './render.js';
 import { cronMatches, nextRun, parseCron, readSchedule } from './triggers.js';
 import { adapters } from './adapters/index.js';
+import { messageOf } from './channels/policy.js';
 import { normalizeTeam } from './subagents.js';
 import { bad, MODES, newId, truncate } from './util.js';
 import { KIT_BODY_MAX, KIT_MAX, KIT_TOTAL_MAX, RULES_NAME, SKILL_NAME, parseSkillMd, skillMd, skillName } from '../web/js/skill-md.js';
@@ -389,7 +390,7 @@ export function logEntry(session, turn, { quiet = false } = {}) {
     job: session.crew?.job || 'task',
     title: truncate(hero?.title || (turn.status === 'error' ? 'Failed' : turn.status === 'stopped' ? 'Stopped' : 'Finished'), 80),
     summary: truncate(String(hero?.summary || '').replace(/\s+/g, ' '), 160),
-    prompt: truncate(plainCrew(turn.prompt || '').replace(/\s+/g, ' ').trim(), 200), // what it was asked
+    prompt: truncate(plainCrew(messageOf(turn.prompt) ?? (turn.prompt || '')).replace(/\s+/g, ' ').trim(), 200), // what it was asked
     ...(session.crew?.from?.title && { from: session.crew.from }),
     status,
     ...(quiet && { quiet: true }),
@@ -454,8 +455,10 @@ export class Crew {
   // member's job summaries there, fetch(id) → a job's full session }, ids qualified (`id@machine`).
   // followUp(task, text): a follow-up on a task, as the user would send it (services/launch.js replyTo).
   // hold(m): what holds back the member's check-ins on its account (Automations stop at), or null.
-  constructor({ store, runner, launch, remote = null, followUp = null, onChange = () => {}, exists = () => true, hold = () => null, now = () => Date.now() }) {
-    Object.assign(this, { store, runner, launch, remote, followUp, onChange, exists, hold, now });
+  // threadStarted(session, thread, m, err): a job from a channel began, or couldn't (err): its
+  // replies and report go to that thread (server/remote.js).
+  constructor({ store, runner, launch, remote = null, followUp = null, onChange = () => {}, exists = () => true, hold = () => null, now = () => Date.now(), threadStarted = null }) {
+    Object.assign(this, { store, runner, launch, remote, followUp, onChange, exists, hold, now, threadStarted });
     store.config.crew ||= [];
     for (const m of store.config.crew) Object.assign(m, { away: m.away || {}, seen: m.seen || [], links: m.links || [], machine: m.machine || '' }); // members from before these
     this.starting = new Map(); // member id -> jobs being launched (not sessions yet)
@@ -619,12 +622,16 @@ export class Crew {
   // your own run near the limit: refused with the hold until you say yes (true), then started at
   // once. The yes stays with a job that waits for a free slot; without one, a job that waits starts
   // held (nobody's there to ask). Left out: an automation's, held like a schedule's.
-  async assign(m, { prompt, job = 'task', from = null, origin = null, attachments = [], reply = null, wake = false, tagged = [], kit = false, event = '', unattended = false, confirmLimit } = {}) {
+  // run: this job's own model, effort or mode ("@ada with opus plan: …"). thread: the channel thread
+  // it came from ({ channel, chat, message, ack }), which its answer goes back to. Both stay with a
+  // job that waits in the queue, restarts included.
+  async assign(m, { prompt, job = 'task', from = null, origin = null, attachments = [], reply = null, wake = false, tagged = [], kit = false, event = '', unattended = false, confirmLimit, run = null, thread = null } = {}) {
     if (!JOBS.has(job)) job = 'task';
+    run = this.#jobRun(m, run);
     const text = String(prompt || '').trim() || (job === 'checkin' ? checkinPrompt(m, { wake }) : '');
     if (!text) throw bad('Tell them what to do.');
     const extra = tagged.filter((x) => x.id !== m.id).map((x) => taggedDelegate(x, 'job'));
-    const w = { id: newId(), prompt: text, job, ...(from && { from }), ...(origin && { origin }), ...(attachments.length && { attachments }), ...(reply && { reply }), ...(wake && { wake: true }), ...(EVENT_WHAT[event] && { event }), ...(kit && { kit: true }), ...(extra.length && { team: extra }), ...(unattended && { unattended: true }), ...(typeof confirmLimit === 'boolean' && job === 'task' && !origin && !unattended && { limit: confirmLimit ? 'yes' : 'ask' }), at: this.now() };
+    const w = { id: newId(), prompt: text, job, ...(from && { from }), ...(origin && { origin }), ...(attachments.length && { attachments }), ...(reply && { reply }), ...(wake && { wake: true }), ...(EVENT_WHAT[event] && { event }), ...(kit && { kit: true }), ...(extra.length && { team: extra }), ...(unattended && { unattended: true }), ...(typeof confirmLimit === 'boolean' && job === 'task' && !origin && !unattended && { limit: confirmLimit ? 'yes' : 'ask' }), ...(run && { run }), ...(thread && { thread }), at: this.now() };
     if (from?.id && (job === 'mention' || job === 'delegated' || job === 'event')) this.#link(m, from);
     if (this.busy(m) >= m.parallel || (m.paused && job !== 'task' && job !== 'mention')) {
       if (m.queue.length >= QUEUE_MAX) throw bad(`${m.name} already has ${QUEUE_MAX} jobs waiting.`, 429);
@@ -633,6 +640,18 @@ export class Crew {
       return { queued: m.queue.length };
     }
     return { session: await this.#start(m, w, { now: true }) };
+  }
+
+  // One job's run, checked here as well as in the grammar: whoever calls this, a member keeps its
+  // harness (its kit and memory are made for it), and Auto picks its own model.
+  #jobRun(m, run) {
+    if (!run) return null;
+    if (run.agent && run.agent !== m.agent) throw bad(`${m.name} stays on ${adapters[m.agent]?.name || m.agent}: a job can’t change harness.`);
+    if (m.agent === 'auto' && (run.model || run.effort)) throw bad(`${m.name} is on Auto, which picks the model itself.`);
+    if (run.mode !== undefined && !MODES.has(run.mode)) throw bad('mode must be plan, edits or auto.');
+    if (run.effort !== undefined && !/^[\w-]{1,20}$/.test(run.effort)) throw bad('That thinking level isn’t one.');
+    const out = { ...(run.model && { model: String(run.model).slice(0, 120) }), ...(run.effort && { effort: run.effort }), ...(run.mode && { mode: run.mode }) };
+    return Object.keys(out).length ? out : null;
   }
 
   // Before a job you give several members at once ("@Ada @Quill …"), each one's turn: throws the
@@ -647,7 +666,7 @@ export class Crew {
 
   // What launch gets for job w of member m.
   #bodyFor(m, w) {
-    return { prompt: w.prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: m.mode, attachments: w.attachments || [], ...this.#teamFor(m, w.job, w.team) };
+    return { prompt: w.prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: w.run?.model || m.model || undefined, effort: w.run?.effort || m.effort || undefined, mode: w.run?.mode || m.mode, attachments: w.attachments || [], ...this.#teamFor(m, w.job, w.team) };
   }
 
   // now: you're there (assign), so a job of yours near the limit is asked about rather than held.
@@ -659,9 +678,14 @@ export class Crew {
       const crew = { id: m.id, job: w.job, ...(w.from && { from: w.from }), ...(w.reply && { reply: w.reply }), ...(w.wake && { wake: true }), ...(w.event && { event: w.event }), ...(w.kit && { kit: true }) };
       const body = this.#bodyFor(m, w);
       const yours = w.limit === 'yes' || (w.limit === 'ask' && now) ? { confirm: w.limit === 'yes' } : null;
-      if (elsewhere(m)) return await this.#startAway(m, body, crew, w.origin, yours);
+      if (elsewhere(m)) {
+        const away = await this.#startAway(m, body, crew, w.origin, yours);
+        if (w.thread) this.threadStarted?.(away, w.thread, m);
+        return away;
+      }
       const [s] = await this.launch(body, w.origin || null, { crew, unattended: !!w.unattended, yours });
       delete m.held;
+      if (w.thread) this.threadStarted?.(s, w.thread, m);
       return s;
     } catch (err) {
       if (err.held && w.job === 'checkin') Object.assign(m, was); // a check-in that didn't start isn't counted
@@ -820,6 +844,7 @@ export class Crew {
   }
 
   #failed(m, w, err) {
+    if (w.thread) this.threadStarted?.(null, w.thread, m, err);
     // Held for the plan (Automations stop at): skipped, not failed. Skips in a row share one line
     // of its log, so a member on a 15-minute schedule doesn't fill it.
     if (err.held) {
@@ -878,15 +903,16 @@ export class Crew {
   // @Name in a follow-up: the member gets the message as a job, and its answer shows on the task
   // under the message (a side entry like /btw's, with the member as who answers).
   // tagged: other members named in it, who join the job's delegates.
-  async ask(m, task, text, attachments = [], tagged = []) {
+  // thread / run: as assign's. shown: the message as the task shows it, when text is wrapped for the job.
+  async ask(m, task, text, attachments = [], tagged = [], { thread = null, run = null, shown = text } = {}) {
     const turn = task.turns.at(-1);
     if (!turn) throw bad('Nothing to ask about yet.', 409);
-    const entry = { id: newId(), question: text, status: 'running', askedAt: this.now(), crew: { id: m.id, name: m.name, avatar: m.avatar, color: m.color } };
+    const entry = { id: newId(), question: shown, status: 'running', askedAt: this.now(), crew: { id: m.id, name: m.name, avatar: m.avatar, color: m.color } };
     (turn.btw ||= []).push(entry);
     this.runner.sideChanged(task, turn);
     const reply = { sessionId: task.id, turnId: turn.id, entryId: entry.id };
     try {
-      const out = await this.assign(m, { prompt: text, job: 'mention', from: { id: task.id, title: task.title }, attachments, reply, tagged });
+      const out = await this.assign(m, { prompt: text, job: 'mention', from: { id: task.id, title: task.title }, attachments, reply, tagged, run, thread });
       if (out.session) entry.job = out.session.id;
       else entry.queued = true;
       this.runner.sideChanged(task, turn);

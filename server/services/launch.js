@@ -3,7 +3,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { adapters } from '../adapters/index.js';
+import { adapters, listAgents } from '../adapters/index.js';
 import { btwQuestion } from '../btw.js';
 import { sideAsk } from '../side.js';
 import { createWorktree, worktreeSource, ensureWorktree, removeWorktree } from '../git.js';
@@ -243,6 +243,18 @@ export function createLaunch(app) {
     return (out.group || [out]).map((x) => machines.summary(mid, x));
   }
 
+  // A follow-up's harness switch, checked: a harness that's installed here, on a lead (not a subagent).
+  async function followUpRun(s, { agent, model, effort, account }) {
+    agent = agent ? String(agent) : s.agent;
+    if (agent !== s.agent) {
+      if (s.parentId) throw bad('A subagent runs on the harness its lead picked for it.');
+      if (!adapters[agent]) throw bad(`Unknown harness: ${agent}`);
+      const found = (await listAgents()).find((a) => a.id === agent);
+      if (!found?.available) throw bad(`${adapters[agent].name} isn't installed on this computer.`);
+    }
+    return { agent, ...(model !== undefined && { model: String(model || '') }), ...(effort !== undefined && { effort: String(effort || '') }), ...(account !== undefined && { account: String(account || '') }) };
+  }
+
   // A follow-up from anywhere (UI, CLI, phone). An archived session may have lost its worktree.
   // One that starts with /btw is a side question instead: the run carries on (see askBtw).
   // limit: Ask near the limit (server/guard.js). { confirm: true }: you said yes; { auto: true }: a
@@ -325,5 +337,5 @@ export function createLaunch(app) {
     return s;
   }
 
-  return { launch, launchAny, machineFor, pushUploads, replyTo, askBtw, markDone, runRecipe };
+  return { launch, launchAny, machineFor, pushUploads, followUpRun, replyTo, askBtw, markDone, runRecipe };
 }

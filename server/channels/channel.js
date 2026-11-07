@@ -1,0 +1,38 @@
+// A channel: one way to reach wisp from outside. The hub (server/remote.js) owns the config, the
+// public API and the fan-out; a channel owns its wire. To add one, extend this and give it:
+//   ready        configured well enough to send
+//   start(signal)  listen until the signal aborts (a poll loop, a socket)
+//   publish(msg, s)  send { title, text, actions } about session s (or nothing in particular)
+// Inbound goes through policy.js's gate() and grammar.js's parseMessage(), then the hub's phone
+// (services/phone.js) does the work.
+
+import { approvalsHere } from './policy.js';
+
+export const KIND = { a: 'answer', r: 'reply', d: 'done' };
+export const CODE = { answer: 'a', reply: 'r', done: 'd' };
+export const sleep = (ms, signal) => new Promise((r) => (signal?.aborted ? r() : (setTimeout(r, ms).unref?.(), signal?.addEventListener('abort', r, { once: true }))));
+
+export class Channel {
+  constructor(hub, name) {
+    this.hub = hub;
+    this.name = name;
+  }
+
+  get ready() {
+    return false;
+  }
+
+  get approvalsHere() {
+    return approvalsHere(this.name);
+  }
+
+  start() {}
+
+  async publish() {}
+
+  // Health for Settings: the latest result, merged over the last one.
+  mark(st) {
+    this.hub.status[this.name] = { ...this.hub.status[this.name], ...st, at: Date.now() };
+    this.hub.onChange();
+  }
+}
