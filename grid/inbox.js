@@ -20,8 +20,10 @@
 // a sender told 503 tries again. skip is what no box acts on, so it isn't held: a wake for it would
 // be refused and count as a strike. It's unsigned here, but forging one only drops the forger's own
 // request.
+// Mail is one too, but it has no webhook of its own: one provider's for everybody (grid/mail.js),
+// which checks it and calls hold(). Its token is an address, so it can't be posted to at /_in/.
 
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { sha256, token } from './secrets.js';
 
 export const IN_PATH = /^\/_in\/([A-Za-z0-9_-]{32,64})$/;
@@ -33,6 +35,8 @@ const slackNoise = (e) => !!e && (!!e.bot_id || (!!e.subtype && e.subtype !== 'f
 const CHANNELS = {
   telegram: { headers: ['x-telegram-bot-api-secret-token'], eventId: (j) => j?.update_id },
   slack: { headers: ['x-slack-signature', 'x-slack-request-timestamp'], eventId: (j) => j?.event_id, live: (j) => j?.type === 'url_verification', skip: (j) => slackNoise(j?.event) },
+  // Lower case: mail systems may fold a local part. 160 bits, and it fits one (64 characters at most).
+  email: { headers: [], eventId: (j) => j?.messageId || undefined, mint: () => randomBytes(20).toString('hex') },
 };
 const BODY_MAX = 256 * 1024;
 const READ_MS = 15_000; // a body that takes longer isn't a webhook
@@ -85,14 +89,16 @@ function eventKey(channel, j, body, headers) {
   return `${channel}:${id ?? createHash('sha256').update(body).digest('base64url')}:${sha256(headers)}`;
 }
 
-export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = () => {} }) {
+export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delivered = () => {}, log = () => {} }) {
   const opts = { ...DEFAULTS, ...cfg.channels };
   const on = opts.enabled === true;
   const busy = new Map(); // user id -> the drain running
   const timers = new Map(); // user id -> the next try
   const wakes = new Map(); // user id -> { strikes, at }: wakes since a message the box accepted, the last one's time
+  const sending = new Map(); // user id -> the delivery on its way to the box
   let stopped = false;
 
+  const where = (user, channel, t) => (channel === 'email' ? { address: `${t}@${cfg.mail.domain}` } : { url: `${cfg.instanceUrl(user.handle)}/_in/${t}` });
   const pending = (userId) => db.get('SELECT count(*) n, coalesce(sum(size), 0) bytes FROM channel_inbox WHERE user_id = ? AND done_at IS NULL', userId);
   const count = (userId, channel) => db.run('UPDATE channel_urls SET dropped = dropped + 1 WHERE user_id = ? AND channel = ?', userId, channel);
   const lost = (userId, channel, size, why) => {
@@ -158,12 +164,21 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
       const dropped = db.get('SELECT dropped FROM channel_urls WHERE user_id = ? AND channel = ?', user.id, row.channel)?.dropped || 0;
       const done = hostd.begin(user.id, { touch: false }); // not stopped under it, and it isn't use
       let status = 0;
+      let landed;
+      sending.set(user.id, new Promise((r) => (landed = r)));
       try {
         ({ status } = await deliver(port, fresh, { channel: row.channel, headers: JSON.parse(row.headers), body: Buffer.from(row.body).toString('base64'), at: row.at, dropped }));
       } catch {}
       done();
-      if (stopped) return;
       const ok = status >= 200 && status < 300;
+      try {
+        if (ok) delivered(row);
+      } catch (err) {
+        log(`grid: inbox after ${row.channel}: ${err.message}`);
+      }
+      sending.delete(user.id);
+      landed();
+      if (stopped) return;
       if (ok) wakes.delete(user.id);
       if (ok && dropped) db.run('UPDATE channel_urls SET dropped = max(0, dropped - ?) WHERE user_id = ? AND channel = ?', dropped, user.id, row.channel);
       // 4xx: the box read it and said no (a bad signature, a stranger, the channel switched off). Retrying can't help.
@@ -225,29 +240,35 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
     opts,
     drain,
     sweep,
-    knows: (channel) => Object.hasOwn(CHANNELS, String(channel)),
+    knows: (channel) => Object.hasOwn(CHANNELS, String(channel)) && (channel !== 'email' || !!cfg.mail),
+    read: readCapped,
+    delivering: (userId) => sending.get(userId),
 
-    // { url, dropped }: this user's own, made the first time. dropped: lost messages it hasn't been
-    // told of, which this tells it. The token is kept sealed, so a box asking again gets the same URL.
+    // { url, dropped }: this user's own, made the first time ({ address, dropped } for mail). dropped:
+    // lost messages it hasn't been told of, which this tells it. The token is kept sealed, so a box
+    // asking again gets the same URL.
     urlFor(user, channel) {
-      const sealed = secrets.ensure(user.id, `channel:${channel}`);
+      const sealed = secrets.ensure(user.id, `channel:${channel}`, CHANNELS[channel].mint);
       db.run('INSERT INTO channel_urls (user_id, channel, token_hash, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, channel) DO UPDATE SET token_hash = excluded.token_hash', user.id, channel, sha256(sealed), Date.now());
       const { dropped } = db.get('SELECT dropped FROM channel_urls WHERE user_id = ? AND channel = ?', user.id, channel);
       if (dropped) db.run('UPDATE channel_urls SET dropped = 0 WHERE user_id = ? AND channel = ?', user.id, channel);
-      return { url: `${cfg.instanceUrl(user.handle)}/_in/${sealed}`, dropped };
+      return { ...where(user, channel, sealed), dropped };
     },
+
+    addressOf: (user) => where(user, 'email', secrets.ensure(user.id, 'channel:email', CHANNELS.email.mint)).address,
 
     // A new URL for a leaked one: the old token stops here. What's held and counted stays, and a box
     // can do this freely: all it can reach is its own URL. The seal is the truth: urlFor puts the
     // hash right if a crash comes between these two.
     rotate(user, channel) {
-      const fresh = token('', 32);
+      const fresh = CHANNELS[channel].mint?.() ?? token('', 32);
       secrets.seal(user.id, `channel:${channel}`, fresh);
       db.run('UPDATE channel_urls SET token_hash = ? WHERE user_id = ? AND channel = ?', sha256(fresh), user.id, channel);
-      return { url: `${cfg.instanceUrl(user.handle)}/_in/${fresh}` };
+      return where(user, channel, fresh);
     },
 
-    byToken: (t) => db.get('SELECT user_id, channel FROM channel_urls WHERE token_hash = ?', sha256(t)) || null,
+    byToken: (t) => db.get("SELECT user_id, channel FROM channel_urls WHERE token_hash = ? AND channel != 'email'", sha256(t)) || null,
+    byAddress: (local) => db.get("SELECT user_id FROM channel_urls WHERE token_hash = ? AND channel = 'email'", sha256(local)) || null,
 
     // Keep what came, and say so; the wake happens after the answer has left. Too big, or over the
     // caps: dropped and counted, still a 200, since a retry storm from the sender helps nobody.
@@ -263,6 +284,10 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
       const j = parsed(body);
       if (row.live?.(j)) return live(user, channel, kept, body);
       if (row.skip?.(j)) return;
+      this.hold(user, channel, body, kept, j);
+    },
+
+    hold(user, channel, body, kept, j = parsed(body)) {
       const headers = JSON.stringify(kept);
       const size = body.length + headers.length;
       const held = pending(user.id);

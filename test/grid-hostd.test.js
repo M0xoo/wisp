@@ -6,6 +6,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Hostd } from '../grid/hostd.js';
@@ -33,6 +34,58 @@ function hostd(opts = {}) {
 const user = (handle) => ({ id: `u-${handle}`, handle });
 // hostd sees each box's status on its tick; wait for one so it knows who's quiet.
 const seen = (h, u) => until(() => h.inst.get(u.id)?.status, { what: `${u.handle}'s status` });
+
+test('idle: a box whose channel is still answering isn’t stopped, and it is once that’s over', async () => {
+  const h = hostd({ idleMs: 0 });
+  const a = user('ada');
+  h.status(a, { channels: 1 });
+  await h.ensure(a);
+  await until(() => h.inst.get(a.id)?.status?.channels === 1, { what: 'its status' });
+  const ticks = h.inst.get(a.id).status;
+  await until(() => h.inst.get(a.id).status !== ticks, { what: 'another tick' });
+  assert.equal(h.state(a.id), 'running');
+  h.status(a, { channels: 0 });
+  await until(() => h.state(a.id) === 'stopped', { what: 'the idle stop' });
+});
+
+test('idle: a status read before a delivery ended says nothing about after it', async () => {
+  const h = hostd({ idleMs: 0, checkMs: 1e9 });
+  const a = user('ada');
+  await h.ensure(a);
+  const i = h.inst.get(a.id);
+  const port = i.port;
+  const release = h.begin(a.id, { touch: false });
+  // The delivery's 2xx is read while this status, quiet because it's older, is still on its way.
+  const late = http.createServer((req, res) => {
+    release();
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end('{}');
+  });
+  await new Promise((r) => late.listen(0, '127.0.0.1', r));
+  i.port = late.address().port;
+  i.lastTouch = 0;
+  await new Promise((r) => setTimeout(r, 5));
+  await h.tick();
+  late.close();
+  i.port = port;
+  assert.equal(h.state(a.id), 'running', 'stopped on a stale status');
+  await h.tick();
+  assert.equal(h.state(a.id), 'stopped', 'the next tick sees the truth');
+});
+
+test('full: a box whose channel is still answering isn’t the one to go', async () => {
+  const h = hostd({ maxRunning: 1 });
+  const [a, b] = ['ada', 'bob'].map(user);
+  h.status(a, { channels: 1 });
+  await h.ensure(a);
+  await until(() => h.inst.get(a.id)?.status?.channels === 1, { what: 'its status' });
+  const start = h.ensure(b);
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(h.state(a.id), 'running');
+  h.status(a, {});
+  await start;
+  assert.deepEqual(h.stops, [['ada', 'evicted']]);
+});
 
 test('full: the box quiet longest is stopped like an idle one, and the new one starts', async () => {
   const h = hostd();

@@ -4,11 +4,12 @@
 //   node qa/grid.mjs            (QA_GRID_PORT=8090 by default; screenshots in qa/out/grid-*.png)
 
 import { execFileSync, spawn } from 'node:child_process';
-import { createHmac } from 'node:crypto';
+import { createHmac, createSign, generateKeyPairSync } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { dkimSign, keyRecord } from '../test/fixtures/dkim-sign.mjs';
 import { CHROME, OUT, ROOT, ok, playwright, runner } from './lib.mjs';
 
 const PORT = Number(process.env.QA_GRID_PORT) || 8090;
@@ -86,7 +87,29 @@ const fakeSlack = http.createServer(async (rq, rs) => {
   rs.end(JSON.stringify({ ok: true, user_id: 'UBOT', bot_id: 'BBOT', user: 'wisp', team: 'QA' }));
 });
 await new Promise((r) => fakeSlack.listen(0, '127.0.0.1', r));
-fs.writeFileSync(path.join(data, 'grid.json'), JSON.stringify({ channels: { enabled: true }, hostd: { env: { WISP_TELEGRAM_API: `http://127.0.0.1:${fakeTelegram.address().port}`, WISP_SLACK_API: `http://127.0.0.1:${fakeSlack.address().port}` } } }));
+
+// SES, for GRID-33: takes what's sent, and keeps it. The webhook is signed with a key the grid pins.
+const sent = [];
+const fakeSes = http.createServer(async (rq, rs) => {
+  let t = '';
+  for await (const c of rq) t += c;
+  sent.push(JSON.parse(t));
+  rs.writeHead(200, { 'content-type': 'application/json', connection: 'close' });
+  rs.end(`{"MessageId":"qa-${sent.length}"}`);
+});
+await new Promise((r) => fakeSes.listen(0, '127.0.0.1', r));
+const TOPIC = 'arn:aws:sns:eu-west-1:111122223333:qa-mail';
+const sns = generateKeyPairSync('rsa', { modulusLength: 2048 });
+const dkim = generateKeyPairSync('ed25519'); // sender.example's key, pinned for the dev grid: no DNS here
+const signedMail = (to, { from, id, dmarc = 'GRAY', subject, signed = true }) => {
+  const plain = `From: ${from}\r\nTo: ${to}\r\nSubject: ${subject}\r\nMessage-ID: ${id}\r\nDate: ${new Date().toUTCString()}\r\n\r\nplease\r\n`;
+  const raw = signed ? dkimSign(plain, { d: from.split('@')[1], key: dkim.privateKey }) : plain;
+  const Message = JSON.stringify({ notificationType: 'Received', mail: { source: from }, receipt: { recipients: [to], dmarcVerdict: { status: dmarc }, dkimVerdict: { status: dmarc }, action: { type: 'SNS', topicArn: TOPIC, encoding: 'BASE64' } }, content: Buffer.from(raw).toString('base64') });
+  const j = { Type: 'Notification', MessageId: id, TopicArn: TOPIC, Message, Timestamp: new Date().toISOString(), SignatureVersion: '2', SigningCertURL: 'https://sns.eu-west-1.amazonaws.com/qa.pem' };
+  j.Signature = createSign('RSA-SHA256').update(['Message', 'MessageId', 'Timestamp', 'TopicArn', 'Type'].map((k) => `${k}\n${j[k]}\n`).join('')).sign(sns.privateKey, 'base64');
+  return j;
+};
+fs.writeFileSync(path.join(data, 'grid.json'), JSON.stringify({ channels: { enabled: true }, mail: { domain: `mail.${DOMAIN}`, inbound: { provider: 'ses', topicArn: TOPIC, keys: [sns.publicKey.export({ type: 'spki', format: 'pem' })], dkimKeys: { 'sel._domainkey.sender.example': keyRecord(dkim.publicKey)[0].join('') } }, outbound: { provider: 'ses', region: 'eu-west-1', accessKeyId: 'AKIAQA', secretAccessKey: 'qa-not-a-secret', endpoint: `http://127.0.0.1:${fakeSes.address().port}` } }, hostd: { env: { WISP_TELEGRAM_API: `http://127.0.0.1:${fakeTelegram.address().port}`, WISP_SLACK_API: `http://127.0.0.1:${fakeSlack.address().port}` } } }));
 
 const { check, done } = runner('grid');
 const log = fs.openSync(path.join(OUT, 'grid-server.log'), 'w');
@@ -344,6 +367,36 @@ try {
     await until(async () => (await state()) === 'stopped', (IDLE + 30) * 1000, 'the box to sleep again by itself');
   });
 
+  await check('GRID-33', 'mail to the secret address wakes a sleeping box, and the reply goes back once, threaded', async () => {
+    const state = async () => (await req(`${inst(A.handle)}/_grid/state`, { headers: bearer(token) })).json?.state;
+    const me = 'qa@sender.example';
+    const put = await req(`${inst(A.handle)}/api/remote`, { method: 'PUT', headers: bearer(token), body: { email: { enabled: true, sender: me } } });
+    ok(put.status === 200, `PUT /api/remote → ${put.status} ${put.text.slice(0, 120)}`);
+    const to = await until(async () => (await req(`${inst(A.handle)}/api/remote`, { headers: bearer(token) })).json?.email?.address, 15_000, 'the address');
+    ok(to.endsWith(`@mail.${DOMAIN}`), `the address is ${to}`);
+    await until(async () => (await state()) === 'stopped', (IDLE + 30) * 1000, 'the box to stop');
+    const hook = (body) => req(`${GRID}/_mail/ses`, { method: 'POST', body });
+    ok((await hook({ ...signedMail(to, { from: me, id: '<qa0@sender.example>', subject: 'x' }), Signature: 'AAAA' })).status === 403, 'a bad signature wasn’t refused');
+    ok((await state()) === 'stopped', 'a bad signature woke the box');
+    const t = Date.now();
+    const r = await hook(signedMail(to, { from: me, id: '<qa1@sender.example>', subject: 'status' }));
+    ok(r.status === 200 && Date.now() - t < 1000, `the webhook → ${r.status} in ${Date.now() - t} ms`);
+    await until(() => sent.length, 30_000, 'the reply');
+    const out = Buffer.from(sent[0].Content.Raw.Data, 'base64').toString('utf8');
+    ok(sent[0].Destination.ToAddresses.join() === me, `sent to ${sent[0].Destination.ToAddresses}`);
+    ok(/^In-Reply-To: <qa1@sender\.example>\r?$/m.test(out), 'not threaded');
+    ok((await hook(signedMail(to, { from: 'evil@evil.example', id: '<qa2@evil.example>', subject: 'status' }))).status === 200, 'a stranger’s mail wasn’t taken quietly');
+    const refusal = async () => (await req(`${inst(A.handle)}/api/remote`, { headers: bearer(token) })).json.status.email?.refused;
+    ok((await hook(signedMail(to, { from: me, id: '<qa3@sender.example>', subject: 'status', dmarc: 'FAIL' }))).status === 200, 'a forged mail wasn’t taken quietly');
+    await sleep(1500);
+    ok((await refusal()) === 'dmarc', `the box’s refusal of a failed verdict: ${await refusal()}`);
+    ok((await hook(signedMail(to, { from: me, id: '<qa4@sender.example>', subject: 'status', signed: false }))).status === 200, 'an unsigned mail wasn’t taken quietly');
+    await sleep(1500);
+    ok((await refusal()) === 'dkim', `the box’s refusal of an unsigned mail: ${await refusal()}`);
+    ok(sent.length === 1, `${sent.length} replies: a stranger or a forgery was answered`);
+    await until(async () => (await state()) === 'stopped', (IDLE + 30) * 1000, 'the box to sleep again by itself');
+  });
+
   await check('GRID-11', 'Account lists the device; Remove revokes its token', async () => {
     const p = A.page;
     await p.goto(`${GRID}/account`);
@@ -408,6 +461,7 @@ try {
   await browser.close().catch(() => {});
   fakeTelegram.close();
   fakeSlack.close();
+  fakeSes.close();
   grid.kill('SIGTERM');
   await new Promise((r) => {
     grid.once('exit', r);

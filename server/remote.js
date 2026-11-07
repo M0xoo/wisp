@@ -1,16 +1,17 @@
 // Phone: push "needs you" moments to ntfy or Telegram and take the answers back. All of it runs on
 // outbound connections only (wisp polls them, or holds a socket open), so nothing has to reach this machine.
 // On a cloud wisp Telegram comes through the grid instead, which holds messages while it sleeps
-// (channels/box.js).
+// (channels/box.js), and so does mail.
 //
 // This is the hub: the config, the public API and the fan-out. Each channel's wire is in
-// server/channels/ (ntfy.js, telegram.js, github.js, slack.js, discord.js), and what they all share is there too: policy.js (who may
+// server/channels/ (ntfy.js, telegram.js, github.js, slack.js, discord.js, email.js), and what they all share is there too: policy.js (who may
 // speak, what may leave), grammar.js and lists.js (what a message can say).
 
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { KIND } from './channels/channel.js';
 import { inBox, newLinkCode } from './channels/conversation.js';
 import { Discord, NOT_ON_A_BOX as NO_DISCORD_ON_A_BOX, PERMISSIONS, inviteUrl } from './channels/discord.js';
+import { Email } from './channels/email.js';
 import { Github } from './channels/github.js';
 import { ranInstead } from './channels/lists.js';
 import { needsWisp, scrubOut, defuse } from './channels/policy.js';
@@ -31,11 +32,11 @@ export class Remote {
   // phone: the rest of services/phone.js, what the channel layer needs of wisp.
   constructor({ store, act, launch = async () => null, onChange = () => {}, ...phone }) {
     Object.assign(this, { store, act, launch, onChange, phone });
-    this.status = { ntfy: null, telegram: null, github: null, slack: null, discord: null };
+    this.status = { ntfy: null, telegram: null, github: null, slack: null, discord: null, email: null };
     this.tgElsewhere = new Map(); // Telegram message id -> session id, for sessions on a machine (server/machines.js)
     this.away = new Map(); // session id on a machine -> { channel, by, last }: what s.remote holds for one here
-    this.channels = { ntfy: new Ntfy(this), telegram: new Telegram(this), github: new Github(this), slack: new Slack(this), discord: new Discord(this) };
-    for (const channel of ['github', 'slack', 'discord']) for (const [id, a] of Object.entries(store.config?.remote?.[channel]?.away || {})) this.away.set(id, { channel, last: null, ...a });
+    this.channels = { ntfy: new Ntfy(this), telegram: new Telegram(this), github: new Github(this), slack: new Slack(this), discord: new Discord(this), email: new Email(this) };
+    for (const channel of ['github', 'slack', 'discord', 'email']) for (const [id, a] of Object.entries(store.config?.remote?.[channel]?.away || {})) this.away.set(id, { channel, last: null, ...a });
     this.ac = null;
     this.ntfyPollMs = 4000;
     this.tgLongPoll = 25;
@@ -66,11 +67,16 @@ export class Remote {
     return Object.values(this.channels).some((c) => c.ready);
   }
 
+  // Answers under way, for /api/status: past a 2xx nothing else holds a box up for them.
+  busy() {
+    return Object.values(this.channels).reduce((n, c) => n + c.busy(), 0);
+  }
+
   start() {
     this.stop();
     const ac = (this.ac = new AbortController());
     const c = this.cfg;
-    const { ntfy, telegram, github, slack, discord } = this.channels;
+    const { ntfy, telegram, github, slack, discord, email } = this.channels;
     telegram.retryUnhook(); // before its start, and on or off: it's off that left one behind
     if (ntfy.ready) ntfy.start(ac.signal);
     if (telegram.ready) {
@@ -80,6 +86,7 @@ export class Remote {
     if (github.ready) github.start(ac.signal);
     if (slack.ready) slack.start(ac.signal);
     if (discord.ready) discord.start(ac.signal);
+    email.start(ac.signal); // on a box, on or off: Settings shows it whenever the grid has mail
   }
 
   stop() {
@@ -151,8 +158,8 @@ export class Remote {
 
   // The channels that answer where they were asked, and only there.
   #reporting() {
-    const { github, slack, discord } = this.channels;
-    return [github, slack, discord].filter((c) => c.ready);
+    const { github, slack, discord, email } = this.channels;
+    return [github, slack, discord, email].filter((c) => c.ready);
   }
 
   // Who a task is reported as. An ask only wisp can answer, in a subagent, a side discussion or a
@@ -272,6 +279,7 @@ export class Remote {
         box: inBox(),
         error: this.status.discord?.error || '',
       },
+      email: this.channels.email.view(),
       status: this.status,
     };
   }
@@ -353,6 +361,7 @@ export class Remote {
       c.discord = { ...prev, enabled, token, appId, senders: relink ? [] : prev.senders || [], linkCode: relink || !prev.linkCode ? newLinkCode() : prev.linkCode };
       if (changed) this.channels.discord.reset();
     }
+    if (body.email) this.channels.email.update(body.email);
     this.store.saveConfig();
     this.start();
     return this.view();

@@ -91,6 +91,14 @@ const MIGRATIONS = [
      size INTEGER NOT NULL, at INTEGER NOT NULL, tries INTEGER NOT NULL DEFAULT 0,
      next_at INTEGER NOT NULL DEFAULT 0, done_at INTEGER, UNIQUE (user_id, event_key));
    CREATE INDEX channel_inbox_held ON channel_inbox(user_id, done_at, id);`,
+  // Mail (grid/mail.js): a message a box accepted, which is all it may answer, and the replies of the
+  // last hour, which is how many it may. The address and ids stay in the clear: the grid has to use them.
+  `CREATE TABLE mail_threads (
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, message_id TEXT NOT NULL,
+     to_addr TEXT NOT NULL, refs TEXT NOT NULL, at INTEGER NOT NULL,
+     PRIMARY KEY (user_id, message_id));
+   CREATE TABLE mail_sent (user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, at INTEGER NOT NULL);
+   CREATE INDEX mail_sent_user ON mail_sent(user_id, at);`,
 ];
 
 export async function openDb(dataDir) {

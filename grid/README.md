@@ -152,6 +152,64 @@ per user: past them a message is dropped and counted, and the box says so in the
 calls https on port 443, 80, 88 or 8443, and Slack only https, so an `http` grid can't use this:
 Settings → Phone shows why. The URL's token is the only thing guarding it: keep it out of any access log you turn on.
 
+### Email
+
+With `mail` as well, each user gets a secret address, and mail to it starts a task on their box (it
+wakes), with the answer sent back as a threaded reply. Settings → Phone → Email shows the address and
+takes the one address allowed to send. Off unless it's there, and then `/_mail/ses` is a 404.
+
+```json
+"mail": {
+  "domain": "mail.example.com",
+  "inbound": { "provider": "ses", "topicArn": "arn:aws:sns:eu-west-1:123456789012:wisp-mail" },
+  "outbound": { "provider": "ses", "region": "eu-west-1", "accessKeyId": "AKIA…", "secretAccessKeyFile": "secrets/ses" },
+  "sendPerHour": 30, "threadDays": 7
+}
+```
+
+`inbound.keys` (a list of PEMs) pins SNS's key instead of fetching it from
+`sns.<region>.amazonaws.com`. `inbound.dkimKeys` (DNS name to TXT record) is for a dev grid with no
+real senders, and is ignored on any other. `sendPerHour` is per user, `threadDays` is how long a box can go on
+answering a message. The key can also be `GRID_MAIL_SECRET(_FILE)`. It stays on the grid: no box ever
+gets it.
+
+Senders need their provider to DKIM-sign with the same domain as their address. The grid fetches
+their keys from DNS, so it needs to reach a resolver. Consumer Gmail and iCloud sign that way; a
+company domain signed by its provider's domain won't pass. Nobody has run this against real SES or a
+real Gmail message yet: do the checks under *Before you trust it* first (GRID-33).
+
+To set it up, once per grid:
+
+1. **Domain.** In SES, in a region that receives mail, verify `mail.example.com` with Easy DKIM (its
+   CNAME records), and add DMARC at `_dmarc.mail.example.com`, like `v=DMARC1; p=quarantine`.
+2. **Receiving.** Add an MX record: `mail.example.com. MX 10 inbound-smtp.<region>.amazonaws.com.`
+3. **SNS.** Create a standard topic and set its `SignatureVersion` attribute to `2` (the grid refuses
+   version 1). Don't turn on raw message delivery. Subscribe `https://<grid domain>/_mail/ses` over
+   HTTPS: the grid confirms it by itself, once `mail` is in `grid.json` and it has restarted.
+4. **Rule.** In the active receipt rule set, add a rule for `mail.example.com` with one action: *SNS*,
+   that topic, encoding Base64. Past 150 KB of mail SES bounces it: that's SNS's limit, and attachments
+   aren't read yet.
+5. **Sending.** Ask for SES production access: in the sandbox it only sends to verified addresses.
+   Make an IAM user limited to `ses:SendEmail` and `ses:SendRawEmail` on that identity, and put its
+   secret key in `secrets/ses` (0600).
+
+**Before you trust it.** Every test here runs on a fake SES. On a staging grid, with a throwaway
+account and a throwaway box, send these to the secret address, with the allowed sender set to your
+own Gmail address. The box's Settings → Phone → Email shows the refusal.
+
+1. A real message from that Gmail address. It has to start a task. If it's refused as `dkim`, stop: SES
+   may hand over mail in a form this code can't prove (it needs CRLF line endings), which would refuse
+   everything.
+2. From a domain you control, with DKIM on: `From: <your Gmail address>`, signed `d=<your domain>`.
+   Refused.
+3. The same, with a second, broken signature claiming `d=gmail.com`. Refused.
+4. No signature at all, `From: <your Gmail address>`, sent from a host with SPF for its own domain.
+   Refused.
+5. A forwarded copy of a real, signed message. Refused unless its signature survives; never run with
+   the forwarder as the sender.
+
+Only 2 to 4 say anything about forgery. If one of them starts a task, turn `mail` off and don't ship it.
+
 ### Sandboxes
 
 `/sandbox <task>` in wisp asks the grid for a box of its own for that task (`grid/sandboxes.js`):
@@ -240,10 +298,41 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
   (`POST /api/channels/url/rotate`). Anyone can message a bot, so a wake has to be earned: after three
   with nothing the box accepted, a wake is a scheduled one (evicts nobody, no use of the box), at most
   one per 10 minutes. Known tokens are limited per token, unknown ones per address.
+- **Mail.** `POST <domain>/_mail/ses` is the provider's. It's an RSA signature over the whole message,
+  from our topic only: anyone can have SNS sign for their own topic. The grid reads the message and
+  sets who it's from and a verdict in headers of its own, over the proxy secret, so nothing in the
+  mail can pass for one; the box checks those and its allowed sender. A sender is accepted only with
+  the secret address, the allowed sender and DKIM proved aligned to the From's domain. SES can refuse
+  a message but not prove one: `FAIL` stays a refusal, and neither `PASS` nor `GRAY` is enough, as its
+  notification never says which domain signed, `PASS` can rest on SPF alone, and an
+  `Authentication-Results` line can be written by anyone. So the proof is ours: `grid/dkim.js` verifies
+  the signatures over the raw bytes (RFC 6376, `rsa-sha256` and `ed25519-sha256`, no `l=`, `from` in
+  `h=`, as `subject` and `date` have to be: one can become the prompt, the other decides if it's
+  fresh), with the key from the signer's DNS, and one has to have `d=` equal to the From's domain.
+  Equal, not relaxed, because relaxed alignment needs the public suffix list: a subdomain signed by
+  its parent is refused, and so is a company domain signed by its provider's. It needs SNS's Base64
+  encoding: UTF8 can change bytes, so it proves nothing. Verification happens after SNS's signature
+  and only for a real address, so a guess costs no DNS lookup. A message refused here still reaches
+  the box as `unproved`, which is how Settings says why. DNS saying there's no such key (`ENOTFOUND`,
+  `ENODATA`) is an answer, so it's refused the same way. If DNS doesn't answer (a timeout, `SERVFAIL`, a
+  refusal) for a signature by the From's own domain, and nothing else proved the message, the webhook
+  answers 503 and holds nothing, so SNS brings it back. Nothing passes on an outage, and once SNS's
+  retries run out that message is gone, with nothing in Settings. SNS's default retries last seconds: a
+  longer delivery policy on the subscription rides out a longer outage, up to the 15 minutes a signed
+  notification is good for. A From with more than one
+  address, a header section with a bare CR or LF (two parsers could split it differently), a quoted
+  name holding `<`, a
+  second `Subject` or `Date`, or a From SES reads as someone else are all unprovable.
+  Addresses are 160 random bits, looked up by SHA-256 and sealed like a URL;
+  they aren't webhooks (`/_in/<address>` is a 404). Sending takes the Box secret, which anything on a
+  box can read, so `POST /api/channels/mail/reply` takes no address: only a message its box accepted
+  with a 2xx, to the address it came from, within `sendPerHour`, scrubbed here as well. A refused
+  stranger's mail holds no thread. What an agent on a box can still do is mail whoever got past that
+  box's own allowed sender, if it rewrites it, within the same limit.
 - **Room.** A box starts while fewer than `hostd.maxRunning` are up and, with the container
   driver, the host has `admit.reserveMb + admit.boxMb` MiB available (`MemAvailable`; defaults
   1024 + 1024; `"admit": false` counts boxes only). When it doesn't, hostd stops the box that has
-  been quiet longest the way idle does (nothing running, no page or terminal open, for
+  been quiet longest the way idle does (nothing running, no page or terminal open, no channel answering, for
   `hostd.evictAfterMs`, 2 min; never one whose schedule is due within 5 min), so its home and tasks
   are kept. With nothing to stop, the start waits in line (*Waiting for room*) for
   `hostd.queueMs` (2 min), then says the grid is full. Scheduled wakes wait behind people, for up to
@@ -255,6 +344,7 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
 |---|---|
 | Master key | `secrets/master.json` (0600), or `GRID_MASTER_KEY` / `GRID_MASTER_KEY_FILE` |
 | OAuth client secrets | files referenced by `clientSecretFile`, or `GRID_GITHUB_CLIENT_SECRET(_FILE)` / `GRID_GOOGLE_CLIENT_SECRET(_FILE)` |
+| The mail provider's key | a file referenced by `mail.outbound.secretAccessKeyFile`, or `GRID_MAIL_SECRET(_FILE)`. Never on a box |
 | Per-user secrets the grid keeps (each wisp's proxy secret, …) | sealed in the database with AES-256-GCM, using a data key per user that is wrapped by the master key |
 | A box's proxy secret on its way in | a 0600 env file for `docker run --env-file` (boxd's folder, or the user's), never the command line |
 | Agent logins (Claude, Codex, …) | files in the box's `HOME`, the way each CLI keeps them (`~/.claude`, `~/.codex`, `~/.config/gh`, …), not encrypted. With boxd that home is in `/var/lib/wisp-grid-boxes/<id>` (root only), out of the grid user's reach. They never pass through the grid, and are deleted with the account |

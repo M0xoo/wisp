@@ -1,5 +1,5 @@
 // Phone: questions and finished tasks over ntfy or Telegram, answered from there, and tasks started
-// from a GitHub comment, in Slack or in Discord.
+// from a GitHub comment, in Slack, in Discord, or by email on a cloud computer.
 
 import { copy } from '../blocks.js';
 import { esc } from '../md.js';
@@ -16,7 +16,7 @@ export const PHONE_HINT = 'ntfy, Telegram, GitHub, Slack or Discord: reach wisp 
 export function phoneSummary(r) {
   if (!r) return '';
   const on = [r.ntfy.enabled && r.ntfy.topic && 'ntfy', r.telegram.enabled && r.telegram.linked && 'Telegram'].filter(Boolean);
-  const all = [...on, r.github?.enabled && 'GitHub', r.slack?.enabled && 'Slack', r.discord?.enabled && 'Discord'].filter(Boolean).join(' + ');
+  const all = [...on, r.github?.enabled && 'GitHub', r.slack?.enabled && 'Slack', r.discord?.enabled && 'Discord', r.email?.enabled && 'Email'].filter(Boolean).join(' + ');
   if (!on.length) return all || 'Off'; // the events are what ntfy and Telegram send; the others answer where they were asked
   return `${all} · ${r.events.map((e) => (e === 'waiting' ? 'questions' : 'finished')).join(' & ')}`;
 }
@@ -54,6 +54,14 @@ function discordTrouble(error) {
   if (/refused the token|unauthorized/i.test(error)) return `Discord refused the token. Make a new one in the <a href="${PORTAL}" target="_blank" rel="noopener">Developer Portal</a> under Bot → Reset Token and paste it here.`;
   return /Update wisp|wisp doesn’t do|Developer Portal|wisp will wait/.test(error) ? esc(error) : `${esc(error)} wisp keeps trying.`;
 }
+
+// Why the last message was ignored: the sender heard nothing, so this is where they find out.
+const EMAIL_REFUSED = {
+  dmarc: 'The last message was ignored: its domain didn’t vouch for it (no DMARC pass). Your provider has to DKIM-sign your mail with your address’s own domain.',
+  dkim: 'The last message was ignored: wisp couldn’t prove it came from that address, because it had no valid signature from that address’s own domain. A message here can start an agent on your computer, so wisp refuses what it can’t prove.',
+  stranger: 'The last message was ignored: it came from another address.',
+  date: 'The last message was ignored: it had no date, so wisp couldn’t tell how old it was.',
+};
 
 // Settings → Agents, at its git / GitHub row (as tips.js does).
 function openToolsRow() {
@@ -162,6 +170,19 @@ export async function openPhone({ host } = {}) {
               </li>
             </ol>
             <div class="ph-more" hidden></div>
+          </div>
+        </section>
+        <section class="ph-sec ph-chan ph-em" hidden>
+          <h4>Email <span class="muted xs"><span class="ph-dot">· </span>mail a task, and the answer comes back</span><span class="ph-st"></span><button class="switch" data-sw="email" role="switch" aria-checked="false" aria-label="Email"></button></h4>
+          <p class="hint">Your mail provider has to DKIM-sign with the same domain as your address. Consumer Gmail and iCloud do. A company domain signed by its provider’s domain won’t pass, and neither will a subdomain signed by its parent. Mail your secret address from the address you allow, and wisp replies to you there. Anyone else gets no answer. Attachments aren’t read yet, and Full auto can’t be asked for from there.</p>
+          <div class="ph-on" hidden>
+            <div class="settings-modal">
+              <label><span>Send from</span><input class="input mono" data-em="sender" placeholder="you@example.com" spellcheck="false" autocomplete="off" inputmode="email"></label>
+            </div>
+            <div class="ph-err" hidden></div>
+            <div class="ph-who"></div>
+            <div class="ph-acts"><button class="primary sm" data-act="emCopy">${icon('copy')}Copy address</button><button class="ghost sm" data-act="emRotate">${icon('replay')}New address</button></div>
+            <p class="hint">Say what you’d type in wisp, in the subject or the first line: <code>in api with opus plan: fix the flaky test</code>. Keep the address to yourself. If it leaks, get a new one: the old one stops working at once.</p>
           </div>
         </section>
         <div class="ship-foot"><span class="grow"></span><button class="ghost sm" data-act="test">${icon('send')}Send a test</button></div>
@@ -302,10 +323,27 @@ export async function openPhone({ host } = {}) {
     more.hidden = steps;
     fill(more, !steps && d.linkCode ? codeLine('dcCode', d.linkCode, 'To link someone else, they send the bot') : '');
   };
+  const paintEmail = () => {
+    const m = r.email;
+    const sec = $('.ph-em', node);
+    sec.hidden = !m?.offered; // only a cloud computer, on a grid that has mail
+    if (sec.hidden) return;
+    hold(sec);
+    const st = r.status.email;
+    const problem = !m.enabled ? '' : !m.sender ? 'Add the address you’ll send from. Until then wisp ignores every message.' : m.error ? esc(m.error) : EMAIL_REFUSED[st?.refused] || '';
+    $('[data-sw="email"]', node).setAttribute('aria-checked', m.enabled);
+    fill($('.ph-st', sec), !m.enabled ? '' : problem ? `<span class="ph-bad">${icon('warn')}Not working</span>` : `<span class="ph-ok">${icon('check')}Working</span>`);
+    $('.ph-on', sec).hidden = !m.enabled;
+    const input = $('[data-em="sender"]', sec);
+    if (document.activeElement !== input) input.value = m.sender;
+    fill($('.ph-who', sec), `Your secret address: <code>${esc(m.address)}</code>`);
+    trouble(sec, problem);
+  };
   const paintChannels = () => {
     paintGithub();
     paintSlack();
     paintDiscord();
+    paintEmail();
   };
   // A change while a save is on its way can be newer than what the save answers: looked at after it.
   const refresh = async () => {
@@ -359,6 +397,14 @@ export async function openPhone({ host } = {}) {
     input.value = r[channel][k];
     if (ok) changeTokens = changeToken = false;
     if (ok) paintChannels();
+  };
+  const saveSender = async (input) => {
+    const v = input.value.trim().toLowerCase();
+    const was = r.email.sender;
+    if (v === was) return;
+    r.email.sender = v;
+    await saveChannel({ email: { sender: v } }, () => (r.email.sender = was));
+    input.value = r.email.sender;
   };
   const paint = () => {
     const tg = r.telegram;
@@ -429,6 +475,7 @@ export async function openPhone({ host } = {}) {
     if (t.dataset.tg === 'token') put({ telegram: { enabled: r.telegram.enabled, token: t.value.trim() } });
     if (t.dataset.tg === 'project') put({ telegram: { project: t.value } });
     if (t.dataset.sk || t.dataset.dc) saveToken(t);
+    if (t.dataset.em) saveSender(t);
   });
   // A token pasted after the mask would read as the mask, and so as unchanged: it replaces it.
   node.addEventListener('focusin', (e) => {
@@ -451,6 +498,7 @@ export async function openPhone({ host } = {}) {
     if (sw === 'ghPublic') return flip('github', 'publicReports');
     if (sw === 'slack') return flip('slack', 'enabled');
     if (sw === 'discord') return flip('discord', 'enabled');
+    if (sw === 'email') return flip('email', 'enabled');
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'unlink') return put({ telegram: { enabled: r.telegram.enabled, token: r.telegram.token, unlink: true } });
     if (act === 'ghFix') {
@@ -494,6 +542,20 @@ export async function openPhone({ host } = {}) {
       r.discord.senders = 0;
       changeToken = false;
       return saveChannel({ discord: { unlink: true } }, () => (r.discord.senders = was));
+    }
+    if (act === 'emCopy') {
+      await copy(r.email.address);
+      return toast('Copied');
+    }
+    if (act === 'emRotate') {
+      const button = e.target.closest('button');
+      button.disabled = true;
+      const out = await tryApi(() => api('/channels/rotate', { method: 'POST', body: { channel: 'email' } }));
+      button.disabled = false;
+      if (!out) return;
+      r.email.address = out.address;
+      paintEmail();
+      return toast('Got a new address');
     }
     if (act === 'test') {
       try {

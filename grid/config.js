@@ -110,6 +110,19 @@ export function loadConfig({ dataDir, overrides = {}, env = process.env } = {}) 
     if (!isObj(ch) || (ch.enabled != null && typeof ch.enabled !== 'boolean')) throw new Error('channels: { enabled, maxRows, maxBytes }, enabled true or false.');
     for (const k of ['maxRows', 'maxBytes']) if (ch[k] != null && !whole(ch[k], 1)) throw new Error(`channels.${k}: a whole number above 0.`);
   }
+  const mail = cfg.mail;
+  if (mail != null) {
+    if (ch?.enabled !== true) throw new Error('mail needs channels: { enabled: true }: mail reaches a box through the same held inbox.');
+    if (!isObj(mail) || !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(mail.domain || '')) throw new Error('mail.domain: the domain the secret addresses are on, like mail.example.com.');
+    const [i, o] = [mail.inbound, mail.outbound];
+    if (i?.provider !== 'ses' || o?.provider !== 'ses') throw new Error('mail.inbound.provider and mail.outbound.provider: "ses" is the one there is.');
+    if (!/^arn:aws[\w-]*:sns:[a-z0-9-]+:\d+:[\w-]+$/.test(i.topicArn || '')) throw new Error('mail.inbound.topicArn: the ARN of the SNS topic SES publishes to.');
+    if (i.keys != null && !(Array.isArray(i.keys) && i.keys.every((k) => typeof k === 'string'))) throw new Error('mail.inbound.keys: a list of PEM keys or certificates to trust instead of fetching AWS\'s.');
+    if (!o.region || !o.accessKeyId) throw new Error('mail.outbound: region and accessKeyId are needed.');
+    o.secretAccessKey = readSecret({ value: o.secretAccessKey, file: o.secretAccessKeyFile && path.resolve(dir, o.secretAccessKeyFile), env: o.secretAccessKeyEnv || 'GRID_MAIL_SECRET' }, env);
+    if (!o.secretAccessKey) throw new Error('mail.outbound: no secret key (secretAccessKeyFile, or GRID_MAIL_SECRET).');
+    for (const k of ['sendPerHour', 'threadDays']) if (mail[k] != null && !whole(mail[k], 1)) throw new Error(`mail.${k}: a whole number above 0.`);
+  }
   return cfg;
 }
 
