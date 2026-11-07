@@ -1,0 +1,59 @@
+/* Buttons (v1's .primary, .ghost, .icon-btn) and the busy ring. */
+@layer kit {
+  [data-kit='button'], [data-kit='icon-button'] {
+    position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none;
+    height: var(--size-control-md); border-radius: var(--radius-control); border: var(--size-hairline) solid transparent;
+    font-size: var(--fs-md); font-weight: var(--fw-medium); line-height: var(--lh-tight); white-space: nowrap;
+    color: var(--ink-2); background: transparent; -webkit-tap-highlight-color: transparent;
+    transition: background var(--dur-base), color var(--dur-base), border-color var(--dur-base), opacity var(--dur-base), transform var(--dur-fast) var(--ease);
+  }
+  [data-kit='button'] { padding: var(--space-0) var(--space-5); }
+  [data-kit='button-content'] { display: inline-flex; align-items: center; gap: var(--space-3); min-width: 0; }
+  [data-kit='button-label'] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  [data-kit='button'] [data-kit='kbd'] { margin-left: var(--space-2); background: transparent; color: inherit; opacity: 0.7; }
+
+  [data-kit='button'][data-size='xs'] { height: var(--size-control-xs); padding: var(--space-0) var(--space-3); border-radius: var(--radius-md); font-size: var(--fs-sm); }
+  [data-kit='button'][data-size='sm'] { height: var(--size-control-sm); padding: var(--space-0) var(--space-6); }
+  [data-kit='button'][data-size='lg'] { height: var(--size-control-lg); padding: var(--space-0) var(--space-7); font-size: var(--fs-lg); }
+  [data-kit='button'][data-fill] { display: flex; width: 100%; }
+
+  [data-variant='primary'] { background: var(--ink); color: var(--bg); }
+  [data-variant='primary']:hover { opacity: 0.86; }
+  [data-variant='secondary'] { background: var(--surface); border-color: var(--line-2); color: var(--ink); }
+  [data-variant='secondary']:hover, [data-variant='secondary'][aria-expanded='true'] { background: var(--bg-2); }
+  [data-variant='ghost']:hover, [data-variant='ghost'][aria-expanded='true'] { background: var(--bg-2); color: var(--ink); }
+  [data-variant='danger'] { background: var(--bad); color: var(--on-accent); }
+  [data-variant='danger']:hover { opacity: 0.88; }
+  [data-variant='ghost'][data-tone='good'] { color: var(--good); }
+  [data-variant='ghost'][data-tone='bad']:hover { color: var(--bad); background: var(--del-bg); }
+  [data-kit='button'][aria-pressed='true'], [data-kit='icon-button'][aria-pressed='true'] { background: var(--accent-soft); color: var(--accent-ink); }
+
+  [data-kit='icon-button'] { width: var(--size-control-md); padding: 0; color: var(--muted); }
+  [data-kit='icon-button'][data-size='xs'] { width: var(--size-control-xs); height: var(--size-control-xs); border-radius: var(--radius-md); }
+  [data-kit='icon-button'][data-size='sm'] { width: var(--size-control-sm); height: var(--size-control-sm); }
+  [data-kit='icon-button'][data-size='lg'] { width: var(--size-control-lg); height: var(--size-control-lg); }
+  [data-kit='icon-button'][data-variant='primary'] { color: var(--bg); }
+  [data-kit='icon-button'][data-variant='secondary'] { color: var(--ink-2); }
+
+  [data-kit='button']:disabled, [data-kit='icon-button']:disabled { opacity: 0.5; cursor: not-allowed; }
+  [data-kit='button']:disabled:hover, [data-kit='icon-button']:disabled:hover { background: revert-layer; }
+
+  /* Busy: the content keeps its box (so the width holds) and the ring sits over it. */
+  [data-loading] { cursor: progress; }
+  [data-loading] > [data-kit='button-content'] { visibility: hidden; }
+  [data-kit='spinner'] {
+    position: absolute; inset: 0; margin: auto; width: var(--size-icon-md); height: var(--size-icon-md);
+    border-radius: 50%; border: var(--size-ring) solid currentColor; border-top-color: transparent;
+    animation: kit-spin 0.8s linear infinite;
+  }
+
+  /* Touch: a press state as the finger goes down, and 44px hit areas round small buttons. */
+  @media (pointer: coarse) {
+    [data-kit='button']:active, [data-kit='icon-button']:active { transform: scale(0.96); }
+    [data-kit='icon-button']::before { content: ''; position: absolute; inset: calc((100% - var(--size-touch)) / 2); }
+  }
+  /* A tap leaves no hover background behind. */
+  @media (hover: none) {
+    [data-variant='ghost']:hover { background: transparent; }
+  }
+}

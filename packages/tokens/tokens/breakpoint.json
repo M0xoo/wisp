@@ -1,0 +1,8 @@
+{
+  "$doc": "Layout widths (design/ui.md). split is SPLIT_MIN_WIDTH: at or over it the list and the open task sit side by side; under it they stack. CSS media queries can't read variables, so the kit's lint allows these px values in @media and @container conditions only.",
+  "narrow": "520px",
+  "compact": "640px",
+  "phone": "720px",
+  "split": "900px",
+  "wide": "1180px"
+}

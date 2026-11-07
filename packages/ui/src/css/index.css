@@ -1,0 +1,20 @@
+/* @wisp/ui: the only stylesheet. The layer order is declared here, once: tokens and the kit sit
+   under plugins, so a plugin's [data-part] rule wins without !important, and unlayered CSS (none
+   is allowed) would beat them all. */
+@layer reset, tokens, kit, plugins;
+
+@import '@wisp/tokens/tokens.css';
+@import './reset.css';
+@import './motion.css';
+@import './layout.css';
+@import './content.css';
+@import './controls.css';
+@import './menu.css';
+@import './fields.css';
+@import './overlays.css';
+@import './toast.css';
+@import './composites.css';
+@import './blocks.css';
+@import './markdown.css';
+@import './diff.css';
+@import './virtual.css';

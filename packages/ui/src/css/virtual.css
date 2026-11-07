@@ -1,0 +1,12 @@
+/* VirtualList: rows in normal flow between two spacers. The browser's own scroll anchoring is off:
+   the list restores the reader's row itself, and two corrections would fight. */
+@layer kit {
+  [data-kit='virtual-list'] {
+    display: block; min-width: 0; min-height: 0; height: var(--k-vl-h, auto);
+    overflow-x: hidden; overflow-y: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-gutter: stable;
+  }
+  [data-kit='virtual-list'][data-grow] { flex: 1 1 0; height: auto; }
+  /* flow-root: a row's margins stay inside it, so its measured height is the space it takes. */
+  [data-kit='virtual-row'] { display: flow-root; }
+  [data-kit='virtual-spacer'] { flex: none; pointer-events: none; }
+}

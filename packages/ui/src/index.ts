@@ -1,0 +1,11 @@
+// @wisp/ui: the kit. The only package with CSS (`@wisp/ui/kit.css`). Components take token-typed
+// props and render `data-part` names; none accepts `class` or `style`.
+export { type CssVars, type KitProps, type Labelled, type NoStyling, type PartName, type WithChildren, type WithVars } from './core/props.ts';
+export { KitProvider, KIT_STRINGS, englishT, type KitString, type Translate } from './core/i18n.tsx';
+export { useSignal, type Readable, type Subscribable } from './core/signal.ts';
+export * from './layout/index.ts';
+export * from './content/index.ts';
+export * from './content/rich.ts';
+export * from './controls/index.ts';
+export * from './composites/index.ts';
+export { ExtensionSlot, type ExtensionOutput, type ExtensionSlotProps } from './ExtensionSlot.tsx';

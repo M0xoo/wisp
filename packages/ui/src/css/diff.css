@@ -1,0 +1,36 @@
+/* Diffs (v1's .b-diff): a card per file, numbered lines, green and red rows. */
+@layer kit {
+  [data-kit='diff'] { display: flex; flex-direction: column; gap: var(--space-6); min-width: 0; }
+  [data-kit='diff-file'] { min-width: 0; overflow: hidden; border: var(--size-hairline) solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
+  [data-kit='diff-head'] {
+    display: flex; align-items: center; gap: var(--space-4); min-height: var(--size-control-md);
+    padding: var(--space-3) var(--space-6); background: var(--surface-2);
+  }
+  [data-kit='diff-head']:not(:last-child) { border-bottom: var(--size-hairline) solid var(--line); }
+  [data-kit='diff-path'] { display: flex; flex: 1; min-width: 0; }
+  [data-kit='diff-counts'] { display: inline-flex; flex: none; gap: var(--space-3); }
+
+  [data-kit='diff-scroll'] { overflow-x: auto; }
+  [data-kit='diff-scroll']:focus-visible { outline-offset: calc(-1 * var(--size-ring)); }
+  /* As wide as the longest line, so a row's colour runs under all of it while scrolling. */
+  [data-kit='diff-body'] {
+    --k-gutter: max(var(--size-diff-gutter), calc(var(--k-digits) * 1ch + var(--space-7)));
+    width: max-content; min-width: 100%; font-family: var(--mono); font-size: var(--fs-sm); line-height: var(--lh-loose);
+  }
+  [data-kit='diff-chunk'][data-lazy] { content-visibility: auto; contain-intrinsic-size: auto calc(var(--k-lines) * var(--lh-loose) * var(--fs-sm)); }
+  [data-kit='diff-line'] { display: grid; grid-template-columns: var(--k-gutter) var(--k-gutter) auto minmax(0, 1fr); }
+  [data-kit='diff-no'] {
+    padding: 0 var(--space-5) 0 var(--space-4); text-align: right; font-size: var(--fs-xs); color: var(--faint);
+    font-variant-numeric: tabular-nums; user-select: none;
+  }
+  [data-kit='diff-sign'] { width: 2ch; padding-left: var(--space-1); color: var(--faint); user-select: none; }
+  [data-kit='diff-src'] { padding-right: var(--space-7); white-space: pre; color: var(--ink-2); }
+  [data-kit='diff-line'][data-kind='add'] { background: var(--add-bg); }
+  [data-kit='diff-line'][data-kind='add'] [data-kit='diff-no'], [data-kit='diff-line'][data-kind='add'] [data-kit='diff-sign'] { color: var(--add); }
+  [data-kit='diff-line'][data-kind='del'] { background: var(--del-bg); }
+  [data-kit='diff-line'][data-kind='del'] [data-kit='diff-no'], [data-kit='diff-line'][data-kind='del'] [data-kit='diff-sign'] { color: var(--del); }
+  [data-kit='diff-line'][data-kind='note'] [data-kit='diff-src'] { color: var(--faint); font-style: italic; }
+  [data-kit='diff-hunk'] { padding: var(--space-1) var(--space-6); font-size: var(--fs-xs); color: var(--faint); background: var(--surface-2); white-space: pre; }
+  [data-kit='diff-fold'], [data-kit='diff-note'] { display: flex; justify-content: center; padding: var(--space-4) var(--space-6); }
+  [data-kit='diff-note'] { font-size: var(--fs-sm); color: var(--muted); }
+}

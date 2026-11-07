@@ -1,0 +1,1821 @@
+{
+ "schemas": {
+  "Error": {
+   "type": "object",
+   "properties": {
+    "error": {
+     "type": "string"
+    }
+   }
+  },
+  "StuffItem": {
+   "type": "object",
+   "description": "Something kept in My Stuff. Docs and code carry their opening (excerpt); links their url; apps their entry, file count and whether they run",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "kind": {
+     "type": "string",
+     "enum": [
+      "image",
+      "video",
+      "doc",
+      "code",
+      "file",
+      "link",
+      "app"
+     ]
+    },
+    "entry": {
+     "type": "string"
+    },
+    "files": {
+     "type": "integer"
+    },
+    "cover": {
+     "type": "boolean"
+    },
+    "rev": {
+     "type": "integer"
+    },
+    "updatedAt": {
+     "type": "integer"
+    },
+    "prev": {
+     "type": "object",
+     "properties": {
+      "at": {
+       "type": "integer"
+      },
+      "size": {
+       "type": "integer"
+      },
+      "by": {
+       "type": "string"
+      }
+     }
+    },
+    "running": {
+     "type": "object",
+     "properties": {
+      "port": {
+       "type": "integer"
+      }
+     }
+    },
+    "db": {
+     "type": "boolean",
+     "description": "The app has a database (wisp-app.json \"db\")"
+    },
+    "uses": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "An app’s wisp-app.json \"uses\""
+    },
+    "allowed": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "What a pane may use now: tasks:write only while its code is what you allowed"
+    },
+    "data": {
+     "type": "boolean",
+     "description": "Its database has been made"
+    },
+    "published": {
+     "type": "object",
+     "description": "Its public link on a wisp Grid, and the version (rev) that went up",
+     "properties": {
+      "url": {
+       "type": "string"
+      },
+      "account": {
+       "type": "string"
+      },
+      "host": {
+       "type": "string"
+      },
+      "handle": {
+       "type": "string"
+      },
+      "rev": {
+       "type": "integer"
+      },
+      "at": {
+       "type": "integer"
+      }
+     }
+    },
+    "name": {
+     "type": "string"
+    },
+    "title": {
+     "type": "string"
+    },
+    "mime": {
+     "type": "string"
+    },
+    "size": {
+     "type": "integer"
+    },
+    "at": {
+     "type": "integer"
+    },
+    "by": {
+     "type": "string",
+     "enum": [
+      "you",
+      "agent",
+      "wisp"
+     ]
+    },
+    "url": {
+     "type": "string"
+    },
+    "lang": {
+     "type": "string"
+    },
+    "excerpt": {
+     "type": "string"
+    },
+    "note": {
+     "type": "string"
+    },
+    "tags": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "starred": {
+     "type": "boolean"
+    },
+    "from": {
+     "type": "object",
+     "properties": {
+      "session": {
+       "type": "string"
+      },
+      "title": {
+       "type": "string"
+      },
+      "turn": {
+       "type": "string"
+      },
+      "key": {
+       "type": "string"
+      }
+     }
+    },
+    "changed": {
+     "type": "boolean",
+     "description": "Its code moved since you allowed tasks:write"
+    },
+    "risky": {
+     "type": "array",
+     "items": {
+      "enum": [
+       "webrtc"
+      ]
+     },
+     "description": "What its code does that wisp can’t hold back"
+    }
+   }
+  },
+  "Hold": {
+   "type": "object",
+   "description": "Refused: it would take the account’s usage window past the Ask near the limit line (Settings → Usage)",
+   "properties": {
+    "error": {
+     "type": "string"
+    },
+    "hold": {
+     "type": "object",
+     "properties": {
+      "agent": {
+       "type": "string"
+      },
+      "account": {
+       "type": "string"
+      },
+      "id": {
+       "type": "string",
+       "description": "five_hour, seven_day, …"
+      },
+      "label": {
+       "type": "string"
+      },
+      "used": {
+       "type": "number",
+       "description": "0..1"
+      },
+      "to": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "description": "Where it would likely end up, low and high (0..1)"
+      },
+      "resetsAt": {
+       "type": [
+        "integer",
+        "null"
+       ]
+      },
+      "line": {
+       "type": "number"
+      }
+     }
+    }
+   }
+  },
+  "ApiKey": {
+   "type": "object",
+   "required": [
+    "id",
+    "name",
+    "hint",
+    "createdAt",
+    "lastUsedAt"
+   ],
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "hint": {
+     "type": "string",
+     "description": "The last 4 characters of the key"
+    },
+    "createdAt": {
+     "type": "integer"
+    },
+    "lastUsedAt": {
+     "type": [
+      "integer",
+      "null"
+     ]
+    }
+   }
+  },
+  "CloudSignin": {
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "grid": {
+     "type": "string"
+    },
+    "state": {
+     "enum": [
+      "waiting",
+      "done",
+      "denied",
+      "expired",
+      "failed",
+      "cancelled"
+     ]
+    },
+    "userCode": {
+     "type": "string"
+    },
+    "verifyUrl": {
+     "type": "string"
+    },
+    "expiresAt": {
+     "type": "integer"
+    },
+    "error": {
+     "type": "string"
+    },
+    "machineId": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "user": {
+     "type": [
+      "object",
+      "null"
+     ]
+    }
+   }
+  },
+  "Health": {
+   "type": "object",
+   "properties": {
+    "ok": {
+     "type": "boolean"
+    },
+    "name": {
+     "const": "wisp"
+    },
+    "version": {
+     "type": "string"
+    },
+    "apiVersion": {
+     "type": "integer"
+    },
+    "pid": {
+     "type": "integer"
+    },
+    "url": {
+     "type": "string"
+    }
+   }
+  },
+  "Agent": {
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "available": {
+     "type": "boolean"
+    },
+    "version": {
+     "type": "string"
+    },
+    "models": {
+     "type": "array",
+     "items": {
+      "type": "object"
+     }
+    },
+    "efforts": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "hasKey": {
+     "type": [
+      "boolean",
+      "null"
+     ],
+     "description": "opencode only: signed in to a provider or has an API key in the environment (false: its free models alone)"
+    },
+    "setup": {
+     "type": "object",
+     "description": "Only while not found: how to get it on that OS",
+     "properties": {
+      "tip": {
+       "type": "string"
+      },
+      "command": {
+       "type": "string"
+      },
+      "url": {
+       "type": "string"
+      }
+     }
+    },
+    "budget": {
+     "type": "array",
+     "description": "How much of each account’s usage windows is gone, as its CLI last reported (Claude, Codex). hitAt: when it runs out at this pace, if before the reset. where: the tasks that used most of the longest window, and where.subagents: its share by subagent type ({ type, calls, model, output, used, instead })",
+     "items": {
+      "type": "object",
+      "properties": {
+       "account": {
+        "type": "string",
+        "description": "default: the CLI’s own"
+       },
+       "at": {
+        "type": "integer"
+       },
+       "windows": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "properties": {
+          "id": {
+           "type": "string",
+           "description": "five_hour, seven_day, …"
+          },
+          "label": {
+           "type": "string"
+          },
+          "used": {
+           "type": "number",
+           "minimum": 0,
+           "maximum": 1
+          },
+          "resetsAt": {
+           "type": [
+            "integer",
+            "null"
+           ]
+          },
+          "hitAt": {
+           "type": [
+            "integer",
+            "null"
+           ]
+          }
+         }
+        }
+       },
+       "overage": {
+        "type": "object",
+        "description": "Past your plan: runs on this account billed beyond the plan in the last 7 days (kind: extra = Claude extra usage, credits = Codex credits, api = an API key, profile = a Claude Console sign-in). Each such turn also has turn.overage { kind, at }",
+        "properties": {
+         "runs": {
+          "type": "integer"
+         },
+         "at": {
+          "type": "integer"
+         },
+         "kind": {
+          "type": "string",
+          "enum": [
+           "extra",
+           "credits",
+           "api",
+           "profile"
+          ]
+         },
+         "sid": {
+          "type": "string",
+          "description": "the last one’s task"
+         }
+        }
+       },
+       "notices": {
+        "type": "array",
+        "description": "Window changes (defaults.windowNotice, on unless off): a window that appeared (new), went (gone), changed length (length: wasMs) or moved its reset off its schedule (reset: wasResetsAt), until dismissed",
+        "items": {
+         "type": "object",
+         "properties": {
+          "window": {
+           "type": "string"
+          },
+          "kind": {
+           "type": "string",
+           "enum": [
+            "new",
+            "gone",
+            "length",
+            "reset"
+           ]
+          },
+          "label": {
+           "type": "string"
+          },
+          "wasLabel": {
+           "type": "string"
+          },
+          "ms": {
+           "type": [
+            "integer",
+            "null"
+           ]
+          },
+          "wasMs": {
+           "type": [
+            "integer",
+            "null"
+           ]
+          },
+          "resetsAt": {
+           "type": [
+            "integer",
+            "null"
+           ]
+          },
+          "wasResetsAt": {
+           "type": [
+            "integer",
+            "null"
+           ]
+          },
+          "at": {
+           "type": "integer"
+          }
+         }
+        }
+       }
+      }
+     }
+    },
+    "compare": {
+     "type": "array",
+     "description": "Tokens per turn by account, only with several accounts: per model this harness ran on two or more accounts in the last 7 days, each account’s median finished turn (output and input tokens; input counts cache reads and writes) and the share it read from the cache, once each account shown has 5 turns on that model. A diagnostic: wisp never picks an account from it",
+     "items": {
+      "type": "object",
+      "properties": {
+       "model": {
+        "type": "string",
+        "description": "'' for the harness default"
+       },
+       "accounts": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "properties": {
+          "account": {
+           "type": "string"
+          },
+          "turns": {
+           "type": "integer"
+          },
+          "output": {
+           "type": "integer"
+          },
+          "input": {
+           "type": "integer"
+          },
+          "cache": {
+           "type": [
+            "number",
+            "null"
+           ]
+          },
+          "missing": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "description": "Tools another account in this row had on its latest turn and this one did not (Claude Code’s init tool list, wisp’s own MCP tools left out)"
+          }
+         }
+        }
+       }
+      }
+     }
+    },
+    "pinnedAt": {
+     "type": "integer",
+     "description": "Harness watch: when wisp pinned its program (path, size, sha256, version)"
+    },
+    "changed": {
+     "type": "object",
+     "description": "Harness watch: its program is not the pinned one. kind: update (version up, same install folder) or warn",
+     "properties": {
+      "kind": {
+       "type": "string",
+       "enum": [
+        "update",
+        "warn"
+       ]
+      },
+      "from": {
+       "type": "object"
+      },
+      "to": {
+       "type": "object"
+      },
+      "at": {
+       "type": "integer"
+      }
+     }
+    }
+   }
+  },
+  "Project": {
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "path": {
+     "type": "string"
+    },
+    "color": {
+     "type": "string"
+    }
+   }
+  },
+  "ForeignWorktrees": {
+   "type": "object",
+   "required": [
+    "from",
+    "items",
+    "detached"
+   ],
+   "properties": {
+    "from": {
+     "type": "string",
+     "description": "The tool they came from: Conductor"
+    },
+    "items": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "required": [
+       "path",
+       "branch",
+       "name",
+       "dirty",
+       "chat",
+       "from"
+      ],
+      "properties": {
+       "path": {
+        "type": "string"
+       },
+       "branch": {
+        "type": "string",
+        "description": "As git has it now"
+       },
+       "name": {
+        "type": "string",
+        "description": "The folder’s name"
+       },
+       "dirty": {
+        "type": "integer",
+        "description": "Lines of `git status --porcelain`"
+       },
+       "chat": {
+        "type": "boolean",
+        "description": "A Claude conversation was found for this folder, and resumes on the next message"
+       },
+       "from": {
+        "type": "string",
+        "enum": [
+         "conductor"
+        ]
+       }
+      }
+     }
+    },
+    "detached": {
+     "type": "integer",
+     "description": "Worktrees here with no branch: counted, not offered"
+    }
+   }
+  },
+  "Webhook": {
+   "type": "object",
+   "required": [
+    "url"
+   ],
+   "properties": {
+    "url": {
+     "type": "string",
+     "format": "uri"
+    },
+    "events": {
+     "type": "array",
+     "items": {
+      "enum": [
+       "session.finished",
+       "session.waiting"
+      ]
+     }
+    }
+   }
+  },
+  "Launch": {
+   "type": "object",
+   "required": [
+    "prompt"
+   ],
+   "properties": {
+    "prompt": {
+     "type": "string"
+    },
+    "confirmLimit": {
+     "type": "boolean",
+     "description": "The user agreed to go ahead although it would take the account’s usage window past their Ask near the limit line (see the 409 `hold`)"
+    },
+    "cwd": {
+     "type": "string",
+     "description": "Project folder (absolute; ~ allowed). Default: the server’s cwd"
+    },
+    "also": {
+     "type": "array",
+     "maxItems": 8,
+     "items": {
+      "type": "string"
+     },
+     "description": "More folders the same task works in (absolute; ~ allowed). The agent gets each; git repos get their own worktree, and Ship it opens a PR in each"
+    },
+    "scratch": {
+     "type": "boolean",
+     "description": "No project folder: run in an empty scratch directory (no worktree). Overrides cwd"
+    },
+    "kind": {
+     "type": "string",
+     "enum": [
+      "spell",
+      "pane"
+     ],
+     "description": "pane: Make a pane. The agent builds an app for My Stuff and pins it (the same empty folder, Edits mode, this computer). spell: Cast a spell. The agent writes a spell that changes wisp (an empty scratch folder, Edits mode, this computer); its report ends with a spell block to keep"
+    },
+    "agent": {
+     "enum": [
+      "auto",
+      "claude",
+      "codex",
+      "opencode",
+      "cursor",
+      "antigravity",
+      "grok",
+      "copilot"
+     ],
+     "default": "auto",
+     "description": "auto: wisp picks the harness and model from what worked before; model is then the goal (cheap, balanced, best)"
+    },
+    "important": {
+     "type": "boolean",
+     "description": "With agent auto: no exploring, take the pick with the best record"
+    },
+    "autoPin": {
+     "type": "string",
+     "description": "With agent auto: the pick a preview showed (an arm key, 'claude:opus:high'); it runs if it still can"
+    },
+    "autoOverride": {
+     "type": "object",
+     "properties": {
+      "key": {
+       "type": "string"
+      },
+      "type": {
+       "type": "string"
+      }
+     },
+     "description": "With a harness you picked: the pick Auto previewed instead, so it learns from the change"
+    },
+    "mode": {
+     "enum": [
+      "plan",
+      "edits",
+      "auto"
+     ],
+     "default": "auto"
+    },
+    "model": {
+     "type": "string"
+    },
+    "effort": {
+     "type": "string",
+     "description": "Thinking level: low, medium, high, xhigh, max (per harness)"
+    },
+    "account": {
+     "type": "string",
+     "description": "Which of the harness’s accounts to run on (`/agents/{aid}/accounts`); none: your last pick (skipping one already at its usage limit)"
+    },
+    "attachments": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Upload ids"
+    },
+    "worktree": {
+     "type": "boolean",
+     "description": "Run in a fresh git worktree + branch. Default: on in git repos (Settings), off in plan mode"
+    },
+    "subagents": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "required": [
+       "agent"
+      ],
+      "properties": {
+       "name": {
+        "type": "string"
+       },
+       "agent": {
+        "type": "string"
+       },
+       "model": {
+        "type": "string"
+       },
+       "effort": {
+        "type": "string"
+       },
+       "use": {
+        "type": "string",
+        "description": "When the lead should pick this one"
+       },
+       "count": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 5,
+        "description": "Identical copies that take tasks in parallel (name#1, name#2, …); 12 in all"
+       },
+       "machine": {
+        "type": "string",
+        "description": "Where it runs: empty (with the lead), `here` (this computer), a machine id, or `sandbox` (a box of its own on your wisp Grid, kept for the task; Claude Code only). One on another place works on a copy of the lead’s work there; its changes come back as a patch"
+       }
+      }
+     },
+     "description": "A team the lead can delegate to through the injected `delegate` tool. Each runs as a child session in the lead’s folder"
+    },
+    "preset": {
+     "type": "string",
+     "description": "Id of a saved team (`/teams`), used when `subagents` is absent"
+    },
+    "goal": {
+     "type": "object",
+     "required": [
+      "text"
+     ],
+     "properties": {
+      "text": {
+       "type": "string"
+      },
+      "judges": {
+       "type": "array",
+       "maxItems": 5,
+       "items": {
+        "type": "object",
+        "properties": {
+         "agent": {
+          "type": "string"
+         },
+         "model": {
+          "type": "string"
+         },
+         "effort": {
+          "type": "string"
+         },
+         "crew": {
+          "type": "string",
+          "description": "A crew member, on their own harness"
+         },
+         "name": {
+          "type": "string"
+         }
+        }
+       },
+       "description": "Each checks the work on its own; [] clears them"
+      },
+      "vote": {
+       "enum": [
+        "all",
+        "majority",
+        "any"
+       ],
+       "description": "How many judges must say met (default majority). Can’t be done takes a majority"
+      }
+     },
+     "description": "Keep going until this holds: after each turn wisp checks it and sends the task back with what is missing. A prompt that is just `/goal <condition>` does the same"
+    },
+    "subagentModel": {
+     "enum": [
+      "",
+      "haiku",
+      "sonnet"
+     ],
+     "description": "Claude Code only (400 on anything else): the model this task’s subagents run on, over defaults.subagentModel. '' is the task’s own model; left out, the setting"
+    },
+    "skills": {
+     "enum": [
+      "off"
+     ],
+     "description": "Claude Code only (400 on anything else): run without its skills and slash commands. Plugins, agents and CLAUDE.md stay. Left out, they’re on"
+    },
+    "trial": {
+     "type": "boolean",
+     "description": "Try it two ways: these runs compare one setup with one change, and each gets session.trial. Needs compare, a harness you picked (not Auto), a mode other than plan, and a project with a worktree per run (not worktree: false or scratch): 400 otherwise"
+    },
+    "compare": {
+     "type": "array",
+     "maxItems": 3,
+     "items": {
+      "type": "object",
+      "properties": {
+       "agent": {
+        "type": "string"
+       },
+       "model": {
+        "type": "string"
+       },
+       "effort": {
+        "type": "string"
+       },
+       "account": {
+        "type": "string",
+        "description": "Which of the harness’s accounts this run uses; none = your last pick"
+       },
+       "subagentModel": {
+        "enum": [
+         "",
+         "haiku",
+         "sonnet"
+        ],
+        "description": "As at the top level, for this run"
+       },
+       "skills": {
+        "enum": [
+         "off"
+        ],
+        "description": "As at the top level, for this run"
+       }
+      }
+     },
+     "description": "Also run the same task on these, each in its own worktree"
+    }
+   }
+  },
+  "PullRequest": {
+   "type": "object",
+   "properties": {
+    "number": {
+     "type": "integer"
+    },
+    "url": {
+     "type": "string"
+    },
+    "state": {
+     "enum": [
+      "OPEN",
+      "CLOSED",
+      "MERGED"
+     ]
+    },
+    "draft": {
+     "type": "boolean"
+    },
+    "review": {
+     "type": "string",
+     "description": "APPROVED | CHANGES_REQUESTED | REVIEW_REQUIRED | \"\""
+    },
+    "checks": {
+     "type": "object",
+     "properties": {
+      "pass": {
+       "type": "integer"
+      },
+      "fail": {
+       "type": "integer"
+      },
+      "pending": {
+       "type": "integer"
+      }
+     }
+    },
+    "conflict": {
+     "type": "boolean",
+     "description": "GitHub cannot merge it into its base: merge conflicts"
+    },
+    "head": {
+     "type": "string"
+    },
+    "base": {
+     "type": "string"
+    }
+   }
+  },
+  "Team": {
+   "type": "object",
+   "required": [
+    "name",
+    "members"
+   ],
+   "properties": {
+    "id": {
+     "type": "string",
+     "readOnly": true
+    },
+    "name": {
+     "type": "string"
+    },
+    "members": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string"
+       },
+       "agent": {
+        "type": "string",
+        "description": "Harness id, or auto"
+       },
+       "model": {
+        "type": "string"
+       },
+       "effort": {
+        "type": "string"
+       },
+       "use": {
+        "type": "string",
+        "description": "What the lead should use it for"
+       },
+       "count": {
+        "type": "integer",
+        "minimum": 1
+       },
+       "machine": {
+        "type": "string",
+        "description": "Empty (with the lead), `here` or a machine id"
+       }
+      }
+     }
+    },
+    "updatedAt": {
+     "type": "integer",
+     "readOnly": true
+    }
+   }
+  },
+  "Recipe": {
+   "type": "object",
+   "required": [
+    "name",
+    "prompt"
+   ],
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "name": {
+     "type": "string"
+    },
+    "prompt": {
+     "type": "string",
+     "description": "{name} placeholders become parameters"
+    },
+    "params": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "readOnly": true
+    },
+    "cwd": {
+     "type": "string",
+     "description": "Project path, or empty for any project"
+    },
+    "agent": {
+     "type": "string"
+    },
+    "model": {
+     "type": "string"
+    },
+    "effort": {
+     "type": "string"
+    },
+    "mode": {
+     "enum": [
+      "",
+      "plan",
+      "edits",
+      "auto"
+     ]
+    }
+   }
+  },
+  "CrewMember": {
+   "type": "object",
+   "required": [
+    "name"
+   ],
+   "properties": {
+    "id": {
+     "type": "string",
+     "readOnly": true
+    },
+    "name": {
+     "type": "string",
+     "description": "Up to 24 characters; @Name in a prompt reaches them"
+    },
+    "role": {
+     "type": "string"
+    },
+    "avatar": {
+     "type": "string",
+     "description": "An emoji; empty shows the initial"
+    },
+    "color": {
+     "enum": [
+      "violet",
+      "teal",
+      "amber",
+      "rose",
+      "sky",
+      "lime",
+      "orange",
+      "indigo"
+     ]
+    },
+    "brief": {
+     "type": "string",
+     "description": "Their standing job, in every job’s prompt"
+    },
+    "cwd": {
+     "type": "string",
+     "description": "The folder their jobs run in (on their machine, if they have one); empty = no project"
+    },
+    "machine": {
+     "type": "string",
+     "description": "A machine id: their jobs run there as its tasks; their memory, schedule and queue stay here. Empty = this computer"
+    },
+    "sandbox": {
+     "enum": [
+      "",
+      "job",
+      "own"
+     ],
+     "description": "Their jobs run in a box on your wisp Grid with their project as it is here: `job` a fresh one per job (deleted with the job), `own` one kept for them (their installs stay; deleted with them). Clears machine. Claude Code or auto only"
+    },
+    "agent": {
+     "type": "string",
+     "description": "Harness id, or auto"
+    },
+    "model": {
+     "type": "string"
+    },
+    "effort": {
+     "type": "string"
+    },
+    "mode": {
+     "enum": [
+      "plan",
+      "edits",
+      "auto"
+     ]
+    },
+    "cron": {
+     "type": "string",
+     "description": "When they check in, in words (\"8am every weekday\") or 5-field cron, local time; stored as cron. Empty = only when asked"
+    },
+    "parallel": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 5,
+     "description": "Jobs at once; more wait in the queue"
+    },
+    "paused": {
+     "type": "boolean",
+     "description": "No check-ins, triggers or delegations start; your own jobs still do"
+    },
+    "notebook": {
+     "type": "string",
+     "description": "Their memory, kept by them (a hidden crew block ends each job) and editable by you"
+    },
+    "kit": {
+     "type": "array",
+     "description": "Their skills and instructions files. rules (an AGENTS.md) are in every job’s prompt; a skill’s name and description are, and the job reads its SKILL.md when it fits. on: false keeps one without using it",
+     "items": {
+      "type": "object",
+      "required": [
+       "kind",
+       "name",
+       "body"
+      ],
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "kind": {
+        "enum": [
+         "rules",
+         "skill"
+        ]
+       },
+       "name": {
+        "type": "string"
+       },
+       "description": {
+        "type": "string"
+       },
+       "body": {
+        "type": "string"
+       },
+       "path": {
+        "type": "string",
+        "description": "A skill’s folder on this computer (its scripts and references)"
+       },
+       "on": {
+        "type": "boolean"
+       }
+      }
+     }
+    },
+    "log": {
+     "type": "array",
+     "readOnly": true,
+     "items": {
+      "type": "object"
+     },
+     "description": "One line per finished job, newest first"
+    },
+    "queue": {
+     "type": "array",
+     "items": {
+      "type": "object"
+     },
+     "description": "Jobs waiting for room"
+    },
+    "wakeAt": {
+     "type": [
+      "integer",
+      "null"
+     ],
+     "description": "A check-in they asked for; null clears it"
+    },
+    "offers": {
+     "type": "array",
+     "description": "Skills and instructions files their jobs proposed for their kit (newest first): { id, job, at, files, state: open | taken | dismissed, names }. PATCH offers: [{ id, state, names }] settles them (send the kit with the files you add)",
+     "items": {
+      "type": "object"
+     }
+    },
+    "running": {
+     "type": "integer",
+     "readOnly": true
+    },
+    "nextAt": {
+     "type": [
+      "integer",
+      "null"
+     ],
+     "readOnly": true
+    },
+    "checkin": {
+     "type": "boolean",
+     "writeOnly": true,
+     "description": "POST /crew: start a first check-in"
+    },
+    "on": {
+     "type": "array",
+     "items": {
+      "enum": [
+       "finished",
+       "done",
+       "ci",
+       "issues"
+      ]
+     },
+     "description": "What else starts their jobs: the kinds of the triggers that are on and send them work. Sent (finished, done, ci), it makes or removes those triggers"
+    },
+    "spell": {
+     "type": "object",
+     "readOnly": true,
+     "description": "A member a spell brought: { id, key, name, def }. The spell owns def (name, role, avatar, brief, schedule, on, mode, kit, delegates); changing those is refused (409) until POST /crew/{cid}/detach"
+    },
+    "changed": {
+     "type": "object",
+     "readOnly": true,
+     "description": "Their spell changed what they do (from: the old definition, null for a member it just added): they are paused, and resume only with accept: true"
+    },
+    "accept": {
+     "type": "boolean",
+     "writeOnly": true,
+     "description": "PATCH with paused: false: you saw what their spell changed"
+    }
+   }
+  },
+  "Trigger": {
+   "type": "object",
+   "required": [
+    "kind",
+    "cwd"
+   ],
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "crew": {
+     "type": "string",
+     "description": "A crew member id: the work goes to them as a job (cwd may then be empty for a schedule or a task watcher)"
+    },
+    "name": {
+     "type": "string"
+    },
+    "kind": {
+     "enum": [
+      "schedule",
+      "ci",
+      "issues",
+      "finished",
+      "done",
+      "webhook",
+      "slack",
+      "linear"
+     ],
+     "description": "finished: a task finished a turn; done: a task was marked done; webhook, slack, linear: its URL (POST /hooks/{token}) was called"
+    },
+    "enabled": {
+     "type": "boolean"
+    },
+    "cwd": {
+     "type": "string",
+     "description": "finished/done: only tasks in this project; empty = the crew member’s project, or any"
+    },
+    "prompt": {
+     "type": "string",
+     "description": "Template; ci gets {id} {name} {branch} {sha} {url}, issues get {number} {title} {body} {url} {author}, finished/done get {id} {title} {summary} {branch} {cwd}; webhook gets {{body.a.b}} {{text}}, slack {{text}} {{user}} {{channel}}, linear {{title}} {{url}} {{description}} {{identifier}}"
+    },
+    "recipeId": {
+     "type": "string",
+     "description": "Run this recipe instead of prompt"
+    },
+    "params": {
+     "type": "object"
+    },
+    "cron": {
+     "type": "string",
+     "description": "schedule: when, in words (\"every monday\") or 5-field cron, local time; stored as cron"
+    },
+    "branch": {
+     "type": "string",
+     "description": "ci: only failures on this branch"
+    },
+    "label": {
+     "type": "string",
+     "description": "issues: the label to watch; linear: only issues with this label (empty: any)"
+    },
+    "token": {
+     "type": "string",
+     "readOnly": true,
+     "description": "webhook/slack/linear: the secret part of its URL, /api/hooks/{token}"
+    },
+    "regenerate": {
+     "type": "boolean",
+     "writeOnly": true,
+     "description": "A new token: the old URL stops working"
+    },
+    "secret": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "writeOnly": true,
+     "description": "webhook: signs deliveries (HMAC sha256 of the body, optional); slack: the app’s signing secret; linear: the webhook’s signing secret. Never sent back (hasSecret); left out it stays, null clears it"
+    },
+    "hasSecret": {
+     "type": "boolean",
+     "readOnly": true
+    },
+    "header": {
+     "type": "string",
+     "description": "webhook: the header carrying the signature (default X-Hub-Signature-256), hex or sha256=hex"
+    },
+    "channel": {
+     "type": "string",
+     "description": "slack: the channel id (C0123456789) whose mentions and messages start tasks"
+    },
+    "keyword": {
+     "type": "string",
+     "description": "slack: only messages with this word"
+    },
+    "users": {
+     "type": "array",
+     "maxItems": 50,
+     "items": {
+      "type": "string",
+      "pattern": "^[UW][A-Z0-9]{6,20}$"
+     },
+     "description": "slack: the member IDs who may start it (in Slack: their profile → ⋯ → Copy member ID). A new or edited trigger needs at least one"
+    },
+    "open": {
+     "type": "boolean",
+     "readOnly": true,
+     "description": "slack: saved before people had to be named, so anyone in the channel can start it. Pausing it or a new URL still work; any other edit needs users"
+    },
+    "deliveries": {
+     "type": "array",
+     "readOnly": true,
+     "description": "webhook/slack/linear: the last five calls",
+     "items": {
+      "type": "object",
+      "properties": {
+       "at": {
+        "type": "integer"
+       },
+       "result": {
+        "enum": [
+         "started",
+         "skipped",
+         "rejected"
+        ]
+       },
+       "why": {
+        "type": "string"
+       },
+       "session": {
+        "type": [
+         "string",
+         "null"
+        ]
+       }
+      }
+     }
+    },
+    "every": {
+     "type": "integer",
+     "description": "ci/issues: minutes between polls"
+    },
+    "agent": {
+     "type": "string"
+    },
+    "model": {
+     "type": "string"
+    },
+    "effort": {
+     "type": "string"
+    },
+    "mode": {
+     "enum": [
+      "plan",
+      "edits",
+      "auto"
+     ]
+    },
+    "nextAt": {
+     "type": [
+      "integer",
+      "null"
+     ],
+     "readOnly": true
+    },
+    "lastRunAt": {
+     "type": [
+      "integer",
+      "null"
+     ],
+     "readOnly": true
+    },
+    "lastSessionId": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "readOnly": true
+    },
+    "lastError": {
+     "type": "string",
+     "readOnly": true
+    }
+   }
+  },
+  "Summary": {
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "compactOffer": {
+     "type": "object",
+     "description": "Compact now is offered: tokens, the USD estimates compact and cold (null on a model wisp has no price for), and until (ms): when the offer ends",
+     "properties": {
+      "tokens": {
+       "type": "number"
+      },
+      "compact": {
+       "type": "number",
+       "nullable": true
+      },
+      "cold": {
+       "type": "number",
+       "nullable": true
+      },
+      "until": {
+       "type": "number"
+      }
+     }
+    },
+    "title": {
+     "type": "string"
+    },
+    "agent": {
+     "type": "string"
+    },
+    "cwd": {
+     "type": "string"
+    },
+    "project": {
+     "type": "string"
+    },
+    "projectId": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "mode": {
+     "type": "string"
+    },
+    "model": {
+     "type": "string"
+    },
+    "effort": {
+     "type": "string"
+    },
+    "state": {
+     "enum": [
+      "running",
+      "waiting",
+      "review",
+      "done"
+     ]
+    },
+    "status": {
+     "enum": [
+      "running",
+      "done",
+      "partial",
+      "blocked",
+      "info"
+     ]
+    },
+    "preview": {
+     "type": "string",
+     "description": "The hero summary of the latest turn"
+    },
+    "live": {
+     "type": "string",
+     "description": "One-line status while running, or the pending question"
+    },
+    "asks": {
+     "type": "boolean"
+    },
+    "question": {
+     "type": "string"
+    },
+    "unread": {
+     "type": "boolean"
+    },
+    "archived": {
+     "type": "boolean"
+    },
+    "queued": {
+     "type": "integer"
+    },
+    "queueHeld": {
+     "type": "boolean",
+     "description": "A Stop held the queued follow-ups: none goes out until you send something or Send now"
+    },
+    "turnCount": {
+     "type": "integer"
+    },
+    "createdAt": {
+     "type": "integer"
+    },
+    "updatedAt": {
+     "type": "integer"
+    },
+    "branch": {
+     "type": "string",
+     "description": "Worktree branch, if it has one"
+    },
+    "foreign": {
+     "type": "string",
+     "description": "'conductor': a worktree it was brought in on, which wisp never removes; '' otherwise"
+    },
+    "pr": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "description": "Its pull request, once shipped"
+    },
+    "shipping": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "description": "{ step: start | commit | push | pr, update } while Ship it runs"
+    },
+    "review": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "description": "Review by another harness of the PR's head (defaults.review): { status: running | done | failed | held, head, current (of the PR's head now), by: { agent, model }, summary, findings: [{ severity: high | medium | low, file, line, text }], tests: { verdict, command, passed, failed }, coverage: how much of the diff the reviewer was given, when it was computed: { files, seen (files whole), chars, seenChars, cut: [paths only partly in it], missing: [paths not in it], more (names dropped past 50 between cut and missing, left out when 0) }; seen < files is a partial review, and with no findings its summary is wisp's own, why }"
+    },
+    "conflictFix": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "description": "{ step: fixing | pushing | done | failed, why } while wisp fixes the PR's merge conflicts: after Fix conflicts, or on its own with defaults.fixConflicts: 'on'"
+    },
+    "overlaps": {
+     "type": "array",
+     "description": "Other open tasks in the same repo that change the same files: [{ id, title, files, more, conflicts }]. conflicts lists the files merging both would leave conflicted ([] if they merge cleanly, null if git is older than 2.38). Absent when there are none."
+    },
+    "groupId": {
+     "type": [
+      "string",
+      "null"
+     ],
+     "description": "Shared by sessions launched together with compare"
+    },
+    "origin": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "description": "{ kind: recipe | trigger, id, name } when not launched by hand"
+    },
+    "keepWorktree": {
+     "type": "boolean",
+     "description": "The worktree cleanup leaves this task’s folder alone (PATCH keepWorktree)"
+    },
+    "subagentModel": {
+     "enum": [
+      "",
+      "haiku",
+      "sonnet"
+     ],
+     "description": "This task’s own subagent model, when it has one ('': the task’s model), over defaults.subagentModel"
+    },
+    "skills": {
+     "enum": [
+      "off"
+     ],
+     "description": "Claude Code runs without its skills and slash commands, when set"
+    },
+    "trial": {
+     "type": "object",
+     "properties": {
+      "differs": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "key": {
+          "enum": [
+           "agent",
+           "model",
+           "effort",
+           "account",
+           "subagentModel",
+           "skills"
+          ]
+         },
+         "values": {
+          "type": "array",
+          "items": {
+           "type": "string"
+          },
+          "description": "One per run, in run order"
+         }
+        }
+       }
+      },
+      "kept": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "The run you kept (PATCH trialKept)"
+      }
+     },
+     "description": "Try it two ways, on the full task (GET /sessions/{id}), not in lists: what differed between its runs"
+    },
+    "lean": {
+     "enum": [
+      "on",
+      "off"
+     ],
+     "description": "This task’s own lean runs choice (PATCH lean), when it has one"
+    }
+   }
+  },
+  "Presentation": {
+   "type": "object",
+   "properties": {
+    "sessionId": {
+     "type": "string"
+    },
+    "turnId": {
+     "type": "string"
+    },
+    "turnIndex": {
+     "type": "integer"
+    },
+    "state": {
+     "type": "string"
+    },
+    "status": {
+     "enum": [
+      "running",
+      "done",
+      "error",
+      "stopped"
+     ]
+    },
+    "prompt": {
+     "type": "string"
+    },
+    "blocks": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "required": [
+       "type"
+      ],
+      "properties": {
+       "type": {
+        "type": "string"
+       }
+      }
+     }
+    },
+    "markdown": {
+     "type": "string"
+    },
+    "ask": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "properties": {
+      "id": {
+       "type": "string"
+      },
+      "question": {
+       "type": "string"
+      },
+      "context": {
+       "type": "string"
+      },
+      "options": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      }
+     }
+    },
+    "changes": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "file": {
+        "type": "string"
+       },
+       "op": {
+        "type": "string"
+       },
+       "edits": {
+        "type": "integer"
+       }
+      }
+     }
+    },
+    "stats": {
+     "type": [
+      "object",
+      "null"
+     ]
+    }
+   }
+  },
+  "Btw": {
+   "type": "object",
+   "description": "A side question (/btw). It sits on turns[].btw of the turn it was asked during; GET the session or wait for its turn event to see the answer",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "question": {
+     "type": "string"
+    },
+    "status": {
+     "enum": [
+      "running",
+      "done",
+      "error"
+     ]
+    },
+    "answer": {
+     "type": "string",
+     "description": "Markdown, once done"
+    },
+    "error": {
+     "type": "string"
+    },
+    "forked": {
+     "type": "boolean",
+     "description": "Answered on a copy of the agent’s conversation (else from wisp’s record of the task)"
+    },
+    "agent": {
+     "type": "string"
+    },
+    "model": {
+     "type": "string"
+    },
+    "askedAt": {
+     "type": "integer"
+    },
+    "answeredAt": {
+     "type": "integer"
+    }
+   }
+  }
+ }
+}

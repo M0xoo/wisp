@@ -1,0 +1,21 @@
+{
+  "name": "@wisp/grid",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "wisp Grid: the edge, sign-in, hostd and boxd, and the control-plane database (plan \u00a74.7, \u00a77.2.5).",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cli": "./src/cli.ts",
+    "./boxd": "./src/boxd.ts"
+  },
+  "dependencies": {
+    "@wisp-plugin/channels-api": "*"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "node --test --test-reporter=dot \"test/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json",
+    "start": "node src/main.ts"
+  }
+}

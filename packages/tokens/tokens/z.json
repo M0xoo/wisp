@@ -1,0 +1,12 @@
+{
+  "$doc": "Stacking order, lowest first. Floating things share these layers; nothing picks its own number.",
+  "base": "0",
+  "raised": "1",
+  "sticky": "10",
+  "rail": "20",
+  "menu": "40",
+  "overlay": "50",
+  "overlay-menu": "55",
+  "toast": "60",
+  "tooltip": "70"
+}

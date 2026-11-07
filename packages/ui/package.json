@@ -1,0 +1,39 @@
+{
+  "name": "@wisp/ui",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./kit.css": "./src/css/index.css"
+  },
+  "dependencies": {
+    "@wisp/tokens": "*",
+    "solid-js": "^1.9.18",
+    "@zag-js/solid": "^1.47.0",
+    "@zag-js/dialog": "^1.47.0",
+    "@zag-js/menu": "^1.47.0",
+    "@zag-js/popover": "^1.47.0",
+    "@zag-js/tooltip": "^1.47.0",
+    "@zag-js/toast": "^1.47.0",
+    "@zag-js/tabs": "^1.47.0",
+    "@zag-js/combobox": "^1.47.0",
+    "@zag-js/select": "^1.47.0",
+    "@zag-js/splitter": "^1.47.0",
+    "@zag-js/switch": "^1.47.0",
+    "@zag-js/checkbox": "^1.47.0",
+    "alien-signals": "^3.2.1"
+  },
+  "devDependencies": {
+    "vite": "^7.0.2",
+    "vite-plugin-solid": "^2.11.0",
+    "vitest": "^4.1.0",
+    "happy-dom": "^21.0.4"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "gallery": "vite --config gallery/vite.config.ts",
+    "gallery:build": "vite build --config gallery/vite.config.ts"
+  }
+}

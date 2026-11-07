@@ -1,0 +1,7 @@
+{
+  "$doc": "Shadows, only on things that float (menus, toasts, dialogs) and the rail's open tile. Per theme.",
+  "1": { "light": "0 1px 2px rgba(0, 0, 0, 0.04)", "dark": "0 1px 2px rgba(0, 0, 0, 0.3)", "$doc": "resting cards" },
+  "2": { "light": "0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 30px -12px rgba(0, 0, 0, 0.14)", "dark": "0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px -12px rgba(0, 0, 0, 0.6)", "$doc": "menus, popovers, toasts" },
+  "3": { "light": "0 24px 60px -20px rgba(0, 0, 0, 0.35)", "dark": "0 24px 60px -20px rgba(0, 0, 0, 0.7)", "$doc": "dialogs" },
+  "scrim": { "light": "rgba(0, 0, 0, 0.28)", "dark": "rgba(0, 0, 0, 0.5)", "$doc": "the backdrop behind a dialog or sheet" }
+}

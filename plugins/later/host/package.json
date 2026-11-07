@@ -1,0 +1,18 @@
+{
+  "name": "@wisp-plugin/later",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "test": "node --test --test-reporter=dot \"test/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@wisp/kernel": "*",
+    "@wisp/protocol": "*",
+    "@wisp/store": "*",
+    "@wisp-plugin/runtime-api": "*",
+    "@wisp-plugin/later-api": "*"
+  }
+}

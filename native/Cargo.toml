@@ -1,0 +1,57 @@
+# wisp-native: the PTY and process-tree helper the wisp server drives over stdio (plan §0.2, ADR-0010).
+[workspace]
+resolver = "3"
+members = ["crates/wisp-native", "crates/wisp-native-sys"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+wisp-native-sys = { path = "crates/wisp-native-sys" }
+base64 = "0.22"
+libc = "0.2"
+portable-pty = "0.9"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter", "std"] }
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_JobObjects",
+  "Win32_System_Threading",
+] }
+
+# Plan §9.2. The sys crate cannot inherit these: it is the one place unsafe is allowed (see its Cargo.toml).
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+dbg_macro = "deny"
+print_stdout = "deny" # stdout is the protocol: only out.rs writes it
+# The curated allow list (plan §9.2): each costs more noise than it catches here.
+module_name_repetitions = "allow"   # protocol::ProtocolError reads better than protocol::Error at call sites
+missing_errors_doc = "allow"        # internal binary, every fn returns the one crate Error
+must_use_candidate = "allow"        # private helpers; the compiler already warns on unused Results
+cast_possible_wrap = "allow"        # pids are u32 from std and i32 for libc; both fit
+cast_sign_loss = "allow"            # same, the other way
+similar_names = "allow"             # pid, ppid, pgid are the domain's own names
+
+[profile.release]
+lto = true
+strip = true
+panic = "abort"
+codegen-units = 1
+opt-level = 3

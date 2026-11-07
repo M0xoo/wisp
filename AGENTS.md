@@ -1,209 +1,115 @@
 # AGENTS.md
 
-Notes for coding agents (and people) working on wisp itself. README.md covers what wisp does;
-this covers how the code is laid out and the rules a change has to follow.
+How to work on wisp v2. `README.md` says what wisp does, `ARCHITECTURE.md` maps the code, and
+`docs/adr/` records why each decision was made. This file holds the rules a change has to follow. The
+step-by-step how-tos are in `.claude/skills/` (any agent can read them, not only Claude).
 
-## Layout
+## Before you change anything
 
-- `server/`: the Node server (no dependencies). `index.js` boots it, `routes/` is the HTTP API,
-  `store.js` keeps each task in `sessions/<id>.json` and a light copy in `sessions/.light/` that a
-  start reads (turns' `activity`, `changes` and `raw` load from the full file when first read),
-  `runner.js` runs sessions, `adapters/` has one file per harness, `spells.js` validates and stores
-  spells, `spell-guide.js` is the reference the *Cast a spell* agent reads, `pane-guide.js` the one
-  the *Make a pane* agent reads (from `web/js/pane-bridge.js`), `starters/` holds the panes wisp
-  ships with (`GET /stuff/starters`), `crew.js` runs the crew
-  (named long-lived agents: their schedule, queue, memory and `@Name` mentions; their jobs are tasks).
-  `channels/` is how wisp is reached from outside: `policy.js` (who may speak, what may leave),
-  `grammar.js` (imports only `mentions.js`, so the grid can read it too) and `lists.js` (what a message
-  can say), `channel.js` (the base class) and one file per
-  channel (`github.js` polls through `gh`, and on a public repo reports only a fixed line; `slack.js`
-  holds a Socket Mode connection through `ws.js`, a WebSocket client that knows no channel, and
-  refuses to run on a grid box, which sleeps; `discord.js` does the same over a gateway connection,
-  with no privileged intent, and on a box opens none: the grid's edge answers Discord's 3 s (`discord-sign.js`)
-  and the box starts from the deferred state, so only `/wisp` works there); `conversation.js` is what a message does once it's through the door,
-  shared by Telegram, GitHub, Slack and Discord: a new channel hands in what differs, not a copy; `remote.js` is their hub and `services/phone.js` what they ask of wisp.
-  `capped.js` is what a task a channel started below Full auto may do with wisp's tools: the routes
-  enforce it by the session a call authenticates as (`agent-token.js`: each agent's token speaks for
-  that session only), and it's copied to all it starts. A new `/internal` route or tool needs a line there.
-  `accounts.js` keeps a harness's several accounts (a login folder each, linked to the CLI's own).
-  `services/worktrees.js` removes idle tasks' worktrees (`defaults.worktreeCleanup`, merged PRs, Done, the `worktreeMax` cap, a low disk), prunes git's stale entries and
-  answers Settings → Worktrees; only what a follow-up can bring back goes on its own.
-- `web/`: the page, vanilla JS as native ES modules, no build step. `index.html` holds the markup
-  and the icon sprite, `css/` has one stylesheet per area (linked in order in `index.html`),
-  `js/core/` (state, api, bus, DOM helpers), `js/ui/` (toasts, dialogs, popovers, keys) and
-  `js/features/` (feed, split view, launcher, composer, settings, spells, …).
-- `web/js/spell-schema.js`: what spells may touch. DOM-free and shared by the server and the page.
-- `desktop/`: the desktop app, a Tauri shell. `src-tauri/` is Rust, kept small: window, menu, links and a
-  Node child that runs the unchanged server through `entry.mjs` (PATH from the login shell: `shell-path.js`);
-  stdin is its leash, so it can't outlive the shell. `scripts/package.mjs` builds the downloads under the
-  names the site and the updater link to, with the pinned Node of `scripts/fetch-node.mjs` beside wisp's
-  files: `.github/workflows/tauri-package.yml`, release.yml's desktop job for every channel, with the install
-  gate (`qa/install.mjs`) on what it built. The app was Electron up to v0.57.0; Electron builds already out
-  can't change and update onto this one, so the shell answers them: on a Mac
-  it's Node when run with `ELECTRON_RUN_AS_NODE` (`macos::be_node_for_electron`), and `installer-hooks.nsh` gives
-  Tauri's installer their `--force-run`. `src/init.js` is the page's bridge, its `Notification` (`src/notify.rs`,
-  tauri-plugin-notification) and its drag regions (WebKit has no
-  `-webkit-app-region`: a new rule in the CSS goes there too, a test checks). On Linux WebKitGTK can't say
-  which frame a navigation is for, so `on_navigation` lets them all through and `src/linux.rs` holds the main frame's
-  response instead (`qa/desktop-tauri-linux.mjs`, under Xvfb in `tauri.yml`). IPC is one capability
-  for exactly `http://localhost:<port>` (`capability.json`). `src/windows.rs` is what a desktop app does on
-  Windows and Tauri doesn't (window size, taskbar badge, menu keys, right-click menu); `installer-hooks.nsh`
-  and `remove-electron.mjs` take an Electron copy away on install. `.github/workflows/tauri-windows.yml` runs it all on windows-latest.
-  `npm run dev`. The page knows it's in the app by `body.desktop` (`web/index.html`). Of `desktop/`, only `entry.mjs` and its `shell-path.js` are on npm:
-  each build also makes the shell alone (`wisp-shell-<os>-<arch>.tar.gz`, no Node, no wisp files), and a wisp
-  from npm downloads it once into `~/.wisp/desktop/<version>/`, checks it against the release's SHA256SUMS.txt and
-  runs it with `WISP_NODE`/`WISP_ROOT` (`bin/desktop-shell.js`), or opens a tab if it can't.
-- `mobile/`: the Android app (Capacitor + sshj). It shows wisp's own page through an SSH tunnel
-  and starts wisp with `server/machines/bootstrap.js` (keep that file and `server/shq.js` free of
-  Node imports). The page sees `MOBILE` (`web/js/core/state.js`): hide desktop-only actions there.
-  In the app, what it connects to are *Computers*; *Machines* (desktop SSH) isn't shown there.
-  There the page comes from a service worker's cache (`web/sw.js`) and first paints the last data
-  seen (`web/js/features/cache.js`); `server/http/static.js` stamps index.html with the build
-  that tells them it's stale, preloads app.js's static imports, and names every script and
-  stylesheet by its content (`?v=`, modules through an import map) so they're cached for good (a new
-  module needs nothing). Round trips cost most over the tunnel (HTTP/1.1, six at a time): the stylesheets
-  go as one (`/css/all.css`), the phone's first open loads its modules only once the service worker
-  has unpacked them all from one request (`/_pack`), and modules go without their comment lines.
-- `grid/`: wisp Grid (`wisp grid …`), wisp for many people on a server: sign-in (Google, GitHub,
-  OIDC), the edge that serves `<handle>.<domain>`, hostd that starts and stops each user's wisp,
-  boxd (`grid/boxd.js`: the root helper that runs their containers; Node built-ins only, imports
-  nothing from wisp) and the database (`node:sqlite`, so grid code needs Node 22.13+; nothing else
-  does). wisp itself
-  only knows trusted-proxy mode (`server/http/trust.js`), `GET /api/status`, and cloud computers
-  as machines with `kind: 'grid'` (`server/machines.js`, `server/services/cloud.js`). `grid/route.js` is `on laptop`
-  from a channel, on a bot of its own: the grid owns that webhook, and a box is never asked and gains no reach. `grid/inbox.js`
-  holds channels' webhooks (`/_in/<token>`, off unless `grid.json` has `channels`), answers them at
-  once and delivers to the box's `POST /api/channels/inbound`, which verifies them itself
-  (`Channel.inbound()`, `server/routes/channels.js`). Only delivery carries `x-wisp-proxy-via: inbox`;
-  never let anything from outside set it, and never make a channel count as use of a box (no
-  `lastTouch`, no `lastActivityAt`). A new channel is a row of `CHANNELS` there. A row with an `edge`
-  answers its sender itself, with a public key the box sets (`inbox.setKey`), and the box still verifies.
-- `docs/`: the site (https://trywisp.dev/). `agents/`, `guides/`, `integrations`, `changelog` and
-  `404` are generated by `node scripts/site.mjs` (guides from `scripts/guides.mjs`) and gitignored:
-  edit the scripts, not the output.
-- `test/`: `node --test`. `npm test` runs every `test/*.test.js` (`scripts/test.mjs` finds them): a
-  new file needs no listing. `test/real-clis.mjs` is `npm run test:real`, on signed-in CLIs.
-  `test/helpers.js` installs fake harnesses (`test/fixtures/fake-agent.mjs`) and a fake `gh`.
-- `qa/`: end-to-end scenarios per surface (web, grid, desktop, Android) in `qa/scenarios/`, and
-  scripts that run them against an isolated wisp with fake agents (`node qa/web.mjs`, …). Not part
-  of `npm test`; see `qa/README.md`. A change to a flow they cover updates its scenario.
-- `design/`: how wisp looks and behaves (UI, UX, phones, words, the site) and the checklist for a UI
-  change. Read `design/README.md` before touching `web/`, `mobile/`, `desktop/` or `docs/`.
+- **Read `ARCHITECTURE.md`**, and the ADR for the area you are touching.
+- **Ask the graph:** run `.agents/bin/monoflow graph impact <file>` before you change a contract (an `api/`
+  package, `@wisp/protocol`, `@wisp/kernel`). It lists every package your change reaches.
+- **A decision that changes the architecture** (a new package kind, a new dependency, a new kind of
+  state, a new wire message, a rule in `tools/check` turned off) gets a new ADR in `docs/adr/`, in the
+  same PR. Use the `record-decision` skill. An ADR is never edited after it merges; a later ADR supersedes it.
 
 ## Commands
 
 ```sh
-npm test                                   # every test/*.test.js
-npm test -- --test-reporter=tap            # the same, with flags for node --test
-node --test test/spells.test.js            # one file
-npm run dev:web                            # the server with the page, restarts on server changes
+npm install                      # once; workspaces link every package
+npm run check                    # structure rules (layers, cycles, CSS, state, manifests, OpenAPI, sizes)
+npm run typecheck                # tsc strict, server and web
+npm test                         # every package's tests (node --test; vitest for UI packages)
+npm run verify                   # all three, as PR CI runs them
+.agents/bin/monoflow verify --affected   # only what your change reaches (inner loop)
+node --test packages/store/test/store.test.ts   # one file
+npm run dev                      # server + web with reload
 ```
 
-CI has three tiers, from fast to thorough (`.github/workflows/`, all calling `suite.yml`):
-`pr.yml` runs the suite once on Linux with Node 22 (about a minute). Label a PR `ci:full` to get
-the main matrix when it touches process launching, paths, shells or terminals. `main.yml` runs
-every OS on Node 20 and 22, plus the real CLIs (`real-clis.yml`) after each merge. `nightly.yml`
-adds the Node LTS and the newest Node and runs the suite three times per job. A test that fails
-there only some of the time is flaky: fix it, don't retry it. Tests can't rely on the network
-(no `npx` downloads) or on which harness Auto picks.
+## Language and runtime
 
-## UI and UX
+- **TypeScript everywhere**: `strict`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`.
+  No `any`: use `unknown` and narrow it. Only erasable syntax (`erasableSyntaxOnly`): no `enum`, no
+  `namespace`, no parameter properties. Node ≥ 22.18 runs `.ts` directly, so the server and tests have
+  no build step. Import relative files with their `.ts` extension.
+- The published package (`apps/server` → `wisp-agents`) is bundled by `tools/bundle.ts` into plain JS
+  with **zero runtime dependencies**. A new dependency needs an ADR.
+- IDs are branded types. Errors cross the wire as one shape: `{code, message, retry}`.
 
-Every UI change follows `design/` and ends with `design/checklist.md`: seen in real Chrome at
-desktop and phone widths, in light and dark, side by side and stacked. In short: tokens only,
-instant actions that roll back with a toast, nothing that jumps or loads empty, the same action under
-the same name everywhere, phones first-class.
+## Plugins (ADR-0003)
 
-## Everything is customizable by spells
+- **Everything is a plugin.** The kernel knows no feature: there is no `if (harness === 'claude')`
+  outside `plugins/claude`.
+- **A plugin talks to others only through their `api` package**: commands (do something), events
+  (something happened), interceptors (refuse or change something), extension points (provide an
+  implementation), topics (watch data), services (a long-lived handle). It never imports another
+  plugin's `host` or `ui`.
+- **Built-ins get no private API.** Whatever a built-in plugin can do, a user's plugin can do through
+  the same manifest and API. If a built-in needs more, add an extension point, and then everyone has it.
+- **Every registration belongs to a scope.** Timers, subscriptions, child processes and watchers go
+  through `ctx.scope`, so switching a plugin off frees everything it made.
+- **Default deny.** A new command, route or MCP tool is unreachable until a capability set names it
+  (`plugins/*/host/wisp-plugin.json` permissions, `packages/kernel/src/capabilities.ts`).
+- **Interceptors read and decide; they never write.** Follow-up work goes in the verdict's `then`.
 
-A spell is JSON that wisp layers over itself at runtime (README → Spells). Users rely on being able
-to change any part of wisp with one, so **every piece of UI you add or change must be reachable
-from a spell**. A change that adds UI without this is not done.
+## Data (ADR-0004, ADR-0005)
 
-Spells never see wisp's markup. They use names from `web/js/spell-schema.js`, and wisp maps those
-names to its DOM. When you add or change UI:
+- **One write path:** a command runs in one store transaction and every row it writes is recorded in
+  `change`. Nothing writes files or rows behind the store's back.
+- **Plugins own their tables**, under their own prefix, with their own forward-only migrations.
+- Secrets stay in `~/.wisp/secrets.json` (0600), never in the database.
+- Clients never poll. They subscribe to topics and resume from their cursor.
 
-1. **Places to add things → `SLOTS`.** A new area where buttons, chips or panels make sense gets a
-   slot (`'sidebar.top'`, `'split.head'`, …) with a one-line description. Slots that act on a task
-   also go in `CARD_SLOTS`. Render it with `slotHtml(slot, session)` from
-   `web/js/features/spells.js`, and repaint on the bus `spells` event. Allow the slot for buttons
-   / chips in `server/spells.js` (`BUTTON_SLOTS`, the chips list).
-   The spell click handler finds the task from the closest `.item[data-id]` or `#splitHead[data-id]`:
-   a slot outside both needs `data-task` on the button or its own case there.
-2. **Things to restyle or hide → `PARTS`.** Name each visible element (`'split.title'`) and map it
-   to a selector. Keep selectors stable: renaming a class means updating `PARTS`, never breaking
-   spells. Never add questions, approvals, waiting pills, the spell review or Settings → Spells.
-3. **Behaviour knobs → `PART_PROPS`.** Typed props (`'string'`, `'int'` 1–40, `'px'` 160–1600,
-   `'bool'` or a list of values). `server/spells.js` validates them (`PROP_RANGE`); the page reads
-   them with `spellProp(part, key)` and re-applies on the `spells` bus event.
-4. **User settings → `SETTINGS`.** A setting in Settings that a spell could reasonably set goes
-   here with its allowed values. The server overlays spell values on `config.defaults` and locks
-   them (`lockedBy`); add the control to `LOCKABLE` in `web/js/features/settings.js` so the row
-   says which spell set it. Nothing secret, no telemetry or feedback switches.
-5. **New icons** in the sprite (`web/index.html`) go in `ICONS` too.
-6. **Tell the agent.** `server/spell-guide.js` builds the *Cast a spell* reference from the schema
-   automatically; for a notable new capability add a worked example to `SPELL_EXAMPLES` (the
-   tests check every example is a valid spell). `scripts/guides.mjs` builds the site's spells guide
-   from the schema; add a sentence there when the capability needs explaining.
-7. **Test it** in `test/spells.test.js`: the new slot / part / prop / setting is accepted, and bad
-   values are refused with a useful message.
+## UI (ADR-0006, ADR-0007)
 
-Example: the split view (`web/js/features/split.js`) is reachable through the
-`sidebar.top` and `split.head` slots, the `sidebar`, `split.*` and `topbar.view` parts, and the
-`sidebar` (`width`, `side`: left by default, `details`), `split.main` (`readWidth`) and `split.home` (`greeting`)
-props.
+- **Kit components only.** App and plugin UI code has no CSS: no `class`, no `style` (except CSS custom
+  properties such as `--sb-w`), no `.css` files. A kit change may land in the same PR as the feature
+  that needs it.
+- **State has one home:** server data in the entity store (written only by sync and command patches),
+  derived values as selectors, what's open in navigation (`navigate(intent)`), flows as machines,
+  drafts in the drafts store, settings in the settings store. Everything else is a local signal.
+- **Writes are commands**: an idempotency key and a declared optimistic patch (or `optimistic: 'none'`).
+  The UI updates at once and rolls back with a toast on `reject`.
+- **Nothing jumps:** keyed lists move rows in place, entry animations run once per mount, and a list
+  over 200 rows uses `VirtualList`.
+- **Nothing wraps that shouldn't** (`design/layout.md`, ADR-0012): control text (buttons, pills, chips,
+  tabs, row titles, bar labels) never wraps; bars are one line and collapse items to their icon, then into
+  More, by declared priority; only `Wrap` groups may wrap. `qa/layout.mjs` checks it at 320–1440 px.
+- Every user-facing string goes through `t('key')`. Every element a plugin may restyle has a `data-part`.
+- A UI change follows `design/` and ends with `design/checklist.md`: seen in real Chrome at desktop
+  and phone widths, in light and dark.
 
-## Split view
+## Performance is a feature (ADR-0011)
 
-The page has one layout, split view (the feed and its `view` setting are gone; a spell that still
-sets `view` loads with a warning). The task list's cards (`S.nodes`) are rows in the sidebar; at
-most one is open: its head stays in the list and its `.it-body` is `position: fixed` over
-`#splitStage` (split.js keeps `--sb-*` on that box), so code that looks things up through `n.card`
-keeps working. Under `SPLIT_MIN_WIDTH` (900px), and always in the phone app, the panes stack
-(`body.stack`, `isStacked()`): the list fills the window, and a task, a crew member's thread or home
-opens over it as a page (`body.stack-page`, set only by `paintSplit`) with Back (`goBack()`; `goHome()`
-is New task). Side by side the crew is a rail beside the list (`body.has-rail`, `crewRailOn()` in
-split.js, design/crew.md) and `--side-w` stays the list's own width; stacked, it's the Crew section.
-Scrolling goes through `web/js/features/scroll.js` (`scrollByPx`, `keepInPlace`,
-`feedAnchor`, `topInset`, `watching`): use it instead of touching `#stage` directly.
+wisp aims to be the fastest dev tool there is. Speed is checked like correctness:
 
-## Conventions
+- **Budgets fail CI** (`tools/budgets.ts`, plan §8): initial JS ≤ 120 KB br, initial CSS ≤ 30 KB br, server
+  cold start → first response ≤ 150 ms, idle RSS ≤ 120 MB with 5k sessions, list query ≤ 5 ms on 5k
+  sessions, append ≥ 20k events/s, write amplification ≤ 15× payload, p99 patch latency ≤ 150 ms (one
+  heavy user: 5k sessions, 10 running, 4 clients), tap → frame ≤ 50 ms p95 and 0 long tasks while
+  streaming on a 4×-throttled CPU. A miss blocks the merge, or needs a new ADR that changes the budget.
+- **Measure, don't guess:** a change to a hot path (store writes, the sync outbox, harness parsing, the
+  list, the transcript) comes with its bench run (`spikes/*/`) before and after, in the PR.
+- **Nothing on the hot path blocks:** no sync I/O in request handlers or the runner (`*Sync` calls are
+  refused by `tools/check` outside startup and tests), no full-list work per event, no JSON
+  re-serialisation of whole sessions.
+- **Lazy by default:** plugins activate on their first event, UI extensions load with `import()`, and only
+  open or running sessions stay in memory.
+- **The UI does the least work:** fine-grained signals (one row repaints), keyed lists that move nodes,
+  `VirtualList` past 200 rows, no layout reads after writes in one frame, no `:has()` on large boxes.
 
-- Match the code around you: short comments that say why, the same naming, no new dependencies.
-- In `web/js`, give `on*` handlers block bodies: an expression arrow that returns `false` cancels
-  the click (and silently breaks submit buttons in dialogs).
-- Never re-append a DOM node that's already in place on a refresh: re-inserting replays its CSS
-  entry animation. Compare and only move what changed (see `renderFeed`, `renderBody`).
-- UI actions update at once (optimistic), and roll back with an error toast if the server refuses
-  (`tryApi`).
-- In `server/runner.js` the store may be a test stub: call optional methods as `store?.method?.()`.
-- Borders are plain 1px neutral lines (`var(--line)`, `var(--line-2)`), no coloured side stripes.
-- Keep `:has()` to small, local boxes. Anchored on `body`, `.stage` or `#feed`, followed by `> *`, or
-  matching things that change everywhere (`.open`, `.i`, `[hidden]`), it makes every class change restyle the
-  whole page (each open and Back on a phone paid ~25 ms per change). Set a class from the JS instead
-  (`has-quick`, `l-cmp`, `pv-on`); `node qa/mobile-perf.mjs` shows the cost.
-- Don't end a selector in an `:is()` list (`.bar :is(.a, .b)`, `:is(.a, .b):hover`): Chrome can't
-  index it by class and tries it on every element of every restyle. Write the list out
-  (`.bar .a, .bar .b`). An `:is()` in the middle (`:is(.a, .b) .c`) is fine, and so is one whose
-  arguments differ in specificity or hold combinators, which a list can't replace.
-- New integrations ship off by default behind a Settings switch, with tests.
-- `scripts/site.mjs` must handle CRLF input (Windows CI).
-- User-facing features and fixes get a `CHANGELOG.md` entry under *Unreleased*. Releases also
-  update README, the docs site and the version (`package.json`, `package-lock.json`, `README.md`,
-  `docs/index.html`, `docs/integrations.md`, `docs/install.sh`, `scripts/guides.mjs`).
-- `main` is protected: work on a branch and open a PR.
-- Releasing is merging the version bump: `.github/workflows/release.yml` sees a version npm doesn't
-  have and builds the desktop app (`tauri-package.yml`), drafts the GitHub
-  release from that version's CHANGELOG section (`scripts/release-notes.mjs`, so the bump needs a
-  `## [x.y.z] - date` section), publishes to npm, publishes the release, then bumps the Homebrew tap
-  from `packaging/homebrew/wisp-agents.rb`. Nobody runs `npm publish` by hand, and no one approves
-  the run: the `npm` environment only deploys from `main`, so merging is the gate. A version with a
-  `-` (`0.38.0-beta.1`) is a beta: npm `next`, a GitHub prerelease, no Homebrew. Nightlies come
-  from the same workflow (npm allows one trusted publisher per package): when `nightly.yml` passes
-  on main and main moved, it publishes `<next patch>-nightly.<yyyymmdd>.<hhmm>` to npm `nightly`
-  and moves the rolling `nightly` prerelease to it. The updater follows the `updateChannel`
-  setting (`server/update.js`, `CHANNELS`). Download names carry
-  no version (`wisp-mac-arm64.dmg`): the site, README and the app's updater (`server/update.js`,
-  method `app`) link `releases/latest/download/<name>`, so don't rename them.
-  The Android app ships the same way from `.github/workflows/android.yml`: each main build goes to
-  Play's internal testing, and bumping `mobile/package.json`'s version promotes it (`scripts/play.mjs`).
+## Tests
+
+- Tests sit next to the code (`<package>/test/*.test.ts`). They need no network and no real harness.
+- Pure code (deciders, reducers, machines, parsers, the sync merge) gets property or model-based tests.
+- Anything an agent, a peer or a released client reads (wisp blocks, MCP tools, protocol shapes) has
+  goldens under `test/goldens/`. Changing one is a deliberate act in the PR.
+- A test that fails only some of the time is flaky: fix it, never retry it.
+
+## Git and CI
+
+- `main` is protected. Work on a branch, open a PR. Commit by file name, never `git add -A`.
+- PR CI: `npm run verify` on Linux, Node 22 and 24. Label a PR `ci:full` to run every OS. monoflow
+  reports the affected set; it does not skip anything until gate G14 passes (ADR-0001).
+- User-facing changes get a `CHANGELOG.md` entry under *Unreleased*.
+- Releasing is merging the version bump in `apps/server/package.json` (see the `release` skill).

@@ -1,0 +1,100 @@
+/* Floating and layered things: popover, tooltip, dialog, sheet, plus tabs and the splitter. */
+@layer kit {
+  /* Popover: the menu's card, with an optional head. */
+  [data-kit='popover'] {
+    width: var(--popover-w, auto); min-width: min(var(--size-menu-min), calc(100vw - var(--space-7))); max-width: calc(100vw - var(--space-7));
+    max-height: min(70vh, calc(100dvh - var(--space-9))); overflow-y: auto; padding: var(--space-6);
+    border-radius: var(--radius-xl); background: var(--surface); border: var(--size-hairline) solid var(--line); box-shadow: var(--shadow-2); outline: 0;
+  }
+  [data-kit='popover'][data-state='open'] { animation: kit-pop var(--dur-slow) var(--ease); }
+  [data-kit='popover-head'] { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) var(--space-4) 0; }
+  [data-kit='popover-title'] { font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); }
+  [data-kit='popover-body'] { font-size: var(--fs-md); color: var(--ink-2); }
+
+  /* Tooltip: small, dark on light and light on dark, never wider than a short line. */
+  [data-kit='tooltip-trigger'] { display: inline-flex; }
+  [data-kit='tooltip-positioner'] { z-index: var(--z-tooltip); }
+  [data-kit='tooltip'] {
+    display: flex; flex-direction: column; max-width: var(--size-tooltip-max); padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md); background: var(--ink); color: var(--bg); font-size: var(--fs-sm); line-height: var(--lh-snug);
+    box-shadow: var(--shadow-2); pointer-events: none; animation: kit-fade var(--dur-base) var(--ease);
+  }
+  [data-kit='tooltip-hint'] { opacity: 0.7; }
+  @media (hover: none) and (pointer: coarse) {
+    [data-kit='tooltip-positioner'] { display: none; }
+  }
+
+  /* Dialog: a card over a dim scrim (v1's .overlay / .modal). */
+  [data-kit='backdrop'] { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--shadow-scrim); animation: kit-fade var(--dur-slow) var(--ease); }
+  [data-kit='dialog-positioner'] {
+    position: fixed; inset: 0; z-index: var(--z-overlay); display: grid; place-items: center; padding: var(--space-8) var(--space-7);
+    overflow-y: auto; overscroll-behavior: contain;
+  }
+  [data-kit='dialog'], [data-kit='sheet'] {
+    position: relative; display: flex; flex-direction: column; width: min(var(--dialog-w, var(--size-dialog-md)), 100%); max-height: 86vh;
+    padding: var(--space-7) var(--space-8) var(--space-8); border-radius: var(--radius-xl); background: var(--surface);
+    border: var(--size-hairline) solid var(--line); box-shadow: var(--shadow-3); outline: 0;
+    animation: kit-rise var(--dur-slow) var(--ease);
+  }
+  [data-kit='dialog'][data-size='sm'], [data-kit='sheet'][data-size='sm'] { --dialog-w: var(--size-dialog-sm); }
+  [data-kit='dialog'][data-size='lg'], [data-kit='sheet'][data-size='lg'] { --dialog-w: var(--size-dialog-lg); }
+  [data-kit='dialog-head'] { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); margin-bottom: var(--space-6); }
+  [data-kit='dialog-head'] > [data-kit='icon-button'] { margin-right: calc(-1 * var(--space-4)); }
+  [data-kit='dialog-title'] { margin: 0; min-width: 0; font-family: var(--display); font-size: var(--fs-title); font-weight: var(--fw-semibold); line-height: var(--lh-tight); letter-spacing: var(--tracking-title); color: var(--ink); }
+  [data-kit='dialog-description'] { margin: calc(-1 * var(--space-4)) 0 var(--space-6); font-size: var(--fs-md); color: var(--muted); }
+  [data-kit='dialog-body'] { flex: 1 1 auto; min-height: 0; overflow-y: auto; font-size: var(--fs-md); color: var(--ink-2); overflow-wrap: anywhere; }
+  [data-kit='dialog-foot'] { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-4); margin-top: var(--space-8); }
+  [data-kit='sheet-handle'] { display: none; }
+
+  /* Sheet: on a phone, from the bottom edge, full width, with a grab handle; above, a card. */
+  @media (max-width: 720px) {
+    [data-kit='dialog-positioner'][data-sheet] { place-items: end stretch; padding: 0; }
+    [data-kit='sheet'] {
+      width: 100%; max-height: 90dvh; padding: var(--space-4) var(--space-7) calc(var(--space-8) + env(safe-area-inset-bottom, 0px));
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0; border-bottom: 0; animation: kit-sheet var(--dur-slower) var(--ease);
+    }
+    [data-kit='sheet-handle'] { display: block; align-self: center; flex: none; width: var(--size-control-lg); height: var(--space-2); margin-bottom: var(--space-6); border-radius: var(--radius-pill); background: var(--line-2); }
+    [data-kit='sheet'] [data-kit='dialog-foot'] > [data-kit='button'] { flex: 1 1 0; }
+  }
+
+  /* Tabs: an underline (line) or a segmented control (pill). */
+  [data-kit='tabs'] { display: flex; flex-direction: column; gap: var(--space-6); min-width: 0; }
+  [data-kit='tab-list'] { display: flex; gap: var(--space-2); min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  [data-kit='tabs'][data-variant='line'] > [data-kit='tab-list'] { gap: var(--space-7); border-bottom: var(--size-hairline) solid var(--line); }
+  [data-kit='tabs'][data-variant='pill'] > [data-kit='tab-list'] { align-self: flex-start; padding: var(--space-1); border-radius: var(--radius-control); background: var(--bg-2); }
+  [data-kit='tab-list'][data-fill] { align-self: stretch; }
+  [data-kit='tab-list'][data-fill] > [data-kit='tab'] { flex: 1 1 0; justify-content: center; }
+  [data-kit='tab'] {
+    position: relative; display: inline-flex; align-items: center; gap: var(--space-3); flex: none; height: var(--size-control-md);
+    font-size: var(--fs-md); font-weight: var(--fw-medium); color: var(--muted); white-space: nowrap; transition: color var(--dur-base), background var(--dur-base);
+  }
+  [data-kit='tab']:hover { color: var(--ink); }
+  [data-kit='tab'][data-disabled] { opacity: 0.5; cursor: not-allowed; }
+  [data-kit='tabs'][data-variant='line'] [data-kit='tab'][data-selected] { color: var(--ink); }
+  [data-kit='tabs'][data-variant='line'] [data-kit='tab'][data-selected]::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: calc(-1 * var(--size-hairline)); height: var(--size-ring); border-radius: var(--radius-pill); background: var(--ink);
+  }
+  [data-kit='tabs'][data-variant='pill'] [data-kit='tab'] { height: var(--size-control-xs); padding: var(--space-0) var(--space-5); border-radius: var(--radius-md); }
+  [data-kit='tabs'][data-variant='pill'] [data-kit='tab'][data-selected] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); }
+  [data-kit='tab-count'] { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--faint); }
+  [data-kit='tab-panel'] { min-width: 0; outline: 0; }
+  [data-kit='tab-panel'][hidden] { display: none; }
+  @media (pointer: coarse) {
+    [data-kit='tab'] { min-height: var(--size-touch); }
+  }
+
+  /* Splitter: a grip between panels; the hairline goes accent while dragged or focused. */
+  [data-kit='splitter'] { display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; }
+  [data-kit='splitter'][data-orientation='vertical'] { flex-direction: column; }
+  [data-kit='splitter-panel'] { min-width: 0; min-height: 0; overflow: auto; }
+  [data-kit='splitter-grip'] {
+    position: relative; flex: none; display: grid; place-items: center; width: var(--space-4); cursor: col-resize; touch-action: none; outline: 0;
+  }
+  [data-kit='splitter-grip'][data-orientation='vertical'] { width: auto; height: var(--space-4); cursor: row-resize; }
+  [data-kit='splitter-line'] { width: var(--size-hairline); height: 100%; background: var(--line); transition: background var(--dur-base), width var(--dur-base); }
+  [data-kit='splitter-grip'][data-orientation='vertical'] > [data-kit='splitter-line'] { width: 100%; height: var(--size-hairline); }
+  [data-kit='splitter-grip']:hover > [data-kit='splitter-line'] { background: var(--line-2); }
+  [data-kit='splitter-grip'][data-focus] > [data-kit='splitter-line'], [data-kit='splitter-grip'][data-dragging] > [data-kit='splitter-line'] { width: var(--size-ring); background: var(--accent); }
+  [data-kit='split-stacked'] { display: flex; flex-direction: column; min-width: 0; }
+  [data-kit='split-panel'] { min-width: 0; }
+}

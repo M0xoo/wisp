@@ -1,0 +1,22 @@
+{
+  "name": "@wisp/tokens",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.css": "./dist/tokens.css"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "scripts": {
+    "build": "node src/build.ts",
+    "test": "node --test --test-reporter=dot \"test/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "files": [
+    "src",
+    "dist",
+    "tokens"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "$doc": "Corner radii. v1: 8–11px on controls and cards, 99px for pills, 14px for dialogs and toasts.",
+  "xs": "4px",
+  "sm": "6px",
+  "md": "8px",
+  "control": "9px",
+  "lg": "10px",
+  "xl": "14px",
+  "pill": "99px"
+}

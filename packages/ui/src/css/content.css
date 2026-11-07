@@ -1,0 +1,107 @@
+/* Type, icons, keys, links, pills, avatars, skeletons. */
+@layer kit {
+  [data-kit='text'] { min-width: 0; }
+  [data-kit='text'][data-size='xs'], [data-kit='heading'][data-size='xs'] { font-size: var(--fs-xs); }
+  [data-kit='text'][data-size='sm'], [data-kit='heading'][data-size='sm'] { font-size: var(--fs-sm); }
+  [data-kit='text'][data-size='md'], [data-kit='heading'][data-size='md'] { font-size: var(--fs-md); }
+  [data-kit='text'][data-size='lg'], [data-kit='heading'][data-size='lg'] { font-size: var(--fs-lg); }
+  [data-kit='text'][data-size='xl'], [data-kit='heading'][data-size='xl'] { font-size: var(--fs-xl); }
+  [data-kit='text'][data-size='title'], [data-kit='heading'][data-size='title'] { font-size: var(--fs-title); }
+  [data-kit='text'][data-size='display'], [data-kit='heading'][data-size='display'] { font-size: var(--fs-display); }
+  [data-kit='text'][data-weight='regular'] { font-weight: var(--fw-regular); }
+  [data-kit='text'][data-weight='medium'] { font-weight: var(--fw-medium); }
+  [data-kit='text'][data-weight='semibold'] { font-weight: var(--fw-semibold); }
+  [data-kit='text'][data-mono] { font-family: var(--mono); }
+  [data-kit='text'][data-numeric] { font-variant-numeric: tabular-nums; }
+  [data-kit='text'][data-truncate] { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-lines] { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  [data-lines='2'] { -webkit-line-clamp: 2; line-clamp: 2; }
+  [data-lines='3'] { -webkit-line-clamp: 3; line-clamp: 3; }
+  [data-kit='text'][data-nowrap] { white-space: nowrap; flex: none; }
+  [data-kit='text'][data-break] { overflow-wrap: anywhere; }
+  [data-kit='text'][data-align='center'] { text-align: center; }
+  [data-kit='text'][data-align='end'] { text-align: end; }
+
+  /* Ink and tone colours for text and icons. Every tone sets --k-tone; pills and banners mix their
+     soft fill and their ink from it. */
+  [data-tone='ink'] { --k-tone: var(--ink); }
+  [data-tone='ink-2'] { --k-tone: var(--ink-2); }
+  [data-tone='muted'] { --k-tone: var(--muted); }
+  [data-tone='faint'] { --k-tone: var(--faint); }
+  [data-tone='accent-ink'] { --k-tone: var(--accent-ink); }
+  [data-tone='neutral'] { --k-tone: var(--tone-neutral); }
+  [data-tone='accent'] { --k-tone: var(--tone-accent); }
+  [data-tone='good'] { --k-tone: var(--tone-good); }
+  [data-tone='warn'] { --k-tone: var(--tone-warn); }
+  [data-tone='bad'] { --k-tone: var(--tone-bad); }
+  [data-tone='info'] { --k-tone: var(--tone-info); }
+  [data-kit='text'][data-tone], [data-kit='icon'][data-tone], [data-kit='heading'][data-tone] { color: var(--k-tone); }
+
+  [data-kit='heading'] { font-family: var(--display); font-weight: var(--fw-semibold); line-height: var(--lh-tight); letter-spacing: var(--tracking-title); color: var(--ink); text-wrap: balance; min-width: 0; }
+  [data-kit='heading'][data-size='display'] { letter-spacing: var(--tracking-display); }
+
+  [data-kit='icon'] { flex: none; display: inline-block; vertical-align: middle; width: var(--size-icon); height: var(--size-icon); }
+  [data-kit='icon'][data-size='xs'] { width: var(--size-icon-xs); height: var(--size-icon-xs); }
+  [data-kit='icon'][data-size='sm'] { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+  [data-kit='icon'][data-size='md'] { width: var(--size-icon-md); height: var(--size-icon-md); }
+  [data-kit='icon'][data-size='lg'] { width: var(--size-icon-lg); height: var(--size-icon-lg); }
+
+  [data-kit='kbd-group'] { display: inline-flex; gap: var(--space-1); flex: none; }
+  [data-kit='kbd'] {
+    display: inline-block; font-family: var(--mono); font-size: var(--fs-xs); line-height: var(--lh-snug);
+    padding: var(--space-0) var(--space-2); border-radius: var(--radius-xs); border: var(--size-hairline) solid var(--line-2);
+    border-bottom-width: var(--size-ring); color: var(--muted); background: var(--surface); white-space: nowrap;
+  }
+  /* No keyboard hints on touch screens (design/mobile.md). */
+  @media (hover: none) and (pointer: coarse) {
+    [data-kit='kbd-group'], [data-kit='kbd'] { display: none; }
+  }
+
+  [data-kit='link'] { font-weight: var(--fw-medium); border-radius: var(--radius-xs); }
+  [data-kit='link'][data-tone='accent'] { color: var(--accent-ink); }
+  [data-kit='link'][data-tone='ink'] { color: var(--ink); }
+  [data-kit='link'][data-tone='muted'] { color: var(--muted); }
+  [data-kit='link']:hover { text-decoration: underline; text-underline-offset: var(--space-1); }
+
+  /* Pills (v1's .pill): the tone at 85% into ink on a 9% fill. */
+  [data-kit='pill'] {
+    display: inline-flex; align-items: center; gap: var(--space-3); flex: none; height: var(--size-pill);
+    padding: var(--space-0) var(--space-4); border-radius: var(--radius-sm); font-size: var(--fs-sm);
+    font-weight: var(--fw-medium); line-height: var(--lh-tight); white-space: nowrap;
+    color: color-mix(in srgb, var(--k-tone) 85%, var(--ink)); background: color-mix(in srgb, var(--k-tone) 9%, transparent);
+  }
+  [data-kit='pill'][data-variant='outline'] {
+    background: transparent; border: var(--size-hairline) solid var(--line); border-radius: var(--radius-pill);
+    padding: var(--space-0) var(--space-3); font-size: var(--fs-xs); font-weight: var(--fw-regular); color: var(--muted);
+  }
+  [data-kit='pill'][data-variant='outline'][data-tone='accent'] { border-color: transparent; background: var(--accent-soft); color: var(--accent-ink); }
+  [data-kit='pill-label'] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  [data-kit='pill-dot'] { flex: none; width: var(--size-dot); height: var(--size-dot); border-radius: 50%; background: var(--k-tone); }
+  [data-kit='pill-dot'][data-live] { animation: kit-pulse 1.6s ease-in-out infinite; }
+
+  /* Times: faint, tabular, and in lists a fixed right-aligned column so rows line up. */
+  [data-kit='time'] { font-size: var(--fs-xs); color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  [data-kit='time'][data-column] { display: inline-block; flex: none; min-width: var(--size-time-col); text-align: end; }
+
+  [data-kit='avatar'] {
+    --k-avatar: var(--accent); position: relative; display: inline-grid; place-items: center; flex: none;
+    width: var(--size-avatar-md); height: var(--size-avatar-md); border-radius: 50%;
+    background: color-mix(in srgb, var(--k-avatar) 18%, var(--surface)); color: color-mix(in srgb, var(--k-avatar) 70%, var(--ink));
+    font-size: var(--fs-xs); font-weight: var(--fw-semibold); line-height: 1; user-select: none;
+  }
+  [data-kit='avatar'][data-size='sm'] { width: var(--size-avatar-sm); height: var(--size-avatar-sm); font-size: var(--fs-xs); }
+  [data-kit='avatar'][data-size='lg'] { width: var(--size-avatar-lg); height: var(--size-avatar-lg); font-size: var(--fs-md); }
+  [data-kit='avatar'][data-shape='square'] { border-radius: var(--radius-md); }
+  [data-kit='avatar-img'] { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+  [data-kit='avatar-status'] {
+    position: absolute; right: calc(-1 * var(--space-1)); bottom: calc(-1 * var(--space-1)); width: var(--size-dot-lg); height: var(--size-dot-lg);
+    border-radius: 50%; background: var(--k-tone); box-shadow: 0 0 0 var(--size-ring) var(--bg);
+  }
+
+  /* Placeholders: the real thing's shape, a soft pulse. */
+  [data-kit='skeleton'] { display: block; width: var(--k-w, 100%); background: var(--bg-2); animation: kit-shimmer 1.4s ease-in-out infinite; }
+  [data-kit='skeleton'][data-shape='line'] { height: var(--k-h, var(--space-6)); border-radius: var(--radius-pill); }
+  [data-kit='skeleton'][data-shape='block'] { height: var(--k-h, var(--size-control-md)); border-radius: var(--radius-control); }
+  [data-kit='skeleton'][data-shape='circle'] { display: inline-block; width: var(--k-h, var(--size-avatar-md)); height: var(--k-h, var(--size-avatar-md)); border-radius: 50%; }
+  [data-kit='skeleton'][data-shape='pill'] { display: inline-block; width: var(--k-w, var(--size-time-col)); height: var(--k-h, var(--size-pill)); border-radius: var(--radius-pill); }
+}

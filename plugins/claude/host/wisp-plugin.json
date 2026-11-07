@@ -1,0 +1,19 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.claude",
+  "name": "Claude Code",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "Claude Code as a harness: runs `claude -p --output-format stream-json` and reports what it does.",
+  "kind": "module",
+  "extends": "wisp.runtime",
+  "requires": { "wisp.runtime": "^2" },
+  "permissions": ["proc:spawn{bin:claude}", "fs:read", "fs:write{scope:claude-config}"],
+  "server": { "builtin": "./src/index.ts" },
+  "activation": ["onStartup"],
+  "contributes": {
+    "settings": [
+      { "key": "claude.subagentModel", "type": "enum", "values": ["", "haiku", "sonnet"], "default": "", "scope": "server" }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.git",
+  "name": "Git",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "git and gh for every other plugin: repo handles, status, diffs, worktrees, pull requests.",
+  "provides": { "git.service": { "version": "1.0.0" } },
+  "permissions": ["proc:spawn{bin:git}", "proc:spawn{bin:gh}", "proc:spawn{bin:xcrun}", "fs:read", "fs:write{scope:worktrees}", "blob:write"],
+  "server": { "builtin": "./src/index.ts" },
+  "activation": ["onStartup"],
+  "contributes": {
+    "events": ["git.worktree.added"]
+  }
+}

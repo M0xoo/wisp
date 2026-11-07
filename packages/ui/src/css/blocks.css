@@ -1,0 +1,59 @@
+/* Answer-block composites: stats, steps, checklists (v1's blocks.css). Entrances rise once per mount. */
+@layer kit {
+  [data-kit='stats'] {
+    display: grid; gap: var(--space-5); margin: 0;
+    grid-template-columns: repeat(auto-fit, minmax(min(calc(var(--size-time-col) * 2.5), 100%), 1fr));
+  }
+  [data-kit='stat'] {
+    position: relative; display: flex; flex-direction: column; min-width: 0; overflow: hidden;
+    padding: var(--space-7) var(--space-7) var(--space-6); border-radius: var(--radius);
+    background: var(--surface); border: var(--size-hairline) solid var(--line);
+    animation: kit-rise var(--dur-enter) var(--ease);
+  }
+  /* The label is the dt (it names the value), shown under it. */
+  [data-kit='stat-label'] { order: 2; margin-top: var(--space-2); font-size: var(--fs-sm); color: var(--muted); }
+  [data-kit='stat-value'] {
+    margin: 0; font-family: var(--display); font-size: var(--fs-display); font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight); letter-spacing: var(--tracking-display); font-variant-numeric: tabular-nums; color: var(--ink);
+  }
+  [data-kit='stat-unit'] { margin-left: var(--space-1); font-size: var(--fs-lg); font-weight: var(--fw-medium); letter-spacing: 0; color: var(--muted); }
+  [data-kit='stat-delta'] {
+    position: absolute; top: var(--space-6); right: var(--space-6); margin: 0; padding: 0 var(--space-3); border-radius: var(--radius-xs);
+    font-family: var(--mono); font-size: var(--fs-xs); font-weight: var(--fw-medium); background: var(--bg-2); color: var(--ink-2);
+  }
+  [data-kit='stat'][data-tone='good'] [data-kit='stat-delta'] { background: var(--add-bg); color: var(--good); }
+  [data-kit='stat'][data-tone='bad'] [data-kit='stat-delta'] { background: var(--del-bg); color: var(--bad); }
+
+  [data-kit='steps'] { position: relative; list-style: none; margin: 0; padding: 0; }
+  [data-kit='steps']::before {
+    content: ''; position: absolute; left: calc(var(--size-pill) / 2); top: var(--space-6); bottom: var(--space-8);
+    width: var(--size-hairline); background: var(--line-2);
+  }
+  [data-kit='step'] {
+    position: relative; display: grid; grid-template-columns: var(--size-pill) minmax(0, 1fr); gap: var(--space-6);
+    padding-bottom: var(--space-6); animation: kit-rise var(--dur-enter) var(--ease);
+  }
+  [data-kit='step']:last-child { padding-bottom: 0; }
+  [data-kit='step-mark'] {
+    position: relative; z-index: var(--z-raised); display: grid; place-items: center; width: var(--size-pill); height: var(--size-pill);
+    border-radius: var(--radius-pill); background: var(--surface); border: var(--size-ring) solid var(--line-2); color: var(--faint);
+  }
+  [data-kit='step'][data-status='done'] [data-kit='step-mark'] { border-color: var(--good); color: var(--good); }
+  [data-kit='step'][data-status='failed'] [data-kit='step-mark'] { border-color: var(--bad); color: var(--bad); }
+  [data-kit='step'][data-status='current'] [data-kit='step-mark'] { border-color: var(--accent); color: var(--accent); }
+  [data-kit='step-live'] { width: var(--size-dot); height: var(--size-dot); border-radius: var(--radius-pill); background: var(--accent); animation: kit-shimmer 1.6s ease-in-out infinite; }
+  [data-kit='step-text'] { min-width: 0; }
+  [data-kit='step-title'] { display: block; font-weight: var(--fw-semibold); line-height: var(--size-pill); color: var(--ink); }
+  [data-kit='step'][data-status='skipped'] [data-kit='step-title'], [data-kit='step'][data-status='pending'] [data-kit='step-title'] { color: var(--muted); font-weight: var(--fw-medium); }
+  [data-kit='step-detail'] { margin: var(--space-1) 0 0; font-size: var(--fs-md); color: var(--muted); overflow-wrap: anywhere; }
+
+  [data-kit='checklist'] { list-style: none; margin: 0; padding: 0; }
+  [data-kit='check-item'] { display: flex; align-items: flex-start; gap: var(--space-5); padding: var(--space-2) 0; animation: kit-rise var(--dur-enter) var(--ease); }
+  [data-kit='check-box'] {
+    display: grid; place-items: center; flex: none; width: var(--size-icon-lg); height: var(--size-icon-lg); margin-top: var(--space-1);
+    border-radius: var(--radius-sm); border: var(--size-ring) solid var(--line-2); color: transparent;
+  }
+  [data-kit='check-item'][data-done] [data-kit='check-box'] { background: var(--good); border-color: var(--good); color: var(--on-accent); }
+  [data-kit='check-text'] { min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
+  [data-kit='check-item'][data-done] [data-kit='check-text'] { color: var(--ink-2); }
+}

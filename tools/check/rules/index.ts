@@ -1,0 +1,15 @@
+import type { Rule } from '../core/types.ts';
+import { css } from './css.ts';
+import { cycles } from './cycles.ts';
+import { i18n } from './i18n.ts';
+import { layers } from './layers.ts';
+import { manifests } from './manifests.ts';
+import { noAny } from './no-any.ts';
+import { openapi } from './openapi.ts';
+import { protocol } from './protocol.ts';
+import { publicEntry } from './public-entry.ts';
+import { sizes } from './sizes.ts';
+import { state } from './state.ts';
+
+/** In ARCHITECTURE.md order. Turning one off needs an ADR (AGENTS.md). */
+export const RULES: readonly Rule[] = [layers, publicEntry, cycles, css, state, manifests, openapi, protocol, sizes, noAny, i18n];

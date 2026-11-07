@@ -1,0 +1,38 @@
+Quality: sizes (warnings), any and ts-ignore (errors), i18n (warnings). The long bodies are generated
+by the test, so this tree holds only the short files.
+=== packages/q/package.json
+{ "name": "@f/q" }
+=== packages/q/src/any.ts
+// a comment that mentions @ts-ignore in prose is not a directive
+export const a = (x: any): unknown => x;
+export const b = (x: unknown) => x as any;
+export type C = Array<any>;
+// @ts-ignore
+export const d: number = 'x';
+/* @ts-ignore */
+export const e: number = 'x';
+// @ts-expect-error the fixture's own reason
+export const f: number = 'x';
+export const g = '@ts-ignore inside a string';
+=== packages/q/src/nocheck.ts
+// @ts-nocheck
+export const x = 1;
+=== plugins/git/ui/package.json
+{ "name": "@f/git-ui" }
+=== plugins/git/ui/src/panel.tsx
+import { t } from './t.ts';
+export const P = () => (
+  <section title="Branches" aria-label={t('git.branches')}>
+    Push now
+    <span>{t('git.push')}</span>
+    <input placeholder="Search branches" type="text" data-part="git.search" />
+    {' '}
+    <b>·</b>
+  </section>
+);
+=== plugins/git/ui/src/t.ts
+export const t = (k: string) => k;
+=== plugins/git/host/package.json
+{ "name": "@f/git" }
+=== plugins/git/host/src/view.tsx
+export const V = () => <p>Server-rendered text is not checked</p>;

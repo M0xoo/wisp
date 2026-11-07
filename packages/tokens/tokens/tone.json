@@ -1,0 +1,9 @@
+{
+  "$doc": "Tones: what a pill, banner, button or text means. Each names one colour token; the kit mixes the soft fill and the ink from it (v1's .pill: 85% tone into ink, 9% fill). Colour carries meaning, not decoration.",
+  "neutral": "muted",
+  "accent": "accent",
+  "good": "good",
+  "warn": "warn",
+  "bad": "bad",
+  "info": "info"
+}

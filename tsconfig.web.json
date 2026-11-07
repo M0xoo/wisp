@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "types": [],
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "module": "esnext",
+    "moduleResolution": "bundler"
+  },
+  "include": ["packages/ui/src/**/*", "packages/client/src/**/*.ts", "plugins/*/ui/src/**/*", "apps/web/src/**/*"],
+  "exclude": ["**/node_modules", "**/dist"]
+}

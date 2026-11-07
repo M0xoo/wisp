@@ -1,0 +1,14 @@
+{
+  "$doc": "Motion: short and soft, 0.12–0.3s on the one easing curve. Entrances are a small rise or fade and play once per mount.",
+  "duration": {
+    "fast": "0.12s",
+    "base": "0.15s",
+    "slow": "0.2s",
+    "slower": "0.3s",
+    "enter": "0.45s"
+  },
+  "ease": {
+    "ease": "cubic-bezier(0.25, 0.8, 0.25, 1)",
+    "spring": "cubic-bezier(0.2, 1.1, 0.3, 1)"
+  }
+}
