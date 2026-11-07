@@ -208,9 +208,9 @@ test('rows go after an hour; one never delivered counts as lost, and the box is 
   await g.post(ada, url, update(1));
   await g.post(ada, url, update(2));
   const hour = 60 * 60_000;
-  g.grid.db.run('UPDATE channel_inbox SET at = ? WHERE event_key = ?', Date.now() - hour - 1, 'telegram:1');
+  g.grid.db.run('UPDATE channel_inbox SET at = ? WHERE event_key LIKE ?', Date.now() - hour - 1, 'telegram:1:%');
   g.grid.inbox.sweep();
-  assert.deepEqual(g.rows(ada).map((r) => r.event_key), ['telegram:2']);
+  assert.deepEqual(g.rows(ada).map((r) => r.event_key.split(':').slice(0, 2).join(':')), ['telegram:2']);
   assert.equal(g.dropped(ada), 1);
   assert.equal((await g.url(ada)).dropped, 1);
   assert.equal((await g.url(ada)).dropped, 0, 'told once');
