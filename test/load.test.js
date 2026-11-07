@@ -300,10 +300,13 @@ test('short on memory: yours runs (and the page hears so), an agent’s follow-u
     assert.equal(x.later[0].held.load, true);
     assert.equal(x.later[0].held.why, 'Waiting for memory: 9% free, needs 20%');
     assert.ok(x.later[0].at > Date.now() + 30_000, 'it looks again in about a minute');
-    // Memory back above floor + 5: the next tick sends it.
+    // Memory back above floor + 5: the next tick sends it, once turn 2's CLI has let go (Later
+    // never sends over a live run, and a slow runner still holds the handle after the turn ends).
     calm();
+    await until(() => !srv.runner.live.has(s.id) && srv.store.get(s.id).state !== 'running');
     srv.store.get(s.id).later[0].at = Date.now() - 1000;
     await srv.later.tick();
+    assert.equal(srv.store.get(s.id).later, undefined, 'the tick sent it');
     await until(async () => (await api(`/sessions/${s.id}`)).turns.length === 3, { timeout: 30_000 });
   } finally {
     ac.abort();
