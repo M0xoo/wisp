@@ -161,6 +161,21 @@ test('a retry from the sender is one message, and only what the box needs is kep
   assert.equal(bare.got(bob).length, 1);
 });
 
+test('a forged update can’t take the real one’s key: what it came with is part of the key', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  const { url } = await g.url(ada);
+  g.box(ada, { live: 1 });
+  await g.post(ada, url, update(9, 'forged'), { [SECRET]: 'a-guess' }); // the token leaked, the secret didn't
+  await until(() => g.got(ada).length === 1, { what: 'the forged one' });
+  await g.post(ada, url, update(9, 'real'));
+  await until(() => g.got(ada).length === 2, { what: 'the real one, still delivered' });
+  assert.equal(decoded(g.got(ada)[1]).message.text, 'real');
+  await g.post(ada, url, update(9, 'real')); // and Telegram's own retry is still one message
+  await sleep(120);
+  assert.equal(g.got(ada).length, 2);
+});
+
 test('over the caps: a 200 that drops and counts', async () => {
   const g = await boot({ channels: { enabled: true, maxRows: 2 }, ...NEVER });
   const ada = g.user('ada');

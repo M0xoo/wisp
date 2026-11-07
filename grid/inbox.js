@@ -51,13 +51,15 @@ function readCapped(req, max) {
   });
 }
 
-// channel_inbox's key for a request: the channel's own event id, else the body's hash.
-function eventKey(channel, body) {
+// channel_inbox's key for a request: the channel's own event id, else the body's hash, and what it
+// came with. An id alone could be taken: anyone holding the URL could post the next update_id with a
+// bad secret, and the real update would hit that row and vanish. A sender's retry repeats both.
+function eventKey(channel, body, headers) {
   let id;
   try {
     id = CHANNELS[channel].eventId(JSON.parse(body.toString('utf8')));
   } catch {}
-  return `${channel}:${id ?? createHash('sha256').update(body).digest('base64url')}`;
+  return `${channel}:${id ?? createHash('sha256').update(body).digest('base64url')}:${sha256(headers)}`;
 }
 
 export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = () => {} }) {
@@ -201,7 +203,7 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
       const size = body.length + headers.length;
       const held = pending(user.id);
       if (held.n >= opts.maxRows || held.bytes + size > opts.maxBytes) return count(user.id, channel);
-      db.run('INSERT INTO channel_inbox (user_id, channel, event_key, headers, body, size, at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, event_key) DO NOTHING', user.id, channel, eventKey(channel, body), headers, body, size, Date.now());
+      db.run('INSERT INTO channel_inbox (user_id, channel, event_key, headers, body, size, at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, event_key) DO NOTHING', user.id, channel, eventKey(channel, body, headers), headers, body, size, Date.now());
       setImmediate(() => drain(user));
     },
 
