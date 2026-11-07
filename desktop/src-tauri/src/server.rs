@@ -45,6 +45,10 @@ impl Server {
       .env("WISP_DESKTOP_DATA", data)
       .stdin(Stdio::piped())
       .stdout(Stdio::piped());
+    // A release shell has no stderr of its own, so a server that dies young would say nothing.
+    if let Ok(log) = std::fs::create_dir_all(data).and_then(|_| std::fs::File::create(data.join("server.log"))) {
+      cmd.stderr(log);
+    }
     #[cfg(windows)]
     std::os::windows::process::CommandExt::creation_flags(&mut cmd, 0x0800_0000); // CREATE_NO_WINDOW
     let mut child = cmd.spawn()?;

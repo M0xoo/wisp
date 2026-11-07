@@ -218,7 +218,7 @@ test('an AppImage update checks the sha256, replaces the file and reopens it', a
 test('the app relaunches through the installer on Windows and open on macOS', () => {
   const win = new Updater({ port: 1, env: {}, platform: 'win32', arch: 'x64', root: APP('win32') });
   win.swap = { installer: 'C:\\Temp\\wisp-update-1\\wisp-windows-x64-setup.exe' };
-  assert.equal(win.relaunchCommand(true), '"C:\\Temp\\wisp-update-1\\wisp-windows-x64-setup.exe" /S --force-run /R');
+  assert.equal(win.relaunchCommand(true), '"C:\\Temp\\wisp-update-1\\wisp-windows-x64-setup.exe" /S --force-run', 'what Electron has always run');
   const mac = new Updater({ port: 1, env: {}, platform: 'darwin', arch: 'arm64', root: APP('darwin') });
   mac.swap = { open: '/Applications/wisp.app', remove: '/tmp/wisp-update-1/old.app' };
   assert.equal(mac.relaunchCommand(true), 'rm -rf "/tmp/wisp-update-1/old.app"; open "/Applications/wisp.app"');

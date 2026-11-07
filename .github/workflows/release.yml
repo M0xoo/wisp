@@ -198,8 +198,8 @@ jobs:
 
   # Dry runs only, and no job needs this one: Electron stays what users get.
   tauri:
-    needs: plan
-    if: needs.plan.outputs.dry == 'true'
+    needs: [plan, desktop]
+    if: needs.plan.outputs.dry == 'true' && needs.plan.outputs.channel == 'stable'
     uses: ./.github/workflows/tauri-package.yml
     with:
       ref: ${{ needs.plan.outputs.sha }}

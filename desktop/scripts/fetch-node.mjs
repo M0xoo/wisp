@@ -14,13 +14,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const NODE_VERSION = '24.22.2';
+// 22, not 24: 24's binaries want macOS 13.5 (LC_BUILD_VERSION minos) and the app's floor is 13.3.
+export const NODE_VERSION = '22.23.4';
 
 export const TARGETS = {
-  'aarch64-apple-darwin': { name: 'darwin-arm64', ext: 'tar.gz', sha256: 'aa9549349e47dffaa42dcf95d6e06ade8c4bdafc980979883b88767670df385a' },
-  'x86_64-apple-darwin': { name: 'darwin-x64', ext: 'tar.gz', sha256: 'd5e336d588c45be0c37dbd52cc29895593009ca4997a77a1fd02815131ed0e52' },
-  'x86_64-pc-windows-msvc': { name: 'win-x64', ext: 'zip', sha256: 'ca1bff5d8ead13c9f2ea404a176db46bd430704d5b5113734049fa365e7799e2' },
-  'aarch64-pc-windows-msvc': { name: 'win-arm64', ext: 'zip', sha256: 'f47968c213105077f64c6510f007632c0ca2574802a0b5067c327c49abe1c468' },
+  'aarch64-apple-darwin': { name: 'darwin-arm64', ext: 'tar.gz', sha256: 'c9e1dbc748b33ed2d14f42445191ecaf14c56259c7a9a26d0042c49ec2b66428' },
+  'x86_64-apple-darwin': { name: 'darwin-x64', ext: 'tar.gz', sha256: 'efcc2b0db6f94bf53eddb038fe2b370277a042bd29e4f19b8f8e23598795b819' },
+  'x86_64-pc-windows-msvc': { name: 'win-x64', ext: 'zip', sha256: 'cbc74b5e0982c9dbb41525fd8fb5dcd32fbee237863f7829072f4639a1ce5f20' },
+  'aarch64-pc-windows-msvc': { name: 'win-arm64', ext: 'zip', sha256: 'a8b8cd79cbbb3062435f449591d98dd63730bbbf30ce2d7cc3a6376c236cb111' },
 };
 
 export const hostTarget = (platform = process.platform, arch = process.arch) => {

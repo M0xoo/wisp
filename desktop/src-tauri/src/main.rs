@@ -188,9 +188,11 @@ fn boot(app: AppHandle, port: u16) {
 
 // Tauri refuses resource_dir() on macOS when the app's path holds a symlink (a linked Applications
 // folder, /tmp). The real path is as good: all this reads is the bundle the running binary is in.
+// On Windows it's canonicalized, so \\?\C:\…: Node 22 can't run a script from such a path.
 fn resources(app: &AppHandle) -> Option<PathBuf> {
   let beside = || std::env::current_exe().ok()?.canonicalize().ok()?.parent()?.join("../Resources").canonicalize().ok();
-  app.path().resource_dir().ok().or_else(beside)
+  let dir = app.path().resource_dir().ok().or_else(beside)?;
+  Some(dir.to_str().and_then(|p| p.strip_prefix(r"\\?\")).filter(|p| !p.starts_with("UNC")).map_or_else(|| dir.clone(), PathBuf::from))
 }
 
 // WISP_* are for running from a checkout. A built app has both under its resources (the same
@@ -240,6 +242,8 @@ fn zoom_window(window: WebviewWindow) {
 }
 
 fn main() {
+  #[cfg(target_os = "macos")]
+  macos::be_node_for_electron();
   let port = port();
   let app = tauri::Builder::default()
     // First: a second launch must stop here, before it starts anything.
