@@ -9,14 +9,15 @@
 
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { KIND } from './channels/channel.js';
+import { boxGrid } from './channels/box.js';
 import { inBox, newLinkCode } from './channels/conversation.js';
-import { Discord, NOT_ON_A_BOX as NO_DISCORD_ON_A_BOX, PERMISSIONS, inviteUrl } from './channels/discord.js';
+import { Discord, NO_HUB as NO_DISCORD_HUB, PERMISSIONS, inviteUrl } from './channels/discord.js';
+import { PUBLIC_KEY } from './channels/discord-sign.js';
 import { Email } from './channels/email.js';
 import { Github } from './channels/github.js';
 import { ranInstead } from './channels/lists.js';
 import { needsWisp, scrubOut, defuse } from './channels/policy.js';
 import { Ntfy } from './channels/ntfy.js';
-import { boxGrid } from './channels/box.js';
 import { NO_HUB, Slack } from './channels/slack.js';
 import { Routed } from './channels/routed.js';
 import { Telegram } from './channels/telegram.js';
@@ -87,6 +88,7 @@ export class Remote {
     if (github.ready) github.start(ac.signal);
     if (slack.ready) slack.start(ac.signal);
     if (discord.ready) discord.start(ac.signal);
+    else discord.syncKey().catch(() => {}); // off on a box: its key leaves the grid, and the next start tries again
     email.start(ac.signal); // on a box, on or off: Settings shows it whenever the grid has mail
   }
 
@@ -270,6 +272,8 @@ export class Remote {
       discord: {
         enabled: !!c.discord?.enabled,
         token: mask(c.discord?.token),
+        publicKey: c.discord?.publicKey || '', // public: Settings shows what it has
+        endpoint: (inBox() && c.discord?.endpoint) || '',
         appId: c.discord?.appId || '',
         invite: c.discord?.appId ? inviteUrl(c.discord.appId) : '',
         connected: this.channels.discord.connected,
@@ -278,6 +282,7 @@ export class Remote {
         senders: c.discord?.senders?.length || 0,
         linkCode: c.discord?.token ? c.discord.linkCode || '' : '',
         box: inBox(),
+        noHub: inBox() && !boxGrid(),
         error: this.status.discord?.error || '',
       },
       email: this.channels.email.view(),
@@ -352,14 +357,17 @@ export class Remote {
     if (body.discord) {
       const prev = c.discord || {};
       const enabled = !!(body.discord.enabled ?? prev.enabled);
-      if (enabled && inBox()) throw bad(NO_DISCORD_ON_A_BOX);
+      if (enabled && inBox() && !boxGrid()) throw bad(NO_DISCORD_HUB); // a sandbox: one task's box, with no way in
       const token = (body.discord.token === undefined ? prev.token : keep(body.discord.token, prev.token)) || ''; // missing = unchanged
       if (token && !/^[\w-]+\.[\w-]+\.[\w-]+$/.test(token)) throw bad('That doesn’t look like a bot token: copy it from the Developer Portal → Bot → Reset Token.');
       const changed = token !== (prev.token || ''); // another bot, other people, another application
       const appId = String(body.discord.appId ?? (changed ? '' : prev.appId) ?? '').trim();
       if (appId && !/^\d{5,25}$/.test(appId)) throw bad('The application ID is a long number: Developer Portal → General Information.');
+      // Another bot, another key: only the paste that follows a first token keeps one.
+      const publicKey = String(body.discord.publicKey ?? (changed && prev.token ? '' : prev.publicKey) ?? '').trim().toLowerCase();
+      if (publicKey && !PUBLIC_KEY.test(publicKey)) throw bad('The public key is 64 hex characters: Developer Portal → General Information.');
       const relink = body.discord.unlink || changed;
-      c.discord = { ...prev, enabled, token, appId, senders: relink ? [] : prev.senders || [], linkCode: relink || !prev.linkCode ? newLinkCode() : prev.linkCode };
+      c.discord = { ...prev, enabled, token, publicKey, appId, senders: relink ? [] : prev.senders || [], linkCode: relink || !prev.linkCode ? newLinkCode() : prev.linkCode };
       if (changed) this.channels.discord.reset();
     }
     if (body.email) this.channels.email.update(body.email);

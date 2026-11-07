@@ -39,3 +39,12 @@ export async function mailReply(box, { replyTo, subject, text }) {
   if (r.status !== 200) throw new Error(r.body.error || `the grid said ${r.status}`);
   return r.body;
 }
+
+// The public key the grid's edge checks a channel's requests with, or '' to take it away. → false
+// when this grid has no hub. It's public, and only this box's own URL opens with it.
+export async function setChannelKey(box, channel, key) {
+  const r = await gridJson(`${box.grid}/api/channels/url/key?channel=${encodeURIComponent(channel)}`, { method: 'POST', headers: { authorization: box.auth }, body: { key }, timeout: 10_000 });
+  if (r.status === 404 || r.status === 401) return false;
+  if (r.status !== 200) throw new Error(r.body.error || `it said ${r.status}`);
+  return true;
+}
