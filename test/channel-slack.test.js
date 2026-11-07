@@ -931,8 +931,8 @@ test('no network behind a click: acked, answered once, and the next click is tol
   try {
     const before = fake.updates.length;
     const env = fake.click(post, 0);
+    await until(() => fake.acks.includes(env.envelope_id), { what: 'the ack' });
     await until(() => srv.remote.status.slack?.error, { what: 'the failure noted' });
-    assert.ok(fake.acks.includes(env.envelope_id));
     assert.equal(fake.updates.length, before);
     assert.equal(await nowOpen(s.id), undefined, 'the answer landed: only the telling failed');
   } finally {
