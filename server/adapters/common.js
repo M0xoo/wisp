@@ -156,6 +156,22 @@ function readSnapshot(abs) {
   }
 }
 
+// A folder pinned for this tick, and the files read from that pin since. A delegate call starts
+// all its subagents in one tick, in one folder: each pinning it for itself would block the server
+// once per subagent, and they'd all get the same answer.
+const pins = new Map(); // cwd -> { base, shown: rel path -> content at base }
+function pinFolder(cwd) {
+  if (pins.has(cwd)) return pins.get(cwd);
+  if (!pins.size) setImmediate(() => pins.clear());
+  let base = null;
+  try {
+    base = gitSync(cwd, ['stash', 'create']).toString().trim() || gitSync(cwd, ['rev-parse', '--verify', 'HEAD']).toString().trim();
+  } catch {}
+  const pin = { base, shown: new Map() };
+  pins.set(cwd, pin);
+  return pin;
+}
+
 // For harnesses that only report "file X changed" after the fact. The "before" side comes from,
 // in order: the content after the previous change we saw, else a snapshot taken when the
 // harness announced the edit (only if it predates the write — the harness doesn't wait for us),
@@ -164,22 +180,18 @@ function readSnapshot(abs) {
 export function fileTracker(cwd) {
   const known = new Map(); // rel path -> content after our last change() (null = missing)
   const announced = new Map(); // rel path -> content when the harness announced an edit
-  let base;
   const git = (args, opts) => gitSync(cwd, args, opts);
-  try {
-    // Pinned before the agent starts writing.
-    base = git(['stash', 'create']).toString().trim() || git(['rev-parse', '--verify', 'HEAD']).toString().trim();
-  } catch {
-    base = null;
-  }
+  const { base, shown } = pinFolder(cwd); // before the agent starts writing
   const fromGit = (r) => {
     if (!base || path.isAbsolute(r)) return null;
+    if (shown.has(r)) return shown.get(r);
+    let content = null;
     try {
       const out = git(['show', `${base}:./${r.split(path.sep).join('/')}`], { maxBuffer: 8 * MAX_SNAPSHOT }); // git wants / even on Windows
-      return out.length <= MAX_SNAPSHOT ? out.toString('utf8') : '';
-    } catch {
-      return null;
-    }
+      content = out.length <= MAX_SNAPSHOT ? out.toString('utf8') : '';
+    } catch {}
+    shown.set(r, content);
+    return content;
   };
 
   return {
