@@ -359,8 +359,8 @@ test('lost messages: the sender is told once it can be', async () => {
   const n = sent().length;
   g.grid.db.run("UPDATE channel_urls SET dropped = 2 WHERE channel = 'telegram'");
   await webhook(msg('hello from a thread'));
-  await until(() => sent().length > n, { what: 'a line about it' });
-  assert.ok(sent().slice(n).some((m) => /2 messages didn’t reach wisp/.test(m.text)));
+  // The message's own answer goes first (inbound, then dropped: routes/channels.js): wait for the line.
+  await until(() => sent().slice(n).some((m) => /2 messages didn’t reach wisp/.test(m.text)), { what: 'a line about it' });
   assert.equal((await g.ok('/remote')).status.telegram.dropped, 2);
   await until(() => g.grid.db.get("SELECT dropped FROM channel_urls WHERE channel = 'telegram'").dropped === 0, { what: 'the count reset' });
 });
