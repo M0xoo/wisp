@@ -225,6 +225,56 @@ test('a reply that doesn’t reach Telegram never says the follow-up failed: it 
   }
 });
 
+test('plan on the haiku alias: the ack and a follow-up say Sonnet runs, and why', async () => {
+  const note = 'Plan runs on Sonnet here, not Haiku: the Claude CLI picks it.';
+  const id = say(`in ${name} with haiku plan: read the code`);
+  const ack = await answerTo(id);
+  assert.equal(ack.text, `▶ ${name} · Sonnet · Plan\n  Read the code\n${note}`);
+  const s = await startedBy(ack.message_id);
+  assert.deepEqual([s.model, s.mode], ['haiku', 'plan'], 'what was asked for still goes to the CLI');
+  await settled(s.id);
+
+  // Into plan, on a task on the alias: no `with`, and the line says so all the same.
+  const on = say(`in ${name} with haiku edits: read the code`);
+  const onAck = await answerTo(on);
+  assert.equal(onAck.text, `▶ ${name} · Haiku · Edits\n  Read the code`);
+  const t = await startedBy(onAck.message_id);
+  await settled(t.id);
+  assert.equal((await answerTo(reply(onAck.message_id, 'plan: look again'))).text, `✓ Sent\n${note}`);
+  await until(async () => (await session(t.id)).turns.length === 2);
+  await settled(t.id);
+
+  // Onto the alias, already in plan.
+  const u = say(`in ${name} with sonnet plan: read the code`);
+  const uAck = await answerTo(u);
+  assert.equal(uAck.text, `▶ ${name} · Sonnet · Plan\n  Read the code`);
+  const v = await startedBy(uAck.message_id);
+  await settled(v.id);
+  assert.equal((await answerTo(reply(uAck.message_id, 'with haiku look again'))).text, `✓ Sent · Sonnet\n${note}`);
+  await until(async () => (await session(v.id)).turns.length === 2);
+  await settled(v.id);
+  // Haiku with edits is Haiku, and nothing moved: the line stays as it was.
+  assert.equal((await answerTo(reply(onAck.message_id, 'edits: go on'))).text, '✓ Sent');
+  await until(async () => (await session(t.id)).turns.length === 3);
+  await settled(t.id);
+});
+
+test('the report names the model the stats show when it isn’t the one asked for', async () => {
+  process.env.FAKE_SUBAGENTS = '1'; // its modelUsage: Opus the main thread, a Haiku side call
+  try {
+    const reportOf = async (words) => {
+      const ack = await answerTo(say(`in ${name} with ${words}`));
+      const s = await startedBy(ack.message_id);
+      await settled(s.id);
+      return until(() => net.sent.find((m) => m.message_id > ack.message_id && m.text.includes(s.title)), { what: 'its report' });
+    };
+    assert.match((await reportOf('sonnet: one model')).text, /\n\nRan on claude-opus-5-5, not sonnet\.(\n|$)/);
+    assert.ok(!(await reportOf('opus: same model')).text.includes('Ran on'), 'the alias of what ran: unchanged');
+  } finally {
+    delete process.env.FAKE_SUBAGENTS;
+  }
+});
+
 test('stop keeps queued follow-ups, held; status says so; the next message carries on', async () => {
   srv.store.config.defaults.followUp = 'queue';
   process.env.FAKE_DELAY = '30000';
@@ -467,6 +517,12 @@ test('a crew member: start, ack, report under their name, follow-up, one job’s
   assert.deepEqual([after.model, after.effort, after.mode], ['sonnet', '', 'edits']);
   await settled(one.id);
 
+  // The haiku alias in plan runs on Sonnet: their ack says so too.
+  const skim = say('@ada with haiku plan: skim the logs');
+  const skimmed = await answerTo(skim);
+  assert.equal(skimmed.text, `▶ Ada has it · ${name} · Sonnet · Plan\n  Skim the logs\nThat model is for this job only.\nPlan runs on Sonnet here, not Haiku: the Claude CLI picks it.`);
+  await settled((await startedBy(skimmed.message_id)).id);
+
   // What a job can't honour is refused, never ignored.
   const count = srv.store.all().length;
   for (const [text, re] of [
@@ -493,7 +549,7 @@ test('a crew member: start, ack, report under their name, follow-up, one job’s
   const held = say('@ada while paused');
   const ha = await answerTo(held);
   assert.match(ha.text, /^▶ Ada has it \(paused, this one runs anyway\) · /);
-  await settled((await startedBy(ha.message_id)).id);
+  await settled((await startedBy(skimmed.message_id)).id);
   srv.crew.update(srv.crew.get(m.id), { paused: false });
 
   const st = say('crew');

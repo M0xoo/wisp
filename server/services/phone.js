@@ -4,7 +4,7 @@
 
 import { adapters } from '../adapters/index.js';
 import { BTW_TIMEOUT_MS } from '../btw.js';
-import { ackCrew, ackTask, modelLabel } from '../channels/lists.js';
+import { ackCrew, ackTask, modelLabel, modelNote } from '../channels/lists.js';
 import { capMode, needsWisp, untrusted } from '../channels/policy.js';
 import { taggedDelegate } from '../crew.js';
 import { splitId } from '../machines.js';
@@ -87,16 +87,17 @@ export function phoneActions(app) {
   function crewAck(m, p, run, out, ctx, fallback) {
     const queued = out.queued !== undefined;
     const shown = run.mode || p.mode || (fallback && m.mode);
+    const [model, mode] = [run.model || m.model, run.mode || m.mode];
     return ackCrew({
       name: m.name,
       ahead: queued ? out.queued - 1 + app.crew.busy(m) : null,
       paused: m.paused,
       project: ctx.projects.find((x) => x.path === m.cwd)?.name || '',
-      label: modelLabel(ctx, m.agent, run.model || m.model, run.effort || m.effort),
+      label: modelLabel(ctx, m.agent, model, run.effort || m.effort, mode),
       mode: shown,
       machine: placeOf(ctx, m.sandbox ? 'sandbox' : m.machine),
       task: p.prompt,
-      notes: [...p.notes, ...(Object.keys(run).length ? [`${run.model || run.effort ? 'That model' : 'That mode'} is for this job only.`] : [])],
+      notes: [...p.notes, ...(Object.keys(run).length ? [`${run.model || run.effort ? 'That model' : 'That mode'} is for this job only.`] : []), modelNote(ctx, m.agent, model, mode)],
     });
   }
 
@@ -136,7 +137,8 @@ export function phoneActions(app) {
       app.broadcast('config', {});
       app.remote.threadStarted(s, thread, null);
       count('start', p.agent || p.model || p.effort ? 'with' : 'plain');
-      return { session: s, ack: ackTask({ project: project.name, label: modelLabel(ctx, s.agent || agent, s.model ?? model, s.effort || p.effort), mode, machine: placeOf(ctx, machine), task: s.title || p.prompt, notes: p.notes }) };
+      const [ran, used] = [s.agent || agent, s.model ?? model];
+      return { session: s, ack: ackTask({ project: project.name, label: modelLabel(ctx, ran, used, s.effort || p.effort, mode), mode, machine: placeOf(ctx, machine), task: s.title || p.prompt, notes: [...p.notes, modelNote(ctx, ran, used, mode)] }) };
     },
     // `stop` in a thread. Queued follow-ups stay, held (runner.stop): the next message carries them on.
     stop: async (sessionId) => {
@@ -181,9 +183,12 @@ export function phoneActions(app) {
       const want = { ...(p.agent && { agent: p.agent }), ...(p.model && { model: p.model }), ...(p.effort && { effort: p.effort }) };
       // On a machine its own route checks the harness; here it's checked before anything moves.
       const run = moved ? (splitId(sessionId) ? want : await app.launcher.followUpRun(s, want)) : undefined;
+      // Before it's sent: the send moves s itself.
+      const agent = p.agent || s.agent;
+      const note = moved || asked.mode !== s.mode ? modelNote({ adapters: Object.values(adapters) }, agent, p.model || (agent === s.agent ? s.model : ''), asked.mode) : '';
       const line = await followUp(ops, sessionId, text, later, { ...(asked.mode !== s.mode && { mode: asked.mode }), ...(run && { run }) });
       count('thread', moved ? 'with' : 'follow-up');
-      return moved ? `${line} · ${modelLabel(await context(), p.agent || s.agent, p.model, p.effort)}` : line;
+      return [moved ? `${line} · ${modelLabel(await context(), agent, p.model, p.effort, asked.mode)}` : line, note].filter(Boolean).join('\n');
     },
     // @Ada in a task's thread: the mention path (crew.ask). Their answer shows on the task, and comes
     // back to this thread under their name.

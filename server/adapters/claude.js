@@ -138,6 +138,11 @@ const PERMISSION_MODES = {
 // Subagents on Haiku (Settings → Usage, defaults.subagentModel): '' is the task's own model.
 export const SUBAGENT_MODELS = ['', 'haiku', 'sonnet'];
 
+// Where the CLI runs another model than --model says. Seen on claude 2.1.318 from modelUsage: `--model
+// haiku --permission-mode plan` runs claude-sonnet-5-5, `--model claude-haiku-5-5` with it stays on
+// Haiku, and Haiku with edits is Haiku. So the alias only, and only in plan.
+const MODEL_OVERRIDES = [{ model: 'haiku', mode: 'plan', label: 'Sonnet', note: 'Plan runs on Sonnet here, not Haiku: the Claude CLI picks it.' }];
+
 const n0 = (x) => (Number.isFinite(x) && x > 0 ? x : 0);
 const MODEL_KEYS = { input: 'inputTokens', output: 'outputTokens', cacheRead: 'cacheReadInputTokens', cacheWrite: 'cacheCreationInputTokens' };
 // → [{ model, input, output, cacheRead, cacheWrite }] most output first, what's new since `prev`
@@ -283,6 +288,10 @@ export default {
     { id: 'haiku', label: 'Haiku', hint: 'Fastest, for quick tasks' },
   ],
   efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+  modelOverride({ model, mode }) {
+    const o = MODEL_OVERRIDES.find((x) => x.model === model && x.mode === mode);
+    return o && { label: o.label, note: o.note };
+  },
 
   // Interactive command to take over a session in a terminal, or (terminal sessions) to start one
   // with its first prompt: sessionId names the new conversation, so wisp can resume it later.

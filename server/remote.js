@@ -8,6 +8,7 @@
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { KIND } from './channels/channel.js';
 import { Github } from './channels/github.js';
+import { ranInstead } from './channels/lists.js';
 import { needsWisp, scrubOut, defuse } from './channels/policy.js';
 import { Ntfy } from './channels/ntfy.js';
 import { NOT_ON_A_BOX, Slack, inBox, newLinkCode } from './channels/slack.js';
@@ -92,9 +93,11 @@ export class Remote {
     const options = (q?.options || []).map((o) => (typeof o === 'string' ? { label: o } : o));
     // A quick answer has no hero, only its text: that text is the report.
     const plain = blocks.find((b) => b?.type === 'markdown')?.text;
+    const asked = turn?.model ?? s.model;
+    const ran = ranInstead(asked, turn?.stats);
     return {
       title: `${icon} ${where}`,
-      text: [hero?.title && hero.title !== s.title ? hero.title : '', hero?.summary || summary?.preview || (plain && truncate(plain, 1000)) || 'Ready for review.', q?.question].filter(Boolean).join('\n\n'),
+      text: [hero?.title && hero.title !== s.title ? hero.title : '', hero?.summary || summary?.preview || (plain && truncate(plain, 1000)) || 'Ready for review.', ran && `Ran on ${ran}, not ${asked}.`, q?.question].filter(Boolean).join('\n\n'),
       actions: options.length ? options.map((o, index) => ({ label: o.label || String(o.reply || ''), kind: 'reply', ref: turn.id, index })) : [{ label: 'Mark done', kind: 'done', ref: turn?.id || '', index: 0 }],
     };
   }
