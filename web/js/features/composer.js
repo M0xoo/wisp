@@ -111,9 +111,15 @@ function paintHintRow() {
 PHONE_WIDTH.addEventListener('change', paintHintRow);
 paintHintRow();
 
+// How tall the reply box is, for what stops above it (an open question's answers, feed.css).
+const dockSize = new ResizeObserver((entries) => {
+  for (const e of entries) e.target.parentElement?.style.setProperty('--dock-h', `${e.target.offsetHeight}px`);
+});
+
 export function renderDock(id) {
   const n = S.nodes.get(id);
   const dock = $('.it-dock', n.body);
+  dockSize.observe(dock);
   const comp = el(`
     <div class="composer">
       <ul class="c-queued"></ul>
