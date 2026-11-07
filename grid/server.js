@@ -42,6 +42,7 @@ import { SANDBOX_LABEL, createSandboxes } from './sandboxes.js';
 import { SITE_LABEL, createSites, readRaw } from './sites.js';
 import { createGridTelemetry } from './telemetry.js';
 import { TUNNEL_PROTOCOL, createTunnels, hostOnly } from './tunnels.js';
+import { isShare, shareNoWorker } from '../server/http/share.js';
 
 const BODY_LIMIT = 64 * 1024;
 const ASSETS = new URL('./assets/', import.meta.url);
@@ -871,6 +872,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         return json(res, err.status || 429, { error: err.message });
       }
     }
+    if (isShare(req)) return shareNoWorker(req, res); // never wakes the box, and may carry no Origin
     // A page elsewhere can't post to someone's wisp with their cookie.
     if (req.method !== 'GET' && req.method !== 'HEAD' && who.via === 'cookie' && req.headers.origin !== origin) return json(res, 403, { error: 'forbidden origin' });
     // API keys, from the person's browser only: its cookie stays here, and the box never hears of
@@ -938,6 +940,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       if (wantsHtml(req)) return redirect(res, `${back}&path=${encodeURIComponent(p + url.search)}`);
       return json(res, 401, { error: 'Sign in again.' });
     }
+    if (isShare(req)) return shareNoWorker(req, res);
     if (req.method !== 'GET' && req.method !== 'HEAD' && who.via === 'cookie' && req.headers.origin !== origin) return json(res, 403, { error: 'forbidden origin' });
     // The computer decides whether it shows its local pages (Show local pages in previews).
     if (p === '/_grid/preview' && req.method === 'POST') return previewLink(res, url, user, c.label, true);
