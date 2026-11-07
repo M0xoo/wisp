@@ -1,5 +1,7 @@
 // Phone: push "needs you" moments to ntfy or Telegram and take the answers back. All of it runs on
 // outbound connections only (wisp polls them, or holds a socket open), so nothing has to reach this machine.
+// On a cloud wisp Telegram comes through the grid instead, which holds messages while it sleeps
+// (channels/box.js).
 //
 // This is the hub: the config, the public API and the fan-out. Each channel's wire is in
 // server/channels/ (ntfy.js, telegram.js, github.js, slack.js), and what they all share is there too: policy.js (who may
@@ -61,6 +63,7 @@ export class Remote {
     const ac = (this.ac = new AbortController());
     const c = this.cfg;
     const { ntfy, telegram, github, slack } = this.channels;
+    telegram.retryUnhook(); // before its start, and on or off: it's off that left one behind
     if (ntfy.ready) ntfy.start(ac.signal);
     if (telegram.ready) {
       if (!c.telegram.chatId && !c.telegram.linkCode) (c.telegram.linkCode = String(randomInt(100000, 999999))), this.store.saveConfig();
@@ -231,6 +234,7 @@ export class Remote {
         allowStart: !!c.telegram?.allowStart,
         options: !!c.telegram?.options,
         project: c.telegram?.project || '',
+        webhook: mask(c.telegram?.hook?.secret),
       },
       github: { enabled: !!c.github?.enabled, publicReports: !!c.github?.publicReports, login: this.channels.github.login, repos: this.channels.github.watched, error: this.status.github?.error || '' },
       slack: {
@@ -280,6 +284,11 @@ export class Remote {
         ...(relink && { chatId: null, chatName: '', linkCode: token ? String(randomInt(100000, 999999)) : '' }),
         ...((body.telegram.options ?? wasOn) && { options: true }), // absent when off: the config stays as it was
       };
+      // Switched off, unlinked or another bot: its webhook goes too. Still linked and on, it stays.
+      if (prev.hook && (relink || !c.telegram.enabled)) {
+        delete c.telegram.hook;
+        if (prev.token) this.channels.telegram.unhook(prev.token);
+      }
     }
     if (body.github) {
       const prev = c.github || {};

@@ -105,6 +105,11 @@ export function loadConfig({ dataDir, overrides = {}, env = process.env } = {}) 
   if (ad != null && ad !== false && !(isObj(ad) && ['boxMb', 'reserveMb'].every((k) => ad[k] == null || whole(ad[k], 0)))) throw new Error('hostd.admit: false, or { boxMb, reserveMb } in MiB (the memory one more box needs, and what the host keeps for itself).');
   if (cfg.hostd.previews != null && typeof cfg.hostd.previews !== 'boolean') throw new Error('hostd.previews: true or false (pages the agent runs in a box, at p<port>--<handle>; on by default for containers).');
   for (const k of ['evictAfterMs', 'queueMs']) if (cfg.hostd[k] != null && !whole(cfg.hostd[k], 0)) throw new Error(`hostd.${k}: milliseconds, a whole number.`);
+  const ch = cfg.channels;
+  if (ch != null) {
+    if (!isObj(ch) || (ch.enabled != null && typeof ch.enabled !== 'boolean')) throw new Error('channels: { enabled, maxRows, maxBytes }, enabled true or false.');
+    for (const k of ['maxRows', 'maxBytes']) if (ch[k] != null && !whole(ch[k], 1)) throw new Error(`channels.${k}: a whole number above 0.`);
+  }
   return cfg;
 }
 

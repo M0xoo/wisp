@@ -85,6 +85,7 @@ import * as stuffRoutes from './routes/stuff.js';
 import * as settingsRoutes from './routes/settings.js';
 import * as automationRoutes from './routes/automations.js';
 import * as hookRoutes from './routes/hooks.js';
+import * as channelRoutes from './routes/channels.js';
 import { HOOK_PATH } from './hooks.js';
 import * as machineRoutes from './routes/machines.js';
 import * as cloudRoutes from './routes/cloud.js';
@@ -103,7 +104,7 @@ import * as issueRoutes from './routes/issues.js';
 export { API_VERSION };
 
 // Order matters only where patterns overlap: the machine proxy claims <id>@<machine> first.
-const ROUTES = [hookRoutes, metaRoutes, autoRoutes, internalRoutes, controlRoutes, uploadRoutes, stuffRoutes, settingsRoutes, worktreeRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, workspaceRoutes, lspRoutes, spellRoutes, crewRoutes, connectorRoutes, issueRoutes];
+const ROUTES = [hookRoutes, channelRoutes, metaRoutes, autoRoutes, internalRoutes, controlRoutes, uploadRoutes, stuffRoutes, settingsRoutes, worktreeRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, workspaceRoutes, lspRoutes, spellRoutes, crewRoutes, connectorRoutes, issueRoutes];
 
 // Idle keep-alive connections are closed by the client first (Node's fetch: 4s, browsers: longer
 // but they retry). With Node's 5s default the two raced, and a request sent on a socket the
@@ -535,7 +536,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     }
 
     const url = new URL(req.url, `http://${req.headers.host}`);
-    if (req.method !== 'GET' && req.method !== 'HEAD') app.lastActivityAt = Date.now();
+    // Not a channel's message: it must never keep a cloud wisp awake. The work it starts does that.
+    if (req.method !== 'GET' && req.method !== 'HEAD' && url.pathname !== channelRoutes.CHANNEL_INBOUND) app.lastActivityAt = Date.now();
     try {
       if (!url.pathname.startsWith('/api/')) return serveStatic(req, res, url.pathname);
       if (!(await routes.handle(req, res, url))) send(res, 404, { error: 'not found' });

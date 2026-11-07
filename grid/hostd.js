@@ -154,8 +154,9 @@ export class Hostd extends EventEmitter {
     if (i) i.lastTouch = Date.now();
   }
 
-  // A request on its way to its wisp: never stopped for idleness while one is open.
-  begin(userId) {
+  // A request on its way to its wisp: never stopped for idleness while one is open. touch: false
+  // for one that mustn't count as use once it's over (a channel's message: grid/inbox.js).
+  begin(userId, { touch = true } = {}) {
     const i = this.inst.get(userId);
     if (!i) return () => {};
     i.inflight = (i.inflight || 0) + 1;
@@ -164,7 +165,7 @@ export class Hostd extends EventEmitter {
       if (done) return;
       done = true;
       i.inflight -= 1;
-      i.lastTouch = Date.now();
+      if (touch) i.lastTouch = Date.now();
     };
   }
 
