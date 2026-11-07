@@ -57,7 +57,7 @@ import { TUNNEL_PROTOCOL, createTunnels, hostOnly } from './tunnels.js';
 import { SHARE_LANDING, isShare, shareNoWorker } from '../server/http/share.js';
 
 const BODY_LIMIT = 64 * 1024;
-const ANSWER_MAX = 4096; // a box's answer to a channel's check
+const ANSWER_MAX = 16 * 1024; // a box's answer to a channel's live request: 25 autocomplete choices fit
 const ASSETS = new URL('./assets/', import.meta.url);
 const TYPES = { webp: 'image/webp', svg: 'image/svg+xml', png: 'image/png' };
 const WEB_TYPES = { css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8', svg: 'image/svg+xml' };
@@ -438,6 +438,16 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
         if (!who) return send(401, { error: 'Sign in again: this device isn’t known here (removed, or a typo in the token).' });
         limit(`mailout|${who.id}`, 120);
         return send(200, await mail.reply(who, await readBody(req)));
+      }
+      // The key a channel's edge checks with (grid/inbox.js): its own box's word, for its own URL.
+      if (inbox.on && req.method === 'POST' && p === '/api/channels/url/key') {
+        const who = boxUser(req.headers.authorization);
+        if (!who) return send(401, { error: 'Sign in again: this device isn’t known here (removed, or a typo in the token).' });
+        const channel = url.searchParams.get('channel');
+        if (!inbox.knows(channel)) return send(404, { error: 'not found' });
+        limit(`inkey|${who.id}`, 30);
+        inbox.setKey(who, channel, (await readBody(req)).key);
+        return send(200, { ok: true });
       }
       // Publishing an app from My Stuff (grid/sites.js): from wisp on a computer (its device token),
       // or from the cloud wisp itself, which has no device but has its trusted-proxy secret.

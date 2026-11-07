@@ -1,8 +1,8 @@
 // Channels reaching a sleeping box. A channel posts to <handle>.<domain>/_in/<token>; the grid keeps
 // the request, answers 200 at once, wakes the box and delivers it to POST /api/channels/inbound, in
-// order and one at a time. The grid checks nothing a channel signed and reads nothing a person said:
-// the box verifies each message itself (server/channels/). A row is held for an hour at most, and
-// once delivered keeps only its event_key, which stops a sender's retry.
+// order and one at a time. The grid reads nothing a person said, and but for a channel with an edge
+// checks nothing it signed: the box verifies each message itself (server/channels/). A row is held for
+// an hour at most, and once delivered keeps only its event_key, which stops a sender's retry.
 //
 // A channel never keeps a box awake. A wake counts like a page opening it (same queue, may evict a
 // quiet box), but delivering to a running box touches nothing: it goes back to sleep on its own idle
@@ -22,8 +22,14 @@
 // request.
 // Mail is one too, but it has no webhook of its own: one provider's for everybody (grid/mail.js),
 // which checks it and calls hold(). Its token is an address, so it can't be posted to at /_in/.
+//
+// A row may also have an edge, if its sender wants a real answer in the same call, sooner than a box
+// can wake. That's the only thing here with a key, which the box sets over its Box secret (setKey): a
+// public one, and what it lets through reaches that same box. Because of that a channel with an edge
+// reaches a box and never a computer: a computer has no Box secret to set it with.
 
 import { createHash, randomBytes } from 'node:crypto';
+import { PUBLIC_KEY, discordEdge } from '../server/channels/discord-sign.js';
 import { sha256, token } from './secrets.js';
 
 export const IN_PATH = /^\/_in\/([A-Za-z0-9_-]{32,64})$/;
@@ -37,12 +43,14 @@ const CHANNELS = {
   slack: { headers: ['x-slack-signature', 'x-slack-request-timestamp'], eventId: (j) => j?.event_id, live: (j) => j?.type === 'url_verification', skip: (j) => slackNoise(j?.event) },
   // Lower case: mail systems may fold a local part. 160 bits, and it fits one (64 characters at most).
   email: { headers: [], eventId: (j) => j?.messageId || undefined, mint: () => randomBytes(20).toString('hex') },
+  discord: { headers: ['x-signature-ed25519', 'x-signature-timestamp'], eventId: (j) => j?.id, edge: discordEdge },
 };
 export const BODY_MAX = 256 * 1024;
 const READ_MS = 15_000; // a body that takes longer isn't a webhook
 const TTL_MS = 60 * 60_000; // a message this old is stale anyway (STALE_S)
 const MAX_TRIES = 5;
 const LIVE_MS = 2500; // Slack gives a URL check 3 s
+const EDGE_LIVE_MS = 2500; // Discord gives an answer 3 s
 const NOT_UP = { status: 503, body: { error: 'wisp is asleep: try again with it open.' } };
 const DEFAULTS = { maxRows: 200, maxBytes: 2 * 1024 * 1024, ttlMs: TTL_MS, retryMs: 2000, wakeRetryMs: 30_000, wakeStrikes: 3, wakeGapMs: 10 * 60_000, sweepMs: 60_000 };
 
@@ -217,6 +225,21 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delive
     }
   }
 
+  // A box that's up answers this itself; asleep or failing, the edge's own answer stands.
+  async function passLive(user, channel, headers, body, fallback) {
+    const port = hostd.state(user.id) === 'running' && hostd.port(user.id);
+    if (!port) return fallback;
+    const done = hostd.begin(user.id, { touch: false });
+    try {
+      const out = await deliver(port, user, { channel, headers, body: body.toString('base64'), at: Date.now() }, { timeout: opts.liveMs ?? EDGE_LIVE_MS });
+      return out.status >= 200 && out.status < 300 ? out : fallback;
+    } catch {
+      return fallback;
+    } finally {
+      done();
+    }
+  }
+
   // Past their hour: gone. One that never got there counts as lost; a delivered one just stops
   // guarding against a retry.
   function sweep() {
@@ -243,6 +266,15 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delive
     knows: (channel) => Object.hasOwn(CHANNELS, String(channel)) && (channel !== 'email' || !!cfg.mail),
     read: readCapped,
     delivering: (userId) => sending.get(userId),
+
+    // The key this user's edge checks with, or none ('') to refuse everything: set by this user's
+    // own box, so it can only ever open that box's URL.
+    setKey(user, channel, key) {
+      if (!CHANNELS[channel].edge) throw Object.assign(new Error('not found'), { status: 404 });
+      if (key === '') return secrets.drop(user.id, `channel-key:${channel}`);
+      if (typeof key !== 'string' || !PUBLIC_KEY.test(key)) throw Object.assign(new Error('A public key is 64 hex characters.'), { status: 400 });
+      secrets.seal(user.id, `channel-key:${channel}`, key.toLowerCase());
+    },
 
     // { url, dropped }: this user's own, made the first time ({ address, dropped } for mail). dropped:
     // lost messages it hasn't been told of, which this tells it. The token is kept sealed, so a box
@@ -272,31 +304,43 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delive
 
     // Keep what came, and say so; the wake happens after the answer has left. Too big, or over the
     // caps: dropped and counted, still a 200, since a retry storm from the sender helps nobody.
-    // → { status, body } when the box answers this one itself, or nothing: held.
+    // → { status, body } when the sender gets more than that 200 (the box's own answer to a live
+    // request, or an edge's), or nothing: held.
     async accept(user, channel, req) {
+      const row = CHANNELS[channel];
       const body = await readCapped(req, BODY_MAX);
+      const edge = row.edge?.({ key: secrets.open(user.id, `channel-key:${channel}`), raw: body, headers: req.headers });
+      if (edge && !edge.hold && !edge.live) return edge;
       if (!body) {
         count(user.id, channel);
         return;
       }
-      const row = CHANNELS[channel];
       const kept = Object.fromEntries(row.headers.filter((h) => typeof req.headers[h] === 'string').map((h) => [h, req.headers[h]]));
+      if (edge?.live) return passLive(user, channel, kept, body, edge);
       const j = parsed(body);
       if (row.live?.(j)) return live(user, channel, kept, body);
       if (row.skip?.(j)) return;
       this.hold(user, channel, body, { headers: kept, j });
+      return edge;
     },
 
     // verified: the grid checked this one itself (grid/route.js), and it has no secret the box knows.
-    // Only the grid's own code sets it: nothing from a request does.
+    // Only the grid's own code sets it: nothing from a request does. → false when it was dropped.
     hold(user, channel, body, { headers: kept = {}, verified = false, j = parsed(body) } = {}) {
-      if (!body) return count(user.id, channel);
+      if (!body) {
+        count(user.id, channel);
+        return false;
+      }
       const headers = JSON.stringify(kept);
       const size = body.length + headers.length;
       const held = pending(user.id);
-      if (held.n >= opts.maxRows || held.bytes + size > opts.maxBytes) return count(user.id, channel);
+      if (held.n >= opts.maxRows || held.bytes + size > opts.maxBytes) {
+        count(user.id, channel);
+        return false;
+      }
       db.run('INSERT INTO channel_inbox (user_id, channel, event_key, headers, body, size, at, verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, event_key) DO NOTHING', user.id, channel, eventKey(channel, j, body, headers), headers, body, size, Date.now(), verified ? 1 : 0);
       setImmediate(() => drain(user));
+      return true;
     },
 
     // True the first time a key comes by, for the hour a row lasts: a sender's retry stops here.
