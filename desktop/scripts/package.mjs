@@ -27,7 +27,7 @@ export const artefacts = (triple) => (isMac(triple) ? [`wisp-mac-${archOf(triple
 
 // What goes in the app: what npm ships (electron-builder's list too), plus the Node side of the shell.
 export function appFiles(pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))) {
-  return ['package.json', ...pkg.files.map((f) => f.replace(/\/$/, '')), 'desktop/entry.mjs'];
+  return ['package.json', ...pkg.files.map((f) => f.replace(/\/$/, '')), 'desktop/entry.mjs', 'desktop/remove-electron.mjs'];
 }
 
 // A separate config, never tauri.conf.json: tauri-build fails on resources that aren't there, and

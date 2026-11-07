@@ -752,7 +752,9 @@ async function migrateRows() {
     try {
       const env = { ...real(4477), QA_RELEASES: `http://127.0.0.1:${releases.address().port}` };
       delete env.WISP_UPDATE_CHECK;
-      const child = start(path.join(ELECTRON_DIR(), 'wisp.exe'), [], env);
+      // From its own folder, as its Start menu shortcut starts it: the cmd.exe its update runs the
+      // installer from stands there, and Windows won't delete a folder a process stands in.
+      const child = start(path.join(ELECTRON_DIR(), 'wisp.exe'), [], env, { cwd: ELECTRON_DIR() });
       const old = await up(4477, 'v0.57.0');
       const offer = await until(async () => { const u = await (await fetch('http://127.0.0.1:4477/api/update?check=1')).json(); return u.available && u; }, { timeout: 30_000, what: 'the update on offer' });
       ok(offer.method === 'app', `method ${offer.method}`);
