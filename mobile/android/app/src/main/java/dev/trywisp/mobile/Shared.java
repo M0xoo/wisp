@@ -20,6 +20,9 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -32,7 +35,8 @@ import org.json.JSONObject;
  *
  * The bridge (window.wispAndroid) reaches every frame, a task's preview included, so an agent's
  * page can call it. What's shared goes only to whoever holds this share's token (Token), and
- * MainActivity hands that out only through evaluateJavascript, which runs in the main frame.
+ * MainActivity hands that out only through evaluateJavascript, which runs in the main frame, and
+ * only when that frame is the page of the computer the app has open (isPage).
  */
 final class Shared {
     // The page's caps too (web/js/share-form.js).
@@ -131,10 +135,36 @@ final class Shared {
         return out;
     }
 
+    private static final Pattern ORIGIN = Pattern.compile("^(https?)://([a-z0-9.-]+)(?::(\\d{1,5}))?(?:[/?#].*)?$", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    // On a grid: an agent's page (p5173--<handle>, p5173--<name>--<handle>), a site (…--app--…), a
+    // sandbox (sb-…--…). grid/server.js hostKind. Never wisp's page, whoever's they are.
+    private static final Pattern AGENTS = Pattern.compile("^(p\\d{1,5}--|sb-[a-f0-9]{8}--|.*--app--).*");
+
+    /** An http(s) address's scheme://host[:port], as location.origin says it; null for anything else. */
+    static String originOf(String url) {
+        Matcher m = url == null ? null : ORIGIN.matcher(url);
+        if (m == null || !m.matches()) return null;
+        String scheme = m.group(1).toLowerCase(Locale.ROOT);
+        String port = m.group(3);
+        if (port != null && port.equals(scheme.equals("https") ? "443" : "80")) port = null;
+        return scheme + "://" + m.group(2).toLowerCase(Locale.ROOT) + (port == null ? "" : ":" + port);
+    }
+
+    /**
+     * Whether url is wisp's page on the computer the app has open (opened: its origin). Being on a
+     * grid the app knows isn't enough, nor being on this phone's loopback: an agent's page gets into
+     * the main frame too (Open in a new tab, a link), under the same grid or another port.
+     */
+    static boolean isPage(String url, String opened) {
+        String origin = originOf(url);
+        if (origin == null || !origin.equals(opened)) return false;
+        return !AGENTS.matcher(origin.substring(origin.indexOf("//") + 2)).matches();
+    }
+
     /** Whether this type may be shared in: the manifest's filter, for what's in a mixed share. */
     static boolean allowedType(String type) {
         if (type == null) return false;
-        String t = type.toLowerCase(java.util.Locale.ROOT);
+        String t = type.toLowerCase(Locale.ROOT);
         return t.startsWith("image/") || t.startsWith("text/") || t.equals("application/pdf");
     }
 

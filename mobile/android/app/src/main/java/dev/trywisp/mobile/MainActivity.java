@@ -181,6 +181,7 @@ public class MainActivity extends BridgeActivity {
 
     // Tells the page there's a share. wisp's page gets its token in the event, in the main frame:
     // the only way to it, since any frame can reach the bridge. Without one, the list repaints its note.
+    // The page itself checks its origin too: the frame may have moved on since getUrl().
     private void offerShare() {
         runOnUiThread(() -> {
             Shared s = shared;
@@ -189,7 +190,8 @@ public class MainActivity extends BridgeActivity {
             try {
                 if (give) detail.put("token", s.token.toString());
             } catch (org.json.JSONException ignored) {}
-            js("window.dispatchEvent(new CustomEvent('wisp-share', { detail: " + detail + " }))");
+            String event = "window.dispatchEvent(new CustomEvent('wisp-share', { detail: " + detail + " }))";
+            js(give ? "if (location.origin === " + JSONObject.quote(WispSshPlugin.pageOrigin()) + ") " + event : event);
         });
     }
 
@@ -200,8 +202,9 @@ public class MainActivity extends BridgeActivity {
         Toast.makeText(this, "This computer didn’t take what you shared. Update wisp there, or open another computer.", Toast.LENGTH_LONG).show();
     }
 
+    // The computer the app has open, at its exact origin, and nothing else that can load here.
     private boolean wispPage(String url) {
-        return url != null && (url.startsWith("http://127.0.0.1:") || Grid.allowed(this, android.net.Uri.parse(url).getHost()));
+        return Shared.isPage(url, WispSshPlugin.pageOrigin());
     }
 
     // wisp's page opens it without a history entry (window.wispOpen); an older wisp only has the route.

@@ -652,7 +652,8 @@ async function openGrid(m, cid = '') {
       return toast(`Opens ${r.body.url.split('/_grid')[0]}`);
     }
     // Kept open in the background like an SSH computer, so its tasks' alerts still arrive.
-    await Ssh.stayOpen({ name: c ? c.name : nameOf(m) }).catch(() => {});
+    // origin: the one page on the grid the app treats as wisp's (MainActivity.wispPage).
+    await Ssh.stayOpen({ name: c ? c.name : nameOf(m), origin: new URL(r.body.url).origin }).catch(() => {});
     location.href = r.body.url;
   } catch (err) {
     opening = '';
