@@ -358,7 +358,7 @@ test('the box still has the last word: on at the grid and off here, it refuses a
   assert.equal(b.ch.hub.status.x.refused, 'off');
 });
 
-test('`Got it` only when it was held: a full inbox gets no public line and costs no reply', { timeout: 60_000 }, async () => {
+test('`Got it` only when it was held: a full inbox gets the fixed line of any refusal, once an hour, and nothing wakes', { timeout: 60_000 }, async () => {
   const fake = await startFakeX();
   const env = await boot({ api: fake });
   try {
@@ -369,9 +369,13 @@ test('`Got it` only when it was held: a full inbox gets no public line and costs
     env.grid.inbox.opts.maxRows = 0;
     const before = env.grid.db.get('SELECT mills FROM x_spend').mills;
     const { post } = await fake.mention({ author: '333', text: '@wispbot too much' });
-    await sleep(100);
-    assert.equal(mine(post, fake).length, 0);
-    assert.equal(env.grid.db.get('SELECT mills FROM x_spend').mills, before + xMod.COST.post, 'the reply it never sent is back');
+    await until(() => mine(post, fake).length === 1, { what: 'the fixed line' });
+    assert.equal(mine(post, fake)[0].text, xMod.PUBLIC.limited, 'never Got it');
+    const { post: again } = await fake.mention({ author: '333', text: '@wispbot and more' });
+    await sleep(150);
+    assert.equal(mine(again, fake).length, 0, 'once an hour, like the rate’s');
+    assert.equal(env.grid.db.get('SELECT mills FROM x_spend').mills, before + 2 * xMod.COST.post + xMod.COST.reply, 'the reply it didn’t send is back');
+    assert.equal(env.grid.db.get("SELECT count(*) n FROM channel_inbox WHERE channel = 'x'").n, 0);
   } finally {
     await env.grid.close();
     await fake.close();
@@ -1162,6 +1166,46 @@ test('dailySpendCents 0 is X off: nothing listens, nothing runs, and no ceiling 
     env.grid.x.sweep();
     await sleep(100);
     assert.equal(fake.subscriptions.length, 0, 'and the sweep doesn’t bring it back');
+  } finally {
+    await env.grid.close();
+    await fake.close();
+    x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
+  }
+});
+
+test('a DELETE X refuses doesn’t keep the others: each goes, the one left is named, and the sweep tries it again', { timeout: 60_000 }, async () => {
+  const fake = await startFakeX();
+  const env = await boot({ api: fake, xCfg: { ...CREDS, strangerSpendCents: 2 } });
+  try {
+    await until(() => fake.subscriptions.length === 3, { what: 'subscribed' });
+    const first = fake.subscriptions.find((s) => s.event_type === 'post.mention.create').subscription_id;
+    fake.bad.unsubscribe = new Set([first]);
+    for (let i = 0; i < 6; i++) await fake.mention({ author: `9${i}`, text: '@wispbot spam' });
+    await until(() => fake.subscriptions.length === 1, { what: 'the other two gone' });
+    await until(() => env.logs.some((l) => /post\.mention\.create/.test(l) && /still subscribed/.test(l)), { what: 'the one left, named' });
+    fake.bad.unsubscribe = null;
+    env.grid.x.sweep();
+    await until(() => fake.subscriptions.length === 0, { what: 'the last one, on the sweep' });
+  } finally {
+    await env.grid.close();
+    await fake.close();
+    x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
+  }
+});
+
+test('a subscription X gives no id isn’t stored as one: X is down, admins see why, and the sweep tries again', { timeout: 60_000 }, async () => {
+  const fake = await startFakeX();
+  fake.bad.noSubscriptionId = true;
+  const env = await boot({ api: fake });
+  try {
+    const p = await env.person('dee');
+    await until(() => env.grid.x.view(p.user, { admin: true }).spend.down, { what: 'down' });
+    assert.match(env.grid.x.view(p.user, { admin: true }).spend.down, /no id/);
+    assert.equal(env.grid.db.get("SELECT count(*) n FROM meta WHERE k LIKE 'x.sub.%'").n, 0, 'nothing stored as if it were one');
+    fake.bad.noSubscriptionId = false;
+    env.grid.x.sweep();
+    await until(() => fake.subscriptions.length === 3, { what: 'subscribed on the sweep' });
+    await until(() => env.grid.x.view(p.user, { admin: true }).spend.down === '', { what: 'up' });
   } finally {
     await env.grid.close();
     await fake.close();

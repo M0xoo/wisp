@@ -427,8 +427,13 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
     if (!reserve(COST.reply)) return; // no money for the one reply: nothing wakes either
     const follows = liveThread(user.id, ev.conversation);
     const held = hold(user, link, { id: ev.post, kind: 'post', text: ownWords(ev.text, bot.handle, ev.range).slice(0, TEXT_MAX), at: ev.at, thread: follows || ev.post, follow: !!follows, conversation: ev.conversation });
-    if (held) publicReply(ev.post, link.dm_open ? 'ack' : 'ackDm');
-    else refund(COST.reply);
+    if (held) return publicReply(ev.post, link.dm_open ? 'ack' : 'ackDm');
+    // Not held (their inbox is full): the same line as any refusal, once an hour, and never Got it.
+    if (link.told_at < Date.now() - HOUR_MS) {
+      db.run('UPDATE x_links SET told_at = ? WHERE user_id = ?', Date.now(), link.user_id);
+      return publicReply(ev.post, 'limited');
+    }
+    refund(COST.reply);
   }
 
   function takeDm(ev) {
@@ -499,18 +504,27 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
     for (const event of EVENTS) {
       if (meta(`x.sub.${event}`)) continue;
       const made = await post('/2/activity/subscriptions', { event_type: event, filter: { user_id: bot.id }, webhook_id: id, tag: 'wisp' }, app);
-      set(`x.sub.${event}`, made.data?.subscription_id ?? 'unknown');
+      // No id is no subscription this grid could ever remove: X is down until one comes back with one.
+      if (!made.data?.subscription_id) throw new Error(`X gave the ${event} subscription no id`);
+      set(`x.sub.${event}`, made.data.subscription_id);
     }
   }
 
+  // Each one, whatever became of the one before: one X refused mustn't keep the others billing.
   async function unsubscribe() {
+    const left = [];
     for (const event of EVENTS) {
       const sub = meta(`x.sub.${event}`);
       if (!sub) continue;
-      const r = await fetch(`${api}/2/activity/subscriptions/${encodeURIComponent(sub)}`, { method: 'DELETE', redirect: 'error', signal: AbortSignal.timeout(15_000), headers: { authorization: `Bearer ${bot.bearerToken}` } });
-      if (!r.ok) throw new Error(`X said ${r.status}`);
-      db.run('DELETE FROM meta WHERE k = ?', `x.sub.${event}`);
+      try {
+        const r = await fetch(`${api}/2/activity/subscriptions/${encodeURIComponent(sub)}`, { method: 'DELETE', redirect: 'error', signal: AbortSignal.timeout(15_000), headers: { authorization: `Bearer ${bot.bearerToken}` } });
+        if (!r.ok) throw new Error(`X said ${r.status}`);
+        db.run('DELETE FROM meta WHERE k = ?', `x.sub.${event}`);
+      } catch (err) {
+        left.push(`${event} (${err.message})`);
+      }
     }
+    if (left.length) throw new Error(`still subscribed: ${left.join(', ')}`);
   }
 
   const subscribed = () => EVENTS.filter((e) => meta(`x.sub.${e}`));

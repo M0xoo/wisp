@@ -49,7 +49,7 @@ export async function startFakeX(creds = CREDS) {
     fails: { tweets: [], dms: [] },
     dmed: new Set(), // who has written to the bot: only they can be written to
     target: null, // { port, host, path }: the webhook, delivered to by hand
-    bad: {}, // bad.crc: answer this webhook's CRC check as failed
+    bad: {}, // bad.crc: answer this webhook's CRC check as failed; bad.noSubscriptionId: subscribe with no id; bad.unsubscribe: a Set of ids whose DELETE is a 500
   };
   const codes = new Map();
   const tokens = new Map();
@@ -113,13 +113,15 @@ export async function startFakeX(creds = CREDS) {
     }
     if (p === '/2/activity/subscriptions' && req.method === 'POST') {
       if (!appBearer) return json(401, { title: 'Unauthorized' });
-      const s = { subscription_id: String(6000 + x.subscriptions.length), ...JSON.parse(raw || '{}') };
+      if (x.bad.noSubscriptionId) return json(200, { data: {} });
+      const s = { subscription_id: String(6000 + x.subscriptions.length + x.unsubscribed.length), ...JSON.parse(raw || '{}') };
       x.subscriptions.push(s);
       return json(200, { data: s });
     }
     const sub = /^\/2\/activity\/subscriptions\/(\d+)$/.exec(p);
     if (sub && req.method === 'DELETE') {
       if (!appBearer) return json(401, { title: 'Unauthorized' });
+      if (x.bad.unsubscribe?.has(sub[1])) return json(500, { title: 'no' });
       x.subscriptions = x.subscriptions.filter((s) => s.subscription_id !== sub[1]);
       x.unsubscribed.push(sub[1]);
       return json(200, { data: { deleted: true } });
