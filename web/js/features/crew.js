@@ -100,7 +100,7 @@ export function pickMember(id) {
 }
 // Its thread, with the rail on it. The hover card's way in too: bare openMember would leave the rail
 // on someone else, and the card says Open, so it never toggles back to All.
-function pickThread(id) {
+export function pickThread(id) {
   setCrewPick(id);
   openMember(id);
   feedToTop();

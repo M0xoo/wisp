@@ -392,6 +392,8 @@ test('later: Scheduled, Coming up, the follow-up rows, Send later and the time c
   // A face's hover card: on the page, not in the rail, so its parts don't start from #crewRail.
   for (const p of ['crew.rail.card', 'crew.rail.card.head', 'crew.rail.card.row', 'crew.rail.card.all']) assert.match(schema.PARTS[p], /^\.cl-card/, p);
   assert.deepEqual(problems({ ...base0, ui: { hide: ['crew.rail.card.all'] }, parts: { 'crew.rail.card': { style: { borderRadius: '4px' } }, 'crew.rail.card.row': { style: { opacity: '0.9' } }, 'crew.rail.card.head': { hide: true } } }), []);
+  assert.notEqual(schema.PARTS['crew.rail.card.all'], schema.PARTS['crew.rail.all']);
+  assert.match(schema.PARTS['crew.rail.card.all'], /\.cl-more/, 'the rail\'s All tile is .cl-all');
   assert.ok(problems({ ...base0, parts: { 'crew.rail.card.nope': { hide: true } } }).some((x) => /crew\.rail\.card\.nope/.test(x)));
   // Track record (a member's, with Compare crew inside) are parts; the suggestion line is a switch.
   assert.deepEqual(problems({ ...base0, parts: { 'crew.record': { props: { tips: false }, style: { opacity: '0.9' } }, 'crew.compare': { hide: true }, 'crew.record.subject': { style: { fontSize: '15px' } } } }), []);
