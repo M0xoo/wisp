@@ -102,6 +102,10 @@ narrow browser's under the media query (the reply box's mode button is icon-only
 - *New task* is the floating button (`fab.js`) over the list (the list's own New task row is hidden
   in the app): it opens home as a page, the prompt box focused. Sending goes back to the list, where
   the new task shows; Back leaves it, and the draft stays.
+- *New task* gives way to a question's choices on a row (`rowChoices`): while any are on screen it
+  fades and sinks out of reach (`fab.js giveWay`), and comes back when they go. A floating button
+  that only sometimes sits on content gives way like this rather than moving. The choices read from
+  the left like the open card's answers (`.opt`).
 - The app starts on the list, never inside a task it had open.
 - Sharing to wisp from Android's share sheet (`features/share-in.js`, `Shared.java`) is the exception: it opens
   New task, from the first paint, with it in the box and attached, without the keyboard, so Send is

@@ -314,3 +314,8 @@ Never send builds to someone's own phone as part of QA.
 - **Expected:** the list says *What you shared is waiting*; opening a computer lands it in New task. Files show as chips at once, *Shared from outside wisp* above them, and upload only on Send; Send tapped while they're still read waits for them. A second share during a read fails the first's chips with a toast (its folder gone), never a cut file. Over the caps a toast says what was left out. A file:// URI or wisp's own provider (also as `content://0@dev.trywisp.mobile.fileprovider/…`) is left out too. Nothing starts by itself. A frame on the page (a task's preview) calling `takeShare`, `shareChunk` or `shareDone` with no token or a wrong one gets nothing and doesn't use the share up; the token only arrives in the main frame's `wisp-share` event, and only on the open computer's exact origin: a preview opened in a new tab (`p5173--<handle>`), another port on 127.0.0.1 or another handle gets an event with no token. After it's taken the app's `cache/shared` folder is empty, and a killed app's is emptied on the next open. From Recents the old share doesn't come back. A computer on an older wisp keeps it and says so after 20 seconds. Notifications and the link back open as before.
 - **Emulator**, **Manual** (Play's build on a real phone)
 
+### MOB-34 Answer a question from its row
+- **Run:** `qa/mobile.mjs` (fake agents)
+- **Steps:** with a task waiting on a question, open the list; scroll its row off screen and back; tap **Yes** on the row.
+- **Expected:** while the row's choices are on screen, **New task** fades away and can't be tapped or focused; it comes back once they scroll off or the answer goes. A choice that wraps reads from the left, like the open card's answers, never centred.
+
