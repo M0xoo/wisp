@@ -130,11 +130,11 @@ test('sample: CPU is the 1-minute load over the cores; on Windows the busy share
 
 // --- the knobs ------------------------------------------------------------------------------
 
-test('limits: defaults 15% / 150% / auto; auto is one run per 3 GB, at least 2', () => {
-  assert.deepEqual(limitsOf({}, 24 * GB), { floor: 15, ceiling: 150, maxRuns: 8 });
+test('limits: defaults 15% / 200% / auto; auto is one run per 3 GB, at least 2', () => {
+  assert.deepEqual(limitsOf({}, 24 * GB), { floor: 15, ceiling: 200, maxRuns: 8 });
   assert.deepEqual(limitsOf({ memoryFloor: 'off', cpuCeiling: 'off', maxRuns: 'off' }, 24 * GB), { floor: null, ceiling: null, maxRuns: null });
   assert.deepEqual(limitsOf({ memoryFloor: '25', cpuCeiling: '200', maxRuns: '12' }), { floor: 25, ceiling: 200, maxRuns: 12 });
-  assert.deepEqual(limitsOf({ memoryFloor: '7', maxRuns: '3' }, 24 * GB), { floor: 15, ceiling: 150, maxRuns: 8 }, 'a value off the list is the default');
+  assert.deepEqual(limitsOf({ memoryFloor: '7', maxRuns: '3' }, 24 * GB), { floor: 15, ceiling: 200, maxRuns: 8 }, 'a value off the list is the default');
   assert.equal(autoRuns(4 * GB), 2);
   assert.equal(autoRuns(64 * GB), 21);
 });
@@ -172,20 +172,25 @@ test('memory: Linux PSI holds past 25% stalled and clears under 10%; floor off h
   assert.equal(off.hold(), null);
 });
 
-test('CPU: over the ceiling for 30 s holds; back under goes on at once', () => {
+test('CPU: over the ceiling (200% by default) for 60 s holds; back under goes on at once', () => {
   const { l, clock } = guard();
   l.feed({ memFreePct: 80, cpu: 180 });
+  clock.t += CPU_HOLD_MS;
+  l.feed({ memFreePct: 80, cpu: 190 });
+  assert.equal(l.hold(), null, 'under 200% holds nothing, however long');
+  l.feed({ memFreePct: 80, cpu: 240 });
   assert.equal(l.hold(), null, 'a spike holds nothing');
   clock.t += CPU_HOLD_MS - 1;
-  l.feed({ memFreePct: 80, cpu: 190 });
-  assert.equal(l.hold(), null);
+  l.feed({ memFreePct: 80, cpu: 250 });
+  assert.equal(l.hold(), null, 'a minute less a millisecond holds nothing');
   clock.t += 1;
-  l.feed({ memFreePct: 80, cpu: 175 });
-  assert.equal(l.hold().why, 'Waiting for the CPU: load at 175% of its cores, needs under 150%');
-  l.feed({ memFreePct: 80, cpu: 120 });
+  l.feed({ memFreePct: 80, cpu: 230 });
+  assert.equal(l.hold().why, 'Waiting for the CPU: load at 230% of its cores, needs under 200%');
+  l.feed({ memFreePct: 80, cpu: 150 });
   assert.equal(l.hold(), null);
-  l.feed({ memFreePct: 80, cpu: 180 });
-  assert.equal(l.hold(), null, 'the 30 s start over');
+  l.feed({ memFreePct: 80, cpu: 240 });
+  assert.equal(l.hold(), null, 'the minute starts over');
+  assert.equal(CPU_HOLD_MS, 60_000);
 });
 
 test('maxRuns: a full house holds until a slot is free; off never', () => {
@@ -249,7 +254,7 @@ test('settings: three fixed lists, refused otherwise; GET /load says what it rea
     short(11);
     const r = await api('/load');
     assert.equal(r.memFreePct, 11);
-    assert.deepEqual(r.limits, { floor: 20, ceiling: 150, maxRuns: null });
+    assert.deepEqual(r.limits, { floor: 20, ceiling: 200, maxRuns: null });
     assert.deepEqual(r.held, { kind: 'memory', why: 'Waiting for memory: 11% free, needs 25%' });
   } finally {
     calm();
