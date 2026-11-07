@@ -464,10 +464,7 @@ test('a tool approval is never answered from a comment, and says so', async () =
   comment(n, '/wisp edits: APPROVE then publish');
   await nextOn(n);
   const s = await startedOn(n);
-  const q = await nextOn(n);
-  assert.match(q, /^❓ /);
-  assert.match(q, /This one is a tool approval: answer it in wisp\./);
-  assert.doesNotMatch(q, /Choices:/);
+  assert.equal(await nextOn(n), line('Waiting for your OK in wisp: run `npm publish`'));
   assert.ok((await session(s.id)).ask?.permission);
   comment(n, '/wisp allow');
   assert.equal(await nextOn(n), line('That’s waiting for an approval, which only wisp can give: answer it there.'));
@@ -476,6 +473,136 @@ test('a tool approval is never answered from a comment, and says so', async () =
   await api(`/sessions/${s.id}/stop`, { method: 'POST' });
   await settled(s.id);
   await nextOn(n);
+});
+
+// A task of this issue, finished, to stall by hand: the agent can't ask for a clash or a connector.
+async function finishedOn(n, r = PRIVATE) {
+  comment(n, '/wisp report something', { in: r });
+  await nextOn(n, r);
+  const s = await startedOn(n, r);
+  await settled(s.id);
+  await nextOn(n, r);
+  return srv.store.get(s.id);
+}
+
+test('an approval says so here with the Phone events off, and each ask only once', async () => {
+  const events = srv.store.config.remote.events;
+  srv.store.config.remote.events = [];
+  try {
+    const n = nextIssue();
+    comment(n, '/wisp edits: APPROVE then publish');
+    await nextOn(n);
+    const s = await startedOn(n);
+    assert.equal(await nextOn(n), line('Waiting for your OK in wisp: run `npm publish`'));
+    await srv.remote.notify(srv.store.get(s.id), { project: 'p' }); // what a machine's relay can do
+    await quiet(n);
+    assert.equal(on(n).filter((b) => b.startsWith('Waiting')).length, 1, 'one line for one ask');
+    await api(`/sessions/${s.id}/stop`, { method: 'POST' });
+    await settled(s.id);
+    await nextOn(n);
+  } finally {
+    srv.store.config.remote.events = events;
+  }
+});
+
+test('a connector and a clash stall the same way, and offer no comment that can’t answer them', async () => {
+  const n = nextIssue();
+  const live = await finishedOn(n);
+  const stall = async (ask) => {
+    Object.assign(live, { state: 'waiting', ask: { id: `ask-${ask.question}`, options: ['Skip'], ...ask } });
+    await srv.remote.notify(live, { project: 'p' });
+    const said = await nextOn(n);
+    delete live.ask;
+    live.state = 'review';
+    return said;
+  };
+  assert.equal(await stall({ question: 'Sign in to Linear', connector: { id: 'c', name: 'Linear', kind: 'signin', keys: [] } }), line('Waiting for your OK in wisp: Sign in to Linear'));
+  assert.equal(await stall({ question: 'This clashes with the main task in src/a.js', clash: { file: 'src/a.js' } }), line('Waiting for your OK in wisp: This clashes with the main task in src/a.js'));
+});
+
+test('a public repo: the approval line is fixed, even with full reports on', async () => {
+  const say = (n) => nextOn(n, PUBLIC);
+  const stalled = async (n) => {
+    comment(n, '/wisp edits: APPROVE then publish', { in: PUBLIC });
+    await say(n);
+    const s = await startedOn(n, PUBLIC);
+    assert.equal(await say(n), line('Waiting for your OK in wisp.'));
+    await api(`/sessions/${s.id}/stop`, { method: 'POST' });
+    await settled(s.id);
+    await say(n);
+  };
+  await stalled(nextIssue());
+  await api('/remote', { method: 'PUT', body: { github: { publicReports: true } } });
+  try {
+    await stalled(nextIssue());
+    const n = nextIssue();
+    const live = await finishedOn(n, PUBLIC);
+    Object.assign(live, { state: 'waiting', ask: { id: 'public-connector', question: 'Sign in to Linear', options: ['Skip'], connector: { id: 'c', name: 'Linear', kind: 'signin', keys: [] } } });
+    await srv.remote.notify(live, { project: 'p' });
+    assert.equal(await say(n), line('Waiting for your OK in wisp.'));
+    delete live.ask;
+    live.state = 'review';
+  } finally {
+    await api('/remote', { method: 'PUT', body: { github: { publicReports: false } } });
+  }
+});
+
+test('a subagent’s or a side discussion’s approval reaches the thread of the task it holds up', async () => {
+  const n = nextIssue();
+  const lead = await finishedOn(n);
+  const child = srv.runner.create({ prompt: '', cwd: repo, agent: 'claude', parentId: lead.id, member: 'helper' });
+  const side = srv.runner.create({ prompt: '', cwd: repo, agent: 'claude', sideOf: { id: lead.id, title: lead.title, cwd: repo } });
+  try {
+    srv.runner.ask(child, { question: 'Allow Claude Code to run `make deploy`?', options: ['Allow', 'Deny'], permission: { tool: 'Bash', action: 'run `make deploy`', detail: 'make deploy' } });
+    assert.equal(await nextOn(n), line('Waiting for your OK in wisp: run `make deploy`'));
+    srv.runner.ask(side, { question: 'This clashes with the main task in src/a.js', options: ['Apply', 'Keep'], clash: { file: 'src/a.js' } });
+    assert.equal(await nextOn(n), line('Waiting for your OK in wisp: This clashes with the main task in src/a.js'));
+  } finally {
+    for (const x of [child, side]) {
+      delete x.ask;
+      x.state = 'review';
+    }
+  }
+  assert.equal(srv.store.get(lead.id).ask, undefined, 'the lead itself isn’t waiting');
+});
+
+test('a delegated crew job’s approval, and a helper of a task on a machine, reach that task’s thread', async () => {
+  const stalled = (id, more) => ({ id, agent: 'claude', state: 'waiting', turns: [], ...more, ask: { id: `ask-${id}`, question: 'Allow?', options: ['Allow', 'Deny'], permission: { tool: 'Bash', action: 'run `make deploy`', detail: 'make deploy' } } });
+  const n = nextIssue();
+  const lead = await finishedOn(n);
+  await srv.remote.notify(stalled('job', { crew: { id: 'm', job: 'delegated', from: { id: lead.id, title: lead.title } } }), { project: 'p' });
+  assert.equal(await nextOn(n), line('Waiting for your OK in wisp: run `make deploy`'));
+
+  const m = nextIssue();
+  srv.remote.away.set('lead@box', { channel: 'github', gh: `${PRIVATE}#${m}`, last: null });
+  try {
+    await srv.remote.notify(stalled('child@box', { parentId: 'lead@box' }), { project: 'p' });
+    assert.equal(await nextOn(m), line('Waiting for your OK in wisp: run `make deploy`'));
+  } finally {
+    srv.remote.away.delete('lead@box');
+  }
+});
+
+test('a followed-up turn says each approval, and its report still comes after them', async () => {
+  const s = await api('/sessions', { body: { prompt: 'on a branch', cwd: repo, agent: 'claude', worktree: true } });
+  await settled(s.id);
+  const n = nextIssue();
+  state.prs[n] = { number: n, headRefName: srv.store.get(s.id).worktree.branch, state: 'OPEN', url: `https://github.com/${PRIVATE}/pull/${n}` };
+  write();
+  comment(n, '/wisp edits: APPROVE TWICE then publish', { pr: true });
+  assert.equal(await nextOn(n), line('✓ Sent'));
+  const allow = async () => {
+    const asked = await until(async () => (await session(s.id)).ask);
+    await api(`/sessions/${s.id}/answer`, { body: { text: asked.options[0] } });
+    await until(async () => (await session(s.id)).ask?.id !== asked.id);
+  };
+  assert.equal(await nextOn(n), line('Waiting for your OK in wisp: run `npm publish`'));
+  await allow();
+  assert.equal(await nextOn(n), line('Waiting for your OK in wisp: run `npm publish`'));
+  await allow();
+  await settled(s.id);
+  assert.match(await nextOn(n), /^✅ /, 'that turn’s report');
+  assert.equal(srv.store.get(s.id).remote?.ghOnce, undefined, 'one shot');
 });
 
 async function reported(r, n, summary, title = 'A title', extra = []) {

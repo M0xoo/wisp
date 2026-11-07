@@ -10,7 +10,7 @@ import { tmp, until } from './helpers.js';
 process.env.WISP_HOME = tmp('policy-home');
 
 const { Remote } = await import('../server/remote.js');
-const { RateLimit, STALE_S, Seen, allowed, approvalsHere, capMode, defuse, gate, messageOf, scrubOut, untrusted } = await import('../server/channels/policy.js');
+const { RateLimit, STALE_S, Seen, allowed, approvalsHere, capMode, defuse, gate, messageOf, needsWisp, scrubOut, untrusted, waitingLine } = await import('../server/channels/policy.js');
 const { Channel } = await import('../server/channels/channel.js');
 const { Telegram } = await import('../server/channels/telegram.js');
 
@@ -320,6 +320,42 @@ test('approvalsHere: Telegram and ntfy approve from their buttons; a channel oth
   const hub = { status: {}, onChange() {} };
   assert.equal(new Channel(hub, 'slack').approvalsHere, false);
   assert.equal(new Telegram(hub).approvalsHere, true);
+});
+
+test('needsWisp: an approval, a clash or a connector; a plain question can be answered anywhere', () => {
+  for (const k of ['permission', 'clash', 'connector']) assert.equal(needsWisp({ [k]: {} }), true);
+  assert.equal(needsWisp({ question: 'Which one?' }), false);
+  assert.equal(needsWisp(undefined), false);
+});
+
+test('waitingLine: says what it wants the way the card does, on one line, in a bounded length', () => {
+  const edit = { question: 'Allow Claude Code to edit src/a.ts?', permission: { tool: 'Edit', action: 'edit src/a.ts', detail: 'src/a.ts' } };
+  assert.equal(waitingLine(edit), 'Waiting for your OK in wisp: edit src/a.ts');
+  assert.equal(waitingLine({ permission: { tool: 'Grep', action: 'use Grep', detail: 'needle' } }), 'Waiting for your OK in wisp: use Grep: needle');
+  assert.equal(waitingLine({ permission: { tool: 'Bash', action: 'run `a\n  && b`', detail: 'a\n  && b' } }), 'Waiting for your OK in wisp: run `a && b`');
+  assert.equal(waitingLine({ question: 'Sign in to Linear', connector: { name: 'Linear' } }), 'Waiting for your OK in wisp: Sign in to Linear');
+  assert.equal(waitingLine({ question: 'This clashes', clash: { file: 'a' } }), 'Waiting for your OK in wisp: This clashes');
+  assert.equal(waitingLine({ permission: { tool: 'x', action: '', detail: '' } }), 'Waiting for your OK in wisp.');
+  const clipped = { tool: 'Bash', action: `run \`${'x'.repeat(199)}…\``, detail: 'x'.repeat(5000) };
+  assert.equal(waitingLine({ permission: clipped }), `Waiting for your OK in wisp: ${clipped.action}`, 'the command once');
+  const long = waitingLine({ permission: { tool: 'Grep', action: 'use Grep', detail: 'x'.repeat(5000) } });
+  assert.ok(long.length < 340 && long.endsWith('…'), long);
+});
+
+test('waitingLine: bare is the fixed line, with nothing of the ask in it', () => {
+  assert.equal(waitingLine({ question: 'Allow?', context: 'why', permission: { tool: 'Bash', action: 'run `rm -rf /x`', detail: 'rm -rf /x' } }, { bare: true }), 'Waiting for your OK in wisp.');
+});
+
+test('waitingLine: no secret leaves, not even one the card’s clipped summary cut in half', () => {
+  const token = ['ghp', 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8'].join('_');
+  const whole = waitingLine({ permission: { tool: 'Bash', action: `run \`curl -H ${token}\``, detail: `curl -H ${token}` } });
+  assert.ok(!whole.includes(token) && whole.includes('[redacted'), whole);
+  const pad = 'x'.repeat(185);
+  const cut = `run \`${pad} ${token}`.slice(0, 200);
+  const line = waitingLine({ permission: { tool: 'Bash', action: `${cut}…`, detail: `${pad} ${token} --go` } });
+  assert.ok(!line.includes(token.slice(0, 10)), line);
+  const key = waitingLine({ question: `Set ${token}`, connector: { name: 'x' } });
+  assert.ok(!key.includes(token) && !key.includes('took a secret'), key);
 });
 
 test('Channel.mark() merges health and tells the hub', () => {

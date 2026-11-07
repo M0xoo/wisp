@@ -3,6 +3,7 @@
 // may leave. No I/O and nothing about any one channel: each hands in its ids and gets a verdict.
 
 import { redactSecrets, scanSecrets } from '../secret-scan.js';
+import { truncate } from '../util.js';
 
 export const STALE_S = 10 * 60; // a channel can keep messages for a day: don't run what was sent while wisp was off
 const SEEN_MAX = 1000;
@@ -15,6 +16,9 @@ export const MODE_LABEL = { plan: 'Plan', edits: 'Edits', auto: 'Full auto' };
 // channel where others can read or tap sends a link to wisp instead.
 const APPROVALS = { telegram: true, ntfy: true };
 export const approvalsHere = (channel) => !!APPROVALS[channel];
+
+// An ask only wisp can answer: a tool approval, a clash card, a connector's sign-in or keys.
+export const needsWisp = (ask) => !!(ask?.permission || ask?.clash || ask?.connector);
 
 // By stable id, never by a display name.
 export const allowed = (sender, list = []) => sender !== undefined && sender !== null && sender !== '' && list.some((x) => String(x) === String(sender));
@@ -104,6 +108,29 @@ export function scrubOut(text, { note = true } = {}) {
   const keys = src.replace(/-----BEGIN [A-Z ]*PRIVATE KEY( BLOCK)?-----[\s\S]*?(-----END [A-Z ]*PRIVATE KEY( BLOCK)?-----|$)/g, '-----BEGIN PRIVATE KEY-----');
   const { text: out, hits } = redactSecrets(keys);
   return { text: note ? `${out}\n\n(wisp took ${hits === 1 ? 'a secret' : `${hits} secrets`} out of this message: open the task in wisp to see it.)` : out, hits };
+}
+
+const WAITING = 'Waiting for your OK in wisp';
+const WAITING_MAX = 300;
+const oneLine = (t) => String(t ?? '').replace(/\s+/g, ' ').trim();
+
+// What an ask wants, as its card in wisp names it. The whole command is checked: the summary is
+// clipped, and half a secret no longer reads as one, so one in there shows the command redacted.
+function askedFor(ask) {
+  const clean = (t) => scrubOut(t, { note: false });
+  const p = ask?.permission;
+  if (!p) return oneLine(clean(ask?.question).text);
+  const detail = clean(p.detail);
+  if (detail.hits) return oneLine(detail.text);
+  const [action, more] = [oneLine(clean(p.action).text), oneLine(p.detail)];
+  return more && !action.includes(more.slice(0, 40)) ? `${action}: ${more}` : action;
+}
+
+// The line for a task stalled on an ask this channel can't answer. bare: where others can read and
+// strangers can steer the agent, the fixed words, with nothing of the ask.
+export function waitingLine(ask, { bare = false } = {}) {
+  const what = bare ? '' : truncate(askedFor(ask), WAITING_MAX);
+  return what ? `${WAITING}: ${what}` : `${WAITING}.`;
 }
 
 // So a report can't ping anyone: @name, @everyone and @here, and Slack's <!channel> and <@U1>. A

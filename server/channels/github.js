@@ -415,14 +415,19 @@ export class Github extends Channel {
   // Only for a task started here, or one turn of one followed up here: the hub asks, whatever the
   // Phone events say.
   async publish(msg, s) {
-    const once = s?.remote?.ghOnce ? this.#clearOnce(this.hub.store.get(s.id) || s) : '';
+    // An ask leaves the turn open: the next ask's line and its report are still to come.
+    const once = s?.remote?.ghOnce ? (s.ask ? s.remote.ghOnce : this.#clearOnce(this.hub.store.get(s.id) || s)) : '';
     const key = s?.remote?.gh || this.hub.away.get(s?.id)?.gh || once;
     if (!key) return;
     const at = key.lastIndexOf('#');
     const [repo, number] = [key.slice(0, at), Number(key.slice(at + 1))];
     await this.answering.get(key)?.catch(() => {}); // a quick task's report comes after the first reply
-    const open = await this.#open(repo);
-    await this.#post(repo, number, open ? this.#report(msg, s) : this.#fixedLine(s));
+    // That line can quote a command, so it goes by the repo alone: publicReports doesn't reach it.
+    const mine = await this.#isPrivate(repo);
+    const wait = this.waiting(s, { bare: !mine });
+    if (wait === '') return;
+    const open = wait === null ? mine || !!this.cfg.publicReports : mine;
+    await this.#post(repo, number, wait ?? (open ? this.#report(msg, s) : this.#fixedLine(s)));
     this.hub.phone.count?.('report', open ? 'full' : 'fixed');
   }
 
@@ -437,8 +442,7 @@ export class Github extends Channel {
     const by = this.hub.startedFrom(s)?.by;
     const title = by && !msg.title.startsWith(`${by}: `) ? `${by}: ${msg.title}` : msg.title;
     const choices = (msg.actions || []).filter((a) => a.kind !== 'done').map((a) => a.label);
-    const how = s.ask?.permission ? 'This one is a tool approval: answer it in wisp.' : 'Comment `/wisp …` to answer or follow up.';
-    return [title, msg.text, choices.length && !s.ask?.permission ? `Choices: ${choices.join(' · ')}` : '', how].filter(Boolean).join('\n\n');
+    return [title, msg.text, choices.length ? `Choices: ${choices.join(' · ')}` : '', 'Comment `/wisp …` to answer or follow up.'].filter(Boolean).join('\n\n');
   }
 
   // A task or a crew job began for this thread (a queued job, maybe after a restart), or err: it

@@ -512,9 +512,7 @@ test('a tool approval is never answered from Slack, and says so', async () => {
   const m = dm('edits: APPROVE then publish');
   await next(m.thread);
   const s = await taskIn(m.thread);
-  const q = await next(m.thread);
-  assert.match(q, /This one is a tool approval: answer it in wisp\./);
-  assert.doesNotMatch(q, /Choices:/);
+  assert.equal(await next(m.thread), 'Waiting for your OK in wisp: run `npm publish`');
   dm('allow', { thread_ts: m.ts });
   assert.equal(await next(m.thread), 'That’s waiting for an approval, which only wisp can give: answer it there.');
   assert.ok((await session(s.id)).ask?.permission, 'still waiting');
@@ -522,6 +520,55 @@ test('a tool approval is never answered from Slack, and says so', async () => {
   await api(`/sessions/${s.id}/stop`, { method: 'POST' });
   await settled(s.id);
   await next(m.thread);
+});
+
+test('an approval says so with the Phone events off, each ask once, and a connector or a clash too', async () => {
+  const events = srv.store.config.remote.events;
+  srv.store.config.remote.events = [];
+  try {
+    const m = dm('edits: APPROVE then publish');
+    await next(m.thread);
+    const s = await taskIn(m.thread);
+    assert.equal(await next(m.thread), 'Waiting for your OK in wisp: run `npm publish`');
+    await srv.remote.notify(srv.store.get(s.id), { project: 'p' });
+    await caughtUp(m.thread);
+    assert.equal(inThread(m.thread).filter((p) => p.text.startsWith('Waiting')).length, 1, 'one line for one ask');
+    await api(`/sessions/${s.id}/stop`, { method: 'POST' });
+    await settled(s.id);
+    await next(m.thread);
+    const live = srv.store.get(s.id);
+    for (const ask of [
+      { question: 'Sign in to Linear', connector: { id: 'c', name: 'Linear', kind: 'signin', keys: [] } },
+      { question: 'This clashes with the main task in src/a.js', clash: { file: 'src/a.js' } },
+    ]) {
+      Object.assign(live, { state: 'waiting', ask: { id: `ask-${ask.question}`, options: ['Skip'], ...ask } });
+      await srv.remote.notify(live, { project: 'p' });
+      assert.equal(await next(m.thread), `Waiting for your OK in wisp: ${ask.question}`);
+      delete live.ask;
+      live.state = 'review';
+    }
+  } finally {
+    srv.store.config.remote.events = events;
+  }
+});
+
+test('a subagent’s approval reaches the thread of the task it holds up, with no secret in it', async () => {
+  const m = dm('report something');
+  await next(m.thread);
+  const s = await taskIn(m.thread);
+  await settled(s.id);
+  await next(m.thread);
+  const token = ['ghp', 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8'].join('_');
+  const child = srv.runner.create({ prompt: '', cwd: repo, agent: 'claude', parentId: s.id, member: 'helper' });
+  try {
+    srv.runner.ask(child, { question: 'Allow?', options: ['Allow', 'Deny'], permission: { tool: 'Bash', action: `run \`gh auth login ${token}\``, detail: `gh auth login ${token}` } });
+    const said = await next(m.thread);
+    assert.match(said, /^Waiting for your OK in wisp: gh auth login \[redacted/);
+    assert.ok(!said.includes(token));
+  } finally {
+    delete child.ask;
+    child.state = 'review';
+  }
 });
 
 async function reported(summary, title = 'A title') {

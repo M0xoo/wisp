@@ -8,13 +8,14 @@
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { KIND } from './channels/channel.js';
 import { Github } from './channels/github.js';
-import { scrubOut, defuse } from './channels/policy.js';
+import { needsWisp, scrubOut, defuse } from './channels/policy.js';
 import { Ntfy } from './channels/ntfy.js';
 import { NOT_ON_A_BOX, Slack, inBox, newLinkCode } from './channels/slack.js';
 import { Telegram } from './channels/telegram.js';
 import { bad, truncate } from './util.js';
 
 export { findProject } from './channels/grammar.js';
+const MAX_HOPS = 5; // from a stalled helper up to the task with a thread
 export const mask = (t) => (t ? `••••${String(t).slice(-4)}` : '');
 
 export class Remote {
@@ -103,7 +104,8 @@ export class Remote {
     const event = s.state === 'waiting' ? 'waiting' : 'finished';
     const chosen = (this.cfg.events || ['waiting', 'finished']).includes(event);
     const from = this.startedFrom(s);
-    const own = this.#reporting().some((c) => c.reports(s)); // reported there whatever the events say; send knows
+    const lead = this.#heldUp(s);
+    const own = this.#reporting().some((c) => c.reports(lead)); // reported there whatever the events say; send knows
     if (!this.channels.telegram.options) {
       if (chosen || own) await this.send(this.message(s, summary), s, { skip: chosen ? [] : ['ntfy', 'telegram'] });
       return;
@@ -122,11 +124,12 @@ export class Remote {
     const { ntfy, telegram } = this.channels;
     const out = this.#safe(msg);
     const jobs = [];
-    const go = (c) => jobs.push(c.publish(out, s).then(() => c.mark({ ok: true }), (e) => c.mark({ ok: false, error: e.message })));
+    const go = (c, about = s) => jobs.push(c.publish(out, about).then(() => c.mark({ ok: true }), (e) => c.mark({ ok: false, error: e.message })));
     if (ntfy.ready && !skip.includes('ntfy')) go(ntfy);
     if (telegram.linked && !skip.includes('telegram')) go(telegram);
     // Only what they started or followed up. Each defuses what it posts: others can read a report there.
-    for (const c of this.#reporting()) if (c.reports(s)) go(c);
+    const lead = this.#heldUp(s);
+    for (const c of this.#reporting()) if (c.reports(lead)) go(c, lead);
     await Promise.all(jobs);
     return jobs.length;
   }
@@ -135,6 +138,20 @@ export class Remote {
   #reporting() {
     const { github, slack } = this.channels;
     return [github, slack].filter((c) => c.ready);
+  }
+
+  // Who a task is reported as. An ask only wisp can answer, in a subagent, a side discussion or a
+  // delegated crew job, has no thread of its own: it's said in the thread of the task it came from.
+  #heldUp(s) {
+    if (!needsWisp(s?.ask)) return s;
+    let lead = s;
+    for (let hops = 0; hops < MAX_HOPS && !this.#reporting().some((c) => c.reports(lead)); hops++) {
+      const id = lead.parentId || lead.sideOf?.id || (lead.crew?.job === 'delegated' && lead.crew.from?.id);
+      const up = id && (this.store.get(id) || (this.away.has(id) && { id })); // a task on a machine is only in away here
+      if (!up) break;
+      lead = up;
+    }
+    return lead === s ? s : { ...lead, ask: s.ask };
   }
 
   // What leaves: never a secret, on the channel layer or not. With it on, nobody pinged by agent text either.
