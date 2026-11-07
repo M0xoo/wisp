@@ -49,6 +49,7 @@ import { TUNNEL_PROTOCOL, createTunnels, hostOnly } from './tunnels.js';
 import { SHARE_LANDING, isShare, shareNoWorker } from '../server/http/share.js';
 
 const BODY_LIMIT = 64 * 1024;
+const ANSWER_MAX = 4096; // a box's answer to a channel's check
 const ASSETS = new URL('./assets/', import.meta.url);
 const TYPES = { webp: 'image/webp', svg: 'image/svg+xml', png: 'image/png' };
 const WEB_TYPES = { css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8', svg: 'image/svg+xml' };
@@ -201,8 +202,9 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     log,
   });
   // A channel's message on its way to a box: over the same trust path as proxy(), with a mark of
-  // its own that proxy() and previews drop from anything coming in from outside.
-  const toBox = (port, user, payload) =>
+  // its own that proxy() and previews drop from anything coming in from outside. → { status, body }:
+  // the box's own short answer, which only a sender's live check goes back with.
+  const toBox = (port, user, payload, { timeout = cfg.channels?.deliverMs || 30_000 } = {}) =>
     new Promise((resolve, reject) => {
       const data = JSON.stringify(payload);
       const up = http.request(
@@ -211,12 +213,23 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
           port,
           method: 'POST',
           path: '/api/channels/inbound',
-          timeout: cfg.channels?.deliverMs || 30_000,
+          timeout,
           headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data), 'x-wisp-proxy-secret': secrets.ensure(user.id, 'wisp-proxy'), 'x-wisp-proxy-via': 'inbox', 'x-forwarded-host': new URL(cfg.instanceUrl(user.handle)).host, 'x-forwarded-proto': cfg.scheme },
         },
         (r) => {
-          r.resume();
-          r.on('end', () => resolve(r.statusCode));
+          const chunks = [];
+          let size = 0;
+          r.on('data', (c) => {
+            size += c.length;
+            if (size <= ANSWER_MAX) chunks.push(c);
+          });
+          r.on('end', () => {
+            let body = {};
+            try {
+              body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+            } catch {}
+            resolve({ status: r.statusCode, body });
+          });
           r.on('error', reject);
         },
       );
@@ -887,8 +900,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         return none();
       }
       limit(`intok|${user.id}|${hit.channel}`, 120);
-      await inbox.accept(user, hit.channel, req);
-      return json(res, 200, { ok: true });
+      const answer = await inbox.accept(user, hit.channel, req);
+      return answer ? json(res, answer.status, answer.body) : json(res, 200, { ok: true });
     } catch (err) {
       if (err.status === 429) return json(res, 429, { error: err.message });
       log(`grid: inbox for ${handle}: ${err.message}`);

@@ -604,3 +604,85 @@ test('a grid.db from before the hub opens as it was: the migration only adds', a
   assert.equal(again.grid.db.get('SELECT count(*) n FROM channel_inbox').n, 0);
   assert.equal(again.grid.db.get('SELECT count(*) n FROM channel_urls').n, 0);
 });
+
+// Slack: the grid still reads nothing a person said. Its row of CHANNELS says what to keep and which
+// request can't wait; a signature is the box's to judge.
+const SLACK = { 'x-slack-signature': 'v0=abc', 'x-slack-request-timestamp': '1700000000' };
+const slackEvent = (id, text = 'secret words') => JSON.stringify({ type: 'event_callback', event_id: id, event: { type: 'message', text } });
+const challenge = JSON.stringify({ type: 'url_verification', challenge: 'c-1', token: 'legacy' });
+
+test('Slack: its signature headers are kept, the retry header isn’t, and a retry with the same signature is one row', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  const { url } = await g.url(ada, 'slack');
+  const body = slackEvent('Ev1');
+  assert.equal((await g.post(ada, url, body, { ...SLACK, 'x-other': 'no' })).status, 200);
+  assert.equal((await g.post(ada, url, body, { ...SLACK, 'x-slack-retry-num': '1', 'x-slack-retry-reason': 'http_timeout' })).status, 200);
+  await until(() => g.got(ada).length === 1, { what: 'delivery' });
+  await g.grid.inbox.settled();
+  const [row] = g.got(ada);
+  assert.equal(row.channel, 'slack');
+  assert.deepEqual(row.headers, SLACK);
+  assert.equal(Buffer.from(row.body, 'base64').toString(), body);
+  assert.ok(Math.abs(Date.now() - row.at) < 60_000, 'the time the grid took it');
+  assert.equal(g.grid.db.get('SELECT count(*) n FROM channel_inbox').n, 1);
+});
+
+test('Slack: a retry signed anew is a row of its own, for the box to spot; a forged event_id can’t take the real one’s place', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  const { url } = await g.url(ada, 'slack');
+  const body = slackEvent('Ev2');
+  await g.post(ada, url, body, { ...SLACK, 'x-slack-signature': 'v0=forged' });
+  await g.post(ada, url, body, SLACK);
+  await g.post(ada, url, body, { ...SLACK, 'x-slack-signature': 'v0=retry', 'x-slack-request-timestamp': '1700000060' });
+  await until(() => g.got(ada).length === 3, { what: 'all three' });
+  assert.deepEqual(g.got(ada).map((r) => r.headers['x-slack-signature']), ['v0=forged', 'v0=abc', 'v0=retry']);
+});
+
+test('url_verification, box up: answered live with what the box says, kept nowhere, and it isn’t use of the box', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  const { url } = await g.url(ada, 'slack');
+  g.box(ada, { answer: { challenge: 'c-1' } });
+  await g.grid.hostd.ensure(ada);
+  const touched = g.grid.hostd.inst.get(ada.id).lastTouch;
+  const r = await g.post(ada, url, challenge, SLACK);
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.json(), { challenge: 'c-1' });
+  assert.equal(g.grid.db.get('SELECT count(*) n FROM channel_inbox').n, 0);
+  assert.equal(g.got(ada).length, 1);
+  assert.deepEqual(g.got(ada)[0].headers, SLACK);
+  assert.equal(g.grid.hostd.inst.get(ada.id).lastTouch, touched);
+  assert.ok(!g.logs.some((l) => l.includes('c-1')));
+});
+
+test('url_verification, box asleep: a 503 for Slack to try again, no wake, nothing held', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  const { url } = await g.url(ada, 'slack');
+  const r = await g.post(ada, url, challenge, SLACK);
+  assert.equal(r.status, 503);
+  await sleep(150);
+  assert.equal(g.grid.hostd.state(ada.id), 'stopped');
+  assert.equal(g.grid.db.get('SELECT count(*) n FROM channel_inbox').n, 0);
+});
+
+test('url_verification: what the box refuses is refused, and a box that doesn’t answer is a 503', async () => {
+  const g = await boot({ channels: { enabled: true, retryMs: 30, liveMs: 200 } });
+  const ada = g.user('ada');
+  const { url } = await g.url(ada, 'slack');
+  g.box(ada, { status: 403, answer: { error: 'no' } });
+  await g.grid.hostd.ensure(ada);
+  assert.equal((await g.post(ada, url, challenge, SLACK)).status, 403);
+  g.box(ada, { answerMs: 2000 });
+  assert.equal((await g.post(ada, url, challenge, SLACK)).status, 503);
+});
+
+test('url_verification is Slack’s: on Telegram’s URL a body that looks like one is held like any other', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  const { url } = await g.url(ada);
+  assert.equal((await g.post(ada, url, challenge)).status, 200);
+  await until(() => g.got(ada).length === 1, { what: 'delivery' });
+});
