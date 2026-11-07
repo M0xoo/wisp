@@ -202,7 +202,7 @@ async function conflictedPr(prompt) {
   return { repo, s, pr };
 }
 const summaryOf = async (id) => (await api('/sessions')).find((x) => x.id === id);
-// Closed, so the minute poll stops running the fake gh (which rewrites its state file) under later tests.
+// Closed, so the minute poll stops running the fake gh under later tests.
 async function closePrs(...ids) {
   const { prs } = ghState();
   for (const id of ids) {
