@@ -310,7 +310,7 @@ export class Github extends Channel {
     } catch (err) {
       return say(`Couldn’t start it${open ? `: ${truncate(err.message, 300)}` : '. wisp can say why if you start it there.'}`);
     }
-    await say(out.ack);
+    await say(out.ack).catch(this.owe(at.key, () => say(out.ack)));
   }
 
   async #inThread(sessionId, p, ctx, at, { say, list, open, refuse }) {
@@ -325,13 +325,13 @@ export class Github extends Channel {
     const sender = at.login;
     if (p.crew) {
       if (!p.prompt) return say(`Tell ${p.crew.name} what to do after the name.`);
+      let out;
       try {
-        const out = await phone.mention(sessionId, p, { name: NAME, sender, cap: CAP, fallback: FALLBACK, about: this.#about(at), thread: this.#thread(at), ctx });
-        await say(out.ack);
+        out = await phone.mention(sessionId, p, { name: NAME, sender, cap: CAP, fallback: FALLBACK, about: this.#about(at), thread: this.#thread(at), ctx });
       } catch (err) {
-        await say(`Couldn’t ask them${open ? `: ${truncate(err.message, 300)}` : '.'}`);
+        return say(`Couldn’t ask them${open ? `: ${truncate(err.message, 300)}` : '.'}`);
       }
-      return;
+      return say(out.ack);
     }
     const btw = p.command === 'btw';
     if (!p.prompt) return say(btw ? 'Type your question after /btw.' : 'What should it do? Say it after the options.');
@@ -339,14 +339,16 @@ export class Github extends Channel {
     if (asked.refused) return say(asked.refused);
     const later = (text) => say(open ? text : 'The answer is on the task in wisp.').catch(() => {});
     const once = !btw && !this.#mine(sessionId) ? this.#reportOnce(sessionId, at.key) : null;
+    // Only the follow-up itself: a reply GitHub refuses mustn't say it wasn't sent, or call off its report.
+    let sent;
     try {
-      const sent = await phone.run(sessionId, p, { name: NAME, sender, cap: CAP, later, btw, about: this.#about(at), approvals: this.approvalsHere });
-      if (!sent.startsWith('✓')) once?.(); // refused: no turn is coming
-      await say(line(sent));
+      sent = await phone.run(sessionId, p, { name: NAME, sender, cap: CAP, later, btw, about: this.#about(at), approvals: this.approvalsHere });
     } catch (err) {
       once?.();
-      await say(`Couldn’t send that${open ? `: ${truncate(err.message, 300)}` : '.'}`);
+      return say(`Couldn’t send that${open ? `: ${truncate(err.message, 300)}` : '.'}`);
     }
+    if (!sent.startsWith('✓')) once?.(); // refused: no turn is coming
+    await say(line(sent));
   }
 
   // A task from wisp, followed up from here: this turn's report comes back, and nothing after it. On
@@ -422,6 +424,7 @@ export class Github extends Channel {
     const at = key.lastIndexOf('#');
     const [repo, number] = [key.slice(0, at), Number(key.slice(at + 1))];
     await this.answering.get(key)?.catch(() => {}); // a quick task's report comes after the first reply
+    await this.pay(key);
     // That line can quote a command, so it goes by the repo alone: publicReports doesn't reach it.
     const mine = await this.#isPrivate(repo);
     const wait = this.waiting(s, { bare: !mine });

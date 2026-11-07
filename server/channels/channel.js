@@ -11,13 +11,29 @@ import { Seen, approvalsHere, needsWisp, waitingLine } from './policy.js';
 const AWAY_MAX = 200;
 export const KIND = { a: 'answer', r: 'reply', d: 'done' };
 export const CODE = { answer: 'a', reply: 'r', done: 'd' };
+const SEND_TRIES = 3;
 export const sleep = (ms, signal) => new Promise((r) => (signal?.aborted ? r() : (setTimeout(r, ms).unref?.(), signal?.addEventListener('abort', r, { once: true }))));
+
+// A post whose connection broke: fetch rejects with a TypeError and no answer, where a kept-alive
+// socket died under it or none could be had. Nothing says it wasn't heard, so it can show twice; that
+// beats a question or a first reply that never comes. A refusal, a timeout and an abort aren't this.
+export async function resend(send, tries = SEND_TRIES) {
+  for (let left = tries; ; left--) {
+    try {
+      return await send();
+    } catch (err) {
+      if (err?.name !== 'TypeError') throw err;
+      if (left <= 1) throw new Error(`${err.message}${err.cause?.code ? ` (${err.cause.code})` : ''}`); // fetch's own words hide why
+    }
+  }
+}
 
 export class Channel {
   constructor(hub, name) {
     this.hub = hub;
     this.name = name;
     this.asksSaid = new Seen();
+    this.owed = new Map(); // thread -> sends the first reply that didn't get out
   }
 
   get ready() {
@@ -49,6 +65,22 @@ export class Channel {
     const cfg = (hub.cfg[this.name] ||= {});
     cfg.away = Object.fromEntries(Object.entries({ ...cfg.away, [id]: entry }).slice(-AWAY_MAX));
     hub.store.saveConfig();
+  }
+
+  // Keeps the first reply when it couldn't be sent: the task is running, so it's still true.
+  owe(key, send) {
+    return (err) => {
+      this.owed.set(key, send);
+      throw err;
+    };
+  }
+
+  // It goes ahead of the next thing said in that thread, or stays for the one after.
+  async pay(key) {
+    const send = this.owed.get(key);
+    if (!send) return;
+    this.owed.delete(key);
+    await send().catch(() => this.owed.set(key, send));
   }
 
   // Health for Settings: the latest result, merged over the last one.

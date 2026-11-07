@@ -7,7 +7,7 @@
 // a task. Off, every path here is the one it always was.
 
 import { truncate } from '../util.js';
-import { Channel, CODE, KIND, sleep } from './channel.js';
+import { Channel, CODE, KIND, resend, sleep } from './channel.js';
 import { findProject, parseMessage, stripFormatting } from './grammar.js';
 import { LISTS, refusal } from './lists.js';
 import { RateLimit, Seen, STALE_S, capMode, defuse, gate, scrubOut } from './policy.js';
@@ -54,12 +54,12 @@ export class Telegram extends Channel {
 
   async api(method, body, signal) {
     const base = (process.env.WISP_TELEGRAM_API || 'https://api.telegram.org').replace(/\/+$/, '');
-    const r = await fetch(`${base}/bot${this.cfg.token}/${method}`, {
+    const r = await resend(() => fetch(`${base}/bot${this.cfg.token}/${method}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
       signal: signal || AbortSignal.timeout(15_000),
-    });
+    }), method === 'sendMessage' ? undefined : 1); // the poll has its own way back; a tap's answer is past its moment
     const j = await r.json().catch(() => ({}));
     if (!j.ok) throw new Error(`Telegram: ${j.description || r.status}`);
     return j.result;
@@ -262,13 +262,14 @@ export class Telegram extends Channel {
     if (p.crew) {
       if (!p.prompt) return say(`Tell ${p.crew.name} what to do after the name.`);
       const thread = { channel: this.name, chat: m.chat.id, message: m.message_id, ack: null };
+      let out;
       try {
-        const out = await phone.mention(sessionId, p, { name: 'Telegram', sender, cap, thread, ctx });
-        const sent = await say(out.ack);
-        this.acked(thread, sent?.message_id);
+        out = await phone.mention(sessionId, p, { name: 'Telegram', sender, cap, thread, ctx });
       } catch (err) {
-        await say(`Couldn’t ask them: ${truncate(err.message, 300)}`);
+        return say(`Couldn’t ask them: ${truncate(err.message, 300)}`);
       }
+      const sent = await say(out.ack);
+      this.acked(thread, sent?.message_id);
       return;
     }
     const btw = p.command === 'btw';
