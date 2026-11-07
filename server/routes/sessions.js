@@ -242,6 +242,7 @@ export function register(r, app) {
     }
     if (t.all.length) body.subagents = [...(body.subagents || store.config.teams.find((x) => x.id === body.preset)?.members || []), ...asDelegates(t.all, body.subagents || [])];
     const out = await launcher.launchAny(body, origin);
+    app.loadWarn?.(); // yours runs anyway; short on memory, the page says so (server/load.js)
     c.send(201, out.length > 1 ? { ...out[0], group: out } : out[0]);
   });
 
@@ -467,7 +468,9 @@ export function register(r, app) {
       if (typeof machine === 'string' && machine && !aside) return c.send(200, await app.mover.move(s.id, machine, { text: text.trim(), attachments, mode, agent, model, effort, team }));
       // agent / model / effort / account: run this follow-up (and the ones after it) on another harness, model or account.
       const run = agent !== undefined || model !== undefined || effort !== undefined || account !== undefined ? await launcher.followUpRun(s, { agent, model, effort, account }) : undefined;
-      c.send(200, await launcher.replyTo(s, text.trim(), app.uploads.resolve(attachments), queue, mode, run, team, { confirm: confirmLimit === true, goal }));
+      const sent = await launcher.replyTo(s, text.trim(), app.uploads.resolve(attachments), queue, mode, run, team, { confirm: confirmLimit === true, goal });
+      app.loadWarn?.();
+      c.send(200, sent);
     }),
   );
 

@@ -426,6 +426,15 @@ test('later: Scheduled, Coming up, the follow-up rows, Send later and the time c
   assert.ok(problems({ ...base0, settings: { readTimes: 'sometimes' } }).some((x) => /readTimes/.test(x) && /on \| off/.test(x)));
 });
 
+test('machine load: memoryFloor, cpuCeiling and maxRuns with their lists, and Settings → Usage → Machine load as a part', () => {
+  assert.deepEqual(problems({ ...base0, settings: { memoryFloor: '20', cpuCeiling: '200', maxRuns: '6' } }), []);
+  assert.deepEqual(problems({ ...base0, settings: { memoryFloor: 'off', cpuCeiling: 'off', maxRuns: 'auto' } }), []);
+  assert.ok(problems({ ...base0, settings: { memoryFloor: '5' } }).some((x) => /memoryFloor/.test(x) && /off \| 10 \| 15 \| 20 \| 25/.test(x)));
+  assert.ok(problems({ ...base0, settings: { cpuCeiling: '300' } }).some((x) => /cpuCeiling/.test(x) && /off \| 100 \| 150 \| 200/.test(x)));
+  assert.ok(problems({ ...base0, settings: { maxRuns: 3 } }).some((x) => /maxRuns/.test(x) && /off \| 4 \| 6 \| 8 \| 12 \| 16 \| auto/.test(x)));
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.load'] } }), []);
+});
+
 test('worktree cleanup: a setting with its days, and Settings → Worktrees as parts', () => {
   assert.deepEqual(problems({ ...base0, settings: { worktreeCleanup: '7' } }), []);
   assert.deepEqual(problems({ ...base0, settings: { worktreeCleanup: 'off' } }), []);
