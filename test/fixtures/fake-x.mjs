@@ -39,6 +39,7 @@ export async function startFakeX(creds = CREDS) {
     dms: [],
     webhooks: [],
     subscriptions: [],
+    unsubscribed: [],
     revoked: [],
     issued: [],
     people: new Map(),
@@ -86,10 +87,10 @@ export async function startFakeX(creds = CREDS) {
       const challenge = createHash('sha256').update(b.get('code_verifier') || '').digest('base64url');
       if (challenge !== c.challenge) return json(400, { error: 'invalid_grant', error_description: 'PKCE check failed' });
       const access = `at-${randomBytes(8).toString('hex')}`;
-      const refresh = `rt-${randomBytes(8).toString('hex')}`;
+      const refresh = /offline\.access/.test(c.scope) ? `rt-${randomBytes(8).toString('hex')}` : undefined;
       tokens.set(access, c.who);
       x.issued.push({ access, refresh, scope: c.scope });
-      return json(200, { token_type: 'bearer', expires_in: 7200, access_token: access, refresh_token: refresh, scope: c.scope });
+      return json(200, { token_type: 'bearer', expires_in: 7200, access_token: access, ...(refresh && { refresh_token: refresh }), scope: c.scope });
     }
     if (p === '/2/oauth2/revoke' && req.method === 'POST') {
       x.revoked.push(new URLSearchParams(raw).get('token'));
@@ -114,6 +115,13 @@ export async function startFakeX(creds = CREDS) {
       const s = { subscription_id: String(6000 + x.subscriptions.length), ...JSON.parse(raw || '{}') };
       x.subscriptions.push(s);
       return json(200, { data: s });
+    }
+    const sub = /^\/2\/activity\/subscriptions\/(\d+)$/.exec(p);
+    if (sub && req.method === 'DELETE') {
+      if (!appBearer) return json(401, { title: 'Unauthorized' });
+      x.subscriptions = x.subscriptions.filter((s) => s.subscription_id !== sub[1]);
+      x.unsubscribed.push(sub[1]);
+      return json(200, { data: { deleted: true } });
     }
     if (p === '/2/tweets' && req.method === 'POST') {
       if (!oauth1Good(req, `${x.url}${p}`, creds)) return json(401, { title: 'Unauthorized' });

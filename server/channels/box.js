@@ -41,3 +41,10 @@ export async function xReply(box, { thread, text }) {
   if (r.status !== 200) throw new Error(r.body.error || `the grid said ${r.status}`);
   return r.body;
 }
+
+// Tells the grid whether this box's switch is on, so it doesn't wake a box only to be told no. The box
+// still decides for itself (channels/x.js).
+export async function xSwitch(box, on) {
+  const r = await gridJson(`${box.grid}/_grid/x/switch`, { method: 'POST', headers: { authorization: box.auth }, body: { on }, timeout: 10_000 });
+  if (r.status !== 200) throw new Error(r.body.error || `the grid said ${r.status}`);
+}

@@ -122,8 +122,8 @@ function xConfig(cfg, dir, env) {
   if (!isObj(x)) return null;
   const whole = (v, min) => Number.isInteger(v) && v >= min;
   if (x.paused != null && typeof x.paused !== 'boolean') throw new Error('x.paused: true or false.');
-  if (x.dailySpendCents != null && !whole(x.dailySpendCents, 0)) throw new Error('x.dailySpendCents: a whole number of cents, 0 or more.');
-  for (const k of ['sendPerHour', 'postsPerHour', 'threadDays']) if (x[k] != null && !whole(x[k], 1)) throw new Error(`x.${k}: a whole number above 0.`);
+  for (const k of ['dailySpendCents', 'strangerSpendCents']) if (x[k] != null && !whole(x[k], 0)) throw new Error(`x.${k}: a whole number of cents, 0 or more.`);
+  for (const k of ['sendPerHour', 'postsPerHour', 'threadDays', 'piecesPerDay', 'outboxRows', 'outboxBytes']) if (x[k] != null && !whole(x[k], 1)) throw new Error(`x.${k}: a whole number above 0.`);
   const bot = isObj(x.bot) ? { ...x.bot } : {};
   const secret = (o, k, name) => readSecret({ value: o[k], file: o[`${k}File`] && path.resolve(dir, o[`${k}File`]), env: o[`${k}Env`] || name }, env);
   const clientSecret = secret(x, 'clientSecret', 'GRID_X_CLIENT_SECRET');
@@ -132,7 +132,8 @@ function xConfig(cfg, dir, env) {
   if (cfg.channels?.enabled !== true || !x.clientId || !clientSecret || !bot.id || !handle || !bot.consumerKey || !bot.consumerSecret || !bot.accessToken || !bot.accessSecret || !bot.bearerToken) return null;
   if (!/^\d+$/.test(String(bot.id))) throw new Error('x.bot.id: the bot’s numeric id, not its handle.');
   if (!/^\w{1,15}$/.test(handle)) throw new Error('x.bot.handle: the bot’s handle, like wispbot.');
-  return { ...x, clientSecret, dailySpendCents: x.dailySpendCents ?? 500, paused: !!x.paused, bot: { ...bot, id: String(bot.id), handle }, api: String(env.WISP_X_API || 'https://api.x.com').replace(/\/+$/, '') };
+  const dailySpendCents = x.dailySpendCents ?? 500;
+  return { ...x, clientSecret, dailySpendCents, strangerSpendCents: x.strangerSpendCents ?? dailySpendCents, paused: !!x.paused, bot: { ...bot, id: String(bot.id), handle }, api: String(env.WISP_X_API || 'https://api.x.com').replace(/\/+$/, '') };
 }
 
 // What `wisp grid init` writes. Secrets go next to it, in secrets/, never inside it.

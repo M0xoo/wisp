@@ -15,8 +15,11 @@
 //   - Who a box can write to. The Box secret can be read by anything on the box, so sending takes a
 //     thread and text and refuses anything else: a thread exists once its box accepted a message (a
 //     2xx), and the recipient comes from the link. DMs never fall back to a public post.
-//   - What a day costs. Anyone can mention the bot, and X bills for it. Each event is counted in the
-//     database, and nothing is spent past dailySpendCents.
+//   - What a day costs. Anyone can mention the bot, and X bills for it, so strangers count in a pool of
+//     their own: they can't spend what linked people's replies need. dailySpendCents is linked people's,
+//     and past it nothing goes out or wakes until 00:00 UTC. X keeps billing whatever it delivers, so
+//     strangerSpendCents, and twice dailySpendCents, are hard: the subscriptions are taken away, and
+//     a person restores them with a restart. No box can spend more than piecesPerDay.
 //
 // A link isn't an identity. identities is what signs in, what isAdmin and allow lists read: x_links
 // has none of that, so taking over an X account reaches a box, as it must, and never a grid account.
@@ -29,7 +32,7 @@
 // expires: as the held inbox does, it sits where the box's own files would.
 
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { scrubOut, RateLimit, STALE_S } from '../server/channels/policy.js';
+import { scrubOut, STALE_S } from '../server/channels/policy.js';
 import { b64u, sha256, token } from './secrets.js';
 
 export const X_WEBHOOK = '/_x/webhook';
@@ -53,15 +56,17 @@ export const DM = Object.freeze({
   open: 'You’re set: results come here. Send stop to unlink.',
   noTask: 'There’s no task to follow up on yet. Mention me in a post to start one, or send stop to unlink.',
   limited: 'That’s a lot of messages. Try again in an hour.',
+  off: 'X is off on your wisp, so that didn’t run. Turn it on in Settings → Phone → X, then send it again.',
   truncated: 'That post was too long for me to read all of it, so it didn’t run. Send it again in fewer words.',
   stop: 'Unlinked: your posts no longer reach wisp, and nothing more comes here. Link again on your wisp account page.',
 });
 
 export const COST = Object.freeze({ post: 5, dmIn: 10, reply: 10, dmOut: 15 }); // tenths of a cent
+export const TRIES_429 = 4; // of one DM: X's limit may not lift for hours, and the result stays in wisp
 export const PER_IP = 1200; // webhooks a minute from one address, before anything is read
 
 const WEBHOOK_MAX = 512 * 1024;
-const SCOPES = 'users.read tweet.read offline.access';
+const SCOPES = 'users.read tweet.read';
 const FLOW_MS = 10 * 60_000;
 const SEEN_MS = 2 * 86_400_000; // past this the post is stale anyway
 const STALE_MS = STALE_S * 1000;
@@ -74,7 +79,9 @@ const BROKEN_MS = 2000; // a connection that broke: nobody refused anything
 const SWEEP_MS = 60_000;
 const HOUR_MS = 60 * 60_000;
 const DAY_MS = 24 * HOUR_MS;
-const DEFAULTS = { sendPerHour: 30, postsPerHour: 20, threadDays: 7 };
+const DEFAULTS = { sendPerHour: 30, postsPerHour: 20, threadDays: 7, piecesPerDay: 60, outboxRows: 50, outboxBytes: 256 * 1024 };
+
+const EVENTS = ['post.mention.create', 'post.reply.create', 'dm.received'];
 
 const refused = (message, status) => Object.assign(new Error(message), { status });
 
@@ -186,7 +193,6 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
   const authorizeUrl = opts.api === 'https://api.x.com' ? 'https://x.com/i/oauth2/authorize' : `${opts.api}/i/oauth2/authorize`;
   const redirectUri = `${cfg.publicUrl}/account/x/callback`;
   const cap = opts.dailySpendCents * 10;
-  const rates = new RateLimit({ max: opts.postsPerHour, windowMs: HOUR_MS });
   const sends = new Set(); // sends on their way, so close() can wait for them
   const pumping = new Map(); // user id -> the outbox being sent
   const again = new Set(); // user ids with more for it than it knew
@@ -205,14 +211,24 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
 
   // --- spend: a row a UTC day, in tenths of a cent ---------------------------------------------------
 
-  const spent = () => db.get('SELECT mills FROM x_spend WHERE day = ?', today())?.mills || 0;
+  const day = () => db.get('SELECT * FROM x_spend WHERE day = ?', today());
+  const spent = () => day()?.mills || 0;
   const charge = (mills) => db.run('INSERT INTO x_spend (day, mills) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET mills = mills + excluded.mills', today(), mills);
+  const refund = (mills) => db.run('UPDATE x_spend SET mills = max(0, mills - ?) WHERE day = ?', mills, today());
 
   function trip() {
     db.run('INSERT INTO x_spend (day, mills) VALUES (?, 0) ON CONFLICT(day) DO NOTHING', today());
     if (!db.run('UPDATE x_spend SET tripped = 1 WHERE day = ? AND tripped = 0', today()).changes) return;
     accounts.audit(null, 'x.cap', { day: today(), cents: opts.dailySpendCents });
     log(`grid: X reached its daily spend cap (${opts.dailySpendCents}¢): no replies, no DMs and no wakes until 00:00 UTC.`);
+  }
+
+  // X bills what it delivers, whatever wisp does with it: the only way to stop that is to stop listening.
+  function stopListening(why) {
+    if (!db.run('UPDATE x_spend SET hard = 1 WHERE day = ? AND hard = 0', today()).changes) return;
+    accounts.audit(null, 'x.hard', { day: today(), why });
+    log(`grid: X stopped listening: ${why} passed its ceiling, so its subscriptions are removed and X bills nothing more. To restore them, wait for 00:00 UTC or raise the ceiling in grid.json, then restart the grid.`);
+    track(unsubscribe().catch((err) => log(`grid: X: the subscriptions are still there: ${err.message}. It tries again every minute.`)));
   }
 
   // Everything that costs money asks here first. No await between the check and the count, so a burst
@@ -229,9 +245,16 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
   // Inbound is billed whether anyone likes it or not: all that's left to decide is what happens next.
   function billed(mills) {
     charge(mills);
+    if (spent() >= cap * 2) stopListening('what linked people cost');
     if (spent() < cap) return false;
     trip();
     return true;
+  }
+
+  // Strangers and the bot's own posts: a pool of their own. Who's asking isn't known until the link is.
+  function billedApart(mills, { person = false } = {}) {
+    db.run('INSERT INTO x_spend (day, stranger_mills, strangers) VALUES (?, ?, ?) ON CONFLICT(day) DO UPDATE SET stranger_mills = stranger_mills + excluded.stranger_mills, strangers = strangers + excluded.strangers', today(), mills, person ? 1 : 0);
+    if (day().stranger_mills >= opts.strangerSpendCents * 10) stopListening('what strangers cost');
   }
 
   // --- what goes out --------------------------------------------------------------------------------
@@ -247,6 +270,7 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
   function publicReply(postId, key) {
     return track(
       post('/2/tweets', { text: PUBLIC[key], reply: { in_reply_to_tweet_id: postId } }, oauth1(`${api}/2/tweets`, bot)).catch((err) => {
+        if (err.status) refund(COST.reply); // refused: X billed nothing. A broken connection may have got there.
         log(`grid: X: a public reply didn’t go: ${err.message}`);
       }),
     );
@@ -275,12 +299,18 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
         await sendDm(link.x_id, row.text);
         db.run('DELETE FROM x_outbox WHERE id = ?', row.id);
       } catch (err) {
+        if (err.status) refund(COST.dmOut);
         if (err.status === 403) {
           db.run('UPDATE x_links SET dm_open = 0 WHERE user_id = ?', userId); // closed, or blocked: they have to write again
           return;
         }
         if (err.status === 429) {
-          db.run('UPDATE x_outbox SET next_at = ? WHERE id = ?', Date.now() + (err.retryAfter ? err.retryAfter * 1000 : RETRY_MS), row.id);
+          if (row.tries + 1 >= TRIES_429) {
+            log('grid: X: a DM was given up on after its 429s: it stays in wisp.');
+            db.run('DELETE FROM x_outbox WHERE id = ?', row.id);
+            continue;
+          }
+          db.run('UPDATE x_outbox SET tries = tries + 1, next_at = ? WHERE id = ?', Date.now() + (err.retryAfter ? err.retryAfter * 1000 : RETRY_MS), row.id);
           continue;
         }
         log(`grid: X: a DM didn’t go: ${err.message}`);
@@ -318,7 +348,13 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
     return p;
   }
 
+  const room = (userId, bytes) => {
+    const w = db.get('SELECT count(*) n, coalesce(sum(length(text)), 0) bytes FROM x_outbox WHERE user_id = ?', userId);
+    return w.n < opts.outboxRows && w.bytes + bytes <= opts.outboxBytes;
+  };
+
   const say = (userId, text) => {
+    if (!room(userId, text.length)) return;
     queue(userId, null, text);
     pump(userId);
   };
@@ -328,7 +364,21 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
   // True the first time, for as long as a repeat could still matter. The table survives a restart.
   const first = (key) => db.run('INSERT INTO x_seen (key, at) VALUES (?, ?) ON CONFLICT(key) DO NOTHING', key, Date.now()).changes > 0;
   const fresh = (at) => Number.isFinite(at) && Math.abs(Date.now() - at) <= STALE_MS;
-  const stranger = () => db.run('INSERT INTO x_spend (day, strangers) VALUES (?, 1) ON CONFLICT(day) DO UPDATE SET strangers = strangers + 1', today());
+  const boxOn = (userId) => !!db.get('SELECT 1 FROM x_boxes WHERE user_id = ?', userId);
+
+  // A person's posts and follow-ups in the last hour, kept here so a restart doesn't hand it back.
+  // → { ok, tell }: tell once an hour, or a flood gets a flood of answers.
+  function rate(link) {
+    const since = Date.now() - HOUR_MS;
+    db.run('DELETE FROM x_rate WHERE user_id = ? AND at < ?', link.user_id, since);
+    if (db.get('SELECT count(*) n FROM x_rate WHERE user_id = ?', link.user_id).n < opts.postsPerHour) {
+      db.run('INSERT INTO x_rate (user_id, at) VALUES (?, ?)', link.user_id, Date.now());
+      return { ok: true };
+    }
+    const tell = link.told_at < since;
+    if (tell) db.run('UPDATE x_links SET told_at = ? WHERE user_id = ?', Date.now(), link.user_id);
+    return { ok: false, tell };
+  }
 
   // A live thread of this person's, by what the event says it belongs to. Never someone else's.
   const liveThread = (userId, conversation) => db.get('SELECT thread FROM x_threads WHERE user_id = ? AND conversation = ? AND at >= ? ORDER BY at DESC LIMIT 1', userId, conversation, threadsLive())?.thread;
@@ -337,55 +387,64 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
   const hold = (user, link, { id, kind, text, at, thread, follow, conversation }) => {
     const headers = { [FROM_HEADER]: link.x_id, [ID_HEADER]: id, [THREAD_HEADER]: thread, [CONVERSATION_HEADER]: conversation };
     if (!follow) headers[NEW_HEADER] = '1';
-    inbox.hold(user, 'x', Buffer.from(JSON.stringify({ id, kind, text, at, thread, follow })), headers);
+    return inbox.hold(user, 'x', Buffer.from(JSON.stringify({ id, kind, text, at, thread, follow })), headers);
   };
 
   function takePost(ev) {
+    const link = ev.sender === bot.id ? null : linkByX(ev.sender);
+    if (!link) return billedApart(COST.post, { person: ev.sender !== bot.id });
     const over = billed(COST.post);
-    if (ev.sender === bot.id || ev.retweet) return; // a retweet's words are someone else's
-    const link = linkByX(ev.sender);
-    if (!link) return stranger();
-    if (over || opts.paused) return;
+    if (ev.retweet || over || opts.paused) return; // a retweet's words are someone else's
     const user = accounts.userById(link.user_id);
     if (!user || user.disabled || !fresh(ev.at) || !first(`p:${ev.post}`)) return;
-    const rate = rates.hit(user.id);
-    if (!rate.ok) {
-      if (rate.tell && reserve(COST.reply)) publicReply(ev.post, 'limited');
+    const r = rate(link);
+    if (!r.ok) {
+      if (r.tell && reserve(COST.reply)) publicReply(ev.post, 'limited');
       return;
     }
+    if (!boxOn(user.id)) return say(user.id, DM.off); // waking it to be told no costs a box's sleep
     if (ev.truncated) return say(user.id, DM.truncated);
     if (!reserve(COST.reply)) return; // no money for the one reply: nothing wakes either
     const follows = liveThread(user.id, ev.conversation);
-    hold(user, link, { id: ev.post, kind: 'post', text: ownWords(ev.text, bot.handle, ev.range).slice(0, TEXT_MAX), at: ev.at, thread: follows || ev.post, follow: !!follows, conversation: ev.conversation });
-    publicReply(ev.post, link.dm_open ? 'ack' : 'ackDm');
+    const held = hold(user, link, { id: ev.post, kind: 'post', text: ownWords(ev.text, bot.handle, ev.range).slice(0, TEXT_MAX), at: ev.at, thread: follows || ev.post, follow: !!follows, conversation: ev.conversation });
+    if (held) publicReply(ev.post, link.dm_open ? 'ack' : 'ackDm');
+    else refund(COST.reply);
   }
 
   function takeDm(ev) {
     if (ev.sender === bot.id || (ev.recipient && ev.recipient !== bot.id)) return;
-    const over = billed(COST.dmIn);
     const link = linkByX(ev.sender);
-    if (!link) return stranger();
+    if (!link) return billedApart(COST.dmIn, { person: true });
+    const over = billed(COST.dmIn);
     // Leaving works whatever the state: paused, over the cap, stale. It's their right, not a message.
     if (ev.text.trim().toLowerCase() === 'stop') {
       unlink(link.user_id, 'stop');
       if (over || opts.paused || !fresh(ev.at) || !reserve(COST.dmOut)) return;
-      track(sendDm(link.x_id, DM.stop).catch((err) => log(`grid: X: a DM didn’t go: ${err.message}`)));
+      track(sendDm(link.x_id, DM.stop).catch((err) => {
+        if (err.status) refund(COST.dmOut);
+        log(`grid: X: a DM didn’t go: ${err.message}`);
+      }));
       return;
     }
-    if (over || opts.paused) return;
+    // So does this: they did write, and X lets the bot answer from now on, whatever today's state is.
     const opened = !link.dm_open;
     if (opened) db.run('UPDATE x_links SET dm_open = 1 WHERE user_id = ?', link.user_id);
+    if (over || opts.paused) return;
     const user = accounts.userById(link.user_id);
     if (!user || user.disabled) return;
+    const waiting = db.get('SELECT 1 FROM x_outbox WHERE user_id = ? LIMIT 1', user.id);
     pump(user.id); // what waited for this
+    // The DM that opens results is a hello, not a request: X makes people write first.
+    if (opened) return waiting ? undefined : say(user.id, DM.open);
     if (!fresh(ev.at) || !first(`d:${ev.dm}`)) return;
-    const rate = rates.hit(user.id);
-    if (!rate.ok) {
-      if (rate.tell) say(user.id, DM.limited);
+    const r = rate(link);
+    if (!r.ok) {
+      if (r.tell) say(user.id, DM.limited);
       return;
     }
     const thread = latestThread(user.id);
-    if (!thread) return say(user.id, opened ? DM.open : DM.noTask);
+    if (!thread) return say(user.id, DM.noTask);
+    if (!boxOn(user.id)) return say(user.id, DM.off);
     hold(user, link, { id: ev.dm, kind: 'dm', text: ev.text.slice(0, TEXT_MAX), at: ev.at, thread, follow: true, conversation: thread });
   }
 
@@ -404,11 +463,12 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
     return { ok: r.ok, json: await r.json().catch(() => ({})) };
   }
 
+  const meta = (k) => db.get('SELECT v FROM meta WHERE k = ?', k)?.v;
+  const set = (k, v) => db.run('INSERT INTO meta (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v', k, String(v));
+
   // Webhooks and subscriptions, once ever: the ids stay in meta. CRC runs while this waits, so it has
   // to come after the grid is listening. A failure only costs a line: the next start tries again.
   async function register() {
-    const meta = (k) => db.get('SELECT v FROM meta WHERE k = ?', k)?.v;
-    const set = (k, v) => db.run('INSERT INTO meta (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v', k, String(v));
     const app = `Bearer ${bot.bearerToken}`;
     let id = meta('x.webhook');
     if (!id) {
@@ -416,10 +476,20 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
       if (!id) throw new Error('X gave the webhook no id');
       set('x.webhook', id);
     }
-    for (const event of ['post.mention.create', 'post.reply.create', 'dm.received']) {
+    for (const event of EVENTS) {
       if (meta(`x.sub.${event}`)) continue;
-      await post('/2/activity/subscriptions', { event_type: event, filter: { user_id: bot.id }, webhook_id: id, tag: 'wisp' }, app);
-      set(`x.sub.${event}`, 1);
+      const made = await post('/2/activity/subscriptions', { event_type: event, filter: { user_id: bot.id }, webhook_id: id, tag: 'wisp' }, app);
+      set(`x.sub.${event}`, made.data?.subscription_id ?? 'unknown');
+    }
+  }
+
+  async function unsubscribe() {
+    for (const event of EVENTS) {
+      const sub = meta(`x.sub.${event}`);
+      if (!sub) continue;
+      const r = await fetch(`${api}/2/activity/subscriptions/${encodeURIComponent(sub)}`, { method: 'DELETE', redirect: 'error', signal: AbortSignal.timeout(15_000), headers: { authorization: `Bearer ${bot.bearerToken}` } });
+      if (!r.ok) throw new Error(`X said ${r.status}`);
+      db.run('DELETE FROM meta WHERE k = ?', `x.sub.${event}`);
     }
   }
 
@@ -429,6 +499,9 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
     db.run('DELETE FROM x_threads WHERE at < ?', threadsLive());
     db.run('DELETE FROM x_outbox WHERE at < ?', threadsLive());
     db.run('DELETE FROM x_sent WHERE at < ?', Date.now() - HOUR_MS);
+    db.run('DELETE FROM x_rate WHERE at < ?', Date.now() - HOUR_MS);
+    db.run('DELETE FROM x_day WHERE day < ?', today());
+    if (day()?.hard) track(unsubscribe().catch((err) => log(`grid: X: the subscriptions are still there: ${err.message}.`)));
     if (opts.paused) return;
     for (const r of db.all('SELECT DISTINCT o.user_id FROM x_outbox o JOIN x_links l ON l.user_id = o.user_id WHERE l.dm_open = 1')) pump(r.user_id);
   }
@@ -445,7 +518,7 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
     paused: !!opts.paused,
     sweep,
     start() {
-      if (opts.paused) return;
+      if (opts.paused || day()?.hard) return; // hard: until tomorrow, or a higher ceiling and a new day's row
       setImmediate(() => register().catch((err) => log(`grid: X: the webhook isn’t set up: ${err.message}`)));
     },
     close() {
@@ -498,12 +571,14 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
       if (!t.ok || !t.json.access_token) throw refused('X didn’t link the account. Try again.', 502);
       const me = await fetch(`${api}/2/users/me`, { redirect: 'error', signal: AbortSignal.timeout(15_000), headers: { authorization: `Bearer ${t.json.access_token}` } });
       const who = await me.json().catch(() => ({}));
-      await tokenCall('/2/oauth2/revoke', { token: t.json.refresh_token || t.json.access_token, client_id: opts.clientId }).catch(() => {});
+      await tokenCall('/2/oauth2/revoke', { token: t.json.access_token, client_id: opts.clientId }).catch(() => {});
       const xId = who.data?.id && String(who.data.id);
       if (!me.ok || !xId) throw refused('X didn’t say who you are. Try again.', 502);
       const taken = linkByX(xId);
       if (taken) throw refused(taken.user_id === session.user.id ? 'That X account is already linked.' : 'That X account is already linked to someone else here.', 409);
-      db.run('INSERT INTO x_links (user_id, x_id, handle, linked_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET x_id = excluded.x_id, handle = excluded.handle, dm_open = 0, linked_at = excluded.linked_at', session.user.id, xId, String(who.data.username || ''), Date.now());
+      // A second flow finishing would swap the id under live threads: their results would go to it.
+      if (linkOf(session.user.id)) throw refused('Unlink your X account first, then link the other one.', 409);
+      db.run('INSERT INTO x_links (user_id, x_id, handle, linked_at) VALUES (?, ?, ?, ?)', session.user.id, xId, String(who.data.username || ''), Date.now());
       accounts.audit(session.user.id, 'x.link');
       return String(who.data.username || '');
     },
@@ -520,14 +595,23 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
         dmOpen: !!l?.dm_open,
         paused: !!opts.paused,
         capped: spent() >= cap,
-        ...(admin && { spend: { cents: Math.round(spent() / 10), cap: opts.dailySpendCents, strangers: db.get('SELECT strangers FROM x_spend WHERE day = ?', today())?.strangers || 0 } }),
+        on: boxOn(user.id),
+        ...(admin && { spend: { cents: Math.round(spent() / 10), cap: opts.dailySpendCents, strangers: day()?.strangers || 0, strangerCents: Math.round((day()?.stranger_mills || 0) / 10), stopped: !!day()?.hard } }),
       };
     },
 
     // For the box: what Settings shows. The Box secret gets nothing it could use.
     state(user) {
-      const { bot: handle, linked, handle: mine, dmOpen, paused, capped } = this.view(user);
-      return { bot: handle, linked, handle: mine, dmOpen, paused, capped, account: `${cfg.publicUrl}/account#x` };
+      const { bot: handle, linked, handle: mine, dmOpen, paused, capped, on } = this.view(user);
+      return { bot: handle, linked, handle: mine, dmOpen, paused, capped, on, account: `${cfg.publicUrl}/account#x` };
+    },
+
+    // The box's switch, as it told us. It's only whether a wake is worth it: an agent with the Box secret
+    // can set this, and all it gets is a wake, since the box refuses for itself if it's really off.
+    setBox(userId, on) {
+      if (on) db.run('INSERT INTO x_boxes (user_id) VALUES (?) ON CONFLICT(user_id) DO NOTHING', userId);
+      else db.run('DELETE FROM x_boxes WHERE user_id = ?', userId);
+      return { ok: true };
     },
 
     // Is a held row still wanted? The person may have left, or the day's money gone, since it came.
@@ -535,14 +619,14 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
       if (row.channel !== 'x') return true;
       if (opts.paused || spent() >= cap) return false;
       const from = JSON.parse(row.headers)[FROM_HEADER];
-      return !!from && linkByX(from)?.x_id === from;
+      return !!from && linkOf(row.user_id)?.x_id === from;
     },
 
     // A message its box accepted: from here on the box may answer it (grid/inbox.js calls this on a 2xx).
     delivered(row) {
       if (row.channel !== 'x') return;
       const h = JSON.parse(row.headers);
-      if (!h[THREAD_HEADER] || !linkByX(h[FROM_HEADER])) return;
+      if (!h[THREAD_HEADER] || !h[FROM_HEADER] || linkOf(row.user_id)?.x_id !== h[FROM_HEADER]) return;
       db.run('INSERT INTO x_threads (user_id, thread, conversation, at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, thread) DO UPDATE SET at = excluded.at', row.user_id, h[THREAD_HEADER], h[CONVERSATION_HEADER] || h[THREAD_HEADER], Date.now());
       if (h[NEW_HEADER]) accounts.audit(row.user_id, 'x.task', {});
     },
@@ -552,7 +636,6 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
     async reply(user, body) {
       const b = body && typeof body === 'object' ? body : {};
       if (Object.keys(b).some((k) => k !== 'thread' && k !== 'text')) throw refused('A reply goes to the person of its thread, and nowhere else.', 400);
-      if (opts.paused) throw refused('X is paused on this grid.', 503);
       await inbox.delivering(user.id); // this box's first answer can get here before its own 2xx is read
       const link = linkOf(user.id);
       const t = link && db.get('SELECT 1 FROM x_threads WHERE user_id = ? AND thread = ? AND at >= ?', user.id, String(b.thread ?? ''), threadsLive());
@@ -561,10 +644,16 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
       if (Buffer.byteLength(b.text) > REPLY_MAX) throw refused('That’s too long for a reply.', 413);
       db.run('DELETE FROM x_sent WHERE at < ?', Date.now() - HOUR_MS);
       if (db.get('SELECT count(*) n FROM x_sent WHERE user_id = ?', user.id).n >= opts.sendPerHour) throw refused('Too many replies this hour.', 429);
-      db.run('INSERT INTO x_sent (user_id, at) VALUES (?, ?)', user.id, Date.now());
       // Here as well as on the box: an agent with the Box secret doesn't go through the box's code.
-      queue(user.id, String(b.thread), scrubOut(b.text).text);
-      const held = !link.dm_open || spent() + COST.dmOut > cap;
+      const clean = scrubOut(b.text).text;
+      const pieces = chunks(clean).length;
+      const used = db.get('SELECT pieces FROM x_day WHERE user_id = ? AND day = ?', user.id, today())?.pieces || 0;
+      if (used + pieces > opts.piecesPerDay) throw refused('This box has sent all it may today.', 429);
+      if (!room(user.id, clean.length)) throw refused('Too much is waiting to go.', 429);
+      db.run('INSERT INTO x_sent (user_id, at) VALUES (?, ?)', user.id, Date.now());
+      db.run('INSERT INTO x_day (user_id, day, pieces) VALUES (?, ?, ?) ON CONFLICT(user_id, day) DO UPDATE SET pieces = pieces + excluded.pieces', user.id, today(), pieces);
+      queue(user.id, String(b.thread), clean);
+      const held = opts.paused || !link.dm_open || spent() + COST.dmOut > cap;
       pump(user.id);
       return { ok: true, held };
     },

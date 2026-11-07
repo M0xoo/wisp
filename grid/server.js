@@ -352,11 +352,13 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
   async function xBox(req, res, url) {
     const send = (status, body) => json(res, status, body);
     const state = url.pathname === '/_grid/x/state' && req.method === 'GET';
-    if (!x || !(state || (url.pathname === '/_grid/x/reply' && req.method === 'POST'))) return send(404, { error: 'not found' });
+    const toggled = url.pathname === '/_grid/x/switch' && req.method === 'POST';
+    if (!x || !(state || toggled || (url.pathname === '/_grid/x/reply' && req.method === 'POST'))) return send(404, { error: 'not found' });
     const who = boxUser(req.headers.authorization);
     if (!who) return send(401, { error: 'Only a cloud computer can ask this.' });
     try {
       limit(`xbox|${who.id}`, 120);
+      if (toggled) return send(200, x.setBox(who.id, (await readBody(req)).on === true)); // only whether it's worth waking: the box still decides
       return send(200, state ? x.state(who) : await x.reply(who, await readBody(req)));
     } catch (err) {
       return send(err.status || 500, { error: err.status ? err.message : 'Something went wrong on the grid.' });

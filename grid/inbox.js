@@ -245,13 +245,18 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delive
       this.hold(user, channel, body, Object.fromEntries(CHANNELS[channel].headers.filter((h) => typeof req.headers[h] === 'string').map((h) => [h, req.headers[h]])));
     },
 
+    // True when it's held: a caller that answers for it must know (grid/x.js).
     hold(user, channel, body, kept) {
       const headers = JSON.stringify(kept);
       const size = body.length + headers.length;
       const held = pending(user.id);
-      if (held.n >= opts.maxRows || held.bytes + size > opts.maxBytes) return count(user.id, channel);
-      db.run('INSERT INTO channel_inbox (user_id, channel, event_key, headers, body, size, at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, event_key) DO NOTHING', user.id, channel, eventKey(channel, body, headers), headers, body, size, Date.now());
+      if (held.n >= opts.maxRows || held.bytes + size > opts.maxBytes) {
+        count(user.id, channel);
+        return false;
+      }
+      const took = db.run('INSERT INTO channel_inbox (user_id, channel, event_key, headers, body, size, at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, event_key) DO NOTHING', user.id, channel, eventKey(channel, body, headers), headers, body, size, Date.now()).changes > 0;
       setImmediate(() => drain(user));
+      return took;
     },
 
     // After a restart: everyone with something held.

@@ -100,6 +100,7 @@ async function linkX(env, p, xId, username = `user${xId}`) {
   assert.equal(out.status, 302, out.text);
   const atX = await fetch(out.location, { redirect: 'manual' });
   assert.equal(atX.status, 302);
+  env.grid.x.setBox(p.user.id, true); // as a box whose switch is on has said
   return p.b.go(atX.headers.get('location'));
 }
 
@@ -329,18 +330,53 @@ test('Plan by default, Edits if asked, Full auto refused with a line', { timeout
   done();
 });
 
-test('off on the box: dropped, with a DM saying how to turn it on', { timeout: 60_000 }, async () => {
+test('off on the box: the grid knows, wakes nothing and says nothing in public; a DM says how', { timeout: 60_000 }, async () => {
   const done = await awake(bob);
   await bob.ok('/remote', { method: 'PUT', body: { x: { enabled: false } } });
-  const ran = (await tasks(bob)).length;
-  await x.mention({ author: BOB_X, text: '@wispbot delete the logs' });
-  await settled();
-  await until(() => dmsTo(BOB_X).some((d) => /Settings → Phone → X/.test(d.text)), { what: 'the DM' });
-  assert.equal((await tasks(bob)).length, ran);
-  const r = await bob.ok('/remote');
-  assert.equal(r.status.x?.refused, 'off', 'Settings says why');
-  await bob.ok('/remote', { method: 'PUT', body: { x: { enabled: true } } });
+  await until(() => !g.grid.db.get('SELECT 1 FROM x_boxes WHERE user_id = ?', bob.user.id), { what: 'the grid told' });
   done();
+  await until(() => g.grid.hostd.state(bob.user.id) === 'stopped', { what: 'asleep', timeout: 20_000 });
+  const { post } = await x.mention({ author: BOB_X, text: '@wispbot delete the logs' });
+  await until(() => dmsTo(BOB_X).some((d) => d.text === xMod.DM.off), { what: 'the DM' });
+  assert.match(xMod.DM.off, /Settings → Phone → X/);
+  await sleep(100);
+  assert.equal(mine(post).length, 0, 'no Got it for what won’t run');
+  assert.equal(g.grid.hostd.state(bob.user.id), 'stopped', 'never woken');
+  assert.equal(held(), 0);
+  const on = await awake(bob);
+  await bob.ok('/remote', { method: 'PUT', body: { x: { enabled: true } } });
+  await until(() => g.grid.db.get('SELECT 1 FROM x_boxes WHERE user_id = ?', bob.user.id), { what: 'the grid told' });
+  on();
+});
+
+test('the box still has the last word: on at the grid and off here, it refuses and says how', async () => {
+  const b = await stubBox({ projects: [API], defaultProject: API });
+  b.ch.hub.cfg.x.enabled = false;
+  await b.send('run this');
+  assert.equal(b.started.length, 0);
+  assert.match(b.said.at(-1), /Settings → Phone → X/);
+  assert.equal(b.ch.hub.status.x.refused, 'off');
+});
+
+test('`Got it` only when it was held: a full inbox gets no public line and costs no reply', { timeout: 60_000 }, async () => {
+  const fake = await startFakeX();
+  const env = await boot({ api: fake });
+  try {
+    const p = await env.person('dee');
+    await linkX(env, p, '333');
+    await fake.dm({ sender: '333', text: 'hi' });
+    await until(() => fake.dms.length === 1, { what: 'the line' });
+    env.grid.inbox.opts.maxRows = 0;
+    const before = env.grid.db.get('SELECT mills FROM x_spend').mills;
+    const { post } = await fake.mention({ author: '333', text: '@wispbot too much' });
+    await sleep(100);
+    assert.equal(mine(post, fake).length, 0);
+    assert.equal(env.grid.db.get('SELECT mills FROM x_spend').mills, before + xMod.COST.post, 'the reply it never sent is back');
+  } finally {
+    await env.grid.close();
+    await fake.close();
+    x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
+  }
 });
 
 // --- who can reach a box -------------------------------------------------------------------------
@@ -385,6 +421,33 @@ test('an X account links to one person: the second is refused', async () => {
   assert.match(decodeURIComponent(r.location || r.text), /already linked/);
   assert.equal(g.grid.db.get('SELECT user_id FROM x_links WHERE x_id = ?', ADA_X).user_id, ada.user.id);
   assert.equal(g.grid.db.get('SELECT 1 FROM x_links WHERE user_id = ?', eve.user.id), undefined);
+});
+
+test('a held row and a thread belong to the account they were linked to: moving the X id leaves them behind', async () => {
+  const headers = JSON.stringify({ 'x-wisp-x-sender': BOB_X, 'x-wisp-x-thread': 'moved', 'x-wisp-x-conversation': 'moved' });
+  const row = { channel: 'x', user_id: ada.user.id, headers };
+  assert.equal(g.grid.x.still(row), false, 'bob’s id, ada’s row');
+  g.grid.x.delivered(row);
+  assert.equal(g.grid.db.get("SELECT 1 FROM x_threads WHERE thread = 'moved'"), undefined);
+  assert.equal(g.grid.x.still({ ...row, user_id: bob.user.id }), true);
+});
+
+test('two link flows can’t swap the X id under live threads: the second is refused', async () => {
+  const p = await g.person('jay');
+  const page = await p.b.go(`${g.root}/account`);
+  const csrf = /action="\/account\/x\/link"[\s\S]*?name="csrf" value="([^"]+)"/.exec(page.text)[1];
+  const start = async (id) => {
+    x.people.set(id, { username: `u${id}` });
+    x.signingIn = id;
+    const out = await p.b.go(`${g.root}/account/x/link`, { method: 'POST', form: { csrf }, headers: { origin: g.root } });
+    return (await fetch(out.location, { redirect: 'manual' })).headers.get('location');
+  };
+  const [one, two] = [await start('901'), await start('902')];
+  await p.b.go(one);
+  assert.equal(g.grid.db.get('SELECT x_id FROM x_links WHERE user_id = ?', p.user.id).x_id, '901');
+  const r = await p.b.go(two);
+  assert.match(decodeURIComponent(r.location || ''), /Unlink/);
+  assert.equal(g.grid.db.get('SELECT x_id FROM x_links WHERE user_id = ?', p.user.id).x_id, '901');
 });
 
 test('a handle change means nothing: it goes by the numeric id', { timeout: 60_000 }, async () => {
@@ -561,6 +624,12 @@ test('a person’s rate: over it, one fixed line, then silence and nothing wakes
     assert.equal(env.fake.tweets.length, 3, 'two acks and one line');
     assert.equal(env.fake.tweets[2].text, xMod.PUBLIC.limited);
     assert.equal(env.grid.db.get("SELECT count(*) n FROM channel_inbox WHERE channel = 'x'").n, 2);
+    // A restart doesn't hand the hour back.
+    await env.grid.close();
+    env.grid = await startGrid(env.cfg, { log: () => {} });
+    await env.fake.mention({ author: '333', text: '@wispbot after a restart' });
+    await sleep(100);
+    assert.equal(env.fake.tweets.length, 3);
   } finally {
     await env.grid.close();
     await env.fake.close();
@@ -587,7 +656,7 @@ test('someone who never DMed the bot: the fixed line says so, and the result is 
   await x.dm({ sender: '444', text: 'hi' });
   await until(() => dmsTo('444').length, { what: 'the result, once they wrote' });
   assert.equal(g.grid.db.get('SELECT dm_open FROM x_links WHERE user_id = ?', carl.user.id).dm_open, 1);
-  assert.ok(!dmsTo('444').some((d) => /you’re set/i.test(d.text) && false));
+  assert.equal(g.grid.db.get("SELECT count(*) n FROM channel_inbox WHERE user_id = ? AND channel = 'x'", carl.user.id).n, 1, 'the DM that opened it is no prompt');
   await until(() => g.grid.db.get('SELECT count(*) n FROM x_outbox WHERE user_id = ?', carl.user.id).n === 0, { what: 'nothing left' });
 });
 
@@ -965,17 +1034,68 @@ test('the costs, in tenths of a cent', () => {
   assert.deepEqual(xMod.COST, { post: 5, dmIn: 10, reply: 10, dmOut: 15 });
 });
 
-test('the cap: strangers flooding count; past it no replies, no DMs, nothing wakes; audited once', { timeout: 60_000 }, async () => {
+test('strangers can’t spend linked people’s money: a flood stops nothing for them', { timeout: 60_000 }, async () => {
   const fake = await startFakeX();
-  const env = await boot({ api: fake, xCfg: { ...CREDS, dailySpendCents: 5 } }); // 50 tenths: ten mentions
+  const env = await boot({ api: fake, xCfg: { ...CREDS, dailySpendCents: 5, strangerSpendCents: 1000 } });
   try {
     const p = await env.person('dee');
     await linkX(env, p, '333');
-    await fake.dm({ sender: '333', text: 'hi' }); // 10 + 15 for its line
+    await fake.dm({ sender: '333', text: 'hi' });
     await until(() => fake.dms.length === 1, { what: 'the line' });
-    await Promise.all(Array.from({ length: 12 }, (_, i) => fake.mention({ author: `9${i}`, text: '@wispbot buy my coin' })));
-    const spent = env.grid.db.get('SELECT mills, strangers FROM x_spend').mills;
-    assert.ok(spent >= 50, `spent ${spent}`);
+    for (let i = 0; i < 40; i++) await fake.mention({ author: `9${i}`, text: '@wispbot buy my coin' });
+    const row = env.grid.db.get('SELECT mills, stranger_mills, strangers FROM x_spend');
+    assert.equal(row.stranger_mills, 40 * xMod.COST.post);
+    assert.equal(row.strangers, 40);
+    assert.equal(row.mills, xMod.COST.dmIn + xMod.COST.dmOut, 'theirs is apart');
+    const { post } = await fake.mention({ author: '333', text: '@wispbot still works' });
+    await until(() => mine(post, fake).length, { what: 'the reply' });
+    assert.equal(auditOf('x.cap', env).length, 0);
+  } finally {
+    await env.grid.close();
+    await fake.close();
+    x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
+  }
+});
+
+test('the strangers’ ceiling is hard: X’s subscriptions go, audited once, and the line says how to restore them', { timeout: 60_000 }, async () => {
+  const fake = await startFakeX();
+  const env = await boot({ api: fake, xCfg: { ...CREDS, strangerSpendCents: 2 } }); // 20 tenths: four mentions
+  try {
+    await until(() => fake.subscriptions.length === 3, { what: 'subscribed' });
+    for (let i = 0; i < 6; i++) await fake.mention({ author: `9${i}`, text: '@wispbot spam' });
+    await until(() => fake.subscriptions.length === 0, { what: 'unsubscribed' });
+    assert.equal(fake.unsubscribed.length, 3);
+    assert.equal(auditOf('x.hard', env).length, 1);
+    const line = env.logs.filter((l) => /X stopped listening/.test(l));
+    assert.equal(line.length, 1);
+    assert.match(line[0], /restart the grid/);
+    // A restart the same day doesn't turn the meter back on.
+    await env.grid.close();
+    env.grid = await startGrid(env.cfg, { log: () => {} });
+    await sleep(100);
+    assert.equal(fake.subscriptions.length, 0);
+    // The next day it does.
+    env.grid.db.run("UPDATE x_spend SET day = '2000-01-01'");
+    await env.grid.close();
+    env.grid = await startGrid(env.cfg, { log: () => {} });
+    await until(() => fake.subscriptions.length === 3, { what: 'restored' });
+  } finally {
+    await env.grid.close();
+    await fake.close();
+    x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
+  }
+});
+
+test('the linked cap: past it no replies, no DMs, nothing wakes; audited once; and twice the cap is hard too', { timeout: 60_000 }, async () => {
+  const fake = await startFakeX();
+  const env = await boot({ api: fake, xCfg: { ...CREDS, dailySpendCents: 5 } });
+  try {
+    await until(() => fake.subscriptions.length === 3, { what: 'subscribed' });
+    const p = await env.person('dee');
+    await linkX(env, p, '333');
+    await fake.dm({ sender: '333', text: 'hi' });
+    await until(() => fake.dms.length === 1, { what: 'the line' });
+    env.grid.db.run('UPDATE x_spend SET mills = 50');
     const tweets = fake.tweets.length;
     const dms = fake.dms.length;
     const { post } = await fake.mention({ author: '333', text: '@wispbot do it' });
@@ -990,6 +1110,10 @@ test('the cap: strangers flooding count; past it no replies, no DMs, nothing wak
     assert.equal(env.logs.filter((l) => /X.*daily spend cap/.test(l)).length, 1, 'a line for the admin');
     const state = await env.call('/_grid/x/state', { method: 'GET', headers: { authorization: p.auth } });
     assert.equal(state.json().capped, true);
+    assert.equal(fake.subscriptions.length, 3, 'a soft stop: it comes back by itself');
+    env.grid.db.run('UPDATE x_spend SET mills = 100');
+    await fake.mention({ author: '333', text: '@wispbot again' });
+    await until(() => fake.subscriptions.length === 0, { what: 'hard' });
   } finally {
     await env.grid.close();
     await fake.close();
@@ -1010,6 +1134,75 @@ test('the check comes before the spending: a burst can’t go past the cap by mo
     assert.equal(fake.tweets.length, 2, 'what 40 tenths buys, inbound counted: 5 + 10 + 5 + 10');
     assert.equal(env.grid.db.get('SELECT mills FROM x_spend').mills, 10 * xMod.COST.post + 2 * xMod.COST.reply, 'all ten arrivals, billed, and two replies');
     assert.ok(posts.every((r) => r.status === 200), 'X is answered 200 anyway');
+  } finally {
+    await env.grid.close();
+    await fake.close();
+    x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
+  }
+});
+
+test('a DM while over the cap still opens DMs', { timeout: 60_000 }, async () => {
+  const fake = await startFakeX();
+  const env = await boot({ api: fake, xCfg: { ...CREDS, dailySpendCents: 1 } });
+  try {
+    const p = await env.person('dee');
+    await linkX(env, p, '333');
+    env.grid.db.run("INSERT INTO x_spend (day, mills) VALUES (?, 100) ON CONFLICT(day) DO UPDATE SET mills = 100", new Date().toISOString().slice(0, 10));
+    await fake.dm({ sender: '333', text: 'hi' });
+    await sleep(100);
+    assert.equal(env.grid.db.get('SELECT dm_open FROM x_links WHERE user_id = ?', p.user.id).dm_open, 1);
+  } finally {
+    await env.grid.close();
+    await fake.close();
+    x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
+  }
+});
+
+test('X’s refusal costs nothing, and a 429 doesn’t go on for ever', { timeout: 60_000 }, async () => {
+  const fake = await startFakeX();
+  const env = await boot({ api: fake });
+  try {
+    const p = await env.person('dee');
+    await linkX(env, p, '333');
+    await fake.dm({ sender: '333', text: 'hi' });
+    await until(() => fake.dms.length === 1, { what: 'the line' });
+    env.grid.hostd.ensure = () => Promise.reject(new Error('later')); // no box: its report would take a 429 too
+    const mills = () => env.grid.db.get('SELECT mills FROM x_spend').mills;
+    const start = mills();
+    fake.fail('tweets', 403);
+    await fake.mention({ author: '333', text: '@wispbot refused' });
+    await until(() => mills() === start + xMod.COST.post, { what: 'the reply refunded' });
+    env.grid.db.run('INSERT INTO x_threads (user_id, thread, conversation, at) VALUES (?, ?, ?, ?)', p.user.id, 't1', 't1', Date.now());
+    fake.fail('dms', 429, xMod.TRIES_429 + 5);
+    assert.equal((await replyAs(p, { thread: 't1', text: 'never gets through' }, env)).status, 200);
+    await until(() => env.grid.db.get('SELECT count(*) n FROM x_outbox').n === 0, { what: 'given up on', timeout: 15_000 });
+    assert.equal(fake.fails.dms.length, 5, 'it stopped trying');
+    assert.equal(mills(), start + xMod.COST.post, 'and none of those tries cost anything');
+  } finally {
+    await env.grid.close();
+    await fake.close();
+    x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
+  }
+});
+
+test('one box can’t drain the day: a budget in pieces, and caps on what waits', { timeout: 60_000 }, async () => {
+  const fake = await startFakeX();
+  const env = await boot({ api: fake, xCfg: { ...CREDS, piecesPerDay: 3, outboxRows: 2 } });
+  try {
+    const p = await env.person('dee');
+    await linkX(env, p, '333');
+    env.grid.db.run('INSERT INTO x_threads (user_id, thread, conversation, at) VALUES (?, ?, ?, ?)', p.user.id, 't1', 't1', Date.now());
+    assert.equal((await replyAs(p, { thread: 't1', text: 'one' }, env)).status, 200);
+    assert.equal((await replyAs(p, { thread: 't1', text: 'two' }, env)).status, 200);
+    const full = await replyAs(p, { thread: 't1', text: 'three' }, env);
+    assert.equal(full.status, 429, 'two rows wait already');
+    assert.equal(env.grid.db.get('SELECT count(*) n FROM x_outbox').n, 2);
+    await fake.dm({ sender: '333', text: 'hi' });
+    await until(() => env.grid.db.get('SELECT count(*) n FROM x_outbox').n === 0, { what: 'sent' });
+    assert.equal((await replyAs(p, { thread: 't1', text: 'three' }, env)).status, 200);
+    const over = await replyAs(p, { thread: 't1', text: 'four' }, env);
+    assert.equal(over.status, 429, 'the day’s pieces are used');
+    assert.match(over.text, /today/);
   } finally {
     await env.grid.close();
     await fake.close();
@@ -1058,7 +1251,11 @@ test('paused: CRC still answers, events are counted, and nothing else happens', 
     assert.equal(env.grid.db.get("SELECT count(*) n FROM channel_inbox WHERE channel = 'x'").n, 0);
     assert.ok(env.grid.db.get('SELECT mills FROM x_spend').mills >= 15);
     env.grid.db.run('INSERT INTO x_threads (user_id, thread, conversation, at) VALUES (?, ?, ?, ?)', p.user.id, 't1', 't1', Date.now());
-    assert.equal((await replyAs(p, { thread: 't1', text: 'x' }, env)).status, 503);
+    assert.equal(env.grid.db.get('SELECT dm_open FROM x_links WHERE user_id = ?', p.user.id).dm_open, 1, 'a DM while paused still opens');
+    const held2 = await replyAs(p, { thread: 't1', text: 'kept' }, env);
+    assert.equal(held2.status, 200);
+    assert.equal(held2.json().held, true);
+    assert.equal(env.grid.db.get('SELECT count(*) n FROM x_outbox').n, 1, 'a result isn’t lost to a pause');
     assert.equal(fake.webhooks.length, 0, 'paused doesn’t register anything');
     // `stop` is an opt-out, not a message: it works paused too.
     await fake.dm({ sender: '333', text: 'stop' });
@@ -1124,10 +1321,11 @@ test('grid.json: secrets from a file or the env, bad numbers refused, `api` only
 
 test('linking: PKCE, the right scopes, and nothing of X’s tokens is kept', async () => {
   const issued = x.issued.at(-1);
-  assert.equal(issued.scope, 'users.read tweet.read offline.access');
-  assert.ok(x.revoked.includes(issued.refresh), 'handed back at once');
+  assert.equal(issued.scope, 'users.read tweet.read', 'nothing that outlives the link');
+  assert.equal(issued.refresh, undefined);
+  assert.ok(x.revoked.includes(issued.access), 'handed back at once');
   const dump = JSON.stringify([...g.grid.db.all('SELECT * FROM x_links'), ...g.grid.db.all('SELECT * FROM x_flows'), ...g.grid.db.all('SELECT * FROM audit'), ...g.grid.db.all('SELECT * FROM user_secrets')]);
-  assert.ok(!dump.includes(issued.access) && !dump.includes(issued.refresh));
+  assert.ok(!dump.includes(issued.access));
   assert.ok(auditOf('x.link').some((a) => a.user_id === ada.user.id));
 });
 
@@ -1195,7 +1393,7 @@ test('the Box secret can’t link, unlink or read tokens', async () => {
   assert.ok(g.grid.db.get('SELECT 1 FROM x_links WHERE user_id = ?', ada.user.id));
   const state = await g.call('/_grid/x/state', { method: 'GET', headers: auth });
   assert.equal(state.status, 200);
-  assert.deepEqual(Object.keys(state.json()).sort(), ['account', 'bot', 'capped', 'dmOpen', 'handle', 'linked', 'paused']);
+  assert.deepEqual(Object.keys(state.json()).sort(), ['account', 'bot', 'capped', 'dmOpen', 'handle', 'linked', 'on', 'paused']);
   assert.ok(!/token|secret|x_id|111/i.test(state.text));
   assert.equal((await g.call('/_grid/x/state', { method: 'GET' })).status, 401);
 });
@@ -1225,6 +1423,16 @@ test('unlinking X isn’t losing a sign-in method: one identity is enough to do 
   assert.equal(g.grid.db.get('SELECT count(*) n FROM identities WHERE user_id = ?', p.user.id).n, 1);
   assert.ok(auditOf('x.unlink').some((a) => a.user_id === p.user.id));
   assert.throws(() => g.grid.accounts.unlink(p.user.id, 'x'), /Keep at least one way/);
+});
+
+test('the box tells the grid when its switch moves; the Box secret reaches that and only that', async () => {
+  const p = await g.person('kit');
+  const set = (body) => g.call('/_grid/x/switch', { headers: { authorization: p.auth, 'content-type': 'application/json' }, body });
+  assert.equal((await set({ on: true })).status, 200);
+  assert.ok(g.grid.db.get('SELECT 1 FROM x_boxes WHERE user_id = ?', p.user.id));
+  assert.equal((await set({ on: false })).status, 200);
+  assert.equal(g.grid.db.get('SELECT 1 FROM x_boxes WHERE user_id = ?', p.user.id), undefined);
+  assert.equal((await g.call('/_grid/x/switch', { body: { on: true } })).status, 401);
 });
 
 test('no message text in the audit or the log', async () => {

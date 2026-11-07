@@ -16,7 +16,7 @@
 // message gets its line, since that's the only way the sender finds out.
 
 import { bad, truncate } from '../util.js';
-import { boxGrid, xReply, xState } from './box.js';
+import { boxGrid, xReply, xState, xSwitch } from './box.js';
 import { Channel } from './channel.js';
 import { NOT_A_NAME, parseMessage } from './grammar.js';
 import { LISTS, refusal } from './lists.js';
@@ -94,6 +94,10 @@ export class X extends Channel {
     if (signal?.aborted) return this.view();
     const had = !!this.grid;
     this.grid = grid;
+    if (grid && grid.on !== this.ready) {
+      await xSwitch(box, this.ready); // what wakes this box hears of the switch here and now
+      grid.on = this.ready;
+    }
     if (had !== !!grid) this.hub.onChange();
     return this.view();
   }

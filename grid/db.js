@@ -96,10 +96,13 @@ const MIGRATIONS = [
   // x_flows: a link on its way, bound to the session that started it. x_seen: event and post ids
   // already taken, so a retry does nothing even after a restart. x_threads: what a box accepted, which
   // is all it may answer. x_outbox: what hasn't gone yet. x_sent: a box's replies of the last hour.
-  // x_spend: what a UTC day cost, in tenths of a cent, and the strangers who mentioned the bot.
+  // x_spend: what a UTC day cost, in tenths of a cent: mills is linked people's, stranger_mills is what
+  // mentions by anyone else cost, which is apart so they can't spend it; tripped: the linked cap,
+  // hard: a ceiling that took the subscriptions away. x_rate: a person's posts of the last hour.
+  // x_day: pieces a box sent today. x_boxes: boxes whose switch is on, so nobody wakes one that isn't.
   `CREATE TABLE x_links (
      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, x_id TEXT UNIQUE NOT NULL,
-     handle TEXT NOT NULL DEFAULT '', dm_open INTEGER NOT NULL DEFAULT 0, linked_at INTEGER NOT NULL);
+     handle TEXT NOT NULL DEFAULT '', dm_open INTEGER NOT NULL DEFAULT 0, linked_at INTEGER NOT NULL, told_at INTEGER NOT NULL DEFAULT 0);
    CREATE TABLE x_flows (
      state_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
      session_hash TEXT NOT NULL, verifier TEXT NOT NULL, expires_at INTEGER NOT NULL);
@@ -115,7 +118,12 @@ const MIGRATIONS = [
    CREATE TABLE x_sent (user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, at INTEGER NOT NULL);
    CREATE INDEX x_sent_user ON x_sent(user_id, at);
    CREATE TABLE x_spend (
-     day TEXT PRIMARY KEY, mills INTEGER NOT NULL DEFAULT 0, strangers INTEGER NOT NULL DEFAULT 0, tripped INTEGER NOT NULL DEFAULT 0);`,
+     day TEXT PRIMARY KEY, mills INTEGER NOT NULL DEFAULT 0, stranger_mills INTEGER NOT NULL DEFAULT 0, strangers INTEGER NOT NULL DEFAULT 0,
+     tripped INTEGER NOT NULL DEFAULT 0, hard INTEGER NOT NULL DEFAULT 0);
+   CREATE TABLE x_rate (user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, at INTEGER NOT NULL);
+   CREATE INDEX x_rate_user ON x_rate(user_id, at);
+   CREATE TABLE x_day (user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, day TEXT NOT NULL, pieces INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, day));
+   CREATE TABLE x_boxes (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE);`,
 ];
 
 export async function openDb(dataDir) {
