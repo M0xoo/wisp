@@ -8,9 +8,11 @@
 mod macos;
 mod menu;
 mod notify;
-#[cfg(feature = "qa")]
+#[cfg(all(feature = "qa", target_os = "macos"))]
 mod qa;
 mod server;
+#[cfg(windows)]
+mod windows;
 
 use server::Server;
 use std::path::PathBuf;
@@ -25,6 +27,8 @@ use tauri_plugin_opener::OpenerExt;
 const INIT: &str = include_str!("init.js");
 const CAPABILITY: &str = include_str!("../capability.json");
 const DEFAULT_PORT: u16 = 4477;
+const WIDTH: f64 = 1380.0;
+const HEIGHT: f64 = 900.0;
 
 fn port() -> u16 {
   std::env::var("WISP_PORT").ok().and_then(|p| p.parse().ok()).filter(|p| *p > 0).unwrap_or(DEFAULT_PORT)
@@ -51,7 +55,7 @@ fn open_outside(app: &AppHandle, url: &Url) {
   if matches!(url.scheme(), "about" | "blob" | "data" | "file" | "javascript") {
     return;
   }
-  #[cfg(feature = "qa")]
+  #[cfg(all(feature = "qa", target_os = "macos"))]
   if qa::note_opened(url) {
     return;
   }
@@ -73,8 +77,12 @@ fn background(theme: Theme) -> tauri::webview::Color {
   }
 }
 
-// A WKWebView's document.hasFocus() stays true with another app in front (src/init.js).
+// A WKWebView's document.hasFocus() stays true with another app in front (src/init.js). WebView2's is
+// right, and fires its own focus and blur: telling it too would fire them twice.
 fn tell_focus(w: &WebviewWindow, on: bool) {
+  if cfg!(windows) {
+    return;
+  }
   let _ = w.eval(format!("dispatchEvent(new CustomEvent('wisp-window-focus', {{ detail: {on} }}))"));
 }
 
@@ -83,7 +91,7 @@ fn open_window(app: &AppHandle, port: u16) -> tauri::Result<()> {
   let (nav, popup, inside_nav, inside_popup) = (app.clone(), app.clone(), home.clone(), home.clone());
   let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(home))
     .title("wisp")
-    .inner_size(1380.0, 900.0)
+    .inner_size(WIDTH, HEIGHT)
     .min_inner_size(720.0, 520.0)
     .visible(false)
     .disable_drag_drop_handler() // the page has its own: attachments, task list and reorder
@@ -110,14 +118,17 @@ fn open_window(app: &AppHandle, port: u16) -> tauri::Result<()> {
       open_outside(&popup, &url);
       NewWindowResponse::Deny
     })
-    // The page title carries the "needs you" count: "(3) wisp" → dock badge. The window keeps `wisp`.
+    // The page title carries the "needs you" count: "(3) wisp" → dock or taskbar badge. The window keeps `wisp`.
     .on_document_title_changed(|w, title| {
-      let count = title.strip_prefix('(').and_then(|t| t.split(')').next()).and_then(|n| n.parse::<i64>().ok());
-      let _ = w.set_badge_count(count.filter(|n| *n > 0));
+      let count = title.strip_prefix('(').and_then(|t| t.split(')').next()).and_then(|n| n.parse::<i64>().ok()).filter(|n| *n > 0);
+      #[cfg(windows)]
+      windows::badge(&w, count);
+      #[cfg(not(windows))]
+      let _ = w.set_badge_count(count);
     })
     // Without this WebKit drops `<a download>`. Goes to ~/Downloads, under a free name.
     .on_download(|_, _event| {
-      #[cfg(feature = "qa")]
+      #[cfg(all(feature = "qa", target_os = "macos"))]
       qa::download_to(_event);
       true
     })
@@ -134,10 +145,23 @@ fn open_window(app: &AppHandle, port: u16) -> tauri::Result<()> {
     .title_bar_style(tauri::TitleBarStyle::Overlay)
     .hidden_title(true)
     .traffic_light_position(tauri::LogicalPosition::new(16.0, macos::traffic_light_inset(18.0)));
-  #[cfg(feature = "qa")]
+  #[cfg(all(feature = "qa", target_os = "macos"))]
   let builder = builder.initialization_script(qa::INIT);
+  // WebView2 speaks CDP, but ignores WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS and its policy once wry
+  // names arguments of its own: qa/desktop-tauri-win.mjs. These replace wry's, so they repeat them.
+  #[cfg(all(feature = "qa", windows))]
+  let builder = match std::env::var("WISP_QA_CDP") {
+    Ok(port) => builder.additional_browser_args(&format!("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port={port}")),
+    Err(_) => builder,
+  };
   let window = builder.build()?;
   let _ = window.set_background_color(window.theme().ok().map(background));
+  #[cfg(windows)]
+  windows::place(&window, WIDTH, HEIGHT)?;
+  #[cfg(windows)]
+  windows::plain_menu(&window)?;
+  #[cfg(windows)]
+  windows::menu_keys(&window)?;
   #[cfg(target_os = "macos")]
   macos::keep_frames_in_place(&window)?;
   #[cfg(target_os = "macos")]
@@ -213,7 +237,7 @@ fn node(app: &AppHandle) -> PathBuf {
 
 #[tauri::command]
 async fn pick_folder(window: WebviewWindow) -> Option<String> {
-  #[cfg(feature = "qa")]
+  #[cfg(all(feature = "qa", target_os = "macos"))]
   if let Some(path) = std::env::var("WISP_QA_PICK").ok().filter(|_| !qa::REAL_PICKER.load(std::sync::atomic::Ordering::SeqCst)) {
     return Some(path);
   }
@@ -225,7 +249,7 @@ async fn pick_folder(window: WebviewWindow) -> Option<String> {
 
 #[tauri::command]
 fn start_drag(window: WebviewWindow) {
-  #[cfg(feature = "qa")]
+  #[cfg(all(feature = "qa", target_os = "macos"))]
   qa::DRAGS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
   let _ = window.start_dragging();
 }
@@ -276,7 +300,7 @@ fn main() {
     })
     .setup(move |app| {
       app.add_capability(CAPABILITY.replace("__PORT__", &port.to_string()))?;
-      #[cfg(feature = "qa")]
+      #[cfg(all(feature = "qa", target_os = "macos"))]
       qa::listen(app.handle().clone());
       notify::on_click(app.handle())?;
       let handle = app.handle().clone();

@@ -6,8 +6,10 @@
 //   CHROME   Chrome to drive (default: the system Google Chrome)
 //   QA_ENGINE=webkit  drive Playwright's WebKit instead (the Mac engine of the Tauri app):
 //            cd /tmp/wisp-qa-pw && npx playwright-core install webkit
+//   QA_ENGINE=webview2  drive the WebView2 of a running Tauri app on Windows, through its DevTools
+//            port (QA_CDP): qa/desktop-tauri-win.mjs --web starts one
 
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -21,7 +23,7 @@ fs.mkdirSync(OUT, { recursive: true });
 
 export const CHROME =
   process.env.CHROME ||
-  (process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : '/usr/bin/google-chrome');
+  ({ darwin: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', win32: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' }[process.platform] || '/usr/bin/google-chrome');
 
 export function playwright() {
   const dir = process.env.PW_DIR || (process.platform === 'win32' ? path.join(os.tmpdir(), 'wisp-qa-pw') : '/tmp/wisp-qa-pw');
@@ -32,9 +34,13 @@ export function playwright() {
   }
 }
 
-export const ENGINE = process.env.QA_ENGINE === 'webkit' ? 'webkit' : 'chrome';
+// What a person at a Windows desktop sees and does (qa/win32.ps1): a command, an array of answers.
+export const win32 = (cmd, ...args) => JSON.parse(execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(ROOT, 'qa/win32.ps1'), cmd, ...args.map(String)], { encoding: 'utf8', timeout: 90_000, maxBuffer: 1 << 24 }));
+
+export const ENGINE = ['webkit', 'webview2'].includes(process.env.QA_ENGINE) ? process.env.QA_ENGINE : 'chrome';
 export const launchBrowser = (opts = {}) => {
   const { chromium, webkit } = playwright();
+  if (ENGINE === 'webview2') return chromium.connectOverCDP(process.env.QA_CDP);
   return ENGINE === 'webkit' ? webkit.launch(opts) : chromium.launch({ executablePath: CHROME, ...opts });
 };
 

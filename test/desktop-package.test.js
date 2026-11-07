@@ -115,6 +115,19 @@ test('resources land where the shell and the updater look, on each OS', () => {
   }
 });
 
+test('the Windows installer takes Electron’s copy away, from where v0.57.0 really put it', () => {
+  for (const t of WIN) assert.equal(overlay(t).bundle.windows.nsis.installerHooks, 'installer-hooks.nsh');
+  for (const t of MAC) assert.equal(overlay(t).bundle.windows, undefined);
+  assert.ok(fs.existsSync(path.join(ROOT, 'desktop/src-tauri', overlay(WIN[0]).bundle.windows.nsis.installerHooks)));
+  const hooks = read('desktop/src-tauri/installer-hooks.nsh');
+  // electron-builder names the folder after package.json's name, not the product: read, not assumed.
+  assert.ok(hooks.includes(`$LOCALAPPDATA\\Programs\\${JSON.parse(read('package.json')).name}`), 'not the folder electron-builder installs to');
+  assert.match(hooks, /_\?=\$\{ELECTRON_COPY\}'/, 'without _?= ExecWait returns before it has finished');
+  assert.match(hooks, /--keep-shortcuts/, 'our links have the same names as its');
+  assert.match(hooks, /\$INSTDIR != "\$\{ELECTRON_COPY\}"/, 'picked as the install folder, it holds the new app');
+  assert.ok(!/RMDir \/r|APPDATA\\wisp|\.wisp/.test(hooks.replace(/^;.*$/gm, '')), 'nothing here may reach user data');
+});
+
 test('artefacts keep electron-builder’s names, the ones the updater, install.sh and the site ask for', () => {
   const update = (platform, arch) => new Updater({ port: 1, env: {}, platform, arch, root: tmp('upd') }).assetName();
   assert.deepEqual(artefacts(MAC[0]), ['wisp-mac-arm64.dmg', 'wisp-mac-arm64.zip']);

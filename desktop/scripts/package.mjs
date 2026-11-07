@@ -2,7 +2,7 @@
 // (packaging/desktop/electron-builder.yml): wisp-mac-<arch>.dmg and .zip, wisp-windows-<arch>-setup.exe.
 // Nothing here is released yet: .github/workflows/tauri-package.yml keeps them as a dry run's artifacts.
 //
-//   node desktop/scripts/package.mjs [--target <triple>] [--out dist/tauri] [--skip-build]
+//   node desktop/scripts/package.mjs [--target <triple>] [--out dist/tauri] [--features qa] [--skip-build]
 //
 // Needs Rust. TAURI_CLI picks the CLI ("cargo tauri" here if you have it), MAC_SIGN_IDENTITY a
 // Developer ID (ad hoc otherwise, as in release.yml without its secrets: Apple silicon runs nothing
@@ -55,9 +55,9 @@ export function stage(root = ROOT, dest = path.join(STAGE, 'app')) {
   return dest;
 }
 
-function tauri(triple, config) {
+function tauri(triple, config, features) {
   const words = (process.env.TAURI_CLI || `npx --yes ${CLI}`).split(' ');
-  const args = [...words.slice(1), 'build', '--ci', '--target', triple, '--config', config];
+  const args = [...words.slice(1), 'build', '--ci', '--target', triple, '--config', config, ...(features ? ['--features', features] : [])];
   execFileSync(words[0], args, { cwd: SHELL, stdio: 'inherit', shell: process.platform === 'win32' });
 }
 
@@ -108,7 +108,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     await fetchNode(triple, path.join(STAGE, 'node'));
     const config = path.join(STAGE, 'tauri.conf.json');
     fs.writeFileSync(config, JSON.stringify(overlay(triple), null, 2));
-    tauri(triple, config);
+    tauri(triple, config, arg('--features'));
   }
   (isMac(triple) ? packMac : packWindows)(triple, out);
   for (const f of artefacts(triple)) console.log(`${f}  ${fs.statSync(path.join(out, f)).size} bytes  (Node ${NODE_VERSION})`);
