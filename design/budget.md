@@ -75,6 +75,50 @@ Not held: anything you start or schedule, *Check in now*, *Run now*, delegations
 them), subagents, members and launches on other machines
 (each machine keeps its own budget).
 
+## Machine load
+
+The owner had to restart a 24 GB Mac with 14 crew runs, their delegates and their own tasks going
+at once (2026-11-07): wisp had no limit on concurrent runs. Memory is what limits coding agents,
+not CPU (HiveMind, AgentCgroup): a `claude` CLI is about 300 MB, the tests and builds it runs reach
+2–4 GB. So wisp admits held-back work only when the machine has room, the way Automations stop at
+admits it only when the plan has.
+
+- **Readings** (`server/load.js`, `app.load`), every 10 s on an unref'd timer, read synchronously:
+  - macOS: `sysctl -n kern.memorystatus_level` (the free percent `memory_pressure` prints, no root),
+    else `vm_stat` (free + inactive + speculative + purgeable pages). Never `os.freemem()` there: it
+    counts free pages only and always reads low.
+  - Linux: `MemAvailable / MemTotal` (`/proc/meminfo`), and `/proc/pressure/memory` `some avg10`
+    when the kernel has PSI: 25% or more stalled holds even with memory free, under 10% clears.
+  - Windows: `os.freemem() / os.totalmem()`.
+  - CPU: `os.loadavg()[0] / os.availableParallelism()`; Windows has no load average, so the busy
+    share between two `os.cpus()` samples (0–100%, so only the 100% ceiling bites there).
+- **Settings** (spell-lockable, `SETTINGS` in spell-schema, refused otherwise): `memoryFloor`
+  (`off` | `10` | `15` | `20` | `25`, 15), `cpuCeiling` (`off` | `100` | `150` | `200` % of the cores,
+  150, held only after 30 s over), `maxRuns` (`off` | `4` | `6` | `8` | `12` | `16` | `auto`; auto is
+  `floor(totalGB / 3)`, at least 2: 8 on 24 GB).
+- **Hold**: `app.reserve.check` is `app.load.hold() || app.reserve.plan(…)`, so the same work waits,
+  through the same paths as the table above, and the crew's hold checks it for members on Auto too.
+  The hold is `{ load: true, kind: 'memory' | 'cpu' | 'runs', why, until }`: `until` is a minute on
+  (there's no reset to wait for), so a held follow-up or goal round looks again then and a check-in
+  or trigger runs at its next time. `load` goes on `m.held`, `t.held` and `l.held`, and the page
+  says *Waits for the computer* instead of *for your plan*, with the why: *Waiting for memory: 11%
+  free, needs 20%*, *Waiting for the CPU: load at 175% of its cores, needs under 150%*, *Waiting
+  for a run slot: 8 runs going, at most 8*.
+- **Hysteresis**: memory holds under the floor and goes on at floor + 5 points; the CPU holds after
+  30 s over the ceiling and goes on once under it; a run slot is free as soon as a run ends.
+  `app.reserve.plan` stays the plan's alone, so an early reset (`planFree`) isn't blocked by load.
+- **Never held**: what you start or follow up by hand (it runs; under the floor the page gets a
+  `load` event and toasts *Your Mac is short on memory: 12% free, 9 runs going*, once a minute),
+  answers, Stop, and subagents and delegates of a running task (a lead would deadlock). Every live
+  handle (`runner.live`) counts toward `maxRuns`, theirs included.
+- **Seen**: Settings → Usage → **Machine load** (`.sx-load`, spell part `settings.load`): *Now* (free
+  memory, CPU, runs of the limit, and the why while it holds, `GET /load`, read every 10 s while
+  Settings is open) and the three selects.
+- **`busy()`**: true while the guard holds; the worktree sweep and its `du` wait for the next hour.
+- Off under `node --test` (the suite runs on CI boxes of every size); `test/load.test.js` turns the
+  server's on with readings it sets.
+- NOT NOW: pausing or killing running agents, cgroups, per-run memory limits.
+
 ## Where it went
 
 `Budget.begin/end(agent, account, session, turn)` (runner `#startTurn` / `#finishTurn`, in memory)

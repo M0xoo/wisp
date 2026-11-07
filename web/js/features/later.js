@@ -49,12 +49,14 @@ export { isScheduled };
 export const nextAt = (s) => Math.min(s.later?.[0]?.at ?? Infinity, s.held?.waiting ? s.held.until : Infinity);
 
 export function laterTip(s) {
-  return (s.later || []).map((l) => (l.held ? `${l.goal ? `Goal round ${l.goal}` : 'Follow-up'} at ${aheadLabel(l.at)} (${inWords(l.at)}), when the plan resets. Waits for your plan: ${l.held.why}` : `${l.remind ? 'Reminder' : 'Follow-up'} at ${aheadLabel(l.at)} (${inWords(l.at)}), set by ${whoSet(l.by)}: ${l.text}`)).join('\n');
+  return (s.later || []).map((l) => (l.held ? `${l.goal ? `Goal round ${l.goal}` : 'Follow-up'} at ${aheadLabel(l.at)} (${inWords(l.at)}), ${l.held.load ? `when the computer has room. ${l.held.why}` : `when the plan resets. Waits for your plan: ${l.held.why}`}` : `${l.remind ? 'Reminder' : 'Follow-up'} at ${aheadLabel(l.at)} (${inWords(l.at)}), set by ${whoSet(l.by)}: ${l.text}`)).join('\n');
 }
 
 // What a scheduled follow-up says on its row: its text, or (moved to the plan's reset by
-// Settings → Usage → Automations stop at) that it waits for the plan. [icon, text]
+// Settings → Usage → Automations stop at) that it waits for the plan; held by the RAM/CPU guard
+// (held.load, server/load.js), that it waits for the computer. [icon, text]
 export function laterLine(l) {
+  if (l.held?.load) return ['pause', l.goal ? `Goal round ${l.goal} waits for the computer` : `Waits for the computer: ${l.text}`];
   if (l.held) return ['pause', l.goal ? `Goal round ${l.goal} waits for your plan` : `Waits for your plan: ${l.text}`];
   if (l.goal) return ['target', `Goal round ${l.goal}`];
   return [l.remind ? 'bell' : 'clock', l.text];
@@ -262,7 +264,7 @@ export function followUpItems(s) {
     key: `l-${l.id}`,
     cls: 'cq later',
     item: l,
-    html: `<span class="cq-tag" title="${esc(l.held ? `${whenTip(l.at)}\nWaits for your plan: ${l.held.why}` : whenTip(l.at))}">${icon(l.held ? 'pause' : l.remind ? 'bell' : 'clock')}${l.remind ? 'Reminder at' : 'At'} ${esc(aheadLabel(l.at))} · ${l.held ? 'when your plan resets' : `set by ${esc(whoSet(l.by))}`}${l.files ? ` · <span title="${l.files === 1 ? '1 file goes with it' : `${l.files} files go with it`}">${icon('clip')}${l.files}</span>` : ''}</span>
+    html: `<span class="cq-tag" title="${esc(l.held ? `${whenTip(l.at)}\n${l.held.load ? l.held.why : `Waits for your plan: ${l.held.why}`}` : whenTip(l.at))}">${icon(l.held ? 'pause' : l.remind ? 'bell' : 'clock')}${l.remind ? 'Reminder at' : 'At'} ${esc(aheadLabel(l.at))} · ${l.held ? (l.held.load ? 'when the computer has room' : 'when your plan resets') : `set by ${esc(whoSet(l.by))}`}${l.files ? ` · <span title="${l.files === 1 ? '1 file goes with it' : `${l.files} files go with it`}">${icon('clip')}${l.files}</span>` : ''}</span>
       <span class="cq-text">${esc(l.goal ? laterLine(l)[1] : l.text)}</span>
       ${l.goal || String(l.id).startsWith('tmp') ? '' : `<button class="cq-pen" aria-label="${l.remind ? 'Edit reminder' : 'Edit follow-up'}" title="${l.remind ? 'Edit reminder' : 'Edit follow-up'}">${icon('pen')}</button>`}
       <button class="att-x" aria-label="${l.remind ? 'Cancel reminder' : 'Cancel follow-up'}" title="${l.remind ? 'Cancel reminder' : 'Cancel follow-up'}">${icon('x')}</button>`,
@@ -511,7 +513,7 @@ export function upcoming() {
   }
   for (const m of crewList()) {
     if (m.paused || !m.nextAt) continue;
-    out.push({ kind: 'checkin', at: m.nextAt, title: m.name, sub: m.held ? 'Check-in waits for your plan' : m.wakeAt && m.wakeAt <= m.nextAt + 1000 ? 'Looks again' : 'Check-in', member: m, ...(m.held && { held: true }) });
+    out.push({ kind: 'checkin', at: m.nextAt, title: m.name, sub: m.held ? (m.held.load ? 'Check-in waits for the computer' : 'Check-in waits for your plan') : m.wakeAt && m.wakeAt <= m.nextAt + 1000 ? 'Looks again' : 'Check-in', member: m, ...(m.held && { held: true }) });
   }
   for (const t of S.config.triggers || []) if (t.kind === 'schedule' && t.enabled && t.nextAt) out.push({ kind: 'trigger', at: t.nextAt, title: t.name, sub: 'Schedule', trigger: t });
   return out.filter((x) => x.at > Date.now() - 60_000).sort((a, b) => a.at - b.at);

@@ -499,6 +499,8 @@ export const PARTS = {
   'budget.overage': '.sx-budget .bg-over',
   // …tokens per turn by account: each account's median turn per model this week (several accounts only).
   'budget.compare': '.sx-budget .bg-cmp',
+  // Settings → Usage → Machine load: the RAM/CPU guard's reading and its three knobs (server/load.js).
+  'settings.load': '.sx-load',
   // …a harness's own Automations stop at row, the Drain watch row, and its card on an account.
   'settings.autoStopBy': '.sx-budget .us-by-row',
   'settings.drainWatch': '.sx-budget .sx-row:has(#drainWatch)',
@@ -739,6 +741,12 @@ export const SETTINGS = {
   // …a harness's own line, or same (follow autoStop). ChatGPT and Codex share one allowance.
   autoStopClaude: ['same', 'off', '50', '75', '90'],
   autoStopCodex: ['same', 'off', '50', '75', '90'],
+  // Machine load (server/load.js): the same work waits while free memory is under this percent,
+  // the CPU load is over this percent of its cores for 30 s, or this many of wisp's runs are going
+  // (auto: one per 3 GB of memory, at least 2).
+  memoryFloor: ['off', '10', '15', '20', '25'],
+  cpuCeiling: ['off', '100', '150', '200'],
+  maxRuns: ['off', '4', '6', '8', '12', '16', 'auto'],
   // Check Codex while work waits: ask Codex's app-server how a waiting account's windows stand, so an
   // early reset lets that work go (server/live-limits.js).
   liveLimits: ['on', 'off'],

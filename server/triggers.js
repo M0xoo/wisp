@@ -285,7 +285,7 @@ export class Triggers {
     } catch (err) {
       // Automations stop at held it back: not a failure. The row says it skipped, and why.
       if (err.held) {
-        t.held = { at: this.now(), why: String(err.message).slice(0, 300), until: err.held.until, agent: err.held.agent };
+        t.held = { at: this.now(), why: String(err.message).slice(0, 300), until: err.held.until, agent: err.held.agent, ...(err.held.load && { load: true }) };
         t.lastError = '';
         return null;
       }
