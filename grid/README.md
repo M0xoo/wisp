@@ -168,9 +168,15 @@ takes the one address allowed to send. Off unless it's there, and then `/_mail/s
 ```
 
 `inbound.keys` (a list of PEMs) pins SNS's key instead of fetching it from
-`sns.<region>.amazonaws.com`. `sendPerHour` is per user, `threadDays` is how long a box can go on
+`sns.<region>.amazonaws.com`. `inbound.dkimKeys` (DNS name to TXT record) is for a dev grid with no
+real senders, and is ignored on any other. `sendPerHour` is per user, `threadDays` is how long a box can go on
 answering a message. The key can also be `GRID_MAIL_SECRET(_FILE)`. It stays on the grid: no box ever
 gets it.
+
+Senders need their provider to DKIM-sign with the same domain as their address. The grid fetches
+their keys from DNS, so it needs to reach a resolver. Consumer Gmail and iCloud sign that way; a
+company domain signed by its provider's domain won't pass. Nobody has run this against real SES or a
+real Gmail message yet: do that once before relying on it (GRID-32).
 
 To set it up, once per grid:
 
@@ -277,11 +283,22 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
   one per 10 minutes. Known tokens are limited per token, unknown ones per address.
 - **Mail.** `POST <domain>/_mail/ses` is the provider's. It's an RSA signature over the whole message,
   from our topic only: anyone can have SNS sign for their own topic. The grid reads the message and
-  sets who it's from and the DMARC verdict in headers of its own, over the proxy secret, so nothing in
-  the mail can pass for one; the box checks those and its allowed sender. DMARC here means an aligned
-  pass: SES says `GRAY` for a `p=none` domain (gmail.com, outlook.com), so `GRAY` counts only with a
-  DKIM `PASS`, which SES defines as signed by the From's domain, never on SPF alone. A From with more
-  than one address refuses. Addresses are 160 random bits, looked up by SHA-256 and sealed like a URL;
+  sets who it's from and a verdict in headers of its own, over the proxy secret, so nothing in the
+  mail can pass for one; the box checks those and its allowed sender. A sender is accepted only with
+  the secret address, the allowed sender and DKIM proved aligned to the From's domain. SES can refuse
+  a message but not prove one: `FAIL` stays a refusal, and neither `PASS` nor `GRAY` is enough, as its
+  notification never says which domain signed, `PASS` can rest on SPF alone, and an
+  `Authentication-Results` line can be written by anyone. So the proof is ours: `grid/dkim.js` verifies
+  the signatures over the raw bytes (RFC 6376, `rsa-sha256` and `ed25519-sha256`, no `l=`, `from` in
+  `h=`), with the key from the signer's DNS, and one has to have `d=` equal to the From's domain.
+  Equal, not relaxed, because relaxed alignment needs the public suffix list: a subdomain signed by
+  its parent is refused, and so is a company domain signed by its provider's. It needs SNS's Base64
+  encoding: UTF8 can change bytes, so it proves nothing. Verification happens after SNS's signature
+  and only for a real address, so a guess costs no DNS lookup. A message refused here still reaches
+  the box as `unproved`, which is how Settings says why. A From with more than one address, a header
+  section with a bare CR or LF (two parsers could split it differently), a quoted name holding `<`, a
+  second `Subject` or `Date`, or a From SES reads as someone else are all unprovable.
+  Addresses are 160 random bits, looked up by SHA-256 and sealed like a URL;
   they aren't webhooks (`/_in/<address>` is a 404). Sending takes the Box secret, which anything on a
   box can read, so `POST /api/channels/mail/reply` takes no address: only a message its box accepted
   with a 2xx, to the address it came from, within `sendPerHour`, scrubbed here as well. A refused
