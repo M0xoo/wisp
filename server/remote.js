@@ -109,7 +109,7 @@ export class Remote {
 
   async send(msg, s = null, { skip = [] } = {}) {
     const { ntfy, telegram } = this.channels;
-    const out = telegram.options ? this.#safe(msg) : msg;
+    const out = this.#safe(msg);
     const jobs = [];
     const go = (c) => jobs.push(c.publish(out, s).then(() => c.mark({ ok: true }), (e) => c.mark({ ok: false, error: e.message })));
     if (ntfy.ready && !skip.includes('ntfy')) go(ntfy);
@@ -118,9 +118,10 @@ export class Remote {
     return jobs.length;
   }
 
-  // What leaves once the channel layer is on: no secrets, and nobody pinged by agent text.
+  // What leaves: never a secret, on the channel layer or not. With it on, nobody pinged by agent text either.
   #safe(msg) {
-    const clean = (t, o) => defuse(scrubOut(t, o).text);
+    const on = this.channels.telegram.options;
+    const clean = (t, o) => (on ? defuse(scrubOut(t, o).text) : scrubOut(t, o).text);
     return { ...msg, title: clean(msg.title, { note: false }), text: clean(msg.text), actions: (msg.actions || []).map((a) => ({ ...a, label: clean(a.label, { note: false }) })) };
   }
 
