@@ -148,6 +148,50 @@ per user: past them a message is dropped and counted, and the box says so in the
 calls https on port 443, 80, 88 or 8443, so an `http` grid can't use this: Settings → Phone shows
 why. The URL's token is the only thing guarding it: keep it out of any access log you turn on.
 
+### X
+
+Off unless `channels` is on and `grid.json` has all of X's credentials. Without them every X path is a
+404 and no page mentions it. Nothing here has met the live API: `grid/x.js`'s `readEvent` is the one
+place that reads an event, so a shape that differs is one edit.
+
+```json
+"x": {
+  "clientId": "…", "clientSecretFile": "secrets/x-client-secret",
+  "bot": { "id": "1234567890", "handle": "wispbot", "consumerKey": "…", "consumerSecretFile": "secrets/x-consumer-secret",
+           "accessToken": "…", "accessSecretFile": "secrets/x-access-secret", "bearerTokenFile": "secrets/x-bearer" },
+  "dailySpendCents": 500,
+  "paused": false
+}
+```
+
+Each secret is a value, a file (`…File`) or an env var (`GRID_X_CLIENT_SECRET`, `GRID_X_CONSUMER_SECRET`,
+`GRID_X_ACCESS_SECRET`, `GRID_X_BEARER_TOKEN`). `bot.id` is the bot's numeric id. Optional:
+`postsPerHour` (20, per person), `sendPerHour` (30, a box's replies), `threadDays` (7).
+
+What a person has to do, since an agent can't:
+
+1. **A bot account** on X, with the *Automated* label pointing at a human account.
+2. **A developer account** with a Project and an App, and prepaid credits. Set the callback URL to
+   `https://<domain>/account/x/callback`, with OAuth 2.0 on and the app confidential (that's the client
+   id and secret), and read and write access with direct messages on. Make the bot's access token and
+   secret while signed in as the bot, and an app bearer token.
+3. **X's approval** for automated replies. wisp's public reply is one of three fixed lines, never agent
+   text, which is why it should qualify, but that line is X's to draw: ask, and say a DM carries the
+   agent's output.
+4. **Restart the grid.** Once listening it creates the webhook at `https://<domain>/_x/webhook` (X
+   allows no port there, and asks the CRC at once) and subscribes the bot to `post.mention.create`,
+   `post.reply.create` and `dm.received`. A failure is a log line, and the next start tries again.
+
+What it costs: 0.5¢ a mention, including strangers', 1¢ a reply, 1.5¢ a DM out and 1¢ a DM in, so about
+3¢ a task. Each is counted per UTC day in `x_spend`. Over `dailySpendCents` there are no replies, no DMs
+and no wakes until 00:00 UTC: one `x.cap` in `audit`, one line in the log, and admins see the day's
+figure on their account page. `"paused": true` and a restart is the kill switch. CRC keeps answering so
+X doesn't drop the webhook, events are counted, `stop` still unlinks, and nothing else happens.
+
+A link isn't a sign-in. It lives in `x_links`, not `identities`, and X's tokens are read once and handed
+back. A result that can't go yet waits in `x_outbox`, scrubbed and in the clear, for as long as its
+thread lives: until the person's first DM, the next UTC day, or X's 429 is over.
+
 ### Sandboxes
 
 `/sandbox <task>` in wisp asks the grid for a box of its own for that task (`grid/sandboxes.js`):

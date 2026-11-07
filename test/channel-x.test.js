@@ -291,7 +291,7 @@ test('Plan by default, Edits if asked, Full auto refused with a line', { timeout
   const lines = () => dmsTo(ADA_X).filter((d) => /Full auto isn’t allowed/.test(d.text)).length;
   const before = lines();
   await x.mention({ author: ADA_X, text: '@wispbot full auto: drop everything' });
-  await x.mention({ author: ADA_X, text: '@wispbot auto: drop everything' });
+  await x.mention({ author: ADA_X, text: '@wispbot full-auto: drop everything' });
   await settled();
   await until(() => lines() === before + 2, { what: 'two lines' });
   assert.equal((await tasks(ada)).length, ran, 'nothing started');

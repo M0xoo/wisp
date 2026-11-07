@@ -410,7 +410,7 @@ h2.sec{margin:36px 0 12px;font-size:14px;font-weight:600;color:var(--ink);scroll
 .acct{display:grid;grid-template-columns:220px minmax(0,1fr);gap:48px;align-items:start}.a-side{position:sticky;top:84px;min-width:0}.a-who{display:flex;align-items:center;gap:10px;min-width:0}.a-who .av{flex:none;width:36px;height:36px;font-size:14px}.a-who div{min-width:0}.a-who b,.a-who small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.a-who b{font-size:13px;font-weight:600}.a-who small{color:var(--muted);font-size:12.5px}
 .a-nav{margin-top:18px;display:flex;flex-direction:column;gap:2px}.a-nav a{padding:6px 10px;margin-left:-10px;border-radius:8px;font-size:13px;color:var(--muted);text-decoration:none}.a-nav a:hover{background:var(--bg-2);color:var(--ink)}
 .a-main{min-width:0;max-width:720px}.a-main h2.sec:first-of-type{margin-top:24px}
-.flash{margin:0 0 18px;padding:10px 14px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface-2);font-size:13.5px}.flash.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
+.hint code{font:12.5px var(--mono)}.hint.x-after{margin-top:10px}.flash{margin:0 0 18px;padding:10px 14px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface-2);font-size:13.5px}.flash.bad{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
 .code{font:600 30px/1 var(--mono);letter-spacing:.14em;text-align:center;padding:22px;border:1px dashed var(--line-2);border-radius:12px;background:var(--surface-2);margin:18px 0}
 .input{width:100%;height:40px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);padding:0 12px;font:15px var(--mono);letter-spacing:.08em;text-transform:uppercase}
 .input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
@@ -734,7 +734,7 @@ function xSection({ x, hidden }) {
         <div class="r wrap"><span class="ic">${I.x}</span><div class="tx"><b>${x.linked ? `@${esc(x.handle)}` : 'Link your X account'}</b><small>${x.linked ? dm : `This doesn’t sign you in. When it’s linked, finish by sending ${bot} a DM once.`}</small></div>
         ${x.linked ? `<form class="inline" method="post" action="/account/x/unlink">${hidden}<button class="ghost line">Unlink</button></form>` : `<form class="inline" method="post" action="/account/x/link">${hidden}<button class="ghost line">Link X</button></form>`}</div>
       </div>
-      <p class="hint">${state ? `${state} ` : ''}To unlink, use the button here or send ${bot} the word <code>stop</code> in a DM.</p>${spend}
+      <p class="hint x-after">${state ? `${state} ` : ''}${x.linked ? 'To unlink, use the button here or send' : 'Once linked, you can unlink here, or send'} ${bot} the word <code>stop</code> in a DM.</p>${spend}
 `;
 }
 
