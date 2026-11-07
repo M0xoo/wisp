@@ -398,7 +398,7 @@ export class Machines extends EventEmitter {
     (async () => {
       const until = Date.now() + GRID_WAKE_MS;
       let health = null;
-      while (!health && Date.now() < until && this.conns.get(m.id) === c) {
+      while (!health && Date.now() < until && this.conns.get(m.id) === c && !c.hungUp) {
         try {
           health = await this.#raw(m, c, 'GET', '/health', undefined, { timeout: 30_000 });
         } catch (err) {
@@ -412,7 +412,7 @@ export class Machines extends EventEmitter {
           await new Promise((r) => setTimeout(r, 1000));
         }
       }
-      if (this.conns.get(m.id) !== c || c.state === 'asleep') return;
+      if (this.conns.get(m.id) !== c || c.state === 'asleep' || c.hungUp) return;
       if (!health) throw new Error('It didn’t wake up in time.');
       if (this.conns.get(m.id) !== c) return;
       this.#step(c, 'wake', 'done', new URL(m.url).host);
@@ -432,10 +432,11 @@ export class Machines extends EventEmitter {
   async #ready(m, c) {
     this.#step(c, 'tunnel', 'run');
     let health;
-    for (let i = 0; i < 40 && !health; i++) {
+    for (let i = 0; i < 40 && !health && !c.hungUp; i++) {
       health = await this.#raw(m, c, 'GET', '/health').catch(() => null);
       if (!health) await new Promise((r) => setTimeout(r, 250));
     }
+    if (c.hungUp) return;
     if (!health) throw new Error('The tunnel opened, but wisp doesn’t answer through it.');
     if (this.conns.get(m.id) !== c) return;
     this.#step(c, 'tunnel', 'done', `localhost:${c.localPort} → ${m.port}`);
@@ -509,6 +510,7 @@ export class Machines extends EventEmitter {
   }
 
   #hangUp(c) {
+    c.hungUp = true; // a wake or tunnel check still going stops asking (stop(): wisp is quitting)
     clearTimeout(c.retryTimer);
     clearTimeout(c.readyTimer);
     clearTimeout(c.watchTimer);

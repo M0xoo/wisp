@@ -11,7 +11,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { installFakeBins, makeClone, makeRepo, records, same, tmp, until, win, isolateAgentConfigs } from './helpers.js';
+import { installFakeBins, makeClone, makeRepo, records, same, sleep, tmp, until, win, isolateAgentConfigs } from './helpers.js';
 import { sameRepo } from '../server/git.js';
 import { authorizedKeys, reachable, sshBanner, tailscaleSelf } from '../server/machines/reachable.js';
 import { nodeInstallScript } from '../server/machines/bootstrap.js';
@@ -638,6 +638,32 @@ test('a cloud computer that’s waking takes the next request; one disconnected 
     ms.disconnect('g');
     assert.equal(ms.usable('g'), false);
     await assert.rejects(async () => ms.json('g', 'GET', '/x'), { status: 503, message: /box is offline/ });
+  } finally {
+    srv.closeAllConnections();
+    srv.close();
+  }
+});
+
+// wisp quitting (stop()) while a cloud computer wakes: the wake stops asking. It went on for up to
+// 90 s, holding the process open and changing state after the server had gone.
+test('a cloud computer still waking stops asking once wisp stops', async () => {
+  let asked = 0;
+  const srv = http.createServer((req, res) => {
+    req.resume();
+    if (req.url === '/api/health') asked += 1;
+    res.writeHead(503, { 'content-type': 'application/json' }).end('{"error":"starting"}');
+  });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  try {
+    let changes = 0;
+    const store = { config: { machines: [{ id: 'g', name: 'box', kind: 'grid', url: `http://127.0.0.1:${srv.address().port}` }], projects: [] }, pathAt: () => null };
+    const ms = new Machines({ store, secrets: { get: () => 't' }, onChange: () => (changes += 1) });
+    await ms.connect('g');
+    await until(() => asked >= 1, { what: 'the first wake check' });
+    ms.stop();
+    const at = { asked, changes };
+    await sleep(2_500); // the wake asks again every second
+    assert.deepEqual({ asked, changes }, at);
   } finally {
     srv.closeAllConnections();
     srv.close();
