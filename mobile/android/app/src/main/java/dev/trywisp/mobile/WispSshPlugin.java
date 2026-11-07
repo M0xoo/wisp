@@ -26,6 +26,7 @@ import org.json.JSONObject;
 public class WispSshPlugin extends Plugin {
     private static Tunnel tunnel;
     private static String machineId = "";
+    private static volatile String cloudOrigin; // the cloud computer the list opened (stayOpen)
     private Keys keys;
 
     @Override
@@ -75,6 +76,7 @@ public class WispSshPlugin extends Plugin {
     // from the background). The list stops it again when it's back with no tunnel (disconnect).
     @PluginMethod
     public void stayOpen(PluginCall call) {
+        cloudOrigin = Shared.originOf(call.getString("origin"));
         TunnelService.start(getContext(), call.getString("name", ""));
         call.resolve();
     }
@@ -177,9 +179,15 @@ public class WispSshPlugin extends Plugin {
         WebView web = getBridge().getWebView();
         web.post(() -> {
             String url = web.getUrl();
-            if (url == null || !url.startsWith("http://127.0.0.1:")) return;
+            if (!Shared.isPage(url, pageOrigin())) return;
             web.evaluateJavascript("window.dispatchEvent(new CustomEvent('wisp-tunnel', { detail: " + JSONObject.quote(text) + " }))", null);
         });
+    }
+
+    /** Where wisp's page is on the computer open now, or null: the tunnel's port, or the cloud computer. */
+    static String pageOrigin() {
+        Tunnel t = tunnel;
+        return t != null ? "http://127.0.0.1:" + t.port : cloudOrigin;
     }
 
     static boolean hasTunnel() {
@@ -233,6 +241,7 @@ public class WispSshPlugin extends Plugin {
     @PluginMethod
     public void disconnect(PluginCall call) {
         stopTunnel();
+        cloudOrigin = null;
         TunnelService.stop(getContext());
         call.resolve();
     }

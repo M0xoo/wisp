@@ -157,6 +157,7 @@ export const PARTS = {
   'launcher.autoPreview': '#autoPv',
   // A shared task's link pasted in the prompt box: its card (who shared it, what comes, Import).
   'launcher.share': '#launcher .l-share',
+  'launcher.sharedNote': '#launcher .l-shared', // Shared from outside wisp: above what came in from the share sheet or another site
   // Share… on a task: the dialog (who can open it, its work, the link).
   'share.dialog': '.share-modal',
   'compare.table': '.compare-modal .cmp-table', // Compare: the runs' numbers side by side

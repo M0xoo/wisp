@@ -30,6 +30,7 @@ import { openSettings, telemetryNotice } from './features/settings.js';
 import { installUpdate, loadUpdate } from './features/update.js';
 import { routeSpell } from './features/spell-ui.js';
 import { routeCrew } from './features/crew-share.js';
+import { receiveShared, sharedWaiting } from './features/share-in.js';
 import './features/spells.js';
 import './features/tips.js';
 import './features/swipe.js';
@@ -119,6 +120,8 @@ window.addEventListener('focus', () => {
   for (const id of S.open) if (S.sessions.get(id)?.unread) scheduleRefetch(id);
 });
 
+sharedWaiting();
+
 // The phone first paints what it saw last time (features/cache.js): tasks, open tasks and settings
 // show at once while the tunnel brings the real ones, which replace them in place.
 function paintSnapshot(snap) {
@@ -165,6 +168,7 @@ function paintSnapshot(snap) {
     // and its `hello` loads everything.
   }
   route();
+  receiveShared();
   telemetryNotice();
   if (MOBILE) {
     askNotify(); // alerts are what the phone is for: ask once, on the first visit

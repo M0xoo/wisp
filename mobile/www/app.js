@@ -227,6 +227,7 @@ const HELLO = `<div class="hello">
   </div>`;
 
 function paintIntro() {
+  paintShared();
   const out = machines.length ? '<h1>Your computers</h1>' : HELLO;
   // Only when it changed: the list repaints often, and the first screen's entry would replay.
   if ($('#intro').dataset.h !== out) ($('#intro').innerHTML = out), ($('#intro').dataset.h = out);
@@ -239,6 +240,16 @@ function paintIntro() {
   if (add.dataset.h !== label) (add.innerHTML = label), (add.dataset.h = label);
   // Signed in, SSH is one more way, not the way "instead" of something.
   $('#sshBox > summary span').firstChild.textContent = machines.some(isGrid) ? 'Connect over SSH ' : 'Connect over SSH instead ';
+}
+
+// Something shared to wisp waits here until a computer is open (MainActivity): this says so,
+// instead of a share that seems to have gone nowhere.
+function paintShared() {
+  const on = !!window.wispAndroid?.hasShare?.();
+  const out = !on ? '' : `<p class="tip">${icon('arrow')}<span>${machines.length ? 'What you shared is waiting. Open a computer and it lands in New task.' : 'What you shared is waiting. Sign in or add a computer and it lands in New task.'}</span></p>`;
+  const box = $('#sharedNote');
+  box.hidden = !on;
+  if (box.dataset.h !== out) (box.innerHTML = out), (box.dataset.h = out);
 }
 
 function paintMachines() {
@@ -641,7 +652,8 @@ async function openGrid(m, cid = '') {
       return toast(`Opens ${r.body.url.split('/_grid')[0]}`);
     }
     // Kept open in the background like an SSH computer, so its tasks' alerts still arrive.
-    await Ssh.stayOpen({ name: c ? c.name : nameOf(m) }).catch(() => {});
+    // origin: the one page on the grid the app treats as wisp's (MainActivity.wispPage).
+    await Ssh.stayOpen({ name: c ? c.name : nameOf(m), origin: new URL(r.body.url).origin }).catch(() => {});
     location.href = r.body.url;
   } catch (err) {
     opening = '';
@@ -1124,6 +1136,7 @@ function wire() {
   $('#addMachine').onclick = () => {
     editMachine(null);
   };
+  window.addEventListener('wisp-share', paintShared);
   // The first screen: GitHub or Google on the hosted grid, or another grid's address.
   $('#intro').addEventListener('click', (e) => {
     const p = e.target.closest('[data-p]')?.dataset.p;

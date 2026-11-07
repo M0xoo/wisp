@@ -48,6 +48,7 @@ import { ProjectTrust } from './project-trust.js';
 import { DEFAULT_PORT, VERSION } from './util.js';
 import { Routes } from './http/router.js';
 import { send, eventStream } from './http/respond.js';
+import { isShare, shareNoWorker } from './http/share.js';
 import { serveStatic, warmStatic } from './http/static.js';
 import { trustedProxy } from './http/trust.js';
 import { previewPort, previewRequest, previewUpgrade } from './http/preview.js';
@@ -524,6 +525,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     // host): its token stands in for the guard below, and the route checks it and the signature.
     const hook = req.method === 'POST' && HOOK_PATH.test(String(req.url).split('?')[0]);
     if (!hook && !viaProxy && !allowedHosts.has(req.headers.host)) return send(res, 403, { error: 'forbidden host' });
+    if (isShare(req)) return shareNoWorker(req, res);
     if (!hook && req.method !== 'GET' && req.method !== 'HEAD') {
       const origin = req.headers.origin;
       if (viaProxy ? !proxy.originOk(req) : origin && !allowedHosts.has(origin.replace(/^https?:\/\//, ''))) return send(res, 403, { error: 'forbidden origin' });

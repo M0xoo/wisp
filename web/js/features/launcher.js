@@ -138,6 +138,32 @@ function paintFirstRun() {
 }
 bus.on('listed', () => ((listed = true), paintFirstRun()));
 
+// Something shared in (share-in.js): below what's typed, its files in the tray; nothing starts.
+// fallback: the words for files that came with none, on an empty box only.
+// files: for tray.hold. Any site can get here (share-form.js), so it says so until it's sent; kept
+// over a reload like the draft.
+const earlyFiles = [];
+export function fillLauncher(text, files = [], { when, fallback = '' } = {}) {
+  const box = $('#launcher');
+  if (text || fallback || files.length) save('wisp.sharedIn', true);
+  const ta = $('#prompt', box);
+  const had = (ta?.value || S.drafts.get('home') || '').trimEnd();
+  const add = text || (had ? '' : fallback);
+  if (add) {
+    const value = had ? `${had}\n\n${add}` : add;
+    S.drafts.set('home', value);
+    if (ta) {
+      ta.value = value;
+      ta.dispatchEvent(new Event('input', { bubbles: true })); // autosize, the previews, Save as recipe
+    }
+  }
+  if (files.length) {
+    if (box.tray) box.tray.hold(files, { when });
+    else earlyFiles.push([files, { when }]);
+  }
+  box.paintShared?.();
+}
+
 export function renderLauncher() {
   const box = $('#launcher');
   const mode = S.config.defaults.mode || DEFAULT_MODE.id;
@@ -194,13 +220,30 @@ export function renderLauncher() {
   // The phone app has no Settings → Cloud to sign sandboxes in from: /sandbox isn't offered there.
   slashMenu(ta, ta.parentNode, MOBILE ? HOME_SLASH.filter((c) => c.name !== 'sandbox') : HOME_SLASH); // before the Enter below: picking a command doesn't launch
   let pv = null; // Auto's preview (auto-preview.js), once the pickers below exist
-  const tray = attachTray({ onChange: () => pv?.refresh() });
+  const tray = attachTray({ onChange: () => (pv?.refresh(), box.tray === tray && paintShared()) });
   ta.parentNode.before(tray.node); // before the mention box's wrapper
+  const sharedNote = el(`<p class="l-shared" role="status" hidden>${icon('info')}<span>Shared from outside wisp. Read it before you send.</span></p>`);
+  tray.node.before(sharedNote);
+  // On until it's sent or everything shared is gone from the box.
+  const paintShared = () => {
+    const on = load('wisp.sharedIn', false) && !!(ta.value.trim() || tray.count);
+    if (!on) save('wisp.sharedIn', false);
+    sharedNote.hidden = !on;
+  };
+  box.paintShared = paintShared;
+  // A repaint (fresh settings, the harness list landing) keeps the files, and what was shared in
+  // before the first paint comes now.
+  const was = box.tray;
+  box.tray = null;
+  tray.restore(was?.take());
+  for (const [files, opts] of earlyFiles.splice(0)) tray.hold(files, opts);
   acceptFiles(box, ta, tray);
   autosize(ta, (spellProp('launcher.input', 'maxRows') || 0) * 24 || undefined);
   ta.value = S.drafts.get('home') || '';
+  box.tray = tray;
+  paintShared();
   paintSaveRecipe();
-  ta.addEventListener('input', () => (S.drafts.set('home', ta.value), paintSaveRecipe(), paintFor(), readWhen(), pv?.refresh(), warmLaunch()));
+  ta.addEventListener('input', () => (S.drafts.set('home', ta.value), paintShared(), paintSaveRecipe(), paintFor(), readWhen(), pv?.refresh(), warmLaunch()));
   // A shared task's link pasted in the box: its card, and Enter imports it (features/share.js).
   const shareRow = $('.l-share', box);
   ta.parentNode.before(shareRow);
@@ -519,6 +562,17 @@ export function renderLauncher() {
   // over: a spell's launchWith ({ agent, model, effort, mode, text }) for this one launch.
   // at: start it then instead (Start later, or the time read from the box); now: ignore that time.
   // confirm: you said yes to starting it although it takes the window past your line (Start anyway).
+  // Send waits here for its files (shared ones only upload now): one wait at a time, on whichever
+  // tray has them after a repaint. null: stop, the file's chip says why.
+  const filesOfSend = async () => {
+    if (box.sendingFiles) return null;
+    box.sendingFiles = true;
+    try {
+      return await box.tray.whole();
+    } finally {
+      box.sendingFiles = false;
+    }
+  };
   const go = async (over = null, { at = null, now = false, confirm = false } = {}) => {
     if (box.classList.contains('first-run')) (save('wisp.launcherFull', true), box.classList.remove('first-run'), bus.emit('firstRun'));
     if (over && !(over instanceof Event) && over.text && !ta.value.trim().startsWith(over.text)) ta.value = `${over.text}${ta.value.trim() ? `\n\n${ta.value.trim()}` : ''}`;
@@ -621,8 +675,9 @@ export function renderLauncher() {
       if (!t.project) return toast('Pick a project that’s ready first: this one is still cloning.', { tone: 'bad' });
       const r = over?.agent ? { agent: over.agent, model: over.model ?? savedModel(over.agent), effort: over.effort ?? '', account: savedAccount(over.agent) } : { agent: agent?.id || 'claude', model: curModel, effort: curEffort, account: curAccount };
       // Its files go with it: wisp keeps uploads until the task starts.
-      const attachments = w.reminder ? [] : await tray.ids();
-      const files = w.reminder ? [] : tray.take();
+      const attachments = w.reminder ? [] : await filesOfSend();
+      if (!attachments) return;
+      const sentFiles = w.reminder ? [] : box.tray.take();
       const was = armed;
       ta.value = '';
       S.drafts.delete('home');
@@ -637,7 +692,7 @@ export function renderLauncher() {
       const said = w.how && planSaid(w.how); // before it's added: an /after task already done starts at once
       const p = await addPlan(w.reminder ? 'reminder' : 'task', w.at, body, w.how);
       if (!p) {
-        tray.restore(files);
+        box.tray.restore(sentFiles);
         if (!ta.value) (armed = was), (ta.value = prompt), ta.dispatchEvent(new Event('input'));
         return;
       }
@@ -669,8 +724,9 @@ export function renderLauncher() {
     // Optimistic: wait only for uploads, then empty the box and show the task in Working at
     // once. Fetching and making worktrees can take a few seconds; the real card replaces the
     // placeholder when the server has it. On failure the prompt and files come back.
-    const attachments = await tray.ids();
-    const files = tray.take();
+    const attachments = await filesOfSend();
+    if (!attachments) return;
+    const sentFiles = box.tray.take();
     const cmp = compare;
     const runner = over?.agent ? { agent: over.agent, model: over.model ?? savedModel(over.agent), effort: over.effort ?? '', account: savedAccount(over.agent) } : { agent: agent?.id || 'claude', model: curModel, effort: curEffort, account: curAccount };
     const launchMode = over?.mode || curMode;
@@ -751,7 +807,7 @@ export function renderLauncher() {
         if (opened) goHome(); // the prompt comes back where it was typed
         goalBack();
         if (!ta.value) ((ta.value = prompt), ta.dispatchEvent(new Event('input')));
-        tray.restore(files);
+        box.tray.restore(sentFiles);
         if (cmp.length && !compare.length) (compare = cmp), paintCompare();
         if (held && ta.value.trim() === prompt) holdLaunch(held, over);
         return;
@@ -775,7 +831,7 @@ export function renderLauncher() {
       // The clone failed (its toast says why): the task goes back in the box.
       goalBack();
       if (!ta.value) ((ta.value = prompt), ta.dispatchEvent(new Event('input')));
-      tray.restore(files);
+      box.tray.restore(sentFiles);
     }
   };
   $('#launch', box).onclick = () => {
