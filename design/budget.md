@@ -321,7 +321,8 @@ an `ant auth login` or keyless Console profile and bills the Console org. Its st
 (`apiKeySource` is `none` for a login and a profile alike) and it keeps its own warning off in that
 format, so the CLI's public `auth status --text` is the only sign: wisp reads it as a task's turn
 starts, at most once a minute per account folder (`consoleProfile()` in `server/adapters/claude.js`),
-beside the run and cut off after 5 s. A failure or a timeout reads as the plan. The answer can land
+beside the run and cut off after 5 s. A failure or a timeout reads as the plan, and so does a
+`Profile:` line ending in `· not in use` (an API key outranks it: that run says *API credit*). The answer can land
 after a quick turn ended; the turn still gets its mark. Words: the turn says *Console sign-in*, its
 tooltip *Billed to a Claude Console org, not your plan: Claude Code ran on a Console profile …*, Plan
 budget *billed to a Console sign-in, not the plan*. Never a hold, an ask card or a delay, in any mode;

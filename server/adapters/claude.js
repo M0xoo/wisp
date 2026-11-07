@@ -281,7 +281,12 @@ export function subagentTally() {
 const AUTH_TTL_MS = 60_000;
 const AUTH_TIMEOUT_MS = 5_000;
 const authSeen = new Map(); // account folder (+ ANTHROPIC_PROFILE) -> { at, said: Promise<string> }
-export const profileIn = (text) => String(text || '').match(/^[ \t]*Profile:[ \t]*(\S[^\r\n]*)/m)?.[1].trim() || '';
+// A line ending in `· not in use` is a profile on disk the run doesn't bill to (an API key outranks
+// it, with the login ended): no Console sign-in then.
+export const profileIn = (text) => {
+  const line = String(text || '').match(/^[ \t]*Profile:[ \t]*(\S[^\r\n]*)/m)?.[1].trim() || '';
+  return /·\s*not in use$/i.test(line) ? '' : line;
+};
 export function consoleProfile(env = process.env, now = Date.now()) {
   const key = `${env.CLAUDE_CONFIG_DIR || ''}\0${env.ANTHROPIC_PROFILE || ''}`;
   const hit = authSeen.get(key);

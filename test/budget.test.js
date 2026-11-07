@@ -1451,13 +1451,17 @@ test('past your plan, end to end: a run on extra usage or an API key is flagged 
 // when the claude.ai login stops working, and stream-json never says. `claude auth status --text`'s
 // Profile: line does: a notice on the turn and in Plan budget, never a hold, never in the run's way.
 const PROFILE = 'credentials-file · user_oauth · profile default';
-const authEnv = ['FAKE_AUTH_PROFILE', 'FAKE_AUTH_FAIL', 'FAKE_AUTH_DELAY', 'FAKE_RECORD'];
+const authEnv = ['FAKE_AUTH_PROFILE', 'FAKE_AUTH_FAIL', 'FAKE_AUTH_DELAY', 'FAKE_RECORD', 'FAKE_API_KEY_SOURCE'];
 
 test('console profile: the Profile: line of `claude auth status --text`, cached a minute per account folder', async () => {
   assert.equal(profileIn(`Login method: Claude Console account\nOrganization: Fake Console Org\nProfile: ${PROFILE}\n`), PROFILE);
   assert.equal(profileIn('Login method: Claude Max account\r\nOrganization: Someone\r\n'), '', 'the plan: no line');
   assert.equal(profileIn('Profile:   \nOrganization: x'), '', 'an empty one is no profile');
   assert.equal(profileIn(''), '');
+  // An API key, an ended login and a profile: billed to the key (API credit), so not a Console sign-in.
+  assert.equal(profileIn(`Login method: API key\nProfile: ${PROFILE} · not in use\n`), '', 'a profile not in use is none');
+  assert.equal(profileIn(`Profile: ${PROFILE} · Not in use  \r\n`), '', 'whatever the case and line ending');
+  assert.equal(profileIn('Profile: credentials-file · user_oauth · profile not in use-case'), 'credentials-file · user_oauth · profile not in use-case', 'only the marker at the end');
   const rec = tmp('auth-rec');
   forgetAuthStatus();
   try {
@@ -1505,6 +1509,16 @@ test('console profile, end to end: a notice on the turn and in Plan budget; none
     assert.ok(!x.turns[0].question && !x.turns[0].approval, 'no ask card');
     const over = (await api('/agents')).find((y) => y.id === 'claude').budget.find((y) => y.account === 'default').overage;
     assert.deepEqual([over.runs, over.kind, over.sid], [1, 'profile', a.id]);
+
+    // On disk but not in use, with an API key: the turn says API credit, never Console sign-in.
+    delete srv.budget.state.claude;
+    process.env.FAKE_AUTH_PROFILE = `${PROFILE} · not in use`;
+    process.env.FAKE_API_KEY_SOURCE = 'ANTHROPIC_API_KEY';
+    const k = await start('fix it with the key please');
+    assert.equal(await settled(), '');
+    assert.equal((await ended(k.id, 'review')).turns[0].overage?.kind, 'api');
+    delete process.env.FAKE_API_KEY_SOURCE;
+    delete srv.budget.state.claude;
 
     // Absent: the plan, no notice.
     delete process.env.FAKE_AUTH_PROFILE;
