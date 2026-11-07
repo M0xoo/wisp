@@ -613,6 +613,32 @@ test('Slack’s URL check once a secret is set: signed or refused', async () => 
   done();
 });
 
+test('Slack: a bad URL check from whoever holds the URL doesn’t stay up: any verified event clears it, a forged one doesn’t', async () => {
+  const done = await awake();
+  const wrong = 'wrong-secret-wrong-secret';
+  const error = async () => (await g.ok('/remote')).status.slack?.error;
+  assert.equal((await slackCall({ type: 'url_verification', challenge: 'x', token: 'x' }, { secret: wrong })).status, 403);
+  await until(async () => /signature/.test(await error()), { what: 'said in status' });
+  assert.equal((await slackDirect(mention('hello', { user: STRANGER }), { secret: wrong })).status, 403);
+  assert.match(await error(), /signature/, 'a forged event isn’t proof of anything');
+  assert.equal((await slackDirect(mention('hello', { user: STRANGER }))).status, 403, 'a stranger, but signed by Slack');
+  await until(async () => !(await error()), { what: 'the error gone' });
+  done();
+});
+
+test('Slack: through the grid, an edit and wisp’s own echo aren’t held; a person’s file is', async () => {
+  const done = await awake();
+  const rows = slackRows();
+  const edit = event('edited', { subtype: 'message_changed' });
+  delete edit.event.user;
+  for (const e of [edit, event('wisp’s reply', { user: 'UBOT', bot_id: 'BBOT' })]) assert.equal((await slackCall(e)).status, 200);
+  assert.equal(slackRows(), rows);
+  assert.equal((await slackCall(event('here', { subtype: 'file_share', user: STRANGER }))).status, 200);
+  assert.equal(slackRows(), rows + 1);
+  await until(() => held() === 0, { what: 'delivered' });
+  done();
+});
+
 test('Slack: a stranger’s link code gets them linked, a wrong one doesn’t, and the box says so to the grid', async () => {
   const done = await awake();
   assert.equal((await slackDirect(event('link 000000', { user: STRANGER }))).status, 403);
