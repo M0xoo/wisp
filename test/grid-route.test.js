@@ -572,7 +572,8 @@ test('a report: a device with the thread posts to that chat, and that’s all it
   const codes = [];
   for (let i = 0; i < 21; i++) codes.push((await post(c.token, { thread, text: `${i}` })).status);
   assert.equal(codes.at(-1), 429);
-  assert.equal(g.tg.sent().length, 22);
+  assert.equal(codes.filter((x) => x === 200).length, 19, 'one of the 20 went on the report above');
+  assert.equal(g.tg.sent().length, 21);
 });
 
 test('a follow-up: a reply to what the grid sent goes back to that computer, in that thread', async () => {
