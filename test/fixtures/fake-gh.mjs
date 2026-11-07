@@ -4,8 +4,9 @@
 //
 //   FAKE_GH_STATE  JSON file: { prs: {}, runs: [], issues: [], checks: [], review, mergeable, reviewComments, signedOut } (created if missing)
 //     and for `gh api`: user, repos: { 'o/r': { private } }, comments: [{ repo, id, body, user, … }],
-//     commentsError: { status, retryAfter }, retryAfter. Posted comments go to <FAKE_GH_STATE>.posted
-//     (one JSON object a line), so a test can keep writing the state file without losing them.
+//     commentsError: { status, retryAfter }, retryAfter. Posted comments go to FAKE_GH_POSTED, or else
+//     <FAKE_GH_STATE>.posted (one JSON object a line), so a test can keep writing the state file
+//     without losing them. Each gh reads FAKE_GH_STATE as it stood when it was spawned.
 //   FAKE_RECORD    directory; each call appends { argv, cwd } to gh.jsonl
 
 import { execFileSync } from 'node:child_process';
@@ -26,7 +27,8 @@ if (process.env.FAKE_RECORD) {
   fs.appendFileSync(path.join(process.env.FAKE_RECORD, 'gh.jsonl'), JSON.stringify({ argv, cwd: process.cwd() }) + '\n');
 }
 
-const posted = () => (fs.existsSync(`${file}.posted`) ? fs.readFileSync(`${file}.posted`, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
+const postedFile = process.env.FAKE_GH_POSTED || `${file}.posted`;
+const posted = () => (fs.existsSync(postedFile) ? fs.readFileSync(postedFile, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
 
 // The GitHub channel: gh api prints the response, with --include its status line and headers first,
 // to stdout, also when it fails; the failure itself goes to stderr.
@@ -51,7 +53,7 @@ function gitHubApi() {
   if ((m = /^repos\/([^/]+\/[^/]+)\/issues\/(\d+)\/comments$/.exec(route))) {
     const body = (argv.find((x) => x.startsWith('body=')) || '').slice('body='.length);
     const c = { id: 900000 + posted().length, repo: m[1], number: Number(m[2]), body, at: Date.now() };
-    fs.appendFileSync(`${file}.posted`, `${JSON.stringify(c)}\n`);
+    fs.appendFileSync(postedFile, `${JSON.stringify(c)}\n`);
     return reply(200, JSON.stringify(c));
   }
   if ((m = /^repos\/([^/]+\/[^/]+)\/issues\/comments\?(.*)$/.exec(route))) {

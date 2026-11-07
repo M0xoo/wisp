@@ -13,6 +13,7 @@ import { installFakeBins, isolateAgentConfigs, makeRepo, records, sleep, tmp, un
 const STATE = path.join(tmp('gh-state'), 'gh.json');
 process.env.FAKE_RECORD = tmp('gh-record');
 process.env.FAKE_GH_STATE = STATE;
+process.env.FAKE_GH_POSTED = `${STATE}.posted`;
 process.env.WISP_HOME = tmp('gh-home');
 process.env.WISP_UPDATE_CHECK = '0';
 process.env.GIT_ALLOW_PROTOCOL = 'file';
@@ -27,9 +28,14 @@ const ME = { id: 7, login: 'mokh' };
 const PRIVATE = 'acme/repo';
 const PUBLIC = 'acme/open';
 const state = { user: ME, repos: { [PRIVATE]: { private: true }, [PUBLIC]: { private: false } }, comments: [], prs: {} };
+// Each write is a new file, and the next gh is told to read that one. wisp polls gh every 40 ms, and
+// on Windows a file a gh has open can't be replaced (EPERM), so nothing here replaces one: wx throws
+// if it ever would, on every OS.
+let writes = 0;
 const write = () => {
-  fs.writeFileSync(`${STATE}.tmp`, JSON.stringify(state));
-  fs.renameSync(`${STATE}.tmp`, STATE);
+  const next = `${STATE}.${++writes}`;
+  fs.writeFileSync(next, JSON.stringify(state), { flag: 'wx' });
+  process.env.FAKE_GH_STATE = next;
 };
 
 let srv;
