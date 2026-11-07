@@ -94,7 +94,8 @@ admits it only when the plan has.
     share between two `os.cpus()` samples (0–100%, so only the 100% ceiling bites there).
 - **Settings** (spell-lockable, `SETTINGS` in spell-schema, refused otherwise): `memoryFloor`
   (`off` | `10` | `15` | `20` | `25`, 15), `cpuCeiling` (`off` | `100` | `150` | `200` % of the cores,
-  150, held only after 30 s over), `maxRuns` (`off` | `4` | `6` | `8` | `12` | `16` | `auto`; auto is
+  200, held only after 60 s over: macOS's load average also counts processes waiting on I/O, and
+  during a test suite an 8-core Mac read 118, about 1,450%), `maxRuns` (`off` | `4` | `6` | `8` | `12` | `16` | `auto`; auto is
   `floor(totalGB / 3)`, at least 2: 8 on 24 GB).
 - **Hold**: `app.reserve.check` is `app.load.hold() || app.reserve.plan(…)`, so the same work waits,
   through the same paths as the table above, and the crew's hold checks it for members on Auto too.
@@ -102,10 +103,10 @@ admits it only when the plan has.
   (there's no reset to wait for), so a held follow-up or goal round looks again then and a check-in
   or trigger runs at its next time. `load` goes on `m.held`, `t.held` and `l.held`, and the page
   says *Waits for the computer* instead of *for your plan*, with the why: *Waiting for memory: 11%
-  free, needs 20%*, *Waiting for the CPU: load at 175% of its cores, needs under 150%*, *Waiting
+  free, needs 20%*, *Waiting for the CPU: load at 230% of its cores, needs under 200%*, *Waiting
   for a run slot: 8 runs going, at most 8*.
 - **Hysteresis**: memory holds under the floor and goes on at floor + 5 points; the CPU holds after
-  30 s over the ceiling and goes on once under it; a run slot is free as soon as a run ends.
+  60 s over the ceiling and goes on once under it; a run slot is free as soon as a run ends.
   `app.reserve.plan` stays the plan's alone, so an early reset (`planFree`) isn't blocked by load.
 - **Never held**: what you start or follow up by hand (it runs; under the floor the page gets a
   `load` event and toasts *Your Mac is short on memory: 12% free, 9 runs going*, once a minute),

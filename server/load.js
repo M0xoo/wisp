@@ -1,7 +1,7 @@
 // The RAM/CPU guard (design/budget.md → Machine load): like Automations stop at, but for this
 // computer. Work nobody started by hand (check-ins, the crew queue, triggers, goal rounds, agents'
 // own follow-ups and wake-ups) waits while free memory is under defaults.memoryFloor, the load is
-// over defaults.cpuCeiling for 30 s, or wisp's own runs fill defaults.maxRuns. It goes on once memory
+// over defaults.cpuCeiling for 60 s, or wisp's own runs fill defaults.maxRuns. It goes on once memory
 // is back 5 points above the floor, the load is under the ceiling and a run slot is free.
 //
 // Readings are sampled every 10 s off the event loop and read synchronously (reading(), hold(),
@@ -16,9 +16,11 @@ import { SETTINGS } from '../web/js/spell-schema.js';
 export const MEMORY_FLOORS = SETTINGS.memoryFloor;
 export const CPU_CEILINGS = SETTINGS.cpuCeiling;
 export const MAX_RUNS = SETTINGS.maxRuns;
-export const LOAD_DEFAULTS = { memoryFloor: '15', cpuCeiling: '150', maxRuns: 'auto' };
+export const LOAD_DEFAULTS = { memoryFloor: '15', cpuCeiling: '200', maxRuns: 'auto' };
 export const SAMPLE_MS = 10_000;
-export const CPU_HOLD_MS = 30_000; // the load stays over the ceiling this long before work waits
+// The load stays over the ceiling this long before work waits. A minute, and 200% by default:
+// macOS's load average also counts processes waiting on I/O, so a test run reads far over 100%.
+export const CPU_HOLD_MS = 60_000;
 export const MARGIN = 5; // points above the floor before held work goes on (no flapping)
 export const RETRY_MS = 60_000; // held work looks again this soon (it has no reset to wait for)
 // Linux PSI: the share of the last 10 s some task stalled on memory. Over this the machine is short

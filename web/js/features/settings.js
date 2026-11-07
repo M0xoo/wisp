@@ -251,7 +251,7 @@ export function openSettings(opts) {
           <div class="sx-group sx-load">
             ${row('Now', '<span class="ld-now">Reading…</span>', '')}
             ${row('Memory floor', 'They wait while free memory is under this, and go on once it’s 5 points above', `<select name="memoryFloor">${SETTINGS.memoryFloor.map((v) => `<option value="${v}" ${(d.memoryFloor || '15') === v ? 'selected' : ''}>${v === 'off' ? 'Off' : `${v}% free`}</option>`).join('')}</select>`)}
-            ${row('CPU ceiling', 'They wait once the load stays over this share of the cores for 30 seconds', `<select name="cpuCeiling">${SETTINGS.cpuCeiling.map((v) => `<option value="${v}" ${(d.cpuCeiling || '150') === v ? 'selected' : ''}>${v === 'off' ? 'Off' : `${v}%`}</option>`).join('')}</select>`)}
+            ${row('CPU ceiling', 'They wait once the load stays over this share of the cores for a minute. On a Mac the load also counts work waiting on the disk, so a test run can read well over 100%', `<select name="cpuCeiling">${SETTINGS.cpuCeiling.map((v) => `<option value="${v}" ${(d.cpuCeiling || '200') === v ? 'selected' : ''}>${v === 'off' ? 'Off' : `${v}%`}</option>`).join('')}</select>`)}
             ${row('Runs at once', 'They wait while this many of wisp’s runs are going. Subagents count, but never wait. Auto: one per 3 GB of memory, at least 2', `<select name="maxRuns">${SETTINGS.maxRuns.map((v) => `<option value="${v}" ${(d.maxRuns || 'auto') === v ? 'selected' : ''}>${v === 'off' ? 'Off' : v === 'auto' ? 'Auto' : v}</option>`).join('')}</select>`)}
           </div>
         </section>

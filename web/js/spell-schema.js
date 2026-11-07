@@ -742,7 +742,7 @@ export const SETTINGS = {
   autoStopClaude: ['same', 'off', '50', '75', '90'],
   autoStopCodex: ['same', 'off', '50', '75', '90'],
   // Machine load (server/load.js): the same work waits while free memory is under this percent,
-  // the CPU load is over this percent of its cores for 30 s, or this many of wisp's runs are going
+  // the CPU load is over this percent of its cores for 60 s (200 by default), or this many of wisp's runs are going
   // (auto: one per 3 GB of memory, at least 2).
   memoryFloor: ['off', '10', '15', '20', '25'],
   cpuCeiling: ['off', '100', '150', '200'],
