@@ -13,6 +13,7 @@ const CHOICES = [['off', 'Never'], ['3', 'After 3 days'], ['7', 'After 7 days'],
 const CLEANUP_DEFAULT = '7'; // server/services/worktrees.js
 const MAX_CHOICES = [['off', 'No limit'], ['20', '20 worktrees'], ['40', '40 worktrees'], ['80', '80 worktrees']];
 const MAX_DEFAULT = '40'; // server/services/worktrees.js
+const ON_DONE = [['ask', 'Ask'], ['remove', 'Remove clean ones'], ['keep', 'Keep them']]; // defaults.worktreeOnDone (features/done-folders.js)
 const PAGE = 50; // rows before Show all
 const POLL_MS = 1500;
 const FILTERS = [['all', 'All'], ['dirty', 'Uncommitted'], ['kept', 'Kept'], ['left', 'Left over']];
@@ -49,6 +50,7 @@ export function mountWorktrees(box) {
 
   const setting = () => S.config.defaults.worktreeCleanup ?? CLEANUP_DEFAULT;
   const maxSetting = () => S.config.defaults.worktreeMax ?? MAX_DEFAULT;
+  const onDone = () => S.config.defaults.worktreeOnDone || 'ask';
   box.innerHTML = `
     <div class="sx-group wtr-sum">
       <div class="sx-row"><div class="sx-text"><b class="wtr-total"></b><small class="wtr-disk"></small></div><div class="sx-ctl"><button class="ghost sm" data-wt="all"></button></div></div>
@@ -56,6 +58,8 @@ export function mountWorktrees(box) {
         <div class="sx-ctl"><select id="wtrCleanup" aria-label="Clean up automatically">${CHOICES.map(([k, l]) => `<option value="${k}" ${setting() === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
       <div class="sx-row wtr-max"><div class="sx-text"><b>Keep at most</b><small>Past this many tasks’ worktrees, the oldest idle ones go first, a few minutes after a new one. Left over folders don’t count. Ones in use, with uncommitted work, kept, For later or on an open PR stay, even over it.</small></div>
         <div class="sx-ctl"><select id="wtrMax" aria-label="Keep at most">${MAX_CHOICES.map(([k, l]) => `<option value="${k}" ${maxSetting() === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
+      <div class="sx-row wtr-done"><div class="sx-text"><b>When a task is done</b><small>What Mark done does with the folders it and what ran under it leave on disk. Remove still asks before one with uncommitted work goes.</small></div>
+        <div class="sx-ctl"><select id="wtrOnDone" aria-label="When a task is done">${ON_DONE.map(([k, l]) => `<option value="${k}" ${onDone() === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
     </div>
     <div class="sx-group wtr-list">
       <fieldset class="pk-seg wtr-filters" aria-label="Show"></fieldset>
@@ -249,6 +253,16 @@ export function mountWorktrees(box) {
       maxSel.value = was;
     }
     refresh();
+  };
+  const doneSel = $('#wtrOnDone', box);
+  doneSel.onchange = async () => {
+    const was = onDone();
+    S.config.defaults.worktreeOnDone = doneSel.value;
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { worktreeOnDone: doneSel.value } } }));
+    if (!saved) {
+      S.config.defaults.worktreeOnDone = was;
+      doneSel.value = was;
+    }
   };
   paint();
   return refresh;

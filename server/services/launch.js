@@ -329,6 +329,9 @@ export function createLaunch(app) {
     s.unread = false;
     app.retro.schedule(s, 0);
     app.sessionChanged(s);
+    // Done from outside the page (phone, channels, wisp_task, Ship it): nobody to ask, so only
+    // clean folders with no open PR go (services/done-folders.js).
+    app.doneFolders?.tidy(s).catch((err) => console.warn(`wisp: done folders: ${err.message}`));
     return true;
   }
 
