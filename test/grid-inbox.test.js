@@ -597,7 +597,8 @@ test('channels in grid.json: what’s accepted, what’s refused', () => {
 test('a grid.db from before the hub opens as it was: the migration only adds', async () => {
   const g = await boot();
   const ada = g.user('ada');
-  g.grid.db.raw.exec(`DROP TABLE channel_inbox; DROP TABLE channel_urls; DROP TABLE x_links; DROP TABLE x_flows; DROP TABLE x_seen; DROP TABLE x_threads; DROP TABLE x_outbox; DROP TABLE x_sent; DROP TABLE x_spend; UPDATE meta SET v = '8' WHERE k = 'schema';`);
+  const later = g.grid.db.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'x\\_%' ESCAPE '\\'").map((t) => `DROP TABLE ${t.name};`).join(' ');
+  g.grid.db.raw.exec(`DROP TABLE channel_inbox; DROP TABLE channel_urls; ${later} UPDATE meta SET v = '8' WHERE k = 'schema';`);
   await g.grid.close();
   const again = await boot({ dataDir: g.dataDir, port: g.port });
   assert.equal(again.grid.accounts.byHandle('ada').id, ada.id);
