@@ -10,6 +10,9 @@ mod menu;
 mod notify;
 #[cfg(all(feature = "qa", target_os = "macos"))]
 mod qa;
+#[cfg(all(feature = "qa", target_os = "linux"))]
+#[path = "qa_linux.rs"]
+mod qa;
 mod server;
 #[cfg(windows)]
 mod windows;
@@ -55,7 +58,7 @@ fn open_outside(app: &AppHandle, url: &Url) {
   if matches!(url.scheme(), "about" | "blob" | "data" | "file" | "javascript") {
     return;
   }
-  #[cfg(all(feature = "qa", target_os = "macos"))]
+  #[cfg(all(feature = "qa", any(target_os = "macos", target_os = "linux")))]
   if qa::note_opened(url) {
     return;
   }
@@ -128,7 +131,7 @@ fn open_window(app: &AppHandle, port: u16) -> tauri::Result<()> {
     })
     // Without this WebKit drops `<a download>`. Goes to ~/Downloads, under a free name.
     .on_download(|_, _event| {
-      #[cfg(all(feature = "qa", target_os = "macos"))]
+      #[cfg(all(feature = "qa", any(target_os = "macos", target_os = "linux")))]
       qa::download_to(_event);
       true
     })
@@ -145,7 +148,7 @@ fn open_window(app: &AppHandle, port: u16) -> tauri::Result<()> {
     .title_bar_style(tauri::TitleBarStyle::Overlay)
     .hidden_title(true)
     .traffic_light_position(tauri::LogicalPosition::new(16.0, macos::traffic_light_inset(18.0)));
-  #[cfg(all(feature = "qa", target_os = "macos"))]
+  #[cfg(all(feature = "qa", any(target_os = "macos", target_os = "linux")))]
   let builder = builder.initialization_script(qa::INIT);
   // WebView2 speaks CDP, but ignores WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS and its policy once wry
   // names arguments of its own: qa/desktop-tauri-win.mjs. These replace wry's, so they repeat them.
@@ -300,7 +303,7 @@ fn main() {
     })
     .setup(move |app| {
       app.add_capability(CAPABILITY.replace("__PORT__", &port.to_string()))?;
-      #[cfg(all(feature = "qa", target_os = "macos"))]
+      #[cfg(all(feature = "qa", any(target_os = "macos", target_os = "linux")))]
       qa::listen(app.handle().clone());
       notify::on_click(app.handle())?;
       let handle = app.handle().clone();
