@@ -651,7 +651,7 @@ manual('Spelling suggestions in the right-click menu', 'needs a dictionary, whic
 manual('Download in a browser, SmartScreen’s Run anyway', 'needs a real download and a person. By hand');
 manual('High DPI', 'a hosted runner has one 100% display');
 manual('Windows on arm64', 'windows-latest is x64; it builds in tauri-package.yml and runs nowhere');
-manual('Electron→Tauri self-update, seen', 'needs a Tauri build on a release; the installer half is INST-23 to 28');
+manual('Electron→Tauri self-update from a real release', 'INST-46 runs v0.57.0’s own update onto this build, with only the release list stood in for; the download from GitHub needs a Tauri build on a release');
 
 const lines = ['| Scenario | Result |', '|---|---|', ...results.map((r) => `| ${r.id} ${r.title} | ${r.ok ? 'ran: pass' : `ran: FAIL, ${r.error}`} |`), ...notes.map(([p, why]) => `| ${p} | Manual: ${why} |`)];
 fs.writeFileSync(path.join(OUT, 'desktop-tauri-win.md'), `${lines.join('\n')}\n`);

@@ -70,7 +70,7 @@ this is solved and seen on a real Linux desktop: TAURI-06b's cases, frames and a
 `.github/workflows/tauri-windows.yml` builds the installer on windows-latest (`package.mjs --features
 qa`) and runs three jobs on it, each on a clean runner: `qa/desktop-tauri-win.mjs` (TAURI-W*),
 `qa/web.mjs` in Chrome and then in the app's own WebView2, and the move from a real v0.57.0
-(`qa/scenarios/install.md`, INST-23–28). The `qa` feature adds one thing on Windows: `WISP_QA_CDP`
+(`qa/scenarios/install.md`, INST-40–46). The `qa` feature adds one thing on Windows: `WISP_QA_CDP`
 opens WebView2's DevTools port, which `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` and its policy can't once
 wry names arguments of its own (tried, on the runner). The page is driven by Playwright over CDP;
 the window, mouse, keys, taskbar, menus and links by Win32 (`qa/win32.ps1`): a real pointer, real
@@ -101,7 +101,7 @@ DevTools socket. The numbers it compares with are v0.57.0's, measured on the sam
 **Manual on Windows:** a toast clicked once it has gone to Action Center (the plugin only hears a click
 while it's on screen; Electron's is no better), a file dropped from Explorer, spelling suggestions,
 SmartScreen's *Run anyway* on a real download, high DPI (a runner has one 100% display), Windows on
-arm64 (built by tauri-package.yml, run nowhere), and the Electron→Tauri self-update seen end to end.
+arm64 (built by tauri-package.yml, run nowhere), and the Electron→Tauri update from a real GitHub release (INST-46 runs v0.57.0’s own update, with only its release list served locally).
 
 What the Windows shell does that Electron does by itself (`src/windows.rs`, `src/init.js`, measured
 on v0.57.0 first):

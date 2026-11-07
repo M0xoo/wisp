@@ -28,6 +28,7 @@ this on macOS, Windows and Linux through `.github/workflows/tauri-package.yml`.
 | INST-19 the shell as Electron's helper | | Automated: `ELECTRON_RUN_AS_NODE=1 wisp -p` is the bundled Node |
 | INST-20–22, 24 Windows installer | Manual | CI (dry run): `/S` per user, `resources\app`, `node\node.exe`, `method: app`; `/S /R` (a Tauri app) and `/S --force-run` (a build already out) each start it again |
 | INST-23 the update line on Electron's installer | CI probe, run by hand: the checks below | Not this row: INST-22, 24 |
+| INST-40–46 from Electron to Tauri on Windows | | CI (`tauri-windows.yml`, `--only migrate`): a real v0.57.0, then this installer, and v0.57.0's own update onto it, below |
 | Linux AppImage, .deb | Manual | Stays on Electron until WebKitGTK can tell a frame from the page |
 | INST-30 download links | Automated: names checked, each link answers | Same names: the same links |
 | Gatekeeper on a browser download | Manual | Manual: Open Anyway on a real quarantined file, ad hoc signature |
@@ -41,9 +42,8 @@ would hit the lock of any wisp.app open on the Mac, quit and focus that one.
 run their own binary as Node after the swap, and by then that's the Tauri shell: `macos::be_node_for_electron`
 makes it Node for that one run. On Windows they run `/S --force-run`: Tauri's installer knows only `/R`,
 and `desktop/src-tauri/installer-hooks.nsh` gives it the other word. A Tauri app sends `/R`, an Electron
-build still `--force-run`. Left open: the two install to different folders (`%LOCALAPPDATA%\Programs\wisp-agents`
-and `%LOCALAPPDATA%\wisp`), so Electron's copy and its shortcuts stay behind until something removes them.
-The whole Electron→Tauri update on Windows hasn't been run: INST-24 is its last step only.
+build still `--force-run`. The two install to different folders, and the same hook takes Electron's copy away (INST-40–46 below,
+INST-46 the whole update in v0.57.0's own code).
 
 **INST-23, Electron's NSIS installer and the updater's line.** An Electron build sends `/S --force-run`;
 this was last run on the longer `/S --force-run /R`, with `--force-run` alone as a row of it. On `windows-latest`, in a throwaway workflow on a branch, take a
@@ -62,3 +62,29 @@ Also over a running copy, and with the installer in a temp folder holding spaces
 2026-11-07 on windows-2025-vs2026, x64, 15 rows, all as above: 0.56.0, 0.57.0, nightly 20261106.1129
 and dry run 42347471229 ([probe](https://github.com/M0xoo/wisp/actions/runs/42350088213)). Not covered:
 arm64, Windows 10, a UAC prompt (off on the runner), and the app quitting by itself after Update.
+
+## From Electron to Tauri on Windows (INST-40–46)
+
+The two install to different folders: electron-builder to `%LOCALAPPDATA%\Programs\wisp-agents` (it
+takes the folder from package.json's `name`, not `productName`; seen on a real v0.57.0), Tauri to
+`%LOCALAPPDATA%\wisp`. Without help an update leaves Electron's copy, its entry in *Apps* (two
+*wisp*), and a taskbar pin that opens the old one. `desktop/src-tauri/installer-hooks.nsh` (Tauri's
+`NSIS_HOOK_POSTINSTALL`) runs Electron's own uninstaller, silently and in place (`_?=`) with
+`--keep-shortcuts`, and moves only the links that still point at the old `wisp.exe`. It keeps:
+`~/.wisp` (the same home for both: os.homedir()), Electron's Chromium profile in
+`%APPDATA%\wisp-agents`, and any link of the user's own. Tauri's own check for a running app only looks
+in its `$INSTDIR`; Electron's uninstaller stops its copy, then gives up once while the files are still
+in use, so the hook tries again (up to five times) and only then removes the uninstaller it ran from.
+
+`node qa/install.mjs --only migrate` (CI only: it replaces the wisp on the machine) downloads the real
+v0.57.0 installer from the release:
+
+| Row | What it checks |
+|---|---|
+| INST-40 | v0.57.0 `/S`: `Programs\wisp-agents`, one entry in Apps, two links on it; a taskbar pin added |
+| INST-41 | v0.57.0 runs a task on the fake agent: it lands in `~/.wisp`; the profile is in `%APPDATA%\wisp-agents` |
+| INST-42 | the Tauri installer over it, as an update (`/S`): Electron's folder gone, one entry (`wisp`), desktop, Start and the pin all on `%LOCALAPPDATA%\wisp\wisp.exe` |
+| INST-43 | marker files in `~/.wisp` and the profile stay; the new app on the bundled Node serves v0.57.0's task |
+| INST-44 | v0.57.0 again, left running, then the installer with `/S /NS` (no links of its own, as an interactive install makes no desktop link unless asked): Electron stopped and gone, the hook alone moved its links |
+| INST-45 | a link of the user's own that says wisp stays where it points; Tauri's uninstaller leaves `~/.wisp` |
+| INST-46 | v0.57.0's own updater, in the running app (only its release list stood in for): it downloads this installer, hands `/S --force-run` to its waiter and quits; the Tauri app comes up on 4477 on its bundled Node, Electron's folder gone, one entry, every link on Tauri |

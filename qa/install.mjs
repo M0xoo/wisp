@@ -1,6 +1,7 @@
 // Install gate: every way into wisp, on real artefacts. Scenarios: qa/scenarios/install.md.
 //
 //   node qa/install.mjs [--artefacts dist/tauri] [--only npm,script,brew,app,links] [--old-electron <wisp-mac-<arch>.zip>]
+//   node qa/install.mjs --only migrate   # Windows, CI only: a real v0.57.0, then this build
 //
 // Nothing is published and nothing of yours is touched: npm installs go to temp prefixes from `npm
 // pack`'s tarball, install.sh reads a registry and a release folder served from this process, HOME
@@ -15,7 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { until, makeRepo } from '../test/helpers.js';
-import { OUT, ROOT, ok, qaEnv, runner } from './lib.mjs';
+import { OUT, ROOT, ok, qaEnv, runner, win32 } from './lib.mjs';
 import { Updater } from '../server/update.js';
 import { artefacts } from '../desktop/scripts/package.mjs';
 import { NODE_VERSION, hostTarget } from '../desktop/scripts/fetch-node.mjs';
@@ -626,6 +627,158 @@ async function windowsRows() {
   }
 }
 
+// --- from Electron to Tauri on Windows: the real last release, then this build ---
+const ELECTRON = '0.57.0';
+const ELECTRON_DIR = () => path.join(process.env.LOCALAPPDATA, 'Programs/wisp-agents'); // the npm name, not wisp
+const TAURI_DIR = () => path.join(process.env.LOCALAPPDATA, 'wisp');
+const PIN = () => path.join(process.env.APPDATA, 'Microsoft/Internet Explorer/Quick Launch/User Pinned/TaskBar/wisp.lnk');
+
+async function migrateRows() {
+  // It uninstalls and installs the real thing, in the real profile: a person's own wisp otherwise.
+  if (!process.env.CI) return notRun.push(['Electron→Tauri on Windows', 'CI only: it replaces the wisp on this machine']);
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+  const name = `wisp-windows-${arch}-setup.exe`;
+  const setup = path.join(ARTEFACTS, name);
+  if (!fs.existsSync(setup)) return notRun.push(['Electron→Tauri on Windows', `no ${name} in ${ARTEFACTS}`]);
+  const old = path.join(dirIn('electron-setup'), name);
+  fs.writeFileSync(old, Buffer.from(await (await fetch(`https://github.com/M0xoo/wisp/releases/download/v${ELECTRON}/${name}`)).arrayBuffer()));
+  const run = (file, args) => new Promise((resolve, reject) => spawn(file, args, { stdio: 'ignore' }).once('exit', resolve).once('error', reject));
+  const installElectron = async () => {
+    ok((await run(old, ['/S'])) === 0, 'v0.57.0’s installer failed');
+    await until(() => fs.existsSync(path.join(ELECTRON_DIR(), 'wisp.exe')) && fs.existsSync(path.join(ELECTRON_DIR(), 'Uninstall wisp.exe')), { timeout: 120_000, every: 500, what: 'v0.57.0' });
+    await sleep(2000);
+  };
+  // This machine's own home and profile, as a person's: no WISP_HOME, no HOME.
+  const real = (port) => {
+    const { env } = qaEnv({ WISP_PORT: String(port), WISP_UPDATE_CHECK: '0' });
+    for (const k of ['WISP_HOME', 'ELECTRON_RUN_AS_NODE', 'CI']) delete env[k];
+    return env;
+  };
+  const mainWindow = (pid) => win32('windows', pid).find((w) => w.title === 'wisp');
+  const closeApp = async (child, port) => {
+    win32('close', mainWindow(child.pid).hwnd);
+    await new Promise((r) => (child.exitCode === null ? child.once('exit', r) : r()));
+    await down(port);
+  };
+  const entries = () => win32('uninstall');
+  const links = () => win32('links');
+  const toTauri = (l) => l.every((x) => x.target.toLowerCase() === path.join(TAURI_DIR(), 'wisp.exe').toLowerCase());
+  const home = path.join(os.homedir(), '.wisp');
+  const profile = path.join(process.env.APPDATA, 'wisp-agents');
+  const opened = {};
+
+  await check('INST-40', `a real v${ELECTRON}: where it goes, what it writes`, async () => {
+    await installElectron();
+    const e = entries();
+    ok(e.length === 1 && e[0].version === ELECTRON, `Apps lists ${JSON.stringify(e)}`);
+    ok(links().length === 2 && links().every((l) => l.target.toLowerCase().startsWith(ELECTRON_DIR().toLowerCase())), `links: ${JSON.stringify(links())}`);
+    win32('pin', path.join(ELECTRON_DIR(), 'wisp.exe')); // pinned to the taskbar, as most people's is
+  });
+  await check('INST-41', `v${ELECTRON} runs a task in ~/.wisp and keeps a Chromium profile in %APPDATA%`, async () => {
+    const port = nextPort++;
+    const child = start(path.join(ELECTRON_DIR(), 'wisp.exe'), [], real(port));
+    await up(port, 'v0.57.0');
+    await until(() => mainWindow(child.pid)?.visible, { what: 'its window' });
+    const r = await fetch(`http://127.0.0.1:${port}/api/sessions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt: 'fix the add function in math.js', cwd: makeRepo(), agent: 'claude' }) });
+    ok(r.status === 201, `launch ${r.status}`);
+    opened.id = (await r.json()).id;
+    await until(async () => { const s = await (await fetch(`http://127.0.0.1:${port}/api/sessions/${opened.id}`)).json(); return !['running', 'queued', 'starting'].includes(s.state); }, { timeout: 60_000, what: 'the task' });
+    ok(fs.existsSync(path.join(home, 'sessions', `${opened.id}.json`)), `no task in ${home}`);
+    ok(fs.existsSync(profile), `no profile at ${profile}`);
+    await closeApp(child, port);
+    fs.writeFileSync(path.join(profile, 'qa-kept'), 'stays');
+    fs.writeFileSync(path.join(home, 'qa-kept'), 'stays');
+  });
+  await check('INST-42', 'Tauri over it, as an update: one wisp in Apps, Electron’s copy gone, every link on the new one', async () => {
+    ok((await run(setup, ['/S'])) === 0, 'the installer failed');
+    await until(() => fs.existsSync(path.join(TAURI_DIR(), 'wisp.exe')), { timeout: 120_000, every: 500, what: 'wisp.exe' });
+    ok(!fs.existsSync(ELECTRON_DIR()), `left in ${ELECTRON_DIR()}: ${fs.existsSync(ELECTRON_DIR()) && fs.readdirSync(ELECTRON_DIR())}`);
+    const e = entries();
+    ok(e.length === 1 && e[0].key === 'wisp', `Apps lists ${JSON.stringify(e)}`);
+    ok(toTauri(links()) && links().length === 3, `links: ${JSON.stringify(links())}`);
+    ok(fs.existsSync(PIN()), 'the pin went');
+  });
+  await check('INST-43', 'what was yours stays, and the new app reads the same ~/.wisp', async () => {
+    for (const f of [path.join(profile, 'qa-kept'), path.join(home, 'qa-kept'), path.join(home, 'sessions', `${opened.id}.json`)]) ok(fs.existsSync(f), `gone: ${f}`);
+    const port = nextPort++;
+    const child = start(path.join(TAURI_DIR(), 'wisp.exe'), [], real(port));
+    const h = await up(port, 'the app');
+    ok(sh('powershell', ['-NoProfile', '-Command', `(Get-Process -Id ${h.pid}).Path`]).trim().toLowerCase() === path.join(TAURI_DIR(), 'node/node.exe').toLowerCase(), 'not on the bundled Node');
+    await until(() => mainWindow(child.pid)?.visible, { what: 'its window' });
+    const task = await fetch(`http://127.0.0.1:${port}/api/sessions/${opened.id}`);
+    ok(task.status === 200, `the Electron task: ${task.status}`);
+    await closeApp(child, port);
+  });
+  await check('INST-44', 'an installer run with Electron still open stops it, and links it didn’t make are moved', async () => {
+    await installElectron();
+    const port = nextPort++;
+    const child = start(path.join(ELECTRON_DIR(), 'wisp.exe'), [], real(port));
+    await up(port, 'v0.57.0');
+    // /NS makes no links, as a normal install makes no desktop one unless asked: only the hook can move them.
+    ok((await run(setup, ['/S', '/NS'])) === 0, 'the installer failed');
+    await down(port);
+    await until(() => !fs.existsSync(ELECTRON_DIR()), { timeout: 30_000, every: 500, what: `${ELECTRON_DIR()} to go` }).catch((err) => {
+      throw new Error(`${err.message}: holds ${fs.readdirSync(ELECTRON_DIR())}, Apps ${JSON.stringify(entries())}, ${sh('powershell', ['-NoProfile', '-Command', "Get-Process | Where-Object { $_.Name -match 'wisp' } | ForEach-Object { $_.Path }"]).trim()}`);
+    });
+    ok(child.exitCode !== null || !alive(child.pid), 'Electron kept running');
+    ok(entries().length === 1, `Apps lists ${JSON.stringify(entries())}`);
+    ok(toTauri(links()) && links().length === 3, `links: ${JSON.stringify(links())}`);
+  });
+  await check('INST-45', 'a link of your own stays yours, and Tauri’s uninstaller leaves ~/.wisp', async () => {
+    const mine = path.join(path.dirname(links()[0].path), 'wisp notes.lnk');
+    win32('link-to', mine, 'C:\\Windows\\notepad.exe');
+    ok((await run(setup, ['/S'])) === 0, 'the installer failed');
+    ok(links().find((l) => l.path === mine)?.target.toLowerCase().endsWith('notepad.exe'), 'it moved a link it didn’t make');
+    fs.rmSync(mine);
+    await run(path.join(TAURI_DIR(), 'uninstall.exe'), ['/S']);
+    await until(() => !fs.existsSync(path.join(TAURI_DIR(), 'wisp.exe')), { timeout: 60_000, every: 500, what: 'the uninstall' });
+    ok(fs.existsSync(path.join(home, 'sessions', `${opened.id}.json`)), '~/.wisp went with it');
+  });
+  // The whole road a Windows user's update takes, in v0.57.0's own code: its updater downloads the
+  // installer, hands `/S --force-run` to a waiter run as its own wisp.exe, and quits. One line differs
+  // from a user's copy: RELEASES, so the release list comes from here. The app it starts is the
+  // desktop user's, on 4477 and the real home, as after a real update.
+  await check('INST-46', `v${ELECTRON}’s own updater moves it onto this build: Tauri comes up in its place, Electron’s copy gone`, async () => {
+    ok(!(await health(4477).catch(() => null)), 'something is on 4477');
+    await installElectron();
+    const code = path.join(ELECTRON_DIR(), 'resources/app/server/update.js');
+    const was = fs.readFileSync(code, 'utf8');
+    const patched = was.replace(/const RELEASES = '[^']+';/, 'const RELEASES = process.env.QA_RELEASES;');
+    ok(patched !== was, 'RELEASES has moved');
+    fs.writeFileSync(code, patched);
+    const body = fs.readFileSync(setup);
+    const releases = http.createServer((req, res) => res.end(req.url === `/${name}` ? body : JSON.stringify({ tag_name: 'v99.0.0', assets: [{ name, browser_download_url: `http://127.0.0.1:${releases.address().port}/${name}`, digest: `sha256:${sha256(setup)}` }] })));
+    await new Promise((r) => releases.listen(0, '127.0.0.1', r));
+    try {
+      const env = { ...real(4477), QA_RELEASES: `http://127.0.0.1:${releases.address().port}` };
+      delete env.WISP_UPDATE_CHECK;
+      const child = start(path.join(ELECTRON_DIR(), 'wisp.exe'), [], env);
+      const old = await up(4477, 'v0.57.0');
+      const offer = await until(async () => { const u = await (await fetch('http://127.0.0.1:4477/api/update?check=1')).json(); return u.available && u; }, { timeout: 30_000, what: 'the update on offer' });
+      ok(offer.method === 'app', `method ${offer.method}`);
+      const r = await fetch('http://127.0.0.1:4477/api/update', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      ok(r.status === 202, `POST /api/update: ${r.status} ${await r.text()}`);
+      const node = path.join(TAURI_DIR(), 'node/node.exe').toLowerCase();
+      const fresh = await until(async () => {
+        const h = await health(4477).catch(() => null);
+        if (!h || h.pid === old.pid) return null;
+        return sh('powershell', ['-NoProfile', '-Command', `(Get-Process -Id ${h.pid}).Path`]).trim().toLowerCase() === node && h;
+      }, { timeout: 120_000, every: 500, what: 'the Tauri app on 4477' });
+      console.log(`  Tauri up as pid ${fresh.pid}, Electron ${child.exitCode === null ? 'still running' : 'gone'}`);
+      await until(() => !fs.existsSync(ELECTRON_DIR()), { timeout: 30_000, every: 500, what: `${ELECTRON_DIR()} to go` });
+      ok(entries().length === 1 && entries()[0].key === 'wisp', `Apps lists ${JSON.stringify(entries())}`);
+      ok(toTauri(links()), `links: ${JSON.stringify(links())}`);
+      ok(fs.existsSync(path.join(home, 'sessions', `${opened.id}.json`)), '~/.wisp lost a task');
+    } finally {
+      releases.close();
+      try {
+        sh('taskkill', ['/F', '/T', '/IM', 'wisp.exe']);
+      } catch {}
+      await down(4477).catch(() => {});
+    }
+  });
+}
+
 // --- links and what must stay out of this ---
 function linkRows() {
   return check('INST-30', 'README, site and updater ask for names the release has', async () => {
@@ -650,6 +803,7 @@ async function main() {
   if (ONLY.includes('brew')) await brewRows();
   if (ONLY.includes('app') && MAC) await macRows();
   if (ONLY.includes('app') && WIN) await windowsRows();
+  if (ONLY.includes('migrate') && WIN) await migrateRows();
   if (ONLY.includes('links')) await linkRows();
   for (const child of live) child.kill();
   manual.push(
