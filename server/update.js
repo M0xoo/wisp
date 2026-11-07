@@ -259,18 +259,21 @@ export class Updater {
       // Tauri's installer --force-run, for the builds already out.
       if (this.platform === 'win32') return `${q(installer)} /S ${this.shell === 'tauri' ? '/R' : '--force-run'}`;
       if (this.platform === 'darwin') {
-        // Tauri's shell is this process's parent and outlives it by a moment, holding the single-instance
-        // lock: a new app opened meanwhile hands over to the old one and quits, and nothing comes back.
-        const wait = this.shell === 'tauri' ? `for i in $(seq 100); do kill -0 ${process.ppid} 2>/dev/null || break; sleep 0.1; done; ` : '';
-        return `rm -rf ${q(remove)}; ${wait}open ${q(open)}`;
+        return `rm -rf ${q(remove)}; ${this.shell === 'tauri' ? shellGone() : ''}open ${q(open)}`;
       }
       return `${q(open)} >/dev/null 2>&1`;
     }
     const args = `${desktop ? '' : ' --browser --no-open'} --port ${this.port}`; // desktop: reopen the app; browser: keep the tab
     const node = JSON.stringify(process.versions.electron ? 'node' : process.execPath); // Electron's is no node, Tauri's is
-    return this.method === 'npx' ? `npx -y ${PKG.name}@${this.tag}${args}` : `${node} ${JSON.stringify(path.join(this.home(), 'bin', 'wisp.js'))}${args}`;
+    // A shell started by bin/wisp.js holds the same lock: the new `wisp` would hand over to it and go.
+    const wait = this.shell === 'tauri' && this.platform !== 'win32' ? shellGone() : '';
+    return wait + (this.method === 'npx' ? `npx -y ${PKG.name}@${this.tag}${args}` : `${node} ${JSON.stringify(path.join(this.home(), 'bin', 'wisp.js'))}${args}`);
   }
 }
+
+// Tauri's shell is this process's parent and outlives it by a moment, holding the single-instance
+// lock: a new app opened meanwhile hands over to the old one and quits, and nothing comes back.
+const shellGone = () => `for i in $(seq 100); do kill -0 ${process.ppid} 2>/dev/null || break; sleep 0.1; done; `;
 
 function installedVersion(dir) {
   try {

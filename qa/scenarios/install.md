@@ -2,7 +2,7 @@
 
 Every way into wisp, on real artefacts, before and after the switch from Electron. Run
 `node desktop/scripts/package.mjs` (needs Rust), then `node qa/install.mjs [--artefacts dist/tauri]
-[--only npm,script,brew,app,links]`. It publishes nothing: npm installs come from `npm pack`'s tarball
+[--only npm,script,brew,app,shell,links]`. It publishes nothing: npm installs come from `npm pack`'s tarball
 into temp prefixes, `install.sh` reads a registry and a release folder served by the script, HOME is
 a temp folder. A row with no artefact says *NOT RUN*; it never passes. The table goes to
 `qa/out/install.md`. A release dry run (`gh workflow run release --ref <branch> -f dry_run=true`) runs
@@ -10,10 +10,14 @@ this on macOS, Windows and Linux through `.github/workflows/tauri-package.yml`.
 
 | Scenario | Electron today | Tauri |
 |---|---|---|
-| INST-01 `npm pack` | Automated | Same tarball: `desktop/` stays off npm |
+| INST-01 `npm pack` | Automated | Same tarball, plus `desktop/entry.mjs` (what the shell runs under `WISP_ROOT`) and `bin/desktop-shell.js`; no other `desktop/` file |
 | INST-02 `npm i -g`, no Electron | Automated: `--version`, `--no-open`, words, `--browser`, tab | Same |
 | INST-03 `npm i -g`, with Electron | Automated; the window through `--user-data-dir`, see below | npm stays Electron until the stable switch |
 | INST-04, 05 `npx`, without and with Electron | Automated | Same |
+| INST-25 `npm i -g`, no Electron, `wisp`: the shell alone | Electron if installed, else a tab | Automated (`shell`): `wisp-shell-<os>-<arch>.tar.gz` from a release served here (`WISP_SHELL_URL`), checked against SHA256SUMS.txt, into `$WISP_HOME/desktop/<version>/`; the server on this Node from the npm package, its parent the shell, `method: global`, no tab; on a Mac its window seen on screen (CGWindowList). Windows: the server, the window by hand |
+| INST-26, 26b the next `wisp`, then kill -9 the shell | | Automated: no download (the release is gone), no server left behind |
+| INST-27 a shell that doesn't match its sum | | Automated: a tab, and one line with the app's address; nothing kept |
+| INST-28 no build for this platform (or offline) | | Automated: the same tab and line |
 | INST-06 `install.sh`, `WISP_VERSION=next` and `nightly` | Automated | Same |
 | INST-07 `install.sh` with no Node | Automated | Same |
 | INST-08, 09 Homebrew formula | Read through; its steps run in a temp Cellar. A real `brew install`: Manual | Same |
