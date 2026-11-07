@@ -1,6 +1,6 @@
 # ADR-0002: TypeScript on Node 22.18+, bundled to one zero-dependency package
 
-- Status: accepted
+- Status: superseded by ADR-0013
 - Date: 2026-11-07
 - Source: wisp v2 rewrite plan, draft 9
 

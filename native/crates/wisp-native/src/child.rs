@@ -98,7 +98,11 @@ struct Started {
 }
 
 fn start_pty(req: &Spawn) -> Result<Started> {
-    let size = req.pty.map_or(PtySize::default(), |s| PtySize { rows: s.rows.max(1), cols: s.cols.max(1), ..PtySize::default() });
+    let size = req.pty.map_or(PtySize::default(), |s| PtySize {
+        rows: s.rows.max(1),
+        cols: s.cols.max(1),
+        ..PtySize::default()
+    });
     // The size is set when the PTY is made, before the program starts: v1 learned that a size set
     // afterwards races the program's first look (stty size said 0 0).
     let pair = portable_pty::native_pty_system().openpty(size).map_err(|e| Error::spawn(&req.cmd, e))?;
@@ -153,7 +157,8 @@ fn start_pipes(req: &Spawn) -> Result<Started> {
     let mut child = cmd.spawn().map_err(|e| Error::spawn(&req.cmd, e))?;
     let pid = child.id();
     let tree = make_tree(pid);
-    let (Some(stdin), Some(stdout), Some(stderr)) = (child.stdin.take(), child.stdout.take(), child.stderr.take()) else {
+    let (Some(stdin), Some(stdout), Some(stderr)) = (child.stdin.take(), child.stdout.take(), child.stderr.take())
+    else {
         return Err(Error::spawn(&req.cmd, "missing pipe"));
     };
     let (stdin, stdout, stderr): (Box<dyn Write + Send>, Box<dyn Read + Send>, Box<dyn Read + Send>) =

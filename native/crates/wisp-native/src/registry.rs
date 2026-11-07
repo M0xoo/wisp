@@ -118,7 +118,8 @@ impl Registry {
     }
 
     pub fn items(&self) -> Vec<Item> {
-        let live = self.live.iter().map(|(id, e)| Item { id: id.clone(), pid: e.pid, pty: e.master.is_some(), exited: false });
+        let live =
+            self.live.iter().map(|(id, e)| Item { id: id.clone(), pid: e.pid, pty: e.master.is_some(), exited: false });
         let gone = self.gone.iter().map(|g| Item { id: g.id.clone(), pid: g.pid, pty: g.pty, exited: true });
         let mut items: Vec<Item> = live.chain(gone).collect();
         items.sort_by(|a, b| a.id.cmp(&b.id));

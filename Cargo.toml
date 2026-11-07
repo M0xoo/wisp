@@ -3,10 +3,12 @@
 # directly in crates/ or in its plugin's folder, and the folder name is the crate name (plan §3.1 rule 1).
 [workspace]
 resolver = "3"
-# Plugin crates are listed one by one (plugins/<name>/{api,core,host}), so a plugin's ui/ folder and
-# half-made folders never break the build. tools/check fails if a plugin crate on disk is missing here.
+# Every crate folder must hold its Cargo.toml from the moment it exists: write Cargo.toml first.
 members = [
   "crates/*",
+  "plugins/*/api",
+  "plugins/*/core",
+  "plugins/*/host",
 ]
 exclude = ["native"]
 

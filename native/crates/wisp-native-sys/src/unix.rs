@@ -73,10 +73,10 @@ pub fn processes() -> io::Result<Vec<ProcInfo>> {
         let Ok(entry) = entry else { continue };
         let Some(pid) = entry.file_name().to_str().and_then(|s| s.parse::<u32>().ok()) else { continue };
         // A process may exit between the listing and the read: it is simply not in the table.
-        if let Ok(stat) = std::fs::read_to_string(entry.path().join("stat")) {
-            if let Some(info) = parse_stat(pid, &stat) {
-                out.push(info);
-            }
+        if let Ok(stat) = std::fs::read_to_string(entry.path().join("stat"))
+            && let Some(info) = parse_stat(pid, &stat)
+        {
+            out.push(info);
         }
     }
     Ok(out)
@@ -127,7 +127,12 @@ fn bsd_info(pid: libc::pid_t) -> Option<ProcInfo> {
     // SAFETY: the call above filled every byte (got == SIZE), and the struct is plain integers.
     #[allow(unsafe_code)]
     let info = unsafe { info.assume_init() };
-    Some(ProcInfo { pid: info.pbi_pid, ppid: info.pbi_ppid, pgid: info.pbi_pgid, zombie: info.pbi_status == libc::SZOMB })
+    Some(ProcInfo {
+        pid: info.pbi_pid,
+        ppid: info.pbi_ppid,
+        pgid: info.pbi_pgid,
+        zombie: info.pbi_status == libc::SZOMB,
+    })
 }
 
 /// Every process this user can see (not implemented on this Unix: trees are killed by group only).

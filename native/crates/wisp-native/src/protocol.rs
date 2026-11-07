@@ -14,10 +14,19 @@ pub const PROTOCOL: u32 = 1;
 pub enum Request {
     Spawn(Spawn),
     /// Bytes for the child's stdin (or the terminal), base64.
-    Data { id: String, data: String },
+    Data {
+        id: String,
+        data: String,
+    },
     /// Close the child's stdin.
-    Eof { id: String },
-    Resize { id: String, cols: u16, rows: u16 },
+    Eof {
+        id: String,
+    },
+    Resize {
+        id: String,
+        cols: u16,
+        rows: u16,
+    },
     /// Send a signal and return at once.
     Signal {
         id: String,
@@ -87,11 +96,28 @@ pub struct Item {
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum Event {
-    Hello { protocol: u32, version: &'static str, pid: u32, platform: &'static str, arch: &'static str },
-    Started { id: String, pid: u32 },
-    Data { id: String, stream: Stream, data: String },
+    Hello {
+        protocol: u32,
+        version: &'static str,
+        pid: u32,
+        platform: &'static str,
+        arch: &'static str,
+    },
+    Started {
+        id: String,
+        pid: u32,
+    },
+    Data {
+        id: String,
+        stream: Stream,
+        data: String,
+    },
     /// The last event for an id. `code` is null when a signal ended it.
-    Exit { id: String, code: Option<i32>, signal: Option<String> },
+    Exit {
+        id: String,
+        code: Option<i32>,
+        signal: Option<String>,
+    },
     Killed {
         id: String,
         #[serde(rename = "ref", skip_serializing_if = "Option::is_none")]

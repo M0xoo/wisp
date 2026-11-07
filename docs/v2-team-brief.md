@@ -1,71 +1,75 @@
 # wisp v2: brief for every agent building it
 
-You are building part of **wisp v2** in this folder (a git worktree on branch
+You are building part of **wisp v2** in this folder (a git worktree, branch
 `wisp/we-are-going-to-work-on-wisp-v2-8fb64e`). The owner's words: *wisp v2 = wisp v1 with the new
-architecture*, in one PR, so that after it merges only what v2 needs is left. They expect it to be the best
-codebase ever made. Take nothing below as optional.
+architecture*, in one PR, so that after it merges only what v2 needs is left. They expect the best codebase
+ever made. Nothing below is optional.
+
+## The owner's decisions (final, don't reopen)
+
+1. **Rust for everything but the UI** (ADR-0013): kernel, store, sync, HTTP edge, process supervision,
+   MCP, CLI, grid and **every plugin's backend, harness runners included**. Solid + TypeScript only for UI.
+2. **monoflow** handles the monorepo (ADR-0001).
+3. **Performance first** (ADR-0011): we are building the fastest dev tool there is.
+4. **Nothing wraps that shouldn't** (ADR-0012, `design/layout.md`).
+5. **The phone and desktop apps ship their own frontend** (plan §7.3), talking to computers over the sync
+   protocol. The phone no longer renders a remote WebView.
+6. Everything else is in the plan: `/Users/mokh/.wisp/stuff/63a85cccbd35-r9-wisp-rewrite-plan.md`. Read the
+   sections your brief names, and check `docs/v2-plan-coverage.md` for the row you own.
 
 ## Read first
 
-1. `AGENTS.md` (the working rules) and `ARCHITECTURE.md` (the map).
-2. The plan: `/Users/mokh/.wisp/stuff/63a85cccbd35-r9-wisp-rewrite-plan.md`. Your brief names the sections.
-3. `packages/kernel/src/contract.ts` (the plugin contract) and `packages/protocol/src/index.ts` (the wire).
-   Don't change either without saying why in your report; other agents build against them. Adding is fine.
-4. v1 is still in the folder (`server/`, `web/`, `grid/`, `test/`, …) as the parity reference. Read it for
-   behaviour and edge cases. Don't edit it unless your brief says so: it is deleted at the end.
+`AGENTS.md` (rules), `ARCHITECTURE.md` (map), the ADRs for your area, `crates/wisp-kernel/src/lib.rs` and
+`host.rs` (the plugin contract: frozen signatures, extend additively and say so), and for behaviour:
+v1 itself (`server/`, `web/`, `grid/`, `test/`), `docs/v1-edge-cases.md` and `docs/v1-edge-cases-crew.md`
+(every bullet becomes a test), and the TypeScript reference port at git tag `v2-ts-server-reference`
+(`git show v2-ts-server-reference:plugins/<x>/...`), which already solved many edge cases. Port behaviour,
+not code.
 
-## Decisions already made (don't reopen them)
+## monoflow (mandatory) and the shared worktree
 
-- TypeScript strict, Node ≥ 22.18 running `.ts` directly (erasable syntax only, `.ts` import extensions).
-- Server API stays TypeScript on Node. Rust only in `native/` (wisp-native: PTY and process trees).
-- Store: `node:sqlite`. Sync: SSE `/api/events?topics&cursor` + `POST /api/cmd` with idempotency keys.
-- UI: Solid 1.9 + Zag.js, the kit `@wisp/ui` is the only place with CSS (feature CSS is banned).
-- Client state: `alien-signals` core, framework-independent (`@wisp/client`).
-- Spells are gone: they are plugins (`wispPlugin: 1` manifests); `wispSpell` files are converted on import.
-- Monorepo: npm workspaces, handled by **monoflow**.
+- `.agents/bin/monoflow graph impact <file>` before you change a contract (an `api` crate, the kernel,
+  `@wisp/protocol`).
+- `.agents/bin/monoflow verify --package=<your crate or package>` after each change: **the gate**. Rust
+  crates are packages to monoflow too.
+- **Never** run `monoflow checkpoint revert`, `commit`, `outer` or `ship`, and never `git clean`, `git
+  stash`, `git checkout -- .`, `git reset` or `rm -rf` outside your own directories. This worktree is shared
+  by many agents; reverts deleted other agents' files several times on 2026-11-07. `checkpoint save` is fine.
+- Never commit or push: the lead commits.
 
-## monoflow is mandatory
+## Rust specifics
 
-- `.agents/bin/monoflow graph impact <file>` before you change any contract or `api/` package.
-- `.agents/bin/monoflow verify --package=<your package>` after each change; `--affected` when you touched
-  more than one. **This is the gate.** Don't report done until it passes.
-- **Never run `monoflow checkpoint revert`, `monoflow commit`, `monoflow outer` or `monoflow ship` here.** This worktree is
-  shared: `checkpoint revert` runs `git read-tree -u --reset`, which deleted other agents' new files four
-  times, and `commit` starts a background loop that did the same. Use `graph`, `verify` and `checkpoint save` only.
-- Every package you create needs `test` and `typecheck` scripts in its `package.json` and its own
-  `tsconfig.json` (copy `packages/protocol`'s), so monoflow verifies it.
-- Don't use `monoflow start`, `ship`, `commit` or `push`. Don't run git commit/push, stash or reset. The lead commits.
+- Each new crate folder gets its `Cargo.toml` **first** (the workspace globs `crates/*`,
+  `plugins/*/{api,core,host}`; a folder without one breaks everyone's build). Use `[lints] workspace = true`
+  and workspace dependencies. A dependency not in the root `Cargo.toml` needs a line there plus a sentence in
+  your report (the lead records it in an ADR).
+- **Build with your own target dir:** `export CARGO_TARGET_DIR=/tmp/wisp-target-<your-name>`, and build or
+  test only your crates (`cargo test -p <crate>`). Never `cargo build --workspace` (the machine is shared).
+- Plan §9.2: no `unsafe` (except `wisp-proc`'s reviewed sys module), clippy pedantic clean
+  (`cargo clippy -p <crate> --all-targets -- -D warnings`), no `unwrap`/`expect`/`panic` outside tests,
+  one `thiserror` enum per crate mapped to `WireError`, `tracing` spans on commands.
+- **Shape of a plugin:** `plugins/<name>/api` (crate `wisp-<name>-api`: `Command`/`Event`/`Hook` types,
+  `Point`s, `Service` traits, row types with `#[derive(ts_rs::TS)]` for what the UI reads),
+  `plugins/<name>/core` (crate `wisp-<name>-core`: pure, sans-IO, no tokio/fs/net/clock: parsers, deciders,
+  state machines; property tests here), `plugins/<name>/host` (crate `wisp-<name>`, with `wisp-plugin.json`
+  beside its Cargo.toml: `impl Plugin`, wiring to the kernel, store, proc and HTTP routes). A host depends
+  on other plugins' `api` crates only.
+- **v1's HTTP API stays** as thin route adapters over commands (`Setup::route`), same paths and JSON
+  shapes, so v1 clients keep working and v1's route tests port almost 1:1.
+- **Work in two phases.** Phase A (start now): `api` + `core`, with every v1 behaviour and edge case for
+  your area as tests. Phase B: `host` wiring, once `crates/wisp-kernel` and `crates/wisp-store` are
+  implemented (look for `crates/wisp-kernel/READY` and `crates/wisp-store/READY`; until then, write host
+  code against their public signatures and keep going).
 
-## Working with the others
+## UI (TypeScript + Solid only)
 
-- **Never delete files you didn't create, and never run `git clean`, `git stash`, `git checkout -- .`,
-  `git reset` or `rm -rf` outside your own directories.** Someone deleted another agent's untracked file
-  once already. The lead commits progress often; pull nothing, push nothing.
-
-- Several agents work in this folder at once. **Touch only the directories in your brief.** If you need a
-  change elsewhere, write it in your report.
-- Dependencies are installed. If you really need a new one, add it to your package's `package.json`, run
-  `npm install --no-audit --no-fund` at the root (retry once if npm says the lock is busy), and justify it
-  in your report: every dependency needs an ADR.
-- Never run the whole v1 suite (`npm run test:v1`): the machine is shared.
+UI agents read `docs/v2-ui-brief.md` as well.
 
 ## Quality bar
 
-- No `any`, no non-null `!` without a comment saying why, no `// @ts-ignore`.
-- Files ≤ 400 lines, functions ≤ 60 lines, unless there's a written reason.
-- Comments say *why*, briefly. Names say what. Match the code around you.
-- Tests sit next to the code, need no network, and cover the edge cases v1 learned the hard way (read v1's
-  tests for your area: `test/*.test.js`).
-- Your report: what you built (files), its public API, how many tests and the monoflow verify output, and
-  what is left or what you need from another package.
-
-## Performance is a priority
-
-The owner: *we are creating the fastest dev tool possible*. Read AGENTS.md → Performance and ADR-0011.
-Hot paths come with a bench (spikes/<area>/) and numbers in your report; no sync I/O on request or
-runner paths; lazy activation; prepared statements; coalesced writes; fine-grained UI updates.
-
-## UI: nothing wraps that shouldn't (owner's priority)
-
-Read design/layout.md and ADR-0012 before writing any UI. Control text never wraps; bars are one line and
-collapse to icons then More by declared priority; only `Wrap` groups wrap. Check at 320–1440 px.
+- Files ≤ 400 lines, functions ≤ 60, unless there's a written reason. Comments say *why*, briefly.
+- Tests need no network and no real harness. Goldens for anything an agent, a peer or a released client
+  reads. Hot paths come with a bench in `spikes/<area>/` (criterion is not in the workspace: use a plain
+  `[[bench]]`-free binary or a `#[test] #[ignore]` bench), and numbers in your report.
+- Your report: what you built (files), its public API, tests and the monoflow verify output, bench
+  numbers, plan-coverage rows you moved, and what you need from another crate.

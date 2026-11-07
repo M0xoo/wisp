@@ -16,25 +16,31 @@ step-by-step how-tos are in `.claude/skills/` (any agent can read them, not only
 ## Commands
 
 ```sh
-npm install                      # once; workspaces link every package
-npm run check                    # structure rules (layers, cycles, CSS, state, manifests, OpenAPI, sizes)
-npm run typecheck                # tsc strict, server and web
-npm test                         # every package's tests (node --test; vitest for UI packages)
-npm run verify                   # all three, as PR CI runs them
-.agents/bin/monoflow verify --affected   # only what your change reaches (inner loop)
-node --test packages/store/test/store.test.ts   # one file
-npm run dev                      # server + web with reload
+npm install                      # once: links the TypeScript (UI) workspaces
+cargo build                      # the Rust workspace (one shared target dir per machine)
+npm run check                    # structure rules for both sides (layers, cycles, CSS, state, manifests, OpenAPI, sizes)
+npm run typecheck                # tsc strict for the UI packages
+cargo clippy --all-targets -- -D warnings
+npm test                         # every package and crate, through monoflow
+.agents/bin/monoflow graph impact <file>   # before changing a contract
+.agents/bin/monoflow verify --affected     # after every change: the gate
+npm run dev                      # the wisp binary + the web bundle with reload
 ```
 
-## Language and runtime
+## Language and runtime (ADR-0013)
 
-- **TypeScript everywhere**: `strict`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`.
-  No `any`: use `unknown` and narrow it. Only erasable syntax (`erasableSyntaxOnly`): no `enum`, no
-  `namespace`, no parameter properties. Node ≥ 22.18 runs `.ts` directly, so the server and tests have
-  no build step. Import relative files with their `.ts` extension.
-- The published package (`apps/server` → `wisp-agents`) is bundled by `tools/bundle.ts` into plain JS
-  with **zero runtime dependencies**. A new dependency needs an ADR.
-- IDs are branded types. Errors cross the wire as one shape: `{code, message, retry}`.
+- **Rust for everything but the UI.** The kernel, store, sync, HTTP edge, process supervision, the MCP
+  server, the CLI, the grid and **every plugin's backend** (harness runners included) are Rust crates.
+  **TypeScript + Solid only for UI** packages (`packages/{protocol,sync,client,tokens,ui,shell}`,
+  `plugins/*/ui`, `apps/web`).
+- Rust (plan §9.2): edition 2024; `unsafe` forbidden except `wisp-proc`'s reviewed sys module; clippy
+  pedantic with the workspace's short allow list; no `unwrap`/`expect`/`panic` outside tests; one
+  `thiserror` enum per crate, mapped to `WireError {code, message, retry}` at the edge; a `tracing` span per
+  command; `core` crates are sans-IO (no tokio, fs, net or clock: inject them).
+- TypeScript (UI only): `strict`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, no `any`,
+  erasable syntax only. Wire types come from Rust (`ts-rs`); never hand-edit a generated file.
+- Distribution: `wisp-agents` on npm is a dependency-free launcher plus per-platform binary packages
+  (`npm/`). A new Rust dependency is pinned in the root `Cargo.toml` and justified in an ADR.
 
 ## Plugins (ADR-0003)
 
@@ -108,8 +114,10 @@ wisp aims to be the fastest dev tool there is. Speed is checked like correctness
 
 ## Git and CI
 
+- Rust builds: share one target dir (`CARGO_TARGET_DIR`) per machine; never run two full
+  `cargo build --workspace` at once on a shared machine.
 - `main` is protected. Work on a branch, open a PR. Commit by file name, never `git add -A`.
 - PR CI: `npm run verify` on Linux, Node 22 and 24. Label a PR `ci:full` to run every OS. monoflow
   reports the affected set; it does not skip anything until gate G14 passes (ADR-0001).
 - User-facing changes get a `CHANGELOG.md` entry under *Unreleased*.
-- Releasing is merging the version bump in `apps/server/package.json` (see the `release` skill).
+- Releasing is merging the version bump (`Cargo.toml` workspace version and `npm/wisp-agents/package.json`; see the `release` skill).

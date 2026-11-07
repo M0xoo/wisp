@@ -1,6 +1,6 @@
 # ADR-0009: Rust stays in wisp-native: the PTY and process trees
 
-- Status: accepted
+- Status: superseded by ADR-0013
 - Date: 2026-11-07
 - Source: wisp v2 rewrite plan, draft 9
 

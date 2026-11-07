@@ -1,4 +1,4 @@
-# ADR-0012: The grid's control plane keeps its own SQLite file, and its trust rules are data
+# ADR-0014: The grid's control plane keeps its own SQLite file, and its trust rules are data
 
 - Status: accepted
 - Date: 2026-11-07
