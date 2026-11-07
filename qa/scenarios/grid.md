@@ -229,7 +229,7 @@ for the rest
 - **Against production:** only when the owner deploys: a throwaway account and a real Slack app. This
   is the only way to see Slack's own URL check and retries.
 
-### GRID-32 · Mail to the secret address reaches a sleeping box
+### GRID-33 · Mail to the secret address reaches a sleeping box
 *`qa/grid.mjs`* (fake SES, webhooks and DKIM signed with keys pinned in the dev grid's `grid.json`);
 `test/channel-email.test.js` for the rest
 - **Steps:** on a cloud wisp, Settings → Notifications → Phone → Email: turn it on, enter the address

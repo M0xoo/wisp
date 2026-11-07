@@ -176,7 +176,7 @@ gets it.
 Senders need their provider to DKIM-sign with the same domain as their address. The grid fetches
 their keys from DNS, so it needs to reach a resolver. Consumer Gmail and iCloud sign that way; a
 company domain signed by its provider's domain won't pass. Nobody has run this against real SES or a
-real Gmail message yet: do that once before relying on it (GRID-32).
+real Gmail message yet: do the checks under *Before you trust it* first (GRID-33).
 
 To set it up, once per grid:
 
@@ -192,6 +192,23 @@ To set it up, once per grid:
 5. **Sending.** Ask for SES production access: in the sandbox it only sends to verified addresses.
    Make an IAM user limited to `ses:SendEmail` and `ses:SendRawEmail` on that identity, and put its
    secret key in `secrets/ses` (0600).
+
+**Before you trust it.** Every test here runs on a fake SES. On a staging grid, with a throwaway
+account and a throwaway box, send these to the secret address, with the allowed sender set to your
+own Gmail address. The box's Settings → Phone → Email shows the refusal.
+
+1. A real message from that Gmail address. It has to start a task. If it's refused as `dkim`, stop: SES
+   may hand over mail in a form this code can't prove (it needs CRLF line endings), which would refuse
+   everything.
+2. From a domain you control, with DKIM on: `From: <your Gmail address>`, signed `d=<your domain>`.
+   Refused.
+3. The same, with a second, broken signature claiming `d=gmail.com`. Refused.
+4. No signature at all, `From: <your Gmail address>`, sent from a host with SPF for its own domain.
+   Refused.
+5. A forwarded copy of a real, signed message. Refused unless its signature survives; never run with
+   the forwarder as the sender.
+
+Only 2 to 4 say anything about forgery. If one of them starts a task, turn `mail` off and don't ship it.
 
 ### Sandboxes
 

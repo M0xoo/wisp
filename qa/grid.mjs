@@ -88,7 +88,7 @@ const fakeSlack = http.createServer(async (rq, rs) => {
 });
 await new Promise((r) => fakeSlack.listen(0, '127.0.0.1', r));
 
-// SES, for GRID-32: takes what's sent, and keeps it. The webhook is signed with a key the grid pins.
+// SES, for GRID-33: takes what's sent, and keeps it. The webhook is signed with a key the grid pins.
 const sent = [];
 const fakeSes = http.createServer(async (rq, rs) => {
   let t = '';
@@ -367,7 +367,7 @@ try {
     await until(async () => (await state()) === 'stopped', (IDLE + 30) * 1000, 'the box to sleep again by itself');
   });
 
-  await check('GRID-32', 'mail to the secret address wakes a sleeping box, and the reply goes back once, threaded', async () => {
+  await check('GRID-33', 'mail to the secret address wakes a sleeping box, and the reply goes back once, threaded', async () => {
     const state = async () => (await req(`${inst(A.handle)}/_grid/state`, { headers: bearer(token) })).json?.state;
     const me = 'qa@sender.example';
     const put = await req(`${inst(A.handle)}/api/remote`, { method: 'PUT', headers: bearer(token), body: { email: { enabled: true, sender: me } } });
