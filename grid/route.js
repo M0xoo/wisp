@@ -133,8 +133,9 @@ export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit
   }
 
   // Past the secret: Telegram says who this is. Only a person on the list, in a private chat with
-  // the bot; in a group, others could read what comes back and steer what it does.
-  const person = (m, route) => !!m?.from && !m.from.is_bot && m.chat?.type === 'private' && route.senders.includes(String(m.from.id));
+  // the bot; in a group, others could read what comes back and steer what it does. A forward's from
+  // is who forwarded it, and its words are someone else's.
+  const person = (m, route) => !!m?.from && !m.from.is_bot && m.chat?.type === 'private' && !m.forward_origin && !m.forward_date && route.senders.includes(String(m.from.id));
 
   // → false when it isn't the grid's to act on.
   async function route(user, r, u) {

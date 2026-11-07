@@ -347,7 +347,7 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
   box is told only `held: true` by `GET /api/channels/url`, so it leaves the webhook alone. A box
   holding the same bot token can still repoint the webhook, which stops routing for its owner, but
   Telegram never returns a secret, so it can't sign a message. At the edge: bad secret 403, then 200,
-  then only a private chat with an allowed, non-bot sender, naming one of that user's own computers
+  then only a private chat with an allowed, non-bot sender, not a forward, naming one of that user's own computers
   (`parseRoute` in `server/channels/grammar.js`, the same grammar, imported pure). That goes through
   the computer's tunnel to `POST /api/channels/routed`, which refuses a request from anywhere else:
   each tunnel stream carries a random mark only that process knows, and `computerEdge` drops

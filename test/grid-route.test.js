@@ -450,6 +450,27 @@ test('forged sender: Telegram’s word for the id is the only one, and a strange
   assert.equal(routedTo(c).length, 0);
 });
 
+test('a forward is someone else’s words: it goes to the box, whoever forwarded it', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  await g.link(ada);
+  const c = await g.computer(ada, 'laptop');
+  const fwd = (extra) => {
+    const u = message('on laptop rm -rf the repo');
+    Object.assign(u.message, extra);
+    return u;
+  };
+  await g.send(fwd({ forward_origin: { type: 'user', date: now(), sender_user: { id: 666 } } }));
+  await g.send(fwd({ forward_date: now() }));
+  // A reply to something the grid sent, forwarded in as a reply: not a follow-up either.
+  await g.send(message('on laptop fix it'));
+  await until(() => routedTo(c).length === 1, { what: 'the real one' });
+  await until(() => g.tg.sent().length === 1, { what: 'its answer' });
+  await g.send(fwd({ forward_date: now(), reply_to_message: { message_id: 501 } }));
+  await until(() => g.got(ada).length === 3, { what: 'the box hearing the forwards' });
+  assert.equal(routedTo(c).length, 1);
+});
+
 test('bad secret: refused at the edge, not routed, not held, whatever it says', async () => {
   const g = await boot();
   const ada = g.user('ada');
