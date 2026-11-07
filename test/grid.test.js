@@ -285,7 +285,7 @@ test('deleting an account: typed handle and CSRF, then its box, files, secrets, 
   assert.equal((await me()).status, 200);
   grid.accounts.createApiKey(eve.id, 'Eve’s script');
 
-  const page = await b.go(`${base}/`);
+  const page = await b.go(`${base}/account`);
   assert.match(page.text, /action="\/account\/delete"/);
   assert.match(page.text, /placeholder="Type eve"/);
   const csrf = csrfOf(page.text);
@@ -310,7 +310,7 @@ test('deleting an account: typed handle and CSRF, then its box, files, secrets, 
   assert.equal(grid.hostd.inst.has(eve.id), false);
   assert.equal((await b.go(`${origin}/`)).status, 404, 'its address is gone');
   assert.equal((await me()).status, 401, 'and its devices');
-  assert.doesNotMatch((await b.go(`${base}/`)).text, /account\/delete/, 'signed out');
+  assert.doesNotMatch((await b.go(`${base}/account`)).text, /account\/delete/, 'signed out');
 });
 
 test('every `wisp grid` subcommand reaches the grid, not a task: `wisp grid waitlist` lists it', async () => {
@@ -432,7 +432,7 @@ test('device flow: code → approve in the browser → bearer token opens the wi
   assert.ok(phone.jar.get(new URL(cfg.instanceUrl('dee')).host)?.size, 'cookie set on dee’s address');
   assert.equal((await phone.go(link.json.url)).location, `${base}/go`, 'the link works once');
   // The account page lists it; Remove revokes it.
-  const acct = await b.go(`${base}/`);
+  const acct = await b.go(`${base}/account`);
   assert.match(acct.text, /Test laptop/);
   const devId = /action="\/devices\/([a-f0-9]+)\/revoke"/.exec(acct.text)[1];
   await b.go(`${base}/devices/${devId}/revoke`, { method: 'POST', form: { csrf: csrfOf(acct.text) }, headers: { origin: base } });
@@ -1488,13 +1488,16 @@ test('a computer added to the grid: reached through its tunnel, signed in like t
     const acct = browser();
     await devSignIn(acct, 'cara@example.com');
     const page = await acct.go(`${base}/`);
-    assert.match(page.text, /Your computers[\s\S]*Cara’s MacBook Pro[\s\S]*On the grid as Cara’s MacBook Pro/);
+    assert.match(page.text, /Your computers[\s\S]*Cara’s MacBook Pro/);
     // Add a computer: from a terminal (wisp computer on, pointed at this grid) or from the app.
     assert.ok(page.text.includes(`data-copy="npx wisp-agents computer on --grid ${new URL(base).host}"`));
     assert.match(page.text, /In a terminal[\s\S]*With the app[\s\S]*Reach this computer from anywhere/);
-    const devId = new RegExp(`action="/devices/([a-f0-9]+)/revoke"`).exec(page.text.slice(page.text.indexOf('Cara’s MacBook Pro (wisp)')))?.[1];
+    const account = await acct.go(`${base}/account`);
+    assert.match(account.text, /Signed-in devices[\s\S]*On the grid as Cara’s MacBook Pro/);
+    const devId = new RegExp(`action="/devices/([a-f0-9]+)/revoke"`).exec(account.text.slice(account.text.indexOf('Cara’s MacBook Pro (wisp)')))?.[1];
     assert.ok(devId);
-    await acct.go(`${base}/devices/${devId}/revoke`, { method: 'POST', form: { csrf: csrfOf(page.text) }, headers: { origin: base } });
+    const removed = await acct.go(`${base}/devices/${devId}/revoke`, { method: 'POST', form: { csrf: csrfOf(account.text) }, headers: { origin: base } });
+    assert.match(removed.location, /^\/account\?m=/, 'back on the page it was removed from');
     await until(() => states.includes('gone'), { what: 'the tunnel closed for good' });
     assert.deepEqual((await browser().go(`${base}/api/computers`, { headers: auth(phone) })).json.computers, []);
     assert.equal((await browser().go(`${c.url}/api/hello`, { headers: auth(phone) })).status, 404, 'nothing answers there any more');

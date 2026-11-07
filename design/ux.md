@@ -162,6 +162,23 @@ A task's actions are offered in several places: the right-click menu, the open t
   no second box for the main task's lines when the diff already shows them, and no text box of its
   own, the reply box says *Or say what to do instead*.
 
+## wisp Grid's Home and Account
+
+The grid's signed-in pages (`grid/pages.js`), server-rendered, wisp's look.
+
+- **Two pages, one header.** *Home* (`/`) is what you use: the cloud wisp, your computers, your apps,
+  what to try. *Account* (`/account`) is what you rarely change: devices, sign-ins, sign out, delete.
+  A destructive action never sits on Home beside *Open*; on a card, *Remove* and *Unpublish* are
+  quiet until hovered.
+- **A tile says one thing and one next step,** and only what exists on this grid (`offers`). It says
+  what's already true when the grid knows it (*4 published*), in a slot beside the step, so it never
+  changes shape. The grid can't see agent sign-ins or tasks: no tile claims them, no fake stats,
+  no checklist it can't tick.
+- **One size in every state.** The cloud block keeps its two-row line, Sleep's place (hidden, not
+  gone) and a *Next schedule* row, so asleep, waking and running move nothing.
+- **What the page refreshes lives in `[data-live]`; what you're using doesn't.** *Add a computer* and
+  the picture stay outside those blocks, so a live change never closes or repaints them.
+
 ## Several accounts on wisp Grids
 
 - An account is named by its grid and its handle: the grid's name (its address when two grids share

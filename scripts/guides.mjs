@@ -1119,7 +1119,7 @@ tmux attach -t agent`)}
       <h2 id="signin">1. Sign in</h2>
       <ol class="doc-steps">
         <li>Open <a href="https://grid.trywisp.dev">grid.trywisp.dev</a> and press <b>Continue with GitHub</b>.</li>
-        <li>Your account page shows your cloud computer at <code>you.grid.trywisp.dev</code>. Press <b>Open wisp</b>: it starts in a few seconds, and you’re in the same wisp you know, in the browser.</li>
+        <li>Your Home page shows your cloud computer at <code>you.grid.trywisp.dev</code>. Press <b>Open</b>: it starts in a few seconds, and you’re in the same wisp you know, in the browser.</li>
       </ol>
     </section>
 
@@ -1208,7 +1208,7 @@ tmux attach -t agent`)}
       <ul class="doc-list">
         <li><b>Only you get in.</b> The grid lets in your own browser sessions and the devices you allowed; nobody else’s account opens your computer. Only the computer that was added can hold its tunnel.</li>
         <li><b>Nothing is stored on the way.</b> Requests go over HTTPS to the grid, which checks it’s you and forwards them down the tunnel. Your files, logins and tasks stay on your computer.</li>
-        <li><b>Gone in one click.</b> Remove the computer (or the device that added it) on your account page and the tunnel closes at once.</li>
+        <li><b>Gone in one click.</b> Remove the computer on your Home page (or the device that added it, under Account) and the tunnel closes at once.</li>
         <li><b>Rather keep it on your network?</b> Use Machines over SSH, with <a href="/guides/connect-machines-with-tailscale.html">Tailscale</a> to go anywhere.</li>
       </ul>
     </section>

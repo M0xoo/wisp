@@ -124,17 +124,26 @@ try {
     A = { ctx, page: p, handle };
   });
 
-  await check('GRID-04', 'account page shows Open, devices, delete; fits a phone', async () => {
+  await check('GRID-04', 'Home shows Open and what to try, Account has devices and delete; both fit a phone', async () => {
     const p = A.page;
     ok(await p.locator('a.primary[href="/go"]').count(), 'no Open link to /go');
-    ok(await p.locator('form[action="/account/delete"]').count(), 'no Delete your account form');
-    ok(await p.locator('form[action="/signout?all=1"]').count(), 'no Sign out everywhere');
-    await shot(p, 'account-desktop');
+    ok(await p.locator('.can .t').count() >= 6, 'no tiles on Home');
+    await shot(p, 'home-desktop');
+    await p.click('.t-go[data-add]');
+    ok(await p.locator('details#add[open]').count(), 'the tile did not open Add a computer');
     await p.setViewportSize({ width: 390, height: 844 });
-    const overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    const sideways = () => p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    const home = await sideways();
+    await shot(p, 'home-phone');
+    await p.click('.navt a[href="/account"]');
+    await p.waitForSelector('form[action="/account/delete"]');
+    ok(await p.locator('form[action="/signout?all=1"]').count(), 'no Sign out everywhere');
+    const account = await sideways();
     await shot(p, 'account-phone');
     await p.setViewportSize({ width: 1440, height: 900 });
-    ok(overflow <= 1, `account page scrolls sideways by ${overflow}px on a phone`);
+    await shot(p, 'account-desktop');
+    await p.goto(`${GRID}/`);
+    ok(home <= 1 && account <= 1, `scrolls sideways on a phone: Home ${home}px, Account ${account}px`);
   });
 
   let wispPage;
@@ -248,9 +257,9 @@ try {
     ok((await state()) === 'running', 'not running after the wake');
   });
 
-  await check('GRID-11', 'account page lists the device; Remove revokes its token', async () => {
+  await check('GRID-11', 'Account lists the device; Remove revokes its token', async () => {
     const p = A.page;
-    await p.goto(`${GRID}/`);
+    await p.goto(`${GRID}/account`);
     const form = p.locator(`form[action="/devices/${deviceId}/revoke"]`);
     ok(await form.count(), 'device not listed on the account page');
     await form.locator('button').click();
@@ -289,7 +298,7 @@ try {
     await go.close();
     const homes = () => (fs.existsSync(path.join(data, 'users')) ? fs.readdirSync(path.join(data, 'users')) : []);
     const before = homes();
-    await p.goto(`${GRID}/`);
+    await p.goto(`${GRID}/account#delete`);
     const f = p.locator('form[action="/account/delete"]');
     await f.locator('input[name=confirm]').fill(B.handle);
     // Its answer, not the load state: the page we're on already counts as loaded until it comes.

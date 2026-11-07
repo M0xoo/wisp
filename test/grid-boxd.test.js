@@ -289,7 +289,7 @@ test('boxd down: a box says so instead of starting, and deleting keeps the accou
     assert.equal(r.status, 409);
     assert.match(r.text, /couldn’t be deleted just now, so your account is still here/);
     assert.equal(g.grid.accounts.byHandle('joan').disabled, 0);
-    assert.match((await b.go(`${base}/`)).text, /action="\/account\/delete"/, 'still signed in');
+    assert.match((await b.go(`${base}/account`)).text, /action="\/account\/delete"/, 'still signed in');
   } finally {
     await g.grid.close();
   }
