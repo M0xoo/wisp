@@ -240,12 +240,12 @@ test('a crew job that can’t start tells the thread that sent it', async () => 
   r.threadStarted(null, { channel: 'nowhere' }, null, new Error('x')); // a channel that's gone: nothing to tell, nothing thrown
 });
 
-test('with the switch off, none of it applies: the same text goes out as it is', async () => {
+test('with the switch off, a secret still goes, and the rest stays as it is', async () => {
   const token = `ghp_${'a1B2'.repeat(10)}`;
   const { r, store } = rig();
   delete store.config.remote.telegram.options;
   await r.send({ title: 'T', text: `@everyone ${token}`, actions: [] });
-  assert.equal(net.sent[0].text, `T\n\n@everyone ${token}`);
+  assert.equal(net.sent[0].text.split('\n\n(wisp')[0], 'T\n\n@everyone [redacted: a GitHub token]');
 });
 
 // --- the rules on their own ---------------------------------------------------------------------

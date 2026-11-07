@@ -105,13 +105,13 @@ export class Telegram extends Channel {
   async #from(u) {
     const t = this.cfg;
     const hub = this.hub;
-    const say = (text, extra = {}) => this.api('sendMessage', { chat_id: t.chatId, text, ...extra });
+    const say = (text, extra = {}) => this.api('sendMessage', { chat_id: t.chatId, text: scrubOut(text).text, ...extra });
     if (u.callback_query) {
       const q = u.callback_query;
       if (!t.chatId || String(q.message?.chat?.id) !== String(t.chatId)) return;
       const [k, sessionId, ref, i] = String(q.data || '').split(':');
       const result = KIND[k] ? await hub.act({ sessionId, kind: KIND[k], ref, index: Number(i) }) : 'Unknown button.';
-      await this.api('answerCallbackQuery', { callback_query_id: q.id, text: truncate(this.options ? defuse(scrubOut(result).text) : result, 190) }).catch(() => {});
+      await this.api('answerCallbackQuery', { callback_query_id: q.id, text: truncate(this.options ? defuse(scrubOut(result).text) : scrubOut(result, { note: false }).text, 190) }).catch(() => {});
       await this.api('editMessageReplyMarkup', { chat_id: t.chatId, message_id: q.message.message_id, reply_markup: { inline_keyboard: [] } }).catch(() => {});
       return;
     }
