@@ -990,7 +990,7 @@ test('a /wisp on a sleeping box: type 5 first, it wakes, links once, edits the r
   await dAsleep();
 });
 
-test('a stranger on a sleeping box: a guild’s is answered at the edge and wakes nothing; a DM’s comes to the box and goes', { timeout: 60_000 }, async () => {
+test('a stranger on a sleeping box: a guild’s, or a DM’s that isn’t a code, is answered at the edge and wakes nothing; a code comes to the box', { timeout: 60_000 }, async () => {
   await dAsleep();
   const n = dc.posts.length + dc.edits.length;
   const i = prompt(D_STRANGER, 'plan: mine now');
@@ -998,9 +998,15 @@ test('a stranger on a sleeping box: a guild’s is answered at the edge and wake
   assert.deepEqual([r.json.type, r.json.data.flags], [4, 64], 'only they see it');
   await sleep(300);
   assert.equal(dState(), 'stopped');
-  const dm = prompt(D_STRANGER, 'hello', { guild_id: undefined, member: undefined, user: { id: D_STRANGER }, channel_id: `D${D_STRANGER}`, channel: { type: 1 } });
+  const inDm = (text) => prompt(D_STRANGER, text, { guild_id: undefined, member: undefined, user: { id: D_STRANGER }, channel_id: `D${D_STRANGER}`, channel: { type: 1 } });
+  const hello = await interact(inDm('hello'));
+  assert.deepEqual([hello.json.type, hello.json.data.flags], [4, 64], 'how to link, to them only');
+  assert.match(hello.json.data.content, /To link, use `\/wisp` here with `link`/);
+  await sleep(300);
+  assert.equal(dState(), 'stopped', 'a DM that isn’t a code wakes nothing');
+  const dm = inDm('link 000000');
   assert.deepEqual((await interact(dm)).json, { type: 5 });
-  await until(() => dc.edits.some((e) => e.token === dm.token), { what: 'its one line', timeout: 20_000 });
+  await until(() => dc.edits.some((e) => e.token === dm.token && /^That isn’t the code/.test(e.content)), { what: 'its one line', timeout: 20_000 });
   assert.equal(dc.posts.length, n - dc.edits.length + 1);
   assert.equal(await dTasks(), 1);
   await dAsleep();
