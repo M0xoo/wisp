@@ -998,7 +998,10 @@ test('saving settings: the old socket closing late leaves the new connection alo
   } finally {
     fake.slowClose = false;
     fake.heartbeat = 20;
+    const back = fake.resumes.length + fake.identifies.length;
     fake.drop();
+    await until(() => fake.resumes.length + fake.identifies.length > back, { what: 'the usual socket' });
+    await connected();
   }
 });
 
