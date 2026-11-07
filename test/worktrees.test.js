@@ -12,7 +12,7 @@ const DAY = 86_400_000;
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
 
 // A wisp's worth of stubs around real repos and real worktrees.
-function setup({ defaults = { worktreeCleanup: '7' }, config = {} } = {}) {
+function setup({ defaults = { worktreeCleanup: '7' }, config = {}, opts } = {}) {
   const home = tmp('wt-clean-');
   const repo = makeRepo();
   const sessions = new Map();
@@ -27,7 +27,7 @@ function setup({ defaults = { worktreeCleanup: '7' }, config = {} } = {}) {
     return s;
   };
   // The machine's free disk stays out of it: under 10 GB a real sweep takes idle folders before their days.
-  const worktrees = createWorktrees(app);
+  const worktrees = createWorktrees(app, opts);
   return { app, add, home, repo, store, worktrees: { ...worktrees, sweep: (opts) => worktrees.sweep({ low: 0, ...opts }) } };
 }
 const there = (s) => fs.existsSync(s.worktree.path);
@@ -38,7 +38,7 @@ test('an idle, clean worktree goes after the days set; its branch stays and a fo
   const old = await add('old');
   git(old.worktree.path, 'commit', '--allow-empty', '-q', '-m', 'work');
   const tip = git(old.worktree.path, 'rev-parse', 'HEAD');
-  const recent = await add('recent', { updatedAt: now() - 2 * DAY });
+  const recent = await add('recent', { state: 'review', updatedAt: now() - 2 * DAY }); // Done would go after a day
   await worktrees.sweep();
   assert.equal(there(old), false);
   assert.equal(there(recent), true);
@@ -118,11 +118,13 @@ test('off never removes; the default waits its days from the upgrade, not the ta
   assert.equal(there(a), true);
 
   const fresh = setup({ defaults: {}, config: { worktreeCleanupFrom: now() } });
-  const b = await fresh.add('b');
+  const b = await fresh.add('b', { state: 'review' });
   await fresh.worktrees.sweep();
   assert.equal(there(b), true, 'nothing goes the day wisp is updated');
-  await fresh.worktrees.sweep({ now: now() + 15 * DAY });
-  assert.equal(there(b), false, '14 days on');
+  await fresh.worktrees.sweep({ now: now() + 6 * DAY });
+  assert.equal(there(b), true, '6 days on');
+  await fresh.worktrees.sweep({ now: now() + 8 * DAY });
+  assert.equal(there(b), false, '7 days on');
 });
 
 test('a low disk takes the oldest idle first, before the days, and stops at enough', async () => {
@@ -178,4 +180,111 @@ test('sizes and free disk come with the list', { skip: process.platform === 'win
   assert.ok(v.items[0].size > 0);
   assert.equal(v.size, v.items[0].size);
   assert.ok(v.disk.free > 0);
+});
+
+test('a merged or closed PR goes at the next sweep, without the idle wait; never while busy or dirty', async () => {
+  const { add, worktrees } = setup({ defaults: { worktreeCleanup: '30' } });
+  const fresh = { updatedAt: now(), state: 'review' };
+  const merged = await add('merged', { ...fresh, pr: { state: 'MERGED' } });
+  const closed = await add('closed', { ...fresh, also: [{ pr: { state: 'CLOSED' } }] });
+  const busy = await add('busy', { ...fresh, state: 'running', pr: { state: 'MERGED' } });
+  const dirty = await add('dirty', { ...fresh, pr: { state: 'MERGED' } });
+  fs.writeFileSync(path.join(dirty.worktree.path, 'new.txt'), 'x');
+  const plain = await add('plain', fresh);
+  await worktrees.sweep();
+  assert.equal(there(merged), false);
+  assert.equal(there(closed), false);
+  for (const s of [busy, dirty, plain]) assert.equal(there(s), true, s.id);
+});
+
+test('a Done task goes after a day idle; one in review waits for the days set', async () => {
+  const { add, worktrees } = setup({ defaults: { worktreeCleanup: '30' } });
+  const old = await add('old', { updatedAt: now() - 25 * 3_600_000 });
+  const recent = await add('recent', { updatedAt: now() - 3_600_000 });
+  const review = await add('review', { state: 'review', updatedAt: now() - 3 * DAY });
+  await worktrees.sweep();
+  assert.equal(there(old), false);
+  assert.equal(there(recent), true, 'less than a day');
+  assert.equal(there(review), true, 'not Done');
+  assert.equal(worktrees.view().items.find((x) => x.id === 'recent').cleanAt <= now() + DAY, true);
+});
+
+test('over the cap the oldest idle go until it fits; kept, dirty and open PRs stay even over it', async () => {
+  const { add, worktrees } = setup({ defaults: { worktreeCleanup: 'off', worktreeMax: '20' } });
+  const hours = (h) => ({ state: 'review', updatedAt: now() - h * 3_600_000 });
+  const idle = [];
+  for (let i = 0; i < 20; i++) idle.push(await add(`idle${i}`, hours(100 - i)));
+  const kept = await add('kept', { ...hours(500), keepWorktree: true });
+  const pr = await add('pr', { ...hours(400), pr: { state: 'OPEN' } });
+  const dirty = await add('dirty', hours(300));
+  fs.writeFileSync(path.join(dirty.worktree.path, 'new.txt'), 'x');
+  fs.utimesSync(dirty.worktree.path, 0, 0);
+  // 23 folders, 20 allowed: the three oldest idle go.
+  await worktrees.sweep();
+  assert.deepEqual(idle.filter((s) => !there(s)).map((s) => s.id), ['idle0', 'idle1', 'idle2']);
+  for (const s of [kept, pr, dirty]) assert.equal(there(s), true, s.id);
+  assert.equal(worktrees.view().max, '20');
+});
+
+test('the cap off, or not reached, removes nothing; a new folder past it sweeps a little later', async () => {
+  const { add, store, worktrees } = setup({ defaults: { worktreeCleanup: 'off', worktreeMax: 'off' }, opts: { capDelay: 50 } });
+  const a = await add('a', { state: 'review', updatedAt: now() - 5 * DAY });
+  const b = await add('b', { state: 'review', updatedAt: now() - 4 * DAY });
+  await worktrees.sweep();
+  assert.equal(there(a), true);
+  store.config.defaults.worktreeMax = '20';
+  await worktrees.sweep();
+  assert.equal(there(a), true, 'under the cap');
+  worktrees.start();
+  try {
+    store.config.defaults.worktreeMax = '1';
+    await worktrees.scan();
+    await add('c', { state: 'review', updatedAt: now() - 3 * DAY }); // three folders, one allowed
+    await until(() => !there(a) && !there(b));
+  } finally {
+    worktrees.stop();
+  }
+});
+
+test('every sweep prunes what git still lists of folders that are gone', async () => {
+  const { add, home, repo, worktrees } = setup();
+  await add('task', { updatedAt: now() });
+  const gone = path.join(home, 'gone');
+  git(repo, 'worktree', 'add', '-q', '-b', 'gone', gone);
+  fs.rmSync(gone, { recursive: true, force: true });
+  assert.match(git(repo, 'worktree', 'list', '--porcelain'), /prunable/);
+  await worktrees.sweep();
+  assert.doesNotMatch(git(repo, 'worktree', 'list', '--porcelain'), /prunable/);
+});
+
+test('while the machine is busy the sweep does nothing, and the next one catches up', async () => {
+  let short = true;
+  const { add, home, repo, worktrees } = setup({ opts: { busy: () => short } });
+  const s = await add('old');
+  const gone = path.join(home, 'gone');
+  git(repo, 'worktree', 'add', '-q', '-b', 'gone', gone);
+  fs.rmSync(gone, { recursive: true, force: true });
+  assert.deepEqual(await worktrees.sweep(), { skipped: 'busy' });
+  assert.equal(there(s), true);
+  assert.match(git(repo, 'worktree', 'list', '--porcelain'), /prunable/, 'no git either');
+  short = false;
+  await worktrees.sweep();
+  assert.equal(there(s), false);
+  worktrees.setBusy(() => true);
+  assert.deepEqual(await worktrees.sweep(), { skipped: 'busy' });
+});
+
+test('a look runs git status again only in a folder that moved', async () => {
+  const { add, worktrees } = setup({ defaults: { worktreeCleanup: 'off' } });
+  const s = await add('s', { updatedAt: now() });
+  await worktrees.scan();
+  assert.equal(worktrees.view().items[0].status, 'idle');
+  // Committed straight into the branch's folder: the task's updatedAt and the folder didn't move.
+  fs.writeFileSync(path.join(s.worktree.path, 'deep.txt'), 'x');
+  fs.utimesSync(s.worktree.path, 0, 0);
+  await worktrees.scan();
+  assert.equal(worktrees.view().items[0].status, 'idle', 'the last look stands');
+  s.updatedAt = now() + 1; // the task ran
+  await worktrees.scan();
+  assert.equal(worktrees.view().items[0].status, 'dirty');
 });

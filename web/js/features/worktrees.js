@@ -10,7 +10,9 @@ import { tryApi } from '../ui/toast.js';
 import { reveal } from './feed.js';
 
 const CHOICES = [['off', 'Never'], ['3', 'After 3 days'], ['7', 'After 7 days'], ['14', 'After 14 days'], ['30', 'After 30 days']];
-const CLEANUP_DEFAULT = '14'; // server/services/worktrees.js
+const CLEANUP_DEFAULT = '7'; // server/services/worktrees.js
+const MAX_CHOICES = [['off', 'No limit'], ['20', '20 worktrees'], ['40', '40 worktrees'], ['80', '80 worktrees']];
+const MAX_DEFAULT = '40'; // server/services/worktrees.js
 const PAGE = 50; // rows before Show all
 const POLL_MS = 1500;
 const FILTERS = [['all', 'All'], ['dirty', 'Uncommitted'], ['kept', 'Kept'], ['left', 'Left over']];
@@ -46,11 +48,14 @@ export function mountWorktrees(box) {
   const gone = new Set(); // keys removed here, until the server's list agrees
 
   const setting = () => S.config.defaults.worktreeCleanup ?? CLEANUP_DEFAULT;
+  const maxSetting = () => S.config.defaults.worktreeMax ?? MAX_DEFAULT;
   box.innerHTML = `
     <div class="sx-group wtr-sum">
       <div class="sx-row"><div class="sx-text"><b class="wtr-total"></b><small class="wtr-disk"></small></div><div class="sx-ctl"><button class="ghost sm" data-wt="all"></button></div></div>
-      <div class="sx-row wtr-auto"><div class="sx-text"><b>Clean up automatically</b><small>Removes the folder of a task left idle this long, sooner if the disk runs low. Its branch stays, and replying to the task brings the folder back. Uncommitted work, kept worktrees and open PRs stay.</small></div>
+      <div class="sx-row wtr-auto"><div class="sx-text"><b>Clean up automatically</b><small>Removes the folder of a task left idle this long. A task whose PR is merged or closed goes at the next cleanup, a Done task after a day, and any idle one sooner if the disk runs low. Its branch stays, and replying to the task brings the folder back. Uncommitted work, kept worktrees, For later and open PRs stay.</small></div>
         <div class="sx-ctl"><select id="wtrCleanup" aria-label="Clean up automatically">${CHOICES.map(([k, l]) => `<option value="${k}" ${setting() === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
+      <div class="sx-row wtr-max"><div class="sx-text"><b>Keep at most</b><small>Past this many, the oldest idle worktrees go first, a few minutes after a new one. Ones in use, with uncommitted work, kept, For later or on an open PR stay, even over it.</small></div>
+        <div class="sx-ctl"><select id="wtrMax" aria-label="Keep at most">${MAX_CHOICES.map(([k, l]) => `<option value="${k}" ${maxSetting() === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
     </div>
     <div class="sx-group wtr-list">
       <fieldset class="pk-seg wtr-filters" aria-label="Show"></fieldset>
@@ -231,6 +236,17 @@ export function mountWorktrees(box) {
     if (!saved) {
       S.config.defaults.worktreeCleanup = was;
       sel.value = was;
+    }
+    refresh();
+  };
+  const maxSel = $('#wtrMax', box);
+  maxSel.onchange = async () => {
+    const was = maxSetting();
+    S.config.defaults.worktreeMax = maxSel.value;
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { worktreeMax: maxSel.value } } }));
+    if (!saved) {
+      S.config.defaults.worktreeMax = was;
+      maxSel.value = was;
     }
     refresh();
   };

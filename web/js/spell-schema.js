@@ -712,6 +712,7 @@ export const SETTINGS = {
   transcript: ['on', 'off'],
   worktree: ['on', 'off'],
   worktreeCleanup: ['off', '3', '7', '14', '30'], // days a task's worktree may sit idle
+  worktreeMax: ['off', '20', '40', '80'], // worktree folders kept on disk before the oldest idle ones go
   followUp: ['queue', 'interrupt'],
   mode: ['plan', 'edits', 'auto'],
   agent: 'string',

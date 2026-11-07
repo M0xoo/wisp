@@ -26,7 +26,7 @@ this covers how the code is laid out and the rules a change has to follow.
   enforce it by the session a call authenticates as (`agent-token.js`: each agent's token speaks for
   that session only), and it's copied to all it starts. A new `/internal` route or tool needs a line there.
   `accounts.js` keeps a harness's several accounts (a login folder each, linked to the CLI's own).
-  `services/worktrees.js` removes idle tasks' worktrees (`defaults.worktreeCleanup`, a low disk) and
+  `services/worktrees.js` removes idle tasks' worktrees (`defaults.worktreeCleanup`, merged PRs, Done, the `worktreeMax` cap, a low disk), prunes git's stale entries and
   answers Settings → Worktrees; only what a follow-up can bring back goes on its own.
 - `web/`: the page, vanilla JS as native ES modules, no build step. `index.html` holds the markup
   and the icon sprite, `css/` has one stylesheet per area (linked in order in `index.html`),
