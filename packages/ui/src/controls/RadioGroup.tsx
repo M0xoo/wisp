@@ -34,6 +34,7 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
       data-kit="radio-group"
       data-part={part()}
       data-orientation={props.orientation ?? 'vertical'}
+      data-layout={props.orientation === 'horizontal' ? 'wrap' : undefined}
     >
       <legend data-kit="radio-legend" data-hidden={flag(props.hideLabel)}>
         {props.label}

@@ -10,6 +10,8 @@
   "devDependencies": {},
   "scripts": {
     "test": "node --test --test-reporter=dot \"test/**/*.test.ts\"",
+    "test:native": "cargo build --release --manifest-path ../../native/Cargo.toml && node --test --test-reporter=spec test/native.test.ts test/g12.gate.ts",
     "typecheck": "tsc -p tsconfig.json"
-  }
+  },
+  "description": "The Node side of wisp-native: PTYs and process trees, with a fallback that needs no binary (ADR-0010)."
 }

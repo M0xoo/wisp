@@ -28,26 +28,33 @@ function collect(pty: Pty): { text: () => string } {
 
 const isCode = (code: string) => (e: unknown) => e instanceof NativeError && e.code === code;
 
+type It = (name: string, fn: (host: NativeHost) => Promise<void>) => void;
+
 export function contract(b: Backend): void {
   const skip = b.skip || (win && 'these cases use sh');
-  const it = (name: string, fn: (host: NativeHost) => Promise<void>, extra: string | false = false): void => {
-    test(`${b.name}: ${name}`, { skip: skip || extra }, async (ctx) => {
+  const it: It = (name, fn) => {
+    test(`${b.name}: ${name}`, { skip }, async (ctx) => {
       const host = await b.start();
       ctx.after(() => host.close()); // a failed wait leaves programs running; close ends them
       await fn(host);
     });
   };
+  terminalCases(it, b.resizable);
+  treeCases(it);
+  hostCases(it, b, skip);
+}
 
+function terminalCases(it: It, resizable: boolean): void {
   it('a terminal has its size from the first line, takes input and a new size, and ends with its code', async (host) => {
     const pty = await host.spawnPty({ cmd: 'sh', args: ['-c', 'stty size; read l; stty size; echo "got $l"; exit 7'], cwd: tmp('pty'), cols: 90, rows: 33 });
     assert.ok(pty.pid > 1);
     const out = collect(pty);
     await waitFor(() => out.text().includes('33 90'), 8000, 'the first size');
-    assert.equal(pty.resize(120, 40), b.resizable);
+    assert.equal(pty.resize(120, 40), resizable);
     await new Promise((r) => setTimeout(r, 100));
     pty.write('hello\r');
     assert.deepEqual(await pty.exited, { code: 7, signal: null });
-    assert.match(out.text(), b.resizable ? /40 120\r\ngot hello/ : /33 90\r\ngot hello/, 'all output comes before the exit');
+    assert.match(out.text(), resizable ? /40 120\r\ngot hello/ : /33 90\r\ngot hello/, 'all output comes before the exit');
     let late: unknown;
     pty.onExit((e) => (late = e));
     assert.deepEqual(late, { code: 7, signal: null }, 'a late onExit is called at once');
@@ -85,6 +92,19 @@ export function contract(b: Backend): void {
     assert.doesNotMatch(out.text(), /\bHOME=/, 'nothing of the server leaks in');
   });
 
+  it('a terminal and everything in it is killed as one tree', async (host) => {
+    const pty = await host.spawnPty({ cmd: 'sh', args: ['-c', treeScript()] });
+    const out = collect(pty);
+    await waitFor(() => out.text().includes('ready'), 8000, 'the tree');
+    const pids = [pty.pid, ...pidsIn(out.text())];
+    assert.equal((await host.killTree(pty.pid, { graceMs: 500 })).survivors, 0);
+    await pty.exited;
+    assert.deepEqual(await survivors(pids), []);
+  });
+}
+
+function treeCases(it: It): void {
+
   it('a tree keeps stdout and stderr apart, and closing stdin ends what reads it', async (host) => {
     const p = await host.spawnTree({ cmd: 'sh', args: ['-c', 'cat; echo bye >&2'], env: { PATH: '/usr/bin:/bin' } });
     let out = '';
@@ -112,16 +132,6 @@ export function contract(b: Backend): void {
     assert.deepEqual(await survivors(pids), []);
   });
 
-  it('a terminal and everything in it is killed as one tree', async (host) => {
-    const pty = await host.spawnPty({ cmd: 'sh', args: ['-c', treeScript()] });
-    const out = collect(pty);
-    await waitFor(() => out.text().includes('ready'), 8000, 'the tree');
-    const pids = [pty.pid, ...pidsIn(out.text())];
-    assert.equal((await host.killTree(pty.pid, { graceMs: 500 })).survivors, 0);
-    await pty.exited;
-    assert.deepEqual(await survivors(pids), []);
-  });
-
   it('what an exited program left behind can still be killed', async (host) => {
     const p = await host.spawnTree({ cmd: 'sh', args: ['-c', 'sleep 60 >/dev/null 2>&1 & echo $!'] });
     let out = '';
@@ -133,6 +143,9 @@ export function contract(b: Backend): void {
     assert.deepEqual(await survivors(left), []);
   });
 
+}
+
+function hostCases(it: It, b: Backend, skip: string | false): void {
   it('a program or folder that is not there fails the spawn, the same way everywhere', async (host) => {
     await assert.rejects(host.spawnTree({ cmd: 'definitely-not-a-cli-wisp' }), isCode('spawn_failed'));
     await assert.rejects(host.spawnPty({ cmd: 'definitely-not-a-cli-wisp' }), isCode('spawn_failed'));

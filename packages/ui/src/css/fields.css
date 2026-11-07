@@ -98,7 +98,8 @@
 
   /* Radio group: native radios drawn as rings. */
   [data-kit='radio-group'] { display: flex; flex-direction: column; gap: var(--space-4); }
-  [data-kit='radio-group'][data-orientation='horizontal'] { flex-direction: row; flex-wrap: wrap; gap: var(--space-7); }
+  /* Side by side the options are a Wrap: they may run onto a second line (design/layout.md §5). */
+  [data-kit='radio-group'][data-orientation='horizontal'] { flex-direction: row; column-gap: var(--space-7); row-gap: var(--space-4); --k-gap: var(--space-7); --k-row-gap: var(--space-4); }
   [data-kit='radio-legend'] { padding: 0; margin-bottom: var(--space-2); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--muted); }
   [data-kit='radio-legend'][data-hidden] {
     position: absolute; width: var(--size-hairline); height: var(--size-hairline); overflow: hidden; clip-path: inset(50%); white-space: nowrap;

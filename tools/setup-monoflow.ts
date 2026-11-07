@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path';
 
 export const MONOFLOW_REPO = 'https://github.com/M0xoo/monoflow';
 /** 8c6bc74, plan §9.4: bump it here (and in the CI cache key, which reads this file) to upgrade. */
-export const MONOFLOW_COMMIT = '8c6bc744dcbc27bbae15f09461e11c6e7e57f632';
+export const MONOFLOW_COMMIT = '2a86d14ccce24eb7dc975c559e30076034c1aaf1';
 
 const ROOT = join(import.meta.dirname, '..');
 const EXE = process.platform === 'win32' ? 'monoflow.exe' : 'monoflow';

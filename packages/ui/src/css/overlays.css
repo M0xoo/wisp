@@ -43,7 +43,7 @@
   [data-kit='dialog-title'] { margin: 0; min-width: 0; font-family: var(--display); font-size: var(--fs-title); font-weight: var(--fw-semibold); line-height: var(--lh-tight); letter-spacing: var(--tracking-title); color: var(--ink); }
   [data-kit='dialog-description'] { margin: calc(-1 * var(--space-4)) 0 var(--space-6); font-size: var(--fs-md); color: var(--muted); }
   [data-kit='dialog-body'] { flex: 1 1 auto; min-height: 0; overflow-y: auto; font-size: var(--fs-md); color: var(--ink-2); overflow-wrap: anywhere; }
-  [data-kit='dialog-foot'] { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-4); margin-top: var(--space-8); }
+  [data-kit='dialog-foot'] { display: flex; flex-wrap: nowrap; justify-content: flex-end; gap: var(--space-4); margin-top: var(--space-8); }
   [data-kit='sheet-handle'] { display: none; }
 
   /* Sheet: on a phone, from the bottom edge, full width, with a grab handle; above, a card. */
@@ -97,4 +97,6 @@
   [data-kit='splitter-grip'][data-focus] > [data-kit='splitter-line'], [data-kit='splitter-grip'][data-dragging] > [data-kit='splitter-line'] { width: var(--size-ring); background: var(--accent); }
   [data-kit='split-stacked'] { display: flex; flex-direction: column; min-width: 0; }
   [data-kit='split-panel'] { min-width: 0; }
+  /* A footer is a bar: its buttons shrink with an ellipsis instead of wrapping. */
+  [data-kit='dialog-foot'] > [data-kit='button'] { flex: 0 1 auto; min-width: 0; }
 }

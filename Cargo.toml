@@ -1,0 +1,86 @@
+# wisp v2: the Rust workspace (ADR-0013). Everything that isn't UI is here: the kernel, store, sync, the
+# HTTP edge, process supervision, every plugin's backend, the CLI and the grid. Flat: each crate sits
+# directly in crates/ or in its plugin's folder, and the folder name is the crate name (plan §3.1 rule 1).
+[workspace]
+resolver = "3"
+# Plugin crates are listed one by one (plugins/<name>/{api,core,host}), so a plugin's ui/ folder and
+# half-made folders never break the build. tools/check fails if a plugin crate on disk is missing here.
+members = [
+  "crates/*",
+]
+exclude = ["native"]
+
+[workspace.package]
+version = "2.0.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+publish = false
+repository = "https://github.com/M0xoo/wisp"
+
+[workspace.dependencies]
+# wisp crates
+wisp-kernel = { path = "crates/wisp-kernel" }
+wisp-store = { path = "crates/wisp-store" }
+wisp-sync = { path = "crates/wisp-sync" }
+wisp-proc = { path = "crates/wisp-proc" }
+wisp-api = { path = "crates/wisp-api" }
+wisp-testkit = { path = "crates/wisp-testkit" }
+# third party: each one pinned and justified (ADR-0013)
+anyhow = "1"
+async-trait = "0.1"
+axum = { version = "0.8", default-features = false, features = ["http1", "http2", "json", "query", "tokio", "ws"] }
+base64 = "0.22"
+blake3 = "1"
+bytes = "1"
+futures = "0.3"
+hmac = "0.12"
+http = "1"
+libc = "0.2"
+portable-pty = "0.9"
+rand = "0.9"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "stream", "http2"] }
+rusqlite = { version = "0.41", features = ["bundled", "functions", "serde_json", "blob"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["raw_value"] }
+sha2 = "0.10"
+subtle = "2"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "process", "io-util", "net", "fs", "signal"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+tower = "0.5"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter", "std", "json"] }
+ts-rs = { version = "12", features = ["serde-json-impl"] }
+uuid = { version = "1", features = ["v7", "serde"] }
+zstd = "0.14"
+
+# Plan §9.2: forbid unsafe (crates/wisp-proc's sys module is the reviewed exception), clippy pedantic with a
+# short allow list, no unwrap/expect/panic/todo outside tests, stdout is never printed to by libraries.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+must_use_candidate = "allow"
+similar_names = "allow"
+
+[profile.release]
+lto = "fat"
+strip = true
+panic = "abort"
+codegen-units = 1
+opt-level = 3
+
+[profile.dev.package."*"]
+opt-level = 1

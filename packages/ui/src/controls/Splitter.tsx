@@ -2,8 +2,8 @@
 // arrow keys. Split is the two-panel case (the list beside the open task); under
 // SPLIT_MIN_WIDTH the shell passes `stacked` and it becomes one column, with no grip.
 import * as splitter from '@zag-js/splitter';
-import { normalizeProps, useMachine } from '@zag-js/solid';
-import { createMemo, createUniqueId, For, Show, type JSX } from 'solid-js';
+import { Key, normalizeProps, useMachine } from '@zag-js/solid';
+import { children, createMemo, createUniqueId, Show, type JSX } from 'solid-js';
 import { sub, styleOf, type KitProps, type PartName, type WithVars } from '../core/props.ts';
 import { useT, type Translate } from '../core/i18n.tsx';
 
@@ -57,18 +57,19 @@ export function Splitter(props: SplitterProps): JSX.Element {
   const gripLabel = (name: string | undefined): string => (name ? `${t('resize')}: ${name}` : t('resize'));
   return (
     <div {...api().getRootProps()} data-kit="splitter" data-part={part()} style={{ ...rootStyle(api()), ...styleOf({}, props.vars) }}>
-      <For each={props.panels}>
+      {/* Keyed by id: a new panels array (new sizes, a new label) never rebuilds what a panel holds. */}
+      <Key each={props.panels} by={(p) => p.id}>
         {(panel, index) => (
           <>
             <Show when={index() > 0}>
-              <Grip api={api()} part={part()} trigger={`${before(index())?.id ?? ''}:${panel.id}`} label={gripLabel(before(index())?.label)} />
+              <Grip api={api()} part={part()} trigger={`${before(index())?.id ?? ''}:${panel().id}`} label={gripLabel(before(index())?.label)} />
             </Show>
-            <div {...api().getPanelProps({ id: panel.id })} data-kit="splitter-panel" data-part={sub(part(), 'panel')}>
-              {panel.content}
+            <div {...api().getPanelProps({ id: panel().id })} data-kit="splitter-panel" data-part={sub(part(), 'panel')}>
+              {panel().content}
             </div>
           </>
         )}
-      </For>
+      </Key>
     </div>
   );
 }
@@ -106,13 +107,18 @@ export interface SplitProps extends KitProps, WithVars {
 /** Two panels side by side with a grip between them, or stacked. */
 export function Split(props: SplitProps): JSX.Element {
   const part = (): PartName => props.part ?? 'ui.split';
+  // Resolve each side once. `props.start` is a getter: read again (the machine re-reads its panels
+  // on every resize) it would build a second copy of the whole side, portals and all. Resolved
+  // here, the same nodes also move between side by side and stacked.
+  const start = children(() => props.start);
+  const end = children(() => props.end);
   return (
     <Show
       when={!props.stacked}
       fallback={
         <div data-kit="split-stacked" data-part={part()}>
-          <div data-kit="split-panel" data-part={sub(part(), 'start')}>{props.start}</div>
-          <div data-kit="split-panel" data-part={sub(part(), 'end')}>{props.end}</div>
+          <div data-kit="split-panel" data-part={sub(part(), 'start')}>{start()}</div>
+          <div data-kit="split-panel" data-part={sub(part(), 'end')}>{end()}</div>
         </div>
       }
     >
@@ -122,8 +128,8 @@ export function Split(props: SplitProps): JSX.Element {
         {...(props.t ? { t: props.t } : {})}
         onResizeEnd={(sizes) => props.onResizeEnd?.(sizes[0] ?? 0)}
         panels={[
-          { id: 'start', content: props.start, defaultSize: props.defaultSize ?? 32, minSize: props.min ?? 15, maxSize: props.max ?? 70, ...(props.startLabel ? { label: props.startLabel } : {}) },
-          { id: 'end', content: props.end },
+          { id: 'start', content: start(), defaultSize: props.defaultSize ?? 32, minSize: props.min ?? 15, maxSize: props.max ?? 70, ...(props.startLabel ? { label: props.startLabel } : {}) },
+          { id: 'end', content: end() },
         ]}
       />
     </Show>

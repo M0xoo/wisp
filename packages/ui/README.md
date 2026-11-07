@@ -18,6 +18,11 @@ The kit: Solid 1.9 components on Zag.js machines, and the only package with CSS 
   `:has()`, `:is()`, hard-coded colours and class selectors.
 - **Light DOM**, keyed lists (`Key` / `VirtualList` / `Each`) so a reorder moves nodes, and entry
   animations that play once per mount.
+- **Nothing wraps that shouldn't** (`design/layout.md`). Control text (button, pill, tab, menu item,
+  row title, time) carries `data-text="control"`: one line, ellipsis. `Inline` never wraps and has no
+  `wrap` prop; `Wrap` is the only wrapping layout. `Toolbar` takes `items` (each with `icon` and
+  `priority: 'pin' | number`), stays at `--bar-h`, and folds label → icon → More as it narrows, measured by
+  one ResizeObserver from a hidden copy, with one icon's width of hysteresis (`toolbar-plan.ts`).
 - **No copy of its own.** Labels come from props; the few accessible names the kit must supply (Close,
   Dismiss, Loading, Send, Resize) go through `t` (`KitProvider`, or a component's `t` prop).
 

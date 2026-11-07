@@ -4,13 +4,89 @@
 
 import { computed, type Readable } from './signals.ts';
 
+// filterBy and sortBy keep their last answer and patch it when the input changed only in place (the
+// common case: a token updates one row of 5,000). They scan for the changed slots by reference (no
+// predicate or comparator calls on unchanged rows, no allocation when nothing they show changed) and
+// fall back to a full pass when a row joins, leaves or moves. Rows are unique objects; an input with
+// duplicate references (primitives) always takes the full pass.
+
+/** where each item sits in `out`, or undefined when an item repeats (then no patching) */
+function positions<T>(out: readonly T[]): Map<T, number> | undefined {
+  const pos = new Map<T, number>();
+  for (let i = 0; i < out.length; i++) pos.set(out[i] as T, i);
+  return pos.size === out.length ? pos : undefined;
+}
+
 export function filterBy<T>(source: Readable<readonly T[]>, keep: (item: T) => boolean): Readable<readonly T[]> {
-  return computed(() => source().filter(keep));
+  let input: readonly T[] | undefined;
+  let out: readonly T[] = [];
+  let pos: Map<T, number> | undefined;
+  const full = (next: readonly T[]): readonly T[] => {
+    input = next;
+    out = next.filter(keep);
+    pos = positions(out);
+    return out;
+  };
+  return computed(() => {
+    const next = source();
+    if (!input || !pos || next.length !== input.length) return full(next);
+    let patched: T[] | undefined;
+    for (let i = 0; i < next.length; i++) {
+      const was = input[i] as T;
+      const is = next[i] as T;
+      if (was === is) continue;
+      const at = pos.get(was);
+      const kept = keep(is);
+      if (at === undefined && !kept) continue; // out before and after: nothing shown changed
+      if (at === undefined || !kept) return full(next); // joined or left
+      patched ??= out.slice();
+      patched[at] = is;
+      pos.delete(was);
+      pos.set(is, at);
+    }
+    input = next;
+    if (patched) out = patched;
+    return out; // the same array when nothing shown changed: dependents don't rerun
+  });
 }
 
 /** A stable sort: rows that compare equal keep their order, so nothing jumps (ADR-0006). */
 export function sortBy<T>(source: Readable<readonly T[]>, compare: (a: T, b: T) => number): Readable<readonly T[]> {
-  return computed(() => source().slice().sort(compare));
+  let input: readonly T[] | undefined;
+  let out: readonly T[] = [];
+  let pos: Map<T, number> | undefined;
+  const full = (next: readonly T[]): readonly T[] => {
+    input = next;
+    out = next.slice().sort(compare);
+    pos = positions(out);
+    return out;
+  };
+  // a replaced row may keep its slot only if it still sorts strictly between its neighbours
+  const fits = (list: readonly T[], i: number): boolean =>
+    (i === 0 || compare(list[i - 1] as T, list[i] as T) < 0) && (i === list.length - 1 || compare(list[i] as T, list[i + 1] as T) < 0);
+  return computed(() => {
+    const next = source();
+    if (!input || !pos || next.length !== input.length) return full(next);
+    let patched: T[] | undefined;
+    const slots: number[] = [];
+    for (let i = 0; i < next.length; i++) {
+      const was = input[i] as T;
+      const is = next[i] as T;
+      if (was === is) continue;
+      const at = pos.get(was);
+      if (at === undefined) return full(next);
+      patched ??= out.slice();
+      patched[at] = is;
+      slots.push(at);
+    }
+    if (!patched) return out;
+    const p = patched;
+    if (!slots.every((at) => fits(p, at))) return full(next);
+    for (const at of slots) pos.set(p[at] as T, at);
+    input = next;
+    out = p;
+    return out;
+  });
 }
 
 export function mapTo<T, U>(source: Readable<readonly T[]>, fn: (item: T) => U): Readable<readonly U[]> {
@@ -18,7 +94,13 @@ export function mapTo<T, U>(source: Readable<readonly T[]>, fn: (item: T) => U):
 }
 
 export function count<T>(source: Readable<readonly T[]>, match?: (item: T) => boolean): Readable<number> {
-  return computed(() => (match ? source().filter(match).length : source().length));
+  return computed(() => {
+    const list = source();
+    if (!match) return list.length;
+    let n = 0;
+    for (const item of list) if (match(item)) n++;
+    return n;
+  });
 }
 
 export function some<T>(source: Readable<readonly T[]>, match: (item: T) => boolean): Readable<boolean> {

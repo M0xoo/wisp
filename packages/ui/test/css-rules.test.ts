@@ -83,3 +83,21 @@ test('the kit styles by data-kit attributes, never by class names', () => {
     expect(s.css, s.name).not.toMatch(/(^|[\s,>+~(])\.[a-zA-Z_-][\w-]*\s*[{,:[]/m);
   }
 });
+
+test('nothing wraps a row but Wrap: flex-wrap: wrap appears only in its rule (design/layout.md §5)', () => {
+  const wraps = sheets.flatMap((s) => [...s.css.matchAll(/([^{}]+)\{[^{}]*flex-wrap:\s*wrap/g)].map((m) => `${s.name}: ${(m[1] ?? '').trim()}`));
+  expect(wraps).toEqual(["layout.css: [data-kit='wrap'], [data-layout='wrap']"]);
+});
+
+test('control text never gets white-space: normal', () => {
+  for (const s of sheets) expect(s.css, s.name).not.toMatch(/white-space:\s*normal/);
+  const layout = sheets.find((x) => x.name === 'content.css')?.css ?? '';
+  expect(layout).toMatch(/\[data-text='control'\]\s*\{[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/);
+});
+
+test('a bar has a token height and never wraps', () => {
+  const css = sheets.find((x) => x.name === 'composites.css')?.css ?? '';
+  const rule = /\[data-kit='toolbar'\]\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  expect(rule).toMatch(/height: var\(--bar-h\)/);
+  expect(rule).toMatch(/flex-wrap: nowrap/);
+});

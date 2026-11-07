@@ -123,4 +123,13 @@ describe('Toolbar collapses as measured', () => {
       expect(el.getAttribute('data-text')).toBe('control');
     }
   });
+
+  test('More comes and goes without leaving menus behind', async () => {
+    mount(() => <Toolbar aria-label="Reply bar" items={items} part="reply.bar" />);
+    await tick();
+    for (const w of [150, 400, 150, 400, 150]) resize(w);
+    await tick();
+    expect(document.querySelectorAll('[data-part="reply.bar.more.trigger"]').length).toBe(1);
+    expect(document.querySelectorAll('[data-part="reply.bar.more"]').length).toBe(1);
+  });
 });

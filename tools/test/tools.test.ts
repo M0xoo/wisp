@@ -79,7 +79,7 @@ test('g14: impact in either shape; affected set is owners plus dependents; unmap
 });
 
 test('g14: a failure outside the affected set is a miss; time saved comes from the full run', () => {
-  const full = { status: 'failed', durationMs: 0, affected: [], failed: ['q'], durations: { p: 1, q: 1, r: 2 }, total: 3 };
+  const full = { status: 'failed', durationMs: 0, affected: [], failed: ['q'], durations: { p: 1, q: 1, r: 2 }, total: 3, details: [] };
   assert.deepEqual(scorePr({ number: 1, affected: ['p', 'q'], unmapped: 0, full }), { number: 1, misses: [], saved: 0.5 });
   assert.deepEqual(scorePr({ number: 2, affected: ['p'], unmapped: 0, full }), { number: 2, misses: ['q'], saved: 0.75 });
   assert.equal(scorePr({ number: 3, affected: [], unmapped: 0, full: undefined }), undefined);

@@ -123,6 +123,9 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
       .filter((i) => formOf(i.id) === 'overflow')
       .map((i) => ({ value: i.id, label: i.label, icon: i.icon, ...(i.pressed ? { checked: true } : {}), ...(i.disabled ? { disabled: true } : {}) }));
   const select = (id: string): void => props.items.find((i) => i.id === id)?.onSelect?.();
+  // More sits right after the last item that can fold into it, so pins after it (Send) stay last.
+  // Placed with CSS order, so no node moves when it appears.
+  const moreOrder = (): number => 2 * props.items.reduce((last, item, i) => (item.priority === 'pin' ? last : i), -1) + 1;
   let bar: HTMLDivElement | undefined;
   onMount(() => bar && observe(bar));
   return (
@@ -141,14 +144,14 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
       style={styleOf({ '--k-gap': spaceVar(props.gap ?? '2') }, props.vars)}
     >
       <Key each={props.items} by={(i) => i.id}>
-        {(item) => (
-          <div data-kit="toolbar-item" data-item={item().id} data-form={formOf(item().id)} data-pinned={flag(item().priority === 'pin')} hidden={formOf(item().id) === 'overflow'}>
+        {(item, index) => (
+          <div style={{ order: 2 * index() }} data-kit="toolbar-item" data-item={item().id} data-form={formOf(item().id)} data-pinned={flag(item().priority === 'pin')} hidden={formOf(item().id) === 'overflow'}>
             <ItemView item={item()} form={formOf(item().id) === 'full' ? 'full' : 'icon'} />
           </div>
         )}
       </Key>
       <Show when={overflowed().length > 0}>
-        <div data-kit="toolbar-item" data-item="more">
+        <div style={{ order: moreOrder() }} data-kit="toolbar-item" data-item="more">
           <Menu items={overflowed()} onSelect={select} trigger={{ icon: 'dots', 'aria-label': t('more'), size: 'sm' }} placement="bottom-end" part={`${props.part ?? 'ui.toolbar'}.more`} />
         </div>
       </Show>

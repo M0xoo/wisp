@@ -1,5 +1,0 @@
-{
-  "name": "Agent board",
-  "description": "Every task on one board, across harnesses, accounts, machines and your crew. Drag a task to Done, or send it a follow-up.",
-  "uses": ["tasks:read", "tasks:write", "crew:read"]
-}

@@ -1,9 +1,11 @@
 name: pr
 
-# Fast feedback on a pull request: the whole suite once, on Linux and the Node most people run.
-# main.yml runs every OS after the merge and nightly.yml goes wider still. A change that may
-# break Windows or macOS (process launching, paths, shells, terminals) can get the main matrix
-# here too: add the `ci:full` label.
+# Fast feedback on a pull request: the whole v2 suite on Linux, Node 22 and 24. main.yml runs every
+# OS after the merge and nightly.yml goes wider still. A change that may break Windows or macOS
+# (process launching, paths, shells, terminals) gets the main matrix here too: add the `ci:full` label.
+#
+# monoflow narrows nothing yet (ADR-0001): the `affected` job only records what it *would* have run,
+# next to the full run's results, so tools/g14.ts can replay gate G14 (plan §9.4.5) over merged PRs.
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
@@ -17,9 +19,61 @@ jobs:
   quick:
     if: github.event.action != 'labeled'
     uses: ./.github/workflows/suite.yml
+    with:
+      os: '["ubuntu-latest"]'
+      node: '["22", "24"]'
+
+  # Report-only: never fails the PR. Its artifact (g14-affected) is what G14 replays.
+  affected:
+    if: github.event.action != 'labeled'
+    name: affected set (report-only, G14)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the merge-base with the PR's base
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - id: monoflow-cache
+        uses: actions/cache@v4
+        with:
+          path: .agents/bin
+          key: monoflow-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/setup-monoflow.ts') }}
+      - if: steps.monoflow-cache.outputs.cache-hit != 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - run: node tools/setup-monoflow.ts --build
+      - run: npm ci --no-audit --no-fund
+      # The affected set from `monoflow graph impact` per changed file: works with any monoflow
+      # version, and lists the files no package owns (monoflow counts those as nothing affected).
+      - run: node tools/g14.ts affected --base=origin/${{ github.base_ref }} --out=affected.json
+      # What monoflow itself runs for this PR. (The pinned 8c6bc74 ignores --base and --json; a later
+      # monoflow honours both. Either way it's report-only.)
+      - name: monoflow verify --affected
+        shell: bash
+        run: .agents/bin/monoflow verify --affected --base=origin/${{ github.base_ref }} --json > monoflow-affected.json || true
+      - name: job summary
+        run: node tools/monoflow-report.ts monoflow-affected.json --title="Affected set (report-only, gate G14)" --affected=affected.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g14-affected
+          path: |
+            affected.json
+            monoflow-affected.json
+          if-no-files-found: ignore
+          retention-days: 90
+
   full:
     if: contains(github.event.pull_request.labels.*.name, 'ci:full')
     uses: ./.github/workflows/suite.yml
     with:
       os: '["ubuntu-latest", "macos-latest", "windows-latest"]'
-      node: '["20", "22"]'
+      node: '["22", "24"]'
+      artifact: verify-all-full

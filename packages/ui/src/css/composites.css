@@ -53,12 +53,28 @@
   [data-kit='card-header'] { border-bottom: var(--size-hairline) solid var(--line); font-size: var(--fs-md); font-weight: var(--fw-semibold); }
   [data-kit='card-footer'] { border-top: var(--size-hairline) solid var(--line); font-size: var(--fs-sm); color: var(--muted); }
 
-  [data-kit='toolbar'] { display: flex; flex-wrap: wrap; align-items: center; gap: var(--k-gap); min-width: 0; }
-  [data-kit='toolbar'][data-scroll] { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  /* Bars (design/layout.md §2): one line at a token height, never wrapping. Items fold to icons and
+     into More instead (Toolbar measures); the row clips rather than grow, with room for focus rings. */
+  [data-kit='toolbar'] {
+    position: relative; display: flex; flex-wrap: nowrap; align-items: center; gap: var(--k-gap);
+    flex: 0 1 auto; width: 100%; min-width: 0; height: var(--bar-h);
+    overflow: clip; overflow-clip-margin: var(--space-2);
+  }
+  [data-kit='toolbar'][data-compact] { height: var(--bar-h-compact); }
+  [data-kit='toolbar'][data-justify='end'] { justify-content: flex-end; }
+  [data-kit='toolbar-item'] { display: flex; flex: none; align-items: center; }
+  [data-kit='toolbar-item'][data-pinned] { margin-inline-start: auto; }
+  [data-kit='toolbar-item'][data-pinned] ~ [data-kit='toolbar-item'][data-pinned] { margin-inline-start: 0; }
+  /* The hidden copy every item is measured from, in both forms; never seen, never clicked. */
+  [data-kit='toolbar-measure'] {
+    position: absolute; top: 0; left: 0; display: flex; gap: var(--k-gap); width: max-content;
+    visibility: hidden; pointer-events: none; contain: layout style;
+  }
+  [data-kit='toolbar-measure'] > span { display: inline-flex; flex: none; }
 
   /* Composer: the reply box, docked at the bottom of its scroll parent. */
   [data-kit='composer'] {
-    display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding: var(--space-3) var(--space-4) var(--space-4) var(--space-6);
+    display: flex; flex-direction: column; gap: var(--space-2); width: 100%; min-width: 0; padding: var(--space-3) var(--space-4) var(--space-4) var(--space-6);
     border-radius: var(--radius); background: var(--surface-2); border: var(--size-hairline) solid var(--line);
     transition: background var(--dur-base), border-color var(--dur-base), box-shadow var(--dur-base);
   }

@@ -58,6 +58,7 @@ interface Request {
   resolve(r: RowsAnswer | Error): void;
 }
 
+// size-ok: a factory; its body is small closures over shared private state, each under the cap
 export function createTranscripts(o: TranscriptOptions): Transcripts {
   const kind = o.kind ?? 'event';
   const seqOf = o.seqOf ?? defaultSeq;

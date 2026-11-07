@@ -76,13 +76,22 @@ interface Cell {
 interface Collection {
   readonly rows: Map<EntityKey, Cell>;
   readonly members: WritableSignal<readonly EntityKey[]>;
-  list?: Readable<readonly unknown[]>;
+  /** the values in member order, kept up to date in place once someone reads list() */
+  list?: { readonly sig: WritableSignal<readonly unknown[]>; index: Map<EntityKey, number> };
+}
+
+/** What one batch changed in a collection, applied once at its end: a snapshot of 5,000 rows is one update, not 5,000. */
+interface Dirty {
+  readonly added: EntityKey[];
+  readonly removed: Set<EntityKey>;
+  readonly changed: Map<EntityKey, unknown>;
 }
 
 
 // size-ok: a factory; its body is small closures over shared private state, each under the cap
 export function createEntityStore(warn: Warn = () => {}): { reader: EntityReader; writer: EntityWriter } {
   const collections = new Map<string, Collection>();
+  const dirty = new Map<Collection, Dirty>();
   const cursors = new Map<PeerId, number>();
   const pending = signal<readonly PendingInfo[]>([]);
   const listeners = new Set<(rows: readonly ChangedRow[]) => void>();
@@ -124,12 +133,44 @@ export function createEntityStore(warn: Warn = () => {}): { reader: EntityReader
     const before = r.sig();
     if (deepEqual(before, v)) return; // same value keeps the same reference: nothing repaints
     r.sig(v);
-    const had = before !== undefined;
-    const has = v !== undefined;
-    if (had !== has) {
-      const keys = untracked(c.members);
-      c.members(has ? [...keys, key] : keys.filter((k) => k !== key));
+    let d = dirty.get(c);
+    if (!d) dirty.set(c, (d = { added: [], removed: new Set(), changed: new Map() }));
+    if (before === undefined) d.added.push(key);
+    else if (v === undefined) d.removed.add(key);
+    else d.changed.set(key, v);
+  }
+
+  /** membership and the list, once per batch: a token patch copies one array and sets one slot */
+  function applyDirty(): void {
+    for (const [c, d] of dirty) {
+      const grew = d.added.length > 0;
+      const shrank = d.removed.size > 0;
+      if (grew || shrank) {
+        const kept = shrank ? untracked(c.members).filter((k) => !d.removed.has(k)) : untracked(c.members);
+        c.members(grew ? [...kept, ...d.added.filter((k) => !d.removed.has(k))] : kept);
+      }
+      if (!c.list) continue;
+      if (grew || shrank) rebuildList(c);
+      else if (d.changed.size > 0) {
+        const next = untracked(c.list.sig).slice();
+        for (const [k, v] of d.changed) {
+          const i = c.list.index.get(k);
+          if (i !== undefined) next[i] = v;
+        }
+        c.list.sig(next);
+      }
     }
+    dirty.clear();
+  }
+
+  function rebuildList(c: Collection): void {
+    const keys = untracked(c.members);
+    const values = keys.map((k) => untracked(() => c.rows.get(k)?.sig()));
+    const index = new Map(keys.map((k, i) => [k, i]));
+    if (c.list) {
+      c.list.index = index;
+      c.list.sig(values);
+    } else c.list = { sig: signal<readonly unknown[]>(values), index };
   }
 
   const touchedBy = (ops: EntityOps): ChangedRow[] => ops.map((o) => ({ kind: o.e, key: o.id }));
@@ -138,6 +179,7 @@ export function createEntityStore(warn: Warn = () => {}): { reader: EntityReader
     if (rows.length === 0) return;
     batch(() => {
       for (const r of rows) recompute(r.kind, r.key);
+      applyDirty();
     });
     for (const fn of listeners) fn(rows);
   };
@@ -289,8 +331,9 @@ export function createEntityStore(warn: Warn = () => {}): { reader: EntityReader
     },
     list<T>(kind: string) {
       const c = coll(kind);
-      c.list ??= computed(() => c.members().map((k) => cell(kind, k).sig()));
-      return c.list as Readable<readonly DeepReadonly<T>[]>;
+      if (!c.list) rebuildList(c);
+      const l = c.list as NonNullable<Collection['list']>; // rebuildList just made it
+      return (() => l.sig()) as Readable<readonly DeepReadonly<T>[]>;
     },
     pending: () => () => pending(),
   };

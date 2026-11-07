@@ -130,3 +130,43 @@ test('devtools: a ring of the last 500 entries, machine states, exportable', () 
   drop();
   assert.deepEqual(dev.machines(), {});
 });
+
+test('property: incremental filterBy and sortBy always equal a fresh filter and stable sort', async () => {
+  const { prng } = await import('./helpers.ts');
+  for (let seed = 1; seed <= 200; seed++) {
+    const r = prng(seed);
+    type Row = { id: number; state: 'running' | 'idle'; at: number };
+    const make = (id: number): Row => ({ id, state: r.int(3) === 0 ? 'running' : 'idle', at: r.int(20) });
+    const rows = signal<readonly Row[]>(Array.from({ length: 30 }, (_, i) => make(i)));
+    const keep = (x: Row): boolean => x.state === 'running';
+    const cmp = byKeys<Row>({ of: (x) => x.at, desc: true });
+    const running = filterBy(rows, keep);
+    const sorted = sortBy(rows, cmp);
+    const both = sortBy(running, cmp);
+    for (let step = 0; step < 60; step++) {
+      const cur = rows().slice();
+      const i = r.int(cur.length);
+      const op = r.int(10);
+      const old = cur[i];
+      if (op === 0) cur.push(make(100 + step)); // a row joins
+      else if (op === 1) cur.splice(i, 1); // a row leaves
+      else if (old) cur[i] = r.int(2) === 0 ? { ...old, at: old.at + r.int(3) - 1 } : { ...old, state: r.pick(['running', 'idle'] as const) };
+      rows(cur);
+      assert.deepEqual(running(), cur.filter(keep), `seed ${seed} step ${step}: filter`);
+      assert.deepEqual(sorted(), cur.slice().sort(cmp), `seed ${seed} step ${step}: sort`);
+      assert.deepEqual(both(), cur.filter(keep).sort(cmp), `seed ${seed} step ${step}: composed`);
+    }
+  }
+});
+
+test('filterBy hands back the same array when the changed row is not shown, so dependents do not rerun', () => {
+  const rows = signal<readonly { id: number; on: boolean; n: number }[]>([{ id: 1, on: true, n: 0 }, { id: 2, on: false, n: 0 }]);
+  const on = filterBy(rows, (x) => x.on);
+  let runs = 0;
+  const stop = effect(() => void (on(), runs++));
+  const first = on();
+  rows([rows()[0] as { id: number; on: boolean; n: number }, { id: 2, on: false, n: 1 }]);
+  assert.equal(on(), first);
+  assert.equal(runs, 1);
+  stop();
+});

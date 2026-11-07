@@ -2,7 +2,7 @@
 // class and style, and token props reject values off the scale. Each @ts-expect-error fails the
 // typecheck if the line ever starts compiling.
 import { expect, test } from 'vitest';
-import { Box, Button, Grid, Icon, IconButton, Inline, Scroll, Stack, Text, Heading, Menu } from '../src/index.ts';
+import { Box, Button, Grid, Icon, IconButton, Inline, Scroll, Stack, Text, Heading, Menu, Toolbar, Wrap, ListRow } from '../src/index.ts';
 
 export function Examples() {
   return (
@@ -43,7 +43,22 @@ export function Examples() {
       <Grid min="300px" />
       {/* @ts-expect-error radius from the scale only */}
       <Scroll radius="lg" />
+      {/* @ts-expect-error Inline never wraps: there is no wrap prop (use Wrap) */}
+      <Inline wrap />
+      {/* @ts-expect-error a toolbar item needs an icon, to fold to */}
+      <Toolbar aria-label="Bar" items={[{ id: 'a', label: 'A', priority: 1, onSelect: () => {} }]} />
+      {/* @ts-expect-error a toolbar item needs a priority */}
+      <Toolbar aria-label="Bar" items={[{ id: 'a', label: 'A', icon: 'x', onSelect: () => {} }]} />
+      {/* @ts-expect-error an item that can fold into More needs an action there */}
+      <Toolbar aria-label="Bar" items={[{ id: 'a', label: 'A', icon: 'x', priority: 1 }]} />
+      {/* @ts-expect-error a toolbar takes items, not free children it can't fold */}
+      <Toolbar aria-label="Bar" items={[]}><Button>Go</Button></Toolbar>
+      {/* @ts-expect-error a list row has no wrap prop either */}
+      <ListRow wrap title="x" />
       {/* These compile: tokens, custom properties, namespaced parts. */}
+      <Wrap gap="3" rowGap="2" />
+      <Toolbar aria-label="Bar" items={[{ id: 's', label: 'Send', icon: 'send', priority: 'pin' }]} />
+      <ListRow title="x" />
       <Box vars={{ '--sb-w': '320px' }} pad="4" radius="lg" surface="surface" part="list.row" />
       <Stack gap="4" />
       <Grid min="dialog-sm" gap="6" />

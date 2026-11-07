@@ -1,7 +1,7 @@
-// Shared type vocabulary. These mirror @wisp/kernel's contract (Brand, Json, DeepReadonly, Scope,
-// SettingDecl) structurally: the kernel's public entry (src/index.ts) doesn't exist yet, and the
-// client must not reach into another package's src/. Switch to `import type … from '@wisp/kernel'`
-// once it exports them; the shapes are identical, so nothing else changes.
+// Shared type vocabulary: branded ids, Json, DeepReadonly, the setting declaration and the wire
+// error. These were the TypeScript kernel's contract shapes; the kernel moved to the Rust backend,
+// so the client owns its copies. The manifest JSON a peer sends stays the source of truth for
+// `SettingDecl`.
 
 export type Brand<T, B extends string> = T & { readonly __brand: B };
 export type PeerId = Brand<string, 'PeerId'>;

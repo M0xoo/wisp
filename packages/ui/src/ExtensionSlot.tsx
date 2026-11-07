@@ -17,8 +17,9 @@ export interface ExtensionSlotProps extends KitProps {
   /** The input id, `<parent>:<input>`; also the default `data-part`. */
   readonly input: `${string}.${string}`;
   readonly extensions: readonly ExtensionOutput[];
-  /** inline: a row; stack: a column; contents: no box of its own (the parent lays them out). */
-  readonly layout?: 'inline' | 'stack' | 'contents';
+  /** inline: one row that never wraps; wrap: a group that may wrap (chips); stack: a column;
+   * contents: no box of its own (the parent lays them out). */
+  readonly layout?: 'inline' | 'wrap' | 'stack' | 'contents';
   readonly gap?: Space;
   /** Shown when no extension is attached. */
   readonly fallback?: JSX.Element;

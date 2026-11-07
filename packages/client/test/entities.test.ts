@@ -164,6 +164,9 @@ function runCase(seed: number): void {
   const r = prng(seed);
   const { frames, model } = serverHistory(r);
   const { reader, writer } = createEntityStore();
+  const list = (kind: string) => reader.list(kind); // read from the start, so every change goes through the incremental path
+  list('session')();
+  list('event')();
   const delivered = new Map<PeerId, number>([
     [A, 0],
     [B, 0],
@@ -208,6 +211,8 @@ function runCase(seed: number): void {
   while (inflight.length > 0) answer();
 
   assert.equal(reader.pending()().length, 0, `seed ${seed}: every answered command left the overlay`);
+  // the incrementally kept list holds exactly the rows, in member order
+  for (const kind of ['session', 'event']) assert.deepEqual(list(kind)(), reader.keys(kind)().map((k) => reader.peek(kind, k)), `seed ${seed}: ${kind} list`);
   for (const kind of ['session', 'event']) {
     const got = new Map(reader.keys(kind)().map((k) => [`${kind}|${k}`, reader.peek(kind, k)]));
     const want = new Map([...model].filter(([k]) => k.startsWith(`${kind}|`)));
