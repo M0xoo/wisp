@@ -1,8 +1,8 @@
-// Phone: push "needs you" moments to ntfy or Telegram and take the answers back. Both run on
-// outbound connections only (wisp polls them), so nothing has to reach this machine.
+// Phone: push "needs you" moments to ntfy or Telegram and take the answers back. All of it runs on
+// outbound connections only (wisp polls them, or holds a socket open), so nothing has to reach this machine.
 //
 // This is the hub: the config, the public API and the fan-out. Each channel's wire is in
-// server/channels/ (ntfy.js, telegram.js, github.js), and what they all share is there too: policy.js (who may
+// server/channels/ (ntfy.js, telegram.js, github.js, slack.js), and what they all share is there too: policy.js (who may
 // speak, what may leave), grammar.js and lists.js (what a message can say).
 
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
@@ -10,6 +10,7 @@ import { KIND } from './channels/channel.js';
 import { Github } from './channels/github.js';
 import { scrubOut, defuse } from './channels/policy.js';
 import { Ntfy } from './channels/ntfy.js';
+import { NOT_ON_A_BOX, Slack, inBox, newLinkCode } from './channels/slack.js';
 import { Telegram } from './channels/telegram.js';
 import { bad, truncate } from './util.js';
 
@@ -23,15 +24,17 @@ export class Remote {
   // phone: the rest of services/phone.js, what the channel layer needs of wisp.
   constructor({ store, act, launch = async () => null, onChange = () => {}, ...phone }) {
     Object.assign(this, { store, act, launch, onChange, phone });
-    this.status = { ntfy: null, telegram: null, github: null };
+    this.status = { ntfy: null, telegram: null, github: null, slack: null };
     this.tgElsewhere = new Map(); // Telegram message id -> session id, for sessions on a machine (server/machines.js)
     this.away = new Map(); // session id on a machine -> { channel, by, last }: what s.remote holds for one here
-    this.channels = { ntfy: new Ntfy(this), telegram: new Telegram(this), github: new Github(this) };
-    for (const [id, a] of Object.entries(store.config?.remote?.github?.away || {})) this.away.set(id, { channel: 'github', last: null, ...a });
+    this.channels = { ntfy: new Ntfy(this), telegram: new Telegram(this), github: new Github(this), slack: new Slack(this) };
+    for (const channel of ['github', 'slack']) for (const [id, a] of Object.entries(store.config?.remote?.[channel]?.away || {})) this.away.set(id, { channel, last: null, ...a });
     this.ac = null;
     this.ntfyPollMs = 4000;
     this.tgLongPoll = 25;
     this.ghPollMs = 60_000; // per repo
+    this.slackBackoffMs = 1000; // the first wait after a lost connection; it doubles
+    this.slackPingMs = 30_000;
     this.tgOffset = 0;
   }
 
@@ -55,13 +58,14 @@ export class Remote {
     this.stop();
     const ac = (this.ac = new AbortController());
     const c = this.cfg;
-    const { ntfy, telegram, github } = this.channels;
+    const { ntfy, telegram, github, slack } = this.channels;
     if (ntfy.ready) ntfy.start(ac.signal);
     if (telegram.ready) {
       if (!c.telegram.chatId && !c.telegram.linkCode) (c.telegram.linkCode = String(randomInt(100000, 999999))), this.store.saveConfig();
       telegram.start(ac.signal);
     }
     if (github.ready) github.start(ac.signal);
+    if (slack.ready) slack.start(ac.signal);
   }
 
   stop() {
@@ -99,32 +103,38 @@ export class Remote {
     const event = s.state === 'waiting' ? 'waiting' : 'finished';
     const chosen = (this.cfg.events || ['waiting', 'finished']).includes(event);
     const from = this.startedFrom(s);
-    const github = this.channels.github.reports(s); // reported there whatever the events say; send knows
+    const own = this.#reporting().some((c) => c.reports(s)); // reported there whatever the events say; send knows
     if (!this.channels.telegram.options) {
-      if (chosen || github) await this.send(this.message(s, summary), s, { skip: chosen ? [] : ['ntfy', 'telegram'] });
+      if (chosen || own) await this.send(this.message(s, summary), s, { skip: chosen ? [] : ['ntfy', 'telegram'] });
       return;
     }
     // Work that came from a channel answers there, whatever the events say. Anything else, a
     // scheduled check-in included, goes only where the Phone events already send it.
     const skip = chosen || from?.channel === 'telegram' ? [] : ['telegram'];
     if (!chosen) skip.push('ntfy');
-    if (skip.length === 2 && !github) return;
+    if (skip.length === 2 && !own) return;
     const msg = this.message(s, summary);
     if (from?.by) msg.title = `${from.by}: ${msg.title}`;
     await this.send(msg, s, { skip });
   }
 
   async send(msg, s = null, { skip = [] } = {}) {
-    const { ntfy, telegram, github } = this.channels;
+    const { ntfy, telegram } = this.channels;
     const out = this.#safe(msg);
     const jobs = [];
     const go = (c) => jobs.push(c.publish(out, s).then(() => c.mark({ ok: true }), (e) => c.mark({ ok: false, error: e.message })));
     if (ntfy.ready && !skip.includes('ntfy')) go(ntfy);
     if (telegram.linked && !skip.includes('telegram')) go(telegram);
-    // Only what it started or followed up: a report there is public to a repo.
-    if (github.ready && github.reports(s)) go(github);
+    // Only what they started or followed up. Each defuses what it posts: others can read a report there.
+    for (const c of this.#reporting()) if (c.reports(s)) go(c);
     await Promise.all(jobs);
     return jobs.length;
+  }
+
+  // The channels that answer where they were asked, and only there.
+  #reporting() {
+    const { github, slack } = this.channels;
+    return [github, slack].filter((c) => c.ready);
   }
 
   // What leaves: never a secret, on the channel layer or not. With it on, nobody pinged by agent text either.
@@ -203,11 +213,23 @@ export class Remote {
         project: c.telegram?.project || '',
       },
       github: { enabled: !!c.github?.enabled, publicReports: !!c.github?.publicReports, login: this.channels.github.login, repos: this.channels.github.watched, error: this.status.github?.error || '' },
+      slack: {
+        enabled: !!c.slack?.enabled,
+        appToken: mask(c.slack?.appToken),
+        botToken: mask(c.slack?.botToken),
+        connected: this.channels.slack.connected,
+        team: this.channels.slack.me?.team || '',
+        bot: this.channels.slack.me?.name || '',
+        senders: c.slack?.senders?.length || 0,
+        linkCode: c.slack?.botToken ? c.slack.linkCode || '' : '',
+        box: inBox(),
+        error: this.status.slack?.error || '',
+      },
       status: this.status,
     };
   }
 
-  // PUT body: { events, ntfy: {…}, telegram: {…, unlink}, github: {…} }. Masked tokens mean "unchanged".
+  // PUT body: { events, ntfy: {…}, telegram: {…, unlink}, github: {…}, slack: {…, unlink} }. Masked tokens mean "unchanged".
   update(body = {}) {
     const c = this.cfg;
     const keep = (v, prev) => (typeof v === 'string' && v.startsWith('••••') ? prev : v);
@@ -244,6 +266,18 @@ export class Remote {
       const enabled = !!(body.github.enabled ?? prev.enabled);
       // Switched on again: what was said while it was off isn't for it, not even to call it stale.
       c.github = { ...prev, enabled, publicReports: !!(body.github.publicReports ?? prev.publicReports), repos: enabled && !prev.enabled ? {} : prev.repos || {} };
+    }
+    if (body.slack) {
+      const prev = c.slack || {};
+      const enabled = !!(body.slack.enabled ?? prev.enabled);
+      if (enabled && inBox()) throw bad(NOT_ON_A_BOX);
+      const token = (v, was) => (v === undefined ? was : keep(v, was)) || ''; // missing = unchanged
+      const [appToken, botToken] = [token(body.slack.appToken, prev.appToken), token(body.slack.botToken, prev.botToken)];
+      if (appToken && !/^xapp-\S+$/.test(appToken)) throw bad('The app-level token starts with xapp-.');
+      if (botToken && !/^xoxb-\S+$/.test(botToken)) throw bad('The bot token starts with xoxb-.');
+      const relink = body.slack.unlink || botToken !== (prev.botToken || ''); // another workspace, other people
+      c.slack = { ...prev, enabled, appToken, botToken, senders: relink ? [] : prev.senders || [], linkCode: relink || !prev.linkCode ? newLinkCode() : prev.linkCode };
+      this.channels.slack.customize = true;
     }
     this.store.saveConfig();
     this.start();

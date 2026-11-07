@@ -9,6 +9,8 @@
 //   fake.fail(method, reply)  the next call of method gets { status, headers, body }
 //   fake.revoked = true       every token stops working
 //   fake.noCustomize = true   the bot has no chat:write.customize
+//   fake.deaf = true         pings go unanswered, and the socket stays up
+//   fake.silent()            a new connection never says hello
 //   fake.posted, fake.acks, fake.calls, fake.opens: what happened
 
 import { createHash, randomBytes } from 'node:crypto';
@@ -137,7 +139,7 @@ export class FakeSlack {
     socket.on('close', () => this.sockets.delete(socket));
     socket.on('data', (chunk) => {
       for (const f of readFrames(state, chunk)) {
-        if (f.op === 9) socket.write(frame(10, f.payload));
+        if (f.op === 9 && !this.deaf) socket.write(frame(10, f.payload));
         if (f.op === 8) {
           this.closes.push(f.payload.length >= 2 ? f.payload.readUInt16BE(0) : 1005);
           socket.write(frame(8, f.payload));

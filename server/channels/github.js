@@ -21,7 +21,6 @@ const ME_FRESH_MS = 60 * 60_000;
 const PRIVATE_FRESH_MS = 10 * 60_000; // a repo can go public: a report checks again soon
 const MAX_REPOS = 20;
 const SEEN_MAX = 200;
-const AWAY_MAX = 200;
 const MAX_BODY = 8000;
 const BACKOFF_MAX_MS = 15 * 60_000;
 const CAP = 'edits';
@@ -442,17 +441,6 @@ export class Github extends Channel {
     return [title, msg.text, choices.length && !s.ask?.permission ? `Choices: ${choices.join(' · ')}` : '', how].filter(Boolean).join('\n\n');
   }
 
-  // A task on another machine has no s.remote here: its thread is kept in config, as hub.away is
-  // memory and the task outlives a restart. Read back in the hub's constructor.
-  #keepAway(id, by, gh) {
-    const entry = { ...(by && { by }), gh, at: Date.now() };
-    Object.assign(this.hub.away.get(id) || {}, entry);
-    const cfg = (this.hub.cfg.github ||= {});
-    const kept = Object.entries({ ...cfg.away, [id]: entry });
-    cfg.away = Object.fromEntries(kept.slice(-AWAY_MAX));
-    this.hub.store.saveConfig();
-  }
-
   // A task or a crew job began for this thread (a queued job, maybe after a restart), or err: it
   // couldn't.
   threadStarted(s, thread, by, err) {
@@ -470,6 +458,6 @@ export class Github extends Channel {
     if (local) {
       local.remote = { ...local.remote, gh: key };
       hub.store.save(local);
-    } else this.#keepAway(s.id, by?.name, key);
+    } else this.keepAway(s.id, by?.name, { gh: key });
   }
 }
