@@ -61,9 +61,10 @@ Notifications → wisp).
 
 **Linux.** WebKitGTK's `decide-policy` doesn't say which frame a navigation is for and wry calls
 `on_navigation` for all of them (Windows' `NavigationStarting` is the main frame's, macOS answers frames
-first in `macos.rs`). So on Linux every navigation goes through, and `src/linux.rs` watches the view's own
-address, which only the page moves: when it leaves wisp the load is stopped and the address opens
-outside. `node qa/desktop-tauri-linux.mjs` (ubuntu-latest under Xvfb, `tauri.yml`):
+first in `macos.rs`). So on Linux every navigation goes through, and `src/linux.rs` decides at the response, the one
+decision WebKitGTK marks as the main frame's: a page from outside wisp is refused (wisp's page stays) and
+its address opens outside; a scheme with no response (`vscode://`) fails the main frame's load and opens
+outside from there. `node qa/desktop-tauri-linux.mjs` (ubuntu-latest under Xvfb, `tauri.yml`):
 
 - **TAURI-L01** boots on WebKitGTK, the server is a Node child, no page errors.
 - **TAURI-L06b** a Preview frame that moves on its own (a script, a meta refresh, then to another site),
