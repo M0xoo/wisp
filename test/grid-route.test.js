@@ -200,14 +200,15 @@ test('grammar.js can be imported by the grid: nothing but itself and mentions.js
   assert.deepEqual([...seen].sort(), ['grammar.js', 'mentions.js']);
 });
 
-const laptop = [{ id: 'c1', name: 'laptop' }, { id: 'c2', name: 'Mac Studio' }, { id: 'c3', name: 'lapdog' }];
+const laptop = [{ id: 'c1', name: 'laptop' }, { id: 'c2', name: 'Mac Studio' }, { id: 'c3', name: 'lapdog' }, { id: 'c4', name: 'monday' }];
 for (const [text, want] of [
   ['on laptop fix the login', { machine: 'c1', text: 'fix the login' }],
   ['on laptop: fix the login', { machine: 'c1', text: ': fix the login' }],
   ['**on** laptop fix it', { machine: 'c1', text: 'fix it' }],
   ['ON LAPTOP fix it', { machine: 'c1', text: 'fix it' }],
   ['on Mac Studio plan: fix it', { machine: 'c2', text: 'plan: fix it' }],
-  ['on mac fix it', { machine: 'c2', text: 'fix it' }],
+  ['on mac studio fix it', { machine: 'c2', text: 'fix it' }],
+  ['on **laptop** fix it', { machine: 'c1', text: 'fix it' }],
   ['in api on laptop fix it', { machine: 'c1', text: 'in api fix it' }],
   ['in api on laptop with opus high plan: fix it', { machine: 'c1', text: 'in api with opus high plan: fix it' }],
   ['with gpt-5 high on laptop: fix it', { machine: 'c1', text: 'with gpt-5 high : fix it' }],
@@ -217,7 +218,16 @@ for (const [text, want] of [
   ['/new on laptop status', { machine: 'c1', text: '/new status' }],
   ['/new in api on laptop fix it', { machine: 'c1', text: '/new in api fix it' }],
   ['on laptop full auto: delete it', { machine: 'c1', text: 'full auto: delete it' }],
-  // What isn't a route: the box's, as today.
+  // What isn't a route: the box's, as today. A router takes whole names: a word that only starts one
+  // is the start of a sentence.
+  ['on mac fix it', null],
+  ['on Mac', null],
+  ['on mo x', null],
+  ['on lap fix it', null],
+  ['on laptop', null],
+  ['on laptop:', null],
+  ['on Mac Studio', null],
+  ['/new on laptop', null],
   ['fix it on laptop', null],
   ['plan the migration on laptop', null],
   ['on my laptop fix it', null],
@@ -239,14 +249,14 @@ for (const [text, want] of [
 ]) {
   test(`parseRoute: ${JSON.stringify(text)}`, () => {
     const got = parseRoute(text, laptop);
-    if (!want) return assert.equal(got?.machine ?? null, null, JSON.stringify(got));
+    if (!want) return assert.equal(got, null, JSON.stringify(got));
     assert.equal(got.machine, want.machine);
     assert.equal(got.text.trim(), want.text);
   });
 }
 
 test('parseRoute: a name two computers share is said, not guessed', () => {
-  const got = parseRoute('on lap fix it', laptop);
+  const got = parseRoute('on Laptop fix it', [...laptop, { id: 'c5', name: 'LAPTOP' }]);
   assert.equal(got.machine, undefined);
   assert.match(got.problems[0].text, /could be 2/);
 });
@@ -258,7 +268,6 @@ test('what the grid hands on reads the same on the computer', () => {
     ['on laptop: in api fix it', { project: null, prompt: 'in api fix it' }],
     ['on laptop plan: fix it', { project: null, prompt: 'fix it', mode: 'plan' }],
     ['on laptop full auto: fix it', { project: null, prompt: 'fix it', mode: 'auto' }],
-    ['on laptop', { project: null, prompt: '' }],
   ]) {
     const p = parseMessage(parseRoute(text, laptop).text, ctx);
     assert.equal(p.project?.name ?? null, want.project, text);
@@ -520,15 +529,15 @@ test('anything else goes to the box as today: verified, without the grid’s sec
   assert.equal(routedTo(c).length, 0);
 });
 
-test('a name two computers share gets its line from the grid', async () => {
+test('a name two computers share gets its line from the grid, and neither hears it', async () => {
   const g = await boot();
   const ada = g.user('ada');
   await g.link(ada);
-  await g.computer(ada, 'laptop');
-  await g.computer(ada, 'lapdog');
-  await g.send(message('on lap fix it'));
+  const [a, b] = [await g.computer(ada, 'laptop'), await g.computer(ada, 'laptop')];
+  await g.send(message('on laptop fix it'));
   await until(() => g.tg.sent().length, { what: 'the line' });
-  assert.match(g.tg.sent()[0].text, /could be 2/);
+  assert.match(g.tg.sent()[0].text, /could be 2.*nothing was sent/s);
+  assert.equal(routedTo(a).length + routedTo(b).length, 0);
   assert.equal(g.got(ada).length, 0);
 });
 

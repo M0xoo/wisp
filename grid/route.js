@@ -154,7 +154,7 @@ export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit
     const hit = parseRoute(stripFormatting(m.text, 'telegram', { bot: r.name }), computers);
     if (!hit) return false;
     if (hit.problems) {
-      await say(r, m.chat.id, `${hit.problems[0].text} Say which: ${hit.problems[0].choices.join(', ')}.`, m.message_id);
+      await say(r, m.chat.id, `${hit.problems[0].text} They share that name, so nothing was sent.`, m.message_id);
       return true;
     }
     limit(`route|${user.id}`, 30);
