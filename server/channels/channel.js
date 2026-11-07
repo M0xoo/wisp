@@ -3,9 +3,9 @@
 //   ready        configured well enough to send
 //   start(signal)  listen until the signal aborts (a poll loop, a socket)
 //   publish(msg, s)  send { title, text, actions } about session s (or nothing in particular)
-//   inbound(raw, headers, { at })  a message the grid held for this cloud wisp (routes/channels.js):
-//                verify it and handle it → { status, body }. at: when the grid took it. A 4xx is final,
-//                and only a 2xx means it was for wisp and handled.
+//   inbound(raw, headers, { at })  a message the grid held for this cloud wisp (routes/channels.js): verify
+//                it and handle it → { status, body, after? }. A 4xx is final, and only a 2xx means it was for wisp and
+//                handled. after() runs once the answer has gone: what must wait for the grid to hear it.
 //   dropped(n)   the grid lost n of this channel's messages (a full grid, an hour asleep)
 //   rotate()     replace this cloud wisp's inbound URL, and point the channel at the new one
 // Inbound goes through policy.js's gate() and grammar.js's parseMessage(), then the hub's phone

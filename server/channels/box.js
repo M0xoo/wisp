@@ -12,17 +12,25 @@ export function boxGrid(env = process.env) {
   return { grid, auth: `Box ${new URL(env.WISP_PUBLIC_URL).hostname.split('.')[0]} ${secret}` };
 }
 
-// { url, dropped }, or null when this grid has no hub (off, or older). Rejects when it can't tell.
+// { url, dropped } ({ address, dropped } for email), or null when this grid has no hub (off, or
+// older), or no mail. Rejects when it can't tell.
 export async function channelUrl(box, channel) {
   const r = await gridJson(`${box.grid}/api/channels/url?channel=${encodeURIComponent(channel)}`, { headers: { authorization: box.auth }, timeout: 10_000 });
   if (r.status === 404 || r.status === 401) return null;
-  if (r.status !== 200 || !r.body.url) throw new Error(r.body.error || `it said ${r.status}`);
+  if (r.status !== 200 || !(r.body.url || r.body.address)) throw new Error(r.body.error || `it said ${r.status}`);
   return r.body;
 }
 
-// A new URL: the one it had stops working here and now. { url }.
+// A new URL: the one it had stops working here and now. { url }, or { address }.
 export async function rotateUrl(box, channel) {
   const r = await gridJson(`${box.grid}/api/channels/url/rotate?channel=${encodeURIComponent(channel)}`, { method: 'POST', headers: { authorization: box.auth }, timeout: 10_000 });
-  if (r.status !== 200 || !r.body.url) throw bad(`The grid didn’t rotate it: ${r.body.error || `it said ${r.status}`}.`, 502);
+  if (r.status !== 200 || !(r.body.url || r.body.address)) throw bad(`The grid didn’t rotate it: ${r.body.error || `it said ${r.status}`}.`, 502);
+  return r.body;
+}
+
+// A reply to a message this box accepted: the grid knows who to, and won't be told. { messageId }.
+export async function mailReply(box, { replyTo, subject, text }) {
+  const r = await gridJson(`${box.grid}/api/channels/mail/reply`, { method: 'POST', headers: { authorization: box.auth }, body: { replyTo, subject, text }, timeout: 20_000 });
+  if (r.status !== 200) throw new Error(r.body.error || `the grid said ${r.status}`);
   return r.body;
 }

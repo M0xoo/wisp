@@ -17,10 +17,11 @@ export function register(r, app) {
     if (typeof channel !== 'string' || typeof body !== 'string') throw bad('channel and body are needed.');
     const ch = Object.hasOwn(app.remote.channels, channel) ? app.remote.channels[channel] : null;
     if (!ch) return c.send(404, { error: 'No such channel.' });
-    const out = await ch.inbound(Buffer.from(body, 'base64'), headers && typeof headers === 'object' ? headers : {}, { at });
+    const out = await ch.inbound(Buffer.from(body, 'base64'), headers && typeof headers === 'object' ? headers : {}, { at: Number(at) || 0 });
     // Only past the channel's check: the grid clears its count on a 2xx, so anything else comes back.
     if (dropped > 0 && out.status >= 200 && out.status < 300) await ch.dropped(dropped);
     c.send(out.status, out.body);
+    out.after?.(); // work that answers the sender: the grid has to have this 2xx first (grid/mail.js)
   });
 
   // A channel URL that leaked: Settings has nothing for this yet, it's for the API and the agent.
