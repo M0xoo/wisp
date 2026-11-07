@@ -38,7 +38,8 @@ const OP = { dispatch: 0, heartbeat: 1, identify: 2, resume: 6, reconnect: 7, in
 const IN = { command: 2, component: 3, autocomplete: 4 };
 const OUT = { message: 4, deferred: 5, update: 6, choices: 8 };
 const THREAD_TYPES = new Set([10, 11, 12]);
-const NOT_A_THREAD_HERE = 50024; // this channel can't hold one: it may be one already
+// Refusals that may mean it's a thread already, and may not: neither one settles it (#threadFor).
+const NOT_A_THREAD_HERE = 50024;
 const HAS_A_THREAD = 160004;
 const FORM = 50035;
 const REPLY_ID = 19; // a message type: a reply
@@ -470,7 +471,9 @@ export class Discord extends Channel {
   async #threadFor(w, p, sessionId, done) {
     const base = { channel: this.name, chat: w.target.chat, thread: false, ids: w.anchor ? [w.anchor] : [] };
     if (w.dm) return base;
-    if (sessionId || w.inThread) return { ...base, thread: true };
+    // A task found by a reply may live in a plain channel: only one that has this thread stays in it.
+    const held = sessionId && (this.hub.store.get(sessionId)?.remote?.discord || this.hub.away.get(sessionId)?.discord);
+    if (w.inThread || (held?.thread && held.channel === w.target.chat)) return { ...base, thread: true };
     let anchor = w.anchor;
     if (w.target.hook) anchor = (await this.#say(w.target, '▶ On it.'))?.id;
     if (!anchor) return base;
@@ -480,9 +483,15 @@ export class Discord extends Channel {
       this.turns.hold(t.id, done);
       return { channel: this.name, chat: t.id, thread: true, ids: [] };
     } catch (err) {
-      if (err.code === NOT_A_THREAD_HERE || err.code === HAS_A_THREAD) return { ...base, thread: true };
-      return { ...base, ids: [anchor] }; // no right to, or the channel has no threads: replies then
+      // Replies then, unless Discord says this is a thread: a task with `thread` takes every mention
+      // in its channel, so a guess would hand it the whole of a plain channel.
+      const thread = (err.code === NOT_A_THREAD_HERE || err.code === HAS_A_THREAD) && (await this.#isThread(w.target.chat));
+      return { ...base, thread, ids: [anchor] };
     }
+  }
+
+  #isThread(chat) {
+    return this.rest('GET', `/channels/${chat}`, undefined, { tries: 1 }).then((c) => THREAD_TYPES.has(c.type), () => false);
   }
 
   // The task in this thread, or the one a reply points at. A mention's job answers one question: a

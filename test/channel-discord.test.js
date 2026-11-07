@@ -435,12 +435,63 @@ test('in a task’s thread someone else’s thread isn’t the task’s, and a m
   fake.noThreads = 50024;
   try {
     const t = newRoom();
+    fake.threadChannels.add(t);
     mention('here in this thread', { channel: t });
     assert.match(await next(t), /^▶ /);
     const s = await taskIn(t);
     assert.equal(s.remote.discord.thread, true);
     await settled(s.id);
     await next(t);
+  } finally {
+    fake.noThreads = 0;
+  }
+});
+
+test('a thread refused in a plain channel: the channel doesn’t become the task’s', async () => {
+  const oneMore = async (c, what) => {
+    const n = tasksIn(c).length;
+    mention(what, { channel: c }); // not a reply, so a task of its own
+    assert.match(await next(c), /^▶ /);
+    await until(() => tasksIn(c).length === n + 1, { what: 'a task of its own' });
+    const s = tasksIn(c).at(-1);
+    await settled(s.id);
+    await next(c);
+    return s;
+  };
+  try {
+    for (const code of [50024, 160004]) {
+      fake.noThreads = code;
+      const c = newRoom();
+      const m = mention('in a plain channel', { channel: c });
+      assert.match(await next(c), /^▶ /);
+      const s = await taskIn(c);
+      assert.equal(s.remote.discord.thread, false, String(code));
+      assert.ok(s.remote.discord.ids.includes(m.id));
+      await settled(s.id);
+      await next(c);
+      await oneMore(c, 'a second job');
+      assert.equal(tasksIn(c).length, 2);
+    }
+    // Not knowing is the same as no: a thread would take every mention there.
+    fake.noThreads = 50024;
+    const c = newRoom();
+    fake.fail('GET /channels/', { status: 500 });
+    mention('nobody can say', { channel: c });
+    assert.match(await next(c), /^▶ /);
+    const s = await taskIn(c);
+    assert.equal(s.remote.discord.thread, false);
+    await settled(s.id);
+    await next(c);
+    // new in reply to one of its messages, in the same channel.
+    fake.noThreads = 50013;
+    mention('new from a reply', { channel: c, type: 19, message_reference: { message_id: s.remote.discord.ids[0] } });
+    assert.match(await next(c), /^▶ /);
+    await until(() => tasksIn(c).length === 2);
+    const n = tasksIn(c).at(-1);
+    assert.equal(n.remote.discord.thread, false, 'a reply isn’t a thread');
+    await settled(n.id);
+    await next(c);
+    await oneMore(c, 'and this is its own');
   } finally {
     fake.noThreads = 0;
   }

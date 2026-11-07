@@ -12,6 +12,7 @@
 //   fake.deaf = true       heartbeats go unacked
 //   fake.revoked = true    REST answers 401, and identify closes with 4004
 //   fake.noThreads = code  creating a thread fails with that code
+//   fake.threadChannels    channel ids that are threads; the ones made here are too
 //   fake.posts, callbacks, edits, threads, commands, identifies, resumes, beats, calls: what happened
 
 import http from 'node:http';
@@ -36,6 +37,7 @@ export class FakeDiscord {
   deaf = false;
   revoked = false;
   noThreads = 0;
+  threadChannels = new Set();
   limit = null; // session_start_limit
   heartbeat = 20;
   user = { id: '900', username: 'wisp', bot: true };
@@ -88,6 +90,7 @@ export class FakeDiscord {
       this.commands.push({ app: m[1], body });
       return send(200, body);
     }
+    if ((m = /^GET \/channels\/([^/]+)$/.exec(route))) return send(200, { id: m[1], type: this.threadChannels.has(m[1]) || this.threads.some((t) => t.id === m[1]) ? 11 : 0 });
     if ((m = /^POST \/channels\/([^/]+)\/messages\/([^/]+)\/threads$/.exec(route))) {
       if (this.noThreads) return send(this.noThreads === 50013 ? 403 : 400, { code: this.noThreads, message: 'No thread here' });
       const id = snowflake();
