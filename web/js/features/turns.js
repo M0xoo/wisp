@@ -988,15 +988,15 @@ function renderConnectorCard(s) {
   const c = a.connector;
   const keys = c.kind === 'keys' ? c.keys : [];
   const node = el(`
-    <div class="ask-card cx-ask">
+    <div class="ask-card cn-ask">
       <div class="q-head">${icon('plug')}<span>${c.kind === 'signin' ? 'Sign-in needed' : 'A key is needed'}</span></div>
       <p class="q-text">${esc(a.question)}</p>
       ${a.context ? `<div class="prose q-context">${md(a.context)}</div>` : ''}
-      ${keys.length ? `<form class="cx-ask-keys">${keys.map((k, i) => `<label><span>${esc(k.key)}</span><input class="input mono" type="password" data-i="${i}" autocomplete="new-password" spellcheck="false" placeholder="${k.set ? 'Saved · type to replace' : 'Paste it here'}"></label>`).join('')}<button hidden></button></form>` : ''}
+      ${keys.length ? `<form class="cn-ask-keys">${keys.map((k, i) => `<label><span>${esc(k.key)}</span><input class="input mono" type="password" data-i="${i}" autocomplete="new-password" spellcheck="false" placeholder="${k.set ? 'Saved · type to replace' : 'Paste it here'}"></label>`).join('')}<button hidden></button></form>` : ''}
       <div class="q-opts"><button class="opt go" data-a="go">${icon(c.kind === 'signin' ? 'lock' : 'check')}${c.kind === 'signin' ? 'Sign in' : 'Save'}</button><button class="opt" data-a="skip">Skip</button></div>
-      <p class="cx-result" aria-live="polite">${c.kind === 'keys' ? 'Kept as secrets on this computer; the agent never sees them.' : ''}</p>
+      <p class="cn-result" aria-live="polite">${c.kind === 'keys' ? 'Kept as secrets on this computer; the agent never sees them.' : ''}</p>
     </div>`);
-  const result = $('.cx-result', node);
+  const result = $('.cn-result', node);
   const save = async () => {
     const vals = $$('input[data-i]', node).map((x) => x.value);
     if (!vals.some(Boolean)) return $('input[data-i]', node)?.focus();
@@ -1005,7 +1005,7 @@ function renderConnectorCard(s) {
     keys.forEach((k, i) => ((body[k.field] ||= {})[k.key] = vals[i]));
     const btn = $('[data-a="go"]', node);
     btn.disabled = true;
-    result.className = 'cx-result muted';
+    result.className = 'cn-result muted';
     result.innerHTML = '<span class="orb tiny"></span>Checking it…';
     try {
       await api(`/connectors/${c.id}`, { method: 'PATCH', body });
@@ -1013,10 +1013,10 @@ function renderConnectorCard(s) {
       const v = await api(`/connectors/${c.id}/test`, { method: 'POST', body: {} });
       const t = v.connectors.find((x) => x.id === c.id)?.test;
       // Working: wisp answers the card and the agent carries on.
-      result.className = `cx-result ${t?.ok ? 'ok' : 'bad'}`;
+      result.className = `cn-result ${t?.ok ? 'ok' : 'bad'}`;
       result.innerHTML = t?.ok ? `${icon('check')}<span>${t.count} tool${t.count === 1 ? '' : 's'}</span>` : `${icon('warn')}<span>${esc(t?.error || 'It didn’t answer')}</span>`;
     } catch (err) {
-      result.className = 'cx-result bad';
+      result.className = 'cn-result bad';
       result.innerHTML = `${icon('warn')}<span>${esc(err.message)}</span>`;
     } finally {
       btn.disabled = false;
