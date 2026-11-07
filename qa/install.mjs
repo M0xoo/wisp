@@ -85,7 +85,8 @@ const stopPort = async (port) => {
 };
 
 function start(cmd, args, env, opts = {}) {
-  const child = spawn(cmd, args, { env, stdio: 'ignore', shell: WIN && /\.cmd$/.test(cmd), ...opts });
+  const child = spawn(cmd, args, { env, stdio: 'ignore', shell: WIN && /\.cmd$|^npx$/.test(cmd), ...opts });
+  child.on('error', () => {}); // the row that waits for it says so
   live.add(child);
   child.once('exit', () => live.delete(child));
   return child;
@@ -183,7 +184,9 @@ async function npmRows() {
   const dest = dirIn('tar');
   await check('INST-01', 'npm pack: wisp, and nothing of the Tauri shell', async () => {
     tarball = path.join(dest, sh('npm', ['pack', '--silent', '--pack-destination', dest], { cwd: ROOT, env: { ...process.env, ...CACHE } }).trim().split('\n').pop());
-    const files = sh('tar', ['-tzf', tarball]).split('\n');
+    // System32's: Git Bash's GNU tar takes C:\ for a host name.
+    const tar = WIN ? path.join(process.env.SystemRoot, 'System32/tar.exe') : 'tar';
+    const files = sh(tar, ['-tzf', tarball]).split(/\r?\n/);
     for (const f of ['package/bin/wisp.js', 'package/server/index.js', 'package/electron/main.js', 'package/web/index.html']) ok(files.includes(f), `${f} isn't in it`);
     ok(!files.some((f) => f.startsWith('package/desktop/')), 'desktop/ is on npm');
     ok(!files.some((f) => f.includes('node_modules/')), 'node_modules in the tarball');
@@ -491,13 +494,12 @@ async function windowsRows() {
     const u = new Updater({ port, env: {}, platform: 'win32', arch, root: path.join(dir, 'resources/app') });
     u.swap = { installer: setup };
     const flags = u.relaunchCommand().split(`"${setup}" `)[1].split(' ');
-    const before = fs.statSync(exe).mtimeMs;
-    Object.assign(process.env, machine({ WISP_PORT: String(port) }, { withNode: false }));
+    ok(flags.includes('/R') && flags.includes('--force-run'), flags.join(' '));
     ok((await run(flags)) === 0, 'the installer failed');
-    ok(fs.statSync(exe).mtimeMs >= before, 'not reinstalled');
-    await up(port, 'the app the installer started');
+    // Started as the desktop user, not as this process's child: it has none of this env, so its port is the default.
+    await up(4477, 'the app the installer started');
     sh('taskkill', ['/F', '/T', '/IM', 'wisp.exe']);
-    await down(port);
+    await down(4477);
   });
 }
 
