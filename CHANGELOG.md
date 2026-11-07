@@ -107,6 +107,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Open on the Saved to My Stuff toast now closes the image viewer.** Saving a picture from the viewer, then clicking **Open** on the toast, opened My Stuff behind the viewer, which stayed on screen until you closed it.
 - **The desktop app's first window opens within 5 seconds, even with a slow shell setup.** On first open the app reads PATH from your login shell. A `~/.zshrc` that took long kept the window from opening until it finished, because the 5-second limit never stopped an interactive zsh.
 - **The task list stays where you put it.** Sending a follow-up threw the list to Working, a run finishing threw it back to the top (from 2963px to 0), and launching from New task scrolled it down to the new row. The list now only moves when you scroll it, press J or K, or open a task from search or a toast whose row is out of view, which used to leave the row off-screen. A launch whose row doesn't show says *Sent to Claude* with Open instead. Stacked and on a phone, a launch still brings the row into view.
+- **A quick answer reaches your phone.** When an agent replied in plain text with no report card, Telegram and ntfy said *Ready for review.* and left the answer in wisp. The answer is now the message, cut at 1000 characters.
 
 ## [0.57.0] - 2026-11-03
 

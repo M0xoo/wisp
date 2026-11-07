@@ -435,6 +435,15 @@ test('a button on a chat with nothing linked is ignored', async () => {
 const asking = { id: 's1', title: 'Fix login', agent: 'claude', state: 'waiting', turns: [{ id: 't1' }], ask: { id: 'ask1', question: 'Proceed?', context: 'c'.repeat(700), options: ['Yes', 'No'] } };
 const finished = (blocks, o = {}) => ({ id: 's2', title: 'Fix login', agent: 'claude', state: 'review', turns: [{ id: 't2', status: 'done', presentation: { blocks } }], ...o });
 
+test('message(): a plain answer with no hero is the report, cut to a length a phone can take', () => {
+  const { r } = rig();
+  const plain = (text) => finished([{ type: 'markdown', text }]);
+  assert.equal(r.message(plain('This repo is a test.'), { project: 'p' }).text, 'This repo is a test.');
+  assert.equal(r.message(plain('x'.repeat(5000)), { project: 'p' }).text, `${'x'.repeat(999)}…`);
+  assert.equal(r.message(plain('Text.'), { project: 'p', preview: 'A preview' }).text, 'A preview');
+  assert.equal(r.message(finished([{ type: 'hero', title: 'Fix login', summary: 'The hero.' }, { type: 'markdown', text: 'More.' }]), {}).text, 'The hero.');
+});
+
 test('message(): a question, each hero status, a question block, errors', () => {
   const { r } = rig();
   assert.deepEqual(r.message(asking, { project: 'api' }), { title: '❓ api: Fix login', text: `Proceed?\n\n${'c'.repeat(599)}…`, actions: [{ label: 'Yes', kind: 'answer', ref: 'ask1', index: 0 }, { label: 'No', kind: 'answer', ref: 'ask1', index: 1 }] });
