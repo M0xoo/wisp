@@ -482,7 +482,7 @@ await check('TAURI-W18', 'a task that finishes in a minimized window is a toast 
     const s = await api(A.url, '/api/sessions', { prompt: 'fix the add function in math.js', cwd: makeRepo(), agent: 'claude' });
     const [text] = await until(() => { const t = one('toasts', AUMID).texts; return t.length && t; }, { timeout: 30_000, what: 'Windows to hold a toast' });
     console.log(`  toast "${text}"`);
-    ok(text.includes('finished') || text.includes('ready'), `the toast says ${text}`);
+    ok(text.includes('fix the add function in math.js'), `the toast says ${text}`); // the task's name: what was asked (#728)
     await sleep(700);
     shot('toast'); // a hosted desktop shows no banner: Action Center holds it, a click on one is Manual
   } finally {

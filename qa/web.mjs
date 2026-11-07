@@ -141,8 +141,9 @@ try {
     ok((await box.inputValue().catch(() => box.innerText())).trim() === '', 'prompt box not cleared');
     first = await (await launched).json();
     await settled(first.id);
-    // Auto picks the harness, so any fake one may have run it.
-    await p.locator(`.item[data-id="${first.id}"]`, { hasText: /Fake [\w-]+ finished/ }).waitFor({ timeout: 15000 });
+    // Named after what was asked (#728), not the agent's report: the card says it's done in its line.
+    await until(async () => /finished/i.test(await p.locator(`.item[data-id="${first.id}"]`).innerText()), { timeout: 15000, what: 'card to finish' });
+    ok(/fix the add bug from the launcher/.test(await p.locator(`.item[data-id="${first.id}"]`).innerText()), 'the card is not named after the prompt');
     await p.locator(`.item[data-id="${first.id}"]`).click();
     await p.locator('.it-body:visible button[data-tab="changes"]').first().waitFor({ timeout: 10000 });
     ok(await p.getByText(/wisp\/fix-the-add-bug/).first().isVisible(), 'branch not shown in details');
