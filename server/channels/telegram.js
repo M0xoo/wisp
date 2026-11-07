@@ -5,14 +5,23 @@
 // With telegram.options on as well (it sits under allowStart), a message says what you'd type in the
 // launcher: it goes through the channel layer (policy.js, grammar.js, lists.js), and plain text starts
 // a task. Off, every path here is the one it always was.
+//
+// On a computer it polls. A cloud wisp sleeps, and nothing polls while it does: there it sets a
+// webhook to the grid's held inbox (grid/inbox.js), which wakes it, and never polls while one is set
+// (Telegram answers getUpdates with a 409). With no hub on that grid it polls as it always did.
 
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { truncate } from '../util.js';
+import { boxGrid, channelUrl } from './box.js';
 import { Channel, CODE, KIND, resend, sleep } from './channel.js';
 import { findProject, parseMessage, stripFormatting } from './grammar.js';
 import { LISTS, refusal } from './lists.js';
 import { RateLimit, Seen, STALE_S, capMode, defuse, gate, scrubOut } from './policy.js';
 
 const MAX_TG_IDS = 20;
+const HOOK_RETRY_MS = 30_000;
+const SEEN_UPDATES = 100; // kept with the webhook: a box's memory ends when it sleeps
+const UPDATES = ['message', 'callback_query'];
 const COMMANDS = [
   ['new', 'Start a task: options, then what to do'],
   ['help', 'What you can say here'],
@@ -52,9 +61,9 @@ export class Telegram extends Channel {
     return !!(t?.options && t.allowStart && this.hub.phone?.context);
   }
 
-  async api(method, body, signal) {
+  async api(method, body, signal, token = this.cfg.token) {
     const base = (process.env.WISP_TELEGRAM_API || 'https://api.telegram.org').replace(/\/+$/, '');
-    const r = await resend(() => fetch(`${base}/bot${this.cfg.token}/${method}`, {
+    const r = await resend(() => fetch(`${base}/bot${token}/${method}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
@@ -85,9 +94,10 @@ export class Telegram extends Channel {
       this.listed = this.cfg.token;
       this.api('setMyCommands', { commands: COMMANDS.map(([command, description]) => ({ command, description })) }).catch(() => {});
     }
+    if (await this.#hooked(signal)) return;
     while (!signal.aborted) {
       try {
-        const updates = await this.api('getUpdates', { offset: hub.tgOffset, timeout: hub.tgLongPoll, allowed_updates: ['message', 'callback_query'] }, signal);
+        const updates = await this.api('getUpdates', { offset: hub.tgOffset, timeout: hub.tgLongPoll, allowed_updates: UPDATES }, signal);
         if (hub.status.telegram?.error) this.mark({ ok: true, error: '' });
         for (const u of updates) {
           if (u.update_id < hub.tgOffset) continue;
@@ -100,6 +110,94 @@ export class Telegram extends Channel {
         await sleep(5000, signal);
       }
     }
+  }
+
+  // --- webhook: a cloud wisp whose grid has the hub ---------------------------------------------
+
+  // True when a webhook takes care of inbound, or wisp is trying to get one up (either way, no
+  // polling). False: poll. A computer with no webhook left over in its config never gets past line one.
+  async #hooked(signal) {
+    const box = boxGrid();
+    if (!box && !this.cfg.hook) return false;
+    const timed = () => AbortSignal.any([signal, AbortSignal.timeout(15_000)]);
+    await this.leaving;
+    while (!signal.aborted) {
+      try {
+        let found = null;
+        if (box) {
+          try {
+            found = await channelUrl(box, this.name);
+          } catch (err) {
+            if (!this.cfg.hook) return false; // no webhook to get in the way: poll while the grid can't be reached
+            throw new Error(`the grid: ${err.message}`);
+          }
+        }
+        if (!found) {
+          // No hub here (a grid that turned it off, a config moved to a computer): what's left of it goes first.
+          if (!this.cfg.hook) return false;
+          await this.api('deleteWebhook', {}, timed());
+          if (signal.aborted) return true;
+          delete this.cfg.hook;
+          this.hub.store.saveConfig();
+          this.mark({ webhook: false });
+          return false;
+        }
+        if (found.dropped) await this.dropped(found.dropped);
+        await this.#setHook(found.url, timed);
+        if (!signal.aborted) this.mark({ ok: true, error: '', webhook: true });
+        return true;
+      } catch (err) {
+        if (signal.aborted) return true;
+        this.mark({ ok: false, error: `Couldn’t set the webhook: ${err.message}`, webhook: false });
+        await sleep(this.hub.hookRetryMs ?? HOOK_RETRY_MS, signal);
+      }
+    }
+    return true;
+  }
+
+  // Only when Telegram doesn't already have it: messages held at the grid carry the secret they came
+  // with, so a new one on every wake would have the box refuse them all.
+  async #setHook(url, timed) {
+    const had = this.cfg.hook;
+    if (had?.url === url && (await this.api('getWebhookInfo', {}, timed())).url === url) return;
+    const secret = randomBytes(32).toString('hex');
+    await this.api('setWebhook', { url, secret_token: secret, allowed_updates: UPDATES }, timed());
+    this.cfg.hook = { url, secret, seen: [] };
+    this.hub.store.saveConfig();
+  }
+
+  // Switched off, unlinked or another bot: Telegram stops calling. token: the bot it was set on,
+  // gone from the config by now. A start that follows waits for this, or its setWebhook could lose.
+  unhook(token) {
+    this.leaving = this.api('deleteWebhook', {}, undefined, token).catch((err) => this.mark({ ok: false, error: `Couldn’t remove the webhook: ${err.message}`, webhook: false }));
+    this.mark({ webhook: false });
+    return this.leaving;
+  }
+
+  // A message the grid held. Only Telegram knows this secret, and only a retry repeats an update.
+  async inbound(raw, headers = {}) {
+    const hook = this.ready && this.cfg.hook;
+    if (!hook?.secret) return { status: 409, body: { error: 'Telegram isn’t on here.' } };
+    const got = Buffer.from(String(headers['x-telegram-bot-api-secret-token'] ?? ''));
+    const want = Buffer.from(hook.secret);
+    if (got.length !== want.length || !timingSafeEqual(got, want)) return { status: 403, body: { error: 'Wrong secret token.' } };
+    let u;
+    try {
+      u = JSON.parse(raw.toString('utf8'));
+    } catch {}
+    if (!Number.isInteger(u?.update_id)) return { status: 400, body: { error: 'Not an update.' } };
+    if (hook.seen?.includes(u.update_id)) return { status: 200, body: { ok: true, duplicate: true } };
+    hook.seen = [...(hook.seen || []), u.update_id].slice(-SEEN_UPDATES);
+    this.hub.store.saveConfig();
+    await this.#from(u).catch((err) => console.warn(`wisp: telegram: ${err.message}`));
+    return { status: 200, body: { ok: true } };
+  }
+
+  async dropped(n) {
+    this.mark({ dropped: n });
+    if (!this.linked) return;
+    const line = n === 1 ? 'One message didn’t reach wisp while it was asleep. Send it again to run it.' : `${n} messages didn’t reach wisp while it was asleep. Send them again to run them.`;
+    await this.api('sendMessage', { chat_id: this.cfg.chatId, text: line }).catch(() => {});
   }
 
   async #from(u) {
