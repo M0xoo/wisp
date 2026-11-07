@@ -65,6 +65,10 @@ export function hideNames(text, ctx = {}, typed = '') {
   return out.replace(/ · (?:on )?…/g, '');
 }
 
+// GitHub fetches an image as soon as a comment renders, so an agent could carry data out in its URL.
+// `![…]` becomes a plain link and no tag is a tag: `<img`, `<iframe`, `<style`, or any other.
+export const noMedia = (text) => String(text).replace(/!(?=\[)/g, '!\u200b').replace(/<(?=[a-z/!?])/gi, '<\u200b');
+
 const seconds = (iso) => Math.floor(Date.parse(iso) / 1000);
 const nowIso = () => new Date().toISOString().replace(/\.\d+Z$/, 'Z');
 const header = (head, name) => new RegExp(`^${name}:\\s*(.+?)\\s*$`, 'im').exec(head)?.[1] || '';
@@ -391,7 +395,7 @@ export class Github extends Channel {
   // --- what leaves ------------------------------------------------------------------------------
 
   async #post(repo, number, text) {
-    const clean = truncate(noPing(defuse(scrubOut(text).text)), MAX_BODY - MARKER.length - 2);
+    const clean = truncate(noPing(defuse(noMedia(scrubOut(text).text))), MAX_BODY - MARKER.length - 2);
     await gh(undefined, ['api', `repos/${repo}/issues/${number}/comments`, '-f', `body=${clean}\n\n${MARKER}`]);
   }
 
