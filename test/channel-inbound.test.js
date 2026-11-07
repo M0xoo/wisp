@@ -152,7 +152,7 @@ after(async () => {
   await old?.grid.close();
   await old?.other?.grid.close();
   fake.close();
-  slack.stop();
+  if (sqlite) slack.stop(); // never started on a Node with no node:sqlite
 });
 
 test('on a box Telegram takes a webhook to its own URL, with a random secret, and never polls', async () => {
