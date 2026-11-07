@@ -33,7 +33,7 @@ import { prsOf, renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
 import { changesButton, openPanel, paintDoor, shellButton, shellLive, watchButton } from './panel.js';
 import { paintSplit } from './split.js';
-import { copiesOf, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize } from './team.js';
+import { copiesOf, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize, waitingOn } from './team.js';
 import { noOutputLine, stream } from '../no-output.js';
 import { appendStep, KIND_ICON, pickView, renderLiveTranscript, renderTranscript, sameStep, transcriptOn, updateStep } from './transcript.js';
 import { paintCard } from './spells.js';
@@ -262,7 +262,7 @@ export function renderBody(id, { fresh, byHand }) {
     const revKey = `${t.rolledBackAt || 0}:${(t.changes || []).map((c) => (c.reverted ? 1 : 0)).join('')}`;
     // .env masking turned on or off (Settings → Privacy): the turn is drawn again with or without it.
     const envKey = t.changes?.some((c) => c.masked) || t.activity?.some((x) => x.masked) ? 'm' : '';
-    const key = `${t.status}${t.held?.waiting ? '-waiting' : ''}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + (s.ask?.clash?.sig || '') + (t.sideWarn?.length || '') + s.queue?.length + !!summary.watch : ''}|${subKey(s, t)}|${tx}|${isLatest ? s.goal?.status || '' : ''}|${envKey}|${t.signedOut?.stillIn ? 'still' : ''}`;
+    const key = `${t.status}${t.held?.waiting ? '-waiting' : ''}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + (s.ask?.clash?.sig || '') + (t.sideWarn?.length || '') + s.queue?.length + !!summary.watch : ''}|${subKey(s, t)}|${tx}|${isLatest ? s.goal?.status || '' : ''}|${isLatest ? waitingOn(s, t).join() : ''}|${envKey}|${t.signedOut?.stillIn ? 'still' : ''}`;
     const prev = n.turnNodes.get(t.id);
     let node = prev?.node;
     // A code or key being typed into the turn's sign-in card: drawing it again would take the box away.
@@ -843,6 +843,8 @@ function renderTurn(s, t, isLatest, fold, tx) {
     node.append(el('<div class="t-offers"></div>')); // kit files proposed for a crew member (crew.js paintOffers)
     node.append(renderTrail(s, t, tx));
     if (isLatest && s.goal?.status === 'checking') node.append(renderGoalCheck(s));
+    const team = isLatest ? waitingOn(s, t) : [];
+    if (team.length) node.append(renderTeamWait(s, t, team));
   }
   node.append(el('<div class="btw-list"></div>')); // side questions asked during this turn (btw.js)
   return node;
@@ -857,6 +859,31 @@ function renderGoalCheck(s) {
       <div class="w-body">
         <div class="w-status"><b>Checking the goal…</b><span class="elapsed" data-start="${s.turns.at(-1)?.endedAt || Date.now()}">0s</span></div>
         <p class="gc-what">Reading the changes and running the tests: wisp’s own look, not the agent’s word.</p>
+        <div class="w-actions"><span class="grow"></span><button class="ghost sm danger stop">${icon('stop')}Stop</button></div>
+      </div>
+    </div>`);
+  $('.stop', node).onclick = async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.lastChild.textContent = 'Stopping…';
+    await api(`/sessions/${s.id}/stop`, { method: 'POST', body: {} }).catch((err) => {
+      btn.disabled = false;
+      btn.lastChild.textContent = 'Stop';
+      toastError(err);
+    });
+  };
+  return node;
+}
+
+// The lead's turn ended with its delegates still at work: the task is still in Working, so the
+// latest turn keeps a live panel, with Stop, until their report comes back as a follow-up.
+function renderTeamWait(s, t, team) {
+  const node = el(`
+    <div class="w-panel team-wait">
+      <div class="w-orb"><div class="orb live"><i></i><i></i><i></i></div></div>
+      <div class="w-body">
+        <div class="w-status"><b>Waiting on ${esc(team.join(', '))}</b><span class="elapsed" data-start="${t.endedAt || Date.now()}">${fmtDuration(Date.now() - (t.endedAt || Date.now()))}</span></div>
+        <p class="tw-what">${esc(agentName(s.agent))} reads their reports when they finish, then carries on.</p>
         <div class="w-actions"><span class="grow"></span><button class="ghost sm danger stop">${icon('stop')}Stop</button></div>
       </div>
     </div>`);

@@ -471,6 +471,12 @@ function delegationsOf(s, t) {
     return { d, child, ct: child?.turns.find((x) => x.id === d.turnId) };
   });
 }
+// The lead's turn ended with delegates still at work: it stays in Working (server/runner.js
+// #awaiting) until their report comes back. Their names, or [] when it isn't waiting.
+export function waitingOn(s, t) {
+  if (s.state !== 'running' || s.parentId || t !== s.turns.at(-1) || t.status === 'running' || s.auto?.busy || s.goal?.status === 'checking') return [];
+  return [...new Set(delegationsOf(s, t).filter(({ ct }) => ct?.status === 'running').map(({ d }) => `@${d.name}`))];
+}
 export const subKey = (s, t) => delegationsOf(s, t).map(({ ct }) => ct?.status || '?').join(',');
 const subStatus = (ct) => {
   if (!ct || ct.status === 'running') return { cls: 'waiting', label: 'Working' };

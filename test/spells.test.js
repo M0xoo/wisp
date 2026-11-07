@@ -191,6 +191,12 @@ test('the follow-up box’s Delegate button and the Delegate popover are parts s
   assert.deepEqual(normalizeSpell({ ...base0, parts: { 'composer.team': { style: { color: 'red' } } } }).spell.parts['composer.team'].style, { color: 'red' });
 });
 
+test('the panel of a lead waiting on its delegates after its turn is a part', () => {
+  assert.equal(schema.PARTS['delegate.waiting'], '#feed .w-panel.team-wait');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['delegate.waiting'] }, parts: { 'delegate.waiting': { style: { borderRadius: '6px' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['delegate.wait'] } }).some((x) => /delegate\.wait/.test(x)));
+});
+
 test('the layout switch is gone: a spell that still sets settings.view loads, with a warning', () => {
   for (const view of ['feed', 'split', 'grid']) {
     const out = normalizeSpell({ ...base0, settings: { view, theme: 'dark' } });

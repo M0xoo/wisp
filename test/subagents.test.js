@@ -245,6 +245,7 @@ test('a follow-up that interrupts the lead leaves its delegates working, and the
   const back = done.turns[2];
   assert.equal(back.by, 'wisp');
   assert.equal(back.reports, true);
+  assert.equal(back.status, 'done', 'the follow-up runs to its end, not let go as it starts');
   assert.match(back.prompt, /^Subagents you delegated to earlier have finished/);
   assert.match(back.prompt, /### codex \(Codex · default model\) — done/);
   assert.equal(Object.values(done.childSessions)[0].turns[0].status, 'done');
@@ -275,4 +276,82 @@ test('a lead with a delegate on another machine hears what travels; its paths ar
   assert.equal(inFolder('Fix /work/repo/src/a.ts, run tests in /work/repo.', '/work/repo/'), 'Fix src/a.ts, run tests in ..');
   assert.equal(inFolder('Not /work/repo2/x nor /work/repo.git', '/work/repo'), 'Not /work/repo2/x nor /work/repo.git');
   assert.equal(inFolder('C:\\w\\repo\\src\\b.js', 'C:\\w\\repo'), 'src\\b.js');
+});
+
+// A lead that delegates with wait: false and ends its turn isn't finished: it waits on them.
+const finishedFor = (id) => {
+  const seen = [];
+  const on = ({ session }) => {
+    if (session.id === id) seen.push(srv.store.get(id).turns.map((t) => t.status));
+  };
+  srv.runner.on('finished', on);
+  return { seen, off: () => srv.runner.off('finished', on) };
+};
+const leadWaiting = (id) =>
+  until(async () => {
+    const x = await api(`/sessions/${id}`);
+    return x.turns[0].status === 'done' && x;
+  });
+
+test('a lead whose turn ends while its delegates work stays Working, and finishes once their report is read', async () => {
+  const s = await api('/sessions', { prompt: 'DELEGATE SLOW and DELEGATE NOWAIT', cwd: makeRepo(), agent: 'claude', worktree: false, subagents: [{ agent: 'codex' }] });
+  const fin = finishedFor(s.id);
+  try {
+    const waiting = await leadWaiting(s.id);
+    assert.equal(waiting.turns.length, 1);
+    assert.equal(Object.values(waiting.childSessions)[0].turns[0].status, 'running', 'the delegate is still at it');
+    assert.equal(waiting.state, 'running', 'not finished while a delegate owes its report');
+    assert.equal(waiting.unread, false);
+    assert.deepEqual(fin.seen, []);
+    const { summarize } = await import('../server/runner.js');
+    const row = summarize(srv.store.get(s.id), srv.store);
+    assert.equal(row.status, 'running');
+    assert.equal(row.live, 'Waiting on codex', 'its row says who it waits on');
+    // Done and archive leave a task that still works alone.
+    await api(`/sessions/${s.id}`, { state: 'done', archived: true }, 'PATCH');
+    const still = await api(`/sessions/${s.id}`);
+    assert.equal(still.state, 'running');
+    assert.ok(!still.archived);
+
+    const done = await until(async () => {
+      const x = await api(`/sessions/${s.id}`);
+      return x.turns.length === 2 && x.state === 'review' && x;
+    });
+    assert.equal(done.turns[1].reports, true);
+    assert.equal(done.turns[1].status, 'done');
+    assert.equal(done.unread, true);
+    assert.deepEqual(fin.seen, [['done', 'done']], 'one finished, after the report-back turn');
+  } finally {
+    fin.off();
+  }
+});
+
+test('stopping a lead that waits on its delegates stops them and lands it, with nothing sent back', async () => {
+  const s = await api('/sessions', { prompt: 'DELEGATE SLOW and DELEGATE NOWAIT then stop', cwd: makeRepo(), agent: 'claude', worktree: false, subagents: [{ agent: 'codex' }] });
+  const fin = finishedFor(s.id);
+  try {
+    const waiting = await leadWaiting(s.id);
+    assert.equal(waiting.state, 'running');
+    await api(`/sessions/${s.id}/stop`, {});
+    const done = await settled(s.id);
+    assert.equal(Object.values(done.childSessions)[0].turns[0].status, 'stopped');
+    await new Promise((r) => setTimeout(r, 3500)); // past the delegate's 3s of work
+    const after = await api(`/sessions/${s.id}`);
+    assert.equal(after.state, 'review');
+    assert.equal(after.turns.length, 1);
+    assert.ok(!after.turns[0].delegations.some((d) => d.owed));
+    assert.deepEqual(fin.seen, [], 'you stopped it: no ping');
+  } finally {
+    fin.off();
+  }
+});
+
+test('a lead waiting on a delegate that is deleted does not stay Working', async () => {
+  const s = await api('/sessions', { prompt: 'DELEGATE SLOW and DELEGATE NOWAIT for a goner', cwd: makeRepo(), agent: 'claude', worktree: false, subagents: [{ agent: 'codex' }] });
+  const waiting = await leadWaiting(s.id);
+  assert.equal(waiting.state, 'running');
+  const cid = Object.keys(waiting.childSessions)[0];
+  await api(`/sessions/${cid}`, null, 'DELETE');
+  const done = await settled(s.id);
+  assert.equal(done.turns.length, 1);
 });

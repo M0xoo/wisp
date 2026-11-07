@@ -251,8 +251,10 @@ export function summarize(s, store) {
   const hero = heroOf(report?.presentation);
   // Only a running turn's last step is shown (and reading activity loads a task's heavy fields: store.js).
   const lastAct = last?.status === 'running' ? last.activity?.findLast?.((a) => a.kind !== 'text') : null;
-  // A lead blocked on its subagents says who it's waiting for.
-  const busy = last?.status === 'running' ? (last.delegations || []).filter((d) => store?.get(d.sessionId)?.turns.find((t) => t.id === d.turnId)?.status === 'running') : [];
+  // A lead blocked on its subagents says who it's waiting for: in its turn, or after it ended with
+  // them still at work (Runner #awaiting), when it stays in Working until their report is read.
+  const owes = !s.parentId && s.state === 'running' && last?.status !== 'running' && !s.auto?.busy && s.goal?.status !== 'checking';
+  const busy = last?.status === 'running' || owes ? (last?.delegations || []).filter((d) => store?.get(d.sessionId)?.turns.find((t) => t.id === d.turnId)?.status === 'running') : [];
   const waitingOn = busy.length ? `Waiting on ${[...new Set(busy.map((d) => d.name))].join(', ')}` : '';
   return {
     id: s.id,
@@ -279,7 +281,7 @@ export function summarize(s, store) {
     ...(s.queueHeld && s.queue?.length && { queueHeld: true }), // a Stop held them: they wait for you
     later: laterView(s), // follow-ups and reminders scheduled on it (server/later.js)
     reminder: s.reminder ? { text: s.reminder.text, at: s.reminder.at, setAt: s.reminder.setAt, by: s.reminder.by, ...(s.reminder.from && { from: s.reminder.from }), ...(s.reminder.missed && { missed: true }) } : undefined,
-    status: last?.status === 'running' || s.auto?.busy || s.goal?.status === 'checking' ? 'running' : last?.status === 'held' ? 'held' : hero?.status || (last?.status === 'error' ? 'blocked' : 'info'),
+    status: last?.status === 'running' || waitingOn || s.auto?.busy || s.goal?.status === 'checking' ? 'running' : last?.status === 'held' ? 'held' : hero?.status || (last?.status === 'error' ? 'blocked' : 'info'),
     ...(haltOf(last) && { halt: haltOf(last) }), // it failed, hit a limit or was refused: the row's word (web/js/core/format.js)
     preview: hero?.summary || '',
     // Ask near the limit (server/guard.js): it waits, held before it started or was sent.
@@ -288,7 +290,7 @@ export function summarize(s, store) {
     ...(last?.status === 'held' && { held: (({ kind, label, used, to, line, resetsAt, until, waiting, harness, project }) => (project ? { kind, project: { count: project.items.length, ...(project.changed && { changed: true }), ...(project.setup && { setup: project.setup }) } } : harness ? { kind, harness } : { kind, label, used, to, line, resetsAt, until, ...(waiting && { waiting: true }) }))(last.held) }),
     ...(s.watch && { watch: watchView(s) }), // a page its agent keeps updating beside it (server/watch.js)
     ...(s.tags?.length && { tags: s.tags }), // topic words its agent set with wisp_tag, for search (web/js/tags.js)
-    live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || (last.by === 'compact' ? 'Compacting' : 'Starting up') : s.auto?.busy ? s.auto.label : s.goal?.status === 'checking' ? 'Checking the goal' : '',
+    live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || (last.by === 'compact' ? 'Compacting' : 'Starting up') : waitingOn ? waitingOn : s.auto?.busy ? s.auto.label : s.goal?.status === 'checking' ? 'Checking the goal' : '',
     term: openTerms.has(s.id) || undefined, // taken over in the page: a terminal is open
     ...(s.tui && { tui: true }), // a terminal session: it opens on the agent's own CLI (services/tui.js)
     asks: !!s.ask || !!last?.presentation?.blocks?.some((b) => b.type === 'question'),
@@ -1218,7 +1220,23 @@ export class Runner extends EventEmitter {
     const d = lead?.turns.at(-1)?.delegations?.find((x) => x.owed && x.turnId === turn.id);
     if (!d) return;
     if (turn.status === 'stopped') delete d.owed;
-    else if (lead.turns.at(-1).status !== 'running') this.#reportBack(lead);
+    if (lead.turns.at(-1).status === 'running') return;
+    if (turn.status !== 'stopped') this.#reportBack(lead);
+    // The last one it waited on was stopped (you stopped it, or the lead with it): nothing comes
+    // back, so the lead lands. You did it, so nobody is pinged.
+    else if (lead.state === 'running' && !this.live.has(lead.id) && !lead.auto?.busy && lead.goal?.status !== 'checking' && !this.deleting.has(lead.id) && !this.#awaiting(lead).length) this.settle(lead, { quiet: true });
+  }
+
+  // The lead's last turn's delegations still at work whose report it hasn't had. While there are
+  // any, the lead isn't finished: it stays in Working and #reportBack starts its follow-up. One
+  // whose session is gone (deleted), or whose turn says running with no run behind it, isn't waited on.
+  #awaiting(lead) {
+    if (lead.parentId) return [];
+    return (lead.turns.at(-1)?.delegations || []).filter((d) => {
+      if (!d.owed || this.deleting.has(d.sessionId)) return false;
+      const child = this.store.get(d.sessionId);
+      return child?.turns.find((t) => t.id === d.turnId)?.status === 'running' && (this.live.has(child.id) || !!child.relay);
+    });
   }
 
   // Sends the lead the reports of its finished delegations that it hasn't read, as one follow-up
@@ -1231,11 +1249,13 @@ export class Runner extends EventEmitter {
     for (const d of done) delete d.owed;
     const reports = done.map((d) => delegationReport(d, this.store.get(d.sessionId), adapters)).join('\n\n---\n\n');
     const waiting = lead.queue.find((q) => q.reports);
+    // Looked at before a follow-up starts here: that one is the run, not one lingering.
+    const lingering = !ending && this.live.get(lead.id);
     if (waiting) waiting.text += `\n\n---\n\n${reports}`;
-    else if (ending || this.live.has(lead.id)) lead.queue.push({ id: newId(), text: `${REPORTS_BACK}\n\n${reports}`, attachments: [], by: 'wisp', reports: true });
+    else if (ending || lingering) lead.queue.push({ id: newId(), text: `${REPORTS_BACK}\n\n${reports}`, attachments: [], by: 'wisp', reports: true });
     else this.#startTurn(lead, `${REPORTS_BACK}\n\n${reports}`, [], { by: 'wisp', reports: true });
     // A CLI only lingering after its result: let it go so the follow-up starts now.
-    if (!ending && this.live.has(lead.id)) this.live.get(lead.id).release();
+    if (lingering) lingering.release();
     this.#touch(lead);
     return true;
   }
@@ -1825,11 +1845,14 @@ export class Runner extends EventEmitter {
     // A follow-up starts as soon as this run lets go: stay in Working rather than flash through Needs you.
     const handing = this.live.has(session.id) && (interrupted || (session.queue.length > 0 && !session.queueHeld));
     if (handing) this.handing.add(session.id);
+    // Delegates it sent off (wait: false) still at work: the lead isn't finished. It stays in
+    // Working, unread and unannounced, until their report comes back and that follow-up ends.
+    const owes = !ev.stopped && !handing && this.#awaiting(session).length > 0;
     const compact = turn.by === 'compact';
-    const checks = !handing && !compact && !!this.pipeline?.wants(session, turn, ev);
+    const checks = !handing && !owes && !compact && !!this.pipeline?.wants(session, turn, ev);
     // No Auto step: the goal (if any) is checked now. With one, Auto's settle() hands over to it.
-    const goal = !handing && !checks && !compact && !!this.goals?.wants(session, turn, ev);
-    const holding = checks || goal;
+    const goal = !handing && !owes && !checks && !compact && !!this.goals?.wants(session, turn, ev);
+    const holding = checks || goal || owes;
     session.state = holding || handing ? 'running' : 'review';
     session.unread = !holding && !handing;
     // At a usage limit with Wait for the reset on (and Auto not moving it elsewhere): the task waits
@@ -1857,10 +1880,10 @@ export class Runner extends EventEmitter {
     this.emit('ended', { session, turn, interrupted, errorText: ev.isError && !ev.stopped ? ev.text : '' });
     this.#touchLead(session);
     if (session.parentId) this.#delegateDone(session, turn);
-    if (holding) setImmediate(() => (checks ? this.pipeline.run(session, turn) : this.goals.run(session, turn)));
+    if (checks || goal) setImmediate(() => (checks ? this.pipeline.run(session, turn) : this.goals.run(session, turn)));
     // The follow-up starts right away; don't notify for the run it replaced. A subagent reports
     // to its lead, not to the user.
-    else if (!handing && !quiet && !parked && !session.parentId && !session.delegated && !this.deleting.has(session.id)) this.emit('finished', { session: summarize(session, this.store) });
+    else if (!holding && !handing && !quiet && !parked && !session.parentId && !session.delegated && !this.deleting.has(session.id)) this.emit('finished', { session: summarize(session, this.store) });
   }
 
   // The run hit its account's usage limit: that account is marked until its reset, and the turn
