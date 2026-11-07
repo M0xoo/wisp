@@ -352,12 +352,14 @@ test('an edit never runs: an old comment, a comment from the cursor’s second, 
 
   // Seen as a plain comment, which moves the cursor to its very second, then edited.
   const p = comment(n, 'just a comment');
-  await quiet(n);
-  assert.equal(Date.parse(repoState(PRIVATE).since) >= Date.parse(p.created_at), true);
+  await until(() => repoState(PRIVATE).seen.includes(String(p.id)));
+  repoState(PRIVATE).since = p.created_at;
   await sleep(1100);
   Object.assign(p, { body: '/wisp edited after', updated_at: iso() });
   write();
-  await quiet(n);
+  await quiet(n, PUBLIC); // on the other repo: a comment on this one would move the cursor on
+  await until(() => Date.parse(repoState(PRIVATE).since) >= Date.parse(p.updated_at));
+  await quiet(n, PUBLIC);
   assert.equal(tasksOn(n).length, 0);
 
   // Handled, then edited.
