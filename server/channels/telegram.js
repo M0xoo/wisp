@@ -39,6 +39,7 @@ export class Telegram extends Channel {
     this.limit = new RateLimit();
     this.bot = null; // { token, name }: who this bot is, for "@wispbot …" in a group
     this.listed = ''; // the token whose commands Telegram has
+    this.wire = Promise.resolve(); // webhook calls, one at a time
   }
 
   get cfg() {
@@ -120,7 +121,6 @@ export class Telegram extends Channel {
     const box = boxGrid();
     if (!box && !this.cfg.hook) return false;
     const timed = () => AbortSignal.any([signal, AbortSignal.timeout(15_000)]);
-    await this.leaving;
     while (!signal.aborted) {
       try {
         let found = null;
@@ -155,23 +155,35 @@ export class Telegram extends Channel {
     return true;
   }
 
+  // In order: a switch flipped while Telegram answers mustn't cross with what's on its way.
+  #inTurn(fn) {
+    const run = this.wire.then(fn, fn);
+    this.wire = run.catch(() => {});
+    return run;
+  }
+
   // Only when Telegram doesn't already have it: messages held at the grid carry the secret they came
   // with, so a new one on every wake would have the box refuse them all.
-  async #setHook(url, timed) {
-    const had = this.cfg.hook;
-    if (had?.url === url && (await this.api('getWebhookInfo', {}, timed())).url === url) return;
-    const secret = randomBytes(32).toString('hex');
-    await this.api('setWebhook', { url, secret_token: secret, allowed_updates: UPDATES }, timed());
-    this.cfg.hook = { url, secret, seen: [] };
-    this.hub.store.saveConfig();
+  #setHook(url, timed) {
+    return this.#inTurn(async () => {
+      const token = this.cfg.token;
+      const had = this.cfg.hook;
+      if (had?.url === url && (await this.api('getWebhookInfo', {}, timed())).url === url) return;
+      const secret = randomBytes(32).toString('hex');
+      // Not cut off by the switch: Telegram may have taken it, and then it has to be undone.
+      await this.api('setWebhook', { url, secret_token: secret, allowed_updates: UPDATES }, AbortSignal.timeout(15_000), token);
+      if (this.ready && this.cfg.token === token) {
+        this.cfg.hook = { url, secret, seen: [] };
+        this.hub.store.saveConfig();
+      } else await this.api('deleteWebhook', {}, undefined, token); // switched off meanwhile: update() saw no webhook to remove
+    });
   }
 
   // Switched off, unlinked or another bot: Telegram stops calling. token: the bot it was set on,
-  // gone from the config by now. A start that follows waits for this, or its setWebhook could lose.
+  // gone from the config by now.
   unhook(token) {
-    this.leaving = this.api('deleteWebhook', {}, undefined, token).catch((err) => this.mark({ ok: false, error: `Couldn’t remove the webhook: ${err.message}`, webhook: false }));
     this.mark({ webhook: false });
-    return this.leaving;
+    return this.#inTurn(() => this.api('deleteWebhook', {}, undefined, token)).catch((err) => this.mark({ ok: false, error: `Couldn’t remove the webhook: ${err.message}`, webhook: false }));
   }
 
   // A message the grid held. Only Telegram knows this secret, and only a retry repeats an update.

@@ -42,7 +42,7 @@ const freePort = () =>
   });
 
 // Telegram: what it heard, and what it holds about the webhook.
-const tg = { calls: [], msg: 100, hook: { url: '' }, setFail: 0 };
+const tg = { calls: [], msg: 100, hook: { url: '' }, setFail: 0, setMs: 0 };
 const called = (m) => tg.calls.filter((c) => c.method === m);
 const sent = () => called('sendMessage');
 const fake = http.createServer(async (req, res) => {
@@ -53,6 +53,7 @@ const fake = http.createServer(async (req, res) => {
   tg.calls.push({ method, ...b });
   const json = (o) => (res.writeHead(200, { 'content-type': 'application/json', connection: 'close' }), res.end(JSON.stringify(o)));
   if (method === 'setWebhook') {
+    if (tg.setMs) await sleep(tg.setMs);
     if (tg.setFail > 0) {
       tg.setFail--;
       return json({ ok: false, description: 'Bad Request: bad webhook: Failed to resolve host' });
@@ -345,6 +346,28 @@ test('unlink takes the webhook down and a new one goes up; off takes it down for
   assert.equal(called('getUpdates').length, 0);
   // While off, a message the grid still had is refused, not handled.
   assert.equal((await deliverDirect(msg('/new off'), 'x')).status, 409);
+  done();
+});
+
+test('switched off while setWebhook is on its way: the webhook doesn’t stay behind', async () => {
+  const done = await awake();
+  tg.setMs = 400;
+  const sets = called('setWebhook').length;
+  const hooked = () => g.ok('/remote', { method: 'PUT', body: { telegram: { enabled: true } } });
+  await hooked();
+  await until(() => called('setWebhook').length === sets + 1, { what: 'setWebhook on its way' });
+  await g.ok('/remote', { method: 'PUT', body: { telegram: { enabled: false } } }); // Telegram hasn't answered yet
+  await until(() => tg.calls.at(-1).method === 'deleteWebhook' && tg.hook.url === '', { what: 'deleteWebhook after it' });
+  assert.equal((await g.ok('/remote')).telegram.webhook, '');
+  // And on, off, on: what's left set is the last one, with the secret wisp kept.
+  await hooked();
+  await until(() => called('setWebhook').length === sets + 2, { what: 'the second' });
+  await g.ok('/remote', { method: 'PUT', body: { telegram: { enabled: false } } });
+  await hooked();
+  tg.setMs = 0;
+  await until(async () => tg.hook.url && (await g.ok('/remote')).telegram.webhook === `••••${tg.hook.secret.slice(-4)}`, { what: 'one webhook, wisp’s' });
+  await g.ok('/remote', { method: 'PUT', body: { telegram: { enabled: false } } });
+  await until(() => tg.hook.url === '', { what: 'off again' });
   done();
 });
 

@@ -297,17 +297,19 @@ test('an account switched off or deleted: its URL is a 404, and what it held goe
 });
 
 test('a channel never keeps a box awake: delivery touches nothing, and it sleeps on its own timer', async () => {
-  const idleMs = 2500; // room for a loaded machine to boot it and deliver several first
-  const g = await boot({ hostd: { idleMs, checkMs: 40 } });
+  const g = await boot({ hostd: { checkMs: 40 } });
   const ada = g.user('ada');
   const { url } = await g.url(ada);
   const stops = [];
   g.grid.hostd.on('change', (e) => e.state === 'stopped' && stops.push(e.event));
-  // Woken by a message: that wake is the one use it counts.
   await g.post(ada, url, update(1));
   await until(() => g.got(ada).length === 1, { what: 'the first delivery' });
+  // Its idle clock starts now, not during a boot that takes who knows how long on a loaded machine.
+  const idleMs = 3000;
   const inst = g.grid.hostd.inst.get(ada.id);
+  g.grid.hostd.touch(ada.id);
   const touched = inst.lastTouch;
+  g.grid.hostd.idleMs = idleMs;
   // Messages keep coming, faster than idleMs: each lands, none of them moves the clock.
   const t = Date.now();
   let id = 2;
