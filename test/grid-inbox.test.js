@@ -902,6 +902,54 @@ test('only a box sets a key, only 32 bytes of hex, and only for a channel that h
   assert.equal(tg.status, 404);
 });
 
+// Every small-order point Ed25519 can name, with x's sign bit both ways: with one as the key, a single
+// fixed signature verifies any message, and Node 22 lets it through.
+const SMALL_ORDER = ['00'.repeat(32), `01${'00'.repeat(31)}`, '26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05', 'c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a', `ec${'ff'.repeat(30)}7f`, `ed${'ff'.repeat(30)}7f`, `ee${'ff'.repeat(30)}7f`];
+const smallOrder = SMALL_ORDER.flatMap((k) => [k, `${k.slice(0, 62)}${(parseInt(k.slice(62), 16) | 0x80).toString(16).padStart(2, '0')}`]);
+
+test('a small-order key is refused, with its sign bit either way, and a fixed signature opens nothing', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const u = g.user('ada');
+  for (const key of smallOrder) assert.equal((await setKey(g, u, key)).status, 400, key);
+  const { url } = await g.url(u, 'discord');
+  g.grid.secrets.seal(u.id, 'channel-key:discord', `01${'00'.repeat(31)}`); // one that got in before this rule
+  const body = JSON.stringify(interaction('50'));
+  const ts = String(Math.floor(Date.now() / 1000));
+  const r = await g.post(u, url, body, { 'x-signature-ed25519': `01${'00'.repeat(63)}`, 'x-signature-timestamp': ts });
+  assert.equal(r.status, 401);
+  assert.equal(g.rows(u).length, 0);
+});
+
+test('a signature in capitals is the same interaction: one row, the id is what was verified', { timeout: 30_000 }, async () => {
+  const g = await boot({ ...NEVER });
+  const { u, send, keys } = await discordUser(g);
+  const body = JSON.stringify(interaction('51'));
+  const headers = signedBy(keys.privateKey, body);
+  assert.equal((await send(body, headers)).status, 200);
+  const shouted = { ...headers, 'x-signature-ed25519': headers['x-signature-ed25519'].toUpperCase() };
+  assert.equal((await send(body, shouted)).status, 200, 'it still verifies');
+  await sleep(100);
+  assert.equal(g.rows(u).length, 1);
+  assert.equal(g.rows(u)[0].event_key, 'discord:51');
+});
+
+test('Discord’s rows last 15 minutes, Telegram’s their hour, whatever the sweep finds', { timeout: 30_000 }, async () => {
+  const g = await boot({ ...NEVER });
+  const { u, send } = await discordUser(g);
+  const { url } = await g.url(u, 'telegram');
+  await g.post(u, url, update(7));
+  await send(interaction('52'));
+  await send(interaction('53'));
+  await sleep(100);
+  const row = (key) => g.rows(u).find((r) => r.event_key.startsWith(key));
+  g.grid.db.run('UPDATE channel_inbox SET at = ? WHERE id = ?', Date.now() - 15 * 60_000 - 1000, row('discord:52').id);
+  g.grid.db.run('UPDATE channel_inbox SET at = ? WHERE id = ?', Date.now() - 14 * 60_000, row('discord:53').id);
+  g.grid.db.run('UPDATE channel_inbox SET at = ? WHERE id = ?', Date.now() - 16 * 60_000, row('telegram:').id);
+  g.grid.inbox.sweep();
+  assert.deepEqual(g.rows(u).map((r) => r.event_key.split(':').slice(0, 2).join(':')).sort(), ['discord:53', 'telegram:7']);
+  assert.equal(g.grid.db.get("SELECT dropped FROM channel_urls WHERE user_id = ? AND channel = 'discord'", u.id).dropped, 1, 'told, as anything lost is');
+});
+
 test('an empty key takes it away, and rotating the URL keeps it', { timeout: 30_000 }, async () => {
   const g = await edgeBoot();
   const { u, send, keys } = await discordUser(g);

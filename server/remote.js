@@ -12,7 +12,7 @@ import { KIND } from './channels/channel.js';
 import { boxGrid } from './channels/box.js';
 import { inBox, newLinkCode } from './channels/conversation.js';
 import { Discord, NO_HUB as NO_DISCORD_HUB, PERMISSIONS, inviteUrl } from './channels/discord.js';
-import { PUBLIC_KEY } from './channels/discord-sign.js';
+import { isPublicKey } from './channels/discord-sign.js';
 import { Email } from './channels/email.js';
 import { Github } from './channels/github.js';
 import { ranInstead } from './channels/lists.js';
@@ -365,7 +365,7 @@ export class Remote {
       if (appId && !/^\d{5,25}$/.test(appId)) throw bad('The application ID is a long number: Developer Portal → General Information.');
       // Another bot, another key: only the paste that follows a first token keeps one.
       const publicKey = String(body.discord.publicKey ?? (changed && prev.token ? '' : prev.publicKey) ?? '').trim().toLowerCase();
-      if (publicKey && !PUBLIC_KEY.test(publicKey)) throw bad('The public key is 64 hex characters: Developer Portal → General Information.');
+      if (publicKey && !isPublicKey(publicKey)) throw bad('The public key is 64 hex characters: Developer Portal → General Information.');
       const relink = body.discord.unlink || changed;
       c.discord = { ...prev, enabled, token, publicKey, appId, senders: relink ? [] : prev.senders || [], linkCode: relink || !prev.linkCode ? newLinkCode() : prev.linkCode };
       if (changed) this.channels.discord.reset();

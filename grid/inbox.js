@@ -29,7 +29,7 @@
 // reaches a box and never a computer: a computer has no Box secret to set it with.
 
 import { createHash, randomBytes } from 'node:crypto';
-import { PUBLIC_KEY, discordEdge } from '../server/channels/discord-sign.js';
+import { discordEdge, isPublicKey } from '../server/channels/discord-sign.js';
 import { sha256, token } from './secrets.js';
 
 export const IN_PATH = /^\/_in\/([A-Za-z0-9_-]{32,64})$/;
@@ -43,7 +43,7 @@ const CHANNELS = {
   slack: { headers: ['x-slack-signature', 'x-slack-request-timestamp'], eventId: (j) => j?.event_id, live: (j) => j?.type === 'url_verification', skip: (j) => slackNoise(j?.event) },
   // Lower case: mail systems may fold a local part. 160 bits, and it fits one (64 characters at most).
   email: { headers: [], eventId: (j) => j?.messageId || undefined, mint: () => randomBytes(20).toString('hex') },
-  discord: { headers: ['x-signature-ed25519', 'x-signature-timestamp'], eventId: (j) => j?.id, edge: discordEdge },
+  discord: { headers: ['x-signature-ed25519', 'x-signature-timestamp'], eventId: (j) => j?.id, edge: discordEdge, ttlMs: 15 * 60_000 }, // an interaction's token is dead by then
 };
 export const BODY_MAX = 256 * 1024;
 const READ_MS = 15_000; // a body that takes longer isn't a webhook
@@ -91,9 +91,11 @@ const parsed = (body) => {
 // channel_inbox's key for a request: the channel's own event id, else the body's hash, and what it
 // came with. An id alone could be taken: anyone holding the URL could post the next update_id with a
 // bad secret, and the real update would hit that row and vanish. A retry that repeats both is the
-// same row; one signed anew (Slack may) is a row of its own, and the box's seen list stops it.
+// same row; one signed anew (Slack may) is a row of its own, and the box's seen list stops it. With
+// an edge the id was verified here, so it's the key alone: a signature can be spelt more than one way.
 function eventKey(channel, j, body, headers) {
   const id = CHANNELS[channel].eventId(j);
+  if (CHANNELS[channel].edge && id) return `${channel}:${id}`;
   return `${channel}:${id ?? createHash('sha256').update(body).digest('base64url')}:${sha256(headers)}`;
 }
 
@@ -240,12 +242,15 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delive
     }
   }
 
-  // Past their hour: gone. One that never got there counts as lost; a delivered one just stops
-  // guarding against a retry.
+  // Past their hour, or their channel's own time: gone. One that never got there counts as lost; a
+  // delivered one just stops guarding against a retry.
   function sweep() {
-    const before = Date.now() - opts.ttlMs;
-    for (const r of db.all('SELECT user_id, channel, size FROM channel_inbox WHERE at < ? AND done_at IS NULL', before)) lost(r.user_id, r.channel, r.size, 'expired');
-    db.run('DELETE FROM channel_inbox WHERE at < ?', before);
+    const now = Date.now();
+    for (const { channel } of db.all('SELECT DISTINCT channel FROM channel_inbox')) {
+      const before = now - Math.min(CHANNELS[channel]?.ttlMs ?? opts.ttlMs, opts.ttlMs);
+      for (const r of db.all('SELECT user_id, size FROM channel_inbox WHERE channel = ? AND at < ? AND done_at IS NULL', channel, before)) lost(r.user_id, channel, r.size, 'expired');
+      db.run('DELETE FROM channel_inbox WHERE channel = ? AND at < ?', channel, before);
+    }
   }
 
   // Switched off too: what it held stays in the clear until this takes it.
@@ -272,7 +277,7 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, delive
     setKey(user, channel, key) {
       if (!CHANNELS[channel].edge) throw Object.assign(new Error('not found'), { status: 404 });
       if (key === '') return secrets.drop(user.id, `channel-key:${channel}`);
-      if (typeof key !== 'string' || !PUBLIC_KEY.test(key)) throw Object.assign(new Error('A public key is 64 hex characters.'), { status: 400 });
+      if (!isPublicKey(key)) throw Object.assign(new Error('A public key is 64 hex characters.'), { status: 400 });
       secrets.seal(user.id, `channel-key:${channel}`, key.toLowerCase());
     },
 

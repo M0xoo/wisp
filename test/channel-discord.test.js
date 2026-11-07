@@ -22,6 +22,7 @@ const { startServer } = await import('../server/index.js');
 const { RateLimit, STALE_S } = await import('../server/channels/policy.js');
 const { NO_HUB, PERMISSIONS, discordText, slashCommand, slashText, snowflakeMs } = await import('../server/channels/discord.js');
 const { stripFormatting } = await import('../server/channels/grammar.js');
+const { discordSigned, isPublicKey } = await import('../server/channels/discord-sign.js');
 
 const ME = '111111';
 const STRANGER_ID = '222222';
@@ -1574,6 +1575,29 @@ test('a box: a linked click needs no callback, and a command that isn’t /wisp 
   const other = fake.interaction({ type: 2, member: { user: { id: ME } }, data: { name: 'other' } });
   assert.equal((await held(other)).status, 200);
   await until(() => fake.deletes.some((x) => x.token === other.token), { what: 'the delete' });
+});
+
+test('a small-order key: a fixed signature would verify anything, so it’s no key at all', async () => {
+  const identity = `01${'00'.repeat(31)}`;
+  assert.equal(discordSigned(identity, Buffer.from('anything'), { 'x-signature-ed25519': `01${'00'.repeat(63)}`, 'x-signature-timestamp': '1' }), false);
+  assert.equal(isPublicKey(identity), false);
+  assert.equal(isPublicKey(identity.toUpperCase()), false);
+  assert.equal(isPublicKey(`ed${'ff'.repeat(31)}`), false, 'the sign bit changes nothing');
+  assert.equal(isPublicKey(keys.hex), true);
+  await assert.rejects(api('/remote', { method: 'PUT', body: { discord: { publicKey: identity } } }), /64 hex/);
+});
+
+test('a box: strangers can’t push an id out of seen: all under 14 minutes stay, older ones go', async () => {
+  const c = srv.store.config.remote.discord;
+  c.seen = [...c.seen, snowflake(Date.now() - 20 * 60_000)];
+  const first = command(STRANGER_ID, 'one');
+  assert.equal((await held(first)).status, 403);
+  await until(() => fake.deletes.some((x) => x.token === first.token), { what: 'the delete' });
+  for (let i = 0; i < 230; i++) await held(command(STRANGER_ID, `flood ${i}`));
+  assert.ok(c.seen.includes(first.id), 'pushed out');
+  assert.ok(c.seen.every((id) => Date.now() - snowflakeMs(id) < 14 * 60_000), 'older ones go');
+  assert.equal((await held(first)).status, 403);
+  assert.equal(fake.deletes.filter((x) => x.token === first.token).length, 1, 'the repeat did nothing');
 });
 
 test('a box: past 14 minutes a row is dropped with a plain log; before that it still runs, past the 10 of a message', async () => {

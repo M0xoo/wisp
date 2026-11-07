@@ -443,6 +443,7 @@ try {
     const state = async () => (await req(`${inst(A.handle)}/_grid/state`, { headers: bearer(token) })).json?.state;
     const { publicKey, privateKey } = generateKeyPairSync('ed25519');
     const key = Buffer.from(publicKey.export({ format: 'jwk' }).x, 'base64url').toString('hex');
+    fakeDiscord.verifyKey = key;
     const put = await req(`${inst(A.handle)}/api/remote`, { method: 'PUT', headers: bearer(token), body: { discord: { enabled: true, token: fakeDiscord.token, publicKey: key } } });
     ok(put.status === 200, `PUT /api/remote → ${put.status} ${put.text.slice(0, 120)}`);
     let endpoint = '';

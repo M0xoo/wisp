@@ -50,7 +50,6 @@ const IN = { ping: 1, command: 2, component: 3, autocomplete: 4 };
 const OUT = { pong: 1, message: 4, deferred: 5, update: 6, choices: 8 };
 const THREAD_TYPES = new Set([10, 11, 12]);
 const HELD_MAX_MS = 14 * 60_000; // an interaction's token lasts 15 minutes: nothing can be said after that
-const SEEN_MAX = 200; // kept in the config: a box's memory ends when it sleeps
 const SNOWFLAKE = /^\d{1,25}$/;
 const TOKEN_GONE = new Set(['revoked', 10015, 50027]); // on a webhook: an interaction's token, past its 15 minutes
 // Refusals that may mean it's a thread already, and may not: neither one settles it (#threadFor).
@@ -589,7 +588,9 @@ export class Discord extends Channel {
     const ours = this.#ours(d, user);
     const stranger = !ours && { status: 403, body: { error: 'Not from someone linked.' } };
     if (c.seen?.includes(d.id)) return stranger || { status: 200, body: { ok: true, duplicate: true } };
-    c.seen = [...(c.seen || []), d.id].slice(-SEEN_MAX);
+    // In the config, as a box's memory ends when it sleeps. By age, not count: a stranger's flood can't
+    // push out an id, and past this age inbound refuses it anyway.
+    c.seen = [...(c.seen || []), d.id].filter((id) => Date.now() - snowflakeMs(id) <= HELD_MAX_MS);
     if (ours) c.spoke = d.channel_id;
     this.hub.store.saveConfig();
     await this.#fromInteraction(d, true).catch(this.#oops);
