@@ -134,6 +134,7 @@ export function register(r, app) {
   r.route('GET', '/remote', (c) => c.send(200, remote.view()));
   r.route('PUT', '/remote', async (c) => c.send(200, remote.update(await c.body())));
   r.route('GET', '/remote/slack/manifest', (c) => c.send(200, slackManifest()));
+  r.route('GET', '/remote/discord/invite', (c) => c.send(200, remote.discordInvite()));
   r.route('POST', '/remote/test', async (c) => {
     const sent = await remote.send({ title: '✨ wisp', text: 'Test from wisp: questions and finished tasks will show up like this.', actions: [] });
     if (!sent) return c.send(400, { error: 'Turn on ntfy or link Telegram first.' });

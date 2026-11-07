@@ -2,12 +2,13 @@
 // outbound connections only (wisp polls them, or holds a socket open), so nothing has to reach this machine.
 //
 // This is the hub: the config, the public API and the fan-out. Each channel's wire is in
-// server/channels/ (ntfy.js, telegram.js, github.js, slack.js), and what they all share is there too: policy.js (who may
+// server/channels/ (ntfy.js, telegram.js, github.js, slack.js, discord.js), and what they all share is there too: policy.js (who may
 // speak, what may leave), grammar.js and lists.js (what a message can say).
 
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { KIND } from './channels/channel.js';
 import { inBox, newLinkCode } from './channels/conversation.js';
+import { Discord, NOT_ON_A_BOX as NO_DISCORD_ON_A_BOX, PERMISSIONS, inviteUrl } from './channels/discord.js';
 import { Github } from './channels/github.js';
 import { ranInstead } from './channels/lists.js';
 import { needsWisp, scrubOut, defuse } from './channels/policy.js';
@@ -27,17 +28,21 @@ export class Remote {
   // phone: the rest of services/phone.js, what the channel layer needs of wisp.
   constructor({ store, act, launch = async () => null, onChange = () => {}, ...phone }) {
     Object.assign(this, { store, act, launch, onChange, phone });
-    this.status = { ntfy: null, telegram: null, github: null, slack: null };
+    this.status = { ntfy: null, telegram: null, github: null, slack: null, discord: null };
     this.tgElsewhere = new Map(); // Telegram message id -> session id, for sessions on a machine (server/machines.js)
     this.away = new Map(); // session id on a machine -> { channel, by, last }: what s.remote holds for one here
-    this.channels = { ntfy: new Ntfy(this), telegram: new Telegram(this), github: new Github(this), slack: new Slack(this) };
-    for (const channel of ['github', 'slack']) for (const [id, a] of Object.entries(store.config?.remote?.[channel]?.away || {})) this.away.set(id, { channel, last: null, ...a });
+    this.channels = { ntfy: new Ntfy(this), telegram: new Telegram(this), github: new Github(this), slack: new Slack(this), discord: new Discord(this) };
+    for (const channel of ['github', 'slack', 'discord']) for (const [id, a] of Object.entries(store.config?.remote?.[channel]?.away || {})) this.away.set(id, { channel, last: null, ...a });
     this.ac = null;
     this.ntfyPollMs = 4000;
     this.tgLongPoll = 25;
     this.ghPollMs = 60_000; // per repo
     this.slackBackoffMs = 1000; // the first wait after a lost connection; it doubles
     this.slackPingMs = 30_000;
+    this.discordBackoffMs = 1000; // the same
+    this.discordIdentifyMs = 5000; // Discord's limit between identifies
+    this.discordInvalidMs = 1000; // the least it waits after an invalid session
+    this.discordJitter = Math.random; // where in the first interval the first heartbeat falls
     this.tgOffset = 0;
   }
 
@@ -61,7 +66,7 @@ export class Remote {
     this.stop();
     const ac = (this.ac = new AbortController());
     const c = this.cfg;
-    const { ntfy, telegram, github, slack } = this.channels;
+    const { ntfy, telegram, github, slack, discord } = this.channels;
     if (ntfy.ready) ntfy.start(ac.signal);
     if (telegram.ready) {
       if (!c.telegram.chatId && !c.telegram.linkCode) (c.telegram.linkCode = String(randomInt(100000, 999999))), this.store.saveConfig();
@@ -69,6 +74,7 @@ export class Remote {
     }
     if (github.ready) github.start(ac.signal);
     if (slack.ready) slack.start(ac.signal);
+    if (discord.ready) discord.start(ac.signal);
   }
 
   stop() {
@@ -140,8 +146,8 @@ export class Remote {
 
   // The channels that answer where they were asked, and only there.
   #reporting() {
-    const { github, slack } = this.channels;
-    return [github, slack].filter((c) => c.ready);
+    const { github, slack, discord } = this.channels;
+    return [github, slack, discord].filter((c) => c.ready);
   }
 
   // Who a task is reported as. An ask only wisp can answer, in a subagent, a side discussion or a
@@ -246,11 +252,30 @@ export class Remote {
         box: inBox(),
         error: this.status.slack?.error || '',
       },
+      discord: {
+        enabled: !!c.discord?.enabled,
+        token: mask(c.discord?.token),
+        appId: c.discord?.appId || '',
+        connected: this.channels.discord.connected,
+        bot: this.channels.discord.me?.name || '',
+        guilds: this.channels.discord.guilds.size,
+        senders: c.discord?.senders?.length || 0,
+        linkCode: c.discord?.token ? c.discord.linkCode || '' : '',
+        box: inBox(),
+        error: this.status.discord?.error || '',
+      },
       status: this.status,
     };
   }
 
-  // PUT body: { events, ntfy: {…}, telegram: {…, unlink}, github: {…}, slack: {…, unlink} }. Masked tokens mean "unchanged".
+  // The link that adds your bot to a server, with exactly what it needs.
+  discordInvite() {
+    const appId = this.cfg.discord?.appId;
+    if (!appId) throw bad('Give the Discord application ID first, or connect the bot once: wisp learns it then.');
+    return { url: inviteUrl(appId), permissions: PERMISSIONS };
+  }
+
+  // PUT body: { events, ntfy: {…}, telegram: {…, unlink}, github: {…}, slack: {…, unlink}, discord: {…, unlink} }. Masked tokens mean "unchanged".
   update(body = {}) {
     const c = this.cfg;
     const keep = (v, prev) => (typeof v === 'string' && v.startsWith('••••') ? prev : v);
@@ -299,6 +324,19 @@ export class Remote {
       const relink = body.slack.unlink || botToken !== (prev.botToken || ''); // another workspace, other people
       c.slack = { ...prev, enabled, appToken, botToken, senders: relink ? [] : prev.senders || [], linkCode: relink || !prev.linkCode ? newLinkCode() : prev.linkCode };
       this.channels.slack.customize = true;
+    }
+    if (body.discord) {
+      const prev = c.discord || {};
+      const enabled = !!(body.discord.enabled ?? prev.enabled);
+      if (enabled && inBox()) throw bad(NO_DISCORD_ON_A_BOX);
+      const token = (body.discord.token === undefined ? prev.token : keep(body.discord.token, prev.token)) || ''; // missing = unchanged
+      if (token && !/^[\w-]+\.[\w-]+\.[\w-]+$/.test(token)) throw bad('That doesn’t look like a bot token: copy it from the Developer Portal → Bot → Reset Token.');
+      const appId = String(body.discord.appId ?? prev.appId ?? '').trim();
+      if (appId && !/^\d{5,25}$/.test(appId)) throw bad('The application ID is a long number: Developer Portal → General Information.');
+      const changed = token !== (prev.token || ''); // another bot, other people
+      const relink = body.discord.unlink || changed;
+      c.discord = { ...prev, enabled, token, appId, senders: relink ? [] : prev.senders || [], linkCode: relink || !prev.linkCode ? newLinkCode() : prev.linkCode };
+      if (changed) this.channels.discord.reset();
     }
     this.store.saveConfig();
     this.start();
