@@ -54,6 +54,8 @@ const STRANGER = 'This wisp only answers people linked to it. To link, send `lin
 const NO_LIST = 'That list isn’t shown here: see it in wisp, or ask in a DM.';
 const NO_THREAD = 'Do that in a task’s thread, or as a reply to its message.';
 const FIX = 'Check the token in wisp → Settings → Phone → Discord.';
+const WENT_WRONG = 'wisp hit an error answering that. Check in wisp before you try again.'; // others may read it: no detail
+const TOO_MANY = 'Too many tries. Wait a minute and try again.';
 // Close codes that won't change by trying again.
 const FATAL = {
   4004: `Discord refused the token. ${FIX}`,
@@ -376,13 +378,26 @@ export class Discord extends Channel {
       if (!this.tried.first(d.id)) return;
       await this.#respond(d, OUT.deferred, { flags: EPHEMERAL });
       const target = hookOf(d);
-      return this.turns.queue(d.channel_id, () => this.linking.attempt(user.id, link[1], (t) => this.#say(target, t)), this.#oops);
+      return this.turns.queue(d.channel_id, () => this.#settle(target, () => this.linking.attempt(user.id, link[1], (t) => this.#say(target, t)), TOO_MANY), this.#oops);
     }
     // A stranger in a guild gets no answer at all: Discord shows them, and only them, that it failed.
     if (!(await this.#door({ id: d.id, user: user.id, dm, say: (t) => this.#respond(d, OUT.message, { content: discordText(t), flags: EPHEMERAL | SUPPRESS_EMBEDS, allowed_mentions: { parse: [] } }) }))) return;
     await this.#respond(d, OUT.deferred); // Discord gives this three seconds
     const inThread = THREAD_TYPES.has(d.channel?.type);
-    this.turns.queue(d.channel_id, () => this.#work({ user: user.id, dm, text, target: { chat: d.channel_id, ...hookOf(d) }, anchor: null, ref: null, inThread }), this.#oops);
+    const target = { chat: d.channel_id, ...hookOf(d) };
+    this.turns.queue(d.channel_id, () => this.#settle(target, () => this.#work({ user: user.id, dm, text, target, anchor: null, ref: null, inThread })), this.#oops);
+  }
+
+  // A deferred reply shows "thinking" until it's edited, so however the work ends, it's edited.
+  // unsaid: for work that ended with nothing to say.
+  async #settle(target, work, unsaid = WENT_WRONG) {
+    try {
+      await work();
+    } catch (err) {
+      if (target.hook) await this.#say(target, WENT_WRONG).catch(() => {});
+      throw err;
+    }
+    if (target.hook) await this.#say(target, unsaid);
   }
 
   #respond(d, type, data) {
@@ -514,9 +529,13 @@ export class Discord extends Channel {
   async #say(target, text, { components } = {}) {
     const body = { content: discordText(text), allowed_mentions: { parse: [] }, flags: SUPPRESS_EMBEDS, ...(components?.length && { components }) };
     if (target.hook) {
+      const { hook } = target;
       const path = this.#original(target);
       target.hook = null;
-      return this.rest('PATCH', path, body);
+      return this.rest('PATCH', path, body).catch((err) => {
+        target.hook = hook; // still unanswered
+        throw err;
+      });
     }
     const to = `/channels/${target.chat}/messages`;
     const reply = target.reply && { message_reference: { message_id: target.reply, fail_if_not_exists: false } };

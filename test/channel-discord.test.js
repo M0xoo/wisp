@@ -387,6 +387,34 @@ test('/wisp: acked at once, options make the same parse, the reply is edited, th
   assert.match((await edited(f)).content, /^No project “nope”/, 'an option goes through the same grammar');
 });
 
+test('/wisp never stays on “thinking”: a link held back, a throw, an edit that failed', async () => {
+  const keep = ch().strangers;
+  ch().strangers = new RateLimit({ max: 0 });
+  try {
+    const d = slash('link 000000', {}, { user: STRANGER_ID, channel: `D${STRANGER_ID}`, guild_id: undefined });
+    assert.equal((await callback(d)).type, 5);
+    assert.match((await edited(d)).content, /Too many tries/);
+  } finally {
+    ch().strangers = keep;
+  }
+  const phone = hub().phone;
+  const real = phone.context;
+  phone.context = async () => {
+    throw new Error('/Users/someone/secret-project broke');
+  };
+  try {
+    const d = slash('help', {}, { channel: newRoom() });
+    const { content } = await edited(d);
+    assert.match(content, /wisp hit an error/);
+    assert.doesNotMatch(content, /secret-project/, 'others read this: only a fixed line');
+  } finally {
+    phone.context = real;
+  }
+  fake.fail('/messages/@original', { status: 500, body: { code: 0, message: 'Server error' } });
+  const d = slash('help', {}, { channel: newRoom() });
+  assert.match((await edited(d)).content, /wisp hit an error/, 'the failed edit is tried once more');
+});
+
 test('autocomplete: your own names for you, nothing for a stranger', async () => {
   const a = suggest('project', '');
   const got = (await callback(a));
