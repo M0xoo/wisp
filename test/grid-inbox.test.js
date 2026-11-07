@@ -5,7 +5,7 @@
 
 import { test as nodeTest, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateKeyPairSync, sign } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
@@ -731,7 +731,7 @@ const BUSY = { type: 4, data: { content: 'wisp is busy. Try again in a minute.',
 async function discordUser(g, handle = 'ada', linked) {
   const u = g.user(handle);
   const keys = ed25519();
-  assert.equal((await setKey(g, u, keys.hex, u, linked?.map(linkedHash))).status, 200);
+  assert.equal((await setKey(g, u, keys.hex, u, linked?.map((id) => linkedHash(id, keys.hex)))).status, 200);
   const { url } = await g.url(u, 'discord');
   const send = (body, headers) => {
     const raw = typeof body === 'string' ? body : JSON.stringify(body);
@@ -898,6 +898,15 @@ test('a guild stranger is answered here: never held, never woken, ephemeral, and
   const mine = await send(interaction('68'));
   assert.deepEqual(mine.json(), { type: 5 }, 'someone linked');
   await until(() => g.got(u).length === 1, { what: 'no strike stood in the way', timeout: 8000 });
+});
+
+test('who’s linked is keyed by the box’s own key: the plain hash every box would send matches nobody', { timeout: 30_000 }, async () => {
+  const g = await boot({ ...NEVER });
+  const { u, send, keys } = await discordUser(g);
+  assert.equal((await setKey(g, u, keys.hex, u, [createHash('sha256').update('discord:111').digest('hex')])).status, 200);
+  assert.deepEqual((await send(interaction('73'))).json(), NOT_LINKED, 'an unkeyed hash');
+  assert.equal((await setKey(g, u, keys.hex, u, [linkedHash('111', keys.hex)])).status, 200);
+  assert.deepEqual((await send(interaction('74'))).json(), { type: 5 }, 'keyed by this box’s key');
 });
 
 test('a stranger’s DM still goes to the box: a link code can only come that way', { timeout: 30_000 }, async () => {

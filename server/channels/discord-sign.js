@@ -3,7 +3,7 @@
 // grid gets this without the channel. A box can sleep past Discord's 3 s, so the grid answers first
 // (edge), and the box checks the same bytes again rather than take the grid's word.
 
-import { createHash, createPublicKey, verify } from 'node:crypto';
+import { createHmac, createPublicKey, verify } from 'node:crypto';
 
 const PUBLIC_KEY = /^[0-9a-f]{64}$/i;
 const SIGNATURE = /^[0-9a-f]{128}$/i;
@@ -17,8 +17,9 @@ const BUSY = ephemeral('wisp is busy. Try again in a minute.');
 const NO_CHOICES = { type: 8, data: { choices: [] } };
 const PER_MINUTE = { command: 120, autocomplete: 300 }; // apart: typing mustn't use up what /wisp has
 
-// How a box tells its grid who's linked, without saying who.
-export const linkedHash = (id) => createHash('sha256').update(`discord:${id}`).digest('hex');
+// How a box tells its grid who's linked, without saying who: keyed by the application's public key,
+// which both have, so the same person is another hash on every other box.
+export const linkedHash = (id, key) => createHmac('sha256', Buffer.from(String(key || ''), 'hex')).update(`discord:${id}`).digest('hex');
 
 // The y of every point of small order, sign bit clear (libsodium's list). Node 22's verify doesn't
 // check, and with one of these as the key, a single fixed signature verifies any message.
@@ -70,7 +71,7 @@ export function discordEdge({ key, raw, headers, linked = null, now = Date.now()
   } catch {}
   const type = d?.type;
   if (type === IN.ping) return { status: 200, body: { type: 1 } };
-  const stranger = !!linked && !!d?.guild_id && !linked.includes(linkedHash(d.member?.user?.id ?? d.user?.id));
+  const stranger = !!linked && !!d?.guild_id && !linked.includes(linkedHash(d.member?.user?.id ?? d.user?.id, key));
   const budget = { bucket: 'command', perMinute: PER_MINUTE.command, busy: BUSY };
   if (type === IN.command) return stranger ? NOT_LINKED : { status: 200, body: { type: 5 }, hold: true, ...budget };
   if (type === IN.component) return stranger ? { status: 200, body: { type: 6 } } : { status: 200, body: { type: 6 }, hold: true, ...budget };

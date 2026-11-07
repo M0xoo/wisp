@@ -4,7 +4,7 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateKeyPairSync, sign } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -1481,8 +1481,10 @@ test('a box: linked by /wisp in a DM, in the deferred response, no callback at a
   await until(() => fake.edits.some((e) => e.token === d.token && /^✓ Linked to wisp/.test(e.content)), { what: 'the edit' });
   assert.equal((await api('/remote')).discord.senders, 1);
   assert.equal(fake.callbacks.length, callbacks, 'the grid answered: a second answer fails');
-  await until(() => box.linked.at(-1)?.includes(linkedHash(ME)), { what: 'the grid told who’s linked' });
+  await until(() => box.linked.at(-1)?.includes(linkedHash(ME, keys.hex)), { what: 'the grid told who’s linked' });
   assert.ok(!JSON.stringify(box.linked).includes(ME), 'hashed');
+  assert.ok(!box.linked.at(-1).includes(createHash('sha256').update(`discord:${ME}`).digest('hex')), 'not the hash every box would send');
+  assert.notEqual(linkedHash(ME, keys.hex), linkedHash(ME, keypair().hex), 'keyed by the application: another bot, another hash');
 });
 
 test('a box: a command starts from the deferred state: edited, threaded, once, and a report by post', async () => {

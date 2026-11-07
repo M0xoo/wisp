@@ -286,7 +286,7 @@ export class Discord extends Channel {
     const key = this.ready ? c.publicKey : '';
     if (!key) this.connected = false;
     if (!key && !c.gridKey) return true;
-    if (!(await setChannelKey(box, this.name, key, key ? (c.senders || []).map(linkedHash) : undefined))) return false;
+    if (!(await setChannelKey(box, this.name, key, key ? (c.senders || []).map((id) => linkedHash(id, key)) : undefined))) return false;
     if (key !== c.gridKey) {
       c.gridKey = key;
       this.hub.store.saveConfig();
