@@ -13,7 +13,7 @@ import { carryDock } from './composer.js';
 import { renderLaunchChips } from './launcher.js';
 import { foreignName, inProject, machinePill, projectLabel } from './places.js';
 import { renderProjects } from './projects.js';
-import { agentById, agentName, effortLabel, harnessLogo, modelBadge } from './runners.js';
+import { agentById, agentName, effortLabel, harnessLogo, modelBadge, runVariant } from './runners.js';
 import { scrollByPx, showRow, stage, topInset } from './scroll.js';
 import { prOf, prPill, shipPill } from './ship.js';
 import { overlapPill } from './overlaps.js';
@@ -528,7 +528,7 @@ export function headPills(s, pill) {
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       ${goalPill(s)}${autoPill(s)}${overlapPill(s)}${sidePill(s)}
       ${s.shipping ? shipPill(s) : prOf(s) ? prPill(prOf(s), s.conflictFix) : ''}
-      ${s.kind === 'reminder' ? '' : s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route, s.account, crewFace(s))}
+      ${s.kind === 'reminder' ? '' : s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route, s.account, crewFace(s), s)}
       ${s.machine ? machinePill(s.machine) : ''}
       ${projectLabel(s)}
       ${s.pending ? '' : slotHtml('card.head', s)}`;
@@ -556,12 +556,16 @@ function autoPill(s) {
 function renderRunHead(n, s, { open, live, pill }) {
   const a = S.agents.find((x) => x.id === s.agent);
   const model = (s.model && a?.models?.find((m) => m.id === s.model)?.label) || s.model || 'Default model';
+  // Try it two ways: rows of one harness differ by this. It leads the row's second line, which is
+  // there either way and has the room the title doesn't, so a phone shows it too and nothing moves.
+  const variant = runVariant(s).join(' · ');
+  const varied = (text) => (variant ? `<span class="run-v">${esc(variant)} · </span>${text}` : text);
   n.card.className = `item run c-${s.color} st-${s.state} ${s.unread ? 'unread' : ''} ${open ? 'open' : ''} ${S.focus === s.id ? 'focused' : ''}`;
   paintHtml(n.head, `
     <span class="run-logo">${harnessLogo(s.agent)}</span>
     <span class="it-main">
       <span class="it-title"><b>${esc(a?.name || agentName(s.agent))}</b><span class="run-model">${esc(model)}${s.effort ? ` · ${esc(effortLabel(s.effort))}` : ''}</span></span>
-      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : `<span class="it-sub" title="${esc(subOf(s))}">${esc(subOf(s))}</span>`}
+      ${live ? `<span class="q-live ${s.state}">${varied(esc(s.live))}</span>` : open && !isSplit() ? '' : `<span class="it-sub" title="${esc(variant ? `${variant} · ${subOf(s)}` : subOf(s))}">${varied(esc(subOf(s)))}</span>`}
     </span>
     <span class="it-side">
       ${runsOf(s).some((r) => (r.machine?.id || '') !== (s.machine?.id || '')) ? `${s.machine ? machinePill(s.machine) : `<span class="q-machine" title="Runs on ${esc(HERE)}">${icon('laptop')}<span>${esc(HERE)}</span></span>`}${projectLabel(s)}` : ''}

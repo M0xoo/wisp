@@ -1175,6 +1175,15 @@ test('Compare: its table and note are parts spells can restyle or hide', () => {
   assert.ok(problems({ ...base0, parts: { 'compare.notes': { style: { color: 'var(--muted)' } } } }).length, 'a typo is refused');
 });
 
+test('Try it two ways: its button and Compare\'s what-differed line are parts', () => {
+  assert.equal(schema.PARTS['launcher.tryTwo'], '#tryTwoBtn');
+  assert.equal(schema.PARTS['compare.diff'], '.compare-modal .cmp-diff');
+  assert.equal(schema.PARTS['picker.vary'], '.picker .pk-vary');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.tryTwo', 'compare.diff', 'picker.vary'] }, parts: { 'launcher.tryTwo': { style: { color: 'var(--muted)' } }, 'compare.diff': { style: { fontSize: '14px' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['launcher.tryTwoo'] } }).length, 'a typo is refused');
+  assert.ok(problems({ ...base0, parts: { 'compare.diffs': { style: { color: 'var(--muted)' } } } }).length, 'a typo is refused');
+});
+
 test('the what-changed line is a part spells can restyle or hide', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['turn.whatChanged'] }, parts: { 'turn.whatChanged': { style: { color: 'var(--muted)' } } } }), []);
   assert.ok(problems({ ...base0, ui: { hide: ['turn.whatChange'] } }).length, 'a typo is refused');

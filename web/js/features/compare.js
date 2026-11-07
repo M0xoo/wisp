@@ -1,7 +1,7 @@
 // Compare: one task, several harnesses, side by side.
 
 import { renderPresentation } from '../blocks.js';
-import { compareRows, compareSentence, planShares } from '../compare-metrics.js';
+import { compareRows, compareSentence, differsWords, planShares } from '../compare-metrics.js';
 import { esc } from '../md.js';
 import { mentionHtml } from '../mention-text.js';
 import { api } from '../core/api.js';
@@ -13,7 +13,7 @@ import { overlay } from '../ui/overlay.js';
 import { toast, toastError } from '../ui/toast.js';
 import { renderFeed, reveal } from './feed.js';
 import { loadSessions } from './live.js';
-import { agentName, effortLabel, harnessLogo } from './runners.js';
+import { accountOf, agentById, agentName, effortLabel, harnessLogo, runVariant } from './runners.js';
 import { ctxFor } from './turns.js';
 import { ask } from '../ui/confirm.js';
 
@@ -30,6 +30,17 @@ function pillOf(f, sum) {
   return isLive(f) ? { cls: 'pill st-waiting', text: f.state === 'waiting' ? 'Asking' : 'Working' } : { cls: `pill st-${statusKey(sum)}`, text: STATUS_LABEL[statusKey(sum)] || STATUS_LABEL.done };
 }
 
+const modelName = (f, id) => (id && agentById(f.agent)?.models?.find((m) => m.id === id)?.label) || id;
+
+// Try it two ways: what differed, against run A.
+function trialLine(fulls) {
+  const trial = fulls.find((f) => f.trial)?.trial;
+  if (!trial) return '';
+  const a = fulls[0];
+  const names = { agent: agentName, model: (id) => modelName(a, id), account: (id) => accountOf(a.agent, id)?.label || id || 'Default', ...(a.model && { taskModel: modelName(a, a.model) }) };
+  return `<p class="cmp-diff${trial.differs?.length ? '' : ' same'}">${esc(differsWords(trial.differs, names))}</p>`;
+}
+
 export async function compareView(id) {
   const s0 = S.sessions.get(id);
   if (!s0?.groupId) return;
@@ -44,6 +55,7 @@ export async function compareView(id) {
     <div class="modal compare-modal" data-n="${Math.min(n, 4)}" style="--n:${n}">
       <header><h2>Compare</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       <p class="cmp-prompt"${prompt.length > 240 ? ' tabindex="0"' : ''}>${mentionHtml(esc(prompt))}</p>
+      ${trialLine(fulls)}
       <div class="cmp-scroll"${n > 3 ? ' tabindex="0" role="region" aria-label="Each run\'s numbers"' : ''}>
       <table class="cmp-table">
         <thead><tr><td></td>${runs.map((r) => `<th scope="col"><span class="cmp-run"><b class="cmp-letter">${r.letter}</b><span title="${esc(agentName(r.full.agent))}">${esc(agentName(r.full.agent))}</span></span></th>`).join('')}</tr></thead>
@@ -66,13 +78,15 @@ export async function compareView(id) {
   const grid = $('.cmp-grid', node);
   for (const r of runs) {
     const f = r.full;
-    const who = `${esc(f.model || 'Default model')}${f.effort ? ` · ${esc(effortLabel(f.effort))}` : ''}`;
+    const base = [modelName(f, f.model) || 'Default model', f.effort && effortLabel(f.effort)].filter(Boolean).join(' · ');
+    const variant = runVariant(f).join(' · ');
+    const who = esc(variant ? `${base} · ${variant}` : base);
     r.col = el(`
       <section class="cmp-col" data-id="${f.id}">
         <div class="cmp-head">
           <b class="cmp-letter">${r.letter}</b>
           <span class="rb-logo">${harnessLogo(f.agent)}</span>
-          <span class="cmp-who"><b>${esc(agentName(f.agent))}</b><small title="${who}">${who}</small></span>
+          <span class="cmp-who"><b>${esc(agentName(f.agent))}</b><small title="${who}"><span class="cmp-base">${esc(base)}</span>${variant ? `<span> · ${esc(variant)}</span>` : ''}</small></span>
           <span class="pill"><i></i> </span>
         </div>
         <div class="cmp-body"><p class="muted xs cmp-live"></p></div>
@@ -168,13 +182,18 @@ export async function compareView(id) {
     if (!a || !keep) return;
     if (a === 'open') return close(), reveal(keep);
     const others = group.filter((g) => g.id !== keep);
-    if (!(await ask(`Keep ${agentName(S.sessions.get(keep)?.agent)}'s result?\n\nThe other ${others.length === 1 ? 'run is' : `${others.length} runs are`} archived, and ${others.length === 1 ? 'its worktree is' : 'their worktrees are'} deleted with their changes.`, { ok: 'Keep this one', danger: true, anchor: e.target.closest('[data-a]') }))) return;
+    // Both runs of a Try it two ways are on one harness: only the letter tells them apart.
+    const run = runs.find((r) => r.id === keep);
+    const trial = run?.full.trial && `run ${run.letter}`;
+    if (!(await ask(`Keep ${trial || `${agentName(S.sessions.get(keep)?.agent)}'s result`}?\n\nThe other ${others.length === 1 ? 'run is' : `${others.length} runs are`} archived, and ${others.length === 1 ? 'its worktree is deleted with its changes' : 'their worktrees are deleted with their changes'}.`, { ok: 'Keep this one', danger: true, anchor: e.target.closest('[data-a]') }))) return;
     // Optimistic: the others leave the feed now; stopping and cleaning them up goes on behind.
     for (const o of others) S.sessions.set(o.id, { ...S.sessions.get(o.id), archived: true });
     close();
     renderFeed();
     reveal(keep);
-    toast(`Kept ${esc(agentName(S.sessions.get(keep)?.agent))}'s run. Ship it when you're ready.`);
+    toast(`Kept ${trial || `${esc(agentName(S.sessions.get(keep)?.agent))}'s run`}. Ship it when you're ready.`);
+    // Try it two ways remembers which it was; missing that doesn't undo the keep.
+    if (runs.some((r) => r.id === keep && r.full.trial)) await api(`/sessions/${keep}`, { method: 'PATCH', body: { trialKept: true } }).catch(toastError);
     let failed = false;
     for (const o of others) {
       if (o.state === 'running' || o.state === 'waiting') {

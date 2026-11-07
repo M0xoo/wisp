@@ -39,7 +39,7 @@
   .rr-box .runner-btn .rb-m::before { display: none; }
 }
 @container rerun (max-width: 400px) {
-  .rr-box .runner-btn .rb-m, .rr-box .runner-btn .rb-e, .rr-box .runner-btn .chev { display: none; }
+  .rr-box .runner-btn .rb-m, .rr-box .runner-btn .rb-e, .rr-box .runner-btn .rb-v, .rr-box .runner-btn .chev { display: none; }
   .rr-box .l-bar > .runner-btn { width: 30px; padding: 0; justify-content: center; } /* its logo alone, in a square */
   .rr-box .runner-btn .rb-logo { margin-right: 0; }
 }

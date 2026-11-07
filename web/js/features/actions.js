@@ -421,6 +421,8 @@ export async function rerun(id) {
   let model = agent === s.agent && models.some((m) => m.id === s.model) ? s.model : savedModel(agent);
   let effort = agent === s.agent && effortsFor(agent, model).includes(s.effort) ? s.effort : savedEffort(agent, model);
   let mode = MODES.some((m) => m.id === s.mode) ? s.mode : S.config.defaults.mode || DEFAULT_MODE.id;
+  // Try it two ways: a variant run reruns as that variant, while it stays on Claude Code.
+  let variant = agent === 'claude' ? { ...(s.subagentModel !== undefined && { subagentModel: s.subagentModel }), ...(s.skills && { skills: s.skills }) } : {};
   const files = first.attachments || [];
 
   const node = el(`
@@ -452,7 +454,7 @@ export async function rerun(id) {
     modeBtn.title = m.hint;
   };
   const runnerBtn = $('[data-a="runner"]', node);
-  const paintRunner = () => paintRunnerBtn(runnerBtn, agent, model, effort);
+  const paintRunner = () => paintRunnerBtn(runnerBtn, agent, model, effort, undefined, variant);
   // Where it runs: where it ran, unless you pick another computer.
   const placeBtn = $('[data-a="place"]', node);
   const project = projectById(S.sessions.get(id)?.projectId);
@@ -475,6 +477,7 @@ export async function rerun(id) {
         agent = here()[0].id;
         model = savedModel(agent);
         effort = savedEffort(agent, model);
+        if (agent !== 'claude') variant = {};
         paintRunner();
       }
       paintPlace();
@@ -482,8 +485,8 @@ export async function rerun(id) {
   modeBtn.onclick = () => modeMenu(modeBtn, mode, (m) => ((mode = m), paintMode()), ta);
   // Picks here only apply to this rerun; the launcher's remembered defaults are left alone.
   runnerBtn.onclick = () =>
-    runnerPicker(runnerBtn, { agent, model, effort, savedModel, savedEffort, places: [place], auto: true, back: ta }, (a, m, e) => {
-      [agent, model, effort] = [a, m, e];
+    runnerPicker(runnerBtn, { agent, model, effort, variant, savedModel, savedEffort, places: [place], auto: true, back: ta }, (a, m, e, _account, picked) => {
+      [agent, model, effort, variant] = [a, m, e, picked || {}];
       paintRunner();
     });
 
@@ -492,7 +495,7 @@ export async function rerun(id) {
     if (!prompt) return ta.focus();
     close();
     try {
-      const body = { prompt, cwd: s.cwd, also: s.also?.map((a) => a.cwd), machine: place, agent, mode, model, effort, attachments: files.map((f) => f.id) };
+      const body = { prompt, cwd: s.cwd, also: s.also?.map((a) => a.cwd), machine: place, agent, mode, model, effort, attachments: files.map((f) => f.id), ...(agent === 'claude' && variant) };
       const next = await launchBehind({ prompt, cwd: s.cwd, runner: { agent, model, effort }, machine: place }, () => api('/sessions', { method: 'POST', body }));
       setFocus(next.id);
     } catch (err) {
