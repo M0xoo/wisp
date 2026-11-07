@@ -14,7 +14,7 @@ import { truncate } from '../util.js';
 import { Channel, sleep } from './channel.js';
 import { parseMessage, stripFormatting } from './grammar.js';
 import { LISTS, refusal } from './lists.js';
-import { RateLimit, capMode, defuse, gate, scrubOut } from './policy.js';
+import { RateLimit, capMode, defuse, gate, hideNames, noMedia, scrubOut } from './policy.js';
 
 const REPOS_FRESH_MS = 60 * 60_000;
 const ME_FRESH_MS = 60 * 60_000;
@@ -53,22 +53,6 @@ export function backoffMs(n, base, retryAfterS = 0) {
 // GitHub links an @name after any non-word character, so `.@x` and `-@x` too, which defuse keeps for
 // the sake of email addresses. A word character before it is an address, and stays.
 const noPing = (text) => text.replace(/(^|\W)@(?=[a-z0-9])/gim, '$1@​');
-
-// A public repo sees no name of yours you didn't write there yourself: a project, a folder, a machine,
-// a crew member. What you typed stays. typed: what this comment said, plus the repo's own project.
-export function hideNames(text, ctx = {}, typed = '') {
-  const said = String(typed).toLowerCase();
-  const names = [...(ctx.projects || []).flatMap((p) => [p.name, p.path]), ...(ctx.machines || []).map((m) => m.name), ...(ctx.crew || []).flatMap((m) => [m.name, m.cwd])]
-    .filter((n) => n && !said.includes(String(n).toLowerCase()))
-    .sort((a, b) => b.length - a.length);
-  let out = String(text);
-  for (const n of names) out = out.replace(new RegExp(`(?<![\\p{L}\\p{N}_-])${String(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}_-])`, 'giu'), '…');
-  return out.replace(/ · (?:on )?…/g, '');
-}
-
-// GitHub fetches an image as soon as a comment renders, so an agent could carry data out in its URL.
-// `![…]` becomes a plain link and no tag is a tag: `<img`, `<iframe`, `<style`, or any other.
-export const noMedia = (text) => String(text).replace(/!(?=\[)/g, '!\u200b').replace(/<(?=[a-z/!?])/gi, '<\u200b');
 
 const seconds = (iso) => Math.floor(Date.parse(iso) / 1000);
 const nowIso = () => new Date().toISOString().replace(/\.\d+Z$/, 'Z');
