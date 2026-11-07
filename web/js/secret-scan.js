@@ -11,6 +11,8 @@ const PATTERNS = [
   ['an AWS access key', /\b(AKIA|ASIA)[0-9A-Z]{16}\b/],
   ['a Google API key', /\bAIza[0-9A-Za-z_-]{35}\b/],
   ['a Slack token', /\bxox[abposr]-[A-Za-z0-9-]{10,}/],
+  // Its first part is a user id in base64, so M, N or O and no - or _: that's what tells it from a dotted name.
+  ['a Discord bot token', /\b[MNO][A-Za-z0-9]{23,}\.[\w-]{6}\.[\w-]{27,}/],
   ['a Stripe key', /\b[sr]k_live_[A-Za-z0-9]{20,}/],
   ['an npm token', /\bnpm_[A-Za-z0-9]{36}\b/],
   ['a JSON Web Token', /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/],

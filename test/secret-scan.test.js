@@ -2,7 +2,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scanAll, scanSecrets } from '../server/secret-scan.js';
+import { redactSecrets, scanAll, scanSecrets } from '../server/secret-scan.js';
 
 test('finds keys and tokens by line, and says what they look like, never the secret', () => {
   const text = [
@@ -46,6 +46,33 @@ test('leaves ordinary briefs, placeholders and env var names alone', () => {
   assert.deepEqual(scanSecrets(text), []);
   assert.deepEqual(scanSecrets(''), []);
   assert.deepEqual(scanSecrets(undefined), []);
+});
+
+// Built here, not written out: a realistic token in a file stops the push.
+const discordToken = (id = 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTA') => [id, 'GaBc1D', 'a1B2c3'.repeat(6)].join('.');
+
+test('a Discord bot token, old and new, is one; what it’s taken out of stays', () => {
+  for (const id of ['MTIzNDU2Nzg5MDEyMzQ1Njc4', 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTA', 'OTg3NjU0MzIxMDk4NzY1NDMyMQ', 'Nzg5MDEyMzQ1Njc4OTAxMjM0NQ']) {
+    assert.deepEqual(scanSecrets(`bot: ${discordToken(id)} works`), [{ line: 1, what: 'a Discord bot token' }]);
+  }
+  const { text, hits } = redactSecrets(`DISCORD_TOKEN=${discordToken()}\nnext line`);
+  assert.equal(hits, 1);
+  assert.equal(text, 'DISCORD_TOKEN=[redacted: a Discord bot token]\nnext line');
+});
+
+test('a JWT stays a JWT, and dotted names aren’t tokens', () => {
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const jwt = [b64({ alg: 'HS256', typ: 'JWT' }), b64({ sub: '1234567890', name: 'Someone', iat: 1516239022 }), 'x'.repeat(43)].join('.');
+  assert.deepEqual(scanSecrets(jwt), [{ line: 1, what: 'a JSON Web Token' }]);
+  const dotted = [
+    'my_very_long_python_package_name.models.AnotherVeryLongClassNameForTests',
+    'some-really-long-kebab-case-name.config.another-really-long-kebab-case-name',
+    'test/channel-discord.test.js and server/channels/discord.js',
+    'com.example.application.service.impl.UserServiceImplementationFactory',
+    'www.a-very-long-subdomain-name-for-testing.github.another-very-long-name-for-it.io',
+    'See section 1.2.3 of the 2026.11.07 notes.',
+  ].join('\n');
+  assert.deepEqual(scanSecrets(dotted), []);
 });
 
 test('scanAll names where each hit is', () => {
