@@ -92,15 +92,21 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Automated** (`node qa/web.mjs`)
 
 ### WEB-07 · Agent asks a question (`ask_user`)
-- **Steps:** launch with a prompt containing `ASK`; answer in the card.
-- **Expected:** the card goes to *Needs you* with the question and options; answering sends the
-  answer to the running agent, which finishes.
+- **Steps:** launch with a prompt containing `ASK`; answer with a button in the card. Launch another
+  in Plan, pick Full auto under the reply box, type an answer in the reply box and press Enter.
+- **Expected:** the card goes to *Needs you* with the question and options, and no text box of its
+  own: the reply box says *Answer Claude Code…*. A button or the typed words go to the running agent,
+  which finishes; the reply box empties at once, the typed words are the answer (not a new turn),
+  and the Full auto pick is still there for the next follow-up.
 - **Automated**
 
 ### WEB-08 · Approve in Edits mode
-- **Steps:** launch with `APPROVE` in Edits mode.
-- **Expected:** an approval card with *Allow / Always / Deny*; *Allow* lets the run finish.
-- **Automated** (API answer, UI shows the approval)
+- **Steps:** launch with `APPROVE` in Edits mode and click *Allow*. Launch another, type *do a dry run
+  instead* in the reply box and press Enter.
+- **Expected:** an approval card with *Allow / Always / Deny* and no text box of its own; the reply
+  box says *Or say what to do instead (denies it)…*, whole at 390px. *Allow* lets the run finish;
+  the typed words deny the call and pass on to the agent (*You denied: … (“do a dry run instead”)*).
+- **Automated**
 
 ### WEB-09 · Stop a running task
 - **Steps:** launch a task that hangs (`FAKE_HANG`-style long run), press Stop.

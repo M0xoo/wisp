@@ -262,6 +262,23 @@ try {
     await p.shot('question');
     await p.getByRole('button', { name: /Yes$/ }).first().click();
     await settled(s.id, ['review', 'done']);
+    // One answer box: the card has none, the reply box answers it, whatever mode is picked under it.
+    const t = await launch({ prompt: 'ASK before you fix it', mode: 'plan' });
+    await until(async () => (await session(t.id)).state === 'waiting', { timeout: 20000, what: 'waiting state' });
+    await p.locator(`.item[data-id="${t.id}"]`).click();
+    await p.getByText('Proceed with the fix?').first().waitFor({ timeout: 5000 });
+    ok((await p.locator('.ask-card:visible input, .ask-card:visible textarea, .ask-card:visible form').count()) === 0, 'the question card has a text box of its own');
+    const reply = p.locator('.composer .reply:visible');
+    ok((await reply.getAttribute('placeholder')) === 'Answer Claude Code…', `the reply box says "${await reply.getAttribute('placeholder')}"`);
+    await p.locator('.composer .c-mode:visible').click();
+    await p.locator('button[data-mode="auto"]:visible').first().click();
+    await reply.fill('only the tests, please');
+    await reply.press('Enter');
+    ok((await reply.inputValue()) === '', 'the reply box kept the answer');
+    const answered = await settled(t.id, ['review', 'done']);
+    ok(answered.turns.length === 1 && answered.turns[0].activity.some((a) => a.label === 'You answered: only the tests, please'), 'the typed words did not answer the question');
+    ok(answered.mode === 'plan', `the answer ran a new turn in ${answered.mode}`);
+    ok((await p.locator('.composer .c-mode:visible').textContent()).includes('Full auto'), 'the Full auto pick went with the answer');
     p.clean();
   });
 
@@ -273,6 +290,18 @@ try {
     await p.shot('approval');
     await p.getByRole('button', { name: /^\d?\s*Allow$/ }).first().click();
     await settled(s.id, ['review', 'done']);
+    // Typed in the reply box, words deny the call and pass on, as the card's old box did.
+    const t = await launch({ prompt: 'APPROVE then publish', mode: 'edits' });
+    await until(async () => (await session(t.id)).state === 'waiting', { timeout: 20000, what: 'approval' });
+    await p.locator(`.item[data-id="${t.id}"]`).click();
+    await p.getByRole('button', { name: /^\d?\s*Deny$/ }).first().waitFor({ timeout: 5000 });
+    ok((await p.locator('.ask-card:visible input, .ask-card:visible textarea, .ask-card:visible form').count()) === 0, 'the approval card has a text box of its own');
+    const reply = p.locator('.composer .reply:visible');
+    ok((await reply.getAttribute('placeholder')) === 'Or say what to do instead (denies it)…', `the reply box says "${await reply.getAttribute('placeholder')}"`);
+    await reply.fill('do a dry run instead');
+    await reply.press('Enter');
+    const denied = await settled(t.id, ['review', 'done']);
+    ok(denied.turns[0].activity.some((a) => a.label === 'You denied: run `npm publish` (“do a dry run instead”)'), 'the typed words did not deny the call');
     p.clean();
   });
 

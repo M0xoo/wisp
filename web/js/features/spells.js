@@ -15,7 +15,7 @@ import { overlay } from '../ui/overlay.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { renderPresentation, setBlockFallback } from '../blocks.js';
 import { draftInto, sendReply } from './composer.js';
-import { CARD_HEAD_ORDER, PARTS, fillTemplate, scriptBody, whenMatches } from '../spell-schema.js';
+import { ANSWER_BOX_HIDING, CARD_HEAD_ORDER, PARTS, fillTemplate, hideSelector, scriptBody, whenMatches } from '../spell-schema.js';
 
 // --- which spells apply ----------------------------------------------------------------------
 
@@ -501,11 +501,16 @@ function styleSheet(spells) {
   for (const s of spells) {
     for (const [k, v] of Object.entries(s.ui?.tokens || {})) root.push(`${k}: ${v};`);
     for (const [k, v] of Object.entries(s.ui?.dark || {})) dark.push(`${k}: ${v};`);
-    for (const h of s.ui?.hide || []) if (PARTS[h]) css.push(`${PARTS[h]} { display: none !important; }`);
+    for (const h of s.ui?.hide || []) if (PARTS[h]) css.push(`${hideSelector(h)} { display: none !important; }`);
     for (const [name, p] of Object.entries(s.parts || {})) {
       const sel = PARTS[name];
       if (!sel) continue;
-      if (p.style && Object.keys(p.style).length) css.push(`${sel} { ${Object.entries(p.style).map(([k, v]) => `${k}: ${v} !important;`).join(' ')} }`);
+      // What would hide the reply box goes through hideSelector: it stays while its task asks.
+      const style = Object.entries(p.style || {});
+      const hiding = hideSelector(name) !== sel ? style.filter(([k]) => ANSWER_BOX_HIDING.includes(k)) : [];
+      const rest = style.filter((kv) => !hiding.includes(kv));
+      if (rest.length) css.push(`${sel} { ${rest.map(([k, v]) => `${k}: ${v} !important;`).join(' ')} }`);
+      if (hiding.length) css.push(`${hideSelector(name)} { ${hiding.map(([k, v]) => `${k}: ${v} !important;`).join(' ')} }`);
       if (p.props?.monospace) css.push(`${sel} { font-family: var(--mono) !important; }`);
       if (p.props?.fontSize) css.push(`${sel} { font-size: ${p.props.fontSize}px !important; }`);
       if (p.props?.rows) css.push(`${sel} { min-height: calc(${p.props.rows} * 1.5em + 12px) !important; }`);

@@ -40,7 +40,7 @@ import { parseWhen } from '../when.js';
 import { ownSend } from '../tail.js';
 import { addPlan, aheadLabel, followUpItems, planAsk, planSaid, scheduleFollowUp, timeMenu, whenTip } from './later.js';
 import { keyedRows, queuedItems } from './queued.js';
-import { sendFollowUp } from './reply-send.js';
+import { answersAsk, sendFollowUp } from './reply-send.js';
 import { hideHold, holdNow, showHold } from './hold.js';
 import { micFor, micHtml } from './dictate.js';
 import { commentCount, commentTray, paintCommentTray, restoreComments, takeComments, withPending } from './comments.js';
@@ -487,13 +487,15 @@ export function updateDock(id) {
   const tour = s.agent === 'wisp';
   const btw = btwTipShown() ? '' : '. /btw asks'; // the working panel's tip says it while it shows
   ta.disabled = tour;
+  // The box answers the task's question or approval: a spell's hide waits (spell-schema.js, ANSWER_BOX).
+  ta.closest('.composer')?.classList.toggle('c-asking', !!s.ask && !tour);
   ta.placeholder = tour
     ? 'This is the tour — launch a real wisp from the box at the top'
     : s.ask
       ? s.ask.clash
         ? `Or say what to do instead (keeps ${s.ask.clash.by ? 'its' : 'main’s'} version)…`
         : s.ask.permission
-        ? `Or tell ${name} what to do instead (denies this call)…`
+        ? 'Or say what to do instead (denies it)…' // fits a phone's box, as the clash card's does
         : `Answer ${name}…`
       : S.sessions.get(id)?.term
         ? `${name} is open in a terminal: carry on there, or end it to follow up here. /btw asks on the side`
@@ -717,8 +719,9 @@ export async function sendReply(id, text, { confirm = false } = {}) {
     const notes = takeComments(id);
     return moveWithReply(id, notes.length ? withPending(id, text, notes) : text, { attachments, mode, run, team, place, notes, said: text });
   }
-  // An answer goes to the run that asked; a new mode, harness or team needs a new run, so that's a follow-up.
-  const answering = !!s.ask && !attachments.length && !mode && !run && !team;
+  // A typed reply answers the question or approval (the card has no box of its own): it goes to the
+  // run that asked, and a mode, harness or team picked here waits for the next follow-up.
+  const answering = answersAsk(s.ask, { attachments });
   // Near the limit (features/hold.js): it waits for a yes, with the draft still in the box.
   const holdRow = n && $('.c-hold', n.card);
   const who = { agent: run?.agent || s.agent, account: run?.account ?? s.account ?? '' };
@@ -740,20 +743,22 @@ export async function sendReply(id, text, { confirm = false } = {}) {
   // (it may first have to bring back an archived worktree, or reach another machine).
   if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
   S.drafts.delete(id);
-  S.replyModes.delete(id);
-  S.replyRunners.delete(id);
-  S.replyTeams.delete(id);
+  if (!answering) {
+    S.replyModes.delete(id);
+    S.replyRunners.delete(id);
+    S.replyTeams.delete(id);
+  }
   const files = n?.tray?.take();
   // The Done when line goes with the message: the goal is checked after the turn it starts.
   const withGoal = takeReplyGoal(id);
   const unGoal = withGoal ? showGoal(id, withGoal.text, { sending: true }) : null;
-  const undo = startOptimistic(id, text, files, { answering, mode, run, team: team?.team });
+  const undo = startOptimistic(id, text, files, answering ? { answering } : { mode, run, team: team?.team });
   const interrupts = !undo && !queueing(); // no pending turn to show: the view goes to the one it starts
   if (interrupts && n) ownSend(n);
   try {
     const out = await (answering && !withGoal
       ? sendFollowUp(id, 'answer', { text })
-      : sendFollowUp(id, 'reply', { text, attachments, queue: queueing(), mode, ...run, ...(team && { subagents: team.team }), ...(withGoal && { goal: { text: withGoal.text } }), ...(confirm && { confirmLimit: true }) }));
+      : sendFollowUp(id, 'reply', { text, attachments, queue: queueing(), ...(!answering && { mode, ...run, ...(team && { subagents: team.team }) }), ...(withGoal && { goal: { text: withGoal.text } }), ...(confirm && { confirmLimit: true }) }));
     // A wisp on another computer from before goals rode on follow-ups sends it but drops the goal.
     if (withGoal && !out?.goal) {
       unGoal();

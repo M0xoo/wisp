@@ -173,6 +173,13 @@ A task's actions are offered in several places: the right-click menu, the open t
 - The clash card (`/side`) says each thing once, so its answers sit above the reply box on a phone:
   no second box for the main task's lines when the diff already shows them, and no text box of its
   own, the reply box says *Or say what to do instead*.
+- **Questions and approvals have one answer box: the reply box.** Their cards hold the question,
+  its context and its buttons, never a text box of their own. What's typed in the reply box answers
+  the question, or denies the approval with those words, whatever the task's mode and whatever mode,
+  harness or team is picked under the box (those wait for the next follow-up). Its placeholder says
+  so in words that fit a phone: *Answer Claude Code…*, *Or say what to do instead (denies it)…*. It
+  is optimistic like a button: the card goes at once and comes back with a toast if refused. A spell
+  that hides `composer` or `composer.input` doesn't hide it while a task waits on an answer.
 
 ## wisp Grid's Home and Account
 

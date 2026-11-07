@@ -1078,6 +1078,8 @@ function renderAskCard(s) {
   if (a.connector) return renderConnectorCard(s);
   if (a.clash) return renderClashCard(s);
   const p = a.permission;
+  // One answer box, the reply box under the card: what's typed there answers the question, or denies
+  // the approval with those words (composer.js, answersAsk). The card holds the question and its buttons.
   // A live approval: the agent is paused on a tool call its permissions don't allow by themselves.
   const node = p
     ? el(`
@@ -1087,7 +1089,6 @@ function renderAskCard(s) {
       ${p.detail && !a.question.includes(p.detail) ? `<pre class="perm-detail">${esc(p.detail)}</pre>` : ''}
       ${a.context ? `<p class="q-context">${esc(a.context)}</p>` : ''}
       <div class="q-opts">${a.options.map((o, i) => `<button class="opt ${i === 0 ? 'go' : i === a.options.length - 1 ? 'no' : ''}" data-i="${i}"><span class="k">${i + 1}</span>${esc(o)}</button>`).join('')}</div>
-      <form class="q-own"><input class="input" placeholder="Or say what to do instead (denies this call)…"><button class="ghost sm">Send</button></form>
     </div>`)
     : el(`
     <div class="ask-card">
@@ -1095,7 +1096,6 @@ function renderAskCard(s) {
       <p class="q-text">${esc(a.question)}</p>
       ${a.context ? `<div class="prose q-context">${md(a.context)}</div>` : ''}
       ${a.options?.length ? `<div class="q-opts">${a.options.map((o, i) => `<button class="opt" data-i="${i}"><span class="k">${i + 1}</span>${esc(o)}</button>`).join('')}</div>` : ''}
-      <form class="q-own"><input class="input" placeholder="${a.options?.length ? 'Or answer in your own words…' : 'Your answer…'}"><button class="primary sm">Answer</button></form>
     </div>`);
   const answer = async (text) => {
     if (!text.trim()) return;
@@ -1114,7 +1114,6 @@ function renderAskCard(s) {
     const b = e.target.closest('.opt');
     if (b) answer(a.options[b.dataset.i]);
   });
-  $('form', node).onsubmit = (e) => (e.preventDefault(), answer($('input', node).value));
   return node;
 }
 

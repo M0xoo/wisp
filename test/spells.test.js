@@ -1145,3 +1145,26 @@ test('the no-output line is a part spells can restyle or hide', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['turn.noOutput'] }, parts: { 'turn.noOutput': { style: { color: 'var(--muted)' } } } }), []);
   assert.ok(problems({ ...base0, ui: { hide: ['turn.noOutputs'] } }).some((x) => /turn\.noOutputs/.test(x)), 'a typo is refused');
 });
+
+test('one answer box: the reply box is where a question is answered, so a spell can hide it only while nothing is asked', () => {
+  // No part ever named the ask card's own box (questions and approvals are never parts): nothing to keep mapped.
+  for (const [name, sel] of Object.entries(schema.PARTS)) assert.doesNotMatch(sel, /q-own|ask-card|q-opts/, name);
+  // The box that answers keeps its names and selectors.
+  assert.equal(schema.PARTS.composer, '.composer');
+  assert.equal(schema.PARTS['composer.input'], '.composer .reply');
+  // A hide on it goes through a selector that leaves it alone while its task asks (composer.js sets .c-asking).
+  assert.equal(schema.hideSelector('composer'), '.composer:not(.c-asking)');
+  assert.equal(schema.hideSelector('composer.input'), '.composer:not(.c-asking) .reply');
+  assert.equal(schema.hideSelector('composer.attach'), schema.PARTS['composer.attach'], 'the rest of the box hides as before');
+  assert.deepEqual(schema.ANSWER_BOX_HIDING, ['display', 'opacity']);
+  // The spell still loads, and the loader says so.
+  const { warnings } = normalizeSpell({ ...base0, ui: { hide: ['composer', 'composer.input'] }, parts: { composer: { style: { opacity: '0' } } } });
+  assert.equal(warnings.length, 2, warnings.join('\n'));
+  for (const h of ['composer', 'composer.input']) assert.ok(warnings.some((w) => w.startsWith(`ui.hide ${h}:`) && /still shows while a task waits on your answer/.test(w)), h);
+  assert.deepEqual(normalizeSpell({ ...base0, ui: { hide: ['composer.attach'] } }).warnings, []);
+  // The page applies it that way.
+  const src = fs.readFileSync(new URL('../web/js/features/spells.js', import.meta.url), 'utf8');
+  assert.match(src, /\$\{hideSelector\(h\)\} \{ display: none !important; \}/);
+  const comp = fs.readFileSync(new URL('../web/js/features/composer.js', import.meta.url), 'utf8');
+  assert.match(comp, /classList\.toggle\('c-asking', !!s\.ask && !tour\)/);
+});

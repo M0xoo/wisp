@@ -585,6 +585,14 @@ export const PARTS = {
   'toast.clear': '#toasts .toasts-clear',
 };
 
+// The reply box is where a question or approval is answered (the card has no box of its own), so
+// while its task asks, a spell can't take it away: hiding it, or a display or opacity on it, waits
+// for the answer. wisp sets .c-asking on the composer then (composer.js, updateDock).
+export const ANSWER_BOX = { composer: '.composer:not(.c-asking)', 'composer.input': '.composer:not(.c-asking) .reply' };
+export const ANSWER_BOX_HIDING = ['display', 'opacity'];
+// The selector a spell's hide (or a style that hides) on this part goes through.
+export const hideSelector = (part) => ANSWER_BOX[part] || PARTS[part];
+
 // The pieces of a card head, for `parts["card.head"].order`.
 export const CARD_HEAD_ORDER = { pill: '.pill:not(.pr)', pr: '.pill.pr', model: '.model-logo', machine: '.q-machine', project: '.q-proj', time: '.q-time', spells: '.sp-chip' };
 
