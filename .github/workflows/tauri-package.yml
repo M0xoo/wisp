@@ -11,7 +11,7 @@ name: tauri package
 # Each build also makes the shell alone, for a wisp from npm with no Electron (bin/desktop-shell.js):
 # wisp-shell-<mac|windows>-<arch>.tar.gz, no Node and no wisp files. tauri-shell holds them with
 # their SHA256SUMS.txt, made the way release.yml makes its own. Linux's (wisp-shell-linux-<arch>)
-# comes from the same package.mjs once Linux builds land.
+# would come from the same package.mjs; it isn't made yet, so npm on Linux still opens a browser tab.
 
 on:
   workflow_call:
