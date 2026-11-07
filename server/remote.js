@@ -259,7 +259,7 @@ export class Remote {
       const server = n.server || 'https://ntfy.sh';
       // since: where reading stopped. An id means nothing on another topic, and taps from while it was off weren't for wisp.
       const same = n.enabled && c.ntfy?.enabled && server === c.ntfy.server && (n.topic || '') === c.ntfy.topic;
-      c.ntfy = { enabled: !!n.enabled, server, topic: n.topic || '', token: n.token, ...(same && c.ntfy.since && { since: c.ntfy.since }) };
+      c.ntfy = { enabled: !!n.enabled, server, topic: n.topic || '', token: n.token, ...(same && c.ntfy.since && { since: c.ntfy.since, seen: c.ntfy.seen }) };
     }
     if (body.telegram) {
       const { options: wasOn, ...prev } = c.telegram || {};

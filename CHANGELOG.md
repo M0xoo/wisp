@@ -114,6 +114,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **A quick answer reaches your phone.** When an agent replied in plain text with no report card, Telegram and ntfy said *Ready for review.* and left the answer in wisp. The answer is now the message, cut at 1000 characters.
 
 ## [0.57.0] - 2026-11-03
+- **A phone tap can't repeat after a restart.** ntfy sends taps of the same second again, and wisp forgot which it had handled when it restarted, so a Done could close a task you had reopened since. wisp now keeps the last ids with its place in ntfy.
 
 ### Added
 

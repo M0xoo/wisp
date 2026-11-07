@@ -5,6 +5,8 @@ import { truncate } from '../util.js';
 import { Channel, CODE, KIND, sleep } from './channel.js';
 import { Seen } from './policy.js';
 
+const SEEN_KEPT = 20; // taps of one second: a person's thumb doesn't get near this
+
 export class Ntfy extends Channel {
   constructor(hub) {
     super(hub, 'ntfy');
@@ -55,7 +57,10 @@ export class Ntfy extends Channel {
       this.hub.store.saveConfig();
     };
     if (!this.hub.cfg.ntfy.since) keep(String(Math.floor(Date.now() / 1000)));
-    const seen = new Seen(); // ntfy can send a message of the same second again: going back to it would loop
+    // ntfy sends the messages of since's own second again and leaves dropping them to us: going back
+    // to one would loop, and after a restart repeat it, so the last ids are kept with since.
+    const seen = new Seen();
+    for (const id of this.hub.cfg.ntfy.seen || []) seen.first(id);
     while (!signal.aborted) {
       try {
         const { server, topic, headers } = this.#where();
@@ -67,7 +72,10 @@ export class Ntfy extends Channel {
           if (!seen.first(m.id)) continue;
           await this.#tap(m); // first: a crash here repeats a tap, which only says it was already answered, rather than losing it
           if (signal.aborted) return; // reconfigured meanwhile: this id isn't for the new topic
-          if (m.id) keep(m.id);
+          if (m.id) {
+            this.hub.cfg.ntfy.seen = [...(this.hub.cfg.ntfy.seen || []), m.id].slice(-SEEN_KEPT);
+            keep(m.id);
+          }
         }
         if (this.hub.status.ntfy?.error) this.mark({ ok: true, error: '' });
       } catch (err) {
