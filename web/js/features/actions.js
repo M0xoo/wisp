@@ -2,6 +2,7 @@
 // and the menus that offer it. Local changes apply at once and roll back if the server refuses.
 
 import { setKeepWorktree } from './worktrees.js';
+import { askAboutFolders } from './done-folders.js';
 import { laterMenuHtml, runLaterAction } from './later.js';
 import { copy } from '../blocks.js';
 import { esc } from '../md.js';
@@ -46,8 +47,11 @@ export async function toggleDone(id) {
   // Optimistic: the card moves now; a failed save puts it back.
   move(id, { ...s, state: next }, next === 'done');
   if (next === 'done') toast(`Marked done`, { action: { label: 'Undo', run: () => toggleDone(id) } });
+  const saved = api(`/sessions/${id}`, { method: 'PATCH', body: { state: next } });
+  // Done: what about the folders it leaves on disk (design/worktrees-on-done.md)? Asked on the click.
+  if (next === 'done') askAboutFolders([id], { saved });
   try {
-    await api(`/sessions/${id}`, { method: 'PATCH', body: { state: next } });
+    await saved;
   } catch (err) {
     revertSummary(id, s);
     toastError(err);
@@ -81,7 +85,9 @@ export async function taskDone(ids) {
     for (const id of ids) S.sessions.set(id, { ...S.sessions.get(id), state });
     renderFeed();
     ids.forEach(paintState);
-    Promise.all(ids.map((id) => api(`/sessions/${id}`, { method: 'PATCH', body: { state } }))).catch((err) => {
+    const saved = Promise.all(ids.map((id) => api(`/sessions/${id}`, { method: 'PATCH', body: { state } })));
+    if (state === 'done') askAboutFolders(ids, { saved }); // every run's folder in one question
+    saved.catch((err) => {
       prev.forEach((p, i) => p && revertSummary(ids[i], p));
       toastError(err);
     });

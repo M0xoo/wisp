@@ -191,6 +191,12 @@ test('the follow-up box’s Delegate button and the Delegate popover are parts s
   assert.deepEqual(normalizeSpell({ ...base0, parts: { 'composer.team': { style: { color: 'red' } } } }).spell.parts['composer.team'].style, { color: 'red' });
 });
 
+test('the panel of a lead waiting on its delegates after its turn is a part', () => {
+  assert.equal(schema.PARTS['delegate.waiting'], '#feed .w-panel.team-wait');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['delegate.waiting'] }, parts: { 'delegate.waiting': { style: { borderRadius: '6px' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['delegate.wait'] } }).some((x) => /delegate\.wait/.test(x)));
+});
+
 test('the layout switch is gone: a spell that still sets settings.view loads, with a warning', () => {
   for (const view of ['feed', 'split', 'grid']) {
     const out = normalizeSpell({ ...base0, settings: { view, theme: 'dark' } });
@@ -449,6 +455,9 @@ test('worktree cleanup: a setting with its days, and Settings → Worktrees as p
   assert.deepEqual(problems({ ...base0, settings: { worktreeMax: '40' } }), []);
   assert.deepEqual(problems({ ...base0, settings: { worktreeMax: 'off' } }), []);
   assert.ok(problems({ ...base0, settings: { worktreeMax: '100' } }).some((x) => /worktreeMax/.test(x) && /off \| 20 \| 40 \| 80/.test(x)));
+  // Done asks about the worktree: a spell may set what Mark done does with the folders.
+  for (const v of ['ask', 'remove', 'keep']) assert.deepEqual(problems({ ...base0, settings: { worktreeOnDone: v } }), []);
+  assert.ok(problems({ ...base0, settings: { worktreeOnDone: 'always' } }).some((x) => /worktreeOnDone/.test(x) && /ask \| remove \| keep/.test(x)));
   assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.worktrees.list'] } }), []);
 });
 
