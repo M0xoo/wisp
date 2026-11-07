@@ -726,6 +726,7 @@ const signedBy = (privateKey, raw, ts = Math.floor(Date.now() / 1000)) => ({ 'x-
 const interaction = (id, o = {}) => ({ id: String(id), token: 'interaction-token', application_id: '555', channel_id: 'C1', guild_id: 'G1', member: { user: { id: '111' } }, type: 2, data: { name: 'wisp', options: [{ name: 'prompt', value: 'hello' }] }, ...o });
 const setKey = (g, u, key, as = u, linked) => call(g.port, 'wisp.localhost', '/api/channels/url/key?channel=discord', { headers: { authorization: g.boxAuth(u, as), 'content-type': 'application/json' }, body: JSON.stringify({ key, linked }) });
 const NOT_LINKED = { type: 4, data: { content: 'This wisp only answers people linked to it.', flags: 64, allowed_mentions: { parse: [] } } };
+const NOT_LINKED_DM = { type: 4, data: { content: 'This wisp only answers people linked to it. To link, use `/wisp` here with `link` and the code shown in wisp → Settings → Phone → Discord.', flags: 64, allowed_mentions: { parse: [] } } };
 const BUSY = { type: 4, data: { content: 'wisp is busy. Try again in a minute.', flags: 64, allowed_mentions: { parse: [] } } };
 // One user with Discord's URL and a key the box gave the grid.
 async function discordUser(g, handle = 'ada', linked) {
@@ -909,12 +910,31 @@ test('who’s linked is keyed by the box’s own key: the plain hash every box w
   assert.deepEqual((await send(interaction('74'))).json(), { type: 5 }, 'keyed by this box’s key');
 });
 
-test('a stranger’s DM still goes to the box: a link code can only come that way', { timeout: 30_000 }, async () => {
-  const g = await edgeBoot();
+test('a stranger’s DM wakes the box only for a link code: anything else is answered here', { timeout: 30_000 }, async () => {
+  const g = await boot({ ...NEVER });
   const { u, send } = await discordUser(g, 'ada', ['111']);
-  const r = await send(interaction('69', { guild_id: undefined, member: undefined, user: { id: '222' } }));
-  assert.deepEqual(r.json(), { type: 5 });
-  await until(() => g.got(u).length === 1, { what: 'delivery' });
+  const dm = (id, o = {}) => interaction(id, { guild_id: undefined, member: undefined, user: { id: '222' }, ...o });
+  const typed = (prompt, more = []) => ({ data: { name: 'wisp', options: [{ name: 'prompt', value: prompt }, ...more] } });
+  for (const [id, words, more] of [['90', 'hello'], ['91', 'link'], ['92', 'link 12345'], ['93', 'link 123456 now'], ['94', 'link 123456', [{ name: 'project', value: 'api' }]]]) {
+    assert.deepEqual((await send(dm(id, typed(words, more)))).json(), NOT_LINKED_DM, words);
+  }
+  assert.deepEqual((await send(dm('95', { type: 3, data: { custom_id: 'x' } }))).json(), { type: 6 }, 'a click: nothing to say');
+  assert.equal(g.rows(u).length, 0, 'none held');
+  assert.deepEqual((await send(dm('96', typed(' \u200bLINK  123456 ')))).json(), { type: 5 }, 'a code, after Discord’s own formatting');
+  assert.equal(g.rows(u).length, 1);
+});
+
+test('link codes have their own small budget per sender: one stranger’s guesses cost nobody else', { timeout: 30_000 }, async () => {
+  const g = await boot({ ...NEVER, channels: { enabled: true, retryMs: 30, wakeRetryMs: 80, maxRows: 500 } });
+  const { u, send } = await discordUser(g, 'ada', ['111']);
+  const dm = (id, who) => interaction(id, { guild_id: undefined, member: undefined, user: { id: who }, data: { name: 'wisp', options: [{ name: 'prompt', value: `link ${100000 + Number(id)}` }] } });
+  for (let i = 0; i < 3; i++) assert.deepEqual((await send(dm(String(100 + i), '222'))).json(), { type: 5 });
+  const over = await send(dm('110', '222'));
+  assert.deepEqual([over.status, over.json()], [200, BUSY], 'past their few a minute');
+  assert.equal(g.rows(u).filter((r) => r.event_key === 'discord:110').length, 0);
+  assert.deepEqual((await send(dm('111', '333'))).json(), { type: 5 }, 'someone else’s code still goes');
+  for (let i = 0; i < 120; i++) await send(interaction(String(200 + i)));
+  assert.deepEqual((await send(dm('400', '444'))).json(), { type: 5 }, 'nor does the command budget hold up a link');
 });
 
 test('a guild stranger’s autocomplete never reaches a box that’s up', { timeout: 30_000 }, async () => {
