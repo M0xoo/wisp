@@ -965,8 +965,9 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
     }
   }
 
-  // A bot's webhook, which the grid owns (grid/route.js). Answered once the secret is good and before
-  // anything else happens, as with /_in. Nothing here logs the path: it holds the token.
+  // A bot's webhook, which the grid owns (grid/route.js). The 200 comes after the grid has decided and
+  // held what it's holding, so a failure gets Telegram's retry; only the forward happens after it.
+  // Nothing here logs the path: it holds the token.
   async function routeIn(req, res, p) {
     const none = () => json(res, 404, { error: 'not found' });
     if (!routes.on || req.method !== 'POST') return none();
@@ -979,8 +980,9 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
       }
       limit(`intok|${hit.user.id}|route`, 120);
       const raw = await readCapped(req, BODY_MAX);
+      const next = routes.take(hit.user, hit.route, raw);
       json(res, 200, { ok: true });
-      routes.take(hit.user, hit.route, raw).catch((err) => log(`grid: route for ${hit.user.handle}: ${err.message}`));
+      next?.().catch((err) => log(`grid: route for ${hit.user.handle}: ${err.message}`)); // not what the person said
     } catch (err) {
       if (err.status === 429) return json(res, 429, { error: err.message });
       log(`grid: route: ${err.message}`);

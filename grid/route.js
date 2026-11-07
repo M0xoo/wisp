@@ -9,8 +9,8 @@
 // sealed. A box holding the same bot token can point the webhook elsewhere, which stops routing, but
 // Telegram never gives a secret_token back, so it can't sign a message.
 //
-//   Telegram → POST <grid>/_route/<token> → secret, then 200 → an allowed person, in private,
-//   naming one of this user's computers (the shared grammar) → through that computer's tunnel,
+//   Telegram → POST <grid>/_route/<token> → secret → an allowed person, in private, naming one of
+//   this user's computers (the shared grammar) → 200 → through that computer's tunnel,
 //   POST /api/channels/routed, which answers only if it switched on Accept tasks from channels.
 //
 // Anything else goes to the box as it always has, through the held inbox, marked verified since it
@@ -33,10 +33,13 @@ const SENDER = /^\d{1,20}$/;
 const MAX_SENDERS = 20;
 const TEXT_MAX = 4000;
 const THREAD_TTL_MS = 7 * 86_400_000; // a task can take a while to report
+const THREAD_KEEP_MS = 30 * 86_400_000; // and past that it's still known, so a late reply hears why
 const THREAD_MSGS = 40; // per thread, oldest gone first
 const SWEEP_MS = 3_600_000;
 const UPDATES = ['message', 'callback_query'];
 const FETCH_MS = 15_000;
+const TOO_MANY = 'Too many at once, so this wasn’t sent. Try again in a minute.';
+const EXPIRED = 'That thread has expired, so this wasn’t sent. Start again with “on” and the computer’s name.';
 const sealedAs = (channel) => `route:${channel}`;
 
 export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit, log = () => {} }) {
@@ -82,11 +85,13 @@ export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit
     if (r) accounts.audit(user.id, 'channel.unroute', { channel: 'telegram' });
   }
 
+  const expired = (thread) => thread.created_at < Date.now() - THREAD_TTL_MS;
   // A thread's token: all a computer holds of the chat.
   const threadRef = (id) => `${id}.${secrets.sign(`thread|${id}`)}`;
   const threadOf = (ref) => {
     const [id, sig, more] = String(ref || '').split('.');
-    return id && sig && more === undefined && secrets.verify(`thread|${id}`, sig) ? db.get('SELECT * FROM channel_threads WHERE id = ?', id) : null;
+    const row = id && sig && more === undefined && secrets.verify(`thread|${id}`, sig) ? db.get('SELECT * FROM channel_threads WHERE id = ?', id) : null;
+    return row && !expired(row) ? row : null;
   };
   function newThread(user, c, m) {
     const id = newToken('', 12);
@@ -138,35 +143,45 @@ export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit
   // is who forwarded it, and its words are someone else's.
   const person = (m, route) => !!m?.from && !m.from.is_bot && m.chat?.type === 'private' && !m.forward_origin && !m.forward_date && route.senders.includes(String(m.from.id));
 
-  // → false when it isn't the grid's to act on.
-  async function route(user, r, u) {
+  // Past the limit, what to do instead: the plain line. A message dropped without a word looks sent.
+  function tooMany(user, r, m) {
+    try {
+      limit(`route|${user.id}`, 30);
+      return null;
+    } catch (err) {
+      if (err.status !== 429) throw err;
+      return () => say(r, m.chat.id, TOO_MANY, m.message_id);
+    }
+  }
+
+  // Decided at once, from what's in the database, before Telegram gets its 200. → what's left to do
+  // after it, or null when the message isn't the grid's to act on.
+  function decide(user, r, u) {
     const m = u.message;
-    if (typeof m?.text !== 'string' || !person(m, r)) return false;
+    if (typeof m?.text !== 'string' || !person(m, r)) return null;
+    const text = stripFormatting(m.text, 'telegram', { bot: r.name });
     const up = m.reply_to_message?.message_id;
     if (up) {
       const row = db.get('SELECT t.* FROM channel_thread_msgs x JOIN channel_threads t ON t.id = x.thread_id WHERE x.user_id = ? AND x.chat = ? AND x.message = ?', user.id, String(m.chat.id), up);
-      const c = row && accounts.computer(row.computer_id);
-      if (!c) return false;
-      limit(`route|${user.id}`, 30);
-      await forward(user, r, c, u, stripFormatting(m.text, 'telegram', { bot: r.name }), row, true);
-      return true;
+      if (!row) return null;
+      const c = !expired(row) && accounts.computer(row.computer_id);
+      if (!c) return () => say(r, m.chat.id, EXPIRED, m.message_id);
+      const busy = tooMany(user, r, m);
+      return busy || (() => forward(user, r, c, u, text, row, true));
     }
-    const computers = accounts.computers(user.id).map((c) => ({ id: c.id, name: c.name }));
-    const hit = parseRoute(stripFormatting(m.text, 'telegram', { bot: r.name }), computers);
-    if (!hit) return false;
-    if (hit.problems) {
-      await say(r, m.chat.id, `${hit.problems[0].text} They share that name, so nothing was sent.`, m.message_id);
-      return true;
-    }
-    limit(`route|${user.id}`, 30);
+    const hit = parseRoute(text, accounts.computers(user.id).map((c) => ({ id: c.id, name: c.name })));
+    if (!hit) return null;
+    if (hit.problems) return () => say(r, m.chat.id, `${hit.problems[0].text} They share that name, so nothing was sent.`, m.message_id);
     const c = accounts.computer(hit.machine);
-    if (!c || c.user_id !== user.id) return false;
-    await forward(user, r, c, u, hit.text, newThread(user, c, m), false);
-    return true;
+    if (!c || c.user_id !== user.id) return null;
+    const busy = tooMany(user, r, m);
+    if (busy) return busy;
+    const thread = newThread(user, c, m);
+    return () => forward(user, r, c, u, hit.text, thread, false);
   }
 
   function sweep() {
-    db.run('DELETE FROM channel_threads WHERE created_at < ?', Date.now() - THREAD_TTL_MS);
+    db.run('DELETE FROM channel_threads WHERE created_at < ?', Date.now() - THREAD_KEEP_MS);
   }
   const sweeper = setInterval(() => {
     try {
@@ -204,22 +219,20 @@ export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit
       return typeof secret === 'string' && safeEqual(secret, r.secret) ? { user, route: r } : false;
     },
 
-    // An update that passed check, after the 200 has gone. A retry stops at inbox.first, routed or not.
-    async take(user, r, raw) {
+    // An update that passed check. Everything but the forward happens here, before the 200, in one
+    // transaction: if it throws, Telegram retries and finds nothing done. A retry of one that went
+    // through stops at inbox.first, routed or not. → what's left to do after the 200, if anything.
+    take(user, r, raw) {
       let u = null;
       try {
         u = raw && JSON.parse(raw.toString('utf8'));
       } catch {}
-      if (raw && Number.isInteger(u?.update_id) && !inbox.first(user.id, `route:telegram:${u.update_id}`)) return;
-      let done = false;
-      try {
-        done = !!u && (await route(user, r, u));
-      } catch (err) {
-        // Nothing the person said in a log, and a message that failed here isn't handed to the box.
-        done = true;
-        log(`grid: route for ${user.handle}: ${err.status === 429 ? 'too many' : err.message}`);
-      }
-      if (!done) await inbox.hold(user, 'telegram', raw, { verified: true });
+      return db.tx(() => {
+        if (raw && Number.isInteger(u?.update_id) && !inbox.first(user.id, `route:telegram:${u.update_id}`)) return null;
+        const next = u && decide(user, r, u);
+        if (!next) inbox.hold(user, 'telegram', raw, { verified: true });
+        return next || null;
+      });
     },
 
     // A computer's report: that thread's chat, and only from the computer it was sent to.

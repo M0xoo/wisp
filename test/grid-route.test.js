@@ -96,9 +96,9 @@ after(async () => {
 });
 
 let updates = 9000;
-const message = (text, { from = 42, chat = from, date = now(), reply, id = ++updates, bot = false, type } = {}) => ({
+const message = (text, { from = 42, chat = from, date = now(), reply, replyBot = false, id = ++updates, bot = false, type } = {}) => ({
   update_id: id,
-  message: { message_id: id + 1000, date, from: { id: from, is_bot: bot, first_name: 'Ada' }, chat: { id: chat, type: type || (chat === from ? 'private' : 'group') }, text, ...(reply && { reply_to_message: { message_id: reply } }) },
+  message: { message_id: id + 1000, date, from: { id: from, is_bot: bot, first_name: 'Ada' }, chat: { id: chat, type: type || (chat === from ? 'private' : 'group') }, text, ...(reply && { reply_to_message: { message_id: reply, ...(replyBot && { from: { id: 123, is_bot: true } }) } }) },
 });
 
 async function boot({ channels = { enabled: true, route: true, retryMs: 30, wakeRetryMs: 80 } } = {}) {
@@ -362,7 +362,7 @@ test('routed: a verified message for a computer goes through its tunnel, the box
   const ada = g.user('ada');
   await g.link(ada);
   const c = await g.computer(ada, 'laptop');
-  const r = await g.send(message('@wispbot in api on laptop fix the login'));
+  const r = await g.send(message('@wispbot on laptop in api fix the login'));
   assert.equal(r.status, 200, r.text);
   await until(() => g.tg.sent().length, { what: 'the answer' });
   const [one] = routedTo(c);
@@ -743,6 +743,61 @@ test('a report lost while the grid restarts goes later, in order, and stops when
   assert.equal(b.tries.length, n + 1, 'and nothing is left in the way');
 });
 
+test('held before the 200: what the grid couldn’t hold isn’t answered, so Telegram’s retry gets through', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  await g.link(ada);
+  const u = message('fix the login');
+  const { hold } = g.grid.inbox;
+  g.grid.inbox.hold = () => {
+    throw new Error('disk full');
+  };
+  assert.equal((await g.send(u)).status, 500);
+  g.grid.inbox.hold = hold;
+  assert.equal((await g.send(u)).status, 200);
+  await until(() => g.got(ada).length === 1, { what: 'the retry reaching the box' });
+});
+
+test('too many: the plain line, and the message goes nowhere', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  await g.link(ada);
+  const c = await g.computer(ada, 'laptop');
+  for (let i = 0; i < 30; i++) await g.send(message(`on laptop task ${i}`));
+  await until(() => routedTo(c).length === 30, { what: 'thirty through' });
+  const u = message('on laptop one more');
+  await g.send(u);
+  await until(() => g.tg.sent().some((x) => /Too many/.test(x.text)), { what: 'the line' });
+  const line = g.tg.sent().find((x) => /Too many/.test(x.text));
+  assert.equal(line.reply_to_message_id, u.message.message_id);
+  await g.send(message('more', { reply: 501 }));
+  await until(() => g.tg.sent().filter((x) => /Too many/.test(x.text)).length === 2, { what: 'the line for a follow-up' });
+  assert.equal(routedTo(c).length, 30);
+  assert.equal(g.got(ada).length, 0);
+});
+
+test('a reply to an expired thread: told so, and it goes nowhere', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  await g.link(ada);
+  const c = await g.computer(ada, 'laptop');
+  await g.send(message('on laptop fix it'));
+  await until(() => g.tg.sent().length === 1, { what: 'the ack' });
+  const sent = g.tg.msg;
+  const thread = g.grid.db.get('SELECT id FROM channel_threads').id;
+  g.grid.db.run('UPDATE channel_threads SET created_at = ?', Date.now() - 8 * 86_400_000);
+  g.grid.routes.sweep();
+  await g.send(message('and the signup', { reply: sent }));
+  await until(() => g.tg.sent().length === 2, { what: 'the line' });
+  assert.match(g.tg.sent()[1].text, /expired/);
+  assert.equal(routedTo(c).length, 1);
+  assert.equal(g.got(ada).length, 0);
+  // Its report has nowhere to go either.
+  const ref = `${thread}.${g.grid.secrets.sign(`thread|${thread}`)}`;
+  const r = await call(g.port, 'wisp.localhost', '/api/channels/reply', { headers: { authorization: `Bearer ${c.token}`, 'content-type': 'application/json' }, body: JSON.stringify({ thread: ref, text: 'done' }) });
+  assert.equal(r.status, 404);
+});
+
 // --- a real wisp at the far end -------------------------------------------------------------------
 
 // Signed in to the grid and on it, as Machines → Reach this computer from anywhere does it.
@@ -870,8 +925,8 @@ test('a real wisp: a message stays on this computer, no machine, no crew, no del
   const [repo] = app.store.config.projects;
   assert.ok((await api('/crew', { body: { name: 'Ada', role: 'x', brief: 'Watch.', cwd: repo.path, agent: 'claude', model: 'sonnet', mode: 'auto', parallel: 1 } })).status < 300);
   assert.match(await sends(`on ${name} on desk: fix it`), /No machine/);
-  assert.match(await sends(`in faraway on ${name}: fix it`), /No project/);
-  assert.match(await sends(`@ada on ${name} fix it`), /No crew member or project/);
+  assert.match(await sends(`on ${name} in faraway: fix it`), /No project/);
+  assert.match(await sends(`on ${name} @ada fix it`), /No crew member or project/);
   assert.match(await sends(`on ${name} status`), /Only a task/);
   assert.equal(app.store.all().filter((s) => s.remote?.routed).length, 0);
 });
