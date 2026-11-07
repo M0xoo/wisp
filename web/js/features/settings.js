@@ -22,7 +22,7 @@ import { loginControl, loginPanel, typingLogin, wireLogins } from './agent-login
 import { accountCount, accountsHtml, gridAccountsNote, manyAccounts, wireAccounts } from './accounts.js';
 import { memorySummary, openMemory, setLearning } from './memory.js';
 import { IOS_HOME, notifyOn, notifyPermission, requestNotify } from './notify.js';
-import { openPhone, phoneSummary } from './phone.js';
+import { PHONE_HINT, openPhone, phoneSummary } from './phone.js';
 import { paintReachable, reachableBox, reachableHtml } from './reachable.js';
 import { machinesSummary } from './places.js';
 import { AUTO_GOALS, agentsAt, harnessLogo } from './runners.js';
@@ -159,7 +159,7 @@ export function openSettings(opts) {
             ${row(MOBILE || IOS_HOME ? 'Notifications' : 'Desktop notifications', '<span class="notif-hint"></span>', '<button class="switch" id="notif" role="switch"></button>')}
           </div>
           <div class="sx-group">
-            ${row('Phone', '<span class="phone-hint">ntfy or Telegram: answer questions from your phone</span>', '<button class="ghost sm" id="openPhone">Set up</button>')}
+            ${row('Phone', `<span class="phone-hint">${PHONE_HINT}</span>`, '<button class="ghost sm" id="openPhone">Set up</button>')}
           </div>
         </section>
         <section class="sx-pane" data-pane="agents">
@@ -954,7 +954,7 @@ export function openSettings(opts) {
       })
       .catch(() => ($('.sx-usage', node).innerHTML = ''));
     if (!MOBILE && !grid) $('.machines-hint', node).textContent = machinesSummary();
-    api('/remote').then((x) => ($('.phone-hint', node).textContent = phoneSummary(x) === 'Off' ? 'ntfy or Telegram: answer questions from your phone' : phoneSummary(x))).catch(() => {});
+    api('/remote').then((x) => ($('.phone-hint', node).textContent = phoneSummary(x) === 'Off' ? PHONE_HINT : phoneSummary(x))).catch(() => {});
     paintLearn();
     paintAuto();
   };

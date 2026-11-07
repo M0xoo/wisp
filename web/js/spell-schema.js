@@ -454,6 +454,7 @@ export const PARTS = {
   // The pill on each machine saying where it comes from (Over SSH, Cloud, Your computer · via grid).
   'machines.kind': '.mc-kind',
   'phone.options': '.phone-modal .ph-options', // Phone → Telegram → Say what you'd type in wisp: its switch and line
+  'phone.github': '.phone-modal .ph-gh', // Phone → GitHub: comment /wisp on an issue or PR
   // Settings → Cloud: your cloud computers, and signing in to a wisp Grid.
   'settings.worktrees': '.wtr-box', // Settings → Worktrees
   'settings.worktrees.cleanup': '.wtr-auto', // Clean up automatically
