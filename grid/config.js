@@ -110,7 +110,30 @@ export function loadConfig({ dataDir, overrides = {}, env = process.env } = {}) 
     if (!isObj(ch) || (ch.enabled != null && typeof ch.enabled !== 'boolean')) throw new Error('channels: { enabled, maxRows, maxBytes }, enabled true or false.');
     for (const k of ['maxRows', 'maxBytes']) if (ch[k] != null && !whole(ch[k], 1)) throw new Error(`channels.${k}: a whole number above 0.`);
   }
+  cfg.x = xConfig(cfg, dir, env);
   return cfg;
+}
+
+// X's credentials, resolved, or null: without all of them, or without channels, X is off and every
+// path of it a 404. A bad value is an error; an absent one is just off. api isn't a setting, so
+// grid.json can't send the bot's secrets anywhere else: only the test's WISP_X_API moves it.
+function xConfig(cfg, dir, env) {
+  const x = cfg.x;
+  if (!isObj(x)) return null;
+  const whole = (v, min) => Number.isInteger(v) && v >= min;
+  if (x.paused != null && typeof x.paused !== 'boolean') throw new Error('x.paused: true or false.');
+  for (const k of ['dailySpendCents', 'strangerSpendCents']) if (x[k] != null && !whole(x[k], 0)) throw new Error(`x.${k}: a whole number of cents, 0 or more.`);
+  for (const k of ['sendPerHour', 'postsPerHour', 'threadDays', 'piecesPerDay', 'outboxRows', 'outboxBytes']) if (x[k] != null && !whole(x[k], 1)) throw new Error(`x.${k}: a whole number above 0.`);
+  const bot = isObj(x.bot) ? { ...x.bot } : {};
+  const secret = (o, k, name) => readSecret({ value: o[k], file: o[`${k}File`] && path.resolve(dir, o[`${k}File`]), env: o[`${k}Env`] || name }, env);
+  const clientSecret = secret(x, 'clientSecret', 'GRID_X_CLIENT_SECRET');
+  for (const [k, name] of [['consumerSecret', 'GRID_X_CONSUMER_SECRET'], ['accessSecret', 'GRID_X_ACCESS_SECRET'], ['bearerToken', 'GRID_X_BEARER_TOKEN']]) bot[k] = secret(bot, k, name);
+  const handle = String(bot.handle || '').replace(/^@/, '');
+  if (cfg.channels?.enabled !== true || !x.clientId || !clientSecret || !bot.id || !handle || !bot.consumerKey || !bot.consumerSecret || !bot.accessToken || !bot.accessSecret || !bot.bearerToken) return null;
+  if (!/^\d+$/.test(String(bot.id))) throw new Error('x.bot.id: the bot’s numeric id, not its handle.');
+  if (!/^\w{1,15}$/.test(handle)) throw new Error('x.bot.handle: the bot’s handle, like wispbot.');
+  const dailySpendCents = x.dailySpendCents ?? 500;
+  return { ...x, clientSecret, dailySpendCents, strangerSpendCents: x.strangerSpendCents ?? dailySpendCents, paused: !!x.paused, bot: { ...bot, id: String(bot.id), handle }, api: String(env.WISP_X_API || 'https://api.x.com').replace(/\/+$/, '') };
 }
 
 // What `wisp grid init` writes. Secrets go next to it, in secrets/, never inside it.

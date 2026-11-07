@@ -1,10 +1,10 @@
 // Phone: push "needs you" moments to ntfy or Telegram and take the answers back. All of it runs on
 // outbound connections only (wisp polls them, or holds a socket open), so nothing has to reach this machine.
 // On a cloud wisp Telegram comes through the grid instead, which holds messages while it sleeps
-// (channels/box.js).
+// (channels/box.js), and so does X.
 //
 // This is the hub: the config, the public API and the fan-out. Each channel's wire is in
-// server/channels/ (ntfy.js, telegram.js, github.js, slack.js), and what they all share is there too: policy.js (who may
+// server/channels/ (ntfy.js, telegram.js, github.js, slack.js, x.js), and what they all share is there too: policy.js (who may
 // speak, what may leave), grammar.js and lists.js (what a message can say).
 
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
@@ -15,6 +15,7 @@ import { needsWisp, scrubOut, defuse } from './channels/policy.js';
 import { Ntfy } from './channels/ntfy.js';
 import { NOT_ON_A_BOX, Slack, inBox, newLinkCode } from './channels/slack.js';
 import { Telegram } from './channels/telegram.js';
+import { X } from './channels/x.js';
 import { bad, truncate } from './util.js';
 
 export { findProject } from './channels/grammar.js';
@@ -28,10 +29,10 @@ export class Remote {
   // phone: the rest of services/phone.js, what the channel layer needs of wisp.
   constructor({ store, act, launch = async () => null, onChange = () => {}, ...phone }) {
     Object.assign(this, { store, act, launch, onChange, phone });
-    this.status = { ntfy: null, telegram: null, github: null, slack: null };
+    this.status = { ntfy: null, telegram: null, github: null, slack: null, x: null };
     this.tgElsewhere = new Map(); // Telegram message id -> session id, for sessions on a machine (server/machines.js)
     this.away = new Map(); // session id on a machine -> { channel, by, last }: what s.remote holds for one here
-    this.channels = { ntfy: new Ntfy(this), telegram: new Telegram(this), github: new Github(this), slack: new Slack(this) };
+    this.channels = { ntfy: new Ntfy(this), telegram: new Telegram(this), github: new Github(this), slack: new Slack(this), x: new X(this) };
     for (const channel of ['github', 'slack']) for (const [id, a] of Object.entries(store.config?.remote?.[channel]?.away || {})) this.away.set(id, { channel, last: null, ...a });
     this.ac = null;
     this.ntfyPollMs = 4000;
@@ -62,7 +63,7 @@ export class Remote {
     this.stop();
     const ac = (this.ac = new AbortController());
     const c = this.cfg;
-    const { ntfy, telegram, github, slack } = this.channels;
+    const { ntfy, telegram, github, slack, x } = this.channels;
     telegram.retryUnhook(); // before its start, and on or off: it's off that left one behind
     if (ntfy.ready) ntfy.start(ac.signal);
     if (telegram.ready) {
@@ -71,6 +72,7 @@ export class Remote {
     }
     if (github.ready) github.start(ac.signal);
     if (slack.ready) slack.start(ac.signal);
+    x.start(ac.signal); // on a box, on or off: Settings shows it whenever the grid has X
   }
 
   stop() {
@@ -142,8 +144,8 @@ export class Remote {
 
   // The channels that answer where they were asked, and only there.
   #reporting() {
-    const { github, slack } = this.channels;
-    return [github, slack].filter((c) => c.ready);
+    const { github, slack, x } = this.channels;
+    return [github, slack, x].filter((c) => c.ready);
   }
 
   // Who a task is reported as. An ask only wisp can answer, in a subagent, a side discussion or a
@@ -249,6 +251,7 @@ export class Remote {
         box: inBox(),
         error: this.status.slack?.error || '',
       },
+      x: this.channels.x.view(),
       status: this.status,
     };
   }
@@ -308,6 +311,7 @@ export class Remote {
       c.slack = { ...prev, enabled, appToken, botToken, senders: relink ? [] : prev.senders || [], linkCode: relink || !prev.linkCode ? newLinkCode() : prev.linkCode };
       this.channels.slack.customize = true;
     }
+    if (body.x) this.channels.x.update(body.x);
     this.store.saveConfig();
     this.start();
     return this.view();

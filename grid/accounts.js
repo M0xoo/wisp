@@ -179,6 +179,8 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
   // address would hand over the account.
   function signIn(idn, { linkTo = null } = {}) {
     if (!idn?.subject) throw bad('The provider didn’t say who you are.');
+    // X reaches a box and nothing else (grid/x.js): taking over a social account must never open a grid one.
+    if (idn.provider === 'x') throw bad('X doesn’t sign in here: link it from your account page.', 403);
     const found = db.get('SELECT * FROM identities WHERE provider = ? AND subject = ?', idn.provider, idn.subject);
     if (linkTo) {
       if (found && found.user_id !== linkTo) throw bad('That account already signs in to another user here.', 409);

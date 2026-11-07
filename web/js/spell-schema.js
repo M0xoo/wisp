@@ -463,6 +463,7 @@ export const PARTS = {
   'phone.options': '.phone-modal .ph-options', // Phone → Telegram → Say what you'd type in wisp: its switch and line
   'phone.github': '.phone-modal .ph-gh', // Phone → GitHub: comment /wisp on an issue or PR
   'phone.slack': '.phone-modal .ph-sk', // Phone → Slack: its status, setup steps and who's linked
+  'phone.x': '.phone-modal .ph-x', // Phone → X, on a cloud computer whose grid has it: its state and the way to link
   // Settings → Cloud: your cloud computers, and signing in to a wisp Grid.
   'settings.worktrees': '.wtr-box', // Settings → Worktrees
   'settings.worktrees.cleanup': '.wtr-auto', // Clean up automatically
@@ -753,6 +754,8 @@ export const SETTINGS = {
   // Webhook triggers: a trigger's secret URL (POST /api/hooks/<token>) starts tasks from Slack,
   // Linear or anything else (server/hooks.js). Off, those URLs answer 404.
   webhookTriggers: ['on', 'off'],
+  // X (server/channels/x.js): off is all a spell can say. Turning it on takes the owner, in Settings on that box.
+  acceptX: ['off'],
   // Panes: My Stuff apps pinned beside tasks or on home, "<app id or name>@task,<app>@home"
   // (web/js/pane-bridge.js). A spell pins them; what they may use you allow yourself.
   panes: 'string',

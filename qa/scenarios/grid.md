@@ -212,6 +212,28 @@ for the rest
   the same secret, and the old URL is a 404.
 - **Against production:** only when the owner deploys: a throwaway account, one real Telegram bot.
 
+### GRID-35 · A post on X reaches a sleeping box
+*`test/channel-x.test.js`* (a fake X on loopback, real grid, real boxes)
+- **Steps:** with `x` in `grid.json`, link an account on `/account`, DM the bot once. On the cloud wisp
+  turn on Settings → Phone → X. Let the box sleep. Post `@wispbot fix the flaky login test`.
+- **Expected:** the section and the account page's X show only on a grid that has X; without it every
+  X path is a 404. The webhook is answered before the box is up; it wakes, runs the task in Plan in its
+  own worktree, one fixed line answers in public, and the result comes by DM. A DM follows up the
+  latest thread, and `stop` in any case unlinks at once and says so. A stranger gets silence and is
+  counted. A stale post, a repeated event and a retried post run nothing and post nothing. Quoted text
+  is never read, and a retweet or a post cut short doesn't run. Full auto, `on laptop`, a project on
+  another machine and crew get a line by DM and start nothing. With X off on the box, the grid wakes
+  nothing, posts nothing and a DM says how to turn it on. Someone who never DMed gets the line that
+  says so, and the result comes after their first DM, which isn't a prompt. A box can't name a
+  recipient, and has a daily budget. Past the spend cap, or `paused`, nothing goes out and nothing
+  wakes. Strangers can't spend linked people's money; past a hard ceiling the subscriptions go until
+  someone restarts the grid. `GET /_x/webhook?crc_token=<JSON>` is a 400. A spell can force X off and
+  can't turn it on.
+- **Against production:** only once a human has the bot account, credits and X's approval
+  (`grid/README.md` → X), and when the owner deploys: one real mention and DM round trip on a throwaway
+  account, and check a real CRC token fits the shape in `grid/README.md`. Tests can't show this: nobody
+  has run a live event through it.
+
 ### GRID-24 · Caddy on-demand TLS and DNS
 *Manual*
 - **Expected:** a new handle gets a certificate on first visit; an unknown name is refused (Caddy's
