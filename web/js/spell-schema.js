@@ -464,6 +464,7 @@ export const PARTS = {
   'phone.github': '.phone-modal .ph-gh', // Phone → GitHub: comment /wisp on an issue or PR
   'phone.slack': '.phone-modal .ph-sk', // Phone → Slack: its status, setup steps and who's linked
   'phone.discord': '.phone-modal .ph-dc', // Phone → Discord: its status, setup steps and who's linked
+  'phone.discordUrl': '.phone-modal .ph-dc .ph-endpoint', // Phone → Discord, on a cloud computer: the Interactions Endpoint URL to copy
   'phone.email': '.phone-modal .ph-em', // Phone → Email, on a cloud computer: the secret address and who may send
   // Settings → Cloud: your cloud computers, and signing in to a wisp Grid.
   'settings.worktrees': '.wtr-box', // Settings → Worktrees

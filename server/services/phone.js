@@ -5,12 +5,21 @@
 import { adapters } from '../adapters/index.js';
 import { BTW_TIMEOUT_MS } from '../btw.js';
 import { cappedAt, tighter } from '../capped.js';
+import { inBox } from '../channels/conversation.js';
 import { ackCrew, ackTask, modelLabel, modelNote } from '../channels/lists.js';
 import { capMode, needsWisp, untrusted } from '../channels/policy.js';
 import { taggedDelegate } from '../crew.js';
 import { splitId } from '../machines.js';
 import { GOALS } from '../router.js';
 import { bad, truncate } from '../util.js';
+
+// On a cloud computer anyone who gets past a channel's door is still only on that box, and it isn't
+// trusted to reach further: a message never reaches another machine, whichever channel it came by and
+// however it names one. wisp itself still can. A sandbox is a box of its own, not one of your machines.
+const NO_MACHINE = 'A cloud computer doesn’t reach other machines from a channel. Start that in wisp.';
+const stayHere = (machine) => {
+  if (inBox() && machine && machine !== 'sandbox') throw bad(NO_MACHINE);
+};
 
 export function phoneActions(app) {
   const { store, runner, machines } = app;
@@ -22,6 +31,7 @@ export function phoneActions(app) {
       const s = store.get(sessionId);
       return s && { s, answer: (a) => runner.answer(s, a), reply: (t, o = {}) => app.launcher.replyTo(s, t, [], undefined, o.mode, o.run), done: () => app.launcher.markDone(s), stop: async () => runner.stop(s) };
     }
+    stayHere(at.machine);
     const call = (method, p, body) => machines.json(at.machine, method, `/sessions/${at.id}${p}`, body);
     const s = await call('GET', '').catch((err) => {
       if (err.status === 404) return null;
@@ -63,7 +73,7 @@ export function phoneActions(app) {
     const crew = app.crew?.list || [];
     return {
       projects: store.config.projects,
-      machines: (store.config.machines || []).filter((m) => !m.sandbox).map((m) => ({ id: m.id, name: m.name, kind: m.kind, computer: m.computer, usable: machines.usable(m.id), agents: machines.agentsOf(m.id) })),
+      machines: inBox() ? [] : (store.config.machines || []).filter((m) => !m.sandbox).map((m) => ({ id: m.id, name: m.name, kind: m.kind, computer: m.computer, usable: machines.usable(m.id), agents: machines.agentsOf(m.id) })),
       agents: await app.auto.agents(),
       adapters: Object.values(adapters),
       crew,
@@ -127,6 +137,8 @@ export function phoneActions(app) {
       // Below Full auto, the task and all it starts stay under the cap (server/capped.js).
       const capped = cappedAt(cap);
       if (p.crew) {
+        stayHere(p.machine);
+        stayHere(p.crew.machine);
         const run = memberRun(p.crew, p, cap, fallback);
         const out = await app.crew.assign(p.crew, { prompt, job: 'task', origin, tagged: p.tagged, ...(Object.keys(run).length && { run }), ...(capped && { capped }), thread });
         count('start', 'crew');
@@ -139,6 +151,7 @@ export function phoneActions(app) {
       const { mode, refused } = capMode(p.mode, cap, fallback ?? (d.mode || 'auto'));
       if (refused) throw bad(refused);
       const machine = p.machine ?? (project.machine || undefined);
+      stayHere(machine);
       const [s] = await app.launcher.launchAny({ prompt, cwd: project.path, machine, agent, model, ...(p.effort && { effort: p.effort }), mode, ...(capped && { capped }), ...(p.tagged.length && { subagents: p.tagged.map((m) => taggedDelegate(m)) }) }, origin);
       app.broadcast('config', {});
       app.remote.threadStarted(s, thread, null);
@@ -202,6 +215,7 @@ export function phoneActions(app) {
     mention: async (sessionId, p, { name, sender = '', cap = 'auto', fallback, about = '', thread = null, ctx = null }) => {
       const s = store.get(sessionId);
       if (!s) throw bad('@names only reach tasks on this computer.');
+      stayHere(p.crew.machine);
       ctx ||= await context();
       const most = tighter(cap, s.capped);
       const capped = cappedAt(most);
@@ -212,6 +226,7 @@ export function phoneActions(app) {
     },
     // /new from Telegram: the launcher's remembered harness, model and mode, like `wisp "…"`.
     launch: async ({ project, prompt }) => {
+      stayHere(project.machine);
       const d = store.config.defaults;
       const agent = d.agent || 'claude';
       const model = d.models?.[agent] ?? d.model ?? '';

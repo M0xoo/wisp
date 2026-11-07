@@ -5,6 +5,7 @@
 
 import { test as nodeTest, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
@@ -22,6 +23,7 @@ process.env.WISP_UPDATE_CHECK = '0';
 const { loadConfig } = sqlite ? await import('../grid/config.js') : {};
 const { startGrid } = sqlite ? await import('../grid/server.js') : {};
 const { ensureMaster, sha256 } = sqlite ? await import('../grid/secrets.js') : {};
+const { linkedHash } = await import('../server/channels/discord-sign.js');
 
 const BOX = fileURLToPath(new URL('./fixtures/inbox-box.mjs', import.meta.url));
 const SECRET = 'x-telegram-bot-api-secret-token';
@@ -710,4 +712,383 @@ test('url_verification is Slack’s: on Telegram’s URL a body that looks like 
   const { url } = await g.url(ada);
   assert.equal((await g.post(ada, url, challenge)).status, 200);
   await until(() => g.got(ada).length === 1, { what: 'delivery' });
+});
+
+// --- Discord: the one channel answered here, since a box can sleep past its 3 s ------------------
+
+const edgeBoot = () => boot({ channels: { enabled: true, retryMs: 30, wakeRetryMs: 80 }, hostd: { startMs: 8000 } });
+const ed25519 = () => {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  return { privateKey, hex: Buffer.from(publicKey.export({ format: 'jwk' }).x, 'base64url').toString('hex') };
+};
+// Discord's headers for a body, signed as it signs: timestamp + raw body.
+const signedBy = (privateKey, raw, ts = Math.floor(Date.now() / 1000)) => ({ 'x-signature-ed25519': sign(null, Buffer.from(`${ts}${raw}`), privateKey).toString('hex'), 'x-signature-timestamp': String(ts) });
+const interaction = (id, o = {}) => ({ id: String(id), token: 'interaction-token', application_id: '555', channel_id: 'C1', guild_id: 'G1', member: { user: { id: '111' } }, type: 2, data: { name: 'wisp', options: [{ name: 'prompt', value: 'hello' }] }, ...o });
+const setKey = (g, u, key, as = u, linked) => call(g.port, 'wisp.localhost', '/api/channels/url/key?channel=discord', { headers: { authorization: g.boxAuth(u, as), 'content-type': 'application/json' }, body: JSON.stringify({ key, linked }) });
+const NOT_LINKED = { type: 4, data: { content: 'This wisp only answers people linked to it.', flags: 64, allowed_mentions: { parse: [] } } };
+const NOT_LINKED_DM = { type: 4, data: { content: 'This wisp only answers people linked to it. To link, use `/wisp` here with `link` and the code shown in wisp → Settings → Phone → Discord.', flags: 64, allowed_mentions: { parse: [] } } };
+const BUSY = { type: 4, data: { content: 'wisp is busy. Try again in a minute.', flags: 64, allowed_mentions: { parse: [] } } };
+// One user with Discord's URL and a key the box gave the grid.
+async function discordUser(g, handle = 'ada', linked) {
+  const u = g.user(handle);
+  const keys = ed25519();
+  assert.equal((await setKey(g, u, keys.hex, u, linked?.map((id) => linkedHash(id, keys.hex)))).status, 200);
+  const { url } = await g.url(u, 'discord');
+  const send = (body, headers) => {
+    const raw = typeof body === 'string' ? body : JSON.stringify(body);
+    return g.post(u, url, raw, headers ?? signedBy(keys.privateKey, raw));
+  };
+  return { u, url, keys, send };
+}
+
+test('a PING gets a PONG here, as JSON: nothing held, no box woken', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const { u, send } = await discordUser(g);
+  const r = await send({ id: '1', type: 1 });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.json(), { type: 1 });
+  assert.equal(g.rows(u).length, 0);
+  assert.notEqual(g.grid.hostd.state(u.id), 'running');
+});
+
+test('a bad signature is a 401: no row, no wake, nothing counted, whatever it says it is', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const { u, send, url } = await discordUser(g);
+  const other = ed25519();
+  const body = JSON.stringify(interaction('1'));
+  assert.equal((await send(body, signedBy(other.privateKey, body))).status, 401, 'signed by someone else');
+  const ping = JSON.stringify({ id: '2', type: 1 });
+  assert.equal((await send(ping, signedBy(other.privateKey, ping))).status, 401, 'Discord sends these on purpose and removes a URL that takes them');
+  const headers = signedBy(ed25519().privateKey, body);
+  assert.equal((await g.post(u, url, `${body} `, headers)).status, 401, 'another body');
+  await sleep(200);
+  assert.equal(g.rows(u).length, 0);
+  assert.equal(g.got(u).length, 0);
+  assert.notEqual(g.grid.hostd.state(u.id), 'running');
+  assert.equal(g.dropped(u), 0);
+});
+
+test('missing or malformed signature headers, and a body too big to check, are a 401', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const { u, send, keys } = await discordUser(g);
+  const body = JSON.stringify(interaction('1'));
+  const good = signedBy(keys.privateKey, body);
+  assert.equal((await send(body, {})).status, 401, 'none');
+  assert.equal((await send(body, { 'x-signature-ed25519': good['x-signature-ed25519'] })).status, 401, 'no timestamp');
+  assert.equal((await send(body, { 'x-signature-timestamp': good['x-signature-timestamp'] })).status, 401, 'no signature');
+  assert.equal((await send(body, { ...good, 'x-signature-ed25519': 'zz' })).status, 401, 'not hex');
+  assert.equal((await send(body, { ...good, 'x-signature-timestamp': 'soon' })).status, 401, 'not a time');
+  const big = 'x'.repeat(300 * 1024);
+  assert.equal((await send(big, signedBy(keys.privateKey, big))).status, 401);
+  assert.equal(g.rows(u).length, 0);
+  assert.equal(g.dropped(u), 0);
+});
+
+test('a timestamp over 5 minutes off, either way, is refused even with a good signature', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const { u, send, keys } = await discordUser(g);
+  const now = Math.floor(Date.now() / 1000);
+  const body = JSON.stringify(interaction('1'));
+  assert.equal((await send(body, signedBy(keys.privateKey, body, now - 301))).status, 401, 'old');
+  assert.equal((await send(body, signedBy(keys.privateKey, body, now + 301))).status, 401, 'from the future');
+  assert.equal(g.rows(u).length, 0);
+  assert.equal((await send(body, signedBy(keys.privateKey, body, now - 240))).status, 200, 'inside the window');
+});
+
+test('no key from the box yet: everything is a 401', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const u = g.user('ada');
+  const { url } = await g.url(u, 'discord');
+  const keys = ed25519();
+  const body = JSON.stringify(interaction('1'));
+  assert.equal((await g.post(u, url, body, signedBy(keys.privateKey, body))).status, 401);
+  assert.equal(g.rows(u).length, 0);
+});
+
+test('a command gets type 5 before a 5 s box is up, then it wakes and the box gets it once', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const { u, send } = await discordUser(g);
+  g.box(u, { bootMs: 5000 });
+  const t = Date.now();
+  const r = await send(interaction('10'));
+  const took = Date.now() - t;
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.json(), { type: 5 });
+  assert.ok(took < 1000, `answered after ${took} ms`);
+  assert.equal(g.got(u).length, 0);
+  await until(() => g.got(u).length === 1, { what: 'delivery', timeout: 15_000 });
+  const [m] = g.got(u);
+  assert.equal(m.channel, 'discord');
+  assert.equal(decoded(m).id, '10');
+  assert.ok(m.headers['x-signature-ed25519'] && m.headers['x-signature-timestamp'], 'the box checks it again itself');
+  assert.equal(m.http['x-wisp-proxy-via'], 'inbox');
+});
+
+test('the same signed request twice is one row, and one delivery', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const { u, send, keys } = await discordUser(g);
+  const body = JSON.stringify(interaction('11'));
+  const headers = signedBy(keys.privateKey, body);
+  g.box(u, { bootMs: 300 });
+  assert.equal((await send(body, headers)).status, 200);
+  const again = await send(body, headers);
+  assert.equal(again.status, 200);
+  assert.deepEqual(again.json(), { type: 5 });
+  assert.equal(g.rows(u).length, 1);
+  await until(() => g.got(u).length === 1, { what: 'delivery' });
+  await g.grid.inbox.settled();
+  assert.equal(g.got(u).length, 1);
+});
+
+test('a button click gets type 6, held and woken', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const { u, send } = await discordUser(g);
+  const r = await send(interaction('12', { type: 3, data: { custom_id: 'a:s:r:0:sig' } }));
+  assert.deepEqual([r.status, r.json()], [200, { type: 6 }]);
+  await until(() => g.got(u).length === 1, { what: 'delivery' });
+  assert.equal(decoded(g.got(u)[0]).type, 3);
+});
+
+test('autocomplete on a sleeping box: empty choices, never a wake, and nothing held', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const { u, send } = await discordUser(g);
+  const r = await send(interaction('13', { type: 4 }));
+  assert.deepEqual([r.status, r.json()], [200, { type: 8, data: { choices: [] } }]);
+  await sleep(300);
+  assert.equal(g.rows(u).length, 0);
+  assert.notEqual(g.grid.hostd.state(u.id), 'running');
+});
+
+test('autocomplete on a box that’s up goes through live, and a box that fails it is empty choices', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const { u, send } = await discordUser(g);
+  const choices = { type: 8, data: { choices: [{ name: 'api', value: 'api' }] } };
+  g.box(u, { answer: choices });
+  await g.grid.hostd.ensure(u);
+  const r = await send(interaction('14', { type: 4 }));
+  assert.deepEqual([r.status, r.json()], [200, choices]);
+  assert.equal(g.rows(u).length, 0);
+  g.box(u, { status: 500 });
+  const down = await send(interaction('15', { type: 4 }));
+  assert.deepEqual([down.status, down.json()], [200, { type: 8, data: { choices: [] } }]);
+  g.box(u, {}); // a 200 that isn't an answer Discord takes
+  const junk = await send(interaction('15b', { type: 4 }));
+  assert.deepEqual([junk.status, junk.json()], [200, { type: 8, data: { choices: [] } }]);
+});
+
+test('anything else signed is refused and not held: wisp has no modals', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const { u, send } = await discordUser(g);
+  assert.equal((await send(interaction('16', { type: 5 }))).status, 400);
+  assert.equal(g.rows(u).length, 0);
+});
+
+test('a guild stranger is answered here: never held, never woken, ephemeral, and no thinking in public', { timeout: 30_000 }, async () => {
+  const g = await boot({ channels: { enabled: true, retryMs: 30, wakeRetryMs: 80, wakeStrikes: 1, wakeGapMs: 60_000 } });
+  const { u, send } = await discordUser(g, 'ada', ['111']);
+  const stranger = { member: { user: { id: '222' } } };
+  for (let i = 0; i < 5; i++) {
+    const r = await send(interaction(String(60 + i), stranger));
+    assert.deepEqual([r.status, r.json()], [200, NOT_LINKED]);
+  }
+  assert.deepEqual((await send(interaction('66', { ...stranger, type: 3, data: { custom_id: 'x' } }))).json(), { type: 6 }, 'a click: nothing to say');
+  assert.deepEqual((await send(interaction('67', { ...stranger, type: 4 }))).json(), { type: 8, data: { choices: [] } });
+  await sleep(200);
+  assert.equal(g.rows(u).length, 0);
+  assert.notEqual(g.grid.hostd.state(u.id), 'running');
+  const mine = await send(interaction('68'));
+  assert.deepEqual(mine.json(), { type: 5 }, 'someone linked');
+  await until(() => g.got(u).length === 1, { what: 'no strike stood in the way', timeout: 8000 });
+});
+
+test('who’s linked is keyed by the box’s own key: the plain hash every box would send matches nobody', { timeout: 30_000 }, async () => {
+  const g = await boot({ ...NEVER });
+  const { u, send, keys } = await discordUser(g);
+  assert.equal((await setKey(g, u, keys.hex, u, [createHash('sha256').update('discord:111').digest('hex')])).status, 200);
+  assert.deepEqual((await send(interaction('73'))).json(), NOT_LINKED, 'an unkeyed hash');
+  assert.equal((await setKey(g, u, keys.hex, u, [linkedHash('111', keys.hex)])).status, 200);
+  assert.deepEqual((await send(interaction('74'))).json(), { type: 5 }, 'keyed by this box’s key');
+});
+
+test('a stranger’s DM wakes the box only for a link code: anything else is answered here', { timeout: 30_000 }, async () => {
+  const g = await boot({ ...NEVER });
+  const { u, send } = await discordUser(g, 'ada', ['111']);
+  const dm = (id, o = {}) => interaction(id, { guild_id: undefined, member: undefined, user: { id: '222' }, ...o });
+  const typed = (prompt, more = []) => ({ data: { name: 'wisp', options: [{ name: 'prompt', value: prompt }, ...more] } });
+  for (const [id, words, more] of [['90', 'hello'], ['91', 'link'], ['92', 'link 12345'], ['93', 'link 123456 now'], ['94', 'link 123456', [{ name: 'project', value: 'api' }]]]) {
+    assert.deepEqual((await send(dm(id, typed(words, more)))).json(), NOT_LINKED_DM, words);
+  }
+  assert.deepEqual((await send(dm('95', { type: 3, data: { custom_id: 'x' } }))).json(), { type: 6 }, 'a click: nothing to say');
+  assert.equal(g.rows(u).length, 0, 'none held');
+  assert.deepEqual((await send(dm('96', typed(' \u200bLINK  123456 ')))).json(), { type: 5 }, 'a code, after Discord’s own formatting');
+  assert.equal(g.rows(u).length, 1);
+});
+
+test('link codes have their own small budget per sender: one stranger’s guesses cost nobody else', { timeout: 30_000 }, async () => {
+  const g = await boot({ ...NEVER, channels: { enabled: true, retryMs: 30, wakeRetryMs: 80, maxRows: 500 } });
+  const { u, send } = await discordUser(g, 'ada', ['111']);
+  const dm = (id, who) => interaction(id, { guild_id: undefined, member: undefined, user: { id: who }, data: { name: 'wisp', options: [{ name: 'prompt', value: `link ${100000 + Number(id)}` }] } });
+  for (let i = 0; i < 3; i++) assert.deepEqual((await send(dm(String(100 + i), '222'))).json(), { type: 5 });
+  const over = await send(dm('110', '222'));
+  assert.deepEqual([over.status, over.json()], [200, BUSY], 'past their few a minute');
+  assert.equal(g.rows(u).filter((r) => r.event_key === 'discord:110').length, 0);
+  assert.deepEqual((await send(dm('111', '333'))).json(), { type: 5 }, 'someone else’s code still goes');
+  for (let i = 0; i < 120; i++) await send(interaction(String(200 + i)));
+  assert.deepEqual((await send(dm('400', '444'))).json(), { type: 5 }, 'nor does the command budget hold up a link');
+});
+
+test('a guild stranger’s autocomplete never reaches a box that’s up', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const { u, send } = await discordUser(g, 'ada', ['111']);
+  g.box(u, { answer: { type: 8, data: { choices: [{ name: 'secret', value: 'secret' }] } } });
+  await g.grid.hostd.ensure(u);
+  assert.deepEqual((await send(interaction('70', { type: 4, member: { user: { id: '222' } } }))).json().data.choices, []);
+  assert.equal(g.got(u).length, 0);
+  assert.equal((await send(interaction('71', { type: 4 }))).json().data.choices[0].name, 'secret', 'someone linked');
+});
+
+test('a box that never sent a list is held as before, and a bad list is refused', { timeout: 30_000 }, async () => {
+  const g = await boot({ ...NEVER });
+  const { u, send, keys } = await discordUser(g);
+  assert.deepEqual((await send(interaction('72', { member: { user: { id: '222' } } }))).json(), { type: 5 });
+  for (const linked of ['111', ['111'], [7], Array(501).fill('a'.repeat(64))]) assert.equal((await setKey(g, u, keys.hex, u, linked)).status, 400, JSON.stringify(linked).slice(0, 30));
+});
+
+test('autocomplete has its own budget, and past a cap Discord still gets a valid answer', { timeout: 30_000 }, async () => {
+  const g = await boot({ ...NEVER, channels: { enabled: true, retryMs: 30, wakeRetryMs: 80, maxRows: 500 } });
+  const { u, send } = await discordUser(g);
+  for (let i = 0; i < 130; i++) assert.equal((await send(interaction(String(1000 + i), { type: 4 }))).status, 200);
+  assert.deepEqual((await send(interaction('2000'))).json(), { type: 5 }, 'typing cost the command nothing');
+  for (let i = 1; i < 120; i++) await send(interaction(String(2000 + i)));
+  const over = await send(interaction('3000'));
+  assert.deepEqual([over.status, over.json()], [200, BUSY]);
+  await g.grid.hostd.stop(u.id).catch(() => {}); // held rows may have woken it: typing on a box that's up is the test above
+  const stillTyping = await send(interaction('3001', { type: 4 }));
+  assert.deepEqual([stillTyping.status, stillTyping.json()], [200, { type: 8, data: { choices: [] } }]);
+  assert.equal(g.rows(u).filter((r) => r.event_key === 'discord:3000').length, 0);
+});
+
+test('a full inbox gives Discord an answer too', { timeout: 30_000 }, async () => {
+  const g = await boot({ ...NEVER, channels: { enabled: true, maxRows: 1, retryMs: 30, wakeRetryMs: 80 } });
+  const { u, send } = await discordUser(g);
+  assert.deepEqual((await send(interaction('80'))).json(), { type: 5 });
+  const r = await send(interaction('81'));
+  assert.deepEqual([r.status, r.json()], [200, BUSY]);
+  assert.equal(g.rows(u).length, 1);
+  assert.equal(g.grid.db.get("SELECT dropped FROM channel_urls WHERE user_id = ? AND channel = 'discord'", u.id).dropped, 1);
+});
+
+test('a key is only ever set for its own box: another user’s doesn’t verify yours', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const ada = await discordUser(g, 'ada');
+  const bob = await discordUser(g, 'bob');
+  const body = JSON.stringify(interaction('17'));
+  assert.equal((await ada.send(body, signedBy(bob.keys.privateKey, body))).status, 401, 'bob’s key at ada’s URL');
+  assert.equal((await setKey(g, ada.u, bob.keys.hex, bob.u)).status, 401, 'ada’s handle with bob’s secret');
+  assert.equal((await ada.send(body, signedBy(bob.keys.privateKey, body))).status, 401, 'still');
+  assert.equal(g.rows(ada.u).length, 0);
+  assert.equal((await ada.send(body)).status, 200);
+});
+
+test('only a box sets a key, only 32 bytes of hex, and only for a channel that has one', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const u = g.user('ada');
+  const nobody = await call(g.port, 'wisp.localhost', '/api/channels/url/key?channel=discord', { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: ed25519().hex }) });
+  assert.equal(nobody.status, 401);
+  for (const key of ['abc', 'z'.repeat(64), `${'a'.repeat(62)}`, `${'a'.repeat(66)}`, 7]) {
+    const r = await setKey(g, u, key);
+    assert.equal(r.status, 400, String(key));
+    assert.match(r.json().error, /64 hex/);
+  }
+  const tg = await call(g.port, 'wisp.localhost', '/api/channels/url/key?channel=telegram', { headers: { authorization: g.boxAuth(u), 'content-type': 'application/json' }, body: JSON.stringify({ key: ed25519().hex }) });
+  assert.equal(tg.status, 404);
+});
+
+// Every small-order point Ed25519 can name, with x's sign bit both ways: with one as the key, a single
+// fixed signature verifies any message, and Node 22 lets it through.
+const SMALL_ORDER = ['00'.repeat(32), `01${'00'.repeat(31)}`, '26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05', 'c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a', `ec${'ff'.repeat(30)}7f`, `ed${'ff'.repeat(30)}7f`, `ee${'ff'.repeat(30)}7f`];
+const smallOrder = SMALL_ORDER.flatMap((k) => [k, `${k.slice(0, 62)}${(parseInt(k.slice(62), 16) | 0x80).toString(16).padStart(2, '0')}`]);
+
+test('a small-order key is refused, with its sign bit either way, and a fixed signature opens nothing', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const u = g.user('ada');
+  for (const key of smallOrder) assert.equal((await setKey(g, u, key)).status, 400, key);
+  const { url } = await g.url(u, 'discord');
+  g.grid.secrets.seal(u.id, 'channel-key:discord', `01${'00'.repeat(31)}`); // one that got in before this rule
+  const body = JSON.stringify(interaction('50'));
+  const ts = String(Math.floor(Date.now() / 1000));
+  const r = await g.post(u, url, body, { 'x-signature-ed25519': `01${'00'.repeat(63)}`, 'x-signature-timestamp': ts });
+  assert.equal(r.status, 401);
+  assert.equal(g.rows(u).length, 0);
+});
+
+test('a signature in capitals is the same interaction: one row, the id is what was verified', { timeout: 30_000 }, async () => {
+  const g = await boot({ ...NEVER });
+  const { u, send, keys } = await discordUser(g);
+  const body = JSON.stringify(interaction('51'));
+  const headers = signedBy(keys.privateKey, body);
+  assert.equal((await send(body, headers)).status, 200);
+  const shouted = { ...headers, 'x-signature-ed25519': headers['x-signature-ed25519'].toUpperCase() };
+  assert.equal((await send(body, shouted)).status, 200, 'it still verifies');
+  await sleep(100);
+  assert.equal(g.rows(u).length, 1);
+  assert.equal(g.rows(u)[0].event_key, 'discord:51');
+});
+
+test('Discord’s rows last 15 minutes, Telegram’s their hour, whatever the sweep finds', { timeout: 30_000 }, async () => {
+  const g = await boot({ ...NEVER });
+  const { u, send } = await discordUser(g);
+  const { url } = await g.url(u, 'telegram');
+  await g.post(u, url, update(7));
+  await send(interaction('52'));
+  await send(interaction('53'));
+  await sleep(100);
+  const row = (key) => g.rows(u).find((r) => r.event_key.startsWith(key));
+  g.grid.db.run('UPDATE channel_inbox SET at = ? WHERE id = ?', Date.now() - 15 * 60_000 - 1000, row('discord:52').id);
+  g.grid.db.run('UPDATE channel_inbox SET at = ? WHERE id = ?', Date.now() - 14 * 60_000, row('discord:53').id);
+  g.grid.db.run('UPDATE channel_inbox SET at = ? WHERE id = ?', Date.now() - 16 * 60_000, row('telegram:').id);
+  g.grid.inbox.sweep();
+  assert.deepEqual(g.rows(u).map((r) => r.event_key.split(':').slice(0, 2).join(':')).sort(), ['discord:53', 'telegram:7']);
+  assert.equal(g.grid.db.get("SELECT dropped FROM channel_urls WHERE user_id = ? AND channel = 'discord'", u.id).dropped, 1, 'told, as anything lost is');
+});
+
+test('an empty key takes it away, and rotating the URL keeps it', { timeout: 30_000 }, async () => {
+  const g = await edgeBoot();
+  const { u, send, keys } = await discordUser(g);
+  const body = JSON.stringify(interaction('18'));
+  const { url } = g.grid.inbox.rotate(u, 'discord');
+  assert.equal((await g.post(u, url, body, signedBy(keys.privateKey, body))).status, 200, 'the key isn’t the URL’s');
+  assert.equal((await send(body, signedBy(keys.privateKey, body))).status, 404, 'the old URL');
+  assert.equal((await setKey(g, u, '')).status, 200);
+  const next = JSON.stringify(interaction('19'));
+  assert.equal((await g.post(u, url, next, signedBy(keys.privateKey, next))).status, 401);
+});
+
+test('nothing of a Discord request reaches a log or an audit row, and strangers cost wakes like anyone', { timeout: 30_000 }, async () => {
+  const g = await boot({ channels: { enabled: true, retryMs: 30, wakeRetryMs: 80, wakeStrikes: 1, wakeGapMs: 60_000 } });
+  const { u, send, url, keys } = await discordUser(g);
+  g.box(u, { status: 403 });
+  const marker = 'interaction-token';
+  await send(interaction('20'));
+  await until(() => g.got(u).length === 1, { what: 'delivery' });
+  await g.grid.inbox.settled();
+  await g.grid.hostd.stop?.(u.id);
+  await until(() => g.grid.hostd.state(u.id) !== 'running', { what: 'stopped' });
+  await send(interaction('21'));
+  await sleep(300);
+  assert.equal(g.got(u).length, 1, 'a strike: the next wake waits its gap');
+  const all = JSON.stringify([g.logs, g.grid.db.all('SELECT * FROM audit')]);
+  for (const s of [marker, keys.hex, url.split('/').pop(), 'hello']) assert.ok(!all.includes(s), s);
+});
+
+test('a Discord message keeps no box awake: delivery isn’t use', { timeout: 30_000 }, async () => {
+  const g = await boot({ hostd: { idleMs: 1200, checkMs: 60 } });
+  const { u, send } = await discordUser(g);
+  await send(interaction('22'));
+  await until(() => g.got(u).length === 1, { what: 'delivery' });
+  for (let i = 0; g.grid.hostd.state(u.id) === 'running' && i < 12; i++) {
+    await send(interaction(String(100 + i), { type: 4 }));
+    await sleep(200);
+  }
+  assert.notEqual(g.grid.hostd.state(u.id), 'running');
 });

@@ -44,8 +44,8 @@ function slackTrouble(error, box) {
   return `${esc(error)} wisp keeps trying.`;
 }
 
-// The same words as server/channels/discord.js NOT_ON_A_BOX.
-const DISCORD_NO_BOX = 'Discord can’t run on a cloud computer yet: it sleeps when it’s idle, and the connection to Discord would die with it. Set it up on a computer that stays on.';
+// The same words as server/channels/discord.js NO_HUB.
+const DISCORD_NO_HUB = 'Discord can’t reach this computer: its grid doesn’t hold messages for it. Set Discord up on a computer that stays on.';
 const PORTAL = 'https://discord.com/developers/applications';
 
 // What's wrong with the Discord channel, in words. Some of what it says already ends in what to do,
@@ -129,7 +129,7 @@ export async function openPhone({ host } = {}) {
           </div>
         </section>
         <section class="ph-sec ph-chan ph-dc">
-          <h4>Discord <span class="muted xs"><span class="ph-dot">· </span>mention the bot, DM it, or use /wisp</span><span class="ph-st"></span><button class="switch" data-sw="discord" role="switch" aria-checked="false" aria-label="Discord"></button></h4>
+          <h4>Discord <span class="muted xs ph-dc-how"></span><span class="ph-st"></span><button class="switch" data-sw="discord" role="switch" aria-checked="false" aria-label="Discord"></button></h4>
           <p class="hint ph-rules"></p>
           <div class="ph-err" hidden></div>
           <div class="ph-on" hidden>
@@ -146,15 +146,27 @@ export async function openPhone({ host } = {}) {
               <li>
                 <span class="ph-num" data-step="2"></span>
                 <div class="ph-step">
-                  <b>Paste the bot token</b>
+                  <b class="ph-paste"></b>
                   <div class="settings-modal">
                     <label><span>Bot token</span><input class="input mono" data-dc="token" placeholder="From Bot → Reset Token" spellcheck="false" autocomplete="off" type="password"></label>
+                    <label class="ph-cloud"><span>Public key</span><input class="input mono" data-dc="publicKey" placeholder="From General Information" spellcheck="false" autocomplete="off"></label>
                   </div>
-                  <p class="hint">In the application, open Bot and press Reset Token. wisp connects as soon as it’s in.</p>
+                  <p class="hint ph-where"></p>
+                </div>
+              </li>
+              <li class="ph-cloud ph-endpoint">
+                <span class="ph-num" data-step="3"></span>
+                <div class="ph-step">
+                  <b>Give Discord this wisp’s URL</b>
+                  <div class="settings-modal">
+                    <label><span>Endpoint URL</span><input class="input mono" data-dc-url readonly spellcheck="false" autocomplete="off" placeholder="Shows here once the token and key are in"></label>
+                  </div>
+                  <p class="hint">Paste it under General Information → Interactions Endpoint URL and save: Discord checks it right away. It’s private, so keep it to yourself. Leave Message Content off.</p>
+                  <div class="ph-acts"><button class="primary sm" data-act="dcUrl" disabled>${icon('copy')}Copy URL</button></div>
                 </div>
               </li>
               <li>
-                <span class="ph-num" data-step="3"></span>
+                <span class="ph-num" data-step="4"></span>
                 <div class="ph-step">
                   <b>Add it to a server</b>
                   <p class="hint">The link works once the bot has connected. It asks only for what wisp uses: reading and sending messages, and threads.</p>
@@ -162,7 +174,7 @@ export async function openPhone({ host } = {}) {
                 </div>
               </li>
               <li>
-                <span class="ph-num" data-step="4"></span>
+                <span class="ph-num" data-step="5"></span>
                 <div class="ph-step">
                   <b>Link yourself</b>
                   <div class="ph-code"></div>
@@ -243,15 +255,15 @@ export async function openPhone({ host } = {}) {
   };
   // Slack and Discord: a number per step, a tick once it's done.
   const ticks = (sec, done) => {
+    const steps = [...$$('.ph-steps > li:not([hidden]) .ph-num', sec)]; // a step only a cloud computer has takes a number there alone
     for (const [i, ok] of done.entries()) {
-      const num = $(`[data-step="${i + 1}"]`, sec);
-      num.classList.toggle('ok', ok);
-      fill(num, ok ? icon('check') : String(i + 1));
+      steps[i].classList.toggle('ok', ok);
+      fill(steps[i], ok ? icon('check') : String(i + 1));
     }
   };
   const linked = (n) => (n ? `${n} ${n === 1 ? 'person' : 'people'} linked` : 'nobody linked yet');
   const codeLine = (act, code, lead) => `<p class="hint">${lead} <code>link ${esc(code)}</code> <button class="ghost xs" data-act="${act}">${icon('copy')}Copy</button></p>`;
-  const firstCode = (act, code) => (code ? `${codeLine(act, code, 'In a DM to the bot, send')}<p class="hint">Each code links one person, and the next shows here.</p>` : '<p class="hint">Your code shows here once the bot token is in.</p>');
+  const firstCode = (act, code, lead = 'In a DM to the bot, send') => (code ? `${codeLine(act, code, lead)}<p class="hint">Each code links one person, and the next shows here.</p>` : '<p class="hint">Your code shows here once the bot token is in.</p>');
   const paintSlack = () => {
     const s = r.slack;
     const st = r.status.slack;
@@ -296,14 +308,16 @@ export async function openPhone({ host } = {}) {
     const sec = $('.ph-dc', node);
     hold(sec);
     const sw = $('[data-sw="discord"]', node);
-    sw.setAttribute('aria-checked', d.enabled && !d.box);
-    sw.disabled = d.box;
-    const on = d.enabled && !d.box;
-    const error = on && d.token ? d.error || st?.error || '' : '';
-    fill($('.ph-st', sec), !on ? '' : !d.token ? '<span class="ph-wait">Not set up</span>' : error ? `<span class="ph-bad">${icon('warn')}Not working</span>` : d.connected ? status({ ok: true }) : '<span class="ph-wait">Checking…</span>');
-    $('.ph-rules', sec).hidden = d.box;
-    fill($('.ph-rules', sec), `It runs only while ${esc(here)} is awake, and what’s sent meanwhile can be lost. Only people you link count. In a thread, mention the bot or use <code>/wisp</code> to follow up: it doesn’t read plain messages. Full auto can’t be asked for from Discord.`);
-    trouble(sec, d.box ? esc(DISCORD_NO_BOX) : error ? discordTrouble(error) : '');
+    sw.setAttribute('aria-checked', d.enabled && !d.noHub);
+    sw.disabled = d.noHub;
+    const on = d.enabled && !d.noHub;
+    const set = !!(d.token && (!d.box || d.publicKey)); // on a cloud computer Discord calls in, so its key is what proves it's Discord
+    const error = on && set ? d.error || st?.error || '' : '';
+    fill($('.ph-st', sec), !on ? '' : !set ? '<span class="ph-wait">Not set up</span>' : error ? `<span class="ph-bad">${icon('warn')}Not working</span>` : d.connected ? status({ ok: true }) : '<span class="ph-wait">Checking…</span>');
+    fill($('.ph-dc-how', sec), `<span class="ph-dot">· </span>${d.box ? 'use /wisp' : 'mention the bot, DM it, or use /wisp'}`);
+    $('.ph-rules', sec).hidden = d.noHub;
+    fill($('.ph-rules', sec), d.box ? `A <code>/wisp</code> wakes ${esc(here)} when it’s asleep, and the reply lands in its place. Only <code>/wisp</code> works on a cloud computer: mentions need a connection that stays open. Use it in a thread to follow up too. Only people you link count, and Full auto can’t be asked for from Discord.` : `It runs only while ${esc(here)} is awake, and what’s sent meanwhile can be lost. Only people you link count. In a thread, mention the bot or use <code>/wisp</code> to follow up: it doesn’t read plain messages. Full auto can’t be asked for from Discord.`);
+    trouble(sec, d.noHub ? esc(DISCORD_NO_HUB) : error ? discordTrouble(error) : '');
     $('.ph-on', sec).hidden = !on;
     const steps = !(d.connected && d.senders) || changeToken;
     const n = d.senders;
@@ -313,15 +327,22 @@ export async function openPhone({ host } = {}) {
     // There from the start: when the bot connects it says so in place, and the steps stay put.
     fill(who, !d.connected ? '<span>Not connected yet</span>' : `<span>Connected as <b>${esc(d.bot || 'wisp')}</b> in ${g ? `${g} ${g === 1 ? 'server' : 'servers'}` : 'no server yet'}, ${linked(n)}</span>${n ? '<button class="link xs" data-act="dcUnlink">Unlink</button>' : ''}${n && !steps ? `<button class="link xs" data-act="dcToken">Change token</button>${d.invite ? `${add('link xs')}Add to a server</a>` : ''}` : ''}`);
     $('.ph-steps', sec).hidden = !steps;
-    ticks(sec, [!!d.token, !!d.token, g > 0, n > 0]);
-    const input = $('[data-dc="token"]', sec);
-    if (input !== document.activeElement && input.value !== d.token) input.value = d.token; // never under someone's typing
+    for (const x of $$('.ph-cloud', sec)) x.hidden = !d.box;
+    fill($('.ph-paste', sec), d.box ? 'Paste the bot token and public key' : 'Paste the bot token');
+    fill($('.ph-where', sec), d.box ? 'Bot token: open Bot and press Reset Token. Public key: General Information.' : 'In the application, open Bot and press Reset Token. wisp connects as soon as it’s in.');
+    ticks(sec, [!!d.token, set, ...(d.box ? [n > 0] : []), g > 0, n > 0]); // nothing says Discord took the URL until someone comes through it
+    for (const k of ['token', 'publicKey']) {
+      const input = $(`[data-dc="${k}"]`, sec);
+      if (input !== document.activeElement && input.value !== d[k]) input.value = d[k]; // never under someone's typing
+    }
+    $('[data-dc-url]', sec).value = d.endpoint;
+    $('[data-act="dcUrl"]', sec).disabled = !d.endpoint;
     // In its final shape before there's a link: what's below stays where it is when it comes.
     fill($('.ph-invite', sec), d.invite ? `${add('primary sm')}${icon('external')}Add to a server</a><button class="ghost sm" data-act="dcInvite">${icon('copy')}Copy link</button>` : `<button class="primary sm" disabled>${icon('external')}Add to a server</button><button class="ghost sm" disabled>${icon('copy')}Copy link</button>`);
-    fill($('.ph-code', sec), firstCode('dcCode', d.linkCode));
+    fill($('.ph-code', sec), firstCode('dcCode', d.linkCode, d.box ? 'In a DM to the bot, use <code>/wisp</code> and type' : undefined));
     const more = $('.ph-more', sec);
     more.hidden = steps;
-    fill(more, !steps && d.linkCode ? codeLine('dcCode', d.linkCode, 'To link someone else, they send the bot') : '');
+    fill(more, !steps && d.linkCode ? codeLine('dcCode', d.linkCode, d.box ? 'To link someone else, they use <code>/wisp</code> in a DM to the bot and type' : 'To link someone else, they send the bot') : '');
   };
   const paintEmail = () => {
     const m = r.email;
@@ -385,9 +406,9 @@ export async function openPhone({ host } = {}) {
     const st = r.status[channel];
     if (v === was[k]) return;
     r[channel] = { ...was, [k]: v ? '••••' : '' };
-    if (channel === 'discord') {
+    if (channel === 'discord' && k === 'token') {
       // Another bot: its application, its servers and its people aren't this one's.
-      Object.assign(r.discord, { connected: false, bot: '', guilds: 0, senders: 0, appId: '', invite: '', error: '' });
+      Object.assign(r.discord, { connected: false, bot: '', guilds: 0, senders: 0, appId: '', invite: '', publicKey: was.token ? '' : was.publicKey, error: '' });
       r.status.discord = null;
     }
     const ok = await saveChannel({ [channel]: { [k]: v } }, () => {
@@ -528,6 +549,10 @@ export async function openPhone({ host } = {}) {
     if (act === 'dcInvite') {
       await copy(r.discord.invite);
       return toast('Link copied');
+    }
+    if (act === 'dcUrl') {
+      await copy(r.discord.endpoint);
+      return toast('URL copied');
     }
     if (act === 'dcCode') {
       await copy(`link ${r.discord.linkCode}`);

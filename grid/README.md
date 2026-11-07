@@ -221,6 +221,17 @@ both.
 "channels": { "enabled": true, "route": true }
 ```
 
+Discord's `/wisp` works the same way, but it wants a real answer within 3 seconds, sooner than a box
+can wake. So the grid verifies Ed25519 itself and answers: a PING, type 5 for a command and type 6 for
+a button, held and woken, and only a box that's up sees autocomplete (never a wake for a keystroke).
+A bad signature or a timestamp over 5 minutes off is a 401, with nothing held. The public key comes
+from the box over its Box secret, like the URL: what it verifies reaches only that box, so a Discord
+message here never reaches a computer. The box sends hashes of its linked ids with the key, so a guild
+stranger gets an ephemeral line from the grid, with nothing held and nothing woken: anyone in a server
+can run a command, and those wakes would cost the owner's. Only a DM from a stranger reaches the box,
+for a link code. The box checks the signature again with its own copy, and has no gateway: mentions
+don't work there, only `/wisp`.
+
 ### Sandboxes
 
 `/sandbox <task>` in wisp asks the grid for a box of its own for that task (`grid/sandboxes.js`):
@@ -304,9 +315,11 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
   doesn't keep it awake: the stream it opens is marked `x-wisp-relay`.
 - **Channels.** `POST <handle>.<domain>/_in/<token>` is the one way in that never signs in. Its token
   works only at its owner's address, only its SHA-256 is looked up (the token itself is sealed), and
-  the grid checks nothing else: the box verifies each message (`grid/inbox.js`). A box asks for its URL
-  with its Box secret (`GET /api/channels/url`) and only ever gets its own, and can replace it
-  (`POST /api/channels/url/rotate`). Anyone can message a bot, so a wake has to be earned: after three
+  the grid checks nothing else, but for a channel with an edge (Discord, above), and either way the box
+  verifies each message (`grid/inbox.js`). A box asks for its URL with its Box secret
+  (`GET /api/channels/url`) and only ever gets its own, can replace it
+  (`POST /api/channels/url/rotate`), and sets its edge's public key (`POST /api/channels/url/key`), which
+  only opens its own URL. Anyone can message a bot, so a wake has to be earned: after three
   with nothing the box accepted, a wake is a scheduled one (evicts nobody, no use of the box), at most
   one per 10 minutes. Known tokens are limited per token, unknown ones per address.
 - **Mail.** `POST <domain>/_mail/ses` is the provider's. It's an RSA signature over the whole message,

@@ -4,7 +4,9 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import { createServer as netServer } from 'node:net';
 import { installFakeBins, isolateAgentConfigs, makeRepo, sleep, tmp, until } from './helpers.js';
@@ -18,8 +20,10 @@ isolateAgentConfigs();
 
 const { startServer } = await import('../server/index.js');
 const { RateLimit, STALE_S } = await import('../server/channels/policy.js');
-const { NOT_ON_A_BOX, PERMISSIONS, discordText, slashCommand, slashText, snowflakeMs } = await import('../server/channels/discord.js');
+const { NO_HUB, PERMISSIONS, discordText, slashCommand, slashText, snowflakeMs } = await import('../server/channels/discord.js');
 const { stripFormatting } = await import('../server/channels/grammar.js');
+const { discordSigned, isPublicKey, linkedHash } = await import('../server/channels/discord-sign.js');
+const { Linking } = await import('../server/channels/conversation.js');
 
 const ME = '111111';
 const STRANGER_ID = '222222';
@@ -130,19 +134,19 @@ async function caughtUp(chat) {
 
 test('off by default: no connection, token checked and masked, the invite needs an id', async () => {
   const view = (await api('/remote')).discord;
-  assert.deepEqual(view, { enabled: false, token: '', appId: '', invite: '', connected: false, bot: '', guilds: 0, senders: 0, linkCode: '', box: false, error: '' });
+  assert.deepEqual(view, { enabled: false, token: '', publicKey: '', endpoint: '', appId: '', invite: '', connected: false, bot: '', guilds: 0, senders: 0, linkCode: '', box: false, noHub: false, error: '' });
   await assert.rejects(api('/remote', { method: 'PUT', body: { discord: { token: 'nope' } } }), /doesn’t look like a bot token/);
   await assert.rejects(api('/remote', { method: 'PUT', body: { discord: { appId: 'abc' } } }), /long number/);
   await assert.rejects(api('/remote/discord/invite'), /application ID/);
   assert.equal(fake.calls.length, 0);
 });
 
-test('on a cloud computer it won’t turn on, and says why; a config from elsewhere doesn’t start it', async () => {
-  process.env.WISP_GRID_URL = 'https://grid.example';
+test('a sandbox has no way in: it won’t turn on, and says why; a config from elsewhere doesn’t start it', async () => {
+  process.env.WISP_GRID_URL = 'https://grid.example'; // no proxy secret, no public URL: one task's box
   try {
-    await assert.rejects(api('/remote', { method: 'PUT', body: { discord: { enabled: true, token: TOKEN } } }), new RegExp(NOT_ON_A_BOX.slice(0, 40)));
+    await assert.rejects(api('/remote', { method: 'PUT', body: { discord: { enabled: true, token: TOKEN } } }), new RegExp(NO_HUB.slice(0, 40)));
     const v = (await api('/remote')).discord;
-    assert.deepEqual([v.box, v.enabled], [true, false]);
+    assert.deepEqual([v.box, v.noHub, v.enabled], [true, true, false]);
     srv.store.config.remote.discord = { enabled: true, token: TOKEN };
     assert.equal(ch().ready, false);
     delete srv.store.config.remote.discord;
@@ -152,8 +156,8 @@ test('on a cloud computer it won’t turn on, and says why; a config from elsewh
   assert.equal(fake.calls.length, 0);
 });
 
-test('the page says the same words as the refusal on a cloud computer', () => {
-  assert.ok(fs.readFileSync(new URL('../web/js/features/phone.js', import.meta.url), 'utf8').includes(NOT_ON_A_BOX));
+test('the page says the same words as the refusal in a sandbox', () => {
+  assert.ok(fs.readFileSync(new URL('../web/js/features/phone.js', import.meta.url), 'utf8').includes(NO_HUB));
 });
 
 test('switched on: identify with no privileged intent, /wisp registered, the view filled in', async () => {
@@ -1306,6 +1310,36 @@ test('every post in this file set allowed_mentions empty and held no embed', () 
   }
 });
 
+test('a post whose connection broke goes again, and a 429 still waits Retry-After', async () => {
+  const n = fake.posts.length;
+  fake.sever('POST /channels/C9/messages');
+  await ch().rest('POST', '/channels/C9/messages', { content: 'once' });
+  assert.equal(fake.posts.length, n + 1);
+  fake.sever('POST /channels/C9/messages');
+  await assert.rejects(ch().rest('POST', '/channels/C9/messages', { content: 'one try' }, { tries: 1 }));
+  assert.equal(fake.posts.length, n + 1, 'tries: 1 means one');
+  fake.sever('POST /channels/C9/messages');
+  await ch().rest('POST', '/channels/C9/messages', { content: 'cut, then limited' }, { tries: 2 }).catch(() => {});
+  fake.fail('POST /channels/C9/messages', { status: 429, body: { retry_after: 0.05 } });
+  const t = Date.now();
+  await ch().rest('POST', '/channels/C9/messages', { content: 'waits' });
+  assert.ok(Date.now() - t >= 40, 'Retry-After was kept');
+});
+
+test('a first reply that doesn’t get out is kept, and goes ahead of the report', async () => {
+  const c = `D${ME}`;
+  await caughtUp(c);
+  const at = inRoom(c).length;
+  fake.fail(`POST /channels/${c}/messages`, { status: 500, body: { message: 'down' } });
+  dm(`in ${web} plan: note the thing`, { channel: c });
+  const report = await until(() => inRoom(c).slice(at).find((p) => /Reply to this message to answer or follow up\./.test(p.content)), { what: 'the report' });
+  const said = inRoom(c).slice(at);
+  assert.equal(said.length, 2, said.map((p) => p.content).join(' | '));
+  assert.equal(said[1], report, 'the owed first reply went first');
+  read.set(c, inRoom(c).length);
+  await settled((await taskIn(c)).id).catch(() => {});
+});
+
 test('unlinking: everyone goes, a new code, and they’re strangers again; off closes cleanly', async () => {
   const before = (await api('/remote')).discord.linkCode;
   const v = await api('/remote', { method: 'PUT', body: { discord: { unlink: true } } });
@@ -1322,6 +1356,7 @@ test('unlinking: everyone goes, a new code, and they’re strangers again; off c
 });
 
 test('the pure parts', () => {
+  assert.ok(slashCommand().options.some((o) => o.name === 'machine'), 'a computer keeps its machine option');
   assert.equal(slashText({ prompt: 'fix it' }), 'fix it');
   assert.equal(slashText({ prompt: 'fix it', crew: 'ada', project: 'api', machine: 'laptop', model: 'opus', mode: 'plan' }), '@ada in api on laptop with opus plan: fix it');
   const s = (t, o) => stripFormatting(t, 'discord', o);
@@ -1340,4 +1375,416 @@ test('the pure parts', () => {
   const ended = discordText('y'.repeat(5000), `@everyone [a](b) ghp_${'a1B2'.repeat(10)}`);
   assert.ok(ended.length <= 2000);
   assert.match(ended, /@\u200beveryone \[a\]\\\(b\) \[redacted: a GitHub token\]$/, 'the ending leaves as safely as the rest');
+});
+
+// --- on a cloud computer: no socket, and the grid's edge answers first ----------------------------
+
+const keypair = () => {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  return { privateKey, hex: Buffer.from(publicKey.export({ format: 'jwk' }).x, 'base64url').toString('hex') };
+};
+const keys = keypair();
+const signedBy = (privateKey, raw) => {
+  const ts = String(Math.floor(Date.now() / 1000));
+  return { 'x-signature-ed25519': sign(null, Buffer.from(ts + raw), privateKey).toString('hex'), 'x-signature-timestamp': ts };
+};
+// Discord's HTTP call, as the grid delivers it.
+const held = (d, privateKey = keys.privateKey) => {
+  const raw = JSON.stringify(d);
+  return ch().inbound(Buffer.from(raw), signedBy(privateKey, raw));
+};
+const command = (user, prompt, o = {}) => fake.interaction({ type: 2, member: { user: { id: user } }, data: { name: 'wisp', options: [{ name: 'prompt', value: prompt }] }, channel: { type: 0 }, ...o });
+const inDm = (user, prompt, o = {}) => command(user, prompt, { guild_id: undefined, member: undefined, user: { id: user }, channel_id: `D${user}`, channel: { type: 1 }, ...o });
+const box = { keys: [], linked: [], dropped: 0, hub: true, url: 'https://ada.grid.example/_in/the-inbox-token' };
+const fakeGrid = http.createServer(async (req, res) => {
+  let t = '';
+  for await (const c of req) t += c;
+  const url = new URL(req.url, 'http://x');
+  const send = (status, o) => {
+    res.writeHead(status, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(o));
+  };
+  if (!box.hub) return send(404, { error: 'not found' });
+  if (req.headers.authorization !== 'Box ada box-secret') return send(401, { error: 'no' });
+  if (url.pathname === '/api/channels/url/key') {
+    if (box.keyFail) return send(500, { error: 'the grid is down' });
+    box.keys.push(JSON.parse(t).key);
+    box.linked.push(JSON.parse(t).linked);
+    return send(200, { ok: true });
+  }
+  if (url.pathname === '/api/channels/url/rotate') {
+    box.url = 'https://ada.grid.example/_in/the-next-token';
+    return send(200, { url: box.url });
+  }
+  const dropped = box.dropped;
+  box.dropped = 0;
+  send(200, { url: box.url, dropped });
+});
+const warned = [];
+const warn = console.warn;
+
+test('a cloud computer: set up by paste, a bad key refused, no gateway, /wisp registered by REST once', async () => {
+  await api('/remote', { method: 'PUT', body: { discord: { enabled: false, token: '' } } });
+  fake.token = TOKEN; // earlier tests moved it on
+  fake.verifyKey = keys.hex;
+  await new Promise((r) => fakeGrid.listen(0, '127.0.0.1', r));
+  Object.assign(process.env, { WISP_GRID_URL: `http://127.0.0.1:${fakeGrid.address().port}`, WISP_TRUSTED_PROXY_SECRET: 'box-secret', WISP_PUBLIC_URL: 'https://ada.grid.example' });
+  console.warn = (...a) => {
+    warned.push(a.join(' '));
+    warn(...a);
+  };
+  await assert.rejects(api('/remote', { method: 'PUT', body: { discord: { publicKey: 'abc' } } }), /64 hex/);
+  await assert.rejects(api('/remote', { method: 'PUT', body: { discord: { publicKey: 'z'.repeat(64) } } }), /64 hex/);
+  const connects = fake.connects;
+  const identifies = fake.identifies.length;
+  const gateway = fake.calls.filter((c) => c.route === 'GET /gateway/bot').length;
+  const cmds = fake.commands.length;
+  await api('/remote', { method: 'PUT', body: { discord: { enabled: true, token: TOKEN } } });
+  assert.equal(ch().ready, false, 'no key yet');
+  const v = await api('/remote', { method: 'PUT', body: { discord: { publicKey: keys.hex.toUpperCase() } } });
+  assert.equal(v.discord.publicKey, keys.hex);
+  const up = await until(async () => {
+    const x = (await api('/remote')).discord;
+    return x.connected && x.endpoint ? x : null;
+  }, { what: 'the box connected' });
+  assert.deepEqual([up.box, up.bot, up.endpoint, up.appId, up.guilds], [true, 'wisp', box.url, fake.appId, 2]);
+  assert.equal(box.keys.at(-1), keys.hex, 'the grid has the key');
+  await until(() => fake.commands.length === cmds + 1, { what: '/wisp registered' });
+  assert.deepEqual(fake.commands.at(-1).body, [slashCommand()]);
+  assert.equal(fake.connects, connects, 'no socket');
+  assert.equal(fake.identifies.length, identifies);
+  assert.equal(fake.calls.filter((c) => c.route === 'GET /gateway/bot').length, gateway);
+  hub().start(); // what a wake does
+  await until(() => box.keys.length >= 2, { what: 'the key again' });
+  await sleep(100);
+  assert.equal(fake.commands.length, cmds + 1, 'a box wakes often: registered once');
+  assert.equal(fake.connects, connects);
+  assert.ok(!JSON.stringify(await api('/config')).includes('the-inbox-token'), 'the URL stays out of /config');
+});
+
+test('a box’s /wisp stays off a socket: a signature it can’t check, or none, is a 401', async () => {
+  const d = inDm(STRANGER_ID, 'hello');
+  const raw = JSON.stringify(d);
+  const count = srv.store.all().length;
+  assert.equal((await held(d, keypair().privateKey)).status, 401, 'forged, with a good-looking grid mark');
+  assert.equal((await ch().inbound(Buffer.from(raw), {})).status, 401, 'no headers');
+  assert.equal((await ch().inbound(Buffer.from(`${raw} `), signedBy(keys.privateKey, raw))).status, 401, 'another body');
+  assert.deepEqual([fake.edits.filter((e) => e.token === d.token).length, fake.deletes.filter((e) => e.token === d.token).length, srv.store.all().length], [0, 0, count]);
+});
+
+test('a box: linked by /wisp in a DM, in the deferred response, no callback at all', async () => {
+  const code = (await api('/remote')).discord.linkCode;
+  const callbacks = fake.callbacks.length;
+  const wrong = inDm(ME, 'link 000000');
+  assert.equal((await held(wrong)).status, 403, 'a stranger still');
+  const d = inDm(ME, `link ${code}`);
+  assert.equal((await held(d)).status, 200);
+  await until(() => fake.edits.some((e) => e.token === d.token && /^✓ Linked to wisp/.test(e.content)), { what: 'the edit' });
+  assert.equal((await api('/remote')).discord.senders, 1);
+  assert.equal(fake.callbacks.length, callbacks, 'the grid answered: a second answer fails');
+  await until(() => box.linked.at(-1)?.includes(linkedHash(ME, keys.hex)), { what: 'the grid told who’s linked' });
+  assert.ok(!JSON.stringify(box.linked).includes(ME), 'hashed');
+  assert.ok(!box.linked.at(-1).includes(createHash('sha256').update(`discord:${ME}`).digest('hex')), 'not the hash every box would send');
+  assert.notEqual(linkedHash(ME, keys.hex), linkedHash(ME, keypair().hex), 'keyed by the application: another bot, another hash');
+});
+
+test('a box: a link whose sync to the grid fails still says Linked, no error, and the next delivery sends it', async () => {
+  const OTHER = '424242424242424242';
+  const code = (await api('/remote')).discord.linkCode;
+  box.keyFail = true;
+  try {
+    const d = inDm(OTHER, `link ${code}`);
+    assert.equal((await held(d)).status, 200);
+    await until(() => fake.edits.some((e) => e.token === d.token && /^✓ Linked to wisp/.test(e.content)), { what: 'the edit' });
+    await sleep(200);
+    assert.ok(srv.store.config.remote.discord.senders.includes(OTHER));
+    assert.ok(![...fake.edits.filter((e) => e.token === d.token), ...inRoom(`D${OTHER}`)].some((e) => /hit an error/.test(e.content)), 'no error after Linked');
+    assert.doesNotMatch((await api('/remote')).discord.error, /the grid is down/, 'nor in Settings: the link worked');
+    box.keyFail = false;
+    const next = command(ME, 'help', { channel_id: 'CB7' });
+    assert.equal((await held(next)).status, 200);
+    await until(() => box.linked.at(-1)?.includes(linkedHash(OTHER, keys.hex)), { what: 'the grid told, on the next delivery' });
+  } finally {
+    box.keyFail = false;
+    srv.store.config.remote.discord.senders = srv.store.config.remote.discord.senders.filter((x) => x !== OTHER);
+    await ch().syncKey();
+    ch().mark({ error: '' });
+  }
+});
+
+test('a box: a command starts from the deferred state: edited, threaded, once, and a report by post', async () => {
+  const count = srv.store.all().length;
+  const callbacks = fake.callbacks.length;
+  const d = command(ME, `in ${name} plan: look around`, { channel_id: 'CB1' });
+  assert.equal((await held(d)).status, 200);
+  await until(() => fake.edits.some((e) => e.token === d.token), { what: 'the edit' });
+  const again = await held(d);
+  assert.deepEqual([again.status, again.body.duplicate], [200, true]);
+  const s = await until(() => srv.store.all().find((x) => x.remote?.discord && x.createdAt && srv.store.all().length === count + 1), { what: 'the task' });
+  await settled(s.id);
+  const thread = fake.threads.at(-1);
+  assert.equal(thread.channel, 'CB1');
+  const report = await until(() => inRoom(thread.id).find((p) => /Use \/wisp here to answer or follow up\./.test(p.content)), { what: 'the report' });
+  assert.doesNotMatch(report.content, /Mention/);
+  assert.equal(srv.store.all().length, count + 1, 'once');
+  assert.equal(fake.callbacks.length, callbacks);
+  assert.equal(srv.store.config.remote.discord.seen.includes(d.id), true, 'a box forgets what’s in memory');
+  const follow = command(ME, 'and the rest', { channel_id: thread.id, channel: { type: 11 } });
+  assert.equal((await held(follow)).status, 200);
+  await until(() => fake.edits.some((e) => e.token === follow.token), { what: 'the follow-up’s edit' });
+  assert.equal(srv.store.all().length, count + 1, 'a follow-up in its thread, by /wisp');
+});
+
+test('a box: a /wisp in a DM follows up on the task there: replies don’t reach it', async () => {
+  const count = srv.store.all().length;
+  const had = new Set(srv.store.all().map((x) => x.id));
+  const d = inDm(ME, `in ${name} plan: one thing`);
+  await held(d);
+  const s = await until(() => srv.store.all().find((x) => !had.has(x.id) && x.remote?.discord?.channel === `D${ME}`), { what: 'the task' });
+  await settled(s.id);
+  assert.equal(s.remote.discord.thread, true);
+  const next = inDm(ME, 'and another');
+  await held(next);
+  await until(() => fake.edits.some((e) => e.token === next.token), { what: 'the edit' });
+  assert.equal(srv.store.all().length, count + 1);
+});
+
+test('a box: a key that isn’t the application’s says so, and isn’t Connected; the right one recovers', async () => {
+  const wrong = keypair().hex;
+  const commands = fake.commands.length;
+  await api('/remote', { method: 'PUT', body: { discord: { publicKey: wrong } } });
+  const v = await until(async () => {
+    const x = await api('/remote');
+    return x.discord.error ? x : null;
+  }, { what: 'the error' });
+  assert.equal(v.discord.connected, false);
+  assert.match(v.discord.error, new RegExp(`doesn’t match.*${keys.hex.slice(-6)}.*General Information`));
+  assert.ok(!v.discord.error.includes(TOKEN));
+  assert.equal(fake.commands.length, commands);
+  await api('/remote', { method: 'PUT', body: { discord: { publicKey: keys.hex } } });
+  await until(async () => (await api('/remote')).discord.connected, { what: 'connected again' });
+  assert.equal((await api('/remote')).discord.error, '');
+});
+
+test('a box: a stranger’s deferred response goes, nothing said, no task, and the grid hears a 403', async () => {
+  const count = srv.store.all().length;
+  const edits = fake.edits.length;
+  const d = command(STRANGER_ID, `in ${name} plan: anything`);
+  assert.equal((await held(d)).status, 403);
+  await until(() => fake.deletes.some((x) => x.token === d.token), { what: 'the delete' });
+  assert.deepEqual([fake.edits.length, srv.store.all().length], [edits, count]);
+  assert.equal((await held(d)).status, 403, 'a repeat');
+  assert.equal(fake.deletes.filter((x) => x.token === d.token).length, 1, 'gone once');
+});
+
+test('a box: a stranger’s DM gets its one line in the deferred response, then nothing', async () => {
+  ch().strangers = new RateLimit({ max: 1 });
+  const d = inDm('333333', 'hello');
+  assert.equal((await held(d)).status, 403);
+  const line = await until(() => fake.edits.find((e) => e.token === d.token), { what: 'the line' });
+  assert.match(line.content, /^This wisp only answers people linked to it\. To link, use `\/wisp` here with `link` and the code/);
+  const next = inDm('333333', 'hello again');
+  assert.equal((await held(next)).status, 403);
+  await until(() => fake.deletes.some((x) => x.token === next.token), { what: 'the delete' });
+  ch().strangers = new RateLimit({ max: 1000 });
+});
+
+test('a box: a stranger’s button is left alone: @original there is the message itself, and it isn’t deleted', async () => {
+  const d = fake.interaction({ type: 3, member: { user: { id: STRANGER_ID } }, data: { custom_id: 'a:s:r:0:sig' }, channel_id: 'CB2' });
+  const deletes = fake.deletes.length;
+  assert.equal((await held(d)).status, 403);
+  await sleep(50);
+  assert.equal(fake.deletes.length, deletes);
+  assert.equal(inRoom('CB2').length, 0);
+});
+
+test('a box: a linked click needs no callback, and a command that isn’t /wisp is taken away', async () => {
+  const callbacks = fake.callbacks.length;
+  const d = fake.interaction({ type: 3, member: { user: { id: ME } }, data: { custom_id: 'a:nope:r:0:bad' }, channel_id: 'CB3' });
+  assert.equal((await held(d)).status, 200);
+  await until(() => inRoom('CB3').some((p) => /doesn’t work any more/.test(p.content)), { what: 'the line' });
+  assert.equal(fake.callbacks.length, callbacks);
+  const other = fake.interaction({ type: 2, member: { user: { id: ME } }, data: { name: 'other' } });
+  assert.equal((await held(other)).status, 200);
+  await until(() => fake.deletes.some((x) => x.token === other.token), { what: 'the delete' });
+});
+
+test('a small-order key: a fixed signature would verify anything, so it’s no key at all', async () => {
+  const identity = `01${'00'.repeat(31)}`;
+  assert.equal(discordSigned(identity, Buffer.from('anything'), { 'x-signature-ed25519': `01${'00'.repeat(63)}`, 'x-signature-timestamp': '1' }), false);
+  assert.equal(isPublicKey(identity), false);
+  assert.equal(isPublicKey(identity.toUpperCase()), false);
+  assert.equal(isPublicKey(`ed${'ff'.repeat(31)}`), false, 'the sign bit changes nothing');
+  assert.equal(isPublicKey(keys.hex), true);
+  await assert.rejects(api('/remote', { method: 'PUT', body: { discord: { publicKey: identity } } }), /64 hex/);
+});
+
+test('a box: strangers can’t push an id out of seen: all under 14 minutes stay, older ones go', async () => {
+  const c = srv.store.config.remote.discord;
+  c.seen = [...c.seen, snowflake(Date.now() - 20 * 60_000)];
+  const first = command(STRANGER_ID, 'one');
+  assert.equal((await held(first)).status, 403);
+  await until(() => fake.deletes.some((x) => x.token === first.token), { what: 'the delete' });
+  for (let i = 0; i < 230; i++) await held(command(STRANGER_ID, `flood ${i}`));
+  assert.ok(c.seen.includes(first.id), 'pushed out');
+  assert.ok(c.seen.every((id) => Date.now() - snowflakeMs(id) < 14 * 60_000), 'older ones go');
+  assert.equal((await held(first)).status, 403);
+  assert.equal(fake.deletes.filter((x) => x.token === first.token).length, 1, 'the repeat did nothing');
+});
+
+test('a box: a message never reaches another machine: not named, not by a project, not by a crew member, and it isn’t offered', async () => {
+  const c = srv.store.config;
+  const was = { machines: c.machines, usable: srv.machines.usable };
+  c.machines = [...(c.machines || []), { id: 'm1', name: 'laptop', target: 'x' }];
+  srv.machines.usable = () => true;
+  const phone = hub().phone;
+  try {
+    assert.deepEqual((await phone.context()).machines, [], 'nothing to pick from');
+    assert.ok(!slashCommand().options.some((o) => o.name === 'machine'), 'no machine option on a box');
+    const far = { name: 'far', path: '/far', machine: 'm1' };
+    const parsed = { prompt: 'go', tagged: [], notes: [], project: null, crew: null };
+    const said = /doesn’t reach other machines/;
+    await assert.rejects(phone.startParsed({ ...parsed, machine: 'm1', project: { name, path: repo } }, { channel: 'discord', name: 'Discord', ctx: await phone.context() }), said);
+    await assert.rejects(phone.startParsed({ ...parsed, project: far }, { channel: 'discord', name: 'Discord', ctx: await phone.context() }), said);
+    await assert.rejects(phone.startParsed({ ...parsed, crew: { name: 'Ada', machine: 'm1' } }, { channel: 'discord', name: 'Discord', ctx: await phone.context() }), said);
+    await assert.rejects(srv.remote.launch({ project: far, prompt: 'go' }), said);
+    await assert.rejects(phone.mention(srv.store.all()[0].id, { ...parsed, crew: { name: 'Ada', machine: 'm1' } }, { name: 'Discord' }), said);
+    assert.match(await phone.status('abc@m1'), said, 'nor a follow-up on a task there');
+    const count = srv.store.all().length;
+    const d = command(ME, 'on laptop plan: look', { channel_id: 'CB9' });
+    await held(d);
+    const edit = await until(() => fake.edits.find((e) => e.token === d.token), { what: 'the edit' });
+    assert.match(edit.content, /No machine/);
+    assert.equal(srv.store.all().length, count);
+    const ask = fake.interaction({ type: 4, member: { user: { id: ME } }, data: { name: 'wisp', options: [{ name: 'machine', value: '', focused: true }] } });
+    assert.ok(!(await held(ask)).body.data.choices.some((x) => x.name === 'laptop'));
+  } finally {
+    c.machines = was.machines;
+    srv.machines.usable = was.usable;
+  }
+});
+
+test('link guesses outlive a sleep: the count that changes the code, and a day’s budget for everyone', async () => {
+  const c = srv.store.config.remote.discord;
+  const wake = () => new Linking(ch(), { limit: () => ch().strangers, where: 'Settings', done: 'linked' }); // a box's memory, after a sleep
+  const said = [];
+  const say = (t) => said.push(t);
+  delete c.linkGuess;
+  const code = c.linkCode;
+  for (let i = 0; i < 4; i++) wake().attempt(`9${i}`, '000000', say);
+  assert.equal(c.linkCode, code, 'four wrong');
+  wake().attempt('95', '000000', say);
+  assert.notEqual(c.linkCode, code, 'the fifth, after a sleep, still changes it');
+  c.linkGuess = { ...c.linkGuess, spent: 50 };
+  const before = c.senders.length;
+  assert.equal(wake().attempt('96', c.linkCode, say), undefined, 'the day’s budget is spent: silence, even for the right code');
+  assert.equal(c.senders.length, before);
+  c.linkGuess = { ...c.linkGuess, day: '2000-01-01' };
+  wake().attempt('96', c.linkCode, say);
+  assert.ok(c.senders.includes('96'), 'a new day');
+  c.senders = c.senders.filter((x) => x !== '96');
+  assert.ok(!JSON.stringify(c.linkGuess).includes('000000'), 'no guess is kept');
+});
+
+test('one stranger can’t spend the day’s guesses: five wrong a day each, then silence, and the owner still links', async () => {
+  const c = srv.store.config.remote.discord;
+  const wake = () => new Linking(ch(), { limit: () => ({ hit: () => ({ ok: true }) }), where: 'Settings', done: 'linked' }); // nothing in memory: a box that slept between each
+  const said = [];
+  const say = (t) => said.push(t);
+  delete c.linkGuess;
+  for (let i = 0; i < 60; i++) wake().attempt('81', String(100000 + i), say);
+  assert.equal(said.length, 5, 'five answers, then silence');
+  assert.equal(c.linkGuess.spent, 5, 'only five counted against everyone');
+  assert.ok(!JSON.stringify(c.linkGuess).includes('81'), 'the sender is kept hashed');
+  assert.equal(wake().attempt('81', c.linkCode, say), undefined, 'past their five, not even the right code');
+  wake().attempt('82', c.linkCode, say);
+  assert.ok(c.senders.includes('82'), 'someone else links');
+  c.senders = c.senders.filter((x) => x !== '82');
+  delete c.linkGuess;
+});
+
+test('a box: past 14 minutes a row is dropped with a plain log; before that it still runs, past the 10 of a message', async () => {
+  const count = srv.store.all().length;
+  const old = command(ME, `in ${name} plan: too late`, { id: snowflake(Date.now() - 14 * 60_000 - 1000) });
+  const out = await held(old);
+  assert.equal(out.status, 410);
+  assert.ok(warned.some((l) => /discord: dropped a held interaction, 14 min old/.test(l)), warned.join('\n'));
+  assert.deepEqual([fake.edits.filter((e) => e.token === old.token).length, srv.store.all().length], [0, count]);
+  assert.ok(inRoom(old.channel_id).some((p) => /One message didn’t reach wisp while it was asleep/.test(p.content)), 'someone linked is told, where they asked');
+  const theirs = command(STRANGER_ID, 'late', { id: snowflake(Date.now() - 14 * 60_000 - 1000), channel_id: 'CB8' });
+  assert.equal((await held(theirs)).status, 410);
+  assert.equal(inRoom('CB8').length, 0, 'a stranger isn’t');
+  const late = command(ME, 'help', { id: snowflake(Date.now() - 12 * 60_000), channel_id: 'CB4' });
+  assert.equal((await held(late)).status, 200);
+  const edit = await until(() => fake.edits.find((e) => e.token === late.token), { what: 'the edit' });
+  assert.match(edit.content, /Say what you’d type in wisp/, 'it ran: the 10 minutes of a message aren’t a held row’s');
+});
+
+test('a box: a token that dies goes by channel message, and the thread hangs on that message', async () => {
+  const d = command(ME, 'help', { channel_id: 'CB5' });
+  fake.deadTokens.add(d.token);
+  assert.equal((await held(d)).status, 200);
+  await until(() => inRoom('CB5').some((p) => /Say what you’d type in wisp/.test(p.content)), { what: 'the post' });
+  const count = srv.store.all().length;
+  const task = command(ME, `in ${name} plan: long one`, { channel_id: 'CB7' });
+  fake.deadTokens.add(task.token);
+  assert.equal((await held(task)).status, 200);
+  const s = await until(() => (srv.store.all().length === count + 1 ? srv.store.all().find((x) => fake.threads.some((t) => t.channel === 'CB7' && t.id === x.remote?.discord?.channel)) : null), { what: 'the task' });
+  await settled(s.id);
+  const thread = fake.threads.find((t) => t.channel === 'CB7');
+  assert.equal(thread.message, inRoom('CB7')[0].id, 'on the post that took the reply’s place');
+  await until(() => inRoom(thread.id).some((p) => /Use \/wisp here/.test(p.content)), { what: 'the report' });
+  assert.equal(fake.edits.filter((e) => e.token === task.token).length, 0);
+});
+
+test('a box: autocomplete answers in the body, for the linked; a stranger gets nothing, and neither calls back', async () => {
+  const callbacks = fake.callbacks.length;
+  const ask = (user) => fake.interaction({ type: 4, member: { user: { id: user } }, data: { name: 'wisp', options: [{ name: 'project', value: '', focused: true }] } });
+  const mine = await held(ask(ME));
+  assert.equal(mine.status, 200);
+  assert.equal(mine.body.type, 8);
+  assert.ok(mine.body.data.choices.some((c) => c.name === name));
+  const theirs = await held(ask(STRANGER_ID));
+  assert.deepEqual(theirs.body, { type: 8, data: { choices: [] } });
+  assert.equal(fake.callbacks.length, callbacks);
+});
+
+test('a box: what the grid lost is said where someone last spoke, a rotate shows the new URL', async () => {
+  const n = fake.posts.length;
+  await ch().dropped(2);
+  assert.match(fake.posts.at(-1).content, /2 messages didn’t reach wisp while it was asleep/);
+  assert.equal(fake.posts.length, n + 1);
+  const out = await ch().rotate();
+  assert.deepEqual([out.status, out.body.url], [200, box.url]);
+  assert.equal((await api('/remote')).discord.endpoint, box.url);
+});
+
+test('a box: switched off, its key leaves the grid, so nothing wakes it; a grid with no hub says so', async () => {
+  await api('/remote', { method: 'PUT', body: { discord: { enabled: false } } });
+  await until(() => box.keys.at(-1) === '', { what: 'the key gone' });
+  const held0 = await held(command(ME, 'help'));
+  assert.equal(held0.status, 409);
+  box.hub = false;
+  await api('/remote', { method: 'PUT', body: { discord: { enabled: true } } });
+  const v = await until(async () => {
+    const x = await api('/remote');
+    return x.status.discord?.error ? x : null;
+  }, { what: 'the error' });
+  assert.equal(v.status.discord.error, NO_HUB);
+  box.hub = true;
+});
+
+test('a box: a new token drops the old key: another bot, another key', async () => {
+  await api('/remote', { method: 'PUT', body: { discord: { token: 'MTEx.other-part.other-token' } } });
+  assert.equal(srv.store.config.remote.discord.publicKey, '');
+  assert.equal(ch().ready, false);
+});
+
+test('no token, interaction token, inbox URL or key reached a log on a box', () => {
+  const all = warned.join('\n');
+  for (const s of [TOKEN, 'itoken-', 'the-inbox-token', keys.hex]) assert.ok(!all.includes(s), s);
+  console.warn = warn;
+  for (const k of ['WISP_GRID_URL', 'WISP_TRUSTED_PROXY_SECRET', 'WISP_PUBLIC_URL']) delete process.env[k];
+  fakeGrid.close();
+  fakeGrid.closeAllConnections?.();
 });

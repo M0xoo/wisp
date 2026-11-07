@@ -123,6 +123,7 @@
 /* Slack's and Discord's steps: a number that turns into a tick, the step beside it */
 .ph-steps { display: flex; flex-direction: column; gap: 14px; margin: 12px 0 0; padding: 0; list-style: none; }
 .ph-steps > li { display: flex; gap: 10px; min-width: 0; }
+.ph-steps > li[hidden] { display: none; }
 .ph-num { flex: none; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 1px solid var(--line-2); border-radius: 50%; font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--muted); }
 .ph-num.ok { color: var(--good); }
 .ph-num .i { width: 12px; height: 12px; }

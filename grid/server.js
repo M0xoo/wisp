@@ -57,7 +57,7 @@ import { TUNNEL_PROTOCOL, createTunnels, hostOnly } from './tunnels.js';
 import { SHARE_LANDING, isShare, shareNoWorker } from '../server/http/share.js';
 
 const BODY_LIMIT = 64 * 1024;
-const ANSWER_MAX = 4096; // a box's answer to a channel's check
+const ANSWER_MAX = 16 * 1024; // a box's answer to a channel's live request: 25 autocomplete choices fit
 const ASSETS = new URL('./assets/', import.meta.url);
 const TYPES = { webp: 'image/webp', svg: 'image/svg+xml', png: 'image/png' };
 const WEB_TYPES = { css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8', svg: 'image/svg+xml' };
@@ -245,7 +245,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
       up.on('error', reject);
       up.end(data);
     });
-  const inbox = createInbox({ db, cfg, secrets, accounts, hostd, deliver: toBox, delivered: (row) => row.channel === 'email' && mail?.delivered(row), log });
+  const inbox = createInbox({ db, cfg, secrets, accounts, hostd, deliver: toBox, delivered: (row) => row.channel === 'email' && mail?.delivered(row), limit, log });
   const mail = inbox.on && cfg.mail ? createMail({ db, cfg, inbox, accounts, log, resolveTxt }) : null;
   const routes = createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit, log });
   hostd.on('change', (e) => {
@@ -438,6 +438,17 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
         if (!who) return send(401, { error: 'Sign in again: this device isn’t known here (removed, or a typo in the token).' });
         limit(`mailout|${who.id}`, 120);
         return send(200, await mail.reply(who, await readBody(req)));
+      }
+      // The key a channel's edge checks with (grid/inbox.js): its own box's word, for its own URL.
+      if (inbox.on && req.method === 'POST' && p === '/api/channels/url/key') {
+        const who = boxUser(req.headers.authorization);
+        if (!who) return send(401, { error: 'Sign in again: this device isn’t known here (removed, or a typo in the token).' });
+        const channel = url.searchParams.get('channel');
+        if (!inbox.knows(channel)) return send(404, { error: 'not found' });
+        limit(`inkey|${who.id}`, 30);
+        const { key, linked } = await readBody(req);
+        inbox.setKey(who, channel, key, linked);
+        return send(200, { ok: true });
       }
       // Publishing an app from My Stuff (grid/sites.js): from wisp on a computer (its device token),
       // or from the cloud wisp itself, which has no device but has its trusted-proxy secret.
@@ -956,7 +967,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
         limit(`in|${clientIp(req)}`, 600);
         return none();
       }
-      limit(`intok|${user.id}|${hit.channel}`, 120);
+      // An edge spends its own budgets once a request is verified (inbox.accept): this only stops a flood.
+      limit(`intok|${user.id}|${hit.channel}`, inbox.edged(hit.channel) ? 1200 : 120);
       const answer = await inbox.accept(user, hit.channel, req);
       return answer ? json(res, answer.status, answer.body) : json(res, 200, { ok: true });
     } catch (err) {

@@ -5,6 +5,10 @@
 //   fake.dispatch(t, d)    an event; it waits for a resume if nobody's connected
 //   fake.message(o)        MESSAGE_CREATE, with a fresh snowflake → the message
 //   fake.interact(o)       INTERACTION_CREATE → the interaction
+//   fake.interaction(o)    the same interaction, sent nowhere: for what comes over HTTP
+//   fake.sever(match)      the next REST call matching loses its connection, with no answer
+//   fake.deadTokens        interaction tokens past their 15 minutes
+//   fake.lag(match, ms)    every REST call matching takes that long to answer
 //   fake.drop()            the socket goes, with no goodbye
 //   fake.op(op, d)         a raw gateway op (7 reconnect, 9 invalid session, 1 heartbeat)
 //   fake.close(code)       the gateway closes with a code
@@ -15,7 +19,7 @@
 //   fake.revoked = true    REST answers 401, and identify closes with 4004
 //   fake.noThreads = code  creating a thread fails with that code
 //   fake.threadChannels    channel ids that are threads; the ones made here are too
-//   fake.posts, callbacks, edits, threads, commands, identifies, resumes, beats, calls, connects: what happened
+//   fake.posts, callbacks, edits, deletes, threads, commands, identifies, resumes, beats, calls, connects: what happened
 
 import http from 'node:http';
 import { acceptUpgrades, frame, readFrames } from './fake-slack.mjs';
@@ -28,6 +32,8 @@ export class FakeDiscord {
   posts = [];
   callbacks = [];
   edits = [];
+  deletes = [];
+  deadTokens = new Set();
   threads = [];
   commands = [];
   identifies = [];
@@ -48,7 +54,10 @@ export class FakeDiscord {
   user = { id: '900', username: 'wisp', bot: true };
   appId = '555555';
   guilds = [{ id: 'G1', unavailable: true }, { id: 'G2', unavailable: true }];
+  verifyKey = 'ab'.repeat(32);
   #fails = [];
+  #severs = [];
+  #lags = [];
   #seq = 0;
   #log = []; // every dispatch, for a resume
   #session = null;
@@ -72,6 +81,14 @@ export class FakeDiscord {
     this.#fails.push({ match, reply });
   }
 
+  lag(match, ms) {
+    this.#lags.push({ match, ms });
+  }
+
+  sever(match) {
+    this.#severs.push(match);
+  }
+
   async #http(req, res) {
     let raw = '';
     for await (const c of req) raw += c;
@@ -83,6 +100,12 @@ export class FakeDiscord {
       res.writeHead(status, { 'content-type': 'application/json', ...headers });
       res.end(o === null ? '' : JSON.stringify(o));
     };
+    for (const l of this.#lags) if (route.includes(l.match)) await new Promise((r) => setTimeout(r, l.ms));
+    const cut = this.#severs.findIndex((m) => route.includes(m));
+    if (cut >= 0) {
+      this.#severs.splice(cut, 1);
+      return req.socket.destroy();
+    }
     const at = this.#fails.findIndex((f) => route.includes(f.match));
     if (at >= 0) {
       const [{ reply }] = this.#fails.splice(at, 1);
@@ -90,6 +113,9 @@ export class FakeDiscord {
     }
     if (this.revoked || req.headers.authorization !== `Bot ${this.token}`) return send(401, { message: '401: Unauthorized', code: 0 });
     let m;
+    if (route === 'GET /users/@me') return send(200, this.user);
+    if (route === 'GET /users/@me/guilds') return send(200, this.guilds.map((g) => ({ id: g.id })));
+    if (route === 'GET /oauth2/applications/@me') return send(200, { id: this.appId, verify_key: this.verifyKey });
     if (route === 'GET /gateway/bot') return send(200, { url: `ws://127.0.0.1:${this.port}/gateway`, shards: 1, session_start_limit: this.limit || { total: 1000, remaining: 999, reset_after: 1000, max_concurrency: 1 } });
     if ((m = /^PUT \/applications\/(\d+)\/commands$/.exec(route))) {
       this.commands.push({ app: m[1], body });
@@ -109,6 +135,11 @@ export class FakeDiscord {
     }
     if ((m = /^POST \/interactions\/([^/]+)\/([^/]+)\/callback$/.exec(route))) {
       this.callbacks.push({ id: m[1], token: m[2], ...body });
+      return send(204, null);
+    }
+    if ((m = /^(?:PATCH|DELETE) \/webhooks\/(\d+)\/([^/]+)\//.exec(route)) && this.deadTokens.has(m[2])) return send(401, { code: 50027, message: 'Invalid Webhook Token' });
+    if ((m = /^DELETE \/webhooks\/(\d+)\/([^/]+)\/messages\/@original$/.exec(route))) {
+      this.deletes.push({ app: m[1], token: m[2] });
       return send(204, null);
     }
     if ((m = /^PATCH \/webhooks\/(\d+)\/([^/]+)\/messages\/@original$/.exec(route))) {
@@ -183,8 +214,12 @@ export class FakeDiscord {
     return m;
   }
 
+  interaction(o) {
+    return { id: snowflake(), token: `itoken-${++counter}`, application_id: this.appId, channel_id: 'C1', guild_id: 'G1', ...o };
+  }
+
   interact(o) {
-    const d = { id: snowflake(), token: `itoken-${++counter}`, application_id: this.appId, channel_id: 'C1', guild_id: 'G1', ...o };
+    const d = this.interaction(o);
     this.dispatch('INTERACTION_CREATE', d);
     return d;
   }

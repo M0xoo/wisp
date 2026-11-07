@@ -1009,6 +1009,12 @@ test("the Phone dialog's Discord section is a part spells can restyle or hide", 
   assert.ok(!('discord.enabled' in schema.SETTINGS) && !('token' in schema.SETTINGS));
 });
 
+test("Discord's endpoint URL on a cloud computer is a part of its own", () => {
+  assert.equal(schema.PARTS['phone.discordUrl'], '.phone-modal .ph-dc .ph-endpoint');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['phone.discordUrl'] }, parts: { 'phone.discordUrl': { style: { opacity: '0.8' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'phone.discordUrl': { props: { lines: 2 } } } }).some((x) => /phone\.discordUrl/.test(x)));
+});
+
 test("a Slack trigger's People field is a part spells can restyle or hide", () => {
   assert.equal(schema.PARTS['automations.slackPeople'], '.auto-modal .k-people');
   assert.deepEqual(problems({ ...base0, ui: { hide: ['automations.slackPeople'] }, parts: { 'automations.slackPeople': { style: { opacity: '0.8' } } } }), []);
