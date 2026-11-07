@@ -4,11 +4,16 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(target_os = "linux")]
+mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
 mod menu;
 mod notify;
 #[cfg(all(feature = "qa", target_os = "macos"))]
+mod qa;
+#[cfg(all(feature = "qa", target_os = "linux"))]
+#[path = "qa_linux.rs"]
 mod qa;
 mod server;
 #[cfg(windows)]
@@ -42,12 +47,10 @@ fn is_wisp(url: &Url, base: &Url) -> bool {
   url.origin() == base.origin()
 }
 
-// WebKitGTK doesn't say which frame a navigation is for, and wry's on_navigation hears them all, so
-// on Linux a Preview tab moving on its own would be thrown out to the browser and blocked. Windows
-// asks for the main frame only, macOS is handled in macos.rs. Not to be shipped until this is solved
-// and seen on a real desktop: qa/scenarios/desktop.md, Linux. cargo check stays open for CI.
-#[cfg(all(target_os = "linux", not(debug_assertions)))]
-compile_error!("wisp's Tauri shell can't ship on Linux yet: on_navigation can't tell a subframe from the page");
+// Where the page itself may go. Anything else opens outside.
+fn stays(url: &Url, base: &Url) -> bool {
+  is_wisp(url, base) || url.scheme() == "about"
+}
 
 // Editor links (vscode://…), docs links etc. open outside the app. Never a local file or a page-made
 // URL: the page is agents' output as much as ours.
@@ -55,11 +58,16 @@ fn open_outside(app: &AppHandle, url: &Url) {
   if matches!(url.scheme(), "about" | "blob" | "data" | "file" | "javascript") {
     return;
   }
-  #[cfg(all(feature = "qa", target_os = "macos"))]
+  #[cfg(all(feature = "qa", any(target_os = "macos", target_os = "linux")))]
   if qa::note_opened(url) {
     return;
   }
   let _ = app.opener().open_url(url.as_str(), None::<&str>);
+}
+
+// QA only (TAURI-17): the page may go anywhere, to see IPC refused there.
+fn any_nav() -> bool {
+  cfg!(feature = "qa") && std::env::var_os("WISP_QA_ANY_NAV").is_some()
 }
 
 fn show(app: &AppHandle) {
@@ -99,13 +107,14 @@ fn open_window(app: &AppHandle, port: u16) -> tauri::Result<()> {
     // WebKit stops painting and slows timers in a covered or hidden window. Agents run on in there:
     // the badge and the list have to keep up, and a window brought forward has to be current.
     .background_throttling(BackgroundThrottlingPolicy::Disabled)
-    // Previews and sandboxed frames never get here on macOS (macos::keep_frames_in_place).
+    // Previews and sandboxed frames never get here on macOS (macos::keep_frames_in_place). WebKitGTK
+    // doesn't say which frame a navigation is for, so on Linux they all go through and the main frame's
+    // response is held instead (linux::keep_page_home). Windows asks for the main frame only.
     .on_navigation(move |url| {
-      #[cfg(feature = "qa")]
-      if std::env::var_os("WISP_QA_ANY_NAV").is_some() {
+      if cfg!(target_os = "linux") || any_nav() {
         return true;
       }
-      let stay = is_wisp(url, &inside_nav) || url.scheme() == "about";
+      let stay = stays(url, &inside_nav);
       if !stay {
         open_outside(&nav, url);
       }
@@ -128,7 +137,7 @@ fn open_window(app: &AppHandle, port: u16) -> tauri::Result<()> {
     })
     // Without this WebKit drops `<a download>`. Goes to ~/Downloads, under a free name.
     .on_download(|_, _event| {
-      #[cfg(all(feature = "qa", target_os = "macos"))]
+      #[cfg(all(feature = "qa", any(target_os = "macos", target_os = "linux")))]
       qa::download_to(_event);
       true
     })
@@ -145,7 +154,7 @@ fn open_window(app: &AppHandle, port: u16) -> tauri::Result<()> {
     .title_bar_style(tauri::TitleBarStyle::Overlay)
     .hidden_title(true)
     .traffic_light_position(tauri::LogicalPosition::new(16.0, macos::traffic_light_inset(18.0)));
-  #[cfg(all(feature = "qa", target_os = "macos"))]
+  #[cfg(all(feature = "qa", any(target_os = "macos", target_os = "linux")))]
   let builder = builder.initialization_script(qa::INIT);
   // WebView2 speaks CDP, but ignores WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS and its policy once wry
   // names arguments of its own: qa/desktop-tauri-win.mjs. These replace wry's, so they repeat them.
@@ -166,6 +175,10 @@ fn open_window(app: &AppHandle, port: u16) -> tauri::Result<()> {
   macos::keep_frames_in_place(&window)?;
   #[cfg(target_os = "macos")]
   macos::tab_reaches_links(&window)?;
+  #[cfg(target_os = "linux")]
+  if !any_nav() {
+    linux::keep_page_home(&window, base(port), app.clone())?;
+  }
   // A page that can't finish loading still needs a window to say so in.
   let late = window.clone();
   thread::spawn(move || {
@@ -221,10 +234,11 @@ fn resources(app: &AppHandle) -> Option<PathBuf> {
 
 // WISP_* are for running from a checkout. A built app has both under its resources (the same
 // Contents/Resources/app the updater looks for, server/update.js PACKAGED). On Windows the resource
-// folder is the exe's, so there it's resources\app (desktop/scripts/package.mjs).
+// folder is the exe's, so there it's resources\app (desktop/scripts/package.mjs). On Linux it's
+// /usr/lib/wisp, in the AppImage too, so resources/app there as well: PACKAGED wants that name.
 fn root(app: &AppHandle) -> Option<PathBuf> {
   let entry = |p: &PathBuf| p.join("desktop/entry.mjs").exists();
-  let packaged = resources(app).map(|r| r.join(if cfg!(windows) { "resources/app" } else { "app" }));
+  let packaged = resources(app).map(|r| r.join(if cfg!(target_os = "macos") { "app" } else { "resources/app" }));
   let checkout = cfg!(debug_assertions).then(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."));
   std::env::var_os("WISP_ROOT").map(PathBuf::from).into_iter().chain(packaged).chain(checkout).find(entry)
 }
@@ -300,7 +314,7 @@ fn main() {
     })
     .setup(move |app| {
       app.add_capability(CAPABILITY.replace("__PORT__", &port.to_string()))?;
-      #[cfg(all(feature = "qa", target_os = "macos"))]
+      #[cfg(all(feature = "qa", any(target_os = "macos", target_os = "linux")))]
       qa::listen(app.handle().clone());
       notify::on_click(app.handle())?;
       let handle = app.handle().clone();

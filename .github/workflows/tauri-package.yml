@@ -2,8 +2,8 @@ name: tauri package
 
 # The Tauri app as downloads, kept as this run's artifacts and released nowhere. release.yml calls
 # this on a dry run only: `gh workflow run release --ref <branch> -f dry_run=true`. Electron stays
-# what users get. Linux has no Tauri build (it stays on Electron until WebKitGTK can tell a frame
-# from the page), so it only runs the install gate's npm rows.
+# what users get. Linux builds each arch on its own runner (Tauri doesn't cross-compile WebKitGTK),
+# on 22.04 so the AppImage and the .deb run on glibc 2.35 and up.
 #
 # Artifacts are named tauri-*: release.yml publishes what's named desktop-*, and that must never
 # match these.
@@ -11,7 +11,7 @@ name: tauri package
 # Each build also makes the shell alone, for a wisp from npm with no Electron (bin/desktop-shell.js):
 # wisp-shell-<mac|windows>-<arch>.tar.gz, no Node and no wisp files. tauri-shell holds them with
 # their SHA256SUMS.txt, made the way release.yml makes its own. Linux's (wisp-shell-linux-<arch>)
-# comes from the same package.mjs once Linux builds land.
+# would come from the same package.mjs; it isn't made yet, so npm on Linux still opens a browser tab.
 
 on:
   workflow_call:
@@ -96,8 +96,14 @@ jobs:
           path: qa/out/install.*
 
   linux:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, os: ubuntu-22.04, triple: x86_64-unknown-linux-gnu, rows: 'npm,script,brew,app' }
+          - { arch: arm64, os: ubuntu-22.04-arm, triple: aarch64-unknown-linux-gnu, rows: app }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
         with:
@@ -105,15 +111,31 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node qa/install.mjs --only npm,script,brew
+      # Build: WebKitGTK and what linuxdeploy wants. The gate: a display, a session bus (the shell's
+      # single-instance lock), FUSE for an AppImage, squashfs-tools to make a newer one.
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev file xvfb dbus-x11 libfuse2 squashfs-tools
+      - run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: tauri-package-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+      - run: node desktop/scripts/package.mjs --target ${{ matrix.triple }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tauri-linux-${{ matrix.arch }}
+          if-no-files-found: error
+          path: dist/tauri/wisp-*
+      - run: xvfb-run -a dbus-run-session -- node qa/install.mjs --only ${{ matrix.rows }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: tauri-install-gate-linux
+          name: tauri-install-gate-linux-${{ matrix.arch }}
           path: qa/out/install.*
 
   sizes:
-    needs: [mac, windows]
+    needs: [mac, windows, linux]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
@@ -122,7 +144,7 @@ jobs:
           ref: ${{ inputs.ref }}
       - uses: actions/download-artifact@v4
         with:
-          pattern: tauri-[mw]*
+          pattern: tauri-[mwl][ai]*
           merge-multiple: true
           path: dist/tauri
       - name: Sizes against Electron

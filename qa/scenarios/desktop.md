@@ -59,11 +59,20 @@ reach: the click on a banner itself is Manual. A debug build shows them under Te
 built `wisp.app` as itself, once *Allow* is pressed on macOS's own card (System Settings →
 Notifications → wisp).
 
-**Linux is blocked.** WebKitGTK's `decide-policy` doesn't say which frame a navigation is for and wry calls
-`on_navigation` for all of them, so a Preview tab that moves on its own would be sent to the browser
-and stopped there. Windows has no such trap (`NavigationStarting` is the main frame's) and macOS answers
-frames first (`macos.rs`). A release build for Linux doesn't compile (`compile_error!` in `main.rs`) until
-this is solved and seen on a real Linux desktop: TAURI-06b's cases, frames and a main-frame link.
+**Linux.** WebKitGTK's `decide-policy` doesn't say which frame a navigation is for and wry calls
+`on_navigation` for all of them (Windows' `NavigationStarting` is the main frame's, macOS answers frames
+first in `macos.rs`). So on Linux every navigation goes through, and `src/linux.rs` decides at the response, the one
+decision WebKitGTK marks as the main frame's: a page from outside wisp is refused (wisp's page stays) and
+its address opens outside; a scheme with no response (`vscode://`) fails the main frame's load and opens
+outside from there. `node qa/desktop-tauri-linux.mjs` (ubuntu-latest under Xvfb, `tauri.yml`):
+
+- **TAURI-L01** boots on WebKitGTK, the server is a Node child, no page errors.
+- **TAURI-L06b** a Preview frame that moves on its own (a script, a meta refresh, then to another site),
+  one the page moves, a sandboxed one, srcdoc frames: all stay in their frame, nothing opens outside, and
+  a sandboxed frame can't move the page.
+- **TAURI-L06** a clicked link, `location.href` to another site, `vscode://` and a popup open outside; a
+  `file:` URL never; wisp stays on its page, unreloaded. The other site sees the page's own move once
+  before it's stopped (Electron's `will-navigate` stops it before the request): the log says what it saw.
 
 ## The Tauri app on Windows
 

@@ -287,7 +287,8 @@ test('--browser, --no-open and words for a running wisp never look for the shell
 test('every Tauri build packs the shell alone, and the dry run keeps them with their sums, unpublished', () => {
   const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n');
   const pack = read('desktop/scripts/package.mjs');
-  assert.match(pack, /\(isMac\(triple\) \? packMac : packWindows\)\(triple, out\);\n {2}packShell\(triple, out\);/);
+  // Mac and Windows: Linux has no shell archive yet, so npm there still opens a browser tab.
+  assert.match(pack, /\(isMac\(triple\) \? packMac : isLinux\(triple\) \? packLinux : packWindows\)\(triple, out\);\n {2}if \(!isLinux\(triple\)\) packShell\(triple, out\);/);
   assert.match(pack, /for \(const dir of \['app', 'node'\]\) fs\.rmSync/, 'no Node or wisp files in it');
   const yml = read('.github/workflows/tauri-package.yml');
   assert.match(yml, /name: tauri-shell/);

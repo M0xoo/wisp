@@ -93,7 +93,7 @@ test('the updater reports the app on the Tauri layout, Node beside wisp’s file
   u.swap = { open: '/Applications/wisp.app', remove: '/tmp/old.app' };
   assert.equal(u.relaunchCommand(false), 'rm -rf "/tmp/old.app"; open "/Applications/wisp.app"', 'no Electron needed to relaunch');
   // The shell looks for wisp's files exactly there.
-  assert.match(read('desktop/src-tauri/src/main.rs'), /resources\(app\)\.map\(\|r\| r\.join\(if cfg!\(windows\) \{ "resources\/app" \} else \{ "app" \}\)\)/);
+  assert.match(read('desktop/src-tauri/src/main.rs'), /resources\(app\)\.map\(\|r\| r\.join\(if cfg!\(target_os = "macos"\) \{ "app" \} else \{ "resources\/app" \}\)\)/);
 });
 
 test('capabilities: IPC for exactly wisp’s origin and port, nothing wider', () => {
@@ -122,8 +122,11 @@ test('macOS: the version the page’s CSS needs, and Tab reaches links like Elec
   assert.match(read('desktop/src-tauri/src/main.rs'), /macos::tab_reaches_links\(&window\)/);
 });
 
-test('Linux can\'t be released until a frame can be told from the page', () => {
-  assert.match(read('desktop/src-tauri/src/main.rs'), /#\[cfg\(all\(target_os = "linux", not\(debug_assertions\)\)\)\]\r?\ncompile_error!/);
+test('Linux releases: frames go through, the page’s own address is watched (qa/desktop-tauri-linux.mjs)', () => {
+  const main = read('desktop/src-tauri/src/main.rs');
+  assert.doesNotMatch(main, /compile_error!/);
+  assert.match(main, /#\[cfg\(target_os = "linux"\)\]\r?\nmod linux;/);
+  assert.match(main, /#\[cfg\(all\(feature = "qa", target_os = "linux"\)\)\]\r?\n#\[path = "qa_linux\.rs"\]\r?\nmod qa;/);
 });
 
 // The Notification notify.js uses, in a stand-in for the page.
