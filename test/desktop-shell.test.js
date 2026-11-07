@@ -279,16 +279,19 @@ test('--browser, --no-open and words for a running wisp never look for the shell
   }
 });
 
-test('every Tauri build packs the shell alone, and the dry run keeps them with their sums, unpublished', () => {
+test('every Tauri build packs the shell alone, and the release publishes them with their sums', () => {
   const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n');
   const pack = read('desktop/scripts/package.mjs');
   // Mac and Windows: Linux has no shell archive yet, so npm there still opens a browser tab.
   assert.match(pack, /\(isMac\(triple\) \? packMac : isLinux\(triple\) \? packLinux : packWindows\)\(triple, out\);\n {2}if \(!isLinux\(triple\)\) packShell\(triple, out\);/);
   assert.match(pack, /for \(const dir of \['app', 'node'\]\) fs\.rmSync/, 'no Node or wisp files in it');
   const yml = read('.github/workflows/tauri-package.yml');
-  assert.match(yml, /name: tauri-shell/);
+  assert.match(yml, /path: dist\/tauri\/wisp-\*/, 'the shells go in the desktop-* artifacts with the rest');
   assert.match(yml, /sha256sum wisp-\* > SHA256SUMS\.txt/, 'the same line as release.yml');
   for (const a of ['mac-arm64', 'mac-x64', 'windows-x64', 'windows-arm64']) assert.ok(yml.includes(a), a);
-  // release.yml publishes desktop-* only: the shells aren't released yet.
-  assert.match(read('.github/workflows/release.yml'), /pattern: desktop-\*/);
+  // release.yml publishes desktop-*, sums every wisp-* in it, and uploads it all: bin/desktop-shell.js reads those.
+  const rel = read('.github/workflows/release.yml');
+  assert.match(rel, /pattern: desktop-\*/);
+  assert.match(rel, /sha256sum wisp-\* > SHA256SUMS\.txt/);
+  assert.match(rel, /gh release upload "\$TAG" out\/\* --clobber/);
 });

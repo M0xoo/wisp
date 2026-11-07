@@ -9,9 +9,9 @@ name: tauri package
 #
 # Each build also makes the shell alone, for a wisp from npm (bin/desktop-shell.js):
 # wisp-shell-<mac|windows>-<arch>.tar.gz, no Node and no wisp files. They're in desktop-* like the
-# rest, so a release publishes them and its SHA256SUMS.txt covers them; tauri-shell holds them with
-# sums of their own, for a dry run. Linux's (wisp-shell-linux-<arch>) would come from the same
-# package.mjs; it isn't made yet, so npm on Linux still opens a browser tab.
+# rest, so a release publishes them and its SHA256SUMS.txt covers them. Linux's
+# (wisp-shell-linux-<arch>) would come from the same package.mjs; it isn't made yet, so npm on Linux
+# still opens a browser tab.
 
 on:
   workflow_call:
@@ -169,13 +169,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           node desktop/scripts/sizes.mjs dist/tauri | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: The shell archives and their sums
+      - name: The shell archives, with the sums the release will have
         run: |
-          mkdir -p dist/shell && cp dist/tauri/wisp-shell-* dist/shell/
-          (cd dist/shell && sha256sum wisp-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
-          for a in mac-arm64 mac-x64 windows-x64 windows-arm64; do grep -q " wisp-shell-$a.tar.gz$" dist/shell/SHA256SUMS.txt || { echo "::error::no wisp-shell-$a.tar.gz"; exit 1; }; done
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tauri-shell
-          if-no-files-found: error
-          path: dist/shell/*
+          (cd dist/tauri && sha256sum wisp-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          for a in mac-arm64 mac-x64 windows-x64 windows-arm64; do grep -q " wisp-shell-$a.tar.gz$" dist/tauri/SHA256SUMS.txt || { echo "::error::no wisp-shell-$a.tar.gz"; exit 1; }; done
