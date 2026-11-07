@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, crewToolLabel, detectFirst, exitText, flatten, helpEfforts, helpText, rel, spawnJsonl } from './common.js';
+import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, crewToolLabel, detectFirst, exitText, flatten, helpEfforts, helpText, quietOutput, rel, spawnJsonl } from './common.js';
 import { describeCommand } from './commands.js';
 import { signedOutBy } from '../agent-login.js';
 import { claudeLimits } from '../budget.js';
@@ -272,6 +272,26 @@ export function subagentTally() {
   };
 }
 
+// Signed in through a Console profile (`ant auth login`, or a keyless Console sign-in): Claude Code
+// takes it when the claude.ai login stops working (or ANTHROPIC_PROFILE names one) and bills the
+// Console org. stream-json never says (apiKeySource is `none` for a login and a profile alike), so
+// the sign is `claude auth status --text`'s `Profile:` line, read from the CLI's own output only.
+// Once a minute per account folder, beside the run and never in its way: a failure or a CLI that
+// takes longer than AUTH_TIMEOUT_MS reads as no profile.
+const AUTH_TTL_MS = 60_000;
+const AUTH_TIMEOUT_MS = 5_000;
+const authSeen = new Map(); // account folder (+ ANTHROPIC_PROFILE) -> { at, said: Promise<string> }
+export const profileIn = (text) => String(text || '').match(/^[ \t]*Profile:[ \t]*(\S[^\r\n]*)/m)?.[1].trim() || '';
+export function consoleProfile(env = process.env, now = Date.now()) {
+  const key = `${env.CLAUDE_CONFIG_DIR || ''}\0${env.ANTHROPIC_PROFILE || ''}`;
+  const hit = authSeen.get(key);
+  if (hit && now - hit.at < AUTH_TTL_MS) return hit.said;
+  const said = quietOutput(BIN, ['auth', 'status', '--text'], AUTH_TIMEOUT_MS, env).then(profileIn, () => '');
+  authSeen.set(key, { at: now, said });
+  return said;
+}
+export const forgetAuthStatus = () => authSeen.clear(); // tests
+
 export default {
   id: 'claude',
   reportsCli: true, // says its own version per run: `cli` events, no version from detect (runner.js)
@@ -379,7 +399,8 @@ export default {
   // subagentModel: '' | 'haiku' | 'sonnet', the model its subagents and workflow agents run on
   // (defaults.subagentModel). Never _FORCE: an Agent call's own model, or a custom agent's, still wins.
   // gate: every write and command goes to the approve tool first (a side discussion, server/side-gate.js).
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, prior = null, unknownPrior = false, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, quiet = false, subagentModel = '', gate = false, onEvent }) {
+  // probe: a task's turn, which checks the sign-in it bills to (side runs don't pay for another process).
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, prior = null, unknownPrior = false, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, quiet = false, subagentModel = '', gate = false, probe = false, onEvent }) {
     lean = lean && leanOk();
     const args = [
       '-p',
@@ -488,6 +509,7 @@ export default {
         if (limits) onEvent({ type: 'limits', ...limits });
       } else if (msg.type === 'system' && msg.subtype === 'init') {
         // Signed in with an API key (ANTHROPIC_API_KEY, apiKeyHelper…): billed as API credit, not the plan.
+        // `none` is the plan or a Console profile: consoleProfile() tells those apart.
         if (msg.apiKeySource && !/^(?:none|oauth)$/i.test(msg.apiKeySource)) onEvent({ type: 'billing', kind: 'api' });
         // The tools this run had (built-ins and MCP tools): two accounts of the same harness can differ
         // (one's settings deny WebFetch), which the account comparison says (server/budget.js).
@@ -559,6 +581,9 @@ export default {
         onEvent({ ...ev, background: background.size }); // > 0: another turn and result follow when they finish
       }
     };
+
+    // Started before the run and never awaited: a Console profile is a notice (Past your plan), never a hold.
+    if (probe && !lean) consoleProfile(env).then((p) => p && onEvent({ type: 'billing', kind: 'profile' })).catch(() => {});
 
     return spawnJsonl({
       bin: BIN,

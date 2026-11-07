@@ -25,6 +25,7 @@ export const OVERAGE = {
   extra: { label: 'Past your plan', tip: 'Billed as extra usage: the plan’s windows were used up, so the provider charged this run on top' },
   credits: { label: 'Past your plan', tip: 'Billed to your Codex credits: the plan’s windows were used up, so this run took credits' },
   api: { label: 'API credit', tip: 'Billed to an API key, not your plan: Claude Code found an API key (ANTHROPIC_API_KEY or an apiKeyHelper) and used it' },
+  profile: { label: 'Console sign-in', tip: 'Billed to a Claude Console org, not your plan: Claude Code ran on a Console profile (claude auth status shows a Profile: line), which it uses when the claude.ai login has ended or ANTHROPIC_PROFILE names one. claude auth login signs back in to the plan' },
 };
 
 // stats.models of a turn. Before stats.totals, a resumed turn's models held the whole conversation

@@ -310,10 +310,22 @@ that just ended may show it a little later. Nothing shows while the turn runs.
 
 *Past your plan* marks a run billed beyond the plan: Claude Code's `rate_limit_info.isUsingOverage`
 (extra usage), a drop in Codex's `rate_limits.credits.balance` between two reports (credits), or
-Claude Code's `apiKeySource` other than `none`/`oauth` (an API key, shown as *API credit*). It sets
+Claude Code's `apiKeySource` other than `none`/`oauth` (an API key, shown as *API credit*), or a
+`Profile:` line in `claude auth status --text` (a Console sign-in, shown as *Console sign-in*). It sets
 `turn.overage` once per turn, and Plan budget lists the account's count for the last 7 days with
 *Open it* for the last task (`overage()` keeps 50, for a week). It's a fact about billing, in the
 warn colour, never a block: wisp doesn't stop the run or switch accounts.
+
+**Console sign-in.** With the claude.ai login ended (or `ANTHROPIC_PROFILE` set), Claude Code runs on
+an `ant auth login` or keyless Console profile and bills the Console org. Its stream-json says nothing
+(`apiKeySource` is `none` for a login and a profile alike) and it keeps its own warning off in that
+format, so the CLI's public `auth status --text` is the only sign: wisp reads it as a task's turn
+starts, at most once a minute per account folder (`consoleProfile()` in `server/adapters/claude.js`),
+beside the run and cut off after 5 s. A failure or a timeout reads as the plan. The answer can land
+after a quick turn ended; the turn still gets its mark. Words: the turn says *Console sign-in*, its
+tooltip *Billed to a Claude Console org, not your plan: Claude Code ran on a Console profile …*, Plan
+budget *billed to a Console sign-in, not the plan*. Never a hold, an ask card or a delay, in any mode;
+wisp never reads Keychain, token files or auth stores to find out.
 
 An account whose reports list only a weekly window has no 5-hour row. A window the latest report of
 every window left out stops showing once its own reset has passed (no empty bar), and the

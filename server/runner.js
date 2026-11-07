@@ -1510,7 +1510,8 @@ export class Runner extends EventEmitter {
       probe: true,
       onEvent: (ev) => {
         // A lingering process we already let go of. A `cli` event is no process: a probe ends when it ends.
-        if (released && ev.type !== 'cli') return;
+        // Nor is `billing` from the sign-in check (adapters/claude.js consoleProfile), which can outlast a quick turn.
+        if (released && ev.type !== 'cli' && ev.type !== 'billing') return;
         const waiting = this.#onEvent(session, turn, ev) === 'waiting';
         // A CLI can outlive its result (flushing, or a background process it spawned holding
         // stdout open, so 'close' never fires). Don't hold the session hostage to that. A result
@@ -1692,7 +1693,8 @@ export class Runner extends EventEmitter {
         return;
       }
       case 'billing':
-        // Billed to an API key instead of the plan (Claude Code's apiKeySource).
+        // Billed to an API key instead of the plan (Claude Code's apiKeySource), or to a Console
+        // profile (`claude auth status`, which can answer after the turn ended).
         if (ev.kind) this.#pastPlan(session, turn, ev.kind);
         return;
       case 'tools': {
@@ -2016,13 +2018,14 @@ export class Runner extends EventEmitter {
     };
   }
 
-  // A run billed past its plan (turn.overage: 'extra' usage, Codex 'credits', an 'api' key): the
+  // A run billed past its plan (turn.overage: 'extra' usage, Codex 'credits', an 'api' key, a Console 'profile'): the
   // turn's receipt says so, and Plan budget counts it for the week (server/budget.js overage()).
   #pastPlan(session, turn, kind) {
     if (!turn || turn.overage) return;
     turn.overage = { kind, at: Date.now() };
     this.budget?.overage?.(session.agent, session.account || 'default', kind, session.id, turn.id);
     this.store.save(session);
+    if (turn.status !== 'running' && !this.deleting.has(session.id)) this.emit('turn', { sessionId: session.id, turnId: turn.id }); // landed after it ended
   }
 
   // Refused because too many devices or sessions are signed in on the account (Codex): no window to

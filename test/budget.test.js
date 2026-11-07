@@ -17,6 +17,7 @@ process.env.WISP_UPDATE_CHECK = '0';
 process.env.CLAUDE_CONFIG_DIR = tmp('budget-claude-home'); // never this computer's ~/.claude
 installFakeBins();
 const { startServer } = await import('../server/index.js');
+const { consoleProfile, forgetAuthStatus, profileIn } = await import('../server/adapters/claude.js');
 let srv;
 let base;
 const freePort = () =>
@@ -1443,6 +1444,113 @@ test('past your plan, end to end: a run on extra usage or an API key is flagged 
     delete process.env.FAKE_LIMITS;
     delete process.env.FAKE_CACHE_READ;
     delete process.env.FAKE_API_KEY_SOURCE;
+  }
+});
+
+// A Console sign-in (check-in 30 §1): Claude Code falls back to an `ant` or keyless Console profile
+// when the claude.ai login stops working, and stream-json never says. `claude auth status --text`'s
+// Profile: line does: a notice on the turn and in Plan budget, never a hold, never in the run's way.
+const PROFILE = 'credentials-file · user_oauth · profile default';
+const authEnv = ['FAKE_AUTH_PROFILE', 'FAKE_AUTH_FAIL', 'FAKE_AUTH_DELAY', 'FAKE_RECORD'];
+
+test('console profile: the Profile: line of `claude auth status --text`, cached a minute per account folder', async () => {
+  assert.equal(profileIn(`Login method: Claude Console account\nOrganization: Fake Console Org\nProfile: ${PROFILE}\n`), PROFILE);
+  assert.equal(profileIn('Login method: Claude Max account\r\nOrganization: Someone\r\n'), '', 'the plan: no line');
+  assert.equal(profileIn('Profile:   \nOrganization: x'), '', 'an empty one is no profile');
+  assert.equal(profileIn(''), '');
+  const rec = tmp('auth-rec');
+  forgetAuthStatus();
+  try {
+    process.env.FAKE_RECORD = rec;
+    process.env.FAKE_AUTH_PROFILE = PROFILE;
+    const a = { ...process.env, CLAUDE_CONFIG_DIR: tmp('acct-a') };
+    const b = { ...process.env, CLAUDE_CONFIG_DIR: tmp('acct-b') };
+    const now = Date.now();
+    assert.deepEqual(await Promise.all([consoleProfile(a, now), consoleProfile(a, now + 1000)]), [PROFILE, PROFILE]);
+    const calls = () => fs.readFileSync(path.join(rec, 'auth.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l).configDir);
+    assert.deepEqual(calls(), [a.CLAUDE_CONFIG_DIR], 'two starts in a minute on one account: one check');
+    delete process.env.FAKE_AUTH_PROFILE;
+    assert.equal(await consoleProfile({ ...b, FAKE_AUTH_PROFILE: '' }, now), '', 'another account folder is its own');
+    assert.equal(await consoleProfile({ ...a, FAKE_AUTH_PROFILE: '' }, now + 61_000), '', 'a minute on: read again');
+    assert.deepEqual(calls(), [a.CLAUDE_CONFIG_DIR, b.CLAUDE_CONFIG_DIR, a.CLAUDE_CONFIG_DIR]);
+    assert.equal(await consoleProfile({ ...b, FAKE_AUTH_FAIL: '1', FAKE_AUTH_PROFILE: PROFILE }, now + 61_000), '', 'a failing check: no profile');
+  } finally {
+    for (const k of authEnv) delete process.env[k];
+    forgetAuthStatus();
+  }
+});
+
+test('console profile, end to end: a notice on the turn and in Plan budget; none without one, when the check fails, or when it is slow', async () => {
+  delete srv.budget.state.claude;
+  const cwd = makeRepo();
+  const rec = tmp('auth-e2e');
+  const start = async (prompt) => {
+    forgetAuthStatus();
+    return api('/sessions', { prompt, cwd, agent: 'claude', worktree: false });
+  };
+  // What the run's check said, once it has (the runner heard it first: same promise, earlier then).
+  const settled = () => consoleProfile();
+  try {
+    process.env.FAKE_RECORD = rec;
+    // Present: Past your plan, as a Console sign-in.
+    process.env.FAKE_AUTH_PROFILE = PROFILE;
+    const a = await start('fix the add bug please');
+    assert.equal(await settled(), PROFILE);
+    const x = await until(async () => {
+      const t = await ended(a.id, 'review');
+      return t.turns[0].overage && t;
+    });
+    assert.equal(x.turns[0].overage.kind, 'profile');
+    assert.equal(x.turns[0].status, 'done', 'a notice, not a hold: the turn ends as it would');
+    assert.ok(!x.turns[0].question && !x.turns[0].approval, 'no ask card');
+    const over = (await api('/agents')).find((y) => y.id === 'claude').budget.find((y) => y.account === 'default').overage;
+    assert.deepEqual([over.runs, over.kind, over.sid], [1, 'profile', a.id]);
+
+    // Absent: the plan, no notice.
+    delete process.env.FAKE_AUTH_PROFILE;
+    const b = await start('write the docs please');
+    assert.equal(await settled(), '');
+    const y = await ended(b.id, 'review');
+    assert.equal(y.turns[0].overage, undefined, 'on the plan: no flag');
+
+    // The check fails: no notice, and the run is fine.
+    process.env.FAKE_AUTH_FAIL = '1';
+    process.env.FAKE_AUTH_PROFILE = PROFILE; // never printed: it exits first
+    const c = await start('write the docs again please');
+    assert.equal(await settled(), '');
+    const z = await ended(c.id, 'review');
+    assert.equal(z.turns[0].status, 'done');
+    assert.equal(z.turns[0].overage, undefined);
+    delete process.env.FAKE_AUTH_FAIL;
+
+    // Slow, past the 5 s timeout: the run starts and ends on its own time, and no notice comes.
+    process.env.FAKE_AUTH_DELAY = '8000';
+    const t0 = Date.now();
+    const d = await start('one more change please');
+    let done = false;
+    const check = settled().then((p) => ((done = true), p));
+    const w = await ended(d.id, 'review');
+    assert.equal(done, false, `the turn ended (${Date.now() - t0} ms) before the check did: it never waits for it`);
+    assert.equal(w.turns[0].status, 'done');
+    assert.equal(await check, '', 'timed out: no profile');
+    assert.ok(Date.now() - t0 < 7500, 'the check was cut off at its timeout');
+    assert.equal((await api(`/sessions/${d.id}`)).turns[0].overage, undefined);
+
+    // Slow but in time, landing after a quick turn ended: the notice still reaches it.
+    process.env.FAKE_AUTH_DELAY = '2500';
+    const e = await start('and the last change please');
+    let late = false;
+    settled().then(() => (late = true));
+    await ended(e.id, 'review');
+    const lateOnTurn = !late; // the usual case: the turn was over first
+    const v = await until(async () => {
+      const t = await api(`/sessions/${e.id}`);
+      return t.turns[0].overage && t;
+    });
+    assert.equal(v.turns[0].overage.kind, 'profile', lateOnTurn ? 'after the turn ended' : 'during the turn');
+  } finally {
+    for (const k of authEnv) delete process.env[k];
+    forgetAuthStatus();
   }
 });
 

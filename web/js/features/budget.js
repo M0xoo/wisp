@@ -141,7 +141,7 @@ export function drainReport(a, b, acc) {
 
 // Past your plan: the account's runs billed beyond its plan this week (server/budget.js overage()),
 // and the last one's task, which opens.
-const OVER_WORDS = { extra: 'billed as extra usage', credits: 'billed to Codex credits', api: 'billed to an API key, not the plan' };
+const OVER_WORDS = { extra: 'billed as extra usage', credits: 'billed to Codex credits', api: 'billed to an API key, not the plan', profile: 'billed to a Console sign-in, not the plan' };
 function overHtml(b) {
   const o = b.overage;
   if (!o?.runs) return '';
