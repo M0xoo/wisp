@@ -27,6 +27,7 @@ const CAP = 'edits';
 const FALLBACK = 'plan';
 const NAME = 'GitHub';
 export const MARKER = '<!-- wisp -->';
+const NO_LIST = 'That list isn’t shown on a public repo: see it in wisp, or ask on a private repo.';
 
 // A remote URL's owner/name, or null when it isn't github.com.
 export function parseRepo(url) {
@@ -51,6 +52,18 @@ export function backoffMs(n, base, retryAfterS = 0) {
 // GitHub links an @name after any non-word character, so `.@x` and `-@x` too, which defuse keeps for
 // the sake of email addresses. A word character before it is an address, and stays.
 const noPing = (text) => text.replace(/(^|\W)@(?=[a-z0-9])/gim, '$1@​');
+
+// A public repo sees no name of yours you didn't write there yourself: a project, a folder, a machine,
+// a crew member. What you typed stays. typed: what this comment said, plus the repo's own project.
+export function hideNames(text, ctx = {}, typed = '') {
+  const said = String(typed).toLowerCase();
+  const names = [...(ctx.projects || []).flatMap((p) => [p.name, p.path]), ...(ctx.machines || []).map((m) => m.name), ...(ctx.crew || []).flatMap((m) => [m.name, m.cwd])]
+    .filter((n) => n && !said.includes(String(n).toLowerCase()))
+    .sort((a, b) => b.length - a.length);
+  let out = String(text);
+  for (const n of names) out = out.replace(new RegExp(`(?<![\\p{L}\\p{N}_-])${String(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}_-])`, 'giu'), '…');
+  return out.replace(/ · (?:on )?…/g, '');
+}
 
 const seconds = (iso) => Math.floor(Date.parse(iso) / 1000);
 const nowIso = () => new Date().toISOString().replace(/\.\d+Z$/, 'Z');
@@ -263,16 +276,24 @@ export class Github extends Channel {
   async #run(at, cmd) {
     const { repo, number, project } = at;
     const phone = this.hub.phone;
-    const say = (text) => this.#post(repo, number, text);
-    // Only your own words and names, or a fixed line: a public repo gets nothing an agent wrote.
+    // A public repo gets only what you typed, wisp's own words, or a fixed line: nothing an agent
+    // wrote, and none of your names.
     const open = await this.#open(repo);
-    const list = (p, c) => say(p.command === 'status' && !open ? `${c.tasks.filter((s) => s.state === 'running').length} running, ${c.tasks.filter((s) => s.state === 'waiting').length} waiting: see them in wisp.` : LISTS[p.command](c, p.arg));
     const ctx = { ...(await phone.context()), defaultProject: project };
     const text = stripFormatting(/^new(\s|$)/i.test(cmd) ? `/${cmd}` : cmd || 'help', 'github');
+    const plain = (t) => this.#post(repo, number, t);
+    const say = (t) => plain(open ? t : hideNames(t, ctx, `${text}\n${project.name}`));
+    const refuse = (problems) => say(refusal(open ? problems : problems.map((x) => ({ ...x, choices: [] }))));
+    const list = (p, c) => {
+      if (open) return say(LISTS[p.command](c, p.arg));
+      if (p.command === 'help') return plain(LISTS.help({})); // the grammar, with nothing of yours in its example
+      if (p.command !== 'status') return plain(NO_LIST);
+      return plain(`${c.tasks.filter((s) => s.state === 'running').length} running, ${c.tasks.filter((s) => s.state === 'waiting').length} waiting: see them in wisp.`);
+    };
     const sessionId = await this.#threadOf(at);
     if (sessionId) {
       const p = parseMessage(text, { ...ctx, thread: await phone.threadCtx(sessionId) });
-      if (p.command !== 'new') return this.#inThread(sessionId, p, ctx, at, { say, list, open });
+      if (p.command !== 'new') return this.#inThread(sessionId, p, ctx, at, { say, list, open, refuse });
     }
     const p = parseMessage(text, ctx);
     if (p.command && p.command !== 'new') {
@@ -282,7 +303,7 @@ export class Github extends Channel {
     }
     if (p.problems.length) {
       phone.count?.('refused', p.problems[0].kind);
-      return say(refusal(p.problems));
+      return refuse(p.problems);
     }
     if (!p.prompt) return say(p.crew ? `Tell ${p.crew.name} what to do after the name.` : 'What should it do? Say it after the options.');
     const asked = capMode(p.mode, CAP, FALLBACK);
@@ -300,7 +321,7 @@ export class Github extends Channel {
     await say(out.ack);
   }
 
-  async #inThread(sessionId, p, ctx, at, { say, list, open }) {
+  async #inThread(sessionId, p, ctx, at, { say, list, open, refuse }) {
     const hub = this.hub;
     const phone = hub.phone;
     const line = (text) => (open ? text : firstPart(text)); // a title or an error is past the first colon
@@ -308,7 +329,7 @@ export class Github extends Channel {
     if (p.command === 'stop') return say(await phone.stop(sessionId));
     if (p.command === 'status') return say(line(await phone.status(sessionId)));
     if (p.command === 'done') return say(await hub.act({ sessionId, kind: 'done', ref: '', index: 0 }));
-    if (p.problems.length) return say(refusal(p.problems));
+    if (p.problems.length) return refuse(p.problems);
     const sender = at.login;
     if (p.crew) {
       if (!p.prompt) return say(`Tell ${p.crew.name} what to do after the name.`);

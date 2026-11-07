@@ -21,7 +21,7 @@ isolateAgentConfigs();
 
 const { startServer } = await import('../server/index.js');
 const { RateLimit, STALE_S } = await import('../server/channels/policy.js');
-const { MARKER, backoffMs, parseRepo, wispCommand } = await import('../server/channels/github.js');
+const { MARKER, backoffMs, hideNames, parseRepo, wispCommand } = await import('../server/channels/github.js');
 
 const ME = { id: 7, login: 'mokh' };
 const PRIVATE = 'acme/repo';
@@ -266,12 +266,6 @@ test('lists: each ends with an example, and this repo’s project is the default
     assert.match(m.replace(`\n\n${MARKER}`, '').split('\n').at(-1), /^Try: /, text);
     assert.equal(tasksOn(n).length, 0);
   }
-  const n = nextIssue();
-  comment(n, '/wisp models', { in: PUBLIC });
-  await nextOn(n, PUBLIC);
-  const p = nextIssue();
-  comment(p, '/wisp projects', { in: PUBLIC });
-  assert.match(await nextOn(p, PUBLIC), new RegExp(`• ${openName}  ← default`));
 });
 
 test('a crew member: Plan by default, report under their name, follow-up, a mention in a thread', async () => {
@@ -545,6 +539,58 @@ test('a public repo: a fixed line with nothing an agent wrote, in every path', a
   await nextOn(a, PUBLIC);
 });
 
+test('a public repo sees none of your names: lists, help, refusals, a crew member’s ack', async () => {
+  srv.store.config.machines = [...(srv.store.config.machines || []), { id: 'm1', name: 'secretbox', target: 'x' }];
+  const leaks = (body) => [name, repo, 'secretbox', 'Zed'].filter((x) => body.includes(x));
+  try {
+    for (const word of ['projects', 'crew', 'machines', 'models']) {
+      const n = nextIssue();
+      comment(n, `/wisp ${word}`, { in: PUBLIC });
+      assert.equal(await nextOn(n, PUBLIC), line('That list isn’t shown on a public repo: see it in wisp, or ask on a private repo.'), word);
+    }
+    const h = nextIssue();
+    comment(h, '/wisp help', { in: PUBLIC });
+    const help = await nextOn(h, PUBLIC);
+    assert.match(help, /Say what you’d type in wisp/);
+    assert.match(help, /Try: plan: fix the flaky test/);
+    assert.ok(!help.includes(openName), 'not even this repo’s project');
+    assert.deepEqual(leaks(help), []);
+
+    for (const [text, re] of [
+      ['in nope: fix it', /^No project “nope”\.\n\nNothing started\./],
+      ['#nope fix it', /^No project matches “nope”\.\n\nNothing started\./],
+      ['@nobody fix it', /^No crew member or project matches “nobody”\.\n\nNothing started\./],
+      ['on secr: fix it', /^… is offline\.\n\nNothing started\./],
+      [`@ada in ${openName}: fix it`, /^Ada works in …: a job can’t move them to /],
+    ]) {
+      const n = nextIssue();
+      comment(n, `/wisp ${text}`, { in: PUBLIC });
+      const body = await nextOn(n, PUBLIC);
+      assert.match(body, re, text);
+      assert.doesNotMatch(body, /Choices:/, text);
+      assert.deepEqual(leaks(body), [], text);
+    }
+
+    const c = nextIssue();
+    comment(c, '/wisp @ada have a look', { in: PUBLIC });
+    const ack = await nextOn(c, PUBLIC);
+    assert.match(ack, /^▶ Ada has it · Sonnet · Plan/, 'their folder isn’t yours to show here');
+    assert.deepEqual(leaks(ack), []);
+    await settled((await startedOn(c, PUBLIC)).id);
+    await nextOn(c, PUBLIC);
+
+    // A private repo keeps them all.
+    const p = nextIssue();
+    comment(p, '/wisp in nope: fix it');
+    assert.match(await nextOn(p), new RegExp(`Choices: .*${name}`));
+    const l = nextIssue();
+    comment(l, '/wisp projects');
+    assert.match(await nextOn(l), new RegExp(name));
+  } finally {
+    srv.store.config.machines = srv.store.config.machines.filter((m) => m.id !== 'm1');
+  }
+});
+
 test('github.publicReports turns full reports on; not knowing a repo’s visibility counts as public', async () => {
   const on1 = await api('/remote', { method: 'PUT', body: { github: { publicReports: true } } });
   assert.equal(on1.github.publicReports, true);
@@ -751,6 +797,13 @@ test('switched off, it stops looking; on again it starts from now', async () => 
   await watching();
   await quiet(n);
   assert.equal(tasksOn(n).length, 0);
+});
+
+test('hideNames: what you typed stays, and a name inside a longer word isn’t one', () => {
+  const ctx = { projects: [{ name: 'api', path: '/home/me/api' }], machines: [{ name: 'laptop' }], crew: [{ name: 'Ada', cwd: '/home/me/ada' }] };
+  assert.equal(hideNames('api · on laptop', ctx, ''), '…');
+  assert.equal(hideNames('in /home/me/api, or rapid', ctx, ''), 'in …, or rapid');
+  assert.equal(hideNames('Ada on laptop', ctx, 'on laptop @ada'), 'Ada on laptop');
 });
 
 test('parseRepo: github.com origins and nothing else', () => {
