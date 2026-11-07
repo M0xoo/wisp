@@ -4,13 +4,14 @@
 //   node qa/grid.mjs            (QA_GRID_PORT=8090 by default; screenshots in qa/out/grid-*.png)
 
 import { execFileSync, spawn } from 'node:child_process';
-import { createHmac, createSign, generateKeyPairSync } from 'node:crypto';
+import { createHmac, createSign, generateKeyPairSync, sign } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { dkimSign, keyRecord } from '../test/fixtures/dkim-sign.mjs';
 import { CHROME, OUT, ROOT, ok, playwright, runner } from './lib.mjs';
+import { FakeDiscord } from '../test/fixtures/fake-discord.mjs';
 
 const PORT = Number(process.env.QA_GRID_PORT) || 8090;
 const IDLE = 6; // seconds before a quiet box is stopped
@@ -109,7 +110,10 @@ const signedMail = (to, { from, id, dmarc = 'GRAY', subject, signed = true }) =>
   j.Signature = createSign('RSA-SHA256').update(['Message', 'MessageId', 'Timestamp', 'TopicArn', 'Type'].map((k) => `${k}\n${j[k]}\n`).join('')).sign(sns.privateKey, 'base64');
   return j;
 };
-fs.writeFileSync(path.join(data, 'grid.json'), JSON.stringify({ channels: { enabled: true, route: true, telegramApi: `http://127.0.0.1:${fakeTelegram.address().port}` }, mail: { domain: `mail.${DOMAIN}`, inbound: { provider: 'ses', topicArn: TOPIC, keys: [sns.publicKey.export({ type: 'spki', format: 'pem' })], dkimKeys: { 'sel._domainkey.sender.example': keyRecord(dkim.publicKey)[0].join('') } }, outbound: { provider: 'ses', region: 'eu-west-1', accessKeyId: 'AKIAQA', secretAccessKey: 'qa-not-a-secret', endpoint: `http://127.0.0.1:${fakeSes.address().port}` } }, hostd: { env: { WISP_TELEGRAM_API: `http://127.0.0.1:${fakeTelegram.address().port}`, WISP_SLACK_API: `http://127.0.0.1:${fakeSlack.address().port}` } } }));
+// Discord, for GRID-36: REST only, as a box never opens its gateway.
+const fakeDiscord = await new FakeDiscord().start();
+fakeDiscord.token = 'qa.discord.token';
+fs.writeFileSync(path.join(data, 'grid.json'), JSON.stringify({ channels: { enabled: true, route: true, telegramApi: `http://127.0.0.1:${fakeTelegram.address().port}` }, mail: { domain: `mail.${DOMAIN}`, inbound: { provider: 'ses', topicArn: TOPIC, keys: [sns.publicKey.export({ type: 'spki', format: 'pem' })], dkimKeys: { 'sel._domainkey.sender.example': keyRecord(dkim.publicKey)[0].join('') } }, outbound: { provider: 'ses', region: 'eu-west-1', accessKeyId: 'AKIAQA', secretAccessKey: 'qa-not-a-secret', endpoint: `http://127.0.0.1:${fakeSes.address().port}` } }, hostd: { env: { WISP_TELEGRAM_API: `http://127.0.0.1:${fakeTelegram.address().port}`, WISP_SLACK_API: `http://127.0.0.1:${fakeSlack.address().port}`, WISP_DISCORD_API: fakeDiscord.api } } }));
 
 const { check, done } = runner('grid');
 const log = fs.openSync(path.join(OUT, 'grid-server.log'), 'w');
@@ -435,6 +439,52 @@ try {
     ok((await req(`${GRID}/api/computers/${c.json.id}`, { method: 'DELETE', headers: bearer(token) })).status === 200, 'removing the computer');
   });
 
+  await check('GRID-36', 'a Discord /wisp reaches a sleeping box: the grid answers first, it wakes, the deferred reply is edited', async () => {
+    const state = async () => (await req(`${inst(A.handle)}/_grid/state`, { headers: bearer(token) })).json?.state;
+    const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+    const key = Buffer.from(publicKey.export({ format: 'jwk' }).x, 'base64url').toString('hex');
+    const put = await req(`${inst(A.handle)}/api/remote`, { method: 'PUT', headers: bearer(token), body: { discord: { enabled: true, token: fakeDiscord.token, publicKey: key } } });
+    ok(put.status === 200, `PUT /api/remote → ${put.status} ${put.text.slice(0, 120)}`);
+    let endpoint = '';
+    await until(async () => (endpoint = (await req(`${inst(A.handle)}/api/remote`, { headers: bearer(token) })).json?.discord?.endpoint), 15_000, 'the endpoint URL');
+    ok(endpoint.startsWith(`${inst(A.handle)}/_in/`), `endpoint ${endpoint}`);
+    await until(() => fakeDiscord.commands.length, 10_000, '/wisp registered');
+    ok(fakeDiscord.connects === 0, 'a box opened a gateway');
+    const stamp = (at) => String(Math.floor(at / 1000));
+    const signed = (raw, signer = privateKey, ts = stamp(Date.now())) => ({ 'x-signature-ed25519': sign(null, Buffer.from(ts + raw), signer).toString('hex'), 'x-signature-timestamp': ts });
+    const send = (o, headers) => {
+      const raw = JSON.stringify(o);
+      return req(endpoint, { method: 'POST', headers: headers ?? signed(raw), body: raw });
+    };
+    await until(async () => (await state()) === 'stopped', (IDLE + 30) * 1000, 'the box to stop');
+    const ping = await send({ id: '1', type: 1 });
+    ok(ping.status === 200 && ping.json?.type === 1 && /json/.test(ping.headers['content-type']), `PING → ${ping.status} ${ping.text}`);
+    const pingRaw = JSON.stringify({ id: '2', type: 1 });
+    ok((await send({ id: '2', type: 1 }, signed(pingRaw, generateKeyPairSync('ed25519').privateKey))).status === 401, 'a bad signature wasn’t a 401');
+    ok((await send({ id: '2', type: 1 }, signed(pingRaw, privateKey, stamp(Date.now() - 301_000)))).status === 401, 'a stale timestamp wasn’t a 401');
+    ok((await state()) === 'stopped', 'a PING woke the box');
+    const typing = await send(fakeDiscord.interaction({ type: 4, member: { user: { id: '111' } }, data: { name: 'wisp', options: [] } }));
+    ok(typing.json?.type === 8 && !typing.json.data.choices.length, `autocomplete → ${typing.text}`);
+    ok((await state()) === 'stopped', 'autocomplete woke the box');
+    const link = fakeDiscord.interaction({ type: 2, guild_id: undefined, user: { id: '111' }, channel_id: 'D111', channel: { type: 1 }, data: { name: 'wisp', options: [{ name: 'prompt', value: `link ${put.json.discord.linkCode}` }] } });
+    const t = Date.now();
+    const r = await send(link);
+    const took = Date.now() - t;
+    ok(r.status === 200 && r.json?.type === 5, `/wisp → ${r.status} ${r.text}`);
+    ok(took < 1000, `type 5 took ${took} ms: it waited for the box`);
+    await until(() => fakeDiscord.edits.some((e) => e.token === link.token && /Linked to wisp/.test(e.content)), 30_000, 'the edited reply');
+    await send(link);
+    const stranger = fakeDiscord.interaction({ type: 2, member: { user: { id: '222' } }, channel: { type: 0 }, data: { name: 'wisp', options: [{ name: 'prompt', value: 'hello' }] } });
+    ok((await send(stranger)).json?.type === 5, 'a stranger wasn’t deferred');
+    await until(() => fakeDiscord.deletes.some((x) => x.token === stranger.token), 30_000, 'the stranger’s deferred reply removed');
+    await sleep(500);
+    ok(fakeDiscord.edits.filter((e) => e.token === link.token).length === 1, 'handled more than once');
+    ok(!fakeDiscord.edits.some((e) => e.token === stranger.token), 'a stranger heard something');
+    ok(!fakeDiscord.callbacks.length, 'a box answered an interaction the grid had answered');
+    ok(fakeDiscord.connects === 0, 'a wake opened a gateway');
+    await until(async () => (await state()) === 'stopped', (IDLE + 30) * 1000, 'the box to sleep again by itself');
+  });
+
   await check('GRID-11', 'Account lists the device; Remove revokes its token', async () => {
     const p = A.page;
     await p.goto(`${GRID}/account`);
@@ -500,6 +550,7 @@ try {
   fakeTelegram.close();
   fakeSlack.close();
   fakeSes.close();
+  fakeDiscord.stop();
   grid.kill('SIGTERM');
   await new Promise((r) => {
     grid.once('exit', r);

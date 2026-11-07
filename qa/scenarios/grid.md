@@ -276,6 +276,21 @@ for the rest
   own bot leaves the box without a webhook until it next starts.
 - **Against production:** only when the owner deploys: a throwaway account, one real Telegram bot.
 
+### GRID-36 · A Discord /wisp reaches a sleeping box
+*`qa/grid.mjs`* (fake Discord, `channels` in the dev grid's `grid.json`); `test/channel-inbound.test.js`,
+`test/grid-inbox.test.js` and `test/channel-discord.test.js` for the rest
+- **Steps:** in a cloud wisp, Settings → Phone → Discord: paste a bot token and public key, copy the
+  Endpoint URL into the Developer Portal; let the box sleep; send signed interactions to that URL.
+- **Expected:** the box opens no gateway and registers `/wisp` by REST. Still asleep: a PING gets a
+  PONG, a bad signature or a timestamp over 5 minutes off a 401, autocomplete empty choices. A command
+  gets type 5 in under a second, and a button type 6; then the box wakes, checks the signature again,
+  edits the reply once and sleeps again by itself. A repeat changes nothing. A stranger's deferred
+  reply is deleted, with nothing said and no task, and a stranger's button is left alone. Past 14
+  minutes a held row is dropped. A dead token goes by channel message. Mentions don't work on a box,
+  and Settings says so. Switched off, the key leaves the grid and every call is a 401.
+- **Against production:** only when the owner deploys: a throwaway account, one real Discord
+  application, Message Content off, and the Portal's own check when the URL is saved.
+
 ### GRID-24 · Caddy on-demand TLS and DNS
 *Manual*
 - **Expected:** a new handle gets a certificate on first visit; an unknown name is refused (Caddy's
