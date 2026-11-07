@@ -114,7 +114,9 @@ pub fn keep_newest_notifications(keep: usize) {
   unsafe {
     let center: Option<Retained<AnyObject>> = msg_send![class!(NSUserNotificationCenter), defaultUserNotificationCenter];
     let Some(center) = center else { return };
-    let list: Retained<NSArray<AnyObject>> = msg_send![&*center, deliveredNotifications];
+    // nil, not an empty list, when the app isn't bundled or may not notify yet; objc2 panics on a nil Retained.
+    let list: Option<Retained<NSArray<AnyObject>>> = msg_send![&*center, deliveredNotifications];
+    let Some(list) = list else { return };
     let at = |n: &AnyObject| -> f64 {
       let date: Option<Retained<AnyObject>> = msg_send![n, actualDeliveryDate];
       date.map_or(0.0, |d| msg_send![&*d, timeIntervalSince1970])
