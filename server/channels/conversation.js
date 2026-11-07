@@ -15,6 +15,7 @@ import { LISTS, refusal } from './lists.js';
 import { capMode, hideNames } from './policy.js';
 
 const LINK_TRIES = 5; // wrong codes before the code changes
+const LINK_DAY = 50; // wrong codes a day, from everyone: past them, nobody links until tomorrow
 
 export const inBox = (env = process.env) => !!env.WISP_GRID_URL;
 export const newLinkCode = () => String(randomInt(100000, 999999));
@@ -127,11 +128,12 @@ export const same = (a, b) => {
   return x.length === y.length && timingSafeEqual(x, y);
 };
 
-// `link <code>` in a private message. cfg: the channel's { senders, linkCode }. where: where wisp
-// shows the code. A code links one person, and guessing changes it.
+// `link <code>` in a private message. cfg: the channel's { senders, linkCode, linkGuess }. where:
+// where wisp shows the code. A code links one person, and guessing changes it. The counts are kept in
+// the config (linkGuess: { day, wrong, spent }), as a cloud wisp forgets the rest each time it sleeps.
 export class Linking {
   constructor(channel, { limit, where, done }) {
-    Object.assign(this, { channel, limit, where, done, wrong: 0 });
+    Object.assign(this, { channel, limit, where, done });
   }
 
   attempt(user, code, say) {
@@ -139,17 +141,21 @@ export class Linking {
     const hub = this.channel.hub;
     if ((c.senders || []).includes(user)) return say('You’re already linked.');
     if (!this.limit().hit(user).ok) return undefined;
+    const day = new Date().toISOString().slice(0, 10);
+    const g = c.linkGuess?.day === day ? c.linkGuess : { day, wrong: c.linkGuess?.wrong || 0, spent: 0 };
+    if (g.spent >= LINK_DAY) return undefined; // the right code too: else guessing goes on
     if (!code || !c.linkCode || !same(code, c.linkCode)) {
       // Guessing is slow per person; this makes it slow for a whole workspace.
-      if (++this.wrong >= LINK_TRIES) {
-        this.wrong = 0;
+      c.linkGuess = { ...g, wrong: g.wrong + 1, spent: g.spent + 1 };
+      if (c.linkGuess.wrong >= LINK_TRIES) {
+        c.linkGuess.wrong = 0;
         c.linkCode = newLinkCode();
-        hub.store.saveConfig();
         hub.onChange();
       }
+      hub.store.saveConfig();
       return say(`That isn’t the code. wisp shows it in ${this.where}.`);
     }
-    this.wrong = 0;
+    c.linkGuess = { ...g, wrong: 0 };
     c.senders = [...(c.senders || []), user];
     c.linkCode = newLinkCode(); // one person, one code
     hub.store.saveConfig();

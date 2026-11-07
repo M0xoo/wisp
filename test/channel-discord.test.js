@@ -23,6 +23,7 @@ const { RateLimit, STALE_S } = await import('../server/channels/policy.js');
 const { NO_HUB, PERMISSIONS, discordText, slashCommand, slashText, snowflakeMs } = await import('../server/channels/discord.js');
 const { stripFormatting } = await import('../server/channels/grammar.js');
 const { discordSigned, isPublicKey, linkedHash } = await import('../server/channels/discord-sign.js');
+const { Linking } = await import('../server/channels/conversation.js');
 
 const ME = '111111';
 const STRANGER_ID = '222222';
@@ -1634,6 +1635,28 @@ test('a box: a message never reaches another machine: not named, not by a projec
     c.machines = was.machines;
     srv.machines.usable = was.usable;
   }
+});
+
+test('link guesses outlive a sleep: the count that changes the code, and a day’s budget for everyone', async () => {
+  const c = srv.store.config.remote.discord;
+  const wake = () => new Linking(ch(), { limit: () => ch().strangers, where: 'Settings', done: 'linked' }); // a box's memory, after a sleep
+  const said = [];
+  const say = (t) => said.push(t);
+  delete c.linkGuess;
+  const code = c.linkCode;
+  for (let i = 0; i < 4; i++) wake().attempt(`9${i}`, '000000', say);
+  assert.equal(c.linkCode, code, 'four wrong');
+  wake().attempt('95', '000000', say);
+  assert.notEqual(c.linkCode, code, 'the fifth, after a sleep, still changes it');
+  c.linkGuess = { ...c.linkGuess, spent: 50 };
+  const before = c.senders.length;
+  assert.equal(wake().attempt('96', c.linkCode, say), undefined, 'the day’s budget is spent: silence, even for the right code');
+  assert.equal(c.senders.length, before);
+  c.linkGuess = { ...c.linkGuess, day: '2000-01-01' };
+  wake().attempt('96', c.linkCode, say);
+  assert.ok(c.senders.includes('96'), 'a new day');
+  c.senders = c.senders.filter((x) => x !== '96');
+  assert.ok(!JSON.stringify(c.linkGuess).includes('000000'), 'no guess is kept');
 });
 
 test('a box: past 14 minutes a row is dropped with a plain log; before that it still runs, past the 10 of a message', async () => {
