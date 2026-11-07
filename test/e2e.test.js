@@ -567,6 +567,29 @@ test('claude: answering a permission prompt in your own words denies it and pass
   assert.ok(!done.grants);
 });
 
+// One answer box: the reply box sends what's typed to /answer, as the card's own box did, whatever the mode.
+for (const mode of ['plan', 'edits', 'auto']) {
+  test(`claude in ${mode}: words typed in the reply box answer the question`, async () => {
+    const s = await api('/sessions', { prompt: 'ASK before fixing add()', cwd: makeRepo(), agent: 'claude', mode });
+    await until(async () => (await session(s.id)).state === 'waiting');
+    assert.deepEqual(await api(`/sessions/${s.id}/answer`, { text: 'only the tests, not the code' }), { ok: true });
+    const done = await settled(s.id, 1);
+    assert.match(done.turns[0].presentation.blocks[0].summary, /The user answered: only the tests, not the code/);
+    assert.ok(done.turns[0].activity.some((a) => a.kind === 'answer' && a.label === 'You answered: only the tests, not the code'));
+  });
+}
+
+test('claude: words typed in the reply box deny an approval and pass them on', async () => {
+  const s = await api('/sessions', { prompt: 'APPROVE then publish', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
+  await until(async () => (await session(s.id)).state === 'waiting');
+  assert.deepEqual(await api(`/sessions/${s.id}/answer`, { text: 'do a dry run instead' }), { ok: true });
+  const done = await settled(s.id, 1);
+  const deny = JSON.stringify({ behavior: 'deny', message: 'The user denied this and said: do a dry run instead' });
+  assert.equal(done.turns[0].presentation.blocks[0].summary, `Answer was: ${deny}`);
+  assert.ok(done.turns[0].activity.some((a) => a.label === 'You denied: run `npm publish` (“do a dry run instead”)'));
+  assert.ok(!done.grants);
+});
+
 test('claude: a refused call gets an Allow & retry card; the retry allows exactly that command', async () => {
   const s = await api('/sessions', { prompt: 'BLOCKED publish it', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
   const done = await settled(s.id, 1);

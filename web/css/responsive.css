@@ -216,7 +216,6 @@ body.wisp-mobile .gb-go { min-height: 44px; margin-block: -10px; } /* a 24px but
 body.wisp-mobile .tests-cmd .run-tests { min-height: 44px; }
 body.wisp-mobile .trail-bar :is(.tb-acts, .tb-btn, .link.xs, .rate-btn) { min-height: 44px; min-width: 44px; justify-content: center; }
 body.wisp-mobile :is(.ask-card, .b-question) .opt { min-height: 44px; }
-body.wisp-mobile .q-own :is(.input, button) { height: 44px; }
 body.wisp-mobile .peek, body.wisp-mobile .stop { min-height: 44px; display: inline-flex; align-items: center; }
 /* The keys 1, 2… pick an answer on a keyboard; a phone has none. */
 body.wisp-mobile .opt .k { display: none; }

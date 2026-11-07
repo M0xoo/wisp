@@ -383,7 +383,6 @@ body.stack .t-result { display: none; }
 .opt .k { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; background: var(--bg-2); font: 500 11.5px var(--mono); color: var(--muted); flex: none; }
 .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
 .opt.own { color: var(--muted); border-style: dashed; padding-left: 12px; }
-.q-own { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
 .ask-card.sent { opacity: 0.5; pointer-events: none; }
 
 /* approvals: live (paused on a tool call) and after the fact (what the permissions blocked) */

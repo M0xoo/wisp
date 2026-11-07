@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const { sendFollowUp, REPLY_TIMEOUT } = await import('../web/js/features/reply-send.js');
+const { answersAsk, sendFollowUp, REPLY_TIMEOUT } = await import('../web/js/features/reply-send.js');
 const real = globalThis.fetch;
 test.afterEach(() => (globalThis.fetch = real));
 
@@ -128,4 +128,43 @@ test('the reply box goes through it: no send of its own without a limit', () => 
   assert.ok(box.length > 500, 'found sendReply');
   assert.doesNotMatch(box, /api\(`\/sessions\/\$\{id\}\/(reply|answer)`/);
   assert.match(box, /sendFollowUp\(/);
+});
+
+// One answer box: questions and approvals are answered in the reply box, the card has none of its own.
+test('a typed reply answers the question or approval, in every mode and whatever is picked for the next follow-up', () => {
+  const question = { id: 'a1', question: 'Proceed with the fix?', options: ['Yes', 'No'] };
+  const approval = { id: 'a2', question: 'Run `npm publish`?', options: ['Allow', 'Always allow', 'Deny'], permission: { tool: 'Bash', detail: 'npm publish', action: 'run `npm publish`' } };
+  for (const ask of [question, approval]) assert.equal(answersAsk(ask), true, ask.question);
+  // Nothing in it looks at the task's mode or what's picked under the box: Plan, Edits and Full auto alike.
+  assert.equal(answersAsk.length, 1);
+  assert.equal(answersAsk(question, { attachments: [] }), true);
+  // Files can't ride on an answer: that's a follow-up. And with no question, there's nothing to answer.
+  assert.equal(answersAsk(question, { attachments: ['up1'] }), false);
+  assert.equal(answersAsk(null), false);
+  assert.equal(answersAsk(undefined), false);
+});
+
+test('the reply box answers through /answer, keeps a picked mode for the next follow-up, and holds nothing', () => {
+  const src = fs.readFileSync(new URL('../web/js/features/composer.js', import.meta.url), 'utf8');
+  const box = src.slice(src.indexOf('export async function sendReply'), src.indexOf('// The hold row over the reply box'));
+  assert.match(box, /const answering = answersAsk\(s\.ask, \{ attachments \}\)/);
+  assert.match(box, /answering && !withGoal\s*\?\s*sendFollowUp\(id, 'answer', \{ text \}\)/);
+  // An answer never waits on the near-the-limit hold row.
+  assert.match(box, /if \(!answering && !confirm\) \{\s*const h = holdNow/);
+  // The mode, harness and team picks are only used up by a follow-up.
+  assert.match(box, /if \(!answering\) \{\s*S\.replyModes\.delete\(id\);\s*S\.replyRunners\.delete\(id\);\s*S\.replyTeams\.delete\(id\);/);
+});
+
+test('a question or approval card has no answer box of its own', () => {
+  const src = fs.readFileSync(new URL('../web/js/features/turns.js', import.meta.url), 'utf8');
+  const card = src.slice(src.indexOf('function renderAskCard'), src.indexOf('// Under a finished turn.'));
+  assert.ok(card.length > 500, 'found renderAskCard');
+  assert.doesNotMatch(card, /<form|<input|<textarea|q-own/);
+  // Its buttons still answer, optimistically, and roll back with a toast when refused.
+  assert.match(card, /startOptimistic\(s\.id, text, null, \{ answering: true \}\)/);
+  assert.match(card, /undo\?\.\(\);\s*toastError\(e\);/);
+  for (const dir of ['css', 'js']) {
+    const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((f) => (f.isDirectory() ? walk(`${d}/${f.name}`) : [`${d}/${f.name}`]));
+    for (const f of walk(new URL(`../web/${dir}`, import.meta.url).pathname)) assert.doesNotMatch(fs.readFileSync(f, 'utf8'), /\bq-own\b/, f);
+  }
 });

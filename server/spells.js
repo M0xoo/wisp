@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import {
-  ACTIONS, BUILTIN_BLOCKS, CARD_HEAD_ORDER, EVENTS, HOOK_ACTIONS, HOOK_IF, ICONS, PART_PROPS, PARTS, PROP_RANGE, SETTINGS, SLOTS, SPELL_VERSION, TOKENS,
+  ACTIONS, ANSWER_BOX, BUILTIN_BLOCKS, CARD_HEAD_ORDER, EVENTS, HOOK_ACTIONS, HOOK_IF, ICONS, PART_PROPS, PARTS, PROP_RANGE, SETTINGS, SLOTS, SPELL_VERSION, TOKENS,
   ghProblem, kebab, scriptBody, scriptExports, styleProblem, wispPathProblem,
 } from '../web/js/spell-schema.js';
 import { normalizeRecipe } from './recipes.js';
@@ -292,6 +292,8 @@ export function normalizeSpell(raw) {
     p.at_('ui.hide', `${h} isn't a part`);
     return false;
   });
+  // The reply box is where questions and approvals are answered: hidden, it still shows then.
+  for (const h of hide.filter((x) => x in ANSWER_BOX)) warnings.push(`ui.hide ${h}: the reply box still shows while a task waits on your answer, since that's where you answer it`);
   const tokens = (o, where) =>
     Object.fromEntries(
       Object.entries(obj(o) || {}).filter(([k, v]) => {

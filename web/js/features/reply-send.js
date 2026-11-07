@@ -13,6 +13,14 @@ const newSendId = () => `${Date.now().toString(36)}-${Math.random().toString(36)
 // now: the box has the text back, and sending that again is the same message with the same sendId.
 const unanswered = new Map();
 
+// Whether what the reply box sends answers the task's question or approval (POST /answer), as the
+// card's own box did before the reply box took its place: in every mode, and whatever mode, harness
+// or team is picked for the next follow-up (those wait for it). Files and a Done when line can't
+// ride on an answer, so with either it's a follow-up.
+export function answersAsk(ask, { attachments = [], goal = null } = {}) {
+  return !!ask && !attachments.length && !goal;
+}
+
 // path: 'reply' or 'answer'. An answer the server took can come back here as a reply (the question
 // has gone), so what makes it the same message is what it says, not the route.
 export async function sendFollowUp(id, path, body, { timeout = REPLY_TIMEOUT } = {}) {
