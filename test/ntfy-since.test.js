@@ -6,26 +6,29 @@ import http from 'node:http';
 import { Remote } from '../server/remote.js';
 
 // A fake ntfy that keeps what's posted to <topic>-reply and answers polls as the real one does:
-// since is a time (messages from that second on) or an id (those after it).
+// since is a time (messages from that second on) or an id (those after it, and those of its own
+// second or later but for itself: message/cache.go, MessagesAfterMarker). A tap is stamped when it's
+// sent, as ntfy does (a clock read before wisp started can be a second behind where wisp starts
+// reading), each in its own second unless a test says otherwise.
 async function fakeNtfy(t) {
-  const fake = { taps: [], polls: [], clock: Math.floor(Date.now() / 1000) + 60 }; // ahead of the since wisp takes at boot, even a second later;
+  const fake = { taps: [], polls: [], last: 0 };
   const server = http.createServer((req, res) => {
     const u = new URL(req.url, 'http://x');
     const since = u.searchParams.get('since');
     fake.polls.push({ path: u.pathname, since });
     const of = fake.taps.filter((m) => m.path === u.pathname);
     const at = of.findIndex((m) => m.id === since);
-    const out = /^\d+$/.test(since) ? of.filter((m) => m.time >= Number(since)) : at < 0 ? of : fake.resend ? of.filter((_, i) => i !== at) : of.slice(at + 1);
+    const out = /^\d+$/.test(since) ? of.filter((m) => m.time >= Number(since)) : at < 0 ? of : of.filter((m, i) => i > at || (i < at && m.time >= of[at].time));
     res.writeHead(200);
     res.end(out.map(({ path: _, ...m }) => JSON.stringify(m)).join('\n'));
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   t.after(() => server.close());
   fake.url = `http://127.0.0.1:${server.address().port}`;
-  fake.tap = (remote, { topic = 'wisp-t', ref = 'q1' } = {}) => {
+  fake.tap = (remote, { topic = 'wisp-t', ref = 'q1', time = (fake.last = Math.max(fake.last + 1, Math.floor(Date.now() / 1000))) } = {}) => {
     const s = 's1';
     const sig = remote.sign(s, 'answer', ref, 0);
-    fake.taps.push({ id: `m${fake.taps.length + 1}`, event: 'message', time: fake.clock++, path: `/${topic}-reply/json`, message: JSON.stringify({ s, k: 'a', r: ref, i: 0, sig }) });
+    fake.taps.push({ id: `m${fake.taps.length + 1}`, event: 'message', time, path: `/${topic}-reply/json`, message: JSON.stringify({ s, k: 'a', r: ref, i: 0, sig }) });
   };
   return fake;
 }
@@ -38,12 +41,12 @@ const makeStore = (fake) => {
 // ntfy sends messages of the marker's own second again and leaves dropping them to the client.
 test('ntfy: a message sent again acts once and does not move the place back', async (t) => {
   const fake = await fakeNtfy(t);
-  fake.resend = true;
   const store = makeStore(fake);
   const { r, acts } = boot(t, store);
   await polled(fake);
-  fake.tap(r, { ref: 'q1' });
-  fake.tap(r, { ref: 'q2' });
+  const time = Number(store.config.remote.ntfy.since); // both in one second, whenever this runs
+  fake.tap(r, { ref: 'q1', time });
+  fake.tap(r, { ref: 'q2', time });
   await until(() => store.config.remote.ntfy.since === 'm2');
   await polled(fake, 5);
   assert.deepEqual(acts.map((a) => a.ref), ['q1', 'q2']);
@@ -78,8 +81,7 @@ test('ntfy: a tap sent while wisp was down lands when it starts again', async (t
   // wisp stopped reading two hours ago, and the tap came one hour ago: before this run began.
   const now = Math.floor(Date.now() / 1000);
   store.config.remote.ntfy.since = String(now - 7200);
-  fake.clock = now - 3600;
-  fake.tap(one.r);
+  fake.tap(one.r, { time: now - 3600 });
   const two = boot(t, store);
   await until(() => two.acts.length === 1);
   assert.equal(two.acts[0].ref, 'q1');
