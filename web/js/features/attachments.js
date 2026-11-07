@@ -81,13 +81,16 @@ export function attachTray({ onChange } = {}) {
       render();
     }
   });
-  const add = (files) => {
+  // when: a promise the uploads wait for (the chips show at once).
+  const add = (files, { when } = {}) => {
     for (const f of files) {
       const it = { name: f.name || 'pasted', size: f.size, mime: f.type || '', status: 'uploading', thumb: f.type.startsWith('image/') ? URL.createObjectURL(f) : null };
+      it.paint = render;
       items.push(it);
-      it.promise = upload(f, { name: it.name, type: it.mime })
-        .then((j) => ((it.id = j.id), (it.status = 'ready'), render()))
-        .catch((err) => ((it.status = 'failed'), render(), toast(`Upload failed: ${esc(err.message)}`, { tone: 'bad' })));
+      it.promise = Promise.resolve(when)
+        .then(() => upload(f, { name: it.name, type: it.mime }))
+        .then((j) => ((it.id = j.id), (it.status = 'ready'), it.paint()))
+        .catch((err) => ((it.status = 'failed'), it.paint(), toast(`Upload failed: ${esc(err.message)}`, { tone: 'bad' })));
     }
     render();
   };
@@ -122,6 +125,7 @@ export function attachTray({ onChange } = {}) {
     },
     restore(list) {
       if (!list?.length) return;
+      for (const it of list) it.paint = render; // an upload still going finishes on this tray's chip
       items.unshift(...list);
       render();
     },

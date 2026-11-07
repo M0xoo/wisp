@@ -18,6 +18,12 @@ const SNAPSHOT = MOBILE || REMOTE;
 let touched = false; // a tap or a key since the page opened: then it never reloads by itself
 for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => (touched = true), { once: true, capture: true });
 
+// What just arrived lives in the page (a share in the box): an update asks first instead of
+// silently reloading it away.
+export const keepPage = () => {
+  touched = true;
+};
+
 export function recall() {
   if (!SNAPSHOT) return null;
   try {

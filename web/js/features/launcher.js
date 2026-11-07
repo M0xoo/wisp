@@ -138,6 +138,27 @@ function paintFirstRun() {
 }
 bus.on('listed', () => ((listed = true), paintFirstRun()));
 
+// Something shared in (share-in.js): below what's typed, its files in the tray; nothing starts.
+// fallback: the words for files that came with none, on an empty box only.
+const earlyFiles = [];
+export function fillLauncher(text, files = [], { when, fallback = '' } = {}) {
+  const box = $('#launcher');
+  const ta = $('#prompt', box);
+  const had = (ta?.value || S.drafts.get('home') || '').trimEnd();
+  const add = text || (had ? '' : fallback);
+  if (add) {
+    const value = had ? `${had}\n\n${add}` : add;
+    S.drafts.set('home', value);
+    if (ta) {
+      ta.value = value;
+      ta.dispatchEvent(new Event('input', { bubbles: true })); // autosize, the previews, Save as recipe
+    }
+  }
+  if (!files.length) return;
+  if (box.tray) box.tray.add(files, { when });
+  else earlyFiles.push([files, { when }]);
+}
+
 export function renderLauncher() {
   const box = $('#launcher');
   const mode = S.config.defaults.mode || DEFAULT_MODE.id;
@@ -196,6 +217,11 @@ export function renderLauncher() {
   let pv = null; // Auto's preview (auto-preview.js), once the pickers below exist
   const tray = attachTray({ onChange: () => pv?.refresh() });
   ta.parentNode.before(tray.node); // before the mention box's wrapper
+  // A repaint (fresh settings, the harness list landing) keeps the files, and what was shared in
+  // before the first paint comes now.
+  tray.restore(box.tray?.take());
+  box.tray = tray;
+  for (const [files, opts] of earlyFiles.splice(0)) tray.add(files, opts);
   acceptFiles(box, ta, tray);
   autosize(ta, (spellProp('launcher.input', 'maxRows') || 0) * 24 || undefined);
   ta.value = S.drafts.get('home') || '';
