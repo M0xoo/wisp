@@ -14,7 +14,7 @@ import { ENTITLEMENTS, appFiles, artefacts, overlay, signArgs, stage } from '../
 import { Updater, installMethod } from '../server/update.js';
 
 const ROOT = path.join(import.meta.dirname, '..');
-const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n'); // Windows checkouts
 const MAC = ['aarch64-apple-darwin', 'x86_64-apple-darwin'];
 const WIN = ['x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc'];
 
@@ -74,7 +74,7 @@ test('fetch-node leaves bin/node executable and LICENSE beside it, npm behind, a
 test('the app holds what electron-builder’s does, plus the Node side of the shell', () => {
   const files = appFiles();
   const yml = read('packaging/desktop/electron-builder.yml');
-  const list = yml.slice(yml.indexOf('files:'), yml.indexOf('asar:')).matchAll(/^ {2}- ([\w.-]+?)(\/\*\*)?\r?$/gm);
+  const list = yml.slice(yml.indexOf('files:'), yml.indexOf('asar:')).matchAll(/^ {2}- ([\w.-]+?)(\/\*\*)?$/gm);
   for (const [, f] of list) assert.ok(files.includes(f), `${f} is in electron-builder.yml`);
   assert.ok(files.includes('desktop/entry.mjs'));
   assert.ok(!JSON.parse(read('package.json')).files.some((f) => f.startsWith('desktop')), 'desktop/ is not on npm');
@@ -143,11 +143,11 @@ test('bundled Node is signed with the entitlements it needs under the hardened r
 test('Tauri is a dry run’s extra: released nowhere, and nothing waits for it', () => {
   const wf = read('.github/workflows/release.yml');
   const job = wf.slice(wf.indexOf('\n  tauri:\n'), wf.indexOf('\n  release:\n'));
-  assert.match(job, /needs: plan\r?\n\s+if: needs\.plan\.outputs\.dry == 'true'/);
+  assert.match(job, /needs: plan\n\s+if: needs\.plan\.outputs\.dry == 'true'/);
   assert.match(job, /uses: \.\/\.github\/workflows\/tauri-package\.yml/);
   for (const line of wf.match(/^\s+needs:.*$/gm)) assert.ok(!/\btauri\b/.test(line), line);
   const pack = read('.github/workflows/tauri-package.yml');
-  assert.deepEqual(pack.match(/^on:\r?\n {2}(\w+):/m).slice(1), ['workflow_call'], 'it can’t start on its own');
+  assert.deepEqual(pack.match(/^on:\n {2}(\w+):/m).slice(1), ['workflow_call'], 'it can’t start on its own');
   for (const [, name] of pack.matchAll(/name: (tauri-[\w-]+)/g)) assert.ok(!name.startsWith('desktop-'), name);
   assert.ok(!/npm publish|gh release|environment:/.test(pack));
   assert.match(wf, /pattern: desktop-\*/);
