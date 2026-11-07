@@ -422,7 +422,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
         if (!inbox.knows(channel)) return send(404, { error: 'not found' });
         limit(`inurl|${who.id}`, 60);
         // held: the grid owns this bot's webhook (grid/route.js), so the box leaves it alone.
-        return send(200, { ...inbox.urlFor(who, channel), ...(routes.held(who.id, channel, url.searchParams.get('bot')) && { held: true }) });
+        return send(200, { ...inbox.urlFor(who, channel), ...(routes.boxAsked(who.id, channel, url.searchParams.get('bot'), url.searchParams.has('gone')) && { held: true }) });
       }
       if (inbox.on && req.method === 'POST' && p === '/api/channels/url/rotate') {
         const who = boxUser(req.headers.authorization);
@@ -671,7 +671,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
     if ((req.method === 'GET' || req.method === 'HEAD') && (p === '/' || p === '/account')) {
       if (!s) return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: url.searchParams.get('return') || (p === '/account' ? '/account' : ''), analytics: stats.pages, ua: req.headers['user-agent'] }));
       const u = s.user;
-      return page(accountPage({ cfg, view: p === '/account' ? 'account' : 'home', offers: { sites: sites.opts.enabled, sandboxes: sandboxes.opts.enabled }, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, machine: { cpus: hostd.container.cpus, memory: hostd.container.memory, wish: accounts.machineWish(u.id) }, devices: accounts.devices(u.id), computers: accounts.computers(u.id).map((c) => ({ ...computerView(c), deviceId: c.device_id })), sites: sites.list(u.id).map(sites.view), identities: accounts.identities(u.id), providers, route: routes.view(u.id), csrf: csrfFor(s), flash: url.searchParams.get('m') || '', tone: url.searchParams.get('tone') === 'bad' ? 'bad' : '' }));
+      return page(accountPage({ cfg, view: p === '/account' ? 'account' : 'home', offers: { sites: sites.opts.enabled, sandboxes: sandboxes.opts.enabled }, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, machine: { cpus: hostd.container.cpus, memory: hostd.container.memory, wish: accounts.machineWish(u.id) }, devices: accounts.devices(u.id), computers: accounts.computers(u.id).map((c) => ({ ...computerView(c), deviceId: c.device_id })), sites: sites.list(u.id).map(sites.view), identities: accounts.identities(u.id), providers, route: p === '/account' ? await routes.view(u.id) : null, csrf: csrfFor(s), flash: url.searchParams.get('m') || '', tone: url.searchParams.get('tone') === 'bad' ? 'bad' : '' }));
     }
     if (req.method === 'GET' && p === '/events') {
       if (!s) return json(res, 401, { error: 'Sign in again.' });
@@ -843,9 +843,10 @@ export async function startGrid(cfg, { log = (m) => console.log(m), resolveTxt }
       }
       if (routes.on && p === '/channels/route/remove') {
         await needCsrf();
+        const shared = routes.shared(s.user.id);
         await routes.remove(s.user);
         notify(s.user.id);
-        return redirect(res, `/account?m=${encodeURIComponent('Removed. Your cloud wisp sets its own webhook the next time it starts.')}`);
+        return redirect(res, `/account?m=${encodeURIComponent(shared ? 'Removed. Your cloud wisp sets its own webhook the next time it starts.' : 'Removed. That bot no longer reaches your computers.')}`);
       }
       if (p === '/identities/unlink') {
         const body = await needCsrf();

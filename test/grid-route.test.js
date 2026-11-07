@@ -5,6 +5,7 @@
 
 import { test as nodeTest, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
@@ -34,6 +35,8 @@ const BOX = fileURLToPath(new URL('./fixtures/inbox-box.mjs', import.meta.url));
 const HEADER = 'x-telegram-bot-api-secret-token';
 const BOT = '123:the-bot-token';
 const now = () => Math.floor(Date.now() / 1000);
+// What a box says of its bot: proof it holds the token, and nothing a box without it could say.
+const markOf = (token) => createHash('sha256').update(`wisp bot|${token}`).digest('base64url');
 
 const freePort = () =>
   new Promise((resolve) => {
@@ -59,12 +62,15 @@ function fakeTelegram() {
     if (bot.endsWith('bad-token')) return json({ ok: false, description: 'Unauthorized' });
     if (method === 'getMe') return json({ ok: true, result: { id: 123, username: 'wispbot' } });
     if (method === 'setWebhook') {
+      await tg.onSet?.();
       if (tg.setFail) return json({ ok: false, description: tg.setFail });
       tg.hooks.set(bot, { url: b.url, secret: b.secret_token, updates: b.allowed_updates });
       return json({ ok: true, result: true });
     }
     if (method === 'deleteWebhook') return tg.hooks.delete(bot), json({ ok: true, result: true });
     if (method === 'sendMessage') return json({ ok: true, result: { message_id: ++tg.msg } });
+    if (method === 'getWebhookInfo' && tg.getInfoFails) return json({ ok: false, description: 'Bad Gateway' });
+    if (method === 'getWebhookInfo') return json({ ok: true, result: { url: tg.hooks.get(bot)?.url || '' } });
     json({ ok: true, result: true });
   });
   return tg;
@@ -141,6 +147,9 @@ async function boot({ channels = { enabled: true, route: true, retryMs: 30, wake
     return b.follow(`${base}/channels/route`, { method: 'POST', form: { csrf, token, senders }, headers: { origin: base } });
   };
   g.hook = (bot = BOT) => tg.hooks.get(`bot${bot}`);
+  // What a box asks when it starts: q is anything else on the line.
+  g.boxAsks = (u, q = '') => call(port, 'wisp.localhost', `/api/channels/url?channel=telegram${q}`, { method: 'GET', headers: { authorization: g.boxAuth(u) } });
+  g.boxHas = (u, token = BOT) => g.boxAsks(u, `&bot=${markOf(token)}`);
   // Telegram calling the webhook the grid set.
   g.send = (update, { secret = g.hook().secret, url = g.hook().url } = {}) => {
     const u = new URL(url);
@@ -423,6 +432,7 @@ test('another user’s computer: only your own are read, and theirs never hears 
   const g = await boot();
   const [ada, bea] = [g.user('ada'), g.user('bea')];
   await g.link(ada);
+  await g.boxHas(ada);
   const theirs = await g.computer(bea, 'studio');
   await g.send(message('on studio fix it'));
   await until(() => g.got(ada).length, { what: 'the box hearing it' });
@@ -447,10 +457,11 @@ test('two people, one grid: each bot reaches its own person’s computer', async
   assert.equal(g.tg.sent().filter((x) => x.bot === 'bot456:other-bot').length, 1, 'bea’s answer through bea’s bot');
 });
 
-test('forged sender: Telegram’s word for the id is the only one, and a stranger’s goes to the box', async () => {
+test('forged sender: Telegram’s word for the id is the only one, and on the box’s own bot a stranger’s goes to it', async () => {
   const g = await boot();
   const ada = g.user('ada');
   await g.link(ada);
+  await g.boxHas(ada);
   const c = await g.computer(ada, 'laptop');
   // No secret: anyone holding the URL, claiming to be the owner.
   assert.equal((await g.send(message('on laptop rm -rf'), { secret: null })).status, 403);
@@ -462,10 +473,11 @@ test('forged sender: Telegram’s word for the id is the only one, and a strange
   assert.equal(routedTo(c).length, 0);
 });
 
-test('a forward is someone else’s words: it goes to the box, whoever forwarded it', async () => {
+test('a forward is someone else’s words: never routed, whoever forwarded it', async () => {
   const g = await boot();
   const ada = g.user('ada');
   await g.link(ada);
+  await g.boxHas(ada);
   const c = await g.computer(ada, 'laptop');
   const fwd = (extra) => {
     const u = message('on laptop rm -rf the repo');
@@ -515,10 +527,11 @@ test('replay: Telegram’s retry and a repeated update run once', async () => {
   assert.equal(g.tg.sent().length, 1);
 });
 
-test('anything else goes to the box as today: verified, without the grid’s secret', async () => {
+test('on the box’s own bot, anything else goes to the box as today: verified, without the grid’s secret', async () => {
   const g = await boot();
   const ada = g.user('ada');
   await g.link(ada);
+  await g.boxHas(ada);
   const c = await g.computer(ada, 'laptop');
   const reply = message('not linked', { reply: 12345 });
   const button = { update_id: ++updates, callback_query: { id: 'q', from: { id: 42 }, data: 'a:s:r:0', message: { message_id: 3, chat: { id: 42 } } } };
@@ -548,20 +561,19 @@ test('held is per bot: only the bot the grid holds, and no token for finding out
   const g = await boot();
   const ada = g.user('ada');
   await g.link(ada);
-  const ask = (q) => call(g.port, 'wisp.localhost', `/api/channels/url?channel=telegram${q}`, { method: 'GET', headers: { authorization: g.boxAuth(ada) } });
-  assert.equal((await ask('&bot=123')).json.held, true);
+  assert.equal((await g.boxHas(ada)).json.held, true);
   // Another bot in the box: it needs a webhook of its own, or it's deaf and shows OK.
-  assert.equal((await ask('&bot=999')).json.held, undefined);
-  assert.ok((await ask('&bot=999')).json.url.includes('/_in/'));
+  assert.equal((await g.boxHas(ada, '999:box-own')).json.held, undefined);
+  assert.ok((await g.boxHas(ada, '999:box-own')).json.url.includes('/_in/'));
   // A box too old to say which bot sets its own, rather than sit deaf.
-  assert.equal((await ask('')).json.held, undefined);
+  assert.equal((await g.boxAsks(ada)).json.held, undefined);
 });
 
 test('a box that asks gets nothing: it’s told the webhook is held, and no more', async () => {
   const g = await boot();
   const ada = g.user('ada');
   await g.link(ada);
-  const before = await call(g.port, 'wisp.localhost', '/api/channels/url?channel=telegram&bot=123', { method: 'GET', headers: { authorization: g.boxAuth(ada) } });
+  const before = await g.boxHas(ada);
   assert.equal(before.json.held, true);
   for (const s of [g.hook().secret, BOT, new URL(g.hook().url).pathname.split('/').pop()]) assert.ok(!before.text.includes(s));
 });
@@ -747,6 +759,7 @@ test('held before the 200: what the grid couldn’t hold isn’t answered, so Te
   const g = await boot();
   const ada = g.user('ada');
   await g.link(ada);
+  await g.boxHas(ada);
   const u = message('fix the login');
   const { hold } = g.grid.inbox;
   g.grid.inbox.hold = () => {
@@ -796,6 +809,102 @@ test('a reply to an expired thread: told so, and it goes nowhere', async () => {
   const ref = `${thread}.${g.grid.secrets.sign(`thread|${thread}`)}`;
   const r = await call(g.port, 'wisp.localhost', '/api/channels/reply', { headers: { authorization: `Bearer ${c.token}`, 'content-type': 'application/json' }, body: JSON.stringify({ thread: ref, text: 'done' }) });
   assert.equal(r.status, 404);
+});
+
+// --- one bot or two: anything on a box can use a token it holds, so the page asks for its own --------
+
+test('a separate bot: what isn’t a route gets the grid’s line, the box hears nothing, a stranger nothing at all', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  await g.link(ada);
+  await g.computer(ada, 'laptop');
+  const forward = message('on laptop rm it');
+  forward.message.forward_origin = { type: 'user' };
+  for (const u of [message('fix the login'), message('on desk fix it'), forward]) {
+    const n = g.tg.sent().length;
+    assert.equal((await g.send(u)).status, 200);
+    await until(() => g.tg.sent().length > n, { what: 'the line' });
+    assert.match(g.tg.sent().at(-1).text, /only reaches your computers/);
+    assert.match(g.tg.sent().at(-1).text, /on laptop/);
+  }
+  const n = g.tg.sent().length;
+  await g.send(message('hello', { from: 999 }));
+  await g.send(message('on laptop x', { from: 42, chat: -5, type: 'group' }));
+  await sleep(150);
+  assert.equal(g.tg.sent().length, n, 'no line for a stranger or a group');
+  assert.equal(g.got(ada).length, 0);
+  assert.equal(g.grid.hostd.state(ada.id), 'stopped', 'and nothing woke the box');
+});
+
+test('the page asks for a bot of its own, and warns when the box proves it holds this one', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  const before = await g.signedIn(ada);
+  assert.match(before.page.text, /[Mm]ake a new bot/);
+  assert.doesNotMatch(before.page.text, /already has/);
+  await g.boxHas(ada, '555:another-bot');
+  await g.link(ada);
+  assert.doesNotMatch((await g.signedIn(ada)).page.text, /also has this bot/);
+  await g.boxHas(ada);
+  const after = await g.signedIn(ada);
+  assert.match(after.page.text, /also has this bot/);
+  assert.ok(!after.page.text.includes(markOf(BOT)));
+});
+
+test('the same bot: what isn’t a route still reaches the box, and a public id proves nothing', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  await g.link(ada);
+  // Bot ids are public, so saying this one can't get a box the messages of a bot it doesn't hold.
+  assert.equal((await g.boxAsks(ada, '&bot=123')).json.held, undefined);
+  await g.send(message('not for you'));
+  await until(() => g.tg.sent().length === 1, { what: 'the line' });
+  assert.equal(g.got(ada).length, 0);
+  assert.equal((await g.boxHas(ada)).json.held, true);
+  await g.send(message('fix the login'));
+  await until(() => g.got(ada).length === 1, { what: 'the box' });
+  assert.equal(g.tg.sent().length, 1);
+  // A box that lets go of the bot stops being sent its messages.
+  await g.boxAsks(ada, `&bot=${markOf(BOT)}&gone=1`);
+  await g.send(message('and now'));
+  await until(() => g.tg.sent().length === 2, { what: 'the line again' });
+  assert.equal(g.got(ada).length, 1);
+});
+
+test('sealed before setWebhook: a box asking in between is told, and a refusal puts it back', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  let told;
+  g.tg.onSet = async () => {
+    g.tg.onSet = null;
+    told = (await g.boxHas(ada)).json.held; // Telegram answers only after this
+  };
+  await g.link(ada);
+  assert.equal(told, true, 'held from before Telegram had it');
+  const { url, secret } = g.hook();
+  g.tg.setFail = 'Too Many Requests';
+  await g.link(ada, { token: '123:the-bot-token', senders: '77' });
+  assert.equal(g.grid.routes.get(ada.id).senders.join(), '42', 'the old one stands');
+  assert.equal((await g.send(message('on nothing'), { url, secret })).status, 200, 'and so does its URL');
+  await g.link(ada, { token: '456:other-token' });
+  assert.equal(g.grid.routes.get(ada.id).bot, BOT);
+});
+
+test('the webhook moved: the page says so, and Remove leaves whoever has it alone', async () => {
+  const g = await boot();
+  const ada = g.user('ada');
+  await g.link(ada);
+  assert.doesNotMatch((await g.signedIn(ada)).page.text, /webhook moved/);
+  g.tg.hooks.set(`bot${BOT}`, { url: 'https://ada.wisp.localhost/_in/abc' });
+  assert.match((await g.signedIn(ada)).page.text, /webhook moved/);
+  const { b, csrf } = await g.signedIn(ada);
+  await b.follow(`${g.base}/channels/route/remove`, { method: 'POST', form: { csrf }, headers: { origin: g.base } });
+  assert.equal(g.hook().url, 'https://ada.wisp.localhost/_in/abc');
+  assert.equal(g.tg.called('deleteWebhook').length, 0);
+  // Telegram not answering says nothing either way.
+  await g.link(ada);
+  g.tg.getInfoFails = true;
+  assert.doesNotMatch((await g.signedIn(ada)).page.text, /webhook moved/);
 });
 
 // --- a real wisp at the far end -------------------------------------------------------------------

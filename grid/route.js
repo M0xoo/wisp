@@ -6,15 +6,24 @@
 // so anything on that box could post a message with it and any sender id it liked. Here the person
 // gives the account page the bot's token (grid's own origin: session and CSRF, out of a box page's
 // reach, never the Box secret) and the grid calls setWebhook with a URL and a secret of its own, both
-// sealed. A box holding the same bot token can point the webhook elsewhere, which stops routing, but
-// Telegram never gives a secret_token back, so it can't sign a message.
+// sealed. Telegram never gives a secret_token back, so nothing else with the bot's token can sign a
+// message: it can't forge a route.
+//
+// It can do everything else, though. Anything on a box can read a token that box holds: forwardMessage
+// returns a report's text, setWebhook to its own URL reads every later `on laptop`, sendMessage speaks
+// as the grid. So routing wants a bot of its own, one the box never has, and the page says so. Nothing
+// stops the same bot being given, so the box says which it has by botMark, a hash that proves it holds
+// the token: then the page warns, the box leaves the webhook alone (`held`), and what isn't a route
+// still goes to it. A public bot id wouldn't do: it would let a box ask for a bot it doesn't hold.
 //
 //   Telegram → POST <grid>/_route/<token> → secret → an allowed person, in private, naming one of
 //   this user's computers (the shared grammar) → 200 → through that computer's tunnel,
 //   POST /api/channels/routed, which answers only if it switched on Accept tasks from channels.
 //
-// Anything else goes to the box as it always has, through the held inbox, marked verified since it
-// no longer carries a secret the box knows. Nothing is held for a computer: offline, it's a line back.
+// Anything else: on a bot of its own, a line saying what the bot does, to the people listed and nobody
+// else, and the box is neither told nor woken. On the box's own bot, the box, through the held inbox,
+// marked verified since it no longer carries a secret the box knows. Nothing is held for a computer:
+// offline, it's a line back.
 //
 // The way back: the computer never holds the bot. Each routed message gets a thread, which is all
 // POST /api/channels/reply takes with a device token, and it reaches that one chat. A reply in that
@@ -38,16 +47,21 @@ const THREAD_MSGS = 40; // per thread, oldest gone first
 const SWEEP_MS = 3_600_000;
 const UPDATES = ['message', 'callback_query'];
 const FETCH_MS = 15_000;
+const PAGE_MS = 3_000; // the account page waits for this, so not long
+const BOX_BOT = 'route:box-bot'; // the botMark of the bot this user's box says it has
+const MARK = /^[\w-]{43}$/;
 const TOO_MANY = 'Too many at once, so this wasn’t sent. Try again in a minute.';
 const EXPIRED = 'That thread has expired, so this wasn’t sent. Start again with “on” and the computer’s name.';
 const sealedAs = (channel) => `route:${channel}`;
+// server/channels/box.js makes the same one from the box's token. A token is too long to guess from this.
+const botMark = (token) => sha256(`wisp bot|${token}`);
 
 export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit, log = () => {} }) {
   const on = inbox.on && cfg.channels?.route === true;
   const base = String(cfg.channels?.telegramApi || 'https://api.telegram.org').replace(/\/+$/, '');
 
-  async function telegram(bot, method, body) {
-    const r = await fetch(`${base}/bot${bot}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(FETCH_MS) });
+  async function telegram(bot, method, body, ms = FETCH_MS) {
+    const r = await fetch(`${base}/bot${bot}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(ms) });
     const j = await r.json().catch(() => ({}));
     if (!j.ok) throw bad(`Telegram said: ${j.description || r.status}`);
     return j.result;
@@ -58,6 +72,31 @@ export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit
     return raw ? JSON.parse(raw) : null;
   };
 
+  // Whether this user's box has proved it holds the bot routing uses.
+  const shared = (userId) => {
+    const r = open(userId);
+    const box = r && secrets.open(userId, BOX_BOT);
+    return !!box && safeEqual(box, botMark(r.bot));
+  };
+
+  const keep = (userId, sealed, tokenHash) => {
+    secrets.seal(userId, sealedAs('telegram'), sealed);
+    db.run('INSERT INTO channel_routes (user_id, channel, token_hash, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, channel) DO UPDATE SET token_hash = excluded.token_hash, created_at = excluded.created_at', userId, 'telegram', tokenHash, Date.now());
+  };
+
+  // Whether something else set this bot's webhook. Telegram not answering says nothing either way.
+  async function moved(userId, r) {
+    const info = await telegram(r.bot, 'getWebhookInfo', {}, PAGE_MS).catch(() => null);
+    if (typeof info?.url !== 'string') return false;
+    const [, token] = info.url.startsWith(`${cfg.publicUrl}/_route/`) ? info.url.split('/_route/') : [];
+    return !token || sha256(token) !== db.get('SELECT token_hash FROM channel_routes WHERE user_id = ? AND channel = ?', userId, 'telegram')?.token_hash;
+  }
+
+  const forget = (userId) => {
+    secrets.drop(userId, sealedAs('telegram'));
+    db.run('DELETE FROM channel_routes WHERE user_id = ?', userId);
+  };
+
   async function set(user, { token, senders }) {
     const bot = String(token || '').trim();
     if (!BOT_TOKEN.test(bot)) throw bad('That doesn’t look like a bot token: BotFather’s looks like 123456:ABC-DEF.');
@@ -66,21 +105,29 @@ export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit
     if (ids.length > MAX_SENDERS) throw bad(`At most ${MAX_SENDERS} people.`);
     const me = await telegram(bot, 'getMe', {});
     const had = open(user.id);
+    const hadHash = db.get('SELECT token_hash FROM channel_routes WHERE user_id = ? AND channel = ?', user.id, 'telegram')?.token_hash;
     const url = newToken('', 32);
     const secret = randomBytes(32).toString('hex');
-    await telegram(bot, 'setWebhook', { url: `${cfg.publicUrl}/_route/${url}`, secret_token: secret, allowed_updates: UPDATES });
+    // Sealed first: a box that asks between here and Telegram's answer has to hear that it's held, or
+    // it sets its own webhook over this one.
+    keep(user.id, JSON.stringify({ bot, name: me?.username || '', secret, senders: ids }), sha256(url));
+    try {
+      await telegram(bot, 'setWebhook', { url: `${cfg.publicUrl}/_route/${url}`, secret_token: secret, allowed_updates: UPDATES });
+    } catch (err) {
+      if (had) keep(user.id, JSON.stringify(had), hadHash);
+      else forget(user.id);
+      throw err;
+    }
     if (had && had.bot !== bot) await telegram(had.bot, 'deleteWebhook', {}).catch(() => {}); // another bot now: the old one stops calling
-    secrets.seal(user.id, sealedAs('telegram'), JSON.stringify({ bot, name: me?.username || '', secret, senders: ids }));
-    db.run('INSERT INTO channel_routes (user_id, channel, token_hash, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, channel) DO UPDATE SET token_hash = excluded.token_hash, created_at = excluded.created_at', user.id, 'telegram', sha256(url), Date.now());
     accounts.audit(user.id, 'channel.route', { channel: 'telegram', senders: ids.length });
     return me?.username || '';
   }
 
   async function remove(user) {
     const r = open(user.id);
-    if (r) await telegram(r.bot, 'deleteWebhook', {}).catch((err) => log(`grid: route for ${user.handle}: ${err.message}`));
-    secrets.drop(user.id, sealedAs('telegram'));
-    db.run('DELETE FROM channel_routes WHERE user_id = ?', user.id);
+    // A webhook that moved is someone else's now.
+    if (r && !(await moved(user.id, r))) await telegram(r.bot, 'deleteWebhook', {}).catch((err) => log(`grid: route for ${user.handle}: ${err.message}`));
+    forget(user.id);
     db.run('DELETE FROM channel_threads WHERE user_id = ?', user.id);
     if (r) accounts.audit(user.id, 'channel.unroute', { channel: 'telegram' });
   }
@@ -141,7 +188,8 @@ export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit
   // Past the secret: Telegram says who this is. Only a person on the list, in a private chat with
   // the bot; in a group, others could read what comes back and steer what it does. A forward's from
   // is who forwarded it, and its words are someone else's.
-  const person = (m, route) => !!m?.from && !m.from.is_bot && m.chat?.type === 'private' && !m.forward_origin && !m.forward_date && route.senders.includes(String(m.from.id));
+  const listed = (m, route) => !!m?.from && !m.from.is_bot && m.chat?.type === 'private' && route.senders.includes(String(m.from.id));
+  const person = (m, route) => listed(m, route) && !m.forward_origin && !m.forward_date;
 
   // Past the limit, what to do instead: the plain line. A message dropped without a word looks sent.
   function tooMany(user, r, m) {
@@ -163,7 +211,8 @@ export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit
     const up = m.reply_to_message?.message_id;
     if (up) {
       const row = db.get('SELECT t.* FROM channel_thread_msgs x JOIN channel_threads t ON t.id = x.thread_id WHERE x.user_id = ? AND x.chat = ? AND x.message = ?', user.id, String(m.chat.id), up);
-      if (!row) return null;
+      // Only the grid speaks on a bot of its own, so that was a thread, swept long ago.
+      if (!row) return m.reply_to_message.from?.is_bot && !shared(user.id) ? () => say(r, m.chat.id, EXPIRED, m.message_id) : null;
       const c = !expired(row) && accounts.computer(row.computer_id);
       if (!c) return () => say(r, m.chat.id, EXPIRED, m.message_id);
       const busy = tooMany(user, r, m);
@@ -178,6 +227,15 @@ export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit
     if (busy) return busy;
     const thread = newThread(user, c, m);
     return () => forward(user, r, c, u, hit.text, thread, false);
+  }
+
+  // Not a route, on a bot that does nothing else. Only to the people listed: nobody else needs to know
+  // what this bot is, and a stranger's message shouldn't cost a send.
+  function explain(user, r, u) {
+    const m = u?.message;
+    if (!listed(m, r)) return null;
+    const name = accounts.computers(user.id)[0]?.name || 'laptop';
+    return tooMany(user, r, m) || (() => say(r, m.chat.id, `This bot only reaches your computers: say “on ${name} fix the login”. For your cloud wisp, use its own bot.`, m.message_id));
   }
 
   function sweep() {
@@ -198,15 +256,25 @@ export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit
     set,
     remove,
     get: (userId) => (on ? open(userId) : null),
-    // Whether the grid owns the webhook of the bot a box has. A bot's id is public and the first part of
-    // its token, so a box can say which it means and learn nothing else. Another bot, or none named, has
-    // to set its own: told otherwise it would sit deaf and show OK.
-    held: (userId, channel, bot) => on && channel === 'telegram' && !!bot && open(userId)?.bot.split(':')[0] === bot,
+    shared,
+    // A box asking for its URL says which bot it has. → whether the grid owns that bot's webhook: told
+    // so, it leaves it alone. Another bot, or none named, has to set its own: told otherwise it would sit
+    // deaf and show OK. gone: this box has let go of that bot. Nothing it says here reaches anything but
+    // itself: a mark it can only make from the token.
+    boxAsked(userId, channel, mark, gone = false) {
+      if (!on || channel !== 'telegram' || !MARK.test(mark || '')) return false;
+      const had = secrets.open(userId, BOX_BOT);
+      if (gone && had === mark) secrets.drop(userId, BOX_BOT);
+      else if (!gone && had !== mark) secrets.seal(userId, BOX_BOT, mark);
+      const r = open(userId);
+      return !!r && safeEqual(mark, botMark(r.bot));
+    },
     // For the account page: never the token or the secret.
-    view(userId) {
+    async view(userId) {
       if (!on) return null;
       const r = open(userId);
-      return { set: !!r, bot: r?.name || '', senders: r?.senders || [] };
+      if (!r) return { set: false, bot: '', senders: [] };
+      return { set: true, bot: r.name, senders: r.senders, shared: shared(userId), moved: await moved(userId, r) };
     },
 
     // Whose webhook this is, if the secret says it's Telegram. → { user, route }, or null when nobody
@@ -230,8 +298,10 @@ export function createRoutes({ db, cfg, secrets, accounts, tunnels, inbox, limit
       return db.tx(() => {
         if (raw && Number.isInteger(u?.update_id) && !inbox.first(user.id, `route:telegram:${u.update_id}`)) return null;
         const next = u && decide(user, r, u);
-        if (!next) inbox.hold(user, 'telegram', raw, { verified: true });
-        return next || null;
+        if (next) return next;
+        if (!shared(user.id)) return explain(user, r, u);
+        inbox.hold(user, 'telegram', raw, { verified: true });
+        return null;
       });
     },
 

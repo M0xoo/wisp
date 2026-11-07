@@ -855,6 +855,26 @@ test('the grid holds another bot: this box sets its own webhook and isn’t deaf
   assert.match(called('setWebhook').find((c) => c.bot === `bot${BOT}`).url, /\/_in\//);
 });
 
+test('a running box asks again: the grid took its bot since, so it neither rotates nor takes the webhook down', async (t) => {
+  const api = `http://127.0.0.1:${fake.address().port}`;
+  const BOT = '666:running';
+  const mine = (m) => called(m).filter((c) => c.bot === `bot${BOT}`);
+  const own = await boot({ channels: { enabled: true, retryMs: 40, route: true, telegramApi: api }, idleMs: 60_000 });
+  t.after(() => own.grid.close());
+  tg.calls.length = 0;
+  await own.ok('/remote', { method: 'PUT', body: { telegram: { enabled: true, token: BOT } } });
+  await until(() => mine('setWebhook').length === 1, { what: 'its own webhook' });
+  await until(async () => (await own.ok('/remote')).status.telegram?.webhook === true, { what: 'wisp on it' });
+  // Connected on the account page while this box runs: nothing tells it.
+  own.grid.secrets.seal(own.ada.id, 'route:telegram', JSON.stringify({ bot: BOT, name: 'wispbot', secret: 'g'.repeat(64), senders: [String(CHAT)] }));
+  own.grid.db.run('INSERT INTO channel_routes (user_id, channel, token_hash, created_at) VALUES (?, ?, ?, ?)', own.ada.id, 'telegram', 'h3', Date.now());
+  assert.equal((await own.api('/channels/rotate', { method: 'POST', body: { channel: 'telegram' } })).status, 409);
+  assert.equal(mine('setWebhook').length, 1, 'a rotate would have taken the webhook back');
+  await own.ok('/remote', { method: 'PUT', body: { telegram: { enabled: false } } });
+  await until(() => !own.grid.routes.shared(own.ada.id), { what: 'the box letting go of the bot' });
+  assert.equal(mine('deleteWebhook').length, 0, 'the grid’s now, not this box’s to take down');
+});
+
 test('the grid holds the webhook: the box sets none, takes what’s verified, and leaves it up when switched off', async (t) => {
   const api = `http://127.0.0.1:${fake.address().port}`;
   const HELD = '777:held'; // earlier tests' boxes still poll TOKEN

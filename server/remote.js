@@ -326,7 +326,7 @@ export class Remote {
       // Switched off, unlinked or another bot: its webhook goes too. Still linked and on, it stays.
       if (prev.hook && (relink || !c.telegram.enabled)) {
         delete c.telegram.hook;
-        if (prev.token && !prev.hook.held) this.channels.telegram.unhook(prev.token); // held: the grid's, not this box's to take down
+        if (prev.token) this.channels.telegram.unhook(prev.token);
       }
     }
     if (body.github) {
