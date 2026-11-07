@@ -1567,7 +1567,8 @@ test('a box: past 14 minutes a row is dropped with a plain log; before that it s
   assert.deepEqual([fake.edits.filter((e) => e.token === old.token).length, srv.store.all().length], [0, count]);
   const late = command(ME, 'help', { id: snowflake(Date.now() - 12 * 60_000), channel_id: 'CB4' });
   assert.equal((await held(late)).status, 200);
-  await until(() => fake.edits.some((e) => e.token === late.token), { what: 'the edit' });
+  const edit = await until(() => fake.edits.find((e) => e.token === late.token), { what: 'the edit' });
+  assert.match(edit.content, /Say what you’d type in wisp/, 'it ran: the 10 minutes of a message aren’t a held row’s');
 });
 
 test('a box: a token that dies goes by channel message, and the thread hangs on that message', async () => {
