@@ -2093,7 +2093,7 @@ vercel --prod`)}
         ['Desktop', `macOS, Windows, Linux. Mac builds are ${ext('https://www.onorca.dev/docs/install', 'signed and notarized')}`, WISP.desktop],
         ['Phone', `${ext('https://www.onorca.dev/docs/mobile', 'iOS app and Android APK')}, in beta: a read-mostly companion paired to a desktop`, WISP.phone],
         ['Hosting', `${ext('https://www.onorca.dev/docs/ways-to-run', 'No managed hosting')}: remote modes use machines and cloud accounts you control`, WISP.hosted],
-        ['Click an element, send it to the agent', `Yes, ${ext('https://www.onorca.dev/docs/browser/design-mode', 'Design Mode')}`, 'Yes, <b>Pick element</b> in Preview: a line naming it goes in the reply box'],
+        ['Click an element, send it to the agent', `Yes, ${ext('https://www.onorca.dev/docs/browser/design-mode', 'Design Mode')}`, 'Yes, <b>Pick element</b> in Preview: its HTML and key styles go in the reply box, without a screenshot'],
         ['Comment on a diff line', `${ext('https://www.onorca.dev/docs/review/annotate-ai-diff', 'Yes')}, sent back as a batch`, 'Yes, in <b>Changes</b>'],
         ['Licence', 'MIT', WISP.licence],
       ])}
@@ -2115,7 +2115,7 @@ vercel --prod`)}
       <ul class="doc-list">
         <li><b>Installing with confidence.</b> Orca’s Mac builds are signed and notarized, and its ${ext('https://github.com/stablyai/orca', 'Windows builds are signed')} too. wisp’s aren’t signed yet, so on a Mac the easy way in is a curl one-liner or <i>Open Anyway</i>.</li>
         <li><b>iPhone.</b> Orca has an iOS app. wisp has a Home Screen web app, on wisp Cloud only.</li>
-        <li><b>Browser work.</b> Every worktree gets ${ext('https://www.onorca.dev/docs/browser/overview', 'a real Chromium browser')}, and Design Mode sends a clicked element with its computed CSS and a screenshot. wisp’s <b>Pick element</b> adds a line naming it.</li>
+        <li><b>Browser work.</b> Every worktree gets ${ext('https://www.onorca.dev/docs/browser/overview', 'a real Chromium browser')}, and Design Mode sends a clicked element with its computed CSS and a screenshot. wisp’s <b>Pick element</b> adds its HTML and key styles as text, without a screenshot.</li>
         <li><b>Desktop dictation.</b> Orca ${ext('https://www.onorca.dev/docs/settings', 'has it')}. wisp’s is on Android only.</li>
         <li><b>Reach.</b> Far more agents, more git hosts, and a far larger community than wisp, which is one owner and a crew.</li>
         <li><b>Leaving Conductor.</b> Orca’s ${ext('https://www.onorca.dev/docs/migrate-from-conductor', 'migration guide')} opens workspaces in place, reads <code>conductor.json</code> and covers Cloud.</li>
@@ -2126,7 +2126,7 @@ vercel --prod`)}
       <h2 id="pick">Pick Orca if</h2>
       <ul class="doc-list">
         <li>You like being in the room while agents work, with terminals, diffs and a browser in one window.</li>
-        <li>You do a lot of UI work and want a clicked element to reach the agent with its styles and a screenshot.</li>
+        <li>You do a lot of UI work and want a clicked element to reach the agent with a screenshot.</li>
         <li>You need signed builds, an iOS app, or an agent wisp doesn’t run.</li>
       </ul>
       <h2 id="pick-wisp">Pick wisp if</h2>
@@ -2166,7 +2166,7 @@ vercel --prod`)}
         ['Phone', `iOS and Android apps. ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/faq.md', '“The phone is a remote”')}: your computer does the work and stays on`, WISP.phone],
         ['Where agents run', 'Your desktop, a server or a VPS', WISP.hosted],
         ['One prompt on several models', `${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/thread-sidebar.md', 'Yes')}: Shift-click models, each gets its own thread and worktree`, 'Yes, <b>Compare</b>: a run per harness, side by side, keep the better one'],
-        ['Click an element, send it to the agent', `Yes, in its desktop browser: ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/composer.md#context-in-your-message', 'picked elements and preview annotations')} land in the composer`, 'Yes, <b>Pick element</b> in Preview: a line naming it goes in the reply box'],
+        ['Click an element, send it to the agent', `Yes, in its desktop browser: ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/composer.md#context-in-your-message', 'picked elements and preview annotations')} land in the composer`, 'Yes, <b>Pick element</b> in Preview: its HTML and key styles go in the reply box, without a screenshot'],
         ['Price', `Free: “${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/faq.md', 'no way to pay us')}”. More machines on its relay come with T3 Chat plans`, 'Free. wisp Cloud is free during the preview'],
         ['Licence', 'MIT', WISP.licence],
       ])}
@@ -2187,7 +2187,7 @@ vercel --prod`)}
       <h2 id="better">Where T3 Code is better</h2>
       <ul class="doc-list">
         <li><b>Phone apps.</b> It has apps for iOS and Android. wisp has no native iPhone app, and its Android app is a prototype you build from the repo.</li>
-        <li><b>Picking elements.</b> ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/composer.md#context-in-your-message', 'Picked elements and preview annotations')} reach the agent with your note and a screenshot. wisp’s <b>Pick element</b> adds a line naming it.</li>
+        <li><b>Picking elements.</b> ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/composer.md#context-in-your-message', 'Picked elements and preview annotations')} reach the agent with your note and a screenshot. wisp’s <b>Pick element</b> adds its HTML and key styles as text, without a screenshot.</li>
         <li><b>Voice.</b> ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/voice-input.md', 'Dictate into the composer')}. wisp’s dictation is on Android only.</li>
         <li><b>Git hosts.</b> ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/source-control.md', 'GitHub, GitLab, Forgejo, Gitea, Bitbucket and Azure DevOps')}. wisp’s Ship it goes through the GitHub CLI.</li>
         <li><b>PR watching.</b> It checks a PR every two minutes and wakes the agent when a check fails. wisp gets there with a <b>CI failed</b> trigger you set up.</li>
@@ -2240,7 +2240,7 @@ vercel --prod`)}
         ['Phone', `iOS and Android. “${ext('https://github.com/getpaseo/paseo', 'The mobile app is the full app')}”`, WISP.phone],
         ['Where agents run', `${ext('https://github.com/getpaseo/paseo', 'Self-hosted')}: your own machines. ${ext('https://paseo.sh/hub', 'Hub')} is a separate service, free to self-host or paid per seat`, WISP.hosted],
         ['Same task on two agents', `${ext('https://paseo.sh/docs/parallel-development.md', 'Yes')}, compare their results`, 'Yes, <b>Compare</b>'],
-        ['Click an element, send it to the agent', `Yes, ${ext('https://paseo.sh/changelog#release-0.1.104', 'Annotate element')} in its desktop browser`, 'Yes, <b>Pick element</b> in Preview: a line naming it goes in the reply box'],
+        ['Click an element, send it to the agent', `Yes, ${ext('https://paseo.sh/changelog#release-0.1.104', 'Annotate element')} in its desktop browser`, 'Yes, <b>Pick element</b> in Preview: its HTML and key styles go in the reply box, without a screenshot'],
         ['Usage data', `${ext('https://paseo.sh/privacy', 'None sent')}: no analytics, telemetry or crash reports`, '<a href="/privacy.html">Anonymous usage stats</a>, on until you turn them off'],
         ['Licence', `${ext('https://github.com/getpaseo/paseo/blob/main/LICENSE', 'Apache 2.0')}, third-party parts under their own`, WISP.licence],
       ])}
@@ -2262,7 +2262,7 @@ vercel --prod`)}
       <ul class="doc-list">
         <li><b>Phones.</b> iOS and Android apps. wisp has no native iPhone app, and its Android app is a prototype you build from the repo.</li>
         <li><b>Privacy by default.</b> Paseo’s policy says it sends no analytics. wisp sends anonymous usage stats unless you switch them off in Settings or set <code>WISP_TELEMETRY=0</code>.</li>
-        <li><b>Annotating elements.</b> ${ext('https://paseo.sh/changelog#release-0.1.104', 'Annotate element')} sends the element with your note and a screenshot. wisp’s <b>Pick element</b> adds a line naming it.</li>
+        <li><b>Annotating elements.</b> ${ext('https://paseo.sh/changelog#release-0.1.104', 'Annotate element')} sends the element with your note and a screenshot. wisp’s <b>Pick element</b> adds its HTML and key styles as text, without a screenshot.</li>
         <li><b>Voice.</b> ${ext('https://paseo.sh/docs/voice.md', 'Local-first dictation and a voice mode')}. wisp’s dictation is on Android only.</li>
         <li><b>Agents.</b> A longer list, through ACP.</li>
         <li><b>Install.</b> Its ${ext('https://github.com/getpaseo/paseo/blob/main/packages/desktop/electron-builder.yml', 'desktop build config')} notarizes Mac builds. wisp’s builds aren’t signed yet.</li>
@@ -2456,7 +2456,7 @@ vercel --prod`)}
         ['Phone', `${ext('https://docs.paradev.com/mobile', 'iPhone and iPad')} with iOS 26 or later and Pro. Android isn’t available yet`, WISP.phone],
         ['Automations', `${ext('https://docs.paradev.com/automations', 'A schedule, or events')} from GitHub, Slack, Linear, Sentry and more, on Pro`, 'Schedules, CI failed, Issue labelled and webhooks, free'],
         ['Hosted', `${ext('https://docs.paradev.com/cloud-workspaces', 'Cloud sandboxes')} on Team or Ultra, or ${ext('https://docs.paradev.com/bring-your-own-cloud', 'your own Linux server')}`, WISP.hosted],
-        ['Click an element, send it to the agent', `Yes, ${ext('https://docs.paradev.com/browser', 'Design')}`, 'Yes, <b>Pick element</b> in Preview: a line naming it goes in the reply box'],
+        ['Click an element, send it to the agent', `Yes, ${ext('https://docs.paradev.com/browser', 'Design')}`, 'Yes, <b>Pick element</b> in Preview: its HTML and key styles go in the reply box, without a screenshot'],
         ['Price', `${ext('https://paradev.com/pricing', 'Free for local work')}. Paid plans add remote access, automations, mobile and cloud`, 'Free. wisp Cloud is free during the preview'],
         ['Licence', 'MIT', WISP.licence],
       ])}
@@ -2478,7 +2478,7 @@ vercel --prod`)}
       <ul class="doc-list">
         <li><b>Leaving Conductor.</b> Separate guides for ${ext('https://docs.paradev.com/migrate-from-conductor', 'local')} and ${ext('https://docs.paradev.com/migrate-from-conductor-cloud', 'Cloud')}, with a right-click import of your worktrees that’s out today. wisp’s Bring in is due in the next release; until then you open each one with <a href="/guides/moving-off-conductor.html#in-progress">In place</a>.</li>
         <li><b>iPhone and iPad.</b> A native app, on Pro. wisp has no native iPhone app.</li>
-        <li><b>Design.</b> Click an element in its browser and the agent gets the DOM, computed styles, the React component and a screenshot. wisp’s <b>Pick element</b> adds a line naming it.</li>
+        <li><b>Design.</b> Click an element in its browser and the agent gets the DOM, computed styles, the React component and a screenshot. wisp’s <b>Pick element</b> adds its HTML and key styles as text, without a screenshot.</li>
         <li><b>Events.</b> Its automations start from more services than wisp’s triggers do.</li>
         <li><b>A cloud for teams.</b> Plans with metered hours per seat. wisp Cloud is one small server, and team work on your own server means running a Grid.</li>
         <li><b>Install.</b> Its ${ext('https://github.com/ParadevAI/Paradev/blob/main/apps/desktop/electron-builder.ts', 'build config')} notarizes Mac builds. wisp’s builds aren’t signed yet.</li>

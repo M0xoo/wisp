@@ -8,7 +8,7 @@
 //
 // The panel shows the app through a small proxy on a port of its own (proxy below): the same app,
 // minus X-Frame-Options and CSP frame-ancestors, with one script added to its pages that lets the
-// panel pick an element (PICK_JS: hover outlines, a click says which element to the panel). The
+// panel pick an element (PICK_JS: hover outlines, a click describes the element to the panel). The
 // proxy is its own origin, as the app is: wisp's API stays out of the app's reach. Websockets
 // (live reload) go straight through.
 
@@ -330,13 +330,18 @@ export class Runs {
 }
 
 // In the app's pages (through the proxy only): the panel turns picking on, the pointer outlines
-// what's under it, a click tells the panel which element (its tag, text and a selector) and ends
-// it; Escape ends it too. It talks to the frame's parent only.
-const PICK_JS = `(() => {
+// what's under it, a click tells the panel which element (its tag, text, selector, trimmed HTML and
+// key styles) and ends it; Escape ends it too. It talks to the frame's parent only. What it says
+// stays short, and never holds what's typed in a password or a hidden field. The cursor is a
+// constructed sheet: only !important beats a button's own, and a page's CSP can't refuse it.
+export const PICK_JS = `(() => {
   if (window.parent === window || window.__wispPick) return;
   window.__wispPick = true;
   const say = (m) => window.parent.postMessage({ wisp: 'pick', ...m }, '*');
   let on = false, box = null, tip = null, cur = null, color = '#3b82f6';
+  const aim = new CSSStyleSheet();
+  aim.replaceSync('*{cursor:crosshair!important}');
+  const aiming = (yes) => { document.adoptedStyleSheets = [...document.adoptedStyleSheets].filter((s) => s !== aim).concat(yes ? [aim] : []); };
   const make = () => {
     box = document.createElement('div');
     tip = document.createElement('div');
@@ -373,9 +378,69 @@ const PICK_JS = `(() => {
     }
     return out.join(' > ') || el.tagName.toLowerCase();
   };
+  const cut = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+  const secret = (el) => /^(password|hidden)$/i.test(el.getAttribute('type') || '');
   const textOf = (el) => {
-    const t = (el.innerText || el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('alt') || el.getAttribute('title') || el.value || '').replace(/\\s+/g, ' ').trim();
-    return t.length > 60 ? t.slice(0, 59) + '…' : t;
+    const t = (el.innerText || el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('alt') || el.getAttribute('title') || (secret(el) ? '' : el.value) || '').replace(/\\s+/g, ' ').trim();
+    return cut(t, 60);
+  };
+  const EMPTY = /^(area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr)$/;
+  const attrsOf = (el) => [...el.attributes]
+    .filter((a) => !(a.name === 'value' && secret(el)))
+    .map((a) => ' ' + a.name + '="' + cut(a.value.replace(/\\s+/g, ' ').trim(), a.name === 'class' ? 200 : 80).replace(/"/g, '&quot;') + '"')
+    .join('');
+  // The element as markup, three levels down and about 600 characters, the rest as …
+  const htmlOf = (el) => {
+    let room = 600;
+    const walk = (n, depth) => {
+      if (n.nodeType === 3) {
+        const t = cut(n.nodeValue.replace(/\\s+/g, ' ').trim(), 80);
+        room -= t.length;
+        return t;
+      }
+      if (n.nodeType !== 1 || /^(script|style|noscript|template)$/i.test(n.tagName)) return '';
+      const tag = n.tagName.toLowerCase();
+      const open = '<' + tag + attrsOf(n) + '>';
+      room -= open.length;
+      if (EMPTY.test(tag)) return open;
+      let inner = '';
+      const kids = [...n.childNodes];
+      if (kids.length && (depth >= 3 || tag === 'svg')) inner = '…';
+      else for (const k of kids) {
+        if (room <= 0) { inner += '…'; break; }
+        inner += walk(k, depth + 1);
+      }
+      return open + inner + '</' + tag + '>';
+    };
+    return cut(walk(el, 0), 800);
+  };
+  // The four sides of a box in the fewest words; nothing when they're all 0.
+  const sides = (c, name) => {
+    const [t, r, b, l] = ['top', 'right', 'bottom', 'left'].map((s) => c.getPropertyValue(name + '-' + s + (name === 'border' ? '-width' : '')));
+    if (t === '0px' && r === '0px' && b === '0px' && l === '0px') return '';
+    return t === b && l === r ? (t === l ? t : t + ' ' + r) : [t, r, b, l].join(' ');
+  };
+  // What decides how it looks: size, spacing, colour, font. Defaults say nothing.
+  const stylesOf = (el) => {
+    const c = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    const v = (k) => c.getPropertyValue(k);
+    const clear = (x) => !x || x === 'transparent' || /^rgba\\(.*, 0\\)$/.test(x);
+    const family = v('font-family').split(',')[0].replace(/["']/g, '').trim();
+    const width = sides(c, 'border');
+    const out = [
+      ['size', Math.round(r.width) + ' × ' + Math.round(r.height) + 'px'],
+      ['display', v('display')],
+      ['margin', sides(c, 'margin')],
+      ['padding', sides(c, 'padding')],
+      ['gap', /^(normal|0px)$/.test(v('gap')) ? '' : v('gap')],
+      ['color', v('color')],
+      ['background', clear(v('background-color')) ? '' : v('background-color')],
+      ['font', v('font-weight') + ' ' + v('font-size') + '/' + v('line-height') + ' ' + family],
+      ['border', width && v('border-top-style') !== 'none' ? width + ' ' + v('border-top-style') + ' ' + v('border-top-color') : ''],
+      ['radius', v('border-radius') === '0px' ? '' : v('border-radius')],
+    ];
+    return cut(out.filter((x) => x[1]).map((x) => x[0] + ': ' + x[1]).join('; '), 400);
   };
   const tagOf = (el) => {
     const a = [];
@@ -384,7 +449,7 @@ const PICK_JS = `(() => {
     if (c && c.trim()) a.push('class="' + (c.trim().length > 60 ? c.trim().slice(0, 59) + '…' : c.trim()) + '"');
     return '<' + el.tagName.toLowerCase() + (a.length ? ' ' + a.join(' ') : '') + '>';
   };
-  const stop = () => { on = false; cur = null; hide(); document.documentElement.style.cursor = ''; };
+  const stop = () => { on = false; cur = null; hide(); aiming(false); };
   const block = (e) => { if (!on) return; e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); };
   addEventListener('pointermove', (e) => {
     if (!on) return;
@@ -397,7 +462,7 @@ const PICK_JS = `(() => {
     block(e);
     const el = document.elementFromPoint(e.clientX, e.clientY) || cur;
     if (!el || el === document.documentElement) return;
-    say({ type: 'picked', tag: tagOf(el), text: textOf(el), selector: selector(el) });
+    say({ type: 'picked', tag: tagOf(el), text: textOf(el), selector: selector(el), path: location.pathname + location.hash, html: htmlOf(el), styles: stylesOf(el) });
     stop();
   }, true);
   addEventListener('keydown', (e) => { if (on && e.key === 'Escape') { block(e); stop(); say({ type: 'off' }); } }, true);
@@ -406,7 +471,7 @@ const PICK_JS = `(() => {
     const d = e.data;
     if (e.source !== window.parent || !d || d.wisp !== 'pick') return;
     if (d.type === 'hello') say({ type: 'ready' });
-    if (d.type === 'on') { on = true; if (/^#[0-9a-f]{6}$/i.test(d.color || '')) color = d.color; document.documentElement.style.cursor = 'crosshair'; }
+    if (d.type === 'on') { on = true; if (/^#[0-9a-f]{6}$/i.test(d.color || '')) color = d.color; aiming(true); }
     if (d.type === 'off') stop();
   });
   say({ type: 'ready' });
