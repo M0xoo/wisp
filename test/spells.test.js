@@ -1196,3 +1196,17 @@ test('one answer box: the reply box is where a question is answered, so a spell 
   const comp = fs.readFileSync(new URL('../web/js/features/composer.js', import.meta.url), 'utf8');
   assert.match(comp, /classList\.toggle\('c-asking', !!s\.ask && !tour\)/);
 });
+
+test('This Mac: its head takes buttons; the chip, the pane, each section and the row RAM are parts', () => {
+  const ok = {
+    ...base0,
+    parts: { 'machine.chip': { hide: true }, 'machine.pane': { style: { background: 'var(--surface)' } }, 'machine.gauges': { hide: true }, 'machine.using': { style: { borderRadius: '6px' } }, 'machine.leftBehind': { hide: true }, 'machine.freeUp': { hide: true }, 'machine.automations': { hide: true }, 'machine.day': { hide: true }, 'card.ram': { hide: true } },
+    buttons: [{ slot: 'machine.head', icon: 'laptop', label: 'Activity Monitor', do: { open: 'https://example.com' } }],
+  };
+  assert.deepEqual(problems(ok), []);
+  assert.ok(schema.SLOTS['machine.head'] && !schema.CARD_SLOTS.has('machine.head'), 'not a task slot');
+  assert.equal(schema.PARTS['machine.chip'], '#machineChip');
+  assert.ok(schema.ICONS.includes('laptop'));
+  assert.ok(problems({ ...base0, buttons: [{ slot: 'machine.head', panel: 'x' }] }).length, 'buttons only');
+  assert.ok(problems({ ...base0, parts: { 'machine.nope': { hide: true } } }).some((x) => /machine\.nope/.test(x)));
+});

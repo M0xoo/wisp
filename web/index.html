@@ -56,6 +56,7 @@
   <link rel="stylesheet" href="/css/term.css">
   <link rel="stylesheet" href="/css/panel.css">
   <link rel="stylesheet" href="/css/spells.css">
+  <link rel="stylesheet" href="/css/machine.css">
 </head>
 <body>
   <!-- The phone app's look from the first paint, not when app.js runs (core/state.js MOBILE). -->
@@ -181,6 +182,8 @@
       <button class="update-btn" id="updateBtn" hidden>
         <svg class="i"><use href="#i-update"/></svg><span>Update</span>
       </button>
+      <!-- This Mac (features/machine.js): shown only when memory is tight, work waits, automations are paused or something was left behind. -->
+      <button class="mh-chip" id="machineChip" hidden></button>
       <div class="sp-top" id="spTop"></div>
       <button class="icon-btn view-btn" id="viewBtn" aria-pressed="false" aria-label="Hide the task list" title="Hide the task list ([)">
         <svg class="i"><use href="#i-split"/></svg>

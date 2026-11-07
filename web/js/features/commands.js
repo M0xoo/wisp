@@ -21,6 +21,7 @@ import { feedbackOn, openFeedback } from './feedback.js';
 import { focusLauncher, openIssuePicker, renderLaunchChips } from './launcher.js';
 import { inBrowser, openGetApp } from './getapp.js';
 import { openMachines } from './machines.js';
+import { openMachine } from './machine.js';
 import { openMemory } from './memory.js';
 import { openOrg } from './org.js';
 import { openStuff, stuffPalette } from './stuff.js';
@@ -172,6 +173,7 @@ function paletteItems() {
     { group: a, label: 'Recipes', icon: 'bolt', keywords: 'automations saved prompts templates', run: () => openAutomations({ tab: 'recipes' }) },
     { group: a, label: 'Triggers', icon: 'replay', keywords: 'automations schedule cron ci issues github', run: () => openAutomations({ tab: 'triggers' }) },
     { group: a, label: 'Usage', icon: 'stats', keywords: 'spend cost tokens outcomes success', run: () => openUsage() },
+    { group: a, label: 'What’s using my computer', icon: 'laptop', keywords: 'what\'s whats using this mac pc computer memory ram cpu disk space slow processes left behind stop pause automations free up clean', run: () => openMachine() },
     { group: a, label: 'Phone', icon: 'send', keywords: 'ntfy telegram github comments slack discord email mail notifications mobile remote', run: () => openPhone() },
     // In the phone app, the app's own list of computers instead (openMachines goes there).
     ...(MOBILE

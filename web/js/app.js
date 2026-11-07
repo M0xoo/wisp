@@ -28,6 +28,7 @@ import { promptFab } from './features/fab.js';
 import { pressFeedback } from './ui/press.js';
 import { openSettings, telemetryNotice } from './features/settings.js';
 import { installUpdate, loadUpdate } from './features/update.js';
+import { startChip } from './features/machine.js';
 import { routeSpell } from './features/spell-ui.js';
 import { routeCrew } from './features/crew-share.js';
 import { receiveShared, sharedWaiting } from './features/share-in.js';
@@ -49,6 +50,7 @@ $('#searchBtn').onclick = openPalette;
 $('#machinesBtn').onclick = () => openMachines();
 $('#autoBtn').onclick = () => openAutomations({ tab: (S.config.triggers || []).length && !(S.config.recipes || []).length ? 'triggers' : 'recipes' });
 $('#updateBtn').onclick = installUpdate;
+startChip(); // This Mac's chip in the top bar, shown only when the computer is short
 // The logo goes back to the prompt box: split view's home, or the top of the feed. A modified
 // click still opens the link (a new tab or window). In the phone app it goes to your computers.
 $('#topbar .brand').onclick = (e) => {

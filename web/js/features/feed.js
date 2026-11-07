@@ -21,6 +21,7 @@ import { teamStack } from './team.js';
 import { landAgain, renderBody, VISIBLE_TURNS } from './turns.js';
 import { snapshotKept } from './cache.js';
 import { slotHtml } from './spells.js';
+import { machineLabel, resText } from '../machine-view.js';
 import { swipesDone } from './swipe.js';
 import { TOUCH } from '../ui/popover.js';
 import { toastError } from '../ui/toast.js';
@@ -412,12 +413,20 @@ function renderHead(n, s) {
     </span>
     <span class="it-side">
       ${headPills(s, pill)}
+      ${resCol(s)}
       ${sched ? `<span class="q-time" title="${esc(s.later?.length ? laterTip(s) : heldTip(s))}">${esc(aheadLabel(nextAt(s)))}</span>` : isForLater(s) ? `<span class="q-time" title="${esc(savedTip(s))}">${ago(s.forLater.at)}</span>` : `<span class="q-time" ${timeAttrs(s.updatedAt)}>${ago(s.updatedAt)}</span>`}
       ${s.pending ? '' : slotHtml('card.hover', s)}
       ${quickLater(s, open)}${quickDone(s, open)}
       ${icon('chevron', 'chev')}
     </span>`);
   paintQuick();
+}
+
+// A running task heavy on this computer (the server sets res over 500 MB or 50% CPU): its RAM, in
+// a column of its own before the time. Under that, nothing, so most rows never change width.
+function resCol(s) {
+  const t = resText(s);
+  return t ? `<span class="q-res" title="${esc(`${t} of memory, ${Math.round(s.res.cpu || 0)}% CPU. More in ${machineLabel(S.config?.platform)}`)}">${esc(t)}</span>` : '';
 }
 
 // Whether any row has a quick button (touch screens make room for it in every row): a class,

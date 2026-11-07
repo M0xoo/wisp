@@ -51,7 +51,7 @@ export function register(r, app) {
   // The RAM/CPU guard's reading (server/load.js), for Settings → Usage → Machine load.
   r.route('GET', '/load', (c) => c.send(200, app.load.reading()));
   r.route('GET', '/config', (c) =>
-    c.send(200, { ...view(), home: os.homedir(), cwd: process.cwd(), cloneDir: cloneRoot(store.config), terminals: terminals(), defaultTerminal: defaultTerminal(), takeoverInline: inWisp(store.config.defaults.terminal || defaultTerminal()), grid: gridInfo(app), preview: process.env.WISP_PREVIEW_URL || app.computer?.previewUrl?.() || '', telemetry: { available: !envDisabled(), enabled: telemetry.enabled }, feedback: feedbackAvailable() }),
+    c.send(200, { ...view(), platform: process.platform, home: os.homedir(), cwd: process.cwd(), cloneDir: cloneRoot(store.config), terminals: terminals(), defaultTerminal: defaultTerminal(), takeoverInline: inWisp(store.config.defaults.terminal || defaultTerminal()), grid: gridInfo(app), preview: process.env.WISP_PREVIEW_URL || app.computer?.previewUrl?.() || '', telemetry: { available: !envDisabled(), enabled: telemetry.enabled }, feedback: feedbackAvailable() }),
   );
   r.route('PATCH', '/config', async (c) => {
     const body = await c.body();
