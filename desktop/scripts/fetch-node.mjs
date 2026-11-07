@@ -5,7 +5,7 @@
 //   node desktop/scripts/fetch-node.mjs [triple] [dest]
 //
 // To move to a new Node: change NODE_VERSION and each sha256 from
-// https://nodejs.org/dist/v<version>/SHASUMS256.txt. Linux has none: it stays on Electron.
+// https://nodejs.org/dist/v<version>/SHASUMS256.txt.
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -22,11 +22,13 @@ export const TARGETS = {
   'x86_64-apple-darwin': { name: 'darwin-x64', ext: 'tar.gz', sha256: 'efcc2b0db6f94bf53eddb038fe2b370277a042bd29e4f19b8f8e23598795b819' },
   'x86_64-pc-windows-msvc': { name: 'win-x64', ext: 'zip', sha256: 'cbc74b5e0982c9dbb41525fd8fb5dcd32fbee237863f7829072f4639a1ce5f20' },
   'aarch64-pc-windows-msvc': { name: 'win-arm64', ext: 'zip', sha256: 'a8b8cd79cbbb3062435f449591d98dd63730bbbf30ce2d7cc3a6376c236cb111' },
+  'x86_64-unknown-linux-gnu': { name: 'linux-x64', ext: 'tar.gz', sha256: 'b8492284c76a54baf58d61668dd0e41ee0fc98adabf9503d30f05d08f55b4406' },
+  'aarch64-unknown-linux-gnu': { name: 'linux-arm64', ext: 'tar.gz', sha256: 'f7a1e486dbc8b286847815b477d4fb5e9fb963ed4489c3e1588853d685f589f9' },
 };
 
 export const hostTarget = (platform = process.platform, arch = process.arch) => {
-  const triple = { darwin: { arm64: 'aarch64-apple-darwin', x64: 'x86_64-apple-darwin' }, win32: { arm64: 'aarch64-pc-windows-msvc', x64: 'x86_64-pc-windows-msvc' } }[platform]?.[arch];
-  if (!triple) throw new Error(`no Tauri build for ${platform} ${arch}: Linux stays on Electron`);
+  const triple = { darwin: { arm64: 'aarch64-apple-darwin', x64: 'x86_64-apple-darwin' }, win32: { arm64: 'aarch64-pc-windows-msvc', x64: 'x86_64-pc-windows-msvc' }, linux: { arm64: 'aarch64-unknown-linux-gnu', x64: 'x86_64-unknown-linux-gnu' } }[platform]?.[arch];
+  if (!triple) throw new Error(`no Tauri build for ${platform} ${arch}`);
   return triple;
 };
 
@@ -34,7 +36,7 @@ const sha256 = (file) => createHash('sha256').update(fs.readFileSync(file)).dige
 // Git Bash puts GNU tar first on a Windows PATH, and that one can't read a zip.
 const tar = () => (process.platform === 'win32' ? path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe') : 'tar');
 
-// Into dest: bin/node on macOS, node.exe on Windows, each with Node's LICENSE. That's where
+// Into dest: bin/node on macOS and Linux, node.exe on Windows, each with Node's LICENSE. That's where
 // node() in desktop/src-tauri/src/main.rs looks. npm stays behind: wisp never runs it from here.
 export async function fetchNode(triple, dest, { base = 'https://nodejs.org/dist', version = NODE_VERSION, targets = TARGETS, cache = path.join(os.tmpdir(), 'wisp-node-cache') } = {}) {
   const target = targets[triple];

@@ -1,13 +1,15 @@
 // Builds the Tauri app as a download, under the names electron-builder uses
 // (packaging/desktop/electron-builder.yml): wisp-mac-<arch>.dmg and .zip, wisp-windows-<arch>-setup.exe,
-// and the shell alone for npm, wisp-shell-<mac|windows>-<arch>.tar.gz (packShell).
+// wisp-linux-<arch>.AppImage and .deb, and the shell alone for npm, wisp-shell-<mac|windows>-<arch>.tar.gz
+// (packShell).
 // Nothing here is released yet: .github/workflows/tauri-package.yml keeps them as a dry run's artifacts.
 //
 //   node desktop/scripts/package.mjs [--target <triple>] [--out dist/tauri] [--features qa] [--skip-build]
 //
 // Needs Rust. TAURI_CLI picks the CLI ("cargo tauri" here if you have it), MAC_SIGN_IDENTITY a
 // Developer ID (ad hoc otherwise, as in release.yml without its secrets: Apple silicon runs nothing
-// unsigned). Mac only: dmg and zip. Windows only: the installer. Linux stays on Electron.
+// unsigned). Mac only: dmg and zip. Windows only: the installer. Linux only: the AppImage and the .deb,
+// each built on its own arch (Tauri doesn't cross-compile WebKitGTK).
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -23,12 +25,18 @@ export const CLI = '@tauri-apps/cli@2.12.4';
 export const ENTITLEMENTS = path.join(ROOT, 'packaging/desktop/entitlements.mac.plist');
 
 export const isMac = (triple) => triple.endsWith('apple-darwin');
+export const isLinux = (triple) => triple.endsWith('linux-gnu');
 export const archOf = (triple) => (triple.startsWith('aarch64') ? 'arm64' : 'x64');
 export const isWindows = (triple) => triple.includes('windows');
 // The shell alone, for a wisp from npm (bin/desktop-shell.js shellAsset() names them the same way):
-// mac and windows now, linux once it builds.
+// mac and windows. Linux's isn't made yet: npm on Linux opens a browser tab until it is.
 export const shellArtefact = (triple) => `wisp-shell-${isMac(triple) ? 'mac' : isWindows(triple) ? 'windows' : 'linux'}-${archOf(triple)}.tar.gz`;
-export const artefacts = (triple) => (isMac(triple) ? [`wisp-mac-${archOf(triple)}.dmg`, `wisp-mac-${archOf(triple)}.zip`] : [`wisp-windows-${archOf(triple)}-setup.exe`]);
+export const artefacts = (triple) => {
+  const arch = archOf(triple);
+  if (isMac(triple)) return [`wisp-mac-${arch}.dmg`, `wisp-mac-${arch}.zip`];
+  if (isLinux(triple)) return [`wisp-linux-${arch}.AppImage`, `wisp-linux-${arch}.deb`];
+  return [`wisp-windows-${arch}-setup.exe`];
+};
 
 // What goes in the app: what npm ships (electron-builder's list too), plus the Node side of the shell.
 export function appFiles(pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))) {
@@ -39,15 +47,19 @@ export function appFiles(pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'packa
 // cargo check, dev:tauri and qa/desktop-tauri.mjs have no stage/.
 // Windows has no resources folder of its own (resource_dir is the exe's): `app` there would land in
 // the install folder, PACKAGED in server/update.js wouldn't match it, and the app would call itself
-// an npm install. root() in src/main.rs looks in resources/app.
+// an npm install. root() in src/main.rs looks in resources/app. On Linux resource_dir is
+// /usr/lib/wisp (under the AppImage's mount too), so resources/app there as well.
 export function overlay(triple) {
   const mac = isMac(triple);
+  const linux = isLinux(triple);
   return {
     bundle: {
-      targets: mac ? ['app'] : ['nsis'],
+      targets: mac ? ['app'] : linux ? ['appimage', 'deb'] : ['nsis'],
       resources: { 'stage/app/': mac ? 'app/' : 'resources/app/', 'stage/node/': 'node/' },
       // %LOCALAPPDATA%, so the updater can replace it without admin rights (as electron-builder.yml).
-      ...(mac ? {} : { windows: { nsis: { installMode: 'currentUser', installerHooks: 'installer-hooks.nsh' } } }),
+      ...(mac || linux ? {} : { windows: { nsis: { installMode: 'currentUser', installerHooks: 'installer-hooks.nsh' } } }),
+      // electron-builder.yml's linux section: the same menu entry and package.
+      ...(linux ? { shortDescription: 'Run coding agents in parallel, read the report.', linux: { deb: { section: 'devel' } } } : {}),
     },
   };
 }
@@ -129,6 +141,18 @@ export function packShell(triple, out) {
   }
 }
 
+// Tauri's own names carry the version and its arch words (amd64, aarch64): ours carry neither.
+function packLinux(triple, out) {
+  const [image, deb] = artefacts(triple);
+  for (const [kind, ext, name] of [['appimage', '.AppImage', image], ['deb', '.deb', deb]]) {
+    const dir = path.join(bundleDir(triple), kind);
+    const built = fs.readdirSync(dir).find((f) => f.endsWith(ext));
+    if (!built) throw new Error(`no ${ext} in ${dir}`);
+    fs.copyFileSync(path.join(dir, built), path.join(out, name));
+    if (kind === 'appimage') fs.chmodSync(path.join(out, name), 0o755);
+  }
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const arg = (name, fallback) => {
     const i = process.argv.indexOf(name);
@@ -145,8 +169,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     fs.writeFileSync(config, JSON.stringify(overlay(triple), null, 2));
     tauri(triple, config, arg('--features'));
   }
-  (isMac(triple) ? packMac : packWindows)(triple, out);
-  packShell(triple, out);
+  (isMac(triple) ? packMac : isLinux(triple) ? packLinux : packWindows)(triple, out);
+  if (!isLinux(triple)) packShell(triple, out);
   for (const f of artefacts(triple)) console.log(`${f}  ${fs.statSync(path.join(out, f)).size} bytes  (Node ${NODE_VERSION})`);
-  console.log(`${shellArtefact(triple)}  ${fs.statSync(path.join(out, shellArtefact(triple))).size} bytes  (the shell alone)`);
+  if (!isLinux(triple)) console.log(`${shellArtefact(triple)}  ${fs.statSync(path.join(out, shellArtefact(triple))).size} bytes  (the shell alone)`);
 }
