@@ -351,6 +351,7 @@ export class Remote {
       if (signingSecret && !/^\S{16,}$/.test(signingSecret)) throw bad('That isn’t a signing secret: copy it from Basic Information → App Credentials.');
       const relink = body.slack.unlink || botToken !== (prev.botToken || ''); // another workspace, other people
       c.slack = { ...prev, enabled, appToken, botToken, signingSecret, senders: relink ? [] : prev.senders || [], linkCode: relink || !prev.linkCode ? newLinkCode() : prev.linkCode };
+      if (relink) delete c.slack.linkGuess; // a code of the owner's: the day's guesses were at another
       this.channels.slack.customize = true;
       if (inBox()) this.channels.slack.connected = false; // no socket to close: Working again once it says so
     }
@@ -368,6 +369,7 @@ export class Remote {
       if (publicKey && !isPublicKey(publicKey)) throw bad('The public key is 64 hex characters: Developer Portal → General Information.');
       const relink = body.discord.unlink || changed;
       c.discord = { ...prev, enabled, token, publicKey, appId, senders: relink ? [] : prev.senders || [], linkCode: relink || !prev.linkCode ? newLinkCode() : prev.linkCode };
+      if (relink) delete c.discord.linkGuess;
       if (changed) this.channels.discord.reset();
     }
     if (body.email) this.channels.email.update(body.email);

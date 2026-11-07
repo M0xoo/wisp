@@ -1659,6 +1659,23 @@ test('link guesses outlive a sleep: the count that changes the code, and a day�
   assert.ok(!JSON.stringify(c.linkGuess).includes('000000'), 'no guess is kept');
 });
 
+test('one stranger can’t spend the day’s guesses: five wrong a day each, then silence, and the owner still links', async () => {
+  const c = srv.store.config.remote.discord;
+  const wake = () => new Linking(ch(), { limit: () => ({ hit: () => ({ ok: true }) }), where: 'Settings', done: 'linked' }); // nothing in memory: a box that slept between each
+  const said = [];
+  const say = (t) => said.push(t);
+  delete c.linkGuess;
+  for (let i = 0; i < 60; i++) wake().attempt('81', String(100000 + i), say);
+  assert.equal(said.length, 5, 'five answers, then silence');
+  assert.equal(c.linkGuess.spent, 5, 'only five counted against everyone');
+  assert.ok(!JSON.stringify(c.linkGuess).includes('81'), 'the sender is kept hashed');
+  assert.equal(wake().attempt('81', c.linkCode, say), undefined, 'past their five, not even the right code');
+  wake().attempt('82', c.linkCode, say);
+  assert.ok(c.senders.includes('82'), 'someone else links');
+  c.senders = c.senders.filter((x) => x !== '82');
+  delete c.linkGuess;
+});
+
 test('a box: past 14 minutes a row is dropped with a plain log; before that it still runs, past the 10 of a message', async () => {
   const count = srv.store.all().length;
   const old = command(ME, `in ${name} plan: too late`, { id: snowflake(Date.now() - 14 * 60_000 - 1000) });

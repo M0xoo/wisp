@@ -8,7 +8,7 @@
 //        quiet?(line): status with less in it, runLine?(line): so a follow-up's answer, later?(text),
 //        beforeRun?(sessionId): → undo, failed?(what, err), btwHelp? }
 
-import { randomInt, timingSafeEqual } from 'node:crypto';
+import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
 import { truncate } from '../util.js';
 import { parseMessage } from './grammar.js';
 import { LISTS, refusal } from './lists.js';
@@ -16,6 +16,7 @@ import { capMode, hideNames } from './policy.js';
 
 const LINK_TRIES = 5; // wrong codes before the code changes
 const LINK_DAY = 50; // wrong codes a day, from everyone: past them, nobody links until tomorrow
+const LINK_EACH = 5; // wrong codes a day, from one sender: so it takes many to use up LINK_DAY
 
 export const inBox = (env = process.env) => !!env.WISP_GRID_URL;
 export const newLinkCode = () => String(randomInt(100000, 999999));
@@ -130,7 +131,11 @@ export const same = (a, b) => {
 
 // `link <code>` in a private message. cfg: the channel's { senders, linkCode, linkGuess }. where:
 // where wisp shows the code. A code links one person, and guessing changes it. The counts are kept in
-// the config (linkGuess: { day, wrong, spent }), as a cloud wisp forgets the rest each time it sleeps.
+// the config (linkGuess: { day, wrong, spent, by }), as a cloud wisp forgets the rest each time it
+// sleeps. by: wrong codes per sender, by a hash of who: one stranger can't spend everyone's day. A new
+// code from wisp (Unlink, remote.js) starts the day again; one the guessing changed doesn't.
+const guesser = (channel, user) => createHash('sha256').update(`link:${channel}:${user}`).digest('hex').slice(0, 16);
+
 export class Linking {
   constructor(channel, { limit, where, done }) {
     Object.assign(this, { channel, limit, where, done });
@@ -143,10 +148,12 @@ export class Linking {
     if (!this.limit().hit(user).ok) return undefined;
     const day = new Date().toISOString().slice(0, 10);
     const g = c.linkGuess?.day === day ? c.linkGuess : { day, wrong: c.linkGuess?.wrong || 0, spent: 0 };
-    if (g.spent >= LINK_DAY) return undefined; // the right code too: else guessing goes on
+    const who = guesser(this.channel.name, user);
+    const theirs = g.by?.[who] || 0;
+    if (g.spent >= LINK_DAY || theirs >= LINK_EACH) return undefined; // the right code too: else guessing goes on
     if (!code || !c.linkCode || !same(code, c.linkCode)) {
       // Guessing is slow per person; this makes it slow for a whole workspace.
-      c.linkGuess = { ...g, wrong: g.wrong + 1, spent: g.spent + 1 };
+      c.linkGuess = { ...g, wrong: g.wrong + 1, spent: g.spent + 1, by: { ...g.by, [who]: theirs + 1 } };
       if (c.linkGuess.wrong >= LINK_TRIES) {
         c.linkGuess.wrong = 0;
         c.linkCode = newLinkCode();
