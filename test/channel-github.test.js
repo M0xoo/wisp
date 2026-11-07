@@ -422,9 +422,11 @@ test('stale: said while wisp was off, told and not run', async () => {
   const st = repoState(PRIVATE);
   const back = st.since;
   const old = iso(Date.now() - (STALE_S + 120) * 1000);
-  st.since = iso(Date.now() - 3 * 3600_000);
+  // Held, not set once: a look already on its way moves the cursor past `old` when it lands.
+  const hold = setInterval(() => { st.since = iso(Date.now() - 3 * 3600_000); }, 5);
   comment(n, '/wisp from while it was off', { created_at: old, updated_at: old });
-  assert.match(await nextOn(n), /^That arrived while wisp was offline, so it didn’t run\./);
+  const told = await nextOn(n).finally(() => clearInterval(hold));
+  assert.match(told, /^That arrived while wisp was offline, so it didn’t run\./);
   assert.equal(tasksOn(n).length, 0);
   assert.ok(back);
 });
