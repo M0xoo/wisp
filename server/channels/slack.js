@@ -278,9 +278,10 @@ export class Slack extends Channel {
         return { status: 403, body: { error: wrong } };
       }
     }
+    // Anyone holding the URL can send a bad check, so any event that proves the secret takes the error down.
+    if ((c.signingSecret || checking) && this.hub.status.slack?.error === WRONG_SECRET) this.mark({ ok: true, error: '' });
     if (checking) {
       if (typeof j.challenge !== 'string' || j.challenge.length > CHALLENGE_MAX) return { status: 400, body: { error: 'No challenge.' } };
-      if (this.hub.status.slack?.error === WRONG_SECRET) this.mark({ ok: true, error: '' });
       return { status: 200, body: { challenge: j.challenge } }; // before a secret too: Slack checks the URL before it can be pasted, and echoing one word does nothing
     }
     if (!this.ready) return { status: 409, body: { error: 'Slack isn’t on here.' } };
