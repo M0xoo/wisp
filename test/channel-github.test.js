@@ -101,6 +101,16 @@ after(() => {
   setTimeout(() => process.exit(), 500).unref(); // agents held on FAKE_DELAY
 });
 
+// Windows refuses a rename over a file that's open, and a gh polling every 40 ms has it open now and then.
+test('the state can be rewritten while a gh is reading it', () => {
+  const fd = fs.openSync(`${STATE}.v${version}`, 'r');
+  try {
+    write();
+  } finally {
+    fs.closeSync(fd);
+  }
+});
+
 let cid = 5000;
 let issue = 1; // 1 is the first test's
 const iso = (t = Date.now()) => new Date(t).toISOString().replace(/\.\d+Z$/, 'Z');
