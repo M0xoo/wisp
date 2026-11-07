@@ -16,13 +16,14 @@ import { truncate } from '../util.js';
 import { CODE, Channel, KIND, sleep } from './channel.js';
 import { Linking, Turns, converse, firstPart, inBox, surface } from './conversation.js';
 import { stripFormatting } from './grammar.js';
-import { RateLimit, Seen, allowed, defuse, gate, needsWisp, scrubOut } from './policy.js';
+import { RateLimit, Seen, allowed, defuse, gate, needsWisp, scrubOut, splitNote } from './policy.js';
 import { openWs } from './ws.js';
 
 const CAP = 'edits';
 const FALLBACK = 'plan';
 const NAME = 'Discord';
 const MAX_TEXT = 2000;
+const MAX_CHOICES = 600; // they end a report: room is left for the rest of it
 const MAX_IDS = 20; // messages of a task a reply can point at
 const MAX_BUTTONS = 25;
 const BACKOFF_MAX_MS = 5 * 60_000;
@@ -97,7 +98,14 @@ export const inviteUrl = (appId) => `https://discord.com/oauth2/authorize?client
 
 // A link shows what it says: `[text](url)` would show only the text, so no agent can dress one up.
 const unmask = (text) => String(text).replace(/\]\(/g, ']\\(');
-export const discordText = (text) => truncate(unmask(defuse(scrubOut(text).text)), MAX_TEXT);
+const ready = (text) => unmask(defuse(text));
+// One message, always: a long text gives way in its middle, so the end of it survives: the note that
+// a secret went, and ending, what the reader does next. Lengths are measured after the escaping.
+export function discordText(text, ending = '') {
+  const { body, note } = splitNote(scrubOut(text).text);
+  const tail = ready([note, scrubOut(ending, { note: false }).text].filter(Boolean).join('\n\n'));
+  return [truncate(ready(body), MAX_TEXT - (tail ? tail.length + 2 : 0)), tail].filter(Boolean).join('\n\n');
+}
 
 export const snowflakeMs = (id) => Number((BigInt(id) >> 22n) + EPOCH);
 
@@ -538,8 +546,8 @@ export class Discord extends Channel {
   }
 
   // To an interaction's reply once, then to the place itself. No post pings anyone or embeds a URL.
-  async #say(target, text, { components } = {}) {
-    const body = { content: discordText(text), allowed_mentions: { parse: [] }, flags: SUPPRESS_EMBEDS, ...(components?.length && { components }) };
+  async #say(target, text, { components, ending } = {}) {
+    const body = { content: discordText(text, ending), allowed_mentions: { parse: [] }, flags: SUPPRESS_EMBEDS, ...(components?.length && { components }) };
     if (target.hook) {
       const { hook } = target;
       const path = this.#original(target);
@@ -569,7 +577,8 @@ export class Discord extends Channel {
     await this.turns.settled(t.channel); // a quick task's report comes after the first reply
     const by = this.hub.startedFrom(s)?.by;
     const components = this.#buttons(msg, s);
-    const sent = await this.#say({ chat: t.channel, reply: t.thread ? null : t.ids?.at(-1) }, this.#report(msg, s, t, by, components), { components });
+    const { text, ending } = this.#report(msg, s, t, by, components);
+    const sent = await this.#say({ chat: t.channel, reply: t.thread ? null : t.ids?.at(-1) }, text, { components, ending });
     if (sent?.id) this.#link(s.id, sent.id);
     this.hub.phone.count?.('report', 'full');
   }
@@ -593,7 +602,7 @@ export class Discord extends Channel {
     const choices = components.length ? [] : (msg.actions || []).filter((a) => a.kind !== 'done').map((a) => a.label);
     const here = t.thread ? `Mention ${this.me?.name || 'wisp'} here, or use /wisp, to answer or follow up.` : 'Reply to this message to answer or follow up.';
     const how = needsWisp(s.ask) ? 'This one is a tool approval: answer it in wisp.' : here;
-    return [title, msg.text, choices.length && !needsWisp(s.ask) ? `Choices: ${choices.join(' · ')}` : '', how].filter(Boolean).join('\n\n');
+    return { text: [title, msg.text].filter(Boolean).join('\n\n'), ending: [choices.length && !needsWisp(s.ask) ? truncate(`Choices: ${choices.join(' · ')}`, MAX_CHOICES) : '', how].filter(Boolean).join('\n\n') };
   }
 
   // The first reply went out: a reply to it reaches the task, whenever that started.

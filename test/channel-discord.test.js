@@ -805,6 +805,16 @@ test('what leaves: a secret goes, nobody is pinged, a link shows itself, no embe
   assert.ok(big.content.length <= 2000, String(big.content.length));
 });
 
+test('a report past the limit gives way in its middle: the title, the secret note and how to answer stay', async () => {
+  const token = `ghp_${'a1B2'.repeat(10)}`;
+  const post = await reported([{ type: 'hero', status: 'done', title: 'T', summary: `${token} ${'x '.repeat(3000)}` }], 'The title');
+  assert.ok(post.content.length <= 2000, String(post.content.length));
+  assert.match(post.content, /The title/);
+  assert.match(post.content, /x …\n\n\(wisp took a secret out of this message: open the task in wisp to see it\.\)\n\nReply to this message to answer or follow up\.$/);
+  assert.ok(!post.content.includes(token));
+  assert.ok(post.components?.length, 'its buttons too');
+});
+
 test('a plain answer with no hero is the report, through the hub', async () => {
   const post = await reported([{ type: 'markdown', text: 'The plain answer is 42.' }]);
   assert.match(post.content, /The plain answer is 42\./);
@@ -1244,4 +1254,12 @@ test('the pure parts', () => {
   assert.equal(s('see <https://a.dev/x>'), 'see https://a.dev/x');
   assert.equal(discordText('[a](b)'), '[a]\\(b)');
   assert.equal(discordText('x'.repeat(5000)).length, 2000);
+  const noted = discordText(`ghp_${'a1B2'.repeat(10)} ${'x'.repeat(5000)}`);
+  assert.ok(noted.length <= 2000);
+  assert.match(noted, /…\n\n\(wisp took a secret out of this message/);
+  assert.equal(discordText('short', 'the end'), 'short\n\nthe end');
+  assert.equal(discordText('', 'the end'), 'the end');
+  const ended = discordText('y'.repeat(5000), `@everyone [a](b) ghp_${'a1B2'.repeat(10)}`);
+  assert.ok(ended.length <= 2000);
+  assert.match(ended, /@\u200beveryone \[a\]\\\(b\) \[redacted: a GitHub token\]$/, 'the ending leaves as safely as the rest');
 });
