@@ -21,6 +21,18 @@ public class SharedTest {
     }
 
     @Test
+    public void aUserIdInFrontDoesntHideOurOwnProvider() {
+        assertFalse(Shared.foreign("content", "0@" + ME + ".fileprovider", ME));
+        assertFalse(Shared.foreign("content", "10@" + ME, ME));
+        assertFalse("a resolver reads up to the last @", Shared.foreign("content", "a@0@" + ME + ".fileprovider", ME));
+        assertEquals(ME + ".fileprovider", Shared.bareAuthority("0@" + ME + ".fileprovider"));
+        assertEquals(ME, Shared.bareAuthority(ME));
+        assertEquals(null, Shared.bareAuthority(null));
+        assertFalse(Shared.foreign("content", null, ME));
+        assertTrue("another app, on another user", Shared.foreign("content", "10@com.other.files", ME));
+    }
+
+    @Test
     public void originsAreThePagesOwn() {
         assertEquals("http://127.0.0.1:4477", Shared.originOf("http://127.0.0.1:4477/?m=Studio#/s/a1"));
         assertEquals("https://mokh.grid.dev", Shared.originOf("HTTPS://Mokh.Grid.Dev:443/_grid/auth?t=x"));

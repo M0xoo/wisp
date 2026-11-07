@@ -3,8 +3,10 @@ package dev.trywisp.mobile;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ProviderInfo;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Process;
 import android.provider.OpenableColumns;
 import android.util.Base64;
 import androidx.core.content.IntentCompat;
@@ -170,10 +172,22 @@ final class Shared {
 
     /**
      * Only another app's content. A file:// path, or a URI of our own provider, would have any app
-     * that can send an intent read wisp's own files (its SSH keys) out through the prompt box.
+     * that can send an intent read wisp's own files out through the prompt box.
      */
     static boolean foreign(String scheme, String authority, String ownPackage) {
-        return "content".equals(scheme) && authority != null && !authority.equals(ownPackage) && !authority.startsWith(ownPackage + ".");
+        String a = bareAuthority(authority);
+        return "content".equals(scheme) && a != null && !a.equals(ownPackage) && !a.startsWith(ownPackage + ".");
+    }
+
+    /** The provider a resolver goes to: it drops a leading `<userId>@`, so a name check has to as well. */
+    static String bareAuthority(String authority) {
+        return authority == null ? null : authority.substring(authority.lastIndexOf('@') + 1);
+    }
+
+    /** Whether Android says this provider runs as us, whatever it's called. */
+    private static boolean ours(Context c, String authority) {
+        ProviderInfo p = c.getPackageManager().resolveContentProvider(bareAuthority(authority), 0);
+        return p != null && p.applicationInfo != null && p.applicationInfo.uid == Process.myUid();
     }
 
     /** Copies the files in. On a thread of its own: 20 MB doesn't belong on the UI thread. */
@@ -187,7 +201,7 @@ final class Shared {
             }
             String type = cr.getType(u);
             if (type == null) type = intentType;
-            if (!foreign(u.getScheme(), u.getAuthority(), c.getPackageName()) || !allowedType(type)) {
+            if (!foreign(u.getScheme(), u.getAuthority(), c.getPackageName()) || ours(c, u.getAuthority()) || !allowedType(type)) {
                 left++;
                 continue;
             }
