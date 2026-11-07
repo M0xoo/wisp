@@ -257,14 +257,23 @@ for the rest
 - **Expected:** `setWebhook` to `<domain>/_route/<token>` with a secret the grid made; the page shows the
   bot and the ids, never the token. Offline: "<name> is offline", nothing arrives later. Off: the line
   says how to turn it on. On: a Plan task on the computer, its ack and report in the chat; `full auto:`
-  refused; a reply to the report is a follow-up there. No answer in time: the line says it may have
-  started, and its report still gets through. The box isn't woken for any of it, and anything else
-  reaches it `verified`, a forward and a partial name (`on mac`) included. A wrong secret is a 403, a wrong token a 404. `GET /api/channels/url` says
-  `held: true` and no more, and only for the bot the grid holds: a box with another bot sets its own; `POST /api/channels/reply` with a Box secret is a 401. *Accept tasks from
+  refused; a reply to the report is a follow-up there, and past seven days a line says it expired. No
+  answer in time: the line says it may have started, and its report still gets through; one lost while
+  the grid restarts goes later. The box isn't woken for any of it. The form says to make a new bot. On
+  that bot, anything else from a listed person (a forward, a partial name like `on mac`, `in api on
+  laptop`) gets a line saying what the bot does, a stranger nothing, and the box hears none of it. With
+  the box's own bot, the page warns and the rest reaches the box `verified`. Set the webhook somewhere
+  else: the page says it moved. A wrong secret is a 403, a wrong token a 404. `GET /api/channels/url` says
+  `held: true` and no more, and only with proof of that bot's token, not its public id: a box with
+  another bot sets its own, and a running box asks again before it rotates or takes the webhook down;
+  `POST /api/channels/reply` with a Box secret is a 401. *Accept tasks from
   channels* can't be turned on through the grid (403 on `PATCH /api/config` there; off works), and a
   spell can only force it off. Fits 390px, light and dark.
-- **Risk:** the box holding the same bot token can repoint the webhook. That stops routing and reaches
-  nothing. Removing the bot leaves the box without a webhook until it next starts.
+- **Risk:** with the box's own bot, confidentiality doesn't hold. Anything on the box can read the
+  token: `forwardMessage` returns a report's text, `setWebhook` to its own URL reads every later `on
+  laptop`, `sendMessage` speaks as the grid. It can't forge a route, since Telegram never gives the
+  secret back. That's why the page asks for a separate bot and warns when it can tell. Removing the box's
+  own bot leaves the box without a webhook until it next starts.
 - **Against production:** only when the owner deploys: a throwaway account, one real Telegram bot.
 
 ### GRID-24 · Caddy on-demand TLS and DNS

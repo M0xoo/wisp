@@ -210,9 +210,10 @@ own Gmail address. The box's Settings → Phone → Email shows the refusal.
 
 Only 2 to 4 say anything about forgery. If one of them starts a task, turn `mail` off and don't ship it.
 
-`"route": true` beside `enabled` adds `on laptop`: a person connects their bot on their account page
-(*Telegram to your computers*), and a message that names one of their computers runs there, with the
-box never asked. Off, `/_route/` is a 404 and the page doesn't show it. It needs https, for the same
+`"route": true` beside `enabled` adds `on laptop`: a person connects a bot on their account page
+(*Telegram to your computers*), and a message that starts `on <computer>` (after an optional `/new`)
+runs there, with the box never asked. It wants a new bot, not the one their box uses: see *`on laptop`*
+under Security. Off, `/_route/` is a 404 and the page doesn't show it. It needs https, for the same
 reason. The bot can't also be polled from a computer: Telegram allows a webhook or `getUpdates`, not
 both.
 
@@ -343,17 +344,26 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
   its Box secret, its `/_in` URL and any webhook secret it made. So the grid doesn't reuse them. The
   account page (the grid's own origin, session and CSRF token, out of reach of `/_grid/*` and of a page
   a box serves) takes the bot token and the allowed Telegram user ids; the grid calls `setWebhook` with
-  a URL at `<domain>/_route/<token>` and a secret of its own, and seals all of it in `user_secrets`. A
-  box names its bot by its public id on `GET /api/channels/url` and is told only `held: true` when
-  that's the bot the grid holds, so it leaves that webhook alone; any other bot sets its own. A box
-  holding the same bot token can still repoint the webhook, which stops routing for its owner, but
-  Telegram never returns a secret, so it can't sign a message. At the edge: bad secret 403, then 200,
-  then only a private chat with an allowed, non-bot sender, not a forward, naming one of that user's own computers
+  a URL at `<domain>/_route/<token>` and a secret of its own, and seals all of it in `user_secrets`,
+  before `setWebhook`, and puts back what was there if Telegram refuses. Telegram never returns a
+  secret, so nothing can sign a message without it. That's all this protects: **a box holding the same
+  bot token can't forge a route, but confidentiality doesn't hold.** Anything on that box can read the
+  token, and then `forwardMessage` returns a report's text, `setWebhook` to its own URL reads every later
+  `on laptop`, and `sendMessage` speaks as the grid. So the page tells people to make a separate bot. The
+  grid can't stop the same one being given, and only warns: a box says which bot it has on
+  `GET /api/channels/url` with `botMark`, a hash that proves it holds the token (a public id wouldn't: a
+  box could claim a bot it doesn't hold), and the page says so when that's the bot connected. Only
+  then is the box told `held: true`, and leaves the webhook alone, and asks again before it takes a
+  webhook down or rotates, since nothing tells a running box. The account page asks `getWebhookInfo` and says when the
+  webhook moved; Remove then leaves it. At the edge: bad secret 403, then, before the 200, only a private
+  chat with an allowed, non-bot sender, not a forward, starting with `on` and one of that user's own computers
   (`parseRoute` in `server/channels/grammar.js`, the same grammar, imported pure). That goes through
   the computer's tunnel to `POST /api/channels/routed`, which refuses a request from anywhere else:
   each tunnel stream carries a random mark only that process knows, and `computerEdge` drops
-  `x-wisp-route` from what signed-in people send. Everything else goes to the box through the inbox,
-  flagged `verified`, without the secret. Nothing is held for a computer: offline or switched off, the
+  `x-wisp-route` from what signed-in people send. Anything else, on a separate bot, gets a fixed line
+  saying what the bot does, to the people listed only, and the box neither hears nor wakes. On the box's
+  own bot it goes to the box through the inbox, flagged `verified`, without the secret. Past 30 messages
+  a minute, or on a reply to a thread past its seven days, the grid says so. Nothing is held for a computer: offline or switched off, the
   grid says so in the chat. The computer never gets the bot token: `POST /api/channels/reply` takes
   its device token and a thread minted for that one message, bound to that computer and chat, for
   seven days. A Box secret gets a 401 there, and a reply in the chat to something sent for a thread

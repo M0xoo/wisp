@@ -400,6 +400,7 @@ try {
   await check('GRID-34', '`on laptop`: the grid owns the webhook, says offline itself, and a Box secret gets nothing', async () => {
     const p = A.page;
     await p.goto(`${GRID}/account#route`);
+    ok(/new bot/i.test(await p.textContent('.route-f')), 'the form doesn’t ask for a new bot');
     await p.fill('.route-f input[name=token]', '123:route-bot');
     await p.fill('.route-f input[name=senders]', '42');
     await p.click('.route-f .primary');
@@ -417,6 +418,15 @@ try {
     ok((await hook(m(901, 'on qa laptop fix it'))).status === 200, 'the webhook');
     await until(() => tg.calls.filter((x) => x.method === 'sendMessage').length > before, 10_000, 'the line');
     ok(/qa laptop is offline/.test(tg.calls.at(-1).text), `the line: ${tg.calls.at(-1).text}`);
+    const said = tg.calls.filter((x) => x.method === 'sendMessage').length;
+    ok((await hook(m(902, 'fix it'))).status === 200, 'the webhook, not a route');
+    await until(() => tg.calls.filter((x) => x.method === 'sendMessage').length > said, 10_000, 'what the bot does');
+    ok(/only reaches your computers/.test(tg.calls.at(-1).text), `the line: ${tg.calls.at(-1).text}`);
+    const held = tg.hook.url;
+    tg.hook = { ...tg.hook, url: `${GRID}/elsewhere` };
+    await p.goto(`${GRID}/account#route`);
+    ok(/webhook moved/i.test(await p.textContent('[data-live=route]')), 'the page didn’t say the webhook moved');
+    tg.hook = { ...tg.hook, url: held };
     const box = (await req(`${GRID}/api/channels/reply`, { method: 'POST', headers: { authorization: 'Box x y' }, body: { thread: 'a.b', text: 'x' } }));
     ok(box.status === 401, `a Box secret at /api/channels/reply → ${box.status}`);
     await p.click('[data-live=route] form button');
