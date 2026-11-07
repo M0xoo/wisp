@@ -360,14 +360,18 @@ test('a channel never keeps a box awake: delivery touches nothing, and it sleeps
   await until(() => g.got(ada).length === 1, { what: 'the first delivery' });
   // Its idle clock starts now, not during a boot that takes who knows how long on a loaded machine.
   const idleMs = 3000;
+  // Each delivery takes about as long as the gap between messages, as on a loaded Windows runner:
+  // one is nearly always in flight, and hostd never stops a box under a request.
+  g.box(ada, { answerMs: 100 });
   const inst = g.grid.hostd.inst.get(ada.id);
   g.grid.hostd.touch(ada.id);
   const touched = inst.lastTouch;
   g.grid.hostd.idleMs = idleMs;
-  // Messages keep coming, faster than idleMs: each lands, none of them moves the clock.
-  const t = Date.now();
+  // Messages keep coming, faster than idleMs, for all of idleMs: each lands, none of them moves the
+  // clock. Then they stop: a box with a delivery always in flight is never stopped under it, so
+  // sending on would time how soon the tick finds a gap between them, not the idle timer.
   let id = 2;
-  while (g.grid.hostd.state(ada.id) === 'running' && Date.now() - t < 10_000) {
+  while (g.grid.hostd.state(ada.id) === 'running' && Date.now() - touched < idleMs) {
     await g.post(ada, url, update(id++));
     await sleep(90);
     if (g.grid.hostd.state(ada.id) === 'running') assert.equal(inst.lastTouch, touched, 'a delivery moved lastTouch');
