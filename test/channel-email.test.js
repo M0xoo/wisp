@@ -136,13 +136,15 @@ const fakeSes = http.createServer(async (req, res) => {
 
 // --- a grid, two people ----------------------------------------------------------------------------
 
+const SLOW_PROBE = `${tmp('email-probe')}/slow`; // this file there: a woken box's first look at its harnesses takes 1.5 s
+
 let g;
 async function boot({ withMail = true, idleMs = 1400 } = {}) {
   const dataDir = fs.realpathSync(tmp('email-grid'));
   ensureMaster(dataDir);
   const port = await freePort();
   const mailCfg = { domain: DOMAIN, sendPerHour: 100, inbound: { provider: 'ses', topicArn: ARN, keys: [PEM] }, outbound: { provider: 'ses', region: 'eu-west-1', accessKeyId: KEY_ID, secretAccessKey: SECRET_KEY, endpoint: `http://127.0.0.1:${fakeSes.address().port}` } };
-  const cfg = loadConfig({ dataDir, env: {}, overrides: { domain: 'wisp.localhost', listen: { host: '127.0.0.1', port }, auth: { dev: true }, hostd: { idleMs, checkMs: 100, path: fakeBin, env: { FAKE_DELAY: '50' } }, channels: { enabled: true, retryMs: 40 }, ...(withMail && { mail: mailCfg }) } });
+  const cfg = loadConfig({ dataDir, env: {}, overrides: { domain: 'wisp.localhost', listen: { host: '127.0.0.1', port }, auth: { dev: true }, hostd: { idleMs, checkMs: 100, path: fakeBin, env: { FAKE_DELAY: '50', FAKE_SLOW_PROBE: SLOW_PROBE } }, channels: { enabled: true, retryMs: 40 }, ...(withMail && { mail: mailCfg }) } });
   const grid = await startGrid(cfg, { log: () => {}, resolveTxt });
   const person = async (handle) => {
     grid.db.run('INSERT INTO users (id, handle, created_at) VALUES (?, ?, ?)', `u-${handle}`, handle, Date.now());
@@ -349,6 +351,46 @@ test('References can’t pass the line limit, however long a thread gets, and st
   const short = mail.composeMail({ from: 'a@m.example', to: 'ada@x.example', subject: 'x', text: 'y', messageId: '<o@m.example>', inReplyTo: '<i@x.example>', references: Array.from({ length: 6 }, (_, i) => `<${i}${'y'.repeat(20)}@x.example>`) });
   for (const line of short.split('\r\n').filter((l) => /^(?:References:| <)/.test(l))) assert.ok(line.length <= 78, line);
   assert.equal(mail.dkimLookup({ auth: { dev: false } }, { dkimKeys: { n: 'pinned' } }), undefined, 'only a dev grid can pin a DKIM key');
+});
+
+test('a box says while it’s answering: from a message accepted until the reply and the report have gone', async () => {
+  let start;
+  let sent;
+  const s = { id: 's1', remote: { email: { id: '<in@x>', subject: 'x', ids: ['<in@x>'] } }, turns: [] };
+  const fakeGrid = http.createServer(async (req, res) => {
+    for await (const c of req) void c;
+    await new Promise((r) => (sent = r));
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end('{"messageId":"<out@m>"}');
+  });
+  await new Promise((r) => fakeGrid.listen(0, '127.0.0.1', r));
+  Object.assign(process.env, { WISP_GRID_URL: `http://127.0.0.1:${fakeGrid.address().port}`, WISP_TRUSTED_PROXY_SECRET: 's3', WISP_PUBLIC_URL: 'http://ada.grid.example' });
+  try {
+    const phone = { context: () => new Promise((r) => (start = r)), count() {} };
+    const ch = new Email({ cfg: { email: { enabled: true, sender: ADA } }, status: {}, onChange() {}, store: { saveConfig() {}, get: () => s, save() {}, all: () => [] }, away: new Map(), startedFrom: () => ({ channel: 'email' }), phone });
+    assert.equal(ch.busy(), 0);
+    const body = Buffer.from(JSON.stringify({ subject: 'x', text: 'y', date: new Date().toISOString() }));
+    const out = await ch.inbound(body, { 'x-wisp-mail-dmarc': 'pass', 'x-wisp-mail-from': ADA, 'x-wisp-mail-id': '<a@x>' });
+    assert.equal(out.status, 200);
+    assert.equal(ch.busy(), 0, 'nothing yet: the 2xx hasn’t gone');
+    out.after();
+    assert.equal(ch.busy(), 1, 'accepted, the task not started: nothing else says the box is at work');
+    start({ projects: [], machines: [], agents: [], adapters: [], crew: [], crewView: [], goals: [], tasks: [] });
+    await until(() => sent, { what: 'the reply' });
+    assert.equal(ch.busy(), 1, 'its reply on the way');
+    sent();
+    await until(() => ch.busy() === 0, { what: 'the reply to land' });
+    sent = null;
+    const report = ch.publish({ title: 'Done', text: 'ok' }, s);
+    await until(() => sent, { what: 'the report' });
+    assert.equal(ch.busy(), 1, 'a report on the way');
+    sent();
+    await report;
+    assert.equal(ch.busy(), 0);
+  } finally {
+    for (const k of ['WISP_GRID_URL', 'WISP_TRUSTED_PROXY_SECRET', 'WISP_PUBLIC_URL']) delete process.env[k];
+    fakeGrid.close();
+  }
 });
 
 test('a tool approval stays in wisp: one line naming it, said once; a task’s report goes as a reply', async () => {
@@ -685,11 +727,21 @@ test('a sleeping box wakes, the task runs in Plan, wrapped as untrusted, and the
   await until(() => g.grid.hostd.state(ada.user.id) === 'stopped', { what: 'asleep', timeout: 20_000 });
   const ran = g.grid.db.get('SELECT count(*) n FROM channel_inbox').n;
   const id = `<wake${nextId++}@gmail.example>`;
+  // Longer than idleMs, with the delivery's hold over: the box is at work and has to say so.
+  fs.writeFileSync(SLOW_PROBE, '');
   const t = Date.now();
   const r = await send(adaAt, { id, subject: 'fix the bug', text: 'in the login page\n\n-- \nAda' });
   assert.equal(r.status, 200);
   assert.ok(Date.now() - t < 800, 'answered before the wake');
-  await until(() => sentTo(id).length >= 2, { what: 'the ack and the report', timeout: 45_000 });
+  try {
+    await until(() => sentTo(id).length >= 2, { what: 'the ack and the report', timeout: 45_000 });
+  } catch (err) {
+    const box = await ada.ok('/remote').then((v) => JSON.stringify({ email: v.status.email, enabled: v.email.enabled, sender: v.email.sender }), (e) => e.message);
+    err.message += ` | sent for it: ${sentTo(id).length} of ${ses.sent.length}; held rows: ${held()}; box was ${g.grid.hostd.state(ada.user.id)}; its email: ${box}`;
+    throw err;
+  } finally {
+    fs.rmSync(SLOW_PROBE, { force: true });
+  }
   const done = g.grid.hostd.begin(ada.user.id, { touch: false });
   const [ack, report] = sentTo(id);
   assert.deepEqual(ack.to, [ADA]);

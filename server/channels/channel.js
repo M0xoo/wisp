@@ -81,6 +81,11 @@ export class Channel {
     };
   }
 
+  // Answers under way that nothing else shows: work after() started, a report on its way.
+  busy() {
+    return 0;
+  }
+
   // It goes ahead of the next thing said in that thread, or stays for the one after.
   async pay(key) {
     const send = this.owed.get(key);

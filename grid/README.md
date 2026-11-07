@@ -332,7 +332,7 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
 - **Room.** A box starts while fewer than `hostd.maxRunning` are up and, with the container
   driver, the host has `admit.reserveMb + admit.boxMb` MiB available (`MemAvailable`; defaults
   1024 + 1024; `"admit": false` counts boxes only). When it doesn't, hostd stops the box that has
-  been quiet longest the way idle does (nothing running, no page or terminal open, for
+  been quiet longest the way idle does (nothing running, no page or terminal open, no channel answering, for
   `hostd.evictAfterMs`, 2 min; never one whose schedule is due within 5 min), so its home and tasks
   are kept. With nothing to stop, the start waits in line (*Waiting for room*) for
   `hostd.queueMs` (2 min), then says the grid is full. Scheduled wakes wait behind people, for up to

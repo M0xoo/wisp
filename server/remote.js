@@ -67,6 +67,11 @@ export class Remote {
     return Object.values(this.channels).some((c) => c.ready);
   }
 
+  // Answers under way, for /api/status: past a 2xx nothing else holds a box up for them.
+  busy() {
+    return Object.values(this.channels).reduce((n, c) => n + c.busy(), 0);
+  }
+
   start() {
     this.stop();
     const ac = (this.ac = new AbortController());

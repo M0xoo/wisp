@@ -15,8 +15,8 @@
 // environment: nothing from the operator's shell (keys, tokens) leaks into it.
 //
 // Idle: every checkMs, GET /api/status on each running wisp. No turn running, no side question,
-// no page open and nothing for idleMs: stop it, and remember when its next scheduled task is due
-// so it wakes for it.
+// no page open, no channel answering and nothing for idleMs: stop it, and remember when its next
+// scheduled task is due so it wakes for it.
 //
 // Room: a box starts while fewer than maxRunning run and (with `admit`, on by default for
 // containers) the host has the memory for one more. When it doesn't, the box that has been quiet
@@ -108,6 +108,9 @@ export async function deleteBox({ dataDir, driver, container = {}, user }) {
   }
 }
 
+// What a wisp's /api/status says is going on: any of it keeps a box up, whatever the idle clock says.
+const atRest = (s) => !s.live && !s.sides && !s.terms && !s.clients && !s.channels;
+
 export class Hostd extends EventEmitter {
   // user: { id, handle }. secretFor(user) → the trusted-proxy secret; urlFor(user) → its public URL;
   // previewFor(user) → where its box's pages show ("…p{port}--handle…", '' for none);
@@ -165,6 +168,7 @@ export class Hostd extends EventEmitter {
       if (done) return;
       done = true;
       i.inflight -= 1;
+      i.ended = (i.ended || 0) + 1;
       if (touch) i.lastTouch = Date.now();
     };
   }
@@ -290,12 +294,12 @@ export class Hostd extends EventEmitter {
   async #victim(i) {
     const now = Date.now();
     const quietSince = (x) => Math.max(x.lastActiveAt || 0, x.lastTouch || 0, x.startedAt || 0);
-    const quiet = (s) => !s.live && !s.sides && !s.terms && !s.clients;
     const list = [...this.inst.values()]
-      .filter((x) => x !== i && x.state === 'running' && !x.inflight && x.status && quiet(x.status) && now - quietSince(x) >= this.evictAfterMs && !(x.nextWakeAt && x.nextWakeAt - now < WAKE_SOON_MS))
+      .filter((x) => x !== i && x.state === 'running' && !x.inflight && x.status && atRest(x.status) && now - quietSince(x) >= this.evictAfterMs && !(x.nextWakeAt && x.nextWakeAt - now < WAKE_SOON_MS))
       .sort((a, b) => quietSince(a) - quietSince(b));
     for (const x of list) {
       let s;
+      const ended = x.ended;
       try {
         s = await getJson(x.port, '/api/status', 2000);
       } catch {
@@ -303,7 +307,7 @@ export class Hostd extends EventEmitter {
       }
       x.status = s;
       x.lastActiveAt = Math.max(s.lastActivityAt || 0, x.lastTouch || 0);
-      if (x.state === 'running' && !x.inflight && quiet(s) && Date.now() - quietSince(x) >= this.evictAfterMs) return x;
+      if (x.state === 'running' && !x.inflight && x.ended === ended && atRest(s) && Date.now() - quietSince(x) >= this.evictAfterMs) return x;
     }
     return null;
   }
@@ -436,6 +440,7 @@ export class Hostd extends EventEmitter {
     for (const i of this.inst.values()) {
       if (i.state !== 'running') continue;
       let s;
+      const ended = i.ended;
       try {
         s = await getJson(i.port, '/api/status');
       } catch {
@@ -444,9 +449,10 @@ export class Hostd extends EventEmitter {
       i.status = s;
       i.nextWakeAt = s.nextWakeAt || null;
       i.lastActiveAt = Math.max(s.lastActivityAt || 0, i.lastTouch || 0);
-      // Checked after the await: a request may have arrived meanwhile. stop() flips the state
-      // before it yields, so a request after this point waits for a fresh start instead.
-      const quiet = i.state === 'running' && !i.inflight && !s.live && !s.sides && !s.terms && !s.clients && Date.now() - Math.max(i.lastActiveAt, i.lastTouch || 0) > this.idleMs;
+      // Checked after the await: a request may have arrived meanwhile, or ended, and then this status
+      // may be from before what it set going. stop() flips the state before it yields, so a request
+      // after this point waits for a fresh start instead.
+      const quiet = i.state === 'running' && !i.inflight && i.ended === ended && atRest(s) && Date.now() - Math.max(i.lastActiveAt, i.lastTouch || 0) > this.idleMs;
       if (quiet) {
         this.log(`hostd: ${i.user.handle} idle, stopping${i.nextWakeAt ? ` (wakes ${new Date(i.nextWakeAt).toISOString()})` : ''}`);
         await this.stop(i.user.id, 'idle');

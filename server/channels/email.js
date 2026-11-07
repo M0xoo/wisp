@@ -105,10 +105,18 @@ export class Email extends Channel {
     this.limit = new RateLimit();
     this.offered = false; // this grid has mail
     this.answering = new Map(); // message being answered -> that work
+    this.reporting = 0;
   }
 
   get cfg() {
     return this.hub.cfg.email;
+  }
+
+  // Work runs after the 2xx, as the grid has to have that first to accept a reply, so delivery no
+  // longer holds the box up and no turn may be running yet: a woken box's first look at its harnesses
+  // takes seconds. It isn't use: it ends with the answer, and moves no idle clock.
+  busy() {
+    return this.answering.size + this.reporting;
   }
 
   get ready() {
@@ -321,7 +329,12 @@ export class Email extends Channel {
     await this.answering.get(t.id)?.catch(() => {}); // a quick task's report comes after the first reply
     const wait = this.waiting(s);
     if (wait === '') return;
-    await this.#say({ id: t.id, subject: t.subject, sessionId: s.id }, wait ?? this.#report(msg));
+    this.reporting++;
+    try {
+      await this.#say({ id: t.id, subject: t.subject, sessionId: s.id }, wait ?? this.#report(msg));
+    } finally {
+      this.reporting--;
+    }
     this.hub.phone.count?.('report', 'full');
   }
 

@@ -15,6 +15,7 @@
 //   FAKE_API_KEY_SOURCE  claude: its init's apiKeySource (default none: the plan)
 //   FAKE_TOOLS           claude: its init's tools, comma-separated (default: none sent)
 //   FAKE_CLI_VERSION     claude and codex: the version --version and claude's init say (default 9.9.9)
+//   FAKE_SLOW_PROBE  a file: while it exists --version takes 1.5 s, as a cold probe does on a slow machine
 //   FAKE_CODEX_CATALOG   codex: one more model slug in `debug models`, so its catalog moves; `bad`: not JSON
 //   FAKE_CODEX_DEBUG_WAIT  a file: `debug models` answers once it exists (a probe that ends after the turn did)
 //   FAKE_CACHE_READ  claude: cache_read_input_tokens on its result (and 20 cache writes)
@@ -94,6 +95,7 @@ const flag = (f) => {
 };
 
 if (argv[0] === '--version' || argv[0] === '-v') {
+  if (process.env.FAKE_SLOW_PROBE && fs.existsSync(process.env.FAKE_SLOW_PROBE)) await new Promise((r) => setTimeout(r, 1500));
   // FAKE_OPENCODE_VERSION: what `opencode --version` prints (1.x by default; 2.x changed `run`'s flags).
   const version = process.env.FAKE_CLI_VERSION || '9.9.9';
   console.log(name === 'claude' ? `${version} (Fake Claude Code)` : name === 'opencode' ? process.env.FAKE_OPENCODE_VERSION || '1.99.0' : name === 'codex' ? `fake-codex ${version}` : `fake-${name} 9.9.9`);
