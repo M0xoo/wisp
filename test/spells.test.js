@@ -502,6 +502,9 @@ test('Automations stop at (autoStop) is a setting; its row, Where it went and a 
   // The usage receipt and Past your plan (web/js/receipt.js) can be hidden or restyled.
   assert.deepEqual(problems({ ...base0, ui: { hide: ['turn.receipt', 'budget.overage', 'budget.compare'] }, parts: { 'turn.overage': { style: { fontWeight: '600' } } } }), []);
   assert.ok(problems({ ...base0, ui: { hide: ['turn.receipts'] } }).length, 'an unknown part is refused');
+  // Banked resets: Plan budget's line with a Codex account's reset credits and when the next expires.
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['budget.banked'] }, parts: { 'budget.banked': { style: { opacity: '0.8' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['budget.bank'] } }).some((x) => /budget\.bank/.test(x)), 'a near miss is refused, by name');
   // Where the tokens went: the receipt's subagent line and Settings → Usage's Where it went: subagents.
   assert.deepEqual(problems({ ...base0, ui: { hide: ['turn.agents'] }, parts: { 'budget.subagents': { style: { opacity: '0.8' } } } }), []);
   assert.ok(problems({ ...base0, ui: { hide: ['turn.agent'] } }).length, 'a near miss is refused');
