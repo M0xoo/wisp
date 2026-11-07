@@ -15,7 +15,7 @@ process.env.WISP_UPDATE_CHECK = '0';
 process.env.CLAUDE_CONFIG_DIR = tmp('machine-claude-home');
 installFakeBins();
 const { startServer } = await import('../server/index.js');
-const { Machine, parsePs, parseWin, parseEtime, parseBatt, tagInEnviron, untilText, LEFT_MS, HISTORY_MS, POINT_MS, KILL_MS, RES_RSS } = await import('../server/machine.js');
+const { Machine, parsePs, parseWin, parseEtime, parseBatt, tagInEnviron, untilText, HISTORY_MS, POINT_MS, KILL_MS, RES_RSS } = await import('../server/machine.js');
 
 let srv;
 let base;
