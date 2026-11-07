@@ -6,7 +6,10 @@
 //
 // A channel never keeps a box awake. A wake counts like a page opening it (same queue, may evict a
 // quiet box), but delivering to a running box touches nothing: it goes back to sleep on its own idle
-// timer, and a message that starts work keeps it up by that work alone.
+// timer, and a message that starts work keeps it up by that work alone. Anyone can message a bot, so
+// that wake has to be earned: after wakeStrikes in a row with nothing the box accepted (a 2xx), one
+// is a scheduled wake instead, behind people, evicting nobody, no use of the box, and at most one per
+// wakeGapMs. The owner's own message then waits for the gap at worst; a page opening the box drains it.
 //
 // Nothing a message said goes to a log or to audit: channel and size only. The body and headers sit
 // in the database in the clear until they're delivered, as the box's own files do on its disk.
@@ -23,7 +26,7 @@ const BODY_MAX = 256 * 1024;
 const READ_MS = 15_000; // a body that takes longer isn't a webhook
 const TTL_MS = 60 * 60_000; // a message this old is stale anyway (STALE_S)
 const MAX_TRIES = 5;
-const DEFAULTS = { maxRows: 200, maxBytes: 2 * 1024 * 1024, ttlMs: TTL_MS, retryMs: 2000, wakeRetryMs: 30_000, sweepMs: 60_000 };
+const DEFAULTS = { maxRows: 200, maxBytes: 2 * 1024 * 1024, ttlMs: TTL_MS, retryMs: 2000, wakeRetryMs: 30_000, wakeStrikes: 3, wakeGapMs: 10 * 60_000, sweepMs: 60_000 };
 
 // The body, or null when it's over max (read to the end and dropped, so the 200 still gets there).
 function readCapped(req, max) {
@@ -67,6 +70,7 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
   const on = opts.enabled === true;
   const busy = new Map(); // user id -> the drain running
   const timers = new Map(); // user id -> the next try
+  const wakes = new Map(); // user id -> { strikes, at }: wakes since a message the box accepted, the last one's time
   let stopped = false;
 
   const pending = (userId) => db.get('SELECT count(*) n, coalesce(sum(size), 0) bytes FROM channel_inbox WHERE user_id = ? AND done_at IS NULL', userId);
@@ -111,14 +115,19 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
       const wait = row.next_at - Date.now();
       if (wait > 0) return later(user, wait); // strictly in order: nothing passes a row being retried
       if (hostd.state(user.id) !== 'running') {
+        const w = wakes.get(user.id) || { strikes: 0, at: 0 };
+        const cold = w.strikes >= opts.wakeStrikes;
+        const wait = cold ? w.at + opts.wakeGapMs - Date.now() : 0;
+        if (wait > 0) return later(user, wait);
         try {
-          await hostd.ensure(fresh);
+          await hostd.ensure(fresh, { wake: cold });
         } catch (err) {
           // Full, or it wouldn't start: not the message's fault. It stays held until its hour is up.
           if (!stopped) log(`grid: inbox can't wake ${user.handle} yet: ${err.message}`);
           if (!stopped) later(user, opts.wakeRetryMs);
           return;
         }
+        wakes.set(user.id, { strikes: w.strikes + 1, at: Date.now() });
         continue;
       }
       const port = hostd.port(user.id);
@@ -135,8 +144,9 @@ export function createInbox({ db, cfg, secrets, accounts, hostd, deliver, log = 
       done();
       if (stopped) return;
       const ok = status >= 200 && status < 300;
+      if (ok) wakes.delete(user.id);
       if (ok && dropped) db.run('UPDATE channel_urls SET dropped = max(0, dropped - ?) WHERE user_id = ? AND channel = ?', dropped, user.id, row.channel);
-      // 4xx: the box read it and said no (a bad signature, the channel switched off). Retrying can't help.
+      // 4xx: the box read it and said no (a bad signature, a stranger, the channel switched off). Retrying can't help.
       if (ok || (status >= 400 && status < 500)) {
         finish(row.id);
         if (!ok) log(`grid: inbox ${row.channel}, ${row.size} bytes refused by the box (${status})`);

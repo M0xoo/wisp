@@ -377,6 +377,82 @@ test('a wake evicts a quiet box, as a page opening it does', async () => {
   assert.equal(g.grid.hostd.state(bob.id), 'stopped');
 });
 
+// Three wakes nobody wanted, each stopped by hand. → the hostd.ensure calls the inbox made.
+async function struck(g, u, url) {
+  const wakes = [];
+  const ensure = g.grid.hostd.ensure.bind(g.grid.hostd);
+  g.grid.hostd.ensure = (user, o) => (wakes.push({ wake: !!o?.wake, at: Date.now() }), ensure(user, o));
+  g.box(u, { status: 403 });
+  for (let id = 1; id <= 3; id++) {
+    await g.post(u, url, update(id));
+    await until(() => g.got(u).length === id, { what: `message ${id}` });
+    await until(() => g.rows(u)[id - 1]?.done_at, { what: 'done' });
+    await g.grid.hostd.stop(u.id, 'idle');
+  }
+  return wakes;
+}
+
+test('wakes nobody wanted: after three, a low-priority wake, at most one per gap, and a page still drains at once', { timeout: 30_000 }, async () => {
+  const wakeGapMs = 1500;
+  const g = await boot({ channels: { enabled: true, retryMs: 30, wakeRetryMs: 80, wakeGapMs } });
+  const ada = g.user('ada');
+  const { url } = await g.url(ada);
+  const wakes = await struck(g, ada, url);
+  assert.deepEqual(wakes.map((w) => w.wake), [false, false, false]);
+  const touched = g.grid.hostd.inst.get(ada.id).lastTouch;
+  await g.post(ada, url, update(4));
+  await until(() => g.got(ada).length === 4, { what: 'the fourth' });
+  assert.deepEqual(wakes.map((w) => w.wake), [false, false, false, true]);
+  assert.equal(g.grid.hostd.inst.get(ada.id).lastTouch, touched, 'a wake like this is no use of the box');
+  await until(() => g.rows(ada)[3]?.done_at, { what: 'done' });
+  await g.grid.hostd.stop(ada.id, 'idle');
+  // Inside the gap nothing wakes it, however many come; once it's over one wake takes them all.
+  const stopped = Date.now();
+  await g.post(ada, url, update(5));
+  await g.post(ada, url, update(6));
+  await sleep(150);
+  if (Date.now() - wakes[3].at < wakeGapMs) assert.equal(wakes.length, 4, 'woken inside the gap');
+  await until(() => g.got(ada).length === 6, { what: 'both, after the gap' });
+  assert.equal(wakes.length, 5);
+  assert.ok(wakes[4].at - wakes[3].at >= wakeGapMs - 50, `${wakes[4].at - wakes[3].at} ms apart`);
+  assert.ok(stopped < wakes[4].at);
+  await until(() => g.rows(ada)[5]?.done_at, { what: 'done' });
+  await g.grid.hostd.stop(ada.id, 'idle');
+  // A page opening it doesn't wait for the gap.
+  await g.post(ada, url, update(7));
+  await g.grid.hostd.ensure(ada);
+  await until(() => g.got(ada).length === 7, { what: 'drained by the page', timeout: wakeGapMs - 300 });
+  await until(() => g.rows(ada)[6]?.done_at, { what: 'done' });
+  // A message the box accepts ends it.
+  g.box(ada, {});
+  await g.post(ada, url, update(8));
+  await until(() => g.got(ada).length === 8, { what: 'accepted' });
+  await until(() => g.rows(ada)[7]?.done_at, { what: 'done' });
+  await g.grid.hostd.stop(ada.id, 'idle');
+  const n = wakes.length;
+  await g.post(ada, url, update(9));
+  await until(() => g.got(ada).length === 9, { what: 'a plain wake again', timeout: 1000 });
+  assert.equal(wakes[n].wake, false);
+});
+
+test('a low-priority wake evicts nobody, and waiting for one doesn’t hold up closing the grid', { timeout: 30_000 }, async () => {
+  const g = await boot({ channels: { enabled: true, retryMs: 30, wakeRetryMs: 80, wakeGapMs: 0 }, hostd: { maxRunning: 1, evictAfterMs: 0 } });
+  const [ada, bob] = [g.user('ada'), g.user('bob')];
+  const { url } = await g.url(ada);
+  await struck(g, ada, url);
+  await g.grid.hostd.ensure(bob);
+  await until(() => g.grid.hostd.inst.get(bob.id)?.status, { what: 'bob’s status' });
+  await g.post(ada, url, update(4));
+  await until(() => g.grid.hostd.state(ada.id) === 'queued', { what: 'ada waiting' });
+  await sleep(200);
+  assert.equal(g.grid.hostd.state(bob.id), 'running');
+  assert.equal(g.grid.hostd.state(ada.id), 'queued');
+  running.splice(running.indexOf(g.grid), 1);
+  const t = Date.now();
+  await g.grid.close();
+  assert.ok(Date.now() - t < 5000, `closed in ${Date.now() - t} ms`);
+});
+
 test('nothing a message said, and no token, reaches a log or audit: channel and size only', async () => {
   const g = await boot();
   const ada = g.user('ada');
