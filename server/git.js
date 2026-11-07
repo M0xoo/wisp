@@ -69,14 +69,27 @@ const quiet = (p) => p.catch(() => '');
 // repo can catch the other half-made ("failed to read .git/worktrees/…/commondir", on Windows).
 // So adds into the same repo take turns.
 const adding = new Map(); // repo -> the last add queued there
+const added = new Set(); // told of each new folder: the cleanup's cap (services/worktrees.js)
+export const onWorktreeAdded = (fn) => (added.add(fn), () => added.delete(fn));
 export function addWorktree(root, args) {
   const key = realpath(root);
   const next = (adding.get(key) || Promise.resolve()).catch(() => {}).then(() => git(root, ['worktree', 'add', '--quiet', ...args]));
   adding.set(key, next);
   const clear = () => adding.get(key) === next && adding.delete(key);
   next.then(clear, clear);
+  next.then(() => {
+    for (const fn of added) {
+      try {
+        fn(root);
+      } catch {}
+    }
+  }, () => {});
   return next;
 }
+
+// Forgets worktrees whose folder is gone (.git/worktrees entries every later add reads). Only
+// entries git itself calls prunable go: a locked one, or one whose folder is there, stays.
+export const pruneWorktrees = (root) => quiet(git(root, ['worktree', 'prune'], { timeout: 60_000 }));
 
 export async function repoRoot(cwd) {
   const top = await quiet(git(cwd, ['rev-parse', '--show-toplevel']));
