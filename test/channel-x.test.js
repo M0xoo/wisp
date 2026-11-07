@@ -521,6 +521,8 @@ test('a retry can’t double the public reply: a new event id, or both event typ
   const done = await awake(ada);
   const ran = (await tasks(ada)).length;
   const post = x.postPayload({ author: ADA_X, text: '@wispbot one post, many events' });
+  const hour = () => g.grid.db.get('SELECT count(*) n FROM x_rate WHERE user_id = ?', ada.user.id).n;
+  const counted = hour();
   await x.deliver({ event_uuid: 'retry-1', event_type: 'post.mention.create', payload: post });
   await x.deliver({ event_uuid: 'retry-2', event_type: 'post.mention.create', payload: post });
   await x.deliver({ event_uuid: 'retry-3', event_type: 'post.reply.create', payload: { ...post, in_reply_to_tweet_id: '1' } });
@@ -528,6 +530,7 @@ test('a retry can’t double the public reply: a new event id, or both event typ
   await until(() => mine(post).length, { what: 'the ack' });
   await sleep(150);
   assert.equal(mine(post).length, 1);
+  assert.equal(hour(), counted + 1, 'a retry doesn’t use up the person’s hour either');
   await until(async () => (await tasks(ada)).length === ran + 1, { what: 'one task' });
   done();
 });
@@ -1362,8 +1365,10 @@ test('linking needs the session and its CSRF token; a flow is one person’s, an
   x.signingIn = '777';
   const out = await p.b.go(`${g.root}/account/x/link`, { method: 'POST', form: { csrf }, headers: { origin: g.root } });
   const back = new URL((await fetch(out.location, { redirect: 'manual' })).headers.get('location'));
-  // Someone else's session with that callback: the account that started it, or nothing.
-  const other = await bob.b.go(back.href);
+  // Someone else's session with that callback: the account that started it, or nothing. Not a linked
+  // person: they'd be refused for that, whoever's flow it was.
+  const stranger = await g.person('hal-other');
+  const other = await stranger.b.go(back.href);
   assert.ok(!g.grid.db.get('SELECT 1 FROM x_links WHERE x_id = ?', '777'), other.text);
   // A state never issued, and a state used once.
   const out2 = await p.b.go(`${g.root}/account/x/link`, { method: 'POST', form: { csrf }, headers: { origin: g.root } });
