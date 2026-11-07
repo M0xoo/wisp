@@ -275,7 +275,7 @@ export async function openPhone({ host } = {}) {
     who.hidden = !s.connected;
     fill(who, `<span>Connected to <b>${esc(s.team || 'your workspace')}</b> as <b>${esc(s.bot || 'wisp')}</b>, ${linked(n)}</span>${n ? '<button class="link xs" data-act="skUnlink">Unlink</button>' : ''}${n && !steps ? '<button class="link xs" data-act="skTokens">Change tokens</button>' : ''}`);
     $('.ph-steps', sec).hidden = !steps;
-    fill($('.ph-create', sec), `Copy the manifest${s.box ? ': it holds this wisp’s private URL for Slack to call, so keep it to yourself' : ''}. At api.slack.com/apps pick <i>Create New App → From a manifest</i>, choose your workspace, paste it as JSON and install the app.`);
+    fill($('.ph-create', sec), `Copy the manifest${s.box ? ': it holds this wisp’s private URL for Slack to call, so keep it to yourself' : ''}. At api.slack.com/apps pick <i>Create New App → From a manifest</i>, choose your workspace, paste it as JSON and install the app.${s.box ? '' : ' Made yours before buttons? Turn on <i>Interactivity &amp; Shortcuts</i> in the app’s settings, or answer by typing: that always works.'}`);
     fill($('.ph-paste', sec), s.box ? 'Paste the signing secret and bot token' : 'Paste the two tokens');
     $('.ph-computer', sec).hidden = s.box;
     $('.ph-cloud', sec).hidden = !s.box;
