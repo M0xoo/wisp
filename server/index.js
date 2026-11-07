@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { Store } from './store.js';
-import { Runner, summarize } from './runner.js';
+import { Runner, summarize, taskRes } from './runner.js';
 import { adapters, listAgents } from './adapters/index.js';
 import { welcomeSession } from './welcome.js';
 import { Telemetry } from './telemetry.js';
@@ -42,6 +42,7 @@ import { Accounts, useAccounts } from './accounts.js';
 import { useConfig as useLean } from './lean.js';
 import { Budget, addShare, holdWhy, stopFor, drainWhy } from './budget.js';
 import { Load } from './load.js';
+import { Machine } from './machine.js';
 import { createLiveLimits, readCodex } from './live-limits.js';
 import { Guard } from './guard.js';
 import { HarnessWatch } from './harness-watch.js';
@@ -95,6 +96,7 @@ import * as sessionRoutes from './routes/sessions.js';
 import * as shipRoutes from './routes/ship.js';
 import * as workspaceRoutes from './routes/workspace.js';
 import * as worktreeRoutes from './routes/worktrees.js';
+import * as thisMachineRoutes from './routes/machine.js';
 import * as lspRoutes from './routes/lsp.js';
 import { stopAll as stopLanguageServers } from './lsp.js';
 import * as spellRoutes from './routes/spells.js';
@@ -105,7 +107,7 @@ import * as issueRoutes from './routes/issues.js';
 export { API_VERSION };
 
 // Order matters only where patterns overlap: the machine proxy claims <id>@<machine> first.
-const ROUTES = [hookRoutes, channelRoutes, metaRoutes, autoRoutes, internalRoutes, controlRoutes, uploadRoutes, stuffRoutes, settingsRoutes, worktreeRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, workspaceRoutes, lspRoutes, spellRoutes, crewRoutes, connectorRoutes, issueRoutes];
+const ROUTES = [hookRoutes, channelRoutes, metaRoutes, autoRoutes, internalRoutes, controlRoutes, uploadRoutes, stuffRoutes, settingsRoutes, worktreeRoutes, thisMachineRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, workspaceRoutes, lspRoutes, spellRoutes, crewRoutes, connectorRoutes, issueRoutes];
 
 // Idle keep-alive connections are closed by the client first (Node's fetch: 4s, browsers: longer
 // but they retry). With Node's 5s default the two raced, and a request sent on a socket the
@@ -274,7 +276,11 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   // The RAM/CPU guard (server/load.js, design/budget.md → Machine load): sampled every 10 s.
   // Every live handle is a run: subagents and delegates count, though they never wait. Off under
   // node --test: the suite's servers run on CI boxes of every size (test/load.test.js turns it on).
-  app.load = new Load({ runs: () => runner.live.size, defaults: () => store.config.defaults, off: !!process.env.NODE_TEST_CONTEXT, onChange: () => app.broadcast('config', {}) });
+  app.load = new Load({ runs: () => runner.live.size, defaults: () => store.config.defaults, off: !!process.env.NODE_TEST_CONTEXT, onChange: () => app.broadcast('config', {}), extra: () => app.machine?.hold() || null });
+  // What agents cost this computer (server/machine.js, design/machine.md): per task RAM/CPU, what
+  // finished runs left running, a day of points; Pause automations and the battery hold go through
+  // app.load above. Off under node --test like the guard (test/machine.test.js drives its own).
+  app.machine = new Machine({ home: store.home, runner, store, load: app.load, worktrees: () => app.worktrees, crewName: (id) => app.crew?.get?.(id)?.name || '', summary: (s) => runner.emit('summary', summarize(s, store)), onChange: () => app.broadcast('config', {}), res: taskRes, off: !!process.env.NODE_TEST_CONTEXT });
   // A run you start by hand goes anyway; when memory is short the page toasts so (once a minute).
   let shortToldAt = 0;
   app.loadWarn = () => {
@@ -594,6 +600,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     app.remote.stop();
     app.liveLimits.stop();
     app.load.stop();
+    app.machine.stop();
     app.machines.stop(); // the tunnels go; wisp over there keeps running, agents and all
     app.ship.stop();
     app.overlaps.stop();
@@ -628,6 +635,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.remote.start();
   app.liveLimits.start();
   app.load.start();
+  app.machine.start();
   app.machines.start();
   app.computer.start();
   app.sandbox.start();
@@ -643,5 +651,5 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       .catch(() => {});
   }
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, stuff: app.stuff, remote: app.remote, liveLimits: app.liveLimits, load: app.load, reserve: app.reserve, worktrees: app.worktrees, launcher: app.launcher, resetEarly: app.resetEarly, machines: app.machines, computer: app.computer, sandbox: app.sandbox, secrets: app.secrets, accounts: app.accounts, auto: app.auto, broadcast: app.broadcast, routes };
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, stuff: app.stuff, remote: app.remote, liveLimits: app.liveLimits, load: app.load, machine: app.machine, reserve: app.reserve, worktrees: app.worktrees, launcher: app.launcher, resetEarly: app.resetEarly, machines: app.machines, computer: app.computer, sandbox: app.sandbox, secrets: app.secrets, accounts: app.accounts, auto: app.auto, broadcast: app.broadcast, routes };
 }

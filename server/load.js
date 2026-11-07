@@ -127,8 +127,10 @@ const pct = (n) => `${Math.round(n)}%`;
 export class Load {
   // runs(): wisp's own runs going now (its subagents and delegates count, other machines' don't).
   // defaults(): config.defaults. off: no sampling and nothing held (the test suite's servers).
-  constructor({ runs = () => 0, defaults = () => ({}), platform = process.platform, exec, readFile, o = os, now = () => Date.now(), off = false, onChange = () => {} } = {}) {
-    Object.assign(this, { runs, defaults, platform, exec, readFile, o, now, off, onChange });
+  constructor({ runs = () => 0, defaults = () => ({}), platform = process.platform, exec, readFile, o = os, now = () => Date.now(), off = false, onChange = () => {}, extra = () => null } = {}) {
+    // extra(): a hold of the user's or the power's (server/machine.js: Pause automations, on battery). It
+    // holds even when the readings are off: you asked for it.
+    Object.assign(this, { runs, defaults, platform, exec, readFile, o, now, off, onChange, extra });
     this.last = { memFreePct: null, cpu: null, at: 0 };
     this.memHeld = false;
     this.cpuOver = null; // since when the load has been over the ceiling
@@ -195,6 +197,8 @@ export class Load {
   // What holds back work nobody started by hand, or null. { load: true, kind, why, until }; until is
   // when it looks again (no reset to wait for), like Automations stop at's hold for its consumers.
   hold() {
+    const x = this.extra();
+    if (x) return x;
     if (this.off) return null;
     this.#settle();
     const { floor, ceiling, maxRuns } = limitsOf(this.defaults(), this.o.totalmem());

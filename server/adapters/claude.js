@@ -405,7 +405,7 @@ export default {
   // (defaults.subagentModel). Never _FORCE: an Agent call's own model, or a custom agent's, still wins.
   // gate: every write and command goes to the approve tool first (a side discussion, server/side-gate.js).
   // probe: a task's turn, which checks the sign-in it bills to (side runs don't pay for another process).
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, prior = null, unknownPrior = false, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, quiet = false, subagentModel = '', gate = false, probe = false, onEvent }) {
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, prior = null, unknownPrior = false, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, untrusted = false, quiet = false, subagentModel = '', gate = false, probe = false, runEnv = {}, onEvent }) {
     lean = lean && leanOk();
     const args = [
       '-p',
@@ -435,7 +435,7 @@ export default {
     args.push('--verbose'); // terminates the variadic flags above
     prompt += attachmentNote(attachments, 'Read images and PDFs with the Read tool');
 
-    const env = { ...process.env, ...accountEnv };
+    const env = { ...process.env, ...accountEnv, ...runEnv };
     for (const k of PARENT_SESSION_ENV) delete env[k]; // don't let a parent Claude Code session leak into the child
     for (const k of COSTLY_ENV) delete env[k];
     if (quiet) Object.assign(env, LEAN_ENV);

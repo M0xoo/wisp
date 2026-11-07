@@ -167,8 +167,9 @@ export function createWorktrees(app, { busy: machineBusy = () => false, capDelay
     return s.state === 'done' ? Math.min(after, usedAt(s) + DONE_IDLE) : after;
   };
 
-  function view({ now = Date.now() } = {}) {
-    if (now - seen.at > FRESH_MS) scan().catch(() => {});
+  // look: false reads the last look only (server/machine.js's 1-minute points never start one).
+  function view({ now = Date.now(), look = true } = {}) {
+    if (look && now - seen.at > FRESH_MS) scan().catch(() => {});
     const items = tasks().map((s) => {
       const status = standing(s);
       const only = trees(s).reduce((n, wt) => n + (seen.trees.get(wt.path)?.only || 0), 0);

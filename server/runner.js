@@ -218,6 +218,10 @@ function relaysOf(s, store) {
   return relays.length ? { relays } : {};
 }
 
+// A heavy run's memory and CPU: task id -> { rss, cpu }, kept by server/machine.js (only over 500 MB
+// or 50%, and changed only when it moved by 20%).
+export const taskRes = new Map();
+
 // GET /sessions summarizes every task on each call (hundreds of them): each task's summary is
 // kept until it's saved again (store.rev), something every row shows changes (store.epoch: the
 // config, a task added or gone, a subagent's save) or the fields a change without a save would
@@ -225,7 +229,7 @@ function relaysOf(s, store) {
 const listed = new WeakMap();
 export function listSummary(s, store) {
   if (!store?.rev) return summarize(s, store);
-  const key = `${store.rev.get(s) || 0}.${store.epoch}.${openTerms.has(s.id)}.${s.updatedAt}.${s.state}.${s.unread}.${s.archived}.${!!s.ask}.${s.turns.length}.${s.turns.at(-1)?.status}`;
+  const key = `${store.rev.get(s) || 0}.${store.epoch}.${openTerms.has(s.id)}.${taskRes.get(s.id)?.rss ?? ''}:${taskRes.get(s.id)?.cpu ?? ''}.${s.updatedAt}.${s.state}.${s.unread}.${s.archived}.${!!s.ask}.${s.turns.length}.${s.turns.at(-1)?.status}`;
   const kept = listed.get(s);
   if (kept?.key === key) return kept.sum;
   const sum = summarize(s, store);
@@ -290,6 +294,7 @@ export function summarize(s, store) {
     ...(s.tags?.length && { tags: s.tags }), // topic words its agent set with wisp_tag, for search (web/js/tags.js)
     live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || (last.by === 'compact' ? 'Compacting' : 'Starting up') : s.auto?.busy ? s.auto.label : s.goal?.status === 'checking' ? 'Checking the goal' : '',
     term: openTerms.has(s.id) || undefined, // taken over in the page: a terminal is open
+    ...(taskRes.has(s.id) && { res: taskRes.get(s.id) }), // a heavy run's { rss, cpu } (server/machine.js, design/machine.md)
     ...(s.tui && { tui: true }), // a terminal session: it opens on the agent's own CLI (services/tui.js)
     asks: !!s.ask || !!last?.presentation?.blocks?.some((b) => b.type === 'question'),
     question: s.ask?.question || '',
@@ -872,6 +877,7 @@ export class Runner extends EventEmitter {
         effort: session.effort || '',
         systemPrompt: BTW_SYSTEM,
         accountEnv: this.#accountEnv(session, entry.agent),
+        runEnv: { WISP_TASK: session.id },
         untrusted: !!this.projectPending(session, entry.agent),
         quiet: leanTask(session, this.store.config?.defaults), // a /btw is yours: lean as the task is (server/lean.js)
         onEvent: (ev) => {
@@ -1503,6 +1509,8 @@ export class Runner extends EventEmitter {
       subagentModel,
       mcpServers: this.#mcpServers(session, adapter, team, mode),
       accountEnv: this.#accountEnv(session),
+      // Every process the run starts inherits it, so it's still known as this task's once reparented (server/machine.js).
+      runEnv: { WISP_TASK: session.id },
       untrusted: !!project,
       quiet: leanTask(session, this.store.config?.defaults), // only when asked: lean drops claude.ai connectors (server/lean.js)
       gate: !!session.sideOf && mode === 'edits', // every write waits on wisp (server/side-gate.js)

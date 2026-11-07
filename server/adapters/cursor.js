@@ -41,7 +41,7 @@ export default {
     return { ...found, models: [this.models[0], ...models] };
   },
 
-  run({ prompt, attachments = [], cwd, resumeId, mode, model, systemPrompt, onEvent }) {
+  run({ prompt, attachments = [], cwd, resumeId, mode, model, systemPrompt, runEnv = {}, onEvent }) {
     const args = ['-p', '--output-format', 'stream-json', '--trust'];
     if (mode === 'plan') args.push('--mode', 'plan');
     if (mode === 'auto') args.push('--force');
@@ -58,7 +58,7 @@ export default {
       bin: BIN,
       args,
       cwd,
-      env: process.env,
+      env: { ...process.env, ...runEnv },
       input,
       onEvent,
       onJson(msg) {

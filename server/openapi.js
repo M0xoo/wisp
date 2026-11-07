@@ -50,7 +50,44 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object' }), 400: err[400] },
         },
       },
-      '/load': { get: { summary: 'The RAM/CPU guard (server/load.js): free memory %, CPU load % of cores, runs going, the limits in force and what holds automations back (null: nothing)', responses: { 200: json({ type: 'object', properties: { memFreePct: { type: ['number', 'null'] }, cpu: { type: ['number', 'null'] }, pressure: { type: 'number', description: 'Linux PSI some avg10' }, runs: { type: 'integer' }, at: { type: 'integer' }, limits: { type: 'object', properties: { floor: { type: ['integer', 'null'] }, ceiling: { type: ['integer', 'null'] }, maxRuns: { type: ['integer', 'null'] } } }, held: { type: ['object', 'null'], properties: { kind: { enum: ['memory', 'cpu', 'runs'] }, why: { type: 'string' } } } } }) } } },
+      '/load': { get: { summary: 'The RAM/CPU guard (server/load.js): free memory %, CPU load % of cores, runs going, the limits in force and what holds automations back (null: nothing)', responses: { 200: json({ type: 'object', properties: { memFreePct: { type: ['number', 'null'] }, cpu: { type: ['number', 'null'] }, pressure: { type: 'number', description: 'Linux PSI some avg10' }, runs: { type: 'integer' }, at: { type: 'integer' }, limits: { type: 'object', properties: { floor: { type: ['integer', 'null'] }, ceiling: { type: ['integer', 'null'] }, maxRuns: { type: ['integer', 'null'] } } }, held: { type: ['object', 'null'], properties: { kind: { enum: ['paused', 'battery', 'memory', 'cpu', 'runs'] }, why: { type: 'string' } } } } }) } } },
+      '/machine': {
+        get: {
+          summary: 'This Mac (server/machine.js, design/machine.md): memory, CPU and disk, wisp itself, the guard and what holds automations, RAM/CPU per running task and crew member, processes finished runs left running, 24 h of 1-minute points, and worktree folders that can go',
+          responses: {
+            200: json({
+              type: 'object',
+              properties: {
+                at: { type: 'integer' },
+                mem: { type: 'object', properties: { total: { type: 'integer' }, freePct: { type: ['number', 'null'] }, pressure: { type: ['number', 'null'] } } },
+                cpu: { type: 'object', properties: { pct: { type: ['number', 'null'] }, cores: { type: 'integer' } } },
+                disk: { type: 'object', properties: { free: { type: ['number', 'null'] }, total: { type: ['number', 'null'] }, worktrees: { type: ['number', 'null'] }, reclaimable: { type: 'integer' } } },
+                wisp: { type: 'object', properties: { rss: { type: 'integer' }, cpu: { type: ['number', 'null'] } } },
+                guard: { type: 'object', properties: { held: { enum: [null, 'paused', 'battery', 'memory', 'cpu', 'runs'] }, why: { type: ['string', 'null'] }, floor: { type: ['number', 'null'] }, ceiling: { type: ['number', 'null'] }, maxRuns: { type: ['number', 'null'] }, runs: { type: 'integer' }, pausedUntil: { type: 'integer' }, battery: { type: ['object', 'null'], properties: { pct: { type: 'integer' }, charging: { type: 'boolean' }, hold: { type: ['number', 'null'] } } } } },
+                tasks: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, crew: { type: ['string', 'null'] }, rss: { type: 'integer' }, cpu: { type: ['number', 'null'] }, procs: { type: 'integer' }, worktreeBytes: { type: ['number', 'null'] } } } },
+                crew: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, rss: { type: 'integer' }, cpu: { type: ['number', 'null'] }, jobs: { type: 'integer' } } } },
+                leftovers: { type: 'array', items: { type: 'object', properties: { pid: { type: 'integer' }, command: { type: 'string' }, rss: { type: 'integer' }, cpu: { type: ['number', 'null'] }, task: { type: ['string', 'null'] }, since: { type: 'integer' } } } },
+                history: { type: 'array', items: { type: 'object', properties: { at: { type: 'integer' }, freePct: { type: ['number', 'null'] }, cpu: { type: ['number', 'null'] }, runs: { type: 'integer' }, held: { type: 'boolean' }, worktreeBytes: { type: ['number', 'null'] } } } },
+                reclaim: { type: 'array', items: { type: 'object', properties: { kind: { enum: ['merged', 'done', 'crew', 'leftover'] }, count: { type: 'integer' }, bytes: { type: 'integer' }, ids: { type: 'array', items: { type: 'string' }, description: 'For POST /worktrees/clean: ids, or leftovers for kind leftover' } } } },
+              },
+            }),
+          },
+        },
+      },
+      '/machine/stop': {
+        post: {
+          summary: 'Stop a process a finished run left running, or one in a running task\'s tree: SIGTERM, then SIGKILL 5 s later. wisp itself and what started it are refused',
+          requestBody: body({ type: 'object', required: ['pid'], properties: { pid: { type: 'integer' } } }),
+          responses: { 200: json({ type: 'object', properties: { stopped: { type: 'integer' }, since: { type: 'integer' } } }), 400: err[400], 403: json(ref('Error'), 'wisp itself, or not a process of a task') },
+        },
+      },
+      '/automations/pause': {
+        post: {
+          summary: 'Pause automations (check-ins, the crew queue, triggers, goal rounds, agents\' own follow-ups) until a time; 0 resumes. Sets defaults.automationsPausedUntil',
+          requestBody: body({ type: 'object', required: ['until'], properties: { until: { type: 'integer', description: 'ms since the epoch, at most 30 days away; 0 resumes' } } }),
+          responses: { 200: json({ type: 'object', properties: { pausedUntil: { type: 'integer' } } }), 400: err[400] },
+        },
+      },
       '/agents': { get: { summary: 'Installed harnesses with their models and thinking levels (?fresh=1 detects again)', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
       '/router': {
         get: { summary: 'Auto: the goal, settings, every harness · model with its learned chance of success and cost, and recent routes', responses: { 200: json({ type: 'object' }) } },

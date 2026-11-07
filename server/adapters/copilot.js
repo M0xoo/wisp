@@ -62,7 +62,7 @@ export default {
 
   // grants: --allow-tool rules (shell(npm publish)) for what the user allowed after a refusal.
   // dirs: the task's other folders, which it may read and edit like cwd.
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], onEvent }) {
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], runEnv = {}, onEvent }) {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-copilot-'));
     const usageFile = path.join(tmp, 'usage.json');
     // A new session gets an id up front, so a follow-up can resume it even if this run dies early.
@@ -88,7 +88,7 @@ export default {
     for (const d of new Set([...extra, ...attachments.map((a) => path.dirname(a.path))])) args.push('--add-dir', d);
 
     const input = withProtocol(prompt, systemPrompt, resumeId) + attachmentNote(attachments.filter((a) => !images.includes(a)), 'Read them with your view tool');
-    const env = { ...process.env };
+    const env = { ...process.env, ...runEnv };
     // COPILOT_ALLOW_ALL in the user's shell would lift the permission mode wisp picked.
     if (mode !== 'auto') delete env.COPILOT_ALLOW_ALL;
 
