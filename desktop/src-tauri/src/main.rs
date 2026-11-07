@@ -7,6 +7,7 @@
 #[cfg(target_os = "macos")]
 mod macos;
 mod menu;
+mod notify;
 #[cfg(feature = "qa")]
 mod qa;
 mod server;
@@ -37,6 +38,13 @@ fn is_wisp(url: &Url, base: &Url) -> bool {
   url.origin() == base.origin()
 }
 
+// WebKitGTK doesn't say which frame a navigation is for, and wry's on_navigation hears them all, so
+// on Linux a Preview tab moving on its own would be thrown out to the browser and blocked. Windows
+// asks for the main frame only, macOS is handled in macos.rs. Not to be shipped until this is solved
+// and seen on a real desktop: qa/scenarios/desktop.md, Linux. cargo check stays open for CI.
+#[cfg(all(target_os = "linux", not(debug_assertions)))]
+compile_error!("wisp's Tauri shell can't ship on Linux yet: on_navigation can't tell a subframe from the page");
+
 // Editor links (vscode://…), docs links etc. open outside the app. Never a local file or a page-made
 // URL: the page is agents' output as much as ours.
 fn open_outside(app: &AppHandle, url: &Url) {
@@ -63,6 +71,11 @@ fn background(theme: Theme) -> tauri::webview::Color {
     Theme::Dark => tauri::webview::Color(0x11, 0x11, 0x11, 0xff),
     _ => tauri::webview::Color(0xff, 0xff, 0xff, 0xff),
   }
+}
+
+// A WKWebView's document.hasFocus() stays true with another app in front (src/init.js).
+fn tell_focus(w: &WebviewWindow, on: bool) {
+  let _ = w.eval(format!("dispatchEvent(new CustomEvent('wisp-window-focus', {{ detail: {on} }}))"));
 }
 
 fn open_window(app: &AppHandle, port: u16) -> tauri::Result<()> {
@@ -109,6 +122,7 @@ fn open_window(app: &AppHandle, port: u16) -> tauri::Result<()> {
       true
     })
     .on_page_load(|w, load| {
+      tell_focus(&w, w.is_focused().unwrap_or(true));
       // Once: a reload mustn't pull the app forward. show() alone leaves it behind other apps.
       if load.event() == PageLoadEvent::Finished && !w.is_visible().unwrap_or(true) {
         let _ = w.show();
@@ -126,11 +140,16 @@ fn open_window(app: &AppHandle, port: u16) -> tauri::Result<()> {
   let _ = window.set_background_color(window.theme().ok().map(background));
   #[cfg(target_os = "macos")]
   macos::keep_frames_in_place(&window)?;
+  #[cfg(target_os = "macos")]
+  macos::tab_reaches_links(&window)?;
   // A page that can't finish loading still needs a window to say so in.
   let late = window.clone();
   thread::spawn(move || {
     thread::sleep(Duration::from_secs(10));
-    let _ = late.show();
+    // Only then: show() takes the keys from whatever you've moved on to.
+    if !late.is_visible().unwrap_or(true) {
+      let _ = late.show();
+    }
   });
   Ok(())
 }
@@ -219,8 +238,9 @@ fn main() {
     .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_opener::init())
+    .plugin(tauri_plugin_notification::init())
     .manage(Server::default())
-    .invoke_handler(tauri::generate_handler![pick_folder, start_drag, zoom_window])
+    .invoke_handler(tauri::generate_handler![pick_folder, start_drag, zoom_window, notify::notify_show])
     .menu(menu::build)
     .on_menu_event(menu::on_event)
     .on_window_event(|window, event| match event {
@@ -229,6 +249,11 @@ fn main() {
       WindowEvent::CloseRequested { api, .. } => {
         api.prevent_close();
         macos::leave_fullscreen_and_hide(window);
+      }
+      WindowEvent::Focused(on) => {
+        if let Some(w) = window.app_handle().get_webview_window(window.label()) {
+          tell_focus(&w, *on);
+        }
       }
       WindowEvent::ThemeChanged(theme) => {
         if let Some(w) = window.app_handle().get_webview_window(window.label()) {
@@ -241,6 +266,7 @@ fn main() {
       app.add_capability(CAPABILITY.replace("__PORT__", &port.to_string()))?;
       #[cfg(feature = "qa")]
       qa::listen(app.handle().clone());
+      notify::on_click(app.handle())?;
       let handle = app.handle().clone();
       thread::spawn(move || boot(handle, port));
       Ok(())

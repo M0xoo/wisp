@@ -27,7 +27,7 @@ Playwright stays out of the repo (wisp has no dependencies): the scripts load it
 (default `/tmp/wisp-qa-pw`) and drive the system Chrome (`CHROME` to use another). The grid needs
 Node 22.13+.
 
-`QA_ENGINE=webkit` runs `qa/web.mjs` and `qa/views.mjs` on Playwright's WebKit instead, the engine
+`QA_ENGINE=webkit` runs `qa/web.mjs`, `qa/ui-audit.mjs` and `qa/buttons.mjs` on Playwright's WebKit instead, the engine
 of the Tauri app on a Mac (`cd /tmp/wisp-qa-pw && npx playwright-core install webkit`). What's
 known to differ, and the lowest version, is in [scenarios/desktop.md](scenarios/desktop.md).
 

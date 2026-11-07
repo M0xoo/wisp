@@ -14,7 +14,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { CHROME, OUT, playwright } from './lib.mjs';
+import { launchBrowser, OUT } from './lib.mjs';
 import { NOT_IN_APP, seededWisp, views as viewsOf } from './views.mjs';
 
 const PORT = Number(process.env.QA_AUDIT_PORT) || 4498;
@@ -73,8 +73,7 @@ async function measure(app) {
 const seeded = await seededWisp(PORT);
 const { w } = seeded;
 const VIEWS = Object.entries(viewsOf(seeded)).filter(([v]) => !ONLY || ONLY.includes(v));
-const { chromium } = playwright();
-const browser = await chromium.launch({ executablePath: CHROME });
+const browser = await launchBrowser();
 const results = [];
 const notOpened = [];
 for (const theme of THEMES)

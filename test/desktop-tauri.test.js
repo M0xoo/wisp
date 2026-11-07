@@ -8,6 +8,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
+import vm from 'node:vm';
 import { alive, tmp, until } from './helpers.js';
 import { Telemetry } from '../server/telemetry.js';
 import { Updater, installMethod } from '../server/update.js';
@@ -101,7 +102,7 @@ test('capabilities: IPC for exactly wisp’s origin and port, nothing wider', ()
   assert.equal(cap.local, false);
   assert.deepEqual(cap.windows, ['main']);
   assert.equal(cap.webviews, undefined);
-  assert.deepEqual([...cap.permissions].sort(), ['allow-pick-folder', 'allow-start-drag', 'allow-zoom-window']);
+  assert.deepEqual([...cap.permissions].sort(), ['allow-notify-show', 'allow-pick-folder', 'allow-start-drag', 'allow-zoom-window', 'notification:allow-is-permission-granted', 'notification:allow-request-permission']);
   // Only this one, filled in at start: a capabilities/ folder would be compiled in on its own.
   assert.ok(!fs.existsSync(path.join(SHELL, 'capabilities')));
   assert.deepEqual(JSON.parse(read('desktop/src-tauri/tauri.conf.json')).app.security.capabilities, []);
@@ -109,10 +110,69 @@ test('capabilities: IPC for exactly wisp’s origin and port, nothing wider', ()
   assert.match(main, /add_capability\(CAPABILITY\.replace\("__PORT__", &port\.to_string\(\)\)\)/);
   // Declared commands go through the ACL; the page never starts processes.
   const manifest = read('desktop/src-tauri/build.rs').match(/commands\(&\[(.*?)\]\)/)[1].match(/"[^"]+"/g).map((s) => s.slice(1, -1));
-  assert.deepEqual(manifest.sort(), ['pick_folder', 'start_drag', 'zoom_window']);
-  assert.match(main, /generate_handler!\[pick_folder, start_drag, zoom_window\]/);
+  assert.deepEqual(manifest.sort(), ['notify_show', 'pick_folder', 'start_drag', 'zoom_window']);
+  assert.match(main, /generate_handler!\[pick_folder, start_drag, zoom_window, notify::notify_show\]/);
   const cargo = read('desktop/src-tauri/Cargo.toml');
   assert.doesNotMatch(cargo, /tauri-plugin-(shell|fs|http)/);
+});
+
+test('macOS: the version the page’s CSS needs, and Tab reaches links like Electron', () => {
+  assert.equal(JSON.parse(read('desktop/src-tauri/tauri.conf.json')).bundle.macOS.minimumSystemVersion, '13.3');
+  assert.match(read('desktop/src-tauri/src/macos.rs'), /setTabFocusesLinks: true/);
+  assert.match(read('desktop/src-tauri/src/main.rs'), /macos::tab_reaches_links\(&window\)/);
+});
+
+test('Linux can\'t be released until a frame can be told from the page', () => {
+  assert.match(read('desktop/src-tauri/src/main.rs'), /#\[cfg\(all\(target_os = "linux", not\(debug_assertions\)\)\)\]\r?\ncompile_error!/);
+});
+
+// The Notification notify.js uses, in a stand-in for the page.
+function notificationShim() {
+  const calls = [];
+  const on = {};
+  const window = {
+    __TAURI_INTERNALS__: { invoke: async (cmd, args) => (calls.push([cmd, args]), cmd === 'notify_show' ? null : 'granted') },
+  };
+  const document = { hasFocus: () => true };
+  const fired = [];
+  const vm_ = { window, document, addEventListener: (name, fn) => (on[name] = fn), dispatchEvent: (e) => fired.push(e.type), Event: class { constructor(type) { this.type = type; } }, Date, Math, Map, String, Object };
+  vm.runInNewContext(read('desktop/src-tauri/src/init.js'), vm_);
+  return { Notification: window.Notification, calls, click: (id) => on['wisp-notify-click']({ detail: id }), document, fired, focus: (detail) => on['wisp-window-focus']({ detail }) };
+}
+
+test('notifications: nothing shows before permission, and a click runs that note\'s onclick', async () => {
+  const { Notification, calls, click } = notificationShim();
+  assert.equal(Notification.permission, 'default', 'the shell hasn\'t answered yet');
+  new Notification('too early');
+  assert.ok(!calls.some(([c]) => c === 'notify_show'));
+  assert.equal(await Notification.requestPermission(), 'granted');
+  assert.equal(Notification.permission, 'granted');
+  const [a, b] = [new Notification('one', { body: 'first' }), new Notification('two')];
+  const shows = calls.filter(([c]) => c === 'notify_show').map(([, args]) => args);
+  assert.deepEqual(shows.map(({ title, body }) => [title, body]), [['one', 'first'], ['two', '']]);
+  assert.notEqual(shows[0].id, shows[1].id);
+  assert.ok(shows.every(({ id }) => Number.isInteger(id) && id > 0 && id < 2 ** 31), 'the plugin takes an i32');
+  const clicked = [];
+  a.onclick = () => clicked.push('a');
+  b.onclick = () => clicked.push('b');
+  click(shows[1].id);
+  assert.deepEqual(clicked, ['b']);
+  click(shows[1].id);
+  click(1); // from before a reload: nothing to run
+  assert.deepEqual(clicked, ['b']);
+  a.close();
+});
+
+test('another app in front: the page hears it from the shell', () => {
+  const { document, fired, focus } = notificationShim();
+  assert.equal(document.hasFocus(), true);
+  focus(true); // the shell says so on every load
+  assert.deepEqual(fired, []);
+  focus(false);
+  assert.equal(document.hasFocus(), false, 'WKWebView alone would still say true, and no alert would go out');
+  focus(true);
+  assert.equal(document.hasFocus(), true);
+  assert.deepEqual(fired, ['blur', 'focus'], 'the page refreshes on these, and WKWebView doesn\'t fire them');
 });
 
 test('the bridge is the main frame’s, with pickFolder and nothing else', () => {

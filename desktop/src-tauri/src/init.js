@@ -1,7 +1,51 @@
 // Injected into wisp's page, main frame only, before its scripts run (src/main.rs).
 (() => {
-  const invoke = (cmd) => window.__TAURI_INTERNALS__.invoke(cmd);
+  const invoke = (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args);
   window.wispDesktop = Object.freeze({ pickFolder: () => invoke('pick_folder') });
+
+  // A WKWebView's Notification never shows anything. This is the part web/js/features/notify.js uses,
+  // so the page has one road on every shell: the same permission flow, and onclick opens the task
+  // (src/notify.rs). The plugin's own script ran before this one and sets `permission` once it knows.
+  const notes = new Map();
+  const KEEP = 200; // the newest ones a click can still find
+  let seq = Math.floor(Date.now() / 1000); // ids from before a reload mustn't find a new note
+  let permission = 'default';
+  window.Notification = class {
+    static get permission() {
+      return permission;
+    }
+    static set permission(state) {
+      permission = state;
+    }
+    static requestPermission() {
+      return invoke('plugin:notification|request_permission').then((p) => (permission = p === 'prompt' ? 'default' : p));
+    }
+    onclick = null;
+    constructor(title, { body = '' } = {}) {
+      if (permission !== 'granted') return;
+      const id = ++seq & 0x7fffffff;
+      notes.set(id, this);
+      if (notes.size > KEEP) notes.delete(notes.keys().next().value);
+      invoke('notify_show', { id, title: String(title), body: String(body) });
+    }
+    close() {}
+  };
+  addEventListener('wisp-notify-click', (e) => {
+    notes.get(e.detail)?.onclick?.();
+    notes.delete(e.detail);
+  });
+
+  // A WKWebView keeps saying it has focus with another app in front, and notify.js stays quiet when
+  // it does; nor does it fire window focus and blur, on which the page refreshes coming back. The
+  // shell knows (src/main.rs).
+  let shellFocus = true;
+  const hasFocus = document.hasFocus.bind(document);
+  document.hasFocus = () => shellFocus && hasFocus();
+  addEventListener('wisp-window-focus', (e) => {
+    if (shellFocus === e.detail) return;
+    shellFocus = e.detail;
+    dispatchEvent(new Event(shellFocus ? 'focus' : 'blur'));
+  });
 
   // WebKit has no -webkit-app-region, so these are the same rules as web/css/responsive.css and
   // web/css/split.css, in their order: [selector, drags the window]. A test keeps them in step.
