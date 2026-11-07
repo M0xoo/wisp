@@ -575,16 +575,17 @@ export class Discord extends Channel {
     const t = s?.remote?.discord || this.hub.away.get(s?.id)?.discord;
     if (!t) return;
     await this.turns.settled(t.channel); // a quick task's report comes after the first reply
+    const wait = this.waiting(s);
+    if (wait === '') return;
     const by = this.hub.startedFrom(s)?.by;
-    const components = this.#buttons(msg, s);
-    const { text, ending } = this.#report(msg, s, t, by, components);
+    const components = wait === null ? this.#buttons(msg, s) : [];
+    const { text, ending } = wait === null ? this.#report(msg, s, t, by, components) : { text: wait };
     const sent = await this.#say({ chat: t.channel, reply: t.thread ? null : t.ids?.at(-1) }, text, { components, ending });
     if (sent?.id) this.#link(s.id, sent.id);
     this.hub.phone.count?.('report', 'full');
   }
 
   #buttons(msg, s) {
-    if (needsWisp(s.ask)) return []; // words, and an answer in wisp
     const buttons = (msg.actions || []).slice(0, MAX_BUTTONS).map((a) => ({
       type: 2,
       style: a.kind === 'done' ? 2 : 1,
@@ -601,8 +602,7 @@ export class Discord extends Channel {
     const title = by && !msg.title.startsWith(`${by}: `) ? `${by}: ${msg.title}` : msg.title;
     const choices = components.length ? [] : (msg.actions || []).filter((a) => a.kind !== 'done').map((a) => a.label);
     const here = t.thread ? `Mention ${this.me?.name || 'wisp'} here, or use /wisp, to answer or follow up.` : 'Reply to this message to answer or follow up.';
-    const how = needsWisp(s.ask) ? 'This one is a tool approval: answer it in wisp.' : here;
-    return { text: [title, msg.text].filter(Boolean).join('\n\n'), ending: [choices.length && !needsWisp(s.ask) ? truncate(`Choices: ${choices.join(' · ')}`, MAX_CHOICES) : '', how].filter(Boolean).join('\n\n') };
+    return { text: [title, msg.text].filter(Boolean).join('\n\n'), ending: [choices.length ? truncate(`Choices: ${choices.join(' · ')}`, MAX_CHOICES) : '', here].filter(Boolean).join('\n\n') };
   }
 
   // The first reply went out: a reply to it reaches the task, whenever that started.

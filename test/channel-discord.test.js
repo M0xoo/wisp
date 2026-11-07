@@ -302,7 +302,7 @@ test('buttons: a forged one, a stranger’s press, a tool approval', async () =>
   await next(at);
   const task = await taskIn(at);
   const ask = await nextPost(at);
-  assert.match(ask.content, /This one is a tool approval: answer it in wisp\./);
+  assert.equal(ask.content, 'Waiting for your OK in wisp: run `npm publish`');
   assert.equal(ask.components, undefined, 'words, no buttons');
   mention('allow', { channel: at });
   assert.equal(await next(at), 'That’s waiting for an approval, which only wisp can give: answer it there.');
@@ -333,8 +333,7 @@ test('a clash card and a connector wait for wisp too: no buttons, and neither a 
     await srv.remote.notify(live, { project: 'p' });
     const card = await nextPost(t);
     assert.equal(card.components, undefined, 'words, no buttons');
-    assert.match(card.content, /answer it in wisp/);
-    assert.doesNotMatch(card.content, /Choices:/);
+    assert.match(card.content, /^Waiting for your OK in wisp: /);
     press(good, { channel: t });
     assert.equal(await next(t), only);
     mention('allow', { channel: t });
@@ -343,6 +342,62 @@ test('a clash card and a connector wait for wisp too: no buttons, and neither a 
     await api(`/sessions/${s.id}/stop`, { method: 'POST' });
     await settled(s.id);
     await next(t);
+  }
+});
+
+test('an approval says so with the Phone events off, each ask once, and a connector or a clash too', async () => {
+  const events = srv.store.config.remote.events;
+  srv.store.config.remote.events = [];
+  try {
+    const m = mention('edits: APPROVE then publish', { channel: newRoom() });
+    const t = await threadOf(m);
+    await next(t);
+    const s = await taskIn(t);
+    const line = await nextPost(t);
+    assert.equal(line.content, 'Waiting for your OK in wisp: run `npm publish`');
+    assert.equal(line.components, undefined);
+    await srv.remote.notify(srv.store.get(s.id), { project: 'p' });
+    await caughtUp(t);
+    assert.equal(inRoom(t).filter((p) => p.content.startsWith('Waiting')).length, 1, 'one line for one ask');
+    await api(`/sessions/${s.id}/stop`, { method: 'POST' });
+    await settled(s.id);
+    await next(t);
+    const live = srv.store.get(s.id);
+    for (const ask of [
+      { question: 'Sign in to Linear', connector: { id: 'c', name: 'Linear', kind: 'signin', keys: [] } },
+      { question: 'This clashes with the main task in src/a.js', clash: { file: 'src/a.js' } },
+    ]) {
+      Object.assign(live, { state: 'waiting', ask: { id: `ask-${ask.question}`, options: ['Skip'], ...ask } });
+      await srv.remote.notify(live, { project: 'p' });
+      const said = await nextPost(t);
+      assert.equal(said.content, `Waiting for your OK in wisp: ${ask.question}`);
+      assert.equal(said.components, undefined, 'no buttons for it');
+      delete live.ask;
+      live.state = 'review';
+    }
+  } finally {
+    srv.store.config.remote.events = events;
+  }
+});
+
+test('a subagent’s approval reaches the thread of the task it holds up, with no secret in it', async () => {
+  const m = mention('report something', { channel: newRoom() });
+  const t = await threadOf(m);
+  await next(t);
+  const s = await taskIn(t);
+  await settled(s.id);
+  await next(t);
+  const token = ['ghp', 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8'].join('_');
+  const child = srv.runner.create({ prompt: '', cwd: repo, agent: 'claude', parentId: s.id, member: 'helper' });
+  try {
+    srv.runner.ask(child, { question: 'Allow?', options: ['Allow', 'Deny'], permission: { tool: 'Bash', action: `run \`gh auth login ${token}\``, detail: `gh auth login ${token}` } });
+    const said = await nextPost(t);
+    assert.match(said.content, /^Waiting for your OK in wisp: gh auth login \[redacted/);
+    assert.ok(!said.content.includes(token));
+    assert.equal(said.components, undefined);
+  } finally {
+    delete child.ask;
+    child.state = 'review';
   }
 });
 
