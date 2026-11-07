@@ -175,8 +175,10 @@ if (process.argv.includes('--web')) {
 }
 console.log(`\n  desktop (Tauri, Windows ${ARCH}) · ${SETUP}\n`);
 
-const cover = one('clear-desktop').closed;
-if (cover.length) console.log(`  closed what covered the desktop: ${cover.join(', ')}`);
+const desk = one('clear-desktop');
+console.log(`  on the desktop: ${desk.seen.join(' | ') || 'nothing big'}; in front: "${desk.foreground}"; closed: ${desk.closed.join(', ') || 'nothing'}`);
+await sleep(1500);
+shot('desktop');
 
 // Links go out through Windows, not a stub: these two land in a file instead of a browser or an editor.
 for (const scheme of ['wispqa', 'vscode']) {

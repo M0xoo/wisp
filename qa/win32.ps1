@@ -141,20 +141,22 @@ $r = switch ($Cmd) {
     @{ texts = @(@($h) | ForEach-Object { @($_.Content.GetElementsByTagName('text') | ForEach-Object { $_.InnerText }) -join ' / ' }) }
   }
   # windows-11-arm signs in to Windows 11's first-run privacy page, full screen over every window:
-  # clicks and keys go to it, and the taskbar is behind it. Only a window of Windows' own first-run
-  # pages (under SystemApps) goes, and the policy keeps it from coming back.
+  # clicks and keys go to it, and the taskbar is behind it. Only Windows' own first-run hosts go
+  # (CloudExperienceHost's pages run in WWAHost), and the policy keeps the page from coming back.
   'clear-desktop' {
     $k = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OOBE'
     New-Item -Path $k -Force | Out-Null; Set-ItemProperty -Path $k -Name DisablePrivacyExperience -Value 1 -Type DWord
     $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-    $closed = @()
+    $seen = @(); $closed = @()
     foreach ($h in [W]::Tops()) {
       $x = Info $h
-      if (-not $x.visible -or $x.width -lt $screen.Width -or $x.height -lt $screen.Height) { continue }
+      if (-not $x.visible -or $x.width -lt $screen.Width / 2 -or $x.height -lt $screen.Height / 2) { continue }
       $proc = Get-Process -Id $x.pid -ErrorAction SilentlyContinue
-      if ($proc -and "$($proc.Path)" -like "$env:SystemRoot\SystemApps\*") { $closed += "$($proc.Name) ($($x.title))"; Stop-Process -Id $x.pid -Force }
+      $seen += "$($proc.Name) [$($x.cls)] '$($x.title)' $($x.width)x$($x.height)"
+      if ($proc -and ($proc.Name -in 'WWAHost', 'CloudExperienceHostBroker', 'UserOOBEBroker' -or "$($proc.Path)" -like "$env:SystemRoot\SystemApps\*CloudExperienceHost*")) { $closed += "$($proc.Name) '$($x.title)'"; Stop-Process -Id $x.pid -Force }
     }
-    @{ closed = $closed }
+    foreach ($n in 'WWAHost', 'CloudExperienceHostBroker', 'UserOOBEBroker') { Get-Process -Name $n -ErrorAction SilentlyContinue | ForEach-Object { $closed += "$($_.Name) (no window)"; Stop-Process -Id $_.Id -Force } }
+    @{ closed = $closed; seen = $seen; foreground = (Info ([W]::GetForegroundWindow())).title }
   }
   'theme' {
     $k = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
