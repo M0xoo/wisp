@@ -333,6 +333,37 @@ await check('TAURI-10c', '<a download> saves a file', async () => {
   await until(() => fs.existsSync(file) && fs.readFileSync(file, 'utf8') === 'qa', { timeout: 8000, what: 'the download' });
 });
 
+// WebKit's own default stops only at text boxes: 4 Tabs landed on the card's input, past both answers.
+await check('TAURI-07d', 'Tab from the top of a task reaches a question’s first answer', async () => {
+  const s = await api(A.url, '/api/sessions', { prompt: 'ASK before you fix it', cwd: makeRepo(), agent: 'claude' });
+  ok(s.status === 201, `launch ${s.status}`);
+  await until(async () => (await api(A.url, `/api/sessions/${s.json.id}`)).json?.state === 'waiting', { timeout: 30_000, what: 'the question' });
+  await sleep(900);
+  await A.ask({ op: 'activate' });
+  await clickAt(`[...document.querySelectorAll('[data-id="${s.json.id}"]')].find((e) => e.offsetParent)`);
+  await until(() => A.js(`!!document.querySelector('.ask-card .opt[data-i="0"]')?.offsetParent`), { timeout: 15_000, what: 'the question card' });
+  await sleep(600);
+  await A.js(`(document.activeElement?.blur(), 1)`);
+  const at = `(() => { const e = document.activeElement; const c = e?.closest('.ask-card'); return c ? (e.matches('.opt') ? 'opt' + e.dataset.i : e.tagName.toLowerCase()) : ''; })()`;
+  let stops = 0;
+  let landed = '';
+  while (!landed && stops < 80) {
+    await A.ask({ op: 'key', chars: '\t', code: 48, mods: 0 });
+    stops++;
+    await sleep(60);
+    landed = await A.js(at);
+  }
+  ok(landed === 'opt0', `after ${stops} Tabs the card's focus is ${landed || 'nowhere'}, not answer 1`);
+  await shot('tab-answer');
+  await A.ask({ op: 'key', chars: '\t', code: 48, mods: 0 });
+  await until(() => A.js(`${at} === 'opt1'`), { timeout: 3000, what: 'Tab to answer 2' });
+  console.log(`      ${stops} Tabs to answer 1`);
+  await A.ask({ op: 'key', chars: '\u0019', code: 48, mods: SHIFT }); // AppKit's ⇧Tab is a backtab
+  await until(() => A.js(`${at} === 'opt0'`), { timeout: 3000, what: '⇧Tab back to answer 1' });
+  await A.ask({ op: 'key', chars: '\r', code: 36, mods: 0 });
+  await until(async () => ['review', 'done'].includes((await api(A.url, `/api/sessions/${s.json.id}`)).json?.state), { timeout: 30_000, what: 'Return on answer 1 to answer' });
+});
+
 await check('TAURI-11', 'updater in a git checkout: method git', async () => {
   const u = await api(A.url, '/api/update');
   ok(u.json?.method === 'git', `method ${u.json?.method}`);

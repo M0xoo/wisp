@@ -55,7 +55,8 @@ pub fn keep_frames_in_place(window: &WebviewWindow) -> tauri::Result<()> {
   })
 }
 
-// Safari's Tab skips buttons and links unless you ask; Electron's reaches them.
+// Safari's Tab skips buttons and links unless you ask; Electron's reaches them. wry 0.57 asks too, by
+// key-value coding; this keeps it if wry stops. Off, TAURI-07d takes 4 Tabs to the text box.
 pub fn tab_reaches_links(window: &WebviewWindow) -> tauri::Result<()> {
   window.with_webview(|wv| unsafe {
     let view: &WKWebView = &*wv.inner().cast();
