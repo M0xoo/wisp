@@ -120,6 +120,12 @@ const msg = (text, { chat = CHAT, date = Math.floor(Date.now() / 1000), id = nex
 const state = () => g.grid.hostd.state(g.ada.id);
 // Tasks that ran: the fake agent renames each, so they're counted, not matched by title.
 const tasks = async () => (await g.ok('/sessions')).filter((s) => s.title !== 'Welcome to wisp').length;
+// Up, and kept up without counting as use, for a test that talks to its port: on a loaded machine
+// the idle stop can land between two lines. → what lets it go.
+const awake = async () => {
+  await g.ok('/status');
+  return g.grid.hostd.begin(g.ada.id, { touch: false });
+};
 const asleep = () => until(() => state() === 'stopped', { what: 'the box asleep', timeout: 20_000 });
 
 before(async () => {
@@ -173,6 +179,7 @@ test('a box idle-stopped: a webhook wakes it, the task starts once, a retry chan
   const took = Date.now() - t;
   assert.ok(took < 800, `the 200 took ${took} ms`);
   await until(() => sent().some((m) => /Started in/.test(m.text)), { what: 'the task', timeout: 30_000 });
+  const done = g.grid.hostd.begin(g.ada.id, { touch: false });
   // Telegram's retry after a lost 200, at the grid and again past it, straight at the box.
   assert.equal(await webhook(u), 200);
   const direct = await deliverDirect(u, tg.hook.secret);
@@ -186,6 +193,7 @@ test('a box idle-stopped: a webhook wakes it, the task starts once, a retry chan
   assert.equal(called('setWebhook').length, hooked);
   assert.equal(tg.hook.secret, secret);
   assert.equal(called('getUpdates').length, 0);
+  done();
   await asleep();
 });
 
@@ -197,8 +205,7 @@ async function deliverDirect(update, secret, { headers = {} } = {}) {
 }
 
 test('a message that does nothing leaves the idle clock alone: wisp’s, and hostd’s', { timeout: 60_000 }, async () => {
-  await g.ok('/status'); // wakes it
-  await until(() => state() === 'running');
+  const done = await awake();
   const status = async () => (await fetch(`http://127.0.0.1:${g.grid.hostd.port(g.ada.id)}/api/status`)).json();
   const was = (await status()).lastActivityAt;
   const touched = g.grid.hostd.inst.get(g.ada.id).lastTouch;
@@ -209,6 +216,7 @@ test('a message that does nothing leaves the idle clock alone: wisp’s, and hos
   assert.equal((await status()).lastActivityAt, was, 'the route moved wisp’s lastActivityAt');
   assert.equal(g.grid.hostd.inst.get(g.ada.id).lastTouch, touched, 'delivery moved hostd’s lastTouch');
   assert.equal(sent().length, n, 'a stranger hears nothing');
+  done();
   await asleep();
 });
 
@@ -238,21 +246,23 @@ test('a stale /new doesn’t run, and says so', async () => {
 });
 
 test('the seen list outlives the box: a message redelivered after a restart isn’t run twice', { timeout: 60_000 }, async () => {
-  await g.ok('/status');
+  const done = await awake();
   const ran = await tasks();
   const u = msg('/new only once please');
   assert.equal((await deliverDirect(u, tg.hook.secret)).status, 200);
   await until(() => sent().some((m) => /only once please/.test(m.text)), { what: 'the task' });
   await until(async () => !(await g.ok('/status')).live, { what: 'quiet' });
+  done();
   await g.grid.hostd.stop(g.ada.id);
-  await g.ok('/status');
+  const again = await awake();
   const r = await deliverDirect(u, tg.hook.secret);
   assert.equal(r.json.duplicate, true);
   assert.equal(await tasks(), ran + 1);
+  again();
 });
 
 test('POST /api/channels/inbound from outside: forged headers get nowhere', async () => {
-  await g.ok('/status');
+  const done = await awake();
   const ran = await tasks();
   const real = g.grid.secrets.ensure(g.ada.id, 'wisp-proxy');
   const forged = { 'x-wisp-proxy-secret': real, 'x-wisp-proxy-via': 'inbox' };
@@ -275,6 +285,7 @@ test('POST /api/channels/inbound from outside: forged headers get nowhere', asyn
   assert.equal((await local({})).status, 403);
   assert.equal((await local({ 'x-wisp-proxy-secret': real })).status, 403);
   assert.equal((await local({ 'x-wisp-proxy-secret': 'w'.repeat(real.length), 'x-wisp-proxy-via': 'inbox' })).status, 403);
+  done();
 });
 
 test('off a grid the route is refused, even with the proxy secret and the mark', async () => {
@@ -319,7 +330,7 @@ test('lost messages: the sender is told once it can be', async () => {
 });
 
 test('unlink takes the webhook down and a new one goes up; off takes it down for good', async () => {
-  await g.ok('/status');
+  const done = await awake();
   const first = tg.hook.secret;
   const [dels, sets] = [called('deleteWebhook').length, called('setWebhook').length];
   await g.ok('/remote', { method: 'PUT', body: { telegram: { unlink: true } } });
@@ -334,6 +345,7 @@ test('unlink takes the webhook down and a new one goes up; off takes it down for
   assert.equal(called('getUpdates').length, 0);
   // While off, a message the grid still had is refused, not handled.
   assert.equal((await deliverDirect(msg('/new off'), 'x')).status, 409);
+  done();
 });
 
 test('setWebhook failing says so in status, doesn’t poll, and comes right by itself', async () => {

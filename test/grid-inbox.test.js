@@ -297,7 +297,8 @@ test('an account switched off or deleted: its URL is a 404, and what it held goe
 });
 
 test('a channel never keeps a box awake: delivery touches nothing, and it sleeps on its own timer', async () => {
-  const g = await boot({ hostd: { idleMs: 700, checkMs: 40 } });
+  const idleMs = 2500; // room for a loaded machine to boot it and deliver several first
+  const g = await boot({ hostd: { idleMs, checkMs: 40 } });
   const ada = g.user('ada');
   const { url } = await g.url(ada);
   const stops = [];
@@ -310,14 +311,14 @@ test('a channel never keeps a box awake: delivery touches nothing, and it sleeps
   // Messages keep coming, faster than idleMs: each lands, none of them moves the clock.
   const t = Date.now();
   let id = 2;
-  while (g.grid.hostd.state(ada.id) === 'running' && Date.now() - t < 5000) {
+  while (g.grid.hostd.state(ada.id) === 'running' && Date.now() - t < 10_000) {
     await g.post(ada, url, update(id++));
     await sleep(90);
     if (g.grid.hostd.state(ada.id) === 'running') assert.equal(inst.lastTouch, touched, 'a delivery moved lastTouch');
   }
   assert.ok(id > 4, 'several messages went by first');
-  await until(() => stops.includes('idle'), { what: 'the idle stop', timeout: 5000 });
-  assert.ok(Date.now() - touched < 3000, `it slept after ${Date.now() - touched} ms, idleMs is 700`);
+  await until(() => stops.includes('idle'), { what: 'the idle stop', timeout: 10_000 });
+  assert.ok(Date.now() - touched < idleMs + 2500, `it slept after ${Date.now() - touched} ms, idleMs is ${idleMs}`);
 });
 
 test('a full grid: like a page, it queues; the row stays held until there’s room', { timeout: 20_000 }, async () => {
