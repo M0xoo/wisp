@@ -126,6 +126,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [0.57.0] - 2026-11-03
 - **A phone tap can't repeat after a restart.** ntfy sends taps of the same second again, and wisp forgot which it had handled when it restarted, so a Done could close a task you had reopened since. wisp now keeps the last ids with its place in ntfy.
+- **wisp stops at once just after it starts.** Compressing the phone's bundle at startup held up the exit, so stopping wisp or a Grid box in its first seconds took 4 s, and 10 s or more on a busy machine.
 
 ### Added
 
