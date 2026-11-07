@@ -474,7 +474,13 @@ async function sideActs(srv, session) {
   }
   return answers.join(' | ') || 'nothing to do';
 }
-const askUser = (srv, question) => mcpCall(srv, 'ask_user', { question, options: ['Yes', 'No'] });
+const askUser = (srv, question) =>
+  mcpCall(srv, 'ask_user', {
+    question,
+    options: ['Yes', 'No'],
+    // ASKLONG: a question with more to read than fits on screen.
+    ...(stdin.includes('ASKLONG') ? { context: Array.from({ length: 40 }, (_, i) => `- Reason ${i + 1} to look at this first`).join('\n') } : {}),
+  });
 
 // --- the work ---------------------------------------------------------------------------
 

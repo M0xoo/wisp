@@ -97,7 +97,9 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Expected:** the card goes to *Needs you* with the question and options, and no text box of its
   own: the reply box says *Answer Claude Code…*. A button or the typed words go to the running agent,
   which finishes; the reply box empties at once, the typed words are the answer (not a new turn),
-  and the Full auto pick is still there for the next follow-up.
+  and the Full auto pick is still there for the next follow-up. With `ASKLONG`, more text than fits
+  on screen: the answers stop above the reply box and the text scrolls under them, at any width from
+  560px of height up. A card that fits looks as before.
 - **Automated**
 
 ### WEB-08 · Approve in Edits mode
