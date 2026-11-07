@@ -9,6 +9,7 @@ import { tmp } from './helpers.js';
 const { Budget, codexBanked, bankedAt } = await import('../server/budget.js');
 const { createLiveLimits, bankedNote } = await import('../server/live-limits.js');
 const { bankedWords, bankedSoon, dayWhen } = await import('../web/js/banked.js');
+const { fmtDate, SHORT_TIME } = await import('../web/js/core/format.js');
 
 const H = 3600_000;
 const NOW = Date.UTC(2026, 10, 7, 12, 0); // a fixed clock
@@ -50,8 +51,10 @@ test('Plan budget’s line in words: the count, and when the next expires', () =
   const tomorrow = new Date(NOW + 24 * H);
   tomorrow.setHours(17, 0, 0, 0);
   const at = tomorrow.getTime();
-  assert.equal(bankedWords({ count: 1, credits: [{ id: 'a', expiresAt: at }] }, NOW), '1 banked reset, expires tomorrow 17:00');
-  assert.equal(bankedWords({ count: 3, credits: [{ id: 'a', expiresAt: at }] }, NOW), '3 banked resets, the next expires tomorrow 17:00');
+  // The time is in the user's locale: 17:00 here, 05:00 PM on an en-US machine.
+  const t = fmtDate(at, SHORT_TIME);
+  assert.equal(bankedWords({ count: 1, credits: [{ id: 'a', expiresAt: at }] }, NOW), `1 banked reset, expires tomorrow ${t}`);
+  assert.equal(bankedWords({ count: 3, credits: [{ id: 'a', expiresAt: at }] }, NOW), `3 banked resets, the next expires tomorrow ${t}`);
   assert.equal(bankedWords({ count: 2, credits: null }, NOW), '2 banked resets', 'only the count known');
   assert.equal(bankedWords({ count: 1, credits: [{ id: 'n', expiresAt: null }] }, NOW), '1 banked reset', 'never expires');
   assert.equal(bankedWords({ count: 0, credits: [] }, NOW), '');
