@@ -17,23 +17,42 @@ Named agents that stay on hand and keep working: *Scout · CI watcher*, *Quill �
 ## Where it sits, and the flow
 
 A member is like a teammate you keep a conversation with. Everything about it happens in one place,
-its thread; its work never mixes with your tasks.
+its thread. Its work mixes with your tasks only where this says so: a job you sent or that needs you
+is a row in the list; the rail's pick (below) turns the list into that member's alone.
 
 - **The rail.** Side by side (900px up), the crew is a slim rail on the sidebar's outer edge, on the
   sunk surface (`--sunk`), with the list as a raised panel beside it (`crew-rail` in `crew.css`,
-  `paintRail` in `crew.js`): one 44px tile a member, then Org and **+**, which stay put while the faces
-  scroll. The panel keeps `--side-w`; the rail and its gutter add 64px (`--rail-w`) on top, so a row is
+  `paintRail` in `crew.js`): **All** first, then one 44px tile a member, then Org and **+**; All, Org and
+  + stay put while the faces scroll. The panel keeps `--side-w`; the rail and its gutter add 64px (`--rail-w`) on top, so a row is
   as wide as it always was. In the Mac app, on the left, the window buttons are wider than the rail, so
   the sidebar's head line is a strip on the rail's surface: the buttons, the sidebar button, then
   search and you on the right, no logo. The panel starts under it (44px), level with the first face. Same order as the section below, same moods. On a face, no words needed:
   a live chip on its corner while it works (`.orb.live`, with how many past one), an amber dot while
-  it asks you, the accent dot for a report you haven't read, dimmed and asleep when paused. The open
-  member has the raised tile, and so has the member whose job is open. Tiles never change size, and
+  it asks you, the accent dot for a report you haven't read, dimmed and asleep when paused. Tiles never change size, and
   order is CSS `order`, so a tile stays in the DOM when it moves and its spirit never restarts. Hover
-  or keyboard focus brings a tooltip beside the rail with its name, role and status line; a click
-  opens its thread, right-click its menu, Tab stops once on the rail and the arrow keys (Home, End)
-  walk it. Jobs have no rows here: they're in the thread. A job that's open keeps its card in
-  `#secCrew`, out of sight, because a task's body hangs off its card. No crew yet: only the +, dashed,
+  or keyboard focus brings a tooltip beside the rail with its name, role and status line; right-click
+  its menu; Tab stops once on the rail and the arrow keys (Home, End) walk it, All included. Jobs have
+  no rows on the rail. A job outside the list that's open keeps its card in `#secCrew`, out of sight,
+  because a task's body hangs off its card.
+- **The pick.** The rail picks what the panel beside it shows, like a workspace switcher, and one
+  tile is raised: that choice. All is the default: the list as it always was. A click on a face picks
+  the member (`S.crewPick`, saved as `wisp.crewPick`, a removed member falls back to All) and opens its
+  thread; the raised tile says what the list holds, not what's open, so a job of Ada's opened under
+  All leaves All raised. A click on All or on the picked face clears it: a member's thread goes home
+  with it, a task that's open stays open. Under a pick the list is that member's jobs, every kind, as
+  ordinary rows in the normal sections, and nothing else: your tasks, others' jobs and plans go, and
+  home's Needs you, the project chips' counts and ⌃Tab follow (`groups()` in `feed.js`). It ANDs with
+  the project filter. None yet: *No tasks for Ada yet.* Nothing goes to the server and rows that stay
+  aren't touched. **A pick never hides a question:** All takes the amber or accent dot while something
+  it would bring back asks you or has an unread report, and the tab title still counts everything.
+  Opening what the pick hides (a notification, a link, search, a recipe, another member's thread)
+  clears it, the way such a task clears a project filter. **New task** under a pick shows *For Ada ×*
+  over the box, nothing in the text, and sends `@Ada …`: the same road as typing it, so the queue is
+  the same and no time is read from the text. A typed `@Other` wins and a slash command, a pane or a
+  shared link isn't a job: the chip gives way and keeps its row, so the box doesn't move under your
+  caret. × is for this prompt: the pick stays, and the own task it starts doesn't show until All.
+  Follow-ups in a task aren't touched. No rail (stacked, the phone app, `crewRail: false`), no pick: a
+  saved one waits unused and isn't cleared. No crew yet: only the +, dashed,
   where the first face will be, and its tooltip invites you. The rail goes with the list when it's
   hidden (`[`, or the side panel needing the room).
 - **The Crew section** is the rail's stacked form: under 900px and always in the phone app, or with
@@ -59,7 +78,7 @@ its thread; its work never mixes with your tasks.
   A row that went quiet folds only once the pointer and focus leave the section, so nothing moves
   under the cursor; a single quiet member never folds alone.
 - **Opening a member** is opening a task: its thread takes the main pane (any open task closes), or
-  stacked, a page with Back. Its tile or row looks selected.
+  stacked, a page with Back. Its row looks selected; on the rail its tile is, once it's picked.
 - **The thread**: a task's header (face, name, role, state, Pause, ⋯, close), then its jobs oldest
   first, each what was asked and where from (*You*, *Check-in*, *Tagged in “…”*, *Delegated by
   “…”*, *Trigger …*) and the member's answer: working (its live line), asking you (the question, its

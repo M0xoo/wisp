@@ -28,7 +28,7 @@ import { closeOverlay } from '../ui/overlay.js';
 import { termPill } from './term.js';
 import { goalPill } from './goal.js';
 import { aheadLabel, isScheduled, laterLine, laterPill, laterTip, nextAt, planRows } from './later.js';
-import { crewDot, crewFace, inNeeds, memberById, paintCrew, pinJob, underMember } from './crew.js';
+import { crewDot, crewFace, crewPick, inNeeds, inPick, memberById, paintCrew, pinJob, setCrewPick, underMember } from './crew.js';
 import { openUnlisted, pruneSubs, subsUnder } from './lineage.js';
 import { sideDoes } from './side.js';
 import { backToPlace, goBack, goHome, isSplit, isStacked, keepPlace, paintHead, paintSplit, sideShown, sidebar, splitOpen } from './split.js';
@@ -72,11 +72,14 @@ export function taskOf(s) {
 }
 
 // Every task in the feed (or the sidebar), by section and in its order. filter: a project, or 'all'.
-export function groups(filter = S.filter) {
+// pick: a crew member (crew.js crewPick): only its jobs, of every kind; null: everything.
+export function groups(filter = S.filter, pick = crewPick()) {
   const every = [];
   const seen = new Set();
   for (const s of visible([...S.sessions.values()], filter)) {
-    if (underMember(s) && !inNeeds(s)) continue; // a crew job for another task: under its member, unless it needs you (crew.js)
+    const mine = !!pick && s.crew?.id === pick;
+    if (pick && !mine) continue;
+    if (underMember(s) && !inNeeds(s) && !mine) continue; // a crew job for another task: under its member, unless it needs you (crew.js)
     if (s.parentId) continue; // a subagent opened by itself: under its lead (lineage.js)
     const t = taskOf(s);
     if (t.runs && seen.has(t.key)) continue;
@@ -174,7 +177,8 @@ bus.on('agents', () => renderFeed());
 export function renderFeed() {
   document.getElementById('feedSkel')?.remove(); // index.html's placeholder rows
   pruneSubs();
-  const { needs, working, scheduled, forLater, done, archived } = groups();
+  const pick = crewPick();
+  const { needs, working, scheduled, forLater, done, archived } = groups(S.filter, pick);
   // extra: rows that aren't tasks (Scheduled's plans), placed among them by their time.
   const place = (sec, list, extra = []) => {
     const box = $('.f-list', sec);
@@ -216,10 +220,10 @@ export function renderFeed() {
   place($('#secWorking'), working);
   // Scheduled: tasks and reminders that haven't started (rows of their own) and done tasks with
   // follow-ups to come, soonest first.
-  const plansShown = planRows();
+  const plansShown = pick ? [] : planRows(); // plans are yours: no member's list holds them
   place($('#secScheduled'), scheduled, plansShown);
   // Drafts (/draft): tasks written down to start when you want, newest first.
-  const draftsShown = planRows('drafts');
+  const draftsShown = pick ? [] : planRows('drafts');
   place($('#secDrafts'), [], draftsShown);
   place($('#secForLater'), forLater);
   // What a crew member filed there unread could go unseen (nothing pings for it): the heading says so.
@@ -243,8 +247,12 @@ export function renderFeed() {
 
   const empty = !needs.length && !working.length && !scheduled.length && !plansShown.length && !draftsShown.length && !forLater.length && !done.length && !archived.length;
   $('#feedEmpty').hidden = !empty;
-  if (empty)
-    $('#feedEmpty').innerHTML = `<div class="orb big"><i></i><i></i><i></i></div><p>${S.filter === 'all' ? 'Nothing yet. Describe a task above and send it off.' : 'Nothing in this project yet.'}</p>`;
+  if (empty) {
+    const who = pick && memberById(pick)?.name;
+    const said = who ? `No tasks for ${esc(who)}${S.filter === 'all' ? ' yet' : ' in this project'}.` : S.filter === 'all' ? 'Nothing yet. Describe a task above and send it off.' : 'Nothing in this project yet.';
+    const html = `<div class="orb big"><i></i><i></i><i></i></div><p>${said}</p>`;
+    if ($('#feedEmpty').dataset.h !== html) ($('#feedEmpty').innerHTML = html), ($('#feedEmpty').dataset.h = html);
+  }
   placeCollapseAll();
 
   const n = [...S.sessions.values()].filter(needsYou).length;
@@ -617,6 +625,12 @@ export function toggle(id) {
 }
 
 export async function expand(id) {
+  // A task the rail's pick hides: the pick goes, the way a project filter does in reveal().
+  const asked = S.sessions.get(id);
+  if (asked && !inPick((asked.parentId && S.sessions.get(asked.parentId)) || asked)) {
+    setCrewPick(null);
+    renderFeed();
+  }
   const n = S.nodes.get(id);
   if (!n) return;
   // One task at a time, in the main pane (or, stacked, as a page over the list).
@@ -872,9 +886,11 @@ export function reveal(id) {
   if (!sub) return void openUnlisted(id); // a subagent's run, from a link: under its lead
   // A subagent opened by itself sits under its lead: the lead's section and project show it.
   const s = (sub.parentId && S.sessions.get(sub.parentId)) || sub;
+  // A task the rail's pick hides: the pick goes, like a project filter below.
+  if (!inPick(s)) setCrewPick(null);
   // A crew job for another task opens under the member (Crew unfolded), wherever it is in its life,
-  // unless it needs you: then its row is in Needs you.
-  const crew = underMember(s) && !inNeeds(s);
+  // unless it needs you: then its row is in Needs you. Under its member's pick it's a row in the list.
+  const crew = underMember(s) && !inNeeds(s) && !crewPick();
   if (crew) pinJob(s.id);
   const sec = crew ? 'secCrew' : { needs: 'secNeeds', working: 'secWorking', scheduled: 'secScheduled', forLater: 'secForLater', done: 'secDone', archived: 'secArchived' }[sectionOf(s)];
   if (!sectionOpen(sec)) toggleSection(sec, true);

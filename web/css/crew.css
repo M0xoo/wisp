@@ -131,7 +131,9 @@ body.has-rail:not(.side-hidden) .crew-rail {
 }
 body.has-rail.side-right:not(.side-hidden) .crew-rail { left: auto; right: 0; }
 body.electron.mac.has-rail:not(.side-right) .crew-rail { padding-top: 41px; } /* clear of the window buttons, the first face level with the panel */
-/* The members scroll, Org and + stay. The scrollbar has no room here: the wheel and the arrow keys
+/* All and the faces are one toolbar, in the rail's own column. */
+.cl-pick { display: contents; }
+/* The members scroll; All above them, Org and + below stay. The scrollbar has no room here: the wheel and the arrow keys
    scroll, and the edge that has more fades (.up, .down: paintRailFade). */
 .cl-faces {
   flex: 0 1 auto; min-height: 0; align-self: stretch; display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -151,6 +153,7 @@ body.electron.mac.has-rail:not(.side-right) .crew-rail { padding-top: 41px; } /*
 }
 .cl-btn { color: var(--muted); }
 .cl-btn[hidden] { display: none; }
+.cl-all { margin-top: 3px; }
 .cl-btn .i { width: 18px; height: 18px; }
 .cl-face:hover, .cl-btn:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
 .cl-face:focus-visible, .cl-btn:focus-visible { border-radius: var(--radius); outline-offset: 0; }

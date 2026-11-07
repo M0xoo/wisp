@@ -386,6 +386,9 @@ test('later: Scheduled, Coming up, the follow-up rows, Send later and the time c
   assert.ok(schema.SLOTS['crew.rail'] && !schema.CARD_SLOTS.has('crew.rail'));
   assert.ok(problems({ ...base0, parts: { sidebar: { props: { crewRail: 'off' } } } }).some((x) => /crewRail: bool/.test(x)));
   assert.match(schema.PARTS['crew.org'], /#crewRail \.cl-org/);
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['crew.rail.all', 'launcher.for'] }, parts: { 'crew.rail.all': { style: { borderRadius: '50%' } } } }), []);
+  assert.match(schema.PARTS['crew.rail.all'], /#crewRail \.cl-all/);
+  assert.match(schema.PARTS['launcher.for'], /\.l-for/);
   // Track record (a member's, with Compare crew inside) are parts; the suggestion line is a switch.
   assert.deepEqual(problems({ ...base0, parts: { 'crew.record': { props: { tips: false }, style: { opacity: '0.9' } }, 'crew.compare': { hide: true }, 'crew.record.subject': { style: { fontSize: '15px' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'crew.record': { props: { tips: 'no' } } } }).some((x) => /tips: bool/.test(x)));

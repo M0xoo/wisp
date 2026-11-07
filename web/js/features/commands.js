@@ -38,7 +38,7 @@ import { openMakePane } from './pane-make.js';
 import { isSplit, isStacked, sideShown, splitOpen, toggleSidebar } from './split.js';
 import { openPanel, panelLabel, reviewLabel, runApp, runAppLabel, toggle as togglePanel } from './panel.js';
 import { setTheme, themePref } from './theme.js';
-import { addToCrew, cadenceLabel, crewEditor, crewList, memberById, openCrew } from './crew.js';
+import { addToCrew, cadenceLabel, crewEditor, crewList, crewPick, memberById, openCrew, pickAll } from './crew.js';
 import { importCrew, shareMember } from './crew-share.js';
 import { crewRecord, trackRecord } from './crew-record.js';
 
@@ -137,6 +137,7 @@ function paletteItems() {
 
   // The crew, after the tasks: open a member, or add one. Its chores show only while typing (limit 0).
   for (const m of crewList()) items.push({ group: 'Crew', label: m.name, sub: [m.role, m.paused ? 'Paused' : cadenceLabel(m.cron)].filter(Boolean).join(' · '), icon: 'crew', keywords: `crew agent @${m.name} ${m.brief.slice(0, 200)}`, run: () => openCrew(m.id) });
+  if (crewPick()) items.push({ group: 'Crew', label: 'All tasks', sub: `Stop showing only ${memberById(crewPick())?.name || 'one member'}’s`, icon: 'feed', keywords: 'crew rail all tasks clear pick filter', run: pickAll });
   if (crewList().length) items.push({ group: 'Crew', label: 'Org', sub: 'Who on your crew hands work to whom', icon: 'org', keywords: 'crew org chart delegates team hierarchy relationships manage', run: () => openOrg() });
   items.push({ group: 'Crew', label: 'Add a crew member…', icon: 'plus', keywords: 'crew agent assistant new persistent schedule avatar spirit', run: () => crewEditor() });
   // Sharing them: one, all of them, or one someone shared with you (crew-share.js).
