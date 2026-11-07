@@ -421,7 +421,7 @@ body.electron.split.side-hidden.side-right .split-drag { right: calc(var(--bar-w
 body.electron.mac.split .topbar { padding-left: 14px; }
 body.electron.mac.split:not(.side-right) .topbar .brand { margin-left: 74px; }
 body.electron.mac.split.side-hidden:not(.side-right) .topbar { padding-left: 88px; }
-/* With the rail the window buttons are wider than it (x 16-68, electron/main.js), so the head's first
+/* With the rail the window buttons are wider than it (x 16-68, desktop/src-tauri/src/main.rs), so the head's first
    line becomes a strip on the rail's surface: the buttons, the sidebar button beside them, search and
    you on the right. The panel starts under it, level with the first face, at the project filter. */
 body.electron.mac.split.has-rail:not(.side-right, .side-hidden) .topbar { margin: 0 8px 0 56px; padding: 9px 10px 0 22px; border: 0; border-radius: 0; background: none; }

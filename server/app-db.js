@@ -59,7 +59,7 @@ export function createAppDb({ maxBytes = 10 * 1024 * 1024, timeoutMs = 5000 } = 
 
   function start() {
     if (child) return child;
-    child = fork(WORKER, [], { execArgv: ['--no-warnings'], stdio: ['ignore', 'ignore', 'ignore', 'ipc'], env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+    child = fork(WORKER, [], { execArgv: ['--no-warnings'], stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
     const me = child;
     me.waiting = new Map();
     me.exited = new Promise((resolve) => me.once('exit', resolve));

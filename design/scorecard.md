@@ -105,7 +105,7 @@ Still missing, and why they aren't on this branch:
 | Feature | Who has it | What it takes |
 |---|---|---|
 | An iPhone app | Claude Code, Codex, Cursor | A new app: Swift, an SSH tunnel to replace sshj (Java), App Store review |
-| Voice dictation inside the app | Codex, Cursor, Claude | Native speech-to-text: an Android plugin and Electron's main process (the Web Speech API works in neither). System dictation types into wisp today |
+| Voice dictation inside the app | Codex, Cursor, Claude | Native speech-to-text: an Android plugin and the desktop shell (neither webview has a dependable Web Speech API). System dictation types into wisp today |
 | AI completions as you type (ghost text), multi-cursor, squiggles under the text | Cursor | A code editor engine (CodeMirror or Monaco) in place of the textarea, and a completion model: wisp becoming an IDE |
 
 ## Round 8: every category, and the features the others have
@@ -153,7 +153,7 @@ at 1000px with the panel open, Save shown only when there's something to save, c
 | Run the dev server per worktree, preview it, pick an element | Conductor, Superset, Vibe Kanban, Cursor | Missing: only the page an agent puts up (Watch) | A feature: a Run step and a Preview tab |
 | Start from a list of issues (Linear, GitHub, Jira) | Conductor, Emdash, Vibe Kanban | Missing: labelled GitHub issues as a trigger only | A feature on New task |
 | Triggers from Slack, Linear, Sentry, webhooks | Cursor Automations | Missing: schedule, CI, GitHub issues, finished | A feature per integration |
-| Voice dictation in the app | Codex, Cursor, Claude | Missing: system dictation types into wisp's boxes | Native work in Electron and Android (the Web Speech API works in neither) |
+| Voice dictation in the app | Codex, Cursor, Claude | Missing: system dictation types into wisp's boxes | Native work in the desktop shell and Android (neither webview has a dependable Web Speech API) |
 | An iPhone app | Claude Code, Codex | Missing: the browser at your grid address | **A new product** (the tunnel is sshj, Java) |
 | Language intelligence (types, references, rename) | Cursor | Missing: *Open files in* your editor | **A new product: an IDE** |
 

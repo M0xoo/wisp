@@ -291,7 +291,7 @@ export function foundServers(list, { values = false } = {}) {
 // none (their tools would run outside a read-only sandbox, already approved); a harness that has a
 // server by that name in its own config keeps its own.
 // bridge: wisp's own URL and token, for the proxy to ask for a signed-in connector's fresh token.
-const proxyEnv = (home, bridge) => ({ ELECTRON_RUN_AS_NODE: '1', WISP_HOME: home, ...(bridge && { WISP_URL: bridge.url, WISP_TOKEN: connectorToken(bridge.token) }) });
+const proxyEnv = (home, bridge) => ({ WISP_HOME: home, ...(bridge && { WISP_URL: bridge.url, WISP_TOKEN: connectorToken(bridge.token) }) });
 
 export function turnServers(list, { agent, mode, cwd, home, bridge }) {
   if (mode === 'plan' || !REACH.includes(agent)) return {};
@@ -306,7 +306,6 @@ export function turnServers(list, { agent, mode, cwd, home, bridge }) {
         {
           command: process.execPath,
           args: [PROXY, c.id],
-          // Inside the desktop app execPath is Electron; this makes it run the proxy as Node.
           env: proxyEnv(home, bridge),
         },
       ]),

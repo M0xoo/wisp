@@ -95,7 +95,7 @@ test('turns get each connector through the proxy, none in Plan mode, and never a
   assert.equal(got.docs.command, process.execPath);
   assert.match(got.docs.args[0], /mcp-connector\.js$/);
   assert.equal(got.docs.args[1], 'abc');
-  assert.deepEqual(got.docs.env, { ELECTRON_RUN_AS_NODE: '1', WISP_HOME: '/w' });
+  assert.deepEqual(got.docs.env, { WISP_HOME: '/w' });
   assert.deepEqual(turnServers([c], { agent: 'codex', mode: 'plan', cwd: HOME, home: '/w' }), {});
   assert.deepEqual(turnServers([c], { agent: 'cursor', mode: 'auto', cwd: HOME, home: '/w' }), {}, 'cursor takes none');
 });

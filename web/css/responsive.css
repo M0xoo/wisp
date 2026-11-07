@@ -68,7 +68,7 @@
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; }
 }
 
-/* ---------- desktop (Electron) ---------- */
+/* ---------- desktop app ---------- */
 /* Drag regions swallow clicks even under overlays: only the top bar drags,
    and everything clickable in it (or floating above it) opts out. */
 .drag-strip { display: none; }

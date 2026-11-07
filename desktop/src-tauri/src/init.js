@@ -85,13 +85,13 @@
     }
     return false;
   };
-  // Only where the page is the title bar. Windows has a title bar of its own, and there Electron's
-  // regions do nothing: a click on the top bar is a click, and the window stays where it is. WebView2
+  // Only where the page is the title bar. Windows has a title bar of its own, and there the
+  // regions must do nothing: a click on the top bar is a click, and the window stays where it is. WebView2
   // would honour them, so they're turned off.
   if (/Mac/.test(navigator.platform)) {
     addEventListener('mousedown', (e) => {
       if (e.button !== 0 || e.ctrlKey || !drags(e.target)) return;
-      e.preventDefault(); // as in Electron, a drag region isn't the page's: no focus, no selection
+      e.preventDefault(); // a drag region isn't the page's: no focus, no selection
       invoke(e.detail === 2 ? 'zoom_window' : 'start_drag');
     }, true);
   } else {

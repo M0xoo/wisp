@@ -380,7 +380,7 @@ button.mn.stuff:hover { background: color-mix(in srgb, var(--accent) 20%, transp
 .sb-go { flex: none; gap: 6px; }
 .sb-go .i { width: 13px; height: 13px; }
 @media (max-width: 520px) { .sb-pic { width: 72px; } .b-stuff { gap: 10px; } }
-/* The Mac app's window buttons sit over the top-left corner (electron/main.js trafficLightPosition):
+/* The Mac app's window buttons sit over the top-left corner (desktop/src-tauri: traffic lights at x 16, y 18):
    full-window views start under them, and a full-bleed one makes room in its bar. */
 body.electron.mac .ap, body.electron.mac .dr { top: 46px; }
 @media (max-width: 700px) {

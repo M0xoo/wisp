@@ -263,7 +263,7 @@ await check('TAURI-07', 'application menu, Edit keys in the prompt box', async (
   await A.js(`(__qaT.value = '', __qaT.dispatchEvent(new Event('input', { bubbles: true })), 1)`);
 });
 
-await check('TAURI-07c', 'Tab reaches buttons and links, as in Electron', async () => {
+await check('TAURI-07c', 'Tab reaches buttons and links', async () => {
   await A.ask({ op: 'activate' });
   await A.js(`(() => { document.activeElement?.blur(); const b = document.createElement('div'); b.id = 'qaTab'; b.style.cssText = 'position:fixed;left:300px;top:300px;z-index:99999'; b.innerHTML = '<input id=qaTabFrom><a id=qaTabLink href="#x">link</a><button id=qaTabButton>button</button>'; document.body.append(b); document.querySelector('#qaTabFrom').focus(); return 1; })()`);
   const tab = (id) => A.ask({ op: 'key', chars: '\t', code: 48, mods: 0 }).then(() => until(() => A.js(`document.activeElement?.id === '${id}'`), { timeout: 5000, what: `Tab to reach #${id}` }));

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Draws wisp's logo, a handwritten "w" in one calligraphic stroke that ends in the orb, and writes
-// every vector copy of it: the app icon (docs, web, Electron, Grid), the Play store art, the
+// every vector copy of it: the app icon (docs, web, desktop, Grid), the Play store art, the
 // Android launcher layers, and prints the small brand mark for the pages' CSS.
 // The PNGs (favicons, apple-touch-icon, icon.png, store icon, og images) are rendered from these
 // SVGs in Chrome; rerun this, then re-render them when the shape changes.
@@ -226,7 +226,7 @@ function mark() {
 
 const write = (file, text) => { fs.writeFileSync(path.join(ROOT, file), text); console.log('wrote', file); };
 const RES = 'mobile/android/app/src/main/res/drawable';
-for (const file of ['docs/assets/icon.svg', 'web/favicon.svg', 'electron/icon.svg', 'grid/assets/icon.svg']) write(file, icon());
+for (const file of ['docs/assets/icon.svg', 'web/favicon.svg', 'desktop/icon.svg', 'grid/assets/icon.svg']) write(file, icon());
 write('mobile/store/icon.svg', icon({ bleed: true }));
 write('mobile/store/feature-graphic.svg', featureGraphic());
 write(`${RES}/ic_launcher_foreground.xml`, androidForeground());

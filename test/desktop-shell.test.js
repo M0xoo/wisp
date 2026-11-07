@@ -8,7 +8,6 @@ import { execFile, execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
-import { createRequire } from 'node:module';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -171,10 +170,14 @@ test('the shell’s environment: this Node, this package, the port; never Electr
   assert.deepEqual(env, { PATH: '/bin', WISP_PORT: '4590', WISP_NODE: process.execPath, WISP_ROOT: '/pkg' });
 });
 
-// The shell's root() needs desktop/entry.mjs under WISP_ROOT, so npm has to carry it (only it).
-test('npm carries desktop/entry.mjs for the shell, and nothing else of desktop/', () => {
+// The shell's root() needs desktop/entry.mjs under WISP_ROOT, so npm has to carry it and what it
+// imports from desktop/ (only those).
+test('npm carries desktop/entry.mjs and its imports for the shell, and nothing else of desktop/', () => {
   const files = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).files.filter((f) => f.startsWith('desktop'));
-  assert.deepEqual(files, ['desktop/entry.mjs']);
+  assert.deepEqual(files, ['desktop/entry.mjs', 'desktop/shell-path.js']);
+  const entry = fs.readFileSync(path.join(ROOT, 'desktop/entry.mjs'), 'utf8');
+  const local = [...entry.matchAll(/from '\.\/([\w.-]+)'/g)].map((m) => `desktop/${m[1]}`);
+  assert.deepEqual(local, ['desktop/shell-path.js'], 'entry.mjs imports from desktop/ only what npm carries');
   const main = fs.readFileSync(path.join(ROOT, 'desktop/src-tauri/src/main.rs'), 'utf8');
   assert.match(main, /var_os\("WISP_ROOT"\)[^;]*\.find\(entry\)/s, 'root() takes WISP_ROOT when it holds desktop/entry.mjs');
   assert.match(main, /var_os\("WISP_NODE"\)\.map\(PathBuf::from\)\.or\(bundled\)/, 'node() takes WISP_NODE first');
@@ -184,15 +187,7 @@ test('npm carries desktop/entry.mjs for the shell, and nothing else of desktop/'
 // --- bin/wisp.js, end to end. The shell here is a script that starts wisp's server the way the real
 // one does (its child, on WISP_NODE, from WISP_ROOT) and writes down what it was given. ---
 
-const hasElectron = (() => {
-  try {
-    createRequire(BIN).resolve('electron');
-    return true;
-  } catch {
-    return false;
-  }
-})();
-const cliSkip = WIN ? 'a shell script stands in for the shell' : hasElectron ? 'Electron is installed here, and comes first' : false;
+const cliSkip = WIN ? 'a shell script stands in for the shell' : false;
 
 const freePort = () =>
   new Promise((resolve) => {
@@ -219,7 +214,7 @@ function cliEnv(extra) {
 
 const FAKE_SHELL = '#!/bin/sh\nenv > "$WISP_HOME/shell-env"\nexec "$WISP_NODE" "$WISP_ROOT/bin/wisp.js" --no-open --port "$WISP_PORT" >/dev/null 2>&1\n';
 
-test('`wisp` with no Electron gets the shell, runs it detached on this Node and package, and opens no tab', { skip: cliSkip }, async () => {
+test('`wisp` gets the shell, runs it detached on this Node and package, and opens no tab', { skip: cliSkip }, async () => {
   const name = shellAsset();
   const body = archive(process.platform, FAKE_SHELL);
   const { url, asked } = await serve({ 'SHA256SUMS.txt': sumsOf([[name, body]]), [name]: body });
@@ -259,7 +254,7 @@ test('a shell that doesn’t check out: one line, and the browser tab as today',
     assert.match(out, /no wisp app here \(.*doesn't match SHA256SUMS\.txt\): opening a browser tab\. The app: https:\/\/trywisp\.dev/);
     await until(() => opened().includes(`localhost:${port}`), { what: 'the tab' });
     assert.ok(!fs.existsSync(path.join(env.WISP_HOME, 'desktop', VERSION)), 'kept a bad shell');
-    assert.equal((await health(port)).pid, child.pid, 'the server is this process, as without Electron today');
+    assert.equal((await health(port)).pid, child.pid, 'the server is this process, as with --browser');
   } finally {
     child.kill();
     await until(() => health(port).then(() => false, () => true), { what: `port ${port} to free up` });

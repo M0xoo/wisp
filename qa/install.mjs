@@ -35,7 +35,7 @@ const SYSTEM = WIN ? process.env.PATH : '/usr/bin:/bin:/usr/sbin:/sbin';
 const TMP = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-install-')));
 const dirIn = (name) => fs.mkdtempSync(path.join(TMP, `${name}-`));
 // One download of each per run, whichever prefix or HOME asks.
-const CACHE = { npm_config_cache: process.env.QA_NPM_CACHE || path.join(TMP, 'npm-cache'), npm_config_audit: 'false', npm_config_fund: 'false', npm_config_update_notifier: 'false', electron_config_cache: process.env.QA_ELECTRON_CACHE || path.join(TMP, 'electron-cache') };
+const CACHE = { npm_config_cache: process.env.QA_NPM_CACHE || path.join(TMP, 'npm-cache'), npm_config_audit: 'false', npm_config_fund: 'false', npm_config_update_notifier: 'false' };
 let nextPort = Number(process.env.QA_INSTALL_PORT) || 4771;
 const live = new Set();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -135,7 +135,7 @@ async function driveCli(id, label, wisp, env, { method, cwd = makeRepo() }) {
   });
 }
 
-// `wisp` alone with no Electron: a browser tab.
+// `wisp` alone: a browser tab.
 async function driveDefault(id, label, wisp, env, { cwd = makeRepo() } = {}) {
   const port = nextPort++;
   await check(`${id}f`, `${label}: \`wisp\` alone opens a browser tab`, async () => {
@@ -143,29 +143,6 @@ async function driveDefault(id, label, wisp, env, { cwd = makeRepo() } = {}) {
     start(wisp[0], [...wisp.slice(1), '--port', String(port)], env, { cwd });
     await up(port);
     if (!WIN) await until(() => opened().includes(`localhost:${port}`), { what: 'the tab' });
-  });
-  await stopPort(port).catch(() => {});
-}
-
-// With Electron: the binary bin/wisp.js's electronBinary() finds, started as it starts it, with its
-// own --user-data-dir. Electron keeps that folder under the real home whatever HOME says, so bare
-// `wisp` here would hit the lock of any wisp.app open on this Mac, quit and focus that one.
-async function driveElectron(id, label, root, env) {
-  if (!MAC && !WIN && !process.env.DISPLAY) return manual.push([`${label}: Electron's window`, 'no display on this machine']);
-  const port = nextPort++;
-  await check(`${id}f`, `${label}: the Electron wisp would start opens and runs the server`, async () => {
-    const find = `import { createRequire } from 'node:module'; import { wispAppBinary } from ${JSON.stringify(pathToFileURL(path.join(root, 'bin/mac-app.js')).href)};
-const bin = createRequire(${JSON.stringify(path.join(root, 'bin/wisp.js'))})('electron'); process.stdout.write('\\n@@' + (process.platform === 'darwin' ? wispAppBinary(bin) : bin));`;
-    const said = await shA(process.execPath, ['--input-type=module', '-e', find], { env }); // first use downloads Electron
-    const bin = said.split('\n@@').pop();
-    ok(fs.existsSync(bin), `no Electron at ${bin}`);
-    start(bin, [root, `--user-data-dir=${dirIn('electron-data')}`], { ...env, WISP_PORT: String(port) });
-    const h = await up(port);
-    ok(h.version === PKG.version, `health says ${h.version}`);
-    if (!WIN) {
-      const cmd = sh('ps', ['-o', 'command=', '-p', String(h.pid)]);
-      ok(/electron|wisp\.app/i.test(cmd), `the server is in: ${cmd}`);
-    }
   });
   await stopPort(port).catch(() => {});
 }
@@ -190,49 +167,39 @@ async function npmRows() {
     // System32's: Git Bash's GNU tar takes C:\ for a host name.
     const tar = WIN ? path.join(process.env.SystemRoot, 'System32/tar.exe') : 'tar';
     const files = sh(tar, ['-tzf', tarball]).split(/\r?\n/);
-    for (const f of ['package/bin/wisp.js', 'package/server/index.js', 'package/electron/main.js', 'package/web/index.html']) ok(files.includes(f), `${f} isn't in it`);
-    ok(files.filter((f) => f.startsWith('package/desktop/')).join() === 'package/desktop/entry.mjs', 'desktop/ beyond entry.mjs is on npm');
+    for (const f of ['package/bin/wisp.js', 'package/server/index.js', 'package/web/index.html']) ok(files.includes(f), `${f} isn't in it`);
+    ok(files.filter((f) => f.startsWith('package/desktop/')).sort().join() === 'package/desktop/entry.mjs,package/desktop/shell-path.js', 'desktop/ beyond entry.mjs and shell-path.js is on npm');
     ok(files.includes('package/bin/desktop-shell.js'), 'no bin/desktop-shell.js');
+    ok(!files.some((f) => f.startsWith('package/electron/')), 'electron/ is on npm');
     ok(!files.some((f) => f.includes('node_modules/')), 'node_modules in the tarball');
   });
   if (!tarball) return;
-  for (const electron of [false, true]) {
-    const tag = electron ? 'with Electron' : 'no Electron';
-    const n = electron ? '03' : '02';
+  // Nothing comes with wisp now: INST-03 and INST-05 were these with the Electron dependency.
+  {
     const prefix = dirIn('prefix');
     const env = machine();
-    await check(`INST-${n}`, `npm i -g, ${tag}`, async () => {
+    await check('INST-02', 'npm i -g: wisp and no dependency', async () => {
       sh('npm', ['install', '-g', tarball, '--prefix', prefix], { env });
-      const dep = path.join(pkgIn(prefix), 'node_modules/electron');
-      // npm ignores --omit=optional with -g (the Homebrew formula's comment): what a machine where
-      // Electron couldn't install ends up with.
-      if (!electron) fs.rmSync(dep, { recursive: true });
-      ok(fs.existsSync(dep) === electron, 'node_modules/electron');
+      ok(!fs.existsSync(path.join(pkgIn(prefix), 'node_modules')), 'node_modules in the package');
     });
-    await driveCli(`INST-${n}`, `npm -g, ${tag}`, [binIn(prefix)], env, { method: 'global' });
-    if (electron) await driveElectron(`INST-${n}`, `npm -g, ${tag}`, pkgIn(prefix), env);
-    else await driveDefault(`INST-${n}`, `npm -g, ${tag}`, [binIn(prefix)], env);
+    await driveCli('INST-02', 'npm -g', [binIn(prefix)], env, { method: 'global' });
+    await driveDefault('INST-02', 'npm -g', [binIn(prefix)], env);
   }
-  for (const electron of [false, true]) {
-    const tag = electron ? 'with Electron' : 'no Electron';
-    const n = electron ? '05' : '04';
-    // Each its own cache: npx reuses an install by what was asked, and omit isn't part of that.
+  {
     const cache = dirIn('npx-cache');
-    const env = machine({ npm_config_cache: cache, ...(electron ? {} : { npm_config_omit: 'optional' }) });
+    const env = machine({ npm_config_cache: cache });
     const npx = ['npx', '--yes', `--package=${tarball}`, '--', 'wisp'];
-    await driveCli(`INST-${n}`, `npx, ${tag}`, npx, env, { method: 'npx' });
+    await driveCli('INST-04', 'npx', npx, env, { method: 'npx' });
     const root = path.join(cache, '_npx', fs.readdirSync(path.join(cache, '_npx'))[0], 'node_modules/wisp-agents');
-    const dep = path.join(root, '../electron');
-    await check(`INST-${n}g`, `npx, ${tag}: Electron ${electron ? 'came with it' : 'stayed out'}`, () => ok(fs.existsSync(dep) === electron, 'node_modules/electron'));
-    if (electron) await driveElectron(`INST-${n}`, `npx, ${tag}`, root, env);
-    else await driveDefault(`INST-${n}`, `npx, ${tag}`, npx, env);
+    await check('INST-04g', 'npx: wisp alone, nothing beside it', () => ok(fs.readdirSync(path.dirname(root)).filter((f) => !f.startsWith('.')).join() === 'wisp-agents', `node_modules: ${fs.readdirSync(path.dirname(root))}`));
+    await driveDefault('INST-04', 'npx', npx, env);
   }
 }
 
 // --- install.sh, against a registry served from here ---
 function registry(tarballs) {
   const versions = Object.fromEntries(
-    Object.entries(tarballs).map(([tag, { version }]) => [version, { name: PKG.name, version, bin: PKG.bin, engines: PKG.engines, optionalDependencies: PKG.optionalDependencies, dist: { tarball: `@@/t/${tag}.tgz` } }]),
+    Object.entries(tarballs).map(([tag, { version }]) => [version, { name: PKG.name, version, bin: PKG.bin, engines: PKG.engines, dist: { tarball: `@@/t/${tag}.tgz` } }]),
   );
   const server = http.createServer((req, res) => {
     const t = req.url.match(/^\/t\/(\w+)\.tgz$/)?.[1];
@@ -278,11 +245,10 @@ async function scriptRows() {
 // --- Homebrew: the formula read through, its install steps run in a temp Cellar. Not brew itself. ---
 async function brewRows() {
   const formula = fs.readFileSync(path.join(ROOT, 'packaging/homebrew/wisp-agents.rb'), 'utf8');
-  await check('INST-08', 'formula: still names what it removes, release.yml can still stamp it', () => {
+  await check('INST-08', 'formula: npm install alone, release.yml can still stamp it', () => {
     if (!WIN) sh('ruby', ['-c', path.join(ROOT, 'packaging/homebrew/wisp-agents.rb')]);
     ok(/depends_on "node"/.test(formula), 'node');
-    ok(/libexec\/"lib\/node_modules\/wisp-agents\/node_modules\/electron"/.test(formula), 'the electron path');
-    ok(/rm_r electron if electron\.exist\?/.test(formula), 'rm_r');
+    ok(!/electron/i.test(formula), 'nothing of Electron is left to remove');
     ok(/^ {2}url "/m.test(formula) && /^ {2}sha256 "/m.test(formula), 'release.yml seds these two lines');
     const wf = fs.readFileSync(path.join(ROOT, '.github/workflows/release.yml'), 'utf8');
     ok(/homebrew:\r?\n\s+needs: \[plan, publish\]/.test(wf), 'the tap follows npm and the release');
@@ -291,10 +257,8 @@ async function brewRows() {
   const cellar = path.join(dirIn('brew'), 'Cellar/wisp-agents', PKG.version);
   const libexec = path.join(cellar, 'libexec');
   const env = machine();
-  await check('INST-09', 'formula steps in a temp Cellar: npm install, drop electron', () => {
+  await check('INST-09', 'formula steps in a temp Cellar: npm install, link bin', () => {
     sh('npm', ['install', '-g', tarball, '--prefix', libexec], { env });
-    const electron = path.join(pkgIn(libexec), 'node_modules/electron');
-    if (fs.existsSync(electron)) fs.rmSync(electron, { recursive: true });
     fs.mkdirSync(path.join(cellar, 'bin'));
     fs.symlinkSync(path.join(libexec, 'bin/wisp'), path.join(cellar, 'bin/wisp'));
   });
@@ -493,7 +457,7 @@ async function macRows() {
       await new Promise((r) => releases.listen(0, '127.0.0.1', r));
       const wanted = { QA_RELEASES: `http://127.0.0.1:${releases.address().port}`, WISP_PORT: String(port), WISP_HOME: data, WISP_TELEMETRY: '0', WISP_FEEDBACK: '0', DO_NOT_TRACK: '1' };
       // `open` is the real one and hands on this test's port and home, or the new app would take 4477.
-      // .zshrc, not .zshenv: path_helper reorders PATH after that, and Electron takes the login shell's.
+      // .zshrc, not .zshenv: path_helper reorders PATH after that, and the app takes the login shell's.
       const log = path.join(stubs, 'opened');
       fs.writeFileSync(path.join(stubs, 'open'), `#!/bin/sh\necho "$@" >> "${log}"\nexec /usr/bin/open ${Object.entries(wanted).map(([k, v]) => `--env ${k}=${v}`).join(' ')} "$@"\n`, { mode: 0o755 });
       fs.writeFileSync(path.join(home, '.zshrc'), `export PATH="${stubs}:$PATH"\n`);
@@ -609,15 +573,19 @@ async function windowsRows() {
     sh('taskkill', ['/F', '/T', '/IM', 'wisp.exe']);
     await down(port);
   });
-  // One row per caller: the Tauri app's own update, and a build already out updating onto Tauri.
-  for (const [id, label, env, want] of [
-    ['INST-22', 'a Tauri app', { WISP_DESKTOP: 'tauri' }, '/R'],
-    ['INST-24', 'an Electron build', {}, '--force-run'],
+  // One row per caller: the app's own update (what this update.js says), and an Electron build
+  // already out updating onto Tauri: its update.js can't change and says --force-run.
+  const ours = () => {
+    const u = new Updater({ port, env: { WISP_DESKTOP: 'tauri' }, platform: 'win32', arch, root: path.join(dir, 'resources/app') });
+    u.swap = { installer: setup };
+    return u.relaunchCommand().split(`"${setup}" `)[1].split(' ');
+  };
+  for (const [id, label, said, want] of [
+    ['INST-22', 'the app', ours, '/R'],
+    ['INST-24', 'an Electron build', () => ['/S', '--force-run'], '--force-run'],
   ]) {
     await check(id, `${label}'s update command, /S ${want}, reinstalls and starts the app again`, async () => {
-      const u = new Updater({ port, env, platform: 'win32', arch, root: path.join(dir, 'resources/app') });
-      u.swap = { installer: setup };
-      const flags = u.relaunchCommand().split(`"${setup}" `)[1].split(' ');
+      const flags = said();
       ok(flags.join(' ') === `/S ${want}`, flags.join(' '));
       ok((await run(flags)) === 0, 'the installer failed');
       // Started as the desktop user, not as this process's child: it has none of this env, so its port is the default.
@@ -1044,7 +1012,7 @@ async function main() {
   if (ONLY.includes('links')) await linkRows();
   for (const child of live) child.kill();
   manual.push(
-    ['Mac dmg/zip downloaded in a browser: Gatekeeper, Open Anyway', 'needs a real quarantined download; ad hoc here, as Electron without its secrets'],
+    ['Mac dmg/zip downloaded in a browser: Gatekeeper, Open Anyway', 'needs a real quarantined download; signed ad hoc here, as in a release'],
     ['Site Download button, clicked', 'INST-30 reads the links and HEADs them; a click is by hand'],
     ['Real `brew install`', 'tap bumped only after npm; INST-08 and 09 cover the formula and its steps'],
     ['Linux .deb updated by a newer .deb, and Electron’s .deb (wisp-agents) replaced by this one', 'by hand: apt on a real desktop'],
