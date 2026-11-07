@@ -421,6 +421,8 @@ Coming from Google Jules (read-only from 11 November 2026, closed on 31 December
 
 Coming from Conductor (Cloud read-only from 13 November 2026, shut down on 20 November)? [Moving off Conductor](https://trywisp.dev/guides/moving-off-conductor.html) says what to export and maps its workspaces, scripts and routines onto wisp, with what has no equivalent. Add the project to wisp and it offers the worktrees Conductor left in that repo: **Bring in** makes each a task right where it is, with its uncommitted changes and its Claude chat, and wisp never removes one.
 
+Weighing Claude Code Projects? [wisp vs Claude Code Projects](https://trywisp.dev/guides/wisp-vs-claude-code-projects.html) sets them side by side from Anthropic's docs: Projects splits the work into Claude cloud threads for you and has the Claude phone apps; wisp runs Claude Code, Codex, Copilot and opencode on your machine with your own skills, MCP servers and settings, and holds automations at a line below each plan's limit.
+
 ## Delegate
 
 The launcher's **Delegate** button gives the lead agent a team it can hand parts of the task to (the API calls them subagents). The lead gets a `delegate` tool on wisp's MCP server, and its harness's own subagent tool is switched off, so every helper is one you picked. Add as many members as you like. Each member has:
