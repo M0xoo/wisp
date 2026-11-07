@@ -3,6 +3,7 @@
 
 import { truncate } from '../util.js';
 import { Channel, CODE, KIND, sleep } from './channel.js';
+import { Seen } from './policy.js';
 
 export class Ntfy extends Channel {
   constructor(hub) {
@@ -35,24 +36,38 @@ export class Ntfy extends Channel {
     if (!r.ok) throw new Error(`ntfy: ${r.status} ${(await r.text().catch(() => '')).slice(0, 120)}`);
   }
 
+  // A tap: it says what to do, signed. Anything else on the topic is ignored.
+  async #tap(m) {
+    if (m.event !== 'message') return;
+    let p = null;
+    try {
+      p = JSON.parse(m.message);
+    } catch {}
+    if (!this.hub.verify(p)) return; // not ours, or forged
+    await this.hub.act({ sessionId: p.s, kind: KIND[p.k], ref: p.r, index: Number(p.i) }).catch(() => {});
+  }
+
+  // Polls from where the last run stopped, so a tap sent while wisp was down or its cloud box asleep
+  // still lands (ntfy keeps them for hours). since is the last message's id, or at first the time.
   async start(signal) {
-    let since = String(Math.floor(Date.now() / 1000));
+    const keep = (since) => {
+      this.hub.cfg.ntfy.since = since;
+      this.hub.store.saveConfig();
+    };
+    if (!this.hub.cfg.ntfy.since) keep(String(Math.floor(Date.now() / 1000)));
+    const seen = new Seen(); // ntfy can send a message of the same second again: going back to it would loop
     while (!signal.aborted) {
       try {
         const { server, topic, headers } = this.#where();
-        const r = await fetch(`${server}/${topic}-reply/json?poll=1&since=${since}`, { headers, signal });
+        const r = await fetch(`${server}/${topic}-reply/json?poll=1&since=${this.hub.cfg.ntfy.since}`, { headers, signal });
         if (!r.ok) throw new Error(`ntfy: ${r.status}`);
         for (const line of (await r.text()).split('\n')) {
           if (!line.trim()) continue;
           const m = JSON.parse(line);
-          if (m.id) since = m.id;
-          if (m.event !== 'message') continue;
-          let p = null;
-          try {
-            p = JSON.parse(m.message);
-          } catch {}
-          if (!this.hub.verify(p)) continue; // not ours, or forged
-          await this.hub.act({ sessionId: p.s, kind: KIND[p.k], ref: p.r, index: Number(p.i) }).catch(() => {});
+          if (!seen.first(m.id)) continue;
+          await this.#tap(m); // first: a crash here repeats a tap, which only says it was already answered, rather than losing it
+          if (signal.aborted) return; // reconfigured meanwhile: this id isn't for the new topic
+          if (m.id) keep(m.id);
         }
         if (this.hub.status.ntfy?.error) this.mark({ ok: true, error: '' });
       } catch (err) {
