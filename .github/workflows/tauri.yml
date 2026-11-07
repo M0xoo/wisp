@@ -1,7 +1,7 @@
 name: tauri
 
-# The Tauri shell in desktop/ sits beside Electron and ships to nobody yet: all this checks is that
-# the Rust still compiles on each OS. Nothing else in the repo needs Rust, so it's filtered to it.
+# The desktop app's Rust (desktop/src-tauri): all this checks is that it still compiles on each OS.
+# release.yml builds the downloads. Nothing else in the repo needs Rust, so it's filtered to it.
 on:
   pull_request:
     paths: ['desktop/**', 'qa/desktop-tauri-linux.mjs', '.github/workflows/tauri.yml']

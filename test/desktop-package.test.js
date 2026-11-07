@@ -1,5 +1,6 @@
-// Packaging the Tauri app (desktop/scripts): what can hold without a build. qa/install.mjs runs the
-// real artefacts. Electron stays what users get, so a good part of this checks it stays that way.
+// Packaging the desktop app (desktop/scripts): what can hold without a build. qa/install.mjs runs the
+// real artefacts. Builds of the Electron app are still out there and update onto this one, so a part
+// of this checks they still can.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -77,16 +78,15 @@ test('fetch-node leaves bin/node executable and LICENSE beside it, npm behind, a
   assert.equal(hits(), 1);
 });
 
-test('the app holds what electron-builder’s does, plus the Node side of the shell', () => {
+test('the app holds what npm ships, plus the Node side of the shell', () => {
   const files = appFiles();
-  const yml = read('packaging/desktop/electron-builder.yml');
-  const list = yml.slice(yml.indexOf('files:'), yml.indexOf('asar:')).matchAll(/^ {2}- ([\w.-]+?)(\/\*\*)?$/gm);
-  for (const [, f] of list) assert.ok(files.includes(f), `${f} is in electron-builder.yml`);
+  for (const f of ['package.json', ...JSON.parse(read('package.json')).files.map((f) => f.replace(/\/$/, ''))]) assert.ok(files.includes(f), `${f} is on npm`);
   assert.ok(files.includes('desktop/entry.mjs'));
+  assert.ok(files.includes('desktop/shell-path.js'), 'entry.mjs imports it');
   assert.ok(files.includes('desktop/remove-electron.mjs'), 'the installer runs it from resources\\app\\desktop');
   // Of desktop/, npm carries only what the shell runs under WISP_ROOT (bin/desktop-shell.js).
-  assert.deepEqual(JSON.parse(read('package.json')).files.filter((f) => f.startsWith('desktop')), ['desktop/entry.mjs']);
-  assert.equal(files.filter((f) => f === 'desktop/entry.mjs').length, 1, 'once');
+  assert.deepEqual(JSON.parse(read('package.json')).files.filter((f) => f.startsWith('desktop')), ['desktop/entry.mjs', 'desktop/shell-path.js']);
+  for (const f of ['desktop/entry.mjs', 'desktop/shell-path.js']) assert.equal(files.filter((g) => g === f).length, 1, `${f} once`);
 });
 
 test('stage copies wisp’s files and leaves node_modules out', () => {
@@ -97,6 +97,7 @@ test('stage copies wisp’s files and leaves node_modules out', () => {
   fs.writeFileSync(path.join(root, 'bin/wisp.js'), '//');
   fs.mkdirSync(path.join(root, 'desktop'));
   fs.writeFileSync(path.join(root, 'desktop/entry.mjs'), '//');
+  fs.writeFileSync(path.join(root, 'desktop/shell-path.js'), '//');
   fs.writeFileSync(path.join(root, 'desktop/remove-electron.mjs'), '//');
   fs.writeFileSync(path.join(root, 'desktop/other.mjs'), '//');
   const dest = stage(root, path.join(tmp('stage'), 'app'));
@@ -158,9 +159,11 @@ test('a folder the update’s cmd.exe still stands in goes once it’s free, by 
 });
 
 // electron-builder's per-app GUID: UUID v5 of the appId in its own namespace (NsisTarget.js).
+// The Electron builds had the appId the Tauri one has.
 test('the install gate looks for Electron’s registry keys under electron-builder’s GUID for our appId', () => {
   const ns = Buffer.from('50e065bc313411e69bab38c9862bdaf3', 'hex');
-  const appId = read('packaging/desktop/electron-builder.yml').match(/^appId: (\S+)$/m)[1];
+  const appId = JSON.parse(read('desktop/src-tauri/tauri.conf.json')).identifier;
+  assert.equal(appId, 'dev.wisp.app');
   const h = createHash('sha1').update(ns).update(appId).digest();
   h[6] = (h[6] & 0x0f) | 0x50;
   h[8] = (h[8] & 0x3f) | 0x80;
@@ -200,7 +203,7 @@ test('the helper removes a real leftover folder, run as the installer runs it', 
   assert.ok(fs.existsSync(programs));
 });
 
-test('artefacts keep electron-builder’s names, the ones the updater, install.sh and the site ask for', () => {
+test('artefacts keep the names the updater, install.sh and the site ask for', () => {
   const update = (platform, arch) => new Updater({ port: 1, env: {}, platform, arch, root: tmp('upd') }).assetName();
   assert.deepEqual(artefacts(MAC[0]), ['wisp-mac-arm64.dmg', 'wisp-mac-arm64.zip']);
   assert.deepEqual(artefacts(MAC[1]), ['wisp-mac-x64.dmg', 'wisp-mac-x64.zip']);
@@ -216,10 +219,6 @@ test('artefacts keep electron-builder’s names, the ones the updater, install.s
   assert.ok(artefacts(MAC[1]).includes(update('darwin', 'x64')));
   assert.ok(artefacts(WIN[0]).includes(update('win32', 'x64')));
   assert.ok(artefacts(WIN[1]).includes(update('win32', 'arm64')));
-  const yml = read('packaging/desktop/electron-builder.yml');
-  assert.match(yml, /artifactName: wisp-mac-\$\{arch\}\.\$\{ext\}/);
-  assert.match(yml, /artifactName: wisp-windows-\$\{arch\}-setup\.\$\{ext\}/);
-  assert.match(yml, /artifactName: wisp-linux-\$\{arch\}\.\$\{ext\}/);
   assert.match(read('docs/install.sh'), /zip="wisp-mac-\$arch\.zip"/);
 });
 
@@ -232,18 +231,22 @@ test('bundled Node is signed with the entitlements it needs under the hardened r
   assert.equal(args[args.indexOf('--sign') + 1], '-');
 });
 
-test('Tauri is a dry run’s extra: released nowhere, and nothing waits for it', () => {
+test('every release builds Tauri, and publishes only its downloads, never the gate’s reports', () => {
   const wf = read('.github/workflows/release.yml');
-  const job = wf.slice(wf.indexOf('\n  tauri:\n'), wf.indexOf('\n  release:\n'));
-  // The channel too: a nightly's plan says dry=false whatever was ticked, and it must stay out of this.
-  assert.match(job, /needs: \[plan, desktop\]\r?\n\s+if: needs\.plan\.outputs\.dry == 'true' && needs\.plan\.outputs\.channel == 'stable'/);
-  assert.match(job, /uses: \.\/\.github\/workflows\/tauri-package\.yml/);
-  for (const line of wf.match(/^\s+needs:.*$/gm)) assert.ok(!/\btauri\b/.test(line), line);
+  const job = wf.slice(wf.indexOf('\n  desktop:\n'), wf.indexOf('\n  release:\n'));
+  assert.match(job, /needs: plan\n\s+if: needs\.plan\.outputs\.go == 'true'\n\s+uses: \.\/\.github\/workflows\/tauri-package\.yml/);
+  assert.match(job, /version: \$\{\{ needs\.plan\.outputs\.channel == 'nightly' && needs\.plan\.outputs\.version \|\| '' \}\}/, 'a nightly says it is one');
+  assert.ok(!/electron-builder|BUILDER/.test(wf));
   const pack = read('.github/workflows/tauri-package.yml');
   assert.deepEqual(pack.match(/^on:\n {2}(\w+):/m).slice(1), ['workflow_call'], 'it can’t start on its own');
-  for (const [, name] of pack.matchAll(/name: (tauri-[\w-]+)/g)) assert.ok(!name.startsWith('desktop-'), name);
-  assert.ok(!/npm publish|gh release|environment:/.test(pack));
-  assert.match(wf, /pattern: desktop-\*/);
+  assert.ok(!/npm publish|gh release|environment:/.test(pack), 'it builds, it never publishes');
+  const names = [...pack.matchAll(/^\s+name: ([^\n]+)\n\s+(?:if-no-files-found|path)/gm)].map((m) => m[1]);
+  assert.deepEqual(names.filter((n) => n.startsWith('desktop-')).sort(), ['desktop-linux-${{ matrix.arch }}', 'desktop-mac', 'desktop-windows']);
+  for (const n of names.filter((n) => !n.startsWith('desktop-'))) assert.match(n, /^install-gate-/);
+  assert.equal([...wf.matchAll(/pattern: desktop-\*/g)].length, 2, 'the release and the nightly');
+  // The Electron release INST-18 updates from is the one INST-40 installs.
+  const old = pack.match(/releases\/download\/v([\d.]+)\/wisp-mac-arm64\.zip/)[1];
+  assert.equal(old, read('qa/install.mjs').match(/^const ELECTRON = '([\d.]+)';$/m)[1]);
 });
 
 test('a Tauri window started from npm reopens as an app after an update, not a browser server', () => {
@@ -268,14 +271,14 @@ test('no shell at all still relaunches as a browser server', () => {
   assert.match(u.relaunchCommand(), / --browser --no-open --port 5123$/);
 });
 
-test('the Windows relaunch says what its own installer knows, and Electron\'s stays as it was', () => {
+test('the Windows relaunch says what Tauri’s installer knows, with or without the shell’s word', () => {
   const root = 'C:\\Users\\u\\AppData\\Local\\wisp\\resources\\app';
   const cmd = (env) => {
     const u = new Updater({ port: 1, env, platform: 'win32', arch: 'x64', root });
     u.swap = { installer: 'C:\\t\\wisp-windows-x64-setup.exe' };
     return u.relaunchCommand();
   };
-  assert.equal(cmd({}), '"C:\\t\\wisp-windows-x64-setup.exe" /S --force-run', 'electron-builder');
+  assert.equal(cmd({}), '"C:\\t\\wisp-windows-x64-setup.exe" /S /R', 'every download is Tauri’s now');
   assert.equal(cmd({ WISP_DESKTOP: 'tauri' }), '"C:\\t\\wisp-windows-x64-setup.exe" /S /R', 'Tauri: .onInstSuccess in its installer.nsi');
 });
 
@@ -295,7 +298,7 @@ test('a Tauri app opens the new build only once the old shell, and its lock, are
     u.swap = { open: '/Applications/wisp.app', remove: '/tmp/old.app' };
     return u.relaunchCommand();
   };
-  assert.equal(mac({}), 'rm -rf "/tmp/old.app"; open "/Applications/wisp.app"', 'Electron stays as it was');
+  assert.equal(mac({}), 'rm -rf "/tmp/old.app"; open "/Applications/wisp.app"', 'no shell to wait for');
   const cmd = mac({ WISP_DESKTOP: 'tauri' });
   assert.ok(cmd.indexOf(`kill -0 ${process.ppid}`) > 0 && cmd.indexOf('kill -0') < cmd.indexOf('open "'), cmd);
   assert.match(cmd, /seq 100/, 'and it can\'t wait for ever');
@@ -359,13 +362,15 @@ test('Linux ships: no compile_error! left, and the page is watched where on_navi
   assert.match(read('desktop/src-tauri/Cargo.toml'), /\[target\.'cfg\(target_os = "linux"\)'\.dependencies\]\r?\nwebkit2gtk = \{ version = "=2\.0\.2", features = \["v2_40"\] \}/, 'pinned to what wry uses');
 });
 
-test('the dry run builds and gates Linux on each arch’s own runner', () => {
+test('every release builds and gates Linux on each arch’s own runner', () => {
   const pack = read('.github/workflows/tauri-package.yml');
   const job = pack.slice(pack.indexOf('\n  linux:\n'), pack.indexOf('\n  sizes:\n'));
   assert.match(job, /triple: x86_64-unknown-linux-gnu/);
   assert.match(job, /os: ubuntu-22\.04-arm, triple: aarch64-unknown-linux-gnu/);
   assert.match(job, /package\.mjs --target \$\{\{ matrix\.triple \}\}/);
   assert.match(job, /xvfb-run -a dbus-run-session -- node qa\/install\.mjs --only \$\{\{ matrix\.rows \}\}/);
-  assert.match(job, /name: tauri-linux-\$\{\{ matrix\.arch \}\}/);
+  assert.match(job, /name: desktop-linux-\$\{\{ matrix\.arch \}\}/, 'a release publishes it');
+  assert.match(job, /name: install-gate-linux-\$\{\{ matrix\.arch \}\}/, 'never published');
+  assert.match(job, /Stamp the nightly version/);
   assert.match(pack, /needs: \[mac, windows, linux\]/);
 });

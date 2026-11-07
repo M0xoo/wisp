@@ -386,7 +386,7 @@ body.wisp-mobile .side-panel.stacked .tm-screen { touch-action: pan-y pinch-zoom
 .side-panel.stacked .pn-head { height: auto; min-height: 56px; gap: 6px; padding: 6px 12px 6px 6px; }
 .side-panel.stacked .pn-back { display: inline-flex; flex: none; width: 44px; height: 44px; justify-content: center; }
 .side-panel.stacked .pn-back .i { width: 20px; height: 20px; }
-body.electron.mac .side-panel.stacked .pn-head { padding-left: 88px; }
+body.desktop.mac .side-panel.stacked .pn-head { padding-left: 88px; }
 /* Stacked, the task's bar scrolls away with the task: on a phone it's a screen of its own. Once its
    actions are gone the mini row pins in their place, one 48px row: the state, the actions as icons,
    the PR as a chip in its tone, the shell (a dot while yours runs). It hangs from a sticky box of
@@ -678,7 +678,7 @@ body.split.stack #feed .item.open .pr-strip:not(.ship-run) .pr-go .i { width: 15
 .pn-edit textarea { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; outline: 0; resize: none; overflow: hidden; background: transparent; color: transparent; caret-color: var(--ink); }
 .pn-edit textarea::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); color: transparent; }
 .side-panel.stacked .ed-head { height: 56px; padding: 0 12px 0 6px; }
-body.electron.mac .side-panel.stacked .ed-head { padding-left: 88px; }
+body.desktop.mac .side-panel.stacked .ed-head { padding-left: 88px; }
 body.wisp-mobile .ed-head .icon-btn { width: 44px; height: 44px; }
 body.wisp-mobile .ed-head .ed-save { height: 44px; }
 /* The language server's answers (editor.js): problems by line in the gutter, their count in the

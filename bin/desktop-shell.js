@@ -1,4 +1,4 @@
-// The desktop window for a wisp from npm, when Electron isn't installed: the Tauri shell alone (no
+// The desktop window for a wisp from npm: the Tauri shell alone (no
 // Node, no wisp files), one small archive per platform on each GitHub release. Downloaded once into
 // ~/.wisp/desktop/<version>/, checked against that release's SHA256SUMS.txt, and run on this Node
 // with this package's files (WISP_NODE, WISP_ROOT: desktop/src-tauri/src/main.rs root() and node()).
@@ -112,7 +112,7 @@ export async function desktopShell({ version, home, platform = process.platform,
   }
 }
 
-// How bin/wisp.js starts it: detached like Electron, the server on this Node from this package.
+// How bin/wisp.js starts it: detached, the server on this Node from this package.
 export function shellEnv(env, { port, root, node = process.execPath }) {
   const out = { ...env, WISP_PORT: String(port), WISP_NODE: node, WISP_ROOT: root };
   delete out.ELECTRON_RUN_AS_NODE; // the Mac shell would turn itself into Node (macos::be_node_for_electron)

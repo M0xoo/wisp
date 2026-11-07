@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="electron/icon.png" alt="wisp" width="120" />
+<img src="desktop/icon.png" alt="wisp" width="120" />
 
 # wisp
 
@@ -11,7 +11,7 @@ Launch coding agents in the background, skip the transcript, and read the presen
 [![npm](https://img.shields.io/npm/v/wisp-agents?color=cb3837&logo=npm)](https://www.npmjs.com/package/wisp-agents)
 [![License: MIT](https://img.shields.io/badge/license-MIT-6a5cff.svg)](#license)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![Electron](https://img.shields.io/badge/desktop-Electron-47848f?logo=electron&logoColor=white)](https://www.electronjs.org)
+[![Tauri](https://img.shields.io/badge/desktop-Tauri-24c8db?logo=tauri&logoColor=white)](https://tauri.app)
 [![Zero runtime deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)](package.json)
 [![Harnesses](https://img.shields.io/badge/harness-Claude%20Code%20·%20Codex%20·%20opencode%20·%20Cursor%20·%20Antigravity%20·%20Grok%20·%20Copilot-d97757)](#adding-a-harness)
 
@@ -35,21 +35,21 @@ npx wisp-agents "fix the flaky auth test" # launch a task in the current folder
 npx wisp-agents --browser                # or use it in the browser → http://localhost:4477
 ```
 
-The first run downloads Electron for the desktop app; if that isn't possible, wisp opens in the browser instead.
+The first run downloads the desktop app's window from this version's release (the shell alone, a few MB, checked against `SHA256SUMS.txt`) into `~/.wisp/desktop/`; offline, or with no build for your computer, wisp opens in the browser instead.
 
 Or install it globally to get the `wisp` command everywhere. Pick one:
 
 ```sh
 curl -fsSL https://trywisp.dev/install.sh | bash   # macOS or Linux: checks Node 20+, then npm install -g wisp-agents
 npm install -g wisp-agents                      # any OS with Node 20+
-brew install m0xoo/tap/wisp-agents             # Homebrew: CLI and browser mode, no Electron desktop app
+brew install m0xoo/tap/wisp-agents             # Homebrew
 
 wisp "fix the flaky auth test"
 ```
 
 The Homebrew formula lives in [M0xoo/homebrew-tap](https://github.com/M0xoo/homebrew-tap) (the release workflow bumps it from [`packaging/homebrew`](packaging/homebrew/wisp-agents.rb)). `install.sh` honors `WISP_VERSION` to pin a release (`curl -fsSL https://trywisp.dev/install.sh | WISP_VERSION=0.57.0 bash`).
 
-**Or download the desktop app** (no Node needed, it updates itself). The builds aren't signed yet, so on a Mac the one-liner is the easy way: curl doesn't quarantine what it downloads, so macOS opens it without asking.
+**Or download the desktop app** (no Node needed, it updates itself; macOS 13.3 or later). The builds aren't signed yet, so on a Mac the one-liner is the easy way: curl doesn't quarantine what it downloads, so macOS opens it without asking.
 
 ```sh
 curl -fsSL https://trywisp.dev/install.sh | bash -s -- --app   # macOS: wisp.app into /Applications, checked against SHA256SUMS.txt
@@ -59,7 +59,7 @@ curl -fsSL https://trywisp.dev/install.sh | bash -s -- --app   # macOS: wisp.app
 |---|---|---|
 | [Apple silicon](https://github.com/M0xoo/wisp/releases/latest/download/wisp-mac-arm64.dmg) · [Intel](https://github.com/M0xoo/wisp/releases/latest/download/wisp-mac-x64.dmg) | [x64](https://github.com/M0xoo/wisp/releases/latest/download/wisp-windows-x64-setup.exe) · [Arm](https://github.com/M0xoo/wisp/releases/latest/download/wisp-windows-arm64-setup.exe) | AppImage: [x64](https://github.com/M0xoo/wisp/releases/latest/download/wisp-linux-x64.AppImage) · [Arm](https://github.com/M0xoo/wisp/releases/latest/download/wisp-linux-arm64.AppImage) — .deb: [x64](https://github.com/M0xoo/wisp/releases/latest/download/wisp-linux-x64.deb) · [Arm](https://github.com/M0xoo/wisp/releases/latest/download/wisp-linux-arm64.deb) |
 
-Every build is on the [latest release](https://github.com/M0xoo/wisp/releases/latest), with `SHA256SUMS.txt`. Until they're signed: a `.dmg` from the browser makes macOS say it can't verify wisp; click *Done*, then System Settings → Privacy & Security → *Open Anyway*. On Windows, SmartScreen may say it protected your PC: *More info* → *Run anyway*. On Linux the `.deb` is the smooth one; an AppImage needs `chmod +x`, and Ubuntu 24.04's AppArmor can stop it starting unless you pass `--no-sandbox`. The app updates from the same releases: *Update to …* in its top bar downloads the new build, swaps it in and reopens wisp (a `.deb` updates by installing the new `.deb`).
+Every build is on the [latest release](https://github.com/M0xoo/wisp/releases/latest), with `SHA256SUMS.txt`. Until they're signed: a `.dmg` from the browser makes macOS say it can't verify wisp; click *Done*, then System Settings → Privacy & Security → *Open Anyway*. On Windows, SmartScreen may say it protected your PC: *More info* → *Run anyway*. On Linux the `.deb` is the smooth one; an AppImage needs `chmod +x`. The app updates from the same releases: *Update to …* in its top bar downloads the new build, swaps it in and reopens wisp (a `.deb` updates by installing the new `.deb`).
 
 **Release channels.** Stable is what everything above installs. Two more come out of the same pipeline, like TypeScript's `next` or Neovim's nightly:
 
@@ -80,9 +80,8 @@ cd wisp
 # Browser mode, with nothing to install:
 node bin/wisp.js           # → http://localhost:4477
 
-# Desktop app:
-npm install                # pulls Electron
-npm run app
+# Desktop app (needs Rust):
+npm run dev:tauri
 ```
 
 On first launch, the *Welcome to wisp* session shows a live gallery of every presentation block.
@@ -90,7 +89,7 @@ On first launch, the *Welcome to wisp* session shows a live gallery of every pre
 ### Development
 
 ```sh
-npm run dev        # desktop app: live reload for web/, relaunch on server/ and electron/ changes
+npm run dev        # desktop app (Tauri): live reload for web/, relaunch on server/ and desktop/ changes
 npm run dev:web    # browser mode, restarts the server when server/ changes
 ```
 
@@ -151,7 +150,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | **Phone** | Questions and finished tasks on ntfy or Telegram; answer from there, or start a task with `/new`. |
 | **Permission modes** | Choose **Plan** (read-only), **Edits** (file edits auto-accepted), or **Full auto** (no permission prompts, the default) for each launch. `Shift+Tab` in the prompt cycles modes. In Edits mode, anything the permissions block comes to you: Claude Code waits for **Allow / Always / Deny**, and the other harnesses show an **Allow & retry** card. |
 | **Integrations** | An MCP server (`wisp mcp`), an agent skill, a scriptable CLI, a JS SDK, an OpenAPI-described HTTP API, and webhooks. Hand tasks to wisp from Claude Code, Codex, opencode, Cursor, scripts or CI. |
-| **No runtime dependencies** | The server uses only Node built-ins. Electron is needed only for the desktop app. |
+| **No runtime dependencies** | The server uses only Node built-ins. The desktop app is a small [Tauri](https://tauri.app) shell around the same server. |
 
 ## CLI
 
@@ -318,9 +317,9 @@ wisp/
 │       ├── ui/            # toasts, dialogs, popovers, keyboard hints
 │       ├── features/      # feed, turns, composer, launcher, settings, ship, machines, …
 │       └── {blocks,md,diff,fuzzy,palette}.js   # presentation blocks and their helpers
-└── electron/              # desktop shell
-    ├── main.js
-    └── preload.cjs
+└── desktop/               # desktop app: a Tauri shell (src-tauri/, Rust) and the server on a bundled Node
+    ├── entry.mjs
+    └── src-tauri/
 ```
 
 - **Protocol** (`server/protocol.js`): a system prompt tells agents to work autonomously and to end with a fenced `wisp` JSON block of presentation blocks. The parser reads that block, and falls back to plain markdown if it is missing.
@@ -343,7 +342,7 @@ If the harness has no system-prompt flag, prepend `systemPrompt` to the first pr
 
 - [x] Claude Code adapter
 - [x] Live `ask_user` questions
-- [x] Desktop app (Electron)
+- [x] Desktop app (Tauri)
 - [x] Codex adapter
 - [x] opencode adapter
 - [x] Cursor CLI adapter

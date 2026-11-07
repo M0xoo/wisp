@@ -14,12 +14,10 @@
 //   wisp grid <dev|init|serve|…>  run wisp for many people on your own server (grid/)
 
 import { exec, spawn } from 'node:child_process';
-import fs, { existsSync } from 'node:fs';
+import fs from 'node:fs';
 import os from 'node:os';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { wispAppBinary } from './mac-app.js';
 import { desktopShell, noAppLine, shellEnv } from './desktop-shell.js';
 
 const HELP = `usage:
@@ -421,28 +419,21 @@ async function interactive() {
     running = true;
   } catch {}
 
-  // The desktop app (Electron is an optional dependency) runs the server in its own process, so
-  // it outlives this terminal. Without Electron, the Tauri shell from this version's release
-  // (bin/desktop-shell.js), on this Node. With neither, or with --browser/--no-open, serve from here.
-  // A task or `add` sent to an already-running wisp just goes over the API, no window.
+  // The desktop window is the Tauri shell from this version's release (bin/desktop-shell.js), on
+  // this Node; it runs the server in its own process, so it outlives this terminal. Without it, or
+  // with --browser/--no-open, serve from here. A task or `add` sent to an already-running wisp just
+  // goes over the API, no window.
   const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
   const wantWindow = flags.open && !flags.browser && (!running || !words.length);
-  let app = wantWindow ? electronBinary() : null;
-  if (wantWindow && !app) {
+  let app = null;
+  if (wantWindow) {
     const shell = await desktopShell({ version: JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url))).version, say: (line) => console.log(line) });
     if (shell.exe) {
       spawn(shell.exe, [], { detached: true, stdio: 'ignore', env: shellEnv(process.env, { port: flags.port, root }) })
         .on('error', () => {})
         .unref();
-      app = shell.exe; // from here on the same as Electron: the app holds the server
+      app = shell.exe; // the app holds the server
     } else console.log(noAppLine(shell.message));
-  } else if (app) {
-    const child = spawn(app, [root], {
-      detached: true,
-      stdio: 'ignore',
-      env: { ...process.env, WISP_PORT: String(flags.port) },
-    });
-    child.unref();
   }
   if (app) {
     if (!running) await waitForServer(api);
@@ -477,16 +468,6 @@ async function interactive() {
   if (flags.open) {
     const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start ""' : 'xdg-open';
     exec(`${cmd} "${base}${openPath}"`);
-  }
-}
-
-function electronBinary() {
-  try {
-    const bin = createRequire(import.meta.url)('electron'); // the electron package exports its binary path
-    if (typeof bin !== 'string' || !existsSync(bin)) return null;
-    return process.platform === 'darwin' ? wispAppBinary(bin) : bin;
-  } catch {
-    return null;
   }
 }
 

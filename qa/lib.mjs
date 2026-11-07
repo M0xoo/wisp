@@ -48,7 +48,7 @@ export const launchBrowser = (opts = {}) => {
 export function qaEnv(extra = {}) {
   const bins = installFakeBins(); // also puts them on this process's PATH
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-qa-home-'));
-  // Not the dev wisp's: WISP_DEV pins Electron's debug port, WISP_PORT/WISP_HOME point at yours.
+  // Not the dev wisp's: WISP_DEV and WISP_DEBUG_PORT are its, WISP_PORT/WISP_HOME point at yours.
   const { WISP_DEV, WISP_DEBUG_PORT, WISP_PORT, ...base } = process.env;
   return {
     bins,

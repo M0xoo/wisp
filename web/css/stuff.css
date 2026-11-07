@@ -275,7 +275,7 @@ body.split #stuffView { flex: 1; }
 body.wisp-mobile .st-tools button { width: 40px; height: 40px; }
 body.wisp-mobile .sf-kind, body.wisp-mobile .sf-opt { height: 40px; }
 body.wisp-mobile .sf-opt { min-width: 40px; }
-body.electron.mac.split.stack .stuff-view .cv-top { padding-left: 98px; }
+body.desktop.mac.split.stack .stuff-view .cv-top { padding-left: 98px; }
 
 @media (prefers-reduced-motion: reduce) {
   .st-card, .sf-tile, .st-saving i, .stuff-view.dropping .sf-drop { animation: none; }
@@ -380,12 +380,12 @@ button.mn.stuff:hover { background: color-mix(in srgb, var(--accent) 20%, transp
 .sb-go { flex: none; gap: 6px; }
 .sb-go .i { width: 13px; height: 13px; }
 @media (max-width: 520px) { .sb-pic { width: 72px; } .b-stuff { gap: 10px; } }
-/* The Mac app's window buttons sit over the top-left corner (electron/main.js trafficLightPosition):
+/* The Mac app's window buttons sit over the top-left corner (desktop/src-tauri: traffic lights at x 16, y 18):
    full-window views start under them, and a full-bleed one makes room in its bar. */
-body.electron.mac .ap, body.electron.mac .dr { top: 46px; }
+body.desktop.mac .ap, body.desktop.mac .dr { top: 46px; }
 @media (max-width: 700px) {
-  body.electron.mac .ap { top: 0; }
-  body.electron.mac .ap-top { padding-left: 84px; }
+  body.desktop.mac .ap { top: 0; }
+  body.desktop.mac .ap-top { padding-left: 84px; }
 }
 /* published on a wisp Grid: copies its public link */
 .st-pub { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 6px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-ink); font: 500 11.5px var(--sans); font-style: normal; }

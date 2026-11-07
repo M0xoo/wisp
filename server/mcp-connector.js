@@ -33,7 +33,7 @@ else runRemote();
 
 function runLocal() {
   const env = { ...process.env, ...pick('env', c.env) };
-  delete env.ELECTRON_RUN_AS_NODE; // was for this proxy, not for the server
+  delete env.ELECTRON_RUN_AS_NODE; // set by builds from before Tauri; harmless, but not the server's
   delete env.WISP_HOME;
   // npx, uvx … are .cmd shims on Windows.
   // ~ as a shell would: the example commands use it, and nothing here goes through a shell.

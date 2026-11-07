@@ -30,9 +30,8 @@ pub fn be_node_for_electron() {
 type Decide = unsafe extern "C-unwind" fn(*mut AnyObject, Sel, *mut WKWebView, *mut WKNavigationAction, *mut Block<dyn Fn(WKNavigationActionPolicy)>);
 static DECIDE: OnceLock<Decide> = OnceLock::new();
 
-// wry calls the on_navigation handler for every frame and doesn't say which. Electron's will-navigate
-// is main frame only, so a Preview tab or a sandboxed frame moving on its own would jump out to the
-// browser here. WebKit knows the frame, so the frames are answered before wry sees them.
+// wry calls the on_navigation handler for every frame and doesn't say which, so a Preview tab or a
+// sandboxed frame moving on its own would jump out to the browser here: only the page's own may. WebKit knows the frame, so the frames are answered before wry sees them.
 unsafe extern "C-unwind" fn decide(this: *mut AnyObject, sel: Sel, view: *mut WKWebView, action: *mut WKNavigationAction, handler: *mut Block<dyn Fn(WKNavigationActionPolicy)>) {
   let act = &*action;
   let subframe = act.targetFrame().is_some_and(|f| !f.isMainFrame());
@@ -55,7 +54,7 @@ pub fn keep_frames_in_place(window: &WebviewWindow) -> tauri::Result<()> {
   })
 }
 
-// Safari's Tab skips buttons and links unless you ask; Electron's reaches them. wry 0.57 asks too, by
+// Safari's Tab skips buttons and links unless you ask; wisp's keys need them reached. wry 0.57 asks too, by
 // key-value coding; this keeps it if wry stops. Off, TAURI-07d takes 4 Tabs to the text box.
 pub fn tab_reaches_links(window: &WebviewWindow) -> tauri::Result<()> {
   window.with_webview(|wv| unsafe {
@@ -67,7 +66,7 @@ pub fn tab_reaches_links(window: &WebviewWindow) -> tauri::Result<()> {
 }
 
 // tao's inset y is the height of the title bar box, not where the buttons land: they keep their
-// distance from its bottom, which AppKit picks per macOS version. Electron's y is the buttons' top,
+// distance from its bottom, which AppKit picks per macOS version. The page's y is the buttons' top,
 // so ask a throwaway window of the same style what that distance is. Main thread only.
 pub fn traffic_light_inset(y: f64) -> f64 {
   let mtm = MainThreadMarker::new().expect("main thread");
@@ -80,7 +79,7 @@ pub fn traffic_light_inset(y: f64) -> f64 {
   y + bottom
 }
 
-// rfd can't set the button's label. A sheet on the window, like Electron's.
+// rfd can't set the button's label. A sheet on the window.
 pub fn pick_folder(window: &WebviewWindow) -> Option<String> {
   let (tx, rx) = mpsc::channel();
   let parent = window.ns_window().ok()? as usize;
