@@ -81,6 +81,11 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Expected:** in the middle nothing moves, within 1px, the answer stays open, and a *Latest* pill shows over the reply box without moving it. It goes on the click, which lands on the latest turn. At the end the view follows and the new answer lands on screen with no pill. Your own send moves the view once, to your prompt.
 - **Automated**
 
+### WEB-06d · The overlap warning keeps a reader at the end there
+- **Steps:** scroll to the very end of a finished task that shares files with another open task, within two seconds of it finishing, and wait for the warning above the reply box.
+- **Expected:** the view stays at the end: nothing goes under the taller box, and the next answer lands as usual, with no *Latest* pill.
+- **Automated**
+
 ### WEB-06b · Rename keeps the task open
 - **Steps:** open a task; click its title in the header, type a new name, **Enter**. Click it again, type, **Escape**. Do the same with **M** on a row in the list.
 - **Expected:** Enter saves the name and Escape puts the old one back; the task stays open both times (no close, no Back to home or the list).

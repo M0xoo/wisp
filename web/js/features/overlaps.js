@@ -5,6 +5,7 @@
 import { esc } from '../md.js';
 import { $, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
+import { atTail, toEnd } from '../tail.js';
 import { overlay } from '../ui/overlay.js';
 import { expand, renderFeed, reveal, setFocus } from './feed.js';
 
@@ -49,6 +50,9 @@ export function renderOverlapStrip(id) {
   const s = S.sessions.get(id);
   if (!node || !s) return;
   const all = ranked(s);
+  // It comes seconds after the run ends, in a dock that sticks to the bottom: it would cover the end
+  // of the answer and, at 44px, put a reader at the tail past its slack (the next answer wouldn't land).
+  const tail = node.hidden && !!all.length && atTail(n.body);
   node.hidden = !all.length;
   if (!all.length) return void (node.innerHTML = '');
   node.classList.toggle('clash', all.some(clashes));
@@ -57,6 +61,7 @@ export function renderOverlapStrip(id) {
   const rest = all.length - 1;
   const more = rest > 0 ? `<button class="link xs ov-more" data-ov-all title="All the tasks that change the same files">+${rest} more${all.slice(1).some(clashes) ? ', with clashes' : ''}</button>` : '';
   node.innerHTML = row(all[0], more);
+  if (tail) toEnd(n.body);
   node.onclick = (e) => {
     // The card's own click handling mustn't see it: it would close the dialog as it opens.
     if (e.target.closest('[data-ov-all], [data-ov]')) e.stopPropagation();
