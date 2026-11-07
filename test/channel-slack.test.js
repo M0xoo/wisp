@@ -172,6 +172,7 @@ test('the manifest: Socket Mode, the two events, the exact scopes', async () => 
   assert.deepEqual(m, slackManifest());
   assert.equal(m.settings.socket_mode_enabled, true);
   assert.deepEqual(m.settings.event_subscriptions.bot_events, ['app_mention', 'message.im']);
+  assert.deepEqual(m.settings.interactivity, { is_enabled: true }, 'Socket Mode needs no request URL');
   assert.deepEqual(m.oauth_config.scopes.bot, ['app_mentions:read', 'chat:write', 'chat:write.customize', 'im:history']);
   assert.equal(m.features.app_home.messages_tab_enabled, true);
 });
@@ -688,6 +689,269 @@ test('what leaves: a secret is taken out, nobody is pinged, no URL is fetched, a
   const big = await reported('x'.repeat(20000));
   assert.ok(big.text.length <= 3900);
   assert.equal(slackText('a & b < c > d'), 'a &amp; b &lt; c &gt; d');
+});
+
+// --- buttons ------------------------------------------------------------------------------------
+
+const buttonsOf = (post) => post.blocks?.find((b) => b.type === 'actions')?.elements || [];
+const labels = (post) => buttonsOf(post).map((b) => b.text.text);
+const ephemeralTo = (user) => fake.ephemeral.filter((e) => e.user === user).map((e) => e.text);
+const ephemerals = (count, user = ME) => until(() => ephemeralTo(user).length >= count && ephemeralTo(user), { what: 'a line only the clicker sees' });
+// A task stopped on its question. → { m, s, post }: post is the question as wisp posted it.
+async function asked(how = 'plan: ASK about the login test') {
+  const m = mention(how);
+  await next(m.thread);
+  const s = await taskIn(m.thread);
+  await next(m.thread);
+  return { m, s, post: inThread(m.thread).at(-1) };
+}
+async function finish({ m, s }, { stop = false } = {}) {
+  if (stop) await api(`/sessions/${s.id}/stop`, { method: 'POST' });
+  await settled(s.id);
+  await next(m.thread);
+}
+// A click wisp signed itself, for what no button of the moment says.
+const signed = (s, r, i, k = 'a', kind = 'answer') => JSON.stringify({ k, s, r, i, sig: srv.remote.sign(s, kind, r, i) });
+const nowOpen = async (id) => (await session(id)).ask?.id;
+
+test('a question has a button per choice; a click answers it, and the message says what and who', async () => {
+  const { m, s, post } = await asked();
+  assert.deepEqual(post.blocks.map((b) => b.type), ['section', 'actions']);
+  assert.deepEqual(labels(post), ['Yes', 'No']);
+  assert.equal(post.blocks[0].text.type, 'mrkdwn');
+  assert.equal(post.blocks[0].text.verbatim, true, 'nothing in it is linked or mentioned by Slack');
+  assert.match(post.blocks[0].text.text, /Proceed with the fix\?/);
+  assert.match(post.blocks[0].text.text, /Choices: Yes · No/, 'an app without interactivity still reads what to type');
+  assert.match(post.blocks[0].text.text, /Mention wisp in this thread to answer or follow up\./);
+  assert.match(post.text, /Choices: Yes · No/, 'the plain text stays whole');
+  const before = fake.updates.length;
+  const env = fake.click(post, 1);
+  await until(() => fake.updates.length > before, { what: 'the message updated' });
+  assert.ok(fake.acks.includes(env.envelope_id));
+  const after = fake.updates.at(-1);
+  assert.deepEqual([after.channel, after.ts], [post.channel, post.ts]);
+  assert.deepEqual(after.blocks.map((b) => b.type), ['section', 'context'], 'the buttons are gone');
+  assert.equal(after.blocks[1].elements[0].text, `✓ Answered: No · <@${ME}>`);
+  await settled(s.id);
+  const report = await next(m.thread);
+  assert.match(report, /Answer was/);
+  const last = inThread(m.thread).at(-1);
+  assert.equal(last.blocks, undefined, 'Mark done is no choice: a plain report stays plain');
+  assert.equal(s.ask, undefined);
+});
+
+test('a double click: answered once, the second told; a retried envelope does nothing at all', async () => {
+  const { m, s, post } = await asked();
+  const said = ephemeralTo(ME).length;
+  const before = fake.updates.length;
+  const env = fake.click(post, 0);
+  fake.click(post, 0);
+  fake.envelope(env);
+  assert.deepEqual((await ephemerals(said + 1)).slice(said), ['That question was already answered.']);
+  await finish({ m, s });
+  await caughtUp(m.thread);
+  assert.equal(fake.updates.length, before + 1, 'one update');
+  assert.equal(ephemeralTo(ME).length, said + 1, 'the retry said nothing');
+  assert.equal((await session(s.id)).turns.length, 1);
+  assert.equal(fake.acks.filter((id) => id === env.envelope_id).length, 2, 'acked both times');
+});
+
+test('a stranger’s click does nothing and says nothing; the ask stays open for you', async () => {
+  const { m, s, post } = await asked();
+  const all = fake.ephemeral.length;
+  const before = fake.updates.length;
+  const count = inThread(m.thread).length;
+  const env = fake.click(post, 0, { user: STRANGER_ID });
+  await caughtUp(m.thread);
+  assert.ok(fake.acks.includes(env.envelope_id), 'acked: Slack would resend it');
+  assert.equal(fake.ephemeral.length, all);
+  assert.equal(fake.updates.length, before);
+  assert.equal(inThread(m.thread).length, count + 2, 'only the help this test asked for');
+  assert.ok(await nowOpen(s.id));
+  fake.click(post, 0, { trigger_id: env.payload.trigger_id }); // the same trigger, from you: a stranger's burns nothing
+  await until(() => fake.updates.length > before, { what: 'the message updated' });
+  await finish({ m, s });
+});
+
+test('a stale button: never a different ask; a gone task and a late click say so to the clicker alone', async () => {
+  const { m, s, post } = await asked();
+  const late = ephemeralTo(ME).length;
+  fake.click(post, 0, { action_ts: String(Math.floor(Date.now() / 1000) - STALE_S - 60) });
+  assert.match((await ephemerals(late + 1)).at(-1), /arrived while wisp was offline/);
+  assert.ok(await nowOpen(s.id), 'too late to count');
+  mention('Yes', { thread_ts: m.ts });
+  assert.equal(await next(m.thread), '✓ Answered');
+  await finish({ m, s });
+
+  const live = srv.store.get(s.id);
+  Object.assign(live, { state: 'waiting', ask: { id: 'ask-another', question: 'Another?', options: ['A', 'B'] } });
+  const said = ephemeralTo(ME).length;
+  const before = fake.updates.length;
+  fake.click(post, 1);
+  assert.deepEqual((await ephemerals(said + 1)).slice(said), ['That question was already answered.']);
+  assert.equal(live.ask.id, 'ask-another', 'the next ask is untouched');
+  assert.equal(fake.updates.length, before);
+  delete live.ask;
+  live.state = 'review';
+
+  fake.click(post, 0, { value: signed('no-such-task', 'ask-1', 0) });
+  assert.equal((await ephemerals(said + 2)).at(-1), 'That session is gone.');
+  await caughtUp(m.thread);
+});
+
+test('an approval has no buttons, and a signed click at one is refused', async () => {
+  const m = dm('edits: APPROVE then publish');
+  await next(m.thread);
+  const s = await taskIn(m.thread);
+  assert.equal(await next(m.thread), 'Waiting for your OK in wisp: run `npm publish`');
+  const post = inThread(m.thread).at(-1);
+  assert.equal(post.blocks, undefined);
+  const ask = srv.store.get(s.id).ask;
+  assert.ok(ask.permission);
+  const said = ephemeralTo(ME).length;
+  fake.click({ ...post, blocks: [{ type: 'actions', elements: [{ action_id: 'wisp:0' }] }] }, 0, { value: signed(s.id, ask.id, 0) });
+  assert.equal((await ephemerals(said + 1)).at(-1), 'That’s waiting for an approval, which only wisp can give: answer it there.');
+  assert.equal(await nowOpen(s.id), ask.id, 'still waiting');
+  await finish({ m, s }, { stop: true });
+});
+
+test('a value tampered with answers nothing: another ask, another choice, another kind, no JSON', async () => {
+  const { m, s, post } = await asked();
+  const real = JSON.parse(buttonsOf(post)[0].value);
+  const fakes = [
+    JSON.stringify({ ...real, r: 'ask-other' }),
+    JSON.stringify({ ...real, i: 1 }),
+    JSON.stringify({ ...real, s: 'another-task' }),
+    JSON.stringify({ ...real, k: 'd' }),
+    JSON.stringify({ ...real, i: '0' }),
+    signed(s.id, real.r, 0, 'd', 'done'), // signed for ntfy, say: no button here offers it
+    'a:nope',
+    'null',
+    '',
+  ];
+  const said = ephemeralTo(ME).length;
+  const before = fake.updates.length;
+  for (const value of fakes) fake.click(post, 0, { value });
+  const lines = await ephemerals(said + fakes.length);
+  assert.deepEqual(lines.slice(said), fakes.map(() => 'That button doesn’t work any more.'));
+  assert.equal(await nowOpen(s.id), real.r);
+  assert.equal(fake.updates.length, before);
+  fake.click(post, 0);
+  await until(() => fake.updates.length > before, { what: 'the real button still working' });
+  await finish({ m, s });
+});
+
+test('other interactive payloads are acked and ignored, whatever their shape', async () => {
+  const m = dm('help');
+  await next(m.thread);
+  const all = [fake.ephemeral.length, fake.updates.length];
+  const envs = [fake.interactive({ type: 'view_submission' }), fake.interactive({ type: 'block_actions', actions: [] }), fake.interactive({ type: 'block_actions', actions: [{ action_id: 'someone-elses' }] }), fake.interactive(null), fake.envelope({ envelope_id: 'env-bare', type: 'interactive' })];
+  await caughtUp(m.thread);
+  await until(() => envs.every((e) => fake.acks.includes(e.envelope_id)), { what: 'all acked' });
+  assert.deepEqual([fake.ephemeral.length, fake.updates.length], all);
+});
+
+test('text fallback: Slack refuses the blocks, the words still go, and a typed answer works', async () => {
+  const { m, s } = await asked();
+  mention('Yes', { thread_ts: m.ts });
+  assert.equal(await next(m.thread), '✓ Answered');
+  await finish({ m, s });
+  const live = srv.store.get(s.id);
+  Object.assign(live, { state: 'waiting', ask: { id: 'ask-plain', question: 'Plain?', options: ['A', 'B'] } });
+  fake.fail('chat.postMessage', { body: { ok: false, error: 'invalid_blocks' } });
+  await srv.remote.notify(live, { project: 'p' });
+  assert.match(await next(m.thread), /Plain\?[\s\S]*Choices: A · B[\s\S]*Mention wisp in this thread/);
+  assert.equal(inThread(m.thread).at(-1).blocks, undefined);
+  delete live.ask;
+  live.state = 'review';
+});
+
+test('Slack’s limits: long text, long labels and many choices fit, and what leaves stays clean', async () => {
+  const { m, s } = await asked();
+  mention('Yes', { thread_ts: m.ts });
+  await next(m.thread);
+  await finish({ m, s });
+  const live = srv.store.get(s.id);
+  const token = `ghp_${'a1B2'.repeat(9)}`;
+  const options = ['x'.repeat(200), `&&&&&&&& ${'&'.repeat(80)}`, '<!channel> @everyone', `use ${token}`, ...Array.from({ length: 30 }, (_, i) => `choice ${i}`)];
+  Object.assign(live, { state: 'waiting', ask: { id: 'ask-long', question: `${'& '.repeat(1700)}end`, options } });
+  await srv.remote.notify(live, { project: 'p' });
+  await next(m.thread);
+  const post = inThread(m.thread).at(-1);
+  assert.ok(post.blocks, 'Slack took the blocks');
+  assert.deepEqual(post.blocks.map((b) => b.type), ['section', 'section', 'actions'], 'the text is split, not cut');
+  assert.ok(post.blocks.filter((b) => b.type === 'section').every((b) => !/&(?!amp;|lt;|gt;)/.test(b.text.text)), 'no entity cut in two');
+  assert.equal(buttonsOf(post).length, 25);
+  const said = labels(post);
+  assert.ok(said.every((l) => l.length <= 75));
+  assert.ok(!/&(?!amp;|lt;|gt;)/.test(said[1]), 'nor in a label');
+  assert.ok(!said[2].includes('<!') && !JSON.stringify(post).includes(token));
+  assert.ok(!said[2].includes('@everyone'), 'defused');
+  assert.equal(JSON.parse(buttonsOf(post)[24].value).i, 24, 'a button still points at its own choice');
+  delete live.ask;
+  live.state = 'review';
+});
+
+test('a report’s question: buttons send the reply, except where it could outrun the mode', async () => {
+  const { m, s } = await asked();
+  mention('Yes', { thread_ts: m.ts });
+  await next(m.thread);
+  await finish({ m, s });
+  const live = srv.store.get(s.id);
+  live.turns.at(-1).presentation = { blocks: [{ type: 'question', question: 'Ship?', options: [{ label: 'Ship it', reply: 'ship it now' }] }] };
+  await srv.remote.notify(live, { project: 'p' });
+  await next(m.thread);
+  const post = inThread(m.thread).at(-1);
+  assert.deepEqual(labels(post), ['Ship it']);
+
+  live.mode = 'auto';
+  await srv.remote.notify(live, { project: 'p' });
+  await next(m.thread);
+  assert.equal(inThread(m.thread).at(-1).blocks, undefined, 'Full auto: no button starts a turn');
+  const said = ephemeralTo(ME).length;
+  fake.click(post, 0);
+  assert.equal((await ephemerals(said + 1)).at(-1), 'Say that in words here, so it runs in Edits at most.');
+  assert.equal(live.turns.length, 1);
+
+  live.mode = 'edits';
+  const before = fake.updates.length;
+  fake.click(post, 0);
+  await until(() => fake.updates.length > before, { what: 'the message updated' });
+  assert.equal(fake.updates.at(-1).blocks.at(-1).elements[0].text, `✓ Sent: Ship it · <@${ME}>`);
+  await until(() => live.turns.length === 2, { what: 'the reply' });
+  assert.equal(live.turns[1].prompt, 'ship it now');
+  await settled(s.id);
+  await next(m.thread);
+});
+
+test('no network behind a click: acked, answered once, and the next click is told', async () => {
+  const { m, s, post } = await asked();
+  const slack = process.env.WISP_SLACK_API;
+  process.env.WISP_SLACK_API = `http://127.0.0.1:${await freePort()}/api`;
+  try {
+    const before = fake.updates.length;
+    const env = fake.click(post, 0);
+    await until(() => srv.remote.status.slack?.error, { what: 'the failure noted' });
+    assert.ok(fake.acks.includes(env.envelope_id));
+    assert.equal(fake.updates.length, before);
+    assert.equal(await nowOpen(s.id), undefined, 'the answer landed: only the telling failed');
+  } finally {
+    process.env.WISP_SLACK_API = slack;
+    srv.remote.channels.slack.mark({ error: '' });
+  }
+  const said = ephemeralTo(ME).length;
+  fake.click(post, 0);
+  assert.equal((await ephemerals(said + 1)).at(-1), 'That question was already answered.');
+  await finish({ m, s });
+  assert.equal((await session(s.id)).turns.length, 1);
+});
+
+test('a click whose update fails still says what became of it, in the thread', async () => {
+  const { m, s, post } = await asked();
+  fake.fail('chat.update', { body: { ok: false, error: 'cant_update_message' } });
+  fake.click(post, 0);
+  assert.equal(await next(m.thread), `✓ Answered: Yes · <@${ME}>`);
+  await finish({ m, s });
 });
 
 test('reports: only tasks started here, whatever the Phone events say; a task from wisp posts nothing', async () => {

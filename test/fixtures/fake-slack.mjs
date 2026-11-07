@@ -4,6 +4,8 @@
 //
 //   fake.event({ type, … })   an event in an envelope; → { envelope_id, event_id }
 //   fake.envelope(obj)        any envelope as it is (the same one twice is a retry)
+//   fake.interactive(payload) an `interactive` envelope, as a click comes
+//   fake.click(post, i, o)    a click on a post's i-th button; o: user, value, trigger_id, action_ts
 //   fake.drop()               the connection goes, with no goodbye
 //   fake.disconnect(reason)   Slack's own `disconnect` message
 //   fake.fail(method, reply)  the next call of method gets { status, headers, body }, or with
@@ -12,7 +14,9 @@
 //   fake.noCustomize = true   the bot has no chat:write.customize
 //   fake.deaf = true         pings go unanswered, and the socket stays up
 //   fake.silent()            a new connection never says hello
-//   fake.posted, fake.acks, fake.calls, fake.opens: what happened
+//   fake.posted, fake.updates, fake.ephemeral, fake.acks, fake.calls, fake.opens: what happened
+//
+// Blocks are held to Slack's limits, as Slack answers: a report that breaks one is invalid_blocks.
 
 import { createHash, randomBytes } from 'node:crypto';
 import http from 'node:http';
@@ -68,8 +72,20 @@ export function acceptUpgrades(server, onSocket, { reply } = {}) {
   });
 }
 
+const within = (blocks = []) =>
+  blocks.length <= 50 &&
+  blocks.every((b) => {
+    if (b.type === 'section') return b.text?.text?.trim() && b.text.text.length <= 3000;
+    if (b.type === 'context') return b.elements?.length && b.elements.every((e) => e.text?.trim() && e.text.length <= 3000);
+    if (b.type !== 'actions') return false;
+    const ids = new Set(b.elements?.map((e) => e.action_id));
+    return b.elements?.length && b.elements.length <= 25 && ids.size === b.elements.length && b.elements.every((e) => e.type === 'button' && e.text?.type === 'plain_text' && e.text.text && e.text.text.length <= 75 && e.action_id?.length <= 255 && e.value?.length <= 2000);
+  });
+
 export class FakeSlack {
   posted = [];
+  updates = [];
+  ephemeral = [];
   acks = [];
   calls = [];
   closes = [];
@@ -128,9 +144,22 @@ export class FakeSlack {
     if (method === 'auth.test') return send(200, { ok: true, ...this.bot });
     if (method === 'chat.postMessage') {
       if (this.noCustomize && (body.username || body.icon_emoji)) return send(200, { ok: false, error: 'missing_scope' });
+      if (!within(body.blocks)) return send(200, { ok: false, error: 'invalid_blocks' });
       const ts = `${Math.floor(Date.now() / 1000)}.${String(this.#ts++).padStart(6, '0')}`;
       this.posted.push({ ...body, ts });
       return send(200, { ok: true, channel: body.channel, ts });
+    }
+    if (method === 'chat.update') {
+      const post = this.posted.find((p) => p.channel === body.channel && p.ts === body.ts);
+      if (!post) return send(200, { ok: false, error: 'message_not_found' });
+      if (!within(body.blocks)) return send(200, { ok: false, error: 'invalid_blocks' });
+      this.updates.push(body);
+      Object.assign(post, { text: body.text, blocks: body.blocks });
+      return send(200, { ok: true, channel: body.channel, ts: body.ts, text: body.text });
+    }
+    if (method === 'chat.postEphemeral') {
+      this.ephemeral.push(body);
+      return send(200, { ok: true, message_ts: `${Math.floor(Date.now() / 1000)}.${String(this.#ts++).padStart(6, '0')}` });
     }
     send(200, { ok: false, error: 'unknown_method' });
   }
@@ -170,6 +199,29 @@ export class FakeSlack {
   event(event, { event_id, ...more } = {}) {
     const id = ++this.#next;
     return this.envelope({ envelope_id: `env-${id}`, type: 'events_api', accepts_response_payload: false, retry_attempt: 0, retry_reason: '', payload: { type: 'event_callback', team_id: 'T1', api_app_id: 'A1', event_id: event_id || `Ev${id}`, event_time: Math.floor(Date.now() / 1000), event }, ...more });
+  }
+
+  interactive(payload) {
+    return this.envelope({ envelope_id: `env-${++this.#next}`, type: 'interactive', accepts_response_payload: false, payload });
+  }
+
+  // Slack's block_actions, for a click on what's on the message now.
+  click(post, index = 0, { user = 'U0ME', value, trigger_id, action_ts } = {}) {
+    const id = ++this.#next;
+    const button = post.blocks?.find((b) => b.type === 'actions')?.elements[index];
+    return this.interactive({
+      type: 'block_actions',
+      user: { id: user, username: 'someone', name: 'someone', team_id: 'T1' },
+      api_app_id: 'A1',
+      token: 'verification-token',
+      container: { type: 'message', message_ts: post.ts, channel_id: post.channel, is_ephemeral: false, thread_ts: post.thread_ts },
+      trigger_id: trigger_id || `trigger-${id}`,
+      team: { id: 'T1', domain: 'acme' },
+      channel: { id: post.channel, name: 'general' },
+      message: { type: 'message', user: 'UBOT', bot_id: 'BBOT', ts: post.ts, thread_ts: post.thread_ts, text: post.text, blocks: post.blocks },
+      response_url: `${this.api}/never-called`,
+      actions: [{ type: 'button', block_id: 'b1', action_id: button?.action_id || 'wisp:0', text: button?.text, value: value ?? button?.value, action_ts: action_ts || `${Math.floor(Date.now() / 1000)}.000100` }],
+    });
   }
 
   disconnect(reason = 'refresh_requested') {
