@@ -112,6 +112,13 @@ test('the right-click menu on a project and its Edit project dialog are parts', 
   assert.ok(p.some((x) => /project\.menus/.test(x)), p.join('\n'));
 });
 
+test('the Latest pill is a part spells can restyle or hide', () => {
+  assert.equal(schema.PARTS['task.latest'], '.latest-pill');
+  assert.deepEqual(problems({ ...base0, parts: { 'task.latest': { hide: true } } }), []);
+  assert.deepEqual(problems({ ...base0, parts: { 'task.latest': { style: { borderRadius: '4px' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'task.latestPill': { hide: true } } }).some((x) => /not a part/.test(x)));
+});
+
 test('the cold-cache line and its Fork button are parts, on the follow-up box and the limit card', () => {
   assert.equal(schema.PARTS.reconnecting, '#reconnecting');
   assert.equal(schema.PARTS['composer.cold'], '.composer .c-cold');

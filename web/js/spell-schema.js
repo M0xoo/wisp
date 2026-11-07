@@ -186,6 +186,7 @@ export const PARTS = {
   'delegate.live': '.team-live .tl-row',
   'delegate.open': '.sub-task .sub-open',
   'task.from': '.ask .ask-from',
+  'task.latest': '.latest-pill', // over the reply box: something landed while you were away from the end
   // A delegate's task opened by itself: the arrow on its report that opens it, its row under the
   // lead in the list, the note in place of its follow-up box, and the open task's trail of the
   // tasks above it (each opens that task).

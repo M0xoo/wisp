@@ -18,7 +18,7 @@ import { scrollByPx, showRow, stage, topInset } from './scroll.js';
 import { prOf, prPill, shipPill } from './ship.js';
 import { overlapPill } from './overlaps.js';
 import { teamStack } from './team.js';
-import { renderBody, VISIBLE_TURNS } from './turns.js';
+import { landAgain, renderBody, VISIBLE_TURNS } from './turns.js';
 import { snapshotKept } from './cache.js';
 import { slotHtml } from './spells.js';
 import { swipesDone } from './swipe.js';
@@ -174,7 +174,28 @@ const subOpen = (t) => runIds(t).some((id) => subsUnder(id).some((c) => S.open.h
 // the first paint (a cold start, the phone's cached page): repaint then, so no row keeps a raw id.
 bus.on('agents', () => renderFeed());
 
+// A card that changes section leaves the page for a moment. The browser forgets a detached box's
+// scroll and replays what's in it, so the open task would drop to its top and fade in again.
+// Call before moving cards; what it returns puts the task back as it was.
+function keepReading() {
+  const body = $('#feed .item.open > .it-body');
+  if (!body) return () => {};
+  const y = body.scrollTop;
+  const entering = body.getAnimations().length; // just opened: that entrance is meant
+  return () => {
+    if (!body.isConnected) return;
+    const lost = y >= 1 && body.scrollTop < 1;
+    if (lost) {
+      body.scrollTop = y;
+      landAgain(body.closest('.item')?.dataset.id);
+    }
+    if (entering || !(lost || body.getAnimations().length)) return;
+    for (const a of body.getAnimations({ subtree: true })) if (a.effect.getComputedTiming().iterations !== Infinity) a.finish();
+  };
+}
+
 export function renderFeed() {
+  const putBack = keepReading();
   document.getElementById('feedSkel')?.remove(); // index.html's placeholder rows
   pruneSubs();
   const pick = crewPick();
@@ -244,6 +265,7 @@ export function renderFeed() {
   for (const [id, n] of S.nodes) if (!shown.has(id)) (n.card.remove(), S.nodes.delete(id), S.full.delete(id), kept.delete(id));
   const keys = new Set(tasks.map((t) => t.key));
   for (const [key, g] of S.tasks) if (!keys.has(key)) (g.card.remove(), S.tasks.delete(key));
+  putBack();
 
   const empty = !needs.length && !working.length && !scheduled.length && !plansShown.length && !draftsShown.length && !forLater.length && !done.length && !archived.length;
   $('#feedEmpty').hidden = !empty;

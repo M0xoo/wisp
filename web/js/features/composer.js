@@ -37,6 +37,7 @@ import { cast } from './spell-ui.js';
 import { canLead, copiesOf, memberLabel, paintTeamBtn, teamEditor } from './team.js';
 import { coldLine, coldLineShort, coldReply } from '../cold-cache.js';
 import { parseWhen } from '../when.js';
+import { ownSend } from '../tail.js';
 import { addPlan, aheadLabel, followUpItems, planAsk, planSaid, scheduleFollowUp, timeMenu, whenTip } from './later.js';
 import { keyedRows, queuedItems } from './queued.js';
 import { sendFollowUp } from './reply-send.js';
@@ -56,7 +57,7 @@ export function draftInto(id, text) {
 // Split view folds an empty follow-up box to one line while you read. Once you're in it, it stays
 // open through its own pickers (harness, mode, computer: they open on <body> and take focus) until
 // you click or tab somewhere else on the page.
-const OWN_POPUPS = '.picker, .menu, .overlay, .team-pop';
+const OWN_POPUPS = '.picker, .menu, .overlay, .team-pop, .latest-pill'; // the pill sits on the box: folding it under a tap makes the tap miss
 // Moving to another task in the list from an open box keeps it open: the old one goes with its
 // task without folding first, and the new task's box is drawn open (feed.js then focuses it).
 let carry = false;
@@ -747,6 +748,8 @@ export async function sendReply(id, text, { confirm = false } = {}) {
   const withGoal = takeReplyGoal(id);
   const unGoal = withGoal ? showGoal(id, withGoal.text, { sending: true }) : null;
   const undo = startOptimistic(id, text, files, { answering, mode, run, team: team?.team });
+  const interrupts = !undo && !queueing(); // no pending turn to show: the view goes to the one it starts
+  if (interrupts && n) ownSend(n);
   try {
     const out = await (answering && !withGoal
       ? sendFollowUp(id, 'answer', { text })
@@ -760,6 +763,7 @@ export async function sendReply(id, text, { confirm = false } = {}) {
     // A queued follow-up shows in the list above the box (renderQueued): no toast, no count.
     if (undo) scheduleRefetch(id); // the summary that follows says "running" too, so it won't refetch by itself
   } catch (err) {
+    if (interrupts && n) n.ownUntil = 0;
     undo?.();
     unGoal?.();
     withGoal?.undo();

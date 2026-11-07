@@ -176,6 +176,38 @@ try {
     p.clean();
   });
 
+  await check('WEB-06c', 'the reader holds, the tail follows, Latest says what landed', async () => {
+    // The fake's answers are short: room to scroll, so there's somewhere to read from.
+    const room = await p.addStyleTag({ content: '#feed .item.open .turn { min-height: 1400px; }' });
+    const body = () => p.locator('#feed .item.open > .it-body');
+    const top = () => body().evaluate((b) => b.scrollTop);
+    const pill = p.locator('#feed .item.open .latest-pill');
+    const lastTop = () => body().evaluate((b) => [...b.querySelectorAll('.turn')].at(-1).getBoundingClientRect().top - b.getBoundingClientRect().top);
+    const another = async (text) => {
+      const had = (await session(first.id)).turns.length;
+      await api(w.url, `/api/sessions/${first.id}/reply`, { text });
+      await until(async () => (await session(first.id)).turns?.length > had, { timeout: 5000, what: 'a new turn' });
+      await settled(first.id);
+      await p.waitForTimeout(900);
+    };
+    await body().evaluate((b) => (b.scrollTop = 300));
+    await p.waitForTimeout(200);
+    await another('in the middle of reading');
+    ok(Math.abs((await top()) - 300) <= 1, `the reader moved to ${await top()}`);
+    ok(await pill.isVisible(), 'no Latest pill');
+    await pill.click();
+    await p.waitForTimeout(900);
+    ok(!(await pill.isVisible()), 'Latest stayed after its click');
+    ok((await lastTop()) < 200, `Latest landed ${await lastTop()}px down`);
+    await body().evaluate((b) => (b.scrollTop = b.scrollHeight));
+    await p.waitForTimeout(200);
+    await another('at the end');
+    ok(Math.abs(await lastTop()) < 200, `the answer landed ${await lastTop()}px away`);
+    ok(!(await pill.isVisible()), 'a pill at the tail');
+    await room.evaluate((x) => x.remove());
+    p.clean();
+  });
+
   await check('WEB-06b', 'rename keeps the task open', async () => {
     const head = p.locator(`#splitHead:not([hidden])[data-id="${first.id}"]`);
     const title = head.locator('.sh-title');

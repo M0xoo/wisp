@@ -27,7 +27,8 @@ import { whatChangedLine } from '../what-changed-line.js';
 import { scheduleFollowUp } from './later.js';
 import { handoffTargets } from '../vendors.js';
 import { compareTip, offerSubagentModel, SUBAGENT_OFFER, OVERAGE, receiptOf, receiptParts, receiptTip, subagentParts, subagentTip } from '../receipt.js';
-import { scrollByPx, topInset, watching } from './scroll.js';
+import { atTail, scrollByPx, topInset, topTurn } from './scroll.js';
+import { landing, landStart, noteScroll, ownWaiting, toEnd, turnChange } from '../tail.js';
 import { prsOf, renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
 import { changesButton, openPanel, paintDoor, shellButton, shellLive, watchButton } from './panel.js';
@@ -95,14 +96,26 @@ const PROMPT_CUT = 4000; // characters of a folded prompt laid out before Show a
 // What a new worktree brought along (server/worktree-setup.js), for the branch's tooltip.
 const preparedLine = (p) => (p ? `${p.copied?.length ? `\nCopied: ${p.copied.join(', ')}` : ''}${p.ran?.length ? `\nSet up with: ${p.ran.join(' && ')}` : ''}` : '');
 
-export function renderBody(id, { fresh }) {
+// byHand: the user changed what shows themselves (unfolded a turn, Show earlier, V), so the view
+// holds even at the tail: pulling them to the end would take away what they just opened.
+export function renderBody(id, { fresh, byHand }) {
   const s = S.full.get(id);
   const n = S.nodes.get(id);
   if (!s || !n) return;
   const summary = S.sessions.get(id) || {};
 
+  // Where the reader is, before anything below changes the page. Only the tail and the user's own
+  // send may move the view; anything else holds the turn at the top of it (docs/feed.md).
+  const kept = !fresh && S.open.has(id) && !!n.body?.querySelector('.turns');
+  const change = turnChange({ turns: s.turns, known: n.turnNodes, last: n.latestTurn, flagged: ownWaiting(n) });
+  const flying = kept && !byHand && landing(n, n.body);
+  const follow = kept && ((!byHand && (atTail(n.body) || flying)) || change.own);
+  const place = kept && !follow ? topTurn(n.body) : null;
+  if (change.own) n.ownUntil = 0;
+
   if (fresh || !n.body?.querySelector('.turns')) {
     n.turnNodes.clear();
+    n.missed = false;
     const body = el(`
       <div class="it-body">
         <div class="it-mini"><div class="im-row"></div></div>
@@ -126,10 +139,21 @@ export function renderBody(id, { fresh }) {
         <div class="goal-slot" hidden></div>
         <button class="link xs earlier" hidden></button>
         <div class="turns"></div>
-        <div class="it-dock"><div class="overlap-strip" hidden></div><div class="pr-strip" hidden></div></div>
+        <div class="it-dock"><button class="latest-pill" aria-label="Go to the latest turn" title="Go to the latest turn" hidden>${icon('arrow')}<span>Latest</span></button><div class="overlap-strip" hidden></div><div class="pr-strip" hidden></div></div>
       </div>`);
     n.body ? n.body.replaceWith(body) : n.card.append(body);
     n.body = body;
+    body.addEventListener(
+      'scroll',
+      () => {
+        noteScroll(body);
+        if (n.missed) paintLatest(id);
+      },
+      { passive: true },
+    );
+    $('.latest-pill', body).onclick = () => {
+      goLatest(id);
+    };
     $('.it-bar', body).addEventListener('click', (e) => {
       const a = e.target.closest('[data-a]')?.dataset.a;
       if (a === 'transcript') toggleTranscript(id);
@@ -160,7 +184,7 @@ export function renderBody(id, { fresh }) {
       else if (a) $(`.it-actions [data-a="${a}"]`, body)?.click();
     });
     new IntersectionObserver(([e]) => $('.it-mini', body).classList.toggle('on', !e.isIntersecting && e.boundingClientRect.top < (e.rootBounds?.top ?? 0) + 1), { root: body }).observe($('.it-actions', body));
-    $('.earlier', body).onclick = () => ((n.showAll = true), renderBody(id, { fresh: false }));
+    $('.earlier', body).onclick = () => ((n.showAll = true), renderBody(id, { fresh: false, byHand: true }));
     wireGoalSlot($('.goal-slot', body), id);
     renderDock(id);
     if (s.parentId) subDock(body, s);
@@ -193,16 +217,29 @@ export function renderBody(id, { fresh }) {
 
   // Turns: keep nodes whose content hasn't changed so animations don't replay.
   const turnsEl = $('.turns', body);
+  // A new turn would push the one being read behind Show earlier: it stays.
+  if (place && s.turns.slice(0, -VISIBLE_TURNS).some((t) => t.id === place.id)) n.showAll = true;
   const turns = n.showAll ? s.turns : s.turns.slice(-VISIBLE_TURNS);
   const hiddenCount = s.turns.length - turns.length;
   const earlier = $('.earlier', body);
   earlier.hidden = !hiddenCount;
   earlier.textContent = `Show ${hiddenCount} earlier turn${hiddenCount === 1 ? '' : 's'}`;
-  // A new turn re-folds everything older, so the latest exchange is what's open by default.
   const latestId = s.turns.at(-1)?.id;
-  const newTurn = n.latestTurn !== latestId;
+  const { newTurn, adopted } = change;
+  // The real turn took over from the pending one: the same turn. It's drawn again in its place (the
+  // old node's handlers hold the pending turn), and nothing about the view changes.
+  if (adopted) {
+    const was = n.turnNodes.get(adopted);
+    n.turnNodes.delete(adopted);
+    if (was) n.turnNodes.set(latestId, { ...was, key: null });
+    if (place?.id === adopted) place.id = latestId;
+    n.latestTurn = latestId;
+  }
+  // A new turn re-folds everything older, so the latest exchange is what's open by default. Not
+  // under a reader who's elsewhere in the task: the answer they may be reading stays open.
   if (newTurn) {
-    n.unfolded.clear();
+    if (!kept || follow) n.unfolded.clear();
+    else if (n.latestTurn) n.unfolded.add(n.latestTurn);
     n.latestTurn = latestId;
     // Compact now is housekeeping: the answer you were reading stays open above it.
     if (s.turns.at(-1)?.by === 'compact') {
@@ -213,8 +250,7 @@ export function renderBody(id, { fresh }) {
   // Folding the last answer when a follow-up starts can take a screen or more out of the card
   // above the composer. Hold the composer still, so the new exchange lands where the user was
   // typing instead of the whole card sliding off the top of the screen.
-  const watched = watching(id);
-  const dock = watched && newTurn && !fresh ? $('.it-dock', body) : null;
+  const dock = follow && newTurn ? $('.it-dock', body) : null;
   const dockTop = dock?.getBoundingClientRect().top;
   const keep = new Set();
   let firstNew = null;
@@ -240,7 +276,7 @@ export function renderBody(id, { fresh }) {
           return wholeTask(id);
         }
         n.unfolded.has(t.id) ? n.unfolded.delete(t.id) : n.unfolded.add(t.id);
-        renderBody(id, { fresh: false });
+        renderBody(id, { fresh: false, byHand: true });
       };
       node = folded ? renderFoldedTurn(t, toggle) : renderTurn(s, t, isLatest, isLatest ? null : toggle, tx);
       // A fork's own turns start under a line: the ones above came with it from the original.
@@ -254,7 +290,7 @@ export function renderBody(id, { fresh }) {
       if (t.id === sharedStart) node.prepend(el(`<div class="fork-line"><span>${icon('share')}<i>Imported from ${esc(s.sharedFrom.name || s.sharedFrom.handle || 'a share')}: your turns start here</i></span></div>`));
       if (prev) prev.node.replaceWith(node);
       if (!prev && !fresh && !folded) firstNew ??= node;
-      if (prev && prev.status === 'running' && t.status !== 'running') firstNew ??= node;
+      if (prev && !folded && prev.status === 'running' && t.status !== 'running') firstNew ??= node;
       n.turnNodes.set(t.id, { key, node, status: t.status });
     }
     keep.add(t.id);
@@ -271,9 +307,53 @@ export function renderBody(id, { fresh }) {
   paintMarks(id); // comments waiting to go out, marked on the answers they're about
   if (fresh) paintSplit(); // split view: the header and details column fill in from the summary
   if (dock?.isConnected) scrollByPx(dock.getBoundingClientRect().top - dockTop);
+  const held = place && n.turnNodes.get(place.id)?.node;
+  if (held?.isConnected) scrollByPx(held.getBoundingClientRect().top - place.top);
+  if (firstNew && kept) {
+    if (follow) n.missed = false;
+    else if (!ownWaiting(n)) n.missed = true; // an own send's turn is on its way: it'll land there
+  }
+  paintLatest(id);
   // A transcript was being read at its tail: its result lands right there, so show that, not the prompt.
-  const landing = firstNew && tx ? $('.tx-end', firstNew) || firstNew : firstNew;
-  if (landing && watched) requestAnimationFrame(() => landing.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  const target = firstNew && (tx ? $('.tx-end', firstNew) || firstNew : firstNew);
+  if (target && follow) {
+    landStart(n);
+    requestAnimationFrame(() => land(target));
+  } else if (follow && live && !flying) toEnd(body); // a re-render can add more than the slack: a panel, a queue row
+}
+
+const land = (node) => node.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+
+// The Latest pill over the reply box: something landed while the reader was away from the tail
+// (n.missed). It goes once they get there, by hand or by this button, or the turn's head shows.
+function paintLatest(id) {
+  const n = S.nodes.get(id);
+  const pill = n?.body && $('.latest-pill', n.body);
+  if (!pill) return;
+  if (n.missed) {
+    const head = n.turnNodes.get(n.latestTurn)?.node?.getBoundingClientRect().top;
+    const floor = $('.it-dock', n.body).getBoundingClientRect().top;
+    if (atTail(n.body) || (head >= topInset() && head < floor)) n.missed = false;
+  }
+  if (pill.hidden === !n.missed) return;
+  pill.hidden = !n.missed;
+}
+
+function goLatest(id) {
+  const n = S.nodes.get(id);
+  const node = n?.turnNodes.get(n.latestTurn)?.node;
+  n.missed = false;
+  paintLatest(id);
+  if (!node) return;
+  landStart(n);
+  land((transcriptOn(id) && $('.tx-end', node)) || node);
+}
+
+// The open task's card just left the page and came back (feed.js): a scroll on its way goes on.
+export function landAgain(id) {
+  const n = S.nodes.get(id);
+  const node = n?.turnNodes.get(n.latestTurn)?.node;
+  if (node && landing(n, n.body)) land((transcriptOn(id) && $('.tx-end', node)) || node);
 }
 
 // What moved in the CLI since the last turn. Painted in place, outside the turn's key: stats.cli can
@@ -460,7 +540,7 @@ export function toggleTranscript(id) {
   const reading = turns.find((x) => { const r = x.getBoundingClientRect(); return r.top <= mid && r.bottom >= mid; }) || turns.at(-1);
   const tid = reading?.dataset.turn;
   const before = reading && $('.ask', reading)?.getBoundingClientRect().top;
-  renderBody(id, { fresh: false });
+  renderBody(id, { fresh: false, byHand: true });
   const ask = tid && $(`.turn[data-turn="${tid}"] .ask`, n.body);
   if (!ask || before === undefined) return;
   if (before < topInset()) ask.scrollIntoView({ block: 'start', behavior: 'smooth' });
@@ -1147,7 +1227,9 @@ export function onActivity({ sessionId, turnId, item, update }) {
     return;
   }
   if (turn && !turn.activity.includes(item)) turn.activity.push(item);
-  if (node && turn) appendStep(node, item, turn, scrollByPx);
+  const box = S.open.has(sessionId) ? S.nodes.get(sessionId)?.body : null;
+  const tail = !!box && atTail(box); // the ticker and the log grow too, before a render pins it
+  if (node && turn) appendStep(node, item, turn, scrollByPx, box);
   if (!node || item.kind === 'text') return;
   const ticker = $('.ticker', node);
   if (ticker) {
@@ -1160,4 +1242,5 @@ export function onActivity({ sessionId, turnId, item, update }) {
   if (log && !log.hidden) log.append(actItem(item));
   const c = $('.w-count', node);
   if (c && turn) c.textContent = actionCount(turn);
+  if (tail) toEnd(box);
 }

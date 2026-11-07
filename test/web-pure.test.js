@@ -2,7 +2,7 @@
 // (web/js/diff.js), display formatters (web/js/core/format.js), the event bus (web/js/core/bus.js),
 // what the transcript shows (web/js/features/transcript.js), the launcher's ↑ history
 // (web/js/prompt-history.js), the drafts kept across reloads (web/js/core/state.js) and schedules
-// in words (web/js/schedule.js).
+// in words (web/js/schedule.js), and the tail of a task (web/js/tail.js).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,6 +16,7 @@ import { historyStep, MAX_SENT, remember } from '../web/js/prompt-history.js';
 import { isSpirit, parseSpirit, rollSpirit, SPIRIT, spiritCode, spiritDefs, spiritSvg } from '../web/js/spirit.js';
 import { decode, encode, mentionHtml, plain } from '../web/js/mention-text.js';
 import { clock24, cronWords, toCron } from '../web/js/schedule.js';
+import { atTail, landStart, landing, noteScroll, ownSend, ownWaiting, turnChange } from '../web/js/tail.js';
 
 test('esc escapes HTML and treats null as empty', () => {
   assert.equal(esc(`<a href="x">'&'</a>`), '&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
@@ -374,4 +375,93 @@ test('actionCount: one action is one action, and text is not an action', () => {
   assert.equal(actionCount(turn('tool')), '1 action');
   assert.equal(actionCount(turn('tool', 'text')), '1 action');
   assert.equal(actionCount(turn('tool', 'text', 'tool')), '2 actions');
+});
+
+// --- the tail -----------------------------------------------------------------------------------
+
+const scroller = (fromEnd = 0) => ({ scrollHeight: 2000, clientHeight: 500, scrollTop: 1500 - fromEnd });
+
+test('atTail: within 40px of the end, not 41', () => {
+  assert.equal(atTail(scroller(0)), true);
+  assert.equal(atTail(scroller(40)), true);
+  assert.equal(atTail(scroller(41)), false);
+});
+
+test('landing: on its way to a turn for a second, unless the reader scrolled up', () => {
+  const box = scroller(0);
+  noteScroll(box);
+  const n = {};
+  assert.equal(landing(n, box, 1000), false, 'nothing started');
+  landStart(n, 1000);
+  assert.equal(landing(n, box, 1999), true, 'far from the end, and still following');
+  assert.equal(landing(n, box, 2000), false, 'it was over by then');
+  box.scrollTop -= 30;
+  noteScroll(box);
+  assert.equal(landing(n, box, 1500), false, 'the reader took over');
+});
+
+test('atTail: one slow scroll up has left the tail, and coming back down returns to it', () => {
+  const box = scroller(0);
+  noteScroll(box);
+  box.scrollTop -= 30;
+  noteScroll(box);
+  assert.equal(atTail(box), false, '30px up is inside the 40px, but it went up');
+  box.scrollTop += 1;
+  noteScroll(box);
+  assert.equal(atTail(box), true, 'down, within 40px');
+  box.scrollTop -= 1;
+  noteScroll(box);
+  box.scrollTop = 0;
+  noteScroll(box);
+  assert.equal(atTail(box), false);
+  box.scrollTop = 1461;
+  noteScroll(box);
+  assert.equal(atTail(box), true, 'back down to 39px');
+  box.scrollTop = 1500;
+  noteScroll(box);
+  assert.equal(atTail(box), true);
+});
+
+test('atTail: the page shrinking under a follower is not them scrolling up', () => {
+  const box = scroller(0);
+  noteScroll(box);
+  box.scrollHeight = 1800; // an older answer folded: the browser clamps scrollTop
+  box.scrollTop = 1300;
+  noteScroll(box);
+  box.scrollHeight = 1830; // new output, before the next render pins it
+  assert.equal(atTail(box), true);
+});
+
+test('turnChange: the real turn replacing the pending one is the same turn', () => {
+  const turns = [{ id: 'a' }, { id: 'b' }];
+  const c = turnChange({ turns, known: new Map([['a', 1], ['pending-5', 1]]), last: 'pending-5' });
+  assert.deepEqual(c, { newTurn: false, adopted: 'pending-5', own: false });
+});
+
+test('turnChange: a pending turn is the user\'s own, compact is housekeeping, a turn by itself is neither', () => {
+  const known = ['a'];
+  assert.deepEqual(turnChange({ turns: [{ id: 'a' }, { id: 'pending-5' }], known, last: 'a' }), { newTurn: true, adopted: null, own: true });
+  assert.equal(turnChange({ turns: [{ id: 'a' }, { id: 'pending-5', by: 'compact' }], known, last: 'a' }).own, false);
+  assert.deepEqual(turnChange({ turns: [{ id: 'a' }, { id: 'b' }], known, last: 'a' }), { newTurn: true, adopted: null, own: false });
+});
+
+test('turnChange: a failed send\'s rollback adopts nothing', () => {
+  const c = turnChange({ turns: [{ id: 'a' }], known: ['a', 'pending-5'], last: 'pending-5' });
+  assert.equal(c.adopted, null);
+  assert.equal(c.own, false);
+});
+
+test('turnChange: nothing new, nothing to do', () => {
+  assert.deepEqual(turnChange({ turns: [{ id: 'a' }], known: ['a'], last: 'a' }), { newTurn: false, adopted: null, own: false });
+});
+
+test('own sends: a flagged send owns the next new turn, for 15 s, but not a compact', () => {
+  const n = {};
+  assert.equal(ownWaiting(n, 1000), false);
+  ownSend(n, 1000);
+  assert.equal(ownWaiting(n, 15999), true);
+  assert.equal(ownWaiting(n, 16000), false, 'a turn that never came cannot steal a later one');
+  const turns = [{ id: 'a' }, { id: 'b' }];
+  assert.equal(turnChange({ turns, known: ['a'], last: 'a', flagged: true }).own, true);
+  assert.equal(turnChange({ turns: [{ id: 'a' }, { id: 'b', by: 'compact' }], known: ['a'], last: 'a', flagged: true }).own, false);
 });

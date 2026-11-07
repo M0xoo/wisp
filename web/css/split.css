@@ -546,6 +546,20 @@ body.split #feed .item.open > .it-body > .it-dock {
   position: sticky; bottom: 0; z-index: 2; margin-top: auto; padding: 22px 0 18px;
   background: linear-gradient(to bottom, transparent, var(--bg) 22px);
 }
+/* Latest: something landed while you were reading further up. It sits above the dock, out of its
+   flow, so showing it never moves the box or adds height. */
+.latest-pill {
+  position: absolute; bottom: 100%; left: 0; right: 0; margin-inline: auto;
+  display: flex; align-items: center; gap: 5px; width: max-content; height: 32px; padding: 0 12px 0 9px; border-radius: 16px;
+  color: var(--ink-2); background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow-2); font-size: 12.5px;
+  transition: color 0.15s, border-color 0.15s, translate 0.2s var(--ease); animation: rise 0.25s var(--ease);
+}
+.latest-pill[hidden] { display: none; }
+.latest-pill .i { width: 13px; height: 13px; transform: rotate(90deg); }
+@media (hover: hover) { .latest-pill:hover { color: var(--ink); border-color: var(--faint); translate: 0 -2px; } }
+.latest-pill:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
+/* 44px for a thumb without a 44px pill over what you're reading: it takes only the dock's empty top */
+@media (pointer: coarse) { .latest-pill::before { content: ''; position: absolute; inset: -7px 0; } }
 body.split #feed .item.open > .it-body .turns { padding-left: 0; padding-right: 0; }
 body.split #feed .item.open > .it-body .composer { box-shadow: var(--shadow-1); }
 /* Side by side the follow-up box keeps its bar: folding it moved the notices above it ~30px each

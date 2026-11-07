@@ -20,7 +20,9 @@ function clearDock() {
   let top = innerHeight;
   for (const c of document.querySelectorAll('.it-dock .composer, .launcher, .crew-view:not([hidden]) .cv-box, .crew-edit .ce-foot')) {
     const r = c.getBoundingClientRect();
-    if (r.width && r.left < cx && r.right > cx && r.bottom > innerHeight - 140 && r.top < innerHeight) top = Math.min(top, r.top);
+    // The Latest pill sits over the reply box: too narrow to cross the middle itself, but a toast mustn't cover it.
+    const pill = c.closest('.it-dock')?.querySelector('.latest-pill:not([hidden])');
+    if (r.width && r.left < cx && r.right > cx && r.bottom > innerHeight - 140 && r.top < innerHeight) top = Math.min(top, pill ? pill.getBoundingClientRect().top : r.top);
   }
   box.style.bottom = top < innerHeight ? `${Math.round(innerHeight - top + 10)}px` : '';
 }
