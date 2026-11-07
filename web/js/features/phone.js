@@ -30,15 +30,16 @@ function ghTrouble(error) {
   return { html: `${esc(error)}${/Looking again/.test(error) ? '' : ' wisp tries again every minute.'}` };
 }
 
-// The same words as server/channels/slack.js NOT_ON_A_BOX: the server only says them when refusing.
-const SLACK_NO_BOX = 'Slack can’t run on a cloud computer yet: it sleeps when it’s idle, and the connection to Slack would die with it. Set it up on a computer that stays on.';
-
 // What's wrong with the Slack channel, in words, and what to do. Slack's own code stays in the text:
 // it's what its docs and a search go by.
-function slackTrouble(error) {
+function slackTrouble(error, box) {
+  if (/^Slack’s signature/.test(error)) return `${esc(error)} Copy it again from Basic Information → App Credentials and paste it here.`;
   const code = /\b(invalid_auth|not_authed|account_inactive|token_revoked|token_expired|org_login_required|team_access_not_granted|link_disabled|missing_scope|no_permission|not_allowed_token_type)\b/.exec(error)?.[1];
+  if (box && (code === 'missing_scope' || code === 'no_permission')) return `Slack says the app is missing a permission (<code>${code}</code>). The bot needs the manifest’s scopes: paste the manifest again under App Manifest, reinstall the app, then paste the bot token here.`;
   if (code === 'missing_scope' || code === 'no_permission') return `Slack says the app is missing a permission (<code>${code}</code>). The app token needs <code>connections:write</code>, and the bot the manifest’s scopes: paste the manifest again under App Manifest, reinstall the app, then paste both tokens here.`;
+  if (box && code === 'not_allowed_token_type') return 'Slack got the wrong kind of token. The bot token starts with <code>xoxb-</code>, from OAuth &amp; Permissions.';
   if (code === 'not_allowed_token_type') return 'Slack got the wrong kind of token. The app token starts with <code>xapp-</code>, from Basic Information; the bot token with <code>xoxb-</code>, from OAuth &amp; Permissions.';
+  if (box && code) return `Slack refused the bot token (<code>${code}</code>). Copy it again from <a href="https://api.slack.com/apps" target="_blank" rel="noopener">api.slack.com/apps</a> and paste it here. A reinstalled app has a new one.`;
   if (code) return `Slack refused a token (<code>${code}</code>). Copy both again from <a href="https://api.slack.com/apps" target="_blank" rel="noopener">api.slack.com/apps</a> and paste them here. A reinstalled app has new ones.`;
   return `${esc(error)} wisp keeps trying.`;
 }
@@ -81,19 +82,20 @@ export async function openPhone({ host } = {}) {
                 <span class="ph-num" data-step="1"></span>
                 <div class="ph-step">
                   <b>Create the app</b>
-                  <p class="hint">Copy the manifest. At api.slack.com/apps pick <i>Create New App → From a manifest</i>, choose your workspace, paste it as JSON and install the app.</p>
+                  <p class="hint ph-create"></p>
                   <div class="ph-acts"><button class="primary sm" data-act="skManifest">${icon('copy')}Copy manifest</button><a class="ghost sm" href="https://api.slack.com/apps" target="_blank" rel="noopener">${icon('external')}api.slack.com/apps</a></div>
                 </div>
               </li>
               <li>
                 <span class="ph-num" data-step="2"></span>
                 <div class="ph-step">
-                  <b>Paste the two tokens</b>
+                  <b class="ph-paste"></b>
                   <div class="settings-modal">
-                    <label><span>App token</span><input class="input mono" data-sk="appToken" placeholder="xapp-…" spellcheck="false" autocomplete="off" type="password"></label>
+                    <label class="ph-computer"><span>App token</span><input class="input mono" data-sk="appToken" placeholder="xapp-…" spellcheck="false" autocomplete="off" type="password"></label>
+                    <label class="ph-cloud"><span>Signing secret</span><input class="input mono" data-sk="signingSecret" placeholder="From Slack" spellcheck="false" autocomplete="off" type="password"></label>
                     <label><span>Bot token</span><input class="input mono" data-sk="botToken" placeholder="xoxb-…" spellcheck="false" autocomplete="off" type="password"></label>
                   </div>
-                  <p class="hint">App token: Basic Information → App-Level Tokens → Generate, with the <code>connections:write</code> scope. Bot token: OAuth &amp; Permissions.</p>
+                  <p class="hint ph-where"></p>
                 </div>
               </li>
               <li>
@@ -115,7 +117,11 @@ export async function openPhone({ host } = {}) {
   let saving = 0; // GitHub and Slack saves on their way: what comes back meanwhile is older than the page
   let missed = false; // a remote event came during a save
   let changeTokens = false; // Slack: asked to see the steps again once it's all set up
-  const manifest = api('/remote/slack/manifest').catch(() => null);
+  let noHub = ''; // a cloud computer Slack has no way to reach: the server's words
+  const manifest = api('/remote/slack/manifest').catch((err) => {
+    if (err.status === 409) noHub = err.message;
+    return null;
+  });
   const shown = new WeakMap();
   const fill = (box, html) => {
     if (shown.get(box) === html) return; // a refresh that changes nothing leaves the nodes alone
@@ -164,15 +170,16 @@ export async function openPhone({ host } = {}) {
     const sec = $('.ph-sk', node);
     hold(sec);
     const sw = $('[data-sw="slack"]', node);
-    sw.setAttribute('aria-checked', s.enabled && !s.box);
-    sw.disabled = s.box;
-    const on = s.enabled && !s.box;
-    const tokens = !!(s.appToken && s.botToken);
+    sw.setAttribute('aria-checked', s.enabled && !noHub);
+    sw.disabled = !!noHub;
+    const on = s.enabled && !noHub;
+    const key = s.box ? 'signingSecret' : 'appToken'; // on a cloud computer Slack calls in, so it's what proves it's Slack
+    const tokens = !!(s[key] && s.botToken);
     const error = on && tokens ? s.error || st?.error || '' : '';
     fill($('.ph-st', sec), !on ? '' : !tokens ? '<span class="ph-wait">Not set up</span>' : error ? `<span class="ph-bad">${icon('warn')}Not working</span>` : s.connected ? status({ ok: true }) : '<span class="ph-wait">Checking…</span>');
-    $('.ph-rules', sec).hidden = s.box;
-    fill($('.ph-rules', sec), `It runs only while ${esc(here)} is awake, and Slack doesn’t keep messages for it: what’s sent meanwhile is gone. Only people you link count. In a channel, mention wisp in the thread to follow up. Full auto can’t be asked for from Slack.`);
-    trouble(sec, s.box ? esc(SLACK_NO_BOX) : error ? slackTrouble(error) : '');
+    $('.ph-rules', sec).hidden = !!noHub;
+    fill($('.ph-rules', sec), `${s.box ? `A message wakes ${esc(here)} when it’s asleep, and waits up to an hour for it.` : `It runs only while ${esc(here)} is awake, and Slack doesn’t keep messages for it: what’s sent meanwhile is gone.`} Only people you link count. In a channel, mention wisp in the thread to follow up. Full auto can’t be asked for from Slack.`);
+    trouble(sec, noHub ? esc(noHub) : error ? slackTrouble(error, s.box) : '');
     $('.ph-on', sec).hidden = !on;
     const steps = !(s.connected && s.senders) || changeTokens;
     const n = s.senders;
@@ -180,13 +187,18 @@ export async function openPhone({ host } = {}) {
     who.hidden = !s.connected;
     fill(who, `<span>Connected to <b>${esc(s.team || 'your workspace')}</b> as <b>${esc(s.bot || 'wisp')}</b>, ${n ? `${n} ${n === 1 ? 'person' : 'people'} linked` : 'nobody linked yet'}</span>${n ? '<button class="link xs" data-act="skUnlink">Unlink</button>' : ''}${n && !steps ? '<button class="link xs" data-act="skTokens">Change tokens</button>' : ''}`);
     $('.ph-steps', sec).hidden = !steps;
-    const done = [!!(s.appToken || s.botToken), tokens, n > 0];
+    fill($('.ph-create', sec), `Copy the manifest${s.box ? ': it holds this wisp’s private URL for Slack to call, so keep it to yourself' : ''}. At api.slack.com/apps pick <i>Create New App → From a manifest</i>, choose your workspace, paste it as JSON and install the app.`);
+    fill($('.ph-paste', sec), s.box ? 'Paste the signing secret and bot token' : 'Paste the two tokens');
+    $('.ph-computer', sec).hidden = s.box;
+    $('.ph-cloud', sec).hidden = !s.box;
+    fill($('.ph-where', sec), s.box ? 'Signing secret: Basic Information → App Credentials. Bot token: OAuth &amp; Permissions. If Slack says the URL isn’t verified, keep this open and retry it under Event Subscriptions.' : 'App token: Basic Information → App-Level Tokens → Generate, with the <code>connections:write</code> scope. Bot token: OAuth &amp; Permissions.');
+    const done = [!!(s[key] || s.botToken), tokens, n > 0];
     for (const [i, ok] of done.entries()) {
       const num = $(`[data-step="${i + 1}"]`, sec);
       num.classList.toggle('ok', ok);
       fill(num, ok ? icon('check') : String(i + 1));
     }
-    for (const k of ['appToken', 'botToken']) {
+    for (const k of [key, 'botToken']) {
       const input = $(`[data-sk="${k}"]`, sec);
       if (input !== document.activeElement && input.value !== s[k]) input.value = s[k]; // never under someone's typing
     }
@@ -366,5 +378,6 @@ export async function openPhone({ host } = {}) {
   });
   bus.on('remote', refresh, { node });
   r = await api('/remote').catch((err) => (toastError(err), null));
+  if (r?.slack.box) await manifest; // what it says decides the section: painted once, not twice
   if (r) paint();
 }

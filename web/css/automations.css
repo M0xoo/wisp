@@ -131,6 +131,7 @@
 .ph-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
 .ph-acts .i { width: 13px; height: 13px; }
 .ph-step .settings-modal label:last-child { border-bottom: 0; }
+.ph-step .settings-modal label[hidden] { display: none; }
 .ph-code .ghost .i, .ph-more .ghost .i { width: 12px; height: 12px; }
 /* In a phone's browser too: a thumb is the same size as in the app */
 @media (pointer: coarse) {
