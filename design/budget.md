@@ -115,7 +115,8 @@ admits it only when the plan has.
 - **Seen**: Settings → Usage → **Machine load** (`.sx-load`, spell part `settings.load`): *Now* (free
   memory, CPU, runs of the limit, and the why while it holds, `GET /load`, read every 10 s while
   Settings is open) and the three selects.
-- **`busy()`**: true while the guard holds; the worktree sweep and its `du` wait for the next hour.
+- **`busy()`**: true while memory is under the floor or the CPU is over its ceiling (not for full run
+  slots: a sweep costs disk, not a run); the worktree sweep and its `du` wait for the next hour.
 - Off under `node --test` (the suite runs on CI boxes of every size); `test/load.test.js` turns the
   server's on with readings it sets.
 - NOT NOW: pausing or killing running agents, cgroups, per-run memory limits.

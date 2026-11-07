@@ -210,9 +210,11 @@ export class Load {
     return null;
   }
 
-  // The machine is busy (the guard holds work): the worktree sweep and its `du` wait for the next hour.
+  // The machine is short (memory under the floor, or the CPU over its ceiling): the worktree sweep
+  // and its `du` wait for the next hour. Full run slots aren't: a sweep costs disk, not a run.
   busy() {
-    return !!this.hold();
+    const k = this.hold()?.kind;
+    return k === 'memory' || k === 'cpu';
   }
 
   // A run you start by hand goes anyway; when memory is under the floor the page says so (a toast).

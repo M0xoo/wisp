@@ -197,6 +197,7 @@ test('maxRuns: a full house holds until a slot is free; off never', () => {
   const { l, box } = guard({ runs: 8 });
   l.feed({ memFreePct: 80, cpu: 10 });
   assert.equal(l.hold().why, 'Waiting for a run slot: 8 runs going, at most 8');
+  assert.equal(l.busy(), false, 'full run slots don’t stop the worktree sweep');
   box.runs = 7;
   assert.equal(l.hold(), null);
   const off = guard({ runs: 40, defaults: { maxRuns: 'off' } }).l;
