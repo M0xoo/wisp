@@ -287,11 +287,25 @@ export class Discord extends Channel {
     if (!key) this.connected = false;
     if (!key && !c.gridKey) return true;
     if (!(await setChannelKey(box, this.name, key, key ? (c.senders || []).map((id) => linkedHash(id, key)) : undefined))) return false;
-    if (key !== c.gridKey) {
+    if (key !== c.gridKey || c.linkedStale) {
       c.gridKey = key;
+      delete c.linkedStale;
       this.hub.store.saveConfig();
     }
     return true;
+  }
+
+  // After a link: the edge has to know them before their first /wisp in a server. The link itself
+  // worked, so a grid that can't be told isn't an error for them: it's told on the next delivery or
+  // start (linkedStale, in the config as a box forgets).
+  async #syncLinked() {
+    try {
+      await this.syncKey();
+    } catch (err) {
+      console.warn(`wisp: discord: couldn’t tell the grid who’s linked, trying again on the next message: ${err.message}`);
+      this.cfg.linkedStale = true;
+      this.hub.store.saveConfig();
+    }
   }
 
   #down(error) {
@@ -487,7 +501,7 @@ export class Discord extends Channel {
       if (!held) await this.#respond(d, OUT.deferred, { flags: EPHEMERAL });
       const attempt = async () => {
         const said = await this.linking.attempt(user.id, link[1], (t) => this.#say(target, t));
-        if (held) await this.syncKey(); // the edge has to know them before their first /wisp in a server
+        if (held) await this.#syncLinked();
         return said;
       };
       return this.turns.queue(d.channel_id, () => this.#settle(target, attempt, TOO_MANY), this.#oops);
@@ -585,6 +599,7 @@ export class Discord extends Channel {
     if (d.type === IN.ping) return { status: 200, body: { type: OUT.pong } };
     const user = d.member?.user || d.user;
     if (d.type === IN.autocomplete) return { status: 200, body: { type: OUT.choices, data: { choices: await this.#choices(d, user?.id) } } };
+    if (c.linkedStale) await this.#syncLinked(); // not for a keystroke: that answer has 3 s
     const age = Date.now() - snowflakeMs(d.id);
     if (age > HELD_MAX_MS) {
       console.warn(`wisp: discord: dropped a held interaction, ${Math.floor(age / 60_000)} min old: its token is about to die`);

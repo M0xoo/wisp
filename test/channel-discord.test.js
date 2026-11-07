@@ -1407,6 +1407,7 @@ const fakeGrid = http.createServer(async (req, res) => {
   if (!box.hub) return send(404, { error: 'not found' });
   if (req.headers.authorization !== 'Box ada box-secret') return send(401, { error: 'no' });
   if (url.pathname === '/api/channels/url/key') {
+    if (box.keyFail) return send(500, { error: 'the grid is down' });
     box.keys.push(JSON.parse(t).key);
     box.linked.push(JSON.parse(t).linked);
     return send(200, { ok: true });
@@ -1485,6 +1486,30 @@ test('a box: linked by /wisp in a DM, in the deferred response, no callback at a
   assert.ok(!JSON.stringify(box.linked).includes(ME), 'hashed');
   assert.ok(!box.linked.at(-1).includes(createHash('sha256').update(`discord:${ME}`).digest('hex')), 'not the hash every box would send');
   assert.notEqual(linkedHash(ME, keys.hex), linkedHash(ME, keypair().hex), 'keyed by the application: another bot, another hash');
+});
+
+test('a box: a link whose sync to the grid fails still says Linked, no error, and the next delivery sends it', async () => {
+  const OTHER = '424242424242424242';
+  const code = (await api('/remote')).discord.linkCode;
+  box.keyFail = true;
+  try {
+    const d = inDm(OTHER, `link ${code}`);
+    assert.equal((await held(d)).status, 200);
+    await until(() => fake.edits.some((e) => e.token === d.token && /^✓ Linked to wisp/.test(e.content)), { what: 'the edit' });
+    await sleep(200);
+    assert.ok(srv.store.config.remote.discord.senders.includes(OTHER));
+    assert.ok(![...fake.edits.filter((e) => e.token === d.token), ...inRoom(`D${OTHER}`)].some((e) => /hit an error/.test(e.content)), 'no error after Linked');
+    assert.doesNotMatch((await api('/remote')).discord.error, /the grid is down/, 'nor in Settings: the link worked');
+    box.keyFail = false;
+    const next = command(ME, 'help', { channel_id: 'CB7' });
+    assert.equal((await held(next)).status, 200);
+    await until(() => box.linked.at(-1)?.includes(linkedHash(OTHER, keys.hex)), { what: 'the grid told, on the next delivery' });
+  } finally {
+    box.keyFail = false;
+    srv.store.config.remote.discord.senders = srv.store.config.remote.discord.senders.filter((x) => x !== OTHER);
+    await ch().syncKey();
+    ch().mark({ error: '' });
+  }
 });
 
 test('a box: a command starts from the deferred state: edited, threaded, once, and a report by post', async () => {
