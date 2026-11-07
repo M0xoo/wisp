@@ -805,7 +805,7 @@ npx wisp-agents --agent antigravity "add a test"   # or pick one`)}
       <h2 id="in-progress">Work in progress</h2>
       <p>A local Conductor workspace is an ordinary git worktree, so you can carry on in it without an import. <a href="https://www.conductor.build/docs/concepts/git-worktrees" target="_blank" rel="noopener">Conductor keeps them</a> in <code>~/conductor/workspaces/&lt;repo&gt;/&lt;workspace&gt;</code>. Older versions used <code>&lt;repo&gt;/.conductor/&lt;workspace&gt;</code>. <code>git worktree list</code> in your repo shows where each one is, and a workspace you moved with Transfer to local should be under <code>~/conductor/</code> too.</p>
       <p><b>Don’t archive it in Conductor yet.</b> The migration guides from <a href="https://docs.paradev.com/migrate-from-conductor" target="_blank" rel="noopener">Paradev</a> and <a href="https://www.onorca.dev/docs/migrate-from-conductor" target="_blank" rel="noopener">Orca</a> both say archiving deletes the folder, and uncommitted work exists nowhere else. Quit Conductor while you work in it, and keep <code>~/conductor/</code> until you’re done.</p>
-      <p><b>On wisp 0.58.0 or later, bring it in:</b></p>
+      <p><b>Bring it in:</b></p>
       <ol class="doc-steps">
         <li><b>Pick the repo.</b> In New task, choose the project your workspaces came from, or add it. When the prompt box is empty and wisp finds Conductor’s worktrees of that repo, it shows one line, such as <i>3 worktrees from Conductor</i>.</li>
         <li><b>Press Bring in.</b> Each worktree becomes a task right where it is, on its own branch, with its uncommitted changes as they were. wisp runs no setup and writes nothing in the folder. <b>Not now</b> stops offering those folders.</li>
@@ -820,7 +820,7 @@ npx wisp-agents --agent antigravity "add a test"   # or pick one`)}
           <li><b>It’s untested on a real Conductor install.</b> It has only run against worktrees set up to match Conductor’s layout. If yours aren’t offered, open them in place.</li>
         </ul>
       </aside>
-      <p><b>On wisp 0.57.0, or for a folder that isn’t offered, open it in place:</b></p>
+      <p><b>For a folder that isn’t offered, open it in place:</b></p>
       <ol class="doc-steps">
         <li><b>Open the folder with worktrees off.</b> In New task, choose <b>Other folder…</b>, add the workspace folder’s path and switch <b>Worktree</b> to <b>In place</b>. Or from a terminal:
 ${sh(`wisp "Finish the retry logic" --no-worktree \\
@@ -950,7 +950,7 @@ command = "pnpm dev --port $CONDUCTOR_PORT"</code></pre>
 `,
       faq: [
         ['Do I need to leave Conductor now?', 'Only if you use Cloud, which goes read-only on 13 November 2026. The Mac app keeps working and gets new models and critical bug fixes until it starts winding down in early 2027.'],
-        ['Can wisp import my Conductor chats or workspaces?', 'Local worktrees, yes. From wisp 0.58.0, Bring in makes each worktree in ~/conductor/workspaces, ~/conductor/cloud-workspaces or <repo>/.conductor a task where it is, with its uncommitted changes, and your next message resumes its newest Claude chat. It hasn’t been tried on a real Conductor install yet. Earlier messages don’t show in the task, and Codex chats don’t resume. On 0.57.0, or for a folder it doesn’t offer, open the folder with worktrees off (In place, or --no-worktree). Claude Code chats stay in ~/.claude/projects, so claude --resume reopens them from the same folder until they age out, after 30 days by default. For Cloud work, push your branches and keep Conductor’s export.'],
+        ['Can wisp import my Conductor chats or workspaces?', 'Local worktrees, yes. Bring in makes each worktree in ~/conductor/workspaces, ~/conductor/cloud-workspaces or <repo>/.conductor a task where it is, with its uncommitted changes, and your next message resumes its newest Claude chat. It hasn’t been tried on a real Conductor install yet. Earlier messages don’t show in the task, and Codex chats don’t resume. For a folder it doesn’t offer, open the folder with worktrees off (In place, or --no-worktree). Claude Code chats stay in ~/.claude/projects, so claude --resume reopens them from the same folder until they age out, after 30 days by default. For Cloud work, push your branches and keep Conductor’s export.'],
         ['Can I keep my .conductor/settings.toml?', 'Yes. wisp reads it, or conductor.json, and runs your setup and run scripts with the same CONDUCTOR_* variables. .wisp/worktree.json comes first if you add one. It doesn’t read settings.local.toml, environment_variables or scripts.archive.'],
         ['Can my team share one workspace, like Multiplayer?', 'No. Everyone has their own wisp, and work is shared through branches and PRs. A team can run its own Grid so that each person gets a sandboxed wisp on the same server.'],
         ['Is it free?', 'wisp is free and MIT. wisp Cloud is free during the preview. The agents run on your own plans and accounts, and wisp doesn’t charge for or resell model usage.'],
@@ -2119,7 +2119,7 @@ vercel --prod`)}
           <tr><th scope="row"><a href="/guides/wisp-vs-t3-code.html">T3 Code</a></th><td>A control surface for agent harnesses, free</td><td>iOS and Android apps, as a remote</td><td>Your desktop, a server or a VPS</td><td>No guide found</td></tr>
           <tr><th scope="row"><a href="/guides/wisp-vs-cmux.html">cmux</a></th><td>Native macOS terminal for agents</td><td>iOS beta on TestFlight, paid</td><td>Your Mac. Cloud machines are paid, in early access</td><td>${ext('https://cmux.com/compare/cmux-vs-conductor', 'A comparison page')}</td></tr>
           <tr><th scope="row"><a href="/guides/wisp-vs-multica.html">Multica</a></th><td>Issue board where agents are teammates</td><td>No App Store app or Android client yet</td><td>Your own machine, through its daemon</td><td>No guide found</td></tr>
-          <tr><th scope="row">wisp</th><td>Tasks you send off, a report every turn by default, and a long-lived crew</td><td>${WISP.phone}</td><td>Your computers, your other machines, or wisp Cloud</td><td><a href="/guides/moving-off-conductor.html">Migration guide</a>, carries on in a workspace with <b>In place</b></td></tr>
+          <tr><th scope="row">wisp</th><td>Tasks you send off, a report every turn by default, and a long-lived crew</td><td>${WISP.phone}</td><td>Your computers, your other machines, or wisp Cloud</td><td><a href="/guides/moving-off-conductor.html">Migration guide</a>, and <b>Bring in</b> makes its worktrees tasks</td></tr>
         </tbody>
       </table></div>
       ${READ_ON}
@@ -2146,7 +2146,7 @@ vercel --prod`)}
         <li><b>Auto picks the harness.</b> It chooses the harness, model and thinking level per task from what worked before, and shows you the pick before you send.</li>
         <li><b>Cloud needs no install.</b> Sign in at grid.trywisp.dev and you get your own wisp on a server, where the agents run with your laptop shut. You still bring your own agent plans.</li>
       </ul>
-      <p>wisp is behind on trust at install. There’s no native iPhone app, the desktop builds aren’t signed yet, and the community is far smaller than any of these six: it’s one owner and a crew. Bring in, which turns the worktrees Conductor left in a repo into tasks, is due in the next release. Today you open each one yourself with <a href="/guides/moving-off-conductor.html#in-progress">In place</a>.</p>
+      <p>wisp is behind on trust at install. There’s no native iPhone app, the desktop builds aren’t signed yet, and the community is far smaller than any of these six: it’s one owner and a crew. <a href="/guides/moving-off-conductor.html#in-progress">Bring in</a>, which turns the worktrees Conductor left in a repo into tasks, hasn’t been tried on a real Conductor install yet.</p>
     </section>
 `,
       faq: [
@@ -2560,7 +2560,7 @@ vercel --prod`)}
     <section>
       <h2 id="better">Where Paradev is better</h2>
       <ul class="doc-list">
-        <li><b>Leaving Conductor.</b> Separate guides for ${ext('https://docs.paradev.com/migrate-from-conductor', 'local')} and ${ext('https://docs.paradev.com/migrate-from-conductor-cloud', 'Cloud')}, with a right-click import of your worktrees that’s out today. wisp’s Bring in is due in the next release; until then you open each one with <a href="/guides/moving-off-conductor.html#in-progress">In place</a>.</li>
+        <li><b>Leaving Conductor.</b> Separate guides for ${ext('https://docs.paradev.com/migrate-from-conductor', 'local')} and ${ext('https://docs.paradev.com/migrate-from-conductor-cloud', 'Cloud')}, with a right-click import of your worktrees. wisp’s <a href="/guides/moving-off-conductor.html#in-progress">Bring in</a> does the same from New task, but it hasn’t been tried on a real Conductor install yet.</li>
         <li><b>iPhone and iPad.</b> A native app, on Pro. wisp has no native iPhone app.</li>
         <li><b>Design.</b> Click an element in its browser and the agent gets the DOM, computed styles, the React component and a screenshot. wisp’s <b>Pick element</b> adds its HTML and key styles as text, without a screenshot.</li>
         <li><b>Events.</b> Its automations start from more services than wisp’s triggers do.</li>
@@ -2589,7 +2589,7 @@ vercel --prod`)}
         ['Is Paradev the same as Superset?', 'Yes. Paradev is the name Superset goes by now.'],
         ['Does Paradev run on Windows?', 'Its FAQ says Windows is planned with no date, and that Linux is experimental and untested. wisp runs on macOS, Windows and Linux.'],
         ['Is the Paradev desktop app free?', 'Its README says the desktop app is free forever. Remote access, automations and mobile are on Pro, and cloud is on Team and above. wisp is free, and wisp Cloud is free during the preview.'],
-        ['Can I bring my Conductor worktrees into wisp?', 'Today, open each one with In place and the agent carries on with your uncommitted changes. Bring in, which does this for you, is due in the next release.'],
+        ['Can I bring my Conductor worktrees into wisp?', 'Yes. Add the repo in New task and press Bring in: each worktree becomes a task where it is, with its uncommitted changes, and your next message resumes its newest Claude chat. A folder it doesn’t offer opens with In place.'],
       ],
       related: ['conductor-alternatives', 'wisp-vs-orca', 'moving-off-conductor'],
     },
