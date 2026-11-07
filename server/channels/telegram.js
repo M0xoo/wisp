@@ -275,11 +275,10 @@ export class Telegram extends Channel {
     if (!p.prompt) return say(btw ? 'Type your question after /btw.' : 'What should it do? Say it after the options.');
     const asked = capMode(p.mode, cap, p.mode);
     if (asked.refused) return say(asked.refused);
-    try {
-      await say(await phone.run(sessionId, p, { name: 'Telegram', sender, cap, later, btw }));
-    } catch (err) {
-      await say(`Couldn’t send that: ${truncate(err.message, 300)}`);
-    }
+    // Only the follow-up itself: a reply that fails to reach Telegram mustn't say it wasn't sent, or
+    // it gets sent twice.
+    const line = await phone.run(sessionId, p, { name: 'Telegram', sender, cap, later, btw }).catch((err) => `Couldn’t send that: ${truncate(err.message, 300)}`);
+    await say(line);
   }
 
   // The first reply went out: a reply to it reaches the task, whenever that started.

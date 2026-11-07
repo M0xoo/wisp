@@ -66,7 +66,7 @@ before(async () => {
     let body = '';
     for await (const c of req) body += c;
     const u = new URL(req.url, 'http://x');
-    const json = (o) => (res.writeHead(200, { 'content-type': 'application/json' }), res.end(JSON.stringify(o)));
+    const json = (o) => (res.writeHead(200, { 'content-type': 'application/json', connection: 'close' }), res.end(JSON.stringify(o))); // no socket to reuse: this file isn't about keep-alive
     const method = u.pathname.split('/').pop();
     const b = body ? JSON.parse(body) : {};
     net.calls.push({ method, ...b });
@@ -76,6 +76,10 @@ before(async () => {
       return json({ ok: true, result: net.updates });
     }
     if (method === 'sendMessage') {
+      if (net.dropNext && b.reply_to_message_id === net.dropNext) {
+        net.dropNext = null;
+        return req.socket.destroy(); // Telegram never hears it, or its answer never comes back
+      }
       const message_id = ++net.msg;
       net.sent.push({ ...b, message_id });
       return json({ ok: true, result: { message_id } });
@@ -198,6 +202,27 @@ test('with on a follow-up moves the task to that model, as wisp_reply does', asy
   await settled(s.id);
   const e = reply(ack.message_id, 'with haiku');
   assert.match((await answerTo(e)).text, /What should it do/);
+});
+
+test('a reply that doesn’t reach Telegram never says the follow-up failed: it went, and a resend would run it twice', async () => {
+  const warn = console.warn;
+  const warned = [];
+  console.warn = (...a) => warned.push(a.join(' '));
+  try {
+    const ack = await answerTo(say(`in ${name}: first`));
+    const s = await startedBy(ack.message_id);
+    await settled(s.id);
+    const before = net.sent.length;
+    net.dropNext = ++mid;
+    reply(ack.message_id, 'one more thing', { message_id: net.dropNext });
+    await until(async () => (await session(s.id)).turns.length === 2);
+    await settled(s.id);
+    await until(() => warned.some((w) => w.includes('telegram')));
+    assert.equal(net.sent.slice(before).filter((m) => /Couldn’t send that/.test(m.text)).length, 0);
+  } finally {
+    console.warn = warn;
+    net.dropNext = null;
+  }
 });
 
 test('stop keeps queued follow-ups, held; status says so; the next message carries on', async () => {
