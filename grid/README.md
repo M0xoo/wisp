@@ -166,7 +166,9 @@ place that reads an event, so a shape that differs is one edit.
 
 Each secret is a value, a file (`…File`) or an env var (`GRID_X_CLIENT_SECRET`, `GRID_X_CONSUMER_SECRET`,
 `GRID_X_ACCESS_SECRET`, `GRID_X_BEARER_TOKEN`). `bot.id` is the bot's numeric id. Optional:
-`postsPerHour` (20, per person), `sendPerHour` (30, a box's replies), `threadDays` (7).
+`strangerSpendCents` (as `dailySpendCents`), `postsPerHour` (20, per person), `sendPerHour` (30, a box's
+replies), `piecesPerDay` (60 DM pieces, per box), `outboxRows` (50) and `outboxBytes` (256 KiB, per
+person), `threadDays` (7).
 
 What a person has to do, since an agent can't:
 
@@ -183,13 +185,33 @@ What a person has to do, since an agent can't:
    `post.reply.create` and `dm.received`. A failure is a log line, and the next start tries again.
 
 What it costs: 0.5¢ a mention, including strangers', 1¢ a reply, 1.5¢ a DM out and 1¢ a DM in, so about
-3¢ a task. Each is counted per UTC day in `x_spend`. Over `dailySpendCents` there are no replies, no DMs
-and no wakes until 00:00 UTC: one `x.cap` in `audit`, one line in the log, and admins see the day's
-figure on their account page. `"paused": true` and a restart is the kill switch. CRC keeps answering so
-X doesn't drop the webhook, events are counted, `stop` still unlinks, and nothing else happens.
+3¢ a task. Each is counted per UTC day in `x_spend`, and refunded when X refuses.
 
-A link isn't a sign-in. It lives in `x_links`, not `identities`, and X's tokens are read once and handed
-back. A result that can't go yet waits in `x_outbox`, scrubbed and in the clear, for as long as its
+- **`dailySpendCents`** is linked people's money. Past it there are no replies, no DMs and no wakes until
+  00:00 UTC, by itself: one `x.cap` in `audit`, one line in the log, and admins see the day's figure on
+  their account page.
+- **`strangerSpendCents`** is apart, so a flood of mentions can't spend what linked people's replies need.
+- **X bills whatever it delivers**, so two ceilings are hard: `strangerSpendCents`, and twice
+  `dailySpendCents`. At either the grid deletes its subscriptions (one `x.hard` in `audit`, and a log line
+  that says this): wait for 00:00 UTC or raise the ceiling, then restart the grid to restore them. Nothing
+  brings them back by itself.
+- **The real limit is X's prepaid credit, with auto-recharge off.** The counters are the grid's own
+  estimate of X's bill, and they can't see an event that never arrived or a price that changed.
+
+`"paused": true` and a restart is the kill switch. CRC keeps answering so X doesn't drop the webhook,
+events are counted, `stop` still unlinks, a DM still opens results, and a box's results wait in `x_outbox`.
+Nothing else happens.
+
+The CRC signs what it's given with the key events are signed with, so it answers only a token shaped
+`^[A-Za-z0-9+/=_-]{1,256}$`, which no JSON can match, and an event has to be a JSON object. **Check that
+shape against a real token in the spike:** the docs don't state one. A real token that doesn't fit is a
+400, and X would mark the webhook invalid: widen the pattern, never to anything that can hold a `{`.
+
+Tasks from X run on the box only. A project on another machine and crew members are refused with a DM in
+this version, and a name further in a post delegates nothing.
+
+A link isn't a sign-in. It lives in `x_links`, not `identities`. Its scopes are `users.read tweet.read`,
+and the access token is used once and revoked: nothing is kept. A result that can't go yet waits in `x_outbox`, scrubbed and in the clear, for as long as its
 thread lives: until the person's first DM, the next UTC day, or X's 429 is over.
 
 ### Sandboxes

@@ -221,13 +221,18 @@ for the rest
   own worktree, one fixed line answers in public, and the result comes by DM. A DM follows up the
   latest thread, and `stop` in any case unlinks at once and says so. A stranger gets silence and is
   counted. A stale post, a repeated event and a retried post run nothing and post nothing. Quoted text
-  is never read. Full auto, and `on laptop`, get a line by DM and start nothing. With X off on the box,
-  a DM says how to turn it on. Someone who never DMed gets the line that says so, and the result comes
-  after their first DM. A box can't name a recipient. Past the spend cap, or `paused`, nothing goes
-  out and nothing wakes. A spell can force X off and can't turn it on.
+  is never read, and a retweet or a post cut short doesn't run. Full auto, `on laptop`, a project on
+  another machine and crew get a line by DM and start nothing. With X off on the box, the grid wakes
+  nothing, posts nothing and a DM says how to turn it on. Someone who never DMed gets the line that
+  says so, and the result comes after their first DM, which isn't a prompt. A box can't name a
+  recipient, and has a daily budget. Past the spend cap, or `paused`, nothing goes out and nothing
+  wakes. Strangers can't spend linked people's money; past a hard ceiling the subscriptions go until
+  someone restarts the grid. `GET /_x/webhook?crc_token=<JSON>` is a 400. A spell can force X off and
+  can't turn it on.
 - **Against production:** only once a human has the bot account, credits and X's approval
   (`grid/README.md` → X), and when the owner deploys: one real mention and DM round trip on a throwaway
-  account. Tests can't show this: nobody has run a live event through it.
+  account, and check a real CRC token fits the shape in `grid/README.md`. Tests can't show this: nobody
+  has run a live event through it.
 
 ### GRID-24 · Caddy on-demand TLS and DNS
 *Manual*
