@@ -134,6 +134,11 @@ const MIGRATIONS = [
       CREATE TABLE IF NOT EXISTS x_day (user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, day TEXT NOT NULL, pieces INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, day));
       CREATE TABLE IF NOT EXISTS x_boxes (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE);`);
   },
+  // x_told: the last time the grid said a line of its own (grid/x.js DM) to a person, by its kind, so
+  // the same line goes to them at most once in its window.
+  `CREATE TABLE x_told (
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, kind TEXT NOT NULL, at INTEGER NOT NULL,
+     PRIMARY KEY (user_id, kind));`,
 ];
 
 export async function openDb(dataDir) {

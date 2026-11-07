@@ -167,7 +167,7 @@ place that reads an event, so a shape that differs is one edit.
 Each secret is a value, a file (`…File`) or an env var (`GRID_X_CLIENT_SECRET`, `GRID_X_CONSUMER_SECRET`,
 `GRID_X_ACCESS_SECRET`, `GRID_X_BEARER_TOKEN`). `bot.id` is the bot's numeric id. Optional:
 `strangerSpendCents` (as `dailySpendCents`), `postsPerHour` (20, per person), `sendPerHour` (30, a box's
-replies), `piecesPerDay` (60 DM pieces, per box), `outboxRows` (50) and `outboxBytes` (256 KiB, per
+replies), `piecesPerDay` (60 DM pieces, per box, the grid's own lines to that person included: each of those goes at most once an hour, and a reply refused for the day or a full outbox sends one line, at most every 4 hours, that the result is waiting in wisp), `outboxRows` (50) and `outboxBytes` (256 KiB, per
 person), `threadDays` (7).
 
 What a person has to do, since an agent can't:

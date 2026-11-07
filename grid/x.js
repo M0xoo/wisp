@@ -61,6 +61,7 @@ export const DM = Object.freeze({
   off: 'X is off on your wisp, so that didn’t run. Turn it on in Settings → Phone → X, then send it again.',
   truncated: 'That post was too long for me to read all of it, so it didn’t run. Send it again in fewer words.',
   stop: 'Unlinked: your posts no longer reach wisp, and nothing more comes here. Link again on your wisp account page.',
+  waiting: 'A result is waiting for you in wisp: there was more than I can send here today. Open your wisp to read it.',
 });
 
 export const COST = Object.freeze({ post: 5, dmIn: 10, reply: 10, dmOut: 15 }); // tenths of a cent
@@ -359,8 +360,21 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
     return w.n < opts.outboxRows && w.bytes + bytes <= opts.outboxBytes;
   };
 
-  const say = (userId, text) => {
-    if (!room(userId, text.length)) return;
+  const piecesToday = (userId) => db.get('SELECT pieces FROM x_day WHERE user_id = ? AND day = ?', userId, today())?.pieces || 0;
+  const usePieces = (userId, n) => db.run('INSERT INTO x_day (user_id, day, pieces) VALUES (?, ?, ?) ON CONFLICT(user_id, day) DO UPDATE SET pieces = pieces + excluded.pieces', userId, today(), n);
+  const TOLD_MS = { waiting: 4 * HOUR_MS }; // how long before a line may be said again: an hour, or this
+  const TOLD_MAX = 4 * HOUR_MS;
+
+  // The grid's own lines, by their DM key. They're pieces like a box's, and each goes to a person once
+  // in its window: a flood of posts gets one answer, not a flood. always: the line that says a result
+  // waits, which a full day or outbox is the reason for.
+  const say = (userId, kind, { always = false } = {}) => {
+    const text = DM[kind];
+    if (db.get('SELECT 1 FROM x_told WHERE user_id = ? AND kind = ? AND at > ?', userId, kind, Date.now() - (TOLD_MS[kind] || HOUR_MS))) return;
+    const pieces = chunks(text).length;
+    if (!always && (piecesToday(userId) + pieces > opts.piecesPerDay || !room(userId, text.length))) return;
+    db.run('INSERT INTO x_told (user_id, kind, at) VALUES (?, ?, ?) ON CONFLICT(user_id, kind) DO UPDATE SET at = excluded.at', userId, kind, Date.now());
+    usePieces(userId, pieces);
     queue(userId, null, text);
     pump(userId);
   };
@@ -408,8 +422,8 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
       if (r.tell && reserve(COST.reply)) publicReply(ev.post, 'limited');
       return;
     }
-    if (!boxOn(user.id)) return say(user.id, DM.off); // waking it to be told no costs a box's sleep
-    if (ev.truncated) return say(user.id, DM.truncated);
+    if (!boxOn(user.id)) return say(user.id, 'off'); // waking it to be told no costs a box's sleep
+    if (ev.truncated) return say(user.id, 'truncated');
     if (!reserve(COST.reply)) return; // no money for the one reply: nothing wakes either
     const follows = liveThread(user.id, ev.conversation);
     const held = hold(user, link, { id: ev.post, kind: 'post', text: ownWords(ev.text, bot.handle, ev.range).slice(0, TEXT_MAX), at: ev.at, thread: follows || ev.post, follow: !!follows, conversation: ev.conversation });
@@ -441,16 +455,16 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
     const waiting = db.get('SELECT 1 FROM x_outbox WHERE user_id = ? LIMIT 1', user.id);
     pump(user.id); // what waited for this
     // The DM that opens results is a hello, not a request: X makes people write first.
-    if (opened) return waiting ? undefined : say(user.id, DM.open);
+    if (opened) return waiting ? undefined : say(user.id, 'open');
     if (!fresh(ev.at) || !first(`d:${ev.dm}`)) return;
     const r = rate(link);
     if (!r.ok) {
-      if (r.tell) say(user.id, DM.limited);
+      if (r.tell) say(user.id, 'limited');
       return;
     }
     const thread = latestThread(user.id);
-    if (!thread) return say(user.id, DM.noTask);
-    if (!boxOn(user.id)) return say(user.id, DM.off);
+    if (!thread) return say(user.id, 'noTask');
+    if (!boxOn(user.id)) return say(user.id, 'off');
     hold(user, link, { id: ev.dm, kind: 'dm', text: ev.text.slice(0, TEXT_MAX), at: ev.at, thread, follow: true, conversation: thread });
   }
 
@@ -550,6 +564,7 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
     db.run('DELETE FROM x_sent WHERE at < ?', Date.now() - HOUR_MS);
     db.run('DELETE FROM x_rate WHERE at < ?', Date.now() - HOUR_MS);
     db.run('DELETE FROM x_day WHERE day < ?', today());
+    db.run('DELETE FROM x_told WHERE at < ?', Date.now() - TOLD_MAX);
     tend(); // a new UTC day listens again
     if (opts.paused || off) return;
     for (const r of db.all('SELECT DISTINCT o.user_id FROM x_outbox o JOIN x_links l ON l.user_id = o.user_id WHERE l.dm_open = 1')) pump(r.user_id);
@@ -703,11 +718,14 @@ export function createX({ db, cfg, inbox, accounts, log = () => {} }) {
       // Here as well as on the box: an agent with the Box secret doesn't go through the box's code.
       const clean = scrubOut(b.text).text;
       const pieces = chunks(clean).length;
-      const used = db.get('SELECT pieces FROM x_day WHERE user_id = ? AND day = ?', user.id, today())?.pieces || 0;
-      if (used + pieces > opts.piecesPerDay) throw refused('This box has sent all it may today.', 429);
-      if (!room(user.id, clean.length)) throw refused('Too much is waiting to go.', 429);
+      // Refused, the result stays in wisp: they're told so, once in four hours.
+      const over = piecesToday(user.id) + pieces > opts.piecesPerDay ? 'This box has sent all it may today.' : !room(user.id, clean.length) ? 'Too much is waiting to go.' : '';
+      if (over) {
+        say(user.id, 'waiting', { always: true });
+        throw refused(over, 429);
+      }
       db.run('INSERT INTO x_sent (user_id, at) VALUES (?, ?)', user.id, Date.now());
-      db.run('INSERT INTO x_day (user_id, day, pieces) VALUES (?, ?, ?) ON CONFLICT(user_id, day) DO UPDATE SET pieces = pieces + excluded.pieces', user.id, today(), pieces);
+      usePieces(user.id, pieces);
       queue(user.id, String(b.thread), clean);
       const held = opts.paused || !link.dm_open || spent() + COST.dmOut > cap;
       pump(user.id);

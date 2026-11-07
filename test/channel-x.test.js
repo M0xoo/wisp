@@ -1304,7 +1304,7 @@ test('a 429 waits for X’s x-rate-limit-reset, and Retry-After where that’s w
 
 test('one box can’t drain the day: a budget in pieces, and caps on what waits', { timeout: 60_000 }, async () => {
   const fake = await startFakeX();
-  const env = await boot({ api: fake, xCfg: { ...CREDS, piecesPerDay: 3, outboxRows: 2 } });
+  const env = await boot({ api: fake, xCfg: { ...CREDS, piecesPerDay: 4, outboxRows: 2 } }); // 4: one, two, the line that a result waits, three
   try {
     const p = await env.person('dee');
     await linkX(env, p, '333');
@@ -1313,13 +1313,67 @@ test('one box can’t drain the day: a budget in pieces, and caps on what waits'
     assert.equal((await replyAs(p, { thread: 't1', text: 'two' }, env)).status, 200);
     const full = await replyAs(p, { thread: 't1', text: 'three' }, env);
     assert.equal(full.status, 429, 'two rows wait already');
-    assert.equal(env.grid.db.get('SELECT count(*) n FROM x_outbox').n, 2);
+    assert.equal(env.grid.db.get('SELECT count(*) n FROM x_outbox').n, 3, 'and the line that says a result waits in wisp');
     await fake.dm({ sender: '333', text: 'hi' });
     await until(() => env.grid.db.get('SELECT count(*) n FROM x_outbox').n === 0, { what: 'sent' });
+    assert.deepEqual(fake.dms.map((d) => d.text), ['one', 'two', xMod.DM.waiting]);
     assert.equal((await replyAs(p, { thread: 't1', text: 'three' }, env)).status, 200);
     const over = await replyAs(p, { thread: 't1', text: 'four' }, env);
     assert.equal(over.status, 429, 'the day’s pieces are used');
     assert.match(over.text, /today/);
+  } finally {
+    await env.grid.close();
+    await fake.close();
+    x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
+  }
+});
+
+test('the grid’s own DMs count against piecesPerDay, and the same line goes to one person once an hour', { timeout: 60_000 }, async () => {
+  const fake = await startFakeX();
+  const env = await boot({ api: fake, xCfg: { ...CREDS, piecesPerDay: 3 } });
+  try {
+    const p = await env.person('dee');
+    await linkX(env, p, '333');
+    await fake.dm({ sender: '333', text: 'hi' });
+    await until(() => fake.dms.length === 1, { what: 'the open line' });
+    await fake.dm({ sender: '333', text: 'anything?' });
+    await until(() => fake.dms.length === 2, { what: 'no task yet' });
+    assert.equal(fake.dms[1].text, xMod.DM.noTask);
+    await fake.dm({ sender: '333', text: 'and now?' });
+    await sleep(150);
+    assert.equal(fake.dms.length, 2, 'said once this hour, with a piece left for it');
+    assert.equal(env.grid.db.get('SELECT pieces FROM x_day WHERE user_id = ?', p.user.id).pieces, 2, 'the grid’s lines are pieces too');
+    // A different line, but the day's pieces are used.
+    env.grid.db.run('UPDATE x_day SET pieces = 3 WHERE user_id = ?', p.user.id);
+    env.grid.db.run('INSERT INTO x_threads (user_id, thread, conversation, at) VALUES (?, ?, ?, ?)', p.user.id, 't1', 't1', Date.now());
+    env.grid.x.setBox(p.user.id, false);
+    await fake.dm({ sender: '333', text: 'follow up' });
+    await sleep(150);
+    assert.equal(fake.dms.length, 2, 'past piecesPerDay the grid says nothing either');
+  } finally {
+    await env.grid.close();
+    await fake.close();
+    x.target = { port: g.port, host: `wisp.localhost:${g.port}`, path: WEBHOOK };
+  }
+});
+
+test('a reply refused for the day’s pieces leaves one DM: a result is waiting in wisp', { timeout: 60_000 }, async () => {
+  const fake = await startFakeX();
+  const env = await boot({ api: fake, xCfg: { ...CREDS, piecesPerDay: 2 } });
+  try {
+    const p = await env.person('dee');
+    await linkX(env, p, '333');
+    await fake.dm({ sender: '333', text: 'hi' });
+    await until(() => fake.dms.length === 1, { what: 'the open line' });
+    env.grid.db.run('INSERT INTO x_threads (user_id, thread, conversation, at) VALUES (?, ?, ?, ?)', p.user.id, 't1', 't1', Date.now());
+    assert.equal((await replyAs(p, { thread: 't1', text: 'one' }, env)).status, 200);
+    await until(() => fake.dms.length === 2, { what: 'one' });
+    assert.equal((await replyAs(p, { thread: 't1', text: 'two' }, env)).status, 429);
+    await until(() => fake.dms.length === 3, { what: 'the line that says it waits' });
+    assert.equal(fake.dms[2].text, xMod.DM.waiting);
+    assert.equal((await replyAs(p, { thread: 't1', text: 'three' }, env)).status, 429);
+    await sleep(150);
+    assert.equal(fake.dms.length, 3, 'once, not once a refusal');
   } finally {
     await env.grid.close();
     await fake.close();
