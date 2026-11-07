@@ -2035,7 +2035,7 @@ vercel --prod`)}
           <tr><th scope="row"><a href="/guides/wisp-vs-t3-code.html">T3 Code</a></th><td>A control surface for agent harnesses, free</td><td>iOS and Android apps, as a remote</td><td>Your desktop, a server or a VPS</td><td>No guide found</td></tr>
           <tr><th scope="row"><a href="/guides/wisp-vs-cmux.html">cmux</a></th><td>Native macOS terminal for agents</td><td>iOS beta on TestFlight, paid</td><td>Your Mac. Cloud machines are paid, in early access</td><td>${ext('https://cmux.com/compare/cmux-vs-conductor', 'A comparison page')}</td></tr>
           <tr><th scope="row"><a href="/guides/wisp-vs-multica.html">Multica</a></th><td>Issue board where agents are teammates</td><td>No App Store app or Android client yet</td><td>Your own machine, through its daemon</td><td>No guide found</td></tr>
-          <tr><th scope="row">wisp</th><td>Tasks you send off and read back as reports, plus a long-lived crew</td><td>${WISP.phone}</td><td>Your computers, your other machines, or wisp Cloud</td><td><a href="/guides/moving-off-conductor.html">Migration guide</a>, carries on in a workspace with <b>In place</b></td></tr>
+          <tr><th scope="row">wisp</th><td>Tasks you send off, a report every turn by default, and a long-lived crew</td><td>${WISP.phone}</td><td>Your computers, your other machines, or wisp Cloud</td><td><a href="/guides/moving-off-conductor.html">Migration guide</a>, carries on in a workspace with <b>In place</b></td></tr>
         </tbody>
       </table></div>
       ${READ_ON}
@@ -2057,7 +2057,7 @@ vercel --prod`)}
       <h2 id="wisp">Where wisp fits</h2>
       <p>wisp asks you to work differently from Conductor, so it’s worth saying how:</p>
       <ul class="doc-list">
-        <li><b>You read what the agents did.</b> Each task runs in its own worktree and ends with a one-screen report: what changed, the diff, the test run. You don’t sit with the transcript, and a question waits in <i>Needs you</i>.</li>
+        <li><b>You read what the agents did.</b> Each task runs in its own worktree, and by default every turn ends with a one-screen report: what changed, the diff, the test run. You don’t sit with the transcript, and a question waits in <i>Needs you</i>.</li>
         <li><b>The crew keeps working.</b> Crew members are named agents with a role, a schedule and a notebook. They check CI, read new PRs and report when something changed.</li>
         <li><b>Auto picks the harness.</b> It chooses the harness, model and thinking level per task from what worked before, and shows you the pick before you send.</li>
         <li><b>Cloud needs no install.</b> Sign in at grid.trywisp.dev and you get your own wisp on a server, where the agents run with your laptop shut. You still bring your own agent plans.</li>
@@ -2080,9 +2080,9 @@ vercel --prod`)}
       cloud: true,
       title: 'wisp vs Orca: where each is better, and which to pick',
       h1: 'wisp vs Orca',
-      card: 'Orca gives you a fleet of agents in a desktop app, with a browser, terminals and diffs. wisp sends tasks off and hands you reports. Where each is better, from their own docs.',
+      card: 'Orca gives you a fleet of agents in a desktop app, with a browser, terminals and diffs. wisp sends tasks off and hands you a report every turn. Where each is better, from their own docs.',
       description: 'wisp vs Orca compared from their own docs: agents, phones, signed builds, hosting and browser tools. Where Orca is better, where wisp is different, and which one to pick.',
-      lede: `Orca is the bigger project and the better pick if you want to run a fleet of agents from a desktop app, with a browser and diffs beside each one. wisp suits the opposite habit: send tasks off, read a report of what each agent did, let a named crew keep working, and use wisp Cloud with nothing to install.`,
+      lede: `Orca is the bigger project and the better pick if you want to run a fleet of agents from a desktop app, with a browser and diffs beside each one. wisp suits the opposite habit: send tasks off, read the report that ends every turn by default, let a named crew keep working, and use wisp Cloud with nothing to install.`,
       shot: ['report', 'A wisp report with the diff and the test run, read after the agent finished'],
       body: `
     <section>
@@ -2093,7 +2093,7 @@ vercel --prod`)}
         ['Desktop', `macOS, Windows, Linux. Mac builds are ${ext('https://www.onorca.dev/docs/install', 'signed and notarized')}`, WISP.desktop],
         ['Phone', `${ext('https://www.onorca.dev/docs/mobile', 'iOS app and Android APK')}, in beta: a read-mostly companion paired to a desktop`, WISP.phone],
         ['Hosting', `${ext('https://www.onorca.dev/docs/ways-to-run', 'No managed hosting')}: remote modes use machines and cloud accounts you control`, WISP.hosted],
-        ['Click an element, send it to the agent', `Yes, ${ext('https://www.onorca.dev/docs/browser/design-mode', 'Design Mode')}`, 'Not yet'],
+        ['Click an element, send it to the agent', `Yes, ${ext('https://www.onorca.dev/docs/browser/design-mode', 'Design Mode')}`, 'Yes, <b>Pick element</b> in Preview: a line naming it goes in the reply box'],
         ['Comment on a diff line', `${ext('https://www.onorca.dev/docs/review/annotate-ai-diff', 'Yes')}, sent back as a batch`, 'Yes, in <b>Changes</b>'],
         ['Licence', 'MIT', WISP.licence],
       ])}
@@ -2103,7 +2103,7 @@ vercel --prod`)}
     <section>
       <h2 id="different">Where wisp is different</h2>
       <ul class="doc-list">
-        <li><b>You read instead of watching.</b> Orca puts each agent’s chat or terminal, diff and browser in front of you. wisp runs each task headless in its own worktree and ends it with a one-screen report: what changed, the diff, the tests. Questions wait in <i>Needs you</i>.</li>
+        <li><b>You read instead of watching.</b> Orca puts each agent’s chat or terminal, diff and browser in front of you. wisp runs each task headless in its own worktree, and by default ends every turn with a one-screen report: what changed, the diff, the tests. Questions wait in <i>Needs you</i>.</li>
         <li><b>A crew that stays.</b> wisp’s crew are named agents with a role, a schedule, a notebook and their own skills. You can @mention them in any prompt. Orca has ${ext('https://www.onorca.dev/docs/cli/automations', 'scheduled automations')}, and its docs mark its ${ext('https://www.onorca.dev/docs/cli/orchestration', 'orchestration panel')} as experimental and temporarily unavailable.</li>
         <li><b>Auto picks the harness.</b> For each task wisp chooses the harness, model and thinking level from what worked before, shows the pick before you send, and learns from merges and follow-ups.</li>
         <li><b>Nothing to install.</b> Sign in to wisp Cloud and the agents run on a server with your laptop shut. You bring your own agent plans. It’s a preview on one small server, so it suits one person better than a team’s heavy builds.</li>
@@ -2115,7 +2115,7 @@ vercel --prod`)}
       <ul class="doc-list">
         <li><b>Installing with confidence.</b> Orca’s Mac builds are signed and notarized, and its ${ext('https://github.com/stablyai/orca', 'Windows builds are signed')} too. wisp’s aren’t signed yet, so on a Mac the easy way in is a curl one-liner or <i>Open Anyway</i>.</li>
         <li><b>iPhone.</b> Orca has an iOS app. wisp has a Home Screen web app, on wisp Cloud only.</li>
-        <li><b>Browser work.</b> Every worktree gets ${ext('https://www.onorca.dev/docs/browser/overview', 'a real Chromium browser')}, and Design Mode sends a clicked element to the agent. wisp’s Preview can’t do that yet.</li>
+        <li><b>Browser work.</b> Every worktree gets ${ext('https://www.onorca.dev/docs/browser/overview', 'a real Chromium browser')}, and Design Mode sends a clicked element with its computed CSS and a screenshot. wisp’s <b>Pick element</b> adds a line naming it.</li>
         <li><b>Desktop dictation.</b> Orca ${ext('https://www.onorca.dev/docs/settings', 'has it')}. wisp’s is on Android only.</li>
         <li><b>Reach.</b> Far more agents, more git hosts, and a far larger community than wisp, which is one owner and a crew.</li>
         <li><b>Leaving Conductor.</b> Orca’s ${ext('https://www.onorca.dev/docs/migrate-from-conductor', 'migration guide')} opens workspaces in place, reads <code>conductor.json</code> and covers Cloud.</li>
@@ -2126,7 +2126,7 @@ vercel --prod`)}
       <h2 id="pick">Pick Orca if</h2>
       <ul class="doc-list">
         <li>You like being in the room while agents work, with terminals, diffs and a browser in one window.</li>
-        <li>You do a lot of UI work and want to click an element and hand it to the agent.</li>
+        <li>You do a lot of UI work and want a clicked element to reach the agent with its styles and a screenshot.</li>
         <li>You need signed builds, an iOS app, or an agent wisp doesn’t run.</li>
       </ul>
       <h2 id="pick-wisp">Pick wisp if</h2>
@@ -2152,9 +2152,9 @@ vercel --prod`)}
       cloud: true,
       title: 'wisp vs T3 Code: where each is better, and which to pick',
       h1: 'wisp vs T3 Code',
-      card: 'T3 Code is a free control surface for agent harnesses, with phone apps in both stores. wisp sends tasks off and hands you reports. Where each is better, from their own docs.',
+      card: 'T3 Code is a free control surface for agent harnesses, with phone apps in both stores. wisp sends tasks off and hands you a report every turn. Where each is better, from their own docs.',
       description: 'wisp vs T3 Code compared from their own docs: phone apps, where agents run, running one prompt on several models, and price. Where T3 Code is better, and which one to pick.',
-      lede: `T3 Code is the better pick if you want a native app on your phone that drives agents on a computer you leave on. wisp is for handing work off: tasks come back as reports, a named crew keeps working on a schedule, Auto picks the harness, and wisp Cloud runs the agents with nothing to install.`,
+      lede: `T3 Code is the better pick if you want a native app on your phone that drives agents on a computer you leave on. wisp is for handing work off: every turn ends in a report by default, a named crew keeps working on a schedule, Auto picks the harness, and wisp Cloud runs the agents with nothing to install.`,
       shot: ['picker', 'wisp’s Auto: the harness, model and thinking level it picked for this task, shown before you send'],
       body: `
     <section>
@@ -2166,6 +2166,7 @@ vercel --prod`)}
         ['Phone', `iOS and Android apps. ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/faq.md', '“The phone is a remote”')}: your computer does the work and stays on`, WISP.phone],
         ['Where agents run', 'Your desktop, a server or a VPS', WISP.hosted],
         ['One prompt on several models', `${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/thread-sidebar.md', 'Yes')}: Shift-click models, each gets its own thread and worktree`, 'Yes, <b>Compare</b>: a run per harness, side by side, keep the better one'],
+        ['Click an element, send it to the agent', `Yes, in its desktop browser: ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/composer.md#context-in-your-message', 'picked elements and preview annotations')} land in the composer`, 'Yes, <b>Pick element</b> in Preview: a line naming it goes in the reply box'],
         ['Price', `Free: “${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/faq.md', 'no way to pay us')}”. More machines on its relay come with T3 Chat plans`, 'Free. wisp Cloud is free during the preview'],
         ['Licence', 'MIT', WISP.licence],
       ])}
@@ -2175,7 +2176,7 @@ vercel --prod`)}
     <section>
       <h2 id="different">Where wisp is different</h2>
       <ul class="doc-list">
-        <li><b>The report.</b> Each wisp task ends with a one-screen report of what changed, with the diff and the tests, so you read a result instead of a thread.</li>
+        <li><b>The report.</b> By default every wisp turn ends with a one-screen report of what changed, with the diff and the tests. T3 Code has ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/html-renders.md', 'Visual replies')}: ask, and the agent answers with a page.</li>
         <li><b>The crew.</b> Named agents with a role, a schedule, a notebook and skills check in and report when something changed. T3 Code has ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/project-settings.md', 'scheduled tasks')}; wisp’s crew keep a notebook from job to job.</li>
         <li><b>Auto.</b> wisp picks the harness, model and thinking level per task from what worked before, and shows the pick before you send.</li>
         <li><b>A hosted wisp.</b> T3 Code’s phone needs your computer on. wisp Cloud runs the agents on a server with every lid shut, and you sign in with nothing to install. It’s a preview on one small server.</li>
@@ -2186,6 +2187,7 @@ vercel --prod`)}
       <h2 id="better">Where T3 Code is better</h2>
       <ul class="doc-list">
         <li><b>Phone apps.</b> It has apps for iOS and Android. wisp has no native iPhone app, and its Android app is a prototype you build from the repo.</li>
+        <li><b>Picking elements.</b> ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/composer.md#context-in-your-message', 'Picked elements and preview annotations')} reach the agent with your note and a screenshot. wisp’s <b>Pick element</b> adds a line naming it.</li>
         <li><b>Voice.</b> ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/voice-input.md', 'Dictate into the composer')}. wisp’s dictation is on Android only.</li>
         <li><b>Git hosts.</b> ${ext('https://github.com/pingdotgg/t3code/blob/main/docs/user/source-control.md', 'GitHub, GitLab, Forgejo, Gitea, Bitbucket and Azure DevOps')}. wisp’s Ship it goes through the GitHub CLI.</li>
         <li><b>PR watching.</b> It checks a PR every two minutes and wakes the agent when a check fails. wisp gets there with a <b>CI failed</b> trigger you set up.</li>
@@ -2203,7 +2205,7 @@ vercel --prod`)}
       </ul>
       <h2 id="pick-wisp">Pick wisp if</h2>
       <ul class="doc-list">
-        <li>You want finished work to read, rather than threads to follow.</li>
+        <li>You want a report every turn by default, without asking for one.</li>
         <li>You want agents that keep their own memory and run on a schedule.</li>
         <li>You don’t have a computer that stays on, and want the agents hosted.</li>
       </ul>
@@ -2224,9 +2226,9 @@ vercel --prod`)}
       cloud: true,
       title: 'wisp vs Paseo: where each is better, and which to pick',
       h1: 'wisp vs Paseo',
-      card: 'Paseo is one interface for your agents on desktop, mobile, web and CLI, on your own machines. wisp sends tasks off and hands you reports. Where each is better, from their own docs.',
+      card: 'Paseo is one interface for your agents on desktop, mobile, web and CLI, on your own machines. wisp sends tasks off and hands you a report every turn. Where each is better, from their own docs.',
       description: 'wisp vs Paseo compared from their own docs: phone apps, agents, self-hosting, telemetry and voice. Where Paseo is better, where wisp is different, and which one to pick.',
-      lede: `Paseo is the better pick if you want the same full app on your phone and desktop, driving agents on your own machines, with no analytics sent. wisp is built around reading results: tasks come back as reports, a named crew keeps working, Auto picks the harness, and wisp Cloud needs no install.`,
+      lede: `Paseo is the better pick if you want the same full app on your phone and desktop, driving agents on your own machines, with no analytics sent. wisp is built around reading results: every turn ends in a report by default, a named crew keeps working, Auto picks the harness, and wisp Cloud needs no install.`,
       shot: ['app', 'The wisp task list with tasks that need you and a finished report open beside it'],
       body: `
     <section>
@@ -2238,6 +2240,7 @@ vercel --prod`)}
         ['Phone', `iOS and Android. “${ext('https://github.com/getpaseo/paseo', 'The mobile app is the full app')}”`, WISP.phone],
         ['Where agents run', `${ext('https://github.com/getpaseo/paseo', 'Self-hosted')}: your own machines. ${ext('https://paseo.sh/hub', 'Hub')} is a separate service, free to self-host or paid per seat`, WISP.hosted],
         ['Same task on two agents', `${ext('https://paseo.sh/docs/parallel-development.md', 'Yes')}, compare their results`, 'Yes, <b>Compare</b>'],
+        ['Click an element, send it to the agent', `Yes, ${ext('https://paseo.sh/changelog#release-0.1.104', 'Annotate element')} in its desktop browser`, 'Yes, <b>Pick element</b> in Preview: a line naming it goes in the reply box'],
         ['Usage data', `${ext('https://paseo.sh/privacy', 'None sent')}: no analytics, telemetry or crash reports`, '<a href="/privacy.html">Anonymous usage stats</a>, on until you turn them off'],
         ['Licence', `${ext('https://github.com/getpaseo/paseo/blob/main/LICENSE', 'Apache 2.0')}, third-party parts under their own`, WISP.licence],
       ])}
@@ -2247,7 +2250,7 @@ vercel --prod`)}
     <section>
       <h2 id="different">Where wisp is different</h2>
       <ul class="doc-list">
-        <li><b>The report.</b> Each wisp task ends with a one-screen report of what changed, with the diff and the tests. You read that, and the transcript stays out of the way.</li>
+        <li><b>The report.</b> By default every wisp turn ends with a one-screen report of what changed, with the diff and the tests. You read that, and the transcript stays out of the way.</li>
         <li><b>The crew.</b> wisp’s crew are named agents with a notebook they keep from job to job. Paseo’s ${ext('https://paseo.sh/docs/schedules.md', 'schedules and heartbeats')} run agents on a timer, and its ${ext('https://paseo.sh/docs/agent-profiles.md', 'agent profiles')} are saved settings.</li>
         <li><b>Auto.</b> wisp picks the harness, model and thinking level per task from what worked before, and shows you the pick before you send.</li>
         <li><b>Nothing to install.</b> wisp Cloud is your own wisp on a hosted server, with the agents running there. It’s a preview on one small server.</li>
@@ -2259,6 +2262,7 @@ vercel --prod`)}
       <ul class="doc-list">
         <li><b>Phones.</b> iOS and Android apps. wisp has no native iPhone app, and its Android app is a prototype you build from the repo.</li>
         <li><b>Privacy by default.</b> Paseo’s policy says it sends no analytics. wisp sends anonymous usage stats unless you switch them off in Settings or set <code>WISP_TELEMETRY=0</code>.</li>
+        <li><b>Annotating elements.</b> ${ext('https://paseo.sh/changelog#release-0.1.104', 'Annotate element')} sends the element with your note and a screenshot. wisp’s <b>Pick element</b> adds a line naming it.</li>
         <li><b>Voice.</b> ${ext('https://paseo.sh/docs/voice.md', 'Local-first dictation and a voice mode')}. wisp’s dictation is on Android only.</li>
         <li><b>Agents.</b> A longer list, through ACP.</li>
         <li><b>Install.</b> Its ${ext('https://github.com/getpaseo/paseo/blob/main/packages/desktop/electron-builder.yml', 'desktop build config')} notarizes Mac builds. wisp’s builds aren’t signed yet.</li>
@@ -2275,7 +2279,7 @@ vercel --prod`)}
       </ul>
       <h2 id="pick-wisp">Pick wisp if</h2>
       <ul class="doc-list">
-        <li>You want a short report per task instead of a live view.</li>
+        <li>You want a short report every turn, by default, instead of a live view.</li>
         <li>You want named agents with memory that keep working for you.</li>
         <li>You want a hosted option with nothing to install.</li>
       </ul>
@@ -2295,9 +2299,9 @@ vercel --prod`)}
       cloud: true,
       title: 'wisp vs cmux: where each is better, and which to pick',
       h1: 'wisp vs cmux',
-      card: 'cmux is a native macOS terminal for coding agents. wisp is a task list that hands you reports. They solve different problems: here is where each is better, from their own docs.',
-      description: 'wisp vs cmux compared from their own docs: a native macOS terminal next to a task list with reports. Platforms, worktrees, phones, cloud and licence, and which one to pick.',
-      lede: `cmux is the better pick if you want to stay in terminals: it’s a native macOS terminal built on Ghostty, with notifications for your agents. wisp is a level up from the terminal: each task gets its own worktree and comes back as a report, a crew keeps working, Auto picks the harness, and wisp Cloud needs no install.`,
+      card: 'cmux is a native macOS terminal for coding agents. wisp is a task list that hands you a report every turn. They solve different problems: here is where each is better, from their own docs.',
+      description: 'wisp vs cmux compared from their own docs: a native macOS terminal next to a task list with a report every turn. Platforms, worktrees, phones, cloud and licence, and which one to pick.',
+      lede: `cmux is the better pick if you want to stay in terminals: it’s a native macOS terminal built on Ghostty, with notifications for your agents. wisp is a level up from the terminal: each task gets its own worktree, every turn ends in a report by default, a crew keeps working, Auto picks the harness, and wisp Cloud needs no install.`,
       shot: ['app', 'The wisp task list: agents sorted into Needs you, Working and Done, with a report open'],
       body: `
     <section>
@@ -2317,7 +2321,7 @@ vercel --prod`)}
     <section>
       <h2 id="different">Where wisp is different</h2>
       <ul class="doc-list">
-        <li><b>You don’t supervise.</b> cmux says it ${ext('https://cmux.com/compare/cmux-vs-conductor', 'can replace the terminal supervision layer')}, so you still watch terminals, in a better window. wisp runs agents headless and ends each task with a one-screen report: what changed, the diff, the tests.</li>
+        <li><b>You don’t supervise.</b> cmux says it ${ext('https://cmux.com/compare/cmux-vs-conductor', 'can replace the terminal supervision layer')}, so you still watch terminals, in a better window. wisp runs agents headless and by default ends every turn with a one-screen report: what changed, the diff, the tests.</li>
         <li><b>A task, start to PR.</b> Each wisp task has its own worktree and branch, and <b>Ship it</b> commits, pushes and opens the PR.</li>
         <li><b>The crew.</b> Named agents with a role, a schedule and a notebook check in and report when something changed.</li>
         <li><b>Auto.</b> wisp picks the harness, model and thinking level per task from what worked before.</li>
@@ -2347,7 +2351,7 @@ vercel --prod`)}
       <h2 id="pick-wisp">Pick wisp if</h2>
       <ul class="doc-list">
         <li>You’re on Windows or Linux, or don’t want to manage panes.</li>
-        <li>You want a worktree, a report and a PR for every task without setting it up.</li>
+        <li>You want a worktree and a PR for every task, and a report every turn, without setting it up.</li>
         <li>You want agents working while you’re away from every terminal.</li>
       </ul>
     </section>
@@ -2368,14 +2372,14 @@ vercel --prod`)}
       h1: 'wisp vs Multica',
       card: 'Multica is an issue board where agents are teammates. wisp is one person’s task list and crew. The closest ideas on this list, from opposite ends. From their own docs.',
       description: 'wisp vs Multica compared from their own docs: an issue board for teams next to one person’s crew. Agents, hosting, phones and licence, and which one to pick.',
-      lede: `Multica is the better pick for a team that wants humans and agents on one issue board, with squads and shared workspaces. wisp is built for one person: tasks come back as reports you read, a crew of named agents keeps working, Auto picks the harness, and wisp Cloud runs them on a server with nothing to install.`,
+      lede: `Multica is the better pick for a team that wants humans and agents on one issue board, with squads and shared workspaces. wisp is built for one person: every turn ends in a report you read by default, a crew of named agents keeps working, Auto picks the harness, and wisp Cloud runs them on a server with nothing to install.`,
       shot: ['org', 'wisp’s crew as an org chart: who hands work to whom'],
       body: `
     <section>
       <h2 id="table">Side by side</h2>
       ${vsTable('Multica', [
         ['In its own words', `“${ext('https://github.com/multica-ai/multica', 'a source-available workspace')} where you assign work to AI coding agents the way you’d assign it to a teammate”`, 'Launch agents in the background and read what they hand back'],
-        ['Long-lived agents', `${ext('https://multica.ai/docs/agents', 'Named agents')} on the board, and ${ext('https://multica.ai/docs/squads', 'squads')} with a leader`, 'Crew: named agents with a role, a schedule, a notebook and an org chart'],
+        ['Long-lived agents', `${ext('https://multica.ai/docs/agents', 'Named agents')} on the board, and ${ext('https://multica.ai/docs/squads', 'squads')} with a leader. ${ext('https://github.com/multica-ai/multica/blob/main/CLI_AND_DAEMON.md#hermes-agent-memory', 'Agent memory is for Hermes agents only')}, per machine; ${ext('https://multica.ai/docs/daemon-runtimes#codex-memory', 'Codex’s native memory')} is an opt-in`, 'Crew: named agents with a role, a schedule, a notebook and an org chart'],
         ['Scheduled work', `${ext('https://multica.ai/docs/autopilots', 'Autopilots')}, on a schedule or from a webhook`, 'Crew schedules and triggers'],
         ['Made for', 'A team sharing a workspace', 'One person. Each person has their own wisp; a team can run its own Grid'],
         ['Agents', `${ext('https://github.com/multica-ai/multica', 'More than 20')} coding tools`, WISP.agents],
@@ -2390,7 +2394,7 @@ vercel --prod`)}
     <section>
       <h2 id="different">Where wisp is different</h2>
       <ul class="doc-list">
-        <li><b>You read a report.</b> Multica shows an execution log. A wisp task ends with a one-screen report of what changed, with the diff and the tests, built to read in a minute.</li>
+        <li><b>You read a report.</b> Multica shows an execution log. By default every wisp turn ends with a one-screen report of what changed, with the diff and the tests, built to read in a minute.</li>
         <li><b>The crew is yours.</b> Crew members answer to one person. They keep a notebook, have their own skills and take jobs by @mention, with no board to keep up.</li>
         <li><b>Auto.</b> wisp picks the harness, model and thinking level per task from what worked before, and shows the pick before you send.</li>
         <li><b>Agents on a server today.</b> wisp Cloud runs them with nothing to install and your laptop shut. It’s a preview on one small server.</li>
@@ -2419,7 +2423,7 @@ vercel --prod`)}
       <h2 id="pick-wisp">Pick wisp if</h2>
       <ul class="doc-list">
         <li>You work alone or in a small group, and want agents working for you personally.</li>
-        <li>You want a report per task, not a board to keep up.</li>
+        <li>You want a report every turn, not a board to keep up.</li>
         <li>You want agents hosted today, or a plain MIT licence.</li>
       </ul>
     </section>
@@ -2438,9 +2442,9 @@ vercel --prod`)}
       cloud: true,
       title: 'wisp vs Paradev: where each is better, and which to pick',
       h1: 'wisp vs Paradev',
-      card: 'Paradev, formerly Superset, is a Mac app for running CLI agents in parallel, with paid mobile and automations. wisp sends tasks off and hands you reports. From their own docs.',
+      card: 'Paradev, formerly Superset, is a Mac app for running CLI agents in parallel, with paid mobile and automations. wisp sends tasks off and hands you a report every turn. From their own docs.',
       description: 'wisp vs Paradev (formerly Superset) compared from their own docs: platforms, phones, plans, automations and Conductor import. Where Paradev is better, and which one to pick.',
-      lede: `Paradev, formerly Superset, is the better pick if you’re on a Mac, want a guided move off Conductor, and will pay for mobile, automations or a managed cloud. wisp runs on Windows and Linux too, and is built around reading results: tasks end in reports, a crew keeps working, Auto picks the harness, and wisp Cloud needs no install.`,
+      lede: `Paradev, formerly Superset, is the better pick if you’re on a Mac, want a guided move off Conductor, and will pay for mobile, automations or a managed cloud. wisp runs on Windows and Linux too, and is built around reading results: every turn ends in a report by default, a crew keeps working, Auto picks the harness, and wisp Cloud needs no install.`,
       shot: ['report', 'A wisp report: the summary, the diff and the test run for one finished task'],
       body: `
     <section>
@@ -2452,7 +2456,7 @@ vercel --prod`)}
         ['Phone', `${ext('https://docs.paradev.com/mobile', 'iPhone and iPad')} with iOS 26 or later and Pro. Android isn’t available yet`, WISP.phone],
         ['Automations', `${ext('https://docs.paradev.com/automations', 'A schedule, or events')} from GitHub, Slack, Linear, Sentry and more, on Pro`, 'Schedules, CI failed, Issue labelled and webhooks, free'],
         ['Hosted', `${ext('https://docs.paradev.com/cloud-workspaces', 'Cloud sandboxes')} on Team or Ultra, or ${ext('https://docs.paradev.com/bring-your-own-cloud', 'your own Linux server')}`, WISP.hosted],
-        ['Click an element, send it to the agent', `Yes, ${ext('https://docs.paradev.com/browser', 'Design')}`, 'Not yet'],
+        ['Click an element, send it to the agent', `Yes, ${ext('https://docs.paradev.com/browser', 'Design')}`, 'Yes, <b>Pick element</b> in Preview: a line naming it goes in the reply box'],
         ['Price', `${ext('https://paradev.com/pricing', 'Free for local work')}. Paid plans add remote access, automations, mobile and cloud`, 'Free. wisp Cloud is free during the preview'],
         ['Licence', 'MIT', WISP.licence],
       ])}
@@ -2462,7 +2466,7 @@ vercel --prod`)}
     <section>
       <h2 id="different">Where wisp is different</h2>
       <ul class="doc-list">
-        <li><b>You read a report.</b> Each task runs headless in its own worktree and ends with a one-screen report: what changed, the diff, the tests. Questions wait in <i>Needs you</i>.</li>
+        <li><b>You read a report.</b> Each task runs headless in its own worktree, and by default every turn ends with a one-screen report: what changed, the diff, the tests. Paradev has ${ext('https://docs.paradev.com/pages', 'Pages')}: an agent publishes a report when you ask, or when you accept its offer. Questions wait in <i>Needs you</i>.</li>
         <li><b>The crew.</b> Named agents with a role, a schedule and a notebook keep working between your tasks, and you @mention them from any prompt.</li>
         <li><b>Auto.</b> wisp picks the harness, model and thinking level per task from what worked before, and shows the pick before you send.</li>
         <li><b>Every platform, no plan.</b> wisp runs on macOS, Windows and Linux. Automations cost nothing, and neither does reaching your computer from a phone, on wisp Cloud’s free preview or your own Grid. wisp Cloud is a preview on one small server, so don’t compare it with a metered cloud for a team.</li>
@@ -2474,7 +2478,7 @@ vercel --prod`)}
       <ul class="doc-list">
         <li><b>Leaving Conductor.</b> Separate guides for ${ext('https://docs.paradev.com/migrate-from-conductor', 'local')} and ${ext('https://docs.paradev.com/migrate-from-conductor-cloud', 'Cloud')}, with a right-click import of your worktrees that’s out today. wisp’s Bring in is due in the next release; until then you open each one with <a href="/guides/moving-off-conductor.html#in-progress">In place</a>.</li>
         <li><b>iPhone and iPad.</b> A native app, on Pro. wisp has no native iPhone app.</li>
-        <li><b>Design.</b> Click an element in its browser and the agent gets the DOM, computed styles and the React component. wisp can’t do that yet.</li>
+        <li><b>Design.</b> Click an element in its browser and the agent gets the DOM, computed styles, the React component and a screenshot. wisp’s <b>Pick element</b> adds a line naming it.</li>
         <li><b>Events.</b> Its automations start from more services than wisp’s triggers do.</li>
         <li><b>A cloud for teams.</b> Plans with metered hours per seat. wisp Cloud is one small server, and team work on your own server means running a Grid.</li>
         <li><b>Install.</b> Its ${ext('https://github.com/ParadevAI/Paradev/blob/main/apps/desktop/electron-builder.ts', 'build config')} notarizes Mac builds. wisp’s builds aren’t signed yet.</li>
@@ -2492,7 +2496,7 @@ vercel --prod`)}
       <h2 id="pick-wisp">Pick wisp if</h2>
       <ul class="doc-list">
         <li>You’re on Windows or Linux, or use an Android phone.</li>
-        <li>You want reports to read and a crew that keeps working.</li>
+        <li>You want a report every turn, by default, and a crew that keeps working.</li>
         <li>You want remote access, automations and a hosted preview at no cost.</li>
       </ul>
     </section>
