@@ -105,7 +105,9 @@ narrow browser's under the media query (the reply box's mode button is icon-only
 - The app starts on the list, never inside a task it had open.
 - Sharing to wisp from Android's share sheet (`features/share-in.js`, `Shared.java`) is the exception: it opens
   New task, from the first paint, with it in the box and attached, without the keyboard, so Send is
-  in view. Nothing starts by itself. With no computer open the list says it's waiting.
+  in view. Nothing starts by itself, and nothing leaves the phone before Send (its files are chips
+  that upload then). *Shared from outside wisp* stays above it until it's sent: any site can post the
+  Home Screen app's form too, and neither the worker nor the page can tell. With no computer open the list says it's waiting.
 - Name the computer you're on with `HERE` / `here` (`state.js`), never a literal *This computer*: in
   the app it's the computer's name (*Studio*).
 - Hide desktop-only actions with `MOBILE` (*Open project in editor*, the layout switch, keyboard

@@ -111,7 +111,7 @@ export async function checkBuild() {
   toast('wisp was updated on this computer', { action: { label: 'Reload', run: reload }, timeout: 15_000 });
 }
 
-async function signInAgain() {
+export async function signInAgain() {
   await Promise.all((await navigator.serviceWorker.getRegistrations()).map((x) => x.unregister())).catch(() => {});
   await caches.delete(SHELL).catch(() => {});
   location.reload();

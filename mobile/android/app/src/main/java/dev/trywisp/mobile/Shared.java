@@ -248,7 +248,7 @@ final class Shared {
         return "shared-" + (i + 1);
     }
 
-    /** What the page reads first: the words, and the files by position. */
+    /** What the page reads first: the words, and the files by position, with sizes to check against. */
     String json() {
         JSONObject o = new JSONObject();
         JSONArray files = new JSONArray();
@@ -256,13 +256,13 @@ final class Shared {
             o.put("title", title);
             o.put("text", text);
             o.put("left", left);
-            for (Item it : items) files.put(new JSONObject().put("name", it.name).put("type", it.type));
+            for (Item it : items) files.put(new JSONObject().put("name", it.name).put("type", it.type).put("size", it.file.length()));
             o.put("files", files);
         } catch (JSONException ignored) {}
         return o.toString();
     }
 
-    /** A piece of file i from offset, as base64; empty at the end. */
+    /** A piece of file i from offset, as base64; empty at the end, or if it can't be read. */
     String chunk(int i, long offset) {
         if (i < 0 || i >= items.size()) return "";
         try (RandomAccessFile f = new RandomAccessFile(items.get(i).file, "r")) {

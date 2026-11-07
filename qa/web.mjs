@@ -836,7 +836,17 @@ try {
     };
     const painted = (q) => q.waitForSelector('#launcher:not(.skel)', { state: 'attached' }); // behind the list, stacked
     const boxOf = (q) => q.evaluate(() => document.querySelector('#prompt').value);
-    const chips = (q) => q.locator('#launcher .tray .att.ready');
+    const chips = (q) => q.locator('#launcher .tray .att.held');
+    const note = (q) => q.locator('#launcher .l-shared:not([hidden])');
+    const worker = async (q) => {
+      await q.evaluate(async () => {
+        await navigator.serviceWorker.register('/sw.js');
+        await navigator.serviceWorker.ready;
+      });
+      await q.waitForFunction(() => navigator.serviceWorker.controller);
+      await q.reload();
+      await painted(q);
+    };
     const before = (await api(w.url, '/api/sessions')).json.length;
     for (const [label, viewport, colorScheme] of [
       ['1440-light', { width: 1440, height: 900 }, 'light'],
@@ -869,18 +879,18 @@ try {
     }
     const q = await page({ viewport: { width: 390, height: 844 } });
     await q.goto(w.url);
-    await q.evaluate(async () => {
-      await navigator.serviceWorker.register('/sw.js');
-      await navigator.serviceWorker.ready;
+    const uploads = [];
+    q.on('request', (r) => {
+      if (r.url().includes('/api/uploads')) uploads.push(r.url());
     });
-    await q.waitForFunction(() => navigator.serviceWorker.controller);
-    await q.reload();
-    await painted(q);
+    await worker(q);
     await share(q, { text: 'Only words' });
     ok((await boxOf(q)) === 'Only words', 'a text-only share');
+    await note(q).waitFor();
     await q.reload();
     await painted(q);
     ok((await boxOf(q)) === 'Only words', 'a reload adds nothing');
+    await note(q).waitFor({ state: 'attached' }); // behind the list, stacked
     await q.evaluate(() => localStorage.removeItem('wisp.drafts'));
     await q.reload();
     await painted(q);
@@ -898,8 +908,50 @@ try {
     ok((await chips(q).count()) === 10, 'ten files at most');
     await q.waitForFunction(() => /Left out 1 file/.test(document.querySelector('#toasts').textContent));
     ok((await api(w.url, '/api/sessions')).json.length === before, 'nothing started by itself');
+    ok(uploads.length === 0, `nothing uploaded before Send: ${uploads.length}`);
+    await q.evaluate(() => localStorage.removeItem('wisp.drafts'));
+    await q.reload();
+    await painted(q);
+    await share(q, { text: 'Only the picture goes' }, [shared(), { name: 'tool.zip', mimeType: 'application/zip', buffer: Buffer.from('PK') }]);
+    await chips(q).first().waitFor();
+    ok((await chips(q).count()) === 1, 'a type the manifest refuses is left out');
+    await q.waitForFunction(() => /Left out 1 file/.test(document.querySelector('#toasts').textContent));
+    await q.click('#launch');
+    await q.waitForFunction(() => !document.querySelector('#launcher .tray .att'));
+    ok(uploads.length === 1, `Send uploads the file, once: ${uploads.length}`);
+    await q.waitForFunction(() => document.querySelector('#launcher .l-shared')?.hidden !== false);
     q.clean();
     await q.context().close();
+    // Signed out: the share stays unread, ?shared= with it, and lands once the server takes us.
+    const out = await page({ viewport: { width: 390, height: 844 } });
+    await out.goto(w.url);
+    await worker(out);
+    await out.route('**/api/health', (r) => r.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"Sign in again."}' }));
+    await out.evaluate(() => {
+      const form = Object.assign(document.createElement('form'), { method: 'post', action: '/share', enctype: 'multipart/form-data' });
+      form.append(Object.assign(document.createElement('input'), { type: 'hidden', name: 'text', value: 'Kept through sign-in' }));
+      document.body.append(form);
+      form.submit();
+    });
+    await out.waitForURL(/shared=/);
+    await out.waitForFunction(() => /Sign in to wisp again/.test(document.querySelector('#toasts')?.textContent || ''));
+    ok(/shared=/.test(out.url()), 'signed out, the address keeps the share');
+    await out.unroute('**/api/health');
+    await out.reload();
+    await painted(out);
+    await out.waitForFunction(() => document.querySelector('#prompt').value === 'Kept through sign-in' && !location.search);
+    await out.context().close();
+    // From another site, without a click: it lands the same way, marked, and nothing's sent.
+    const hit = await page({ viewport: { width: 390, height: 844 } });
+    await hit.goto(w.url);
+    await worker(hit);
+    const elsewhere = new URL(w.url).hostname === 'localhost' ? `http://127.0.0.1:${PORT}` : `http://localhost:${PORT}`;
+    await hit.route(`${elsewhere}/qa-elsewhere`, (r) => r.fulfill({ contentType: 'text/html', body: `<form id=f method=post action="${new URL(w.url).origin}/share" enctype=multipart/form-data><input type=hidden name=text value="From a site"></form><script>f.submit()</script>` }));
+    await hit.goto(`${elsewhere}/qa-elsewhere`);
+    await hit.waitForFunction(() => document.querySelector('#prompt')?.value === 'From a site' && !location.search);
+    await note(hit).waitFor();
+    ok((await api(w.url, '/api/sessions')).json.length === before + 1, 'a form from another site started nothing');
+    await hit.context().close();
     // No worker: the server's answer, and the toast that says what to do.
     const bare = await page({ viewport: { width: 390, height: 844 } });
     await bare.goto(w.url);

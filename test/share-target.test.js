@@ -66,8 +66,8 @@ test('caps: 10 files, 20 MB, in order, and a small file after a huge one still g
   assert.deepEqual(r.kept.map((f) => f.name), ['a', 'b']);
   assert.equal(r.left, 2);
   assert.equal(fits([{ name: 'exact', size: 20 * MB }]).left, 0);
-  assert.equal(leftOut(1), 'Left out 1 file: a share takes 10 files and 20 MB at most.');
-  assert.equal(leftOut(2), 'Left out 2 files: a share takes 10 files and 20 MB at most.');
+  assert.equal(leftOut(1), 'Left out 1 file: a share takes pictures, text and PDFs, 10 files and 20 MB at most.');
+  assert.equal(leftOut(2), 'Left out 2 files: a share takes pictures, text and PDFs, 10 files and 20 MB at most.');
 });
 
 test('what goes in the box: title, text, address, without the repeats apps send', () => {
@@ -160,6 +160,15 @@ test('the worker leaves every other POST to the network, and a share too if it l
   assert.equal(fetchEvent(new Request('http://wisp.test/shared', { method: 'POST', body: '{}' })), null);
   const lost = worker({ form: false });
   assert.equal(lost.fetchEvent(post(formOf({ text: 'x' }))), null, 'the server answers it instead');
+});
+
+test('a form from anywhere keeps only what the manifest takes: the rest is left out, not uploaded later', async () => {
+  const store = fakeCaches();
+  const ok = [file('a.png', 1, 'image/png'), file('b.txt', 1, 'text/plain'), file('c.pdf', 1, 'application/pdf')];
+  const bad = [file('tool.exe', 1, 'application/x-msdownload'), file('d.zip', 1, 'application/zip'), file('v.mp4', 1, 'video/mp4'), file('no-type', 1, '')];
+  const got = await take(await keep(post(formOf({}, [bad[0], ok[0], bad[1], ok[1], bad[2], ok[2], bad[3]])), store), store);
+  assert.deepEqual(got.files.map((f) => f.name), ['a.png', 'b.txt', 'c.pdf']);
+  assert.equal(got.left, 4);
 });
 
 // --- what the server says when no worker took it ----------------------------------------------

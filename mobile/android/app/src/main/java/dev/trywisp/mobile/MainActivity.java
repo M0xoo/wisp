@@ -333,7 +333,9 @@ public class MainActivity extends BridgeActivity {
             Shared s = shared;
             if (s == null || !s.ready || !s.token.claim(token)) return "";
             shared = null;
+            Shared before = taking; // still being read: its next piece comes back empty, and it says so
             taking = s;
+            if (before != null) before.delete();
             return s.json();
         }
 

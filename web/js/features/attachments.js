@@ -1,4 +1,5 @@
-// Files attached to a prompt: pasted, dropped or picked, uploaded at once, sent as ids.
+// Files attached to a prompt: pasted, dropped or picked, uploaded at once, sent as ids. Files shared
+// in from outside stay on the phone until Send (hold).
 
 import { esc } from '../md.js';
 import { upload } from '../core/api.js';
@@ -77,26 +78,63 @@ export function attachTray({ onChange } = {}) {
   node.addEventListener('click', (e) => {
     const x = e.target.closest('.att-x');
     if (x) {
-      items.splice(Number(x.closest('.att').dataset.i), 1);
+      const [gone] = items.splice(Number(x.closest('.att').dataset.i), 1);
+      gone.gone = true;
       render();
     }
   });
-  // when: a promise the uploads wait for (the chips show at once).
-  const add = (files, { when } = {}) => {
+  const add = (files) => {
     for (const f of files) {
       const it = { name: f.name || 'pasted', size: f.size, mime: f.type || '', status: 'uploading', thumb: f.type.startsWith('image/') ? URL.createObjectURL(f) : null };
       it.paint = render;
       items.push(it);
-      it.promise = Promise.resolve(when)
-        .then(() => upload(f, { name: it.name, type: it.mime }))
+      it.promise = upload(f, { name: it.name, type: it.mime })
         .then((j) => ((it.id = j.id), (it.status = 'ready'), it.paint()))
         .catch((err) => ((it.status = 'failed'), it.paint(), toast(`Upload failed: ${esc(err.message)}`, { tone: 'bad' })));
     }
     render();
   };
+  // Shared in: a chip now, from { name, size, type, file } (a File, or the promise of one still being
+  // read), and no upload until Send. when: what an upload waits for first (the server coming up).
+  const hold = (list, { when } = {}) => {
+    for (const { name, size, type = '', file } of list) {
+      const it = { name: name || 'shared', size, mime: type, status: 'held', thumb: null, source: Promise.resolve(file), when, paint: render };
+      items.push(it);
+      it.source.then(
+        (f) => {
+          if (f.type.startsWith('image/')) ((it.thumb = URL.createObjectURL(f)), it.paint());
+        },
+        () => ((it.status = 'failed'), it.paint()),
+      );
+    }
+    render();
+  };
+  const send = async (it) => {
+    it.status = 'uploading';
+    it.paint();
+    try {
+      const f = await it.source;
+      await it.when?.();
+      it.id = (await upload(f, { name: it.name, type: it.mime })).id;
+      it.status = 'ready';
+    } catch (err) {
+      it.status = 'failed';
+      toast(`Upload failed: ${esc(err.message)}`, { tone: 'bad' });
+    }
+    it.paint();
+  };
+  // Everything in the tray settled, held files sent. Taken first: a repaint moves the items on.
+  const settled = async () => {
+    const list = [...items];
+    for (const it of list) if (it.source && !it.id && it.status !== 'uploading') it.promise = send(it);
+    await Promise.allSettled(list.map((i) => i.promise));
+    return list.filter((i) => !i.gone);
+  };
+  const idsOf = (list) => list.filter((i) => i.id).map((i) => i.id);
   return {
     node,
     add,
+    hold,
     pick: (e) => {
       const choose = (k) => {
         const input = inputs[k];
@@ -110,8 +148,12 @@ export function attachTray({ onChange } = {}) {
       else choose('files');
     },
     async ids() {
-      await Promise.allSettled(items.map((i) => i.promise));
-      return items.filter((i) => i.id).map((i) => i.id);
+      return idsOf(await settled());
+    },
+    // ids(), or null if a held file didn't make it: Send stops, its chip says so.
+    async whole() {
+      const list = await settled();
+      return list.some((i) => i.source && !i.id) ? null : idsOf(list);
     },
     clear() {
       items.length = 0;

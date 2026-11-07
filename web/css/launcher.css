@@ -141,6 +141,10 @@ body.wisp-mobile .l-bring-n .i { display: none; }
   font-size: 14px; line-height: 1.55; color: var(--ink); min-height: 64px;
 }
 .launcher textarea::placeholder, .composer textarea::placeholder { color: var(--faint); }
+/* What came in from outside (share-in.js): one quiet line above its files, until it's sent. */
+.l-shared { display: flex; align-items: center; gap: 6px; margin: 0; padding: 2px 4px 6px; font-size: 12.5px; color: var(--muted); }
+.l-shared[hidden] { display: none; }
+.l-shared .i { flex: none; width: 14px; height: 14px; }
 /* docked: pinned under the top bar once scrolled past, one line until focused (or a menu of it is open) */
 .launcher.docked {
   position: fixed; top: 60px; left: 0; right: 0; margin-inline: auto; z-index: 15; width: min(752px, calc(100% - 48px));
@@ -148,7 +152,7 @@ body.wisp-mobile .l-bring-n .i { display: none; }
 }
 .launcher.docked:is(:focus-within, :has(.open)) { box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-2); }
 .launcher.docked:not(:focus-within):not(:has(.open)) { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: text; overflow: hidden; }
-.launcher.docked:not(:focus-within):not(:has(.open)) :is(.l-in, .lp-chip:not(.on), .tray, .l-bar, .l-recipes) { display: none; }
+.launcher.docked:not(:focus-within):not(:has(.open)) :is(.l-in, .lp-chip:not(.on), .tray, .l-shared, .l-bar, .l-recipes) { display: none; }
 .launcher.docked:not(:focus-within):not(:has(.open)) .l-projects { flex: none; flex-wrap: nowrap; padding: 0; }
 .launcher.docked:not(:focus-within):not(:has(.open)) textarea {
   flex: 1; min-width: 0; min-height: 0; height: 30px !important; padding: 4px; font-size: 14px; white-space: pre; overflow: hidden; cursor: text;

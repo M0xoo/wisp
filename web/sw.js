@@ -12,6 +12,7 @@
 // waits for the install before it loads its modules (index.html's boot script).
 // A share from the phone's share sheet (the manifest's share_target) is the one POST it answers:
 // the form goes in a cache of its own and the page reads it (js/share-form.js, features/share-in.js).
+// Any site's form can land here too: what's kept only ever waits for the person to press Send.
 
 const CACHE = 'wisp-shell';
 // Not worth losing the worker over: without it a share reaches the server, which says what to do.

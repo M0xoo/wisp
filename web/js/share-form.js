@@ -31,10 +31,16 @@
     return lines.join('\n\n');
   }
 
-  const leftOut = (n) => `Left out ${n} file${n === 1 ? '' : 's'}: a share takes ${MAX_FILES} files and ${MAX_BYTES / 1024 / 1024} MB at most.`;
+  const accepted = (f) => FILE_TYPES.some((t) => (t.endsWith('/*') ? f.type.startsWith(t.slice(0, -1)) : f.type === t));
+
+  const leftOut = (n) => `Left out ${n} file${n === 1 ? '' : 's'}: a share takes pictures, text and PDFs, ${MAX_FILES} files and ${MAX_BYTES / 1024 / 1024} MB at most.`;
   const keyOf = (id) => `/shared/${id}`;
 
   // The worker: the form, capped, under a random id. One Response holds it all, files included.
+  // Any site can post this form too, without a click, and the worker can't tell that from the share
+  // sheet: it sees Origin but no Sec-Fetch-*, and a page with no-referrer sends Origin: null. So
+  // nothing kept here acts on its own: the page shows it as from outside and sends nothing until
+  // Send (features/share-in.js). The types are the manifest's, which only the share sheet honours.
   async function keep(request, store = caches, now = Date.now()) {
     const form = await request.formData();
     const out = new FormData();
@@ -43,7 +49,9 @@
       if (typeof v === 'string' && v) out.set(k, v);
     }
     // A share with no files still sends the field, empty.
-    const { kept, left } = fits(form.getAll('files').filter((f) => typeof f !== 'string' && f.size));
+    const files = form.getAll('files').filter((f) => typeof f !== 'string' && f.size);
+    const { kept } = fits(files.filter(accepted));
+    const left = files.length - kept.length;
     for (const f of kept) out.append('files', f, f.name);
     out.set('left', String(left));
     const cache = await store.open(CACHE);
@@ -68,5 +76,5 @@
     return { title: field('title'), text: field('text'), url: field('url'), files: form.getAll('files'), left: Number(field('left')) || 0 };
   }
 
-  globalThis.wispShareForm = { MAX_FILES, MAX_BYTES, FILE_TYPES, CACHE, fits, promptOf, leftOut, keep, take };
+  globalThis.wispShareForm = { MAX_FILES, MAX_BYTES, FILE_TYPES, CACHE, accepted, fits, promptOf, leftOut, keep, take };
 })();
