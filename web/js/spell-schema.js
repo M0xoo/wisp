@@ -483,9 +483,9 @@ export const PARTS = {
   // Settings → Agents: a harness's accounts (each with its ⋯ menu) and Add another account.
   'settings.accounts': '.sx-accts',
   // Settings → Connectors: your MCP servers, each row, and the servers found in the harnesses' own configs.
-  'settings.connectors': '.cx-box',
-  'connectors.row': '.cx-row',
-  'connectors.import': '.cx-found',
+  'settings.connectors': '.cn-box',
+  'connectors.row': '.cn-row',
+  'connectors.import': '.cn-found',
   // Settings → Usage: Plan budget, each account's 5-hour and weekly windows, Ask near the limit and Wait for the reset.
   'settings.budget': '.sx-budget',
   // …its Automations stop at row, and Where it went: the tasks that used most of an account's longest window.

@@ -66,19 +66,19 @@ export async function signIn(c) {
 
 function statusHtml(c) {
   if (signing.has(c.id) && Date.now() - signing.get(c.id) > SIGNING_MS) signing.delete(c.id);
-  if (signing.has(c.id)) return '<span class="cx-status muted"><span class="orb tiny"></span>Signing in…</span>';
-  if (c.test?.auth && !c.testing) return `<span class="cx-status"><button class="primary sm" data-act="signin">${icon('lock')}Sign in</button></span>`;
-  if (c.testing) return '<span class="cx-status muted"><span class="orb tiny"></span>Checking…</span>';
-  if (!c.test) return '<span class="cx-status muted">Not checked</span>';
-  if (c.test.ok) return `<span class="cx-status ok"><i class="dot ok"></i>${c.test.count} tool${c.test.count === 1 ? '' : 's'}</span>`;
-  return `<span class="cx-status bad" title="${esc(c.test.error)}"><i class="dot bad"></i><span>${esc(c.test.error)}</span></span>`;
+  if (signing.has(c.id)) return '<span class="cn-status muted"><span class="orb tiny"></span>Signing in…</span>';
+  if (c.test?.auth && !c.testing) return `<span class="cn-status"><button class="primary sm" data-act="signin">${icon('lock')}Sign in</button></span>`;
+  if (c.testing) return '<span class="cn-status muted"><span class="orb tiny"></span>Checking…</span>';
+  if (!c.test) return '<span class="cn-status muted">Not checked</span>';
+  if (c.test.ok) return `<span class="cn-status ok"><i class="dot ok"></i>${c.test.count} tool${c.test.count === 1 ? '' : 's'}</span>`;
+  return `<span class="cn-status bad" title="${esc(c.test.error)}"><i class="dot bad"></i><span>${esc(c.test.error)}</span></span>`;
 }
 
 function rowHtml(c) {
   const what = c.transport === 'local' ? `Local · <code>${esc(c.line || commandLine(c))}</code>` : `Remote · <code>${esc(host(c.url))}</code>${c.signedIn ? ' · signed in' : ''}`;
-  const own = c.own?.length ? `<small class="cx-own">${esc(list(c.own.map(agentName)))} ${c.own.length === 1 ? 'uses its' : 'use their'} own ${esc(c.name)}</small>` : '';
-  return `<div class="sx-row cx-row${c.enabled ? '' : ' off'}" data-id="${esc(c.id)}">
-    <span class="cx-ico">${icon('plug')}</span>
+  const own = c.own?.length ? `<small class="cn-own">${esc(list(c.own.map(agentName)))} ${c.own.length === 1 ? 'uses its' : 'use their'} own ${esc(c.name)}</small>` : '';
+  return `<div class="sx-row cn-row${c.enabled ? '' : ' off'}" data-id="${esc(c.id)}">
+    <span class="cn-ico">${icon('plug')}</span>
     <div class="sx-text"><b>${esc(c.name)}</b><small>${what}</small>${own}</div>
     <div class="sx-ctl">${statusHtml(c)}<button class="switch" data-act="toggle" role="switch" aria-checked="${c.enabled}" aria-label="${c.enabled ? 'Turn off' : 'Turn on'} ${esc(c.name)}" title="On / off"></button><button class="icon-btn" data-act="edit" title="Edit" aria-label="Edit ${esc(c.name)}">${icon('pen')}</button></div>
   </div>`;
@@ -90,19 +90,19 @@ export function connectorsPane(box, host) {
     const data = last;
     if (!data) {
       // Loading: rows the shape of the real ones.
-      box.innerHTML = `<div class="sx-group cx-list">${'<div class="sx-row cx-row ph"><span class="cx-ico"></span><div class="sx-text"><b></b><small></small></div></div>'.repeat(2)}</div>`;
+      box.innerHTML = `<div class="sx-group cn-list">${'<div class="sx-row cn-row ph"><span class="cn-ico"></span><div class="sx-text"><b></b><small></small></div></div>'.repeat(2)}</div>`;
       return;
     }
     const found = data.found || [];
     const sources = [...new Set(found.flatMap((f) => f.from))];
     const reach = list((data.reach || []).map(agentName));
     box.innerHTML = `
-      ${found.length ? `<div class="sx-group cx-found"><div class="sx-row"><span class="cx-ico">${icon('download')}</span><div class="sx-text"><b>${found.length} connector${found.length === 1 ? '' : 's'} found in ${esc(list(sources))}</b><small>${esc(found.map((f) => f.name).join(', '))}</small></div><div class="sx-ctl"><button class="ghost sm" data-act="dismiss">Not now</button><button class="primary sm" data-act="review">Review</button></div></div></div>` : ''}
+      ${found.length ? `<div class="sx-group cn-found"><div class="sx-row"><span class="cn-ico">${icon('download')}</span><div class="sx-text"><b>${found.length} connector${found.length === 1 ? '' : 's'} found in ${esc(list(sources))}</b><small>${esc(found.map((f) => f.name).join(', '))}</small></div><div class="sx-ctl"><button class="ghost sm" data-act="dismiss">Not now</button><button class="primary sm" data-act="review">Review</button></div></div></div>` : ''}
       <div class="sx-head"><div><b>Your connectors</b><small>Tools like GitHub, a database or your docs, for the agent of every task</small></div><button class="ghost sm" data-act="add">${icon('plus')}Add connector</button></div>
-      <div class="sx-group cx-list">${
+      <div class="sx-group cn-list">${
         data.connectors.length
           ? data.connectors.map(rowHtml).join('')
-          : `<div class="sx-row cx-empty"><div class="sx-text"><b>None yet</b><small>Add an MCP server, or start from one of these</small></div><div class="sx-ctl">${EXAMPLES.map((x, i) => `<button class="chip-tog" data-example="${i}">${esc(x.label)}</button>`).join('')}</div></div>`
+          : `<div class="sx-row cn-empty"><div class="sx-text"><b>None yet</b><small>Add an MCP server, or start from one of these</small></div><div class="sx-ctl">${EXAMPLES.map((x, i) => `<button class="chip-tog" data-example="${i}">${esc(x.label)}</button>`).join('')}</div></div>`
       }</div>
       <p class="hint">They reach ${esc(reach)}, in Edits and Full auto; Plan mode runs without them. Cursor and Antigravity only read their own MCP settings.</p>`;
   };
@@ -178,7 +178,7 @@ function parsePasted(text) {
 
 function pairRow(kind, p = {}) {
   const saved = p.set && !p.value;
-  return `<div class="cx-pair" data-kind="${kind}">
+  return `<div class="cn-pair" data-kind="${kind}">
     <input class="input mono" data-f="key" value="${esc(p.key || '')}" placeholder="${kind === 'env' ? 'API_KEY' : 'Authorization'}" spellcheck="false" autocomplete="off" aria-label="${kind === 'env' ? 'Env var name' : 'Header name'}">
     <input class="input mono" data-f="value" type="password" value="${esc(p.value || '')}" placeholder="${saved ? 'Saved · type to replace' : esc(p.placeholder || 'Value')}" spellcheck="false" autocomplete="new-password" aria-label="Value">
     <button type="button" class="icon-btn" data-act="unpair" title="Remove" aria-label="Remove ${kind === 'env' ? 'env var' : 'header'}">${icon('x')}</button>
@@ -194,28 +194,28 @@ export function openEditor(host, { item, example, draft } = {}) {
     env: item?.env || [],
     headers: item?.headers || example?.headers || [],
   };
-  const node = el(`<div class="modal cx-edit" role="dialog" aria-label="${item ? `Edit ${esc(item.name)}` : 'New connector'}">
+  const node = el(`<div class="modal cn-edit" role="dialog" aria-label="${item ? `Edit ${esc(item.name)}` : 'New connector'}">
       <header><h2>${item ? esc(item.name) : 'New connector'}</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       <form class="ce-form" novalidate>
-        <span class="pk-seg cx-kind" role="tablist"><button type="button" data-t="local" role="tab">Local</button><button type="button" data-t="remote" role="tab">Remote</button></span>
+        <span class="pk-seg cn-kind" role="tablist"><button type="button" data-t="local" role="tab">Local</button><button type="button" data-t="remote" role="tab">Remote</button></span>
         <label class="ce-stack"><span>Name <small>how agents see its tools: lowercase, digits and _</small></span>
           <input class="input mono" name="name" maxlength="40" spellcheck="false" autocomplete="off" placeholder="github"></label>
         <label class="ce-stack" data-for="local"><span>Command <small>the line you’d run in a terminal. Pasting a config’s mcpServers JSON fills the form</small></span>
           <input class="input mono" name="command" spellcheck="false" autocomplete="off" placeholder="npx -y @modelcontextprotocol/server-filesystem ~/notes"></label>
         <label class="ce-stack" data-for="remote"><span>URL <small>its Streamable HTTP address, or an older one ending in /sse. Pasting JSON works here too</small></span>
           <input class="input mono" name="url" spellcheck="false" autocomplete="off" placeholder="https://mcp.example.com/mcp"></label>
-        <div class="ce-stack" data-for="local"><span>Env vars <small>kept as secrets on this computer</small></span><div class="cx-pairs" data-kind="env"></div><button type="button" class="mem-add" data-act="pair" data-kind="env">${icon('plus')}Add env var</button></div>
-        <div class="ce-stack" data-for="remote"><span>Account <small>for a server you sign in to, like PostHog or Linear</small></span><div class="cx-acct">${
+        <div class="ce-stack" data-for="local"><span>Env vars <small>kept as secrets on this computer</small></span><div class="cn-pairs" data-kind="env"></div><button type="button" class="mem-add" data-act="pair" data-kind="env">${icon('plus')}Add env var</button></div>
+        <div class="ce-stack" data-for="remote"><span>Account <small>for a server you sign in to, like PostHog or Linear</small></span><div class="cn-acct">${
           item?.signedIn
-            ? `<span class="cx-acct-text">${icon('check')}Signed in at <b>${esc(item.signedIn.host)}</b></span><button type="button" class="ghost sm" data-act="signout">Sign out</button>`
+            ? `<span class="cn-acct-text">${icon('check')}Signed in at <b>${esc(item.signedIn.host)}</b></span><button type="button" class="ghost sm" data-act="signout">Sign out</button>`
             : `<button type="button" class="ghost sm" data-act="${item ? 'signin' : 'addsignin'}">${icon('lock')}${item ? 'Sign in with the browser' : 'Add and sign in'}</button><small>or give it an API key as a header</small>`
         }</div></div>
-        <div class="ce-stack" data-for="remote"><span>Headers <small>kept as secrets on this computer</small></span><div class="cx-pairs" data-kind="headers"></div><button type="button" class="mem-add" data-act="pair" data-kind="headers">${icon('plus')}Add header</button></div>
-        <p class="cx-result" aria-live="polite"></p>
+        <div class="ce-stack" data-for="remote"><span>Headers <small>kept as secrets on this computer</small></span><div class="cn-pairs" data-kind="headers"></div><button type="button" class="mem-add" data-act="pair" data-kind="headers">${icon('plus')}Add header</button></div>
+        <p class="cn-result" aria-live="polite"></p>
         <footer class="ce-foot">
           ${item ? `<button type="button" class="ghost sm danger" data-act="drop">${icon('trash')}Delete connector</button>` : ''}
           <span class="grow"></span>
-          ${item ? `<button type="button" class="ghost sm cx-test" data-act="test">${icon('replay')}Check</button>` : ''}
+          ${item ? `<button type="button" class="ghost sm cn-test" data-act="test">${icon('replay')}Check</button>` : ''}
           <button type="button" class="ghost sm" data-act="cancel">Cancel</button>
           <button class="primary sm">${item ? 'Save' : 'Add connector'}</button>
         </footer>
@@ -229,14 +229,14 @@ export function openEditor(host, { item, example, draft } = {}) {
   let transport = d.transport;
   const setKind = (t) => {
     transport = t;
-    $$('.cx-kind button', node).forEach((b) => {
+    $$('.cn-kind button', node).forEach((b) => {
       b.classList.toggle('on', b.dataset.t === t);
       b.setAttribute('aria-selected', b.dataset.t === t);
     });
     // Both stay filled in: switching back finds what was typed.
     $$('[data-for]', f).forEach((x) => (x.hidden = x.dataset.for !== t));
   };
-  const pairs = (kind, items) => ($(`.cx-pairs[data-kind="${kind}"]`, f).innerHTML = items.map((p) => pairRow(kind === 'env' ? 'env' : 'header', p)).join(''));
+  const pairs = (kind, items) => ($(`.cn-pairs[data-kind="${kind}"]`, f).innerHTML = items.map((p) => pairRow(kind === 'env' ? 'env' : 'header', p)).join(''));
   const fill = (x) => {
     $f('name').value = x.name || '';
     $f('command').value = x.command || '';
@@ -247,7 +247,7 @@ export function openEditor(host, { item, example, draft } = {}) {
   };
   fill(d);
   const read = (kind) =>
-    $$(`.cx-pairs[data-kind="${kind}"] .cx-pair`, f)
+    $$(`.cn-pairs[data-kind="${kind}"] .cn-pair`, f)
       .map((r) => ({ key: $('[data-f="key"]', r).value.trim(), value: $('[data-f="value"]', r).value }))
       .filter((p) => p.key);
   const collect = () => ({ name: $f('name').value.trim(), transport, command: $f('command').value.trim(), url: $f('url').value.trim(), env: read('env'), headers: read('headers') });
@@ -260,7 +260,7 @@ export function openEditor(host, { item, example, draft } = {}) {
   // A draft keeps which saved secrets it had, so coming back after a refusal still says "Saved".
   const asDraft = (x) => ({ ...x, env: x.env.map((p) => ({ ...p, set: !!item?.env.find((s) => s.key === p.key)?.set })), headers: x.headers.map((p) => ({ ...p, set: !!item?.headers.find((s) => s.key === p.key)?.set })) });
 
-  $('.cx-kind', node).onclick = (e) => {
+  $('.cn-kind', node).onclick = (e) => {
     const b = e.target.closest('[data-t]');
     if (b) setKind(b.dataset.t);
   };
@@ -292,10 +292,10 @@ export function openEditor(host, { item, example, draft } = {}) {
     if (act === 'cancel') return close();
     if (act === 'pair') {
       const kind = b.dataset.kind;
-      $(`.cx-pairs[data-kind="${kind}"]`, f).insertAdjacentHTML('beforeend', pairRow(kind === 'env' ? 'env' : 'header'));
-      return $(`.cx-pairs[data-kind="${kind}"] .cx-pair:last-child [data-f="key"]`, f).focus();
+      $(`.cn-pairs[data-kind="${kind}"]`, f).insertAdjacentHTML('beforeend', pairRow(kind === 'env' ? 'env' : 'header'));
+      return $(`.cn-pairs[data-kind="${kind}"] .cn-pair:last-child [data-f="key"]`, f).focus();
     }
-    if (act === 'unpair') return b.closest('.cx-pair').remove();
+    if (act === 'unpair') return b.closest('.cn-pair').remove();
     if (act === 'signin' || act === 'addsignin') {
       // An edit is saved first: the sign-in is for the URL you see.
       const c = act === 'signin' && collect().url === item.url ? (close(), item) : await save();
@@ -320,22 +320,22 @@ export function openEditor(host, { item, example, draft } = {}) {
     }
     if (act === 'test') {
       // Saves what's typed first, so the check is of what you see.
-      const result = $('.cx-result', node);
+      const result = $('.cn-result', node);
       b.disabled = true;
       b.classList.add('busy');
-      result.className = 'cx-result muted';
+      result.className = 'cn-result muted';
       result.innerHTML = '<span class="orb tiny"></span>Starting it the way an agent would…';
       try {
         took(await api(`/connectors/${item.id}`, { method: 'PATCH', body: body(collect()) }));
         const v = took(await api(`/connectors/${item.id}/test`, { method: 'POST', body: {} }));
         const t = v.connectors.find((c) => c.id === item.id)?.test;
-        result.className = `cx-result ${t?.ok ? 'ok' : 'bad'}`;
+        result.className = `cn-result ${t?.ok ? 'ok' : 'bad'}`;
         result.innerHTML = t?.ok ? `${icon('check')}<span>${t.count} tool${t.count === 1 ? '' : 's'}: ${esc(t.tools.slice(0, 12).join(', '))}${t.count > 12 ? ', …' : ''}</span>` : `${icon('warn')}<span>${esc(t?.error || 'It didn’t answer')}</span>`;
-        $$('.cx-pair [data-f="value"]', f).forEach((x) => {
+        $$('.cn-pair [data-f="value"]', f).forEach((x) => {
           if (x.value) (x.value = ''), (x.placeholder = 'Saved · type to replace');
         });
       } catch (err) {
-        result.className = 'cx-result bad';
+        result.className = 'cn-result bad';
         result.innerHTML = `${icon('warn')}<span>${esc(err.message)}</span>`;
       } finally {
         b.disabled = false;
@@ -374,7 +374,7 @@ export function openEditor(host, { item, example, draft } = {}) {
   for (const x of $$('input', f)) x.addEventListener('input', () => x.removeAttribute('aria-invalid'));
   setTimeout(() => {
     // An example leaves its secret for you: start there.
-    const empty = $$('.cx-pair [data-f="value"]', f).find((x) => !x.value && !x.closest('[hidden]'));
+    const empty = $$('.cn-pair [data-f="value"]', f).find((x) => !x.value && !x.closest('[hidden]'));
     (example && empty ? empty : item ? $f(transport === 'local' ? 'command' : 'url') : $f('name')).focus();
   });
 }
@@ -397,10 +397,10 @@ async function addMany(servers) {
 // --- Import review: servers in the harnesses' own configs ---
 
 function openImport(host, found) {
-  const node = el(`<div class="modal cx-import" role="dialog" aria-label="Import connectors">
+  const node = el(`<div class="modal cn-import" role="dialog" aria-label="Import connectors">
       <header><h2>Import connectors</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       <p class="hint">Found in your harnesses’ own MCP settings. Their env vars and headers come along as secrets; those settings stay as they are, and each harness keeps using its own copy.</p>
-      <div class="cx-pick">${found
+      <div class="cn-pick">${found
         .map(
           (s) => `<label class="ki-row"><input type="checkbox" data-name="${esc(s.name)}" checked>${icon('plug')}<span class="ki-text"><b>${esc(s.name)}</b><small>in ${esc(list(s.from))}${(s.env || s.headers || []).length ? ` · ${esc((s.env || s.headers).join(', '))}` : ''}</small><code>${esc(s.transport === 'local' ? commandLine(s) : s.url)}</code></span></label>`,
         )

@@ -172,7 +172,7 @@ export function openSettings(opts) {
             ${row('Installed something new?', '<span class="recheck-hint"></span>', `<button class="ghost sm" id="recheck">${icon('replay')}Re-check</button>`)}
           </div>
         </section>
-        <section class="sx-pane" data-pane="connectors"><div class="cx-box"></div></section>
+        <section class="sx-pane" data-pane="connectors"><div class="cn-box"></div></section>
         <section class="sx-pane" data-pane="auto">
           <div class="sx-group">
             ${row('Goal', 'What Auto optimises for. Also in the launcher, next to Auto', `<span class="pk-seg ro-goal">${AUTO_GOALS.map((g) => `<button data-goal="${g.id}" title="${esc(g.hint)}">${g.label}</button>`).join('')}</span>`)}
@@ -960,7 +960,7 @@ export function openSettings(opts) {
   };
   paintHints();
   if (!MOBILE && !grid) bus.on('machines', () => ($('.machines-hint', node).textContent = machinesSummary()), { node });
-  connectorsPane($('.cx-box', node), host('connectors'));
+  connectorsPane($('.cn-box', node), host('connectors'));
   $('#openRouter', node).onclick = () => openRouter({ host: host('auto') });
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
