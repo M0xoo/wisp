@@ -54,7 +54,11 @@ pub struct ConnectQuery {
 impl ConnectQuery {
     /// A v1 client: it sends none of the hello's parameters and reads v1's named events.
     pub fn is_v1(&self) -> bool {
-        self.proto_min.is_none() && self.proto_max.is_none() && self.client_id.is_none() && self.topics.is_none() && self.fresh.is_none()
+        self.proto_min.is_none()
+            && self.proto_max.is_none()
+            && self.client_id.is_none()
+            && self.topics.is_none()
+            && self.fresh.is_none()
     }
 }
 
@@ -94,25 +98,57 @@ pub enum CommandOutcome {
 #[derive(Debug)]
 pub enum Input<C> {
     /// A stream opened. A v1 query (`ConnectQuery::is_v1`) gets v1's named events instead.
-    Connect { conn: ConnId, caller: C, query: ConnectQuery },
+    Connect {
+        conn: ConnId,
+        caller: C,
+        query: ConnectQuery,
+    },
     /// A message the client posted to its stream (sub, unsub, window, mutate), as parsed JSON.
-    Message { conn: ConnId, message: Value },
+    Message {
+        conn: ConnId,
+        message: Value,
+    },
     /// Rows the store committed, in one transaction or several.
-    Committed { rows: Vec<ChangeRow> },
+    Committed {
+        rows: Vec<ChangeRow>,
+    },
     SnapshotRows(SnapshotAnswer),
-    WindowRows { conn: ConnId, req: String, rows: Vec<Row>, done: bool },
-    CommandResult { conn: ConnId, mid: String, outcome: CommandOutcome },
+    WindowRows {
+        conn: ConnId,
+        req: String,
+        rows: Vec<Row>,
+        done: bool,
+    },
+    CommandResult {
+        conn: ConnId,
+        mid: String,
+        outcome: CommandOutcome,
+    },
     /// An ephemeral notice, for every stream or only those holding `topic`.
-    Notice { notice: Notice, topic: Option<Topic> },
+    Notice {
+        notice: Notice,
+        topic: Option<Topic>,
+    },
     /// A v1 event for v1 streams. `from_machine`: relayed from one of this wisp's machines, so not
     /// sent on to a relaying wisp (two that list each other would loop it).
-    Legacy { event: V1Event, data: Value, from_machine: bool },
+    Legacy {
+        event: V1Event,
+        data: Value,
+        from_machine: bool,
+    },
     /// Retention moved: cursors at or above this seq can still resume.
-    Retained { oldest_seq: u64 },
+    Retained {
+        oldest_seq: u64,
+    },
     Tick,
     /// What the socket still holds after a write: the backpressure signal.
-    Drained { conn: ConnId, buffered_bytes: usize },
-    Close { conn: ConnId },
+    Drained {
+        conn: ConnId,
+        buffered_bytes: usize,
+    },
+    Close {
+        conn: ConnId,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -126,16 +162,44 @@ pub enum CloseReason {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Output<C> {
     /// Write `frame` to the connection as is: one SSE event, or a heartbeat comment (`id` None).
-    Send { conn: ConnId, frame: String, id: Option<u64> },
+    Send {
+        conn: ConnId,
+        frame: String,
+        id: Option<u64>,
+    },
     /// Read `topic` and answer with `Input::SnapshotRows`: `since` None is a full snapshot, else a delta.
-    SnapshotRequest { conn: ConnId, topic: Topic, since: Option<u64>, req: u64 },
+    SnapshotRequest {
+        conn: ConnId,
+        topic: Topic,
+        since: Option<u64>,
+        req: u64,
+    },
     /// Read events with seq < `before_seq`, newest first, at most `limit`; answer with `Input::WindowRows`.
-    WindowRequest { conn: ConnId, req: String, topic: Topic, before_seq: u64, limit: u32 },
+    WindowRequest {
+        conn: ConnId,
+        req: String,
+        topic: Topic,
+        before_seq: u64,
+        limit: u32,
+    },
     /// Run it (idempotent by `mid`) and answer with `Input::CommandResult`.
-    Command { conn: ConnId, caller: C, mid: String, cmd: String, args: Value, base_seq: Option<u64> },
+    Command {
+        conn: ConnId,
+        caller: C,
+        mid: String,
+        cmd: String,
+        args: Value,
+        base_seq: Option<u64>,
+    },
     /// The connection started or stopped counting as use of this box (any non-passive sub).
-    Activity { conn: ConnId, active: bool },
-    Close { conn: ConnId, reason: CloseReason },
+    Activity {
+        conn: ConnId,
+        active: bool,
+    },
+    Close {
+        conn: ConnId,
+        reason: CloseReason,
+    },
 }
 
 /// Who may read which topic (plan §6.5): the caller's capability set decides.
@@ -162,14 +226,36 @@ pub struct SyncOptions<C> {
 
 impl<C> SyncOptions<C> {
     /// The plan's numbers: flush 50 ms, high water 1 MB, heartbeat 15 s, load buffer 4 MB, v1 ping 25 s.
-    pub fn new(epoch: impl Into<String>, peer: PeerInfo, head_seq: u64, oldest_seq: u64, can_read: CanRead<C>) -> Self {
-        Self { epoch: epoch.into(), peer, head_seq, oldest_seq, can_read, flush_ms: 50, high_water_bytes: 1 << 20, heartbeat_ms: 15_000, load_buffer_bytes: 4 << 20, v1_ping_ms: 25_000 }
+    pub fn new(
+        epoch: impl Into<String>,
+        peer: PeerInfo,
+        head_seq: u64,
+        oldest_seq: u64,
+        can_read: CanRead<C>,
+    ) -> Self {
+        Self {
+            epoch: epoch.into(),
+            peer,
+            head_seq,
+            oldest_seq,
+            can_read,
+            flush_ms: 50,
+            high_water_bytes: 1 << 20,
+            heartbeat_ms: 15_000,
+            load_buffer_bytes: 4 << 20,
+            v1_ping_ms: 25_000,
+        }
     }
 }
 
 impl<C> fmt::Debug for SyncOptions<C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SyncOptions").field("epoch", &self.epoch).field("head_seq", &self.head_seq).field("oldest_seq", &self.oldest_seq).field("flush_ms", &self.flush_ms).finish_non_exhaustive()
+        f.debug_struct("SyncOptions")
+            .field("epoch", &self.epoch)
+            .field("head_seq", &self.head_seq)
+            .field("oldest_seq", &self.oldest_seq)
+            .field("flush_ms", &self.flush_ms)
+            .finish_non_exhaustive()
     }
 }
 

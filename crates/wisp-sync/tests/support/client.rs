@@ -4,7 +4,10 @@
 
 use std::collections::BTreeMap;
 
-use wisp_protocol::{ClientMessage, EntityOp, Mutate, PROTO, PROTO_MIN, Row, ServerMessage, Sub, Topic, Unsub, Welcome, tag};
+use wisp_protocol::{
+    ClientMessage, EntityOp, Mutate, PROTO, PROTO_MIN, Row, ServerMessage, Sub, Topic, Unsub,
+    Welcome, tag,
+};
 use wisp_sync::ConnectQuery;
 
 #[derive(Debug, Clone, Default)]
@@ -68,16 +71,46 @@ pub struct SyncClient {
 impl SyncClient {
     pub fn new(client_id: &str, saved: Option<Saved>) -> Self {
         let saved = saved.unwrap_or_default();
-        let mut held: BTreeMap<Topic, u64> = saved.cursor.map(|at| saved.synced.iter().map(|t| (t.clone(), at)).collect()).unwrap_or_default();
+        let mut held: BTreeMap<Topic, u64> = saved
+            .cursor
+            .map(|at| saved.synced.iter().map(|t| (t.clone(), at)).collect())
+            .unwrap_or_default();
         held.extend(saved.held);
         let topics = BTreeMap::new();
-        Self { client_id: client_id.into(), state: State::Idle, epoch: saved.epoch, cursor: saved.cursor, topics, held, pending: saved.pending, hello: BTreeMap::new(), attempt: 0, out: Vec::new() }
+        Self {
+            client_id: client_id.into(),
+            state: State::Idle,
+            epoch: saved.epoch,
+            cursor: saved.cursor,
+            topics,
+            held,
+            pending: saved.pending,
+            hello: BTreeMap::new(),
+            attempt: 0,
+            out: Vec::new(),
+        }
     }
 
     pub fn save(&self) -> Saved {
-        let synced: Vec<Topic> = self.topics.iter().filter(|(_, s)| s.synced).map(|(t, _)| t.clone()).collect();
-        let held = self.held.iter().filter(|(t, _)| !synced.contains(t)).map(|(t, s)| (t.clone(), *s)).collect();
-        Saved { epoch: self.epoch.clone(), cursor: self.cursor, synced, pending: self.pending.clone(), held }
+        let synced: Vec<Topic> = self
+            .topics
+            .iter()
+            .filter(|(_, s)| s.synced)
+            .map(|(t, _)| t.clone())
+            .collect();
+        let held = self
+            .held
+            .iter()
+            .filter(|(t, _)| !synced.contains(t))
+            .map(|(t, s)| (t.clone(), *s))
+            .collect();
+        Saved {
+            epoch: self.epoch.clone(),
+            cursor: self.cursor,
+            synced,
+            pending: self.pending.clone(),
+            held,
+        }
     }
 
     fn send(&mut self, m: ClientMessage) {
@@ -92,13 +125,24 @@ impl SyncClient {
     }
 
     fn sub_message(topic: &Topic, s: &TopicSub, since: Option<u64>) -> ClientMessage {
-        ClientMessage::Sub(Sub { t: tag::Sub, topic: topic.clone(), since, passive: (s.active_refs == 0).then_some(true) })
+        ClientMessage::Sub(Sub {
+            t: tag::Sub,
+            topic: topic.clone(),
+            since,
+            passive: (s.active_refs == 0).then_some(true),
+        })
     }
 
     pub fn open(&mut self) -> Vec<Out> {
         if !matches!(self.state, State::Connecting | State::Live) {
             self.set_state(State::Connecting);
-            let mut q = ConnectQuery { proto_min: Some(PROTO_MIN.to_string()), proto_max: Some(PROTO.to_string()), client_id: Some(self.client_id.clone()), build: Some("test".into()), ..ConnectQuery::default() };
+            let mut q = ConnectQuery {
+                proto_min: Some(PROTO_MIN.to_string()),
+                proto_max: Some(PROTO.to_string()),
+                client_id: Some(self.client_id.clone()),
+                build: Some("test".into()),
+                ..ConnectQuery::default()
+            };
             let can_resume = self.epoch.is_some() && self.cursor.is_some();
             if can_resume {
                 q.epoch.clone_from(&self.epoch);
@@ -116,7 +160,11 @@ impl SyncClient {
                 }
                 let resumed = can_resume && (s.synced || self.held.contains_key(t));
                 self.hello.insert(t.clone(), resumed);
-                if resumed { topics.push(t.as_str()) } else { fresh.push(t.as_str()) }
+                if resumed {
+                    topics.push(t.as_str())
+                } else {
+                    fresh.push(t.as_str())
+                }
                 if s.active_refs == 0 {
                     passive.push(t.as_str());
                 }
@@ -124,7 +172,13 @@ impl SyncClient {
             let join = |v: &[&str]| (!v.is_empty()).then(|| v.join(","));
             q.topics = join(&topics);
             q.fresh = join(&fresh);
-            q.passive = if passive.is_empty() { None } else if passive.len() == self.hello.len() { Some("1".into()) } else { join(&passive) };
+            q.passive = if passive.is_empty() {
+                None
+            } else if passive.len() == self.hello.len() {
+                Some("1".into())
+            } else {
+                join(&passive)
+            };
             self.out.push(Out::Request(q));
         }
         std::mem::take(&mut self.out)
@@ -165,14 +219,27 @@ impl SyncClient {
         self.attempt = 0;
         self.set_state(State::Live);
         // subscribed while the hello was in flight (or held as of an older seq)
-        let later: Vec<Topic> = self.topics.iter().filter(|(t, s)| !self.hello.contains_key(*t) && !s.denied).map(|(t, _)| t.clone()).collect();
+        let later: Vec<Topic> = self
+            .topics
+            .iter()
+            .filter(|(t, s)| !self.hello.contains_key(*t) && !s.denied)
+            .map(|(t, _)| t.clone())
+            .collect();
         for t in later {
             let m = self.sub_first(&t);
             self.send(m);
         }
-        let gone: Vec<Topic> = self.hello.keys().filter(|t| !self.topics.contains_key(*t)).cloned().collect();
+        let gone: Vec<Topic> = self
+            .hello
+            .keys()
+            .filter(|t| !self.topics.contains_key(*t))
+            .cloned()
+            .collect();
         for t in gone {
-            self.send(ClientMessage::Unsub(Unsub { t: tag::Unsub, topic: t }));
+            self.send(ClientMessage::Unsub(Unsub {
+                t: tag::Unsub,
+                topic: t,
+            }));
         }
         self.hello.clear();
         for m in self.pending.clone() {
@@ -203,7 +270,9 @@ impl SyncClient {
         }
         for t in resyncs {
             let cursor = self.cursor;
-            let Some(s) = self.topics.get_mut(&t) else { continue };
+            let Some(s) = self.topics.get_mut(&t) else {
+                continue;
+            };
             s.pages = None;
             let since = if s.synced { cursor } else { None };
             let m = Self::sub_message(&t, s, since);
@@ -217,7 +286,9 @@ impl SyncClient {
     fn message(&mut self, m: ServerMessage, settle: &mut Vec<Out>, resyncs: &mut Vec<Topic>) {
         match m {
             ServerMessage::Snapshot(snap) => {
-                let Some(s) = self.topics.get_mut(&snap.topic) else { return };
+                let Some(s) = self.topics.get_mut(&snap.topic) else {
+                    return;
+                };
                 let pages = match s.pages.take() {
                     Some((seq, rows)) if seq == snap.seq => (seq, rows),
                     _ => (snap.seq, Vec::new()),
@@ -229,11 +300,18 @@ impl SyncClient {
                     return;
                 }
                 s.synced = true;
-                self.out.push(Out::Snapshot { topic: snap.topic, rows });
+                self.out.push(Out::Snapshot {
+                    topic: snap.topic,
+                    rows,
+                });
             }
             ServerMessage::Patch(p) => {
                 // a topic waiting for its snapshot takes no ops: the snapshot replaces them
-                let ops: Vec<EntityOp> = p.ops.into_iter().filter(|op| self.topics.get(&op.topic).is_some_and(|s| s.synced)).collect();
+                let ops: Vec<EntityOp> = p
+                    .ops
+                    .into_iter()
+                    .filter(|op| self.topics.get(&op.topic).is_some_and(|s| s.synced))
+                    .collect();
                 if !ops.is_empty() {
                     self.out.push(Out::EntityOps(ops));
                 }
@@ -255,7 +333,12 @@ impl SyncClient {
             }
             ServerMessage::Notice(n) => {
                 if n.kind == "denied" {
-                    if let Some(topic) = n.data.get("topic").and_then(|t| t.as_str()).and_then(Topic::parse) {
+                    if let Some(topic) = n
+                        .data
+                        .get("topic")
+                        .and_then(|t| t.as_str())
+                        .and_then(Topic::parse)
+                    {
                         if let Some(s) = self.topics.get_mut(&topic) {
                             s.denied = true;
                         }
@@ -317,7 +400,10 @@ impl SyncClient {
                 }
             } else if let Some(s) = self.topics.remove(topic) {
                 if live && !s.denied {
-                    self.send(ClientMessage::Unsub(Unsub { t: tag::Unsub, topic: topic.clone() }));
+                    self.send(ClientMessage::Unsub(Unsub {
+                        t: tag::Unsub,
+                        topic: topic.clone(),
+                    }));
                 }
             }
         }
@@ -341,7 +427,10 @@ impl SyncClient {
             s.pages = None;
             if live {
                 let m = Self::sub_message(topic, s, None);
-                self.send(ClientMessage::Unsub(Unsub { t: tag::Unsub, topic: topic.clone() }));
+                self.send(ClientMessage::Unsub(Unsub {
+                    t: tag::Unsub,
+                    topic: topic.clone(),
+                }));
                 self.send(m);
             }
         }

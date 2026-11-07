@@ -22,18 +22,27 @@ pub(crate) struct SharedOp {
 impl SharedOp {
     pub fn new(op: EntityOp) -> Self {
         let key = Arc::from(format!("{}\u{0}{}", op.e, op.id));
-        Self { op, key, json: OnceLock::new() }
+        Self {
+            op,
+            key,
+            json: OnceLock::new(),
+        }
     }
 
     pub fn json(&self) -> &str {
         // an op is plain data: serialising it can't fail, and if it did the client would resync
-        self.json.get_or_init(|| serde_json::to_string(&self.op).unwrap_or_default())
+        self.json
+            .get_or_init(|| serde_json::to_string(&self.op).unwrap_or_default())
     }
 }
 
 impl Clone for SharedOp {
     fn clone(&self) -> Self {
-        Self { op: self.op.clone(), key: self.key.clone(), json: OnceLock::new() }
+        Self {
+            op: self.op.clone(),
+            key: self.key.clone(),
+            json: OnceLock::new(),
+        }
     }
 }
 
@@ -108,7 +117,11 @@ impl Outbox {
                 return;
             }
             item.bytes += bytes;
-            if let Some(last) = item.ops.last_mut().filter(|l| may_fold(&l.op.change, &op.op.change)) {
+            if let Some(last) = item
+                .ops
+                .last_mut()
+                .filter(|l| may_fold(&l.op.change, &op.op.change))
+            {
                 // copy-on-write: a committed op other connections share is cloned before it changes
                 let mine = Arc::make_mut(last);
                 if fold_into(&mut mine.op.change, &op.op.change) {
@@ -121,17 +134,30 @@ impl Outbox {
         }
         self.order += 1;
         q.index.insert(op.key.clone(), self.order);
-        q.items.insert(self.order, Item { ops: vec![op], first_seq: seq, bytes });
+        q.items.insert(
+            self.order,
+            Item {
+                ops: vec![op],
+                first_seq: seq,
+                bytes,
+            },
+        );
     }
 
     pub fn push_front(&mut self, topic: &Topic, front: Front) {
-        self.topics.entry(topic.clone()).or_default().front.push_back(front);
+        self.topics
+            .entry(topic.clone())
+            .or_default()
+            .front
+            .push_back(front);
     }
 
     /// Drops the topic's queued ops and snapshot pages; window rows stay when `keep_rows` (someone
     /// asked for them). Returns the oldest dropped seq, and whether anything but rows was dropped.
     pub fn drop_topic(&mut self, topic: &Topic, keep_rows: bool) -> (Option<u64>, bool) {
-        let Some(q) = self.topics.get_mut(topic) else { return (None, false) };
+        let Some(q) = self.topics.get_mut(topic) else {
+            return (None, false);
+        };
         let oldest = q.oldest();
         let any = q.busy();
         q.items.clear();
@@ -149,7 +175,11 @@ impl Outbox {
 
     /// Topics with ops or snapshot pages waiting (window rows alone don't count).
     pub fn busy_topics(&self) -> Vec<Topic> {
-        self.topics.iter().filter(|(_, q)| q.busy()).map(|(t, _)| t.clone()).collect()
+        self.topics
+            .iter()
+            .filter(|(_, q)| q.busy())
+            .map(|(t, _)| t.clone())
+            .collect()
     }
 
     pub fn oldest_seq(&self) -> Option<u64> {
@@ -167,7 +197,9 @@ impl Outbox {
         let mut order: Vec<Topic> = self.topics.keys().cloned().collect();
         order.sort_by_key(Topic::rank); // stable: by name within a rank
         for topic in order {
-            let Some(q) = self.topics.get_mut(&topic) else { continue };
+            let Some(q) = self.topics.get_mut(&topic) else {
+                continue;
+            };
             let done = take_topic(q, &mut taken, budget);
             if q.is_empty() {
                 self.topics.remove(&topic);

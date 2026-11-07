@@ -89,8 +89,26 @@ pub struct Sim {
 }
 
 impl Sim {
-    pub fn new(store: FakeStore, server: SyncServer<String>, clients: Vec<SimClient>, rand: Rng, opts: SimOpts) -> Self {
-        Self { now: 1000, store, server, clients, answers: VecDeque::new(), requests: vec![], frames: 0, bytes: 0, next_conn: 0, rand, opts }
+    pub fn new(
+        store: FakeStore,
+        server: SyncServer<String>,
+        clients: Vec<SimClient>,
+        rand: Rng,
+        opts: SimOpts,
+    ) -> Self {
+        Self {
+            now: 1000,
+            store,
+            server,
+            clients,
+            answers: VecDeque::new(),
+            requests: vec![],
+            frames: 0,
+            bytes: 0,
+            next_conn: 0,
+            rand,
+            opts,
+        }
     }
 
     pub fn pending_answers(&self) -> usize {
@@ -114,12 +132,17 @@ impl Sim {
         for o in outs {
             match o {
                 Output::Send { conn, frame, id } => {
-                    let Some(ci) = self.client_of(conn) else { continue };
+                    let Some(ci) = self.client_of(conn) else {
+                        continue;
+                    };
                     self.frames += u64::from(id.is_some());
                     self.bytes += frame.len() as u64;
                     self.clients[ci].transit.push_back(frame);
                     let backlog = self.clients[ci].backlog;
-                    self.server_in(Input::Drained { conn, buffered_bytes: backlog });
+                    self.server_in(Input::Drained {
+                        conn,
+                        buffered_bytes: backlog,
+                    });
                     if !self.opts.wire {
                         self.deliver(ci, usize::MAX);
                     }
@@ -129,12 +152,27 @@ impl Sim {
                         self.lose(ci);
                     }
                 }
-                Output::SnapshotRequest { conn, topic, since, req } => {
+                Output::SnapshotRequest {
+                    conn,
+                    topic,
+                    since,
+                    req,
+                } => {
                     self.requests.push((topic.clone(), since));
-                    let r = Request { conn, topic, since, req };
-                    if self.opts.async_answers { self.answers.push_back(r) } else { self.answer(&r) }
+                    let r = Request {
+                        conn,
+                        topic,
+                        since,
+                        req,
+                    };
+                    if self.opts.async_answers {
+                        self.answers.push_back(r)
+                    } else {
+                        self.answer(&r)
+                    }
                 }
-                Output::WindowRequest { .. } | Output::Command { .. } | Output::Activity { .. } => {}
+                Output::WindowRequest { .. } | Output::Command { .. } | Output::Activity { .. } => {
+                }
             }
         }
     }
@@ -146,7 +184,16 @@ impl Sim {
             Some(since) => self.store.delta(&r.topic, since),
             None => (self.store.snapshot(&r.topic), vec![]),
         };
-        let a = SnapshotAnswer { conn: r.conn, topic: r.topic.clone(), req: r.req, seq: self.store.seq, rows, full, deleted, more: false };
+        let a = SnapshotAnswer {
+            conn: r.conn,
+            topic: r.topic.clone(),
+            req: r.req,
+            seq: self.store.seq,
+            rows,
+            full,
+            deleted,
+            more: false,
+        };
         self.server_in(Input::SnapshotRows(a));
     }
 
@@ -159,7 +206,9 @@ impl Sim {
     /// Reads up to `max` frames off the wire into the client.
     pub fn deliver(&mut self, ci: usize, max: usize) {
         for _ in 0..max {
-            let Some(frame) = self.clients[ci].transit.pop_front() else { break };
+            let Some(frame) = self.clients[ci].transit.pop_front() else {
+                break;
+            };
             let bytes = frame.into_bytes();
             let mut parts = Vec::new();
             if self.opts.chunked {
@@ -194,7 +243,11 @@ impl Sim {
                     c.conn = Some(conn);
                     c.parser = SseParser::new();
                     let caller = c.name.clone();
-                    self.server_in(Input::Connect { conn, caller, query });
+                    self.server_in(Input::Connect {
+                        conn,
+                        caller,
+                        query,
+                    });
                 }
                 Out::Send(m) => {
                     if let Some(conn) = self.clients[ci].conn {
@@ -206,7 +259,9 @@ impl Sim {
                     self.clients[ci].resets += 1;
                     self.clients[ci].map.clear();
                 }
-                Out::Snapshot { topic, rows } => apply_snapshot(&mut self.clients[ci].map, &topic, rows),
+                Out::Snapshot { topic, rows } => {
+                    apply_snapshot(&mut self.clients[ci].map, &topic, rows)
+                }
                 Out::EntityOps(ops) => {
                     for t in apply_entity_ops(&mut self.clients[ci].map, &ops) {
                         self.clients[ci].drifts += 1;
@@ -238,7 +293,9 @@ impl Sim {
     }
 
     pub fn lose(&mut self, ci: usize) {
-        let Some(conn) = self.clients[ci].conn.take() else { return };
+        let Some(conn) = self.clients[ci].conn.take() else {
+            return;
+        };
         self.clients[ci].transit.clear();
         let _ = self.server.handle(Input::Close { conn }, self.now);
         let outs = self.clients[ci].client.lost(self.now);

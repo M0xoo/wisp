@@ -16,7 +16,8 @@ pub(crate) fn replaces(next: &Change) -> bool {
 /// Whether `next` can fold into `prev` (cheap: decides before anything is cloned).
 pub(crate) fn may_fold(prev: &Change, next: &Change) -> bool {
     match (prev, next) {
-        (Change::Upsert { .. } | Change::Patch { .. }, Change::Patch { .. }) | (Change::Append { .. }, Change::Append { .. }) => true,
+        (Change::Upsert { .. } | Change::Patch { .. }, Change::Patch { .. })
+        | (Change::Append { .. }, Change::Append { .. }) => true,
         (Change::Upsert { v }, Change::Append { .. }) => v.is_array(),
         _ => false,
     }
@@ -36,11 +37,13 @@ pub(crate) fn fold_into(prev: &mut Change, next: &Change) -> bool {
             compose(a, b);
             true
         }
-        (Change::Append { v: a }, Change::Append { v: b }) => {
-            a.extend(b.iter().cloned());
-            true
-        }
-        (Change::Upsert { v: serde_json::Value::Array(a) }, Change::Append { v: b }) => {
+        (
+            Change::Append { v: a }
+            | Change::Upsert {
+                v: serde_json::Value::Array(a),
+            },
+            Change::Append { v: b },
+        ) => {
             a.extend(b.iter().cloned());
             true
         }
@@ -54,7 +57,9 @@ pub fn fold(queued: &[EntityOp], next: &EntityOp) -> Vec<EntityOp> {
         return vec![next.clone()];
     }
     let mut out = queued.to_vec();
-    let folded = out.last_mut().is_some_and(|last| may_fold(&last.change, &next.change) && fold_into(&mut last.change, &next.change));
+    let folded = out.last_mut().is_some_and(|last| {
+        may_fold(&last.change, &next.change) && fold_into(&mut last.change, &next.change)
+    });
     if !folded {
         out.push(next.clone());
     }
@@ -65,7 +70,10 @@ pub fn fold(queued: &[EntityOp], next: &EntityOp) -> Vec<EntityOp> {
 pub fn compose(a: &mut Vec<PatchOp>, b: &[PatchOp]) {
     for op in b {
         let target = object_path(op);
-        let whole = matches!(op, PatchOp::Replace { .. } | PatchOp::Remove { .. } | PatchOp::Add { .. });
+        let whole = matches!(
+            op,
+            PatchOp::Replace { .. } | PatchOp::Remove { .. } | PatchOp::Add { .. }
+        );
         let Some(target) = target.filter(|_| whole) else {
             a.push(op.clone());
             continue;
@@ -88,7 +96,12 @@ pub fn compose(a: &mut Vec<PatchOp>, b: &[PatchOp]) {
             if matches!(a[i], PatchOp::Add { .. }) && keys.len() == target.len() {
                 match op {
                     PatchOp::Remove { .. } => break, // the key may not have existed before the add
-                    PatchOp::Replace { path, value } => next = PatchOp::Add { path: path.clone(), value: value.clone() },
+                    PatchOp::Replace { path, value } => {
+                        next = PatchOp::Add {
+                            path: path.clone(),
+                            value: value.clone(),
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -101,7 +114,11 @@ pub fn compose(a: &mut Vec<PatchOp>, b: &[PatchOp]) {
 /// The path's keys when every segment is an object key; arrays shift indexes, so they never fold.
 fn object_path(op: &PatchOp) -> Option<Vec<String>> {
     let keys = parse_pointer(op.path()).ok()?;
-    if keys.is_empty() || keys.iter().any(|k| k == "-" || (!k.is_empty() && k.bytes().all(|b| b.is_ascii_digit()))) {
+    if keys.is_empty()
+        || keys
+            .iter()
+            .any(|k| k == "-" || (!k.is_empty() && k.bytes().all(|b| b.is_ascii_digit())))
+    {
         return None;
     }
     Some(keys)

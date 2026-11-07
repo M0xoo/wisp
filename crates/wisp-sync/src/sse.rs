@@ -1,7 +1,7 @@
 //! SSE framing (WHATWG "server-sent events"). One wisp frame is one SSE event: `id:` is the cursor
 //! the client may resume from, `event: sync`, and `data:` the frame's messages as one line of JSON
-//! (serde_json escapes every CR and LF, so a message can never break the framing). A quiet stream
-//! gets comment lines, which proxies see as traffic and EventSource ignores.
+//! (`serde_json` escapes every CR and LF, so a message can never break the framing). A quiet stream
+//! gets comment lines, which proxies see as traffic and `EventSource` ignores.
 //!
 //! The parser is the peer side (a wisp subscribing to another, and the tests): chunks may split
 //! anywhere, inside a line, between CR and LF, or inside a UTF-8 sequence.
@@ -11,7 +11,7 @@ use wisp_protocol::ServerMessage;
 /// The SSE `event:` of a wisp frame.
 pub const EVENT: &str = "sync";
 
-/// A comment line: proxies and the tunnel see traffic, EventSource ignores it.
+/// A comment line: proxies and the tunnel see traffic, `EventSource` ignores it.
 pub const HEARTBEAT: &str = ": hb\n\n";
 
 const BOM: &[u8] = b"\xEF\xBB\xBF";
@@ -38,7 +38,7 @@ pub fn encode_frame<S: AsRef<str>>(id: Option<u64>, messages: &[S]) -> String {
     s
 }
 
-/// `retry:` tells a browser's EventSource how long to wait before it reconnects by itself.
+/// `retry:` tells a browser's `EventSource` how long to wait before it reconnects by itself.
 pub fn retry_field(ms: u64) -> String {
     format!("retry: {ms}\n\n")
 }
@@ -116,8 +116,16 @@ impl SseParser {
     fn on_line(&mut self, line: &str, out: &mut Vec<SseEvent>) {
         if line.is_empty() {
             if !self.data.is_empty() {
-                let event = if self.event.is_empty() { "message".to_owned() } else { std::mem::take(&mut self.event) };
-                out.push(SseEvent { id: self.id.clone(), event, data: self.data.join("\n") });
+                let event = if self.event.is_empty() {
+                    "message".to_owned()
+                } else {
+                    std::mem::take(&mut self.event)
+                };
+                out.push(SseEvent {
+                    id: self.id.clone(),
+                    event,
+                    data: self.data.join("\n"),
+                });
             }
             self.data.clear();
             self.event.clear();
@@ -134,7 +142,9 @@ impl SseParser {
             "data" => self.data.push(value.to_owned()),
             "event" => value.clone_into(&mut self.event),
             "id" if !value.contains('\0') => self.id = Some(value.to_owned()),
-            "retry" if !value.is_empty() && value.bytes().all(|b| b.is_ascii_digit()) => self.retry = value.parse().ok(),
+            "retry" if !value.is_empty() && value.bytes().all(|b| b.is_ascii_digit()) => {
+                self.retry = value.parse().ok();
+            }
             _ => {}
         }
     }
@@ -147,7 +157,10 @@ pub fn decode_frame(ev: &SseEvent) -> Option<(Option<u64>, Vec<ServerMessage>)> 
         return None;
     }
     let parsed: Vec<serde_json::Value> = serde_json::from_str(&ev.data).ok()?;
-    let messages = parsed.into_iter().filter_map(|m| serde_json::from_value(m).ok()).collect();
+    let messages = parsed
+        .into_iter()
+        .filter_map(|m| serde_json::from_value(m).ok())
+        .collect();
     let id = ev.id.as_deref().and_then(|s| s.parse::<u64>().ok());
     Some((id, messages))
 }

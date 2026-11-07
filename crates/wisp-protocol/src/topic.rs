@@ -104,6 +104,7 @@ impl<'de> Deserialize<'de> for Topic {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

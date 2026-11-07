@@ -54,7 +54,7 @@ v1_events! {
 /// What v1 wrote first on every stream.
 pub const V1_HELLO: &str = "event: hello\ndata: {}\n\n";
 
-/// One v1 event: `data` is already JSON (one line: serde_json escapes CR and LF).
+/// One v1 event: `data_json` is already JSON (one line: `serde_json` escapes CR and LF).
 pub fn v1_frame(event: V1Event, data_json: &str) -> String {
     let name = event.name();
     let mut s = String::with_capacity(name.len() + data_json.len() + 16);
@@ -67,6 +67,7 @@ pub fn v1_frame(event: V1Event, data_json: &str) -> String {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

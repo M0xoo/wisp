@@ -1,6 +1,7 @@
 //! Goldens: one of every message as it goes on the wire (AGENTS.md: what a peer or a released client
 //! reads has goldens). Changing `goldens/messages.json` is a deliberate act; `UPDATE_GOLDENS=1`
 //! rewrites it.
+#![allow(clippy::unwrap_used)]
 
 use serde_json::{Value, json};
 use wisp_protocol::{

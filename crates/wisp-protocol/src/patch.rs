@@ -72,15 +72,15 @@ fn diff_into(a: &Value, b: &Value, path: &str, out: &mut Vec<PatchOp>) {
         return;
     }
     match (a, b) {
-        (Value::Object(x), Value::Object(y)) => {
-            for k in x.keys().filter(|k| !y.contains_key(*k)) {
+        (Value::Object(was), Value::Object(now)) => {
+            for k in was.keys().filter(|k| !now.contains_key(*k)) {
                 out.push(PatchOp::Remove {
                     path: format!("{path}/{}", escape_pointer(k)),
                 });
             }
-            for (k, v) in y {
+            for (k, v) in now {
                 let p = format!("{path}/{}", escape_pointer(k));
-                match x.get(k) {
+                match was.get(k) {
                     None => out.push(PatchOp::Add {
                         path: p,
                         value: v.clone(),
@@ -89,10 +89,10 @@ fn diff_into(a: &Value, b: &Value, path: &str, out: &mut Vec<PatchOp>) {
                 }
             }
         }
-        (Value::Array(x), Value::Array(y))
-            if y.len() > x.len() && x.iter().zip(y).all(|(p, q)| p == q) =>
+        (Value::Array(was), Value::Array(now))
+            if now.len() > was.len() && was.iter().zip(now).all(|(p, q)| p == q) =>
         {
-            for v in &y[x.len()..] {
+            for v in &now[was.len()..] {
                 out.push(PatchOp::Add {
                     path: format!("{path}/-"),
                     value: v.clone(),
@@ -226,6 +226,7 @@ fn apply_in_object(m: &mut Map<String, Value>, k: &str, op: &PatchOp) -> Result<
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use serde_json::json;
