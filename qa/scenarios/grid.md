@@ -212,7 +212,7 @@ for the rest
   the same secret, and the old URL is a 404.
 - **Against production:** only when the owner deploys: a throwaway account, one real Telegram bot.
 
-### GRID-33 · A post on X reaches a sleeping box
+### GRID-35 · A post on X reaches a sleeping box
 *`test/channel-x.test.js`* (a fake X on loopback, real grid, real boxes)
 - **Steps:** with `x` in `grid.json`, link an account on `/account`, DM the bot once. On the cloud wisp
   turn on Settings → Phone → X. Let the box sleep. Post `@wispbot fix the flaky login test`.
