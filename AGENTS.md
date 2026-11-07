@@ -38,7 +38,7 @@ this covers how the code is laid out and the rules a change has to follow.
   stdin is its leash, so it can't outlive the shell. `scripts/package.mjs` builds the downloads under the
   names the site and the updater link to, with the pinned Node of `scripts/fetch-node.mjs` beside wisp's
   files: `.github/workflows/tauri-package.yml`, release.yml's desktop job for every channel, with the install
-  gate (`qa/install.mjs`) on what it built. The app was Electron up to 0.58.0; Electron builds already out
+  gate (`qa/install.mjs`) on what it built. The app was Electron up to v0.57.0; Electron builds already out
   can't change and update onto this one, so the shell answers them: on a Mac
   it's Node when run with `ELECTRON_RUN_AS_NODE` (`macos::be_node_for_electron`), and `installer-hooks.nsh` gives
   Tauri's installer their `--force-run`. `src/init.js` is the page's bridge, its `Notification` (`src/notify.rs`,

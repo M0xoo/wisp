@@ -272,8 +272,8 @@ isn't a WKWebView: what only the app can show is under *Not seen yet*.
 | `:has()`, `dvh`, `.at()`, `findLast`, `structuredClone` | Safari 15.4 | Covered by the above |
 
 16.4 was run for real: Playwright 1.33's WebKit 16.4 build passes `web.mjs` and `views.mjs`. 16.0
-builds don't start on macOS 15, so 16.2 and 16.3 are read from the table, not run. Builds up to
-v0.58.0 ran on older Macs than this: on a Mac before 13.3 their update onto this one gets an app macOS won't open.
+builds don't start on macOS 15, so 16.2 and 16.3 are read from the table, not run. Electron builds (up to
+v0.57.0) ran on older Macs than this: on a Mac before 13.3 their update onto this one gets an app macOS won't open.
 
 Newer features the page does without on an older Mac:
 
