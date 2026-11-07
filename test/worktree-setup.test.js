@@ -70,7 +70,8 @@ const tree = () => {
 const same = (from, to) => {
   assert.equal(fs.readFileSync(path.join(to, 'pkg/index.js'), 'utf8'), 'module.exports = 1;\n');
   if (process.platform !== 'win32') assert.equal(fs.statSync(path.join(to, 'pkg/bin/run')).mode & 0o111, 0o111, 'still executable');
-  if (fs.existsSync(path.join(from, 'link'))) assert.equal(fs.readlinkSync(path.join(to, 'link')), 'pkg/index.js', 'the symlink as it was');
+  // against the source's own link: Windows stores the target as pkg\index.js
+  if (fs.existsSync(path.join(from, 'link'))) assert.equal(fs.readlinkSync(path.join(to, 'link')), fs.readlinkSync(path.join(from, 'link')), 'the symlink as it was');
 };
 
 test('cloneOrCopy: without copy-on-write (Windows, a cp that fails or is missing) it is a plain copy', async () => {
