@@ -8,10 +8,9 @@ after a change that touches more than one surface.
 |---|---|---|---|
 | Web (browser mode) | [scenarios/web.md](scenarios/web.md) (`WEB-*`) | `node qa/web.mjs` | `wisp --no-open` in Chrome: launcher, cards, questions, approvals, settings, spells, recipes, CLI, MCP, docs site |
 | wisp Grid | [scenarios/grid.md](scenarios/grid.md) (`GRID-*`) | `node qa/grid.mjs` | `wisp grid dev --fake-agents`: sign-in, account, `/go`, cloud wisp, isolation, device flow, idle stop, a channel waking a box, admin commands |
-| Desktop app | [scenarios/desktop.md](scenarios/desktop.md) (`DESK-*`) | `node qa/desktop.mjs` | `electron .` through Playwright's `_electron`: window, title bar, preload, links, theme, updater, attach, quit |
-| Desktop app (Tauri, macOS) | [scenarios/desktop.md](scenarios/desktop.md) (`TAURI-*`) | `node qa/desktop-tauri.mjs` | builds `desktop/src-tauri --features qa` (needs Rust) and drives it through a local socket (`src/qa.rs`): WKWebView has no WebDriver |
-| Desktop app (Tauri, Windows) | [scenarios/desktop.md](scenarios/desktop.md) (`TAURI-W*`) | `node qa/desktop-tauri-win.mjs` | the installer built with `--features qa` on windows-latest (`tauri-windows.yml`, CI only: it replaces the machine's wisp): the page through WebView2's CDP, the rest by real mouse, keys and Win32 (`qa/win32.ps1`); `--web` runs `qa/web.mjs` in its WebView2 |
-| Desktop app (Tauri, Linux) | [scenarios/desktop.md](scenarios/desktop.md) (`TAURI-L*`) | `xvfb-run -a dbus-run-session -- node qa/desktop-tauri-linux.mjs` | builds `desktop/src-tauri --features qa` and drives it through a local socket (`src/qa_linux.rs`): Preview frames and the page's way out on WebKitGTK; ubuntu-latest in `tauri.yml` |
+| Desktop app (macOS) | [scenarios/desktop.md](scenarios/desktop.md) (`TAURI-*`) | `node qa/desktop-tauri.mjs` | builds `desktop/src-tauri --features qa` (needs Rust) and drives it through a local socket (`src/qa.rs`): WKWebView has no WebDriver |
+| Desktop app (Windows) | [scenarios/desktop.md](scenarios/desktop.md) (`TAURI-W*`) | `node qa/desktop-tauri-win.mjs` | the installer built with `--features qa` on windows-latest (`tauri-windows.yml`, CI only: it replaces the machine's wisp): the page through WebView2's CDP, the rest by real mouse, keys and Win32 (`qa/win32.ps1`); `--web` runs `qa/web.mjs` in its WebView2 |
+| Desktop app (Linux) | [scenarios/desktop.md](scenarios/desktop.md) (`TAURI-L*`) | `xvfb-run -a dbus-run-session -- node qa/desktop-tauri-linux.mjs` | builds `desktop/src-tauri --features qa` and drives it through a local socket (`src/qa_linux.rs`): Preview frames and the page's way out on WebKitGTK; ubuntu-latest in `tauri.yml` |
 | Install paths | [scenarios/install.md](scenarios/install.md) (`INST-*`) | `node qa/install.mjs` | npm, npx, `install.sh`, the Homebrew steps, and the Tauri downloads from `desktop/scripts/package.mjs`: every way in, from real artefacts, published nowhere |
 | Android app | [scenarios/mobile.md](scenarios/mobile.md) (`MOB-*`) | `node qa/mobile.mjs` | the computers screen and wisp's page as the app's WebView sees it; APK, Gradle and emulator steps are in the scenarios |
 
@@ -21,7 +20,6 @@ Each scenario says how it's covered: **Automated** (the script), **Suite** (`npm
 ## Setup
 
 ```sh
-npm install                                        # Electron, for the desktop script
 mkdir -p /tmp/wisp-qa-pw && npm i --prefix /tmp/wisp-qa-pw playwright-core
 (cd mobile && npm install)                         # Capacitor's JS, for the mobile preview
 ```

@@ -5,7 +5,7 @@ app or site. AGENTS.md says how the code is laid out; these files say what a UI 
 like. Most of the rules here come from a bug we shipped and then fixed: the commit is named
 where it helps.
 
-Read this file before any change under `web/`, `mobile/`, `electron/`, `desktop/` or `docs/`, then the one
+Read this file before any change under `web/`, `mobile/`, `desktop/` or `docs/`, then the one
 that matches your change:
 
 | File | Covers |
@@ -17,6 +17,7 @@ that matches your change:
 | [site.md](site.md) | trywisp.dev (`docs/`): generated pages, cache busting, install text |
 | [crew.md](crew.md) | The crew: naming, where it sits, spirits (avatars), memory and context |
 | [later.md](later.md) | Later: scheduled follow-ups, tasks and reminders |
+| [worktrees-on-done.md](worktrees-on-done.md) | Done asks about the worktree: the dialog, its rows and words, the setting, what Done from elsewhere removes |
 | [for-later.md](for-later.md) | For later: finished tasks (and crew reports) parked to look at again |
 | [goals.md](goals.md) | Goals: a task that keeps going until a condition holds; the band, the checks, the words |
 | [side-panel.md](side-panel.md) | The side panel: a shell in the task's folder and its PR, beside the task; segments on phones |

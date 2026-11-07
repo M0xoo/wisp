@@ -88,7 +88,7 @@ export default {
   // grants: { permission, patterns } the user allowed after `run` rejected them, for this turn.
   // fork: continue a copy of resumeId's session instead of the session itself (/btw).
   // gate: every write and command waits on wisp first (a side discussion, server/opencode-gate.js).
-  run({ prompt, attachments = [], cwd, resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], gate = false, capped = false, onEvent }) {
+  run({ prompt, attachments = [], cwd, resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], gate = false, capped = false, runEnv = {}, onEvent }) {
     // The prompt goes on stdin; `run` appends piped stdin to the (empty) message.
     // Errors to stderr: the only place a rate limit shows up (see RATE_LIMITED).
     const args = ['run', '--format', 'json', '--print-logs', '--log-level', V2 ? 'error' : 'ERROR'];
@@ -105,7 +105,7 @@ export default {
     for (const [name, srv] of Object.entries(mcpServers)) {
       mcp[name] = { type: 'local', command: [srv.command, ...(srv.args || [])], environment: srv.env || {}, enabled: true, timeout: ASK_TIMEOUT_MS };
     }
-    const env = { ...process.env };
+    const env = { ...process.env, ...runEnv };
     const allow = grants.filter((g) => g && typeof g.permission === 'string' && Array.isArray(g.patterns));
     if (Object.keys(mcp).length || allow.length || gate || capped) {
       const inline = env.OPENCODE_CONFIG_CONTENT ? safeJson(env.OPENCODE_CONFIG_CONTENT) : {};

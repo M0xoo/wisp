@@ -69,6 +69,7 @@ export function guides(h) {
           ${rows.map(([k, them, us]) => `<tr><th scope="row">${k}</th><td>${them}</td><td>${us}</td></tr>`).join('\n          ')}
         </tbody>
       </table></div>`;
+  const PROJECTS = 'https://code.claude.com/docs/en/claude-projects';
   const READ_ON = '<p class="muted">From each project’s own README and docs on 7 November 2026. We read them; we didn’t run them. They move fast: check before you choose.</p>';
 
   return [
@@ -2227,6 +2228,7 @@ vercel --prod`)}
         <li><b><a href="/guides/wisp-vs-cmux.html">cmux</a></b> if what you liked most was terminals, and you’d rather manage them yourself on a native Mac app.</li>
         <li><b><a href="/guides/wisp-vs-multica.html">Multica</a></b> if your team wants humans and agents on one issue board.</li>
       </ul>
+      <p>Anthropic’s Claude Code Projects is another way out if you use Claude only and your code is on github.com: one conversation starts cloud threads for you. <a href="/guides/wisp-vs-claude-code-projects.html">wisp vs Claude Code Projects</a> says where each is better.</p>
     </section>
 
     <section>
@@ -2508,7 +2510,7 @@ vercel --prod`)}
     <section>
       <h2 id="better">Where cmux is better</h2>
       <ul class="doc-list">
-        <li><b>It’s a real terminal.</b> Native Swift on libghostty, ${ext('https://github.com/manaflow-ai/cmux', 'not Electron')}. wisp’s desktop app is Electron, and it isn’t trying to be your terminal.</li>
+        <li><b>It’s a real terminal.</b> Native Swift on libghostty, ${ext('https://github.com/manaflow-ai/cmux', 'not Electron')}. wisp’s desktop app is a small Tauri window around its page, and it isn’t trying to be your terminal.</li>
         <li><b>Any agent.</b> If it runs in a terminal, it runs in cmux. wisp supports the seven harnesses it has adapters for.</li>
         <li><b>Install.</b> Notarized for macOS. wisp’s builds aren’t signed yet.</li>
         <li><b>iPhone.</b> There’s an iOS app in beta, on a paid plan. wisp has no native iPhone app.</li>
@@ -2684,6 +2686,82 @@ vercel --prod`)}
         ['Can I bring my Conductor worktrees into wisp?', 'Yes. Add the repo in New task and press Bring in: each worktree becomes a task where it is, with its uncommitted changes, and your next message resumes its newest Claude chat. A folder it doesn’t offer opens with In place.'],
       ],
       related: ['conductor-alternatives', 'wisp-vs-orca', 'moving-off-conductor'],
+    },
+
+    {
+      slug: 'wisp-vs-claude-code-projects',
+      topic: 'compare',
+      cloud: true,
+      title: 'wisp vs Claude Code Projects: where each is better, which to pick',
+      h1: 'wisp vs Claude Code Projects',
+      card: 'Claude Code Projects is one conversation that starts parallel Claude threads in the cloud. wisp runs Claude, Codex, Copilot and opencode on your machine, with your setup. Where each is better, from Anthropic’s docs.',
+      description: 'wisp vs Claude Code Projects compared from Anthropic’s docs: which agents, where threads run, what they load, usage limits and phones. Where Projects is better, and which one to pick.',
+      lede: `Claude Code Projects is the better pick if you work in Claude only and want one conversation that splits the work into cloud threads for you, with Claude’s own phone apps. wisp runs Claude Code, Codex, Copilot and opencode in one crew on your own machine, with your skills, MCP servers and settings, and holds its automations at a line you set below each plan’s limit.`,
+      shot: ['compare', 'Claude Code and Codex side by side in wisp’s Compare view: time, cost, tests and Keep this', 'story-'],
+      body: `
+    <section>
+      <h2 id="table">Side by side</h2>
+      ${vsTable('Claude Code Projects', [
+        ['In its own words', `“${ext(PROJECTS, 'Let Claude coordinate ongoing work')}”`, 'Launch agents in the background and read what they hand back'],
+        ['Agents', `Claude. Threads run ${ext(`${PROJECTS}#limitations`, 'with Anthropic as the model provider')}`, WISP.agents],
+        ['Who splits the work', 'Claude: you write in one conversation and it starts a thread per task', 'You, or the lead agent: give it a team with <b>Delegate</b> (other harnesses, other machines) and it hands parts to them'],
+        ['Where it runs', `${ext(`${PROJECTS}#run-a-thread-on-your-own-computer`, 'Cloud threads by default')}. A thread can run on your computer through Remote Control while it’s awake`, 'Your computer by default, your other machines, or wisp Cloud'],
+        ['What a thread loads', `Cloud threads get each repo’s <code>CLAUDE.md</code> and project memory, but ${ext(`${PROJECTS}#what-threads-pick-up-from-your-repositories`, 'not its skills, <code>.mcp.json</code> or <code>.claude/settings.json</code>')}. You add skills, connectors and plugins on claude.ai`, 'The CLI runs in your project folder, so it loads what it would in your terminal: your skills, <code>.mcp.json</code> and settings'],
+        ['Repositories', `github.com with the ${ext(`${PROJECTS}#set-up-github-access`, 'Claude GitHub App')} installed. Not GitHub Enterprise Server, GitLab or Bitbucket`, 'Any git folder on your machine. <b>Ship it</b> opens PRs through the GitHub CLI'],
+        ['At the usage limit', `A thread waits and ${ext(`${PROJECTS}#usage-limit-reached`, 'by default carries on at the reset')}; one switch per project turns that off. A thread limit you ask for “${ext(`${PROJECTS}#what-draws-on-your-plan`, 'is a preference rather than a cap')}”`, '<b>Automations stop at</b> 50, 75 or 90% of each Claude Code and Codex window: crew check-ins, triggers and goal rounds wait for the reset. What you start yourself still runs'],
+        ['What needs you', `${ext(`${PROJECTS}#see-what-needs-you-in-overview`, 'Overview')}, with <i>Waiting on you</i>, pull requests, files and scheduled tasks`, 'The task list, with <i>Needs you</i>, and Plan budget per account'],
+        ['Pull requests', 'Each thread watches its PR: it pushes fixes when CI fails and answers review comments', 'The card follows CI and reviews. A <b>CI failed</b> trigger sends a failure to an agent, and <b>Review by another harness</b> reads each new head'],
+        ['Phone', `The Claude app ${ext('https://apps.apple.com/us/app/claude-by-anthropic/id6473753684', 'for iOS')} and ${ext('https://play.google.com/store/apps/details?id=com.anthropic.claude', 'Android')}`, WISP.phone],
+        ['Plans', 'Pro, Max and Ultra, in public beta and rolling out. Not Team or Enterprise yet', 'Free and MIT. It runs on the plans your CLIs are signed in with'],
+      ])}
+      <p class="muted">From ${ext(PROJECTS, 'Anthropic’s Projects docs')} on 7 November 2026. We read them; we didn’t run Projects. It’s in beta and moves fast: check before you choose.</p>
+    </section>
+
+    <section>
+      <h2 id="different">Where wisp is different</h2>
+      <ul class="doc-list">
+        <li><b>More than one vendor in one crew.</b> A crew member, a delegate or a goal judge can be Claude Code, Codex, Copilot or opencode, each on its own sign-in. <b>Review by another harness</b> has Codex read Claude Code’s PR, or the other way round.</li>
+        <li><b>Your setup, as it is.</b> wisp runs on your computer by default, so a task loads the same skills, MCP servers and settings your terminal does. Projects runs those only in a thread on your computer; its cloud threads use what you set up on claude.ai.</li>
+        <li><b>A line below the limit.</b> <b>Automations stop at</b> keeps part of each window for you: past 50, 75 or 90%, nothing wisp starts on its own runs until the reset. Projects stops at your plan’s limit, and the number of threads is up to Claude.</li>
+        <li><b>Work checked by another agent.</b> A goal can have up to five judges on any harness, and it’s met when most of them say so, or all of them if you ask. <b>Compare</b> runs one task on two harnesses side by side, and <b>Best of two</b> has a model read both diffs and mark the better run.</li>
+        <li><b>A report every turn.</b> By default each turn ends with a one-screen report: what changed, the diff, the tests.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="better">Where Projects is better</h2>
+      <ul class="doc-list">
+        <li><b>It splits the work for you.</b> Tell it what needs doing and Claude starts as many threads as the work calls for. In wisp you pick the team, and the lead hands work to the names you gave it.</li>
+        <li><b>Phone apps.</b> The Claude app on iOS and Android runs Projects. wisp has no native iPhone app, and its Android app is a prototype you build from the repo.</li>
+        <li><b>Cloud with nothing to run.</b> Cloud threads keep going with your laptop shut, on Anthropic’s servers. wisp does that on your own machines or on wisp Cloud, a preview on one small server.</li>
+        <li><b>PR watching built in.</b> Every thread watches its own pull request and fixes CI and review comments. wisp gets there with triggers you set up.</li>
+        <li><b>Work that isn’t code.</b> Upload files, folders or Google Drive folders and threads work on them. wisp works on folders on your machine.</li>
+        <li><b>From Anthropic.</b> It’s built by the team that makes Claude Code. wisp is one owner and a crew.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="pick">Pick Projects if</h2>
+      <ul class="doc-list">
+        <li>You use Claude only, and want it to decide how to split the work.</li>
+        <li>Your code is on github.com and your tools are on claude.ai, or don’t matter for the task.</li>
+        <li>You want to steer threads from the Claude app on your phone.</li>
+      </ul>
+      <h2 id="pick-wisp">Pick wisp if</h2>
+      <ul class="doc-list">
+        <li>You use Codex, Copilot or opencode as well as Claude, and want them in one crew.</li>
+        <li>Your tasks need your local skills, MCP servers, settings or hooks.</li>
+        <li>You want automations to stop before your plan runs out, and keep the rest for yourself.</li>
+      </ul>
+    </section>
+`,
+      faq: [
+        ['Can I use both?', 'Yes. Both run Claude Code, and both draw on the same Claude plan. wisp’s Plan budget shows what it didn’t run as Outside wisp or earlier, so threads in Projects show up there.'],
+        ['Does Projects run Codex or other agents?', 'Its docs say threads run with Anthropic as the model provider, in the cloud or on your computer through Remote Control. wisp runs Claude Code, Codex, Copilot, opencode and others.'],
+        ['Do Projects threads use my skills and MCP servers?', 'A thread on your computer does. Cloud threads don’t load a repo’s skills, .mcp.json or .claude/settings.json; you enable skills, connectors and plugins on claude.ai instead.'],
+        ['Does wisp have a phone app?', 'An Android prototype you build from the repo, a Home Screen web app on iPhone with wisp Cloud, and any phone browser. There’s no native iPhone app.'],
+      ],
+      related: ['wisp-vs-t3-code', 'review-claude-code-prs-with-codex', 'run-claude-code-and-codex-in-parallel'],
     },
   ];
 }

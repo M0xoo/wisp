@@ -90,7 +90,7 @@ export function pageEvent(event, props = {}) {
 }
 
 export class Telemetry {
-  constructor(store, { shell = process.versions.electron ? 'electron' : process.env.WISP_DESKTOP === 'tauri' ? 'tauri' : process.env.WISP_GRID_URL ? 'grid' : 'browser', post } = {}) {
+  constructor(store, { shell = process.env.WISP_DESKTOP === 'tauri' ? 'tauri' : process.env.WISP_GRID_URL ? 'grid' : 'browser', post } = {}) {
     this.store = store;
     this.queue = [];
     this.pendingFile = path.join(store.home, 'telemetry-pending.json');
@@ -104,7 +104,6 @@ export class Telemetry {
       osRelease: os.release(),
       arch: process.arch,
       node: process.versions.node,
-      electron: process.versions.electron || undefined,
       shell,
     };
     this.timer = setInterval(() => this.flush(), FLUSH_MS);

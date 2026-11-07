@@ -1,4 +1,4 @@
-// app, File, Edit, View, Window, as Electron's default roles. On macOS the Edit menu isn't decoration:
+// app, File, Edit, View, Window, the standard roles. On macOS the Edit menu isn't decoration:
 // without it ⌘C ⌘V ⌘A ⌘Z don't reach the prompt box.
 
 use std::sync::atomic::{AtomicU32, Ordering};

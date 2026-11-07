@@ -94,7 +94,9 @@ async function boot({ channels = { enabled: true, retryMs: 30, wakeRetryMs: 80 }
   return g;
 }
 // A box that never comes up: everything stays held. A start gives up soon, so closing doesn't wait.
-const NEVER = { hostd: { startMs: 300 } };
+// startMs alone isn’t never: a box that boots inside it (a fast runner, or a test slow enough to give
+// hostd a few tries) delivers what a test means to keep held, so the stand-in also waits to listen.
+const NEVER = { hostd: { startMs: 300, env: { INBOX_BOX_BOOT_MS: '60000' } } };
 const update = (id, text = 'hello') => ({ update_id: id, message: { message_id: id, text, chat: { id: 42 }, date: Math.floor(Date.now() / 1000) } });
 const decoded = (m) => JSON.parse(Buffer.from(m.body, 'base64').toString('utf8'));
 

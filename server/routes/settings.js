@@ -65,9 +65,11 @@ export function register(r, app) {
     if (body.defaults?.maskEnvFiles !== undefined && !['on', 'off'].includes(body.defaults.maskEnvFiles)) return c.send(400, { error: 'maskEnvFiles must be on or off' });
     if (body.defaults?.review !== undefined && !REVIEW_VALUES.includes(body.defaults.review)) return c.send(400, { error: `review must be one of ${REVIEW_VALUES.join(', ')}` });
     if (body.defaults?.leanRuns !== undefined && !LEAN_VALUES.includes(body.defaults.leanRuns)) return c.send(400, { error: `leanRuns must be one of ${LEAN_VALUES.join(', ')}` });
-    for (const k of ['memoryFloor', 'cpuCeiling', 'maxRuns']) if (body.defaults?.[k] !== undefined && !SETTINGS[k].includes(body.defaults[k])) return c.send(400, { error: `${k} must be one of ${SETTINGS[k].join(', ')}` });
+    if (body.defaults?.automationsPausedUntil !== undefined && !(Number.isInteger(body.defaults.automationsPausedUntil) && body.defaults.automationsPausedUntil >= 0)) return c.send(400, { error: 'automationsPausedUntil must be a time in ms, or 0 (POST /automations/pause)' });
+    for (const k of ['memoryFloor', 'cpuCeiling', 'maxRuns', 'batteryHold']) if (body.defaults?.[k] !== undefined && !SETTINGS[k].includes(body.defaults[k])) return c.send(400, { error: `${k} must be one of ${SETTINGS[k].join(', ')}` });
     if (body.defaults?.worktreeCleanup !== undefined && !SETTINGS.worktreeCleanup.includes(body.defaults.worktreeCleanup)) return c.send(400, { error: `worktreeCleanup must be one of ${SETTINGS.worktreeCleanup.join(', ')}` });
     if (body.defaults?.worktreeMax !== undefined && !SETTINGS.worktreeMax.includes(body.defaults.worktreeMax)) return c.send(400, { error: `worktreeMax must be one of ${SETTINGS.worktreeMax.join(', ')}` });
+    if (body.defaults?.worktreeOnDone !== undefined && !SETTINGS.worktreeOnDone.includes(body.defaults.worktreeOnDone)) return c.send(400, { error: `worktreeOnDone must be one of ${SETTINGS.worktreeOnDone.join(', ')}` });
     if (body.defaults?.harnessAsk !== undefined && !['on', 'off'].includes(body.defaults.harnessAsk)) return c.send(400, { error: 'harnessAsk must be on or off' });
     if (body.defaults?.subagentModel !== undefined && !SUBAGENT_MODELS.includes(body.defaults.subagentModel)) return c.send(400, { error: 'subagentModel must be \'\' (the task’s model), haiku or sonnet' });
     if (body.defaults?.windowNotice !== undefined && !['on', 'off'].includes(body.defaults.windowNotice)) return c.send(400, { error: 'windowNotice must be on or off' });

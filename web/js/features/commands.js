@@ -177,7 +177,7 @@ function paletteItems() {
     ...(MOBILE
       ? [{ group: a, label: 'Your computers', icon: 'server', keywords: 'switch computer machine server add', run: () => openMachines() }]
       : [
-          ...(inBrowser() ? [{ group: a, label: 'Get the desktop app', icon: 'laptop', keywords: 'download install app desktop mac windows linux electron', run: () => openGetApp() }] : []),
+          ...(inBrowser() ? [{ group: a, label: 'Get the desktop app', icon: 'laptop', keywords: 'download install app desktop mac windows linux', run: () => openGetApp() }] : []),
           { group: a, label: 'Machines', icon: 'server', keywords: 'remote ssh server computer devbox cloud vm', run: () => openMachines() },
           { group: a, label: 'Add a machine…', icon: 'server', keywords: 'remote ssh server computer connect', run: () => openMachines({ focusAdd: true }) },
         ]),

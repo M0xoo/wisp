@@ -71,7 +71,7 @@ export default {
     return { ...found, ...(efforts.length && { efforts }), models: [this.models[0], ...models] };
   },
 
-  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, onEvent }) {
+  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, runEnv = {}, onEvent }) {
     // The prompt goes on stdin as a single `user` event; closing stdin ends the session once
     // that turn's result is out.
     const args = ['--input-format', 'stream-json', '--output-format', 'stream-json', '--print-timeout', PRINT_TIMEOUT];
@@ -96,7 +96,7 @@ export default {
       bin: BIN,
       args,
       cwd,
-      env: process.env,
+      env: { ...process.env, ...runEnv },
       input,
       onEvent,
       onJson(msg) {

@@ -72,6 +72,7 @@
 // A prompt with DELEGATE makes a lead call the injected `delegate` tool once per subagent
 // (twice each with DELEGATE TWICE, which a member with copies spreads over two of them).
 // With DELEGATE SLOW each subagent works 3s first, long enough to interrupt the lead meanwhile.
+// DELEGATE NOWAIT calls it with wait: false, so the lead ends its turn while they work.
 // Permissions: with APPROVE, claude asks wisp's `approve` tool (its --permission-prompt-tool)
 // before `npm publish` (twice with APPROVE TWICE). With BLOCKED, `npm publish` is refused unless
 // the run allows it (claude --allowedTools Bash(npm publish), or a Full auto run): claude reports
@@ -231,7 +232,7 @@ const btw = stdin.includes('# wisp btw');
 
 if (process.env.FAKE_RECORD) {
   fs.mkdirSync(process.env.FAKE_RECORD, { recursive: true });
-  fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${retro ? 'retro' : btw ? 'btw' : name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid, opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT, allowAll: process.env.COPILOT_ALLOW_ALL, configDir: process.env.CLAUDE_CONFIG_DIR, codexHome: process.env.CODEX_HOME, summaries: process.env.CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES, nonessential: process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, subagentModel: process.env.CLAUDE_CODE_SUBAGENT_MODEL, workflowSubagentModel: process.env.CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL, subagentForce: process.env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE }) + '\n');
+  fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${retro ? 'retro' : btw ? 'btw' : name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid, opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT, allowAll: process.env.COPILOT_ALLOW_ALL, configDir: process.env.CLAUDE_CONFIG_DIR, codexHome: process.env.CODEX_HOME, summaries: process.env.CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES, nonessential: process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, subagentModel: process.env.CLAUDE_CODE_SUBAGENT_MODEL, workflowSubagentModel: process.env.CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL, subagentForce: process.env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE, task: process.env.WISP_TASK }) + '\n');
 }
 
 // FAKE_LIMITS: claude reports this rate_limit_info first (its usage windows, server/budget.js).
@@ -632,7 +633,7 @@ const ask = async () => {
   if (stdin.includes('DELEGATE') && srv) {
     const names = (list) => (list.find((t) => t.name === 'delegate').inputSchema.properties.tasks.items.properties.subagent?.enum || []).filter((n) => !n.includes('#'));
     const times = stdin.includes('DELEGATE TWICE') ? 2 : 1;
-    const report = await mcpCall(srv, 'delegate', (list) => ({ tasks: names(list).flatMap((n) => Array.from({ length: times }, (_, i) => ({ subagent: n, prompt: `Check math.js for ${n}${stdin.includes('DELEGATE SLOW') ? ' slowly' : ''}${i ? ` (${i + 1})` : ''}` }))) }));
+    const report = await mcpCall(srv, 'delegate', (list) => ({ tasks: names(list).flatMap((n) => Array.from({ length: times }, (_, i) => ({ subagent: n, prompt: `Check math.js for ${n}${stdin.includes('DELEGATE SLOW') ? ' slowly' : ''}${i ? ` (${i + 1})` : ''}` }))), ...(stdin.includes('DELEGATE NOWAIT') && { wait: false }) }));
     return report?.startsWith('Nothing was delegated') || report?.startsWith('wisp') ? 'no team' : report ? `delegated (${report.length} chars) ${report.match(/### [\w#-]+/g)?.join(' ')}` : 'no delegate tool';
   }
   const mention = stdin.match(/\(wisp task ([a-z0-9]+)\)/);

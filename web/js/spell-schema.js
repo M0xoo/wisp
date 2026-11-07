@@ -186,6 +186,7 @@ export const PARTS = {
   // A task's delegates at work (one row each, a crew member's opens its job), their reports' link to
   // that job, and the line on a crew job saying which task it came from (a link back to it).
   'delegate.live': '.team-live .tl-row',
+  'delegate.waiting': '#feed .w-panel.team-wait', // the lead's turn ended, its delegates still at work: Waiting on them, with Stop
   'delegate.open': '.sub-task .sub-open',
   'task.from': '.ask .ask-from',
   'task.latest': '.latest-pill', // over the reply box: something landed while you were away from the end
@@ -715,6 +716,7 @@ export const SETTINGS = {
   worktree: ['on', 'off'],
   worktreeCleanup: ['off', '3', '7', '14', '30'], // days a task's worktree may sit idle
   worktreeMax: ['off', '20', '40', '80'], // worktree folders kept on disk before the oldest idle ones go
+  worktreeOnDone: ['ask', 'remove', 'keep'], // Done in the page: ask about its folders, remove the clean ones, or keep them
   followUp: ['queue', 'interrupt'],
   mode: ['plan', 'edits', 'auto'],
   agent: 'string',
@@ -747,6 +749,8 @@ export const SETTINGS = {
   memoryFloor: ['off', '10', '15', '20', '25'],
   cpuCeiling: ['off', '100', '150', '200'],
   maxRuns: ['off', '4', '6', '8', '12', '16', 'auto'],
+  // On battery (macOS) and under this percent, the same work waits for the charger (server/machine.js).
+  batteryHold: ['off', '20', '40'],
   // Check Codex while work waits: ask Codex's app-server how a waiting account's windows stand, so an
   // early reset lets that work go (server/live-limits.js).
   liveLimits: ['on', 'off'],

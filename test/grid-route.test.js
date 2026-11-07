@@ -97,8 +97,6 @@ function call(port, host, p, { method = 'POST', headers = {}, body } = {}) {
 const running = [];
 after(async () => {
   for (const f of running.reverse()) await f();
-  // A real wisp that was on a grid leaves a timer running that nothing here can reach.
-  setTimeout(() => process.exit(process.exitCode || 0), 50);
 });
 
 let updates = 9000;

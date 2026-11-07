@@ -17,12 +17,6 @@ class WispAgents < Formula
   def install
     system "npm", "install", *std_npm_args
     bin.install_symlink Dir["#{libexec}/bin/*"]
-
-    # Drop the optional Electron desktop shell. npm ignores --omit=optional on global installs, and
-    # Electron fetches its ~300 MB binary into the keg on first `require`. Without it, `wisp` serves
-    # the browser UI.
-    electron = libexec/"lib/node_modules/wisp-agents/node_modules/electron"
-    rm_r electron if electron.exist?
   end
 
   def caveats

@@ -1,17 +1,17 @@
 name: tauri package
 
-# The Tauri app as downloads, kept as this run's artifacts and released nowhere. release.yml calls
-# this on a dry run only: `gh workflow run release --ref <branch> -f dry_run=true`. Electron stays
-# what users get. Linux builds each arch on its own runner (Tauri doesn't cross-compile WebKitGTK),
-# on 22.04 so the AppImage and the .deb run on glibc 2.35 and up.
+# The desktop app as downloads: release.yml's desktop job, for stable, beta, nightly and dry runs
+# alike (`gh workflow run release --ref <branch> -f dry_run=true`). It builds, runs the install gate
+# on what it built, and keeps the downloads as artifacts named desktop-*: release.yml publishes those
+# and nothing else, so the gate's reports are named install-gate-*. It never publishes anything itself.
+# Linux builds each arch on its own runner (Tauri doesn't cross-compile WebKitGTK), on 22.04 so the
+# AppImage and the .deb run on glibc 2.35 and up.
 #
-# Artifacts are named tauri-*: release.yml publishes what's named desktop-*, and that must never
-# match these.
-#
-# Each build also makes the shell alone, for a wisp from npm with no Electron (bin/desktop-shell.js):
-# wisp-shell-<mac|windows>-<arch>.tar.gz, no Node and no wisp files. tauri-shell holds them with
-# their SHA256SUMS.txt, made the way release.yml makes its own. Linux's (wisp-shell-linux-<arch>)
-# would come from the same package.mjs; it isn't made yet, so npm on Linux still opens a browser tab.
+# Each build also makes the shell alone, for a wisp from npm (bin/desktop-shell.js):
+# wisp-shell-<mac|windows>-<arch>.tar.gz, no Node and no wisp files. They're in desktop-* like the
+# rest, so a release publishes them and its SHA256SUMS.txt covers them. Linux's
+# (wisp-shell-linux-<arch>) would come from the same package.mjs; it isn't made yet, so npm on Linux
+# still opens a browser tab.
 
 on:
   workflow_call:
@@ -20,6 +20,10 @@ on:
         description: The commit to build
         type: string
         required: true
+      version:
+        description: A nightly's version, stamped into package.json before the build; empty keeps package.json's
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -42,23 +46,26 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: tauri-package-${{ runner.os }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+      # The app reads its version from package.json: a nightly has to say it's one to update from it.
+      - name: Stamp the nightly version
+        if: inputs.version != ''
+        run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
       - run: node desktop/scripts/package.mjs --target aarch64-apple-darwin
       - run: node desktop/scripts/package.mjs --target x86_64-apple-darwin
       - uses: actions/upload-artifact@v4
         with:
-          name: tauri-mac
+          name: desktop-mac
           if-no-files-found: error
           path: dist/tauri/wisp-*
-      # This run's Electron build, for the update onto Tauri (INST-18). macos-latest is Apple silicon.
-      - uses: actions/download-artifact@v4
-        with:
-          name: desktop-macOS
-          path: dist/electron
+      # A real Electron release, for the update people on one make onto this build (INST-18): the one
+      # INST-40 installs on Windows (ELECTRON in qa/install.mjs). macos-latest is Apple silicon.
+      # curl, not gh: this workflow never touches a release.
+      - run: mkdir -p dist/electron && curl -fsSLo dist/electron/wisp-mac-arm64.zip https://github.com/M0xoo/wisp/releases/download/v0.57.0/wisp-mac-arm64.zip
       - run: node qa/install.mjs --old-electron dist/electron/wisp-mac-arm64.zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: tauri-install-gate-mac
+          name: install-gate-mac
           path: qa/out/install.*
 
   windows:
@@ -81,18 +88,22 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: tauri-package-${{ runner.os }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+      # The app reads its version from package.json: a nightly has to say it's one to update from it.
+      - name: Stamp the nightly version
+        if: inputs.version != ''
+        run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
       - run: node desktop/scripts/package.mjs --target x86_64-pc-windows-msvc
       - run: node desktop/scripts/package.mjs --target aarch64-pc-windows-msvc
       - uses: actions/upload-artifact@v4
         with:
-          name: tauri-windows
+          name: desktop-windows
           if-no-files-found: error
           path: dist/tauri/wisp-*
       - run: node qa/install.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: tauri-install-gate-windows
+          name: install-gate-windows
           path: qa/out/install.*
 
   linux:
@@ -121,22 +132,28 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: tauri-package-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+      # The app reads its version from package.json: a nightly has to say it's one to update from it.
+      - name: Stamp the nightly version
+        if: inputs.version != ''
+        run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
       - run: node desktop/scripts/package.mjs --target ${{ matrix.triple }}
       - uses: actions/upload-artifact@v4
         with:
-          name: tauri-linux-${{ matrix.arch }}
+          name: desktop-linux-${{ matrix.arch }}
           if-no-files-found: error
           path: dist/tauri/wisp-*
       - run: xvfb-run -a dbus-run-session -- node qa/install.mjs --only ${{ matrix.rows }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: tauri-install-gate-linux-${{ matrix.arch }}
+          name: install-gate-linux-${{ matrix.arch }}
           path: qa/out/install.*
 
+  # A report, never a gate: a failed lookup here mustn't hold a release.
   sizes:
     needs: [mac, windows, linux]
     if: ${{ !cancelled() }}
+    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -144,21 +161,15 @@ jobs:
           ref: ${{ inputs.ref }}
       - uses: actions/download-artifact@v4
         with:
-          pattern: tauri-[mwl][ai]*
+          pattern: desktop-*
           merge-multiple: true
           path: dist/tauri
-      - name: Sizes against Electron
+      - name: Sizes against the latest release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           node desktop/scripts/sizes.mjs dist/tauri | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: The shell archives and their sums
+      - name: The shell archives, with the sums the release will have
         run: |
-          mkdir -p dist/shell && cp dist/tauri/wisp-shell-* dist/shell/
-          (cd dist/shell && sha256sum wisp-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
-          for a in mac-arm64 mac-x64 windows-x64 windows-arm64; do grep -q " wisp-shell-$a.tar.gz$" dist/shell/SHA256SUMS.txt || { echo "::error::no wisp-shell-$a.tar.gz"; exit 1; }; done
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tauri-shell
-          if-no-files-found: error
-          path: dist/shell/*
+          (cd dist/tauri && sha256sum wisp-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          for a in mac-arm64 mac-x64 windows-x64 windows-arm64; do grep -q " wisp-shell-$a.tar.gz$" dist/tauri/SHA256SUMS.txt || { echo "::error::no wisp-shell-$a.tar.gz"; exit 1; }; done

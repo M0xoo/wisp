@@ -22,7 +22,7 @@ pub struct Server {
   stopping: Arc<AtomicBool>,
 }
 
-// Any HTTP answer counts, like electron/main.js's fetch: a wisp from the CLI, or ours once it's up.
+// Any HTTP answer counts: a wisp from the CLI, or ours once it's up.
 pub fn answers(port: u16, path: &str) -> bool {
   let Ok(addrs) = ("localhost", port).to_socket_addrs() else { return false };
   addrs.into_iter().any(|addr| {
@@ -60,7 +60,7 @@ impl Server {
     Ok(())
   }
 
-  // Once it's up the server is what makes this an app: Electron dies with it, and the update flow
+  // Once it's up the server is what makes this an app: the shell dies with it, and the update flow
   // counts on that (the server exits, a helper waits for the port and opens the new build).
   pub fn exit_with_it(&self, app: AppHandle) {
     let (child, stopping) = (self.child.clone(), self.stopping.clone());

@@ -121,6 +121,31 @@ admits it only when the plan has.
   server's on with readings it sets.
 - NOT NOW: pausing or killing running agents, cgroups, per-run memory limits.
 
+## Paused, on battery, and what each task costs
+
+`server/machine.js` (`app.machine`, design/machine.md for the API the page reads) adds two holds in
+front of the readings, through Load's `extra()`: they hold the same work, through the same paths,
+and hold even when the readings are off (you asked for them).
+
+- **Pause automations**: `POST /automations/pause { until }` sets `defaults.automationsPausedUntil`
+  (ms, at most 30 days on; `0` resumes). Kind `paused`, *Automations paused until 20:00* (*tomorrow
+  08:00*, *Mon 08:00*). Its `until` is a minute on at most, so Resume now lets held work go within
+  one. It expires by itself. A time isn't a choice, so it isn't a spell setting.
+- **Battery** (macOS, `pmset -g batt` once a minute): on battery and under `batteryHold` (`off` |
+  `20` | `40`, 20, spell-lockable), kind `battery`, *Waiting for power: battery at 14%, needs 20% or
+  the charger*. The charger lets it go.
+- **What each task costs**: one `ps` per 10 s tick (Windows: one `Get-CimInstance Win32_Process`),
+  only while a run goes, for 3 min after one ends, or for 30 s after `GET /machine`. A run's tree is
+  the runner's child pid and what's under it; `WISP_TASK=<task id>` is on every run's env
+  (`runEnv`, every adapter) and a pid seen in a tree keeps its task, so a reparented process is
+  still known. `GET /machine` has RAM/CPU per task and crew member, and the processes finished runs
+  left behind (`POST /machine/stop { pid }`: SIGTERM, SIGKILL 5 s later; only those and pids in a
+  running task's tree, never wisp or what started it).
+- **On the card**: a running task's summary carries `res: { rss, cpu }` over 500 MB or 50% CPU,
+  re-sent only when one moved by 20%.
+- **A day of points**: every minute `{ at, freePct, cpu, runs, held, worktreeBytes }`, 24 h kept in
+  `<home>/machine-history.json` (written every 5 points and at shutdown).
+
 ## Where it went
 
 `Budget.begin/end(agent, account, session, turn)` (runner `#startTurn` / `#finishTurn`, in memory)

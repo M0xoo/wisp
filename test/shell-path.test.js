@@ -1,4 +1,4 @@
-// The desktop app reads PATH from the login shell before its first window (electron/shell-path.js).
+// The desktop app reads PATH from the login shell before its first window (desktop/shell-path.js).
 // A shell that hangs must not keep the window from opening: an interactive zsh ignores SIGTERM,
 // so execFile's own timeout never ended it (DESK-14 waited forever on a Mac with a slow ~/.zshrc).
 
@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { tmp } from './helpers.js';
 
-const { readShellPath } = await import('../electron/shell-path.js');
+const { readShellPath } = await import('../desktop/shell-path.js');
 
 const shell = (name, body) => {
   const f = path.join(tmp('shell-path'), name);

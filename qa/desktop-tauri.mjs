@@ -147,8 +147,8 @@ await check('TAURI-01', 'boots, its server is a Node child, the page loads', asy
   A.serverPid = health.json.pid;
   const parent = execFileSync('ps', ['-o', 'ppid=', '-p', String(A.serverPid)], { encoding: 'utf8' }).trim();
   ok(Number(parent) === A.proc.pid, `server's parent ${parent}, shell ${A.proc.pid}`);
-  const b = await A.js(`({ electron: document.body.classList.contains('electron'), mac: document.body.classList.contains('mac') })`);
-  ok(b.electron && b.mac, `body classes ${JSON.stringify(b)}`);
+  const b = await A.js(`({ desktop: document.body.classList.contains('desktop'), mac: document.body.classList.contains('mac') })`);
+  ok(b.desktop && b.mac, `body classes ${JSON.stringify(b)}`);
   await shot('boot');
 });
 
@@ -263,7 +263,7 @@ await check('TAURI-07', 'application menu, Edit keys in the prompt box', async (
   await A.js(`(__qaT.value = '', __qaT.dispatchEvent(new Event('input', { bubbles: true })), 1)`);
 });
 
-await check('TAURI-07c', 'Tab reaches buttons and links, as in Electron', async () => {
+await check('TAURI-07c', 'Tab reaches buttons and links', async () => {
   await A.ask({ op: 'activate' });
   await A.js(`(() => { document.activeElement?.blur(); const b = document.createElement('div'); b.id = 'qaTab'; b.style.cssText = 'position:fixed;left:300px;top:300px;z-index:99999'; b.innerHTML = '<input id=qaTabFrom><a id=qaTabLink href="#x">link</a><button id=qaTabButton>button</button>'; document.body.append(b); document.querySelector('#qaTabFrom').focus(); return 1; })()`);
   const tab = (id) => A.ask({ op: 'key', chars: '\t', code: 48, mods: 0 }).then(() => until(() => A.js(`document.activeElement?.id === '${id}'`), { timeout: 5000, what: `Tab to reach #${id}` }));

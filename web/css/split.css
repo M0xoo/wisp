@@ -405,34 +405,34 @@ body.stream-down .w-panel .orb.live, body.stream-down .w-panel .w-status b { ani
 /* the head's buttons share the icon buttons' 32px; one whose label folds away is a 32px square */
 .sh-acts > .ghost.sm, .sh-acts > .primary.sm { height: 32px; }
 .sh-acts > .ghost.sm:not(:has(> span:not([hidden]))) { width: 32px; padding: 0; justify-content: center; }
-body.electron.split .split-head { -webkit-app-region: drag; }
-body.electron.split .split-head :is(button, a, .sh-title) { -webkit-app-region: no-drag; }
+body.desktop.split .split-head { -webkit-app-region: drag; }
+body.desktop.split .split-head :is(button, a, .sh-title) { -webkit-app-region: no-drag; }
 /* With the list hidden the top bar's buttons float over the header's corner, and a drag region
    takes clicks even under what's on top of it: only the title row drags then, clear of them. */
-body.electron.split.side-hidden .split-head { -webkit-app-region: no-drag; }
-body.electron.split.side-hidden .split-head .sh-row { -webkit-app-region: drag; }
+body.desktop.split.side-hidden .split-head { -webkit-app-region: no-drag; }
+body.desktop.split.side-hidden .split-head .sh-row { -webkit-app-region: drag; }
 /* Home has no header: a strip along the pane's top moves the window, clear of the floating buttons. */
 .split-drag { display: none; position: absolute; z-index: 1; top: 0; left: 0; right: 0; height: 40px; -webkit-app-region: drag; }
-body.electron.split .split-main { position: relative; }
-body.electron.split .split-main:has(> .split-home:not([hidden])) > .split-drag { display: block; }
-body.electron.split.side-hidden:not(.side-right) .split-drag { left: calc(var(--bar-w, 120px) + 8px); }
-body.electron.split.side-hidden.side-right .split-drag { right: calc(var(--bar-w, 120px) + 8px); }
+body.desktop.split .split-main { position: relative; }
+body.desktop.split .split-main:has(> .split-home:not([hidden])) > .split-drag { display: block; }
+body.desktop.split.side-hidden:not(.side-right) .split-drag { left: calc(var(--bar-w, 120px) + 8px); }
+body.desktop.split.side-hidden.side-right .split-drag { right: calc(var(--bar-w, 120px) + 8px); }
 /* the Mac window buttons sit over the top-left corner: beside the brand, or the title when the list is on the right */
-body.electron.mac.split .topbar { padding-left: 14px; }
-body.electron.mac.split:not(.side-right) .topbar .brand { margin-left: 74px; }
-body.electron.mac.split.side-hidden:not(.side-right) .topbar { padding-left: 88px; }
-/* With the rail the window buttons are wider than it (x 16-68, electron/main.js), so the head's first
+body.desktop.mac.split .topbar { padding-left: 14px; }
+body.desktop.mac.split:not(.side-right) .topbar .brand { margin-left: 74px; }
+body.desktop.mac.split.side-hidden:not(.side-right) .topbar { padding-left: 88px; }
+/* With the rail the window buttons are wider than it (x 16-68, desktop/src-tauri/src/main.rs), so the head's first
    line becomes a strip on the rail's surface: the buttons, the sidebar button beside them, search and
    you on the right. The panel starts under it, level with the first face, at the project filter. */
-body.electron.mac.split.has-rail:not(.side-right, .side-hidden) .topbar { margin: 0 8px 0 56px; padding: 9px 10px 0 22px; border: 0; border-radius: 0; background: none; }
-body.electron.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .brand { display: none; }
-body.electron.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .view-btn { order: -1; margin-right: auto; }
-body.electron.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .search-btn:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
-body.electron.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .projects {
+body.desktop.mac.split.has-rail:not(.side-right, .side-hidden) .topbar { margin: 0 8px 0 56px; padding: 9px 10px 0 22px; border: 0; border-radius: 0; background: none; }
+body.desktop.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .brand { display: none; }
+body.desktop.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .view-btn { order: -1; margin-right: auto; }
+body.desktop.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .search-btn:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+body.desktop.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .projects {
   flex-basis: calc(100% + 32px); min-height: 49px; margin: 3px -10px 0 -22px; padding: 10px 10px 4px;
   border: 1px solid var(--line); border-bottom: 0; border-radius: 11px 11px 0 0; background: var(--panel);
 }
-body.electron.mac.split.side-right .split-head { padding-left: max(88px, var(--pad, 24px)); }
+body.desktop.mac.split.side-right .split-head { padding-left: max(88px, var(--pad, 24px)); }
 .split-stage { flex: 1; min-height: 0; }
 
 /* The open card's body, laid over #splitStage (split.js keeps --sb-* on its box). */
@@ -710,8 +710,8 @@ body.wisp-mobile #feed .item.sw-gone { transition: height 0.2s var(--ease), marg
 }
 /* The Mac window buttons sit over the page's top-left corner, and their hover area takes clicks out
    to x 88 (16px past the green one): Back's box starts there, not under them (its -10px margin). */
-body.electron.mac.split.stack :is(.split-head, .crew-view .cv-top, .org-view .cv-top) { padding-left: 98px; }
-body.electron.mac.split.stack .sh-bar { padding-left: 82px; }
+body.desktop.mac.split.stack :is(.split-head, .crew-view .cv-top, .org-view .cv-top) { padding-left: 98px; }
+body.desktop.mac.split.stack .sh-bar { padding-left: 82px; }
 
 /* Panes on home (panes.js, split.js): apps from My Stuff pinned here. Side by side they tile, a bar
    over a frame, in rows of --pa-h so nothing below moves while one loads; a drag or a spell sizes
@@ -787,6 +787,6 @@ body.stack .pa-open .pa-bar [data-pa='reload'] { grid-area: 1 / 4 / 3 / 5; }
 body.stack .pa-open .pa-bar [data-pa='unpin'] { grid-area: 1 / 5 / 3 / 6; margin-right: -10px; }
 body.stack .pa-open .pa-bar .icon-btn[data-pa] { width: 44px; height: 44px; padding: 6px; background-clip: content-box; }
 body.stack .pa-open .pa-frame { height: calc(100% - env(safe-area-inset-bottom)); }
-body.electron.mac.split.stack .pa-open .pa-bar { padding-left: 98px; }
-body.electron.split.stack .pa-open .pa-bar { -webkit-app-region: drag; }
-body.electron.split.stack .pa-open .pa-bar button { position: relative; z-index: 2; -webkit-app-region: no-drag; } /* above .split-drag, which stays on home */
+body.desktop.mac.split.stack .pa-open .pa-bar { padding-left: 98px; }
+body.desktop.split.stack .pa-open .pa-bar { -webkit-app-region: drag; }
+body.desktop.split.stack .pa-open .pa-bar button { position: relative; z-index: 2; -webkit-app-region: no-drag; } /* above .split-drag, which stays on home */
