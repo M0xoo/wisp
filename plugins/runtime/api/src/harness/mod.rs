@@ -85,6 +85,11 @@ pub trait Harness: Send + Sync + 'static {
     /// A fresh driver for this run (`pure(parser)` for a parser with no disk steps).
     fn driver(&self, run: &HarnessRun) -> Box<dyn RunDriver>;
 
+    /// The program a run starts (what detect found, else the CLI's name): what wisp.accounts' harness
+    /// watch pins. None: the harness has no program of its own. Additive (2026-11-08).
+    fn program(&self) -> Option<String> {
+        None
+    }
     /// How to get it on that OS, sent while it isn't found.
     fn setup(&self, _platform: &str) -> Option<SetupTip> {
         None
