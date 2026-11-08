@@ -4,6 +4,12 @@ This page is the map. The reasons are in `docs/adr/` (one decision per file). Th
 the *wisp v2 rewrite plan* (draft 9); `docs/v2-plan-coverage.md` maps every section of it to code. When code
 and this page disagree, fix whichever one is wrong in the same PR.
 
+## The direction (ADR-0028)
+
+**Code first.** Anything a user can do or set up in wisp is a resource or a task operation, available as code:
+a formula (`wisp.yml`), the SDK (TypeScript, Python) or the CLI. The GUI, the TUI and the CLI are frontend
+plugins over that (ADR-0024). Users orchestrate with workflows (DAGs of task specs) in their own code.
+
 ## One sentence
 
 **Rust for everything but the UI** (ADR-0013). One Rust binary, `wisp`, holds a small **kernel** that

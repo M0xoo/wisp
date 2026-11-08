@@ -34,3 +34,4 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0025](0025-jiff-for-time-zones.md) | jiff for time zones (later, host crates only) |
 | [0026](0026-wisp-as-code.md) | wisp as code: resources owned by plugins; `wisp apply/export/diff`, `--formula`, `grid deploy` |
 | [0027](0027-task-specs.md) | A task = spec + history: rerun, fork, share (spec/report/full), declared tasks and recipes as specs |
+| [0028](0028-code-first.md) | Code first: every resource kind listed; workflows (DAGs of task specs); TS/Python SDKs; trust for foreign formulas |
