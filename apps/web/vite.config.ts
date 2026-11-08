@@ -1,7 +1,7 @@
 // apps/web: the one bundle. `vite` (npm run dev:web) serves it with the mock peer; `vite build`
 // writes dist/ with content-hashed assets, which `wisp serve` serves (crates/wisp/src/serve.rs
 // web_dir: WISP_WEB_DIR, else web/ by the binary, else this checkout's apps/web/dist) and the
-// desktop and Android apps ship. The service worker builds to dist/sw.js (a fixed name: its scope
+// desktop and Android apps ship. The service worker (@wisp/shell's platform/sw.ts) builds to dist/sw.js (a fixed name: its scope
 // is the site, and the page registers it by that name).
 
 import { execFileSync } from 'node:child_process';
@@ -30,7 +30,7 @@ export default defineConfig(({ command }) => ({
     target: 'es2022',
     modulePreload: { polyfill: false },
     rollupOptions: {
-      input: { index: fileURLToPath(new URL('index.html', import.meta.url)), sw: fileURLToPath(new URL('src/sw.ts', import.meta.url)) },
+      input: { index: fileURLToPath(new URL('index.html', import.meta.url)), sw: fileURLToPath(new URL('../../packages/shell/src/platform/sw.ts', import.meta.url)) },
       output: {
         entryFileNames: (chunk) => (chunk.name === 'sw' ? 'sw.js' : 'assets/[name]-[hash].js'),
         chunkFileNames: 'assets/[name]-[hash].js',

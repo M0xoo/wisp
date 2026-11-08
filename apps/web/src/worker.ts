@@ -1,4 +1,4 @@
-// The service worker (src/sw.ts) for the phone and the installed app (v1 cache.js): the page and its
+// The service worker (@wisp/shell src/platform/sw.ts) for the phone and the installed app (v1 cache.js): the page and its
 // files come from the cache at once, the network behind them. When the worker finds a new build it
 // says so, and the toast's Reload brings it in. In the desktop and Android apps the bundle ships
 // inside, so there is nothing to cache.

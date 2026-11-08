@@ -8,6 +8,7 @@ import { useShell } from '../context.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { SHOW_AFTER_MS, pick, startSwitch, step, type SwitchState } from './model.ts';
 
+// size-ok: the keys and the view share the switch state; split, they'd pass it all around
 export default function Switcher(props: { readonly recent: Readable<readonly string[]> }): JSX.Element {
   const shell = useShell();
   const [st, setSt] = createSignal<SwitchState | undefined>(undefined);

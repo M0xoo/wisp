@@ -17,6 +17,7 @@ export const SHELL_STRINGS = {
   'shell.palette.navigate': 'navigate',
   'shell.palette.open': 'open',
   'shell.palette.close': 'close',
+  'shell.palette.go': 'Go to',
   'shell.palette.group.app': 'wisp',
   'shell.palette.group.tasks': 'Tasks',
 

@@ -1,4 +1,4 @@
-// The service worker (v1 web/sw.js, for the phone's browser and the installed web app). The page and
+// The service worker (v1 web/sw.js; built by apps/web into dist/sw.js, for the phone's browser and the installed web app). The page and
 // its content-named files come from this cache at once; the network is asked behind them.
 //   - install: every module in one request (`/_pack` → {url: text}, crates/wisp-api statics/pack.rs),
 //     not ~40 round trips over a slow tunnel, then the page itself (`x-wisp-sw: 1`: the normal page,

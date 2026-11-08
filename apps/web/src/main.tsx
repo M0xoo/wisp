@@ -3,7 +3,7 @@
 // answers; then each peer resumes from its cursor. The page's own wisp is a peer like any other;
 // more come from Settings (the device's `shell.peers`).
 
-import '@wisp/ui/kit.css';
+import '@wisp/ui/styles';
 import { browserHistory, createClient, httpTransport, indexedDBPersist, peerId, untracked, uuidv7, type PeerConfig } from '@wisp/client';
 import { commandErrorToast, createShell, detectPlatform } from '@wisp/shell';
 import { createToaster } from '@wisp/ui';

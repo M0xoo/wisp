@@ -15,6 +15,7 @@ import { rank, type Ranked } from './match.ts';
 
 const DEEP_PAUSE_MS = 160;
 
+// size-ok: one component whose closures (query, deep search, keys, run) share its signals
 export default function Palette(_p: { readonly client: PluginClient; readonly params: unknown }): JSX.Element {
   const shell = useShell();
   const host = useClients();
@@ -112,6 +113,8 @@ export default function Palette(_p: { readonly client: PluginClient; readonly pa
         }}
         onKeyDown={onKey}
         part="shell.palette.input"
+        // the palette loads after its dialog opened, so the dialog's first focus missed the input
+        ref={(el) => requestAnimationFrame(() => el.focus())}
       />
       <Show when={shown().length > 0} fallback={<Text tone="muted" size="sm">{shell.t('shell.palette.empty', { q: query().trim() })}</Text>}>
         <Stack gap="0" role="listbox" aria-label={shell.t('shell.palette.title')} part="shell.palette.list">

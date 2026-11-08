@@ -57,7 +57,8 @@ export function createTheme(d: ThemeDeps): Theme {
         d.onLocked?.(by);
         return;
       }
-      if (p !== pref()) await d.write(p);
+      // a refusal rolls back and toasts in the command runner; nothing more to do here
+      if (p !== pref()) await d.write(p).catch(() => {});
     },
     dispose() {
       stop();

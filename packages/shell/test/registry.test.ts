@@ -45,7 +45,7 @@ test('config is parsed by the extension; a refused value keeps the default', () 
     if (typeof v !== 'object' || v === null || typeof (v as { compact?: unknown }).compact !== 'boolean') throw new Error('bad');
     return v as { compact: boolean };
   } };
-  r.add(plugin('wisp.a', [ext('a.pick', 'x:y', { config: config as ExtensionDef['config'] })]));
+  r.add(plugin('wisp.a', [ext('a.pick', 'x:y', { config: config as NonNullable<ExtensionDef['config']> })]));
   expect(r.input('x:y')()[0]?.config).toEqual({ compact: false });
   r.add(plugin('s1', [], { tree: { config: { 'a.pick': { compact: true } } } }));
   expect(r.input('x:y')()[0]?.config).toEqual({ compact: true });

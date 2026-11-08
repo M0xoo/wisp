@@ -100,7 +100,17 @@ pub struct LaterView {
 impl From<&LaterEntry> for LaterView {
     fn from(l: &LaterEntry) -> Self {
         let files = u32::try_from(l.attachments.len()).ok().filter(|n| *n > 0);
-        Self { id: l.id.clone(), at: l.at, text: l.text.clone(), by: l.by.clone(), set_at: l.set_at, remind: l.remind, files, held: l.held.clone(), goal: l.goal }
+        Self {
+            id: l.id.clone(),
+            at: l.at,
+            text: l.text.clone(),
+            by: l.by.clone(),
+            set_at: l.set_at,
+            remind: l.remind,
+            files,
+            held: l.held.clone(),
+            goal: l.goal,
+        }
     }
 }
 
