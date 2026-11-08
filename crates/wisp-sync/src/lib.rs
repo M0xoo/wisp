@@ -10,8 +10,11 @@
 //! - **Priority:** acks, then the client's `session:*` topics, then `list`, then the rest.
 //! - **Backpressure:** past ~1 MB buffered, busy topics are dropped and the client told to `resync`.
 //! - **Cursor = watermark:** a frame's `id:` never passes a change still queued for the client.
+//! - **The client half** (`client::SyncClient`) is the Rust twin of `packages/sync`'s, for the CLI
+//!   and any Rust peer that attaches to a wisp.
 //! - **v1 streams** (no hello parameters) get v1's named events (`legacy`).
 
+pub mod client;
 mod conn;
 mod error;
 mod flush;
@@ -24,6 +27,7 @@ mod server;
 pub mod sse;
 mod types;
 
+pub use client::SyncClient;
 pub use error::SyncError;
 pub use fold::{compose, fold};
 pub use legacy::V1Event;
