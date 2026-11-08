@@ -7,6 +7,7 @@ mod args;
 mod attach;
 mod cli;
 mod client;
+mod code;
 mod commands;
 mod desktop;
 mod extras;
@@ -16,6 +17,7 @@ mod scripted;
 mod serve;
 mod services;
 mod settings_store;
+mod tasks_cli;
 
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
@@ -84,6 +86,9 @@ async fn dispatch(p: &Parsed, user_home: &Path, cwd: &Path) -> Result<i32> {
     if !matches!(p.command, Some("serve" | "mcp" | "grid" | "desktop" | "completions")) && Client::new(port).ping().await {
         attach::notices(&Client::new(port), &home).await;
     }
+    if let Some(code) = as_code(p, port, f.cwd.as_deref().unwrap_or(cwd)).await? {
+        return Ok(code);
+    }
     if let Some(code) = live(p, &home, port).await? {
         return Ok(code);
     }
@@ -118,6 +123,43 @@ fn plugin_word(word: &str) -> bool {
 }
 
 /// The commands that follow a topic or read the catalogue (ADR-0022); None: not one of them.
+/// wisp as code (ADR-0026, ADR-0027): apply, diff, validate, schema, export; task spec/export/formula,
+/// rerun, run -f, run <workflow|task>. None: the words aren't one of them.
+async fn as_code(p: &Parsed, port: u16, cwd: &Path) -> Result<Option<i32>> {
+    let words = &p.words;
+    let Some(first) = words.first().map(String::as_str) else { return Ok(None) };
+    if p.literal == args::Literal::Task {
+        return Ok(None);
+    }
+    let start = p.argv.iter().position(|a| a == first).map_or(0, |i| i + 1);
+    let o = code::opts(&p.argv[start.min(p.argv.len())..]);
+    let o = code::Opts { json: o.json || p.flags.json, yes: o.yes || p.flags.yes, dry_run: o.dry_run || p.flags.dry_run, wait: o.wait || p.flags.wait, ..o };
+    let connect = || Client::connect(port, true);
+    let code = match first {
+        "apply" | "diff" | "validate" if !o.files.is_empty() => code::apply(&connect().await?, first, &o, cwd).await?,
+        "schema" if o.words.is_empty() => code::schema(&connect().await?).await?,
+        "export" if o.words.iter().all(|w| w.bytes().all(|b| b.is_ascii_lowercase() || b == b'-')) => {
+            let c = connect().await?;
+            if !code::kind_words(&o.words, &code::kinds(&c).await?) {
+                return Ok(None);
+            }
+            code::export_cmd(&c, &o).await?
+        }
+        "task" if matches!(o.words.first().map(String::as_str), Some("spec" | "export" | "formula")) && o.words.len() >= 2 => tasks_cli::task(&connect().await?, &o).await?,
+        "rerun" if (o.words.len() == 1 && args::session_id(&o.words[0])) || o.last.is_some() => {
+            let o = code::Opts { words: std::iter::once("rerun".to_owned()).chain(o.words.clone()).collect(), ..o };
+            tasks_cli::rerun(&connect().await?, &o, cwd).await?
+        }
+        "run" if !o.files.is_empty() => tasks_cli::run_file(&connect().await?, &o, cwd).await?,
+        "run" if !o.words.is_empty() => match tasks_cli::run_named(&connect().await?, &o.words, &o).await? {
+            Some(code) => code,
+            None => return Ok(None),
+        },
+        _ => return Ok(None),
+    };
+    Ok(Some(code))
+}
+
 async fn live(p: &Parsed, home: &Path, port: u16) -> Result<Option<i32>> {
     let f = &p.flags;
     let words = &p.words;

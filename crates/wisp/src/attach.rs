@@ -2,6 +2,8 @@
 //! <id> --watch` and `wisp ls --watch`. The CLI is a sync client like the phone (ADR-0024): wisp-sync's
 //! `SyncClient` on `GET /api/events`, its subs and unsubs on `POST /api/events`, no polling. What to
 //! print comes from wisp-cli-core's `attach::View`; this file reads the stream, the keyboard and Ctrl-C.
+//!
+//! size-ok: the one place the CLI follows a topic (attach, ls --watch, waits), sharing its connection
 use std::collections::BTreeMap;
 use std::io::{IsTerminal, Write};
 use std::path::Path;
@@ -383,6 +385,29 @@ pub async fn attach(c: &Client, home: &Path, id: &str, mode: Mode) -> Result<i32
                 });
             }
         }
+    }
+}
+
+/// Follows task `id`'s topic until `done` holds for it (the session's columns with its body over them);
+/// returns it then. No polling: it wakes on the stream's changes.
+pub async fn until(c: &Client, id: &str, done: impl Fn(&Value) -> bool) -> Result<Value> {
+    let (st, r) = (Style::plain(80), Renderers::builtin());
+    let mut view = View::new(id);
+    let mut conn = Conn::new(c, &[wisp_runtime_api::session_topic(id)]);
+    let mut got = conn.start().await?;
+    loop {
+        for g in got.drain(..) {
+            let _ = match g {
+                Got::Snapshot(rows) => view.snapshot(rows, &st, &r),
+                Got::Ops(ops) => view.ops(ops, &st, &r),
+            };
+        }
+        if let Some(s) = view.session()
+            && done(s)
+        {
+            return Ok(s.clone());
+        }
+        got = conn.next().await?;
     }
 }
 
