@@ -30,3 +30,4 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0022](0022-cli-covers-the-gui.md) | Everything the GUI can do, the CLI can do (generated from the command catalogue) |
 | [0023](0023-jiff-for-time-zones.md) | `jiff` resolves IANA time zones, in host crates only |
 | [0023](0023-terminal-context.md) | `wisp` reads the terminal it ran in (tmux, WezTerm, kitty, iTerm2, Terminal, VS Code, shell hook), scrubbed |
+| [0024](0024-frontends-are-plugins.md) | GUI, TUI and CLI are frontend plugins over the same catalogue, topics and sync protocol |

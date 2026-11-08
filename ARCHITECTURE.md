@@ -32,6 +32,13 @@ phone app.
  apps/grid (Rust): edge, hostd, boxd. One wisp per tenant box, the BoxPlugins group.
 ```
 
+## Frontends are plugins (ADR-0024)
+
+The GUI (`wisp.frontend.web`), the TUI (`wisp.frontend.tui`, `wisp tui`) and the CLI (`wisp.frontend.cli`)
+are three plugins over the same command catalogue, topics and sync protocol. Each feature plugin contributes
+to each through points (`web.extension`, `tui.view`, `tui.input`, `term.block`, `cli.verb`). None of them
+reads the store; all of them can attach to any peer.
+
 ## Layout
 
 ```
@@ -53,7 +60,9 @@ plugins/<name>/
                         (other plugins depend on this only)
   core/                 crate wisp-<name>-core: pure logic, sans-IO parsers, deciders (no tokio, no fs)
   host/                 crate wisp-<name>: adapters and wiring; wisp-plugin.json lives here
-  ui/                   package @wisp-plugin/<name>-ui: Solid extensions, kit components only
+  ui/                   package @wisp-plugin/<name>-ui: Solid extensions for the GUI, kit components only
+  tui/                  crate wisp-<name>-tui: views, inputs and block renderers for the TUI and the CLI
+                        (optional; the generated verbs and generic renderers cover a plugin without one)
 packages/               TypeScript, UI only
   protocol/             wire types (generated from Rust by ts-rs, diffed in CI)
   sync/                 the client half: SyncClient, SSE parser, apply rules
