@@ -112,6 +112,13 @@ wisp aims to be the fastest dev tool there is. Speed is checked like correctness
 - **The UI does the least work:** fine-grained signals (one row repaints), keyed lists that move nodes,
   `VirtualList` past 200 rows, no layout reads after writes in one frame, no `:has()` on large boxes.
 
+## Porting from v1
+
+- **Port the intent, not the bugs** (`docs/v2-port-intent.md`): write the feature's intent first, look for
+  v1's bugs in that area (issues, flaky tests, FIXMEs, the plan §4.6.1 bug classes) before porting, fix them in
+  v2 with a test that would fail on v1, and list each in `docs/v1-bugs-fixed.md`. Unsure whether it's a bug?
+  Keep v1's behaviour and ask under *Questions* there.
+
 ## Tests
 
 - Tests sit next to the code (`<package>/test/*.test.ts`). They need no network and no real harness.
