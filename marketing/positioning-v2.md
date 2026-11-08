@@ -46,3 +46,9 @@ README, the site (trywisp.dev: home, guides, integrations, agents pages), the CL
 (generated from the catalogue and schemas), the plugin guide, the SDK guides (TypeScript, Python), recipes
 of formulas, a migration guide from v1, and the launch post. Owners: marketing (copy, site), the lead
 (review), the coder (generated references).
+
+## Site rule: every feature shows all four ways in
+
+Each feature on the site ends with one small line naming how to do it from the **App**, the **TUI**, the **CLI**
+and the **SDK** (e.g. `App: Share · TUI: s · CLI: wisp share · SDK: task.share()`). It's one line, not a section:
+the docs carry the details. It says what ADR-0024/0028 guarantee: anything is possible from wherever you work.

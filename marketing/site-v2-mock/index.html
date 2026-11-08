@@ -37,6 +37,9 @@
   .m-nums b { display: block; font-size: 34px; letter-spacing: -0.03em; } .m-nums span { color: var(--muted); font-size: 14px; }
   .m-end { text-align: center; padding: 110px 0 120px; }
   .m-end h2, .m-end .lede { margin-inline: auto; }
+  .m-ways { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 16px; font: 13px var(--sans); color: var(--muted); }
+  .m-ways b { color: var(--ink-2); font-weight: 600; margin-right: 6px; }
+  .m-ways code { font-size: 12.5px; }
   .m-note { position: fixed; right: 14px; bottom: 14px; font: 12px var(--sans); background: var(--ink); color: var(--bg); padding: 6px 10px; border-radius: 8px; opacity: .85; }
   @media (max-width: 900px) {
     .m-two, .m-faces { grid-template-columns: 1fr; }
@@ -131,6 +134,7 @@ Plan (wisp.yml)
         <div><b>Tools</b><span>MCP servers and wisp's own tools, per agent. Secrets stay out of the file.</span></div>
         <div><b>Rules</b><span>Who may start what from Slack or Telegram, spend limits, what happens when a run fails.</span></div>
       </div>
+      <div class="m-ways"><span><b>App</b>Settings, Import a formula</span><span><b>TUI</b>Settings tab</span><span><b>CLI</b><code>wisp apply -f wisp.yml</code></span><span><b>SDK</b><code>await w.apply(formula)</code></span></div>
     </div>
   </section>
 
@@ -157,6 +161,7 @@ Plan (wisp.yml)
   spend            $9.80      <span class="g">$7.10</span>
 <span class="g">  ✓ report: wisp open eval-0412</span></pre></div>
       </div>
+      <div class="m-ways"><span><b>App</b>Share, Rerun on a task</span><span><b>TUI</b>s, r on a task</span><span><b>CLI</b><code>wisp share · wisp rerun</code></span><span><b>SDK</b><code>task.share() · task.rerun()</code></span></div>
     </div>
   </section>
 
@@ -174,6 +179,7 @@ Plan (wisp.yml)
 <span class="c">$</span> <span class="b">wisp resume 01a1bc "also handle the offline case"</span>
 <span class="g">  ✓ resumed with its spec, summary and report · on today's main</span></pre>
       </div>
+      <div class="m-ways"><span><b>App</b>History beside the file</span><span><b>TUI</b>b on a line</span><span><b>CLI</b><code>wisp blame · wisp resume</code></span><span><b>SDK</b><code>w.blame(path, line)</code></span></div>
     </div>
   </section>
 
