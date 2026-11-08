@@ -646,12 +646,17 @@ test('a cloud computer that’s waking takes the next request; one disconnected 
 
 // wisp quitting (stop()) while a cloud computer wakes: the wake stops asking. It went on for up to
 // 90 s, holding the process open and changing state after the server had gone.
+// The first answer is held until after stop(): a 503 still on its way when wisp stops must not
+// change anything (on windows-latest it often landed after stop() and counted as a change).
 test('a cloud computer still waking stops asking once wisp stops', async () => {
   let asked = 0;
+  let answer = null;
   const srv = http.createServer((req, res) => {
     req.resume();
     if (req.url === '/api/health') asked += 1;
-    res.writeHead(503, { 'content-type': 'application/json' }).end('{"error":"starting"}');
+    const send = () => res.writeHead(503, { 'content-type': 'application/json' }).end('{"error":"starting"}');
+    if (asked === 1) answer = send;
+    else send();
   });
   await new Promise((r) => srv.listen(0, '127.0.0.1', r));
   try {
@@ -659,9 +664,10 @@ test('a cloud computer still waking stops asking once wisp stops', async () => {
     const store = { config: { machines: [{ id: 'g', name: 'box', kind: 'grid', url: `http://127.0.0.1:${srv.address().port}` }], projects: [] }, pathAt: () => null };
     const ms = new Machines({ store, secrets: { get: () => 't' }, onChange: () => (changes += 1) });
     await ms.connect('g');
-    await until(() => asked >= 1, { what: 'the first wake check' });
+    await until(() => answer, { what: 'the first wake check' });
     ms.stop();
     const at = { asked, changes };
+    answer();
     await sleep(2_500); // the wake asks again every second
     assert.deepEqual({ asked, changes }, at);
   } finally {
