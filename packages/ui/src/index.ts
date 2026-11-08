@@ -21,3 +21,4 @@ export * from './ship/index.ts';
 export * from './crew/index.ts';
 export * from './transcript/index.ts';
 export * from './home/index.ts';
+export * from './app/index.ts';

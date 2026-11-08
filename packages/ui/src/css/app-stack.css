@@ -1,0 +1,107 @@
+/* The frame on a phone (v1 body.split.stack, responsive.css, split.css stack rules): one page at a
+   time, the list or the main pane; Home and a task get a back button in their head. */
+@layer kit {
+  [data-kit='stage'][data-layout='stack'] { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); --rail-w: 0px; }
+  [data-kit='stage'][data-layout='stack'] > [data-kit='topbar'], [data-kit='stage'][data-layout='stack'] > [data-kit='feed-wrap'] { --side-bg: var(--rail); margin: 0; border-width: 0; border-radius: 0; }
+  [data-kit='stage'][data-layout='stack'] > [data-kit='feed-wrap'] { padding: 0 var(--space-4) var(--space-9); }
+  [data-kit='stage'][data-layout='stack'] [data-kit='split-top'] { margin: 0 -8px; padding: var(--space-4) var(--space-4) var(--space-5); }
+  [data-kit='stage'][data-layout='stack'] [data-kit='view-btn'] { display: none; }
+  [data-kit='stage'][data-layout='stack'] > [data-kit='split-main'] { grid-row: 1 / -1; grid-column: 1; }
+  [data-kit='stage'][data-layout='stack'][data-page='list'] > [data-kit='split-main'] { display: none; }
+  /* a page over the list (v1 body.stack-page): the list keeps its place off to the left, so going back
+     shows it as it was (its scroll, nothing rebuilt); it's inert while hidden */
+  [data-kit='stage'][data-layout='stack'][data-page='main'] > [data-kit='topbar'] { display: none; }
+  [data-kit='stage'][data-layout='stack'][data-page='main'] > [data-kit='feed-wrap'] { display: none; }
+  [data-kit='stage'][data-layout='stack'][data-page='main'][data-behind] > [data-kit='feed-wrap'] { display: block; grid-row: 1 / -1; transform: translateX(-100%); }
+  [data-kit='stage'][data-layout='stack'][data-page='main'][data-behind] [data-kit='split-top'],
+  [data-kit='stage'][data-layout='stack'][data-page='main'][data-behind] [data-kit='sec-toggle'] { visibility: hidden; }
+
+  /* Home as its own page */
+  [data-kit='stage'][data-layout='stack'] [data-kit='split-home'] { align-items: stretch; padding: 0 var(--space-7) var(--space-9); }
+  [data-kit='stage'][data-layout='stack'] [data-kit='split-home'] > * { max-width: none; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='sh-bar'] { gap: var(--space-3); min-height: 56px; padding: var(--space-3) 0; margin: 0 0 var(--space-4); }
+  [data-kit='stage'][data-layout='stack'] [data-kit='sh-bar'] > [data-kit='sh-hello'] { font-size: 19px; padding: 0; letter-spacing: -0.02em; }
+  [data-kit='sh-back'] { display: flex; align-items: center; justify-content: center; flex: none; width: var(--size-touch); height: var(--size-touch); margin: 0 0 0 -10px; border-radius: var(--radius-control); color: var(--muted); }
+  [data-kit='stage'][data-layout='split'] [data-kit='sh-s'] { display: none; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='sh-task'] { grid-template-columns: 10px minmax(0, 1fr) auto auto; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='sh-tips'] { margin-top: 22px; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='sh-tips'] > h4, [data-kit='stage'][data-layout='stack'] [data-kit='sh-tip']:not([data-setup]) { display: none; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='sh-tip'][data-setup] { grid-template-columns: 34px minmax(0, 1fr); }
+  [data-kit='stage'][data-layout='stack'] [data-kit='ts-cta'] { grid-column: 2; justify-self: start; margin-top: var(--space-2); }
+
+  /* the prompt box folds its toolbar to icons in a narrow box (launcher.css, auto.css @container launcher) */
+  @container launcher (max-width: 400px) {
+    [data-kit='l-projects'] > [data-kit='l-in'] { display: none; }
+    [data-kit='lp-chip'][data-add]:not([data-small]) { width: 27px; padding: 0; justify-content: center; }
+    [data-kit='lp-chip'][data-add]:not([data-small]) > span, [data-kit='l-bar'] [data-text='control'] { display: none; }
+    [data-kit='mode-btn'] { padding: 0 7px; }
+    [data-kit='runner-btn'] { padding: 0 3px; }
+    [data-kit='runner-btn'] > [data-kit='rb-logo'], [data-kit='auto-pv'] > [data-kit='rb-logo'] { margin-right: 0; }
+    [data-kit='runner-btn'] > [data-kit='icon'] { display: none; }
+    [data-kit='auto-pv'] { padding: 0 5px; }
+    [data-kit='l-bar'] { overflow-x: auto; scrollbar-width: none; }
+    [data-kit='l-bar'] > [data-kit='grow'] { flex: 0 0 0; }
+    [data-kit='l-bar'] > [data-kit='send'] { position: sticky; right: 0; box-shadow: -8px 0 8px var(--surface), -20px 0 12px var(--surface); }
+    [data-kit='l-recipes'] { min-height: 0; }
+    [data-kit='lr-list'] { flex-direction: column; align-items: flex-start; }
+    [data-kit='lr-list'] > [data-kit='l-in'] { align-self: flex-start; }
+    [data-kit='lr-empty'] { white-space-collapse: collapse; text-wrap-mode: wrap; } /* content text: the hint wraps on a phone */
+    [data-kit='l-recipes'] > [data-kit='lp-chip'] { width: var(--size-control-xs); padding: 0; justify-content: center; }
+    [data-kit='l-recipes'] > [data-kit='lp-chip'] > span { display: none; }
+  }
+
+  /* a task on a phone: the head with Back, the details as a row, the actions as a grid of five */
+  [data-kit='stage'][data-layout='stack'] [data-kit='split-head'] { min-height: 56px; padding: var(--space-3) var(--space-6) var(--space-3) var(--space-7); }
+  [data-kit='stage'][data-layout='stack'] [data-kit='sh-row'] { gap: var(--space-3); }
+  [data-kit='sh-back'] > [data-kit='icon'] { width: 20px; height: 20px; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='sh-acts'] { min-height: var(--size-touch); }
+  [data-kit='stage'][data-layout='stack'] [data-kit='it-body'] { padding: 0 var(--space-7); }
+  [data-kit='stage'][data-layout='stack'] [data-kit='it-body'][data-details] > :not([data-kit='it-bar']) { margin-right: 0; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='it-bar'] {
+    position: relative; top: auto; z-index: 1; align-self: stretch; width: auto; height: auto;
+    display: grid; grid-template-columns: auto minmax(100px, 1fr); align-items: center; gap: var(--space-3) var(--space-6); padding: var(--space-6) var(--space-4) var(--space-4); margin: 0 -8px; background: var(--bg);
+  }
+  [data-kit='stage'][data-layout='stack'] [data-kit='it-props'] { flex-direction: row; align-items: center; gap: var(--space-3) var(--space-5); line-height: var(--lh-base); color: var(--muted); min-width: 0; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='it-state'] {
+    --tone: var(--good); display: inline-flex; flex: none; align-items: center; gap: var(--space-3); height: 22px; padding: 0 var(--space-4); border-radius: var(--radius-sm);
+    font-weight: 500; color: color-mix(in srgb, var(--tone) 85%, var(--ink)); background: color-mix(in srgb, var(--tone) 9%, transparent); white-space: nowrap;
+  }
+  [data-kit='it-state'] > i { width: 6px; height: 6px; border-radius: 50%; background: var(--tone); }
+  [data-kit='it-state'][data-tone='info'] { --tone: var(--accent); }
+  [data-kit='it-state'][data-tone='bad'] { --tone: var(--bad); }
+  [data-kit='it-state'][data-tone='warn'] { --tone: var(--warn); }
+  [data-kit='stage'][data-layout='stack'] [data-kit='model-logo'] { flex: none; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='model-logo'] > img { margin: 0; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='ml-name'] { display: none; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='q-proj'] {
+    min-width: 6ch; padding: 0 7px; font-size: var(--fs-xs); line-height: 19px; color: color-mix(in srgb, var(--pc) 65%, var(--ink)); background: color-mix(in srgb, var(--pc) 10%, transparent);
+  }
+  [data-kit='stage'][data-layout='stack'] [data-kit='q-proj']::before { display: none; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='it-meta'] { margin: 0; min-width: 100px; overflow: hidden; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='m-branch'] { color: var(--ink-2); }
+  [data-kit='stage'][data-layout='stack'] [data-kit='m-branch'] > [data-kit='icon'] { width: var(--size-icon-sm); height: var(--size-icon-sm); margin-right: var(--space-2); }
+  [data-kit='stage'][data-layout='stack'] [data-kit='it-actions'] {
+    grid-column: 1 / -1; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--space-1); padding: 0; margin: 0 -6px; border: 0;
+  }
+  [data-kit='stage'][data-layout='stack'] [data-kit='ghost-xs'][data-desk] { display: none; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='it-actions'] > [data-kit='ghost-xs'] {
+    flex-direction: column; justify-content: center; gap: 3px; height: auto; min-height: 52px; padding: var(--space-2) var(--space-1); margin: 0;
+    border-radius: var(--radius); font-size: var(--fs-xs); line-height: 1.25; color: var(--ink-2);
+  }
+  [data-kit='stage'][data-layout='stack'] [data-kit='it-actions'] > [data-kit='ghost-xs']::after { display: none; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='it-actions'] > [data-kit='ghost-xs'] > [data-kit='icon'] { width: 17px; height: 17px; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='b-hero'] > h2 { font-size: 22px; }
+  /* the trail on three rows: what it did, the files, the tools (a grid: its rows are fixed, it never wraps) */
+  [data-kit='stage'][data-layout='stack'] [data-kit='trail-bar'] { display: grid; grid-template-columns: auto auto auto auto minmax(0, 1fr); justify-items: start; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='link-xs'] { grid-column: 1 / -1; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='tb-tools'] { grid-column: 1 / -1; justify-self: end; margin: 0; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='trail-bar'] > [data-kit='grow'] { display: none; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='it-dock'] { padding: var(--space-5) 0 var(--space-6); }
+  [data-kit='stage'][data-layout='stack'] [data-kit='ov-text'] { white-space-collapse: collapse; text-wrap-mode: wrap; } /* content text: what overlaps, in words */
+  [data-kit='stage'][data-layout='stack'] [data-kit='ov-text'] > b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='ov-text'] > span { display: flow-root; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] { gap: var(--space-2); padding: 3px; margin: -3px; overflow-x: auto; scrollbar-width: none; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] [data-text='control'] { display: none; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] > [data-kit='mode-btn'] { padding: 0; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] > [data-kit='send'] { position: sticky; right: 0; box-shadow: -10px 0 8px -2px var(--surface); }
+}

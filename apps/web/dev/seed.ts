@@ -173,3 +173,112 @@ export function seed(o: { peer: string; now: number; extra: number }): Seeded {
     presentation: () => PRESENTATION,
   };
 }
+
+// ---------- Replaying v1's reference data (design/v1-reference/seed.json) ----------
+// qa/parity.mjs starts the mock with MOCK_SEED=<seed.json>: vite-mock.ts reads the file and hands its
+// JSON here, and the mock's clock starts at `captured`. The rows carry v1's exact strings (titles,
+// the temp repo's name and paths, branches) and times, so a screen renders what v1 rendered.
+
+interface V1Turn {
+  id: string;
+  prompt: string;
+  agent: string;
+  model: string;
+  mode: string;
+  startedAt: number;
+  endedAt?: number | null;
+  status: string;
+  presentation?: unknown;
+  stats?: unknown;
+  checkpoint?: unknown;
+  changes?: unknown;
+  activity?: { t: number; kind: string; label?: string; detail?: string; file?: string }[];
+  [k: string]: unknown;
+}
+
+interface V1Summary {
+  id: string;
+  title: string;
+  agent: string;
+  cwd: string;
+  model: string;
+  state: string;
+  unread: boolean;
+  archived: boolean;
+  createdAt: number;
+  updatedAt: number;
+  status: string;
+  preview: string;
+  live: string;
+  [k: string]: unknown;
+}
+
+export interface V1Seed {
+  captured: string;
+  list: V1Summary[];
+  sessions: Record<string, { turns?: V1Turn[]; worktree?: unknown; [k: string]: unknown }>;
+  crew: { id: string; [k: string]: unknown }[];
+  config: { projects?: { id: string; [k: string]: unknown }[]; [k: string]: unknown };
+}
+
+const V1_STATE: Record<string, Task['state']> = { running: 'running', review: 'review', done: 'done', error: 'error', waiting: 'review' };
+
+/** The capture time of a v1 seed: the mock's clock starts there. */
+export const v1Captured = (v1: V1Seed): number => Date.parse(v1.captured);
+
+/** The files each task changed (its turns' changes): v1 lists two open tasks of one project that
+ * change the same file as overlapping (web/js/features/overlaps.js), oldest first. */
+function overlaps(v1: V1Seed, peer: string): Map<string, { id: string; files: string[]; conflicts: string[] }[]> {
+  const files = new Map<string, Set<string>>();
+  for (const s of v1.list) files.set(s.id, new Set((v1.sessions[s.id]?.turns ?? []).flatMap((t) => ((t.changes as { file: string }[] | undefined) ?? []).map((c) => c.file))));
+  const byAge = [...v1.list].filter((s) => !s.archived).sort((a, b) => a.createdAt - b.createdAt);
+  const out = new Map<string, { id: string; files: string[]; conflicts: string[] }[]>();
+  for (const s of byAge) {
+    const mine = files.get(s.id) ?? new Set<string>();
+    const with_ = byAge.filter((o) => o.id !== s.id && o['projectId'] === s['projectId']).map((o) => ({ id: `${peer}:${o.id}`, files: [...(files.get(o.id) ?? [])].filter((f) => mine.has(f)), conflicts: [] as string[] }));
+    out.set(s.id, with_.filter((o) => o.files.length > 0));
+  }
+  return out;
+}
+
+export function fromV1(v1: V1Seed, peer: string): Seeded {
+  const topics = new Map<Topic, Row[]>();
+  const list: Row[] = [];
+  const shared = overlaps(v1, peer);
+  for (const s of v1.list) {
+    const id = `${peer}:${s.id}`;
+    const full = v1.sessions[s.id] ?? {};
+    const { id: _id, title, agent, state, unread, archived, createdAt, updatedAt, ...summary } = s;
+    const v = {
+      id, parent_id: null, title, state: V1_STATE[state] ?? 'review', agent, archived, unread, created_at: createdAt, updated_at: updatedAt, rev: 1,
+      summary: { ...summary, forLater: false, worktree: full.worktree ?? null, overlaps: shared.get(s.id) ?? [] },
+      body: { cwd: s.cwd, dirs: [], queue_held: false, tags: [], ext: {} },
+    };
+    list.push({ e: 'session', id, v });
+    const own: Row[] = [{ e: 'session', id, v }];
+    const turns = full.turns ?? [];
+    turns.forEach((t, idx) => {
+      const tid = `${id}:${t.id}`;
+      const text = typeof t['raw'] === 'string' ? t['raw'] : '';
+      own.push({ e: 'turn', id: tid, v: { id: tid, session_id: id, idx, status: t.status, started_at: t.startedAt, ended_at: t.endedAt ?? null, prompt: t.prompt, answer: text, body: { ...t, id: tid, session_id: id, idx, started_at: t.startedAt } } });
+    });
+    const last = turns[turns.length - 1];
+    if (last) own.push({ e: 'event', id, v: (last.activity ?? []).map((a, i) => ({ session_id: id, seq: i + 1, turn_id: `${id}:${last.id}`, t: a.t, kind: a.kind, body: { ...a } })) });
+    topics.set(`session:${id}`, own);
+  }
+  topics.set('list', list);
+  topics.set('config', [
+    { e: 'setting', id: 'shell.theme', v: { key: 'shell.theme', value: 'system', locked_by: null } },
+    ...(v1.config.projects ?? []).map((p) => ({ e: 'project', id: p.id, v: p })),
+  ]);
+  topics.set('crew', v1.crew.map((c) => ({ e: 'crew.member', id: c.id, v: c })));
+  topics.set('machines', []);
+  topics.set('stuff', []);
+  return {
+    topics,
+    plugins: PLUGINS,
+    words: WORDS,
+    turn: (session, id, idx, prompt, at) => turnRow(session, id, idx, prompt, at),
+    presentation: () => PRESENTATION,
+  };
+}

@@ -5,12 +5,16 @@
 //   POST /__mock/stream?id=      start a streaming turn (default: the first running task)
 //   POST /__mock/fail?cmd=       the next run of that command is refused (see a rollback)
 // MOCK_SESSIONS=5000 adds that many plain tasks (a long list); MOCK_PEER names the peer.
+// MOCK_SEED=<design/v1-reference/seed.json> replays v1's reference data (qa/parity.mjs), with the
+// mock's clock starting at the capture time.
 
+import { readFileSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin, PreviewServer, ViteDevServer } from 'vite';
 import type { ClientMessage } from '@wisp/protocol';
 import { encodeFrame, heartbeat } from '@wisp/sync';
-import { createMockPeer, type MockPeer } from './mock-peer.ts';
+import { createMockPeer, type MockPeer, type MockTimers } from './mock-peer.ts';
+import { v1Captured, type V1Seed } from './seed.ts';
 
 function body(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -59,8 +63,17 @@ function middleware(peer: MockPeer) {
   };
 }
 
+/** v1's seed and a clock that starts at its capture time, when MOCK_SEED names one */
+function v1Seed(): { v1: V1Seed; timers: MockTimers } | undefined {
+  const file = process.env['MOCK_SEED'];
+  if (!file) return undefined;
+  const v1 = JSON.parse(readFileSync(file, 'utf8')) as V1Seed;
+  const offset = v1Captured(v1) - Date.now();
+  return { v1, timers: { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (h) => clearTimeout(h as ReturnType<typeof setTimeout>), now: () => Date.now() + offset } };
+}
+
 export function mockPeer(): Plugin {
-  const peer = createMockPeer({ sessions: Number(process.env['MOCK_SESSIONS'] ?? 0), ...(process.env['MOCK_PEER'] && { peer: process.env['MOCK_PEER'] }) });
+  const peer = createMockPeer({ sessions: Number(process.env['MOCK_SESSIONS'] ?? 0), ...(process.env['MOCK_PEER'] && { peer: process.env['MOCK_PEER'] }), ...v1Seed() });
   return {
     name: 'wisp-mock-peer',
     configureServer: (server: ViteDevServer) => void server.middlewares.use(middleware(peer)),

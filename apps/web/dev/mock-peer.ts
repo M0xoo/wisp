@@ -17,7 +17,7 @@
 
 import { PROTO, PROTO_MIN, applyPatch, type ClientMessage, type EntityOp, type PatchOp, type PeerInfo, type ServerMessage, type Topic } from '@wisp/protocol';
 import { COMMANDS, type CommandCtx, type CommandFn } from './mock-commands.ts';
-import { seed, type Seeded } from './seed.ts';
+import { fromV1, seed, type Seeded, type V1Seed } from './seed.ts';
 
 export interface MockFrame {
   readonly id: number | null;
@@ -38,6 +38,8 @@ export interface MockPeerOptions {
   timers?: MockTimers;
   /** a fixed epoch makes resumes testable; default: one per process */
   epoch?: string;
+  /** v1's reference data (design/v1-reference/seed.json): replayed instead of the hand-written seed */
+  v1?: V1Seed;
 }
 
 interface Row {
@@ -75,7 +77,7 @@ export function createMockPeer(o: MockPeerOptions = {}): MockPeer {
   const timers = o.timers ?? realTimers;
   const peer = o.peer ?? 'local';
   const epoch = o.epoch ?? `mock-${timers.now().toString(36)}`;
-  const data: Seeded = seed({ peer, now: timers.now(), extra: o.sessions ?? 0 });
+  const data: Seeded = o.v1 ? fromV1(o.v1, peer) : seed({ peer, now: timers.now(), extra: o.sessions ?? 0 });
   const store = new Map<Topic, Map<string, Row>>();
   const conns = new Map<string, Conn>();
   const handlers = new Map<string, CommandFn>(Object.entries(COMMANDS));

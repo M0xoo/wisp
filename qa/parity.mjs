@@ -6,7 +6,7 @@
 //
 //   node qa/parity.mjs                       starts apps/web's vite (mock peer) on QA_PARITY_PORT (4590)
 //   PARITY_URL=http://127.0.0.1:5180 node qa/parity.mjs   against a v2 web already running
-//   VIEWS=home,task WIDTHS=1440,390 THEMES=dark           a subset
+//   --views=home,task --widths=1440,390 --themes=dark     a subset (or VIEWS= WIDTHS= THEMES= in the env)
 //
 // v2 is driven by the same openers as v1 (qa/views.mjs), through a translation of v1 selectors to the
 // PARTS contract: a v1 PARTS selector becomes `[data-part="<name>"]`, a task's row is found by its
@@ -263,6 +263,9 @@ const splitTop = (s) => {
   return [...out, cur.trim()];
 };
 
+// v1 selectors the openers use that aren't a PARTS entry, in terms of the parts v2 renders.
+const EXTRA = { '.it-dock .composer textarea': '[data-part="composer.input"]' };
+
 // A v1 selector, in terms of the PARTS contract v2 renders (data-part). Rows are found by their title.
 export function translator(seed) {
   const title = (id) => seed.list.find?.((s) => s.id === id)?.title ?? seed.sessions[id]?.title ?? id;
@@ -273,6 +276,7 @@ export function translator(seed) {
         const vis = piece.endsWith(':visible') ? ':visible' : '';
         const bare = vis ? piece.slice(0, -8) : piece;
         if (bySel.has(bare)) return `[data-part="${bySel.get(bare)}"]${vis}`;
+        if (EXTRA[bare]) return `${EXTRA[bare]}${vis}`;
         const m = bare.match(/^#feed \.item\[data-id="(\w+)"\] \.it-head$/);
         if (m) return row(m[1]);
         return piece;
@@ -292,19 +296,24 @@ const v2Page = (p, tr) =>
   });
 
 // The focused state of a list row is its quick action focused by keyboard, as in the reference.
-const V2_FOCUS = { home: '[data-part="card.quickDone"]' };
+// v1 marks its second row focused (STATES.home.focus): v2 reaches that row's head by keyboard.
+const V2_FOCUS = { home: ':nth-match([data-part="card"], 2)' };
 const v2Target = (name, state) => (state === 'focus' && V2_FOCUS[name]) || V2_STATES[name] || 'nothing';
 const V2_STATES = {
   home: '[data-part="card.head"], [data-part="list.row"]',
-  task: '[data-part="split.head"] button:visible, [data-part="split.actions"] button:visible',
+  // v1's first match in document order is the open task's Transcript action (its body sits in #feed,
+  // before #splitHead), so v2 targets the same button.
+  task: '[data-part="split.actions"] button:visible',
   'task.composer': '[data-part="composer.mode"]:visible, [data-part="composer"] button:visible',
 };
 
-async function openV2(browser, url, open, [width, height], colorScheme) {
+async function openV2(browser, url, open, [width, height], colorScheme, at) {
   const ctx = await browser.newContext({ viewport: { width, height }, colorScheme, deviceScaleFactor: 1, reducedMotion: 'reduce' });
   ctx.setDefaultTimeout(2500);
   ctx.setDefaultNavigationTimeout(30_000);
   const p = await ctx.newPage();
+  // The page's clock reads the view's capture time, so relative times ("now", "1m") match v1's shot.
+  if (at) await p.clock.setFixedTime(new Date(at));
   await p.goto(url);
   await p.locator('[data-part="shell.app"], [data-part="feed"]').first().waitFor({ state: 'attached', timeout: 20_000 });
   await p.waitForTimeout(500);
@@ -338,9 +347,12 @@ async function focusFirst(p, loc) {
 }
 
 const v2Sels = () => ({
-  ...Object.fromEntries(Object.keys(PARTS).map((n) => [n, `[data-part="${n}"]`])),
+  // an element may carry two PARTS names, as v1's did (`split.body card.body`): match one word of data-part
+  ...Object.fromEntries(Object.keys(PARTS).map((n) => [n, `[data-part~="${n}"]`])),
   ...STRUCT,
   'x.row': '[data-part="card"], [data-part="list.row"]',
+  // v1's .pill is a class; v2's kit names it by data-kit
+  'x.pill': '[data-kit="it-pill"], [data-kit="it-state"]',
 });
 
 // ---------- One view ----------
@@ -353,7 +365,7 @@ async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
   const rules = allowed.filter((r) => r.view.test(name));
   const wrapRule = (part) => rules.some((r) => r.kind === 'wrap' && r.part.test(part));
   const pendingRule = (part) => rules.some((r) => r.kind === 'pending' && r.part.test(part));
-  const res = { view: name, shots: 0, pixelPass: 0, metricPass: 0, pass: 0, reachable: true, note: '', worst: [] };
+  const res = { view: name, shots: 0, pixelPass: 0, metricPass: 0, pass: 0, reachable: true, note: '', worst: [], metrics: {} };
   const dir = path.join(outDir, name);
   fs.mkdirSync(dir, { recursive: true });
   for (const [key, entry] of Object.entries(metrics.widths)) {
@@ -364,7 +376,7 @@ async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
     res.shots += states.length;
     let v;
     try {
-      v = await openV2(browser, url, open, entry.viewport, theme);
+      v = await openV2(browser, url, open, entry.viewport, theme, metrics.captured);
     } catch (err) {
       res.worst.push(`${key}: v2 did not load (${String(err?.message || err).split('\n')[0].slice(0, 100)})`);
       continue;
@@ -422,6 +434,7 @@ async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
         }
         const px = diffImages(decodePng(fs.readFileSync(refPng)), decodePng(shot), { masks });
         const big = px.regions.filter((g) => g.box[2] > REGION_MAX || g.box[3] > REGION_MAX);
+        if (mdiffs.length) res.metrics[`${key}-${state}`] = mdiffs;
         const pixelOk = px.ratio <= PIXEL_MAX && !big.length;
         const metricOk = mdiffs.length === 0;
         if (pixelOk) res.pixelPass++;
@@ -473,7 +486,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const seedFile = path.join(ref, 'seed.json');
   const seed = JSON.parse(fs.readFileSync(seedFile, 'utf8'));
   const allowed = readAllowed(path.join(ref, 'allowed.md'));
-  const only = { views: process.env.VIEWS?.split(','), widths: process.env.WIDTHS?.split(',').map(Number), themes: process.env.THEMES?.split(',') };
+  // --views=home,task --widths=1440,390 --themes=dark (or VIEWS / WIDTHS / THEMES in the env)
+  const arg = (k) => process.argv.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3) || process.env[k.toUpperCase()];
+  const only = { views: arg('views')?.split(','), widths: arg('widths')?.split(',').map(Number), themes: arg('themes')?.split(',') };
   const t0 = Date.now();
   const v2 = process.env.PARITY_URL ? { url: process.env.PARITY_URL, stop: () => {} } : await startV2(seedFile);
   const tr = translator(seed);

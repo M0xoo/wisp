@@ -28,6 +28,11 @@
 @import './shell-list.css';
 @import './terminal.css';
 @import './frame.css';
+@import './app-frame.css';
+@import './app-feed.css';
+@import './app-home.css';
+@import './app-task.css';
+@import './app-stack.css';
 @import './ship.css';
 @import './crew.css';
 @import './transcript.css';

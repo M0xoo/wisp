@@ -14,8 +14,9 @@ import { Area, Slot, useViewClient } from '../slot.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { FallbackList } from './FallbackList.tsx';
 import { PeerBanner } from './PeerBanner.tsx';
+import { HomeView } from './HomeView.tsx';
 
-const FallbackTask = lazy(() => import('./FallbackTask.tsx'));
+const TaskView = lazy(() => import('./TaskView.tsx'));
 
 type SessionProp = NonNullable<ExtensionProps['session']>;
 
@@ -53,7 +54,7 @@ function ViewOf(props: { readonly kind: string; readonly params: unknown }): JSX
 
 const mainKey = (n: Nav): string => (n.main.kind === 'home' ? 'home' : n.main.kind === 'view' ? `view:${n.main.id}:${JSON.stringify(n.main.params)}` : `${n.main.kind}:${n.main.id}`);
 
-export function MainPane(): JSX.Element {
+export function MainPane(props: { readonly onBack?: () => void }): JSX.Element {
   const shell = useShell();
   const nav = useSignal(shell.nav);
   const key = createMemo(() => mainKey(nav()));
@@ -63,11 +64,11 @@ export function MainPane(): JSX.Element {
         const main = nav().main;
         switch (main.kind) {
           case 'home':
-            return <Area input="shell.screen:home" fallback={<EmptyState icon="spark" title={shell.t('shell.fallback.home.title')}>{shell.t('shell.fallback.home.body')}</EmptyState>} />;
+            return <Area input="shell.screen:home" fallback={<HomeView {...(nav().layout === 'stack' && props.onBack && { onBack: props.onBack })} />} />;
           case 'task': {
             const id = main.id;
             const session = useSession(() => id);
-            return <Area input="shell.screen:task" id={id} session={session} fallback={<FallbackTask id={id} />} />;
+            return <Area input="shell.screen:task" id={id} session={session} fallback={<TaskView id={id} {...(nav().layout === 'stack' && props.onBack && { onBack: () => shell.navigate({ t: 'back' }) })} />} />;
           }
           case 'crew':
             return <Area input="shell.screen:crew" id={main.id} fallback={<EmptyState icon="crew" title={shell.t('shell.view.missing')} compact />} />;

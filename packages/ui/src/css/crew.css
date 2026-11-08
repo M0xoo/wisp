@@ -41,7 +41,7 @@
   @keyframes k-sp-hop { 0%, 60%, 100% { transform: translateY(0) scale(1, 1); } 70% { transform: translateY(0) scale(1.06, 0.9); } 82% { transform: translateY(-4px) scale(0.96, 1.05); } }
   @keyframes k-sp-halo { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
   @media (prefers-reduced-motion: reduce) {
-    [data-kit='spirit'] [data-kit^='spirit-'] { animation: none; }
+    [data-kit='spirit'] [data-kit^='spirit-'] { animation: none !important; }
   }
 
   /* the face: a disc of the member's colour, the spirit a little larger than it */

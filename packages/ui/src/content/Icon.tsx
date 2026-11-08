@@ -15,7 +15,26 @@ export interface IconProps extends KitProps {
   readonly label?: string;
 }
 
+const SPRITE = 'k-icons';
+
+/** The set as one sprite of <symbol>s, put in the document once (v1's index.html sprite): each icon is
+ * then one <use>, so a page with hundreds of icons holds their shapes once. */
+function ensureSprite(): void {
+  if (typeof document === 'undefined' || document.getElementById(SPRITE)) return;
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.id = SPRITE;
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('style', 'position:absolute;width:0;height:0;overflow:hidden');
+  // The markup is the kit's own constant (icons.ts), never user data.
+  svg.innerHTML = Object.entries(ICONS)
+    .map(([name, [box, markup]]) => `<symbol id="k-i-${name}" viewBox="${box}">${markup}</symbol>`)
+    .join('');
+  document.body.prepend(svg);
+}
+
 export function Icon(props: IconProps): JSX.Element {
+  ensureSprite();
   const icon = () => ICONS[props.name];
   return (
     <svg
@@ -29,8 +48,8 @@ export function Icon(props: IconProps): JSX.Element {
       data-size={props.size ?? 'base'}
       data-tone={props.tone}
       data-icon={props.name}
-      // The markup is the kit's own constant (icons.ts), never user data.
-      innerHTML={icon()[1]}
-    />
+    >
+      <use href={`#k-i-${props.name}`} />
+    </svg>
   );
 }
