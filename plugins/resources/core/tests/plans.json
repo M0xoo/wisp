@@ -1,0 +1,22 @@
+[
+  { "name": "create-update-unchanged",
+    "current": [{ "kind": "agent", "name": "reviewer", "spec": { "harness": "codex", "model": "gpt-5", "effort": "high" } }, { "kind": "agent", "name": "fixer", "spec": { "harness": "claude" } }],
+    "desired": [{ "kind": "agent", "name": "reviewer", "spec": { "model": "gpt-5-pro" } }, { "kind": "agent", "name": "fixer", "spec": { "harness": "claude" } }, { "kind": "agent", "name": "writer", "spec": { "harness": "claude", "mode": "plan" } }],
+    "prune": false },
+  { "name": "prune",
+    "current": [{ "kind": "crew", "name": "Ada", "id": "c1", "spec": { "role": "reviewer" } }, { "kind": "crew", "name": "Bo", "id": "c2", "spec": { "role": "fixer" } }],
+    "desired": [{ "kind": "crew", "name": "Ada", "spec": { "role": "lead" } }],
+    "prune": true },
+  { "name": "nested-fields",
+    "current": [{ "kind": "workflow", "name": "release", "spec": { "tasks": { "tests": { "prompt": "run", "agent": "fast" } }, "concurrency": 2 } }],
+    "desired": [{ "kind": "workflow", "name": "release", "spec": { "tasks": { "tests": { "agent": "fixer" }, "report": { "prompt": "write it", "needs": ["tests"] } } } }],
+    "prune": false },
+  { "name": "settings-map",
+    "current": [{ "kind": "setting", "name": "worktrees.max", "spec": 4 }, { "kind": "setting", "name": "review.harness", "spec": "codex" }],
+    "desired": [{ "kind": "setting", "name": "worktrees.max", "spec": 6 }, { "kind": "setting", "name": "review.harness", "spec": "codex" }],
+    "prune": false },
+  { "name": "export-applied-back",
+    "current": [{ "kind": "task", "name": "nightly", "spec": { "prompt": "update deps", "schedule": "0 2 * * *", "goal": { "text": "tests pass" } } }],
+    "desired": [{ "kind": "task", "name": "nightly", "spec": { "prompt": "update deps", "schedule": "0 2 * * *", "goal": { "text": "tests pass" } } }],
+    "prune": true }
+]

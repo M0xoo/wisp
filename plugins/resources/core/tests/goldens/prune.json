@@ -1,0 +1,35 @@
+{
+  "lines": [
+    "~ crew/Ada",
+    "      role: \"reviewer\" → \"lead\"",
+    "- crew/Bo  (goes)"
+  ],
+  "ops": [
+    {
+      "changes": [
+        {
+          "from": "reviewer",
+          "path": "role",
+          "to": "lead"
+        }
+      ],
+      "id": "c1",
+      "kind": "crew",
+      "name": "Ada",
+      "op": "update",
+      "spec": {
+        "role": "lead"
+      }
+    },
+    {
+      "id": "c2",
+      "kind": "crew",
+      "name": "Bo",
+      "op": "delete",
+      "spec": {
+        "role": "fixer"
+      }
+    }
+  ],
+  "unchanged": 0
+}

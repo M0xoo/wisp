@@ -1,0 +1,17 @@
+[package]
+name = "wisp-resources-api"
+description = "wisp.resources contract: the resource.kind@1 point (schema, read, plan, apply), resources, plans and the apply/export commands (wisp as code, ADR-0026)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+wisp-kernel.workspace = true
+
+[lints]
+workspace = true
