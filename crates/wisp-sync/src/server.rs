@@ -10,8 +10,7 @@ use wisp_protocol::{
     Change, ClientMessage, EntityOp, PROTO, PROTO_MIN, Rows, Snapshot, Topic, Welcome, tag,
 };
 
-use crate::conn::{Conn, Core, Sub, SubState, V1Conn, json};
-use crate::legacy::{V1_HELLO, v1_frame};
+use crate::conn::{Conn, Core, Sub, SubState, json};
 use crate::outbox::{Front, FrontKind, Outbox, SharedOp};
 use crate::parse::{parse_client_message, parse_hello};
 use crate::{
@@ -23,7 +22,6 @@ pub struct SyncServer<C> {
     pub(crate) core: Core<C>,
     pub(crate) conns: BTreeMap<ConnId, Conn<C>>,
     by_client: HashMap<String, ConnId>,
-    pub(crate) v1: BTreeMap<ConnId, V1Conn>,
 }
 
 impl<C> std::fmt::Debug for SyncServer<C> {
@@ -31,7 +29,6 @@ impl<C> std::fmt::Debug for SyncServer<C> {
         f.debug_struct("SyncServer")
             .field("head", &self.core.head)
             .field("conns", &self.conns.len())
-            .field("v1", &self.v1.len())
             .finish_non_exhaustive()
     }
 }
@@ -50,7 +47,6 @@ impl<C: Clone> SyncServer<C> {
             },
             conns: BTreeMap::new(),
             by_client: HashMap::new(),
-            v1: BTreeMap::new(),
         }
     }
 
@@ -74,32 +70,19 @@ impl<C: Clone> SyncServer<C> {
         self.by_client.get(client_id).copied()
     }
 
-    /// Streams that count as use of this box: any non-passive subscription, or a v1 stream that
-    /// isn't another wisp relaying it.
+    /// Streams that count as use of this box: any non-passive subscription.
     pub fn active_count(&self) -> usize {
         self.conns.values().filter(|c| c.active).count()
-            + self.v1.values().filter(|c| !c.relay).count()
     }
 
-    /// When `Input::Tick` next has work: a due flush, heartbeat or v1 ping. None when nothing is
-    /// connected. A time in the past means now.
+    /// When `Input::Tick` next has work: a due flush or heartbeat. None when nothing is connected. A
+    /// time in the past means now.
     pub fn next_wake_at(&self) -> Option<u64> {
-        let sync = self.conns.values().map(|c| self.core.wake_at(c));
-        sync.chain(
-            self.v1
-                .values()
-                .map(|c| c.last_write_at + self.core.opts.v1_ping_ms),
-        )
-        .min()
+        self.conns.values().map(|c| self.core.wake_at(c)).min()
     }
 
     pub fn handle(&mut self, input: Input<C>, now: u64) -> Vec<Output<C>> {
         match input {
-            Input::Connect {
-                conn,
-                caller: _,
-                query,
-            } if query.is_v1() => self.connect_v1(conn, query.relay, now),
             Input::Connect {
                 conn,
                 caller,
@@ -126,21 +109,6 @@ impl<C: Clone> SyncServer<C> {
                 {
                     c.control.push(msg.clone());
                     self.core.maybe_flush(c, now);
-                }
-            }
-            Input::Legacy {
-                event,
-                data,
-                from_machine,
-            } => {
-                let frame = v1_frame(event, &json(&data));
-                for (id, c) in self
-                    .v1
-                    .iter_mut()
-                    .filter(|(_, c)| !(from_machine && c.relay))
-                {
-                    c.last_write_at = now;
-                    self.core.send_raw(*id, frame.clone(), None);
                 }
             }
             Input::Retained { oldest_seq } => self.core.oldest = self.core.oldest.max(oldest_seq),
@@ -247,25 +215,7 @@ impl<C: Clone> SyncServer<C> {
         self.conns.insert(id, c);
     }
 
-    fn connect_v1(&mut self, id: ConnId, relay: bool, now: u64) {
-        self.v1.insert(
-            id,
-            V1Conn {
-                relay,
-                last_write_at: now,
-            },
-        );
-        self.core.send_raw(id, V1_HELLO.to_owned(), None);
-        if !relay {
-            self.core.out.push(Output::Activity {
-                conn: id,
-                active: true,
-            });
-        }
-    }
-
     fn drop_conn(&mut self, id: ConnId) {
-        self.v1.remove(&id);
         if let Some(c) = self.conns.remove(&id)
             && self.by_client.get(&c.client_id) == Some(&id)
         {
@@ -502,14 +452,6 @@ impl<C: Clone> SyncServer<C> {
             self.core.request_waiting(c);
             self.core.maybe_flush(c, now);
             self.core.heartbeat(c, now);
-        }
-        let ping = self.core.opts.v1_ping_ms;
-        for (id, c) in &mut self.v1 {
-            if now.saturating_sub(c.last_write_at) >= ping {
-                c.last_write_at = now;
-                self.core
-                    .send_raw(*id, v1_frame(crate::V1Event::Ping, "{}"), None);
-            }
         }
     }
 }

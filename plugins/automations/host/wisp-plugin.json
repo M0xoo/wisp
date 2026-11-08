@@ -11,6 +11,8 @@
   },
   "permissions": [
     "runtime:create",
+    "runtime:get",
+    "runtime:spec",
     "store:write{owner:automations}"
   ],
   "requires": {},

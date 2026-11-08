@@ -57,7 +57,6 @@ pub async fn serve(edge: Arc<Edge>, listener: TcpListener) -> std::io::Result<Se
         Some(home) => Some(write_server_json(home, addr.port(), &edge.cfg.version).await?),
         None => None,
     };
-    spawn_pings(&edge);
     if let Some(s) = edge.statics.clone() {
         tokio::spawn(async move { s.warm().await });
     }
@@ -68,20 +67,6 @@ pub async fn serve(edge: Arc<Edge>, listener: TcpListener) -> std::io::Result<Se
         task,
         advertised: server_json,
     })
-}
-
-fn spawn_pings(edge: &Arc<Edge>) {
-    let (hub, stop) = (edge.hub.clone(), edge.stop.clone());
-    tokio::spawn(async move {
-        let mut t = tokio::time::interval(Duration::from_secs(crate::sync::PING_SECS));
-        t.tick().await;
-        loop {
-            tokio::select! {
-                () = stop.cancelled() => return,
-                _ = t.tick() => hub.ping(),
-            }
-        }
-    });
 }
 
 async fn accept_loop(edge: Arc<Edge>, listener: TcpListener) {

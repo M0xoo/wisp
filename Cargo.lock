@@ -3410,6 +3410,7 @@ dependencies = [
  "wisp-automations-core",
  "wisp-kernel",
  "wisp-resources-api",
+ "wisp-runtime-api",
  "wisp-store",
 ]
 
@@ -3612,6 +3613,7 @@ dependencies = [
  "wisp-connectors-core",
  "wisp-kernel",
  "wisp-resources-api",
+ "wisp-runtime-api",
 ]
 
 [[package]]
@@ -4275,8 +4277,14 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "tokio",
+ "tracing",
  "wisp-kernel",
+ "wisp-plugins-api",
+ "wisp-resources",
  "wisp-resources-api",
+ "wisp-store",
+ "wisp-testkit",
 ]
 
 [[package]]
@@ -4285,7 +4293,6 @@ version = "2.0.0"
 dependencies = [
  "serde",
  "serde_json",
- "ts-rs",
  "wisp-kernel",
 ]
 
@@ -4356,6 +4363,7 @@ dependencies = [
  "wisp-kernel",
  "wisp-resources-api",
  "wisp-resources-core",
+ "wisp-store",
  "wisp-testkit",
 ]
 
@@ -4429,6 +4437,7 @@ dependencies = [
  "wisp-resources-api",
  "wisp-router-api",
  "wisp-router-core",
+ "wisp-runtime-api",
  "wisp-store",
 ]
 

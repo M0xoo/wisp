@@ -561,34 +561,3 @@ fn a_v1_session_file_imports_1_to_1() {
     assert!(import::from_v1(&json!({"title": "no id"})).is_err());
 }
 
-#[test]
-fn the_dual_write_gives_v1_its_file_back() {
-    let file = v1_file();
-    let back = import::to_v1(&import::from_v1(&file).unwrap());
-    for k in [
-        "id",
-        "title",
-        "agent",
-        "cwd",
-        "worktree",
-        "goal",
-        "agentSessionId",
-        "queueHeld",
-        "titleAuto",
-    ] {
-        assert_eq!(back[k], file[k], "{k}");
-    }
-    assert_eq!(back["queue"][0]["mode"], "plan");
-    for k in [
-        "id",
-        "prompt",
-        "raw",
-        "activity",
-        "checkpoint",
-        "presentation",
-    ] {
-        assert_eq!(back["turns"][0][k], file["turns"][0][k], "turn {k}");
-    }
-    // import(export(x)) is a fixed point
-    assert_eq!(import::to_v1(&import::from_v1(&back).unwrap()), back);
-}

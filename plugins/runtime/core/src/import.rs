@@ -1,15 +1,13 @@
-//! v1's session files (`~/.wisp/sessions/<id>.json`) as v2 rows, and back (plan §4.8: during the release
-//! that brings the database, writes go to both stores, so going back one version loses nothing). Pure:
-//! the host reads and writes the files.
+//! v1's session files (`~/.wisp/sessions/<id>.json`) as v2 rows, for the one-time `wisp import`
+//! (ADR-0031: nothing is written back). Pure: the host reads the files.
 //!
 //! Fields runtime owns map 1:1. Everything else v1 kept on a task or a turn (goal, worktree, crew, auto,
-//! delegations, checkpoint, …) is kept as it was under `ext["v1"]`, for its owner's own import to read,
-//! and written back unchanged. Activity keeps v1's item shape in the log with `v = 0` (read through
+//! delegations, checkpoint, …) is kept as it was under `ext["v1"]`, for its owner's own import to read. Activity keeps v1's item shape in the log with `v = 0` (read through
 //! `upcast`), so history is never rewritten.
 //!
-//! size-ok: one v1 session JSON ↔ rows mapping, field for field, both directions
+//! size-ok: one v1 session JSON → rows mapping, field for field
 
-use serde_json::{Map, Value, json};
+use serde_json::{Map, Value};
 use wisp_runtime_api::model::{
     Attachment, ChangeOp, Edit, FileChange, Held, Mode, Presentation, QueueItem, Session,
     SessionState, Turn, TurnStats, TurnStatus,
@@ -335,149 +333,4 @@ pub fn from_v1(v: &Value) -> Result<Imported, String> {
         ext: ext.into_iter().collect(),
     };
     Ok(Imported { session, turns })
-}
-
-fn put(o: &mut Map<String, Value>, k: &str, v: impl serde::Serialize) {
-    if let Ok(v) = serde_json::to_value(v)
-        && !v.is_null()
-    {
-        o.insert(k.to_owned(), v);
-    }
-}
-
-fn presentation_v1(p: &Presentation) -> Value {
-    let mut v = json!({ "blocks": p.blocks });
-    if p.fallback {
-        v["fallback"] = json!(true);
-    }
-    if let Some(t) = &p.topic {
-        v["topic"] = json!(t);
-    }
-    if let Some(n) = &p.notes {
-        v["notes"] = json!(n);
-    }
-    v
-}
-
-fn op_v1(op: ChangeOp) -> &'static str {
-    match op {
-        ChangeOp::Add => "create",
-        ChangeOp::Delete => "delete",
-        ChangeOp::Rename => "rename",
-        ChangeOp::Modify => "edit",
-    }
-}
-
-fn turn_to_v1(t: &ImportedTurn) -> Value {
-    let x = &t.turn;
-    let mut o = x
-        .ext
-        .get(V1_EXT)
-        .and_then(Value::as_object)
-        .cloned()
-        .unwrap_or_default();
-    for (k, v) in [
-        ("id", json!(x.id)),
-        ("prompt", json!(x.prompt)),
-        ("agent", json!(x.agent)),
-        ("model", json!(x.model)),
-        ("effort", json!(x.effort)),
-        ("mode", json!(x.mode)),
-        ("status", json!(x.status)),
-    ] {
-        o.insert(k.into(), v);
-    }
-    put(&mut o, "account", &x.account);
-    put(&mut o, "by", &x.by);
-    o.insert("attachments".into(), json!(x.attachments));
-    o.insert("startedAt".into(), json!(x.started_at));
-    o.insert("endedAt".into(), json!(x.ended_at));
-    if let Some(h) = &x.held {
-        o.insert("held".into(), h.data.clone());
-    }
-    let stats = x.stats.as_ref().map_or(Value::Null, |s| json!({ "costUsd": s.cost_usd, "inputTokens": s.input_tokens, "outputTokens": s.output_tokens, "durationMs": s.ms, "models": s.models }));
-    o.insert("stats".into(), stats);
-    o.insert(
-        "presentation".into(),
-        x.presentation.as_ref().map_or(Value::Null, presentation_v1),
-    );
-    put(&mut o, "raw", &x.text);
-    o.insert(
-        "activity".into(),
-        Value::Array(t.steps.iter().map(|(_, b)| b.clone()).collect()),
-    );
-    let ch: Vec<Value> = t
-        .changes
-        .iter()
-        .map(|c| json!({ "file": c.file, "op": op_v1(c.op), "edits": c.edits }))
-        .collect();
-    o.insert("changes".into(), Value::Array(ch));
-    Value::Object(o)
-}
-
-fn queue_v1(q: &QueueItem) -> Value {
-    let mut x = q
-        .opts
-        .as_ref()
-        .and_then(Value::as_object)
-        .cloned()
-        .unwrap_or_default();
-    x.insert("id".into(), json!(q.id));
-    x.insert("text".into(), json!(q.text));
-    x.insert("attachments".into(), json!(q.attachments));
-    put(&mut x, "by", &q.by);
-    if q.now {
-        x.insert("now".into(), json!(true));
-    }
-    if q.reports {
-        x.insert("reports".into(), json!(true));
-    }
-    Value::Object(x)
-}
-
-/// The rows as a v1 session file (dual-write). `steps` are v1 items (`upcast::to_v0` for new rows).
-pub fn to_v1(i: &Imported) -> Value {
-    let s = &i.session;
-    let mut o = s
-        .ext
-        .get(V1_EXT)
-        .and_then(Value::as_object)
-        .cloned()
-        .unwrap_or_default();
-    for (k, v) in [
-        ("id", json!(s.id)),
-        ("title", json!(s.title)),
-        ("agent", json!(s.agent)),
-        ("model", json!(s.model)),
-        ("effort", json!(s.effort)),
-        ("mode", json!(s.mode)),
-        ("cwd", json!(s.cwd)),
-        ("state", json!(s.state)),
-        ("unread", json!(s.unread)),
-        ("createdAt", json!(s.created_at)),
-        ("updatedAt", json!(s.updated_at)),
-    ] {
-        o.insert(k.into(), v);
-    }
-    put(&mut o, "account", &s.account);
-    put(&mut o, "parentId", &s.parent_id);
-    put(&mut o, "agentSessionId", &s.resume_id);
-    if s.archived {
-        o.insert("archived".into(), json!(true));
-    }
-    if s.queue_held {
-        o.insert("queueHeld".into(), json!(true));
-    }
-    if !s.tags.is_empty() {
-        o.insert("tags".into(), json!(s.tags));
-    }
-    o.insert(
-        "queue".into(),
-        Value::Array(s.queue.iter().map(queue_v1).collect()),
-    );
-    o.insert(
-        "turns".into(),
-        Value::Array(i.turns.iter().map(turn_to_v1).collect()),
-    );
-    Value::Object(o)
 }

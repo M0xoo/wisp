@@ -57,13 +57,6 @@ pub(crate) struct Conn<C> {
     pub active: bool,
 }
 
-/// A v1 stream: named events only, no topics or cursor.
-#[derive(Debug)]
-pub(crate) struct V1Conn {
-    pub relay: bool,
-    pub last_write_at: u64,
-}
-
 /// Everything but the connections, so a rule can borrow one connection and the rest at once.
 pub(crate) struct Core<C> {
     pub opts: SyncOptions<C>,

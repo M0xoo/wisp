@@ -16,11 +16,9 @@ use crate::host::{Emitted, Host};
 use crate::repo::Repo;
 use crate::runtime::Runtime;
 
-/// The plugin. `mirror`: v1's sessions folder to keep current (the dual-write release), if any.
+/// The plugin.
 #[derive(Debug, Default)]
-pub struct RuntimePlugin {
-    pub mirror: Option<std::path::PathBuf>,
-}
+pub struct RuntimePlugin;
 
 pub(crate) type Slot = Arc<OnceLock<Arc<Runtime>>>;
 
@@ -144,7 +142,6 @@ fn retention(ctx: &wisp_kernel::Ctx, slot: &Slot) {
 fn specs(s: &mut Setup, slot: &Slot) {
     use wisp_resources_api::{CrudKind, KindInfo, RESOURCE_KIND, ResourceKind, schema_of};
     use wisp_runtime_api::spec::AgentSpec;
-    crate::kinds::register(s);
     let info = KindInfo::new("agent", "agents", "wisp.runtime", schema_of::<AgentSpec>()).order(20);
     let kind: Arc<dyn ResourceKind> = Arc::new(CrudKind::new::<AgentSpec>(info, s.ctx(), "runtime.profiles", "runtime.profile.set", "runtime.profile.set", "runtime.profile.remove").keyed("name", "name", "name"));
     s.contribute(&RESOURCE_KIND, kind);
@@ -206,13 +203,17 @@ fn commands(s: &mut Setup, slot: &Slot) {
     let ctx = s.ctx();
     let (c1, c2) = (ctx.clone(), ctx);
     let start = slot.clone();
+    let made_kinds = crate::kinds::register(s);
+    let harness_kind = made_kinds.harness.clone();
+    let brief: Arc<dyn wisp_runtime_api::points::PromptPart> = Arc::new(crate::kinds::Brief);
+    s.contribute(&wisp_runtime_api::points::PROMPT, brief);
     s.command::<c::Create, _, _>(move |_ctx, call, a| {
-        let (slot, ctx) = (start.clone(), c1.clone());
+        let (slot, ctx, kinds) = (start.clone(), c1.clone(), made_kinds.clone());
         async move {
             let a = ctx.run_hook::<BeforeCreate>(&call, a).await?;
             let (store, proc) = (ctx.service::<Store>()?, ctx.service::<Proc>()?);
             let home = wisp_kernel::services::paths(&ctx).ok().map(|p| p.home().to_owned());
-            let p = crate::specs::prepare(&store, &proc, home.as_deref(), a).await?;
+            let p = crate::specs::prepare(&store, &proc, home.as_deref(), Some(&kinds), a).await?;
             let rt = rt(&slot)?;
             let made = rt.create(p.args).await.map_err(WireError::from)?;
             // the steps after the first go in the queue, in order: each starts when the turn before ends
@@ -235,7 +236,7 @@ fn commands(s: &mut Setup, slot: &Slot) {
     edits(s, slot);
     reads(s, slot);
     for_agents(s, slot);
-    more(s, slot);
+    more(s, slot, harness_kind);
 }
 
 /// What agents read of the user's tasks (`wisp_sessions`, `wisp_session`), with their usage events.
@@ -267,7 +268,7 @@ fn for_agents(s: &mut Setup, slot: &Slot) {
 }
 
 /// asks, approvals, /btw, compact, rerun, fork, subagents, quick, sign-in, overage, agents (more.rs)
-fn more(s: &mut Setup, slot: &Slot) {
+fn more(s: &mut Setup, slot: &Slot, harness_kind: Arc<wisp_resources_api::StoredKind>) {
     cmd!(s, slot, c::Ask, |r, call, a| r.ask(a).await.map(|ask_id| c::Asked { ask_id }));
     cmd!(s, slot, c::Answer, |r, call, a| r.answer(&a.id, &a.text).await);
     cmd!(s, slot, c::PollAnswerOf, |r, call, a| Ok(r.poll_answer(&a.ask_id)));
@@ -285,7 +286,15 @@ fn more(s: &mut Setup, slot: &Slot) {
     cmd!(s, slot, c::SignIn, |r, call, a| r.sign_in(a.id.as_str(), &a.turn_id).await.map(|_| c::Ack {}));
     cmd!(s, slot, c::SignInDone, |r, call, a| r.sign_in_done(&a.agent, &a.account).await.map(|()| c::Ack {}));
     cmd!(s, slot, c::Overage, |r, call, a| r.overage(a.id.as_str(), &a.turn_id, &a.kind).await.map(|()| c::Ack {}));
-    cmd!(s, slot, c::Agents, |r, call, a| Ok(r.agents(&a).await));
+    let (agents, harnesses) = (slot.clone(), harness_kind);
+    s.command::<c::Agents, _, _>(move |_ctx, _call, a| {
+        let (slot, harnesses) = (agents.clone(), harnesses.clone());
+        async move {
+            let mut list = rt(&slot)?.agents(&a).await;
+            crate::kinds::declared(&mut list, &harnesses.specs().await.unwrap_or_default());
+            Ok(list)
+        }
+    });
 }
 
 fn edits(s: &mut Setup, slot: &Slot) {
@@ -408,23 +417,15 @@ impl Plugin for RuntimePlugin {
     fn setup(&self, s: &mut Setup) -> WireResult<()> {
         let slot: Slot = Arc::default();
         commands(s, &slot);
-        crate::routes::register(s, &slot);
         // who is under whom, for the kernel's agent-token scope (v1 edge case HTTP #3)
         s.contribute(&wisp_kernel::scope::TASKS, Arc::new(Tree(slot.clone())) as Arc<dyn wisp_kernel::scope::TaskTree>);
-        let mirror = self.mirror.clone();
         s.on_start(move |ctx| async move {
             let store = ctx.service::<Store>()?;
             let proc = ctx.service::<Proc>()?;
             let clock = ctx.clock()?;
             crate::schema::install(&store).map_err(WireError::from)?;
             let host = Arc::new(CtxHost { ctx: ctx.clone() });
-            let mut runtime =
-                Runtime::new(Repo::new((*store).clone()), host, (*proc).clone(), clock);
-            if let Some(m) = mirror
-                && let Some(r) = Arc::get_mut(&mut runtime)
-            {
-                r.mirror = Some(m);
-            }
+            let runtime = Runtime::new(Repo::new((*store).clone()), host, (*proc).clone(), clock);
             runtime.start().await.map_err(WireError::from)?;
             let _ = slot.set(runtime);
             retention(&ctx, &slot);

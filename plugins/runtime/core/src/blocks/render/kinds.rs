@@ -37,7 +37,6 @@ pub(super) fn render(ty: &str, b: Fields<'_>, cx: &Context<'_>) -> Option<Out> {
         "actions" => actions(b),
         "next" => Ok(format!("**Next**\n{}", bullets(list(b.get("items"))))),
         "app" => Ok(rich::app(b, cx)),
-        "spell" => Ok(rich::spell(b)),
         _ => return None,
     })
 }

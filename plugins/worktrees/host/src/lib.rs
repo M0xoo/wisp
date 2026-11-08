@@ -12,7 +12,6 @@ pub mod fsx;
 pub mod ports;
 mod runtime_port;
 pub mod prepare;
-mod routes;
 pub mod trust;
 
 use std::sync::Arc;
@@ -143,7 +142,6 @@ impl Plugin for WorktreesPlugin {
     fn setup(&self, s: &mut Setup) -> WireResult<()> {
         let st = State::new(self.clone());
         commands::register(s, &st);
-        routes::register(s, &st);
         let hook_st = st.clone();
         s.intercept::<BeforeRunView, _, _>(
             InterceptOpts {
@@ -195,24 +193,10 @@ mod commands;
 #[cfg(test)]
 mod tests {
     #[test]
-    fn the_manifest_is_valid_and_routes_are_v1s() {
+    fn the_manifest_is_valid() {
         let p = super::WorktreesPlugin::new("/tmp/h", "/tmp/u");
         let m = wisp_kernel::Plugin::manifest(&p);
         assert_eq!(m.id, "wisp.worktrees", "{:?}", m.description);
         assert!(m.requires.contains_key("git.service"));
-        let st = super::State::new(p);
-        let r: Vec<(&str, &str)> = super::routes::routes(&st)
-            .iter()
-            .map(|r| (r.method, r.pattern))
-            .collect();
-        assert_eq!(
-            r,
-            [
-                ("GET", "/worktrees"),
-                ("POST", "/worktrees/clean"),
-                ("GET", "/sessions/:id/folders"),
-                ("POST", "/sessions/:id/folders")
-            ]
-        );
     }
 }

@@ -22,20 +22,10 @@ pub const HELP: &str = "usage:
   wisp merge <id>               squash-merge its PR and sync your local base branch
   wisp run <recipe> [values…]   run a saved recipe; values fill its {params} in order, or key=value
   wisp recipes                  list recipes
-  wisp usage                    spend and outcomes   (--days 7|30|90)
-  wisp plugin                   list plugins (wisp's own and yours; spells are plugins now)
+  wisp plugin                   list plugins
   wisp plugin new <name>        start a plugin of your own in ~/.wisp/plugins/<name>
-  wisp plugin enable|disable <id>   switch a plugin on or off   (wisp plugin disable --all: every one of yours)
-  wisp plugin install <file|url>    add a plugin someone sent (https, gist:<id>); off until --on
-  wisp plugin rm <id> | export <id> remove one, or print its file to share
-  wisp spell …                  the same as wisp plugin … (v1's name)
+  wisp plugin enable|disable <id>   switch a plugin on or off
   wisp crew                     list your crew
-  wisp crew import <file|url>   add members someone shared (.crew.json, https, gist:<id>); paused, in this folder (--cwd)
-  wisp crew export <name…>      print their .crew.json   (--notebook  --team: who they delegate to  --no-kit  --gist: a secret gist)
-  wisp computer                 is this computer on your wisp Grid? its address there
-  wisp computer on              add it, so your phone and other computers reach it   (--grid HOST, default grid.trywisp.dev;
-                                signs in first: allow the code in your browser)
-  wisp computer off             take it off the grid
   wisp import [v1 home]         bring a wisp v1 home (~/.wisp) in: its plan first, then on yes   (--dry-run  --yes)
   wisp apply -f wisp.yml        your setup as code: plan, diff, confirm   (--dry-run  --yes  --prune  --trust  --profile P)
   wisp diff|validate -f F       what apply would change; schema and checks   (wisp schema: the editor schema)
@@ -58,14 +48,12 @@ pub const HELP: &str = "usage:
   wisp -- \"ls the repo\"         a task that starts with a command name
 
 launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|antigravity|grok|copilot  --model ID  --effort LEVEL
-                --cwd DIR  --also DIR (repeatable)  --wait  --json  --no-worktree  --compare agent[:model],…
-                --try subagents=haiku|sonnet|task  --try skills=off  run it twice on --agent, the second with
-                that changed (repeatable or comma separated); Compare says what differed
+                --cwd DIR  --also DIR (repeatable)  --wait  --json  --no-worktree  --compare agent[:model],…: one task per harness
                 --yes  go ahead although it takes a usage window past your Ask near the limit line
 options:        --port N  --browser  --no-open  --json  --version";
 
-pub const COMMANDS: [&str; 28] = [
-    "attach", "help", "completions", "add", "ls", "list", "show", "wait", "reply", "btw", "stop", "mcp", "skill", "ship", "merge", "run", "recipes", "usage", "spell", "spells", "plugin", "plugins", "crew", "grid", "computer", "serve", "import", "desktop",
+pub const COMMANDS: [&str; 24] = [
+    "attach", "help", "completions", "add", "ls", "list", "show", "wait", "reply", "btw", "stop", "mcp", "skill", "ship", "merge", "run", "recipes", "plugin", "plugins", "crew", "grid", "serve", "import", "desktop",
 ];
 pub const LS_STATES: [&str; 4] = ["running", "waiting", "review", "done"];
 /// wisp-grid's commands (apps/grid's CLI). A test keeps `wisp grid <word>` routing in step.
@@ -222,10 +210,9 @@ fn fits(cmd: &str, w: &[String]) -> bool {
         // `wisp help`, `wisp help crew`, `wisp help crew create`: a task never starts with "help" and two words
         "help" => n <= 4 && w.iter().skip(1).all(|x| x.bytes().all(|b| b.is_ascii_lowercase() || b == b'-' || b == b'_' || b == b'.')),
         "completions" => n == 2 && ["zsh", "bash", "fish"].contains(&w1),
-        "usage" | "recipes" | "serve" | "desktop" | "import" => n == 1,
-        "computer" => n == 1 || (n == 2 && ["on", "off", "status"].contains(&w1)),
+        "recipes" | "serve" | "desktop" | "import" => n == 1,
         "run" => n > 1,
-        "crew" => n == 1 || (w1 == "ls" && n == 2) || (["import", "export"].contains(&w1) && n > 2),
+        "crew" => n == 1 || (w1 == "ls" && n == 2),
         _ => true,
     }
 }

@@ -15,6 +15,7 @@ thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 wisp-kernel.workspace = true
+wisp-runtime-api.workspace = true
 wisp-automations-api.workspace = true
 wisp-automations-core.workspace = true
 wisp-resources-api.workspace = true

@@ -17,6 +17,7 @@ tracing.workspace = true
 wisp-connectors-api.workspace = true
 wisp-connectors-core.workspace = true
 wisp-kernel.workspace = true
+wisp-runtime-api.workspace = true
 
 [lints]
 workspace = true

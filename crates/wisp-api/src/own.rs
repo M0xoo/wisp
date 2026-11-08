@@ -79,9 +79,8 @@ fn events(edge: &Edge, caller: Caller, parts: &http::request::Parts) -> Result<A
         let last = header(&parts.headers, "last-event-id").map(str::to_owned);
         return Ok(sse(m.events(caller, query, last)?));
     }
-    // another wisp relaying this one's events doesn't count as someone looking
-    let relay = header(&parts.headers, "x-wisp-relay") == Some("1");
-    Ok(sse(edge.hub.attach_legacy(relay)))
+    // v2 only (ADR-0031): a stream starts with its hello
+    Err(WireError::invalid("GET /api/events takes the sync hello (proto_min, proto_max, client_id, topics…)").into())
 }
 
 async fn cmd(edge: &Edge, caller: Caller, h: &http::HeaderMap, body: &[u8]) -> Answer {

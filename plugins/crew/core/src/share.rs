@@ -237,17 +237,13 @@ pub fn normalize_blueprints(list: &[Value], place: &str, words: &dyn Words) -> R
     Ok(out)
 }
 
-/// A shared file, parsed: its members, or a spell (that goes to the spell review).
+/// A shared file, parsed: its members.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CrewFile {
     Members(Vec<Blueprint>),
-    Spell(Value),
 }
 
 pub fn parse_crew_file(j: &Value, words: &dyn Words) -> Result<CrewFile> {
-    if j.get("wispSpell").is_some() {
-        return Ok(CrewFile::Spell(j.clone()));
-    }
     let list = match j {
         Value::Array(a) => a.clone(),
         Value::Object(o) if o.get("members").is_some_and(Value::is_array) => o.get("members").and_then(Value::as_array).cloned().unwrap_or_default(),

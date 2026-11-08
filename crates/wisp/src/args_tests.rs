@@ -19,10 +19,8 @@ fn tasks_and_commands() {
     assert_eq!(p(&["run", "deploy"]).command, Some("run"));
     assert_eq!(p(&["grid", "serve"]).command, Some("grid"));
     assert_eq!(p(&["grid", "the", "page"]).command, None);
-    assert_eq!(p(&["crew", "export"]).command, None);
-    assert_eq!(p(&["crew", "export", "ada"]).command, Some("crew"));
-    assert_eq!(p(&["computer", "on"]).command, Some("computer"));
-    assert_eq!(p(&["computer", "science"]).command, None);
+    assert_eq!(p(&["crew", "export", "ada"]).command, None, "a crew is shared as a formula now");
+    assert_eq!(p(&["crew"]).command, Some("crew"));
     assert_eq!(p(&["plugin", "new", "x"]).command, Some("plugin"));
     // `--` first: always a task
     assert_eq!(p(&["--", "ls", "the", "repo"]).command, None);

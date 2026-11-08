@@ -105,14 +105,14 @@ async fn dispatch(p: &Parsed, user_home: &Path, cwd: &Path) -> Result<i32> {
         Some("skill") => extras::skill(p.words.get(1).map(String::as_str), f, user_home, cwd)?,
         Some("serve") => serve_here(&home, f.port, f.host.as_deref(), false, None).await?,
         Some("desktop") => desktop(&home, f.port, true).await?,
-        Some("plugin" | "plugins" | "spell" | "spells") if rest.first().map(String::as_str) == Some("new") => {
+        Some("plugin" | "plugins") if rest.first().map(String::as_str) == Some("new") => {
             let name = scripted::need(rest.get(1), "a plugin name")?;
             let dir = plugin_cmd::new_plugin(&home, name)?;
             say(&format!("  ✓ {}\n    edit wisp-plugin.json, then: wisp plugin enable user.{}", dir.display(), dir.file_name().map(|n| n.to_string_lossy()).unwrap_or_default()));
         }
         Some("add") => add(&home, port, p.words.get(1), cwd).await?,
         Some(cmd) => commands::run(p, cmd, rest, &cwd_s, port).await?,
-        None if !p.words.is_empty() && (f.json || f.wait || !f.tries.is_empty()) => commands::run(p, "launch", &p.words, &cwd_s, port).await?,
+        None if !p.words.is_empty() && (f.json || f.wait || !f.tries.is_empty() || f.compare.is_some()) => commands::run(p, "launch", &p.words, &cwd_s, port).await?,
         None if !p.words.is_empty() => return launch_and_open(p, &home, port, &cwd_s).await,
         None => open(&home, f.port, f.open, f.browser).await?,
     }
@@ -159,6 +159,7 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Optio
             tasks_cli::rerun(&connect().await?, &o, cwd).await?
         }
         "run" if !o.files.is_empty() => tasks_cli::run_file(&connect().await?, &o, cwd).await?,
+        "run" if !o.formulas.is_empty() && !o.words.is_empty() => tasks_cli::run_overlay(&connect().await?, &o, cwd).await?,
         "run" if !o.words.is_empty() => match tasks_cli::run_named(&connect().await?, &o.words, &o).await? {
             Some(code) => code,
             None => return Ok(None),
@@ -250,20 +251,22 @@ async fn desktop(home: &Path, port: u16, strict: bool) -> Result<()> {
     }
 }
 
-/// A repo URL is cloned by the server; a folder is added as it is.
+/// `wisp add [path|repo URL]`: a `project` resource (a URL is cloned here first, through git).
 async fn add(_home: &Path, port: u16, what: Option<&String>, cwd: &Path) -> Result<()> {
     let c = Client::connect(port, true).await?;
     let w = what.map_or("", String::as_str);
     let lower = w.to_ascii_lowercase();
     let url = ["https:", "http:", "ssh:", "git:", "git@", "github.com/", "www.github.com/"].iter().any(|p| lower.starts_with(p));
-    let body = if url {
+    let path = if url {
         eprintln!("  ◌ cloning {w}…");
-        json!({"repo": w})
+        let cloned = c.cmd("git.clone", json!({ "url": w, "parent": cwd.display().to_string() })).await?;
+        cloned.get("dir").and_then(Value::as_str).unwrap_or_default().to_owned()
     } else {
-        json!({"path": args::expand(if w.is_empty() { "." } else { w }, cwd, cwd).display().to_string()})
+        args::expand(if w.is_empty() { "." } else { w }, cwd, cwd).display().to_string()
     };
-    let p = c.post("/projects", body).await?;
-    say(&format!("  ✓ project added: {}  ({})", p.get("name").and_then(Value::as_str).unwrap_or(""), p.get("path").and_then(Value::as_str).unwrap_or("")));
+    let name = Path::new(&path).file_name().map_or_else(|| "project".into(), |n| n.to_string_lossy().to_lowercase().replace(' ', "-"));
+    c.cmd("resources.apply", json!({ "resources": [{ "kind": "project", "name": name, "spec": { "path": path } }] })).await?;
+    say(&format!("  ✓ project added: {name}  ({path})"));
     Ok(())
 }
 
@@ -271,10 +274,9 @@ async fn add(_home: &Path, port: u16, what: Option<&String>, cwd: &Path) -> Resu
 /// attached (the run live, then a reply box); `-d`, or no terminal, returns with its id.
 async fn launch_and_open(p: &Parsed, home: &Path, port: u16, cwd: &str) -> Result<i32> {
     let c = Client::connect(port, true).await?;
-    let body = scripted::launch_body(&c, &p.flags, p.words.join(" "), cwd, None).await?;
-    let s = c.post("/sessions", body).await?;
-    let id = s.get("id").and_then(Value::as_str).unwrap_or("").to_owned();
-    let title = s.get("title").and_then(Value::as_str).unwrap_or("").to_owned();
+    let made = c.cmd("runtime.create", scripted::launch_args(&p.flags, &p.words.join(" "), cwd)).await?;
+    let id = made.get("id").and_then(Value::as_str).unwrap_or("").to_owned();
+    let title = c.cmd("runtime.get", json!({ "id": id })).await.ok().and_then(|t| t.get("title").and_then(Value::as_str).map(str::to_owned)).unwrap_or_default();
     let tty = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
     if tty && !p.flags.detach && !id.is_empty() {
         let st = cli::style();

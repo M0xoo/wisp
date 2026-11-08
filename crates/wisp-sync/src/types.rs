@@ -6,7 +6,6 @@ use std::fmt;
 use serde_json::Value;
 use wisp_protocol::{Change, Notice, PeerInfo, Row, Topic};
 
-use crate::legacy::V1Event;
 
 /// One connection (one `GET /api/events` stream), numbered by the host.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -29,8 +28,8 @@ pub struct ChangeRow {
     pub at: u64,
 }
 
-/// What `GET /api/events` carried: the hello flattened into query parameters, plus the one header
-/// that matters (`x-wisp-relay`). Values are raw: the server checks them.
+/// What `GET /api/events` carried: the hello flattened into query parameters. Values are raw: the
+/// server checks them.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ConnectQuery {
     pub proto_min: Option<String>,
@@ -47,19 +46,6 @@ pub struct ConnectQuery {
     pub fresh: Option<String>,
     /// `1`: every topic of this hello is passive (plan §7.2.3); else a comma-separated list of them
     pub passive: Option<String>,
-    /// `x-wisp-relay: 1`: another wisp relaying this one's stream (a v1 peer); never counts as use
-    pub relay: bool,
-}
-
-impl ConnectQuery {
-    /// A v1 client: it sends none of the hello's parameters and reads v1's named events.
-    pub fn is_v1(&self) -> bool {
-        self.proto_min.is_none()
-            && self.proto_max.is_none()
-            && self.client_id.is_none()
-            && self.topics.is_none()
-            && self.fresh.is_none()
-    }
 }
 
 /// A row a delta no longer has.
@@ -128,13 +114,6 @@ pub enum Input<C> {
     Notice {
         notice: Notice,
         topic: Option<Topic>,
-    },
-    /// A v1 event for v1 streams. `from_machine`: relayed from one of this wisp's machines, so not
-    /// sent on to a relaying wisp (two that list each other would loop it).
-    Legacy {
-        event: V1Event,
-        data: Value,
-        from_machine: bool,
     },
     /// Retention moved: cursors at or above this seq can still resume.
     Retained {
@@ -220,8 +199,6 @@ pub struct SyncOptions<C> {
     pub heartbeat_ms: u64,
     /// a loading topic buffers live changes up to this; past it the snapshot is asked again
     pub load_buffer_bytes: usize,
-    /// v1 streams get `event: ping` this often, as v1 did
-    pub v1_ping_ms: u64,
 }
 
 impl<C> SyncOptions<C> {
@@ -243,7 +220,6 @@ impl<C> SyncOptions<C> {
             high_water_bytes: 1 << 20,
             heartbeat_ms: 15_000,
             load_buffer_bytes: 4 << 20,
-            v1_ping_ms: 25_000,
         }
     }
 }

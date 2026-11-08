@@ -8,7 +8,6 @@ pub mod flow;
 pub mod follow;
 pub mod gh;
 pub mod ops;
-pub mod routes;
 pub mod ship;
 pub mod tasks;
 
@@ -21,6 +20,9 @@ use wisp_ship_api as api;
 use wisp_ship_core::follow::PR_TICK_MS;
 use wisp_ship_core::recheck::BOOT_DELAY_MS;
 
+/// The started ship, once its services are there.
+pub type Slot = Arc<std::sync::OnceLock<Arc<Ship>>>;
+
 pub use error::ShipError;
 pub use ops::Shipper;
 pub use ship::{Out, Ship, Sink};
@@ -28,7 +30,7 @@ pub use tasks::Tasks;
 
 #[derive(Debug, Default)]
 pub struct ShipPlugin {
-    slot: routes::Slot,
+    slot: Slot,
 }
 
 impl ShipPlugin {
@@ -70,13 +72,13 @@ fn sink(ctx: &Ctx) -> ship::Sink {
     })
 }
 
-fn get(slot: &routes::Slot) -> Result<Arc<Ship>> {
+fn get(slot: &Slot) -> Result<Arc<Ship>> {
     slot.get()
         .cloned()
         .ok_or_else(|| wisp_kernel::WireError::unavailable("wisp.ship is starting"))
 }
 
-fn commands(s: &mut Setup, slot: &routes::Slot) {
+fn commands(s: &mut Setup, slot: &Slot) {
     let sl = slot.clone();
     s.command::<api::Track, _, _>(move |_ctx, _call, task| {
         let sl = sl.clone();
@@ -152,9 +154,6 @@ impl Plugin for ShipPlugin {
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
         commands(s, &self.slot);
-        for r in routes::routes(&self.slot) {
-            s.route(r);
-        }
         let slot = self.slot.clone();
         s.on_start(move |ctx| async move {
             let proc = ctx.service::<Proc>()?;

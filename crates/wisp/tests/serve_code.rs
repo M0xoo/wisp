@@ -261,7 +261,7 @@ projects:
   - name: api
     path: {p}
     worktree: {{ enabled: true, onDone: ask, max: 4, include: [.env] }}
-    setup: [npm ci]
+    setup: [\"echo ready\"]
     instructions: Prefer small PRs.
 harnesses:
   codex: {{ pin: 0.60.0, lean: true }}
@@ -313,10 +313,10 @@ plugins:
   wisp.telegram: {{ enabled: false }}
 apps:
   - name: board
-    source: starter:board
+    source: starter:agent-board
 panes:
   - name: notes
-    source: starter:notes
+    source: starter:allowance-board
 ui: {{ theme: dark, editor: zed }}
 "
     );

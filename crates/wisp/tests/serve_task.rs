@@ -58,8 +58,8 @@ async fn serve_runs_a_task_through_the_fake_claude_to_finished() {
             assert!(op["summary"].as_str().is_some_and(|s| !s.trim().is_empty()), "{} {path} has no summary (owner {})", verb.to_uppercase(), op["tags"]);
         }
     }
-    assert!(paths.contains_key("/api/sessions") && paths.contains_key("/api/cmd"), "runtime's and the edge's routes are listed");
-    assert!(ops > 20, "{ops} operations");
+    assert!(paths.contains_key("/api/cmd") && paths.contains_key("/api/events") && !paths.contains_key("/api/sessions"), "v2's surface only (ADR-0031)");
+    assert!(ops > 10, "{ops} operations");
     let log = std::fs::read_to_string(dir.join("serve.log")).unwrap_or_default();
     assert!(!log.contains("refused"), "every plugin of the build starts:\n{log}");
     drop(serve);
@@ -219,15 +219,15 @@ async fn a_lead_delegates_to_its_team_and_reads_the_reports() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn my_stuff_saves_and_lists_over_http() {
+async fn my_stuff_saves_and_lists() {
     let dir = temp("serve-stuff");
     let (serve, port) = start(&dir);
     let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
     let saved = api.cmd("stuff.save", json!({ "text": "# Notes\nkeep this", "name": "notes.md" })).await;
     assert_eq!(saved["kind"], "doc", "{saved}");
-    let list: Value = serde_json::from_slice(&api.http.get(format!("http://127.0.0.1:{port}/api/stuff")).send().await.unwrap().bytes().await.unwrap()).unwrap();
-    assert_eq!(list["items"].as_array().map(Vec::len), Some(1), "{list}");
-    assert_eq!(list["items"][0]["id"], saved["id"]);
+    let list = api.cmd("stuff.list", json!({})).await;
+    assert_eq!(list.as_array().map(Vec::len), Some(1), "{list}");
+    assert_eq!(list[0]["id"], saved["id"]);
     drop(serve);
 }
 
@@ -433,17 +433,10 @@ async fn an_agents_token_cannot_touch_another_task() {
         let out = as_agent(name, args).await;
         assert_ne!(out["ok"], true, "{name} must be refused for another task: {out}");
     }
-    // the v1 routes: /sessions/:id names the task, whatever x-wisp-session says
-    let route = |id: String| {
-        let (http, token, lead) = (api.http.clone(), token.clone(), lead.clone());
-        async move { http.get(format!("http://127.0.0.1:{port}/api/sessions/{id}")).header("x-wisp-token", token).header("x-wisp-session", lead).send().await.unwrap().status().as_u16() }
-    };
-    assert_eq!(route(lead.clone()).await, 200);
-    assert_eq!(route(other.clone()).await, 403, "another task by its route");
+    // (a route's :id is scoped the same way: crates/wisp-testkit/tests/scope.rs)
     // a task under L (its delegation) is L's to reach
     let child = api.cmd("runtime.create", json!({ "prompt": "child", "cwd": dir.join("proj"), "agent": "claude", "parentId": lead })).await["id"].as_str().unwrap().to_owned();
     assert_eq!(as_agent("runtime.get", json!({ "id": child })).await["ok"], true, "its own child");
-    assert_eq!(route(child).await, 200);
     // the lead's decision: L's agent may READ any task through wisp_sessions / wisp_session
     let mcp = |tool: &'static str, args: Value| {
         let (http, token, lead) = (api.http.clone(), token.clone(), lead.clone());

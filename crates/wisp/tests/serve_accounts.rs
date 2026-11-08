@@ -104,10 +104,7 @@ async fn keys_limits_and_the_v1_routes() {
     assert_eq!(file["opencode"], json!({ "type": "api", "key": "sk-zen-1" }));
     let bad = api.try_cmd("accounts.keys.set", json!({ "agent": "opencode", "provider": "nope", "key": "k" })).await;
     assert_ne!(bad["ok"], true);
-    // over the v1 route too
-    let r = api.http.delete(format!("http://127.0.0.1:{port}/api/agents/opencode/keys/opencode")).header("content-type", "application/json").body("{}").send().await.unwrap();
-    assert_eq!(r.status().as_u16(), 200);
-    let after: Value = serde_json::from_slice(&r.bytes().await.unwrap()).unwrap();
+    let after = api.cmd("accounts.keys.remove", json!({ "agent": "opencode", "provider": "opencode" })).await;
     assert_eq!(after["providers"][0]["set"], false, "{after}");
     // Codex's windows, read without a turn
     let l = api.cmd("accounts.limits", json!({ "agent": "codex", "account": "" })).await;
@@ -115,7 +112,6 @@ async fn keys_limits_and_the_v1_routes() {
     // every harness detected again
     let all = api.cmd("accounts.recheck", Value::Null).await;
     assert!(all.as_array().is_some_and(|a| a.iter().any(|h| h["id"] == "opencode" && h["available"] == true)), "{all}");
-    let accts = api.http.get(format!("http://127.0.0.1:{port}/api/agents/codex/accounts")).send().await.unwrap();
-    assert_eq!(accts.status().as_u16(), 200);
+    assert!(api.cmd("accounts.list", json!({ "agent": "codex" })).await["accounts"].is_array());
     drop(serve);
 }

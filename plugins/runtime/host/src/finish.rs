@@ -117,7 +117,6 @@ impl Runtime {
         s.updated_at = self.now();
         let summary = self.persist(&mut s, vec![turn.clone()]).await?;
         self.emit_end(&s, &turn, interrupted, &landing, &summary, &text);
-        self.mirror_v1(&s);
         if let Some(id) = landing.run_after
             && let Some(step) = self.host.after_steps().into_iter().find(|a| a.id() == id)
         {

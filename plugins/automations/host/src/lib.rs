@@ -124,6 +124,15 @@ async fn run(ctx: &Ctx, call: &Call, store: &Store, r: RunTask, by: &str) -> Res
     ctx.run_json(call, "runtime.create", start_args(t, &r, by)?).await
 }
 
+/// Runs declared task `name` in `cwd` for `by` (a trigger).
+pub async fn run_by(ctx: &Ctx, call: &Call, store: &Store, name: &str, cwd: &str, by: &str) -> Result<Value> {
+    let mut over = serde_json::Map::new();
+    if !cwd.is_empty() {
+        over.insert("project".into(), json!(cwd));
+    }
+    run(ctx, call, store, RunTask { name: name.to_owned(), over, ..RunTask::default() }, by).await
+}
+
 /// Once a minute: every declared task whose schedule matches this minute, once.
 async fn tick(ctx: &Ctx, store: &Store, now: i64) {
     let minute = now / 60_000;

@@ -2,11 +2,7 @@
 //! temp + rename, `.light/` summaries beside them) and a few config files. The owner plugin supplies the
 //! handler; this runs it in one transaction per file and records the file's (mtime, size) in `meta` in
 //! that same transaction, so an import stopped at any point resumes where it was, and a file v1 rewrote
-//! since is imported again.
-//!
-//! Dual write, for the one release that introduces the database: the owner keeps v1's files current with
-//! `Store::mirror_file` (from an `on_commit` listener's task), which records the mark of the file it just
-//! wrote, so the importer never re-imports wisp's own mirror as if v1 had changed it.
+//! since is imported again. One way only (ADR-0031): nothing writes v1's files back.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -227,44 +223,4 @@ async fn import_one(
         }
     }
     Ok(())
-}
-
-impl Store {
-    /// Dual write: writes a v1 file atomically and records its mark under `import`, so `import_files`
-    /// sees it as unchanged. `path`'s file name is the name the importer lists.
-    pub async fn mirror_file(&self, import: &str, path: &Path, bytes: Vec<u8>) -> Result<()> {
-        let name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .ok_or_else(|| invalid("mirror_file needs a file path"))?;
-        let target = path.to_path_buf();
-        tokio::task::spawn_blocking(move || crate::blob::write_atomic(&target, &bytes))
-            .await
-            .map_err(|e| StoreError::Internal(e.to_string()))??;
-        let (mtime_ns, size) = stat(path).await.ok_or_else(|| {
-            StoreError::Internal(format!("{} vanished after writing it", path.display()))
-        })?;
-        let key = mark_key(import, &name);
-        let mark = serde_json::to_string(&Mark {
-            mtime_ns,
-            size,
-            error: None,
-        })?;
-        self.write(move |w| w.set_meta(&key, Some(&mark))).await
-    }
-
-    /// Dual write: removes a v1 file wisp deleted the rows of, and its mark.
-    pub async fn unmirror_file(&self, import: &str, path: &Path) -> Result<()> {
-        let name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .ok_or_else(|| invalid("unmirror_file needs a file path"))?;
-        match tokio::fs::remove_file(path).await {
-            Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => return Err(e.into()),
-        }
-        let key = mark_key(import, &name);
-        self.write(move |w| w.set_meta(&key, None)).await
-    }
 }

@@ -66,8 +66,7 @@ impl Client {
         let json: Value = if text.is_empty() { serde_json::json!({}) } else { serde_json::from_str(&text).unwrap_or_else(|_| serde_json::json!({ "text": text })) };
         if status >= 400 {
             let message = json.get("error").and_then(|e| e.as_str().map(str::to_owned).or_else(|| e.get("message").and_then(Value::as_str).map(str::to_owned))).unwrap_or_else(|| format!("HTTP {status}"));
-            // the edge's own 404: no plugin in this build (or none on) serves that route
-            let message = if status == 404 && message == "not found" { format!("{method} /api{path}: not in this build (its plugin isn't compiled in, or is off)") } else { message };
+            let message = if status == 404 && message == "not found" { format!("{method} /api{path}: not in this build") } else { message };
             return Err(CliError::Http { status, message, body: json });
         }
         Ok(json)
@@ -101,9 +100,6 @@ impl Client {
 
     pub async fn get(&self, path: &str) -> Result<Value> {
         self.request("GET", path, None).await
-    }
-    pub async fn post(&self, path: &str, body: Value) -> Result<Value> {
-        self.request("POST", path, Some(body)).await
     }
 
     pub async fn ping(&self) -> bool {

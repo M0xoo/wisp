@@ -426,26 +426,6 @@ async fn bullet8_idle_keep_alive_is_closed_after_its_timeout() {
     s.shutdown().await;
 }
 
-async fn watch(p: u16, relay: bool) -> tokio::net::TcpStream {
-    let mut c = tokio::net::TcpStream::connect(("127.0.0.1", p))
-        .await
-        .unwrap();
-    let extra = if relay { "x-wisp-relay: 1\r\n" } else { "" };
-    c.write_all(
-        format!("GET /api/events HTTP/1.1\r\nhost: 127.0.0.1:{p}\r\n{extra}\r\n").as_bytes(),
-    )
-    .await
-    .unwrap();
-    let mut buf = vec![0u8; 1024];
-    let n = c.read(&mut buf).await.unwrap();
-    let text = String::from_utf8_lossy(&buf[..n]).into_owned();
-    assert!(
-        text.contains("text/event-stream") && text.contains("event: hello"),
-        "{text}"
-    );
-    c
-}
-
 #[tokio::test]
 async fn bullet9_status_for_the_grid() {
     let (s, _) = start(config()).await;
@@ -485,18 +465,9 @@ async fn bullet9_status_for_the_grid() {
             .unwrap()
             > t0
     );
-    // an open v1 event stream counts as someone looking; a relay doesn't
-    let (_a, _r) = (watch(p, false).await, watch(p, true).await);
-    assert_eq!(
-        send(p, "GET", "/api/status", &[], b"").await.json()["clients"],
-        1
-    );
-    // a notice reaches v1 streams as an event of its name
-    let mut a = _a;
-    wisp_kernel::services::Notify::notice(&**s.edge().hub(), "toast", json!({"text": "hi"}), None);
-    let mut buf = vec![0u8; 1024];
-    let n = a.read(&mut buf).await.unwrap();
-    assert!(String::from_utf8_lossy(&buf[..n]).contains("event: toast\ndata: {\"text\":\"hi\"}"));
+    // a stream without its hello is refused (v2 only, ADR-0031)
+    let r = send(p, "GET", "/api/events", &[], b"").await;
+    assert_eq!(r.status, 400);
     s.shutdown().await;
 }
 
@@ -551,7 +522,7 @@ async fn cmd_runs_once_per_idempotency_key() {
         ),
         (404, json!(false), json!("not_found"))
     );
-    // the v2 stream isn't mounted in this edge: a retryable 503, while v1 streams work
+    // the sync stream isn't mounted in this edge: a retryable 503
     let r = send(p, "GET", "/api/events?topics=list&client_id=c1", &[], b"").await;
     assert_eq!((r.status, r.json()["retry"].clone()), (503, json!(true)));
     s.shutdown().await;

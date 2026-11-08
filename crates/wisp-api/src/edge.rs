@@ -129,7 +129,7 @@ impl Edge {
                 "GET",
                 "/events",
                 "edge:events",
-                "Live events: the v2 sync stream with a hello in the query, else v1's events",
+                "Live events: the sync stream (its hello in the query)",
                 Own::Events,
             ),
             (
@@ -350,10 +350,9 @@ impl Edge {
         }
     }
 
-    /// Stops the background work (compression, pings) and ends the v1 streams.
+    /// Stops the background work (compression).
     pub fn shutdown(&self) {
         self.stop.cancel();
-        self.hub.close();
     }
 }
 

@@ -41,11 +41,9 @@ async fn a_follow_up_is_scheduled_sent_and_mirrored_on_its_task() {
     let hm = |t: &str| t.split(" for ").nth(1).and_then(|r| r.split(',').next()).unwrap_or_default().split(' ').nth(1).unwrap_or_default().to_owned();
     api.cmd("later.zone", json!({ "zone": "UTC" })).await;
     let utc = api.cmd("later.agent.schedule", json!({ "session": id, "minutes": 10, "message": "a" })).await;
-    // the client's zone, sent with settings (v1's PATCH /config name)
-    let r = api.http.patch(format!("http://127.0.0.1:{port}/api/config")).header("content-type", "application/json").body(json!({ "defaults": { "timeZone": "Asia/Kolkata" } }).to_string()).send().await.unwrap();
-    assert_eq!(r.status().as_u16(), 200);
-    let cfg: serde_json::Value = serde_json::from_slice(&r.bytes().await.unwrap()).unwrap();
-    assert_eq!(cfg["defaults"]["timeZone"], "Asia/Kolkata", "{cfg}");
+    // the client's zone, sent with settings
+    let r = api.cmd("settings.set", json!({ "key": "settings.timeZone", "value": "Asia/Kolkata" })).await;
+    assert_eq!(r["value"], "Asia/Kolkata", "{r}");
     let ist = api.cmd("later.agent.schedule", json!({ "session": id, "minutes": 10, "message": "b" })).await;
     let mins = |h: &str| h.split(':').map(|x| x.parse::<i64>().unwrap_or(0)).fold(0, |a, x| a * 60 + x);
     let (u, i) = (hm(utc["text"].as_str().unwrap()), hm(ist["text"].as_str().unwrap()));

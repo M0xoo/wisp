@@ -75,7 +75,7 @@ fn add(g: PluginGroup, name: &str, at: &Where) -> PluginGroup {
         #[cfg(feature = "settings")]
         "settings" => g.add(wisp_settings::SettingsPlugin),
         #[cfg(feature = "runtime")]
-        "runtime" => g.add(wisp_runtime::RuntimePlugin::default()),
+        "runtime" => g.add(wisp_runtime::RuntimePlugin),
         #[cfg(feature = "claude")]
         "claude" => g.add(wisp_claude::ClaudePlugin),
         #[cfg(feature = "codex")]

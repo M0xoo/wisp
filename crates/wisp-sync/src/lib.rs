@@ -12,14 +12,12 @@
 //! - **Cursor = watermark:** a frame's `id:` never passes a change still queued for the client.
 //! - **The client half** (`client::SyncClient`) is the Rust twin of `packages/sync`'s, for the CLI
 //!   and any Rust peer that attaches to a wisp.
-//! - **v1 streams** (no hello parameters) get v1's named events (`legacy`).
 
 pub mod client;
 mod conn;
 mod error;
 mod flush;
 mod fold;
-pub mod legacy;
 mod outbox;
 mod parse;
 mod rows;
@@ -30,7 +28,6 @@ mod types;
 pub use client::SyncClient;
 pub use error::SyncError;
 pub use fold::{compose, fold};
-pub use legacy::V1Event;
 pub use parse::{ParsedHello, Passive, parse_client_message, parse_hello};
 pub use rows::window_page;
 pub use server::SyncServer;

@@ -137,7 +137,8 @@ impl Runtime {
             hold: None,
             account_env: BTreeMap::new(),
             once: None,
-            untrusted: false,
+            // a project declared without trusting its hooks or MCP servers (crate::kinds)
+            untrusted: s.ext.get("wisp.runtime").and_then(|o| o.pointer("/brief/untrusted")).and_then(serde_json::Value::as_bool).unwrap_or(false),
             kind: if idx == 0 {
                 RunKind::First
             } else {
@@ -253,6 +254,13 @@ impl Runtime {
             env.insert("WISP_URL".into(), url);
             env.insert("WISP_TOKEN".into(), token);
         }
+        // the MCP servers other plugins give this run (connectors: a formula's `connectors:`)
+        let q = wisp_runtime_api::points::McpQuery { mode: ctx.once.unwrap_or(s.mode), harness: s.agent.clone(), team: s.ext.get("wisp.runtime").and_then(|o| o.get("subagents")).and_then(serde_json::Value::as_array).cloned().unwrap_or_default(), turn_id: t.id.0.clone(), sub: s.parent_id.is_some() };
+        for part in self.host.run_parts() {
+            for (k, v) in part.mcp_servers(s, &q) {
+                mcp_servers.entry(k).or_insert(v);
+            }
+        }
         HarnessRun {
             session_id: s.id.0.clone(),
             turn_id: t.id.0.clone(),
@@ -269,6 +277,8 @@ impl Runtime {
             env,
             account_env: ctx.account_env.clone(),
             untrusted: ctx.untrusted,
+            // the program `harnesses:` points at (`from: path`)
+            bin: s.ext.get("wisp.runtime").and_then(|o| o.pointer("/brief/bin")).and_then(serde_json::Value::as_str).map(str::to_owned),
             probe: true,
             ..HarnessRun::default()
         }

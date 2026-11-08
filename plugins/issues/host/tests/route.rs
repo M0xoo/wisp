@@ -24,9 +24,8 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use serde_json::{Value, json};
-use wisp_issues::{Deps, FixedConnectors, Lister, Origin, get_issues, why_of};
-use wisp_issues_api::{Connector, Http, HttpRequest, HttpResponse, ProjectRef, Projects};
-use wisp_kernel::http::{Request, Response};
+use wisp_issues::{Deps, FixedConnectors, Lister, Origin, why_of};
+use wisp_issues_api::{Connector, Http, HttpRequest, HttpResponse, ListArgs, ProjectRef, Projects, Source};
 use wisp_kernel::{BoxFuture, Call, Caller, Result};
 use wisp_proc::Exit;
 use wisp_proc::sim::SimProc;
@@ -200,21 +199,16 @@ impl World {
             .collect()
     }
     async fn get(&self, query: &[(&str, &str)]) -> (u16, Value) {
-        let req = Request {
-            method: "GET".into(),
-            path: "/api/issues".into(),
-            query: query
-                .iter()
-                .map(|(k, v)| ((*k).into(), (*v).into()))
-                .collect(),
-            ..Request::default()
+        // what the picker sends to issues.list
+        let q = |k: &str| query.iter().find(|(x, _)| *x == k).map(|(_, v)| *v);
+        let Some(source) = Source::parse(q("source").unwrap_or("github")) else {
+            return (400, json!({ "error": "source is github, linear or jira" }));
         };
-        match get_issues(&self.lister, &Call::new_root(Caller::user()), &req)
-            .await
-            .unwrap()
-        {
-            Response::Json { status, body } => (status, body),
-            other => panic!("not json: {other:?}"),
+        let args = ListArgs { source, project: q("project").filter(|p| !p.is_empty()).map(str::to_owned), q: q("q").unwrap_or_default().to_owned() };
+        match self.lister.list(&Call::new_root(Caller::user()), args).await {
+            Ok(list) => (200, serde_json::to_value(list).unwrap()),
+            Err(e) if e.status() == 404 => (404, json!({ "error": e.message })),
+            Err(e) => panic!("{e:?}"),
         }
     }
 }

@@ -1,5 +1,5 @@
 //! The block types whose stand-ins do more than fill a template (v1 `server/render.js`): diffs of the
-//! captured edits, test runs, commits, branch graphs, flows, maps, interactive pages and spells.
+//! captured edits, test runs, commits, branch graphs, flows, maps, and interactive pages.
 
 use serde_json::Value;
 
@@ -339,28 +339,3 @@ pub(super) fn app(b: Fields<'_>, cx: &Context<'_>) -> String {
     format!("**🧩 {title}** _(interactive: open it in wisp)_{rest}")
 }
 
-pub(super) fn spell(b: Fields<'_>) -> String {
-    let spell = b.get("spell");
-    let own = |k: &str| spell.and_then(|s| s.get(k));
-    let remove = if b.has("remove") {
-        b.get("remove")
-    } else if !js::truthy(own("wispSpell")) {
-        own("remove")
-    } else {
-        None
-    };
-    if js::truthy(remove) {
-        return format!("**🧙 Spell:** remove `{}`", js::str_of(remove));
-    }
-    let name = js::str_of(own("name"));
-    let name = if name.is_empty() {
-        js::str_of(own("id"))
-    } else {
-        name
-    };
-    let desc = own("description")
-        .filter(|d| js::truthy(Some(d)))
-        .map(|d| format!(" — {}", js::string(d)))
-        .unwrap_or_default();
-    format!("**🧙 Spell: {name}**{desc}\n\n_Keep it in wisp to turn it on._")
-}

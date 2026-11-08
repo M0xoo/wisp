@@ -1,6 +1,5 @@
-//! wisp.issues: issues to start a task from (New task → Issue, ⌘K). `issues.list` and v1's
-//! `GET /api/issues ?project=<id>&q=&source=github|linear|jira`, a thin adapter over it: a problem comes
-//! back as `{error, fix}` beside an empty list, for the picker to show.
+//! wisp.issues: issues to start a task from (New task → Issue, ⌘K), through `issues.list`: a problem
+//! comes back as `{error, fix}` beside an empty list, for the picker to show.
 
 pub mod list;
 
@@ -9,8 +8,7 @@ use std::sync::Arc;
 use tracing::Instrument;
 
 use wisp_git_api::GitServiceV1;
-use wisp_issues_api::{CONNECTORS, Connectors, Http, List, ListArgs, PROJECTS, Projects, Source};
-use wisp_kernel::http::{Request, Response, Route};
+use wisp_issues_api::{CONNECTORS, Connectors, Http, List, PROJECTS, Projects};
 use wisp_kernel::{BoxFuture, Call, Ctx, Manifest, Plugin, Result, Setup};
 
 pub use list::{Deps, FixedConnectors, Lister, Origin, why_of};
@@ -26,13 +24,12 @@ impl Plugin for IssuesPlugin {
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let ctx = s.ctx();
         let lister = Arc::new(Lister::new(deps(&ctx)?));
-        let l = lister.clone();
+        let l = lister;
         s.command::<List, _, _>(move |_ctx, call, args| {
             let l = l.clone();
             let span = tracing::info_span!("issues.list", source = args.source.as_str());
             async move { l.list(&call, args).await }.instrument(span)
         });
-        s.route(route(lister));
         Ok(())
     }
 }
@@ -104,46 +101,3 @@ fn deps(ctx: &Ctx) -> Result<Deps> {
     })
 }
 
-fn error(status: u16, message: &str) -> Response {
-    Response::Json {
-        status,
-        body: serde_json::json!({ "error": message }),
-    }
-}
-
-/// `GET /issues`, answered as v1 did (400 for a source it doesn't know, 404 for a project that isn't one).
-pub async fn get_issues(lister: &Lister, call: &Call, req: &Request) -> Result<Response> {
-    let raw = req.query("source").unwrap_or("github");
-    let Some(source) = Source::parse(raw) else {
-        return Ok(error(400, "source is github, linear or jira"));
-    };
-    let args = ListArgs {
-        source,
-        project: req
-            .query("project")
-            .filter(|p| !p.is_empty())
-            .map(str::to_owned),
-        q: req.query("q").unwrap_or_default().to_owned(),
-    };
-    match lister.list(call, args).await {
-        Ok(list) => Response::ok(list),
-        Err(e) if e.status() == 404 => Ok(error(404, &e.message)),
-        Err(e) => Err(e),
-    }
-}
-
-pub fn route(lister: Arc<Lister>) -> Route {
-    Route {
-        method: "GET",
-        pattern: "/issues",
-        permission: "issues:list",
-        doc: true,
-        summary: "Open issues to start a task from: a project's on GitHub, yours on Linear or Jira",
-        raw: false,
-        max_body: None,
-        handler: Arc::new(move |_ctx, call, req| {
-            let l = lister.clone();
-            Box::pin(async move { get_issues(&l, &call, &req).await })
-        }),
-    }
-}

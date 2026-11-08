@@ -15,7 +15,6 @@ mod more;
 mod ops;
 mod plugin;
 pub mod repo;
-mod routes;
 pub mod rows;
 mod run;
 mod side;

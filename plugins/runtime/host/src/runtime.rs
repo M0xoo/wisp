@@ -6,7 +6,6 @@
 //! size-ok: the runtime service's per-task lock and transaction wrap every command here
 
 use std::collections::{BTreeMap, HashMap};
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use wisp_kernel::Clock;
@@ -29,8 +28,6 @@ pub struct Runtime {
     pub host: Arc<dyn Host>,
     pub proc: Proc,
     pub clock: Arc<dyn Clock>,
-    /// v1's sessions folder, kept current during the dual-write release (plan §4.8); None: off
-    pub mirror: Option<PathBuf>,
     pub(crate) list: Mutex<BTreeMap<String, Arc<Summary>>>,
     pub(crate) live: Mutex<HashMap<String, Live>>,
     locks: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
@@ -62,7 +59,6 @@ impl Runtime {
             host,
             proc,
             clock,
-            mirror: None,
             list: Mutex::default(),
             live: Mutex::default(),
             locks: Mutex::default(),

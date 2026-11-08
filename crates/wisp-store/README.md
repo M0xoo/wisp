@@ -169,10 +169,6 @@ in the same transaction. The import resumes where it stopped (a `CancellationTok
 v1 changed. A failed file is recorded and skipped until it changes. Temp files never match; the pattern
 is `*.json` by default.
 
-Dual write (plan §4.8): `store.mirror_file(import, path, bytes).await` writes a v1 file atomically and
-records its mark, so the importer doesn't take wisp's own mirror for a v1 edit.
-`store.unmirror_file(import, path)` removes one.
-
 ## Errors
 
 `StoreError` has `Invalid`, `NotFound`, `Conflict`, `Closed`, `Internal`, `Sqlite`, `Io`, `Json`, and

@@ -1,11 +1,17 @@
-//! wisp.automations' `trigger` kind (ADR-0028): what starts tasks without you: CI failed, an issue
-//! labelled, a task finished or done, a webhook, a Slack or Linear message, each starting a declared task
-//! (or a prompt). Kept as declared (`StoredKind`) until the watchers are ported; sensitive.
+//! wisp.automations' `trigger` kind (ADR-0028): what starts tasks without you, each starting a declared task
+//! (or a prompt). Kept as declared (`StoredKind`); sensitive. Running today: `on: finished` (a task in
+//! its project finished a turn). The watchers (`ci`, `issues`), inbound `webhook`, `slack` and `linear`
+//! are declared and kept until those are ported.
+
+use std::sync::{Arc, Mutex};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use wisp_kernel::Setup;
-use wisp_resources_api::{KindInfo, stored};
+use serde_json::{Value, json};
+use wisp_kernel::{BoxFuture, Call, Ctx, Result, Setup};
+use wisp_resources_api::{KindInfo, Op, RESOURCE_KIND, Resource, ResourceKind, StoredKind, schema_of};
+use wisp_runtime_api::events::TurnEnded;
+use wisp_runtime_api::model::TurnStatus;
 
 /// A trigger.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -40,6 +46,109 @@ pub struct TriggerSpec {
     pub enabled: Option<bool>,
 }
 
+type Cache = Arc<Mutex<Vec<(String, TriggerSpec)>>>;
+
+struct TriggerKind {
+    inner: Arc<StoredKind>,
+    cache: Cache,
+}
+
+async fn refresh(inner: &StoredKind, cache: &Cache) {
+    let list = inner.specs().await.unwrap_or_default().into_iter().filter_map(|(n, v)| Some((n, serde_json::from_value::<TriggerSpec>(v).ok()?))).collect();
+    *cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = list;
+}
+
+impl ResourceKind for TriggerKind {
+    fn info(&self) -> KindInfo {
+        self.inner.info()
+    }
+    fn read<'a>(&'a self, call: &'a Call) -> BoxFuture<'a, Result<Vec<Resource>>> {
+        self.inner.read(call)
+    }
+    fn describe(&self, op: &Op) -> Option<String> {
+        let on = op.spec.get("on").and_then(Value::as_str).unwrap_or("?");
+        let what = op.spec.get("task").and_then(Value::as_str).filter(|t| !t.is_empty()).map_or_else(|| "a task".to_owned(), |t| format!("the task {t}"));
+        Some(format!("starts {what} by itself on {on} ({})", op.name))
+    }
+    fn apply<'a>(&'a self, call: &'a Call, op: &'a Op) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            self.inner.apply(call, op).await?;
+            refresh(&self.inner, &self.cache).await;
+            Ok(())
+        })
+    }
+}
+
+/// Whether trigger `t` fires for a turn of a task in `cwd`, started by `by` (a task a trigger started
+/// never fires its own trigger again: no loops).
+/// A task a trigger or a pipeline started: no trigger fires for it (they'd start each other forever).
+pub fn by_automation(by: &str) -> bool {
+    by.starts_with("trigger:") || by.starts_with("pipeline:")
+}
+
+pub fn fires(name: &str, t: &TriggerSpec, cwd: &str, by: &str) -> bool {
+    let root = t.project.trim_end_matches('/');
+    t.on == "finished" && t.enabled != Some(false) && !by_automation(by) && by != format!("trigger:{name}") && (root.is_empty() || cwd == root || cwd.starts_with(&format!("{root}/")) || cwd.ends_with(&format!("/private{root}")))
+}
+
+/// A turn ended: every `finished` trigger of its project starts its task.
+async fn on_finished(ctx: &Ctx, cache: &Cache, e: &TurnEnded) {
+    if e.status != TurnStatus::Done {
+        return;
+    }
+    let call = ctx.root_call();
+    let Ok(task) = ctx.run_json(&call, "runtime.get", json!({ "id": e.session_id })).await else { return };
+    let cwd = task.get("cwd").and_then(Value::as_str).unwrap_or_default().to_owned();
+    let spec = ctx.run_json(&call, "runtime.spec", json!({ "id": e.session_id })).await.unwrap_or_default();
+    let by = spec.pointer("/lineage/triggeredBy").and_then(Value::as_str).unwrap_or_default().to_owned();
+    let due: Vec<(String, TriggerSpec)> = cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner).iter().filter(|(n, t)| fires(n, t, &cwd, &by)).cloned().collect();
+    for (name, t) in due {
+        let by = format!("trigger:{name}");
+        let out = if t.task.is_empty() {
+            ctx.run_json(&call, "runtime.create", json!({ "prompt": t.prompt, "cwd": cwd, "lineage": { "triggeredBy": by } })).await
+        } else {
+            let Ok(store) = ctx.service::<wisp_store::Store>() else { continue };
+            crate::run_by(ctx, &call, &store, &t.task, &cwd, &by).await
+        };
+        if let Err(err) = out {
+            tracing::warn!(trigger = %name, "didn't start: {}", err.message);
+        }
+    }
+}
+
 pub fn register(s: &mut Setup) {
-    let _ = stored::<TriggerSpec>(s, |sc| KindInfo::new("trigger", "triggers", "wisp.automations", sc).order(85).sensitive());
+    let inner = Arc::new(StoredKind::new(KindInfo::new("trigger", "triggers", "wisp.automations", schema_of::<TriggerSpec>()).order(85).sensitive(), s.ctx()));
+    let cache: Cache = Arc::default();
+    let k: Arc<dyn ResourceKind> = Arc::new(TriggerKind { inner: inner.clone(), cache: cache.clone() });
+    s.contribute(&RESOURCE_KIND, k);
+    let c2 = cache.clone();
+    s.on::<TurnEnded, _, _>(move |ctx, e| {
+        let cache = c2.clone();
+        let e = e.clone();
+        let ctx2 = ctx.clone();
+        ctx.spawn(async move {
+            on_finished(&ctx2, &cache, &e).await;
+        });
+        async {}
+    });
+    s.on_start(move |_ctx| async move {
+        refresh(&inner, &cache).await;
+        Ok(())
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_finished_trigger_fires_for_its_project_and_never_for_its_own_tasks() {
+        let t = TriggerSpec { on: "finished".into(), project: "/w/api".into(), task: "review".into(), ..TriggerSpec::default() };
+        assert!(fires("rev", &t, "/w/api", "hand"));
+        assert!(fires("rev", &t, "/w/api/src", ""));
+        assert!(!fires("rev", &t, "/w/web", ""));
+        assert!(!fires("rev", &t, "/w/api", "trigger:rev"), "no loop");
+        assert!(!fires("rev", &t, "/w/api", "trigger:other") && !fires("rev", &t, "/w/api", "pipeline:default"), "nor one through another automation");
+        assert!(!fires("rev", &TriggerSpec { on: "ci".into(), ..t.clone() }, "/w/api", ""));
+    }
 }

@@ -217,37 +217,3 @@ async fn a_missing_folder_imports_nothing_a_pattern_picks_files_and_names_are_ch
         .is_err()
     );
 }
-
-#[tokio::test]
-async fn dual_write_mirror_files_are_not_reimported_but_v1_edits_are() {
-    let f = open();
-    let dir = v1_sessions();
-    import_files(&f.store, opts(&dir), handler(Arc::default()))
-        .await
-        .unwrap();
-    // v2 renames s1 and mirrors the v1 file, as the owner plugin does from an on_commit task
-    f.store
-        .write(|w| w.upsert("session", row!({"id": "s1", "title": "renamed in v2"})))
-        .await
-        .unwrap();
-    let body = json!({"id": "s1", "title": "renamed in v2", "turns": []})
-        .to_string()
-        .into_bytes();
-    f.store
-        .mirror_file("runtime.sessions", &dir.join("s1.json"), body)
-        .await
-        .unwrap();
-    let r = import_files(&f.store, opts(&dir), handler(Arc::default()))
-        .await
-        .unwrap();
-    assert_eq!(
-        (r.imported.len(), r.unchanged),
-        (0, 3),
-        "wisp's own mirror is not a v1 change"
-    );
-    f.store
-        .unmirror_file("runtime.sessions", &dir.join("s3.json"))
-        .await
-        .unwrap();
-    assert!(!dir.join("s3.json").exists());
-}

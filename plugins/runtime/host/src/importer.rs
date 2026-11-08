@@ -1,6 +1,6 @@
 //! v1's sessions (`~/.wisp/sessions/*.json`) into the store (plan §4.8), one transaction per file and
-//! resumable by (file, mtime, size) through the store's import framework; and the dual write back to v1's
-//! file at each turn's end, for the one release that introduces the database.
+//! resumable by (file, mtime, size) through the store's import framework. A one-time migration
+//! (`wisp import`, ADR-0031): nothing is written back to v1's files.
 //!
 //! `.light/` files are not read: they are v1's cache of the same data, and the full file is the truth.
 
@@ -9,10 +9,8 @@ use std::sync::Arc;
 
 use serde_json::Value;
 use wisp_runtime_api::commands::ImportReport;
-use wisp_runtime_api::model::Session;
-use wisp_runtime_core::import::{self, Imported, ImportedTurn};
+use wisp_runtime_core::import::{self, Imported};
 use wisp_runtime_core::summary::{RowFacts, summarize};
-use wisp_runtime_core::upcast;
 use wisp_store::{ImportOptions, StoreError, Writer};
 
 use crate::error::Result;
@@ -98,52 +96,5 @@ impl Runtime {
                 .map(|(f, why)| format!("{f}: {why}"))
                 .collect(),
         })
-    }
-
-    /// The task as v1's file, written behind the turn's end (temp + rename) when the dual write is on.
-    pub(crate) fn mirror_v1(self: &Arc<Self>, s: &Session) {
-        let Some(dir) = self.mirror.clone() else {
-            return;
-        };
-        let rt = self.clone();
-        let id = s.id.0.clone();
-        tokio::spawn(async move {
-            if let Err(err) = rt.write_v1(&dir, &id).await {
-                tracing::warn!(task = %id, %err, "the v1 file was not written");
-            }
-        });
-    }
-
-    async fn write_v1(&self, dir: &std::path::Path, id: &str) -> Result<()> {
-        let session = self.repo.session(id).await?;
-        let mut turns = Vec::new();
-        for t in self.repo.turns(id, None, None).await? {
-            let steps = self.repo.steps(t.id.as_str(), None).await?;
-            let steps = steps.into_iter().map(|s| {
-                let mut v = upcast::to_v0(&s.activity);
-                v["t"] = s.t.into();
-                (s.t, v)
-            });
-            let changes = t
-                .ext
-                .get("wisp.runtime")
-                .and_then(|v| v.get("changes"))
-                .and_then(|c| serde_json::from_value(c.clone()).ok())
-                .unwrap_or_default();
-            turns.push(ImportedTurn {
-                turn: t,
-                steps: steps.collect(),
-                changes,
-            });
-        }
-        let json = serde_json::to_vec(&import::to_v1(&Imported { session, turns }))?;
-        let file = dir.join(format!("{id}.json"));
-        let tmp = dir.join(format!("{id}.json.tmp"));
-        tokio::fs::write(&tmp, json)
-            .await
-            .map_err(|e| crate::error::RuntimeError::Invalid(e.to_string()))?;
-        tokio::fs::rename(&tmp, &file)
-            .await
-            .map_err(|e| crate::error::RuntimeError::Invalid(e.to_string()))
     }
 }

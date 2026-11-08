@@ -1,5 +1,5 @@
 //! wisp.review: review by another harness. `review.maybe` (ship calls it when a PR's head changes; a
-//! turn's end calls it), `review.view`, and v1's `POST /api/sessions/:id/review` (Review again).
+//! turn's end calls it; `force` is Review again) and `review.view`.
 
 pub mod flow;
 pub mod ports;
@@ -8,7 +8,6 @@ use std::sync::Arc;
 
 use serde_json::Value;
 use wisp_git_api::{Body, FileDiff, GitServiceV1};
-use wisp_kernel::http::{Request, Response, Route};
 use wisp_kernel::{Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
 use wisp_review_api::{
     CONSTRAINTS, EXT, HOLD, Maybe, MaybeReview, Pick, Review, ReviewFinished, TESTS, TestsRun, View,
@@ -80,7 +79,6 @@ impl Plugin for ReviewPlugin {
             boot(env.as_ref(), &call, tasks).await;
             Ok(())
         });
-        s.route(route(reviewer));
         Ok(())
     }
 }
@@ -92,58 +90,6 @@ async fn start(ctx: &Ctx, r: &Arc<Reviewer>, call: &Call, id: &str, force: bool)
         ctx.spawn(job);
     }
     Ok(Maybe { why: started.why })
-}
-
-fn error(status: u16, message: &str) -> Response {
-    Response::Json {
-        status,
-        body: serde_json::json!({ "error": message }),
-    }
-}
-
-/// `POST /sessions/:id/review`: 400 without an open PR of its own branch, 409 with why it didn't
-/// start, else the review as it now stands.
-pub async fn post_review(
-    ctx: &Ctx,
-    r: &Arc<Reviewer>,
-    env: &dyn Env,
-    call: &Call,
-    req: &Request,
-) -> Result<Response> {
-    let id = req.param("id").unwrap_or_default();
-    let t = match env.task(call, id).await {
-        Ok(t) => t,
-        Err(e) if e.status() == 404 => return Ok(error(404, "no such session")),
-        Err(e) => return Err(e),
-    };
-    if !t.pr_open || t.dir.is_empty() {
-        return Ok(error(400, wisp_review_core::machine::NO_PR));
-    }
-    let m = start(ctx, r, call, id, true).await?;
-    if !m.why.is_empty() {
-        return Ok(error(409, &m.why));
-    }
-    let review = env.task(call, id).await?.review;
-    Response::ok(serde_json::json!({ "review": review }))
-}
-
-fn route(r: Arc<Reviewer>) -> Route {
-    Route {
-        method: "POST",
-        pattern: "/sessions/:id/review",
-        permission: "review:maybe",
-        doc: true,
-        summary: "Review the task's pull request with another harness, now",
-        raw: false,
-        max_body: None,
-        handler: Arc::new(move |ctx, call, req| {
-            let r = r.clone();
-            Box::pin(async move {
-                let env = KernelEnv(ctx.clone());
-                post_review(&ctx, &r, &env, &call, &req).await
-            })
-        }),
-    }
 }
 
 /// The port over the kernel: runtime's commands, git.service, review's points and settings.

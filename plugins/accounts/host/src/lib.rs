@@ -16,7 +16,6 @@ mod kinds;
 mod folders;
 mod keys;
 mod ops;
-mod routes;
 mod run;
 mod signin;
 mod store;
@@ -91,7 +90,6 @@ impl Plugin for AccountsPlugin {
         crate::kinds::register(s);
         let slot: Slot = Arc::new(OnceLock::new());
         ops::register(s, &slot);
-        routes::register(s);
         let hook = slot.clone();
         // before trust (50) and the budget guard: the account and the watch decide first
         s.intercept::<BeforeRun, _, _>(InterceptOpts { priority: 20, failure: Failure::Open, timeout_ms: 2000 }, move |ctx, call, c| {
