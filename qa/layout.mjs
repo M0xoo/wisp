@@ -10,6 +10,9 @@
 //   node qa/layout.mjs                 starts the gallery (vite) on a free port, checks, stops it
 //   GALLERY_URL=http://localhost:5199 node qa/layout.mjs     against a gallery already running
 //   WIDTHS=390,320 THEMES=dark node qa/layout.mjs            narrower
+//   node qa/layout.mjs --area=shell    the app instead (apps/web on the mock peer, `npm run dev:web`),
+//                                      at the paths qa/layout-areas.mjs lists for that area
+//   APP_URL=http://127.0.0.1:5180 node qa/layout.mjs --area=shell     against an app already running
 //
 // Needs playwright-core in PW_DIR (default /tmp/wisp-qa-pw) and the system Chrome (qa/lib.mjs).
 // Writes qa/out/layout.json and, per failing width and theme, qa/out/layout/<width>-<theme>.png.
@@ -23,6 +26,9 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { launchBrowser, OUT, ROOT } from './lib.mjs';
+import { AREAS } from './layout-areas.mjs';
+
+const AREA = process.argv.find((a) => a.startsWith('--area='))?.slice('--area='.length);
 
 const WIDTHS = (process.env.WIDTHS || '1440,1024,900,600,390,320').split(',').map(Number);
 const THEMES = (process.env.THEMES || 'light,dark').split(',');
@@ -38,12 +44,13 @@ function freePort() {
   });
 }
 
-/** Starts the gallery's vite server and resolves its URL once it answers. */
+/** Starts the gallery's vite server (or, with --area, the app on the mock peer) and resolves its URL once it answers. */
 async function startGallery() {
   const port = await freePort();
   const vite = path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js');
-  const child = spawn(process.execPath, [vite, '--config', 'gallery/vite.config.ts', '--port', String(port), '--strictPort', '--host', '127.0.0.1'], {
-    cwd: path.join(ROOT, 'packages', 'ui'),
+  const args = AREA ? ['--port', String(port), '--strictPort', '--host', '127.0.0.1'] : ['--config', 'gallery/vite.config.ts', '--port', String(port), '--strictPort', '--host', '127.0.0.1'];
+  const child = spawn(process.execPath, [vite, ...args], {
+    cwd: AREA ? path.join(ROOT, 'apps', 'web') : path.join(ROOT, 'packages', 'ui'),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';
@@ -132,21 +139,29 @@ function inspect() {
 
 async function main() {
   fs.mkdirSync(SHOTS, { recursive: true });
-  const gallery = process.env.GALLERY_URL ? { url: process.env.GALLERY_URL, stop: () => {} } : await startGallery();
+  if (AREA && !AREAS[AREA]) throw new Error(`no paths for --area=${AREA}: add them to qa/layout-areas.mjs`);
+  const fixed = AREA ? process.env.APP_URL : process.env.GALLERY_URL;
+  const gallery = fixed ? { url: fixed, stop: () => {} } : await startGallery();
+  const pages = AREA ? AREAS[AREA] : [{ name: 'gallery', path: '/', ready: 'body' }];
   const browser = await launchBrowser();
   const results = [];
   try {
     for (const theme of THEMES) {
       for (const width of WIDTHS) {
-        const page = await browser.newPage({ viewport: { width, height: 900 }, colorScheme: theme === 'dark' ? 'dark' : 'light' });
-        const errors = [];
-        page.on('pageerror', (e) => errors.push(e.message));
-        await page.goto(`${gallery.url}/?theme=${theme}`, { waitUntil: 'networkidle' });
-        await page.evaluate(() => document.fonts.ready);
-        const found = [...(await page.evaluate(inspect)), ...errors.map((e) => ({ rule: 'page-error', part: 'page', detail: e }))];
-        for (const f of found) results.push({ width, theme, ...f });
-        if (found.length) await page.screenshot({ path: path.join(SHOTS, `${width}-${theme}.png`), fullPage: true });
-        await page.close();
+        for (const at of pages) {
+          const page = await browser.newPage({ viewport: { width, height: 900 }, colorScheme: theme === 'dark' ? 'dark' : 'light' });
+          const errors = [];
+          page.on('pageerror', (e) => errors.push(e.message));
+          // the app holds its sync stream open, so it never goes network-idle: wait for what the area draws
+          await page.goto(AREA ? `${gallery.url}${at.path}` : `${gallery.url}/?theme=${theme}`, { waitUntil: AREA ? 'load' : 'networkidle' });
+          if (AREA) await page.waitForSelector(at.ready, { timeout: 15_000 }).catch(() => errors.push(`${at.ready} never showed`));
+          await page.evaluate(() => document.fonts.ready);
+          if (AREA) await page.waitForTimeout(400); // the Toolbar's ResizeObserver settles its folding
+          const found = [...(await page.evaluate(inspect)), ...errors.map((e) => ({ rule: 'page-error', part: 'page', detail: e }))];
+          for (const f of found) results.push({ width, theme, page: at.name, ...f });
+          if (found.length) await page.screenshot({ path: path.join(SHOTS, `${AREA ? `${AREA}-${at.name}-` : ''}${width}-${theme}.png`), fullPage: !AREA });
+          await page.close();
+        }
       }
     }
   } finally {
@@ -154,8 +169,8 @@ async function main() {
     gallery.stop();
   }
   fs.writeFileSync(path.join(OUT, 'layout.json'), `${JSON.stringify(results, null, 2)}\n`);
-  for (const r of results) console.log(`${r.width} ${r.theme} ${r.rule} ${r.part}: ${r.detail}`);
-  console.log(`layout: ${results.length} problem${results.length === 1 ? '' : 's'} (${WIDTHS.length} widths × ${THEMES.length} themes)${results.length ? `; screenshots in ${path.relative(ROOT, SHOTS)}` : ''}`);
+  for (const r of results) console.log(`${r.page ? `${r.page} ` : ''}${r.width} ${r.theme} ${r.rule} ${r.part}: ${r.detail}`);
+  console.log(`layout${AREA ? ` (${AREA})` : ''}: ${results.length} problem${results.length === 1 ? '' : 's'} (${pages.length} page${pages.length === 1 ? '' : 's'} × ${WIDTHS.length} widths × ${THEMES.length} themes)${results.length ? `; screenshots in ${path.relative(ROOT, SHOTS)}` : ''}`);
   process.exitCode = results.length ? 1 : 0;
 }
 
