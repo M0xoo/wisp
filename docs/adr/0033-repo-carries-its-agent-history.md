@@ -120,3 +120,27 @@ wisp and its permissions; an outside harness can only *ask* (`wisp_resume` creat
   `--level` can lower what's kept (full → report → spec). Git history keeps old commits; the docs say so plainly.
 - **The task shows where it's tracked:** a small "in repo" mark on the task row and in its head, with the path.
   `wisp tasks --tracked` lists them.
+
+## A repo's history has its own place in the GUI and the TUI (added 2026-11-09)
+
+When the open project has a `.wisp/` folder, the sidebar gets a second tab beside the task list:
+**Tasks · Repo** (TUI: `Tab` switches, or `g r`). They're different things, so they look different.
+
+- **Tasks** is what it is today: your tasks (running, needs you, done), live.
+- **Repo** is the project's committed agent history, read from `.wisp/tasks` and git, from everyone who
+  worked on it (teammates' tasks appear after a `git pull`):
+  - grouped by time (this week, last month…), or by folder, PR or person, with a filter box (path, agent,
+    person, words in the prompt);
+  - each row shows the task's title, the person who ran it and the agent, the PR or commits it produced, the
+    goal's verdict, and how much of today's code is still from it (`72% still in main`, from blame), so stale
+    work stands out;
+  - rows are history, not live tasks, so they get a different mark (a commit glyph, no status pill and no
+    running animation) and open as a read-only report with Resume, Rerun, Fork, Blame, and Open the PR;
+  - a task of yours that's also in the repo shows the "in repo" mark in Tasks, and opens the same report from
+    Repo.
+- **The repo view's own header:** the project's formula at a glance (agents, crew, workflows: from
+  `.wisp/wisp.yml`), the track mode (auto, ask or manual), and the timeline view of ADR-0033's blame section.
+- **Untracked local tasks** in a wisp-init'ed project show a quiet **Save to repo** on hover (in `ask` mode),
+  so tracking is never more than one click away.
+- Projects without `.wisp/` show no Repo tab. The empty state for a git repo offers **Track this repo's agent
+  work** (`wisp init`).
