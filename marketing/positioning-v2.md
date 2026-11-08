@@ -11,7 +11,8 @@ builds it (your agents and crew), how (workflows, rules, machines), and what was
 linked to the code it wrote).
 
 - **Headline:** *Manage the code your agents write.* (the owner's framing, 2026-11-09)
-- **Three pillars, in this order, organising the whole site:** **Declare · Run · Track.**
+- **Three pillars, in this order, organising the whole site:** **Declare · Run · Track.** Declare and Track are
+  what's new (marked New); Run is what wisp already does best: **every harness, any machine, from anywhere.**
 - **Tagline (secondary):** *Your AI dev team, and everything it did, as code.*
 - **Three pillars:**
   1. **Declare** — agents, crew, machines, tools, rules and workflows in `wisp.yml` (ADR-0026/0028).

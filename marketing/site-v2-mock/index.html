@@ -49,6 +49,7 @@
   .m-num { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; align-items: center; justify-content: center; font: 600 12px var(--sans); background: var(--accent); color: #fff; margin-right: 8px; vertical-align: 3px; }
   .m-pillar-h { display: flex; align-items: center; gap: 10px; }
   @media (max-width: 900px) { .m-three { grid-template-columns: 1fr; } }
+  .m-new { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; margin-left: 8px; border-radius: 999px; font: 600 11px var(--sans); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); vertical-align: 4px; }
   .m-note { position: fixed; right: 14px; bottom: 14px; font: 12px var(--sans); background: var(--ink); color: var(--bg); padding: 6px 10px; border-radius: 8px; opacity: .85; }
   @media (max-width: 900px) {
     .m-two, .m-faces { grid-template-columns: 1fr; }
@@ -72,7 +73,7 @@
 
       <div class="m-three">
         <div class="m-pill">
-          <h3><span class="m-num">1</span>Declare</h3>
+          <h3><span class="m-num">1</span>Declare<span class="m-new">New</span></h3>
           <p>Your agents, crew, machines and workflows, in a file in your repo.</p>
           <div class="m-code"><pre class="m-pre"><span class="k">agents</span>:
   <span class="k">reviewer</span>: { harness: codex }
@@ -83,7 +84,7 @@
         </div>
         <div class="m-pill">
           <h3><span class="m-num">2</span>Run</h3>
-          <p>Any agent, in parallel, on your laptop, your servers or the cloud.</p>
+          <p>Every harness, any machine, from anywhere.</p>
           <div class="m-term"><pre class="m-pre"><span class="c">$</span> <span class="b">wisp "the login test is flaky"</span>
   ▸ Running npm test -- session
   ▸ Editing auth/session.ts
@@ -91,7 +92,7 @@
   3 tests <span class="g">passed</span> · +12 <span class="y">−4</span> · $0.21</pre></div>
         </div>
         <div class="m-pill">
-          <h3><span class="m-num">3</span>Track</h3>
+          <h3><span class="m-num">3</span>Track<span class="m-new">New</span></h3>
           <p>Every task lives next to the code it wrote. See why a line is there.</p>
           <div class="m-term"><pre class="m-pre"><span class="c">$</span> <span class="b">wisp blame auth/session.ts:42</span>
   01a1bc  <span class="b">Fix the flaky login test</span>
@@ -105,7 +106,7 @@
   <!-- ───── 1 Declare ───── -->
   <section class="m-sec" id="declare">
     <div class="wrap">
-      <span class="m-kicker"><span class="m-num">1</span>Declare</span>
+      <span class="m-kicker"><span class="m-num">1</span>Declare<span class="m-new">New</span></span>
       <h2>Your agent team, in one file.</h2>
       <p class="sub">Agents, crew, machines, tools, rules and workflows live in <code>wisp.yml</code>, in your repo. Review it in a PR, apply it anywhere. Clicking in the app and editing the file change the same thing.</p>
       <div class="m-grid">
@@ -124,8 +125,8 @@
   <section class="m-sec" id="run">
     <div class="wrap">
       <span class="m-kicker"><span class="m-num">2</span>Run</span>
-      <h2>Every coding agent, wherever you work.</h2>
-      <p class="sub">Claude Code, Codex, Cursor, opencode, Copilot, Grok and Antigravity, side by side. On this computer, your other machines or wisp Cloud. You read a report, not a transcript, and every action answers at once.</p>
+      <h2>Every harness, any machine, from anywhere.</h2>
+      <p class="sub">Claude Code, Codex, Cursor, opencode, Copilot, Grok and Antigravity, side by side. On this computer, your servers or wisp Cloud. From the app, your phone, the terminal or your own code. You read a report, not a transcript.</p>
       <div class="m-faces">
         <div class="m-face"><h3>App</h3><p>Mac, Windows, Linux and your phone. One list across all your computers.</p><span class="m-kicker">Desktop · Android</span></div>
         <div class="m-face"><h3>Terminal</h3><p><code>wisp tui</code> for the whole app in your terminal, <code>wisp "task"</code> to run one and answer it inline.</p><span class="m-kicker">TUI · CLI</span></div>
@@ -143,7 +144,7 @@
   <!-- ───── 3 Track ───── -->
   <section class="m-sec" id="track">
     <div class="wrap">
-      <span class="m-kicker"><span class="m-num">3</span>Track</span>
+      <span class="m-kicker"><span class="m-num">3</span>Track<span class="m-new">New</span></span>
       <h2>Code that remembers how it was made.</h2>
       <p class="sub">Every task is a file: what was asked, by which agent, from which commit, and what it changed. Your repo keeps them in <code>.wisp/</code>, so anyone can see why a line is there, share the task, rerun it, or pick it up again.</p>
       <div class="m-two" style="margin-top:28px">
