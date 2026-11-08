@@ -15,7 +15,17 @@ Each line: area · what v1 did · what v2 does · the test. Visible changes are 
 | Telemetry | any key a caller passed was sent | only the catalogue's keys go; an unknown one is dropped | `plugins/telemetry/host/tests/sinks.rs` |
 | Questions | a question left open when its turn ended stayed on the task in review, and a reply after a restart still answered it | the question goes with its turn (v1 runner.js:1812 did this; v2's port had missed it) | `serve_task.rs` `a_question_open_when_its_turn_ends_is_cleared` |
 
+## Decided by the lead (2026-11-08; the owner asked not to be stopped for these)
+
+- **Agents reading other tasks: allowed, read-only.** `wisp_sessions` / `wisp_session` are a v1 feature
+  agents rely on (the lead itself uses them), so that's intent, not a bug. An `agent:session` token may
+  **read** any task through those two tools. It may **write** (follow up, rename, archive, stop) only its own
+  task and its children. A capped task (`agent:capped`, channel-started below Full auto) reads only its own
+  task and children. The kernel scope keeps writes as they are and allows the two read commands, with tests.
+- **Times in later: stored as UTC, shown in the user's local time.** The client sends its time zone (IANA)
+  with the settings, and later parses and formats in it. Until a client has sent one, the server's local
+  zone is used, as in v1. Not a bug fix, so nothing to list above.
+
 ## Questions for the owner
 
-- **Agents reading other tasks.** v1 gave every agent `wisp_sessions` / `wisp_session` (list and read any task). With the round-4 scope an agent reaches only its own task and its children, so those two tools now refuse other tasks. Keep that, or let them read (not write) any task?
-- **Times in later.** v1 wrote reminder times in the server's local time. v2 writes UTC until wisp.settings carries the user's offset.
+(none open)
