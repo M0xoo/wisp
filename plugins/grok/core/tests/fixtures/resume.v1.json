@@ -1,0 +1,75 @@
+[
+ {
+  "type": "session",
+  "id": "prev-1"
+ },
+ {
+  "type": "tool",
+  "id": "c1",
+  "kind": "read",
+  "label": "Reading math.js",
+  "file": "math.js"
+ },
+ {
+  "type": "tool_output",
+  "id": "c1",
+  "text": "{\"type\":\"ReadFile\"}"
+ },
+ {
+  "type": "thinking"
+ },
+ {
+  "type": "tool",
+  "id": "c2",
+  "kind": "edit",
+  "label": "Editing math.js",
+  "file": "math.js"
+ },
+ {
+  "type": "tool",
+  "id": "c3",
+  "kind": "edit",
+  "label": "Writing notes.txt",
+  "file": "notes.txt"
+ },
+ {
+  "type": "change",
+  "file": "math.js",
+  "op": "edit",
+  "edits": [
+   {
+    "before": "a - b",
+    "after": "a + b"
+   }
+  ]
+ },
+ {
+  "type": "tool_output",
+  "id": "c3",
+  "text": "{}"
+ },
+ {
+  "type": "tool",
+  "id": "c4",
+  "kind": "run",
+  "label": "Run the tests",
+  "detail": "npm test"
+ },
+ {
+  "type": "tool_error",
+  "name": "run_terminal_command",
+  "text": "1 failing"
+ },
+ {
+  "type": "result",
+  "text": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake grok finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```",
+  "isError": false,
+  "stats": {
+   "costUsd": 0.02,
+   "durationMs": 5,
+   "turns": 3,
+   "inputTokens": 10,
+   "outputTokens": 5
+  }
+ }
+]

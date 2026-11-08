@@ -1,0 +1,19 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "mode": "auto"
+  },
+  "argv": [
+    "--input-format",
+    "stream-json",
+    "--output-format",
+    "stream-json",
+    "--print-timeout",
+    "24h",
+    "--dangerously-skip-permissions"
+  ]
+}

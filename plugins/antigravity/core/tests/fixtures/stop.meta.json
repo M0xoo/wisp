@@ -1,0 +1,19 @@
+{
+  "exit": {
+    "code": null,
+    "signal": "SIGTERM",
+    "stderr": ""
+  },
+  "opts": {},
+  "stopAfter": 2,
+  "argv": [
+    "--input-format",
+    "stream-json",
+    "--output-format",
+    "stream-json",
+    "--print-timeout",
+    "24h",
+    "--mode",
+    "accept-edits"
+  ]
+}

@@ -1,0 +1,18 @@
+[
+ {
+  "type": "session",
+  "id": "agy-session-1"
+ },
+ {
+  "type": "tool",
+  "kind": "read",
+  "label": "Reading math.js",
+  "file": "math.js"
+ },
+ {
+  "type": "result",
+  "isError": true,
+  "stopped": true,
+  "text": "agy exited with SIGTERM"
+ }
+]
