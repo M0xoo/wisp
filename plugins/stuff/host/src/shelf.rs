@@ -56,7 +56,7 @@ impl Shelf {
     }
 
     pub fn len(&self) -> usize {
-        self.items.read().map(|m| m.len()).unwrap_or(0)
+        self.items.read().map_or(0, |m| m.len())
     }
 
     pub fn is_empty(&self) -> bool {

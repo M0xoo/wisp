@@ -181,7 +181,7 @@ impl Shelf {
     /// A picture of an app (the agent's screenshot), for its card.
     async fn cover(&self, src: &Path) -> Result<(String, String)> {
         let name = src.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        let is_file = tokio::fs::metadata(src).await.map(|m| m.is_file()).unwrap_or(false);
+        let is_file = tokio::fs::metadata(src).await.is_ok_and(|m| m.is_file());
         if kind_of(&name) != StuffKind::Image || !is_file {
             return Err(bad(400, "cover has to be a picture (png, jpg, webp, svg)."));
         }

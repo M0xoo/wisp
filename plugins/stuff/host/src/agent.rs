@@ -1,4 +1,4 @@
-//! What an agent reads (wisp_stuff, @-mentions): the items with a readable path for each.
+//! What an agent reads (`wisp_stuff`, @-mentions): the items with a readable path for each.
 use wisp_stuff_api::commands::{FindArgs, FindOut};
 use wisp_stuff_api::{StuffItem, StuffKind};
 use wisp_stuff_core::agent::{Detail, find_text, stuff_detail};
@@ -11,7 +11,7 @@ use crate::shelf::Shelf;
 impl Shelf {
     /// Every item matching the words and kind, newest first, with where its file is. `mine`: what a
     /// capped agent may see (its own project's); None: everything.
-    pub async fn find(&self, a: &FindArgs, mine: Option<&dyn Fn(&StuffItem) -> bool>) -> Result<FindOut> {
+    pub async fn find(&self, a: &FindArgs, mine: Option<&(dyn Fn(&StuffItem) -> bool + Sync)>) -> Result<FindOut> {
         let limit = a.limit.unwrap_or(30).clamp(1, 100);
         let all: Vec<StuffItem> = self.list().into_iter().filter(|x| matches(x, &a.query, a.kind)).filter(|x| mine.is_none_or(|m| m(x))).collect();
         let mut with_paths = Vec::with_capacity(all.len().min(limit));

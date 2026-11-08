@@ -43,7 +43,7 @@ pub struct MemBlobs {
 
 impl MemBlobs {
     pub fn len(&self) -> usize {
-        self.map.read().map(|m| m.len()).unwrap_or(0)
+        self.map.read().map_or(0, |m| m.len())
     }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -53,10 +53,10 @@ impl MemBlobs {
 impl Blobs for MemBlobs {
     fn put(&self, bytes: Vec<u8>) -> BoxFuture<'static, Result<String>> {
         let h = hash(&bytes);
-        let r = self.map.write().map(|mut m| {
+        let ok = self.map.write().map(|mut m| {
             m.entry(h.clone()).or_insert_with(|| Arc::new(bytes));
-        });
-        Box::pin(async move { r.map(|()| h).map_err(|_| Error::Poisoned) })
+        }).is_ok();
+        Box::pin(async move { if ok { Ok(h) } else { Err(Error::Poisoned) } })
     }
     fn get(&self, hash: &str) -> BoxFuture<'static, Result<Option<Arc<Vec<u8>>>>> {
         let r = self.map.read().map(|m| m.get(hash).cloned()).map_err(|_| Error::Poisoned);
