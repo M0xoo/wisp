@@ -65,7 +65,7 @@
     <div class="wrap">
       <span class="m-kicker">Engineering as code · open source</span>
       <h1>Manage the code your agents write.</h1>
-      <p class="lede">wisp runs Claude Code, Codex, Cursor and every other coding agent for you. <b>Declare</b> your agent team in one file, <b>run</b> it on any of your computers, and <b>track</b> every task next to the code it wrote.</p>
+      <p class="lede">wisp runs Claude Code, Codex, Cursor and every other coding agent for you. <b>Declare</b> your agent team in your repo, <b>run</b> it on any of your computers, and <b>track</b> every task next to the code it wrote.</p>
       <div class="m-ctas">
         <button class="cmd"><span class="p">$</span><code>npx wisp-agents</code><span class="copy">Copy</span></button>
         <a class="m-btn" href="#declare">How it works</a>
@@ -74,12 +74,12 @@
       <div class="m-three">
         <div class="m-pill">
           <h3><span class="m-num">1</span>Declare<span class="m-new">New</span></h3>
-          <p>Your agents, crew, machines and workflows, in a file in your repo.</p>
+          <p>Your agents, crew, machines and workflows, as code in your repo.</p>
           <div class="m-code"><pre class="m-pre"><span class="k">agents</span>:
   <span class="k">reviewer</span>: { harness: codex }
   <span class="k">fixer</span>: { harness: claude }
 <span class="k">crew</span>:
-  - { name: <span class="s">Ada</span>, agent: reviewer,
+  - { name: <span class="s">Ada</span>, agent: <span class="s">${agent.reviewer}</span>,
       schedule: <span class="s">weekdays at 7</span> }</pre></div>
         </div>
         <div class="m-pill">
@@ -107,8 +107,8 @@
   <section class="m-sec" id="declare">
     <div class="wrap">
       <span class="m-kicker"><span class="m-num">1</span>Declare<span class="m-new">New</span></span>
-      <h2>Your agent team, in one file.</h2>
-      <p class="sub">Agents, crew, machines, tools, rules and workflows live in <code>wisp.yml</code>, in your repo. Review it in a PR, apply it anywhere. Clicking in the app and editing the file change the same thing.</p>
+      <h2>Your agent team, as code in your repo.</h2>
+      <p class="sub">Agents, crew, machines, tools, rules and workflows live in <code>.wisp/</code>: files that reference each other, with variables and reusable modules, like infrastructure as code. Review it in a PR, apply it anywhere. Clicking in the app and editing the file change the same thing.</p>
       <div class="m-grid">
         <div><b>Agents</b><span>Named profiles: harness, model, effort, mode, tools. "reviewer" means the same thing everywhere.</span></div>
         <div><b>Crew</b><span>Long-lived teammates with a role, a schedule, a notebook and a team they delegate to.</span></div>
@@ -117,7 +117,7 @@
         <div><b>Tools</b><span>MCP servers and wisp's own tools, per agent. Secrets stay out of the file.</span></div>
         <div><b>Rules</b><span>Who may start what from Slack or Telegram, spend limits, what happens when a run fails.</span></div>
       </div>
-      <div class="m-ways"><span><b>App</b>Settings, Import a formula</span><span><b>TUI</b>Settings tab</span><span><b>CLI</b><code>wisp apply -f wisp.yml</code></span><span><b>SDK</b><code>await w.apply(formula)</code></span></div>
+      <div class="m-ways"><span><b>App</b>Settings, Import a formula</span><span><b>TUI</b>Settings tab</span><span><b>CLI</b><code>wisp plan · wisp apply</code></span><span><b>SDK</b><code>await w.apply(formula)</code></span></div>
     </div>
   </section>
 

@@ -15,7 +15,7 @@ linked to the code it wrote).
   what's new (marked New); Run is what wisp already does best: **every harness, any machine, from anywhere.**
 - **Tagline (secondary):** *Your AI dev team, and everything it did, as code.*
 - **Three pillars:**
-  1. **Declare** — agents, crew, machines, tools, rules and workflows in `wisp.yml` (ADR-0026/0028).
+  1. **Declare** — agents, crew, machines, tools, rules and workflows as code in `.wisp/` (files with references, variables and modules, ADR-0034) (ADR-0026/0028).
   2. **Run** — any coding agent, in parallel, on any of your computers or in the cloud, from the app, the TUI, the
      CLI or your own code (ADR-0024).
   3. **Track** — every task is a file: share it, rerun it, resume it; the repo keeps them in `.wisp/`, so
