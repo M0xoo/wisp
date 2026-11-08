@@ -26,3 +26,4 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0017](0017-immediate-feedback.md) | Every action answers within one frame (design/feedback.md, qa/feedback.mjs) |
 | [0019](0019-openapi-from-the-route-table.md) | OpenAPI is checked on the Rust route table (crates/wisp/tests/serve_task.rs); the static `openapi` rule is retired |
 | [0020](0020-per-app-sqlite.md) | A launched app keeps its own SQLite file outside wisp's store (a recorded kind of state) |
+| [0021](0021-analytics-sinks.md) | Analytics: one pipeline, pluggable sinks (PostHog is a module) |
