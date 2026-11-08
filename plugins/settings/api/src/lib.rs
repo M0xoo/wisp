@@ -42,6 +42,9 @@ impl Command for Get {
     const READ_ONLY: bool = true;
     type Args = KeyArgs;
     type Out = Value;
+    fn args_ts() -> Option<String> {
+        Some("{ \n/**\n * the setting's key (`wisp settings list`)\n */\nkey: string, }".into())
+    }
 }
 
 #[derive(Debug)]
@@ -51,6 +54,9 @@ impl Command for Set {
     const PERMISSION: Option<&'static str> = Some("settings:write");
     type Args = SetArgs;
     type Out = SettingInfo;
+    fn args_ts() -> Option<String> {
+        Some("{ \n/**\n * the setting's key (`wisp settings list`)\n */\nkey: string, \n/**\n * its new value: JSON, or a word; `null` resets it to its default\n */\nvalue: unknown, }".into())
+    }
 }
 
 /// v1's `config.defaults` names for the settings that kept them, and the key each is now.

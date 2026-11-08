@@ -29,6 +29,9 @@ pub struct Ask;
 impl Command for Ask {
     const ID: &'static str = "lsp.ask";
     type Args = AskArgs;
+    fn args_ts() -> Option<String> {
+        Some(format!("{}{}", <AskArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <AskArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+    }
     type Out = LspAnswer;
 }
 
@@ -38,6 +41,9 @@ pub struct Install;
 impl Command for Install {
     const ID: &'static str = "lsp.install";
     type Args = InstallArgs;
+    fn args_ts() -> Option<String> {
+        Some(format!("{}{}", <InstallArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <InstallArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+    }
     type Out = Installed;
 }
 

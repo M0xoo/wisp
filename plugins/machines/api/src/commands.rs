@@ -153,6 +153,9 @@ macro_rules! command {
             const ID: &'static str = $id;
             $(const READ_ONLY: bool = $ro;)?
             type Args = $args;
+            fn args_ts() -> Option<String> {
+                Some(format!("{}{}", <$args as ::ts_rs::TS>::docs().unwrap_or_default(), <$args as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+            }
             type Out = $out;
         }
     };

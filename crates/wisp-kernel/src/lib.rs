@@ -54,7 +54,7 @@ pub use error::{Code, Result, WireError};
 pub use events::{EventEnvelope, QUEUE_CAP};
 pub use exec::{ExecOptions, ExecPlugin, ExecSpawner};
 pub use host::{App, Ctx, Kernel, PluginStatus, Setup};
-pub use kernel_api::{CommitHook, Declarative, RouteEntry};
+pub use kernel_api::{CommandInfo, CommitHook, Declarative, RouteEntry};
 pub use manifest::{Manifest, ManifestError, SettingDecl};
 pub use settings::{SettingInfo, SettingsBackend};
 pub use tokio_util::sync::CancellationToken;
@@ -78,6 +78,12 @@ pub trait Command: 'static {
     /// A read an `agent:session` token may make about any task (`wisp_sessions` / `wisp_session`); a
     /// capped agent (`agent:capped`) stays scoped. Only for read-only commands. Additive (2026-11-08).
     const READS_ANY_TASK: bool = false;
+    /// The argument type as a TypeScript declaration with its doc comments (ts-rs `decl`), for the
+    /// generated CLI's flags and `--help` (ADR-0022). `None`: the CLI takes `--args JSON`. Additive
+    /// (2026-11-08).
+    fn args_ts() -> Option<String> {
+        None
+    }
     type Args: Serialize + DeserializeOwned + Send + 'static;
     type Out: Serialize + DeserializeOwned + Send + 'static;
 }

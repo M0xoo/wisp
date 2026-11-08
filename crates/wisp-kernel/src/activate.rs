@@ -280,6 +280,7 @@ pub(crate) fn add_command(k: &KernelState, ctx: &Ctx, c: CmdReg) -> Result<()> {
         task_args: c.task_args,
         all_tasks: c.all_tasks,
         reads_any: c.reads_any,
+        args_ts: c.args_ts,
         json: c.json,
         typed: c.typed,
         ctx: ctx.clone(),

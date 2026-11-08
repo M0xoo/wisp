@@ -201,6 +201,9 @@ pub struct MaybeReview;
 impl Command for MaybeReview {
     const ID: &'static str = "review.maybe";
     type Args = MaybeArgs;
+    fn args_ts() -> Option<String> {
+        Some(format!("{}{}", <MaybeArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <MaybeArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+    }
     type Out = Maybe;
 }
 
@@ -217,6 +220,9 @@ impl Command for View {
     const ID: &'static str = "review.view";
     const READ_ONLY: bool = true;
     type Args = ViewArgs;
+    fn args_ts() -> Option<String> {
+        Some(format!("{}{}", <ViewArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <ViewArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+    }
     type Out = Option<ReviewView>;
 }
 

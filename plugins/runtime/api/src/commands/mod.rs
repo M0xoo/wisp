@@ -24,6 +24,9 @@ macro_rules! command {
             const TASK_ARGS: &'static [&'static str] = TASK_ARGS;
             const ALL_TASKS: bool = EVERY_TASK.contains(&$id);
             type Args = $args;
+            fn args_ts() -> Option<String> {
+                Some(format!("{}{}", <$args as ::ts_rs::TS>::docs().unwrap_or_default(), <$args as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+            }
             type Out = $out;
         }
     };
@@ -120,6 +123,9 @@ impl Command for AgentSessions {
     const TASK_ARGS: &'static [&'static str] = &["session"];
     const READS_ANY_TASK: bool = true;
     type Args = AgentSessionsArgs;
+    fn args_ts() -> Option<String> {
+        Some(format!("{}{}", <AgentSessionsArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <AgentSessionsArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+    }
     type Out = AgentText;
 }
 
@@ -132,5 +138,8 @@ impl Command for AgentSession {
     const TASK_ARGS: &'static [&'static str] = &["session", "of"];
     const READS_ANY_TASK: bool = true;
     type Args = AgentSessionArgs;
+    fn args_ts() -> Option<String> {
+        Some(format!("{}{}", <AgentSessionArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <AgentSessionArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+    }
     type Out = AgentText;
 }

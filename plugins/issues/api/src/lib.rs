@@ -110,6 +110,9 @@ impl Command for List {
     const ID: &'static str = "issues.list";
     const READ_ONLY: bool = true;
     type Args = ListArgs;
+    fn args_ts() -> Option<String> {
+        Some(format!("{}{}", <ListArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <ListArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+    }
     type Out = IssueList;
 }
 

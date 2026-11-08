@@ -301,7 +301,52 @@ impl Kernel {
     }
 }
 
+/// One command of the catalogue as a frontend sees it (ADR-0022: the CLI is generated from it).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandInfo {
+    pub id: String,
+    /// the plugin that handles it
+    pub plugin: String,
+    /// the manifest's title (`contributes.commands[].title`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    pub read_only: bool,
+    pub permission: String,
+    /// the argument type as a TypeScript declaration with its doc comments, when the api crate gives it
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub args: Option<String>,
+}
+
 impl Ctx {
+    /// The commands `caller` may run (its capability set applies, as in dispatch), sorted by id: the
+    /// catalogue a frontend builds its verbs from. Static facts, no permission needed to read them.
+    /// Additive (2026-11-08).
+    pub fn catalogue(&self, caller: &Caller) -> Vec<CommandInfo> {
+        let Ok(k) = self.k() else { return Vec::new() };
+        let titles: std::collections::HashMap<String, String> = k
+            .lock_plugins()
+            .map(|ps| ps.slots.iter().flat_map(|s| s.manifest.commands()).map(|c| (c.id, c.title)).collect())
+            .unwrap_or_default();
+        let set = k.caps.get(&caller.set);
+        let Ok(reg) = k.reg.read() else { return Vec::new() };
+        let mut out: Vec<CommandInfo> = reg
+            .commands
+            .values()
+            .filter(|e| crate::call::check_sets(set.as_deref(), &caller.set, None, &e.perm).is_ok())
+            .map(|e| CommandInfo {
+                id: e.id.clone(),
+                plugin: e.owner.to_string(),
+                title: titles.get(&e.id).cloned(),
+                read_only: e.read_only,
+                permission: e.perm.to_string(),
+                args: (e.args_ts)(),
+            })
+            .collect();
+        out.sort_by(|a, b| a.id.cmp(&b.id));
+        out
+    }
+
     /// A setting's value: a lock first, then the user's value, then the default.
     pub fn setting(&self, key: &str) -> Option<Value> {
         self.k().ok()?.settings.get(key)

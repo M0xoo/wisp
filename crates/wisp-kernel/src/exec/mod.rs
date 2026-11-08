@@ -383,6 +383,7 @@ impl Bridge {
                 task_args: crate::scope::DEFAULT_TASK_ARGS,
                 all_tasks: false,
                 reads_any: false,
+                args_ts: || None,
                 json,
                 typed: None,
             },
