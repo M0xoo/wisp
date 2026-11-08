@@ -8,9 +8,41 @@
   "server": {
     "builtin": "wisp-terminal"
   },
-  "permissions": [],
+  "permissions": [
+    "runtime:get",
+    "telemetry:track"
+  ],
   "activation": [
     "onStartup"
   ],
-  "contributes": {}
+  "contributes": {
+    "commands": [
+      {
+        "id": "terminal.open",
+        "title": "Open a terminal"
+      },
+      {
+        "id": "terminal.input",
+        "title": "Type into a terminal"
+      },
+      {
+        "id": "terminal.close",
+        "title": "Hang a terminal up"
+      },
+      {
+        "id": "terminal.shell.start",
+        "title": "Start the task's shell"
+      },
+      {
+        "id": "terminal.get",
+        "title": "A terminal",
+        "readOnly": true
+      },
+      {
+        "id": "terminal.shell.info",
+        "title": "The task's shell, for the panel",
+        "readOnly": true
+      }
+    ]
+  }
 }
