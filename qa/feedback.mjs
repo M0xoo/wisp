@@ -1,14 +1,19 @@
 // The feedback gate (design/feedback.md, ADR-0017): every action answers within one frame. For each
 // interactive element of a view (the views of qa/views.mjs, opened in v2 as qa/parity.mjs does), with
 // the mock peer's answers slowed to 400 ms:
-//   1. press it (Enter for a text field: a character typed) and watch the page: a DOM change, a style
-//      change seen in a screenshot, focus moving, or a new page (a link) within 100 ms passes;
+//   1. press it (a text field: a character typed, then Enter, which sends it) and watch the page: a DOM
+//      change, a style change seen in a screenshot, focus moving, or a new page (a link) within 100 ms
+//      passes;
 //   2. a control that went pending (aria-busy / data-pending) is pressed again: nothing may happen;
-//   3. a press that sent a command is repeated with the mock refusing that command: the screen must
-//      roll back and a toast must say why within 100 ms of the refusal arriving.
+//   3. a press that sent a command is repeated with the mock refusing that command: a toast must say why
+//      within 100 ms of the refusal arriving (DELAY + BUDGET after the press), and the screen must roll
+//      back: with the toast hidden, it no longer shows what the accepted press showed (the row read, the
+//      new task, the toggle flipped). A navigation the press also made (opening a task) stays; only the
+//      command's own optimistic change goes. A press whose command showed nothing has nothing to undo.
 // Pressing what's already chosen (aria-current, a disabled control) isn't an action and is skipped.
 //
-//   node qa/feedback.mjs                                 starts apps/web's vite with v1's seed on 4592
+//   node qa/feedback.mjs                                 starts apps/web's vite with v1's seed on 4592;
+//                                                        desktop and browser modes, at 1440, 390 and 320
 //   FEEDBACK_URL=http://127.0.0.1:5180 node qa/feedback.mjs
 //   --views=home,task --widths=1440,390 --modes=desktop  a subset
 // Results: qa/out/feedback/summary.{json,md}; a failure's before/after shots beside them.
@@ -22,6 +27,8 @@ import { views } from './views.mjs';
 
 const DELAY = 400; // ms the mock peer's answers take (design/feedback.md)
 const BUDGET = 100; // ms an action has to show something
+/** Pixels a rolled-back screen may still differ by (antialiasing, a caret's blink). */
+const ROLLBACK_SLACK = 64;
 const SIZES = { 1440: [1440, 900], 1024: [1024, 768], 900: [900, 900], 600: [600, 900], 390: [390, 844], 320: [320, 640] };
 const INTERACTIVE = 'button, a[href], [role="button"], input:not([type=hidden]), textarea, select, [tabindex]:not([tabindex="-1"])';
 
@@ -133,6 +140,7 @@ async function press(p, target, size) {
   if (target.tag === 'textarea' || target.tag === 'input') {
     await loc.focus();
     await p.keyboard.type('x');
+    await p.keyboard.press('Enter');
   } else {
     await p.mouse.down();
     await p.mouse.up();
@@ -202,21 +210,39 @@ async function checkView(browser, url, name, opener, size, mode, at, outDir) {
           await fetch(new URL(`/__mock/fail?cmd=${encodeURIComponent(cmd)}`, url), { method: 'POST' });
           const target2 = (await p2.evaluate(listTargets, INTERACTIVE)).find((t) => t.nth === target.nth) ?? target;
           await p2.mouse.move(target2.box[0] + target2.box[2] / 2, target2.box[1] + target2.box[3] / 2);
-          if (target.tag === 'textarea' || target.tag === 'input') {
+          await p2.waitForTimeout(250);
+          const text = target.tag === 'textarea' || target.tag === 'input';
+          if (text) {
             await p2.locator(INTERACTIVE).nth(target.nth).focus();
             await p2.keyboard.type('x');
-          } else {
+          }
+          const t0 = Date.now();
+          if (text) await p2.keyboard.press('Enter');
+          else {
             await p2.mouse.down();
             await p2.mouse.up();
           }
           // the refusal arrives after DELAY: a toast within BUDGET of it
+          const TOASTS = '[data-kit="toast"], [role="status"][data-part*="toast"], [data-part="ui.toast"]';
           const toast = await p2
-            .locator('[data-kit="toast"], [role="status"][data-part*="toast"], [data-part="ui.toast"]')
+            .locator(TOASTS)
             .first()
-            .waitFor({ state: 'visible', timeout: DELAY + BUDGET + 300 })
+            .waitFor({ state: 'visible', timeout: Math.max(1, DELAY + BUDGET - (Date.now() - t0)) })
             .then(() => true, () => false);
-          refusal = toast ? `refused ${cmd}: toast` : `refused ${cmd}: no toast`;
-          if (!toast) notes.push(`${cmd} refused: no toast`);
+          refusal = toast ? `refused ${cmd}: toast` : `refused ${cmd}: no toast within ${DELAY + BUDGET} ms`;
+          if (!toast) notes.push(`${cmd} refused: no toast within ${BUDGET} ms of the refusal`);
+          // rolled back: the toast hidden, the accepted press's optimistic change is gone
+          await p2.waitForTimeout(BUDGET);
+          await p2.evaluate((sel) => document.querySelectorAll(sel).forEach((n) => (n.style.visibility = 'hidden')), TOASTS);
+          const now = await p2.screenshot();
+          const showed = diffImages(decodePng(r.before), decodePng(r.after)).differing > ROLLBACK_SLACK;
+          const still = diffImages(decodePng(r.after), decodePng(now)).differing <= ROLLBACK_SLACK;
+          if (showed && still) {
+            notes.push(`${cmd} refused: the screen still shows the accepted change (no rollback)`);
+            const file = path.join(outDir, `${name}-${mode}-${size[0]}-${target.nth}-rollback`);
+            fs.writeFileSync(`${file}.accepted.png`, r.after);
+            fs.writeFileSync(`${file}.refused.png`, now);
+          }
         } finally {
           await c2.close();
         }
@@ -247,8 +273,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const openers = views({ tasks: seed.seeded.tasks.map((id) => ({ id })), goal: { id: seed.seeded.goal } });
   const v2Page = (p) => new Proxy(p, { get: (t, k) => (k === 'locator' ? (s, o) => t.locator(tr(s), o) : k === 'isVisible' ? (s, o) => t.isVisible(tr(s), o) : k === 'fill' ? (s, v, o) => t.fill(tr(s), v, o) : typeof t[k] === 'function' ? t[k].bind(t) : t[k]) });
   const names = (arg('views') ?? 'home,task,task.composer').split(',');
-  const widths = (arg('widths') ?? '1440,390').split(',').map(Number);
-  const modes = (arg('modes') ?? 'browser').split(',');
+  const widths = (arg('widths') ?? '1440,390,320').split(',').map(Number);
+  const modes = (arg('modes') ?? 'desktop,browser').split(',');
   const v2 = process.env.FEEDBACK_URL ? { url: process.env.FEEDBACK_URL, stop: () => {} } : await startV2(seedFile);
   const browser = await launchBrowser();
   const results = [];

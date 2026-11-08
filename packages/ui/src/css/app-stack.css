@@ -19,7 +19,7 @@
   /* Home as its own page */
   [data-kit='stage'][data-layout='stack'] [data-kit='split-home'] { align-items: stretch; padding: 0 var(--space-7) var(--space-9); }
   [data-kit='stage'][data-layout='stack'] [data-kit='split-home'] > * { max-width: none; }
-  [data-kit='stage'][data-layout='stack'] [data-kit='sh-bar'] { gap: var(--space-3); min-height: 56px; padding: var(--space-3) 0; margin: 0 0 var(--space-4); }
+  [data-kit='stage'][data-layout='stack'] [data-kit='sh-bar'] { gap: var(--space-3); min-height: 56px; padding: calc(var(--space-3) - 1px) 0; margin: 0 0 var(--space-4); } /* v1: 5px, so a two-line greeting keeps the bar at 56 */
   [data-kit='stage'][data-layout='stack'] [data-kit='sh-bar'] > [data-kit='sh-hello'] { font-size: 19px; padding: 0; letter-spacing: -0.02em; }
   [data-kit='sh-back'] { display: flex; align-items: center; justify-content: center; flex: none; width: var(--size-touch); height: var(--size-touch); margin: 0 0 0 -10px; border-radius: var(--radius-control); color: var(--muted); }
   [data-kit='stage'][data-layout='split'] [data-kit='sh-s'] { display: none; }
@@ -62,7 +62,14 @@
   [data-kit='stage'][data-layout='stack'] [data-kit='it-meta'] { margin: 0; min-width: 100px; overflow: hidden; }
   /* the smallest phones: the branch on its own line, the project in full (v1's row wraps there) */
   @container pane (max-width: 375px) {
+    /* one column: the project's row isn't squeezed by an empty branch column (a pill truncates only
+       when its row is out of room, layout.md §4) */
+    [data-kit='stage'][data-layout='stack'] [data-kit='it-bar'] { grid-template-columns: minmax(0, 1fr); }
     [data-kit='stage'][data-layout='stack'] [data-kit='it-meta'] { grid-column: 1 / -1; }
+  }
+  /* v1 at the narrowest: the files on the right of their line, under the counts */
+  @media (max-width: 375px) {
+    [data-kit='trail-bar'] > [data-kit='link-xs'] { justify-self: end; }
   }
   [data-kit='stage'][data-layout='stack'] [data-kit='m-branch'] { color: var(--ink-2); }
   [data-kit='stage'][data-layout='stack'] [data-kit='m-branch'] > [data-kit='icon'] { width: var(--size-icon-sm); height: var(--size-icon-sm); margin-right: var(--space-2); }
@@ -78,7 +85,7 @@
   [data-kit='stage'][data-layout='stack'] [data-kit='b-hero'] > h2 { font-size: 22px; }
   /* the trail on three rows: what it did, the files, the tools (a grid: its rows are fixed, it never wraps) */
   @media (max-width: 520px) {
-    [data-kit='trail-bar'] { display: grid; grid-template-columns: auto auto auto auto minmax(0, 1fr); justify-items: start; }
+    [data-kit='trail-bar'] { display: grid; grid-template-columns: auto auto auto minmax(auto, 1fr); justify-items: start; } /* the last count's column takes the rest: no empty column and gap beyond the bar, so the full-width rows end where v1's do */
     [data-kit='trail-bar'] > [data-kit='grow'] { display: none; }
     [data-kit='link-xs'] { grid-column: 1 / -1; }
     [data-kit='tb-tools'] { grid-column: 1 / -1; justify-self: end; margin: 0; }

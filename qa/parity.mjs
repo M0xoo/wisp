@@ -324,6 +324,18 @@ async function openV2(browser, url, open, [width, height], colorScheme, at, desk
   // The desktop app's mode (design/v1-reference desktop-* shots): v2 finds the Tauri shell by its
   // internals, as @wisp/shell's platform module does in the app; invoke answers nothing here.
   if (desktop) await ctx.addInitScript(() => (window.__TAURI_INTERNALS__ = { invoke: async () => null }));
+  // Every shot sees the seed, as v1's reference did (qa/v1-reference.mjs restores it per view): what a
+  // shot does (opening a task marks it read) shows on its own screen (the optimistic patch) but never
+  // reaches the mock the other shots share, in parallel (PARITY_JOBS). Subscriptions go through.
+  await ctx.route('**/api/events', async (route) => {
+    const req = route.request();
+    if (req.method() === 'POST') {
+      try {
+        if (JSON.parse(req.postData() ?? '{}').t === 'mutate') return void (await route.fulfill({ status: 204, body: '' }));
+      } catch {}
+    }
+    await route.continue();
+  });
   ctx.setDefaultTimeout(2500);
   ctx.setDefaultNavigationTimeout(30_000);
   const p = await ctx.newPage();
