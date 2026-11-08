@@ -51,3 +51,30 @@
   already a share.
 - Positioning: this is "agents as code" applied to the codebase itself: provenance for agent-written code.
   It goes in the launch story (marketing/positioning-v2.md).
+
+## Blame takes any pointer, and every frontend shows it (added 2026-11-09)
+
+`wisp blame` answers "which task made this?" for whatever you point at:
+
+| Input | Answer |
+|---|---|
+| `file:line` or `file:10-40` | the task(s) behind those lines (through git blame → commit → `Wisp-Task` trailer) |
+| a file or folder | every task that shaped it, newest first, with how much of it each wrote |
+| a commit sha or range (`a1b2c3`, `main~10..main`) | the task(s) that made those commits |
+| a PR (`#812`, a PR URL) | the tasks that produced the PR, in order, with their prompts and goals |
+| a task id | its commits, PR and files (the reverse direction) |
+
+Answers come from the commit trailers and `.wisp/tasks`, so they work offline and on any clone. Code with no
+task behind it (written by hand) says so. The SDK has the same (`w.blame(target)`), and agents get it through MCP.
+
+**In the GUI and the TUI** (designed with the UI work, not a CLI port):
+- **A "why" gutter in every diff and file view:** each run of lines shows a thin mark coloured per task. Hover or
+  focus it (TUI: `b` on a line) to get a card with the task's title, its agent, the prompt that asked for it,
+  the one-line reason from its report, the PR, and the actions Open task, Resume, Rerun.
+- **Commits and PRs are clickable everywhere:** a sha or `#812` in a transcript, a report, Ship it or the PR panel
+  opens a popover listing the tasks behind it, and the Changes panel groups a PR's diff by the task that wrote
+  each part.
+- **A project's story:** a timeline view (GUI page, TUI screen) of `wisp log`: tasks as a river along the commit
+  history, filterable by path, agent, crew member or workflow. Pick a folder to see who (which tasks) built it.
+- **Paste anything into the palette:** a sha, a PR link, `file:line` or a task id in ⌘K (TUI: Ctrl-K) jumps
+  straight to its blame card.
