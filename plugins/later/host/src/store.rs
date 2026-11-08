@@ -15,7 +15,7 @@ pub const MIGRATIONS: &[Migration] = &[Migration::sql(
      CREATE INDEX later_entry_at ON later_entry (at);
      CREATE TABLE later_plan (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
      CREATE TABLE later_meta (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;",
-)];
+), Migration::sql(2, "CREATE TABLE later_conf (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;")];
 
 fn topics(_: &Row) -> Vec<String> {
     vec![TOPIC.into()]
@@ -25,9 +25,11 @@ pub const ENTRY: EntityDef = EntityDef { kind: "later_entry", table: "later_entr
 pub const PLAN: EntityDef = EntityDef { kind: "later_plan", table: "later_plan", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
 pub const META: EntityDef = EntityDef { kind: "later_meta", table: "later_meta", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
 
+pub const CONF: EntityDef = EntityDef { kind: "later_conf", table: "later_conf", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics };
+
 pub fn install(store: &Store) -> wisp_store::Result<()> {
     store.migrate(OWNER, MIGRATIONS)?;
-    for d in [ENTRY, PLAN, META] {
+    for d in [ENTRY, PLAN, META, CONF] {
         store.define_entity(d)?;
     }
     Ok(())
@@ -90,4 +92,13 @@ pub async fn load(store: &Store) -> wisp_store::Result<Loaded> {
             Ok((entries, plans, metas))
         })
         .await
+}
+
+/// The user's settings that later keeps (its zone).
+pub fn put_conf(w: &mut Writer<'_>, v: &Value) -> wisp_store::Result<()> {
+    w.upsert(CONF.kind, row("settings", v)?).map(|_| ())
+}
+
+pub async fn load_conf(store: &Store) -> wisp_store::Result<Value> {
+    store.read_async(|r| Ok(r.query(CONF.kind, &Query::new())?.first().and_then(|x| x.get("body").cloned()).unwrap_or(Value::Null))).await
 }

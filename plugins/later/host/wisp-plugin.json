@@ -82,6 +82,10 @@
       {
         "id": "later.agent.schedule",
         "title": "The agent's own wake-up (resume_later)"
+      },
+      {
+        "id": "later.zone",
+        "title": "The user's time zone"
       }
     ]
   }

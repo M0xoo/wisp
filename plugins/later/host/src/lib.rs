@@ -3,7 +3,8 @@
 //! `wisp-later-core`'s; this crate keeps the rows (store.rs), reads tasks from wisp.runtime, asks
 //! wisp.budget what holds an account back, and looks again on the kernel's clock.
 //!
-//! Times are written in UTC (`TZ` 0) until wisp.settings carries the user's offset.
+//! Times are stored in UTC and written in the user's IANA zone (`later.zone`, sent by wisp.settings from
+//! the client), else the server's own (ADR-0025).
 
 mod store;
 
@@ -17,13 +18,19 @@ use wisp_later_api::{BY_AGENT, LaterEntry, LaterHeld, PER_TICK, PLUGIN_ID, Plan,
 use wisp_later_core::{Action, PlanAction, Task, TaskMeta, TaskState, due, due_plans, next_at, rules};
 use wisp_store::Store;
 
-const TZ: i32 = 0;
+/// A zone's offset from UTC at `at`, in minutes: the zone named, else the server's, else UTC.
+fn offset_min(zone: Option<&str>, at: i64) -> i32 {
+    let tz = zone.and_then(|z| jiff::tz::TimeZone::get(z).ok()).unwrap_or_else(jiff::tz::TimeZone::system);
+    jiff::Timestamp::from_millisecond(at).map_or(0, |ts| tz.to_offset(ts).seconds() / 60)
+}
 
 struct State {
     store: Store,
     entries: Mutex<Vec<LaterEntry>>,
     plans: Mutex<Vec<Plan>>,
     metas: Mutex<HashMap<String, TaskMeta>>,
+    /// the user's IANA zone, as the client sent it
+    zone: Mutex<Option<String>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -68,6 +75,11 @@ async fn task_of(ctx: &Ctx, call: &Call, id: &str) -> Option<Task> {
 }
 
 impl State {
+    /// The user's offset now (formatting and reading times happen around now).
+    fn tz(&self, at: i64) -> i32 {
+        offset_min(lock(&self.zone).as_deref(), at)
+    }
+
     fn meta(&self, id: &str) -> TaskMeta {
         lock(&self.metas).get(id).cloned().unwrap_or_default()
     }
@@ -89,7 +101,7 @@ impl State {
     async fn add(&self, ctx: &Ctx, call: &Call, a: &c::AddArgs) -> Result<LaterEntry> {
         let task = task_of(ctx, call, &a.session_id).await.ok_or_else(|| WireError::not_found("No such task."))?;
         let pending = self.of_task(&a.session_id).len();
-        let l = rules::new_entry(wisp_kernel::ids::uuid7(), &task, &self.meta(&a.session_id), pending, a, now(ctx), TZ).map_err(wire)?;
+        let l = rules::new_entry(wisp_kernel::ids::uuid7(), &task, &self.meta(&a.session_id), pending, a, now(ctx), self.tz(now(ctx))).map_err(wire)?;
         lock(&self.entries).push(l.clone());
         self.write(store::Ops { entries: vec![l.clone()], ..store::Ops::default() }).await?;
         self.mirror(ctx, call, &a.session_id).await;
@@ -106,7 +118,7 @@ impl State {
     /// A follow-up goes into its task now.
     async fn fire(&self, ctx: &Ctx, call: &Call, l: &LaterEntry, late: bool) -> Result<Value> {
         let sent = SentMeta { by: l.by.clone(), set_at: l.set_at, at: l.at, late };
-        let note = rules::late_note(&sent, now(ctx), TZ);
+        let note = rules::late_note(&sent, now(ctx), self.tz(now(ctx)));
         let mut m = self.meta(&l.session_id);
         m.sent = Some(sent);
         lock(&self.metas).insert(l.session_id.clone(), m.clone());
@@ -192,7 +204,7 @@ impl State {
                 }
                 Action::Missed { session_id, id } => {
                     if let (Some(l), Some(t)) = (self.take(std::slice::from_ref(&id)).pop(), tasks.get(&session_id)) {
-                        let text = rules::missed_text(&l, at, TZ);
+                        let text = rules::missed_text(&l, at, self.tz(at));
                         let _ = self.remind(ctx, call, t, &l, text, true).await;
                         touched.push(session_id);
                     }
@@ -258,7 +270,7 @@ fn commands(s: &mut Setup, slot: &Slot) {
             st.take(std::slice::from_ref(&l.id));
             return st.fire(&ctx, &call, &l, false).await.map(c::Edited::Sent);
         }
-        let next = rules::edit_entry(&l, &a, now(&ctx), TZ).map_err(wire)?;
+        let next = rules::edit_entry(&l, &a, now(&ctx), st.tz(now(&ctx))).map_err(wire)?;
         if let Some(x) = lock(&st.entries).iter_mut().find(|x| x.id == next.id) {
             *x = next.clone();
         }
@@ -293,14 +305,14 @@ fn commands(s: &mut Setup, slot: &Slot) {
             }
             None => None,
         };
-        let p = rules::new_plan(wisp_kernel::ids::uuid7(), &a, after.as_ref().map(|t| (t, t.state == TaskState::Done)), now(&ctx), TZ).map_err(wire)?;
+        let p = rules::new_plan(wisp_kernel::ids::uuid7(), &a, after.as_ref().map(|t| (t, t.state == TaskState::Done)), now(&ctx), st.tz(now(&ctx))).map_err(wire)?;
         lock(&st.plans).push(p.clone());
         st.write(store::Ops { plans: vec![p.clone()], ..store::Ops::default() }).await?;
         Ok(p)
     });
     on!(s, slot, c::EditPlan, |st, ctx, _call, a| {
         let p = lock(&st.plans).iter().find(|p| p.id == a.id).cloned().ok_or_else(|| WireError::not_found("No such plan."))?;
-        let next = rules::edit_plan(&p, &a, now(&ctx), TZ).map_err(wire)?;
+        let next = rules::edit_plan(&p, &a, now(&ctx), st.tz(now(&ctx))).map_err(wire)?;
         if let Some(x) = lock(&st.plans).iter_mut().find(|x| x.id == next.id) {
             *x = next.clone();
         }
@@ -324,6 +336,17 @@ fn commands(s: &mut Setup, slot: &Slot) {
             }
         }
         Ok(c::NextAt { at: next_at(&entries, &plans, &tasks, now(&ctx)) })
+    });
+    on!(s, slot, c::Zone, |st, _ctx, _call, a| {
+        let z = a.zone.trim();
+        if !z.is_empty() && jiff::tz::TimeZone::get(z).is_err() {
+            return Err(WireError::invalid(format!("{z} isn't a time zone wisp knows (an IANA name, like Europe/Zurich).")));
+        }
+        let zone = (!z.is_empty()).then(|| z.to_owned());
+        lock(&st.zone).clone_from(&zone);
+        let v = json!({ "zone": zone });
+        st.store.write(move |w| store::put_conf(w, &v)).await.map_err(WireError::from)?;
+        Ok(a)
     });
     on!(s, slot, c::Tick, |st, ctx, call, _a| Ok(c::Ticked { fired: st.tick(&ctx, &call).await }));
     on!(s, slot, c::WaitAtLimit, |st, ctx, call, a| {
@@ -355,7 +378,7 @@ fn commands(s: &mut Setup, slot: &Slot) {
                 let minutes = (l.at - now(&ctx)) / 60_000;
                 let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", json!({ "event": "resume_later", "props": { "agent": task.map(|t| t.agent), "minutes": minutes } })).await;
                 let others: Vec<LaterEntry> = st.of_task(&a.session).into_iter().filter(|x| x.id != l.id).collect();
-                Ok(c::ScheduleOut { text: Some(rules::scheduled_text(&l, &others, now(&ctx), TZ)), error: None })
+                Ok(c::ScheduleOut { text: Some(rules::scheduled_text(&l, &others, now(&ctx), st.tz(now(&ctx)))), error: None })
             }
             Err(e) => Ok(c::ScheduleOut { text: None, error: Some(e.message) }),
         }
@@ -378,8 +401,20 @@ impl Plugin for LaterPlugin {
             let store = ctx.service::<Store>()?.as_ref().clone();
             store::install(&store).map_err(WireError::from)?;
             let (entries, plans, metas) = store::load(&store).await.map_err(WireError::from)?;
-            let st = Arc::new(State { store, entries: Mutex::new(entries), plans: Mutex::new(plans), metas: Mutex::new(metas.into_iter().collect()) });
+            let zone = store::load_conf(&store).await.map_err(WireError::from)?.get("zone").and_then(Value::as_str).map(str::to_owned);
+            let st = Arc::new(State { store, entries: Mutex::new(entries), plans: Mutex::new(plans), metas: Mutex::new(metas.into_iter().collect()), zone: Mutex::new(zone) });
             let _ = start.set(st.clone());
+            // the zone the client sent with its settings wins over the one later kept
+            let zone_of = |v: Option<Value>| v.and_then(|v| v.as_str().map(str::to_owned)).filter(|z| !z.is_empty());
+            if let Some(z) = zone_of(ctx.setting("settings.timeZone")) {
+                *lock(&st.zone) = Some(z);
+            }
+            let st2 = st.clone();
+            ctx.watch_setting("settings.timeZone", move |v| {
+                if let Some(z) = zone_of(v) {
+                    *lock(&st2.zone) = Some(z);
+                }
+            });
             // the scheduler: a look every `TICK_MS` on the kernel's clock (a test's FakeClock drives it)
             if let Ok(clock) = ctx.clock() {
                 let (scope, c2) = (ctx.scope().clone(), ctx.clone());
@@ -402,6 +437,16 @@ impl Plugin for LaterPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn offsets_follow_the_zone_and_its_daylight_saving() {
+        // 2026-01-15 and 2026-07-15, noon UTC
+        let (winter, summer) = (1_768_478_400_000, 1_784_116_800_000);
+        assert_eq!((offset_min(Some("Europe/Zurich"), winter), offset_min(Some("Europe/Zurich"), summer)), (60, 120));
+        assert_eq!(offset_min(Some("America/New_York"), winter), -300);
+        assert_eq!(offset_min(Some("UTC"), summer), 0);
+        assert_eq!(offset_min(Some("Not/AZone"), winter), offset_min(None, winter), "an unknown zone falls back to the server's");
+    }
 
     #[test]
     fn manifest_is_valid() {

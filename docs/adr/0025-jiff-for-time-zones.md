@@ -1,4 +1,4 @@
-# ADR-0023: `jiff` resolves IANA time zones (host crates only)
+# ADR-0025: `jiff` resolves IANA time zones (host crates only)
 
 - Status: accepted
 - Date: 2026-11-08

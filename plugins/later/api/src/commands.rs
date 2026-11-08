@@ -320,3 +320,12 @@ command!(WaitAtLimit = "later.waitAtLimit": WaitAtLimitArgs => Option<LaterEntry
 command!(NextAtOf = "later.nextAt": Empty => NextAt, read_only);
 command!(Tick = "later.tick": Empty => Ticked);
 command!(AgentSchedule = "later.agent.schedule": ScheduleArgs => ScheduleOut);
+
+/// The user's IANA time zone (the client's, sent with settings): what times are written in.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "later/")]
+pub struct ZoneArgs {
+    pub zone: String,
+}
+
+command!(Zone = "later.zone": ZoneArgs => ZoneArgs);
