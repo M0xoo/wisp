@@ -24,7 +24,10 @@
     "proc:exec{bin:cp}",
     "proc:exec{bin:du}",
     "proc:exec{bin:df}",
-    "proc:exec{bin:sh}"
+    "proc:exec{bin:sh}",
+    "runtime:list",
+    "runtime:get",
+    "runtime:setExt"
   ],
   "activation": [
     "onStartup"

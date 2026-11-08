@@ -10,6 +10,7 @@ pub mod engine;
 pub mod error;
 pub mod fsx;
 pub mod ports;
+mod runtime_port;
 pub mod prepare;
 mod routes;
 pub mod trust;
@@ -109,8 +110,12 @@ impl State {
             .get_or_try_init(|| async {
                 let git = ctx.use_service::<GitServiceV1>()?;
                 let proc = ctx.service::<wisp_proc::Proc>()?.as_ref().clone();
-                let port = ctx.service::<Arc<dyn Port>>()?.as_ref().clone();
                 let clock = ctx.clock()?;
+                // an install may provide its own; else the runtime-backed one
+                let port: Arc<dyn Port> = match ctx.service::<Arc<dyn Port>>() {
+                    Ok(p) => p.as_ref().clone(),
+                    Err(_) => runtime_port::RuntimePort::new(ctx.clone(), clock.now_ms()),
+                };
                 let sources = ctx.contributions(&api::SETUP_SOURCES);
                 let engine = Arc::new(Engine::new(
                     git,
