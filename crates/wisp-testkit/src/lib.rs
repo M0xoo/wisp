@@ -4,7 +4,7 @@
 //! harness and `gh` binaries (`fake_agent_bin`, `fake_gh_bin`).
 //!
 //! An assertion library: its helpers panic with a message on purpose, like `assert!`.
-#![allow(clippy::panic, clippy::expect_used)]
+#![allow(clippy::panic, clippy::expect_used, clippy::missing_panics_doc)]
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -143,19 +143,20 @@ impl TestApp {
         let mut group = self.group;
         let mut stubbed = BTreeSet::new();
         for m in &self.manifests {
-            let wanted = m
+            let mut wanted: Vec<(String, String)> = m
                 .requirements()
                 .into_iter()
                 .filter(|r| !r.optional)
-                .map(|r| r.id)
-                .chain(m.extends.clone());
-            for id in wanted {
+                .map(|r| (r.id, r.version))
+                .collect();
+            wanted.extend(m.extends.clone().map(|e| (e, "*".to_owned())));
+            for (id, range) in wanted {
                 if !have.contains(&id)
                     && !provided.contains(&id)
                     && !id.ends_with(".service")
                     && stubbed.insert(id.clone())
                 {
-                    group = group.add(Declarative(stub_manifest(&id)));
+                    group = group.add(Declarative(stub_manifest(&id, &range)));
                 }
             }
         }
@@ -167,16 +168,16 @@ impl TestApp {
     }
 }
 
-fn stub_manifest(id: &str) -> Manifest {
-    Manifest::from_value(json!({ "wispPlugin": 1, "id": id, "version": "99.0.0", "api": "^1", "description": "a testkit stub" })).expect("stub manifest")
+/// A declarative stand-in whose version satisfies `range` (the lowest x.y.0 that does).
+fn stub_manifest(id: &str, range: &str) -> Manifest {
+    let version = (0..50).flat_map(|x| (0..50).map(move |y| format!("{x}.{y}.0"))).find(|v| wisp_kernel::semver::satisfies(v, range)).unwrap_or_else(|| "1.0.0".into());
+    Manifest::from_value(json!({ "wispPlugin": 1, "id": id, "version": version, "api": "^1", "description": "a testkit stub" })).expect("stub manifest")
 }
 
 fn state(k: &Kernel, id: &str) -> (String, Option<String>) {
     k.status()
         .into_iter()
-        .find(|s| s.id == id)
-        .map(|s| (s.state, s.reason))
-        .unwrap_or_else(|| panic!("{id} isn't in the kernel"))
+        .find(|s| s.id == id).map_or_else(|| panic!("{id} isn't in the kernel"), |s| (s.state, s.reason))
 }
 
 /// Free test (plan §6.10): start the plugin, switch it off, and nothing it registered is left:

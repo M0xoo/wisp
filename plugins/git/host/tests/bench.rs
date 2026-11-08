@@ -63,6 +63,21 @@ fn thousand_file_change(t: &Tmp) -> std::path::PathBuf {
     dir
 }
 
+/// A 1 ms ticker's lateness (ms) until `stop` is set.
+fn ticker(
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) -> tokio::task::JoinHandle<Vec<f64>> {
+    tokio::spawn(async move {
+        let mut late = Vec::new();
+        while !stop.load(std::sync::atomic::Ordering::SeqCst) {
+            let a = Instant::now();
+            tokio::time::sleep(Duration::from_millis(1)).await;
+            late.push((a.elapsed().as_secs_f64() * 1000.0 - 1.0).max(0.0));
+        }
+        late
+    })
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "bench: run with --ignored --nocapture"]
 async fn bench_status_and_changes_on_1000_files() {
@@ -104,19 +119,15 @@ async fn bench_status_and_changes_on_1000_files() {
         pct(&mut ch, 0.95)
     );
 
-    // a 1 ms ticker on the same 2 workers while 8 Changes reads run at once
+    // the same ticker idle first, so a busy machine (other builds) doesn't read as blocking
     let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let s2 = stop.clone();
-    let ticker = tokio::spawn(async move {
-        let mut late = Vec::new();
-        while !s2.load(std::sync::atomic::Ordering::SeqCst) {
-            let a = Instant::now();
-            tokio::time::sleep(Duration::from_millis(1)).await;
-            late.push((a.elapsed().as_secs_f64() * 1000.0 - 1.0).max(0.0));
-        }
-        late
-    });
-    let idle_start = Instant::now();
+    let idle = ticker(stop.clone());
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    stop.store(true, std::sync::atomic::Ordering::SeqCst);
+    let mut base = idle.await.unwrap();
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let busy = ticker(stop.clone());
+    let started = Instant::now();
     let loads: Vec<_> = (0..8)
         .map(|_| {
             let (svc, args) = (svc.clone(), args.clone());
@@ -126,15 +137,23 @@ async fn bench_status_and_changes_on_1000_files() {
     for l in loads {
         l.await.unwrap();
     }
-    let load_ms = idle_start.elapsed().as_secs_f64() * 1000.0;
+    let load_ms = started.elapsed().as_secs_f64() * 1000.0;
     stop.store(true, std::sync::atomic::Ordering::SeqCst);
-    let mut late = ticker.await.unwrap();
+    let mut late = busy.await.unwrap();
+    let (b99, l99) = (pct(&mut base, 0.99), pct(&mut late, 0.99));
     println!(
-        "8 concurrent changes: {load_ms:.0} ms wall; ticker lateness p50 {:.2} ms, p99 {:.2} ms, max {:.2} ms over {} ticks",
+        "ticker idle: p50 {:.2} ms, p99 {b99:.2} ms over {} ticks",
+        pct(&mut base, 0.5),
+        base.len()
+    );
+    println!(
+        "8 concurrent changes: {load_ms:.0} ms wall; ticker p50 {:.2} ms, p99 {l99:.2} ms, max {:.2} ms over {} ticks",
         pct(&mut late, 0.5),
-        pct(&mut late, 0.99),
         pct(&mut late, 1.0),
         late.len()
     );
-    assert!(pct(&mut late, 0.99) < 10.0, "a runtime worker was blocked");
+    assert!(
+        l99 - b99 < 10.0,
+        "a runtime worker was blocked: p99 {l99:.1} ms against {b99:.1} ms idle"
+    );
 }

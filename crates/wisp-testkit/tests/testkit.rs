@@ -104,9 +104,13 @@ async fn interceptor_budgets_run_on_the_fake_clock() {
         let k = k.clone();
         async move { k.call(Caller::user(), "sample.go", json!(1)).await }
     });
-    while clock.sleepers() < 2 {
+    for _ in 0..10_000 {
+        if clock.sleepers() >= 2 {
+            break;
+        }
         tokio::task::yield_now().await;
     }
+    assert_eq!(clock.sleepers(), 2, "the budget timer and the interceptor's own sleep are armed");
     clock.advance(100); // the 100 ms budget ends before the interceptor's 500 ms
     let e = call.await.unwrap().unwrap_err();
     assert_eq!(e.code, Code::Vetoed);

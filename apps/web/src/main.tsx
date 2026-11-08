@@ -47,8 +47,6 @@ for (const { path, def } of pluginUis()) {
     client.devtools.record({ kind: 'warn', message: `${path}: ${String(err)}` }); // one bad plugin never stops the app
   }
 }
-const root = document.getElementById('app');
-if (root) shell.render(root);
 
 /** Other wisps this device reaches (Settings → Computers): { peer, name, base }. */
 function extraPeers(): PeerConfig[] {
@@ -64,9 +62,14 @@ function extraPeers(): PeerConfig[] {
   return out;
 }
 
+// start() reads IndexedDB (rows, cursors, drafts, the last place) and adds the peers; their hellos go
+// out on the next task. The shell renders right then: what's on disk paints before any peer answers,
+// and every view's subscription finds its peer already added (a watch on an unknown peer is dropped).
 void client.start([{ peer: home, name: 'wisp', transport: httpTransport({ base: '' }) }]).then(() => {
-  performance.mark('wisp:painted');
   for (const p of extraPeers()) client.addPeer(p);
+  const root = document.getElementById('app');
+  if (root) shell.render(root);
+  performance.mark('wisp:painted');
 });
 
 // what's waiting (rows, drafts) is written before the page goes away

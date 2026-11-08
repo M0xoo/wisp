@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::OnceCell;
+use tracing::Instrument;
 use wisp_git_core::{QUIET_ENV, READ_PREFIX};
 use wisp_proc::{Env, ExecOpts, ExecResult, Proc, ProcError};
 
@@ -118,8 +119,13 @@ impl Git {
                 .find(|a| !a.starts_with('-') && !a.contains('='))
                 .map_or("", String::as_str)
         );
-        let _e = span.enter();
-        self.proc.exec(bin, args, opts).await.map_err(|e| match e {
+        // wisp-proc's exec resolves the program, checks the folder and forks on the calling thread:
+        // that runs on the blocking pool, and only the wait for output on the runtime
+        let (proc, bin_owned, argv) = (self.proc.clone(), bin.to_owned(), args.to_vec());
+        let started = tokio::task::spawn_blocking(move || proc.exec(&bin_owned, &argv, opts))
+            .await
+            .map_err(|e| GitError::Spawn(e.to_string()))?;
+        started.instrument(span).await.map_err(|e| match e {
             ProcError::NotFound(b) => GitError::NotInstalled(b),
             ProcError::NoFolder(d) => GitError::NoFolder(d),
             other => GitError::Spawn(other.to_string()),
