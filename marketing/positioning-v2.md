@@ -47,11 +47,10 @@ README, the site (trywisp.dev: home, guides, integrations, agents pages), the CL
 of formulas, a migration guide from v1, and the launch post. Owners: marketing (copy, site), the lead
 (review), the coder (generated references).
 
-## Site rule: every feature shows all four ways in, the app first
+## Site rule: every feature shows all four ways in, and the app is always shown
 
-Each feature on the site shows **how it looks and works in the app**, with a real screenshot (the default view),
-next to small tabs for the **TUI** (its screenshot), the **CLI** (a terminal snippet) and the **SDK** (a code
-snippet). wisp is an app first: the screenshots carry the page, and the other three show you can do the same
-from wherever you work. It stays compact (one switcher per feature, not a section per way); the docs carry the
-details. The current mockup's one-line text strip is a placeholder until real screenshots exist: it gets
-replaced in the docs/site rework at the end (owner, 2026-11-09).
+wisp is code first (ADR-0028): App, TUI, CLI and SDK are equal ways in. But the app matters to the story, so the
+site always **shows** it: each feature carries a real app screenshot alongside the TUI, CLI and SDK views (a compact
+switcher per feature, with screenshots for the app and the TUI and snippets for the CLI and SDK). No feature is shown
+as text only, and none hides the app. The docs carry the details. The mockup's one-line text strip is a placeholder
+until real screenshots exist; it's replaced in the site rework at the end (owner, 2026-11-09).
