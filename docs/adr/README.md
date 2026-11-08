@@ -36,3 +36,4 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0027](0027-task-specs.md) | A task = spec + history: rerun, fork, share (spec/report/full), declared tasks and recipes as specs |
 | [0028](0028-code-first.md) | Code first: every resource kind listed; workflows (DAGs of task specs); TS/Python SDKs; trust for foreign formulas |
 | [0029](0029-history-and-formula-reruns.md) | History is data with a snapshot of the formula it ran with; rerun/compare under other formulas |
+| [0031](0031-no-v1-compatibility.md) | No compatibility with v1 interfaces (routes, events, spells, dual-write, v1 peers); keep v1 look as spec + one-time importer |

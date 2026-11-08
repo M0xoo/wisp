@@ -54,8 +54,8 @@ not code.
   state machines; property tests here), `plugins/<name>/host` (crate `wisp-<name>`, with `wisp-plugin.json`
   beside its Cargo.toml: `impl Plugin`, wiring to the kernel, store, proc and HTTP routes). A host depends
   on other plugins' `api` crates only.
-- **v1's HTTP API stays** as thin route adapters over commands (`Setup::route`), same paths and JSON
-  shapes, so v1 clients keep working and v1's route tests port almost 1:1.
+- **No v1 compatibility** (ADR-0031): no v1 routes, event names, spells, dual-write or v1 peers. v1 is the spec
+  for look and behaviour only; `wisp import` is a one-time migration.
 - **Work in two phases.** Phase A (start now): `api` + `core`, with every v1 behaviour and edge case for
   your area as tests. Phase B: `host` wiring, once `crates/wisp-kernel` and `crates/wisp-store` are
   implemented (look for `crates/wisp-kernel/READY` and `crates/wisp-store/READY`; until then, write host
