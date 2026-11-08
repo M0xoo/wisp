@@ -10,14 +10,14 @@
 - **No frontend is special.** All three are frontend plugins over the same contracts: the command catalogue
   (every write), the topics and the sync protocol (every read), and the capability sets (what the caller may
   do).
-  - **`wisp.frontend.web`**: serves the web bundle (`apps/web`, the shell and every plugin's `ui/`). It's
+  - **`wisp.web`**: serves the web bundle (`apps/web`, the shell and every plugin's `ui/`). It's
     the GUI in a browser, the desktop app and the phone app.
-  - **`wisp.frontend.tui`** (new): `wisp tui` is a full-screen terminal app (Rust, ratatui) that mirrors the
+  - **`wisp.tui`** (new): `wisp tui` is a full-screen terminal app (Rust, ratatui) that mirrors the
     GUI. It has the task list with its sections, the task view with its live transcript and blocks, the
     composer with `@` mentions and `/` commands, questions and approvals, crew, My Stuff, Settings (forms
     generated from each plugin's typed settings), and the palette. It uses the same keys as the GUI where
     they exist (J/K, Enter, E, N, Esc, `[`, ⌘K → Ctrl-K).
-  - **`wisp.frontend.cli`**: the command-line verbs, generated from the catalogue (ADR-0022), with terminal
+  - **`wisp.cli`**: the command-line verbs, generated from the catalogue (ADR-0022), with terminal
     block renderers and live attach. It shares those renderers with the TUI.
 - **Every frontend is a client of the sync protocol, like the phone.** The TUI and CLI attach to the local
   wisp, or to any peer (another computer, a grid box), with a cursor and the same commands. A Rust

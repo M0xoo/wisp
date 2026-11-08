@@ -15,6 +15,9 @@ Each line: area · what v1 did · what v2 does · the test. Visible changes are 
 | Telemetry | any key a caller passed was sent | only the catalogue's keys go; an unknown one is dropped | `plugins/telemetry/host/tests/sinks.rs` |
 | Questions | a question left open when its turn ended stayed on the task in review, and a reply after a restart still answered it | the question goes with its turn (v1 runner.js:1812 did this; v2's port had missed it) | `serve_task.rs` `a_question_open_when_its_turn_ends_is_cleared` |
 | Terminal | a Stop while a terminal started could race the start, an ended terminal reopened its dead screen, a slow start said nothing (v1 #435, #432, #440) | the flow machine of plan §4.6.3 drives every terminal: a Stop cancels the start, an ended one starts fresh, a slow start says so | `plugins/terminal/core` flow tests, `serve_terminal.rs` |
+| CLI | `wisp "task"` printed only the title, so a script couldn't follow the task it started | it prints the id and `wisp attach <id>` (and a terminal stays attached) | `crates/wisp/tests/serve_cli.rs` `generated_verbs_…` reads the id back |
+| CLI | `wisp show` printed a block type it didn't know as JSON | every block has a terminal renderer; an unknown one shows its title and "update wisp to see this" | `plugins/cli/core/tests/goldens.rs` (no line starts with `{`) |
+| CLI | `wisp ls` said "— asks:" on every row once the summary carried an empty question (found in v2's own port) | only a real question shows | `crates/wisp/tests/serve_cli.rs` |
 
 ## Decided by the lead (2026-11-08; the owner asked not to be stopped for these)
 

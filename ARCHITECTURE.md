@@ -40,7 +40,7 @@ phone app.
 
 ## Frontends are plugins (ADR-0024)
 
-The GUI (`wisp.frontend.web`), the TUI (`wisp.frontend.tui`, `wisp tui`) and the CLI (`wisp.frontend.cli`)
+The GUI (`wisp.web`), the TUI (`wisp.tui`, `wisp tui`) and the CLI (`wisp.cli`)
 are three plugins over the same command catalogue, topics and sync protocol. Each feature plugin contributes
 to each through points (`web.extension`, `tui.view`, `tui.input`, `term.block`, `cli.verb`). None of them
 reads the store; all of them can attach to any peer.
