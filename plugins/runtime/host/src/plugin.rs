@@ -134,7 +134,36 @@ fn commands(s: &mut Setup, slot: &Slot) {
     });
     edits(s, slot);
     reads(s, slot);
+    for_agents(s, slot);
     more(s, slot);
+}
+
+/// What agents read of the user's tasks (`wisp_sessions`, `wisp_session`), with their usage events.
+fn for_agents(s: &mut Setup, slot: &Slot) {
+    let sl = slot.clone();
+    s.command::<c::AgentSessions, _, _>(move |ctx, call, a| {
+        let slot = sl.clone();
+        async move {
+            let r = rt(&slot)?;
+            let capped = call.caller().set.starts_with("agent:capped");
+            let out = r.agent_sessions(&a, capped).await.map_err(WireError::from)?;
+            let agent = r.get(&a.session).await.map(|x| x.agent).unwrap_or_default();
+            let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", serde_json::json!({ "event": "wisp_sessions", "props": { "agent": agent } })).await;
+            Ok(out)
+        }
+    });
+    let sl = slot.clone();
+    s.command::<c::AgentSession, _, _>(move |ctx, call, a| {
+        let slot = sl.clone();
+        async move {
+            let r = rt(&slot)?;
+            let capped = call.caller().set.starts_with("agent:capped");
+            let out = r.agent_session(&a, capped).await.map_err(WireError::from)?;
+            let agent = r.get(&a.session).await.map(|x| x.agent).unwrap_or_default();
+            let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", serde_json::json!({ "event": "wisp_session", "props": { "agent": agent } })).await;
+            Ok(out)
+        }
+    });
 }
 
 /// asks, approvals, /btw, compact, rerun, fork, subagents, quick, sign-in, overage, agents (more.rs)

@@ -33,7 +33,7 @@ macro_rules! command {
 /// (`of`: the task an agent tool reads, `runtime.agent.session` / `taskState`)
 const TASK_ARGS: &[&str] = &["id", "sessionId", "session", "parentId", "from", "taskId", "of"];
 /// Its commands that answer about every task: refused to an agent's token (`wisp_kernel::scope`).
-const EVERY_TASK: Lists = Lists(&["runtime.list", "runtime.search", "runtime.agent.sessions"]);
+const EVERY_TASK: Lists = Lists(&["runtime.list", "runtime.search"]);
 
 struct Lists(&'static [&'static str]);
 impl Lists {
@@ -109,3 +109,28 @@ command!(Agents = "runtime.agents": AgentsArgs => Vec<AgentStatus>, read_only);
 command!(Card = "runtime.card": CardArgs => Created);
 command!(Fork = "runtime.fork": ForkArgs => Created);
 command!(Import = "runtime.import": ImportArgs => ImportReport);
+
+/// `wisp_sessions`: an `agent:session` token reads every task's line (the lead's decision); a capped one
+/// only its own and its children's.
+#[derive(Debug)]
+pub struct AgentSessions;
+impl Command for AgentSessions {
+    const ID: &'static str = "runtime.agent.sessions";
+    const READ_ONLY: bool = true;
+    const TASK_ARGS: &'static [&'static str] = &["session"];
+    const READS_ANY_TASK: bool = true;
+    type Args = AgentSessionsArgs;
+    type Out = AgentText;
+}
+
+/// `wisp_session`: one task in words, readable like `AgentSessions`.
+#[derive(Debug)]
+pub struct AgentSession;
+impl Command for AgentSession {
+    const ID: &'static str = "runtime.agent.session";
+    const READ_ONLY: bool = true;
+    const TASK_ARGS: &'static [&'static str] = &["session", "of"];
+    const READS_ANY_TASK: bool = true;
+    type Args = AgentSessionArgs;
+    type Out = AgentText;
+}

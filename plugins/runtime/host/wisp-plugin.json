@@ -40,11 +40,12 @@
     }
   },
   "permissions": [
-    "proc:spawn{bin:*}",
-    "proc:exec{bin:*}",
-    "store:write{owner:runtime}",
     "fs:read{path:~/.wisp/sessions}",
-    "fs:write{path:~/.wisp/sessions}"
+    "fs:write{path:~/.wisp/sessions}",
+    "proc:exec{bin:*}",
+    "proc:spawn{bin:*}",
+    "store:write{owner:runtime}",
+    "telemetry:track"
   ],
   "server": {
     "builtin": "wisp-runtime"
@@ -231,6 +232,16 @@
       {
         "id": "runtime.overage",
         "title": "A turn billed past its plan"
+      },
+      {
+        "id": "runtime.agent.sessions",
+        "title": "An agent lists the user's tasks (wisp_sessions)",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.agent.session",
+        "title": "An agent reads a task (wisp_session)",
+        "readOnly": true
       }
     ],
     "topics": [

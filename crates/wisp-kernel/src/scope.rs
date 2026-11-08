@@ -25,6 +25,12 @@ pub trait TaskTree: Send + Sync + 'static {
 
 pub const TASKS: Point<dyn TaskTree> = Point::new("kernel.tasks", 1);
 
+/// An agent that may read any task through the commands that allow it (`READS_ANY_TASK`): a task's own
+/// agent, not a capped one (the lead's decision, docs/v1-bugs-fixed.md).
+pub fn reads_any(c: &Caller) -> bool {
+    agent_task(c).is_some() && (c.set == "agent:session" || c.set.starts_with("agent:session:"))
+}
+
 /// The task an agent caller speaks for; None for every other caller.
 pub fn agent_task(c: &Caller) -> Option<&str> {
     c.session.as_deref().filter(|_| c.set.starts_with("agent:"))
@@ -96,6 +102,9 @@ mod tests {
         assert!(check(t.clone(), &agent("L"), "x", vec![], true).await.is_err(), "a list of every task");
         assert!(check(t.clone(), &Caller::user(), "x", vec!["A".into()], true).await.is_ok(), "only agents are scoped");
         assert!(check(Vec::new(), &agent("L"), "x", vec!["L.child".into()], false).await.is_err(), "no tree: only its own");
+        assert!(reads_any(&agent("L")) && reads_any(&Caller { set: "agent:session:edits".into(), ..agent("L") }));
+        assert!(!reads_any(&Caller { set: "agent:capped".into(), ..agent("L") }), "a capped agent stays scoped");
+        assert!(!reads_any(&Caller::user()));
         assert_eq!(named(&json!({ "sessionId": "A", "session": null, "id": "B" }), DEFAULT_TASK_ARGS), ["A"]);
         let p = std::collections::BTreeMap::from([("id".to_owned(), "A".to_owned())]);
         assert_eq!(route_tasks("/sessions/:id/turns", &p), ["A"]);

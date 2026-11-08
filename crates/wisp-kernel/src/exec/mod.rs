@@ -382,6 +382,7 @@ impl Bridge {
                 read_only: p.get("readOnly") == Some(&Value::Bool(true)),
                 task_args: crate::scope::DEFAULT_TASK_ARGS,
                 all_tasks: false,
+                reads_any: false,
                 json,
                 typed: None,
             },

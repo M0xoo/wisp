@@ -295,6 +295,9 @@ async fn scoped(k: &Arc<KernelState>, e: &CmdEntry, call: &Call, args: &Value) -
         return Ok(());
     }
     let trees = crate::kernel_api::contributions(k, &crate::scope::TASKS).into_iter().map(|(_, t)| t).collect();
+    if e.reads_any && crate::scope::reads_any(&call.inner.caller) {
+        return Ok(());
+    }
     crate::scope::check(trees, &call.inner.caller, &e.id, crate::scope::named(args, e.task_args), e.all_tasks).await
 }
 

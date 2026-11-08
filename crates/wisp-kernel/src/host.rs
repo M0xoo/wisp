@@ -40,6 +40,7 @@ pub(crate) struct CmdReg {
     pub(crate) read_only: bool,
     pub(crate) task_args: &'static [&'static str],
     pub(crate) all_tasks: bool,
+    pub(crate) reads_any: bool,
     pub(crate) json: CmdFn,
     pub(crate) typed: Option<Erased>,
 }
@@ -125,6 +126,7 @@ impl Setup {
             read_only: C::READ_ONLY,
             task_args: C::TASK_ARGS,
             all_tasks: C::ALL_TASKS,
+            reads_any: C::READS_ANY_TASK && C::READ_ONLY,
             json,
             typed: Some(Arc::new(typed)),
         });

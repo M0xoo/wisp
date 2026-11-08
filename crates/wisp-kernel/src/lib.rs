@@ -75,6 +75,9 @@ pub trait Command: 'static {
     const TASK_ARGS: &'static [&'static str] = scope::DEFAULT_TASK_ARGS;
     /// It answers about every task (a list, a search): refused to an agent caller.
     const ALL_TASKS: bool = false;
+    /// A read an `agent:session` token may make about any task (`wisp_sessions` / `wisp_session`); a
+    /// capped agent (`agent:capped`) stays scoped. Only for read-only commands. Additive (2026-11-08).
+    const READS_ANY_TASK: bool = false;
     type Args: Serialize + DeserializeOwned + Send + 'static;
     type Out: Serialize + DeserializeOwned + Send + 'static;
 }

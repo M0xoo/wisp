@@ -332,3 +332,47 @@ pub struct PresentationArgs {
     #[ts(optional)]
     pub turn: Option<u32>,
 }
+
+/// `wisp_sessions` (v1 GET /internal/sessions/:id): the user's other tasks, newest first. `session` is the
+/// asking agent's task (wisp.mcp sets it).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct AgentSessionsArgs {
+    pub session: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub query: Option<String>,
+    /// comma-separated states
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub state: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub archived: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub limit: Option<u32>,
+}
+
+/// `wisp_session` (v1 GET /internal/session/:id?of&turn): one task in words.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct AgentSessionArgs {
+    pub session: String,
+    pub of: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub turn: Option<u32>,
+}
+
+/// What an agent tool reads back: `text`, or `error`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct AgentText {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub error: Option<String>,
+}

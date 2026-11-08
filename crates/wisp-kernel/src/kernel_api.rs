@@ -306,6 +306,24 @@ impl Ctx {
     pub fn setting(&self, key: &str) -> Option<Value> {
         self.k().ok()?.settings.get(key)
     }
+    /// Every declared setting with its value and lock (Settings). Needs `settings:read` in the plugin's
+    /// manifest. Additive (2026-11-08).
+    pub fn settings_list(&self) -> Result<Vec<SettingInfo>> {
+        if !self.may("settings:read") {
+            return Err(WireError::forbidden(format!("{} doesn't declare settings:read", self.plugin())));
+        }
+        Ok(self.k()?.settings.list())
+    }
+    /// The user's write of a setting; `None` resets it. Needs `settings:write`. Validated against the
+    /// declaration, refused when another plugin locked it. Additive (2026-11-08).
+    pub fn set_setting(&self, key: &str, value: Option<Value>) -> Result<()> {
+        if !self.may("settings:write") {
+            return Err(WireError::forbidden(format!("{} doesn't declare settings:write", self.plugin())));
+        }
+        let k = self.k()?;
+        let b = k.service::<Arc<dyn SettingsBackend>>();
+        k.settings.set(key, value, b.as_deref().map(|b| &**b))
+    }
     /// Calls `f` with the new value whenever `key` changes. Dropped when this plugin goes off.
     pub fn watch_setting(&self, key: &str, f: impl Fn(Option<Value>) + Send + Sync + 'static) {
         if let Ok(k) = self.k() {

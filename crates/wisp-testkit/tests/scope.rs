@@ -52,6 +52,16 @@ impl Command for All {
     type Args = Value;
     type Out = Value;
 }
+/// A read the agent's own token may make about any task (`wisp_session`).
+struct Peek;
+impl Command for Peek {
+    const ID: &'static str = "notes.peek";
+    const PERMISSION: Option<&'static str> = Some("stuff:read");
+    const READ_ONLY: bool = true;
+    const READS_ANY_TASK: bool = true;
+    type Args = Value;
+    type Out = Value;
+}
 struct Notes;
 impl Plugin for Notes {
     fn manifest(&self) -> Manifest {
@@ -60,6 +70,7 @@ impl Plugin for Notes {
     fn setup(&self, s: &mut Setup) -> Result<()> {
         s.command::<Note, _, _>(|_, _, a| async move { Ok(json!({ "noted": a["sessionId"] })) });
         s.command::<All, _, _>(|_, _, _| async move { Ok(json!([])) });
+        s.command::<Peek, _, _>(|_, _, a| async move { Ok(json!({ "read": a["sessionId"] })) });
         s.route(Route {
             method: "GET",
             pattern: "/notes/:sid",
@@ -120,6 +131,13 @@ async fn an_agents_token_speaks_for_its_own_task_and_its_children_only() {
     // a route that names a task
     assert!(k.serve(agent(), get("/api/notes/L")).await.is_ok());
     assert_eq!(k.serve(agent(), get("/api/notes/A")).await.unwrap_err().code, Code::Forbidden);
+    // the lead's decision: an agent:session token reads any task through a READS_ANY_TASK command,
+    // a capped one doesn't, and writes stay scoped either way
+    assert_eq!(k.call(agent(), "notes.peek", json!({ "sessionId": "A" })).await.unwrap()["read"], "A");
+    let capped = Caller { set: "agent:capped".into(), ..agent() };
+    assert_eq!(k.call(capped.clone(), "notes.peek", json!({ "sessionId": "A" })).await.unwrap_err().code, Code::Forbidden);
+    assert!(k.call(capped, "notes.peek", json!({ "sessionId": "L-child" })).await.is_ok());
+    assert_eq!(k.call(agent(), "notes.add", json!({ "sessionId": "A" })).await.unwrap_err().code, Code::Forbidden, "a write stays scoped");
     // anyone else is not scoped
     assert!(k.call(Caller::user(), "notes.add", json!({ "sessionId": "A" })).await.is_ok());
     assert!(k.call(Caller::user(), "notes.all", json!({})).await.is_ok());

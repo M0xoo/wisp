@@ -73,12 +73,44 @@ pub enum Response {
     },
 }
 
+/// The sending end of a streamed response. A send waits while the client is slow (64 chunks in flight),
+/// and fails once the client has gone: the route stops then.
+pub type StreamTx = tokio::sync::mpsc::Sender<Vec<u8>>;
+
 impl Response {
+    /// A streamed answer of `content_type` (terminal output, a long read): chunks go as they're sent.
+    pub fn stream(content_type: impl Into<String>) -> (StreamTx, Self) {
+        let (tx, body) = tokio::sync::mpsc::channel(64);
+        (tx, Self::Stream { content_type: content_type.into(), body })
+    }
+
+    /// Server-sent events: `event:`/`data:` frames, one per send of [`sse_frame`].
+    pub fn sse() -> (StreamTx, Self) {
+        Self::stream("text/event-stream")
+    }
+
     pub fn ok(body: impl serde::Serialize) -> Result<Self> {
         let body =
             serde_json::to_value(body).map_err(|e| crate::WireError::internal(e.to_string()))?;
         Ok(Self::Json { status: 200, body })
     }
+}
+
+/// One server-sent event: `event: <name>` (when given) and its data, one `data:` line per line.
+pub fn sse_frame(event: Option<&str>, data: &str) -> Vec<u8> {
+    let mut out = String::new();
+    if let Some(e) = event {
+        out.push_str("event: ");
+        out.push_str(e);
+        out.push('\n');
+    }
+    for line in data.split('\n') {
+        out.push_str("data: ");
+        out.push_str(line);
+        out.push('\n');
+    }
+    out.push('\n');
+    out.into_bytes()
 }
 
 pub type Handler =
