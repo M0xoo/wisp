@@ -4,6 +4,123 @@ The verifier's findings: one numbered list per round, newest first. Each item gi
 (**blocker** / **must-fix** / **nit**), where it is, what's wrong, and which rule or v1 behaviour it breaks.
 Evidence (logs, shots, side-by-sides) is in `qa/out/verify/`.
 
+## Round 4 (partial), 2026-11-08 (`b7556947`..`b6d45e39`; stopped early at the lead's request)
+
+The Rust gates ran on HEAD (the clean build from an export of `b6d45e39`, because the coder's uncommitted
+codex work in the tree doesn't compile). The UI gates ran in the tree. Evidence is in `qa/out/verify/r4/`:
+`drive.mjs` and `drive.log` (my own `wisp serve` run), `parity-{desktop,browser}/`, `reach/` (all 49 views
+at 1440 light), `feedback/` and `sbs/`.
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| `cargo clippy --workspace --all-targets -D warnings` | ✅ exit 0 |
+| `cargo test --workspace` | ✅ 1,498 passed, 0 failed, 14 ignored (302 binaries) |
+| `cargo build -p wisp` (fresh target dir, HEAD export) | ✅. In the shared target dir it failed on `RouterState::load_*`: a stale cargo fingerprint (the file's mtime is older than an earlier artifact), not a code bug |
+| `cargo deny check` | ✅ |
+| `npm run check` / `npm run typecheck` | ✅ / ✅ |
+| `monoflow verify --all` (HEAD export) | ✅ 151/151 |
+| Parity, home/task/composer, desktop mode | 84/96: **home 24/24**, task 30/36, composer 30/36 (only the 320 shots fail) |
+| Parity, browser mode | 84/96, same split |
+| `qa/feedback.mjs` (new defaults: both modes at 1440, 390 and 320) | **stopped partway**. home 4 of 6 runs pass, task 6/6, composer 1 run done (pass). 2 failures, see #R4-5 |
+
+### Earlier findings, rechecked
+
+| # | Status | Evidence |
+|---|---|---|
+| R3-1 question lost on restart | 🟡 **partly** | asked mid-turn, the task waits and stays answerable across a restart (e2e `a_question_asked_mid_turn_survives_a_restart…`). But see #R4-2 when the asking turn ends first |
+| R3-2 writes without the task lock | ✅ | `more.rs` takes `task_lock` in `approve_blocked`, `rerun`, `delegate`, `follow_up_with` |
+| R3-3 ask/answer/approval parity | 🟡 | live: `waiting`, "Asked you: …", "You answered: dev", options Allow / Always allow in this task / Deny, side-discussion refusal. But Always is too broad, see #R4-1 |
+| R3-4 delegate | ✅ | live: `delegate #2` resumed the **same child** (2 turns, same resume id); idle lead → "The lead agent is not running."; cap, empty prompt and unknown member covered by e2e; "Delegated to helper" row |
+| R3-5 rerun mark | ✅ | `more.rs:446-455` clears the mark when the follow-up fails |
+| R3-6 reply interrupts by default | ✅ | live: a reply 2 s into a second turn stopped it and ran ("two:stopped \| interrupting:done"). It answers `{queued}` where v1 says `{interrupted: true}` (nit) |
+| R3-7 / R3-9 store debt | ✅ | My Stuff, crew and router rows in wisp-store with v1 importers. ADR-0020 covers the per-app SQLite. The coverage row records what stays as files |
+| R3-8 `btw` outside scope | ✅ | `plugin.rs:59` `RuntimeHost::spawn` → `ctx.spawn` |
+| R3-10, R3-11 | 🟡 | `side.rs` uses the kernel clock. `more.rs` approval/results and `finish.rs:274` still use tokio's clock and `tokio::spawn` |
+| R2-1 unread title | ✅ | home 24/24. The cause was the parity gate: parallel shots shared one mock, and opening the task marked it read. `qa/parity.mjs` now drops mutate POSTs |
+| R2-2 pill / R2-3 footer / R2-4 offset | ✅ | metrics all match at 320 (0 parts off). Pixels still fail, see #R4-4 |
+| R2-5 / R2-6 feedback gate | ✅ | text fields submit with Enter; rollback is checked; the default is both modes at 1440, 390 and 320 |
+
+### New findings
+
+1. **blocker** (#R4-1): **"Always allow in this task" allows every use of the tool.** No harness implements
+   `Harness::permission` (only the default at `plugins/runtime/api/src/harness/mod.rs:97`, which returns None),
+   so `more.rs:275` falls back to `{tool, action: "use Bash", detail: ""}`. Live: after Always on `npm publish`,
+   `rm -rf build` was **allowed without asking** ("Allowed (always in this task): use Bash"), and the question
+   reads "Allow Claude Code to use Bash?" with no command. v1's claude adapter `permission()` (`actionOf` /
+   `detailOf`, `server/adapters/claude.js:721-738`) gives "run \`npm publish\`" and matches the **exact
+   command or file** (`sameAction`). Port it into `plugins/claude` (and each harness), and make the e2e test
+   check that a different command still asks.
+2. **blocker** (#R4-3): **an agent's token acts on every task.** With task L's own token and
+   `x-wisp-session: L`, `/api/cmd` let it `runtime.get` and **`runtime.rename`** another task (its title is now
+   "renamed by A"), `runtime.followUp` it (a turn started), and `runtime.list` everything (`drive.log` step d).
+   v1 edge case *HTTP #3*: "Agent tokens … speak for that session only". `agent:session` allows `runtime:*`
+   with no check that the target `id` is the caller's session. Check `args.id` against `caller.session` for
+   agent callers, in the kernel or the runtime's commands, with an e2e test. The current e2e test sends a
+   garbage token, not another task's.
+3. **must-fix** (#R4-2): a question whose turn ends while it's open. Live: the turn that asked finished, the
+   task went to `review` **with the question still on it**. After a restart `pollAnswer` said `cancelled`
+   (`runtime.rs` rebuilds asks only for `Waiting` tasks), yet a reply still answered it. v1 deletes
+   `session.ask` when the turn ends (`runner.js:1812`) and on Stop (`runner.js:1306`). Do the same: cancel the
+   ask with its turn.
+4. **must-fix** (#R4-4): task and composer at 320 still fail on pixels (1.2 %, 24 regions, **0 metrics off**):
+   `sbs/task_desktop-320-light-rest.png`. Below the folded action bar, v1's content moved 5 px and v2's
+   4.5 px (`turn.receipt` 377 → 372.5). The half pixel changes the antialiasing of the heading, the commit pill
+   and the icons. Find the 0.5 px (likely the bubble or the bar), or have the gate's row cut handle a
+   fractional `dh`.
+5. **must-fix** (#R4-5): two feedback failures that appear in one mode only, so possibly flaky:
+   - home desktop 1440: opening "Fix the login bug" → refused `runtime.markRead` shows **no toast within 100 ms**
+     (browser mode passed);
+   - home browser 390: Worktree → refused `settings.set`, **no rollback**
+     (`feedback/home-browser-390-39-rollback.*.png`; desktop passed).
+
+   Fix the cause, or the gate if it races. AGENTS.md: a flaky test is fixed, never retried.
+6. **must-fix** (#R4-6, owner's call): at 390 px the launcher's **Worktree toggle sits half under Send**, in
+   v1 too (`sbs/wt-390-crop.png`). Parity passes because v2 copies v1, but foundation.md §4 says nothing is
+   clipped, and layout.md §2 says items fold into More. `qa/layout.mjs` has no overlap rule, so add one
+   (two items of a bar intersecting).
+7. **nit** (#R4-7): `packages/ui/src/css/app-stack.css`, `sh-bar` `padding: calc(var(--space-3) - 1px)`: a
+   one-off pixel tweak instead of a token. Fine for v1's 5 px, but add a token named for it.
+
+### UI queue: the 46 v1 views not done (3 of 49 pass)
+
+Found by `qa/parity.mjs --modes=browser --widths=1440 --themes=light` (`reach/parity/summary.json`). Two
+unblockers first:
+- **(a)** the me-menu has **no Settings item** (`#settingsBtn` → v2), which hides all 13 settings panes;
+- **(b)** the task's action bar has no `[data-a=…]` that parity can map, which hides the 9 `task.*` views
+  that go through it.
+
+| Owner (v2 plugin) | Not reachable | Reachable, failing |
+|---|---|---|
+| shell (frame) | `projects` | `palette` (another design, 77 % px), `me-menu` (no `topbar.machines`, no Settings) |
+| shell-settings | `settings.general` | |
+| accounts / runtime | `settings.agents` | |
+| router | `settings.auto` | `home.auto-preview`, `home.compare`, `home.runner` |
+| automations | `settings.automations`, `automations.trigger-new` | |
+| grid-client | `settings.cloud` | |
+| connectors | `settings.connectors` | |
+| machines | `settings.machines` | |
+| learn | `settings.memory` | |
+| channels | `settings.notifications` | |
+| telemetry | `settings.privacy` | |
+| plugins | `settings.spells` | |
+| budget | `settings.usage` | |
+| worktrees | `settings.worktrees` | `home.worktree-off` (launcher border colour) |
+| shell-home (launcher) | | `home.mode-menu`, `home.team`, `home.where`, `home.typed` (`x.button#27` w 125 → 66) |
+| later | | `home.later` |
+| goal | `home.goal-judges`, `task.goal-judges`, `task.goal-menu`, `task.composer-goal` | `home.goal-on`, `task.goal` (no `goal.band`) |
+| issues | `home.issues` | |
+| shell-task | `task.more`, `task.rerun`, `task.transcript`, `task.right-click` (two `card.head` match) | |
+| git | `task.changes`, `task.changes-diff`, `task.editor` | |
+| ship | `task.ship` | |
+| preview (no plugin yet) | `task.preview` | |
+| crew | `crew.add` | `crew`, `crew.org` (no `crew.avatar`) |
+| stuff | | `stuff` (the My Stuff button doesn't open it, R1 #20) |
+
+Not done this round (stopped): the rest of the feedback run (composer at 390 and 320 in both modes, and at 1440
+in browser mode), and a line-by-line review of the router, crew and My Stuff store code.
+
 ## Round 3, 2026-11-08 (Rust work since `a2d8ca7d`, HEAD `405ce172`)
 
 Scope: `a1f44024`..`405ce172`: runtime's 42 commands (`more.rs`, `side.rs`), My Stuff (`commands.rs`,
