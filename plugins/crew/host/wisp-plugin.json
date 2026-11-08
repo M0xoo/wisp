@@ -6,9 +6,68 @@
   "api": "^1",
   "description": "crew members: schedules, check-ins, jobs, mentions, notebooks, sharing",
   "kind": "plugin",
-  "server": { "builtin": "wisp_crew" },
-  "permissions": [],
+  "server": {
+    "builtin": "wisp_crew"
+  },
+  "permissions": [
+    "runtime:create",
+    "runtime:get"
+  ],
   "requires": {},
   "provides": {},
-  "contributes": {}
+  "contributes": {
+    "commands": [
+      {
+        "id": "crew.list",
+        "title": "Your crew",
+        "readOnly": true
+      },
+      {
+        "id": "crew.get",
+        "title": "A member and their jobs",
+        "readOnly": true
+      },
+      {
+        "id": "crew.layout",
+        "title": "Where each member sits on the Org page",
+        "readOnly": true
+      },
+      {
+        "id": "crew.set_layout",
+        "title": "Move members on the Org page"
+      },
+      {
+        "id": "crew.create",
+        "title": "Add a member"
+      },
+      {
+        "id": "crew.update",
+        "title": "Change a member"
+      },
+      {
+        "id": "crew.remove",
+        "title": "Let a member go"
+      },
+      {
+        "id": "crew.detach",
+        "title": "Make a spell's member yours"
+      },
+      {
+        "id": "crew.assign",
+        "title": "Give a member a job"
+      },
+      {
+        "id": "crew.checkin",
+        "title": "Check in now"
+      },
+      {
+        "id": "crew.stats",
+        "title": "Each member's track record",
+        "readOnly": true
+      }
+    ]
+  },
+  "activation": [
+    "onStartup"
+  ]
 }

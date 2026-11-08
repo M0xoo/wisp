@@ -6,9 +6,42 @@
   "api": "^1",
   "description": "Auto: picks a harness, model and effort per task (bandit), classifies limits",
   "kind": "plugin",
-  "server": { "builtin": "wisp_router" },
-  "permissions": [],
+  "server": {
+    "builtin": "wisp_router"
+  },
+  "permissions": [
+    "runtime:agents"
+  ],
   "requires": {},
   "provides": {},
-  "contributes": {}
+  "contributes": {
+    "commands": [
+      {
+        "id": "router.view",
+        "title": "Settings → Auto and what it learned",
+        "readOnly": true
+      },
+      {
+        "id": "router.set",
+        "title": "Change Settings → Auto"
+      },
+      {
+        "id": "router.preview",
+        "title": "What Auto would run for a prompt",
+        "readOnly": true
+      },
+      {
+        "id": "router.reset",
+        "title": "Forget what Auto learned"
+      },
+      {
+        "id": "router.signal",
+        "title": "Something happened to a routed task"
+      },
+      {
+        "id": "router.record",
+        "title": "A launch went out with a route"
+      }
+    ]
+  }
 }

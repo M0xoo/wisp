@@ -16,6 +16,7 @@ tracing.workspace = true
 wisp-kernel.workspace = true
 wisp-crew-api.workspace = true
 wisp-crew-core.workspace = true
+wisp-runtime-api.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }

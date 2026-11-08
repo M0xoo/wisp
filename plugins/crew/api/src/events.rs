@@ -31,10 +31,10 @@ event!(Joined = "crew.joined");
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "crew/")]
-pub struct Changed {
+pub struct MemberChanged {
     pub crew_id: String,
 }
-event!(Changed = "crew.changed");
+event!(MemberChanged = "crew.changed");
 
 /// A member left the crew. Automations drop its member triggers; the sandbox plugin its own sandbox.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]

@@ -8,9 +8,35 @@
   "server": {
     "builtin": "wisp-mcp"
   },
-  "permissions": [],
+  "permissions": [
+    "connectors:*",
+    "crew:*",
+    "later:*",
+    "machines:*",
+    "plugins:*",
+    "runtime:*",
+    "ship:*",
+    "stuff:*",
+    "watch:*"
+  ],
   "activation": [
     "onStartup"
   ],
-  "contributes": {}
+  "contributes": {
+    "commands": [
+      {
+        "id": "mcp.rpc",
+        "title": "One MCP JSON-RPC message"
+      },
+      {
+        "id": "mcp.tools",
+        "title": "The MCP tools this caller is offered",
+        "readOnly": true
+      },
+      {
+        "id": "mcp.session.set",
+        "title": "What a session's run is, for its tools"
+      }
+    ]
+  }
 }
