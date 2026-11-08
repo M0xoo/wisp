@@ -28,14 +28,14 @@ Status: ✅ done · 🟡 in progress · ⬜ not started
 | §3.1 rule 6 | kernel knows no feature | `wisp-kernel` | kernel | ✅ contract |
 | §3.1 rule 7 | layered imports, public APIs only | tools/check (Rust + TS) | tooling | ✅ rust-layers + TS layers pass in `npm run check` (verifier) |
 | §3.1 rule 8 | one command bus, one HTTP client, one write path, one error type, tracing, one config | kernel, client, store | all | 🟡 |
-| §4.1 Model | session, turn, event, queue_item, project, crew_member, …, change, mutation, meta, FTS5, blobs CAS | store + plugin migrations | store, runtime | 🟡 runtime in wisp-store; debt: My Stuff rows as JSON files, router.json, crew.json, FsBlobs (verify-log R3-7, R3-9) |
+| §4.1 Model | session, turn, event, queue_item, project, crew_member, …, change, mutation, meta, FTS5, blobs CAS | store + plugin migrations | store, runtime | 🟡 runtime, crew (`crew_member`, `crew_layout`, `crew_job`), router (`router_*`) and My Stuff (`stuff_item`, `stuff_upload`, contents in the store's blobs) in wisp-store, each with a v1 importer; serve e2e `v1_files_are_imported_once_and_rows_live_in_the_store`. Debt: none of the rows above. Files kept on purpose: each app's own SQLite (ADR-0020), crew kit files (§4.8), copies of items agents read |
 | §4.1 | write cadence 250 ms; only open/running sessions in memory; UUIDv7; plugin table prefixes | store, runtime | store, runtime | ⬜ |
 | §4.1 Retention | change 7 d / 1M rows, mutation 24 h, oldest_seq, epoch | store, sync | store | ⬜ |
 | §4.2 Versioning | migrations per plugin, VACUUM INTO, event `v` upcasters, presentation by parser version | store, runtime | store | ⬜ |
 | §4.3–4.5 | protocol messages, fan-out outbox, mutations base+pending | sync, client | sync | 🟡 client ✅ |
 | §4.6 | client state: six kinds, machines, nav, scoped async, plugin state, guardrails, devtools | `packages/client` | client | ✅ @wisp/client passes monoflow; `pending` in CommandDef (ADR-0018); devtools panel ⬜ |
 | §4.7 Grid | one SQLite per tenant, control-plane SQLite, Litestream | `apps/grid` | grid | ⬜ |
-| §4.8 Import | all of `~/.wisp`: sessions, config, spells→plugins, stuff/uploads→blobs, dual-write one release | store + each plugin's importer | each owner | ⬜ |
+| §4.8 Import | all of `~/.wisp`: sessions, config, spells→plugins, stuff/uploads→blobs, dual-write one release | store + each plugin's importer | each owner | 🟡 runtime (sessions, dual-write mirror), crew (config.json `crew`/`crewLayout`), router (router.json, `defaults.router`), stuff (stuff/uploads/shots → rows + blobs). Not dual-written: crew, router and stuff (v1's files stay as they were) |
 | §5 UI | kit rules, lint, visual snapshots, perf rules, parts compat table (409 PARTS) | `packages/ui`, tools/check | kit, tooling | 🟡 |
 | §5.1 | a11y (axe in QA), i18n `t()`, observability (logs, Diagnostics) | ui, client, kernel | kit, kernel | 🟡 |
 | §6.0 | spells are plugins; same power; trust levels; rename "spell" everywhere | kernel, plugins plugin, UI, docs | plugins | ⬜ |
