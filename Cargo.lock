@@ -3294,6 +3294,7 @@ dependencies = [
  "wisp-crew-api",
  "wisp-crew-core",
  "wisp-kernel",
+ "wisp-runtime-api",
 ]
 
 [[package]]
@@ -4305,6 +4306,7 @@ dependencies = [
  "wisp-git-api",
  "wisp-kernel",
  "wisp-proc",
+ "wisp-runtime-api",
  "wisp-worktrees-api",
  "wisp-worktrees-core",
 ]
