@@ -38,6 +38,7 @@ real v2 differences, listed below.
 | `qa/layout.mjs --area=shell` | ✅ 0 problems (5 pages × 6 widths × 2 themes) | could not run |
 | `qa/layout.mjs` (gallery) | ❌ 4 problems, overflow-x at 390/320 (code, diff-body) | 4 |
 | `qa/feedback.mjs` (browser, 1440 + 390) | ✅ 185 pass, 0 fail, 14 skipped (12 current, 2 disabled) | didn't exist |
+| `qa/feedback.mjs --modes=desktop --widths=1440,320` | ✅ 179 pass, 0 fail, 13 skipped | didn't exist |
 | `npm run check` / `npm run typecheck` | ✅ 0 errors, 114 warnings / ✅ | ✅ / ✅ |
 | monoflow `--package` @wisp/ui, web, shell, client, tokens | ✅ each | ui and web failed |
 
@@ -107,6 +108,18 @@ real v2 differences, listed below.
    - `packages/ui/src/app/Task.tsx` is 443 lines.
 
    Split them before the plugins take these screens over (ADR-0018 §3).
+
+### Rust (counts only, as asked; HEAD with the Rust coder's work, not reviewed)
+
+- `cargo clippy --workspace --all-targets -- -D warnings`: ✅ exit 0. In round 1 it didn't compile, so R1 #1–#4
+  and #6 look fixed (not re-reviewed line by line).
+- `cargo test --workspace --no-fail-fast`: compiles. 1,440 passed, **4 failed**, 14 ignored, in 301 binaries.
+  - `wisp-channels-core --test policy`: `untrusted_is_wrapped_and_its_text_cant_close_the_wrapper`. The name
+    sanitiser test from R1 #7 passes now; this is a new failure.
+  - `wisp-telemetry-core --test telemetry`: 3 tests (`counting_through_the_off_switch_and_what_leaves`,
+    `feedback_goes_out_…`, `capture_error_…`). These are R1 #7, still open.
+
+  Logs: `qa/out/verify/r2/{clippy,ctest}.log`.
 
 ### Where the coder should go next
 

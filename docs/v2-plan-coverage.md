@@ -13,7 +13,7 @@ Status: ✅ done · 🟡 in progress · ⬜ not started
 | §0 Data | SQLite WAL STRICT, append-only events, change feed | `crates/wisp-store` | store | ✅ store 78 tests pass (verifier 11-08); WA 14.1× not rerun |
 | §0 Sync | topics + cursor on SSE, JSON Patch, POST commands, idempotency, retention, resync | `crates/wisp-sync`, `crates/wisp-api`, `packages/sync` (client) | sync, api | 🟡 sync 32 + api 61 tests pass (verifier); G3 not rerun |
 | §0 Native | PTY + process trees in Rust | `crates/wisp-proc` | proc | ✅ proc 30 tests pass incl. g12 (verifier) |
-| §0 Views | Solid (G10 tie → Solid) | `packages/ui`, `apps/web` | kit, ui-* | 🟡 parity browser 71/486, desktop 48/96 (verify-log #13–21) |
+| §0 Views | Solid (G10 tie → Solid) | `packages/ui`, `apps/web` | kit, ui-* | 🟡 home/task/composer parity 60/96 per mode, the rest from 4 diffs (verify-log R2-1…4); 32 views unreachable (R1 #21) |
 | §0 Components | `@wisp/ui` on Zag, token-only CSS, `@layer`s, `data-part` | `packages/ui`, `packages/tokens` | kit | 🟡 kit css-rules test fails; gallery overflows at 390/320 (verify-log #8, #11) |
 | §0 Extensibility | one concept: plugins; same power for users | kernel + every plugin | kernel | 🟡 kernel 64 tests pass (not 72); only 6/40 plugins in the binary (verify-log #25) |
 | §0 Shells | Tauri desktop + Android Capacitor, both with their own frontend | `apps/desktop`, `mobile/` | shells | ⬜ |
@@ -33,7 +33,7 @@ Status: ✅ done · 🟡 in progress · ⬜ not started
 | §4.1 Retention | change 7 d / 1M rows, mutation 24 h, oldest_seq, epoch | store, sync | store | ⬜ |
 | §4.2 Versioning | migrations per plugin, VACUUM INTO, event `v` upcasters, presentation by parser version | store, runtime | store | ⬜ |
 | §4.3–4.5 | protocol messages, fan-out outbox, mutations base+pending | sync, client | sync | 🟡 client ✅ |
-| §4.6 | client state: six kinds, machines, nav, scoped async, plugin state, guardrails, devtools | `packages/client` | client | ✅ @wisp/client passes monoflow (devtools panel ⬜); `pending` missing from CommandDef (verify-log #22) |
+| §4.6 | client state: six kinds, machines, nav, scoped async, plugin state, guardrails, devtools | `packages/client` | client | ✅ @wisp/client passes monoflow; `pending` in CommandDef (ADR-0018); devtools panel ⬜ |
 | §4.7 Grid | one SQLite per tenant, control-plane SQLite, Litestream | `apps/grid` | grid | ⬜ |
 | §4.8 Import | all of `~/.wisp`: sessions, config, spells→plugins, stuff/uploads→blobs, dual-write one release | store + each plugin's importer | each owner | ⬜ |
 | §5 UI | kit rules, lint, visual snapshots, perf rules, parts compat table (409 PARTS) | `packages/ui`, tools/check | kit, tooling | 🟡 |
@@ -55,8 +55,8 @@ Status: ✅ done · 🟡 in progress · ⬜ not started
 | §7.3 | **phone and desktop ship their own frontend**; N peers; offline; compat contract; plugin UI served by peers; G13 | `mobile/`, `apps/desktop`, client | shells | ⬜ |
 | §8 | budgets in CI | `tools/budgets.ts`, spikes | tooling | ⬜ |
 | §9.1 | gates G1, G3, G6, G8, G9, G10, G11, G12, G13, G14 | spikes, qa | each owner | ⬜ |
-| §9.2 | code-quality rules in CI from the first commit | workspace lints, tools/check | tooling | 🟡 clippy -D warnings fails to compile (verify-log #1, #6) |
+| §9.2 | code-quality rules in CI from the first commit | workspace lints, tools/check | tooling | 🟡 clippy -D warnings ✅; cargo test 1,440 pass / 4 fail (verify-log R2) |
 | §9.3 | parity oracle: recorded HTTP/SSE/MCP goldens from v1 | `qa/goldens`, testkit | testkit | ⬜ |
 | §9.4 | monorepo by monoflow; G14 | `.agents/`, CI | tooling | 🟡 monoflow verify --all 117/149 (verify-log #8) |
 | §10 | risks: ADR per dependency, cargo-deny | `deny.toml` | tooling | 🟡 cargo deny check passes (11 duplicate warnings); ADR per dependency not checked |
-| Owner | nothing wraps (ADR-0012), `qa/layout.mjs` | kit, ui-* | kit | 🟡 layout: gallery 4 fails, app area cannot run (verify-log #10, #11) |
+| Owner | nothing wraps (ADR-0012), `qa/layout.mjs` | kit, ui-* | kit | 🟡 layout --area=shell 0 problems (60 page-shots); gallery 4 overflow (R1 #11); 320 folds allowed (allowed.md §4) |
