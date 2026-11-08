@@ -1,0 +1,463 @@
+[
+ {
+  "name": "account",
+  "owner": "wisp.accounts",
+  "props": [
+   "agent",
+   "count",
+   "step"
+  ]
+ },
+ {
+  "name": "agent_launch",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent",
+   "harness",
+   "machine",
+   "team"
+  ]
+ },
+ {
+  "name": "agent_login",
+  "owner": "wisp.accounts",
+  "props": [
+   "agent",
+   "step"
+  ]
+ },
+ {
+  "name": "agent_task",
+  "owner": "wisp.runtime",
+  "props": [
+   "action",
+   "agent"
+  ]
+ },
+ {
+  "name": "app_started",
+  "owner": "wisp.telemetry",
+  "props": [
+   "*Version",
+   "agentsInstalled"
+  ]
+ },
+ {
+  "name": "approval",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent"
+  ]
+ },
+ {
+  "name": "ask_user",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent"
+  ]
+ },
+ {
+  "name": "auto_override",
+  "owner": "wisp.router",
+  "props": [
+   "from",
+   "sameHarness",
+   "to",
+   "type"
+  ]
+ },
+ {
+  "name": "auto_settled",
+  "owner": "wisp.router",
+  "props": [
+   "escalated",
+   "escalation",
+   "routeType",
+   "strategy"
+  ]
+ },
+ {
+  "name": "btw",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent",
+   "forked",
+   "running"
+  ]
+ },
+ {
+  "name": "channel_event",
+  "owner": "wisp.channels",
+  "props": [
+   "kind"
+  ]
+ },
+ {
+  "name": "compact",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent"
+  ]
+ },
+ {
+  "name": "connector_tool",
+  "owner": "wisp.connectors",
+  "props": [
+   "agent",
+   "op",
+   "transport"
+  ]
+ },
+ {
+  "name": "crew_imported",
+  "owner": "wisp.crew",
+  "props": [
+   "by",
+   "members",
+   "source"
+  ]
+ },
+ {
+  "name": "crew_shared",
+  "owner": "wisp.crew",
+  "props": [
+   "gist",
+   "members",
+   "notebook"
+  ]
+ },
+ {
+  "name": "crew_tool",
+  "owner": "wisp.crew",
+  "props": [
+   "agent",
+   "by",
+   "op"
+  ]
+ },
+ {
+  "name": "delegate",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent",
+   "harnesses",
+   "tasks"
+  ]
+ },
+ {
+  "name": "exec_action",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent",
+   "exitCode"
+  ]
+ },
+ {
+  "name": "fork_task",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent",
+   "latest",
+   "switched"
+  ]
+ },
+ {
+  "name": "getapp_clicked",
+  "owner": "ui",
+  "props": [],
+  "ui": {}
+ },
+ {
+  "name": "getapp_hidden",
+  "owner": "ui",
+  "props": [],
+  "ui": {}
+ },
+ {
+  "name": "getapp_opened",
+  "owner": "ui",
+  "props": [
+   "from"
+  ],
+  "ui": {
+   "from": [
+    "button",
+    "search"
+   ]
+  }
+ },
+ {
+  "name": "harness_install",
+  "owner": "wisp.accounts",
+  "props": [
+   "agent",
+   "ms",
+   "ok"
+  ]
+ },
+ {
+  "name": "merge",
+  "owner": "wisp.ship",
+  "props": [
+   "agent"
+  ]
+ },
+ {
+  "name": "move_task",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent",
+   "from",
+   "to"
+  ]
+ },
+ {
+  "name": "resume_later",
+  "owner": "wisp.later",
+  "props": [
+   "agent",
+   "minutes"
+  ]
+ },
+ {
+  "name": "retro",
+  "owner": "wisp.runtime",
+  "props": [
+   "added",
+   "agent",
+   "ok",
+   "removed"
+  ]
+ },
+ {
+  "name": "run_app",
+  "owner": "wisp.terminal",
+  "props": [
+   "agent",
+   "source"
+  ]
+ },
+ {
+  "name": "shell",
+  "owner": "wisp.terminal",
+  "props": [
+   "agent"
+  ]
+ },
+ {
+  "name": "ship",
+  "owner": "wisp.ship",
+  "props": [
+   "agent",
+   "draft"
+  ]
+ },
+ {
+  "name": "side_task",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent",
+   "running"
+  ]
+ },
+ {
+  "name": "spell_hook",
+  "owner": "wisp.plugins",
+  "props": [
+   "action",
+   "on"
+  ]
+ },
+ {
+  "name": "spell_installed",
+  "owner": "wisp.plugins",
+  "props": [
+   "enabled",
+   "kind",
+   "source"
+  ]
+ },
+ {
+  "name": "stuff_add",
+  "owner": "wisp.stuff",
+  "props": [
+   "files"
+  ]
+ },
+ {
+  "name": "stuff_launch",
+  "owner": "wisp.stuff",
+  "props": []
+ },
+ {
+  "name": "stuff_publish",
+  "owner": "wisp.stuff",
+  "props": [
+   "by",
+   "files",
+   "update"
+  ]
+ },
+ {
+  "name": "stuff_save",
+  "owner": "wisp.stuff",
+  "props": [
+   "by",
+   "kind",
+   "update"
+  ]
+ },
+ {
+  "name": "takeover",
+  "owner": "wisp.terminal",
+  "props": [
+   "agent",
+   "machine",
+   "terminal"
+  ]
+ },
+ {
+  "name": "task_import",
+  "owner": "wisp.runtime",
+  "props": [
+   "connectors",
+   "crew",
+   "model",
+   "prompt",
+   "runs",
+   "skills",
+   "switched",
+   "turns",
+   "work"
+  ]
+ },
+ {
+  "name": "task_share",
+  "owner": "wisp.runtime",
+  "props": [
+   "again",
+   "locked",
+   "turns",
+   "work"
+  ]
+ },
+ {
+  "name": "try_two_ways",
+  "owner": "wisp.runtime",
+  "props": []
+ },
+ {
+  "name": "turn_ended",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent",
+   "blockCount",
+   "blockTypes",
+   "changedFiles",
+   "costUsd",
+   "durationMs",
+   "effort",
+   "followUp",
+   "heroStatus",
+   "inputTokens",
+   "mode",
+   "model",
+   "outputTokens",
+   "presentationFallback",
+   "routeEffort",
+   "routeExplored",
+   "routeGoal",
+   "routePinned",
+   "routePropensity",
+   "routeSize",
+   "routeSuggested",
+   "routeTaste",
+   "routeTier",
+   "routeTrying",
+   "routeType",
+   "routed",
+   "status"
+  ]
+ },
+ {
+  "name": "turn_started",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent",
+   "attachments",
+   "effort",
+   "followUp",
+   "mode",
+   "model"
+  ]
+ },
+ {
+  "name": "update",
+  "owner": "wisp.update",
+  "props": [
+   "from",
+   "method",
+   "to"
+  ]
+ },
+ {
+  "name": "wisp_available",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent"
+  ]
+ },
+ {
+  "name": "wisp_pr",
+  "owner": "wisp.ship",
+  "props": [
+   "agent",
+   "remove"
+  ]
+ },
+ {
+  "name": "wisp_session",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent"
+  ]
+ },
+ {
+  "name": "wisp_sessions",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent"
+  ]
+ },
+ {
+  "name": "wisp_stats",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent"
+  ]
+ },
+ {
+  "name": "wisp_tag",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent",
+   "tags"
+  ]
+ },
+ {
+  "name": "wisp_watch",
+  "owner": "wisp.runtime",
+  "props": [
+   "agent",
+   "html"
+  ]
+ },
+ {
+  "name": "worktrees_brought_in",
+  "owner": "wisp.worktrees",
+  "props": [
+   "n",
+   "resumed"
+  ]
+ }
+]

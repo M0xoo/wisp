@@ -12,8 +12,7 @@ mod common;
 use common::{HOME, NOW, golden, id, props, telemetry};
 use serde_json::{Value, json};
 use wisp_telemetry_core::env::{
-    MAX_QUEUE, batch_body, batch_url, env_disabled, feedback_available, host_of, setting_on,
-    shell_of,
+    MAX_QUEUE, env_disabled, feedback_available, setting_on, shell_of,
 };
 use wisp_telemetry_core::{ErrorInfo, Props, Tracked};
 
@@ -22,8 +21,7 @@ fn opt_outs_no_key_do_not_track_wisp_telemetry_ci_or_the_switch() {
     let e = common::env;
     assert!(!env_disabled(&e(&[])));
     for off in [
-        &[("WISP_POSTHOG_KEY", "")][..],
-        &[("DO_NOT_TRACK", "1")],
+        &[("DO_NOT_TRACK", "1")][..],
         &[("WISP_TELEMETRY", "0")],
         &[("WISP_TELEMETRY", "off")],
         &[("WISP_TELEMETRY", "No")],
@@ -53,7 +51,6 @@ fn opt_outs_no_key_do_not_track_wisp_telemetry_ci_or_the_switch() {
 fn the_matrix_of_who_may_send_is_pinned() {
     let cases = [
         ("none", vec![]),
-        ("no key", vec![("WISP_POSTHOG_KEY", "")]),
         ("DO_NOT_TRACK=1", vec![("DO_NOT_TRACK", "1")]),
         ("WISP_TELEMETRY=0", vec![("WISP_TELEMETRY", "0")]),
         ("CI=true", vec![("CI", "true")]),
@@ -254,11 +251,6 @@ fn wisp_feedback_0_or_no_key_sends_nothing() {
             .is_none()
     );
     assert!(
-        telemetry(&[("WISP_POSTHOG_KEY", "")])
-            .feedback("feedback", Props::new(), &[], NOW, id())
-            .is_none()
-    );
-    assert!(
         telemetry(&[("WISP_TELEMETRY", "0"), ("DO_NOT_TRACK", "1")])
             .feedback("feedback", Props::new(), &[], NOW, id())
             .is_some()
@@ -295,13 +287,5 @@ fn shells_hosts_and_the_batch_request() {
         "grid"
     );
     assert_eq!(shell_of(&e(&[])), "browser");
-    assert_eq!(
-        host_of(&e(&[("WISP_POSTHOG_HOST", "https://eu.i.posthog.com/")])),
-        "https://eu.i.posthog.com"
-    );
-    assert_eq!(batch_url(&e(&[])), "https://us.i.posthog.com/batch/");
-    let body: Value =
-        serde_json::from_slice(&batch_body(&e(&[]), &[json!({ "event": "x" })])).unwrap();
-    assert_eq!(body["api_key"], wisp_telemetry_core::env::DEFAULT_KEY);
-    assert_eq!(body["batch"][0]["event"], "x");
+    // the endpoint, the key and the request are the PostHog sink's (plugins/posthog, ADR-0021)
 }

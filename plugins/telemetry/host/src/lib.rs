@@ -1,9 +1,143 @@
-//! wisp-telemetry: wisp.telemetry plugin: wiring to the kernel, store and HTTP routes.
+//! wisp.telemetry: anonymous usage stats (v1 server/telemetry.js, services/telemetry.js), as ADR-0021
+//! has it: this plugin owns the pipeline (the catalogue, opt-out, scrubbing, the queue, the install's
+//! distinct id) and hands batches to every `telemetry.sink@1`. It names no vendor: `wisp.posthog` is
+//! one sink. Events come from the plugin that owns the fact (`telemetry.track`), or from kernel events
+//! where v1 tracked on the runner's (`turn.started` → `turn_started`, `turn.ended` → `turn_ended`).
 //!
-//! The plugin is registered and its manifest checked; its commands, routes and migrations are registered here as they are ported. Until then it adds nothing to the
-//! kernel, so switching it on or off changes nothing else.
+//! Nothing here blocks: a flush runs every 15 s (or at 50 events) off the caller's way, each sink in its
+//! own task with a 3 s budget; a batch a sink doesn't take is dropped (v1: telemetry never gets in the
+//! way).
 
-use wisp_kernel::{Manifest, Plugin, Result, Setup};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+use std::time::Duration;
+
+use serde_json::{Map, Value, json};
+use wisp_kernel::{Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
+use wisp_runtime_api::events::{TurnEnded, TurnStarted};
+use wisp_store::{Col, EntityDef, Migration, Query, Row, Store};
+use wisp_telemetry_api::{self as api, SINK, TelemetryEvent};
+use wisp_telemetry_core::env::{FLUSH_MS, TIMEOUT_MS};
+use wisp_telemetry_core::turns::{BlockFact, RunFacts, TurnFacts, ended_props, started_props};
+use wisp_telemetry_core::{Common, Env, ScrubOptions, Telemetry, Tracked};
+
+const MIGRATIONS: &[Migration] = &[Migration::sql(1, "CREATE TABLE telemetry_meta (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;")];
+const META: EntityDef = EntityDef { kind: "telemetry_meta", table: "telemetry_meta", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics: |_| Vec::new() };
+
+struct State {
+    store: Store,
+    t: Mutex<Telemetry>,
+}
+
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+type Slot = Arc<OnceLock<Arc<State>>>;
+
+fn state(slot: &Slot) -> Result<Arc<State>> {
+    slot.get().cloned().ok_or_else(|| WireError::unavailable("wisp.telemetry is starting"))
+}
+
+fn now(ctx: &Ctx) -> i64 {
+    ctx.clock().map_or(0, |c| c.now_ms())
+}
+
+impl State {
+    async fn save(&self) {
+        let (id, on) = {
+            let t = lock(&self.t);
+            (t.install_id.clone(), t.setting_on)
+        };
+        let body = json!({ "installId": id, "telemetry": if on { "on" } else { "off" } });
+        let _ = self
+            .store
+            .write(move |w| {
+                let mut r = Row::new();
+                r.insert("id".into(), json!("settings"));
+                r.insert("body".into(), body);
+                w.upsert(META.kind, r).map(|_| ())
+            })
+            .await;
+    }
+
+    /// Queues `name` (catalogue keys only) and says it to watchers; a full queue flushes now.
+    async fn track(&self, ctx: &Ctx, name: &str, props: Map<String, Value>) -> bool {
+        let Some(e) = api::entry(name) else { return false };
+        let props = api::allowed(e, props);
+        let (tracked, new_id, last) = {
+            let mut t = lock(&self.t);
+            let had = t.install_id.is_some();
+            let r = t.track(name, props, now(ctx), wisp_kernel::ids::uuid7);
+            (r, !had && t.install_id.is_some(), t.queue.last().cloned())
+        };
+        if tracked == Tracked::Off {
+            return false;
+        }
+        if new_id {
+            self.save().await;
+        }
+        if let Some(ev) = last.and_then(|v| serde_json::from_value::<TelemetryEvent>(v).ok()) {
+            ctx.emit(&ctx.root_call(), &ev);
+        }
+        if tracked == Tracked::Flush {
+            self.flush(ctx);
+        }
+        true
+    }
+
+    /// Hands the queue to every sink, each on its own (a slow or failing one holds nothing up).
+    fn flush(&self, ctx: &Ctx) -> usize {
+        let batch = lock(&self.t).drain();
+        if batch.is_empty() {
+            return 0;
+        }
+        let n = batch.len();
+        for sink in ctx.contributions(&SINK) {
+            let b = batch.clone();
+            ctx.spawn(async move {
+                let id = sink.id().to_owned();
+                if !matches!(tokio::time::timeout(Duration::from_millis(TIMEOUT_MS), sink.send(b)).await, Ok(true)) {
+                    tracing::debug!(sink = %id, "telemetry batch dropped");
+                }
+            });
+        }
+        n
+    }
+}
+
+/// The facts a turn's events report, read from wisp.runtime (fixed values only, never the prompt).
+async fn facts(ctx: &Ctx, call: &Call, sid: &str, tid: &str) -> Option<(RunFacts, TurnFacts)> {
+    let s = ctx.run_json(call, "runtime.get", json!({ "id": sid })).await.ok()?;
+    let turns = ctx.run_json(call, "runtime.turns", json!({ "id": sid })).await.ok()?;
+    let t = turns.as_array()?.iter().find(|t| t["id"] == tid)?.clone();
+    let str_of = |v: &Value| v.as_str().filter(|x| !x.is_empty()).map(str::to_owned);
+    let run = RunFacts {
+        agent: t["agent"].as_str().or(s["agent"].as_str()).unwrap_or_default().to_owned(),
+        model: str_of(&t["model"]),
+        mode: t["mode"].as_str().or(s["mode"].as_str()).unwrap_or_default().to_owned(),
+        effort: str_of(&t["effort"]),
+        turn_index: t["idx"].as_u64().and_then(|i| usize::try_from(i).ok()).unwrap_or(0),
+        route: s["ext"].get("wisp.router").and_then(|r| r.get("route")).cloned(),
+    };
+    let blocks = t["presentation"]["blocks"].as_array().map(|b| b.iter().map(|b| BlockFact { ty: b["type"].as_str().unwrap_or_default().to_owned(), status: str_of(&b["status"]) }).collect()).unwrap_or_default();
+    let turn = TurnFacts {
+        status: t["status"].as_str().unwrap_or_default().to_owned(),
+        started_at: t["startedAt"].as_i64().unwrap_or(0),
+        ended_at: t["endedAt"].as_i64(),
+        attachments: t["attachments"].as_array().map_or(0, Vec::len),
+        blocks,
+        presentation_fallback: t["presentation"]["fallback"].as_bool().unwrap_or(false),
+        changed_files: t["changedFiles"].as_u64().and_then(|n| usize::try_from(n).ok()).unwrap_or(0),
+        input_tokens: t["stats"]["inputTokens"].as_f64(),
+        output_tokens: t["stats"]["outputTokens"].as_f64(),
+        cost_usd: t["stats"]["costUsd"].as_f64(),
+    };
+    Some((run, turn))
+}
+
+fn env() -> Env {
+    ["DO_NOT_TRACK", "WISP_TELEMETRY", "CI", "WISP_FEEDBACK", "WISP_DESKTOP", "WISP_GRID_URL"].iter().filter_map(|k| std::env::var(k).ok().map(|v| ((*k).to_owned(), v))).collect()
+}
 
 #[derive(Debug, Default)]
 pub struct TelemetryPlugin;
@@ -13,7 +147,104 @@ impl Plugin for TelemetryPlugin {
         Manifest::embedded(include_str!("../wisp-plugin.json"))
     }
 
-    fn setup(&self, _s: &mut Setup) -> Result<()> {
+    #[allow(clippy::too_many_lines)] // the commands, the two turn events and the start, side by side
+    fn setup(&self, s: &mut Setup) -> Result<()> {
+        let slot: Slot = Arc::new(OnceLock::new());
+        let sl = slot.clone();
+        s.command::<api::Track, _, _>(move |ctx, call, a| {
+            let slot = sl.clone();
+            async move {
+                let st = state(&slot)?;
+                // a call from the page may send only the UI's events, with their allowed values
+                let ui = call.caller().set.starts_with("user") && call.caller().plugin.is_none() && call.depth() == 0;
+                let props = if ui { api::ui_event(&a.event, &a.props) } else { Some(a.props) };
+                let Some(props) = props else { return Ok(api::Tracked { queued: false }) };
+                Ok(api::Tracked { queued: st.track(&ctx, &a.event, props).await })
+            }
+        });
+        let sl = slot.clone();
+        s.command::<api::Set, _, _>(move |_ctx, _call, a| {
+            let slot = sl.clone();
+            async move {
+                let st = state(&slot)?;
+                lock(&st.t).setting_on = a.on;
+                if !a.on {
+                    let _ = lock(&st.t).drain(); // what was queued goes too
+                }
+                st.save().await;
+                Ok(a)
+            }
+        });
+        let sl = slot.clone();
+        s.command::<api::Flush, _, _>(move |ctx, _call, _a| {
+            let slot = sl.clone();
+            async move { Ok(api::Tracked { queued: state(&slot)?.flush(&ctx) > 0 }) }
+        });
+        let sl = slot.clone();
+        s.on::<TurnStarted, _, _>(move |ctx, e| {
+            let slot = sl.clone();
+            async move {
+                let Ok(st) = state(&slot) else { return };
+                let call = ctx.root_call();
+                if let Some((r, t)) = facts(&ctx, &call, e.session_id.as_str(), e.turn_id.as_str()).await {
+                    st.track(&ctx, "turn_started", started_props(&r, &t)).await;
+                }
+            }
+        });
+        let sl = slot.clone();
+        s.on::<TurnEnded, _, _>(move |ctx, e| {
+            let slot = sl.clone();
+            async move {
+                let Ok(st) = state(&slot) else { return };
+                let call = ctx.root_call();
+                if let Some((r, t)) = facts(&ctx, &call, e.session_id.as_str(), e.turn_id.as_str()).await {
+                    st.track(&ctx, "turn_ended", ended_props(&r, &t, e.interrupted)).await;
+                }
+            }
+        });
+        let start = slot;
+        s.on_start(move |ctx| async move {
+            let store = ctx.service::<Store>()?.as_ref().clone();
+            store.migrate("telemetry", MIGRATIONS).map_err(WireError::from)?;
+            store.define_entity(META).map_err(WireError::from)?;
+            let saved = store.read_async(|r| r.query(META.kind, &Query::new())).await.map_err(WireError::from)?;
+            let body = saved.first().and_then(|r| r.get("body").cloned()).unwrap_or(Value::Null);
+            let e = env();
+            let common = Common {
+                version: env!("CARGO_PKG_VERSION").into(),
+                os: match std::env::consts::OS { "macos" => "darwin".into(), "windows" => "win32".into(), o => o.into() },
+                os_release: None,
+                arch: match std::env::consts::ARCH { "x86_64" => "x64".into(), "aarch64" => "arm64".into(), a => a.into() },
+                node: std::env::var("WISP_NODE_VERSION").ok(),
+                shell: wisp_telemetry_core::shell_of(&e).into(),
+            };
+            let home = std::env::var("HOME").unwrap_or_default();
+            let mut t = Telemetry::new(e, common.props(), ScrubOptions { home, root: std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_string_lossy().into_owned())).unwrap_or_default() });
+            t.install_id = body["installId"].as_str().map(str::to_owned);
+            t.setting_on = wisp_telemetry_core::env::setting_on(body.get("telemetry"));
+            let st = Arc::new(State { store, t: Mutex::new(t) });
+            let _ = start.set(st.clone());
+            // app_started: which harnesses are installed, and their versions (v1 index.js), off the start's way
+            let (c3, st3) = (ctx.clone(), st.clone());
+            ctx.spawn(async move {
+                if let Ok(agents) = c3.run_json(&c3.root_call(), "runtime.agents", json!({})).await {
+                    let list: Vec<(String, Option<String>)> = agents.as_array().into_iter().flatten().filter(|a| a["available"] == true).map(|a| (a["id"].as_str().unwrap_or_default().to_owned(), a["version"].as_str().map(str::to_owned))).collect();
+                    st3.track(&c3, "app_started", wisp_telemetry_core::turns::app_started_props(&list)).await;
+                }
+            });
+            if let Ok(clock) = ctx.clock() {
+                let (scope, c2) = (ctx.scope().clone(), ctx.clone());
+                ctx.spawn(async move {
+                    loop {
+                        tokio::select! {
+                            () = scope.cancelled() => return,
+                            () = clock.sleep(FLUSH_MS) => { st.flush(&c2); }
+                        }
+                    }
+                });
+            }
+            Ok(())
+        });
         Ok(())
     }
 }

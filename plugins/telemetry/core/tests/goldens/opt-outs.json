@@ -5,11 +5,6 @@
     "stats": true
   },
   {
-    "env": "no key",
-    "feedback": false,
-    "stats": false
-  },
-  {
     "env": "DO_NOT_TRACK=1",
     "feedback": true,
     "stats": false

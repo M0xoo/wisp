@@ -1,0 +1,20 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.posthog",
+  "name": "PostHog",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "Sends wisp's anonymous usage stats to PostHog: a telemetry.sink for wisp.telemetry (ADR-0021)",
+  "server": {
+    "builtin": "wisp-posthog"
+  },
+  "extends": "wisp.telemetry",
+  "permissions": [
+    "net:connect{host:us.i.posthog.com}"
+  ],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {},
+  "kind": "module"
+}
