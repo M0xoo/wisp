@@ -23,6 +23,9 @@ Each line: area · what v1 did · what v2 does · the test. Visible changes are 
 | Import | `wisp import` (v1 home) applied without showing what it would change | it shows the plan first (as a formula), applies on yes; history is imported apart | `crates/wisp/tests/serve_code.rs` (`--dry-run` changes nothing) |
 | Sharing | a shared task only scrubbed secret shapes: home paths, env values and other tasks' names went out | the preview lists every redaction (secrets, secret env values, paths, names) and nothing leaves without yes | `plugins/share/core` tests, `serve_code.rs` |
 | Fork | forking a task with turns failed its foreign key: turns were written before their new session (found in v2's own port) | the session is written first in the same transaction | `serve_code.rs` (fork of an imported share) |
+| Connectors | `RunPart::mcp_servers` was declared but the runner never called it, so a declared connector reached no run (found in v2's own port) | the runner asks every `runtime.run@1` part for its MCP servers each turn | `crates/wisp/tests/serve_kinds.rs` (`docs` in `--mcp-config`) |
+| Project trust | `ctx.untrusted` was always false: a repo's hooks and MCP servers ran even where its trust said no (found in v2's own port) | a project that declares trust without hooks or MCP runs with the harness's untrusted flags; its setup runs only when trusted | `serve_kinds.rs` (`--setting-sources`) |
+| Automations | a trigger on "finished" and a review pipeline could start each other forever (found in v2's own port) | neither acts on a task a trigger or a pipeline started | `plugins/automations/host/src/trigger.rs`, `plugins/router/host/src/pipeline.rs` tests, `serve_kinds.rs` (3 tasks, then nothing) |
 
 ## Decided by the lead (2026-11-08; the owner asked not to be stopped for these)
 
