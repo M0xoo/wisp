@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>wisp — Engineering as code. Your AI dev team, and everything it did, as code.</title>
+<title>wisp — Manage the code your agents write. Declare, run, track.</title>
 <link rel="icon" href="/docs/assets/icon.svg" type="image/svg+xml" />
 <link rel="stylesheet" href="/docs/style.css" />
 <!-- Mockup of the v2 home page (marketing/positioning-v2.md). Reuses the live site's style.css; the few
@@ -40,6 +40,15 @@
   .m-ways { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 16px; font: 13px var(--sans); color: var(--muted); }
   .m-ways b { color: var(--ink-2); font-weight: 600; margin-right: 6px; }
   .m-ways code { font-size: 12.5px; }
+  .m-three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 48px; text-align: left; }
+  .m-pill { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--bg); display: flex; flex-direction: column; }
+  .m-pill h3 { margin: 0; padding: 16px 18px 4px; font-size: 20px; letter-spacing: -0.02em; }
+  .m-pill p { margin: 0; padding: 0 18px 14px; color: var(--muted); font-size: 14.5px; line-height: 1.5; }
+  .m-pill .m-code, .m-pill .m-term { border-radius: 0; border: 0; border-top: 1px solid #262626; flex: 1; }
+  .m-pill pre.m-pre { font-size: 12px; padding: 14px 16px; }
+  .m-num { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; align-items: center; justify-content: center; font: 600 12px var(--sans); background: var(--accent); color: #fff; margin-right: 8px; vertical-align: 3px; }
+  .m-pillar-h { display: flex; align-items: center; gap: 10px; }
+  @media (max-width: 900px) { .m-three { grid-template-columns: 1fr; } }
   .m-note { position: fixed; right: 14px; bottom: 14px; font: 12px var(--sans); background: var(--ink); color: var(--bg); padding: 6px 10px; border-radius: 8px; opacity: .85; }
   @media (max-width: 900px) {
     .m-two, .m-faces { grid-template-columns: 1fr; }
@@ -54,80 +63,53 @@
   <section class="m-hero">
     <div class="wrap">
       <span class="m-kicker">Engineering as code · open source</span>
-      <h1>Your AI dev team, and everything it did, as code.</h1>
-      <p class="lede"><b>Declare</b> your agents, crew, machines and workflows in one file. <b>Run</b> Claude Code, Codex, Cursor and every other agent from it, on any of your computers. <b>Remember</b> every task next to the code it wrote, so anyone can see why it's there and pick it up again.</p>
+      <h1>Manage the code your agents write.</h1>
+      <p class="lede">wisp runs Claude Code, Codex, Cursor and every other coding agent for you. <b>Declare</b> your agent team in one file, <b>run</b> it on any of your computers, and <b>track</b> every task next to the code it wrote.</p>
       <div class="m-ctas">
         <button class="cmd"><span class="p">$</span><code>npx wisp-agents</code><span class="copy">Copy</span></button>
-        <a class="m-btn" href="#formula">See a wisp.yml</a>
+        <a class="m-btn" href="#declare">How it works</a>
       </div>
 
-      <div class="m-two" id="formula">
-        <div class="m-code">
-          <div class="m-bar"><i></i><i></i><i></i>&nbsp; wisp.yml</div>
-<pre class="m-pre"><span class="k">wisp</span>: 1
-
-<span class="k">agents</span>:
-  <span class="k">reviewer</span>: { harness: codex, effort: high, mode: plan }
-  <span class="k">fixer</span>:    { harness: claude, model: opus }
-
+      <div class="m-three">
+        <div class="m-pill">
+          <h3><span class="m-num">1</span>Declare</h3>
+          <p>Your agents, crew, machines and workflows, in a file in your repo.</p>
+          <div class="m-code"><pre class="m-pre"><span class="k">agents</span>:
+  <span class="k">reviewer</span>: { harness: codex }
+  <span class="k">fixer</span>: { harness: claude }
 <span class="k">crew</span>:
-  - <span class="k">name</span>: <span class="s">Ada</span>
-    <span class="k">role</span>: <span class="s">Reviews every PR before I wake up</span>
-    <span class="k">agent</span>: reviewer
-    <span class="k">schedule</span>: <span class="s">every weekday at 7</span>
-
-<span class="k">machines</span>:
-  - { name: studio, ssh: me@studio.local }
-
-<span class="k">connectors</span>:
-  - { name: linear, env: { TOKEN: <span class="s">${secret:linear}</span> } }
-
-<span class="k">workflows</span>:
-  <span class="k">release-check</span>:
-    <span class="k">on</span>: { schedule: <span class="s">every day at 2</span> }
-    <span class="k">tasks</span>:
-      <span class="k">tests</span>:  { agent: fixer, prompt: <span class="s">Run the suite</span> }
-      <span class="k">fix</span>:    { needs: [tests], agent: fixer,
-                goal: <span class="s">tests pass</span>, on: studio }
-      <span class="k">audit</span>:  { matrix: { harness: [claude, codex] },
-                prompt: <span class="s">Audit the diff</span> }</pre>
+  - { name: <span class="s">Ada</span>, agent: reviewer,
+      schedule: <span class="s">weekdays at 7</span> }</pre></div>
         </div>
-        <div class="m-term">
-          <div class="m-bar"><i></i><i></i><i></i>&nbsp; ~/code/api</div>
-<pre class="m-pre"><span class="c">$</span> <span class="b">wisp apply -f wisp.yml</span>
-Plan (wisp.yml)
-  <span class="g">+</span> agent/reviewer
-  <span class="g">+</span> agent/fixer
-  <span class="g">+</span> crew/Ada
-  <span class="g">+</span> machine/studio
-  <span class="g">+</span> connector/linear
-  <span class="g">+</span> workflow/release-check
-
-  6 to add, 0 to change, 0 to remove
-  <span class="y">!</span> Ada runs an agent on a schedule
-  <span class="y">!</span> release-check runs on studio
-<span class="g">  ✓ applied 6 changes</span>
-
-<span class="c">$</span> <span class="b">wisp "the login test is flaky, fix it"</span>
-◌ the login test is flaky, fix it
-  ▸ Reading auth/session.test.ts
+        <div class="m-pill">
+          <h3><span class="m-num">2</span>Run</h3>
+          <p>Any agent, in parallel, on your laptop, your servers or the cloud.</p>
+          <div class="m-term"><pre class="m-pre"><span class="c">$</span> <span class="b">wisp "the login test is flaky"</span>
   ▸ Running npm test -- session
   ▸ Editing auth/session.ts
 <span class="g">✓ Fixed the race in session expiry</span>
-  3 tests  <span class="g">passed</span> · 1 file  <span class="g">+12</span> <span class="y">−4</span> · $0.21
-› <span class="c">reply, or Enter to leave</span></pre>
+  3 tests <span class="g">passed</span> · +12 <span class="y">−4</span> · $0.21</pre></div>
+        </div>
+        <div class="m-pill">
+          <h3><span class="m-num">3</span>Track</h3>
+          <p>Every task lives next to the code it wrote. See why a line is there.</p>
+          <div class="m-term"><pre class="m-pre"><span class="c">$</span> <span class="b">wisp blame auth/session.ts:42</span>
+  01a1bc  <span class="b">Fix the flaky login test</span>
+  reviewer · 3 Nov · PR #812
+  <span class="c">"refresh now holds the lock"</span></pre></div>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="m-sec">
+  <!-- ───── 1 Declare ───── -->
+  <section class="m-sec" id="declare">
     <div class="wrap">
-      <span class="m-kicker">One file</span>
-      <h2>Everything your agents need, declared.</h2>
-      <p class="sub">The same way infrastructure as code made servers reviewable and reproducible, wisp makes your agent team a file in your repo. Clicking in the app and editing the file change the same thing.</p>
+      <span class="m-kicker"><span class="m-num">1</span>Declare</span>
+      <h2>Your agent team, in one file.</h2>
+      <p class="sub">Agents, crew, machines, tools, rules and workflows live in <code>wisp.yml</code>, in your repo. Review it in a PR, apply it anywhere. Clicking in the app and editing the file change the same thing.</p>
       <div class="m-grid">
-        <div><b>Agents</b><span>Named profiles: harness, model, effort, mode, account, tools. "reviewer" means the same thing everywhere.</span></div>
+        <div><b>Agents</b><span>Named profiles: harness, model, effort, mode, tools. "reviewer" means the same thing everywhere.</span></div>
         <div><b>Crew</b><span>Long-lived teammates with a role, a schedule, a notebook and a team they delegate to.</span></div>
         <div><b>Machines</b><span>Your laptop, a dev box over SSH, a cloud computer. Say where each task runs.</span></div>
         <div><b>Workflows</b><span>Tasks with <code>needs</code>, conditions, fan-out across agents, goals, retries and one budget.</span></div>
@@ -138,80 +120,57 @@ Plan (wisp.yml)
     </div>
   </section>
 
-  <section class="m-sec">
+  <!-- ───── 2 Run ───── -->
+  <section class="m-sec" id="run">
     <div class="wrap">
-      <span class="m-kicker">Tasks are code too</span>
-      <h2>Share a task. Rerun it. Try it on another setup.</h2>
-      <p class="sub">Every task keeps what was asked and the exact setup it ran with. Send it to a teammate as one file, rerun it from the same commit, or replay last week's work on your new team to see which one is better.</p>
-      <div class="m-two" style="margin-top:28px">
-        <div class="m-term"><div class="m-bar"><i></i><i></i><i></i>&nbsp; share</div>
-<pre class="m-pre"><span class="c">$</span> <span class="b">wisp share 01a1bc --level spec --to file</span>
-  redacted: 2 secrets, 3 local paths
-<span class="g">  ✓ fix-login.wisp-task</span>  (signed)
+      <span class="m-kicker"><span class="m-num">2</span>Run</span>
+      <h2>Every coding agent, wherever you work.</h2>
+      <p class="sub">Claude Code, Codex, Cursor, opencode, Copilot, Grok and Antigravity, side by side. On this computer, your other machines or wisp Cloud. You read a report, not a transcript, and every action answers at once.</p>
+      <div class="m-faces">
+        <div class="m-face"><h3>App</h3><p>Mac, Windows, Linux and your phone. One list across all your computers.</p><span class="m-kicker">Desktop · Android</span></div>
+        <div class="m-face"><h3>Terminal</h3><p><code>wisp tui</code> for the whole app in your terminal, <code>wisp "task"</code> to run one and answer it inline.</p><span class="m-kicker">TUI · CLI</span></div>
+        <div class="m-face"><h3>Code</h3><p>TypeScript and Python SDKs: start tasks, stream them, run workflows from your own scripts.</p><span class="m-kicker">SDK</span></div>
+      </div>
+      <div class="m-nums">
+        <div><b>5 ms</b><span>cold start</span></div>
+        <div><b>11 MB</b><span>memory when idle</span></div>
+        <div><b>7</b><span>coding agents</span></div>
+        <div><b>$0</b><span>on top of your plans</span></div>
+      </div>
+    </div>
+  </section>
 
-<span class="c">$</span> <span class="b">wisp open fix-login.wisp-task --run</span>
-  plan: agent reviewer → your reviewer
-<span class="g">  ✓ running on your code</span></pre></div>
-        <div class="m-term"><div class="m-bar"><i></i><i></i><i></i>&nbsp; evaluate a setup</div>
-<pre class="m-pre"><span class="c">$</span> <span class="b">wisp rerun --last 20 --formula new-team.yml</span>
-  20 tasks · same commits · new setup
+  <!-- ───── 3 Track ───── -->
+  <section class="m-sec" id="track">
+    <div class="wrap">
+      <span class="m-kicker"><span class="m-num">3</span>Track</span>
+      <h2>Code that remembers how it was made.</h2>
+      <p class="sub">Every task is a file: what was asked, by which agent, from which commit, and what it changed. Your repo keeps them in <code>.wisp/</code>, so anyone can see why a line is there, share the task, rerun it, or pick it up again.</p>
+      <div class="m-two" style="margin-top:28px">
+        <div class="m-term"><div class="m-bar"><i></i><i></i><i></i>&nbsp; why is this here</div>
+<pre class="m-pre"><span class="c">$</span> <span class="b">wisp blame auth/session.ts:42</span>
+  01a1bc  <span class="b">Fix the flaky login test</span>
+  reviewer (codex) · 3 Nov · PR #812
+  <span class="c">"expiry raced the refresh; refresh now holds the lock"</span>
+
+<span class="c">$</span> <span class="b">wisp resume 01a1bc "also handle offline"</span>
+<span class="g">  ✓ resumed on today's main</span></pre></div>
+        <div class="m-term"><div class="m-bar"><i></i><i></i><i></i>&nbsp; share and rerun</div>
+<pre class="m-pre"><span class="c">$</span> <span class="b">wisp share 01a1bc --to file</span>
+<span class="g">  ✓ fix-login.wisp-task</span>  (signed, secrets removed)
+
+<span class="c">$</span> <span class="b">wisp rerun --last 20 --formula new-team.yml</span>
                   <span class="b">current   new-team</span>
   goals met        14/20      <span class="g">18/20</span>
-  median time      6m12s      <span class="g">4m40s</span>
-  spend            $9.80      <span class="g">$7.10</span>
-<span class="g">  ✓ report: wisp open eval-0412</span></pre></div>
+  spend            $9.80      <span class="g">$7.10</span></pre></div>
       </div>
-      <div class="m-ways"><span><b>App</b>Share, Rerun on a task</span><span><b>TUI</b>s, r on a task</span><span><b>CLI</b><code>wisp share · wisp rerun</code></span><span><b>SDK</b><code>task.share() · task.rerun()</code></span></div>
-    </div>
-  </section>
-
-  <section class="m-sec">
-    <div class="wrap">
-      <span class="m-kicker">Your repo remembers</span>
-      <h2>Every line knows which task wrote it.</h2>
-      <p class="sub">The tasks that built your code live next to it, in <code>.wisp/</code>. Ask why a line is there, read the prompt and the decision behind it, and pick up last month's work on today's code.</p>
-      <div class="m-term" style="margin-top:28px">
-        <div class="m-bar"><i></i><i></i><i></i>&nbsp; ~/code/api</div>
-<pre class="m-pre"><span class="c">$</span> <span class="b">wisp blame auth/session.ts:42</span>
-  01a1bc  <span class="b">Fix the flaky login test</span>  · reviewer (codex) · 3 Nov · PR #812
-  <span class="c">"expiry raced the refresh; refresh now holds the lock until it writes"</span>
-
-<span class="c">$</span> <span class="b">wisp resume 01a1bc "also handle the offline case"</span>
-<span class="g">  ✓ resumed with its spec, summary and report · on today's main</span></pre>
-      </div>
-      <div class="m-ways"><span><b>App</b>History beside the file</span><span><b>TUI</b>b on a line</span><span><b>CLI</b><code>wisp blame · wisp resume</code></span><span><b>SDK</b><code>w.blame(path, line)</code></span></div>
-    </div>
-  </section>
-
-  <section class="m-sec">
-    <div class="wrap">
-      <span class="m-kicker">Three ways in, one engine</span>
-      <h2>The app, the terminal, or your own code.</h2>
-      <p class="sub">The desktop app, the terminal UI and the CLI are all built on the same commands. Anything you can do in one, you can do in the others, and in a script.</p>
-      <div class="m-faces">
-        <div class="m-face"><h3>App</h3><p>Mac, Windows, Linux and your phone. One list across all your computers, a report instead of a transcript.</p><span class="m-kicker">Desktop · Android</span></div>
-        <div class="m-face"><h3>Terminal</h3><p><code>wisp tui</code> for the full app in your terminal, or <code>wisp "task"</code> to run one and answer it inline. "Check the error above" reads what just failed.</p><span class="m-kicker">TUI · CLI</span></div>
-        <div class="m-face"><h3>Code</h3><p>TypeScript and Python SDKs, generated from the same commands: start tasks, stream them, apply formulas, from your own scripts.</p><span class="m-kicker">SDK</span></div>
-      </div>
-    </div>
-  </section>
-
-  <section class="m-sec">
-    <div class="wrap">
-      <span class="m-kicker">Built to be fast</span>
-      <h2>One small binary. Starts before you blink.</h2>
-      <div class="m-nums">
-        <div><b>5 ms</b><span>cold start to first response</span></div>
-        <div><b>11 MB</b><span>memory when idle</span></div>
-        <div><b>7</b><span>coding agents, one interface</span></div>
-        <div><b>$0</b><span>on top of the plans you have</span></div>
-      </div>
+      <div class="m-ways"><span><b>App</b>Repo tab, Share, Rerun</span><span><b>TUI</b>Repo tab, b, s, r</span><span><b>CLI</b><code>wisp blame · wisp share · wisp rerun</code></span><span><b>SDK</b><code>w.blame() · task.share() · task.rerun()</code></span></div>
     </div>
   </section>
 
   <section class="m-end">
     <div class="wrap">
-      <h2>Put your agent team in a file.</h2>
+      <h2>Declare. Run. Track.</h2>
       <p class="lede">Open source, MIT. Runs on your machines, or on wisp Cloud.</p>
       <div class="m-ctas"><button class="cmd"><span class="p">$</span><code>npx wisp-agents</code><span class="copy">Copy</span></button><a class="m-btn" href="#">Read the docs</a></div>
     </div>

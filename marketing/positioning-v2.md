@@ -10,18 +10,19 @@ Infrastructure as code put servers in the repo. wisp puts **the way your softwar
 builds it (your agents and crew), how (workflows, rules, machines), and what was asked and why (every task,
 linked to the code it wrote).
 
-- **Tagline:** *Your AI dev team, and everything it did, as code.*
+- **Headline:** *Manage the code your agents write.* (the owner's framing, 2026-11-09)
+- **Three pillars, in this order, organising the whole site:** **Declare · Run · Track.**
+- **Tagline (secondary):** *Your AI dev team, and everything it did, as code.*
 - **Three pillars:**
   1. **Declare** — agents, crew, machines, tools, rules and workflows in `wisp.yml` (ADR-0026/0028).
   2. **Run** — any coding agent, in parallel, on any of your computers or in the cloud, from the app, the TUI, the
      CLI or your own code (ADR-0024).
-  3. **Remember** — every task is a file: share it, rerun it, resume it; the repo keeps them in `.wisp/`, so
+  3. **Track** — every task is a file: share it, rerun it, resume it; the repo keeps them in `.wisp/`, so
      `wisp blame` tells you which task wrote a line and why (ADR-0027/0029/0033).
 - **One-liner:** wisp runs Claude Code, Codex, Cursor and every other coding agent from one file in your repo, and
   keeps every task they did next to the code they wrote, so anyone can see why it's there and pick up where they
   left off.
-- **Why not stay "Agents as code":** it describes pillar 1 only. The part nobody else has is pillar 3: code that
-  remembers how it was made. "Engineering as code" holds all three, reads like a category, and still maps onto
+- **Why not stay "Agents as code":** it describes pillar 1 only. The part nobody else has is pillar 3 (Track): code that remembers how it was made. "Engineering as code" holds all three, reads like a category, and still maps onto
   files in the repo.
 
 ## What we can honestly say is new (to verify before the launch: researcher task)
@@ -62,3 +63,9 @@ site always **shows** it: each feature carries a real app screenshot alongside t
 switcher per feature, with screenshots for the app and the TUI and snippets for the CLI and SDK). No feature is shown
 as text only, and none hides the app. The docs carry the details. The mockup's one-line text strip is a placeholder
 until real screenshots exist; it's replaced in the site rework at the end (owner, 2026-11-09).
+
+## Site structure (owner, 2026-11-09)
+
+The home page is organised by the three pillars: the hero shows one example per pillar (Declare: a few lines of
+`wisp.yml`; Run: a task streaming; Track: `wisp blame`), never two examples of the same pillar. Then one section per
+pillar, in order, each with the four-ways line, then the close: "Declare. Run. Track."
