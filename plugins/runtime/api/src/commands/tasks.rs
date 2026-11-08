@@ -90,6 +90,45 @@ pub struct StartArgs {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     #[ts(as = "Option<Ext>", optional)]
     pub ext: Ext,
+    // ---- the task spec (ADR-0027); all additive ----
+    /// prompts after the first, sent in order as each turn ends
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<String>>", optional)]
+    pub steps: Vec<String>,
+    /// an agent profile given inline (else `agent` may name a stored one)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub profile: Option<crate::spec::AgentSpec>,
+    /// start from this commit (a rerun from the same code): a detached worktree when it isn't HEAD
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub base: Option<crate::spec::Base>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub worktree: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "unknown", optional)]
+    pub goal: Option<Value>,
+    /// the crew member it works for
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub crew: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "unknown", optional)]
+    pub team: Option<Value>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<String>>", optional)]
+    pub connectors: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub schedule: Option<String>,
+    /// the formula overlay it runs under: formula sections (`agents`, …) recorded in its snapshot
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "unknown", optional)]
+    pub formula: Option<Value>,
+    #[serde(default, skip_serializing_if = "crate::spec::Lineage::is_empty")]
+    #[ts(as = "Option<crate::spec::Lineage>", optional)]
+    pub lineage: crate::spec::Lineage,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]

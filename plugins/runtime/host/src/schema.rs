@@ -10,7 +10,8 @@ use wisp_store::{Col, EntityDef, Migration, Row};
 
 pub const OWNER: &str = "runtime";
 
-pub const MIGRATIONS: &[Migration] = &[Migration::sql(
+pub const MIGRATIONS: &[Migration] = &[
+    Migration::sql(
     1,
     "CREATE TABLE runtime_session (
        id TEXT PRIMARY KEY, parent_id TEXT, title TEXT NOT NULL, state TEXT NOT NULL, agent TEXT NOT NULL,
@@ -34,7 +35,14 @@ pub const MIGRATIONS: &[Migration] = &[Migration::sql(
        id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES runtime_session (id) ON DELETE CASCADE,
        pos INTEGER NOT NULL, body TEXT NOT NULL) STRICT;
      CREATE INDEX runtime_queue_session ON runtime_queue_item (session_id, pos);",
-)];
+    ),
+    // ADR-0027 / ADR-0029: named agent profiles, and the effective formula each task ran with (by hash)
+    Migration::sql(
+        2,
+        "CREATE TABLE runtime_profile (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
+         CREATE TABLE runtime_formula (id TEXT PRIMARY KEY, body TEXT NOT NULL, created_at INTEGER NOT NULL) STRICT;",
+    ),
+];
 
 fn session_of(r: &Row, key: &str) -> String {
     r.get(key)
@@ -135,10 +143,41 @@ pub const QUEUE_ITEM: EntityDef = EntityDef {
     topics: child_topics,
 };
 
+fn profile_topics(_: &Row) -> Vec<String> {
+    vec!["plugin:wisp.runtime:profiles".into()]
+}
+
+fn formula_topics(_: &Row) -> Vec<String> {
+    vec!["plugin:wisp.runtime:formulas".into()]
+}
+
+pub const PROFILE: EntityDef = EntityDef {
+    kind: "profile",
+    table: "runtime_profile",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics: profile_topics,
+};
+
+/// Snapshots are referenced by tasks (a task's spec names its hash); written once, never changed.
+pub const FORMULA: EntityDef = EntityDef {
+    kind: "formula_snapshot",
+    table: "runtime_formula",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text), ("created_at", Col::Int)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics: formula_topics,
+};
+
 /// Runs the migrations and registers the kinds and the search index. At start, before any command.
 pub fn install(store: &wisp_store::Store) -> wisp_store::Result<()> {
     store.migrate(OWNER, MIGRATIONS)?;
-    for def in [SESSION, TURN, EVENT, QUEUE_ITEM] {
+    for def in [SESSION, TURN, EVENT, QUEUE_ITEM, PROFILE, FORMULA] {
         store.define_entity(def)?;
     }
     store.define_search("session", &["title"])?;

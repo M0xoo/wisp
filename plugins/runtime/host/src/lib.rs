@@ -18,6 +18,7 @@ mod routes;
 pub mod rows;
 mod run;
 mod side;
+mod specs;
 pub mod runtime;
 pub mod schema;
 pub mod sys;

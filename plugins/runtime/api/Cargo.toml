@@ -11,6 +11,7 @@ publish.workspace = true
 wisp-kernel.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+schemars.workspace = true
 ts-rs.workspace = true
 
 [lints]

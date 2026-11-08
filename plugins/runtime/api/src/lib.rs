@@ -12,6 +12,7 @@ pub mod harness;
 pub mod hooks;
 pub mod model;
 pub mod points;
+pub mod spec;
 
 /// Kernel-style branded ids (`wisp_kernel::id_type!`), plus `ts_rs::TS` as a plain string for the UI.
 macro_rules! ts_id {

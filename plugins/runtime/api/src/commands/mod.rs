@@ -112,6 +112,23 @@ command!(Agents = "runtime.agents": AgentsArgs => Vec<AgentStatus>, read_only);
 command!(Card = "runtime.card": CardArgs => Created);
 command!(Fork = "runtime.fork": ForkArgs => Created);
 command!(Import = "runtime.import": ImportArgs => ImportReport);
+command!(
+    /// The named agent profiles (`agents:` in a formula).
+    Profiles = "runtime.profiles": Value => Vec<crate::spec::Profile>, read_only
+);
+command!(
+    /// Adds or replaces a profile.
+    ProfileSet = "runtime.profile.set": crate::spec::Profile => crate::spec::Profile
+);
+command!(ProfileRemove = "runtime.profile.remove": crate::spec::NameArgs => Ack);
+command!(
+    /// A task's spec: what was asked, from which code, under which formula, from where (ADR-0027).
+    SpecOf = "runtime.spec": IdArgs => crate::spec::TaskSpec, read_only
+);
+command!(
+    /// The effective formula a task ran with, by its hash or the task's id (ADR-0029).
+    SnapshotOf = "runtime.snapshot": crate::spec::HashArgs => crate::spec::Snapshot, read_only
+);
 
 /// `wisp_sessions`: an `agent:session` token reads every task's line (the lead's decision); a capped one
 /// only its own and its children's.

@@ -113,6 +113,44 @@ macro_rules! cmd {
     }};
 }
 
+/// Profiles, specs and snapshots (ADR-0027, ADR-0029), and the `agent` resource kind.
+fn specs(s: &mut Setup, slot: &Slot) {
+    use wisp_resources_api::{CrudKind, KindInfo, RESOURCE_KIND, ResourceKind, schema_of};
+    use wisp_runtime_api::spec::AgentSpec;
+    let info = KindInfo::new("agent", "agents", "wisp.runtime", schema_of::<AgentSpec>()).order(20);
+    let kind: Arc<dyn ResourceKind> = Arc::new(CrudKind::new::<AgentSpec>(info, s.ctx(), "runtime.profiles", "runtime.profile.set", "runtime.profile.set", "runtime.profile.remove").keyed("name", "name", "name"));
+    s.contribute(&RESOURCE_KIND, kind);
+    s.command::<c::Profiles, _, _>(|ctx, _, _| async move { crate::specs::profiles(&*ctx.service::<Store>()?).await });
+    s.command::<c::ProfileSet, _, _>(|ctx, _, p| async move { crate::specs::set_profile(&*ctx.service::<Store>()?, p).await });
+    s.command::<c::ProfileRemove, _, _>(|ctx, _, a| async move {
+        crate::specs::remove_profile(&*ctx.service::<Store>()?, &a.name).await?;
+        Ok(c::Ack {})
+    });
+    let sp = slot.clone();
+    s.command::<c::SpecOf, _, _>(move |_, _, a| {
+        let slot = sp.clone();
+        async move {
+            let rt = rt(&slot)?;
+            let s = rt.repo.session(a.id.as_str()).await.map_err(WireError::from)?;
+            let turns = rt.repo.turns(a.id.as_str(), None, None).await.map_err(WireError::from)?;
+            Ok(crate::specs::spec_of(&s, &turns))
+        }
+    });
+    let sn = slot.clone();
+    s.command::<c::SnapshotOf, _, _>(move |ctx, _, a| {
+        let slot = sn.clone();
+        async move {
+            let store = ctx.service::<Store>()?;
+            // a task's id: its spec names the hash
+            let hash = match rt(&slot)?.repo.session(&a.of).await {
+                Ok(s) => crate::specs::spec_of(&s, &[]).formula.ok_or_else(|| WireError::not_found(format!("task {} ran before snapshots were kept", a.of)))?,
+                Err(_) => a.of.clone(),
+            };
+            crate::specs::snapshot(&store, &hash).await
+        }
+    });
+}
+
 fn commands(s: &mut Setup, slot: &Slot) {
     let ctx = s.ctx();
     let (c1, c2) = (ctx.clone(), ctx);
@@ -121,7 +159,17 @@ fn commands(s: &mut Setup, slot: &Slot) {
         let (slot, ctx) = (start.clone(), c1.clone());
         async move {
             let a = ctx.run_hook::<BeforeCreate>(&call, a).await?;
-            rt(&slot)?.create(a).await.map_err(WireError::from)
+            let (store, proc) = (ctx.service::<Store>()?, ctx.service::<Proc>()?);
+            let home = wisp_kernel::services::paths(&ctx).ok().map(|p| p.home().to_owned());
+            let p = crate::specs::prepare(&store, &proc, home.as_deref(), a).await?;
+            let rt = rt(&slot)?;
+            let made = rt.create(p.args).await.map_err(WireError::from)?;
+            // the steps after the first go in the queue, in order: each starts when the turn before ends
+            for text in p.steps {
+                let f = c::FollowUpArgs { id: made.id.clone(), text, queue: Some(true), by: Some("step".into()), ..c::FollowUpArgs::default() };
+                rt.follow_up(f).await.map_err(WireError::from)?;
+            }
+            Ok(made)
         }
     });
     let follow = slot.clone();
@@ -132,6 +180,7 @@ fn commands(s: &mut Setup, slot: &Slot) {
             rt(&slot)?.follow_up(a).await.map_err(WireError::from)
         }
     });
+    specs(s, slot);
     edits(s, slot);
     reads(s, slot);
     for_agents(s, slot);

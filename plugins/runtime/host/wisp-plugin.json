@@ -242,6 +242,29 @@
         "id": "runtime.agent.session",
         "title": "An agent reads a task (wisp_session)",
         "readOnly": true
+      },
+      {
+        "id": "runtime.profiles",
+        "title": "Agent profiles",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.profile.set",
+        "title": "Add or change an agent profile"
+      },
+      {
+        "id": "runtime.profile.remove",
+        "title": "Remove an agent profile"
+      },
+      {
+        "id": "runtime.spec",
+        "title": "A task's spec: what was asked, from which code, under which formula",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.snapshot",
+        "title": "The formula a task ran with",
+        "readOnly": true
       }
     ],
     "topics": [
