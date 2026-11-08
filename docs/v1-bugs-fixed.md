@@ -14,6 +14,7 @@ Each line: area · what v1 did · what v2 does · the test. Visible changes are 
 | Accounts | a new account's id was made by the server, so the row the page showed at once wasn't the one kept | the client's id is the account's id | `serve_accounts.rs` (`id: "w1"`) |
 | Telemetry | any key a caller passed was sent | only the catalogue's keys go; an unknown one is dropped | `plugins/telemetry/host/tests/sinks.rs` |
 | Questions | a question left open when its turn ended stayed on the task in review, and a reply after a restart still answered it | the question goes with its turn (v1 runner.js:1812 did this; v2's port had missed it) | `serve_task.rs` `a_question_open_when_its_turn_ends_is_cleared` |
+| Terminal | a Stop while a terminal started could race the start, an ended terminal reopened its dead screen, a slow start said nothing (v1 #435, #432, #440) | the flow machine of plan §4.6.3 drives every terminal: a Stop cancels the start, an ended one starts fresh, a slow start says so | `plugins/terminal/core` flow tests, `serve_terminal.rs` |
 
 ## Decided by the lead (2026-11-08; the owner asked not to be stopped for these)
 
