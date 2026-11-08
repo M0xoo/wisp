@@ -1,6 +1,8 @@
 //! The update check and install as a sans-IO state machine (v1 server/update.js `Updater`). The host asks
 //! it what to fetch or run, does that, and feeds the answer back; everything decided in between (which
 //! release counts, what to run, what to say when it fails) is here and tested without a network.
+//!
+//! size-ok: one sans-IO state machine; splitting its transitions would scatter one decision table
 
 use serde::Serialize;
 use serde_json::Value;

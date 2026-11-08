@@ -6,7 +6,7 @@ mod common;
 
 use serde_json::{Value, json};
 use wisp_slack_core::socket::{Dial, End, Frame, HELLO_MS, Listen, Next, Step, ack, parse};
-use wisp_slack_core::{SlackError, backoff_ms, BACKOFF_MAX_MS};
+use wisp_slack_core::{BACKOFF_MAX_MS, SlackError, backoff_ms};
 
 fn env(ty: &str, id: &str, payload: Value) -> String {
     json!({ "type": ty, "envelope_id": id, "payload": payload }).to_string()
@@ -18,7 +18,11 @@ fn hello_then_an_event_acked_before_its_work() {
     assert_eq!(l.deadline(), Some(20_000), "two beats, under 30 s");
     assert_eq!(l.frame(r#"{"type":"hello"}"#), vec![Step::Hello]);
     assert_eq!(l.deadline(), None);
-    let steps = l.frame(&env("events_api", "e1", json!({ "event": { "type": "app_mention" } })));
+    let steps = l.frame(&env(
+        "events_api",
+        "e1",
+        json!({ "event": { "type": "app_mention" } }),
+    ));
     assert_eq!(steps[0], Step::Send(ack("e1")), "the ack is first, always");
     assert!(matches!(steps[1], Step::Event(_)));
     assert!(l.end().heard);
@@ -35,7 +39,11 @@ fn every_kind_of_envelope_is_acked_and_only_two_are_work() {
     assert_eq!(s[0], Step::Send(ack("env-bare")));
     assert_eq!(l.frame("not json"), vec![]);
     assert_eq!(l.frame("[1,2]"), vec![]);
-    assert_eq!(l.frame(r#"{"type":"events_api"}"#), vec![Step::Event(Value::Null)], "no id: nothing to ack");
+    assert_eq!(
+        l.frame(r#"{"type":"events_api"}"#),
+        vec![Step::Event(Value::Null)],
+        "no id: nothing to ack"
+    );
 }
 
 #[test]
@@ -48,7 +56,10 @@ fn the_ack_is_the_id_and_nothing_else() {
 fn slacks_disconnect_a_refresh_is_now_a_reason_is_for_good() {
     let mut l = Listen::new(0, 30_000);
     l.frame(r#"{"type":"hello"}"#);
-    assert_eq!(l.frame(r#"{"type":"disconnect","reason":"refresh_requested"}"#), vec![Step::Close]);
+    assert_eq!(
+        l.frame(r#"{"type":"disconnect","reason":"refresh_requested"}"#),
+        vec![Step::Close]
+    );
     let end = l.end();
     assert!(end.again && end.code.is_none() && !end.dropped());
     let mut d = Dial::default();
@@ -59,7 +70,10 @@ fn slacks_disconnect_a_refresh_is_now_a_reason_is_for_good() {
     let end = l.end();
     assert_eq!(end.code.as_deref(), Some("link_disabled"));
     match Dial::default().ended(&end, 20) {
-        Next::Stop(line) => assert_eq!(line, "Slack: link_disabled. Check the tokens in wisp → Settings → Phone → Slack."),
+        Next::Stop(line) => assert_eq!(
+            line,
+            "Slack: link_disabled. Check the tokens in wisp → Settings → Phone → Slack."
+        ),
         n => panic!("{n:?}"),
     }
 }
@@ -67,7 +81,10 @@ fn slacks_disconnect_a_refresh_is_now_a_reason_is_for_good() {
 #[test]
 fn no_hello_in_time_closes_it() {
     let l = Listen::new(1_000, 60_000);
-    assert_eq!(l.deadline(), Some(1_000 + i64::try_from(HELLO_MS).unwrap_or(0)));
+    assert_eq!(
+        l.deadline(),
+        Some(1_000 + i64::try_from(HELLO_MS).unwrap_or(0))
+    );
     assert_eq!(l.tick(30_999), None);
     assert_eq!(l.tick(31_000), Some("Slack never said hello."));
     let mut l = Listen::new(0, 60_000);
@@ -83,24 +100,58 @@ fn a_drop_backs_off_doubling_and_a_hello_starts_the_count_over() {
     assert_eq!(d.ended(&dropped, 20), Next::Wait(20));
     assert_eq!(d.ended(&dropped, 20), Next::Wait(40));
     assert_eq!(d.ended(&dropped, 20), Next::Wait(80));
-    let heard = End { heard: true, ..End::default() };
-    assert_eq!(d.ended(&heard, 20), Next::Wait(20), "it got somewhere: the first failure again");
+    let heard = End {
+        heard: true,
+        ..End::default()
+    };
+    assert_eq!(
+        d.ended(&heard, 20),
+        Next::Wait(20),
+        "it got somewhere: the first failure again"
+    );
     assert_eq!(backoff_ms(1_000, 40), BACKOFF_MAX_MS);
 }
 
 #[test]
 fn failures_a_revoked_token_stops_a_429_waits_its_retry_after() {
     let mut d = Dial::default();
-    assert!(matches!(d.failed(&SlackError::Api("token_revoked".into()), 20), Next::Stop(l) if l.ends_with("Settings → Phone → Slack.")));
-    assert_eq!(d.failed(&SlackError::RateLimited { retry_after_s: 3 }, 20), Next::Wait(3_000));
-    assert_eq!(d.failed(&SlackError::Net("timed out".into()), 20), Next::Wait(40));
-    assert_eq!(d.failed(&SlackError::Api("internal_error".into()), 20), Next::Wait(80));
+    assert!(
+        matches!(d.failed(&SlackError::Api("token_revoked".into()), 20), Next::Stop(l) if l.ends_with("Settings → Phone → Slack."))
+    );
+    assert_eq!(
+        d.failed(&SlackError::RateLimited { retry_after_s: 3 }, 20),
+        Next::Wait(3_000)
+    );
+    assert_eq!(
+        d.failed(&SlackError::Net("timed out".into()), 20),
+        Next::Wait(40)
+    );
+    assert_eq!(
+        d.failed(&SlackError::Api("internal_error".into()), 20),
+        Next::Wait(80)
+    );
 }
 
 #[test]
 fn property_any_text_parses_without_panicking_and_ids_round_trip() {
     let mut r = common::Rng::new(0x51ac);
-    let alphabet = ["{", "}", "\"", ":", ",", "type", "envelope_id", "hello", "payload", "a", "1", "[", "]", "\\", "é"];
+    let alphabet = [
+        "{",
+        "}",
+        "\"",
+        ":",
+        ",",
+        "type",
+        "envelope_id",
+        "hello",
+        "payload",
+        "a",
+        "1",
+        "[",
+        "]",
+        "\\",
+        "é",
+    ];
     for _ in 0..5_000 {
         let len = r.below(40);
         let _ = parse(&r.string(&alphabet, len));
@@ -122,7 +173,11 @@ fn property_a_dial_never_waits_past_the_cap_or_less_than_its_base() {
         let mut d = Dial::default();
         let base = 1 + r.below(10_000) as u64;
         for _ in 0..r.below(60) {
-            let end = End { heard: r.below(4) == 0, again: r.below(5) == 0, code: None };
+            let end = End {
+                heard: r.below(4) == 0,
+                again: r.below(5) == 0,
+                code: None,
+            };
             match d.ended(&end, base) {
                 Next::Wait(ms) => assert!(ms >= base.min(BACKOFF_MAX_MS) && ms <= BACKOFF_MAX_MS),
                 Next::Now => assert!(end.again),

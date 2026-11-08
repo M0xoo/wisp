@@ -1,6 +1,8 @@
 //! Settings → Worktrees and the hourly sweep (v1 services/worktrees.js): looks (git status only in a
 //! folder that moved, du at most every 6 h), the view, Clean up now, and the sweep that prunes every repo
 //! tasks know and removes what wisp-worktrees-core's policy picks. Removals re-check right before.
+//!
+//! size-ok: the pane, Clean up now and the sweep share one look cache and one per-repo lock
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;

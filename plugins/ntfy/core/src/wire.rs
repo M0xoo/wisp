@@ -25,8 +25,17 @@ pub fn poll_url(w: &Where, since: &str) -> String {
 
 /// The JSON posted to the server's root. Buttons only about a task, at most 3; each POSTs
 /// `{ s, k, r, i, sig }` to `<topic>-reply`, signed by the hub over all four.
-pub fn publish_body(w: &Where, msg: &Msg, session: Option<&str>, sign: &dyn Fn(&str, &Action) -> String) -> Value {
-    let headers: serde_json::Map<String, Value> = w.headers().into_iter().map(|(k, v)| (k, Value::String(v))).collect();
+pub fn publish_body(
+    w: &Where,
+    msg: &Msg,
+    session: Option<&str>,
+    sign: &dyn Fn(&str, &Action) -> String,
+) -> Value {
+    let headers: serde_json::Map<String, Value> = w
+        .headers()
+        .into_iter()
+        .map(|(k, v)| (k, Value::String(v)))
+        .collect();
     let actions: Vec<Value> = session
         .map(|s| {
             msg.actions
@@ -77,6 +86,7 @@ pub fn parse_poll(body: &str) -> (Vec<PollMsg>, usize) {
 
 /// A tap: it says what to do, signed. Anything else on the topic (a message of its own, a keepalive)
 /// is `None`. The hub checks the signature; this only reads it.
+#[allow(clippy::many_single_char_names)] // the tap's own one-letter wire keys: s, k, r, i
 pub fn parse_tap(m: &PollMsg) -> Option<Signed> {
     if m.event != "message" {
         return None;
@@ -101,16 +111,29 @@ mod tests {
     use wisp_channels_api::ActionKind;
 
     fn place(token: &str) -> Where {
-        Where { server: "https://ntfy.sh".into(), topic: "wisp-t".into(), token: token.into() }
+        Where {
+            server: "https://ntfy.sh".into(),
+            topic: "wisp-t".into(),
+            token: token.into(),
+        }
     }
 
     fn act(label: &str, i: u32) -> Action {
-        Action { label: label.into(), kind: ActionKind::Answer, reference: "q1".into(), index: i }
+        Action {
+            label: label.into(),
+            kind: ActionKind::Answer,
+            reference: "q1".into(),
+            index: i,
+        }
     }
 
     #[test]
     fn buttons_are_signed_and_at_most_three() {
-        let msg = Msg { title: "Q".into(), text: "which?".into(), actions: (0..5).map(|i| act(&"x".repeat(50), i)).collect() };
+        let msg = Msg {
+            title: "Q".into(),
+            text: "which?".into(),
+            actions: (0..5).map(|i| act(&"x".repeat(50), i)).collect(),
+        };
         let sign = |s: &str, a: &Action| format!("sig-{s}-{}", a.index);
         let b = publish_body(&place("tk"), &msg, Some("s1"), &sign);
         let acts = b["actions"].as_array().unwrap();
@@ -119,13 +142,20 @@ mod tests {
         assert_eq!(acts[0]["headers"]["authorization"], "Bearer tk");
         assert_eq!(acts[0]["label"].as_str().unwrap().chars().count(), 40);
         let body: Value = serde_json::from_str(acts[2]["body"].as_str().unwrap()).unwrap();
-        assert_eq!(body, json!({ "s": "s1", "k": "a", "r": "q1", "i": 2, "sig": "sig-s1-2" }));
+        assert_eq!(
+            body,
+            json!({ "s": "s1", "k": "a", "r": "q1", "i": 2, "sig": "sig-s1-2" })
+        );
         assert_eq!(b["tags"], json!(["wisp"]));
     }
 
     #[test]
     fn no_task_no_buttons() {
-        let msg = Msg { title: "T".repeat(300), text: "y".repeat(4000), actions: vec![act("ok", 0)] };
+        let msg = Msg {
+            title: "T".repeat(300),
+            text: "y".repeat(4000),
+            actions: vec![act("ok", 0)],
+        };
         let b = publish_body(&place(""), &msg, None, &|_, _| String::new());
         assert!(b.get("actions").is_none());
         assert_eq!(b["title"].as_str().unwrap().chars().count(), 200);
@@ -134,13 +164,21 @@ mod tests {
 
     #[test]
     fn poll_urls() {
-        assert_eq!(poll_url(&place(""), "m2"), "https://ntfy.sh/wisp-t-reply/json?poll=1&since=m2");
-        assert_eq!(poll_url(&place(""), "1&x=y"), "https://ntfy.sh/wisp-t-reply/json?poll=1&since=1xy");
+        assert_eq!(
+            poll_url(&place(""), "m2"),
+            "https://ntfy.sh/wisp-t-reply/json?poll=1&since=m2"
+        );
+        assert_eq!(
+            poll_url(&place(""), "1&x=y"),
+            "https://ntfy.sh/wisp-t-reply/json?poll=1&since=1xy"
+        );
     }
 
     #[test]
     fn polls_skip_what_isnt_json() {
-        let (m, bad) = parse_poll("{\"id\":\"m1\",\"event\":\"message\",\"time\":5,\"message\":\"x\"}\n\n<html>\n{\"id\":\"m2\",\"event\":\"keepalive\"}\n");
+        let (m, bad) = parse_poll(
+            "{\"id\":\"m1\",\"event\":\"message\",\"time\":5,\"message\":\"x\"}\n\n<html>\n{\"id\":\"m2\",\"event\":\"keepalive\"}\n",
+        );
         assert_eq!(m.len(), 2);
         assert_eq!(bad, 1);
         assert_eq!(m[0].id, "m1");
@@ -148,14 +186,55 @@ mod tests {
 
     #[test]
     fn taps() {
-        let m = |event: &str, message: &str| PollMsg { id: "m1".into(), event: event.into(), time: 0, message: message.into() };
-        let t = parse_tap(&m("message", r#"{"s":"s1","k":"a","r":"q1","i":0,"sig":"abc"}"#)).unwrap();
-        assert_eq!((t.s.as_str(), t.k.as_str(), t.r.as_str(), t.i, t.sig.as_str()), ("s1", "a", "q1", 0, "abc"));
-        assert_eq!(parse_tap(&m("message", r#"{"s":"s1","k":"a","r":"q1","i":"2","sig":"abc"}"#)).unwrap().i, 2);
-        assert!(parse_tap(&m("keepalive", r#"{"s":"s1","k":"a","r":"q1","i":0,"sig":"abc"}"#)).is_none());
+        let m = |event: &str, message: &str| PollMsg {
+            id: "m1".into(),
+            event: event.into(),
+            time: 0,
+            message: message.into(),
+        };
+        let t = parse_tap(&m(
+            "message",
+            r#"{"s":"s1","k":"a","r":"q1","i":0,"sig":"abc"}"#,
+        ))
+        .unwrap();
+        assert_eq!(
+            (
+                t.s.as_str(),
+                t.k.as_str(),
+                t.r.as_str(),
+                t.i,
+                t.sig.as_str()
+            ),
+            ("s1", "a", "q1", 0, "abc")
+        );
+        assert_eq!(
+            parse_tap(&m(
+                "message",
+                r#"{"s":"s1","k":"a","r":"q1","i":"2","sig":"abc"}"#
+            ))
+            .unwrap()
+            .i,
+            2
+        );
+        assert!(
+            parse_tap(&m(
+                "keepalive",
+                r#"{"s":"s1","k":"a","r":"q1","i":0,"sig":"abc"}"#
+            ))
+            .is_none()
+        );
         assert!(parse_tap(&m("message", "hello from someone")).is_none());
-        assert!(parse_tap(&m("message", r#"{"s":"s1","k":"a","r":"q1","i":0}"#)).is_none(), "unsigned");
-        assert!(parse_tap(&m("message", r#"{"s":"s1","k":"a","r":"q1","i":-1,"sig":"x"}"#)).is_none());
+        assert!(
+            parse_tap(&m("message", r#"{"s":"s1","k":"a","r":"q1","i":0}"#)).is_none(),
+            "unsigned"
+        );
+        assert!(
+            parse_tap(&m(
+                "message",
+                r#"{"s":"s1","k":"a","r":"q1","i":-1,"sig":"x"}"#
+            ))
+            .is_none()
+        );
     }
 
     /// Property: whatever bytes a poll brings, parsing never fails and counts every non-blank line
@@ -163,7 +242,17 @@ mod tests {
     #[test]
     fn property_poll_parsing_is_total() {
         let mut x: u64 = 0xDEAD_BEEF_CAFE_F00D;
-        let pieces = ["{\"id\":\"m1\",\"event\":\"message\",\"message\":\"{}\"}", "\n", "{", "}", "\"", "garbage", " ", "{\"id\":3}", "\r\n"];
+        let pieces = [
+            "{\"id\":\"m1\",\"event\":\"message\",\"message\":\"{}\"}",
+            "\n",
+            "{",
+            "}",
+            "\"",
+            "garbage",
+            " ",
+            "{\"id\":3}",
+            "\r\n",
+        ];
         for _ in 0..3000 {
             let mut body = String::new();
             for _ in 0..(x % 12) {
@@ -174,7 +263,10 @@ mod tests {
             }
             x ^= x << 13;
             let (m, bad) = parse_poll(&body);
-            assert_eq!(m.len() + bad, body.lines().filter(|l| !l.trim().is_empty()).count());
+            assert_eq!(
+                m.len() + bad,
+                body.lines().filter(|l| !l.trim().is_empty()).count()
+            );
             for p in &m {
                 let _ = parse_tap(p);
             }

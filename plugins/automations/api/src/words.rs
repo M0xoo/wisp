@@ -5,6 +5,8 @@
 //! The reading is v1's: each pattern, in order, cuts what it understood out of the text, and anything
 //! left over that isn't filler refuses the whole phrase. JS's `(?= |$)` lookahead becomes a trailing
 //! `(?P<la> |$)` group that is matched but not cut.
+//!
+//! size-ok: one phrase grammar (v1 schedule.js) read top to bottom
 
 use std::sync::LazyLock;
 

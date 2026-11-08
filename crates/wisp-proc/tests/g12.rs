@@ -37,7 +37,9 @@ fn tree() -> String {
 
 /// One run: start, wait until the whole tree is up, kill it, check every member is gone.
 async fn one(proc: Proc, i: usize) -> (usize, usize) {
-    let pty = (i % 2 == 0).then_some(PtySize { cols: 80, rows: 24 });
+    let pty = i
+        .is_multiple_of(2)
+        .then_some(PtySize { cols: 80, rows: 24 });
     let opts = SpawnOpts {
         pty,
         grace: Some(Duration::from_millis(50)),

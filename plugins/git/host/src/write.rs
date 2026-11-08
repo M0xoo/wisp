@@ -1,5 +1,7 @@
 //! The writes of a repo handle. Each announces itself to `on_change` subscribers. Worktree adds and
 //! removes take turns per repo (edge case Git 3); the user's checkout is only ever fast-forwarded.
+//!
+//! size-ok: every repo write takes the same per-repo turn and announces itself the same way
 
 use std::path::Path;
 

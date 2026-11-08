@@ -50,9 +50,15 @@ struct Run {
 
 /// The box's list before the night, and after `changed` sessions moved on (`new` started).
 fn night(changed: usize, new: usize) -> (BTreeMap<String, Value>, BTreeMap<String, Value>) {
-    let before: BTreeMap<String, Value> = (0..SESSIONS).map(|i| summary(i, 0)).map(|s| (s["id"].as_str().unwrap_or("").to_owned(), s)).collect();
+    let before: BTreeMap<String, Value> = (0..SESSIONS)
+        .map(|i| summary(i, 0))
+        .map(|s| (s["id"].as_str().unwrap_or("").to_owned(), s))
+        .collect();
     let mut after = before.clone();
-    for i in (0..SESSIONS).step_by((SESSIONS / changed.max(1)).max(1)).take(changed) {
+    for i in (0..SESSIONS)
+        .step_by((SESSIONS / changed.max(1)).max(1))
+        .take(changed)
+    {
         let s = summary(i, 1);
         after.insert(s["id"].as_str().unwrap_or("").to_owned(), s);
     }
@@ -66,27 +72,51 @@ fn night(changed: usize, new: usize) -> (BTreeMap<String, Value>, BTreeMap<Strin
 fn run(changed: usize, new: usize) -> Run {
     let (before, after) = night(changed, new);
     // v1: the whole list again, as JSON, plus the stream's opening `hello` (one small event)
-    let v1_bytes = serde_json::to_vec(&after.values().collect::<Vec<_>>()).map_or(0, |b| b.len()) + "event: hello\ndata: {}\n\n".len();
+    let v1_bytes = serde_json::to_vec(&after.values().collect::<Vec<_>>()).map_or(0, |b| b.len())
+        + "event: hello\ndata: {}\n\n".len();
 
     // v2: the mirror holds `before` as of seq 1000; the box sends welcome(resume) + one patch per change
     let mut mirror = Mirror::new();
     for (id, v) in &before {
         mirror.load("box", "session", id, v.clone());
     }
-    let saved = wisp_machines_core::peer_client::Saved { epoch: Some("E1".into()), cursor: Some(1_000), synced: vec![Topic::list()], ..Default::default() };
+    let saved = wisp_machines_core::peer_client::Saved {
+        epoch: Some("E1".into()),
+        cursor: Some(1_000),
+        synced: vec![Topic::list()],
+        ..Default::default()
+    };
     let mut client = PeerClient::new(Opts::new("laptop", "b"), Some(saved));
     client.subscribe(&Topic::list(), true);
     let hello = client.open();
-    let query: usize = hello.iter().map(|o| if let Out::Request(p) = o { p.iter().map(|(k, v)| k.len() + v.len() + 2).sum() } else { 0 }).sum();
+    let query: usize = hello
+        .iter()
+        .map(|o| {
+            if let Out::Request(p) = o {
+                p.iter().map(|(k, v)| k.len() + v.len() + 2).sum()
+            } else {
+                0
+            }
+        })
+        .sum();
 
     let mut stream = sse(1_000, &json!([welcome(true, 1_000 + changed as u64)]));
-    for (n, (id, v)) in after.iter().filter(|(id, v)| before.get(*id) != Some(*v)).enumerate() {
+    for (n, (id, v)) in after
+        .iter()
+        .filter(|(id, v)| before.get(*id) != Some(*v))
+        .enumerate()
+    {
         let seq = 1_001 + n as u64;
         let change = match before.get(id) {
             Some(old) => Change::Patch { ops: diff(old, v) },
             None => Change::Upsert { v: v.clone() },
         };
-        let op = EntityOp { topic: Topic::list(), e: "session".into(), id: id.clone(), change };
+        let op = EntityOp {
+            topic: Topic::list(),
+            e: "session".into(),
+            id: id.clone(),
+            change,
+        };
         stream.push_str(&sse(seq, &json!([{"t": "patch", "seq": seq, "ops": [op]}])));
     }
     let v2_bytes = stream.len() + query;
@@ -94,7 +124,9 @@ fn run(changed: usize, new: usize) -> Run {
     let t0 = Instant::now();
     let mut parser = SseParser::new();
     for ev in parser.push(stream.as_bytes()) {
-        let Some((id, messages)) = decode_frame(&ev.event, ev.id.as_deref(), &ev.data) else { continue };
+        let Some((id, messages)) = decode_frame(&ev.event, ev.id.as_deref(), &ev.data) else {
+            continue;
+        };
         for out in client.frame(id, messages) {
             assert!(!matches!(out, Out::Reset), "a resume must not reset");
             if let Out::EntityOps(ops) = out {
@@ -104,18 +136,36 @@ fn run(changed: usize, new: usize) -> Run {
     }
     let v2_apply_us = t0.elapsed().as_micros();
     // the mirror is the box's list, exactly
-    let got: BTreeMap<String, Value> = mirror.rows(Some("box")).into_iter().map(|r| (r.id, r.v)).collect();
+    let got: BTreeMap<String, Value> = mirror
+        .rows(Some("box"))
+        .into_iter()
+        .map(|r| (r.id, r.v))
+        .collect();
     assert_eq!(got, after, "the resumed mirror is the box's list");
     assert_eq!(client.cursor(), Some(1_000 + (changed + new) as u64));
-    Run { v1_bytes, v2_bytes, v2_apply_us }
+    Run {
+        v1_bytes,
+        v2_bytes,
+        v2_apply_us,
+    }
 }
 
 #[test]
 fn a_night_of_sleep_resumes_in_a_fraction_of_v1s_bytes() {
     let quiet = run(0, 0);
     let busy = run(10, 2);
-    assert!(quiet.v2_bytes * 100 < quiet.v1_bytes, "nothing changed: {} vs {}", quiet.v2_bytes, quiet.v1_bytes);
-    assert!(busy.v2_bytes * 20 < busy.v1_bytes, "12 changed: {} vs {}", busy.v2_bytes, busy.v1_bytes);
+    assert!(
+        quiet.v2_bytes * 100 < quiet.v1_bytes,
+        "nothing changed: {} vs {}",
+        quiet.v2_bytes,
+        quiet.v1_bytes
+    );
+    assert!(
+        busy.v2_bytes * 20 < busy.v1_bytes,
+        "12 changed: {} vs {}",
+        busy.v2_bytes,
+        busy.v1_bytes
+    );
 }
 
 #[test]
@@ -127,6 +177,9 @@ fn bench_resume_after_sleep() {
         let r = run(changed, new);
         #[expect(clippy::cast_precision_loss, reason = "a ratio for a table")]
         let ratio = r.v1_bytes as f64 / r.v2_bytes.max(1) as f64;
-        eprintln!("| {changed} + {new} new | {} B | {} B | {ratio:.0}× | {} µs |", r.v1_bytes, r.v2_bytes, r.v2_apply_us);
+        eprintln!(
+            "| {changed} + {new} new | {} B | {} B | {ratio:.0}× | {} µs |",
+            r.v1_bytes, r.v2_bytes, r.v2_apply_us
+        );
     }
 }

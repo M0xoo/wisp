@@ -1,5 +1,7 @@
 //! The commands that edit a task without running anything (rename, archive, read state, ext slots, the
 //! queue's edits, notes, settle, delete) and the reads (get, list, turns, activity, presentation, search).
+//!
+//! size-ok: the non-running task commands are one table of thin store transactions
 
 use std::sync::Arc;
 

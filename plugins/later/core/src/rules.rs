@@ -1,5 +1,7 @@
 //! What may be scheduled, edited, parked and cancelled (v1 later.js add/edit/done/plan/editPlan,
 //! routes/sessions.js PATCH forLater, runner.js:1456 #startTurn), and the texts wisp writes.
+//!
+//! size-ok: one rule per v1 later.js action, each with the text it writes
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

@@ -3,6 +3,8 @@
 //! process reparented to pid 1 is still known; the env tag (macOS `ps -E`, Linux `/proc/<pid>/environ`)
 //! finds it on ones wisp never saw. wisp itself, what it started outside a run (Preview, the panel's
 //! shells) and what started it are never a task's, never left behind and never stopped.
+//!
+//! size-ok: one attribution pass over the process table and its tests
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 

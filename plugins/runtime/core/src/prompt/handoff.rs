@@ -1,6 +1,8 @@
 //! Switching harness in a follow-up (v1 server/handoff.js). Each harness keeps its own conversation,
 //! so one picked up mid-task hasn't seen the turns that ran elsewhere: `handoff_note` writes those
 //! turns out (requests, reports, files touched) ahead of the follow-up's prompt.
+//!
+//! size-ok: v1 handoff.js's rules and their tests, one decision each
 
 use std::fmt::{self, Write as _};
 

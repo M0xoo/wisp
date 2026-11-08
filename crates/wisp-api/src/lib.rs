@@ -28,6 +28,7 @@ pub mod status;
 pub mod sync;
 pub mod trust;
 pub mod v2;
+pub mod v2_store;
 
 pub use backend::{Backend, Binding};
 pub use edge::{API_VERSION, Edge, EdgeConfig};

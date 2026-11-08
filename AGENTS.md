@@ -74,6 +74,10 @@ npm run dev                      # the wisp binary + the web bundle with reload
 - **State has one home:** server data in the entity store (written only by sync and command patches),
   derived values as selectors, what's open in navigation (`navigate(intent)`), flows as machines,
   drafts in the drafts store, settings in the settings store. Everything else is a local signal.
+- **Every action answers within one frame** (`design/feedback.md`, ADR-0017): the optimistic result, an
+  immediate navigation with a skeleton, the new thing appearing where it goes, or the pressed control's
+  pending state. Commands declare `optimistic` or `pending`; kit controls bind to commands; `navigate()`
+  never waits on data. `qa/feedback.mjs` fails any click with no visible change within 100 ms.
 - **Writes are commands**: an idempotency key and a declared optimistic patch (or `optimistic: 'none'`).
   The UI updates at once and rolls back with a toast on `reject`.
 - **Nothing jumps:** keyed lists move rows in place, entry animations run once per mount, and a list

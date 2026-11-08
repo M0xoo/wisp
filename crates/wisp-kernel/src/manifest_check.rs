@@ -2,6 +2,8 @@
 //! running any of its code. Unknown keys are refused with their path (and the key it probably meant),
 //! every id carries its owner's prefix, versions and ranges parse, permissions and activation events
 //! follow their grammars.
+//!
+//! size-ok: one validator per manifest section, all walking the same JSON-path error list
 use serde_json::{Map, Value};
 
 use crate::caps::owned_by;

@@ -20,13 +20,18 @@ pub struct Cursor {
 
 impl Cursor {
     /// From config. The kept ids count as seen.
-    pub fn new(since: String, kept: Vec<String>) -> Self {
-        let mut c = Self { since, kept: Vec::new(), run: HashSet::new(), order: VecDeque::new() };
-        let start = kept.len().saturating_sub(SEEN_KEPT);
-        for id in &kept[start..] {
+    pub fn new(since: String, mut kept: Vec<String>) -> Self {
+        let mut c = Self {
+            since,
+            kept: Vec::new(),
+            run: HashSet::new(),
+            order: VecDeque::new(),
+        };
+        kept.drain(..kept.len().saturating_sub(SEEN_KEPT));
+        for id in &kept {
             c.remember(id);
         }
-        c.kept = kept[start..].to_vec();
+        c.kept = kept;
         c
     }
 

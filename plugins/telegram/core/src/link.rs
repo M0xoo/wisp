@@ -2,8 +2,8 @@
 //! is slow. A wrong code counts against the day (50 for everyone) and the sender (5 each, by a hash
 //! of who, so one stranger can't spend everyone's day); 5 wrong in a row and the code changes. The
 //! counts live in the config (`linkGuess`), as a cloud box forgets the rest each time it sleeps.
-//! TODO(channels-core): use `wisp_channels_core`'s link-code book once it lands; this is the same
-//! rule set (v1 `conversation.js` `Linking`) applied to Telegram, which v1 left unlimited.
+//! The same rule set as v1 `conversation.js` `Linking`, applied to Telegram (which v1 left
+//! unlimited). Its own copy: a transport depends on `wisp-channels-api` only (ADR-0003).
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};

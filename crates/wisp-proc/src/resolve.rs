@@ -6,6 +6,8 @@
 //! unknown batch files go through cmd.exe, escaped as cross-spawn does.
 //!
 //! Pure: the file system comes in as a `Lookup`, so every platform's answer is tested anywhere.
+//!
+//! size-ok: Windows command resolution is one algorithm (PATHEXT, cmd shims, quoting); its tests are already beside it
 
 /// What a resolution needs to know about files.
 pub trait Lookup {

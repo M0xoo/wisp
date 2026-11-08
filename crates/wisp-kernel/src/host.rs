@@ -1,6 +1,8 @@
 //! The host: `App` (boot), `Setup` (what a plugin registers), `Ctx` (what a plugin uses at runtime).
 //! The signatures here are the contract; the bodies delegate to `dispatch`, `hooks`, `life` and
 //! `kernel_api`. More `impl` blocks for these types (all additive) are in `kernel_api.rs`.
+//!
+//! size-ok: the frozen plugin contract (App, Setup, Ctx): its signatures read in one place
 use std::any::Any;
 use std::future::Future;
 use std::sync::{Arc, Weak};

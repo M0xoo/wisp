@@ -145,10 +145,21 @@ impl ProcService for LocalProc {
             scope: opts.scope.clone(),
             ..SpawnOpts::default()
         };
-        let child = self.spawn(bin, args, spawn);
+        // Resolving the program, checking the folder and forking block: they run on the blocking
+        // pool, and only the wait for output runs on the runtime (callers needn't wrap it).
+        let (me, bin, args) = (self.clone(), bin.to_owned(), args.to_vec());
         let span = tracing::debug_span!("proc.exec", bin);
         Box::pin(tracing::Instrument::instrument(
-            async move { collect(child?, opts).await },
+            async move {
+                let name = bin.clone();
+                let child = tokio::task::spawn_blocking(move || me.spawn(&bin, &args, spawn))
+                    .await
+                    .map_err(|e| ProcError::Spawn {
+                        bin: name,
+                        message: e.to_string(),
+                    })??;
+                collect(child, opts).await
+            },
             span,
         ))
     }

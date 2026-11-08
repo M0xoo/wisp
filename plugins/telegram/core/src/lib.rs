@@ -44,7 +44,8 @@ pub enum TelegramError {
     Invalid(String),
 }
 
-impl From<TelegramError> for WireError {
+// `From` here is the update's sender (update::From), so the trait is spelled out
+impl std::convert::From<TelegramError> for WireError {
     fn from(e: TelegramError) -> Self {
         match e {
             TelegramError::Api(_) => WireError::unavailable(e.to_string()),

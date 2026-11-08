@@ -2,6 +2,8 @@
 //! people already have load as plugins. v1's reader is server/spells.js (normalizeSpell); its slot and
 //! part names are web/js/spell-schema.js. Everything a spell held maps to a field; what the shell must
 //! still apply (actions, data sources, hooks) goes to the shell's and runtime's list points.
+//!
+//! size-ok: one v1 spell → manifest conversion, key by key
 use serde_json::{Map, Value, json};
 
 use crate::manifest::{Manifest, ManifestError};

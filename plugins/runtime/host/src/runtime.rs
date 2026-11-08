@@ -2,6 +2,8 @@
 //! A task's commands run one at a time (a per-task lock), each in one store transaction; events go out
 //! after it commits. The list is served from memory: one cached row per task, rebuilt when the task's row
 //! is written, never per read (plan §4.1: only open or running sessions are kept whole in memory).
+//!
+//! size-ok: the runtime service's per-task lock and transaction wrap every command here
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;

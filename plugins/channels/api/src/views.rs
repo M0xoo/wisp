@@ -1,6 +1,8 @@
 //! A task, the context and a message as a channel sees them: the parts of v1's session JSON and
 //! `services/phone.js` that the hub and every transport read. Field names stay v1's (camelCase on the
 //! wire) so v1 clients and the grid keep reading them.
+//!
+//! size-ok: the contract's wire types, kept in one file so ts-rs exports them together
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};

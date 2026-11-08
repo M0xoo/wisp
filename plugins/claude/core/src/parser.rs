@@ -1,6 +1,8 @@
 //! `claude -p --output-format stream-json`, line by line (v1 adapters/claude.js onJson + onClose), as
 //! a sans-IO machine: stream-json in, v1's events out. The only IO it asks for is a Write's "before"
 //! (`IoStep::WriteBefore`), which the driver runs in place.
+//!
+//! size-ok: one sans-IO stream-json machine, one arm per v1 event
 
 use std::collections::HashMap;
 

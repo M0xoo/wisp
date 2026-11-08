@@ -30,7 +30,7 @@ impl From<NtfyError> for WireError {
 }
 
 /// At most `max` characters, with `…` when cut (v1 `truncate`).
-/// TODO(channels-core): use `wisp_channels_core::scrub::truncate`.
+/// Its own copy: a transport depends on `wisp-channels-api` only (ADR-0003), never on channels' core.
 pub fn truncate(s: &str, max: usize) -> String {
     if s.chars().count() <= max {
         return s.to_owned();
@@ -46,7 +46,10 @@ mod tests {
 
     #[test]
     fn errors_map() {
-        assert_eq!(WireError::from(NtfyError::Invalid("x".into())).status(), 400);
+        assert_eq!(
+            WireError::from(NtfyError::Invalid("x".into())).status(),
+            400
+        );
         assert!(WireError::from(NtfyError::Http("x".into())).retry);
         assert_eq!(truncate("abcdef", 4), "abc…");
         assert_eq!(truncate("abc", 4), "abc");

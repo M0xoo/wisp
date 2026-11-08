@@ -29,6 +29,7 @@ machine = ["dep:wisp-machine"]
 wisp-kernel.workspace = true
 wisp-api.workspace = true
 wisp-protocol.workspace = true
+wisp-store.workspace = true
 wisp-proc = { workspace = true, optional = true }
 wisp-git = { path = "../../plugins/git/host", optional = true }
 wisp-worktrees = { path = "../../plugins/worktrees/host", optional = true }

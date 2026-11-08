@@ -56,9 +56,8 @@ impl From<SlackError> for WireError {
             SlackError::Signature(_) => WireError::forbidden(e.to_string()),
             SlackError::RateLimited { retry_after_s } => WireError::unavailable(e.to_string())
                 .with_details(serde_json::json!({ "retryAfter": retry_after_s })),
-            SlackError::Net(_) => WireError::unavailable(e.to_string()),
             SlackError::Api(_) if e.for_good() => WireError::invalid(e.line()),
-            SlackError::Api(_) => WireError::unavailable(e.to_string()),
+            SlackError::Net(_) | SlackError::Api(_) => WireError::unavailable(e.to_string()),
         }
     }
 }

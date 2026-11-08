@@ -208,6 +208,12 @@ pub struct Button {
 }
 
 /// The value, or None: not JSON, or not the shape wisp writes (an index has to be a whole number).
+// one-letter wire keys (s, r, i, k); the f64 → u64 cast runs only on a whole, non-negative number
+#[allow(
+    clippy::many_single_char_names,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
 pub fn button(value: &str) -> Option<Button> {
     let v: Value = serde_json::from_str(value).ok()?;
     let s = v.get("s")?.as_str()?.to_owned();
@@ -262,13 +268,12 @@ pub fn strip_formatting(text: &str, bot: Option<&str>) -> String {
             rest = after.trim_start_matches(|c: char| c.is_whitespace() || c == ',' || c == ':');
             continue;
         }
-        match token(inner) {
-            Some(word) => out.push_str(&word),
-            None => {
-                out.push('<');
-                rest = &tail[1..];
-                continue;
-            }
+        if let Some(word) = token(inner) {
+            out.push_str(&word);
+        } else {
+            out.push('<');
+            rest = &tail[1..];
+            continue;
         }
         rest = after;
     }

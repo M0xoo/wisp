@@ -53,4 +53,6 @@ by side, at rest, hovered and selected, at desktop and phone widths.
   border width or weight. A fill never touches its pane's edge if it didn't in v1, and v2 never introduces
   one that does.
 - **Nothing is clipped** except by an ellipsis. Fixed columns (times, counts, pills) never clip.
+- **Every action answers at once** (`design/feedback.md`): where v1 showed nothing after an action, v2 shows
+  the result, navigates, or shows the control's pending state. Listed in `allowed.md`.
 - **No developer words in the UI** ("plugin", "component", "mock", "not installed", ids, stack traces).

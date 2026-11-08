@@ -1,6 +1,8 @@
 //! Capability sets (ADR-0008, plan §6.5): permissions `ns:action{k:v}` bound to a context. Default deny,
 //! and a deny beats an allow. The sets themselves are data (`capabilities.json` in this crate, plus each
 //! plugin's manifest), compiled once and cached per set id.
+//!
+//! size-ok: the permission grammar and its matcher are one parser; tests are a third of it
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, OnceLock, RwLock};
 

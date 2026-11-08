@@ -1,4 +1,6 @@
 //! The shapes of wisp.router's contract, v1's names kept (server/router.js, services/auto.js).
+//!
+//! size-ok: the contract's wire types, kept in one file so ts-rs exports them together
 
 use std::collections::BTreeMap;
 

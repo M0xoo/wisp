@@ -10,6 +10,8 @@
 //! registration was accepted), `command.run {id, args, call, trace}`, `intercept.run {n, ctx, call,
 //! trace}`, `event {n, e}`, `settings.changed {key, value}` (a notification). `call` is a token that
 //! continues the kernel-side call (nested commands keep the trace and caller).
+//!
+//! size-ok: the JSON-RPC bridge's registrations and its lifecycle share one child handle
 pub mod rpc;
 
 use std::collections::HashMap;

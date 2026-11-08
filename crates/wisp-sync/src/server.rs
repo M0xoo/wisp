@@ -1,5 +1,7 @@
 //! The server half of sync (plan §4.3–§4.5, §7.2.3), sans-IO: `handle(input, now)` returns what to
 //! do and never reads a clock or a socket. One instance owns every stream of this wisp.
+//!
+//! size-ok: one sans-IO machine; its `handle` arms share private state, and the frame/fold/outbox parts already live in their own files
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;

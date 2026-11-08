@@ -1,4 +1,6 @@
 //! The crew's rows, as v1 stored them in config.json (`config.crew[]`), camelCase on the wire.
+//!
+//! size-ok: the contract's row types, kept in one file so ts-rs exports them together
 
 use std::collections::BTreeMap;
 

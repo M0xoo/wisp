@@ -1,4 +1,6 @@
 //! Commands that read, search, list or change files: cat, head, sed, grep, find, ls, mv, tar …
+//!
+//! size-ok: a data table: one describer per file command
 
 use super::argv::{Ctx, Desc, Known, count_arg, operands, say, short, shown, silent, value_of};
 use crate::paths::RunPaths;

@@ -20,7 +20,9 @@ impl Rng {
     }
     /// A string of `len` characters picked from `alphabet`.
     pub fn string(&mut self, alphabet: &[&str], len: usize) -> String {
-        (0..len).map(|_| alphabet[self.below(alphabet.len())]).collect()
+        (0..len)
+            .map(|_| alphabet[self.below(alphabet.len())])
+            .collect()
     }
     pub fn bytes(&mut self, len: usize) -> Vec<u8> {
         (0..len).map(|_| (self.next() & 0xff) as u8).collect()

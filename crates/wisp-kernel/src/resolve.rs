@@ -3,6 +3,8 @@
 //! points at the chosen provider). Missing or switched-off requirements refuse the plugin with the exact
 //! reason, cycles refuse every plugin on them (printed), and refusals cascade to dependents. Optional
 //! requirements order the set when they can but never refuse anything.
+//!
+//! size-ok: one pure resolution function and the graph it walks
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::manifest::Manifest;

@@ -2931,6 +2931,7 @@ dependencies = [
  "wisp-protocol",
  "wisp-review",
  "wisp-ship",
+ "wisp-store",
  "wisp-worktrees",
 ]
 
@@ -3020,6 +3021,7 @@ dependencies = [
  "url",
  "wisp-kernel",
  "wisp-protocol",
+ "wisp-store",
  "wisp-sync",
 ]
 
@@ -3318,7 +3320,6 @@ dependencies = [
  "tokio",
  "tracing",
  "wisp-channels-api",
- "wisp-channels-core",
  "wisp-discord-core",
  "wisp-kernel",
 ]
@@ -3345,7 +3346,6 @@ dependencies = [
  "tokio",
  "tracing",
  "wisp-channels-api",
- "wisp-channels-core",
  "wisp-email-core",
  "wisp-kernel",
 ]
@@ -3406,7 +3406,6 @@ dependencies = [
  "tokio",
  "tracing",
  "wisp-channels-api",
- "wisp-channels-core",
  "wisp-github-core",
  "wisp-kernel",
 ]
@@ -3799,7 +3798,6 @@ dependencies = [
  "tokio",
  "tracing",
  "wisp-channels-api",
- "wisp-channels-core",
  "wisp-kernel",
  "wisp-ntfy-core",
 ]
@@ -4058,7 +4056,6 @@ dependencies = [
  "tokio",
  "tracing",
  "wisp-channels-api",
- "wisp-channels-core",
  "wisp-kernel",
  "wisp-slack-core",
 ]
@@ -4153,7 +4150,6 @@ dependencies = [
  "tokio",
  "tracing",
  "wisp-channels-api",
- "wisp-channels-core",
  "wisp-kernel",
  "wisp-telegram-core",
 ]

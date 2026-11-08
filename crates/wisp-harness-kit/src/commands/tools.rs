@@ -1,5 +1,7 @@
 //! Build tools, package managers and language runtimes: npm, npx, node, python, pip, cargo, go, make,
 //! docker, brew, and the dev tools they run (tsc, vitest, eslint, vite …).
+//!
+//! size-ok: a data table: one describer per tool family
 
 use super::argv::{Ctx, Desc, Known, basename, operands, say, short, strip_flags};
 use super::vcs::{describe_gh, describe_git};

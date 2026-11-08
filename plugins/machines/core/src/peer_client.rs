@@ -3,6 +3,8 @@
 //! It keeps the cursor for (peer, epoch), refcounts subscriptions, keeps them passive unless a view
 //! needs the box awake, resends pending mutations after the welcome with the **same** mid, and
 //! negotiates the protocol window. The host feeds it inputs and carries out what it returns.
+//!
+//! size-ok: a port of @wisp/sync's SyncClient (the spec), kept 1:1 with it
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};

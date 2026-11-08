@@ -21,7 +21,7 @@ pub fn with_buttons(mut body: Value, buttons: Vec<Value>) -> Value {
         .unwrap_or_default()
         .to_owned();
     let mut blocks = sections(&text);
-    blocks.push(json!({ "type": "actions", "elements": buttons }));
+    blocks.push(json!({ "type": "actions", "elements": Value::Array(buttons) }));
     if let Some(o) = body.as_object_mut() {
         o.insert("blocks".into(), Value::Array(blocks));
     }

@@ -2,6 +2,8 @@
 //! follow v1's session JSON (server/runner.js, server/store.js) field for field on the wire (camelCase), so
 //! the importer maps 1:1 and v1 clients keep reading them. Fields other plugins own (goal, auto, forLater,
 //! worktree, crew, …) live in `ext`, namespaced by the owning plugin id: runtime never reads them.
+//!
+//! size-ok: the contract's row types, kept in one file so ts-rs exports them together
 
 use std::collections::BTreeMap;
 

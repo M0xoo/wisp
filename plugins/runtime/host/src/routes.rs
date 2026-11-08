@@ -1,6 +1,8 @@
 //! v1's HTTP API for tasks (server/routes/sessions.js) as thin adapters over the runtime, same paths and
 //! JSON shapes, so v1 clients (older phones, the SDK, other machines) keep working. Each route's
 //! permission is the command's it runs.
+//!
+//! size-ok: v1's task routes, one thin adapter each, in v1's order
 
 use std::future::Future;
 use std::sync::Arc;

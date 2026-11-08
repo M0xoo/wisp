@@ -57,6 +57,25 @@ pub struct Running {
     pub server: Server,
     pub kernel: Kernel,
     pub started: Instant,
+    pub store: wisp_store::Store,
+    /// the store's commits feeding the v2 stream: dropped, the feed stops
+    pub feed: wisp_store::Subscription,
+}
+
+/// What `config` reads in full: the kernel's own kinds (settings, plugins). Plugins add theirs.
+fn snapshot_sources() -> Vec<wisp_api::v2_store::TopicSource> {
+    let config = |t: &str| t == "config";
+    [wisp_store::SETTING, wisp_store::PLUGIN]
+        .into_iter()
+        .map(|d| wisp_api::v2_store::TopicSource { kind: d.kind, key: d.key, matches: config, query: |_| wisp_store::Query::new() })
+        .collect()
+}
+
+/// `<home>/wisp.db`, opened before the kernel so every plugin finds it as a service. Startup only:
+/// opening and migrating block, which is fine here and nowhere else.
+fn open_store(home: &Path) -> Result<wisp_store::Store> {
+    wisp_store::Store::open(wisp_store::Location::Path(home.join("wisp.db")), Arc::new(wisp_store::SystemClock))
+        .map_err(|e| CliError::said(format!("wisp could not open its database: {e}")))
 }
 
 pub async fn boot(home: &Path, port: u16, host: Option<&str>) -> Result<Running> {
@@ -68,7 +87,8 @@ pub async fn boot(home: &Path, port: u16, host: Option<&str>) -> Result<Running>
     let fallback = if box_mode { Group::Box } else { Group::Default };
     let group = env("WISP_PLUGINS").and_then(|g| Group::named(&g)).unwrap_or(fallback);
     tracing::info!("plugins in this build: {:?}", crate::groups::compiled(group));
-    let app = crate::services::provide(App::new(), home, VERSION, notify).plugins(group.build(&at));
+    let store = open_store(home)?;
+    let app = crate::services::provide(App::new(), home, VERSION, notify).service(store.clone()).plugins(group.build(&at));
     let kernel = app.start().await.map_err(|e| CliError::said(format!("wisp could not start: {}", e.message)))?;
     for s in kernel.status().iter().filter(|s| s.state == "refused") {
         tracing::warn!("plugin {} refused: {}", s.id, s.reason.as_deref().unwrap_or(""));
@@ -86,16 +106,19 @@ pub async fn boot(home: &Path, port: u16, host: Option<&str>) -> Result<Running>
         tracing::warn!("no web build found (WISP_WEB_DIR, or npm run build): serving the API only");
     }
     let backend: Arc<dyn wisp_api::Backend> = Arc::new(kernel.clone());
-    // the v2 stream; until wisp-store is wired here every topic reads empty, under a fresh epoch per
-    // boot, so a client never resumes into data this wisp doesn't have
-    hub.mount(wisp_api::v2::Driver::start(Arc::new(wisp_api::v2::Empty { epoch: master_token() }), backend.clone(), peer(&kernel)));
+    // the v2 stream on the store: snapshots and deltas from its tables and change feed (under its
+    // epoch), and every commit streamed as it lands (Store::on_commit → Driver::committed)
+    let snaps = wisp_api::v2_store::StoreSnapshots::new(store.clone(), snapshot_sources(), Vec::new());
+    let driver = wisp_api::v2::Driver::start(Arc::new(snaps), backend.clone(), peer(&kernel));
+    let feed = wisp_api::v2_store::feed(&store, driver.clone());
+    hub.mount(driver);
     let edge = Edge::new(cfg, backend, hub);
     let ip: IpAddr = host.or(env("WISP_HOST").as_deref()).unwrap_or("127.0.0.1").parse().map_err(|_| CliError::said("WISP_HOST is not an IP address"))?;
     let listener = tokio::net::TcpListener::bind((ip, port)).await.map_err(|e| {
         if e.kind() == std::io::ErrorKind::AddrInUse { CliError::said(format!("port {port} is in use: is wisp already running? (wisp --port N picks another)")) } else { CliError::Io(e) }
     })?;
     let server = wisp_api::serve(edge, listener).await?;
-    Ok(Running { server, kernel, started })
+    Ok(Running { server, kernel, started, store, feed })
 }
 
 /// Until Ctrl-C or SIGTERM, then a clean stop (server.json removed if it is ours).
@@ -117,6 +140,8 @@ pub async fn until_signal(r: Running) {
     for id in ids.iter().rev() {
         let _ = r.kernel.set_enabled(id, false).await;
     }
+    drop(r.feed);
+    r.store.close();
 }
 
 /// The page in the user's browser (no shell: the address is ours).

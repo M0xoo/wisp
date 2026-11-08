@@ -6,6 +6,8 @@
 //! delegations, checkpoint, …) is kept as it was under `ext["v1"]`, for its owner's own import to read,
 //! and written back unchanged. Activity keeps v1's item shape in the log with `v = 0` (read through
 //! `upcast`), so history is never rewritten.
+//!
+//! size-ok: one v1 session JSON ↔ rows mapping, field for field, both directions
 
 use serde_json::{Map, Value, json};
 use wisp_runtime_api::model::{

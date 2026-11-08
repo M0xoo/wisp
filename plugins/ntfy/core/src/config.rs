@@ -38,15 +38,23 @@ impl Ntfy {
         self.enabled && !self.topic.is_empty()
     }
     pub fn place(&self) -> Where {
-        let server = if self.server.is_empty() { DEFAULT_SERVER } else { self.server.as_str() };
-        Where { server: server.trim_end_matches('/').to_owned(), topic: self.topic.clone(), token: self.token.clone() }
+        let server = if self.server.is_empty() {
+            DEFAULT_SERVER
+        } else {
+            self.server.as_str()
+        };
+        Where {
+            server: server.trim_end_matches('/').to_owned(),
+            topic: self.topic.clone(),
+            token: self.token.clone(),
+        }
     }
     pub fn cursor(&self) -> Cursor {
         Cursor::new(self.since.clone(), self.seen.clone())
     }
     /// Writes the cursor's persisted part back.
     pub fn keep(&mut self, c: &Cursor) {
-        self.since = c.since().to_owned();
+        c.since().clone_into(&mut self.since);
         self.seen = c.kept().to_vec();
     }
     /// Settings' view: the token masked, and where reading stopped isn't shown.
@@ -65,7 +73,11 @@ pub struct Where {
 
 impl Where {
     pub fn headers(&self) -> Vec<(String, String)> {
-        if self.token.is_empty() { Vec::new() } else { vec![("authorization".into(), format!("Bearer {}", self.token))] }
+        if self.token.is_empty() {
+            Vec::new()
+        } else {
+            vec![("authorization".into(), format!("Bearer {}", self.token))]
+        }
     }
 }
 
@@ -78,12 +90,16 @@ pub fn mask(t: &str) -> String {
 }
 
 fn server_ok(s: &str) -> bool {
-    let rest = s.strip_prefix("https://").or_else(|| s.strip_prefix("http://"));
+    let rest = s
+        .strip_prefix("https://")
+        .or_else(|| s.strip_prefix("http://"));
     rest.is_some_and(|r| !r.is_empty() && !r.chars().any(char::is_whitespace))
 }
 
 fn topic_ok(t: &str) -> bool {
-    (1..=64).contains(&t.len()) && t.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+    (1..=64).contains(&t.len())
+        && t.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
 }
 
 /// A PUT's `ntfy` part over the config (v1 `Remote.update`). A masked or missing token is
@@ -91,7 +107,10 @@ fn topic_ok(t: &str) -> bool {
 /// stays on: an id means nothing on another topic, and taps sent while it was off weren't for wisp.
 pub fn merge_update(prev: &Ntfy, body: &Value) -> Result<Ntfy, NtfyError> {
     let str_of = |k: &str| body.get(k).and_then(Value::as_str).map(str::trim);
-    let enabled = body.get("enabled").and_then(Value::as_bool).unwrap_or(prev.enabled);
+    let enabled = body
+        .get("enabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(prev.enabled);
     let server = str_of("server").map_or_else(|| prev.server.clone(), str::to_owned);
     let topic = str_of("topic").map_or_else(|| prev.topic.clone(), str::to_owned);
     let token = match str_of("token") {
@@ -100,15 +119,34 @@ pub fn merge_update(prev: &Ntfy, body: &Value) -> Result<Ntfy, NtfyError> {
         Some(t) => t.to_owned(),
     };
     if !server.is_empty() && !server_ok(&server) {
-        return Err(NtfyError::Invalid("ntfy server must be an http(s) URL".into()));
+        return Err(NtfyError::Invalid(
+            "ntfy server must be an http(s) URL".into(),
+        ));
     }
     if !topic.is_empty() && !topic_ok(&topic) {
-        return Err(NtfyError::Invalid("ntfy topic: letters, digits, - and _ only".into()));
+        return Err(NtfyError::Invalid(
+            "ntfy topic: letters, digits, - and _ only".into(),
+        ));
     }
-    let server = if server.is_empty() { DEFAULT_SERVER.to_owned() } else { server.trim_end_matches('/').to_owned() };
+    let server = if server.is_empty() {
+        DEFAULT_SERVER.to_owned()
+    } else {
+        server.trim_end_matches('/').to_owned()
+    };
     let same = enabled && prev.enabled && server == prev.place().server && topic == prev.topic;
-    let (since, seen) = if same { (prev.since.clone(), prev.seen.clone()) } else { (String::new(), Vec::new()) };
-    Ok(Ntfy { enabled, server, topic, token, since, seen })
+    let (since, seen) = if same {
+        (prev.since.clone(), prev.seen.clone())
+    } else {
+        (String::new(), Vec::new())
+    };
+    Ok(Ntfy {
+        enabled,
+        server,
+        topic,
+        token,
+        since,
+        seen,
+    })
 }
 
 #[cfg(test)]
@@ -116,22 +154,48 @@ mod tests {
     use super::*;
 
     fn on() -> Ntfy {
-        Ntfy { enabled: true, server: DEFAULT_SERVER.into(), topic: "wisp-t".into(), token: "tk_old1234".into(), since: "m9".into(), seen: vec!["m9".into()] }
+        Ntfy {
+            enabled: true,
+            server: DEFAULT_SERVER.into(),
+            topic: "wisp-t".into(),
+            token: "tk_old1234".into(),
+            since: "m9".into(),
+            seen: vec!["m9".into()],
+        }
     }
 
     #[test]
     fn off_by_default() {
         let n = Ntfy::from_value(&Value::Null);
         assert!(!n.ready());
-        assert!(!Ntfy { topic: "t".into(), ..Ntfy::default() }.ready());
-        assert!(Ntfy { enabled: true, topic: "t".into(), ..Ntfy::default() }.ready());
+        assert!(
+            !Ntfy {
+                topic: "t".into(),
+                ..Ntfy::default()
+            }
+            .ready()
+        );
+        assert!(
+            Ntfy {
+                enabled: true,
+                topic: "t".into(),
+                ..Ntfy::default()
+            }
+            .ready()
+        );
     }
 
     #[test]
     fn where_and_view() {
-        let n = Ntfy { server: "https://n.example/".into(), ..on() };
+        let n = Ntfy {
+            server: "https://n.example/".into(),
+            ..on()
+        };
         assert_eq!(n.place().server, "https://n.example");
-        assert_eq!(n.place().headers(), vec![("authorization".to_owned(), "Bearer tk_old1234".to_owned())]);
+        assert_eq!(
+            n.place().headers(),
+            vec![("authorization".to_owned(), "Bearer tk_old1234".to_owned())]
+        );
         let v = n.view();
         assert_eq!(v["token"], "••••1234");
         assert!(v.get("since").is_none());
@@ -141,7 +205,11 @@ mod tests {
     #[test]
     fn since_belongs_to_that_topic_on_that_server_while_on() {
         let n = merge_update(&on(), &json!({ "token": "tk_new" })).unwrap();
-        assert_eq!((n.since.as_str(), n.token.as_str()), ("m9", "tk_new"), "a new token reads the same topic");
+        assert_eq!(
+            (n.since.as_str(), n.token.as_str()),
+            ("m9", "tk_new"),
+            "a new token reads the same topic"
+        );
         let n = merge_update(&on(), &json!({ "token": "••••1234" })).unwrap();
         assert_eq!(n.token, "tk_old1234", "masked: unchanged");
         let n = merge_update(&on(), &json!({ "topic": "wisp-other" })).unwrap();
@@ -149,9 +217,21 @@ mod tests {
         let n = merge_update(&on(), &json!({ "server": "https://other.example" })).unwrap();
         assert_eq!(n.since, "");
         let n = merge_update(&on(), &json!({ "enabled": false })).unwrap();
-        assert!(n.since.is_empty() && n.seen.is_empty(), "off: taps from then on were not meant for it");
-        let off = Ntfy { enabled: false, ..on() };
-        assert_eq!(merge_update(&off, &json!({ "enabled": true })).unwrap().since, "", "on again starts from now");
+        assert!(
+            n.since.is_empty() && n.seen.is_empty(),
+            "off: taps from then on were not meant for it"
+        );
+        let off = Ntfy {
+            enabled: false,
+            ..on()
+        };
+        assert_eq!(
+            merge_update(&off, &json!({ "enabled": true }))
+                .unwrap()
+                .since,
+            "",
+            "on again starts from now"
+        );
     }
 
     #[test]

@@ -1,6 +1,8 @@
 //! Subagents (v1 server/subagents.js): a team the user picks at launch (any harness, model and
 //! thinking level each) that the lead agent hands work to through wisp's `delegate` tool. These are
 //! the roster's normal form and what the lead and its delegates are told.
+//!
+//! size-ok: v1 subagents.js's rules and their tests
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

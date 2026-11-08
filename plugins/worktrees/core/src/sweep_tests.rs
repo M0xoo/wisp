@@ -1,4 +1,6 @@
 //! v1 test/worktrees.test.js, as policy: each case is the decision the v1 test checked end to end.
+//!
+//! size-ok: a test file: one case per v1 test/worktrees.test.js case
 
 use super::*;
 use crate::testrand::Rng;

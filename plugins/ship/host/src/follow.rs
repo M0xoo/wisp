@@ -1,5 +1,7 @@
 //! Following a task's PRs: refreshing them (news makes the card unread), the conflict fix and its
 //! push, rechecking what is left to ship, the minute poll and the boot drain.
+//!
+//! size-ok: the refresh, conflict fix and poll share the per-task follow state
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering;

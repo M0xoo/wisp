@@ -18,6 +18,7 @@ mod blob;
 mod changes;
 mod clock;
 mod coalescer;
+mod commit;
 mod entity;
 mod error;
 mod import;

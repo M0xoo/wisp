@@ -1,4 +1,6 @@
 //! git and gh: the subcommand says what happens, its operands say to what.
+//!
+//! size-ok: a data table: one describer per git/gh subcommand
 
 use super::argv::{Desc, operands, shown, value_of};
 use super::files::describe_grep;

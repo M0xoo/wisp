@@ -1,6 +1,8 @@
 //! Lifecycle (plan §6.4): `discovered → resolved → (activated) → off`. The plugin table, resolution
 //! applied to it (`reconcile`: what must go off goes off, what can run and is eager starts), status,
 //! lazy activation by activation events, and the exec tier's crash-restart with backoff.
+//!
+//! size-ok: the lifecycle's transitions share the plugin table's lock
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
