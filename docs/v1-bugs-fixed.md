@@ -18,6 +18,8 @@ Each line: area · what v1 did · what v2 does · the test. Visible changes are 
 | CLI | `wisp "task"` printed only the title, so a script couldn't follow the task it started | it prints the id and `wisp attach <id>` (and a terminal stays attached) | `crates/wisp/tests/serve_cli.rs` `generated_verbs_…` reads the id back |
 | CLI | `wisp show` printed a block type it didn't know as JSON | every block has a terminal renderer; an unknown one shows its title and "update wisp to see this" | `plugins/cli/core/tests/goldens.rs` (no line starts with `{`) |
 | CLI | `wisp ls` said "— asks:" on every row once the summary carried an empty question (found in v2's own port) | only a real question shows | `crates/wisp/tests/serve_cli.rs` |
+| Reruns | a rerun ran on today's code, so "rerun" didn't reproduce what was asked | every task records its base commit; `wisp rerun` starts from it (a detached worktree) unless `--from latest` | `crates/wisp/tests/serve_code.rs` (the rerun's HEAD is the first commit) |
+| Setup | a schedule written in words was stored as a cron, so re-saving the same words looked like a change | each kind normalizes before planning: the same words plan as unchanged | `serve_code.rs` (applying twice: 6 unchanged) |
 
 ## Decided by the lead (2026-11-08; the owner asked not to be stopped for these)
 

@@ -18,7 +18,7 @@ exclude = ["desktop/src-tauri"]
 [workspace.package]
 version = "2.0.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.89"
 license = "MIT"
 publish = false
 repository = "https://github.com/M0xoo/wisp"
@@ -56,6 +56,12 @@ wisp-goal-core = { path = "plugins/goal/core" }
 wisp-later-api = { path = "plugins/later/api" }
 wisp-later-core = { path = "plugins/later/core" }
 wisp-budget-api = { path = "plugins/budget/api" }
+# wisp.resources: wisp as code (ADR-0026)
+wisp-resources-api = { path = "plugins/resources/api" }
+wisp-resources-core = { path = "plugins/resources/core" }
+# wisp.workflows: orchestration as code (ADR-0028)
+wisp-workflows-api = { path = "plugins/workflows/api" }
+wisp-workflows-core = { path = "plugins/workflows/core" }
 # wisp.cli: the command-line frontend (ADR-0022, ADR-0024)
 wisp-cli-api = { path = "plugins/cli/api" }
 wisp-cli-core = { path = "plugins/cli/core" }
@@ -137,6 +143,10 @@ rand = "0.9"
 regex = "1.13"
 # ADR-0023: IANA time zones, host crates only
 jiff = "0.2.39"
+# ADR-0030: formulas (wisp.yml / .json / .toml) and their JSON Schema, generated from the Rust types
+serde-saphyr = "2.1.1"
+toml = { version = "1.2", default-features = false, features = ["parse", "serde", "display"] }
+schemars = "1.2"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "stream", "http2"] }
 rusqlite = { version = "0.41", features = ["bundled", "functions", "serde_json", "blob"] }
 serde = { version = "1", features = ["derive"] }

@@ -7,6 +7,8 @@
 //   rust-sizes      src files over 400 lines and fns over 60 warn, unless a `size-ok:` reason is written
 //   rust-manifests  every plugin host has a valid wisp-plugin.json whose commands sit in its namespace
 //                   and are named by a capability set
+//   rust-resource-kinds  a plugin with tables a user sets up registers a resource kind (its settings are
+//                   wisp.settings' `setting` kind), unless plugins/resources/pending-kinds.txt lists it
 // Normal and build dependencies count for the layers; dev-dependencies don't (tests may wire anything).
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -214,4 +216,43 @@ export const rustManifests: Rule = {
   },
 };
 
-export const RUST_RULES: readonly Rule[] = [rustLayers, rustSansIo, rustUnsafe, rustSizes, rustManifests];
+const PENDING = 'plugins/resources/pending-kinds.txt';
+
+/** `plugins/resources/pending-kinds.txt`: plugin → why it has no kind yet. */
+function pending(root: string): Map<string, number> {
+  const out = new Map<string, number>();
+  const file = join(root, PENDING);
+  if (!existsSync(file)) return out;
+  readFileSync(file, 'utf8')
+    .split('\n')
+    .forEach((l, i) => {
+      const name = l.split('#')[0]?.trim() ?? '';
+      if (name) out.set(name, i + 1);
+    });
+  return out;
+}
+
+export const rustResourceKinds: Rule = {
+  id: 'rust-resource-kinds',
+  description: 'a plugin with tables a user configures registers a resource kind (wisp as code, ADR-0028); declared settings are the setting kind’s',
+  run(ctx) {
+    const out: Finding[] = [];
+    const listed = pending(ctx.root);
+    for (const c of crates(ctx.root).filter((x) => x.role === 'host' && x.plugin)) {
+      const plugin = c.plugin ?? '';
+      const files = rustFiles(ctx.root, `${c.dir}/src`).filter((f) => !isTestFile(f));
+      const text = files.map((f) => readFileSync(join(ctx.root, f), 'utf8')).join('\n');
+      // declared settings are wisp.settings' `setting` kind already; tables are the plugin's own to declare
+      const tables = /Migration::sql\(/.test(text);
+      const hasKind = /RESOURCE_KIND/.test(text);
+      const line = listed.get(plugin);
+      if (tables && !hasKind && line === undefined) {
+        out.push(finding(manifestOf(c), 1, 'rust-resource-kinds', `${plugin} keeps tables but registers no resource kind (resource.kind@1): add one, or list it in ${PENDING} with why`));
+      }
+      if (hasKind && line !== undefined) out.push(finding(PENDING, line, 'rust-resource-kinds', `${plugin} has a resource kind now: take it off ${PENDING}`));
+    }
+    return out;
+  },
+};
+
+export const RUST_RULES: readonly Rule[] = [rustLayers, rustSansIo, rustUnsafe, rustSizes, rustManifests, rustResourceKinds];
