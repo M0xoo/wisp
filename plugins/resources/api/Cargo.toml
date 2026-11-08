@@ -12,6 +12,7 @@ schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 wisp-kernel.workspace = true
+wisp-store.workspace = true
 
 [lints]
 workspace = true

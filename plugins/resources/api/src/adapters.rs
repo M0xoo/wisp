@@ -223,3 +223,103 @@ impl ResourceKind for SettingsKind {
         })
     }
 }
+
+/// Specs a plugin keeps as they were declared, in its own table (`<plugin>_spec_<kind>`, migrated under
+/// `<plugin>.spec.<kind>`): for configuration that has no rows of its own yet. The owner reads them back
+/// with [`StoredKind::specs`] where it acts on them.
+pub struct StoredKind {
+    pub info: KindInfo,
+    pub ctx: Ctx,
+    def: wisp_store::EntityDef,
+    owner: &'static str,
+    sql: &'static str,
+    ready: std::sync::OnceLock<()>,
+}
+
+impl std::fmt::Debug for StoredKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StoredKind").field("kind", &self.info.kind).finish_non_exhaustive()
+    }
+}
+
+fn stored_topics(_: &wisp_store::Row) -> Vec<String> {
+    vec!["plugin:wisp.resources:specs".into()]
+}
+
+#[allow(clippy::needless_pass_by_value)] // for map_err
+fn store_err(e: wisp_store::StoreError) -> WireError {
+    WireError::internal(format!("store: {e}"))
+}
+
+/// A `&'static str` made once per kind at startup (the store's entity definitions are static).
+fn leak(s: String) -> &'static str {
+    Box::leak(s.into_boxed_str())
+}
+
+impl StoredKind {
+    /// The kind `info` for `ctx`'s plugin, kept in its own table.
+    pub fn new(info: KindInfo, ctx: Ctx) -> Self {
+        let prefix = ctx.plugin().rsplit('.').next().unwrap_or("plugin").replace('-', "_");
+        let table = leak(format!("{prefix}_spec_{}", info.kind.replace('-', "_")));
+        let def = wisp_store::EntityDef { kind: table, table, key: "id", columns: &[("id", wisp_store::Col::Text), ("body", wisp_store::Col::Text)], json_columns: &["body"], parent: None, seq: None, topics: stored_topics };
+        Self { owner: leak(format!("{prefix}.spec.{}", info.kind)), sql: leak(format!("CREATE TABLE {table} (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;")), def, info, ctx, ready: std::sync::OnceLock::new() }
+    }
+
+    fn store(&self) -> Result<std::sync::Arc<wisp_store::Store>> {
+        let store = self.ctx.service::<wisp_store::Store>()?;
+        if self.ready.get().is_none() {
+            let m = [wisp_store::Migration::sql(1, self.sql)];
+            store.migrate(self.owner, &m).map_err(store_err)?;
+            store.define_entity(self.def).map_err(store_err)?;
+            let _ = self.ready.set(());
+        }
+        Ok(store)
+    }
+
+    /// Every stored spec, by name.
+    pub async fn specs(&self) -> Result<Vec<(String, Value)>> {
+        let store = self.store()?;
+        let kind = self.def.kind;
+        let rows = store.read_async(move |r| r.query(kind, &wisp_store::Query::new())).await.map_err(store_err)?;
+        let mut out: Vec<(String, Value)> = rows.into_iter().filter_map(|r| Some((r.get("id")?.as_str()?.to_owned(), r.get("body")?.clone()))).collect();
+        out.sort_by(|a, b| a.0.cmp(&b.0));
+        Ok(out)
+    }
+}
+
+impl ResourceKind for StoredKind {
+    fn info(&self) -> KindInfo {
+        self.info.clone()
+    }
+
+    fn read<'a>(&'a self, _call: &'a Call) -> BoxFuture<'a, Result<Vec<Resource>>> {
+        Box::pin(async move { Ok(self.specs().await?.into_iter().map(|(n, s)| Resource::new(self.info.kind.clone(), n, s)).collect()) })
+    }
+
+    fn apply<'a>(&'a self, _call: &'a Call, op: &'a Op) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let store = self.store()?;
+            let (kind, name, spec, del) = (self.def.kind, op.name.clone(), op.spec.clone(), op.op == OpKind::Delete);
+            store
+                .write(move |w| {
+                    if del {
+                        return w.del(kind, name.as_str()).map(|_| ());
+                    }
+                    let mut r = wisp_store::Row::new();
+                    r.insert("id".into(), Value::String(name));
+                    r.insert("body".into(), spec);
+                    w.upsert(kind, r).map(|_| ())
+                })
+                .await
+                .map_err(store_err)
+        })
+    }
+}
+
+/// Contributes a [`StoredKind`] for spec type `S` and hands it back, for the owner to read its specs.
+pub fn stored<S: schemars::JsonSchema>(s: &mut wisp_kernel::Setup, info: impl FnOnce(Value) -> KindInfo) -> std::sync::Arc<StoredKind> {
+    let k = std::sync::Arc::new(StoredKind::new(info(crate::schema_of::<S>()), s.ctx()));
+    let as_kind: std::sync::Arc<dyn ResourceKind> = k.clone();
+    s.contribute(&crate::RESOURCE_KIND, as_kind);
+    k
+}

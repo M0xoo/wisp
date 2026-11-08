@@ -11,6 +11,8 @@
 //!
 //! It never touches task history (ADR-0029): tasks aren't resources, so nothing here deletes one.
 
+mod capability;
+
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -31,10 +33,7 @@ fn kinds(ctx: &Ctx) -> Vec<Arc<dyn ResourceKind>> {
 
 /// The kind a resource names (by kind or by section).
 fn find<'a>(ks: &'a [Arc<dyn ResourceKind>], name: &str) -> Option<&'a Arc<dyn ResourceKind>> {
-    ks.iter().find(|k| {
-        let i = k.info();
-        i.kind == name || i.section == name
-    })
+    ks.iter().find(|k| k.info().named(name))
 }
 
 fn verb(op: OpKind) -> &'static str {
@@ -61,7 +60,7 @@ async fn make_plan(ctx: &Ctx, call: &Call, a: &PlanArgs) -> Result<Plan> {
         let desired: Vec<Resource> = a
             .resources
             .iter()
-            .filter(|r| r.kind == info.kind || r.kind == info.section)
+            .filter(|r| info.named(&r.kind))
             .map(|r| {
                 let mut spec = r.spec.clone();
                 k.normalize(&mut spec);
@@ -125,13 +124,37 @@ async fn apply(ctx: &Ctx, call: &Call, a: &PlanArgs) -> Result<Applied> {
         return Err(WireError::forbidden(format!("this formula comes from elsewhere and changes who may act: {}. Apply it with --trust once you've read it", p.sensitive.join("; "))));
     }
     let ks = kinds(ctx);
-    let mut n = 0;
+    let mut done: Vec<&Op> = Vec::new();
     for op in &p.ops {
         let Some(k) = find(&ks, &op.kind) else { continue };
-        apply_one(k.as_ref(), call, op).await?;
-        n += 1;
+        if let Err(e) = apply_one(k.as_ref(), call, op).await {
+            // all or nothing: what went before is undone, last first, through the same owners
+            let left = rollback(&ks, call, &done).await;
+            let tail = if left.is_empty() { format!("nothing was changed ({} undone)", done.len()) } else { format!("these couldn't be undone: {}", left.join("; ")) };
+            return Err(WireError::new(e.code, format!("{} ({tail})", e.message)));
+        }
+        done.push(op);
     }
-    Ok(Applied { plan: p, applied: n })
+    Ok(Applied { applied: done.len(), plan: p })
+}
+
+/// Undoes `done` (last first); what couldn't be undone, in words.
+async fn rollback(ks: &[Arc<dyn ResourceKind>], call: &Call, done: &[&Op]) -> Vec<String> {
+    let mut left = Vec::new();
+    for op in done.iter().rev() {
+        let Some(k) = find(ks, &op.kind) else { continue };
+        let now = k.read(call).await.ok().and_then(|rs| rs.into_iter().find(|r| r.name == op.name));
+        let Some(back) = plan::undo(op, now.as_ref()) else {
+            if op.op == OpKind::Update {
+                left.push(format!("{}/{}: no spec to put back", op.kind, op.name));
+            }
+            continue;
+        };
+        if let Err(e) = k.apply(call, &back).await {
+            left.push(format!("{}/{}: {}", op.kind, op.name, e.message));
+        }
+    }
+    left
 }
 
 async fn apply_one(k: &dyn ResourceKind, call: &Call, op: &Op) -> Result<()> {
@@ -142,8 +165,8 @@ async fn export(ctx: &Ctx, call: &Call, a: &ExportArgs) -> Result<Vec<Resource>>
     let mut out = Vec::new();
     for k in kinds(ctx) {
         let i = k.info();
-        let named = a.kinds.is_empty() || a.kinds.iter().any(|x| *x == i.kind || *x == i.section);
-        let included = i.scope == Scope::Shared || a.include.iter().any(|x| *x == i.kind || *x == i.section) || (!a.kinds.is_empty() && named);
+        let named = a.kinds.is_empty() || a.kinds.iter().any(|x| i.named(x));
+        let included = i.scope == Scope::Shared || a.include.iter().any(|x| i.named(x)) || (!a.kinds.is_empty() && named);
         if !(named && included) {
             continue;
         }
@@ -161,6 +184,7 @@ impl Plugin for ResourcesPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
+        crate::capability::register(s);
         s.command::<Kinds, _, _>(|ctx, _, _| {
             let list: Vec<KindInfo> = kinds(&ctx).iter().map(|k| k.info()).collect();
             async move { Ok(list) }

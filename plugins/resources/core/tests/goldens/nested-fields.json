@@ -6,6 +6,15 @@
   ],
   "ops": [
     {
+      "before": {
+        "concurrency": 2,
+        "tasks": {
+          "tests": {
+            "agent": "fast",
+            "prompt": "run"
+          }
+        }
+      },
       "changes": [
         {
           "path": "tasks/report",

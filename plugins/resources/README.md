@@ -27,14 +27,36 @@ would change.
 
 ## Kinds today
 
-`setting` (wisp.settings), `agent` (runtime), `crew`, `task` (automations; sensitive), `workflow`
-(workflows), `router`.
+| Owner | Kinds |
+|---|---|
+| wisp.settings | `setting`, `ui` (device) |
+| wisp.runtime | `agent`, `project`, `harness`, `skill`, `team` |
+| wisp.accounts | `account` (personal) |
+| wisp.crew | `crew` |
+| wisp.machine | `machine` (sensitive) |
+| wisp.connectors | `connector` |
+| wisp.mcp | `tools` |
+| wisp.resources | `capability` (sensitive) |
+| wisp.channels | `channel` (sensitive), `notification` |
+| wisp.automations | `task` (alias `recipes:`, sensitive), `trigger` (sensitive) |
+| wisp.goal | `goal` |
+| wisp.budget | `budget` (stop lines applied) |
+| wisp.router | `router`, `pipeline` |
+| wisp.plugins | `plugin` (sensitive) |
+| wisp.stuff | `app`, `pane` |
+| wisp.workflows | `workflow` |
+
+`account`, `crew`, `setting`, `agent`, `task`, `workflow`, `router` and budget's stop lines act on real
+state through their owners' commands. The others are kept as declared (`StoredKind`, in the owner's own
+`<plugin>_spec_<kind>` table) until their owner is ported and reads them. They are exported, diffed and
+applied like the rest.
+
+**Apply is all or nothing:** if an op fails, the ops already applied are undone, last first, through the
+same owners. The error then says "nothing was changed", or names what couldn't be undone.
 
 ## Not yet
 
-- **Kinds:** `project`, `harness`, `account`, `team`, `skill`, `machine`, `connector`, `tools`,
-  `capability`, `channel`, `trigger`, `goal`, `budget`, `pipeline`, `plugin`, `app`/`pane`, `ui`.
-  Their plugins don't keep them as rows or commands yet; `pending-kinds.txt` lists the ones with tables.
-- **Apply:** it isn't all-or-nothing. A failing op stops it after the ones before it.
-- **Other commands:** `wisp run --formula f.yml "task"` (an ephemeral overlay), `wisp grid deploy -f`, and
-  `wisp import` as "export v1 as a formula, then apply".
+- **Kinds:** `grid` and `box` (wisp Grid's client isn't in this build). The owners above that keep
+  declared specs still have to act on them: worktree policy, setup scripts, harness pins, connectors,
+  channels, triggers, machines, capabilities, plugins.
+- **Commands:** `wisp run --formula f.yml "task"` (an ephemeral overlay) and `wisp grid deploy -f`.

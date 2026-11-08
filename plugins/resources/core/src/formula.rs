@@ -193,7 +193,7 @@ impl Reader<'_> {
 
     fn sections(&mut self, m: &Map<String, Value>, at: &str) -> Result<(), String> {
         for (section, v) in m.iter().filter(|(k, _)| !META.contains(&k.as_str())) {
-            let Some(kind) = self.kinds.iter().find(|k| k.section == *section || k.kind == *section) else {
+            let Some(kind) = self.kinds.iter().find(|k| k.named(section)) else {
                 let known: Vec<&str> = self.kinds.iter().map(|k| k.section.as_str()).collect();
                 return Err(format!("{at}: no plugin in this wisp owns `{section}:` (sections: {})", known.join(", ")));
             };

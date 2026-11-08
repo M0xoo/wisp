@@ -6,6 +6,11 @@
   ],
   "ops": [
     {
+      "before": {
+        "effort": "high",
+        "harness": "codex",
+        "model": "gpt-5"
+      },
       "changes": [
         {
           "from": "gpt-5",

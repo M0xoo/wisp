@@ -12,7 +12,7 @@
 
 mod adapters;
 
-pub use adapters::{CrudKind, SettingsKind};
+pub use adapters::{CrudKind, SettingsKind, StoredKind, stored};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use wisp_kernel::{BoxFuture, Call, Command, Point, Result};
@@ -71,6 +71,9 @@ pub struct Op {
     pub id: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub changes: Vec<FieldChange>,
+    /// an update's spec before it: what a rollback puts back
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub before: Option<Value>,
 }
 
 /// Who a kind's resources belong to: exports leave out `personal` and `device` ones unless asked.
@@ -112,6 +115,9 @@ pub struct KindInfo {
     /// its specs are some of the owner's settings: the generic `setting` kind leaves those keys to it
     #[serde(default)]
     pub claims_settings: bool,
+    /// other section names a formula may use for it (`recipes:` for `tasks:`)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aliases: Vec<String>,
     /// JSON Schema of one spec
     pub schema: Value,
     /// one line for `wisp schema` and Settings → Import
@@ -122,7 +128,7 @@ pub struct KindInfo {
 impl KindInfo {
     pub fn new(kind: &str, section: &str, owner: &str, schema: Value) -> Self {
         let doc = schema.get("description").and_then(Value::as_str).unwrap_or_default().to_owned();
-        Self { kind: kind.into(), section: section.into(), owner: owner.into(), scope: Scope::Shared, sensitive: false, order: 100, map_form: false, singleton: false, claims_settings: false, schema, doc }
+        Self { kind: kind.into(), section: section.into(), owner: owner.into(), scope: Scope::Shared, sensitive: false, order: 100, map_form: false, singleton: false, claims_settings: false, aliases: Vec::new(), schema, doc }
     }
     #[must_use]
     pub fn order(mut self, n: i32) -> Self {
@@ -143,6 +149,15 @@ impl KindInfo {
     pub fn map_form(mut self) -> Self {
         self.map_form = true;
         self
+    }
+    #[must_use]
+    pub fn alias(mut self, section: &str) -> Self {
+        self.aliases.push(section.to_owned());
+        self
+    }
+    /// whether `name` is this kind's kind, section or an alias
+    pub fn named(&self, name: &str) -> bool {
+        self.kind == name || self.section == name || self.aliases.iter().any(|a| a == name)
     }
     #[must_use]
     pub fn singleton(mut self) -> Self {

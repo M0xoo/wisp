@@ -5,6 +5,7 @@
   ],
   "ops": [
     {
+      "before": 4,
       "changes": [
         {
           "from": 4,

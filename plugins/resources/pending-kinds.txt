@@ -1,7 +1,3 @@
 # Plugins that keep tables but have no resource kind yet (tools/check rust-resource-kinds, ADR-0028).
 # One per line: the plugin folder, then why. Take a plugin off when its kind lands; the check says when.
-accounts   # account kind (personal: harness accounts by reference, excluded from exports) not written yet
-budget     # budget kind (stop lines per account and window) not written yet; its config sits in its own table
-later      # its rows are follow-ups scheduled on tasks: task data, not configuration (ADR-0029)
-stuff      # app and pane kinds (My Stuff's apps with their source and grants) not written yet
-telemetry  # its rows are ids and the send queue: data, never declared (ADR-0028: a formula never sets telemetry)
+# A plugin whose tables are only data says so in its host instead: `//! resources: data-only (why)`.

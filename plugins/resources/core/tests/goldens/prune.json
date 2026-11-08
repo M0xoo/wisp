@@ -6,6 +6,9 @@
   ],
   "ops": [
     {
+      "before": {
+        "role": "reviewer"
+      },
       "changes": [
         {
           "from": "reviewer",
