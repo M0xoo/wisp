@@ -4220,6 +4220,8 @@ version = "2.0.0"
 dependencies = [
  "serde",
  "serde_json",
+ "thiserror 2.0.21",
+ "wisp-kernel",
  "wisp-terminal-api",
 ]
 

@@ -155,7 +155,7 @@ fn no_change(path: &str) -> bool {
     path == "node_modules" || path.starts_with("node_modules/")
 }
 
-/// One section per changed file, and every changed path (a linked node_modules is no change).
+/// One section per changed file, and every changed path (a linked `node_modules` is no change).
 pub fn sections_of(files: &[FileDiff]) -> (Vec<Section>, Vec<String>) {
     let kept: Vec<&FileDiff> = files.iter().filter(|f| !no_change(&f.path)).collect();
     let sections = kept

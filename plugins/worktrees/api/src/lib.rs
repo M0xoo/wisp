@@ -292,7 +292,7 @@ pub struct SetupEnvCtx {
 pub trait SetupSource: Send + Sync + 'static {
     /// None: the repo isn't set up for this tool
     fn read(&self, root: &str) -> BoxFuture<'static, Option<SourceScripts>>;
-    /// what its setup is told besides ROOT_WORKTREE_PATH
+    /// what its setup is told besides `ROOT_WORKTREE_PATH`
     fn env(&self, ctx: &SetupEnvCtx) -> Vec<(String, String)>;
     /// a path that looks like this tool's own worktrees: never wisp's to remove (`isForeign`)
     fn owns(&self, path: &str) -> bool;

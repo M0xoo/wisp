@@ -17,6 +17,7 @@ pub const NO_DIFF: &str = "Couldn’t read the PR’s diff";
 
 /// What `maybe` looks at.
 #[derive(Debug, Clone, Default)]
+#[allow(clippy::struct_excessive_bools)] // facts about the task, each its own yes/no
 pub struct Due<'a> {
     pub has_worktree: bool,
     /// a subtask (parentId): its lead's PR is the one reviewed
@@ -149,6 +150,7 @@ pub enum Outcome {
     Error { why: String },
 }
 
+#[derive(Debug)]
 pub struct Finish<'a> {
     pub head: &'a str,
     pub pick: &'a Pick,

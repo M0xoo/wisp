@@ -65,6 +65,7 @@ impl CheckGate {
 
 /// A task as the boot recheck sees it.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[allow(clippy::struct_excessive_bools)] // what boot reads off each task, each a yes/no
 pub struct BootTask {
     pub id: String,
     pub has_trees: bool,
@@ -80,7 +81,7 @@ pub fn boot_order(tasks: &[BootTask]) -> Vec<String> {
         .iter()
         .filter(|t| t.has_trees && !t.child && !t.archived && !t.merged)
         .collect();
-    due.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    due.sort_by_key(|t| std::cmp::Reverse(t.updated_at));
     due.into_iter().map(|t| t.id.clone()).collect()
 }
 

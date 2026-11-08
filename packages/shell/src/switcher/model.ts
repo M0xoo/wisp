@@ -17,7 +17,7 @@ export function startSwitch(open: string | undefined, recent: readonly string[],
   const at = open !== undefined && ids[0] === open ? 0 : -1;
   if (ids.length === 0 || (ids.length === 1 && at === 0)) return undefined;
   const n = ids.length;
-  return { ids, from: open, sel: back ? (at + n) % n : (at + 1) % n };
+  return { ids, from: open, sel: back ? (at < 0 ? n - 1 : (at - 1 + n) % n) : (at + 1) % n };
 }
 
 export function step(s: SwitchState, by: number): SwitchState {

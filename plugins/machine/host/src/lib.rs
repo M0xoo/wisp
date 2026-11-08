@@ -17,9 +17,9 @@ impl Plugin for MachinePlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
-        this_mac::setup(s)?;
-        hold::setup(s)?;
-        watch::setup(s)?;
+        this_mac::setup(s);
+        hold::setup(s);
+        watch::setup(s);
         Ok(())
     }
 }

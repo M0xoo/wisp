@@ -1,7 +1,7 @@
 //! A new worktree is a fresh checkout: what git ignores (`.env`, local config, a built cache) isn't in it,
 //! and some repos need a step first. So, as Claude Code, Cursor and Conductor do, wisp copies what
 //! `.worktreeinclude` names (copy-on-write where the file system has it) and runs the repo's setup with
-//! ROOT_WORKTREE_PATH set. Never fails the launch: what went wrong is returned for the task to say.
+//! `ROOT_WORKTREE_PATH` set. Never fails the launch: what went wrong is returned for the task to say.
 
 use std::collections::HashSet;
 use std::future::Future;
@@ -37,14 +37,16 @@ pub async fn included_paths(root: &str) -> Vec<String> {
         .collect();
     for line in file.as_deref().unwrap_or("").lines().map(str::trim) {
         let lit = line.trim_start_matches('/').trim_end_matches('/');
-        if lit.contains('/') && !lit.contains(['*', '?']) && !line.starts_with(['#', '!']) {
-            if let Ok(m) = tokio::fs::metadata(fsx::join(root, lit)).await {
-                listing.push(if m.is_dir() {
-                    format!("{lit}/")
-                } else {
-                    lit.to_owned()
-                });
-            }
+        if lit.contains('/')
+            && !lit.contains(['*', '?'])
+            && !line.starts_with(['#', '!'])
+            && let Ok(m) = tokio::fs::metadata(fsx::join(root, lit)).await
+        {
+            listing.push(if m.is_dir() {
+                format!("{lit}/")
+            } else {
+                lit.to_owned()
+            });
         }
     }
     listing.sort();

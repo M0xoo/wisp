@@ -51,23 +51,23 @@ impl Inner {
         let Some(at) = self.merge_base("HEAD", base).await? else {
             return Ok(None);
         };
-        let out = self
-            .git
-            .raw(
+        let diff_args = [
+            "diff",
+            "--no-color",
+            "--no-ext-diff",
+            "-M",
+            "-U3",
+            at.as_str(),
+        ];
+        let (out, listed) = tokio::join!(
+            self.git.raw(&self.dir, &diff_args),
+            self.git.raw(
                 &self.dir,
-                &["diff", "--no-color", "--no-ext-diff", "-M", "-U3", &at],
-            )
-            .await?;
-        let mut files = parse(out).await?;
-        let untracked = paths(&String::from_utf8_lossy(
-            &self
-                .git
-                .raw(
-                    &self.dir,
-                    &["ls-files", "--others", "--exclude-standard", "-z"],
-                )
-                .await?,
-        ));
+                &["ls-files", "--others", "--exclude-standard", "-z"]
+            ),
+        );
+        let mut files = parse(out?).await?;
+        let untracked = paths(&String::from_utf8_lossy(&listed?));
         let extra = untracked.len().saturating_sub(UNTRACKED_MAX);
         files.extend(
             read_untracked(
@@ -98,7 +98,12 @@ impl Inner {
     }
 
     pub async fn pack(&self, c: Collected, inline: bool) -> Result<Changes> {
-        let stats: Vec<FileStat> = c.files.iter().map(FileDiff::stat).collect();
+        let (c, stats) = tokio::task::spawn_blocking(move || {
+            let stats: Vec<FileStat> = c.files.iter().map(FileDiff::stat).collect();
+            (c, stats)
+        })
+        .await
+        .map_err(|e| GitError::Io(e.to_string()))?;
         let body = self.body(c.files, inline).await?;
         Ok(Changes {
             base: c.base,
@@ -152,47 +157,68 @@ impl Inner {
 
     /// Each file's stage state (v1 stageState): staged, still to stage (untracked counts), and per
     /// hunk for files staged hunk by hunk. Committed-only files are neither.
-    pub async fn stage_state(&self, files: &mut [FileDiff]) -> Result<u32> {
-        let unstaged = split_diff(&String::from_utf8_lossy(
-            &self
-                .git
-                .raw(&self.dir, APPLY_DIFF)
-                .await
-                .unwrap_or_default(),
-        ));
+    /// git's own two diffs (index → folder, HEAD → index) and the untracked list, side by side:
+    /// lock-free reads, so they may run with the Changes diff itself.
+    pub async fn stage_reads(&self) -> StageReads {
         let mut cached: Vec<&str> = APPLY_DIFF.to_vec();
         cached.push("--cached");
-        let staged = split_diff(&String::from_utf8_lossy(
-            &self.git.raw(&self.dir, &cached).await.unwrap_or_default(),
-        ));
-        let untracked = paths(
-            &self
-                .git
-                .quiet(
-                    &self.dir,
-                    &["ls-files", "--others", "--exclude-standard", "-z"],
-                )
-                .await,
+        let (un, st, ut) = tokio::join!(
+            self.git.raw(&self.dir, APPLY_DIFF),
+            self.git.raw(&self.dir, &cached),
+            self.git.quiet(
+                &self.dir,
+                &["ls-files", "--others", "--exclude-standard", "-z"]
+            ),
         );
+        let un = un.unwrap_or_default();
+        let st = st.unwrap_or_default();
+        tokio::task::spawn_blocking(move || StageReads {
+            unstaged: split_diff(&String::from_utf8_lossy(&un)),
+            staged: split_diff(&String::from_utf8_lossy(&st)),
+            untracked: paths(&ut).into_iter().collect(),
+        })
+        .await
+        .unwrap_or_default()
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct StageReads {
+    pub unstaged: Vec<wisp_git_core::stage::GitFile>,
+    pub staged: Vec<wisp_git_core::stage::GitFile>,
+    pub untracked: std::collections::HashSet<String>,
+}
+
+/// Each file's stage state from `reads` (by path: no scans, a change can touch thousands of files).
+pub fn apply_stage_state(files: &mut [FileDiff], reads: &StageReads) -> u32 {
+    let un: std::collections::HashMap<&str, &wisp_git_core::stage::GitFile> = reads
+        .unstaged
+        .iter()
+        .map(|g| (g.path.as_str(), g))
+        .collect();
+    let st: std::collections::HashMap<&str, &wisp_git_core::stage::GitFile> =
+        reads.staged.iter().map(|g| (g.path.as_str(), g)).collect();
+    {
+        let (unstaged, staged, untracked) = (&un, &st, &reads.untracked);
         let mut n = 0;
         for f in files.iter_mut() {
             let names: Vec<&str> = std::iter::once(f.path.as_str())
                 .chain(f.from.as_deref())
                 .collect();
-            let s = names.iter().any(|p| staged.iter().any(|g| g.path == *p));
+            let s = names.iter().any(|p| staged.contains_key(*p));
             let u = names
                 .iter()
-                .any(|p| unstaged.iter().any(|g| g.path == *p) || untracked.iter().any(|x| x == p));
+                .any(|p| unstaged.contains_key(*p) || untracked.contains(*p));
             f.staged = Some(s);
             f.unstaged = Some(u);
             if hunkable(f) && (s || u) {
-                let un = unstaged.iter().find(|g| g.path == f.path);
-                let st = staged.iter().find(|g| g.path == f.path);
+                let un = unstaged.get(f.path.as_str()).copied();
+                let st = staged.get(f.path.as_str()).copied();
                 f.hunk_stage = Some(hunk_states(&f.rows, un, st));
             }
             n += u32::from(s);
         }
-        Ok(n)
+        n
     }
 }
 

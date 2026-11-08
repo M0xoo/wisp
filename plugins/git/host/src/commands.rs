@@ -2,6 +2,7 @@
 //! git.js), over the same repo handles the service gives out. The deciders are in wisp-git-core
 //! (`ops`); here they meet the folder. File writes stay inside the folder (no link out, not .git).
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -44,6 +45,7 @@ pub(crate) mod lease {
     }
 }
 
+#[allow(clippy::needless_pass_by_value)] // used as map_err(refusal)
 fn refusal(r: Refusal) -> GitError {
     match r {
         Refusal::Stale(m) => GitError::Stale(m.into()),
@@ -53,7 +55,10 @@ fn refusal(r: Refusal) -> GitError {
 
 pub fn hash(bytes: &[u8]) -> String {
     let d = Sha256::digest(bytes);
-    d.iter().map(|b| format!("{b:02x}")).collect()
+    d.iter().fold(String::with_capacity(64), |mut s, b| {
+        let _ = write!(s, "{b:02x}");
+        s
+    })
 }
 
 async fn hash_at(file: &Path) -> Option<String> {
@@ -82,18 +87,33 @@ async fn target(root: &Path, rel: &str) -> Result<PathBuf> {
 pub async fn changes(svc: &Arc<GitServiceImpl>, a: ChangesArgs) -> Result<Option<Changes>> {
     let (repo, _g) = handle(svc, &a.path).await?;
     let me = &repo.inner;
-    let Some(mut c) = me.collect(&a.base).await? else {
+    // the stage reads run beside the Changes diff: each is ~one full diff on a big change
+    let (collected, reads) = tokio::join!(me.collect(&a.base), async {
+        if a.stage_state {
+            Some(me.stage_reads().await)
+        } else {
+            None
+        }
+    });
+    let Some(mut c) = collected? else {
         return Ok(None);
     };
-    if a.stage_state {
-        c.staged = Some(me.stage_state(&mut c.files).await?);
-    }
-    if a.mask {
-        for f in &mut c.files {
-            let shown = a.reveal.iter().any(|p| *p == f.path);
-            mask_file(f, shown);
+    // per-file work over a big change runs on the blocking pool, never a runtime worker
+    let (mask, reveal) = (a.mask, a.reveal);
+    let c = tokio::task::spawn_blocking(move || {
+        if let Some(reads) = reads {
+            c.staged = Some(crate::changes::apply_stage_state(&mut c.files, &reads));
         }
-    }
+        if mask {
+            for f in &mut c.files {
+                let shown = reveal.contains(&f.path);
+                mask_file(f, shown);
+            }
+        }
+        c
+    })
+    .await
+    .map_err(|e| GitError::Io(e.to_string()))?;
     Ok(Some(me.pack(c, a.inline).await?))
 }
 

@@ -24,11 +24,24 @@ pub fn machine_hold(k: &Knobs, battery: Option<Battery>, now: i64, tz: i64) -> O
     let paused = paused_until(k, now);
     if paused > 0 {
         let why = format!("Automations paused until {}", until_text(paused, now, tz));
-        return Some(Hold { load: true, kind: HoldKind::Paused, why, until: paused.min(now + RETRY_MS) });
+        return Some(Hold {
+            load: true,
+            kind: HoldKind::Paused,
+            why,
+            until: paused.min(now + RETRY_MS),
+        });
     }
     let at = battery_limit(k)?;
     let b = battery.filter(|b| !b.charging && b.pct < at)?;
-    Some(Hold { load: true, kind: HoldKind::Battery, why: format!("Waiting for power: battery at {}%, needs {at}% or the charger", b.pct), until: now + RETRY_MS })
+    Some(Hold {
+        load: true,
+        kind: HoldKind::Battery,
+        why: format!(
+            "Waiting for power: battery at {}%, needs {at}% or the charger",
+            b.pct
+        ),
+        until: now + RETRY_MS,
+    })
 }
 
 /// `POST /automations/pause {until}`: the new pause (ms), or `None` to resume (0).
@@ -58,9 +71,13 @@ pub fn check_pause(until: Option<&Value>, now: i64) -> Result<Option<i64>, Refus
 pub fn check_pid(pid: &Value) -> Result<u64, Refusal> {
     let n = js_number(pid);
     if !n.is_finite() || n.fract() != 0.0 || n <= 1.0 {
-        return Err(Refusal::new(RefusalKind::Invalid, "pid must be a process id"));
+        return Err(Refusal::new(
+            RefusalKind::Invalid,
+            "pid must be a process id",
+        ));
     }
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // whole and > 1; saturates past u64
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    // whole and > 1; saturates past u64
     Ok(n as u64)
 }
 
@@ -68,10 +85,16 @@ pub fn check_pid(pid: &Value) -> Result<u64, Refusal> {
 /// leftover, or in a running task's tree).
 pub fn check_stop(pid: u64, me: u32, ancestor: bool, mine: bool) -> Result<u32, Refusal> {
     if pid == u64::from(me) || ancestor {
-        return Err(Refusal::new(RefusalKind::Forbidden, "That is wisp itself: it isn’t stopped from here."));
+        return Err(Refusal::new(
+            RefusalKind::Forbidden,
+            "That is wisp itself: it isn’t stopped from here.",
+        ));
     }
     match u32::try_from(pid) {
         Ok(p) if mine => Ok(p),
-        _ => Err(Refusal::new(RefusalKind::Forbidden, "Not a process a task of wisp’s started, or it already ended.")),
+        _ => Err(Refusal::new(
+            RefusalKind::Forbidden,
+            "Not a process a task of wisp’s started, or it already ended.",
+        )),
     }
 }

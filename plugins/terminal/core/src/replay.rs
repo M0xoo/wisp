@@ -25,7 +25,11 @@ impl Default for Replay {
 
 impl Replay {
     pub fn new(limit: usize) -> Self {
-        Self { chunks: Vec::new(), kept: 0, limit }
+        Self {
+            chunks: Vec::new(),
+            kept: 0,
+            limit,
+        }
     }
 
     pub fn push(&mut self, text: &str) {
@@ -47,7 +51,11 @@ impl Replay {
     }
 
     fn compact(&mut self) {
-        let mut out = if self.chunks.len() == 1 { self.chunks.pop().unwrap_or_default() } else { self.chunks.concat() };
+        let mut out = if self.chunks.len() == 1 {
+            self.chunks.pop().unwrap_or_default()
+        } else {
+            self.chunks.concat()
+        };
         if out.len() > self.limit {
             out = out.split_off(cut_at(&out, out.len() - self.limit));
         }
@@ -64,10 +72,15 @@ impl Replay {
 fn cut_at(s: &str, from: usize) -> usize {
     let b = s.as_bytes();
     let end = (from + NEAR).min(b.len());
-    match b.get(from..end).and_then(|w| w.iter().position(|&c| c == b'\n' || c == 0x1b)) {
+    match b
+        .get(from..end)
+        .and_then(|w| w.iter().position(|&c| c == b'\n' || c == 0x1b))
+    {
         Some(i) if b.get(from + i) == Some(&b'\n') => from + i + 1,
         Some(i) => from + i,
-        None => (from..=s.len()).find(|&i| s.is_char_boundary(i)).unwrap_or(s.len()),
+        None => (from..=s.len())
+            .find(|&i| s.is_char_boundary(i))
+            .unwrap_or(s.len()),
     }
 }
 
@@ -97,17 +110,13 @@ impl Utf8Stream {
                 Err(e) => {
                     let (good, bad) = rest.split_at(e.valid_up_to());
                     out.push_str(std::str::from_utf8(good).unwrap_or_default());
-                    match e.error_len() {
-                        Some(n) => {
-                            out.push('\u{FFFD}');
-                            rest = bad.get(n..).unwrap_or_default();
-                        }
-                        // an unfinished character at the end: wait for the next read
-                        None => {
-                            self.tail = bad.to_vec();
-                            break;
-                        }
-                    }
+                    // None: an unfinished character at the end: wait for the next read
+                    let Some(n) = e.error_len() else {
+                        self.tail = bad.to_vec();
+                        break;
+                    };
+                    out.push('\u{FFFD}');
+                    rest = bad.get(n..).unwrap_or_default();
                 }
             }
         }
@@ -164,7 +173,11 @@ mod tests {
             r.push("0123456789");
             assert!(r.kept <= 200 + 10);
         }
-        assert_eq!(r.read().len(), 100, "no line or escape near: exactly the last 100 bytes");
+        assert_eq!(
+            r.read().len(),
+            100,
+            "no line or escape near: exactly the last 100 bytes"
+        );
     }
 
     #[test]
@@ -173,7 +186,11 @@ mod tests {
         r.push(&"é".repeat(20)); // 2 bytes each: the cut lands mid-character
         let out = r.read().to_owned();
         assert!(out.chars().all(|c| c == 'é') && out.len() <= 10);
-        assert_eq!(Replay::default().read(), "", "nothing printed: an empty replay");
+        assert_eq!(
+            Replay::default().read(),
+            "",
+            "nothing printed: an empty replay"
+        );
     }
 
     #[test]

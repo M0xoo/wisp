@@ -60,6 +60,8 @@ export interface Platform {
   onResume(fn: () => void): () => void;
   /** a notification was tapped: where it goes */
   onOpen(fn: (target: Target) => void): () => void;
+  /** loads the page again (a new build is ready) */
+  reload(): void;
 }
 
 /** The slice of `window` the implementations read; tests pass a fake. */
@@ -70,6 +72,7 @@ export interface PlatformWindow {
   addEventListener(type: string, fn: (e: Event) => void): void;
   removeEventListener(type: string, fn: (e: Event) => void): void;
   open(url: string, target?: string, features?: string): unknown;
+  readonly location: { reload(): void };
   readonly Notification?: typeof Notification;
   readonly __TAURI_INTERNALS__?: { invoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> };
   readonly Capacitor?: CapacitorGlobal;

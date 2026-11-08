@@ -95,6 +95,14 @@ fn wisp_tool(name: &str, input: &Value) -> Option<Tool> {
                 format!("Tagging the task: {}", clip(&list, 60))
             })
         }
+        _ => wisp_store_tool(name, input),
+    }
+}
+
+/// wisp's MCP tools for the task's PR, My Stuff and wisp's own records.
+fn wisp_store_tool(name: &str, input: &Value) -> Option<Tool> {
+    let t = |label: String| Some(Tool::new(ToolKind::Tool, label));
+    match name {
         "mcp__wisp__wisp_pr" => t(if truthy(&input["remove"]) {
             "Detaching a PR".into()
         } else {

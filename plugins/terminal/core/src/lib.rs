@@ -8,7 +8,15 @@
 //! - `size`, `env`, `folder`: sizes, the environment and the folder a terminal starts with
 //! - `apps`, `plan`, `quote`: terminal apps per platform and the steps that open one
 //! - `route`: what a v1 route body asks for
-#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing))]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::indexing_slicing
+    )
+)]
 
 pub mod apps;
 pub mod env;

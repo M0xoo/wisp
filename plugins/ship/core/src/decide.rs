@@ -261,7 +261,7 @@ pub fn prs_of(task: &ShipTask) -> Vec<PrRef> {
         .collect()
 }
 
-/// A PR reference as wisp_pr takes it: a URL, or a number (with or without `#`).
+/// A PR reference as `wisp_pr` takes it: a URL, or a number (with or without `#`).
 pub fn normalize_ref(r: &str) -> Result<String, Refusal> {
     let r = r.trim();
     let r = r.strip_prefix('#').unwrap_or(r);

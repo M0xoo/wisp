@@ -31,6 +31,7 @@ export function nullPlatform(over: Partial<Platform> = {}): Platform {
     openExternal: () => {},
     onResume: () => () => {},
     onOpen: () => () => {},
+    reload: () => {},
     ...over,
   };
 }

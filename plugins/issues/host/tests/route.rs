@@ -1,5 +1,24 @@
 //! v1's test/issues.test.js through `GET /issues`: a fake gh (wisp_proc's SimProc), a fake origin, a
 //! stand-in for Linear's GraphQL API. The list, search, the minute's cache, and each problem with its fix.
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::assert_is_empty,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::many_single_char_names,
+    clippy::range_plus_one,
+    clippy::format_push_string,
+    clippy::needless_pass_by_value,
+    clippy::needless_lifetimes,
+    clippy::elidable_lifetime_names,
+    clippy::option_option,
+    clippy::doc_markdown,
+    clippy::map_unwrap_or,
+    clippy::format_collect
+)]
 
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -245,7 +264,8 @@ async fn a_projects_open_github_issues_from_its_origin_remote() {
         ["issue", "list", "--repo", "acme/repo", "--state", "open"]
     );
     // gh never prompts and never nags about updates
-    let env = &w.sim.spawned().last().unwrap().env;
+    let spawned = w.sim.spawned();
+    let env = &spawned.last().unwrap().env;
     for k in [
         "GH_PROMPT_DISABLED",
         "GH_NO_UPDATE_NOTIFIER",

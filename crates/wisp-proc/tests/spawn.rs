@@ -9,6 +9,7 @@
 
 mod common;
 
+use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -226,9 +227,11 @@ async fn a_big_paste_goes_in_whole_while_the_program_prints() {
         ..SpawnOpts::default()
     };
     let (h, mut out) = proc.spawn("cat", &[], opts).unwrap().split();
-    let text: String = (0..4000)
-        .map(|i| format!("pasted line {i} {}\r", "x".repeat(40)))
-        .collect();
+    let pad = "x".repeat(40);
+    let mut text = String::new();
+    for i in 0..4000 {
+        let _ = write!(text, "pasted line {i} {pad}\r");
+    }
     h.write(text.into_bytes()).unwrap();
     read_until(&mut out, "pasted line 3999").await;
     assert_eq!(h.kill().await.survivors, 0);

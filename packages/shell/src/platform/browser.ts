@@ -106,6 +106,7 @@ export function browserPlatform(w: PlatformWindow): Platform {
         w.removeEventListener('focus', fn);
       };
     },
+    reload: () => w.location.reload(),
     onOpen(fn) {
       opens.add(fn);
       return () => opens.delete(fn);

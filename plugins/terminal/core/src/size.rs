@@ -11,8 +11,16 @@ pub struct Bounds {
     pub default: u16,
 }
 
-pub const COLS: Bounds = Bounds { lo: 20, hi: 500, default: 100 };
-pub const ROWS: Bounds = Bounds { lo: 5, hi: 200, default: 30 };
+pub const COLS: Bounds = Bounds {
+    lo: 20,
+    hi: 500,
+    default: 100,
+};
+pub const ROWS: Bounds = Bounds {
+    lo: 5,
+    hi: 200,
+    default: 30,
+};
 
 /// `n` rounded into `b`, or `or` when `n` is no number.
 pub fn clamp(n: Option<f64>, b: Bounds, or: u16) -> u16 {
@@ -57,10 +65,17 @@ mod tests {
 
     #[test]
     fn clamped_rounded_and_defaulted() {
-        assert_eq!((clamp(Some(9999.0), COLS, 1), clamp(Some(1.0), ROWS, 1)), (500, 5));
+        assert_eq!(
+            (clamp(Some(9999.0), COLS, 1), clamp(Some(1.0), ROWS, 1)),
+            (500, 5)
+        );
         assert_eq!(clamp(Some(119.6), COLS, 1), 120);
         assert_eq!(clamp(None, COLS, COLS.default), 100, "no size: 100 × 30");
-        assert_eq!(clamp(Some(f64::NAN), ROWS, 33), 33, "nonsense keeps the size");
+        assert_eq!(
+            clamp(Some(f64::NAN), ROWS, 33),
+            33,
+            "nonsense keeps the size"
+        );
         assert_eq!(clamp(Some(-4.0), COLS, 1), 20);
     }
 
@@ -72,7 +87,12 @@ mod tests {
         assert_eq!(number(&json!(null)), None);
         assert_eq!(number(&json!("")), None);
         assert!(truthy(Some(&json!(80))) && truthy(Some(&json!("80"))));
-        assert!(!truthy(Some(&json!(0))) && !truthy(Some(&json!(""))) && !truthy(None) && !truthy(Some(&json!(null))));
+        assert!(
+            !truthy(Some(&json!(0)))
+                && !truthy(Some(&json!("")))
+                && !truthy(None)
+                && !truthy(Some(&json!(null)))
+        );
     }
 
     /// Property: whatever a page sends, the size is inside the bounds.

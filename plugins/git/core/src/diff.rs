@@ -29,7 +29,9 @@ const LOCKFILES: &[&str] = &[
 pub fn generated_path(path: &str) -> bool {
     let name = path.rsplit('/').next().unwrap_or(path);
     if LOCKFILES.contains(&name)
-        || std::path::Path::new(name).extension().is_some_and(|e| e.eq_ignore_ascii_case("lock"))
+        || std::path::Path::new(name)
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("lock"))
         || name.ends_with(".min.js")
         || name.ends_with(".min.css")
     {
@@ -47,7 +49,10 @@ fn header_path(line: &str) -> Option<&str> {
     let rest = line.strip_prefix("diff --git a/")?;
     if rest.len() >= 3 && (rest.len() - 3) % 2 == 0 {
         let half = (rest.len() - 3) / 2;
-        if rest.is_char_boundary(half) && rest[half..].starts_with(" b/") && rest[..half] == rest[half + 3..] {
+        if rest.is_char_boundary(half)
+            && rest[half..].starts_with(" b/")
+            && rest[..half] == rest[half + 3..]
+        {
             return Some(&rest[half + 3..]);
         }
     }

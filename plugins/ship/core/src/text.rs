@@ -147,7 +147,7 @@ pub fn across_note(names: &[&str]) -> String {
     )
 }
 
-/// What wisp_pr tells the agent after attaching. `n`: the task's PRs now.
+/// What `wisp_pr` tells the agent after attaching. `n`: the task's PRs now.
 pub fn attach_text(pr: &PrSummary, own: bool, n: usize) -> String {
     let where_ = if own {
         "It is the PR of this task’s own branch: Ship it pushes to it.".to_owned()

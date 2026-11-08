@@ -5,5 +5,5 @@
     "plugins/*/api/src/**/*.ts", "plugins/*/host/src/**/*.ts", "plugins/*/host/test/**/*.ts",
     "apps/server/**/*.ts", "tools/**/*.ts"
   ],
-  "exclude": ["packages/ui", "packages/tokens/dist", "**/node_modules", "**/dist"]
+  "exclude": ["packages/ui", "packages/shell", "packages/tokens/dist", "**/node_modules", "**/dist"]
 }

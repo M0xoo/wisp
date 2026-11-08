@@ -103,9 +103,11 @@ pub fn parse_worktrees(out: &str) -> Vec<WorktreeEntry> {
         }
         let Some(w) = cur.as_mut() else { continue };
         if let Some(h) = line.strip_prefix("HEAD ") {
-            w.head = h.to_owned();
+            h.clone_into(&mut w.head);
         } else if let Some(b) = line.strip_prefix("branch ") {
-            w.branch = b.strip_prefix("refs/heads/").unwrap_or(b).to_owned();
+            b.strip_prefix("refs/heads/")
+                .unwrap_or(b)
+                .clone_into(&mut w.branch);
         } else if line == "bare" {
             w.bare = true;
         } else if line == "locked" || line.starts_with("locked ") {
@@ -199,7 +201,10 @@ pub fn why(stderr: &str, fallback: &str, strip: bool) -> String {
                     .is_none_or(|c| !c.is_alphanumeric())
         })
     };
-    let pick = lines.iter().find(|l| lead(l)).map_or_else(|| lines[lines.len().saturating_sub(3)..].join(" "), |l| (*l).to_owned());
+    let pick = lines.iter().find(|l| lead(l)).map_or_else(
+        || lines[lines.len().saturating_sub(3)..].join(" "),
+        |l| (*l).to_owned(),
+    );
     let pick = if pick.is_empty() {
         fallback.to_owned()
     } else {

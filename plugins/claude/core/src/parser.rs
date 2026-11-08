@@ -105,7 +105,7 @@ impl ClaudeParser {
         let Some(crate::msg::Lenient(u)) = &m.usage else {
             return;
         };
-        if truthy(&msg.parent_tool_use_id) {
+        if msg::truthy(msg.parent_tool_use_id) {
             return; // a subagent's context is its own
         }
         let n = |r| number_or_zero(&msg::value(r));
@@ -134,13 +134,14 @@ impl ClaudeParser {
 
     fn assistant(&mut self, msg: &Line, out: &mut Vec<Out>) {
         let m = &msg.message.0;
-        self.subagents.message(&msg.parent_tool_use_id, m);
+        self.subagents
+            .message(&msg::value(msg.parent_tool_use_id), m);
         self.note_context(msg, m);
-        let main = !truthy(&msg.parent_tool_use_id);
+        let main = !msg::truthy(msg.parent_tool_use_id);
         if msg::truthy(m.stop_reason) && main {
             self.refused = msg::is(m.stop_reason, "refusal"); // a subagent's refusal isn't the turn's
         }
-        if msg.error.as_str() == Some("authentication_failed") && main {
+        if msg::value(msg.error).as_str() == Some("authentication_failed") && main {
             let words = m.content.flatten();
             self.auth_failed = if words.is_empty() {
                 "authentication_failed".into()
@@ -200,56 +201,63 @@ impl ClaudeParser {
         }
     }
 
-    fn init(&mut self, msg: &Line, out: &mut Vec<Out>) {
+    fn init(&mut self, msg: &mut Line, out: &mut Vec<Out>) {
         // An API key (ANTHROPIC_API_KEY, apiKeyHelper…) bills API credit, not the plan. `none` is the
         // plan or a Console profile.
-        if truthy(&msg.api_key_source) && !NONE_OR_OAUTH.is_match(&str(&msg.api_key_source)) {
+        if truthy(&msg::value(msg.api_key_source))
+            && !NONE_OR_OAUTH.is_match(&str(&msg::value(msg.api_key_source)))
+        {
             out.push(ev(HarnessEvent::Billing {
                 kind: BillingKind::Api,
             }));
         }
+        let tools = msg::value(msg.tools);
+        self.subagents.init(&tools);
         // The tools this run had: two accounts of the same harness can differ.
-        if let Some(list) = msg.tools.as_array() {
-            out.push(ev(HarnessEvent::Tools { list: list.clone() }));
+        if let Value::Array(list) = tools {
+            out.push(ev(HarnessEvent::Tools { list }));
         }
-        if truthy(&msg.claude_code_version) {
+        if truthy(&msg::value(msg.claude_code_version)) {
             out.push(ev(HarnessEvent::Cli {
-                version: Some(js::string(&msg.claude_code_version)),
+                version: Some(js::string(&msg::value(msg.claude_code_version))),
                 catalog: None,
                 models: None,
             }));
         }
-        self.subagents.init(&msg.tools);
     }
 
-    fn system(&mut self, msg: &Line, out: &mut Vec<Out>) {
+    fn system(&mut self, msg: &mut Line, out: &mut Vec<Out>) {
         let sub = msg::text(msg.subtype);
         let sub = &*sub;
         if sub == "init" {
             return self.init(msg, out);
         }
         if sub == "compact_boundary" {
-            let meta = if msg.compact_metadata.is_object() {
-                msg.compact_metadata.clone()
-            } else {
-                json!({})
-            };
+            let meta = Some(msg::value(msg.compact_metadata))
+                .filter(Value::is_object)
+                .unwrap_or_else(|| json!({}));
             self.turn.context_tokens = 0.0;
             self.turn.compacted = true;
             self.turn.boundary = Some(meta);
             self.turn.unshrunk = None;
         }
-        if sub == "status" && truthy(&msg.compact_result) {
-            self.turn.unshrunk = (msg.compact_result.as_str() != Some("success"))
-                .then(|| js::trim(&str(js::or(&msg.compact_error, &msg.error))).to_owned());
+        if sub == "status" && truthy(&msg::value(msg.compact_result)) {
+            self.turn.unshrunk =
+                (msg::value(msg.compact_result).as_str() != Some("success")).then(|| {
+                    js::trim(&str(js::or(
+                        &msg::value(msg.compact_error),
+                        &msg::value(msg.error),
+                    )))
+                    .to_owned()
+                });
         }
         // A subagent started (claude 2.1.316 runs Agent calls in the background): its type.
         if sub == "task_started"
-            && msg.task_type.as_str() == Some("local_agent")
-            && truthy(&msg.tool_use_id)
+            && msg::value(msg.task_type).as_str() == Some("local_agent")
+            && truthy(&msg::value(msg.tool_use_id))
         {
             self.subagents.call(
-                &msg.tool_use_id,
+                &msg::value(msg.tool_use_id),
                 "Agent",
                 &json!({ "subagent_type": msg.subagent_type }),
             );
@@ -263,14 +271,20 @@ impl ClaudeParser {
         };
         // background_tasks_changed carries the full list; task_started/task_notification are the
         // per-task edges, kept for CLI versions that only send those (edge case 4).
-        if sub == "background_tasks_changed" && msg.tasks.is_array() {
-            let next = js::arr(&msg.tasks)
+        if sub == "background_tasks_changed" && msg::value(msg.tasks).is_array() {
+            let next = js::arr(&msg::value(msg.tasks))
                 .iter()
                 .map(|t| (str(&t["task_id"]), describe(&t["description"])))
                 .collect();
             self.set_background(next, out);
-        } else if sub == "task_started" && truthy(&msg.is_backgrounded) && truthy(&msg.task_id) {
-            let (id, d) = (str(&msg.task_id), describe(&msg.description));
+        } else if sub == "task_started"
+            && truthy(&msg::value(msg.is_backgrounded))
+            && truthy(&msg::value(msg.task_id))
+        {
+            let (id, d) = (
+                str(&msg::value(msg.task_id)),
+                describe(&msg::value(msg.description)),
+            );
             let mut next = self.background.clone();
             match next.iter_mut().find(|(k, _)| *k == id) {
                 Some(slot) => slot.1 = d,
@@ -278,9 +292,12 @@ impl ClaudeParser {
             }
             self.set_background(next, out);
         } else if sub == "task_notification"
-            && self.background.iter().any(|(k, _)| *k == str(&msg.task_id))
+            && self
+                .background
+                .iter()
+                .any(|(k, _)| *k == str(&msg::value(msg.task_id)))
         {
-            let id = str(&msg.task_id);
+            let id = str(&msg::value(msg.task_id));
             let next = self
                 .background
                 .iter()
@@ -384,9 +401,13 @@ impl ClaudeParser {
 
 impl LineParser for ClaudeParser {
     fn line(&mut self, line: &str, _now_ms: i64, out: &mut Vec<Out>) {
-        let Some(msg) = Line::parse(line) else { return };
-        if truthy(&msg.session_id) {
-            out.push(ev(HarnessEvent::session(str(&msg.session_id))));
+        let Some(mut msg) = Line::parse(line) else {
+            return;
+        };
+        if msg::truthy(msg.session_id) {
+            out.push(ev(HarnessEvent::session(
+                msg::text(msg.session_id).into_owned(),
+            )));
         }
         match &*msg::text(msg.ty) {
             "assistant" => self.assistant(&msg, out),
@@ -394,12 +415,11 @@ impl LineParser for ClaudeParser {
             // How much of the account's 5-hour and weekly windows is gone.
             "rate_limit_event" => out.extend(
                 msg.rate_limit_info
-                    .as_deref()
                     .and_then(RateLimitInfo::parse)
                     .and_then(|i| claude_limits(&i))
                     .map(|l| ev(HarnessEvent::Limits(l))),
             ),
-            "system" => self.system(&msg, out),
+            "system" => self.system(&mut msg, out),
             "result" => self.result(&msg, out),
             _ => {}
         }

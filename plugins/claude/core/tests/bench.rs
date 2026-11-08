@@ -90,17 +90,19 @@ fn bench_parser_throughput() {
     }
     #[allow(clippy::cast_precision_loss)]
     let (lps, mbs) = (LINES as f64 / best, bytes as f64 / best / 1e6);
+    #[allow(clippy::cast_precision_loss)]
+    let mb = bytes as f64 / 1e6;
     eprintln!(
         "claude parser: {LINES} lines ({:.1} MB, {events} events) in {:.2} ms = {:.0} lines/s, {mbs:.0} MB/s",
-        bytes as f64 / 1e6,
+        mb,
         best * 1e3,
         lps
     );
     assert!(iters == 0 || lps > 0.0);
 }
 
-/// The floor: serde_json scanning the same 50k lines into nothing, and the parser's own line read,
-/// in CPU time per run with BENCH_ITERS (as above). BENCH_WHAT=scan|line.
+/// The floor: `serde_json` scanning the same 50k lines into nothing, and the parser's own line read,
+/// in CPU time per run with `BENCH_ITERS` (as above). `BENCH_WHAT=scan|line`.
 #[test]
 #[ignore = "a measurement, not a check"]
 fn bench_floor() {

@@ -51,13 +51,21 @@ impl Placed {
 
     /// The pids whose memory the page shows: the runs' trees, what's left behind, and wisp.
     pub fn shown(&self, me: u32) -> Vec<u32> {
-        let mut out: Vec<u32> = self.trees.values().flatten().chain(&self.left).copied().chain(std::iter::once(me)).filter(|p| self.index.contains_key(p)).collect();
+        let mut out: Vec<u32> = self
+            .trees
+            .values()
+            .flatten()
+            .chain(&self.left)
+            .copied()
+            .chain(std::iter::once(me))
+            .filter(|p| self.index.contains_key(p))
+            .collect();
         out.sort_unstable();
         out.dedup();
         out
     }
 
-    /// macOS: phys_footprint in place of RSS where it read. True when any did.
+    /// macOS: `phys_footprint` in place of RSS where it read. True when any did.
     pub fn apply_footprints(&mut self, got: &HashMap<u32, u64>) -> bool {
         let mut any = false;
         for (pid, bytes) in got {
@@ -95,7 +103,10 @@ fn adopter(command: &str) -> bool {
     ["launchd", "systemd", "init"].iter().any(|name| {
         command.match_indices(name).any(|(i, _)| {
             let before = command[..i].chars().next_back().is_none_or(|c| c == '/');
-            let after = command[i + name.len()..].chars().next().is_none_or(|c| !(c.is_alphanumeric() || c == '_'));
+            let after = command[i + name.len()..]
+                .chars()
+                .next()
+                .is_none_or(|c| !(c.is_alphanumeric() || c == '_'));
             before && after
         })
     })
@@ -103,11 +114,25 @@ fn adopter(command: &str) -> bool {
 
 impl Attributor {
     pub fn new(platform: Platform, me: u32, home: &str) -> Self {
-        let sep = if platform == Platform::Windows { '\\' } else { '/' };
+        let sep = if platform == Platform::Windows {
+            '\\'
+        } else {
+            '/'
+        };
         let base = home.trim_end_matches(['/', '\\']);
-        let dir = if base.is_empty() { format!("worktrees{sep}") } else { format!("{base}{sep}worktrees{sep}") };
+        let dir = if base.is_empty() {
+            format!("worktrees{sep}")
+        } else {
+            format!("{base}{sep}worktrees{sep}")
+        };
         let wt_dir = path_key(platform, &dir);
-        Self { platform, me, wt_dir, tags: HashMap::new(), environ: HashMap::new() }
+        Self {
+            platform,
+            me,
+            wt_dir,
+            tags: HashMap::new(),
+            environ: HashMap::new(),
+        }
     }
 
     /// Linux: the pids whose `/proc/<pid>/environ` to read before `place` (once per process).
@@ -115,8 +140,22 @@ impl Attributor {
         if self.platform != Platform::Linux {
             return Vec::new();
         }
-        let fresh = |p: &Proc| self.environ.get(&p.pid).is_some_and(|(since, _)| (since - p.since).abs() < SAME_SINCE_MS);
-        procs.iter().filter(|p| p.rss > 0 && p.pid > 1 && p.pid != self.me && !self.tags.contains_key(&p.pid) && !fresh(p)).map(|p| p.pid).collect()
+        let fresh = |p: &Proc| {
+            self.environ
+                .get(&p.pid)
+                .is_some_and(|(since, _)| (since - p.since).abs() < SAME_SINCE_MS)
+        };
+        procs
+            .iter()
+            .filter(|p| {
+                p.rss > 0
+                    && p.pid > 1
+                    && p.pid != self.me
+                    && !self.tags.contains_key(&p.pid)
+                    && !fresh(p)
+            })
+            .map(|p| p.pid)
+            .collect()
     }
 
     pub fn set_environ(&mut self, pid: u32, since: i64, task: Option<String>) {
@@ -132,28 +171,48 @@ impl Attributor {
     }
 
     /// Places every process. `known(task)`: the task exists.
-    pub fn place(&mut self, procs: Vec<Proc>, runs: &[LiveRun], known: &dyn Fn(&str) -> bool) -> Placed {
-        let index: HashMap<u32, usize> = procs.iter().enumerate().map(|(i, p)| (p.pid, i)).collect();
+    pub fn place(
+        &mut self,
+        procs: Vec<Proc>,
+        runs: &[LiveRun],
+        known: &dyn Fn(&str) -> bool,
+    ) -> Placed {
+        let index: HashMap<u32, usize> =
+            procs.iter().enumerate().map(|(i, p)| (p.pid, i)).collect();
         let mut kids: HashMap<u32, Vec<u32>> = HashMap::new();
         for p in procs.iter().filter(|p| p.pid != p.ppid) {
             kids.entry(p.ppid).or_default().push(p.pid);
         }
         let get = |pid: u32| index.get(&pid).and_then(|i| procs.get(*i));
-        let same = |pid: u32, since: i64| get(pid).is_some_and(|p| (p.since - since).abs() < SAME_SINCE_MS);
+        let same = |pid: u32, since: i64| {
+            get(pid).is_some_and(|p| (p.since - since).abs() < SAME_SINCE_MS)
+        };
         self.tags.retain(|pid, t| same(*pid, t.since));
         self.environ.retain(|pid, (since, _)| same(*pid, *since));
         let mut trees: BTreeMap<String, HashSet<u32>> = BTreeMap::new();
-        for r in runs.iter().filter(|r| r.pid != 0 && index.contains_key(&r.pid)) {
+        for r in runs
+            .iter()
+            .filter(|r| r.pid != 0 && index.contains_key(&r.pid))
+        {
             let set = descendants(r.pid, &kids);
             for pid in &set {
                 if let Some(p) = get(*pid) {
-                    self.tags.insert(*pid, Tag { task: r.task.clone(), since: p.since });
+                    self.tags.insert(
+                        *pid,
+                        Tag {
+                            task: r.task.clone(),
+                            since: p.since,
+                        },
+                    );
                 }
             }
             trees.entry(r.task.clone()).or_default().extend(set);
         }
         let in_runs: HashSet<u32> = trees.values().flatten().copied().collect();
-        let own: HashSet<u32> = descendants(self.me, &kids).into_iter().filter(|p| !in_runs.contains(p)).collect();
+        let own: HashSet<u32> = descendants(self.me, &kids)
+            .into_iter()
+            .filter(|p| !in_runs.contains(p))
+            .collect();
         let mut ancestors = HashSet::new();
         let mut at = get(self.me).map(|p| p.ppid);
         while let Some(p) = at.filter(|p| *p > 0 && ancestors.len() < 64) {
@@ -174,33 +233,67 @@ impl Attributor {
         }
         let in_tree: HashSet<u32> = trees.values().flatten().copied().collect();
         let left = self.left_behind(&procs, &kids, &in_tree, &ours);
-        Placed { procs, index, trees, ancestors, left }
+        Placed {
+            procs,
+            index,
+            trees,
+            ancestors,
+            left,
+        }
     }
 
-    fn tag_from_env(&mut self, procs: &[Proc], in_runs: &HashSet<u32>, ours: &dyn Fn(u32) -> bool, known: &dyn Fn(&str) -> bool) {
+    fn tag_from_env(
+        &mut self,
+        procs: &[Proc],
+        in_runs: &HashSet<u32>,
+        ours: &dyn Fn(u32) -> bool,
+        known: &dyn Fn(&str) -> bool,
+    ) {
         for p in procs {
             if in_runs.contains(&p.pid) || ours(p.pid) || self.tags.contains_key(&p.pid) {
                 continue;
             }
-            let task = p.task.clone().or_else(|| self.environ.get(&p.pid).and_then(|(_, t)| t.clone()));
+            let task = p
+                .task
+                .clone()
+                .or_else(|| self.environ.get(&p.pid).and_then(|(_, t)| t.clone()));
             if let Some(task) = task.filter(|t| known(t)) {
-                self.tags.insert(p.pid, Tag { task, since: p.since });
+                self.tags.insert(
+                    p.pid,
+                    Tag {
+                        task,
+                        since: p.since,
+                    },
+                );
             }
         }
     }
 
     /// Tagged with a task that isn't running, or orphaned with a command under `<home>/worktrees`, and
     /// what those started.
-    fn left_behind(&self, procs: &[Proc], kids: &HashMap<u32, Vec<u32>>, in_tree: &HashSet<u32>, ours: &dyn Fn(u32) -> bool) -> HashSet<u32> {
+    fn left_behind(
+        &self,
+        procs: &[Proc],
+        kids: &HashMap<u32, Vec<u32>>,
+        in_tree: &HashSet<u32>,
+        ours: &dyn Fn(u32) -> bool,
+    ) -> HashSet<u32> {
         let parent: HashMap<u32, &Proc> = procs.iter().map(|p| (p.pid, p)).collect();
-        let orphan = |p: &Proc| p.ppid <= 1 || parent.get(&p.ppid).is_none_or(|pp| adopter(&pp.command));
+        let orphan =
+            |p: &Proc| p.ppid <= 1 || parent.get(&p.ppid).is_none_or(|pp| adopter(&pp.command));
         let mut left = HashSet::new();
         for p in procs {
             if in_tree.contains(&p.pid) || ours(p.pid) {
                 continue;
             }
-            if self.tags.contains_key(&p.pid) || (orphan(p) && path_key(self.platform, &p.command).contains(&self.wt_dir)) {
-                left.extend(descendants(p.pid, kids).into_iter().filter(|d| !in_tree.contains(d) && !ours(*d)));
+            if self.tags.contains_key(&p.pid)
+                || (orphan(p) && path_key(self.platform, &p.command).contains(&self.wt_dir))
+            {
+                left.extend(
+                    descendants(p.pid, kids)
+                        .into_iter()
+                        .filter(|d| !in_tree.contains(d) && !ours(*d)),
+                );
             }
         }
         left
@@ -208,17 +301,32 @@ impl Attributor {
 
     /// The task a pid is known by, if that task still exists.
     pub fn task_of(&self, pid: u32, known: &dyn Fn(&str) -> bool) -> Option<String> {
-        self.tags.get(&pid).map(|t| t.task.clone()).filter(|t| known(t))
+        self.tags
+            .get(&pid)
+            .map(|t| t.task.clone())
+            .filter(|t| known(t))
     }
 
     /// The leftovers 2 min or older, heaviest first, and the same grouped by what started them.
-    pub fn leftovers(&self, placed: &Placed, known: &dyn Fn(&str) -> bool, now: i64) -> (Vec<Leftover>, Vec<LeftoverGroup>) {
+    pub fn leftovers(
+        &self,
+        placed: &Placed,
+        known: &dyn Fn(&str) -> bool,
+        now: i64,
+    ) -> (Vec<Leftover>, Vec<LeftoverGroup>) {
         let mut rows: Vec<Leftover> = placed
             .left
             .iter()
             .filter_map(|pid| placed.get(*pid))
             .filter(|p| now - p.since >= LEFT_MS)
-            .map(|p| Leftover { pid: p.pid, command: p.command.clone(), rss: p.rss, cpu: round1(p.cpu), task: self.task_of(p.pid, known), since: p.since })
+            .map(|p| Leftover {
+                pid: p.pid,
+                command: p.command.clone(),
+                rss: p.rss,
+                cpu: round1(p.cpu),
+                task: self.task_of(p.pid, known),
+                since: p.since,
+            })
             .collect();
         // heaviest first; the pid keeps the order the same tick to tick
         rows.sort_by(|a, b| b.rss.cmp(&a.rss).then(a.pid.cmp(&b.pid)));
@@ -228,11 +336,22 @@ impl Attributor {
 
     /// Grouped by each one's topmost left-behind ancestor and the task. A child with no task of its own
     /// takes its root's.
-    fn groups(&self, placed: &Placed, rows: &[Leftover], known: &dyn Fn(&str) -> bool) -> Vec<LeftoverGroup> {
+    fn groups(
+        &self,
+        placed: &Placed,
+        rows: &[Leftover],
+        known: &dyn Fn(&str) -> bool,
+    ) -> Vec<LeftoverGroup> {
         let root_of = |pid: u32| {
             let mut r = placed.get(pid);
             for _ in 0..64 {
-                match r.and_then(|x| placed.left.contains(&x.ppid).then(|| placed.get(x.ppid)).flatten()) {
+                match r.and_then(|x| {
+                    placed
+                        .left
+                        .contains(&x.ppid)
+                        .then(|| placed.get(x.ppid))
+                        .flatten()
+                }) {
                     Some(up) => r = Some(up),
                     None => break,
                 }
@@ -248,7 +367,17 @@ impl Attributor {
             let id = group_id(task.as_deref().unwrap_or_default(), &command);
             let g = groups.entry(id.clone()).or_insert_with(|| {
                 order.push(id.clone());
-                LeftoverGroup { id, command, task, count: 0, rss: 0, cpu: 0.0, pids: Vec::new(), commands: Vec::new(), since: l.since }
+                LeftoverGroup {
+                    id,
+                    command,
+                    task,
+                    count: 0,
+                    rss: 0,
+                    cpu: 0.0,
+                    pids: Vec::new(),
+                    commands: Vec::new(),
+                    since: l.since,
+                }
             });
             g.count += 1;
             g.rss += l.rss;
@@ -259,8 +388,11 @@ impl Attributor {
                 g.commands.push(l.command.clone());
             }
         }
-        let mut out: Vec<LeftoverGroup> = order.into_iter().filter_map(|id| groups.remove(&id)).collect();
-        out.sort_by(|a, b| b.rss.cmp(&a.rss));
+        let mut out: Vec<LeftoverGroup> = order
+            .into_iter()
+            .filter_map(|id| groups.remove(&id))
+            .collect();
+        out.sort_by_key(|g| std::cmp::Reverse(g.rss));
         out
     }
 }
@@ -268,16 +400,24 @@ impl Attributor {
 /// The folder a command line names, as the platform compares paths: on Windows a command line may use
 /// `/` or `\` and any case for the same folder (`C:/Users` and `c:\users`).
 pub fn path_key(platform: Platform, s: &str) -> String {
-    if platform == Platform::Windows { s.replace('\\', "/").to_lowercase() } else { s.to_owned() }
+    if platform == Platform::Windows {
+        s.replace('\\', "/").to_lowercase()
+    } else {
+        s.to_owned()
+    }
 }
 
 /// A group's id: 10 hex characters, the same for the same task and command on every tick (FNV-1a:
 /// stable across builds, and a few groups at once never meet in 40 bits).
 pub fn group_id(task: &str, command: &str) -> String {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in task.bytes().chain(std::iter::once(0)).chain(command.bytes()) {
+    for b in task
+        .bytes()
+        .chain(std::iter::once(0))
+        .chain(command.bytes())
+    {
         h ^= u64::from(b);
         h = h.wrapping_mul(0x0100_0000_01b3);
     }
-    format!("{:016x}", h)[..10].to_owned()
+    format!("{h:016x}")[..10].to_owned()
 }

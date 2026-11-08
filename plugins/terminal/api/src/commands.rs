@@ -56,7 +56,7 @@ pub struct OpenArgs {
     pub rows: Option<f64>,
     /// a terminal session (v1 services/tui.js): its follow-ups are typed in, not refused
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(optional)]
+    #[ts(as = "Option<bool>", optional)]
     pub tui: bool,
 }
 
@@ -97,7 +97,7 @@ pub struct ShellStartArgs {
     #[ts(optional)]
     pub rows: Option<f64>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(optional)]
+    #[ts(as = "Option<bool>", optional)]
     pub restart: bool,
 }
 
@@ -108,7 +108,7 @@ pub struct ShellInfoArgs {
     pub id: String,
     /// the request came through the grid's edge or a machine's proxy: no terminal app here for it
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(optional)]
+    #[ts(as = "Option<bool>", optional)]
     pub via_proxy: bool,
 }
 
@@ -125,7 +125,7 @@ pub struct OpenAppArgs {
     pub cwd: String,
     pub argv: Vec<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(optional)]
+    #[ts(as = "Option<bool>", optional)]
     pub via_proxy: bool,
 }
 
@@ -151,16 +151,34 @@ mod tests {
 
     #[test]
     fn ids_and_permissions() {
-        assert_eq!((Open::ID, Open::PERMISSION), ("terminal.open", Some("terminal:open")));
+        assert_eq!(
+            (Open::ID, Open::PERMISSION),
+            ("terminal.open", Some("terminal:open"))
+        );
         assert_eq!(ShellStart::PERMISSION, Some("terminal:shell"));
-        assert!(Get::READ_ONLY && ShellInfoOf::READ_ONLY && Apps::READ_ONLY && !Input::READ_ONLY);
+        assert_eq!(
+            [
+                Get::READ_ONLY,
+                ShellInfoOf::READ_ONLY,
+                Apps::READ_ONLY,
+                Input::READ_ONLY
+            ],
+            [true, true, true, false]
+        );
     }
 
     #[test]
     fn args_read_as_v1_bodies() {
-        let a: InputArgs = serde_json::from_value(json!({"id": "s", "data": "x", "seq": 3, "from": "p"})).unwrap_or_default();
-        assert_eq!((a.kind, a.seq, a.from.as_deref()), (TermKind::Takeover, Some(3), Some("p")));
-        let o: OpenArgs = serde_json::from_value(json!({"kind": "shell", "id": "s", "argv": ["sh"], "cwd": "/"})).unwrap_or_default();
+        let a: InputArgs =
+            serde_json::from_value(json!({"id": "s", "data": "x", "seq": 3, "from": "p"}))
+                .unwrap_or_default();
+        assert_eq!(
+            (a.kind, a.seq, a.from.as_deref()),
+            (TermKind::Takeover, Some(3), Some("p"))
+        );
+        let o: OpenArgs =
+            serde_json::from_value(json!({"kind": "shell", "id": "s", "argv": ["sh"], "cwd": "/"}))
+                .unwrap_or_default();
         assert_eq!((o.kind, o.cols, o.tui), (TermKind::Shell, None, false));
     }
 }

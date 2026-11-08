@@ -1,0 +1,9 @@
+{
+  "name": "wisp",
+  "short_name": "wisp",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#151517",
+  "theme_color": "#151517",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

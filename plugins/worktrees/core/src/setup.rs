@@ -29,19 +29,52 @@ fn steps(v: &Value) -> Vec<String> {
         Value::Array(a) => a.iter().collect::<Vec<_>>(),
         other => vec![other],
     };
-    list.into_iter().filter_map(Value::as_str).filter(|c| !c.trim().is_empty()).map(str::to_owned).collect()
+    list.into_iter()
+        .filter_map(Value::as_str)
+        .filter(|c| !c.trim().is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 /// `own`, `cursor`: the files' text when there. `other`: the first contributed source that had one.
-pub fn repo_setup(own: Option<&str>, cursor: Option<&str>, other: Option<&SourceScripts>) -> RepoSetup {
-    if let Some(v) = json(own).as_ref().and_then(|j| j.get("setup")).filter(|v| !v.is_null()) {
-        return RepoSetup { file: Some(OWN_FILE.into()), commands: steps(v), problem: None };
+pub fn repo_setup(
+    own: Option<&str>,
+    cursor: Option<&str>,
+    other: Option<&SourceScripts>,
+) -> RepoSetup {
+    if let Some(v) = json(own)
+        .as_ref()
+        .and_then(|j| j.get("setup"))
+        .filter(|v| !v.is_null())
+    {
+        return RepoSetup {
+            file: Some(OWN_FILE.into()),
+            commands: steps(v),
+            problem: None,
+        };
     }
-    if let Some(v) = json(cursor).as_ref().and_then(|j| j.get("setup-worktree")).filter(|v| !v.is_null()) {
-        return RepoSetup { file: Some(CURSOR_FILE.into()), commands: steps(v), problem: None };
+    if let Some(v) = json(cursor)
+        .as_ref()
+        .and_then(|j| j.get("setup-worktree"))
+        .filter(|v| !v.is_null())
+    {
+        return RepoSetup {
+            file: Some(CURSOR_FILE.into()),
+            commands: steps(v),
+            problem: None,
+        };
     }
     match other {
-        Some(s) => RepoSetup { file: Some(s.file.clone()), commands: s.setup.iter().filter(|c| !c.trim().is_empty()).cloned().collect(), problem: s.problem.clone() },
+        Some(s) => RepoSetup {
+            file: Some(s.file.clone()),
+            commands: s
+                .setup
+                .iter()
+                .filter(|c| !c.trim().is_empty())
+                .cloned()
+                .collect(),
+            problem: s.problem.clone(),
+        },
         None => RepoSetup::default(),
     }
 }
@@ -51,22 +84,38 @@ pub fn first_line(cmd: &str) -> String {
     let t = cmd.trim();
     let mut lines = t.lines();
     let first = lines.next().unwrap_or("");
-    if lines.next().is_some() { format!("{first}…") } else { first.to_owned() }
+    if lines.next().is_some() {
+        format!("{first}…")
+    } else {
+        first.to_owned()
+    }
 }
 
 /// What the task says about a failed step: its first line and the last three lines of what it said.
 pub fn step_failed(cmd: &str, stderr: &str, fallback: &str) -> String {
-    let said = if stderr.trim().is_empty() { fallback } else { stderr };
+    let said = if stderr.trim().is_empty() {
+        fallback
+    } else {
+        stderr
+    };
     let lines: Vec<&str> = said.trim().lines().collect();
     let tail = lines[lines.len().saturating_sub(3)..].join(" ");
     format!("setup `{}` failed: {tail}", first_line(cmd))
 }
 
 /// The shell a step runs in: `$SHELL -c`, `cmd.exe /d /s /c` on Windows.
-pub fn shell_argv(windows: bool, shell: Option<&str>, comspec: Option<&str>, cmd: &str) -> (String, Vec<String>) {
+pub fn shell_argv(
+    windows: bool,
+    shell: Option<&str>,
+    comspec: Option<&str>,
+    cmd: &str,
+) -> (String, Vec<String>) {
     if windows {
         let bin = comspec.filter(|s| !s.is_empty()).unwrap_or("cmd.exe");
-        (bin.to_owned(), vec!["/d".into(), "/s".into(), "/c".into(), cmd.to_owned()])
+        (
+            bin.to_owned(),
+            vec!["/d".into(), "/s".into(), "/c".into(), cmd.to_owned()],
+        )
     } else {
         let bin = shell.filter(|s| !s.is_empty()).unwrap_or("/bin/sh");
         (bin.to_owned(), vec!["-c".into(), cmd.to_owned()])
@@ -87,26 +136,59 @@ pub struct RunCommand {
 /// How to run the app from a folder: own `run` (and `port`), else the contributed source's run script
 /// (its problem refuses it: a guess wouldn't be what the repo asked for), else package.json's dev, then
 /// start, marked as a guess. None: nothing to go on.
-pub fn run_command(own: Option<&str>, other: Option<&SourceScripts>, package_json: Option<&str>) -> Option<RunCommand> {
+pub fn run_command(
+    own: Option<&str>,
+    other: Option<&SourceScripts>,
+    package_json: Option<&str>,
+) -> Option<RunCommand> {
     let own = json(own);
-    let port = own.as_ref().and_then(|j| j.get("port")).and_then(Value::as_u64).and_then(|p| u16::try_from(p).ok()).filter(|p| *p > 0);
-    let base = |source, command: Option<String>| RunCommand { command, port, source, file: None, cwd: None, problem: None };
-    if let Some(cmd) = own.as_ref().and_then(|j| j.get("run")).and_then(Value::as_str).map(str::trim).filter(|c| !c.is_empty()) {
+    let port = own
+        .as_ref()
+        .and_then(|j| j.get("port"))
+        .and_then(Value::as_u64)
+        .and_then(|p| u16::try_from(p).ok())
+        .filter(|p| *p > 0);
+    let base = |source, command: Option<String>| RunCommand {
+        command,
+        port,
+        source,
+        file: None,
+        cwd: None,
+        problem: None,
+    };
+    if let Some(cmd) = own
+        .as_ref()
+        .and_then(|j| j.get("run"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+    {
         return Some(base("config", Some(cmd.to_owned())));
     }
     if let Some(s) = other {
         if s.problem.is_some() {
-            return Some(RunCommand { file: Some(s.file.clone()), problem: s.problem.clone(), ..base("conductor", None) });
+            return Some(RunCommand {
+                file: Some(s.file.clone()),
+                problem: s.problem.clone(),
+                ..base("conductor", None)
+            });
         }
         if let Some(r) = &s.run {
-            return Some(RunCommand { file: Some(s.file.clone()), cwd: r.cwd.clone(), ..base("conductor", Some(r.command.clone())) });
+            return Some(RunCommand {
+                file: Some(s.file.clone()),
+                cwd: r.cwd.clone(),
+                ..base("conductor", Some(r.command.clone()))
+            });
         }
     }
     let scripts = json(package_json).and_then(|p| p.get("scripts").cloned())?;
     if scripts.get("dev").is_some_and(Value::is_string) {
         return Some(base("package.json", Some("npm run dev".into())));
     }
-    scripts.get("start").is_some_and(Value::is_string).then(|| base("package.json", Some("npm start".into())))
+    scripts
+        .get("start")
+        .is_some_and(Value::is_string)
+        .then(|| base("package.json", Some("npm start".into())))
 }
 
 #[cfg(test)]
@@ -115,7 +197,15 @@ mod tests {
     use wisp_worktrees_api::RunScript;
 
     fn conductor(setup: Option<&str>, problem: Option<&str>) -> SourceScripts {
-        SourceScripts { file: ".conductor/settings.toml".into(), setup: setup.map(str::to_owned), run: Some(RunScript { command: "bin/dev".into(), cwd: Some("web".into()) }), problem: problem.map(str::to_owned) }
+        SourceScripts {
+            file: ".conductor/settings.toml".into(),
+            setup: setup.map(str::to_owned),
+            run: Some(RunScript {
+                command: "bin/dev".into(),
+                cwd: Some("web".into()),
+            }),
+            problem: problem.map(str::to_owned),
+        }
     }
 
     #[test]
@@ -124,12 +214,25 @@ mod tests {
         assert_eq!(repo_setup(None, Some(cursor), None).commands, ["npm ci"]);
         let own = r#"{"setup":"pnpm i"}"#;
         let s = repo_setup(Some(own), Some(cursor), None);
-        assert_eq!((s.file.as_deref(), s.commands), (Some(OWN_FILE), vec!["pnpm i".to_owned()]));
+        assert_eq!(
+            (s.file.as_deref(), s.commands),
+            (Some(OWN_FILE), vec!["pnpm i".to_owned()])
+        );
         let c = conductor(Some("make"), None);
-        assert_eq!(repo_setup(None, Some(cursor), Some(&c)).file.as_deref(), Some(CURSOR_FILE), "Cursor stays ahead of Conductor");
+        assert_eq!(
+            repo_setup(None, Some(cursor), Some(&c)).file.as_deref(),
+            Some(CURSOR_FILE),
+            "Cursor stays ahead of Conductor"
+        );
         assert_eq!(repo_setup(None, None, Some(&c)).commands, ["make"]);
-        assert_eq!(repo_setup(Some("{not json"), None, None), RepoSetup::default());
-        assert_eq!(repo_setup(Some(r#"{"setup":["a", 3, "  ", "b"]}"#), None, None).commands, ["a", "b"]);
+        assert_eq!(
+            repo_setup(Some("{not json"), None, None),
+            RepoSetup::default()
+        );
+        assert_eq!(
+            repo_setup(Some(r#"{"setup":["a", 3, "  ", "b"]}"#), None, None).commands,
+            ["a", "b"]
+        );
     }
 
     #[test]
@@ -145,22 +248,53 @@ mod tests {
     #[test]
     fn failures_name_the_first_line_and_the_tail() {
         assert_eq!(first_line("echo a\necho b"), "echo a…");
-        assert_eq!(step_failed("false", "", "exit 1"), "setup `false` failed: exit 1");
-        assert_eq!(step_failed("x", "1\n2\n3\n4\n", ""), "setup `x` failed: 2 3 4");
+        assert_eq!(
+            step_failed("false", "", "exit 1"),
+            "setup `false` failed: exit 1"
+        );
+        assert_eq!(
+            step_failed("x", "1\n2\n3\n4\n", ""),
+            "setup `x` failed: 2 3 4"
+        );
         assert_eq!(shell_argv(false, None, None, "ls").0, "/bin/sh");
-        assert_eq!(shell_argv(true, None, None, "dir").1, ["/d", "/s", "/c", "dir"]);
+        assert_eq!(
+            shell_argv(true, None, None, "dir").1,
+            ["/d", "/s", "/c", "dir"]
+        );
     }
 
     #[test]
     fn run_command_own_then_source_then_a_package_json_guess() {
         let own = r#"{"run":" npm run dev ","port":5173}"#;
         let r = run_command(Some(own), None, None).unwrap();
-        assert_eq!((r.command.as_deref(), r.port, r.source), (Some("npm run dev"), Some(5173), "config"));
+        assert_eq!(
+            (r.command.as_deref(), r.port, r.source),
+            (Some("npm run dev"), Some(5173), "config")
+        );
         let c = conductor(None, None);
         let r = run_command(Some(r#"{"port":70000}"#), Some(&c), None).unwrap();
-        assert_eq!((r.command.as_deref(), r.cwd.as_deref(), r.port), (Some("bin/dev"), Some("web"), None));
-        assert_eq!(run_command(None, None, Some(r#"{"scripts":{"start":"node ."}}"#)).unwrap().command.as_deref(), Some("npm start"));
-        assert_eq!(run_command(None, None, Some(r#"{"scripts":{"dev":"vite","start":"x"}}"#)).unwrap().command.as_deref(), Some("npm run dev"));
+        assert_eq!(
+            (r.command.as_deref(), r.cwd.as_deref(), r.port),
+            (Some("bin/dev"), Some("web"), None)
+        );
+        assert_eq!(
+            run_command(None, None, Some(r#"{"scripts":{"start":"node ."}}"#))
+                .unwrap()
+                .command
+                .as_deref(),
+            Some("npm start")
+        );
+        assert_eq!(
+            run_command(
+                None,
+                None,
+                Some(r#"{"scripts":{"dev":"vite","start":"x"}}"#)
+            )
+            .unwrap()
+            .command
+            .as_deref(),
+            Some("npm run dev")
+        );
         assert_eq!(run_command(None, None, Some("{}")), None);
     }
 }

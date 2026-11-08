@@ -173,8 +173,11 @@ async fn a_foreign_worktree_is_merged_but_never_tidied() {
         .merge_all(&h.call, "t")
         .await
         .unwrap_or_else(|e| panic!("{e}"));
-    assert!(h.git.logged("branch -D").is_empty());
-    assert!(h.git.logged("worktree remove").is_empty());
+    assert_eq!(h.git.logged("branch -D"), [] as [std::string::String; 0]);
+    assert_eq!(
+        h.git.logged("worktree remove"),
+        [] as [std::string::String; 0]
+    );
 }
 
 #[tokio::test]
@@ -197,7 +200,7 @@ async fn attach_and_detach_a_pr_by_url() {
         .await
         .unwrap_or_else(|e| panic!("{e}"));
     assert!(d.text.starts_with("Detached PR #9"));
-    assert!(h.task("t").prs.is_empty());
+    assert_eq!(h.task("t").prs, [] as [wisp_ship_api::AttachedPr; 0]);
     assert!(
         h.ship
             .attach(&h.call, "t", "https://github.com/acme/docs/pull/404", false)

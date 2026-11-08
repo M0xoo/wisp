@@ -94,9 +94,53 @@ fn run_fixture(dir: &Path, name: &str) -> Option<(Vec<Value>, Vec<Value>)> {
     Some((got, golden))
 }
 
+fn fixtures() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
+}
+
+/// The named fixtures parse as v1 did (the edge cases of docs/v1-edge-cases.md, "Harness runners").
+fn as_v1(names: &[&str]) {
+    for name in names {
+        let (got, want) = run_fixture(&fixtures(), name).unwrap_or_default();
+        assert!(
+            !want.is_empty()
+                && got.len() == want.len()
+                && got.iter().zip(&want).all(|(a, b)| same(a, b)),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn edge_1_resume_holds_the_early_result_but_a_compaction_is_final() {
+    as_v1(&[
+        "orphans",
+        "compact",
+        "compact-real",
+        "compact-none",
+        "context-compact",
+    ]);
+}
+
+#[test]
+fn edge_2_counters_count_the_prior_turn_only_when_they_grew() {
+    as_v1(&["restored", "restored-zero", "unknown-prior"]);
+}
+
+#[test]
+fn edge_4_background_tasks_keep_the_turn_open() {
+    as_v1(&["background", "background-done", "background-exit"]);
+}
+
+#[test]
+fn edge_9_a_stop_is_its_own_flag() {
+    // stopped after the early result: it is dropped, and the turn ends stopped
+    as_v1(&["hang-stop", "orphans-only"]);
+}
+
 #[test]
 fn g6_every_recorded_run_parses_as_v1_did() {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let dir = fixtures();
     let mut names: Vec<String> = std::fs::read_dir(&dir)
         .map(|r| {
             r.filter_map(Result::ok)

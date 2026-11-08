@@ -9,6 +9,7 @@ import { Dynamic } from 'solid-js/web';
 import type { EntityKey, Nav } from '@wisp/client';
 import { EmptyState, Stack, useSignal } from '@wisp/ui';
 import { useShell } from '../context.tsx';
+import type { ExtensionProps } from '../contract.ts';
 import { Area, Slot, useViewClient } from '../slot.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { FallbackList } from './FallbackList.tsx';
@@ -16,13 +17,15 @@ import { PeerBanner } from './PeerBanner.tsx';
 
 const FallbackTask = lazy(() => import('./FallbackTask.tsx'));
 
-function useSession(id: () => string | undefined): () => (SessionRow & { agent: string }) | undefined {
+type SessionProp = NonNullable<ExtensionProps['session']>;
+
+function useSession(id: () => string | undefined): SessionProp {
   const shell = useShell();
   const row = createMemo(() => {
     const key = id();
     return key === undefined ? undefined : shell.client.entities.row<SessionRow>(SESSION, key as EntityKey);
   });
-  return () => row()?.() as (SessionRow & { agent: string }) | undefined;
+  return () => row()?.() as ReturnType<SessionProp>;
 }
 
 export function ListPane(): JSX.Element {

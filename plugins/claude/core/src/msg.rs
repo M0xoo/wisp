@@ -220,9 +220,13 @@ pub fn text<'a>(raw: Option<&'a RawValue>) -> Cow<'a, str> {
     let Some(r) = raw else {
         return Cow::Borrowed("");
     };
+    // serde never borrows into a Cow: a string with no escapes borrows as &str, one with them decodes.
     if r.get().starts_with('"') {
-        if let Ok(s) = serde_json::from_str::<Cow<'a, str>>(r.get()) {
-            return s;
+        if let Ok(s) = serde_json::from_str::<&'a str>(r.get()) {
+            return Cow::Borrowed(s);
+        }
+        if let Ok(s) = serde_json::from_str::<String>(r.get()) {
+            return Cow::Owned(s);
         }
     }
     Cow::Owned(js::str(&value(Some(r))))

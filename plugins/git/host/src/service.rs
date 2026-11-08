@@ -48,7 +48,7 @@ impl GitServiceImpl {
 
     /// Handles held right now.
     pub fn cached(&self) -> usize {
-        self.repos.lock().map(|m| m.len()).unwrap_or(0)
+        self.repos.lock().map_or(0, |m| m.len())
     }
 
     fn root_state(&self, root: &Path) -> Arc<RootState> {
@@ -88,18 +88,17 @@ impl GitServiceImpl {
         let dir = tokio::fs::canonicalize(&path)
             .await
             .map_err(|_| GitError::NoFolder(path.clone()))?;
-        let repo = match self.reuse(&dir) {
-            Some(r) => r,
-            None => {
-                let r = self.resolve(&dir).await?;
-                let mut m = self
-                    .repos
-                    .lock()
-                    .map_err(|_| GitError::Io("repo cache".into()))?;
-                let e = m.entry(dir.clone()).or_insert(Entry { repo: r, owners: 0 });
-                e.owners += 1;
-                e.repo.clone()
-            }
+        let repo = if let Some(r) = self.reuse(&dir) {
+            r
+        } else {
+            let r = self.resolve(&dir).await?;
+            let mut m = self
+                .repos
+                .lock()
+                .map_err(|_| GitError::Io("repo cache".into()))?;
+            let e = m.entry(dir.clone()).or_insert(Entry { repo: r, owners: 0 });
+            e.owners += 1;
+            e.repo.clone()
         };
         let me = self.clone();
         tokio::spawn(async move {

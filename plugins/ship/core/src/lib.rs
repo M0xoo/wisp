@@ -1,6 +1,15 @@
 //! wisp-ship-core: Ship it's pure logic, sans-IO (no tokio, fs, net or clock: times are passed in).
 //! gh's JSON in, PR rows out; the deciders between the git and gh calls the host makes; the follow-up
 //! policy (polls, news, conflict fixes) and the recheck gate.
+#![cfg_attr(
+    test,
+    allow(
+        clippy::assert_is_empty,
+        clippy::option_option,
+        clippy::doc_markdown,
+        clippy::map_unwrap_or
+    )
+)]
 
 pub mod decide;
 pub mod detail;

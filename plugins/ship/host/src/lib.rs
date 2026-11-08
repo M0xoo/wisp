@@ -48,22 +48,22 @@ fn sink(ctx: &Ctx) -> ship::Sink {
         let call = ctx.root_call();
         match out {
             Out::Step { session, shipping } => {
-                ctx.emit(&call, &api::ShipStep { session, shipping })
+                ctx.emit(&call, &api::ShipStep { session, shipping });
             }
             Out::ToShip { session, to_ship } => {
-                ctx.emit(&call, &api::ToShipChanged { session, to_ship })
+                ctx.emit(&call, &api::ToShipChanged { session, to_ship });
             }
             Out::PrOpened { session, repo, pr } => {
-                ctx.emit(&call, &api::PrOpened { session, repo, pr })
+                ctx.emit(&call, &api::PrOpened { session, repo, pr });
             }
             Out::PrChanged { session, pr, news } => {
-                ctx.emit(&call, &api::PrChanged { session, pr, news })
+                ctx.emit(&call, &api::PrChanged { session, pr, news });
             }
             Out::Merged { session, prs, sync } => {
-                ctx.emit(&call, &api::PrMerged { session, prs, sync })
+                ctx.emit(&call, &api::PrMerged { session, prs, sync });
             }
             Out::FollowUp { session, prompt } => {
-                ctx.emit(&call, &api::FollowUpWanted { session, prompt })
+                ctx.emit(&call, &api::FollowUpWanted { session, prompt });
             }
             Out::Fix { .. } => {}
         }

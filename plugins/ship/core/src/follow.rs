@@ -74,6 +74,7 @@ pub fn is_also_news(prev: &PrSummary, pr: &PrSummary) -> bool {
 
 /// What the task is doing, as the conflict fix needs to know it (runtime and ship own these).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[allow(clippy::struct_excessive_bools)] // independent reasons a task is busy
 pub struct Busy {
     /// a turn is running
     pub live: bool,
@@ -169,10 +170,10 @@ pub fn why_not_fixing(task: &ShipTask, busy: Busy) -> &'static str {
     let pr = task.pr();
     if !pr.is_some_and(|p| p.conflict) {
         "The PR has no merge conflicts now."
-    } else if !task
+    } else if task
         .repos
         .first()
-        .is_some_and(|r| r.worktree.remote.is_some())
+        .is_none_or(|r| r.worktree.remote.is_none())
     {
         "This repo has no origin remote to push to."
     } else if busy.ask {

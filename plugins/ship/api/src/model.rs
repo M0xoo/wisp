@@ -25,7 +25,7 @@ pub struct PrSummary {
     /// OPEN | CLOSED | MERGED
     pub state: String,
     pub draft: bool,
-    /// APPROVED | CHANGES_REQUESTED | REVIEW_REQUIRED | ""
+    /// `APPROVED` | `CHANGES_REQUESTED` | `REVIEW_REQUIRED` | ""
     pub review: String,
     pub merge_state: String,
     /// GitHub can't merge it into its base (UNKNOWN while it computes is not a conflict)
@@ -250,7 +250,7 @@ pub struct ShipRepo {
     pub pr: Option<PrSummary>,
 }
 
-/// A PR the agent attached to its task (wisp_pr) that isn't its own branch's.
+/// A PR the agent attached to its task (`wisp_pr`) that isn't its own branch's.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "ship/")]
 pub struct AttachedPr {

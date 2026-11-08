@@ -1,5 +1,24 @@
 //! v1's test/review.test.js, case by case. The git-backed diffSections cases run on parsed `FileDiff`s
 //! (the shape git.service hands over); constraintsOf's extraction is handoff's and tested there.
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::assert_is_empty,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::many_single_char_names,
+    clippy::range_plus_one,
+    clippy::format_push_string,
+    clippy::needless_pass_by_value,
+    clippy::needless_lifetimes,
+    clippy::elidable_lifetime_names,
+    clippy::option_option,
+    clippy::doc_markdown,
+    clippy::map_unwrap_or,
+    clippy::format_collect
+)]
 
 use serde_json::{Value, json};
 use wisp_git_api::{FileDiff, Row};

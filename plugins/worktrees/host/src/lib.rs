@@ -54,10 +54,13 @@ impl WorktreesPlugin {
     }
 }
 
+/// The engine, the cleanup and the port, built once.
+type Parts = (Arc<Engine>, Arc<Cleanup>, Arc<dyn Port>);
+
 /// What the handlers share: built once the plugin set has resolved (git.service is provided by then).
 pub struct State {
     pub plugin: WorktreesPlugin,
-    built: OnceCell<(Arc<Engine>, Arc<Cleanup>, Arc<dyn Port>)>,
+    built: OnceCell<Parts>,
     /// a sweep is already due a few minutes after a new folder took the count past the cap
     pub cap_pending: std::sync::atomic::AtomicBool,
 }
@@ -193,7 +196,18 @@ mod tests {
         assert_eq!(m.id, "wisp.worktrees", "{:?}", m.description);
         assert!(m.requires.contains_key("git.service"));
         let st = super::State::new(p);
-        let r: Vec<(&str, &str)> = super::routes::routes(&st).iter().map(|r| (r.method, r.pattern)).collect();
-        assert_eq!(r, [("GET", "/worktrees"), ("POST", "/worktrees/clean"), ("GET", "/sessions/:id/folders"), ("POST", "/sessions/:id/folders")]);
+        let r: Vec<(&str, &str)> = super::routes::routes(&st)
+            .iter()
+            .map(|r| (r.method, r.pattern))
+            .collect();
+        assert_eq!(
+            r,
+            [
+                ("GET", "/worktrees"),
+                ("POST", "/worktrees/clean"),
+                ("GET", "/sessions/:id/folders"),
+                ("POST", "/sessions/:id/folders")
+            ]
+        );
     }
 }

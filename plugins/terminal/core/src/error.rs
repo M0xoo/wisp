@@ -13,7 +13,9 @@ pub enum TerminalError {
     ShellEnded,
     #[error("A shell inside wisp needs macOS or Linux on the computer the task runs on.")]
     NoPty,
-    #[error("Taking over inside wisp needs macOS or Linux on the computer the task runs on. Pick a terminal app in Settings → General.")]
+    #[error(
+        "Taking over inside wisp needs macOS or Linux on the computer the task runs on. Pick a terminal app in Settings → General."
+    )]
     NoPtyTakeover,
     #[error("There’s no terminal app on the computer this task runs on: use the one in the panel.")]
     NoApp,
@@ -36,8 +38,13 @@ impl From<TerminalError> for WireError {
     fn from(e: TerminalError) -> Self {
         let m = e.to_string();
         match e {
-            TerminalError::NoSession | TerminalError::NoTerminal | TerminalError::ShellEnded => WireError::not_found(m),
-            TerminalError::NoPty | TerminalError::NoPtyTakeover | TerminalError::InWisp | TerminalError::NoCustom(_) => WireError::invalid(m),
+            TerminalError::NoSession | TerminalError::NoTerminal | TerminalError::ShellEnded => {
+                WireError::not_found(m)
+            }
+            TerminalError::NoPty
+            | TerminalError::NoPtyTakeover
+            | TerminalError::InWisp
+            | TerminalError::NoCustom(_) => WireError::invalid(m),
             TerminalError::NoApp | TerminalError::Busy => WireError::conflict(m),
         }
     }
@@ -49,7 +56,22 @@ mod tests {
 
     #[test]
     fn statuses_are_v1s() {
-        assert_eq!([TerminalError::NoSession, TerminalError::NoTerminal, TerminalError::ShellEnded].map(|e| e.status()), [404; 3]);
-        assert_eq!((TerminalError::NoPty.status(), TerminalError::NoApp.status(), TerminalError::Busy.status()), (400, 409, 409));
+        assert_eq!(
+            [
+                TerminalError::NoSession,
+                TerminalError::NoTerminal,
+                TerminalError::ShellEnded
+            ]
+            .map(|e| e.status()),
+            [404; 3]
+        );
+        assert_eq!(
+            (
+                TerminalError::NoPty.status(),
+                TerminalError::NoApp.status(),
+                TerminalError::Busy.status()
+            ),
+            (400, 409, 409)
+        );
     }
 }

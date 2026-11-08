@@ -86,7 +86,7 @@ impl Inner {
         })
     }
 
-    /// Removes the worktree and its folder, then forgets what git calls prunable. A large node_modules
+    /// Removes the worktree and its folder, then forgets what git calls prunable. A large `node_modules`
     /// takes a while: five minutes.
     pub async fn worktree_remove(&self, path: &str) -> Result<()> {
         let _turn = self.shared.worktrees.lock().await;

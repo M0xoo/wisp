@@ -1,5 +1,6 @@
 //! v1 test/ship.test.js and test/workspace.test.js's PR panel, ported onto a fake git.service and a
 //! fake gh behind the proc service. Each test names the v1 case (or edge case) it ports.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod fake_gh;
 mod fake_git;
@@ -39,6 +40,7 @@ pub struct H {
     pub git: FakeGit,
     pub gh: FakeGh,
     pub outs: Arc<Mutex<Vec<Out>>>,
+    #[allow(dead_code)] // tests move time with it
     pub clock: Arc<FakeClock>,
     pub dir: PathBuf,
     pub call: Call,
@@ -184,8 +186,7 @@ fn the_manifest_is_valid_and_names_every_command() {
         .contributes
         .get("commands")
         .and_then(|v| v.as_array())
-        .map(Vec::len)
-        .unwrap_or(0);
+        .map_or(0, Vec::len);
     assert_eq!(cmds, 10);
     for p in [
         "git:repo",

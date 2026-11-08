@@ -1,5 +1,5 @@
 //! Numbers as v1 wrote them. JavaScript prints a whole `f64` without a fraction (`105`, not `105.0`);
-//! serde_json keeps the `.0`. The page reads either, but goldens and older clients compare text, so a
+//! `serde_json` keeps the `.0`. The page reads either, but goldens and older clients compare text, so a
 //! whole value goes out as an integer.
 
 use serde::Serializer;

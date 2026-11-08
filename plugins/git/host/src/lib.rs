@@ -28,7 +28,7 @@ pub use shared::Now;
 
 #[derive(Debug, Default)]
 pub struct GitPlugin {
-    /// a git to run instead of the one found on PATH (tests; v1's WISP_GIT_BIN)
+    /// a git to run instead of the one found on PATH (tests; v1's `WISP_GIT_BIN`)
     pub git_bin: Option<String>,
 }
 

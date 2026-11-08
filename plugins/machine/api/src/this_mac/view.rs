@@ -39,7 +39,7 @@ pub struct MemInfo {
     /// Linux PSI `some avg10`
     #[serde(serialize_with = "super::num::opt")]
     pub pressure: Option<f64>,
-    /// what each process's `rss` is: `footprint` (macOS phys_footprint, Activity Monitor's Memory) or `rss`
+    /// what each process's `rss` is: `footprint` (macOS `phys_footprint`, Activity Monitor's Memory) or `rss`
     pub per: MemoryPer,
 }
 

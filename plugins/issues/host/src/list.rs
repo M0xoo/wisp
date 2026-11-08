@@ -150,9 +150,8 @@ impl Lister {
         jira: bool,
     ) -> IssueList {
         let origin = match (&p.dir, core::github_repo(&p.repo)) {
-            (_, Some(_)) => None,
             (Some(dir), None) => self.deps.origin.origin(call, dir).await,
-            (None, None) => None,
+            _ => None,
         };
         let Some(repo) = core::repo_of_project(&p.repo, origin.as_deref()) else {
             return core::no_remote(&p.name, linear, jira);

@@ -74,9 +74,7 @@ impl Shipper {
             repo.status(call),
             repo.count(call, &format!("{}..HEAD", wt.base_ref))
         );
-        let dirty = st
-            .map(|s| u32::try_from(s.dirty()).unwrap_or(u32::MAX))
-            .unwrap_or(0);
+        let dirty = st.map_or(0, |s| u32::try_from(s.dirty()).unwrap_or(u32::MAX));
         let mut counts = Vec::new();
         for r in unpushed_from(wt, merged_head(pr)) {
             let n = repo.count(call, &format!("{r}..HEAD")).await.ok().flatten();
@@ -123,7 +121,7 @@ impl Shipper {
     ) -> Result<PrSummary> {
         self.ensure(call, wt).await?;
         let repo = self.repo(call, &wt.path).await?;
-        if repo.status(call).await.map(|s| s.dirty()).unwrap_or(0) > 0 {
+        if repo.status(call).await.map_or(0, |s| s.dirty()) > 0 {
             let (message, body) = commit_message(req.title, req.body)?;
             on_step("commit");
             repo.commit(
@@ -270,7 +268,7 @@ impl Shipper {
         )
     }
 
-    /// After the fix-up turn: the base is merged in with nothing half done (git.service base_merged).
+    /// After the fix-up turn: the base is merged in with nothing half done (git.service `base_merged`).
     pub async fn base_merged(
         &self,
         call: &Call,

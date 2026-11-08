@@ -11,6 +11,7 @@ pub type Fut<T> = BoxFuture<'static, T>;
 
 /// A task as review sees it (v1's `s.pr`, `s.worktree`, `s.goal`, `s.review`), read from the session.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[allow(clippy::struct_excessive_bools)] // facts about the task review reads
 pub struct Task {
     pub id: String,
     pub title: String,
@@ -67,12 +68,25 @@ pub trait Env: Send + Sync + 'static {
     /// HEAD of the folder, None when git can't tell
     fn head(&self, call: &Call, dir: &str) -> Fut<Option<String>>;
     /// the work since the merge-base with `base`: None when git answered nothing
-    fn changes(&self, call: &Call, dir: &str, base: &str) -> Fut<Option<(Vec<FileDiff>, Vec<String>)>>;
+    fn changes(
+        &self,
+        call: &Call,
+        dir: &str,
+        base: &str,
+    ) -> Fut<Option<(Vec<FileDiff>, Vec<String>)>>;
     fn tests(&self, call: &Call, dir: &str, cwd: &str) -> Fut<Option<TestsRun>>;
     /// the reviewer's JSON answer, None when it gave none
-    fn ask(&self, call: &Call, prompt: String, cwd: &str, pick: &Pick, timeout_ms: u64) -> Fut<Option<Value>>;
+    fn ask(
+        &self,
+        call: &Call,
+        prompt: String,
+        cwd: &str,
+        pick: &Pick,
+        timeout_ms: u64,
+    ) -> Fut<Option<Value>>;
     /// writes the task's review slot (None clears it); marks it unread when `unread`
-    fn save(&self, call: &Call, id: &str, review: Option<&Review>, unread: bool) -> Fut<Result<()>>;
+    fn save(&self, call: &Call, id: &str, review: Option<&Review>, unread: bool)
+    -> Fut<Result<()>>;
     fn finished(&self, call: &Call, e: &ReviewFinished);
     fn now(&self) -> i64;
 }

@@ -41,12 +41,20 @@ pub fn long_branch(title: &str, id: &str) -> String {
 
 /// The branch to make, given whether the short one already exists.
 pub fn branch_for(title: &str, id: &str, short_taken: bool) -> String {
-    if short_taken { long_branch(title, id) } else { short_branch(title, id) }
+    if short_taken {
+        long_branch(title, id)
+    } else {
+        short_branch(title, id)
+    }
 }
 
 /// A moved task keeps its branch name when it is a plausible ref name and free (v1 unpackWork).
 pub fn keeps_branch(name: &str) -> bool {
-    !name.is_empty() && name.len() <= 120 && name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '/' | '-'))
+    !name.is_empty()
+        && name.len() <= 120
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '/' | '-'))
 }
 
 /// The last path segment.
@@ -56,7 +64,11 @@ pub fn basename(p: &str) -> &str {
 
 /// `<home>/worktrees/<basename(root)>-<id>`.
 pub fn worktree_dir(home: &str, root: &str, id: &str) -> String {
-    format!("{}/worktrees/{}-{id}", home.trim_end_matches('/'), basename(root))
+    format!(
+        "{}/worktrees/{}-{id}",
+        home.trim_end_matches('/'),
+        basename(root)
+    )
 }
 
 /// `cwd` relative to `root`, or None when it is `root` itself or outside it.
@@ -88,14 +100,20 @@ mod tests {
         assert_eq!(slug("ÉTÉ ✓"), "t");
         let long = slug("a very long title that goes on and on past thirty-two characters");
         assert!(long.len() <= 32 && !long.ends_with('-'), "{long}");
-        assert_eq!(slug("abcdefghijklmnopqrstuvwxyz01234-6789"), "abcdefghijklmnopqrstuvwxyz01234");
+        assert_eq!(
+            slug("abcdefghijklmnopqrstuvwxyz01234-6789"),
+            "abcdefghijklmnopqrstuvwxyz01234"
+        );
     }
 
     #[test]
     fn branch_is_short_then_full_id_when_taken() {
         let id = "0192abcdef0123456789";
         assert_eq!(branch_for("Fix login", id, false), "wisp/fix-login-0192ab");
-        assert_eq!(branch_for("Fix login", id, true), "wisp/fix-login-0192abcdef0123456789");
+        assert_eq!(
+            branch_for("Fix login", id, true),
+            "wisp/fix-login-0192abcdef0123456789"
+        );
         assert_eq!(branch_for("!!!", id, false), "wisp/task-0192ab");
     }
 
@@ -103,9 +121,16 @@ mod tests {
     fn a_launch_from_a_subfolder_keeps_it() {
         let dir = worktree_dir("/h/.wisp", "/src/app", "abc");
         assert_eq!(dir, "/h/.wisp/worktrees/app-abc");
-        assert_eq!(worktree_cwd(&dir, "/src/app", "/src/app/web/ui"), "/h/.wisp/worktrees/app-abc/web/ui");
+        assert_eq!(
+            worktree_cwd(&dir, "/src/app", "/src/app/web/ui"),
+            "/h/.wisp/worktrees/app-abc/web/ui"
+        );
         assert_eq!(worktree_cwd(&dir, "/src/app", "/src/app"), dir);
-        assert_eq!(worktree_cwd(&dir, "/src/app", "/src/application"), dir, "a sibling with the same prefix is outside");
+        assert_eq!(
+            worktree_cwd(&dir, "/src/app", "/src/application"),
+            dir,
+            "a sibling with the same prefix is outside"
+        );
         assert_eq!(worktree_cwd(&dir, "/src/app", "/elsewhere"), dir);
     }
 
@@ -125,12 +150,21 @@ mod tests {
             let id = r.ident(20);
             let s = slug(&title);
             assert!(s.len() <= 32, "{s}");
-            assert!(!s.starts_with('-') && !s.ends_with('-') && !s.contains("--"), "{s:?} from {title:?}");
-            assert!(s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'));
+            assert!(
+                !s.starts_with('-') && !s.ends_with('-') && !s.contains("--"),
+                "{s:?} from {title:?}"
+            );
+            assert!(
+                s.chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+            );
             assert_eq!(slug(&s), s, "idempotent");
             let short = branch_for(&title, &id, false);
             let long = branch_for(&title, &id, true);
-            assert!(short.starts_with("wisp/") && keeps_branch(&short), "{short}");
+            assert!(
+                short.starts_with("wisp/") && keeps_branch(&short),
+                "{short}"
+            );
             assert!(long.ends_with(&id) && long != short || id.len() <= 6);
         }
     }
@@ -140,7 +174,11 @@ mod tests {
         let mut r = Rng::new(11);
         for _ in 0..1000 {
             let root = format!("/r/{}", r.ident(5));
-            let cwd = if r.below(2) == 0 { format!("{root}/{}/{}", r.ident(3), r.ident(3)) } else { format!("/x/{}", r.ident(4)) };
+            let cwd = if r.below(2) == 0 {
+                format!("{root}/{}/{}", r.ident(3), r.ident(3))
+            } else {
+                format!("/x/{}", r.ident(4))
+            };
             let dir = worktree_dir("/h", &root, "id");
             let at = worktree_cwd(&dir, &root, &cwd);
             assert!(at == dir || at.starts_with(&format!("{dir}/")), "{at}");

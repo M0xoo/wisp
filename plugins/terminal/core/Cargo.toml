@@ -9,6 +9,8 @@ publish.workspace = true
 
 [dependencies]
 wisp-terminal-api.workspace = true
+wisp-kernel.workspace = true
+thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

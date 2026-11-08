@@ -193,9 +193,7 @@ impl Engine {
                 break;
             }
         }
-        let dirty = st
-            .map(|s| u32::try_from(s.dirty()).unwrap_or(u32::MAX))
-            .unwrap_or(0);
+        let dirty = st.map_or(0, |s| u32::try_from(s.dirty()).unwrap_or(u32::MAX));
         Ok(WorktreeStatus {
             exists: true,
             dirty,

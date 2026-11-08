@@ -73,7 +73,7 @@ async fn size_of(e: &Engine, dir: &str) -> Option<u64> {
 }
 
 /// One row a folder, in-use ones left out (nothing to decide on them now). `sizes: false` answers at
-/// once (du over a big node_modules takes seconds); the page asks again for them.
+/// once (du over a big `node_modules` takes seconds); the page asks again for them.
 pub async fn list(
     e: &Engine,
     port: &dyn Port,

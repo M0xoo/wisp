@@ -21,6 +21,8 @@
     "verify": "npm run check && npm run typecheck && npm test",
     "build": "npm run build --workspace @wisp/web && node tools/bundle.ts",
     "dev": "node tools/dev.ts",
+    "dev:web": "npm run dev --workspace @wisp/web",
+    "budgets": "node tools/budgets.ts",
     "start": "node apps/server/bin/wisp.ts"
   },
   "devDependencies": {

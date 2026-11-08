@@ -8,7 +8,7 @@ import { EmptyState, Heading, Inline, Pill, Stack, Text, VirtualList, useSignal 
 import { useShell } from '../context.tsx';
 import { SESSION, type EventRow, type SessionRow } from '../rows.ts';
 
-const label = (e: EventRow): string => (typeof e.text === 'string' ? e.text : typeof e.label === 'string' ? e.label : e.kind);
+const label = (e: EventRow): string => e.body.text ?? e.body.label ?? e.kind;
 
 export default function FallbackTask(props: { readonly id: string }): JSX.Element {
   const shell = useShell();
@@ -28,7 +28,7 @@ export default function FallbackTask(props: { readonly id: string }): JSX.Elemen
             <Heading level={2} lines={2}>{s().title}</Heading>
             <Pill tone={s().state === 'running' ? 'info' : 'neutral'} live={s().state === 'running'} dot>{shell.t(`shell.state.${s().state}`)}</Pill>
           </Inline>
-          <Text tone="muted" size="sm">{shell.t('shell.fallback.task.turns', { count: s().turnCount })}</Text>
+          <Text tone="muted" size="sm">{shell.t('shell.fallback.task.turns', { count: s().summary.turnCount })}</Text>
           <VirtualList items={shown()} key={(e) => String(e.seq)} anchor="bottom" estimate={48} grow part="shell.fallback.events" aria-label={s().title}>
             {(e) => (
               <Text as="p" tone={e().kind === 'text' ? 'ink' : 'muted'} size={e().kind === 'text' ? 'md' : 'sm'} mono={e().kind === 'tool'}>

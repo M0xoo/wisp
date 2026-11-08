@@ -12,7 +12,7 @@ export type Shipped = { prs?: Array<PrRef>, number: bigint, url: string, title: 
  */
 state: string, draft: boolean, 
 /**
- * APPROVED | CHANGES_REQUESTED | REVIEW_REQUIRED | ""
+ * `APPROVED` | `CHANGES_REQUESTED` | `REVIEW_REQUIRED` | ""
  */
 review: string, mergeState: string, 
 /**

@@ -1,4 +1,4 @@
-//! Task-level Ship it: every repo of a task shipped and merged in order, wisp_pr attach/detach, the PR
+//! Task-level Ship it: every repo of a task shipped and merged in order, `wisp_pr` attach/detach, the PR
 //! panel, and what GET /ship shows.
 
 use futures::future::join_all;
@@ -119,7 +119,7 @@ impl Ship {
                 let id = task.session.clone();
                 let shipping = self.tasks.update(&id, |t| {
                     if let Some(s) = t.shipping.as_mut() {
-                        s.step = step.to_owned();
+                        step.clone_into(&mut s.step);
                         if several {
                             s.repo = Some(r.name.clone());
                             s.at = u32::try_from(k + 1).ok();
@@ -183,7 +183,7 @@ impl Ship {
                 task.repos[i].name.clone(),
             );
             match self.shipper.merge(call, &wt, number).await {
-                Ok((pr, sync)) => (task.repos[i].pr, _) = (Some(pr), synced.push(sync)),
+                Ok((pr, sync)) => (task.repos[i].pr, ()) = (Some(pr), synced.push(sync)),
                 Err(e) => return Err(self.merge_failed(task, e.in_repo(&name, n))),
             }
         }
@@ -227,7 +227,7 @@ impl Ship {
         e
     }
 
-    /// wisp_pr: attach a PR (URL, or number in the task's repo). The PR of the task's own branch becomes
+    /// `wisp_pr`: attach a PR (URL, or number in the task's repo). The PR of the task's own branch becomes
     /// the one Ship it pushes to; any other joins `prs`. `remove` detaches one.
     pub async fn attach(
         &self,

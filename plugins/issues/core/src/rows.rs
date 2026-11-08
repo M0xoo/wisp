@@ -15,8 +15,10 @@ pub fn clip(s: &str, n: usize) -> String {
     out
 }
 
+/// CRLF (and stray CRs before a newline) as LF, trimmed and clipped.
 pub fn body(s: &str) -> String {
-    clip(s.replace("\r\n", "\n").trim(), BODY_MAX)
+    let lf: Vec<&str> = s.split('\n').map(|l| l.trim_end_matches('\r')).collect();
+    clip(lf.join("\n").trim(), BODY_MAX)
 }
 
 fn text(v: &Value) -> String {

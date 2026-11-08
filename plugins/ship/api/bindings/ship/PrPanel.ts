@@ -10,7 +10,7 @@ export type PrPanel = { repo: string, error?: string, number: bigint, url: strin
  */
 state: string, draft: boolean, 
 /**
- * APPROVED | CHANGES_REQUESTED | REVIEW_REQUIRED | ""
+ * `APPROVED` | `CHANGES_REQUESTED` | `REVIEW_REQUIRED` | ""
  */
 review: string, mergeState: string, 
 /**

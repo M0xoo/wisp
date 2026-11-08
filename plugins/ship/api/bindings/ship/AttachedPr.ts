@@ -2,6 +2,6 @@
 import type { PrSummary } from "./PrSummary";
 
 /**
- * A PR the agent attached to its task (wisp_pr) that isn't its own branch's.
+ * A PR the agent attached to its task (`wisp_pr`) that isn't its own branch's.
  */
 export type AttachedPr = { repo: string, pr: PrSummary, };

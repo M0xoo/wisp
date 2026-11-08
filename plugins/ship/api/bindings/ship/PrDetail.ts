@@ -15,7 +15,7 @@ export type PrDetail = { number: bigint, url: string, title: string,
  */
 state: string, draft: boolean, 
 /**
- * APPROVED | CHANGES_REQUESTED | REVIEW_REQUIRED | ""
+ * `APPROVED` | `CHANGES_REQUESTED` | `REVIEW_REQUIRED` | ""
  */
 review: string, mergeState: string, 
 /**

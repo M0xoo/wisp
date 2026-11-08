@@ -537,10 +537,10 @@ impl Cleanup {
             .map(|w| w.root.as_str())
             .collect();
         for root in wisp_worktrees_core::prune_roots(roots) {
-            if fsx::exists(&root).await {
-                if let Ok(repo) = self.engine.repo(&self.call, &root).await {
-                    let _ = repo.worktree_prune(&self.call).await;
-                }
+            if fsx::exists(&root).await
+                && let Ok(repo) = self.engine.repo(&self.call, &root).await
+            {
+                let _ = repo.worktree_prune(&self.call).await;
             }
         }
     }

@@ -1,6 +1,7 @@
 //! What the reviewer is asked, and what its reply becomes (v1 reviewPrompt, readReview, partialSummary).
 
 use serde_json::Value;
+use std::fmt::Write as _;
 use wisp_review_api::{Coverage, Finding, Severity, TestsRun};
 
 use crate::pick::clip;
@@ -85,13 +86,13 @@ fn partial_block(c: Option<&Coverage>) -> String {
         files_word(c.files)
     );
     if !c.cut.is_empty() {
-        s.push_str(&format!("\nOnly part of: {}", c.cut.join(", ")));
+        let _ = write!(s, "\nOnly part of: {}", c.cut.join(", "));
     }
     if !c.missing.is_empty() {
-        s.push_str(&format!("\nNot in it: {}", c.missing.join(", ")));
+        let _ = write!(s, "\nNot in it: {}", c.missing.join(", "));
     }
     if let Some(m) = c.more.filter(|m| *m > 0) {
-        s.push_str(&format!("\nAnd {} not named here.", files_word(m)));
+        let _ = write!(s, "\nAnd {} not named here.", files_word(m));
     }
     s.push_str("\nYou may read those from your working directory. Your answer covers only what you read: say so in your summary, and don't call the rest clean.\n</partial>\n");
     s
@@ -146,7 +147,9 @@ fn js_number(v: &Value) -> Option<f64> {
 
 fn positive_int(v: &Value) -> Option<u32> {
     let n = js_number(v)?;
-    (n.is_finite() && n.fract() == 0.0 && n > 0.0 && n <= f64::from(u32::MAX)).then(|| n as u32)
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    // checked: a whole number in u32's range
+    (n.is_finite() && n.fract() == 0.0 && n > 0.0 && n <= f64::from(u32::MAX)).then_some(n as u32)
 }
 
 fn text_of(v: &Value) -> String {

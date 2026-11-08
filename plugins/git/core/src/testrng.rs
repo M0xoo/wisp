@@ -131,8 +131,11 @@ pub fn unified(name: &str, a: &[String], b: &[String]) -> String {
         }
         let os = if oc == 0 { sa } else { sa + 1 };
         let ns = if nc == 0 { sb } else { sb + 1 };
-        let _ = write!(out, "@@ -{os},{oc} +{ns},{nc} @@
-{body}");
+        let _ = write!(
+            out,
+            "@@ -{os},{oc} +{ns},{nc} @@
+{body}"
+        );
     }
     out
 }

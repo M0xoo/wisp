@@ -55,7 +55,7 @@ function taskItems(ctx: ShellContext): PaletteItem[] {
   const out: PaletteItem[] = [];
   for (const s of rows) {
     if (s.archived) continue;
-    out.push({ id: `task:${s.id}`, group: g, label: s.title, sub: ctx.t(`shell.state.${s.state}`), icon: s.state === 'running' ? 'spark' : 'feed', at: s.updatedAt, run: () => ctx.navigate({ t: 'openTask', id: s.id as never }) });
+    out.push({ id: `task:${s.id}`, group: g, label: s.title, sub: ctx.t(`shell.state.${s.state}`), icon: s.state === 'running' ? 'spark' : 'feed', at: s.updated_at, run: () => ctx.navigate({ t: 'openTask', id: s.id as never }) });
   }
   return out.sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
 }

@@ -56,14 +56,4 @@ impl RootState {
             cb(change.clone());
         }
     }
-
-    pub fn watchers(&self) -> usize {
-        self.watchers
-            .lock()
-            .map(|mut w| {
-                w.retain(|(t, _)| !t.is_cancelled());
-                w.len()
-            })
-            .unwrap_or(0)
-    }
 }

@@ -25,8 +25,24 @@ pub enum FlowEvent {
     Done,
 }
 
-pub const STATES: [TermState; 7] = [TermState::Idle, TermState::Starting, TermState::Slow, TermState::Running, TermState::Stopping, TermState::Ended, TermState::Failed];
-pub const EVENTS: [FlowEvent; 7] = [FlowEvent::Start, FlowEvent::Ready, FlowEvent::Slow, FlowEvent::Fail, FlowEvent::Stop, FlowEvent::Exit, FlowEvent::Done];
+pub const STATES: [TermState; 7] = [
+    TermState::Idle,
+    TermState::Starting,
+    TermState::Slow,
+    TermState::Running,
+    TermState::Stopping,
+    TermState::Ended,
+    TermState::Failed,
+];
+pub const EVENTS: [FlowEvent; 7] = [
+    FlowEvent::Start,
+    FlowEvent::Ready,
+    FlowEvent::Slow,
+    FlowEvent::Fail,
+    FlowEvent::Stop,
+    FlowEvent::Exit,
+    FlowEvent::Done,
+];
 
 /// "a slow start says so" (#440): no output this long after START.
 pub const SLOW_MS: u64 = 8000;
@@ -42,7 +58,9 @@ pub fn next(s: TermState, e: FlowEvent) -> Option<TermState> {
         (S::Starting, E::Slow) => S::Slow,
         (S::Starting | S::Slow, E::Fail) => S::Failed,
         (S::Starting | S::Slow | S::Running, E::Stop) => S::Stopping,
-        (S::Starting | S::Slow | S::Running, E::Exit) | (S::Stopping, E::Done | E::Exit) => S::Ended,
+        (S::Starting | S::Slow | S::Running, E::Exit) | (S::Stopping, E::Done | E::Exit) => {
+            S::Ended
+        }
         _ => return None,
     })
 }
@@ -65,19 +83,29 @@ pub fn exit_event(s: TermState, code: i32) -> FlowEvent {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::{HashMap, VecDeque};
     use FlowEvent as E;
     use TermState as S;
+    use std::collections::{HashMap, VecDeque};
 
     /// The plan's table, written out once more by hand: the model the implementation is checked against.
     fn model(s: S, e: E) -> Option<S> {
         let row: &[(E, S)] = match s {
-            S::Idle => &[(E::Start, S::Starting)],
-            S::Starting => &[(E::Ready, S::Running), (E::Slow, S::Slow), (E::Fail, S::Failed), (E::Stop, S::Stopping), (E::Exit, S::Ended)],
-            S::Slow => &[(E::Ready, S::Running), (E::Fail, S::Failed), (E::Stop, S::Stopping), (E::Exit, S::Ended)],
+            S::Starting => &[
+                (E::Ready, S::Running),
+                (E::Slow, S::Slow),
+                (E::Fail, S::Failed),
+                (E::Stop, S::Stopping),
+                (E::Exit, S::Ended),
+            ],
+            S::Slow => &[
+                (E::Ready, S::Running),
+                (E::Fail, S::Failed),
+                (E::Stop, S::Stopping),
+                (E::Exit, S::Ended),
+            ],
             S::Running => &[(E::Exit, S::Ended), (E::Stop, S::Stopping)],
             S::Stopping => &[(E::Done, S::Ended), (E::Exit, S::Ended)],
-            S::Ended | S::Failed => &[(E::Start, S::Starting)],
+            S::Idle | S::Ended | S::Failed => &[(E::Start, S::Starting)],
         };
         row.iter().find(|(x, _)| *x == e).map(|(_, to)| *to)
     }
@@ -109,9 +137,15 @@ mod tests {
         }
         for s in STATES {
             let path = paths.get(&s).unwrap_or_else(|| panic!("no path to {s:?}"));
-            assert_eq!(path.iter().fold(S::Idle, |x, e| step(x, *e)), s, "the path replays to {s:?}");
+            assert_eq!(
+                path.iter().fold(S::Idle, |x, e| step(x, *e)),
+                s,
+                "the path replays to {s:?}"
+            );
             // from anywhere, STOP / DONE / EXIT then START gets a terminal starting again
-            let again = [E::Stop, E::Done, E::Exit, E::Start].iter().fold(s, |x, e| step(x, *e));
+            let again = [E::Stop, E::Done, E::Exit, E::Start]
+                .iter()
+                .fold(s, |x, e| step(x, *e));
             assert_eq!(again, S::Starting, "{s:?} can start again");
         }
     }
@@ -121,8 +155,16 @@ mod tests {
         for from in [S::Starting, S::Slow] {
             let s = step(from, E::Stop);
             assert_eq!(s, S::Stopping);
-            assert_eq!(step(s, E::Ready), S::Stopping, "late output of the cancelled start (#435)");
-            assert_eq!(step(s, E::Start), S::Stopping, "a start can't race the stop");
+            assert_eq!(
+                step(s, E::Ready),
+                S::Stopping,
+                "late output of the cancelled start (#435)"
+            );
+            assert_eq!(
+                step(s, E::Start),
+                S::Stopping,
+                "a start can't race the stop"
+            );
             assert_eq!(step(s, E::Done), S::Ended);
         }
     }
@@ -130,20 +172,36 @@ mod tests {
     #[test]
     fn ended_and_failed_never_reopen_the_dead_screen() {
         for s in [S::Ended, S::Failed] {
-            assert!(s.is_over() && !s.is_live());
+            assert!(s.over() && !s.live());
             for e in EVENTS {
-                assert_eq!(step(s, e), if e == E::Start { S::Starting } else { s }, "{s:?} --{e:?} (#432)");
+                assert_eq!(
+                    step(s, e),
+                    if e == E::Start { S::Starting } else { s },
+                    "{s:?} --{e:?} (#432)"
+                );
             }
         }
-        assert_eq!(step(S::Starting, E::Slow), S::Slow, "a slow start says so (#440)");
+        assert_eq!(
+            step(S::Starting, E::Slow),
+            S::Slow,
+            "a slow start says so (#440)"
+        );
         assert_eq!(step(S::Running, E::Slow), S::Running);
     }
 
     #[test]
     fn exit_codes_read_where_the_terminal_is() {
-        assert_eq!(exit_event(S::Starting, 127), E::Fail, "127 before any output: it never ran");
+        assert_eq!(
+            exit_event(S::Starting, 127),
+            E::Fail,
+            "127 before any output: it never ran"
+        );
         assert_eq!(exit_event(S::Slow, 127), E::Fail);
-        assert_eq!(exit_event(S::Running, 127), E::Exit, "it ran and then said 127");
+        assert_eq!(
+            exit_event(S::Running, 127),
+            E::Exit,
+            "it ran and then said 127"
+        );
         assert_eq!(exit_event(S::Starting, 1), E::Exit);
         assert_eq!(exit_event(S::Stopping, 127), E::Done);
         assert_eq!(step(S::Starting, exit_event(S::Starting, 0)), S::Ended);

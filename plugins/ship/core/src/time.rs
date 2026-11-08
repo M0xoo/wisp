@@ -2,6 +2,7 @@
 //! `Date.parse(x) || null`, so anything unparseable is None.
 
 /// `2026-10-28T09:01:05Z`, `2026-10-28T09:01:05.123Z`, `2026-10-28T11:01:05+02:00` → ms. None otherwise.
+#[allow(clippy::many_single_char_names)] // y m d h mi s: the date's own fields
 pub fn parse_ms(s: &str) -> Option<i64> {
     let b = s.trim().as_bytes();
     if b.len() < 19

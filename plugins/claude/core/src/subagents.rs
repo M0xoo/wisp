@@ -50,8 +50,8 @@ struct Part {
 #[derive(Debug, Default)]
 pub struct Tally {
     calls: Vec<Call>,
-    /// init's tools, when it sent them
-    tools: Option<Vec<Value>>,
+    /// init's tools had WebFetch (None: init sent no list)
+    web_fetch: Option<bool>,
     /// the main thread's model, from its own messages
     main: String,
 }
@@ -65,7 +65,7 @@ fn js_round(x: f64) -> f64 {
 impl Tally {
     pub fn init(&mut self, list: &Value) {
         if let Some(a) = list.as_array() {
-            self.tools = Some(a.clone());
+            self.web_fetch = Some(a.iter().any(|x| x.as_str() == Some("WebFetch")));
         }
     }
 
@@ -141,7 +141,7 @@ impl Tally {
                         read: slot.2.read.max(u.read),
                         output: slot.2.output.max(u.output),
                     },
-                )
+                );
             }
             None => c.msgs.push((key, model, u)),
         }
@@ -182,10 +182,7 @@ impl Tally {
             self.main.clone()
         };
         share_output(&mut parts, models, &main_model, n0(main_out));
-        let no_fetch = self
-            .tools
-            .as_ref()
-            .is_some_and(|t| !t.iter().any(|x| x.as_str() == Some("WebFetch")));
+        let no_fetch = self.web_fetch == Some(false);
         let rows = self.rows(&parts, no_fetch);
         self.calls.clear();
         Some(rows)

@@ -65,6 +65,7 @@ fn text(v: &Value, k: &str) -> Option<String> {
     v.get(k).and_then(Value::as_str).map(str::to_owned)
 }
 
+#[allow(clippy::too_many_lines)] // one adapter per v1 route, a table
 pub fn routes(slot: &Slot) -> Vec<Route> {
     vec![
         route(
@@ -217,14 +218,13 @@ async fn fix_conflicts(ship: Arc<Ship>, call: Call, req: Request) -> Result<Valu
     if fixing(&ship).is_none() {
         ship.fix_conflicts(&call, &s, true).await?;
     }
-    match fixing(&ship) {
-        Some(fix) => Ok(json!({ "conflictFix": fix })),
-        None => {
-            let task = ship.task(&s)?;
-            Err(WireError::conflict(why_not_fixing(
-                &task,
-                ship.tasks.busy(&task, false),
-            )))
-        }
+    if let Some(fix) = fixing(&ship) {
+        Ok(json!({ "conflictFix": fix }))
+    } else {
+        let task = ship.task(&s)?;
+        Err(WireError::conflict(why_not_fixing(
+            &task,
+            ship.tasks.busy(&task, false),
+        )))
     }
 }

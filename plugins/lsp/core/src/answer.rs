@@ -44,8 +44,14 @@ fn lexical(p: &Path) -> PathBuf {
 
 /// `file` relative to `root` with `/`, or `None` when it lies outside (a library's: not this task's).
 pub fn relative_inside(root: &Path, file: &Path) -> Option<String> {
-    let rel = lexical(file).strip_prefix(lexical(root)).ok()?.to_path_buf();
-    let parts: Vec<String> = rel.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
+    let rel = lexical(file)
+        .strip_prefix(lexical(root))
+        .ok()?
+        .to_path_buf();
+    let parts: Vec<String> = rel
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+        .collect();
     Some(parts.join("/"))
 }
 
@@ -77,20 +83,35 @@ pub struct Located {
 
 fn start_of(range: &Value) -> Option<(u32, u32)> {
     let s = range.get("start")?;
-    let n = |k: &str| s.get(k).and_then(Value::as_u64).and_then(|n| u32::try_from(n).ok());
+    let n = |k: &str| {
+        s.get(k)
+            .and_then(Value::as_u64)
+            .and_then(|n| u32::try_from(n).ok())
+    };
     Some((n("line")?, n("character")?))
 }
 
 pub fn locate(root: &Path, loc: &Value) -> Option<Located> {
-    let uri = loc.get("uri").or_else(|| loc.get("targetUri")).and_then(Value::as_str)?;
-    let range = ["range", "targetSelectionRange", "targetRange"].iter().find_map(|k| loc.get(*k).filter(|v| v.is_object()))?;
+    let uri = loc
+        .get("uri")
+        .or_else(|| loc.get("targetUri"))
+        .and_then(Value::as_str)?;
+    let range = ["range", "targetSelectionRange", "targetRange"]
+        .iter()
+        .find_map(|k| loc.get(*k).filter(|v| v.is_object()))?;
     if !uri.starts_with("file:") {
         return None;
     }
     let file = file_url_to_path(uri)?;
     let path = relative_inside(root, &file)?;
     let (line, ch) = start_of(range)?;
-    Some(Located { file, path, line_index: line as usize, line: line + 1, col: ch + 1 })
+    Some(Located {
+        file,
+        path,
+        line_index: line as usize,
+        line: line + 1,
+        col: ch + 1,
+    })
 }
 
 /// A definition's or references' result: one location, a list, or nothing.
@@ -104,14 +125,21 @@ pub fn locations(res: &Value) -> Vec<&Value> {
 
 /// The text of line `index`, trimmed, at most 240 characters.
 pub fn line_text(text: &str, index: usize) -> String {
-    text.split('\n').nth(index).map(|l| cap(l.trim(), MAX_LINE)).unwrap_or_default()
+    text.split('\n')
+        .nth(index)
+        .map(|l| cap(l.trim(), MAX_LINE))
+        .unwrap_or_default()
 }
 
 /// A hover's contents (a string, a `MarkupContent`, a `MarkedString` or a list of them), at most 4000.
 pub fn hover_text(h: &Value) -> String {
     let one = |x: &Value| match x {
         Value::String(s) => s.clone(),
-        other => other.get("value").and_then(Value::as_str).unwrap_or("").to_owned(),
+        other => other
+            .get("value")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_owned(),
     };
     let text = match h.get("contents") {
         Some(Value::Array(a)) => a.iter().map(one).collect::<Vec<_>>().join("\n\n"),
@@ -125,16 +153,32 @@ pub fn hover_text(h: &Value) -> String {
 pub fn completion_items(res: &Value) -> Vec<CompletionItem> {
     let items = match res {
         Value::Array(a) => a.as_slice(),
-        other => other.get("items").and_then(Value::as_array).map_or(&[][..], Vec::as_slice),
+        other => other
+            .get("items")
+            .and_then(Value::as_array)
+            .map_or(&[][..], Vec::as_slice),
     };
     items
         .iter()
         .take(MAX_ITEMS)
         .map(|x| {
             let label = text_of(x.get("label"));
-            let edit = x.pointer("/textEdit/newText").and_then(Value::as_str).filter(|s| !s.is_empty());
-            let insert = edit.or_else(|| x.get("insertText").and_then(Value::as_str).filter(|s| !s.is_empty())).map_or_else(|| label.clone(), str::to_owned);
-            CompletionItem { detail: cap(&text_of(x.get("detail")), MAX_DETAIL), insert, label }
+            let edit = x
+                .pointer("/textEdit/newText")
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty());
+            let insert = edit
+                .or_else(|| {
+                    x.get("insertText")
+                        .and_then(Value::as_str)
+                        .filter(|s| !s.is_empty())
+                })
+                .map_or_else(|| label.clone(), str::to_owned);
+            CompletionItem {
+                detail: cap(&text_of(x.get("detail")), MAX_DETAIL),
+                insert,
+                label,
+            }
         })
         .collect()
 }
@@ -151,7 +195,12 @@ pub fn diagnostics(list: &Value) -> Vec<Diagnostic> {
                 Some(2) => Severity::Warning,
                 _ => Severity::Info,
             };
-            Diagnostic { line: line + 1, col: ch + 1, severity, message: cap(&text_of(x.get("message")), MAX_MESSAGE) }
+            Diagnostic {
+                line: line + 1,
+                col: ch + 1,
+                severity,
+                message: cap(&text_of(x.get("message")), MAX_MESSAGE),
+            }
         })
         .collect()
 }
@@ -159,7 +208,10 @@ pub fn diagnostics(list: &Value) -> Vec<Diagnostic> {
 /// v1's rename rule: a name the editor may type, `^[A-Za-z_$][\w$]*$`.
 pub fn valid_name(name: &str) -> bool {
     let mut chars = name.chars();
-    chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_' || c == '$') && chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
+    chars
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_' || c == '$')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
 }
 
 #[cfg(test)]
@@ -171,9 +223,21 @@ mod tests {
     #[test]
     fn places_inside_the_root() {
         let loc = json!({ "uri": "file:///r/src/a%20b.ts", "range": { "start": { "line": 0, "character": 16 }, "end": { "line": 0, "character": 19 } } });
-        assert_eq!(locate(Path::new("/r"), &loc), Some(Located { file: "/r/src/a b.ts".into(), path: "src/a b.ts".into(), line_index: 0, line: 1, col: 17 }));
+        assert_eq!(
+            locate(Path::new("/r"), &loc),
+            Some(Located {
+                file: "/r/src/a b.ts".into(),
+                path: "src/a b.ts".into(),
+                line_index: 0,
+                line: 1,
+                col: 17
+            })
+        );
         let link = json!({ "targetUri": "file:///r/b.ts", "targetRange": { "start": { "line": 4, "character": 0 } }, "targetSelectionRange": { "start": { "line": 5, "character": 2 } } });
-        assert_eq!(locate(Path::new("/r"), &link).map(|l| (l.line, l.col)), Some((6, 3)));
+        assert_eq!(
+            locate(Path::new("/r"), &link).map(|l| (l.line, l.col)),
+            Some((6, 3))
+        );
     }
 
     #[cfg(unix)]
@@ -185,9 +249,13 @@ mod tests {
         assert_eq!(locate(Path::new("/r"), &sib), None);
         let up = json!({ "uri": "file:///r/../etc/passwd", "range": { "start": { "line": 0, "character": 0 } } });
         assert_eq!(locate(Path::new("/r"), &up), None);
-        let other = json!({ "uri": "jdt://x", "range": { "start": { "line": 0, "character": 0 } } });
+        let other =
+            json!({ "uri": "jdt://x", "range": { "start": { "line": 0, "character": 0 } } });
         assert_eq!(locate(Path::new("/r"), &other), None);
-        assert_eq!(locate(Path::new("/r"), &json!({ "uri": "file:///r/a" })), None);
+        assert_eq!(
+            locate(Path::new("/r"), &json!({ "uri": "file:///r/a" })),
+            None
+        );
     }
 
     #[test]
@@ -199,32 +267,49 @@ mod tests {
 
     #[test]
     fn line_texts_are_trimmed_and_capped() {
-        assert_eq!(line_text("a\n   export function add(a, b) {  \r\n", 1), "export function add(a, b) {");
+        assert_eq!(
+            line_text("a\n   export function add(a, b) {  \r\n", 1),
+            "export function add(a, b) {"
+        );
         assert_eq!(line_text("x", 5), "");
         assert_eq!(line_text(&"é".repeat(300), 0).chars().count(), 240);
     }
 
     #[test]
     fn hovers() {
-        assert_eq!(hover_text(&json!({ "contents": { "kind": "markdown", "value": " ```ts\nf\n``` " } })), "```ts\nf\n```");
-        assert_eq!(hover_text(&json!({ "contents": ["a", { "language": "ts", "value": "b" }] })), "a\n\nb");
+        assert_eq!(
+            hover_text(&json!({ "contents": { "kind": "markdown", "value": " ```ts\nf\n``` " } })),
+            "```ts\nf\n```"
+        );
+        assert_eq!(
+            hover_text(&json!({ "contents": ["a", { "language": "ts", "value": "b" }] })),
+            "a\n\nb"
+        );
         assert_eq!(hover_text(&json!({ "contents": "plain" })), "plain");
         assert_eq!(hover_text(&Value::Null), "");
-        assert_eq!(hover_text(&json!({ "contents": "x".repeat(5000) })).len(), 4000);
+        assert_eq!(
+            hover_text(&json!({ "contents": "x".repeat(5000) })).len(),
+            4000
+        );
     }
 
     #[test]
     fn completions() {
         let res = json!({ "items": [{ "label": "add", "detail": "function add(a, b)" }, { "label": "addAll", "insertText": "addAll" }, { "label": "e", "textEdit": { "newText": "edit", "range": {} } }] });
         let items = completion_items(&res);
-        assert_eq!(items.iter().map(|x| x.insert.as_str()).collect::<Vec<_>>(), ["add", "addAll", "edit"]);
+        assert_eq!(
+            items.iter().map(|x| x.insert.as_str()).collect::<Vec<_>>(),
+            ["add", "addAll", "edit"]
+        );
         assert_eq!(items[0].detail, "function add(a, b)");
         assert_eq!(items[1].detail, "");
-        let many: Vec<Value> = (0..150).map(|i| json!({ "label": format!("x{i}"), "detail": "d".repeat(200) })).collect();
+        let many: Vec<Value> = (0..150)
+            .map(|i| json!({ "label": format!("x{i}"), "detail": "d".repeat(200) }))
+            .collect();
         let items = completion_items(&Value::Array(many));
         assert_eq!(items.len(), 100);
         assert_eq!(items[0].detail.len(), 160);
-        assert!(completion_items(&Value::Null).is_empty());
+        assert_eq!(completion_items(&Value::Null).len(), 0);
     }
 
     #[test]
@@ -236,9 +321,15 @@ mod tests {
             { "severity": 4 }
         ]);
         let d = diagnostics(&list);
-        assert_eq!((d[0].line, d[0].col, d[0].severity), (2, 16, Severity::Warning));
+        assert_eq!(
+            (d[0].line, d[0].col, d[0].severity),
+            (2, 16, Severity::Warning)
+        );
         assert_eq!((d[1].severity, d[1].message.len()), (Severity::Error, 500));
-        assert_eq!((d[2].severity, d[2].message.as_str()), (Severity::Info, "42"));
+        assert_eq!(
+            (d[2].severity, d[2].message.as_str()),
+            (Severity::Info, "42")
+        );
         assert_eq!((d[3].line, d[3].col, d[3].message.as_str()), (1, 1, ""));
     }
 
@@ -256,14 +347,23 @@ mod tests {
     #[test]
     fn source_files() {
         let r = Path::new("/r");
-        assert_eq!(resolve_inside(r, "src/a.ts"), Some(PathBuf::from("/r/src/a.ts")));
-        assert_eq!(resolve_inside(r, "src/../b.ts"), Some(PathBuf::from("/r/b.ts")));
+        assert_eq!(
+            resolve_inside(r, "src/a.ts"),
+            Some(PathBuf::from("/r/src/a.ts"))
+        );
+        assert_eq!(
+            resolve_inside(r, "src/../b.ts"),
+            Some(PathBuf::from("/r/b.ts"))
+        );
         assert_eq!(resolve_inside(r, "../x"), None);
         assert_eq!(resolve_inside(r, "/etc/passwd"), None);
         assert_eq!(resolve_inside(r, ""), None);
         assert_eq!(resolve_inside(r, "."), None);
         assert_eq!(resolve_inside(r, ".git/config"), None);
         assert_eq!(resolve_inside(r, "a/../.git/HEAD"), None);
-        assert_eq!(resolve_inside(r, ".github/ci.yml"), Some(PathBuf::from("/r/.github/ci.yml")));
+        assert_eq!(
+            resolve_inside(r, ".github/ci.yml"),
+            Some(PathBuf::from("/r/.github/ci.yml"))
+        );
     }
 }

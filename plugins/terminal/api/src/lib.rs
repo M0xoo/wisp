@@ -12,8 +12,14 @@ pub mod model;
 pub mod points;
 pub mod service;
 
-pub use commands::{Apps, AppsArgs, Close, Done, Get, Input, InputArgs, KindId, Open, OpenApp, OpenAppArgs, OpenArgs, ShellInfoArgs, ShellInfoOf, ShellStart, ShellStartArgs};
-pub use model::{Changed, InputOrder, ShellInfo, ShellStarted, TaskFolder, TermInfo, TermKind, TermState, TerminalApp, TerminalApps};
+pub use commands::{
+    Apps, AppsArgs, Close, Done, Get, Input, InputArgs, KindId, Open, OpenApp, OpenAppArgs,
+    OpenArgs, ShellInfoArgs, ShellInfoOf, ShellStart, ShellStartArgs,
+};
+pub use model::{
+    Changed, InputOrder, ShellInfo, ShellStarted, TaskFolder, TermInfo, TermKind, TermState,
+    TerminalApp, TerminalApps,
+};
 pub use points::{FOLDER, FolderSource};
 pub use service::{PERMISSIONS, TerminalService, TerminalServiceV1, permission};
 
@@ -22,7 +28,8 @@ pub const PLUGIN_ID: &str = "wisp.terminal";
 
 /// v1's 409 for a follow-up (or a compact, a rerun, a queued send) while the task's agent is open in a
 /// terminal: two agents on one conversation would trample each other.
-pub const BUSY_MESSAGE: &str = "This task is open in a terminal. Carry on there, or end the terminal first.";
+pub const BUSY_MESSAGE: &str =
+    "This task is open in a terminal. Carry on there, or end the terminal first.";
 
 /// v1 settings keys (`config.defaults.terminal`, `config.defaults.terminalCommand`).
 pub mod settings {

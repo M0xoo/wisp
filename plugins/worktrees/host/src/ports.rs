@@ -18,6 +18,7 @@ pub struct TaskTree {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[allow(clippy::struct_excessive_bools)] // facts about a task the cleanup reads
 pub struct TaskInfo {
     pub id: String,
     pub title: String,

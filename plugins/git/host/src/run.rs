@@ -37,7 +37,7 @@ impl Opts {
 pub struct Git {
     proc: Proc,
     bin: OnceCell<String>,
-    /// tests point it at a git of their choosing; v1's WISP_GIT_BIN
+    /// tests point it at a git of their choosing; v1's `WISP_GIT_BIN`
     fixed: Option<String>,
 }
 
@@ -126,7 +126,7 @@ impl Git {
         })
     }
 
-    /// Runs and requires exit 0: stdout as text (trailing whitespace trimmed, as v1's run()).
+    /// Runs and requires exit 0: stdout as text (trailing whitespace trimmed, as v1's `run()`).
     pub async fn run(&self, cwd: &Path, args: &[String], o: Opts) -> Result<String, GitError> {
         let r = self.exec(cwd, args, o).await?;
         check(&r)?;
@@ -138,7 +138,7 @@ impl Git {
         self.run(cwd, &read_args(args), Opts::default()).await
     }
 
-    /// A read whose failure means "not there": "" instead of an error (v1's quiet()).
+    /// A read whose failure means "not there": "" instead of an error (v1's `quiet()`).
     pub async fn quiet(&self, cwd: &Path, args: &[&str]) -> String {
         self.read(cwd, args).await.unwrap_or_default()
     }

@@ -54,7 +54,7 @@ pub fn token_words(n: f64) -> String {
 /// A failed sign-in can end with is_error false (subtype success, zero API time). Only when no model
 /// answered: a real API duration is the agent's own answer, whatever it says.
 fn unanswered(msg: &Line, auth_failed: &str) -> bool {
-    let api = num(&msg.duration_api_ms);
+    let api = num(&crate::msg::value(msg.duration_api_ms));
     !api.is_some_and(|a| a > 0.0)
         && (!auth_failed.is_empty() || (api == Some(0.0) && signed_out(&str(or_null(&msg.result)))))
 }
@@ -77,7 +77,7 @@ pub fn result_event(msg: &Line, auth_failed: &str) -> TurnResult {
         stats.cache_write_tokens = Some(msg.usage["cache_creation_input_tokens"].clone());
     }
     let text = str(or_null(&msg.result));
-    let is_error = truthy(&msg.is_error)
+    let is_error = truthy(&crate::msg::value(msg.is_error))
         || (crate::msg::truthy(msg.subtype) && !crate::msg::is(msg.subtype, "success"))
         || unanswered(msg, auth_failed);
     TurnResult {
@@ -166,7 +166,7 @@ pub fn is_final(ev: &mut TurnResult, msg: &Line, turn: &mut TurnState) -> bool {
         Some(b) if !ev.is_error && (local || !turns) => compacted_result(ev, b),
         // A /compact that didn't: "Not enough messages to compact." ends in success with no boundary.
         _ if !ev.is_error && (local || (turn.unshrunk.is_some() && !has_text(&ev.text))) => {
-            not_compacted(ev, turn.unshrunk.as_deref())
+            not_compacted(ev, turn.unshrunk.as_deref());
         }
         _ => {}
     }

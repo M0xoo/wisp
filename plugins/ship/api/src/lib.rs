@@ -92,7 +92,7 @@ impl Command for Merge {
     type Out = Merged;
 }
 
-/// wisp_pr: attach (or detach) a PR by URL or number.
+/// `wisp_pr`: attach (or detach) a PR by URL or number.
 #[derive(Debug)]
 pub struct Attach;
 impl Command for Attach {

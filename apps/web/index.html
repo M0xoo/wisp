@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="color-scheme" content="light dark" />
+    <title>wisp</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- before any module: the last theme, so a dark phone never flashes white (@wisp/shell PREPAINT_THEME) -->
+    <script>try{var t=localStorage.getItem('wisp.theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+    <script type="module" src="/src/main.tsx"></script>
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+</html>

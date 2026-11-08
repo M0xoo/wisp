@@ -3,6 +3,7 @@
 
 use base64::Engine as _;
 use serde_json::{Value, json};
+use std::fmt::Write as _;
 use wisp_issues_api::{Connector, HttpRequest, Issue, Problem};
 
 use crate::rows::{clip, gh_issue, jira_issue, linear_issue};
@@ -221,7 +222,7 @@ pub struct JiraCreds {
     pub token: String,
 }
 
-fn env_of<'a>(c: &'a Connector, ok: impl Fn(&str) -> bool) -> &'a str {
+fn env_of(c: &Connector, ok: impl Fn(&str) -> bool) -> &str {
     c.env
         .iter()
         .find(|(k, _)| ok(&k.to_uppercase()))
@@ -267,16 +268,18 @@ pub fn jira_creds(connectors: &[Connector]) -> Option<JiraCreds> {
     None
 }
 
-/// `application/x-www-form-urlencoded`, as URLSearchParams writes it.
+/// `application/x-www-form-urlencoded`, as `URLSearchParams` writes it.
 pub fn form_encode(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
         match b {
             b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'*' | b'-' | b'.' | b'_' => {
-                out.push(char::from(b))
+                out.push(char::from(b));
             }
             b' ' => out.push('+'),
-            _ => out.push_str(&format!("%{b:02X}")),
+            _ => {
+                let _ = write!(out, "%{b:02X}");
+            }
         }
     }
     out

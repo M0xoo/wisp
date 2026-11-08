@@ -1,5 +1,24 @@
 //! v1's test/issues.test.js, case by case, on the pure half (the host tests run the same cases through
 //! a fake gh, a fake origin and a fake HTTP client).
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::assert_is_empty,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    clippy::many_single_char_names,
+    clippy::range_plus_one,
+    clippy::format_push_string,
+    clippy::needless_pass_by_value,
+    clippy::needless_lifetimes,
+    clippy::elidable_lifetime_names,
+    clippy::option_option,
+    clippy::doc_markdown,
+    clippy::map_unwrap_or,
+    clippy::format_collect
+)]
 
 use serde_json::{Value, json};
 use wisp_issues_api::{Connector, Issue, IssueList, IssueNumber, Source};
@@ -303,7 +322,7 @@ fn jira_the_connectors_site_email_and_token_and_your_issues_flattened() {
     );
     assert!(
         r.url.contains(
-            "jql=assignee+%3D+currentUser%28%29+AND+statusCategory+%21%3D+Done+AND+text+~"
+            "jql=assignee+%3D+currentUser%28%29+AND+statusCategory+%21%3D+Done+AND+text+%7E"
         ),
         "{}",
         r.url

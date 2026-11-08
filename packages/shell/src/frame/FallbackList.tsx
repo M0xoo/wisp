@@ -15,7 +15,7 @@ const TONE: Record<string, Tone> = { running: 'info', review: 'warn', done: 'goo
 
 export function FallbackList(): JSX.Element {
   const shell = useShell();
-  const rows = sortBy(filterBy(shell.client.entities.list<SessionRow>(SESSION), (s) => !s.archived), byKeys<SessionRow>({ of: (s) => s.updatedAt, desc: true }));
+  const rows = sortBy(filterBy(shell.client.entities.list<SessionRow>(SESSION), (s) => !s.archived), byKeys<SessionRow>({ of: (s) => s.updated_at, desc: true }));
   const list = useSignal(rows);
   const nav = useSignal(shell.nav);
   const open = createMemo(() => {
@@ -38,9 +38,9 @@ export function FallbackList(): JSX.Element {
         <ListRow
           part="shell.fallback.row"
           title={s().title}
-          sub={s().live || s().preview}
+          sub={s().summary.live || s().summary.preview}
           pills={<Pill tone={TONE[s().state] ?? 'neutral'} dot live={s().state === 'running'}>{shell.t(`shell.state.${s().state}`)}</Pill>}
-          time={<Time at={s().updatedAt} now={now()} layout="column" />}
+          time={<Time at={s().updated_at} now={now()} layout="column" />}
           current={open() === s().id}
           selected={selected() === s().id}
           onOpen={() => {

@@ -17,7 +17,10 @@ use crate::url::{path_to_file_url, uri_key};
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
     /// our request `id` was answered: its result, or the server's refusal in words
-    Reply { id: u64, result: Result<Value, String> },
+    Reply {
+        id: u64,
+        result: Result<Value, String>,
+    },
     /// write these bytes to the server (an answer to its request)
     Send(Vec<u8>),
     /// the server published diagnostics for this file (by `uri_key`)
@@ -68,11 +71,14 @@ impl Client {
     }
 
     /// Our request: its id (to wait on) and the bytes to write.
-    pub fn request(&mut self, method: &str, params: Value) -> (u64, Vec<u8>) {
+    pub fn request(&mut self, method: &str, params: &Value) -> (u64, Vec<u8>) {
         self.seq += 1;
         let id = self.seq;
         self.pending.insert(id, method.to_owned());
-        (id, encode(&json!({ "id": id, "method": method, "params": params })))
+        (
+            id,
+            encode(&json!({ "id": id, "method": method, "params": params })),
+        )
     }
 
     pub fn notify(method: &str, params: Option<Value>) -> Vec<u8> {
@@ -85,10 +91,13 @@ impl Client {
     /// `initialize` for a server working in `root`.
     pub fn initialize(&mut self, root: &Path, process_id: u32) -> (u64, Vec<u8>) {
         let uri = path_to_file_url(root);
-        let name = root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let name = root
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
         self.request(
             "initialize",
-            json!({ "processId": process_id, "rootUri": uri, "workspaceFolders": [{ "uri": uri, "name": name }], "capabilities": capabilities() }),
+            &json!({ "processId": process_id, "rootUri": uri, "workspaceFolders": [{ "uri": uri, "name": name }], "capabilities": capabilities() }),
         )
     }
 
@@ -143,11 +152,16 @@ impl Client {
         let method = msg.get("method").and_then(Value::as_str);
         match (id, method) {
             (Some(id), None) => {
-                let Some(id) = id.as_u64().filter(|id| self.pending.remove(id).is_some()) else { return };
+                let Some(id) = id.as_u64().filter(|id| self.pending.remove(id).is_some()) else {
+                    return;
+                };
                 let result = match msg.get("error") {
-                    Some(e) if !e.is_null() => {
-                        Err(e.get("message").and_then(Value::as_str).filter(|m| !m.is_empty()).unwrap_or("The language server refused").to_owned())
-                    }
+                    Some(e) if !e.is_null() => Err(e
+                        .get("message")
+                        .and_then(Value::as_str)
+                        .filter(|m| !m.is_empty())
+                        .unwrap_or("The language server refused")
+                        .to_owned()),
                     _ => Ok(msg.get("result").cloned().unwrap_or(Value::Null)),
                 };
                 out.push(Action::Reply { id, result });
@@ -156,7 +170,10 @@ impl Client {
             // so it carries on. Configuration gets one null per item: "use your defaults".
             (Some(id), Some(method)) => {
                 let result = if method == "workspace/configuration" {
-                    let n = msg.pointer("/params/items").and_then(Value::as_array).map_or(0, Vec::len);
+                    let n = msg
+                        .pointer("/params/items")
+                        .and_then(Value::as_array)
+                        .map_or(0, Vec::len);
                     Value::Array(vec![Value::Null; n])
                 } else {
                     Value::Null
@@ -165,9 +182,12 @@ impl Client {
             }
             (None, Some("textDocument/publishDiagnostics")) => {
                 let params = msg.get("params").unwrap_or(&Value::Null);
-                let Some(uri) = params.get("uri").and_then(Value::as_str) else { return };
+                let Some(uri) = params.get("uri").and_then(Value::as_str) else {
+                    return;
+                };
                 let key = uri_key(uri);
-                let list = crate::answer::diagnostics(params.get("diagnostics").unwrap_or(&Value::Null));
+                let list =
+                    crate::answer::diagnostics(params.get("diagnostics").unwrap_or(&Value::Null));
                 self.diags.insert(key.clone(), Diags { list, fresh: true });
                 out.push(Action::Diagnostics { uri: key });
             }
@@ -177,7 +197,10 @@ impl Client {
 
     /// Diagnostics published since the editor's copy of `uri` last changed.
     pub fn fresh_diagnostics(&self, uri: &str) -> Option<&[Diagnostic]> {
-        self.diags.get(&uri_key(uri)).filter(|d| d.fresh).map(|d| d.list.as_slice())
+        self.diags
+            .get(&uri_key(uri))
+            .filter(|d| d.fresh)
+            .map(|d| d.list.as_slice())
     }
 
     /// The last diagnostics the server published for `uri`, fresh or not.

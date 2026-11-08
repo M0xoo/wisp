@@ -8,6 +8,6 @@
     "module": "esnext",
     "moduleResolution": "bundler"
   },
-  "include": ["packages/ui/src/**/*", "packages/client/src/**/*.ts", "plugins/*/ui/src/**/*", "apps/web/src/**/*"],
+  "include": ["packages/ui/src/**/*", "packages/client/src/**/*.ts", "packages/shell/src/**/*", "plugins/*/ui/src/**/*", "apps/web/src/**/*"],
   "exclude": ["**/node_modules", "**/dist"]
 }

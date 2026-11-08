@@ -11,10 +11,8 @@
 //! Wire shapes are v1's (camelCase) so v1 clients and the HTTP adapters stay 1:1. Rows the UI reads
 //! derive `ts_rs::TS` and export under `accounts/`.
 
-pub mod commands;
-pub mod events;
+// commands, events and usage are not written yet (the accounts port stopped part way); model is.
 pub mod model;
-pub mod usage;
 
 use wisp_kernel::{BoxFuture, Point};
 
@@ -83,7 +81,11 @@ pub enum Counter {
 
 impl Default for Meter {
     fn default() -> Self {
-        Self { unit: "mtok".into(), counter: Counter::TurnTokens, plan_change: None }
+        Self {
+            unit: "mtok".into(),
+            counter: Counter::TurnTokens,
+            plan_change: None,
+        }
     }
 }
 

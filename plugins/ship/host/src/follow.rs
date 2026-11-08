@@ -220,9 +220,10 @@ impl Ship {
             let shipping = self
                 .tasks
                 .update(session, |t| {
-                    t.shipping
-                        .as_mut()
-                        .map(|s| (s.step = step.to_owned(), s.clone()).1)
+                    t.shipping.as_mut().map(|s| {
+                        step.clone_into(&mut s.step);
+                        s.clone()
+                    })
                 })
                 .flatten();
             self.emit(Out::Step {
