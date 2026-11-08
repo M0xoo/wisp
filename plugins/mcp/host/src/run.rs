@@ -2,8 +2,6 @@
 //! caller), a contributed tool through its own function. v1's words for each answer come from
 //! `wisp-mcp-core`.
 
-use std::time::Duration;
-
 use serde_json::{Map, Value, json};
 use wisp_kernel::{Call, Ctx};
 use wisp_mcp_core::{AgentAction, Outcome, Step, Who, agent_action, owner_text, user, words};
@@ -11,7 +9,7 @@ use wisp_mcp_core::{AgentAction, Outcome, Step, Who, agent_action, owner_text, u
 use crate::{Sessions, extras, who as who_of};
 
 /// How often a waiting tool looks again (an ask, a task to finish).
-const POLL: Duration = Duration::from_millis(250);
+const POLL_MS: u64 = 250;
 const ASK_WAIT_MS: i64 = 30 * 60_000;
 
 /// One body in, its answer out (`None`: only notifications).
@@ -86,12 +84,13 @@ async fn builtin(ctx: &Ctx, call: &Call, w: &Who, name: &str, args: Map<String, 
 
 /// Waits for the open question's answer (`runtime.pollAnswer`), as long as v1 waited.
 async fn wait_answer(ctx: &Ctx, call: &Call, ask_id: &str, wait_ms: i64) -> Option<String> {
-    let until = tokio::time::Instant::now() + Duration::from_millis(u64::try_from(wait_ms).unwrap_or(0));
+    let clock = ctx.clock().ok()?;
+    let until = clock.now_ms() + wait_ms;
     loop {
         let p = owner(ctx, call, "runtime.pollAnswer", json!({ "askId": ask_id })).await.ok()?;
         match p.get("state").and_then(Value::as_str) {
             Some("answered") => return p.get("answer").and_then(Value::as_str).map(str::to_owned),
-            Some("pending") if tokio::time::Instant::now() < until => tokio::time::sleep(POLL).await,
+            Some("pending") if clock.now_ms() < until => clock.sleep(POLL_MS).await,
             _ => return None,
         }
     }
@@ -152,16 +151,17 @@ async fn agent_tool(ctx: &Ctx, call: &Call, session: &str, a: AgentAction) -> Ou
 
 /// Waits for a task to settle (not running), then its report in v1's words.
 async fn task_wait(ctx: &Ctx, call: &Call, id: &str, wait_ms: i64) -> String {
-    let until = tokio::time::Instant::now() + Duration::from_millis(u64::try_from(wait_ms).unwrap_or(0));
+    let Ok(clock) = ctx.clock() else { return String::new() };
+    let until = clock.now_ms() + wait_ms;
     loop {
         let s = owner(ctx, call, "runtime.get", json!({ "id": id })).await.unwrap_or(Value::Null);
         let settled = s.get("state").and_then(Value::as_str) != Some("running");
-        if settled || tokio::time::Instant::now() >= until {
+        if settled || clock.now_ms() >= until {
             let t = owner(ctx, call, "runtime.turns", json!({ "id": id, "limit": 1 })).await.unwrap_or(Value::Null);
             let text = t.as_array().and_then(|l| l.last()).and_then(|x| x.get("text")).and_then(Value::as_str).unwrap_or_default().to_owned();
             return words::task_report(settled, None, &text);
         }
-        tokio::time::sleep(POLL).await;
+        clock.sleep(POLL_MS).await;
     }
 }
 
