@@ -1,20 +1,28 @@
-# wisp v2 positioning: Agents as code
+# wisp v2 positioning: Engineering as code
 
-Decided 2026-11-08 by the lead, at the owner's request ("choose one: what is wisp *as code*?").
+Revised 2026-11-09. The owner: "we're more than agents as code." Right: wisp declares the team, runs it, and the
+repo keeps the work itself. So the category widens from **Agents as code** to **Engineering as code**, and
+"agents as code" stays as the first of three pillars.
 
-## The category: **Agents as code**
+## The category: **Engineering as code**
 
-Infrastructure as code made servers something you declare, review, version and reproduce. wisp does the same for
-the AI agents that write your software: **your coding agents, crew, machines and workflows, declared in one
-file, run anywhere.**
+Infrastructure as code put servers in the repo. wisp puts **the way your software gets built** in the repo: who
+builds it (your agents and crew), how (workflows, rules, machines), and what was asked and why (every task,
+linked to the code it wrote).
 
-- **Why not "software factory as code":** vague and enterprise-flavoured; it promises an outcome we can't show in
-  one screenshot. **Why not "agent orchestration as code":** orchestration is one feature (workflows); the file
-  also holds the team, the machines, the tools and the rules. "Agents as code" is short, reads like a category,
-  and maps one to one onto what's in `wisp.yml`.
-- **Tagline:** *Your AI dev team, as code.*
-- **One-liner:** wisp runs Claude Code, Codex, Cursor and every other coding agent in parallel, on any of your
-  machines, from one file you can commit, review, share and rerun. GUI, terminal UI and CLI on top.
+- **Tagline:** *Your AI dev team, and everything it did, as code.*
+- **Three pillars:**
+  1. **Declare** — agents, crew, machines, tools, rules and workflows in `wisp.yml` (ADR-0026/0028).
+  2. **Run** — any coding agent, in parallel, on any of your computers or in the cloud, from the app, the TUI, the
+     CLI or your own code (ADR-0024).
+  3. **Remember** — every task is a file: share it, rerun it, resume it; the repo keeps them in `.wisp/`, so
+     `wisp blame` tells you which task wrote a line and why (ADR-0027/0029/0033).
+- **One-liner:** wisp runs Claude Code, Codex, Cursor and every other coding agent from one file in your repo, and
+  keeps every task they did next to the code they wrote, so anyone can see why it's there and pick up where they
+  left off.
+- **Why not stay "Agents as code":** it describes pillar 1 only. The part nobody else has is pillar 3: code that
+  remembers how it was made. "Engineering as code" holds all three, reads like a category, and still maps onto
+  files in the repo.
 
 ## What we can honestly say is new (to verify before the launch: researcher task)
 
