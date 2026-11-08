@@ -444,6 +444,20 @@ async fn an_agents_token_cannot_touch_another_task() {
     let child = api.cmd("runtime.create", json!({ "prompt": "child", "cwd": dir.join("proj"), "agent": "claude", "parentId": lead })).await["id"].as_str().unwrap().to_owned();
     assert_eq!(as_agent("runtime.get", json!({ "id": child })).await["ok"], true, "its own child");
     assert_eq!(route(child).await, 200);
+    // the lead's decision: L's agent may READ any task through wisp_sessions / wisp_session
+    let mcp = |tool: &'static str, args: Value| {
+        let (http, token, lead) = (api.http.clone(), token.clone(), lead.clone());
+        async move {
+            let body = json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": { "name": tool, "arguments": args } });
+            let r = http.post(format!("http://127.0.0.1:{port}/api/mcp")).header("content-type", "application/json").header("x-wisp-token", token).header("x-wisp-session", lead).body(body.to_string()).send().await.unwrap();
+            let v: Value = serde_json::from_slice(&r.bytes().await.unwrap()).unwrap();
+            v["result"]["content"][0]["text"].as_str().unwrap_or_default().to_owned()
+        }
+    };
+    let list = mcp("wisp_sessions", json!({})).await;
+    assert!(list.contains(other.as_str()), "wisp_sessions lists the other task: {list}");
+    let read = mcp("wisp_session", json!({ "id": other })).await;
+    assert!(read.starts_with("# ") && read.contains(&format!("Task `{other}`")), "wisp_session reads it: {read}");
     let a = api.cmd("runtime.get", json!({ "id": other })).await;
     assert_ne!(a["title"], "renamed by L");
     assert_eq!(api.turns(&other).await.len(), 1, "no turn was started on A");
