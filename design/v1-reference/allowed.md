@@ -22,6 +22,14 @@ its pending state (spinner in place of the icon, same width, disabled). A contro
 (`aria-busy="true"` or `data-pending`) is skipped by the metrics diff and masked in the pixel diff. The
 reference shots are taken at rest, so this only applies to a view captured while something is in flight.
 
+## 3. Glyph rasterization (the owner's call, 2026-11-08)
+
+The same text in the same box can come out antialiased a pixel column differently in v1 and v2 (a
+glyph's subpixel phase, e.g. the last letter of a pill that starts at x = 246.328). `qa/parity.mjs`
+lets a differing region through when it is no larger than one glyph (6 × 10 px) **and** every metric of
+that shot matches v1 exactly (each part's box within 0.5 px, font, colour). A larger region, or any
+metric off, still fails. This is in the gate's code (`GLYPH_W`, `GLYPH_H`), not a rule below.
+
 ## Rules (read by `qa/parity.mjs`)
 
 One rule a line: `<view glob> <part glob> <kind>`. `wrap` is §1, `pending` is §2. Nothing else is

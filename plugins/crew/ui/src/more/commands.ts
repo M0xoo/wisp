@@ -28,7 +28,7 @@ export const updateMember = defineCommand<{ key: EntityKey; id: string } & Membe
 export const localKit = defineCommand<{ key: EntityKey; cwd?: string }, LocalKit>({
   id: 'crew.localKit',
   owner: (a) => a.key,
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the crew.localKit control',
   dedupe: (a) => `localKit:${a.key}:${a.cwd ?? ''}`,
 });
 
@@ -36,21 +36,21 @@ export const localKit = defineCommand<{ key: EntityKey; cwd?: string }, LocalKit
 export const kitJob = defineCommand<{ key: EntityKey; crewId: string; prompt: string; kit: true }, { session?: string; queued?: boolean }>({
   id: 'crew.assign',
   owner: (a) => a.key,
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the crew.assign control',
 });
 
 /** crew.export: the bundle for these options, checked by the peer (its secret scan refuses it). */
 export const exportCrew = defineCommand<{ peer: string; ids: string[]; kit: boolean; notebook: boolean; team: boolean; gist?: boolean }, ExportAnswer>({
   id: 'crew.export',
   owner: (a) => a.peer,
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the crew.export control',
 });
 
 /** crew.import with dryRun: who a bundle (text, a link or gist:<id>) brings, and what changed on the way in. */
 export const reviewImport = defineCommand<{ peer: string; text?: string; url?: string; dryRun: true }, ImportPreview>({
   id: 'crew.import',
   owner: (a) => a.peer,
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the crew.import control',
 });
 
 /** A member about to join, shown at once while the import runs. */

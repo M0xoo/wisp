@@ -7,6 +7,8 @@
 //   node qa/parity.mjs                       starts apps/web's vite (mock peer) on QA_PARITY_PORT (4590)
 //   PARITY_URL=http://127.0.0.1:5180 node qa/parity.mjs   against a v2 web already running
 //   --views=home,task --widths=1440,390 --themes=dark     a subset (or VIEWS= WIDTHS= THEMES= in the env)
+//   --modes=desktop                                       only the desktop app's shots (desktop-*), or browser
+//   PARITY_SAVE=1                                          keep every v2 shot in qa/out/parity/<view>/, not only failures
 //
 // v2 is driven by the same openers as v1 (qa/views.mjs), through a translation of v1 selectors to the
 // PARTS contract: a v1 PARTS selector becomes `[data-part="<name>"]`, a task's row is found by its
@@ -296,8 +298,17 @@ const v2Page = (p, tr) =>
   });
 
 // The focused state of a list row is its quick action focused by keyboard, as in the reference.
-// v1 marks its second row focused (STATES.home.focus): v2 reaches that row's head by keyboard.
+// v1's reference marks its second row focused by its class (STATES.home.focus: the j/k highlight, the
+// prompt keeping the caret). v2's equivalent is the shell's keyboard selection: set the same way,
+// straight on the app's state (the dev build's window.__wispShell), not by moving focus.
 const V2_FOCUS = { home: ':nth-match([data-part="card"], 2)' };
+const V2_FOCUS_RUN = {
+  home: (p) =>
+    p.evaluate(() => {
+      const row = document.querySelectorAll('[data-part="card"]')[1];
+      window.__wispShell?.context.selection.set(row?.getAttribute('data-id') ?? undefined);
+    }),
+};
 const v2Target = (name, state) => (state === 'focus' && V2_FOCUS[name]) || V2_STATES[name] || 'nothing';
 const V2_STATES = {
   home: '[data-part="card.head"], [data-part="list.row"]',
@@ -307,8 +318,11 @@ const V2_STATES = {
   'task.composer': '[data-part="composer.mode"]:visible, [data-part="composer"] button:visible',
 };
 
-async function openV2(browser, url, open, [width, height], colorScheme, at) {
+async function openV2(browser, url, open, [width, height], colorScheme, at, desktop) {
   const ctx = await browser.newContext({ viewport: { width, height }, colorScheme, deviceScaleFactor: 1, reducedMotion: 'reduce' });
+  // The desktop app's mode (design/v1-reference desktop-* shots): v2 finds the Tauri shell by its
+  // internals, as @wisp/shell's platform module does in the app; invoke answers nothing here.
+  if (desktop) await ctx.addInitScript(() => (window.__TAURI_INTERNALS__ = { invoke: async () => null }));
   ctx.setDefaultTimeout(2500);
   ctx.setDefaultNavigationTimeout(30_000);
   const p = await ctx.newPage();
@@ -359,24 +373,34 @@ const v2Sels = () => ({
 
 const PIXEL_MAX = 0.005;
 const REGION_MAX = 8;
+// Glyph rasterization (the owner's call, 2026-11-08; design/v1-reference/allowed.md §3): the same text in
+// the same box can be antialiased a pixel column differently (a glyph's subpixel phase). A differing
+// region no wider than GLYPH_W and no taller than GLYPH_H (one glyph of 11.5–14px text) is let through,
+// and only on a shot whose metrics all match: every part's box, font and colour equal to v1's. Anything
+// larger, or any metric off, still fails.
+const GLYPH_W = 6;
+const GLYPH_H = 10;
+export const glyphSized = (g) => g.box[2] <= GLYPH_W && g.box[3] <= GLYPH_H;
 
 async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
   const metrics = JSON.parse(fs.readFileSync(path.join(ref, name, 'metrics.json'), 'utf8'));
   const rules = allowed.filter((r) => r.view.test(name));
   const wrapRule = (part) => rules.some((r) => r.kind === 'wrap' && r.part.test(part));
   const pendingRule = (part) => rules.some((r) => r.kind === 'pending' && r.part.test(part));
-  const res = { view: name, shots: 0, pixelPass: 0, metricPass: 0, pass: 0, reachable: true, note: '', worst: [], metrics: {} };
+  const res = { view: name, shots: 0, pixelPass: 0, metricPass: 0, pass: 0, reachable: true, note: '', worst: [], metrics: {}, shotsBy: {} };
   const dir = path.join(outDir, name);
   fs.mkdirSync(dir, { recursive: true });
   for (const [key, entry] of Object.entries(metrics.widths)) {
-    const [w, theme] = key.split('-');
+    const desktop = key.startsWith('desktop-');
+    const [w, theme] = (desktop ? key.slice(8) : key).split('-');
+    if (only.modes && !only.modes.includes(desktop ? 'desktop' : 'browser')) continue;
     if (only.widths && !only.widths.includes(Number(w))) continue;
     if (only.themes && !only.themes.includes(theme)) continue;
     const states = Object.entries(entry.states).filter(([, s]) => s.png || s.same?.includes('/'));
     res.shots += states.length;
     let v;
     try {
-      v = await openV2(browser, url, open, entry.viewport, theme, metrics.captured);
+      v = await openV2(browser, url, open, entry.viewport, theme, metrics.clock ?? metrics.captured, desktop);
     } catch (err) {
       res.worst.push(`${key}: v2 did not load (${String(err?.message || err).split('\n')[0].slice(0, 100)})`);
       continue;
@@ -396,6 +420,7 @@ async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
             continue;
           }
           if (state === 'hover') await loc.hover({ force: true });
+          else if (V2_FOCUS_RUN[name]) await V2_FOCUS_RUN[name](p);
           else await focusFirst(p, loc);
           await p.waitForTimeout(250);
         }
@@ -434,16 +459,19 @@ async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
         }
         const px = diffImages(decodePng(fs.readFileSync(refPng)), decodePng(shot), { masks });
         const big = px.regions.filter((g) => g.box[2] > REGION_MAX || g.box[3] > REGION_MAX);
+        const metricOk = mdiffs.length === 0;
+        // glyph-sized regions only count when a metric is off too (see GLYPH_W)
+        const glyphs = metricOk ? big.filter(glyphSized) : [];
+        if (glyphs.length) big.splice(0, big.length, ...big.filter((g) => !glyphSized(g)));
         if (mdiffs.length) res.metrics[`${key}-${state}`] = mdiffs;
         const pixelOk = px.ratio <= PIXEL_MAX && !big.length;
-        const metricOk = mdiffs.length === 0;
         if (pixelOk) res.pixelPass++;
         if (metricOk) res.metricPass++;
         if (pixelOk && metricOk) res.pass++;
-        if (!pixelOk) {
-          fs.writeFileSync(path.join(dir, `${key}-${state}.diff.png`), encodePng(px.image));
-          fs.writeFileSync(path.join(dir, `${key}-${state}.v2.png`), shot);
-        }
+        res.shotsBy[`${key}-${state}`] = { pass: pixelOk && metricOk, px: Math.round(px.ratio * 10000) / 100, regions: big.length, parts: mdiffs.length };
+        if (!pixelOk) fs.writeFileSync(path.join(dir, `${key}-${state}.diff.png`), encodePng(px.image));
+        // PARITY_SAVE=1 keeps every v2 shot (for side-by-sides), not only the failing ones
+        if (!pixelOk || process.env.PARITY_SAVE) fs.writeFileSync(path.join(dir, `${key}-${state}.v2.png`), shot);
         if (!pixelOk || !metricOk)
           res.worst.push(`${key}-${state}: ${(px.ratio * 100).toFixed(1)}% px, ${big.length} regions >8×8, ${mdiffs.length}/${refParts.length} parts off${mdiffs.length ? ` (${mdiffs[0]})` : ''}`);
       } catch (err) {
@@ -488,7 +516,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const allowed = readAllowed(path.join(ref, 'allowed.md'));
   // --views=home,task --widths=1440,390 --themes=dark (or VIEWS / WIDTHS / THEMES in the env)
   const arg = (k) => process.argv.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3) || process.env[k.toUpperCase()];
-  const only = { views: arg('views')?.split(','), widths: arg('widths')?.split(',').map(Number), themes: arg('themes')?.split(',') };
+  const only = { views: arg('views')?.split(','), widths: arg('widths')?.split(',').map(Number), themes: arg('themes')?.split(','), modes: arg('modes')?.split(',') };
   const t0 = Date.now();
   const v2 = process.env.PARITY_URL ? { url: process.env.PARITY_URL, stop: () => {} } : await startV2(seedFile);
   const tr = translator(seed);
@@ -505,7 +533,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     for (let name = queue.shift(); name; name = queue.shift()) {
       const r = await checkView(browser, v2.url, name, (p) => openers[name](v2Page(p, tr)), ref, allowed, only, outDir);
       results.push(r);
-      console.log(`  ${r.pass === r.shots ? '✔' : '✗'} ${name}: ${r.pass}/${r.shots}${r.reachable ? '' : ` · ${r.note}`}`);
+      if (!r.shots) r.note = `no reference${only.modes ? ` for ${only.modes.join(', ')}` : ''}: not covered`;
+      console.log(`  ${!r.shots ? '–' : r.pass === r.shots ? '✔' : '✗'} ${name}: ${r.shots ? `${r.pass}/${r.shots}` : r.note}${r.reachable ? '' : ` · ${r.note}`}`);
     }
   };
   await Promise.all(Array.from({ length: Number(process.env.PARITY_JOBS) || 3 }, worker));
@@ -516,11 +545,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const md = [
     `# Parity: v2 against design/v1-reference (${new Date().toISOString()})`,
     '',
-    `v2: ${v2.url} · ${results.length} views · ${total.pass}/${total.shots} shots pass (pixels ${total.px}, metrics ${total.m})`,
+    `v2: ${v2.url} · ${results.length} views (${results.filter((r) => !r.shots).length} with no reference: not covered) · ${total.pass}/${total.shots} shots pass (pixels ${total.px}, metrics ${total.m})`,
     '',
     '| View | Shots | Pass | Pixels ok | Metrics ok | Note |',
     '|---|---:|---:|---:|---:|---|',
-    ...results.map((r) => `| ${r.view} | ${r.shots} | ${r.pass} | ${r.pixelPass} | ${r.metricPass} | ${(r.reachable ? r.worst[0] ?? '' : r.note).replace(/\|/g, '\\|')} |`),
+    ...results.map((r) => `| ${r.view} | ${r.shots || '–'} | ${r.shots ? r.pass : '–'} | ${r.shots ? r.pixelPass : '–'} | ${r.shots ? r.metricPass : '–'} | ${(!r.shots || !r.reachable ? r.note : (r.worst[0] ?? '')).replace(/\|/g, '\\|')} |`),
     '',
   ].join('\n');
   fs.writeFileSync(path.join(outDir, 'summary.md'), md);

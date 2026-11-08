@@ -332,5 +332,23 @@
       "skipped": [],
       "errors": []
     }
-  }
+  },
+  "recaptures": [
+    {
+      "started": "2026-11-08T13:48:03.274Z",
+      "finished": "2026-11-08T13:57:01.050Z",
+      "views": [
+        "home",
+        "task",
+        "task.composer"
+      ],
+      "modes": [
+        "desktop",
+        "browser"
+      ],
+      "widths": "all",
+      "themes": "all",
+      "reason": "verify round 1 #9: the dark shots of home, task and task.composer had state left by earlier views (a task read, Worktree off). Each view now starts from seed.json state restored, with its clock pinned; desktop mode (body.desktop.mac) added."
+    }
+  ]
 }

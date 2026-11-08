@@ -74,7 +74,7 @@ export const dropGoal = defineCommand<TaskArgs, { dropped: boolean }>({
 export const checkGoal = defineCommand<TaskArgs, Record<string, never>>({
   id: 'goal.check',
   owner: (a) => a.session,
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the goal.check control',
 });
 
 export const COMMANDS = [setGoal, pauseGoal, resumeGoal, dropGoal, checkGoal] as const;

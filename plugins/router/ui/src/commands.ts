@@ -26,14 +26,14 @@ export const routerSet = defineCommand<{ peer: PeerId; patch: RouterPatch }, Rou
 export const routerReset = defineCommand<{ peer: PeerId }, RouterView>({
   id: 'router.reset',
   owner: (a) => a.peer,
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the router.reset control',
 });
 
 /** What Auto would run for the launcher's text: read-only, so nothing to show before the answer. */
 export const routerPreview = defineCommand<{ peer: PeerId } & PreviewArgs, PreviewResult>({
   id: 'router.preview',
   owner: (a) => a.peer,
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the router.preview control',
   // a newer question replaces an older one; the same one in flight is that one run
   dedupe: (a) => JSON.stringify([a.peer, a.prompt, a.attachments, a.goal, a.team, a.machine]),
 });

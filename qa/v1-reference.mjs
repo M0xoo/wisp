@@ -8,6 +8,18 @@
 //   VIEWS=home,task WIDTHS=1440 THEMES=dark   a subset (merges into the existing metrics.json)
 //   QA_REF_PORT=4496  REF_JOBS=3              port of the QA wisp, views captured at once
 //   REF_OUT=<dir>                             write somewhere else
+//   REF_RESTORE=1 VIEWS=home,task             re-capture views from seed.json's exact state: before each
+//                                             view the capture run's own home and repo (seed.json home/repo)
+//                                             are put back as they were when seeded, a fresh v1 starts on
+//                                             them, and the page clock reads the view's first capture time,
+//                                             so names, ids and times match seed.json and no view sees what
+//                                             another one changed (a task read, Worktree switched off)
+//   REF_DETERMINISTIC=1                       a full capture done that way: seed once, then every view from it
+//   REF_REASON='…'                            why: kept with the re-capture in index.json `recaptures`
+//   REF_MODES=desktop                         the desktop app's mode as well (or only): window.wispDesktop is
+//                                             set before the page runs, as the Tauri shell's init.js does, so
+//                                             index.html adds body.desktop.mac; saved as desktop-<w>-<theme>-<state>.png
+//                                             and metrics.widths["desktop-<w>-<theme>"]
 //
 // Never touches your wisp: qa/lib.mjs runs v1 with a temp WISP_HOME, fake agents and its own port.
 
@@ -15,7 +27,9 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { PARTS } from '../web/js/spell-schema.js';
-import { api, launchBrowser, ROOT } from './lib.mjs';
+import { spawn } from 'node:child_process';
+import { api, launchBrowser, qaEnv, ROOT, OUT } from './lib.mjs';
+import { until } from '../test/helpers.js';
 import { seededWisp, views } from './views.mjs';
 
 export const WIDTHS = [[1440, 900], [1024, 768], [900, 900], [600, 900], [390, 844], [320, 640]];
@@ -141,9 +155,13 @@ async function focusTarget(p, loc) {
   });
 }
 
-export async function openView(browser, url, open, [width, height], colorScheme) {
+export async function openView(browser, url, open, [width, height], colorScheme, { at, desktop } = {}) {
   const ctx = await browser.newContext({ viewport: { width, height }, colorScheme, deviceScaleFactor: 1, reducedMotion: 'reduce' });
+  // The Tauri shell's init.js defines window.wispDesktop before the page's scripts run; index.html then
+  // adds body.desktop and .mac (navigator.platform, a Mac here).
+  if (desktop) await ctx.addInitScript(() => (window.wispDesktop = Object.freeze({ pickFolder: async () => null })));
   const p = await ctx.newPage();
+  if (at) await p.clock.setFixedTime(new Date(at));
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
   await p.goto(url);
@@ -158,20 +176,21 @@ export async function openView(browser, url, open, [width, height], colorScheme)
 const sha = (buf) => createHash('sha1').update(buf).digest('hex');
 const partSels = () => ({ ...PARTS, ...STRUCT });
 
-async function captureView(browser, url, name, open, out, only) {
+async function captureView(browser, url, name, open, out, only, { at, modes = ['browser'] } = {}) {
   const dir = path.join(out, name);
   fs.mkdirSync(dir, { recursive: true });
   const metricsFile = path.join(dir, 'metrics.json');
   const metrics = fs.existsSync(metricsFile) && only ? JSON.parse(fs.readFileSync(metricsFile, 'utf8')) : { view: name, captured: new Date().toISOString(), widths: {} };
   const report = { name, shots: 0, skipped: [], errors: [] };
+  for (const mode of modes)
   for (const size of widthsFor(name)) {
     if (only.widths && !only.widths.includes(size[0])) continue;
     for (const theme of THEMES) {
       if (only.themes && !only.themes.includes(theme)) continue;
-      const key = `${size[0]}-${theme}`;
+      const key = `${mode === 'desktop' ? 'desktop-' : ''}${size[0]}-${theme}`;
       let v;
       try {
-        v = await openView(browser, url, open, size, theme);
+        v = await openView(browser, url, open, size, theme, { at, desktop: mode === 'desktop' });
       } catch (err) {
         report.errors.push(`${key}: ${String(err?.message || err).split('\n')[0]}`);
         continue;
@@ -230,6 +249,97 @@ async function captureView(browser, url, name, open, out, only) {
   }
   fs.writeFileSync(metricsFile, JSON.stringify(metrics));
   return report;
+}
+
+// ---------- REF_RESTORE: each view from seed.json's exact state ----------
+// The capture run's home and repo (seed.json home, repo) hold its tasks, worktrees and config. Their
+// state as seeded is kept once in a pristine copy (made the first time, with the read marks and the
+// Worktree default put back to what seed.json says), and restored before every view, so no view sees
+// what another one did. Nothing is deleted: files are copied back over the run's own.
+const PRISTINE = process.env.REF_PRISTINE || '/tmp/wisp-v1-pristine';
+
+export function makePristine(seed, { fresh = false } = {}) {
+  if (fs.existsSync(PRISTINE) && !fresh) return;
+  if (fresh) fs.rmSync(PRISTINE, { recursive: true, force: true }); // our own copy, made from the run's
+  fs.cpSync(seed.home, path.join(PRISTINE, 'home'), { recursive: true });
+  fs.cpSync(seed.repo, path.join(PRISTINE, 'repo'), { recursive: true });
+  for (const [id, s] of Object.entries(seed.sessions)) {
+    const f = path.join(PRISTINE, 'home', 'sessions', `${id}.json`);
+    if (!fs.existsSync(f)) continue;
+    const row = JSON.parse(fs.readFileSync(f, 'utf8'));
+    row.unread = s.unread;
+    fs.writeFileSync(f, JSON.stringify(row, null, 2));
+  }
+  const cf = path.join(PRISTINE, 'home', 'config.json');
+  const config = JSON.parse(fs.readFileSync(cf, 'utf8'));
+  config.defaults = seed.config.defaults;
+  fs.writeFileSync(cf, JSON.stringify(config, null, 2));
+}
+
+export async function restoredWisp(seed, port) {
+  fs.cpSync(path.join(PRISTINE, 'home'), seed.home, { recursive: true, force: true });
+  if (fs.existsSync(path.join(PRISTINE, 'repo'))) fs.cpSync(path.join(PRISTINE, 'repo'), seed.repo, { recursive: true, force: true });
+  const busy = await fetch(`http://localhost:${port}/api/health`).then(() => true, () => false);
+  if (busy) throw new Error(`port ${port} is taken: lsof -ti tcp:${port} -sTCP:LISTEN | xargs kill`);
+  const { env } = qaEnv({ WISP_PORT: String(port), FAKE_DELAY: '300' });
+  env.WISP_HOME = seed.home;
+  const log = fs.openSync(path.join(OUT, `wisp-restore-${port}.log`), 'w');
+  const child = spawn(process.execPath, [path.join(ROOT, 'bin/wisp.js'), '--no-open', '--port', String(port)], { env, stdio: ['ignore', log, log] });
+  const url = `http://localhost:${port}`;
+  await until(async () => (await fetch(`${url}/api/config`)).ok, { timeout: 30_000, what: `wisp on ${port}` });
+  // v1 works the overlaps out in the background after it starts, listing a task's others in the order
+  // the tasks were first checked; a restart checks them newest first (ship.js boot), the seeding run
+  // checked them as they launched. Reading each task checks it (GET /sessions/:id), so they're read
+  // oldest first before the boot sweep, and the lists come out as seeded.
+  for (const s of [...seed.list].sort((a, b) => a.createdAt - b.createdAt)) await api(url, `/api/sessions/${s.id}`);
+  const first = seed.seeded.tasks[0];
+  await until(async () => ((await api(url, `/api/sessions/${first}`)).json?.overlaps?.length ?? 0) > 0, { timeout: 60_000, what: 'the overlaps' });
+  return { url, stop: () => new Promise((r) => (child.once('exit', r), child.kill('SIGTERM'))) };
+}
+
+// Every view's clock: the page reads this time (Playwright's clock), so relative times ("now", "1m") are
+// the same on every capture. Kept per view in metrics.json `clock` (qa/parity.mjs pins v2 to it); a view
+// captured for the first time reads the seed's time plus a second.
+async function restoreRun(out, port, only, { fresh = false } = {}) {
+  const seed = JSON.parse(fs.readFileSync(path.join(out, 'seed.json'), 'utf8'));
+  makePristine(seed, { fresh });
+  const started = new Date().toISOString();
+  const modes = process.env.REF_MODES ? process.env.REF_MODES.split(',') : ['browser'];
+  const openers = views({ tasks: seed.seeded.tasks.map((id) => ({ id })), goal: { id: seed.seeded.goal } });
+  const names = (only.views ?? Object.keys(openers)).filter((n) => openers[n]);
+  const browser = await launchBrowser();
+  for (const name of names) {
+    const file = path.join(out, name, 'metrics.json');
+    const prev = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : undefined;
+    const at = prev?.clock ?? prev?.captured ?? new Date(Date.parse(seed.captured) + 1000).toISOString();
+    // every width, theme and mode from the same restored state
+    for (const mode of modes)
+      for (const size of widthsFor(name)) {
+        if (only.widths && !only.widths.includes(size[0])) continue;
+        for (const theme of THEMES) {
+          if (only.themes && !only.themes.includes(theme)) continue;
+          const w = await restoredWisp(seed, port);
+          try {
+            const r = await captureView(browser, w.url, name, openers[name], out, { ...only, widths: [size[0]], themes: [theme] }, { at, modes: [mode] });
+            console.log(`  ${r.errors.length ? '✗' : '✔'} ${name} ${mode} ${size[0]} ${theme}: ${r.shots} shots${r.errors.length ? ` · ${r.errors.join(' | ')}` : ''}`);
+          } finally {
+            await w.stop();
+          }
+        }
+      }
+    // when it was captured (now), and the clock its pages read (v2's parity pins to it)
+    const m = JSON.parse(fs.readFileSync(file, 'utf8'));
+    m.captured = new Date().toISOString();
+    m.clock = at;
+    fs.writeFileSync(file, JSON.stringify(m));
+  }
+  await browser.close();
+  // the run's home and repo back as seeded, and the re-capture on record (design/foundation.md §1)
+  await restoredWisp(seed, port).then((w) => w.stop());
+  const indexFile = path.join(out, 'index.json');
+  const index = fs.existsSync(indexFile) ? JSON.parse(fs.readFileSync(indexFile, 'utf8')) : {};
+  index.recaptures = [...(index.recaptures ?? []), { started, finished: new Date().toISOString(), views: names, modes, widths: only.widths ?? 'all', themes: only.themes ?? 'all', reason: process.env.REF_REASON || '' }];
+  fs.writeFileSync(indexFile, `${JSON.stringify(index, null, 2)}\n`);
 }
 
 // What seededWisp left on the server: the list, every task in full (turns and blocks), the crew.
@@ -295,6 +405,21 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     themes: process.env.THEMES?.split(','),
   };
   const t0 = Date.now();
+  if (process.env.REF_RESTORE) {
+    await restoreRun(out, port, only);
+    process.exit(0);
+  }
+  if (process.env.REF_DETERMINISTIC) {
+    // A full capture that no view can disturb: seed once (seed.json), then every view from that state
+    // with its clock pinned, exactly as REF_RESTORE re-captures one later.
+    const seeded = await seededWisp(port);
+    const seedInfo = await writeSeed(seeded, out);
+    console.log(`  seed.json: ${seedInfo.sessions} sessions, ${seedInfo.crew} crew`);
+    seeded.w.stop();
+    await new Promise((r) => setTimeout(r, 1000));
+    await restoreRun(out, port, only, { fresh: true });
+    process.exit(0);
+  }
   const seeded = await seededWisp(port);
   // A subset run starts a new seed (new ids, a new temp repo name): its shots then differ from the rest
   // in those names, and seed.json stays the full run's. Re-capture everything before committing.

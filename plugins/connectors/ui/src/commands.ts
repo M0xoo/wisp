@@ -77,7 +77,7 @@ export const signOut = defineCommand<OnPeer & { id: string }>({
 export const signIn = defineCommand<OnPeer & { id: string; origin: string }, { url: string }>({
   id: 'connectors.signin',
   owner: (a) => keyOf(a.peer, a.id),
-  optimistic: 'none', // nothing on the row changes until the browser comes back; the pane says "Signing in…"
+  optimistic: 'none', pending: 'the connectors.signin control', // nothing on the row changes until the browser comes back; the pane says "Signing in…"
 });
 
 /** Import found servers by name, or hide them (Not now): either way they leave the found list. */

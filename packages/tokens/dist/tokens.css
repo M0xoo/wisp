@@ -109,6 +109,15 @@
     --size-v1-grip: 7.5px;
     --size-v1-indent: 10.5px;
     --size-task-head: 60px;
+    --size-mac-rail-top: 41px;
+    --size-mac-strip-top: 9px;
+    --size-mac-strip-left: 22px;
+    --size-mac-chips: 49px;
+    --size-mac-brand: 74px;
+    --size-mac-back: 82px;
+    --size-mac-head: 98px;
+    --size-meta-wide: 260px;
+    --size-read-w: 860px;
     --bar-h: var(--size-bar);
     --bar-h-compact: var(--size-bar-compact);
     --dur-fast: 0.12s;
@@ -133,6 +142,12 @@
     --bp-phone: 720px;
     --bp-split: 900px;
     --bp-wide: 1180px;
+    --bp-box-tight: 480px;
+    --bp-box-roomy: 800px;
+    --bp-box-wide: 960px;
+    --bp-pane-wide: 860px;
+    --bp-pane-xs: 375px;
+    --bp-box-xs: 290px;
     --bg: #ffffff;
     --bg-2: #f3f3f2;
     --rail: #f7f7f6;

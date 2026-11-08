@@ -1,10 +1,11 @@
 // Home as v1 draws it (web/css/split.css .split-home, launcher.css, composer.css, auto.css, tips):
 // the greeting, the prompt box (where it runs, the prompt, its toolbar, Recipes), what needs you,
 // then the tips. On a phone it's its own page with a back button in its head.
-import { For, Show, type JSX } from 'solid-js';
+import { For, Match, Show, Switch, createSignal, type JSX } from 'solid-js';
 import { flag } from '../core/props.ts';
 import { Icon } from '../content/Icon.tsx';
 import type { IconName } from '../content/icons.ts';
+import { ActIcon, WithAct, actAttrs, type Act } from './act.tsx';
 
 export interface SplitHomeProps {
   readonly greeting: string;
@@ -43,23 +44,40 @@ export interface LauncherTool {
   readonly text?: boolean;
   readonly on?: boolean;
   readonly disabled?: boolean;
-  readonly onClick?: () => void;
+  readonly act?: Act;
+}
+
+export interface LauncherChip {
+  readonly id: string;
+  /** a project (its colour's dot and name), No folder (its icon), or Other folder… (a dashed chip) */
+  readonly kind: 'project' | 'none' | 'pick';
+  readonly name: string;
+  readonly title: string;
+  readonly color?: string;
+  readonly on?: boolean;
+  readonly act?: Act;
 }
 
 export interface LauncherProps {
   readonly inLabel: string;
-  readonly project: { readonly name: string; readonly title: string; readonly color: string };
-  readonly noFolder: string;
-  readonly noFolderTitle: string;
-  readonly otherFolder: string;
-  readonly otherFolderTitle: string;
+  readonly chips: readonly LauncherChip[];
   readonly placeholder: string;
   readonly value: string;
   readonly onInput: (v: string) => void;
   readonly onSend: () => void;
   readonly inputRef?: (el: HTMLTextAreaElement) => void;
-  readonly mode: { readonly label: string; readonly title: string };
-  readonly runner: { readonly label: string; readonly title: string; readonly pick: string; readonly pickTitle: string; readonly logo?: string; readonly compare: string };
+  readonly mode: { readonly label: string; readonly title: string; readonly icon?: IconName; readonly act?: Act };
+  readonly runner: {
+    readonly label: string;
+    readonly title: string;
+    readonly pick: string;
+    readonly pickTitle: string;
+    readonly logo?: string;
+    readonly compare: string;
+    readonly act?: Act;
+    readonly pickAct?: Act;
+    readonly compareAct?: Act;
+  };
   /** before the runner: attach, where */
   readonly lead: readonly LauncherTool[];
   /** after the runner: try two ways, delegate */
@@ -67,27 +85,76 @@ export interface LauncherProps {
   /** after the gap: goal, worktree, later */
   readonly tail: readonly LauncherTool[];
   readonly sendLabel: string;
-  readonly recipes: { readonly label: string; readonly empty: string; readonly add: string; readonly issue: string; readonly issueTitle: string };
+  readonly sendAct?: Act;
+  /** Goal on: its condition, under the prompt (v1 .l-goal) */
+  readonly goal?: { readonly label: string; readonly placeholder: string; readonly value: string; readonly onInput: (v: string) => void };
+  /** files attached, and when it starts if not now: chips under the prompt */
+  readonly extras?: readonly { readonly id: string; readonly icon: IconName; readonly label: string; readonly removeLabel: string; readonly onRemove: () => void }[];
+  readonly recipes: { readonly label: string; readonly empty: string; readonly add: string; readonly issue: string; readonly issueTitle: string; readonly addAct?: Act; readonly issueAct?: Act };
 }
 
 function Tool(props: { readonly t: LauncherTool }): JSX.Element {
   return (
-    <button
-      type="button"
-      data-kit={props.t.text === undefined ? 'icon-btn' : 'tog-btn'}
-      data-a={props.t.id}
-      data-part={props.t.part}
-      data-on={flag(props.t.on)}
-      title={props.t.title}
-      aria-label={props.t.label}
-      aria-disabled={props.t.disabled ? 'true' : undefined}
-      onClick={() => !props.t.disabled && props.t.onClick?.()}
-    >
-      <Icon name={props.t.icon} />
-      <Show when={props.t.text}>
-        <span data-text="control">{props.t.label}</span>
-      </Show>
-    </button>
+    <WithAct
+      act={props.t.disabled ? undefined : props.t.act}
+      render={(trigger) => (
+        <button
+          type="button"
+          {...trigger()}
+          data-kit={props.t.text === undefined ? 'icon-btn' : 'tog-btn'}
+          data-a={props.t.id}
+          data-part={props.t.part}
+          data-on={flag(props.t.on)}
+          title={props.t.title}
+          aria-label={props.t.label}
+          aria-pressed={props.t.on === undefined ? undefined : props.t.on}
+          aria-disabled={props.t.disabled ? 'true' : undefined}
+        >
+          <ActIcon act={props.t.act}>
+            <Icon name={props.t.icon} />
+          </ActIcon>
+          <Show when={props.t.text}>
+            <span data-text="control">{props.t.label}</span>
+          </Show>
+        </button>
+      )}
+    />
+  );
+}
+
+function Chip(props: { readonly c: LauncherChip }): JSX.Element {
+  return (
+    <WithAct
+      act={props.c.act}
+      render={(trigger) => (
+        <button
+          type="button"
+          {...trigger()}
+          data-kit="lp-chip"
+          data-on={flag(props.c.on)}
+          data-none={flag(props.c.kind === 'none')}
+          data-add={flag(props.c.kind === 'pick')}
+          data-color={props.c.color}
+          aria-current={props.c.on ? 'true' : undefined}
+          title={props.c.title}
+        >
+          <Switch>
+            <Match when={props.c.kind === 'project'}>
+              <i data-kit="p-dot" />
+              {props.c.name}
+            </Match>
+            <Match when={props.c.kind === 'none'}>
+              <Icon name="text" />
+              <span data-text="control">{props.c.name}</span>
+            </Match>
+            <Match when={props.c.kind === 'pick'}>
+              <Icon name="folder" />
+              <span data-text="control">{props.c.name}</span>
+            </Match>
+          </Switch>
+        </button>
+      )}
+    />
   );
 }
 
@@ -99,58 +166,110 @@ export function Launcher(props: LauncherProps): JSX.Element {
       props.onSend();
     }
   };
+  const empty = (): boolean => props.value.trim() === '';
+  // Send with nothing written: the prompt takes the caret and its placeholder lights up until you type
+  const [nudge, setNudge] = createSignal(false);
+  let input: HTMLTextAreaElement | undefined;
+  const send = (): void => {
+    if (props.sendAct?.pending) return;
+    if (!empty()) return props.onSend();
+    input?.focus();
+    setNudge(true); // until the next key or the caret leaves
+  };
   return (
     <div data-kit="sh-launch">
-      <section data-kit="launcher" data-part="launcher">
+      <section data-kit="launcher" data-part="launcher" data-nudge={flag(nudge())}>
         <div data-kit="l-projects" data-part="launcher.projects">
           <span data-kit="l-in">{props.inLabel}</span>
           <span data-kit="lp-group">
-            <button type="button" data-kit="lp-chip" data-on="" data-color={props.project.color} title={props.project.title}>
-              <i data-kit="p-dot" />
-              {props.project.name}
-            </button>
-            <button type="button" data-kit="lp-chip" data-none="" title={props.noFolderTitle}>
-              <Icon name="text" />
-              <span data-text="control">{props.noFolder}</span>
-            </button>
-            <button type="button" data-kit="lp-chip" data-add="" title={props.otherFolderTitle}>
-              <Icon name="folder" />
-              <span data-text="control">{props.otherFolder}</span>
-            </button>
+            <For each={props.chips}>{(c) => <Chip c={c} />}</For>
           </span>
         </div>
         <div data-kit="mn-wrap">
-          <textarea data-kit="prompt" data-part="launcher.input" rows="2" placeholder={props.placeholder} value={props.value} ref={(el) => props.inputRef?.(el)} onInput={(e) => props.onInput(e.currentTarget.value)} onKeyDown={key} />
+          <textarea data-kit="prompt" data-part="launcher.input" rows="2" placeholder={props.placeholder} value={props.value} ref={(el) => ((input = el), props.inputRef?.(el))} onBlur={() => setNudge(false)} onInput={(e) => (setNudge(false), props.onInput(e.currentTarget.value))} onKeyDown={key} />
         </div>
+        <Show when={props.goal}>
+          {(g) => (
+            <div data-kit="l-goal" data-part="launcher.goalLine">
+              <Icon name="target" />
+              <input data-kit="l-goal-input" aria-label={g().label} placeholder={g().placeholder} value={g().value} onInput={(e) => g().onInput(e.currentTarget.value)} />
+            </div>
+          )}
+        </Show>
+        <Show when={(props.extras?.length ?? 0) > 0}>
+          <div data-kit="l-extras">
+            <For each={props.extras}>
+              {(x) => (
+                <span data-kit="lp-chip" data-extra="">
+                  <Icon name={x.icon} />
+                  <span data-text="control">{x.label}</span>
+                  <button type="button" data-kit="chip-x" aria-label={x.removeLabel} title={x.removeLabel} onClick={() => x.onRemove()}>
+                    <Icon name="x" />
+                  </button>
+                </span>
+              )}
+            </For>
+          </div>
+        </Show>
         <div data-kit="l-bar">
           <For each={props.lead}>{(t) => <Tool t={t} />}</For>
-          <button type="button" data-kit="mode-btn" data-part="launcher.mode" title={props.mode.title}>
-            <Icon name="spark" />
-            <span data-text="control">{props.mode.label}</span>
-          </button>
+          <WithAct
+            act={props.mode.act}
+            render={(trigger) => (
+              <button type="button" {...trigger()} data-kit="mode-btn" data-part="launcher.mode" title={props.mode.title}>
+                <Icon name={props.mode.icon ?? 'spark'} />
+                <span data-text="control">{props.mode.label}</span>
+              </button>
+            )}
+          />
           <div data-kit="runners">
-            <button type="button" data-kit="runner-btn" data-part="launcher.harness" title={props.runner.title}>
-              <span data-kit="rb-logo">
-                <i data-kit="auto-mark"><Icon name="spark" /></i>
-              </span>
-              <span data-kit="rb-h" data-text="control">{props.runner.label}</span>
-              <Icon name="chevron" />
-            </button>
-            <button type="button" data-kit="auto-pv" data-part="launcher.autoPreview" title={props.runner.pickTitle} aria-label={props.runner.pickTitle}>
-              <span data-kit="rb-logo" data-small="">
-                <Show when={props.runner.logo}>{(src) => <img src={src()} alt="" />}</Show>
-              </span>
-              <span data-kit="apv-l" data-text="control">{props.runner.pick}</span>
-            </button>
-            <button type="button" data-kit="vs-btn" data-part="launcher.compare" title={props.runner.compare} aria-label={props.runner.compare}>
-              <Icon name="plus" />
-            </button>
+            <WithAct
+              act={props.runner.act}
+              render={(trigger) => (
+                <button type="button" {...trigger()} data-kit="runner-btn" data-part="launcher.harness" title={props.runner.title}>
+                  <span data-kit="rb-logo">
+                    <i data-kit="auto-mark"><Icon name="spark" /></i>
+                  </span>
+                  <span data-kit="rb-h" data-text="control">{props.runner.label}</span>
+                  <Icon name="chevron" />
+                </button>
+              )}
+            />
+            <WithAct
+              act={props.runner.pickAct}
+              render={(trigger) => (
+                <button type="button" {...trigger()} data-kit="auto-pv" data-part="launcher.autoPreview" title={props.runner.pickTitle} aria-label={props.runner.pickTitle}>
+                  <span data-kit="rb-logo" data-small="">
+                    <Show when={props.runner.logo}>{(src) => <img src={src()} alt="" />}</Show>
+                  </span>
+                  <span data-kit="apv-l" data-text="control">{props.runner.pick}</span>
+                </button>
+              )}
+            />
+            <WithAct
+              act={props.runner.compareAct}
+              render={(trigger) => (
+                <button type="button" {...trigger()} data-kit="vs-btn" data-part="launcher.compare" title={props.runner.compare} aria-label={props.runner.compare}>
+                  <Icon name="plus" />
+                </button>
+              )}
+            />
           </div>
           <For each={props.mid}>{(t) => <Tool t={t} />}</For>
           <span data-kit="grow" />
           <For each={props.tail}>{(t) => <Tool t={t} />}</For>
-          <button type="button" data-kit="send" data-part="launcher.send" title={props.sendLabel} aria-label={props.sendLabel} onClick={() => props.onSend()}>
-            <Icon name="enter" />
+          <button
+            type="button"
+            {...actAttrs(props.sendAct)}
+            data-kit="send"
+            data-part="launcher.send"
+            title={props.sendLabel}
+            aria-label={props.sendLabel}
+            onClick={send}
+          >
+            <ActIcon act={props.sendAct}>
+              <Icon name="enter" />
+            </ActIcon>
           </button>
         </div>
         <div data-kit="l-foot">
@@ -161,15 +280,25 @@ export function Launcher(props: LauncherProps): JSX.Element {
                 {props.recipes.label}
               </span>
               <span data-kit="lr-empty">{props.recipes.empty}</span>
-              <button type="button" data-kit="lp-chip" data-add="" data-small="">
-                <Icon name="plus" />
-                {props.recipes.add}
-              </button>
+              <WithAct
+                act={props.recipes.addAct}
+                render={(trigger) => (
+                  <button type="button" {...trigger()} data-kit="lp-chip" data-add="" data-small="">
+                    <Icon name="plus" />
+                    {props.recipes.add}
+                  </button>
+                )}
+              />
             </div>
-            <button type="button" data-kit="lp-chip" data-small="" data-part="launcher.issue" title={props.recipes.issueTitle} aria-label={props.recipes.issueTitle}>
-              <Icon name="issue" />
-              <span data-text="control">{props.recipes.issue}</span>
-            </button>
+            <WithAct
+              act={props.recipes.issueAct}
+              render={(trigger) => (
+                <button type="button" {...trigger()} data-kit="lp-chip" data-small="" data-part="launcher.issue" title={props.recipes.issueTitle} aria-label={props.recipes.issueTitle}>
+                  <Icon name="issue" />
+                  <span data-text="control">{props.recipes.issue}</span>
+                </button>
+              )}
+            />
           </div>
         </div>
       </section>
@@ -228,7 +357,7 @@ export interface PlainTip {
 }
 
 /** v1 .sh-tips: setup cards, then one-line tips. */
-export function Tips(props: { readonly heading: string; readonly more: string; readonly moreTitle: string; readonly setup: readonly SetupTip[]; readonly tips: readonly PlainTip[]; readonly onMore?: () => void }): JSX.Element {
+export function Tips(props: { readonly heading: string; readonly more: string; readonly moreTitle: string; readonly setup: readonly SetupTip[]; readonly tips: readonly PlainTip[]; readonly onMore?: () => void; readonly onOpen?: (href: string) => void }): JSX.Element {
   return (
     <div data-kit="sh-tips" data-part="tips">
       <h4>
@@ -252,7 +381,17 @@ export function Tips(props: { readonly heading: string; readonly more: string; r
       </For>
       <For each={props.tips}>
         {(t) => (
-          <a data-kit="sh-tip" href={t.href ?? '#'} onClick={(e) => e.preventDefault()}>
+          <a
+            data-kit="sh-tip"
+            href={t.href}
+            target="_blank"
+            rel="noopener"
+            onClick={(e) => {
+              if (!props.onOpen || !t.href) return;
+              e.preventDefault();
+              props.onOpen(t.href);
+            }}
+          >
             <Icon name="spark" />
             <span>
               {t.before}

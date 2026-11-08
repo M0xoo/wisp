@@ -127,7 +127,7 @@ test('a streaming turn grows its text event and moves the list row along', async
 
 test('an unknown command is refused with a pointer to where to add it', async () => {
   const { client, errors } = await setup();
-  await client.commands.run({ id: 'nope.do', owner: () => peerId('local'), optimistic: 'none' } as never, {} as never).catch(() => {});
+  await client.commands.run({ id: 'nope.do', owner: () => peerId('local'), optimistic: 'none', pending: 'the nope.do control' } as never, {} as never).catch(() => {});
   await settle();
   expect(errors[0]).toMatch(/mock-commands\.ts/);
 });

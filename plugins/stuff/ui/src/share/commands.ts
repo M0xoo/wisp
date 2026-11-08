@@ -15,7 +15,7 @@ const sharedOf = (base: EntityReader, key: EntityKey): unknown => (base.peek<{ s
 export const sharePreview = defineCommand<{ session: EntityKey }, SharePreview>({
   id: 'share.preview',
   owner: (a) => a.session,
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the share.preview control',
 });
 
 /** Share it (or update its link): '' passkey for anyone with the link. The link's row comes with
@@ -23,7 +23,7 @@ export const sharePreview = defineCommand<{ session: EntityKey }, SharePreview>(
 export const shareCreate = defineCommand<{ session: EntityKey; passkey?: string; work: boolean }, Shared>({
   id: 'share.create',
   owner: (a) => a.session,
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the share.create control',
   // a second click while one is packing is the same share
   dedupe: (a) => a.session,
 });
@@ -39,7 +39,7 @@ export const shareStop = defineCommand<{ session: EntityKey }>({
 export const sharePeek = defineCommand<{ home: string; url: string; passkey?: string }, ShareCardInfo>({
   id: 'share.peek',
   owner: (a) => a.home,
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the share.peek control',
 });
 
 /** Carry it on here: the task, its history, work and team; what's typed is its first follow-up. */
@@ -47,7 +47,7 @@ export const shareImport = defineCommand<ImportArgs & { home: string }, { id: st
   id: 'share.import',
   owner: (a) => a.home,
   // the new task's row arrives with the list's patch; New task shows its own pending card
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the share.import control',
   dedupe: (a) => `${a.url}\u0000${a.prompt}`,
 });
 

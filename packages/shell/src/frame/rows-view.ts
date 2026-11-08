@@ -34,12 +34,6 @@ export function longTime(at: number): string {
   return `${day}, ${clock}`;
 }
 
-export const HARNESS: Readonly<Record<string, { name: string; logo?: string }>> = {
-  claude: { name: 'Claude Code', logo: '/logos/claudecode-color.svg' },
-  codex: { name: 'Codex', logo: '/logos/codex-color.svg' },
-  gemini: { name: 'Gemini CLI' },
-};
-
 export type Tone = 'done' | 'info' | 'warn' | 'bad' | 'live';
 
 export function statusOf(s: SessionRow, t: ShellContext['t']): { label: string; tone: Tone } {

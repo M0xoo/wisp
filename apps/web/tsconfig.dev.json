@@ -4,7 +4,9 @@
     "lib": ["es2023", "dom", "dom.iterable"],
     "types": ["node"],
     "module": "esnext",
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js"
   },
   "include": ["dev/**/*", "test/**/*", "vite.config.ts", "vitest.config.ts"]
 }

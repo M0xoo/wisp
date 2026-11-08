@@ -158,6 +158,22 @@ export interface PluginUiDef {
   palette?: PaletteSourceDef[];
   /** added: its keyboard shortcuts (only keys the shell doesn't use itself, see BUILT_IN_KEYS) */
   shortcuts?: ShortcutDef[];
+  /** added 2026-11-08 (additive): the coding agents it runs, as the screens name and mark them (a
+   * harness plugin's UI: plugins/claude/ui). The shell knows none of them itself (ADR-0003). */
+  harnesses?: HarnessUiDef[];
+}
+
+/** A coding agent as the screens show it: its name, its mark, and whether it's the one a new task
+ * runs on when nothing else is picked. `id` is the agent id rows carry (`session.agent`). */
+export interface HarnessUiDef {
+  id: string;
+  name: string;
+  /** an image URL (a data: URL in the plugin's own code) */
+  logo?: string;
+  /** the default for a new task (the first registered default wins) */
+  default?: boolean;
+  /** the order in pickers */
+  order?: number;
 }
 
 export interface ShellApi {
@@ -280,6 +296,8 @@ export interface ShellContext {
   /** the extensions on one input, resolved (overrides, disable, attach, config, order) */
   extensions(input: string): () => readonly ResolvedExtension[];
   settingsPanes(): () => readonly SettingsPaneDef[];
+  /** added 2026-11-08 (additive): the coding agents the harness plugins registered, in picker order */
+  harnesses(): () => readonly HarnessUiDef[];
   block(type: string): BlockRendererDef | undefined;
   view(kind: string): ViewDef | undefined;
 }

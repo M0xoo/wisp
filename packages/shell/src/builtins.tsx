@@ -1,5 +1,5 @@
 // The shell's own pieces, registered like any plugin's (plan §6.0.3: built-ins get no private API):
-// the brand and Search in the top bar, the command palette, the shortcuts sheet and the
+// (the frame draws the brand and Search itself: a plugin overrides them on shell.topbar:brand/search) the command palette, the shortcuts sheet and the
 // diagnostics inspector as overlay views, the Appearance and Diagnostics settings panes, the
 // palette's app commands and task list, and the keys the shell answers itself (v1 keys.js: ⌘K, ⌘L,
 // N, Esc, ?, [, ⌃Tab). Any plugin can override one by id or switch it off through `tree`.
@@ -10,7 +10,6 @@ import type { PaletteItem, PluginUiDef, ShellContext, ShortcutDef } from './cont
 import { defineExtension, defineView } from './define.ts';
 import { THEMES } from './theme.ts';
 import { SESSION, type SessionRow } from './rows.ts';
-import { Brand, SearchButton } from './frame/TopItems.tsx';
 
 export const SHELL_SETTINGS = [
   { key: 'shell.theme', type: 'enum', values: THEMES, default: 'system', scope: 'server', overridable: true },
@@ -98,8 +97,6 @@ export function shellUi(ctx: ShellContext): PluginUiDef {
   return {
     id: 'shell',
     extensions: [
-      defineExtension({ id: 'shell.brand', attachTo: { id: 'shell.topbar:brand' }, component: Brand, bar: { icon: 'spark', label: 'shell.home', priority: 'pin' } }),
-      defineExtension({ id: 'shell.search', attachTo: { id: 'shell.topbar:search' }, component: SearchButton, bar: { icon: 'search', label: 'shell.search', priority: 90, select: () => ctx.palette.open() } }),
     ],
     views: [
       defineView({ kind: 'shell.palette', slot: 'overlay', overlay: 'dialog', parse: none, component: Palette }),

@@ -68,7 +68,7 @@ export const PRESENTATION = {
 };
 
 const PLUGINS: PeerInfo['plugins'] = [
-  { id: 'wisp.runtime', version: '2.0.0', commands: ['runtime.create', 'runtime.followUp', 'runtime.stop', 'runtime.rename', 'runtime.archive', 'runtime.markRead', 'runtime.setState', 'runtime.delete'], topics: ['list', 'session:*'], blocks: ['hero', 'steps', 'diff', 'tests', 'files', 'callout', 'actions'] },
+  { id: 'wisp.runtime', version: '2.0.0', commands: ['runtime.create', 'runtime.followUp', 'runtime.stop', 'runtime.rename', 'runtime.archive', 'runtime.markRead', 'runtime.setState', 'runtime.delete', 'runtime.rerun', 'runtime.fork', 'runtime.setMode', 'runtime.setAgent', 'runtime.forLater', 'goal.set', 'ship.open', 'checkpoint.restore'], topics: ['list', 'session:*'], blocks: ['hero', 'steps', 'diff', 'tests', 'files', 'callout', 'actions'] },
   { id: 'wisp.settings', version: '2.0.0', commands: ['settings.set'], topics: ['config'], blocks: [] },
   { id: 'wisp.crew', version: '2.0.0', commands: [], topics: ['crew'], blocks: [] },
   { id: 'wisp.machines', version: '2.0.0', commands: [], topics: ['machines'], blocks: [] },

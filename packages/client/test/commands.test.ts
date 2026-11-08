@@ -21,7 +21,7 @@ const rename = defineCommand<{ id: EntityKey; title: string }>({
     return row ? [{ e: 'session', id: a.id, op: 'patch', ops: [{ op: 'replace', path: '/title', value: a.title }] }] : [];
   },
 });
-const followUp = defineCommand<{ id: EntityKey; text: string }>({ id: 'session.followUp', owner: (a) => a.id, optimistic: 'none' });
+const followUp = defineCommand<{ id: EntityKey; text: string }>({ id: 'session.followUp', owner: (a) => a.id, optimistic: 'none', pending: 'the session.followUp control' });
 
 let clockNow: FakeTimers | undefined; // the running test's clock
 /** lets streams deliver and zero-delay timers (a peer's first open) run */
@@ -152,7 +152,7 @@ test('pending commands survive a reload: the overlay is back on first paint and 
 
 test('a peer without the feature refuses the command at once, with the reason, and sends nothing', async () => {
   const { commands, mutates, errors } = await setup();
-  const crew = defineCommand<{ peer: string }>({ id: 'crew.hire', owner: (a) => a.peer, optimistic: 'none', feature: { plugin: 'wisp.crew', label: 'Crew' } });
+  const crew = defineCommand<{ peer: string }>({ id: 'crew.hire', owner: (a) => a.peer, optimistic: 'none', pending: 'the crew.hire control', feature: { plugin: 'wisp.crew', label: 'Crew' } });
   await assert.rejects(commands.run(crew, { peer: 'laptop' }), /Crew isn't installed on laptop/);
   assert.equal(mutates().length, 0);
   assert.equal(errors[0]?.code, 'unavailable');
@@ -187,4 +187,12 @@ test('the type requires optimistic: a command without one does not compile', () 
   // @ts-expect-error: optimistic is required (a patch or 'none')
   defineCommand<{ id: string }>({ id: 'x.y', owner: (a) => a.id });
   assert.ok(true);
+});
+
+test('a command with no optimistic result names the control that shows it in flight (design/feedback.md)', () => {
+  // @ts-expect-error `optimistic: 'none'` alone: nothing on screen would answer the action
+  const bare = defineCommand<{ id: string }>({ id: 'x.y', owner: (a) => a.id, optimistic: 'none' });
+  const named = defineCommand<{ id: string }>({ id: 'x.y', owner: (a) => a.id, optimistic: 'none', pending: 'the Ship it button' });
+  assert.equal(bare.optimistic, 'none');
+  assert.equal(named.pending, 'the Ship it button');
 });

@@ -5,7 +5,7 @@
   [data-kit='stage'][data-layout='stack'] > [data-kit='topbar'], [data-kit='stage'][data-layout='stack'] > [data-kit='feed-wrap'] { --side-bg: var(--rail); margin: 0; border-width: 0; border-radius: 0; }
   [data-kit='stage'][data-layout='stack'] > [data-kit='feed-wrap'] { padding: 0 var(--space-4) var(--space-9); }
   [data-kit='stage'][data-layout='stack'] [data-kit='split-top'] { margin: 0 -8px; padding: var(--space-4) var(--space-4) var(--space-5); }
-  [data-kit='stage'][data-layout='stack'] [data-kit='view-btn'] { display: none; }
+  [data-kit='stage'][data-layout='stack'] [data-kit='tb-view'] { display: none; }
   [data-kit='stage'][data-layout='stack'] > [data-kit='split-main'] { grid-row: 1 / -1; grid-column: 1; }
   [data-kit='stage'][data-layout='stack'][data-page='list'] > [data-kit='split-main'] { display: none; }
   /* a page over the list (v1 body.stack-page): the list keeps its place off to the left, so going back
@@ -26,28 +26,10 @@
   [data-kit='stage'][data-layout='stack'] [data-kit='sh-task'] { grid-template-columns: 10px minmax(0, 1fr) auto auto; }
   [data-kit='stage'][data-layout='stack'] [data-kit='sh-tips'] { margin-top: 22px; }
   [data-kit='stage'][data-layout='stack'] [data-kit='sh-tips'] > h4, [data-kit='stage'][data-layout='stack'] [data-kit='sh-tip']:not([data-setup]) { display: none; }
-  [data-kit='stage'][data-layout='stack'] [data-kit='sh-tip'][data-setup] { grid-template-columns: 34px minmax(0, 1fr); }
-  [data-kit='stage'][data-layout='stack'] [data-kit='ts-cta'] { grid-column: 2; justify-self: start; margin-top: var(--space-2); }
-
-  /* the prompt box folds its toolbar to icons in a narrow box (launcher.css, auto.css @container launcher) */
-  @container launcher (max-width: 400px) {
-    [data-kit='l-projects'] > [data-kit='l-in'] { display: none; }
-    [data-kit='lp-chip'][data-add]:not([data-small]) { width: 27px; padding: 0; justify-content: center; }
-    [data-kit='lp-chip'][data-add]:not([data-small]) > span, [data-kit='l-bar'] [data-text='control'] { display: none; }
-    [data-kit='mode-btn'] { padding: 0 7px; }
-    [data-kit='runner-btn'] { padding: 0 3px; }
-    [data-kit='runner-btn'] > [data-kit='rb-logo'], [data-kit='auto-pv'] > [data-kit='rb-logo'] { margin-right: 0; }
-    [data-kit='runner-btn'] > [data-kit='icon'] { display: none; }
-    [data-kit='auto-pv'] { padding: 0 5px; }
-    [data-kit='l-bar'] { overflow-x: auto; scrollbar-width: none; }
-    [data-kit='l-bar'] > [data-kit='grow'] { flex: 0 0 0; }
-    [data-kit='l-bar'] > [data-kit='send'] { position: sticky; right: 0; box-shadow: -8px 0 8px var(--surface), -20px 0 12px var(--surface); }
-    [data-kit='l-recipes'] { min-height: 0; }
-    [data-kit='lr-list'] { flex-direction: column; align-items: flex-start; }
-    [data-kit='lr-list'] > [data-kit='l-in'] { align-self: flex-start; }
-    [data-kit='lr-empty'] { white-space-collapse: collapse; text-wrap-mode: wrap; } /* content text: the hint wraps on a phone */
-    [data-kit='l-recipes'] > [data-kit='lp-chip'] { width: var(--size-control-xs); padding: 0; justify-content: center; }
-    [data-kit='l-recipes'] > [data-kit='lp-chip'] > span { display: none; }
+  /* a phone (split.css @media max-width 520px): a setup tip's button under its words */
+  @media (max-width: 520px) {
+    [data-kit='sh-tip'][data-setup] { grid-template-columns: 34px minmax(0, 1fr); }
+    [data-kit='ts-cta'] { grid-column: 2; justify-self: start; margin-top: var(--space-2); }
   }
 
   /* a task on a phone: the head with Back, the details as a row, the actions as a grid of five */
@@ -78,6 +60,10 @@
   }
   [data-kit='stage'][data-layout='stack'] [data-kit='q-proj']::before { display: none; }
   [data-kit='stage'][data-layout='stack'] [data-kit='it-meta'] { margin: 0; min-width: 100px; overflow: hidden; }
+  /* the smallest phones: the branch on its own line, the project in full (v1's row wraps there) */
+  @container pane (max-width: 375px) {
+    [data-kit='stage'][data-layout='stack'] [data-kit='it-meta'] { grid-column: 1 / -1; }
+  }
   [data-kit='stage'][data-layout='stack'] [data-kit='m-branch'] { color: var(--ink-2); }
   [data-kit='stage'][data-layout='stack'] [data-kit='m-branch'] > [data-kit='icon'] { width: var(--size-icon-sm); height: var(--size-icon-sm); margin-right: var(--space-2); }
   [data-kit='stage'][data-layout='stack'] [data-kit='it-actions'] {
@@ -88,19 +74,24 @@
     flex-direction: column; justify-content: center; gap: 3px; height: auto; min-height: 52px; padding: var(--space-2) var(--space-1); margin: 0;
     border-radius: var(--radius); font-size: var(--fs-xs); line-height: 1.25; color: var(--ink-2);
   }
-  [data-kit='stage'][data-layout='stack'] [data-kit='it-actions'] > [data-kit='ghost-xs']::after { display: none; }
   [data-kit='stage'][data-layout='stack'] [data-kit='it-actions'] > [data-kit='ghost-xs'] > [data-kit='icon'] { width: 17px; height: 17px; }
   [data-kit='stage'][data-layout='stack'] [data-kit='b-hero'] > h2 { font-size: 22px; }
   /* the trail on three rows: what it did, the files, the tools (a grid: its rows are fixed, it never wraps) */
-  [data-kit='stage'][data-layout='stack'] [data-kit='trail-bar'] { display: grid; grid-template-columns: auto auto auto auto minmax(0, 1fr); justify-items: start; }
-  [data-kit='stage'][data-layout='stack'] [data-kit='link-xs'] { grid-column: 1 / -1; }
-  [data-kit='stage'][data-layout='stack'] [data-kit='tb-tools'] { grid-column: 1 / -1; justify-self: end; margin: 0; }
-  [data-kit='stage'][data-layout='stack'] [data-kit='trail-bar'] > [data-kit='grow'] { display: none; }
+  @media (max-width: 520px) {
+    [data-kit='trail-bar'] { display: grid; grid-template-columns: auto auto auto auto minmax(0, 1fr); justify-items: start; }
+    [data-kit='trail-bar'] > [data-kit='grow'] { display: none; }
+    [data-kit='link-xs'] { grid-column: 1 / -1; }
+    [data-kit='tb-tools'] { grid-column: 1 / -1; justify-self: end; margin: 0; }
+  }
   [data-kit='stage'][data-layout='stack'] [data-kit='it-dock'] { padding: var(--space-5) 0 var(--space-6); }
-  [data-kit='stage'][data-layout='stack'] [data-kit='ov-text'] { white-space-collapse: collapse; text-wrap-mode: wrap; } /* content text: what overlaps, in words */
-  [data-kit='stage'][data-layout='stack'] [data-kit='ov-text'] > b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  [data-kit='stage'][data-layout='stack'] [data-kit='ov-text'] > span { display: flow-root; }
-  [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] { gap: var(--space-2); padding: 3px; margin: -3px; overflow-x: auto; scrollbar-width: none; }
+  /* ship.css @media (max-width: 520px): the overlap's head on its line, what it changes in two under it */
+  @media (max-width: 520px) {
+    [data-kit='ov-text'] { white-space-collapse: collapse; text-wrap-mode: wrap; } /* content text: what overlaps, in words */
+    [data-kit='ov-text'] > b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    [data-kit='ov-text'] > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  }
+  [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] { padding: 3px; margin: -3px; overflow-x: auto; scrollbar-width: none; }
+  @media (max-width: 520px) { [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] { gap: var(--space-2); } }
   [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] [data-text='control'] { display: none; }
   [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] > [data-kit='mode-btn'] { padding: 0; }
   [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] > [data-kit='send'] { position: sticky; right: 0; box-shadow: -10px 0 8px -2px var(--surface); }

@@ -20,6 +20,8 @@ export function nullPlatform(over: Partial<Platform> = {}): Platform {
     mobile: false,
     standalone: false,
     apple: true,
+    titlebar: 'none',
+    dragRegions: () => () => {},
     notifyPermission: async () => 'unsupported',
     requestNotify: async () => 'unsupported',
     notify: async () => 'unsupported',

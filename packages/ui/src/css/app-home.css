@@ -6,7 +6,7 @@
     padding: clamp(32px, 14vh, 140px) var(--space-9) 48px;
   }
   [data-kit='split-home'] > * { flex: none; width: 100%; max-width: 760px; }
-  [data-kit='sh-hello'] { width: auto; margin: 0 0 18px; padding: 0 var(--space-2); font: 600 var(--fs-display) / 1.2 var(--display); letter-spacing: -0.02em; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  [data-kit='sh-hello'] { width: auto; margin: 0 0 18px; padding: 0 var(--space-2); font: 600 var(--fs-display) / 1.2 var(--display); letter-spacing: -0.02em; color: var(--ink); } /* content text: a heading, it wraps on the smallest phones */
   [data-kit='sh-bar'] { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 18px; }
   [data-kit='sh-bar'] > [data-kit='sh-hello'] { margin: 0; font-size: 20px; }
   [data-kit='sh-back'] { display: grid; place-items: center; width: var(--size-touch); height: var(--size-touch); margin-left: -12px; border-radius: var(--radius-control); color: var(--ink); }
@@ -42,6 +42,24 @@
   }
   [data-kit='prompt']:focus-visible, [data-kit='reply']:focus-visible { outline: 0; border-radius: 0; }
   [data-kit='prompt']::placeholder, [data-kit='reply']::placeholder { color: var(--faint); }
+  /* goal.css .l-goal: Goal on, its condition under the prompt */
+  [data-kit='l-goal'] { display: flex; align-items: center; gap: var(--space-5); margin: var(--space-1) 14px var(--space-2); padding: var(--space-3) var(--space-2) var(--space-3) var(--space-5); border-radius: var(--radius-control); background: var(--surface-2); border: 1px solid var(--line); }
+  [data-kit='l-goal'] > [data-kit='icon'] { width: var(--size-icon-md); height: var(--size-icon-md); color: var(--accent); }
+  [data-kit='l-goal-input'] { flex: 1; min-width: 0; height: 28px; border: 0; background: transparent; font: inherit; font-size: var(--fs-md); color: var(--ink); outline: 0; }
+  [data-kit='l-goal-input']::placeholder { color: var(--faint); }
+  /* what's attached, and when it starts: chips under the prompt */
+  [data-kit='l-extras'] { display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-1) var(--space-2); min-width: 0; overflow: hidden; }
+  [data-kit='lp-chip'][data-extra] { height: var(--size-control-xs); padding: 0 var(--space-1) 0 var(--space-4); border-color: var(--line); color: var(--ink-2); min-width: 0; }
+  [data-kit='lp-chip'][data-extra] > [data-kit='icon'] { width: 13px; height: 13px; color: var(--muted); }
+  [data-kit='lp-chip'][data-extra] > span { overflow: hidden; text-overflow: ellipsis; }
+  [data-kit='chip-x'] { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; color: var(--faint); }
+  [data-kit='chip-x']:hover { background: var(--bg-2); color: var(--ink); }
+  [data-kit='chip-x'] > [data-kit='icon'] { width: 11px; height: 11px; }
+  /* a control whose command is in flight: its spinner where its icon was, the same box */
+  [data-kit='spinner'][data-in='act'] { position: static; margin: 0; width: var(--size-icon-md); height: var(--size-icon-md); flex: none; }
+  [data-pending] { cursor: progress; }
+  /* Send with nothing to send: the prompt says what's missing (its placeholder in the accent) */
+  [data-kit='launcher'][data-nudge] [data-kit='prompt']::placeholder, [data-kit='reply-box'][data-nudge] [data-kit='reply']::placeholder { color: var(--accent-ink); }
   [data-kit='l-bar'] { display: flex; align-items: center; gap: var(--space-1); padding-top: var(--space-3); }
   [data-kit='l-bar'] > *, [data-kit='c-bar'] > * { flex: none; }
   [data-kit='icon-btn'] { display: inline-grid; place-items: center; width: 30px; height: 30px; min-width: 30px; border-radius: var(--radius-control); color: var(--muted); transition: background 0.15s, color 0.15s; }
@@ -81,10 +99,53 @@
   /* composer.css .send */
   [data-kit='send'] { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--radius-md); background: var(--ink); color: var(--bg); transition: opacity 0.15s; }
   [data-kit='send']:hover { opacity: 0.86; }
-  [data-kit='l-foot'] { display: grid; }
+  [data-kit='l-foot'] { display: grid; grid-template-columns: minmax(0, 1fr); }
   [data-kit='l-recipes'] { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-1) 14px var(--space-4); margin: var(--space-1) -12px -10px; }
   [data-kit='lr-list'] { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: var(--space-3); }
-  [data-kit='lr-empty'] { margin-right: var(--space-1); font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  [data-kit='lr-empty'] { min-width: 0; margin-right: var(--space-1); font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  [data-kit='lr-list'] > [data-kit='l-in'], [data-kit='lr-list'] > [data-kit='lp-chip'] { flex: none; }
+
+  /* The prompt box folds its toolbar as it narrows, by its own width (launcher.css, auto.css, subagents.css
+     @container launcher): labels go to their icons in v1's order, then the bar scrolls with Send pinned. */
+  @container launcher (max-width: 720px) {
+    [data-kit='l-bar'] > [data-a='worktree'] > [data-text='control'] { display: none; }
+  }
+  @container launcher (not (max-width: 520px)) and (max-width: 640px) {
+    [data-kit='l-bar'] > [data-kit='mode-btn'], [data-kit='l-bar'] > [data-a='goal'] { padding-inline: var(--space-2); }
+  }
+  @container launcher (max-width: 640px) {
+    [data-kit='rb-h'], [data-kit='apv-l'], [data-kit='l-bar'] > [data-a='team'] > [data-text='control'] { display: none; }
+    [data-kit='auto-pv'] { padding: 0 5px; }
+    [data-kit='auto-pv'] > [data-kit='rb-logo'] { margin-right: 0; }
+  }
+  @container launcher (max-width: 520px) {
+    [data-kit='runner-btn'] { padding: 0 3px; }
+    [data-kit='runner-btn'] > [data-kit='rb-logo'] { margin-right: 0; }
+    [data-kit='runner-btn'] > [data-kit='icon'] { display: none; }
+    [data-kit='l-bar'] [data-text='control'] { display: none; }
+    [data-kit='l-bar'] > [data-kit='mode-btn'] { padding: 0 7px; }
+    [data-kit='l-bar'] { overflow-x: auto; scrollbar-width: none; }
+    [data-kit='l-bar'] > [data-kit='send'] { position: sticky; right: 0; box-shadow: -8px 0 8px var(--surface), -20px 0 12px var(--surface); }
+  }
+  @container launcher (max-width: 480px) {
+    [data-kit='l-projects'] > [data-kit='l-in'] { display: none; }
+    [data-kit='lp-chip'][data-add]:not([data-small]) { width: 27px; padding: 0; justify-content: center; }
+    [data-kit='lp-chip'][data-add]:not([data-small]) > span { display: none; }
+    [data-kit='l-recipes'] > [data-kit='lp-chip'] { width: var(--size-control-xs); padding: 0; justify-content: center; }
+    [data-kit='l-recipes'] > [data-kit='lp-chip'] > span { display: none; }
+  }
+  /* the location row folds before it would clip (v1 .l-projects.folded, where v1 wraps the row):
+     No folder to its icon */
+  @container launcher (max-width: 290px) {
+    [data-kit='lp-chip'][data-none]:not([data-on]) { width: 27px; padding: 0; justify-content: center; }
+    [data-kit='lp-chip'][data-none]:not([data-on]) > span { display: none; }
+  }
+  /* the hint under the recipes wraps on a phone (launcher.css: nowrap from 401 px up) */
+  @container launcher (max-width: 400px) {
+    [data-kit='lr-list'] { flex-direction: column; align-items: flex-start; }
+    [data-kit='lr-list'] > [data-kit='l-in'] { align-self: flex-start; }
+    [data-kit='lr-empty'] { white-space-collapse: collapse; text-wrap-mode: wrap; } /* content text */
+  }
 
   /* split.css .sh-next, .sh-task */
   [data-kit='sh-next'] { margin-top: 30px; display: flex; flex-direction: column; gap: var(--space-1); }

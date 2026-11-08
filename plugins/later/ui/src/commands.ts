@@ -153,7 +153,7 @@ export const heldAction = defineCommand<{ sessionId: string; action: HeldAction 
 
 /** A schedule saved for something another plugin owns (a member's check-ins, a trigger): its own command. */
 export function applySchedule(cmd: string): ReturnType<typeof defineCommand<Record<string, unknown>>> {
-  return defineCommand<Record<string, unknown>>({ id: cmd, owner: (a) => String(a['id'] ?? a['peer'] ?? ''), optimistic: 'none' });
+  return defineCommand<Record<string, unknown>>({ id: cmd, owner: (a) => String(a['id'] ?? a['peer'] ?? ''), optimistic: 'none', pending: `the ${cmd} control` });
 }
 
 export const COMMANDS = [addFollowUp, editFollowUp, snoozeReminder, cancelFollowUp, park, addPlan, editPlan, startPlan, cancelPlan, heldAction];

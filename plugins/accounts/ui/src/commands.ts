@@ -44,7 +44,7 @@ export function accountsOf(base: EntityReader, agent: string): AccountRow[] {
 }
 
 /** Re-check (POST /agents/recheck): look for harnesses and models again, here and on every machine. */
-export const recheck = defineCommand<RecheckArgs>({ id: 'accounts.recheck', owner: (a) => a.peer, optimistic: 'none' });
+export const recheck = defineCommand<RecheckArgs>({ id: 'accounts.recheck', owner: (a) => a.peer, optimistic: 'none', pending: 'the accounts.recheck control' });
 
 /** Install (opencode, into ~/.wisp/tools). */
 export const install = defineCommand<AgentArgs>({
@@ -178,4 +178,4 @@ export const keyRemove = defineCommand<ProviderArgs>({
 });
 
 /** Test: one cheap call with the saved key; the answer lands on the row's `test`. */
-export const keyTest = defineCommand<ProviderArgs>({ id: 'accounts.keys.test', owner: (a) => a.peer, optimistic: 'none' });
+export const keyTest = defineCommand<ProviderArgs>({ id: 'accounts.keys.test', owner: (a) => a.peer, optimistic: 'none', pending: 'the accounts.keys.test control' });

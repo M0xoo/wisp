@@ -1,5 +1,7 @@
 // Writes are commands (plan §4.5, §4.6.5). A command declares its optimistic patch, or says
-// `optimistic: 'none'`: the type has no third option, so the optimistic part can't be forgotten.
+// `optimistic: 'none'` and names the control that shows it in flight (`pending`, design/feedback.md
+// §How): the type has no third option, and `'none'` alone is a type error, so an action can't go
+// without something on screen answering it.
 // Running one: a UUIDv7 mid (the idempotency key), the patch goes on the pending overlay at once,
 // the command is persisted, then sent to the peer that owns the id (origin routing, §7.2.1). The
 // ack settles it once the peer's patches catch up; a reject rolls it back and calls `onError`
@@ -17,12 +19,10 @@ import type { Persist } from './persist.ts';
 import { signal, untracked, type Readable } from './signals.ts';
 import type { PeerId, Warn, WireError } from './types.ts';
 
-export interface CommandDef<A, R = unknown> {
+interface CommandBase<A, R> {
   readonly id: string; // 'session.rename'
   /** the entity key (or a bare peer id) whose peer runs the command */
   readonly owner: (args: A) => string;
-  /** the change to show before the peer answers, computed from what's on screen */
-  readonly optimistic: ((base: EntityReader, args: A) => EntityOps) | 'none';
   /** runs with the same key while one is in flight are that one run; default: id + args */
   readonly dedupe?: (args: A) => string;
   /** the peer must offer this, or the command fails at once with the reason */
@@ -30,6 +30,22 @@ export interface CommandDef<A, R = unknown> {
   /** phantom: the result type, for inference only */
   readonly __result?: R;
 }
+
+/** The result before the peer answers: a patch computed from what's on screen… */
+interface Optimistic<A> {
+  readonly optimistic: (base: EntityReader, args: A) => EntityOps;
+  readonly pending?: undefined;
+}
+
+/** …or none, and the control that shows the command in flight (its pending state: a spinner in its
+ * icon's place, the same width, no second press). What it names is for readers and the feedback
+ * gate (qa/feedback.mjs): the control's data-part, or the words for it. */
+interface Pending {
+  readonly optimistic: 'none';
+  readonly pending: string;
+}
+
+export type CommandDef<A, R = unknown> = CommandBase<A, R> & (Optimistic<A> | Pending);
 
 export function defineCommand<A, R = unknown>(def: CommandDef<A, R>): CommandDef<A, R> {
   return def;

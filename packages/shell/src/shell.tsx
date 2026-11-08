@@ -113,6 +113,7 @@ export function createShell(o: ShellOptions): Shell {
     palette: { open: () => client.nav.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'shell.palette' as never, params: null } }) },
     extensions: (input) => registry.input(input),
     settingsPanes: () => registry.settingsPanes,
+    harnesses: () => registry.harnesses,
     block: (type) => registry.block(type),
     view: (kind) => registry.view(kind),
   };

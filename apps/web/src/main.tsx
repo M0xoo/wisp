@@ -39,6 +39,8 @@ const client = createClient({
   onError: commandErrorToast(toaster),
 });
 const shell = createShell({ client, toaster, platform, home, window });
+// dev only: the QA gates drive the app's own state the way v1's capture drove its DOM (qa/parity.mjs)
+if (import.meta.env.DEV) (window as unknown as { __wispShell?: unknown }).__wispShell = shell;
 for (const { path, def } of pluginUis()) {
   if (!def) continue;
   try {

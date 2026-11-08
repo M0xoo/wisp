@@ -25,6 +25,7 @@ export function devShell(client: Client, toaster: Toaster = createToaster()): Sh
     palette: { open: () => {} },
     extensions: () => () => [],
     settingsPanes: () => () => [],
+    harnesses: () => () => [],
     block: () => undefined,
     view: () => undefined,
   };

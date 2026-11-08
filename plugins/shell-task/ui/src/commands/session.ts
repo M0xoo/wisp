@@ -19,7 +19,7 @@ export const stop = defineCommand<{ key: EntityKey }>({
   id: 'session.stop',
   owner,
   // the run winds down on the peer; the live panel says Stopping… from its own machine
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the session.stop control',
 });
 
 export const setMode = defineCommand<{ key: EntityKey; mode: Mode }>({
@@ -57,7 +57,7 @@ export const allowRetry = defineCommand<{ key: EntityKey; tool?: string; detail?
 export const exec = defineCommand<{ key: EntityKey; command: string }, { code: number; output: string }>({
   id: 'session.exec',
   owner,
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the session.exec control',
 });
 
 export const markDone = defineCommand<{ key: EntityKey }>({
@@ -81,7 +81,7 @@ export const archive = defineCommand<{ key: EntityKey; archived: boolean }>({
 export const fork = defineCommand<{ key: EntityKey; turnId?: string }, { id: string }>({
   id: 'session.fork',
   owner,
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the session.fork control',
 });
 
 export const rerun = defineCommand<{ key: EntityKey; turnId: string }>({
@@ -100,12 +100,12 @@ export const compact = defineCommand<{ key: EntityKey }>({
 export const releaseHeld = defineCommand<{ key: EntityKey; turnId: string; action: 'run' | 'trust' | 'wait' | 'cancel' | 'switch'; to?: string }>({
   id: 'session.held',
   owner,
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the session.held control',
 });
 
 /** Saves an `app` block's state (v1 /app-state). */
 export const appState = defineCommand<{ key: EntityKey; turnId: string; block: string; state: unknown }>({
   id: 'session.appState',
   owner,
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the session.appState control',
 });

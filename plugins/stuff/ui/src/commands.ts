@@ -48,7 +48,7 @@ export const removeItem = defineCommand<ItemArgs, { ok: boolean }>({
 });
 
 /** Back to the one previous version: the server swaps them, so the page waits for its answer. */
-export const restoreItem = defineCommand<ItemArgs, StuffView>({ id: 'stuff.restore', owner: (a) => a.key, optimistic: 'none' });
+export const restoreItem = defineCommand<ItemArgs, StuffView>({ id: 'stuff.restore', owner: (a) => a.key, optimistic: 'none', pending: 'the stuff.restore control' });
 
 /** Launch: Starting… shows on its card at once; the port comes with the answer. */
 export const launchApp = defineCommand<ItemArgs, Launched>({
@@ -86,7 +86,7 @@ export const allowPane = defineCommand<AllowArgs, StuffView>({
 });
 
 /** The server's word on what a pane may do now: asked before every write a pane makes. */
-export const grantOf = defineCommand<ItemArgs, Grant>({ id: 'stuff.grant', owner: (a) => a.key, optimistic: 'none' });
+export const grantOf = defineCommand<ItemArgs, Grant>({ id: 'stuff.grant', owner: (a) => a.key, optimistic: 'none', pending: 'the stuff.grant control' });
 
 /** Publish (again, after a change) to your wisp Grid: a link anyone can open. */
 export const publishApp = defineCommand<ItemArgs, StuffView>({
@@ -124,22 +124,22 @@ export const saveItem = defineCommand<SaveArgs, StuffView>({
 });
 
 /** The panes wisp ships (v1 GET /stuff/starters). */
-export const listStarters = defineCommand<{ readonly peer: PeerId }, { starters: Starter[] }>({ id: 'stuff.starters', owner: (a) => a.peer, optimistic: 'none' });
+export const listStarters = defineCommand<{ readonly peer: PeerId }, { starters: Starter[] }>({ id: 'stuff.starters', owner: (a) => a.peer, optimistic: 'none', pending: 'the stuff.starters control' });
 
 /** Adds a starter to My Stuff once (it grants and pins nothing). */
-export const addStarter = defineCommand<{ readonly peer: PeerId; readonly id: string }, StuffView>({ id: 'stuff.addStarter', owner: (a) => a.peer, optimistic: 'none' });
+export const addStarter = defineCommand<{ readonly peer: PeerId; readonly id: string }, StuffView>({ id: 'stuff.addStarter', owner: (a) => a.peer, optimistic: 'none', pending: 'the stuff.addStarter control' });
 
 /** Make a pane: a task of kind `pane` on your defaults, in an empty folder of its own. */
 export const makePane = defineCommand<{ readonly peer: PeerId; readonly prompt: string; readonly agent?: string; readonly model?: string; readonly effort?: string; readonly account?: string; readonly ext: { 'wisp.stuff': { kind: 'pane' } } }, { id: string }>({
   id: 'runtime.create',
   owner: (a) => a.peer,
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the runtime.create control',
 });
 
 /** Show in folder: the peer opens its file manager; through a proxy it answers the path instead. */
-export const revealItem = defineCommand<ItemArgs, { ok: boolean; path?: string }>({ id: 'stuff.reveal', owner: (a) => a.key, optimistic: 'none' });
+export const revealItem = defineCommand<ItemArgs, { ok: boolean; path?: string }>({ id: 'stuff.reveal', owner: (a) => a.key, optimistic: 'none', pending: 'the stuff.reveal control' });
 
 /** Where an app can be published (the publisher's targets): your wisp Grids, by host. */
-export const publishTargets = defineCommand<{ readonly peer: PeerId }, { host: string }[]>({ id: 'stuff.targets', owner: (a) => a.peer, optimistic: 'none' });
+export const publishTargets = defineCommand<{ readonly peer: PeerId }, { host: string }[]>({ id: 'stuff.targets', owner: (a) => a.peer, optimistic: 'none', pending: 'the stuff.targets control' });
 
 export const STUFF_COMMANDS = [updateItem, removeItem, restoreItem, launchApp, stopApp, resetData, allowPane, grantOf, publishApp, unpublishApp, saveItem, listStarters, addStarter, revealItem, publishTargets] as const;

@@ -45,7 +45,7 @@ export const detachMember = defineCommand<{ key: EntityKey; id: string }, Member
 export const checkIn = defineCommand<{ key: EntityKey; crewId: string }, { session?: SessionRow; queued?: boolean; already?: boolean }>({
   id: 'crew.checkin',
   owner: (a) => a.key,
-  optimistic: 'none',
+  optimistic: 'none', pending: 'the crew.checkin control',
 });
 
 /**

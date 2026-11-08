@@ -14,7 +14,7 @@ const row = (base: EntityReader, key: EntityKey): ShipSession | undefined => bas
 const set = (key: EntityKey, path: string, value: unknown): LocalOp => ({ e: SESSION, id: key, op: 'patch', ops: [{ op: 'add', path, value } satisfies PatchOp] });
 
 /** GET /sessions/:id/ship: what would ship (routes, counts, the drafted message). Reads only. */
-export const prepare = defineCommand<Task, ShipInfo>({ id: 'ship.prepare', owner, optimistic: 'none' });
+export const prepare = defineCommand<Task, ShipInfo>({ id: 'ship.prepare', owner, optimistic: 'none', pending: 'the ship.prepare control' });
 
 export interface ShipArgs extends Task {
   readonly title: string;
@@ -34,7 +34,7 @@ export const ship = defineCommand<ShipArgs, ShipResult>({
 });
 
 /** POST /sessions/:id/pr: check the PR now (wisp also checks every minute). */
-export const refresh = defineCommand<Task, PrSummary>({ id: 'ship.refresh', owner, optimistic: 'none' });
+export const refresh = defineCommand<Task, PrSummary>({ id: 'ship.refresh', owner, optimistic: 'none', pending: 'the ship.refresh control' });
 
 /** POST /sessions/:id/fix-conflicts: the row says "Fixing merge conflicts" at once. */
 export const fixConflicts = defineCommand<Task>({
@@ -62,9 +62,9 @@ export const review = defineCommand<Task>({
 
 /** POST /sessions/:id/merge: squash-merge each open PR, sync the local base, clean up. The confirm
  * came first; the merge itself takes seconds, so the flow shows it (not a guess at the result). */
-export const merge = defineCommand<Task, MergeResult>({ id: 'ship.merge', owner, optimistic: 'none' });
+export const merge = defineCommand<Task, MergeResult>({ id: 'ship.merge', owner, optimistic: 'none', pending: 'the ship.merge control' });
 
 /** GET /sessions/:id/check-log: the end of a failing check's log, for Ask to fix. Reads only. */
-export const checkLog = defineCommand<Task & { readonly url: string }, { log: string }>({ id: 'ship.checkLog', owner, optimistic: 'none' });
+export const checkLog = defineCommand<Task & { readonly url: string }, { log: string }>({ id: 'ship.checkLog', owner, optimistic: 'none', pending: 'the ship.checkLog control' });
 
 export const COMMANDS = [prepare, ship, refresh, fixConflicts, review, merge, checkLog] as const;

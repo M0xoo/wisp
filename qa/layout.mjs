@@ -51,6 +51,8 @@ async function startGallery() {
   const args = AREA ? ['--port', String(port), '--strictPort', '--host', '127.0.0.1'] : ['--config', 'gallery/vite.config.ts', '--port', String(port), '--strictPort', '--host', '127.0.0.1'];
   const child = spawn(process.execPath, [vite, ...args], {
     cwd: AREA ? path.join(ROOT, 'apps', 'web') : path.join(ROOT, 'packages', 'ui'),
+    // the app on v1's reference data, as qa/parity.mjs runs it: qa/layout-areas.mjs paths use its ids
+    env: AREA ? { ...process.env, MOCK_SEED: path.join(ROOT, 'design', 'v1-reference', 'seed.json') } : process.env,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';

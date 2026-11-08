@@ -16,6 +16,8 @@ export interface TaskCardProps {
   readonly color: string;
   readonly unread?: boolean;
   readonly open?: boolean;
+  /** the row the keyboard is on */
+  readonly selected?: boolean;
   readonly done?: boolean;
   readonly status?: { readonly label: string; readonly tone: CardStatus };
   /** a goal: its round and the ring's progress (0–100) */
@@ -26,11 +28,16 @@ export interface TaskCardProps {
   readonly time: string;
   readonly timeTitle: string;
   readonly laterLabel: string;
+  /** saved for later: the bookmark filled */
+  readonly laterOn?: boolean;
   readonly doneLabel: string;
   readonly onOpen?: () => void;
   readonly onDone?: () => void;
   readonly onLater?: () => void;
   readonly body?: JSX.Element;
+  /** what plugins put on the row (v1 SLOTS card.top, card.head, card.hover, card.bottom): above the
+   * row, among its pills, beside its quick buttons, under it */
+  readonly slots?: { readonly top?: JSX.Element; readonly head?: JSX.Element; readonly hover?: JSX.Element; readonly bottom?: JSX.Element };
 }
 
 /** v1 goal.js ring(): a track, the progress arc and a centre dot, 14 px. */
@@ -57,7 +64,8 @@ export function TaskCard(props: TaskCardProps): JSX.Element {
     fn?.();
   };
   return (
-    <article data-kit="item" data-part="card" data-id={props.id} data-color={props.color} data-unread={flag(props.unread)} data-open={flag(props.open)} data-done={flag(props.done)}>
+    <article data-kit="item" data-part="card" data-id={props.id} data-color={props.color} data-unread={flag(props.unread)} data-open={flag(props.open)} data-selected={flag(props.selected && !props.open)} data-done={flag(props.done)}>
+      {props.slots?.top}
       <div data-kit="it-head" data-part="card.head" role="button" tabindex="0" aria-current={props.open ? 'true' : undefined} onClick={() => props.onOpen?.()} onKeyDown={key}>
         <span data-kit="q-dot" data-part="card.dot" />
         <span data-kit="it-title" data-part="card.title" data-text="control" title={props.title}>{props.title}</span>
@@ -101,15 +109,18 @@ export function TaskCard(props: TaskCardProps): JSX.Element {
               </span>
             )}
           </Show>
+          {props.slots?.head}
           <span data-kit="q-time" data-part="card.time" title={props.timeTitle}>{props.time}</span>
-          <span data-kit="it-later" data-part="card.quickLater" data-a="quick-later" role="button" aria-label={props.laterLabel} title={props.laterLabel} onClick={quick(props.onLater)}>
+          <span data-kit="it-later" data-part="card.quickLater" data-a="quick-later" data-on={flag(props.laterOn)} aria-pressed={props.laterOn === true} role="button" aria-label={props.laterLabel} title={props.laterLabel} onClick={quick(props.onLater)}>
             <Icon name="bookmark" />
           </span>
           <span data-kit="it-quick" data-part="card.quickDone" data-a="quick-done" role="button" aria-label={props.doneLabel} title={props.doneLabel} onClick={quick(props.onDone)}>
             <Icon name="done" />
           </span>
+          {props.slots?.hover}
         </span>
       </div>
+      {props.slots?.bottom}
       {props.body}
     </article>
   );

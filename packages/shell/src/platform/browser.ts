@@ -28,6 +28,8 @@ export function browserPlatform(w: PlatformWindow): Platform {
     mobile: coarse && narrow,
     standalone,
     apple,
+    titlebar: 'none',
+    dragRegions: () => () => {},
     notifyPermission: () => Promise.resolve(permissionOf(w)),
     async requestNotify() {
       const N = w.Notification;

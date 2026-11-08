@@ -3,7 +3,7 @@
 // from the width). On a phone (stack) one page shows: the list, or the main pane when a task, a
 // view or New task is open (New task from the list opens Home's prompt box as its own page).
 
-import { createMemo, createSignal, createEffect, lazy, on, type JSX } from 'solid-js';
+import { createMemo, createSignal, createEffect, lazy, on, onCleanup, onMount, type JSX } from 'solid-js';
 import type { Readable } from '@wisp/client';
 import { Stage, Toasts, useSignal, type StagePage } from '@wisp/ui';
 import { useShell } from '../context.tsx';
@@ -19,9 +19,13 @@ export function App(props: { readonly clients: Clients; readonly recent: Readabl
   const nav = useSignal(shell.nav);
   // stack only: Home's prompt box as its own page (v1 body.stack-page), opened from New task
   const [launcher, setLauncher] = createSignal(false);
+  const [filter, setFilter] = createSignal('all');
   createEffect(on(() => nav().main.kind, (k) => k !== 'home' && setLauncher(false)));
   const page = createMemo<StagePage>(() => (nav().main.kind === 'home' && !launcher() ? 'list' : 'main'));
   const switcher = shell.platform.kind === 'desktop';
+  // the desktop app on a Mac: the page is the title bar (Stage's titlebar, the platform's drag regions)
+  const titlebar = shell.platform.titlebar === 'mac' ? 'mac' : undefined;
+  onMount(() => onCleanup(shell.platform.dragRegions(document.body)));
   const onNew = (): void => {
     setLauncher(true);
     shell.navigate({ t: 'home' });
@@ -33,11 +37,12 @@ export function App(props: { readonly clients: Clients; readonly recent: Readabl
         layout={nav().layout}
         page={page()}
         rail={<Rail />}
-        head={<Head />}
-        list={<Area input="shell.sidebar:list" fallback={<SidebarList onNew={onNew} homeOn={nav().main.kind === 'home'} />} />}
+        head={<Head filter={filter} setFilter={setFilter} />}
+        list={<Area input="shell.sidebar:list" fallback={<SidebarList onNew={onNew} homeOn={nav().main.kind === 'home' && (nav().layout === 'split' || launcher())} filter={filter} />} />}
         main={<MainPane onBack={() => setLauncher(false)} />}
         gripLabel={shell.t('shell.side.grip')}
         listBehind={nav().main.kind === 'home'}
+        {...(titlebar && { titlebar })}
       />
       <Overlays />
       <Toasts toaster={shell.toast} />

@@ -12,7 +12,7 @@ export interface CommandCtx {
   row(topic: Topic, e: string, id: string): unknown;
   rows(topic: Topic): readonly { e: string; id: string; v: unknown }[];
   /** starts a streaming turn in the session */
-  stream(id: string): void;
+  stream(id: string, o?: { turnId?: string; prompt?: string }): void;
   /** a commit `ms` from now (a delayed effect) */
   later(ms: number, ops: () => EntityOp[]): void;
 }
@@ -38,6 +38,22 @@ function sessionPatch(ctx: CommandCtx, id: string, ops: PatchOp[]): EntityOp[] {
 }
 
 const touch = (ctx: CommandCtx): PatchOp => ({ op: 'replace', path: '/updated_at', value: ctx.now() });
+
+/** Rerun and Fork: a copy of a task, running, under the id the client chose. */
+function copyTask(x: Args, ctx: CommandCtx, kind: 'rerun' | 'fork'): { ops: EntityOp[]; result: unknown } {
+  const from = str(x, 'id');
+  const id = str(x, 'newId');
+  const src = ctx.row('list', 'session', from) as Record<string, unknown> | undefined;
+  if (!src) refuse('not_found', `no task ${from}`);
+  const at = ctx.now();
+  const summary = { ...(src?.['summary'] as Record<string, unknown>), status: 'running', live: 'Starting…', overlaps: [], ...(kind === 'fork' && { forkedFrom: from }) };
+  const row = { ...src, id, state: 'running', unread: false, created_at: at, updated_at: at, agent: typeof x['agent'] === 'string' ? x['agent'] : src?.['agent'], summary };
+  ctx.later(10, () => {
+    ctx.stream(id);
+    return [];
+  });
+  return { ops: [{ topic: 'list', e: 'session', id, op: 'upsert', v: row }, { topic: `session:${id}`, e: 'session', id, op: 'upsert', v: row }], result: { id } };
+}
 
 export const COMMANDS: Record<string, CommandFn> = {
   'runtime.rename': (a, ctx) => {
@@ -70,20 +86,25 @@ export const COMMANDS: Record<string, CommandFn> = {
   'runtime.followUp': (a, ctx) => {
     const x = obj(a);
     const id = str(x, 'id');
-    str(x, 'text');
+    const text = str(x, 'text');
     const ops = sessionPatch(ctx, id, [touch(ctx)]);
-    ctx.stream(id);
+    ctx.stream(id, { prompt: text, ...(typeof x['turnId'] === 'string' && { turnId: x['turnId'] }) });
     return { ops, result: { queued: false } };
   },
   'runtime.create': (a, ctx) => {
     const x = obj(a);
     const prompt = typeof x['prompt'] === 'string' ? x['prompt'] : str(x, 'text');
     const at = ctx.now();
-    const id = `${ctx.peer}:${at.toString(36)}`;
+    // the client names it (its optimistic row and the page it opens use the id), else the peer does
+    const id = typeof x['id'] === 'string' && x['id'] !== '' ? x['id'] : `${ctx.peer}:${at.toString(36)}`;
     const row = {
       id, parent_id: null, title: prompt.split('\n')[0]?.slice(0, 80) ?? 'New task', state: 'running', agent: typeof x['agent'] === 'string' ? x['agent'] : 'claude',
       archived: false, unread: false, created_at: at, updated_at: at, rev: 1,
-      summary: { status: 'running', turnCount: 1, queued: 0, preview: prompt.slice(0, 80), live: 'Starting…', cwd: typeof x['cwd'] === 'string' ? x['cwd'] : '~/code/wisp', model: 'claude-opus-5-5', mode: 'auto' },
+      summary: {
+        status: 'running', turnCount: 1, queued: 0, preview: prompt.slice(0, 80), live: 'Starting…', cwd: typeof x['cwd'] === 'string' ? x['cwd'] : '~/code/wisp', model: 'claude-opus-5-5',
+        mode: typeof x['mode'] === 'string' ? x['mode'] : 'auto', ...(typeof x['projectId'] === 'string' && { projectId: x['projectId'] }), ...(typeof x['color'] === 'string' && { color: x['color'] }),
+        ...(typeof x['goal'] === 'string' && x['goal'] !== '' && { goal: { text: x['goal'], status: 'running', round: 0, checks: [] } }), ...(typeof x['at'] === 'number' && { startsAt: x['at'] }),
+      },
       body: {},
     };
     ctx.later(10, () => {
@@ -92,6 +113,35 @@ export const COMMANDS: Record<string, CommandFn> = {
     });
     return { ops: [{ topic: 'list', e: 'session', id, op: 'upsert', v: row }, { topic: `session:${id}`, e: 'session', id, op: 'upsert', v: row }], result: { id } };
   },
+  // Rerun and Fork: a new task from this one (the client names it, so its row and page show at once)
+  'runtime.rerun': (a, ctx) => copyTask(obj(a), ctx, 'rerun'),
+  'runtime.fork': (a, ctx) => copyTask(obj(a), ctx, 'fork'),
+  'runtime.setMode': (a, ctx) => {
+    const x = obj(a);
+    const mode = str(x, 'mode');
+    if (!['plan', 'edits', 'auto'].includes(mode)) refuse('invalid', 'mode is plan, edits or auto');
+    return { ops: sessionPatch(ctx, str(x, 'id'), [{ op: 'replace', path: '/summary/mode', value: mode }]) };
+  },
+  'runtime.setAgent': (a, ctx) => {
+    const x = obj(a);
+    return { ops: sessionPatch(ctx, str(x, 'id'), [{ op: 'replace', path: '/agent', value: str(x, 'agent') }]) };
+  },
+  'runtime.forLater': (a, ctx) => {
+    const x = obj(a);
+    return { ops: sessionPatch(ctx, str(x, 'id'), [{ op: 'replace', path: '/summary/forLater', value: x['forLater'] === true }]) };
+  },
+  'goal.set': (a, ctx) => {
+    const x = obj(a);
+    const text = str(x, 'text');
+    return { ops: sessionPatch(ctx, str(x, 'id'), [{ op: 'replace', path: '/summary/goal', value: { text, status: 'running', round: 0, checks: [] } }]) };
+  },
+  // Ship it: a pull request, after the push (the pending state shows meanwhile)
+  'ship.open': (a, ctx) => {
+    const id = str(obj(a), 'id');
+    const n = 800 + Math.floor(ctx.now() / 1000) % 100;
+    return { ops: sessionPatch(ctx, id, [{ op: 'add', path: '/summary/pr', value: { number: n, state: 'OPEN', url: `https://github.com/example/repo/pull/${n}` } }]), result: { number: n } };
+  },
+  'checkpoint.restore': (a, ctx) => ({ ops: sessionPatch(ctx, str(obj(a), 'id'), [touch(ctx)]), result: { restored: true } }),
   'settings.set': (a, ctx) => {
     const x = obj(a);
     const key = str(x, 'key');

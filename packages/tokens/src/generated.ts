@@ -42,7 +42,7 @@ export type Tracking = 'body' | 'title' | 'display';
 /** Shadows, for floating things only. */
 export type Shadow = '1' | '2' | '3' | 'scrim';
 /** Fixed sizes: controls, icons, avatars, caps on floating widths. */
-export type Size = 'hairline' | 'ring' | 'dot' | 'dot-lg' | 'icon-xs' | 'icon-sm' | 'icon-md' | 'icon' | 'icon-lg' | 'avatar-sm' | 'avatar-md' | 'avatar-lg' | 'pill' | 'control-xs' | 'control-sm' | 'control-md' | 'control-lg' | 'touch' | 'bar' | 'bar-compact' | 'switch-w' | 'switch-h' | 'switch-knob' | 'check' | 'time-col' | 'menu-min' | 'menu-max' | 'tooltip-max' | 'popover' | 'toast' | 'dialog-sm' | 'dialog-md' | 'dialog-lg' | 'sheet-max' | 'prose' | 'row-min' | 'diff-gutter' | 'lazy-chunk' | 'rail' | 'rail-w' | 'side' | 'icon-tile' | 'pill-row' | 'time-row' | 'chip-lg' | 'pip' | 'new-task' | 'home-foot' | 'action-tile' | 'later-offset' | 'title-reserve' | 'meta-min' | 'home-top' | 'pick-max' | 'details' | 'read' | 'v1-nudge' | 'v1-snug' | 'v1-tight' | 'v1-grip' | 'v1-indent' | 'task-head';
+export type Size = 'hairline' | 'ring' | 'dot' | 'dot-lg' | 'icon-xs' | 'icon-sm' | 'icon-md' | 'icon' | 'icon-lg' | 'avatar-sm' | 'avatar-md' | 'avatar-lg' | 'pill' | 'control-xs' | 'control-sm' | 'control-md' | 'control-lg' | 'touch' | 'bar' | 'bar-compact' | 'switch-w' | 'switch-h' | 'switch-knob' | 'check' | 'time-col' | 'menu-min' | 'menu-max' | 'tooltip-max' | 'popover' | 'toast' | 'dialog-sm' | 'dialog-md' | 'dialog-lg' | 'sheet-max' | 'prose' | 'row-min' | 'diff-gutter' | 'lazy-chunk' | 'rail' | 'rail-w' | 'side' | 'icon-tile' | 'pill-row' | 'time-row' | 'chip-lg' | 'pip' | 'new-task' | 'home-foot' | 'action-tile' | 'later-offset' | 'title-reserve' | 'meta-min' | 'home-top' | 'pick-max' | 'details' | 'read' | 'v1-nudge' | 'v1-snug' | 'v1-tight' | 'v1-grip' | 'v1-indent' | 'task-head' | 'mac-rail-top' | 'mac-strip-top' | 'mac-strip-left' | 'mac-chips' | 'mac-brand' | 'mac-back' | 'mac-head' | 'meta-wide' | 'read-w';
 /** Motion durations. */
 export type Duration = 'fast' | 'base' | 'slow' | 'slower' | 'enter';
 /** Easing curves. */
@@ -50,7 +50,7 @@ export type Easing = 'ease' | 'spring';
 /** Stacking layers. */
 export type ZLayer = 'base' | 'raised' | 'sticky' | 'rail' | 'menu' | 'overlay' | 'overlay-menu' | 'toast' | 'tooltip';
 /** Layout widths. */
-export type Breakpoint = 'box-narrow' | 'narrow' | 'compact' | 'phone' | 'split' | 'wide';
+export type Breakpoint = 'box-narrow' | 'narrow' | 'compact' | 'phone' | 'split' | 'wide' | 'box-tight' | 'box-roomy' | 'box-wide' | 'pane-wide' | 'pane-xs' | 'box-xs';
 
 export const TONES: readonly Tone[] = ['neutral', 'accent', 'good', 'warn', 'bad', 'info'];
 export const SPACES: readonly Space[] = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
@@ -66,10 +66,16 @@ export const BREAKPOINTS = {
   phone: 720,
   split: 900,
   wide: 1180,
+  'box-tight': 480,
+  'box-roomy': 800,
+  'box-wide': 960,
+  'pane-wide': 860,
+  'pane-xs': 375,
+  'box-xs': 290,
 } as const;
 /** At or over this width the list and the open task sit side by side; under it they stack. */
 export const SPLIT_MIN_WIDTH = 900;
 /** Every px value in the scale (space, radius, font size, size). The kit's CSS may use no other. */
-export const PX_SCALE: readonly number[] = [0, 1, 2, 3, 4, 5, 6, 7, 7.5, 8, 9, 10, 10.5, 11, 11.5, 12, 12.5, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 26, 27, 28, 30, 32, 34, 36, 38, 40, 44, 48, 52, 56, 60, 64, 68, 92, 99, 100, 140, 150, 220, 232, 280, 320, 340, 360, 400, 440, 600, 640, 720, 760, 800];
+export const PX_SCALE: readonly number[] = [0, 1, 2, 3, 4, 5, 6, 7, 7.5, 8, 9, 10, 10.5, 11, 11.5, 12, 12.5, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 26, 27, 28, 30, 32, 34, 36, 38, 40, 41, 44, 48, 49, 52, 56, 60, 64, 68, 74, 82, 92, 98, 99, 100, 140, 150, 220, 232, 260, 280, 320, 340, 360, 400, 440, 600, 640, 720, 760, 800, 860];
 /** Breakpoint px values: allowed in @media and @container conditions only. */
-export const BREAKPOINT_PX: readonly number[] = [400, 520, 640, 720, 900, 1180];
+export const BREAKPOINT_PX: readonly number[] = [290, 375, 400, 480, 520, 640, 720, 800, 860, 900, 960, 1180];

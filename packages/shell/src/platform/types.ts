@@ -45,6 +45,13 @@ export interface Platform {
   readonly standalone: boolean;
   /** ⌘ on Apple platforms, Ctrl elsewhere: how `mod+k` is shown and matched */
   readonly apple: boolean;
+  /** the window's own title bar: 'mac' when the window buttons sit over the page's top-left corner and
+   * the page is the title bar (the desktop app on a Mac: room for them, and the top bar drags the
+   * window); 'none' when the window has its own, or there's no window (a browser tab, a phone) */
+  readonly titlebar: 'mac' | 'none';
+  /** where the page is the title bar ('mac'): a press on a region marked to drag moves the window.
+   * Returns the stop function; a no-op elsewhere. */
+  dragRegions(root: Element): () => void;
   notifyPermission(): Promise<Permission>;
   /** asks once; a second ask after a refusal answers 'denied' without a prompt */
   requestNotify(): Promise<Permission>;

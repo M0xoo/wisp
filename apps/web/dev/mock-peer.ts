@@ -60,7 +60,7 @@ export interface MockPeer {
   connect(params: Readonly<Record<string, string>>, send: (f: MockFrame) => void): { clientId: string; close(): void };
   receive(clientId: string, msg: ClientMessage): void;
   /** streams a new turn into a session (the first running one by default); returns its id */
-  stream(sessionId?: string, o?: { tokens?: number; everyMs?: number }): string | undefined;
+  stream(sessionId?: string, o?: { tokens?: number; everyMs?: number; turnId?: string; prompt?: string }): string | undefined;
   /** the next run of `cmd` is refused: to see a rollback and its toast */
   failNext(cmd: string, message?: string): void;
   handle(cmd: string, fn: CommandFn): void;
@@ -136,7 +136,7 @@ export function createMockPeer(o: MockPeerOptions = {}): MockPeer {
     now: () => timers.now(),
     row: (topic, e, id) => store.get(topic)?.get(rowKey(e, id))?.v,
     rows: (topic) => topicRows(topic),
-    stream: (id) => api.stream(id),
+    stream: (id, o) => api.stream(id, o),
     later: (ms, fn) => void timers.setTimeout(() => commit(fn()), ms),
   };
 
@@ -209,7 +209,7 @@ export function createMockPeer(o: MockPeerOptions = {}): MockPeer {
     stream(sessionId, so = {}) {
       const id = sessionId ?? topicRows('list').find((r) => (r.v as { state?: string }).state === 'running')?.id ?? topicRows('list')[0]?.id;
       if (!id) return undefined;
-      runStream(id, so.tokens ?? 120, so.everyMs ?? 16);
+      runStream(id, so.tokens ?? 120, so.everyMs ?? 16, so.turnId, so.prompt);
       return id;
     },
     failNext(cmd, message = `${cmd} was refused (the mock was asked to)`) {
@@ -222,17 +222,18 @@ export function createMockPeer(o: MockPeerOptions = {}): MockPeer {
   };
 
   /** A turn that streams: a tool call, the answer token by token, then done with a presentation. */
-  function runStream(sid: string, tokens: number, everyMs: number): void {
+  function runStream(sid: string, tokens: number, everyMs: number, ownId?: string, prompt?: string): void {
     const topic: Topic = `session:${sid}`;
     const turns = topicRows(topic).filter((r) => r.e === 'turn');
-    const turnId = `${sid}:t${turns.length + 1}`;
+    // the client may have named it (its follow-up shows at once under that id)
+    const turnId = ownId ?? `${sid}:t${turns.length + 1}`;
     const words = data.words;
     const events = (): { seq: number }[] => (store.get(topic)?.get(rowKey('event', sid))?.v as { seq: number }[] | undefined) ?? [];
     const nextSeq = (): number => (events().at(-1)?.seq ?? 0) + 1;
     const now = timers.now();
     const listOps = (patch: PatchOp[]): EntityOp[] => (['list', topic] as Topic[]).map((t) => ({ topic: t, e: 'session', id: sid, op: 'patch', ops: patch }));
     commit([
-      { topic, e: 'turn', id: turnId, op: 'upsert', v: data.turn(sid, turnId, turns.length, 'Keep going: and make the empty state say what to do next.', now) },
+      { topic, e: 'turn', id: turnId, op: 'upsert', v: data.turn(sid, turnId, turns.length, prompt ?? 'Keep going: and make the empty state say what to do next.', now) },
       { topic, e: 'event', id: sid, op: 'append', v: [{ session_id: sid, seq: nextSeq(), turn_id: turnId, t: now, kind: 'tool', body: { kind: 'tool', tool: 'read', label: 'Read src/list.ts' } }] },
       { topic, e: 'event', id: sid, op: 'append', v: [{ session_id: sid, seq: nextSeq() + 1, turn_id: turnId, t: now, kind: 'text', body: { kind: 'text', text: '' } }] },
       ...listOps([{ op: 'replace', path: '/state', value: 'running' }, { op: 'replace', path: '/summary/status', value: 'running' }, { op: 'replace', path: '/summary/live', value: 'Reading src/list.ts' }]),

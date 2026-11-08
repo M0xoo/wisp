@@ -8,6 +8,7 @@ import { flag } from '../core/props.ts';
 import { Icon } from '../content/Icon.tsx';
 import type { IconName } from '../content/icons.ts';
 import { Spirit } from '../crew/Spirit.tsx';
+import { WithAct, type Act } from './act.tsx';
 
 export type StagePage = 'list' | 'main';
 
@@ -22,15 +23,18 @@ export interface StageProps {
   readonly gripLabel: string;
   /** stack, main page: the list stays laid out behind it (Home's prompt box opened from the list) */
   readonly listBehind?: boolean;
+  /** the page is the window's title bar, its buttons over the top-left corner (the desktop app on a
+   * Mac, v1 body.desktop.mac): room for them, and the top bar, rail and task head drag the window */
+  readonly titlebar?: 'mac';
   readonly onGripReset?: () => void;
 }
 
 /** v1 #stage: the rail, the sidebar's head and body, the main pane, the grip. */
 export function Stage(props: StageProps): JSX.Element {
   return (
-    <main data-kit="stage" data-part="shell.app" data-layout={props.layout} data-page={props.page} data-behind={flag(props.listBehind)} data-rail={flag(props.rail !== undefined)}>
+    <main data-kit="stage" data-part="shell.app" data-layout={props.layout} data-page={props.page} data-behind={flag(props.listBehind)} data-titlebar={props.titlebar} data-rail={flag(props.rail !== undefined)}>
       {props.layout === 'split' ? props.rail : null}
-      <header data-kit="topbar" data-part="topbar">{props.head}</header>
+      <header data-kit="topbar" data-part="topbar" data-drag={flag(props.titlebar !== undefined)}>{props.head}</header>
       <div data-kit="feed-wrap" data-part="sidebar" inert={props.layout === 'stack' && props.page === 'main'}>{props.list}</div>
       <section data-kit="split-main" data-part="split.main">{props.main}</section>
       <Show when={props.layout === 'split'}>
@@ -64,7 +68,7 @@ export interface CrewRailProps {
 
 function RailBtn(props: { readonly icon: IconName; readonly label: string; readonly part: string; readonly kind: string; readonly on?: boolean; readonly onClick?: () => void }): JSX.Element {
   return (
-    <button type="button" data-kit="cl-btn" data-a={props.kind} data-part={props.part} data-on={flag(props.on)} aria-label={props.label} title={props.label} aria-pressed={props.on === undefined ? undefined : props.on} onClick={() => props.onClick?.()}>
+    <button type="button" data-kit="cl-btn" data-a={props.kind} data-part={props.part} data-on={flag(props.on)} aria-label={props.label} title={props.label} aria-current={props.on ? 'page' : undefined} onClick={() => props.onClick?.()}>
       <Show when={props.on !== undefined}>
         <i data-kit="cl-pip" data-part="crew.rail.pick" />
       </Show>
@@ -76,7 +80,7 @@ function RailBtn(props: { readonly icon: IconName; readonly label: string; reado
 /** v1 #crewRail: All, the members' faces, then Org and + at the foot. */
 export function CrewRail(props: CrewRailProps): JSX.Element {
   return (
-    <nav data-kit="cl-rail" data-part="crew.rail" aria-label={props.label}>
+    <nav data-kit="cl-rail" data-part="crew.rail" aria-label={props.label} data-drag="">
       <RailBtn icon="feed" label={props.allLabel} part="crew.rail.all" kind="all" on={props.allOn} onClick={() => props.onAll?.()} />
       <div data-kit="cl-faces">
         <For each={props.members}>
@@ -120,25 +124,44 @@ export interface SidebarHeadProps {
   /** the chip on (All is '') */
   readonly on: string;
   readonly onBrand?: () => void;
+  /** Home is open: the brand (which goes there) is where you are */
+  readonly homeOn?: boolean;
   readonly onSearch?: () => void;
   readonly onAccount?: () => void;
   readonly onView?: () => void;
   readonly onChip?: (id: string) => void;
   readonly onManage?: () => void;
+  readonly accountAct?: Act;
+  readonly manageAct?: Act;
+  /** what plugins put in the head (v1's spell SLOTS on #topbar): `lead` sits beside the brand, `chips`
+   * after the project chips; brand, search, account and view replace the built-in one when given */
+  readonly slots?: {
+    readonly lead?: JSX.Element;
+    readonly chips?: JSX.Element;
+    readonly brand?: JSX.Element;
+    readonly search?: JSX.Element;
+    readonly account?: JSX.Element;
+    readonly view?: JSX.Element;
+  };
 }
 
 /** v1 #topbar in split: the brand, Search, the avatar, the sidebar button, then the project chips. */
 export function SidebarHead(props: SidebarHeadProps): JSX.Element {
   return (
     <>
-      <a data-kit="brand" data-part="topbar.brand" href="#" title={props.brandLabel} aria-label={props.brandLabel} onClick={(e) => (e.preventDefault(), props.onBrand?.())}>
-        <span data-kit="brand-orb" />
-      </a>
-      <div data-kit="projects" data-part="topbar.projects">
+      <div data-kit="tb-lead">
+        {props.slots?.brand ?? (
+          <a data-kit="brand" data-part="topbar.brand" href="#" aria-current={props.homeOn ? 'page' : undefined} title={props.brandLabel} aria-label={props.brandLabel} onClick={(e) => (e.preventDefault(), props.onBrand?.())}>
+            <span data-kit="brand-orb" />
+          </a>
+        )}
+        {props.slots?.lead}
+      </div>
+      <div data-kit="projects" data-part="topbar.projects" data-no-drag="">
         <div data-kit="p-scroll">
           <For each={props.chips}>
             {(c) => (
-              <button type="button" data-kit="p-chip" data-on={flag(props.on === c.id)} data-color={c.color ?? 'slate'} title={c.title} onClick={() => props.onChip?.(c.id)}>
+              <button type="button" data-kit="p-chip" data-on={flag(props.on === c.id)} aria-current={props.on === c.id ? 'true' : undefined} data-color={c.color ?? 'slate'} title={c.title} onClick={() => props.onChip?.(c.id)}>
                 <Show when={c.color}>
                   <i data-kit="p-dot" />
                 </Show>
@@ -150,21 +173,44 @@ export function SidebarHead(props: SidebarHeadProps): JSX.Element {
             )}
           </For>
         </div>
-        <button type="button" data-kit="p-chip" data-add="" title={props.manageLabel} aria-label={props.manageLabel} onClick={() => props.onManage?.()}>
-          <Icon name="plus" />
-        </button>
+        {props.slots?.chips}
+        <WithAct
+          act={props.manageAct ?? { onClick: () => props.onManage?.() }}
+          render={(trigger) => (
+            <button type="button" {...trigger()} data-kit="p-chip" data-add="" title={props.manageLabel} aria-label={props.manageLabel}>
+              <Icon name="plus" />
+            </button>
+          )}
+        />
       </div>
-      <button type="button" data-kit="view-btn" data-part="topbar.view" title={props.viewLabel} aria-label={props.viewLabel} onClick={() => props.onView?.()}>
-        <Icon name="split" />
-      </button>
-      <button type="button" data-kit="search-btn" data-part="topbar.search" title={props.searchLabel} aria-label={props.searchLabel} onClick={() => props.onSearch?.()}>
-        <Icon name="search" />
-      </button>
-      <button type="button" data-kit="me-btn" data-part="sidebar.foot" title={props.accountLabel} aria-label={props.accountLabel} onClick={() => props.onAccount?.()}>
-        <span data-kit="sf-av" data-part="topbar.account">
-          <Icon name="user" />
-        </span>
-      </button>
+      <div data-kit="tb-view">
+        {props.slots?.view ?? (
+          <button type="button" data-kit="view-btn" data-part="topbar.view" title={props.viewLabel} aria-label={props.viewLabel} onClick={() => props.onView?.()}>
+            <Icon name="split" />
+          </button>
+        )}
+      </div>
+      <div data-kit="tb-search">
+        {props.slots?.search ?? (
+          <button type="button" data-kit="search-btn" data-part="topbar.search" title={props.searchLabel} aria-label={props.searchLabel} onClick={() => props.onSearch?.()}>
+            <Icon name="search" />
+          </button>
+        )}
+      </div>
+      <div data-kit="tb-account">
+        {props.slots?.account ?? (
+          <WithAct
+            act={props.accountAct ?? { onClick: () => props.onAccount?.() }}
+            render={(trigger) => (
+              <button type="button" {...trigger()} data-kit="me-btn" data-part="sidebar.foot" title={props.accountLabel} aria-label={props.accountLabel}>
+                <span data-kit="sf-av" data-part="topbar.account">
+                  <Icon name="user" />
+                </span>
+              </button>
+            )}
+          />
+        )}
+      </div>
     </>
   );
 }
@@ -184,7 +230,7 @@ export function SplitTop(props: SplitTopProps): JSX.Element {
   return (
     <div data-kit="split-top">
       <div data-kit="st-row">
-        <button type="button" data-kit="split-new" data-part="sidebar.new" data-on={flag(props.on)} title={props.newTitle} onClick={() => props.onNew?.()}>
+        <button type="button" data-kit="split-new" data-part="sidebar.new" data-on={flag(props.on)} aria-current={props.on ? 'page' : undefined} title={props.newTitle} onClick={() => props.onNew?.()}>
           <Icon name="plus" />
           <span data-text="control">{props.newLabel}</span>
           <kbd>N</kbd>

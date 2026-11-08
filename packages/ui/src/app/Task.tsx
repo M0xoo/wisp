@@ -3,6 +3,7 @@
 // its head, then its turns with the details column beside them, and the reply box docked at the foot.
 import { For, Show, createSignal, onCleanup, onMount, type JSX } from 'solid-js';
 import { flag } from '../core/props.ts';
+import { ActIcon, WithAct, type Act } from './act.tsx';
 import { Icon } from '../content/Icon.tsx';
 import type { IconName } from '../content/icons.ts';
 
@@ -17,22 +18,27 @@ export interface TaskHeadProps {
   readonly onBack?: () => void;
   readonly onPanel?: () => void;
   readonly onClose?: () => void;
+  /** the side panel is open */
+  readonly panelOn?: boolean;
+  /** what plugins put in the head (v1 SLOTS split.head), before its own buttons */
+  readonly actions?: JSX.Element;
 }
 
 /** v1 #splitHead: the dot, the title, the side panel and close buttons (back on a phone). */
 export function TaskHead(props: TaskHeadProps): JSX.Element {
   return (
-    <header data-kit="split-head" data-part="split.head" data-color={props.color}>
+    <header data-kit="split-head" data-part="split.head" data-color={props.color} data-drag="">
       <div data-kit="sh-row">
         <Show when={props.onBack} fallback={<span data-kit="q-dot" />}>
           <button type="button" data-kit="sh-back" data-part="split.back" aria-label={props.backLabel} title={props.backLabel} onClick={() => props.onBack?.()}>
             <Icon name="back" />
           </button>
         </Show>
-        <h2 data-kit="sh-title" data-part="split.title" title={props.renameLabel}>{props.title}</h2>
+        <h2 data-kit="sh-title" data-part="split.title" title={props.renameLabel} data-no-drag="">{props.title}</h2>
         <span data-kit="sh-acts">
+          {props.actions}
           <Show when={!props.onBack}>
-            <button type="button" data-kit="head-btn" aria-label={props.panelLabel} title={props.panelLabel} onClick={() => props.onPanel?.()}>
+            <button type="button" data-kit="head-btn" aria-label={props.panelLabel} title={props.panelLabel} aria-pressed={props.panelOn === true} onClick={() => props.onPanel?.()}>
               <Icon name="panel" />
             </button>
             <button type="button" data-kit="head-btn" aria-label={props.closeLabel} title={props.closeLabel} onClick={() => props.onClose?.()}>
@@ -56,7 +62,7 @@ export interface TaskAction {
   readonly key?: string;
   /** desktop only: on a phone it sits in More */
   readonly deskOnly?: boolean;
-  readonly onClick?: () => void;
+  readonly act?: Act;
 }
 
 export interface TaskDetailsProps {
@@ -103,10 +109,17 @@ export function TaskDetails(props: TaskDetailsProps): JSX.Element {
       <div data-kit="it-actions" data-part="split.actions">
         <For each={props.actions}>
           {(a) => (
-            <button type="button" data-kit="ghost-xs" data-a={a.id} data-part={a.part} data-tone={a.tone} data-key={a.key} data-desk={flag(a.deskOnly)} title={a.title} onClick={() => a.onClick?.()}>
-              <Icon name={a.icon} />
-              <span data-text="control">{a.label}</span>
-            </button>
+            <WithAct
+              act={a.act}
+              render={(trigger) => (
+                <button type="button" {...trigger()} data-kit="ghost-xs" data-a={a.id} data-part={a.part} data-tone={a.tone} data-key={a.key} data-desk={flag(a.deskOnly)} title={a.title}>
+                  <ActIcon act={a.act}>
+                    <Icon name={a.icon} />
+                  </ActIcon>
+                  <span data-text="control">{a.label}</span>
+                </button>
+              )}
+            />
           )}
         </For>
       </div>
@@ -132,8 +145,14 @@ export interface TurnViewProps {
   readonly actsTitle: string;
   readonly stats: readonly TrailItem[];
   readonly receipt?: TrailItem;
-  readonly files?: { readonly label: string; readonly plus: string; readonly minus: string };
-  readonly tools: readonly { readonly id: string; readonly icon: IconName; readonly label: string; readonly part?: string }[];
+  readonly files?: { readonly label: string; readonly plus: string; readonly minus: string; readonly act?: Act };
+  readonly tools: readonly { readonly id: string; readonly icon: IconName; readonly label: string; readonly part?: string; readonly act?: Act; readonly on?: boolean }[];
+  /** the steps it took, shown under the brief (the trail's counts open them) */
+  readonly activity?: { readonly items: readonly { readonly icon: IconName; readonly text: string }[]; readonly open: boolean; readonly onToggle: () => void };
+  /** the agent's notes, shown under the brief */
+  readonly notes?: string;
+  /** still running: what it's doing, in place of the trail */
+  readonly live?: string;
 }
 
 /** v1 .turn: the ask, the answer's brief, and the trail under it. */
@@ -167,9 +186,27 @@ export function TurnView(props: TurnViewProps): JSX.Element {
           </div>
         )}
       </Show>
-      <div data-kit="trail">
+      <Show when={props.notes}>
+        {(n) => <p data-kit="turn-notes">{n()}</p>}
+      </Show>
+      <Show when={props.activity?.open && props.activity}>
+        {(a) => (
+          <ul data-kit="turn-acts">
+            <For each={a().items}>
+              {(it) => (
+                <li>
+                  <Icon name={it.icon} />
+                  <span>{it.text}</span>
+                </li>
+              )}
+            </For>
+          </ul>
+        )}
+      </Show>
+      <Show when={props.live}>{(l) => <p data-kit="turn-live">{l()}</p>}</Show>
+      <div data-kit="trail" hidden={props.live !== undefined}>
         <div data-kit="trail-bar">
-          <button type="button" data-kit="tb-acts" title={props.actsTitle}>
+          <button type="button" data-kit="tb-acts" title={props.actsTitle} aria-expanded={props.activity?.open ?? false} onClick={() => props.activity?.onToggle()}>
             <For each={props.acts}>
               {(a) => (
                 <span data-kit="tb" title={a.title}>
@@ -190,17 +227,29 @@ export function TurnView(props: TurnViewProps): JSX.Element {
           <span data-kit="grow" />
           <Show when={props.files}>
             {(f) => (
-              <button type="button" data-kit="link-xs">
-                {f().label} <span data-kit="plus">{f().plus}</span> <span data-kit="minus">{f().minus}</span>
-              </button>
+              <WithAct
+                act={f().act}
+                render={(trigger) => (
+                  <button type="button" {...trigger()} data-kit="link-xs">
+                    {f().label} <span data-kit="plus">{f().plus}</span> <span data-kit="minus">{f().minus}</span>
+                  </button>
+                )}
+              />
             )}
           </Show>
           <span data-kit="tb-tools">
             <For each={props.tools}>
               {(t) => (
-                <button type="button" data-kit="tb-btn" data-a={t.id} data-part={t.part} aria-label={t.label} title={t.label}>
-                  <Icon name={t.icon} />
-                </button>
+                <WithAct
+                  act={t.act}
+                  render={(trigger) => (
+                    <button type="button" {...trigger()} data-kit="tb-btn" data-a={t.id} data-part={t.part} data-on={flag(t.on)} aria-label={t.label} title={t.label}>
+                      <ActIcon act={t.act}>
+                        <Icon name={t.icon} />
+                      </ActIcon>
+                    </button>
+                  )}
+                />
               )}
             </For>
           </span>
@@ -218,6 +267,7 @@ export interface OverlapNoteProps {
   readonly open: string;
   readonly openTitle: string;
   readonly onOpen?: () => void;
+  readonly moreAct?: Act;
 }
 
 /** v1 .overlap-strip: the first task changing the same files, above the reply box. */
@@ -230,7 +280,7 @@ export function OverlapNote(props: OverlapNoteProps): JSX.Element {
           <b>{props.head}</b> <span>{props.files}</span>
         </span>
         <Show when={props.more}>
-          <button type="button" data-kit="ov-more" title={props.moreTitle}>{props.more}</button>
+          <WithAct act={props.moreAct} render={(trigger) => <button type="button" {...trigger()} data-kit="ov-more" title={props.moreTitle}>{props.more}</button>} />
         </Show>
         <button type="button" data-kit="ghost-xs" data-compact="" title={props.openTitle} onClick={() => props.onOpen?.()}>{props.open}</button>
       </div>
@@ -245,12 +295,22 @@ export interface ReplyBoxProps {
   readonly onSend: () => void;
   readonly inputRef?: (el: HTMLTextAreaElement) => void;
   readonly attach: string;
-  readonly mode: { readonly label: string; readonly title: string };
-  readonly runner: { readonly title: string; readonly logo?: string };
+  readonly attachAct?: Act;
+  readonly mode: { readonly label: string; readonly title: string; readonly icon?: IconName; readonly act?: Act };
+  readonly runner: { readonly title: string; readonly logo?: string; readonly act?: Act };
   readonly team: string;
+  readonly teamAct?: Act;
   readonly goal: string;
+  readonly goalOn?: boolean;
+  readonly goalAct?: Act;
+  /** Goal on: its condition, over the box */
+  readonly goalLine?: { readonly label: string; readonly placeholder: string; readonly value: string; readonly onInput: (v: string) => void };
   readonly later: string;
+  readonly laterAct?: Act;
   readonly send: string;
+  readonly sendAct?: Act;
+  /** what's attached and when it goes: chips over the bar */
+  readonly extras?: readonly { readonly id: string; readonly icon: IconName; readonly label: string; readonly removeLabel: string; readonly onRemove: () => void }[];
 }
 
 /** v1 .composer: the reply box under a task. It wakes (its toolbar shows) when the caret goes in, and
@@ -269,36 +329,102 @@ export function ReplyBox(props: ReplyBoxProps): JSX.Element {
       props.onSend();
     }
   };
+  // Send with nothing written: the box takes the caret and its placeholder lights up until you type
+  const [nudge, setNudge] = createSignal(false);
+  let input: HTMLTextAreaElement | undefined;
+  const send = (): void => {
+    if (props.sendAct?.pending) return;
+    if (props.value.trim()) return props.onSend();
+    input?.focus();
+    setNudge(true); // until the next key or the caret leaves
+  };
   return (
-    <div data-kit="reply-box" data-part="composer" data-awake={flag(awake())} ref={(el) => (box = el)} onFocusIn={(e) => (e.target as HTMLElement).dataset['kit'] === 'reply' && setAwake(true)}>
+    <div data-nudge={flag(nudge())} data-kit="reply-box" data-part="composer" data-awake={flag(awake())} ref={(el) => (box = el)} onFocusIn={(e) => (e.target as HTMLElement).dataset['kit'] === 'reply' && setAwake(true)}>
       <div data-kit="mn-wrap">
-        <textarea data-kit="reply" data-part="composer.input" rows="1" placeholder={props.placeholder} value={props.value} ref={(el) => props.inputRef?.(el)} onInput={(e) => props.onInput(e.currentTarget.value)} onKeyDown={key} />
+        <textarea data-kit="reply" data-part="composer.input" rows="1" placeholder={props.placeholder} value={props.value} ref={(el) => ((input = el), props.inputRef?.(el))} onBlur={() => setNudge(false)} onInput={(e) => (setNudge(false), props.onInput(e.currentTarget.value))} onKeyDown={key} />
       </div>
+      <Show when={props.goalLine}>
+        {(g) => (
+          <div data-kit="l-goal" data-in="reply">
+            <Icon name="target" />
+            <input data-kit="l-goal-input" aria-label={g().label} placeholder={g().placeholder} value={g().value} onInput={(e) => g().onInput(e.currentTarget.value)} />
+          </div>
+        )}
+      </Show>
+      <Show when={(props.extras?.length ?? 0) > 0}>
+        <div data-kit="l-extras">
+          <For each={props.extras}>
+            {(x) => (
+              <span data-kit="lp-chip" data-extra="">
+                <Icon name={x.icon} />
+                <span data-text="control">{x.label}</span>
+                <button type="button" data-kit="chip-x" aria-label={x.removeLabel} title={x.removeLabel} onClick={() => x.onRemove()}>
+                  <Icon name="x" />
+                </button>
+              </span>
+            )}
+          </For>
+        </div>
+      </Show>
       <div data-kit="c-bar">
-        <button type="button" data-kit="icon-btn" data-part="composer.attach" title={props.attach} aria-label={props.attach}>
-          <Icon name="clip" />
-        </button>
-        <button type="button" data-kit="mode-btn" data-part="composer.mode" data-reply="" title={props.mode.title} aria-label={props.mode.label}>
-          <Icon name="spark" />
-          <span data-text="control">{props.mode.label}</span>
-        </button>
-        <button type="button" data-kit="c-runner" data-part="composer.harness" title={props.runner.title} aria-label={props.runner.title}>
-          <span data-kit="rb-logo" data-bare="">
-            <Show when={props.runner.logo}>{(src) => <img src={src()} alt="" />}</Show>
-          </span>
-        </button>
-        <button type="button" data-kit="c-team" data-part="composer.team" title={props.team} aria-label={props.team}>
-          <Icon name="agent" />
-        </button>
-        <button type="button" data-kit="icon-btn" data-part="composer.goal" title={props.goal} aria-label={props.goal}>
-          <Icon name="target" />
-        </button>
+        <WithAct
+          act={props.attachAct}
+          render={(trigger) => (
+            <button type="button" {...trigger()} data-kit="icon-btn" data-part="composer.attach" title={props.attach} aria-label={props.attach}>
+              <ActIcon act={props.attachAct}>
+                <Icon name="clip" />
+              </ActIcon>
+            </button>
+          )}
+        />
+        <WithAct
+          act={props.mode.act}
+          render={(trigger) => (
+            <button type="button" {...trigger()} data-kit="mode-btn" data-part="composer.mode" data-reply="" title={props.mode.title} aria-label={props.mode.label}>
+              <Icon name={props.mode.icon ?? 'spark'} />
+              <span data-text="control">{props.mode.label}</span>
+            </button>
+          )}
+        />
+        <WithAct
+          act={props.runner.act}
+          render={(trigger) => (
+            <button type="button" {...trigger()} data-kit="c-runner" data-part="composer.harness" title={props.runner.title} aria-label={props.runner.title}>
+              <span data-kit="rb-logo" data-bare="">
+                <Show when={props.runner.logo}>{(src) => <img src={src()} alt="" />}</Show>
+              </span>
+            </button>
+          )}
+        />
+        <WithAct
+          act={props.teamAct}
+          render={(trigger) => (
+            <button type="button" {...trigger()} data-kit="c-team" data-part="composer.team" title={props.team} aria-label={props.team}>
+              <Icon name="agent" />
+            </button>
+          )}
+        />
+        <WithAct
+          act={props.goalAct}
+          render={(trigger) => (
+            <button type="button" {...trigger()} data-kit="icon-btn" data-part="composer.goal" data-on={flag(props.goalOn)} aria-pressed={props.goalOn === true} title={props.goal} aria-label={props.goal}>
+              <Icon name="target" />
+            </button>
+          )}
+        />
         <span data-kit="grow" />
-        <button type="button" data-kit="icon-btn" data-part="composer.sendLater" title={props.later} aria-label={props.later}>
-          <Icon name="clock" />
-        </button>
-        <button type="button" data-kit="send" data-part="composer.send" title={props.send} aria-label={props.send} onClick={() => props.onSend()}>
-          <Icon name="enter" />
+        <WithAct
+          act={props.laterAct}
+          render={(trigger) => (
+            <button type="button" {...trigger()} data-kit="icon-btn" data-part="composer.sendLater" title={props.later} aria-label={props.later}>
+              <Icon name="clock" />
+            </button>
+          )}
+        />
+        <button type="button" data-kit="send" data-part="composer.send" title={props.send} aria-label={props.send} onClick={send} aria-busy={props.sendAct?.pending ? 'true' : undefined}>
+          <ActIcon act={props.sendAct}>
+            <Icon name="enter" />
+          </ActIcon>
         </button>
       </div>
     </div>

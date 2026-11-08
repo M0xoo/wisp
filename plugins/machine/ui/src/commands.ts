@@ -73,8 +73,8 @@ export function machineCommands(peer: PeerId): MachineCommands {
       // the group these ids make up goes (worktrees.clean takes task ids, or folder names for leftovers)
       optimistic: (base, a) => dropFrom(base, peer, 'reclaim', (x) => (a.leftovers ? x.kind === 'leftover' : x.kind !== 'leftover' && x.kind !== 'harness' && covers(a.ids, x))),
     }),
-    harnessClean: defineCommand({ id: 'machine.harnessClean', owner: () => peer, optimistic: 'none' }),
-    fix: defineCommand({ id: 'machine.fix', owner: () => peer, optimistic: 'none' }),
-    later: defineCommand({ id: 'later.add', owner: (a) => entityKey(peer, a.sessionId), optimistic: 'none' }),
+    harnessClean: defineCommand({ id: 'machine.harnessClean', owner: () => peer, optimistic: 'none', pending: 'the machine.harnessClean control' }),
+    fix: defineCommand({ id: 'machine.fix', owner: () => peer, optimistic: 'none', pending: 'the machine.fix control' }),
+    later: defineCommand({ id: 'later.add', owner: (a) => entityKey(peer, a.sessionId), optimistic: 'none', pending: 'the later.add control' }),
   };
 }

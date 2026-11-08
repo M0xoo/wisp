@@ -171,3 +171,22 @@ export function ContextMenu(props: ContextMenuProps): JSX.Element {
     </>
   );
 }
+
+export interface MenuOnProps extends MenuBaseProps {
+  readonly placement?: Placement;
+  /** draws the control that opens the menu: spread `trigger()` on it (Zag's trigger props: its press,
+   * aria-expanded, the id the menu points back at) */
+  readonly children: (trigger: () => Record<string, unknown>) => JSX.Element;
+}
+
+/** A menu opened by a control drawn by its caller (the app frame's v1 pickers), not by the kit's button. */
+export function MenuOn(props: MenuOnProps): JSX.Element {
+  const api = useMenu(props);
+  const part = (): PartName => props.part ?? 'ui.menu';
+  return (
+    <>
+      {props.children(() => api().getTriggerProps() as Record<string, unknown>)}
+      <MenuContent api={api()} items={props.items} part={part()} />
+    </>
+  );
+}
