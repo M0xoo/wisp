@@ -10,7 +10,9 @@ Infrastructure as code put servers in the repo. wisp puts **the way your softwar
 builds it (your agents and crew), how (workflows, rules, machines), and what was asked and why (every task,
 linked to the code it wrote).
 
-- **Headline:** *Manage the code your agents write.* (the owner's framing, 2026-11-09)
+- **Hero (2026-11-09):** H1 *Your coding agents, as code.* · line 2 *Declare them. Run them anywhere. Track every line they
+  write.* · kicker *Engineering as code · open source*. (Alternative kept: "Your coding agents, declared, run and tracked as
+  code." Earlier: "Manage the code your agents write.")
 - **Three pillars, in this order, organising the whole site:** **Declare · Run · Track.** Declare and Track are
   what's new (marked New); Run is what wisp already does best: **every harness, any machine, from anywhere.**
 - **Tagline (secondary):** *Your AI dev team, and everything it did, as code.*

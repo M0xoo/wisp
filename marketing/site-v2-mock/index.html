@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>wisp — Manage the code your agents write. Declare, run, track.</title>
+<title>wisp — Your coding agents, as code. Declare them. Run them anywhere. Track every line they write.</title>
 <link rel="icon" href="/docs/assets/icon.svg" type="image/svg+xml" />
 <link rel="stylesheet" href="/docs/style.css" />
 <!-- Mockup of the v2 home page (marketing/positioning-v2.md). Reuses the live site's style.css; the few
@@ -11,7 +11,7 @@
 <style>
   .m-kicker { display: inline-flex; gap: 8px; align-items: center; font: 600 13px var(--sans); color: var(--accent); letter-spacing: .02em; text-transform: uppercase; }
   .m-hero { padding: 88px 0 40px; text-align: center; }
-  .m-hero h1 { font-size: clamp(38px, 5.6vw, 68px); line-height: 1.04; letter-spacing: -0.035em; margin: 16px auto 0; max-width: 18ch; }
+  .m-hero h1 { font-size: clamp(36px, 5.2vw, 64px); line-height: 1.05; letter-spacing: -0.035em; margin: 16px auto 0; max-width: 17ch; }
   .m-hero .lede { margin-inline: auto; }
   .m-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 30px; }
   .m-btn { display: inline-flex; align-items: center; height: 50px; padding: 0 20px; border-radius: 11px; border: 1px solid var(--line-2); font: 550 15px var(--sans); color: var(--ink); text-decoration: none; }
@@ -50,6 +50,7 @@
   .m-pillar-h { display: flex; align-items: center; gap: 10px; }
   @media (max-width: 900px) { .m-three { grid-template-columns: 1fr; } }
   .m-new { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; margin-left: 8px; border-radius: 999px; font: 600 11px var(--sans); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); vertical-align: 4px; }
+  .m-sub2 { margin: 18px auto 0; font-size: clamp(20px, 2.2vw, 28px); line-height: 1.25; letter-spacing: -0.02em; font-weight: 600; color: var(--ink-2); max-width: 44ch; }
   .m-note { position: fixed; right: 14px; bottom: 14px; font: 12px var(--sans); background: var(--ink); color: var(--bg); padding: 6px 10px; border-radius: 8px; opacity: .85; }
   @media (max-width: 900px) {
     .m-two, .m-faces { grid-template-columns: 1fr; }
@@ -64,8 +65,9 @@
   <section class="m-hero">
     <div class="wrap">
       <span class="m-kicker">Engineering as code · open source</span>
-      <h1>Manage the code your agents write.</h1>
-      <p class="lede">wisp runs Claude Code, Codex, Cursor and every other coding agent for you. <b>Declare</b> your agent team in your repo, <b>run</b> it on any of your computers, and <b>track</b> every task next to the code it wrote.</p>
+      <h1>Your coding agents, as code.</h1>
+      <p class="m-sub2">Declare them. Run them anywhere. Track every line they write.</p>
+      <p class="lede">Put your agent team in your repo, run Claude Code, Codex and every other harness on any machine, and see which task wrote every line, and why.</p>
       <div class="m-ctas">
         <button class="cmd"><span class="p">$</span><code>npx wisp-agents</code><span class="copy">Copy</span></button>
         <a class="m-btn" href="#declare">How it works</a>
