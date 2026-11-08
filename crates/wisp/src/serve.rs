@@ -111,7 +111,9 @@ pub async fn boot(home: &Path, port: u16, host: Option<&str>) -> Result<Running>
     })?;
     let master = master_token();
     let access: Arc<dyn wisp_runtime_api::points::AgentAccess> = Arc::new(Access { url: format!("http://127.0.0.1:{}", listener.local_addr().map_or(port, |a| a.port())), master: master.clone() });
-    let app = crate::services::provide(App::new(), home, VERSION, notify).service(store.clone()).service(access).plugins(group.build(&at));
+    // settings outlive a restart: the kernel's registry saves them through the store
+    let settings = crate::settings_store::StoreSettings::open(&store).map_err(|e| CliError::said(format!("wisp could not read its settings: {e}")))?;
+    let app = crate::services::provide(App::new(), home, VERSION, notify).service(store.clone()).service(access).service(settings).plugins(group.build(&at));
     let kernel = app.start().await.map_err(|e| CliError::said(format!("wisp could not start: {}", e.message)))?;
     for s in kernel.status().iter().filter(|s| s.state == "refused") {
         tracing::warn!("plugin {} refused: {}", s.id, s.reason.as_deref().unwrap_or(""));

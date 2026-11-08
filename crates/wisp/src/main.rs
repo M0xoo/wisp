@@ -13,6 +13,7 @@ mod plugin_cmd;
 mod scripted;
 mod serve;
 mod services;
+mod settings_store;
 
 use std::path::{Path, PathBuf};
 
