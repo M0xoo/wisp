@@ -144,3 +144,14 @@ When the open project has a `.wisp/` folder, the sidebar gets a second tab besid
   so tracking is never more than one click away.
 - Projects without `.wisp/` show no Repo tab. The empty state for a git repo offers **Track this repo's agent
   work** (`wisp init`).
+
+## The same split in the CLI (added 2026-11-09)
+
+- `wisp ls` stays your tasks, live.
+- `wisp ls --repo` lists the current repo's committed history (the Repo tab), from everyone: one line per task with
+  its date, person, agent, title, PR or commits, verdict and how much of it is still in main. It takes the same
+  filters as the tab: `--path auth/`, `--person ada`, `--agent codex`, `--since 30d`, `--pr 812`, `--grep login`,
+  `--by month|folder|pr|person`, plus `--json` and `--watch`. `--repo <path>` points at another clone.
+- `wisp ls --all` shows both, with the repo rows marked (`⎇`) and your tracked tasks marked "in repo".
+- `wisp show <id>` works on either kind: a repo task opens as its read-only report, with the next commands
+  printed (`wisp resume`, `wisp rerun`, `wisp blame`).
