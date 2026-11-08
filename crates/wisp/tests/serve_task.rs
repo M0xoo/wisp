@@ -433,6 +433,17 @@ async fn an_agents_token_cannot_touch_another_task() {
         let out = as_agent(name, args).await;
         assert_ne!(out["ok"], true, "{name} must be refused for another task: {out}");
     }
+    // the v1 routes: /sessions/:id names the task, whatever x-wisp-session says
+    let route = |id: String| {
+        let (http, token, lead) = (api.http.clone(), token.clone(), lead.clone());
+        async move { http.get(format!("http://127.0.0.1:{port}/api/sessions/{id}")).header("x-wisp-token", token).header("x-wisp-session", lead).send().await.unwrap().status().as_u16() }
+    };
+    assert_eq!(route(lead.clone()).await, 200);
+    assert_eq!(route(other.clone()).await, 403, "another task by its route");
+    // a task under L (its delegation) is L's to reach
+    let child = api.cmd("runtime.create", json!({ "prompt": "child", "cwd": dir.join("proj"), "agent": "claude", "parentId": lead })).await["id"].as_str().unwrap().to_owned();
+    assert_eq!(as_agent("runtime.get", json!({ "id": child })).await["ok"], true, "its own child");
+    assert_eq!(route(child).await, 200);
     let a = api.cmd("runtime.get", json!({ "id": other })).await;
     assert_ne!(a["title"], "renamed by L");
     assert_eq!(api.turns(&other).await.len(), 1, "no turn was started on A");

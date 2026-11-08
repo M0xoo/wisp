@@ -17,7 +17,7 @@ path = "src/main.rs"
 # scripts that name it.
 default = ["proc", "all-plugins"]
 full = ["default"]
-all-plugins = ["settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "update"]
+all-plugins = ["settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update"]
 proc = ["dep:wisp-proc"]
 settings = ["dep:wisp-settings"]
 runtime = ["dep:wisp-runtime", "proc"]
@@ -56,6 +56,7 @@ connectors = ["dep:wisp-connectors"]
 stuff = ["dep:wisp-stuff"]
 plugins = ["dep:wisp-plugins"]
 telemetry = ["dep:wisp-telemetry"]
+posthog = ["dep:wisp-posthog"]
 update = ["dep:wisp-update"]
 
 [dependencies]
@@ -102,6 +103,7 @@ wisp-connectors = { path = "../../plugins/connectors/host", optional = true }
 wisp-stuff = { path = "../../plugins/stuff/host", optional = true }
 wisp-plugins = { path = "../../plugins/plugins/host", optional = true }
 wisp-telemetry = { path = "../../plugins/telemetry/host", optional = true }
+wisp-posthog = { path = "../../plugins/posthog/host", optional = true }
 wisp-update = { path = "../../plugins/update/host", optional = true }
 rand.workspace = true
 reqwest.workspace = true

@@ -18,8 +18,8 @@ pub struct Where {
     pub user_home: PathBuf,
 }
 
-pub const DEFAULT: [&str; 40] = [
-    "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "machines", "grid-client", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "update",
+pub const DEFAULT: [&str; 41] = [
+    "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "machines", "grid-client", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update",
 ];
 pub const BOX_OFF: [&str; 2] = ["machines", "update"];
 pub const HEADLESS: [&str; 12] = ["settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "git", "worktrees", "mcp"];
@@ -145,6 +145,8 @@ fn add(g: PluginGroup, name: &str, at: &Where) -> PluginGroup {
         "plugins" => g.add(wisp_plugins::PluginsPlugin),
         #[cfg(feature = "telemetry")]
         "telemetry" => g.add(wisp_telemetry::TelemetryPlugin),
+        #[cfg(feature = "posthog")]
+        "posthog" => g.add(wisp_posthog::PostHogPlugin),
         #[cfg(feature = "update")]
         "update" => g.add(wisp_update::UpdatePlugin),
         _ => g,
@@ -196,6 +198,7 @@ pub fn in_build(name: &str) -> bool {
         "stuff" => cfg!(feature = "stuff"),
         "plugins" => cfg!(feature = "plugins"),
         "telemetry" => cfg!(feature = "telemetry"),
+        "posthog" => cfg!(feature = "posthog"),
         "update" => cfg!(feature = "update"),
         _ => false,
     }

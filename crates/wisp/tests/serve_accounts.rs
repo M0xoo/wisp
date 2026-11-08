@@ -84,3 +84,38 @@ async fn a_changed_harness_holds_its_turn_until_trusted() {
     api.until(&id, "the held turn runs", |t| t.last().is_some_and(|x| x["status"] == "done")).await;
     drop(serve);
 }
+
+/// opencode signs in with a key pasted into wisp: it goes where opencode keeps it, and only whether one
+/// is saved comes back. Codex's usage windows are read from its app-server (nothing spent). The v1
+/// routes answer as the commands do.
+#[tokio::test(flavor = "multi_thread")]
+async fn keys_limits_and_the_v1_routes() {
+    let dir = temp("serve-keys");
+    let data = dir.join("xdg");
+    let (serve, port) = start_with(&dir, &[("XDG_DATA_HOME", data.to_str().unwrap())]);
+    let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
+    let v = api.cmd("accounts.keys", json!({ "agent": "opencode" })).await;
+    assert_eq!(v["providers"].as_array().unwrap().len(), 2, "{v}");
+    assert_eq!(v["providers"][0]["set"], false);
+    let set = api.cmd("accounts.keys.set", json!({ "agent": "opencode", "provider": "opencode", "key": "sk-zen-1" })).await;
+    assert_eq!(set["providers"][0]["set"], true, "{set}");
+    assert!(!set.to_string().contains("sk-zen-1"), "never the key itself");
+    let file: Value = serde_json::from_str(&std::fs::read_to_string(data.join("opencode/auth.json")).unwrap()).unwrap();
+    assert_eq!(file["opencode"], json!({ "type": "api", "key": "sk-zen-1" }));
+    let bad = api.try_cmd("accounts.keys.set", json!({ "agent": "opencode", "provider": "nope", "key": "k" })).await;
+    assert_ne!(bad["ok"], true);
+    // over the v1 route too
+    let r = api.http.delete(format!("http://127.0.0.1:{port}/api/agents/opencode/keys/opencode")).header("content-type", "application/json").body("{}").send().await.unwrap();
+    assert_eq!(r.status().as_u16(), 200);
+    let after: Value = serde_json::from_slice(&r.bytes().await.unwrap()).unwrap();
+    assert_eq!(after["providers"][0]["set"], false, "{after}");
+    // Codex's windows, read without a turn
+    let l = api.cmd("accounts.limits", json!({ "agent": "codex", "account": "" })).await;
+    assert_eq!(l["rateLimits"]["primary"]["usedPercent"], 42, "{l}");
+    // every harness detected again
+    let all = api.cmd("accounts.recheck", Value::Null).await;
+    assert!(all.as_array().is_some_and(|a| a.iter().any(|h| h["id"] == "opencode" && h["available"] == true)), "{all}");
+    let accts = api.http.get(format!("http://127.0.0.1:{port}/api/agents/codex/accounts")).send().await.unwrap();
+    assert_eq!(accts.status().as_u16(), 200);
+    drop(serve);
+}
