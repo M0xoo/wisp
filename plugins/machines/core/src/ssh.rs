@@ -1,4 +1,4 @@
-//! Every argv wisp hands to the system's OpenSSH (it keeps `~/.ssh/config`, agents, ProxyJump and
+//! Every argv wisp hands to the system's OpenSSH (it keeps `~/.ssh/config`, agents, `ProxyJump` and
 //! FIDO keys). The target is checked by [`crate::shell::is_target`] before it gets here, and comes
 //! last before the remote command, so it can never be read as an option.
 use crate::shell::shq;

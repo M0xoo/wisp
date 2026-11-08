@@ -4,6 +4,8 @@
 //! sync client (a cursor per (peer, epoch), passive subscriptions, commands kept by idempotency key),
 //! the connection state machine and the card a peer shows.
 
+#![cfg_attr(test, allow(clippy::assert_is_empty))] // `assert!(x.is_empty())` reads better in tests
+
 pub mod bootstrap;
 pub mod hint;
 pub mod hosts;

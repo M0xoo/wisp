@@ -135,13 +135,12 @@ pub fn delegated_no_wait(head: &str, all: &[Delegation]) -> String {
 /// JavaScript's `Number(v)`, for v1's lenient numeric arguments ("30" counts).
 pub fn js_number(v: Option<&Value>) -> f64 {
     match v {
-        None => f64::NAN,
         Some(Value::Null) => 0.0,
         Some(Value::Bool(b)) => f64::from(u8::from(*b)),
         Some(Value::Number(n)) => n.as_f64().unwrap_or(f64::NAN),
         Some(Value::String(s)) if s.trim().is_empty() => 0.0,
         Some(Value::String(s)) => s.trim().parse().unwrap_or(f64::NAN),
-        Some(_) => f64::NAN,
+        None | Some(_) => f64::NAN,
     }
 }
 

@@ -1,0 +1,16 @@
+{
+  "event": "feedback",
+  "properties": {
+    "$lib": "wisp",
+    "$process_person_profile": false,
+    "arch": "arm64",
+    "distinct_id": "one-off",
+    "os": "darwin",
+    "osRelease": "24.6.0",
+    "rating": "down",
+    "shell": "browser",
+    "text": "broke in ~/code/app",
+    "version": "2.0.0"
+  },
+  "timestamp": "2026-11-07T00:00:00.000Z"
+}

@@ -35,7 +35,7 @@ pub struct ProbeResult {
     pub error: Option<String>,
     /// refused for want of a sign-in: the row offers Sign in
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(optional)]
+    #[ts(as = "Option<bool>", optional)]
     pub auth: bool,
 }
 

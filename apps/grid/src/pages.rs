@@ -7,6 +7,8 @@
 //! Every page is a pure function, plain data in and an HTML string out: no IO and no clock (a page
 //! that says "5 min ago" is handed `now_ms`). Every interpolated value goes through [`esc`], which is
 //! safe in text and in quoted attributes alike, so the edge can pass what people typed as it is.
+// Page templates read best as `format!` per row; they render on a click, not on a hot path.
+#![allow(clippy::format_collect, clippy::format_push_string)]
 
 mod account;
 mod app_css;
@@ -14,6 +16,7 @@ mod device;
 mod home;
 mod icons;
 mod in_app;
+mod join;
 mod layout;
 mod machines;
 mod scripts;

@@ -130,6 +130,6 @@ mod tests {
         assert!(p.push(b"data: a\r").is_empty());
         assert_eq!(p.push(b"\r").len(), 1);
         assert!(p.push(b"data: b\n").is_empty());
-        assert_eq!(p.bytes, 11);
+        assert_eq!(p.bytes, 17); // every byte pushed: 8 + 1 + 8
     }
 }

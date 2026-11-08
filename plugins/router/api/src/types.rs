@@ -29,7 +29,7 @@ pub struct AgentInfo {
     #[serde(default)]
     pub available: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(optional)]
+    #[ts(as = "Option<Vec<ModelInfo>>", optional)]
     pub models: Vec<ModelInfo>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -279,7 +279,7 @@ pub struct StoredRoute {
     pub why: Option<String>,
     /// a run you picked yourself: it teaches the record at half weight
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(optional)]
+    #[ts(as = "Option<bool>", optional)]
     pub manual: bool,
     #[serde(default)]
     #[ts(type = "number")]
@@ -291,7 +291,7 @@ pub struct StoredRoute {
     pub r: Option<f64>,
     /// the run never got to work (the harness was at its limit)
     #[serde(default, rename = "void", skip_serializing_if = "std::ops::Not::not")]
-    #[ts(optional)]
+    #[ts(as = "Option<bool>", optional)]
     pub voided: bool,
     /// the rest of the route as the caller recorded it (size, tier, alternatives, …)
     #[serde(flatten)]

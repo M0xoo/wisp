@@ -106,7 +106,7 @@ pub struct TeamRow {
     #[serde(default)]
     pub effort: String,
     #[serde(default, rename = "use", skip_serializing_if = "String::is_empty")]
-    #[ts(optional, rename = "use")]
+    #[ts(as = "Option<String>", optional, rename = "use")]
     pub use_: String,
     #[serde(default = "one")]
     pub count: u32,
@@ -142,7 +142,7 @@ pub struct Held {
     #[ts(optional)]
     pub agent: Option<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(optional)]
+    #[ts(as = "Option<bool>", optional)]
     pub load: bool,
 }
 
@@ -163,7 +163,7 @@ pub struct Offer {
     /// `open`, `taken` or `dismissed`
     pub state: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(optional)]
+    #[ts(as = "Option<Vec<String>>", optional)]
     pub names: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional, type = "number")]
@@ -223,10 +223,10 @@ pub struct LogEntry {
     pub from: Option<TaskRef>,
     pub status: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(optional)]
+    #[ts(as = "Option<bool>", optional)]
     pub quiet: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(optional)]
+    #[ts(as = "Option<bool>", optional)]
     pub for_later: bool,
     /// skips in a row share one line
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -284,22 +284,22 @@ pub struct WaitingJob {
     #[ts(optional)]
     pub reply: Option<ReplyTo>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(optional)]
+    #[ts(as = "Option<bool>", optional)]
     pub wake: bool,
     /// what a task watcher saw happen to `from`: `finished` or `done`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub event: Option<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(optional)]
+    #[ts(as = "Option<bool>", optional)]
     pub kit: bool,
     /// members tagged in it, who join this job's delegates
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(optional)]
+    #[ts(as = "Option<Vec<TeamRow>>", optional)]
     pub team: Vec<TeamRow>,
     /// nobody asked for it just now: held while its account is past Automations stop at
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(optional)]
+    #[ts(as = "Option<bool>", optional)]
     pub unattended: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -441,17 +441,17 @@ pub struct CrewExt {
     #[ts(optional)]
     pub reply: Option<ReplyTo>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(optional)]
+    #[ts(as = "Option<bool>", optional)]
     pub wake: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub event: Option<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    #[ts(optional)]
+    #[ts(as = "Option<bool>", optional)]
     pub kit: bool,
     /// tasks it followed up on
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(optional)]
+    #[ts(as = "Option<Vec<TaskRef>>", optional)]
     pub sent: Vec<TaskRef>,
 }
 

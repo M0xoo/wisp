@@ -89,7 +89,7 @@ pub struct StopArgs {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct LetInArgs {
     pub id: String,
-    /// never stored, never logged, never in an argv: ssh reads it through SSH_ASKPASS
+    /// never stored, never logged, never in an argv: ssh reads it through `SSH_ASKPASS`
     #[serde(default)]
     pub password: String,
 }

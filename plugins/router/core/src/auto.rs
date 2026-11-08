@@ -135,7 +135,7 @@ pub fn no_pick_message(place: &str) -> String {
     if place.is_empty() { "Auto found no installed harness to run this on.".into() } else { format!("Auto found no harness installed and signed in on {place}. Sign in to one there (Run with → pick it).") }
 }
 
-fn flag(v: Option<&serde_json::Value>, k: &str) -> Option<&serde_json::Value> {
+fn flag<'a>(v: Option<&'a serde_json::Value>, k: &str) -> Option<&'a serde_json::Value> {
     v.and_then(|x| x.get(k))
 }
 

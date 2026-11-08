@@ -192,12 +192,9 @@ impl BoxTrust {
         let origin = env
             .get("WISP_PUBLIC_URL")
             .filter(|u| !u.is_empty())
-            .and_then(|u| match url::Url::parse(u) {
-                Ok(p) => Some(p.origin().ascii_serialization()),
-                Err(_) => {
-                    warn("wisp: WISP_PUBLIC_URL is not a URL; ignoring it");
-                    None
-                }
+            .and_then(|u| if let Ok(p) = url::Url::parse(u) { Some(p.origin().ascii_serialization()) } else {
+                warn("wisp: WISP_PUBLIC_URL is not a URL; ignoring it");
+                None
             });
         Self { on, origin, secret }
     }

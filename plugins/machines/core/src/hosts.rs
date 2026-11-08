@@ -137,7 +137,7 @@ fn is_ipv4ish(s: &str) -> bool {
     !s.is_empty() && s.chars().all(|c| c.is_ascii_digit() || c == '.')
 }
 
-/// Hosts you've SSHed to, from `known_hosts`. Hashed entries, markers and `[host]:port` ones (a bare
+/// Hosts you've `SSHed` to, from `known_hosts`. Hashed entries, markers and `[host]:port` ones (a bare
 /// target can't say the port) are skipped, as are forges and loopback.
 pub fn known_hosts(text: &str) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();

@@ -36,6 +36,7 @@ impl Tunnels {
         false
     }
     /// One request to a computer through its tunnel; 502 when it isn't online.
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)] // the tunnel is async once it lands; callers already await it
     pub async fn ask(&self, _computer_id: &str, _opts: AskOptions) -> Result<Asked> {
         Err(bad("This computer isn’t online.", 502))
     }

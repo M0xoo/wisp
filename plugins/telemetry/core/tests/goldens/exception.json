@@ -1,0 +1,48 @@
+{
+  "event": "$exception",
+  "properties": {
+    "$exception_list": [
+      {
+        "mechanism": {
+          "handled": true,
+          "synthetic": false
+        },
+        "stacktrace": {
+          "frames": [
+            {
+              "colno": 2,
+              "filename": "…/y.js",
+              "function": "other",
+              "in_app": false,
+              "lang": "javascript",
+              "lineno": 1,
+              "platform": "custom"
+            },
+            {
+              "colno": 4,
+              "filename": "<wisp>/src/a.ts",
+              "function": "run",
+              "in_app": true,
+              "lang": "javascript",
+              "lineno": 3,
+              "platform": "custom"
+            }
+          ],
+          "type": "raw"
+        },
+        "type": "TypeError",
+        "value": "cannot read …/a.ts"
+      }
+    ],
+    "$lib": "wisp",
+    "$process_person_profile": false,
+    "arch": "arm64",
+    "distinct_id": "00000000-0000-4000-8000-000000000001",
+    "os": "darwin",
+    "osRelease": "24.6.0",
+    "route": "GET /sessions/:id",
+    "shell": "browser",
+    "version": "2.0.0"
+  },
+  "timestamp": "2026-11-07T00:00:00.000Z"
+}

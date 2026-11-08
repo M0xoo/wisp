@@ -154,7 +154,7 @@ pub fn add_master_key(data_dir: &Path) -> Result<String> {
 /// After rewrap: drop master keys no data key uses any more.
 pub fn prune_master_keys(
     data_dir: &Path,
-    in_use: &std::collections::HashSet<String>,
+    in_use: &std::collections::HashSet<String, impl std::hash::BuildHasher>,
 ) -> Result<Vec<String>> {
     let f = master_file(data_dir);
     let mut j = read_master_json(&f)?;

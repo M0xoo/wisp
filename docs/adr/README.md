@@ -24,3 +24,4 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0015](0015-rust-dependencies.md) | The Rust workspace's third-party crates, each with its reason; `cargo deny` guards them |
 | [0016](0016-foundation-metrics.md) | v2 looks exactly like v1: pixel + metrics parity gate |
 | [0017](0017-immediate-feedback.md) | Every action answers within one frame (design/feedback.md, qa/feedback.mjs) |
+| [0019](0019-openapi-from-the-route-table.md) | OpenAPI is checked on the Rust route table (crates/wisp/tests/serve_task.rs); the static `openapi` rule is retired |

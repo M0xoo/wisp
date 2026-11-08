@@ -176,8 +176,10 @@ export const rustManifests: Rule = {
     for (const c of hosts) {
       const file = `${c.dir}/wisp-plugin.json`;
       const isPlugin = rustFiles(ctx.root, `${c.dir}/src`).some((f) => /impl\s+(?:wisp_kernel::)?Plugin\s+for\b/.test(readFileSync(join(ctx.root, f), 'utf8')));
+      // every host crate is a plugin: a manifest beside its Cargo.toml and an `impl Plugin`
+      if (!isPlugin) out.push(finding(manifestOf(c), 1, 'rust-manifests', `${c.name} is a plugin host but implements no Plugin`));
       if (!existsSync(join(ctx.root, file))) {
-        if (isPlugin) out.push(finding(manifestOf(c), 1, 'rust-manifests', `${c.name} implements Plugin but has no wisp-plugin.json beside its Cargo.toml`));
+        out.push(finding(manifestOf(c), 1, 'rust-manifests', `${c.name} is a plugin host but has no wisp-plugin.json beside its Cargo.toml`));
         continue;
       }
       const m = manifestJson(file, readFileSync(join(ctx.root, file), 'utf8'), out);

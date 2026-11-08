@@ -30,7 +30,7 @@ pub(super) fn logo(id: &str) -> &'static str {
 
 /// GitHub first, dev last, the rest as the grid lists them; Google left out in an app's browser,
 /// where its sign-in can only fail (it refuses web views).
-fn ordered<'a>(providers: &'a [Provider], in_app: bool) -> Vec<&'a Provider> {
+fn ordered(providers: &[Provider], in_app: bool) -> Vec<&Provider> {
     let mut list: Vec<&Provider> = providers.iter().filter(|p| !(in_app && p.id == "google")).collect();
     list.sort_by_key(|p| match p.id.as_str() {
         "github" => 0,

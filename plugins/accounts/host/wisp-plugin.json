@@ -1,0 +1,16 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.accounts",
+  "name": "Accounts",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.accounts host: accounts, sign-in, harness watch (before:run), harness disk, live limits, usage, allowance",
+  "server": {
+    "builtin": "wisp-accounts"
+  },
+  "permissions": [],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {}
+}

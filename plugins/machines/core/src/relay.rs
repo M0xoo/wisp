@@ -127,9 +127,8 @@ fn q_field(o: &mut Map<String, Value>, k: &str, m: &str) {
 fn q_ids(o: &mut Map<String, Value>, m: &str) {
     q_field(o, "id", m);
     q_field(o, "parentId", m);
-    if !o
-        .get("groupId")
-        .is_some_and(|g| g.as_str().is_some_and(|s| !s.is_empty()))
+    if o
+        .get("groupId").is_none_or(|g| g.as_str().is_none_or(str::is_empty))
     {
         o.insert("groupId".into(), Value::Null); // random, shared across machines when one launch fans out
     }
@@ -137,11 +136,11 @@ fn q_ids(o: &mut Map<String, Value>, m: &str) {
         q_field(f, "id", m);
     }
     if let Some(Value::Array(forks)) = o.get_mut("forks") {
-        forks.iter_mut().for_each(|f| {
+        for f in forks.iter_mut() {
             if let Value::String(s) = f {
-                *s = qualify(s, m)
+                *s = qualify(s, m);
             }
-        });
+        }
     }
 }
 
@@ -186,7 +185,7 @@ pub fn session(tag: &Tag<'_>, s: &Value) -> Value {
     if let Some(Value::Object(c)) = o.get_mut("children") {
         c.values_mut().for_each(|v| {
             if let Value::String(s) = v {
-                *s = qualify(s, m)
+                *s = qualify(s, m);
             }
         });
     }

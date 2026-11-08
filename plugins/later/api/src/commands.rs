@@ -240,7 +240,7 @@ pub struct StartedRef {
 #[ts(export, export_to = "later/")]
 pub enum PlanEdited {
     Started(Started),
-    Plan(Plan),
+    Plan(Box<Plan>),
 }
 
 /// `later.waitAtLimit` (v1 runner.waitAtLimit): at a usage limit with Settings → Wait for the reset on

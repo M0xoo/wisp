@@ -6,6 +6,8 @@
 //!
 //! `cargo test -p wisp-machines-core --release --test resume_bench -- --ignored --nocapture` prints the
 //! table; the plain test run checks the ratio.
+#![allow(clippy::cast_precision_loss)] // fixture numbers, far below 2^52
+
 use std::collections::BTreeMap;
 use std::time::Instant;
 
@@ -19,14 +21,15 @@ const SESSIONS: usize = 1_000;
 
 /// A task summary as v1's list carried it (server/sessions summary shape, ~0.7 KB).
 fn summary(i: usize, rev: u64) -> Value {
+    let agent = ["claude", "codex", "opencode"][i % 3];
     json!({
         "id": format!("0190a1b2c3d4e5f6a7b8{i:012x}"), "title": format!("Fix the flaky upload test in packages/sync #{i}"),
-        "agent": ["claude", "codex", "opencode"][i % 3], "model": "claude-opus-4-1", "effort": "high", "mode": "auto",
-        "state": if rev > 0 && i % 7 == 0 { "running" } else { "done" }, "cwd": format!("/Users/me/code/project-{}", i % 12),
+        "agent": agent, "model": "claude-opus-4-1", "effort": "high", "mode": "auto",
+        "state": if rev > 0 && i.is_multiple_of(7) { "running" } else { "done" }, "cwd": format!("/Users/me/code/project-{}", i % 12),
         "project": format!("project-{}", i % 12), "color": "#7c5cff", "branch": format!("wisp/fix-upload-{i}"),
         "worktree": format!("/Users/me/.wisp/worktrees/project-{}-{i}", i % 12), "createdAt": 1_762_560_000_000_u64 + i as u64 * 60_000,
         "updatedAt": 1_762_600_000_000_u64 + rev * 1_000 + i as u64, "lastActivityAt": 1_762_600_000_000_u64 + rev * 1_000,
-        "turns": 3 + (i % 9) as u64 + rev, "unread": rev > 0, "archived": false, "pinned": i % 50 == 0,
+        "turns": 3 + (i % 9) as u64 + rev, "unread": rev > 0, "archived": false, "pinned": i.is_multiple_of(50),
         "cost": { "usd": 0.42 + (i % 10) as f64 / 10.0, "tokensIn": 182_000 + i as u64, "tokensOut": 9_400 + rev },
         "preview": "Fixed: the upload retried after the server had already stored it; now the idempotency key is checked first.",
         "groupId": null, "parentId": null, "machine": null, "crew": null, "labels": ["ci", "sync"], "goal": null,

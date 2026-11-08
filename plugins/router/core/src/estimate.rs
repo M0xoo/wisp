@@ -111,7 +111,7 @@ pub fn counts(st: &RouterState, kind: &str, key: &str, now: i64) -> Counts {
     counts_canon(st, kind, &canon(key), now)
 }
 
-#[allow(clippy::cast_precision_loss)]
+#[allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 fn counts_canon(st: &RouterState, kind: &str, c: &str, now: i64) -> Counts {
     let (mut a, mut b, mut n, mut usd, mut usd_n, mut ms) = (0.0, 0.0, 0u32, 0.0, 0u32, 0.0);
     for (_, s) in st.stats_of(kind, c) {
@@ -132,7 +132,7 @@ fn levels(st: &RouterState, kind: &str, key: &str, now: i64) -> (f64, f64) {
     let c = canon(key);
     let stem = stem_key(key);
     st.canons_of(kind).filter(|k| *k != c && stem_key(k) == stem).fold((0.0, 0.0), |(a, b), k| {
-        let x = counts_canon(st, kind, k, now);
+        let x = counts_canon(st, kind, &k, now);
         (a + x.a, b + x.b)
     })
 }

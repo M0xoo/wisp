@@ -21,6 +21,7 @@ pub struct TypeRecord {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "router/")]
+#[allow(clippy::struct_excessive_bools)] // v1's wire shape: each flag is its own field
 pub struct ArmReport {
     pub key: String,
     pub agent: String,
@@ -121,6 +122,7 @@ pub enum Scout {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(default, rename_all = "camelCase")]
 #[ts(export, export_to = "router/")]
+#[allow(clippy::struct_excessive_bools)] // v1's wire shape: each flag is its own field
 pub struct Settings {
     /// Auto's goal; absent: balanced
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -161,6 +163,7 @@ impl Default for Settings {
 /// The settings as GET /router shows them (allowed: null when it narrows nothing).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "router/")]
+#[allow(clippy::struct_excessive_bools)] // v1's wire shape: each flag is its own field
 pub struct SettingsView {
     pub explore: bool,
     pub allowed: Option<Vec<String>>,
@@ -172,7 +175,7 @@ pub struct SettingsView {
     pub scout: Scout,
 }
 
-/// GET /router (v1 auto.view()).
+/// GET /router (v1 `auto.view()`).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "router/")]
 pub struct RouterView {

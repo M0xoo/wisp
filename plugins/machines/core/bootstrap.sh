@@ -1,5 +1,5 @@
 say() { printf '@@wisp %s\n' "$*"; }
-# wisp's remote bootstrap (plugins/machines/core/src/bootstrap.rs fills the __FIELDS__; the phone app
+# wisp's remote bootstrap (plugins/machines/core/src/bootstrap.rs fills the placeholder fields below; the phone app
 # loads this same file). Sent on stdin to `ssh … sh -s`, so the login shell there (bash, zsh, fish…)
 # only ever sees `sh -s`. Steps come back as `@@wisp step <id> <run|done|warn> <detail>`, `@@wisp fail
 # <id> <message>`, `@@wisp stale <pid>`, and finally `@@wisp ready <version> <pid>`; then `cat` holds

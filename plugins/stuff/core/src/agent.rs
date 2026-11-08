@@ -1,4 +1,4 @@
-//! What an agent reads about My Stuff (wisp_stuff, wisp_save's answer, @-mentions): one line per
+//! What an agent reads about My Stuff (`wisp_stuff`, `wisp_save`'s answer, @-mentions): one line per
 //! item with where its file is, one item in full, and how to change it. The words are v1's.
 
 use wisp_stuff_api::{StuffItem, StuffKind};
@@ -169,7 +169,7 @@ pub fn stuff_detail(x: &StuffItem, path: &str, d: &Detail) -> String {
     )
 }
 
-/// wisp_stuff's list. `total`: every item in My Stuff (to tell "nothing matches" from "empty").
+/// `wisp_stuff`'s list. `total`: every item in My Stuff (to tell "nothing matches" from "empty").
 pub fn find_text(
     found: &[(StuffItem, String)],
     limit: usize,
@@ -201,7 +201,7 @@ pub fn find_text(
     )
 }
 
-/// wisp_save's answer for a new item or an update.
+/// `wisp_save`'s answer for a new item or an update.
 pub fn save_text(it: &StuffItem, update: bool) -> String {
     let size = if it.size > 0 {
         format!(", {}", bytes(it.size))

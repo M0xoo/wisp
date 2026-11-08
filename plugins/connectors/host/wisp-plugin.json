@@ -1,0 +1,16 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.connectors",
+  "name": "Connectors",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.connectors plugin: wiring to the kernel, store, secrets, proc and HTTP routes",
+  "server": {
+    "builtin": "wisp-connectors"
+  },
+  "permissions": [],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {}
+}

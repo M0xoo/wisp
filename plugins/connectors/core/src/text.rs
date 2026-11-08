@@ -1,6 +1,6 @@
 //! Small text rules with v1's semantics: names, command lines, clipping, hosts, HTML escaping.
 
-/// A name from anything: "GitHub MCP" → "github_mcp" (lowercase letters, digits and _, ≤ 40).
+/// A name from anything: "GitHub MCP" → "`github_mcp`" (lowercase letters, digits and _, ≤ 40).
 pub fn slug(s: &str) -> String {
     let mut out = String::new();
     let mut gap = false;

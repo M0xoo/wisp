@@ -1,5 +1,5 @@
 //! Signing in to a remote connector with OAuth, the way MCP specifies it (v1 connector-auth.js), as
-//! pure steps: where to look for metadata (protected resource, then RFC 8414 / OpenID), what to
+//! pure steps: where to look for metadata (protected resource, then RFC 8414 / `OpenID`), what to
 //! register (RFC 7591), the PKCE pair and the authorize URL, the pending sign-ins, the token forms and
 //! replies, and when a token must be refreshed. The host does the fetches between the steps.
 
@@ -110,12 +110,9 @@ pub fn no_registration(issuer: &str) -> ConnectorError {
 pub fn registered(issuer: &str, status: Option<u16>, body: Option<&Value>) -> Result<(String, Option<String>)> {
     let ok = status.is_some_and(|s| (200..300).contains(&s));
     let field = |k: &str| body.and_then(|b| b.get(k)).and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_owned);
-    match (ok, field("client_id")) {
-        (true, Some(id)) => Ok((id, field("client_secret"))),
-        _ => {
-            let why = status.map(|s| format!(" (HTTP {s})")).unwrap_or_default();
-            Err(ConnectorError::Upstream(format!("{} didn’t register wisp{why}. Add its API key as a header instead", host_of(issuer))))
-        }
+    if let (true, Some(id)) = (ok, field("client_id")) { Ok((id, field("client_secret"))) } else {
+        let why = status.map(|s| format!(" (HTTP {s})")).unwrap_or_default();
+        Err(ConnectorError::Upstream(format!("{} didn’t register wisp{why}. Add its API key as a header instead", host_of(issuer))))
     }
 }
 

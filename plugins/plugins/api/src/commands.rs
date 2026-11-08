@@ -182,6 +182,7 @@ pub struct FireArgs {
 /// The facts a hook's `if` tests and its `{field}` templates read.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
+#[allow(clippy::struct_excessive_bools)] // v1's wire shape: each flag is its own field
 pub struct HookTask {
     pub id: String,
     pub agent: String,
@@ -205,7 +206,7 @@ pub struct HookTask {
     /// the ending turn's report has a tests block with failures
     #[serde(default)]
     pub tests_failed: bool,
-    /// v1 summarize(): the fields templates fill from (status, project, projectId, pr, branch …)
+    /// v1 `summarize()`: the fields templates fill from (status, project, projectId, pr, branch …)
     #[serde(default)]
     #[ts(type = "Record<string, unknown>")]
     pub summary: Value,
@@ -220,8 +221,8 @@ pub struct FireOut {
 command!(List, "plugins.list", perm::READ, true, NoArgs => ListOut);
 command!(Get, "plugins.get", perm::READ, true, IdArgs => Value);
 command!(
-    /// Validate without installing: CheckOk `{ ok: true, spell, summary, kind, warnings, installed }` or
-    /// CheckBad `{ ok: false, problems, error }`.
+    /// Validate without installing: `CheckOk` `{ ok: true, spell, summary, kind, warnings, installed }` or
+    /// `CheckBad` `{ ok: false, problems, error }`.
     Check, "plugins.check", perm::READ, true, Given => Value
 );
 command!(Install, "plugins.install", perm::INSTALL, false, InstallArgs => InstallOut);

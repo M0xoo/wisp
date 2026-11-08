@@ -2922,16 +2922,49 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "wisp-accounts",
+ "wisp-antigravity",
  "wisp-api",
+ "wisp-automations",
+ "wisp-budget",
+ "wisp-channels",
+ "wisp-claude",
+ "wisp-codex",
+ "wisp-connectors",
+ "wisp-copilot",
+ "wisp-crew",
+ "wisp-cursor",
+ "wisp-discord",
+ "wisp-email",
  "wisp-git",
+ "wisp-github",
+ "wisp-goal",
+ "wisp-grok",
  "wisp-issues",
  "wisp-kernel",
+ "wisp-later",
+ "wisp-learn",
+ "wisp-lsp",
  "wisp-machine",
+ "wisp-mcp",
+ "wisp-ntfy",
+ "wisp-opencode",
+ "wisp-plugins",
  "wisp-proc",
  "wisp-protocol",
  "wisp-review",
+ "wisp-router",
+ "wisp-runtime",
+ "wisp-settings",
  "wisp-ship",
+ "wisp-slack",
  "wisp-store",
+ "wisp-stuff",
+ "wisp-telegram",
+ "wisp-telemetry",
+ "wisp-terminal",
+ "wisp-testkit",
+ "wisp-update",
  "wisp-worktrees",
 ]
 
@@ -3844,6 +3877,9 @@ dependencies = [
 [[package]]
 name = "wisp-plugins"
 version = "2.0.0"
+dependencies = [
+ "wisp-kernel",
+]
 
 [[package]]
 name = "wisp-plugins-api"
@@ -3955,6 +3991,7 @@ name = "wisp-router-core"
 version = "2.0.0"
 dependencies = [
  "rand 0.9.5",
+ "regex",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -4000,6 +4037,9 @@ dependencies = [
 [[package]]
 name = "wisp-settings"
 version = "2.0.0"
+dependencies = [
+ "wisp-kernel",
+]
 
 [[package]]
 name = "wisp-settings-api"
@@ -4171,6 +4211,9 @@ dependencies = [
 [[package]]
 name = "wisp-telemetry"
 version = "2.0.0"
+dependencies = [
+ "wisp-kernel",
+]
 
 [[package]]
 name = "wisp-telemetry-api"
@@ -4233,6 +4276,9 @@ dependencies = [
 [[package]]
 name = "wisp-update"
 version = "2.0.0"
+dependencies = [
+ "wisp-kernel",
+]
 
 [[package]]
 name = "wisp-update-api"

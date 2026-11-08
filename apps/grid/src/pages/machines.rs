@@ -1,5 +1,5 @@
 //! "Add a cloud machine": one cloud wisp per account for now, so adding opens the waitlist for
-//! more, bigger and GPU machines (v1 `grid/accounts.js` MACHINE_WANTS), and says when you're on it.
+//! more, bigger and GPU machines (v1 `grid/accounts.js` `MACHINE_WANTS`), and says when you're on it.
 
 use std::fmt::Write as _;
 
@@ -182,7 +182,7 @@ pub(super) fn machines_js() -> String {
 }
 
 const MACHINES_JS_HEAD: &str = "<script>(()=>{const d=document.getElementById('machines'),f=document.getElementById('mForm');if(!d)return;";
-const MACHINES_JS_MID: &str = r#"const boxes=[...f.querySelectorAll('input[type=checkbox]')],go=f.querySelector('[data-go]');
+const MACHINES_JS_MID: &str = r"const boxes=[...f.querySelectorAll('input[type=checkbox]')],go=f.querySelector('[data-go]');
 const picked=()=>boxes.filter((b)=>b.checked).map((b)=>b.name.slice(5));
 const paint=()=>{const p=picked();go.disabled=!p.length;for(const s of d.querySelectorAll('[data-slot]'))s.classList.toggle('on',p.includes(s.dataset.slot))};
 const chips=(p)=>{d.querySelector('[data-chips]').innerHTML=W.filter(([k])=>p.includes(k)).map(([k,n])=>'<span>'+ICONS[k]+n+'</span>').join('')};
@@ -190,8 +190,8 @@ const toast=(t)=>{const n=document.createElement('div');n.className='toast bad';
 const row=()=>document.querySelector('[data-open=machines]');
 const rowFor=(p)=>{const r=row();if(!r)return;
 r.querySelector('small').textContent=TEXT[p.join(',')]||TEXT[''];
-const pill=r.querySelector('.pill');pill.className='pill '+(p.length?'listed':'soon');pill.innerHTML=p.length?"#;
-const MACHINES_JS_TAIL: &str = r#"+'On the list':'Soon'};
+const pill=r.querySelector('.pill');pill.className='pill '+(p.length?'listed':'soon');pill.innerHTML=p.length?";
+const MACHINES_JS_TAIL: &str = r"+'On the list':'Soon'};
 const send=async(wants)=>{const before={state:d.dataset.state,html:row()?.outerHTML};
 if(wants.length){chips(wants);d.dataset.fresh='';d.dataset.state='done'}else d.close();rowFor(wants);
 try{const r=await fetch('/machines/waitlist',{method:'POST',headers:{'content-type':'application/json',accept:'application/json'},body:JSON.stringify({csrf:f.csrf.value,wants,note:f.note.value})});
@@ -201,7 +201,7 @@ document.addEventListener('click',(e)=>{if(e.target.closest('[data-open=machines
 d.addEventListener('click',(e)=>{if(e.target===d||e.target.closest('[data-close]'))d.close();else if(e.target.closest('[data-change]'))d.dataset.state='pick';else if(e.target.closest('[data-leave]')){boxes.forEach((b)=>b.checked=false);paint();send([])}});
 f.addEventListener('change',paint);f.addEventListener('submit',(e)=>{e.preventDefault();const p=picked();if(p.length)send(p)});
 const link=()=>{const h=/^#machines(?:[/](more|bigger|gpu))?$/.exec(location.hash);if(!h)return;history.replaceState(null,'',location.pathname+location.search);const b=h[1]&&f.querySelector('[name=want_'+h[1]+']');if(b&&!b.checked){b.checked=true;d.dataset.state='pick';paint()}if(!d.open)d.showModal()};
-paint();link();addEventListener('hashchange',link)})()</script>"#;
+paint();link();addEventListener('hashchange',link)})()</script>";
 
 #[cfg(test)]
 mod tests {

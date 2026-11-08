@@ -95,7 +95,7 @@ fn tags_are_normalised_deduped_and_capped() {
     );
     let many: Vec<String> = (0..20).map(|i| format!("t{i}")).collect();
     assert_eq!(normalize_tags(&json!(many)).len(), 10);
-    assert!(normalize_tags(&json!(42)).is_empty());
+    assert_eq!(normalize_tags(&json!(42)), [] as [std::string::String; 0]);
 }
 
 #[test]

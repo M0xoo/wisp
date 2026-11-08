@@ -1,3 +1,6 @@
+// RETIRED (ADR-0019): not in RULES. It read routes from v1's apps/server, which v2 deleted, so it checked
+// nothing. The Rust edge builds /api/openapi.json from its route table (crates/wisp-api/src/openapi.rs);
+// crates/wisp/tests/serve_task.rs checks every documented route there has a summary. Kept for its tests.
 // ARCHITECTURE.md rule 7 (plan §9.2 contract tests): every HTTP route apps/server registers has an
 // OpenAPI entry. Routes are read statically from apps/server/src, in any of the shapes a registry is
 // likely to take:

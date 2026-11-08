@@ -86,6 +86,7 @@ pub fn claude_limits(info: &Value) -> Option<LimitsReport> {
 }
 
 #[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::float_cmp)] // window lengths are whole minutes from the wire
 fn codex_id(mins: f64) -> String {
     if mins == 300.0 {
         "five_hour".into()
@@ -163,7 +164,7 @@ fn side(id: &str, rl: &Obj) -> bool {
 }
 
 /// Codex's app-server answer to `account/rateLimits/read` → a report (budget.js:169-183). A live
-/// answer never gives a reset that's already gone, so a `codex` entry with one is frozen (OpenAI moved
+/// answer never gives a reset that's already gone, so a `codex` entry with one is frozen (`OpenAI` moved
 /// the limit to a new id) and the newest non-side bucket takes its place (edge case "budget" #6).
 pub fn codex_live(res: &Value, now: i64) -> Option<LimitsReport> {
     let res = res.as_object()?;
@@ -192,7 +193,7 @@ pub fn codex_live(res: &Value, now: i64) -> Option<LimitsReport> {
     }
 }
 
-/// Banked resets (OpenAI's reset credits) from the same answer (budget.js:190-207): soonest first, at
+/// Banked resets (`OpenAI`'s reset credits) from the same answer (budget.js:190-207): soonest first, at
 /// most 20, or None when the answer doesn't say. Expired or no longer available credits don't count.
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 pub fn codex_banked(res: &Value, now: i64) -> Option<Banked> {
@@ -230,7 +231,7 @@ pub fn banked_at(b: Option<&Banked>, now: i64) -> Option<Banked> {
     let Some(list) = &b.credits else { return (b.count > 0).then(|| b.clone()) };
     let credits: Vec<BankedCredit> = list.iter().filter(|c| c.expires_at.is_none_or(|e| e > now)).cloned().collect();
     let count = b.count.saturating_sub((list.len() - credits.len()) as u64);
-    (count > 0).then(|| Banked { count, credits: Some(credits), at: b.at })
+    (count > 0).then_some(Banked { count, credits: Some(credits), at: b.at })
 }
 
 /// A banked reset's one phone note goes the day before it expires.

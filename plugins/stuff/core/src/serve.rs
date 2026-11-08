@@ -44,6 +44,7 @@ pub fn loopback_host(host: &str) -> bool {
 }
 
 /// `%2e%2e` → `..`; None when the escapes aren't valid UTF-8 or aren't escapes.
+#[allow(clippy::many_single_char_names)] // bytes, hex digits: short names read better here
 pub fn percent_decode(s: &str) -> Option<String> {
     let b = s.as_bytes();
     let mut out = Vec::with_capacity(b.len());

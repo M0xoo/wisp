@@ -1,5 +1,5 @@
 //! `delegate`, the one tool whose definition depends on the session: its description names the team the
-//! user picked and its `subagent` enum lists them (v1 mcp-ask.js TEAM_TOOLS). Written as text in v1's
+//! user picked and its `subagent` enum lists them (v1 mcp-ask.js `TEAM_TOOLS`). Written as text in v1's
 //! key order; `tools-ask-team.json` and `tools-ask-default.json` hold it to v1's bytes.
 
 use wisp_mcp_api::TeamEntry;
@@ -53,13 +53,14 @@ fn names(team: &[TeamEntry]) -> Vec<&str> {
 
 /// `delegate`'s definition for this team, as JSON text.
 pub fn delegate(team: &[TeamEntry]) -> String {
+    use std::fmt::Write as _;
     let mut s = String::with_capacity(4096);
     s.push_str("{\"name\":\"delegate\",\"description\":");
     s.push_str(&quote(&description(team)));
     s.push_str(r#","inputSchema":{"type":"object","properties":{"tasks":{"type":"array","minItems":1,"items":{"type":"object","properties":{"#);
     if !team.is_empty() {
         let list = names(team).iter().map(|n| quote(n)).collect::<Vec<_>>().join(",");
-        s.push_str(&format!("\"subagent\":{{\"type\":\"string\",\"enum\":[{list}],\"description\":{}}},", quote(SUBAGENT_WORDS)));
+        let _ = write!(s, "\"subagent\":{{\"type\":\"string\",\"enum\":[{list}],\"description\":{}}},", quote(SUBAGENT_WORDS));
     }
     s.push_str(TASK_PROPS);
     s.push_str(TAIL);

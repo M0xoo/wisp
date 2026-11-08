@@ -124,7 +124,7 @@ pub fn report(r: &Router, agents: &[AgentInfo], prefs: &Prefs, now: i64) -> Rout
             signals: x.signals.clone(),
         })
         .collect();
-    recent.sort_by(|x, y| y.at.cmp(&x.at));
+    recent.sort_by_key(|x| std::cmp::Reverse(x.at));
     recent.truncate(30);
     let count = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
     RouterReport {

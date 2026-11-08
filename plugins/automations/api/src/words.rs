@@ -291,7 +291,7 @@ fn read_within(r: &mut Read) {
         }
         match (start, stop) {
             (Some(from), Some(to)) if to.0 > from.0 => {
-                r.hours = Some((from.0, to.0 + u32::from(to.1 > 0)))
+                r.hours = Some((from.0, to.0 + u32::from(to.1 > 0)));
             }
             _ => r.bad = true,
         }

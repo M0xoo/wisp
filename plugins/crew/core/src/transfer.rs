@@ -148,12 +148,9 @@ pub fn to_blueprint(m: &Member, on: &[String], kit: bool, notebook: bool, key: &
     for t in &m.team {
         match t.crew.as_deref() {
             None => team.push(BpTeam { agent: Some(t.agent.clone()), name: (!t.name.is_empty() && t.name != t.agent).then(|| t.name.clone()), model: Some(t.model.clone()).filter(|s| !s.is_empty()), effort: Some(t.effort.clone()).filter(|s| !s.is_empty()), use_: Some(t.use_.clone()).filter(|s| !s.is_empty()), count: (t.count > 1).then_some(t.count), crew: None }),
-            Some(id) => match key_of(id) {
-                Some(k) => team.push(BpTeam { crew: Some(k), ..BpTeam::default() }),
-                None => {
-                    let who = Some(name_of(id)).filter(|n| !n.is_empty()).or_else(|| t.label.clone()).unwrap_or_else(|| "another member".into());
-                    notes.push(format!("{} delegates to {who}, who stays here (tick Who they delegate to)", m.name));
-                }
+            Some(id) => if let Some(k) = key_of(id) { team.push(BpTeam { crew: Some(k), ..BpTeam::default() }) } else {
+                let who = Some(name_of(id)).filter(|n| !n.is_empty()).or_else(|| t.label.clone()).unwrap_or_else(|| "another member".into());
+                notes.push(format!("{} delegates to {who}, who stays here (tick Who they delegate to)", m.name));
             },
         }
     }

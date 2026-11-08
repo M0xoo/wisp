@@ -13,17 +13,50 @@ path = "src/main.rs"
 
 [features]
 # Each plugin host crate is a feature (crates/wisp/src/groups.rs): leave one out to drop it from the
-# build. `default` is what compiles in the tree today; `full` is every plugin written so far. Move a
-# plugin into `default` once its crate builds.
-default = ["proc", "machine"]
-full = ["proc", "git", "worktrees", "ship", "review", "issues", "machine"]
+# build. `default` is every plugin host in the tree (DefaultPlugins); `full` is the same set, kept for
+# scripts that name it.
+default = ["proc", "all-plugins"]
+full = ["default"]
+all-plugins = ["settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "update"]
 proc = ["dep:wisp-proc"]
+settings = ["dep:wisp-settings"]
+runtime = ["dep:wisp-runtime", "proc"]
+claude = ["dep:wisp-claude"]
+codex = ["dep:wisp-codex"]
+cursor = ["dep:wisp-cursor"]
+opencode = ["dep:wisp-opencode"]
+copilot = ["dep:wisp-copilot"]
+grok = ["dep:wisp-grok"]
+antigravity = ["dep:wisp-antigravity"]
+accounts = ["dep:wisp-accounts"]
 git = ["dep:wisp-git"]
 worktrees = ["dep:wisp-worktrees"]
 ship = ["dep:wisp-ship"]
 review = ["dep:wisp-review"]
 issues = ["dep:wisp-issues"]
+terminal = ["dep:wisp-terminal"]
+lsp = ["dep:wisp-lsp"]
 machine = ["dep:wisp-machine"]
+crew = ["dep:wisp-crew"]
+goal = ["dep:wisp-goal"]
+later = ["dep:wisp-later"]
+budget = ["dep:wisp-budget"]
+router = ["dep:wisp-router"]
+automations = ["dep:wisp-automations"]
+learn = ["dep:wisp-learn"]
+channels = ["dep:wisp-channels"]
+telegram = ["dep:wisp-telegram"]
+slack = ["dep:wisp-slack"]
+discord = ["dep:wisp-discord"]
+github = ["dep:wisp-github"]
+email = ["dep:wisp-email"]
+ntfy = ["dep:wisp-ntfy"]
+mcp = ["dep:wisp-mcp"]
+connectors = ["dep:wisp-connectors"]
+stuff = ["dep:wisp-stuff"]
+plugins = ["dep:wisp-plugins"]
+telemetry = ["dep:wisp-telemetry"]
+update = ["dep:wisp-update"]
 
 [dependencies]
 wisp-kernel.workspace = true
@@ -31,12 +64,44 @@ wisp-api.workspace = true
 wisp-protocol.workspace = true
 wisp-store.workspace = true
 wisp-proc = { workspace = true, optional = true }
+wisp-settings = { path = "../../plugins/settings/host", optional = true }
+wisp-runtime = { path = "../../plugins/runtime/host", optional = true }
+wisp-claude = { path = "../../plugins/claude/host", optional = true }
+wisp-codex = { path = "../../plugins/codex/host", optional = true }
+wisp-cursor = { path = "../../plugins/cursor/host", optional = true }
+wisp-opencode = { path = "../../plugins/opencode/host", optional = true }
+wisp-copilot = { path = "../../plugins/copilot/host", optional = true }
+wisp-grok = { path = "../../plugins/grok/host", optional = true }
+wisp-antigravity = { path = "../../plugins/antigravity/host", optional = true }
+wisp-accounts = { path = "../../plugins/accounts/host", optional = true }
 wisp-git = { path = "../../plugins/git/host", optional = true }
 wisp-worktrees = { path = "../../plugins/worktrees/host", optional = true }
 wisp-ship = { path = "../../plugins/ship/host", optional = true }
 wisp-review = { path = "../../plugins/review/host", optional = true }
 wisp-issues = { path = "../../plugins/issues/host", optional = true }
+wisp-terminal = { path = "../../plugins/terminal/host", optional = true }
+wisp-lsp = { path = "../../plugins/lsp/host", optional = true }
 wisp-machine = { path = "../../plugins/machine/host", optional = true }
+wisp-crew = { path = "../../plugins/crew/host", optional = true }
+wisp-goal = { path = "../../plugins/goal/host", optional = true }
+wisp-later = { path = "../../plugins/later/host", optional = true }
+wisp-budget = { path = "../../plugins/budget/host", optional = true }
+wisp-router = { path = "../../plugins/router/host", optional = true }
+wisp-automations = { path = "../../plugins/automations/host", optional = true }
+wisp-learn = { path = "../../plugins/learn/host", optional = true }
+wisp-channels = { path = "../../plugins/channels/host", optional = true }
+wisp-telegram = { path = "../../plugins/telegram/host", optional = true }
+wisp-slack = { path = "../../plugins/slack/host", optional = true }
+wisp-discord = { path = "../../plugins/discord/host", optional = true }
+wisp-github = { path = "../../plugins/github/host", optional = true }
+wisp-email = { path = "../../plugins/email/host", optional = true }
+wisp-ntfy = { path = "../../plugins/ntfy/host", optional = true }
+wisp-mcp = { path = "../../plugins/mcp/host", optional = true }
+wisp-connectors = { path = "../../plugins/connectors/host", optional = true }
+wisp-stuff = { path = "../../plugins/stuff/host", optional = true }
+wisp-plugins = { path = "../../plugins/plugins/host", optional = true }
+wisp-telemetry = { path = "../../plugins/telemetry/host", optional = true }
+wisp-update = { path = "../../plugins/update/host", optional = true }
 rand.workspace = true
 reqwest.workspace = true
 serde.workspace = true
@@ -46,6 +111,9 @@ thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+
+[dev-dependencies]
+wisp-testkit.workspace = true
 
 [lints]
 workspace = true

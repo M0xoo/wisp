@@ -78,13 +78,12 @@ fn split_top(s: &str) -> Vec<&str> {
             Some('"') if esc => esc = false,
             Some('"') if c == '\\' => esc = true,
             Some(q) if c == q => quote = None,
-            Some(_) => {}
             None if c == '"' || c == '\'' => quote = Some(c),
             None if c == ',' => {
                 out.push(&s[start..i]);
                 start = i + 1;
             }
-            None => {}
+            _ => {}
         }
     }
     out.push(&s[start..]);

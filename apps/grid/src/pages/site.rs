@@ -24,7 +24,7 @@ fn strip_wisp(name: &str) -> &str {
     if trimmed.len() == rest.len() { name } else { trimmed }
 }
 
-/// The hosted grid's sign-in page counts visits and clicks in wisp's PostHog project, like
+/// The hosted grid's sign-in page counts visits and clicks in wisp's `PostHog` project, like
 /// trywisp.dev, so the funnel reads site → this page → GitHub → signed up. Its cookie is on
 /// .trywisp.dev, so it's the same anonymous visitor as on the site. Self-hosted grids load nothing.
 fn analytics_script(key: &str) -> String {
@@ -34,19 +34,19 @@ fn analytics_script(key: &str) -> String {
     )
 }
 
-/// `analytics`: the PostHog project key, on the hosted grid only.
+/// `analytics`: the `PostHog` project key, on the hosted grid only.
 pub(super) fn site_head(title: &str, cfg: &PageCfg, analytics: Option<&str>) -> String {
     let (title, url) = (esc(title), esc(&cfg.public_url));
     let analytics = analytics.map(analytics_script).unwrap_or_default();
     let tag = esc(&tag(cfg));
     format!(
-        r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        r##"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{title}</title><meta name="referrer" content="same-origin"><meta name="description" content="{DESC}">
 <link rel="canonical" href="{url}/"><meta property="og:type" content="website"><meta property="og:url" content="{url}/"><meta property="og:title" content="{title}"><meta property="og:description" content="{DESC}"><meta property="og:image" content="{url}{ASSETS}/og.png"><meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="{ASSETS}/icon.svg"><style>{SITE_CSS}</style>{analytics}</head><body>
 <header class="nav" id="nav"><div class="wrap"><a class="brand" href="/"><span class="mark"></span>wisp<span class="tag">{tag}</span></a>
 <nav class="links"><a href="#how">How it works</a><a href="#report">What you get back</a><a href="#private">Private by design</a></nav>
-<div class="right"><a class="pill" href="https://trywisp.dev" target="_blank" rel="noopener">trywisp.dev</a><a class="pill dark" href="#join">Sign in</a></div></div></header>"#
+<div class="right"><a class="pill" href="https://trywisp.dev" target="_blank" rel="noopener">trywisp.dev</a><a class="pill dark" href="#join">Sign in</a></div></div></header>"##
     )
 }
 

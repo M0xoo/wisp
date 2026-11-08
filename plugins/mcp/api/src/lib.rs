@@ -59,6 +59,7 @@ const fn one() -> u32 {
 /// What changes an agent's tool list, per session: v1's env flags on the `mcp-ask.js` child.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[allow(clippy::struct_excessive_bools)] // v1's wire shape: each flag is its own field
 pub struct SessionInfo {
     /// a side discussion (v1 `WISP_READONLY`): only the tools that read, ask or show, and `approve`
     pub read_only: bool,

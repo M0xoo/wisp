@@ -1,6 +1,7 @@
 //! Times as pages say them. No clock here: the page is handed `now_ms`.
 
 /// v1's `ago`: "just now", "5 min ago", "3 h ago", then the day (UTC). Times are epoch ms.
+#[allow(clippy::many_single_char_names, clippy::cast_precision_loss)] // ms deltas are far below 2^52
 pub(super) fn ago(t: Option<i64>, now_ms: i64) -> String {
     let Some(t) = t.filter(|t| *t != 0) else {
         return "never".into();
@@ -36,8 +37,9 @@ fn js_round(x: f64) -> f64 {
     (x + 0.5).floor()
 }
 
-/// Epoch ms to (year, month, day, hour, minute, second) in UTC (Howard Hinnant's days_from_civil,
+/// Epoch ms to (year, month, day, hour, minute, second) in UTC (Howard Hinnant's `days_from_civil`,
 /// inverted).
+#[allow(clippy::many_single_char_names)] // the algorithm's own names
 fn civil(t: i64) -> (i64, i64, i64, i64, i64, i64) {
     let secs = t.div_euclid(1000);
     let (days, rem) = (secs.div_euclid(86400), secs.rem_euclid(86400));
@@ -57,7 +59,7 @@ fn civil(t: i64) -> (i64, i64, i64, i64, i64, i64) {
 mod tests {
     use super::*;
 
-    const NOW: i64 = 1_793_000_000_000; // 2026-10-25T09:33:20Z
+    const NOW: i64 = 1_792_920_800_000; // 2026-10-25T09:33:20Z
 
     #[test]
     fn ago_reads_like_v1() {

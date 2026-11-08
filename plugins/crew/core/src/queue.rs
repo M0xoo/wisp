@@ -19,7 +19,7 @@ pub enum Placement {
 /// Whether a job of `kind` starts now or waits, given `busy` jobs live (v1 crew.js:615-619).
 /// The 21st waiting job is refused (`TooMany`, v1's 429).
 pub fn place(m: &Member, busy: u32, kind: JobKind) -> Result<Placement> {
-    if busy < m.parallel && !(m.paused && !kind.runs_paused()) {
+    if busy < m.parallel && (!m.paused || kind.runs_paused()) {
         return Ok(Placement::Start);
     }
     if m.queue.len() >= QUEUE_MAX {
@@ -31,13 +31,11 @@ pub fn place(m: &Member, busy: u32, kind: JobKind) -> Result<Placement> {
 /// How many waiting jobs may start now, from the head (v1 `drain`): while there's room, and not past
 /// a head that waits for the member to be resumed.
 pub fn drain_count(m: &Member, busy: u32) -> usize {
-    let mut busy = busy;
     let mut n = 0;
-    for w in &m.queue {
+    for (busy, w) in (busy..).zip(&m.queue) {
         if busy >= m.parallel || (m.paused && !w.job.runs_paused()) {
             break;
         }
-        busy += 1;
         n += 1;
     }
     n

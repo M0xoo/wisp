@@ -1,5 +1,5 @@
 //! In-app browsers (v1 `grid/in-app.js`): X, Instagram, Facebook and friends open links in their own
-//! web view. Google refuses to sign anyone in there (403 disallowed_useragent) and nobody is signed in
+//! web view. Google refuses to sign anyone in there (403 `disallowed_useragent`) and nobody is signed in
 //! to GitHub in it, so the sign-in page offers the phone's real browser instead. trywisp.dev's
 //! `docs/main.js` has the same list: keep the two in step.
 

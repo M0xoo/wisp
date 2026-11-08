@@ -12,7 +12,7 @@ fn ids(v: &[&str]) -> Vec<String> {
     v.iter().map(|s| (*s).to_owned()).collect()
 }
 
-fn base<'a>(senders: &'a [String]) -> GateArgs<'a> {
+fn base(senders: &[String]) -> GateArgs<'_> {
     GateArgs { sender: Some("1"), senders, now_ms: NOW, ..GateArgs::default() }
 }
 
@@ -134,7 +134,9 @@ fn untrusted_is_wrapped_and_its_text_cant_close_the_wrapper() {
 
 #[test]
 fn sender_names_are_sanitised_and_at_most_40() {
-    assert_eq!(sender_name("  Ada\n\tLovelace  "), "Ada Lovelace");
+    assert_eq!(sender_name("  Ada  Lovelace  "), "Ada Lovelace");
+    // v1 drops a newline or tab rather than reading it as a space, so it can't start a line
+    assert_eq!(sender_name("Ada\n\tLovelace"), "AdaLovelace");
     assert_eq!(sender_name(&"é".repeat(60)).chars().count(), 40);
     assert_eq!(sender_name("<script>"), "script");
     assert_eq!(sender_name("bob.o_k-1"), "bob.o_k-1");

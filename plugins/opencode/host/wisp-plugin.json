@@ -1,0 +1,19 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.opencode",
+  "name": "opencode",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.opencode host: opencode as a runtime.harness@1 contribution (detect, setup, launch, resume, trust)",
+  "server": {
+    "builtin": "wisp-opencode"
+  },
+  "requires": {
+    "wisp.runtime": "^2"
+  },
+  "permissions": [],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {}
+}

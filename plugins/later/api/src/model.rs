@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use ts_rs::TS;
 
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde's skip_serializing_if hands a reference
 fn is_false(b: &bool) -> bool {
     !*b
 }

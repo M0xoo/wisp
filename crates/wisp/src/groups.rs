@@ -71,6 +71,26 @@ impl Group {
 #[allow(unused_variables)]
 fn add(g: PluginGroup, name: &str, at: &Where) -> PluginGroup {
     match name {
+        #[cfg(feature = "settings")]
+        "settings" => g.add(wisp_settings::SettingsPlugin),
+        #[cfg(feature = "runtime")]
+        "runtime" => g.add(wisp_runtime::RuntimePlugin::default()),
+        #[cfg(feature = "claude")]
+        "claude" => g.add(wisp_claude::ClaudePlugin),
+        #[cfg(feature = "codex")]
+        "codex" => g.add(wisp_codex::CodexPlugin),
+        #[cfg(feature = "cursor")]
+        "cursor" => g.add(wisp_cursor::CursorPlugin),
+        #[cfg(feature = "opencode")]
+        "opencode" => g.add(wisp_opencode::OpencodePlugin),
+        #[cfg(feature = "copilot")]
+        "copilot" => g.add(wisp_copilot::CopilotPlugin),
+        #[cfg(feature = "grok")]
+        "grok" => g.add(wisp_grok::GrokPlugin),
+        #[cfg(feature = "antigravity")]
+        "antigravity" => g.add(wisp_antigravity::AntigravityPlugin),
+        #[cfg(feature = "accounts")]
+        "accounts" => g.add(wisp_accounts::AccountsPlugin),
         #[cfg(feature = "git")]
         "git" => g.add(wisp_git::GitPlugin::default()),
         #[cfg(feature = "worktrees")]
@@ -78,11 +98,55 @@ fn add(g: PluginGroup, name: &str, at: &Where) -> PluginGroup {
         #[cfg(feature = "ship")]
         "ship" => g.add(wisp_ship::ShipPlugin::default()),
         #[cfg(feature = "review")]
-        "review" => g.add(wisp_review::ReviewPlugin::default()),
+        "review" => g.add(wisp_review::ReviewPlugin),
         #[cfg(feature = "issues")]
         "issues" => g.add(wisp_issues::IssuesPlugin),
+        #[cfg(feature = "terminal")]
+        "terminal" => g.add(wisp_terminal::TerminalPlugin),
+        #[cfg(feature = "lsp")]
+        "lsp" => g.add(wisp_lsp::LspPlugin),
         #[cfg(feature = "machine")]
         "machine" => g.add(wisp_machine::MachinePlugin),
+        #[cfg(feature = "crew")]
+        "crew" => g.add(wisp_crew::CrewPlugin),
+        #[cfg(feature = "goal")]
+        "goal" => g.add(wisp_goal::GoalPlugin),
+        #[cfg(feature = "later")]
+        "later" => g.add(wisp_later::LaterPlugin),
+        #[cfg(feature = "budget")]
+        "budget" => g.add(wisp_budget::BudgetPlugin),
+        #[cfg(feature = "router")]
+        "router" => g.add(wisp_router::RouterPlugin),
+        #[cfg(feature = "automations")]
+        "automations" => g.add(wisp_automations::AutomationsPlugin),
+        #[cfg(feature = "learn")]
+        "learn" => g.add(wisp_learn::LearnPlugin),
+        #[cfg(feature = "channels")]
+        "channels" => g.add(wisp_channels::ChannelsPlugin),
+        #[cfg(feature = "telegram")]
+        "telegram" => g.add(wisp_telegram::TelegramPlugin),
+        #[cfg(feature = "slack")]
+        "slack" => g.add(wisp_slack::SlackPlugin),
+        #[cfg(feature = "discord")]
+        "discord" => g.add(wisp_discord::DiscordPlugin),
+        #[cfg(feature = "github")]
+        "github" => g.add(wisp_github::GithubPlugin),
+        #[cfg(feature = "email")]
+        "email" => g.add(wisp_email::EmailPlugin),
+        #[cfg(feature = "ntfy")]
+        "ntfy" => g.add(wisp_ntfy::NtfyPlugin),
+        #[cfg(feature = "mcp")]
+        "mcp" => g.add(wisp_mcp::McpPlugin),
+        #[cfg(feature = "connectors")]
+        "connectors" => g.add(wisp_connectors::ConnectorsPlugin),
+        #[cfg(feature = "stuff")]
+        "stuff" => g.add(wisp_stuff::StuffPlugin),
+        #[cfg(feature = "plugins")]
+        "plugins" => g.add(wisp_plugins::PluginsPlugin),
+        #[cfg(feature = "telemetry")]
+        "telemetry" => g.add(wisp_telemetry::TelemetryPlugin),
+        #[cfg(feature = "update")]
+        "update" => g.add(wisp_update::UpdatePlugin),
         _ => g,
     }
 }
@@ -92,14 +156,47 @@ pub fn compiled(group: Group) -> Vec<&'static str> {
     group.names().into_iter().filter(|n| in_build(n)).collect()
 }
 
+#[allow(clippy::match_like_matches_macro)] // one arm per feature: which are true depends on the build
 pub fn in_build(name: &str) -> bool {
     match name {
+        "settings" => cfg!(feature = "settings"),
+        "runtime" => cfg!(feature = "runtime"),
+        "claude" => cfg!(feature = "claude"),
+        "codex" => cfg!(feature = "codex"),
+        "cursor" => cfg!(feature = "cursor"),
+        "opencode" => cfg!(feature = "opencode"),
+        "copilot" => cfg!(feature = "copilot"),
+        "grok" => cfg!(feature = "grok"),
+        "antigravity" => cfg!(feature = "antigravity"),
+        "accounts" => cfg!(feature = "accounts"),
         "git" => cfg!(feature = "git"),
         "worktrees" => cfg!(feature = "worktrees"),
         "ship" => cfg!(feature = "ship"),
         "review" => cfg!(feature = "review"),
         "issues" => cfg!(feature = "issues"),
+        "terminal" => cfg!(feature = "terminal"),
+        "lsp" => cfg!(feature = "lsp"),
         "machine" => cfg!(feature = "machine"),
+        "crew" => cfg!(feature = "crew"),
+        "goal" => cfg!(feature = "goal"),
+        "later" => cfg!(feature = "later"),
+        "budget" => cfg!(feature = "budget"),
+        "router" => cfg!(feature = "router"),
+        "automations" => cfg!(feature = "automations"),
+        "learn" => cfg!(feature = "learn"),
+        "channels" => cfg!(feature = "channels"),
+        "telegram" => cfg!(feature = "telegram"),
+        "slack" => cfg!(feature = "slack"),
+        "discord" => cfg!(feature = "discord"),
+        "github" => cfg!(feature = "github"),
+        "email" => cfg!(feature = "email"),
+        "ntfy" => cfg!(feature = "ntfy"),
+        "mcp" => cfg!(feature = "mcp"),
+        "connectors" => cfg!(feature = "connectors"),
+        "stuff" => cfg!(feature = "stuff"),
+        "plugins" => cfg!(feature = "plugins"),
+        "telemetry" => cfg!(feature = "telemetry"),
+        "update" => cfg!(feature = "update"),
         _ => false,
     }
 }
@@ -122,5 +219,15 @@ mod tests {
             assert!(g.names().iter().all(|n| d.contains(n)), "every group is part of Default");
         }
         assert!(compiled(Group::Default).iter().all(|n| in_build(n)));
+    }
+
+    #[test]
+    #[cfg(feature = "all-plugins")]
+    fn the_default_build_has_every_plugin_host() {
+        let have = compiled(Group::Default);
+        // machines and grid-client have no host crate yet
+        let missing: Vec<&str> = DEFAULT.iter().copied().filter(|n| !have.contains(n)).collect();
+        assert_eq!(missing, ["machines", "grid-client"]);
+        assert!(["settings", "runtime", "claude"].iter().all(|n| have.contains(n)), "a task can run");
     }
 }

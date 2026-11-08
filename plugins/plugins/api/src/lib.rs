@@ -177,10 +177,10 @@ pub struct Broken {
 /// GET /api/plugins and /api/spells: v1's `{ safe, spells, broken }` plus the new `plugins` rows.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct ListOut {
-    /// WISP_SAFE=1: every user plugin is off for this run
+    /// `WISP_SAFE=1`: every user plugin is off for this run
     pub safe: bool,
     pub plugins: Vec<PluginView>,
-    /// v1 SpellView: the spell, plus enabled, source, hash, summary and kind
+    /// v1 `SpellView`: the spell, plus enabled, source, hash, summary and kind
     #[ts(type = "Array<Record<string, unknown>>")]
     pub spells: Vec<Value>,
     pub broken: Vec<Broken>,

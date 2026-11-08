@@ -151,7 +151,7 @@ pub fn merge(a: &Value, b: &Value) -> Value {
     Value::Object(out)
 }
 
-/// A secret from a value, a file, or an env var (VAR, then VAR_FILE).
+/// A secret from a value, a file, or an env var (VAR, then `VAR_FILE`).
 pub fn read_secret(
     value: Option<&str>,
     file: Option<&Path>,
@@ -265,9 +265,10 @@ fn config_error(e: &serde_json::Error) -> GridError {
 }
 
 /// Check a merged config value (`load` without the files).
+#[allow(clippy::needless_pass_by_value)] // callers hand over the merged value and paths they built
 pub fn from_value(merged: Value, dir: PathBuf, file: PathBuf, env: &Env) -> Result<GridConfig> {
     let mut f: GridFile = serde_json::from_value(merged).map_err(|e| config_error(&e))?;
-    f.domain = f.domain.to_lowercase().trim_matches('.').to_owned();
+    f.domain.to_lowercase().trim_matches('.').clone_into(&mut f.domain);
     if f.domain.is_empty()
         || !f
             .domain
@@ -289,7 +290,7 @@ pub fn from_value(merged: Value, dir: PathBuf, file: PathBuf, env: &Env) -> Resu
     });
     let port_suffix = match port {
         Some(p)
-            if !(f.scheme == "http" && p == 80) && !(f.scheme == "https" && p == 443) && p != 0 =>
+            if (f.scheme != "http" || p != 80) && (f.scheme != "https" || p != 443) && p != 0 =>
         {
             format!(":{p}")
         }
@@ -336,6 +337,7 @@ pub fn write(cfg: &GridConfig) -> Result<()> {
 }
 
 /// A config for tests: defaults plus `overrides`, in `dir`, with no environment.
+#[allow(clippy::needless_pass_by_value)] // tests write `for_test(dir, json!({..}))`
 pub fn for_test(dir: &Path, overrides: Value) -> Result<GridConfig> {
     from_value(
         merge(&defaults(), &overrides),

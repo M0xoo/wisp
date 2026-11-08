@@ -72,10 +72,9 @@ pub fn differs_words(differs: &[(String, Vec<String>)], names: &DiffNames<'_>) -
     let word = |key: &str, x: &str| -> String {
         match key {
             "agent" => (names.agent)(x),
-            "model" if x.is_empty() => "Default".into(),
+            "model" | "account" if x.is_empty() => "Default".into(),
             "model" => (names.model)(x),
             "effort" => level(x),
-            "account" if x.is_empty() => "Default".into(),
             "account" => (names.account)(x),
             "subagentModel" if x.is_empty() => names.task_model.to_owned(),
             "subagentModel" => subagent_name(x),

@@ -96,7 +96,7 @@ pub fn parse_skill_md(text: &str) -> SkillMd {
                     i += 1;
                     more.push(lines[i].trim());
                 }
-                v = more.join(if v.starts_with('|') { "\n" } else { " " }).trim().to_owned();
+                more.join(if v.starts_with('|') { "\n" } else { " " }).trim().clone_into(&mut v);
             }
             meta.insert(k.to_lowercase(), unquote(&v).to_owned());
         }
@@ -217,6 +217,7 @@ pub fn offer_files(list: &[Value]) -> Vec<OfferFile> {
 
 /// What a job's note says about the kit (v1 `kitNote`). `files`: skill name → its SKILL.md here; without
 /// them (a job on another machine) the skills are written out in full.
+#[allow(clippy::format_push_string)] // a prompt built once per job, not a hot path
 pub fn kit_note(m: &Member, files: Option<&BTreeMap<String, String>>) -> String {
     let on: Vec<&KitFile> = m.kit.iter().filter(|k| k.on).collect();
     let rules: Vec<&&KitFile> = on.iter().filter(|k| k.kind == "rules").collect();

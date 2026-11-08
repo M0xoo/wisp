@@ -111,7 +111,7 @@ pub fn prune_grant(it: &mut StuffItem) {
     it.allowed = (!allowed.is_empty()).then_some(allowed);
 }
 
-/// The new content `new` for item `old` (wisp_save with its id): same id, place, star, note, tags,
+/// The new content `new` for item `old` (`wisp_save` with its id): same id, place, star, note, tags,
 /// picture and grant; the content before kept as the one previous version. `titled`: `new`'s title
 /// was given (not made from its file name), so it replaces the old one.
 pub fn keep(old: &StuffItem, new: StuffItem, titled: bool, now: i64) -> StuffItem {

@@ -71,10 +71,15 @@ pub fn origin_port(origin: &str) -> u16 {
 
 /// A 6-hex local handle from 3 random bytes (v1 `randomBytes(3)`).
 pub fn handle(bytes: [u8; 3]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    bytes.iter().fold(String::with_capacity(6), |mut s, b| {
+        use std::fmt::Write as _;
+        let _ = write!(s, "{b:02x}");
+        s
+    })
 }
 
 /// v1 `newer(a, b)`: is `a` a later version than `b` (semver, prereleases before their release)?
+#[allow(clippy::many_single_char_names)]
 pub fn newer(a: &str, b: &str) -> bool {
     fn parse(v: &str) -> (Vec<u64>, Vec<String>) {
         let v = v.trim_start_matches('v').split('+').next().unwrap_or("");

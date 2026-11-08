@@ -14,7 +14,7 @@ use wisp_router_api::PriorSource;
 use crate::keys::round;
 use crate::priors::{PriorArm, Priors};
 
-/// Cost of a thinking level against medium: Anthropic's Opus 5.5 sweep, CursorBench for max.
+/// Cost of a thinking level against medium: Anthropic's Opus 5.5 sweep, `CursorBench` for max.
 pub fn level_cost(l: &str) -> f64 {
     match l {
         "minimal" => 0.4,
@@ -247,17 +247,14 @@ fn usd_of(src: &Sources, benches: &[&str], arm: &str) -> f64 {
     if !measured.is_empty() {
         return measured.iter().fold(0.0, |s, x| s + x) / measured.len() as f64;
     }
-    let price = |base: &str| src.prices.strip().find(|(k, _)| *k == base).and_then(|(_, v)| Some((v.get(0)?.as_f64()? + v.get(1)?.as_f64()?) / 2.0));
+    let price = |base: &str| src.prices.strip().find(|(k, _)| *k == base).and_then(|(_, v)| Some(f64::midpoint(v.get(0)?.as_f64()?, v.get(1)?.as_f64()?)));
     let base = base_of(arm);
     let defaults = src.defaults.strings();
     let def = defaults.get(base).map_or("medium", String::as_str);
     let at = if level_of(arm).is_empty() { def } else { level_of(arm) };
-    let per = match price(base) {
-        Some(p) => a.usd * p / price(base_of(&a.arm)).unwrap_or(1.0),
-        None => {
-            let tier = src.tiers.by_prefix(base).unwrap_or(2.0);
-            a.usd * if (tier - 1.0).abs() < f64::EPSILON { 0.2 } else if (tier - 3.0).abs() < f64::EPSILON { 1.0 } else { 0.5 }
-        }
+    let per = if let Some(p) = price(base) { a.usd * p / price(base_of(&a.arm)).unwrap_or(1.0) } else {
+        let tier = src.tiers.by_prefix(base).unwrap_or(2.0);
+        a.usd * if (tier - 1.0).abs() < f64::EPSILON { 0.2 } else if (tier - 3.0).abs() < f64::EPSILON { 1.0 } else { 0.5 }
     };
     per * (level_cost(at) / level_cost(def))
 }

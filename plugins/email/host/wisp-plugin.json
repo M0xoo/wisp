@@ -1,0 +1,19 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.email",
+  "name": "Email",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.email: the email transport for wisp.channels on a grid box (inbound mail, threaded replies)",
+  "server": {
+    "builtin": "wisp-email"
+  },
+  "requires": {
+    "wisp.channels": "^2"
+  },
+  "permissions": [],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {}
+}

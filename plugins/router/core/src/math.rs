@@ -25,7 +25,7 @@ impl Rng for Mulberry32 {
         self.0 = self.0.wrapping_add(0x6d2b_79f5);
         let a = self.0;
         let mut t = (a ^ (a >> 15)).wrapping_mul(1 | a);
-        t = t.wrapping_add((t ^ (t >> 7)).wrapping_mul(61 | t)) ^ t;
+        t = t.wrapping_add((t ^ (t >> 7)).wrapping_mul(0x3d | t)) ^ t;
         f64::from(t ^ (t >> 14)) / 4_294_967_296.0
     }
 }
@@ -37,6 +37,7 @@ fn unit(r: &mut dyn Rng) -> f64 {
 
 /// Gamma(k, 1) by Marsaglia–Tsang. The loop ends with probability 1; the cap only guards a broken
 /// generator (one that always answers the same number).
+#[allow(clippy::many_single_char_names)] // Marsaglia–Tsang's own names
 fn gamma(k: f64, r: &mut dyn Rng) -> f64 {
     if k < 1.0 {
         return gamma(k + 1.0, r) * unit(r).powf(1.0 / k);
@@ -60,6 +61,7 @@ fn gamma(k: f64, r: &mut dyn Rng) -> f64 {
 }
 
 /// Beta(a, b) from two Gamma draws. A count rounded to zero or below (a voided run) is a tiny one.
+#[allow(clippy::many_single_char_names)]
 pub fn beta_sample(a: f64, b: f64, r: &mut dyn Rng) -> f64 {
     let x = gamma(a.max(1e-9), r);
     let y = gamma(b.max(1e-9), r);

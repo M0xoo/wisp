@@ -75,7 +75,7 @@ pub struct Tokens {
 }
 
 /// What a turn read (its cache reads and writes counted in), of that from the cache, and wrote.
-/// Anthropic counts cache apart from input; OpenAI's input already holds the cached tokens.
+/// Anthropic counts cache apart from input; `OpenAI`'s input already holds the cached tokens.
 pub fn turn_tokens(st: &StatsLike) -> Tokens {
     let anthropic = st.cache_read_tokens.is_some() || st.cache_write_tokens.is_some();
     let read = if anthropic { n(st.input_tokens) + n(st.cache_read_tokens) + n(st.cache_write_tokens) } else { n(st.input_tokens) };
@@ -99,15 +99,15 @@ pub fn turn_output(st: &StatsLike) -> f64 {
     models.max(n(st.output_tokens) + subs)
 }
 
-fn trim_zero(s: String) -> String {
-    s.strip_suffix(".0").map_or_else(|| s.clone(), str::to_owned)
+fn trim_zero(s: &str) -> String {
+    s.strip_suffix(".0").unwrap_or(s).to_owned()
 }
 
 /// 38400 → "38k", 1250000 → "1.3M", 820 → "820".
 pub fn token_words(x: f64) -> String {
     if x >= 1e6 {
-        let digits = if x >= 1e7 { 0 } else { 1 };
-        return format!("{}M", trim_zero(format!("{:.*}", digits, js_round_to(x / 1e6, digits))));
+        let digits = usize::from(x < 1e7);
+        return format!("{}M", trim_zero(&format!("{:.*}", digits, js_round_to(x / 1e6, digits))));
     }
     if x >= 1e3 {
         return format!("{}k", js_round(x / 1e3));

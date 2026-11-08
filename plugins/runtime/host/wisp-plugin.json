@@ -8,16 +8,36 @@
   "author": "wisp",
   "kind": "plugin",
   "provides": {
-    "runtime.harness": "1",
-    "runtime.summary": "1",
-    "runtime.prompt": "1",
-    "runtime.block": "1",
-    "runtime.view": "1",
-    "runtime.after": "1",
-    "runtime.run": "1",
-    "runtime.outcome": "1",
-    "runtime.delegate": "1",
-    "runtime.accounts": "1"
+    "runtime.harness": {
+      "version": "1.0.0"
+    },
+    "runtime.summary": {
+      "version": "1.0.0"
+    },
+    "runtime.prompt": {
+      "version": "1.0.0"
+    },
+    "runtime.block": {
+      "version": "1.0.0"
+    },
+    "runtime.view": {
+      "version": "1.0.0"
+    },
+    "runtime.after": {
+      "version": "1.0.0"
+    },
+    "runtime.run": {
+      "version": "1.0.0"
+    },
+    "runtime.outcome": {
+      "version": "1.0.0"
+    },
+    "runtime.delegate": {
+      "version": "1.0.0"
+    },
+    "runtime.accounts": {
+      "version": "1.0.0"
+    }
   },
   "permissions": [
     "proc:spawn{bin:*}",
@@ -146,23 +166,6 @@
         "id": "runtime.import",
         "title": "Import v1's tasks"
       }
-    ],
-    "events": [
-      "session.created",
-      "session.changed",
-      "session.deleted",
-      "turn.started",
-      "turn.activity",
-      "turn.finished",
-      "turn.ended",
-      "turn.held",
-      "turn.limits"
-    ],
-    "hooks": [
-      "before:create",
-      "before:run",
-      "before:followUp",
-      "before:delegate"
     ],
     "topics": [
       "list",

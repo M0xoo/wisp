@@ -137,6 +137,7 @@ fn bp_team(raw: Option<&Value>) -> Result<Vec<BpTeam>> {
         .collect()
 }
 
+#[allow(clippy::type_complexity)] // (brief, cron, on, mode, agent, model, parallel), destructured at the one call
 fn bp_fields(raw: &Value, words: &dyn Words) -> Result<(String, String, Vec<String>, String, String, String, u32)> {
     let brief = crate::text::unix(&str_of(raw.get("brief"))).trim().to_owned();
     if brief.chars().count() > BRIEF_MAX {

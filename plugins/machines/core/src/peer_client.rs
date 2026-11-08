@@ -4,7 +4,7 @@
 //! needs the box awake, resends pending mutations after the welcome with the **same** mid, and
 //! negotiates the protocol window. The host feeds it inputs and carries out what it returns.
 //!
-//! size-ok: a port of @wisp/sync's SyncClient (the spec), kept 1:1 with it
+//! size-ok: a port of @wisp/sync's `SyncClient` (the spec), kept 1:1 with it
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -327,8 +327,8 @@ impl PeerClient {
     }
 
     fn notice(&mut self, n: Notice) {
-        if n.kind == "denied" {
-            if let Some(topic) = n.data.get("topic").and_then(Value::as_str).and_then(Topic::parse) {
+        if n.kind == "denied"
+            && let Some(topic) = n.data.get("topic").and_then(Value::as_str).and_then(Topic::parse) {
                 if let Some(s) = self.topics.get_mut(&topic) {
                     s.denied = true;
                 }
@@ -336,7 +336,6 @@ impl PeerClient {
                 self.out.push(Out::Denied { topic, code });
                 return;
             }
-        }
         self.out.push(Out::Notice(n));
     }
 

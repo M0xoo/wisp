@@ -47,7 +47,7 @@ pub fn v1_item(v: &Value, exists: impl Fn(&str) -> bool) -> Option<V1Plan> {
     }
     let mut item: StuffItem = serde_json::from_value(raw).ok()?;
     if item.name.is_empty() {
-        item.name = id.to_owned();
+        id.clone_into(&mut item.name);
     }
     if item.title.is_empty() {
         item.title.clone_from(&item.name);

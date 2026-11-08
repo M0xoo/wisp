@@ -65,6 +65,7 @@ pub fn authorized_keys(text: &str) -> u32 {
     .unwrap_or(u32::MAX)
 }
 
+#[derive(Debug)]
 pub struct Facts<'a> {
     pub os: &'a str,
     pub user: &'a str,

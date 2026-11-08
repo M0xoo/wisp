@@ -1,0 +1,19 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.ntfy",
+  "name": "ntfy",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.ntfy: the ntfy transport for wisp.channels (topic poll, action buttons, repeats)",
+  "server": {
+    "builtin": "wisp-ntfy"
+  },
+  "requires": {
+    "wisp.channels": "^2"
+  },
+  "permissions": [],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {}
+}

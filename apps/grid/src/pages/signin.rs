@@ -42,7 +42,7 @@ pub struct SignInPage {
     pub linking: bool,
     /// Turned away at sign-in with a verified email that's on the waitlist.
     pub waitlisted: bool,
-    /// The PostHog project key, on the hosted grid only.
+    /// The `PostHog` project key, on the hosted grid only.
     pub analytics: Option<String>,
     /// The caller's user agent (an app's own browser gets the way out).
     pub ua: String,
@@ -181,7 +181,7 @@ fn private() -> String {
 }
 
 /// The hero's toy: flip the lid and the jobs keep going. The grid's domain goes between the halves.
-const LID_JS_HEAD: &str = r#"<script>
+const LID_JS_HEAD: &str = r"<script>
 (() => {
   const lid = document.getElementById('lid'), text = document.getElementById('lidText'), where = document.getElementById('where'), clock = document.getElementById('clock');
   const bars = [...document.querySelectorAll('.job .p span')];
@@ -199,11 +199,11 @@ const LID_JS_HEAD: &str = r#"<script>
     closed = !closed;
     lid.setAttribute('aria-checked', closed);
     text.textContent = closed ? 'Laptop closed' : 'Laptop open';
-    where.textContent = closed ? 'Still running on "#;
-const LID_JS_TAIL: &str = r#". The report waits on your phone.' : 'Flip the switch: the laptop sleeps, your grid doesn’t.';
+    where.textContent = closed ? 'Still running on ";
+const LID_JS_TAIL: &str = r". The report waits on your phone.' : 'Flip the switch: the laptop sleeps, your grid doesn’t.';
   };
 })();
-</script>"#;
+</script>";
 
 /// Only on a grid started with `wisp grid dev`: any email, no password.
 pub fn dev_sign_in_page(cfg: &PageCfg, ret: &str, csrf: &str) -> String {

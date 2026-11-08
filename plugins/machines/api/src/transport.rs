@@ -221,6 +221,7 @@ pub trait Transport: Send + Sync + 'static {
     /// `tunnel` and `agents` itself when they are listed
     fn steps(&self) -> &'static [(&'static str, &'static str)];
     /// validates add/update input; the error is in words the page shows
+    #[allow(clippy::result_large_err)] // a failure carries its hint and steps; it is rare and never hot
     fn clean(&self, input: &AddArgs, prev: Option<&PeerRow>) -> Failing<Cleaned>;
     /// opens the way; resolves once requests go through
     fn connect(

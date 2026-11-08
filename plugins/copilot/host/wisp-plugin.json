@@ -1,0 +1,19 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.copilot",
+  "name": "GitHub Copilot CLI",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.copilot host: GitHub Copilot CLI as a runtime.harness@1 contribution (detect, setup, launch, resume, trust)",
+  "server": {
+    "builtin": "wisp-copilot"
+  },
+  "requires": {
+    "wisp.runtime": "^2"
+  },
+  "permissions": [],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {}
+}

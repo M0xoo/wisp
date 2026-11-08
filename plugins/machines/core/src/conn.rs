@@ -39,6 +39,7 @@ pub enum Next {
 }
 
 #[derive(Debug, Clone)]
+#[allow(clippy::struct_excessive_bools)] // v1's connection flags, each set by a different event
 pub struct Conn {
     pub status: PeerStatus,
     pub log: Vec<String>,
@@ -67,11 +68,10 @@ pub fn move_step(steps: &mut [Step], id: &str, status: StepStatus, detail: Optio
     if let Some(d) = detail {
         d.clone_into(&mut steps[i].detail);
     }
-    if status == StepStatus::Done {
-        if let Some(next) = steps.get_mut(i + 1).filter(|n| n.status == StepStatus::Pending) {
+    if status == StepStatus::Done
+        && let Some(next) = steps.get_mut(i + 1).filter(|n| n.status == StepStatus::Pending) {
             next.status = StepStatus::Run;
         }
-    }
     true
 }
 
@@ -198,6 +198,7 @@ impl Conn {
     }
 
     /// The tunnel answered `/health`, with the peer's harnesses: online.
+    #[allow(clippy::too_many_arguments)] // each is one field of the /health answer
     pub fn online(&mut self, label: &str, agents: Vec<RemoteAgent>, home: Option<String>, version: Option<String>, pid: Option<u32>, proto: u32, now: i64) {
         self.step(if self.grid { "wake" } else { TUNNEL }, StepStatus::Done, Some(label));
         let ready: Vec<&str> = agents.iter().filter(|a| a.available).map(|a| a.name.as_str()).collect();

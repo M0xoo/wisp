@@ -16,7 +16,7 @@ use wisp_telemetry_core::{Common, Props, ScrubOptions, Telemetry, env::Env};
 
 pub const HOME: &str = "/Users/ada";
 pub const ROOT: &str = "/opt/wisp";
-pub const NOW: i64 = 1_793_923_200_000; // 2026-11-07T00:00:00.000Z
+pub const NOW: i64 = 1_794_009_600_000; // 2026-11-07T00:00:00.000Z
 
 pub fn common() -> Props {
     Common {

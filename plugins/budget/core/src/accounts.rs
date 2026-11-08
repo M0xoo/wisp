@@ -11,6 +11,7 @@ use crate::receipt::{COMPARE_DAYS, COMPARE_MIN, js_round, median, turn_tokens};
 use crate::work::{RunLike, ToolSet};
 
 /// SHA-1 of `bytes`, as hex. v1 hashed tool lists with node:crypto SHA-1; stored hashes must match.
+#[allow(clippy::many_single_char_names)] // FIPS 180-4's own names (a..e, h, w)
 pub fn sha1_hex(bytes: &[u8]) -> String {
     let mut h: [u32; 5] = [0x6745_2301, 0xefcd_ab89, 0x98ba_dcfe, 0x1032_5476, 0xc3d2_e1f0];
     let mut msg = bytes.to_vec();
@@ -43,7 +44,11 @@ pub fn sha1_hex(bytes: &[u8]) -> String {
             *x = x.wrapping_add(y);
         }
     }
-    h.iter().map(|x| format!("{x:08x}")).collect()
+    h.iter().fold(String::with_capacity(40), |mut s, x| {
+        use std::fmt::Write as _;
+        let _ = write!(s, "{x:08x}");
+        s
+    })
 }
 
 /// A run's tool list (Claude Code's system/init tools) as `turn.details.tools`. wisp's own MCP tools
@@ -141,7 +146,7 @@ pub fn compare_accounts(sessions: &[RunLike], agent: &str, now: i64, days: Optio
                 (AccountTurns { account, turns: e.out.len(), output: js_round(median(&e.out)), input: js_round(median(&e.read)), cache, missing: Vec::new() }, tools)
             })
             .collect();
-        rows.sort_by(|a, b| b.0.output.cmp(&a.0.output));
+        rows.sort_by_key(|r| std::cmp::Reverse(r.0.output));
         if rows.len() < 2 {
             continue;
         }

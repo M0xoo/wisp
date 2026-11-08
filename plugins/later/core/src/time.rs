@@ -47,6 +47,7 @@ fn offset(s: &str) -> Option<i64> {
 }
 
 /// `2026-10-25`, `2026-10-25T14:00`, `…:30`, `….250`, then `Z` or an offset (else `tz`) → ms.
+#[allow(clippy::many_single_char_names)] // y, m, d, h, s: the date's own fields
 pub fn parse_iso(s: &str, tz: i32) -> Option<i64> {
     let s = s.trim();
     let (date, rest) = s.split_at(s.find(['T', 't', ' ']).unwrap_or(s.len()));
@@ -104,7 +105,7 @@ fn round(f: f64) -> i64 {
 pub fn when_of(w: &When, now: i64, max: i64, tz: i32) -> Result<i64> {
     let at = match w.at.as_ref() {
         Some(Value::String(s)) if !s.trim().is_empty() => parse_iso(s, tz).map(|t| t as f64),
-        None | Some(Value::Null) | Some(Value::String(_)) => w
+        None | Some(Value::Null | Value::String(_)) => w
             .in_min
             .as_ref()
             .filter(|v| !v.is_null())

@@ -157,10 +157,9 @@ impl Budget {
             }
             // How far it moved since the last report: in a new period, all of what's used now.
             let d = match was {
-                None => 0.0,
                 Some(was) if same_period(was.resets_at, next.resets_at) => next.used - was.used,
                 Some(was) if was.resets_at.is_some_and(|r| r <= now) => next.used,
-                Some(_) => 0.0,
+                None | Some(_) => 0.0,
             };
             if d > 0.0 {
                 for (e, part) in &share {

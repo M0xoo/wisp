@@ -1,4 +1,7 @@
 
+use serde_json::Value;
+use wisp_crew_api::Member;
+
 /// A spell's new definition reached its member (v1 crew-share.js:300-309): a change to what they do
 /// (brief, kit, schedule, what starts them, mode) pauses them and keeps the oldest unseen definition
 /// for the diff; any other change (a role, a face) just applies. Returns whether it paused them.

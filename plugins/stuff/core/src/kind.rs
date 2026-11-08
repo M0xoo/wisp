@@ -1,5 +1,5 @@
 //! Names, kinds, types and the small text rules every saved thing goes through (v1 services/stuff.js,
-//! http/static.js MIME, services/apps.js MORE_MIME, web/js/tags.js).
+//! http/static.js MIME, services/apps.js `MORE_MIME`, web/js/tags.js).
 
 use wisp_stuff_api::StuffKind;
 
@@ -106,7 +106,7 @@ pub fn texty(name: &str) -> bool {
     !e.is_empty() && (CODE.contains(&e.as_str()) || (DOC.contains(&e.as_str()) && e != "pdf"))
 }
 
-/// The content type for a file name, or None (v1 static.js MIME plus apps.js MORE_MIME).
+/// The content type for a file name, or None (v1 static.js MIME plus apps.js `MORE_MIME`).
 pub fn known_mime(name: &str) -> Option<&'static str> {
     Some(match ext(name).as_str() {
         "html" => "text/html; charset=utf-8",

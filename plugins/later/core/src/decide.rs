@@ -38,6 +38,7 @@ impl TaskState {
 
 /// What wisp.later needs to know about a task (read from wisp.runtime by the host).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[allow(clippy::struct_excessive_bools)] // independent facts about the task, read one at a time
 pub struct Task {
     pub id: String,
     pub title: String,

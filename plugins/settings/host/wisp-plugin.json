@@ -1,0 +1,16 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.settings",
+  "name": "Settings",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.settings plugin: wiring to the kernel, store and HTTP routes",
+  "server": {
+    "builtin": "wisp-settings"
+  },
+  "permissions": [],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {}
+}

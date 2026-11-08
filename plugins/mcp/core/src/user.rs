@@ -12,7 +12,7 @@ pub const NO_SESSIONS: &str = "No sessions.";
 pub const NO_CREW: &str = "No crew yet. Add a member with wisp_crew_add.";
 pub const SPELL_NOT_CREW: &str = "That is a spell, not a crew file: add it with `wisp spell install`.";
 pub const TIMED_OUT: &str = " (timed out waiting; still running)";
-/// What a member's edit may set (crew-tools.js MEMBER_PROPS, then the notebook).
+/// What a member's edit may set (crew-tools.js `MEMBER_PROPS`, then the notebook).
 pub const EDIT_FIELDS: &[&str] = &["name", "role", "brief", "cwd", "agent", "model", "effort", "mode", "cron", "parallel", "paused", "avatar", "notebook"];
 
 fn s<'a>(v: &'a Value, k: &str) -> &'a str {

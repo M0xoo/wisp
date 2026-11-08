@@ -242,7 +242,8 @@ pub fn over_cap(mode: Mode, capped: Capped) -> String {
 
 // ---------- outside text reaching an agent ----------
 
-/// A display name as the wrapper shows it: letters, digits, space, `._-`, at most 40.
+/// A display name as the wrapper shows it: letters, digits, space, `._-`, at most 40 (v1
+/// channels/policy.js:89: any other character, a newline or a tab too, is dropped).
 pub fn sender_name(s: &str) -> String {
     let kept: String = s.chars().filter(|c| c.is_alphanumeric() || matches!(c, ' ' | '.' | '_' | '-')).collect();
     kept.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(40).collect()

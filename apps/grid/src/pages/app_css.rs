@@ -146,7 +146,7 @@ button.w.add-m .w-tx b{font-size:14px}button.w.add-m .chev svg{width:16px;height
 "#;
 
 /// What a locked share adds to it.
-pub(super) const SHARE_CSS: &str = r#"
+pub(super) const SHARE_CSS: &str = r"
 .sh-head{display:flex;align-items:flex-start;gap:14px}.sh-head .av{width:36px;height:36px;font-size:14px;flex:none}
 .sh-lock{margin-top:18px;display:flex;gap:8px}.sh-lock .input{text-transform:none;letter-spacing:0;font:15px var(--sans)}
-"#;
+";

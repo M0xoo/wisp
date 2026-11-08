@@ -4,6 +4,116 @@ The verifier's findings: one numbered list per round, newest first. Each item gi
 (**blocker** / **must-fix** / **nit**), where it is, what's wrong, and which rule or v1 behaviour it breaks.
 Evidence (logs, shots, side-by-sides) is in `qa/out/verify/`.
 
+## Round 2, 2026-11-08 (HEAD `ba026595`; the Rust gates were skipped, their counts are at the end)
+
+Scope: home, task and task.composer, which the UI coder reports done, in desktop mode and browser mode, at
+every width. Evidence is in `qa/out/verify/r2/`: `parity-{desktop,browser}/`, side-by-sides in `sbs/`
+(v1 left, v2 right), `feedback/` and `layout.json`.
+
+### What changed in the gates this round (the lead's decision on 320 px)
+
+At 320 px v2 keeps ADR-0012's no-wrap layout where v1 wrapped a bar. I recorded that as
+`design/v1-reference/allowed.md` §4 (`fold` rules: `launcher.projects`, `split.actions`, `split.head`,
+`panel.head`, `topbar`) and taught `qa/parity.mjs` to apply it.
+
+How a fold is applied, on shots ≤ 320 px only:
+- the folded bar is masked, and what v1 drew inside it is skipped;
+- everything below is compared moved up by the height v2 saved, in the metrics and in the pixels (v1's
+  rows are cut);
+- content pinned to the bottom (composer, overlap note) stays where it is;
+- a box around the bar is shorter only when v2's is.
+
+The fold is allowed only when `qa/layout.mjs`'s checks find nothing on that same v2 page. For that, `inspect`
+is now exported from `qa/layout.mjs` (which runs `main()` only as a script). It works: every 320 shot folds
+(`shotsBy[*].folds`), and task at 320 drops from 5.6 % to 2.0 % px differing. What still fails at 320 is
+real v2 differences, listed below.
+
+### Gates
+
+| Gate | Result | Round 1 |
+|---|---|---|
+| `qa/parity.mjs --modes=desktop` (3 views) | 60/96: home 0/24, task 30/36, composer 30/36 | 48/96 |
+| `qa/parity.mjs --modes=browser` (3 views) | 60/96: same split | 3 views not run separately |
+| — passing widths | task and composer pass every width but 320. Home fails only on #R2-1 at 600–1440 | |
+| `qa/layout.mjs --area=shell` | ✅ 0 problems (5 pages × 6 widths × 2 themes) | could not run |
+| `qa/layout.mjs` (gallery) | ❌ 4 problems, overflow-x at 390/320 (code, diff-body) | 4 |
+| `qa/feedback.mjs` (browser, 1440 + 390) | ✅ 185 pass, 0 fail, 14 skipped (12 current, 2 disabled) | didn't exist |
+| `npm run check` / `npm run typecheck` | ✅ 0 errors, 114 warnings / ✅ | ✅ / ✅ |
+| monoflow `--package` @wisp/ui, web, shell, client, tokens | ✅ each | ui and web failed |
+
+### Round 1 findings, rechecked
+
+| R1 # | Status | Evidence |
+|---|---|---|
+| 5 blank task render | ✅ fixed | task 1440/1024/900/600/390 pass in both modes |
+| 8 monoflow UI failures (css-rules, slots.test) | ✅ fixed | @wisp/ui and @wisp/web pass |
+| 9 v1 reference rewritten, not deterministic | ✅ fixed | `ba026595` recaptured with a pinned clock per view. Two parity runs gave identical metrics |
+| 10 layout gate can't find the app | ✅ fixed | `layout --area=shell`: 0 problems, 60 page-shots |
+| 11 gallery overflows at 390/320 | ❌ open | `qa/out/verify/r2/gal/layout/` |
+| 12 parity counts no-reference views as ✔ 0/0 | ✅ fixed | `qa/parity.mjs:635` says "no reference: not covered" |
+| 13 composer row runs out of its card at 900 | ✅ fixed | home 900: 0 launcher parts off |
+| 14 heading truncated at 320 | ✅ fixed | `sbs/home_desktop-320-light-rest.png`: wraps to 2 lines as in v1 |
+| 15 tip buttons drop below the text at 600 | ✅ fixed | home 600: 0.0 % px, 0 regions |
+| 16 turn footer on 3 lines at 600 | ✅ fixed at 600. At 320 v1 wraps too, but see #R2-3 | task 600 passes |
+| 17 task head squeezed at 320 | 🟡 partly | branch has its own line now; the pill is still cut, see #R2-2 |
+| 18 composer focus ring lost | ✅ fixed | home 1440 focus 0.1 % px; `sbs/task.composer_desktop-1440-light-focus.png` matches |
+| 19 palette is a different design | ⬜ not rechecked | palette is out of this round's views |
+| 20 My Stuff does nothing | ⬜ not rechecked | |
+| 21 32 views not reachable | ⬜ not rechecked | the coder hasn't claimed them |
+| 22 `optimistic: 'none'` without `pending` | ✅ fixed | `packages/client/src/commands.ts:22-46`: union type, test in `commands.test.ts`; ADR-0018 |
+| 23 New task waits for the server; follow-up not optimistic | ✅ fixed | `HomeView.tsx:63-74`: client id (uuidv7), optimistic Starting row, navigates at once. `frame/commands.ts:62` followUp has an optimistic patch |
+| 24 `'claude'` hard-coded in the shell | ✅ fixed | no `'claude'` left in `packages/shell/src`; harnesses come from `PluginUiDef.harnesses` (`plugins/claude/ui/src/index.ts`), ADR-0018 |
+| 1–4, 6, 7, 25 (Rust) | skipped this round | the Rust coder is on them |
+| 26–30 nits | open | not rechecked |
+
+### New findings
+
+1. **must-fix** (#R2-1): on home at 1440–390, both modes, `card.title#3` ("Fix the login bug") is
+   **fw 500 and colour rgb(61,61,61) in v2**, where v1 has **fw 600 and rgb(23,23,23)** (dark mode: 199 vs 237).
+   The recapture is deterministic, so this is v2 not drawing that row's unread state (v1 bolds an unread
+   task's title). It's the only metric off on home at 600–1440. The 4–8 regions over 8×8 px are that title
+   plus antialiasing at the launcher's top-left corner and the Send button's corner:
+   `r2/parity-desktop/home/desktop-1440-light-hover.diff.png`.
+2. **must-fix** (#R2-2): `sbs/task_desktop-320-light-rest.png`. The task head cuts the project pill to
+   **"wisp-r…"**, but the row has about 150 px free to its right. v1 shows "wisp-repo-ZaGhoN" in full. A pill
+   truncates only when its row is out of room (layout.md §4). This shows in every task and composer shot
+   at 320.
+3. **must-fix** (#R2-3): `sbs/task_desktop-320-light-rest.png`. In the turn footer at 320, v1 puts
+   **"1 file +1 −1" right-aligned** on its line, with the action icons right-aligned below. v2 left-aligns it
+   (`x.button#6` x 239.5 → 18), and the three icons are 3 px off (`turn.fork` x 278 → 281). Both of v1's lines
+   are its own wrap of the footer, so match its alignment.
+4. **must-fix** (#R2-4): on home at 320 the launcher card sits **1.5 px lower** than v1's (`launcher#0` y 64 →
+   65.5), and the heading and Back button 1 px lower (`split.greeting` 5 → 6, `split.back` 6 → 7). The
+   offset carries through the launcher's contents and is most of the remaining 4.7 % px on home at 320.
+5. **must-fix** (#R2-5): the feedback gate doesn't test the two commands that matter most.
+   - It "presses" a text field by typing one character, which sends nothing, so `runtime.create` (New
+     task) and `runtime.followUp` (reply) are **never exercised or refused** (the 36 commands it sent were
+     markRead, setState, forLater, ship.open, checkpoint.restore, fork, settings.set). Press Enter after typing.
+   - It checks for a toast but **not the rollback** design/feedback.md §3 requires (the row, title or text
+     back as it was).
+   - It waits up to DELAY + 100 + 300 ms, where the spec says "toast within 100 ms of the refusal" and
+     the code comment says `BUDGET`. Drop the +300.
+
+   File: `qa/feedback.mjs:196-220`.
+6. **must-fix** (#R2-6): `qa/feedback.mjs` defaults to browser mode at 1440 and 390. The owner uses the
+   desktop app, so run `--modes=desktop` by default as well, and 320. (I ran it: see the desktop line below.)
+7. **nit** (#R2-7): `ba026595` is titled "qa: deterministic v1 re-capture" but also carries ADR-0018, the
+   `CommandDef` union, the harness contract and 400 lines of frame UI. A reviewer reading the log won't find
+   them. Split commits by concern from now on.
+8. **nit** (#R2-8): new size warnings in the frame:
+   - `packages/shell/src/frame/TaskView.tsx:46` is 231 lines, with a 128-line closure at :146;
+   - `HomeView.tsx:34` is 141 lines;
+   - `packages/ui/src/app/Home.tsx` is 423 lines (Launcher, 146);
+   - `packages/ui/src/app/Task.tsx` is 443 lines.
+
+   Split them before the plugins take these screens over (ADR-0018 §3).
+
+### Where the coder should go next
+
+Fix #R2-1 (unread title), #R2-2 (pill) and #R2-3 (footer alignment), and the 1.5 px launcher offset (#R2-4).
+With those, home and task would pass at every width in both modes. Then make the feedback gate submit
+text fields and check rollbacks (#R2-5).
+
 ## Round 1, 2026-11-08 (HEAD `445147ee` plus the coder's uncommitted work)
 
 ### Gates

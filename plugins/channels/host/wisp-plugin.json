@@ -1,0 +1,16 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.channels",
+  "name": "Channels",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp.channels: the hub every way of reaching wisp from outside goes through (plan §6.11.3)",
+  "server": {
+    "builtin": "wisp-channels"
+  },
+  "permissions": [],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {}
+}
