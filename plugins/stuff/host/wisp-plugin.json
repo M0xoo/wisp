@@ -15,6 +15,7 @@
     "fs:read{scope:home}",
     "fs:write{scope:stuff}",
     "net:listen{host:127.0.0.1}",
+    "store:write{owner:stuff}",
     "topic:write{topic:stuff}",
     "topic:write{topic:uploads}"
   ],
@@ -118,5 +119,6 @@
         "title": "Panes: <app>@task or <app>@home, comma separated"
       }
     ]
-  }
+  },
+  "migrations": "stuff"
 }

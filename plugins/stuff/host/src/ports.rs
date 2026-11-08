@@ -173,7 +173,7 @@ async fn write_json(dir: PathBuf, id: String, v: serde_json::Value) -> Result<()
     Ok(())
 }
 
-async fn read_all<T: serde::de::DeserializeOwned>(dir: &Path) -> Result<Vec<T>> {
+pub(crate) async fn read_all<T: serde::de::DeserializeOwned>(dir: &Path) -> Result<Vec<T>> {
     let mut out = Vec::new();
     let Ok(mut rd) = tokio::fs::read_dir(dir).await else { return Ok(out) };
     while let Some(e) = rd.next_entry().await? {

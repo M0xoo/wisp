@@ -10,7 +10,8 @@
     "builtin": "wisp_router"
   },
   "permissions": [
-    "runtime:agents"
+    "runtime:agents",
+    "store:write{owner:router}"
   ],
   "requires": {},
   "provides": {},
@@ -43,5 +44,9 @@
         "title": "A launch went out with a route"
       }
     ]
-  }
+  },
+  "migrations": "router",
+  "activation": [
+    "onStartup"
+  ]
 }

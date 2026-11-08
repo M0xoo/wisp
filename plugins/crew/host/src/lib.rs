@@ -2,10 +2,11 @@
 //! tasks (`runtime.create` with `ext["wisp.crew"]`), check-ins on their schedule (the 20 s tick), and
 //! the crew note every job's system prompt carries (`runtime.prompt@1`). The rules are wisp-crew-core's.
 //!
-//! The crew is kept as v1 kept it in config.json (`crew`, `crewLayout`), in `<home>/crew.json`, written
-//! atomically; its rows move into crew-owned store tables with the plugin's migrations.
+//! The crew lives in crew-owned store tables (`store.rs`): every change is one transaction of the rows it
+//! touched. v1's config.json crew is imported once at start.
 
 mod jobs;
+mod store;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -26,7 +27,7 @@ use wisp_runtime_api::points::{PROMPT, PromptPart};
 #[derive(Debug, Default)]
 pub struct CrewPlugin;
 
-/// `crew.json`: v1's `crew` and `crewLayout`.
+/// The crew as the commands read it (the tables' rows, cached).
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Saved {
@@ -40,7 +41,10 @@ pub(crate) struct State {
     pub saved: Mutex<Saved>,
     /// member id → the tasks its jobs run as (newest last)
     pub jobs: Mutex<std::collections::HashMap<String, Vec<String>>>,
-    file: Option<PathBuf>,
+    store: std::sync::OnceLock<wisp_store::Store>,
+    /// members changed (or gone) since the last save
+    dirty: Mutex<std::collections::BTreeSet<String>>,
+    layout_dirty: std::sync::atomic::AtomicBool,
 }
 
 pub(crate) fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -65,17 +69,92 @@ impl Ids for NewIds {
 }
 
 impl State {
-    fn load(file: Option<PathBuf>) -> Self {
-        let saved = file.as_ref().and_then(|f| std::fs::read(f).ok()).and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
-        Self { saved: Mutex::new(saved), jobs: Mutex::default(), file }
+    fn new() -> Self {
+        Self { saved: Mutex::default(), jobs: Mutex::default(), store: std::sync::OnceLock::new(), dirty: Mutex::default(), layout_dirty: false.into() }
     }
 
+    /// The tables, then v1's crew once, then the cache. At start, before any command.
+    async fn open(&self, store: wisp_store::Store, home: Option<PathBuf>) -> std::result::Result<(), WireError> {
+        store::install(&store).map_err(WireError::from)?;
+        if let Some(h) = home {
+            store::import_v1(&store, &h).await.map_err(WireError::from)?;
+        }
+        let (crew, layout, jobs) = store::load(&store).await.map_err(WireError::from)?;
+        *lock(&self.saved) = Saved { crew, crew_layout: layout };
+        let mut j = lock(&self.jobs);
+        for (m, s) in jobs {
+            j.entry(m).or_default().push(s);
+        }
+        drop(j);
+        let _ = self.store.set(store);
+        Ok(())
+    }
+
+    /// Writes what changed since the last save in one transaction: the members touched (or deleted),
+    /// and the layout when it moved.
     pub async fn save(&self) {
-        let Some(file) = self.file.clone() else { return };
-        let Ok(bytes) = serde_json::to_vec_pretty(&*lock(&self.saved)) else { return };
-        let tmp = file.with_extension("json.tmp");
-        if tokio::fs::write(&tmp, bytes).await.is_ok() {
-            let _ = tokio::fs::rename(&tmp, &file).await;
+        let Some(store) = self.store.get().cloned() else { return };
+        let ids: Vec<String> = std::mem::take(&mut *lock(&self.dirty)).into_iter().collect();
+        let layout = self.layout_dirty.swap(false, std::sync::atomic::Ordering::Relaxed).then(|| lock(&self.saved).crew_layout.clone());
+        let rows: Vec<(String, Option<Member>)> = {
+            let s = lock(&self.saved);
+            ids.into_iter().map(|id| { let m = s.crew.iter().find(|m| m.id == id).cloned(); (id, m) }).collect()
+        };
+        if rows.is_empty() && layout.is_none() {
+            return;
+        }
+        let r = store
+            .write(move |w| {
+                for (id, m) in &rows {
+                    if let Some(m) = m { store::put_member(w, m)? } else {
+                        w.del(store::MEMBER.kind, id.as_str())?;
+                        w.del(store::LAYOUT.kind, id.as_str())?;
+                    }
+                }
+                if let Some(l) = &layout {
+                    let had = w.query(store::LAYOUT.kind, &wisp_store::Query::new())?;
+                    for row in had {
+                        if let Some(id) = row.get("id").and_then(serde_json::Value::as_str).filter(|id| !l.contains_key(*id)) {
+                            w.del(store::LAYOUT.kind, id)?;
+                        }
+                    }
+                    for (id, p) in l {
+                        store::put_point(w, id, *p)?;
+                    }
+                }
+                Ok(())
+            })
+            .await;
+        if let Err(e) = r {
+            tracing::warn!(error = %e, "crew: saving");
+        }
+    }
+
+    /// A member left: its row and its place go at the next save.
+    pub fn remove(&self, id: &str) {
+        {
+            let mut s = lock(&self.saved);
+            s.crew.retain(|x| x.id != id);
+            s.crew_layout.remove(id);
+        }
+        lock(&self.dirty).insert(id.to_owned());
+    }
+
+    pub fn set_layout(&self, l: Layout) {
+        lock(&self.saved).crew_layout = l;
+        self.layout_dirty.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// A job started as task `session`.
+    pub async fn add_job(&self, member: &str, session: &str, at: i64) {
+        lock(&self.jobs).entry(member.to_owned()).or_default().push(session.to_owned());
+        let Some(store) = self.store.get().cloned() else { return };
+        let mut r = wisp_store::Row::new();
+        r.insert("session_id".into(), serde_json::json!(session));
+        r.insert("crew_id".into(), serde_json::json!(member));
+        r.insert("at".into(), serde_json::json!(at));
+        if let Err(e) = store.write(move |w| w.upsert(store::JOB.kind, r).map(|_| ())).await {
+            tracing::warn!(error = %e, "crew: a job");
         }
     }
 
@@ -86,6 +165,7 @@ impl State {
     }
 
     pub fn put(&self, m: Member) {
+        lock(&self.dirty).insert(m.id.clone());
         let mut s = lock(&self.saved);
         match s.crew.iter_mut().find(|x| x.id == m.id) {
             Some(x) => *x = m,
@@ -131,13 +211,15 @@ impl Plugin for CrewPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
-        let file = s.ctx().service::<Paths>().ok().map(|p| p.home().join("crew.json"));
-        let st = Arc::new(State::load(file));
+        let st = Arc::new(State::new());
         let note: Arc<dyn PromptPart> = Arc::new(Note(st.clone()));
         s.contribute(&PROMPT, note);
         jobs::register(s, &st);
         let tick = st.clone();
         s.on_start(move |ctx| async move {
+            let store = ctx.service::<wisp_store::Store>()?.as_ref().clone();
+            let home = ctx.service::<Paths>().ok().map(|p| p.home().to_owned());
+            tick.open(store, home).await?;
             jobs::start_ticks(&ctx, tick);
             Ok(())
         });
@@ -156,7 +238,7 @@ mod tests {
 
     #[test]
     fn a_member_is_made_from_v1s_body_and_found_by_handle() {
-        let st = State::load(None);
+        let st = State::new();
         let body = c::MemberBody { name: Some("Ada Lovelace".into()), role: Some("CI watcher".into()), cron: Some("*/30 * * * *".into()), ..c::MemberBody::default() };
         let m = st.normalize(&body, None, 1_000).unwrap();
         assert_eq!((m.name.as_str(), m.cron.as_str(), m.agent.as_str()), ("Ada Lovelace", "*/30 * * * *", "auto"));

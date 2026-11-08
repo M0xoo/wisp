@@ -2,14 +2,14 @@
 //! `wisp-router-core`'s; this crate keeps the state, reads this computer's harnesses from
 //! `runtime.agents`, and answers the six commands.
 //!
-//! The learned state and Settings → Auto are kept as v1 kept them, in `<home>/router.json` (written
-//! atomically, temp then rename), so a v1 install's record reads as it is. It moves into router-owned
-//! store tables with the rest of the plugin's rows.
+//! The learned state and Settings → Auto live in router-owned store tables (`store.rs`); a change
+//! writes the rows it touched in one transaction. v1's router.json and `defaults.router` are imported
+//! once at start.
 
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex, PoisonError};
+mod store;
 
-use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+
 use serde_json::{Value, json};
 use wisp_kernel::services::Paths;
 use wisp_kernel::{Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
@@ -21,19 +21,10 @@ use wisp_router_core::{Mulberry32, Router, RouterState, auto, choose, report};
 #[derive(Debug, Default)]
 pub struct RouterPlugin;
 
-/// What `router.json` holds: the learned state and the settings.
-#[derive(Debug, Default, Serialize, Deserialize)]
-struct Saved {
-    #[serde(default, flatten)]
-    state: RouterState,
-    #[serde(default)]
-    settings: Settings,
-}
-
 struct State {
     router: Mutex<Router>,
     settings: Mutex<Settings>,
-    file: Option<PathBuf>,
+    store: OnceLock<wisp_store::Store>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -41,21 +32,39 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 impl State {
-    fn load(file: Option<PathBuf>) -> Self {
-        let saved: Saved = file.as_ref().and_then(|f| std::fs::read(f).ok()).and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
-        Self { router: Mutex::new(Router::new(saved.state)), settings: Mutex::new(saved.settings), file }
+    fn new() -> Self {
+        Self { router: Mutex::new(Router::new(RouterState::default())), settings: Mutex::new(Settings::default()), store: OnceLock::new() }
     }
 
-    async fn save(&self) {
-        let Some(file) = self.file.clone() else { return };
-        let saved = {
-            let r = lock(&self.router);
-            Saved { state: r.st.clone(), settings: lock(&self.settings).clone() }
+    /// The tables, v1's files once, then the state from the tables. At start, before any command.
+    async fn open(&self, store: wisp_store::Store, home: Option<std::path::PathBuf>) -> std::result::Result<(), WireError> {
+        store::install(&store).map_err(WireError::from)?;
+        if let Some(h) = home {
+            store::import_v1(&store, &h).await.map_err(WireError::from)?;
+        }
+        let (st, settings) = store::load(&store).await.map_err(WireError::from)?;
+        *lock(&self.router) = Router::new(st);
+        *lock(&self.settings) = settings;
+        let _ = self.store.set(store);
+        Ok(())
+    }
+
+    /// The rows the state marked dirty (and the settings, when they changed), in one transaction.
+    async fn save(&self, settings: bool) {
+        let Some(store) = self.store.get().cloned() else { return };
+        let s = settings.then(|| lock(&self.settings).clone());
+        let ops = {
+            let mut r = lock(&self.router);
+            let d = r.st.take_dirty();
+            store::ops(&r.st, &d, s.as_ref())
         };
-        let Ok(bytes) = serde_json::to_vec(&saved) else { return };
-        let tmp = file.with_extension("json.tmp");
-        if tokio::fs::write(&tmp, bytes).await.is_ok() {
-            let _ = tokio::fs::rename(&tmp, &file).await;
+        let ops = match ops {
+            Ok(o) if o.is_empty() => return,
+            Ok(o) => o,
+            Err(e) => return tracing::warn!(error = %e, "router: saving"),
+        };
+        if let Err(e) = store.write(move |w| ops.apply(w)).await {
+            tracing::warn!(error = %e, "router: saving");
         }
     }
 }
@@ -124,8 +133,13 @@ impl Plugin for RouterPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
-        let file = s.ctx().service::<Paths>().ok().map(|p| p.home().join("router.json"));
-        let st = Arc::new(State::load(file));
+        let st = Arc::new(State::new());
+        let opening = st.clone();
+        s.on_start(move |ctx| async move {
+            let store = ctx.service::<wisp_store::Store>()?.as_ref().clone();
+            let home = ctx.service::<Paths>().ok().map(|p| p.home().to_owned());
+            opening.open(store, home).await
+        });
         on!(s, st, View, |st, ctx, call, _a| {
             let here = agents(&ctx, &call).await;
             Ok(view(&st, &here, now(&ctx)))
@@ -136,7 +150,7 @@ impl Plugin for RouterPlugin {
                 let mut set = lock(&st.settings);
                 auto::apply_patch(&mut set, &a, &|id| here.iter().any(|h| h.id == id)).map_err(|e| WireError::invalid(e.to_string()))?;
             }
-            st.save().await;
+            st.save(true).await;
             Ok(view(&st, &here, now(&ctx)))
         });
         on!(s, st, Preview, |st, ctx, call, a| {
@@ -146,18 +160,18 @@ impl Plugin for RouterPlugin {
         on!(s, st, Reset, |st, ctx, call, _a| {
             let here = agents(&ctx, &call).await;
             lock(&st.router).reset(now(&ctx));
-            st.save().await;
+            st.save(false).await;
             Ok(view(&st, &here, now(&ctx)))
         });
         on!(s, st, Signal, |st, ctx, call, a| {
             let out = lock(&st.router).signal(&a.id, &a.patch, now(&ctx));
-            st.save().await;
+            st.save(false).await;
             let _ = &call;
             Ok(out)
         });
         on!(s, st, Record, |st, ctx, call, a| {
             lock(&st.router).record(&a.id, a.route, now(&ctx));
-            st.save().await;
+            st.save(false).await;
             let _ = &call;
             Ok(Ack {})
         });
@@ -176,7 +190,7 @@ mod tests {
 
     #[test]
     fn a_preview_is_the_same_every_time() {
-        let st = State::load(None);
+        let st = State::new();
         let here = vec![AgentInfo { id: "claude".into(), name: "Claude Code".into(), available: true, models: vec![ModelInfo { id: "opus".into(), label: Some("Opus".into()), efforts: None }], ..AgentInfo::default() }];
         let a = || PreviewArgs { prompt: Some("fix the flaky login test".into()), ..PreviewArgs::default() };
         let one = serde_json::to_value(preview(&st, &here, a(), 1_000)).unwrap();

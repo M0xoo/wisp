@@ -251,6 +251,25 @@ impl RouterState {
         self.routes.clear();
     }
 
+    /// Every taste row: (kind, canon key, taste).
+    pub fn all_taste(&self) -> impl Iterator<Item = (&str, &str, &Taste)> {
+        self.taste.iter().map(|((t, k), x)| (t.as_str(), k.as_str(), x))
+    }
+
+    /// Rows read back from the store (nothing is marked dirty).
+    pub fn load_stat(&mut self, kind: &str, key: &str, s: Stat) {
+        self.stats.insert((kind.to_owned(), key.to_owned()), s);
+    }
+    pub fn load_taste(&mut self, kind: &str, c: &str, t: Taste) {
+        self.taste.insert((kind.to_owned(), c.to_owned()), t);
+    }
+    /// Routes read back, in the order they were recorded.
+    pub fn load_route(&mut self, id: &str, r: StoredRoute) {
+        if self.routes.insert(id.to_owned(), r).is_none() {
+            self.order.push_back(id.to_owned());
+        }
+    }
+
     /// What changed since the last save, leaving the set empty.
     pub fn take_dirty(&mut self) -> Dirty {
         std::mem::take(&mut self.dirty)

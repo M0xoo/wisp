@@ -1,8 +1,9 @@
 //! wisp-stuff: wisp.stuff plugin: My Stuff's commands and v1 routes over the CAS-backed shelf, the
 //! apps it launches (each on a port of its own, with its own database) and uploads.
 //!
-//! The shelf lives under `<home>/stuff`: blobs by BLAKE3 hash and one JSON file per row (`FsBlobs`,
-//! `JsonRows`), the stand-ins named in `ports.rs` until its rows move into wisp-store tables.
+//! Items and uploads are rows in stuff-owned store tables and their contents the store's blobs
+//! (`store.rs`, ADR-0004). An app's own database and the copies agents read stay files under
+//! `<home>/stuff`. v1's files are imported once at start (`import.rs`).
 
 mod agent;
 pub mod appdb;
@@ -18,6 +19,7 @@ mod save;
 pub mod shelf;
 mod starters;
 pub mod state;
+pub mod store;
 mod uploads;
 
 use std::sync::Arc;
@@ -26,7 +28,6 @@ use wisp_kernel::services::Paths;
 use wisp_kernel::{Manifest, Plugin, Result, Setup, WireError};
 
 use crate::launch::Apps;
-use crate::ports::{FsBlobs, JsonRows};
 use crate::shelf::Shelf;
 use crate::state::{Cell, Stuff};
 
@@ -45,10 +46,22 @@ impl Plugin for StuffPlugin {
         }
         commands::register(s, &cell);
         s.on_start(move |ctx| async move {
-            let dir = ctx.service::<Paths>()?.home().join("stuff");
-            let shelf = Shelf::open(Arc::new(FsBlobs::new(dir.join("blobs"))), Arc::new(JsonRows::new(dir.join("rows"))), dir, ctx.clock()?)
+            let home = ctx.service::<Paths>()?.home().to_owned();
+            let dir = home.join("stuff");
+            let db = ctx.service::<wisp_store::Store>()?.as_ref().clone();
+            store::install(&db).map_err(WireError::from)?;
+            let shelf = Shelf::open(Arc::new(store::StoreBlobs { store: db.clone() }), Arc::new(store::StoreRows { store: db }), dir, ctx.clock()?)
                 .await
                 .map_err(WireError::from)?;
+            // v1's stuff, uploads and shots (and the pre-store files), once: what's here already is skipped
+            let (bg, home2) = (shelf.clone(), home.clone());
+            ctx.spawn(async move {
+                import::import_interim(&bg, &home2.join("stuff")).await;
+                let (r, _) = import::import_all(&bg, &home2).await;
+                if r.items + r.uploads + r.shots > 0 {
+                    tracing::info!(items = r.items, uploads = r.uploads, shots = r.shots, "stuff: imported v1's files");
+                }
+            });
             starters::follow_all(&shelf).await;
             let apps = Apps::new(shelf.clone(), Arc::new(appdb::AppDb::default()), ctx.scope().clone());
             let (stop, on_stop) = (ctx.scope().clone(), apps.clone());

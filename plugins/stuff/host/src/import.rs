@@ -174,3 +174,35 @@ pub async fn import_all(shelf: &Shelf, home: &Path) -> (Report, HashMap<String, 
 pub fn home_of(stuff_dir: &Path) -> PathBuf {
     stuff_dir.parent().map_or_else(|| stuff_dir.to_path_buf(), Path::to_path_buf)
 }
+
+/// The files My Stuff kept before it moved into the store (`stuff/blobs/<aa>/<hash>`, `stuff/rows`):
+/// their blobs go into the store's, their rows into the tables. An id already here is skipped.
+pub async fn import_interim(shelf: &Shelf, dir: &Path) {
+    use crate::ports::{Blobs, FsBlobs};
+    let rows_dir = dir.join("rows");
+    if !rows_dir.is_dir() {
+        return;
+    }
+    let fs = FsBlobs::new(dir.join("blobs"));
+    if let Ok(mut top) = tokio::fs::read_dir(dir.join("blobs")).await {
+        while let Ok(Some(sub)) = top.next_entry().await {
+            let Ok(mut rd) = tokio::fs::read_dir(sub.path()).await else { continue };
+            while let Ok(Some(f)) = rd.next_entry().await {
+                let hash = f.file_name().to_string_lossy().into_owned();
+                if let Ok(Some(bytes)) = fs.get(&hash).await {
+                    let _ = shelf.blobs.put((*bytes).clone()).await;
+                }
+            }
+        }
+    }
+    for it in crate::ports::read_all::<StuffItem>(&rows_dir.join("items")).await.unwrap_or_default() {
+        if shelf.get(&it.id).is_none() {
+            let _ = shelf.put(it).await;
+        }
+    }
+    for u in crate::ports::read_all::<wisp_stuff_api::Upload>(&rows_dir.join("uploads")).await.unwrap_or_default() {
+        if shelf.rows.upload(&u.id).await.ok().flatten().is_none() {
+            let _ = shelf.rows.put_upload(u).await;
+        }
+    }
+}

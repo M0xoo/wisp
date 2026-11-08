@@ -3,7 +3,6 @@
 //! `ext["wisp.crew"]` saying whose job it is, `by: "crew"`.
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use serde_json::{Value, json};
 use wisp_crew_api::commands as c;
@@ -50,7 +49,7 @@ async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, prompt: &str, job
     });
     let made = ctx.run_json(call, "runtime.create", args).await?;
     if let Some(id) = made.get("id").and_then(Value::as_str) {
-        lock(&st.jobs).entry(m.id.clone()).or_default().push(id.to_owned());
+        st.add_job(&m.id, id, now(ctx)).await;
     }
     let session = ctx.run_json(call, "runtime.get", json!({ "id": made.get("id") })).await.ok();
     Ok(session.unwrap_or(made))
@@ -120,7 +119,7 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
     on!(s, st, c::SetLayout, |st, _ctx, _call, a| {
         let crew = lock(&st.saved).crew.clone();
         let out = normalize_layout(&a.layout, &crew).map_err(wire)?;
-        lock(&st.saved).crew_layout = out.clone();
+        st.set_layout(out.clone());
         st.save().await;
         Ok(out)
     });
@@ -145,11 +144,7 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
     });
     on!(s, st, c::Remove, |st, ctx, call, a| {
         let m = st.member(&a.id)?;
-        {
-            let mut saved = lock(&st.saved);
-            saved.crew.retain(|x| x.id != m.id);
-            saved.crew_layout.remove(&m.id);
-        }
+        st.remove(&m.id);
         st.save().await;
         ctx.emit(&call, &wisp_crew_api::events::Left { crew_id: m.id });
         Ok(c::Ok { ok: true })
@@ -194,12 +189,14 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
 pub(crate) fn start_ticks(ctx: &Ctx, st: Arc<State>) {
     let scope = ctx.scope().clone();
     let c2 = ctx.clone();
+    let Ok(clock) = ctx.clock() else { return };
     ctx.spawn(async move {
-        let mut every = tokio::time::interval(Duration::from_millis(TICK_MS));
         loop {
+            run_tick(&c2, &st).await;
+            // on the kernel's clock, so a test's FakeClock drives the scheduler
             tokio::select! {
                 () = scope.cancelled() => return,
-                _ = every.tick() => run_tick(&c2, &st).await,
+                () = clock.sleep(TICK_MS) => {}
             }
         }
     });
