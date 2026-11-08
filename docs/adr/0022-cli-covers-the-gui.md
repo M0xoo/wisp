@@ -18,6 +18,17 @@
 - **Reads follow the topics:** `wisp <topic> --watch` streams changes the way the UI's subscription does
   (`wisp ls --watch`, `wisp show <id> --watch` follows a turn live), and `wisp attach <id>` gives a live
   view of a task in the terminal (transcript, asks and approvals answerable from the keyboard).
+- **Starting a task never leaves you polling.** In a terminal, `wisp "task"` stays attached by default and
+  streams the run live from the task's topic (no polling): what the agent is doing step by step (the same
+  activity lines the GUI shows), then the answer rendered for the terminal (markdown, the wisp blocks as
+  text: stats, files, tests, diffs, checklists). When the agent asks a question or needs an approval, the
+  CLI asks you inline and sends your answer; a reply box stays open after the answer, so you can follow up
+  in the same session. **Ctrl-C detaches** (the task keeps running; the CLI prints `wisp attach <id>`), and a
+  second Ctrl-C stops the run. `--detach` / `-d` returns at once with the id; outside a TTY (scripts, CI)
+  the default is detached, and `--wait` blocks until the turn ends and prints the result (`--json` for the
+  whole thing). A detached task that finishes, asks or fails while you're in the same terminal session says
+  so (an OS notification, and a one-line notice on your next `wisp` command); `wisp ls --watch` and
+  `wisp attach <id>` pick it up anytime, from any computer on your wisp.
 - **Every command prints human text by default and `--json` for scripts**, and exits non-zero on refusal,
   with the wire error's message.
 - **Discoverable:** `wisp help` lists every plugin's commands, `wisp help <plugin>` its verbs, shell
