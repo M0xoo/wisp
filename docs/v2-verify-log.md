@@ -4,6 +4,127 @@ The verifier's findings: one numbered list per round, newest first. Each item gi
 (**blocker** / **must-fix** / **nit**), where it is, what's wrong, and which rule or v1 behaviour it breaks.
 Evidence (logs, shots, side-by-sides) is in `qa/out/verify/`.
 
+## Round 3, 2026-11-08 (Rust work since `a2d8ca7d`, HEAD `405ce172`)
+
+Scope: `a1f44024`..`405ce172`: runtime's 42 commands (`more.rs`, `side.rs`), My Stuff (`commands.rs`,
+`appdb.rs`), worktrees on the runtime port, MCP server, router (Auto), the crew scheduler, `Ctx::run_json`, and
+the serve e2e flows (`crates/wisp/tests/serve_task.rs`). The Rust gates ran on **an export of HEAD**
+(`git archive` into `/tmp/wisp-r3-head`), because the working tree has the Rust coder's uncommitted crew
+change (`plugins/crew/host/src/store.rs`), which doesn't compile yet. Evidence is in `qa/out/verify/r3/`:
+the gate logs, `drive.log` (my own `wisp serve` run, script `drive.mjs`) and `registered.log`.
+
+### Gates (HEAD)
+
+| Gate | Result | Round 2 |
+|---|---|---|
+| `cargo clippy --workspace --all-targets -- -D warnings` | ✅ exit 0 | ✅ |
+| `cargo test --workspace` | ✅ **1,493 passed, 0 failed**, 14 ignored (302 binaries; the 6 serve e2e flows included) | 1,440 / 4 failed |
+| `cargo deny check` | ✅ advisories, bans, licences, sources ok; 11 duplicate warnings | ✅ |
+| `npm run check` | ✅ 0 errors, 118 warnings (80 rust-sizes, 29 sizes, 8 i18n, 1 protocol). 15 rules: `openapi` was retired by ADR-0019, which closes R1 #26 | 0 / 114 |
+| `monoflow verify --all` | ✅ **151/151 packages** | 117/149 in R1 |
+| Manifest commands registered | ✅ all 111 that the 38 manifests declare answer on a live server (none "unknown command") | — |
+| Every command in a capability set | ✅ `rust-manifests` passes. `mcp:call` added to `agent:session` (`capabilities.json`) | — |
+| Layering | ✅ new deps are `-api` only (crew → runtime-api, worktrees → runtime-api) | — |
+| `Ctx::run_json` | ✅ the kernel checks the caller's set and the calling plugin's set (`dispatch.rs` `enter` → `check_sets`), so MCP tools can't run what the user's agent couldn't | — |
+| In the working tree (not HEAD) | ❌ `wisp-crew` doesn't compile: `plugins/crew/host/src/store.rs:12` uses `wisp_store`, which isn't a dependency yet (WIP) | — |
+
+### `wisp serve` by hand (fake claude, `FAKE_DELAY=4000`, temp `WISP_HOME`)
+
+| Flow | v2 did | v1 (`server/runner.js`) | |
+|---|---|---|---|
+| Create | answered in 26 ms; task `running` at once, turn 0 running | same | ✅ |
+| Follow-up while a turn runs (no `queue` flag) | **queued** | `reply()` defaults to `queue = false`: it **interrupts** once the agent has reported its session (the fake reports it at init) | ❌ #R3-6 |
+| Follow-up with `queue: false` | interrupts: the running turn `stopped`, the new one ran. It answers `{queued}` | `{interrupted: true}` | 🟡 nit |
+| Queue + Stop | turn `stopped`; queue `["third"]` kept, `queueHeld: true`, still held 5 s later | same | ✅ |
+| Follow-up after Stop | `fourth` ran, then the held `third` | "you're back: a queue a Stop held carries on after this" | ✅ |
+| Ask while running | `ext.ask` set, `unread: true`; **state stays `running`**; **no activity row** | `state = 'waiting'`, un-archived, a "Asked you: …" row on the turn, a `finished` notification | ❌ #R3-3 |
+| Reply answers the ask | no new turn; `pollAnswer` → `answered: dev` | same, plus a "You answered: dev" row on the turn | 🟡 #R3-3 |
+| **Restart with a question open** | the question is **still on the task** (`ext.ask` = "Still there?"), but `pollAnswer` says `cancelled`, `runtime.answer` is refused ("Nothing is being asked on this task."), and a reply starts a new turn **with the question still showing** | `session.ask` is in the store, so `pollAnswer` stays `pending` and the reply answers it | ❌ #R3-1 |
+
+### Findings
+
+**Must-fix**
+
+1. **must-fix** (#R3-1): `plugins/runtime/host/src/runtime.rs:37` keeps open questions only in memory
+   (`asks: Mutex<HashMap<…>>`), while the question itself is persisted on the session (`more.rs:107`, `ext.ask`).
+   After a restart the task shows a question nothing can answer (seen above: answer refused, the reply starts a
+   new turn, the question stays). Derive "is asking" from the persisted `ext.ask`, as v1's `pollAnswer` reads
+   `session.ask` from the store. On start, either clear stale asks with an activity row, or keep them answerable.
+   Add a serve e2e test that restarts.
+2. **must-fix** (#R3-2): lost updates. `more.rs:178-194` `approve_blocked` and `more.rs:289-305` `rerun` read the
+   session, change it and `persist` it **without `task_lock`**, which every other writer takes (`ask`, `answer`,
+   `put_btw`, `overage`). A turn finishing in between is overwritten with the stale copy. Take the lock for the
+   read-modify-write, then release it before `follow_up`, which locks itself.
+3. **must-fix** (#R3-3): `ask`/`answer`/`approval` vs v1 (`runner.js:950-1100`):
+   - **`ask`:** no `state = waiting`, no un-archive, no "Asked you: …" activity row on the turn, no
+     notification. It also has no 6-option cap and no "The agent has a question." default.
+   - **`answer`:** no "You answered: …" row.
+   - **`approval`** (`more.rs:162`): offers **Allow / Deny** only. v1 offers Allow, **Always** and Deny, where
+     Always adds a task-scoped grant that later approvals pass without asking (`session.grants`, `sameAction`).
+     v1 also records denials so the blocked card doesn't offer them again (`turn.denied`).
+   - **`approve_blocked`:** doesn't refuse Allow on a side discussion (v1:
+     "A side discussion can't allow this: ask the main task to do it.").
+4. **must-fix** (#R3-4): `more.rs:339` `delegate` isn't v1's (`runner.js:1108-1176`):
+   - It takes `agent:model` strings instead of the lead's **team roster** (`lead.subagents`), so "No subagent
+     named …" and "This session has no subagents yet" are gone.
+   - It doesn't refuse when **the lead isn't running**.
+   - It doesn't **resume each member's child task** (`lead.children[slot]`): every call makes a new task.
+   - It has no busy copies (`codex#2`, "still working… Wait with subagent_results").
+   - It doesn't refuse an **empty prompt**.
+   - The child doesn't inherit the lead's **cap** (edge case *Channels #3*: "capped tasks stay capped for
+     every follow-up and child").
+   - It doesn't record `turn.delegations` or the "Delegated to …" activity row, so `results` can't tell
+     delegations apart from the lead's other children.
+5. **must-fix** (#R3-5): `more.rs:298`: `rerun` persists its once-only mark before `follow_up`. If `follow_up`
+   fails, the mark stays, and the signed-out card never offers the rerun again. v1 deletes
+   `turn.signedOut.rerun` on failure (`runner.js:2036`) and asks the guard first (`hold`).
+6. **must-fix** (#R3-6): `runtime.rs:318` defaults `followUp.queue` to **true**. v1's `reply` defaults to
+   `false`: a reply interrupts the running turn once the agent's session is known. Any client that omits the
+   flag (MCP `wisp_reply`, channels, scripted CLI) now waits where v1 interrupted. Either default to v1's, or
+   record the change in an ADR and make every client send the flag. The api doc comment
+   (`commands/tasks.rs:113`) already states the new default, so this is a decision to record, not a slip.
+7. **must-fix** (#R3-7): a **new write path** not on the coder's known-debt list (router.json, crew.json,
+   FsBlobs). `plugins/stuff/host/src/lib.rs:49` keeps **My Stuff's rows as one JSON file each**
+   (`JsonRows`, `ports.rs:151-199` → `<home>/stuff/rows/*.json`), and `serve_task.rs` asserts that directory.
+   ADR-0004 says one write path: rows go through `wisp-store`, recorded in `change` so clients can subscribe.
+   My Stuff's list isn't in the change feed. Also, `plugins/stuff/host/src/appdb.rs` gives each app its own
+   SQLite (v1's app-db): that's user data, so fine in spirit, but it's a new kind of state and a direct
+   `rusqlite` dependency in a plugin host. Record both in an ADR (the AGENTS.md rule for a new kind of state).
+8. **must-fix** (#R3-8): `more.rs:244` `btw` starts its side run (a child process, up to 300 s) with a bare
+   **`tokio::spawn`**, not `ctx.spawn`/`ctx.scope`. Switching the runtime off won't stop it (AGENTS.md: every
+   timer and child process goes through `ctx.scope`).
+9. **must-fix** (#R3-9): the known debt (router.json, crew.json, FsBlobs) isn't written down anywhere in the
+   repo: no ADR, no coverage row. Add a "debt" line to `docs/v2-plan-coverage.md` §4.1 so it isn't forgotten.
+   The crew part is being moved into the store in the working tree now.
+
+**Nits**
+
+10. **nit** (#R3-10): `more.rs:55`: `unwrap_or_else(|| unreachable!(…))` is a panic outside tests (§9.2 says no
+    panics). Restructure, e.g. `match v { Value::Object(o) => o, _ => … }` after the replace.
+11. **nit** (#R3-11): host-side waits read tokio's clock, not the kernel `Clock` service, so they can't be
+    driven by FakeClock in tests:
+    - `more.rs:164,370` (approval and results deadlines);
+    - `side.rs:61` (side-run deadline);
+    - `plugins/mcp/host/src/run.rs:89,155`;
+    - `plugins/crew/host/src/jobs.rs:198` (20 s tick; this one is correctly on `ctx.spawn` + scope).
+12. **nit** (#R3-12): the ask e2e test (`serve_task.rs` `an_agents_question_is_answered_by_the_reply`) asks
+    **after** the turn ended. A real ask happens while the turn runs, with the agent blocked in its MCP call.
+    Ask during a `FAKE_DELAY` run, and check the state, the activity rows and the restart case (#R3-1).
+13. **nit** (#R3-13): commit hygiene: `405ce172` is titled "chore(v2): remaining coder changes". Name what it
+    changes.
+
+### Round-1/2 items this closes
+R1 #1–#4, #6, #7 (workspace compiles, clippy clean, tests green), #25 (every plugin in the binary; every host
+has a manifest; all 111 manifest commands registered), #26 (OpenAPI rule retired, ADR-0019). R2's 4 failing
+Rust tests pass.
+
+### Top 5 for the Rust coder
+1. #R3-1: a restart leaves an unanswerable question. Use the persisted `ext.ask` as the truth.
+2. #R3-2: `approve_blocked` and `rerun` write without the task lock.
+3. #R3-3: ask/answer/approval parity: waiting state, activity rows, **Always** grants.
+4. #R3-4: `delegate` against the lead's team: resume members, refuse when the lead isn't running, inherit the cap.
+5. #R3-7: My Stuff's rows into `wisp-store` (or an ADR), and the app-db as a recorded kind of state.
+
 ## Round 2, 2026-11-08 (HEAD `ba026595`; the Rust gates were skipped, their counts are at the end)
 
 Scope: home, task and task.composer, which the UI coder reports done, in desktop mode and browser mode, at

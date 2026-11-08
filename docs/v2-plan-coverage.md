@@ -19,7 +19,7 @@ Status: ✅ done · 🟡 in progress · ⬜ not started
 | §0 Shells | Tauri desktop + Android Capacitor, both with their own frontend | `apps/desktop`, `mobile/` | shells | ⬜ |
 | §1 Principles | few moving parts, one adapter per harness, crash-safe writes, narrow security, stable names, optimistic UI, slow links, docs checked | rules in AGENTS.md, tools/check | all | 🟡 |
 | §2 Experiments | benches rerunnable in `spikes/` | `spikes/` | each owner | 🟡 |
-| §3 Target | one Rust process; kernel/store/sync/plugins | `Cargo.toml`, `crates/` | lead | 🟡 workspace does not compile at HEAD (verify-log #1–4) |
+| §3 Target | one Rust process; kernel/store/sync/plugins | `Cargo.toml`, `crates/` | lead | 🟡 workspace builds at HEAD `405ce172`; `wisp serve` runs tasks e2e (verifier R3) |
 | §3.1 rule 1 | flat workspace, folder = crate name | `Cargo.toml` | lead | ✅ |
 | §3.1 rule 2 | functional core, imperative shell; ports as traits | `core/` crates, kernel services | all | ⬜ |
 | §3.1 rule 3 | sans-IO parsers/protocols; deterministic simulation | harness `core`, `wisp-sync`, `wisp-testkit` | harness, sync, testkit | ⬜ |
@@ -28,7 +28,7 @@ Status: ✅ done · 🟡 in progress · ⬜ not started
 | §3.1 rule 6 | kernel knows no feature | `wisp-kernel` | kernel | ✅ contract |
 | §3.1 rule 7 | layered imports, public APIs only | tools/check (Rust + TS) | tooling | ✅ rust-layers + TS layers pass in `npm run check` (verifier) |
 | §3.1 rule 8 | one command bus, one HTTP client, one write path, one error type, tracing, one config | kernel, client, store | all | 🟡 |
-| §4.1 Model | session, turn, event, queue_item, project, crew_member, …, change, mutation, meta, FTS5, blobs CAS | store + plugin migrations | store, runtime | ⬜ |
+| §4.1 Model | session, turn, event, queue_item, project, crew_member, …, change, mutation, meta, FTS5, blobs CAS | store + plugin migrations | store, runtime | 🟡 runtime in wisp-store; debt: My Stuff rows as JSON files, router.json, crew.json, FsBlobs (verify-log R3-7, R3-9) |
 | §4.1 | write cadence 250 ms; only open/running sessions in memory; UUIDv7; plugin table prefixes | store, runtime | store, runtime | ⬜ |
 | §4.1 Retention | change 7 d / 1M rows, mutation 24 h, oldest_seq, epoch | store, sync | store | ⬜ |
 | §4.2 Versioning | migrations per plugin, VACUUM INTO, event `v` upcasters, presentation by parser version | store, runtime | store | ⬜ |
@@ -41,12 +41,12 @@ Status: ✅ done · 🟡 in progress · ⬜ not started
 | §6.0 | spells are plugins; same power; trust levels; rename "spell" everywhere | kernel, plugins plugin, UI, docs | plugins | ⬜ |
 | §6.1/6.1b | kernel, plugin, module, service, points; interceptors with veto | `wisp-kernel` | kernel | 🟡 contract |
 | §6.2 | manifest schema, validated in CI | `wisp-kernel::manifest`, tools/check | kernel | 🟡 |
-| §6.3 | plugin groups Default/Box/Headless/Minimal; 3 ways to remove | `crates/wisp` | edge | ⬜ groups listed, binary builds only git/worktrees/ship/review/issues/machine (verify-log #25) |
+| §6.3 | plugin groups Default/Box/Headless/Minimal; 3 ways to remove | `crates/wisp` | edge | 🟡 Default group in the binary: all 111 manifest commands answer on `wisp serve` (verifier R3); Box/Headless/Minimal not checked |
 | §6.4 | lifecycle, lazy activation, scopes, hot switch | `wisp-kernel` | kernel | ⬜ |
-| §6.5 | permissions, capability sets, default deny | `wisp-kernel::caps` | kernel | 🟡 23 hosts have no manifest, so their commands are in no capability set (verify-log #25) |
+| §6.5 | permissions, capability sets, default deny | `wisp-kernel::caps` | kernel | 🟡 every host has a manifest; rust-manifests passes; `Ctx::run_json` checks caller + plugin sets (verifier R3) |
 | §6.6 | UI extension tree, inputs = old SLOTS, overrides | `packages/shell` | shell | 🟡 contract |
 | §6.7 | tiers: built-in + exec (WASM cut) | `wisp-kernel` exec tier | kernel | ⬜ |
-| §6.9 | agent protocol goldens: wisp blocks, 38 MCP tools, delegate/ask | runtime, mcp | runtime, channels | ⬜ |
+| §6.9 | agent protocol goldens: wisp blocks, 38 MCP tools, delegate/ask | runtime, mcp | runtime, channels | 🟡 MCP server lists and runs tools (serve e2e); delegate/ask diverge from v1 (verify-log R3-3, R3-4); no goldens |
 | §6.10 | `wisp plugin new`, testkit free tests | `crates/wisp`, `wisp-testkit` | testkit | ⬜ |
 | §6.11 | commands/events/interceptors/points/topics/services; no loops/deadlocks; Slack→budget example as a test | `wisp-kernel` | kernel | ⬜ |
 | §7 | one web codebase; `platform` module | `apps/web`, `packages/shell` | shell | ⬜ |
@@ -55,8 +55,8 @@ Status: ✅ done · 🟡 in progress · ⬜ not started
 | §7.3 | **phone and desktop ship their own frontend**; N peers; offline; compat contract; plugin UI served by peers; G13 | `mobile/`, `apps/desktop`, client | shells | ⬜ |
 | §8 | budgets in CI | `tools/budgets.ts`, spikes | tooling | ⬜ |
 | §9.1 | gates G1, G3, G6, G8, G9, G10, G11, G12, G13, G14 | spikes, qa | each owner | ⬜ |
-| §9.2 | code-quality rules in CI from the first commit | workspace lints, tools/check | tooling | 🟡 clippy -D warnings ✅; cargo test 1,440 pass / 4 fail (verify-log R2) |
+| §9.2 | code-quality rules in CI from the first commit | workspace lints, tools/check | tooling | ✅ clippy -D warnings exit 0; cargo test 1,493 pass / 0 fail at HEAD `405ce172` (verifier R3) |
 | §9.3 | parity oracle: recorded HTTP/SSE/MCP goldens from v1 | `qa/goldens`, testkit | testkit | ⬜ |
-| §9.4 | monorepo by monoflow; G14 | `.agents/`, CI | tooling | 🟡 monoflow verify --all 117/149 (verify-log #8) |
+| §9.4 | monorepo by monoflow; G14 | `.agents/`, CI | tooling | 🟡 monoflow verify --all 151/151 at HEAD (verifier R3); G14 not run |
 | §10 | risks: ADR per dependency, cargo-deny | `deny.toml` | tooling | 🟡 cargo deny check passes (11 duplicate warnings); ADR per dependency not checked |
 | Owner | nothing wraps (ADR-0012), `qa/layout.mjs` | kit, ui-* | kit | 🟡 layout --area=shell 0 problems (60 page-shots); gallery 4 overflow (R1 #11); 320 folds allowed (allowed.md §4) |
