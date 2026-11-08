@@ -303,6 +303,16 @@ impl Ctx {
         crate::dispatch::typed::<C>(self.clone(), call.clone(), args)
     }
 
+    /// Runs the command named `cmd` with JSON args as part of `call` (depth + 1, same trace and caller):
+    /// for a plugin that dispatches by name (the MCP server's owner tools, a channel's command line).
+    pub fn run_json(&self, call: &Call, cmd: &str, args: serde_json::Value) -> BoxFuture<'static, Result<serde_json::Value>> {
+        let (ctx, call, cmd) = (self.clone(), call.clone(), cmd.to_owned());
+        Box::pin(async move {
+            let k = ctx.k()?;
+            crate::dispatch::json(&k, Some(ctx.clone()), &call, &cmd, args).await
+        })
+    }
+
     /// Runs hook `H`'s interceptors in order. Ok: the (possibly modified) context. Err(vetoed): refused.
     pub fn run_hook<H: Hook>(
         &self,
