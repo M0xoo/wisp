@@ -110,7 +110,8 @@ pub struct FollowUpArgs {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<Attachment>>", optional)]
     pub attachments: Vec<Attachment>,
-    /// true (the default): wait in the queue if a turn is running; false: interrupt and send now
+    /// true: wait in the queue if a turn is running; false (the default, v1 `reply`): interrupt the
+    /// running turn once its harness session is known, and send now
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub queue: Option<bool>,

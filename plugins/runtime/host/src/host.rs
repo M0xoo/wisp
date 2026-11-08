@@ -50,6 +50,14 @@ pub trait Host: Send + Sync + 'static {
     /// `before:run`'s interceptors, in order. Err: vetoed (the message reaches the user on the turn).
     fn before_run(&self, c: BeforeRunCtx) -> BoxFuture<'static, Result<BeforeRunCtx, WireError>>;
     fn harnesses(&self) -> Vec<Arc<dyn Harness>>;
+    /// How a task's agent reaches wisp, if the install provides it.
+    fn agent_access(&self) -> Option<Arc<dyn wisp_runtime_api::points::AgentAccess>> {
+        None
+    }
+    /// Work that outlives the command (a side run): on the plugin's scope, so switching it off ends it.
+    fn spawn(&self, fut: wisp_kernel::BoxFuture<'static, ()>) {
+        tokio::spawn(fut);
+    }
     fn summary_fields(&self) -> Vec<Arc<dyn SummaryField>> {
         Vec::new()
     }

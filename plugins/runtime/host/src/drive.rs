@@ -255,11 +255,11 @@ impl Runtime {
     fn append(&self, d: &mut Drive, a: Activity) -> Step {
         let t = self.now();
         let step = Step {
-            seq: d.seq,
+            seq: self.alloc_seq_now(&d.sid, d.seq),
             t,
             activity: a,
         };
-        d.seq += 1;
+        d.seq = step.seq + 1;
         if let Ok(row) = rows::event_row(&d.sid, &d.tid, step.seq, t, &step.activity) {
             let _ = d.coal.append("event", vec![row]);
         }

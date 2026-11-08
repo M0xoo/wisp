@@ -14,8 +14,8 @@ use serde_json::{Value, json};
 use wisp_runtime_api::commands::{
     AgentStatus, AgentsArgs, AskArgs, BtwArgs, BtwEntry, DelegateArgs, Delegation, FollowUpArgs, FollowedUp, ForkArgs, PollAnswer, QuickArgs, QuickResult, Report, Reports, RerunArgs, ResultsArgs, RunPick, StartArgs,
 };
-use wisp_runtime_api::harness::HarnessRun;
-use wisp_runtime_api::model::{Mode, Session, SessionState, Turn, TurnStatus};
+use wisp_runtime_api::harness::{HarnessRun, PermissionAsk};
+use wisp_runtime_api::model::{Activity, Mode, Session, SessionState, ToolKind, Turn, TurnStatus};
 use wisp_runtime_api::{SessionId, TurnId};
 
 use crate::error::{Result, RuntimeError};
@@ -23,20 +23,23 @@ use crate::runtime::Runtime;
 use crate::sys::ProcSys;
 
 /// What v1 gave a question before it gave up waiting (adapters/common.js `ASK_TIMEOUT_MS`).
-pub const ASK_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+pub const ASK_TIMEOUT_MS: i64 = 30 * 60_000;
+/// How often a wait on an answer or on subagents looks again.
+const POLL_MS: u64 = 250;
+/// The answers a live approval offers (v1 `APPROVAL`). Typed text instead is a "no, do this instead".
+pub const APPROVAL_ALLOW: &str = "Allow";
+pub const APPROVAL_ALWAYS: &str = "Always allow in this task";
+pub const APPROVAL_DENY: &str = "Deny";
+const SIDE_DENIED: &str = "Refused: a side discussion only reads. Ask the main task to do it.";
 /// How long an armed sign-in waits for its login (v1 `SIGN_IN_MS`).
 pub const SIGN_IN_MS: i64 = 15 * 60_000;
 const QUICK_TIMEOUT_MS: u64 = 120_000;
 const BTW_TIMEOUT: Duration = Duration::from_secs(300);
-const SLOT: &str = "wisp.runtime";
-
-/// An open question an agent asked, until it is answered or its task stops.
-#[derive(Debug, Clone, Default)]
-pub(crate) struct AskSlot {
-    pub session: String,
-    pub answer: Option<String>,
-    pub cancelled: bool,
+/// A member's copies (`codex#1`, `codex#2`) when it runs more than one at once (v1 subagents.js `copies`).
+fn copies(name: &str, count: u64) -> Vec<String> {
+    if count > 1 { (1..=count).map(|i| format!("{name}#{i}")).collect() } else { vec![name.to_owned()] }
 }
+const SLOT: &str = "wisp.runtime";
 
 /// A turn that failed signed out, waiting for this login to land (v1 `armSignIn`).
 #[derive(Debug, Clone)]
@@ -47,12 +50,67 @@ pub(crate) struct SignIn {
     pub until: i64,
 }
 
-fn slot_mut(ext: &mut BTreeMap<String, Value>) -> &mut serde_json::Map<String, Value> {
-    let v = ext.entry(SLOT.into()).or_insert_with(|| json!({}));
-    if !v.is_object() {
-        *v = json!({});
+/// The open question's id, from the task itself (the truth across a restart).
+pub(crate) fn ask_id(s: &Session) -> Option<String> {
+    slot(s)?.get("ask")?.get("id")?.as_str().map(str::to_owned)
+}
+
+fn slot(s: &Session) -> Option<&serde_json::Map<String, Value>> {
+    s.ext.get(SLOT)?.as_object()
+}
+
+fn str_at(v: &Value, k: &str) -> String {
+    v.get(k).and_then(Value::as_str).unwrap_or_default().to_owned()
+}
+
+/// Appends to a list in the slot (made if missing).
+fn push(m: &mut serde_json::Map<String, Value>, k: &str, v: Value) {
+    match m.get_mut(k) {
+        Some(Value::Array(a)) => a.push(v),
+        _ => {
+            m.insert(k.into(), Value::Array(vec![v]));
+        }
     }
-    v.as_object_mut().unwrap_or_else(|| unreachable!("made an object above"))
+}
+
+fn tool_row(tool: ToolKind, label: String) -> Activity {
+    Activity::Tool { tool, label, file: None, detail: None, call_id: None, output: None }
+}
+
+/// A live approval's answer (v1 `approvalDecision`): a button, a yes/no typed out, or anything
+/// else, which denies the call and hands the agent the user's words.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Decision {
+    pub allow: bool,
+    pub always: bool,
+    pub message: Option<String>,
+}
+
+pub(crate) fn approval_decision(text: &str) -> Decision {
+    let t = text.trim();
+    let l = t.to_lowercase();
+    let yes = |allow, always| Decision { allow, always, message: None };
+    if t == APPROVAL_ALWAYS || l.starts_with("always") || l == "2" {
+        return yes(true, true);
+    }
+    if t == APPROVAL_ALLOW || matches!(l.as_str(), "y" | "yes" | "ok" | "allow" | "approve" | "go ahead" | "1") {
+        return yes(true, false);
+    }
+    if t == APPROVAL_DENY || matches!(l.as_str(), "n" | "no" | "deny" | "reject" | "3") {
+        return yes(false, false);
+    }
+    Decision { allow: false, always: false, message: Some(t.to_owned()) }
+}
+
+/// Runs `f` on runtime's own ext slot (made an object if it wasn't one), then puts it back.
+fn with_slot<R>(ext: &mut BTreeMap<String, Value>, f: impl FnOnce(&mut serde_json::Map<String, Value>) -> R) -> R {
+    let mut m = match ext.remove(SLOT) {
+        Some(Value::Object(m)) => m,
+        _ => serde_json::Map::new(),
+    };
+    let out = f(&mut m);
+    ext.insert(SLOT.into(), Value::Object(m));
+    out
 }
 
 fn retry_prompt(items: &[Value], scoped: bool) -> String {
@@ -92,31 +150,45 @@ impl Runtime {
         }
     }
 
-    fn open_ask(&self, session: &str) -> Option<String> {
-        self.asks().iter().find(|(_, a)| a.session == session && a.answer.is_none() && !a.cancelled).map(|(k, _)| k.clone())
-    }
+    // ---------- questions and approvals (v1 runner.js `ask`, `requestApproval`, `answer`, `pollAnswer`) ----------
 
-    /// Whether the task's agent is waiting on a question (a follow-up answers it).
-    pub(crate) fn asking(&self, session: &str) -> bool {
-        self.open_ask(session).is_some()
-    }
-
-    // ---------- questions and approvals ----------
-
-    /// `runtime.ask`: the agent's question goes on its task; `pollAnswer` waits for the answer.
+    /// `runtime.ask`: the agent's question goes on its task, which waits on the user (v1 `ask`).
     pub async fn ask(self: &Arc<Self>, a: AskArgs) -> Result<String> {
-        let _g = self.task_lock(a.id.as_str()).await;
-        let mut s = self.repo.session(a.id.as_str()).await?;
-        if let Some(old) = self.open_ask(a.id.as_str())
-            && let Some(x) = self.asks().get_mut(&old)
-        {
-            x.cancelled = true;
+        let context = a.details.as_ref().and_then(|d| d.get("context")).and_then(Value::as_str).unwrap_or_default().to_owned();
+        self.ask_in(&a.id, &a.question, &context, &a.options, None).await
+    }
+
+    /// Puts a question on task `id`: `state: waiting`, unread, back from the archive, and an
+    /// "Asked you: …" (or "Needs your OK to …") row on its turn. A question already open is replaced.
+    async fn ask_in(self: &Arc<Self>, id: &SessionId, question: &str, context: &str, options: &[String], permission: Option<Value>) -> Result<String> {
+        let (tid, label, ask_id) = {
+            let _g = self.task_lock(id.as_str()).await;
+            let mut s = self.repo.session(id.as_str()).await?;
+            if let Some(old) = ask_id(&s) {
+                self.asks().remove(&old);
+            }
+            let ask_id = wisp_kernel::ids::uuid7();
+            let question = if question.trim().is_empty() { "The agent has a question.".to_owned() } else { question.trim().to_owned() };
+            let options: Vec<String> = options.iter().take(6).cloned().collect();
+            let label = match permission.as_ref().and_then(|p| p.get("action")).and_then(Value::as_str) {
+                Some(action) => format!("Needs your OK to {action}"),
+                None => format!("Asked you: {question}"),
+            };
+            let mut ask = json!({ "id": ask_id, "question": question, "context": context, "options": options, "askedAt": self.now() });
+            if let (Some(p), Some(o)) = (permission, ask.as_object_mut()) {
+                o.insert("permission".into(), p);
+            }
+            with_slot(&mut s.ext, |m| m.insert("ask".into(), ask));
+            s.state = SessionState::Waiting;
+            s.unread = true;
+            s.archived = false; // a question needs the user: it comes back to the feed
+            self.asks().insert(ask_id.clone(), s.id.0.clone());
+            self.persist(&mut s, Vec::new()).await?;
+            (self.last_turn(id.as_str()).await?.map(|t| t.id), label, ask_id)
+        };
+        if let Some(t) = tid {
+            self.add_row(id.as_str(), t.as_str(), tool_row(ToolKind::Ask, label)).await?;
         }
-        let ask_id = wisp_kernel::ids::uuid7();
-        self.asks().insert(ask_id.clone(), AskSlot { session: a.id.0.clone(), ..AskSlot::default() });
-        slot_mut(&mut s.ext).insert("ask".into(), json!({ "id": ask_id, "question": a.question, "options": a.options, "details": a.details, "at": self.now() }));
-        s.unread = true;
-        self.persist(&mut s, Vec::new()).await?;
         Ok(ask_id)
     }
 
@@ -126,72 +198,132 @@ impl Runtime {
         self.answer_locked(id, text).await
     }
 
+    /// The answer, under the task's lock: kept for `pollAnswer`, the question taken off the task, a
+    /// "You answered: …" row. For a live approval, Always adds a grant for this task and a denial is
+    /// recorded on the turn (v1 `answer`).
     pub(crate) async fn answer_locked(self: &Arc<Self>, id: &SessionId, text: &str) -> Result<Value> {
-        let ask = self.open_ask(id.as_str()).ok_or_else(|| RuntimeError::Conflict("Nothing is being asked on this task.".into()))?;
-        if let Some(x) = self.asks().get_mut(&ask) {
-            x.answer = Some(text.to_owned());
-        }
         let mut s = self.repo.session(id.as_str()).await?;
-        slot_mut(&mut s.ext).remove("ask");
-        self.persist(&mut s, Vec::new()).await?;
-        Ok(json!({ "answered": true, "askId": ask }))
+        let Some(ask) = with_slot(&mut s.ext, |m| m.remove("ask")) else {
+            return Err(RuntimeError::Conflict("Nothing is being asked on this task.".into()));
+        };
+        let ask_id = ask.get("id").and_then(Value::as_str).unwrap_or_default().to_owned();
+        let mut turns = Vec::new();
+        let last = self.last_turn(id.as_str()).await?;
+        let label = match ask.get("permission") {
+            Some(p) => {
+                let d = approval_decision(text);
+                let (tool, detail, action) = (str_at(p, "tool"), str_at(p, "detail"), str_at(p, "action"));
+                if d.always {
+                    with_slot(&mut s.ext, |m| push(m, "grants", json!({ "tool": tool, "detail": detail })));
+                }
+                if !d.allow && let Some(mut t) = last.clone() {
+                    with_slot(&mut t.ext, |m| push(m, "denied", json!({ "tool": tool, "detail": detail })));
+                    turns.push(t);
+                }
+                if d.allow { format!("You allowed{}: {action}", if d.always { " (always in this task)" } else { "" }) } else { format!("You denied: {action}{}", d.message.map(|m| format!(" (“{m}”)")).unwrap_or_default()) }
+            }
+            None => format!("You answered: {text}"),
+        };
+        self.asks().remove(&ask_id);
+        self.answers().insert(ask_id.clone(), text.to_owned());
+        s.state = if self.run_state(id.as_str()) == wisp_runtime_core::queue::Run::Idle { SessionState::Review } else { SessionState::Running };
+        self.persist(&mut s, turns).await?;
+        if let Some(t) = last {
+            self.add_row(id.as_str(), t.id.as_str(), tool_row(ToolKind::Answer, label)).await?;
+        }
+        Ok(json!({ "answered": true, "askId": ask_id }))
     }
 
-    /// `runtime.pollAnswer`: the answer, once there is one.
+    /// `runtime.pollAnswer`: the answer once (then it's gone), pending while the question is on its
+    /// task (also after a restart), else cancelled.
     pub fn poll_answer(&self, ask_id: &str) -> PollAnswer {
-        match self.asks().get(ask_id) {
-            Some(AskSlot { answer: Some(a), .. }) => PollAnswer::Answered { answer: a.clone() },
-            Some(AskSlot { cancelled: false, .. }) => PollAnswer::Pending,
-            _ => PollAnswer::Cancelled,
+        if let Some(answer) = self.answers().remove(ask_id) {
+            return PollAnswer::Answered { answer };
         }
+        if self.asks().contains_key(ask_id) { PollAnswer::Pending } else { PollAnswer::Cancelled }
     }
 
-    /// The task stopped: what its agent asked goes unanswered.
-    pub(crate) fn cancel_asks(&self, session: &str) {
-        for a in self.asks().values_mut().filter(|a| a.session == session && a.answer.is_none()) {
-            a.cancelled = true;
-        }
-    }
-
-    /// `runtime.approval`: a live permission prompt (Edits mode) as a question; Claude Code's
-    /// permission-prompt-tool answer when the user decides.
-    pub async fn approval(self: &Arc<Self>, a: wisp_runtime_api::commands::ApprovalArgs) -> Result<Value> {
-        let detail = a.input.get("command").or_else(|| a.input.get("file_path")).and_then(Value::as_str).unwrap_or_default().to_owned();
-        let question = if detail.is_empty() { format!("Allow {}?", a.tool) } else { format!("Allow {}: {detail}?", a.tool) };
-        let ask_id = self
-            .ask(AskArgs { id: a.id.clone(), question, options: vec!["Allow".into(), "Deny".into()], details: Some(json!({ "kind": "approval", "tool": a.tool, "input": a.input, "toolUseId": a.tool_use_id })) })
-            .await?;
-        let until = tokio::time::Instant::now() + ASK_TIMEOUT;
-        loop {
-            match self.poll_answer(&ask_id) {
-                PollAnswer::Answered { answer } if answer.trim().eq_ignore_ascii_case("allow") => return Ok(json!({ "behavior": "allow", "updatedInput": a.input })),
-                PollAnswer::Answered { answer } => return Ok(json!({ "behavior": "deny", "message": format!("The user didn’t allow it: {answer}") })),
-                PollAnswer::Cancelled => return Ok(json!({ "behavior": "deny", "message": "The task was stopped." })),
-                PollAnswer::Pending if tokio::time::Instant::now() >= until => return Ok(json!({ "behavior": "deny", "message": "No answer in time." })),
-                PollAnswer::Pending => tokio::time::sleep(Duration::from_millis(250)).await,
+    /// The task stopped: what its agent asked goes unanswered, and the task stops waiting.
+    pub(crate) fn cancel_asks(&self, s: &mut Session) {
+        if let Some(ask) = with_slot(&mut s.ext, |m| m.remove("ask")) {
+            self.asks().remove(ask.get("id").and_then(Value::as_str).unwrap_or_default());
+            if s.state == SessionState::Waiting {
+                s.state = SessionState::Review;
             }
         }
+    }
+
+    /// Waits for the answer on the kernel's clock, at most `ms`.
+    async fn wait_answer(&self, ask_id: &str, ms: i64) -> Option<String> {
+        let until = self.now() + ms;
+        loop {
+            match self.poll_answer(ask_id) {
+                PollAnswer::Answered { answer } => return Some(answer),
+                PollAnswer::Pending if self.now() < until => self.clock.sleep(POLL_MS).await,
+                _ => return None,
+            }
+        }
+    }
+
+    /// `runtime.approval` (v1 `requestApproval`): a live permission prompt. What the user allowed
+    /// always in this task goes through at once; else Allow / Always allow in this task / Deny.
+    /// Answers Claude Code's permission-prompt-tool shape.
+    #[allow(clippy::many_single_char_names)] // s, h, p, a, d: v1 requestApproval's own names
+    pub async fn approval(self: &Arc<Self>, a: wisp_runtime_api::commands::ApprovalArgs) -> Result<Value> {
+        let s = self.repo.session(a.id.as_str()).await?;
+        let h = self.harness(&s.agent)?;
+        let p = h.permission(&a.tool, &a.input, &s.cwd).unwrap_or_else(|| PermissionAsk { tool: a.tool.clone(), action: format!("use {}", a.tool), detail: String::new(), why: None });
+        let last = self.last_turn(a.id.as_str()).await?;
+        if slot(&s).and_then(|m| m.get("sideOf")).is_some() {
+            if let Some(t) = &last {
+                self.add_row(a.id.as_str(), t.id.as_str(), tool_row(ToolKind::Answer, format!("Refused (a side discussion only reads): {}", p.action))).await?;
+            }
+            return Ok(json!({ "behavior": "deny", "message": SIDE_DENIED }));
+        }
+        let granted = slot(&s).and_then(|m| m.get("grants")).and_then(Value::as_array).is_some_and(|g| g.iter().any(|x| str_at(x, "tool") == p.tool && str_at(x, "detail") == p.detail));
+        if granted {
+            if let Some(t) = &last {
+                self.add_row(a.id.as_str(), t.id.as_str(), tool_row(ToolKind::Answer, format!("Allowed (always in this task): {}", p.action))).await?;
+            }
+            return Ok(json!({ "behavior": "allow", "updatedInput": a.input }));
+        }
+        let options = [APPROVAL_ALLOW, APPROVAL_ALWAYS, APPROVAL_DENY].map(str::to_owned);
+        let question = format!("Allow {} to {}?", h.info().name, p.action);
+        let permission = json!({ "tool": p.tool, "action": p.action, "detail": p.detail, "toolUseId": a.tool_use_id });
+        let ask_id = self.ask_in(&a.id, &question, p.why.as_deref().unwrap_or_default(), &options, Some(permission)).await?;
+        let Some(answer) = self.wait_answer(&ask_id, ASK_TIMEOUT_MS).await else {
+            return Ok(json!({ "behavior": "deny", "message": "No answer from the user in time, or the task was stopped." }));
+        };
+        let d = approval_decision(&answer);
+        Ok(if d.allow { json!({ "behavior": "allow", "updatedInput": a.input }) } else { json!({ "behavior": "deny", "message": d.message.unwrap_or_else(|| "The user denied this.".into()) }) })
     }
 
     /// `runtime.approveBlocked` (v1 `approveBlocked`): what the last turn's permissions blocked, run in
     /// a follow-up with exactly those rules allowed (or in Full auto when a rule is unknown).
     pub async fn approve_blocked(self: &Arc<Self>, id: &SessionId, turn: Option<&TurnId>, allow: bool) -> Result<Value> {
-        let s = self.repo.session(id.as_str()).await?;
-        let mut t = self.turn_of(id.as_str(), turn).await?;
-        let blocked: Vec<Value> = t.ext.get(SLOT).and_then(|x| x.get("blocked")).and_then(Value::as_array).cloned().unwrap_or_default();
-        if blocked.is_empty() {
-            return Err(RuntimeError::NoTurn("Nothing on that turn is waiting for approval.".into()));
-        }
-        if let Some(done) = t.ext.get(SLOT).and_then(|x| x.get("approval")).and_then(Value::as_str) {
-            return Err(RuntimeError::Conflict(format!("Already {done}.")));
-        }
-        let last = self.last_turn(id.as_str()).await?;
-        if last.as_ref().is_none_or(|l| l.id != t.id) || t.status == TurnStatus::Running {
-            return Err(RuntimeError::Conflict("The task has moved on since; send a follow-up instead.".into()));
-        }
-        slot_mut(&mut t.ext).insert("approval".into(), json!(if allow { "allowed" } else { "denied" }));
-        let mut s2 = s.clone();
-        self.persist(&mut s2, vec![t]).await?;
+        let blocked = {
+            let _g = self.task_lock(id.as_str()).await;
+            let s = self.repo.session(id.as_str()).await?;
+            let mut t = self.turn_of(id.as_str(), turn).await?;
+            let blocked: Vec<Value> = t.ext.get(SLOT).and_then(|x| x.get("blocked")).and_then(Value::as_array).cloned().unwrap_or_default();
+            if blocked.is_empty() {
+                return Err(RuntimeError::NoTurn("Nothing on that turn is waiting for approval.".into()));
+            }
+            if allow && slot(&s).and_then(|m| m.get("sideOf")).is_some() {
+                return Err(RuntimeError::Conflict("A side discussion can’t allow this: ask the main task to do it.".into()));
+            }
+            if let Some(done) = t.ext.get(SLOT).and_then(|x| x.get("approval")).and_then(Value::as_str) {
+                return Err(RuntimeError::Conflict(format!("Already {done}.")));
+            }
+            let last = self.last_turn(id.as_str()).await?;
+            if last.as_ref().is_none_or(|l| l.id != t.id) || (t.status == TurnStatus::Running && self.run_state(id.as_str()) != wisp_runtime_core::queue::Run::Idle) {
+                return Err(RuntimeError::Conflict("The task has moved on since; send a follow-up instead.".into()));
+            }
+            with_slot(&mut t.ext, |m| m.insert("approval".into(), json!(if allow { "allowed" } else { "denied" })));
+            let mut s2 = s;
+            self.persist(&mut s2, vec![t]).await?;
+            blocked
+        };
         if !allow {
             return Ok(json!({ "denied": true }));
         }
@@ -207,7 +339,7 @@ impl Runtime {
         {
             let _g = self.task_lock(id.as_str()).await;
             let mut s = self.repo.session(id.as_str()).await?;
-            slot_mut(&mut s.ext).insert("next".into(), extras);
+            with_slot(&mut s.ext, |m| m.insert("next".into(), extras));
             self.persist(&mut s, Vec::new()).await?;
         }
         self.follow_up(FollowUpArgs { id: id.clone(), text, queue: Some(true), ..FollowUpArgs::default() }).await
@@ -241,7 +373,8 @@ impl Runtime {
             ..HarnessRun::default()
         };
         let (rt, mut e) = (self.clone(), entry.clone());
-        tokio::spawn(async move {
+        // owned by the plugin's scope: switching the runtime off ends the side run with it
+        self.host.spawn(Box::pin(async move {
             match rt.side_run(h.as_ref(), &run, BTW_TIMEOUT).await {
                 Ok(o) if !o.is_error => e.answer = o.text,
                 Ok(o) => e.error = Some(o.text),
@@ -249,21 +382,22 @@ impl Runtime {
             }
             e.pending = false;
             let _ = rt.put_btw(&s.id.0, &e).await;
-        });
+        }));
         Ok(entry)
     }
 
     async fn put_btw(&self, id: &str, e: &BtwEntry) -> Result<()> {
         let _g = self.task_lock(id).await;
         let mut s = self.repo.session(id).await?;
-        let list = slot_mut(&mut s.ext).entry("btw").or_insert_with(|| json!([]));
         let v = serde_json::to_value(e).map_err(|x| RuntimeError::Invalid(x.to_string()))?;
-        if let Some(arr) = list.as_array_mut() {
-            match arr.iter_mut().find(|x| x.get("id").and_then(Value::as_str) == Some(e.id.as_str())) {
-                Some(x) => *x = v,
-                None => arr.push(v),
+        with_slot(&mut s.ext, |m| {
+            if let Some(arr) = m.entry("btw").or_insert_with(|| json!([])).as_array_mut() {
+                match arr.iter_mut().find(|x| x.get("id").and_then(Value::as_str) == Some(e.id.as_str())) {
+                    Some(x) => *x = v,
+                    None => arr.push(v),
+                }
             }
-        }
+        });
         self.persist(&mut s, Vec::new()).await.map(|_| ())
     }
 
@@ -271,9 +405,11 @@ impl Runtime {
     pub async fn btw_drop(self: &Arc<Self>, id: &str, btw: &str) -> Result<()> {
         let _g = self.task_lock(id).await;
         let mut s = self.repo.session(id).await?;
-        if let Some(arr) = slot_mut(&mut s.ext).get_mut("btw").and_then(Value::as_array_mut) {
-            arr.retain(|x| x.get("id").and_then(Value::as_str) != Some(btw));
-        }
+        with_slot(&mut s.ext, |m| {
+            if let Some(arr) = m.get_mut("btw").and_then(Value::as_array_mut) {
+                arr.retain(|x| x.get("id").and_then(Value::as_str) != Some(btw));
+            }
+        });
         self.persist(&mut s, Vec::new()).await.map(|_| ())
     }
 
@@ -288,19 +424,34 @@ impl Runtime {
     /// conversation, on another account if one is given.
     pub async fn rerun(self: &Arc<Self>, a: RerunArgs) -> Result<FollowedUp> {
         let none = FollowedUp { turn_id: None, queued: None };
-        let mut s = self.repo.session(a.id.as_str()).await?;
-        let Some(mut t) = self.last_turn(a.id.as_str()).await?.filter(|t| t.id == a.turn_id) else { return Ok(none) };
-        let signed_out = t.ext.get(SLOT).and_then(|x| x.get("authFailed")).and_then(Value::as_bool).unwrap_or(false);
-        let again = t.ext.get(SLOT).and_then(|x| x.get("rerun")).is_some();
-        if !signed_out || again || t.status != TurnStatus::Error || s.state == SessionState::Running || !s.queue.is_empty() {
-            return Ok(none);
+        let t = {
+            let _g = self.task_lock(a.id.as_str()).await;
+            let mut s = self.repo.session(a.id.as_str()).await?;
+            let Some(mut t) = self.last_turn(a.id.as_str()).await?.filter(|t| t.id == a.turn_id) else { return Ok(none) };
+            let signed_out = t.ext.get(SLOT).and_then(|x| x.get("authFailed")).and_then(Value::as_bool).unwrap_or(false);
+            let again = t.ext.get(SLOT).and_then(|x| x.get("rerun")).is_some();
+            if !signed_out || again || t.status != TurnStatus::Error || s.state == SessionState::Running || !s.queue.is_empty() {
+                return Ok(none);
+            }
+            // once only: the mark is saved before anything is sent (two tabs, a phone, a restart)
+            with_slot(&mut t.ext, |m| m.insert("rerun".into(), json!(self.now())));
+            if let Some(acc) = a.account.filter(|x| !x.is_empty()) {
+                s.account = Some(acc);
+            }
+            self.persist(&mut s, vec![t.clone()]).await?;
+            t
+        };
+        // the run goes through `before:run` like any turn: the guard may hold it (v1's `guard.check`)
+        let sent = self.follow_up(FollowUpArgs { id: a.id.clone(), text: t.prompt.clone(), attachments: t.attachments.clone(), queue: Some(false), by: t.by.clone(), ..FollowUpArgs::default() }).await;
+        if sent.is_err() {
+            // it never went: the card offers it again (v1 runner.js:2036)
+            let _g = self.task_lock(a.id.as_str()).await;
+            let mut s = self.repo.session(a.id.as_str()).await?;
+            let mut t = self.repo.turn(t.id.as_str()).await?;
+            with_slot(&mut t.ext, |m| m.remove("rerun"));
+            self.persist(&mut s, vec![t]).await?;
         }
-        slot_mut(&mut t.ext).insert("rerun".into(), json!(self.now()));
-        if let Some(acc) = a.account.filter(|x| !x.is_empty()) {
-            s.account = Some(acc);
-        }
-        self.persist(&mut s, vec![t.clone()]).await?;
-        self.follow_up(FollowUpArgs { id: a.id, text: t.prompt, attachments: t.attachments, queue: Some(true), by: t.by, ..FollowUpArgs::default() }).await
+        sent
     }
 
     /// `runtime.fork`: a new task with this one's turns up to `turn_id`, resuming a copy of its conversation.
@@ -325,8 +476,8 @@ impl Runtime {
             updated_at: now,
             ..Session::default()
         };
-        slot_mut(&mut s.ext).insert("forkOf".into(), json!({ "id": src.id, "turnId": upto.id }));
-        slot_mut(&mut s.ext).insert("next".into(), json!({ "fork": true }));
+        with_slot(&mut s.ext, |m| m.insert("forkOf".into(), json!({ "id": src.id, "turnId": upto.id })));
+        with_slot(&mut s.ext, |m| m.insert("next".into(), json!({ "fork": true })));
         let copies: Vec<Turn> = turns.into_iter().map(|t| Turn { id: TurnId::new(), session_id: s.id.clone(), ..t }).collect();
         let summary = self.persist(&mut s, copies).await?;
         self.host.emit(crate::host::Emitted::Created(wisp_runtime_api::events::SessionCreated { session: (*summary).clone() }));
@@ -335,58 +486,160 @@ impl Runtime {
 
     // ---------- subagents ----------
 
-    /// `runtime.delegate`: each task starts as a subagent of the lead (`agent` or `agent:model`).
+    /// `runtime.delegate` (v1 `delegate`): the lead hands tasks to members of its team
+    /// (`ext["wisp.runtime"].subagents`: `{name, agent, model?, effort?, count?}`). Each member (or copy,
+    /// `codex#2`) is one child task, made on first use and resumed after; it follows the lead's folder,
+    /// mode and cap. One record (or an error) per task; the delegations go on the lead's turn.
     pub async fn delegate(self: &Arc<Self>, a: DelegateArgs) -> Result<Vec<Delegation>> {
         let lead = self.repo.session(a.id.as_str()).await?;
+        let Some(turn) = self.last_turn(a.id.as_str()).await?.filter(|t| t.status == TurnStatus::Running) else {
+            return Err(RuntimeError::Conflict("The lead agent is not running.".into()));
+        };
+        let team: Vec<Value> = slot(&lead).and_then(|m| m.get("subagents")).and_then(Value::as_array).cloned().unwrap_or_default();
+        if team.is_empty() {
+            return Err(RuntimeError::Invalid("This session has no subagents yet. Name a harness (agent, and machine to run it elsewhere) in each task to create one.".into()));
+        }
+        let children: serde_json::Map<String, Value> = slot(&lead).and_then(|m| m.get("children")).and_then(Value::as_object).cloned().unwrap_or_default();
+        let capped = slot(&lead).and_then(|m| m.get("capped")).cloned();
+        let names: Vec<String> = team.iter().map(|m| str_at(m, "name")).collect();
+        let mut claimed: Vec<String> = Vec::new();
+        let mut made = serde_json::Map::new();
         let mut out = Vec::new();
-        for t in a.tasks {
-            let (agent, model) = t.subagent.split_once(':').map_or((t.subagent.as_str(), ""), |(a, m)| (a, m));
-            let agent = if agent.is_empty() || agent == "self" { lead.agent.clone() } else { agent.to_owned() };
-            if self.harness(&agent).is_err() {
-                out.push(Delegation { id: SessionId(String::new()), subagent: t.subagent.clone(), agent, model: model.to_owned(), effort: String::new(), turn_id: TurnId(String::new()), place: None, error: Some("That harness isn’t on this computer.".into()) });
+        let err = |subagent: &str, why: String| Delegation { id: SessionId(String::new()), subagent: subagent.to_owned(), agent: String::new(), model: String::new(), effort: String::new(), turn_id: TurnId(String::new()), place: None, error: Some(why) };
+        for task in a.tasks {
+            let want = task.subagent.trim().to_owned();
+            let prompt = task.prompt.trim().to_owned();
+            let Some(m) = team.iter().find(|m| str_at(m, "name") == want || copies(&str_at(m, "name"), m.get("count").and_then(Value::as_u64).unwrap_or(1)).contains(&want)) else {
+                out.push(err(&want, format!("No subagent named \"{want}\". The team: {}.", names.join(", "))));
+                continue;
+            };
+            if prompt.is_empty() {
+                out.push(err(&want, "The task prompt is empty.".into()));
                 continue;
             }
-            let c = self
-                .create(StartArgs {
-                    prompt: t.prompt,
-                    agent: Some(agent.clone()),
-                    model: (!model.is_empty()).then(|| model.to_owned()),
-                    mode: Some(lead.mode),
-                    cwd: Some(lead.cwd.clone()),
-                    dirs: lead.dirs.clone(),
-                    parent_id: Some(lead.id.clone()),
-                    by: Some("lead".into()),
-                    ..StartArgs::default()
-                })
-                .await?;
-            let s = self.repo.session(c.id.as_str()).await?;
-            out.push(Delegation { id: c.id, subagent: t.subagent, agent, model: s.model, effort: s.effort, turn_id: c.turn_id.unwrap_or_else(|| TurnId(String::new())), place: None, error: None });
+            let (name, count) = (str_at(m, "name"), m.get("count").and_then(Value::as_u64).unwrap_or(1));
+            if m.get("machine").is_some_and(|x| !x.is_null()) || m.get("crew").is_some_and(|x| !x.is_null()) {
+                out.push(err(&want, "Members on another machine or from the crew can't take work here yet.".into()));
+                continue;
+            }
+            let busy = |n: &String| claimed.contains(n) || children.get(n).and_then(Value::as_str).is_some_and(|c| self.run_state(c) != wisp_runtime_core::queue::Run::Idle);
+            let pool = if want == name { copies(&name, count) } else { vec![want.clone()] };
+            let Some(slot_name) = pool.into_iter().find(|n| !busy(n)) else {
+                let all = if count > 1 && want == name { format!(" (all {count} copies)") } else { String::new() };
+                out.push(err(&want, format!("{want} is still working{all} on earlier tasks. Wait with subagent_results, then delegate again.")));
+                continue;
+            };
+            claimed.push(slot_name.clone());
+            let existing = children.get(&slot_name).and_then(Value::as_str).map(str::to_owned);
+            let (child, child_turn) = self.run_member(&lead, m, &slot_name, existing, &prompt, capped.as_ref(), &mut made).await?;
+            let c = self.repo.session(&child).await?;
+            out.push(Delegation { id: c.id.clone(), subagent: slot_name, agent: c.agent, model: c.model, effort: c.effort, turn_id: child_turn.unwrap_or_else(|| TurnId(String::new())), place: None, error: None });
+        }
+        let sent: Vec<&Delegation> = out.iter().filter(|d| d.error.is_none()).collect();
+        if !sent.is_empty() {
+            let _g = self.task_lock(a.id.as_str()).await;
+            let mut l = self.repo.session(a.id.as_str()).await?;
+            let mut t = self.repo.turn(turn.id.as_str()).await?;
+            let now = self.now();
+            with_slot(&mut l.ext, |x| {
+                let kids = x.entry("children").or_insert_with(|| json!({}));
+                if let Some(k) = kids.as_object_mut() {
+                    k.extend(made);
+                }
+            });
+            with_slot(&mut t.ext, |x| {
+                for d in &sent {
+                    push(x, "delegations", json!({ "name": d.subagent, "sessionId": d.id, "turnId": d.turn_id, "agent": d.agent, "model": d.model, "startedAt": now, "owed": true }));
+                }
+            });
+            self.persist(&mut l, vec![t]).await?;
+            let mut who: Vec<&str> = sent.iter().map(|d| d.subagent.as_str()).collect();
+            who.dedup();
+            self.add_row(a.id.as_str(), turn.id.as_str(), tool_row(ToolKind::Agent, format!("Delegated to {}", who.join(", ")))).await?;
         }
         Ok(out)
     }
 
-    /// `runtime.results`: the subagents' reports, waiting up to `wait` seconds for them to finish.
+    /// One member's task: its child resumed (following the lead's folder, mode and cap), or made.
+    #[allow(clippy::too_many_arguments)]
+    async fn run_member(self: &Arc<Self>, lead: &Session, m: &Value, slot_name: &str, existing: Option<String>, prompt: &str, capped: Option<&Value>, made: &mut serde_json::Map<String, Value>) -> Result<(String, Option<TurnId>)> {
+        let (prompt, capped) = (prompt.to_owned(), capped.cloned());
+        let slot_name = slot_name.to_owned();
+    Ok(match existing {
+            Some(cid) if self.repo.session(&cid).await.is_ok() => {
+                {
+                    let _g = self.task_lock(&cid).await;
+                    let mut c = self.repo.session(&cid).await?;
+                    c.cwd.clone_from(&lead.cwd); // follows the lead if its folder moved
+                    c.mode = lead.mode; // and its mode
+                    with_slot(&mut c.ext, |x| match &capped {
+                        Some(cap) => x.insert("capped".into(), cap.clone()),
+                        None => x.remove("capped"),
+                    });
+                    self.persist(&mut c, Vec::new()).await?;
+                }
+                let f = self.follow_up(FollowUpArgs { id: SessionId(cid.clone()), text: prompt.clone(), queue: Some(false), by: Some("lead".into()), ..FollowUpArgs::default() }).await?;
+                (cid, f.turn_id)
+            }
+            _ => {
+                let mut ext = BTreeMap::new();
+                let mut own = serde_json::Map::new();
+                own.insert("member".into(), json!(slot_name));
+                if let Some(cap) = &capped {
+                    own.insert("capped".into(), cap.clone());
+                }
+                ext.insert(SLOT.to_owned(), Value::Object(own));
+                let c = self
+                    .create(StartArgs {
+                        prompt: prompt.clone(),
+                        agent: Some(str_at(m, "agent")).filter(|x| !x.is_empty() && x != "auto"),
+                        model: Some(str_at(m, "model")).filter(|x| !x.is_empty()),
+                        effort: Some(str_at(m, "effort")).filter(|x| !x.is_empty()),
+                        mode: Some(lead.mode),
+                        cwd: Some(lead.cwd.clone()),
+                        dirs: lead.dirs.clone(),
+                        parent_id: Some(lead.id.clone()),
+                        by: Some("lead".into()),
+                        ext,
+                        ..StartArgs::default()
+                    })
+                    .await?;
+                made.insert(slot_name.clone(), json!(c.id));
+                (c.id.0, c.turn_id)
+            }
+        })
+    }
+
+    /// `runtime.results`: the subagents' reports, waiting up to `wait` seconds (kernel clock) for them
+    /// to finish. No ids: every task delegated on the lead's last turn.
     pub async fn results(self: &Arc<Self>, a: ResultsArgs) -> Result<Reports> {
-        let until = tokio::time::Instant::now() + Duration::from_secs(u64::from(a.wait.unwrap_or(0).min(600)));
+        let until = self.now() + i64::from(a.wait.unwrap_or(0).min(600)) * 1000;
+        let ids: Vec<String> = if a.ids.is_empty() {
+            let t = self.last_turn(a.id.as_str()).await?;
+            t.as_ref().and_then(|t| t.ext.get(SLOT)).and_then(|x| x.get("delegations")).and_then(Value::as_array).into_iter().flatten().map(|d| str_at(d, "sessionId")).collect()
+        } else {
+            a.ids.iter().map(|i| i.0.clone()).collect()
+        };
         loop {
             let mut reports = Vec::new();
             let mut all_done = true;
-            for id in &a.ids {
-                let s = self.repo.session(id.as_str()).await?;
+            for id in &ids {
+                let s = self.repo.session(id).await?;
                 if s.parent_id.as_ref() != Some(&a.id) {
                     continue;
                 }
-                let last = self.last_turn(id.as_str()).await?;
+                let last = self.last_turn(id).await?;
                 let done = s.state != SessionState::Running;
                 all_done &= done;
                 let text = last.as_ref().and_then(|t| t.text.clone()).unwrap_or_default();
                 let cost = last.as_ref().and_then(|t| t.stats.as_ref()).and_then(|x| x.cost_usd);
-                reports.push(Report { id: s.id.clone(), subagent: s.agent.clone(), state: s.state, done, text, cost_usd: cost });
+                let name = slot(&s).and_then(|m| m.get("member")).and_then(Value::as_str).map_or_else(|| s.agent.clone(), str::to_owned);
+                reports.push(Report { id: s.id.clone(), subagent: name, state: s.state, done, text, cost_usd: cost });
             }
-            if all_done || tokio::time::Instant::now() >= until {
+            if all_done || self.now() >= until {
                 return Ok(Reports { reports });
             }
-            tokio::time::sleep(Duration::from_millis(250)).await;
+            self.clock.sleep(POLL_MS).await;
         }
     }
 
@@ -450,7 +703,7 @@ impl Runtime {
         if t.ext.get(SLOT).and_then(|x| x.get("overage")).is_some() {
             return Ok(());
         }
-        slot_mut(&mut t.ext).insert("overage".into(), json!({ "kind": kind, "at": self.now() }));
+        with_slot(&mut t.ext, |m| m.insert("overage".into(), json!({ "kind": kind, "at": self.now() })));
         let mut s = self.repo.session(id).await?;
         self.persist(&mut s, vec![t]).await.map(|_| ())
     }

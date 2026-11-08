@@ -6,6 +6,7 @@ import type { RunPick } from "./RunPick";
 
 export type FollowUpArgs = { id: SessionId, text: string, attachments?: Array<Attachment>, 
 /**
- * true (the default): wait in the queue if a turn is running; false: interrupt and send now
+ * true: wait in the queue if a turn is running; false (the default, v1 `reply`): interrupt the
+ * running turn once its harness session is known, and send now
  */
 queue?: boolean, mode?: Mode, run?: RunPick, by?: string, };

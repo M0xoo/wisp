@@ -202,3 +202,12 @@ pub trait AccountsProvider: Send + Sync + 'static {
         false
     }
 }
+
+/// How a task's agent reaches this wisp (v1 `WISP_URL` / `WISP_TOKEN` and the `mcp-ask.js` server): the
+/// edge's address and a token that speaks for that one task (`agent:session`). The install provides
+/// it as a kernel service (`Arc<dyn AgentAccess>`); without one, runs get no wisp MCP server.
+pub trait AgentAccess: Send + Sync + 'static {
+    /// `http://127.0.0.1:<port>`, no trailing slash
+    fn url(&self) -> String;
+    fn token(&self, session: &str) -> String;
+}

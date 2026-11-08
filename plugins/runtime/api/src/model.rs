@@ -21,6 +21,8 @@ pub type Ext = BTreeMap<String, Value>;
 #[ts(export, export_to = "runtime/")]
 pub enum SessionState {
     Running,
+    /// the agent asked the user something and waits on the answer (v1 `waiting`)
+    Waiting,
     #[default]
     Review,
     Done,

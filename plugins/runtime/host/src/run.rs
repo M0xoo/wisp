@@ -243,6 +243,16 @@ impl Runtime {
         for part in self.host.run_parts() {
             env.extend(part.env(s));
         }
+        // wisp's own MCP server (ask_user, delegate, wisp_save…), with a token for this task only
+        let mut mcp_servers = BTreeMap::new();
+        if let Some(acc) = self.host.agent_access() {
+            let (url, token) = (acc.url(), acc.token(s.id.as_str()));
+            if info.ask_tool.is_some() {
+                mcp_servers.insert("wisp".to_owned(), serde_json::json!({ "type": "http", "url": format!("{url}/api/mcp"), "headers": { "x-wisp-token": token, "x-wisp-session": s.id.0 } }));
+            }
+            env.insert("WISP_URL".into(), url);
+            env.insert("WISP_TOKEN".into(), token);
+        }
         HarnessRun {
             session_id: s.id.0.clone(),
             turn_id: t.id.0.clone(),
@@ -255,6 +265,7 @@ impl Runtime {
             model: s.model.clone(),
             effort: s.effort.clone(),
             system_prompt: system,
+            mcp_servers,
             env,
             account_env: ctx.account_env.clone(),
             untrusted: ctx.untrusted,

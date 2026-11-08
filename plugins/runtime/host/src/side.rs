@@ -58,7 +58,9 @@ impl Runtime {
         let mut driver = h.driver(run);
         let (mut side, mut done) = (SideOut::default(), false);
         let (mut buf, mut stderr) = (Vec::<u8>::new(), String::new());
-        let deadline = tokio::time::Instant::now() + timeout;
+        // the deadline on the kernel's clock (a test's FakeClock drives it)
+        let deadline = self.clock.sleep(u64::try_from(timeout.as_millis()).unwrap_or(u64::MAX));
+        tokio::pin!(deadline);
         loop {
             tokio::select! {
                 o = rx.recv() => match o {
@@ -81,7 +83,7 @@ impl Runtime {
                     }
                     None => break,
                 },
-                () = tokio::time::sleep_until(deadline) => {
+                () = &mut deadline => {
                     side.timed_out = true;
                     break;
                 }

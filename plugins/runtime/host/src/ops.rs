@@ -314,12 +314,17 @@ impl Runtime {
                 .map(|t| t.id.0)
                 .ok_or_else(|| RuntimeError::NoTurn("last".into()))?,
         };
-        let seq = self.repo.next_seq(id).await?;
         let a = Activity::Notice {
             text: label.chars().take(300).collect(),
             tone,
         };
-        let row = rows::event_row(id, &tid, seq, self.now(), &a)?;
+        self.add_row(id, &tid, a).await
+    }
+
+    /// A row in a turn's activity from outside its run (a note, a question, an answer, a delegation).
+    pub(crate) async fn add_row(self: &Arc<Self>, id: &str, tid: &str, a: Activity) -> Result<()> {
+        let seq = self.alloc_seq(id).await?;
+        let row = rows::event_row(id, tid, seq, self.now(), &a)?;
         self.repo
             .store
             .write(move |w| w.append("event", vec![row]).map(drop))
@@ -332,7 +337,7 @@ impl Runtime {
         self.host
             .emit(Emitted::Activity(wisp_runtime_api::events::TurnActivity {
                 session_id: id.into(),
-                turn_id: tid.as_str().into(),
+                turn_id: tid.into(),
                 items: vec![step],
             }));
         Ok(())

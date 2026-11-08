@@ -34,7 +34,12 @@ pub struct Runtime {
     pub(crate) list: Mutex<BTreeMap<String, Arc<Summary>>>,
     pub(crate) live: Mutex<HashMap<String, Live>>,
     locks: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
-    asks: Mutex<HashMap<String, crate::more::AskSlot>>,
+    /// open questions: ask id → its task (rebuilt at start from the tasks that wait on one)
+    asks: Mutex<HashMap<String, String>>,
+    /// answers not read yet by `pollAnswer`: ask id → the answer
+    answers: Mutex<HashMap<String, String>>,
+    /// each task's next activity seq: a turn's drive and wisp's own rows share it
+    seqs: Mutex<HashMap<String, u64>>,
     sign_ins: Mutex<HashMap<String, crate::more::SignIn>>,
 }
 
@@ -62,6 +67,8 @@ impl Runtime {
             live: Mutex::default(),
             locks: Mutex::default(),
             asks: Mutex::default(),
+            answers: Mutex::default(),
+            seqs: Mutex::default(),
             sign_ins: Mutex::default(),
         })
     }
@@ -75,9 +82,21 @@ impl Runtime {
                 list.insert(s.id.0.clone(), Arc::new(s));
             }
         }
+        // questions open when wisp stopped stay answerable: the ask is on the task (v1 `session.ask`)
+        let waiting: Vec<String> = self.lock_list().values().filter(|s| s.state == SessionState::Waiting).map(|s| s.id.0.clone()).collect();
         for t in self.repo.running_turns().await? {
             let s = self.repo.session(t.session_id.as_str()).await?;
             self.end_unfinished(s, t).await?;
+        }
+        for id in waiting {
+            let mut s = self.repo.session(&id).await?;
+            let Some(ask) = crate::more::ask_id(&s) else { continue };
+            self.asks().insert(ask, id);
+            if s.state != SessionState::Waiting {
+                // the turn that asked ended with wisp; the task still waits on the user
+                s.state = SessionState::Waiting;
+                self.persist(&mut s, Vec::new()).await?;
+            }
         }
         Ok(())
     }
@@ -86,8 +105,34 @@ impl Runtime {
         lock(&self.list)
     }
 
-    pub(crate) fn asks(&self) -> std::sync::MutexGuard<'_, HashMap<String, crate::more::AskSlot>> {
+    pub(crate) fn asks(&self) -> std::sync::MutexGuard<'_, HashMap<String, String>> {
         lock(&self.asks)
+    }
+
+    pub(crate) fn answers(&self) -> std::sync::MutexGuard<'_, HashMap<String, String>> {
+        lock(&self.answers)
+    }
+
+    /// The next activity seq of task `sid` (read from the store the first time).
+    pub(crate) async fn alloc_seq(&self, sid: &str) -> Result<u64> {
+        if let Some(n) = lock(&self.seqs).get_mut(sid) {
+            *n += 1;
+            return Ok(*n - 1);
+        }
+        let first = self.repo.next_seq(sid).await?;
+        let mut m = lock(&self.seqs);
+        let n = m.entry(sid.to_owned()).or_insert(first);
+        *n += 1;
+        Ok(*n - 1)
+    }
+
+    /// The drive's own allocation: synchronous, from a counter its start seeded.
+    pub(crate) fn alloc_seq_now(&self, sid: &str, seed: u64) -> u64 {
+        let mut m = lock(&self.seqs);
+        let n = m.entry(sid.to_owned()).or_insert(seed);
+        *n = (*n).max(seed);
+        *n += 1;
+        *n - 1
     }
 
     pub(crate) fn sign_ins(&self) -> std::sync::MutexGuard<'_, HashMap<String, crate::more::SignIn>> {
@@ -239,10 +284,13 @@ impl Runtime {
             ext: a.ext.clone(),
             ..Session::default()
         };
-        s.ext.insert(
-            "wisp.runtime".into(),
-            serde_json::json!({ "titleAuto": a.title.is_none() }),
-        );
+        // the caller's own fields in runtime's slot (a lead's team, a cap) stay
+        let mut own = match s.ext.remove("wisp.runtime") {
+            Some(serde_json::Value::Object(m)) => m,
+            _ => serde_json::Map::new(),
+        };
+        own.insert("titleAuto".into(), a.title.is_none().into());
+        s.ext.insert("wisp.runtime".into(), serde_json::Value::Object(own));
         let summary = self.persist(&mut s, Vec::new()).await?;
         self.host.emit(Emitted::Created(SessionCreated {
             session: (*summary).clone(),
@@ -311,11 +359,11 @@ impl Runtime {
                 held: &mut held,
             },
             run,
-            self.asking(a.id.as_str()),
+            crate::more::ask_id(&s).is_some(),
             last_held,
             Incoming {
                 item,
-                queue: a.queue.unwrap_or(true),
+                queue: a.queue.unwrap_or(false),
                 has_extras,
                 hold: false,
             },
@@ -406,7 +454,7 @@ impl Runtime {
         for step in self.host.after_steps() {
             step.cancel(&s, true, None);
         }
-        self.cancel_asks(id);
+        self.cancel_asks(&mut s);
         if plan.stop_run {
             self.stop_run(id);
         } else if s.state == SessionState::Running {
