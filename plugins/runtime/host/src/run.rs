@@ -168,6 +168,8 @@ impl Runtime {
             Ok(h) => h,
             Err(e) => return self.refused(s, turn, &e.to_string()).await,
         };
+        // one-off extras a command left for this run (approveBlocked's grants, a fork's first run)
+        let next = s.ext.get_mut("wisp.runtime").and_then(Value::as_object_mut).and_then(|o| o.remove("next")).unwrap_or(Value::Null);
         s.state = SessionState::Running;
         s.unread = false;
         s.archived = false;
@@ -177,7 +179,12 @@ impl Runtime {
             session_id: s.id.clone(),
             turn_id: turn.id.clone(),
         }));
-        let run = self.harness_run(&s, &turn, &ctx, harness.as_ref());
+        let mut run = self.harness_run(&s, &turn, &ctx, harness.as_ref());
+        run.grants = next.get("grants").and_then(Value::as_array).map(|g| g.iter().filter_map(Value::as_str).map(str::to_owned).collect()).unwrap_or_default();
+        run.fork = next.get("fork").and_then(Value::as_bool).unwrap_or(false) && harness.info().fork;
+        if next.get("once").and_then(Value::as_str) == Some("auto") {
+            run.mode = Mode::Auto;
+        }
         if let Err(e) = self.spawn_run(&s, &turn, &harness, &run).await {
             let text = e.to_string();
             self.finish_now(s.id.as_str(), turn.id.as_str(), &text)

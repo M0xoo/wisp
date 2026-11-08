@@ -34,6 +34,8 @@ pub struct Runtime {
     pub(crate) list: Mutex<BTreeMap<String, Arc<Summary>>>,
     pub(crate) live: Mutex<HashMap<String, Live>>,
     locks: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
+    asks: Mutex<HashMap<String, crate::more::AskSlot>>,
+    sign_ins: Mutex<HashMap<String, crate::more::SignIn>>,
 }
 
 impl std::fmt::Debug for Runtime {
@@ -59,6 +61,8 @@ impl Runtime {
             list: Mutex::default(),
             live: Mutex::default(),
             locks: Mutex::default(),
+            asks: Mutex::default(),
+            sign_ins: Mutex::default(),
         })
     }
 
@@ -80,6 +84,14 @@ impl Runtime {
 
     pub(crate) fn lock_list(&self) -> std::sync::MutexGuard<'_, BTreeMap<String, Arc<Summary>>> {
         lock(&self.list)
+    }
+
+    pub(crate) fn asks(&self) -> std::sync::MutexGuard<'_, HashMap<String, crate::more::AskSlot>> {
+        lock(&self.asks)
+    }
+
+    pub(crate) fn sign_ins(&self) -> std::sync::MutexGuard<'_, HashMap<String, crate::more::SignIn>> {
+        lock(&self.sign_ins)
     }
 
     pub(crate) fn now(&self) -> i64 {
@@ -299,7 +311,7 @@ impl Runtime {
                 held: &mut held,
             },
             run,
-            false,
+            self.asking(a.id.as_str()),
             last_held,
             Incoming {
                 item,
@@ -340,7 +352,12 @@ impl Runtime {
                     queued: s.queue.first().map(|q| q.id.clone()),
                 }
             }
-            Plan::Answer(_) | Plan::Hold(_) => FollowedUp {
+            Plan::Answer(item) => {
+                self.persist(&mut s, Vec::new()).await?;
+                self.answer_locked(&a.id, &item.text).await?;
+                return Ok(FollowedUp { turn_id: None, queued: None });
+            }
+            Plan::Hold(_) => FollowedUp {
                 turn_id: None,
                 queued: None,
             },
@@ -389,6 +406,7 @@ impl Runtime {
         for step in self.host.after_steps() {
             step.cancel(&s, true, None);
         }
+        self.cancel_asks(id);
         if plan.stop_run {
             self.stop_run(id);
         } else if s.state == SessionState::Running {

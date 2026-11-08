@@ -165,6 +165,72 @@
       {
         "id": "runtime.import",
         "title": "Import v1's tasks"
+      },
+      {
+        "id": "runtime.ask",
+        "title": "An agent asks the user a question"
+      },
+      {
+        "id": "runtime.answer",
+        "title": "Answer an agent's question"
+      },
+      {
+        "id": "runtime.pollAnswer",
+        "title": "Has the question been answered",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.approval",
+        "title": "A live approval of a tool call"
+      },
+      {
+        "id": "runtime.approveBlocked",
+        "title": "Allow what the last turn's permissions blocked"
+      },
+      {
+        "id": "runtime.btw",
+        "title": "A side question on a copy of the conversation"
+      },
+      {
+        "id": "runtime.btw.drop",
+        "title": "Drop a side question"
+      },
+      {
+        "id": "runtime.compact",
+        "title": "Compact the conversation"
+      },
+      {
+        "id": "runtime.rerun",
+        "title": "Run a signed-out turn again"
+      },
+      {
+        "id": "runtime.fork",
+        "title": "Fork the task from a turn"
+      },
+      {
+        "id": "runtime.delegate",
+        "title": "Start subagents"
+      },
+      {
+        "id": "runtime.results",
+        "title": "Subagents' reports",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.quick",
+        "title": "One answer from a harness, outside any task"
+      },
+      {
+        "id": "runtime.signIn",
+        "title": "Rerun this turn when its sign-in lands"
+      },
+      {
+        "id": "runtime.signInDone",
+        "title": "A sign-in finished"
+      },
+      {
+        "id": "runtime.overage",
+        "title": "A turn billed past its plan"
       }
     ],
     "topics": [
