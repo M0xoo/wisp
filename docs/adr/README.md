@@ -39,3 +39,4 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0031](0031-no-v1-compatibility.md) | No compatibility with v1 interfaces (routes, events, spells, dual-write, v1 peers); keep v1 look as spec + one-time importer |
 | [0033](0033-repo-carries-its-agent-history.md) | A repo carries its agent history in `.wisp/` (specs, reports, formulas; blame, log, resume) |
 | [0034](0034-formulas-as-modules.md) | Formulas are folders with references, variables, outputs and modules (Terraform-style); state is the store |
+| [0035](0035-adopt-outside-sessions.md) | Sessions run outside wisp (Claude Code, Codex, …) become wisp tasks: wisp adopt, hooks, Adopt in app/TUI |
