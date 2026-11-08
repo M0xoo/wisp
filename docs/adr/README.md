@@ -32,3 +32,4 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0023](0023-terminal-context.md) | `wisp` reads the terminal it ran in (tmux, WezTerm, kitty, iTerm2, Terminal, VS Code, shell hook), scrubbed |
 | [0024](0024-frontends-are-plugins.md) | GUI, TUI and CLI are frontend plugins over the same catalogue, topics and sync protocol |
 | [0025](0025-jiff-for-time-zones.md) | jiff for time zones (later, host crates only) |
+| [0026](0026-wisp-as-code.md) | wisp as code: resources owned by plugins; `wisp apply/export/diff`, `--formula`, `grid deploy` |
