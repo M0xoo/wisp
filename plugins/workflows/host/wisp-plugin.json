@@ -1,0 +1,31 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.workflows",
+  "name": "Workflows",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "orchestration as code: DAGs of task specs with needs, if, matrix, outputs, retries, timeouts, budget and concurrency",
+  "kind": "plugin",
+  "server": {
+    "builtin": "wisp_workflows"
+  },
+  "permissions": [
+    "runtime:create",
+    "runtime:get",
+    "runtime:turns",
+    "runtime:stop",
+    "runtime:setExt",
+    "runtime:setState",
+    "store:write{owner:workflows}"
+  ],
+  "activation": ["onStartup"],
+  "requires": {},
+  "contributes": {
+    "commands": [
+      { "id": "workflows.list", "title": "Workflows", "readOnly": true },
+      { "id": "workflows.set", "title": "Add or change a workflow" },
+      { "id": "workflows.remove", "title": "Remove a workflow" },
+      { "id": "workflows.run", "title": "Run a workflow" }
+    ]
+  }
+}
