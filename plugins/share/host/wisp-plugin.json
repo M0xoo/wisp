@@ -1,0 +1,32 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.share",
+  "name": "Share",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "share a task as a signed .wisp-task bundle (spec, report or full), previewed with its redactions; open one someone sent",
+  "kind": "plugin",
+  "server": {
+    "builtin": "wisp_share"
+  },
+  "permissions": [
+    "runtime:get",
+    "runtime:spec",
+    "runtime:snapshot",
+    "runtime:turns",
+    "runtime:activity",
+    "runtime:list",
+    "runtime:agents",
+    "runtime:adopt",
+    "crew:read"
+  ],
+  "requires": {},
+  "contributes": {
+    "commands": [
+      { "id": "share.preview", "title": "What a share of this task would send", "readOnly": true },
+      { "id": "share.bundle", "title": "Share a task (a signed bundle)" },
+      { "id": "share.open", "title": "Open a shared task", "readOnly": true },
+      { "id": "share.import", "title": "Import a shared task, read-only" }
+    ]
+  }
+}
