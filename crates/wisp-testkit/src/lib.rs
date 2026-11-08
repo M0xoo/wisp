@@ -170,14 +170,18 @@ impl TestApp {
 
 /// A declarative stand-in whose version satisfies `range` (the lowest x.y.0 that does).
 fn stub_manifest(id: &str, range: &str) -> Manifest {
-    let version = (0..50).flat_map(|x| (0..50).map(move |y| format!("{x}.{y}.0"))).find(|v| wisp_kernel::semver::satisfies(v, range)).unwrap_or_else(|| "1.0.0".into());
+    let version = (0..50)
+        .flat_map(|x| (0..50).map(move |y| format!("{x}.{y}.0")))
+        .find(|v| wisp_kernel::semver::satisfies(v, range))
+        .unwrap_or_else(|| "1.0.0".into());
     Manifest::from_value(json!({ "wispPlugin": 1, "id": id, "version": version, "api": "^1", "description": "a testkit stub" })).expect("stub manifest")
 }
 
 fn state(k: &Kernel, id: &str) -> (String, Option<String>) {
-    k.status()
-        .into_iter()
-        .find(|s| s.id == id).map_or_else(|| panic!("{id} isn't in the kernel"), |s| (s.state, s.reason))
+    k.status().into_iter().find(|s| s.id == id).map_or_else(
+        || panic!("{id} isn't in the kernel"),
+        |s| (s.state, s.reason),
+    )
 }
 
 /// Free test (plan §6.10): start the plugin, switch it off, and nothing it registered is left:

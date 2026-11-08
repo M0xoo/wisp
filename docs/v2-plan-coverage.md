@@ -10,12 +10,12 @@ Status: ✅ done · 🟡 in progress · ⬜ not started
 
 | Plan § | What it asks | Where | Owner | Status |
 |---|---|---|---|---|
-| §0 Data | SQLite WAL STRICT, append-only events, change feed | `crates/wisp-store` | store | ⬜ |
-| §0 Sync | topics + cursor on SSE, JSON Patch, POST commands, idempotency, retention, resync | `crates/wisp-sync`, `crates/wisp-api`, `packages/sync` (client) | sync, api | 🟡 client ✅ |
-| §0 Native | PTY + process trees in Rust | `crates/wisp-proc` (from native/) | proc | 🟡 |
+| §0 Data | SQLite WAL STRICT, append-only events, change feed | `crates/wisp-store` | store | ✅ 78 tests, WA 14.1× (G1 rerun idle) |
+| §0 Sync | topics + cursor on SSE, JSON Patch, POST commands, idempotency, retention, resync | `crates/wisp-sync`, `crates/wisp-api`, `packages/sync` (client) | sync, api | ✅ G3 5.1×; store wiring into edge ⬜ |
+| §0 Native | PTY + process trees in Rust | `crates/wisp-proc` | proc | ✅ G12 1,000 runs, 0 orphans |
 | §0 Views | Solid (G10 tie → Solid) | `packages/ui`, `apps/web` | kit, ui-* | 🟡 |
 | §0 Components | `@wisp/ui` on Zag, token-only CSS, `@layer`s, `data-part` | `packages/ui`, `packages/tokens` | kit | 🟡 |
-| §0 Extensibility | one concept: plugins; same power for users | kernel + every plugin | kernel | 🟡 contract |
+| §0 Extensibility | one concept: plugins; same power for users | kernel + every plugin | kernel | ✅ kernel 72 tests |
 | §0 Shells | Tauri desktop + Android Capacitor, both with their own frontend | `apps/desktop`, `mobile/` | shells | ⬜ |
 | §1 Principles | few moving parts, one adapter per harness, crash-safe writes, narrow security, stable names, optimistic UI, slow links, docs checked | rules in AGENTS.md, tools/check | all | 🟡 |
 | §2 Experiments | benches rerunnable in `spikes/` | `spikes/` | each owner | 🟡 |

@@ -103,8 +103,11 @@ fn main() {
 }
 
 fn find<'a>(prs: &'a mut Map<String, Value>, r: &str) -> Option<&'a mut Value> {
-    prs.values_mut()
-        .find(|p| p["number"] == r || p["url"] == r || p["headRefName"] == r)
+    prs.values_mut().find(|p| {
+        p["number"].as_u64().is_some_and(|n| n.to_string() == r)
+            || p["url"] == r
+            || p["headRefName"] == r
+    })
 }
 
 fn run(argv: &[String], a: &str, b: &str, state: &mut Value) -> String {
@@ -221,7 +224,9 @@ fn api(route: &str, state: &Value) -> String {
         .strip_prefix("repos/")
         .filter(|r| r.matches('/').count() == 1)
     {
-        return if let Some(r) = state["repos"].get(repo) { r.to_string() } else {
+        return if let Some(r) = state["repos"].get(repo) {
+            r.to_string()
+        } else {
             println!("{}", json!({ "message": "Not Found" }));
             fail("gh: Not Found (HTTP 404)")
         };

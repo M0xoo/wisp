@@ -43,7 +43,7 @@ fn git(id: &str, who: &'static str, builtin: bool) -> common::P {
         json!({ "provides": { "git.service": { "version": "1.0.0" } }, "trust": "untrusted" })
     };
     common::plugin(id, extra, move |s| {
-        s.provide::<GitService>(Arc::new(Real(who)))
+        s.provide::<GitService>(Arc::new(Real(who)));
     })
 }
 
@@ -192,7 +192,7 @@ async fn services_by_contract_with_provider_choice_and_service_gone() {
 #[tokio::test]
 async fn an_undeclared_service_or_a_version_mismatch_is_refused() {
     let sneaky = common::plugin("wisp.sneaky", json!({}), |s| {
-        s.provide::<GitService>(Arc::new(Real("x")))
+        s.provide::<GitService>(Arc::new(Real("x")));
     });
     let old = common::bare("acme.old", json!({ "requires": { "wisp.base": "^2" } }));
     let k = common::start(
@@ -406,7 +406,7 @@ async fn kernel_services_are_overridable() {
     let p = common::plugin("wisp.paths", json!({}), |s| {
         s.command::<Where, _, _>(
             |ctx, _, ()| async move { Ok(ctx.service::<Paths>()?.0.to_owned()) },
-        )
+        );
     });
     let k = App::new()
         .service(Paths("/a"))

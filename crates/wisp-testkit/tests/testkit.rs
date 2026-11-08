@@ -110,7 +110,11 @@ async fn interceptor_budgets_run_on_the_fake_clock() {
         }
         tokio::task::yield_now().await;
     }
-    assert_eq!(clock.sleepers(), 2, "the budget timer and the interceptor's own sleep are armed");
+    assert_eq!(
+        clock.sleepers(),
+        2,
+        "the budget timer and the interceptor's own sleep are armed"
+    );
     clock.advance(100); // the 100 ms budget ends before the interceptor's 500 ms
     let e = call.await.unwrap().unwrap_err();
     assert_eq!(e.code, Code::Vetoed);

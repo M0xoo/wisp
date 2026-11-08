@@ -1,0 +1,3 @@
+wisp-kernel is implemented and tested (2026-11-08). Public API: crates/wisp-kernel/src/lib.rs, host.rs (frozen
+signatures kept) and kernel_api.rs (additive). How the store publishes on commit: README.md "For wisp-store".
+Gate: monoflow verify --package=wisp-kernel and --package=wisp-testkit pass; clippy -D warnings clean.

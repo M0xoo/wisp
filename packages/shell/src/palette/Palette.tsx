@@ -118,7 +118,7 @@ export default function Palette(_p: { readonly client: PluginClient; readonly pa
           <For each={shown()}>
             {(r, i) => (
               <>
-                <Show when={headAt(i())}>{(g) => <Text size="xs" tone="faint" weight="medium" part="shell.palette.group">{g()}</Text>}</Show>
+                <Show when={headAt(i())}>{(g) => <Text size="xs" tone="faint" weight="medium" part="shell.palette.group">{shell.client.i18n.has(g()) ? shell.t(g()) : g()}</Text>}</Show>
                 <ListRow
                   id={`palette-row-${i()}`}
                   part="shell.palette.row"
