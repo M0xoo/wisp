@@ -162,6 +162,23 @@ Plan (wisp.yml)
 
   <section class="m-sec">
     <div class="wrap">
+      <span class="m-kicker">Your repo remembers</span>
+      <h2>Every line knows which task wrote it.</h2>
+      <p class="sub">The tasks that built your code live next to it, in <code>.wisp/</code>. Ask why a line is there, read the prompt and the decision behind it, and pick up last month's work on today's code.</p>
+      <div class="m-term" style="margin-top:28px">
+        <div class="m-bar"><i></i><i></i><i></i>&nbsp; ~/code/api</div>
+<pre class="m-pre"><span class="c">$</span> <span class="b">wisp blame auth/session.ts:42</span>
+  01a1bc  <span class="b">Fix the flaky login test</span>  · reviewer (codex) · 3 Nov · PR #812
+  <span class="c">"expiry raced the refresh; refresh now holds the lock until it writes"</span>
+
+<span class="c">$</span> <span class="b">wisp resume 01a1bc "also handle the offline case"</span>
+<span class="g">  ✓ resumed with its spec, summary and report · on today's main</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="m-sec">
+    <div class="wrap">
       <span class="m-kicker">Three ways in, one engine</span>
       <h2>The app, the terminal, or your own code.</h2>
       <p class="sub">The desktop app, the terminal UI and the CLI are all built on the same commands. Anything you can do in one, you can do in the others, and in a script.</p>
