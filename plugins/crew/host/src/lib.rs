@@ -6,6 +6,7 @@
 //! touched. v1's config.json crew is imported once at start.
 
 mod jobs;
+mod kind;
 mod store;
 
 use std::path::PathBuf;
@@ -179,14 +180,15 @@ impl State {
     }
 
     /// A new or edited member, checked against the rest of the crew.
-    pub fn normalize(&self, body: &c::MemberBody, prev: Option<&Member>, now: i64) -> std::result::Result<Member, WireError> {
+    pub fn normalize(&self, body: &c::MemberBody, prev: Option<&Member>, now: i64, profiles: &[String]) -> std::result::Result<Member, WireError> {
         let taken = lock(&self.saved).crew.clone();
         if prev.is_none() && taken.len() >= wisp_crew_api::MAX_CREW {
             return Err(WireError::conflict(format!("A crew has at most {} members.", wisp_crew_api::MAX_CREW)));
         }
         let exists = |p: &str| std::path::Path::new(p).is_dir();
         let machine_ok = |_: &str| false;
-        let checks = Checks { taken: &taken, exists: &exists, machine_ok: &machine_ok, words: &CronOnly };
+        let agent_ok = |a: &str| profiles.iter().any(|p| p == a);
+        let checks = Checks { taken: &taken, exists: &exists, machine_ok: &machine_ok, words: &CronOnly, agent_ok: &agent_ok };
         normalize_member(body, prev, &checks, &mut NewIds, now).map_err(wire)
     }
 }
@@ -211,6 +213,8 @@ impl Plugin for CrewPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
+        let k: Arc<dyn wisp_resources_api::ResourceKind> = Arc::new(kind::CrewKind::new(s.ctx()));
+        s.contribute(&wisp_resources_api::RESOURCE_KIND, k);
         let st = Arc::new(State::new());
         let note: Arc<dyn PromptPart> = Arc::new(Note(st.clone()));
         s.contribute(&PROMPT, note);
@@ -240,11 +244,11 @@ mod tests {
     fn a_member_is_made_from_v1s_body_and_found_by_handle() {
         let st = State::new();
         let body = c::MemberBody { name: Some("Ada Lovelace".into()), role: Some("CI watcher".into()), cron: Some("*/30 * * * *".into()), ..c::MemberBody::default() };
-        let m = st.normalize(&body, None, 1_000).unwrap();
+        let m = st.normalize(&body, None, 1_000, &[]).unwrap();
         assert_eq!((m.name.as_str(), m.cron.as_str(), m.agent.as_str()), ("Ada Lovelace", "*/30 * * * *", "auto"));
         st.put(m.clone());
         assert_eq!(st.member("@ada-lovelace").unwrap().id, m.id);
-        let dup = st.normalize(&c::MemberBody { name: Some("ada lovelace".into()), ..c::MemberBody::default() }, None, 2_000);
+        let dup = st.normalize(&c::MemberBody { name: Some("ada lovelace".into()), ..c::MemberBody::default() }, None, 2_000, &[]);
         assert!(dup.is_err(), "the same name twice");
     }
 }

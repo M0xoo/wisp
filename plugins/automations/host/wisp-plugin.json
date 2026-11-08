@@ -6,9 +6,37 @@
   "api": "^1",
   "description": "triggers, watchers, recipes, cron schedules, inbound webhooks",
   "kind": "plugin",
-  "server": { "builtin": "wisp_automations" },
-  "permissions": [],
+  "server": {
+    "builtin": "wisp_automations"
+  },
+  "permissions": [
+    "runtime:create",
+    "store:write{owner:automations}"
+  ],
   "requires": {},
   "provides": {},
-  "contributes": {}
+  "contributes": {
+    "commands": [
+      {
+        "id": "automations.tasks",
+        "title": "Declared tasks",
+        "readOnly": true
+      },
+      {
+        "id": "automations.task.set",
+        "title": "Declare a task"
+      },
+      {
+        "id": "automations.task.remove",
+        "title": "Remove a declared task"
+      },
+      {
+        "id": "automations.task.run",
+        "title": "Run a declared task"
+      }
+    ]
+  },
+  "activation": [
+    "onStartup"
+  ]
 }

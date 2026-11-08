@@ -8,6 +8,7 @@
 pub mod commands;
 pub mod cron;
 pub mod model;
+pub mod tasks;
 pub mod words;
 
 use std::sync::Arc;

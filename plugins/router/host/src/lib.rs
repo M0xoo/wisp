@@ -6,6 +6,7 @@
 //! writes the rows it touched in one transaction. v1's router.json and `defaults.router` are imported
 //! once at start.
 
+mod kind;
 mod store;
 
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
@@ -133,6 +134,8 @@ impl Plugin for RouterPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
+        let k: Arc<dyn wisp_resources_api::ResourceKind> = Arc::new(kind::RouterKind { ctx: s.ctx() });
+        s.contribute(&wisp_resources_api::RESOURCE_KIND, k);
         let st = Arc::new(State::new());
         let opening = st.clone();
         s.on_start(move |ctx| async move {

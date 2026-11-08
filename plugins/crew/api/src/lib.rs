@@ -7,6 +7,7 @@
 //! host writes through a small port. Wire shapes are v1's (camelCase), so v1 clients keep working.
 
 pub mod commands;
+pub mod spec;
 pub mod events;
 pub mod rows;
 

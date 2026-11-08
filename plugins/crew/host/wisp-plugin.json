@@ -12,6 +12,7 @@
   "permissions": [
     "runtime:create",
     "runtime:get",
+    "runtime:profiles",
     "store:write{owner:crew}"
   ],
   "requires": {},

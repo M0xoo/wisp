@@ -22,6 +22,9 @@ pub struct Checks<'a> {
     pub exists: &'a dyn Fn(&str) -> bool,
     pub machine_ok: &'a dyn Fn(&str) -> bool,
     pub words: &'a dyn Words,
+    /// an agent profile's name (`agents:` in a formula, ADR-0028): a member may name one instead of a
+    /// harness; its jobs' tasks resolve it
+    pub agent_ok: &'a dyn Fn(&str) -> bool,
 }
 
 impl std::fmt::Debug for Checks<'_> {
@@ -135,7 +138,7 @@ fn place(body: &MemberBody, prev: Option<&Member>, c: &Checks) -> Result<(String
     if !cwd.is_empty() && machine.is_empty() && !(c.exists)(&cwd) {
         return Err(bad(format!("Not a folder on this computer: {cwd}")));
     }
-    if agent != "auto" && !HARNESSES.contains(&agent.as_str()) {
+    if agent != "auto" && !HARNESSES.contains(&agent.as_str()) && !(c.agent_ok)(&agent) {
         return Err(bad(format!("Unknown harness: {agent}")));
     }
     Ok((sandbox, machine, agent, cwd))

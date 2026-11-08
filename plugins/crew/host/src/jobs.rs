@@ -124,7 +124,7 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
         Ok(out)
     });
     on!(s, st, c::Create, |st, ctx, call, a| {
-        let m = st.normalize(&a.member, None, now(&ctx))?;
+        let m = st.normalize(&a.member, None, now(&ctx), &profile_names(&ctx, &call).await)?;
         st.put(m.clone());
         st.save().await;
         ctx.emit(&call, &wisp_crew_api::events::Joined { crew_id: m.id.clone(), name: m.name.clone(), how: "create".into() });
@@ -136,7 +136,7 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
         if let Some(keep) = &a.queue {
             prev.queue.retain(|w| keep.contains(&w.id)); // drop waiting jobs
         }
-        let m = st.normalize(&a.member, Some(&prev), now(&ctx))?;
+        let m = st.normalize(&a.member, Some(&prev), now(&ctx), &profile_names(&ctx, &call).await)?;
         st.put(m.clone());
         st.save().await;
         ctx.emit(&call, &wisp_crew_api::events::MemberChanged { crew_id: m.id.clone() });
@@ -228,4 +228,9 @@ async fn run_tick(ctx: &Ctx, st: &State) {
         }
     }
     st.save().await;
+}
+
+/// The agent profiles a member may name (wisp.runtime's `runtime.profiles`).
+async fn profile_names(ctx: &wisp_kernel::Ctx, call: &wisp_kernel::Call) -> Vec<String> {
+    ctx.run_json(call, "runtime.profiles", serde_json::json!({})).await.ok().and_then(|v| v.as_array().map(|a| a.iter().filter_map(|p| p.get("name").and_then(serde_json::Value::as_str).map(str::to_owned)).collect())).unwrap_or_default()
 }

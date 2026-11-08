@@ -11,6 +11,7 @@ publish.workspace = true
 serde.workspace = true
 regex.workspace = true
 serde_json.workspace = true
+schemars.workspace = true
 ts-rs.workspace = true
 wisp-kernel.workspace = true
 

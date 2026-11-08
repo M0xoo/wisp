@@ -3,6 +3,8 @@
 //! keeps nothing itself: values live in the registry, saved through the store; a v1 install's
 //! `config.json` defaults are carried over once at start.
 
+mod kind;
+
 use std::sync::Arc;
 
 use serde_json::{Map, Value, json};
@@ -68,6 +70,8 @@ impl Plugin for SettingsPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
+        let k: Arc<dyn wisp_resources_api::ResourceKind> = Arc::new(kind::SettingKind { ctx: s.ctx() });
+        s.contribute(&wisp_resources_api::RESOURCE_KIND, k);
         s.command::<api::List, _, _>(|ctx, _call, _a| async move { ctx.settings_list() });
         s.command::<api::Get, _, _>(|ctx, _call, a| async move { Ok(ctx.setting(&a.key).unwrap_or(Value::Null)) });
         s.command::<api::Set, _, _>(|ctx, _call, a| async move {
