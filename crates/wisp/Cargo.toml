@@ -63,6 +63,7 @@ wisp-kernel.workspace = true
 wisp-api.workspace = true
 wisp-protocol.workspace = true
 wisp-store.workspace = true
+wisp-runtime-api.workspace = true
 wisp-proc = { workspace = true, optional = true }
 wisp-settings = { path = "../../plugins/settings/host", optional = true }
 wisp-runtime = { path = "../../plugins/runtime/host", optional = true }

@@ -52,6 +52,22 @@ fn peer(kernel: &Kernel) -> wisp_protocol::PeerInfo {
     wisp_protocol::PeerInfo { peer: name.clone(), name, build: VERSION.into(), version: VERSION.into(), proto_min: 2, proto_max: 2, plugins }
 }
 
+/// How a task's agent reaches this wisp: the edge's address, and the task's own token (HMAC of the
+/// master token, `agent:session` for that task only; wisp-api's auth checks it).
+struct Access {
+    url: String,
+    master: String,
+}
+
+impl wisp_runtime_api::points::AgentAccess for Access {
+    fn url(&self) -> String {
+        self.url.clone()
+    }
+    fn token(&self, session: &str) -> String {
+        wisp_api::auth::session_token(&self.master, session)
+    }
+}
+
 #[derive(Debug)]
 pub struct Running {
     pub server: Server,
@@ -88,13 +104,20 @@ pub async fn boot(home: &Path, port: u16, host: Option<&str>) -> Result<Running>
     let group = env("WISP_PLUGINS").and_then(|g| Group::named(&g)).unwrap_or(fallback);
     tracing::info!("plugins in this build: {:?}", crate::groups::compiled(group));
     let store = open_store(home)?;
-    let app = crate::services::provide(App::new(), home, VERSION, notify).service(store.clone()).plugins(group.build(&at));
+    // bound first: the agents' runs are told this address before the edge serves it
+    let ip: IpAddr = host.or(env("WISP_HOST").as_deref()).unwrap_or("127.0.0.1").parse().map_err(|_| CliError::said("WISP_HOST is not an IP address"))?;
+    let listener = tokio::net::TcpListener::bind((ip, port)).await.map_err(|e| {
+        if e.kind() == std::io::ErrorKind::AddrInUse { CliError::said(format!("port {port} is in use: is wisp already running? (wisp --port N picks another)")) } else { CliError::Io(e) }
+    })?;
+    let master = master_token();
+    let access: Arc<dyn wisp_runtime_api::points::AgentAccess> = Arc::new(Access { url: format!("http://127.0.0.1:{}", listener.local_addr().map_or(port, |a| a.port())), master: master.clone() });
+    let app = crate::services::provide(App::new(), home, VERSION, notify).service(store.clone()).service(access).plugins(group.build(&at));
     let kernel = app.start().await.map_err(|e| CliError::said(format!("wisp could not start: {}", e.message)))?;
     for s in kernel.status().iter().filter(|s| s.state == "refused") {
         tracing::warn!("plugin {} refused: {}", s.id, s.reason.as_deref().unwrap_or(""));
     }
     let proxy = TrustedProxy::new(env("WISP_TRUSTED_PROXY_SECRET").as_deref(), env("WISP_PUBLIC_URL").as_deref());
-    let mut cfg = EdgeConfig::new(master_token(), VERSION);
+    let mut cfg = EdgeConfig::new(master, VERSION);
     cfg.previews = proxy.on() && env("WISP_PREVIEW_URL").is_some();
     cfg.proxy = proxy;
     cfg.web_dir = web_dir();
@@ -113,10 +136,7 @@ pub async fn boot(home: &Path, port: u16, host: Option<&str>) -> Result<Running>
     let feed = wisp_api::v2_store::feed(&store, driver.clone());
     hub.mount(driver);
     let edge = Edge::new(cfg, backend, hub);
-    let ip: IpAddr = host.or(env("WISP_HOST").as_deref()).unwrap_or("127.0.0.1").parse().map_err(|_| CliError::said("WISP_HOST is not an IP address"))?;
-    let listener = tokio::net::TcpListener::bind((ip, port)).await.map_err(|e| {
-        if e.kind() == std::io::ErrorKind::AddrInUse { CliError::said(format!("port {port} is in use: is wisp already running? (wisp --port N picks another)")) } else { CliError::Io(e) }
-    })?;
+
     let server = wisp_api::serve(edge, listener).await?;
     Ok(Running { server, kernel, started, store, feed })
 }

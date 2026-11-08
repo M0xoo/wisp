@@ -6,6 +6,7 @@
 
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
@@ -14,13 +15,26 @@ use serde_json::{Value, json};
 struct Serve {
     child: Child,
     dir: PathBuf,
+    keep: bool,
+}
+
+impl Serve {
+    /// Stops the server and keeps its home, for a restart on the same `WISP_HOME`.
+    fn stop(mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        let _ = std::fs::remove_file(self.dir.join("home/server.json"));
+        self.keep = true;
+    }
 }
 
 impl Drop for Serve {
     fn drop(&mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
-        let _ = std::fs::remove_dir_all(&self.dir);
+        if !self.keep {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
     }
 }
 
@@ -67,7 +81,7 @@ fn start_with(dir: &Path, env: &[(&str, &str)]) -> (Serve, u16) {
         .stderr(log)
         .spawn()
         .unwrap();
-    let serve = Serve { child, dir: dir.to_owned() };
+    let serve = Serve { child, dir: dir.to_owned(), keep: false };
     let at = Instant::now();
     loop {
         if let Some(port) = std::fs::read(home.join("server.json")).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).and_then(|v| v["port"].as_u64()) {
@@ -229,30 +243,109 @@ async fn follow_up_queue_and_stop_keep_the_queue() {
     drop(serve);
 }
 
+async fn activity(api: &Api, id: &str, turn: &str) -> Vec<String> {
+    let page = api.cmd("runtime.activity", json!({ "id": id, "turnId": turn })).await;
+    page["items"].as_array().into_iter().flatten().filter_map(|x| x["label"].as_str().or_else(|| x["text"].as_str()).map(str::to_owned)).collect()
+}
+
 #[tokio::test(flavor = "multi_thread")]
-async fn an_agents_question_is_answered_by_the_reply() {
+async fn a_question_asked_mid_turn_survives_a_restart_and_the_reply_answers_it() {
     let dir = temp("serve-ask");
-    let (serve, port) = start(&dir);
+    // the fake agent works for 4 s: the question is asked while its turn runs
+    let (serve, port) = start_with(&dir, &[("FAKE_DELAY", "4000")]);
     let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
     let made = api.cmd("runtime.create", json!({ "prompt": "hi", "cwd": dir.join("proj"), "agent": "claude" })).await;
     let id = made["id"].as_str().unwrap().to_owned();
-    api.until(&id, "the turn", |t| t.len() == 1 && ended(&t[0])).await;
-    // what wisp's MCP server does for the agent's ask_user tool
-    let ask = api.cmd("runtime.ask", json!({ "id": id, "question": "Which branch?", "options": ["main", "dev"] })).await;
+    let turn = made["turnId"].as_str().unwrap().to_owned();
+    api.until(&id, "the turn running", |t| t.len() == 1 && t[0]["status"] == "running").await;
+    // what wisp's MCP server does for the agent's ask_user tool (seven options: six are kept)
+    let ask = api.cmd("runtime.ask", json!({ "id": id, "question": "Which branch?", "options": ["main", "dev", "a", "b", "c", "d", "e"] })).await;
     let ask_id = ask["askId"].as_str().unwrap().to_owned();
-    assert_eq!(api.cmd("runtime.pollAnswer", json!({ "askId": ask_id })).await, json!({ "state": "pending" }));
     let s = api.cmd("runtime.get", json!({ "id": id })).await;
-    assert_eq!(s["ext"]["wisp.runtime"]["ask"]["question"], "Which branch?");
+    assert_eq!(s["state"], "waiting", "v1: a question makes the task wait");
+    assert_eq!(s["unread"], true);
+    assert_eq!(s["ext"]["wisp.runtime"]["ask"]["options"].as_array().map(Vec::len), Some(6));
+    assert!(activity(&api, &id, &turn).await.iter().any(|l| l == "Asked you: Which branch?"));
+    assert_eq!(api.cmd("runtime.pollAnswer", json!({ "askId": ask_id })).await, json!({ "state": "pending" }));
+
+    // wisp restarts with the question open: it's still on the task, and still answerable
+    serve.stop();
+    let (serve, port) = start(&dir);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    assert_eq!(api.cmd("runtime.pollAnswer", json!({ "askId": ask_id })).await, json!({ "state": "pending" }), "pending across the restart");
+    assert_eq!(api.cmd("runtime.get", json!({ "id": id })).await["state"], "waiting");
     // the user's reply answers it: no new turn starts
     let r = api.cmd("runtime.followUp", json!({ "id": id, "text": "dev" })).await;
     assert!(r["turnId"].is_null() && r["queued"].is_null(), "{r}");
-    let p = api.cmd("runtime.pollAnswer", json!({ "askId": ask_id })).await;
-    assert_eq!(p, json!({ "state": "answered", "answer": "dev" }));
+    assert_eq!(api.cmd("runtime.pollAnswer", json!({ "askId": ask_id })).await, json!({ "state": "answered", "answer": "dev" }));
+    assert_eq!(api.cmd("runtime.pollAnswer", json!({ "askId": ask_id })).await, json!({ "state": "cancelled" }), "an answer is read once");
+    let s = api.cmd("runtime.get", json!({ "id": id })).await;
+    assert_ne!(s["state"], "waiting");
+    assert!(s["ext"]["wisp.runtime"]["ask"].is_null());
+    assert!(activity(&api, &id, &turn).await.iter().any(|l| l == "You answered: dev"));
     assert_eq!(api.turns(&id).await.len(), 1);
     // nothing asked: answering is refused
-    let none = api.try_cmd("runtime.answer", json!({ "id": id, "text": "x" })).await;
-    assert_eq!(none["ok"], false);
+    assert_eq!(api.try_cmd("runtime.answer", json!({ "id": id, "text": "x" })).await["ok"], false);
     drop(serve);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn always_allow_grants_the_same_action_for_the_rest_of_the_task() {
+    let dir = temp("serve-approve");
+    let (serve, port) = start(&dir);
+    let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
+    let made = api.cmd("runtime.create", json!({ "prompt": "hi", "cwd": dir.join("proj"), "agent": "claude" })).await;
+    let id = made["id"].as_str().unwrap().to_owned();
+    api.until(&id, "the turn", |t| t.len() == 1 && ended(&t[0])).await;
+    // the approve tool waits on the user: ask it in the background
+    let (a2, id2) = (api.clone(), id.clone());
+    let pending = tokio::spawn(async move { a2.cmd("runtime.approval", json!({ "id": id2, "tool": "Bash", "input": { "command": "npm publish" } })).await });
+    let mut q = Value::Null;
+    for _ in 0..50 {
+        q = api.cmd("runtime.get", json!({ "id": id })).await["ext"]["wisp.runtime"]["ask"].clone();
+        if !q.is_null() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    assert_eq!(q["options"], json!(["Allow", "Always allow in this task", "Deny"]), "{q}");
+    assert!(q["question"].as_str().unwrap().starts_with("Allow Claude Code to"));
+    api.cmd("runtime.answer", json!({ "id": id, "text": "Always allow in this task" })).await;
+    assert_eq!(pending.await.unwrap()["behavior"], "allow");
+    // the same action again: allowed at once, no question
+    let again = api.cmd("runtime.approval", json!({ "id": id, "tool": "Bash", "input": { "command": "npm publish" } })).await;
+    assert_eq!(again["behavior"], "allow");
+    assert!(api.cmd("runtime.get", json!({ "id": id })).await["ext"]["wisp.runtime"]["ask"].is_null());
+    drop(serve);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_lead_delegates_to_its_team_and_reads_the_reports() {
+    let dir = temp("serve-delegate");
+    let (serve, port) = start_with(&dir, &[("FAKE_DELAY", "1500")]);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    let team = json!({ "wisp.runtime": { "subagents": [{ "name": "helper", "agent": "claude" }], "capped": { "mode": "edits" } } });
+    let made = api.cmd("runtime.create", json!({ "prompt": "lead", "cwd": dir.join("proj"), "agent": "claude", "ext": team })).await;
+    let lead = made["id"].as_str().unwrap().to_owned();
+    api.until(&lead, "the lead running", |t| t.len() == 1 && t[0]["status"] == "running").await;
+    let out = api.cmd("runtime.delegate", json!({ "id": lead, "tasks": [{ "subagent": "helper", "prompt": "do x" }, { "subagent": "nobody", "prompt": "y" }, { "subagent": "helper", "prompt": "" }] })).await;
+    assert!(out[0]["error"].is_null(), "{out}");
+    assert_eq!(out[1]["error"], "No subagent named \"nobody\". The team: helper.");
+    assert_eq!(out[2]["error"], "The task prompt is empty.");
+    let child = out[0]["id"].as_str().unwrap().to_owned();
+    let c = api.cmd("runtime.get", json!({ "id": child })).await;
+    assert_eq!(c["parentId"], lead.as_str());
+    assert_eq!(c["ext"]["wisp.runtime"]["capped"]["mode"], "edits", "the child keeps the lead's cap");
+    // the member is busy: a second task for it is refused until it's done
+    let busy = api.cmd("runtime.delegate", json!({ "id": lead, "tasks": [{ "subagent": "helper", "prompt": "more" }] })).await;
+    assert!(busy[0]["error"].as_str().unwrap().contains("still working"), "{busy}");
+    let reports = api.cmd("runtime.results", json!({ "id": lead, "ids": [], "wait": 30 })).await;
+    assert_eq!(reports["reports"][0]["done"], true, "{reports}");
+    assert_eq!(reports["reports"][0]["subagent"], "helper");
+    let lt = made["turnId"].as_str().unwrap();
+    assert!(activity(&api, &lead, lt).await.iter().any(|l| l == "Delegated to helper"));
+    drop(serve);
+    let _ = c;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -265,7 +358,6 @@ async fn my_stuff_saves_and_lists_over_http() {
     let list: Value = serde_json::from_slice(&api.http.get(format!("http://127.0.0.1:{port}/api/stuff")).send().await.unwrap().bytes().await.unwrap()).unwrap();
     assert_eq!(list["items"].as_array().map(Vec::len), Some(1), "{list}");
     assert_eq!(list["items"][0]["id"], saved["id"]);
-    assert!(dir.join("home/stuff/rows").is_dir(), "kept under WISP_HOME");
     drop(serve);
 }
 
@@ -332,5 +424,110 @@ async fn a_crew_check_in_runs_as_a_task_with_the_crew_note() {
     assert!(got["nextAt"].is_number(), "its cron says when it checks in next: {got}");
     let list = api.cmd("crew.list", json!({})).await;
     assert_eq!(list.as_array().map(Vec::len), Some(1));
+    drop(serve);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn v1_files_are_imported_once_and_rows_live_in_the_store() {
+    let dir = temp("serve-store");
+    let home = dir.join("home");
+    std::fs::create_dir_all(&home).unwrap();
+    // v1's config.json crew and Settings → Auto, and its router.json
+    std::fs::write(home.join("config.json"), json!({
+        "crew": [{ "id": "v1scout0001", "name": "Scout", "agent": "claude", "mode": "auto", "parallel": 2, "createdAt": 1, "updatedAt": 1, "wakeAt": null, "lastCheckinAt": null, "lastMinute": null }],
+        "crewLayout": { "v1scout0001": { "x": 40, "y": 10 } },
+        "defaults": { "router": { "goal": "cheap", "explore": false } }
+    }).to_string()).unwrap();
+    std::fs::write(home.join("router.json"), json!({ "version": 2, "arms": { "claude:opus": { "firstSeen": 5, "state": "ready" } }, "stats": {}, "routes": {}, "taste": {}, "pairs": [] }).to_string()).unwrap();
+    let (serve, port) = start(&dir);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    let crew = api.cmd("crew.list", json!({})).await;
+    assert_eq!(crew[0]["name"], "Scout", "v1's crew was imported: {crew}");
+    assert_eq!(api.cmd("crew.layout", json!({})).await["v1scout0001"], json!({ "x": 40, "y": 10 }));
+    let r = api.cmd("router.view", json!({})).await;
+    assert_eq!(r["goal"], "cheap", "v1's defaults.router: {}", r["settings"]);
+    let db = wisp_store::rusqlite::Connection::open(home.join("wisp.db")).unwrap();
+    let arm: String = db.query_row("SELECT body FROM router_arm WHERE id = 'claude:opus'", [], |r| r.get(0)).unwrap();
+    assert!(arm.contains("firstSeen"), "v1's arms are rows: {arm}");
+    drop(db);
+    // changes made here
+    api.cmd("crew.create", json!({ "name": "Quill", "agent": "claude" })).await;
+    api.cmd("router.set", json!({ "goal": "best" })).await;
+    let saved = api.cmd("stuff.save", json!({ "text": "keep me", "name": "k.md" })).await;
+    serve.stop();
+    assert!(home.join("wisp.db").is_file());
+    assert!(!home.join("crew.json").exists() && !home.join("stuff/rows").exists(), "no files of their own beside the store");
+
+    // a restart reads it all back from the store; v1's files aren't imported over it again
+    let (serve, port) = start(&dir);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    let crew = api.cmd("crew.list", json!({})).await;
+    let names: Vec<&str> = crew.as_array().unwrap().iter().filter_map(|m| m["name"].as_str()).collect();
+    assert_eq!(names.len(), 2, "{names:?}");
+    assert!(names.contains(&"Quill") && names.contains(&"Scout"));
+    assert_eq!(api.cmd("router.view", json!({})).await["goal"], "best", "the change, not v1's again");
+    let got = api.cmd("stuff.get", json!({ "id": saved["id"] })).await;
+    assert_eq!(got["id"], saved["id"]);
+    drop(serve);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_agent_reaches_wisp_over_mcp_with_its_own_token() {
+    let dir = temp("serve-agent");
+    let rec = dir.join("rec");
+    std::fs::create_dir_all(&rec).unwrap();
+    let (serve, port) = start_with(&dir, &[("FAKE_DELAY", "3000"), ("FAKE_RECORD", rec.to_str().unwrap())]);
+    let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
+    let made = api.cmd("runtime.create", json!({ "prompt": "hi", "cwd": dir.join("proj"), "agent": "claude" })).await;
+    let id = made["id"].as_str().unwrap().to_owned();
+    api.until(&id, "the turn running", |t| t.len() == 1 && t[0]["status"] == "running").await;
+    // what the run was launched with: wisp's MCP server, at this wisp, with a token for this task
+    let mut line = String::new();
+    for _ in 0..40 {
+        line = std::fs::read_to_string(rec.join("claude.jsonl")).unwrap_or_default();
+        if !line.is_empty() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let argv: Vec<String> = serde_json::from_str::<Value>(line.lines().next().unwrap()).unwrap()["argv"].as_array().unwrap().iter().filter_map(|a| a.as_str().map(str::to_owned)).collect();
+    let cfg_at = argv.iter().position(|a| a == "--mcp-config").expect("--mcp-config");
+    let cfg: Value = serde_json::from_str(&argv[cfg_at + 1]).unwrap();
+    let wisp = &cfg["mcpServers"]["wisp"];
+    assert_eq!(wisp["url"], format!("http://127.0.0.1:{port}/api/mcp"));
+    let token = wisp["headers"]["x-wisp-token"].as_str().unwrap().to_owned();
+    assert_eq!(wisp["headers"]["x-wisp-session"], id.as_str());
+    assert!(argv.iter().any(|a| a == "mcp__wisp"), "its tools are allowed: {argv:?}");
+
+    let sid = id.clone();
+    let mcp = |body: Value, token: String| {
+        let (http, sid) = (api.http.clone(), sid.clone());
+        async move {
+            let r = http.post(format!("http://127.0.0.1:{port}/api/mcp")).header("content-type", "application/json").header("x-wisp-token", token).header("x-wisp-session", sid.clone()).body(body.to_string()).send().await.unwrap();
+            let status = r.status().as_u16();
+            (status, serde_json::from_slice::<Value>(&r.bytes().await.unwrap()).unwrap_or(Value::Null))
+        }
+    };
+    let (st, list) = mcp(json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list" }), token.clone()).await;
+    assert_eq!(st, 200, "{list}");
+    let names: Vec<&str> = list["result"]["tools"].as_array().unwrap().iter().filter_map(|t| t["name"].as_str()).collect();
+    assert!(names.contains(&"ask_user") && names.contains(&"wisp_save") && !names.contains(&"wisp_list"), "the agent's tools, not the editor's: {names:?}");
+    // a token for another task is refused
+    let (status, _) = mcp(json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }), "not-a-token".into()).await;
+    assert_eq!(status, 403);
+    // ask_user blocks in the agent's tool call until the user answers
+    let asked = tokio::spawn(mcp(json!({ "jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": { "name": "ask_user", "arguments": { "question": "Which branch?" } } }), token.clone()));
+    let mut waiting = false;
+    for _ in 0..50 {
+        if api.cmd("runtime.get", json!({ "id": id })).await["state"] == "waiting" {
+            waiting = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    assert!(waiting, "the task waits on the user");
+    api.cmd("runtime.followUp", json!({ "id": id, "text": "dev" })).await;
+    let (_, answered) = asked.await.unwrap();
+    assert!(answered["result"]["content"][0]["text"].as_str().unwrap_or_default().contains("dev"), "{answered}");
     drop(serve);
 }
