@@ -56,6 +56,9 @@ wisp-goal-core = { path = "plugins/goal/core" }
 wisp-later-api = { path = "plugins/later/api" }
 wisp-later-core = { path = "plugins/later/core" }
 wisp-budget-api = { path = "plugins/budget/api" }
+# wisp.cli: the command-line frontend (ADR-0022, ADR-0024)
+wisp-cli-api = { path = "plugins/cli/api" }
+wisp-cli-core = { path = "plugins/cli/core" }
 wisp-budget-core = { path = "plugins/budget/core" }
 wisp-router-api = { path = "plugins/router/api" }
 wisp-router-core = { path = "plugins/router/core" }

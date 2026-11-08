@@ -3013,6 +3013,8 @@ dependencies = [
 name = "wisp"
 version = "2.0.0"
 dependencies = [
+ "bytes",
+ "portable-pty",
  "rand 0.9.5",
  "reqwest",
  "serde",
@@ -3029,6 +3031,9 @@ dependencies = [
  "wisp-budget",
  "wisp-channels",
  "wisp-claude",
+ "wisp-cli",
+ "wisp-cli-api",
+ "wisp-cli-core",
  "wisp-codex",
  "wisp-connectors",
  "wisp-copilot",
@@ -3062,6 +3067,7 @@ dependencies = [
  "wisp-slack",
  "wisp-store",
  "wisp-stuff",
+ "wisp-sync",
  "wisp-telegram",
  "wisp-telemetry",
  "wisp-terminal",
@@ -3301,6 +3307,37 @@ dependencies = [
  "serde",
  "serde_json",
  "wisp-harness-kit",
+]
+
+[[package]]
+name = "wisp-cli"
+version = "2.0.0"
+dependencies = [
+ "serde_json",
+ "tokio",
+ "wisp-cli-api",
+ "wisp-kernel",
+ "wisp-testkit",
+]
+
+[[package]]
+name = "wisp-cli-api"
+version = "2.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "wisp-kernel",
+]
+
+[[package]]
+name = "wisp-cli-core"
+version = "2.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "wisp-cli-api",
+ "wisp-kernel",
+ "wisp-protocol",
 ]
 
 [[package]]
