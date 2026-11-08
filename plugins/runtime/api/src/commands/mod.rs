@@ -21,10 +21,47 @@ macro_rules! command {
         impl Command for $name {
             const ID: &'static str = $id;
             $(const READ_ONLY: bool = { let _ = stringify!($ro); true };)?
+            const TASK_ARGS: &'static [&'static str] = TASK_ARGS;
+            const ALL_TASKS: bool = EVERY_TASK.contains(&$id);
             type Args = $args;
             type Out = $out;
         }
     };
+}
+
+/// The args that name a task in wisp.runtime's commands: `id` is always the task here.
+/// (`of`: the task an agent tool reads, `runtime.agent.session` / `taskState`)
+const TASK_ARGS: &[&str] = &["id", "sessionId", "session", "parentId", "from", "taskId", "of"];
+/// Its commands that answer about every task: refused to an agent's token (`wisp_kernel::scope`).
+const EVERY_TASK: Lists = Lists(&["runtime.list", "runtime.search", "runtime.agent.sessions"]);
+
+struct Lists(&'static [&'static str]);
+impl Lists {
+    const fn contains(&self, id: &&str) -> bool {
+        let mut i = 0;
+        while i < self.0.len() {
+            if const_eq(self.0[i], id) {
+                return true;
+            }
+            i += 1;
+        }
+        false
+    }
+}
+
+const fn const_eq(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i = 0;
+    while i < a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
 }
 
 command!(Create = "runtime.create": StartArgs => Created);

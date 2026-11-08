@@ -16,7 +16,7 @@ use wisp_harness_kit::protocol::{FileNote, attachment_note};
 use wisp_harness_kit::{Re, RunPaths};
 use wisp_kernel::{BoxFuture, Manifest, Plugin, Result, Setup};
 use wisp_opencode_core::{OpencodeArgs, OpencodeOptions, OpencodeParser, RATE_LIMIT_GRACE_MS, args, config, has_key, major_version};
-use wisp_runtime_api::harness::{ExecReq, HarnessFound, HarnessInfo, HarnessModel, HarnessRun, HarnessSys, Launch, ResumeCommand, ResumeOptions, RunDriver, SetupTip, Stdin};
+use wisp_runtime_api::harness::{ExecReq, HarnessFound, HarnessInfo, HarnessKeys, HarnessModel, HarnessRun, HarnessSys, KeyProvider, Launch, ResumeCommand, ResumeOptions, RunDriver, SetupTip, Stdin};
 use wisp_runtime_api::model::Mode;
 use wisp_runtime_api::{HARNESS, Harness};
 
@@ -42,15 +42,39 @@ struct Found {
     v2: bool,
 }
 
+/// Signing in with an API key pasted into wisp (v1 agent-login.js KEYS.opencode): its own `auth login`
+/// only asks on a terminal, so wisp keeps the key where opencode does (`auth.json`, `{ type: 'api', key }`
+/// per provider). Zen and Go are two providers with keys from the same page.
+pub fn keys(data_home: &str) -> HarnessKeys {
+    HarnessKeys {
+        env: "OPENCODE_API_KEY".into(),
+        url: "https://opencode.ai/auth".into(),
+        providers: vec![KeyProvider { id: "opencode".into(), name: "Zen".into() }, KeyProvider { id: "opencode-go".into(), name: "Go".into() }],
+        file: format!("{data_home}/opencode/auth.json"),
+    }
+}
+
+/// opencode's data folder (xdg-basedir: the same rule on every OS).
+fn data_home() -> String {
+    std::env::var("XDG_DATA_HOME").ok().filter(|d| !d.is_empty()).unwrap_or_else(|| format!("{}/.local/share", std::env::var("HOME").unwrap_or_default()))
+}
+
+/// Where `accounts.install` puts it: wisp's own tools folder.
+fn tools_bin() -> String {
+    let home = std::env::var("WISP_HOME").ok().filter(|h| !h.is_empty()).unwrap_or_else(|| format!("{}/.wisp", std::env::var("HOME").unwrap_or_default()));
+    format!("{home}/tools/node_modules/.bin/opencode")
+}
+
 #[derive(Debug)]
 pub struct OpencodeHarness {
     info: HarnessInfo,
     found: Mutex<Found>,
+    keys: HarnessKeys,
 }
 
 impl Default for OpencodeHarness {
     fn default() -> Self {
-        Self { info: info(), found: Mutex::new(Found::default()) }
+        Self { info: info(), found: Mutex::new(Found::default()), keys: keys(&data_home()) }
     }
 }
 
@@ -119,7 +143,7 @@ impl Harness for OpencodeHarness {
         Box::pin(async move {
             let mut tries: Vec<String> = match sys.env("WISP_OPENCODE_BIN").filter(|b| !b.is_empty()) {
                 Some(b) => vec![b],
-                None => sys.which(DEFAULT_BIN).await.into_iter().chain([format!("{}/.opencode/bin/opencode", sys.home())]).collect(),
+                None => sys.which(DEFAULT_BIN).await.into_iter().chain([tools_bin(), format!("{}/.opencode/bin/opencode", sys.home())]).collect(),
             };
             let mut hit = None;
             for b in tries.drain(..) {
@@ -162,6 +186,14 @@ impl Harness for OpencodeHarness {
         let grace = std::env::var("WISP_RATE_LIMIT_GRACE_MS").ok().and_then(|v| v.parse().ok()).filter(|g| *g > 0).unwrap_or(RATE_LIMIT_GRACE_MS);
         let parser = OpencodeParser::new(OpencodeOptions { paths: paths.clone(), model: run.model.clone(), rate_limit_grace_ms: grace });
         driver::KitDriver::boxed(parser, paths, true)
+    }
+
+    fn keys(&self) -> Option<&HarnessKeys> {
+        Some(&self.keys)
+    }
+
+    fn npm_package(&self) -> Option<String> {
+        Some("opencode-ai".into())
     }
 
     fn setup(&self, _platform: &str) -> Option<SetupTip> {

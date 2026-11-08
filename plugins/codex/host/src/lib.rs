@@ -220,6 +220,23 @@ impl Harness for CodexHarness {
         driver::KitDriver::boxed(parser, paths, true)
     }
 
+    /// A read of the account's windows that spends nothing (v1 live-limits.js `readCodex`): one
+    /// `account/rateLimits/read` over `codex app-server`'s stdio, as Codex's own status line does.
+    fn live_limits<'a>(&'a self, sys: &'a dyn HarnessSys, env: &'a std::collections::BTreeMap<String, String>) -> BoxFuture<'a, Option<Value>> {
+        Box::pin(async move {
+            let bin = self.program().unwrap_or_else(|| DEFAULT_BIN.to_owned());
+            let msgs = [
+                serde_json::json!({ "id": 1, "method": "initialize", "params": { "clientInfo": { "name": "wisp", "version": "1" } } }),
+                serde_json::json!({ "method": "initialized" }),
+                serde_json::json!({ "id": 2, "method": "account/rateLimits/read" }),
+            ];
+            let stdin = msgs.iter().flat_map(|m| format!("{m}\n").into_bytes()).collect::<Vec<u8>>();
+            let req = ExecReq { program: bin, args: vec!["app-server".into()], env: env.clone(), stdin: Some(stdin), timeout_ms: 15_000, ..ExecReq::default() };
+            let out = sys.exec(req).await.ok()?;
+            out.stdout.lines().filter_map(|l| serde_json::from_str::<Value>(l).ok()).find(|m| m["id"] == 2).and_then(|m| m.get("result").cloned())
+        })
+    }
+
     fn login(&self) -> Option<&HarnessLogin> {
         Some(&self.login)
     }

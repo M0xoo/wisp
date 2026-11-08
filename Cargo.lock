@@ -2950,6 +2950,7 @@ dependencies = [
  "wisp-ntfy",
  "wisp-opencode",
  "wisp-plugins",
+ "wisp-posthog",
  "wisp-proc",
  "wisp-protocol",
  "wisp-review",
@@ -3111,6 +3112,8 @@ dependencies = [
  "wisp-budget-api",
  "wisp-budget-core",
  "wisp-kernel",
+ "wisp-runtime-api",
+ "wisp-store",
 ]
 
 [[package]]
@@ -3645,6 +3648,7 @@ dependencies = [
  "wisp-kernel",
  "wisp-later-api",
  "wisp-later-core",
+ "wisp-store",
 ]
 
 [[package]]
@@ -3907,6 +3911,24 @@ dependencies = [
  "wisp-kernel",
  "wisp-plugins-api",
  "wisp-stuff-api",
+]
+
+[[package]]
+name = "wisp-posthog"
+version = "2.0.0"
+dependencies = [
+ "reqwest",
+ "serde_json",
+ "wisp-kernel",
+ "wisp-posthog-core",
+ "wisp-telemetry-api",
+]
+
+[[package]]
+name = "wisp-posthog-core"
+version = "2.0.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
@@ -4220,12 +4242,26 @@ dependencies = [
 name = "wisp-telemetry"
 version = "2.0.0"
 dependencies = [
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
  "wisp-kernel",
+ "wisp-runtime-api",
+ "wisp-store",
+ "wisp-telemetry-api",
+ "wisp-telemetry-core",
+ "wisp-testkit",
 ]
 
 [[package]]
 name = "wisp-telemetry-api"
 version = "2.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "wisp-kernel",
+]
 
 [[package]]
 name = "wisp-telemetry-core"

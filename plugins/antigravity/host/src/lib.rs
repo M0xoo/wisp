@@ -15,7 +15,7 @@ use wisp_harness_kit::RunPaths;
 use wisp_harness_kit::detect::{help_efforts, version_in};
 use wisp_harness_kit::protocol::{FileNote, attachment_note};
 use wisp_kernel::{BoxFuture, Manifest, Plugin, Result, Setup};
-use wisp_runtime_api::harness::{ExecReq, HarnessFound, HarnessInfo, HarnessModel, HarnessRun, HarnessSys, Launch, ResumeCommand, ResumeOptions, RunDriver, SetupTip, Stdin};
+use wisp_runtime_api::harness::{ExecReq, HarnessFound, HarnessInfo, HarnessLogin, HarnessModel, HarnessRun, HarnessSys, Launch, ResumeCommand, ResumeOptions, RunDriver, SetupTip, Stdin};
 use wisp_runtime_api::model::Mode;
 use wisp_runtime_api::{HARNESS, Harness};
 
@@ -71,15 +71,31 @@ async fn output(sys: &dyn HarnessSys, bin: &str, args: &[&str]) -> Option<(Strin
     }
 }
 
+/// Signing in (v1 agent-login.js LOGINS.antigravity): agy has no login command. A first prompt without
+/// a login prints Google's link and reads the code back, then answers. It only asks on a terminal
+/// (`tty`: wisp.accounts runs it under script(1) on Linux).
+pub fn login() -> HarnessLogin {
+    HarnessLogin {
+        bin: DEFAULT_BIN.into(),
+        bin_env: "WISP_ANTIGRAVITY_BIN".into(),
+        args: vec!["-p".into(), "Reply with OK.".into()],
+        status: vec!["models".into()],
+        keys: vec!["GEMINI_API_KEY".into()],
+        tty: true,
+        ..HarnessLogin::default()
+    }
+}
+
 #[derive(Debug)]
 pub struct AntigravityHarness {
     info: HarnessInfo,
     bin: Mutex<Option<String>>,
+    login: HarnessLogin,
 }
 
 impl Default for AntigravityHarness {
     fn default() -> Self {
-        Self { info: info(), bin: Mutex::new(None) }
+        Self { info: info(), bin: Mutex::new(None), login: login() }
     }
 }
 
@@ -130,6 +146,41 @@ impl Harness for AntigravityHarness {
     fn driver(&self, run: &HarnessRun) -> Box<dyn RunDriver> {
         let paths = RunPaths::same(run.cwd.clone());
         driver::KitDriver::boxed(AgyParser::new(paths.clone()), paths, true)
+    }
+
+    fn login(&self) -> Option<&HarnessLogin> {
+        Some(&self.login)
+    }
+
+    fn signed_in(&self, out: &str, code: Option<i32>) -> Option<bool> {
+        let o = out.to_lowercase();
+        if o.contains("sign in") || o.contains("authenticat") {
+            Some(false)
+        } else if code == Some(0) {
+            Some(true)
+        } else {
+            None
+        }
+    }
+
+    fn auth_failed(&self, text: &str) -> bool {
+        let t = text.to_lowercase();
+        text.len() <= 1200 && ["authentication required", "authentication failed or timed out", "authentication timed out", "not logged into antigravity"].iter().any(|w| t.contains(w))
+    }
+
+    /// Signing out is only `/logout` in its own TUI: wisp removes the login where agy keeps it (the
+    /// keychain on macOS, a file in ~/.gemini elsewhere).
+    fn sign_out<'a>(&'a self, sys: &'a dyn HarnessSys) -> Option<BoxFuture<'a, Result<()>>> {
+        Some(Box::pin(async move {
+            let file = format!("{}/.gemini/antigravity-cli/antigravity-oauth-token", sys.home());
+            let rm = ExecReq { program: "rm".into(), args: vec!["-f".into(), file], timeout_ms: 5_000, ..ExecReq::default() };
+            let _ = sys.exec(rm).await;
+            if sys.platform() == "darwin" {
+                let k = ExecReq { program: "security".into(), args: ["delete-generic-password", "-s", "gemini", "-a", "antigravity"].map(str::to_owned).to_vec(), timeout_ms: 5_000, ..ExecReq::default() };
+                let _ = sys.exec(k).await;
+            }
+            Ok(())
+        }))
     }
 
     fn setup(&self, _platform: &str) -> Option<SetupTip> {

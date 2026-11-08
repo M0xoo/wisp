@@ -156,6 +156,16 @@ pub trait Harness: Send + Sync + 'static {
     fn keys(&self) -> Option<&HarnessKeys> {
         None
     }
+    /// The npm package wisp can install it from into its own tools folder (opencode). Additive
+    /// (2026-11-08).
+    fn npm_package(&self) -> Option<String> {
+        None
+    }
+    /// Signs out where the CLI has no sign-out command (agy keeps its login in the keychain or a
+    /// file). None: use `login().logout`. Additive (2026-11-08).
+    fn sign_out<'a>(&'a self, _sys: &'a dyn HarnessSys) -> Option<BoxFuture<'a, Result<()>>> {
+        None
+    }
     fn folders(&self, _q: &FolderQuery) -> Option<HarnessFolders> {
         None
     }

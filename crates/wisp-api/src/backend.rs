@@ -51,7 +51,13 @@ impl Backend for Kernel {
                 let spec = Spec::of(&e.route, &e.plugin);
                 let (k, ctx, route) = (self.clone(), e.ctx, e.route);
                 let invoke: Invoke = Arc::new(move |caller, req| {
-                    (route.handler)(ctx.clone(), k.root_call(caller), req)
+                    // an agent's token speaks for its own task only (wisp_kernel::scope)
+                    let scope = k.route_scope(&caller, route.pattern, &req.params);
+                    let run = (route.handler)(ctx.clone(), k.root_call(caller), req);
+                    Box::pin(async move {
+                        scope.await?;
+                        run.await
+                    })
                 });
                 Binding { spec, invoke }
             })

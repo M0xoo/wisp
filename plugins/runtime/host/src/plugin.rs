@@ -82,27 +82,19 @@ impl Host for CtxHost {
     }
 }
 
-/// Arg keys that name a task.
-const SESSION_KEYS: [&str; 4] = ["id", "sessionId", "parentId", "from"];
-/// Commands that answer about every task: not for an agent's token.
-const ALL_TASKS: [&str; 3] = ["runtime.list", "runtime.search", "runtime.agents"];
+/// The task tree as the kernel's scope reads it: a delegation's parent chain.
+struct Tree(Slot);
 
-/// v1 edge case HTTP #3: an agent's token speaks for its own task only. A direct call from an agent
-/// (`agent:*` with a session) may name its own task or one under it (its delegations); a nested call
-/// is the calling plugin's to scope (wisp's MCP tools).
-async fn scope(r: &Runtime, call: &wisp_kernel::Call, cmd: &str, args: &serde_json::Value) -> WireResult<()> {
-    let c = call.caller();
-    let Some(own) = c.session.as_deref().filter(|_| c.set.starts_with("agent:") && call.depth() == 0) else { return Ok(()) };
-    if ALL_TASKS.contains(&cmd) {
-        return Err(WireError::forbidden(format!("{cmd}: an agent's token speaks for its own task only")));
+impl wisp_kernel::scope::TaskTree for Tree {
+    fn within(&self, task: &str, root: &str) -> BoxFuture<'static, bool> {
+        let (slot, task, root) = (self.0.clone(), task.to_owned(), root.to_owned());
+        Box::pin(async move {
+            match rt(&slot) {
+                Ok(r) => r.under(&task, &root).await,
+                Err(_) => false,
+            }
+        })
     }
-    for k in SESSION_KEYS {
-        let Some(id) = args.get(k).and_then(serde_json::Value::as_str).filter(|id| *id != own) else { continue };
-        if !r.under(id, own).await {
-            return Err(WireError::forbidden(format!("{cmd}: an agent's token speaks for its own task only")));
-        }
-    }
-    Ok(())
 }
 
 /// Registers command `$cmd` with a handler over the started runtime.
@@ -113,7 +105,6 @@ macro_rules! cmd {
             let slot = slot.clone();
             async move {
                 let $rt = rt(&slot)?;
-                scope(&$rt, &$call, <$cmd as wisp_kernel::Command>::ID, &serde_json::to_value(&$a).unwrap_or_default()).await?;
                 let _ = &$call;
                 let out: crate::error::Result<_> = $body;
                 out.map_err(WireError::from)
@@ -129,20 +120,16 @@ fn commands(s: &mut Setup, slot: &Slot) {
     s.command::<c::Create, _, _>(move |_ctx, call, a| {
         let (slot, ctx) = (start.clone(), c1.clone());
         async move {
-            let r = rt(&slot)?;
-            scope(&r, &call, "runtime.create", &serde_json::to_value(&a).unwrap_or_default()).await?;
             let a = ctx.run_hook::<BeforeCreate>(&call, a).await?;
-            r.create(a).await.map_err(WireError::from)
+            rt(&slot)?.create(a).await.map_err(WireError::from)
         }
     });
     let follow = slot.clone();
     s.command::<c::FollowUp, _, _>(move |_ctx, call, a| {
         let (slot, ctx) = (follow.clone(), c2.clone());
         async move {
-            let r = rt(&slot)?;
-            scope(&r, &call, "runtime.followUp", &serde_json::to_value(&a).unwrap_or_default()).await?;
             let a = ctx.run_hook::<BeforeFollowUp>(&call, a).await?;
-            r.follow_up(a).await.map_err(WireError::from)
+            rt(&slot)?.follow_up(a).await.map_err(WireError::from)
         }
     });
     edits(s, slot);
@@ -292,6 +279,8 @@ impl Plugin for RuntimePlugin {
         let slot: Slot = Arc::default();
         commands(s, &slot);
         crate::routes::register(s, &slot);
+        // who is under whom, for the kernel's agent-token scope (v1 edge case HTTP #3)
+        s.contribute(&wisp_kernel::scope::TASKS, Arc::new(Tree(slot.clone())) as Arc<dyn wisp_kernel::scope::TaskTree>);
         let mirror = self.mirror.clone();
         s.on_start(move |ctx| async move {
             let store = ctx.service::<Store>()?;

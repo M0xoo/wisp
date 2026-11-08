@@ -45,6 +45,7 @@ wisp-stuff-api = { path = "plugins/stuff/api" }
 wisp-stuff-core = { path = "plugins/stuff/core" }
 wisp-telemetry-api = { path = "plugins/telemetry/api" }
 wisp-telemetry-core = { path = "plugins/telemetry/core" }
+wisp-posthog-core = { path = "plugins/posthog/core" }
 wisp-update-api = { path = "plugins/update/api" }
 wisp-update-core = { path = "plugins/update/core" }
 # plugin contracts and cores (owned by the crew-row agent: crew, goal, later, budget, router, automations, learn)
