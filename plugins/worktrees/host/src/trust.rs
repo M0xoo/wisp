@@ -53,10 +53,16 @@ pub async fn claude_items(dir: &str, user_home: &str) -> Vec<TrustItem> {
     for d in trust::claude_dirs(&at, &top, &home) {
         for f in trust::SETTINGS_FILES {
             let text = fsx::read_opt(fsx::join(d, f)).await;
-            out.extend(trust::settings_items(text.as_deref(), &trust::relative(&at, &fsx::join(d, f))));
+            out.extend(trust::settings_items(
+                text.as_deref(),
+                &trust::relative(&at, &fsx::join(d, f)),
+            ));
         }
         let text = fsx::read_opt(fsx::join(d, trust::MCP_FILE)).await;
-        out.extend(trust::mcp_items(text.as_deref(), &trust::relative(&at, &fsx::join(d, trust::MCP_FILE))));
+        out.extend(trust::mcp_items(
+            text.as_deref(),
+            &trust::relative(&at, &fsx::join(d, trust::MCP_FILE)),
+        ));
     }
     out
 }
@@ -69,34 +75,65 @@ pub async fn setup_items(e: &Engine, root: &str) -> Vec<TrustItem> {
 
 /// What a run of `agent` in `dir` would run that isn't trusted: Claude Code's items (other harnesses
 /// don't read them) plus `extra` (a new worktree's held setup).
-pub async fn pending(st: &TrustState, dir: &str, agent: &str, extra: Vec<TrustItem>, user_home: &str) -> Option<Pending> {
+pub async fn pending(
+    st: &TrustState,
+    dir: &str,
+    agent: &str,
+    extra: Vec<TrustItem>,
+    user_home: &str,
+) -> Option<Pending> {
     let (_, key) = repo_of(dir).await;
-    let mut items = if agent == "claude" { claude_items(dir, user_home).await } else { Vec::new() };
+    let mut items = if agent == "claude" {
+        claude_items(dir, user_home).await
+    } else {
+        Vec::new()
+    };
     items.extend(extra);
     st.untrusted(&key, items)
 }
 
 /// A new worktree's setup steps when they aren't trusted (they wait), else None.
-pub async fn setup_hold(e: &Engine, st: &TrustState, root: &str, project_ask: Option<&str>, mode: &str) -> Option<Vec<TrustItem>> {
+pub async fn setup_hold(
+    e: &Engine,
+    st: &TrustState,
+    root: &str,
+    project_ask: Option<&str>,
+    mode: &str,
+) -> Option<Vec<TrustItem>> {
     if !trust::asks(project_ask, mode) {
         return None;
     }
     let (_, key) = repo_of(root).await;
-    st.untrusted(&key, setup_items(e, root).await).map(|p| p.items)
+    st.untrusted(&key, setup_items(e, root).await)
+        .map(|p| p.items)
 }
 
 /// `before:run`, on runtime's context (read by field name: `cwd`, `agent`, `mode`, `hold`, `untrusted`).
 /// Holds the turn with the card's items; a turn already held, run without them, or in Full auto passes.
-pub async fn before_run(st: &TrustState, project_ask: Option<&str>, user_home: &str, ctx: Value) -> Verdict<Value> {
+pub async fn before_run(
+    st: &TrustState,
+    project_ask: Option<&str>,
+    user_home: &str,
+    ctx: Value,
+) -> Verdict<Value> {
     let s = |k: &str| ctx.get(k).and_then(Value::as_str).unwrap_or("").to_owned();
-    let already = ctx.get("hold").is_some_and(|h| !h.is_null()) || ctx.get("untrusted").and_then(Value::as_bool).unwrap_or(false);
+    let already = ctx.get("hold").is_some_and(|h| !h.is_null())
+        || ctx
+            .get("untrusted")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
     if already || !trust::asks(project_ask, &s("mode")) {
         return Verdict::Continue;
     }
-    let Some(p) = pending(st, &s("cwd"), &s("agent"), Vec::new(), user_home).await else { return Verdict::Continue };
+    let Some(p) = pending(st, &s("cwd"), &s("agent"), Vec::new(), user_home).await else {
+        return Verdict::Continue;
+    };
     let mut held = ctx;
     if let Some(obj) = held.as_object_mut() {
-        obj.insert("hold".into(), json!({ "by": "wisp.worktrees", "kind": "trust", "data": p }));
+        obj.insert(
+            "hold".into(),
+            json!({ "by": "wisp.worktrees", "kind": "trust", "data": p }),
+        );
     }
     Verdict::Modify { ctx: held }
 }

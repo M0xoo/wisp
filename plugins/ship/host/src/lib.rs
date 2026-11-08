@@ -47,19 +47,33 @@ fn sink(ctx: &Ctx) -> ship::Sink {
     Arc::new(move |out| {
         let call = ctx.root_call();
         match out {
-            Out::Step { session, shipping } => ctx.emit(&call, &api::ShipStep { session, shipping }),
-            Out::ToShip { session, to_ship } => ctx.emit(&call, &api::ToShipChanged { session, to_ship }),
-            Out::PrOpened { session, repo, pr } => ctx.emit(&call, &api::PrOpened { session, repo, pr }),
-            Out::PrChanged { session, pr, news } => ctx.emit(&call, &api::PrChanged { session, pr, news }),
-            Out::Merged { session, prs, sync } => ctx.emit(&call, &api::PrMerged { session, prs, sync }),
-            Out::FollowUp { session, prompt } => ctx.emit(&call, &api::FollowUpWanted { session, prompt }),
+            Out::Step { session, shipping } => {
+                ctx.emit(&call, &api::ShipStep { session, shipping })
+            }
+            Out::ToShip { session, to_ship } => {
+                ctx.emit(&call, &api::ToShipChanged { session, to_ship })
+            }
+            Out::PrOpened { session, repo, pr } => {
+                ctx.emit(&call, &api::PrOpened { session, repo, pr })
+            }
+            Out::PrChanged { session, pr, news } => {
+                ctx.emit(&call, &api::PrChanged { session, pr, news })
+            }
+            Out::Merged { session, prs, sync } => {
+                ctx.emit(&call, &api::PrMerged { session, prs, sync })
+            }
+            Out::FollowUp { session, prompt } => {
+                ctx.emit(&call, &api::FollowUpWanted { session, prompt })
+            }
             Out::Fix { .. } => {}
         }
     })
 }
 
 fn get(slot: &routes::Slot) -> Result<Arc<Ship>> {
-    slot.get().cloned().ok_or_else(|| wisp_kernel::WireError::unavailable("wisp.ship is starting"))
+    slot.get()
+        .cloned()
+        .ok_or_else(|| wisp_kernel::WireError::unavailable("wisp.ship is starting"))
 }
 
 fn commands(s: &mut Setup, slot: &routes::Slot) {
@@ -79,7 +93,11 @@ fn commands(s: &mut Setup, slot: &routes::Slot) {
     let sl = slot.clone();
     s.command::<api::ShipIt, _, _>(move |_ctx, call, a| {
         let sl = sl.clone();
-        async move { Ok(get(&sl)?.ship_all(&call, &a.session, &a.title, &a.body, a.draft).await?) }
+        async move {
+            Ok(get(&sl)?
+                .ship_all(&call, &a.session, &a.title, &a.body, a.draft)
+                .await?)
+        }
     });
     let sl = slot.clone();
     s.command::<api::Refresh, _, _>(move |_ctx, call, a| {
@@ -104,7 +122,16 @@ fn commands(s: &mut Setup, slot: &routes::Slot) {
     let sl = slot.clone();
     s.command::<api::FixConflicts, _, _>(move |_ctx, call, a| {
         let sl = sl.clone();
-        async move { get(&sl)?.fix_conflicts(&call, &a.session, true).await?.ok_or_else(|| wisp_kernel::WireError::conflict("Could not start the fix: try again in a moment.")) }
+        async move {
+            get(&sl)?
+                .fix_conflicts(&call, &a.session, true)
+                .await?
+                .ok_or_else(|| {
+                    wisp_kernel::WireError::conflict(
+                        "Could not start the fix: try again in a moment.",
+                    )
+                })
+        }
     });
     let sl = slot.clone();
     s.command::<api::Recheck, _, _>(move |_ctx, call, a| {
@@ -131,7 +158,12 @@ impl Plugin for ShipPlugin {
         let slot = self.slot.clone();
         s.on_start(move |ctx| async move {
             let proc = ctx.service::<Proc>()?;
-            let shipper = Shipper { git: ctx.use_service::<GitServiceV1>()?, gh: gh::Gh::new((*proc).clone(), "gh"), owner: ctx.scope().clone(), clock: ctx.clock()? };
+            let shipper = Shipper {
+                git: ctx.use_service::<GitServiceV1>()?,
+                gh: gh::Gh::new((*proc).clone(), "gh"),
+                owner: ctx.scope().clone(),
+                clock: ctx.clock()?,
+            };
             let ship = Arc::new(Ship::new(shipper, Arc::new(Tasks::default()), sink(&ctx)));
             let _ = slot.set(ship.clone());
             start_timers(&ctx, &ship)
@@ -148,7 +180,8 @@ fn start_timers(ctx: &Ctx, ship: &Arc<Ship>) -> Result<()> {
     ctx.spawn(async move {
         c.sleep(BOOT_DELAY_MS).await;
         let sleeper = c.clone();
-        boot.boot(&call, Arc::new(move |ms| sleeper.sleep(ms))).await;
+        boot.boot(&call, Arc::new(move |ms| sleeper.sleep(ms)))
+            .await;
     });
     let (poller, call) = (ship.clone(), ctx.root_call());
     ctx.spawn(async move {

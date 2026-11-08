@@ -11,7 +11,9 @@ use wisp_proc::{Env, SpawnOpts};
 use wisp_runtime_api::events::{TurnHeld, TurnStarted};
 use wisp_runtime_api::harness::{HarnessRun, Launch, Stdin};
 use wisp_runtime_api::hooks::{BeforeRunCtx, RunKind};
-use wisp_runtime_api::model::{Mode, Presentation, QueueItem, Session, SessionState, Turn, TurnStatus};
+use wisp_runtime_api::model::{
+    Mode, Presentation, QueueItem, Session, SessionState, Turn, TurnStatus,
+};
 use wisp_runtime_api::{Harness, TurnId};
 use wisp_runtime_core::prompt::{SystemOpts, system_prompt};
 use wisp_runtime_core::queue::Run;
@@ -31,8 +33,8 @@ pub(crate) enum Ctl {
 
 /// A task's run while its process lives.
 #[derive(Debug)]
+#[allow(clippy::struct_excessive_bools)] // v1's live/stopping/interrupting sets, one per flag
 pub(crate) struct Live {
-    pub turn_id: String,
     pub resumable: bool,
     /// the turn has its result; the CLI is only on its way out
     pub finished: bool,
@@ -45,18 +47,30 @@ pub(crate) struct Live {
 
 impl Live {
     pub fn state(&self) -> Run {
-        if self.finished { Run::Lingering } else { Run::Running { resumable: self.resumable } }
+        if self.finished {
+            Run::Lingering
+        } else {
+            Run::Running {
+                resumable: self.resumable,
+            }
+        }
     }
 }
 
 fn opt_str(v: Option<&Value>, k: &str) -> Option<String> {
-    v.and_then(|o| o.get(k)).and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_owned)
+    v.and_then(|o| o.get(k))
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
 }
 
 /// A queued item's own mode and harness, from here on (v1 `#startQueued`).
 fn apply_opts(s: &mut Session, item: &QueueItem) {
     let opts = item.opts.as_ref();
-    if let Some(m) = opts.and_then(|o| o.get("mode")).and_then(|m| serde_json::from_value::<Mode>(m.clone()).ok()) {
+    if let Some(m) = opts
+        .and_then(|o| o.get("mode"))
+        .and_then(|m| serde_json::from_value::<Mode>(m.clone()).ok())
+    {
         s.mode = m;
     }
     let run = opts.and_then(|o| o.get("run"));
@@ -74,15 +88,25 @@ fn apply_opts(s: &mut Session, item: &QueueItem) {
 }
 
 fn shown(title: &str, summary: &str, status: &str) -> Presentation {
-    let hero = serde_json::json!({ "type": "hero", "title": title, "summary": summary, "status": status });
-    Presentation { blocks: vec![hero], v: wisp_runtime_core::blocks::PARSER_VERSION, ..Presentation::default() }
+    let hero =
+        serde_json::json!({ "type": "hero", "title": title, "summary": summary, "status": status });
+    Presentation {
+        blocks: vec![hero],
+        v: wisp_runtime_core::blocks::PARSER_VERSION,
+        ..Presentation::default()
+    }
 }
 
 impl Runtime {
     /// Starts `item` as the task's next turn. The turn id, also for one held or refused.
     pub async fn start_turn(self: &Arc<Self>, mut s: Session, item: QueueItem) -> Result<TurnId> {
         apply_opts(&mut s, &item);
-        let idx = self.repo.turns(s.id.as_str(), None, Some(1)).await?.last().map_or(0, |t| t.idx + 1);
+        let idx = self
+            .repo
+            .turns(s.id.as_str(), None, Some(1))
+            .await?
+            .last()
+            .map_or(0, |t| t.idx + 1);
         let mut turn = Turn {
             id: TurnId::new(),
             session_id: s.id.clone(),
@@ -114,7 +138,11 @@ impl Runtime {
             account_env: BTreeMap::new(),
             once: None,
             untrusted: false,
-            kind: if idx == 0 { RunKind::First } else { RunKind::FollowUp },
+            kind: if idx == 0 {
+                RunKind::First
+            } else {
+                RunKind::FollowUp
+            },
             parent_id: s.parent_id.clone(),
         };
         let ctx = match self.host.before_run(ctx).await {
@@ -128,7 +156,12 @@ impl Runtime {
             s.unread = true;
             s.updated_at = self.now();
             self.persist(&mut s, vec![turn.clone()]).await?;
-            self.host.emit(Emitted::Held(TurnHeld { session_id: s.id.clone(), turn_id: turn.id.clone(), by: h.by, kind: h.kind }));
+            self.host.emit(Emitted::Held(TurnHeld {
+                session_id: s.id.clone(),
+                turn_id: turn.id.clone(),
+                by: h.by,
+                kind: h.kind,
+            }));
             return Ok(turn.id);
         }
         let harness = match self.harness(&s.agent) {
@@ -140,17 +173,26 @@ impl Runtime {
         s.archived = false;
         s.updated_at = self.now();
         self.persist(&mut s, vec![turn.clone()]).await?;
-        self.host.emit(Emitted::Started(TurnStarted { session_id: s.id.clone(), turn_id: turn.id.clone() }));
+        self.host.emit(Emitted::Started(TurnStarted {
+            session_id: s.id.clone(),
+            turn_id: turn.id.clone(),
+        }));
         let run = self.harness_run(&s, &turn, &ctx, harness.as_ref());
         if let Err(e) = self.spawn_run(&s, &turn, &harness, &run).await {
             let text = e.to_string();
-            self.finish_now(s.id.as_str(), turn.id.as_str(), &text).await?;
+            self.finish_now(s.id.as_str(), turn.id.as_str(), &text)
+                .await?;
         }
         Ok(turn.id)
     }
 
     /// `before:run` vetoed it, or its harness is gone: the turn says why, and the task lands.
-    async fn refused(self: &Arc<Self>, mut s: Session, mut turn: Turn, why: &str) -> Result<TurnId> {
+    async fn refused(
+        self: &Arc<Self>,
+        mut s: Session,
+        mut turn: Turn,
+        why: &str,
+    ) -> Result<TurnId> {
         turn.status = TurnStatus::Error;
         turn.is_error = true;
         turn.ended_at = Some(self.now());
@@ -162,10 +204,25 @@ impl Runtime {
         Ok(turn.id)
     }
 
-    fn harness_run(&self, s: &Session, t: &Turn, ctx: &BeforeRunCtx, h: &dyn Harness) -> HarnessRun {
+    fn harness_run(
+        &self,
+        s: &Session,
+        t: &Turn,
+        ctx: &BeforeRunCtx,
+        h: &dyn Harness,
+    ) -> HarnessRun {
         let info = h.info();
-        let parts: Vec<String> = self.host.prompt_parts().iter().map(|p| p.part(s)).filter(|p| !p.is_empty()).collect();
-        let mut system = system_prompt(&SystemOpts { ask_tool: info.ask_tool.clone(), ..SystemOpts::default() });
+        let parts: Vec<String> = self
+            .host
+            .prompt_parts()
+            .iter()
+            .map(|p| p.part(s))
+            .filter(|p| !p.is_empty())
+            .collect();
+        let mut system = system_prompt(&SystemOpts {
+            ask_tool: info.ask_tool.clone(),
+            ..SystemOpts::default()
+        });
         for p in &parts {
             system.push_str("\n\n");
             system.push_str(p);
@@ -199,15 +256,32 @@ impl Runtime {
         }
     }
 
-    async fn spawn_run(self: &Arc<Self>, s: &Session, t: &Turn, h: &Arc<dyn Harness>, run: &HarnessRun) -> Result<()> {
+    async fn spawn_run(
+        self: &Arc<Self>,
+        s: &Session,
+        t: &Turn,
+        h: &Arc<dyn Harness>,
+        run: &HarnessRun,
+    ) -> Result<()> {
         let launch = h.launch(run)?;
         let tmp = self.write_files(t, &launch).await?;
         let fill = |x: &str| x.replace("{tmp}", &tmp);
-        let mut set: Vec<(String, String)> = run.env.iter().chain(&run.account_env).map(|(k, v)| (k.clone(), v.clone())).collect();
+        let mut set: Vec<(String, String)> = run
+            .env
+            .iter()
+            .chain(&run.account_env)
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
         set.extend(launch.env.iter().map(|(k, v)| (k.clone(), fill(v))));
         let opts = SpawnOpts {
-            cwd: (!launch.cwd.is_empty()).then(|| launch.cwd.clone().into()).or_else(|| (!s.cwd.is_empty()).then(|| s.cwd.clone().into())),
-            env: Env { clear: false, set, remove: launch.env_remove.clone() },
+            cwd: (!launch.cwd.is_empty())
+                .then(|| launch.cwd.clone().into())
+                .or_else(|| (!s.cwd.is_empty()).then(|| s.cwd.clone().into())),
+            env: Env {
+                clear: false,
+                set,
+                remove: launch.env_remove.clone(),
+            },
             no_stdin: launch.stdin == Stdin::Null,
             ..SpawnOpts::default()
         };
@@ -219,8 +293,18 @@ impl Runtime {
             handle.close_stdin();
         }
         let (ctl, ctl_rx) = mpsc::unbounded_channel();
-        let live = Live { turn_id: t.id.0.clone(), resumable: s.resume_id.is_some(), finished: false, stopping: false, interrupting: false, label: None, ctl };
-        self.live.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(s.id.0.clone(), live);
+        let live = Live {
+            resumable: s.resume_id.is_some(),
+            finished: false,
+            stopping: false,
+            interrupting: false,
+            label: None,
+            ctl,
+        };
+        self.live
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(s.id.0.clone(), live);
         let rt = self.clone();
         let driver = h.driver(run);
         let (sid, tid) = (s.id.0.clone(), t.id.0.clone());
@@ -234,19 +318,31 @@ impl Runtime {
         if launch.files.is_empty() {
             return Ok(dir.to_string_lossy().into_owned());
         }
-        tokio::fs::create_dir_all(&dir).await.map_err(|e| RuntimeError::Invalid(e.to_string()))?;
+        tokio::fs::create_dir_all(&dir)
+            .await
+            .map_err(|e| RuntimeError::Invalid(e.to_string()))?;
         for f in &launch.files {
             if f.path.contains("..") {
-                return Err(RuntimeError::Invalid(format!("launch file {} leaves its folder", f.path)));
+                return Err(RuntimeError::Invalid(format!(
+                    "launch file {} leaves its folder",
+                    f.path
+                )));
             }
-            tokio::fs::write(dir.join(&f.path), &f.contents).await.map_err(|e| RuntimeError::Invalid(e.to_string()))?;
+            tokio::fs::write(dir.join(&f.path), &f.contents)
+                .await
+                .map_err(|e| RuntimeError::Invalid(e.to_string()))?;
         }
         Ok(dir.to_string_lossy().into_owned())
     }
 
     pub(crate) fn send(&self, id: &str, c: Ctl) -> bool {
-        let mut live = self.live.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let Some(l) = live.get_mut(id) else { return false };
+        let mut live = self
+            .live
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let Some(l) = live.get_mut(id) else {
+            return false;
+        };
         match c {
             Ctl::Stop => l.stopping = true,
             Ctl::Interrupt => l.interrupting = true,

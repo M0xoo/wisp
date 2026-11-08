@@ -152,10 +152,7 @@ pub enum Shim {
 ///   `"%~dp0\node.exe"  "%~dp0\..\opencode-ai\bin\opencode" %*`
 ///   `"%dp0%\node_modules\some-cli\bin\tool.exe"   %*`
 pub fn parse_cmd_shim(text: &str) -> Option<Shim> {
-    let line = text
-        .lines()
-        .map(str::trim)
-        .rfind(|l| l.ends_with("%*"))?;
+    let line = text.lines().map(str::trim).rfind(|l| l.ends_with("%*"))?;
     let quoted = quoted_parts(line);
     let target = from_dp0(quoted.last()?)?;
     let prog = if quoted.len() > 1 {

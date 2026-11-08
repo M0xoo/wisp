@@ -18,7 +18,12 @@ pub struct ModelTokens {
     pub cache_write: f64,
 }
 
-const KEYS: [&str; 4] = ["inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens"];
+const KEYS: [&str; 4] = [
+    "inputTokens",
+    "outputTokens",
+    "cacheReadInputTokens",
+    "cacheCreationInputTokens",
+];
 
 /// A positive number, else 0 (v1 `n0`).
 pub fn n0(v: &Value) -> f64 {
@@ -37,17 +42,26 @@ impl ModelTokens {
 /// Per model, most output first, what's new since `prev` (a modelUsage-shaped object), or None.
 pub fn models_of(model_usage: Option<&Entries>, prev: &Value) -> Option<Vec<ModelTokens>> {
     let mu = model_usage?;
-    let mut list: Vec<ModelTokens> = mu
-        .0
-        .iter()
-        .map(|(model, u)| {
-            let k = |i: usize| (n0(&u[KEYS[i]]) - n0(&prev[model.as_str()][KEYS[i]])).max(0.0);
-            ModelTokens { model: model.clone(), input: k(0), output: k(1), cache_read: k(2), cache_write: k(3) }
-        })
-        .filter(|m| m.input + m.output + m.cache_read + m.cache_write > 0.0)
-        .collect();
+    let mut list: Vec<ModelTokens> =
+        mu.0.iter()
+            .map(|(model, u)| {
+                let k = |i: usize| (n0(&u[KEYS[i]]) - n0(&prev[model.as_str()][KEYS[i]])).max(0.0);
+                ModelTokens {
+                    model: model.clone(),
+                    input: k(0),
+                    output: k(1),
+                    cache_read: k(2),
+                    cache_write: k(3),
+                }
+            })
+            .filter(|m| m.input + m.output + m.cache_read + m.cache_write > 0.0)
+            .collect();
     // Stable, as Array.prototype.sort is: ties keep modelUsage's order.
-    list.sort_by(|a, b| b.output.partial_cmp(&a.output).unwrap_or(std::cmp::Ordering::Equal));
+    list.sort_by(|a, b| {
+        b.output
+            .partial_cmp(&a.output)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     (!list.is_empty()).then_some(list)
 }
 
@@ -78,9 +92,20 @@ pub struct Counted {
 pub fn as_counted(v: &Value) -> Option<Counted> {
     let cost = num(&v["costUsd"])?;
     let models = v["models"].as_array().map(|a| {
-        a.iter().map(|m| ModelTokens { model: str(&m["model"]), input: n0(&m["input"]), output: n0(&m["output"]), cache_read: n0(&m["cacheRead"]), cache_write: n0(&m["cacheWrite"]) }).collect()
+        a.iter()
+            .map(|m| ModelTokens {
+                model: str(&m["model"]),
+                input: n0(&m["input"]),
+                output: n0(&m["output"]),
+                cache_read: n0(&m["cacheRead"]),
+                cache_write: n0(&m["cacheWrite"]),
+            })
+            .collect()
     });
-    Some(Counted { cost_usd: cost, models })
+    Some(Counted {
+        cost_usd: cost,
+        models,
+    })
 }
 
 fn total_cost(msg: &Line) -> Option<f64> {
@@ -94,8 +119,13 @@ pub fn restored_from(msg: &Line, prior: Option<&Counted>) -> bool {
     if !total_cost(msg).is_some_and(|t| t >= prior.cost_usd) {
         return false;
     }
-    let now: f64 = msg.model_usage.as_ref().map_or(0.0, |e| e.0.iter().map(|(_, u)| n0(&u["outputTokens"])).sum());
-    let was: f64 = prior.models.as_ref().map_or(0.0, |m| m.iter().map(|x| x.output).sum());
+    let now: f64 = msg.model_usage.as_ref().map_or(0.0, |e| {
+        e.0.iter().map(|(_, u)| n0(&u["outputTokens"])).sum()
+    });
+    let was: f64 = prior
+        .models
+        .as_ref()
+        .map_or(0.0, |m| m.iter().map(|x| x.output).sum());
     now - was >= n0(&msg.usage["output_tokens"])
 }
 
@@ -126,7 +156,10 @@ pub fn counted_from(msg: &Line, prior: Option<&Counted>, unknown_prior: bool) ->
         return prior.map_or(Start::Zero, |p| Start::Prior(p.clone()));
     }
     match total_cost(msg) {
-        Some(t) if unknown_prior && prior.is_none() => Start::Baseline(Counted { cost_usd: t, models: models_of(msg.model_usage.as_ref(), &NULL) }),
+        Some(t) if unknown_prior && prior.is_none() => Start::Baseline(Counted {
+            cost_usd: t,
+            models: models_of(msg.model_usage.as_ref(), &NULL),
+        }),
         _ => Start::Zero,
     }
 }

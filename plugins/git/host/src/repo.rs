@@ -6,8 +6,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use wisp_git_api::{
-    permission, Applied, ApplyRequest, BaseMerged, BaseRef, Blobs, Body, Branch, ChangeFn, Changes, CommitRequest, DiffRequest, FetchRequest, Fut, MergeTree,
-    PushRequest, Repo, RepoChange, RepoInfo, StageRequest, Status, Subscription, Synced, Touched, WorktreeAdd, WorktreeEntry,
+    Applied, ApplyRequest, BaseMerged, BaseRef, Blobs, Body, Branch, ChangeFn, Changes,
+    CommitRequest, DiffRequest, FetchRequest, Fut, MergeTree, PushRequest, Repo, RepoChange,
+    RepoInfo, StageRequest, Status, Subscription, Synced, Touched, WorktreeAdd, WorktreeEntry,
+    permission,
 };
 use wisp_kernel::{Call, CancellationToken, Result, WireError};
 
@@ -26,7 +28,11 @@ pub struct Inner {
 
 impl Inner {
     pub fn notify(&self, kind: &str) {
-        self.shared.notify(&RepoChange { root: self.info.root.clone(), path: self.info.path.clone(), kind: kind.to_owned() });
+        self.shared.notify(&RepoChange {
+            root: self.info.root.clone(),
+            path: self.info.path.clone(),
+            kind: kind.to_owned(),
+        });
     }
 }
 
@@ -37,13 +43,17 @@ pub struct RepoImpl {
 
 impl std::fmt::Debug for RepoImpl {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Repo").field("path", &self.inner.info.path).field("root", &self.inner.info.root).finish()
+        f.debug_struct("Repo")
+            .field("path", &self.inner.info.path)
+            .field("root", &self.inner.info.root)
+            .finish()
     }
 }
 
 /// The permission of `method`, required of `call`. A method missing from the table is refused.
 fn guard(call: &Call, method: &str) -> Result<()> {
-    let p = permission(method).ok_or_else(|| WireError::forbidden(format!("git.service has no method {method}")))?;
+    let p = permission(method)
+        .ok_or_else(|| WireError::forbidden(format!("git.service has no method {method}")))?;
     call.require(p)
 }
 
@@ -135,7 +145,8 @@ impl Repo for RepoImpl {
     }
     fn worktree_remove(&self, call: &Call, path: &str) -> Fut<()> {
         let path = path.to_owned();
-        guarded!(self, call, "worktree_remove", |me| me.worktree_remove(&path))
+        guarded!(self, call, "worktree_remove", |me| me
+            .worktree_remove(&path))
     }
     fn worktree_prune(&self, call: &Call) -> Fut<()> {
         guarded!(self, call, "worktree_prune", |me| me.worktree_prune())
@@ -167,7 +178,12 @@ impl Repo for RepoImpl {
         let base = base.to_owned();
         guarded!(self, call, "patch", |me| me.patch(&base))
     }
-    fn on_change(&self, call: &Call, owner: &CancellationToken, cb: ChangeFn) -> Result<Subscription> {
+    fn on_change(
+        &self,
+        call: &Call,
+        owner: &CancellationToken,
+        cb: ChangeFn,
+    ) -> Result<Subscription> {
         guard(call, "on_change")?;
         Ok(self.inner.shared.subscribe(owner, cb))
     }

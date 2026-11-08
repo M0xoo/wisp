@@ -37,11 +37,17 @@ pub const MIGRATIONS: &[Migration] = &[Migration::sql(
 )];
 
 fn session_of(r: &Row, key: &str) -> String {
-    r.get(key).and_then(serde_json::Value::as_str).unwrap_or_default().to_owned()
+    r.get(key)
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+        .to_owned()
 }
 
 fn session_topics(r: &Row) -> Vec<String> {
-    vec![wisp_runtime_api::TOPIC_LIST.into(), session_topic(&session_of(r, "id"))]
+    vec![
+        wisp_runtime_api::TOPIC_LIST.into(),
+        session_topic(&session_of(r, "id")),
+    ]
 }
 
 fn child_topics(r: &Row) -> Vec<String> {
@@ -117,7 +123,12 @@ pub const QUEUE_ITEM: EntityDef = EntityDef {
     kind: "queue_item",
     table: "runtime_queue_item",
     key: "id",
-    columns: &[("id", Col::Text), ("session_id", Col::Text), ("pos", Col::Int), ("body", Col::Text)],
+    columns: &[
+        ("id", Col::Text),
+        ("session_id", Col::Text),
+        ("pos", Col::Int),
+        ("body", Col::Text),
+    ],
     json_columns: &["body"],
     parent: None,
     seq: None,

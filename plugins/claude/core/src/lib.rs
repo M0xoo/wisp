@@ -9,6 +9,7 @@
 pub mod describe;
 pub mod limits;
 pub mod line;
+pub mod msg;
 pub mod parser;
 pub mod result;
 pub mod subagents;

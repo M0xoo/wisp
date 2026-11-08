@@ -11,9 +11,22 @@ use wisp_worktrees_core::sweep::{self, DiskLimits};
 use crate::{State, done, prepare, trust};
 
 /// After a new folder: sizes are stale, and past the cap one sweep comes a few minutes on.
-async fn after_add(st: &Arc<State>, ctx: &Ctx, call: &Call, wt: &api::Worktree, session: &str) -> WireResult<()> {
+async fn after_add(
+    st: &Arc<State>,
+    ctx: &Ctx,
+    call: &Call,
+    wt: &api::Worktree,
+    session: &str,
+) -> WireResult<()> {
     let (engine, cleanup, _) = st.parts(ctx).await?;
-    ctx.emit(call, &api::WorktreeAdded { root: wt.root.clone(), path: wt.path.clone(), session_id: Some(session.to_owned()) });
+    ctx.emit(
+        call,
+        &api::WorktreeAdded {
+            root: wt.root.clone(),
+            path: wt.path.clone(),
+            session_id: Some(session.to_owned()),
+        },
+    );
     cleanup.added().await;
     if cleanup.past_cap().await && !st.cap_pending.swap(true, Ordering::SeqCst) {
         let (st, clock) = (st.clone(), engine.clock.clone());
@@ -26,11 +39,25 @@ async fn after_add(st: &Arc<State>, ctx: &Ctx, call: &Call, wt: &api::Worktree, 
     Ok(())
 }
 
-pub async fn create(st: &Arc<State>, ctx: &Ctx, call: &Call, args: api::CreateArgs) -> WireResult<Option<api::Worktree>> {
+pub async fn create(
+    st: &Arc<State>,
+    ctx: &Ctx,
+    call: &Call,
+    args: api::CreateArgs,
+) -> WireResult<Option<api::Worktree>> {
     let (engine, _, port) = st.parts(ctx).await?;
-    let Ok(here) = engine.repo(call, &args.cwd).await else { return Ok(None) };
+    let Ok(here) = engine.repo(call, &args.cwd).await else {
+        return Ok(None);
+    };
     let set = port.settings().await;
-    let hold = trust::setup_hold(&engine, &set.trust, &here.info().root, set.project_ask.as_deref(), &args.mode).await;
+    let hold = trust::setup_hold(
+        &engine,
+        &set.trust,
+        &here.info().root,
+        set.project_ask.as_deref(),
+        &args.mode,
+    )
+    .await;
     let wt = engine.create(call, &args, hold).await?;
     if let Some(w) = &wt {
         after_add(st, ctx, call, w, &args.session_id).await?;
@@ -49,7 +76,10 @@ macro_rules! handle {
 }
 
 pub fn register(s: &mut Setup, st: &Arc<State>) {
-    handle!(s, st, api::Create, |st, ctx, call, args| create(&st, &ctx, &call, args).await);
+    handle!(s, st, api::Create, |st, ctx, call, args| create(
+        &st, &ctx, &call, args
+    )
+    .await);
     handle!(s, st, api::Ensure, |st, ctx, call, args| {
         let (e, _, _) = st.parts(&ctx).await?;
         Ok(e.ensure(&call, &args.worktree).await?)
@@ -58,13 +88,21 @@ pub fn register(s: &mut Setup, st: &Arc<State>) {
         let (e, _, _) = st.parts(&ctx).await?;
         let r = e.remove(&call, &args.worktree, args.opts, None).await?;
         if r.removed {
-            ctx.emit(&call, &api::WorktreeRemoved { root: args.worktree.root.clone(), path: args.worktree.path.clone(), branch_deleted: r.branch_deleted });
+            ctx.emit(
+                &call,
+                &api::WorktreeRemoved {
+                    root: args.worktree.root.clone(),
+                    path: args.worktree.path.clone(),
+                    branch_deleted: r.branch_deleted,
+                },
+            );
         }
         Ok(r)
     });
     handle!(s, st, api::Status, |st, ctx, call, args| {
         let (e, _, _) = st.parts(&ctx).await?;
-        Ok(e.status(&call, &args.worktree, args.merged.as_deref()).await?)
+        Ok(e.status(&call, &args.worktree, args.merged.as_deref())
+            .await?)
     });
     handle!(s, st, api::View, |st, ctx, _call, _args| {
         let (_, c, _) = st.parts(&ctx).await?;

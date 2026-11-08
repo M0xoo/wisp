@@ -1,6 +1,5 @@
 //! wisp-proc's one error enum, mapped to the wire's `{code, message, retry}` at the edge.
 
-
 #[derive(Debug, thiserror::Error)]
 pub enum ProcError {
     /// v1: spawn's ENOENT, reported, never thrown

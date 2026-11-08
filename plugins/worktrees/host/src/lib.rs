@@ -19,7 +19,9 @@ use std::sync::Arc;
 use serde_json::Value;
 use tokio::sync::OnceCell;
 use wisp_git_api::GitServiceV1;
-use wisp_kernel::{Ctx, Failure, Hook, InterceptOpts, Manifest, Plugin, Result as WireResult, Setup, WireError};
+use wisp_kernel::{
+    Ctx, Failure, Hook, InterceptOpts, Manifest, Plugin, Result as WireResult, Setup, WireError,
+};
 use wisp_worktrees_api as api;
 use wisp_worktrees_core::sweep::{self, DiskLimits};
 
@@ -45,7 +47,10 @@ pub struct WorktreesPlugin {
 
 impl WorktreesPlugin {
     pub fn new(home: impl Into<String>, user_home: impl Into<String>) -> Self {
-        Self { home: home.into(), user_home: user_home.into() }
+        Self {
+            home: home.into(),
+            user_home: user_home.into(),
+        }
     }
 }
 
@@ -59,7 +64,9 @@ pub struct State {
 
 impl std::fmt::Debug for State {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("State").field("plugin", &self.plugin).finish_non_exhaustive()
+        f.debug_struct("State")
+            .field("plugin", &self.plugin)
+            .finish_non_exhaustive()
     }
 }
 
@@ -73,12 +80,25 @@ pub fn platform() -> &'static str {
 
 impl State {
     pub fn new(plugin: WorktreesPlugin) -> Arc<Self> {
-        Arc::new(Self { plugin, built: OnceCell::new(), cap_pending: false.into() })
+        Arc::new(Self {
+            plugin,
+            built: OnceCell::new(),
+            cap_pending: false.into(),
+        })
     }
 
     /// For tests and installs that wire the parts themselves.
-    pub fn with(plugin: WorktreesPlugin, engine: Arc<Engine>, cleanup: Arc<Cleanup>, port: Arc<dyn Port>) -> Arc<Self> {
-        Arc::new(Self { plugin, built: OnceCell::new_with(Some((engine, cleanup, port))), cap_pending: false.into() })
+    pub fn with(
+        plugin: WorktreesPlugin,
+        engine: Arc<Engine>,
+        cleanup: Arc<Cleanup>,
+        port: Arc<dyn Port>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            plugin,
+            built: OnceCell::new_with(Some((engine, cleanup, port))),
+            cap_pending: false.into(),
+        })
     }
 
     pub async fn parts(&self, ctx: &Ctx) -> WireResult<(Arc<Engine>, Arc<Cleanup>, Arc<dyn Port>)> {
@@ -89,7 +109,16 @@ impl State {
                 let port = ctx.service::<Arc<dyn Port>>()?.as_ref().clone();
                 let clock = ctx.clock()?;
                 let sources = ctx.contributions(&api::SETUP_SOURCES);
-                let engine = Arc::new(Engine::new(git, proc, clock, self.plugin.home.clone(), self.plugin.user_home.clone(), platform(), sources, ctx.scope().clone()));
+                let engine = Arc::new(Engine::new(
+                    git,
+                    proc,
+                    clock,
+                    self.plugin.home.clone(),
+                    self.plugin.user_home.clone(),
+                    platform(),
+                    sources,
+                    ctx.scope().clone(),
+                ));
                 let cleanup = Cleanup::new(engine.clone(), port.clone(), ctx.root_call());
                 Ok::<_, WireError>((engine, cleanup, port))
             })
@@ -108,14 +137,29 @@ impl Plugin for WorktreesPlugin {
         commands::register(s, &st);
         routes::register(s, &st);
         let hook_st = st.clone();
-        s.intercept::<BeforeRunView, _, _>(InterceptOpts { priority: 50, failure: Failure::Closed, timeout_ms: 1000 }, move |ctx, _call, hctx| {
-            let st = hook_st.clone();
-            async move {
-                let Ok((engine, _, port)) = st.parts(&ctx).await else { return wisp_kernel::Verdict::Continue };
-                let set = port.settings().await;
-                trust::before_run(&set.trust, set.project_ask.as_deref(), &engine.user_home, hctx).await
-            }
-        });
+        s.intercept::<BeforeRunView, _, _>(
+            InterceptOpts {
+                priority: 50,
+                failure: Failure::Closed,
+                timeout_ms: 1000,
+            },
+            move |ctx, _call, hctx| {
+                let st = hook_st.clone();
+                async move {
+                    let Ok((engine, _, port)) = st.parts(&ctx).await else {
+                        return wisp_kernel::Verdict::Continue;
+                    };
+                    let set = port.settings().await;
+                    trust::before_run(
+                        &set.trust,
+                        set.project_ask.as_deref(),
+                        &engine.user_home,
+                        hctx,
+                    )
+                    .await
+                }
+            },
+        );
         let start_st = st;
         s.on_start(move |ctx| async move {
             let (engine, cleanup, port) = start_st.parts(&ctx).await?;
@@ -139,3 +183,17 @@ impl Plugin for WorktreesPlugin {
 }
 
 mod commands;
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_manifest_is_valid_and_routes_are_v1s() {
+        let p = super::WorktreesPlugin::new("/tmp/h", "/tmp/u");
+        let m = wisp_kernel::Plugin::manifest(&p);
+        assert_eq!(m.id, "wisp.worktrees", "{:?}", m.description);
+        assert!(m.requires.contains_key("git.service"));
+        let st = super::State::new(p);
+        let r: Vec<(&str, &str)> = super::routes::routes(&st).iter().map(|r| (r.method, r.pattern)).collect();
+        assert_eq!(r, [("GET", "/worktrees"), ("POST", "/worktrees/clean"), ("GET", "/sessions/:id/folders"), ("POST", "/sessions/:id/folders")]);
+    }
+}

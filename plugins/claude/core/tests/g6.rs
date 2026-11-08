@@ -21,8 +21,12 @@ fn read(p: &Path) -> Option<String> {
 fn same(a: &Value, b: &Value) -> bool {
     match (a, b) {
         (Value::Number(x), Value::Number(y)) => x.as_f64() == y.as_f64(),
-        (Value::Array(x), Value::Array(y)) => x.len() == y.len() && x.iter().zip(y).all(|(a, b)| same(a, b)),
-        (Value::Object(x), Value::Object(y)) => x.len() == y.len() && x.iter().all(|(k, v)| y.get(k).is_some_and(|w| same(v, w))),
+        (Value::Array(x), Value::Array(y)) => {
+            x.len() == y.len() && x.iter().zip(y).all(|(a, b)| same(a, b))
+        }
+        (Value::Object(x), Value::Object(y)) => {
+            x.len() == y.len() && x.iter().all(|(k, v)| y.get(k).is_some_and(|w| same(v, w)))
+        }
         _ => a == b,
     }
 }
@@ -63,18 +67,30 @@ fn run_fixture(dir: &Path, name: &str) -> Option<(Vec<Value>, Vec<Value>)> {
     let meta: Value = serde_json::from_str(&read(&dir.join(format!("{name}.meta.json")))?).ok()?;
     let stdout = read(&dir.join(format!("{name}.jsonl")))?.replace("@CWD@", CWD);
     let opts = &meta["opts"];
-    let mut parser = ClaudeParser::new(ClaudeOptions { paths: RunPaths::same(CWD), prior: opts.get("prior").cloned(), unknown_prior: opts["unknownPrior"].as_bool().unwrap_or(false) });
+    let mut parser = ClaudeParser::new(ClaudeOptions {
+        paths: RunPaths::same(CWD),
+        prior: opts.get("prior").cloned(),
+        unknown_prior: opts["unknownPrior"].as_bool().unwrap_or(false),
+    });
     let lines: Vec<&str> = stdout.lines().collect();
-    let events = replay(&mut parser, &lines, &exit_of(&meta), &mut NoDisk, |i| i64::try_from(i).unwrap_or(0));
-    let text = serde_json::to_string(&events.iter().map(HarnessEvent::to_json).collect::<Vec<_>>()).ok()?.replace(CWD, "@CWD@");
+    let events = replay(&mut parser, &lines, &exit_of(&meta), &mut NoDisk, |i| {
+        i64::try_from(i).unwrap_or(0)
+    });
+    let text = serde_json::to_string(&events.iter().map(HarnessEvent::to_json).collect::<Vec<_>>())
+        .ok()?
+        .replace(CWD, "@CWD@");
     let mut got: Vec<Value> = serde_json::from_str(&text).ok()?;
-    let drops: Vec<&str> = meta["drop"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
+    let drops: Vec<&str> = meta["drop"]
+        .as_array()
+        .map(|a| a.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
     for e in &mut got {
         for d in &drops {
             drop_path(e, &d.split('.').collect::<Vec<_>>());
         }
     }
-    let golden: Vec<Value> = serde_json::from_str(&read(&dir.join(format!("{name}.v1.json")))?).ok()?;
+    let golden: Vec<Value> =
+        serde_json::from_str(&read(&dir.join(format!("{name}.v1.json")))?).ok()?;
     Some((got, golden))
 }
 
@@ -82,7 +98,16 @@ fn run_fixture(dir: &Path, name: &str) -> Option<(Vec<Value>, Vec<Value>)> {
 fn g6_every_recorded_run_parses_as_v1_did() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
     let mut names: Vec<String> = std::fs::read_dir(&dir)
-        .map(|r| r.filter_map(Result::ok).filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".jsonl")).map(str::to_owned)).collect())
+        .map(|r| {
+            r.filter_map(Result::ok)
+                .filter_map(|e| {
+                    e.file_name()
+                        .to_str()
+                        .and_then(|n| n.strip_suffix(".jsonl"))
+                        .map(str::to_owned)
+                })
+                .collect()
+        })
         .unwrap_or_default();
     names.sort();
     assert_eq!(names.len(), 34, "the 34 recorded runs");
@@ -93,11 +118,26 @@ fn g6_every_recorded_run_parses_as_v1_did() {
             continue;
         };
         if !(got.len() == want.len() && got.iter().zip(&want).all(|(a, b)| same(a, b))) {
-            let at = got.iter().zip(&want).position(|(a, b)| !same(a, b)).unwrap_or(got.len().min(want.len()));
+            let at = got
+                .iter()
+                .zip(&want)
+                .position(|(a, b)| !same(a, b))
+                .unwrap_or(got.len().min(want.len()));
             let show = |v: Option<&Value>| v.map_or_else(|| "-".into(), Value::to_string);
-            failed.push(format!("{name}: {} events, v1 had {}; first difference at #{at}:\n  got  {}\n  want {}", got.len(), want.len(), show(got.get(at)), show(want.get(at))));
+            failed.push(format!(
+                "{name}: {} events, v1 had {}; first difference at #{at}:\n  got  {}\n  want {}",
+                got.len(),
+                want.len(),
+                show(got.get(at)),
+                show(want.get(at))
+            ));
         }
     }
     eprintln!("G6: {}/34 recorded Claude runs match v1", 34 - failed.len());
-    assert!(failed.is_empty(), "G6: {}/34 match v1\n{}", 34 - failed.len(), failed.join("\n"));
+    assert!(
+        failed.is_empty(),
+        "G6: {}/34 match v1\n{}",
+        34 - failed.len(),
+        failed.join("\n")
+    );
 }

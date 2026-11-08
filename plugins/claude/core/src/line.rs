@@ -3,9 +3,12 @@
 //! skipped without being built, which is most of a line's bytes in a long run. Objects whose key
 //! order v1 kept (`modelUsage`, `unifiedWindows`) are read in order.
 
-use serde::de::{Deserializer, MapAccess, Visitor};
 use serde::Deserialize;
+use serde::de::{Deserializer, MapAccess, Visitor};
 use serde_json::Value;
+use serde_json::value::RawValue;
+
+use crate::msg::{Lenient, Msg};
 
 /// `null` for a missing key: what `msg[k]` is in JavaScript for our purposes.
 pub static NULL: Value = Value::Null;
@@ -22,7 +25,10 @@ pub struct Entries(pub Vec<(String, Value)>);
 
 impl Entries {
     pub fn get(&self, key: &str) -> &Value {
-        self.0.iter().find(|(k, _)| k == key).map_or(&NULL, |(_, v)| v)
+        self.0
+            .iter()
+            .find(|(k, _)| k == key)
+            .map_or(&NULL, |(_, v)| v)
     }
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
@@ -48,7 +54,10 @@ impl<'de> Deserialize<'de> for Entries {
                 }
                 Ok(Entries(out))
             }
-            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Entries, A::Error> {
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut seq: A,
+            ) -> Result<Entries, A::Error> {
                 while seq.next_element::<serde::de::IgnoredAny>()?.is_some() {}
                 Ok(Entries::default())
             }
@@ -104,7 +113,10 @@ impl<'de> Deserialize<'de> for ToolUseResult {
                 }
                 Ok(out)
             }
-            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<ToolUseResult, A::Error> {
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut seq: A,
+            ) -> Result<ToolUseResult, A::Error> {
                 while seq.next_element::<serde::de::IgnoredAny>()?.is_some() {}
                 Ok(ToolUseResult::default())
             }
@@ -150,23 +162,24 @@ pub struct RateLimitInfo {
 
 macro_rules! line_fields {
     ($( $(#[$m:meta])* $name:ident : $ty:ty ),* $(,)?) => {
-        /// The keys of a stream-json line the parser reads.
+        /// The keys of a stream-json line the parser reads. `message` stays raw JSON, borrowed from
+        /// the line: it is read part by part (crate::msg), and only a tool call's input becomes a Value.
         #[derive(Debug, Default, Deserialize)]
-        pub struct Line {
+        pub struct Line<'a> {
             $( $(#[$m])* #[serde(default)] pub $name: $ty, )*
         }
     };
 }
 
 line_fields! {
-    #[serde(rename = "type")] ty: Value,
-    subtype: Value,
+    #[serde(rename = "type", borrow)] ty: Option<&'a RawValue>,
+    #[serde(borrow)] subtype: Option<&'a RawValue>,
     session_id: Value,
-    message: Value,
+    #[serde(borrow)] message: Lenient<Msg<'a>>,
     parent_tool_use_id: Value,
     error: Value,
     tool_use_result: Option<ToolUseResult>,
-    rate_limit_info: Option<Box<serde_json::value::RawValue>>,
+    #[serde(borrow)] rate_limit_info: Option<&'a RawValue>,
     #[serde(rename = "apiKeySource")] api_key_source: Value,
     tools: Value,
     claude_code_version: Value,
@@ -196,14 +209,14 @@ line_fields! {
 
 impl RateLimitInfo {
     /// None unless it is an object (v1: `if (!raw || typeof raw !== 'object') return null`).
-    pub fn parse(raw: &serde_json::value::RawValue) -> Option<Self> {
+    pub fn parse(raw: &RawValue) -> Option<Self> {
         serde_json::from_str(raw.get()).ok()
     }
 }
 
-impl Line {
+impl<'a> Line<'a> {
     /// The line, or None for a blank or non-JSON line (v1 skipped both) or one that isn't an object.
-    pub fn parse(text: &str) -> Option<Self> {
+    pub fn parse(text: &'a str) -> Option<Self> {
         if !wisp_harness_kit::js::has_text(text) {
             return None;
         }

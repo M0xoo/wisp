@@ -256,6 +256,11 @@ fn where_a_task_lands() {
         (l.state, l.run_after.as_deref()),
         (SessionState::Running, Some("wisp.goal"))
     );
+}
+
+#[test]
+fn where_a_task_lands_after_housekeeping_quiet_outcomes_and_settle() {
+    let none = || None;
     // a compaction is housekeeping: never checked, quiet when it knows where the task was
     let l = land::land(
         Facts {
@@ -400,6 +405,17 @@ fn the_row_says_what_the_last_answer_said_and_what_runs_now() {
         .live,
         "Compacting"
     );
+}
+
+#[test]
+fn the_row_says_who_a_lead_waits_on_what_it_asks_and_what_plugins_add() {
+    let s = session();
+    let none = BTreeMap::new;
+    let done = done_turn("Added the limiter", "partial");
+    let running = Turn {
+        status: TurnStatus::Running,
+        ..Turn::default()
+    };
     let names = ["Ada".to_owned(), "Bo".to_owned(), "Ada".to_owned()];
     let row = summarize(
         &s,

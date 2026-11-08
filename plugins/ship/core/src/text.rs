@@ -25,9 +25,15 @@ fn is_conventional(t: &str) -> bool {
     }
     let mut rest = &t[kind..];
     if let Some(inner) = rest.strip_prefix('(') {
-        let Some(close) = inner.find(')') else { return false };
+        let Some(close) = inner.find(')') else {
+            return false;
+        };
         let scope = &inner[..close];
-        if scope.is_empty() || !scope.chars().all(|c| c.is_alphanumeric() || "_./-".contains(c)) {
+        if scope.is_empty()
+            || !scope
+                .chars()
+                .all(|c| c.is_alphanumeric() || "_./-".contains(c))
+        {
             return false;
         }
         rest = &inner[close + 1..];
@@ -44,18 +50,30 @@ fn has_word(hay: &str, needle: &str, whole: bool) -> bool {
     let hay = hay.to_ascii_lowercase();
     hay.match_indices(needle).any(|(i, m)| {
         let before = hay[..i].chars().next_back().is_none_or(|c| !word_char(c));
-        let after = hay[i + m.len()..].chars().next().is_none_or(|c| !word_char(c));
+        let after = hay[i + m.len()..]
+            .chars()
+            .next()
+            .is_none_or(|c| !word_char(c));
         before && (!whole || after)
     })
 }
 
 fn commit_type(text: &str, prompt: &str) -> &'static str {
     let both = format!("{text} {prompt}");
-    if ["fix", "bug", "broken", "crash", "flaky", "regression"].iter().any(|w| has_word(&both, w, false)) {
+    if ["fix", "bug", "broken", "crash", "flaky", "regression"]
+        .iter()
+        .any(|w| has_word(&both, w, false))
+    {
         "fix"
-    } else if ["docs", "doc", "readme", "changelog"].iter().any(|w| has_word(text, w, true)) {
+    } else if ["docs", "doc", "readme", "changelog"]
+        .iter()
+        .any(|w| has_word(text, w, true))
+    {
         "docs"
-    } else if ["refactor", "cleanup", "clean up", "simplif"].iter().any(|w| has_word(text, w, false)) {
+    } else if ["refactor", "cleanup", "clean up", "simplif"]
+        .iter()
+        .any(|w| has_word(text, w, false))
+    {
         "refactor"
     } else if ["tests", "test"].iter().any(|w| has_word(text, w, true)) {
         "test"
@@ -71,12 +89,26 @@ pub fn draft(d: &DraftInput<'_>) -> Draft {
         text.to_owned()
     } else {
         let mut chars = text.chars();
-        let lowered: String = chars.next().map(|c| c.to_lowercase().chain(chars).collect()).unwrap_or_default();
+        let lowered: String = chars
+            .next()
+            .map(|c| c.to_lowercase().chain(chars).collect())
+            .unwrap_or_default();
         format!("{}: {lowered}", commit_type(text, d.first_prompt))
     };
-    let body = [d.hero_summary.unwrap_or_default(), d.markdown].iter().filter(|s| !s.is_empty()).copied().collect::<Vec<_>>().join("\n\n");
-    let body = format!("{}\n\n_Shipped from [wisp](https://github.com/M0xoo/wisp)._", body.trim());
-    Draft { title: title.chars().take(100).collect(), body: body.trim().to_owned() }
+    let body = [d.hero_summary.unwrap_or_default(), d.markdown]
+        .iter()
+        .filter(|s| !s.is_empty())
+        .copied()
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    let body = format!(
+        "{}\n\n_Shipped from [wisp](https://github.com/M0xoo/wisp)._",
+        body.trim()
+    );
+    Draft {
+        title: title.chars().take(100).collect(),
+        body: body.trim().to_owned(),
+    }
 }
 
 /// The follow-up a conflicting PR's task gets: merge the base in, don't rebase, don't push.
@@ -98,13 +130,21 @@ pub fn conflict_prompt(pr: &PrSummary, wt: &Worktree) -> String {
 
 /// The commit message of a pushed conflict fix.
 pub fn fix_title(wt: &Worktree) -> String {
-    format!("Merge {}/{} into {}", wt.remote.as_deref().unwrap_or("origin"), wt.base, wt.branch)
+    format!(
+        "Merge {}/{} into {}",
+        wt.remote.as_deref().unwrap_or("origin"),
+        wt.base,
+        wt.branch
+    )
 }
 
 /// The note each PR of a task across repos carries.
 pub fn across_note(names: &[&str]) -> String {
     let list: Vec<String> = names.iter().map(|n| format!("`{n}`")).collect();
-    format!("\n\nPart of one task across {}: wisp opens a pull request in each.", list.join(", "))
+    format!(
+        "\n\nPart of one task across {}: wisp opens a pull request in each.",
+        list.join(", ")
+    )
 }
 
 /// What wisp_pr tells the agent after attaching. `n`: the task's PRs now.
@@ -130,7 +170,14 @@ pub fn check_log_job(url: &str) -> Option<(String, String, String)> {
     let parts: Vec<&str> = rest.splitn(7, '/').collect();
     let ok = |s: &str| !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || "_.-".contains(c));
     let digits = |s: &str| -> String { s.chars().take_while(char::is_ascii_digit).collect() };
-    if parts.len() < 6 || !ok(parts[0]) || !ok(parts[1]) || parts[2] != "actions" || parts[3] != "runs" || parts[4].is_empty() || !parts[4].bytes().all(|b| b.is_ascii_digit()) {
+    if parts.len() < 6
+        || !ok(parts[0])
+        || !ok(parts[1])
+        || parts[2] != "actions"
+        || parts[3] != "runs"
+        || parts[4].is_empty()
+        || !parts[4].bytes().all(|b| b.is_ascii_digit())
+    {
         return None;
     }
     let job = parts[5].strip_prefix("job")?;
@@ -140,7 +187,9 @@ pub fn check_log_job(url: &str) -> Option<(String, String, String)> {
 
 /// The repo name of a PR URL (`…/acme/docs/pull/9` → `docs`), "" otherwise.
 pub fn repo_of_url(url: &str) -> String {
-    let Some(at) = url.find("github.com/") else { return String::new() };
+    let Some(at) = url.find("github.com/") else {
+        return String::new();
+    };
     let mut parts = url[at + 11..].split('/');
     match (parts.next(), parts.next(), parts.next()) {
         (Some(o), Some(r), Some("pull")) if !o.is_empty() && !r.is_empty() => r.to_owned(),
@@ -151,11 +200,20 @@ pub fn repo_of_url(url: &str) -> String {
 fn strip_stamp(l: &str) -> &str {
     let l = l.strip_prefix('\u{feff}').unwrap_or(l);
     let b = l.as_bytes();
-    let date = b.len() >= 11 && b[..4].iter().all(u8::is_ascii_digit) && b[4] == b'-' && b[5..7].iter().all(u8::is_ascii_digit) && b[7] == b'-' && b[8..10].iter().all(u8::is_ascii_digit) && b[10] == b'T';
+    let date = b.len() >= 11
+        && b[..4].iter().all(u8::is_ascii_digit)
+        && b[4] == b'-'
+        && b[5..7].iter().all(u8::is_ascii_digit)
+        && b[7] == b'-'
+        && b[8..10].iter().all(u8::is_ascii_digit)
+        && b[10] == b'T';
     if !date {
         return l;
     }
-    let tail = l[11..].bytes().take_while(|c| c.is_ascii_digit() || *c == b':' || *c == b'.').count();
+    let tail = l[11..]
+        .bytes()
+        .take_while(|c| c.is_ascii_digit() || *c == b':' || *c == b'.')
+        .count();
     if tail == 0 || b.get(11 + tail) != Some(&b'Z') {
         return l;
     }
@@ -169,7 +227,10 @@ fn strip_ansi(l: &str) -> String {
     while let Some(i) = rest.find("\x1b[") {
         out.push_str(&rest[..i]);
         let after = &rest[i + 2..];
-        let n = after.bytes().take_while(|c| c.is_ascii_digit() || *c == b';').count();
+        let n = after
+            .bytes()
+            .take_while(|c| c.is_ascii_digit() || *c == b';')
+            .count();
         if after.as_bytes().get(n) == Some(&b'm') {
             rest = &after[n + 1..];
         } else {
@@ -188,13 +249,25 @@ pub fn log_tail(out: &str, n: usize) -> String {
         .split('\n')
         .map(|l| {
             let cols: Vec<&str> = l.split('\t').collect();
-            let text = if cols.len() > 2 { cols[2..].join("\t") } else { String::new() };
+            let text = if cols.len() > 2 {
+                cols[2..].join("\t")
+            } else {
+                String::new()
+            };
             let text = if text.is_empty() { l.to_owned() } else { text };
             strip_ansi(strip_stamp(&text))
         })
         .collect();
-    let kept: Vec<&str> = lines.iter().enumerate().filter(|(i, l)| !l.trim().is_empty() || (*i > 0 && !lines[i - 1].trim().is_empty())).map(|(_, l)| l.as_str()).collect();
-    kept[kept.len().saturating_sub(n)..].join("\n").trim().to_owned()
+    let kept: Vec<&str> = lines
+        .iter()
+        .enumerate()
+        .filter(|(i, l)| !l.trim().is_empty() || (*i > 0 && !lines[i - 1].trim().is_empty()))
+        .map(|(_, l)| l.as_str())
+        .collect();
+    kept[kept.len().saturating_sub(n)..]
+        .join("\n")
+        .trim()
+        .to_owned()
 }
 
 #[cfg(test)]

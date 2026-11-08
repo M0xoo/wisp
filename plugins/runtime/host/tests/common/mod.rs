@@ -10,7 +10,10 @@ use wisp_kernel::BoxFuture;
 use wisp_proc::Exit;
 use wisp_proc::sim::{SimIo, SimProc};
 use wisp_runtime::{Recorder, Runtime, repo::Repo, schema};
-use wisp_runtime_api::harness::{HarnessFound, HarnessInfo, HarnessModel, HarnessParser, HarnessRun, HarnessSys, Launch, ParserInput, ParserOutput, RunDriver, pure};
+use wisp_runtime_api::harness::{
+    HarnessFound, HarnessInfo, HarnessModel, HarnessParser, HarnessRun, HarnessSys, Launch,
+    ParserInput, ParserOutput, RunDriver, pure,
+};
 use wisp_runtime_api::{Harness, HarnessEvent};
 use wisp_store::{Location, Store, SystemClock};
 
@@ -20,8 +23,21 @@ pub struct Fake {
 }
 
 impl Fake {
-    pub fn new() -> Arc<dyn Harness> {
-        Arc::new(Self { info: HarnessInfo { id: "fake".into(), name: "Fake CLI".into(), models: vec![HarnessModel { id: "m1".into(), label: "M1".into(), hint: None, efforts: vec![] }], system_prompt_flag: true, ..HarnessInfo::default() } })
+    pub fn harness() -> Arc<dyn Harness> {
+        Arc::new(Self {
+            info: HarnessInfo {
+                id: "fake".into(),
+                name: "Fake CLI".into(),
+                models: vec![HarnessModel {
+                    id: "m1".into(),
+                    label: "M1".into(),
+                    hint: None,
+                    efforts: vec![],
+                }],
+                system_prompt_flag: true,
+                ..HarnessInfo::default()
+            },
+        })
     }
 }
 
@@ -33,14 +49,25 @@ impl HarnessParser for Lines {
     fn on(&mut self, input: ParserInput<'_>, _now: i64, out: &mut ParserOutput) {
         match input {
             ParserInput::Stdout(line) => {
-                if let Ok(e) = serde_json::from_str::<Value>(line).map_err(|_| ()).and_then(|v| HarnessEvent::from_v1(v).map_err(|_| ())) {
+                if let Ok(e) = serde_json::from_str::<Value>(line)
+                    .map_err(|_| ())
+                    .and_then(|v| HarnessEvent::from_v1(v).map_err(|_| ()))
+                {
                     self.done |= e.is_result();
                     out.emit(e);
                 }
             }
             ParserInput::Exit(x) if !self.done && x.stop_requested => {
                 self.done = true;
-                out.emit(HarnessEvent::Result { text: String::new(), is_error: false, stopped: true, stats: None, auth_failed: false, stop_reason: None, background: None });
+                out.emit(HarnessEvent::Result {
+                    text: String::new(),
+                    is_error: false,
+                    stopped: true,
+                    stats: None,
+                    auth_failed: false,
+                    stop_reason: None,
+                    background: None,
+                });
             }
             _ => {}
         }
@@ -52,14 +79,23 @@ impl Harness for Fake {
         &self.info
     }
     fn detect<'a>(&'a self, _sys: &'a dyn HarnessSys) -> BoxFuture<'a, HarnessFound> {
-        Box::pin(async { HarnessFound { available: true, ..HarnessFound::default() } })
+        Box::pin(async {
+            HarnessFound {
+                available: true,
+                ..HarnessFound::default()
+            }
+        })
     }
     fn launch(&self, run: &HarnessRun) -> wisp_kernel::Result<Launch> {
         let mut args = vec![run.prompt.clone()];
         if let Some(r) = &run.resume_id {
             args.push(format!("--resume={r}"));
         }
-        Ok(Launch { program: "fake".into(), args, ..Launch::default() })
+        Ok(Launch {
+            program: "fake".into(),
+            args,
+            ..Launch::default()
+        })
     }
     fn driver(&self, _run: &HarnessRun) -> Box<dyn RunDriver> {
         pure(Lines { done: false })
@@ -68,9 +104,14 @@ impl Harness for Fake {
 
 /// The answer a turn prints, by its prompt: `slow…` waits to be killed, `fail…` errors, else a hero.
 pub fn script(prompt: &str) -> Vec<Value> {
-    let hero = format!("```wisp\n{{\"blocks\":[{{\"type\":\"hero\",\"title\":\"Did it\",\"topic\":\"Topic of {prompt}\",\"summary\":\"done: {prompt}\",\"status\":\"done\"}}]}}\n```");
+    let hero = format!(
+        "```wisp\n{{\"blocks\":[{{\"type\":\"hero\",\"title\":\"Did it\",\"topic\":\"Topic of {prompt}\",\"summary\":\"done: {prompt}\",\"status\":\"done\"}}]}}\n```"
+    );
     if prompt.starts_with("fail") {
-        return vec![json!({"type":"session","id":"conv-1"}), json!({"type":"result","text":"Error: boom\nmore","isError":true})];
+        return vec![
+            json!({"type":"session","id":"conv-1"}),
+            json!({"type":"result","text":"Error: boom\nmore","isError":true}),
+        ];
     }
     vec![
         json!({"type":"session","id":"conv-1"}),
@@ -86,18 +127,28 @@ async fn fake_cli(io: SimIo) -> Exit {
     let prompt = io.args.first().cloned().unwrap_or_default();
     let slow = prompt.starts_with("slow");
     let lines = script(&prompt);
-    let (head, tail) = if slow { lines.split_at(2) } else { lines.split_at(lines.len()) };
+    let (head, tail) = if slow {
+        lines.split_at(2)
+    } else {
+        lines.split_at(lines.len())
+    };
     for l in head {
         io.print(format!("{l}\n").as_bytes()).await;
     }
     if slow {
         io.killed.cancelled().await;
-        return Exit { code: None, signal: Some("SIGTERM".into()) };
+        return Exit {
+            code: None,
+            signal: Some("SIGTERM".into()),
+        };
     }
     for l in tail {
         io.print(format!("{l}\n").as_bytes()).await;
     }
-    Exit { code: Some(0), signal: None }
+    Exit {
+        code: Some(0),
+        signal: None,
+    }
 }
 
 pub struct Rig {
@@ -111,10 +162,23 @@ pub async fn rig_with(host: Recorder) -> Rig {
     let store = Store::open(Location::Memory, Arc::new(SystemClock)).unwrap();
     schema::install(&store).unwrap();
     let sim = SimProc::new().program("fake", fake_cli);
-    let host = Arc::new(Recorder { harnesses: vec![Fake::new()], ..host });
-    let rt = Runtime::new(Repo::new(store.clone()), host.clone(), Arc::new(sim.clone()), Arc::new(SystemClock));
+    let host = Arc::new(Recorder {
+        harnesses: vec![Fake::harness()],
+        ..host
+    });
+    let rt = Runtime::new(
+        Repo::new(store.clone()),
+        host.clone(),
+        Arc::new(sim.clone()),
+        Arc::new(SystemClock),
+    );
     rt.start().await.unwrap();
-    Rig { rt, host, store, sim }
+    Rig {
+        rt,
+        host,
+        store,
+        sim,
+    }
 }
 
 pub async fn rig() -> Rig {

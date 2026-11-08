@@ -22,7 +22,10 @@ pub fn clip(s: &str, n: usize) -> String {
 }
 
 /// Every harness that wrote part of the task: its turns', else the task's own; never Auto or wisp.
-pub fn authors_of<'a>(task_agent: &'a str, turn_agents: impl IntoIterator<Item = &'a str>) -> Vec<String> {
+pub fn authors_of<'a>(
+    task_agent: &'a str,
+    turn_agents: impl IntoIterator<Item = &'a str>,
+) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for a in turn_agents.into_iter().chain(std::iter::once(task_agent)) {
         if !a.is_empty() && a != "auto" && a != "wisp" && !out.iter().any(|x| x == a) {
@@ -36,17 +39,35 @@ pub fn authors_of<'a>(task_agent: &'a str, turn_agents: impl IntoIterator<Item =
 /// it's signed in with.
 pub fn pick_reviewer(setting: &str, authors: &[String], agents: &[Agent]) -> Result<Pick, String> {
     let ready = |id: &str| agents.iter().any(|a| a.id == id && a.available);
-    let pick = |id: &str| Pick { agent: id.to_owned(), model: String::new() };
+    let pick = |id: &str| Pick {
+        agent: id.to_owned(),
+        model: String::new(),
+    };
     if setting.is_empty() || setting == "off" {
         return Err("Review by another harness is off.".into());
     }
     if setting == "other" {
-        return HARNESSES.iter().find(|h| ready(h) && !authors.iter().any(|a| a == *h)).map(|h| pick(h)).ok_or_else(|| "No other harness than the one that wrote it is installed here.".into());
+        return HARNESSES
+            .iter()
+            .find(|h| ready(h) && !authors.iter().any(|a| a == *h))
+            .map(|h| pick(h))
+            .ok_or_else(|| {
+                "No other harness than the one that wrote it is installed here.".into()
+            });
     }
     if ready(setting) {
         return Ok(pick(setting));
     }
-    let name = agents.iter().find(|a| a.id == setting).map_or(setting, |a| if a.name.is_empty() { setting } else { a.name.as_str() });
+    let name = agents
+        .iter()
+        .find(|a| a.id == setting)
+        .map_or(setting, |a| {
+            if a.name.is_empty() {
+                setting
+            } else {
+                a.name.as_str()
+            }
+        });
     Err(format!("{name} isn't installed here."))
 }
 

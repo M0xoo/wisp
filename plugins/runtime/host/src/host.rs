@@ -6,9 +6,14 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use wisp_kernel::{BoxFuture, WireError};
 use wisp_runtime_api::Harness;
-use wisp_runtime_api::events::{SessionChanged, SessionCreated, SessionDeleted, TurnActivity, TurnEnded, TurnFinished, TurnHeld, TurnLimits, TurnStarted};
+use wisp_runtime_api::events::{
+    SessionChanged, SessionCreated, SessionDeleted, TurnActivity, TurnEnded, TurnFinished,
+    TurnHeld, TurnLimits, TurnStarted,
+};
 use wisp_runtime_api::hooks::BeforeRunCtx;
-use wisp_runtime_api::points::{AfterTurn, BlockType, PromptPart, RunPart, SummaryField, TurnOutcome};
+use wisp_runtime_api::points::{
+    AfterTurn, BlockType, PromptPart, RunPart, SummaryField, TurnOutcome,
+};
 
 /// An event, published by the kernel after the write that caused it committed.
 #[derive(Debug, Clone, PartialEq)]
@@ -77,13 +82,20 @@ pub struct Recorder {
 
 impl std::fmt::Debug for Recorder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Recorder").field("events", &self.names()).finish_non_exhaustive()
+        f.debug_struct("Recorder")
+            .field("events", &self.names())
+            .finish_non_exhaustive()
     }
 }
 
 impl Recorder {
     pub fn names(&self) -> Vec<&'static str> {
-        self.events.lock().unwrap_or_else(PoisonError::into_inner).iter().map(Emitted::name).collect()
+        self.events
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .map(Emitted::name)
+            .collect()
     }
     pub fn taken(&self) -> Vec<Emitted> {
         std::mem::take(&mut *self.events.lock().unwrap_or_else(PoisonError::into_inner))
@@ -92,15 +104,26 @@ impl Recorder {
 
 impl Host for Recorder {
     fn emit(&self, e: Emitted) {
-        self.events.lock().unwrap_or_else(PoisonError::into_inner).push(e);
+        self.events
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(e);
     }
-    fn before_run(&self, mut c: BeforeRunCtx) -> BoxFuture<'static, Result<BeforeRunCtx, WireError>> {
+    fn before_run(
+        &self,
+        mut c: BeforeRunCtx,
+    ) -> BoxFuture<'static, Result<BeforeRunCtx, WireError>> {
         if let Some(m) = &self.veto {
             let e = WireError::new(wisp_kernel::Code::Vetoed, m.clone());
             return Box::pin(async move { Err(e) });
         }
         if let Some(kind) = &self.hold {
-            c.hold = Some(wisp_runtime_api::model::Held { by: "test".into(), kind: kind.clone(), until: None, data: serde_json::Value::Null });
+            c.hold = Some(wisp_runtime_api::model::Held {
+                by: "test".into(),
+                kind: kind.clone(),
+                until: None,
+                data: serde_json::Value::Null,
+            });
         }
         Box::pin(async move { Ok(c) })
     }

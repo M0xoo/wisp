@@ -73,7 +73,11 @@ pub struct MemPort {
 
 impl MemPort {
     pub fn new(tasks: Vec<TaskInfo>, settings: WtSettings) -> Arc<Self> {
-        Arc::new(Self { tasks: Mutex::new(tasks), settings: Mutex::new(settings), short: false.into() })
+        Arc::new(Self {
+            tasks: Mutex::new(tasks),
+            settings: Mutex::new(settings),
+            short: false.into(),
+        })
     }
 }
 

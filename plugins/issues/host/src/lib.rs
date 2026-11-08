@@ -6,6 +6,8 @@ pub mod list;
 
 use std::sync::Arc;
 
+use tracing::Instrument;
+
 use wisp_git_api::GitServiceV1;
 use wisp_issues_api::{CONNECTORS, Connectors, Http, List, ListArgs, PROJECTS, Projects, Source};
 use wisp_kernel::http::{Request, Response, Route};
@@ -27,11 +29,8 @@ impl Plugin for IssuesPlugin {
         let l = lister.clone();
         s.command::<List, _, _>(move |_ctx, call, args| {
             let l = l.clone();
-            async move {
-                let _span =
-                    tracing::info_span!("issues.list", source = args.source.as_str()).entered();
-                l.list(&call, args).await
-            }
+            let span = tracing::info_span!("issues.list", source = args.source.as_str());
+            async move { l.list(&call, args).await }.instrument(span)
         });
         s.route(route(lister));
         Ok(())

@@ -221,9 +221,14 @@ async fn a_big_paste_goes_in_whole_while_the_program_prints() {
     // v1 pty.test.js: "a big paste goes in whole while the program prints (no hang)": cat echoes
     // every line back while 200 KB are still going in, so input and output must not wait on each other.
     let proc = wisp_proc::local();
-    let opts = SpawnOpts { pty: Some(PtySize { cols: 80, rows: 24 }), ..SpawnOpts::default() };
+    let opts = SpawnOpts {
+        pty: Some(PtySize { cols: 80, rows: 24 }),
+        ..SpawnOpts::default()
+    };
     let (h, mut out) = proc.spawn("cat", &[], opts).unwrap().split();
-    let text: String = (0..4000).map(|i| format!("pasted line {i} {}\r", "x".repeat(40))).collect();
+    let text: String = (0..4000)
+        .map(|i| format!("pasted line {i} {}\r", "x".repeat(40)))
+        .collect();
     h.write(text.into_bytes()).unwrap();
     read_until(&mut out, "pasted line 3999").await;
     assert_eq!(h.kill().await.survivors, 0);

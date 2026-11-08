@@ -7,10 +7,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
+use crate::BoxFuture;
 use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
-use crate::BoxFuture;
 
 use crate::child::{ChildControl, ChildHandle};
 use crate::resolve::Resolved;

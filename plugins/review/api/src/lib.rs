@@ -136,7 +136,7 @@ pub struct Review {
     #[ts(optional)]
     pub tests: Option<TestsSummary>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(optional)]
+    #[ts(as = "Option<Vec<String>>", optional)]
     pub constraints: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -165,7 +165,7 @@ pub struct ReviewView {
     #[ts(optional)]
     pub tests: Option<TestsSummary>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[ts(optional)]
+    #[ts(as = "Option<Vec<String>>", optional)]
     pub constraints: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]

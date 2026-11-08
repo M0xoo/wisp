@@ -12,8 +12,11 @@ name = "wisp"
 path = "src/main.rs"
 
 [features]
-# Every plugin host crate this build compiles in (crates/wisp/src/groups.rs). Leave one out to drop it.
-default = ["proc", "git", "worktrees", "ship", "review", "issues", "machine"]
+# Each plugin host crate is a feature (crates/wisp/src/groups.rs): leave one out to drop it from the
+# build. `default` is what compiles in the tree today; `full` is every plugin written so far. Move a
+# plugin into `default` once its crate builds.
+default = ["proc", "machine"]
+full = ["proc", "git", "worktrees", "ship", "review", "issues", "machine"]
 proc = ["dep:wisp-proc"]
 git = ["dep:wisp-git"]
 worktrees = ["dep:wisp-worktrees"]

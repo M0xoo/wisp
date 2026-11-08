@@ -883,7 +883,10 @@ fn property_fit_never_exceeds_the_budget_never_cuts_mid_hunk_and_accounts_for_ev
         if r.below(3) == 0 {
             secs.push(Section {
                 path: "cut.js".into(),
-                text: "x".repeat(r.below(300) as usize),
+                text: format!(
+                    "diff --git a/cut.js b/cut.js\n{}",
+                    "x".repeat(r.below(300) as usize)
+                ),
                 cut: true,
             });
         }
@@ -894,7 +897,11 @@ fn property_fit_never_exceeds_the_budget_never_cuts_mid_hunk_and_accounts_for_ev
         assert!(diff.chars().count() <= max);
         assert_eq!(c.seen_chars, diff.chars().count() as u64);
         // every hunk header in the result is followed by its whole line
-        for piece in split_at(&diff, "@@ ").iter().skip(1) {
+        let pieces: Vec<String> = split_at(&diff, "diff --git ")
+            .iter()
+            .flat_map(|file| split_at(file, "@@ ").into_iter().skip(1))
+            .collect();
+        for piece in &pieces {
             assert!(
                 secs.iter().any(|x| x.text.contains(piece)),
                 "a hunk was cut: {piece:?}"

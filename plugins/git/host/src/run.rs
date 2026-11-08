@@ -26,7 +26,10 @@ pub struct Opts {
 
 impl Opts {
     pub fn timeout(secs: u64) -> Self {
-        Self { timeout: Some(Duration::from_secs(secs)), ..Self::default() }
+        Self {
+            timeout: Some(Duration::from_secs(secs)),
+            ..Self::default()
+        }
     }
 }
 
@@ -40,13 +43,19 @@ pub struct Git {
 
 impl std::fmt::Debug for Git {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Git").field("bin", &self.bin.get()).finish_non_exhaustive()
+        f.debug_struct("Git")
+            .field("bin", &self.bin.get())
+            .finish_non_exhaustive()
     }
 }
 
 impl Git {
     pub fn new(proc: Proc, fixed: Option<String>) -> Arc<Self> {
-        Arc::new(Self { proc, bin: OnceCell::new(), fixed })
+        Arc::new(Self {
+            proc,
+            bin: OnceCell::new(),
+            fixed,
+        })
     }
 
     pub fn proc(&self) -> &Proc {
@@ -60,10 +69,15 @@ impl Git {
         }
         self.bin
             .get_or_init(|| async {
-                let found = self.proc.which("git", None).await.map(|p| p.to_string_lossy().into_owned());
+                let found = self
+                    .proc
+                    .which("git", None)
+                    .await
+                    .map(|p| p.to_string_lossy().into_owned());
                 let on_path: Vec<String> = found.into_iter().collect();
                 let xcode = xcode_git().await;
-                wisp_git_core::base::pick_git(&on_path, std::env::consts::OS, xcode.as_deref()).unwrap_or_else(|| "git".into())
+                wisp_git_core::base::pick_git(&on_path, std::env::consts::OS, xcode.as_deref())
+                    .unwrap_or_else(|| "git".into())
             })
             .await
             .clone()
@@ -75,7 +89,13 @@ impl Git {
         self.exec_bin(&bin, cwd, args, o).await
     }
 
-    pub async fn exec_bin(&self, bin: &str, cwd: &Path, args: &[String], o: Opts) -> Result<ExecResult, GitError> {
+    pub async fn exec_bin(
+        &self,
+        bin: &str,
+        cwd: &Path,
+        args: &[String],
+        o: Opts,
+    ) -> Result<ExecResult, GitError> {
         let mut env = Env::default();
         for (k, v) in QUIET_ENV {
             env = env.with(*k, *v);
@@ -83,8 +103,21 @@ impl Git {
         for (k, v) in o.env {
             env = env.with(k, v);
         }
-        let opts = ExecOpts { cwd: Some(cwd.to_path_buf()), env, input: o.input, timeout: Some(o.timeout.unwrap_or(DEFAULT_TIMEOUT)), max_output: o.max_output, scope: None };
-        let span = tracing::debug_span!("git", cmd = args.iter().find(|a| !a.starts_with('-') && !a.contains('=')).map_or("", String::as_str));
+        let opts = ExecOpts {
+            cwd: Some(cwd.to_path_buf()),
+            env,
+            input: o.input,
+            timeout: Some(o.timeout.unwrap_or(DEFAULT_TIMEOUT)),
+            max_output: o.max_output,
+            scope: None,
+        };
+        let span = tracing::debug_span!(
+            "git",
+            cmd = args
+                .iter()
+                .find(|a| !a.starts_with('-') && !a.contains('='))
+                .map_or("", String::as_str)
+        );
         let _e = span.enter();
         self.proc.exec(bin, args, opts).await.map_err(|e| match e {
             ProcError::NotFound(b) => GitError::NotInstalled(b),
@@ -119,7 +152,11 @@ impl Git {
 }
 
 pub fn read_args(args: &[&str]) -> Vec<String> {
-    READ_PREFIX.iter().chain(args).map(|s| (*s).to_owned()).collect()
+    READ_PREFIX
+        .iter()
+        .chain(args)
+        .map(|s| (*s).to_owned())
+        .collect()
 }
 
 pub fn args(a: &[&str]) -> Vec<String> {
@@ -135,7 +172,10 @@ pub fn check(r: &ExecResult) -> Result<(), GitError> {
         return Ok(());
     }
     let fallback = format!("exit {}", r.exit.shell_code());
-    Err(GitError::Failed { code: r.exit.code, why: wisp_git_core::porcelain::why(&r.stderr_text(), &fallback, false) })
+    Err(GitError::Failed {
+        code: r.exit.code,
+        why: wisp_git_core::porcelain::why(&r.stderr_text(), &fallback, false),
+    })
 }
 
 /// The developer folder xcode-select points at, read from its link (no xcrun: it blocked boot).
@@ -143,8 +183,13 @@ async fn xcode_git() -> Option<String> {
     if std::env::consts::OS != "macos" {
         return None;
     }
-    let dir = tokio::fs::canonicalize("/var/db/xcode_select_link").await.ok()?;
+    let dir = tokio::fs::canonicalize("/var/db/xcode_select_link")
+        .await
+        .ok()?;
     let git: PathBuf = dir.join("usr/bin/git");
-    tokio::fs::metadata(&git).await.ok().filter(std::fs::Metadata::is_file)?;
+    tokio::fs::metadata(&git)
+        .await
+        .ok()
+        .filter(std::fs::Metadata::is_file)?;
     Some(git.to_string_lossy().into_owned())
 }

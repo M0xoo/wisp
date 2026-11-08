@@ -22,15 +22,27 @@ impl HarnessSys for ProcSys {
     fn exec(&self, req: ExecReq) -> BoxFuture<'_, Result<ExecOut>> {
         let opts = ExecOpts {
             cwd: req.cwd.map(PathBuf::from),
-            env: Env { set: req.env.into_iter().collect(), ..Env::default() },
+            env: Env {
+                set: req.env.into_iter().collect(),
+                ..Env::default()
+            },
             input: req.stdin,
-            timeout: Some(Duration::from_millis(if req.timeout_ms == 0 { 30_000 } else { req.timeout_ms })),
+            timeout: Some(Duration::from_millis(if req.timeout_ms == 0 {
+                30_000
+            } else {
+                req.timeout_ms
+            })),
             ..ExecOpts::default()
         };
         let fut = self.proc.exec(&req.program, &req.args, opts);
         Box::pin(async move {
             let r = fut.await.map_err(WireError::from)?;
-            Ok(ExecOut { code: r.exit.code, stdout: r.stdout_text(), stderr: r.stderr_text(), timed_out: r.timed_out })
+            Ok(ExecOut {
+                code: r.exit.code,
+                stdout: r.stdout_text(),
+                stderr: r.stderr_text(),
+                timed_out: r.timed_out,
+            })
         })
     }
     fn which(&self, program: &str) -> BoxFuture<'_, Option<String>> {
@@ -46,8 +58,12 @@ impl HarnessSys for ProcSys {
         Box::pin(async move {
             // temp + rename, so a crash never leaves the CLI's config half written
             let tmp = path.with_extension("wisp-tmp");
-            tokio::fs::write(&tmp, contents).await.map_err(|e| WireError::internal(e.to_string()))?;
-            tokio::fs::rename(&tmp, &path).await.map_err(|e| WireError::internal(e.to_string()))
+            tokio::fs::write(&tmp, contents)
+                .await
+                .map_err(|e| WireError::internal(e.to_string()))?;
+            tokio::fs::rename(&tmp, &path)
+                .await
+                .map_err(|e| WireError::internal(e.to_string()))
         })
     }
     fn list_dir(&self, path: &str) -> BoxFuture<'_, Vec<String>> {
@@ -66,7 +82,9 @@ impl HarnessSys for ProcSys {
         std::env::var(name).ok()
     }
     fn home(&self) -> String {
-        std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).unwrap_or_default()
+        std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .unwrap_or_default()
     }
     fn platform(&self) -> String {
         match std::env::consts::OS {

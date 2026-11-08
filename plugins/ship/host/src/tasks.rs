@@ -43,12 +43,20 @@ impl Tasks {
 
     pub fn set_live(&self, id: &str, on: bool) {
         let mut l = lock(&self.live);
-        if on { l.insert(id.to_owned()) } else { l.remove(id) };
+        if on {
+            l.insert(id.to_owned())
+        } else {
+            l.remove(id)
+        };
     }
 
     pub fn set_asking(&self, id: &str, on: bool) {
         let mut a = lock(&self.asking);
-        if on { a.insert(id.to_owned()) } else { a.remove(id) };
+        if on {
+            a.insert(id.to_owned())
+        } else {
+            a.remove(id)
+        };
     }
 
     pub fn is_live(&self, id: &str) -> bool {
@@ -56,6 +64,12 @@ impl Tasks {
     }
 
     pub fn busy(&self, task: &ShipTask, starting: bool) -> Busy {
-        Busy { live: self.is_live(&task.session), ask: lock(&self.asking).contains(&task.session), shipping: task.shipping.is_some(), archived: task.archived, starting }
+        Busy {
+            live: self.is_live(&task.session),
+            ask: lock(&self.asking).contains(&task.session),
+            shipping: task.shipping.is_some(),
+            archived: task.archived,
+            starting,
+        }
     }
 }

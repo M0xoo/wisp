@@ -151,8 +151,10 @@ pub struct PrPanel {
     pub repo: String,
     #[serde(flatten)]
     pub pr: PrSummary,
+    /// the PR in full when gh answered; TS reads it as `PrPanel & Partial<PrMore>` (ts-rs can't
+    /// flatten an Option)
     #[serde(flatten)]
-    #[ts(optional)]
+    #[ts(skip)]
     pub more: Option<PrMore>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]

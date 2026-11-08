@@ -1,0 +1,95 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.worktrees",
+  "name": "Worktrees",
+  "version": "2.0.0",
+  "api": "1",
+  "description": "A checkout per session: made from the fresh base, prepared (.worktreeinclude, setup steps), brought back, removed only when nothing would be lost; Settings → Worktrees and the hourly sweep; Done's folders; project trust, a before:run guard that holds a turn until the repo's own programs are trusted.",
+  "kind": "plugin",
+  "server": {
+    "builtin": "wisp-worktrees"
+  },
+  "requires": {
+    "git.service": "^1"
+  },
+  "provides": {},
+  "permissions": [
+    "git:repo",
+    "git:read",
+    "git:status",
+    "git:fetch",
+    "git:worktree.add",
+    "git:worktree.remove",
+    "git:branch.delete",
+    "proc:exec{bin:cp}",
+    "proc:exec{bin:du}",
+    "proc:exec{bin:df}",
+    "proc:exec{bin:sh}"
+  ],
+  "activation": [
+    "onStartup"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "id": "worktrees.create",
+        "title": "Make a session's worktree"
+      },
+      {
+        "id": "worktrees.ensure",
+        "title": "Bring a removed worktree back from its branch"
+      },
+      {
+        "id": "worktrees.remove",
+        "title": "Remove a worktree when nothing would be lost"
+      },
+      {
+        "id": "worktrees.status",
+        "title": "A worktree's changes, commits and pushes",
+        "readOnly": true
+      },
+      {
+        "id": "worktrees.view",
+        "title": "Worktrees on disk",
+        "readOnly": true
+      },
+      {
+        "id": "worktrees.clean",
+        "title": "Remove worktrees by hand"
+      },
+      {
+        "id": "worktrees.sweep",
+        "title": "Tidy idle worktrees now"
+      },
+      {
+        "id": "worktrees.done.list",
+        "title": "Done's folders",
+        "readOnly": true
+      },
+      {
+        "id": "worktrees.done.apply",
+        "title": "Remove or keep Done's folders"
+      },
+      {
+        "id": "worktrees.done.tidy",
+        "title": "Remove what's clean and on its branch"
+      },
+      {
+        "id": "worktrees.trust",
+        "title": "Trust a repo's setup and start"
+      },
+      {
+        "id": "worktrees.trust.pending",
+        "title": "What a repo would run before it is trusted",
+        "readOnly": true
+      }
+    ],
+    "points": [
+      {
+        "id": "worktrees.setup",
+        "version": 1,
+        "kind": "list"
+      }
+    ]
+  }
+}

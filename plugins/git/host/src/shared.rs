@@ -26,7 +26,11 @@ impl std::fmt::Debug for RootState {
 
 impl RootState {
     pub fn new() -> Arc<Self> {
-        Arc::new(Self { worktrees: tokio::sync::Mutex::new(()), fetching: tokio::sync::Mutex::new(FetchClock::default()), watchers: Mutex::new(Vec::new()) })
+        Arc::new(Self {
+            worktrees: tokio::sync::Mutex::new(()),
+            fetching: tokio::sync::Mutex::new(FetchClock::default()),
+            watchers: Mutex::new(Vec::new()),
+        })
     }
 
     /// A subscription ending when it is disposed or dropped, or when `owner` is cancelled.
@@ -54,9 +58,12 @@ impl RootState {
     }
 
     pub fn watchers(&self) -> usize {
-        self.watchers.lock().map(|mut w| {
-            w.retain(|(t, _)| !t.is_cancelled());
-            w.len()
-        }).unwrap_or(0)
+        self.watchers
+            .lock()
+            .map(|mut w| {
+                w.retain(|(t, _)| !t.is_cancelled());
+                w.len()
+            })
+            .unwrap_or(0)
     }
 }

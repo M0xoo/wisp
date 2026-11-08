@@ -14,9 +14,9 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
 use std::time::Duration;
 
+use crate::BoxFuture;
 use portable_pty::{CommandBuilder, MasterPty, PtySize as Size};
 use tokio::sync::{mpsc, watch};
-use crate::BoxFuture;
 
 use crate::child::{ChildControl, ChildHandle};
 use crate::pipes::{DRAIN, kill_tree, signal_tree};

@@ -49,7 +49,11 @@ fn constraints_block(c: &[String]) -> String {
     if c.is_empty() {
         return String::new();
     }
-    let list: Vec<String> = c.iter().enumerate().map(|(i, r)| format!("{}. {r}", i + 1)).collect();
+    let list: Vec<String> = c
+        .iter()
+        .enumerate()
+        .map(|(i, r)| format!("{}. {r}", i + 1))
+        .collect();
     format!(
         "\n<constraints>\nThe user set these for this task, in their own words. Check the diff against each one. A change that breaks one (touches what they ruled out, works outside what they narrowed it to, or plainly doesn't do what Done when asks) is a \"high\" finding with \"constraint\" set to its number, and its text names the path and the user's words, like \"Touched migrations/ — you said: don't touch migrations\". Leave \"constraint\" out of every other finding.\n{}\n</constraints>\n",
         list.join("\n")
@@ -57,14 +61,29 @@ fn constraints_block(c: &[String]) -> String {
 }
 
 fn tests_block(t: Option<&TestsRun>) -> String {
-    let Some(t) = t.filter(|t| t.verdict != "skip") else { return String::new() };
-    let out = if t.verdict == "pass" { String::new() } else { format!("\n{}\n", tail(&t.output, 3000)) };
-    format!("\n<tests command=\"{}\" verdict=\"{}\">{out}</tests>\n", t.command, t.verdict)
+    let Some(t) = t.filter(|t| t.verdict != "skip") else {
+        return String::new();
+    };
+    let out = if t.verdict == "pass" {
+        String::new()
+    } else {
+        format!("\n{}\n", tail(&t.output, 3000))
+    };
+    format!(
+        "\n<tests command=\"{}\" verdict=\"{}\">{out}</tests>\n",
+        t.command, t.verdict
+    )
 }
 
 fn partial_block(c: Option<&Coverage>) -> String {
-    let Some(c) = c.filter(|c| c.partial()) else { return String::new() };
-    let mut s = format!("\n<partial>\nThis diff is partial: it holds {} of {} whole.", c.seen, files_word(c.files));
+    let Some(c) = c.filter(|c| c.partial()) else {
+        return String::new();
+    };
+    let mut s = format!(
+        "\n<partial>\nThis diff is partial: it holds {} of {} whole.",
+        c.seen,
+        files_word(c.files)
+    );
     if !c.cut.is_empty() {
         s.push_str(&format!("\nOnly part of: {}", c.cut.join(", ")));
     }
@@ -86,7 +105,11 @@ pub fn review_prompt(p: &PromptInput<'_>) -> String {
     } else {
         "(no changes)".into()
     };
-    let constraint = if p.constraints.is_empty() { "" } else { ", \"constraint\": 1" };
+    let constraint = if p.constraints.is_empty() {
+        ""
+    } else {
+        ", \"constraint\": 1"
+    };
     format!(
         "You review a pull request another coding agent wrote, before it's merged. Your working directory is its branch at the PR's head: open the files, read the code around the change, run read-only commands. Don't take the PR's word for anything you can check.
 
@@ -148,7 +171,11 @@ fn finding(f: &Value, constraints: &[String]) -> Finding {
     let rule = n.map(|n| constraints[n as usize - 1].clone());
     let file = text_of(&f["file"]);
     Finding {
-        severity: if rule.is_some() { Severity::High } else { severity(&f["severity"]) },
+        severity: if rule.is_some() {
+            Severity::High
+        } else {
+            severity(&f["severity"])
+        },
         file: (!file.is_empty()).then(|| clip(&file, 200)),
         line: positive_int(&f["line"]),
         text: clip(&text_of(&f["text"]), 600),
@@ -161,7 +188,12 @@ fn finding(f: &Value, constraints: &[String]) -> Finding {
 /// that breaks one of `constraints` is high whatever the reviewer said, and carries the user's words.
 pub fn read_review(j: &Value, constraints: &[String]) -> Option<(String, Vec<Finding>)> {
     let list = j.as_object()?.get("findings")?.as_array()?;
-    let mut findings: Vec<Finding> = list.iter().filter(|f| f.is_object() && !text_of(&f["text"]).trim().is_empty()).take(MAX_FINDINGS).map(|f| finding(f, constraints)).collect();
+    let mut findings: Vec<Finding> = list
+        .iter()
+        .filter(|f| f.is_object() && !text_of(&f["text"]).trim().is_empty())
+        .take(MAX_FINDINGS)
+        .map(|f| finding(f, constraints))
+        .collect();
     findings.sort_by_key(|f| f.severity); // stable: the reviewer's order within a severity
     let given = text_of(&j["summary"]);
     let summary = if !given.is_empty() {
@@ -169,7 +201,11 @@ pub fn read_review(j: &Value, constraints: &[String]) -> Option<(String, Vec<Fin
     } else if findings.is_empty() {
         "Nothing to fix.".into()
     } else {
-        format!("{} issue{} found.", findings.len(), if findings.len() > 1 { "s" } else { "" })
+        format!(
+            "{} issue{} found.",
+            findings.len(),
+            if findings.len() > 1 { "s" } else { "" }
+        )
     };
     Some((clip(&summary, 300), findings))
 }

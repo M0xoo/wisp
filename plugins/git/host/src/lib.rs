@@ -14,7 +14,9 @@ mod write;
 
 use std::sync::Arc;
 
-use wisp_git_api::commands::{Clone as CloneCmd, Commit, GetChanges, GetStatus, GetTools, Revert, Stage};
+use wisp_git_api::commands::{
+    Clone as CloneCmd, Commit, GetChanges, GetStatus, GetTools, Revert, Stage,
+};
 use wisp_git_api::{Blobs, GitServiceV1};
 use wisp_kernel::{Manifest, Plugin, Result, Setup, WireError};
 use wisp_proc::Proc;
@@ -31,12 +33,21 @@ pub struct GitPlugin {
 }
 
 /// The service on its own, for an install or a test that has a proc service but no kernel yet.
-pub fn service(proc: Proc, blobs: Option<Arc<dyn Blobs>>, now: Now, git_bin: Option<String>) -> Arc<GitServiceImpl> {
+pub fn service(
+    proc: Proc,
+    blobs: Option<Arc<dyn Blobs>>,
+    now: Now,
+    git_bin: Option<String>,
+) -> Arc<GitServiceImpl> {
     GitServiceImpl::new(run::Git::new(proc, git_bin), blobs, now)
 }
 
 fn system_now() -> Now {
-    Arc::new(|| std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX)))
+    Arc::new(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+    })
 }
 
 impl Plugin for GitPlugin {
@@ -102,7 +113,7 @@ mod tests {
     #[test]
     fn manifest_is_valid() {
         let m = wisp_kernel::Plugin::manifest(&super::GitPlugin::default());
-        assert_eq!(m.id, "wisp.git");
+        assert_eq!(m.id, "wisp.git", "{:?}", m.description);
         assert!(m.provides.contains_key("git.service"));
     }
 }

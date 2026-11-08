@@ -10,6 +10,7 @@ use wisp_harness_kit::Re;
 use wisp_harness_kit::js::{json_num, truthy};
 
 use crate::line::ToolUseResult;
+use crate::msg::Msg;
 use crate::usage::{ModelTokens, n0};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -19,7 +20,12 @@ struct Usage {
 }
 
 fn usage_of(u: &Value) -> Usage {
-    Usage { read: n0(&u["input_tokens"]) + n0(&u["cache_read_input_tokens"]) + n0(&u["cache_creation_input_tokens"]), output: n0(&u["output_tokens"]) }
+    Usage {
+        read: n0(&u["input_tokens"])
+            + n0(&u["cache_read_input_tokens"])
+            + n0(&u["cache_creation_input_tokens"]),
+        output: n0(&u["output_tokens"]),
+    }
 }
 
 #[derive(Debug)]
@@ -64,41 +70,88 @@ impl Tally {
     }
 
     pub fn call(&mut self, id: &Value, name: &str, input: &Value) {
-        let Some(id) = id.as_str().filter(|s| !s.is_empty()) else { return };
+        let Some(id) = id.as_str().filter(|s| !s.is_empty()) else {
+            return;
+        };
         if (name == "Agent" || name == "Task") && !self.calls.iter().any(|c| c.id == id) {
-            let kind = if truthy(&input["subagent_type"]) { wisp_harness_kit::js::string(&input["subagent_type"]) } else { "general-purpose".into() };
-            let model = if truthy(&input["model"]) { wisp_harness_kit::js::string(&input["model"]) } else { String::new() };
-            self.calls.push(Call { id: id.to_owned(), kind, model, msgs: Vec::new(), total: None });
+            let kind = if truthy(&input["subagent_type"]) {
+                wisp_harness_kit::js::string(&input["subagent_type"])
+            } else {
+                "general-purpose".into()
+            };
+            let model = if truthy(&input["model"]) {
+                wisp_harness_kit::js::string(&input["model"])
+            } else {
+                String::new()
+            };
+            self.calls.push(Call {
+                id: id.to_owned(),
+                kind,
+                model,
+                msgs: Vec::new(),
+                total: None,
+            });
         }
     }
 
     /// An assistant message: from inside a subagent (parent_tool_use_id), or the main thread's.
-    pub fn message(&mut self, parent: &Value, m: &Value) {
+    pub fn message(&mut self, parent: &Value, m: &Msg<'_>) {
         if !truthy(parent) {
-            if truthy(&m["model"]) {
-                self.main = wisp_harness_kit::js::string(&m["model"]);
+            if crate::msg::truthy(m.model) {
+                self.main = crate::msg::text(m.model).into_owned();
             }
             return;
         }
-        let Some(c) = parent.as_str().and_then(|p| self.calls.iter_mut().find(|c| c.id == p)) else { return };
-        if truthy(&m["model"]) {
-            c.model = wisp_harness_kit::js::string(&m["model"]);
-        }
-        if !truthy(&m["usage"]) {
+        let Some(c) = parent
+            .as_str()
+            .and_then(|p| self.calls.iter_mut().find(|c| c.id == p))
+        else {
             return;
+        };
+        if crate::msg::truthy(m.model) {
+            c.model = crate::msg::text(m.model).into_owned();
         }
-        let key = m["id"].as_str().filter(|s| !s.is_empty()).map_or_else(|| format!("#{}", c.msgs.len()), str::to_owned);
-        let u = usage_of(&m["usage"]);
+        let Some(crate::msg::Lenient(usage)) = &m.usage else {
+            return;
+        };
+        let id = if m.id.is_some_and(|r| r.get().starts_with('"')) {
+            crate::msg::text(m.id)
+        } else {
+            std::borrow::Cow::Borrowed("")
+        };
+        let key = if id.is_empty() {
+            format!("#{}", c.msgs.len())
+        } else {
+            id.into_owned()
+        };
+        let v = |r| n0(&crate::msg::value(r));
+        let u = Usage {
+            read: v(usage.input_tokens)
+                + v(usage.cache_read_input_tokens)
+                + v(usage.cache_creation_input_tokens),
+            output: v(usage.output_tokens),
+        };
         let model = c.model.clone();
         match c.msgs.iter_mut().find(|(k, _, _)| *k == key) {
-            Some(slot) => *slot = (key, model, Usage { read: slot.2.read.max(u.read), output: slot.2.output.max(u.output) }),
+            Some(slot) => {
+                *slot = (
+                    key,
+                    model,
+                    Usage {
+                        read: slot.2.read.max(u.read),
+                        output: slot.2.output.max(u.output),
+                    },
+                )
+            }
             None => c.msgs.push((key, model, u)),
         }
     }
 
     /// The Agent call's result; an older Claude Code put the subagent's usage on tool_use_result.
     pub fn result(&mut self, id: &str, r: Option<&ToolUseResult>) {
-        let Some(c) = self.calls.iter_mut().find(|c| c.id == id) else { return };
+        let Some(c) = self.calls.iter_mut().find(|c| c.id == id) else {
+            return;
+        };
         let Some(r) = r else { return };
         if truthy(&r.resolved_model) && c.model.is_empty() {
             c.model = wisp_harness_kit::js::string(&r.resolved_model);
@@ -120,9 +173,19 @@ impl Tally {
                 p.u.output = 0.0;
             }
         }
-        let main_model = if self.main.is_empty() { models.and_then(|m| m.first()).map(|m| m.model.clone()).unwrap_or_default() } else { self.main.clone() };
+        let main_model = if self.main.is_empty() {
+            models
+                .and_then(|m| m.first())
+                .map(|m| m.model.clone())
+                .unwrap_or_default()
+        } else {
+            self.main.clone()
+        };
         share_output(&mut parts, models, &main_model, n0(main_out));
-        let no_fetch = self.tools.as_ref().is_some_and(|t| !t.iter().any(|x| x.as_str() == Some("WebFetch")));
+        let no_fetch = self
+            .tools
+            .as_ref()
+            .is_some_and(|t| !t.iter().any(|x| x.as_str() == Some("WebFetch")));
         let rows = self.rows(&parts, no_fetch);
         self.calls.clear();
         Some(rows)
@@ -133,22 +196,41 @@ impl Tally {
         let mut parts = Vec::new();
         for (i, c) in self.calls.iter().enumerate() {
             if let Some(t) = c.total {
-                parts.push(Part { call: i, model: c.model.clone(), u: t, fixed: true });
+                parts.push(Part {
+                    call: i,
+                    model: c.model.clone(),
+                    u: t,
+                    fixed: true,
+                });
                 continue;
             }
             let mut by: Vec<Part> = Vec::new();
             for (_, model, u) in &c.msgs {
-                let model = if model.is_empty() { c.model.clone() } else { model.clone() };
+                let model = if model.is_empty() {
+                    c.model.clone()
+                } else {
+                    model.clone()
+                };
                 match by.iter_mut().find(|p| p.model == model) {
                     Some(p) => {
                         p.u.read += u.read;
                         p.u.output += u.output;
                     }
-                    None => by.push(Part { call: i, model, u: *u, fixed: false }),
+                    None => by.push(Part {
+                        call: i,
+                        model,
+                        u: *u,
+                        fixed: false,
+                    }),
                 }
             }
             if by.is_empty() {
-                by.push(Part { call: i, model: c.model.clone(), u: Usage::default(), fixed: false });
+                by.push(Part {
+                    call: i,
+                    model: c.model.clone(),
+                    u: Usage::default(),
+                    fixed: false,
+                });
             }
             parts.extend(by);
         }
@@ -166,10 +248,19 @@ impl Tally {
         let mut rows: Vec<Row> = Vec::new();
         for p in parts {
             let kind = &self.calls[p.call].kind;
-            let idx = rows.iter().position(|r| &r.kind == kind).unwrap_or_else(|| {
-                rows.push(Row { kind: kind.clone(), calls: Vec::new(), models: Vec::new(), read: 0.0, output: 0.0 });
-                rows.len() - 1
-            });
+            let idx = rows
+                .iter()
+                .position(|r| &r.kind == kind)
+                .unwrap_or_else(|| {
+                    rows.push(Row {
+                        kind: kind.clone(),
+                        calls: Vec::new(),
+                        models: Vec::new(),
+                        read: 0.0,
+                        output: 0.0,
+                    });
+                    rows.len() - 1
+                });
             let r = &mut rows[idx];
             if !r.calls.contains(&p.call) {
                 r.calls.push(p.call);
@@ -199,16 +290,34 @@ impl Tally {
                 (r.output, r.calls.len(), row)
             })
             .collect();
-        out.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal).then(b.1.cmp(&a.1)));
+        out.sort_by(|a, b| {
+            b.0.partial_cmp(&a.0)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(b.1.cmp(&a.1))
+        });
         Value::Array(out.into_iter().map(|(_, _, v)| v).collect())
     }
 }
 
 /// A model's output from modelUsage, past what the main thread and fixed totals account for.
-fn share_output(parts: &mut [Part], models: Option<&[ModelTokens]>, main_model: &str, main_out: f64) {
+fn share_output(
+    parts: &mut [Part],
+    models: Option<&[ModelTokens]>,
+    main_model: &str,
+    main_out: f64,
+) {
     for m in models.unwrap_or(&[]) {
-        let fixed: f64 = parts.iter().filter(|p| p.model == m.model && p.fixed).map(|p| p.u.output).sum();
-        let on: Vec<usize> = parts.iter().enumerate().filter(|(_, p)| p.model == m.model && !p.fixed).map(|(i, _)| i).collect();
+        let fixed: f64 = parts
+            .iter()
+            .filter(|p| p.model == m.model && p.fixed)
+            .map(|p| p.u.output)
+            .sum();
+        let on: Vec<usize> = parts
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| p.model == m.model && !p.fixed)
+            .map(|(i, _)| i)
+            .collect();
         if on.is_empty() {
             continue;
         }
@@ -221,7 +330,11 @@ fn share_output(parts: &mut [Part], models: Option<&[ModelTokens]>, main_model: 
         #[allow(clippy::cast_precision_loss)]
         let n = on.len() as f64;
         for &i in &on {
-            parts[i].u.output = if seen > 0.0 { js_round(pool * parts[i].u.output / seen) } else { js_round(pool / n) };
+            parts[i].u.output = if seen > 0.0 {
+                js_round(pool * parts[i].u.output / seen)
+            } else {
+                js_round(pool / n)
+            };
         }
     }
 }
@@ -239,12 +352,36 @@ mod tests {
     fn subagent_output_is_modelusage_minus_the_main_threads_share() {
         // edge case 3
         let mut t = Tally::default();
-        t.message(&Value::Null, &json!({"model": "opus"}));
+        let main: Msg = serde_json::from_str(r#"{"model": "opus"}"#).unwrap_or_default();
+        t.message(&Value::Null, &main);
         t.call(&json!("a1"), "Agent", &json!({"subagent_type": "Explore"}));
-        t.message(&json!("a1"), &json!({"id": "m1", "model": "haiku", "usage": {"input_tokens": 100, "output_tokens": 1}}));
-        let models = [ModelTokens { model: "haiku".into(), input: 100.0, output: 50.0, cache_read: 0.0, cache_write: 0.0 }, ModelTokens { model: "opus".into(), input: 10.0, output: 30.0, cache_read: 0.0, cache_write: 0.0 }];
+        let line =
+            r#"{"id": "m1", "model": "haiku", "usage": {"input_tokens": 100, "output_tokens": 1}}"#;
+        let m: Msg = serde_json::from_str(line).unwrap_or_default();
+        t.message(&json!("a1"), &m);
+        let models = [
+            ModelTokens {
+                model: "haiku".into(),
+                input: 100.0,
+                output: 50.0,
+                cache_read: 0.0,
+                cache_write: 0.0,
+            },
+            ModelTokens {
+                model: "opus".into(),
+                input: 10.0,
+                output: 30.0,
+                cache_read: 0.0,
+                cache_write: 0.0,
+            },
+        ];
         let rows = t.take(Some(&models), &json!(30));
-        assert_eq!(rows, Some(json!([{"type": "Explore", "calls": 1, "read": 100, "output": 50, "model": "haiku"}])));
+        assert_eq!(
+            rows,
+            Some(
+                json!([{"type": "Explore", "calls": 1, "read": 100, "output": 50, "model": "haiku"}])
+            )
+        );
         assert_eq!(t.take(None, &json!(0)), None, "cleared");
     }
 }

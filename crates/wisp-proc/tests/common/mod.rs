@@ -1,5 +1,11 @@
 //! Helpers shared by the proc tests.
-#![allow(dead_code, clippy::unwrap_used, clippy::panic, clippy::match_wild_err_arm, reason = "test helpers")]
+#![allow(
+    dead_code,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::match_wild_err_arm,
+    reason = "test helpers"
+)]
 
 use std::collections::BTreeSet;
 use std::time::{Duration, Instant};

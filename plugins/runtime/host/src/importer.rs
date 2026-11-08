@@ -24,19 +24,40 @@ use crate::runtime::Runtime;
 fn write_imported(w: &mut Writer<'_>, i: &Imported) -> std::result::Result<(), StoreError> {
     let internal = |e: crate::error::RuntimeError| StoreError::Internal(e.to_string());
     let last = i.turns.last().map(|t| &t.turn);
-    let report = i.turns.iter().rev().map(|t| &t.turn).find(|t| t.by.as_deref() != Some("compact"));
-    let followups = i.turns.iter().skip(1).filter(|t| !matches!(t.turn.by.as_deref(), Some("wisp" | "compact"))).count();
-    let facts = RowFacts { last, report, turn_count: u32::try_from(i.turns.len()).unwrap_or(u32::MAX), followups: u32::try_from(followups).unwrap_or(u32::MAX), ..RowFacts::default() };
+    let report = i
+        .turns
+        .iter()
+        .rev()
+        .map(|t| &t.turn)
+        .find(|t| t.by.as_deref() != Some("compact"));
+    let followups = i
+        .turns
+        .iter()
+        .skip(1)
+        .filter(|t| !matches!(t.turn.by.as_deref(), Some("wisp" | "compact")))
+        .count();
+    let facts = RowFacts {
+        last,
+        report,
+        turn_count: u32::try_from(i.turns.len()).unwrap_or(u32::MAX),
+        followups: u32::try_from(followups).unwrap_or(u32::MAX),
+        ..RowFacts::default()
+    };
     let summary = summarize(&i.session, &facts, std::collections::BTreeMap::new());
     repo::save_session(w, &i.session, &summary).map_err(internal)?;
     let mut seq = 1u64;
     for t in &i.turns {
         repo::save_turn(w, &t.turn).map_err(internal)?;
-        let events: Vec<_> = t.steps.iter().map(|(at, item)| {
-            let row = rows::v0_event_row(i.session.id.as_str(), t.turn.id.as_str(), seq, *at, item);
-            seq += 1;
-            row
-        }).collect();
+        let events: Vec<_> = t
+            .steps
+            .iter()
+            .map(|(at, item)| {
+                let row =
+                    rows::v0_event_row(i.session.id.as_str(), t.turn.id.as_str(), seq, *at, item);
+                seq += 1;
+                row
+            })
+            .collect();
         if !events.is_empty() {
             w.append("event", events)?;
         }
@@ -47,15 +68,23 @@ fn write_imported(w: &mut Writer<'_>, i: &Imported) -> std::result::Result<(), S
 impl Runtime {
     /// `runtime.import`: every v1 session file new or changed since its last import.
     pub async fn import_v1(self: &Arc<Self>, dir: Option<PathBuf>) -> Result<ImportReport> {
-        let dir = dir.unwrap_or_else(|| PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".wisp/sessions"));
+        let dir = dir.unwrap_or_else(|| {
+            PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".wisp/sessions")
+        });
         let handler: wisp_store::ImportHandler = Arc::new(|f, w| {
             let v: Value = f.json()?;
-            let i = import::from_v1(&v).map_err(|e| StoreError::Internal(format!("{}: {e}", f.name)))?;
+            let i = import::from_v1(&v)
+                .map_err(|e| StoreError::Internal(format!("{}: {e}", f.name)))?;
             // a session imported earlier keeps its later events: its old log is replaced as a whole
             w.del("session", i.session.id.as_str())?;
             write_imported(w, &i)
         });
-        let r = wisp_store::import_files(&self.repo.store, ImportOptions::new("runtime.sessions", dir), handler).await?;
+        let r = wisp_store::import_files(
+            &self.repo.store,
+            ImportOptions::new("runtime.sessions", dir),
+            handler,
+        )
+        .await?;
         // the list cache learns the new rows
         for s in self.repo.summaries().await? {
             self.lock_list().insert(s.id.0.clone(), Arc::new(s));
@@ -63,13 +92,19 @@ impl Runtime {
         Ok(ImportReport {
             imported: u32::try_from(r.imported.len()).unwrap_or(u32::MAX),
             skipped: u32::try_from(r.unchanged).unwrap_or(u32::MAX),
-            failed: r.failed.into_iter().map(|(f, why)| format!("{f}: {why}")).collect(),
+            failed: r
+                .failed
+                .into_iter()
+                .map(|(f, why)| format!("{f}: {why}"))
+                .collect(),
         })
     }
 
     /// The task as v1's file, written behind the turn's end (temp + rename) when the dual write is on.
     pub(crate) fn mirror_v1(self: &Arc<Self>, s: &Session) {
-        let Some(dir) = self.mirror.clone() else { return };
+        let Some(dir) = self.mirror.clone() else {
+            return;
+        };
         let rt = self.clone();
         let id = s.id.0.clone();
         tokio::spawn(async move {
@@ -89,13 +124,26 @@ impl Runtime {
                 v["t"] = s.t.into();
                 (s.t, v)
             });
-            let changes = t.ext.get("wisp.runtime").and_then(|v| v.get("changes")).and_then(|c| serde_json::from_value(c.clone()).ok()).unwrap_or_default();
-            turns.push(ImportedTurn { turn: t, steps: steps.collect(), changes });
+            let changes = t
+                .ext
+                .get("wisp.runtime")
+                .and_then(|v| v.get("changes"))
+                .and_then(|c| serde_json::from_value(c.clone()).ok())
+                .unwrap_or_default();
+            turns.push(ImportedTurn {
+                turn: t,
+                steps: steps.collect(),
+                changes,
+            });
         }
         let json = serde_json::to_vec(&import::to_v1(&Imported { session, turns }))?;
         let file = dir.join(format!("{id}.json"));
         let tmp = dir.join(format!("{id}.json.tmp"));
-        tokio::fs::write(&tmp, json).await.map_err(|e| crate::error::RuntimeError::Invalid(e.to_string()))?;
-        tokio::fs::rename(&tmp, &file).await.map_err(|e| crate::error::RuntimeError::Invalid(e.to_string()))
+        tokio::fs::write(&tmp, json)
+            .await
+            .map_err(|e| crate::error::RuntimeError::Invalid(e.to_string()))?;
+        tokio::fs::rename(&tmp, &file)
+            .await
+            .map_err(|e| crate::error::RuntimeError::Invalid(e.to_string()))
     }
 }

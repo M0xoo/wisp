@@ -54,7 +54,10 @@ impl Tree {
         }
         #[cfg(not(windows))]
         {
-            Tree { root: pid, seen: Arc::default() }
+            Tree {
+                root: pid,
+                seen: Arc::default(),
+            }
         }
     }
 }
@@ -83,7 +86,7 @@ fn wait_until_gone(limit: Duration, mut left: impl FnMut() -> usize) -> usize {
 
 #[cfg(unix)]
 mod imp {
-    use super::{BTreeSet, Duration, KILL_WAIT, Report, Tree, sys, wait_until_gone};
+    use super::{BTreeSet, Duration, KILL_WAIT, PoisonError, Report, Tree, sys, wait_until_gone};
 
     /// The tree's live pids: the group, the root while it runs, the members seen before that still
     /// run (same pid, same start), and their descendants. Remembers what it found.
@@ -190,7 +193,7 @@ mod imp {
 
 #[cfg(windows)]
 mod imp {
-    use super::{BTreeSet, Duration, KILL_WAIT, Report, Tree, sys, wait_until_gone};
+    use super::{BTreeSet, Duration, KILL_WAIT, PoisonError, Report, Tree, sys, wait_until_gone};
 
     fn descendants(root: u32) -> BTreeSet<u32> {
         let Ok(table) = sys::processes() else {
@@ -314,8 +317,13 @@ mod tests {
         // The root died; 102 is init's now. 103 got a remembered pid? No: 103 is new, and 104 is a
         // stranger that reuses pid 104 of an old member with another start.
         imp::members(&tree, true, &[p(100, 50, 100), p(104, 100, 100)]);
-        let stranger = sys::ProcInfo { start: 1, ..p(104, 1, 104) };
-        let got: Vec<u32> = imp::members(&tree, false, &[p(102, 1, 102), stranger]).into_iter().collect();
+        let stranger = sys::ProcInfo {
+            start: 1,
+            ..p(104, 1, 104)
+        };
+        let got: Vec<u32> = imp::members(&tree, false, &[p(102, 1, 102), stranger])
+            .into_iter()
+            .collect();
         assert_eq!(got, [102]);
     }
 }
