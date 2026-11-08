@@ -47,8 +47,11 @@ README, the site (trywisp.dev: home, guides, integrations, agents pages), the CL
 of formulas, a migration guide from v1, and the launch post. Owners: marketing (copy, site), the lead
 (review), the coder (generated references).
 
-## Site rule: every feature shows all four ways in
+## Site rule: every feature shows all four ways in, the app first
 
-Each feature on the site ends with one small line naming how to do it from the **App**, the **TUI**, the **CLI**
-and the **SDK** (e.g. `App: Share · TUI: s · CLI: wisp share · SDK: task.share()`). It's one line, not a section:
-the docs carry the details. It says what ADR-0024/0028 guarantee: anything is possible from wherever you work.
+Each feature on the site shows **how it looks and works in the app**, with a real screenshot (the default view),
+next to small tabs for the **TUI** (its screenshot), the **CLI** (a terminal snippet) and the **SDK** (a code
+snippet). wisp is an app first: the screenshots carry the page, and the other three show you can do the same
+from wherever you work. It stays compact (one switcher per feature, not a section per way); the docs carry the
+details. The current mockup's one-line text strip is a placeholder until real screenshots exist: it gets
+replaced in the docs/site rework at the end (owner, 2026-11-09).
