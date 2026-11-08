@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>wisp — Agents as code. Your AI dev team, as code.</title>
+<link rel="icon" href="/docs/assets/icon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/docs/style.css" />
+<!-- Mockup of the v2 home page (marketing/positioning-v2.md). Reuses the live site's style.css; the few
+     rules below are mockup-only and will move into style.css when the real page is built. -->
+<style>
+  .m-kicker { display: inline-flex; gap: 8px; align-items: center; font: 600 13px var(--sans); color: var(--accent); letter-spacing: .02em; text-transform: uppercase; }
+  .m-hero { padding: 88px 0 40px; text-align: center; }
+  .m-hero h1 { font-size: clamp(40px, 6.4vw, 76px); line-height: 1.02; letter-spacing: -0.035em; margin: 16px auto 0; max-width: 16ch; }
+  .m-hero .lede { margin-inline: auto; }
+  .m-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 30px; }
+  .m-btn { display: inline-flex; align-items: center; height: 50px; padding: 0 20px; border-radius: 11px; border: 1px solid var(--line-2); font: 550 15px var(--sans); color: var(--ink); text-decoration: none; }
+  .m-two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 48px; text-align: left; }
+  .m-code, .m-term { border-radius: 12px; border: 1px solid #262626; background: #0f0f0f; overflow: hidden; }
+  .m-bar { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-bottom: 1px solid #222; color: #8a8a86; font: 12.5px var(--mono); }
+  .m-bar i { width: 10px; height: 10px; border-radius: 50%; background: #333; display: inline-block; }
+  pre.m-pre { margin: 0; padding: 18px 20px; font: 13px/1.65 var(--mono); color: #d6d6d2; white-space: pre; overflow-x: auto; }
+  .k { color: #7aa2ff; } .s { color: #a5d6a7; } .c { color: #6b6b66; } .g { color: #4cc38a; } .y { color: #f2c14e; } .b { color: #fff; font-weight: 600; }
+  .m-sec { padding: 96px 0 0; }
+  .m-sec h2 { font-size: clamp(30px, 3.6vw, 44px); letter-spacing: -0.025em; line-height: 1.08; max-width: 20ch; }
+  .m-sec > .wrap > p.sub { margin-top: 14px; font-size: 18px; color: var(--ink-2); max-width: 60ch; line-height: 1.55; }
+  .m-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 34px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .m-grid > div { background: var(--bg); padding: 22px 22px 24px; }
+  .m-grid b { display: block; font-size: 16px; letter-spacing: -0.01em; }
+  .m-grid span { display: block; margin-top: 6px; font-size: 14.5px; line-height: 1.5; color: var(--muted); }
+  .m-grid code { font-size: 13px; }
+  .m-faces { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 34px; }
+  .m-face { border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  .m-face h3 { font-size: 17px; margin: 0; } .m-face p { color: var(--muted); font-size: 14.5px; margin: 6px 0 14px; line-height: 1.5; }
+  .m-nums { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 34px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .m-nums div { padding: 20px 18px; } .m-nums div + div { border-left: 1px solid var(--line); }
+  .m-nums b { display: block; font-size: 34px; letter-spacing: -0.03em; } .m-nums span { color: var(--muted); font-size: 14px; }
+  .m-end { text-align: center; padding: 110px 0 120px; }
+  .m-end h2, .m-end .lede { margin-inline: auto; }
+  .m-note { position: fixed; right: 14px; bottom: 14px; font: 12px var(--sans); background: var(--ink); color: var(--bg); padding: 6px 10px; border-radius: 8px; opacity: .85; }
+  @media (max-width: 900px) {
+    .m-two, .m-faces { grid-template-columns: 1fr; }
+    .m-grid { grid-template-columns: 1fr; }
+    .m-nums { grid-template-columns: 1fr 1fr; } .m-nums div:nth-child(3) { border-left: 0; } .m-nums div:nth-child(n+3) { border-top: 1px solid var(--line); }
+    .m-hero { padding-top: 56px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <section class="m-hero">
+    <div class="wrap">
+      <span class="m-kicker">Agents as code · open source</span>
+      <h1>Your AI dev team, as code.</h1>
+      <p class="lede">Declare your coding agents, crew, machines and workflows in one file. wisp runs Claude Code, Codex, Cursor and every other agent from it, in parallel, on any of your computers or in the cloud. Commit it, review it, share it, rerun it.</p>
+      <div class="m-ctas">
+        <button class="cmd"><span class="p">$</span><code>npx wisp-agents</code><span class="copy">Copy</span></button>
+        <a class="m-btn" href="#formula">See a wisp.yml</a>
+      </div>
+
+      <div class="m-two" id="formula">
+        <div class="m-code">
+          <div class="m-bar"><i></i><i></i><i></i>&nbsp; wisp.yml</div>
+<pre class="m-pre"><span class="k">wisp</span>: 1
+
+<span class="k">agents</span>:
+  <span class="k">reviewer</span>: { harness: codex, effort: high, mode: plan }
+  <span class="k">fixer</span>:    { harness: claude, model: opus }
+
+<span class="k">crew</span>:
+  - <span class="k">name</span>: <span class="s">Ada</span>
+    <span class="k">role</span>: <span class="s">Reviews every PR before I wake up</span>
+    <span class="k">agent</span>: reviewer
+    <span class="k">schedule</span>: <span class="s">every weekday at 7</span>
+
+<span class="k">machines</span>:
+  - { name: studio, ssh: me@studio.local }
+
+<span class="k">connectors</span>:
+  - { name: linear, env: { TOKEN: <span class="s">${secret:linear}</span> } }
+
+<span class="k">workflows</span>:
+  <span class="k">release-check</span>:
+    <span class="k">on</span>: { schedule: <span class="s">every day at 2</span> }
+    <span class="k">tasks</span>:
+      <span class="k">tests</span>:  { agent: fixer, prompt: <span class="s">Run the suite</span> }
+      <span class="k">fix</span>:    { needs: [tests], agent: fixer,
+                goal: <span class="s">tests pass</span>, on: studio }
+      <span class="k">audit</span>:  { matrix: { harness: [claude, codex] },
+                prompt: <span class="s">Audit the diff</span> }</pre>
+        </div>
+        <div class="m-term">
+          <div class="m-bar"><i></i><i></i><i></i>&nbsp; ~/code/api</div>
+<pre class="m-pre"><span class="c">$</span> <span class="b">wisp apply -f wisp.yml</span>
+Plan (wisp.yml)
+  <span class="g">+</span> agent/reviewer
+  <span class="g">+</span> agent/fixer
+  <span class="g">+</span> crew/Ada
+  <span class="g">+</span> machine/studio
+  <span class="g">+</span> connector/linear
+  <span class="g">+</span> workflow/release-check
+
+  6 to add, 0 to change, 0 to remove
+  <span class="y">!</span> Ada runs an agent on a schedule
+  <span class="y">!</span> release-check runs on studio
+<span class="g">  ✓ applied 6 changes</span>
+
+<span class="c">$</span> <span class="b">wisp "the login test is flaky, fix it"</span>
+◌ the login test is flaky, fix it
+  ▸ Reading auth/session.test.ts
+  ▸ Running npm test -- session
+  ▸ Editing auth/session.ts
+<span class="g">✓ Fixed the race in session expiry</span>
+  3 tests  <span class="g">passed</span> · 1 file  <span class="g">+12</span> <span class="y">−4</span> · $0.21
+› <span class="c">reply, or Enter to leave</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="m-sec">
+    <div class="wrap">
+      <span class="m-kicker">One file</span>
+      <h2>Everything your agents need, declared.</h2>
+      <p class="sub">The same way infrastructure as code made servers reviewable and reproducible, wisp makes your agent team a file in your repo. Clicking in the app and editing the file change the same thing.</p>
+      <div class="m-grid">
+        <div><b>Agents</b><span>Named profiles: harness, model, effort, mode, account, tools. "reviewer" means the same thing everywhere.</span></div>
+        <div><b>Crew</b><span>Long-lived teammates with a role, a schedule, a notebook and a team they delegate to.</span></div>
+        <div><b>Machines</b><span>Your laptop, a dev box over SSH, a cloud computer. Say where each task runs.</span></div>
+        <div><b>Workflows</b><span>Tasks with <code>needs</code>, conditions, fan-out across agents, goals, retries and one budget.</span></div>
+        <div><b>Tools</b><span>MCP servers and wisp's own tools, per agent. Secrets stay out of the file.</span></div>
+        <div><b>Rules</b><span>Who may start what from Slack or Telegram, spend limits, what happens when a run fails.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="m-sec">
+    <div class="wrap">
+      <span class="m-kicker">Tasks are code too</span>
+      <h2>Share a task. Rerun it. Try it on another setup.</h2>
+      <p class="sub">Every task keeps what was asked and the exact setup it ran with. Send it to a teammate as one file, rerun it from the same commit, or replay last week's work on your new team to see which one is better.</p>
+      <div class="m-two" style="margin-top:28px">
+        <div class="m-term"><div class="m-bar"><i></i><i></i><i></i>&nbsp; share</div>
+<pre class="m-pre"><span class="c">$</span> <span class="b">wisp share 01a1bc --level spec --to file</span>
+  redacted: 2 secrets, 3 local paths
+<span class="g">  ✓ fix-login.wisp-task</span>  (signed)
+
+<span class="c">$</span> <span class="b">wisp open fix-login.wisp-task --run</span>
+  plan: agent reviewer → your reviewer
+<span class="g">  ✓ running on your code</span></pre></div>
+        <div class="m-term"><div class="m-bar"><i></i><i></i><i></i>&nbsp; evaluate a setup</div>
+<pre class="m-pre"><span class="c">$</span> <span class="b">wisp rerun --last 20 --formula new-team.yml</span>
+  20 tasks · same commits · new setup
+                  <span class="b">current   new-team</span>
+  goals met        14/20      <span class="g">18/20</span>
+  median time      6m12s      <span class="g">4m40s</span>
+  spend            $9.80      <span class="g">$7.10</span>
+<span class="g">  ✓ report: wisp open eval-0412</span></pre></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="m-sec">
+    <div class="wrap">
+      <span class="m-kicker">Three ways in, one engine</span>
+      <h2>The app, the terminal, or your own code.</h2>
+      <p class="sub">The desktop app, the terminal UI and the CLI are all built on the same commands. Anything you can do in one, you can do in the others, and in a script.</p>
+      <div class="m-faces">
+        <div class="m-face"><h3>App</h3><p>Mac, Windows, Linux and your phone. One list across all your computers, a report instead of a transcript.</p><span class="m-kicker">Desktop · Android</span></div>
+        <div class="m-face"><h3>Terminal</h3><p><code>wisp tui</code> for the full app in your terminal, or <code>wisp "task"</code> to run one and answer it inline. "Check the error above" reads what just failed.</p><span class="m-kicker">TUI · CLI</span></div>
+        <div class="m-face"><h3>Code</h3><p>TypeScript and Python SDKs, generated from the same commands: start tasks, stream them, apply formulas, from your own scripts.</p><span class="m-kicker">SDK</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="m-sec">
+    <div class="wrap">
+      <span class="m-kicker">Built to be fast</span>
+      <h2>One small binary. Starts before you blink.</h2>
+      <div class="m-nums">
+        <div><b>5 ms</b><span>cold start to first response</span></div>
+        <div><b>11 MB</b><span>memory when idle</span></div>
+        <div><b>7</b><span>coding agents, one interface</span></div>
+        <div><b>$0</b><span>on top of the plans you have</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="m-end">
+    <div class="wrap">
+      <h2>Put your agent team in a file.</h2>
+      <p class="lede">Open source, MIT. Runs on your machines, or on wisp Cloud.</p>
+      <div class="m-ctas"><button class="cmd"><span class="p">$</span><code>npx wisp-agents</code><span class="copy">Copy</span></button><a class="m-btn" href="#">Read the docs</a></div>
+    </div>
+  </section>
+</main>
+<div class="m-note">Mockup · v2 positioning</div>
+</body>
+</html>
