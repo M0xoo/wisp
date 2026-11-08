@@ -66,6 +66,44 @@ pub fn with_protocol(prompt: &str, system_prompt: &str, resume_id: Option<&str>)
     }
 }
 
+/// wisp's own tools that say what they touch (opencode, Copilot): `wisp_tag`, `wisp_pr`, `wisp_save`,
+/// `wisp_stuff`, `wisp_blocks`, `wisp_stats`, `wisp_sessions`, `wisp_session`, by bare tool name.
+pub fn wisp_tool_label(tool: &str, i: &Value) -> Option<Tool> {
+    let t = |label: String| Some(Tool::new(ToolKind::Tool, label));
+    match tool {
+        "wisp_tag" => {
+            let tags = js::arr(&i["tags"]);
+            let list = tags.iter().map(|x| format!("#{}", js::string(x))).collect::<Vec<_>>().join(" ");
+            t(if tags.is_empty() { "Tagging the task".to_owned() } else { format!("Tagging the task: {}", clip(&list, 60)) })
+        }
+        "wisp_pr" => {
+            if js::truthy(&i["remove"]) {
+                return t("Detaching a PR".into());
+            }
+            let pr = if js::truthy(&i["pr"]) { js::string(&i["pr"]) } else { String::new() };
+            t(format!("Attaching PR {}", clip(pr.strip_prefix("https://github.com/").unwrap_or(&pr), 60)))
+        }
+        "wisp_save" => {
+            let id = js::truthy(&i["id"]);
+            let named = js::or(&i["title"], &i["name"]);
+            let what = if js::truthy(named) {
+                js::string(named)
+            } else {
+                let p = js::or(js::or(&i["app"], &i["path"]), &i["url"]);
+                if js::truthy(p) { js::string(p).rsplit(['/', '\\']).next().unwrap_or("").to_owned() } else { String::new() }
+            };
+            let what = if what.is_empty() { "it".to_owned() } else { what };
+            t(format!("{} {} {} My Stuff", if id { "Updating" } else { "Saving" }, clip(&what, 50), if id { "in" } else { "to" }))
+        }
+        "wisp_stuff" => t("Looking in My Stuff".into()),
+        "wisp_blocks" => t("Reading block formats".into()),
+        "wisp_stats" => t("Reading wisp stats".into()),
+        "wisp_sessions" => t("Listing wisp tasks".into()),
+        "wisp_session" => t(format!("Reading wisp task {}", clip(&js::str(&i["id"]), 40))),
+        _ => None,
+    }
+}
+
 /// The crew and connector tools of wisp's MCP server, by bare tool name; None for any other tool.
 pub fn crew_tool_label(tool: &str, input: &Value) -> Option<Tool> {
     let who_v = js::or(&input["member"], &input["name"]);

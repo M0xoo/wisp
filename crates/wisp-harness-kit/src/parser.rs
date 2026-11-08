@@ -32,7 +32,7 @@ impl Exit {
 
 /// A piece of IO a parser needs, run by the driver where it stands in the list. The driver turns each
 /// into the events it stands for (with [`crate::tracker`] and [`crate::protocol::write_change`]).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum IoStep {
     /// A Write is about to replace `abs`: read it now (at most `MAX_SNAPSHOT` bytes, else it counts as
     /// a new file) and report a `change` (early) from it to `after`. `file` is the project-relative path.
@@ -45,6 +45,14 @@ pub enum IoStep {
     Remember { file: String },
     /// The harness wrote `file`: report a `change` if it differs (the tracker's `change`).
     Changed { file: String },
+    /// The parser reported the change itself: only bring the tracker's copy of `file` up to date.
+    Sync { file: String },
+    /// As `Changed`, and when the file didn't change, `otherwise` instead (Copilot shows a call's
+    /// output only when it wrote nothing).
+    ChangedElse {
+        file: String,
+        otherwise: Box<HarnessEvent>,
+    },
 }
 
 /// One item a parser answers with.
@@ -52,6 +60,8 @@ pub enum IoStep {
 pub enum Out {
     Event(HarnessEvent),
     Io(IoStep),
+    /// stop the process (a CLI stuck retrying); its exit comes in as usual
+    Stop,
 }
 
 impl From<HarnessEvent> for Out {
@@ -81,8 +91,10 @@ pub struct NoDisk;
 
 impl ReplayIo for NoDisk {
     fn run(&mut self, step: &IoStep, out: &mut Vec<HarnessEvent>) {
-        if let IoStep::WriteBefore { file, after, .. } = step {
-            out.push(crate::protocol::write_change(file, None, after));
+        match step {
+            IoStep::WriteBefore { file, after, .. } => out.push(crate::protocol::write_change(file, None, after)),
+            IoStep::ChangedElse { otherwise, .. } => out.push((**otherwise).clone()),
+            _ => {}
         }
     }
 }
@@ -103,6 +115,7 @@ pub fn replay<P: LineParser + ?Sized>(
             match o {
                 Out::Event(e) => events.push(e),
                 Out::Io(step) => io.run(&step, events),
+                Out::Stop => {}
             }
         }
     };

@@ -51,6 +51,7 @@ pub struct Driver<P> {
     tracker: Tracker,
     base: Pin,
     outs: Vec<Out>,
+    stop: bool,
 }
 
 impl<P: LineParser> Driver<P> {
@@ -61,7 +62,13 @@ impl<P: LineParser> Driver<P> {
             tracker: Tracker::new(),
             base: Pin::Unpinned,
             outs: Vec::new(),
+            stop: false,
         }
+    }
+
+    /// The parser asked to stop the process since the last call (once).
+    pub fn take_stop(&mut self) -> bool {
+        std::mem::take(&mut self.stop)
     }
 
     pub fn parser(&self) -> &P {
@@ -135,6 +142,7 @@ impl<P: LineParser> Driver<P> {
             match o {
                 Out::Event(e) => events.push(e),
                 Out::Io(step) => self.run(&step, disk, events).await,
+                Out::Stop => self.stop = true,
             }
         }
     }
@@ -158,6 +166,22 @@ impl<P: LineParser> Driver<P> {
                     Before::Git => self.at_base(file, disk).await,
                 };
                 events.extend(self.tracker.changed(file, before, after));
+            }
+            IoStep::ChangedElse { file, otherwise } => {
+                let after = snapshot(disk, &resolve(&self.paths.cwd, file)).await;
+                let before = match self.tracker.before(file, after.as_deref()) {
+                    Before::Known(b) => b,
+                    Before::Git => self.at_base(file, disk).await,
+                };
+                events.push(self.tracker.changed(file, before, after).unwrap_or_else(|| (**otherwise).clone()));
+            }
+            IoStep::Sync { file } => {
+                let after = snapshot(disk, &resolve(&self.paths.cwd, file)).await;
+                let before = match self.tracker.before(file, after.as_deref()) {
+                    Before::Known(b) => b,
+                    Before::Git => self.at_base(file, disk).await,
+                };
+                let _ = self.tracker.changed(file, before, after);
             }
         }
     }

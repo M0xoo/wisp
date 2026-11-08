@@ -8,6 +8,7 @@ pub mod commands;
 pub mod detect;
 pub mod drive;
 pub mod event;
+pub mod golden;
 pub mod js;
 pub mod lines;
 pub mod parser;

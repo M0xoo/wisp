@@ -211,12 +211,13 @@ pub enum HarnessEvent {
         text: Option<String>,
     },
     Change(Change),
-    /// a call its permissions refused; `rule` allows exactly that on a retry
+    /// a call its permissions refused; `rule` allows exactly that on a retry (v1: Claude's is a
+    /// string, opencode's a `{permission, patterns}` object; the runtime gets it as a string)
     Blocked {
         tool: String,
         detail: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        rule: Option<String>,
+        rule: Option<Value>,
     },
     Limits(Limits),
     Billing {
