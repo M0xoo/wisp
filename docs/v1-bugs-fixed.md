@@ -20,6 +20,9 @@ Each line: area · what v1 did · what v2 does · the test. Visible changes are 
 | CLI | `wisp ls` said "— asks:" on every row once the summary carried an empty question (found in v2's own port) | only a real question shows | `crates/wisp/tests/serve_cli.rs` |
 | Reruns | a rerun ran on today's code, so "rerun" didn't reproduce what was asked | every task records its base commit; `wisp rerun` starts from it (a detached worktree) unless `--from latest` | `crates/wisp/tests/serve_code.rs` (the rerun's HEAD is the first commit) |
 | Setup | a schedule written in words was stored as a cron, so re-saving the same words looked like a change | each kind normalizes before planning: the same words plan as unchanged | `serve_code.rs` (applying twice: 6 unchanged) |
+| Import | `wisp import` (v1 home) applied without showing what it would change | it shows the plan first (as a formula), applies on yes; history is imported apart | `crates/wisp/tests/serve_code.rs` (`--dry-run` changes nothing) |
+| Sharing | a shared task only scrubbed secret shapes: home paths, env values and other tasks' names went out | the preview lists every redaction (secrets, secret env values, paths, names) and nothing leaves without yes | `plugins/share/core` tests, `serve_code.rs` |
+| Fork | forking a task with turns failed its foreign key: turns were written before their new session (found in v2's own port) | the session is written first in the same transaction | `serve_code.rs` (fork of an imported share) |
 
 ## Decided by the lead (2026-11-08; the owner asked not to be stopped for these)
 
