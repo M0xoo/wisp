@@ -465,6 +465,21 @@ impl Runtime {
     }
 
     /// The held turn goes now: it is dropped from the log and its prompt runs (or queues, if a run is on).
+    /// Whether task `id` is `root` or under it (a delegation's parent chain, at most 16 up).
+    pub(crate) async fn under(&self, id: &str, root: &str) -> bool {
+        let mut at = id.to_owned();
+        for _ in 0..16 {
+            if at == root {
+                return true;
+            }
+            match self.repo.session(&at).await.ok().and_then(|s| s.parent_id) {
+                Some(p) => at = p.0,
+                None => return false,
+            }
+        }
+        false
+    }
+
     pub(crate) async fn release_held(self: &Arc<Self>, s: &mut Session) -> Result<()> {
         let Some(t) = self
             .repo

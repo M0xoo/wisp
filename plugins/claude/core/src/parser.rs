@@ -387,7 +387,7 @@ impl ClaudeParser {
             let tool = str(&d["tool_name"]);
             out.push(ev(HarnessEvent::Blocked {
                 detail: detail_of(&tool, input, &self.paths),
-                rule: Some(rule_of(&tool, input)),
+                rule: Some(Value::String(rule_of(&tool, input))),
                 tool,
             }));
         }

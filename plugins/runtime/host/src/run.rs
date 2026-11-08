@@ -237,7 +237,7 @@ impl Runtime {
         let mut prompt = t.prompt.clone();
         // v1 withProtocol: a CLI without a system-prompt flag hears it ahead of the first prompt
         if !info.system_prompt_flag && s.resume_id.is_none() {
-            prompt = format!("{system}\n\n---\n\n{prompt}");
+            prompt = format!("{}\n\n---\n\n# Task\n\n{prompt}", system.trim());
         }
         let mut env = BTreeMap::from([("WISP_TASK".to_owned(), s.id.0.clone())]);
         for part in self.host.run_parts() {

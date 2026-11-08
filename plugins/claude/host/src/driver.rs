@@ -7,7 +7,7 @@ use serde_json::Value;
 use wisp_harness_kit::{self as kit, Disk, DiskFuture, Driver, LineParser, RunPaths};
 use wisp_kernel::BoxFuture;
 use wisp_runtime_api::HarnessEvent;
-use wisp_runtime_api::harness::{ExecReq, HarnessSys, ParserInput, ParserOutput, RunDriver};
+use wisp_runtime_api::harness::{ExecReq, HarnessSys, ParserInput, ParserOutput, RunDriver, StopHow};
 
 /// A kit parser as the runtime's `RunDriver`.
 pub struct KitDriver<P> {
@@ -50,6 +50,9 @@ impl<P: LineParser + 'static> RunDriver for KitDriver<P> {
                 }
                 ParserInput::Stop | ParserInput::Reply { .. } => {}
             }
+            if self.inner.take_stop() {
+                out.stop = Some(StopHow::Terminate);
+            }
             for e in events.drain(..) {
                 if let Some(m) = to_runtime(&e) {
                     out.emit(m);
@@ -87,6 +90,10 @@ const COUNTERS: [&str; 6] = ["durationMs", "turns", "inputTokens", "outputTokens
 /// text without them: a turn must never lose its result.
 pub fn to_runtime(e: &kit::HarnessEvent) -> Option<HarnessEvent> {
     let mut v = e.to_json();
+    // the runtime's grants are strings: an object rule (opencode's) travels as its JSON
+    if let Some(r) = v.get_mut("rule").filter(|r| !r.is_string() && !r.is_null()) {
+        *r = Value::String(r.to_string());
+    }
     if let Some(stats) = v.get_mut("stats").and_then(Value::as_object_mut) {
         stats.retain(|_, x| !x.is_null());
         for k in COUNTERS {

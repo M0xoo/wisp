@@ -106,6 +106,8 @@ impl Runtime {
         if head.resume_id.is_some() {
             s.resume_id.clone_from(&head.resume_id);
         }
+        // v1 runner.js:1812: a question the turn left open goes with it (no stale ask in review)
+        self.cancel_asks(&mut s);
         let landing = self.landing(&s, &turn, stopped || stopping, interrupted);
         s.state = landing.state;
         s.unread = landing.unread;

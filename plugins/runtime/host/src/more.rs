@@ -272,7 +272,8 @@ impl Runtime {
     pub async fn approval(self: &Arc<Self>, a: wisp_runtime_api::commands::ApprovalArgs) -> Result<Value> {
         let s = self.repo.session(a.id.as_str()).await?;
         let h = self.harness(&s.agent)?;
-        let p = h.permission(&a.tool, &a.input, &s.cwd).unwrap_or_else(|| PermissionAsk { tool: a.tool.clone(), action: format!("use {}", a.tool), detail: String::new(), why: None });
+        // a harness that can't say what the call does: the grant covers only this exact input
+        let p = h.permission(&a.tool, &a.input, &s.cwd).unwrap_or_else(|| PermissionAsk { tool: a.tool.clone(), action: format!("use {}", a.tool), detail: a.input.to_string(), why: None });
         let last = self.last_turn(a.id.as_str()).await?;
         if slot(&s).and_then(|m| m.get("sideOf")).is_some() {
             if let Some(t) = &last {
