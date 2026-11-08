@@ -17,8 +17,9 @@ path = "src/main.rs"
 # scripts that name it.
 default = ["proc", "all-plugins"]
 full = ["default"]
-all-plugins = ["settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update"]
+all-plugins = ["cli", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update"]
 proc = ["dep:wisp-proc"]
+cli = ["dep:wisp-cli"]
 settings = ["dep:wisp-settings"]
 runtime = ["dep:wisp-runtime", "proc"]
 claude = ["dep:wisp-claude"]
@@ -66,6 +67,10 @@ wisp-protocol.workspace = true
 wisp-store.workspace = true
 wisp-runtime-api.workspace = true
 wisp-proc = { workspace = true, optional = true }
+wisp-cli = { path = "../../plugins/cli/host", optional = true }
+wisp-cli-api.workspace = true
+wisp-cli-core.workspace = true
+wisp-sync.workspace = true
 wisp-settings = { path = "../../plugins/settings/host", optional = true }
 wisp-runtime = { path = "../../plugins/runtime/host", optional = true }
 wisp-claude = { path = "../../plugins/claude/host", optional = true }
@@ -105,17 +110,20 @@ wisp-plugins = { path = "../../plugins/plugins/host", optional = true }
 wisp-telemetry = { path = "../../plugins/telemetry/host", optional = true }
 wisp-posthog = { path = "../../plugins/posthog/host", optional = true }
 wisp-update = { path = "../../plugins/update/host", optional = true }
+bytes.workspace = true
 rand.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
-tokio.workspace = true
+# io-std: the attached view reads the keyboard (`wisp "task"`, `wisp attach`)
+tokio = { workspace = true, features = ["io-std"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 
 [dev-dependencies]
+portable-pty.workspace = true
 wisp-testkit.workspace = true
 
 [lints]

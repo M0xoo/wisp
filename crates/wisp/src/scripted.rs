@@ -148,7 +148,8 @@ pub async fn ls(c: &Client, f: &Flags) -> Result<()> {
     }
     let list = c.get(&format!("/sessions{}{}", if q.is_empty() { "" } else { "?" }, q.join("&"))).await?;
     let lines: Vec<String> = list.as_array().into_iter().flatten().map(|x| {
-        let ask = x.get("question").and_then(Value::as_str).map_or(String::new(), |q| format!("  — asks: {q}"));
+        // the summary carries `question: ""` when nothing is asked
+        let ask = x.get("question").and_then(Value::as_str).filter(|q| !q.is_empty()).map_or(String::new(), |q| format!("  — asks: {q}"));
         let proj: String = format!("{:<16}", s(x, "project")).chars().take(16).collect();
         format!("{}  {:<7}  {:<8}  {proj}  {}{ask}", s(x, "id"), s(x, "state"), s(x, "agent"), s(x, "title"))
     }).collect();

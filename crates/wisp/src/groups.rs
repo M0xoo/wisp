@@ -18,12 +18,13 @@ pub struct Where {
     pub user_home: PathBuf,
 }
 
-pub const DEFAULT: [&str; 41] = [
-    "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "machines", "grid-client", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update",
+pub const DEFAULT: [&str; 42] = [
+    "cli", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "machines", "grid-client", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update",
 ];
-pub const BOX_OFF: [&str; 2] = ["machines", "update"];
-pub const HEADLESS: [&str; 12] = ["settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "git", "worktrees", "mcp"];
-pub const MINIMAL: [&str; 3] = ["settings", "runtime", "claude"];
+/// A grid box serves the web frontend only (ADR-0024).
+pub const BOX_OFF: [&str; 3] = ["machines", "update", "cli"];
+pub const HEADLESS: [&str; 13] = ["cli", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "git", "worktrees", "mcp"];
+pub const MINIMAL: [&str; 4] = ["cli", "settings", "runtime", "claude"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Group {
@@ -143,6 +144,8 @@ fn add(g: PluginGroup, name: &str, at: &Where) -> PluginGroup {
         "stuff" => g.add(wisp_stuff::StuffPlugin),
         #[cfg(feature = "plugins")]
         "plugins" => g.add(wisp_plugins::PluginsPlugin),
+        #[cfg(feature = "cli")]
+        "cli" => g.add(wisp_cli::CliPlugin),
         #[cfg(feature = "telemetry")]
         "telemetry" => g.add(wisp_telemetry::TelemetryPlugin),
         #[cfg(feature = "posthog")]
@@ -161,6 +164,7 @@ pub fn compiled(group: Group) -> Vec<&'static str> {
 #[allow(clippy::match_like_matches_macro)] // one arm per feature: which are true depends on the build
 pub fn in_build(name: &str) -> bool {
     match name {
+        "cli" => cfg!(feature = "cli"),
         "settings" => cfg!(feature = "settings"),
         "runtime" => cfg!(feature = "runtime"),
         "claude" => cfg!(feature = "claude"),
@@ -215,9 +219,9 @@ mod tests {
         let d = Group::Default.names();
         assert!(d.iter().all(|n| d.iter().filter(|m| *m == n).count() == 1), "no plugin twice");
         let b = Group::Box.names();
-        assert!(!b.contains(&"machines") && !b.contains(&"update") && b.contains(&"runtime"));
+        assert!(!b.contains(&"machines") && !b.contains(&"update") && !b.contains(&"cli") && b.contains(&"runtime"));
         assert!(HARNESSES.iter().all(|h| Group::Headless.names().contains(h)));
-        assert_eq!(Group::Minimal.names(), ["settings", "runtime", "claude"]);
+        assert_eq!(Group::Minimal.names(), ["cli", "settings", "runtime", "claude"]);
         for g in [Group::Box, Group::Headless, Group::Minimal] {
             assert!(g.names().iter().all(|n| d.contains(n)), "every group is part of Default");
         }

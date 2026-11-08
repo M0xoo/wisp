@@ -7,8 +7,12 @@ pub const HELP: &str = "usage:
   wisp \"task\"                   launch a task in this folder
   wisp serve                    run wisp here, in this terminal, without opening anything   (--port N  --host ADDR)
   wisp add [path]               add a project
-  wisp ls                       list sessions        (--state running,waiting,review,done|needs  --limit N  --all: archived too)
-  wisp show <id>                state + latest presentation as markdown
+  wisp \"task\" -d                launch it and return with its id (the default outside a terminal; --wait blocks)
+  wisp attach <id>              follow a task live: its steps, its answer, its questions; a reply box after
+                                (Ctrl-C detaches, a second Ctrl-C stops it)
+  wisp ls                       list sessions        (--state running,waiting,review,done|needs  --limit N  --all: archived too
+                                --watch: follow the list)
+  wisp show <id>                state + latest presentation as markdown   (--watch: follow its turn live)
   wisp wait <id>                block until it finishes or asks you something
   wisp reply <id> \"text\"        follow up (answers a pending question)   (--queue  --mode plan|edits|auto
                                 --agent ID  --model ID  --effort LEVEL: switch harness / model from here on)
@@ -37,6 +41,9 @@ pub const HELP: &str = "usage:
   wisp mcp                      run the MCP server (stdio) for other agents and editors
   wisp skill [install]          print / install the wisp agent skill   (--agent claude|codex|opencode|all  --project)
   wisp grid dev|init|serve|doctor  wisp Grid: wisp for many people on your server   (wisp grid help)
+  wisp <plugin> <verb> …        any command of any plugin, flags from its arguments (wisp crew create --name Ada)
+  wisp help [plugin [verb]]     every plugin's commands, a plugin's verbs, a verb's flags
+  wisp completions zsh|bash|fish  shell completions from the same catalogue
   wisp -- \"ls the repo\"         a task that starts with a command name
 
 launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|antigravity|grok|copilot  --model ID  --effort LEVEL
@@ -46,8 +53,8 @@ launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|ant
                 --yes  go ahead although it takes a usage window past your Ask near the limit line
 options:        --port N  --browser  --no-open  --json  --version";
 
-pub const COMMANDS: [&str; 25] = [
-    "add", "ls", "list", "show", "wait", "reply", "btw", "stop", "mcp", "skill", "ship", "merge", "run", "recipes", "usage", "spell", "spells", "plugin", "plugins", "crew", "grid", "computer", "serve", "import", "desktop",
+pub const COMMANDS: [&str; 28] = [
+    "attach", "help", "completions", "add", "ls", "list", "show", "wait", "reply", "btw", "stop", "mcp", "skill", "ship", "merge", "run", "recipes", "usage", "spell", "spells", "plugin", "plugins", "crew", "grid", "computer", "serve", "import", "desktop",
 ];
 pub const LS_STATES: [&str; 4] = ["running", "waiting", "review", "done"];
 /// wisp-grid's commands (apps/grid's CLI). A test keeps `wisp grid <word>` routing in step.
@@ -94,6 +101,12 @@ pub struct Flags {
     pub kit: bool,
     pub gist: bool,
     pub dry_run: bool,
+    /// `-d`: return at once with the id (the default outside a terminal)
+    pub detach: bool,
+    /// `--watch`: `ls` and `show` follow their topic
+    pub watch: bool,
+    /// `--help` after words (`wisp crew create --help`)
+    pub help: bool,
 }
 
 impl Flags {
@@ -130,6 +143,9 @@ impl Flags {
             kit: true,
             gist: false,
             dry_run: false,
+            detach: false,
+            watch: false,
+            help: false,
         }
     }
 }
@@ -191,6 +207,10 @@ fn fits(cmd: &str, w: &[String]) -> bool {
     match cmd {
         "grid" => n == 1 || GRID_SUB.contains(&w1),
         "ship" | "merge" | "btw" => session_id(w1),
+        "attach" => n == 2,
+        // `wisp help`, `wisp help crew`, `wisp help crew create`: a task never starts with "help" and two words
+        "help" => n <= 4 && w.iter().skip(1).all(|x| x.bytes().all(|b| b.is_ascii_lowercase() || b == b'-' || b == b'_' || b == b'.')),
+        "completions" => n == 2 && ["zsh", "bash", "fish"].contains(&w1),
         "usage" | "recipes" | "serve" | "desktop" | "import" => n == 1,
         "computer" => n == 1 || (n == 2 && ["on", "off", "status"].contains(&w1)),
         "run" => n > 1,
@@ -251,6 +271,8 @@ fn set(f: &mut Flags, a: &str, value: &mut dyn FnMut() -> Result<String, UsageEr
         "--no-kit" => f.kit = false,
         "--gist" => f.gist = true,
         "--dry-run" => f.dry_run = true,
+        "--detach" | "-d" => f.detach = true,
+        "--watch" => f.watch = true,
         _ => return Ok(false),
     }
     Ok(true)
@@ -280,8 +302,11 @@ pub fn parse(input: &[String], env_port: Option<&str>, home: &Path, cwd: &Path) 
             literal = if words.is_empty() { Literal::Task } else { Literal::Yes };
         } else if a == "--version" || a == "-v" {
             return Ok(Parsed { action: Action::Version, flags, words, literal, command: None, argv });
-        } else if a == "--help" || a == "-h" {
+        } else if (a == "--help" || a == "-h") && words.is_empty() {
             return Ok(Parsed { action: Action::Help, flags, words, literal, command: None, argv });
+        } else if a == "--help" || a == "-h" {
+            // after words: a generated verb's own help (`wisp crew create --help`), else the usage
+            flags.help = true;
         } else {
             let mut next = || {
                 i += 1;

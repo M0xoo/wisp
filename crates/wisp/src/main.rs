@@ -4,6 +4,8 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 mod args;
+mod attach;
+mod cli;
 mod client;
 mod commands;
 mod desktop;
@@ -15,6 +17,7 @@ mod serve;
 mod services;
 mod settings_store;
 
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
 use args::{Action, Parsed};
@@ -77,6 +80,17 @@ async fn dispatch(p: &Parsed, user_home: &Path, cwd: &Path) -> Result<i32> {
     // scripted commands go to the advertised wisp unless --port was given
     let port = if f.port_given { f.port } else { client::discover(&home).unwrap_or(f.port) };
     let rest = p.words.get(1..).unwrap_or_default();
+    // a task this terminal left running that finished, asks or failed: one line before anything else
+    if !matches!(p.command, Some("serve" | "mcp" | "grid" | "desktop" | "completions")) && Client::new(port).ping().await {
+        attach::notices(&Client::new(port), &home).await;
+    }
+    if let Some(code) = live(p, &home, port).await? {
+        return Ok(code);
+    }
+    if f.help {
+        say(args::HELP);
+        return Ok(0);
+    }
     match p.command {
         Some("grid") => return extras::grid(&p.argv),
         Some("mcp") => extras::mcp()?,
@@ -92,10 +106,54 @@ async fn dispatch(p: &Parsed, user_home: &Path, cwd: &Path) -> Result<i32> {
         Some("add") => add(&home, port, p.words.get(1), cwd).await?,
         Some(cmd) => commands::run(p, cmd, rest, &cwd_s, port).await?,
         None if !p.words.is_empty() && (f.json || f.wait || !f.tries.is_empty()) => commands::run(p, "launch", &p.words, &cwd_s, port).await?,
-        None if !p.words.is_empty() => launch_and_open(p, &home, port, &cwd_s).await?,
+        None if !p.words.is_empty() => return launch_and_open(p, &home, port, &cwd_s).await,
         None => open(&home, f.port, f.open, f.browser).await?,
     }
     Ok(0)
+}
+
+/// Whether `word` could be a plugin's first word (`crew`, `runtime`, `grid-client`).
+fn plugin_word(word: &str) -> bool {
+    word.len() <= 32 && word.bytes().next().is_some_and(|b| b.is_ascii_lowercase()) && word.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+}
+
+/// The commands that follow a topic or read the catalogue (ADR-0022); None: not one of them.
+async fn live(p: &Parsed, home: &Path, port: u16) -> Result<Option<i32>> {
+    let f = &p.flags;
+    let words = &p.words;
+    let tty = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
+    let code = match p.command {
+        Some("attach") => {
+            let c = Client::connect(port, true).await?;
+            let id = scripted::need(words.get(1), "session id")?;
+            attach::attach(&c, home, id, attach::Mode { interactive: tty, until_idle: !tty, fresh: false }).await?
+        }
+        Some("show") if f.watch => {
+            let c = Client::connect(port, true).await?;
+            let id = scripted::need(words.get(1), "session id")?;
+            attach::attach(&c, home, id, attach::Mode { interactive: false, until_idle: true, fresh: false }).await?
+        }
+        Some("ls" | "list") if f.watch => attach::ls_watch(&Client::connect(port, true).await?, f.all).await?,
+        Some("help") => {
+            let c = Client::connect(port, true).await?;
+            cli::help(&cli::catalogue(&c, home).await?, words)
+        }
+        Some("completions") => {
+            let c = Client::connect(port, true).await?;
+            cli::completions(&cli::catalogue(&c, home).await?, words.get(1))
+        }
+        // `wisp <plugin> <verb> …`: a command of the catalogue, else (it names none) a task
+        None if p.literal != args::Literal::Task && words.first().is_some_and(|w| plugin_word(w)) && words.len() >= 2 => {
+            let c = Client::connect(port, true).await?;
+            let cat = cli::catalogue(&c, home).await?;
+            match cli::generated(&c, &cat, words, &p.argv).await? {
+                Some(code) => code,
+                None => return Ok(None),
+            }
+        }
+        _ => return Ok(None),
+    };
+    Ok(Some(code))
 }
 
 /// Runs wisp here until a signal; `open`: then show it in the browser at `path`.
@@ -159,14 +217,21 @@ async fn add(_home: &Path, port: u16, what: Option<&String>, cwd: &Path) -> Resu
     Ok(())
 }
 
-/// `wisp "task"`: launched on the running wisp (one starts if none answers), then shown.
-async fn launch_and_open(p: &Parsed, _home: &Path, port: u16, cwd: &str) -> Result<()> {
+/// `wisp "task"`: launched on the running wisp (one starts if none answers). In a terminal it stays
+/// attached (the run live, then a reply box); `-d`, or no terminal, returns with its id.
+async fn launch_and_open(p: &Parsed, home: &Path, port: u16, cwd: &str) -> Result<i32> {
     let c = Client::connect(port, true).await?;
     let body = scripted::launch_body(&c, &p.flags, p.words.join(" "), cwd, None).await?;
     let s = c.post("/sessions", body).await?;
-    say(&format!("  ◌ launched: {}", s.get("title").and_then(Value::as_str).unwrap_or("")));
-    if p.flags.open {
-        serve::open_url(&format!("{}/#/s/{}", c.url, s.get("id").and_then(Value::as_str).unwrap_or("")));
+    let id = s.get("id").and_then(Value::as_str).unwrap_or("").to_owned();
+    let title = s.get("title").and_then(Value::as_str).unwrap_or("").to_owned();
+    let tty = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
+    if tty && !p.flags.detach && !id.is_empty() {
+        let st = cli::style();
+        say(&format!("{} {}  {}", wisp_cli_core::term::paint(&st, wisp_cli_core::term::BLUE, "◌"), wisp_cli_core::term::bold(&st, &title), wisp_cli_core::term::dim(&st, &id)));
+        return attach::attach(&c, home, &id, attach::Mode { interactive: true, until_idle: false, fresh: true }).await;
     }
-    Ok(())
+    say(&format!("  ◌ launched: {title}  ({id})\n    wisp attach {id}"));
+    attach::remember(home, &id, &title);
+    Ok(0)
 }

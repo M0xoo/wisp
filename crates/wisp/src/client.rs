@@ -73,6 +73,32 @@ impl Client {
         Ok(json)
     }
 
+    /// Runs a command through `POST /api/cmd` (once per key), its result or the wire error's message.
+    pub async fn cmd(&self, cmd: &str, args: Value) -> Result<Value> {
+        let key = format!("cli-{}", crate::services::hex(&rand::random::<[u8; 12]>()));
+        let mut b = self.http.post(format!("{}/api/cmd", self.url)).header("idempotency-key", key).json(&serde_json::json!({ "cmd": cmd, "args": args }));
+        if let Some(t) = &self.token {
+            b = b.header("x-wisp-token", t);
+        }
+        let r = b.send().await.map_err(|e| CliError::said(format!("wisp at {}: {e}", self.url)))?;
+        let status = r.status().as_u16();
+        let v: Value = r.json().await.unwrap_or_default();
+        if v.get("ok") == Some(&Value::Bool(true)) {
+            return Ok(v.get("result").cloned().unwrap_or(Value::Null));
+        }
+        let message = v.pointer("/error/message").and_then(Value::as_str).map_or_else(|| format!("{cmd}: HTTP {status}"), str::to_owned);
+        Err(CliError::Http { status, message, body: v })
+    }
+
+    /// The token this client sends (`WISP_TOKEN`), for the stream it opens itself.
+    pub fn token(&self) -> Option<&str> {
+        self.token.as_deref()
+    }
+
+    pub fn http(&self) -> &reqwest::Client {
+        &self.http
+    }
+
     pub async fn get(&self, path: &str) -> Result<Value> {
         self.request("GET", path, None).await
     }
