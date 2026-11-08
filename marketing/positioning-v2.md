@@ -26,6 +26,12 @@ file, run anywhere.**
 - Claims ship only after the researcher's check (competitors: Orca, T3 Code, Paseo, cmux, Multica, Paradev,
   CrewAI, LangGraph, Dagger, GitHub Agentic Workflows). Numbers in posts come from verified runs.
 
+## The codebase carries its agent history (ADR-0033)
+
+A repo built mostly by agents keeps the tasks that built it in `.wisp/`: `wisp blame` shows which task wrote a
+line and why, `wisp resume` picks up last month's task on today's code, and new agents read the past decisions
+before they touch a file. **Provenance for agent-written code.** No other tool we know does this (verify).
+
 ## Proof points to build into the launch
 
 1. `wisp.yml` of a real team (reviewer, fixer, nightly dependency bot) → `wisp apply` → it runs.
