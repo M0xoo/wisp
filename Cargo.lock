@@ -2955,6 +2955,7 @@ dependencies = [
  "wisp-review",
  "wisp-router",
  "wisp-runtime",
+ "wisp-runtime-api",
  "wisp-settings",
  "wisp-ship",
  "wisp-slack",
@@ -3295,6 +3296,7 @@ dependencies = [
  "wisp-crew-core",
  "wisp-kernel",
  "wisp-runtime-api",
+ "wisp-store",
 ]
 
 [[package]]
@@ -3975,6 +3977,7 @@ dependencies = [
  "wisp-kernel",
  "wisp-router-api",
  "wisp-router-core",
+ "wisp-store",
 ]
 
 [[package]]
@@ -4145,6 +4148,7 @@ dependencies = [
  "tokio",
  "tracing",
  "wisp-kernel",
+ "wisp-store",
  "wisp-stuff-api",
  "wisp-stuff-core",
 ]
