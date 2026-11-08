@@ -29,6 +29,25 @@
   whole thing). A detached task that finishes, asks or fails while you're in the same terminal session says
   so (an OS notification, and a one-line notice on your next `wisp` command); `wisp ls --watch` and
   `wisp attach <id>` pick it up anytime, from any computer on your wisp.
+- **Answer blocks render natively in the terminal, never as JSON.** The `runtime.block@1` point gains a
+  terminal renderer next to the web one: `render_term(block, width, style) -> lines`, width-aware, colour
+  only when the terminal supports it (`NO_COLOR` and pipes respected):
+  - hero → a bold title line and its summary; markdown → styled text (headings, lists, code with syntax
+    colour, links as clickable OSC 8 hyperlinks);
+  - stats → an aligned table with deltas coloured good/bad; steps and checklists → ✓ / ✗ / – lines;
+  - files → a tree with +/− counts; diff → a coloured unified diff with hunk headers; tests → one summary line
+    plus each failure with its file:line; commits, graph, tree, flow, compare, chart → their ASCII forms
+    (a bar chart in block characters, a flow as `a → b → c`);
+  - code and terminal → framed, with the language colour; callout → a tinted margin and title;
+  - image and video → the file path as a link, inline in terminals that show images (iTerm2, kitty,
+    WezTerm image protocols); preview, doc, task, stuff, map → a titled, clickable link (`wisp open …`);
+  - question → an interactive picker in a TTY (arrow keys, or type the option number), plain numbered
+    options otherwise; actions → numbered choices that run or reply; next → numbered follow-ups you can
+    pick to send;
+  - app → "Open it in wisp" with a link, plus its title and description;
+  - an unknown block type → its title and a one-line summary, with "Update wisp to see this" (never raw JSON).
+  `--json` prints the raw blocks for scripts. Each block type has terminal goldens (80 and 40 columns, colour
+  and plain), and a plugin that adds a block type adds its terminal renderer (or gets the generic summary).
 - **Every command prints human text by default and `--json` for scripts**, and exits non-zero on refusal,
   with the wire error's message.
 - **Discoverable:** `wisp help` lists every plugin's commands, `wisp help <plugin>` its verbs, shell
