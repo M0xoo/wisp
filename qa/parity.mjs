@@ -1,0 +1,515 @@
+// The parity gate (design/foundation.md §3): renders v2 (apps/web with its mock peer, seeded from
+// design/v1-reference/seed.json) in every view, width, theme and state of design/v1-reference/, and
+// diffs it against v1: pixels (≤ 0.5 % differ, no differing region over 8×8 px) and metrics (every
+// PARTS element's box, padding, margin, gap, font, colour, border and radius within ± 0.5 px or equal).
+// Allowed differences come only from design/v1-reference/allowed.md.
+//
+//   node qa/parity.mjs                       starts apps/web's vite (mock peer) on QA_PARITY_PORT (4590)
+//   PARITY_URL=http://127.0.0.1:5180 node qa/parity.mjs   against a v2 web already running
+//   VIEWS=home,task WIDTHS=1440,390 THEMES=dark           a subset
+//
+// v2 is driven by the same openers as v1 (qa/views.mjs), through a translation of v1 selectors to the
+// PARTS contract: a v1 PARTS selector becomes `[data-part="<name>"]`, a task's row is found by its
+// title from seed.json. A view whose opener finds nothing in v2 fails as "not reachable".
+// Diffs and v2 shots go to qa/out/parity/<view>/, the summary to qa/out/parity/summary.{json,md}.
+// No dependencies: the PNG decoder, encoder and diff are below (node:zlib).
+
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import zlib from 'node:zlib';
+import { PARTS } from '../web/js/spell-schema.js';
+import { launchBrowser, OUT, ROOT } from './lib.mjs';
+import { collectInPage, STATES, STRUCT } from './v1-reference.mjs';
+import { views } from './views.mjs';
+
+// ---------- PNG: decode (8-bit, non-interlaced, any colour type) and encode (RGB/RGBA) ----------
+
+const SIG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+const CRC = new Int32Array(256).map((_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c;
+});
+const crc32 = (buf) => {
+  let c = -1;
+  for (const b of buf) c = CRC[(c ^ b) & 255] ^ (c >>> 8);
+  return (c ^ -1) >>> 0;
+};
+const paeth = (a, b, c) => {
+  const p = a + b - c;
+  const pa = Math.abs(p - a);
+  const pb = Math.abs(p - b);
+  const pc = Math.abs(p - c);
+  return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+};
+
+export function decodePng(buf) {
+  if (!buf.subarray(0, 8).equals(SIG)) throw new Error('not a PNG');
+  let off = 8;
+  let w = 0;
+  let h = 0;
+  let depth = 0;
+  let type = 0;
+  let interlace = 0;
+  let plte = null;
+  let trns = null;
+  const idat = [];
+  while (off < buf.length) {
+    const len = buf.readUInt32BE(off);
+    const t = buf.toString('latin1', off + 4, off + 8);
+    const d = buf.subarray(off + 8, off + 8 + len);
+    off += 12 + len;
+    if (t === 'IHDR') [w, h, depth, type, interlace] = [d.readUInt32BE(0), d.readUInt32BE(4), d[8], d[9], d[12]];
+    else if (t === 'PLTE') plte = d;
+    else if (t === 'tRNS') trns = d;
+    else if (t === 'IDAT') idat.push(d);
+    else if (t === 'IEND') break;
+  }
+  if (depth !== 8 || interlace) throw new Error(`unsupported PNG (bit depth ${depth}, interlace ${interlace})`);
+  const ch = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[type];
+  const raw = zlib.inflateSync(Buffer.concat(idat));
+  const stride = w * ch;
+  const px = Buffer.alloc(stride * h);
+  for (let y = 0; y < h; y++) {
+    const f = raw[y * (stride + 1)];
+    const src = y * (stride + 1) + 1;
+    const cur = y * stride;
+    const prev = cur - stride;
+    for (let x = 0; x < stride; x++) {
+      const a = x >= ch ? px[cur + x - ch] : 0;
+      const b = y ? px[prev + x] : 0;
+      const c = x >= ch && y ? px[prev + x - ch] : 0;
+      const v = raw[src + x];
+      px[cur + x] = f === 1 ? v + a : f === 2 ? v + b : f === 3 ? v + ((a + b) >> 1) : f === 4 ? v + paeth(a, b, c) : v;
+    }
+  }
+  const rgba = Buffer.alloc(w * h * 4);
+  for (let i = 0; i < w * h; i++) {
+    const s = i * ch;
+    const o = i * 4;
+    if (type === 6) px.copy(rgba, o, s, s + 4);
+    else if (type === 2) [rgba[o], rgba[o + 1], rgba[o + 2], rgba[o + 3]] = [px[s], px[s + 1], px[s + 2], 255];
+    else if (type === 0) [rgba[o], rgba[o + 1], rgba[o + 2], rgba[o + 3]] = [px[s], px[s], px[s], 255];
+    else if (type === 4) [rgba[o], rgba[o + 1], rgba[o + 2], rgba[o + 3]] = [px[s], px[s], px[s], px[s + 1]];
+    else {
+      const k = px[s];
+      [rgba[o], rgba[o + 1], rgba[o + 2], rgba[o + 3]] = [plte[k * 3], plte[k * 3 + 1], plte[k * 3 + 2], trns && k < trns.length ? trns[k] : 255];
+    }
+  }
+  return { width: w, height: h, data: rgba };
+}
+
+export function encodePng({ width, height, data }) {
+  const stride = width * 4;
+  const raw = Buffer.alloc((stride + 1) * height);
+  for (let y = 0; y < height; y++) {
+    raw[y * (stride + 1)] = 2; // Up: cheap and good enough for diff images
+    for (let x = 0; x < stride; x++) raw[y * (stride + 1) + 1 + x] = (data[y * stride + x] - (y ? data[(y - 1) * stride + x] : 0)) & 255;
+  }
+  const chunk = (t, d) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(d.length);
+    const td = Buffer.concat([Buffer.from(t, 'latin1'), d]);
+    const c = Buffer.alloc(4);
+    c.writeUInt32BE(crc32(td));
+    return Buffer.concat([len, td, c]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  return Buffer.concat([SIG, chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+
+// ---------- Pixel diff ----------
+
+// A pixel differs when any channel is off by more than `tol` (font antialiasing on one machine is
+// stable, so tol stays small). Masked pixels (allowed differences) never count. Returns the share of
+// differing pixels, the differing regions (8-connected) and a diff image: v1 dimmed, differences red,
+// masked areas blue.
+export function diffImages(a, b, { tol = 8, masks = [] } = {}) {
+  const w = Math.max(a.width, b.width);
+  const h = Math.max(a.height, b.height);
+  const mask = new Uint8Array(w * h);
+  for (const [x, y, mw, mh] of masks)
+    for (let yy = Math.max(0, Math.floor(y)); yy < Math.min(h, Math.ceil(y + mh)); yy++)
+      for (let xx = Math.max(0, Math.floor(x)); xx < Math.min(w, Math.ceil(x + mw)); xx++) mask[yy * w + xx] = 1;
+  const diff = new Uint8Array(w * h);
+  const img = Buffer.alloc(w * h * 4);
+  let n = 0;
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      const inA = x < a.width && y < a.height;
+      const inB = x < b.width && y < b.height;
+      const ia = (y * a.width + x) * 4;
+      const ib = (y * b.width + x) * 4;
+      let off = !inA || !inB;
+      if (!off)
+        for (let c = 0; c < 4; c++)
+          if (Math.abs(a.data[ia + c] - b.data[ib + c]) > tol) {
+            off = true;
+            break;
+          }
+      const o = i * 4;
+      const g = inA ? Math.round(0.3 * a.data[ia] + 0.59 * a.data[ia + 1] + 0.11 * a.data[ia + 2]) : 0;
+      const dim = 200 + Math.round(g * 0.2);
+      if (mask[i]) [img[o], img[o + 1], img[o + 2]] = [Math.round(dim * 0.7), Math.round(dim * 0.8), 255];
+      else if (off) {
+        diff[i] = 1;
+        n++;
+        [img[o], img[o + 1], img[o + 2]] = [230, 20, 20];
+      } else [img[o], img[o + 1], img[o + 2]] = [dim, dim, dim];
+      img[o + 3] = 255;
+    }
+  // Regions: flood fill over differing pixels, keeping each region's bounding box.
+  const regions = [];
+  const stack = new Int32Array(w * h);
+  for (let s = 0; s < w * h; s++) {
+    if (diff[s] !== 1) continue;
+    let top = 0;
+    stack[top++] = s;
+    diff[s] = 2;
+    let [x0, y0, x1, y1, count] = [w, h, 0, 0, 0];
+    while (top) {
+      const i = stack[--top];
+      const x = i % w;
+      const y = (i - x) / w;
+      count++;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          const j = ny * w + nx;
+          if (diff[j] === 1) {
+            diff[j] = 2;
+            stack[top++] = j;
+          }
+        }
+    }
+    regions.push({ box: [x0, y0, x1 - x0 + 1, y1 - y0 + 1], px: count });
+  }
+  regions.sort((p, q) => q.box[2] * q.box[3] - p.box[2] * p.box[3]);
+  return { ratio: n / (w * h), differing: n, regions, image: { width: w, height: h, data: img } };
+}
+
+// ---------- Metrics diff ----------
+
+const nums = (s) => (s ?? '').match(/-?\d*\.?\d+(?=px)/g)?.map(Number) ?? [];
+const NUMERIC = ['pad', 'mar', 'gap', 'fs', 'lh', 'bw', 'rad'];
+const EXACT = ['fw', 'ff', 'col', 'bg', 'bc'];
+
+// One reference element against v2's element of the same part and index: a list of what differs.
+export function diffElement(ref, got) {
+  if (!got) return ['missing'];
+  const out = [];
+  ref.box.forEach((v, k) => {
+    if (Math.abs(v - got.box[k]) > 0.5) out.push(`box[${'xywh'[k]}] ${v}→${got.box[k]}`);
+  });
+  for (const key of NUMERIC) {
+    const a = ref.s[key] ?? '';
+    const b = got.s[key] ?? '';
+    if (a === b) continue;
+    const na = nums(a);
+    const nb = nums(b);
+    const zero = (l) => l.every((v) => v === 0);
+    if (!na.length && !nb.length ? a !== b : na.length && nb.length ? na.length !== nb.length || na.some((v, k) => Math.abs(v - nb[k]) > 0.5) : !zero(na.length ? na : nb))
+      out.push(`${key} ${a || '0'}→${b || '0'}`);
+  }
+  for (const key of EXACT) if ((ref.s[key] ?? '') !== (got.s[key] ?? '')) out.push(`${key} ${ref.s[key] ?? '-'}→${got.s[key] ?? '-'}`);
+  return out;
+}
+
+// ---------- allowed.md ----------
+
+const glob = (g) => new RegExp(`^${g.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`);
+export function readAllowed(file) {
+  const md = fs.readFileSync(file, 'utf8');
+  const block = md.match(/```rules\n([\s\S]*?)```/)?.[1] ?? '';
+  return block
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'))
+    .map((l) => {
+      const [view, part, kind] = l.split(/\s+/);
+      if (!['wrap', 'pending'].includes(kind)) throw new Error(`allowed.md: unknown kind "${kind}" in "${l}"`);
+      return { view: glob(view), part: glob(part), kind };
+    });
+}
+
+// ---------- Driving v2 with v1's openers ----------
+
+const bySel = new Map();
+for (const [name, sel] of Object.entries(PARTS)) for (const piece of sel.split(',')) bySel.set(piece.trim(), name);
+const splitTop = (s) => {
+  const out = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of s) {
+    if ('([{'.includes(ch)) depth++;
+    if (')]}'.includes(ch)) depth--;
+    if (ch === ',' && !depth) {
+      out.push(cur.trim());
+      cur = '';
+    } else cur += ch;
+  }
+  return [...out, cur.trim()];
+};
+
+// A v1 selector, in terms of the PARTS contract v2 renders (data-part). Rows are found by their title.
+export function translator(seed) {
+  const title = (id) => seed.list.find?.((s) => s.id === id)?.title ?? seed.sessions[id]?.title ?? id;
+  const row = (id) => ['card.head', 'list.row', 'card'].map((p) => `[data-part="${p}"]:has-text(${JSON.stringify(title(id))})`).join(', ');
+  return (sel) =>
+    splitTop(sel)
+      .map((piece) => {
+        const vis = piece.endsWith(':visible') ? ':visible' : '';
+        const bare = vis ? piece.slice(0, -8) : piece;
+        if (bySel.has(bare)) return `[data-part="${bySel.get(bare)}"]${vis}`;
+        const m = bare.match(/^#feed \.item\[data-id="(\w+)"\] \.it-head$/);
+        if (m) return row(m[1]);
+        return piece;
+      })
+      .join(', ');
+}
+
+const v2Page = (p, tr) =>
+  new Proxy(p, {
+    get(t, k) {
+      if (k === 'locator') return (s, o) => t.locator(tr(s), o);
+      if (k === 'isVisible') return (s, o) => t.isVisible(tr(s), o);
+      if (k === 'fill') return (s, v, o) => t.fill(tr(s), v, o);
+      const v = t[k];
+      return typeof v === 'function' ? v.bind(t) : v;
+    },
+  });
+
+// The focused state of a list row is its quick action focused by keyboard, as in the reference.
+const V2_FOCUS = { home: '[data-part="card.quickDone"]' };
+const v2Target = (name, state) => (state === 'focus' && V2_FOCUS[name]) || V2_STATES[name] || 'nothing';
+const V2_STATES = {
+  home: '[data-part="card.head"], [data-part="list.row"]',
+  task: '[data-part="split.head"] button:visible, [data-part="split.actions"] button:visible',
+  'task.composer': '[data-part="composer.mode"]:visible, [data-part="composer"] button:visible',
+};
+
+async function openV2(browser, url, open, [width, height], colorScheme) {
+  const ctx = await browser.newContext({ viewport: { width, height }, colorScheme, deviceScaleFactor: 1, reducedMotion: 'reduce' });
+  ctx.setDefaultTimeout(2500);
+  ctx.setDefaultNavigationTimeout(30_000);
+  const p = await ctx.newPage();
+  await p.goto(url);
+  await p.locator('[data-part="shell.app"], [data-part="feed"]').first().waitFor({ state: 'attached', timeout: 20_000 });
+  await p.waitForTimeout(500);
+  // An opener that finds nothing in v2 leaves the page where it got to: it's still diffed (and fails),
+  // so the diff shows what v2 has instead.
+  const openErr = await open(p).then(() => '', (err) => String(err?.message || err).split('\n')[0].slice(0, 140));
+  await p.mouse.move(0, height - 1);
+  await p.waitForTimeout(1200); // v1 focuses the prompt a beat after load: let the page settle
+  return { ctx, p, openErr };
+}
+
+async function focusFirst(p, loc) {
+  const found = await loc.evaluate((el) => {
+    const ok = (e) => e && (e.tabIndex >= 0 || /^(BUTTON|A|INPUT|TEXTAREA|SELECT)$/.test(e.tagName));
+    const t = ok(el) ? el : el.querySelector('button, a[href], [tabindex]:not([tabindex="-1"]), input, textarea') || el.closest('[tabindex], button, a[href]');
+    if (!t) return false;
+    t.setAttribute('data-ref-focus', '');
+    t.focus();
+    return document.activeElement === t;
+  });
+  if (!found) return false;
+  // Reach it by keyboard (Shift+Tab, Tab) so :focus-visible applies, as it does for a person tabbing.
+  await p.keyboard.press('Shift+Tab');
+  await p.keyboard.press('Tab');
+  return p.evaluate(() => {
+    const t = document.querySelector('[data-ref-focus]');
+    t?.removeAttribute('data-ref-focus');
+    if (document.activeElement !== t) t?.focus();
+    return document.activeElement === t;
+  });
+}
+
+const v2Sels = () => ({
+  ...Object.fromEntries(Object.keys(PARTS).map((n) => [n, `[data-part="${n}"]`])),
+  ...STRUCT,
+  'x.row': '[data-part="card"], [data-part="list.row"]',
+});
+
+// ---------- One view ----------
+
+const PIXEL_MAX = 0.005;
+const REGION_MAX = 8;
+
+async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
+  const metrics = JSON.parse(fs.readFileSync(path.join(ref, name, 'metrics.json'), 'utf8'));
+  const rules = allowed.filter((r) => r.view.test(name));
+  const wrapRule = (part) => rules.some((r) => r.kind === 'wrap' && r.part.test(part));
+  const pendingRule = (part) => rules.some((r) => r.kind === 'pending' && r.part.test(part));
+  const res = { view: name, shots: 0, pixelPass: 0, metricPass: 0, pass: 0, reachable: true, note: '', worst: [] };
+  const dir = path.join(outDir, name);
+  fs.mkdirSync(dir, { recursive: true });
+  for (const [key, entry] of Object.entries(metrics.widths)) {
+    const [w, theme] = key.split('-');
+    if (only.widths && !only.widths.includes(Number(w))) continue;
+    if (only.themes && !only.themes.includes(theme)) continue;
+    const states = Object.entries(entry.states).filter(([, s]) => s.png || s.same?.includes('/'));
+    res.shots += states.length;
+    let v;
+    try {
+      v = await openV2(browser, url, open, entry.viewport, theme);
+    } catch (err) {
+      res.worst.push(`${key}: v2 did not load (${String(err?.message || err).split('\n')[0].slice(0, 100)})`);
+      continue;
+    }
+    const { ctx, p, openErr } = v;
+    if (openErr && res.reachable) {
+      res.reachable = false;
+      res.note = `not reachable in v2 (${key}): ${openErr}`;
+    }
+    for (const [state, s] of states) {
+      try {
+        if (state !== 'rest') {
+          const loc = p.locator(v2Target(name, state)).first();
+          await p.mouse.move(0, entry.viewport[1] - 1);
+          if (!(await loc.count())) {
+            res.worst.push(`${key}-${state}: no ${STATES[name]?.what ?? 'target'} in v2`);
+            continue;
+          }
+          if (state === 'hover') await loc.hover({ force: true });
+          else await focusFirst(p, loc);
+          await p.waitForTimeout(250);
+        }
+        const shot = await p.screenshot();
+        const refPng = path.join(ref, s.png ? path.join(name, s.png) : s.same);
+        const refParts = s.parts ?? entry.states.rest.parts ?? [];
+        let got;
+        if (state === 'rest') got = await p.evaluate(collectInPage, { sels: v2Sels(), scope: null, max: 8 });
+        else {
+          // As in the reference: the hovered or focused element and what's inside it.
+          const loc = p.locator(v2Target(name, state)).first();
+          await loc.evaluate((el) => el.setAttribute('data-ref-target', ''));
+          got = await p.evaluate(collectInPage, { sels: { target: '*', ...v2Sels() }, scope: '[data-ref-target]', max: 30 });
+          await loc.evaluate((el) => el.removeAttribute('data-ref-target'));
+        }
+        const busy = await p.evaluate(() => [...document.querySelectorAll('[aria-busy="true"], [data-pending]')].map((e) => [e.dataset.part ?? '', ...((r) => [r.x, r.y, r.width, r.height])(e.getBoundingClientRect())]));
+        const gotBy = new Map(got.map((g) => [`${g.part}#${g.i}`, g]));
+        // Allowed: bars v1 wrapped and v2 keeps on one line; controls pending in v2.
+        const masks = [];
+        const exempt = [];
+        for (const r of refParts) {
+          if (!wrapRule(r.part)) continue;
+          const g = gotBy.get(`${r.part}#${r.i}`);
+          if (g && g.box[3] < r.box[3] - 0.5) {
+            masks.push(r.box, g.box);
+            exempt.push(r.box);
+          }
+        }
+        for (const [part, ...box] of busy) if (pendingRule(part || '*')) masks.push(box);
+        const inside = (b) => exempt.some(([x, y, ew, eh]) => b[0] + b[2] / 2 >= x && b[0] + b[2] / 2 <= x + ew && b[1] + b[3] / 2 >= y && b[1] + b[3] / 2 <= y + eh);
+        const mdiffs = [];
+        for (const r of refParts) {
+          if (inside(r.box)) continue;
+          const d = diffElement(r, gotBy.get(`${r.part}#${r.i}`));
+          if (d.length) mdiffs.push(`${r.part}#${r.i}: ${d.slice(0, 3).join(', ')}`);
+        }
+        const px = diffImages(decodePng(fs.readFileSync(refPng)), decodePng(shot), { masks });
+        const big = px.regions.filter((g) => g.box[2] > REGION_MAX || g.box[3] > REGION_MAX);
+        const pixelOk = px.ratio <= PIXEL_MAX && !big.length;
+        const metricOk = mdiffs.length === 0;
+        if (pixelOk) res.pixelPass++;
+        if (metricOk) res.metricPass++;
+        if (pixelOk && metricOk) res.pass++;
+        if (!pixelOk) {
+          fs.writeFileSync(path.join(dir, `${key}-${state}.diff.png`), encodePng(px.image));
+          fs.writeFileSync(path.join(dir, `${key}-${state}.v2.png`), shot);
+        }
+        if (!pixelOk || !metricOk)
+          res.worst.push(`${key}-${state}: ${(px.ratio * 100).toFixed(1)}% px, ${big.length} regions >8×8, ${mdiffs.length}/${refParts.length} parts off${mdiffs.length ? ` (${mdiffs[0]})` : ''}`);
+      } catch (err) {
+        res.worst.push(`${key}-${state}: ${String(err?.message || err).split('\n')[0].slice(0, 120)}`);
+      }
+    }
+    await ctx.close();
+  }
+  return res;
+}
+
+// ---------- The v2 web ----------
+
+async function startV2(seedFile) {
+  const port = Number(process.env.QA_PARITY_PORT) || 4590;
+  const url = `http://127.0.0.1:${port}/`;
+  if (await fetch(url).then(() => true, () => false)) throw new Error(`port ${port} is taken: lsof -ti tcp:${port} -sTCP:LISTEN | xargs kill`);
+  const log = fs.openSync(path.join(OUT, `parity-vite-${port}.log`), 'w');
+  // MOCK_SEED: the reference data for the mock peer. It is honoured once apps/web/dev/seed.ts reads it;
+  // until then the mock peer serves its own seed and every task view fails on its title.
+  const child = spawn(process.execPath, [path.join(ROOT, 'node_modules/vite/bin/vite.js'), '--port', String(port), '--strictPort'], {
+    cwd: path.join(ROOT, 'apps/web'),
+    env: { ...process.env, PORT: String(port), MOCK_SEED: seedFile },
+    stdio: ['ignore', log, log],
+    detached: false,
+  });
+  for (let i = 0; i < 60; i++) {
+    if (await fetch(url).then((r) => r.ok, () => false)) return { url, stop: () => child.kill('SIGTERM') };
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  child.kill('SIGTERM');
+  throw new Error(`apps/web did not start on ${port} (see ${OUT}/parity-vite-${port}.log)`);
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const ref = process.env.REF_DIR || path.join(ROOT, 'design', 'v1-reference');
+  const outDir = path.join(OUT, 'parity');
+  fs.rmSync(outDir, { recursive: true, force: true });
+  fs.mkdirSync(outDir, { recursive: true });
+  const seedFile = path.join(ref, 'seed.json');
+  const seed = JSON.parse(fs.readFileSync(seedFile, 'utf8'));
+  const allowed = readAllowed(path.join(ref, 'allowed.md'));
+  const only = { views: process.env.VIEWS?.split(','), widths: process.env.WIDTHS?.split(',').map(Number), themes: process.env.THEMES?.split(',') };
+  const t0 = Date.now();
+  const v2 = process.env.PARITY_URL ? { url: process.env.PARITY_URL, stop: () => {} } : await startV2(seedFile);
+  const tr = translator(seed);
+  const openers = views({ tasks: seed.seeded.tasks.map((id) => ({ id })), goal: { id: seed.seeded.goal } });
+  const names = fs
+    .readdirSync(ref)
+    .filter((n) => fs.existsSync(path.join(ref, n, 'metrics.json')) && openers[n])
+    .filter((n) => !only.views || only.views.includes(n))
+    .sort();
+  const browser = await launchBrowser();
+  const queue = [...names];
+  const results = [];
+  const worker = async () => {
+    for (let name = queue.shift(); name; name = queue.shift()) {
+      const r = await checkView(browser, v2.url, name, (p) => openers[name](v2Page(p, tr)), ref, allowed, only, outDir);
+      results.push(r);
+      console.log(`  ${r.pass === r.shots ? '✔' : '✗'} ${name}: ${r.pass}/${r.shots}${r.reachable ? '' : ` · ${r.note}`}`);
+    }
+  };
+  await Promise.all(Array.from({ length: Number(process.env.PARITY_JOBS) || 3 }, worker));
+  await browser.close();
+  v2.stop();
+  results.sort((a, b) => a.view.localeCompare(b.view));
+  const total = results.reduce((t, r) => ({ shots: t.shots + r.shots, pass: t.pass + r.pass, px: t.px + r.pixelPass, m: t.m + r.metricPass }), { shots: 0, pass: 0, px: 0, m: 0 });
+  const md = [
+    `# Parity: v2 against design/v1-reference (${new Date().toISOString()})`,
+    '',
+    `v2: ${v2.url} · ${results.length} views · ${total.pass}/${total.shots} shots pass (pixels ${total.px}, metrics ${total.m})`,
+    '',
+    '| View | Shots | Pass | Pixels ok | Metrics ok | Note |',
+    '|---|---:|---:|---:|---:|---|',
+    ...results.map((r) => `| ${r.view} | ${r.shots} | ${r.pass} | ${r.pixelPass} | ${r.metricPass} | ${(r.reachable ? r.worst[0] ?? '' : r.note).replace(/\|/g, '\\|')} |`),
+    '',
+  ].join('\n');
+  fs.writeFileSync(path.join(outDir, 'summary.md'), md);
+  fs.writeFileSync(path.join(outDir, 'summary.json'), JSON.stringify({ v2: v2.url, total, views: results }, null, 2));
+  console.log(`\n${md}\n  parity: ${total.pass}/${total.shots} pass · ${Math.round((Date.now() - t0) / 1000)} s · ${outDir}`);
+  process.exit(total.pass === total.shots ? 0 : 1);
+}

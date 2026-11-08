@@ -1,0 +1,336 @@
+{
+  "captured": "2026-11-08T02:35:46.701Z",
+  "widths": [
+    [
+      1440,
+      900
+    ],
+    [
+      1024,
+      768
+    ],
+    [
+      900,
+      900
+    ],
+    [
+      600,
+      900
+    ],
+    [
+      390,
+      844
+    ],
+    [
+      320,
+      640
+    ]
+  ],
+  "variantWidths": [
+    1440,
+    900,
+    390,
+    320
+  ],
+  "fullWidthViews": [
+    "home",
+    "task",
+    "task.composer",
+    "crew",
+    "stuff",
+    "palette",
+    "me-menu",
+    "projects",
+    "settings.general"
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "states": {
+    "home": {
+      "what": "list row",
+      "target": "#feed .item[data-id]:not(.open) .it-head",
+      "selected": "task",
+      "focus": {
+        "target": "#feed .item.focused"
+      }
+    },
+    "task": {
+      "what": "task head",
+      "target": "#splitHead button:visible, .item.open .it-actions button:visible",
+      "selected": "task (rest)"
+    },
+    "task.composer": {
+      "what": "composer toolbar",
+      "target": ".composer .c-mode:visible, .composer button:visible",
+      "selected": "task.composer-goal"
+    }
+  },
+  "file": "<view>/<width>-<theme>-<state>.png; <view>/metrics.json: widths[\"<width>-<theme>\"].states[state].parts[] = {part, i, box:[x,y,w,h], s:{pad, mar, gap, fs, lh, fw, ff, col, bg, bw, bc, rad, …}}",
+  "views": {
+    "automations.trigger-new": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "crew": {
+      "shots": 12,
+      "skipped": [],
+      "errors": []
+    },
+    "crew.add": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "crew.org": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home": {
+      "shots": 24,
+      "skipped": [
+        "1440-dark-focus: no list row after focus",
+        "1024-dark-focus: no list row after focus",
+        "600-light-hover: same as rest",
+        "600-light-focus: same as rest",
+        "600-dark-hover: same as rest",
+        "600-dark-focus: same as rest",
+        "390-light-hover: same as rest",
+        "390-light-focus: same as rest",
+        "390-dark-hover: same as rest",
+        "390-dark-focus: same as rest",
+        "320-light-hover: same as rest",
+        "320-light-focus: same as rest",
+        "320-dark-hover: same as rest",
+        "320-dark-focus: same as rest"
+      ],
+      "errors": []
+    },
+    "home.auto-preview": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.compare": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.goal-judges": {
+      "shots": 6,
+      "skipped": [],
+      "errors": [
+        "320-light: locator.click: Element is not visible",
+        "320-dark: locator.click: Element is not visible"
+      ]
+    },
+    "home.goal-on": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.issues": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.later": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.mode-menu": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.runner": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.team": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.typed": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.where": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "home.worktree-off": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "me-menu": {
+      "shots": 12,
+      "skipped": [],
+      "errors": []
+    },
+    "palette": {
+      "shots": 12,
+      "skipped": [],
+      "errors": []
+    },
+    "projects": {
+      "shots": 12,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.agents": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.auto": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.automations": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.cloud": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.connectors": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.general": {
+      "shots": 12,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.machines": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.memory": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.notifications": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.privacy": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.spells": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.usage": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "settings.worktrees": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "stuff": {
+      "shots": 12,
+      "skipped": [],
+      "errors": []
+    },
+    "task": {
+      "shots": 36,
+      "skipped": [],
+      "errors": []
+    },
+    "task.changes": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.changes-diff": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.composer": {
+      "shots": 36,
+      "skipped": [],
+      "errors": []
+    },
+    "task.composer-goal": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.editor": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.goal": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.goal-judges": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.goal-menu": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.more": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.preview": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.rerun": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.right-click": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.ship": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    },
+    "task.transcript": {
+      "shots": 8,
+      "skipped": [],
+      "errors": []
+    }
+  }
+}

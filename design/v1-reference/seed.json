@@ -1,0 +1,2127 @@
+{
+  "note": "Captured from v1 by qa/v1-reference.mjs (qa/views.mjs seededWisp, fake agents, FAKE_DELAY=300). Paths are the temp repo/home of the capture run.",
+  "captured": "2026-11-08T02:28:06.746Z",
+  "repo": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-repo-ZaGhoN",
+  "home": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-qa-home-CLVtSv",
+  "seeded": {
+    "tasks": [
+      "784f696732b6",
+      "e5aab001a1ee",
+      "51de92cd16bd"
+    ],
+    "goal": "e4012403074f"
+  },
+  "list": [
+    {
+      "id": "e4012403074f",
+      "title": "Make the tests pass",
+      "agent": "claude",
+      "cwd": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-repo-ZaGhoN",
+      "project": "wisp-repo-ZaGhoN",
+      "projectId": "l3u0jd8n",
+      "color": "violet",
+      "mode": "auto",
+      "model": "",
+      "effort": "",
+      "state": "review",
+      "unread": true,
+      "archived": false,
+      "createdAt": 1794104883977,
+      "updatedAt": 1794104886725,
+      "turnCount": 6,
+      "queued": 0,
+      "status": "done",
+      "preview": "No question asked.",
+      "live": "",
+      "asks": false,
+      "question": "",
+      "approval": false,
+      "branch": "wisp/make-the-tests-pass-e40124",
+      "keepWorktree": false,
+      "foreign": "",
+      "toShip": {
+        "dirty": 1,
+        "ahead": 0,
+        "unpushed": 0
+      },
+      "shipping": null,
+      "pr": null,
+      "conflictFix": null,
+      "review": null,
+      "groupId": null,
+      "origin": null,
+      "moved": null,
+      "movedTo": null,
+      "team": [],
+      "goal": {
+        "text": "all tests pass",
+        "judges": [
+          {
+            "agent": "claude",
+            "model": "",
+            "effort": "",
+            "name": "Claude Code"
+          },
+          {
+            "agent": "codex",
+            "model": "",
+            "effort": "",
+            "name": "Codex"
+          }
+        ],
+        "vote": "all",
+        "status": "paused",
+        "round": 6,
+        "why": "Stalled: 2 rounds in a row got nowhere",
+        "setAt": 1794104883977,
+        "checks": [
+          {
+            "round": 1,
+            "verdict": "not_yet",
+            "why": "Claude Code: check 1: not_yet · Codex: check 1: not_yet",
+            "next": "Claude Code: do part 2 · Codex: do part 2",
+            "progress": 30,
+            "tally": "0 of 2 judges say met (all must agree)",
+            "at": 1794104884422
+          },
+          {
+            "round": 2,
+            "verdict": "not_yet",
+            "why": "Claude Code: check 2: not_yet · Codex: check 2: not_yet",
+            "next": "Claude Code: do part 3 · Codex: do part 3",
+            "progress": 60,
+            "tally": "0 of 2 judges say met (all must agree)",
+            "at": 1794104884887
+          },
+          {
+            "round": 3,
+            "verdict": "not_yet",
+            "why": "Claude Code: check 3: not_yet · Codex: check 3: not_yet",
+            "next": "Claude Code: do part 4 · Codex: do part 4",
+            "progress": 90,
+            "tally": "0 of 2 judges say met (all must agree)",
+            "at": 1794104885349
+          },
+          {
+            "round": 4,
+            "verdict": "not_yet",
+            "why": "Claude Code: check 4: not_yet · Codex: check 4: not_yet",
+            "next": "Claude Code: do part 5 · Codex: do part 5",
+            "progress": 100,
+            "tally": "0 of 2 judges say met (all must agree)",
+            "at": 1794104885802
+          },
+          {
+            "round": 5,
+            "verdict": "not_yet",
+            "why": "Claude Code: check 5: not_yet · Codex: check 5: not_yet",
+            "next": "Claude Code: do part 6 · Codex: do part 6",
+            "progress": 100,
+            "tally": "0 of 2 judges say met (all must agree)",
+            "at": 1794104886273
+          },
+          {
+            "round": 6,
+            "verdict": "not_yet",
+            "why": "Claude Code: check 5: not_yet · Codex: check 5: not_yet",
+            "next": "Claude Code: do part 6 · Codex: do part 6",
+            "progress": 100,
+            "tally": "0 of 2 judges say met (all must agree)",
+            "at": 1794104886724
+          }
+        ],
+        "last": {
+          "verdict": "not_yet",
+          "why": "Claude Code: check 5: not_yet · Codex: check 5: not_yet",
+          "tally": "0 of 2 judges say met (all must agree)",
+          "votes": [
+            {
+              "name": "Claude Code",
+              "verdict": "not_yet",
+              "why": "check 5: not_yet",
+              "run": "9f8b617e32e9"
+            },
+            {
+              "name": "Codex",
+              "verdict": "not_yet",
+              "why": "check 5: not_yet",
+              "run": "7b1407602806"
+            }
+          ]
+        }
+      },
+      "followups": 0,
+      "auto": null,
+      "route": null
+    },
+    {
+      "id": "51de92cd16bd",
+      "title": "Refactor the store",
+      "agent": "claude",
+      "cwd": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-repo-ZaGhoN",
+      "project": "wisp-repo-ZaGhoN",
+      "projectId": "l3u0jd8n",
+      "color": "violet",
+      "mode": "auto",
+      "model": "",
+      "effort": "",
+      "state": "review",
+      "unread": true,
+      "archived": false,
+      "createdAt": 1794104883896,
+      "updatedAt": 1794104884256,
+      "turnCount": 1,
+      "queued": 0,
+      "status": "done",
+      "preview": "No question asked.",
+      "live": "",
+      "asks": false,
+      "question": "",
+      "approval": false,
+      "branch": "wisp/refactor-the-store-51de92",
+      "keepWorktree": false,
+      "foreign": "",
+      "toShip": {
+        "dirty": 1,
+        "ahead": 0,
+        "unpushed": 0
+      },
+      "shipping": null,
+      "pr": null,
+      "conflictFix": null,
+      "review": null,
+      "groupId": null,
+      "origin": null,
+      "moved": null,
+      "movedTo": null,
+      "team": [],
+      "followups": 0,
+      "auto": null,
+      "route": null
+    },
+    {
+      "id": "e5aab001a1ee",
+      "title": "Write docs for the API",
+      "agent": "claude",
+      "cwd": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-repo-ZaGhoN",
+      "project": "wisp-repo-ZaGhoN",
+      "projectId": "l3u0jd8n",
+      "color": "violet",
+      "mode": "auto",
+      "model": "",
+      "effort": "",
+      "state": "review",
+      "unread": true,
+      "archived": false,
+      "createdAt": 1794104883823,
+      "updatedAt": 1794104884181,
+      "turnCount": 1,
+      "queued": 0,
+      "status": "done",
+      "preview": "No question asked.",
+      "live": "",
+      "asks": false,
+      "question": "",
+      "approval": false,
+      "branch": "wisp/write-docs-for-the-api-e5aab0",
+      "keepWorktree": false,
+      "foreign": "",
+      "toShip": {
+        "dirty": 1,
+        "ahead": 0,
+        "unpushed": 0
+      },
+      "shipping": null,
+      "pr": null,
+      "conflictFix": null,
+      "review": null,
+      "groupId": null,
+      "origin": null,
+      "moved": null,
+      "movedTo": null,
+      "team": [],
+      "followups": 0,
+      "auto": null,
+      "route": null
+    },
+    {
+      "id": "784f696732b6",
+      "title": "Fix the login bug",
+      "agent": "claude",
+      "cwd": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-repo-ZaGhoN",
+      "project": "wisp-repo-ZaGhoN",
+      "projectId": "l3u0jd8n",
+      "color": "violet",
+      "mode": "auto",
+      "model": "",
+      "effort": "",
+      "state": "review",
+      "unread": true,
+      "archived": false,
+      "createdAt": 1794104883737,
+      "updatedAt": 1794104884113,
+      "turnCount": 1,
+      "queued": 0,
+      "status": "done",
+      "preview": "No question asked.",
+      "live": "",
+      "asks": false,
+      "question": "",
+      "approval": false,
+      "branch": "wisp/fix-the-login-bug-784f69",
+      "keepWorktree": false,
+      "foreign": "",
+      "toShip": {
+        "dirty": 1,
+        "ahead": 0,
+        "unpushed": 0
+      },
+      "shipping": null,
+      "pr": null,
+      "conflictFix": null,
+      "review": null,
+      "groupId": null,
+      "origin": null,
+      "moved": null,
+      "movedTo": null,
+      "team": [],
+      "followups": 0,
+      "auto": null,
+      "route": null
+    },
+    {
+      "id": "052d7426b455",
+      "title": "Welcome to wisp",
+      "agent": "wisp",
+      "cwd": "/Users/mokh",
+      "project": "tour",
+      "projectId": null,
+      "color": "slate",
+      "mode": "plan",
+      "model": "",
+      "effort": "",
+      "state": "review",
+      "unread": true,
+      "archived": false,
+      "createdAt": 1794104882487,
+      "updatedAt": 1794104882487,
+      "turnCount": 1,
+      "queued": 0,
+      "status": "info",
+      "preview": "wisp launches coding agents in the background and hands you a short visual brief when they finish — not a transcript. Follow up right here.",
+      "live": "",
+      "asks": true,
+      "question": "",
+      "approval": false,
+      "branch": "",
+      "keepWorktree": false,
+      "foreign": "",
+      "toShip": null,
+      "shipping": null,
+      "pr": null,
+      "conflictFix": null,
+      "review": null,
+      "groupId": null,
+      "origin": null,
+      "moved": null,
+      "movedTo": null,
+      "team": [],
+      "followups": 0,
+      "auto": null,
+      "route": null
+    }
+  ],
+  "sessions": {
+    "e4012403074f": {
+      "id": "e4012403074f",
+      "title": "Make the tests pass",
+      "titleAuto": true,
+      "agent": "claude",
+      "cwd": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-repo-ZaGhoN",
+      "mode": "auto",
+      "model": "",
+      "effort": "",
+      "state": "review",
+      "unread": true,
+      "createdAt": 1794104883977,
+      "updatedAt": 1794104886725,
+      "agentSessionId": "claude-session-1",
+      "agentSessions": {
+        "claude": "claude-session-1"
+      },
+      "queue": [],
+      "turns": [
+        {
+          "id": "8df07b4553ae",
+          "prompt": "Make the tests pass",
+          "agent": "claude",
+          "model": "",
+          "effort": "",
+          "mode": "auto",
+          "attachments": [],
+          "startedAt": 1794104883977,
+          "endedAt": 1794104884334,
+          "status": "done",
+          "checkpoint": {
+            "commit": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+            "head": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+            "dirty": false,
+            "branch": "wisp/make-the-tests-pass-e40124",
+            "untracked": [],
+            "at": 1794104883977
+          },
+          "activity": [
+            {
+              "t": 1794104884327,
+              "kind": "read",
+              "label": "Reading math.js",
+              "file": "math.js",
+              "call": "t1"
+            },
+            {
+              "t": 1794104884327,
+              "kind": "edit",
+              "label": "Editing math.js",
+              "file": "math.js",
+              "call": "t2",
+              "edits": [
+                0,
+                1
+              ]
+            },
+            {
+              "t": 1794104884334,
+              "kind": "run",
+              "label": "Run the tests",
+              "detail": "npm test",
+              "call": "t3",
+              "outAt": 1794104884334
+            },
+            {
+              "t": 1794104884334,
+              "kind": "error",
+              "label": "Bash failed: 1 failing"
+            },
+            {
+              "t": 1794104884337,
+              "kind": "goal",
+              "label": "Checking the goal…",
+              "by": "wisp"
+            },
+            {
+              "t": 1794104884422,
+              "kind": "goal",
+              "label": "Goal check: not yet",
+              "by": "wisp"
+            }
+          ],
+          "changes": [
+            {
+              "file": "math.js",
+              "op": "edit",
+              "beforeFile": "export function add(a, b) {\n  return a - b;\n}\n",
+              "edits": [
+                {
+                  "before": "a - b",
+                  "after": "a + b"
+                }
+              ]
+            }
+          ],
+          "presentation": {
+            "blocks": [
+              {
+                "type": "hero",
+                "title": "Fake claude finished",
+                "summary": "No question asked.",
+                "status": "done"
+              }
+            ],
+            "notes": "All done."
+          },
+          "stats": {
+            "costUsd": 0.01,
+            "durationMs": 5,
+            "turns": 3,
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "totals": {
+              "costUsd": 0.01
+            },
+            "cli": {
+              "version": "9.9.9"
+            }
+          },
+          "raw": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake claude finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```"
+        },
+        {
+          "id": "e56e5ce97b4d",
+          "prompt": "wisp checked your work against the goal and it isn't met yet (round 2 starts now).\n\nGoal: all tests pass\n\nJudges: 0 of 2 judges say met (all must agree).\n\nWhat's missing: Claude Code: check 1: not_yet · Codex: check 1: not_yet\n\nNext: Claude Code: do part 2 · Codex: do part 2\n\nKeep working until the goal is met, and check it yourself before you finish. If it turns out it can’t be done, stop and say exactly why, with the hero’s status \"blocked\".",
+          "agent": "claude",
+          "model": "",
+          "effort": "",
+          "mode": "auto",
+          "attachments": [],
+          "startedAt": 1794104884455,
+          "endedAt": 1794104884808,
+          "status": "done",
+          "checkpoint": {
+            "commit": "9c58a13de6b5cde9bf6273beee8f7e8c2727e551",
+            "head": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+            "dirty": true,
+            "branch": "wisp/make-the-tests-pass-e40124",
+            "untracked": [],
+            "at": 1794104884455
+          },
+          "activity": [
+            {
+              "t": 1794104884802,
+              "kind": "read",
+              "label": "Reading math.js",
+              "file": "math.js",
+              "call": "t1"
+            },
+            {
+              "t": 1794104884802,
+              "kind": "edit",
+              "label": "Editing math.js",
+              "file": "math.js",
+              "call": "t2",
+              "edits": [
+                0,
+                1
+              ]
+            },
+            {
+              "t": 1794104884808,
+              "kind": "run",
+              "label": "Run the tests",
+              "detail": "npm test",
+              "call": "t3",
+              "outAt": 1794104884808
+            },
+            {
+              "t": 1794104884808,
+              "kind": "error",
+              "label": "Bash failed: 1 failing"
+            },
+            {
+              "t": 1794104884810,
+              "kind": "goal",
+              "label": "Checking the goal…",
+              "by": "wisp"
+            },
+            {
+              "t": 1794104884887,
+              "kind": "goal",
+              "label": "Goal check: not yet",
+              "by": "wisp"
+            }
+          ],
+          "changes": [
+            {
+              "file": "math.js",
+              "op": "edit",
+              "beforeFile": "export function add(a, b) {\n  return a + b;\n}\n",
+              "edits": [
+                {
+                  "before": "a - b",
+                  "after": "a + b"
+                }
+              ]
+            }
+          ],
+          "presentation": {
+            "blocks": [
+              {
+                "type": "hero",
+                "title": "Fake claude finished",
+                "summary": "No question asked.",
+                "status": "done"
+              }
+            ],
+            "notes": "All done."
+          },
+          "stats": {
+            "costUsd": 0.01,
+            "durationMs": 5,
+            "turns": 3,
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "totals": {
+              "costUsd": 0.01
+            },
+            "cli": {
+              "version": "9.9.9"
+            }
+          },
+          "by": "wisp",
+          "goal": 2,
+          "raw": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake claude finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```"
+        },
+        {
+          "id": "df8b6b581399",
+          "prompt": "wisp checked your work against the goal and it isn't met yet (round 3 starts now).\n\nGoal: all tests pass\n\nJudges: 0 of 2 judges say met (all must agree).\n\nWhat's missing: Claude Code: check 2: not_yet · Codex: check 2: not_yet\n\nNext: Claude Code: do part 3 · Codex: do part 3\n\nKeep working until the goal is met, and check it yourself before you finish. If it turns out it can’t be done, stop and say exactly why, with the hero’s status \"blocked\".",
+          "agent": "claude",
+          "model": "",
+          "effort": "",
+          "mode": "auto",
+          "attachments": [],
+          "startedAt": 1794104884918,
+          "endedAt": 1794104885269,
+          "status": "done",
+          "checkpoint": {
+            "commit": "9c58a13de6b5cde9bf6273beee8f7e8c2727e551",
+            "head": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+            "dirty": true,
+            "branch": "wisp/make-the-tests-pass-e40124",
+            "untracked": [],
+            "at": 1794104884918
+          },
+          "activity": [
+            {
+              "t": 1794104885263,
+              "kind": "read",
+              "label": "Reading math.js",
+              "file": "math.js",
+              "call": "t1"
+            },
+            {
+              "t": 1794104885263,
+              "kind": "edit",
+              "label": "Editing math.js",
+              "file": "math.js",
+              "call": "t2",
+              "edits": [
+                0,
+                1
+              ]
+            },
+            {
+              "t": 1794104885269,
+              "kind": "run",
+              "label": "Run the tests",
+              "detail": "npm test",
+              "call": "t3",
+              "outAt": 1794104885269
+            },
+            {
+              "t": 1794104885269,
+              "kind": "error",
+              "label": "Bash failed: 1 failing"
+            },
+            {
+              "t": 1794104885271,
+              "kind": "goal",
+              "label": "Checking the goal…",
+              "by": "wisp"
+            },
+            {
+              "t": 1794104885349,
+              "kind": "goal",
+              "label": "Goal check: not yet",
+              "by": "wisp"
+            }
+          ],
+          "changes": [
+            {
+              "file": "math.js",
+              "op": "edit",
+              "beforeFile": "export function add(a, b) {\n  return a + b;\n}\n",
+              "edits": [
+                {
+                  "before": "a - b",
+                  "after": "a + b"
+                }
+              ]
+            }
+          ],
+          "presentation": {
+            "blocks": [
+              {
+                "type": "hero",
+                "title": "Fake claude finished",
+                "summary": "No question asked.",
+                "status": "done"
+              }
+            ],
+            "notes": "All done."
+          },
+          "stats": {
+            "costUsd": 0.01,
+            "durationMs": 5,
+            "turns": 3,
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "totals": {
+              "costUsd": 0.01
+            },
+            "cli": {
+              "version": "9.9.9"
+            }
+          },
+          "by": "wisp",
+          "goal": 3,
+          "raw": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake claude finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```"
+        },
+        {
+          "id": "730d98ee4c9d",
+          "prompt": "wisp checked your work against the goal and it isn't met yet (round 4 starts now).\n\nGoal: all tests pass\n\nJudges: 0 of 2 judges say met (all must agree).\n\nWhat's missing: Claude Code: check 3: not_yet · Codex: check 3: not_yet\n\nNext: Claude Code: do part 4 · Codex: do part 4\n\nKeep working until the goal is met, and check it yourself before you finish. If it turns out it can’t be done, stop and say exactly why, with the hero’s status \"blocked\".",
+          "agent": "claude",
+          "model": "",
+          "effort": "",
+          "mode": "auto",
+          "attachments": [],
+          "startedAt": 1794104885376,
+          "endedAt": 1794104885726,
+          "status": "done",
+          "checkpoint": {
+            "commit": "64b3f89f0dda4be179ac49c8ea6f5a8b90fa22cc",
+            "head": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+            "dirty": true,
+            "branch": "wisp/make-the-tests-pass-e40124",
+            "untracked": [],
+            "at": 1794104885376
+          },
+          "activity": [
+            {
+              "t": 1794104885720,
+              "kind": "read",
+              "label": "Reading math.js",
+              "file": "math.js",
+              "call": "t1"
+            },
+            {
+              "t": 1794104885720,
+              "kind": "edit",
+              "label": "Editing math.js",
+              "file": "math.js",
+              "call": "t2",
+              "edits": [
+                0,
+                1
+              ]
+            },
+            {
+              "t": 1794104885726,
+              "kind": "run",
+              "label": "Run the tests",
+              "detail": "npm test",
+              "call": "t3",
+              "outAt": 1794104885726
+            },
+            {
+              "t": 1794104885726,
+              "kind": "error",
+              "label": "Bash failed: 1 failing"
+            },
+            {
+              "t": 1794104885728,
+              "kind": "goal",
+              "label": "Checking the goal…",
+              "by": "wisp"
+            },
+            {
+              "t": 1794104885802,
+              "kind": "goal",
+              "label": "Goal check: not yet",
+              "by": "wisp"
+            }
+          ],
+          "changes": [
+            {
+              "file": "math.js",
+              "op": "edit",
+              "beforeFile": "export function add(a, b) {\n  return a + b;\n}\n",
+              "edits": [
+                {
+                  "before": "a - b",
+                  "after": "a + b"
+                }
+              ]
+            }
+          ],
+          "presentation": {
+            "blocks": [
+              {
+                "type": "hero",
+                "title": "Fake claude finished",
+                "summary": "No question asked.",
+                "status": "done"
+              }
+            ],
+            "notes": "All done."
+          },
+          "stats": {
+            "costUsd": 0.01,
+            "durationMs": 5,
+            "turns": 3,
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "totals": {
+              "costUsd": 0.01
+            },
+            "cli": {
+              "version": "9.9.9"
+            }
+          },
+          "by": "wisp",
+          "goal": 4,
+          "raw": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake claude finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```"
+        },
+        {
+          "id": "41e34311aaa1",
+          "prompt": "wisp checked your work against the goal and it isn't met yet (round 5 starts now).\n\nGoal: all tests pass\n\nJudges: 0 of 2 judges say met (all must agree).\n\nWhat's missing: Claude Code: check 4: not_yet · Codex: check 4: not_yet\n\nNext: Claude Code: do part 5 · Codex: do part 5\n\nKeep working until the goal is met, and check it yourself before you finish. If it turns out it can’t be done, stop and say exactly why, with the hero’s status \"blocked\".",
+          "agent": "claude",
+          "model": "",
+          "effort": "",
+          "mode": "auto",
+          "attachments": [],
+          "startedAt": 1794104885834,
+          "endedAt": 1794104886186,
+          "status": "done",
+          "checkpoint": {
+            "commit": "64b3f89f0dda4be179ac49c8ea6f5a8b90fa22cc",
+            "head": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+            "dirty": true,
+            "branch": "wisp/make-the-tests-pass-e40124",
+            "untracked": [],
+            "at": 1794104885834
+          },
+          "activity": [
+            {
+              "t": 1794104886178,
+              "kind": "read",
+              "label": "Reading math.js",
+              "file": "math.js",
+              "call": "t1"
+            },
+            {
+              "t": 1794104886178,
+              "kind": "edit",
+              "label": "Editing math.js",
+              "file": "math.js",
+              "call": "t2",
+              "edits": [
+                0,
+                1
+              ]
+            },
+            {
+              "t": 1794104886186,
+              "kind": "run",
+              "label": "Run the tests",
+              "detail": "npm test",
+              "call": "t3",
+              "outAt": 1794104886186
+            },
+            {
+              "t": 1794104886186,
+              "kind": "error",
+              "label": "Bash failed: 1 failing"
+            },
+            {
+              "t": 1794104886192,
+              "kind": "goal",
+              "label": "Checking the goal…",
+              "by": "wisp"
+            },
+            {
+              "t": 1794104886273,
+              "kind": "goal",
+              "label": "Goal check: not yet",
+              "by": "wisp"
+            }
+          ],
+          "changes": [
+            {
+              "file": "math.js",
+              "op": "edit",
+              "beforeFile": "export function add(a, b) {\n  return a + b;\n}\n",
+              "edits": [
+                {
+                  "before": "a - b",
+                  "after": "a + b"
+                }
+              ]
+            }
+          ],
+          "presentation": {
+            "blocks": [
+              {
+                "type": "hero",
+                "title": "Fake claude finished",
+                "summary": "No question asked.",
+                "status": "done"
+              }
+            ],
+            "notes": "All done."
+          },
+          "stats": {
+            "costUsd": 0.01,
+            "durationMs": 5,
+            "turns": 3,
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "totals": {
+              "costUsd": 0.01
+            },
+            "cli": {
+              "version": "9.9.9"
+            }
+          },
+          "by": "wisp",
+          "goal": 5,
+          "raw": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake claude finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```"
+        },
+        {
+          "id": "7f3ee67b4eec",
+          "prompt": "wisp checked your work against the goal and it isn't met yet (round 6 starts now).\n\nGoal: all tests pass\n\nJudges: 0 of 2 judges say met (all must agree).\n\nWhat's missing: Claude Code: check 5: not_yet · Codex: check 5: not_yet\n\nNext: Claude Code: do part 6 · Codex: do part 6\n\nKeep working until the goal is met, and check it yourself before you finish. If it turns out it can’t be done, stop and say exactly why, with the hero’s status \"blocked\".",
+          "agent": "claude",
+          "model": "",
+          "effort": "",
+          "mode": "auto",
+          "attachments": [],
+          "startedAt": 1794104886306,
+          "endedAt": 1794104886652,
+          "status": "done",
+          "checkpoint": {
+            "commit": "1e7b86abbe4f887ea7c9d7f1a3618322714d981f",
+            "head": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+            "dirty": true,
+            "branch": "wisp/make-the-tests-pass-e40124",
+            "untracked": [],
+            "at": 1794104886306
+          },
+          "activity": [
+            {
+              "t": 1794104886646,
+              "kind": "read",
+              "label": "Reading math.js",
+              "file": "math.js",
+              "call": "t1"
+            },
+            {
+              "t": 1794104886646,
+              "kind": "edit",
+              "label": "Editing math.js",
+              "file": "math.js",
+              "call": "t2",
+              "edits": [
+                0,
+                1
+              ]
+            },
+            {
+              "t": 1794104886652,
+              "kind": "run",
+              "label": "Run the tests",
+              "detail": "npm test",
+              "call": "t3",
+              "outAt": 1794104886652
+            },
+            {
+              "t": 1794104886652,
+              "kind": "error",
+              "label": "Bash failed: 1 failing"
+            },
+            {
+              "t": 1794104886654,
+              "kind": "goal",
+              "label": "Checking the goal…",
+              "by": "wisp"
+            },
+            {
+              "t": 1794104886725,
+              "kind": "goal",
+              "label": "Goal check: going in circles",
+              "by": "wisp"
+            }
+          ],
+          "changes": [
+            {
+              "file": "math.js",
+              "op": "edit",
+              "beforeFile": "export function add(a, b) {\n  return a + b;\n}\n",
+              "edits": [
+                {
+                  "before": "a - b",
+                  "after": "a + b"
+                }
+              ]
+            }
+          ],
+          "presentation": {
+            "blocks": [
+              {
+                "type": "hero",
+                "title": "Fake claude finished",
+                "summary": "No question asked.",
+                "status": "done"
+              }
+            ],
+            "notes": "All done."
+          },
+          "stats": {
+            "costUsd": 0.01,
+            "durationMs": 5,
+            "turns": 3,
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "totals": {
+              "costUsd": 0.01
+            },
+            "cli": {
+              "version": "9.9.9"
+            }
+          },
+          "by": "wisp",
+          "goal": 6,
+          "raw": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake claude finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```"
+        }
+      ],
+      "worktree": {
+        "path": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-qa-home-CLVtSv/worktrees/wisp-repo-ZaGhoN-e4012403074f",
+        "cwd": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-qa-home-CLVtSv/worktrees/wisp-repo-ZaGhoN-e4012403074f",
+        "branch": "wisp/make-the-tests-pass-e40124",
+        "base": "main",
+        "baseRef": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+        "head": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+        "remote": null,
+        "root": "/private/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-repo-ZaGhoN",
+        "createdAt": 1794104883977
+      },
+      "goal": {
+        "text": "all tests pass",
+        "round": 6,
+        "status": "paused",
+        "setAt": 1794104883977,
+        "by": "user",
+        "checks": [
+          {
+            "turnId": "8df07b4553ae",
+            "round": 1,
+            "at": 1794104884422,
+            "verdict": "not_yet",
+            "why": "Claude Code: check 1: not_yet · Codex: check 1: not_yet",
+            "next": "Claude Code: do part 2 · Codex: do part 2",
+            "progress": 30,
+            "tally": "0 of 2 judges say met (all must agree)",
+            "votes": [
+              {
+                "name": "Claude Code",
+                "agent": "claude",
+                "run": "5dfb362840a4",
+                "verdict": "not_yet",
+                "why": "check 1: not_yet",
+                "next": "do part 2",
+                "progress": 30
+              },
+              {
+                "name": "Codex",
+                "agent": "codex",
+                "run": "f0e0a37690a5",
+                "verdict": "not_yet",
+                "why": "check 1: not_yet",
+                "next": "do part 2",
+                "progress": 30
+              }
+            ],
+            "bench": 0,
+            "changed": 1
+          },
+          {
+            "turnId": "e56e5ce97b4d",
+            "round": 2,
+            "at": 1794104884887,
+            "verdict": "not_yet",
+            "why": "Claude Code: check 2: not_yet · Codex: check 2: not_yet",
+            "next": "Claude Code: do part 3 · Codex: do part 3",
+            "progress": 60,
+            "tally": "0 of 2 judges say met (all must agree)",
+            "votes": [
+              {
+                "name": "Claude Code",
+                "agent": "claude",
+                "run": "62af87ec4cff",
+                "verdict": "not_yet",
+                "why": "check 2: not_yet",
+                "next": "do part 3",
+                "progress": 60
+              },
+              {
+                "name": "Codex",
+                "agent": "codex",
+                "run": "f8266bf70535",
+                "verdict": "not_yet",
+                "why": "check 2: not_yet",
+                "next": "do part 3",
+                "progress": 60
+              }
+            ],
+            "bench": 0,
+            "changed": 1
+          },
+          {
+            "turnId": "df8b6b581399",
+            "round": 3,
+            "at": 1794104885349,
+            "verdict": "not_yet",
+            "why": "Claude Code: check 3: not_yet · Codex: check 3: not_yet",
+            "next": "Claude Code: do part 4 · Codex: do part 4",
+            "progress": 90,
+            "tally": "0 of 2 judges say met (all must agree)",
+            "votes": [
+              {
+                "name": "Claude Code",
+                "agent": "claude",
+                "run": "c3b9d6bd84e7",
+                "verdict": "not_yet",
+                "why": "check 3: not_yet",
+                "next": "do part 4",
+                "progress": 90
+              },
+              {
+                "name": "Codex",
+                "agent": "codex",
+                "run": "561da9b35ab9",
+                "verdict": "not_yet",
+                "why": "check 3: not_yet",
+                "next": "do part 4",
+                "progress": 90
+              }
+            ],
+            "bench": 0,
+            "changed": 1
+          },
+          {
+            "turnId": "730d98ee4c9d",
+            "round": 4,
+            "at": 1794104885802,
+            "verdict": "not_yet",
+            "why": "Claude Code: check 4: not_yet · Codex: check 4: not_yet",
+            "next": "Claude Code: do part 5 · Codex: do part 5",
+            "progress": 100,
+            "tally": "0 of 2 judges say met (all must agree)",
+            "votes": [
+              {
+                "name": "Claude Code",
+                "agent": "claude",
+                "run": "b9b52a9adead",
+                "verdict": "not_yet",
+                "why": "check 4: not_yet",
+                "next": "do part 5",
+                "progress": 100
+              },
+              {
+                "name": "Codex",
+                "agent": "codex",
+                "run": "876c3d4408c1",
+                "verdict": "not_yet",
+                "why": "check 4: not_yet",
+                "next": "do part 5",
+                "progress": 100
+              }
+            ],
+            "bench": 0,
+            "changed": 1
+          },
+          {
+            "turnId": "41e34311aaa1",
+            "round": 5,
+            "at": 1794104886273,
+            "verdict": "not_yet",
+            "why": "Claude Code: check 5: not_yet · Codex: check 5: not_yet",
+            "next": "Claude Code: do part 6 · Codex: do part 6",
+            "progress": 100,
+            "tally": "0 of 2 judges say met (all must agree)",
+            "votes": [
+              {
+                "name": "Claude Code",
+                "agent": "claude",
+                "run": "334c541c1f26",
+                "verdict": "not_yet",
+                "why": "check 5: not_yet",
+                "next": "do part 6",
+                "progress": 100
+              },
+              {
+                "name": "Codex",
+                "agent": "codex",
+                "run": "4eab4160b178",
+                "verdict": "not_yet",
+                "why": "check 5: not_yet",
+                "next": "do part 6",
+                "progress": 100
+              }
+            ],
+            "bench": 0,
+            "changed": 1
+          },
+          {
+            "turnId": "7f3ee67b4eec",
+            "round": 6,
+            "at": 1794104886724,
+            "verdict": "not_yet",
+            "why": "Claude Code: check 5: not_yet · Codex: check 5: not_yet",
+            "next": "Claude Code: do part 6 · Codex: do part 6",
+            "progress": 100,
+            "tally": "0 of 2 judges say met (all must agree)",
+            "votes": [
+              {
+                "name": "Claude Code",
+                "agent": "claude",
+                "run": "9f8b617e32e9",
+                "verdict": "not_yet",
+                "why": "check 5: not_yet",
+                "next": "do part 6",
+                "progress": 100
+              },
+              {
+                "name": "Codex",
+                "agent": "codex",
+                "run": "7b1407602806",
+                "verdict": "not_yet",
+                "why": "check 5: not_yet",
+                "next": "do part 6",
+                "progress": 100
+              }
+            ],
+            "bench": 0,
+            "changed": 1
+          }
+        ],
+        "judges": [
+          {
+            "agent": "claude",
+            "model": "",
+            "effort": "",
+            "name": "Claude Code"
+          },
+          {
+            "agent": "codex",
+            "model": "",
+            "effort": "",
+            "name": "Codex"
+          }
+        ],
+        "vote": "all",
+        "from": "8df07b4553ae",
+        "why": "Stalled: 2 rounds in a row got nowhere"
+      },
+      "toShip": {
+        "dirty": 1,
+        "ahead": 0,
+        "unpushed": 0
+      }
+    },
+    "51de92cd16bd": {
+      "id": "51de92cd16bd",
+      "title": "Refactor the store",
+      "titleAuto": true,
+      "agent": "claude",
+      "cwd": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-repo-ZaGhoN",
+      "mode": "auto",
+      "model": "",
+      "effort": "",
+      "state": "review",
+      "unread": true,
+      "createdAt": 1794104883896,
+      "updatedAt": 1794104884256,
+      "agentSessionId": "claude-session-1",
+      "agentSessions": {
+        "claude": "claude-session-1"
+      },
+      "queue": [],
+      "turns": [
+        {
+          "id": "b82a04693cde",
+          "prompt": "Refactor the store",
+          "agent": "claude",
+          "model": "",
+          "effort": "",
+          "mode": "auto",
+          "attachments": [],
+          "startedAt": 1794104883896,
+          "endedAt": 1794104884251,
+          "status": "done",
+          "checkpoint": {
+            "commit": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+            "head": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+            "dirty": false,
+            "branch": "wisp/refactor-the-store-51de92",
+            "untracked": [],
+            "at": 1794104883896
+          },
+          "activity": [
+            {
+              "t": 1794104884245,
+              "kind": "read",
+              "label": "Reading math.js",
+              "file": "math.js",
+              "call": "t1"
+            },
+            {
+              "t": 1794104884245,
+              "kind": "edit",
+              "label": "Editing math.js",
+              "file": "math.js",
+              "call": "t2",
+              "edits": [
+                0,
+                1
+              ]
+            },
+            {
+              "t": 1794104884251,
+              "kind": "run",
+              "label": "Run the tests",
+              "detail": "npm test",
+              "call": "t3",
+              "outAt": 1794104884251
+            },
+            {
+              "t": 1794104884251,
+              "kind": "error",
+              "label": "Bash failed: 1 failing"
+            }
+          ],
+          "changes": [
+            {
+              "file": "math.js",
+              "op": "edit",
+              "beforeFile": "export function add(a, b) {\n  return a - b;\n}\n",
+              "edits": [
+                {
+                  "before": "a - b",
+                  "after": "a + b"
+                }
+              ]
+            }
+          ],
+          "presentation": {
+            "blocks": [
+              {
+                "type": "hero",
+                "title": "Fake claude finished",
+                "summary": "No question asked.",
+                "status": "done"
+              }
+            ],
+            "notes": "All done."
+          },
+          "stats": {
+            "costUsd": 0.01,
+            "durationMs": 5,
+            "turns": 3,
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "totals": {
+              "costUsd": 0.01
+            },
+            "cli": {
+              "version": "9.9.9"
+            }
+          },
+          "raw": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake claude finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```"
+        }
+      ],
+      "worktree": {
+        "path": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-qa-home-CLVtSv/worktrees/wisp-repo-ZaGhoN-51de92cd16bd",
+        "cwd": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-qa-home-CLVtSv/worktrees/wisp-repo-ZaGhoN-51de92cd16bd",
+        "branch": "wisp/refactor-the-store-51de92",
+        "base": "main",
+        "baseRef": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+        "head": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+        "remote": null,
+        "root": "/private/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-repo-ZaGhoN",
+        "createdAt": 1794104883896
+      },
+      "toShip": {
+        "dirty": 1,
+        "ahead": 0,
+        "unpushed": 0
+      }
+    },
+    "e5aab001a1ee": {
+      "id": "e5aab001a1ee",
+      "title": "Write docs for the API",
+      "titleAuto": true,
+      "agent": "claude",
+      "cwd": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-repo-ZaGhoN",
+      "mode": "auto",
+      "model": "",
+      "effort": "",
+      "state": "review",
+      "unread": true,
+      "createdAt": 1794104883823,
+      "updatedAt": 1794104884181,
+      "agentSessionId": "claude-session-1",
+      "agentSessions": {
+        "claude": "claude-session-1"
+      },
+      "queue": [],
+      "turns": [
+        {
+          "id": "fc74fe10f236",
+          "prompt": "Write docs for the API",
+          "agent": "claude",
+          "model": "",
+          "effort": "",
+          "mode": "auto",
+          "attachments": [],
+          "startedAt": 1794104883823,
+          "endedAt": 1794104884178,
+          "status": "done",
+          "checkpoint": {
+            "commit": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+            "head": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+            "dirty": false,
+            "branch": "wisp/write-docs-for-the-api-e5aab0",
+            "untracked": [],
+            "at": 1794104883823
+          },
+          "activity": [
+            {
+              "t": 1794104884171,
+              "kind": "read",
+              "label": "Reading math.js",
+              "file": "math.js",
+              "call": "t1"
+            },
+            {
+              "t": 1794104884171,
+              "kind": "edit",
+              "label": "Editing math.js",
+              "file": "math.js",
+              "call": "t2",
+              "edits": [
+                0,
+                1
+              ]
+            },
+            {
+              "t": 1794104884178,
+              "kind": "run",
+              "label": "Run the tests",
+              "detail": "npm test",
+              "call": "t3",
+              "outAt": 1794104884178
+            },
+            {
+              "t": 1794104884178,
+              "kind": "error",
+              "label": "Bash failed: 1 failing"
+            }
+          ],
+          "changes": [
+            {
+              "file": "math.js",
+              "op": "edit",
+              "beforeFile": "export function add(a, b) {\n  return a - b;\n}\n",
+              "edits": [
+                {
+                  "before": "a - b",
+                  "after": "a + b"
+                }
+              ]
+            }
+          ],
+          "presentation": {
+            "blocks": [
+              {
+                "type": "hero",
+                "title": "Fake claude finished",
+                "summary": "No question asked.",
+                "status": "done"
+              }
+            ],
+            "notes": "All done."
+          },
+          "stats": {
+            "costUsd": 0.01,
+            "durationMs": 5,
+            "turns": 3,
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "totals": {
+              "costUsd": 0.01
+            },
+            "cli": {
+              "version": "9.9.9"
+            }
+          },
+          "raw": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake claude finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```"
+        }
+      ],
+      "worktree": {
+        "path": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-qa-home-CLVtSv/worktrees/wisp-repo-ZaGhoN-e5aab001a1ee",
+        "cwd": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-qa-home-CLVtSv/worktrees/wisp-repo-ZaGhoN-e5aab001a1ee",
+        "branch": "wisp/write-docs-for-the-api-e5aab0",
+        "base": "main",
+        "baseRef": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+        "head": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+        "remote": null,
+        "root": "/private/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-repo-ZaGhoN",
+        "createdAt": 1794104883823
+      },
+      "toShip": {
+        "dirty": 1,
+        "ahead": 0,
+        "unpushed": 0
+      }
+    },
+    "784f696732b6": {
+      "id": "784f696732b6",
+      "title": "Fix the login bug",
+      "titleAuto": true,
+      "agent": "claude",
+      "cwd": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-repo-ZaGhoN",
+      "mode": "auto",
+      "model": "",
+      "effort": "",
+      "state": "review",
+      "unread": true,
+      "createdAt": 1794104883737,
+      "updatedAt": 1794104884113,
+      "agentSessionId": "claude-session-1",
+      "agentSessions": {
+        "claude": "claude-session-1"
+      },
+      "queue": [],
+      "turns": [
+        {
+          "id": "80a40f7f7c77",
+          "prompt": "Fix the login bug",
+          "agent": "claude",
+          "model": "",
+          "effort": "",
+          "mode": "auto",
+          "attachments": [],
+          "startedAt": 1794104883738,
+          "endedAt": 1794104884107,
+          "status": "done",
+          "checkpoint": {
+            "commit": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+            "head": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+            "dirty": false,
+            "branch": "wisp/fix-the-login-bug-784f69",
+            "untracked": [],
+            "at": 1794104883738
+          },
+          "activity": [
+            {
+              "t": 1794104884100,
+              "kind": "read",
+              "label": "Reading math.js",
+              "file": "math.js",
+              "call": "t1"
+            },
+            {
+              "t": 1794104884100,
+              "kind": "edit",
+              "label": "Editing math.js",
+              "file": "math.js",
+              "call": "t2",
+              "edits": [
+                0,
+                1
+              ]
+            },
+            {
+              "t": 1794104884106,
+              "kind": "run",
+              "label": "Run the tests",
+              "detail": "npm test",
+              "call": "t3",
+              "outAt": 1794104884107
+            },
+            {
+              "t": 1794104884107,
+              "kind": "error",
+              "label": "Bash failed: 1 failing"
+            }
+          ],
+          "changes": [
+            {
+              "file": "math.js",
+              "op": "edit",
+              "beforeFile": "export function add(a, b) {\n  return a - b;\n}\n",
+              "edits": [
+                {
+                  "before": "a - b",
+                  "after": "a + b"
+                }
+              ]
+            }
+          ],
+          "presentation": {
+            "blocks": [
+              {
+                "type": "hero",
+                "title": "Fake claude finished",
+                "summary": "No question asked.",
+                "status": "done"
+              }
+            ],
+            "notes": "All done."
+          },
+          "stats": {
+            "costUsd": 0.01,
+            "durationMs": 5,
+            "turns": 3,
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "totals": {
+              "costUsd": 0.01
+            },
+            "cli": {
+              "version": "9.9.9"
+            }
+          },
+          "raw": "All done.\n```wisp\n{\"blocks\":[{\"type\":\"hero\",\"title\":\"Fake claude finished\",\"summary\":\"No question asked.\",\"status\":\"done\"}]}\n```"
+        }
+      ],
+      "worktree": {
+        "path": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-qa-home-CLVtSv/worktrees/wisp-repo-ZaGhoN-784f696732b6",
+        "cwd": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-qa-home-CLVtSv/worktrees/wisp-repo-ZaGhoN-784f696732b6",
+        "branch": "wisp/fix-the-login-bug-784f69",
+        "base": "main",
+        "baseRef": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+        "head": "a8c8f27abcb65595b9eba54de3dc2ad9f516271a",
+        "remote": null,
+        "root": "/private/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-repo-ZaGhoN",
+        "createdAt": 1794104883736
+      },
+      "toShip": {
+        "dirty": 1,
+        "ahead": 0,
+        "unpushed": 0
+      }
+    },
+    "052d7426b455": {
+      "id": "052d7426b455",
+      "title": "Welcome to wisp",
+      "titleAuto": false,
+      "agent": "wisp",
+      "cwd": "/Users/mokh",
+      "mode": "plan",
+      "model": "",
+      "state": "review",
+      "unread": true,
+      "createdAt": 1794104882487,
+      "updatedAt": 1794104882487,
+      "agentSessionId": null,
+      "queue": [],
+      "turns": [
+        {
+          "id": "585d9ddde52f",
+          "prompt": "What is wisp and how do I use it?",
+          "startedAt": 1794104788487,
+          "endedAt": 1794104882487,
+          "status": "done",
+          "stats": {
+            "costUsd": 0,
+            "durationMs": 94000,
+            "turns": 1
+          },
+          "activity": [
+            {
+              "t": 1794104792487,
+              "kind": "read",
+              "label": "Reading server/protocol.js",
+              "file": "server/protocol.js"
+            },
+            {
+              "t": 1794104802487,
+              "kind": "search",
+              "label": "Searching for “blocks”"
+            },
+            {
+              "t": 1794104822487,
+              "kind": "edit",
+              "label": "Editing web/js/app.js",
+              "file": "web/js/app.js"
+            },
+            {
+              "t": 1794104852487,
+              "kind": "run",
+              "label": "Run the test suite",
+              "detail": "npm test"
+            }
+          ],
+          "changes": [
+            {
+              "file": "src/session.ts",
+              "op": "edit",
+              "edits": [
+                {
+                  "before": "export async function run(agent, task) {\n  const log = await agent.exec(task);\n  return log; // 4,000 lines nobody reads\n}",
+                  "after": "export async function run(agent, task) {\n  const log = await agent.exec(task);\n  return present(log); // what changed, why, what's next\n}"
+                }
+              ]
+            }
+          ],
+          "presentation": {
+            "blocks": [
+              {
+                "type": "hero",
+                "title": "Send agents off. Read the highlights.",
+                "summary": "wisp launches coding agents in the background and hands you a short visual brief when they finish — not a transcript. Follow up right here.",
+                "status": "info"
+              },
+              {
+                "type": "flow",
+                "title": "How a wisp travels",
+                "nodes": [
+                  {
+                    "id": "a",
+                    "label": "You launch",
+                    "note": "task + project"
+                  },
+                  {
+                    "id": "b",
+                    "label": "Agent works",
+                    "note": "Claude Code, headless"
+                  },
+                  {
+                    "id": "c",
+                    "label": "Presentation",
+                    "note": "blocks, not logs"
+                  },
+                  {
+                    "id": "d",
+                    "label": "You follow up",
+                    "note": "or mark done"
+                  }
+                ],
+                "edges": [
+                  [
+                    "a",
+                    "b"
+                  ],
+                  [
+                    "b",
+                    "c"
+                  ],
+                  [
+                    "c",
+                    "d"
+                  ],
+                  [
+                    "d",
+                    "b",
+                    "resumes"
+                  ]
+                ]
+              },
+              {
+                "type": "stats",
+                "items": [
+                  {
+                    "label": "lines of transcript you skipped",
+                    "value": 4182,
+                    "tone": "good"
+                  },
+                  {
+                    "label": "agents running at once",
+                    "value": 6,
+                    "unit": "×"
+                  },
+                  {
+                    "label": "block types",
+                    "value": 20
+                  }
+                ]
+              },
+              {
+                "type": "steps",
+                "title": "Using it",
+                "items": [
+                  {
+                    "title": "Launch",
+                    "detail": "Press N, describe the task, pick the project folder. Launch several — they run in parallel."
+                  },
+                  {
+                    "title": "Forget about it",
+                    "detail": "The queue on the left shows what each agent is doing in one line."
+                  },
+                  {
+                    "title": "Review",
+                    "detail": "Finished work lands in “Needs you” with a dot. Open it to see the brief."
+                  },
+                  {
+                    "title": "Follow up or close",
+                    "detail": "Reply to resume the same agent session, or press E to mark it done."
+                  }
+                ]
+              },
+              {
+                "type": "diff",
+                "file": "src/session.ts",
+                "caption": "Real diffs come from the agent’s own edits — no copy-paste."
+              },
+              {
+                "type": "tests",
+                "command": "npm test",
+                "passed": 128,
+                "failed": 1,
+                "skipped": 3,
+                "durationMs": 6400,
+                "failures": [
+                  {
+                    "name": "session › resumes after restart",
+                    "message": "expected state \"review\", received \"running\"",
+                    "file": "test/session.test.ts:88"
+                  }
+                ]
+              },
+              {
+                "type": "files",
+                "items": [
+                  {
+                    "path": "src/session.ts",
+                    "change": "modified",
+                    "note": "Returns a presentation instead of the raw log."
+                  },
+                  {
+                    "path": "src/present/blocks.ts",
+                    "change": "added",
+                    "note": "Block schema + validation."
+                  },
+                  {
+                    "path": "src/legacy/transcript.ts",
+                    "change": "deleted"
+                  }
+                ]
+              },
+              {
+                "type": "commits",
+                "branch": "feat/presentations",
+                "items": [
+                  {
+                    "hash": "a1f9c03",
+                    "message": "feat(session): return presentations",
+                    "files": 3,
+                    "additions": 142,
+                    "deletions": 37
+                  },
+                  {
+                    "hash": "7be21d4",
+                    "message": "test: cover resume after restart",
+                    "files": 1,
+                    "additions": 48,
+                    "deletions": 0
+                  }
+                ]
+              },
+              {
+                "type": "compare",
+                "before": {
+                  "label": "Without wisp",
+                  "items": [
+                    "Babysit a terminal per agent",
+                    "Scroll 40 screens to find what changed",
+                    "Lose track of which tab finished"
+                  ]
+                },
+                "after": {
+                  "label": "With wisp",
+                  "items": [
+                    "Fire and forget, many at once",
+                    "One page: what, why, proof",
+                    "A queue that tells you what needs you"
+                  ]
+                }
+              },
+              {
+                "type": "chart",
+                "title": "Time spent per finished task",
+                "unit": "min",
+                "items": [
+                  {
+                    "label": "reading transcripts",
+                    "value": 11
+                  },
+                  {
+                    "label": "reading a wisp",
+                    "value": 1.5
+                  }
+                ]
+              },
+              {
+                "type": "terminal",
+                "command": "npx wisp \"add dark mode to the settings page\"",
+                "output": "  ◌ wisp is floating at http://localhost:4477\n\n  launched: add dark mode to the settings page",
+                "exitCode": 0
+              },
+              {
+                "type": "checklist",
+                "title": "Permission modes (pick per launch)",
+                "items": [
+                  {
+                    "text": "Plan — read-only, the agent proposes",
+                    "done": true
+                  },
+                  {
+                    "text": "Edits — the agent may change files; anything else it needs, you approve",
+                    "done": true
+                  },
+                  {
+                    "text": "Full auto — no permission prompts at all; the default, each task in its own worktree",
+                    "done": true
+                  }
+                ]
+              },
+              {
+                "type": "code",
+                "language": "json",
+                "caption": "Agents answer with blocks like these — you can ask for any of them.",
+                "code": "{\"type\":\"stats\",\"items\":[{\"label\":\"tests\",\"value\":48,\"delta\":\"+4\",\"tone\":\"good\"}]}"
+              },
+              {
+                "type": "tree",
+                "title": "Agents can sketch structure too",
+                "items": [
+                  {
+                    "path": "src/present/blocks.ts",
+                    "change": "added"
+                  },
+                  {
+                    "path": "src/present/render.ts",
+                    "change": "added",
+                    "note": "pure, no DOM"
+                  },
+                  {
+                    "path": "src/session.ts",
+                    "change": "modified"
+                  },
+                  {
+                    "path": "test/session.test.ts",
+                    "change": "modified"
+                  }
+                ]
+              },
+              {
+                "type": "callout",
+                "tone": "info",
+                "title": "Agents can ask you mid-run",
+                "text": "When a decision matters, the agent pauses with a question. The session jumps to **Needs you**; your answer goes straight back to the still-running agent."
+              },
+              {
+                "type": "callout",
+                "tone": "warn",
+                "title": "Heads up",
+                "text": "This tour is static. Launch a real wisp with **N** — or take any real session over in your terminal with **T**."
+              },
+              {
+                "type": "actions",
+                "title": "One-click actions",
+                "items": [
+                  {
+                    "label": "Run test suite",
+                    "command": "npm test",
+                    "detail": "Executes in your project folder"
+                  },
+                  {
+                    "label": "Check git status",
+                    "command": "git status -sb"
+                  }
+                ]
+              },
+              {
+                "type": "question",
+                "question": "Which agent harness should wisp support next?",
+                "options": [
+                  {
+                    "label": "Codex",
+                    "reply": "Codex next"
+                  },
+                  {
+                    "label": "opencode",
+                    "reply": "opencode next"
+                  }
+                ]
+              },
+              {
+                "type": "next",
+                "items": [
+                  "Summarize what changed on this branch",
+                  "Find and fix the flakiest test",
+                  "Write a README for this repo"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "crew": [
+    {
+      "id": "e27e064abad8",
+      "name": "Ada",
+      "role": "Reviews every PR",
+      "avatar": "",
+      "color": "violet",
+      "brief": "",
+      "cwd": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-repo-ZaGhoN",
+      "machine": "",
+      "sandbox": "",
+      "agent": "claude",
+      "model": "",
+      "effort": "",
+      "mode": "auto",
+      "cron": "",
+      "parallel": 2,
+      "kit": [],
+      "team": [],
+      "paused": false,
+      "notebook": "",
+      "log": [],
+      "queue": [],
+      "away": {},
+      "seen": [],
+      "links": [],
+      "offers": [],
+      "wakeAt": null,
+      "checkins": 0,
+      "lastCheckinAt": null,
+      "lastMinute": null,
+      "createdAt": 1794104883982,
+      "updatedAt": 1794104883982,
+      "running": 0,
+      "jobs": 0,
+      "nextAt": null,
+      "handle": "ada",
+      "on": []
+    }
+  ],
+  "config": {
+    "projects": [
+      {
+        "id": "l3u0jd8n",
+        "name": "wisp-repo-ZaGhoN",
+        "path": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-repo-ZaGhoN",
+        "color": "violet",
+        "addedAt": 1794104883737,
+        "lastUsedAt": 1794104883977
+      }
+    ],
+    "defaults": {
+      "agent": "auto",
+      "mode": "auto",
+      "model": "",
+      "effort": ""
+    },
+    "recipes": [],
+    "triggers": [],
+    "teams": [],
+    "crew": [
+      {
+        "id": "e27e064abad8",
+        "name": "Ada",
+        "role": "Reviews every PR",
+        "avatar": "",
+        "color": "violet",
+        "brief": "",
+        "cwd": "/var/folders/sy/vls3xgyd6vb079888gxzvnbw0000gn/T/wisp-repo-ZaGhoN",
+        "machine": "",
+        "sandbox": "",
+        "agent": "claude",
+        "model": "",
+        "effort": "",
+        "mode": "auto",
+        "cron": "",
+        "parallel": 2,
+        "kit": [],
+        "team": [],
+        "paused": false,
+        "notebook": "",
+        "log": [],
+        "queue": [],
+        "away": {},
+        "seen": [],
+        "links": [],
+        "offers": [],
+        "wakeAt": null,
+        "checkins": 0,
+        "lastCheckinAt": null,
+        "lastMinute": null,
+        "createdAt": 1794104883982,
+        "updatedAt": 1794104883982,
+        "running": 0,
+        "jobs": 0,
+        "nextAt": null,
+        "handle": "ada",
+        "on": []
+      }
+    ],
+    "machines": [],
+    "connectors": [],
+    "autoIntroduced": true,
+    "fullAutoIntroduced": true,
+    "later": [],
+    "crewDormant": {},
+    "worktreeCleanupFrom": 1794104882491,
+    "lockedBy": {},
+    "cloudBox": false,
+    "spells": [],
+    "spellsSafe": false,
+    "platform": "darwin",
+    "home": "/Users/mokh",
+    "cwd": "/Users/mokh/.wisp/worktrees/wisp-8fb64ec939b0",
+    "cloneDir": "/Users/mokh/code",
+    "terminals": [
+      {
+        "id": "auto",
+        "label": "Auto-detect"
+      },
+      {
+        "id": "wisp",
+        "label": "In wisp"
+      },
+      {
+        "id": "terminal",
+        "label": "Terminal.app"
+      },
+      {
+        "id": "iterm",
+        "label": "iTerm"
+      },
+      {
+        "id": "warp",
+        "label": "Warp"
+      },
+      {
+        "id": "cmux",
+        "label": "cmux"
+      },
+      {
+        "id": "ghostty",
+        "label": "Ghostty"
+      },
+      {
+        "id": "kitty",
+        "label": "kitty"
+      },
+      {
+        "id": "wezterm",
+        "label": "WezTerm"
+      },
+      {
+        "id": "custom",
+        "label": "Custom command"
+      }
+    ],
+    "defaultTerminal": "wisp",
+    "takeoverInline": true,
+    "grid": null,
+    "preview": "",
+    "telemetry": {
+      "available": false,
+      "enabled": false
+    },
+    "feedback": false
+  }
+}
