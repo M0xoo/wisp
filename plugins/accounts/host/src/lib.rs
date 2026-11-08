@@ -12,6 +12,7 @@
 //!
 //! Rows live in the store (store.rs); clients watch `plugin:wisp.accounts:harnesses`.
 
+mod kinds;
 mod folders;
 mod keys;
 mod ops;
@@ -87,6 +88,7 @@ impl Plugin for AccountsPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
+        crate::kinds::register(s);
         let slot: Slot = Arc::new(OnceLock::new());
         ops::register(s, &slot);
         routes::register(s);

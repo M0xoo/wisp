@@ -6,6 +6,7 @@
 //! writes the rows it touched in one transaction. v1's router.json and `defaults.router` are imported
 //! once at start.
 
+mod pipeline;
 mod kind;
 mod store;
 
@@ -134,6 +135,7 @@ impl Plugin for RouterPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
+        crate::pipeline::register_pipeline(s);
         let k: Arc<dyn wisp_resources_api::ResourceKind> = Arc::new(kind::RouterKind { ctx: s.ctx() });
         s.contribute(&wisp_resources_api::RESOURCE_KIND, k);
         let st = Arc::new(State::new());

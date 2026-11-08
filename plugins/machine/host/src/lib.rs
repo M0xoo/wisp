@@ -2,6 +2,7 @@
 //! routes/machine.js), `hold` (the before:run limit guard) and `watch` (GET /sessions/:id/watch) to the
 //! kernel, the proc service and HTTP.
 
+mod kinds;
 mod hold;
 mod this_mac;
 mod watch;
@@ -17,6 +18,7 @@ impl Plugin for MachinePlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
+        crate::kinds::register(s);
         this_mac::setup(s);
         hold::setup(s);
         watch::setup(s);

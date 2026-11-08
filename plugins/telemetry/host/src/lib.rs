@@ -7,6 +7,8 @@
 //! Nothing here blocks: a flush runs every 15 s (or at 50 events) off the caller's way, each sink in its
 //! own task with a 3 s budget; a batch a sink doesn't take is dropped (v1: telemetry never gets in the
 //! way).
+//!
+//! resources: data-only (its rows are ids and the send queue; a formula never sets telemetry (ADR-0028)).
 
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::Duration;

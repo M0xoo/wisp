@@ -12,12 +12,15 @@ mod commands;
 mod desktop;
 mod extras;
 mod groups;
+mod history_cli;
 mod plugin_cmd;
 mod scripted;
 mod serve;
 mod services;
 mod settings_store;
+mod share_cli;
 mod tasks_cli;
+mod v1_formula;
 
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
@@ -86,7 +89,7 @@ async fn dispatch(p: &Parsed, user_home: &Path, cwd: &Path) -> Result<i32> {
     if !matches!(p.command, Some("serve" | "mcp" | "grid" | "desktop" | "completions")) && Client::new(port).ping().await {
         attach::notices(&Client::new(port), &home).await;
     }
-    if let Some(code) = as_code(p, port, f.cwd.as_deref().unwrap_or(cwd)).await? {
+    if let Some(code) = as_code(p, port, f.cwd.as_deref().unwrap_or(cwd), &home).await? {
         return Ok(code);
     }
     if let Some(code) = live(p, &home, port).await? {
@@ -101,7 +104,6 @@ async fn dispatch(p: &Parsed, user_home: &Path, cwd: &Path) -> Result<i32> {
         Some("mcp") => extras::mcp()?,
         Some("skill") => extras::skill(p.words.get(1).map(String::as_str), f, user_home, cwd)?,
         Some("serve") => serve_here(&home, f.port, f.host.as_deref(), false, None).await?,
-        Some("import") => extras::import(&home, f).await?,
         Some("desktop") => desktop(&home, f.port, true).await?,
         Some("plugin" | "plugins" | "spell" | "spells") if rest.first().map(String::as_str) == Some("new") => {
             let name = scripted::need(rest.get(1), "a plugin name")?;
@@ -125,7 +127,7 @@ fn plugin_word(word: &str) -> bool {
 /// The commands that follow a topic or read the catalogue (ADR-0022); None: not one of them.
 /// wisp as code (ADR-0026, ADR-0027): apply, diff, validate, schema, export; task spec/export/formula,
 /// rerun, run -f, run <workflow|task>. None: the words aren't one of them.
-async fn as_code(p: &Parsed, port: u16, cwd: &Path) -> Result<Option<i32>> {
+async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Option<i32>> {
     let words = &p.words;
     let Some(first) = words.first().map(String::as_str) else { return Ok(None) };
     if p.literal == args::Literal::Task {
@@ -146,6 +148,12 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path) -> Result<Option<i32>> {
             code::export_cmd(&c, &o).await?
         }
         "task" if matches!(o.words.first().map(String::as_str), Some("spec" | "export" | "formula")) && o.words.len() >= 2 => tasks_cli::task(&connect().await?, &o).await?,
+        "task" if o.words.first().map(String::as_str) == Some("history") && o.words.len() == 2 => history_cli::task_history(&connect().await?, &o.words[1], o.json).await?,
+        "ls" | "list" if history_cli::wants_history(&o) && !p.flags.watch => history_cli::ls(&connect().await?, &o, cwd).await?,
+        "history" if o.words.first().map(String::as_str) == Some("export") => history_cli::export(&connect().await?, &o, cwd).await?,
+        "import" if o.words.len() <= 1 => history_cli::import(&connect().await?, &o, home).await?,
+        "share" if o.words.len() == 1 && args::session_id(&o.words[0]) => share_cli::share(&connect().await?, &o, cwd).await?,
+        "open" if o.words.len() == 1 && (o.words[0].ends_with(".wisp-task") || o.words[0].starts_with("http") || o.words[0].starts_with("gist:")) => share_cli::open(&connect().await?, &o, cwd).await?,
         "rerun" if (o.words.len() == 1 && args::session_id(&o.words[0])) || o.last.is_some() => {
             let o = code::Opts { words: std::iter::once("rerun".to_owned()).chain(o.words.clone()).collect(), ..o };
             tasks_cli::rerun(&connect().await?, &o, cwd).await?

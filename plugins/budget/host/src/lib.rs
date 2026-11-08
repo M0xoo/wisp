@@ -3,6 +3,7 @@
 //! on an account past its stop line is held, and starts once the account is free again (its windows
 //! reset, or a reading says they reset early). The user's own runs are never held.
 
+mod kinds;
 mod store;
 
 use std::collections::BTreeMap;
@@ -141,6 +142,7 @@ impl Plugin for BudgetPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
+        crate::kinds::register(s);
         let slot: Slot = Arc::new(OnceLock::new());
         on!(s, slot, c::View, |st, ctx, a| Ok(lock(&st.budget).view(&a.agent, now(&ctx))));
         on!(s, slot, c::Hold, |st, ctx, a| Ok(st.hold(&a.agent, &a.account, now(&ctx))));

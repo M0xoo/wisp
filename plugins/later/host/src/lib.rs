@@ -5,6 +5,8 @@
 //!
 //! Times are stored in UTC and written in the user's IANA zone (`later.zone`, sent by wisp.settings from
 //! the client), else the server's own (ADR-0025).
+//!
+//! resources: data-only (its rows are follow-ups and reminders scheduled on tasks: task data, kept with history (ADR-0029)).
 
 mod store;
 

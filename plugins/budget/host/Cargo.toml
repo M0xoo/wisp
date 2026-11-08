@@ -8,6 +8,8 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+schemars.workspace = true
+wisp-resources-api.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

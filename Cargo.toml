@@ -62,6 +62,9 @@ wisp-resources-core = { path = "plugins/resources/core" }
 # wisp.workflows: orchestration as code (ADR-0028)
 wisp-workflows-api = { path = "plugins/workflows/api" }
 wisp-workflows-core = { path = "plugins/workflows/core" }
+# wisp.share: tasks shared as signed bundles (ADR-0027)
+wisp-share-api = { path = "plugins/share/api" }
+wisp-share-core = { path = "plugins/share/core" }
 # wisp.cli: the command-line frontend (ADR-0022, ADR-0024)
 wisp-cli-api = { path = "plugins/cli/api" }
 wisp-cli-core = { path = "plugins/cli/core" }

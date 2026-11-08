@@ -6,10 +6,9 @@
 //! - `wisp desktop`: the desktop window (desktop.rs).
 use std::path::{Path, PathBuf};
 
-use serde_json::json;
 
 use crate::args::Flags;
-use crate::client::{CliError, Client, Result};
+use crate::client::{CliError, Result};
 use crate::scripted::say;
 
 pub const SKILL: &str = include_str!("../../../skills/wisp/SKILL.md");
@@ -71,19 +70,6 @@ pub fn mcp() -> Result<()> {
     Err(CliError::said(MCP_MISSING))
 }
 
-/// `wisp import [--dry-run]`: every importer (sessions, config, plugins, stuff…) over the v1 home.
-pub async fn import(home: &Path, f: &Flags) -> Result<()> {
-    let c = Client::connect(f.port, true).await?;
-    let r = c.post("/cmd", json!({"cmd": "import.v1", "args": {"home": home.display().to_string(), "dryRun": f.dry_run}})).await;
-    match r {
-        Ok(v) => {
-            crate::scripted::out(f, &v, &format!("  ✓ imported from {}{}", home.display(), if f.dry_run { " (dry run: nothing written)" } else { "" }));
-            Ok(())
-        }
-        Err(e) if e.status() == 404 => Err(CliError::said("wisp import is not in this build yet: the importers come with the store and each plugin")),
-        Err(e) => Err(e),
-    }
-}
 
 #[cfg(test)]
 mod tests {

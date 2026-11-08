@@ -244,7 +244,8 @@ export const rustResourceKinds: Rule = {
       const text = files.map((f) => readFileSync(join(ctx.root, f), 'utf8')).join('\n');
       // declared settings are wisp.settings' `setting` kind already; tables are the plugin's own to declare
       const tables = /Migration::sql\(/.test(text);
-      const hasKind = /RESOURCE_KIND/.test(text);
+      // a plugin whose tables hold only data (history, queues, ids) says so, with why (ADR-0028/0029)
+      const hasKind = /RESOURCE_KIND|\bstored::<|resources: data-only \(\S/.test(text);
       const line = listed.get(plugin);
       if (tables && !hasKind && line === undefined) {
         out.push(finding(manifestOf(c), 1, 'rust-resource-kinds', `${plugin} keeps tables but registers no resource kind (resource.kind@1): add one, or list it in ${PENDING} with why`));

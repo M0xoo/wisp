@@ -113,7 +113,10 @@ pub async fn show(c: &Client, f: &Flags, id: &str, summary: Option<Value>) -> Re
     if let Some(o) = all.as_object_mut() {
         o.insert("presentation".into(), p.clone());
     }
-    out(f, &all, &format!("◌ {}  [{}{still}]  {id}\n\n{}", s(&sess, "title"), s(&sess, "state"), s(&p, "markdown")));
+    // where it came from and what made it (ADR-0029)
+    let family = if f.json { None } else { crate::history_cli::lineage_line(c, id).await };
+    let head = family.map_or_else(String::new, |l| format!("\n{l}"));
+    out(f, &all, &format!("◌ {}  [{}{still}]  {id}{head}\n\n{}", s(&sess, "title"), s(&sess, "state"), s(&p, "markdown")));
     Ok(())
 }
 

@@ -49,9 +49,7 @@ session.setMode
 session.stop
 session.update
 share.create
-share.import
 share.peek
-share.preview
 share.stop
 ship.checkLog
 ship.fixConflicts

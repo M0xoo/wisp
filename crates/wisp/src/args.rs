@@ -36,7 +36,18 @@ pub const HELP: &str = "usage:
   wisp computer on              add it, so your phone and other computers reach it   (--grid HOST, default grid.trywisp.dev;
                                 signs in first: allow the code in your browser)
   wisp computer off             take it off the grid
-  wisp import                   bring a wisp v1 home (~/.wisp) into this wisp   (--dry-run)
+  wisp import [v1 home]         bring a wisp v1 home (~/.wisp) in: its plan first, then on yes   (--dry-run  --yes)
+  wisp apply -f wisp.yml        your setup as code: plan, diff, confirm   (--dry-run  --yes  --prune  --trust  --profile P)
+  wisp diff|validate -f F       what apply would change; schema and checks   (wisp schema: the editor schema)
+  wisp export [kinds…]          what's set up here, as a formula   (--include ui,account  --format yaml|json|toml)
+  wisp task spec|export|formula|history <id>   what was asked, to share, the setup it ran with, its family
+  wisp run -f x.task.yml        a shared task spec, on your code   (wisp run <workflow|task> [k=v]: by name, --wait)
+  wisp rerun <id>               the same ask from the same commit   (--from latest  --formula f.yml[,g.yml]
+                                --fill-from-snapshot  --steps N  --agent …  --last N --project P  --wait)
+  wisp ls --agent|--crew|--workflow|--formula f.yml|--since 7d   tasks by what made them
+  wisp history export --since 30d   every task as JSONL, scrubbed
+  wisp share <id>               a signed .wisp-task, previewed with its redactions   (--level spec|report|full  --to file|gist)
+  wisp open <file|url>          a shared task: run it on your code, with their setup, compare, or import it   (--run  --their-setup  --compare  --import)
   wisp desktop                  open the wisp app window
   wisp mcp                      run the MCP server (stdio) for other agents and editors
   wisp skill [install]          print / install the wisp agent skill   (--agent claude|codex|opencode|all  --project)

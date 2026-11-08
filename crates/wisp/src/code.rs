@@ -34,6 +34,15 @@ pub struct Opts {
     pub last: Option<usize>,
     pub project: Option<String>,
     pub wait: bool,
+    pub crew: Option<String>,
+    pub workflow: Option<String>,
+    /// `--since 7d` (or 12h, 30m, a date)
+    pub since: Option<String>,
+    pub level: Option<String>,
+    pub to: Option<String>,
+    pub out: Option<String>,
+    /// `wisp open`: what to do with it (run, theirs, import, compare)
+    pub action: Option<String>,
     /// `--agent`, `--model`, `--effort`, `--mode`: over the spec
     pub over: serde_json::Map<String, Value>,
     /// the words that aren't options
@@ -60,6 +69,16 @@ pub fn opts(argv: &[String]) -> Opts {
             "--steps" => o.steps = val(&mut it).parse().ok(),
             "--last" => o.last = val(&mut it).parse().ok(),
             "--project" => o.project = Some(val(&mut it)),
+            "--crew" => o.crew = Some(val(&mut it)),
+            "--workflow" => o.workflow = Some(val(&mut it)),
+            "--since" => o.since = Some(val(&mut it)),
+            "--level" => o.level = Some(val(&mut it)),
+            "--to" => o.to = Some(val(&mut it)),
+            "--out" | "-o" => o.out = Some(val(&mut it)),
+            "--run" => o.action = Some("run".into()),
+            "--their-setup" => o.action = Some("theirs".into()),
+            "--import" => o.action = Some("import".into()),
+            "--compare" => o.action = Some("compare".into()),
             "--agent" | "-a" | "--model" | "--effort" | "--mode" | "-m" => {
                 let key = match k.as_str() {
                     "--agent" | "-a" => "agent",
@@ -287,5 +306,5 @@ pub async fn schema(c: &Client) -> Result<i32> {
 
 /// Whether `words` after `export` name kinds (`wisp export crew agents`), not a task ("export the csv").
 pub fn kind_words(words: &[String], ks: &[KindInfo]) -> bool {
-    words.iter().all(|w| ks.iter().any(|k| k.kind == *w || k.section == *w))
+    words.iter().all(|w| ks.iter().any(|k| k.named(w)))
 }

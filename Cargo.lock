@@ -3284,6 +3284,9 @@ dependencies = [
  "wisp-runtime",
  "wisp-runtime-api",
  "wisp-settings",
+ "wisp-share",
+ "wisp-share-api",
+ "wisp-share-core",
  "wisp-ship",
  "wisp-slack",
  "wisp-store",
@@ -3302,6 +3305,7 @@ dependencies = [
 name = "wisp-accounts"
 version = "2.0.0"
 dependencies = [
+ "schemars",
  "serde",
  "serde_json",
  "sha2",
@@ -3313,6 +3317,7 @@ dependencies = [
  "wisp-harness-kit",
  "wisp-kernel",
  "wisp-proc",
+ "wisp-resources-api",
  "wisp-runtime-api",
  "wisp-store",
 ]
@@ -3395,6 +3400,7 @@ dependencies = [
 name = "wisp-automations"
 version = "2.0.0"
 dependencies = [
+ "schemars",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -3435,6 +3441,7 @@ dependencies = [
 name = "wisp-budget"
 version = "2.0.0"
 dependencies = [
+ "schemars",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -3443,6 +3450,7 @@ dependencies = [
  "wisp-budget-api",
  "wisp-budget-core",
  "wisp-kernel",
+ "wisp-resources-api",
  "wisp-runtime-api",
  "wisp-store",
 ]
@@ -3473,6 +3481,7 @@ name = "wisp-channels"
 version = "2.0.0"
 dependencies = [
  "async-trait",
+ "schemars",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -3481,6 +3490,7 @@ dependencies = [
  "wisp-channels-api",
  "wisp-channels-core",
  "wisp-kernel",
+ "wisp-resources-api",
 ]
 
 [[package]]
@@ -3593,6 +3603,7 @@ dependencies = [
 name = "wisp-connectors"
 version = "2.0.0"
 dependencies = [
+ "schemars",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -3600,6 +3611,7 @@ dependencies = [
  "wisp-connectors-api",
  "wisp-connectors-core",
  "wisp-kernel",
+ "wisp-resources-api",
 ]
 
 [[package]]
@@ -3832,6 +3844,7 @@ dependencies = [
 name = "wisp-goal"
 version = "2.0.0"
 dependencies = [
+ "schemars",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -3840,6 +3853,7 @@ dependencies = [
  "wisp-goal-api",
  "wisp-goal-core",
  "wisp-kernel",
+ "wisp-resources-api",
 ]
 
 [[package]]
@@ -4110,6 +4124,7 @@ dependencies = [
 name = "wisp-machine"
 version = "2.0.0"
 dependencies = [
+ "schemars",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -4119,6 +4134,7 @@ dependencies = [
  "wisp-machine-api",
  "wisp-machine-core",
  "wisp-proc",
+ "wisp-resources-api",
 ]
 
 [[package]]
@@ -4166,6 +4182,7 @@ dependencies = [
 name = "wisp-mcp"
 version = "2.0.0"
 dependencies = [
+ "schemars",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -4174,6 +4191,7 @@ dependencies = [
  "wisp-kernel",
  "wisp-mcp-api",
  "wisp-mcp-core",
+ "wisp-resources-api",
 ]
 
 [[package]]
@@ -4254,7 +4272,11 @@ dependencies = [
 name = "wisp-plugins"
 version = "2.0.0"
 dependencies = [
+ "schemars",
+ "serde",
+ "serde_json",
  "wisp-kernel",
+ "wisp-resources-api",
 ]
 
 [[package]]
@@ -4326,6 +4348,7 @@ dependencies = [
 name = "wisp-resources"
 version = "2.0.0"
 dependencies = [
+ "schemars",
  "serde",
  "serde_json",
  "tokio",
@@ -4344,6 +4367,7 @@ dependencies = [
  "serde",
  "serde_json",
  "wisp-kernel",
+ "wisp-store",
 ]
 
 [[package]]
@@ -4435,6 +4459,7 @@ name = "wisp-runtime"
 version = "2.0.0"
 dependencies = [
  "blake3",
+ "schemars",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -4473,6 +4498,8 @@ dependencies = [
 name = "wisp-settings"
 version = "2.0.0"
 dependencies = [
+ "schemars",
+ "serde",
  "serde_json",
  "wisp-kernel",
  "wisp-resources-api",
@@ -4492,6 +4519,39 @@ dependencies = [
 [[package]]
 name = "wisp-settings-core"
 version = "2.0.0"
+
+[[package]]
+name = "wisp-share"
+version = "2.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "ed25519-dalek",
+ "rand 0.9.5",
+ "serde",
+ "serde_json",
+ "wisp-kernel",
+ "wisp-share-api",
+ "wisp-share-core",
+]
+
+[[package]]
+name = "wisp-share-api"
+version = "2.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "wisp-kernel",
+]
+
+[[package]]
+name = "wisp-share-core"
+version = "2.0.0"
+dependencies = [
+ "regex",
+ "serde",
+ "serde_json",
+ "wisp-share-api",
+]
 
 [[package]]
 name = "wisp-ship"
@@ -4582,12 +4642,14 @@ dependencies = [
  "blake3",
  "http",
  "rusqlite",
+ "schemars",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
  "wisp-kernel",
+ "wisp-resources-api",
  "wisp-store",
  "wisp-stuff-api",
  "wisp-stuff-core",

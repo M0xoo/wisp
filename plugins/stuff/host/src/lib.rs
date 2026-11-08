@@ -5,6 +5,7 @@
 //! (`store.rs`, ADR-0004). An app's own database and the copies agents read stay files under
 //! `<home>/stuff`. v1's files are imported once at start (`import.rs`).
 
+mod kinds;
 mod agent;
 pub mod appdb;
 mod appfiles;
@@ -40,6 +41,7 @@ impl Plugin for StuffPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
+        crate::kinds::register(s);
         let cell: Cell = Cell::default();
         for r in routes::all(&cell) {
             s.route(r);

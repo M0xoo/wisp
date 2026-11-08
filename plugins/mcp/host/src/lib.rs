@@ -6,6 +6,7 @@
 //! The session a tool acts for is the caller's (its token's), never an argument. A session's flags
 //! (side discussion, capped, team) are what the runtime last said with `mcp.session.set`.
 
+mod kinds;
 mod run;
 
 use std::collections::HashMap;
@@ -94,6 +95,7 @@ impl Plugin for McpPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
+        crate::kinds::register(s);
         let sessions = Arc::new(Sessions::default());
         s.route(route(sessions.clone()));
         let st = sessions.clone();

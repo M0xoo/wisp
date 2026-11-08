@@ -3,6 +3,7 @@
 //! keeps nothing itself: values live in the registry, saved through the store; a v1 install's
 //! `config.json` defaults are carried over once at start.
 
+mod ui;
 mod kind;
 
 use std::sync::Arc;
@@ -70,6 +71,7 @@ impl Plugin for SettingsPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
+        crate::ui::register(s);
         let k: Arc<dyn wisp_resources_api::ResourceKind> = Arc::new(kind::SettingKind { ctx: s.ctx() });
         s.contribute(&wisp_resources_api::RESOURCE_KIND, k);
         s.command::<api::List, _, _>(|ctx, _call, _a| async move { ctx.settings_list() });

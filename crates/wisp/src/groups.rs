@@ -18,12 +18,12 @@ pub struct Where {
     pub user_home: PathBuf,
 }
 
-pub const DEFAULT: [&str; 44] = [
-    "cli", "resources", "workflows", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "machines", "grid-client", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update",
+pub const DEFAULT: [&str; 45] = [
+    "cli", "resources", "workflows", "share", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "machines", "grid-client", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update",
 ];
 /// A grid box serves the web frontend only (ADR-0024).
 pub const BOX_OFF: [&str; 3] = ["machines", "update", "cli"];
-pub const HEADLESS: [&str; 15] = ["cli", "resources", "workflows", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "git", "worktrees", "mcp"];
+pub const HEADLESS: [&str; 16] = ["cli", "resources", "workflows", "share", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "git", "worktrees", "mcp"];
 pub const MINIMAL: [&str; 5] = ["cli", "resources", "settings", "runtime", "claude"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -150,6 +150,8 @@ fn add(g: PluginGroup, name: &str, at: &Where) -> PluginGroup {
         "resources" => g.add(wisp_resources::ResourcesPlugin),
         #[cfg(feature = "workflows")]
         "workflows" => g.add(wisp_workflows::WorkflowsPlugin),
+        #[cfg(feature = "share")]
+        "share" => g.add(wisp_share::SharePlugin),
         #[cfg(feature = "telemetry")]
         "telemetry" => g.add(wisp_telemetry::TelemetryPlugin),
         #[cfg(feature = "posthog")]
@@ -171,6 +173,7 @@ pub fn in_build(name: &str) -> bool {
         "cli" => cfg!(feature = "cli"),
         "resources" => cfg!(feature = "resources"),
         "workflows" => cfg!(feature = "workflows"),
+        "share" => cfg!(feature = "share"),
         "settings" => cfg!(feature = "settings"),
         "runtime" => cfg!(feature = "runtime"),
         "claude" => cfg!(feature = "claude"),

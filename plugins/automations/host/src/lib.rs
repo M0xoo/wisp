@@ -6,6 +6,8 @@
 //! minute (`automations_task_run` keeps the minute it last fired, so a restart in that minute doesn't
 //! fire it twice). Recipes are declared tasks with params. Triggers, watchers and webhooks come next.
 
+mod trigger;
+
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -197,8 +199,9 @@ impl Plugin for AutomationsPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
+        crate::trigger::register(s);
         // a scheduled task acts without you: a foreign formula's needs --trust (ADR-0028)
-        let info = KindInfo::new("task", "tasks", wisp_automations_api::PLUGIN_ID, schema_of::<TaskDecl>()).order(80).sensitive();
+        let info = KindInfo::new("task", "tasks", wisp_automations_api::PLUGIN_ID, schema_of::<TaskDecl>()).order(80).sensitive().alias("recipes");
         let kind: Arc<dyn ResourceKind> = Arc::new(TaskKind(CrudKind::new::<TaskDecl>(info, s.ctx(), "automations.tasks", "automations.task.set", "automations.task.set", "automations.task.remove").keyed("name", "name", "name")));
         s.contribute(&RESOURCE_KIND, kind);
         s.command::<Tasks, _, _>(|ctx, _, _| async move { list(&*ctx.service::<Store>()?).await });

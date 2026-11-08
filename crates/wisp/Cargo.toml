@@ -17,11 +17,12 @@ path = "src/main.rs"
 # scripts that name it.
 default = ["proc", "all-plugins"]
 full = ["default"]
-all-plugins = ["cli", "resources", "workflows", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update"]
+all-plugins = ["cli", "resources", "workflows", "share", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update"]
 proc = ["dep:wisp-proc"]
 cli = ["dep:wisp-cli"]
 resources = ["dep:wisp-resources"]
 workflows = ["dep:wisp-workflows"]
+share = ["dep:wisp-share"]
 settings = ["dep:wisp-settings"]
 runtime = ["dep:wisp-runtime", "proc"]
 claude = ["dep:wisp-claude"]
@@ -72,6 +73,9 @@ wisp-proc = { workspace = true, optional = true }
 wisp-cli = { path = "../../plugins/cli/host", optional = true }
 wisp-resources = { path = "../../plugins/resources/host", optional = true }
 wisp-workflows = { path = "../../plugins/workflows/host", optional = true }
+wisp-share = { path = "../../plugins/share/host", optional = true }
+wisp-share-api.workspace = true
+wisp-share-core.workspace = true
 wisp-resources-api.workspace = true
 wisp-resources-core.workspace = true
 wisp-cli-api.workspace = true
