@@ -78,3 +78,24 @@ task behind it (written by hand) says so. The SDK has the same (`w.blame(target)
   history, filterable by path, agent, crew member or workflow. Pick a folder to see who (which tasks) built it.
 - **Paste anything into the palette:** a sha, a PR link, `file:line` or a task id in ⌘K (TUI: Ctrl-K) jumps
   straight to its blame card.
+
+## Any harness can read the history, with or without wisp running (added 2026-11-09)
+
+Four ways in, from the most to the least integrated:
+1. **wisp's MCP server.** Tools: `wisp_history` (tasks touching paths), `wisp_blame` (any target above),
+   `wisp_task` (one task's spec and report), `wisp_resume` (ask the user to resume one).
+   - A run wisp starts gets it automatically, with its per-task token (ADR-0008: read-only on history).
+   - A harness the user opened by themselves adds `wisp mcp` once: `wisp skill install --agent claude|codex|cursor|…`
+     writes the MCP entry and wisp's skill for that harness.
+   - When no wisp server is running, `wisp mcp` reads `.wisp/` and git directly, so it works offline on any clone.
+2. **The CLI from the agent's shell:** `wisp blame <target> --json`, `wisp tasks --touching <path> --json`,
+   `wisp task show <id> --json`, for harnesses without MCP.
+3. **Plain files:** `.wisp/tasks/*.task.yml` and `*.report.md` are readable text, so any agent can `cat` them.
+   `wisp init` adds a short section to the repo's AGENTS.md (and CLAUDE.md if present): "Before changing a file,
+   read the tasks that shaped it: `wisp tasks --touching <path>` or `.wisp/tasks/`."
+4. **Context injection:** when wisp starts a task, it can attach the most relevant past tasks for the files in
+   play (title, reason, link) to the prompt, so the agent starts informed without having to ask. This is a
+   project setting (`history: { inject: true }`) and is off by default.
+
+Reading is always allowed to whoever can read the repo. Starting, resuming or rerunning a task goes through
+wisp and its permissions; an outside harness can only *ask* (`wisp_resume` creates a request the user approves).
