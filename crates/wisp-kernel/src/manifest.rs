@@ -1,5 +1,5 @@
 //! `wisp-plugin.json` (plan §6.2): the whole static truth about a plugin, read without running it.
-//! The same schema serves built-in crates, exec-tier plugins and users' declarative plugins (ex-spells).
+//! The same schema serves built-in crates, exec-tier plugins and users' declarative plugins.
 //! The checks are in `manifest_check` (every problem with its path); this file is the typed view.
 use std::collections::BTreeMap;
 

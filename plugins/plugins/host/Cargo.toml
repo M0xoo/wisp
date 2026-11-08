@@ -13,6 +13,14 @@ serde.workspace = true
 serde_json.workspace = true
 wisp-resources-api.workspace = true
 wisp-kernel.workspace = true
+wisp-plugins-api.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
+wisp-testkit.workspace = true
+wisp-store.workspace = true
+wisp-resources = { path = "../../resources/host" }
 
 [lints]
 workspace = true

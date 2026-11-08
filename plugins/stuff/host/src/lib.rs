@@ -41,8 +41,8 @@ impl Plugin for StuffPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
-        crate::kinds::register(s);
         let cell: Cell = Cell::default();
+        crate::kinds::register(s, &cell);
         for r in routes::all(&cell) {
             s.route(r);
         }

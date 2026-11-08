@@ -21,7 +21,6 @@ pub mod exec;
 pub mod perm;
 pub mod resolve;
 pub mod semver;
-pub mod spell;
 
 mod activate;
 mod call;

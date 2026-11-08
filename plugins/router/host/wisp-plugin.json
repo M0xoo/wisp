@@ -11,6 +11,11 @@
   },
   "permissions": [
     "runtime:agents",
+    "runtime:spec",
+    "runtime:turns",
+    "runtime:get",
+    "runtime:followUp",
+    "runtime:create",
     "store:write{owner:router}"
   ],
   "requires": {},
@@ -19,12 +24,12 @@
     "commands": [
       {
         "id": "router.view",
-        "title": "Settings → Auto and what it learned",
+        "title": "Settings \u2192 Auto and what it learned",
         "readOnly": true
       },
       {
         "id": "router.set",
-        "title": "Change Settings → Auto"
+        "title": "Change Settings \u2192 Auto"
       },
       {
         "id": "router.preview",

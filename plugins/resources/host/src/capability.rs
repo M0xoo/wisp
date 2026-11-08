@@ -1,11 +1,14 @@
-//! The `capability` kind (ADR-0028: "capability: kernel"): user-defined capability sets and API keys'
-//! scopes. The kernel knows no kind, so wisp.resources holds it, kept as declared (`StoredKind`); it
-//! changes who may act, so it is sensitive.
+//! The `capability` kind (ADR-0028: "capability: kernel"): user-defined capability sets. The kernel knows
+//! no kind, so wisp.resources holds it: kept as declared (`StoredKind`) and loaded into the kernel as
+//! `custom:<name>` when it's applied and at start, so a caller with that set (an API key, a channel) may
+//! do what it allows and nothing else. It changes who may act, so it is sensitive.
+
+use std::sync::Arc;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use wisp_kernel::Setup;
-use wisp_resources_api::{KindInfo, stored};
+use wisp_kernel::{BoxFuture, Call, CapabilitySet, Ctx, Result, Setup};
+use wisp_resources_api::{KindInfo, Op, OpKind, RESOURCE_KIND, Resource, ResourceKind, StoredKind, schema_of};
 
 /// A capability set: what its holder may do.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -25,6 +28,47 @@ pub struct CapabilitySpec {
     pub channels: Vec<String>,
 }
 
+/// The kernel's id for a declared set.
+pub fn set_id(name: &str) -> String {
+    format!("custom:{name}")
+}
+
+fn load(ctx: &Ctx, name: &str, spec: &serde_json::Value) -> Result<()> {
+    let c: CapabilitySpec = serde_json::from_value(spec.clone()).unwrap_or_default();
+    ctx.define_capability(&CapabilitySet { id: set_id(name), allow: c.allow, deny: c.deny, ..CapabilitySet::default() })
+}
+
+struct CapabilityKind(Arc<StoredKind>);
+
+impl ResourceKind for CapabilityKind {
+    fn info(&self) -> KindInfo {
+        self.0.info()
+    }
+    fn read<'a>(&'a self, call: &'a Call) -> BoxFuture<'a, Result<Vec<Resource>>> {
+        self.0.read(call)
+    }
+    fn describe(&self, op: &Op) -> Option<String> {
+        let allow = op.spec.get("allow").and_then(serde_json::Value::as_array).map(|a| a.iter().filter_map(serde_json::Value::as_str).collect::<Vec<_>>().join(", ")).unwrap_or_default();
+        Some(format!("{} the capability set {} (it may: {allow})", if op.op == OpKind::Delete { "removes" } else { "sets" }, op.name))
+    }
+    fn apply<'a>(&'a self, call: &'a Call, op: &'a Op) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            self.0.apply(call, op).await?;
+            if op.op == OpKind::Delete { self.0.ctx.remove_capability(&set_id(&op.name)) } else { load(&self.0.ctx, &op.name, &op.spec) }
+        })
+    }
+}
+
 pub fn register(s: &mut Setup) {
-    let _ = stored::<CapabilitySpec>(s, |sc| KindInfo::new("capability", "capabilities", "wisp.resources", sc).order(4).sensitive());
+    let inner = Arc::new(StoredKind::new(KindInfo::new("capability", "capabilities", "wisp.resources", schema_of::<CapabilitySpec>()).order(4).sensitive(), s.ctx()));
+    let k: Arc<dyn ResourceKind> = Arc::new(CapabilityKind(inner.clone()));
+    s.contribute(&RESOURCE_KIND, k);
+    s.on_start(move |ctx| async move {
+        for (name, spec) in inner.specs().await.unwrap_or_default() {
+            if let Err(e) = load(&ctx, &name, &spec) {
+                tracing::warn!(set = %name, "capability set not loaded: {}", e.message);
+            }
+        }
+        Ok(())
+    });
 }

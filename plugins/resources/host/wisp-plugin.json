@@ -14,14 +14,31 @@
       "version": "1.0.0"
     }
   },
-  "permissions": [],
+  "permissions": [
+    "kernel:caps"
+  ],
   "requires": {},
   "contributes": {
     "commands": [
-      { "id": "resources.kinds", "title": "What this wisp can declare", "readOnly": true },
-      { "id": "resources.plan", "title": "What applying a formula would change", "readOnly": true },
-      { "id": "resources.apply", "title": "Apply a formula" },
-      { "id": "resources.export", "title": "Everything set up here, as a formula", "readOnly": true }
+      {
+        "id": "resources.kinds",
+        "title": "What this wisp can declare",
+        "readOnly": true
+      },
+      {
+        "id": "resources.plan",
+        "title": "What applying a formula would change",
+        "readOnly": true
+      },
+      {
+        "id": "resources.apply",
+        "title": "Apply a formula"
+      },
+      {
+        "id": "resources.export",
+        "title": "Everything set up here, as a formula",
+        "readOnly": true
+      }
     ]
   }
 }

@@ -15,6 +15,7 @@ tokio.workspace = true
 tracing.workspace = true
 wisp-kernel.workspace = true
 wisp-resources-api.workspace = true
+wisp-runtime-api.workspace = true
 schemars.workspace = true
 wisp-router-api.workspace = true
 wisp-router-core.workspace = true

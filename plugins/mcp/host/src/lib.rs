@@ -27,7 +27,7 @@ pub struct McpPlugin;
 
 /// What the runtime said about each session's run.
 #[derive(Debug, Default)]
-pub(crate) struct Sessions(Mutex<HashMap<String, SessionInfo>>);
+pub(crate) struct Sessions(Mutex<HashMap<String, SessionInfo>>, pub(crate) crate::kinds::Tools);
 
 impl Sessions {
     fn get(&self, id: &str) -> SessionInfo {
@@ -95,8 +95,8 @@ impl Plugin for McpPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
-        crate::kinds::register(s);
-        let sessions = Arc::new(Sessions::default());
+        let tools = crate::kinds::register(s);
+        let sessions = Arc::new(Sessions(Mutex::default(), tools));
         s.route(route(sessions.clone()));
         let st = sessions.clone();
         s.command::<Rpc, _, _>(move |ctx, call, a: RpcArgs| {

@@ -56,25 +56,6 @@ const ACTIVATION_KINDS: &[&str] = &[
     "onSchedule",
 ];
 
-// v1 spell keys and where each one went, so an old manifest says what to write instead.
-const SPELL_KEYS: &[(&str, &str)] = &[
-    ("buttons", "contributes.ui (extensions with attachTo)"),
-    ("chips", "contributes.ui (extensions with attachTo)"),
-    ("panels", "contributes.ui (views)"),
-    ("harnesses", "requires"),
-    ("data", "permissions (\"topic:read{…}\")"),
-    ("script", "server or a ui component"),
-    ("hooks", "contributes.runtime.hooks"),
-    (
-        "settings",
-        "contributes.settings or contributes.setSettings",
-    ),
-    ("parts", "contributes.parts and contributes.partStyles"),
-    (
-        "wispSpell",
-        "wispPlugin: 1 (convert the spell with convert_spell)",
-    ),
-];
 
 #[derive(Default)]
 pub(crate) struct Problems(pub(crate) Vec<ManifestError>);
@@ -176,15 +157,9 @@ pub(crate) fn unknown_keys(o: &Map<String, Value>, known: &[&str], at: &str, p: 
         if known.contains(&k.as_str()) {
             continue;
         }
-        let spell = if at.is_empty() {
-            SPELL_KEYS.iter().find(|(s, _)| s == k).map(|(_, w)| *w)
-        } else {
-            None
-        };
-        let msg = match (spell, closest(k, known)) {
-            (Some(w), _) => format!("unknown key \"{k}\": a wispSpell key; in a plugin it is {w}"),
-            (None, Some(near)) => format!("unknown key \"{k}\"; did you mean \"{near}\"?"),
-            (None, None) => format!("unknown key \"{k}\"; known keys: {}", known.join(", ")),
+        let msg = match closest(k, known) {
+            Some(near) => format!("unknown key \"{k}\"; did you mean \"{near}\"?"),
+            None => format!("unknown key \"{k}\"; known keys: {}", known.join(", ")),
         };
         p.add(join(at, k), msg);
     }

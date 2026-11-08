@@ -346,6 +346,12 @@ pub(crate) struct Registry {
 }
 
 impl Registry {
+    pub(crate) fn remove(&self, id: &str) {
+        if let Ok(mut m) = self.sets.write() {
+            m.remove(id);
+        }
+    }
+
     pub(crate) fn define(&self, s: &CapabilitySet) {
         if let Ok(mut m) = self.sets.write() {
             m.insert(s.id.clone(), Arc::new(Compiled::new(s)));

@@ -15,16 +15,19 @@ const ASK_WAIT_MS: i64 = 30 * 60_000;
 /// One body in, its answer out (`None`: only notifications).
 pub async fn rpc(ctx: &Ctx, call: &Call, sessions: &Sessions, text: &str, cwd: Option<String>) -> Option<String> {
     let mut w = who_of(ctx, call, sessions);
+    let mut only = None;
     if let Who::Agent { session, info } = &mut w {
         merge_flags(ctx, call, session, info).await;
+        only = narrowed(ctx, call, sessions, session).await;
     }
     let (ex, contributed) = extras(ctx);
     let plan = wisp_mcp_core::plan(text, &w, &ex);
     let mut replies = Vec::with_capacity(plan.steps.len());
     for step in plan.steps {
         replies.push(match step {
-            Step::Reply(r) => Some(r),
+            Step::Reply(r) => Some(only.as_ref().map_or_else(|| r.clone(), |o| crate::kinds::filter_list(&r, o))),
             Step::Silent => None,
+            Step::Call(c) if only.as_ref().is_some_and(|o| !o.allows(&c.name)) => Some(wisp_mcp_core::finish(&c.id, &c.name, &w, Outcome::Failed(format!("{} isn't one of this agent's tools (tools: in its formula)", c.name)))),
             Step::Call(c) => {
                 let outcome = match c.extra.and_then(|i| contributed.get(i)) {
                     Some(t) => {
@@ -42,6 +45,16 @@ pub async fn rpc(ctx: &Ctx, call: &Call, sessions: &Sessions, text: &str, cwd: O
         });
     }
     wisp_mcp_core::assemble(replies, plan.batch)
+}
+
+/// The `tools` spec for this session's run (its agent profile's, else its mode's), when one is declared.
+async fn narrowed(ctx: &Ctx, call: &Call, sessions: &Sessions, session: &str) -> Option<crate::kinds::ToolsSpec> {
+    if sessions.1.is_empty() {
+        return None;
+    }
+    let s = ctx.run_json(call, "runtime.get", json!({ "id": session })).await.ok()?;
+    let profile = s.pointer("/ext/wisp.runtime/spec/agent").and_then(Value::as_str).unwrap_or_default();
+    sessions.1.for_run(profile, s.get("mode").and_then(Value::as_str).unwrap_or_default())
 }
 
 /// What `mcp.session@1` contributors know of the session (a side discussion, spells, watch).

@@ -70,7 +70,7 @@ pub(crate) fn use_service<S: Service>(k: &KernelState) -> Result<Arc<S::Api>> {
     Ok((*item).clone())
 }
 
-/// A plugin that is only its manifest (a converted v1 spell, a theme): nothing runs, the host applies
+/// A plugin that is only its manifest (a theme, declared settings): nothing runs, the host applies
 /// its contributions and setting locks.
 #[derive(Debug, Clone)]
 pub struct Declarative(pub Manifest);
@@ -374,6 +374,47 @@ impl Ctx {
         if let Ok(k) = self.k() {
             k.settings.watch(self.plugin(), key, Arc::new(f));
         }
+    }
+    /// Defines (or replaces) a user's capability set, `custom:<name>` (ADR-0028's `capability` kind):
+    /// never a built-in one. Needs `kernel:caps` in the plugin's manifest. Additive (2026-11-08).
+    pub fn define_capability(&self, set: &CapabilitySet) -> Result<()> {
+        if !self.may("kernel:caps") {
+            return Err(WireError::forbidden(format!("{} doesn't declare kernel:caps", self.plugin())));
+        }
+        if !set.id.starts_with("custom:") || set.id.len() <= "custom:".len() {
+            return Err(WireError::invalid(format!("a user's capability set is custom:<name>, not {}", set.id)));
+        }
+        self.k()?.caps.define(set);
+        Ok(())
+    }
+    /// Removes a user's capability set (`custom:<name>`). Additive (2026-11-08).
+    pub fn remove_capability(&self, id: &str) -> Result<()> {
+        if !self.may("kernel:caps") || !id.starts_with("custom:") {
+            return Err(WireError::forbidden(format!("{} may not remove {id}", self.plugin())));
+        }
+        self.k()?.caps.remove(id);
+        Ok(())
+    }
+    /// Every plugin the kernel has and its state (the plugin manager's view). Needs `plugins:manage`.
+    /// Additive (2026-11-08).
+    pub fn plugins(&self) -> Result<Vec<crate::PluginStatus>> {
+        if !self.may("plugins:manage") {
+            return Err(WireError::forbidden(format!("{} doesn't declare plugins:manage", self.plugin())));
+        }
+        Ok(crate::life::status(&*self.k()?))
+    }
+    /// Switches another plugin on or off (everything it registered goes with it). Needs
+    /// `plugins:manage`; a plugin can't switch itself off. Additive (2026-11-08).
+    pub fn set_plugin_enabled(&self, id: &str, on: bool) -> crate::BoxFuture<'static, Result<()>> {
+        let k = if !self.may("plugins:manage") {
+            Err(WireError::forbidden(format!("{} doesn't declare plugins:manage", self.plugin())))
+        } else if id == self.plugin() {
+            Err(WireError::invalid(format!("{id} can't switch itself off")))
+        } else {
+            self.k()
+        };
+        let id = id.to_owned();
+        Box::pin(async move { crate::life::set_enabled(k?, id, on).await })
     }
     /// The plugin's own capability set allows `permission`? (its manifest's permissions)
     pub fn may(&self, permission: &str) -> bool {

@@ -4,13 +4,27 @@
   "name": "Plugins",
   "version": "2.0.0",
   "api": "^1",
-  "description": "wisp.plugins plugin: wiring to the kernel, store and HTTP routes",
+  "description": "The plugin manager: which plugins this wisp has, switching them on and off (the plugin kind)",
   "server": {
     "builtin": "wisp-plugins"
   },
-  "permissions": [],
+  "permissions": [
+    "plugins:manage"
+  ],
   "activation": [
     "onStartup"
   ],
-  "contributes": {}
+  "contributes": {
+    "commands": [
+      {
+        "id": "plugins.list",
+        "title": "Which plugins this wisp has",
+        "readOnly": true
+      },
+      {
+        "id": "plugins.setEnabled",
+        "title": "Switch a plugin on or off"
+      }
+    ]
+  }
 }

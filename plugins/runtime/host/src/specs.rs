@@ -131,13 +131,150 @@ pub struct Prepared {
 
 /// Resolves the profile, records the base (a worktree for an older commit), stores the snapshot and puts
 /// the spec on the task's ext. `home` is wisp's folder (for rerun worktrees).
-pub async fn prepare(store: &Store, proc: &Proc, home: Option<&std::path::Path>, mut a: StartArgs) -> Result<Prepared> {
+/// A section's `(name, spec)` from a task's formula overlay (`wisp run --formula`, a list or a map).
+fn overlay(a: &StartArgs, section: &str) -> Vec<(String, Value)> {
+    match a.formula.as_ref().and_then(|f| f.get(section)) {
+        Some(Value::Array(list)) => list
+            .iter()
+            .filter_map(|x| {
+                let mut o = x.as_object()?.clone();
+                let n = o.remove("name")?.as_str()?.to_owned();
+                Some((n, Value::Object(o)))
+            })
+            .collect(),
+        Some(Value::Object(m)) => m.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// The overlay's specs of a kind, then the stored ones it doesn't name (the overlay wins, for this task).
+async fn specs_of(a: &StartArgs, section: &str, stored: Option<&std::sync::Arc<wisp_resources_api::StoredKind>>) -> Vec<(String, Value)> {
+    let mut out = overlay(a, section);
+    if let Some(k) = stored {
+        for (n, v) in k.specs().await.unwrap_or_default() {
+            if !out.iter().any(|(m, _)| *m == n) {
+                out.push((n, v));
+            }
+        }
+    }
+    out
+}
+
+/// What the stored kinds do to a task as it starts (`crate::kinds`): its project's agent, worktree,
+/// setup and instructions; its harness's switch and defaults; its team; its skills. Returns the brief.
+async fn act(kinds: Option<&crate::kinds::Kinds>, proc: &Proc, a: &mut StartArgs, profile: Option<&AgentSpec>) -> Result<Value> {
+    let cwd = a.cwd.clone().unwrap_or_default();
+    let projects = specs_of(a, "projects", kinds.map(|k| &k.project)).await;
+    let project = crate::kinds::project_for(&projects, &cwd);
+    // the harness: off refuses it; its defaults fill what's left
+    let harnesses = specs_of(a, "harnesses", kinds.map(|k| &k.harness)).await;
+    let harness = a.agent.clone().unwrap_or_default();
+    let mut bin = None;
+    if let Some((_, h)) = harnesses.iter().find(|(n, _)| *n == harness) {
+        let h: crate::kinds::HarnessSpec = serde_json::from_value(h.clone()).unwrap_or_default();
+        if h.enabled == Some(false) {
+            return Err(WireError::invalid(format!("{harness} is off (harnesses: {harness}: {{ enabled: false }})")));
+        }
+        if a.model.as_deref().is_none_or(str::is_empty) && !h.model.is_empty() {
+            a.model = Some(h.model.clone());
+        }
+        if a.effort.as_deref().is_none_or(str::is_empty) && !h.effort.is_empty() {
+            a.effort = Some(h.effort.clone());
+        }
+        if h.from == "path" && !h.path.is_empty() {
+            bin = Some(h.path.clone());
+        }
+    }
+    // its project's setup, in its folder, before the first turn
+    if let Some((name, p)) = project.as_ref().filter(|(_, p)| p.trust.as_ref().is_none_or(|t| t.setup)) {
+        for cmd in &p.setup {
+            let opts = ExecOpts { cwd: Some(cwd.clone().into()), timeout: Some(std::time::Duration::from_secs(600)), ..ExecOpts::default() };
+            let r = proc.exec("sh", &["-c".to_owned(), cmd.clone()], opts).await.map_err(|e| WireError::internal(format!("{name}'s setup: {e}")))?;
+            if !r.exit.success() {
+                return Err(WireError::invalid(format!("{name}'s setup `{cmd}` failed: {}", String::from_utf8_lossy(&r.stderr).trim())));
+            }
+        }
+    }
+    // a team the task names: its subagents (on the task, and in its system prompt)
+    let mut team_brief = Vec::new();
+    if let Some(Value::String(t)) = a.team.clone() {
+        let teams = specs_of(a, "teams", kinds.map(|k| &k.team)).await;
+        let Some((_, spec)) = teams.into_iter().find(|(n, _)| *n == t) else {
+            return Err(WireError::invalid(format!("no team named {t} (teams: in a formula)")));
+        };
+        let team: crate::kinds::TeamSpec = serde_json::from_value(spec).unwrap_or_default();
+        let subs: Vec<Value> = team.members.iter().map(|(n, m)| json!({ "name": n, "agent": m.agent, "count": m.count, "why": m.why })).collect();
+        let mut own = match a.ext.remove("wisp.runtime") {
+            Some(Value::Object(m)) => m,
+            _ => Map::new(),
+        };
+        own.insert("subagents".into(), Value::Array(subs.clone()));
+        team_brief = subs;
+        a.ext.insert("wisp.runtime".into(), Value::Object(own));
+    }
+    // the brief: the project's instructions, the agent's, its skills
+    let mut skills = Vec::new();
+    if let Some(p) = profile.filter(|p| !p.skills.is_empty()) {
+        let all = specs_of(a, "skills", kinds.map(|k| &k.skill)).await;
+        for want in &p.skills {
+            let Some((n, spec)) = all.iter().find(|(n, _)| n == want) else { continue };
+            let k: crate::kinds::SkillSpec = serde_json::from_value(spec.clone()).unwrap_or_default();
+            let body = if k.body.is_empty() && !k.path.is_empty() {
+                let file = if std::path::Path::new(&k.path).extension().is_some_and(|e| e.eq_ignore_ascii_case("md")) { k.path.clone() } else { format!("{}/SKILL.md", k.path.trim_end_matches('/')) };
+                tokio::fs::read_to_string(&file).await.unwrap_or_default()
+            } else {
+                k.body.clone()
+            };
+            skills.push(json!({ "name": n, "description": k.description, "body": body }));
+        }
+    }
+    // a project that declares its trust: without hooks or MCP servers trusted, the harness skips them
+    let untrusted = project.as_ref().and_then(|(_, p)| p.trust.as_ref()).is_some_and(|t| !t.hooks && t.mcp.is_empty());
+    let mut brief = json!({ "project": project.map(|(_, p)| p.instructions).unwrap_or_default(), "agent": profile.map(|p| p.instructions.clone()).unwrap_or_default(), "skills": skills });
+    if untrusted {
+        brief["untrusted"] = json!(true);
+    }
+    if let Some(b) = bin {
+        brief["bin"] = json!(b);
+    }
+    if !team_brief.is_empty() {
+        brief["team"] = Value::Array(team_brief);
+    }
+    Ok(brief)
+}
+
+/// The project the folder is in names the agent when the task doesn't, and its worktree default; a
+/// profile the overlay declares is this task's (it leaves nothing behind).
+async fn defaults(a: &mut StartArgs, kinds: Option<&crate::kinds::Kinds>) {
+    if a.agent.as_deref().is_none_or(str::is_empty) || a.worktree.is_none() {
+        let projects = specs_of(a, "projects", kinds.map(|k| &k.project)).await;
+        if let Some((_, p)) = crate::kinds::project_for(&projects, a.cwd.as_deref().unwrap_or_default()) {
+            if a.agent.as_deref().is_none_or(str::is_empty) && !p.agent.is_empty() {
+                a.agent = Some(p.agent.clone());
+            }
+            if a.worktree.is_none() {
+                a.worktree = p.worktree.as_ref().and_then(|w| w.enabled);
+            }
+        }
+    }
+    if a.profile.is_none()
+        && let Some(name) = a.agent.clone()
+        && let Some((_, spec)) = overlay(a, "agents").into_iter().find(|(n, _)| *n == name)
+        && let Ok(p) = serde_json::from_value::<AgentSpec>(spec)
+    {
+        a.profile = Some(p);
+    }
+}
+
+pub async fn prepare(store: &Store, proc: &Proc, home: Option<&std::path::Path>, kinds: Option<&crate::kinds::Kinds>, mut a: StartArgs) -> Result<Prepared> {
+    defaults(&mut a, kinds).await;
     let asked = a.agent.clone().unwrap_or_default();
     // the spec keeps what was asked; the profile's values fill the task, not the spec (ADR-0029:
     // flags > the spec's own fields > the formula's profile, so a rerun under another formula re-resolves)
     let (asked_model, asked_effort, asked_mode) = (a.model.clone().unwrap_or_default(), a.effort.clone().unwrap_or_default(), a.mode);
     let project = a.cwd.clone().unwrap_or_default();
     let resolved = resolve(store, &mut a, &asked).await?;
+    let brief = act(kinds, proc, &mut a, resolved.as_ref().map(|(_, p)| p)).await?;
     // the code it starts from
     let cwd = a.cwd.clone().unwrap_or_default();
     let mut base = if cwd.is_empty() { None } else { base_at(proc, &cwd).await };
@@ -214,6 +351,14 @@ pub async fn prepare(store: &Store, proc: &Proc, home: Option<&std::path::Path>,
         _ => Map::new(),
     };
     own.insert("spec".into(), serde_json::to_value(&spec).unwrap_or_default());
+    // the overlay's connectors are this task's alone (wisp.connectors gives them to its runs)
+    let only: Map<String, Value> = overlay(&a, "connectors").into_iter().collect();
+    if !only.is_empty() {
+        own.insert("connectors".into(), Value::Object(only));
+    }
+    if brief.as_object().is_some_and(|b| b.values().any(|v| v != &json!("") && v != &json!([]))) {
+        own.insert("brief".into(), brief);
+    }
     a.ext.insert("wisp.runtime".into(), Value::Object(own));
     let steps = std::mem::take(&mut a.steps);
     Ok(Prepared { args: a, steps })
