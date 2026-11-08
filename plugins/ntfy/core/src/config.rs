@@ -150,6 +150,7 @@ pub fn merge_update(prev: &Ntfy, body: &Value) -> Result<Ntfy, NtfyError> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::assert_is_empty)]
 mod tests {
     use super::*;
 

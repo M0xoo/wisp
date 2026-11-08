@@ -75,6 +75,7 @@ pub fn parse_tap(data: &str) -> Option<Tap> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::assert_is_empty)]
 mod tests {
     use super::*;
 

@@ -12,6 +12,6 @@ description: Use when cutting a wisp v2 release - bumping the version of the pub
    release from that section.
 3. `.agents/bin/monoflow verify --all` and `npm run check` pass before the PR is opened.
 4. After the merge, `release.yml` sees a version npm doesn't have. It builds the bundle (`npm run build`),
-   the desktop app and the wisp-native binaries, publishes npm and the `@wisp/native-*` packages, then
+   the desktop app and the per-platform `wisp` binaries (`npm/`), publishes npm and those packages, then
    publishes the release. Bump the Homebrew tap only after npm has the version.
 5. A version with `-` (`2.0.0-beta.1`) is a beta: npm `next`, a prerelease, no Homebrew.

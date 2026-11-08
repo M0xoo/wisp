@@ -7,20 +7,166 @@
   "description": "Tasks (sessions), their turns and activity, the follow-up queue and the harness lifecycle",
   "author": "wisp",
   "kind": "plugin",
-  "provides": { "runtime.harness": "1", "runtime.summary": "1", "runtime.prompt": "1", "runtime.block": "1", "runtime.view": "1", "runtime.after": "1", "runtime.run": "1", "runtime.outcome": "1", "runtime.delegate": "1", "runtime.accounts": "1" },
-  "permissions": ["proc:spawn{bin:*}", "proc:exec{bin:*}", "store:write{owner:runtime}", "fs:read{path:~/.wisp/sessions}", "fs:write{path:~/.wisp/sessions}"],
-  "server": { "builtin": "wisp-runtime" },
-  "activation": ["onStartup"],
+  "provides": {
+    "runtime.harness": "1",
+    "runtime.summary": "1",
+    "runtime.prompt": "1",
+    "runtime.block": "1",
+    "runtime.view": "1",
+    "runtime.after": "1",
+    "runtime.run": "1",
+    "runtime.outcome": "1",
+    "runtime.delegate": "1",
+    "runtime.accounts": "1"
+  },
+  "permissions": [
+    "proc:spawn{bin:*}",
+    "proc:exec{bin:*}",
+    "store:write{owner:runtime}",
+    "fs:read{path:~/.wisp/sessions}",
+    "fs:write{path:~/.wisp/sessions}"
+  ],
+  "server": {
+    "builtin": "wisp-runtime"
+  },
+  "activation": [
+    "onStartup"
+  ],
   "migrations": "runtime",
   "contributes": {
     "commands": [
-      "runtime.create", "runtime.followUp", "runtime.stop", "runtime.rename", "runtime.archive", "runtime.markRead", "runtime.setState",
-      "runtime.delete", "runtime.queue.edit", "runtime.queue.sendNow", "runtime.queue.merge", "runtime.queue.text", "runtime.release",
-      "runtime.get", "runtime.list", "runtime.turns", "runtime.activity", "runtime.presentation", "runtime.setExt", "runtime.turn.setExt",
-      "runtime.note", "runtime.settle", "runtime.search", "runtime.agents", "runtime.card", "runtime.import"
+      {
+        "id": "runtime.create",
+        "title": "Start a task"
+      },
+      {
+        "id": "runtime.followUp",
+        "title": "Send a task a follow-up"
+      },
+      {
+        "id": "runtime.stop",
+        "title": "Stop a task's turn"
+      },
+      {
+        "id": "runtime.rename",
+        "title": "Rename a task"
+      },
+      {
+        "id": "runtime.archive",
+        "title": "Archive or unarchive a task"
+      },
+      {
+        "id": "runtime.markRead",
+        "title": "Mark a task read or unread"
+      },
+      {
+        "id": "runtime.setState",
+        "title": "Set a task's state"
+      },
+      {
+        "id": "runtime.delete",
+        "title": "Delete a task"
+      },
+      {
+        "id": "runtime.queue.edit",
+        "title": "Edit a queued follow-up"
+      },
+      {
+        "id": "runtime.queue.sendNow",
+        "title": "Send a queued follow-up now"
+      },
+      {
+        "id": "runtime.queue.merge",
+        "title": "Merge queued follow-ups into one"
+      },
+      {
+        "id": "runtime.queue.text",
+        "title": "Change a queued follow-up's text"
+      },
+      {
+        "id": "runtime.release",
+        "title": "Release a held task"
+      },
+      {
+        "id": "runtime.get",
+        "title": "A task",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.list",
+        "title": "The task list",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.turns",
+        "title": "A task's turns",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.activity",
+        "title": "A task's activity",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.presentation",
+        "title": "A task's presentation",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.setExt",
+        "title": "Set a plugin's slot on a task"
+      },
+      {
+        "id": "runtime.turn.setExt",
+        "title": "Set a plugin's slot on a turn"
+      },
+      {
+        "id": "runtime.note",
+        "title": "Add a note to a task"
+      },
+      {
+        "id": "runtime.settle",
+        "title": "Settle a task that stopped"
+      },
+      {
+        "id": "runtime.search",
+        "title": "Search tasks",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.agents",
+        "title": "The harnesses a task can run on",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.card",
+        "title": "Add a card to the list"
+      },
+      {
+        "id": "runtime.import",
+        "title": "Import v1's tasks"
+      }
     ],
-    "events": ["session.created", "session.changed", "session.deleted", "turn.started", "turn.activity", "turn.finished", "turn.ended", "turn.held", "turn.limits"],
-    "hooks": ["before:create", "before:run", "before:followUp", "before:delegate"],
-    "topics": ["list", "session:<id>"]
+    "events": [
+      "session.created",
+      "session.changed",
+      "session.deleted",
+      "turn.started",
+      "turn.activity",
+      "turn.finished",
+      "turn.ended",
+      "turn.held",
+      "turn.limits"
+    ],
+    "hooks": [
+      "before:create",
+      "before:run",
+      "before:followUp",
+      "before:delegate"
+    ],
+    "topics": [
+      "list",
+      "session:<id>"
+    ]
   }
 }

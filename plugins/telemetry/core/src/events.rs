@@ -66,9 +66,18 @@ pub struct ErrorInfo {
 /// and `handled` in `props` say the exception's type (else the error's name, else `Error`) and whether it
 /// was handled (else true).
 pub fn exception_props(err: &ErrorInfo, mut props: Props, o: &ScrubOptions) -> Props {
-    let ty = props.get("type").and_then(Value::as_str).filter(|t| !t.is_empty()).map(str::to_owned);
-    let ty = ty.or_else(|| err.name.clone().filter(|n| !n.is_empty())).unwrap_or_else(|| "Error".into());
-    let handled = props.get("handled").and_then(Value::as_bool).unwrap_or(true);
+    let ty = props
+        .get("type")
+        .and_then(Value::as_str)
+        .filter(|t| !t.is_empty())
+        .map(str::to_owned);
+    let ty = ty
+        .or_else(|| err.name.clone().filter(|n| !n.is_empty()))
+        .unwrap_or_else(|| "Error".into());
+    let handled = props
+        .get("handled")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
     let list = json!([{
         "type": ty,
         "value": scrub(&err.message, o),
@@ -84,7 +93,11 @@ pub type AllowedProp = (&'static str, &'static [&'static str]);
 
 /// Events the page may send (POST /api/telemetry/event), each with the only props it may carry and their
 /// allowed values. Anything else is dropped: the page can't send free text.
-pub const PAGE_EVENTS: &[(&str, &[AllowedProp])] = &[("getapp_opened", &[("from", &["button", "search"])]), ("getapp_clicked", &[]), ("getapp_hidden", &[])];
+pub const PAGE_EVENTS: &[(&str, &[AllowedProp])] = &[
+    ("getapp_opened", &[("from", &["button", "search"])]),
+    ("getapp_clicked", &[]),
+    ("getapp_hidden", &[]),
+];
 
 /// The allowed part of a page event, or None when the page may not send it.
 pub fn page_event(event: &Value, props: &Value) -> Option<Props> {
@@ -92,7 +105,11 @@ pub fn page_event(event: &Value, props: &Value) -> Option<Props> {
     let (_, allowed) = PAGE_EVENTS.iter().find(|(n, _)| *n == name)?;
     let mut out = Props::new();
     for (k, values) in *allowed {
-        if let Some(v) = props.get(*k).and_then(Value::as_str).filter(|v| values.contains(v)) {
+        if let Some(v) = props
+            .get(*k)
+            .and_then(Value::as_str)
+            .filter(|v| values.contains(v))
+        {
             out.insert((*k).to_owned(), json!(v));
         }
     }

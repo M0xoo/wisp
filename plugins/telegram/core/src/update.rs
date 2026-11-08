@@ -222,6 +222,7 @@ pub fn slash_command(text: &str) -> Option<(String, &str)> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::assert_is_empty)]
 mod tests {
     use super::*;
     use serde_json::json;

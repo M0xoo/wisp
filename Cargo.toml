@@ -12,7 +12,8 @@ members = [
   "apps/grid",
   "apps/grid/boxd",
 ]
-exclude = ["native"]
+# the v1 Tauri app has its own Cargo.toml (apps/desktop is v2's)
+exclude = ["desktop/src-tauri"]
 
 [workspace.package]
 version = "2.0.0"
@@ -118,7 +119,6 @@ rsa = { version = "0.9", features = ["sha2", "pem"] }
 scrypt = { version = "0.11", default-features = false }
 url = "2"
 x509-cert = { version = "0.2", default-features = false, features = ["pem"] }
-anyhow = "1"
 async-trait = "0.1"
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "json", "query", "tokio", "ws"] }
 base64 = "0.22"
@@ -140,7 +140,6 @@ subtle = "2"
 thiserror = "2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "process", "io-util", "net", "fs", "signal"] }
 tokio-util = { version = "0.7", features = ["rt"] }
-tower = "0.5"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter", "std", "json"] }
 ts-rs = { version = "12", features = ["serde-json-impl"] }
@@ -151,7 +150,7 @@ zstd = "0.14"
 brotli = { version = "9", default-features = false, features = ["std"] }
 flate2 = "1"
 # wisp-proc's reviewed sys module on Windows: Job Objects (kill a tree with 0 orphans) and the process
-# table (Toolhelp). The same pinned line wisp-native used.
+# table (Toolhelp). Pinned to the line v2's first native helper used (ADR-0015).
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Diagnostics_ToolHelp", "Win32_System_JobObjects", "Win32_System_Threading"] }
 
 # Plan §9.2: forbid unsafe (crates/wisp-proc's sys module is the reviewed exception), clippy pedantic with a

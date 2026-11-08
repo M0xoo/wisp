@@ -21,5 +21,6 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0012](0012-no-wrapping-bars.md) | Control text never wraps; bars collapse to icons, then More |
 | [0013](0013-rust-for-everything-but-the-ui.md) | **Rust for everything but the UI**; Solid + TypeScript only for UI |
 | [0014](0014-grid-control-plane.md) | The grid keeps its own SQLite control plane; its trust rules are data (now in Rust, ADR-0013) |
+| [0015](0015-rust-dependencies.md) | The Rust workspace's third-party crates, each with its reason; `cargo deny` guards them |
 | [0016](0016-foundation-metrics.md) | v2 looks exactly like v1: pixel + metrics parity gate |
 | [0017](0017-immediate-feedback.md) | Every action answers within one frame (design/feedback.md, qa/feedback.mjs) |

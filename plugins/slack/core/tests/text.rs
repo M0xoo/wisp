@@ -1,4 +1,11 @@
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)] // tests may fail loudly
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::needless_pass_by_value,
+    clippy::inconsistent_digit_grouping,
+    clippy::assert_is_empty
+)] // tests may fail loudly
 //! What leaves: escaped, within Slack's limits, never half an entity; buttons, reports and the
 //! manifest (v1 test/channel-slack.test.js: "what leaves", "Slack's limits", "the manifest", "a
 //! manifest with a URL", "text fallback").

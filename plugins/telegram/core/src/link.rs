@@ -108,6 +108,7 @@ pub fn day_of(ms: i64) -> String {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::assert_is_empty)]
 mod tests {
     use super::*;
 

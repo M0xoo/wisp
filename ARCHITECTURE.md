@@ -71,7 +71,8 @@ docs/  design/  qa/  spikes/
 
 ## The rules that keep it this shape
 
-Checked by `npm run check` (TypeScript side) and `cargo xtask check` / `tools/check` (Rust side):
+Checked by `npm run check` (`tools/check`: the TypeScript rules and the Rust ones, `rust-*`, read from each
+`Cargo.toml` and the `.rs` sources), clippy, and `cargo deny check` (`deny.toml`, ADR-0015):
 
 1. **Layers.** Rust: `wisp-kernel` ← `wisp-store`, `wisp-sync`, `wisp-proc` ← `plugins/*/api` ←
    `plugins/*/core` ← `plugins/*/host` ← `wisp-api`, `wisp`. A plugin's host depends on other plugins'

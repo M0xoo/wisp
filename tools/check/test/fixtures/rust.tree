@@ -1,0 +1,124 @@
+The Rust rules: a workspace with a base crate, a binary, two plugins and the reviewed unsafe module.
+Each bad edge, IO call, unsafe block and manifest problem below is one expected finding.
+=== Cargo.toml
+[workspace]
+members = [
+  "crates/*",
+  "plugins/*/api",
+  "plugins/*/core",
+  "plugins/*/host",
+]
+exclude = ["crates/old"]
+=== crates/old/Cargo.toml
+[package]
+name = "old"
+[dependencies]
+wisp-git = { path = "../../plugins/git/host" }
+=== crates/wisp-kernel/Cargo.toml
+[package]
+name = "wisp-kernel"
+=== crates/wisp-kernel/src/lib.rs
+pub fn kernel() {}
+=== crates/wisp-kernel/capabilities.json
+{ "sets": [{ "id": "agent:session", "allow": ["git:status", "chat:*"] }] }
+=== crates/wisp-base/Cargo.toml
+[package]
+name = "wisp-base"
+
+[dependencies]
+wisp-kernel.workspace = true
+wisp-git-api.workspace = true
+=== crates/wisp-base/src/lib.rs
+//! a base crate
+pub fn base() {}
+=== crates/wisp-proc/Cargo.toml
+[package]
+name = "wisp-proc"
+=== crates/wisp-proc/src/sys/unix.rs
+pub fn kill(pid: i32) {
+    unsafe { libc_kill(pid) }
+}
+=== crates/wisp-proc/src/lib.rs
+#![forbid(unsafe_code)]
+// unsafe in a comment is not code
+pub const WHY: &str = "unsafe in a string is not code";
+pub fn spawn() {
+    unsafe { do_it() }
+}
+=== crates/wisp/Cargo.toml
+[package]
+name = "wisp"
+[dependencies]
+wisp-git = { path = "../../plugins/git/host" }
+=== plugins/git/api/Cargo.toml
+[package]
+name = "wisp-git-api"
+[dependencies]
+wisp-git-core.workspace = true
+=== plugins/git/core/Cargo.toml
+[package]
+name = "wisp-git-core"
+[dependencies]
+serde.workspace = true
+tokio.workspace = true
+[dev-dependencies]
+wisp-chat.workspace = true
+=== plugins/git/core/src/lib.rs
+//! pure
+use std::fs;
+// std::process in a comment is fine
+pub fn now() -> u64 {
+    let _ = std::time::Instant::now();
+    0
+}
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn reads_a_file() {
+        let _ = std::fs::read("x");
+    }
+}
+=== plugins/git/host/Cargo.toml
+[package]
+name = "wisp-git"
+[dependencies]
+wisp-git-api.workspace = true
+wisp-git-core.workspace = true
+wisp-chat-api.workspace = true
+wisp-chat-core.workspace = true
+renamed = { package = "wisp-chat", path = "../../chat/host" }
+=== plugins/git/host/wisp-plugin.json
+{
+  "wispPlugin": 1,
+  "id": "wisp.git",
+  "version": "2.0.0",
+  "server": { "builtin": "wisp_git" },
+  "contributes": {
+    "commands": [
+      { "id": "git.status", "title": "Status" },
+      { "id": "git.push", "title": "Push" },
+      { "id": "chat.send", "title": "Not ours" },
+      "git.bare"
+    ]
+  }
+}
+=== plugins/git/host/src/lib.rs
+pub struct Git;
+impl wisp_kernel::Plugin for Git {}
+=== plugins/chat/api/Cargo.toml
+[package]
+name = "wisp-chat-api"
+=== plugins/chat/core/Cargo.toml
+[package]
+name = "wisp-chat-core"
+=== plugins/chat/host/Cargo.toml
+[package]
+name = "wisp-chat"
+=== plugins/chat/host/src/lib.rs
+pub struct Chat;
+impl Plugin for Chat {}
+=== plugins/stub/host/Cargo.toml
+[package]
+name = "wisp-stub"
+=== plugins/stub/host/src/lib.rs
+//! not a plugin yet: no manifest needed

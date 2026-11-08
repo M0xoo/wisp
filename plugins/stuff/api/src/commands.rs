@@ -98,7 +98,7 @@ pub struct FindArgs {
     pub limit: Option<usize>,
 }
 
-/// wisp_stuff's answer: the items (records, paths included) and the text the agent reads.
+/// `wisp_stuff`'s answer: the items (records, paths included) and the text the agent reads.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FindOut {
     pub items: Vec<StuffItem>,
@@ -145,11 +145,11 @@ command!(
     Get, "stuff.get", Some("stuff:read"), true, Id => Option<StuffItem>
 );
 command!(
-    /// wisp_stuff's list: filtered by words and kind, with where each file is.
+    /// `wisp_stuff`'s list: filtered by words and kind, with where each file is.
     Find, "stuff.find", Some("stuff:read"), true, FindArgs => FindOut
 );
 command!(
-    /// One item in full, for an agent (@-mentions, wisp_stuff with an id).
+    /// One item in full, for an agent (@-mentions, `wisp_stuff` with an id).
     Describe, "stuff.describe", Some("stuff:read"), true, Id => Option<Text>
 );
 command!(GrantOf, "stuff.grant", Some("stuff:read"), true, Id => Grant);

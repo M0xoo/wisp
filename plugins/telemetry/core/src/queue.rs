@@ -5,7 +5,9 @@
 
 use serde_json::{Value, json};
 
-use crate::env::{Env, FEEDBACK_MAX, MAX_QUEUE, OUTBOX_MAX, PENDING_MAX, env_disabled, feedback_available};
+use crate::env::{
+    Env, FEEDBACK_MAX, MAX_QUEUE, OUTBOX_MAX, PENDING_MAX, env_disabled, feedback_available,
+};
 use crate::events::{ErrorInfo, Props, event, exception_props};
 use crate::scrub::ScrubOptions;
 use crate::text::slice_utf16;
@@ -34,7 +36,14 @@ pub enum Tracked {
 
 impl Telemetry {
     pub fn new(env: Env, common: Props, scrub: ScrubOptions) -> Self {
-        Self { env, common, scrub, setting_on: true, install_id: None, queue: Vec::new() }
+        Self {
+            env,
+            common,
+            scrub,
+            setting_on: true,
+            install_id: None,
+            queue: Vec::new(),
+        }
     }
 
     pub fn enabled(&self) -> bool {
@@ -46,16 +55,33 @@ impl Telemetry {
     }
 
     /// Counts an event. `new_id` makes the install id the first time (the host saves it).
-    pub fn track(&mut self, name: &str, props: Props, now_ms: i64, new_id: impl FnOnce() -> String) -> Tracked {
+    pub fn track(
+        &mut self,
+        name: &str,
+        props: Props,
+        now_ms: i64,
+        new_id: impl FnOnce() -> String,
+    ) -> Tracked {
         if !self.enabled() {
             return Tracked::Off;
         }
         let id = self.install_id.get_or_insert_with(new_id).clone();
-        self.queue.push(event(name, now_ms, &self.common, props, &id));
-        if self.queue.len() >= MAX_QUEUE { Tracked::Flush } else { Tracked::Queued }
+        self.queue
+            .push(event(name, now_ms, &self.common, props, &id));
+        if self.queue.len() >= MAX_QUEUE {
+            Tracked::Flush
+        } else {
+            Tracked::Queued
+        }
     }
 
-    pub fn capture_error(&mut self, err: &ErrorInfo, props: Props, now_ms: i64, new_id: impl FnOnce() -> String) -> Tracked {
+    pub fn capture_error(
+        &mut self,
+        err: &ErrorInfo,
+        props: Props,
+        now_ms: i64,
+        new_id: impl FnOnce() -> String,
+    ) -> Tracked {
         if !self.enabled() {
             return Tracked::Off;
         }
@@ -64,13 +90,26 @@ impl Telemetry {
     }
 
     /// A crash: captured unhandled, then the whole queue is what to keep for the next start.
-    pub fn crashed(&mut self, err: &ErrorInfo, now_ms: i64, new_id: impl FnOnce() -> String) -> Vec<Value> {
+    pub fn crashed(
+        &mut self,
+        err: &ErrorInfo,
+        now_ms: i64,
+        new_id: impl FnOnce() -> String,
+    ) -> Vec<Value> {
         if !self.enabled() {
             return Vec::new();
         }
         let mut props = Props::new();
         props.insert("handled".into(), json!(false));
-        props.insert("type".into(), json!(err.name.clone().filter(|n| !n.is_empty()).unwrap_or_else(|| "UncaughtException".into())));
+        props.insert(
+            "type".into(),
+            json!(
+                err.name
+                    .clone()
+                    .filter(|n| !n.is_empty())
+                    .unwrap_or_else(|| "UncaughtException".into())
+            ),
+        );
         self.capture_error(err, props, now_ms, new_id);
         self.persist()
     }
@@ -99,13 +138,32 @@ impl Telemetry {
     /// A rating on a turn (`turn_rated`) or a written note (`feedback`), as the batch to post: what waited
     /// in the outbox, then this one, the last 100. None when feedback can't go out. With usage stats off,
     /// `one_off` is the id (a fresh one per message, so feedback can't be tied to anything else).
-    pub fn feedback(&self, name: &str, mut props: Props, outbox: &[Value], now_ms: i64, one_off: String) -> Option<Vec<Value>> {
+    pub fn feedback(
+        &self,
+        name: &str,
+        mut props: Props,
+        outbox: &[Value],
+        now_ms: i64,
+        one_off: String,
+    ) -> Option<Vec<Value>> {
         if !self.feedback_available() {
             return None;
         }
-        let id = self.install_id.clone().filter(|_| self.enabled()).unwrap_or(one_off);
-        if let Some(t) = props.get("text").and_then(Value::as_str).filter(|t| !t.is_empty()) {
-            let t = if self.scrub.home.is_empty() { t.to_owned() } else { t.replace(&self.scrub.home, "~") };
+        let id = self
+            .install_id
+            .clone()
+            .filter(|_| self.enabled())
+            .unwrap_or(one_off);
+        if let Some(t) = props
+            .get("text")
+            .and_then(Value::as_str)
+            .filter(|t| !t.is_empty())
+        {
+            let t = if self.scrub.home.is_empty() {
+                t.to_owned()
+            } else {
+                t.replace(&self.scrub.home, "~")
+            };
             props.insert("text".into(), json!(slice_utf16(&t, FEEDBACK_MAX)));
         } else {
             props.remove("text");

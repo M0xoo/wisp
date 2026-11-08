@@ -89,6 +89,7 @@ impl Cursor {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::assert_is_empty)]
 mod tests {
     use super::*;
 
@@ -159,7 +160,7 @@ mod tests {
             x ^= x << 13;
             x ^= x >> 7;
             x ^= x << 17;
-            if x % 37 == 0 {
+            if x.is_multiple_of(37) {
                 c = Cursor::new(c.since().into(), c.kept().to_vec());
                 continue;
             }

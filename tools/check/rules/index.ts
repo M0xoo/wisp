@@ -8,8 +8,9 @@ import { noAny } from './no-any.ts';
 import { openapi } from './openapi.ts';
 import { protocol } from './protocol.ts';
 import { publicEntry } from './public-entry.ts';
+import { RUST_RULES } from './rust.ts';
 import { sizes } from './sizes.ts';
 import { state } from './state.ts';
 
 /** In ARCHITECTURE.md order. Turning one off needs an ADR (AGENTS.md). */
-export const RULES: readonly Rule[] = [layers, publicEntry, cycles, css, state, manifests, openapi, protocol, sizes, noAny, i18n];
+export const RULES: readonly Rule[] = [layers, publicEntry, cycles, css, state, manifests, openapi, protocol, sizes, noAny, i18n, ...RUST_RULES];

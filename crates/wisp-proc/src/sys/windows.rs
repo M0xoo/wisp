@@ -2,7 +2,7 @@
 //!
 //! Each child goes into its own Job Object. Processes it starts join the job too, so terminating
 //! the job ends the whole tree (what `taskkill /T` did in v1, without its walk-the-tree race), and
-//! `KILL_ON_JOB_CLOSE` ends it if wisp-native itself dies: the handle closes with the process.
+//! `KILL_ON_JOB_CLOSE` ends it if wisp itself dies: the handle closes with the process.
 
 use std::io;
 use std::ptr;

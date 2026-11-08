@@ -111,6 +111,7 @@ pub fn lost_line(n: u32) -> String {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::assert_is_empty)]
 mod tests {
     use super::*;
 

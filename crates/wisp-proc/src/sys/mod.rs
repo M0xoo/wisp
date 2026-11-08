@@ -1,8 +1,9 @@
-//! The reviewed OS calls (plan §9.2: "`forbid(unsafe_code)` except in `proc`"). Moved here from
-//! native/crates/wisp-native-sys. The rest of the crate denies `unsafe`; everything it needs from the
-//! OS that std doesn't offer lives here behind safe functions. Every `unsafe` block is one call with a
-//! `SAFETY:` comment (`clippy::undocumented_unsafe_blocks` and `multiple_unsafe_ops_per_block` are
-//! denied). Review this folder whenever it changes.
+//! The reviewed OS calls (plan §9.2: "`forbid(unsafe_code)` except in `proc`"). Ported from the
+//! former wisp-native helper's sys crate (ADR-0009, ADR-0013). The rest of the crate denies
+//! `unsafe`; everything it needs from the OS that std doesn't offer lives here behind safe
+//! functions. Every `unsafe` block is one call with a `SAFETY:` comment
+//! (`clippy::undocumented_unsafe_blocks` and `multiple_unsafe_ops_per_block` are denied). Review
+//! this folder whenever it changes.
 
 #[cfg(unix)]
 mod unix;

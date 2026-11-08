@@ -155,6 +155,8 @@ fn ext_in(name: &str, list: &[&str]) -> bool {
 }
 
 /// v1 bundle.js PRIVATE: a file name that holds secrets (or hands out the source, like a `.map`).
+/// `n` is already lowercased (`private_file`), so the suffix checks are case-insensitive.
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
 fn private_name(n: &str) -> bool {
     let stem_ext = |prefix: &str, exts: &[&str]| {
         n.strip_prefix(prefix)

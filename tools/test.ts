@@ -24,7 +24,9 @@ export interface Step {
 }
 
 export function monoflowBin(root: string): string | undefined {
-  return ['monoflow', 'monoflow.exe'].map((b) => join(root, '.agents', 'bin', b)).find((p) => existsSync(p));
+  // the wrapper (a sh script) everywhere but Windows, where Node can't spawn it: the binary there
+  const names = process.platform === 'win32' ? ['monoflow-bin.exe'] : ['monoflow'];
+  return names.map((b) => join(root, '.agents', 'bin', b)).find((p) => existsSync(p));
 }
 
 /** Kahn's algorithm, ties by name; packages in a cycle go last (the cycles check reports them). */

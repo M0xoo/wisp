@@ -23,7 +23,10 @@ fn get<'a>(env: &'a Env, k: &str) -> Option<&'a str> {
 }
 
 fn off_word(v: &str) -> bool {
-    matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no" | "off")
+    matches!(
+        v.to_ascii_lowercase().as_str(),
+        "0" | "false" | "no" | "off"
+    )
 }
 
 /// v1 `truthy`: set, non-empty and not 0/false/no/off.
@@ -42,12 +45,17 @@ pub fn key_of(env: &Env) -> &str {
 }
 
 pub fn host_of(env: &Env) -> String {
-    let h = get(env, "WISP_POSTHOG_HOST").filter(|h| !h.is_empty()).unwrap_or(DEFAULT_HOST);
+    let h = get(env, "WISP_POSTHOG_HOST")
+        .filter(|h| !h.is_empty())
+        .unwrap_or(DEFAULT_HOST);
     h.strip_suffix('/').unwrap_or(h).to_owned()
 }
 
 pub fn env_disabled(env: &Env) -> bool {
-    key_of(env).is_empty() || truthy(get(env, "DO_NOT_TRACK")) || falsy(get(env, "WISP_TELEMETRY")) || truthy(get(env, "CI"))
+    key_of(env).is_empty()
+        || truthy(get(env, "DO_NOT_TRACK"))
+        || falsy(get(env, "WISP_TELEMETRY"))
+        || truthy(get(env, "CI"))
 }
 
 pub fn feedback_available(env: &Env) -> bool {
@@ -77,7 +85,8 @@ pub fn batch_url(env: &Env) -> String {
 
 /// The batch request's body: `{"api_key": …, "batch": […]}`.
 pub fn batch_body(env: &Env, batch: &[serde_json::Value]) -> Vec<u8> {
-    serde_json::to_vec(&serde_json::json!({ "api_key": key_of(env), "batch": batch })).unwrap_or_default()
+    serde_json::to_vec(&serde_json::json!({ "api_key": key_of(env), "batch": batch }))
+        .unwrap_or_default()
 }
 
 /// The first-run line the edge prints once it listens.

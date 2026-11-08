@@ -55,20 +55,26 @@ jobs:
           cache: false
       - run: node tools/setup-monoflow.ts --build
 
-      # Rust crates (native/) verify through monoflow once its graph sees them (later monoflow; the
-      # pinned one lists npm workspaces only). The toolchain is on every runner; this adds clippy.
-      - if: hashFiles('native/Cargo.toml') != ''
-        uses: dtolnay/rust-toolchain@stable
+      # The Rust workspace (ADR-0013): clippy pedantic with -D warnings, every crate's tests, and cargo
+      # deny (licences, advisories, bans, sources: deny.toml). Builds share one cached target dir.
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - if: hashFiles('native/Cargo.toml') != ''
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: native
+      - uses: Swatinem/rust-cache@v2
 
       - run: npm ci --no-audit --no-fund
       - run: npm run check
       - run: npm run typecheck
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: cargo test
+        run: cargo test --workspace --locked
+      # a container action: Linux runners only (licences and advisories don't vary by OS)
+      - name: cargo deny
+        if: runner.os == 'Linux'
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
       - name: tools tests
         run: node --test --test-reporter=dot "tools/**/*.test.ts"
 

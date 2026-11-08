@@ -106,6 +106,7 @@ pub fn parse_tap(m: &PollMsg) -> Option<Signed> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::assert_is_empty)]
 mod tests {
     use super::*;
     use wisp_channels_api::ActionKind;

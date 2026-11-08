@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
 import { discover } from '../check/core/workspace.ts';
 import { affectedSet, parseImpact, scorePr, verdict, type PrScore } from '../g14.ts';
 import { markdown, readVerify } from '../monoflow-report.ts';
-import { MONOFLOW_COMMIT, strays } from '../setup-monoflow.ts';
+import { MONOFLOW_COMMIT, WRAPPER, WRAPPER_SCRIPT, strays, writeWrapper } from '../setup-monoflow.ts';
 import { dependencyOrder, plan } from '../test.ts';
 
 const roots: string[] = [];
@@ -111,4 +111,18 @@ test('setup-monoflow: the pin is a full sha; strays from monoflow init are found
   assert.match(found, /pre-push/);
   assert.match(found, /\.opencode/);
   assert.doesNotMatch(found, /post-merge/);
+});
+
+test('setup-monoflow: the wrapper refuses what rewrites a shared tree and execs the binary beside it; written once', () => {
+  for (const refused of ['"checkpoint revert"*', '"commit "*', '"outer "*', '"ship "*', '"start "*', '"sync "*', '"push "*']) assert.ok(WRAPPER_SCRIPT.includes(refused), refused);
+  assert.match(WRAPPER_SCRIPT, /^#!\/bin\/sh\n/);
+  assert.match(WRAPPER_SCRIPT, /exec "\$\(dirname "\$0"\)\/monoflow-bin" "\$@"\n$/);
+  const root = mkdtempSync(join(tmpdir(), 'wisp-mf-'));
+  try {
+    assert.equal(writeWrapper(root), true);
+    assert.equal(readFileSync(join(root, WRAPPER), 'utf8'), WRAPPER_SCRIPT);
+    assert.equal(writeWrapper(root), false, 'up to date: nothing written');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

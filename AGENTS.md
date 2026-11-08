@@ -18,9 +18,10 @@ step-by-step how-tos are in `.claude/skills/` (any agent can read them, not only
 ```sh
 npm install                      # once: links the TypeScript (UI) workspaces
 cargo build                      # the Rust workspace (one shared target dir per machine)
-npm run check                    # structure rules for both sides (layers, cycles, CSS, state, manifests, OpenAPI, sizes)
+npm run check                    # structure rules for both sides (layers, cycles, CSS, state, manifests, OpenAPI, sizes; rust-layers, -sans-io, -unsafe, -sizes, -manifests)
 npm run typecheck                # tsc strict for the UI packages
-cargo clippy --all-targets -- -D warnings
+cargo clippy --workspace --all-targets -- -D warnings
+cargo deny check                 # licences, advisories, bans, sources (deny.toml)
 npm test                         # every package and crate, through monoflow
 .agents/bin/monoflow graph impact <file>   # before changing a contract
 .agents/bin/monoflow verify --affected     # after every change: the gate

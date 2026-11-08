@@ -1,5 +1,5 @@
-//! Killing a process and everything it started, leaving 0 orphans (gate G12). Moved from
-//! native/crates/wisp-native. It polls the process table with short sleeps, so callers run it on a
+//! Killing a process and everything it started, leaving 0 orphans (gate G12). Ported from the
+//! former wisp-native helper. It polls the process table with short sleeps, so callers run it on a
 //! blocking thread (`spawn_blocking`), never on the runtime's workers.
 //!
 //! Unix: every child starts as the leader of its own process group (setsid for a PTY,

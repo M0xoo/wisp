@@ -1,0 +1,58 @@
+# cargo deny check (plan §10, AGENTS.md "Distribution"): licences, advisories, bans and sources for the
+# Rust workspace. CI runs it on every PR (.github/workflows/suite.yml). A new licence or an ignored
+# advisory is a deliberate act: add it here with the reason, in the PR that needs it.
+
+[graph]
+all-features = true
+
+[advisories]
+# RustSec: a vulnerability or an unsound crate fails the check; unmaintained crates are reported
+# for the workspace's own dependencies only
+unmaintained = "workspace"
+yanked = "deny"
+ignore = [
+  # rsa's Marvin attack leaks a *private* key through decryption/signing timing; no safe version
+  # exists. wisp-grid only verifies with public keys (RS256 ID tokens, rsa-sha256 DKIM): nothing
+  # secret is timed. Revisit if the grid ever signs or decrypts with RSA.
+  { id = "RUSTSEC-2023-0071", reason = "wisp-grid verifies RSA signatures only (public keys)" },
+  # crypto-bigint 0.5 (through p256 0.13 / elliptic-curve 0.13) isn't constant-time in places; the
+  # fix is crypto-bigint 0.7, which p256 0.13 can't take. wisp-grid only verifies ES256 signatures:
+  # every input is public. Lift with p256 0.14.
+  { id = "RUSTSEC-2026-0387", reason = "wisp-grid verifies P-256 signatures only (public inputs)" },
+]
+
+[licenses]
+# permissive only: wisp is MIT and ships as one binary
+allow = [
+  "MIT",
+  "MIT-0",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-1-Clause",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "ISC",
+  "Zlib",
+  "0BSD",
+  "CC0-1.0",
+  "Unlicense",
+  "Unicode-3.0",
+  # webpki-roots' Mozilla CA data
+  "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.9
+
+[licenses.private]
+# the workspace's own crates are publish = false
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

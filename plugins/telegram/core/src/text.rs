@@ -86,6 +86,7 @@ pub fn publish_text(msg: &Msg, about_a_task: bool) -> Vec<String> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::assert_is_empty)]
 mod tests {
     use super::*;
 
