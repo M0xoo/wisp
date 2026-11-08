@@ -85,7 +85,12 @@ Numbers use tabular figures everywhere. One family for UI (system), one mono. No
   right-aligned, tabular**. They're the same x in every row, selected or not, running or not.
 - Status and time sit on the **title line** (centred on its 20 px line box), never centred on the whole row.
 - The title truncates with an ellipsis. The preview truncates. Nothing wraps.
-- Hover and selection fill from `--inset-row` to `--inset-row`, radius 8. The text doesn't move.
+- Hover and selection fill from `--inset-row` to `--inset-row`, radius 8. **The fill never touches the pane's
+  edge**, and the text doesn't move: in every state (rest, hover, selected, focused, running, unread) the
+  text starts at `--gutter` and the time ends at `--gutter` from the right. A state changes colour only,
+  never padding, border width or font weight.
+- Nothing is clipped: the time column is never cut ("7h ag"); if space runs out, the preview and then the
+  title give way first.
 - Section headers: `--text-caption` muted, height 32, on the gutter line, `--section` above.
 
 ## 7. Content panes
@@ -112,5 +117,10 @@ At 1440, 1024, 900, 600, 390 and 320 px, in light and dark, for every screen and
 5. Status and time are vertically centred on the title's line box (± 1 px).
 6. Control heights are 20/28/32/40 (36/44 on phones).
 7. The layout rules of `design/layout.md` (no wrapped control text, bars one line, no horizontal overflow).
+8. **Every state is measured, not just rest:** each interactive element is checked at rest, hovered,
+   focused, selected/active and disabled. Its text box and its fill box must be the same as at rest
+   (± 0 px), and a fill must sit ≥ `--inset-row` inside its pane on both sides.
+9. No text is clipped except by an ellipsis (`scrollWidth > clientWidth` only where `text-overflow:
+   ellipsis` is set), and fixed columns are never clipped at all.
 
 A screen isn't done until this passes **and** the lead has looked at its screenshots next to v1's.
