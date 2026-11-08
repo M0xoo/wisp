@@ -13,10 +13,13 @@
 //! Rows live in the store (store.rs); clients watch `plugin:wisp.accounts:harnesses`.
 
 mod folders;
+mod keys;
 mod ops;
+mod routes;
 mod run;
 mod signin;
 mod store;
+mod sys;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
@@ -86,6 +89,7 @@ impl Plugin for AccountsPlugin {
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let slot: Slot = Arc::new(OnceLock::new());
         ops::register(s, &slot);
+        routes::register(s);
         let hook = slot.clone();
         // before trust (50) and the budget guard: the account and the watch decide first
         s.intercept::<BeforeRun, _, _>(InterceptOpts { priority: 20, failure: Failure::Open, timeout_ms: 2000 }, move |ctx, call, c| {

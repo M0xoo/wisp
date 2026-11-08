@@ -73,9 +73,8 @@ pub async fn status(ctx: &Ctx, st: &State, h: &dyn Harness, acc: &str) -> Result
     }
     let env = env_of(st, h, acc).await?;
     let r = st.proc.exec(&bin(l), &l.status, ExecOpts { env: Env { clear: false, set: env, remove: Vec::new() }, timeout: Some(std::time::Duration::from_secs(8)), ..ExecOpts::default() }).await;
-    let text = r.map(|r| format!("{}{}", r.stdout_text(), String::from_utf8_lossy(&r.stderr)));
-    let (text, code) = match text {
-        Ok(t) => (login::clean(&t), None),
+    let (text, code) = match r {
+        Ok(r) => (login::clean(&format!("{}{}", r.stdout_text(), String::from_utf8_lossy(&r.stderr))), r.exit.code),
         Err(e) => (e.to_string(), Some(-1)),
     };
     out.signed_in = h.signed_in(&text, code);
@@ -102,6 +101,17 @@ pub async fn status(ctx: &Ctx, st: &State, h: &dyn Harness, acc: &str) -> Result
     Ok(out)
 }
 
+/// The login's command line: under script(1) when the CLI only asks on a terminal (util-linux's flags,
+/// v1 `loginArgv`). Elsewhere as it is.
+fn argv_of(l: &HarnessLogin) -> (String, Vec<String>) {
+    if l.tty && std::env::consts::OS == "linux" {
+        let q = |s: &str| format!("'{}'", s.replace('\'', "'\\''"));
+        let line = std::iter::once(bin(l)).chain(l.args.iter().cloned()).map(|a| q(&a)).collect::<Vec<_>>().join(" ");
+        return ("script".into(), vec!["-qfec".into(), line, "/dev/null".into()]);
+    }
+    (bin(l), l.args.clone())
+}
+
 /// Starts the CLI's own login (or answers the one already going).
 #[allow(clippy::many_single_char_names, clippy::too_many_lines)] // v1 agent-login `start`, one flow
 pub async fn start(ctx: &Ctx, st: &Arc<State>, h: Arc<dyn Harness>, acc: &str) -> Result<LoginView, WireError> {
@@ -114,7 +124,8 @@ pub async fn start(ctx: &Ctx, st: &Arc<State>, h: Arc<dyn Harness>, acc: &str) -
     let mut env = env_of(st, h.as_ref(), acc).await?;
     env.extend(l.extra_env.iter().map(|(k, v)| (k.clone(), v.clone())));
     env.extend([("BROWSER", "false"), ("TERM", "dumb"), ("COLUMNS", "400")].map(|(k, v)| (k.to_owned(), v.to_owned())));
-    let child = st.proc.spawn(&bin(&l), &l.args, SpawnOpts { env: Env { clear: false, set: env, remove: Vec::new() }, ..SpawnOpts::default() }).map_err(|e| WireError::invalid(format!("Couldn’t run {}: {e}", l.bin)))?;
+    let (program, argv) = argv_of(&l);
+    let child = st.proc.spawn(&program, &argv, SpawnOpts { env: Env { clear: false, set: env, remove: Vec::new() }, ..SpawnOpts::default() }).map_err(|e| WireError::invalid(format!("Couldn’t run {}: {e}", l.bin)))?;
     let (handle, mut rx) = child.split();
     let mut v = LoginView::idle(&agent, account_key(acc));
     v.state = LoginState::Running;
@@ -181,6 +192,12 @@ async fn finish(ctx: &Ctx, st: &State, id: &str, agent: &str, acc: &str, state: 
         f.view.clone()
     };
     put(st, id.to_owned(), v).await;
+    let step = match state {
+        LoginState::Done => "done",
+        LoginState::Cancelled => "cancelled",
+        _ => "failed",
+    };
+    let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", serde_json::json!({ "event": "agent_login", "props": { "agent": agent, "step": step } })).await;
     if state == LoginState::Done {
         // the turn a sign-in card waits on runs again
         let _ = ctx.run_json(&ctx.root_call(), "runtime.signInDone", serde_json::json!({ "agent": agent, "account": account_key(acc) })).await;
@@ -226,7 +243,16 @@ pub async fn logout(ctx: &Ctx, st: &State, h: &dyn Harness, acc: &str) -> Result
         return Err(WireError::invalid(format!("{} is signed in with {k}: remove it from wisp's environment to sign out.", l.bin)));
     }
     if l.logout.is_empty() {
-        return Err(WireError::invalid(format!("{} has no sign-out command: run it in a terminal and sign out there.", l.bin)));
+        let sys = crate::sys::Sys(st.proc.clone());
+        let Some(out) = h.sign_out(&sys) else {
+            return Err(WireError::invalid(format!("{} has no sign-out command: run it in a terminal and sign out there.", l.bin)));
+        };
+        out.await?;
+        // gone from where we know to look; if the CLI still says signed in, it kept it elsewhere
+        if status(ctx, st, h, acc).await.ok().and_then(|s| s.signed_in) == Some(true) {
+            return Err(WireError::invalid(format!("{} is still signed in: run {} in a terminal and type /logout.", l.bin, l.bin)));
+        }
+        return Ok(LoginStatus { agent: h.info().id.clone(), account: account_key(acc).to_owned(), signed_in: Some(false), email: None, plan: None });
     }
     let env = env_of(st, h, acc).await?;
     let r = st.proc.exec(&bin(l), &l.logout, ExecOpts { env: Env { clear: false, set: env, remove: Vec::new() }, timeout: Some(std::time::Duration::from_secs(15)), ..ExecOpts::default() }).await.map_err(|e| WireError::invalid(e.to_string()))?;
@@ -253,4 +279,22 @@ pub async fn logout(ctx: &Ctx, st: &State, h: &dyn Harness, acc: &str) -> Result
     }
     let _ = ctx;
     Ok(LoginStatus { agent, account: account_key(acc).to_owned(), signed_in: Some(false), email: None, plan: None })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_login_that_asks_on_a_terminal_gets_one_on_linux() {
+        let l = HarnessLogin { bin: "agy".into(), bin_env: "WISP_TEST_NO_AGY_BIN".into(), args: vec!["-p".into(), "Reply with OK.".into()], tty: true, ..HarnessLogin::default() };
+        let (p, a) = argv_of(&l);
+        if std::env::consts::OS == "linux" {
+            assert_eq!((p.as_str(), a[2].as_str()), ("script", "'agy' '-p' 'Reply with OK.'"));
+        } else {
+            assert_eq!((p.as_str(), a), ("agy", vec!["-p".to_owned(), "Reply with OK.".to_owned()]));
+        }
+        assert_eq!(login_id("codex", "default"), "codex");
+        assert_eq!(login_id("codex", "w1"), "codex@w1");
+    }
 }

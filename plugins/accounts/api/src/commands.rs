@@ -151,3 +151,55 @@ command!(
     /// Settings → Agents → Ask before running a changed harness.
     SetAsk = "accounts.watch.ask" [PERM_WRITE] : AskArgs => AskArgs
 );
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "accounts/")]
+pub struct ProviderArgs {
+    pub agent: String,
+    pub provider: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "accounts/")]
+pub struct KeySetArgs {
+    pub agent: String,
+    pub provider: String,
+    pub key: String,
+}
+
+/// Did the provider take the key (one model list with it, nothing spent).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "accounts/")]
+pub struct KeyTested {
+    pub ok: bool,
+    pub message: String,
+}
+
+command!(
+    /// GET /agents/:id/keys: which providers have a key, never the key.
+    Keys = "accounts.keys" [PERM_READ] : AgentArgs => crate::model::KeysView, ro
+);
+command!(
+    /// POST /agents/:id/keys
+    KeySet = "accounts.keys.set" [crate::PERM_KEYS] : KeySetArgs => crate::model::KeysView
+);
+command!(
+    /// DELETE /agents/:id/keys/:provider
+    KeyRemove = "accounts.keys.remove" [crate::PERM_KEYS] : ProviderArgs => crate::model::KeysView
+);
+command!(
+    /// Settings → API keys → Test.
+    KeyTest = "accounts.keys.test" [PERM_READ] : ProviderArgs => KeyTested
+);
+command!(
+    /// POST /agents/install: a harness wisp can install itself (opencode), into its tools folder.
+    Install = "accounts.install" [PERM_WRITE] : AgentArgs => serde_json::Value
+);
+command!(
+    /// POST /agents/recheck: every harness detected again.
+    Recheck = "accounts.recheck" [PERM_READ] : () => serde_json::Value
+);
+command!(
+    /// A read of the account's usage windows that spends nothing (Codex's app-server); null: none.
+    Limits = "accounts.limits" [PERM_READ] : AccountArgs => serde_json::Value, ro
+);

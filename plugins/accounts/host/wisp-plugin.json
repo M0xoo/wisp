@@ -9,9 +9,11 @@
     "builtin": "wisp-accounts"
   },
   "permissions": [
+    "runtime:agents",
     "runtime:release",
     "runtime:signInDone",
-    "store:write{owner:accounts}"
+    "store:write{owner:accounts}",
+    "telemetry:track"
   ],
   "activation": [
     "onStartup"
@@ -78,6 +80,36 @@
       {
         "id": "accounts.logout",
         "title": "Sign out with the CLI's own sign-out"
+      },
+      {
+        "id": "accounts.keys",
+        "title": "Which providers have an API key",
+        "readOnly": true
+      },
+      {
+        "id": "accounts.keys.set",
+        "title": "Save a provider's API key"
+      },
+      {
+        "id": "accounts.keys.remove",
+        "title": "Remove a provider's API key"
+      },
+      {
+        "id": "accounts.keys.test",
+        "title": "Test a provider's API key"
+      },
+      {
+        "id": "accounts.install",
+        "title": "Install a harness wisp can install itself"
+      },
+      {
+        "id": "accounts.recheck",
+        "title": "Detect every harness again"
+      },
+      {
+        "id": "accounts.limits",
+        "title": "Read an account's usage windows",
+        "readOnly": true
       }
     ]
   }
