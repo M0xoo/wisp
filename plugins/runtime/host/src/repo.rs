@@ -149,6 +149,13 @@ impl Repo {
         Ok(rows.iter().filter_map(rows::summary_of).collect())
     }
 
+    /// Every task (no queue), newest first: for history queries, which read each task's spec.
+    pub async fn sessions(&self) -> Result<Vec<Session>> {
+        let q = Query::new().desc("created_at");
+        let rows = self.store.read_async(move |r| r.query("session", &q)).await?;
+        Ok(rows.into_iter().filter_map(|r| rows::session_of(r, Vec::new()).ok()).collect())
+    }
+
     /// Ids of tasks whose last turn was running when wisp stopped (crash or restart).
     pub async fn running_turns(&self) -> Result<Vec<Turn>> {
         let q = Query::new().eq("status", "running");

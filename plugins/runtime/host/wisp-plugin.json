@@ -265,11 +265,29 @@
         "id": "runtime.snapshot",
         "title": "The formula a task ran with",
         "readOnly": true
+      },
+      {
+        "id": "runtime.history",
+        "title": "Tasks by what made them",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.adopt",
+        "title": "Import a shared task, read-only"
       }
     ],
     "topics": [
       "list",
       "session:<id>"
+    ],
+    "settings": [
+      {
+        "key": "runtime.retentionDays",
+        "type": "int",
+        "default": 0,
+        "min": 0,
+        "title": "Days a finished task stays in the list before it's archived (0: always)"
+      }
     ]
   }
 }

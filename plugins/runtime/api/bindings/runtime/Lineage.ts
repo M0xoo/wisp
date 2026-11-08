@@ -11,4 +11,8 @@ workflowRun?: string,
 /**
  * the trigger or schedule that started it
  */
-triggeredBy?: string, crewJob?: string, };
+triggeredBy?: string, crewJob?: string, 
+/**
+ * the shared bundle it was made from (`wisp open`)
+ */
+sharedFrom?: string, };

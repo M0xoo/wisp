@@ -16,7 +16,7 @@ use wisp_kernel::{Result, WireError};
 use wisp_proc::{ExecOpts, Proc};
 use wisp_runtime_api::commands::StartArgs;
 use wisp_runtime_api::model::{Mode, Session, Turn};
-use wisp_runtime_api::spec::{AgentSpec, Base, Profile, Snapshot, TaskSpec};
+use wisp_runtime_api::spec::{AgentSpec, Base, HistoryArgs, HistoryRow, Profile, Snapshot, TaskSpec};
 use wisp_store::{Query, Row, Store};
 
 use crate::schema::{FORMULA, PROFILE};
@@ -250,6 +250,86 @@ pub async fn snapshot(store: &Store, hash: &str) -> Result<Snapshot> {
     Ok(Snapshot { hash: hash.to_owned(), formula: row.get("body").cloned().unwrap_or_default() })
 }
 
+/// Whether `snap`'s agent ran as one of `profiles` (same name, same spec).
+fn ran_with(snap: &Value, profiles: &[Value]) -> bool {
+    let Some(agents) = snap.get("agents").and_then(Value::as_array) else { return false };
+    agents.iter().any(|a| {
+        profiles.iter().any(|p| {
+            let same_name = p.get("name") == a.get("name");
+            let strip = |v: &Value| {
+                let mut v = v.clone();
+                if let Some(o) = v.as_object_mut() {
+                    o.remove("name");
+                    o.retain(|_, x| !(x.is_null() || x == &json!("") || x == &json!([])));
+                }
+                v
+            };
+            same_name && strip(p) == strip(a)
+        })
+    })
+}
+
+fn field<'a>(v: Option<&'a Value>, k: &str) -> Option<&'a str> {
+    v.and_then(|x| x.get(k)).and_then(Value::as_str)
+}
+
+/// `runtime.history`: every task that fits all the filters, newest first. `snapshot` reads a
+/// snapshot's formula by hash (cached per call).
+pub fn history(sessions: &[Session], costs: &std::collections::HashMap<String, f64>, a: &HistoryArgs, snapshot: &mut dyn FnMut(&str) -> Option<Value>) -> Vec<HistoryRow> {
+    let spec = |s: &Session| spec_of(s, &[]);
+    // a workflow's runs (parents), so their steps match too
+    let runs: Vec<&str> = a.workflow.as_ref().map(|w| sessions.iter().filter(|s| field(s.ext.get("wisp.workflows"), "workflow") == Some(w.as_str())).map(|s| s.id.as_str()).collect()).unwrap_or_default();
+    let mut out = Vec::new();
+    for s in sessions {
+        let sp = spec(s);
+        if let Some(x) = &a.agent
+            && sp.agent != *x
+            && s.agent != *x
+        {
+            continue;
+        }
+        if let Some(c) = &a.crew {
+            let ext = s.ext.get("wisp.crew");
+            if sp.crew.as_deref() != Some(c.as_str()) && field(ext, "id") != Some(c.as_str()) && field(ext, "name") != Some(c.as_str()) {
+                continue;
+            }
+        }
+        if a.workflow.is_some() && !runs.contains(&s.id.as_str()) && !sp.lineage.workflow_run.as_deref().is_some_and(|r| runs.contains(&r)) {
+            continue;
+        }
+        if let Some(p) = &a.project
+            && s.cwd != *p
+            && !s.cwd.ends_with(&format!("/{p}"))
+            && !sp.cwd.ends_with(&format!("/{p}"))
+        {
+            continue;
+        }
+        if a.since.is_some_and(|t| s.created_at < t) {
+            continue;
+        }
+        if !a.profiles.is_empty() && !sp.formula.as_deref().and_then(&mut *snapshot).is_some_and(|f| ran_with(&f, &a.profiles)) {
+            continue;
+        }
+        out.push(HistoryRow {
+            id: s.id.as_str().to_owned(),
+            title: s.title.clone(),
+            state: serde_json::to_value(s.state).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default(),
+            agent: if sp.agent.is_empty() { s.agent.clone() } else { sp.agent.clone() },
+            harness: s.agent.clone(),
+            cwd: s.cwd.clone(),
+            created_at: s.created_at,
+            cost_usd: costs.get(s.id.as_str()).copied(),
+            formula: sp.formula.clone(),
+            lineage: sp.lineage.clone(),
+            parent_id: s.parent_id.as_ref().map(|p| p.as_str().to_owned()),
+        });
+        if a.limit.is_some_and(|l| out.len() >= l as usize) {
+            break;
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -261,6 +341,36 @@ mod tests {
         let b: Value = serde_json::from_str(&a.to_string()).unwrap();
         assert_eq!(hash(&a), hash(&b));
         assert_ne!(hash(&a), hash(&json!({ "agents": [] })));
+    }
+
+    #[test]
+    fn history_filters_by_what_made_each_task() {
+        let mk = |id: &str, agent: &str, spec: Value, ext: Value| {
+            let mut s = Session { id: id.into(), agent: agent.into(), cwd: "/w/api".into(), created_at: 100, ..Session::default() };
+            s.ext.insert("wisp.runtime".into(), json!({ "spec": spec }));
+            if let Some(o) = ext.as_object() {
+                for (k, v) in o {
+                    s.ext.insert(k.clone(), v.clone());
+                }
+            }
+            s
+        };
+        let sessions = vec![
+            mk("run", "claude", json!({ "prompt": "wf" }), json!({ "wisp.workflows": { "workflow": "release" } })),
+            mk("a", "codex", json!({ "prompt": "x", "agent": "reviewer", "formula": "h1", "lineage": { "workflowRun": "run" } }), Value::Null),
+            mk("b", "claude", json!({ "prompt": "y", "agent": "fixer", "formula": "h2", "crew": "Ada" }), Value::Null),
+        ];
+        let snaps = |h: &str| Some(if h == "h1" { json!({ "agents": [{ "name": "reviewer", "harness": "codex", "effort": "high" }] }) } else { json!({ "agents": [{ "name": "fixer", "harness": "claude" }] }) });
+        let ids = |a: HistoryArgs| history(&sessions, &std::collections::HashMap::new(), &a, &mut |h: &str| snaps(h)).into_iter().map(|r| r.id).collect::<Vec<_>>();
+        assert_eq!(ids(HistoryArgs { agent: Some("reviewer".into()), ..HistoryArgs::default() }), ["a"]);
+        assert_eq!(ids(HistoryArgs { crew: Some("Ada".into()), ..HistoryArgs::default() }), ["b"]);
+        assert_eq!(ids(HistoryArgs { workflow: Some("release".into()), ..HistoryArgs::default() }), ["run", "a"]);
+        assert_eq!(ids(HistoryArgs { project: Some("api".into()), since: Some(50), ..HistoryArgs::default() }).len(), 3);
+        assert_eq!(ids(HistoryArgs { since: Some(200), ..HistoryArgs::default() }), Vec::<String>::new());
+        let p = vec![json!({ "name": "reviewer", "harness": "codex", "effort": "high" })];
+        assert_eq!(ids(HistoryArgs { profiles: p, ..HistoryArgs::default() }), ["a"]);
+        let changed = vec![json!({ "name": "reviewer", "harness": "codex", "effort": "low" })];
+        assert_eq!(ids(HistoryArgs { profiles: changed, ..HistoryArgs::default() }), Vec::<String>::new(), "another setup");
     }
 
     #[test]

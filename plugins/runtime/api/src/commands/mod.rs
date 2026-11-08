@@ -36,7 +36,7 @@ macro_rules! command {
 /// (`of`: the task an agent tool reads, `runtime.agent.session` / `taskState`)
 const TASK_ARGS: &[&str] = &["id", "sessionId", "session", "parentId", "from", "taskId", "of"];
 /// Its commands that answer about every task: refused to an agent's token (`wisp_kernel::scope`).
-const EVERY_TASK: Lists = Lists(&["runtime.list", "runtime.search"]);
+const EVERY_TASK: Lists = Lists(&["runtime.list", "runtime.search", "runtime.history"]);
 
 struct Lists(&'static [&'static str]);
 impl Lists {
@@ -124,6 +124,14 @@ command!(ProfileRemove = "runtime.profile.remove": crate::spec::NameArgs => Ack)
 command!(
     /// A task's spec: what was asked, from which code, under which formula, from where (ADR-0027).
     SpecOf = "runtime.spec": IdArgs => crate::spec::TaskSpec, read_only
+);
+command!(
+    /// A read-only task from shared turns (`wisp open --import`).
+    Adopt = "runtime.adopt": crate::spec::AdoptArgs => Created
+);
+command!(
+    /// Tasks by what made them: agent, crew, workflow, project, since, the profiles they ran with.
+    History = "runtime.history": crate::spec::HistoryArgs => Vec<crate::spec::HistoryRow>, read_only
 );
 command!(
     /// The effective formula a task ran with, by its hash or the task's id (ADR-0029).

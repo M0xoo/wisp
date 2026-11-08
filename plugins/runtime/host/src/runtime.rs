@@ -170,12 +170,14 @@ impl Runtime {
         self.repo
             .store
             .write(move |w| {
+                // the session first: a new task's turns point at it (a fork's, an adopted share's)
+                repo::save_session(w, &row, &sum)
+                    .map_err(|e| wisp_store::StoreError::Internal(e.to_string()))?;
                 for t in &ts {
                     repo::save_turn(w, t)
                         .map_err(|e| wisp_store::StoreError::Internal(e.to_string()))?;
                 }
-                repo::save_session(w, &row, &sum)
-                    .map_err(|e| wisp_store::StoreError::Internal(e.to_string()))
+                Ok(())
             })
             .await?;
         self.lock_list().insert(s.id.0.clone(), summary.clone());

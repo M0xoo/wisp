@@ -10,6 +10,7 @@ pub mod error;
 mod finish;
 pub mod host;
 mod importer;
+mod kinds;
 mod more;
 mod ops;
 mod plugin;

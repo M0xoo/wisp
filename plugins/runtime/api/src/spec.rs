@@ -96,6 +96,10 @@ pub struct Lineage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub crew_job: Option<String>,
+    /// the shared bundle it was made from (`wisp open`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub shared_from: Option<String>,
 }
 
 impl Lineage {
@@ -180,4 +184,89 @@ pub struct Snapshot {
 pub struct HashArgs {
     /// a snapshot's hash, or a task's id (its snapshot)
     pub of: String,
+}
+
+/// `runtime.history`: tasks by what made them (ADR-0029). Every filter is optional; they all apply.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct HistoryArgs {
+    /// the profile it was asked for, or the harness it ran on
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub agent: Option<String>,
+    /// the crew member it worked for (name or id)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub crew: Option<String>,
+    /// a workflow's name: its runs and their steps
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub workflow: Option<String>,
+    /// its folder, or a folder's last part (`api`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub project: Option<String>,
+    /// started at or after (ms)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null", optional)]
+    pub since: Option<i64>,
+    /// ran with one of these agent profiles (a formula's `agents`, each `{name, …spec}`)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<unknown>", optional)]
+    pub profiles: Vec<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub limit: Option<u32>,
+}
+
+/// One task in a history answer: what it is, what made it, where it came from.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct HistoryRow {
+    pub id: String,
+    pub title: String,
+    pub state: String,
+    /// the profile (or harness) asked for
+    pub agent: String,
+    /// the harness it ran on
+    pub harness: String,
+    pub cwd: String,
+    #[ts(type = "number")]
+    pub created_at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub cost_usd: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub formula: Option<String>,
+    #[serde(default, skip_serializing_if = "Lineage::is_empty")]
+    #[ts(as = "Option<Lineage>", optional)]
+    pub lineage: Lineage,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub parent_id: Option<String>,
+}
+
+/// `runtime.adopt`: a read-only task from someone else's turns (a `full` share imported). It can be
+/// forked to carry on.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct AdoptArgs {
+    pub title: String,
+    #[serde(default)]
+    pub agent: String,
+    #[serde(default)]
+    pub cwd: String,
+    /// its turns (runtime's `Turn`, as JSON)
+    #[ts(type = "Array<unknown>")]
+    pub turns: Vec<Value>,
+    #[serde(default)]
+    pub spec: TaskSpec,
+    /// where it came from (`{ "wisp.share": { … } }`)
+    #[serde(default)]
+    #[ts(type = "Record<string, unknown>")]
+    pub ext: serde_json::Map<String, Value>,
 }

@@ -455,6 +455,25 @@ impl Runtime {
         sent
     }
 
+    /// `runtime.adopt`: a read-only task holding someone else's turns (a `full` share); fork it to go on.
+    pub async fn adopt(self: &Arc<Self>, a: wisp_runtime_api::spec::AdoptArgs) -> Result<wisp_runtime_api::commands::Created> {
+        let now = self.now();
+        let mut s = Session { id: SessionId::new(), title: a.title, agent: a.agent, cwd: a.cwd, state: SessionState::Done, created_at: now, updated_at: now, ..Session::default() };
+        for (k, v) in a.ext {
+            s.ext.insert(k, v);
+        }
+        let spec = serde_json::to_value(&a.spec).unwrap_or_default();
+        with_slot(&mut s.ext, |m| m.insert("readOnly".into(), json!(true)));
+        with_slot(&mut s.ext, |m| m.insert("spec".into(), spec));
+        let copies: Vec<Turn> = a.turns.into_iter().filter_map(|t| serde_json::from_value::<Turn>(t).ok()).map(|t| Turn { id: TurnId::new(), session_id: s.id.clone(), ..t }).collect();
+        if copies.is_empty() {
+            return Err(RuntimeError::Invalid("a shared task to import has its turns (a full share)".into()));
+        }
+        let summary = self.persist(&mut s, copies).await?;
+        self.host.emit(crate::host::Emitted::Created(wisp_runtime_api::events::SessionCreated { session: (*summary).clone() }));
+        Ok(wisp_runtime_api::commands::Created { id: s.id, turn_id: None })
+    }
+
     /// `runtime.fork`: a new task with this one's turns up to `turn_id`, resuming a copy of its conversation.
     pub async fn fork(self: &Arc<Self>, a: ForkArgs) -> Result<wisp_runtime_api::commands::Created> {
         let src = self.repo.session(a.id.as_str()).await?;

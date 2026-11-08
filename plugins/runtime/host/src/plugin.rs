@@ -113,10 +113,38 @@ macro_rules! cmd {
     }};
 }
 
+/// How often the retention sweep looks.
+const SWEEP_MS: u64 = 6 * 60 * 60 * 1000;
+
+/// `runtime.retentionDays` (ADR-0029): a finished task untouched for that long is archived (never
+/// deleted: history is data). 0 keeps everything in the list.
+fn retention(ctx: &wisp_kernel::Ctx, slot: &Slot) {
+    let (ctx2, slot) = (ctx.clone(), slot.clone());
+    ctx.spawn(async move {
+        let Ok(clock) = ctx2.clock() else { return };
+        loop {
+            clock.sleep(60_000).await;
+            let days = ctx2.setting("runtime.retentionDays").and_then(|v| v.as_i64()).unwrap_or(0);
+            if days > 0
+                && let Ok(rt) = rt(&slot)
+                && let Ok(list) = rt.repo.summaries().await
+            {
+                let before = clock.now_ms() - days * 86_400_000;
+                let call = ctx2.root_call();
+                for s in list.iter().filter(|s| !s.archived && s.updated_at < before && !matches!(s.state, wisp_runtime_api::model::SessionState::Running | wisp_runtime_api::model::SessionState::Waiting)) {
+                    let _ = ctx2.run_json(&call, "runtime.archive", serde_json::json!({ "id": s.id, "archived": true })).await;
+                }
+            }
+            clock.sleep(SWEEP_MS).await;
+        }
+    });
+}
+
 /// Profiles, specs and snapshots (ADR-0027, ADR-0029), and the `agent` resource kind.
 fn specs(s: &mut Setup, slot: &Slot) {
     use wisp_resources_api::{CrudKind, KindInfo, RESOURCE_KIND, ResourceKind, schema_of};
     use wisp_runtime_api::spec::AgentSpec;
+    crate::kinds::register(s);
     let info = KindInfo::new("agent", "agents", "wisp.runtime", schema_of::<AgentSpec>()).order(20);
     let kind: Arc<dyn ResourceKind> = Arc::new(CrudKind::new::<AgentSpec>(info, s.ctx(), "runtime.profiles", "runtime.profile.set", "runtime.profile.set", "runtime.profile.remove").keyed("name", "name", "name"));
     s.contribute(&RESOURCE_KIND, kind);
@@ -134,6 +162,29 @@ fn specs(s: &mut Setup, slot: &Slot) {
             let s = rt.repo.session(a.id.as_str()).await.map_err(WireError::from)?;
             let turns = rt.repo.turns(a.id.as_str(), None, None).await.map_err(WireError::from)?;
             Ok(crate::specs::spec_of(&s, &turns))
+        }
+    });
+    let hi = slot.clone();
+    s.command::<c::History, _, _>(move |ctx, _, a| {
+        let slot = hi.clone();
+        async move {
+            let rt = rt(&slot)?;
+            let store = ctx.service::<Store>()?;
+            let sessions = rt.repo.sessions().await.map_err(WireError::from)?;
+            let costs: std::collections::HashMap<String, f64> = rt.repo.summaries().await.map_err(WireError::from)?.into_iter().filter_map(|s| s.cost_usd.map(|c| (s.id.as_str().to_owned(), c))).collect();
+            // the snapshots the profile filter needs, read once each
+            let mut snaps: std::collections::HashMap<String, Option<serde_json::Value>> = std::collections::HashMap::new();
+            if !a.profiles.is_empty() {
+                for s in &sessions {
+                    if let Some(h) = crate::specs::spec_of(s, &[]).formula
+                        && !snaps.contains_key(&h)
+                    {
+                        let f = crate::specs::snapshot(&store, &h).await.ok().map(|x| x.formula);
+                        snaps.insert(h, f);
+                    }
+                }
+            }
+            Ok(crate::specs::history(&sessions, &costs, &a, &mut |h: &str| snaps.get(h).cloned().flatten()))
         }
     });
     let sn = slot.clone();
@@ -227,6 +278,7 @@ fn more(s: &mut Setup, slot: &Slot) {
     cmd!(s, slot, c::Compact, |r, call, a| r.compact(&a.id).await);
     cmd!(s, slot, c::Rerun, |r, call, a| r.rerun(a).await);
     cmd!(s, slot, c::Fork, |r, call, a| r.fork(a).await);
+    cmd!(s, slot, c::Adopt, |r, call, a| r.adopt(a).await);
     cmd!(s, slot, c::Delegate, |r, call, a| r.delegate(a).await);
     cmd!(s, slot, c::Results, |r, call, a| r.results(a).await);
     cmd!(s, slot, c::Quick, |r, call, a| r.quick(a).await);
@@ -375,6 +427,7 @@ impl Plugin for RuntimePlugin {
             }
             runtime.start().await.map_err(WireError::from)?;
             let _ = slot.set(runtime);
+            retention(&ctx, &slot);
             Ok(())
         });
         Ok(())
