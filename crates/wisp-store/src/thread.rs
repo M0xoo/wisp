@@ -219,6 +219,20 @@ impl Store {
         self.thread.queued(move |s| transact(s, f)).await
     }
 
+    /// `write`, submitted now and not waited for: the writer thread runs writes in the order they were
+    /// submitted, so a later `write` that is awaited finds this one committed. For callers that must
+    /// not block or await (the kernel's settings backend). Additive (2026-11-08).
+    pub fn write_detached<F>(&self, f: F)
+    where
+        F: FnOnce(&mut Writer<'_>) -> Result<()> + Send + 'static,
+    {
+        let _ = self.thread.submit(Box::new(move |s| {
+            if let Err(e) = transact(s, f) {
+                tracing::warn!(error = %e, "a detached write failed");
+            }
+        }));
+    }
+
     /// `write` for startup, imports and tests: blocks the calling thread until it commits. Refused on the
     /// writer thread (inside a listener), where it would wait for itself.
     pub fn write_blocking<T, F>(&self, f: F) -> Result<T>
