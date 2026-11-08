@@ -161,6 +161,59 @@ pub async fn run_file(c: &Client, o: &Opts, cwd: &Path) -> Result<i32> {
     Ok(0)
 }
 
+/// The sections a task reads from its overlay (the rest is only meaningful applied).
+const OVERLAY: [(&str, &str); 6] = [("agent", "agents"), ("project", "projects"), ("harness", "harnesses"), ("skill", "skills"), ("team", "teams"), ("connector", "connectors")];
+
+/// `runtime.create`'s overlay from loaded resources: `{agents: [{name, …}], …}`, and what it leaves out.
+pub fn overlay_of(resources: &[wisp_resources_api::Resource]) -> (Value, Vec<String>) {
+    let mut out = Map::new();
+    let mut left = Vec::new();
+    for r in resources {
+        let Some((_, section)) = OVERLAY.iter().find(|(k, _)| *k == r.kind) else {
+            left.push(format!("{}/{}", r.kind, r.name));
+            continue;
+        };
+        let mut spec = r.spec.as_object().cloned().unwrap_or_default();
+        spec.insert("name".into(), json!(r.name));
+        if let Value::Array(list) = out.entry((*section).to_owned()).or_insert_with(|| json!([])) {
+            list.push(Value::Object(spec));
+        }
+    }
+    (Value::Object(out), left)
+}
+
+/// `wisp run --formula f.yml "task"`: one task under the formula as an overlay. Its agents, projects,
+/// harnesses, skills, teams and connectors are that task's alone: nothing is applied or kept (the task's
+/// snapshot records what it ran with). No `--agent` and one agent declared: that one.
+pub async fn run_overlay(c: &Client, o: &Opts, cwd: &Path) -> Result<i32> {
+    let st = crate::cli::style();
+    let kinds = crate::code::kinds(c).await?;
+    let loaded = crate::code::load(&o.formulas, &o.profiles, &kinds, cwd)?;
+    let (overlay, left) = overlay_of(&loaded.resources);
+    let prompt = o.words.join(" ");
+    if prompt.trim().is_empty() {
+        return Err(CliError::said("wisp run --formula f.yml \"what to do\""));
+    }
+    let mut spec = json!({ "prompt": prompt, "cwd": cwd.display().to_string() });
+    let agents = overlay.get("agents").and_then(Value::as_array).cloned().unwrap_or_default();
+    if !o.over.contains_key("agent")
+        && let [one] = agents.as_slice()
+    {
+        spec["agent"] = one["name"].clone();
+    }
+    let made = c.cmd("runtime.create", start_args(&spec, o, None, Some(overlay))).await?;
+    if !left.is_empty() {
+        say(&format!("  {}", paint(&st, DIM, &format!("not for one task (wisp apply -f to keep them): {}", left.join(", ")))));
+    }
+    let id = s(&made, "id").to_owned();
+    say(&format!("  {} started {id} under {}  wisp attach {id}", paint(&st, GREEN, "◌"), o.formulas.join(", ")));
+    if o.wait {
+        let t = crate::attach::until(c, &id, |s| !matches!(s.get("state").and_then(Value::as_str), Some("running") | None)).await?;
+        say(&format!("  {}  {id}", s(&t, "state")));
+    }
+    Ok(0)
+}
+
 /// One rerun of `id`'s spec, under `formula` (a file) or as it ran (its snapshot).
 async fn rerun_one(c: &Client, id: &str, formula: Option<&String>, o: &Opts, cwd: &Path) -> Result<std::result::Result<String, String>> {
     let spec = c.cmd("runtime.spec", json!({ "id": id })).await?;
