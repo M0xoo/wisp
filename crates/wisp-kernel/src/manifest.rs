@@ -33,7 +33,7 @@ pub struct Manifest {
     pub provides: BTreeMap<String, Value>,
     #[serde(default)]
     pub permissions: Vec<String>,
-    /// {"builtin": "<crate>"} or {"exec": ["bin", "args"]}
+    /// `{"builtin": "<crate>"}` or `{"exec": ["bin", "args"]}`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server: Option<Value>,
     #[serde(default)]
@@ -118,12 +118,12 @@ impl SettingDecl {
                 .then(|| format!("must be one of {}", values.join(", ")))
             }
             "int" => {
-                let Some(n) = value
-                    .as_i64()
-                    .map(|n| n as f64)
-                    .or_else(|| value.as_u64().map(|n| n as f64))
-                else {
-                    return Some("must be a whole number".to_owned());
+                // a whole number: ints only, as JSON parsed them
+                #[allow(clippy::cast_precision_loss)]
+                let n = match (value.as_i64(), value.as_u64()) {
+                    (Some(n), _) => n as f64,
+                    (None, Some(n)) => n as f64,
+                    _ => return Some("must be a whole number".to_owned()),
                 };
                 if let Some(lo) = self.min.filter(|lo| n < *lo) {
                     return Some(format!("must be at least {lo}"));

@@ -65,7 +65,7 @@ pub struct Flags {
     pub open: bool,
     pub browser: bool,
     pub port: u16,
-    /// --port was on the command line (not just WISP_PORT): scripted commands then skip discovery
+    /// --port was on the command line (not just `WISP_PORT)`: scripted commands then skip discovery
     pub port_given: bool,
     pub host: Option<String>,
     pub mode: Option<String>,
@@ -154,6 +154,8 @@ pub struct Parsed {
     pub action: Action,
     pub flags: Flags,
     pub words: Vec<String>,
+    /// read by the tests and kept for callers that need to know a task was forced with `--`
+    #[allow(dead_code)]
     pub literal: Literal,
     pub command: Option<&'static str>,
     /// the arguments with every `--flag=value` split in two (the grid parses its own from these)

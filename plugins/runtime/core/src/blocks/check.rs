@@ -14,9 +14,35 @@ use super::parse::{PARSER_VERSION, parse};
 
 /// The block types the protocol prompt documents, plus what wisp writes itself.
 pub const BUILTIN_BLOCKS: &[&str] = &[
-    "hero", "markdown", "steps", "stats", "files", "diff", "tests", "commits", "graph", "tree", "code", "compare", "flow",
-    "chart", "terminal", "checklist", "callout", "image", "video", "preview", "map", "doc", "task", "stuff", "question",
-    "blocked", "actions", "next", "app",
+    "hero",
+    "markdown",
+    "steps",
+    "stats",
+    "files",
+    "diff",
+    "tests",
+    "commits",
+    "graph",
+    "tree",
+    "code",
+    "compare",
+    "flow",
+    "chart",
+    "terminal",
+    "checklist",
+    "callout",
+    "image",
+    "video",
+    "preview",
+    "map",
+    "doc",
+    "task",
+    "stuff",
+    "question",
+    "blocked",
+    "actions",
+    "next",
+    "app",
 ];
 
 const STATUS: &[&str] = &["done", "partial", "blocked", "info"];
@@ -32,7 +58,11 @@ pub fn check(blocks: Vec<Value>, contributed: &[Arc<dyn BlockType>]) -> (Vec<Val
     let mut problems = Vec::new();
     let mut kept = Vec::with_capacity(blocks.len());
     for (i, block) in blocks.into_iter().enumerate() {
-        let ty = block.get("type").and_then(Value::as_str).unwrap_or("undefined").to_owned();
+        let ty = block
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or("undefined")
+            .to_owned();
         if let Some(own) = contributed.iter().rev().find(|c| c.type_name() == ty) {
             let Value::Object(mut map) = block else {
                 problems.push(format!("block {i} ({ty}) dropped: not an object"));
@@ -53,7 +83,9 @@ pub fn check(blocks: Vec<Value>, contributed: &[Arc<dyn BlockType>]) -> (Vec<Val
             && let Some(status) = block.get("status").map(js::string)
             && !STATUS.contains(&status.as_str())
         {
-            problems.push(format!("block {i} (hero): status \"{status}\" is none of done, partial, blocked, info"));
+            problems.push(format!(
+                "block {i} (hero): status \"{status}\" is none of done, partial, blocked, info"
+            ));
         }
         kept.push(block);
     }
@@ -64,5 +96,12 @@ pub fn check(blocks: Vec<Value>, contributed: &[Arc<dyn BlockType>]) -> (Vec<Val
 pub fn presentation(text: &str, contributed: &[Arc<dyn BlockType>]) -> Presentation {
     let parsed = parse(text);
     let (blocks, dropped) = check(parsed.blocks, contributed);
-    Presentation { blocks, v: PARSER_VERSION, dropped, topic: parsed.topic, notes: parsed.notes, fallback: parsed.fallback }
+    Presentation {
+        blocks,
+        v: PARSER_VERSION,
+        dropped,
+        topic: parsed.topic,
+        notes: parsed.notes,
+        fallback: parsed.fallback,
+    }
 }

@@ -11,9 +11,37 @@ publish.workspace = true
 name = "wisp"
 path = "src/main.rs"
 
+[features]
+# Every plugin host crate this build compiles in (crates/wisp/src/groups.rs). Leave one out to drop it.
+default = ["proc", "git", "worktrees", "ship", "review", "issues", "machine"]
+proc = ["dep:wisp-proc"]
+git = ["dep:wisp-git"]
+worktrees = ["dep:wisp-worktrees"]
+ship = ["dep:wisp-ship"]
+review = ["dep:wisp-review"]
+issues = ["dep:wisp-issues"]
+machine = ["dep:wisp-machine"]
+
 [dependencies]
 wisp-kernel.workspace = true
 wisp-api.workspace = true
+wisp-protocol.workspace = true
+wisp-proc = { workspace = true, optional = true }
+wisp-git = { path = "../../plugins/git/host", optional = true }
+wisp-worktrees = { path = "../../plugins/worktrees/host", optional = true }
+wisp-ship = { path = "../../plugins/ship/host", optional = true }
+wisp-review = { path = "../../plugins/review/host", optional = true }
+wisp-issues = { path = "../../plugins/issues/host", optional = true }
+wisp-machine = { path = "../../plugins/machine/host", optional = true }
+rand.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 [lints]
 workspace = true

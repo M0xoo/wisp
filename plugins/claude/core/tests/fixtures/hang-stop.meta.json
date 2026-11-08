@@ -1,0 +1,20 @@
+{
+  "exit": {
+    "code": null,
+    "signal": "SIGTERM",
+    "stderr": ""
+  },
+  "opts": {},
+  "stopAfter": 3,
+  "argv": [
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--append-system-prompt",
+    "# You are running inside wisp\nAnswer with a ```wisp block.\n",
+    "--permission-mode",
+    "acceptEdits",
+    "--chrome",
+    "--verbose"
+  ]
+}

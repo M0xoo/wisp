@@ -51,11 +51,17 @@ impl Inner {
         if let Some((_, v)) = self.locks.get(key) {
             return Some(v.clone());
         }
-        self.values.get(key).cloned().or_else(|| self.decls.get(key).and_then(|(_, d)| d.default.clone()))
+        self.values
+            .get(key)
+            .cloned()
+            .or_else(|| self.decls.get(key).and_then(|(_, d)| d.default.clone()))
     }
     fn fire(&self, key: &str) -> Vec<(Watcher, Option<Value>)> {
         let v = self.get(key);
-        self.watchers.get(key).map(|ws| ws.iter().map(|(_, _, f)| (f.clone(), v.clone())).collect()).unwrap_or_default()
+        self.watchers
+            .get(key)
+            .map(|ws| ws.iter().map(|(_, _, f)| (f.clone(), v.clone())).collect())
+            .unwrap_or_default()
     }
 }
 
@@ -72,7 +78,9 @@ fn call_all(fired: Vec<(Watcher, Option<Value>)>) {
 
 impl Settings {
     fn lock(&self) -> Result<std::sync::MutexGuard<'_, Inner>> {
-        self.inner.lock().map_err(|_| WireError::internal("settings lock poisoned"))
+        self.inner
+            .lock()
+            .map_err(|_| WireError::internal("settings lock poisoned"))
     }
 
     pub(crate) fn load(&self, backend: Option<&dyn SettingsBackend>) {
@@ -91,7 +99,10 @@ impl Settings {
         let mut i = self.lock()?;
         for d in &decls {
             if let Some((o, _)) = i.decls.get(&d.key).filter(|(o, _)| o != owner) {
-                return Err(WireError::conflict(format!("{} is already declared by {o}", d.key)));
+                return Err(WireError::conflict(format!(
+                    "{} is already declared by {o}",
+                    d.key
+                )));
             }
         }
         for d in decls {
@@ -110,9 +121,15 @@ impl Settings {
     pub(crate) fn lock_by(&self, by: &str, key: &str, value: Value) -> Result<()> {
         let fired = {
             let mut i = self.lock()?;
-            let Some((owner, decl)) = i.decls.get(key) else { return Err(WireError::not_found(format!("{by} sets {key}, which no plugin declares"))) };
+            let Some((owner, decl)) = i.decls.get(key) else {
+                return Err(WireError::not_found(format!(
+                    "{by} sets {key}, which no plugin declares"
+                )));
+            };
             if !decl.overridable {
-                return Err(WireError::forbidden(format!("{by} can't set {key}: {owner} doesn't let other plugins set it")));
+                return Err(WireError::forbidden(format!(
+                    "{by} can't set {key}: {owner} doesn't let other plugins set it"
+                )));
             }
             if let Some(why) = decl.problem(&value) {
                 return Err(WireError::invalid(format!("{by} sets {key}: {why}")));
@@ -127,7 +144,11 @@ impl Settings {
             }
             let before = i.get(key);
             i.locks.insert(key.to_owned(), (by.to_owned(), value));
-            if before == i.get(key) { Vec::new() } else { i.fire(key) }
+            if before == i.get(key) {
+                Vec::new()
+            } else {
+                i.fire(key)
+            }
         };
         call_all(fired);
         Ok(())
@@ -141,7 +162,12 @@ impl Settings {
                 ws.retain(|(o, _, _)| o != by);
             }
             i.watchers.retain(|_, ws| !ws.is_empty());
-            let keys: Vec<String> = i.locks.iter().filter(|(_, (o, _))| o == by).map(|(k, _)| k.clone()).collect();
+            let keys: Vec<String> = i
+                .locks
+                .iter()
+                .filter(|(_, (o, _))| o == by)
+                .map(|(k, _)| k.clone())
+                .collect();
             let mut fired = Vec::new();
             for k in keys {
                 let before = i.get(&k);
@@ -160,10 +186,20 @@ impl Settings {
     }
 
     /// The user's (or a command's) write. `None` resets it to the default.
-    pub(crate) fn set(&self, key: &str, value: Option<Value>, backend: Option<&dyn SettingsBackend>) -> Result<()> {
+    #[allow(clippy::needless_pass_by_value)] // the caller gives the value up
+    pub(crate) fn set(
+        &self,
+        key: &str,
+        value: Option<Value>,
+        backend: Option<&dyn SettingsBackend>,
+    ) -> Result<()> {
         let (fired, device) = {
             let mut i = self.lock()?;
-            let Some((_, decl)) = i.decls.get(key) else { return Err(WireError::not_found(format!("no plugin declares the setting {key}"))) };
+            let Some((_, decl)) = i.decls.get(key) else {
+                return Err(WireError::not_found(format!(
+                    "no plugin declares the setting {key}"
+                )));
+            };
             if let Some((by, _)) = i.locks.get(key) {
                 return Err(WireError::conflict(format!("{key} is locked by {by}")));
             }
@@ -176,7 +212,14 @@ impl Settings {
                 Some(v) => i.values.insert(key.to_owned(), v.clone()),
                 None => i.values.remove(key),
             };
-            (if before == i.get(key) { Vec::new() } else { i.fire(key) }, device)
+            (
+                if before == i.get(key) {
+                    Vec::new()
+                } else {
+                    i.fire(key)
+                },
+                device,
+            )
         };
         if let Some(b) = backend {
             b.save(key, value.as_ref(), device);
@@ -189,12 +232,20 @@ impl Settings {
         let Ok(mut i) = self.lock() else { return 0 };
         i.next += 1;
         let id = i.next;
-        i.watchers.entry(key.to_owned()).or_default().push((owner.to_owned(), id, f));
+        i.watchers
+            .entry(key.to_owned())
+            .or_default()
+            .push((owner.to_owned(), id, f));
         id
     }
 
     pub(crate) fn watchers_of(&self, owner: &str) -> usize {
-        self.lock().map(|i| i.watchers.values().map(|ws| ws.iter().filter(|(o, _, _)| o == owner).count()).sum()).unwrap_or(0)
+        self.lock().map_or(0, |i| {
+            i.watchers
+                .values()
+                .map(|ws| ws.iter().filter(|(o, _, _)| o == owner).count())
+                .sum()
+        })
     }
 
     pub(crate) fn info(&self, key: &str) -> Option<SettingInfo> {
@@ -211,7 +262,10 @@ impl Settings {
     }
 
     pub(crate) fn list(&self) -> Vec<SettingInfo> {
-        let mut keys: Vec<String> = self.lock().map(|i| i.decls.keys().cloned().collect()).unwrap_or_default();
+        let mut keys: Vec<String> = self
+            .lock()
+            .map(|i| i.decls.keys().cloned().collect())
+            .unwrap_or_default();
         keys.sort();
         keys.iter().filter_map(|k| self.info(k)).collect()
     }

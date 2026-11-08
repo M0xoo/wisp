@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::activate::{add_command, add_hook, add_sub};
 use crate::events::{Payload, SubFn};
@@ -31,7 +31,13 @@ use rpc::{Peer, Reply};
 /// `App::service(Arc::new(MySpawner) as Arc<dyn ExecSpawner>)`.
 pub trait ExecSpawner: Send + Sync + 'static {
     /// stdin, stdout and stderr piped; the child dies with the handle (`kill_on_drop`).
-    fn spawn(&self, program: &Path, args: &[String], cwd: Option<&Path>, env: &[(String, String)]) -> std::io::Result<tokio::process::Child>;
+    fn spawn(
+        &self,
+        program: &Path,
+        args: &[String],
+        cwd: Option<&Path>,
+        env: &[(String, String)],
+    ) -> std::io::Result<tokio::process::Child>;
 }
 
 #[derive(Debug, Clone)]
@@ -46,7 +52,12 @@ pub struct ExecOptions {
 
 impl Default for ExecOptions {
     fn default() -> Self {
-        Self { restart_base_ms: 1000, max_restarts: 5, init_timeout_ms: 10_000, env: Vec::new() }
+        Self {
+            restart_base_ms: 1000,
+            max_restarts: 5,
+            init_timeout_ms: 10_000,
+            env: Vec::new(),
+        }
     }
 }
 
@@ -61,7 +72,11 @@ pub struct ExecPlugin {
 
 impl ExecPlugin {
     pub fn new(manifest: Manifest, root: Option<PathBuf>) -> Self {
-        Self { manifest, root, opts: ExecOptions::default() }
+        Self {
+            manifest,
+            root,
+            opts: ExecOptions::default(),
+        }
     }
     #[must_use]
     pub fn with_options(mut self, opts: ExecOptions) -> Self {
@@ -81,9 +96,19 @@ impl Plugin for ExecPlugin {
     }
 }
 
-fn default_spawn(program: &Path, args: &[String], cwd: Option<&Path>, env: &[(String, String)]) -> std::io::Result<tokio::process::Child> {
+fn default_spawn(
+    program: &Path,
+    args: &[String],
+    cwd: Option<&Path>,
+    env: &[(String, String)],
+) -> std::io::Result<tokio::process::Child> {
     let mut c = tokio::process::Command::new(program);
-    c.args(args).envs(env.iter().cloned()).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).kill_on_drop(true);
+    c.args(args)
+        .envs(env.iter().cloned())
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true);
     if let Some(d) = cwd {
         c.current_dir(d);
     }
@@ -93,9 +118,13 @@ fn default_spawn(program: &Path, args: &[String], cwd: Option<&Path>, env: &[(St
 async fn start(ctx: Ctx, m: Manifest, root: Option<PathBuf>, opts: ExecOptions) -> Result<()> {
     let k = ctx.k()?;
     let id = m.id.clone();
-    let argv = m.exec().filter(|a| !a.is_empty()).ok_or_else(|| WireError::invalid(format!("{id} has no exec command")))?;
+    let argv = m
+        .exec()
+        .filter(|a| !a.is_empty())
+        .ok_or_else(|| WireError::invalid(format!("{id} has no exec command")))?;
     let mut program = PathBuf::from(&argv[0]);
-    if program.is_relative() && argv[0].contains('/')
+    if program.is_relative()
+        && argv[0].contains('/')
         && let Some(r) = &root
     {
         program = r.join(program);
@@ -106,23 +135,47 @@ async fn start(ctx: Ctx, m: Manifest, root: Option<PathBuf>, opts: ExecOptions) 
         Some(s) => s.spawn(&program, &argv[1..], root.as_deref(), &env),
         None => default_spawn(&program, &argv[1..], root.as_deref(), &env),
     };
-    let mut child = spawned.map_err(|e| WireError::unavailable(format!("{id}: can't start {}: {e}", program.display())))?;
-    let (Some(stdin), Some(stdout)) = (child.stdin.take(), child.stdout.take()) else { return Err(WireError::internal(format!("{id}: the child has no stdio"))) };
-    let bridge = Arc::new(Bridge { ctx: ctx.clone(), k: Arc::downgrade(&k), calls: Mutex::default(), n: AtomicU64::new(0), peer: OnceLock::new() });
+    let mut child = spawned.map_err(|e| {
+        WireError::unavailable(format!("{id}: can't start {}: {e}", program.display()))
+    })?;
+    let (Some(stdin), Some(stdout)) = (child.stdin.take(), child.stdout.take()) else {
+        return Err(WireError::internal(format!("{id}: the child has no stdio")));
+    };
+    let bridge = Arc::new(Bridge {
+        ctx: ctx.clone(),
+        k: Arc::downgrade(&k),
+        calls: Mutex::default(),
+        n: AtomicU64::new(0),
+        peer: OnceLock::new(),
+    });
     let b = bridge.clone();
-    let peer = Peer::start(stdout, stdin, Arc::new(move |method: &str, p: Value| b.handle(method, p)), ctx.scope().child_token());
+    let peer = Peer::start(
+        stdout,
+        stdin,
+        Arc::new(move |method: &str, p: Value| b.handle(method, p)),
+        ctx.scope().child_token(),
+    );
     let _ = bridge.peer.set(peer.clone());
     if let Some(err) = child.stderr.take() {
         ctx.spawn(log_stderr(id.clone(), err));
     }
     supervise(&k, &ctx, child, peer.clone(), &opts);
-    let settings: serde_json::Map<String, Value> = m.settings().into_iter().map(|d| (d.key.clone(), ctx.setting(&d.key).unwrap_or(Value::Null))).collect();
+    let settings: serde_json::Map<String, Value> = m
+        .settings()
+        .into_iter()
+        .map(|d| (d.key.clone(), ctx.setting(&d.key).unwrap_or(Value::Null)))
+        .collect();
     for key in settings.keys() {
         let (p, key2) = (peer.clone(), key.clone());
-        ctx.watch_setting(key, move |v| p.notify("settings.changed", json!({ "key": key2, "value": v })));
+        ctx.watch_setting(key, move |v| {
+            p.notify("settings.changed", json!({ "key": key2, "value": v }));
+        });
     }
     let manifest = serde_json::to_value(&m).unwrap_or(Value::Null);
-    let init = peer.request("initialize", json!({ "id": id, "manifest": manifest, "settings": settings }));
+    let init = peer.request(
+        "initialize",
+        json!({ "id": id, "manifest": manifest, "settings": settings }),
+    );
     let ms = opts.init_timeout_ms;
     let r = tokio::select! {
         r = init => r.map(|_| ()),
@@ -144,16 +197,30 @@ async fn log_stderr(id: String, err: tokio::process::ChildStderr) {
 
 /// Waits on the child: a death while the plugin is on is a crash (off with the reason, restart with a
 /// backoff); the plugin going off kills it.
-fn supervise(k: &Arc<KernelState>, ctx: &Ctx, mut child: tokio::process::Child, peer: Arc<Peer>, opts: &ExecOptions) {
-    let (weak, scope, id, base, max) = (Arc::downgrade(k), ctx.scope().clone(), ctx.plugin().to_owned(), opts.restart_base_ms, opts.max_restarts);
+fn supervise(
+    k: &Arc<KernelState>,
+    ctx: &Ctx,
+    mut child: tokio::process::Child,
+    peer: Arc<Peer>,
+    opts: &ExecOptions,
+) {
+    let (weak, scope, id, base, max) = (
+        Arc::downgrade(k),
+        ctx.scope().clone(),
+        ctx.plugin().to_owned(),
+        opts.restart_base_ms,
+        opts.max_restarts,
+    );
     tokio::spawn(async move {
         tokio::select! {
             status = child.wait() => {
                 let how = status.map_or_else(|e| format!("failed: {e}"), |s| s.code().map_or_else(|| "was killed".to_owned(), |c| format!("exited (code {c})")));
                 let why = format!("{id}'s process {how}");
                 peer.close(&why);
-                if !scope.is_cancelled() && let Some(k) = weak.upgrade() {
-                    crate::life::crashed(&k, &id, why, base, max);
+                // a death before `initialize` answered is a failed start, handled there
+                let live = |k: &KernelState| k.lock_plugins().ok().and_then(|ps| ps.phase(&id)) == Some(crate::life::Phase::Active);
+                if !scope.is_cancelled() && let Some(k) = weak.upgrade() && live(&k) {
+                    crate::life::crashed(&k, &id, &why, base, max);
                 }
             }
             () = scope.cancelled() => {
@@ -174,7 +241,10 @@ struct Bridge {
 }
 
 fn s(p: &Value, k: &str) -> String {
-    p.get(k).and_then(Value::as_str).unwrap_or_default().to_owned()
+    p.get(k)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned()
 }
 
 fn trace(c: &Call) -> Value {
@@ -184,7 +254,9 @@ fn trace(c: &Call) -> Value {
 
 impl Bridge {
     fn k(&self) -> Result<Arc<KernelState>> {
-        self.k.upgrade().ok_or_else(|| WireError::unavailable("the kernel has stopped"))
+        self.k
+            .upgrade()
+            .ok_or_else(|| WireError::unavailable("the kernel has stopped"))
     }
 
     /// Forwards a call into the child; the token lets it run nested commands inside this trace.
@@ -210,6 +282,7 @@ impl Bridge {
         self.calls.lock().ok()?.get(t).cloned()
     }
 
+    #[allow(clippy::needless_pass_by_value)] // the rpc handler hands over each message's params
     fn handle(self: &Arc<Self>, method: &str, p: Value) -> Reply {
         let k = match self.k() {
             Ok(k) => k,
@@ -219,29 +292,57 @@ impl Bridge {
         match method {
             "command.register" => now(self.command(&k, &p)),
             "intercept.register" => now(self.intercept(&k, &p)),
-            "on" => now(self.on(&k, &p)),
+            "on" => {
+                self.on(&k, &p);
+                now(Ok(()))
+            }
             "emit" => {
                 let call = self.live(&p).unwrap_or_else(|| self.ctx.root_call());
-                crate::dispatch::emit(&self.ctx, &call, &s(&p, "type"), Payload::Json(Arc::new(p.get("data").cloned().unwrap_or(Value::Null))));
+                crate::dispatch::emit(
+                    &self.ctx,
+                    &call,
+                    &s(&p, "type"),
+                    Payload::Json(Arc::new(p.get("data").cloned().unwrap_or(Value::Null))),
+                );
                 now(Ok(()))
             }
             "contribute" => {
                 let item = p.get("item").cloned().unwrap_or(Value::Null);
-                let version = p.get("version").and_then(Value::as_u64).and_then(|v| u32::try_from(v).ok()).unwrap_or(1);
-                let e = PointEntry { owner: self.ctx.inner.id.clone(), version, item: Arc::new(item.clone()), json: Some(item) };
+                let version = p
+                    .get("version")
+                    .and_then(Value::as_u64)
+                    .and_then(|v| u32::try_from(v).ok())
+                    .unwrap_or(1);
+                let e = PointEntry {
+                    owner: self.ctx.inner.id.clone(),
+                    version,
+                    item: Arc::new(item.clone()),
+                    json: Some(item),
+                };
                 now(k.write_reg().map(|mut r| r.add_point(&s(&p, "point"), e)))
             }
             "run" => {
-                let (ctx, parent) = (self.ctx.clone(), self.live(&p).unwrap_or_else(|| self.ctx.root_call()));
+                let (ctx, parent) = (
+                    self.ctx.clone(),
+                    self.live(&p).unwrap_or_else(|| self.ctx.root_call()),
+                );
                 let (cmd, args) = (s(&p, "cmd"), p.get("args").cloned().unwrap_or(Value::Null));
-                Reply::Later(Box::pin(async move { crate::dispatch::json(&k, Some(ctx), &parent, &cmd, args).await }))
+                Reply::Later(Box::pin(async move {
+                    crate::dispatch::json(&k, Some(ctx), &parent, &cmd, args).await
+                }))
             }
             "hook" => {
-                let Some(call) = self.live(&p) else { return Reply::Now(Err(WireError::invalid("a hook runs inside a call"))) };
+                let Some(call) = self.live(&p) else {
+                    return Reply::Now(Err(WireError::invalid("a hook runs inside a call")));
+                };
                 let (hook, v) = (s(&p, "hook"), p.get("ctx").cloned().unwrap_or(Value::Null));
-                Reply::Later(Box::pin(async move { crate::hooks::json(&k, &call, &hook, v).await }))
+                Reply::Later(Box::pin(async move {
+                    crate::hooks::json(&k, &call, &hook, v).await
+                }))
             }
-            "settings.get" => Reply::Now(Ok(self.ctx.setting(&s(&p, "key")).unwrap_or(Value::Null))),
+            "settings.get" => {
+                Reply::Now(Ok(self.ctx.setting(&s(&p, "key")).unwrap_or(Value::Null)))
+            }
             "log" => {
                 let (msg, plugin) = (s(&p, "msg"), self.ctx.plugin());
                 match p.get("level").and_then(Value::as_str) {
@@ -261,45 +362,89 @@ impl Bridge {
         let (b, cid) = (self.clone(), id.clone());
         let json: CmdFn = Arc::new(move |_ctx, call, args| {
             let (b, cid) = (b.clone(), cid.clone());
-            Box::pin(async move { b.into(call, "command.run", json!({ "id": cid, "args": args })).await })
+            Box::pin(async move {
+                b.into(call, "command.run", json!({ "id": cid, "args": args }))
+                    .await
+            })
         });
-        let permission = p.get("permission").and_then(Value::as_str).map(str::to_owned);
-        add_command(k, &self.ctx, CmdReg { id, permission, read_only: p.get("readOnly") == Some(&Value::Bool(true)), json, typed: None })
+        let permission = p
+            .get("permission")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        add_command(
+            k,
+            &self.ctx,
+            CmdReg {
+                id,
+                permission,
+                read_only: p.get("readOnly") == Some(&Value::Bool(true)),
+                json,
+                typed: None,
+            },
+        )
     }
 
+    #[allow(clippy::many_single_char_names)]
     fn intercept(self: &Arc<Self>, k: &KernelState, p: &Value) -> Result<()> {
         let n = p.get("n").cloned().unwrap_or(Value::Null);
         let b = self.clone();
         let json: HookFn = Arc::new(move |_ctx, call, v| {
             let (b, n) = (b.clone(), n.clone());
             Box::pin(async move {
-                let out = b.into(call, "intercept.run", json!({ "n": n, "ctx": v })).await?;
-                serde_json::from_value::<Verdict<Value>>(out).map_err(|e| WireError::invalid(format!("not a verdict: {e}")))
+                let out = b
+                    .into(call, "intercept.run", json!({ "n": n, "ctx": v }))
+                    .await?;
+                serde_json::from_value::<Verdict<Value>>(out)
+                    .map_err(|e| WireError::invalid(format!("not a verdict: {e}")))
             })
         });
         let d = InterceptOpts::default();
         let opts = InterceptOpts {
-            priority: p.get("priority").and_then(Value::as_i64).and_then(|x| i32::try_from(x).ok()).unwrap_or(d.priority),
-            failure: if p.get("failure").and_then(Value::as_str) == Some("closed") { Failure::Closed } else { Failure::Open },
-            timeout_ms: p.get("timeoutMs").and_then(Value::as_u64).unwrap_or(d.timeout_ms),
+            priority: p
+                .get("priority")
+                .and_then(Value::as_i64)
+                .and_then(|x| i32::try_from(x).ok())
+                .unwrap_or(d.priority),
+            failure: if p.get("failure").and_then(Value::as_str) == Some("closed") {
+                Failure::Closed
+            } else {
+                Failure::Open
+            },
+            timeout_ms: p
+                .get("timeoutMs")
+                .and_then(Value::as_u64)
+                .unwrap_or(d.timeout_ms),
         };
-        add_hook(k, &self.ctx, HookReg { hook: s(p, "hook"), opts, json, typed: None })
+        add_hook(
+            k,
+            &self.ctx,
+            HookReg {
+                hook: s(p, "hook"),
+                opts,
+                json,
+                typed: None,
+            },
+        )
     }
 
-    fn on(self: &Arc<Self>, k: &Arc<KernelState>, p: &Value) -> Result<()> {
+    #[allow(clippy::many_single_char_names)]
+    fn on(self: &Arc<Self>, k: &Arc<KernelState>, p: &Value) {
         let n = p.get("n").cloned().unwrap_or(Value::Null);
         let b = self.clone();
         let f: SubFn = Arc::new(move |_ctx, env| {
             let (b, n) = (b.clone(), n.clone());
             Box::pin(async move {
-                let e = serde_json::to_value(&*env).map_err(|e| WireError::internal(e.to_string()))?;
+                let e =
+                    serde_json::to_value(&*env).map_err(|e| WireError::internal(e.to_string()))?;
                 match b.peer.get() {
-                    Some(peer) => peer.request("event", json!({ "n": n, "e": e })).await.map(|_| ()),
+                    Some(peer) => peer
+                        .request("event", json!({ "n": n, "e": e }))
+                        .await
+                        .map(|_| ()),
                     None => Err(WireError::unavailable("no child")),
                 }
             })
         });
         add_sub(k, &self.ctx, s(p, "type"), f);
-        Ok(())
     }
 }

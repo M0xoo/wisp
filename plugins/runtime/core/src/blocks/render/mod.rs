@@ -14,6 +14,9 @@ use wisp_runtime_api::model::{Activity, FileChange, Session, Turn, TurnStatus};
 
 use super::js;
 
+/// A contributed block type's summary template, by type.
+pub type SummaryFn = dyn Fn(&str) -> Option<String>;
+
 /// What a block may read besides itself: the turn it belongs to, and the contributed block types.
 #[derive(Clone, Copy, Default)]
 pub struct Context<'a> {
@@ -22,7 +25,7 @@ pub struct Context<'a> {
     /// what the user decided about the turn's blocked actions ("allowed"), shown on `blocked`
     pub approval: Option<&'a str>,
     /// a contributed block type's text stand-in: its summary template ("{title}: {count} rows")
-    pub summary: Option<&'a dyn Fn(&str) -> Option<String>>,
+    pub summary: Option<&'a SummaryFn>,
 }
 
 impl fmt::Debug for Context<'_> {
@@ -97,7 +100,11 @@ impl<'a> Fields<'a> {
 
     /// `${x.k ? `<pre>${x.k}<post>` : ''}`
     pub(crate) fn opt(self, k: &str, pre: &str, post: &str) -> String {
-        if self.has(k) { format!("{pre}{}{post}", self.s(k)) } else { String::new() }
+        if self.has(k) {
+            format!("{pre}{}{post}", self.s(k))
+        } else {
+            String::new()
+        }
     }
 }
 
@@ -168,7 +175,9 @@ fn fill_fields(tpl: &str, b: &Value) -> String {
     while let Some(open) = rest.find('{') {
         out.push_str(&rest[..open]);
         let after = &rest[open + 1..];
-        let path_len = after.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '.')).unwrap_or(after.len());
+        let path_len = after
+            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '.'))
+            .unwrap_or(after.len());
         let starts_ok = after.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_');
         if starts_ok && after[path_len..].starts_with('}') {
             out.push_str(&js::str_of(lookup(b, &after[..path_len]).as_ref()));
@@ -191,7 +200,9 @@ fn lookup(b: &Value, path: &str) -> Option<Value> {
             Value::Array(a) if k == "length" => Value::from(a.len()),
             Value::Array(a) => a.get(index(k)?)?.clone(),
             Value::String(s) if k == "length" => Value::from(s.encode_utf16().count()),
-            Value::String(s) => Value::String(char::from_u32(u32::from(s.encode_utf16().nth(index(k)?)?))?.to_string()),
+            Value::String(s) => Value::String(
+                char::from_u32(u32::from(s.encode_utf16().nth(index(k)?)?))?.to_string(),
+            ),
             _ => return None,
         };
     }
@@ -200,7 +211,9 @@ fn lookup(b: &Value, path: &str) -> Option<Value> {
 
 /// A canonical array index ("0", "12"; not "01" or "+1").
 fn index(k: &str) -> Option<usize> {
-    (k == "0" || (!k.starts_with('0') && k.bytes().all(|b| b.is_ascii_digit()))).then(|| k.parse().ok()).flatten()
+    (k == "0" || (!k.starts_with('0') && k.bytes().all(|b| b.is_ascii_digit())))
+        .then(|| k.parse().ok())
+        .flatten()
 }
 
 /// v1's `sessionToMarkdown(session)`: the newest turn's presentation (or what a running one is doing),
@@ -226,11 +239,24 @@ pub fn session_to_markdown(_session: &Session, turns: &[Turn], view: &SessionVie
         out.push(blocks_to_markdown(&p.blocks, &view.cx));
     }
     if let Some(ask) = view.ask {
-        let who = if ask.permission { "🔒 The agent needs your approval" } else { "❓ The agent is waiting for your answer" };
-        let context = ask.context.filter(|c| !c.is_empty()).map(|c| format!("\n\n{c}")).unwrap_or_default();
+        let who = if ask.permission {
+            "🔒 The agent needs your approval"
+        } else {
+            "❓ The agent is waiting for your answer"
+        };
+        let context = ask
+            .context
+            .filter(|c| !c.is_empty())
+            .map(|c| format!("\n\n{c}"))
+            .unwrap_or_default();
         out.push(format!("**{who}:** {}{context}", ask.question));
         if !ask.options.is_empty() {
-            let lines: Vec<String> = ask.options.iter().enumerate().map(|(i, x)| format!("{}. {x}", i + 1)).collect();
+            let lines: Vec<String> = ask
+                .options
+                .iter()
+                .enumerate()
+                .map(|(i, x)| format!("{}. {x}", i + 1))
+                .collect();
             out.push(lines.join("\n"));
         }
     }

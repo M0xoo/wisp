@@ -350,12 +350,6 @@ impl Registry {
         }
     }
 
-    pub(crate) fn remove(&self, id: &str) {
-        if let Ok(mut m) = self.sets.write() {
-            m.remove(id);
-        }
-    }
-
     pub(crate) fn get(&self, id: &str) -> Option<Arc<Compiled>> {
         if let Some(c) = self.sets.read().ok().and_then(|m| m.get(id).cloned()) {
             return Some(c);

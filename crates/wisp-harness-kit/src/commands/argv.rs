@@ -40,12 +40,16 @@ impl Desc {
 /// for "nothing to say", e.g. a bare `cat` that isn't piped).
 pub(super) type Known = Option<Option<Desc>>;
 
+// The table answers are Options by design: None is "not my command".
+#[allow(clippy::unnecessary_wraps)]
 pub(super) fn say(text: impl Into<String>) -> Known {
     Some(Some(Desc::strong(text)))
 }
+#[allow(clippy::unnecessary_wraps)]
 pub(super) fn say_weak(text: impl Into<String>) -> Known {
     Some(Some(Desc::weak(text)))
 }
+#[allow(clippy::unnecessary_wraps)]
 pub(super) const fn silent() -> Known {
     Some(None)
 }
@@ -55,7 +59,6 @@ pub(super) const fn silent() -> Known {
 pub(super) struct Ctx<'a> {
     /// The command's base name (`/usr/bin/git` → `git`).
     pub cmd: &'a str,
-    pub argv: &'a [String],
     pub args: &'a [String],
     /// The file a `<` redirect reads (v1 tested it for truthiness, so `''` counts as none).
     pub input: Option<&'a str>,
@@ -93,7 +96,10 @@ pub(super) fn basename(p: &str) -> &str {
 fn takes_value(a: &str) -> bool {
     matches!(
         a.as_bytes(),
-        [b'-', b'n' | b'A' | b'B' | b'C' | b'm' | b'd' | b'e' | b'o' | b'I' | b't' | b'L' | b'X']
+        [
+            b'-',
+            b'n' | b'A' | b'B' | b'C' | b'm' | b'd' | b'e' | b'o' | b'I' | b't' | b'L' | b'X'
+        ]
     )
 }
 
@@ -108,7 +114,11 @@ pub(super) fn operands<S: AsRef<str>>(args: &[S]) -> Vec<&str> {
             break;
         }
         if a.starts_with('-') {
-            if takes_value(a) && args.get(i + 1).is_some_and(|n| !n.as_ref().starts_with('-')) {
+            if takes_value(a)
+                && args
+                    .get(i + 1)
+                    .is_some_and(|n| !n.as_ref().starts_with('-'))
+            {
                 i += 1;
             }
         } else {
@@ -121,7 +131,10 @@ pub(super) fn operands<S: AsRef<str>>(args: &[S]) -> Vec<&str> {
 
 /// Drop leading flags (and --flag=value) so the subcommand comes first.
 pub(super) fn strip_flags<S: AsRef<str>>(args: &[S]) -> &[S] {
-    let n = args.iter().take_while(|a| a.as_ref().starts_with('-')).count();
+    let n = args
+        .iter()
+        .take_while(|a| a.as_ref().starts_with('-'))
+        .count();
     &args[n..]
 }
 
@@ -191,7 +204,8 @@ pub(super) fn short(p: &str, paths: &RunPaths) -> String {
 pub(super) fn listed(files: &[&str], paths: &RunPaths) -> String {
     let mut out = shown(files, paths);
     if files.len() > 2 {
-        out.push_str(&format!(" +{}", files.len() - 2));
+        out.push_str(" +");
+        out.push_str(&(files.len() - 2).to_string());
     }
     out
 }
@@ -206,11 +220,6 @@ pub(super) fn shown(files: &[&str], paths: &RunPaths) -> String {
         .join(", ")
 }
 
-/// `s || fallback`
-pub(super) fn or<'a>(s: &'a str, fallback: &'a str) -> &'a str {
-    if s.is_empty() { fallback } else { s }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -221,7 +230,10 @@ mod tests {
 
     #[test]
     fn operands_skip_flag_values() {
-        assert_eq!(operands(&v(&["-n", "20", "a.js", "--", "-x"])), ["a.js", "-x"]);
+        assert_eq!(
+            operands(&v(&["-n", "20", "a.js", "--", "-x"])),
+            ["a.js", "-x"]
+        );
         assert_eq!(operands(&v(&["-n", "-v", "a"])), ["a"]);
     }
 

@@ -11,20 +11,14 @@ use serde_json::Value;
 pub(crate) fn is_ws(c: char) -> bool {
     matches!(
         c,
-        '\t' | '\n'
-            | '\u{b}'
-            | '\u{c}'
-            | '\r'
-            | ' '
-            | '\u{a0}'
-            | '\u{1680}'
-            | '\u{2000}'..='\u{200a}'
-            | '\u{2028}'
-            | '\u{2029}'
-            | '\u{202f}'
-            | '\u{205f}'
-            | '\u{3000}'
-            | '\u{feff}'
+        '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200a}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202f}'
+                | '\u{205f}'
+                | '\u{3000}'
+                | '\u{feff}'
     )
 }
 
@@ -38,7 +32,10 @@ pub(crate) fn trim_end(s: &str) -> &str {
 
 /// The byte index of the first char at or after `from` that is not `\s` (`s.len()` when none).
 pub(crate) fn skip_ws(s: &str, from: usize) -> usize {
-    s[from..].char_indices().find(|&(_, c)| !is_ws(c)).map_or(s.len(), |(k, _)| from + k)
+    s[from..]
+        .char_indices()
+        .find(|&(_, c)| !is_ws(c))
+        .map_or(s.len(), |(k, _)| from + k)
 }
 
 /// `if (v)`; `None` is `undefined`.
@@ -66,6 +63,7 @@ pub(crate) fn nullish<'a>(a: Option<&'a Value>, b: Option<&'a Value>) -> Option<
 }
 
 /// `a === b`, with objects and arrays equal only to themselves.
+#[allow(clippy::many_single_char_names)] // JavaScript's `a === b`, as the spec names it
 pub(crate) fn strict_eq(a: Option<&Value>, b: Option<&Value>) -> bool {
     match (a, b) {
         (None, None) => true,
@@ -74,7 +72,9 @@ pub(crate) fn strict_eq(a: Option<&Value>, b: Option<&Value>) -> bool {
             (Value::Bool(p), Value::Bool(q)) => p == q,
             (Value::Number(p), Value::Number(q)) => p.as_f64() == q.as_f64(),
             (Value::String(p), Value::String(q)) => p == q,
-            (Value::Array(_), Value::Array(_)) | (Value::Object(_), Value::Object(_)) => std::ptr::eq(x, y),
+            (Value::Array(_), Value::Array(_)) | (Value::Object(_), Value::Object(_)) => {
+                std::ptr::eq(x, y)
+            }
             _ => false,
         },
         _ => false,
@@ -117,7 +117,7 @@ pub(crate) fn tpl(v: Option<&Value>) -> String {
     v.map_or_else(|| "undefined".to_owned(), string)
 }
 
-/// `Number.prototype.toString()` (ECMA-262 Number::toString, radix 10).
+/// `Number.prototype.toString()` (ECMA-262 `Number::toString`, radix 10).
 pub(crate) fn number(x: f64) -> String {
     if x.is_nan() {
         return "NaN".to_owned();
@@ -146,8 +146,12 @@ pub(crate) fn number(x: f64) -> String {
     } else if -6 < n && n <= 0 {
         format!("0.{}{digits}", zeros(-n))
     } else {
-        let sign = if n - 1 >= 0 { '+' } else { '-' };
-        let rest = if digits.len() > 1 { format!(".{}", &digits[1..]) } else { String::new() };
+        let sign = if n > 0 { '+' } else { '-' };
+        let rest = if digits.len() > 1 {
+            format!(".{}", &digits[1..])
+        } else {
+            String::new()
+        };
         format!("{}{rest}e{sign}{}", &digits[..1], (n - 1).abs())
     }
 }
@@ -164,7 +168,7 @@ pub(crate) fn to_number(v: Option<&Value>) -> f64 {
     }
 }
 
-/// `Number(s)` for a string (StringToNumber).
+/// `Number(s)` for a string (`StringToNumber`).
 pub(crate) fn str_to_number(s: &str) -> f64 {
     let t = trim(s);
     if t.is_empty() {
@@ -175,7 +179,14 @@ pub(crate) fn str_to_number(s: &str) -> f64 {
         "-Infinity" => return f64::NEG_INFINITY,
         _ => {}
     }
-    for (prefix, radix) in [("0x", 16), ("0X", 16), ("0o", 8), ("0O", 8), ("0b", 2), ("0B", 2)] {
+    for (prefix, radix) in [
+        ("0x", 16),
+        ("0X", 16),
+        ("0o", 8),
+        ("0O", 8),
+        ("0b", 2),
+        ("0B", 2),
+    ] {
         if let Some(rest) = t.strip_prefix(prefix) {
             return radix_number(rest, radix);
         }
@@ -186,8 +197,13 @@ pub(crate) fn str_to_number(s: &str) -> f64 {
         && mant.chars().all(|c| c.is_ascii_digit() || c == '.')
         && mant.matches('.').count() <= 1;
     let exp_digits = exp.strip_prefix(['+', '-']).unwrap_or(exp);
-    let exp_ok = !body.contains(['e', 'E']) || (!exp_digits.is_empty() && exp_digits.chars().all(|c| c.is_ascii_digit()));
-    if mant_ok && exp_ok { t.parse::<f64>().unwrap_or(f64::NAN) } else { f64::NAN }
+    let exp_ok = !body.contains(['e', 'E'])
+        || (!exp_digits.is_empty() && exp_digits.chars().all(|c| c.is_ascii_digit()));
+    if mant_ok && exp_ok {
+        t.parse::<f64>().unwrap_or(f64::NAN)
+    } else {
+        f64::NAN
+    }
 }
 
 fn radix_number(digits: &str, radix: u32) -> f64 {
@@ -234,10 +250,15 @@ pub(crate) fn to_fixed(x: f64, digits: usize) -> String {
     }
     let split = kept.len() - digits;
     let s: String = kept.iter().map(|&b| char::from(b)).collect();
-    if digits == 0 { s } else { format!("{}.{}", &s[..split], &s[split..]) }
+    if digits == 0 {
+        s
+    } else {
+        format!("{}.{}", &s[..split], &s[split..])
+    }
 }
 
-/// `JSON.stringify(v, null, 2)`
+/// `JSON.stringify(v, null, 2)`. JavaScript keeps an object's keys in the author's order; `serde_json`'s
+/// map sorts them, so a block's `type` (which agents write first) is put first and the rest sorted.
 pub(crate) fn stringify_pretty(v: &Value) -> String {
     let mut out = String::new();
     write_json(&mut out, v, 0);
@@ -250,7 +271,11 @@ fn write_json(out: &mut String, v: &Value, depth: usize) {
         Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
         Value::Number(n) => {
             let x = n.as_f64().unwrap_or(f64::NAN);
-            out.push_str(&if x.is_finite() { number(x) } else { "null".to_owned() });
+            out.push_str(&if x.is_finite() {
+                number(x)
+            } else {
+                "null".to_owned()
+            });
         }
         Value::String(s) => quote(out, s),
         Value::Array(a) if a.is_empty() => out.push_str("[]"),
@@ -268,7 +293,13 @@ fn write_json(out: &mut String, v: &Value, depth: usize) {
         }
         Value::Object(o) => {
             out.push('{');
-            for (i, (k, x)) in o.iter().enumerate() {
+            let typed = o.get("type").map(|t| ("type", t));
+            let keys = typed.into_iter().chain(
+                o.iter()
+                    .filter(|(k, _)| k.as_str() != "type")
+                    .map(|(k, x)| (k.as_str(), x)),
+            );
+            for (i, (k, x)) in keys.enumerate() {
                 out.push_str(if i > 0 { ",\n" } else { "\n" });
                 indent(out, depth + 1);
                 quote(out, k);

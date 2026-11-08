@@ -18,20 +18,14 @@ pub(crate) use js_s;
 pub(crate) fn is_js_space(c: char) -> bool {
     matches!(
         c,
-        '\t' | '\n'
-            | '\u{0B}'
-            | '\u{0C}'
-            | '\r'
-            | ' '
-            | '\u{A0}'
-            | '\u{1680}'
-            | '\u{2000}'..='\u{200A}'
-            | '\u{2028}'
-            | '\u{2029}'
-            | '\u{202F}'
-            | '\u{205F}'
-            | '\u{3000}'
-            | '\u{FEFF}'
+        '\t' | '\n' | '\u{0B}' | '\u{0C}' | '\r' | ' ' | '\u{A0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200A}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202F}'
+                | '\u{205F}'
+                | '\u{3000}'
+                | '\u{FEFF}'
     )
 }
 
@@ -120,11 +114,16 @@ pub(crate) struct Re {
 
 impl Re {
     pub(crate) const fn new(pattern: &'static str) -> Self {
-        Self { pattern, cell: OnceLock::new() }
+        Self {
+            pattern,
+            cell: OnceLock::new(),
+        }
     }
 
     pub(crate) fn get(&self) -> Option<&Regex> {
-        self.cell.get_or_init(|| Regex::new(self.pattern).ok()).as_ref()
+        self.cell
+            .get_or_init(|| Regex::new(self.pattern).ok())
+            .as_ref()
     }
 
     pub(crate) fn is_match(&self, s: &str) -> bool {

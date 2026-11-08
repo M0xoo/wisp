@@ -15,8 +15,12 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use wisp_kernel::{Event, Point};
 
-pub use cron::{Cron, CronError, FixedOffset, Utc, Zone, matches, next_run, parse_cron, read_schedule};
-pub use model::{Delivery, Held, MemberRef, Origin, Recipe, RecipeFrom, RecipeView, TriggerBase, TriggerView};
+pub use cron::{
+    Cron, CronError, FixedOffset, Utc, Zone, matches, next_run, parse_cron, read_schedule,
+};
+pub use model::{
+    Delivery, Held, MemberRef, Origin, Recipe, RecipeFrom, RecipeView, TriggerBase, TriggerView,
+};
 pub use words::to_cron;
 
 /// The plugin id (manifest `id`), also the ext slot on tasks a trigger or recipe started: `{origin}`.
@@ -24,7 +28,9 @@ pub const PLUGIN_ID: &str = "wisp.automations";
 pub const EXT: &str = PLUGIN_ID;
 
 /// Every trigger kind.
-pub const TRIGGER_KINDS: [&str; 8] = ["schedule", "ci", "issues", "finished", "done", "webhook", "slack", "linear"];
+pub const TRIGGER_KINDS: [&str; 8] = [
+    "schedule", "ci", "issues", "finished", "done", "webhook", "slack", "linear",
+];
 /// Triggers that start when an outside service calls their secret URL.
 pub const HOOK_KINDS: [&str; 3] = ["webhook", "slack", "linear"];
 /// Triggers that fire from a task's events.

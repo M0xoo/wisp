@@ -18,8 +18,15 @@ use crate::writer::Writer;
 /// One buffered write, as the error callback sees it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Buffered {
-    Append { kind: String, rows: Vec<Row> },
-    Patch { kind: String, id: Id, ops: Vec<PatchOp> },
+    Append {
+        kind: String,
+        rows: Vec<Row>,
+    },
+    Patch {
+        kind: String,
+        id: Id,
+        ops: Vec<PatchOp>,
+    },
 }
 
 pub type OnError = Arc<dyn Fn(&StoreError, &Buffered) + Send + Sync>;
@@ -32,13 +39,20 @@ pub struct CoalescerOptions {
 
 impl Default for CoalescerOptions {
     fn default() -> Self {
-        Self { interval_ms: 250, on_error: Arc::new(|e, item| tracing::warn!(error = %e, ?item, "a coalesced write was refused")) }
+        Self {
+            interval_ms: 250,
+            on_error: Arc::new(
+                |e, item| tracing::warn!(error = %e, ?item, "a coalesced write was refused"),
+            ),
+        }
     }
 }
 
 impl std::fmt::Debug for CoalescerOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CoalescerOptions").field("interval_ms", &self.interval_ms).finish_non_exhaustive()
+        f.debug_struct("CoalescerOptions")
+            .field("interval_ms", &self.interval_ms)
+            .finish_non_exhaustive()
     }
 }
 
@@ -70,14 +84,24 @@ pub struct Coalescer {
 
 impl std::fmt::Debug for Coalescer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Coalescer").field("buffered", &self.len()).finish_non_exhaustive()
+        f.debug_struct("Coalescer")
+            .field("buffered", &self.len())
+            .finish_non_exhaustive()
     }
 }
 
 impl Coalescer {
     pub fn new(store: &Store, opts: CoalescerOptions) -> Self {
         let runtime = tokio::runtime::Handle::try_current().ok();
-        Self { inner: Arc::new(Inner { store: store.clone(), opts, buf: Mutex::new(Buf::default()), flushing: tokio::sync::Mutex::new(()), runtime }) }
+        Self {
+            inner: Arc::new(Inner {
+                store: store.clone(),
+                opts,
+                buf: Mutex::new(Buf::default()),
+                flushing: tokio::sync::Mutex::new(()),
+                runtime,
+            }),
+        }
     }
 
     /// rows (patches per row, append batches per kind) waiting to commit
@@ -92,10 +116,18 @@ impl Coalescer {
         if rows.is_empty() {
             return Ok(());
         }
-        self.buffer((false, kind.to_owned(), String::new()), rows, |item, rows| match item {
-            Buffered::Append { rows: had, .. } => had.extend(rows),
-            Buffered::Patch { .. } => {}
-        }, |rows| Buffered::Append { kind: kind.to_owned(), rows })
+        self.buffer(
+            (false, kind.to_owned(), String::new()),
+            rows,
+            |item, rows| match item {
+                Buffered::Append { rows: had, .. } => had.extend(rows),
+                Buffered::Patch { .. } => {}
+            },
+            |rows| Buffered::Append {
+                kind: kind.to_owned(),
+                rows,
+            },
+        )
     }
 
     /// Ops for one row; later ops apply after earlier ones, and the change feed gets the net diff.
@@ -104,31 +136,47 @@ impl Coalescer {
             return Ok(());
         }
         let id = id.into();
-        self.buffer((true, kind.to_owned(), id.to_string()), ops, |item, ops| match item {
-            Buffered::Patch { ops: had, .. } => had.extend(ops),
-            Buffered::Append { .. } => {}
-        }, |ops| Buffered::Patch { kind: kind.to_owned(), id, ops })
+        self.buffer(
+            (true, kind.to_owned(), id.to_string()),
+            ops,
+            |item, ops| match item {
+                Buffered::Patch { ops: had, .. } => had.extend(ops),
+                Buffered::Append { .. } => {}
+            },
+            |ops| Buffered::Patch {
+                kind: kind.to_owned(),
+                id,
+                ops,
+            },
+        )
     }
 
-    fn buffer<V>(&self, key: (bool, String, String), v: V, merge: impl FnOnce(&mut Buffered, V), make: impl FnOnce(V) -> Buffered) -> Result<()> {
+    fn buffer<V>(
+        &self,
+        key: (bool, String, String),
+        v: V,
+        merge: impl FnOnce(&mut Buffered, V),
+        make: impl FnOnce(V) -> Buffered,
+    ) -> Result<()> {
         let mut b = self.lock();
         if b.closed {
             return Err(StoreError::Invalid("this coalescer was closed".into()));
         }
-        match b.index.get(&key).copied() {
-            Some(i) => merge(&mut b.items[i], v),
-            None => {
-                let i = b.items.len();
-                b.items.push(make(v));
-                b.index.insert(key, i);
-            }
+        if let Some(i) = b.index.get(&key).copied() {
+            merge(&mut b.items[i], v);
+        } else {
+            let i = b.items.len();
+            b.items.push(make(v));
+            b.index.insert(key, i);
         }
         self.arm(&mut b);
         Ok(())
     }
 
     fn arm(&self, b: &mut Buf) {
-        let Some(rt) = self.inner.runtime.as_ref().filter(|_| b.armed.is_none()) else { return };
+        let Some(rt) = self.inner.runtime.as_ref().filter(|_| b.armed.is_none()) else {
+            return;
+        };
         b.generation += 1;
         let generation = b.generation;
         b.armed = Some(generation);
@@ -161,7 +209,13 @@ impl Coalescer {
             return;
         }
         let all = batch.clone();
-        if self.inner.store.write(move |w| all.iter().try_for_each(|item| write(w, item))).await.is_ok() {
+        if self
+            .inner
+            .store
+            .write(move |w| all.iter().try_for_each(|item| write(w, item)))
+            .await
+            .is_ok()
+        {
             return;
         }
         for item in batch {
@@ -179,7 +233,10 @@ impl Coalescer {
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Buf> {
-        self.inner.buf.lock().unwrap_or_else(PoisonError::into_inner)
+        self.inner
+            .buf
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 }
 

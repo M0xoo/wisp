@@ -19,3 +19,11 @@ uuid.workspace = true
 
 [lints]
 workspace = true
+
+# The exec tier's test child (tests/exec.rs): not shipped, never published.
+[[bin]]
+name = "wisp-kernel-exec-echo"
+path = "tests/fixtures/exec_echo.rs"
+test = false
+doc = false
+bench = false

@@ -161,7 +161,7 @@ mod tests {
         let mut t = Tracker::new();
         match run(&mut t, "n.js", Some("x"), None) {
             Some(HarnessEvent::Change(c)) => {
-                assert_eq!((c.op.as_str(), c.before_file), ("create", Some(None)))
+                assert_eq!((c.op.as_str(), c.before_file), ("create", Some(None)));
             }
             other => assert!(other.is_some(), "a change"),
         }

@@ -6,9 +6,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use ts_rs::TS;
 
-use crate::model::{Activity, Attachment, Ext, Mode, Presentation, QueueItem, SearchHit, Session, SessionState, Step, Summary, Turn};
-use crate::{SessionId, TurnId};
 use super::RunPick;
+use crate::model::{Activity, Attachment, Ext, SessionState};
+use crate::{SessionId, TurnId};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -332,4 +332,3 @@ pub struct PresentationArgs {
     #[ts(optional)]
     pub turn: Option<u32>,
 }
-

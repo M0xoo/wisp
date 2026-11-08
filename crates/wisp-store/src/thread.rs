@@ -32,14 +32,22 @@ pub(crate) struct WriterThread {
 
 impl std::fmt::Debug for WriterThread {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("WriterThread").field("id", &self.id).finish_non_exhaustive()
+        f.debug_struct("WriterThread")
+            .field("id", &self.id)
+            .finish_non_exhaustive()
     }
 }
 
 /// Inside a write closure, reads go through the `Writer` (they see its uncommitted rows, and the store's
 /// own read path could wait on the writer it is running on).
 pub(crate) fn refuse_inside_write() -> Result<()> {
-    if IN_WRITE.get() { Err(invalid("inside a write closure, read through the Writer (w.get, w.query)")) } else { Ok(()) }
+    if IN_WRITE.get() {
+        Err(invalid(
+            "inside a write closure, read through the Writer (w.get, w.query)",
+        ))
+    } else {
+        Ok(())
+    }
 }
 
 pub(crate) fn call_listener(f: impl FnOnce()) {
@@ -51,24 +59,38 @@ pub(crate) fn call_listener(f: impl FnOnce()) {
 impl WriterThread {
     pub fn start(shared: Arc<Shared>) -> Result<Self> {
         let (tx, rx) = mpsc::channel::<Job>();
-        let handle = std::thread::Builder::new().name("wisp-store-writer".into()).spawn(move || {
-            ON_WRITER.set(true);
-            while let Ok(job) = rx.recv() {
-                job(&shared);
-            }
-        })?;
+        let handle = std::thread::Builder::new()
+            .name("wisp-store-writer".into())
+            .spawn(move || {
+                ON_WRITER.set(true);
+                while let Ok(job) = rx.recv() {
+                    job(&shared);
+                }
+            })?;
         let id = handle.thread().id();
-        Ok(Self { tx: Mutex::new(Some(tx)), handle: Mutex::new(Some(handle)), id })
+        Ok(Self {
+            tx: Mutex::new(Some(tx)),
+            handle: Mutex::new(Some(handle)),
+            id,
+        })
     }
 
     fn submit(&self, job: Job) -> Result<()> {
         let tx = self.tx.lock().unwrap_or_else(PoisonError::into_inner);
-        tx.as_ref().ok_or(StoreError::Closed)?.send(job).map_err(|_| StoreError::Closed)
+        tx.as_ref()
+            .ok_or(StoreError::Closed)?
+            .send(job)
+            .map_err(|_| StoreError::Closed)
     }
 
-    fn blocking<T: Send + 'static>(&self, work: impl FnOnce(&Arc<Shared>) -> Result<T> + Send + 'static) -> Result<T> {
+    fn blocking<T: Send + 'static>(
+        &self,
+        work: impl FnOnce(&Arc<Shared>) -> Result<T> + Send + 'static,
+    ) -> Result<T> {
         if ON_WRITER.get() {
-            return Err(invalid("a blocking store call on the writer thread would wait for itself: hand the work to a task"));
+            return Err(invalid(
+                "a blocking store call on the writer thread would wait for itself: hand the work to a task",
+            ));
         }
         let (tx, rx) = mpsc::sync_channel(1);
         self.submit(Box::new(move |s| {
@@ -77,7 +99,10 @@ impl WriterThread {
         rx.recv().map_err(|_| StoreError::Closed)?
     }
 
-    async fn queued<T: Send + 'static>(&self, work: impl FnOnce(&Arc<Shared>) -> Result<T> + Send + 'static) -> Result<T> {
+    async fn queued<T: Send + 'static>(
+        &self,
+        work: impl FnOnce(&Arc<Shared>) -> Result<T> + Send + 'static,
+    ) -> Result<T> {
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.submit(Box::new(move |s| {
             let _ = tx.send(work(s));
@@ -86,20 +111,34 @@ impl WriterThread {
     }
 
     /// The writer connection outside a transaction (migrations, meta, prune), blocking the caller.
-    pub fn run_raw<T: Send + 'static>(&self, f: impl FnOnce(&Connection) -> Result<T> + Send + 'static) -> Result<T> {
+    pub fn run_raw<T: Send + 'static>(
+        &self,
+        f: impl FnOnce(&Connection) -> Result<T> + Send + 'static,
+    ) -> Result<T> {
         self.blocking(move |s| f(&lock(&s.writer)))
     }
 
-    pub async fn run_raw_async<T: Send + 'static>(&self, f: impl FnOnce(&Connection) -> Result<T> + Send + 'static) -> Result<T> {
+    pub async fn run_raw_async<T: Send + 'static>(
+        &self,
+        f: impl FnOnce(&Connection) -> Result<T> + Send + 'static,
+    ) -> Result<T> {
         self.queued(move |s| f(&lock(&s.writer))).await
     }
 
     pub fn stop(&self) {
-        self.tx.lock().unwrap_or_else(PoisonError::into_inner).take();
+        self.tx
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
         if std::thread::current().id() == self.id {
             return; // the last handle dropped on the writer thread itself: it ends after this job
         }
-        if let Some(h) = self.handle.lock().unwrap_or_else(PoisonError::into_inner).take() {
+        if let Some(h) = self
+            .handle
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+        {
             let _ = h.join();
         }
     }
@@ -115,19 +154,33 @@ impl Drop for WriterThread {
 fn transact<T>(s: &Arc<Shared>, f: impl FnOnce(&mut Writer<'_>) -> Result<T>) -> Result<T> {
     let _span = tracing::debug_span!("store.write").entered();
     let db = lock(&s.writer);
-    db.execute_batch("BEGIN IMMEDIATE")?;
+    db.prepare_cached("BEGIN IMMEDIATE")?.execute([])?; // cached: parsed once, not per transaction
     IN_WRITE.set(true);
-    let mut w = Writer { db: &db, shared: s, pending: Vec::new(), now: s.clock.now_ms(), doomed: None };
+    let mut w = Writer {
+        db: &db,
+        shared: s,
+        pending: Vec::new(),
+        now: s.clock.now_ms(),
+        doomed: None,
+    };
     let out = catch_unwind(AssertUnwindSafe(|| f(&mut w)));
     IN_WRITE.set(false);
     let (pending, doomed) = (std::mem::take(&mut w.pending), w.doomed.take());
     let out = match out {
         Ok(Ok(v)) => match doomed {
-            None => db.execute_batch("COMMIT").map(|()| v).map_err(StoreError::from),
-            Some(first) => Err(StoreError::Internal(format!("a write op failed ({first}) and the closure went on; the whole transaction rolled back"))),
+            None => db
+                .prepare_cached("COMMIT")
+                .and_then(|mut st| st.execute([]))
+                .map(|_| v)
+                .map_err(StoreError::from),
+            Some(first) => Err(StoreError::Internal(format!(
+                "a write op failed ({first}) and the closure went on; the whole transaction rolled back"
+            ))),
         },
         Ok(Err(e)) => Err(e),
-        Err(_) => Err(StoreError::Internal("a write closure panicked; its transaction rolled back".into())),
+        Err(_) => Err(StoreError::Internal(
+            "a write closure panicked; its transaction rolled back".into(),
+        )),
     };
     if out.is_err() {
         if !db.is_autocommit() {
@@ -143,7 +196,13 @@ fn transact<T>(s: &Arc<Shared>, f: impl FnOnce(&mut Writer<'_>) -> Result<T>) ->
 }
 
 fn publish(s: &Shared, changes: &Arc<[ChangeRow]>) {
-    let listeners: Vec<CommitFn> = s.listeners.read().unwrap_or_else(PoisonError::into_inner).iter().map(|(_, f)| f.clone()).collect();
+    let listeners: Vec<CommitFn> = s
+        .listeners
+        .read()
+        .unwrap_or_else(PoisonError::into_inner)
+        .iter()
+        .map(|(_, f)| f.clone())
+        .collect();
     for f in listeners {
         call_listener(|| f(changes));
     }
@@ -171,7 +230,12 @@ impl Store {
     }
 
     /// A client's mutation, run once per (client, mid) in its own transaction (`Writer::mutation`).
-    pub async fn record_mutation<T, F>(&self, client_id: &str, mid: &str, f: F) -> Result<MutationResult<T>>
+    pub async fn record_mutation<T, F>(
+        &self,
+        client_id: &str,
+        mid: &str,
+        f: F,
+    ) -> Result<MutationResult<T>>
     where
         T: Serialize + DeserializeOwned + Send + 'static,
         F: FnOnce(&mut Writer<'_>) -> Result<T> + Send + 'static,

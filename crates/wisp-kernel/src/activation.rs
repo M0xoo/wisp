@@ -16,7 +16,11 @@ pub fn parse(a: &str) -> (&str, &str, Vec<(&str, &str)>) {
         && let Some(f) = f.strip_suffix('}')
     {
         name = n;
-        filter = f.split(',').filter_map(|p| p.split_once(':')).map(|(k, v)| (k.trim(), v.trim())).collect();
+        filter = f
+            .split(',')
+            .filter_map(|p| p.split_once(':'))
+            .map(|(k, v)| (k.trim(), v.trim()))
+            .collect();
     }
     (kind, name, filter)
 }
@@ -42,13 +46,18 @@ pub fn wakes(m: &Manifest, kind: &str, name: &str, args: Option<&Value>) -> bool
         if !glob(n, name) {
             return false;
         }
-        filter.iter().all(|(fk, fv)| args.and_then(|a| a.get(*fk)).is_some_and(|v| glob(fv, &arg_str(v))))
+        filter.iter().all(|(fk, fv)| {
+            args.and_then(|a| a.get(*fk))
+                .is_some_and(|v| glob(fv, &arg_str(v)))
+        })
     })
 }
 
 /// `name` is "METHOD /path"; the activation is "[METHOD ]/pattern" with `*` globs.
 fn route_matches(activation: &str, name: &str) -> bool {
-    let Some((am, ap)) = route_activation(activation) else { return false };
+    let Some((am, ap)) = route_activation(activation) else {
+        return false;
+    };
     let (m, path) = name.split_once(' ').unwrap_or(("*", name));
     (am == "*" || am == m) && glob(ap, path)
 }
@@ -72,18 +81,43 @@ mod tests {
     use super::*;
 
     fn m(activation: &[&str], commands: &[&str]) -> Manifest {
-        let cmds: Vec<Value> = commands.iter().map(|c| serde_json::json!({ "id": c, "title": c })).collect();
+        let cmds: Vec<Value> = commands
+            .iter()
+            .map(|c| serde_json::json!({ "id": c, "title": c }))
+            .collect();
         let mut contributes = std::collections::BTreeMap::new();
         contributes.insert("commands".to_owned(), Value::Array(cmds));
-        Manifest { activation: activation.iter().map(|s| (*s).to_owned()).collect(), contributes, ..Manifest::default() }
+        Manifest {
+            activation: activation.iter().map(|s| (*s).to_owned()).collect(),
+            contributes,
+            ..Manifest::default()
+        }
     }
 
     #[test]
     fn events() {
-        let x = m(&["onCommand:runtime.start{harness:claude}", "onTopic:session:*", "onRoute:GET /api/x/*", "onView:shell.task"], &["claude.login"]);
+        let x = m(
+            &[
+                "onCommand:runtime.start{harness:claude}",
+                "onTopic:session:*",
+                "onRoute:GET /api/x/*",
+                "onView:shell.task",
+            ],
+            &["claude.login"],
+        );
         assert!(wakes(&x, "onCommand", "claude.login", None));
-        assert!(wakes(&x, "onCommand", "runtime.start", Some(&serde_json::json!({ "harness": "claude" }))));
-        assert!(!wakes(&x, "onCommand", "runtime.start", Some(&serde_json::json!({ "harness": "codex" }))));
+        assert!(wakes(
+            &x,
+            "onCommand",
+            "runtime.start",
+            Some(&serde_json::json!({ "harness": "claude" }))
+        ));
+        assert!(!wakes(
+            &x,
+            "onCommand",
+            "runtime.start",
+            Some(&serde_json::json!({ "harness": "codex" }))
+        ));
         assert!(!wakes(&x, "onCommand", "runtime.start", None));
         assert!(wakes(&x, "onTopic", "session:abc", None));
         assert!(wakes(&x, "onRoute", "GET /api/x/1", None));

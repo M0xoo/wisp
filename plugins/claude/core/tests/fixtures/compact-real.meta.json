@@ -1,0 +1,22 @@
+{
+  "exit": {
+    "code": 0,
+    "signal": null,
+    "stderr": ""
+  },
+  "opts": {
+    "prompt": "/compact"
+  },
+  "note": "a real claude 2.1 /compact, recorded",
+  "argv": [
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--append-system-prompt",
+    "# You are running inside wisp\nAnswer with a ```wisp block.\n",
+    "--permission-mode",
+    "acceptEdits",
+    "--chrome",
+    "--verbose"
+  ]
+}

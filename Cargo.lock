@@ -2913,8 +2913,25 @@ dependencies = [
 name = "wisp"
 version = "2.0.0"
 dependencies = [
+ "rand 0.9.5",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
  "wisp-api",
+ "wisp-git",
+ "wisp-issues",
  "wisp-kernel",
+ "wisp-machine",
+ "wisp-proc",
+ "wisp-protocol",
+ "wisp-review",
+ "wisp-ship",
+ "wisp-worktrees",
 ]
 
 [[package]]
@@ -3002,6 +3019,8 @@ dependencies = [
  "tracing",
  "url",
  "wisp-kernel",
+ "wisp-protocol",
+ "wisp-sync",
 ]
 
 [[package]]
@@ -3947,6 +3966,18 @@ dependencies = [
 [[package]]
 name = "wisp-runtime"
 version = "2.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "wisp-kernel",
+ "wisp-proc",
+ "wisp-runtime-api",
+ "wisp-runtime-core",
+ "wisp-store",
+]
 
 [[package]]
 name = "wisp-runtime-api"
@@ -3962,6 +3993,7 @@ dependencies = [
 name = "wisp-runtime-core"
 version = "2.0.0"
 dependencies = [
+ "regex",
  "serde",
  "serde_json",
  "wisp-runtime-api",
@@ -4189,6 +4221,15 @@ dependencies = [
  "serde",
  "serde_json",
  "wisp-terminal-api",
+]
+
+[[package]]
+name = "wisp-testkit"
+version = "2.0.0"
+dependencies = [
+ "serde_json",
+ "tokio",
+ "wisp-kernel",
 ]
 
 [[package]]

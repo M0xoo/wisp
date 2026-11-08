@@ -46,7 +46,7 @@ pub enum Response {
         status: u16,
         body: serde_json::Value,
     },
-    /// a JSON answer serialised once, with its ETag and compressed copies kept (the task list)
+    /// a JSON answer serialised once, with its `ETag` and compressed copies kept (the task list)
     Prepared {
         status: u16,
         body: Arc<serde_json::Value>,
@@ -90,7 +90,7 @@ pub struct Route {
     pub pattern: &'static str,
     /// the permission a caller's capability set must hold (default deny)
     pub permission: &'static str,
-    /// false: not public API, left out of OpenAPI on purpose
+    /// false: not public API, left out of `OpenAPI` on purpose
     pub doc: bool,
     pub summary: &'static str,
     /// outside /api (hooks, webhooks, previews)

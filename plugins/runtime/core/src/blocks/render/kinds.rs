@@ -52,7 +52,11 @@ pub(super) fn lines<'a>(items: &'a [Value], mut line: impl FnMut(usize, &'a Valu
 }
 
 fn bullets(items: &[Value]) -> String {
-    items.iter().map(|i| format!("- {}", js::str_of(Some(i)))).collect::<Vec<_>>().join("\n")
+    items
+        .iter()
+        .map(|i| format!("- {}", js::str_of(Some(i))))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// `**title**\n\n` when the block has one.
@@ -71,7 +75,11 @@ fn hero(b: Fields<'_>) -> String {
         Some("info") => "ℹ️ Report",
         _ => "✅ Done",
     };
-    format!("## {}\n\n**{status}**{}", or_default(b.s("title"), "Done"), b.opt("summary", " — ", ""))
+    format!(
+        "## {}\n\n**{status}**{}",
+        or_default(b.s("title"), "Done"),
+        b.opt("summary", " — ", "")
+    )
 }
 
 fn steps(b: Fields<'_>) -> Out {
@@ -82,7 +90,12 @@ fn steps(b: Fields<'_>) -> Out {
             Some("skipped") => "⏭️",
             _ => "✔︎",
         };
-        Ok(format!("{}. {mark} **{}**{}", i + 1, x.s("title"), x.opt("detail", " — ", "")))
+        Ok(format!(
+            "{}. {mark} **{}**{}",
+            i + 1,
+            x.s("title"),
+            x.opt("detail", " — ", "")
+        ))
     })?;
     Ok(format!("{}{items}", titled(b)))
 }
@@ -90,7 +103,13 @@ fn steps(b: Fields<'_>) -> Out {
 fn stats(b: Fields<'_>) -> Out {
     lines(list(b.get("items")), |_, s| {
         let x = Fields::item(Some(s))?;
-        Ok(format!("- **{}:** {}{}{}", x.s("label"), x.s("value"), x.s("unit"), x.opt("delta", " (", ")")))
+        Ok(format!(
+            "- **{}:** {}{}{}",
+            x.s("label"),
+            x.s("value"),
+            x.s("unit"),
+            x.opt("delta", " (", ")")
+        ))
     })
 }
 
@@ -103,21 +122,35 @@ fn files(b: Fields<'_>) -> Out {
             Some("renamed") => "R",
             _ => "M",
         };
-        Ok(format!("- `{change}` `{}`{}", x.s("path"), x.opt("note", " — ", "")))
+        Ok(format!(
+            "- `{change}` `{}`{}",
+            x.s("path"),
+            x.opt("note", " — ", "")
+        ))
     })
 }
 
 fn tree(b: Fields<'_>) -> Out {
     let items = lines(list(b.get("items")), |_, f| {
         let x = Fields::item(Some(f))?;
-        Ok(format!("- `{}`{}{}", x.s("path"), x.opt("change", " (", ")"), x.opt("note", " — ", "")))
+        Ok(format!(
+            "- `{}`{}{}",
+            x.s("path"),
+            x.opt("change", " (", ")"),
+            x.opt("note", " — ", "")
+        ))
     })?;
     Ok(format!("{}{items}", titled(b)))
 }
 
 fn code(b: Fields<'_>) -> String {
     let head = if b.has("file") {
-        format!("**`{}{}`**{}\n\n", b.s("file"), b.opt("line", ":", ""), b.opt("caption", " — ", ""))
+        format!(
+            "**`{}{}`**{}\n\n",
+            b.s("file"),
+            b.opt("line", ":", ""),
+            b.opt("caption", " — ", "")
+        )
     } else {
         b.opt("caption", "", "\n\n")
     };
@@ -130,7 +163,11 @@ fn terminal(b: Fields<'_>) -> String {
         Some(Value::Number(n)) if n.as_f64() == Some(0.0) => String::new(),
         Some(v) => format!("\n[exit {}]", js::string(v)),
     };
-    let command = if b.has("command") { format!("$ {}\n", b.s("command")) } else { String::new() };
+    let command = if b.has("command") {
+        format!("$ {}\n", b.s("command"))
+    } else {
+        String::new()
+    };
     fence(&format!("{command}{}{exit}", b.s("output")), "console")
 }
 
@@ -138,7 +175,11 @@ fn compare(b: Fields<'_>) -> String {
     [("before", "Before"), ("after", "After")]
         .map(|(k, default)| {
             let side = b.get(k);
-            format!("**{}**\n{}", or_default(js::str_of(prop(side, "label")), default), bullets(list(prop(side, "items"))))
+            format!(
+                "**{}**\n{}",
+                or_default(js::str_of(prop(side, "label")), default),
+                bullets(list(prop(side, "items")))
+            )
         })
         .join("\n\n")
 }
@@ -155,7 +196,11 @@ fn chart(b: Fields<'_>) -> Out {
 fn checklist(b: Fields<'_>) -> Out {
     let items = lines(list(b.get("items")), |_, i| {
         let x = Fields::item(Some(i))?;
-        Ok(format!("- [{}] {}", if x.has("done") { 'x' } else { ' ' }, x.s("text")))
+        Ok(format!(
+            "- [{}] {}",
+            if x.has("done") { 'x' } else { ' ' },
+            x.s("text")
+        ))
     })?;
     Ok(format!("{}{items}", titled(b)))
 }
@@ -167,28 +212,53 @@ fn callout(b: Fields<'_>) -> String {
         Some("success") => "✅",
         _ => "ℹ️",
     };
-    format!("> **{icon} {}**\n> {}", b.s("title"), b.s("text").replace('\n', "\n> "))
+    format!(
+        "> **{icon} {}**\n> {}",
+        b.s("title"),
+        b.s("text").replace('\n', "\n> ")
+    )
 }
 
 fn media(icon: &str, b: Fields<'_>) -> String {
-    format!("{icon} `{}`{}", js::str_of(js::or(b.get("path"), b.get("src"))), b.opt("caption", " — ", ""))
+    format!(
+        "{icon} `{}`{}",
+        js::str_of(js::or(b.get("path"), b.get("src"))),
+        b.opt("caption", " — ", "")
+    )
 }
 
 fn preview(b: Fields<'_>) -> String {
     let what = js::or(b.get("caption"), b.get("title"));
-    let what = if js::truthy(what) { format!(" — {}", js::str_of(what)) } else { String::new() };
+    let what = if js::truthy(what) {
+        format!(" — {}", js::str_of(what))
+    } else {
+        String::new()
+    };
     format!("🌐 {}{}{what}", b.s("url"), b.opt("device", " (", ")"))
 }
 
 fn doc(b: Fields<'_>) -> String {
     let title = or_default(b.s("title"), &format!("`{}`", b.s("path")));
-    let path = if b.has("title") && b.has("path") { format!(" `{}`", b.s("path")) } else { String::new() };
-    let text = b.opt("text", "\n\n<details><summary>Show the file</summary>\n\n", "\n\n</details>");
+    let path = if b.has("title") && b.has("path") {
+        format!(" `{}`", b.s("path"))
+    } else {
+        String::new()
+    };
+    let text = b.opt(
+        "text",
+        "\n\n<details><summary>Show the file</summary>\n\n",
+        "\n\n</details>",
+    );
     format!("📄 **{title}**{path}{}{text}", b.opt("caption", " — ", ""))
 }
 
 fn pointer(b: Fields<'_>, icon: &str, default: &str, what: &str) -> String {
-    format!("{icon} **{}** ({what} `{}`){}", or_default(b.s("title"), default), b.s("id"), b.opt("note", " — ", ""))
+    format!(
+        "{icon} **{}** ({what} `{}`){}",
+        or_default(b.s("title"), default),
+        b.s("id"),
+        b.opt("note", " — ", "")
+    )
 }
 
 fn question(b: Fields<'_>) -> Out {
@@ -200,16 +270,29 @@ fn question(b: Fields<'_>) -> Out {
 }
 
 fn blocked(b: Fields<'_>, cx: &Context<'_>) -> Out {
-    let approval = cx.approval.filter(|a| !a.is_empty()).map(|a| format!(" _({a})_")).unwrap_or_default();
+    let approval = cx
+        .approval
+        .filter(|a| !a.is_empty())
+        .map(|a| format!(" _({a})_"))
+        .unwrap_or_default();
     let items = lines(list(b.get("items")), |_, i| {
         let x = Fields::item(Some(i))?;
-        Ok(format!("- {}{}{}", x.s("tool"), x.opt("detail", ": `", "`"), x.opt("why", " — ", "")))
+        Ok(format!(
+            "- {}{}{}",
+            x.s("tool"),
+            x.opt("detail", ": `", "`"),
+            x.opt("why", " — ", "")
+        ))
     })?;
     Ok(format!("**🔒 Blocked by permissions**{approval}\n{items}"))
 }
 
 fn actions(b: Fields<'_>) -> Out {
-    let head = if b.has("title") { format!("**{}**\n", b.s("title")) } else { "**Actions**\n".to_owned() };
+    let head = if b.has("title") {
+        format!("**{}**\n", b.s("title"))
+    } else {
+        "**Actions**\n".to_owned()
+    };
     let items = lines(list(b.get("items")), |_, a| {
         if let Value::String(s) = a {
             return Ok(format!("- {s}"));
@@ -220,7 +303,11 @@ fn actions(b: Fields<'_>) -> Out {
         } else {
             x.opt("reply", " — _", "_")
         };
-        Ok(format!("- **{}**{what}{}", js::str_of(js::or(x.get("label"), x.get("command"))), x.opt("detail", " (", ")")))
+        Ok(format!(
+            "- **{}**{what}{}",
+            js::str_of(js::or(x.get("label"), x.get("command"))),
+            x.opt("detail", " (", ")")
+        ))
     })?;
     Ok(format!("{head}{items}"))
 }

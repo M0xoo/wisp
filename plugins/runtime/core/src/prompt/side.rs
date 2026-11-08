@@ -11,7 +11,9 @@ static SIDE_CMD: Re = Re::new(concat!("(?i)^/side(?:", js_s!(), "+|$)"));
 /// The opening message in "/side why …" ('' for a bare /side), or None when the text isn't a /side.
 pub fn side_ask(text: &str) -> Option<String> {
     let t = trim(text);
-    SIDE_CMD.is_match(t).then(|| trim(&SIDE_CMD.replace(t, "")).to_owned())
+    SIDE_CMD
+        .is_match(t)
+        .then(|| trim(&SIDE_CMD.replace(t, "")).to_owned())
 }
 
 /// What a write refused on a side discussion that can't ask before a write says.
@@ -24,7 +26,11 @@ pub fn side_kept(words: &str, other: bool) -> String {
     } else {
         ("main task", "the main task")
     };
-    let said = if words.is_empty() { String::new() } else { format!(" They said: {words}") };
+    let said = if words.is_empty() {
+        String::new()
+    } else {
+        format!(" They said: {words}")
+    };
     format!(
         "The user kept the {whose}'s version: nothing was changed.{said} Do not retry this change. Say what the user could tell {there} instead (a follow-up they can send there)."
     )
@@ -80,7 +86,12 @@ pub struct MainTask<'a> {
 }
 
 /// What goes before each of the user's messages: the main task as it stands now (None once it's gone).
-pub fn side_prompt(main: Option<MainTask<'_>>, text: &str, now_ms: i64, render: Render<'_>) -> String {
+pub fn side_prompt(
+    main: Option<MainTask<'_>>,
+    text: &str,
+    now_ms: i64,
+    render: Render<'_>,
+) -> String {
     let head = match main {
         Some(m) => {
             let digest = btw_digest(m.turns, now_ms, render);

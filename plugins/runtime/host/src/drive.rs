@@ -1,0 +1,212 @@
+//! Driving a run (v1 runner.js `#startTurn`'s `onEvent`, `release`, `LINGER_MS`): output lines into the
+//! harness's driver, its events into the turn's head and log. Activity is appended through the store's
+//! Coalescer (one commit per 250 ms at most, plan §4.1) and published as one `turn.activity` per output
+//! chunk, never per token. A CLI may outlive its result: it gets `LINGER_MS`, then it is let go.
+
+use std::sync::Arc;
+use std::time::Duration;
+
+use tokio::sync::mpsc;
+use tokio::time::Instant;
+use wisp_proc::{ChildHandle, Output, Stream};
+use wisp_runtime_api::RunDriver;
+use wisp_runtime_api::events::{TurnActivity, TurnLimits};
+use wisp_runtime_api::harness::{Exit, ParserInput, ParserOutput, StopHow};
+use wisp_runtime_api::model::{Activity, Step};
+use wisp_runtime_core::activity::{self, Effect, Head};
+use wisp_store::{Coalescer, CoalescerOptions};
+
+use crate::host::Emitted;
+use crate::rows;
+use crate::run::Ctl;
+use crate::runtime::Runtime;
+use crate::sys::ProcSys;
+
+/// How long a CLI may keep running after it reported its result (v1 `LINGER_MS`).
+pub const LINGER: Duration = Duration::from_secs(3);
+/// stderr kept for an exit without a result.
+const STDERR_TAIL: usize = 8000;
+
+pub(crate) struct Drive {
+    pub sid: String,
+    pub tid: String,
+    pub head: Head,
+    pub seq: u64,
+    pub coal: Coalescer,
+    pub finished: bool,
+    out: Vec<u8>,
+    err: Vec<u8>,
+    stderr: String,
+}
+
+fn take_lines(buf: &mut Vec<u8>, data: &[u8], last: bool) -> Vec<String> {
+    buf.extend_from_slice(data);
+    let mut lines = Vec::new();
+    let mut start = 0;
+    while let Some(i) = buf[start..].iter().position(|&b| b == b'\n') {
+        let end = start + i;
+        let line = buf[start..end].strip_suffix(b"\r").unwrap_or(&buf[start..end]);
+        lines.push(String::from_utf8_lossy(line).into_owned());
+        start = end + 1;
+    }
+    buf.drain(..start);
+    if last && !buf.is_empty() {
+        lines.push(String::from_utf8_lossy(buf).into_owned());
+        buf.clear();
+    }
+    lines
+}
+
+impl Runtime {
+    pub(crate) async fn drive(self: Arc<Self>, sid: String, tid: String, mut driver: Box<dyn RunDriver>, handle: ChildHandle, mut rx: mpsc::Receiver<Output>, mut ctl: mpsc::UnboundedReceiver<Ctl>) {
+        let sys = ProcSys { proc: self.proc.clone() };
+        let seq = self.repo.next_seq(&sid).await.unwrap_or(1);
+        let mut d = Drive { sid, tid, head: Head::default(), seq, coal: Coalescer::new(&self.repo.store, CoalescerOptions::default()), finished: false, out: Vec::new(), err: Vec::new(), stderr: String::new() };
+        let mut linger: Option<Instant> = None;
+        loop {
+            tokio::select! {
+                o = rx.recv() => match o {
+                    Some(o) => {
+                        let (buf, stderr) = if o.stream == Stream::Stderr { (&mut d.err, true) } else { (&mut d.out, false) };
+                        for line in take_lines(buf, &o.data, false) {
+                            let input = if stderr { ParserInput::Stderr(&line) } else { ParserInput::Stdout(&line) };
+                            if stderr {
+                                d.stderr.push_str(&line);
+                                d.stderr.push('\n');
+                            }
+                            let out = self.feed(&mut *driver, input, &sys).await;
+                            if self.apply(&mut d, out, &handle).await && linger.is_none() {
+                                linger = Some(Instant::now() + LINGER);
+                            }
+                        }
+                    }
+                    None => break,
+                },
+                c = ctl.recv() => match c {
+                    Some(Ctl::Stop | Ctl::Interrupt) => {
+                        let out = self.feed(&mut *driver, ParserInput::Stop, &sys).await;
+                        let asked = out.stop.is_some();
+                        self.apply(&mut d, out, &handle).await;
+                        if !asked {
+                            let _ = handle.kill().await;
+                        }
+                    }
+                    Some(Ctl::Release) if d.finished => break,
+                    Some(Ctl::Release) | None => {}
+                },
+                () = tokio::time::sleep_until(linger.unwrap_or_else(Instant::now)), if linger.is_some() => break,
+            }
+        }
+        self.wind_down(d, &mut *driver, &handle, &sys).await;
+    }
+
+    /// The process is gone or let go: its last words, then the turn ends (if it hasn't) and the run is
+    /// released, which starts the next queued follow-up.
+    async fn wind_down(self: &Arc<Self>, mut d: Drive, driver: &mut dyn RunDriver, handle: &ChildHandle, sys: &ProcSys) {
+        for line in take_lines(&mut d.out, &[], true) {
+            let out = self.feed(driver, ParserInput::Stdout(&line), sys).await;
+            self.apply(&mut d, out, handle).await;
+        }
+        if d.finished && handle.running() {
+            let _ = handle.kill().await;
+        }
+        let exit = handle.exited().await;
+        let stopping = self.live.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(&d.sid).is_some_and(|l| l.stopping || l.interrupting);
+        let tail: String = d.stderr.chars().rev().take(STDERR_TAIL).collect::<Vec<_>>().into_iter().rev().collect();
+        let exit = Exit { code: exit.code, signal: exit.signal, stderr: tail.trim().to_owned(), stopped: stopping, stop_requested: stopping };
+        if !d.finished {
+            let out = self.feed(driver, ParserInput::Exit(&exit), sys).await;
+            self.apply(&mut d, out, handle).await;
+        }
+        if !d.finished {
+            let effect = if exit.stderr.is_empty() || stopping {
+                activity::exit_without_result(&mut d.head)
+            } else {
+                Effect::Finish { text: exit.stderr.clone(), is_error: true, stopped: false, stats: None, auth_failed: false }
+            };
+            self.finish(&mut d, effect).await;
+        }
+        d.coal.close().await;
+        self.release_run(&d.sid).await;
+    }
+
+    async fn feed(&self, driver: &mut dyn RunDriver, input: ParserInput<'_>, sys: &ProcSys) -> ParserOutput {
+        let mut out = ParserOutput::default();
+        driver.on(input, self.now(), sys, &mut out).await;
+        out
+    }
+
+    /// One driver answer: events into the head and log, stdin writes, a stop. true: the turn just ended.
+    async fn apply(self: &Arc<Self>, d: &mut Drive, out: ParserOutput, handle: &ChildHandle) -> bool {
+        for w in out.writes {
+            let _ = handle.write(w);
+        }
+        if out.close_stdin {
+            handle.close_stdin();
+        }
+        match out.stop {
+            Some(StopHow::Interrupt) => {
+                let _ = handle.signal(wisp_proc::Signal::Int, true);
+            }
+            Some(StopHow::Terminate) => {
+                let _ = handle.kill().await;
+            }
+            None => {}
+        }
+        let fallback = |t: &str| wisp_runtime_core::blocks::parse(t).fallback;
+        let mut steps: Vec<Step> = Vec::new();
+        let mut ended = false;
+        for ev in &out.events {
+            if d.finished {
+                break;
+            }
+            match activity::apply(&mut d.head, ev, false, &fallback) {
+                Effect::Append(a) | Effect::Waiting(a) => steps.push(self.append(d, a)),
+                Effect::Limits(limits) => self.limits(d, limits),
+                e @ Effect::Finish { .. } => {
+                    self.publish(d, std::mem::take(&mut steps));
+                    self.finish(d, e).await;
+                    ended = true;
+                }
+                Effect::Billing(_) | Effect::None => {}
+            }
+            if let Some(id) = d.head.resume_id.clone() {
+                self.resumable(&d.sid, &id);
+            }
+        }
+        self.publish(d, steps);
+        ended
+    }
+
+    fn append(&self, d: &mut Drive, a: Activity) -> Step {
+        let t = self.now();
+        let step = Step { seq: d.seq, t, activity: a };
+        d.seq += 1;
+        if let Ok(row) = rows::event_row(&d.sid, &d.tid, step.seq, t, &step.activity) {
+            let _ = d.coal.append("event", vec![row]);
+        }
+        if let Activity::Tool { label, .. } = &step.activity {
+            if let Some(l) = self.live.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_mut(&d.sid) {
+                l.label = Some(label.clone());
+            }
+        }
+        step
+    }
+
+    fn publish(&self, d: &Drive, items: Vec<Step>) {
+        if !items.is_empty() {
+            self.host.emit(Emitted::Activity(TurnActivity { session_id: d.sid.as_str().into(), turn_id: d.tid.as_str().into(), items }));
+        }
+    }
+
+    fn limits(&self, d: &Drive, limits: serde_json::Value) {
+        let agent = self.lock_list().get(&d.sid).map(|s| s.agent.clone()).unwrap_or_default();
+        self.host.emit(Emitted::Limits(TurnLimits { session_id: d.sid.as_str().into(), turn_id: d.tid.as_str().into(), agent, account: None, limits }));
+    }
+
+    fn resumable(&self, sid: &str, _id: &str) {
+        if let Some(l) = self.live.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_mut(sid) {
+            l.resumable = true;
+        }
+    }
+}

@@ -29,7 +29,12 @@ pub fn hunks_of(rows: &[Row]) -> Vec<Hunk> {
             }
             Row::Line(line) => {
                 if !open {
-                    out.push(Hunk { start: next, rows: Vec::new(), after: Vec::new(), before: Vec::new() });
+                    out.push(Hunk {
+                        start: next,
+                        rows: Vec::new(),
+                        after: Vec::new(),
+                        before: Vec::new(),
+                    });
                     open = true;
                 }
                 if let Some(h) = out.last_mut() {
@@ -88,12 +93,20 @@ pub fn revert_hunk(text: &str, rows: &[Row], i: usize) -> Option<String> {
     let h = hunks.get(i)?;
     let nl = text.ends_with('\n');
     let body = if nl { &text[..text.len() - 1] } else { text };
-    let mut lines: Vec<&str> = if body.is_empty() && !nl { Vec::new() } else { body.split('\n').collect() };
+    let mut lines: Vec<&str> = if body.is_empty() && !nl {
+        Vec::new()
+    } else {
+        body.split('\n').collect()
+    };
     let at = h.start.checked_sub(1)?;
     if at + h.after.len() > lines.len() {
         return None;
     }
-    if lines[at..at + h.after.len()].iter().zip(&h.after).any(|(l, a)| l != a) {
+    if lines[at..at + h.after.len()]
+        .iter()
+        .zip(&h.after)
+        .any(|(l, a)| l != a)
+    {
         return None;
     }
     lines.splice(at..at + h.after.len(), h.before.iter().map(String::as_str));

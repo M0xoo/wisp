@@ -20,7 +20,9 @@ impl Version {
     pub fn parse(s: &str) -> Option<Self> {
         let s = s.trim();
         let s = s.strip_prefix('v').unwrap_or(s);
-        let s = s.split_once('+').map_or(s, |(v, build)| if ident_ok(build) { v } else { "" });
+        let s = s
+            .split_once('+')
+            .map_or(s, |(v, build)| if ident_ok(build) { v } else { "" });
         let (core, pre) = match s.split_once('-') {
             Some((c, p)) => (c, Some(p)),
             None => (s, None),
@@ -34,11 +36,21 @@ impl Version {
             Some(p) => parse_pre(p)?,
             None => Vec::new(),
         };
-        Some(Self { major, minor, patch, pre })
+        Some(Self {
+            major,
+            minor,
+            patch,
+            pre,
+        })
     }
 
     const fn plain(major: u64, minor: u64, patch: u64) -> Self {
-        Self { major, minor, patch, pre: Vec::new() }
+        Self {
+            major,
+            minor,
+            patch,
+            pre: Vec::new(),
+        }
     }
 
     pub fn is_pre(&self) -> bool {
@@ -47,19 +59,29 @@ impl Version {
 }
 
 fn ident_ok(s: &str) -> bool {
-    !s.is_empty() && s.split('.').all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'))
+    !s.is_empty()
+        && s.split('.')
+            .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'))
 }
 
 fn parse_pre(p: &str) -> Option<Vec<Pre>> {
     if !ident_ok(p) {
         return None;
     }
-    Some(p.split('.').map(|x| x.parse::<u64>().map_or_else(|_| Pre::Str(x.to_owned()), Pre::Num)).collect())
+    Some(
+        p.split('.')
+            .map(|x| {
+                x.parse::<u64>()
+                    .map_or_else(|_| Pre::Str(x.to_owned()), Pre::Num)
+            })
+            .collect(),
+    )
 }
 
 /// A version number: digits, no leading zero.
 fn num(s: &str) -> Option<u64> {
-    if s.is_empty() || (s.len() > 1 && s.starts_with('0')) || !s.bytes().all(|b| b.is_ascii_digit()) {
+    if s.is_empty() || (s.len() > 1 && s.starts_with('0')) || !s.bytes().all(|b| b.is_ascii_digit())
+    {
         return None;
     }
     s.parse().ok()
@@ -89,7 +111,9 @@ fn cmp_pre(a: &[Pre], b: &[Pre]) -> Ordering {
 
 impl Ord for Version {
     fn cmp(&self, o: &Self) -> Ordering {
-        (self.major, self.minor, self.patch).cmp(&(o.major, o.minor, o.patch)).then_with(|| cmp_pre(&self.pre, &o.pre))
+        (self.major, self.minor, self.patch)
+            .cmp(&(o.major, o.minor, o.patch))
+            .then_with(|| cmp_pre(&self.pre, &o.pre))
     }
 }
 impl PartialOrd for Version {
@@ -134,7 +158,15 @@ fn wild(s: Option<&str>) -> bool {
     matches!(s, None | Some("x" | "X" | "*"))
 }
 
-const OPS: [(&str, &str); 7] = [(">=", ">="), ("<=", "<="), (">", ">"), ("<", "<"), ("=", "="), ("^", "^"), ("~", "~")];
+const OPS: [(&str, &str); 7] = [
+    (">=", ">="),
+    ("<=", "<="),
+    (">", ">"),
+    ("<", "<"),
+    ("=", "="),
+    ("^", "^"),
+    ("~", "~"),
+];
 
 fn split_op(t: &str) -> (&str, &str) {
     for (p, op) in OPS {
@@ -146,6 +178,7 @@ fn split_op(t: &str) -> (&str, &str) {
 }
 
 /// One term ('^1.2', '>=1', '1.x') as comparators.
+#[allow(clippy::many_single_char_names)]
 fn term(t: &str) -> Option<Vec<Comparator>> {
     let (op, rest) = split_op(t);
     let rest = rest.strip_prefix('v').unwrap_or(rest);
@@ -160,13 +193,29 @@ fn term(t: &str) -> Option<Vec<Comparator>> {
     }
     let part = |s: Option<&str>| -> Option<u64> { if wild(s) { Some(0) } else { num(s?) } };
     if wild(ma) {
-        return Some(if op == "<" || op == ">" { vec![Comparator { op: Op::Lt, v: Version::plain(0, 0, 0) }] } else { Vec::new() });
+        return Some(if op == "<" || op == ">" {
+            vec![Comparator {
+                op: Op::Lt,
+                v: Version::plain(0, 0, 0),
+            }]
+        } else {
+            Vec::new()
+        });
     }
     let (m, n, p) = (part(ma)?, part(mi)?, part(pa)?);
     let full = !wild(mi) && !wild(pa);
-    let low = Version { pre: pre.unwrap_or_default(), ..Version::plain(m, n, p) };
+    let low = Version {
+        pre: pre.unwrap_or_default(),
+        ..Version::plain(m, n, p)
+    };
     // the first version past this partial: '1' → 2.0.0, '1.2' → 1.3.0
-    let next = if wild(mi) { Version::plain(m + 1, 0, 0) } else if wild(pa) { Version::plain(m, n + 1, 0) } else { Version::plain(m, n, p + 1) };
+    let next = if wild(mi) {
+        Version::plain(m + 1, 0, 0)
+    } else if wild(pa) {
+        Version::plain(m, n + 1, 0)
+    } else {
+        Version::plain(m, n, p + 1)
+    };
     let c = |op, v| Comparator { op, v };
     Some(match op {
         "^" => {
@@ -179,11 +228,29 @@ fn term(t: &str) -> Option<Vec<Comparator>> {
             };
             vec![c(Op::Ge, low), c(Op::Lt, up)]
         }
-        "~" => vec![c(Op::Ge, low), c(Op::Lt, if wild(mi) { Version::plain(m + 1, 0, 0) } else { Version::plain(m, n + 1, 0) })],
+        "~" => vec![
+            c(Op::Ge, low),
+            c(
+                Op::Lt,
+                if wild(mi) {
+                    Version::plain(m + 1, 0, 0)
+                } else {
+                    Version::plain(m, n + 1, 0)
+                },
+            ),
+        ],
         ">=" => vec![c(Op::Ge, low)],
         "<" => vec![c(Op::Lt, low)],
-        ">" => vec![if full { c(Op::Gt, low) } else { c(Op::Ge, next) }],
-        "<=" => vec![if full { c(Op::Le, low) } else { c(Op::Lt, next) }],
+        ">" => vec![if full {
+            c(Op::Gt, low)
+        } else {
+            c(Op::Ge, next)
+        }],
+        "<=" => vec![if full {
+            c(Op::Le, low)
+        } else {
+            c(Op::Lt, next)
+        }],
         _ => {
             if full {
                 vec![c(Op::Eq, low)]
@@ -218,7 +285,11 @@ impl Range {
                 return None;
             }
             let mut set = Vec::new();
-            for t in if terms.is_empty() { vec!["*".to_owned()] } else { terms } {
+            for t in if terms.is_empty() {
+                vec!["*".to_owned()]
+            } else {
+                terms
+            } {
                 set.extend(term(&t)?);
             }
             sets.push(set);
@@ -233,7 +304,10 @@ impl Range {
             if !set.iter().all(|c| c.test(v)) {
                 return false;
             }
-            !v.is_pre() || set.iter().any(|c| c.v.is_pre() && (c.v.major, c.v.minor, c.v.patch) == (v.major, v.minor, v.patch))
+            !v.is_pre()
+                || set.iter().any(|c| {
+                    c.v.is_pre() && (c.v.major, c.v.minor, c.v.patch) == (v.major, v.minor, v.patch)
+                })
         })
     }
 }
@@ -278,23 +352,43 @@ mod tests {
     #[test]
     fn ranges() {
         let yes = [
-            ("1.2.3", "^1"), ("1.9.0", "^1.2"), ("0.2.5", "^0.2"), ("0.0.3", "^0.0.3"), ("1.2.9", "~1.2"),
-            ("1.5.0", ">=1.2.0 <2"), ("1.5.0", ">= 1.2.0 < 2"), ("1.4.0", "1.x"), ("3.0.0", "*"), ("2.0.0", "^1 || ^2"),
-            ("1.2.3", "1.2.3"), ("1.2.3", "=1.2.3"), ("1.3.0", ">1.2"), ("1.2.9", "<=1.2"), ("2.0.0-beta.2", ">=2.0.0-beta.1"),
-            ("1.0.0", ""), ("1.0.0", "1"),
+            ("1.2.3", "^1"),
+            ("1.9.0", "^1.2"),
+            ("0.2.5", "^0.2"),
+            ("0.0.3", "^0.0.3"),
+            ("1.2.9", "~1.2"),
+            ("1.5.0", ">=1.2.0 <2"),
+            ("1.5.0", ">= 1.2.0 < 2"),
+            ("1.4.0", "1.x"),
+            ("3.0.0", "*"),
+            ("2.0.0", "^1 || ^2"),
+            ("1.2.3", "1.2.3"),
+            ("1.2.3", "=1.2.3"),
+            ("1.3.0", ">1.2"),
+            ("1.2.9", "<=1.2"),
+            ("2.0.0-beta.2", ">=2.0.0-beta.1"),
+            ("1.0.0", ""),
+            ("1.0.0", "1"),
         ];
         for (v, r) in yes {
             assert!(r.is_empty() || satisfies(v, r), "{v} should satisfy {r}");
         }
         let no = [
-            ("2.0.0", "^1"), ("0.3.0", "^0.2"), ("0.0.4", "^0.0.3"), ("1.3.0", "~1.2"), ("2.0.0-beta", "^1"),
-            ("2.0.0-beta", ">=1"), ("1.2.0", ">1.2"), ("1.3.0", "<=1.2"), ("1.2.4", "1.2.3"),
+            ("2.0.0", "^1"),
+            ("0.3.0", "^0.2"),
+            ("0.0.4", "^0.0.3"),
+            ("1.3.0", "~1.2"),
+            ("2.0.0-beta", "^1"),
+            ("2.0.0-beta", ">=1"),
+            ("1.2.0", ">1.2"),
+            ("1.3.0", "<=1.2"),
+            ("1.2.4", "1.2.3"),
         ];
         for (v, r) in no {
             assert!(!satisfies(v, r), "{v} should not satisfy {r}");
         }
         assert!(!valid_range(""));
-        assert!(!valid_range("^x.y"));
+        assert!(!valid_range("^a.b"));
         assert!(!valid_range(">="));
         assert!(valid_range("^1"));
     }

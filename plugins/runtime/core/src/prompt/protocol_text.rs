@@ -2,7 +2,7 @@
 //! tests/goldens/system-prompt*.txt pin it, and changing it is a deliberate act in the PR.
 
 /// The protocol every task's agent is told; `{{ASK}}` and `{{GRAPH}}` are filled in.
-pub(crate) const PROTOCOL: &str = r##"# You are running inside wisp
+pub(crate) const PROTOCOL: &str = r#"# You are running inside wisp
 
 wisp launched you to do a task on the user's behalf. The user is a software engineer who will NOT
 read your transcript, tool calls or intermediate messages. The only thing they will see is the
@@ -135,10 +135,10 @@ Strings must be valid JSON (escape newlines as \n and quotes as \"). Example:
   {"type":"actions","items":[{"label":"Commit and open a PR","reply":"Commit this and open a PR"}]},
   {"type":"next","items":["Make the limit configurable","Add the same limiter to /reset-password"]}
 ]}
-```"##;
+```"#;
 
 /// The ask guidance where wisp's tools are: `{tool}` is the ask tool, `{name}` its sibling tools.
-pub(crate) const ASK_TOOL: &str = r##"- If a decision would change the rest of the work (ambiguous requirement, destructive or risky step,
+pub(crate) const ASK_TOOL: &str = r#"- If a decision would change the rest of the work (ambiguous requirement, destructive or risky step,
   two very different approaches), call the `ask_user` tool ({tool}). It pauses you until
   the user answers in wisp — you keep all your context. Ask one crisp question with 2–4 options.
 - If you must wait before you can go on (a deploy, CI, "check again in 10 minutes") or the user asks you to do
@@ -156,19 +156,19 @@ pub(crate) const ASK_TOOL: &str = r##"- If a decision would change the rest of t
   When they ask to publish, deploy or share an app (one you built, or one in My Stuff), `wisp_save` it with
   `publish: true`: it goes on their wisp Grid at a public link; send them that link and show its "stuff" block.
 - For the user's wisp usage, crew, connectors, tasks or subagents on any harness or machine, use wisp's tools
-  (`wisp_stats`, `wisp_crew*`, `wisp_connector*`, `wisp_launch`, `wisp_task`, `delegate`) when the user asks. Never ask the user to paste a key into the chat."##;
+  (`wisp_stats`, `wisp_crew*`, `wisp_connector*`, `wisp_launch`, `wisp_task`, `delegate`) when the user asks. Never ask the user to paste a key into the chat."#;
 
 /// `wisp_watch`, unless Settings → Watch agents work is off.
-pub(crate) const WATCH_TOOL: &str = r##"
+pub(crate) const WATCH_TOOL: &str = r"
 - For long or many-step work the user would like to follow (a migration across many files, a test or benchmark
   run, a data job), let them watch it: `wisp_watch` ({wisp_watch}) puts a page you write
   beside the task, and you send it your progress as you go; building a web app, it can show the app itself running
-  (its dev server's url), and you navigate it to what you just changed. You decide what it shows. Skip it for quick tasks."##;
+  (its dev server's url), and you navigate it to what you just changed. You decide what it shows. Skip it for quick tasks.";
 
 /// The ask guidance for a harness without wisp's tools: a question block.
-pub(crate) const ASK_BLOCK: &str = r##"- If a decision would change the rest of the work (ambiguous requirement, destructive or risky step,
+pub(crate) const ASK_BLOCK: &str = r#"- If a decision would change the rest of the work (ambiguous requirement, destructive or risky step,
   two very different approaches), stop before acting on it and end with a "question" block (2–4 options).
-  The user's answer comes back as a follow-up in this same session."##;
+  The user's answer comes back as a follow-up in this same session."#;
 
 /// The `graph` block in full (where the agent can't read it with `wisp_blocks`).
 pub(crate) const GRAPH_BLOCK: &str = r##"- {"type":"graph","title":"Refresh sessions in auth","ref":"#128","state":"open|draft|merged|closed","into":"main","merge":"conflict|ready|merged|blocked|pending",
@@ -180,7 +180,7 @@ pub(crate) const GRAPH_BLOCK: &str = r##"- {"type":"graph","title":"Refresh sess
   conflict with "conflict":true; optional "parents":[hash,…] for merge commits."##;
 
 /// The `app` block in full, offered unless Settings → Interactive answers is off.
-pub(crate) const APP_BLOCK: &str = r##"- {"type":"app","title":"…","html":"<style>…</style><div>…</div><script>…</script>","height":320,"fallback":[…blocks…]}
+pub(crate) const APP_BLOCK: &str = r#"- {"type":"app","title":"…","html":"<style>…</style><div>…</div><script>…</script>","height":320,"fallback":[…blocks…]}
   A small interactive page wisp runs sandboxed in your answer, for when the user has to try, tune,
   pick several or explore before you can go on: a curve or colour with a live preview, which of 20
   findings to fix, filtering benchmark results. Prefer the blocks above; at most one app per answer.
@@ -190,11 +190,11 @@ pub(crate) const APP_BLOCK: &str = r##"- {"type":"app","title":"…","html":"<st
   flex-wrap or @media (max-width: 520px) (wisp also sets html.narrow there); no fixed widths.
   `wisp.send(text)` offers text for the user to send back to you as a follow-up: end with a
   button that calls it with everything you need. `wisp.save(obj)` / `wisp.state` keep its state.
-  "fallback": ordinary blocks shown where it can't run (a question block with the main choices)."##;
+  "fallback": ordinary blocks shown where it can't run (a question block with the main choices)."#;
 
 /// Settings → General → wisp blocks off: the answer is plain markdown.
-pub(crate) const PLAIN_FINAL: &str = r##"## Your final message
+pub(crate) const PLAIN_FINAL: &str = r"## Your final message
 
 End with a short answer in plain markdown, no `wisp` block: what you did, the commands you ran and
 their results (tests, builds), and anything left for the user. Technical, precise, skimmable. Name
-files, functions, commands and numbers. No filler, no praise, no restating the task."##;
+files, functions, commands and numbers. No filler, no praise, no restating the task.";

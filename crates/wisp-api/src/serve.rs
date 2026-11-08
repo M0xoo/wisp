@@ -27,7 +27,7 @@ pub struct Server {
     pub addr: SocketAddr,
     edge: Arc<Edge>,
     task: JoinHandle<()>,
-    server_json: Option<PathBuf>,
+    advertised: Option<PathBuf>,
 }
 
 impl Server {
@@ -43,7 +43,7 @@ impl Server {
     pub async fn shutdown(self) {
         self.edge.shutdown();
         let _ = self.task.await;
-        if let Some(f) = &self.server_json {
+        if let Some(f) = &self.advertised {
             remove_if_ours(f).await;
         }
     }
@@ -62,7 +62,12 @@ pub async fn serve(edge: Arc<Edge>, listener: TcpListener) -> std::io::Result<Se
         tokio::spawn(async move { s.warm().await });
     }
     let task = tokio::spawn(accept_loop(edge.clone(), listener));
-    Ok(Server { addr, edge, task, server_json })
+    Ok(Server {
+        addr,
+        edge,
+        task,
+        advertised: server_json,
+    })
 }
 
 fn spawn_pings(edge: &Arc<Edge>) {
@@ -81,7 +86,11 @@ fn spawn_pings(edge: &Arc<Edge>) {
 
 async fn accept_loop(edge: Arc<Edge>, listener: TcpListener) {
     let mut builder = Builder::new(TokioExecutor::new());
-    builder.http1().timer(TokioTimer::new()).keep_alive(true).header_read_timeout(edge.cfg.keep_alive);
+    builder
+        .http1()
+        .timer(TokioTimer::new())
+        .keep_alive(true)
+        .header_read_timeout(edge.cfg.keep_alive);
     let graceful = GracefulShutdown::new();
     let stop = edge.stop.clone();
     loop {
@@ -103,7 +112,9 @@ async fn accept_loop(edge: Arc<Edge>, listener: TcpListener) {
             let e = e.clone();
             async move { Ok::<_, std::convert::Infallible>(e.handle(req).await) }
         });
-        let conn = builder.serve_connection_with_upgrades(TokioIo::new(stream), svc).into_owned();
+        let conn = builder
+            .serve_connection_with_upgrades(TokioIo::new(stream), svc)
+            .into_owned();
         let conn = graceful.watch(conn);
         tokio::spawn(async move {
             let _ = conn.await;
@@ -125,8 +136,12 @@ async fn write_server_json(home: &Path, port: u16, version: &str) -> std::io::Re
 
 /// Removes server.json only if it still names this process.
 pub async fn remove_if_ours(file: &Path) {
-    let Ok(text) = tokio::fs::read(file).await else { return };
-    let pid = serde_json::from_slice::<serde_json::Value>(&text).ok().and_then(|v| v.get("pid").and_then(serde_json::Value::as_u64));
+    let Ok(text) = tokio::fs::read(file).await else {
+        return;
+    };
+    let pid = serde_json::from_slice::<serde_json::Value>(&text)
+        .ok()
+        .and_then(|v| v.get("pid").and_then(serde_json::Value::as_u64));
     if pid == Some(u64::from(std::process::id())) {
         let _ = tokio::fs::remove_file(file).await;
     }

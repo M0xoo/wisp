@@ -45,7 +45,10 @@ pub(crate) enum Payload {
 
 impl std::fmt::Debug for Payload {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self { Self::Typed(_) => "Typed", Self::Json(_) => "Json" })
+        f.write_str(match self {
+            Self::Typed(_) => "Typed",
+            Self::Json(_) => "Json",
+        })
     }
 }
 
@@ -83,7 +86,11 @@ impl EventEnvelope {
     /// The payload as `E`: a clone when it was emitted as `E` in this process, else parsed.
     pub fn get<E: Event>(&self) -> Option<E> {
         match &self.data {
-            Payload::Typed(t) => t.any().downcast_ref::<E>().cloned().or_else(|| serde_json::from_value(t.json()).ok()),
+            Payload::Typed(t) => t
+                .any()
+                .downcast_ref::<E>()
+                .cloned()
+                .or_else(|| serde_json::from_value(t.json()).ok()),
             Payload::Json(v) => serde_json::from_value((**v).clone()).ok(),
         }
     }
@@ -103,7 +110,8 @@ impl serde::Serialize for EventEnvelope {
     }
 }
 
-pub(crate) type SubFn = Arc<dyn Fn(Ctx, Arc<EventEnvelope>) -> BoxFuture<'static, Result<()>> + Send + Sync>;
+pub(crate) type SubFn =
+    Arc<dyn Fn(Ctx, Arc<EventEnvelope>) -> BoxFuture<'static, Result<()>> + Send + Sync>;
 
 #[derive(Clone)]
 pub(crate) struct Sub {
@@ -138,17 +146,33 @@ pub(crate) struct Bus {
 
 impl Bus {
     pub(crate) fn new(work: Arc<Work>) -> Self {
-        Self { seq: AtomicU64::new(0), queues: Mutex::default(), index: RwLock::default(), work }
+        Self {
+            seq: AtomicU64::new(0),
+            queues: Mutex::default(),
+            index: RwLock::default(),
+            work,
+        }
     }
 
     fn reindex(&self, queues: &HashMap<Arc<str>, Arc<Queue>>) {
         let mut ix = Index::default();
         for q in queues.values() {
-            let subs = q.subs.read().map(|s| s.iter().map(|x| x.pattern.clone()).collect::<Vec<_>>()).unwrap_or_default();
+            let subs = q
+                .subs
+                .read()
+                .map(|s| s.iter().map(|x| x.pattern.clone()).collect::<Vec<_>>())
+                .unwrap_or_default();
             let mut seen: Vec<String> = Vec::new();
-            for p in subs.into_iter().filter(|p| !seen.contains(p)) {
+            for p in subs {
+                if seen.contains(&p) {
+                    continue;
+                }
                 seen.push(p.clone());
-                if p.contains('*') { ix.patterns.push((p, q.clone())) } else { ix.exact.entry(p).or_default().push(q.clone()) }
+                if p.contains('*') {
+                    ix.patterns.push((p, q.clone()));
+                } else {
+                    ix.exact.entry(p).or_default().push(q.clone());
+                }
             }
         }
         if let Ok(mut w) = self.index.write() {
@@ -157,10 +181,25 @@ impl Bus {
     }
 
     /// Adds a subscription for `owner`; its queue and worker start on the first one.
-    pub(crate) fn subscribe(&self, k: &Arc<KernelState>, owner: &Arc<str>, sub: Sub, scope: &CancellationToken) {
-        let Ok(mut qs) = self.queues.lock() else { return };
+    pub(crate) fn subscribe(
+        &self,
+        k: &Arc<KernelState>,
+        owner: &Arc<str>,
+        sub: Sub,
+        scope: &CancellationToken,
+    ) {
+        let Ok(mut qs) = self.queues.lock() else {
+            return;
+        };
         let q = qs.entry(owner.clone()).or_insert_with(|| {
-            let q = Arc::new(Queue { owner: owner.clone(), subs: RwLock::default(), items: Mutex::default(), wake: Notify::new(), lagging: Mutex::default(), stop: scope.child_token() });
+            let q = Arc::new(Queue {
+                owner: owner.clone(),
+                subs: RwLock::default(),
+                items: Mutex::default(),
+                wake: Notify::new(),
+                lagging: Mutex::default(),
+                stop: scope.child_token(),
+            });
             tokio::spawn(worker(q.clone(), Arc::downgrade(k), self.work.clone()));
             q
         });
@@ -172,18 +211,27 @@ impl Bus {
 
     /// Drops `owner`'s queue: its subscriptions and whatever was still queued for it.
     pub(crate) fn drop_owner(&self, owner: &str) -> usize {
-        let Ok(mut qs) = self.queues.lock() else { return 0 };
+        let Ok(mut qs) = self.queues.lock() else {
+            return 0;
+        };
         let Some(q) = qs.remove(owner) else { return 0 };
         q.stop.cancel();
-        let n = q.subs.read().map(|s| s.len()).unwrap_or(0);
-        let queued = q.items.lock().map(|mut i| std::mem::take(&mut *i).len()).unwrap_or(0);
+        let n = q.subs.read().map_or(0, |s| s.len());
+        let queued = q
+            .items
+            .lock()
+            .map_or(0, |mut i| std::mem::take(&mut *i).len());
         self.work.done(queued);
         self.reindex(&qs);
         n
     }
 
     pub(crate) fn subscriptions(&self, owner: &str) -> usize {
-        self.queues.lock().ok().and_then(|qs| qs.get(owner).map(|q| q.subs.read().map(|s| s.len()).unwrap_or(0))).unwrap_or(0)
+        self.queues
+            .lock()
+            .ok()
+            .and_then(|qs| qs.get(owner).map(|q| q.subs.read().map_or(0, |s| s.len())))
+            .unwrap_or(0)
     }
 
     pub(crate) fn lagging(&self, owner: &str) -> Option<u64> {
@@ -193,7 +241,11 @@ impl Bus {
     }
 
     pub(crate) fn caught_up(&self, owner: &str) {
-        if let Some(q) = self.queues.lock().ok().and_then(|qs| qs.get(owner).cloned())
+        if let Some(q) = self
+            .queues
+            .lock()
+            .ok()
+            .and_then(|qs| qs.get(owner).cloned())
             && let Ok(mut l) = q.lagging.lock()
         {
             *l = None;
@@ -201,9 +253,23 @@ impl Bus {
     }
 
     /// Publishes one committed event to every queue that wants it. Returns its envelope.
-    pub(crate) fn publish(&self, k: &KernelState, root: &str, cursor: Option<u64>, p: Pending) -> Arc<EventEnvelope> {
+    pub(crate) fn publish(
+        &self,
+        k: &KernelState,
+        root: &str,
+        cursor: Option<u64>,
+        p: Pending,
+    ) -> Arc<EventEnvelope> {
         let seq = self.seq.fetch_add(1, Ordering::Relaxed) + 1;
-        let env = Arc::new(EventEnvelope { seq, ty: p.ty, plugin: p.plugin.to_string(), at: k.now_ms(), root: root.to_owned(), cursor, data: p.data });
+        let env = Arc::new(EventEnvelope {
+            seq,
+            ty: p.ty,
+            plugin: p.plugin.to_string(),
+            at: k.now_ms(),
+            root: root.to_owned(),
+            cursor,
+            data: p.data,
+        });
         let ix = self.index.read().map(|i| i.clone()).unwrap_or_default();
         if let Some(qs) = ix.exact.get(&env.ty) {
             for q in qs {
@@ -212,7 +278,12 @@ impl Bus {
         }
         for (pat, q) in &ix.patterns {
             // a queue matched exactly already has it
-            if glob(pat, &env.ty) && !ix.exact.get(&env.ty).is_some_and(|l| l.iter().any(|x| Arc::ptr_eq(x, q))) {
+            if glob(pat, &env.ty)
+                && !ix
+                    .exact
+                    .get(&env.ty)
+                    .is_some_and(|l| l.iter().any(|x| Arc::ptr_eq(x, q)))
+            {
                 self.enqueue(k, q, &env);
             }
         }
@@ -220,7 +291,9 @@ impl Bus {
     }
 
     fn enqueue(&self, k: &KernelState, q: &Arc<Queue>, env: &Arc<EventEnvelope>) {
-        let Ok(mut items) = q.items.lock() else { return };
+        let Ok(mut items) = q.items.lock() else {
+            return;
+        };
         if items.len() >= QUEUE_CAP {
             drop(items);
             if let Ok(mut l) = q.lagging.lock()
@@ -228,7 +301,14 @@ impl Bus {
             {
                 *l = Some(env.seq);
                 tracing::warn!(plugin = %q.owner, seq = env.seq, "event queue full: lagging, catches up from the change feed");
-                k.diag.record(k.now_ms(), &q.owner, "event", "lagging", format!("{} queued events: missed from seq {}", QUEUE_CAP, env.seq), Vec::new());
+                k.diag.record(
+                    k.now_ms(),
+                    &q.owner,
+                    "event",
+                    "lagging",
+                    format!("{} queued events: missed from seq {}", QUEUE_CAP, env.seq),
+                    Vec::new(),
+                );
             }
             return;
         }
@@ -241,24 +321,39 @@ impl Bus {
 
 async fn worker(q: Arc<Queue>, k: Weak<KernelState>, work: Arc<Work>) {
     loop {
-        let next = q.items.lock().ok().and_then(|mut i| i.front().cloned());
+        let next = q.items.lock().ok().and_then(|i| i.front().cloned());
         let Some(env) = next else {
             tokio::select! {
                 () = q.stop.cancelled() => return,
                 () = q.wake.notified() => continue,
             }
         };
-        let subs: Vec<Sub> = q.subs.read().map(|s| s.iter().filter(|x| glob(&x.pattern, &env.ty)).cloned().collect()).unwrap_or_default();
+        let subs: Vec<Sub> = q
+            .subs
+            .read()
+            .map(|s| {
+                s.iter()
+                    .filter(|x| glob(&x.pattern, &env.ty))
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default();
         for s in subs {
             deliver(&q, &k, &s, &env).await;
         }
-        let popped = q.items.lock().ok().and_then(|mut i| i.pop_front()).is_some();
+        let popped = q
+            .items
+            .lock()
+            .ok()
+            .and_then(|mut i| i.pop_front())
+            .is_some();
         if popped {
             work.done(1);
         }
     }
 }
 
+#[allow(clippy::many_single_char_names)]
 async fn deliver(q: &Queue, k: &Weak<KernelState>, s: &Sub, env: &Arc<EventEnvelope>) {
     for attempt in 1..=ATTEMPTS {
         if q.stop.is_cancelled() {
@@ -277,7 +372,14 @@ async fn deliver(q: &Queue, k: &Weak<KernelState>, s: &Sub, env: &Arc<EventEnvel
             && let Some(k) = k.upgrade()
         {
             tracing::warn!(plugin = %q.owner, ty = %env.ty, seq = env.seq, "subscriber failed {ATTEMPTS} times: {why}");
-            k.diag.record(k.now_ms(), &q.owner, "event", "internal", format!("{} (seq {}): {why}", env.ty, env.seq), Vec::new());
+            k.diag.record(
+                k.now_ms(),
+                &q.owner,
+                "event",
+                "internal",
+                format!("{} (seq {}): {why}", env.ty, env.seq),
+                Vec::new(),
+            );
         }
     }
 }

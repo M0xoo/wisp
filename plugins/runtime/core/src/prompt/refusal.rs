@@ -1,7 +1,7 @@
 //! A harness that turned a task down (v1 server/refusal.js), not one that failed or got it wrong. The
 //! task then offers to hand the same prompt, with what it has seen, to another of your harnesses
 //! (`turn.refusal`). Never by itself. Conservative on purpose: a false card is noise on a finished task.
-//! Only the API's own word (stop_reason "refusal"), the CLI's usage-policy error, or a short answer
+//! Only the API's own word (`stop_reason` "refusal"), the CLI's usage-policy error, or a short answer
 //! that opens by declining, from a run that changed no file.
 
 use serde::{Deserialize, Serialize};
@@ -68,16 +68,25 @@ pub struct RunEnd<'a> {
 /// Whether the run turned the task down (v1 `refusalOf`).
 pub fn refusal_of(r: &RunEnd<'_>) -> Option<Refusal> {
     let t = trim(r.text);
-    let line = truncate(t.split('\n').find(|l| !trim(l).is_empty()).unwrap_or(""), 200);
+    let line = truncate(
+        t.split('\n').find(|l| !trim(l).is_empty()).unwrap_or(""),
+        200,
+    );
     if r.stop_reason == "refusal" || POLICY.is_match(t) {
-        return Some(Refusal { kind: RefusalKind::Policy, line });
+        return Some(Refusal {
+            kind: RefusalKind::Policy,
+            line,
+        });
     }
     if r.is_error || r.changes > 0 || t.is_empty() || len16(t) > DECLINE_SHORT {
         return None;
     }
     // Markdown a model may open with (a heading, bold) doesn't hide the sentence.
     let plain = MARKDOWN_OPENER.replace(t, "").replace("**", "");
-    DECLINE.is_match(&plain).then_some(Refusal { kind: RefusalKind::Declined, line })
+    DECLINE.is_match(&plain).then_some(Refusal {
+        kind: RefusalKind::Declined,
+        line,
+    })
 }
 
 #[cfg(test)]

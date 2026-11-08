@@ -2,11 +2,7 @@
 //! by the kernel before the handler runs (default deny). Shapes are v1's request bodies (routes/sessions.js)
 //! so the HTTP adapters stay thin.
 
-use std::collections::BTreeMap;
-
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use ts_rs::TS;
 use wisp_kernel::Command;
 
 mod more;
@@ -15,11 +11,7 @@ mod tasks;
 pub use more::*;
 pub use tasks::*;
 
-use crate::model::{
-    Activity, Attachment, Ext, Mode, Presentation, QueueItem, SearchHit, Session, SessionState,
-    Step, Summary, Turn,
-};
-use crate::{SessionId, TurnId};
+use crate::model::{Presentation, SearchHit, Session, Summary, Turn};
 
 macro_rules! command {
     ($(#[$m:meta])* $name:ident = $id:literal : $args:ty => $out:ty $(, $ro:ident)?) => {
@@ -80,4 +72,3 @@ command!(Agents = "runtime.agents": AgentsArgs => Vec<AgentStatus>, read_only);
 command!(Card = "runtime.card": CardArgs => Created);
 command!(Fork = "runtime.fork": ForkArgs => Created);
 command!(Import = "runtime.import": ImportArgs => ImportReport);
-

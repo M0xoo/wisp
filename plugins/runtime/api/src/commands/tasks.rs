@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use ts_rs::TS;
 
-use crate::model::{Activity, Attachment, Ext, Mode, Presentation, QueueItem, SearchHit, Session, SessionState, Step, Summary, Turn};
+use crate::model::{Attachment, Ext, Mode, QueueItem, SessionState, Step};
 use crate::{SessionId, TurnId};
 
 /// `{}`: a command that answers nothing but success.
@@ -341,4 +341,3 @@ pub enum PollAnswer {
     Pending,
     Cancelled,
 }
-

@@ -12,7 +12,9 @@ pub struct SystemClock;
 
 impl Clock for SystemClock {
     fn now_ms(&self) -> i64 {
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
     }
     fn sleep(&self, ms: u64) -> BoxFuture<'static, ()> {
         Box::pin(tokio::time::sleep(std::time::Duration::from_millis(ms)))
@@ -28,7 +30,10 @@ pub struct ManualClock {
 
 impl ManualClock {
     pub fn new(start_ms: i64) -> Self {
-        Self { now: AtomicI64::new(start_ms), sleepers: Mutex::new(Vec::new()) }
+        Self {
+            now: AtomicI64::new(start_ms),
+            sleepers: Mutex::new(Vec::new()),
+        }
     }
     pub fn advance(&self, ms: i64) {
         self.set(self.now.load(Ordering::SeqCst) + ms);
@@ -47,7 +52,12 @@ impl ManualClock {
     }
     /// sleeps not yet due whose future is still alive
     pub fn pending(&self) -> usize {
-        self.sleepers.lock().unwrap_or_else(PoisonError::into_inner).iter().filter(|(_, tx)| !tx.is_closed()).count()
+        self.sleepers
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .filter(|(_, tx)| !tx.is_closed())
+            .count()
     }
 }
 
@@ -56,12 +66,17 @@ impl Clock for ManualClock {
         self.now.load(Ordering::SeqCst)
     }
     fn sleep(&self, ms: u64) -> BoxFuture<'static, ()> {
-        let at = self.now_ms().saturating_add(i64::try_from(ms).unwrap_or(i64::MAX));
+        let at = self
+            .now_ms()
+            .saturating_add(i64::try_from(ms).unwrap_or(i64::MAX));
         if ms == 0 {
             return Box::pin(async {});
         }
         let (tx, rx) = tokio::sync::oneshot::channel();
-        self.sleepers.lock().unwrap_or_else(PoisonError::into_inner).push((at, tx));
+        self.sleepers
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((at, tx));
         Box::pin(async move {
             let _ = rx.await;
         })

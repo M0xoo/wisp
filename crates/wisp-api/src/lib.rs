@@ -5,7 +5,7 @@
 //! - [`guard`]: Host allow-list, trusted-proxy mode ([`trust`]), Origin rules, JSON-only bodies;
 //! - [`auth`]: tokens → a capability set per request; [`body`]: the 2 MB cap;
 //! - [`router`]: whole-segment patterns; [`openapi`]: the document, assembled from the routes;
-//! - [`respond`]: weak ETags, 304s, brotli/gzip off the runtime threads, prepared answers;
+//! - [`respond`]: weak `ETags`, 304s, brotli/gzip off the runtime threads, prepared answers;
 //! - [`statics`]: the web bundle, the phone's boot page and `/_pack`; [`preview`]: previews;
 //! - [`sync`]: `/api/events` (v2 mounted, v1 kept), `/api/cmd`, the `notify` hub; [`status`].
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
@@ -13,6 +13,7 @@
 pub mod auth;
 pub mod backend;
 pub mod body;
+pub mod config;
 pub mod edge;
 pub mod error;
 pub mod guard;
@@ -26,6 +27,7 @@ pub mod statics;
 pub mod status;
 pub mod sync;
 pub mod trust;
+pub mod v2;
 
 pub use backend::{Backend, Binding};
 pub use edge::{API_VERSION, Edge, EdgeConfig};

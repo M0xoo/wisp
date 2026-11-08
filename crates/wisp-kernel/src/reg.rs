@@ -66,7 +66,10 @@ pub(crate) fn service_key(id: &str, major: u32) -> String {
 impl Registry {
     pub(crate) fn add_command(&mut self, e: CmdEntry) -> Result<()> {
         if let Some(had) = self.commands.get(&e.id) {
-            return Err(WireError::conflict(format!("{} is already registered by {}", e.id, had.owner)));
+            return Err(WireError::conflict(format!(
+                "{} is already registered by {}",
+                e.id, had.owner
+            )));
         }
         self.commands.insert(e.id.clone(), Arc::new(e));
         Ok(())
@@ -75,7 +78,11 @@ impl Registry {
     pub(crate) fn add_hook(&mut self, hook: &str, mut e: HookEntry) {
         e.order = self.order;
         self.order += 1;
-        let mut list: Vec<Arc<HookEntry>> = self.hooks.get(hook).map(|l| l.as_ref().clone()).unwrap_or_default();
+        let mut list: Vec<Arc<HookEntry>> = self
+            .hooks
+            .get(hook)
+            .map(|l| l.as_ref().clone())
+            .unwrap_or_default();
         list.push(Arc::new(e));
         list.sort_by_key(|h| (h.opts.priority, h.order));
         self.hooks.insert(hook.to_owned(), Arc::new(list));
@@ -99,7 +106,11 @@ impl Registry {
         });
         for list in self.hooks.values_mut() {
             if list.iter().any(|h| &*h.owner == owner) {
-                let kept: Vec<Arc<HookEntry>> = list.iter().filter(|h| &*h.owner != owner).cloned().collect();
+                let kept: Vec<Arc<HookEntry>> = list
+                    .iter()
+                    .filter(|h| &*h.owner != owner)
+                    .cloned()
+                    .collect();
                 n += list.len() - kept.len();
                 *list = Arc::new(kept);
             }
@@ -122,9 +133,24 @@ impl Registry {
 
     /// What `owner` has registered right now (the leak check reads it).
     pub(crate) fn count_owner(&self, owner: &str) -> usize {
-        self.commands.values().filter(|c| &*c.owner == owner).count()
-            + self.hooks.values().map(|l| l.iter().filter(|h| &*h.owner == owner).count()).sum::<usize>()
-            + self.points.values().map(|l| l.iter().filter(|p| &*p.owner == owner).count()).sum::<usize>()
-            + self.services.values().map(|l| l.iter().filter(|p| &*p.owner == owner).count()).sum::<usize>()
+        self.commands
+            .values()
+            .filter(|c| &*c.owner == owner)
+            .count()
+            + self
+                .hooks
+                .values()
+                .map(|l| l.iter().filter(|h| &*h.owner == owner).count())
+                .sum::<usize>()
+            + self
+                .points
+                .values()
+                .map(|l| l.iter().filter(|p| &*p.owner == owner).count())
+                .sum::<usize>()
+            + self
+                .services
+                .values()
+                .map(|l| l.iter().filter(|p| &*p.owner == owner).count())
+                .sum::<usize>()
     }
 }

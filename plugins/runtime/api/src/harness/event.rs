@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use ts_rs::TS;
 use wisp_kernel::Result;
 
 use crate::model::{ChangeOp, Edit, ToolKind};
@@ -213,4 +212,3 @@ impl HarnessEvent {
             .map_err(|e| wisp_kernel::WireError::invalid(format!("harness event: {e}")))
     }
 }
-

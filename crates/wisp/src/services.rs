@@ -1,4 +1,4 @@
-//! The kernel services this install provides (plan §6.1): paths (`~/.wisp` or WISP_HOME), secrets
+//! The kernel services this install provides (plan §6.1): paths (`~/.wisp` or `WISP_HOME`), secrets
 //! (`secrets.json`, 0600, atomic), net (one reqwest client), the clock, notify (the edge's hub), and,
 //! as their crates land, proc (wisp-proc) and the store (wisp-store). The grid and tests swap any.
 use std::collections::BTreeMap;
@@ -212,3 +212,11 @@ pub fn provide(app: App, home: &Path, version: &str, notify: NotifyService) -> A
 #[cfg(test)]
 #[path = "services_tests.rs"]
 mod tests;
+
+pub fn hex(b: &[u8]) -> String {
+    b.iter().fold(String::with_capacity(b.len() * 2), |mut s, x| {
+        use std::fmt::Write;
+        let _ = write!(s, "{x:02x}");
+        s
+    })
+}

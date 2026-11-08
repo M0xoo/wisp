@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use ts_rs::TS;
 use wisp_kernel::BoxFuture;
 
 use super::{HarnessEvent, HarnessSys};
@@ -196,4 +195,3 @@ impl<P: HarnessParser> RunDriver for Pure<P> {
         Box::pin(std::future::ready(()))
     }
 }
-

@@ -1,5 +1,6 @@
 [package]
 name = "wisp-runtime"
+description = "wisp.runtime's host: tasks, turns and their event log in the store, the follow-up queue, the harness lifecycle (spawned through wisp-proc), v1's session routes and the v1 importer"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,6 +8,19 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+wisp-kernel.workspace = true
+wisp-store.workspace = true
+wisp-proc.workspace = true
+wisp-runtime-api.workspace = true
+wisp-runtime-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros"] }
 
 [lints]
 workspace = true

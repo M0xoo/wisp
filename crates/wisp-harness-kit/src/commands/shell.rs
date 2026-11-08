@@ -51,7 +51,10 @@ fn text(s: &[char], from: usize, to: usize) -> String {
 }
 
 fn index_of(s: &[char], c: char, from: usize) -> Option<usize> {
-    s.get(from..)?.iter().position(|&x| x == c).map(|j| j + from)
+    s.get(from..)?
+        .iter()
+        .position(|&x| x == c)
+        .map(|j| j + from)
 }
 
 /// Split into pipelines → stages → words (v1 `segments`). Quotes are honoured; `$(…)` and `` `…` `` stay
@@ -152,7 +155,10 @@ fn redirect(t: &mut Tokens, s: &[char], mut i: usize) -> usize {
     t.end_word();
     let mut op = String::new();
     // `2>`: a lone digit word right before the operator is its file descriptor.
-    let fd = t.words.last().is_some_and(|w| w.len() == 1 && w.as_bytes()[0].is_ascii_digit());
+    let fd = t
+        .words
+        .last()
+        .is_some_and(|w| w.len() == 1 && w.as_bytes()[0].is_ascii_digit());
     if fd && (i == 0 || !is_space(s[i - 1])) {
         op = t.words.pop().unwrap_or_default();
     }
@@ -169,7 +175,7 @@ fn redirect(t: &mut Tokens, s: &[char], mut i: usize) -> usize {
     i
 }
 
-fn digits_then<'a>(w: &'a str) -> &'a str {
+fn digits_then(w: &str) -> &str {
     w.trim_start_matches(|c: char| c.is_ascii_digit())
 }
 
@@ -203,7 +209,10 @@ fn assignment(w: &str) -> bool {
     if !(first.is_ascii_alphabetic() || first == b'_') {
         return false;
     }
-    let name = rest.iter().take_while(|c| c.is_ascii_alphanumeric() || **c == b'_').count();
+    let name = rest
+        .iter()
+        .take_while(|c| c.is_ascii_alphanumeric() || **c == b'_')
+        .count();
     rest.get(name) == Some(&b'=')
 }
 
@@ -246,7 +255,10 @@ fn drop_flags(argv: &mut Vec<String>, pairs: impl Fn(&str) -> bool) {
 
 /// `/^-[IdLnPsE]$/`: xargs options that take the next word.
 fn xargs_pair(w: &str) -> bool {
-    matches!(w.as_bytes(), [b'-', b'I' | b'd' | b'L' | b'n' | b'P' | b's' | b'E'])
+    matches!(
+        w.as_bytes(),
+        [b'-', b'I' | b'd' | b'L' | b'n' | b'P' | b's' | b'E']
+    )
 }
 
 /// Drop what runs the command rather than being it: `FOO=1 sudo -E timeout 60 xargs -n 1 cmd` → `cmd`.
@@ -299,16 +311,22 @@ mod tests {
         assert_eq!(
             words("a 'b c' | d 2>&1 && e>f"),
             vec![
-                vec![vec!["a".to_owned(), "b c".to_owned()], vec!["d".to_owned(), "2>&1".to_owned()]],
+                vec![
+                    vec!["a".to_owned(), "b c".to_owned()],
+                    vec!["d".to_owned(), "2>&1".to_owned()]
+                ],
                 vec![vec!["e".to_owned(), ">".to_owned(), "f".to_owned()]],
             ]
         );
-        assert_eq!(words("x ''"), vec![vec![vec!["x".to_owned(), String::new()]]]);
+        assert_eq!(
+            words("x ''"),
+            vec![vec![vec!["x".to_owned(), String::new()]]]
+        );
     }
 
     #[test]
     fn peels_wrappers() {
-        let w: Vec<String> = "FOO=1 sudo -E timeout 60 xargs -n 1 cmd > out 2>/dev/null"
+        let w: Vec<String> = "FOO=1 sudo -E timeout 60 xargs -n 1 cmd > out 2> /dev/null"
             .split(' ')
             .map(str::to_owned)
             .collect();

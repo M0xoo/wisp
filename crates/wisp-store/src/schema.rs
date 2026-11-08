@@ -14,25 +14,27 @@ pub const KERNEL_MIGRATIONS: &[Migration] = &[Migration::sql(
 
     -- AUTOINCREMENT: a seq is never reused, even after retention empties the table, so a cursor
     -- always means the same point in the feed for the life of an epoch.
+    -- `more`: the second and later topics, space-separated (a topic never holds whitespace).
+    -- No index besides the rowid: every b-tree a write touches costs a 4 KB WAL page per transaction
+    -- (measured: three indexes here took streaming from 13× to 17× payload). Age retention scans
+    -- from the oldest seq, which is also the order rows are deleted in.
     CREATE TABLE change (
       seq INTEGER PRIMARY KEY AUTOINCREMENT,
       topic TEXT NOT NULL,
+      more TEXT,
       entity TEXT NOT NULL,
       id TEXT NOT NULL,
       op TEXT NOT NULL CHECK (op IN ('upsert', 'patch', 'del', 'append')),
       patch TEXT,
       at INTEGER NOT NULL
     ) STRICT;
-    CREATE INDEX change_topic_seq ON change (topic, seq);
-    CREATE INDEX change_at ON change (at);
 
-    -- the second and later topics of a change (a session row is on 'list' and 'session:<id>')
+    -- every topic of every change, first included: the one index topic filtering reads
     CREATE TABLE change_topic (
       topic TEXT NOT NULL,
-      seq INTEGER NOT NULL REFERENCES change (seq) ON DELETE CASCADE,
+      seq INTEGER NOT NULL,
       PRIMARY KEY (topic, seq)
     ) STRICT, WITHOUT ROWID;
-    CREATE INDEX change_topic_by_seq ON change_topic (seq);
 
     CREATE TABLE mutation (
       client_id TEXT NOT NULL,
@@ -89,7 +91,11 @@ pub const SETTING: EntityDef = EntityDef {
     kind: "setting",
     table: "setting",
     key: "key",
-    columns: &[("key", Col::Text), ("value", Col::Text), ("locked_by", Col::Text)],
+    columns: &[
+        ("key", Col::Text),
+        ("value", Col::Text),
+        ("locked_by", Col::Text),
+    ],
     json_columns: &["value"],
     parent: None,
     seq: None,
@@ -101,7 +107,13 @@ pub const PLUGIN: EntityDef = EntityDef {
     kind: "plugin",
     table: "plugin",
     key: "id",
-    columns: &[("id", Col::Text), ("version", Col::Text), ("enabled", Col::Bool), ("config", Col::Text), ("grants", Col::Text)],
+    columns: &[
+        ("id", Col::Text),
+        ("version", Col::Text),
+        ("enabled", Col::Bool),
+        ("config", Col::Text),
+        ("grants", Col::Text),
+    ],
     json_columns: &["config", "grants"],
     parent: None,
     seq: None,

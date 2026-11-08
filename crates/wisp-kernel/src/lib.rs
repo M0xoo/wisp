@@ -46,10 +46,10 @@ use std::sync::Arc;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
-pub use caps::{Caller, CapabilitySet};
-pub use error::{Code, Result, WireError};
 pub use call::MAX_DEPTH;
+pub use caps::{Caller, CapabilitySet};
 pub use diag::FailureRecord;
+pub use error::{Code, Result, WireError};
 pub use events::{EventEnvelope, QUEUE_CAP};
 pub use exec::{ExecOptions, ExecPlugin, ExecSpawner};
 pub use host::{App, Ctx, Kernel, PluginStatus, Setup};
@@ -252,6 +252,7 @@ impl PluginGroup {
         Self::default()
     }
     #[must_use]
+    #[allow(clippy::should_implement_trait)] // Bevy's name, frozen in the contract
     pub fn add(mut self, p: impl Plugin) -> Self {
         self.plugins.push(Arc::new(p));
         self

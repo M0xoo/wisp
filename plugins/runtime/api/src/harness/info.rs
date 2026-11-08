@@ -3,7 +3,6 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use ts_rs::TS;
 
 use crate::model::Mode;
@@ -217,4 +216,3 @@ pub struct FolderQuery {
     pub env: BTreeMap<String, String>,
     pub tmps: Vec<String>,
 }
-

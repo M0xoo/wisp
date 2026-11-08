@@ -49,12 +49,18 @@ pub fn parse(text: &str) -> Parsed {
         }
         None => js::trim(text).to_owned(),
     };
-    Parsed { fallback: true, blocks: vec![markdown(if md.is_empty() { EMPTY.to_owned() } else { md })], ..Parsed::default() }
+    Parsed {
+        fallback: true,
+        blocks: vec![markdown(if md.is_empty() { EMPTY.to_owned() } else { md })],
+        ..Parsed::default()
+    }
 }
 
 /// The first `hero` block.
 pub fn hero_of(blocks: &[Value]) -> Option<&Value> {
-    blocks.iter().find(|b| b.get("type").and_then(Value::as_str) == Some("hero"))
+    blocks
+        .iter()
+        .find(|b| b.get("type").and_then(Value::as_str) == Some("hero"))
 }
 
 /// Where the JSON value at the start of `src` ends (bracket matching that respects strings and
@@ -99,7 +105,9 @@ fn openers(text: &str) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
     let mut from = 0;
     while let Some(p) = text[from..].find(OPEN).map(|p| from + p) {
-        let Some(nl) = text[p + OPEN.len()..].find('\n') else { break };
+        let Some(nl) = text[p + OPEN.len()..].find('\n') else {
+            break;
+        };
         let body = p + OPEN.len() + nl + 1;
         out.push((p, body));
         from = body;
@@ -112,7 +120,12 @@ fn from_block(text: &str, at: usize, json: Option<Value>) -> Option<Parsed> {
     let json = json?;
     // A top-level topic names the task when no hero does (runner finishTurn).
     let topic = match &json {
-        Value::Object(o) => o.get("topic").and_then(Value::as_str).map(js::trim).filter(|t| !t.is_empty()).map(str::to_owned),
+        Value::Object(o) => o
+            .get("topic")
+            .and_then(Value::as_str)
+            .map(js::trim)
+            .filter(|t| !t.is_empty())
+            .map(str::to_owned),
         _ => None,
     };
     let extra = js::trim(&text[..at]);
@@ -126,7 +139,10 @@ fn from_block(text: &str, at: usize, json: Option<Value>) -> Option<Parsed> {
     };
     match blocks {
         Some(Some(list)) if !list.is_empty() => Some(Parsed {
-            blocks: list.into_iter().filter(|b| b.get("type").is_some_and(Value::is_string)).collect(),
+            blocks: list
+                .into_iter()
+                .filter(|b| b.get("type").is_some_and(Value::is_string))
+                .collect(),
             notes: (!extra.is_empty()).then(|| extra.to_owned()),
             topic,
             fallback: false,
@@ -135,7 +151,11 @@ fn from_block(text: &str, at: usize, json: Option<Value>) -> Option<Parsed> {
         // it is (not a slip, so no fallback), and the block shows nothing.
         None | Some(Some(_)) if topic.is_some() => {
             let text = if extra.is_empty() { EMPTY } else { extra };
-            Some(Parsed { blocks: vec![markdown(text.to_owned())], topic, ..Parsed::default() })
+            Some(Parsed {
+                blocks: vec![markdown(text.to_owned())],
+                topic,
+                ..Parsed::default()
+            })
         }
         _ => None,
     }
@@ -182,7 +202,10 @@ fn salvage_blocks(src: &str) -> Option<Value> {
     let mut blocks = Vec::new();
     let mut bad = 0_usize;
     while i < src.len() {
-        i = src[i..].char_indices().find(|&(_, c)| c != ',' && !js::is_ws(c)).map_or(src.len(), |(k, _)| i + k);
+        i = src[i..]
+            .char_indices()
+            .find(|&(_, c)| c != ',' && !js::is_ws(c))
+            .map_or(src.len(), |(k, _)| i + k);
         if !src[i..].starts_with('{') {
             break;
         }
@@ -196,7 +219,10 @@ fn salvage_blocks(src: &str) -> Option<Value> {
         };
         // A bracket count that ends early on a `]` usually means a block lost a closing brace.
         let piece = &src[i..i + len];
-        match try_json(piece).filter(|v| js::truthy(Some(v))).or_else(|| close_braces(piece)) {
+        match try_json(piece)
+            .filter(|v| js::truthy(Some(v)))
+            .or_else(|| close_braces(piece))
+        {
             Some(block @ (Value::Object(_) | Value::Array(_))) => blocks.push(block),
             _ => bad += 1,
         }
@@ -209,8 +235,19 @@ fn salvage_blocks(src: &str) -> Option<Value> {
         let mut m = Map::new();
         m.insert("type".to_owned(), Value::String("callout".to_owned()));
         m.insert("tone".to_owned(), Value::String("warn".to_owned()));
-        m.insert("title".to_owned(), Value::String(format!("{bad} block{} skipped", if bad > 1 { "s" } else { "" })));
-        m.insert("text".to_owned(), Value::String("Part of the agent's answer was malformed JSON and could not be shown.".to_owned()));
+        m.insert(
+            "title".to_owned(),
+            Value::String(format!(
+                "{bad} block{} skipped",
+                if bad > 1 { "s" } else { "" }
+            )),
+        );
+        m.insert(
+            "text".to_owned(),
+            Value::String(
+                "Part of the agent's answer was malformed JSON and could not be shown.".to_owned(),
+            ),
+        );
         blocks.push(Value::Object(m));
     }
     Some(Value::Array(blocks))
@@ -273,7 +310,12 @@ fn try_json(src: &str) -> Option<Value> {
 
 /// v1's `src.replace(/,\s*([}\]])/g, '$1').replace(/[“”]/g, '"')`, or None when it changes nothing.
 fn relaxed(src: &str) -> Option<String> {
-    let trailing_comma = |at: usize| matches!(src[js::skip_ws(src, at + 1)..].as_bytes().first(), Some(b'}' | b']'));
+    let trailing_comma = |at: usize| {
+        matches!(
+            src.as_bytes()[js::skip_ws(src, at + 1)..].first(),
+            Some(b'}' | b']')
+        )
+    };
     let dirty = src.contains(['“', '”']) || src.match_indices(',').any(|(i, _)| trailing_comma(i));
     if !dirty {
         return None;

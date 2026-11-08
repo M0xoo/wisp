@@ -10,7 +10,7 @@ use crate::caps::owned_by;
 use crate::events::Sub;
 use crate::host::{CmdReg, Ctx, HookReg, Setup, StartFn};
 use crate::life::Phase;
-use crate::reg::{service_key, CmdEntry, HookEntry, PointEntry, ProvEntry};
+use crate::reg::{CmdEntry, HookEntry, PointEntry, ProvEntry, service_key};
 use crate::state::KernelState;
 use crate::{BoxFuture, Code, Result, WireError};
 
@@ -21,13 +21,28 @@ pub(crate) fn activate(k: &Arc<KernelState>, id: &str) -> BoxFuture<'static, Res
         loop {
             let (phase, ready, reason, deps) = {
                 let mut ps = k.lock_plugins()?;
-                let deps: Vec<String> = ps.res.deps.get(&id).into_iter().chain(ps.res.wants.get(&id)).flatten().cloned().collect();
-                let Some(s) = ps.slot(&id) else { return Err(WireError::not_found(format!("no plugin {id}"))) };
+                let deps: Vec<String> = ps
+                    .res
+                    .deps
+                    .get(&id)
+                    .into_iter()
+                    .chain(ps.res.wants.get(&id))
+                    .flatten()
+                    .cloned()
+                    .collect();
+                let Some(s) = ps.slot(&id) else {
+                    return Err(WireError::not_found(format!("no plugin {id}")));
+                };
                 (s.phase, s.ready.clone(), s.reason.clone(), deps)
             };
             match phase {
                 Phase::Active => return Ok(()),
-                Phase::Off | Phase::Refused => return Err(WireError::new(Code::PluginOff, reason.unwrap_or_else(|| format!("{id} is off")))),
+                Phase::Off | Phase::Refused => {
+                    return Err(WireError::new(
+                        Code::PluginOff,
+                        reason.unwrap_or_else(|| format!("{id} is off")),
+                    ));
+                }
                 Phase::Starting => {
                     let wait = ready.notified();
                     tokio::pin!(wait);
@@ -38,7 +53,12 @@ pub(crate) fn activate(k: &Arc<KernelState>, id: &str) -> BoxFuture<'static, Res
                 }
                 Phase::Resolved => {
                     for d in deps {
-                        let hard = k.lock_plugins()?.res.deps.get(&id).is_some_and(|ds| ds.contains(&d));
+                        let hard = k
+                            .lock_plugins()?
+                            .res
+                            .deps
+                            .get(&id)
+                            .is_some_and(|ds| ds.contains(&d));
                         let r = activate(&k, &d).await;
                         if hard {
                             r?;
@@ -51,15 +71,18 @@ pub(crate) fn activate(k: &Arc<KernelState>, id: &str) -> BoxFuture<'static, Res
     })
 }
 
-/// Runs every setup in order, then every `on_start` in order (App::start's contract). A failure turns
+/// Runs every setup in order, then every `on_start` in order (`App::start`'s contract). A failure turns
 /// that plugin off with the reason, and a new resolution takes its dependents with it.
 pub(crate) async fn batch(k: &Arc<KernelState>, ids: Vec<String>) {
     let mut started: Vec<(String, Ctx, Vec<StartFn>)> = Vec::new();
     let mut failed = false;
     for id in ids {
-        let Some((plugin, ctx, manifest)) = begin(k, &id) else { continue };
+        let Some((plugin, ctx, manifest)) = begin(k, &id) else {
+            continue;
+        };
         let mut s = Setup::new(ctx.clone());
-        let r = std::panic::catch_unwind(AssertUnwindSafe(|| plugin.setup(&mut s))).unwrap_or_else(|_| Err(WireError::internal("setup panicked")));
+        let r = std::panic::catch_unwind(AssertUnwindSafe(|| plugin.setup(&mut s)))
+            .unwrap_or_else(|_| Err(WireError::internal("setup panicked")));
         match r.and_then(|()| install(k, &ctx, &manifest, s)) {
             Ok(starts) => started.push((id, ctx, starts)),
             Err(e) => {
@@ -127,7 +150,14 @@ fn finish(k: &KernelState, id: &str) {
 
 fn fail(k: &Arc<KernelState>, id: &str, kind: &str, e: &WireError) {
     let why = format!("{id}: {kind} failed: {}", e.message);
-    k.diag.record(k.now_ms(), id, kind, "internal", e.message.clone(), Vec::new());
+    k.diag.record(
+        k.now_ms(),
+        id,
+        kind,
+        "internal",
+        e.message.clone(),
+        Vec::new(),
+    );
     tracing::warn!(plugin = id, "{why}");
     if let Ok(mut ps) = k.lock_plugins() {
         ps.failed.insert(id.to_owned(), why.clone());
@@ -170,9 +200,15 @@ fn install(k: &Arc<KernelState>, ctx: &Ctx, m: &crate::Manifest, s: Setup) -> Re
         }
     }
     for (sid, major, _) in &s.services {
-        let declared = m.provided(sid).ok_or_else(|| WireError::invalid(format!("{id} provides {sid} without declaring it in its manifest's provides")))?;
+        let declared = m.provided(sid).ok_or_else(|| {
+            WireError::invalid(format!(
+                "{id} provides {sid} without declaring it in its manifest's provides"
+            ))
+        })?;
         if crate::semver::major_of(declared) != Some(u64::from(*major)) {
-            return Err(WireError::invalid(format!("{id} provides {sid}@{major}, but its manifest says {declared}")));
+            return Err(WireError::invalid(format!(
+                "{id} provides {sid}@{major}, but its manifest says {declared}"
+            )));
         }
     }
     for c in s.commands {
@@ -182,10 +218,24 @@ fn install(k: &Arc<KernelState>, ctx: &Ctx, m: &crate::Manifest, s: Setup) -> Re
         add_hook(k, ctx, h)?;
     }
     for (point, version, item, json) in s.points {
-        k.write_reg()?.add_point(&point, PointEntry { owner: ctx.inner.id.clone(), version, item, json });
+        k.write_reg()?.add_point(
+            &point,
+            PointEntry {
+                owner: ctx.inner.id.clone(),
+                version,
+                item,
+                json,
+            },
+        );
     }
     for (sid, major, item) in s.services {
-        k.write_reg()?.add_service(service_key(sid, major), ProvEntry { owner: ctx.inner.id.clone(), item });
+        k.write_reg()?.add_service(
+            service_key(sid, major),
+            ProvEntry {
+                owner: ctx.inner.id.clone(),
+                item,
+            },
+        );
     }
     for (pattern, f) in s.events {
         add_sub(k, ctx, pattern, f);
@@ -195,10 +245,17 @@ fn install(k: &Arc<KernelState>, ctx: &Ctx, m: &crate::Manifest, s: Setup) -> Re
 
 fn check_command(reg: &crate::reg::Registry, id: &str, c: &CmdReg) -> Result<()> {
     if !owned_by(&c.id, id) {
-        return Err(WireError::invalid(format!("{id} registers {} outside its namespace (\"{}.\")", c.id, crate::caps::owner_prefix(id))));
+        return Err(WireError::invalid(format!(
+            "{id} registers {} outside its namespace (\"{}.\")",
+            c.id,
+            crate::caps::owner_prefix(id)
+        )));
     }
     if let Some(had) = reg.commands.get(&c.id) {
-        return Err(WireError::conflict(format!("{} is already registered by {}", c.id, had.owner)));
+        return Err(WireError::conflict(format!(
+            "{} is already registered by {}",
+            c.id, had.owner
+        )));
     }
     Ok(())
 }
@@ -208,19 +265,49 @@ pub(crate) fn add_command(k: &KernelState, ctx: &Ctx, c: CmdReg) -> Result<()> {
     let id = ctx.plugin();
     let mut reg = k.write_reg()?;
     check_command(&reg, id, &c)?;
-    let perm_s = c.permission.clone().unwrap_or_else(|| crate::perm::of_command(&c.id));
-    let perm = crate::perm::parse(&perm_s).ok_or_else(|| WireError::invalid(format!("{}: \"{perm_s}\" is not a permission", c.id)))?;
+    let perm_s = c
+        .permission
+        .clone()
+        .unwrap_or_else(|| crate::perm::of_command(&c.id));
+    let perm = crate::perm::parse(&perm_s)
+        .ok_or_else(|| WireError::invalid(format!("{}: \"{perm_s}\" is not a permission", c.id)))?;
     let frame = format!("{id}:{}", c.id);
-    reg.add_command(CmdEntry { id: c.id, owner: ctx.inner.id.clone(), perm, read_only: c.read_only, json: c.json, typed: c.typed, ctx: ctx.clone(), frame })
+    reg.add_command(CmdEntry {
+        id: c.id,
+        owner: ctx.inner.id.clone(),
+        perm,
+        read_only: c.read_only,
+        json: c.json,
+        typed: c.typed,
+        ctx: ctx.clone(),
+        frame,
+    })
 }
 
 pub(crate) fn add_hook(k: &KernelState, ctx: &Ctx, h: HookReg) -> Result<()> {
     let frame = format!("{}:{}", ctx.plugin(), h.hook);
-    let e = HookEntry { owner: ctx.inner.id.clone(), opts: h.opts, order: 0, json: h.json, typed: h.typed, ctx: ctx.clone(), frame };
+    let e = HookEntry {
+        owner: ctx.inner.id.clone(),
+        opts: h.opts,
+        order: 0,
+        json: h.json,
+        typed: h.typed,
+        ctx: ctx.clone(),
+        frame,
+    };
     k.write_reg()?.add_hook(&h.hook, e);
     Ok(())
 }
 
 pub(crate) fn add_sub(k: &Arc<KernelState>, ctx: &Ctx, pattern: String, f: crate::events::SubFn) {
-    k.bus.subscribe(k, &ctx.inner.id, Sub { pattern, f, ctx: ctx.clone() }, ctx.scope());
+    k.bus.subscribe(
+        k,
+        &ctx.inner.id,
+        Sub {
+            pattern,
+            f,
+            ctx: ctx.clone(),
+        },
+        ctx.scope(),
+    );
 }

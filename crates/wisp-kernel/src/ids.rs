@@ -1,4 +1,4 @@
-//! Typed ids: UUIDv7 newtypes (time-sortable, append to the B-tree), origin-prefixed across peers
+//! Typed ids: `UUIDv7` newtypes (time-sortable, append to the B-tree), origin-prefixed across peers
 //! (`<peer>:<uuid>`, plan §7.2.1). Legacy v1 ids import unchanged, so an id is a string underneath.
 
 /// Declares a branded id type: `id_type!(SessionId);` gives `SessionId::new()`, `as_str()`, serde as a

@@ -21,11 +21,15 @@ mod coalescer;
 mod entity;
 mod error;
 mod import;
-pub mod json_patch;
 mod json_file;
+mod json_out;
+pub mod json_patch;
+mod listeners;
 mod migrate;
 mod query;
 mod reads;
+mod retention;
+mod row;
 mod schema;
 mod search;
 mod store;
@@ -36,17 +40,21 @@ pub use blob::{BlobInfo, Codec, GcResult, INLINE_MAX, Owner, hash_of};
 pub use changes::{ChangeOp, ChangeRow, Delta, MAX_LIMIT};
 pub use clock::{ManualClock, SystemClock};
 pub use coalescer::{Buffered, Coalescer, CoalescerOptions, OnError};
-pub use entity::{Col, EntityDef, Id, Row, Topic, from_row, is_topic, to_row};
+pub use entity::{Col, EntityDef, Row, Topic};
 pub use error::{Result, StoreError};
-pub use import::{ImportFile, ImportHandler, ImportOptions, ImportReport, import_files};
+pub use import::{ImportFile, ImportHandler, ImportOptions, ImportReport, Pattern, import_files};
 pub use json_file::JsonFile;
 pub use json_patch::PatchOp;
+pub use listeners::Subscription;
 pub use migrate::{MigrateReport, Migration, Up};
 pub use query::{Cond, Dir, Query};
 pub use reads::Reader;
+pub use row::{Id, from_row, is_topic, to_row};
 pub use schema::{KERNEL_OWNER, PLUGIN, SETTING};
 pub use search::{SearchHit, to_match};
-pub use store::{DEFAULT_RETENTION, EpochFn, Location, PruneResult, Retention, Store, StoreOptions, Subscription};
+pub use store::{
+    DEFAULT_RETENTION, EpochFn, Location, PruneResult, Retention, Store, StoreOptions,
+};
 pub use writer::{MutationResult, Writer};
 
 /// rusqlite, for owners' `Up::Fn` data migrations (so a plugin needs no SQLite dependency of its own).

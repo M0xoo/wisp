@@ -2,10 +2,9 @@
 //! first topic is on the row; the others are in `change_topic`, so one write on two topics is still one
 //! change, delivered once.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
-use rusqlite::types::Value as Sql;
-use rusqlite::{Connection, params_from_iter};
+use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -70,7 +69,7 @@ pub struct Delta {
 }
 
 pub const MAX_LIMIT: u32 = 10_000;
-const COLS: &str = "seq, topic, entity, id, op, patch, at";
+const COLS: &str = "seq, topic, more, entity, id, op, patch, at";
 
 pub(crate) fn head_seq(db: &Connection) -> Result<i64> {
     let mut st = db.prepare_cached("SELECT seq FROM sqlite_sequence WHERE name = 'change'")?;
@@ -82,7 +81,9 @@ pub(crate) fn head_seq(db: &Connection) -> Result<i64> {
 }
 
 pub(crate) fn oldest_seq(db: &Connection) -> Result<i64> {
-    let min: Option<i64> = db.prepare_cached("SELECT min(seq) FROM change")?.query_row([], |r| r.get(0))?;
+    let min: Option<i64> = db
+        .prepare_cached("SELECT min(seq) FROM change")?
+        .query_row([], |r| r.get(0))?;
     match min {
         Some(s) => Ok(s),
         None => Ok(head_seq(db)? + 1),
@@ -94,67 +95,95 @@ pub(crate) fn can_resume(db: &Connection, cursor: i64) -> Result<bool> {
     Ok(cursor >= 0 && cursor <= head_seq(db)? && cursor >= oldest_seq(db)? - 1)
 }
 
-pub(crate) fn read(db: &Connection, since: i64, topics: Option<&[&str]>, limit: u32) -> Result<Vec<ChangeRow>> {
+pub(crate) fn read(
+    db: &Connection,
+    since: i64,
+    topics: Option<&[&str]>,
+    limit: u32,
+) -> Result<Vec<ChangeRow>> {
     if since < 0 {
         return Err(invalid("changes_since: seq must be a whole number ≥ 0"));
     }
     if limit == 0 || limit > MAX_LIMIT {
-        return Err(invalid(format!("changes_since: limit must be 1…{MAX_LIMIT}")));
+        return Err(invalid(format!(
+            "changes_since: limit must be 1…{MAX_LIMIT}"
+        )));
     }
-    let mut params: Vec<Sql> = vec![Sql::Integer(since)];
-    let sql = match topics {
+    let seqs = match topics {
         Some([]) => return Ok(Vec::new()),
-        None => format!("SELECT {COLS} FROM change WHERE seq > ? ORDER BY seq LIMIT ?"),
-        Some(ts) => {
-            let marks = vec!["?"; ts.len()].join(", ");
-            params.extend(ts.iter().map(|t| Sql::Text((*t).to_owned())));
-            params.extend(ts.iter().map(|t| Sql::Text((*t).to_owned())));
-            params.push(Sql::Integer(since));
-            format!("SELECT {COLS} FROM change WHERE seq > ? AND (topic IN ({marks}) OR seq IN (SELECT seq FROM change_topic WHERE topic IN ({marks}) AND seq > ?)) ORDER BY seq LIMIT ?")
-        }
+        None => None,
+        Some(ts) => Some(topic_seqs(db, since, ts, limit)?),
     };
-    params.push(Sql::Integer(i64::from(limit)));
     let mut out = Vec::new();
-    let mut st = db.prepare_cached(&sql)?;
-    let mut rows = st.query(params_from_iter(params))?;
-    while let Some(r) = rows.next()? {
-        let topic: String = r.get(1)?;
-        let patch: Option<String> = r.get(5)?;
-        let op: String = r.get(4)?;
-        out.push(ChangeRow {
-            seq: r.get(0)?,
-            topics: vec![topic.clone()],
-            topic,
-            entity: r.get(2)?,
-            id: r.get(3)?,
-            op: ChangeOp::parse(&op)?,
-            patch: patch.map_or(Ok(Value::Null), |p| serde_json::from_str(&p))?,
-            at: r.get(6)?,
-        });
+    match seqs {
+        None => {
+            let mut st = db.prepare_cached(&format!(
+                "SELECT {COLS} FROM change WHERE seq > ? ORDER BY seq LIMIT ?"
+            ))?;
+            let mut rows = st.query([since, i64::from(limit)])?;
+            while let Some(r) = rows.next()? {
+                out.push(decode(r)?);
+            }
+        }
+        Some(seqs) => {
+            let mut st = db.prepare_cached(&format!("SELECT {COLS} FROM change WHERE seq = ?"))?;
+            for seq in seqs {
+                let mut rows = st.query([seq])?;
+                if let Some(r) = rows.next()? {
+                    out.push(decode(r)?);
+                }
+            }
+        }
     }
-    add_topics(db, &mut out)?;
     Ok(out)
 }
 
-fn add_topics(db: &Connection, out: &mut [ChangeRow]) -> Result<()> {
-    let (Some(first), Some(last)) = (out.first().map(|c| c.seq), out.last().map(|c| c.seq)) else { return Ok(()) };
-    let mut extra: HashMap<i64, Vec<String>> = HashMap::new();
-    let mut st = db.prepare_cached("SELECT seq, topic FROM change_topic WHERE seq BETWEEN ? AND ? ORDER BY seq, topic")?;
-    let mut rows = st.query([first, last])?;
-    while let Some(r) = rows.next()? {
-        extra.entry(r.get(0)?).or_default().push(r.get(1)?);
-    }
-    for c in out {
-        if let Some(more) = extra.remove(&c.seq) {
-            c.topics.extend(more);
+/// The first `limit` seqs after `since` on any of `topics`: one index range per topic (each already in
+/// seq order and cut at `limit`), merged. A change on two watched topics counts once.
+fn topic_seqs(db: &Connection, since: i64, topics: &[&str], limit: u32) -> Result<Vec<i64>> {
+    let mut st = db.prepare_cached(
+        "SELECT seq FROM change_topic WHERE topic = ? AND seq > ? ORDER BY seq LIMIT ?",
+    )?;
+    let mut all = Vec::new();
+    for t in topics {
+        let mut rows = st.query(params![t, since, i64::from(limit)])?;
+        while let Some(r) = rows.next()? {
+            all.push(r.get::<_, i64>(0)?);
         }
     }
-    Ok(())
+    all.sort_unstable();
+    all.dedup();
+    all.truncate(limit as usize);
+    Ok(all)
+}
+
+fn decode(r: &rusqlite::Row<'_>) -> Result<ChangeRow> {
+    let topic: String = r.get(1)?;
+    let more: Option<String> = r.get(2)?;
+    let patch: Option<String> = r.get(6)?;
+    let op: String = r.get(5)?;
+    let mut topics = vec![topic.clone()];
+    topics.extend(more.iter().flat_map(|m| m.split(' ')).map(str::to_owned));
+    Ok(ChangeRow {
+        seq: r.get(0)?,
+        topic,
+        topics,
+        entity: r.get(3)?,
+        id: r.get(4)?,
+        op: ChangeOp::parse(&op)?,
+        patch: patch.map_or(Ok(Value::Null), |p| serde_json::from_str(&p))?,
+        at: r.get(7)?,
+    })
 }
 
 /// The rows on `topic` changed after `since`, as they are now; `None` when `since` is older than what
 /// retention kept (the client must take a snapshot instead). One read transaction: callers pass a reader.
-pub(crate) fn changed_since(db: &Connection, kinds: &dyn Fn(&str) -> Option<std::sync::Arc<Kind>>, topic: &str, since: i64) -> Result<Option<Delta>> {
+pub(crate) fn changed_since(
+    db: &Connection,
+    kinds: &dyn Fn(&str) -> Option<std::sync::Arc<Kind>>,
+    topic: &str,
+    since: i64,
+) -> Result<Option<Delta>> {
     if !can_resume(db, since)? {
         return Ok(None);
     }
@@ -179,7 +208,10 @@ pub(crate) fn changed_since(db: &Connection, kinds: &dyn Fn(&str) -> Option<std:
         }
     }
     order.reverse(); // collected newest first; deliver oldest first, each at its latest change
-    let mut delta = Delta { head, ..Delta::default() };
+    let mut delta = Delta {
+        head,
+        ..Delta::default()
+    };
     for (entity, id) in order {
         let Some(k) = kinds(&entity) else { continue }; // an owner that is not loaded: skip its rows
         match get_row(db, &k, &id)? {
@@ -194,9 +226,16 @@ fn touched(c: &ChangeRow, kinds: &dyn Fn(&str) -> Option<std::sync::Arc<Kind>>) 
     if c.op != ChangeOp::Append {
         return Ok(vec![Id::Text(c.id.clone())]);
     }
-    let Some(k) = kinds(&c.entity) else { return Ok(Vec::new()) };
+    let Some(k) = kinds(&c.entity) else {
+        return Ok(Vec::new());
+    };
     let rows = c.patch.as_array().map(Vec::as_slice).unwrap_or_default();
-    let mut ids = rows.iter().rev().filter_map(|r| r.as_object()).map(|r| k.id_value(r)).collect::<Result<Vec<_>>>()?;
+    let mut ids = rows
+        .iter()
+        .rev()
+        .filter_map(|r| r.as_object())
+        .map(|r| k.id_value(r))
+        .collect::<Result<Vec<_>>>()?;
     ids.dedup();
     Ok(ids)
 }

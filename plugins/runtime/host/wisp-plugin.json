@@ -1,0 +1,26 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.runtime",
+  "name": "Tasks",
+  "version": "2.0.0",
+  "api": "1",
+  "description": "Tasks (sessions), their turns and activity, the follow-up queue and the harness lifecycle",
+  "author": "wisp",
+  "kind": "plugin",
+  "provides": { "runtime.harness": "1", "runtime.summary": "1", "runtime.prompt": "1", "runtime.block": "1", "runtime.view": "1", "runtime.after": "1", "runtime.run": "1", "runtime.outcome": "1", "runtime.delegate": "1", "runtime.accounts": "1" },
+  "permissions": ["proc:spawn{bin:*}", "proc:exec{bin:*}", "store:write{owner:runtime}", "fs:read{path:~/.wisp/sessions}", "fs:write{path:~/.wisp/sessions}"],
+  "server": { "builtin": "wisp-runtime" },
+  "activation": ["onStartup"],
+  "migrations": "runtime",
+  "contributes": {
+    "commands": [
+      "runtime.create", "runtime.followUp", "runtime.stop", "runtime.rename", "runtime.archive", "runtime.markRead", "runtime.setState",
+      "runtime.delete", "runtime.queue.edit", "runtime.queue.sendNow", "runtime.queue.merge", "runtime.queue.text", "runtime.release",
+      "runtime.get", "runtime.list", "runtime.turns", "runtime.activity", "runtime.presentation", "runtime.setExt", "runtime.turn.setExt",
+      "runtime.note", "runtime.settle", "runtime.search", "runtime.agents", "runtime.card", "runtime.import"
+    ],
+    "events": ["session.created", "session.changed", "session.deleted", "turn.started", "turn.activity", "turn.finished", "turn.ended", "turn.held", "turn.limits"],
+    "hooks": ["before:create", "before:run", "before:followUp", "before:delegate"],
+    "topics": ["list", "session:<id>"]
+  }
+}
