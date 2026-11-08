@@ -380,6 +380,8 @@ impl Bridge {
                 id,
                 permission,
                 read_only: p.get("readOnly") == Some(&Value::Bool(true)),
+                task_args: crate::scope::DEFAULT_TASK_ARGS,
+                all_tasks: false,
                 json,
                 typed: None,
             },

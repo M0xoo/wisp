@@ -277,6 +277,8 @@ pub(crate) fn add_command(k: &KernelState, ctx: &Ctx, c: CmdReg) -> Result<()> {
         owner: ctx.inner.id.clone(),
         perm,
         read_only: c.read_only,
+        task_args: c.task_args,
+        all_tasks: c.all_tasks,
         json: c.json,
         typed: c.typed,
         ctx: ctx.clone(),

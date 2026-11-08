@@ -78,6 +78,20 @@ fn meta(name: &str, argv: &[String]) -> Option<i32> {
         println!("{}", if signed { "Logged in using ChatGPT" } else { "Not logged in" });
         return Some(i32::from(!signed));
     }
+    if name == "codex" && joined == "app-server" {
+        // the usage read Codex's own status line does (v1 live-limits.js)
+        let mut input = String::new();
+        let _ = std::io::stdin().read_to_string(&mut input);
+        for line in input.lines() {
+            let Ok(m) = serde_json::from_str::<Value>(line) else { continue };
+            match m["id"].as_i64() {
+                Some(1) => out(&json!({ "id": 1, "result": {} })),
+                Some(2) => out(&json!({ "id": 2, "result": { "rateLimits": { "primary": { "usedPercent": 42, "windowDurationMins": 300, "resetsAt": 1_900_000_000 } } } })),
+                _ => {}
+            }
+        }
+        return Some(0);
+    }
     if name == "codex" && joined == "debug models" {
         // no catalog: detect falls back to $CODEX_HOME/models_cache.json
         return Some(1);

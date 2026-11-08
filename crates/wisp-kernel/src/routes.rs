@@ -104,6 +104,7 @@ pub(crate) fn serve(
             ));
         }
         req.params = params;
+        k.route_scope(&caller, e.route.pattern, &req.params).await?;
         let call = CallInner::detached(
             &k.state,
             caller,

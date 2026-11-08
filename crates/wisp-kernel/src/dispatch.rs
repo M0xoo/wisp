@@ -266,6 +266,10 @@ pub(crate) fn typed<C: Command>(
             find(&k, C::ID, move || probe, ctx.plugin(), &call.inner.stack).await?
         };
         let en = enter(&k, &e, Some(&ctx), &call)?;
+        if crate::scope::agent_task(&en.call.inner.caller).is_some() {
+            let v = serde_json::to_value(&args).unwrap_or_default();
+            scoped(&k, &e, &en.call, &v).await?;
+        }
         let fut: BoxFuture<'static, Result<C::Out>> = if let Some(t) = e
             .typed
             .as_deref()
@@ -285,6 +289,15 @@ pub(crate) fn typed<C: Command>(
     })
 }
 
+/// The agent-token scope (`crate::scope`) for one command entry.
+async fn scoped(k: &Arc<KernelState>, e: &CmdEntry, call: &Call, args: &Value) -> Result<()> {
+    if crate::scope::agent_task(&call.inner.caller).is_none() {
+        return Ok(());
+    }
+    let trees = crate::kernel_api::contributions(k, &crate::scope::TASKS).into_iter().map(|(_, t)| t).collect();
+    crate::scope::check(trees, &call.inner.caller, &e.id, crate::scope::named(args, e.task_args), e.all_tasks).await
+}
+
 /// A command by id with JSON args: the edge, follow-ups, the exec tier.
 pub(crate) async fn json(
     k: &Arc<KernelState>,
@@ -298,6 +311,7 @@ pub(crate) async fn json(
         .map_or_else(|| "edge".to_owned(), |c| c.plugin().to_owned());
     let e = find(k, cmd, || Some(args.clone()), &who, &parent.inner.stack).await?;
     let en = enter(k, &e, from.as_ref(), parent)?;
+    scoped(k, &e, &en.call, &args).await?;
     let fut = (e.json)(e.ctx.clone(), en.call.clone(), args);
     run(k, &e, en, fut).await
 }

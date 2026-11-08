@@ -16,6 +16,8 @@ pub(crate) struct CmdEntry {
     pub(crate) owner: Arc<str>,
     pub(crate) perm: Permission,
     pub(crate) read_only: bool,
+    pub(crate) task_args: &'static [&'static str],
+    pub(crate) all_tasks: bool,
     pub(crate) json: CmdFn,
     /// `TypedCmd<C>` for in-process commands: no JSON round trip when caller and owner share the type
     pub(crate) typed: Option<Erased>,

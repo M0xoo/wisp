@@ -38,6 +38,8 @@ pub(crate) struct CmdReg {
     pub(crate) id: String,
     pub(crate) permission: Option<String>,
     pub(crate) read_only: bool,
+    pub(crate) task_args: &'static [&'static str],
+    pub(crate) all_tasks: bool,
     pub(crate) json: CmdFn,
     pub(crate) typed: Option<Erased>,
 }
@@ -121,6 +123,8 @@ impl Setup {
             id: C::ID.to_owned(),
             permission: C::PERMISSION.map(str::to_owned),
             read_only: C::READ_ONLY,
+            task_args: C::TASK_ARGS,
+            all_tasks: C::ALL_TASKS,
             json,
             typed: Some(Arc::new(typed)),
         });
@@ -442,6 +446,16 @@ impl Kernel {
     ) -> BoxFuture<'static, Result<Value>> {
         crate::dispatch::edge(self.state.clone(), caller, cmd.to_owned(), args)
     }
+    /// The agent-token scope for a route (`crate::scope`): its task params against the caller's task.
+    /// The edge runs it before every route handler. Additive (2026-11-08).
+    pub fn route_scope(&self, caller: &Caller, pattern: &str, params: &std::collections::BTreeMap<String, String>) -> BoxFuture<'static, Result<()>> {
+        let ids = crate::scope::route_tasks(pattern, params);
+        let caller = caller.clone();
+        let what = pattern.to_owned();
+        let trees: Vec<Arc<dyn crate::scope::TaskTree>> = if crate::scope::agent_task(&caller).is_some() && !ids.is_empty() { crate::kernel_api::contributions(&self.state, &crate::scope::TASKS).into_iter().map(|(_, t)| t).collect() } else { Vec::new() };
+        Box::pin(async move { crate::scope::check(trees, &caller, &what, ids, false).await })
+    }
+
     /// Every contribution to `point`, across plugins that are on.
     pub fn contributions<T: ?Sized + Send + Sync + 'static>(
         &self,

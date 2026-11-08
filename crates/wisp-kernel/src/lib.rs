@@ -13,6 +13,7 @@ pub mod error;
 pub mod http;
 pub mod ids;
 pub mod manifest;
+pub mod scope;
 pub mod services;
 
 pub mod activation;
@@ -69,6 +70,11 @@ pub trait Command: 'static {
     const PERMISSION: Option<&'static str> = None;
     /// true: a read, allowed inside an interceptor (interceptors never write, plan §6.11.2 rule 4)
     const READ_ONLY: bool = false;
+    /// The arg keys that name a task: an agent caller may only name its own task or one under it
+    /// (`scope`, v1 edge case HTTP #3). Additive (2026-11-08).
+    const TASK_ARGS: &'static [&'static str] = scope::DEFAULT_TASK_ARGS;
+    /// It answers about every task (a list, a search): refused to an agent caller.
+    const ALL_TASKS: bool = false;
     type Args: Serialize + DeserializeOwned + Send + 'static;
     type Out: Serialize + DeserializeOwned + Send + 'static;
 }
