@@ -30,10 +30,31 @@ lets a differing region through when it is no larger than one glyph (6 × 10 px)
 that shot matches v1 exactly (each part's box within 0.5 px, font, colour). A larger region, or any
 metric off, still fails. This is in the gate's code (`GLYPH_W`, `GLYPH_H`), not a rule below.
 
+## 4. Bars fold at 320 px instead of wrapping (the lead's call, 2026-11-08)
+
+At 320 px v1 wraps some bars onto a second line: the launcher's location row (*Other folder* drops
+under the project pill), and a task's action bar (*Mark done* breaks into two lines, so the bar and the
+Changes fill grow 5 px). v2 keeps ADR-0012's rule there too: the bar stays on one line and its items
+fold to their icon, then into More. The lead decided this is v2's behaviour at 320, not a bug.
+
+So on a shot **320 px wide or less**, for a bar named by a `fold` rule below, when v1's bar is taller
+than v2's, `qa/parity.mjs`:
+- masks the bar, and skips what v1 drew inside it (including items v1 pushed past the viewport);
+- compares everything **below** the bar with v1's positions moved up by the height v2 saved, in the
+  metrics and in the pixels (those rows are cut out of v1's shot); a box around the bar is that much
+  shorter unless its height is fixed;
+- **only when the layout gate passes on that same v2 page** (`qa/layout.mjs`'s checks, run in the page:
+  no control text on two lines, no bar taller than its token or on two rows, nothing past the
+  viewport, no pinned item folded). If the gate finds anything, the fold isn't allowed and the shot is
+  diffed as is, with the reason in the summary.
+
+Everything else at 320 still has to match v1: content text (a heading, a prompt) wraps as v1 wraps it,
+and a pill or title is never cut shorter than v1 cuts it.
+
 ## Rules (read by `qa/parity.mjs`)
 
-One rule a line: `<view glob> <part glob> <kind>`. `wrap` is §1, `pending` is §2. Nothing else is
-accepted: a rule of another kind fails the run.
+One rule a line: `<view glob> <part glob> <kind>`. `wrap` is §1, `pending` is §2, `fold` is §4
+(320 px only). Nothing else is accepted: a rule of another kind fails the run.
 
 ```rules
 *   topbar             wrap
@@ -47,4 +68,9 @@ accepted: a rule of another kind fails the run.
 *   panel.head         wrap
 *   stuff.filters      wrap
 *   *                  pending
+*   launcher.projects  fold
+*   split.actions      fold
+*   split.head         fold
+*   panel.head         fold
+*   topbar             fold
 ```

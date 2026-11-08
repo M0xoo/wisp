@@ -25,6 +25,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { launchBrowser, OUT, ROOT } from './lib.mjs';
 import { AREAS } from './layout-areas.mjs';
 
@@ -72,8 +73,8 @@ async function startGallery() {
   throw new Error(`the gallery didn't answer on ${url} in 30 s:\n${log}`);
 }
 
-/** Runs in the page: every layout rule, as {rule, part, detail}. */
-function inspect() {
+/** Runs in the page: every layout rule, as {rule, part, detail}. qa/parity.mjs runs it too (allowed.md §4). */
+export function inspect() {
   const out = [];
   const visible = (el) => {
     const r = el.getBoundingClientRect();
@@ -176,4 +177,5 @@ async function main() {
   process.exitCode = results.length ? 1 : 0;
 }
 
-await main();
+// run as a script, not when qa/parity.mjs imports inspect()
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

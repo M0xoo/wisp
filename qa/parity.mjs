@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { PARTS } from '../web/js/spell-schema.js';
+import { inspect as layoutProblems } from './layout.mjs';
 import { launchBrowser, OUT, ROOT } from './lib.mjs';
 import { collectInPage, STATES, STRUCT } from './v1-reference.mjs';
 import { views } from './views.mjs';
@@ -241,7 +242,7 @@ export function readAllowed(file) {
     .filter((l) => l && !l.startsWith('#'))
     .map((l) => {
       const [view, part, kind] = l.split(/\s+/);
-      if (!['wrap', 'pending'].includes(kind)) throw new Error(`allowed.md: unknown kind "${kind}" in "${l}"`);
+      if (!['wrap', 'pending', 'fold'].includes(kind)) throw new Error(`allowed.md: unknown kind "${kind}" in "${l}"`);
       return { view: glob(view), part: glob(part), kind };
     });
 }
@@ -382,11 +383,90 @@ const GLYPH_W = 6;
 const GLYPH_H = 10;
 export const glyphSized = (g) => g.box[2] <= GLYPH_W && g.box[3] <= GLYPH_H;
 
+// Folded bars at 320 px (the lead's call, 2026-11-08; design/v1-reference/allowed.md §4): where v1
+// wrapped a bar onto more lines and v2 keeps it on one (ADR-0012), the bar is masked, what v1 drew
+// inside it is skipped, and everything below it is compared shifted up by the height v2 saved (in the
+// metrics, and by cutting those rows out of v1's shot). Only on shots FOLD_MAX_W wide or less, only for
+// parts a `fold` rule names, and only when the layout gate (qa/layout.mjs inspect) finds nothing on
+// that same v2 page: a fold that clips, wraps a control or hides a pinned item is not allowed.
+const FOLD_MAX_W = 320;
+
+/** The outermost folded bars: v1's bar taller than v2's, starting where v2's does (± 2 px, once earlier
+ *  folds are taken out; an offset that small still fails on the parts around it). `dh` is what v2 saved:
+ *  the distance between the two bottoms. */
+export function findFolds(refParts, gotBy, isFold) {
+  const cands = refParts
+    .filter((r) => isFold(r.part))
+    .map((r) => ({ r, g: gotBy.get(`${r.part}#${r.i}`) }))
+    .filter(({ r, g }) => g && g.box[3] < r.box[3] - 0.5)
+    .sort((a, b) => a.r.box[1] - b.r.box[1] || b.r.box[3] - a.r.box[3]);
+  const out = [];
+  let shift = 0;
+  for (const { r, g } of cands) {
+    const [x, y, w, h] = r.box;
+    if (out.some((f) => x >= f.v1[0] - 0.5 && y >= f.v1[1] - 0.5 && x + w <= f.v1[0] + f.v1[2] + 0.5 && y + h <= f.v1[1] + f.v1[3] + 0.5)) continue;
+    if (Math.abs(y - shift - g.box[1]) > 2) continue;
+    const dh = y + h - shift - (g.box[1] + g.box[3]);
+    if (dh <= 0.5) continue;
+    out.push({ part: `${r.part}#${r.i}`, v1: r.box, v2: g.box, dh });
+    shift += dh;
+  }
+  return out;
+}
+
+/** v1's parts as they'd sit with the folds: inside a fold → dropped; below → moved up by what the folds
+ *  saved, unless v2 shows it where v1 had it (pinned to the bottom: the composer, a footer); around →
+ *  shorter, unless its height is fixed (the viewport, a pane). `limit` is where pinned content starts:
+ *  rows move up only above it. */
+export function foldParts(refParts, folds, vw, gotBy) {
+  const bottom = (f) => f.v1[1] + f.v1[3];
+  const shiftAt = (y) => folds.filter((f) => bottom(f) <= y + 0.5).reduce((n, f) => n + f.dh, 0);
+  const parts = [];
+  let limit = Infinity;
+  for (const r of refParts) {
+    const [x, y, w, h] = r.box;
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    const whole = (f) => x <= f.v1[0] + 0.5 && y <= f.v1[1] + 0.5 && x + w >= f.v1[0] + f.v1[2] - 0.5 && y + h >= bottom(f) - 0.5;
+    if (folds.some((f) => cy >= f.v1[1] && cy <= bottom(f) && ((cx >= f.v1[0] && cx <= f.v1[0] + f.v1[2]) || cx < 0 || cx > vw) && !whole(f))) continue;
+    if (folds.some((f) => f.part === `${r.part}#${r.i}`)) continue; // the folded bar itself: masked, the layout gate checks it
+    const g = gotBy?.get(`${r.part}#${r.i}`);
+    const off = cx < 0; // the column left of the screen (the list behind a stacked page) doesn't move; items v1 pushed past the right edge sit in the moving column
+    let dy = off ? 0 : shiftAt(y);
+    if (dy && g && Math.abs(g.box[1] - (y - dy)) > 0.5 && Math.abs(g.box[1] - y) <= 0.5) {
+      dy = 0; // pinned: v2 has it where v1 does
+      if (cx >= 0 && cx <= vw) limit = Math.min(limit, y);
+    }
+    const around = folds.filter((f) => whole(f) && !(cx < 0 || cx > vw));
+    const shorter = h - around.reduce((n, f) => n + f.dh, 0);
+    parts.push({ ...r, box: [x, y - dy, w, g && Math.abs(g.box[3] - shorter) <= 0.5 ? shorter : h] });
+  }
+  return { parts, limit };
+}
+
+/** v1's shot with each fold's saved rows cut out, rows below moving up as far as `limit` (pinned content
+ *  stays); the rows freed just above `limit` are copied from v2's shot. */
+export function foldImage(ref, shot, folds, limit = Infinity) {
+  const { width: w, height: h } = ref;
+  const end = Math.min(h, Math.round(limit));
+  const data = Buffer.from(ref.data);
+  for (const f of [...folds].sort((a, b) => b.v1[1] - a.v1[1])) {
+    const from = Math.round(f.v1[1] + f.v1[3]);
+    const n = Math.round(f.dh);
+    if (n <= 0 || from >= end) continue;
+    data.copy(data, (from - n) * w * 4, from * w * 4, end * w * 4);
+  }
+  const cut = Math.round(folds.reduce((n, f) => n + f.dh, 0));
+  if (shot.width === w && cut > 0) shot.data.copy(data, (end - cut) * w * 4, (end - cut) * w * 4, end * w * 4);
+  return { width: w, height: h, data };
+}
+
 async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
   const metrics = JSON.parse(fs.readFileSync(path.join(ref, name, 'metrics.json'), 'utf8'));
   const rules = allowed.filter((r) => r.view.test(name));
   const wrapRule = (part) => rules.some((r) => r.kind === 'wrap' && r.part.test(part));
   const pendingRule = (part) => rules.some((r) => r.kind === 'pending' && r.part.test(part));
+  const foldRule = (part) => rules.some((r) => r.kind === 'fold' && r.part.test(part));
   const res = { view: name, shots: 0, pixelPass: 0, metricPass: 0, pass: 0, reachable: true, note: '', worst: [], metrics: {}, shotsBy: {} };
   const dir = path.join(outDir, name);
   fs.mkdirSync(dir, { recursive: true });
@@ -426,7 +506,7 @@ async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
         }
         const shot = await p.screenshot();
         const refPng = path.join(ref, s.png ? path.join(name, s.png) : s.same);
-        const refParts = s.parts ?? entry.states.rest.parts ?? [];
+        let refParts = s.parts ?? entry.states.rest.parts ?? [];
         let got;
         if (state === 'rest') got = await p.evaluate(collectInPage, { sels: v2Sels(), scope: null, max: 8 });
         else {
@@ -438,11 +518,28 @@ async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
         }
         const busy = await p.evaluate(() => [...document.querySelectorAll('[aria-busy="true"], [data-pending]')].map((e) => [e.dataset.part ?? '', ...((r) => [r.x, r.y, r.width, r.height])(e.getBoundingClientRect())]));
         const gotBy = new Map(got.map((g) => [`${g.part}#${g.i}`, g]));
+        // Allowed at 320: bars v1 wrapped and v2 folds (allowed.md §4), only when the layout gate passes.
+        let folds = [];
+        if (Number(w) <= FOLD_MAX_W && rules.some((r) => r.kind === 'fold')) {
+          const all = state === 'rest' ? got : await p.evaluate(collectInPage, { sels: v2Sels(), scope: null, max: 8 });
+          const found = findFolds(entry.states.rest.parts ?? [], new Map(all.map((g) => [`${g.part}#${g.i}`, g])), foldRule);
+          if (found.length) {
+            const problems = await p.evaluate(layoutProblems);
+            if (problems.length) res.worst.push(`${key}-${state}: fold refused, layout gate: ${problems[0].rule} ${problems[0].part} (${problems[0].detail})`);
+            else folds = found;
+          }
+        }
+        let foldLimit = Infinity;
+        if (folds.length) {
+          // the rest state's parts say where pinned content starts, in every state of the shot
+          foldLimit = foldParts(entry.states.rest.parts ?? [], folds, entry.viewport[0], state === 'rest' ? gotBy : new Map((await p.evaluate(collectInPage, { sels: v2Sels(), scope: null, max: 8 })).map((g) => [`${g.part}#${g.i}`, g]))).limit;
+          refParts = foldParts(refParts, folds, entry.viewport[0], gotBy).parts;
+        }
         // Allowed: bars v1 wrapped and v2 keeps on one line; controls pending in v2.
-        const masks = [];
+        const masks = folds.flatMap((f) => [f.v2]);
         const exempt = [];
         for (const r of refParts) {
-          if (!wrapRule(r.part)) continue;
+          if (!wrapRule(r.part) || folds.length) continue;
           const g = gotBy.get(`${r.part}#${r.i}`);
           if (g && g.box[3] < r.box[3] - 0.5) {
             masks.push(r.box, g.box);
@@ -457,7 +554,9 @@ async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
           const d = diffElement(r, gotBy.get(`${r.part}#${r.i}`));
           if (d.length) mdiffs.push(`${r.part}#${r.i}: ${d.slice(0, 3).join(', ')}`);
         }
-        const px = diffImages(decodePng(fs.readFileSync(refPng)), decodePng(shot), { masks });
+        const shotPng = decodePng(shot);
+        const refImg = folds.length ? foldImage(decodePng(fs.readFileSync(refPng)), shotPng, folds, foldLimit) : decodePng(fs.readFileSync(refPng));
+        const px = diffImages(refImg, shotPng, { masks });
         const big = px.regions.filter((g) => g.box[2] > REGION_MAX || g.box[3] > REGION_MAX);
         const metricOk = mdiffs.length === 0;
         // glyph-sized regions only count when a metric is off too (see GLYPH_W)
@@ -468,7 +567,7 @@ async function checkView(browser, url, name, open, ref, allowed, only, outDir) {
         if (pixelOk) res.pixelPass++;
         if (metricOk) res.metricPass++;
         if (pixelOk && metricOk) res.pass++;
-        res.shotsBy[`${key}-${state}`] = { pass: pixelOk && metricOk, px: Math.round(px.ratio * 10000) / 100, regions: big.length, parts: mdiffs.length };
+        res.shotsBy[`${key}-${state}`] = { pass: pixelOk && metricOk, px: Math.round(px.ratio * 10000) / 100, regions: big.length, parts: mdiffs.length, ...(folds.length && { folds: folds.map((f) => f.part) }) };
         if (!pixelOk) fs.writeFileSync(path.join(dir, `${key}-${state}.diff.png`), encodePng(px.image));
         // PARITY_SAVE=1 keeps every v2 shot (for side-by-sides), not only the failing ones
         if (!pixelOk || process.env.PARITY_SAVE) fs.writeFileSync(path.join(dir, `${key}-${state}.v2.png`), shot);
