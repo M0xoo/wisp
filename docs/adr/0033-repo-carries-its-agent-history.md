@@ -17,15 +17,21 @@
     2026/11/01a1bc-fix-flaky-login.task.yml     the task spec (ADR-0027): steps, agent, base, goal, formula@hash
     2026/11/01a1bc-fix-flaky-login.report.md    the answer, as markdown (optional)
   formulas/<hash>.yml   the formula snapshots tasks ran with (ADR-0029), shared by hash
-  history/              full transcripts, opt-in only (compressed .jsonl.zst, or kept in git notes)
+  history/<id>.jsonl.zst  the full transcript of each task, always (scrubbed, compressed)
   README.md             what this folder is, generated
 ```
 
 - **One file per task, named by id:** two branches never conflict on the same file. Specs are small text,
   reviewable in PRs ("this PR was produced by these 3 tasks"), and scrubbed like any share (ADR-0027).
-- **What's committed is the project's choice** (in `.wisp/wisp.yml`: `history: { keep: spec | report | full }`).
-  The default is spec + report: small, no transcripts, no private paths. Full history is opt-in, and goes in
-  git notes or `history/` with compression so the repo stays light.
+- **The transcript is always kept** (owner, 2026-11-09): every tracked task saves its spec, its report **and its
+  full transcript** (`history/<id>.jsonl.zst`): what the agent read, ran, thought out loud and answered. That's
+  the record people and agents need to understand why the code is the way it is.
+  - It's scrubbed like any share (secrets, env values, private paths) before it's written, and the preview shows it.
+  - It's compressed with zstd (a typical task's transcript is a few hundred KB raw, tens of KB compressed). One
+    file per task, so it never conflicts.
+  - A project can move transcripts to git notes or Git LFS (`history: { transcripts: files | notes | lfs }`) if the
+    repo gets heavy. A single task can be lowered after the fact (`wisp untrack <id> --keep report`), but the
+    default is everything.
 - **Linked to commits:** when wisp ships a task (Ship it), each commit gets a trailer, `Wisp-Task: 01a1bc`
   (and `Co-Authored-By` for the agent). The task file lists its commits and its PR. So both directions work:
   code → task, task → code.
@@ -104,13 +110,13 @@ wisp and its permissions; an outside harness can only *ask* (`wisp_resume` creat
 
 - **Per project, a mode** (`.wisp/wisp.yml` → `history: { track: auto | ask | manual }`, default `ask`):
   - `auto`: every task that ships or is marked done in that repo is saved;
-  - `ask`: when such a task ends, its report shows **Save to repo** (one click, with the level and a preview of
-    what's written, scrubbed);
+  - `ask`: when such a task ends, its report shows **Save to repo** (one click, with a preview of what's written,
+    scrubbed);
   - `manual`: nothing is saved unless the user adds it.
-- **Add any task, anytime**, even an old one or one that ran before `.wisp/` existed:
+- **Add any task, anytime** (always with its transcript), even an old one or one that ran before `.wisp/` existed:
   - App: **Save to repo** on the task's menu and its report.
   - TUI: `w` on a task.
-  - CLI: `wisp track <id> [--level spec|report|full] [--repo <path>]`.
+  - CLI: `wisp track <id> [--repo <path>]`.
   - SDK: `task.track()`.
   - It writes the task file (and its formula snapshot) into `.wisp/tasks/`. The change is staged in the user's
     working tree for them to commit, or committed with the task's own changes when it ships.

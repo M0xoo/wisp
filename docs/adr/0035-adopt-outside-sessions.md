@@ -37,8 +37,8 @@
       tracked if the project tracks).
   - SDK: `w.sessions.list()` and `session.adopt()`.
 - **Privacy:** an outside session's transcript is the user's own, but adopting it puts it in wisp (and maybe in the
-  repo). It goes through the same scrubbing as everything else, the preview shows what's saved, and `.wisp/` keeps
-  the spec and report by default, not the transcript (ADR-0033).
+  repo). It goes through the same scrubbing as everything else, the preview shows what's saved, and a tracked adopted
+  session keeps its full transcript in `.wisp/`, like every tracked task (ADR-0033).
 - **Bring in stays** (v1's intent): a tool's worktrees (Conductor, others) become tasks in place, never moved or
   removed. Adopt is the same idea for sessions.
 
