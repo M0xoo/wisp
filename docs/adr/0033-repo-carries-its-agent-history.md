@@ -99,3 +99,24 @@ Four ways in, from the most to the least integrated:
 
 Reading is always allowed to whoever can read the repo. Starting, resuming or rerunning a task goes through
 wisp and its permissions; an outside harness can only *ask* (`wisp_resume` creates a request the user approves).
+
+## The user decides which tasks the repo tracks (added 2026-11-09)
+
+- **Per project, a mode** (`.wisp/wisp.yml` → `history: { track: auto | ask | manual }`, default `ask`):
+  - `auto`: every task that ships or is marked done in that repo is saved;
+  - `ask`: when such a task ends, its report shows **Save to repo** (one click, with the level and a preview of
+    what's written, scrubbed);
+  - `manual`: nothing is saved unless the user adds it.
+- **Add any task, anytime**, even an old one or one that ran before `.wisp/` existed:
+  - App: **Save to repo** on the task's menu and its report.
+  - TUI: `w` on a task.
+  - CLI: `wisp track <id> [--level spec|report|full] [--repo <path>]`.
+  - SDK: `task.track()`.
+  - It writes the task file (and its formula snapshot) into `.wisp/tasks/`. The change is staged in the user's
+    working tree for them to commit, or committed with the task's own changes when it ships.
+- **Several repos:** a task that touched more than one repo (extra folders, a team across projects) asks which
+  repos to save it in. Each one gets the same task id, so the copies stay linked.
+- **Untrack and redact:** `wisp untrack <id>` (or Remove from repo) deletes it from `.wisp/` in the next commit.
+  `--level` can lower what's kept (full → report → spec). Git history keeps old commits; the docs say so plainly.
+- **The task shows where it's tracked:** a small "in repo" mark on the task row and in its head, with the path.
+  `wisp tasks --tracked` lists them.
