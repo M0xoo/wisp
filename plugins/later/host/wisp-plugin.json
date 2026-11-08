@@ -6,9 +6,83 @@
   "api": "^1",
   "description": "follow-ups and reminders scheduled on tasks, For later, /after plans",
   "kind": "plugin",
-  "server": { "builtin": "wisp_later" },
-  "permissions": [],
+  "server": {
+    "builtin": "wisp_later"
+  },
+  "permissions": [
+    "budget:read",
+    "runtime:create",
+    "runtime:followUp",
+    "runtime:get",
+    "runtime:note",
+    "runtime:setExt",
+    "store:write{owner:later}",
+    "telemetry:track"
+  ],
   "requires": {},
   "provides": {},
-  "contributes": {}
+  "contributes": {
+    "commands": [
+      {
+        "id": "later.add",
+        "title": "Schedule a follow-up or a reminder on a task"
+      },
+      {
+        "id": "later.list",
+        "title": "What is scheduled on a task",
+        "readOnly": true
+      },
+      {
+        "id": "later.edit",
+        "title": "Another time or text, or send it now"
+      },
+      {
+        "id": "later.cancel",
+        "title": "Cancel what is scheduled"
+      },
+      {
+        "id": "later.done",
+        "title": "Mark done: the agent's wake-ups go"
+      },
+      {
+        "id": "later.plans",
+        "title": "Planned tasks and reminders",
+        "readOnly": true
+      },
+      {
+        "id": "later.getPlan",
+        "title": "A plan",
+        "readOnly": true
+      },
+      {
+        "id": "later.plan",
+        "title": "Plan a task or a reminder"
+      },
+      {
+        "id": "later.editPlan",
+        "title": "Change a plan"
+      },
+      {
+        "id": "later.cancelPlan",
+        "title": "Cancel a plan"
+      },
+      {
+        "id": "later.nextAt",
+        "title": "The soonest thing that will run",
+        "readOnly": true
+      },
+      {
+        "id": "later.tick",
+        "title": "Look for what came due"
+      },
+      {
+        "id": "later.waitAtLimit",
+        "title": "Carry on once the usage window resets"
+      },
+      {
+        "id": "later.agent.schedule",
+        "title": "The agent's own wake-up (resume_later)"
+      }
+    ]
+  }
 }

@@ -6,9 +6,37 @@
   "api": "^1",
   "description": "usage windows, Automations stop at, banked resets, the before:run budget guard, compare metrics",
   "kind": "plugin",
-  "server": { "builtin": "wisp_budget" },
-  "permissions": [],
-  "requires": {},
+  "server": {
+    "builtin": "wisp_budget"
+  },
+  "permissions": [
+    "runtime:release",
+    "store:write{owner:budget}"
+  ],
+  "requires": {
+    "wisp.runtime": "^2"
+  },
   "provides": {},
-  "contributes": {}
+  "contributes": {
+    "commands": [
+      {
+        "id": "budget.view",
+        "title": "An account's usage windows",
+        "readOnly": true
+      },
+      {
+        "id": "budget.hold",
+        "title": "What holds an account's unattended work",
+        "readOnly": true
+      },
+      {
+        "id": "budget.record",
+        "title": "Record an account's usage windows"
+      },
+      {
+        "id": "budget.setStop",
+        "title": "Automations stop at"
+      }
+    ]
+  }
 }

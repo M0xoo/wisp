@@ -136,3 +136,14 @@ command!(Ack = "budget.ack", PERM_WRITE, false, AckArgs => Done);
 command!(DismissDrain = "budget.dismissDrain", PERM_WRITE, false, WindowArgs => Done);
 command!(DismissNotice = "budget.dismissNotice", PERM_WRITE, false, WindowArgs => Done);
 command!(BankedSent = "budget.bankedSent", PERM_WRITE, false, BankedSentArgs => Done);
+
+/// Settings → Usage → Automations stop at (v1 `defaults.autoStop`, `autoStopClaude`, `autoStopCodex`:
+/// 'off' | '50' | '75' | '90', and 'same' for a harness's own), until wisp.settings owns them.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "budget/")]
+pub struct StopArgs {
+    pub key: String,
+    pub value: String,
+}
+
+command!(SetStop = "budget.setStop", PERM_WRITE, false, StopArgs => Done);
