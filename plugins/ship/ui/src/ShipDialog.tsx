@@ -73,7 +73,7 @@ export default function ShipDialog(props: { readonly client: PluginClient; reado
             setTitle(typed?.title || i.title);
             setBody(typed?.body ?? i.body);
             setInfo(i);
-            return 'loaded';
+            return 'loaded' as const;
           },
           on: { loaded: 'ready' },
           onError: 'failed',

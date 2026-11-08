@@ -5,9 +5,9 @@
 //   &theme=light|dark                 the theme (default: the OS's)
 // Delete this once apps/web's shell and mock peer render every plugin.
 
-import '@wisp/ui/kit.css';
-import { createClient, entityKey, peerId, type Client, type PluginClient, type Topic } from '@wisp/client';
-import type { PeerInfo } from '@wisp/protocol';
+import '@wisp/ui/styles'; // the kit loads its own CSS (no .css import outside packages/ui)
+import { createClient, entityKey, peerId, type Client, type PluginClient } from '@wisp/client';
+import type { PeerInfo, Topic } from '@wisp/protocol';
 import { Box, KitProvider, Text, Toasts, createToaster } from '@wisp/ui';
 import { Dynamic, render } from 'solid-js/web';
 import type { Component, JSX } from 'solid-js';

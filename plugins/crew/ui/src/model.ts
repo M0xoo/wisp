@@ -67,7 +67,7 @@ export interface LineCtx {
 }
 
 /** The member's status line: the same on its row, its tile's label and its card. */
-export function statusLine(m: Member, st: State, c: LineCtx): Line {
+export function statusLine(m: Member & { readonly queue?: readonly unknown[] }, st: State, c: LineCtx): Line {
   const { t } = c;
   const ask = st.jobs.find((s) => s.state === 'waiting');
   if (ask) return { tone: 'asks', text: ask.question ? t('wisp.crew.status.asking-q', { q: ask.question }) : t('wisp.crew.status.asking') };

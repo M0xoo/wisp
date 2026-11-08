@@ -96,7 +96,7 @@ export interface PlanArgs {
   at?: number;
   draft?: true;
   after?: { id: string; title: string };
-  body?: Plan['body'];
+  body?: NonNullable<Plan['body']>;
   text?: string;
 }
 export const addPlan = defineCommand<PlanArgs, Plan>({

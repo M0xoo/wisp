@@ -78,6 +78,9 @@ npm run dev                      # the wisp binary + the web bundle with reload
   The UI updates at once and rolls back with a toast on `reject`.
 - **Nothing jumps:** keyed lists move rows in place, entry animations run once per mount, and a list
   over 200 rows uses `VirtualList`.
+- **Every metric comes from `design/foundation.md`** (ADR-0016): the 4 px grid, the spacing scale, one
+  gutter line per pane, the type scale, four control sizes, the list row's fixed columns. Features never pick
+  a number; `qa/layout.mjs` measures it.
 - **Nothing wraps that shouldn't** (`design/layout.md`, ADR-0012): control text (buttons, pills, chips,
   tabs, row titles, bar labels) never wraps; bars are one line and collapse items to their icon, then into
   More, by declared priority; only `Wrap` groups may wrap. `qa/layout.mjs` checks it at 320–1440 px.

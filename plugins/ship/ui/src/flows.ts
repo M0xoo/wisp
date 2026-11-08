@@ -94,7 +94,7 @@ function mergeFlow(client: PluginClient, shell: () => ShipShell, key: EntityKey)
             const done = mergedToast(tr, r);
             if (done.ok) shell().toast.success(done.text, { duration: 10_000 });
             else shell().toast.error(done.text);
-            return 'done';
+            return 'done' as const;
           },
           on: { done: 'idle' },
           // a refusal: the shell's toast says why, and Merge is back

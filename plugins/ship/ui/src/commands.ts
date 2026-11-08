@@ -54,7 +54,8 @@ export const review = defineCommand<Task>({
     const s = row(base, a.key);
     if (!s?.pr) return [];
     const was = s.review;
-    const next: Review = { ...was, status: 'running', current: true, findings: [], ...(s.pr.head ?? was?.head ? { head: s.pr.head ?? was?.head } : {}), ...(was?.by && { by: was.by }) };
+    const head = s.pr.head ?? was?.head;
+    const next: Review = { ...was, status: 'running', current: true, findings: [], ...(head !== undefined && { head }), ...(was?.by && { by: was.by }) };
     return [set(a.key, '/review', next)];
   },
 });

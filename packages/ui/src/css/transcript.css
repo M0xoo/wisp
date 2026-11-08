@@ -13,14 +13,14 @@
   [data-kit='bubble'][data-by-wisp] [data-kit='bubble-text'] { color: var(--ink-2); }
   [data-kit='bubble'][data-quiet] [data-kit='bubble-text'] { font-size: var(--fs-md); color: var(--muted); }
   [data-kit='bubble-text'][data-clamped] { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-  [data-kit='bubble-atts'] { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-5); }
+  [data-kit='bubble-atts'] { margin-top: var(--space-5); } /* its chips wrap through the kit's Wrap */
   [data-kit='bubble-foot'] {
     display: flex; align-items: center; gap: var(--space-3); min-width: 0; margin-top: var(--space-2);
     flex-wrap: nowrap; overflow: hidden; font-size: var(--fs-xs); color: var(--faint); white-space: nowrap;
   }
   [data-kit='bubble'][data-quiet] [data-kit='bubble-foot'] { margin: 0 0 0 auto; }
   [data-kit='bubble-corner'] { position: absolute; top: var(--space-3); right: var(--space-3); }
-  [data-kit='bubble']:not([data-quiet]):has(> [data-kit='bubble-corner']) { padding-right: var(--space-9); }
+  [data-kit='bubble']:not([data-quiet])[data-corner] { padding-right: var(--space-9); }
 
   /* ---- a folded exchange: one line ---- */
   [data-kit='turn-fold'] {
@@ -48,7 +48,9 @@
     width: var(--size-hairline); background: var(--line-2);
   }
   [data-kit='timeline'][data-live] [data-kit='timeline-list']::before { bottom: 0; background: linear-gradient(var(--line-2) calc(100% - var(--space-9)), transparent); }
-  [data-kit='timeline-step'], [data-kit='timeline-msg'] { position: relative; display: flex; flex-wrap: wrap; align-items: center; min-width: 0; padding-left: var(--space-1); }
+  /* A step is its row (and end slot) on one line, its detail on the next: a grid, so nothing wraps. */
+  [data-kit='timeline-step'] { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; min-width: 0; padding-left: var(--space-1); }
+  [data-kit='timeline-msg'] { position: relative; display: flex; align-items: center; min-width: 0; padding-left: var(--space-1); }
   [data-kit='timeline-row'] {
     display: flex; flex: 1 1 0; align-items: center; gap: var(--space-5); min-width: 0; min-height: var(--size-control-sm);
     padding: var(--space-2) var(--space-4) var(--space-2) 0; border: 0; border-radius: var(--radius-sm); background: none;
@@ -71,7 +73,7 @@
   [data-kit='timeline-chev'] { flex: none; display: inline-flex; color: var(--faint); transition: transform var(--dur-base) var(--ease); }
   [data-kit='timeline-chev'][data-open] { transform: rotate(90deg); }
   [data-kit='timeline-end-slot'] { flex: none; margin-left: var(--space-3); }
-  [data-kit='timeline-detail'] { flex: 1 0 100%; min-width: 0; margin: var(--space-1) 0 var(--space-4) var(--space-9); animation: kit-rise var(--dur-base) var(--ease); }
+  [data-kit='timeline-detail'] { grid-column: 1 / -1; min-width: 0; margin: var(--space-1) 0 var(--space-4) var(--space-9); animation: kit-rise var(--dur-base) var(--ease); }
   [data-kit='timeline-step'][data-tone='bad'] [data-kit='timeline-icon'], [data-kit='timeline-step'][data-tone='bad'] [data-kit='timeline-label'] { color: var(--bad); }
   [data-kit='timeline-step'][data-tone='warn'] [data-kit='timeline-icon'], [data-kit='timeline-step'][data-tone='warn'] [data-kit='timeline-label'] { color: var(--warn); }
   [data-kit='timeline-step'][data-tone='quiet'] [data-kit='timeline-label'] { color: var(--muted); }

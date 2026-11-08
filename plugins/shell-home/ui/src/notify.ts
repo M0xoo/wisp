@@ -4,7 +4,7 @@
 // row with its own effect, so a change to one task costs one comparison, never a pass over the list.
 
 import { effect, untracked, type EntityKey, type Nav, type PluginClient, type SessionId, type Target } from '@wisp/client';
-import type { Platform } from '@wisp/shell/contract';
+import type { Platform } from '@wisp/shell/platform';
 import type { Toaster } from '@wisp/ui';
 import { SESSION, type TaskRow } from './types.ts';
 

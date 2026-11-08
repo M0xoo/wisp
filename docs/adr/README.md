@@ -21,3 +21,4 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0012](0012-no-wrapping-bars.md) | Control text never wraps; bars collapse to icons, then More |
 | [0013](0013-rust-for-everything-but-the-ui.md) | **Rust for everything but the UI**; Solid + TypeScript only for UI |
 | [0014](0014-grid-control-plane.md) | The grid keeps its own SQLite control plane; its trust rules are data (now in Rust, ADR-0013) |
+| [0016](0016-foundation-metrics.md) | One set of exact metrics (design/foundation.md), checked in Chrome |

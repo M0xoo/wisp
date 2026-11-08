@@ -79,7 +79,7 @@ function PrRow(props: { readonly client: PluginClient; readonly k: EntityKey; re
     const x = lead();
     if (!x) return out;
     if (open().length) {
-      const check = (): void => checking.run(props.client.run(refresh, { key: props.k }));
+      const check = (): void => void checking.run(props.client.run(refresh, { key: props.k }));
       // icon-only in both forms: the ring replaces the icon while it checks, the width holds
       out.push({ id: 'refresh', icon: 'replay', label: t('wisp.ship.strip.checkTitle'), priority: 1, onSelect: check, render: () => <IconButton icon="replay" size="sm" label={t('wisp.ship.strip.checkTitle')} loading={checking.busy()} onClick={check} part="pr.strip.check" /> });
     }

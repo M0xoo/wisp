@@ -134,7 +134,7 @@ export function paneFrameCsp(origins: readonly unknown[] = []): string {
 
 /** What the confirm card shows: anything that doesn't print, or reorders text around it, as `<U+…>`. */
 // eslint-disable-next-line no-control-regex -- the point is to catch control characters
-const INVISIBLE = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F­͏؜᠎​-‏ -‮⁠-⁯﻿￹-￻\u{E0000}-\u{E007F}]/gu;
+const INVISIBLE = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u00AD\u034F\u061C\u180E\u200B-\u200F\u2028-\u202E\u2060-\u206F\uFEFF\uFFF9-\uFFFB\u{E0000}-\u{E007F}]/gu;
 export const showInvisible = (text: unknown): string =>
   String(text ?? '').replace(INVISIBLE, (c) => `<U+${(c.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}>`);
 export const hasInvisible = (c: string): boolean => showInvisible(c) !== c;

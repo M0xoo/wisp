@@ -3,7 +3,7 @@
 import { Show, type JSX } from 'solid-js';
 import type { KitProps } from '../core/props.ts';
 import { Spirit } from './Spirit.tsx';
-import { isSpirit, parseSpirit, type SpiritColor, type SpiritMood } from './spirit-code.ts';
+import { SPIRIT_COLORS, isSpirit, parseSpirit, type SpiritColor, type SpiritMood } from './spirit-code.ts';
 
 export type FaceSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
@@ -23,7 +23,7 @@ export interface FaceProps extends KitProps {
   readonly label?: string;
 }
 
-const COLORS = new Set<string>(['violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'orange', 'indigo']);
+const COLORS: ReadonlySet<string> = new Set(SPIRIT_COLORS);
 
 /** The colour a member's face glows in. */
 export function faceColor(avatar: string, name: string, color?: string): SpiritColor {

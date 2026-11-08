@@ -15,7 +15,8 @@ export interface ItemArgs {
 const rowOf = (base: EntityReader, key: EntityKey): StuffView | undefined => base.peek<StuffView>(ITEM, key) as StuffView | undefined;
 
 /** The row with these fields set (undefined drops one): the whole row, so the patch never misses. */
-export function merged(base: EntityReader, key: EntityKey, fields: Partial<StuffView>): EntityOps {
+/** Set fields of a row the reader holds; a field set to undefined is removed. */
+export function merged(base: EntityReader, key: EntityKey, fields: { readonly [K in keyof StuffView]?: unknown }): EntityOps {
   const row = rowOf(base, key);
   if (!row) return [];
   const v: Record<string, unknown> = { ...row, ...fields };

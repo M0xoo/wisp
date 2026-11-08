@@ -1,3 +1,25 @@
 {
-  "wisp.crew.more.name": "crew extras"
+  "wisp.crew.more.add": "Add",
+  "wisp.crew.more.save": "Save",
+  "wisp.crew.more.cancel": "Cancel",
+  "wisp.crew.more.kit.editTitle": "Edit {name}",
+  "wisp.crew.more.kit.newSkillTitle": "New skill for {name}",
+  "wisp.crew.more.kit.newRulesTitle": "Instructions for {name}",
+  "wisp.crew.more.kit.name": "Name",
+  "wisp.crew.more.kit.nameHintSkill": "lowercase, with dashes: release-notes",
+  "wisp.crew.more.kit.nameHintRules": "like AGENTS.md or style.md",
+  "wisp.crew.more.kit.clashSkill": "There is already a skill named {name}",
+  "wisp.crew.more.kit.clashRules": "There is already a file named {name}",
+  "wisp.crew.more.kit.required": "Required",
+  "wisp.crew.more.kit.when": "When to use it",
+  "wisp.crew.more.kit.whenHint": "in every job’s prompt: how they know to read it",
+  "wisp.crew.more.kit.whenPlaceholder": "Writing release notes or a CHANGELOG entry for a release.",
+  "wisp.crew.more.kit.skillBody": "The skill",
+  "wisp.crew.more.kit.rulesBody": "Instructions",
+  "wisp.crew.more.kit.skillBodyHint": "markdown; read when a job fits. Paste a whole SKILL.md and the name and When fill in",
+  "wisp.crew.more.kit.rulesBodyHint": "markdown; in every job’s prompt",
+  "wisp.crew.more.kit.skillPlaceholder": "1. Read the commits since the last tag…",
+  "wisp.crew.more.kit.rulesPlaceholder": "- Run the tests before you report.\n- Never push to main.",
+  "wisp.crew.more.kit.chars": "{n}",
+  "wisp.crew.more.kit.remove": "Remove"
 }

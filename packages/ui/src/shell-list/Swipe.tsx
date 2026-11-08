@@ -132,7 +132,7 @@ export function Swipe(props: SwipeProps): JSX.Element {
       onPointerUp={up}
       onPointerCancel={reset}
       onContextMenu={() => phase() === 'drag' && reset()}
-      onClickCapture={click}
+      on:click={{ handleEvent: click, capture: true }}
       onTransitionEnd={ended}
     >
       <Show when={band()}>

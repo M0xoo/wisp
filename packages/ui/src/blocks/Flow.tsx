@@ -24,7 +24,7 @@ function Wires(props: { readonly wires: readonly FlowWire[]; readonly box: { w: 
             <Show when={props.moving}>
               {/* Hidden until its motion begins: before that it sits at the stage's top-left corner. */}
               <circle r="3" data-kit="rb-flow-spark" data-back={w().back ? '' : undefined} visibility="hidden">
-                <set attributeName="visibility" to="visible" begin={`${0.8 + i * 0.35}s`} />
+                <set {...SHOW_SPARK} begin={`${0.8 + i * 0.35}s`} />
                 <animateMotion dur={w().back ? '3.2s' : '2.2s'} begin={`${0.8 + i * 0.35}s`} repeatCount="indefinite" path={w().d} />
               </circle>
             </Show>
@@ -41,6 +41,9 @@ function Wires(props: { readonly wires: readonly FlowWire[]; readonly box: { w: 
     </svg>
   );
 }
+
+// Solid's SetSVGAttributes lacks attributeName (an upstream typing gap); a spread carries it.
+const SHOW_SPARK = { attributeName: 'visibility', to: 'visible' } as const;
 
 const reducedMotion = (): boolean => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 

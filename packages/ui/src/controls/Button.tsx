@@ -30,7 +30,7 @@ interface ButtonBase extends KitProps, Labelled {
 export interface ButtonProps extends ButtonBase, WithChildren {
   readonly variant?: ButtonVariant;
   /** Colours a ghost button's text: green for Mark done, red for a quiet destructive action. */
-  readonly tone?: 'good' | 'bad';
+  readonly tone?: 'good' | 'bad' | undefined;
   readonly icon?: IconName;
   readonly iconEnd?: IconName;
   /** A shortcut hint shown inside the button (hidden on touch). */
@@ -92,7 +92,7 @@ export interface IconButtonProps extends ButtonBase {
   /** Required: an icon-only button needs a name (aria-label and title). */
   readonly label: string;
   readonly variant?: 'ghost' | 'secondary' | 'primary';
-  readonly tone?: 'good' | 'bad';
+  readonly tone?: 'good' | 'bad' | undefined;
 }
 
 /** A square button with an icon and no text; `label` is its accessible name and tooltip. */

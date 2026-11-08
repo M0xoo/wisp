@@ -32,7 +32,7 @@ export interface Filter {
 
 export const ALL: Filter = { project: 'all' };
 
-export const inProject = (s: SessionRow, project: string): boolean => project === 'all' || s.projectId === project || (s.also ?? []).some((a) => a.projectId === project);
+export const inProject = (s: Pick<SessionRow, 'projectId'> & Partial<Pick<SessionRow, 'also'>>, project: string): boolean => project === 'all' || s.projectId === project || (s.also ?? []).some((a) => a.projectId === project);
 
 /** Saved for later: out of Needs you, Scheduled and Done meanwhile (core/state.js isForLater). */
 export const isForLater = (s: SessionRow): boolean => !!s.forLater && !s.archived && !s.reminder && !s.pending && (s.state === 'review' || s.state === 'done');
@@ -127,7 +127,7 @@ export function sections(all: readonly Keyed[], f: Filter = ALL, plans: readonly
   // Working keeps launch order, so the list doesn't reshuffle on every tool call
   const working = live.filter((e) => stateOf(e) === 'running' || term(e)).sort((a, b) => createdOf(b) - createdOf(a));
   const plansIn = (kind: 'drafts' | 'scheduled'): Entry[] =>
-    f.crew !== undefined ? [] : plans.filter((p) => (kind === 'drafts') === (p.kind === 'draft') && inProject(p as SessionRow, f.project)).map((plan) => ({ kind: 'plan', key: `p:${plan.id}`, plan }));
+    f.crew !== undefined ? [] : plans.filter((p) => (kind === 'drafts') === (p.kind === 'draft') && inProject(p, f.project)).map((plan) => ({ kind: 'plan', key: `p:${plan.id}`, plan }));
   const atOf = (e: Entry): number => (e.kind === 'plan' ? e.plan.at : e.kind === 'task' ? nextAt(e.s) : Infinity);
   const sched = [...live.filter(scheduled), ...plansIn('scheduled')].sort((a, b) => atOf(a) - atOf(b));
   const drafts = plansIn('drafts').sort((a, b) => (b.kind === 'plan' ? b.plan.at : 0) - (a.kind === 'plan' ? a.plan.at : 0));
