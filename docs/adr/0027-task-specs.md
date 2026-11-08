@@ -61,3 +61,35 @@ conversation that was asked for, not just the first prompt.
 - Every task records its base commit sha when it starts (worktree or not), so "rerun from the same code" works.
 - v1's share, compare, rerun, fork, recipes and triggers are reimplemented on specs. Their v1 behaviour is
   the intent to keep (docs/v2-port-intent.md).
+
+## Sharing in practice (added 2026-11-08)
+
+- **What's in a share:** a `.wisp-task` bundle (one file: the spec YAML, the formula snapshot of ADR-0029, and for
+  `report`/`full` the blocks, the diff and the history as JSONL, attachments by hash), signed with the sharer's
+  peer key, with the wisp version and plugins it needs.
+- **Before anything leaves:** the sharer sees a preview of exactly what goes, with every redaction
+  highlighted: secret scan, env masking, private paths (`/Users/me/...`) rewritten as `<project>/...`, and
+  other tasks' titles and crew names the sharer didn't choose to include. Nothing is sent from a level the
+  sharer didn't pick.
+- **Where it goes** (`wisp share <id> --level spec|report|full --to …`, the GUI's Share, the SDK's
+  `task.share()`):
+  - `--to link` (default when signed in to a grid): an unlisted link on wisp Grid (v1's share pages), with
+    an expiry (`--expires 7d`, default 30 days), optional password, and `wisp share revoke <link>`. A
+    `report` or `full` link opens as a read-only page in any browser, no wisp needed.
+  - `--to file`: writes `fix-login.wisp-task` for chat, email or a repo.
+  - `--to gist`: a secret GitHub gist via `gh`.
+  - `--to <person or computer>`: straight to a teammate's wisp over the peer protocol (ADR-0010), when
+    they've allowed you. It shows up in their Needs you as "Ada shared a task with you".
+- **Receiving:** `wisp open <link|file>` (or clicking the link, or the GUI's Open shared task) shows the share
+  and offers:
+  - **Run it on my code:** imports the spec, resolves names against *your* formula (ADR-0029), shows the
+    plan, and runs it on your project with your accounts. It's linked `sharedFrom` the original;
+  - **Rerun with their setup:** uses the shared formula snapshot instead (a plan lists its connectors and
+    permissions; you need your own secrets);
+  - **Import read-only** (`full` only): the task appears in your list as read-only, and you can fork it to
+    continue the conversation;
+  - **Compare:** run it on your setup and theirs side by side.
+- **Team sharing:** in a formula, `share: { project: api, with: [team@acme], level: report }` shares
+  every finished task of that project with the team automatically. It's off by default, and shown in the plan.
+- **Back to v1:** v1's grid share links still open (the grid keeps serving them), and v1's "import someone's
+  task" becomes Import read-only.
