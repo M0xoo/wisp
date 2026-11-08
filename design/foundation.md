@@ -1,126 +1,56 @@
-# Foundation: the exact metrics every screen is built on
+# Foundation: v2 looks exactly like wisp today
 
-The owner, 2026-11-08: *"spacing is bad, inconsistent paddings, sloppy patterns. Make the base good from the
-start, so features start from a good base and nothing has to be fixed later."*
+The owner, 2026-11-08: *"I expect the UI to be exactly like wisp right now, EXACTLY."* And before that:
+*"spacing is bad, inconsistent paddings, sloppy patterns; make the base good from the start."*
 
-This file is that base. Every number in the kit comes from here, and a test checks the rendered page
-against it (`qa/layout.mjs`, rules at the end). A feature never picks a number. If a screen needs one that
-isn't here, the screen is wrong, or this file gets a reviewed change first.
+So the spec for every pixel of v2 is **v1 as it renders today**, not anyone's taste, mine included (an
+earlier draft of this file invented new metrics; they're gone). The new architecture changes how the UI is
+built (Solid, the kit, tokens, plugins). It changes nothing a user sees, except fixing v1 bugs that the
+owner already called out (wrapping bars, `design/layout.md`).
 
-## 1. The grid
+## 1. The reference
 
-- **4 px base.** Every size, padding, gap and offset is a multiple of 4. The only exceptions are 1 px lines
-  and 2 px focus rings.
-- **Spacing scale** (`--space-N`): 0, 2, 4, 8, 12, 16, 20, 24, 32, 40, 48, 64. Nothing else exists.
-- **Semantic spacing.** Components use these names, never raw steps:
+- **`design/v1-reference/`** is captured from v1 before v1 is deleted. `qa/v1-reference.mjs` starts v1 with
+  `qa/views.mjs`'s `seededWisp`, plus the stress data, and for every view in `qa/views.mjs` (the list, a task,
+  its menus and panels, New task, crew, My Stuff, the palette, every Settings pane, Home) it saves:
+  - screenshots at 1440, 1024, 900, 600, 390 and 320 px, in light and dark, at rest and with each
+    interactive element hovered, focused and selected;
+  - `metrics.json`: for every element with a v1 `PARTS` name (`web/js/spell-schema.js`), its computed box,
+    padding, margin, gap, font size and line height, colours, border and radius, per width and state.
+- That folder is committed and never edited by hand.
 
-| Token | Value | Use |
-|---|---|---|
-| `--gutter` | 16 | horizontal inset of every pane's content (list, task, settings, top bar, composer) |
-| `--gutter-wide` | 24 | main pane on ≥ 1280 px |
-| `--inset-row` | 8 | how far a row's hover/selection fill sits inside the pane (fill from 8 to w−8; text stays on `--gutter`) |
-| `--gap-xs` | 4 | icon ↔ its count; dot ↔ label inside a pill |
-| `--gap-sm` | 8 | items in a toolbar; avatar ↔ text; label ↔ hint |
-| `--gap-md` | 12 | columns in a row; fields in a form row |
-| `--gap-lg` | 16 | blocks in an answer; rows of a settings group |
-| `--section` | 24 | between sections (Needs you / Working …); between settings groups |
-| `--page` | 32 | top of a page to its title; between page regions |
+## 2. How the kit gets its numbers
 
-**The one-line rule.** In every pane, the top bar's first glyph, the section headers, the row text, the
-composer's text and the empty state all start on the same vertical line: `--gutter` from the pane's left
-edge. Icons in bars are optically aligned to that line (the glyph's edge, not its hit box).
+- `@wisp/tokens` holds v1's tokens exactly (`web/css/tokens.css`: colours light and dark, radius, shadows,
+  fonts, easing), plus v1's real spacing values as named tokens. They come from `metrics.json`, not from a
+  scale someone designed.
+- Each kit component's CSS reproduces the v1 element it replaces: the same paddings, gaps, heights, fonts,
+  radii and states. It's written in the kit (feature CSS is still banned, ADR-0007), with the v1 selector it
+  came from in a comment.
+- Where v1 used one-off values for the same thing (157 distinct px values), the kit keeps the value v1
+  shows **in that place**. Unifying values is a later, separate change, made only with the owner's say.
 
-## 2. Type
+## 3. The parity gate (`qa/parity.mjs`)
 
-| Token | Size / line | Weight | Use |
-|---|---|---|---|
-| `--text-caption` | 11 / 16 | 500 | pills, badges, kbd, column headers (uppercase never) |
-| `--text-meta` | 12 / 16 | 400 | times, counts, previews, hints |
-| `--text-row` | 13 / 20 | 500 | list row titles, menu items, buttons, tabs |
-| `--text-body` | 14 / 22 | 400 | answers, prompts, settings descriptions, dialogs |
-| `--text-title` | 16 / 24 | 600 | pane titles, task title, dialog titles |
-| `--text-heading` | 20 / 28 | 600 | page headings (Settings sections, Home greeting) |
-| `--text-display` | 28 / 36 | 650 | Home only |
+The v2 mock peer is seeded with **the same data** as `seededWisp`. For every reference view, width, theme
+and state:
 
-Numbers use tabular figures everywhere. One family for UI (system), one mono. No other sizes exist.
+1. **Pixel diff** against the v1 screenshot: under 0.5 % of pixels may differ (font antialiasing), and no
+   differing region may be larger than 8×8 px. A failure saves the diff image to `qa/out/parity/`.
+2. **Metrics diff** against `metrics.json`: every part's box, padding, gap, font and colour within ± 0.5 px
+   or exactly equal.
+3. Allowed differences are listed in `design/v1-reference/allowed.md`, one line each with why. Only the
+   owner's own fixes go there (the wrapping bars).
 
-## 3. Controls
+A screen isn't done until it passes the gate **and** the lead has looked at the v1 and v2 screenshots side
+by side, at rest, hovered and selected, at desktop and phone widths.
 
-| Size | Height | Horizontal padding | Icon | Radius | Use |
-|---|---|---|---|---|---|
-| `xs` | 20 | 8 | 12 | full | pills, status, chips in rows |
-| `sm` | 28 | 10 | 14 | 6 | toolbar buttons, chips, inline actions |
-| `md` | 32 | 12 | 16 | 6 | default buttons, inputs, selects |
-| `lg` | 40 | 16 | 16 | 8 | primary actions in dialogs and empty states |
+## 4. Rules that hold on top of v1 (the owner's fixes, already decided)
 
-- Icon ↔ label gap: `--gap-xs` + 2 = 6 (the one non-scale value, typographic).
-- Icon-only buttons are square at their height, with a hit area ≥ 32 (≥ 44 on phones, done with padding, not
-  a larger glyph).
-- On phones (`body.stack`), `sm` and `md` grow to 36 and 44. Fonts don't grow.
-
-## 4. Surfaces
-
-- Radii: 6 (controls), 8 (rows' fills, cards, menus), 12 (panels, dialogs, the composer), full (pills, avatars).
-- Lines: 1 px `--line` between panes and under bars; `--line-2` for control borders. No coloured side stripes.
-- Elevation: panes are flat. Only popovers, menus, dialogs, toasts and the floating composer get `--shadow-2`.
-- Fills: hover `--bg-2` at 60%; selected `--bg-2`; focus is a 2 px `--accent` ring outside the shape.
-
-## 5. Bars
-
-- Top bar: height 48; padding-inline `--gutter`; items `sm`; gap `--gap-sm`; a 1 px `--line` below.
-- Pane heads (task head, side panel head, settings head): height 48, same rules.
-- Toolbars inside components (the composer's): height 32, items `sm`.
-- Every bar follows `design/layout.md`: one line, items fold label → icon → More.
-
-## 6. The list row (the most-seen element in wisp)
-
-```
-|←8→[fill ................................................................... ]←8→|
-|←16→[avatar 20]←8→[title 13/20 ........… ]←12→[status 76]←8→[time 44]←16→|
-|              ←8→[preview 12/16 ……… ]                                    |
-```
-
-- Height 56 (two lines: title + preview, 20 + 16, padded 10 top and bottom); phones 64.
-- Columns are fixed: status **76 wide, left-aligned** (fits "Working" with its dot), time **44 wide,
-  right-aligned, tabular**. They're the same x in every row, selected or not, running or not.
-- Status and time sit on the **title line** (centred on its 20 px line box), never centred on the whole row.
-- The title truncates with an ellipsis. The preview truncates. Nothing wraps.
-- Hover and selection fill from `--inset-row` to `--inset-row`, radius 8. **The fill never touches the pane's
-  edge**, and the text doesn't move: in every state (rest, hover, selected, focused, running, unread) the
-  text starts at `--gutter` and the time ends at `--gutter` from the right. A state changes colour only,
-  never padding, border width or font weight.
-- Nothing is clipped: the time column is never cut ("7h ag"); if space runs out, the preview and then the
-  title give way first.
-- Section headers: `--text-caption` muted, height 32, on the gutter line, `--section` above.
-
-## 7. Content panes
-
-- Reading width: answers and transcripts max 760, centred in the main pane, with `--gutter-wide` on wide screens.
-- The composer: max width 760, aligned with the reading column; radius 12; padding 12; its toolbar 32 high.
-- Blocks in an answer: `--gap-lg` between them; cards inside them radius 8, padding 12.
-
-## 8. Empty states and copy
-
-- One 32 px icon, a `--text-title` line, at most one `--text-body` sentence (max width 360, muted), and at
-  most one `lg` primary action. Centred in the pane at 40% of its height, not at the top.
-- **No developer words in the UI:** never "plugin", "component", "mock", "not installed", "TODO", ids or stack
-  traces. `tools/check`'s i18n catalogue lint refuses them in English strings.
-
-## 9. Checked in real Chrome (`qa/layout.mjs`)
-
-At 1440, 1024, 900, 600, 390 and 320 px, in light and dark, for every screen and the kit gallery:
-
-1. Every computed `padding-*`, `margin-*`, `gap` and `inset` value in kit output is on the spacing scale.
-2. Every computed `font-size`/`line-height` pair is a type token.
-3. Elements marked `data-align="gutter"` in one pane share one left x (± 0.5 px).
-4. In a list, every row's status column and time column share one x.
-5. Status and time are vertically centred on the title's line box (± 1 px).
-6. Control heights are 20/28/32/40 (36/44 on phones).
-7. The layout rules of `design/layout.md` (no wrapped control text, bars one line, no horizontal overflow).
-8. **Every state is measured, not just rest:** each interactive element is checked at rest, hovered,
-   focused, selected/active and disabled. Its text box and its fill box must be the same as at rest
-   (± 0 px), and a fill must sit ≥ `--inset-row` inside its pane on both sides.
-9. No text is clipped except by an ellipsis (`scrollWidth > clientWidth` only where `text-overflow:
-   ellipsis` is set), and fixed columns are never clipped at all.
-
-A screen isn't done until this passes **and** the lead has looked at its screenshots next to v1's.
+- **Nothing wraps that shouldn't** (`design/layout.md`, ADR-0012). Where v1 wrapped a bar, v2 folds
+  label → icon → More instead. This is the one visible change, and it's listed in `allowed.md`.
+- **Every state keeps its box.** Hover, selected, focused, running and unread change colour, never padding,
+  border width or weight. A fill never touches its pane's edge if it didn't in v1, and v2 never introduces
+  one that does.
+- **Nothing is clipped** except by an ellipsis. Fixed columns (times, counts, pills) never clip.
+- **No developer words in the UI** ("plugin", "component", "mock", "not installed", ids, stack traces).
