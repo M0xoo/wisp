@@ -4,107 +4,13 @@
 //! over `POST /api/cmd` like the web app makes it, and the test waits for its turn to finish.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+mod common;
+
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use common::*;
 use serde_json::{Value, json};
-
-/// The server, killed and its home removed when the test ends (passing or not).
-struct Serve {
-    child: Child,
-    dir: PathBuf,
-    keep: bool,
-}
-
-impl Serve {
-    /// Stops the server and keeps its home, for a restart on the same `WISP_HOME`.
-    fn stop(mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-        let _ = std::fs::remove_file(self.dir.join("home/server.json"));
-        self.keep = true;
-    }
-}
-
-impl Drop for Serve {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-        if !self.keep {
-            let _ = std::fs::remove_dir_all(&self.dir);
-        }
-    }
-}
-
-/// wisp-testkit's fake harness is a bin of another crate: cargo doesn't build it for this one's
-/// tests, so build it into the same target dir and profile first.
-fn fake_agent() -> PathBuf {
-    let bin = wisp_testkit::fake_agent_bin();
-    if bin.is_file() {
-        return bin;
-    }
-    let exe = std::env::current_exe().unwrap();
-    let profile_dir = exe.parent().and_then(Path::parent).unwrap();
-    let target = profile_dir.parent().unwrap();
-    let mut cmd = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
-    cmd.args(["build", "--quiet", "-p", "wisp-testkit", "--bin", "wisp-fake-agent", "--target-dir"]).arg(target);
-    if profile_dir.ends_with("release") {
-        cmd.arg("--release");
-    }
-    assert!(cmd.status().unwrap().success(), "building wisp-fake-agent");
-    assert!(bin.is_file(), "{} after the build", bin.display());
-    bin
-}
-
-fn start(dir: &Path) -> (Serve, u16) {
-    start_with(dir, &[])
-}
-
-fn start_with(dir: &Path, env: &[(&str, &str)]) -> (Serve, u16) {
-    let bin = dir.join("bin");
-    fake_agent();
-    wisp_testkit::install_fakes(&bin, &["claude"]).unwrap();
-    let home = dir.join("home");
-    std::fs::create_dir_all(&home).unwrap();
-    let log = std::fs::File::create(dir.join("serve.log")).unwrap();
-    let child = Command::new(env!("CARGO_BIN_EXE_wisp"))
-        .args(["serve", "--port", "0"])
-        .env("WISP_HOME", &home)
-        .env("WISP_CLAUDE_BIN", bin.join(format!("claude{}", std::env::consts::EXE_SUFFIX)))
-        .env("WISP_WEB_DIR", dir.join("no-web"))
-        .env("RUST_LOG", "warn")
-        .envs(env.iter().copied())
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(log)
-        .spawn()
-        .unwrap();
-    let serve = Serve { child, dir: dir.to_owned(), keep: false };
-    let at = Instant::now();
-    loop {
-        if let Some(port) = std::fs::read(home.join("server.json")).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).and_then(|v| v["port"].as_u64()) {
-            return (serve, u16::try_from(port).unwrap());
-        }
-        assert!(at.elapsed() < Duration::from_secs(30), "wisp serve never advertised its port: {}", std::fs::read_to_string(dir.join("serve.log")).unwrap_or_default());
-        std::thread::sleep(Duration::from_millis(50));
-    }
-}
-
-async fn cmd(http: &reqwest::Client, port: u16, key: &str, name: &str, args: Value) -> Value {
-    let r = http
-        .post(format!("http://127.0.0.1:{port}/api/cmd"))
-        .header("content-type", "application/json")
-        .header("idempotency-key", key)
-        .body(json!({ "cmd": name, "args": args }).to_string())
-        .send()
-        .await
-        .unwrap();
-    let v: Value = serde_json::from_slice(&r.bytes().await.unwrap()).unwrap();
-    assert_eq!(v["ok"], true, "{name}: {v}");
-    v["result"].clone()
-}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn serve_runs_a_task_through_the_fake_claude_to_finished() {
@@ -158,56 +64,6 @@ async fn serve_runs_a_task_through_the_fake_claude_to_finished() {
     assert!(!log.contains("refused"), "every plugin of the build starts:\n{log}");
     drop(serve);
 }
-
-fn temp(name: &str) -> PathBuf {
-    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
-    let dir = std::env::temp_dir().join(format!("wisp-{name}-{}-{nanos}", std::process::id()));
-    std::fs::create_dir_all(dir.join("proj")).unwrap();
-    std::fs::write(dir.join("proj/math.js"), "export const add = (a, b) => a - b;\n").unwrap();
-    dir
-}
-
-struct Api {
-    http: reqwest::Client,
-    port: u16,
-    n: std::sync::atomic::AtomicU32,
-}
-
-impl Api {
-    async fn cmd(&self, name: &str, args: Value) -> Value {
-        let n = self.n.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        cmd(&self.http, self.port, &format!("{name}-{n}"), name, args).await
-    }
-
-    /// The raw answer, for a command that may be refused.
-    async fn try_cmd(&self, name: &str, args: Value) -> Value {
-        let n = self.n.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let r = self.http.post(format!("http://127.0.0.1:{}/api/cmd", self.port)).header("content-type", "application/json").header("idempotency-key", format!("{name}-{n}")).body(json!({ "cmd": name, "args": args }).to_string()).send().await.unwrap();
-        serde_json::from_slice(&r.bytes().await.unwrap()).unwrap()
-    }
-
-    async fn turns(&self, id: &str) -> Vec<Value> {
-        self.cmd("runtime.turns", json!({ "id": id })).await.as_array().cloned().unwrap_or_default()
-    }
-
-    /// Waits until `f` holds for the task's turns.
-    async fn until(&self, id: &str, what: &str, f: impl Fn(&[Value]) -> bool) -> Vec<Value> {
-        let at = Instant::now();
-        loop {
-            let t = self.turns(id).await;
-            if f(&t) {
-                return t;
-            }
-            assert!(at.elapsed() < Duration::from_secs(60), "{what}: {t:?}");
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-    }
-}
-
-fn ended(t: &Value) -> bool {
-    t["status"] != "running" && t["status"] != "held"
-}
-
 #[tokio::test(flavor = "multi_thread")]
 async fn follow_up_queue_and_stop_keep_the_queue() {
     let dir = temp("serve-queue");
@@ -316,6 +172,20 @@ async fn always_allow_grants_the_same_action_for_the_rest_of_the_task() {
     let again = api.cmd("runtime.approval", json!({ "id": id, "tool": "Bash", "input": { "command": "npm publish" } })).await;
     assert_eq!(again["behavior"], "allow");
     assert!(api.cmd("runtime.get", json!({ "id": id })).await["ext"]["wisp.runtime"]["ask"].is_null());
+    // verify round 4: another command is another action, so it asks again (v1 sameAction)
+    let (a3, id3) = (api.clone(), id.clone());
+    let other = tokio::spawn(async move { a3.cmd("runtime.approval", json!({ "id": id3, "tool": "Bash", "input": { "command": "rm -rf build" } })).await });
+    let mut asked = Value::Null;
+    for _ in 0..50 {
+        asked = api.cmd("runtime.get", json!({ "id": id })).await["ext"]["wisp.runtime"]["ask"].clone();
+        if !asked.is_null() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    assert!(asked["question"].as_str().unwrap_or_default().contains("rm -rf build"), "the other command waits for the user: {asked}");
+    api.cmd("runtime.answer", json!({ "id": id, "text": "Deny" })).await;
+    assert_eq!(other.await.unwrap()["behavior"], "deny");
     drop(serve);
 }
 
@@ -529,5 +399,61 @@ async fn the_agent_reaches_wisp_over_mcp_with_its_own_token() {
     api.cmd("runtime.followUp", json!({ "id": id, "text": "dev" })).await;
     let (_, answered) = asked.await.unwrap();
     assert!(answered["result"]["content"][0]["text"].as_str().unwrap_or_default().contains("dev"), "{answered}");
+    drop(serve);
+}
+
+/// verify round 4 #R4-3, v1 edge case HTTP #3: an agent's token speaks for its own task only.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_agents_token_cannot_touch_another_task() {
+    let dir = temp("serve-scope");
+    let rec = dir.join("rec");
+    std::fs::create_dir_all(&rec).unwrap();
+    let (serve, port) = start_with(&dir, &[("FAKE_RECORD", rec.to_str().unwrap())]);
+    let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
+    let other = api.cmd("runtime.create", json!({ "prompt": "A", "cwd": dir.join("proj"), "agent": "claude" })).await["id"].as_str().unwrap().to_owned();
+    api.until(&other, "A ends", |t| t.len() == 1 && ended(&t[0])).await;
+    let _ = std::fs::remove_file(rec.join("claude.jsonl"));
+    let lead = api.cmd("runtime.create", json!({ "prompt": "L", "cwd": dir.join("proj"), "agent": "claude" })).await["id"].as_str().unwrap().to_owned();
+    api.until(&lead, "L ends", |t| t.len() == 1 && ended(&t[0])).await;
+    let line = std::fs::read_to_string(rec.join("claude.jsonl")).unwrap();
+    let argv: Vec<String> = serde_json::from_str::<Value>(line.lines().last().unwrap()).unwrap()["argv"].as_array().unwrap().iter().filter_map(|a| a.as_str().map(str::to_owned)).collect();
+    let cfg: Value = serde_json::from_str(&argv[argv.iter().position(|a| a == "--mcp-config").unwrap() + 1]).unwrap();
+    let token = cfg["mcpServers"]["wisp"]["headers"]["x-wisp-token"].as_str().unwrap().to_owned();
+    let as_agent = |name: &'static str, args: Value| {
+        let (http, token, lead) = (api.http.clone(), token.clone(), lead.clone());
+        async move {
+            let r = http.post(format!("http://127.0.0.1:{port}/api/cmd")).header("content-type", "application/json").header("idempotency-key", format!("{name}-{args}")).header("x-wisp-token", token).header("x-wisp-session", lead).body(json!({ "cmd": name, "args": args }).to_string()).send().await.unwrap();
+            serde_json::from_slice::<Value>(&r.bytes().await.unwrap()).unwrap_or(Value::Null)
+        }
+    };
+    // its own task: yes
+    assert_eq!(as_agent("runtime.get", json!({ "id": lead })).await["ok"], true);
+    // another task: no read, no rename, no follow-up, no list
+    for (name, args) in [("runtime.get", json!({ "id": other })), ("runtime.rename", json!({ "id": other, "title": "renamed by L" })), ("runtime.followUp", json!({ "id": other, "text": "hi" })), ("runtime.list", json!({}))] {
+        let out = as_agent(name, args).await;
+        assert_ne!(out["ok"], true, "{name} must be refused for another task: {out}");
+    }
+    let a = api.cmd("runtime.get", json!({ "id": other })).await;
+    assert_ne!(a["title"], "renamed by L");
+    assert_eq!(api.turns(&other).await.len(), 1, "no turn was started on A");
+    drop(serve);
+}
+
+/// verify round 4 #R4-2 (v1 runner.js:1812): a question its turn leaves open is cleared with the turn.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_question_open_when_its_turn_ends_is_cleared() {
+    let dir = temp("serve-stale-ask");
+    let (serve, port) = start_with(&dir, &[("FAKE_DELAY", "1500")]);
+    let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
+    let id = api.cmd("runtime.create", json!({ "prompt": "hi", "cwd": dir.join("proj"), "agent": "claude" })).await["id"].as_str().unwrap().to_owned();
+    api.until(&id, "running", |t| t.len() == 1 && t[0]["status"] == "running").await;
+    let asked = api.cmd("runtime.ask", json!({ "id": id, "question": "Which branch?" })).await;
+    let ask_id = asked["askId"].as_str().unwrap().to_owned();
+    assert_eq!(api.cmd("runtime.pollAnswer", json!({ "askId": ask_id })).await["state"], "pending");
+    api.until(&id, "the turn ends", |t| t.len() == 1 && ended(&t[0])).await;
+    let task = api.cmd("runtime.get", json!({ "id": id })).await;
+    assert!(task["ext"]["wisp.runtime"]["ask"].is_null(), "no stale question: {task}");
+    assert_ne!(task["state"], "waiting");
+    assert_eq!(api.cmd("runtime.pollAnswer", json!({ "askId": ask_id })).await["state"], "cancelled");
     drop(serve);
 }
