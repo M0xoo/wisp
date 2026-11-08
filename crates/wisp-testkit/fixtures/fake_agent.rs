@@ -62,6 +62,26 @@ fn meta(name: &str, argv: &[String]) -> Option<i32> {
         println!("{line}");
         return Some(0);
     }
+    if name == "codex" && joined == "login --device-auth" {
+        // v1 agent-login: a link and a one-time code, then signed in
+        println!("Open https://auth.example.dev/codex/device\nand enter this one-time code ABCD-12345");
+        let _ = std::io::stdout().flush();
+        wait_ms("FAKE_LOGIN_MS");
+        if let Some(home) = env("CODEX_HOME") {
+            let _ = std::fs::create_dir_all(&home);
+            let _ = std::fs::write(Path::new(&home).join("auth.json"), "{}");
+        }
+        return Some(0);
+    }
+    if name == "codex" && joined == "login status" {
+        let signed = env("CODEX_HOME").is_some_and(|h| Path::new(&h).join("auth.json").is_file());
+        println!("{}", if signed { "Logged in using ChatGPT" } else { "Not logged in" });
+        return Some(i32::from(!signed));
+    }
+    if name == "codex" && joined == "debug models" {
+        // no catalog: detect falls back to $CODEX_HOME/models_cache.json
+        return Some(1);
+    }
     if name == "claude" && joined == "auth status --text" {
         if env("FAKE_AUTH_FAIL").is_some() {
             eprintln!("Error: could not read the sign-in");
@@ -89,7 +109,7 @@ fn record(name: &str, argv: &[String], prompt: &str) {
         return;
     };
     let _ = std::fs::create_dir_all(&dir);
-    let line = json!({ "argv": argv, "stdin": prompt, "cwd": std::env::current_dir().ok(), "pid": std::process::id() });
+    let line = json!({ "argv": argv, "stdin": prompt, "cwd": std::env::current_dir().ok(), "pid": std::process::id(), "codexHome": env("CODEX_HOME") });
     if let Ok(mut f) = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -156,6 +176,45 @@ fn codex(prompt: &str, target: &Path, after: &str) {
     );
 }
 
+/// Each other CLI's recorded turn (the G6 fixtures), with this run's folder and answer.
+fn recorded(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "opencode" => include_str!("../../../plugins/opencode/core/tests/fixtures/turn.jsonl"),
+        "cursor-agent" => include_str!("../../../plugins/cursor/core/tests/fixtures/turn.jsonl"),
+        "copilot" => include_str!("../../../plugins/copilot/core/tests/fixtures/turn.jsonl"),
+        "grok" => include_str!("../../../plugins/grok/core/tests/fixtures/turn.jsonl"),
+        "agy" => include_str!("../../../plugins/antigravity/core/tests/fixtures/turn.jsonl"),
+        _ => return None,
+    })
+}
+
+/// Strings in a recorded line: the folder is this run's, the answer names this prompt's topic.
+fn fill(v: &mut Value, cwd: &str, answer: &str) {
+    match v {
+        Value::String(s) if s.starts_with("All done.\n```wisp") => answer.clone_into(s),
+        Value::String(s) => *s = s.replace("@CWD@", cwd),
+        Value::Array(a) => a.iter_mut().for_each(|x| fill(x, cwd, answer)),
+        Value::Object(o) => o.values_mut().for_each(|x| fill(x, cwd, answer)),
+        _ => {}
+    }
+}
+
+fn replay_turn(name: &str, stream: &str, prompt: &str, target: &Path, after: &str) {
+    let cwd = target.parent().unwrap_or(Path::new("."));
+    let _ = std::fs::write(target, after);
+    let _ = std::fs::write(cwd.join("notes.txt"), "new file\n");
+    let short = name.split('-').next().unwrap_or(name);
+    let answer = final_text(short, prompt);
+    for (i, line) in stream.lines().enumerate() {
+        if i == 2 && env("FAKE_HANG").is_some() {
+            hang();
+        }
+        let Ok(mut v) = serde_json::from_str::<Value>(line) else { continue };
+        fill(&mut v, &cwd.display().to_string(), &answer);
+        out(&v);
+    }
+}
+
 fn main() {
     let mut args = std::env::args();
     let me = args.next().unwrap_or_default();
@@ -170,6 +229,13 @@ fn main() {
     }
     let mut prompt = String::new();
     let _ = std::io::stdin().read_to_string(&mut prompt);
+    // agy takes it as a stream-json `user` event, grok as a file
+    if name == "agy" {
+        prompt = serde_json::from_str::<Value>(prompt.lines().next().unwrap_or("")).ok().and_then(|v| v["message"]["content"].as_str().map(str::to_owned)).unwrap_or_default();
+    }
+    if let Some(i) = argv.iter().position(|a| a == "--prompt-file") {
+        prompt = std::fs::read_to_string(argv.get(i + 1).map_or("", String::as_str)).unwrap_or_default();
+    }
     record(&name, &argv, &prompt);
     if let Some(f) = env("FAKE_LIMIT_ONCE")
         && !Path::new(&f).exists()
@@ -193,6 +259,7 @@ fn main() {
     match name.as_str() {
         "claude" => claude(&prompt, &target, &before, &after),
         "codex" => codex(&prompt, &target, &after),
+        n if recorded(n).is_some() => replay_turn(n, recorded(n).unwrap_or_default(), &prompt, &target, &after),
         _ => {
             let _ = std::fs::write(&target, &after);
             println!("{}", final_text(&name, &prompt));

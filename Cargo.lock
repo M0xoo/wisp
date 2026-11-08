@@ -2975,6 +2975,7 @@ version = "2.0.0"
 dependencies = [
  "serde",
  "serde_json",
+ "sha2",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
@@ -2982,7 +2983,9 @@ dependencies = [
  "wisp-accounts-core",
  "wisp-harness-kit",
  "wisp-kernel",
+ "wisp-proc",
  "wisp-runtime-api",
+ "wisp-store",
 ]
 
 [[package]]
