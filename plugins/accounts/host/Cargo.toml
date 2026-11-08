@@ -18,6 +18,9 @@ wisp-runtime-api.workspace = true
 wisp-accounts-api.workspace = true
 wisp-accounts-core.workspace = true
 wisp-harness-kit.workspace = true
+wisp-proc.workspace = true
+wisp-store.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }

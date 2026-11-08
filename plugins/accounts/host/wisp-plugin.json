@@ -8,9 +8,77 @@
   "server": {
     "builtin": "wisp-accounts"
   },
-  "permissions": [],
+  "permissions": [
+    "runtime:release",
+    "runtime:signInDone",
+    "store:write{owner:accounts}"
+  ],
   "activation": [
     "onStartup"
   ],
-  "contributes": {}
+  "contributes": {
+    "commands": [
+      {
+        "id": "accounts.list",
+        "title": "A harness's accounts",
+        "readOnly": true
+      },
+      {
+        "id": "accounts.harnesses",
+        "title": "Every harness that can have several accounts, with its watch",
+        "readOnly": true
+      },
+      {
+        "id": "accounts.add",
+        "title": "Add another account"
+      },
+      {
+        "id": "accounts.update",
+        "title": "Rename, set the kind, or move an account"
+      },
+      {
+        "id": "accounts.remove",
+        "title": "Sign an account out and forget it"
+      },
+      {
+        "id": "accounts.watch",
+        "title": "What wisp pinned of a harness's program",
+        "readOnly": true
+      },
+      {
+        "id": "accounts.watch.trust",
+        "title": "Trust this version of a harness"
+      },
+      {
+        "id": "accounts.watch.ask",
+        "title": "Ask before running a changed harness"
+      },
+      {
+        "id": "accounts.login",
+        "title": "A sign-in as it stands",
+        "readOnly": true
+      },
+      {
+        "id": "accounts.login.start",
+        "title": "Sign in with the CLI's own login"
+      },
+      {
+        "id": "accounts.login.input",
+        "title": "Paste back the sign-in code"
+      },
+      {
+        "id": "accounts.login.cancel",
+        "title": "Stop a sign-in"
+      },
+      {
+        "id": "accounts.login.status",
+        "title": "Signed in, and as whom",
+        "readOnly": true
+      },
+      {
+        "id": "accounts.logout",
+        "title": "Sign out with the CLI's own sign-out"
+      }
+    ]
+  }
 }

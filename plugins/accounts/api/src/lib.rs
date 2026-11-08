@@ -11,7 +11,8 @@
 //! Wire shapes are v1's (camelCase) so v1 clients and the HTTP adapters stay 1:1. Rows the UI reads
 //! derive `ts_rs::TS` and export under `accounts/`.
 
-// commands, events and usage are not written yet (the accounts port stopped part way); model is.
+// usage and allowance are not written yet; commands and model are.
+pub mod commands;
 pub mod model;
 
 use wisp_kernel::{BoxFuture, Point};
@@ -36,8 +37,9 @@ pub const PERM_KEYS: &str = "accounts:keys";
 /// Remove crash dumps and stale temp files from the harnesses' folders.
 pub const PERM_DISK: &str = "accounts:disk";
 
-/// Account rows, sign-ins and the watch: clients refetch the harness list on a change.
-pub const TOPIC: &str = "plugin:accounts:agents";
+/// Account rows, sign-ins and the watch: clients refetch the harness list on a change (the topic
+/// the UI subscribes to, plugins/accounts/ui/src/types.ts).
+pub const TOPIC: &str = "plugin:wisp.accounts:harnesses";
 
 /// The `held.kind` of a turn the harness watch holds (`held.by` is [`PLUGIN_ID`]).
 pub const HOLD_KIND: &str = "harness-changed";
