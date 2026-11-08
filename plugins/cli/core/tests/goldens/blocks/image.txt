@@ -1,0 +1,12 @@
+── 80 plain
+▣ /tmp/shot.png <file:///tmp/shot.png>
+the login page
+── 40 plain
+▣ /tmp/shot.png <file:///tmp/shot.png>
+the login page
+── 80 colour
+␛[35m▣␛[0m ␛]8;;file:///tmp/shot.png␛\␛[4m/tmp/shot.png␛[0m␛]8;;␛\
+␛[2mthe login page␛[0m
+── 40 colour
+␛[35m▣␛[0m ␛]8;;file:///tmp/shot.png␛\␛[4m/tmp/shot.png␛[0m␛]8;;␛\
+␛[2mthe login page␛[0m

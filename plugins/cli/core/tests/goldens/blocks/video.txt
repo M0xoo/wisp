@@ -1,0 +1,12 @@
+── 80 plain
+▶ /tmp/run.mp4 <file:///tmp/run.mp4>
+a run
+── 40 plain
+▶ /tmp/run.mp4 <file:///tmp/run.mp4>
+a run
+── 80 colour
+␛[35m▶␛[0m ␛]8;;file:///tmp/run.mp4␛\␛[4m/tmp/run.mp4␛[0m␛]8;;␛\
+␛[2ma run␛[0m
+── 40 colour
+␛[35m▶␛[0m ␛]8;;file:///tmp/run.mp4␛\␛[4m/tmp/run.mp4␛[0m␛]8;;␛\
+␛[2ma run␛[0m

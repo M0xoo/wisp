@@ -1,0 +1,22 @@
+── 80 plain
+Before                                   After
+− any number of tries                    + 5 tries a minute
+− no Retry-After                         + 429 with Retry-After
+── 40 plain
+Before
+− any number of tries
+− no Retry-After
+After
++ 5 tries a minute
++ 429 with Retry-After
+── 80 colour
+␛[1mBefore␛[0m                                   ␛[1mAfter␛[0m
+␛[31m−␛[0m any number of tries                    ␛[32m+␛[0m 5 tries a minute
+␛[31m−␛[0m no Retry-After                         ␛[32m+␛[0m 429 with Retry-After
+── 40 colour
+␛[1mBefore␛[0m
+␛[31m−␛[0m any number of tries
+␛[31m−␛[0m no Retry-After
+␛[1mAfter␛[0m
+␛[32m+␛[0m 5 tries a minute
+␛[32m+␛[0m 429 with Retry-After

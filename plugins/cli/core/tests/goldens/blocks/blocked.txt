@@ -1,0 +1,14 @@
+── 80 plain
+Blocked
+⊘ shell: npm publish — needs network access
+── 40 plain
+Blocked
+⊘ shell: npm publish — needs network
+  access
+── 80 colour
+␛[1mBlocked␛[0m
+␛[31m⊘␛[0m shell: npm publish — needs network access
+── 40 colour
+␛[1mBlocked␛[0m
+␛[31m⊘␛[0m shell: npm publish — needs network
+  access

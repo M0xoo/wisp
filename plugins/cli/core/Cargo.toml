@@ -1,0 +1,18 @@
+[package]
+name = "wisp-cli-core"
+description = "wisp.cli, sans-IO: verbs generated from the command catalogue (flags and help from the argument types), completions, the terminal block renderers and the attached view of a task"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+wisp-cli-api.workspace = true
+wisp-protocol.workspace = true
+wisp-kernel.workspace = true
+
+[lints]
+workspace = true

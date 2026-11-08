@@ -1,0 +1,48 @@
+── 80 plain
+What changed
+
+The limiter sits in front of the handler. See the ADR
+<https://example.dev/adr/7>.
+
+• one window per IP
+• 429 with Retry-After
+
+┌─ ts
+│ const limit = 5;
+└─
+── 40 plain
+What changed
+
+The limiter sits in front of the
+handler. See the ADR
+<https://example.dev/adr/7>.
+
+• one window per IP
+• 429 with Retry-After
+
+┌─ ts
+│ const limit = 5;
+└─
+── 80 colour
+␛[1mWhat changed␛[0m
+
+The limiter sits in ␛[1mfront␛[0m of the handler. See ␛]8;;https://example.dev/adr/7␛\␛[4mthe ADR␛[0m␛]8;;␛\.
+
+• one window per IP
+• 429 with ␛[36mRetry-After␛[0m
+
+␛[2m┌─ ts␛[0m
+␛[2m│␛[0m ␛[35mconst limit = 5;␛[0m
+␛[2m└─␛[0m
+── 40 colour
+␛[1mWhat changed␛[0m
+
+The limiter sits in ␛[1mfront␛[0m of the
+handler. See ␛]8;;https://example.dev/adr/7␛\␛[4mthe ADR␛[0m␛]8;;␛\.
+
+• one window per IP
+• 429 with ␛[36mRetry-After␛[0m
+
+␛[2m┌─ ts␛[0m
+␛[2m│␛[0m ␛[35mconst limit = 5;␛[0m
+␛[2m└─␛[0m

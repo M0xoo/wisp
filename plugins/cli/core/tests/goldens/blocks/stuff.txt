@@ -1,0 +1,16 @@
+── 80 plain
+▣ My Stuff
+  the saved report
+  wisp stuff get 0bac5acb43c9
+── 40 plain
+▣ My Stuff
+  the saved report
+  wisp stuff get 0bac5acb43c9
+── 80 colour
+␛[34m▣␛[0m ␛[1mMy Stuff␛[0m
+  the saved report
+␛[2m  wisp stuff get 0bac5acb43c9␛[0m
+── 40 colour
+␛[34m▣␛[0m ␛[1mMy Stuff␛[0m
+  the saved report
+␛[2m  wisp stuff get 0bac5acb43c9␛[0m

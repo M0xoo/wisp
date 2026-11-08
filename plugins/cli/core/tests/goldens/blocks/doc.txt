@@ -1,0 +1,16 @@
+── 80 plain
+▤ The plan <file://docs/plan.md>
+  three steps
+  docs/plan.md
+── 40 plain
+▤ The plan <file://docs/plan.md>
+  three steps
+  docs/plan.md
+── 80 colour
+␛[34m▤␛[0m ␛]8;;file://docs/plan.md␛\␛[4m␛[1mThe plan␛[0m␛[0m␛]8;;␛\
+  three steps
+␛[2m  docs/plan.md␛[0m
+── 40 colour
+␛[34m▤␛[0m ␛]8;;file://docs/plan.md␛\␛[4m␛[1mThe plan␛[0m␛[0m␛]8;;␛\
+  three steps
+␛[2m  docs/plan.md␛[0m

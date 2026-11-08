@@ -1,0 +1,17 @@
+── 80 plain
+▣ Limiter dashboard <http://localhost:5173/apps/limiter>
+  hits per IP, live
+  Open it in wisp
+── 40 plain
+▣ Limiter dashboard
+<http://localhost:5173/apps/limiter>
+  hits per IP, live
+  Open it in wisp
+── 80 colour
+␛[34m▣␛[0m ␛]8;;http://localhost:5173/apps/limiter␛\␛[4m␛[1mLimiter dashboard␛[0m␛[0m␛]8;;␛\
+  hits per IP, live
+␛[2m  Open it in wisp␛[0m
+── 40 colour
+␛[34m▣␛[0m ␛]8;;http://localhost:5173/apps/limiter␛\␛[4m␛[1mLimiter dashboard␛[0m␛[0m␛]8;;␛\
+  hits per IP, live
+␛[2m  Open it in wisp␛[0m

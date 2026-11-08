@@ -1,0 +1,20 @@
+── 80 plain
+A request
+Request → Limiter  (in)
+Limiter → Handler  (allowed)
+  Limiter: per IP
+── 40 plain
+A request
+Request → Limiter  (in)
+Limiter → Handler  (allowed)
+  Limiter: per IP
+── 80 colour
+␛[1mA request␛[0m
+␛[1mRequest␛[0m ␛[2m→␛[0m ␛[1mLimiter␛[0m␛[2m  (in)␛[0m
+␛[1mLimiter␛[0m ␛[2m→␛[0m ␛[1mHandler␛[0m␛[2m  (allowed)␛[0m
+  Limiter: ␛[2mper IP␛[0m
+── 40 colour
+␛[1mA request␛[0m
+␛[1mRequest␛[0m ␛[2m→␛[0m ␛[1mLimiter␛[0m␛[2m  (in)␛[0m
+␛[1mLimiter␛[0m ␛[2m→␛[0m ␛[1mHandler␛[0m␛[2m  (allowed)␛[0m
+  Limiter: ␛[2mper IP␛[0m

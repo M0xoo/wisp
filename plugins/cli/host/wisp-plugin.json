@@ -1,0 +1,28 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.cli",
+  "name": "Command line",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "the command-line frontend: verbs generated from the command catalogue, terminal block renderers, live attach",
+  "kind": "plugin",
+  "server": {
+    "builtin": "wisp_cli"
+  },
+  "provides": {
+    "term.block": {
+      "version": "1.0.0"
+    }
+  },
+  "permissions": [],
+  "requires": {},
+  "contributes": {
+    "commands": [
+      {
+        "id": "cli.catalogue",
+        "title": "The commands you may run, with their arguments",
+        "readOnly": true
+      }
+    ]
+  }
+}

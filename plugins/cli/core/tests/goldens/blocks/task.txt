@@ -1,0 +1,16 @@
+── 80 plain
+↗ task 8e64708d4b75
+  the follow-up
+  wisp attach 8e64708d4b75
+── 40 plain
+↗ task 8e64708d4b75
+  the follow-up
+  wisp attach 8e64708d4b75
+── 80 colour
+␛[34m↗␛[0m ␛[1mtask 8e64708d4b75␛[0m
+  the follow-up
+␛[2m  wisp attach 8e64708d4b75␛[0m
+── 40 colour
+␛[34m↗␛[0m ␛[1mtask 8e64708d4b75␛[0m
+  the follow-up
+␛[2m  wisp attach 8e64708d4b75␛[0m
