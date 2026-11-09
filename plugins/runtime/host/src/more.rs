@@ -463,7 +463,12 @@ impl Runtime {
             s.ext.insert(k, v);
         }
         let spec = serde_json::to_value(&a.spec).unwrap_or_default();
-        with_slot(&mut s.ext, |m| m.insert("readOnly".into(), json!(true)));
+        // an outside session stays live: its follow-ups continue it in its CLI (ADR-0035)
+        if a.resume_id.is_some() {
+            s.resume_id.clone_from(&a.resume_id);
+        } else {
+            with_slot(&mut s.ext, |m| m.insert("readOnly".into(), json!(true)));
+        }
         with_slot(&mut s.ext, |m| m.insert("spec".into(), spec));
         let copies: Vec<Turn> = a.turns.into_iter().filter_map(|t| serde_json::from_value::<Turn>(t).ok()).map(|t| Turn { id: TurnId::new(), session_id: s.id.clone(), ..t }).collect();
         if copies.is_empty() {

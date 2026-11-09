@@ -318,6 +318,23 @@ fn more(s: &mut Setup, slot: &Slot, harness_kind: Arc<wisp_resources_api::Stored
             ctx.run_json(&call, "terminal.open", args).await
         }
     });
+    s.command::<c::Sessions, _, _>(|ctx, _call, a| async move {
+        let mut out = Vec::new();
+        for h in ctx.contributions(&wisp_runtime_api::harness::sessions::SESSIONS) {
+            out.extend(h.list(&a.cwd).await);
+        }
+        out.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
+        Ok(out)
+    });
+    let adopting = slot.clone();
+    s.command::<c::AdoptSession, _, _>(move |ctx, _call, a| {
+        let slot = adopting.clone();
+        async move {
+            let h = ctx.contributions(&wisp_runtime_api::harness::sessions::SESSIONS).into_iter().find(|h| h.harness() == a.harness).ok_or_else(|| WireError::not_found(format!("{} can't read its sessions", a.harness)))?;
+            let (sess, turns) = h.read(&a.id).await.ok_or_else(|| WireError::not_found(format!("no {} session {}", a.harness, a.id)))?;
+            rt(&slot)?.adopt(crate::specs::adopted(&sess, &turns)).await.map_err(WireError::from)
+        }
+    });
     let (agents, harnesses) = (slot.clone(), harness_kind);
     s.command::<c::Agents, _, _>(move |_ctx, _call, a| {
         let (slot, harnesses) = (agents.clone(), harnesses.clone());

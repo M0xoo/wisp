@@ -13,7 +13,6 @@ use crate::scripted::say;
 
 pub const SKILL: &str = include_str!("../../../skills/wisp/SKILL.md");
 pub const GRID_MISSING: &str = "wisp grid is not in this build: it comes with wisp Grid (the wisp-grid binary, apps/grid)";
-pub const MCP_MISSING: &str = "wisp mcp is not in this build yet: it comes with the mcp plugin (plugins/mcp)";
 
 /// Where each harness looks for skills.
 pub fn skill_targets(home: &Path, base: Option<&Path>, env: &dyn Fn(&str) -> Option<String>) -> Vec<(&'static str, PathBuf)> {
@@ -66,9 +65,6 @@ pub fn grid(argv: &[String]) -> Result<i32> {
     Ok(status.code().unwrap_or(1))
 }
 
-pub fn mcp() -> Result<()> {
-    Err(CliError::said(MCP_MISSING))
-}
 
 
 #[cfg(test)]

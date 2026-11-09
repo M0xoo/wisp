@@ -47,6 +47,13 @@ pub struct Opts {
     pub over: serde_json::Map<String, Value>,
     /// the words that aren't options
     pub words: Vec<String>,
+    /// `-var k=v` (ADR-0034), in order
+    pub vars: Vec<(String, String)>,
+    pub var_files: Vec<String>,
+    pub single_file: bool,
+    pub with_deps: bool,
+    pub upgrade: bool,
+    pub check: bool,
 }
 
 /// Reads `argv` (after the command word) for the options above.
@@ -90,6 +97,16 @@ pub fn opts(argv: &[String]) -> Opts {
             "--port" | "-p" | "--cwd" | "-C" => {
                 let _ = val(&mut it);
             }
+            "-var" | "--var" => {
+                if let Some((k, v)) = val(&mut it).split_once('=') {
+                    o.vars.push((k.to_owned(), v.to_owned()));
+                }
+            }
+            "--var-file" | "-var-file" => o.var_files.push(val(&mut it)),
+            "--single-file" => o.single_file = true,
+            "--with-deps" => o.with_deps = true,
+            "-upgrade" | "--upgrade" => o.upgrade = true,
+            "--check" => o.check = true,
             "--prune" => o.prune = true,
             "--trust" => o.trust = true,
             "--dry-run" => o.dry_run = true,
@@ -219,12 +236,21 @@ fn ask(question: &str) -> String {
 
 /// `wisp apply -f`, `wisp diff -f`, `wisp validate -f`.
 pub async fn apply(c: &Client, verb: &str, o: &Opts, cwd: &Path) -> Result<i32> {
-    need_files(o, verb)?;
     let st = crate::cli::style();
     let ks = kinds(c).await?;
-    let loaded = load(&o.files, &o.profiles, &ks, cwd)?;
+    let dir = crate::folder::folder(o, cwd);
+    let loaded = if let Some(d) = &dir {
+        let cfg = crate::folder::config(o, &ks, d)?;
+        let ws = crate::folder::workspace(d);
+        Loaded { resources: cfg.resources, sources: vec![if ws == "default" { d.display().to_string() } else { format!("{}, workspace {ws}", d.display()) }], ..Loaded::default() }
+    } else {
+        need_files(o, verb)?;
+        load(&o.files, &o.profiles, &ks, cwd)?
+    };
     let foreign = formula::foreign(&loaded.sources);
-    let args = json!({ "resources": loaded.resources, "prune": o.prune, "foreign": foreign, "trust": o.trust });
+    let destroy: Vec<String> = if verb == "destroy" { loaded.resources.iter().map(|r| format!("{}.{}", r.kind, r.name)).collect() } else { Vec::new() };
+    let resources = if verb == "destroy" { Vec::new() } else { loaded.resources.clone() };
+    let args = json!({ "resources": resources, "prune": o.prune, "foreign": foreign, "trust": o.trust, "destroy": destroy });
     let plan: Plan = serde_json::from_value(c.cmd("resources.plan", args.clone()).await?).map_err(|e| CliError::said(e.to_string()))?;
     if o.json {
         say(&serde_json::to_string_pretty(&plan).unwrap_or_default());
@@ -242,8 +268,11 @@ pub async fn apply(c: &Client, verb: &str, o: &Opts, cwd: &Path) -> Result<i32> 
     }
     say(&format!("{} {}", paint(&st, BOLD, "Plan"), paint(&st, DIM, &format!("({}{})", loaded.sources.join(", "), if foreign { ", from elsewhere" } else { "" }))));
     show_plan(&plan, &st);
-    if verb == "diff" || o.dry_run || plan.ops.is_empty() {
-        if plan.ops.is_empty() && verb != "diff" {
+    if plan.ops.iter().any(|x| x.op == wisp_resources_api::OpKind::Update) && verb != "destroy" {
+        say(&format!("  {}", paint(&st, DIM, "~ is drift: what wisp has differs from the files (changed in the app, or here); apply makes it the files'")));
+    }
+    if matches!(verb, "diff" | "plan") || o.dry_run || plan.ops.is_empty() {
+        if plan.ops.is_empty() && !matches!(verb, "diff" | "plan") {
             say(&format!("  {} nothing to change", paint(&st, GREEN, "✓")));
         }
         return Ok(i32::from(!plan.problems.is_empty()));
@@ -285,12 +314,24 @@ pub async fn apply(c: &Client, verb: &str, o: &Opts, cwd: &Path) -> Result<i32> 
 /// `wisp export [kinds…] [--include ui,account] [--format yaml|json|toml]`.
 pub async fn export_cmd(c: &Client, o: &Opts) -> Result<i32> {
     let ks = kinds(c).await?;
-    let list: Vec<Resource> = serde_json::from_value(c.cmd("resources.export", json!({ "kinds": o.words, "include": o.include })).await?).map_err(|e| CliError::said(e.to_string()))?;
+    let kinds_asked: Vec<&String> = o.words.iter().filter(|w| !w.contains('.')).collect();
+    let list: Vec<Resource> = serde_json::from_value(c.cmd("resources.export", json!({ "kinds": kinds_asked, "include": o.include })).await?).map_err(|e| CliError::said(e.to_string()))?;
     let format = match o.format.as_deref() {
         Some("json") => Format::Json,
         Some("toml") => Format::Toml,
         _ => Format::Yaml,
     };
+    let list = if o.with_deps || o.words.iter().any(|w| w.contains('.')) {
+        let all: Vec<Resource> = serde_json::from_value(c.cmd("resources.export", json!({ "include": o.include })).await?).map_err(|e| CliError::said(e.to_string()))?;
+        crate::folder::with_deps(&all, &o.words)
+    } else {
+        list
+    };
+    if let Some(dir) = &o.out {
+        let written = crate::folder::write_folder(&list, &ks, Path::new(dir), o.single_file)?;
+        say(&format!("  {} {} resources → {dir}/ ({})", paint(&crate::cli::style(), GREEN, "✓"), list.len(), written.join(", ")));
+        return Ok(0);
+    }
     let text = export::write(&list, &ks, format);
     let mut out = std::io::stdout().lock();
     let _ = out.write_all(text.as_bytes());

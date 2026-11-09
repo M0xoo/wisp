@@ -260,6 +260,12 @@ impl Runtime {
             env.insert("WISP_URL".into(), url);
             env.insert("WISP_TOKEN".into(), token);
         }
+        // a repo that keeps its agent history (ADR-0033): its tools (`wisp mcp`: history, blame, task)
+        if let Some(repo) = std::path::Path::new(&s.cwd).ancestors().find(|d| d.join(".wisp").is_dir())
+            && let Ok(exe) = std::env::current_exe()
+        {
+            mcp_servers.insert("wisp-history".to_owned(), serde_json::json!({ "type": "stdio", "command": exe.display().to_string(), "args": ["mcp", "--repo", repo.display().to_string()] }));
+        }
         // the MCP servers other plugins give this run (connectors: a formula's `connectors:`)
         let q = wisp_runtime_api::points::McpQuery { mode: ctx.once.unwrap_or(s.mode), harness: s.agent.clone(), team: s.ext.get("wisp.runtime").and_then(|o| o.get("subagents")).and_then(serde_json::Value::as_array).cloned().unwrap_or_default(), turn_id: t.id.0.clone(), sub: s.parent_id.is_some() };
         for part in self.host.run_parts() {

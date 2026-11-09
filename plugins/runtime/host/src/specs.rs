@@ -485,6 +485,25 @@ pub fn history(sessions: &[Session], costs: &std::collections::HashMap<String, f
     out
 }
 
+/// A session run outside wisp as `runtime.adopt`'s args (ADR-0035): its prompts are the spec's steps,
+/// its answers the turns, its id what the next follow-up resumes there.
+pub fn adopted(s: &wisp_runtime_api::harness::sessions::OutsideSession, turns: &[wisp_runtime_api::harness::sessions::SessionTurn]) -> wisp_runtime_api::spec::AdoptArgs {
+    let from = match s.harness.as_str() {
+        "claude" => "claude-code",
+        other => other,
+    };
+    let tv: Vec<Value> = turns
+        .iter()
+        .enumerate()
+        .map(|(i, t)| json!({ "id": wisp_kernel::ids::uuid7(), "sessionId": "", "idx": i, "prompt": t.prompt, "agent": s.harness, "model": t.model, "effort": "", "mode": "auto", "attachments": [], "status": "done", "startedAt": t.started_at, "endedAt": t.ended_at, "text": t.text, "resumeId": s.id, "isError": false }))
+        .collect();
+    let spec = TaskSpec { prompt: turns.first().map(|t| t.prompt.clone()).unwrap_or_default(), steps: turns.iter().skip(1).map(|t| t.prompt.clone()).collect(), agent: s.harness.clone(), cwd: s.cwd.clone(), ..TaskSpec::default() };
+    let mut ext = Map::new();
+    ext.insert("wisp.adopted".into(), json!({ "from": from, "session": s.id, "at": s.started_at }));
+    wisp_runtime_api::spec::AdoptArgs { title: if s.title.is_empty() { format!("{from} session") } else { s.title.clone() }, agent: s.harness.clone(), cwd: s.cwd.clone(), turns: tv, spec, ext, resume_id: Some(s.id.clone()) }
+}
+
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {

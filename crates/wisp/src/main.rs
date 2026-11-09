@@ -11,6 +11,8 @@ mod code;
 mod commands;
 mod desktop;
 mod extras;
+mod folder;
+mod repo_cli;
 mod groups;
 mod history_cli;
 mod plugin_cmd;
@@ -101,8 +103,13 @@ async fn dispatch(p: &Parsed, user_home: &Path, cwd: &Path) -> Result<i32> {
     }
     match p.command {
         Some("grid") => return extras::grid(&p.argv),
-        Some("mcp") => extras::mcp()?,
-        Some("skill") => extras::skill(p.words.get(1).map(String::as_str), f, user_home, cwd)?,
+        Some("mcp") => return repo_cli::mcp(&p.argv, cwd),
+        Some("skill") => {
+            extras::skill(p.words.get(1).map(String::as_str), f, user_home, cwd)?;
+            if p.words.get(1).map(String::as_str) == Some("install") {
+                return repo_cli::skill_install(&p.argv, cwd);
+            }
+        }
         Some("serve") => serve_here(&home, f.port, f.host.as_deref(), false, None).await?,
         Some("desktop") => desktop(&home, f.port, true).await?,
         Some("plugin" | "plugins") if rest.first().map(String::as_str) == Some("new") => {
@@ -138,8 +145,43 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Optio
     let o = code::Opts { json: o.json || p.flags.json, yes: o.yes || p.flags.yes, dry_run: o.dry_run || p.flags.dry_run, wait: o.wait || p.flags.wait, ..o };
     let connect = || Client::connect(port, true);
     let code = match first {
-        "apply" | "diff" | "validate" if !o.files.is_empty() => code::apply(&connect().await?, first, &o, cwd).await?,
+        "apply" | "diff" | "validate" | "plan" | "destroy" if !o.files.is_empty() || folder::folder(&o, cwd).is_some() => code::apply(&connect().await?, first, &o, cwd).await?,
+        "init" if o.words.len() <= 1 => folder::init(cwd, &o)?,
+        "track" if o.words.len() == 1 => repo_cli::track(&connect().await?, &o, cwd).await?,
+        "untrack" if o.words.len() == 1 => repo_cli::untrack(&o, cwd)?,
+        "blame" if o.words.len() == 1 => repo_cli::blame_cmd(&o, cwd)?,
+        "log" if o.words.len() <= 1 => repo_cli::log(&p.argv, &o, cwd)?,
+        "tasks" if p.argv.iter().any(|a| a == "--touching" || a == "--tracked") => repo_cli::log(&p.argv, &code::Opts { words: Vec::new(), ..o.clone() }, cwd)?,
+        "ls" | "list" if p.argv.iter().any(|a| a == "--repo") => repo_cli::log(&p.argv, &code::Opts { words: Vec::new(), ..o.clone() }, cwd)?,
+        "resume" if o.words.len() == 1 => repo_cli::resume(&connect().await?, &o, cwd).await?,
+        "adopt" => repo_cli::adopt(&connect().await?, &p.argv, &o, cwd).await?,
+        "fmt" if o.words.is_empty() => folder::fmt_cmd(&o, cwd)?,
+        "workspace" => folder::workspace_cmd(&folder::folder(&o, cwd).unwrap_or_else(|| cwd.join(".wisp")), &o.words)?,
+        "output" | "graph" | "mv" if folder::folder(&o, cwd).is_some() => {
+            let c = connect().await?;
+            let ks = code::kinds(&c).await?;
+            let dir = folder::folder(&o, cwd).unwrap_or_default();
+            let cfg = folder::config(&o, &ks, &dir)?;
+            match first {
+                "output" => folder::output(&cfg, &o),
+                "graph" => folder::graph(&cfg),
+                _ => match o.words.as_slice() {
+                    [from, to] => {
+                        let n = folder::mv(&dir, &cfg, from, to)?;
+                        scripted::say(&format!("  ✓ {from} → {to} in {n} file{} (the next wisp apply renames it in wisp)", if n == 1 { "" } else { "s" }));
+                        0
+                    }
+                    _ => return Err(CliError::said("wisp mv <kind>.<name> <kind>.<new name>")),
+                },
+            }
+        }
+        "import" if o.words.len() == 1 && o.words[0].contains('.') && !o.words[0].contains('/') && !o.words[0].starts_with('.') => {
+            let c = connect().await?;
+            let ks = code::kinds(&c).await?;
+            folder::import_address(&c, &ks, &folder::folder(&o, cwd).unwrap_or_else(|| cwd.join(".wisp")), &o.words[0]).await?
+        }
         "schema" if o.words.is_empty() => code::schema(&connect().await?).await?,
+        "export" if o.words.iter().any(|w| w.contains('.')) && o.words.iter().all(|w| !w.contains(' ')) => code::export_cmd(&connect().await?, &o).await?,
         "export" if o.words.iter().all(|w| w.bytes().all(|b| b.is_ascii_lowercase() || b == b'-')) => {
             let c = connect().await?;
             if !code::kind_words(&o.words, &code::kinds(&c).await?) {
