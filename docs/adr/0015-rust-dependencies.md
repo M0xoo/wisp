@@ -46,6 +46,7 @@ the reason given; a crate leaves when its reason does.
 | `ed25519-dalek` | Discord's interaction signatures; the grid's mail inbox checks `ed25519-sha256` DKIM keys |
 | `aes-gcm`, `hkdf` | the grid's envelope encryption: each user's data key seals their secrets, wrapped by the master key |
 | `scrypt` | the grid's share passkeys, stored as scrypt hashes (v1's scheme, so live links keep working) |
+| `ratatui` (its `crossterm` backend) | `wisp tui`, the full-screen terminal frontend (ADR-0024); no default features |
 | `rsa`, `p256`, `x509-cert` | the grid's sign-in: OpenID Connect ID tokens signed RS256 or ES256 against the provider's keys; `rsa` also checks `rsa-sha256` DKIM keys (port of v1 `grid/auth/jwt.js`, `grid/dkim.js`) |
 
 `anyhow` and `tower` were declared and used by no crate: removed.

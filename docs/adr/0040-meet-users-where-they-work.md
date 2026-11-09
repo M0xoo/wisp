@@ -60,3 +60,19 @@ Each one is a test named after it:
 - `a_hand_made_tool_keeps_its_name`: a generated tool never takes the name of one of wisp's own tools.
 - `a_tool_call_runs_the_command_as_the_caller`: the answer is the command's JSON result; a refusal is the tool's
   error.
+
+## Edge cases: the git hook, the Action and the image (added 2026-11-09)
+
+- `hook_adds_the_trailer_only_inside_a_task`: `wisp hook install` puts a `prepare-commit-msg` in the repo's hooks
+  folder (`git rev-parse --git-path hooks`, so `core.hooksPath` and worktrees count). A commit made in a wisp task's
+  run (`WISP_TASK` set) gets `Wisp-Task: <id>`; any other commit is left as it is. No wisp needs to be running.
+- `hook_never_doubles_the_trailer`: an amend, a rebase, or a message Ship it already trailed keeps one trailer.
+  A `WISP_TASK` that isn't an id (spaces, newlines, quotes) adds nothing.
+- `hook_install_keeps_the_users_own_hook`: a hook that was there is kept as `prepare-commit-msg.local` and runs
+  first (its exit code stops the commit as before); `wisp hook uninstall` puts it back; installing twice is a no-op.
+- `the_action_runs_a_task_and_posts_its_report`: `action.yml` (a composite action) installs `wisp-agents`, runs a
+  prompt (`wisp "<prompt>" --json`), a declared task (`wisp run <name>`) or a formula (`wisp run -f`), waits for it
+  (`wisp wait`), writes the report to the job summary and posts it on the pull request with `gh pr comment`;
+  `fail-on: failed` fails the job when the task ends in error.
+- `the_image_runs_wisp_headless`: `ci/image/Dockerfile` has wisp, git and gh, runs as a non-root user, and its
+  entrypoint is `wisp`.
