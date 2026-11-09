@@ -112,6 +112,14 @@ wisp aims to be the fastest dev tool there is. Speed is checked like correctness
 - **The UI does the least work:** fine-grained signals (one row repaints), keyed lists that move nodes,
   `VirtualList` past 200 rows, no layout reads after writes in one frame, no `:has()` on large boxes.
 
+## Meet users where they work (ADR-0040)
+
+- **Every feature works inside wisp and from where the user already is:** their harness (Claude Code, Codex, …)
+  through wisp's MCP tools and skill, git (trailers, hooks), CI (the GitHub Action), chat channels, editors
+  later. Never require a user to change their flow or their harness. Tracking works passively (adopt, hooks).
+  Each feature's ADR lists the places it reaches; a command without MCP exposure fails `tools/check` unless it's
+  marked `ui-only` with a reason.
+
 ## Porting from v1
 
 - **Port the intent, not the bugs** (`docs/v2-port-intent.md`): write the feature's intent first, look for
@@ -136,3 +144,7 @@ wisp aims to be the fastest dev tool there is. Speed is checked like correctness
   reports the affected set; it does not skip anything until gate G14 passes (ADR-0001).
 - User-facing changes get a `CHANGELOG.md` entry under *Unreleased*.
 - Releasing is merging the version bump (`Cargo.toml` workspace version and `npm/wisp-agents/package.json`; see the `release` skill).
+
+## wisp: the tasks behind this code
+
+Before changing a file, read the tasks that shaped it: `wisp tasks --touching <path>` (or `wisp blame <file>:<line>`), or the files in `.wisp/tasks/`. They hold what was asked, the agent's report and its transcript.
