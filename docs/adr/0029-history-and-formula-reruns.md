@@ -68,3 +68,22 @@ skills, connectors and tools it gets, so `agent.reviewer` means the same capabil
 - **Sharing and rerunning:** the plan lists what the task needs that the receiver doesn't have ("needs the
   `linear` MCP server, the `release-notes` skill"), offers to add them from the shared snapshot (secrets asked
   for), and `--fill-from-snapshot` covers them on a rerun.
+
+### Edge cases (added 2026-11-09)
+
+Each one is a test named after it.
+- `setup_lists_what_wisp_gave_the_run`: the task's first run records its harness, model, mode and permissions
+  (untrusted, grants), the skills wisp gave it (name, source, content hash) and every MCP server (name, command
+  or URL). `wisp task setup <id>` (`--json`) and `runtime.setup` show it.
+- `outside_skills_are_recorded_by_hash`: skills the harness picks up by itself (Claude Code's `skills/` in its
+  config folder and the repo's `.claude/skills/`) are recorded by name and hash, marked "outside wisp".
+- `a_stdio_server_is_probed_for_its_version_and_tools`: each MCP server answers `initialize` and `tools/list`
+  once per configuration, in the background (the run never waits); its version and tools are recorded.
+- `a_server_that_doesnt_answer_is_recorded_unprobed`: a server that fails or times out is recorded with why,
+  and the run goes on.
+- `used_is_read_from_the_transcript`: skills loaded, MCP tools called (per server, how often), built-in tools by
+  kind, and blocked calls, counted from the task's activity. This reads the activity's labels (a harness's
+  describer writes `Using the X skill`, `Using server · tool`), so a harness with other labels counts as
+  built-in tools.
+- `an_adopted_task_says_its_setup_is_unknown`: a task adopted from outside wisp has no recorded setup and says
+  so; what it used is still read from its transcript.

@@ -30,3 +30,26 @@
 - Each one can be replaced by a user plugin that provides the same point or service, at the same power (plan §6.0).
 - **Check:** `tools/check` fails a host crate that isn't in a group or that registers functionality outside its
   manifest's points.
+
+## wisp.history, split out (added 2026-11-09)
+
+`wisp.history` owns `.wisp/` history: tracking (`history.track`, `untrack`, `save`), blame, log, the ask-mode
+offers, resume requests and context injection. Its two points:
+- `history.store@1` (where a tracked task's files go): `files` (the working tree, the default), `notes` (git
+  notes under `refs/notes/wisp`, so the tree stays clean), `lfs` (the files, with `.gitattributes` sending
+  transcripts to Git LFS). The repo picks one with `history: { transcripts: files | notes | lfs }`.
+- `history.blame@1` (what knows which commit wrote a line): `git`, through wisp-proc.
+
+`wisp.share` keeps bundles, signatures and destinations; it no longer writes into repos.
+
+### Edge cases (each one a test, named after it)
+- `history_off_leaves_share_working`: with wisp.history off, `share.preview` still answers and `history.track`
+  is refused as an unknown command, saying its plugin is off.
+- `a_user_store_receives_the_writes`: a plugin that provides `history.store@1` as `db` and a repo with
+  `history: { transcripts: db }` gets the task's files; nothing lands in the tree.
+- `notes_keep_the_tree_clean`: with `transcripts: notes` the transcript is a git note on `refs/notes/wisp` and the
+  working tree has only the task file and report.
+- `lfs_marks_transcripts`: with `transcripts: lfs`, `.gitattributes` routes `.wisp/history/*.zst` to LFS, once.
+- `tracking_twice_rewrites_in_place`: tracking a task again leaves one task file, one report, one transcript.
+- `a_folder_without_git_still_tracks`: the files store writes in a folder that isn't a repo; blame says so.
+- `a_user_blame_source_answers`: a plugin providing `history.blame@1` answers `history.blame`.

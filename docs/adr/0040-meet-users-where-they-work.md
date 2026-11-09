@@ -39,3 +39,24 @@ Every feature is designed against this checklist, and its ADR says which of thes
   list. The skill text is generated from the same catalogue, with hand-written guidance on top.
 - New deliverables: the GitHub Action and container image, the git hook, and later the editor extensions.
 - The docs (ADR-0039) show the "from your harness" way on every how-to, next to App, TUI, CLI and SDK.
+
+## Edge cases: the generated MCP tools (added 2026-11-09)
+
+The catalogue (every command a plugin registers) is exposed through wisp's MCP server as one tool per command,
+named after it (`runtime.create` → `runtime_create`), its input schema made from its argument type, and
+filtered by the caller's capability set. A command that only makes sense on a screen says so in its manifest
+(`"uiOnly": "<why>"`) and is left out. The check is the manifest check (every plugin's manifest test runs it):
+a `uiOnly` without a reason is refused.
+
+Each one is a test named after it:
+- `every_command_is_an_mcp_tool`: a plugin's commands are all in `tools/list`, as `<id with _>`, for a caller whose
+  set allows them.
+- `ui_only_commands_are_left_out`.
+- `a_ui_only_without_a_reason_is_refused` (the manifest check).
+- `a_caller_sees_only_what_its_set_allows`: an agent's token lists only what `agent:session` allows; calling
+  a command outside it through its tool is refused by the kernel, as any call is.
+- `the_input_schema_follows_the_args_type`: fields, types (string, number, boolean, array, enum), what's required,
+  and each field's doc as its description.
+- `a_hand_made_tool_keeps_its_name`: a generated tool never takes the name of one of wisp's own tools.
+- `a_tool_call_runs_the_command_as_the_caller`: the answer is the command's JSON result; a refusal is the tool's
+  error.

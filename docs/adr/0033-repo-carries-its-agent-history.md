@@ -188,3 +188,49 @@ terminal) comes to the CLI and the TUI, and works on tasks from the repo history
 - **Afterwards:** when the CLI session ends, wisp adopts it back (ADR-0035), so what you did there becomes the task's next
   turns and is tracked like any other. `--no-adopt` leaves it out.
 - **SDK:** `task.openIn({ agent })` returns the command line to run, for editors and scripts.
+
+## Edge cases: blame and the PR (added 2026-11-09)
+
+Each one is a test named after it.
+- `still_there_counts_the_lines_left`: a task whose commits added 4 lines, one of which a later commit rewrote, is
+  75% still there. A task whose code is all gone is 0%. A task with no known commits shows nothing, not 0%.
+- `track_finds_the_pr_through_gh`: tracking asks GitHub (through `gh`, via wisp-proc) for the PR whose head is
+  the task's branch, or whose head commit is one of its commits, and records its URL.
+- `no_pr_when_nothing_matches`: no gh, no remote, or only unrelated PRs: no PR is recorded (never a guess).
+- `a_folder_without_git_still_tracks` (ADR-0042) covers blame outside a repo.
+
+## Edge cases: offers, the mark, resume requests, injection (added 2026-11-09)
+
+Each one is a test named after it.
+- `ask_mode_offers_then_saves`: in `track: ask`, a task marked done gets `offer: true` on it (the app's **Save
+  to repo**, a `history.offer` notice); `history.save` writes it and clears the offer.
+- `manual_mode_offers_nothing`: in `track: manual`, nothing is offered or saved.
+- `the_in_repo_mark_names_the_repo_and_files`: a tracked task carries `ext["wisp.history"].tracked` (repo, store,
+  files), which the row's "in repo" mark reads.
+- `a_resume_request_waits_for_the_user`: an agent's `wisp_resume` (or `history.resumeRequest`) starts nothing; it's
+  a pending request, and asking again while it waits doesn't make a second one.
+- `a_denied_request_starts_nothing`; `an_approved_request_starts_once`: approving starts the resumed task (its
+  lineage names the old one); answering again is refused.
+- `resume_requests_survive_a_restart`: they're kept in the store.
+- `an_agent_can_ask_but_not_answer`: an agent's token may call `history.resumeRequest`, never
+  `history.resumeAnswer`.
+- `injection_is_off_by_default`; `injection_names_the_tasks_on_files_the_prompt_names`: with
+  `history: { inject: true }`, a run whose prompt names `math.js` gets the earlier tasks on it in its system
+  prompt; a prompt that names no file gets nothing.
+
+## Edge cases: Open in (added 2026-11-09)
+
+Each one is a test named after it.
+- `open_resumes_its_own_session`: `wisp open <id>` on your own task runs its harness's CLI in the task's folder,
+  resumed on its session (`claude --resume <session>`).
+- `open_restores_the_native_log_for_a_repo_task`: a task from `.wisp/` (another computer's) with a native log has
+  it restored into the CLI's store here (`runtime.restoreSession`) and resumed. A log already in the store is the
+  CLI's own and is never overwritten.
+- `open_in_another_harness_primes_a_continuation`: `--in codex` on a Claude task (or a task with no native log)
+  starts a new session primed with its spec and report, and says it's a continuation, not the same session.
+- `open_adopts_back_after`: when the CLI exits, what was done there becomes the task's next turns (ADR-0035).
+  `open_no_adopt_leaves_it` (`--no-adopt`).
+- `open_print_gives_the_command_line`: `--print` (the SDK's `task.openIn`) prints the program, args and folder as
+  JSON and runs nothing.
+- `open_an_unknown_task_says_so`.
+- `a_folder_gone_opens_at_its_base`: a task whose folder is gone opens in a fresh worktree at its base commit.

@@ -80,3 +80,21 @@ Import is a first-class screen, not a CLI-only step:
   (atomic apply). Imported tasks (`.wisp-task`) open on their run, rerun, import-read-only and compare choices
   (ADR-0027).
 - The TUI has the same screen (`wisp tui`, Import, or `i`). The CLI shows the same plan as text.
+
+## Edge cases (added 2026-11-09)
+
+State is the store, so `mv`, drift and refresh act on it, not on a state file. Each case is a test named after it.
+- `mv_keeps_the_store_row`: `wisp mv skill.tidy skill.neat` renames the declaration, its references and the row
+  in wisp (`resources.rename`, one write). The next plan has nothing to do, and no destroy-and-create happens.
+- `mv_onto_a_taken_name_is_refused`: renaming onto an address that's declared, or onto a name wisp already
+  has, is refused, and nothing changes.
+- `mv_of_an_undeclared_address_is_refused`: renaming something the files don't declare says so.
+- `drift_is_only_what_changed_outside_the_files`: after an apply, a change made in the app shows in `wisp plan` as
+  drift (`~ … drift: changed in wisp since the last apply`); a change made in the files shows as a change, not drift.
+- `a_never_applied_resource_has_no_drift`: something made in the app and then declared is a change, not drift
+  (there was no apply to drift from).
+- `refresh_only_accepts_the_store`: `wisp plan --refresh-only` takes what wisp has as the new baseline for the
+  drifted resources; the next plan shows the files' change but no drift. `wisp export` writes them into the files.
+- `a_missing_variable_is_asked_in_a_tty`: with a terminal, a variable with no value is asked for, by name, type
+  and description. `a_typed_answer_is_checked`: an answer that isn't its type is refused.
+  `without_a_tty_it_says_how_to_set_it`: in a script it fails, naming `-var`, var files and `WISP_VAR_`.

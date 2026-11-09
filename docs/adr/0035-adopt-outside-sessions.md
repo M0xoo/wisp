@@ -47,3 +47,16 @@
 - Each harness module adds `sessions.rs` (store paths per OS, pure parsing via its core parser) and tests on
   recorded session files.
 - The parity check covers `wisp adopt` in the app, the TUI and the SDK (ADR-0022/0024).
+
+## Edge cases (added 2026-11-09)
+
+Each one is a test named after it.
+- `the_same_session_is_adopted_once`: adopting a session that's already a task answers that task and makes no
+  new one, whether it comes from the hook, `--all` or by hand.
+- `adopting_again_adds_only_new_turns`: a session that went on (in the CLI, or after `wisp open`) gets only its
+  new turns appended to its task.
+- `a_session_id_never_leaves_the_store`: a session id with `/`, `..` or a separator is refused before any file is
+  read or restored.
+- Not built: session readers for cursor, opencode, copilot, grok and antigravity. v1 never read them, and there are
+  no recorded samples of their stores to test a parser against, so they wait for recorded fixtures rather than
+  being guessed.
