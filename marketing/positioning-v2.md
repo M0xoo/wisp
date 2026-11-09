@@ -116,3 +116,10 @@ uniqueness claim in this doc must change before launch. Where wisp is still diff
 
 Action: the researcher (Moris) compares wisp v2 with Warp's factories, OpenClaw and Herdr before any claim ships,
 and the hero is re-checked against it.
+
+## Hero decision (owner, 2026-11-09): lead with Track and open source
+
+H1 *Know why every line of agent code exists.* · line 2 *Track every task your agents run, right next to the code it
+wrote.* · kicker *Open source · MIT · runs on your machines*. The hero's main visual is Track (blame + resume);
+Declare and Run are supporting cards. Sections run Track → Declare → Run, closing with *Your agents write the code.
+wisp remembers why.* (Supersedes the earlier hero choices above.)
