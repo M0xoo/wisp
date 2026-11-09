@@ -36,3 +36,25 @@
 - grid-client gets one share API for every kind (upload, access, versions, revoke). The edge serves the share pages,
   rendered with the same kit as the app.
 - The site's Track and Declare sections show "Share" leading to a link, with file as the alternative.
+
+## Edge cases (added 2026-11-09)
+
+Each one is a test named after it.
+- `a_share_goes_only_after_the_scrub`: what wisp Cloud receives is the scrubbed, signed bundle the preview showed.
+- `a_share_must_be_signed_by_its_sharer`: the grid checks the ed25519 signature against the key it carries, and
+  a new version of a share must be signed by the same key as its first (nobody else's key can update it).
+- `share_access_anyone_people_teams_password`: anyone with the link; only the people named (signed in); only
+  members of the teams named; or a password (kept as an scrypt hash, compared in constant time). A refused
+  reader learns nothing about the share but that it's locked.
+- `an_expired_or_revoked_link_is_gone`: both answer 410 with which, and nothing of the content.
+- `views_and_imports_are_counted`: a page or a fetch counts a view, an import an import; the sharer's own
+  reads don't count.
+- `sharing_again_is_a_new_version`: the same key again makes version n+1 at the same link; a version only
+  changes when the content does.
+- `an_import_sees_update_available`: a receiver who imported version n sees "update available" (with the
+  diff, as a plan) once the sharer publishes n+1, and applies it like any formula.
+- `ref_pins_a_version`: `?ref=v1` (or a module `source: grid://…?ref=v1`) always answers that version.
+- `a_share_page_works_without_wisp`: every kind (task, setup, doc) has an HTML page, every value escaped.
+- `wisp_shares_lists_mine`: kind, access, views, imports and versions of each of my shares.
+- `not_signed_in_offers_sign_in_or_a_file`: `--to cloud` signed out says how to sign in and offers `--to file`;
+  nothing is uploaded.

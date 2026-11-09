@@ -49,3 +49,17 @@ wisp Grid (grid.trywisp.dev, or self-hosted) has two jobs, and every frontend re
 - `--on <machine>` becomes a global CLI flag, and the TUI takes a peer. Both use the Rust SyncClient.
 - The site's Run section shows the TUI and the GUI on a cloud box. The Track and Declare sections show the gallery
   and team sharing.
+
+## Edge cases (added 2026-11-09)
+
+Each one is a test named after it.
+- `the_gallery_lists_only_what_was_published`: a share is in the gallery only once its sharer publishes it (and
+  only while its access is "anyone"); search matches title, summary and tags.
+- `team_roles_decide_who_shares_and_manages`: owner and admin add or remove members; owner, admin and member
+  share to the team; a viewer only reads; the last owner can't leave.
+- `a_grid_source_is_pinned_in_the_lock`: `source: grid://<handle>/<name>` fetches the share's files into
+  `.wisp/modules/<name>` and pins its version in `.wisp/lock.yml`; `wisp init -upgrade` moves it.
+- `on_runs_a_command_on_that_peer`: `wisp --on <machine> …` sends the command to that peer (with the same
+  idempotency key) and says which machine answered; an unknown machine lists the ones there are.
+- `mcp_tools_take_a_peer`: every generated MCP tool takes an optional `peer`, and the call runs there.
+- `grid_deploy_applies_a_formula_to_a_box`: `wisp grid deploy -f <file>` is `wisp apply -f <file> --on <box>`.

@@ -57,6 +57,23 @@ Each one is a test named after it.
   new turns appended to its task.
 - `a_session_id_never_leaves_the_store`: a session id with `/`, `..` or a separator is refused before any file is
   read or restored.
-- Not built: session readers for cursor, opencode, copilot, grok and antigravity. v1 never read them, and there are
-  no recorded samples of their stores to test a parser against, so they wait for recorded fixtures rather than
-  being guessed.
+- Session readers for cursor, opencode, grok and antigravity are parsed from sessions recorded on 2026-11-09 by
+  running each CLI on "Reply with OK." in an empty temp folder (never a user's own sessions); the fixtures sit in
+  `plugins/<harness>/host/tests/fixtures/`, with the user's injected skill and MCP lists cut out.
+  - `a_cursor_transcript_reads_as_turns`: `~/.cursor/projects/<cwd without its leading />/agent-transcripts/<id>/<id>.jsonl`;
+    the prompt is what's inside `<user_query>` (the `<timestamp>` line is dropped); the folder and times come from
+    `~/.cursor/chats/*/<id>/meta.json`.
+  - `an_opencode_session_is_read_from_its_database`: `opencode.db` (under the XDG data folder) is opened read-only
+    and never written; a user message's text parts are the prompt, an assistant's text parts its answer
+    (reasoning and step parts skipped), `modelID` its model.
+  - `a_grok_session_keeps_only_the_users_prompts`: `~/.grok/sessions/<cwd, percent-encoded>/<id>/`; only user
+    entries with a `prompt_index` are prompts (the `<user_info>` and `<system-reminder>` grok adds are not);
+    times and the folder come from `summary.json`.
+  - `an_antigravity_conversation_finds_its_folder`: the turns are
+    `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript.jsonl` (the prompt inside
+    `<USER_REQUEST>`); its folder is the first `file://` URI in `conversations/<id>.db`'s metadata blob.
+  - `a_session_of_another_folder_isnt_listed`: each reader lists only the folder asked for, matched as given or
+    resolved (`/tmp` and `/private/tmp` are one folder).
+  - Not built: their `raw`/`restore`, so on another computer `wisp open` resumes only claude and codex sessions in
+    their CLI; the others start a new session primed with the task's report, as for any harness without a kept log; and copilot's reader, since copilot isn't installed on the computer the samples were
+    recorded on. It waits for a recorded fixture rather than being guessed.

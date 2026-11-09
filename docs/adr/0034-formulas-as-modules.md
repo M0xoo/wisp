@@ -98,3 +98,6 @@ State is the store, so `mv`, drift and refresh act on it, not on a state file. E
 - `a_missing_variable_is_asked_in_a_tty`: with a terminal, a variable with no value is asked for, by name, type
   and description. `a_typed_answer_is_checked`: an answer that isn't its type is refused.
   `without_a_tty_it_says_how_to_set_it`: in a script it fails, naming `-var`, var files and `WISP_VAR_`.
+- `an_agent_rename_is_one_write` (added 2026-11-09): agent profiles rename in place too (`runtime.profile.rename`,
+  one write in the runtime's store, the name inside the profile moved with it). What wisp had (a model set in
+  the app) comes along, and a name already taken is refused there as well.
