@@ -50,4 +50,35 @@ Fixed, and seen on a real `wisp serve` in Chrome at 1440 (dark and light) and 39
 - **The title is still cut** ("add a greeting to …") at 1440. The row reserves 68 px for three hidden quick buttons (save, done, more). v1 reserved about 40 px for two, with no More. Decide whether More stays in the row or only in the context menu, as v1 had it.
 - **The time reads "45m ago"** where v1 showed "1m". design/copy.md says lists use "28m ago", so I kept the kit's form. A question for the owner.
 - shell-task's real screens, so its extensions can attach. Then shell-home's Home screen and shell-composer's screen. Then the 46 views at v1 parity, the new screens, and the composer's `@` and `/`.
-- The fake agent's plain run ends as "Claude Code failed / claude exited with code 0". The list shows it as "Blocked" (summary `status: blocked`), the task as "Failed". That's worth a look in the runtime or the fake.
+
+## Round 3 (2026-11-10)
+
+Seen on a real `wisp serve`, with the fake claude linked as `claude`:
+- `docs/qa/round7-list-1440-dark.png`
+- `docs/qa/round7-goal-1440-dark.png`
+- `docs/qa/round7-goal-390-light.png`
+
+1. **More moves to the row's context menu** (owner, v1 parity). The row keeps two quick buttons, about 46 px. The title went from 126 px to 148 px wide, and "add a greeting to a.txt" fits whole.
+2. **wisp.goal's band, wired end to end:**
+   - **Server:** the goal plugin contributes `runtime.summary@1`, so a task's list row carries `summary.goal`, the GUI's `GoalView`: the text, judges, vote, status (`working`, `checking`, `met`, or `out` once stalled), round, `setAt`, the last round's checks, and `last` with its tally. Test: `goal_summary_shows_where_the_goal_stands`.
+   - **The frame:** its task view renders `shell.task:band` over the turns.
+   - **The plugin:** `wisp.goal.band` attaches there. goal's `useTask` reads the row's `summary` as its own fields.
+   - Test: `apps/web/test/plugins.test.tsx` checks the band has a plugin.
+3. **The kit's buttons are never wider than their box.** A long label ends in `…`, so the goal band's check line no longer runs under "Resume goal" on a phone.
+4. **A waiting task's header said "Finished".**
+   - `statusOf` now says Waiting when the task's state is `waiting` (an ask, a stalled goal), whatever its last turn said. Test: `packages/shell/test/rows-view.test.ts`.
+   - The shell's `SessionState` type lacked `waiting`, which the Rust enum has; that's how this went unseen. Fixed.
+5. **The demo's "Claude Code failed / exited with code 0"** was my setup, not wisp: the fake agent plays the CLI its file name names, and I had pointed `WISP_CLAUDE_BIN` at `wisp-fake-agent` itself. Link it as `claude` and runs finish. Seen: three goal rounds, then a question.
+
+## Left (next in item 7)
+
+- **Built but unattached plugin UIs:**
+  - router (8 components);
+  - ship (6, no `index.ts`);
+  - worktrees (4);
+  - update (1);
+  - goal's other three: Checks, EditGoal, RunView, which are views.
+  - Each needs its area and its server data checked the way the band's were.
+- **Stubs:** shell-task's screens (they render nothing), shell-home (models only), shell-composer (parts only). Then the remaining v1 views at parity.
+- **Commands with no server handler:** the GUI's `goal.set` command (frame `commands.ts`) has none. The goal is set through `runtime.create`'s `goal`, and nothing changes it after.
+- **The time format:** "45m ago" (design/copy.md) against v1's "1m". The owner decides.

@@ -12,7 +12,7 @@ are fixed at the start of the next item.
 - Add `WISP_TUI_COLOR=truecolor|256|16` to override.
 - Named test: `apple_terminal_gets_256_colours_even_with_colorterm_truecolor`.
 
-**Next coder job, small (owner, 2026-11-09): Fable in the Claude model catalogue.** Claude Code 2.1.321 accepts
+**[x] Done 2026-11-10 (docs/v2-round-6.md, round 3).** **Next coder job, small (owner, 2026-11-09): Fable in the Claude model catalogue.** Claude Code 2.1.321 accepts
 `--model fable` (Fable 5.2, `claude-fable-5-2`, the newest and most capable).
 - Add `model("fable", "Fable", "Newest and most capable")` to `plugins/claude/host/src/lib.rs`, first after Default.
 - Add `"fable" => "Fable"` to `plugins/budget/core/src/compare.rs`.

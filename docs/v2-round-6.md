@@ -189,3 +189,73 @@ Each is fixed below. Every view was then looked at as PNGs, at two sizes and in 
 - A real-terminal pass (Terminal.app and iTerm2, dark and light, tmux) in the outer loop. The PNGs come from the buffer, not from a terminal's own font.
 - The selected row and the prompt band use `bg-2`, not `surface`. In the tokens, light `surface` equals `bg` (#ffffff) and dark `surface` is only one step from it, so a `surface` band couldn't be seen. `bg-2` is what the GUI uses for its current row.
 - Everything listed under "Left" in round 1 still stands: `--on`, For later and the Repo tab, the blame gutter, hunk jumps, terminal images.
+
+# Round 3 (2026-11-10): Fable, then the rest of the TUI bar
+
+## Fable (the queue's small item)
+
+- `plugins/claude/host`: `model("fable", "Fable", "Newest and most capable")` comes first after Default. `claude_catalogue_lists_fable`.
+- `plugins/budget/core/src/compare.rs`: `"fable" => "Fable"` in the subagents label. `budget_labels_fable`.
+- Router (`plugins/router/core/src/keys.rs`):
+  - `priors.json` already ranked `claude:fable` at tier 3;
+  - families keep it apart from Opus, and its versions are one family;
+  - the never-pick and prefer rules match it at every level and `@kind`;
+  - `canon` keeps the name.
+  - Test: `router_ranks_claude_fable`. No code change was needed.
+- `info_is_v1s` now counts 5 Claude models.
+- Clippy is clean on wisp-claude, wisp-router-core and wisp-budget-core.
+
+## Fix first
+
+- serve_code.rs: done in round 2 (the kernel takes `triggerSources`). The two tests passed alone then; nothing more this round.
+
+## Built
+
+- **Blame with a why-gutter, as wisp.history's own `tui/` crate.**
+  - **The crate kind:** `plugins/*/tui` is a workspace member now, the kind ADR-0024 decided. The `rust-layers` rule knows the `tui` role: it sits beside the host, uses its own api and core and other plugins' api, never a host, and no host uses it. Test: tools/check `rust-layers: a plugin tui crate uses its api…`.
+  - **The api, additive** (`monoflow graph impact`: wisp-history, wisp-history-core):
+    - `BlameSource::lines()` has a default that answers nothing, so jj and user sources still work;
+    - git's implementation reads `git blame --porcelain` line by line;
+    - `BlameArgs.byLine`, when set, makes a file's answer list `byLine: [{n, text, task, title, why, commit}]`.
+    - Test: `blame_by_line_names_each_lines_task`.
+  - **`plugins/history/tui` (wisp-history-tui):**
+    - the `Blame` view (`g b`) asks for a file, then lists every line;
+    - the gutter names the task once per run, with `│` down the rest, or says "by hand";
+    - the detail pane shows what that task was asked;
+    - `A` asks for another file.
+    - Test: `the_why_gutter_names_each_run_once`.
+- **`tui.view@1` grows three generic hooks, for any plugin:**
+  - a source may ask the user for a value (`"{?File}"`, shown as a prompt overlay, remembered for `r`);
+  - `"{cwd}"` is the project the TUI runs in;
+  - `shape()` turns the source's rows into what the table shows, and `style()` gives a cell its own colour.
+  - Tests: `a_tables_cells_and_actions_read_the_row` (asks and fill) and `the_blame_view_asks_for_a_file_then_shows_the_why_gutter`.
+- **`tui.input@1` from a plugin:**
+  - `plugins/goal/tui` (wisp-goal-tui) puts where the task's goal stands in its header: judging, again, met or stalled, the round, in the state's tone. Test: `the_goal_shows_in_the_task_header_in_its_tone`.
+  - The header's hard-coded goal field is gone; it comes through the point now.
+  - `plugins_contribute_through_the_tui_points` checks both plugins and the built-in `term.block`.
+- **Real list rows:**
+  - the TUI read the list topic's rows raw, but the server keeps `cwd` in `body` and the list's fields (`forLater`, `status`, `preview`…) in `summary`;
+  - `Tasks` now keeps each raw row for patches and a flat one for drawing;
+  - there's a **For later** section.
+  - Test: `a_list_row_reads_its_body_and_summary`.
+- **A terminal block without a command** no longer draws a lone `$`.
+
+## Seen
+
+- PNGs from the buffer, every view including blame, at 100×30 and 160×45, dark and light: `/tmp/tui-look/*.png`. Kept: `docs/qa/tui/blame-160x45-dark.png`, `docs/qa/tui/task-160x45-light.png`.
+- **A real terminal this time:** the built `wisp tui` in a pty (Python `pty` plus the pyte emulator, in /tmp) against a real `wisp serve` with tasks from the fake claude, rendered with its colours. It caught the lone `$`. It also showed the cursor hidden while the TUI runs and shown only in the focused composer, so the stray bright character isn't a cursor left on the screen.
+  - In `/tmp/tui-real/`: `real-160x45-dark.png`, `real-160x45-light.png`, `real-100x30-dark-composer.png`, `real-100x30-light-nav.png`.
+  - Copies in `docs/qa/tui/real-*.png`.
+- Tests:
+  - `cargo test -p wisp --bin wisp tui::`: 23 passed;
+  - wisp-tui-api: 7; wisp-history-tui: 1; wisp-goal-tui: 1;
+  - the history, goal and Fable tests above;
+  - the tools/check case.
+- Goldens rewritten on purpose (the fixture has a goal now, and a blame golden is added).
+- Clippy is clean on wisp-tui-api, wisp, wisp-history-api, wisp-history, wisp-history-tui and wisp-goal-tui.
+
+## Left
+
+- `--on <machine>` for the TUI's stream.
+- The Repo tab, hunk jumps, opening a file in `$EDITOR` from a diff, terminal images.
+- More plugins' `tui/` crates. Crew, automations and the rest are still built-in tables.
