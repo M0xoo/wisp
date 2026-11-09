@@ -1,4 +1,4 @@
-# ADR-0034: Peers, channels and API keys: what the new hosts decided
+# ADR-0037: Peers, channels and API keys: what the new hosts decided
 
 - Status: accepted
 - Date: 2026-11-09

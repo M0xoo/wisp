@@ -41,3 +41,4 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0034](0034-formulas-as-modules.md) | Formulas are folders with references, variables, outputs and modules (Terraform-style); state is the store |
 | [0035](0035-adopt-outside-sessions.md) | Sessions run outside wisp (Claude Code, Codex, …) become wisp tasks: wisp adopt, hooks, Adopt in app/TUI |
 | [0036](0036-my-stuff-and-apps.md) | My Stuff is data (store + blobs); apps and panes are sandboxed UI plugins, declarable as code |
+| [0037](0037-hosts-for-peers-channels-and-keys.md) | Hosts for peers (loopback, machines HTTP client), the channels hub, API keys at the edge |
