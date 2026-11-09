@@ -43,3 +43,28 @@
 
 - runtime stores a `formula_snapshot` table (hash → resolved formula), referenced by tasks.
 - The compare view and its CLI/TUI forms take N reruns, not only two.
+
+## What a task had and what it used: skills, MCP servers, tools (added 2026-11-09)
+
+**Declared** (ADR-0028 kinds): `skill` (from a path, a module or inline), `connector` (MCP servers: command or URL,
+env as secret refs, which agents and modes get them), `tools` (which of wisp's own MCP tools an agent sees, and each
+harness's built-in tool permissions: allowed and denied tools, the permission mode). An agent profile lists the
+skills, connectors and tools it gets, so `agent.reviewer` means the same capabilities everywhere.
+
+**Recorded on every task, at start** (in its formula snapshot):
+- **Available:** every skill (name, source, content hash), every MCP server (name, command or URL, version reported
+  at `initialize`, the tools it offered), wisp's tools exposed, the harness's tool permissions and mode, and the
+  harness and model versions. Skills and MCP servers the harness picked up **outside wisp** (for example
+  `~/.claude/skills`, the CLI's own MCP config) are recorded too, by name and hash, so nothing that shaped the run
+  is invisible.
+- **Used:** from the transcript, which skills were loaded, which MCP tools were called (how often, by which
+  server), which built-in tools ran, and which calls were blocked.
+
+**Shown wherever the task is read** (live, shared, tracked in `.wisp/`, adopted):
+- App and TUI: a **Setup** section in the task's details lists *available → used* for skills, MCP servers and tools.
+  Each item links to its declaration (or "outside wisp"), and a server that has changed since shows "changed
+  since: v1.4 → v1.6".
+- CLI: `wisp task setup <id>` (`--json`). SDK: `task.setup()`.
+- **Sharing and rerunning:** the plan lists what the task needs that the receiver doesn't have ("needs the
+  `linear` MCP server, the `release-notes` skill"), offers to add them from the shared snapshot (secrets asked
+  for), and `--fill-from-snapshot` covers them on a rerun.
