@@ -43,6 +43,14 @@ pub fn commit_message(title: &str, body: &str) -> Result<(String, String), Refus
     Ok((t.to_owned(), body.trim().to_owned()))
 }
 
+/// The body with the task's trailer (ADR-0033: `Wisp-Task: <id>`, so code → task works on any clone).
+pub fn with_task(body: &str, task: &str) -> String {
+    if task.is_empty() || body.contains("Wisp-Task:") {
+        return body.to_owned();
+    }
+    if body.is_empty() { format!("Wisp-Task: {task}") } else { format!("{body}\n\nWisp-Task: {task}") }
+}
+
 /// After the commit: is there anything to push, and where to? The remote to push to.
 pub fn push_target(ahead: u32, wt: &Worktree) -> Result<String, Refusal> {
     if ahead == 0 {

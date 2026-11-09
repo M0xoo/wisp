@@ -133,6 +133,7 @@ impl Ship {
                 });
             };
             let req = ShipReq {
+                task: task.session.as_str(),
                 title,
                 body,
                 draft,

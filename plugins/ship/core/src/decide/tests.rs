@@ -345,3 +345,10 @@ fn to_ship_adds_up() {
         }
     }
 }
+
+#[test]
+fn the_commit_carries_its_task() {
+    assert_eq!(super::with_task("", "01a1bc"), "Wisp-Task: 01a1bc");
+    assert_eq!(super::with_task("Why.", "01a1bc"), "Why.\n\nWisp-Task: 01a1bc");
+    assert_eq!(super::with_task("Wisp-Task: x", "y"), "Wisp-Task: x", "once");
+}

@@ -240,6 +240,7 @@ impl Ship {
                 call,
                 &wt,
                 &ShipReq {
+                    task: session,
                     title: &title,
                     body: "",
                     draft: false,

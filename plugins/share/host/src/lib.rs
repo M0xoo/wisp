@@ -180,6 +180,50 @@ async fn import(ctx: &Ctx, call: &Call, b: Bundle) -> Result<Value> {
 #[derive(Debug, Default)]
 pub struct SharePlugin;
 
+/// The repo a folder is in that keeps its history: the nearest folder up with `.wisp/wisp.yml`.
+async fn history_root(cwd: &str) -> Option<(std::path::PathBuf, String)> {
+    let mut at = Some(std::path::Path::new(cwd));
+    while let Some(d) = at {
+        if let Ok(text) = tokio::fs::read_to_string(d.join(".wisp/wisp.yml")).await {
+            return Some((d.to_owned(), text));
+        }
+        at = d.parent();
+    }
+    None
+}
+
+/// `history: { track: auto }` (ADR-0033): a task marked done in that repo is saved into its `.wisp/`
+/// (spec, report, transcript; scrubbed), once per turn count. The change waits in the working tree.
+async fn auto_track(ctx: &Ctx, id: &str) {
+    let call = ctx.root_call();
+    let Ok(task) = ctx.run_json(&call, "runtime.get", json!({ "id": id })).await else { return };
+    if task.get("state").and_then(Value::as_str) != Some("done") || task.get("parentId").is_some_and(|p| !p.is_null()) {
+        return;
+    }
+    let Some((root, yml)) = history_root(task.get("cwd").and_then(Value::as_str).unwrap_or_default()).await else { return };
+    if wisp_share_core::repo::history_setting(&yml, "track", "ask") != "auto" {
+        return;
+    }
+    let turns = ctx.run_json(&call, "runtime.turns", json!({ "id": id })).await.ok().and_then(|t| t.as_array().map(Vec::len)).unwrap_or(0);
+    if task.pointer("/ext/wisp.share/tracked/turns").and_then(Value::as_u64) == Some(turns as u64) {
+        return;
+    }
+    let Ok(mut p) = preview(ctx, &call, &ShareArgs { id: id.to_owned(), level: Level::Full }).await else { return };
+    id.clone_into(&mut p.bundle.id);
+    let mut written = Vec::new();
+    for (rel, bytes) in wisp_share_core::repo::files_for(&p.bundle, &[], None, "wisp") {
+        let path = root.join(".wisp").join(&rel);
+        if let Some(d) = path.parent() {
+            let _ = tokio::fs::create_dir_all(d).await;
+        }
+        if tokio::fs::write(&path, bytes).await.is_ok() {
+            written.push(rel);
+        }
+    }
+    let value = json!({ "tracked": { "turns": turns, "files": written, "repo": root.display().to_string() } });
+    let _ = ctx.run_json(&call, "runtime.setExt", json!({ "id": id, "plugin": "wisp.share", "value": value })).await;
+}
+
 impl Plugin for SharePlugin {
     fn manifest(&self) -> Manifest {
         Manifest::embedded(include_str!("../wisp-plugin.json"))
@@ -190,6 +234,11 @@ impl Plugin for SharePlugin {
         s.command::<Make, _, _>(|ctx, call, a| async move { make(&ctx, &call, &a).await });
         s.command::<Open, _, _>(|ctx, call, a| async move { open(&ctx, &call, a.bundle).await });
         s.command::<Import, _, _>(|ctx, call, a| async move { import(&ctx, &call, a.bundle).await });
+        s.on::<wisp_runtime_api::events::SessionChanged, _, _>(|ctx, e| {
+            let (c, id) = (ctx.clone(), e.id.as_str().to_owned());
+            ctx.spawn(async move { auto_track(&c, &id).await });
+            async {}
+        });
         Ok(())
     }
 }

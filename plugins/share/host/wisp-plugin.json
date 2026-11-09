@@ -18,15 +18,30 @@
     "runtime:list",
     "runtime:agents",
     "runtime:adopt",
-    "crew:read"
+    "crew:read",
+    "runtime:setExt"
   ],
   "requires": {},
   "contributes": {
     "commands": [
-      { "id": "share.preview", "title": "What a share of this task would send", "readOnly": true },
-      { "id": "share.bundle", "title": "Share a task (a signed bundle)" },
-      { "id": "share.open", "title": "Open a shared task", "readOnly": true },
-      { "id": "share.import", "title": "Import a shared task, read-only" }
+      {
+        "id": "share.preview",
+        "title": "What a share of this task would send",
+        "readOnly": true
+      },
+      {
+        "id": "share.bundle",
+        "title": "Share a task (a signed bundle)"
+      },
+      {
+        "id": "share.open",
+        "title": "Open a shared task",
+        "readOnly": true
+      },
+      {
+        "id": "share.import",
+        "title": "Import a shared task, read-only"
+      }
     ]
   }
 }

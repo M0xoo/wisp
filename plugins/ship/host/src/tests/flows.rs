@@ -18,7 +18,7 @@ async fn ship_commits_pushes_and_opens_a_pr_with_each_step_seen() {
     assert_eq!(out.pr.number, 1);
     assert_eq!(out.pr.state, "OPEN");
     assert_eq!(h.git.logged("commit").len(), 1);
-    assert!(h.git.logged("commit")[0].contains("fix: the login||all=true"));
+    assert!(h.git.logged("commit")[0].contains("fix: the login|Wisp-Task: t1|all=true"), "the commit names its task: {:?}", h.git.logged("commit"));
     assert_eq!(
         h.git.logged("push"),
         [format!("push origin HEAD:refs/heads/{}", wts[0].branch)]

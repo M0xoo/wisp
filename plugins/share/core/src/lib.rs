@@ -10,6 +10,8 @@
 //!
 //! The same scrub serves `wisp history export`.
 
+pub mod repo;
+
 use std::sync::OnceLock;
 
 use regex::Regex;

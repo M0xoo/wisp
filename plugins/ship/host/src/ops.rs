@@ -123,6 +123,7 @@ impl Shipper {
         let repo = self.repo(call, &wt.path).await?;
         if repo.status(call).await.map_or(0, |s| s.dirty()) > 0 {
             let (message, body) = commit_message(req.title, req.body)?;
+            let body = wisp_ship_core::decide::with_task(&body, req.task);
             on_step("commit");
             repo.commit(
                 call,
@@ -292,6 +293,8 @@ impl Shipper {
 /// What a Ship it asks for.
 #[derive(Debug, Clone, Copy)]
 pub struct ShipReq<'a> {
+    /// the task the commit is for (its `Wisp-Task` trailer)
+    pub task: &'a str,
     pub title: &'a str,
     pub body: &'a str,
     pub draft: bool,
