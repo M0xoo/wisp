@@ -36,8 +36,14 @@ pub const HELP: &str = "usage:
                                 --fill-from-snapshot  --steps N  --agent …  --last N --project P  --wait)
   wisp ls --agent|--crew|--workflow|--formula f.yml|--since 7d   tasks by what made them
   wisp history export --since 30d   every task as JSONL, scrubbed
-  wisp share <id>               a signed .wisp-task, previewed with its redactions   (--level spec|report|full  --to file|gist)
-  wisp open <file|url>          a shared task: run it on your code, with their setup, compare, or import it   (--run  --their-setup  --compare  --import)
+  wisp share <id>               a signed .wisp-task, previewed with its redactions   (--level spec|report|full  --to cloud|file|gist
+                                --access anyone|people:a,b|teams:t|password  --expires 7d  --publish)
+  wisp share <kind>.<name>      a setup (with what it references) to wisp Cloud   (--to cloud  --access …  --publish)
+  wisp shares                   what you've shared: access, views, imports, versions   (--revoke ID  --updates)
+  wisp open <file|url|link>     a shared task or setup: its plan, then run, import or apply it   (--run  --their-setup  --compare  --import  --yes)
+  wisp cloud signin|status|signout   wisp Cloud (or another grid: wisp cloud signin <url>)
+  wisp computer on|off|status   this computer on the grid, reachable from your other wisps
+  wisp --on <machine> …         run any command on that machine (wisp ls --on studio, wisp \"task\" --on cloud)
   wisp desktop                  open the wisp app window
   wisp mcp                      run the MCP server (stdio) for other agents and editors
   wisp skill [install]          print / install the wisp agent skill   (--agent claude|codex|opencode|all  --project)
@@ -92,7 +98,8 @@ pub struct Flags {
     pub tries: Vec<String>,
     pub draft: bool,
     pub days: Option<u32>,
-    pub on: bool,
+    /// `--on <machine>`: the command runs on that peer (ADR-0041)
+    pub on: Option<String>,
     pub all: bool,
     pub grid: Option<String>,
     pub notebook: bool,
@@ -134,7 +141,7 @@ impl Flags {
             tries: Vec::new(),
             draft: false,
             days: None,
-            on: false,
+            on: None,
             all: false,
             grid: None,
             notebook: false,
@@ -260,7 +267,7 @@ fn set(f: &mut Flags, a: &str, value: &mut dyn FnMut() -> Result<String, UsageEr
         "--compare" => f.compare = Some(compare_list(&value()?)),
         "--try" => f.tries.push(value()?),
         "--draft" => f.draft = true,
-        "--on" => f.on = true,
+        "--on" => f.on = Some(value()?),
         "--all" => f.all = true,
         "--days" => f.days = value()?.parse().ok(),
         "--grid" => f.grid = Some(value()?),

@@ -41,9 +41,13 @@ pub async fn share(c: &Client, o: &Opts, cwd: &Path) -> Result<i32> {
     if !["spec", "report", "full"].contains(&level.as_str()) {
         return Err(CliError::said(format!("--level {level}: spec, report or full")));
     }
-    let to = o.to.clone().unwrap_or_else(|| "file".into());
-    if to != "file" && to != "gist" {
-        eprintln!("  ✗ --to {to}: links and sending to a person or computer need wisp Grid's client, which isn't in this build yet. Use --to file or --to gist");
+    let to = o.to.clone().map(|t| if t == "link" { "cloud".to_owned() } else { t }).unwrap_or_else(|| "file".into());
+    if !["file", "gist", "cloud", "wisp-cloud"].contains(&to.as_str()) {
+        eprintln!("  ✗ --to {to}: cloud, file or gist");
+        return Ok(1);
+    }
+    // wisp Cloud: say how to sign in before anything (nothing is uploaded until it's ready)
+    if to.contains("cloud") && !crate::cloud_cli::ready(c).await? {
         return Ok(1);
     }
     let args = json!({ "id": id, "level": level });
@@ -77,6 +81,15 @@ pub async fn share(c: &Client, o: &Opts, cwd: &Path) -> Result<i32> {
             say("  nothing shared");
             return Ok(1);
         }
+    }
+    if to.contains("cloud") {
+        let mut send = crate::cloud_cli::send_args(o)?;
+        send["kind"] = json!("task");
+        send["id"] = json!(id);
+        send["level"] = json!(level);
+        let link = c.cmd("share.send", send).await?;
+        crate::cloud_cli::said_shared(&link);
+        return Ok(0);
     }
     let bundle = c.cmd("share.bundle", args).await?;
     let text = serde_json::to_string_pretty(&bundle).unwrap_or_default() + "\n";
@@ -136,9 +149,14 @@ async fn run(c: &Client, b: &Value, cwd: &Path, theirs: bool) -> Result<String> 
 
 /// `wisp open <file|url>`.
 pub async fn open(c: &Client, o: &Opts, cwd: &Path) -> Result<i32> {
-    let st = crate::cli::style();
     let Some(src) = o.words.first() else { return Err(CliError::said("wisp open <file.wisp-task|url|gist:<id>>")) };
     let bundle = read(src, cwd)?;
+    open_bundle(c, o, cwd, bundle).await
+}
+
+/// A bundle in hand (a file's, or a wisp Cloud link's): who signed it, then what to do with it.
+pub async fn open_bundle(c: &Client, o: &Opts, cwd: &Path, bundle: Value) -> Result<i32> {
+    let st = crate::cli::style();
     let opened = c.cmd("share.open", json!({ "bundle": bundle })).await?;
     let b = &opened["bundle"];
     let ok = opened["verified"] == json!(true);

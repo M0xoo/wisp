@@ -33,6 +33,33 @@ pub struct Client {
     pub url: String,
     http: reqwest::Client,
     token: Option<String>,
+    /// `--on <machine>`: commands go to that peer through this wisp (`machines.route`, same key)
+    on: Option<String>,
+    peer: std::sync::Arc<tokio::sync::OnceCell<(String, String)>>,
+}
+
+static ON: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// `--on <machine>`: every client made from now on runs its commands there (ADR-0041).
+pub fn set_on(machine: &str) {
+    let _ = ON.set(machine.to_owned());
+}
+
+/// Commands that are always this wisp's own, even with `--on`: the machines themselves.
+fn local_only(cmd: &str) -> bool {
+    cmd.starts_with("machines.") || cmd.starts_with("grid-client.") || cmd == "cli.catalogue"
+}
+
+/// The peer `on` names in `machines.list`: its id, or its name (any case). The words otherwise.
+pub fn find_peer(list: &Value, on: &str) -> std::result::Result<(String, String), String> {
+    let all = list.as_array().cloned().unwrap_or_default();
+    let s = |p: &Value, k: &str| p.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
+    let hit = all.iter().find(|p| s(p, "id") == on).or_else(|| all.iter().find(|p| s(p, "name").eq_ignore_ascii_case(on)));
+    match hit {
+        Some(p) => Ok((s(p, "id"), s(p, "name"))),
+        None if all.is_empty() => Err(format!("there's no machine {on}: this wisp has none yet (wisp cloud signin, wisp computer on, or Machines)")),
+        None => Err(format!("there's no machine {on}; there's {}", all.iter().map(|p| s(p, "name")).collect::<Vec<_>>().join(", "))),
+    }
 }
 
 /// The port `server.json` advertises, if any.
@@ -45,7 +72,7 @@ pub fn discover(home: &Path) -> Option<u16> {
 impl Client {
     pub fn new(port: u16) -> Self {
         let http = reqwest::Client::builder().connect_timeout(Duration::from_secs(3)).build().unwrap_or_default();
-        Self { url: format!("http://127.0.0.1:{port}"), http, token: std::env::var("WISP_TOKEN").ok().filter(|t| !t.is_empty()) }
+        Self { url: format!("http://127.0.0.1:{port}"), http, token: std::env::var("WISP_TOKEN").ok().filter(|t| !t.is_empty()), on: ON.get().cloned(), peer: std::sync::Arc::default() }
     }
 
     pub async fn request(&self, method: &str, path: &str, body: Option<Value>) -> Result<Value> {
@@ -72,9 +99,35 @@ impl Client {
         Ok(json)
     }
 
-    /// Runs a command through `POST /api/cmd` (once per key), its result or the wire error's message.
+    /// The peer `--on` names, once: its id and name (it says which machine answers, on stderr).
+    async fn peer(&self, on: &str) -> Result<(String, String)> {
+        let c = self.clone();
+        let on = on.to_owned();
+        self.peer
+            .get_or_try_init(|| async move {
+                let list = c.local_cmd("machines.list", serde_json::json!({}), &format!("cli-{}", crate::services::hex(&rand::random::<[u8; 12]>()))).await?;
+                let (id, name) = find_peer(&list, &on).map_err(CliError::said)?;
+                eprintln!("  ◌ on {name}");
+                Ok::<_, CliError>((id, name))
+            })
+            .await
+            .cloned()
+    }
+
+    /// Runs a command through `POST /api/cmd` (once per key), its result or the wire error's message. With
+    /// `--on`, on that machine: through `machines.route` with the same key.
     pub async fn cmd(&self, cmd: &str, args: Value) -> Result<Value> {
         let key = format!("cli-{}", crate::services::hex(&rand::random::<[u8; 12]>()));
+        match self.on.as_deref() {
+            Some(on) if !local_only(cmd) => {
+                let (id, _) = self.peer(on).await?;
+                self.local_cmd("machines.route", serde_json::json!({ "id": id, "cmd": cmd, "args": args, "mid": key }), &key).await
+            }
+            _ => self.local_cmd(cmd, args, &key).await,
+        }
+    }
+
+    async fn local_cmd(&self, cmd: &str, args: Value, key: &str) -> Result<Value> {
         let mut b = self.http.post(format!("{}/api/cmd", self.url)).header("idempotency-key", key).json(&serde_json::json!({ "cmd": cmd, "args": args }));
         if let Some(t) = &self.token {
             b = b.header("x-wisp-token", t);

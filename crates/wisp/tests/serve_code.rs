@@ -411,8 +411,9 @@ ui: {{ theme: dark, editor: zed }}
     let (_, spec_only, _) = wisp(&dir, port, &["share", &secret_task, "--yes", "--out", "spec.wisp-task"]);
     assert!(spec_only.contains('✓'));
     assert!(!std::fs::read_to_string(dir.join("spec.wisp-task")).unwrap().contains("\"history\""), "a spec share has no history");
+    // a link is wisp Cloud's: signed out, it says how to sign in and uploads nothing
     let (code, _, err) = wisp(&dir, port, &["share", &secret_task, "--to", "link", "--yes"]);
     assert_eq!(code, 1);
-    assert!(err.contains("Grid"), "{err}");
+    assert!(err.contains("wisp cloud signin"), "{err}");
     drop(serve);
 }

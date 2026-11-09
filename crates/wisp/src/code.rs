@@ -59,6 +59,14 @@ pub struct Opts {
     pub open_in: Option<String>,
     pub print: bool,
     pub no_adopt: bool,
+    /// `wisp share --to cloud`: `--access anyone|people:a,b|teams:t|password`, `--expires 7d`, `--publish`
+    pub access: Option<String>,
+    pub expires: Option<String>,
+    pub publish: bool,
+    pub password: Option<String>,
+    /// `wisp shares --revoke <id>`, `--updates`
+    pub revoke: Option<String>,
+    pub updates: bool,
 }
 
 /// Reads `argv` (after the command word) for the options above.
@@ -99,7 +107,7 @@ pub fn opts(argv: &[String]) -> Opts {
                 };
                 o.over.insert(key.to_owned(), json!(val(&mut it)));
             }
-            "--port" | "-p" | "--cwd" | "-C" => {
+            "--port" | "-p" | "--cwd" | "-C" | "--on" => {
                 let _ = val(&mut it);
             }
             "-var" | "--var" => {
@@ -116,6 +124,12 @@ pub fn opts(argv: &[String]) -> Opts {
             "--in" => o.open_in = Some(val(&mut it)),
             "--print" => o.print = true,
             "--no-adopt" => o.no_adopt = true,
+            "--access" => o.access = Some(val(&mut it)),
+            "--expires" => o.expires = Some(val(&mut it)),
+            "--publish" => o.publish = true,
+            "--password" => o.password = Some(val(&mut it)),
+            "--revoke" => o.revoke = Some(val(&mut it)),
+            "--updates" => o.updates = true,
             "--prune" => o.prune = true,
             "--trust" => o.trust = true,
             "--dry-run" => o.dry_run = true,

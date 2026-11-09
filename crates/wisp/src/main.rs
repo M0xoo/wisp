@@ -7,6 +7,7 @@ mod args;
 mod attach;
 mod cli;
 mod client;
+mod cloud_cli;
 mod code;
 mod commands;
 mod desktop;
@@ -86,6 +87,10 @@ async fn dispatch(p: &Parsed, user_home: &Path, cwd: &Path) -> Result<i32> {
     let cwd_s = f.cwd.clone().unwrap_or_else(|| cwd.to_owned()).display().to_string();
     // scripted commands go to the advertised wisp unless --port was given
     let port = if f.port_given { f.port } else { client::discover(&home).unwrap_or(f.port) };
+    // `--on <machine>`: every command from here runs on that peer (ADR-0041)
+    if let Some(m) = &f.on {
+        client::set_on(m);
+    }
     let rest = p.words.get(1..).unwrap_or_default();
     // a task this terminal left running that finished, asks or failed: one line before anything else
     if !matches!(p.command, Some("serve" | "mcp" | "grid" | "desktop" | "completions")) && Client::new(port).ping().await {
@@ -204,6 +209,13 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Optio
         "history" if o.words.first().map(String::as_str) == Some("export") => history_cli::export(&connect().await?, &o, cwd).await?,
         "import" if o.words.len() <= 1 => history_cli::import(&connect().await?, &o, home).await?,
         "share" if o.words.len() == 1 && args::session_id(&o.words[0]) => share_cli::share(&connect().await?, &o, cwd).await?,
+        "share" if o.words.len() == 1 && o.words[0].split_once('.').is_some_and(|(k, n)| !k.is_empty() && !n.is_empty() && !n.contains(' ')) => cloud_cli::share_setup(&connect().await?, &o).await?,
+        "shares" if o.words.is_empty() => cloud_cli::shares(&connect().await?, &o).await?,
+        "cloud" if o.words.len() <= 2 && matches!(o.words.first().map(String::as_str), None | Some("signin" | "login" | "signout" | "logout" | "status")) => cloud_cli::cloud(&connect().await?, &o).await?,
+        "computer" if o.words.len() <= 1 && matches!(o.words.first().map(String::as_str), None | Some("on" | "off" | "status")) => cloud_cli::computer(&connect().await?, &o).await?,
+        // `wisp grid deploy -f <file> [--on <box>]`: the formula applied on a box (the cloud box by default)
+        "grid" if o.words.first().map(String::as_str) == Some("deploy") && !o.files.is_empty() => grid_deploy(port, p.flags.on.is_some(), o, cwd).await?,
+        "open" if o.words.len() == 1 && cloud_cli::is_link(&o.words[0]) => cloud_cli::open_link(&connect().await?, &o, cwd).await?,
         "open" if o.words.len() == 1 && (o.words[0].ends_with(".wisp-task") || o.words[0].starts_with("http") || o.words[0].starts_with("gist:")) => share_cli::open(&connect().await?, &o, cwd).await?,
         "open" if o.words.len() == 1 => repo_cli::open_task(&connect().await?, &p.argv, &o, cwd).await?,
         "rerun" if (o.words.len() == 1 && args::session_id(&o.words[0])) || o.last.is_some() => {
@@ -219,6 +231,20 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Optio
         _ => return Ok(None),
     };
     Ok(Some(code))
+}
+
+/// `wisp grid deploy -f <file> [--on <box>]`: the formula applied on a box (the cloud box by default).
+async fn grid_deploy(port: u16, named: bool, o: code::Opts, cwd: &Path) -> Result<i32> {
+    if !named {
+        let status = Client::connect(port, true).await?.cmd("grid-client.status", json!({})).await?;
+        let machine = status.get("machine").and_then(Value::as_str).unwrap_or_default();
+        if machine.is_empty() {
+            return Err(CliError::said("not signed in to wisp Cloud: wisp cloud signin (or name the box: --on <machine>)"));
+        }
+        client::set_on(machine);
+    }
+    let o = code::Opts { words: Vec::new(), ..o };
+    code::apply(&Client::connect(port, true).await?, "apply", &o, cwd).await
 }
 
 async fn live(p: &Parsed, home: &Path, port: u16) -> Result<Option<i32>> {

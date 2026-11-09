@@ -3263,6 +3263,8 @@ dependencies = [
  "wisp-git",
  "wisp-github",
  "wisp-goal",
+ "wisp-grid",
+ "wisp-grid-client",
  "wisp-grok",
  "wisp-history",
  "wisp-history-api",
@@ -3351,6 +3353,7 @@ dependencies = [
 name = "wisp-antigravity"
 version = "2.0.0"
 dependencies = [
+ "rusqlite",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -3929,6 +3932,33 @@ name = "wisp-grid-boxd"
 version = "2.0.0"
 
 [[package]]
+name = "wisp-grid-client"
+version = "2.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "ed25519-dalek",
+ "futures",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "rand 0.9.5",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "wisp-grid-client-api",
+ "wisp-grid-client-core",
+ "wisp-kernel",
+ "wisp-machines-api",
+ "wisp-runtime-api",
+ "wisp-share-api",
+ "wisp-store",
+]
+
+[[package]]
 name = "wisp-grid-client-api"
 version = "2.0.0"
 dependencies = [
@@ -3941,11 +3971,6 @@ dependencies = [
 [[package]]
 name = "wisp-grid-client-core"
 version = "2.0.0"
-dependencies = [
- "serde",
- "serde_json",
- "wisp-grid-client-api",
-]
 
 [[package]]
 name = "wisp-grok"
@@ -4321,6 +4346,7 @@ dependencies = [
 name = "wisp-opencode"
 version = "2.0.0"
 dependencies = [
+ "rusqlite",
  "serde",
  "serde_json",
  "thiserror 2.0.21",

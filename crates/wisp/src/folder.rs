@@ -227,6 +227,24 @@ pub fn init_modules(dir: &Path, upgrade: bool) -> Result<Vec<String>> {
     let mut lock = Map::new();
     let mut said = Vec::new();
     for (name, source) in declared_modules(dir) {
+        if source.starts_with("grid://") {
+            // a share on the grid: pinned by its version, moved by -upgrade (or its own ?ref=)
+            let (_, r) = split_source(&source);
+            let base = source.split("?ref=").next().unwrap_or_default();
+            let pinned = had.get(&name).and_then(|m| m.get("version")).and_then(Value::as_i64).filter(|_| !upgrade);
+            let want = if r.is_empty() { pinned.map(|v| format!("v{v}")).unwrap_or_default() } else { r };
+            let link = if want.is_empty() { base.to_owned() } else { format!("{base}?ref={want}") };
+            let (files, version) = crate::cloud_cli::fetch_module(&link)?;
+            let at = dir.join("modules").join(&name);
+            let _ = std::fs::remove_dir_all(&at);
+            std::fs::create_dir_all(&at).map_err(|e| CliError::said(e.to_string()))?;
+            for (f, text) in &files {
+                std::fs::write(at.join(f), text).map_err(|e| CliError::said(e.to_string()))?;
+            }
+            said.push(format!("{name}: {source} at v{version}"));
+            lock.insert(name, json!({ "source": source, "version": version }));
+            continue;
+        }
         if remote(&source) {
             let (_, r) = split_source(&source);
             let url = source.trim_start_matches("git::").split("?ref=").next().unwrap_or_default();
