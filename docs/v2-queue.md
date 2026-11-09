@@ -49,6 +49,8 @@ alone.
    - composer `@` and `/`.
    - Start by wiring the built screens to the real server: in the demo (`wisp serve` with the fake claude), `/task/<id>`
      mounts no task view (2026-11-09 check-in).
+     Done (docs/v2-round-7.md): six causes fixed; the list and the task mount on `wisp serve`. Left: the row squeeze,
+     the list's `status` from `body`, shell-task's stub screens, Home and the composer screens.
    - Each screen is seen in Chrome once (desktop and phone, light and dark); parity/layout/feedback gates run in CI.
 8. [ ] **Apps:** the desktop app embeds the core (Tauri, `apps/desktop`); Android gets its own frontend.
 9. [ ] **Cutover:**
