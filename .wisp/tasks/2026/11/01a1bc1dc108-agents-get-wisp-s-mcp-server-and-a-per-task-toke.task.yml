@@ -1,0 +1,57 @@
+wispTask: 1
+id: 01a1bc1dc10854f7847ff8484a79995b
+title: "agents get wisp's MCP server and a per-task token (+5 more)"
+createdAt: 1794157429000
+level: spec
+trackedBy: backfill (git history)
+backfilled: true
+spec:
+  prompt: "The v2 rewrite, one coder job (backfilled from git; the lead committed it by concern):\n- refactor(v2): router, crew and My Stuff rows into wisp-store with v1 importers (ADR-0020)\n- fix(v2 runtime): asks survive restart, task_lock, ask/approval/delegate/rerun parity with v1; follow-ups interrupt by default\n- feat(v2 mcp): agents get wisp's MCP server and a per-task token\n- fix(v2 ui): unread titles, 320 pill and footer, launcher offset; feedback gate submits and checks rollback\n- test(v2): serve e2e (restart mid-ask, agent side)\n- chore(v2): kernel/host additions for agent access (spawn, agent_access)"
+  agent: claude
+commits:
+  - 02640e14ce0483295624c2f4c6bff601ed3a5ecf
+  - be27c3f62f4e40b5b125fe075e4a12dc45c35f81
+  - 8789124902d1795afa66714bd7c9facbcf3a9c27
+  - ec19e517755cd3d71abaa072db9ca7b33f85ec4d
+  - 6240d2cccc62e6b09863bef1ee03ac8216a44d04
+  - b6d45e3900dcadcfd02097f0087e794b60ef94a7
+files:
+  - "Cargo.lock"
+  - "crates/wisp/Cargo.toml"
+  - "crates/wisp/src/serve.rs"
+  - "crates/wisp/tests/serve_task.rs"
+  - "docs/adr/0020-per-app-sqlite.md"
+  - "docs/adr/README.md"
+  - "packages/ui/src/css/app-stack.css"
+  - "plugins/crew/host/Cargo.toml"
+  - "plugins/crew/host/src/jobs.rs"
+  - "plugins/crew/host/src/lib.rs"
+  - "plugins/crew/host/src/store.rs"
+  - "plugins/crew/host/wisp-plugin.json"
+  - "plugins/mcp/host/src/run.rs"
+  - "plugins/router/core/src/state.rs"
+  - "plugins/router/host/Cargo.toml"
+  - "plugins/router/host/src/lib.rs"
+  - "plugins/router/host/src/store.rs"
+  - "plugins/router/host/wisp-plugin.json"
+  - "plugins/runtime/api/bindings/runtime/FollowUpArgs.ts"
+  - "plugins/runtime/api/bindings/runtime/SessionState.ts"
+  - "plugins/runtime/api/src/commands/tasks.rs"
+  - "plugins/runtime/api/src/model.rs"
+  - "plugins/runtime/api/src/points.rs"
+  - "plugins/runtime/host/src/drive.rs"
+  - "plugins/runtime/host/src/host.rs"
+  - "plugins/runtime/host/src/more.rs"
+  - "plugins/runtime/host/src/ops.rs"
+  - "plugins/runtime/host/src/plugin.rs"
+  - "plugins/runtime/host/src/run.rs"
+  - "plugins/runtime/host/src/runtime.rs"
+  - "plugins/runtime/host/src/side.rs"
+  - "plugins/stuff/host/Cargo.toml"
+  - "plugins/stuff/host/src/import.rs"
+  - "plugins/stuff/host/src/lib.rs"
+  - "plugins/stuff/host/src/ports.rs"
+  - "plugins/stuff/host/src/store.rs"
+  - "plugins/stuff/host/wisp-plugin.json"
+  - "qa/feedback.mjs"
+  - "qa/parity.mjs"
