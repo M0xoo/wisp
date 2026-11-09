@@ -49,3 +49,17 @@
   hash), and a lock file.
 - `wisp export` writes a folder split by kind (one file per kind by default, `--single-file` on request).
 - The site says "declared in your repo", not "one file".
+
+## Sharing a setup made in the app (added 2026-11-09)
+
+Nothing has to be written by hand to share. Everything made in the app (crew members, agents, workflows,
+connectors, rules) is already a resource, so:
+- **App and TUI: Share setup** (Settings, or the menu of a crew member, agent or workflow). Pick what to include
+  (everything, or just "Ada and her team"); the preview shows the files it writes, with secrets as `${secret:…}`
+  and personal kinds (accounts, UI) left out. Then send it as a folder or zip, a link on the grid, a gist, or a
+  module in a git repo, so other projects can use it by `source:`.
+- **CLI:** `wisp export crew.ada --with-deps > ada/` writes Ada with what she references (her agent profile, team,
+  skills, connectors). `wisp export --all` writes the whole setup.
+- **Receiving:** Import setup (or `wisp apply`, or adding it as a module) shows the plan in plain words, asks for any
+  secret the receiver doesn't have yet, and refuses new permissions without confirmation (ADR-0028 trust).
+- v1's crew sharing (`.crew.json`, gists) becomes this; the old files are read once by `wisp import`.
