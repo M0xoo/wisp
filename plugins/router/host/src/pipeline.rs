@@ -3,11 +3,12 @@
 //!
 //! Acted on after each turn (`TurnEnded`), for the pipeline the task's agent profile names (a pipeline
 //! with the profile's name), else `default`:
+//! - **atLimit** `next`: a run that hit its usage limit carries on, once, on another harness that's there
+//!   (`wait`, the default, leaves it to the limit's own hold);
 //! - **onError** `retry` asks the task to try again once; `escalate` tries again once at high effort;
+//! - **bestOf** N: after the first turn, N−1 more runs of the same ask side by side, then the **judge**
+//!   (an agent profile or harness; else the task's) picks the best (`ext["wisp.router"].bestOf`);
 //! - **review** starts a task by that agent profile reviewing what the run did (never for a review).
-//!
-//! `atLimit`, `bestOf` and `judge` are kept as declared: the account switch at a limit is accounts', and
-//! best-of-N needs runs side by side (compare), both not ported yet.
 
 use std::sync::{Arc, Mutex};
 
@@ -52,12 +53,44 @@ pub enum Next {
     Again(bool),
     /// a review task by this profile
     Review(String),
+    /// carry on on another harness (a usage limit)
+    Switch,
+    /// N runs in all, judged by this (empty: the task's own harness)
+    BestOf(u32, String),
 }
 
-/// The step `p` takes after a turn that ended `status`, by `by` (the turn's), in a task from `from`.
-pub fn next(p: &PipelineSpec, status: TurnStatus, by: &str, from: &str) -> Option<Next> {
-    if by == BY || from.starts_with("pipeline:") || from.starts_with("trigger:") {
+/// A run that stopped at its usage limit says so (Claude Code, Codex, Gemini's words).
+pub fn hit_limit(error: Option<&str>) -> bool {
+    let e = error.unwrap_or_default().to_ascii_lowercase();
+    ["usage limit", "rate limit", "limit reached", "quota"].iter().any(|w| e.contains(w))
+}
+
+/// The judge's pick among `n`: the first number 1..=n it says (1 when it says none).
+pub fn winner(answer: &str, n: usize) -> usize {
+    answer.split(|c: char| !c.is_ascii_digit()).filter_map(|w| w.parse::<usize>().ok()).find(|k| (1..=n).contains(k)).unwrap_or(1)
+}
+
+/// What a turn was: how it ended, who started it, what started its task, its error, whether it's the first.
+#[derive(Debug, Clone, Copy)]
+pub struct Ended<'a> {
+    pub status: TurnStatus,
+    pub by: &'a str,
+    pub from: &'a str,
+    pub error: Option<&'a str>,
+    pub first: bool,
+}
+
+/// The step `p` takes after a turn.
+pub fn next(p: &PipelineSpec, t: Ended<'_>) -> Option<Next> {
+    if t.by == BY || t.from.starts_with("pipeline:") || t.from.starts_with("trigger:") {
         return None;
+    }
+    let status = t.status;
+    if status == TurnStatus::Error && p.at_limit == "next" && hit_limit(t.error) {
+        return Some(Next::Switch);
+    }
+    if status == TurnStatus::Done && t.first && p.best_of.is_some_and(|n| n >= 2) {
+        return Some(Next::BestOf(p.best_of.unwrap_or(2), p.judge.clone()));
     }
     match status {
         TurnStatus::Error if p.on_error == "retry" => Some(Next::Again(false)),
@@ -79,10 +112,14 @@ async fn after(ctx: &Ctx, cache: &Cache, e: &TurnEnded) {
     let Ok(spec) = ctx.run_json(&call, "runtime.spec", json!({ "id": id })).await else { return };
     let Some((name, p)) = pick(cache, spec.get("agent").and_then(Value::as_str).unwrap_or_default()) else { return };
     let turns = ctx.run_json(&call, "runtime.turns", json!({ "id": id })).await.unwrap_or_default();
-    let by = turns.as_array().and_then(|t| t.iter().find(|t| t.get("id").and_then(Value::as_str) == Some(e.turn_id.as_str()))).and_then(|t| t.get("by")).and_then(Value::as_str).unwrap_or_default().to_owned();
+    let this = turns.as_array().and_then(|t| t.iter().find(|t| t.get("id").and_then(Value::as_str) == Some(e.turn_id.as_str())).cloned()).unwrap_or_default();
+    let by = this.get("by").and_then(Value::as_str).unwrap_or_default().to_owned();
     let from = spec.pointer("/lineage/triggeredBy").and_then(Value::as_str).unwrap_or_default();
-    let out = match next(&p, e.status, &by, from) {
+    let ended = Ended { status: e.status, by: &by, from, error: e.error_text.as_deref(), first: this.get("idx").and_then(Value::as_u64) == Some(0) };
+    let out = match next(&p, ended) {
         None => return,
+        Some(Next::Switch) => switch(ctx, id, &e.agent).await,
+        Some(Next::BestOf(n, judge)) => best_of(ctx, &name, id, &spec, n, &judge).await,
         Some(Next::Again(high)) => {
             let why = e.error_text.as_deref().unwrap_or("it stopped with an error");
             let mut a = json!({ "id": id, "text": format!("The last run failed ({why}). Try again."), "by": BY });
@@ -101,6 +138,50 @@ async fn after(ctx: &Ctx, cache: &Cache, e: &TurnEnded) {
     if let Err(err) = out {
         tracing::warn!(pipeline = %name, "didn't act: {}", err.message);
     }
+}
+
+/// Carries on on the first other harness that's there.
+async fn switch(ctx: &Ctx, id: &str, was: &str) -> Result<Value> {
+    let call = ctx.root_call();
+    let agents = ctx.run_json(&call, "runtime.agents", json!({})).await?;
+    let Some(other) = agents.as_array().and_then(|l| l.iter().find(|a| a["available"] == true && a["id"] != was)).and_then(|a| a["id"].as_str()).map(str::to_owned) else {
+        return Ok(Value::Null);
+    };
+    let text = format!("{was} hit its usage limit. Carry on from where it stopped.");
+    ctx.run_json(&call, "runtime.followUp", json!({ "id": id, "text": text, "by": BY, "run": { "agent": other } })).await
+}
+
+/// N−1 more runs of the same ask, all waited for, then the judge's pick.
+async fn best_of(ctx: &Ctx, name: &str, id: &str, spec: &Value, n: u32, judge: &str) -> Result<Value> {
+    let call = ctx.root_call();
+    let mut runs = vec![id.to_owned()];
+    for _ in 1..n.min(8) {
+        let a = json!({ "prompt": spec.get("prompt"), "cwd": spec.get("cwd"), "agent": spec.get("agent"), "lineage": { "triggeredBy": format!("pipeline:{name}") } });
+        let made = ctx.run_json(&call, "runtime.create", a).await?;
+        runs.push(made.get("id").and_then(Value::as_str).unwrap_or_default().to_owned());
+    }
+    let clock = ctx.clock()?;
+    let until = clock.now_ms() + 30 * 60_000;
+    let mut answers = Vec::new();
+    for r in &runs {
+        loop {
+            let t = ctx.run_json(&call, "runtime.get", json!({ "id": r })).await?;
+            if t.get("state").and_then(Value::as_str) != Some("running") || clock.now_ms() > until {
+                break;
+            }
+            clock.sleep(500).await;
+        }
+        let turns = ctx.run_json(&call, "runtime.turns", json!({ "id": r })).await.unwrap_or_default();
+        let text: String = turns.as_array().and_then(|t| t.last()).and_then(|t| t.get("text")).and_then(Value::as_str).unwrap_or_default().chars().take(3000).collect();
+        answers.push(text);
+    }
+    let list: Vec<String> = answers.iter().enumerate().map(|(i, a)| format!("## Run {}\n{a}", i + 1)).collect();
+    let prompt = format!("These are {} runs of the same task: \"{}\". Which did it best? Answer with its number first, then one line why.\n\n{}", runs.len(), spec.get("prompt").and_then(Value::as_str).unwrap_or_default(), list.join("\n\n"));
+    let pick = if judge.is_empty() { json!({ "agent": spec.get("agent") }) } else { json!({ "agent": judge }) };
+    let said = ctx.run_json(&call, "runtime.quick", json!({ "prompt": prompt, "cwd": spec.get("cwd"), "pick": pick, "timeoutMs": 300_000 })).await.map(|r| r.get("text").and_then(Value::as_str).unwrap_or_default().to_owned()).unwrap_or_default();
+    let best = runs.get(winner(&said, runs.len()) - 1).cloned().unwrap_or_default();
+    let why: String = said.lines().find(|l| !l.trim().is_empty()).unwrap_or_default().chars().take(300).collect();
+    ctx.run_json(&call, "runtime.setExt", json!({ "id": id, "plugin": "wisp.router", "value": { "bestOf": { "runs": runs, "winner": best, "why": why } } })).await
 }
 
 struct PipelineKind {
@@ -154,13 +235,20 @@ mod tests {
 
     #[test]
     fn a_pipeline_retries_escalates_and_reviews_once() {
+        let t = |status, by, from| Ended { status, by, from, error: None, first: false };
         let p = PipelineSpec { on_error: "escalate".into(), review: "reviewer".into(), ..PipelineSpec::default() };
-        assert_eq!(next(&p, TurnStatus::Error, "you", ""), Some(Next::Again(true)));
-        assert_eq!(next(&PipelineSpec { on_error: "retry".into(), ..p.clone() }, TurnStatus::Error, "you", ""), Some(Next::Again(false)));
-        assert_eq!(next(&p, TurnStatus::Done, "you", ""), Some(Next::Review("reviewer".into())));
-        assert_eq!(next(&p, TurnStatus::Error, BY, ""), None, "its own retry isn't retried");
-        assert_eq!(next(&p, TurnStatus::Done, "you", "pipeline:default"), None, "a review isn't reviewed");
-        assert_eq!(next(&p, TurnStatus::Done, "you", "trigger:after"), None, "nor a trigger's task (no ping-pong)");
-        assert_eq!(next(&PipelineSpec::default(), TurnStatus::Error, "you", ""), None);
+        assert_eq!(next(&p, t(TurnStatus::Error, "you", "")), Some(Next::Again(true)));
+        assert_eq!(next(&PipelineSpec { on_error: "retry".into(), ..p.clone() }, t(TurnStatus::Error, "you", "")), Some(Next::Again(false)));
+        assert_eq!(next(&p, t(TurnStatus::Done, "you", "")), Some(Next::Review("reviewer".into())));
+        assert_eq!(next(&p, t(TurnStatus::Error, BY, "")), None, "its own retry isn't retried");
+        assert_eq!(next(&p, t(TurnStatus::Done, "you", "pipeline:default")), None, "a review isn't reviewed");
+        assert_eq!(next(&p, t(TurnStatus::Done, "you", "trigger:after")), None, "nor a trigger's task (no ping-pong)");
+        assert_eq!(next(&PipelineSpec::default(), t(TurnStatus::Error, "you", "")), None);
+        // at a limit: another harness, before onError; best of N after the first turn only
+        let lim = PipelineSpec { at_limit: "next".into(), best_of: Some(3), judge: "reviewer".into(), ..p.clone() };
+        assert_eq!(next(&lim, Ended { error: Some("Claude AI usage limit reached|1767225600"), ..t(TurnStatus::Error, "you", "") }), Some(Next::Switch));
+        assert_eq!(next(&lim, Ended { first: true, ..t(TurnStatus::Done, "you", "") }), Some(Next::BestOf(3, "reviewer".into())));
+        assert_eq!(next(&lim, t(TurnStatus::Done, "you", "")), Some(Next::Review("reviewer".into())), "later turns: the review");
+        assert_eq!((winner("Run 2 did it best", 3), winner("none", 3), winner("9", 3)), (2, 1, 1));
     }
 }

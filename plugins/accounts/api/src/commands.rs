@@ -33,6 +33,17 @@ pub struct AgentArgs {
     pub agent: String,
 }
 
+/// `accounts.install`'s args: the harness, and what npm installs (default: its own package, latest).
+/// Additive (2026-11-09): `package` (`name` or `name@version`, from the `harness` kind's `pin`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "accounts/")]
+pub struct InstallArgs {
+    pub agent: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub package: Option<String>,
+}
+
 /// `account`: '' (or 'default') for the CLI's own login.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "accounts/")]
@@ -196,7 +207,7 @@ command!(
 );
 command!(
     /// POST /agents/install: a harness wisp can install itself (opencode), into its tools folder.
-    Install = "accounts.install" [PERM_WRITE] : AgentArgs => serde_json::Value
+    Install = "accounts.install" [PERM_WRITE] : InstallArgs => serde_json::Value
 );
 command!(
     /// POST /agents/recheck: every harness detected again.

@@ -177,11 +177,13 @@ fn keyed_and_more(s: &mut Setup, slot: &Slot) {
     });
     on!(s, slot, c::Install, |st, ctx, a| {
         let h = harness(&ctx, &a.agent).ok_or_else(|| WireError::not_found("No such harness."))?;
-        let pkg = h.npm_package().ok_or_else(|| WireError::invalid(format!("wisp can’t install {}. Install it yourself, then re-check.", h.info().name)))?;
+        let pkg = a.package.clone().filter(|p| !p.is_empty()).or_else(|| h.npm_package()).ok_or_else(|| WireError::invalid(format!("wisp can’t install {}. Install it yourself, then re-check.", h.info().name)))?;
+        // `name@version` (a pin) stays; a bare name gets the latest
+        let pkg = if pkg[1..].contains('@') { pkg } else { format!("{pkg}@latest") };
         let dir = st.home.join("tools");
         tokio::fs::create_dir_all(&dir).await.map_err(|e| WireError::invalid(e.to_string()))?;
         let npm = std::env::var("WISP_NPM").ok().filter(|n| !n.is_empty()).unwrap_or_else(|| "npm".into());
-        let args: Vec<String> = ["install", "--prefix", &dir.to_string_lossy(), "--no-audit", "--no-fund", "--loglevel=error", &format!("{pkg}@latest")].map(str::to_owned).to_vec();
+        let args: Vec<String> = ["install", "--prefix", &dir.to_string_lossy(), "--no-audit", "--no-fund", "--loglevel=error", &pkg].map(str::to_owned).to_vec();
         let r = st.proc.exec(&npm, &args, wisp_proc::ExecOpts { env: wisp_proc::Env { remove: vec!["ELECTRON_RUN_AS_NODE".into()], ..wisp_proc::Env::default() }, timeout: Some(std::time::Duration::from_secs(300)), ..wisp_proc::ExecOpts::default() }).await;
         match r {
             Ok(r) if r.exit.code == Some(0) => {}

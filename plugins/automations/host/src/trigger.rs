@@ -1,7 +1,8 @@
 //! wisp.automations' `trigger` kind (ADR-0028): what starts tasks without you, each starting a declared task
-//! (or a prompt). Kept as declared (`StoredKind`); sensitive. Running today: `on: finished` (a task in
-//! its project finished a turn). The watchers (`ci`, `issues`), inbound `webhook`, `slack` and `linear`
-//! are declared and kept until those are ported.
+//! (or a prompt). Kept as declared (`StoredKind`); sensitive. Running: `on: finished` (a task in its
+//! project finished a turn) and `on: webhook` (`POST /api/triggers/<name>` with its `secret`, as
+//! `x-wisp-secret`, a Bearer token or `?secret=`; the body is handed to the task). The watchers (`ci`,
+//! `issues`), `slack` and `linear` are declared and kept until those are ported.
 
 use std::sync::{Arc, Mutex};
 
@@ -116,6 +117,51 @@ async fn on_finished(ctx: &Ctx, cache: &Cache, e: &TurnEnded) {
     }
 }
 
+/// `${secret:NAME}` read from secrets; a literal stays as it is.
+async fn secret_of(ctx: &Ctx, v: &str) -> Option<String> {
+    let name = v.strip_prefix("${secret:").and_then(|r| r.strip_suffix('}'));
+    match name {
+        Some(n) => wisp_kernel::services::secrets(ctx).ok()?.get(n).await.ok().flatten(),
+        None => Some(v.to_owned()).filter(|v| !v.is_empty()),
+    }
+}
+
+fn same(a: &str, b: &str) -> bool {
+    use subtle::ConstantTimeEq as _;
+    a.len() == b.len() && bool::from(a.as_bytes().ct_eq(b.as_bytes()))
+}
+
+fn answer(status: u16, body: Value) -> wisp_kernel::http::Response {
+    wisp_kernel::http::Response::Json { status, body }
+}
+
+/// `POST /api/triggers/:name`: an open route, so the secret is the only key. A wrong or missing one,
+/// an unknown or off trigger, and a trigger with no secret all answer the same 404.
+async fn webhook(ctx: Ctx, cache: Cache, req: wisp_kernel::http::Request) -> Result<wisp_kernel::http::Response> {
+    let name = req.param("name").unwrap_or_default().to_owned();
+    let gone = || Ok(answer(404, json!({ "error": "no such trigger" })));
+    let Some(t) = cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner).iter().find(|(n, t)| *n == name && t.on == "webhook" && t.enabled != Some(false)).map(|(_, t)| t.clone()) else { return gone() };
+    let Some(want) = secret_of(&ctx, &t.secret).await else { return gone() };
+    let given = req.header("x-wisp-secret").map(str::to_owned).or_else(|| req.header("authorization").and_then(|a| a.strip_prefix("Bearer ")).map(str::to_owned)).or_else(|| req.query("secret").map(str::to_owned)).unwrap_or_default();
+    if !same(&given, &want) {
+        return gone();
+    }
+    let call = ctx.root_call();
+    let by = format!("trigger:{name}");
+    let sent: String = String::from_utf8_lossy(&req.body).chars().take(4000).collect();
+    let made = if t.task.is_empty() {
+        let prompt = if sent.trim().is_empty() { t.prompt.clone() } else { format!("{}\n\nThe webhook sent:\n{sent}", t.prompt) };
+        ctx.run_json(&call, "runtime.create", json!({ "prompt": prompt, "cwd": t.project, "lineage": { "triggeredBy": by } })).await
+    } else {
+        let store = ctx.service::<wisp_store::Store>()?;
+        crate::run_by(&ctx, &call, &store, &t.task, &t.project, &by).await
+    };
+    match made {
+        Ok(m) => Ok(answer(202, json!({ "id": m.get("id") }))),
+        Err(e) => Ok(answer(e.status(), json!({ "error": e.message }))),
+    }
+}
+
 pub fn register(s: &mut Setup) {
     let inner = Arc::new(StoredKind::new(KindInfo::new("trigger", "triggers", "wisp.automations", schema_of::<TriggerSpec>()).order(85).sensitive(), s.ctx()));
     let cache: Cache = Arc::default();
@@ -130,6 +176,20 @@ pub fn register(s: &mut Setup) {
             on_finished(&ctx2, &cache, &e).await;
         });
         async {}
+    });
+    let hooks = cache.clone();
+    s.route(wisp_kernel::http::Route {
+        method: "POST",
+        pattern: "/api/triggers/:name",
+        permission: wisp_kernel::http::OPEN,
+        doc: true,
+        summary: "Start a webhook trigger's task (its secret as x-wisp-secret)",
+        raw: true,
+        max_body: Some(256 * 1024),
+        handler: Arc::new(move |ctx, _call, req| {
+            let cache = hooks.clone();
+            Box::pin(async move { webhook(ctx, cache, req).await })
+        }),
     });
     s.on_start(move |_ctx| async move {
         refresh(&inner, &cache).await;

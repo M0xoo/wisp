@@ -16,6 +16,8 @@
     "runtime:get",
     "runtime:followUp",
     "runtime:create",
+    "runtime:quick",
+    "runtime:setExt",
     "store:write{owner:router}"
   ],
   "requires": {},
