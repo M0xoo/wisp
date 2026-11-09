@@ -31,9 +31,10 @@ impl std::fmt::Debug for PeerIo {
 }
 
 impl PeerIo {
-    /// For a request that shows nothing on the card (a direct channel).
-    pub fn quiet(id: &str) -> Self {
-        Self { st: None, id: id.to_owned(), secret: None }
+    /// For a request that shows nothing on the card (a probe, a direct channel, a stop), with the peer's
+    /// secret (a grid device token: they authenticate too).
+    pub fn quiet_with(id: &str, secret: Option<String>) -> Self {
+        Self { st: None, id: id.to_owned(), secret }
     }
     fn on(&self, f: impl FnOnce(&State, &mut Conn) -> bool) {
         let Some(st) = self.st.as_ref().and_then(Weak::upgrade) else { return };
@@ -62,6 +63,20 @@ impl ConnectIo for PeerIo {
     fn secret(&self) -> Option<String> {
         self.secret.clone()
     }
+}
+
+/// A peer's kept secret, read now (and remembered for the direct channel).
+pub(crate) async fn secret_of(st: &State, id: &str) -> Option<String> {
+    let s = services::secrets(&st.ctx).ok()?.get(&secret_key(id)).await.ok().flatten();
+    match &s {
+        Some(v) => {
+            lock(&st.secrets).insert(id.to_owned(), v.clone());
+        }
+        None => {
+            lock(&st.secrets).remove(id);
+        }
+    }
+    s
 }
 
 /// Connects every peer that says so (a cloud computer is only watched: opening wisp mustn't wake it).
@@ -130,10 +145,7 @@ fn on_conn(st: &State, id: &str, f: impl FnOnce(&mut Conn) -> Next) -> Next {
 
 async fn attempt(st: &Arc<State>, id: &str, t: &dyn Transport, token: &CancellationToken) -> Next {
     let Ok(row) = st.peer(id) else { return Next::Nothing };
-    let secret = match services::secrets(&st.ctx) {
-        Ok(s) => s.get(&secret_key(id)).await.ok().flatten(),
-        Err(_) => None,
-    };
+    let secret = secret_of(st, id).await;
     let io: Arc<dyn ConnectIo> = Arc::new(PeerIo { st: Some(Arc::downgrade(st)), id: id.to_owned(), secret });
     let ch = tokio::select! {
         () = token.cancelled() => return Next::Nothing,
@@ -273,7 +285,8 @@ pub(crate) fn follow(st: &Arc<State>, id: &str) -> Res<()> {
                 () = sleep(&st2, GRID_WATCH_MS) => {}
             }
             let Ok(row) = st2.peer(&id2) else { return };
-            match t.probe(row, Arc::new(PeerIo::quiet(&id2))).await {
+            let secret = secret_of(&st2, &id2).await;
+            match t.probe(row, Arc::new(PeerIo::quiet_with(&id2, secret))).await {
                 Probe::Asleep => {}
                 Probe::Running => {
                     let _ = connect(&st2, &id2, false);

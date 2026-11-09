@@ -26,7 +26,9 @@ where
 async fn keep_token(st: &State, id: &str, token: Option<&str>) -> Res<()> {
     let Some(token) = token.filter(|t| !t.is_empty()) else { return Ok(()) };
     let secrets = services::secrets(&st.ctx).map_err(MachinesError::Wire)?;
-    secrets.set(&secret_key(id), token).await.map_err(MachinesError::Wire)
+    secrets.set(&secret_key(id), token).await.map_err(MachinesError::Wire)?;
+    lock(&st.secrets).insert(id.to_owned(), token.to_owned());
+    Ok(())
 }
 
 fn new_id(st: &State) -> String {
@@ -130,7 +132,8 @@ async fn stop(st: &Arc<State>, a: c::StopArgs) -> Res<PeerView> {
     let t = st.transport(&row.transport)?;
     let pid = st.with_link(&a.id, |l| l.conn.status.remote.as_ref().and_then(|r| r.pid).or(l.conn.status.stale)).flatten();
     manager::disconnect(st, &a.id);
-    t.stop_remote(row, pid, Arc::new(PeerIo::quiet(&a.id))).await?;
+    let secret = manager::secret_of(st, &a.id).await;
+    t.stop_remote(row, pid, Arc::new(PeerIo::quiet_with(&a.id, secret))).await?;
     if a.restart {
         manager::connect(st, &a.id, false)?;
     }
@@ -170,6 +173,25 @@ async fn route(st: &Arc<State>, a: c::RouteArgs) -> Res<Value> {
     let row = st.peer(&id)?;
     let (state, wakes) = st.with_link(&id, |l| (l.conn.status.state, l.conn.wakes())).ok_or(MachinesError::NoPeer)?;
     let on_its_way = matches!(state, PeerState::Online | PeerState::Connecting | PeerState::Reconnecting);
+    // an asleep box that wakes on a real request (a cloud computer): the command goes straight there with
+    // the same key, which wakes it (plan §7.2.3); the link then follows it up
+    if !on_its_way && st.transport(&row.transport).is_ok_and(|t| t.wakes_on_request(&row)) {
+        let body = serde_json::json!({ "cmd": a.cmd, "args": a.args });
+        let mut req = wisp_machines_api::ChannelRequest::json("POST", "/cmd", &body);
+        req.headers.push(("idempotency-key".into(), a.mid.clone()));
+        req.timeout_ms = Some(120_000);
+        let _ = manager::secret_of(st, &id).await;
+        let ch = st.channel(&id)?;
+        let r = ch.request(req).await.map_err(MachinesError::Wire)?;
+        let status = r.status;
+        let v = wisp_machines_core::reply::parse_reply(&r.bytes(16 * 1024 * 1024).await);
+        let _ = manager::connect(st, &id, false);
+        if v.get("ok") == Some(&Value::Bool(true)) {
+            return Ok(v.get("result").cloned().unwrap_or(Value::Null));
+        }
+        let (message, hold) = wisp_machines_core::reply::reply_error(&row.name, status, &v);
+        return Err(MachinesError::Peer { message, status, hold });
+    }
     if !on_its_way && let Some(words) = conn::refuse(&row.name, state, wakes, row.computer().is_some(), false) {
         return Err(MachinesError::Offline(words));
     }

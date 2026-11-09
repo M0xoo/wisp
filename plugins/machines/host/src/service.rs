@@ -21,6 +21,7 @@ impl std::fmt::Debug for Service {
 /// A JSON call to the peer's API (path under `/api`); a peer's error keeps its status and words.
 pub(crate) async fn json(st: Arc<State>, id: String, method: String, path: String, body: Option<Value>, timeout_ms: Option<u64>) -> Res<Value> {
     let row = st.peer(&id)?;
+    let _ = crate::manager::secret_of(&st, &id).await;
     let ch = st.channel(&id)?;
     let mut req = match &body {
         Some(b) => ChannelRequest::json(&method, path, b),

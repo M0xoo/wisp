@@ -45,6 +45,8 @@ pub(crate) struct State {
     pub mirror: Mutex<Mirror>,
     /// routed commands waiting for their ack, by mid
     pub waiters: Mutex<HashMap<String, Vec<Waiter>>>,
+    /// each peer's kept secret, as last read (a direct channel is made where nothing can await secrets)
+    pub secrets: Mutex<HashMap<String, String>>,
 }
 
 impl std::fmt::Debug for State {
@@ -65,7 +67,7 @@ impl State {
             mirror.load(&peer, &e, &id, v);
         }
         let mut sync: HashMap<String, SyncRow> = loaded.sync.into_iter().collect();
-        let st = Arc::new(Self { ctx, store, peers: Mutex::new(BTreeMap::new()), links: Mutex::new(HashMap::new()), mirror: Mutex::new(mirror), waiters: Mutex::new(HashMap::new()) });
+        let st = Arc::new(Self { ctx, store, peers: Mutex::new(BTreeMap::new()), links: Mutex::new(HashMap::new()), mirror: Mutex::new(mirror), waiters: Mutex::new(HashMap::new()), secrets: Mutex::new(HashMap::new()) });
         for p in loaded.peers {
             let s = sync.remove(&p.id);
             st.add_link(&p.id, s);
@@ -158,7 +160,7 @@ impl State {
         if let Some(words) = wisp_machines_core::conn::refuse(&row.name, state, wakes, row.computer().is_some(), wakes_on_request) {
             return Err(MachinesError::Offline(words));
         }
-        ch.or_else(|| t.and_then(|t| t.direct(&row, Arc::new(crate::manager::PeerIo::quiet(id))))).ok_or_else(|| MachinesError::Offline(format!("{} is offline. Connect it from Machines.", row.name)))
+        ch.or_else(|| t.and_then(|t| t.direct(&row, Arc::new(crate::manager::PeerIo::quiet_with(id, lock(&self.secrets).get(id).cloned()))))).ok_or_else(|| MachinesError::Offline(format!("{} is offline. Connect it from Machines.", row.name)))
     }
 
     /// Settles a routed command's waiters.
