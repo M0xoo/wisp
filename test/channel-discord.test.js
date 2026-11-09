@@ -1080,11 +1080,13 @@ test('fatal close codes stop it and say what to do; saving settings starts it ag
     [4014, /intents/],
   ]) {
     await connected();
+    fake.refuse = code;
     fake.close(code);
     const v = await until(async () => {
       const x = await api('/remote');
       return re.test(x.discord.error) ? x : null;
     }, { what: `the words for ${code}` });
+    fake.refuse = 0;
     assert.equal(v.discord.connected, false);
     const calls = fake.calls.length;
     const beats = fake.identifies.length + fake.resumes.length;
@@ -1095,11 +1097,30 @@ test('fatal close codes stop it and say what to do; saving settings starts it ag
   await connected();
 });
 
+// The fake beats every 20 ms, and a busy event loop runs wisp's next beat before it reads the ack:
+// wisp gives up on the socket. A fatal close sent right then meets a socket that's gone, and Discord
+// refuses the next one the same way (main run 42666390061 waited 20 s for a refusal that never came).
+test('a fatal close that meets a socket wisp just gave up on still stops it', async () => {
+  await connected();
+  ch().socket.destroy('Discord stopped answering.'); // what a missed ack does
+  fake.refuse = 4004;
+  fake.close(4004);
+  try {
+    await until(async () => /refused the token/.test((await api('/remote')).discord.error), { what: 'the refusal' });
+  } finally {
+    fake.refuse = 0;
+  }
+  await api('/remote', { method: 'PUT', body: { discord: { enabled: true } } });
+  await connected();
+});
+
 test('a new token drops what went wrong with the last one', async () => {
   await connected();
   const { senders } = srv.store.config.remote.discord;
+  fake.refuse = 4004;
   fake.close(4004);
   await until(async () => /refused the token/.test((await api('/remote')).discord.error), { what: 'the refusal' });
+  fake.refuse = 0;
   fake.silent = true; // connected or not, the view right after the save has no old error
   const put = await api('/remote', { method: 'PUT', body: { discord: { token: 'new.token.here' } } });
   assert.deepEqual([put.discord.error, put.discord.appId, put.discord.invite, put.status.discord], ['', '', '', null]);
