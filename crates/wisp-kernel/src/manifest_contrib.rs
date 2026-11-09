@@ -357,6 +357,9 @@ fn misc(o: &Map<String, Value>, p: &mut Problems) {
     {
         p.add("contributes.blocks", "must be a list of {type, schema?}");
     }
+    if o.get("triggerSources").is_some_and(|r| !r.as_array().is_some_and(|a| a.iter().all(|x| x.as_str().is_some_and(|s| !s.is_empty() && !s.contains(char::is_whitespace))))) {
+        p.add("contributes.triggerSources", "must be a list of trigger source names (`ci.failed`)");
+    }
     if o.get("recipes").is_some_and(|r| !r.is_array()) {
         p.add(
             "contributes.recipes",

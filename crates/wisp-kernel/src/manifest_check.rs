@@ -44,6 +44,8 @@ const CONTRIB: &[&str] = &[
     "icons",
     "blocks",
     "recipes",
+    // the `on` names a plugin offers to triggers (ADR-0043): known by name even while the plugin is off
+    "triggerSources",
 ];
 const SETTING_TYPES: &[&str] = &["string", "int", "bool", "enum", "json"];
 const ACTIVATION_KINDS: &[&str] = &[
