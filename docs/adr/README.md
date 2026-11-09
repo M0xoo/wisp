@@ -42,3 +42,4 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0035](0035-adopt-outside-sessions.md) | Sessions run outside wisp (Claude Code, Codex, …) become wisp tasks: wisp adopt, hooks, Adopt in app/TUI |
 | [0036](0036-my-stuff-and-apps.md) | My Stuff is data (store + blobs); apps and panes are sandboxed UI plugins, declarable as code |
 | [0037](0037-hosts-for-peers-channels-and-keys.md) | Hosts for peers (loopback, machines HTTP client), the channels hub, API keys at the edge |
+| [0038](0038-share-through-wisp-cloud.md) | One Share for everything (tasks, setups, stuff, apps, plugins), wisp Cloud by default, file/gist/git always available |
