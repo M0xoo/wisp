@@ -2,8 +2,10 @@
 //! bearer token from the RFC 8628 device flow), and computers (a device's own wisp, reached at
 //! `<name>--<handle>.<domain>` through its tunnel). Tokens are kept as their SHA-256 only.
 //!
-//! Sign-in with a provider (GitHub, Google) is v1's `auth/providers.js`, not ported yet: a grid run with
-//! `auth.dev` signs anyone in by handle at `/auth/dev` (development and tests only; refused otherwise).
+//! Sign-in with a provider (GitHub, Google, any OIDC issuer: `auth.rs`) ends in [`Accounts::sign_in`]: an
+//! identity signs in as the user it's linked to, or a new one; never by matching email (a provider that lets
+//! anyone claim an address would hand the account over). `auth.allow` and `auth.signup` say who may come in. A
+//! grid run with `auth.dev` also signs anyone in by handle at `/auth/dev` (development and tests only).
 use std::sync::Arc;
 
 use base64::Engine as _;
@@ -105,6 +107,51 @@ pub fn computer_slug(name: &str) -> String {
     }
 }
 
+/// Whether `auth.allow` lets an identity in: no list lets everyone in; else its account (`github:octocat`, by login or
+/// id), its verified email or that email's domain, or one of its GitHub orgs. An unverified email counts for nothing.
+pub fn allowed(auth: &crate::config::AuthConfig, idn: &crate::auth::Identity) -> bool {
+    let a = &auth.allow;
+    let low = |v: &[String]| v.iter().map(|x| x.trim().to_lowercase()).collect::<Vec<_>>();
+    let (emails, domains, orgs, accounts) = (low(&a.emails), low(&a.domains).into_iter().map(|d| d.trim_start_matches('@').to_owned()).collect::<Vec<_>>(), low(&a.github_orgs), low(&a.accounts));
+    if emails.is_empty() && domains.is_empty() && orgs.is_empty() && accounts.is_empty() {
+        return true;
+    }
+    let me = format!("{}:{}", idn.provider, idn.subject).to_lowercase();
+    if accounts.contains(&me) || (!idn.login.is_empty() && accounts.contains(&format!("{}:{}", idn.provider, idn.login).to_lowercase())) {
+        return true;
+    }
+    let email = if idn.email_verified { idn.email.to_lowercase() } else { String::new() };
+    if !email.is_empty() && (emails.contains(&email) || email.rsplit_once('@').is_some_and(|(_, d)| domains.iter().any(|x| x == d))) {
+        return true;
+    }
+    !orgs.is_empty() && idn.orgs.as_ref().is_some_and(|o| o.iter().any(|x| orgs.contains(&x.to_lowercase())))
+}
+
+/// A free handle from a login: a-z, 0-9 and single dashes, at most 24; a short or reserved one gets a suffix.
+pub fn unique_handle(c: &rusqlite::Connection, base: &str) -> rusqlite::Result<String> {
+    let mut h = String::new();
+    for ch in base.to_lowercase().chars() {
+        if ch.is_ascii_alphanumeric() {
+            h.push(ch);
+        } else if !h.ends_with('-') {
+            h.push('-');
+        }
+    }
+    let mut h: String = h.trim_matches('-').chars().take(24).collect::<String>().trim_end_matches('-').to_owned();
+    let reserved = |x: &str| crate::config::RESERVED.contains(&x);
+    if h.len() < 3 || reserved(&h) {
+        h = format!("{}-{}", if h.is_empty() { "user" } else { &h }, hex_id(4));
+    }
+    let taken = |x: &str| -> rusqlite::Result<bool> { Ok(c.query_row("SELECT 1 FROM users WHERE handle = ?1", [x], |_| Ok(())).optional()?.is_some() || reserved(x)) };
+    let mut out = h.clone();
+    let mut n = 2;
+    while taken(&out)? {
+        out = format!("{h}-{n}");
+        n += 1;
+    }
+    Ok(out)
+}
+
 #[derive(Debug, Clone)]
 pub struct Accounts {
     pub db: Arc<Db>,
@@ -137,6 +184,69 @@ impl Accounts {
         let now = self.now();
         self.db.with(|c| c.execute("INSERT INTO users (id, handle, name, created_at) VALUES (?1, ?2, ?2, ?3)", params![id, h, now]))?;
         self.user_by_id(&id)?.ok_or_else(|| bad("The user wasn't made.", 500))
+    }
+
+    // --- sign-in with a provider -------------------------------------------------------------------
+
+    /// The user an identity signs in as: its link, the signed-in user linking it (`link_to`), or a new user when
+    /// sign-ups are open and the allow list lets it in.
+    pub fn sign_in(&self, auth: &crate::config::AuthConfig, idn: &crate::auth::Identity, link_to: Option<&str>) -> Result<UserRow> {
+        if idn.subject.is_empty() {
+            return Err(bad("The provider didn't say who you are.", 400));
+        }
+        let now = self.now();
+        let found: Option<String> = self.db.with(|c| c.query_row("SELECT user_id FROM identities WHERE provider = ?1 AND subject = ?2", params![idn.provider, idn.subject], |r| r.get(0)).optional())?;
+        let opt = |s: &str| (!s.is_empty()).then(|| s.to_owned());
+        if let Some(uid) = link_to {
+            if found.as_deref().is_some_and(|f| f != uid) {
+                return Err(bad("That account already signs in to another user here.", 409));
+            }
+            if found.is_none() {
+                self.db.with(|c| c.execute("INSERT INTO identities (provider, subject, user_id, email, login, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", params![idn.provider, idn.subject, uid, opt(&idn.email), opt(&idn.login), now]))?;
+            }
+            self.audit(Some(uid), "identity.link", &idn.provider)?;
+            return self.user_by_id(uid)?.ok_or_else(|| bad("That user is gone.", 404));
+        }
+        if let Some(uid) = found {
+            let u = self.user_by_id(&uid)?.filter(|u| u.disabled == 0).ok_or_else(|| bad("This account is turned off. Ask the grid's operator.", 403))?;
+            if !allowed(auth, idn) {
+                return Err(bad("This grid no longer lets this account in.", 403));
+            }
+            self.db.with(|c| {
+                c.execute("UPDATE identities SET email = ?1, login = ?2 WHERE provider = ?3 AND subject = ?4", params![opt(&idn.email), opt(&idn.login), idn.provider, idn.subject])?;
+                if u.avatar.as_deref().unwrap_or_default().is_empty() && !idn.avatar.is_empty() {
+                    c.execute("UPDATE users SET avatar = ?1 WHERE id = ?2", params![idn.avatar, u.id])?;
+                }
+                Ok(())
+            })?;
+            self.audit(Some(&u.id), "signin", &idn.provider)?;
+            return self.user_by_id(&u.id)?.ok_or_else(|| bad("That user is gone.", 404));
+        }
+        if auth.signup == "closed" {
+            self.audit(None, "signup.refused", &idn.provider)?;
+            return Err(bad("Sign-ups are closed on this grid.", 403));
+        }
+        if !allowed(auth, idn) {
+            self.audit(None, "signup.refused", &idn.provider)?;
+            return Err(bad("This grid only lets in invited accounts, and this isn't one of them.", 403));
+        }
+        let id = hex_id(16);
+        let base = if idn.login.is_empty() { idn.email.split('@').next().unwrap_or("user").to_owned() } else { idn.login.clone() };
+        self.db.tx(|c| {
+            let handle = unique_handle(c, &base)?;
+            c.execute("INSERT INTO users (id, handle, email, name, avatar, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", params![id, handle, opt(&idn.email), opt(&idn.name), opt(&idn.avatar), now])?;
+            c.execute("INSERT INTO identities (provider, subject, user_id, email, login, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", params![idn.provider, idn.subject, id, opt(&idn.email), opt(&idn.login), now])?;
+            c.execute("INSERT INTO instances (user_id, state, created_at) VALUES (?1, 'stopped', ?2)", params![id, now])?;
+            Ok(())
+        })?;
+        self.audit(Some(&id), "signup", &idn.provider)?;
+        self.user_by_id(&id)?.ok_or_else(|| bad("The user wasn't made.", 500))
+    }
+
+    fn audit(&self, user: Option<&str>, action: &str, provider: &str) -> Result<()> {
+        let now = self.now();
+        let meta = json!({ "provider": provider });
+        self.db.with(|c| crate::rows::find::audit(c, user, action, Some(&meta), now))
     }
 
     // --- browser sessions -------------------------------------------------------------------------

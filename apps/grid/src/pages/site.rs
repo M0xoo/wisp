@@ -52,7 +52,7 @@ pub(super) fn site_head(title: &str, cfg: &PageCfg, analytics: Option<&str>) -> 
 
 pub(super) fn site_foot(cfg: &PageCfg) -> String {
     format!(
-        r#"<footer class="foot"><div class="wrap"><span>{} · {}</span><a href="https://trywisp.dev" target="_blank" rel="noopener">wisp</a><a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">Open source (MIT)</a><a href="https://github.com/M0xoo/wisp/tree/main/grid" target="_blank" rel="noopener">Run your own grid</a></div></footer>
+        r#"<footer class="foot"><div class="wrap"><span>{} · {}</span><a href="https://trywisp.dev" target="_blank" rel="noopener">wisp</a><a href="https://github.com/WispAgents/wisp" target="_blank" rel="noopener">Open source (MIT)</a><a href="https://github.com/WispAgents/wisp/tree/main/grid" target="_blank" rel="noopener">Run your own grid</a></div></footer>
 <script>addEventListener('scroll',()=>document.getElementById('nav').classList.toggle('scrolled',scrollY>8),{{passive:true}})</script>{PENDING}</body></html>"#,
         esc(&cfg.name),
         esc(&cfg.domain)

@@ -2,7 +2,8 @@
 //! one port.
 //!
 //! - `<domain>`: the device API (RFC 8628 sign-in, computers and their tunnels), the shares API and their
-//!   pages (`/s/<id>`), the gallery, teams, and the dev sign-in when `auth.dev` is on.
+//!   pages (`/s/<id>`), the gallery, teams, sign-in with GitHub, Google or OIDC (`edge_signin.rs`), and the dev
+//!   sign-in when `auth.dev` is on.
 //! - `<handle>.<domain>`: that user's wisp in its box, started by hostd on a real request; a passive one
 //!   (`x-wisp-passive: 1`, or v1's `x-wisp-relay: 1`) to a stopped box answers 503 asleep and wakes
 //!   nothing. `/_grid/state` says how the box is without waking it, `/_grid/stop` puts it to sleep.
@@ -44,6 +45,12 @@ use crate::teams::Teams;
 use crate::trust::{Credential, Reach, Verdict, may};
 use crate::tunnels::{TUNNEL_PROTOCOL, Tunnels};
 
+#[path = "edge_sandboxes.rs"]
+mod sandboxes;
+#[path = "edge_signin.rs"]
+mod signin;
+pub use signin::{Reqwest, SignIn};
+
 /// The grid's session cookie.
 pub const COOKIE: &str = "wisp_grid";
 /// A request that mustn't count as use of a box (a watching peer's sync stream).
@@ -61,6 +68,9 @@ pub struct Grid {
     roots: HashSet<String>,
     page: PageCfg,
     client: Client<HttpConnector, Body>,
+    /// sign-in with GitHub, Google or an OIDC issuer
+    pub signin: SignIn,
+    pub sandboxes: crate::sandboxes::Sandboxes,
 }
 
 impl std::fmt::Debug for Grid {
@@ -82,8 +92,8 @@ impl HostLookups for Grid {
     fn site(&self, _label: &str) -> Option<SiteRow> {
         None
     }
-    fn sandbox(&self, _label: &str) -> Option<SandboxRow> {
-        None
+    fn sandbox(&self, label: &str) -> Option<SandboxRow> {
+        self.sandboxes.by_label(label).ok().flatten()
     }
     fn computer(&self, label: &str) -> Option<ComputerRow> {
         self.accounts.computer_by_label(label).ok().flatten()
@@ -155,7 +165,15 @@ impl Grid {
         let roots = root_hosts(&cfg.domain, &cfg.port_suffix, cfg.listen.port);
         let page = PageCfg::of(&cfg);
         let client = Client::builder(TokioExecutor::new()).build_http();
-        Arc::new(Self { cfg, db, clock, accounts, shares, teams, tunnels: Arc::new(Tunnels::default()), boxes, roots, page, client })
+        let signin = SignIn::new(&cfg);
+        // the master key seals a sandbox's token and sign-ins; without one, sandboxes are off and say why
+        let secrets = crate::secrets::Secrets::open(db.clone(), &cfg.data_dir, &crate::config::process_env()).map(Arc::new).map_err(|e| tracing::warn!("grid: no master key, so no sandboxes: {e}")).ok();
+        let sb_cfg = cfg.sandboxes.clone().unwrap_or_default();
+        let sandboxes = crate::sandboxes::Sandboxes { db: db.clone(), clock: clock.clone(), secrets, enabled: sb_cfg.enabled != Some(false), per_user: sb_cfg.per_user.unwrap_or(10) };
+        let sb = sandboxes.clone();
+        // a sandbox's box starts with its owner's sandbox env and sign-ins; the user's own box never does
+        boxes.set_env_for(Arc::new(move |u: &BoxUser| u.owner.as_deref().filter(|_| u.sandbox.is_some()).map(|o| sb.env_for(o)).unwrap_or_default()));
+        Arc::new(Self { cfg, db, clock, accounts, shares, teams, tunnels: Arc::new(Tunnels::default()), boxes, roots, page, client, signin, sandboxes })
     }
 
     fn who(&self, h: &HeaderMap) -> Who {
@@ -194,7 +212,8 @@ impl Grid {
                 PreviewOf::Computer(c) => self.computer_reach(req, &c, Some(p.port)).await,
                 _ => Ok(json(404, &json!({ "error": "Pages in boxes aren't shown on this grid." }))),
             },
-            HostKind::Site(_) | HostKind::Sandbox(_) => Ok(json(404, &json!({ "error": "not on this grid yet" }))),
+            HostKind::Sandbox(sb) => self.sandbox_reach(req, &sb).await,
+            HostKind::Site(_) => Ok(json(404, &json!({ "error": "not on this grid yet" }))),
             HostKind::Unknown => Ok(json(421, &json!({ "error": "This grid doesn't serve that address." }))),
         };
         out.unwrap_or_else(|e| err(&e))
@@ -225,6 +244,9 @@ impl Grid {
             ("POST", ["api", "device", "token"]) => self.device_token(&head.headers, &bytes),
             ("GET" | "POST", ["activate"]) => self.activate(&method, &head.headers, &bytes, q),
             ("GET", ["auth", "dev"]) => self.dev_sign_in(q),
+            ("GET", ["signin"]) => Ok(self.signin_route(&head.headers, q)),
+            ("GET", ["auth", id, "start"]) => self.auth_start(&head.headers, id, q).await,
+            ("GET", ["auth", id, "callback"]) => Ok(self.auth_callback(&head.headers, id, q).await),
             ("GET", ["api", "me"]) => {
                 let Who::Device(u, _) = &who else { return Err(bad("Sign in first.", 401)) };
                 let computers: Vec<Value> = self.accounts.computers(&u.id)?.iter().map(|c| self.computer_view(c)).collect();
@@ -245,6 +267,7 @@ impl Grid {
                 Ok(json(200, &json!(list)))
             }
             (_, ["api", "shares", ..] | ["api", "gallery"] | ["s", ..]) | ("GET", ["gallery"]) => self.shares_route(&method, &parts, q, &head.headers, &bytes, &who),
+            (_, ["api", "sandboxes", ..]) => self.sandboxes_route(&method, &parts, &head.headers, &bytes, &who).await,
             (_, ["api", "teams", ..]) => self.teams_route(&method, &parts, &head.headers, &bytes, &who),
             ("GET", []) => Ok(html(200, pages::message_page(&self.page, &MessagePage { title: self.cfg.name.clone(), text: "Share and reach your wisps from anywhere.".into(), link: Some(("/gallery".into(), "See what people are building".into())), tone: Tone::Plain }), &[])),
             _ => Ok(json(404, &json!({ "error": "not found" }))),
@@ -269,7 +292,7 @@ impl Grid {
         let cookie = cookies(h).get(COOKIE).cloned().unwrap_or_default();
         let Some(user) = self.accounts.session(&cookie)? else {
             let back = format!("/activate?{q}");
-            let link = if self.cfg.auth.dev { format!("/auth/dev?next={}", crate::http::encode_component(&back)) } else { "/".into() };
+            let link = if self.cfg.auth.dev && self.signin.providers.is_empty() { format!("/auth/dev?next={}", crate::http::encode_component(&back)) } else { format!("/signin?return={}", crate::http::encode_component(&back)) };
             return Ok(html(401, pages::message_page(&self.page, &MessagePage { title: "Sign in first".into(), text: "Sign in to the grid to let a device in.".into(), link: Some((link, "Sign in".into())), tone: Tone::Plain }), &[]));
         };
         let pu = PageUser { handle: user.handle.clone(), name: user.name.clone(), ..PageUser::default() };
@@ -487,23 +510,27 @@ impl Grid {
         if who.user().is_none_or(|u| u.id != user.id) {
             return Err(bad("That wisp isn't yours.", 403));
         }
-        let bu = BoxUser::user(&user);
+        self.proxy(req, &BoxUser::user(&user), handle).await
+    }
+
+    /// A request into a box (the user's own, or a sandbox): woken unless passive, counted as use until answered.
+    async fn proxy(&self, req: http::Request<Incoming>, bu: &BoxUser, handle: &str) -> Result<Resp> {
         let path = req.uri().path().to_owned();
         if path == "/_grid/state" {
-            return Ok(json(200, &json!({ "state": self.boxes.state(&user.id).as_str() })));
+            return Ok(json(200, &json!({ "state": self.boxes.state(&bu.id).as_str() })));
         }
         if path == "/_grid/stop" && req.method() == Method::POST {
-            let was = self.boxes.stop(&user.id, "stopped").await?;
+            let was = self.boxes.stop(&bu.id, "stopped").await?;
             return Ok(json(200, &json!({ "stopped": was })));
         }
         let h = req.headers();
         let passive = header_str(h, PASSIVE) == "1" || header_str(h, "x-wisp-relay") == "1";
-        if passive && self.boxes.state(&user.id) != BoxState::Running {
+        if passive && self.boxes.state(&bu.id) != BoxState::Running {
             return Ok(json_with(503, &json!({ "error": "This box is asleep.", "asleep": true }), &[("retry-after", "20".into())]));
         }
-        let running = self.boxes.ensure(&bu, false).await?;
-        let busy = std::sync::Mutex::new(self.boxes.begin(&user.id, !passive));
-        let secret = self.boxes.secret(&user.id).unwrap_or_default();
+        let running = self.boxes.ensure(bu, false).await?;
+        let busy = std::sync::Mutex::new(self.boxes.begin(&bu.id, !passive));
+        let secret = self.boxes.secret(&bu.id).unwrap_or_default();
         let (mut head, body) = req.into_parts();
         let pq = head.uri.path_and_query().map_or("/", |p| p.as_str()).to_owned();
         head.uri = format!("http://127.0.0.1:{}{pq}", running.port).parse().map_err(|_| bad("Bad path.", 400))?;
@@ -559,7 +586,7 @@ pub async fn dev(data: &std::path::Path, port: u16, wisp_bin: std::path::PathBuf
     let db = Arc::new(Db::open(data, clock.now_ms())?);
     let url_cfg = cfg.clone();
     let boxes = ProcessHost::new(
-        crate::hostd::ProcessOptions { bin: wisp_bin, data: data.to_owned(), idle_ms, check_ms: 1000, start_ms: 30_000, max_running: 8, env, url_of: Arc::new(move |h| url_cfg.instance_url(h)) },
+        crate::hostd::ProcessOptions { bin: wisp_bin, data: data.to_owned(), idle_ms, check_ms: 1000, start_ms: 30_000, max_running: 8, env, url_of: Arc::new(move |h| url_cfg.instance_url(h)), boxd: None },
         clock.clone(),
     );
     let grid = Grid::new(cfg, db, clock, boxes);

@@ -1,8 +1,10 @@
-//! hostd's process driver (v1 grid/hostd.js `process`): one `wisp serve` per user on this machine, with its
-//! own `WISP_HOME` and `HOME`, in box mode (`WISP_BOX=1`: the `box` set, `BoxPlugins`) and trusted-proxy
-//! mode (a random secret per start that only the edge sends). For development and one trusted team: the
-//! users share an OS user, so it is not isolation between them (the container driver is, v1 boxd: not
-//! ported yet).
+//! hostd (v1 grid/hostd.js): one `wisp serve` per user, in box mode (`WISP_BOX=1`: the `box` set, `BoxPlugins`)
+//! and trusted-proxy mode (a random secret per start that only the edge sends). Two drivers:
+//!
+//! - **process** (`boxd: None`): a process on this machine with its own `WISP_HOME` and `HOME`. For development
+//!   and one trusted team: the users share an OS user, so it is not isolation between them.
+//! - **container** (`boxd: Some(socket)`): boxd (`apps/grid/boxd`, root) runs it as a container (gVisor, no
+//!   capabilities, its own network, its home in boxd's folder); the grid asks over boxd's socket.
 //!
 //! - **Use:** `ensure` (unless `wake`) and a `begin(…, true)` guard count as use; a passive request never
 //!   gets here (the edge answers it asleep), so watching a box never wakes or keeps it up.
@@ -35,6 +37,38 @@ pub struct ProcessOptions {
     pub env: Vec<(String, String)>,
     /// `<handle>` → the box's public URL (`WISP_PUBLIC_URL`)
     pub url_of: Arc<dyn Fn(&str) -> String + Send + Sync>,
+    /// the container driver (boxd's socket and the limits); None runs boxes as processes here
+    pub boxd: Option<crate::boxd::Driver>,
+}
+
+/// A started box: a process here, or a container boxd runs.
+#[derive(Debug)]
+enum BoxProc {
+    Local(tokio::process::Child),
+    Boxd(crate::boxd::BoxdRun),
+}
+
+impl BoxProc {
+    /// It ended, and how.
+    fn exited(&mut self) -> Option<String> {
+        match self {
+            Self::Local(c) => c.try_wait().ok().flatten().map(|s| s.to_string()),
+            Self::Boxd(r) => r.exited().map(|e| {
+                let why = r.error();
+                if why.is_empty() { e } else { why }
+            }),
+        }
+    }
+
+    async fn stop(self) {
+        match self {
+            Self::Local(mut c) => {
+                let _ = c.start_kill();
+                let _ = tokio::time::timeout(Duration::from_secs(10), c.wait()).await;
+            }
+            Self::Boxd(r) => r.stop(Duration::from_secs(10)).await,
+        }
+    }
 }
 
 
@@ -49,7 +83,7 @@ struct Inst {
     state: BoxState,
     port: Option<u16>,
     secret: String,
-    child: Option<tokio::process::Child>,
+    child: Option<BoxProc>,
     last_touch: i64,
     inflight: usize,
     started_at: Option<i64>,
@@ -65,6 +99,19 @@ pub struct ProcessHost {
     tx: broadcast::Sender<BoxChange>,
     peak: Mutex<(usize, usize)>,
     http: reqwest::Client,
+    env_for: EnvSlot,
+}
+
+/// More environment for one box (a sandbox's owner's env and sign-ins).
+pub type EnvFor = Arc<dyn Fn(&BoxUser) -> Vec<(String, String)> + Send + Sync>;
+
+#[derive(Default)]
+struct EnvSlot(Mutex<Option<EnvFor>>);
+
+impl std::fmt::Debug for EnvSlot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(if lock(&self.0).is_some() { "EnvSlot(set)" } else { "EnvSlot(none)" })
+    }
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -81,7 +128,7 @@ impl ProcessHost {
     pub fn new(o: ProcessOptions, clock: SharedClock) -> Arc<Self> {
         let (tx, _) = broadcast::channel(64);
         let http = reqwest::Client::builder().no_proxy().connect_timeout(Duration::from_secs(2)).build().unwrap_or_default();
-        let h = Arc::new(Self { o, clock, inst: Arc::new(Mutex::new(HashMap::new())), starts: Mutex::new(HashMap::new()), tx, peak: Mutex::new((0, 0)), http });
+        let h = Arc::new(Self { o, clock, inst: Arc::new(Mutex::new(HashMap::new())), starts: Mutex::new(HashMap::new()), tx, peak: Mutex::new((0, 0)), http, env_for: EnvSlot::default() });
         let me = Arc::downgrade(&h);
         let every = Duration::from_millis(u64::try_from(h.o.check_ms.max(200)).unwrap_or(5000));
         tokio::spawn(async move {
@@ -92,6 +139,11 @@ impl ProcessHost {
             }
         });
         h
+    }
+
+    /// Sets the hook that gives a box more environment (the grid's sandboxes).
+    pub fn set_env_for(&self, f: EnvFor) {
+        *lock(&self.env_for.0) = Some(f);
     }
 
     /// Stop every box (the grid is stopping).
@@ -127,6 +179,49 @@ impl ProcessHost {
         }
     }
 
+    /// The environment every box gets (its secret goes in boxd's 0600 env file, never on a command line).
+    fn box_env(&self, user: &BoxUser, port: u16, secret: &str) -> Vec<(String, String)> {
+        let mut env = vec![("WISP_PORT".to_owned(), port.to_string()), ("WISP_BOX".to_owned(), "1".to_owned()), ("WISP_TRUSTED_PROXY_SECRET".to_owned(), secret.to_owned()), ("WISP_PUBLIC_URL".to_owned(), (self.o.url_of)(&user.handle))];
+        env.extend(self.o.env.iter().cloned());
+        let more = lock(&self.env_for.0).clone();
+        if let Some(f) = more {
+            env.extend(f(user));
+        }
+        env
+    }
+
+    async fn spawn(&self, user: &BoxUser, port: u16, secret: &str) -> Result<BoxProc> {
+        let logs = self.o.data.join("users").join(&user.id);
+        std::fs::create_dir_all(&logs).map_err(|e| bad(format!("the box's folder: {e}"), 500))?;
+        if let Some(d) = &self.o.boxd {
+            let env: serde_json::Map<String, serde_json::Value> = self.box_env(user, port, secret).into_iter().map(|(k, v)| (k, serde_json::Value::String(v))).collect();
+            let mut req = serde_json::json!({ "id": user.id, "port": port, "env": env, "sandbox": user.sandbox.is_some() });
+            if !d.limits.is_null() {
+                req["limits"] = d.limits.clone();
+            }
+            if let Some(dns) = &d.dns {
+                req["dns"] = serde_json::json!(dns);
+            }
+            return Ok(BoxProc::Boxd(crate::boxd::BoxdRun::start(&d.socket, req, logs.join("wisp.log")).await?));
+        }
+        let home = logs.join("home");
+        std::fs::create_dir_all(&home).map_err(|e| bad(format!("the box's home: {e}"), 500))?;
+        let mut cmd = tokio::process::Command::new(&self.o.bin);
+        cmd.arg("serve")
+            .env_clear()
+            .env("PATH", std::env::var("PATH").unwrap_or_default())
+            .env("HOME", &logs)
+            .env("WISP_HOME", &home)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::fs::File::create(logs.join("wisp.log")).map_or_else(|_| std::process::Stdio::null(), std::process::Stdio::from))
+            .kill_on_drop(true);
+        for (k, v) in self.box_env(user, port, secret) {
+            cmd.env(k, v);
+        }
+        Ok(BoxProc::Local(cmd.spawn().map_err(|e| bad(format!("wisp didn't start in the box: {e}"), 503))?))
+    }
+
     async fn start(&self, user: &BoxUser) -> Result<Running> {
         let running = lock(&self.inst).values().filter(|i| i.state == BoxState::Running).count();
         if running >= self.o.max_running {
@@ -136,33 +231,20 @@ impl ProcessHost {
         }
         let port = free_port()?;
         let secret = crate::accounts::token("");
-        let base = self.o.data.join("users").join(&user.id);
-        let home = base.join("home");
-        std::fs::create_dir_all(&home).map_err(|e| bad(format!("the box's home: {e}"), 500))?;
-        let mut cmd = tokio::process::Command::new(&self.o.bin);
-        cmd.arg("serve")
-            .env_clear()
-            .env("PATH", std::env::var("PATH").unwrap_or_default())
-            .env("HOME", &base)
-            .env("WISP_HOME", &home)
-            .env("WISP_PORT", port.to_string())
-            .env("WISP_BOX", "1")
-            .env("WISP_TRUSTED_PROXY_SECRET", &secret)
-            .env("WISP_PUBLIC_URL", (self.o.url_of)(&user.handle))
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::fs::File::create(base.join("wisp.log")).map_or_else(|_| std::process::Stdio::null(), std::process::Stdio::from))
-            .kill_on_drop(true);
-        for (k, v) in &self.o.env {
-            cmd.env(k, v);
-        }
         {
             let mut m = lock(&self.inst);
             let i = m.entry(user.id.clone()).or_default();
             i.state = BoxState::Starting;
         }
         self.change(user, BoxState::Starting, "starting");
-        let child = cmd.spawn().map_err(|e| bad(format!("wisp didn't start in the box: {e}"), 503))?;
+        let child = match self.spawn(user, port, &secret).await {
+            Ok(c) => c,
+            Err(e) => {
+                lock(&self.inst).entry(user.id.clone()).or_default().state = BoxState::Stopped;
+                self.change(user, BoxState::Stopped, "failed");
+                return Err(e);
+            }
+        };
         let deadline = self.clock.now_ms() + self.o.start_ms;
         let mut child = Some(child);
         loop {
@@ -170,7 +252,7 @@ impl ProcessHost {
                 break;
             }
             if let Some(c) = child.as_mut()
-                && let Ok(Some(st)) = c.try_wait()
+                && let Some(st) = c.exited()
             {
                 lock(&self.inst).entry(user.id.clone()).or_default().state = BoxState::Stopped;
                 self.change(user, BoxState::Stopped, "failed");
@@ -245,9 +327,8 @@ impl BoxHost for ProcessHost {
             i.state = BoxState::Stopping;
             i.child.take()
         };
-        if let Some(mut c) = child {
-            let _ = c.start_kill();
-            let _ = tokio::time::timeout(Duration::from_secs(10), c.wait()).await;
+        if let Some(c) = child {
+            c.stop().await;
         }
         let now = self.clock.now_ms();
         {
@@ -263,7 +344,15 @@ impl BoxHost for ProcessHost {
     }
     async fn remove(&self, user: &BoxUser) -> Result<()> {
         self.stop(&user.id, "deleted").await?;
-        let _ = tokio::fs::remove_dir_all(self.o.data.join("users").join(&user.id)).await;
+        match &self.o.boxd {
+            // the container, then its folder (home, logins and all): boxd's to delete
+            Some(d) => {
+                crate::boxd::call(&d.socket, &serde_json::json!({ "op": "remove", "id": user.id })).await?;
+            }
+            None => {
+                let _ = tokio::fs::remove_dir_all(self.o.data.join("users").join(&user.id)).await;
+            }
+        }
         lock(&self.inst).remove(&user.id);
         Ok(())
     }

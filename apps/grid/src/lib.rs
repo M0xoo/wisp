@@ -25,6 +25,7 @@ pub mod auth;
 pub mod seats;
 
 // boxes
+pub mod boxd;
 pub mod hostd;
 
 // channels: the inbox, `on laptop`, mail
