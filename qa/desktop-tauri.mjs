@@ -195,10 +195,19 @@ await check('TAURI-06', 'external links leave the app; wisp stays', async () => 
   await A.ask({ op: 'eval', js: `location.href = 'https://example.org/qa-navigate'; 0` });
   await A.ask({ op: 'eval', js: `location.href = 'file:///Applications/Calculator.app'; 0` });
   await sleep(800);
+  // A real click on an http(s) target=_blank link, as a preview block's Open in a new tab: the
+  // opener plugin's own click script used to take it to an IPC call the page may not make.
+  await A.ask({ op: 'activate' });
+  await A.js(`(() => { const a = Object.assign(document.createElement('a'), { id: 'qaOut', href: 'http://127.0.0.1:${OTHER}/qa-click', target: '_blank', rel: 'noopener noreferrer', textContent: 'out' }); a.style.cssText = 'position:fixed;left:300px;top:200px;z-index:99999;padding:20px;background:#fff'; document.body.append(a); return 1; })()`);
+  await clickAt(`document.getElementById('qaOut')`);
+  await until(async () => (await A.ask({ op: 'opened' })).opened.includes(`http://127.0.0.1:${OTHER}/qa-click`), { timeout: 5000, what: 'a clicked target=_blank link to go out' }).catch(() => {});
+  await A.js(`(qaOut.remove(), 1)`);
   const { opened } = await A.ask({ op: 'opened' });
   const w = await A.ask({ op: 'window' });
-  for (const u of ['https://example.com/qa-popup', 'vscode://file/tmp/qa.js', 'vscode://file/tmp/qa-nav.js', 'https://example.org/qa-navigate']) ok(opened.includes(u), `${u} not sent out: ${opened}`);
+  for (const u of ['https://example.com/qa-popup', 'vscode://file/tmp/qa.js', 'vscode://file/tmp/qa-nav.js', 'https://example.org/qa-navigate', `http://127.0.0.1:${OTHER}/qa-click`]) ok(opened.includes(u), `${u} not sent out: ${opened}`);
   ok(!opened.some((u) => u.startsWith('file:')), `a file url went out: ${opened}`);
+  ok(opened.filter((u) => u.endsWith('/qa-click')).length === 1, `the click went out more than once: ${opened}`);
+  ok(!(await A.js('JSON.stringify(window.__qaErrors)')).includes('open_url'), 'a link click reached the opener plugin over IPC');
   ok(w.url.startsWith(A.url), `the window left wisp: ${w.url}`);
 });
 
