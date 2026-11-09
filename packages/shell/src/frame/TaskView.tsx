@@ -7,7 +7,7 @@
 
 import { For, Show, createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
 import { entityKey, ownerOf, uuidv7, type EntityKey } from '@wisp/client';
-import { OverlapNote, ReplyBox, TaskBody, TaskDetails, TaskHead, TurnView, useSignal, type IconName, type MenuEntry, type TaskAction } from '@wisp/ui';
+import { Answer, OverlapNote, ReplyBox, TaskBody, TaskDetails, TaskHead, TurnView, useSignal, type IconName, type MenuEntry, type TaskAction } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { Slot } from '../slot.tsx';
@@ -30,6 +30,14 @@ interface TurnBody {
   readonly changes?: readonly { readonly file: string; readonly edits?: readonly unknown[] }[];
   /** where runtime keeps a turn's changes today */
   readonly ext?: { readonly 'wisp.runtime'?: { readonly changes?: readonly { readonly file: string; readonly edits?: readonly unknown[] }[] } };
+}
+
+/** A step of a turn, as the task's topic sends it (runtime's event log: `kind`, and a tool's `tool` and `label`). */
+interface EventRow {
+  readonly seq: number;
+  readonly turn_id: string;
+  readonly kind?: string;
+  readonly body?: { readonly kind?: string; readonly tool?: string; readonly label?: string; readonly text?: string };
 }
 
 interface TurnRow {
@@ -57,6 +65,9 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   shell.client.peers.watch(ownerOf(key), `session:${bare}`, scope);
   const row = useSignal(shell.client.entities.row<SessionRow>(SESSION, key));
   const allTurns = useSignal(shell.client.entities.list<TurnRow>('turn'));
+  const allEvents = useSignal(shell.client.entities.list<EventRow>('event'));
+  /** a turn's steps, oldest first: its tool calls and its messages */
+  const stepsOf = (turnId: string): EventRow[] => allEvents().filter((e) => e.turn_id === turnId).sort((a, b) => a.seq - b.seq);
   const sessions = useSignal(shell.client.entities.list<SessionRow>(SESSION));
   // a turn names its session by the bare id the server gave it, or by the key (an optimistic one)
   const turns = createMemo(() => allTurns().filter((x) => x.session_id === key || x.session_id === bare).sort((a, b) => a.idx - b.idx));
@@ -106,10 +117,12 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     void run(setState, { id: key, state: 'done' }).catch(() => undefined);
     shell.navigate({ t: 'markDone', id: key as never });
   };
+  // "Open in Claude Code" (v1's Take over; owner, 2026-11-10)
+  const harnessName = (): string => harnessOf(harnesses(), row()?.agent ?? '').name;
   const more = (): MenuEntry[] => [
     { value: 'transcript', label: t('shell.task.transcript'), icon: 'transcript', keys: 'V' },
     { value: 'rerun', label: t('shell.task.rerun'), icon: 'rerun', keys: '⇧R' },
-    { value: 'takeover', label: t('shell.task.takeover'), icon: 'terminal', keys: 'T' },
+    { value: 'openIn', label: t('shell.task.openIn', { harness: harnessName() }), icon: 'terminal', keys: 'T' },
     { kind: 'separator' },
     { value: 'fork', label: t('shell.task.fork'), icon: 'fork' },
     { value: 'copy', label: t('shell.task.copyLink'), icon: 'copy' },
@@ -119,7 +132,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   const onMore = (v: string): void => {
     if (v === 'transcript') setStepsOpen(!stepsOpen());
     else if (v === 'rerun') copy(rerun);
-    else if (v === 'takeover' || v === 'shell') side('shell');
+    else if (v === 'openIn' || v === 'shell') side('shell');
     else if (v === 'fork') copy(fork);
     else if (v === 'copy') void shell.platform.copy(location.href).then((ok) => shell.toast.show(t(ok ? 'shell.task.copied' : 'shell.task.copyFailed')));
     else if (v === 'archive') {
@@ -133,7 +146,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   const actions = (s: SessionRow): TaskAction[] => [
     { id: 'transcript', deskOnly: true, key: 'V', icon: 'transcript', label: t('shell.task.transcript'), title: t('shell.task.transcriptTitle'), act: { onClick: () => setStepsOpen(!stepsOpen()) } },
     { id: 'rerun', deskOnly: true, key: '⇧R', icon: 'rerun', label: t('shell.task.rerun'), title: t('shell.task.rerunTitle'), act: { menu: { items: agentMenu(t, harnesses(), s.agent, false), onSelect: (a) => copy(rerun, a) } } },
-    { id: 'takeover', deskOnly: true, key: 'T', icon: 'terminal', label: t('shell.task.takeover'), title: t('shell.task.takeoverTitle'), act: { onClick: () => side('shell') } },
+    { id: 'openIn', deskOnly: true, key: 'T', icon: 'terminal', label: t('shell.task.openIn', { harness: harnessOf(harnesses(), s.agent).name }), title: t('shell.task.openInTitle', { harness: harnessOf(harnesses(), s.agent).name }), act: { onClick: () => side('shell') } },
     { id: 'changes', key: 'D', icon: 'file', label: t('shell.task.changes'), title: t('shell.task.changesTitle'), part: 'split.changes', act: { onClick: () => side('changes') } },
     { id: 'shell', key: '⌃`', icon: 'shell', label: t('shell.task.shell'), title: t('shell.task.shellTitle'), part: 'split.shell', act: { onClick: () => side('shell') } },
     { id: 'ship', key: 'S', icon: 'send', label: t('shell.task.ship'), title: t('shell.task.shipTitle'), act: { onClick: ship, pending: shipping() } },
@@ -177,7 +190,15 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                   {(turn) => {
                     const b = turn.body;
                     const hero = b.presentation?.blocks?.find((x) => x.type === 'hero');
-                    const count = (k: string): number => (b.activity ?? []).filter((a) => a.kind === k).length;
+                    // the steps come as the turn's events (the task's topic); a turn row that carries its own still reads
+                    const steps = createMemo(() => {
+                      const ev = stepsOf(turn.id).filter((e) => (e.kind ?? e.body?.kind) === 'tool');
+                      return ev.length ? ev.map((e) => ({ kind: e.body?.tool ?? 'tool', label: e.body?.label })) : (b.activity ?? []);
+                    });
+                    const cwd = String((s() as { body?: { cwd?: string } }).body?.cwd ?? s().summary['cwd'] ?? '');
+                    const here = (text: string): string => (cwd ? text.replace(new RegExp(`(/private)?${cwd.replace(/^\/private/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?`, 'g'), '') : text);
+                    const count = (k: string): number => steps().filter((a) => a.kind === k).length;
+                    const blocks = b.presentation?.blocks ?? [];
                     const changes = b.ext?.['wisp.runtime']?.changes ?? b.changes ?? [];
                     const edits = changes.reduce((n, c) => n + (c.edits?.length ?? 0), 0);
                     const tokens = (b.stats?.inputTokens ?? 0) + (b.stats?.outputTokens ?? 0);
@@ -190,6 +211,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                         timeTitle={longTime(turn.started_at)}
                         {...(b.checkpoint?.commit && { sha: { short: b.checkpoint.commit.slice(0, 7), title: t('shell.task.checkpoint', { branch: b.checkpoint.branch ?? '', sha: b.checkpoint.commit }) } })}
                         {...(hero?.title && { hero: { title: hero.title, summary: hero.summary ?? '' } })}
+                        {...(blocks.length > 0 && { answer: <Answer blocks={blocks} /> })}
                         {...(turn.status === 'running' && { live: s().summary.live || t('shell.task.starting') })}
                         actsTitle={t('shell.task.activity')}
                         acts={[
@@ -200,7 +222,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                         stats={[{ text: `${Math.max(0, (b.endedAt ?? turn.started_at) - turn.started_at)}ms` }, { text: `$${(b.stats?.costUsd ?? 0).toFixed(2)}` }]}
                         receipt={{ text: t('shell.task.tokens', { n: tokens }), title: t('shell.task.tokensTitle', { n: tokens }) }}
                         {...(changes.length > 0 && { files: { label: t('shell.task.files', { n: changes.length }), plus: `+${edits ? 1 : 0}`, minus: `−${edits ? 1 : 0}`, act: { onClick: () => side('changes') } } })}
-                        activity={{ open: stepsOpen(), onToggle: () => setStepsOpen(!stepsOpen()), items: (b.activity ?? []).map((a) => ({ icon: ACT_ICON[a.kind] ?? 'tool', text: a.label ?? a.kind })) }}
+                        activity={{ open: stepsOpen(), onToggle: () => setStepsOpen(!stepsOpen()), items: steps().map((a) => ({ icon: ACT_ICON[a.kind] ?? 'tool', text: here(a.label ?? a.kind) })) }}
                         {...(notesOpen() && { notes: String((b as { presentation?: { notes?: string } }).presentation?.notes ?? t('shell.task.noNotes')) })}
                         tools={[
                           { id: 'notes', icon: 'text', label: t('shell.task.notes'), on: notesOpen(), act: { onClick: () => setNotesOpen(!notesOpen()) } },
@@ -240,6 +262,8 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                       />
                     )}
                   </Show>
+                  {/* what waits on you, over the reply box (shell-task's question and queue): `shell.task:foot` */}
+                  <Slot input="shell.task:foot" layout="stack" id={key} session={() => s() as never} />
                   <ReplyBox
                     placeholder={t('shell.task.reply', { name: h().name })}
                     value={text()}

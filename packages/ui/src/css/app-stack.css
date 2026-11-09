@@ -102,4 +102,6 @@
   [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] [data-text='control'] { display: none; }
   [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] > [data-kit='mode-btn'] { padding: 0; }
   [data-kit='stage'][data-layout='stack'] [data-kit='c-bar'] > [data-kit='send'] { position: sticky; right: 0; box-shadow: -10px 0 8px -2px var(--surface); }
+  /* the side pane stacked (a phone): the task's page under it, the pane over it, full screen */
+  [data-kit='stage'][data-layout='stack'] > [data-kit='side-pane'] { position: fixed; inset: 0; z-index: var(--z-pane); border-left: 0; }
 }

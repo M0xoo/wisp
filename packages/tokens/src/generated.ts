@@ -48,7 +48,7 @@ export type Duration = 'fast' | 'base' | 'slow' | 'slower' | 'enter';
 /** Easing curves. */
 export type Easing = 'ease' | 'spring';
 /** Stacking layers. */
-export type ZLayer = 'base' | 'raised' | 'sticky' | 'rail' | 'menu' | 'overlay' | 'overlay-menu' | 'toast' | 'tooltip';
+export type ZLayer = 'base' | 'raised' | 'sticky' | 'rail' | 'pane' | 'menu' | 'overlay' | 'overlay-menu' | 'toast' | 'tooltip';
 /** Layout widths. */
 export type Breakpoint = 'box-narrow' | 'narrow' | 'compact' | 'phone' | 'split' | 'wide' | 'box-tight' | 'box-roomy' | 'box-wide' | 'pane-wide' | 'pane-xs' | 'box-xs';
 

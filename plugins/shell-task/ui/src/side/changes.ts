@@ -74,3 +74,57 @@ export function filesOf(turns: readonly ChangeTurn[], session: string, cwd = '')
     hunks: f.hunks,
   }));
 }
+
+/** A row of `git.changes` (wisp-git's FileDiff): ' ', '+', '-', or '…' for a gap of `count` unchanged lines. */
+export interface GitRow {
+  readonly op: string;
+  readonly text?: string;
+  readonly a?: number;
+  readonly b?: number;
+  readonly count?: number;
+}
+export interface GitFile {
+  readonly path: string;
+  readonly from?: string | null;
+  readonly status: string;
+  readonly add: number;
+  readonly del: number;
+  readonly binary: boolean;
+  readonly rows: readonly GitRow[];
+}
+/** `git.changes`' answer: every file the work changed since it left `base`, committed or not. */
+export interface GitChanges {
+  readonly base: string;
+  readonly at: string;
+  readonly body: { readonly kind: 'inline'; readonly files: readonly GitFile[] } | { readonly kind: 'blob' };
+}
+
+const GIT_STATUS: Readonly<Record<string, DiffStatus>> = { A: 'added', D: 'deleted', R: 'renamed', '?': 'added' };
+
+/** The git diff as the kit's Diff reads it: a file's rows as hunks, a new hunk after each gap. Null when the
+ *  answer is too big to come inline (a blob). */
+export function gitFiles(c: GitChanges): DiffFile[] | null {
+  if (c.body.kind !== 'inline') return null;
+  return c.body.files.map((f) => {
+    const hunks: DiffHunk[] = [];
+    let cur: DiffLine[] = [];
+    let start: { a: number; b: number } | undefined;
+    const close = (): void => {
+      if (cur.length && start) hunks.push({ header: `@@ -${start.a} +${start.b} @@`, oldStart: start.a, newStart: start.b, lines: cur });
+      cur = [];
+      start = undefined;
+    };
+    for (const r of f.rows) {
+      if (r.op === '…') {
+        close();
+        continue;
+      }
+      start ??= { a: r.a ?? r.b ?? 1, b: r.b ?? r.a ?? 1 };
+      const kind = r.op === '+' ? 'add' : r.op === '-' ? 'del' : 'ctx';
+      cur.push({ kind, text: r.text ?? '', old: r.op === '+' ? null : (r.a ?? null), new: r.op === '-' ? null : (r.b ?? null) });
+    }
+    close();
+    const status = GIT_STATUS[f.status] ?? 'modified';
+    return { oldPath: status === 'added' ? null : (f.from ?? f.path), newPath: status === 'deleted' ? null : f.path, path: f.path, status, binary: f.binary, additions: f.add, deletions: f.del, hunks };
+  });
+}

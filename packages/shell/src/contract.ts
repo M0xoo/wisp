@@ -40,6 +40,8 @@ export const INPUTS = {
   'shell.task:panes': 'split.panes',
   'shell.task:upcoming': 'split.upcoming',
   'shell.task:band': 'goal.band',
+  // added 2026-11-10 (additive): over the reply box, what waits on you (the agent's question, the queued follow-ups)
+  'shell.task:foot': 'task.foot',
   'shell.side:head': 'panel.head',
   'shell.term:head': 'term.head',
   // composer and new task

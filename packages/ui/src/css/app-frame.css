@@ -12,7 +12,7 @@
   }
   [data-kit='stage']:not([data-rail]) { --rail-w: 0px; }
   /* v1 #panel open: a third column at the right edge, the window's full height */
-  [data-kit='stage'][data-side] { grid-template-columns: calc(var(--side-w) + var(--rail-w)) minmax(0, 1fr) var(--size-panel-w); }
+  [data-kit='stage'][data-layout='split'][data-side] { grid-template-columns: calc(var(--side-w) + var(--rail-w)) minmax(0, 1fr) var(--size-panel-w); }
   [data-kit='side-pane'] {
     grid-row: 1 / -1; grid-column: 3; min-width: 0; min-height: 0; overflow-y: auto;
     padding: var(--space-5) var(--space-6); border-left: 1px solid var(--line); background: var(--bg);

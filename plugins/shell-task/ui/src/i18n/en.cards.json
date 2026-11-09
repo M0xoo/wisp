@@ -1,1 +1,13 @@
-{}
+{
+  "shell-task.ask.label": "The agent's question",
+  "shell-task.ask.needs": "Needs you",
+  "shell-task.ask.approval": "A tool asks to run",
+  "shell-task.ask.allow": "Allow",
+  "shell-task.ask.always": "Always allow",
+  "shell-task.ask.deny": "Deny",
+  "shell-task.ask.orType": "Or type your answer below.",
+  "shell-task.queue.title.one": "1 follow-up waits for this turn",
+  "shell-task.queue.title.other": "{count} follow-ups wait for this turn",
+  "shell-task.queue.now": "Send now",
+  "shell-task.queue.remove": "Remove from the queue"
+}

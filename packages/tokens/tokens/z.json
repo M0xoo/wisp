@@ -4,6 +4,7 @@
   "raised": "1",
   "sticky": "10",
   "rail": "20",
+  "pane": "30",
   "menu": "40",
   "overlay": "50",
   "overlay-menu": "55",

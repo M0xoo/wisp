@@ -141,6 +141,8 @@ export interface TurnViewProps {
   readonly timeTitle: string;
   readonly sha?: { readonly short: string; readonly title: string };
   readonly hero?: { readonly title: string; readonly summary: string };
+  /** the answer's blocks as a whole (an <Answer>): shown in the hero's place, the hero among them */
+  readonly answer?: JSX.Element;
   readonly acts: readonly TrailItem[];
   readonly actsTitle: string;
   readonly stats: readonly TrailItem[];
@@ -176,7 +178,10 @@ export function TurnView(props: TurnViewProps): JSX.Element {
           </Show>
         </div>
       </div>
-      <Show when={props.hero}>
+      <Show when={props.answer}>
+        <div data-kit="presentation">{props.answer}</div>
+      </Show>
+      <Show when={!props.answer && props.hero}>
         {(h) => (
           <div data-kit="presentation">
             <div data-kit="b-hero">

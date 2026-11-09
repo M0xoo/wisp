@@ -1,6 +1,15 @@
 {
+  "shell-task.side.label": "Side panel",
+  "shell-task.side.changes": "Changes",
+  "shell-task.side.pr": "PR",
+  "shell-task.side.shell": "Shell",
+  "shell-task.side.close": "Close the panel",
+  "shell-task.side.later": "Not in this pane yet",
   "shell-task.side.changes.title": "Changes",
   "shell-task.side.changes.count.one": "1 file · +{add} −{del}",
   "shell-task.side.changes.count.other": "{count} files · +{add} −{del}",
-  "shell-task.side.changes.empty": "No changes yet"
+  "shell-task.side.changes.vs.one": "1 file · +{add} −{del} vs {base}",
+  "shell-task.side.changes.vs.other": "{count} files · +{add} −{del} vs {base}",
+  "shell-task.side.changes.empty": "No changes yet",
+  "shell-task.side.changes.loading": "Reading the changes…"
 }

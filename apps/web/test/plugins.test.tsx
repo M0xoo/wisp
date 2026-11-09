@@ -25,5 +25,5 @@ test('every plugin UI registers, and the frame areas have their plugins', () => 
   }
   expect(refused).toEqual([]);
   const areas = pluginUis().flatMap(({ def }) => (def?.extensions ?? []).map((e) => e.attachTo.id));
-  for (const area of ['shell.sidebar:list', 'shell.task:band']) expect(areas, area).toContain(area);
+  for (const area of ['shell.sidebar:list', 'shell.task:band', 'shell.task:foot', 'shell.side:changes']) expect(areas, area).toContain(area);
 });
