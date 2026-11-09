@@ -39,6 +39,8 @@ export type Tone = 'done' | 'info' | 'warn' | 'bad' | 'live';
 export function statusOf(s: SessionRow, t: ShellContext['t']): { label: string; tone: Tone } {
   const st = String(s.summary.status ?? '');
   if (s.state === 'running') return { label: t('shell.status.working'), tone: 'live' };
+  // a question waits for you (an ask, a stalled goal): that's what the task's state says, whatever the last turn said
+  if (s.state === 'waiting') return { label: t('shell.status.waiting'), tone: 'warn' };
   if (st === 'info') return { label: t('shell.status.report'), tone: 'info' };
   if (st === 'blocked' || st === 'failed' || s.state === 'error') return { label: t('shell.status.failed'), tone: 'bad' };
   if (st === 'waiting' || st === 'partial') return { label: t('shell.status.waiting'), tone: 'warn' };

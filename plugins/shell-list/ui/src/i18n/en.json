@@ -6,7 +6,6 @@
   "shell-list.row.ram-tip": "Using {size} of memory",
   "shell-list.mark.reminder": "Reminder",
   "shell-list.quick.done": "Mark done",
-  "shell-list.quick.more": "More",
   "shell-list.group.asking": "Asking",
   "shell-list.group.finished": "{n} of {of} finished",
   "shell-list.group.done": "Done",

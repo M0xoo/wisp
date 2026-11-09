@@ -10,6 +10,7 @@ import { entityKey, ownerOf, uuidv7, type EntityKey } from '@wisp/client';
 import { OverlapNote, ReplyBox, TaskBody, TaskDetails, TaskHead, TurnView, useSignal, type IconName, type MenuEntry, type TaskAction } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
+import { Slot } from '../slot.tsx';
 import { TaskHeadSlot } from './slots.tsx';
 import { longTime, overlapLine, overlapsOf, statusOf } from './rows-view.ts';
 import { archive, followUp, fork, remove, rerun, restore, setAgent, setGoal, setMode, setState, shipOpen } from './commands.ts';
@@ -167,6 +168,9 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                 />
               }
               turns={
+                <>
+                {/* the band over the turns (wisp.goal's): `shell.task:band`, the task's row as its session */}
+                <Slot input="shell.task:band" layout="stack" id={key} session={() => s() as never} />
                 <For each={turns()}>
                   {(turn) => {
                     const b = turn.body;
@@ -215,6 +219,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                     );
                   }}
                 </For>
+                </>
               }
               dock={
                 <>

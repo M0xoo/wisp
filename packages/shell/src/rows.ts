@@ -3,7 +3,8 @@
 // a few columns, `summary` = runtime's camelCase Summary, `body` = the whole Session) and
 // model.rs's `Activity` for an event's body.
 
-export type SessionState = 'running' | 'review' | 'done' | 'error';
+// runtime's SessionState (model.rs): `waiting` is a question waiting on you
+export type SessionState = 'running' | 'waiting' | 'review' | 'done' | 'error';
 
 /** runtime's Summary (model.rs), plus fields plugins flatten in */
 export interface Summary {

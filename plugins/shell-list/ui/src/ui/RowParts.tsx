@@ -134,7 +134,8 @@ export function TimeCell(props: { readonly view: RowView }): JSX.Element {
   );
 }
 
-/** Save for later, Mark done and More, each in a fixed slot: a row without one keeps its space. */
+/** Save for later and Mark done, each in a fixed slot: a row without one keeps its space. More is the row's
+ *  context menu (right-click, long-press), as v1 had it: two quick buttons, about 40px held (owner, 2026-11-10). */
 export function Actions(props: { readonly k: EntityKey; readonly view: RowView; readonly hover?: JSX.Element }): JSX.Element {
   const env = useEnv();
   const t = env.shell.t;
@@ -155,7 +156,6 @@ export function Actions(props: { readonly k: EntityKey; readonly view: RowView; 
           <IconButton icon="done" size="sm" tone="good" label={t('shell-list.quick.done')} onClick={() => toggleDone(env.actions, props.k)} />
         </Show>
       </Show>
-      <IconButton icon="dots" size="sm" label={t('shell-list.quick.more')} haspopup="menu" onClick={(e) => env.menuAt(props.k, e.currentTarget as HTMLElement)} />
     </>
   );
 }
