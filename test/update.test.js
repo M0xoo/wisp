@@ -114,7 +114,7 @@ test('relaunchCommand keeps the port wisp is serving on', () => {
 test('Homebrew installs upgrade through brew and relaunch from the opt/ link, not the old keg', () => {
   const u = new Updater({ port: 5123, env: {}, root: KEG('/opt/homebrew') });
   assert.equal(u.method, 'brew');
-  assert.equal(u.command(), `${JSON.stringify(path.join('/opt/homebrew', 'bin', 'brew'))} upgrade m0xoo/tap/wisp-agents`);
+  assert.equal(u.command(), `${JSON.stringify(path.join('/opt/homebrew', 'bin', 'brew'))} upgrade wisp-agents`);
   const wisp = path.join('/opt/homebrew', 'opt/wisp-agents/libexec/lib/node_modules/wisp-agents', 'bin', 'wisp.js');
   assert.ok(u.relaunchCommand(false).endsWith(`${JSON.stringify(wisp)} --browser --no-open --port 5123`));
 });

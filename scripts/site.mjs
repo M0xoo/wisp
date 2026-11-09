@@ -270,7 +270,7 @@ const WAYS = [
   ['npx', 'npx wisp-agents', 'macOS · Linux and Windows in beta · Node 20+ · MIT'],
   ['npm', 'npm install -g wisp-agents', 'Puts the wisp command on your PATH · any OS · Node 20+'],
   ['curl', 'curl -fsSL https://trywisp.dev/install.sh | bash', 'macOS and Linux · checks for Node 20+, then installs with npm'],
-  ['brew', 'brew install m0xoo/tap/wisp-agents', 'Homebrew · CLI and browser mode; the desktop app is the download'],
+  ['brew', 'brew install --cask wispagents/tap/wisp', 'Homebrew · the desktop app (macOS 13.3+); brew install wispagents/tap/wisp-agents is the CLI'],
   ['app', '', 'Free, no Node needed'],
 ];
 const DL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>';
