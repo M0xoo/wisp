@@ -6,7 +6,7 @@ no local full suites. The lead commits each item by concern and pushes; PR #756 
 are fixed at the start of the next item.
 
 1. [x] **Events + triggers** (ADR-0044, then ADR-0043), plus the setup probe's "timed out" message (running).
-2. [ ] **Grid leftovers** (ADR-0041 / v2-grid-round.md "Not built"):
+2. [x] **Grid leftovers** (all but `wisp ssh`, see docs/v2-round-2.md) (ADR-0041 / v2-grid-round.md "Not built"):
    - GitHub and Google sign-in on the grid;
    - the boxd container driver;
    - sandboxes as peers;
@@ -29,6 +29,8 @@ are fixed at the start of the next item.
    - the 46 remaining views at v1 parity;
    - the new screens: Repo tab, blame gutter, import, Share setup, Setup section, My shares, Automations "When" picker and crew Wakes;
    - composer `@` and `/`.
+   - Start by wiring the built screens to the real server: in the demo (`wisp serve` with the fake claude), `/task/<id>`
+     mounts no task view (2026-11-09 check-in).
    - Each screen is seen in Chrome once (desktop and phone, light and dark); parity/layout/feedback gates run in CI.
 8. [ ] **Apps:** the desktop app embeds the core (Tauri, `apps/desktop`); Android gets its own frontend.
 9. [ ] **Cutover:**
@@ -37,6 +39,6 @@ are fixed at the start of the next item.
    - budgets (binary ≤ 15 MB, initial JS ≤ 120 KB br);
    - fewer test binaries (one integration-test binary per crate);
    - README and CHANGELOG;
-   - `M0xoo/wisp` → `WispAgents/wisp` references.
+   - `WispAgents/wisp` → `WispAgents/wisp` references.
 10. [ ] **Docs and site:** docs.trywisp.dev (ADR-0039, Starlight) and the site rework (`marketing/positioning-v2.md`).
 11. [ ] **One batched verification pass:** CI green on every OS, parity/layout/feedback gates, perf budgets, verifier.
