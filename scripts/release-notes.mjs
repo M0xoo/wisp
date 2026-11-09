@@ -26,7 +26,7 @@ export function notes(changelog, version) {
   if (!body) return null;
   return `${body}
 
-${table(version, DL, `\`npx wisp-agents@${version}\` or \`npm install -g wisp-agents\``)}| **Homebrew** | \`brew install m0xoo/tap/wisp-agents\` |
+${table(version, DL, `\`npx wisp-agents@${version}\` or \`npm install -g wisp-agents\``)}| **Homebrew** | \`brew install wispagents/tap/wisp-agents\` |
 
 The desktop app updates itself from these releases. Checksums are in \`SHA256SUMS.txt\`.
 `;

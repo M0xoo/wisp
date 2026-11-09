@@ -42,12 +42,12 @@ Or install it globally to get the `wisp` command everywhere. Pick one:
 ```sh
 curl -fsSL https://trywisp.dev/install.sh | bash   # macOS or Linux: checks Node 20+, then npm install -g wisp-agents
 npm install -g wisp-agents                      # any OS with Node 20+
-brew install m0xoo/tap/wisp-agents             # Homebrew
+brew install wispagents/tap/wisp-agents             # Homebrew
 
 wisp "fix the flaky auth test"
 ```
 
-The Homebrew formula lives in [M0xoo/homebrew-tap](https://github.com/M0xoo/homebrew-tap) (the release workflow bumps it from [`packaging/homebrew`](packaging/homebrew/wisp-agents.rb)). `install.sh` honors `WISP_VERSION` to pin a release (`curl -fsSL https://trywisp.dev/install.sh | WISP_VERSION=0.57.0 bash`).
+The Homebrew formula lives in [WispAgents/homebrew-tap](https://github.com/WispAgents/homebrew-tap) (the release workflow bumps it from [`packaging/homebrew`](packaging/homebrew/wisp-agents.rb)). `install.sh` honors `WISP_VERSION` to pin a release (`curl -fsSL https://trywisp.dev/install.sh | WISP_VERSION=0.57.0 bash`).
 
 **Or download the desktop app** (no Node needed, it updates itself; macOS 13.3 or later). The builds aren't signed yet, so on a Mac the one-liner is the easy way: curl doesn't quarantine what it downloads, so macOS opens it without asking.
 
