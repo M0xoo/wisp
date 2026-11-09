@@ -1,0 +1,23 @@
+[package]
+name = "wisp-termctx"
+description = "wisp.termctx host: the terminals' read commands as termctx.source@1, and terminal.failed as a trigger source from the shell hook's log (ADR-0023)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+tokio = { workspace = true, features = ["fs"] }
+tracing.workspace = true
+wisp-automations-api.workspace = true
+wisp-kernel.workspace = true
+wisp-termctx-api.workspace = true
+wisp-termctx-core.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

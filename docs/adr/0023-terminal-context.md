@@ -36,6 +36,26 @@ anything again to find out.
 - **Never re-runs a command** to get its output. If the output can't be read, the context says so, and the
   agent works from the command, the exit code and the cwd.
 
+## Edge cases (one named test each)
+
+1. `secrets_in_scrollback_are_masked_before_they_leave`: an API key printed in the pane, and the value of a secret
+   env var, are redacted in the context block before the task is made.
+2. `never_reruns_a_command_to_get_its_output`: no source runs anything but the terminal's own read command; with
+   no readable output, the block says so and keeps the command, its exit code and cwd.
+3. `tmux_capture_takes_the_last_n_lines_of_this_pane`: `-t $TMUX_PANE -S -N`, trailing blank lines and ANSI
+   codes dropped.
+4. `a_terminal_without_its_api_is_skipped_not_an_error`: kitty without remote control, WezTerm's CLI missing:
+   the next source is tried, and the summary names none of them.
+5. `shell_hook_log_parses_and_drops_week_old_lines`: a damaged line is skipped; lines older than 7 days go.
+6. `history_files_of_zsh_bash_fish_read_their_last_commands`: zsh's extended history, bash's plain one, fish's
+   YAML-ish one.
+7. `prompt_about_what_is_above_attaches_context`: "check the error above", "what I just ran", `--context`;
+   `--no-context` and the setting win.
+8. `context_summary_says_what_was_attached`: "3 commands, 120 lines from tmux, git status".
+9. `terminal_failed_fires_once_per_failed_command`: the `terminal.failed` trigger source reads the hook's log
+   from its cursor; a command that succeeded, or one seen before, fires nothing; no hook, no events.
+10. `shell_hook_writes_a_private_file`: the hook's log is created 0600 (`umask 077`), under `~/.wisp/term/`.
+
 ## Consequences
 
 Each terminal source is small and testable (a fixture of its output). New terminals are one more source,

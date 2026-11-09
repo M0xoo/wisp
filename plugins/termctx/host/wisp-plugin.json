@@ -1,0 +1,23 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.termctx",
+  "name": "Terminal context",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "wisp in a terminal knows what just happened there: the terminals' own read commands (tmux, WezTerm, kitty, iTerm2, Terminal), the opt-in shell hook's log, and terminal.failed as a trigger source (ADR-0023)",
+  "kind": "plugin",
+  "server": { "builtin": "wisp_termctx" },
+  "provides": {},
+  "requires": {},
+  "permissions": ["settings:read"],
+  "activation": ["onStartup"],
+  "contributes": {
+    "commands": [
+      { "id": "termctx.sources", "title": "How to read this terminal's recent output", "readOnly": true }
+    ],
+    "triggerSources": ["terminal.failed"],
+    "settings": [
+      { "key": "termctx.enabled", "type": "bool", "default": true, "title": "Terminal context: wisp in a terminal may attach what just happened there" }
+    ]
+  }
+}
