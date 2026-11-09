@@ -83,9 +83,11 @@ UI agents read `docs/v2-ui-brief.md` as well.
   SDK) shows. Each one gets a test, named after it.
 - No stubs reported as done: a kind, command or screen is done only when it acts, is tested, and is reachable from
   every frontend.
-- **Test what changed, fast (owner, 2026-11-09):** while working, `cargo test -p <crate> [--test <file>]`; at
-  hand-off, `.agents/bin/monoflow verify --affected` (cached: changed packages and their dependents), clippy on the
-  touched crates and `npm run check`. Never run the full `cargo test --workspace` locally: on macOS it waits ~30 s per
-  test binary (225 binaries, 2 h+). The full suite is PR CI's job on Linux.
-- The lead verifies every hand-off with those same gates (plus screenshots for UI) and starts the next job at once;
-  a finding is fixed in the next job, before new scope.
+- **Code first, verify later (owner, 2026-11-09):** finish the code fast. Stay compiling with `cargo check` (clippy
+  on the touched crates before hand-off), write each ADR's named tests, run at most the one test you are writing. No
+  `cargo test --workspace` and no `monoflow verify --affected` when the change reaches everything (kernel, store):
+  locally on macOS that's 2 h+ (a ~30 s scan per test binary). PR #756's CI on Linux runs the full suite and e2e on
+  every push.
+- The lead checks compile, clippy and `npm run check`, commits and pushes, and starts the next job at once. CI
+  failures go into the next coder job; nobody stops coding to wait for CI. One batched verification pass comes when
+  all the code exists.

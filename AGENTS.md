@@ -22,9 +22,9 @@ npm run check                    # structure rules for both sides (layers, cycle
 npm run typecheck                # tsc strict for the UI packages
 cargo clippy --workspace --all-targets -- -D warnings
 cargo deny check                 # licences, advisories, bans, sources (deny.toml)
-npm test                         # every package and crate, through monoflow
+cargo test -p <crate> --test <file> <name>  # the test you're writing: that's all a coder runs
 .agents/bin/monoflow graph impact <file>   # before changing a contract
-.agents/bin/monoflow verify --affected     # after every change: the gate
+# full suites, e2e, monoflow verify and qa/*.mjs are the outer loop: PR CI and one batched pass (WISP_OUTER_LOOP=1)
 npm run dev                      # the wisp binary + the web bundle with reload
 ```
 
@@ -128,6 +128,10 @@ wisp aims to be the fastest dev tool there is. Speed is checked like correctness
   Keep v1's behaviour and ask under *Questions* there.
 
 ## Tests
+
+- **Coders code** (owner, 2026-11-09): write the code and its named tests, run only the test you are writing, keep
+  it compiling with `cargo check`/clippy. Full suites, e2e and UI gates are the outer loop (PR CI, the final batched
+  pass); `.agents/bin/no-suites.sh` refuses them in agent sessions.
 
 - Tests sit next to the code (`<package>/test/*.test.ts`). They need no network and no real harness.
 - Pure code (deciders, reducers, machines, parsers, the sync merge) gets property or model-based tests.

@@ -113,4 +113,4 @@ Checked by `npm run check` (`tools/check`: the TypeScript rules and the Rust one
 4. UI in `ui/` from kit components, registered into the shell's inputs; writes through commands with an
    optimistic patch.
 5. Tests next to the code; goldens for anything an agent, a peer or a released client reads.
-6. `.agents/bin/monoflow verify --affected` before handing back.
+6. `cargo check` and clippy on the touched crates before handing back; the outer loop (full suite, e2e, gates) is PR CI.
