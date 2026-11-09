@@ -45,3 +45,4 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0038](0038-share-through-wisp-cloud.md) | One Share for everything (tasks, setups, stuff, apps, plugins), wisp Cloud by default, file/gist/git always available |
 | [0039](0039-docs-site.md) | docs.trywisp.dev: Diátaxis structure, App/TUI/CLI/SDK tabs, generated reference, tested examples, llms.txt, Starlight |
 | [0040](0040-meet-users-where-they-work.md) | Every feature reachable inside wisp and from the user's own harness (MCP + skill), git, CI, editors, chat; passive by default |
+| [0041](0041-grid-is-the-hub.md) | The grid is the hub: shared things (gallery, teams, grid:// modules) and remote machines usable from GUI, TUI, CLI, SDK, MCP |

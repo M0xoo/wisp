@@ -35,7 +35,8 @@ phone app.
  │   terminal · machines · grid-client · crew · goal · later · budget · router ·      │
  │   automations · channels (+telegram, slack, …) · mcp · connectors · stuff · …      │
  └───────────────────────────────────────────────────────────────────────────────────┘
- apps/grid (Rust): edge, hostd, boxd. One wisp per tenant box, the BoxPlugins group.
+ apps/grid (Rust): the hub (ADR-0041): shared things (pages, gallery, teams, grid:// modules) and remote machines
+ (cloud boxes, tunnels to your computers, sandboxes), all peers; edge, hostd, boxd; one wisp per box (BoxPlugins).
 ```
 
 ## Frontends are plugins (ADR-0024)
