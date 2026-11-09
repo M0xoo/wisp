@@ -17,6 +17,13 @@ export function createOverlaps(app) {
   const clashes = new Map(); // "headA headB" → conflicted files, so an unchanged pair isn't merged again
   const timers = new Map(); // repo key → pending compare
   const looking = new Map(); // repo key → ids to read before comparing
+  const running = new Set(); // compares in flight
+  let idle = []; // settled() callers waiting for the last compare
+  const wake = () => {
+    if (timers.size || running.size) return;
+    for (const r of idle) r();
+    idle = [];
+  };
 
   // Tasks in one repo branched from the same base are compared with each other.
   const keyOf = (s) => (s?.worktree ? `${s.worktree.root}\0${s.worktree.base}` : null);
@@ -87,7 +94,13 @@ export function createOverlaps(app) {
       key,
       setTimeout(() => {
         timers.delete(key);
-        compare(key).catch(() => {});
+        const p = compare(key)
+          .catch(() => {})
+          .finally(() => {
+            running.delete(p);
+            wake();
+          });
+        running.add(p);
       }, ms),
     );
   };
@@ -132,10 +145,14 @@ export function createOverlaps(app) {
     touch,
     changed,
     dropped,
+    // Resolves once no compare is waiting or running: a compare reads every task's worktree, so how
+    // long it takes is git's spawn cost times the tasks, and polling for its result can't know when to give up.
+    settled: () => new Promise((r) => (idle.push(r), wake())),
     stop() {
       clearInterval(sweep);
       for (const t of timers.values()) clearTimeout(t);
       timers.clear();
+      wake();
     },
   };
 }
