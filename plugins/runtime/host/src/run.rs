@@ -192,12 +192,23 @@ impl Runtime {
         if next.get("once").and_then(Value::as_str) == Some("auto") {
             run.mode = Mode::Auto;
         }
+        if turn.idx == 0 {
+            self.record_setup(&s, &run);
+        }
         if let Err(e) = self.spawn_run(&s, &turn, &harness, &run).await {
             let text = e.to_string();
             self.finish_now(s.id.as_str(), turn.id.as_str(), &text)
                 .await?;
         }
         Ok(turn.id)
+    }
+
+    /// What the task had (ADR-0029), at its first run; its MCP servers probed in the background.
+    fn record_setup(&self, s: &Session, run: &HarnessRun) {
+        let available = crate::setup::available(s, run, &s.agent);
+        let servers: Vec<(String, Value)> = run.mcp_servers.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        let host = self.host.clone();
+        crate::setup::record(self.repo.store.clone(), Arc::new(self.proc.clone()), self.host.net(), s.id.0.clone(), available, servers, &move |f| host.spawn(f));
     }
 
     /// `before:run` vetoed it, or its harness is gone: the turn says why, and the task lands.

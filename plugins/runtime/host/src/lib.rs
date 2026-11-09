@@ -17,6 +17,7 @@ mod plugin;
 pub mod repo;
 pub mod rows;
 mod run;
+mod setup;
 mod side;
 mod specs;
 pub mod runtime;

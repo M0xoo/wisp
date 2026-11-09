@@ -479,6 +479,28 @@ impl Runtime {
         Ok(wisp_runtime_api::commands::Created { id: s.id, turn_id: None })
     }
 
+    /// An outside session already adopted (ADR-0035: never twice): its task, with the session's turns past
+    /// the ones it has appended. None when no task came from it.
+    pub async fn readopt(self: &Arc<Self>, session: &str, a: &wisp_runtime_api::spec::AdoptArgs) -> Result<Option<wisp_runtime_api::commands::Created>> {
+        // adopted from it before, or wisp's own task that ran as it (`wisp open` comes back to it)
+        let found = self.repo.sessions().await?.into_iter().find(|s| s.ext.get("wisp.adopted").and_then(|v| v.get("session")).and_then(Value::as_str) == Some(session) || s.resume_id.as_deref() == Some(session));
+        let Some(mut s) = found else { return Ok(None) };
+        let have = self.repo.turns(s.id.as_str(), None, None).await?.len();
+        let new: Vec<Turn> = a
+            .turns
+            .iter()
+            .skip(have)
+            .filter_map(|t| serde_json::from_value::<Turn>(t.clone()).ok())
+            .enumerate()
+            .map(|(i, t)| Turn { id: TurnId::new(), session_id: s.id.clone(), idx: u32::try_from(have + i).unwrap_or(u32::MAX), ..t })
+            .collect();
+        if !new.is_empty() {
+            s.updated_at = self.now();
+            self.persist(&mut s, new).await?;
+        }
+        Ok(Some(wisp_runtime_api::commands::Created { id: s.id, turn_id: None }))
+    }
+
     /// `runtime.fork`: a new task with this one's turns up to `turn_id`, resuming a copy of its conversation.
     pub async fn fork(self: &Arc<Self>, a: ForkArgs) -> Result<wisp_runtime_api::commands::Created> {
         let src = self.repo.session(a.id.as_str()).await?;

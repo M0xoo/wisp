@@ -403,3 +403,16 @@ pub struct AdoptSessionArgs {
     pub harness: String,
     pub id: String,
 }
+
+/// `runtime.restoreSession`: a harness's own session log put back into its store on this computer, for
+/// `cwd`, so its CLI resumes it (`wisp open` on a task from the repo or a share). Additive.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct RestoreSessionArgs {
+    pub harness: String,
+    pub id: String,
+    pub cwd: String,
+    /// the log, base64
+    pub raw: String,
+}

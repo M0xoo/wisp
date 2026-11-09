@@ -41,9 +41,22 @@ pub trait HarnessSessions: Send + Sync + 'static {
     fn list(&self, cwd: &str) -> BoxFuture<'static, Vec<OutsideSession>>;
     /// one session and its turns
     fn read(&self, id: &str) -> BoxFuture<'static, Option<(OutsideSession, Vec<SessionTurn>)>>;
+    /// the CLI's own log of a session, as it keeps it (what `wisp open` restores elsewhere). Additive.
+    fn raw(&self, _id: &str) -> BoxFuture<'static, Option<Vec<u8>>> {
+        Box::pin(async { None })
+    }
+    /// that log put back into the CLI's store on this computer, for `cwd`, so the CLI resumes it. Additive.
+    fn restore(&self, _id: &str, _cwd: &str, _raw: Vec<u8>) -> BoxFuture<'static, bool> {
+        Box::pin(async { false })
+    }
 }
 
 pub const SESSIONS: Point<dyn HarnessSessions> = Point::new("harness.sessions", 1);
+
+/// A session id as a file name: letters, digits, `-` and `_` only, so it never names a path.
+pub fn safe_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 128 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
 
 /// An ISO-8601 UTC time (`2026-11-08T10:00:00.123Z`) in ms; 0 when it isn't one.
 #[allow(clippy::many_single_char_names)] // y, m, d, h: the calendar

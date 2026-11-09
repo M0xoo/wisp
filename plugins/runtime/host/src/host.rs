@@ -61,6 +61,10 @@ pub trait Host: Send + Sync + 'static {
     fn summary_fields(&self) -> Vec<Arc<dyn SummaryField>> {
         Vec::new()
     }
+    /// The kernel's net service, for probing a run's HTTP MCP servers (ADR-0029). None in tests.
+    fn net(&self) -> Option<wisp_kernel::services::NetService> {
+        None
+    }
     fn after_steps(&self) -> Vec<Arc<dyn AfterTurn>> {
         Vec::new()
     }

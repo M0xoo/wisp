@@ -111,6 +111,8 @@ command!(Quick = "runtime.quick": QuickArgs => QuickResult);
 command!(ProjectRun = "runtime.projectRun": ProjectRunArgs => Value);
 command!(Sessions = "runtime.sessions": SessionsArgs => Vec<crate::harness::sessions::OutsideSession>, read_only);
 command!(AdoptSession = "runtime.adoptSession": AdoptSessionArgs => Created);
+command!(RestoreSession = "runtime.restoreSession": RestoreSessionArgs => Value);
+command!(TaskSetup = "runtime.setup": IdArgs => Value, read_only);
 command!(Agents = "runtime.agents": AgentsArgs => Vec<AgentStatus>, read_only);
 command!(Card = "runtime.card": CardArgs => Created);
 command!(Fork = "runtime.fork": ForkArgs => Created);

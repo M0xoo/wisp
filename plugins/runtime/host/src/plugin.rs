@@ -34,6 +34,9 @@ struct CtxHost {
 }
 
 impl Host for CtxHost {
+    fn net(&self) -> Option<wisp_kernel::services::NetService> {
+        wisp_kernel::services::net(&self.ctx).ok()
+    }
     fn emit(&self, e: Emitted) {
         let call = self.ctx.root_call();
         match e {
@@ -330,9 +333,42 @@ fn more(s: &mut Setup, slot: &Slot, harness_kind: Arc<wisp_resources_api::Stored
     s.command::<c::AdoptSession, _, _>(move |ctx, _call, a| {
         let slot = adopting.clone();
         async move {
+            if !wisp_runtime_api::harness::sessions::safe_id(&a.id) {
+                return Err(WireError::invalid(format!("{} isn't a session id", a.id)));
+            }
             let h = ctx.contributions(&wisp_runtime_api::harness::sessions::SESSIONS).into_iter().find(|h| h.harness() == a.harness).ok_or_else(|| WireError::not_found(format!("{} can't read its sessions", a.harness)))?;
             let (sess, turns) = h.read(&a.id).await.ok_or_else(|| WireError::not_found(format!("no {} session {}", a.harness, a.id)))?;
-            rt(&slot)?.adopt(crate::specs::adopted(&sess, &turns)).await.map_err(WireError::from)
+            let args = crate::specs::adopted(&sess, &turns);
+            let rt = rt(&slot)?;
+            if let Some(made) = rt.readopt(&sess.id, &args).await.map_err(WireError::from)? {
+                return Ok(made);
+            }
+            rt.adopt(args).await.map_err(WireError::from)
+        }
+    });
+    s.command::<c::RestoreSession, _, _>(|ctx, _call, a| async move {
+        use base64::Engine as _;
+        if !wisp_runtime_api::harness::sessions::safe_id(&a.id) {
+            return Err(WireError::invalid(format!("{} isn't a session id", a.id)));
+        }
+        let h = ctx.contributions(&wisp_runtime_api::harness::sessions::SESSIONS).into_iter().find(|h| h.harness() == a.harness).ok_or_else(|| WireError::not_found(format!("{} can't take a session back", a.harness)))?;
+        let raw = base64::engine::general_purpose::STANDARD.decode(a.raw.as_bytes()).map_err(|e| WireError::invalid(e.to_string()))?;
+        Ok(serde_json::json!({ "restored": h.restore(&a.id, &a.cwd, raw).await }))
+    });
+    let setups = slot.clone();
+    s.command::<c::TaskSetup, _, _>(move |_ctx, _call, a| {
+        let slot = setups.clone();
+        async move {
+            let rt = rt(&slot)?;
+            let id = a.id.as_str();
+            let s = rt.repo.session(id).await.map_err(WireError::from)?;
+            let mut steps = Vec::new();
+            for t in rt.repo.turns(id, None, None).await.map_err(WireError::from)? {
+                steps.extend(rt.repo.steps(t.id.as_str(), None).await.map_err(WireError::from)?);
+            }
+            let available = crate::setup::load(&rt.repo.store, id).await;
+            let note = if available.is_some() { serde_json::Value::Null } else if s.ext.contains_key("wisp.adopted") { serde_json::json!("it ran outside wisp: what it had isn't known") } else { serde_json::json!("not recorded (it ran before wisp kept setups)") };
+            Ok(serde_json::json!({ "id": id, "available": available, "note": note, "used": crate::setup::used(&steps) }))
         }
     });
     let (agents, harnesses) = (slot.clone(), harness_kind);

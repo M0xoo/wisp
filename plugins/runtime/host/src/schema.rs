@@ -42,6 +42,8 @@ pub const MIGRATIONS: &[Migration] = &[
         "CREATE TABLE runtime_profile (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
          CREATE TABLE runtime_formula (id TEXT PRIMARY KEY, body TEXT NOT NULL, created_at INTEGER NOT NULL) STRICT;",
     ),
+    // ADR-0029: what each task had (skills, MCP servers and their tools, permissions), recorded at its first run
+    Migration::sql(3, "CREATE TABLE runtime_setup (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;"),
 ];
 
 fn session_of(r: &Row, key: &str) -> String {
@@ -174,10 +176,26 @@ pub const FORMULA: EntityDef = EntityDef {
     topics: formula_topics,
 };
 
+fn setup_topics(r: &Row) -> Vec<String> {
+    vec![session_topic(&session_of(r, "id"))]
+}
+
+/// A task's recorded setup, by session id (ADR-0029).
+pub const SETUP: EntityDef = EntityDef {
+    kind: "task_setup",
+    table: "runtime_setup",
+    key: "id",
+    columns: &[("id", Col::Text), ("body", Col::Text)],
+    json_columns: &["body"],
+    parent: None,
+    seq: None,
+    topics: setup_topics,
+};
+
 /// Runs the migrations and registers the kinds and the search index. At start, before any command.
 pub fn install(store: &wisp_store::Store) -> wisp_store::Result<()> {
     store.migrate(OWNER, MIGRATIONS)?;
-    for def in [SESSION, TURN, EVENT, QUEUE_ITEM, PROFILE, FORMULA] {
+    for def in [SESSION, TURN, EVENT, QUEUE_ITEM, PROFILE, FORMULA, SETUP] {
         store.define_entity(def)?;
     }
     store.define_search("session", &["title"])?;
