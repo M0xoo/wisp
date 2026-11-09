@@ -246,6 +246,11 @@ impl Cron {
 }
 
 /// Does the cron fire in the (local) minute `utc_ms` falls in?
+/// Whether a local wall-clock time (ms, as if UTC) matches: what a schedule's "which minutes" asks, DST aside.
+pub fn matches_local(c: &Cron, local_ms: i64) -> bool {
+    c.local_matches(&local_fields(local_ms))
+}
+
 pub fn matches(c: &Cron, utc_ms: i64, zone: &dyn Zone) -> bool {
     c.local_matches(&local_fields(utc_ms + zone.offset_ms(utc_ms)))
 }

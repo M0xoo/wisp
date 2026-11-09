@@ -15,6 +15,8 @@
 //!
 //! A run is a parent task whose children are its steps: every frontend shows it as one row.
 
+/// `${{ … }}` expressions (ADR-0028), also triggers' `if:` (ADR-0043).
+pub mod expr;
 use std::collections::BTreeMap;
 
 use schemars::JsonSchema;

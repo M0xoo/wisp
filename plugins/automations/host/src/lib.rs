@@ -4,8 +4,10 @@
 //! spec kept as a template in `automations_task`; `automations.task.run` makes a task from it (its
 //! `{params}` filled, the spec's fields under the run's), and its schedule fires it once per matching
 //! minute (`automations_task_run` keeps the minute it last fired, so a restart in that minute doesn't
-//! fire it twice). Recipes are declared tasks with params. Triggers, watchers and webhooks come next.
+//! fire it twice). Recipes are declared tasks with params. Triggers are one engine (ADR-0043, `engine.rs`,
+//! `trigger.rs`).
 
+pub mod engine;
 mod trigger;
 
 use std::collections::BTreeMap;
@@ -24,7 +26,7 @@ const MIGRATIONS: &[Migration] = &[Migration::sql(
     1,
     "CREATE TABLE automations_task (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;
      CREATE TABLE automations_task_run (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;",
-)];
+), Migration::sql(2, "CREATE TABLE automations_trigger_state (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;")];
 
 fn topics(_: &Row) -> Vec<String> {
     vec!["plugin:wisp.automations:tasks".into()]
@@ -208,7 +210,9 @@ impl Plugin for AutomationsPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
-        crate::trigger::register(s);
+        let engine = Arc::new(engine::Engine::new());
+        crate::trigger::register(s, &engine);
+        let started = engine.clone();
         // a scheduled task acts without you: a foreign formula's needs --trust (ADR-0028)
         let info = KindInfo::new("task", "tasks", wisp_automations_api::PLUGIN_ID, schema_of::<TaskDecl>()).order(80).sensitive().alias("recipes");
         let kind: Arc<dyn ResourceKind> = Arc::new(TaskKind(CrudKind::new::<TaskDecl>(info, s.ctx(), "automations.tasks", "automations.task.set", "automations.task.set", "automations.task.remove").keyed("name", "name", "name")));
@@ -224,12 +228,13 @@ impl Plugin for AutomationsPlugin {
             let store = ctx.service::<Store>()?;
             run(&ctx, &call, &store, r, "hand").await
         });
-        s.on_start(|ctx| async move {
+        s.on_start(move |ctx| async move {
             let store = ctx.service::<Store>()?;
             store.migrate(OWNER, MIGRATIONS).map_err(store_err)?;
-            for d in [TASK, RUN] {
+            for d in [TASK, RUN, engine::STATE] {
                 store.define_entity(d).map_err(store_err)?;
             }
+            started.open((*store).clone());
             let clock = ctx.clock()?;
             let c2 = ctx.clone();
             ctx.spawn(async move {

@@ -9,7 +9,8 @@
 //!
 //! size-ok: one runner's decisions with their tests (the scheduler, checks, expansion and outputs)
 
-pub mod expr;
+/// The expressions live in the api crate (pure), so other plugins evaluate `if:` the same way (ADR-0043).
+pub use wisp_workflows_api::expr;
 
 use std::collections::BTreeMap;
 

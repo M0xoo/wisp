@@ -199,3 +199,137 @@ command!(
     /// Gone for good (an import undone): the member's triggers go, as if never made.
     ForgetMember = "automations.forgetMember", PERM_CREW, false, CrewArgs => Count
 );
+
+// ---- the one trigger engine (ADR-0043): `wisp trigger …`, the MCP tools, the Automations pane ----
+
+/// A trigger, by name (`crew.<member>.<n>` for a member's wake).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct NameArgs {
+    pub name: String,
+}
+
+/// `wisp trigger fire <name> [--payload @file]`: an event by hand (`manual`, or the trigger's own `on`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct FireArgs {
+    pub name: String,
+    /// the event's payload (a GitHub Action step's JSON)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "unknown")]
+    pub payload: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub summary: Option<String>,
+}
+
+/// What a trigger did with an event: started | queued | held | skipped | batched | awaiting | nothing.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct FireOut {
+    pub result: String,
+    #[serde(default)]
+    pub why: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub session: Option<String>,
+}
+
+/// `wisp trigger test <name> [--event @file | --last N]`: the decision and the filled prompt, starting nothing.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct TestArgs {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub event: Option<crate::TriggerEvent>,
+    /// the last N durable events of its `on` (default 5)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub last: Option<u32>,
+}
+
+/// One event's dry run.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct Tried {
+    pub key: String,
+    pub summary: String,
+    /// would start | would queue | would hold | would skip | would batch | would wait for a yes | not for it
+    pub result: String,
+    #[serde(default)]
+    pub why: String,
+    /// the prompt it would send
+    #[serde(default)]
+    pub prompt: String,
+}
+
+/// A trigger in the list: its spec, where it comes from, and its state.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "automations/")]
+pub struct TriggerRow {
+    pub name: String,
+    #[ts(type = "unknown")]
+    pub spec: Value,
+    /// `trigger` (declared) or the plugin that provides it (`wisp.crew`)
+    pub from: String,
+    /// on | off | paused | unavailable
+    pub state: String,
+    #[serde(default)]
+    pub why: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
+    pub last_run_at: Option<i64>,
+    pub runs: u32,
+    pub queued: u32,
+    pub awaiting: u32,
+}
+
+/// One delivery in a trigger's log.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct LogLine {
+    #[ts(type = "number")]
+    pub at: i64,
+    pub result: String,
+    pub why: String,
+    pub key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub session: Option<String>,
+}
+
+/// A yes (or no) to a job waiting for approval.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct ApproveArgs {
+    pub name: String,
+    pub job: String,
+    pub yes: bool,
+}
+
+/// A source the engine knows, and whether its plugin is on.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "automations/")]
+pub struct SourceRow {
+    pub plugin: String,
+    pub available: bool,
+    #[serde(flatten)]
+    pub on: crate::SourceOn,
+}
+
+command!(TriggerLs = "automations.trigger.ls", PERM_READ, true, Empty => Vec<TriggerRow>);
+command!(TriggerFire = "automations.trigger.fire", PERM_RUN, false, FireArgs => FireOut);
+command!(TriggerTest = "automations.trigger.test", PERM_READ, true, TestArgs => Vec<Tried>);
+command!(TriggerLog = "automations.trigger.log", PERM_READ, true, NameArgs => Vec<LogLine>);
+command!(
+    /// a source's event (a chat message, files changing): every trigger on it decides
+    TriggerPush = "automations.trigger.push", PERM_RUN, false, crate::TriggerEvent => Count
+);
+command!(TriggerApprove = "automations.trigger.approve", PERM_RUN, false, ApproveArgs => FireOut);
+command!(
+    /// a paused trigger (three failures) runs again
+    TriggerResume = "automations.trigger.resume", PERM_WRITE, false, NameArgs => Done
+);
+command!(Sources = "automations.sources", PERM_READ, true, Empty => Vec<SourceRow>);
