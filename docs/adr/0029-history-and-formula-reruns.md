@@ -87,3 +87,8 @@ Each one is a test named after it.
   built-in tools.
 - `an_adopted_task_says_its_setup_is_unknown`: a task adopted from outside wisp has no recorded setup and says
   so; what it used is still read from its transcript.
+- `a_probe_that_times_out_says_so` (added 2026-11-09): a server that doesn't answer within 5 s is recorded
+  `probe: failed` with `why: "timed out after 5 s"`, not as a server that didn't answer `initialize`.
+- `output_already_written_survives_a_late_reader` (wisp-proc, added 2026-11-09): what a probed server wrote
+  before it exited is read however busy the runtime is; once it's gone, a reader stops after 300 ms with
+  nothing coming (a background process holding the pipe), or 5 s after the exit at most.
