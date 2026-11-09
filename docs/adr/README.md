@@ -43,3 +43,4 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0036](0036-my-stuff-and-apps.md) | My Stuff is data (store + blobs); apps and panes are sandboxed UI plugins, declarable as code |
 | [0037](0037-hosts-for-peers-channels-and-keys.md) | Hosts for peers (loopback, machines HTTP client), the channels hub, API keys at the edge |
 | [0038](0038-share-through-wisp-cloud.md) | One Share for everything (tasks, setups, stuff, apps, plugins), wisp Cloud by default, file/gist/git always available |
+| [0039](0039-docs-site.md) | docs.trywisp.dev: Diátaxis structure, App/TUI/CLI/SDK tabs, generated reference, tested examples, llms.txt, Starlight |
