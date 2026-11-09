@@ -111,6 +111,11 @@ pub struct Flags {
     pub detach: bool,
     /// `--watch`: `ls` and `show` follow their topic
     pub watch: bool,
+    /// terminal context (ADR-0023): `--context` / `--no-context`; None: when the prompt asks about what's above
+    pub context: Option<bool>,
+    pub show_context: bool,
+    /// `--lines N`: how much of the terminal's output
+    pub lines: Option<usize>,
     /// `--help` after words (`wisp crew create --help`)
     pub help: bool,
 }
@@ -151,6 +156,9 @@ impl Flags {
             dry_run: false,
             detach: false,
             watch: false,
+            context: None,
+            show_context: false,
+            lines: None,
             help: false,
         }
     }
@@ -278,6 +286,16 @@ fn set(f: &mut Flags, a: &str, value: &mut dyn FnMut() -> Result<String, UsageEr
         "--dry-run" => f.dry_run = true,
         "--detach" | "-d" => f.detach = true,
         "--watch" => f.watch = true,
+        "--context" => f.context = Some(true),
+        "--no-context" => f.context = Some(false),
+        "--show-context" => {
+            f.show_context = true;
+            f.context = Some(true);
+        }
+        "--lines" => {
+            let v = value()?;
+            f.lines = Some(v.parse().map_err(|_| UsageError(format!("--lines {v}: a number of lines")))?);
+        }
         _ => return Ok(false),
     }
     Ok(true)

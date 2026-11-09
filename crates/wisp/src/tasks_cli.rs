@@ -31,7 +31,9 @@ fn setup_text(v: &Value) -> String {
     if a.is_null() {
         out.push(format!("Setup: {}", v["note"].as_str().unwrap_or("not recorded")));
     } else {
-        out.push(format!("Harness: {} {} ({} mode{})", s(a, "harness"), s(a, "model"), a["mode"].as_str().unwrap_or_default(), if a.pointer("/permissions/untrusted") == Some(&json!(true)) { ", untrusted repo" } else { "" }));
+        let hv = if s(a, "harnessVersion").is_empty() { String::new() } else { format!(" v{}", s(a, "harnessVersion")) };
+        let hc = if s(a, "harnessChangedSince").is_empty() { String::new() } else { format!("  · changed since: {}", s(a, "harnessChangedSince")) };
+        out.push(format!("Harness: {}{hv} {} ({} mode{}){hc}", s(a, "harness"), s(a, "model"), a["mode"].as_str().unwrap_or_default(), if a.pointer("/permissions/untrusted") == Some(&json!(true)) { ", untrusted repo" } else { "" }));
         out.push("Skills:".into());
         for k in a["skills"].as_array().into_iter().flatten() {
             let n = v.pointer(&format!("/used/skills/{}", s(k, "name"))).and_then(Value::as_u64).unwrap_or(0);
@@ -44,7 +46,8 @@ fn setup_text(v: &Value) -> String {
                 "failed" => format!("not probed: {}", s(m, "why")),
                 other => other.to_owned(),
             };
-            out.push(format!("  {}  {}  ({probe})", s(m, "name"), s(m, "at")));
+            let since = if s(m, "changedSince").is_empty() { String::new() } else { format!("  · changed since: {}", s(m, "changedSince")) };
+            out.push(format!("  {}  {}  ({probe}){since}", s(m, "name"), s(m, "at")));
         }
     }
     out.push("Used:".into());

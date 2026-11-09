@@ -17,7 +17,7 @@ path = "src/main.rs"
 # scripts that name it.
 default = ["proc", "all-plugins"]
 full = ["default"]
-all-plugins = ["cli", "events", "resources", "workflows", "share", "history", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "machines", "grid-client", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update"]
+all-plugins = ["cli", "events", "resources", "workflows", "share", "history", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "machines", "grid-client", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update", "termctx"]
 proc = ["dep:wisp-proc"]
 cli = ["dep:wisp-cli"]
 resources = ["dep:wisp-resources"]
@@ -44,6 +44,7 @@ lsp = ["dep:wisp-lsp"]
 machine = ["dep:wisp-machine"]
 machines = ["dep:wisp-machines"]
 events = ["dep:wisp-events"]
+termctx = ["dep:wisp-termctx"]
 grid-client = ["dep:wisp-grid-client"]
 crew = ["dep:wisp-crew"]
 goal = ["dep:wisp-goal"]
@@ -89,6 +90,7 @@ wisp-automations-api.workspace = true
 wisp-resources-core.workspace = true
 wisp-cli-api.workspace = true
 wisp-cli-core.workspace = true
+ratatui.workspace = true
 wisp-sync.workspace = true
 wisp-settings = { path = "../../plugins/settings/host", optional = true }
 wisp-runtime = { path = "../../plugins/runtime/host", optional = true }
@@ -110,6 +112,9 @@ wisp-lsp = { path = "../../plugins/lsp/host", optional = true }
 wisp-machine = { path = "../../plugins/machine/host", optional = true }
 wisp-machines = { path = "../../plugins/machines/host", optional = true }
 wisp-events = { path = "../../plugins/events/host", optional = true }
+wisp-termctx = { path = "../../plugins/termctx/host", optional = true }
+wisp-termctx-core.workspace = true
+wisp-termctx-api.workspace = true
 wisp-grid-client = { path = "../../plugins/grid-client/host", optional = true }
 wisp-crew = { path = "../../plugins/crew/host", optional = true }
 wisp-goal = { path = "../../plugins/goal/host", optional = true }

@@ -138,7 +138,7 @@ fn stdin_lines() -> mpsc::Receiver<String> {
 }
 
 /// One sync connection to the local wisp, for one or more topics.
-struct Conn {
+pub(crate) struct Conn {
     c: Client,
     id: String,
     sync: SyncClient,
@@ -150,13 +150,13 @@ struct Conn {
 }
 
 /// What the connection handed the view.
-enum Got {
+pub(crate) enum Got {
     Snapshot(Vec<Row>),
     Ops(Vec<wisp_protocol::EntityOp>),
 }
 
 impl Conn {
-    fn new(c: &Client, topics: &[String]) -> Self {
+    pub(crate) fn new(c: &Client, topics: &[String]) -> Self {
         let id = format!("cli-{}", crate::services::hex(&rand::random::<[u8; 8]>()));
         let mut sync = SyncClient::new(Options::new("local", id.clone(), crate::serve::VERSION));
         for t in topics {
@@ -193,13 +193,13 @@ impl Conn {
         Ok(got)
     }
 
-    async fn start(&mut self) -> Result<Vec<Got>> {
+    pub(crate) async fn start(&mut self) -> Result<Vec<Got>> {
         let outs = self.sync.handle(Input::Open, self.now());
         self.carry(outs).await
     }
 
     /// The next thing from the stream: a chunk's frames, its end, or the reconnect time.
-    async fn next(&mut self) -> Result<Vec<Got>> {
+    pub(crate) async fn next(&mut self) -> Result<Vec<Got>> {
         let wake = self.retry;
         let ev = tokio::select! {
             ev = self.rx.recv() => ev,

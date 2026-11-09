@@ -68,18 +68,20 @@ async fn launch(c: &Client, p: &Parsed, args: &[String], cwd: &str) -> Result<()
     }
     let prompt = args.join(" ");
     let mut made = Vec::new();
-    match &f.compare {
-        Some(runs) => {
-            for r in runs {
-                let mut a = sc::launch_args(f, &prompt, cwd);
-                a["agent"] = json!(r.agent);
-                if let Some(m) = &r.model {
-                    a["model"] = json!(m);
-                }
-                made.push(c.cmd("runtime.create", a).await?);
+    if let Some(runs) = &f.compare {
+        for r in runs {
+            let mut a = sc::launch_args(f, &prompt, cwd);
+            a["agent"] = json!(r.agent);
+            if let Some(m) = &r.model {
+                a["model"] = json!(m);
             }
+            made.push(c.cmd("runtime.create", a).await?);
         }
-        None => made.push(c.cmd("runtime.create", sc::launch_args(f, &prompt, cwd)).await?),
+    } else {
+        let mut a = sc::launch_args(f, &prompt, cwd);
+        let home = crate::services::home(std::env::var("WISP_HOME").ok().as_deref(), std::env::var_os("HOME").map(std::path::PathBuf::from));
+        crate::termctx_cli::attach(c, p, &mut a, &prompt, cwd, &home).await;
+        made.push(c.cmd("runtime.create", a).await?);
     }
     if !f.wait {
         let lines: Vec<String> = made.iter().map(|m| format!("  ◌ launched: {}  wisp attach {}", s(m, "id"), s(m, "id"))).collect();

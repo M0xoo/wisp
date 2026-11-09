@@ -12,7 +12,12 @@ mod code;
 mod commands;
 mod desktop;
 mod events_cli;
+#[cfg(test)]
+mod ci_tests;
+mod hook_cli;
+mod termctx_cli;
 mod trigger_cli;
+mod tui;
 mod extras;
 mod folder;
 mod repo_cli;
@@ -150,6 +155,9 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Optio
     let start = p.argv.iter().position(|a| a == first).map_or(0, |i| i + 1);
     let o = code::opts(&p.argv[start.min(p.argv.len())..]);
     let o = code::Opts { json: o.json || p.flags.json, yes: o.yes || p.flags.yes, dry_run: o.dry_run || p.flags.dry_run, wait: o.wait || p.flags.wait, ..o };
+    if let Some(code) = areas(first, p, &o, port, cwd).await? {
+        return Ok(Some(code));
+    }
     let connect = || Client::connect(port, true);
     let code = match first {
         "apply" | "diff" | "validate" | "plan" | "destroy" if !o.files.is_empty() || folder::folder(&o, cwd).is_some() => code::apply(&connect().await?, first, &o, cwd).await?,
@@ -213,10 +221,6 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Optio
         "share" if o.words.len() == 1 && args::session_id(&o.words[0]) => share_cli::share(&connect().await?, &o, cwd).await?,
         "share" if o.words.len() == 1 && o.words[0].split_once('.').is_some_and(|(k, n)| !k.is_empty() && !n.is_empty() && !n.contains(' ')) => cloud_cli::share_setup(&connect().await?, &o).await?,
         "events" if matches!(o.words.first().map(String::as_str), None | Some("tail" | "why" | "retry" | "parked" | "ls")) => events_cli::run(&connect().await?, &p.argv, o.json).await?,
-        "trigger" | "triggers" if matches!(o.words.first().map(String::as_str), None | Some("add" | "ls" | "list" | "rm" | "remove" | "fire" | "test" | "log" | "resume" | "approve" | "sources")) => trigger_cli::run(&connect().await?, p, first, &cwd.display().to_string()).await?,
-        "crew" if matches!(o.words.first().map(String::as_str), Some("wake" | "graph")) => trigger_cli::run(&connect().await?, p, "crew", &cwd.display().to_string()).await?,
-        "sandbox" | "sandboxes" if matches!(o.words.first().map(String::as_str), None | Some("new" | "add" | "ls" | "list" | "rm" | "remove" | "delete")) => cloud_cli::sandbox(&connect().await?, &o).await?,
-        "team" | "teams" if matches!(o.words.first().map(String::as_str), None | Some("ls" | "list" | "new" | "create" | "show" | "add" | "rm" | "remove")) => cloud_cli::team(&connect().await?, &o).await?,
         "shares" if o.words.is_empty() => cloud_cli::shares(&connect().await?, &o).await?,
         "cloud" if o.words.len() <= 2 && matches!(o.words.first().map(String::as_str), None | Some("signin" | "login" | "signout" | "logout" | "status")) => cloud_cli::cloud(&connect().await?, &o).await?,
         "computer" if o.words.len() <= 1 && matches!(o.words.first().map(String::as_str), None | Some("on" | "off" | "status")) => cloud_cli::computer(&connect().await?, &o).await?,
@@ -235,6 +239,29 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Optio
             Some(code) => code,
             None => return Ok(None),
         },
+        _ => return Ok(None),
+    };
+    Ok(Some(code))
+}
+
+/// `wisp shell-init`, `wisp trigger …`, `wisp crew wake|graph`, `wisp sandbox …`, `wisp team …` (ADR-0023, 0043, 0041).
+async fn areas(first: &str, p: &Parsed, o: &code::Opts, port: u16, cwd: &Path) -> Result<Option<i32>> {
+    let connect = || Client::connect(port, true);
+    let o = o.clone();
+    let code = match first {
+        "hook" if o.words.len() <= 1 && matches!(o.words.first().map(String::as_str), None | Some("install" | "uninstall" | "remove" | "status")) => hook_cli::run(&o.words, cwd)?,
+        "tui" if o.words.is_empty() => tui::run(&connect().await?, &cwd.display().to_string()).await?,
+        "shell-init" if o.words.len() == 1 => match termctx_cli::shell_init(&o.words[0]) {
+            Ok(script) => {
+                say(&script);
+                0
+            }
+            Err(e) => return Err(CliError::said(e)),
+        },
+        "trigger" | "triggers" if matches!(o.words.first().map(String::as_str), None | Some("add" | "ls" | "list" | "rm" | "remove" | "fire" | "test" | "log" | "resume" | "approve" | "sources")) => trigger_cli::run(&connect().await?, p, first, &cwd.display().to_string()).await?,
+        "crew" if matches!(o.words.first().map(String::as_str), Some("wake" | "graph")) => trigger_cli::run(&connect().await?, p, "crew", &cwd.display().to_string()).await?,
+        "sandbox" | "sandboxes" if matches!(o.words.first().map(String::as_str), None | Some("new" | "add" | "ls" | "list" | "rm" | "remove" | "delete")) => cloud_cli::sandbox(&connect().await?, &o).await?,
+        "team" | "teams" if matches!(o.words.first().map(String::as_str), None | Some("ls" | "list" | "new" | "create" | "show" | "add" | "rm" | "remove")) => cloud_cli::team(&connect().await?, &o).await?,
         _ => return Ok(None),
     };
     Ok(Some(code))
@@ -359,7 +386,10 @@ async fn add(_home: &Path, port: u16, what: Option<&String>, cwd: &Path) -> Resu
 /// attached (the run live, then a reply box); `-d`, or no terminal, returns with its id.
 async fn launch_and_open(p: &Parsed, home: &Path, port: u16, cwd: &str) -> Result<i32> {
     let c = Client::connect(port, true).await?;
-    let made = c.cmd("runtime.create", scripted::launch_args(&p.flags, &p.words.join(" "), cwd)).await?;
+    let prompt = p.words.join(" ");
+    let mut args = scripted::launch_args(&p.flags, &prompt, cwd);
+    termctx_cli::attach(&c, p, &mut args, &prompt, cwd, home).await;
+    let made = c.cmd("runtime.create", args).await?;
     let id = made.get("id").and_then(Value::as_str).unwrap_or("").to_owned();
     let title = c.cmd("runtime.get", json!({ "id": id })).await.ok().and_then(|t| t.get("title").and_then(Value::as_str).map(str::to_owned)).unwrap_or_default();
     let tty = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();

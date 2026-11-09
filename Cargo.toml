@@ -75,6 +75,8 @@ wisp-router-api = { path = "plugins/router/api" }
 wisp-router-core = { path = "plugins/router/core" }
 wisp-automations-api = { path = "plugins/automations/api" }
 wisp-automations-core = { path = "plugins/automations/core" }
+wisp-termctx-api = { path = "plugins/termctx/api" }
+wisp-termctx-core = { path = "plugins/termctx/core" }
 wisp-learn-api = { path = "plugins/learn/api" }
 wisp-learn-core = { path = "plugins/learn/core" }
 # git, worktrees, ship, issues, review (owned by the git agent)
@@ -152,6 +154,7 @@ jiff = "0.2.39"
 serde-saphyr = "2.1.1"
 toml = { version = "1.2", default-features = false, features = ["parse", "serde", "display"] }
 schemars = "1.2"
+ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "stream", "http2"] }
 rusqlite = { version = "0.41", features = ["bundled", "functions", "serde_json", "blob"] }
 serde = { version = "1", features = ["derive"] }
