@@ -32,6 +32,8 @@ pub fn info() -> HarnessInfo {
         name: "Claude Code".into(),
         models: vec![
             model("", "Default", "Whatever Claude Code is set to"),
+            // Claude Code 2.1.321 takes `--model fable` (Fable 5.2, claude-fable-5-2)
+            model("fable", "Fable", "Newest and most capable"),
             model("opus", "Opus", "Most capable, for hard problems"),
             model("sonnet", "Sonnet", "Fast and smart, everyday work"),
             model("haiku", "Haiku", "Fastest, for quick tasks"),
@@ -210,9 +212,17 @@ mod tests {
     }
 
     #[test]
+    fn claude_catalogue_lists_fable() {
+        let ids: Vec<String> = info().models.iter().map(|m| m.id.clone()).collect();
+        assert_eq!(ids[..2], [String::new(), "fable".to_owned()], "Fable first after Default");
+        let f = &info().models[1];
+        assert_eq!((f.label.as_str(), f.hint.as_deref()), ("Fable", Some("Newest and most capable")));
+    }
+
+    #[test]
     fn info_is_v1s() {
         let i = info();
-        assert_eq!((i.id.as_str(), i.models.len(), i.efforts.len()), ("claude", 4, 5));
+        assert_eq!((i.id.as_str(), i.models.len(), i.efforts.len()), ("claude", 5, 5));
         assert!(i.fork && i.reports_cli && i.system_prompt_flag);
     }
 

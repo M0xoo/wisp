@@ -251,3 +251,23 @@ pub fn round(x: f64, d: i32) -> f64 {
     let f = 10f64.powi(d);
     (x * f).round() / f
 }
+
+#[cfg(test)]
+mod fable_tests {
+    use super::*;
+
+    /// Fable 5.2 (`claude:fable`) is ranked a frontier model, is its own family (never folded into Opus), and the
+    /// never-pick and prefer rules name it like any model.
+    #[test]
+    fn router_ranks_claude_fable() {
+        assert_eq!(tier_of("claude:fable"), 3);
+        assert_eq!(tier_of("claude:fable:high"), 3);
+        assert_ne!(family("claude:fable"), family("claude:opus"));
+        assert_eq!(family("claude:claude-fable-5-2"), family("claude:claude-fable-5-3"), "versions are one family");
+        assert!(rule_matches("claude:fable", "claude:fable:high", None));
+        assert!(rule_matches("claude:fable@ui", "claude:fable", Some("ui")));
+        assert!(!rule_matches("claude:fable", "claude:opus:high", None));
+        assert!(!rule_matches("claude:opus", "claude:fable", None));
+        assert_eq!(split_key(&canon("claude:fable")).model, "fable");
+    }
+}

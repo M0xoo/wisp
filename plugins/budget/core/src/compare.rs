@@ -35,6 +35,7 @@ fn subagent_name(m: &str) -> String {
     match m {
         "haiku" => "Haiku".into(),
         "sonnet" => "Sonnet".into(),
+        "fable" => "Fable".into(),
         _ => m.to_owned(),
     }
 }
@@ -387,4 +388,17 @@ pub fn compare_rows(sessions: &[RunLike], now: i64) -> Vec<CompareRow> {
         }
     }
     rows
+}
+
+#[cfg(test)]
+mod fable_tests {
+    use super::*;
+
+    #[test]
+    fn budget_labels_fable() {
+        assert_eq!(subagent_name("fable"), "Fable");
+        let names = DiffNames { agent: &|x| x.to_owned(), model: &|x| x.to_owned(), account: &|x| x.to_owned(), task_model: "Opus" };
+        let words = differs_words(&[("subagentModel".to_owned(), vec!["fable".to_owned(), "haiku".to_owned()])], &names);
+        assert_eq!(words, "Subagents: Fable → Haiku");
+    }
 }
