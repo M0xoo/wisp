@@ -3,7 +3,7 @@
 //! and nothing about any one channel: each hands in its ids and the time, and gets a verdict.
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use wisp_channels_api::{Capped, Mode};
+use crate::{Capped, Mode};
 
 /// A channel can keep messages for a day: don't run what was sent while wisp was off.
 pub const STALE_S: i64 = 10 * 60;

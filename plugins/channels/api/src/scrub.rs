@@ -1,6 +1,6 @@
 //! What may leave: secrets out, mentions defused, names you didn't type hidden, no image or tag that
 //! renders. Every outbound message of every transport goes through these.
-use wisp_channels_api::{Action, AskView, ChannelCtx, Msg};
+use crate::{Action, AskView, ChannelCtx, Msg};
 
 use crate::secrets;
 

@@ -16,6 +16,7 @@ tracing.workspace = true
 wisp-channels-api.workspace = true
 wisp-kernel.workspace = true
 wisp-telegram-core.workspace = true
+tokio = { workspace = true, features = ["macros"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }

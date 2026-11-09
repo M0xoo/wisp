@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 use wisp_channels_api::views::{
     ActArgs, ActKind, ActionKind, ChannelCtx, Parsed, ProjectView, Remote, RunOpts, SessionView, Signed, StartOpts, Started, Thread, ThreadCtx,
 };
-use wisp_channels_api::{AwayEntry, BoxApi, BoxGrid, ChannelHub, ChannelUrl, Exec, ExecOut, HttpRequest, HttpResponse, Later, Net, NetError, Phone, Status, Ws, WsConn};
+use wisp_channels_api::{AwayEntry, BoxApi, BoxGrid, ChannelHub, ChannelUrl, Exec, ExecOut, HttpRequest, HttpResponse, Later, Net, NetError, Phone, Status, Ws};
 use wisp_kernel::services::NetRequest;
 use wisp_kernel::{BoxFuture, Ctx, Result, WireError};
 
@@ -47,15 +47,6 @@ impl Net for KNet {
             .await
             .map_err(|e| NetError::Broken(e.message))?;
         Ok(HttpResponse { status: r.status, headers: r.headers, body: r.body })
-    }
-}
-
-/// No WebSocket client yet: Slack's Socket Mode and Discord's gateway say so.
-struct NoWs;
-#[async_trait]
-impl Ws for NoWs {
-    async fn connect(&self, _url: &str) -> std::result::Result<Box<dyn WsConn>, NetError> {
-        Err(NetError::Refused("wisp.channels has no WebSocket client yet".into()))
     }
 }
 
@@ -249,7 +240,7 @@ impl ChannelHub for Hub {
         Arc::new(KNet(self.ctx.clone()))
     }
     fn ws(&self) -> Arc<dyn Ws> {
-        Arc::new(NoWs)
+        Arc::new(crate::ws::KWs)
     }
     fn exec(&self) -> Arc<dyn Exec> {
         Arc::new(KExec(self.ctx.clone()))

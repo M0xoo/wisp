@@ -4,6 +4,7 @@
 //! sends what the notifications ask for: `finished`, `failed` and `asks` to a channel or a webhook.
 //! Transports own their wire; every IO they do goes through the hub's handles (`hub.rs`).
 
+mod ws;
 mod hub;
 mod kinds;
 
