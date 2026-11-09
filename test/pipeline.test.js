@@ -181,11 +181,12 @@ test('Best of two is off by default: the Best goal runs once', async () => {
 
 test('Best goal: two frontier picks side by side, and wisp marks the better one', async () => {
   await api('/router', { best2: true }, 'PATCH');
-  // Claude alone has one frontier model (Opus): Best runs it alone rather than add Sonnet.
+  // Claude alone has two frontier models: Opus leads and Fable (no benchmark row, on probation)
+  // is the second pick. Sonnet is never added to make up a pair.
   const solo = await api('/sessions', { prompt: 'fix the add bug', cwd: testRepo(), agent: 'auto', model: 'best', mode: 'edits' });
-  assert.equal(solo.group, undefined);
   assert.equal(`${solo.agent}:${solo.model}`, 'claude:opus');
-  await settledAll([solo.id]);
+  assert.deepEqual(solo.group.map((r) => `${r.agent}:${r.model}`), ['claude:opus', 'claude:fable']);
+  await settledAll(solo.group.map((r) => r.id));
   await api('/router', { allowed: ['claude', 'codex'] }, 'PATCH');
   try {
     const cwd = testRepo();

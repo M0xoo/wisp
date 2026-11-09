@@ -381,7 +381,7 @@ test('in a DM lists are whole; in a channel others read them, so none of your na
   for (const [text, re] of [
     ['help', /Say what you’d type in wisp/],
     ['projects', new RegExp(`• ${name}`)],
-    ['models', /• claude: opus, sonnet, haiku/],
+    ['models', /• claude: fable, opus, sonnet, haiku/],
     ['machines', /• this computer · online/],
     ['crew', /./],
   ]) {

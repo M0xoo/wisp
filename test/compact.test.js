@@ -199,9 +199,10 @@ test('a 5-minute cache writes at 1.25× input', () => {
   assert.equal(o.compact.toFixed(3), '0.646');
 });
 
-test('every model priced: Sonnet, both Fables', () => {
+test('every model priced: Sonnet, every Fable', () => {
   const on = (id) => compactOffer(task([turn(stats(480_000, H, [{ model: id, input: 1, output: 1, cacheRead: 1, cacheWrite: 0 }]))]), T0);
   assert.equal(on('claude-sonnet-5-5').cold.toFixed(2), '1.92');
+  assert.equal(on('claude-fable-5-2').cold.toFixed(2), '7.68', ' in, as Fable 5.2 lists');
   assert.equal(on('claude-fable-5-1').cold.toFixed(2), '9.60');
   assert.equal(on('claude-fable-5').cold.toFixed(2), '9.60');
   assert.equal(on('claude-opus-5-5[1m]').cold.toFixed(2), '3.84', 'a long-context id is the same model');

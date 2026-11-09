@@ -9,7 +9,7 @@
 // Model id → vendor. Ids come as "claude-sonnet-4.5", "anthropic/claude-…", "openrouter/openai/gpt-5",
 // "github-copilot/gpt-5", "gemini-3-pro", "o4-mini", "opus", "grok-4"…
 const VENDORS = [
-  ['anthropic', /claude|anthropic|(?:^|[/:\s_-])(?:opus|sonnet|haiku)(?:$|[/:\s._-]|\d)/i],
+  ['anthropic', /claude|anthropic|(?:^|[/:\s_-])(?:opus|sonnet|haiku|fable)(?:$|[/:\s._-]|\d)/i],
   ['openai', /openai|chatgpt|gpt|codex|(?:^|[/:\s_-])o\d(?:$|[/:\s._-])/i],
   ['google', /gemini|gemma|google|vertex/i],
   ['xai', /grok|xai|x-ai/i],

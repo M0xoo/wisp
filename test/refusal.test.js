@@ -117,7 +117,7 @@ test('a plain "I can\'t help with that" is a refusal too; an ordinary answer is 
 
 test('vendorOf: whose model a harness runs, from the model id or the single-vendor harness', () => {
   for (const [m, a, v] of [
-    ['', 'claude', 'anthropic'], ['opus', 'claude', 'anthropic'], ['claude-sonnet-4.5', 'copilot', 'anthropic'],
+    ['', 'claude', 'anthropic'], ['opus', 'claude', 'anthropic'], ['fable', 'cursor', 'anthropic'], ['claude-sonnet-4.5', 'copilot', 'anthropic'],
     ['anthropic/claude-opus-4-1', 'opencode', 'anthropic'], ['github-copilot/claude-sonnet-4', 'opencode', 'anthropic'],
     ['sonnet-4.5-thinking', 'cursor', 'anthropic'], ['claude-sonnet-4-5', 'antigravity', 'anthropic'],
     ['', 'codex', 'openai'], ['gpt-5.1-codex', 'codex', 'openai'], ['gpt-5', 'copilot', 'openai'], ['o4-mini', 'opencode', 'openai'],
