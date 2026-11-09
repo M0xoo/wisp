@@ -5,6 +5,9 @@ The coder takes the next unchecked item as soon as one ends, with no wait for re
 no local full suites. The lead commits each item by concern and pushes; PR #756 CI runs the tests. CI failures
 are fixed at the start of the next item.
 
+**GUI naming (2026-11-10):** the task side menu still says "Take over". The decision is "Open in <harness>" (for example "Open
+in Claude Code"; CLI `wisp open <id> --in X`, TUI `o`). Rename it in every frontend and in the i18n keys.
+
 **TUI colour fix (owner's real Terminal, 2026-11-09):** Apple's Terminal.app (`TERM_PROGRAM=Apple_Terminal`) doesn't draw
 24-bit colour; it shows it as grey. The owner's shell sets `COLORTERM=truecolor`, so `plugins/tui/api/src/theme.rs`
 `from_env` picked true colour and the whole TUI came out washed grey. With `COLORTERM=` it's right.
