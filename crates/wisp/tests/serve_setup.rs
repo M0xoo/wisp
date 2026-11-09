@@ -29,6 +29,11 @@ async fn a_tasks_setup_is_what_it_had_and_what_it_used() {
     std::fs::write(&server, "#!/bin/sh\necho '{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"serverInfo\":{\"name\":\"probe\",\"version\":\"1.4.0\"}}}'\necho '{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"tools\":[{\"name\":\"do_x\"},{\"name\":\"do_y\"}]}}'\n").unwrap();
     #[cfg(unix)]
     std::fs::set_permissions(&server, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    // and one that never answers
+    let slow = dir.join("mcp-slow");
+    std::fs::write(&slow, "#!/bin/sh\nexec sleep 30\n").unwrap();
+    #[cfg(unix)]
+    std::fs::set_permissions(&slow, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
     let (serve, port) = start_with(&dir, &[("CLAUDE_CONFIG_DIR", cfg.to_str().unwrap())]);
     let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
     let r = api
@@ -38,7 +43,8 @@ async fn a_tasks_setup_is_what_it_had_and_what_it_used() {
                 { "kind": "agent", "name": "writer", "spec": { "harness": "claude", "skills": ["tidy"] } },
                 { "kind": "skill", "name": "tidy", "spec": { "description": "keeps it tidy", "body": "Tidy up." } },
                 { "kind": "connector", "name": "probe", "spec": { "command": server.display().to_string() } },
-                { "kind": "connector", "name": "dead", "spec": { "command": "/usr/bin/false" } }
+                { "kind": "connector", "name": "dead", "spec": { "command": "/usr/bin/false" } },
+                { "kind": "connector", "name": "slow", "spec": { "command": slow.display().to_string() } }
             ] }),
         )
         .await;
@@ -74,6 +80,9 @@ async fn a_tasks_setup_is_what_it_had_and_what_it_used() {
     let d = server("dead");
     assert_eq!(d["probe"], "failed", "{d}");
     assert!(d["why"].as_str().is_some_and(|w| !w.is_empty()), "{d}");
+    // a_probe_that_times_out_says_so
+    let w = server("slow");
+    assert_eq!((w["probe"].clone(), w["why"].clone()), (json!("failed"), json!("timed out after 5 s")), "{w}");
     assert_eq!(api.turns(&id).await[0]["status"], "done", "the run went on");
     // used_is_read_from_the_transcript (the fake claude edits math.js)
     assert!(setup["used"]["builtin"].as_object().is_some_and(|m| !m.is_empty()), "{}", setup["used"]);

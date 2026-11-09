@@ -20,9 +20,13 @@ use crate::{
 };
 
 const CHUNK: usize = 64 * 1024;
-/// After the child exits, how long its output gets to drain. A background process still holding the
-/// pipe would otherwise hold the exit (and `exec`) back for ever.
+/// After the child exits, how long a read of its output may wait with nothing coming before the reader
+/// stops: a background process still holding the pipe would otherwise hold the exit (and `exec`) back for
+/// ever. It's an idle limit per read, not a deadline from the exit: output already in the pipe is always
+/// read, however late a busy runtime gets to the reader (`tokio::time::timeout` polls the read first).
 pub(crate) const DRAIN: Duration = Duration::from_millis(300);
+/// …and the most it reads after the exit at all (a background process that keeps writing).
+pub(crate) const DRAIN_MAX: Duration = Duration::from_secs(5);
 
 pub(crate) fn spawn(bin: &str, r: &Resolved, opts: &SpawnOpts) -> Result<Child> {
     let mut cmd = tokio::process::Command::new(&r.command);
@@ -50,12 +54,13 @@ pub(crate) fn spawn(bin: &str, r: &Resolved, opts: &SpawnOpts) -> Result<Child> 
     let pid = child.id().ok_or_else(|| ProcError::spawn(bin, "no pid"))?;
     let tree = Tree::new(pid);
     let (out_tx, out_rx) = crate::output_channel();
+    let (gone_tx, gone_rx) = watch::channel(false);
     let mut readers = Vec::with_capacity(2);
     if let Some(s) = child.stdout.take() {
-        readers.push(tokio::spawn(pump(s, Stream::Stdout, out_tx.clone())));
+        readers.push(tokio::spawn(pump(s, Stream::Stdout, out_tx.clone(), gone_rx.clone())));
     }
     if let Some(s) = child.stderr.take() {
-        readers.push(tokio::spawn(pump(s, Stream::Stderr, out_tx)));
+        readers.push(tokio::spawn(pump(s, Stream::Stderr, out_tx, gone_rx)));
     }
     let (in_tx, in_rx) = mpsc::unbounded_channel::<Vec<u8>>();
     let input = child.stdin.take().map(|stdin| {
@@ -69,6 +74,7 @@ pub(crate) fn spawn(bin: &str, r: &Resolved, opts: &SpawnOpts) -> Result<Child> 
         let exit = child.wait().await.map(exit_of).unwrap_or_default();
         // Reaped: its pid may be a stranger's from now on, only its group is ours.
         alive2.store(false, Ordering::SeqCst);
+        let _ = gone_tx.send(true);
         drain(readers).await;
         tracing::debug!(pid, code = ?exit.code, signal = ?exit.signal, "exit");
         let _ = exit_tx.send(Some(exit));
@@ -91,34 +97,48 @@ pub(crate) fn spawn(bin: &str, r: &Resolved, opts: &SpawnOpts) -> Result<Child> 
     })
 }
 
-/// Output first, then the exit: the last lines arrive before `exited` resolves. Readers still held
-/// open after `DRAIN` (a background grandchild) are cut off, which closes the output channel.
+/// Output first, then the exit: the last lines arrive before `exited` resolves. Each reader stops at the
+/// end of its stream, or (the child gone) once a read has waited `DRAIN` with nothing coming.
 async fn drain(readers: Vec<JoinHandle<()>>) {
-    let aborts: Vec<_> = readers.iter().map(JoinHandle::abort_handle).collect();
-    if tokio::time::timeout(DRAIN, futures_join(readers))
-        .await
-        .is_err()
-    {
-        for a in aborts {
-            a.abort();
-        }
-    }
-}
-
-async fn futures_join(readers: Vec<JoinHandle<()>>) {
     for r in readers {
         let _ = r.await;
     }
 }
 
-async fn pump(mut s: impl AsyncRead + Unpin, stream: Stream, tx: mpsc::Sender<Output>) {
+/// One read, the child gone or not: while it runs, as long as it takes; once it's gone, `DRAIN` idle at
+/// most (None: stop reading).
+async fn read_some(s: &mut (impl AsyncRead + Unpin), buf: &mut [u8], gone: &mut watch::Receiver<bool>) -> Option<std::io::Result<usize>> {
+    loop {
+        if *gone.borrow() {
+            return tokio::time::timeout(DRAIN, s.read(buf)).await.ok();
+        }
+        tokio::select! {
+            biased;
+            r = s.read(buf) => return Some(r),
+            c = gone.changed() => {
+                if c.is_err() {
+                    return tokio::time::timeout(DRAIN, s.read(buf)).await.ok();
+                }
+            }
+        }
+    }
+}
+
+pub(crate) async fn pump(mut s: impl AsyncRead + Unpin, stream: Stream, tx: mpsc::Sender<Output>, mut gone: watch::Receiver<bool>) {
     let mut buf = vec![0u8; CHUNK];
     let mut listening = true;
+    let mut gone_at: Option<tokio::time::Instant> = None;
     loop {
-        match s.read(&mut buf).await {
-            Ok(0) | Err(_) => break,
+        if *gone.borrow() {
+            let at = *gone_at.get_or_insert_with(tokio::time::Instant::now);
+            if at.elapsed() > DRAIN_MAX {
+                break;
+            }
+        }
+        match read_some(&mut s, &mut buf, &mut gone).await {
+            None | Some(Ok(0) | Err(_)) => break,
             // Nobody reads any more: keep draining so the child never blocks on a full pipe.
-            Ok(n) if listening => {
+            Some(Ok(n)) if listening => {
                 listening = tx
                     .send(Output {
                         stream,
@@ -127,7 +147,7 @@ async fn pump(mut s: impl AsyncRead + Unpin, stream: Stream, tx: mpsc::Sender<Ou
                     .await
                     .is_ok();
             }
-            Ok(_) => {}
+            Some(Ok(_)) => {}
         }
     }
 }
@@ -259,4 +279,28 @@ pub(crate) fn signal_tree(tree: &Tree, alive: &AtomicBool, sig: Signal, whole: b
         return Err(ProcError::Exited);
     }
     tree::signal(tree, alive, sig_number(sig), whole).map_err(ProcError::Io)
+}
+
+#[cfg(all(test, unix))]
+#[allow(clippy::unwrap_used, reason = "a test")]
+mod tests {
+    use super::*;
+
+    /// What the child wrote before it exited is read even when the reader first runs long after the
+    /// exit, and with a background process still holding the pipe open the reader then stops by itself.
+    #[tokio::test(flavor = "current_thread")]
+    async fn output_already_written_survives_a_late_reader() {
+        let (mut w, r) = tokio::net::unix::pipe::pipe().unwrap();
+        w.write_all(b"serverInfo\n").await.unwrap();
+        let (tx, mut rx) = crate::output_channel();
+        let (gone_tx, gone_rx) = watch::channel(false);
+        let _ = gone_tx.send(true);
+        // a busy runtime: nothing runs for longer than DRAIN after the exit
+        std::thread::sleep(DRAIN * 3);
+        let start = tokio::time::Instant::now();
+        pump(r, Stream::Stdout, tx, gone_rx).await;
+        assert!(start.elapsed() < DRAIN * 3, "the held pipe didn't hold the reader: {:?}", start.elapsed());
+        assert_eq!(rx.recv().await.map(|o| o.data), Some(b"serverInfo\n".to_vec()));
+        drop(w);
+    }
 }

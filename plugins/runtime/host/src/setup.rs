@@ -79,6 +79,8 @@ fn read_probe(text: &str) -> Result<(String, Vec<String>), String> {
 
 const INIT: &str = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"wisp","version":"2"}}}"#;
 const INITIALIZED: &str = r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#;
+/// How long a server gets to answer `initialize` and `tools/list`.
+const PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 const LIST: &str = r#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#;
 
 /// Probes already made, by the server's configuration (a server is asked once per process).
@@ -118,8 +120,9 @@ async fn probe(proc: &wisp_proc::Proc, net: Option<&wisp_kernel::services::NetSe
                 env.set.push((k.clone(), v.to_owned()));
             }
         }
-        let opts = wisp_proc::ExecOpts { input: Some(format!("{INIT}\n{INITIALIZED}\n{LIST}\n").into_bytes()), timeout: Some(Duration::from_secs(5)), env, max_output: 4 << 20, ..wisp_proc::ExecOpts::default() };
+        let opts = wisp_proc::ExecOpts { input: Some(format!("{INIT}\n{INITIALIZED}\n{LIST}\n").into_bytes()), timeout: Some(PROBE_TIMEOUT), env, max_output: 4 << 20, ..wisp_proc::ExecOpts::default() };
         match proc.exec(cmd, &args, opts).await {
+            Ok(r) if r.timed_out => Err(format!("timed out after {} s", PROBE_TIMEOUT.as_secs())),
             Ok(r) => read_probe(&r.stdout_text()),
             Err(e) => Err(e.to_string()),
         }
