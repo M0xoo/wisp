@@ -69,11 +69,25 @@ pub(crate) fn extras_for(ctx: &Ctx, call: &Call) -> (Vec<Extra>, Vec<Arc<wisp_mc
     let refs: Vec<&str> = taken.iter().map(String::as_str).collect();
     let catalogue = ctx.catalogue(call.caller());
     for (name, id, read_only, tool) in wisp_mcp_core::generated::tools(&catalogue, &refs) {
-        let object = wisp_kernel::decl::parse(catalogue.iter().find(|c| c.id == id).and_then(|c| c.args.as_deref())).object;
+        let spec = wisp_kernel::decl::parse(catalogue.iter().find(|c| c.id == id).and_then(|c| c.args.as_deref()));
+        let (object, own_peer) = (spec.object, spec.fields.iter().any(|f| f.name == wisp_mcp_core::generated::PEER));
         let run: wisp_mcp_api::ToolFn = Arc::new(move |ctx, call, tc| {
             let id = id.clone();
             Box::pin(async move {
-                Ok(match ctx.run_json(&call, &id, wisp_mcp_core::generated::args_of(object, &tc.args)).await {
+                let (peer, input) = wisp_mcp_core::generated::split_peer(&tc.args, own_peer);
+                let args = wisp_mcp_core::generated::args_of(object, &input);
+                // `peer`: the command runs on that machine, through machines.route (ADR-0041)
+                let out = match peer {
+                    Some(p) => {
+                        let list = ctx.run_json(&call, "machines.list", serde_json::json!({})).await.unwrap_or_default();
+                        match wisp_mcp_core::generated::find_peer(&list, &p) {
+                            Some(pid) => ctx.run_json(&call, "machines.route", serde_json::json!({ "id": pid, "cmd": id, "args": args, "mid": format!("mcp-{:016x}", rand_mid()) })).await,
+                            None => Err(wisp_kernel::WireError::not_found(format!("there's no machine {p} (machines_list shows them)"))),
+                        }
+                    }
+                    None => ctx.run_json(&call, &id, args).await,
+                };
+                Ok(match out {
                     Ok(v) => wisp_mcp_api::ToolText { text: Some(v.to_string()), error: None },
                     Err(e) => wisp_mcp_api::ToolText { text: None, error: Some(e.message) },
                 })
@@ -83,6 +97,11 @@ pub(crate) fn extras_for(ctx: &Ctx, call: &Call) -> (Vec<Extra>, Vec<Arc<wisp_mc
         list.push(Arc::new(wisp_mcp_api::ToolContribution { tool, audience: wisp_mcp_api::Audience::Both, read_only, capped_off: false, run }));
     }
     (ex, list)
+}
+
+/// A key for a routed call (one per tool call).
+fn rand_mid() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| u64::try_from(d.as_nanos() & u128::from(u64::MAX)).unwrap_or(0)) ^ u64::from(std::process::id())
 }
 
 /// Who `call` speaks for, with its session's flags (and what `mcp.session@1` contributors add).

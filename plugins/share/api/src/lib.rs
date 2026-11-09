@@ -135,3 +135,83 @@ command!(PreviewCmd = "share.preview" ["share:make"] read yes : ShareArgs => Pre
 command!(Make = "share.bundle" ["share:make"] : ShareArgs => Bundle);
 command!(Open = "share.open" ["share:open"] read yes : OpenArgs => Opened);
 command!(Import = "share.import" ["share:open"] : OpenArgs => Value);
+
+/// What goes to a destination: the content's exact bytes, signed with this wisp's share key. Additive
+/// (2026-11-09, ADR-0038).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Outgoing {
+    /// task | setup | module | crew | workflow | agent | app | plugin | doc | report | stuff
+    pub kind: String,
+    /// what it is here (a task id, a setup's name), so sharing it again updates the same link
+    pub key: String,
+    pub title: String,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// the content (JSON), as signed
+    pub body: Vec<u8>,
+    /// the ed25519 public key and the signature over `body`, base64
+    pub signer: String,
+    pub sig: String,
+    /// `{ kind: anyone|people|teams|password, people?, teams?, password? }`
+    #[serde(default)]
+    pub access: Option<Value>,
+    #[serde(default)]
+    pub expires_at: Option<i64>,
+    #[serde(default)]
+    pub publish: Option<bool>,
+}
+
+/// Where a share can go (`share.destination@1`): wisp Cloud (`wisp-cloud`, from wisp.grid-client), or a
+/// user's plugin's own (a company's share server). File and gist stay in the CLI and the app.
+pub trait ShareDestination: Send + Sync + 'static {
+    fn id(&self) -> &'static str;
+    fn label(&self) -> &'static str;
+    /// Whether it can take a share now; the reason (and how to fix it) when it can't.
+    fn ready(&self) -> wisp_kernel::BoxFuture<'static, std::result::Result<(), String>>;
+    /// Uploads it: the link's view (`{ id, url, version, access, … }`).
+    fn send(&self, out: Outgoing) -> wisp_kernel::BoxFuture<'static, wisp_kernel::Result<Value>>;
+}
+
+pub const DESTINATION: wisp_kernel::Point<dyn ShareDestination> = wisp_kernel::Point::new("share.destination", 1);
+
+/// `share.send`: a task (`id`, `level`) or any other kind (`content`) to a destination.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendArgs {
+    /// a destination's id: `wisp-cloud`
+    pub to: String,
+    /// task by default
+    #[serde(default)]
+    pub kind: Option<String>,
+    /// a task: its id (the scrubbed, signed bundle of `level` goes)
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub level: Level,
+    /// any other kind: what goes, as the preview showed it
+    #[serde(default)]
+    pub content: Option<Value>,
+    #[serde(default)]
+    pub key: Option<String>,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub summary: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub access: Option<Value>,
+    #[serde(default)]
+    pub expires_at: Option<i64>,
+    #[serde(default)]
+    pub publish: Option<bool>,
+}
+
+command!(SendCmd = "share.send" ["share:make"] : SendArgs => Value);
+command!(Destinations = "share.destinations" ["share:make"] read yes : NoArgs => Value);
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NoArgs {}

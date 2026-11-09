@@ -9,8 +9,11 @@
 //!   it needs that this wisp lacks (a harness, a plugin).
 //! - `share.import {bundle}`: a `full` share as a read-only task (`runtime.adopt`), to read or fork.
 //!
-//! Where it goes (a file, a gist, a link, a peer) is the caller's: the CLI writes files and gists;
-//! links and peers need wisp Grid's client, not in this build yet.
+//! - `share.send {to, kind, …}` (ADR-0038): a task's signed bundle, or any other kind's content as the preview
+//!   showed it, signed with the same key, to a destination (`share.destination@1`): wisp Cloud is
+//!   wisp.grid-client's `wisp-cloud`. `share.destinations` lists them and whether each is ready.
+//!
+//! File and gist stay the CLI's and the app's.
 
 use std::fmt::Write as _;
 
@@ -19,7 +22,7 @@ use base64::engine::general_purpose::STANDARD as B64;
 use ed25519_dalek::{Signature, Signer as _, SigningKey, Verifier as _, VerifyingKey};
 use serde_json::{Value, json};
 use wisp_kernel::{Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
-use wisp_share_api::{Bundle, FORMAT, Import, Level, Make, Open, Opened, Preview, PreviewCmd, ShareArgs, Signer};
+use wisp_share_api::{Bundle, DESTINATION, Destinations, FORMAT, Import, Level, Make, Open, Opened, Outgoing, Preview, PreviewCmd, SendArgs, SendCmd, ShareArgs, Signer};
 use wisp_share_core::{Scrub, canonical, counts, scrub, secret_env};
 
 pub use wisp_share_api::PLUGIN_ID;
@@ -177,6 +180,54 @@ async fn import(ctx: &Ctx, call: &Call, b: Bundle) -> Result<Value> {
     ctx.run_json(call, "runtime.adopt", args).await
 }
 
+/// `share.send`: what goes, signed, to the destination named.
+async fn send(ctx: &Ctx, call: &Call, a: SendArgs) -> Result<Value> {
+    let dest = ctx.contributions(&DESTINATION).into_iter().find(|d| d.id() == a.to).ok_or_else(|| WireError::invalid(format!("there's no share destination {} here (wisp Cloud is wisp-cloud, from wisp.grid-client)", a.to)))?;
+    dest.ready().await.map_err(WireError::invalid)?;
+    let kind = a.kind.clone().unwrap_or_else(|| "task".into());
+    let (key, title, body) = if kind == "task" {
+        let id = a.id.clone().ok_or_else(|| WireError::invalid("which task: id"))?;
+        let mut b = preview(ctx, call, &ShareArgs { id: id.clone(), level: a.level }).await?.bundle;
+        // the same task shared again is the same bundle unless it changed (a new version only then)
+        b.id = format!("share-{id}");
+        b.created_at = ctx.run_json(call, "runtime.get", json!({ "id": id })).await.ok().and_then(|t| t.get("updatedAt").and_then(Value::as_i64)).unwrap_or(0);
+        let k = signing_key(ctx).await?;
+        b.from = Signer { name: me(), key: B64.encode(k.verifying_key().to_bytes()) };
+        b.sig = B64.encode(k.sign(&canonical(&b)).to_bytes());
+        let body = serde_json::to_vec(&b).map_err(|e| WireError::internal(e.to_string()))?;
+        (id, a.title.clone().unwrap_or_else(|| b.title.clone()), body)
+    } else {
+        let content = a.content.clone().ok_or_else(|| WireError::invalid(format!("a {kind} share needs its content")))?;
+        let key = a.key.clone().filter(|k| !k.is_empty()).ok_or_else(|| WireError::invalid("a key: what it is here, so sharing it again updates the link"))?;
+        let body = serde_json::to_vec(&content).map_err(|e| WireError::internal(e.to_string()))?;
+        (key.clone(), a.title.clone().unwrap_or(key), body)
+    };
+    let k = signing_key(ctx).await?;
+    let out = Outgoing {
+        kind,
+        key,
+        title,
+        summary: a.summary.clone().unwrap_or_default(),
+        tags: a.tags.clone(),
+        sig: B64.encode(k.sign(&body).to_bytes()),
+        signer: B64.encode(k.verifying_key().to_bytes()),
+        body,
+        access: a.access.clone(),
+        expires_at: a.expires_at,
+        publish: a.publish,
+    };
+    dest.send(out).await
+}
+
+async fn destinations(ctx: &Ctx) -> Value {
+    let mut out = Vec::new();
+    for d in ctx.contributions(&DESTINATION) {
+        let why = d.ready().await.err();
+        out.push(json!({ "id": d.id(), "label": d.label(), "ready": why.is_none(), "why": why }));
+    }
+    Value::Array(out)
+}
+
 #[derive(Debug, Default)]
 pub struct SharePlugin;
 
@@ -190,6 +241,8 @@ impl Plugin for SharePlugin {
         s.command::<Make, _, _>(|ctx, call, a| async move { make(&ctx, &call, &a).await });
         s.command::<Open, _, _>(|ctx, call, a| async move { open(&ctx, &call, a.bundle).await });
         s.command::<Import, _, _>(|ctx, call, a| async move { import(&ctx, &call, a.bundle).await });
+        s.command::<SendCmd, _, _>(|ctx, call, a| async move { send(&ctx, &call, a).await });
+        s.command::<Destinations, _, _>(|ctx, _call, _a| async move { Ok(destinations(&ctx).await) });
         Ok(())
     }
 }

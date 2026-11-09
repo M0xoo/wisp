@@ -24,6 +24,7 @@
       "allow": ["*"],
       "deny": [
         { "permission": "machines:*", "why": "reach other machines from a grid box" },
+        { "permission": "grid-client:computer", "why": "be one of your computers: a box never gets a laptop token" },
         { "permission": "update:*", "why": "update wisp on a grid box: the grid does" },
         { "permission": "notify:native", "why": "show a desktop notification on a grid box" },
         { "permission": "proc:spawn{sandbox:none}", "why": "run a process outside the box sandbox" }

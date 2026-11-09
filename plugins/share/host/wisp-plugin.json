@@ -4,7 +4,7 @@
   "name": "Share",
   "version": "2.0.0",
   "api": "^1",
-  "description": "share a task as a signed .wisp-task bundle (spec, report or full), previewed with its redactions; open one someone sent",
+  "description": "share a task as a signed .wisp-task bundle (spec, report or full), previewed with its redactions; open one someone sent; send any share to a destination (wisp Cloud) through share.destination@1",
   "kind": "plugin",
   "server": {
     "builtin": "wisp_share"
@@ -21,6 +21,7 @@
     "crew:read"
   ],
   "requires": {},
+  "provides": { "share.destination": { "version": "1.0.0" } },
   "contributes": {
     "commands": [
       {
@@ -40,6 +41,15 @@
       {
         "id": "share.import",
         "title": "Import a shared task, read-only"
+      },
+      {
+        "id": "share.send",
+        "title": "Share a task, a setup or a doc to a destination (wisp Cloud)"
+      },
+      {
+        "id": "share.destinations",
+        "title": "Where shares can go, and whether each is ready",
+        "readOnly": true
       }
     ]
   }
