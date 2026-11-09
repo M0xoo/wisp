@@ -123,3 +123,10 @@ H1 *Know why every line of agent code exists.* · line 2 *Track every task your 
 wrote.* · kicker *Open source · MIT · runs on your machines*. The hero's main visual is Track (blame + resume);
 Declare and Run are supporting cards. Sections run Track → Declare → Run, closing with *Your agents write the code.
 wisp remembers why.* (Supersedes the earlier hero choices above.)
+
+## Hero decision, final (owner, 2026-11-09, later the same day)
+
+Back to the three equal pillars: H1 *Your coding agents, as code.* · line 2 *Declare them. Run them anywhere. Track
+every line they write.* · kicker *Engineering as code · open source*. Keep "as code": the owner judges wisp different
+enough from Warp's factories (open source, your machines, Track). The Track-led hero above is superseded. The
+researcher's comparison still runs before launch, to make sure every claim we make holds.
