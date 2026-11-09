@@ -18,8 +18,7 @@
     "runtime:list",
     "runtime:agents",
     "runtime:adopt",
-    "crew:read",
-    "runtime:setExt"
+    "crew:read"
   ],
   "requires": {},
   "contributes": {

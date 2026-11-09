@@ -16,8 +16,6 @@ serde_json.workspace = true
 wisp-kernel.workspace = true
 wisp-share-api.workspace = true
 wisp-share-core.workspace = true
-wisp-runtime-api.workspace = true
-tokio = { workspace = true, features = ["fs"] }
 
 [lints]
 workspace = true

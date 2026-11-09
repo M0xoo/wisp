@@ -8,6 +8,22 @@ use std::fmt::Write as _;
 use serde_json::{Map, Value, json};
 use wisp_share_api::Bundle;
 
+/// A title as a file name part: lower-case words joined by `-`.
+pub fn slug(title: &str) -> String {
+    let mut s = String::new();
+    for c in title.chars() {
+        if c.is_alphanumeric() {
+            s.extend(c.to_lowercase());
+        } else if !s.ends_with('-') && !s.is_empty() {
+            s.push('-');
+        }
+        if s.len() >= 48 {
+            break;
+        }
+    }
+    s.trim_end_matches('-').to_owned()
+}
+
 /// The trailer a commit names its task with.
 pub const TRAILER: &str = "Wisp-Task:";
 
@@ -33,7 +49,7 @@ pub fn short(id: &str) -> &str {
 
 /// `tasks/2026/11/01a1bc12ab34-fix-flaky-login` (no extension).
 pub fn base_name(id: &str, title: &str, created_at: i64) -> String {
-    let slug: String = crate::slug(title).chars().take(48).collect();
+    let slug: String = slug(title).chars().take(48).collect();
     format!("tasks/{}/{}-{}", year_month(created_at), short(id), if slug.is_empty() { "task".into() } else { slug })
 }
 
@@ -73,6 +89,11 @@ pub fn report_md(title: &str, report: &Value) -> String {
 
 /// What the task file holds.
 pub fn task_doc(b: &Bundle, commits: &[String], pr: Option<&str>, tracked_by: &str) -> Value {
+    task_doc_with(b, commits, pr, tracked_by, None)
+}
+
+/// The task file, with the harness session it ran as (what `wisp open` resumes: `{harness, id}`).
+pub fn task_doc_with(b: &Bundle, commits: &[String], pr: Option<&str>, tracked_by: &str, session: Option<(&str, &str)>) -> Value {
     let files = b.report.as_ref().and_then(|r| r.get("files")).cloned().unwrap_or(json!([]));
     let mut m = Map::new();
     m.insert("wispTask".into(), json!(1));
@@ -92,13 +113,30 @@ pub fn task_doc(b: &Bundle, commits: &[String], pr: Option<&str>, tracked_by: &s
         m.insert("pr".into(), json!(p));
     }
     m.insert("files".into(), files);
+    if let Some((h, id)) = session {
+        m.insert("session".into(), json!({ "harness": h, "id": id }));
+    }
     Value::Object(m)
 }
 
 /// A setting under `history:` in `.wisp/wisp.yml` (`track: auto|ask|manual`, `adopt: ask|auto|off`).
 pub fn history_setting(wisp_yml: &str, key: &str, default: &str) -> String {
     let doc: Value = serde_saphyr::from_str(wisp_yml).unwrap_or_default();
-    doc.pointer(&format!("/history/{key}")).and_then(Value::as_str).unwrap_or(default).to_owned()
+    match doc.pointer(&format!("/history/{key}")) {
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Bool(b)) => b.to_string(),
+        _ => default.to_owned(),
+    }
+}
+
+/// Bytes compressed as a transcript is (zstd).
+pub fn compress(raw: &[u8]) -> Vec<u8> {
+    zstd::encode_all(raw, 9).unwrap_or_default()
+}
+
+/// Compressed bytes back.
+pub fn decompress(z: &[u8]) -> Vec<u8> {
+    zstd::decode_all(z).unwrap_or_default()
 }
 
 /// The transcript, one turn (and its steps) per line, zstd-compressed.
@@ -115,8 +153,13 @@ pub fn read_transcript(bytes: &[u8]) -> Vec<Value> {
 
 /// Every file `wisp track` writes, relative to `.wisp/`, for a bundle (a full one has all three).
 pub fn files_for(b: &Bundle, commits: &[String], pr: Option<&str>, tracked_by: &str) -> Vec<(String, Vec<u8>)> {
+    files_with(b, commits, pr, tracked_by, None)
+}
+
+/// [`files_for`], the task file naming the harness session it ran as.
+pub fn files_with(b: &Bundle, commits: &[String], pr: Option<&str>, tracked_by: &str, session: Option<(&str, &str)>) -> Vec<(String, Vec<u8>)> {
     let base = base_name(&b.id, &b.title, b.created_at);
-    let mut out = vec![(format!("{base}.task.yml"), serde_saphyr::to_string(&task_doc(b, commits, pr, tracked_by)).unwrap_or_default().into_bytes())];
+    let mut out = vec![(format!("{base}.task.yml"), serde_saphyr::to_string(&task_doc_with(b, commits, pr, tracked_by, session)).unwrap_or_default().into_bytes())];
     if let Some(r) = &b.report {
         out.push((format!("{base}.report.md"), report_md(&b.title, r).into_bytes()));
     }
@@ -135,6 +178,7 @@ mod tests {
     fn layout_trailers_and_the_transcript() {
         assert_eq!(year_month(1_794_181_336_230), "2026/11");
         assert_eq!(year_month(0), "1970/01");
+        assert_eq!((history_setting("history: { inject: true }", "inject", "false"), history_setting("x: 1", "track", "ask")), ("true".to_owned(), "ask".to_owned()));
         assert_eq!(base_name("01a1bc12ab34cdef", "Fix the flaky login!", 1_794_181_336_230), "tasks/2026/11/01a1bc12ab34-fix-the-flaky-login");
         assert_eq!(trailers("fix: x\n\nWhy.\n\nWisp-Task: 01a1bc\nCo-Authored-By: y\nWisp-Task: 02b2"), ["01a1bc", "02b2"]);
         let h = json!([{ "turn": { "prompt": "a" } }, { "turn": { "prompt": "b" } }]);

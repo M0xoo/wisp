@@ -1,0 +1,17 @@
+[package]
+name = "wisp-history-api"
+description = "wisp.history api: a repo's agent history (ADR-0033/0042)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+wisp-kernel.workspace = true
+
+[lints]
+workspace = true
