@@ -80,5 +80,42 @@ Seen on a real `wisp serve`, with the fake claude linked as `claude`:
   - goal's other three: Checks, EditGoal, RunView, which are views.
   - Each needs its area and its server data checked the way the band's were.
 - **Stubs:** shell-task's screens (they render nothing), shell-home (models only), shell-composer (parts only). Then the remaining v1 views at parity.
-- **Commands with no server handler:** the GUI's `goal.set` command (frame `commands.ts`) has none. The goal is set through `runtime.create`'s `goal`, and nothing changes it after.
-- **The time format:** "45m ago" (design/copy.md) against v1's "1m". The owner decides.
+
+## Round 4 (2026-11-10)
+
+Seen on a real `wisp serve` (fake claude linked as `claude`):
+- `docs/qa/r8-changes-1440-dark.png`
+- `docs/qa/r8-changes-1440-light.png`
+- `docs/qa/r8-task-390-dark.png`
+- `docs/qa/r8-task-390-light.png`
+
+1. **List times are v1's** (owner: v2 looks exactly like v1, ADR-0016):
+   - now, then 28m, 4h, 3d, each unit rounded, days with no end, as v1 `format.js` `ago()`;
+   - the kit's `time.*` strings and `timeLabel()` changed, and design/copy.md now says the same.
+   - Test: `packages/ui/test/content.test.tsx` "the past is relative, short, as v1 wrote it".
+2. **The Changes pane, the first real shell-task screen:**
+   - **The frame:** the kit's `Stage` takes a `side` region, v1's `#panel`: a full-height column at the right, `--size-panel-w` 480 px (a new token, `tokens.css` regenerated). The frame mounts its `SidePane` there. It rendered nowhere before, so every side pane was unreachable.
+   - **shell-task:** `shell-task.side.changes` attaches to `shell.side:changes`:
+     - every file the task changed, with its diff, through the kit's `Diff`;
+     - read from the turns, where runtime keeps changes (`body.ext["wisp.runtime"].changes`);
+     - paths relative to the task's folder, `/private/tmp` included on macOS.
+     - Test: `plugins/shell-task/ui/test/changes.test.ts`.
+   - **The frame's turn stats** read the same place, so "1 file +1 −1" shows and opens the pane. It read `body.changes` before, which is always empty.
+3. **`goal.set` on the server:** wisp.goal's command `goal.set {id, text}` sets, changes (the count starts again) or clears a task's goal.
+   - It's stored in `ext["wisp.goal"]` (`GoalState.text`, or `state: cleared`) and read over the spec's goal by the summary and the judging.
+   - It's in the manifest, granted by the user set's `goal:*`, and an MCP tool like any listed command.
+   - Test: `goal_set_changes_or_clears_the_goal`.
+   - Seen: set, then cleared on the real server; the list row's `summary.goal` followed.
+   - The frame's optimistic patch now says `working` (it said `running`, not a goal status) and clears the goal for empty text.
+
+## Left (next in item 7, in this order)
+
+- **The side pane next:**
+  - its head as v1 has it: tabs for Changes, PR, Shell and Preview, and close;
+  - the diff against the base branch from git, with context lines; it shows the edit's own lines today;
+  - Shell and PR.
+- **shell-task's main screen:** TaskHead, Transcript (steps, folds), the ask card and the queue, then attach `shell.screen:task` in place of the frame's view.
+- **Unattached plugin UIs:** router, ship, worktrees, update, and goal's Checks, EditGoal and RunView.
+- **Then the v1 views:** settings panes, crew, My Stuff, the computer pane, automations, machines.
+- **Then the new screens:** Repo tab, blame gutter, import, Share setup, Setup section, My shares, the Automations When picker, crew Wakes.
+- **After the GUI:** the channels grammar port.

@@ -259,3 +259,19 @@ Each is fixed below. Every view was then looked at as PNGs, at two sizes and in 
 - `--on <machine>` for the TUI's stream.
 - The Repo tab, hunk jumps, opening a file in `$EDITOR` from a diff, terminal images.
 - More plugins' `tui/` crates. Crew, automations and the rest are still built-in tables.
+
+# Round 4 (2026-11-10): the TUI colour fix
+
+- **The cause:** Apple's Terminal.app (`TERM_PROGRAM=Apple_Terminal`) shows 24-bit colour as grey. The owner's shell sets `COLORTERM=truecolor`, so the TUI picked true colour and came out washed grey.
+- **The fix:** `theme::depth()` decides how many colours the terminal draws, in this order:
+  1. `WISP_TUI_COLOR=truecolor|256|16`, when set;
+  2. 256 for Terminal.app, whatever `COLORTERM` says;
+  3. true colour when `COLORTERM` says so;
+  4. 256 otherwise.
+- **16 colours** (`Theme::basic()`):
+  - each colour maps to the nearest ANSI colour of its kind, so a red stays red instead of becoming the nearest grey;
+  - the page's backgrounds become the terminal's own, so near-black panels don't turn into grey slabs.
+- **Test:** `apple_terminal_gets_256_colours_even_with_colorterm_truecolor`. It also covers the override both ways, iTerm2 with truecolor, and the 16-colour mapping.
+- **The visual check** now covers 256 colours as Terminal.app draws them (the HTML dump knows xterm's palette): `/tmp/tui-look/*-dark-256.png` and `*-light-256.png`. Kept: `docs/qa/tui/task-160x45-dark-256.png`.
+- The TUI's row times follow v1's `ago()` too: now, then rounded m, h, d.
+- Clippy is clean on wisp-tui-api and wisp.
