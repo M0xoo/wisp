@@ -31,8 +31,8 @@ const CELLAR = /^(.*)[\\/]Cellar[\\/]wisp-agents[\\/]/;
 // The desktop app keeps wisp's files unpacked in wisp.app/Contents/Resources/app (resources\app on
 // Windows and Linux). Releases name their downloads without a version, see desktop/scripts/package.mjs.
 const PACKAGED = /[\\/](Contents[\\/]Resources|resources)[\\/]app$/;
-const RELEASES = 'https://api.github.com/repos/M0xoo/wisp/releases';
-export const DOWNLOADS = 'https://github.com/M0xoo/wisp/releases/latest';
+const RELEASES = 'https://api.github.com/repos/WispAgents/wisp/releases';
+export const DOWNLOADS = 'https://github.com/WispAgents/wisp/releases/latest';
 
 // Which npm dist-tags each channel follows; the rolling GitHub release `nightly` goes with the last.
 export const CHANNELS = { stable: ['latest'], beta: ['latest', 'next'], nightly: ['latest', 'next', 'nightly'] };

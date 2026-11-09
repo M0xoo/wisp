@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const REPO = 'https://github.com/M0xoo/wisp';
+const REPO = 'https://github.com/WispAgents/wisp';
 const DL = `${REPO}/releases/latest/download`;
 const NIGHTLY = `${REPO}/releases/download/nightly`;
 

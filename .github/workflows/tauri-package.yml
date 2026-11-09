@@ -60,7 +60,7 @@ jobs:
       # A real Electron release, for the update people on one make onto this build (INST-18): the one
       # INST-40 installs on Windows (ELECTRON in qa/install.mjs). macos-latest is Apple silicon.
       # curl, not gh: this workflow never touches a release.
-      - run: mkdir -p dist/electron && curl -fsSLo dist/electron/wisp-mac-arm64.zip https://github.com/M0xoo/wisp/releases/download/v0.57.0/wisp-mac-arm64.zip
+      - run: mkdir -p dist/electron && curl -fsSLo dist/electron/wisp-mac-arm64.zip https://github.com/WispAgents/wisp/releases/download/v0.57.0/wisp-mac-arm64.zip
       - run: node qa/install.mjs --old-electron dist/electron/wisp-mac-arm64.zip
       - uses: actions/upload-artifact@v4
         if: always()

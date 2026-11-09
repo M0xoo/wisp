@@ -112,7 +112,7 @@ test('markdown: headings, nested lists, tables, code and links', () => {
     '```',
     '',
     'See [the README](../README.md#cli).',
-  ].join('\n'), 'https://github.com/M0xoo/wisp/blob/main/docs/');
+  ].join('\n'), 'https://github.com/WispAgents/wisp/blob/main/docs/');
   assert.match(html, /<h2 id="the-mcp-server">The <a href="#mcp">MCP<\/a> server<\/h2>/);
   assert.match(html, /<ul><li><strong>One<\/strong> with <code>code<\/code><ul><li>nested <em>two<\/em><\/li><\/ul><\/li><li>three wrapped<\/li><\/ul>/);
   assert.match(html, /<td><code>x<\/code><\/td><td><a href="\/integrations.html#mcp">docs<\/a><\/td>/);

@@ -17,7 +17,7 @@ import { TEMPLATES } from '../web/js/crew-templates.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DOCS = path.join(ROOT, 'docs');
 const SITE = 'https://trywisp.dev';
-const REPO = 'https://github.com/M0xoo/wisp';
+const REPO = 'https://github.com/WispAgents/wisp';
 // Markdown with \n line ends, whatever the checkout has (Windows checks out CRLF).
 const readText = (f) => fs.readFileSync(f, 'utf8').replace(/\r\n?/g, '\n');
 const INDEX = fs.readFileSync(path.join(DOCS, 'index.html'), 'utf8');
@@ -280,7 +280,7 @@ const installTabs = () => {
   return `<div class="g-install" data-tabs>
       <div class="hero-tabs" role="tablist" aria-label="How to get wisp">${WAYS.map(([k, cmd, note], i) => `<button class="tab" role="tab" type="button" id="${id}-${k}" aria-controls="${id}-panel" aria-selected="${!i}" tabindex="${i ? -1 : 0}" data-tab="${k}"${cmd ? ` data-cmd="${esc(cmd)}"` : ''} data-note="${esc(note)}">${k === 'app' ? 'Download' : k}</button>`).join('')}</div>
       <div role="tabpanel" id="${id}-panel" aria-labelledby="${id}-npx">
-        <a class="cmd dl" hidden href="https://github.com/M0xoo/wisp/releases/latest/download/wisp-mac-arm64.dmg" data-tab-dl>${DL_ICON}<span data-dl-label>Download for macOS</span><span class="copy" data-dl-kind>.dmg</span></a>
+        <a class="cmd dl" hidden href="https://github.com/WispAgents/wisp/releases/latest/download/wisp-mac-arm64.dmg" data-tab-dl>${DL_ICON}<span data-dl-label>Download for macOS</span><span class="copy" data-dl-kind>.dmg</span></a>
         <button class="cmd" type="button" data-copy="npx wisp-agents" data-tab-copy aria-label="Copy install command"><span class="p">$</span><code data-tab-code>npx wisp-agents</code><span class="copy">Copy</span></button>
       </div>
       <p class="fine" data-tab-note>${WAYS[0][2]}</p>
@@ -755,7 +755,7 @@ function changelogPage() {
       <p class="eyebrow">Changelog</p>
       <h1>What’s new in wisp</h1>
       <p class="doc-lede">Every release of <code>wisp-agents</code>, a week at a time, newest first. Update with <code>npm install -g wisp-agents@latest</code>, or let the app update itself.</p>
-      <p>Three channels: <b>stable</b> (<code>npm install -g wisp-agents</code>), <b>beta</b> (<code>wisp-agents@next</code>, previews like <code>0.45.0-beta.1</code>) and <b>nightly</b> (<code>wisp-agents@nightly</code>, or the apps from the <a href="https://github.com/M0xoo/wisp/releases/tag/nightly">nightly release</a>): a build of <code>main</code> every night its full test suite passes. Pick one in Settings → General → Updates and wisp updates along it.</p>
+      <p>Three channels: <b>stable</b> (<code>npm install -g wisp-agents</code>), <b>beta</b> (<code>wisp-agents@next</code>, previews like <code>0.45.0-beta.1</code>) and <b>nightly</b> (<code>wisp-agents@nightly</code>, or the apps from the <a href="https://github.com/WispAgents/wisp/releases/tag/nightly">nightly release</a>): a build of <code>main</code> every night its full test suite passes. Pick one in Settings → General → Updates and wisp updates along it.</p>
     </header>
     <article class="prose">${body}</article>
 `,

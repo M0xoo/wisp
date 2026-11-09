@@ -3,7 +3,7 @@
 > Open-source launcher that runs AI coding agents (Claude Code, OpenAI Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build, GitHub Copilot CLI) in parallel and in the background, each in its own git worktree, on this computer or other machines over SSH, and hands back a 30-second animated presentation instead of a 4,000-line transcript.
 
 - Website: https://trywisp.dev/
-- GitHub: https://github.com/M0xoo/wisp
+- GitHub: https://github.com/WispAgents/wisp
 - npm: https://www.npmjs.com/package/wisp-agents
 - License: MIT
 - Requirements: Node.js >= 20 and at least one supported coding agent CLI installed and signed in.
@@ -101,4 +101,4 @@ wisp --mode plan "audit dependencies"
   - [wisp vs Multica](https://trywisp.dev/guides/wisp-vs-multica.html)
   - [wisp vs Paradev](https://trywisp.dev/guides/wisp-vs-paradev.html)
 - [Changelog](https://trywisp.dev/changelog.html)
-- [README](https://github.com/M0xoo/wisp/blob/main/README.md)
+- [README](https://github.com/WispAgents/wisp/blob/main/README.md)

@@ -7,7 +7,7 @@ import path from 'node:path';
 
 const dir = process.argv[2] || 'dist/tauri';
 const mb = (n) => `${(n / 1e6).toFixed(1)} MB`;
-const { tagName, assets } = JSON.parse(execFileSync('gh', ['release', 'view', '--repo', 'M0xoo/wisp', '--json', 'tagName,assets'], { encoding: 'utf8' }));
+const { tagName, assets } = JSON.parse(execFileSync('gh', ['release', 'view', '--repo', 'WispAgents/wisp', '--json', 'tagName,assets'], { encoding: 'utf8' }));
 const rows = fs.readdirSync(dir).filter((f) => f.startsWith('wisp-')).sort();
 console.log(`| Download | This build | ${tagName} | This build is |\n|---|---|---|---|`);
 for (const f of rows) {

@@ -749,7 +749,7 @@ async function migrateRows() {
   const setup = path.join(ARTEFACTS, name);
   if (!fs.existsSync(setup)) return notRun.push(['Electron→Tauri on Windows', `no ${name} in ${ARTEFACTS}`]);
   const old = path.join(dirIn('electron-setup'), name);
-  fs.writeFileSync(old, Buffer.from(await (await fetch(`https://github.com/M0xoo/wisp/releases/download/v${ELECTRON}/${name}`)).arrayBuffer()));
+  fs.writeFileSync(old, Buffer.from(await (await fetch(`https://github.com/WispAgents/wisp/releases/download/v${ELECTRON}/${name}`)).arrayBuffer()));
   const run = (file, args) => new Promise((resolve, reject) => spawn(file, args, { stdio: 'ignore' }).once('exit', resolve).once('error', reject));
   const installElectron = async () => {
     ok((await run(old, ['/S'])) === 0, 'v0.57.0’s installer failed');
@@ -902,7 +902,7 @@ function linkRows() {
     ok(real.length >= 6, `only ${real.length} names found`);
     if (process.env.QA_OFFLINE) return;
     for (const n of real) {
-      const r = await fetch(`https://github.com/M0xoo/wisp/releases/latest/download/${n}`, { method: 'HEAD', redirect: 'follow' });
+      const r = await fetch(`https://github.com/WispAgents/wisp/releases/latest/download/${n}`, { method: 'HEAD', redirect: 'follow' });
       ok(r.ok, `${n}: HTTP ${r.status}`);
     }
   });

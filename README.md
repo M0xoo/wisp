@@ -17,7 +17,7 @@ Launch coding agents in the background, skip the transcript, and read the presen
 
 [Quick start](#quick-start) · [Website](https://trywisp.dev/) · [wisp Cloud](#wisp-cloud) · [Features](#features) · [Agent board](#agent-board-and-panes) · [My Stuff](#my-stuff) · [CLI](#cli) · [Integrations](#integrations) · [Shortcuts](#keyboard-shortcuts) · [Architecture](#architecture) · [Adding a harness](#adding-a-harness) · [Roadmap](#roadmap)
 
-<img src="https://raw.githubusercontent.com/M0xoo/wisp/main/docs/assets/demo.gif" alt="wisp: send a task off, answer the agent's question in one click, read the report, then a crew member checks in and another takes a job by @mention" width="880" />
+<img src="https://raw.githubusercontent.com/WispAgents/wisp/main/docs/assets/demo.gif" alt="wisp: send a task off, answer the agent's question in one click, read the report, then a crew member checks in and another takes a job by @mention" width="880" />
 
 </div>
 
@@ -57,24 +57,24 @@ curl -fsSL https://trywisp.dev/install.sh | bash -s -- --app   # macOS: wisp.app
 
 | macOS | Windows | Linux |
 |---|---|---|
-| [Apple silicon](https://github.com/M0xoo/wisp/releases/latest/download/wisp-mac-arm64.dmg) · [Intel](https://github.com/M0xoo/wisp/releases/latest/download/wisp-mac-x64.dmg) | [x64](https://github.com/M0xoo/wisp/releases/latest/download/wisp-windows-x64-setup.exe) · [Arm](https://github.com/M0xoo/wisp/releases/latest/download/wisp-windows-arm64-setup.exe) | AppImage: [x64](https://github.com/M0xoo/wisp/releases/latest/download/wisp-linux-x64.AppImage) · [Arm](https://github.com/M0xoo/wisp/releases/latest/download/wisp-linux-arm64.AppImage) — .deb: [x64](https://github.com/M0xoo/wisp/releases/latest/download/wisp-linux-x64.deb) · [Arm](https://github.com/M0xoo/wisp/releases/latest/download/wisp-linux-arm64.deb) |
+| [Apple silicon](https://github.com/WispAgents/wisp/releases/latest/download/wisp-mac-arm64.dmg) · [Intel](https://github.com/WispAgents/wisp/releases/latest/download/wisp-mac-x64.dmg) | [x64](https://github.com/WispAgents/wisp/releases/latest/download/wisp-windows-x64-setup.exe) · [Arm](https://github.com/WispAgents/wisp/releases/latest/download/wisp-windows-arm64-setup.exe) | AppImage: [x64](https://github.com/WispAgents/wisp/releases/latest/download/wisp-linux-x64.AppImage) · [Arm](https://github.com/WispAgents/wisp/releases/latest/download/wisp-linux-arm64.AppImage) — .deb: [x64](https://github.com/WispAgents/wisp/releases/latest/download/wisp-linux-x64.deb) · [Arm](https://github.com/WispAgents/wisp/releases/latest/download/wisp-linux-arm64.deb) |
 
-Every build is on the [latest release](https://github.com/M0xoo/wisp/releases/latest), with `SHA256SUMS.txt`. Until they're signed: a `.dmg` from the browser makes macOS say it can't verify wisp; click *Done*, then System Settings → Privacy & Security → *Open Anyway*. On Windows, SmartScreen may say it protected your PC: *More info* → *Run anyway*. On Linux the `.deb` is the smooth one; an AppImage needs `chmod +x`. The app updates from the same releases: *Update to …* in its top bar downloads the new build, swaps it in and reopens wisp (a `.deb` updates by installing the new `.deb`).
+Every build is on the [latest release](https://github.com/WispAgents/wisp/releases/latest), with `SHA256SUMS.txt`. Until they're signed: a `.dmg` from the browser makes macOS say it can't verify wisp; click *Done*, then System Settings → Privacy & Security → *Open Anyway*. On Windows, SmartScreen may say it protected your PC: *More info* → *Run anyway*. On Linux the `.deb` is the smooth one; an AppImage needs `chmod +x`. The app updates from the same releases: *Update to …* in its top bar downloads the new build, swaps it in and reopens wisp (a `.deb` updates by installing the new `.deb`).
 
 **Release channels.** Stable is what everything above installs. Two more come out of the same pipeline, like TypeScript's `next` or Neovim's nightly:
 
 | Channel | What it is | npm | Desktop app |
 |---|---|---|---|
-| **Stable** | Releases | `npm install -g wisp-agents` | [latest release](https://github.com/M0xoo/wisp/releases/latest) |
-| **Beta** | Previews of the next release (`0.57.0-beta.1`) | `npm install -g wisp-agents@next` | its [prerelease](https://github.com/M0xoo/wisp/releases) |
-| **Nightly** | `main`, built every night its full test suite passes (`0.44.3-nightly.20261028.317`) | `npm install -g wisp-agents@nightly` | [nightly release](https://github.com/M0xoo/wisp/releases/tag/nightly) (`releases/download/nightly/<name>`) |
+| **Stable** | Releases | `npm install -g wisp-agents` | [latest release](https://github.com/WispAgents/wisp/releases/latest) |
+| **Beta** | Previews of the next release (`0.57.0-beta.1`) | `npm install -g wisp-agents@next` | its [prerelease](https://github.com/WispAgents/wisp/releases) |
+| **Nightly** | `main`, built every night its full test suite passes (`0.44.3-nightly.20261028.317`) | `npm install -g wisp-agents@nightly` | [nightly release](https://github.com/WispAgents/wisp/releases/tag/nightly) (`releases/download/nightly/<name>`) |
 
 Set **Settings → General → Updates** to the one you want, and *Update to …* follows it. Beta and nightly also take a stable release once it's newer, so they never leave you behind; switching back to stable waits for the next release rather than going back a version. `WISP_VERSION=next` or `WISP_VERSION=nightly` picks one in `install.sh` (`--app` too, for nightly). Homebrew only has stable releases.
 
 From source:
 
 ```sh
-git clone https://github.com/M0xoo/wisp.git
+git clone https://github.com/WispAgents/wisp.git
 cd wisp
 
 # Browser mode, with nothing to install:

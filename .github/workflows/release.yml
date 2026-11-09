@@ -28,7 +28,7 @@ name: release
 # -f nightly=true` makes one now, without waiting for the tests.
 #
 # npm publishes through trusted publishing (OIDC, no token): npmjs.com → wisp-agents → Settings
-# trusts M0xoo/wisp, release.yml, environment `npm`. npm allows one trusted publisher per
+# trusts WispAgents/wisp, release.yml, environment `npm`. npm allows one trusted publisher per
 # package, so stable and nightly both publish from here. The `npm` environment only deploys from
 # main, and npm refuses publishes by token, so what reaches npm is what was merged to main: the
 # PR review is the gate, as in most projects, with no approval step in the run.

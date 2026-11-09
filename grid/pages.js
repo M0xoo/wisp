@@ -165,7 +165,7 @@ function siteHead(title, cfg, analytics = false) {
 <nav class="links"><a href="#how">How it works</a><a href="#report">What you get back</a><a href="#private">Private by design</a></nav>
 <div class="right"><a class="pill" href="https://trywisp.dev" target="_blank" rel="noopener">trywisp.dev</a><a class="pill dark" href="#join">Sign in</a></div></div></header>`;
 }
-const siteFoot = (cfg) => `<footer class="foot"><div class="wrap"><span>${esc(cfg.name)} · ${esc(cfg.domain)}</span><a href="https://trywisp.dev" target="_blank" rel="noopener">wisp</a><a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">Open source (MIT)</a><a href="https://github.com/M0xoo/wisp/tree/main/grid" target="_blank" rel="noopener">Run your own grid</a></div></footer>
+const siteFoot = (cfg) => `<footer class="foot"><div class="wrap"><span>${esc(cfg.name)} · ${esc(cfg.domain)}</span><a href="https://trywisp.dev" target="_blank" rel="noopener">wisp</a><a href="https://github.com/WispAgents/wisp" target="_blank" rel="noopener">Open source (MIT)</a><a href="https://github.com/WispAgents/wisp/tree/main/grid" target="_blank" rel="noopener">Run your own grid</a></div></footer>
 <script>addEventListener('scroll',()=>document.getElementById('nav').classList.toggle('scrolled',scrollY>8),{passive:true})</script>${PENDING}</body></html>`;
 
 const shot = (name, alt) => `<picture><source srcset="${A}/dark-${name}.webp" media="(prefers-color-scheme: dark)"><img src="${A}/light-${name}.webp" alt="${esc(alt)}" decoding="async"></picture>`;

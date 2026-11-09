@@ -41,7 +41,7 @@ Compare only with projects of about 1k stars or more.
 Do not say *only wisp* about cross-harness boards: Vibe Kanban and Cline Kanban cross harnesses. Say that **no vendor's native pane** does, and that wisp's board reads wisp's task list, so it covers whatever wisp runs. Evidence: `~/.wisp/crew/1e0f1342e828/reports/2026-11-03-panes.md`.
 
 ## Proof (real numbers only)
-- Stars: 9 on 2026-11-04 (`gh repo view M0xoo/wisp --json stargazerCount`). npm latest 0.57.0.
+- Stars: 9 on 2026-11-04 (`gh repo view WispAgents/wisp --json stargazerCount`). npm latest 0.57.0.
 - 7 harnesses, 0 runtime dependencies, MIT (`package.json`, README badges).
 
 ## Claims the code limits

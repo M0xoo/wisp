@@ -84,7 +84,7 @@ if (cloudLinks.length) {
 // tab offers the build for this visitor's OS with what to expect on first open, since the builds
 // aren't signed yet. On a Mac it's the curl install: curl doesn't quarantine what it downloads, so
 // macOS opens it without the "can't verify" warning a browser download of the .dmg gets.
-const DL = 'https://github.com/M0xoo/wisp/releases/latest/download/';
+const DL = 'https://github.com/WispAgents/wisp/releases/latest/download/';
 const MAC_APP = 'curl -fsSL https://trywisp.dev/install.sh | bash -s -- --app';
 const BUILDS = {
   mac: ['macOS', 'wisp-mac-arm64.dmg'],
@@ -647,7 +647,7 @@ if (termWin) {
 
 // ---------- star count: nice to have, silent if GitHub says no ----------
 const stars = $('[data-stars]');
-fetch('https://api.github.com/repos/M0xoo/wisp')
+fetch('https://api.github.com/repos/WispAgents/wisp')
   .then((r) => (r.ok ? r.json() : null))
   .then((repo) => {
     const n = repo?.stargazers_count;

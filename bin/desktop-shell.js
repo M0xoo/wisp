@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-export const RELEASES = 'https://github.com/M0xoo/wisp/releases/download';
+export const RELEASES = 'https://github.com/WispAgents/wisp/releases/download';
 export const GET_APP = 'https://trywisp.dev/#install';
 // The sums decide whether there's a shell at all: a hung network mustn't hold up the tab for long.
 const [SUMS_TIMEOUT, SHELL_TIMEOUT] = [10_000, 120_000];
