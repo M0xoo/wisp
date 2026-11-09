@@ -72,3 +72,9 @@ until real screenshots exist; it's replaced in the site rework at the end (owner
 The home page is organised by the three pillars: the hero shows one example per pillar (Declare: a few lines of
 `wisp.yml`; Run: a task streaming; Track: `wisp blame`), never two examples of the same pillar. Then one section per
 pillar, in order, each with the four-ways line, then the close: "Declare. Run. Track."
+
+## Report vs transcript (owner, 2026-11-09)
+
+"You read a report, not a transcript" is no longer a headline. The report is a view: the apps open on it by default,
+and the full transcript is one click away (and always kept, ADR-0033). Mention it inside the Run section's details or
+the docs as an option, not as a pillar or a hero claim.
