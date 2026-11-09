@@ -114,6 +114,32 @@ pub const MIGRATIONS: &[&str] = &[
      thread_id TEXT NOT NULL REFERENCES channel_threads(id) ON DELETE CASCADE, at INTEGER NOT NULL,
      PRIMARY KEY (user_id, chat, message));
    ALTER TABLE channel_inbox ADD COLUMN verified INTEGER NOT NULL DEFAULT 0;",
+    // v2 (ADR-0038, ADR-0041): one Share for every kind. A share has versions (each signed by the sharer's
+    // peer key, the same key every time: signer), access (anyone, people, teams or a password), an expiry,
+    // a revoke, counts, and a place in the gallery once published. Teams hold members with a role.
+    r"ALTER TABLE shares ADD COLUMN kind TEXT NOT NULL DEFAULT 'task';
+   ALTER TABLE shares ADD COLUMN version INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE shares ADD COLUMN access TEXT NOT NULL DEFAULT 'anyone';
+   ALTER TABLE shares ADD COLUMN people TEXT NOT NULL DEFAULT '[]';
+   ALTER TABLE shares ADD COLUMN teams TEXT NOT NULL DEFAULT '[]';
+   ALTER TABLE shares ADD COLUMN expires_at INTEGER;
+   ALTER TABLE shares ADD COLUMN revoked_at INTEGER;
+   ALTER TABLE shares ADD COLUMN views INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE shares ADD COLUMN imports INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE shares ADD COLUMN signer TEXT;
+   ALTER TABLE shares ADD COLUMN published INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE shares ADD COLUMN summary TEXT NOT NULL DEFAULT '';
+   ALTER TABLE shares ADD COLUMN tags TEXT NOT NULL DEFAULT '[]';
+   CREATE TABLE share_versions (
+     share_id TEXT NOT NULL REFERENCES shares(id) ON DELETE CASCADE, version INTEGER NOT NULL,
+     body BLOB NOT NULL, hash TEXT NOT NULL, sig TEXT NOT NULL, created_at INTEGER NOT NULL,
+     PRIMARY KEY (share_id, version));
+   CREATE TABLE teams (id TEXT PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL);
+   CREATE TABLE team_members (
+     team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, role TEXT NOT NULL,
+     created_at INTEGER NOT NULL, PRIMARY KEY (team_id, user_id));
+   CREATE INDEX team_members_user ON team_members(user_id);",
 ];
 
 /// Every table the migrations make (and `meta`), for tests and `wisp grid backup` checks.

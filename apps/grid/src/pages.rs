@@ -14,6 +14,7 @@ mod account;
 mod app_css;
 mod device;
 mod home;
+mod hub;
 mod icons;
 mod in_app;
 mod join;
@@ -31,6 +32,7 @@ pub use device::{
     APP_URL, ActivatePage, DeviceAsk, MessagePage, activate_page, message_page, site_not_found,
     waking_page,
 };
+pub use hub::{ShareCard, gallery_page, gone_page, locked_page, share_page};
 pub use home::{ComputerView, HomePage, InstanceView, Offers, SiteView, home_page};
 pub use in_app::{InApp, Os, browser_name, in_app_browser, open_outside};
 pub use machines::{MachineView, Wish};

@@ -36,6 +36,7 @@ pub mod route;
 // publishing and reach
 pub mod sandboxes;
 pub mod shares;
+pub mod teams;
 pub mod sites;
 pub mod telemetry;
 pub mod tunnels;
