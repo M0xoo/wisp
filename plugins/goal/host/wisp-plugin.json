@@ -20,7 +20,10 @@
   ],
   "requires": {},
   "provides": {},
-  "contributes": { "events": [{"type": "goal.met", "durable": true}, {"type": "goal.failed", "durable": true}] },
+  "contributes": {
+    "events": [{"type": "goal.met", "durable": true}, {"type": "goal.failed", "durable": true}],
+    "commands": [{ "id": "goal.set", "title": "Set, change or clear a task's goal" }]
+  },
   "activation": [
     "onStartup"
   ]

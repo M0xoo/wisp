@@ -40,6 +40,33 @@ pub fn goal_of(spec: &Value, d: &kinds::GoalSpec) -> Option<Goal> {
     Some(Goal { text, judges, vote, max_rounds })
 }
 
+/// The goal as it stands: `goal.set`'s text over the spec's; none once it was cleared.
+pub fn goal_with(spec: &Value, st: Option<&GoalState>, d: &kinds::GoalSpec) -> Option<Goal> {
+    match st {
+        Some(s) if s.state == "cleared" => None,
+        Some(s) if !s.text.is_empty() => {
+            let mut spec = spec.clone();
+            let mut goal = spec.get("goal").filter(|g| g.is_object()).cloned().unwrap_or_else(|| json!({}));
+            goal["text"] = Value::String(s.text.clone());
+            spec["goal"] = goal;
+            goal_of(&spec, d)
+        }
+        _ => goal_of(spec, d),
+    }
+}
+
+/// `goal.set`: the task's goal set, changed (its count starts again) or cleared.
+async fn set(ctx: &Ctx, a: &wisp_goal_api::SetArgs) -> Result<Value> {
+    let call = ctx.root_call();
+    let task = ctx.run_json(&call, "runtime.get", json!({ "id": a.id })).await?;
+    let text = a.text.trim();
+    let st = if text.is_empty() { GoalState { state: "cleared".into(), ..GoalState::default() } } else { GoalState { text: text.to_owned(), ..GoalState::default() } };
+    ctx.run_json(&call, "runtime.setExt", json!({ "id": a.id, "plugin": PLUGIN, "value": st })).await?;
+    let spec = task.pointer("/ext/wisp.runtime/spec").cloned().unwrap_or_default();
+    let at = task.get("updatedAt").and_then(Value::as_i64).unwrap_or(0);
+    Ok(view_of(&spec, Some(&st), task.get("createdAt").and_then(Value::as_i64).unwrap_or(0), at, &kinds::GoalSpec::default()).unwrap_or(Value::Null))
+}
+
 /// A judge's run: its profile's harness and model, or the harness itself.
 async fn pick_of(ctx: &Ctx, judge: &str) -> Value {
     let profiles = ctx.run_json(&ctx.root_call(), "runtime.profiles", json!({})).await.unwrap_or_default();
@@ -77,8 +104,8 @@ async fn after(ctx: &Ctx, defaults: &kinds::Defaults, e: &TurnEnded) {
     }
     let spec = task.pointer("/ext/wisp.runtime/spec").cloned().unwrap_or_default();
     let d = defaults.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
-    let Some(g) = goal_of(&spec, &d) else { return };
     let mut st: GoalState = task.pointer("/ext/wisp.goal").and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default();
+    let Some(g) = goal_with(&spec, Some(&st), &d) else { return };
     if st.state == "met" {
         return;
     }
@@ -122,7 +149,7 @@ async fn after(ctx: &Ctx, defaults: &kinds::Defaults, e: &TurnEnded) {
 /// the list's pill): the goal as its spec has it, where its judging stands (`ext["wisp.goal"]`) and the last
 /// round's verdicts. None for a task without a goal.
 pub fn view_of(spec: &Value, st: Option<&GoalState>, set_at: i64, at: i64, d: &kinds::GoalSpec) -> Option<Value> {
-    let g = goal_of(spec, d)?;
+    let g = goal_with(spec, st, d)?;
     let st = st.cloned().unwrap_or_default();
     let status = match st.state.as_str() {
         "met" => "met",
@@ -181,6 +208,7 @@ impl Plugin for GoalPlugin {
         let defaults = crate::kinds::register(s);
         let summary: Arc<dyn wisp_runtime_api::points::SummaryField> = Arc::new(Summary { defaults: Arc::clone(&defaults) });
         s.contribute(&wisp_runtime_api::points::SUMMARY, summary);
+        s.command::<wisp_goal_api::Set, _, _>(|ctx, _call, a| async move { set(&ctx, &a).await });
         let d = Arc::clone(&defaults);
         s.on::<TurnEnded, _, _>(move |ctx, e| {
             let (d, e, c) = (d.clone(), e.clone(), ctx.clone());
@@ -209,13 +237,29 @@ mod tests {
         let fresh = view_of(&spec, None, 10, 20, &d).unwrap_or_default();
         assert_eq!((fresh["text"].clone(), fresh["status"].clone(), fresh["round"].clone(), fresh["setAt"].clone()), (json!("a.txt says hello!"), json!("working"), json!(0), json!(10)));
         assert_eq!(fresh["judges"][0]["name"], "claude");
-        let st = GoalState { state: "again".into(), rounds: 2, verdicts: vec![json!({ "judge": "claude", "met": false, "why": "no exclamation mark" })], why: String::new() };
+        let st = GoalState { state: "again".into(), rounds: 2, verdicts: vec![json!({ "judge": "claude", "met": false, "why": "no exclamation mark" })], ..GoalState::default() };
         let again = view_of(&spec, Some(&st), 10, 20, &d).unwrap_or_default();
         assert_eq!((again["round"].clone(), again["checks"][0]["verdict"].clone(), again["last"]["why"].clone(), again["last"]["tally"].clone()), (json!(2), json!("not_yet"), json!("no exclamation mark"), json!("0/1")));
         let met = view_of(&spec, Some(&GoalState { state: "met".into(), rounds: 3, ..GoalState::default() }), 10, 20, &d).unwrap_or_default();
         assert_eq!(met["status"], "met");
         let out = view_of(&spec, Some(&GoalState { state: "stalled".into(), rounds: 5, why: "past 5 rounds".into(), ..GoalState::default() }), 10, 20, &d).unwrap_or_default();
         assert_eq!((out["status"].clone(), out["why"].clone()), (json!("out"), json!("past 5 rounds")));
+    }
+
+    /// `goal.set` after the start: its text wins over the spec's and the count starts again; empty clears it.
+    #[test]
+    fn goal_set_changes_or_clears_the_goal() {
+        let d = kinds::GoalSpec::default();
+        let spec = json!({ "goal": { "text": "tests pass", "judges": ["reviewer"] } });
+        let changed = GoalState { text: "tests and lint pass".into(), ..GoalState::default() };
+        let g = goal_with(&spec, Some(&changed), &d).unwrap_or_else(|| unreachable!());
+        assert_eq!((g.text.as_str(), g.judges), ("tests and lint pass", vec!["reviewer".to_owned()]), "the judges stay the spec's");
+        let set_later = goal_with(&json!({ "agent": "codex" }), Some(&changed), &d).unwrap_or_else(|| unreachable!());
+        assert_eq!((set_later.text.as_str(), set_later.judges), ("tests and lint pass", vec!["codex".to_owned()]), "a task without a goal gets one");
+        let cleared = GoalState { state: "cleared".into(), ..GoalState::default() };
+        assert_eq!(goal_with(&spec, Some(&cleared), &d), None);
+        assert_eq!(view_of(&spec, Some(&cleared), 1, 2, &d), None, "the band goes");
+        assert_eq!(view_of(&spec, Some(&changed), 1, 2, &d).unwrap_or_default()["status"], "working");
     }
 
     #[test]

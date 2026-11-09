@@ -3,8 +3,31 @@
 //! `ext["wisp.goal"]` ([`GoalState`]). The defaults are the `goal` resource.
 
 use serde::{Deserialize, Serialize};
+use wisp_kernel::Command;
 
 pub const PLUGIN: &str = "wisp.goal";
+
+/// `goal.set`: set, change or clear a task's goal after it started (the task's Done-when, the GUI's goal band).
+/// Empty `text` clears it. A new goal starts its count again.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+pub struct SetArgs {
+    /// the task
+    pub id: String,
+    /// what done means; empty: no goal
+    pub text: String,
+}
+
+#[derive(Debug)]
+pub struct Set;
+impl Command for Set {
+    const ID: &'static str = "goal.set";
+    type Args = SetArgs;
+    type Out = serde_json::Value;
+    fn args_ts() -> Option<String> {
+        Some(format!("{}{}", <SetArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <SetArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+    }
+}
 
 /// `ext["wisp.goal"]`: where the goal stands.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -17,6 +40,9 @@ pub struct GoalState {
     pub verdicts: Vec<serde_json::Value>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub why: String,
+    /// the goal set after the task started (`goal.set`), over its spec's
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub text: String,
 }
 
 /// A task's goal was met: its judges agreed (ADR-0043: the `goal.met` trigger source). Durable.
