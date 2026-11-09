@@ -11,13 +11,15 @@
 //!
 //! It never touches task history (ADR-0029): tasks aren't resources, so nothing here deletes one.
 
+mod applied;
+
 mod capability;
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use wisp_kernel::{Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
-use wisp_resources_api::{Applied, Apply, Export, ExportArgs, KindInfo, Kinds, Op, OpKind, Plan, PlanArgs, PlanCmd, RESOURCE_KIND, Resource, ResourceKind, Scope};
+use wisp_resources_api::{Applied, Apply, Export, ExportArgs, KindInfo, Kinds, Op, OpKind, Plan, PlanArgs, PlanCmd, RESOURCE_KIND, Refresh, RefreshArgs, Rename, RenameArgs, Resource, ResourceKind, Scope};
 use wisp_resources_core::{formula, plan, schema};
 
 pub use wisp_resources_api::PLUGIN_ID;
@@ -112,6 +114,15 @@ async fn make_plan(ctx: &Ctx, call: &Call, a: &PlanArgs) -> Result<Plan> {
         infos.push(info);
     }
     plan::order(&mut out.ops, &infos);
+    // drift: wisp's copy isn't what was last applied (the files' change is the rest of the diff)
+    let base = applied::all(ctx).await.unwrap_or_default();
+    for o in out.ops.iter().filter(|o| o.op == OpKind::Update) {
+        if let (Some(was), Some(now)) = (base.get(&applied::key(&o.kind, &o.name)), o.before.as_ref())
+            && was != now
+        {
+            out.drift.push(applied::key(&o.kind, &o.name));
+        }
+    }
     // a secret is referenced, never copied: it must already be here
     let mut names = BTreeSet::new();
     for o in out.ops.iter().filter(|o| o.op != OpKind::Delete) {
@@ -151,6 +162,10 @@ async fn apply(ctx: &Ctx, call: &Call, a: &PlanArgs) -> Result<Applied> {
         }
         done.push(op);
     }
+    let base: Vec<(String, Option<serde_json::Value>)> = done.iter().map(|o| (applied::key(&o.kind, &o.name), (o.op != OpKind::Delete).then(|| o.spec.clone()))).collect();
+    if let Err(e) = applied::set(ctx, base).await {
+        tracing::warn!("resources: the applied baseline wasn't kept: {}", e.message);
+    }
     Ok(Applied { applied: done.len(), plan: p })
 }
 
@@ -175,6 +190,44 @@ async fn rollback(ks: &[Arc<dyn ResourceKind>], call: &Call, done: &[&Op]) -> Ve
 
 async fn apply_one(k: &dyn ResourceKind, call: &Call, op: &Op) -> Result<()> {
     k.apply(call, op).await.map_err(|e| WireError::new(e.code, format!("{}/{}: {}", op.kind, op.name, e.message)))
+}
+
+/// `resources.rename`: in place through its kind; the baseline moves with it.
+async fn rename(ctx: &Ctx, call: &Call, a: &RenameArgs) -> Result<serde_json::Value> {
+    let ks = kinds(ctx);
+    let k = find(&ks, &a.kind).ok_or_else(|| WireError::not_found(format!("no plugin owns the kind `{}`", a.kind)))?;
+    let kind = k.info().kind;
+    if a.from == a.to || a.to.trim().is_empty() {
+        return Err(WireError::invalid("rename it to another name"));
+    }
+    let now = k.read(call).await?;
+    if now.iter().any(|r| r.name == a.to) {
+        return Err(WireError::conflict(format!("wisp has a {kind} named {} already", a.to)));
+    }
+    if !now.iter().any(|r| r.name == a.from) {
+        return Err(WireError::not_found(format!("wisp has no {kind} named {}", a.from)));
+    }
+    k.rename(call, &a.from, &a.to).await?;
+    let mut base = applied::all(ctx).await.unwrap_or_default();
+    let was = base.remove(&applied::key(&kind, &a.from));
+    applied::set(ctx, vec![(applied::key(&kind, &a.from), None), (applied::key(&kind, &a.to), was)]).await?;
+    Ok(serde_json::json!({ "kind": kind, "from": a.from, "to": a.to }))
+}
+
+/// `resources.refresh`: what wisp has now is the baseline (drift accepted). → what was refreshed.
+async fn refresh(ctx: &Ctx, call: &Call, a: &RefreshArgs) -> Result<Vec<String>> {
+    let ks = kinds(ctx);
+    let mut items = Vec::new();
+    for r in &a.resources {
+        let Some((kind, name)) = r.split_once('/') else { continue };
+        let Some(k) = find(&ks, kind) else { continue };
+        if let Some(now) = k.read(call).await?.into_iter().find(|x| x.name == name) {
+            items.push((applied::key(&k.info().kind, name), Some(now.spec)));
+        }
+    }
+    let done: Vec<String> = items.iter().map(|(k, _)| k.clone()).collect();
+    applied::set(ctx, items).await?;
+    Ok(done)
 }
 
 async fn export(ctx: &Ctx, call: &Call, a: &ExportArgs) -> Result<Vec<Resource>> {
@@ -207,6 +260,8 @@ impl Plugin for ResourcesPlugin {
         });
         s.command::<PlanCmd, _, _>(|ctx, call, a| async move { make_plan(&ctx, &call, &a).await });
         s.command::<Apply, _, _>(|ctx, call, a| async move { apply(&ctx, &call, &a).await });
+        s.command::<Rename, _, _>(|ctx, call, a| async move { rename(&ctx, &call, &a).await });
+        s.command::<Refresh, _, _>(|ctx, call, a| async move { refresh(&ctx, &call, &a).await });
         s.command::<Export, _, _>(|ctx, call, a| async move { export(&ctx, &call, &a).await });
         Ok(())
     }

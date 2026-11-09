@@ -197,6 +197,18 @@ pub trait ResourceKind: Send + Sync {
         None
     }
     fn apply<'a>(&'a self, call: &'a Call, op: &'a Op) -> BoxFuture<'a, Result<()>>;
+    /// `from` renamed `to`, keeping what it is (`wisp mv`, ADR-0034). The default makes `to` with `from`'s
+    /// spec, then removes `from`; a kind that can rename in place (one write, same id) overrides it.
+    /// Additive (2026-11-09).
+    fn rename<'a>(&'a self, call: &'a Call, from: &'a str, to: &'a str) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let now = self.read(call).await?;
+            let r = now.iter().find(|r| r.name == from).ok_or_else(|| wisp_kernel::WireError::not_found(format!("wisp has no {} named {from}", self.info().kind)))?;
+            let kind = self.info().kind;
+            self.apply(call, &Op { op: OpKind::Create, kind: kind.clone(), name: to.to_owned(), spec: r.spec.clone(), id: None, changes: Vec::new(), before: None }).await?;
+            self.apply(call, &Op { op: OpKind::Delete, kind, name: from.to_owned(), spec: r.spec.clone(), id: r.id.clone(), changes: Vec::new(), before: None }).await
+        })
+    }
 }
 
 pub const RESOURCE_KIND: Point<dyn ResourceKind> = Point::new("resource.kind", 1);
@@ -216,6 +228,25 @@ pub struct Plan {
     /// schema and kind problems: apply refuses while there are any
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub problems: Vec<String>,
+    /// `kind/name` of the updates that are drift: wisp's copy changed since the last apply (in the app,
+    /// by a command), not the files. Additive (2026-11-09).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub drift: Vec<String>,
+}
+
+/// `resources.rename`: one resource renamed in place (`wisp mv`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RenameArgs {
+    pub kind: String,
+    pub from: String,
+    pub to: String,
+}
+
+/// `resources.refresh`: what wisp has now becomes the baseline of these resources (`--refresh-only`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RefreshArgs {
+    /// `kind/name`
+    pub resources: Vec<String>,
 }
 
 /// `resources.plan` / `resources.apply`: resources already read from a formula (the CLI does the
@@ -271,3 +302,5 @@ command!(Kinds = "resources.kinds" ["resources:read"] read yes : Value => Vec<Ki
 command!(PlanCmd = "resources.plan" ["resources:read"] read yes : PlanArgs => Plan);
 command!(Apply = "resources.apply" ["resources:apply"] : PlanArgs => Applied);
 command!(Export = "resources.export" ["resources:read"] read yes : ExportArgs => Vec<Resource>);
+command!(Rename = "resources.rename" ["resources:apply"] : RenameArgs => Value);
+command!(Refresh = "resources.refresh" ["resources:apply"] : RefreshArgs => Vec<String>);

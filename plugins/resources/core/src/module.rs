@@ -101,6 +101,20 @@ fn whole(f: f64) -> i64 {
     f as i64
 }
 
+/// The variables the files declare (to ask for the missing ones before evaluating).
+pub fn declared(files: &[(String, String)]) -> Vec<Variable> {
+    let mut out = Vec::new();
+    for (file, text) in files {
+        for doc in documents(text, format_of(file)).unwrap_or_default() {
+            for (name, d) in doc.get("variables").and_then(Value::as_object).into_iter().flatten() {
+                let s = |k: &str| d.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
+                out.push(Variable { name: name.clone(), ty: s("type"), default: d.get("default").cloned(), description: s("description") });
+            }
+        }
+    }
+    out
+}
+
 /// A `-var` value (a string from the command line) or a default, made the declared type.
 pub fn typed(v: &Variable, value: Value) -> Result<Value, String> {
     let bad = |want: &str| Err(format!("var.{}: {want}, not {value}", v.name));

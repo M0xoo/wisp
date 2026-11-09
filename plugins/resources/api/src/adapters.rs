@@ -296,6 +296,27 @@ impl ResourceKind for StoredKind {
         Box::pin(async move { Ok(self.specs().await?.into_iter().map(|(n, s)| Resource::new(self.info.kind.clone(), n, s)).collect()) })
     }
 
+    /// In place: one write moves the row to its new name.
+    fn rename<'a>(&'a self, _call: &'a Call, from: &'a str, to: &'a str) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let store = self.store()?;
+            let (kind, from, to) = (self.def.kind, from.to_owned(), to.to_owned());
+            store
+                .write(move |w| {
+                    let Some(row) = w.get(kind, from.as_str())? else { return Ok(false) };
+                    let mut r = row.clone();
+                    r.insert("id".into(), Value::String(to));
+                    w.upsert(kind, r)?;
+                    w.del(kind, from.as_str())?;
+                    Ok(true)
+                })
+                .await
+                .map_err(store_err)?
+                .then_some(())
+                .ok_or_else(|| WireError::not_found(format!("wisp has no {} to rename", self.info.kind)))
+        })
+    }
+
     fn apply<'a>(&'a self, _call: &'a Call, op: &'a Op) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             let store = self.store()?;

@@ -38,6 +38,14 @@
         "id": "resources.export",
         "title": "Everything set up here, as a formula",
         "readOnly": true
+      },
+      {
+        "id": "resources.rename",
+        "title": "Rename a resource in place (wisp mv)"
+      },
+      {
+        "id": "resources.refresh",
+        "title": "Take what wisp has as the baseline (--refresh-only)"
       }
     ]
   }
