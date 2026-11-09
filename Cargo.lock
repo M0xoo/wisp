@@ -3233,6 +3233,7 @@ version = "2.0.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
+ "hmac",
  "portable-pty",
  "rand 0.9.5",
  "reqwest",
@@ -3260,6 +3261,7 @@ dependencies = [
  "wisp-cursor",
  "wisp-discord",
  "wisp-email",
+ "wisp-events",
  "wisp-git",
  "wisp-github",
  "wisp-goal",
@@ -3792,6 +3794,32 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.21",
  "wisp-channels-api",
+ "wisp-kernel",
+]
+
+[[package]]
+name = "wisp-events"
+version = "2.0.0"
+dependencies = [
+ "hmac",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tracing",
+ "wisp-events-api",
+ "wisp-kernel",
+ "wisp-mcp-api",
+ "wisp-store",
+]
+
+[[package]]
+name = "wisp-events-api"
+version = "2.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "ts-rs",
  "wisp-kernel",
 ]
 

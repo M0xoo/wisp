@@ -11,6 +11,7 @@ mod cloud_cli;
 mod code;
 mod commands;
 mod desktop;
+mod events_cli;
 mod extras;
 mod folder;
 mod repo_cli;
@@ -210,6 +211,7 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Optio
         "import" if o.words.len() <= 1 => history_cli::import(&connect().await?, &o, home).await?,
         "share" if o.words.len() == 1 && args::session_id(&o.words[0]) => share_cli::share(&connect().await?, &o, cwd).await?,
         "share" if o.words.len() == 1 && o.words[0].split_once('.').is_some_and(|(k, n)| !k.is_empty() && !n.is_empty() && !n.contains(' ')) => cloud_cli::share_setup(&connect().await?, &o).await?,
+        "events" if matches!(o.words.first().map(String::as_str), None | Some("tail" | "why" | "retry" | "parked" | "ls")) => events_cli::run(&connect().await?, &p.argv, o.json).await?,
         "shares" if o.words.is_empty() => cloud_cli::shares(&connect().await?, &o).await?,
         "cloud" if o.words.len() <= 2 && matches!(o.words.first().map(String::as_str), None | Some("signin" | "login" | "signout" | "logout" | "status")) => cloud_cli::cloud(&connect().await?, &o).await?,
         "computer" if o.words.len() <= 1 && matches!(o.words.first().map(String::as_str), None | Some("on" | "off" | "status")) => cloud_cli::computer(&connect().await?, &o).await?,

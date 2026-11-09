@@ -18,8 +18,8 @@ pub struct Where {
     pub user_home: PathBuf,
 }
 
-pub const DEFAULT: [&str; 46] = [
-    "cli", "resources", "workflows", "share", "history", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "machines", "grid-client", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update",
+pub const DEFAULT: [&str; 47] = [
+    "cli", "events", "resources", "workflows", "share", "history", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "machines", "grid-client", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update",
 ];
 /// A grid box serves the web frontend only (ADR-0024).
 pub const BOX_OFF: [&str; 3] = ["machines", "update", "cli"];
@@ -110,6 +110,8 @@ fn add(g: PluginGroup, name: &str, at: &Where) -> PluginGroup {
         "machine" => g.add(wisp_machine::MachinePlugin),
         #[cfg(feature = "machines")]
         "machines" => g.add(wisp_machines::MachinesPlugin),
+        #[cfg(feature = "events")]
+        "events" => g.add(wisp_events::EventsPlugin),
         #[cfg(feature = "grid-client")]
         "grid-client" => g.add(wisp_grid_client::GridClientPlugin),
         #[cfg(feature = "crew")]
@@ -199,6 +201,7 @@ pub fn in_build(name: &str) -> bool {
         "lsp" => cfg!(feature = "lsp"),
         "machine" => cfg!(feature = "machine"),
         "machines" => cfg!(feature = "machines"),
+        "events" => cfg!(feature = "events"),
         "grid-client" => cfg!(feature = "grid-client"),
         "crew" => cfg!(feature = "crew"),
         "goal" => cfg!(feature = "goal"),

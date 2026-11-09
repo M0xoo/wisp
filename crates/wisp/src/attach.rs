@@ -486,6 +486,38 @@ pub async fn ls_watch(c: &Client, all: bool) -> Result<i32> {
     }
 }
 
+/// `wisp events tail --follow`: new durable events as they come, from the `events:<glob>` topic (ADR-0044),
+/// one line each (`--json`: one JSON object each).
+pub async fn events_follow(c: &Client, topic: &str, subject: Option<&str>, json: bool) -> Result<i32> {
+    let mut conn = Conn::new(c, &[topic.to_owned()]);
+    let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let mut got = conn.start().await?;
+    let mut first = true;
+    loop {
+        for g in got.drain(..) {
+            let rows: Vec<(String, Value)> = match g {
+                Got::Snapshot(list) => list.into_iter().filter(|r| r.e == "events_view").map(|r| (r.id, r.v)).collect(),
+                Got::Ops(ops) => ops.into_iter().filter(|o| o.e == "events_view").filter_map(|o| match o.change {
+                    wisp_protocol::Change::Upsert { v } => Some((o.id, v)),
+                    _ => None,
+                }).collect(),
+            };
+            for (id, v) in rows {
+                // what's there already when it starts isn't news
+                if first || !seen.insert(id) || subject.is_some_and(|s| v.get("subject").and_then(Value::as_str) != Some(s)) {
+                    continue;
+                }
+                out_line(&crate::events_cli::line(&v, json));
+            }
+        }
+        first = false;
+        tokio::select! {
+            g = conn.next() => got = g?,
+            _ = tokio::signal::ctrl_c() => return Ok(0),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
