@@ -118,6 +118,16 @@ test('capabilities: IPC for exactly wisp’s origin and port, nothing wider', ()
   assert.doesNotMatch(cargo, /tauri-plugin-(shell|fs|http)/);
 });
 
+// tauri-plugin-opener's default script takes every click on an http(s) <a target=_blank> and calls
+// plugin:opener|open_url over IPC, which capability.json doesn't grant: the click did nothing (Preview's
+// Open in a new tab, PR links). Clicks go the way window.open does, to on_new_window → open_outside.
+test('a click on a target=_blank link leaves through the shell, not the opener plugin’s IPC', () => {
+  const main = read('desktop/src-tauri/src/main.rs');
+  assert.doesNotMatch(main, /tauri_plugin_opener::init\(\)/);
+  assert.match(main, /\.plugin\(tauri_plugin_opener::Builder::new\(\)\.open_js_links_on_click\(false\)\.build\(\)\)/);
+  assert.ok(!JSON.parse(read('desktop/src-tauri/capability.json')).permissions.some((p) => p.startsWith('opener:')));
+});
+
 test('macOS: the version the page’s CSS needs, and Tab reaches links', () => {
   assert.equal(JSON.parse(read('desktop/src-tauri/tauri.conf.json')).bundle.macOS.minimumSystemVersion, '13.3');
   assert.match(read('desktop/src-tauri/src/macos.rs'), /setTabFocusesLinks: true/);
