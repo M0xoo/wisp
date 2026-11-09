@@ -5,7 +5,7 @@ The coder takes the next unchecked item as soon as one ends, with no wait for re
 no local full suites. The lead commits each item by concern and pushes; PR #756 CI runs the tests. CI failures
 are fixed at the start of the next item.
 
-1. [ ] **Events + triggers** (ADR-0044, then ADR-0043), plus the setup probe's "timed out" message (running).
+1. [x] **Events + triggers** (ADR-0044, then ADR-0043), plus the setup probe's "timed out" message (running).
 2. [ ] **Grid leftovers** (ADR-0041 / v2-grid-round.md "Not built"):
    - GitHub and Google sign-in on the grid;
    - the boxd container driver;
