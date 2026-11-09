@@ -96,6 +96,34 @@ macro_rules! on {
     }};
 }
 
+/// `crew.wake` and `crew.wakeMentions` (ADR-0043).
+fn wakes(s: &mut Setup, st: &Arc<State>) {
+    // a wake (ADR-0043): what happened is the job; where it came from is said in it
+    on!(s, st, c::Wake, |st, ctx, call, a| {
+        let m = st.member(&a.id)?;
+        let why = if a.why.trim().is_empty() { "You were woken: see what needs doing.".to_owned() } else { a.why.trim().to_owned() };
+        let prompt = match &a.source {
+            Some(src) => format!("{why}\n\n(woken by {src})"),
+            None => why,
+        };
+        assign(&ctx, &call, &st, &m, prompt, JobKind::Task, Vec::new()).await
+    });
+    on!(s, st, c::WakeMentions, |st, ctx, call, a| {
+        let crew = lock(&st.saved).crew.clone();
+        let found = wisp_crew_core::mentions::crew_mentions(&a.text, &crew);
+        let mut out = Vec::new();
+        for m in found.all {
+            let m = m.clone();
+            let prompt = match &a.source {
+                Some(src) => format!("You were mentioned ({src}):\n\n{}", a.text.trim()),
+                None => format!("You were mentioned:\n\n{}", a.text.trim()),
+            };
+            out.push(assign(&ctx, &call, &st, &m, prompt, JobKind::Task, Vec::new()).await?);
+        }
+        Ok(out)
+    });
+}
+
 pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
     on!(s, st, c::List, |st, ctx, call, _a| {
         let crew = lock(&st.saved).crew.clone();
@@ -173,6 +201,7 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
         assign(&ctx, &call, &st, &m, prompt, JobKind::Task, a.attachments).await
     });
     on!(s, st, c::Checkin, |st, ctx, call, a| checkin(&ctx, &call, &st, &a.id, false).await);
+    wakes(s, st);
     on!(s, st, c::Stats, |st, ctx, call, _a| {
         let crew = lock(&st.saved).crew.clone();
         let mut out = Vec::new();

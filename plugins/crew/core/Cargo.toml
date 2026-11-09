@@ -13,6 +13,7 @@ serde_json.workspace = true
 regex.workspace = true
 thiserror.workspace = true
 wisp-crew-api.workspace = true
+wisp-automations-api.workspace = true
 
 [dev-dependencies]
 rand.workspace = true

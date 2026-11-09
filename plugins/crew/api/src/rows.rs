@@ -396,6 +396,10 @@ pub struct Member {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub changed: Option<Changed>,
+    /// what else wakes them (ADR-0043): triggers whose target is this member
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, type = "Array<unknown>")]
+    pub wakes: Vec<wisp_automations_api::TriggerSpec>,
     #[ts(type = "number")]
     pub created_at: i64,
     #[ts(type = "number")]

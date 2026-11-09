@@ -8,6 +8,7 @@
 mod jobs;
 mod kind;
 mod store;
+mod wakes;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -176,7 +177,7 @@ impl State {
 
     pub fn view(&self, m: &Member, running: u32, now: i64) -> MemberView {
         let jobs = u32::try_from(lock(&self.jobs).get(&m.id).map_or(0, Vec::len)).unwrap_or(u32::MAX);
-        MemberView { member: m.clone(), running, jobs, next_at: next_checkin(m, now, &Utc), handle: handle_of(&m.name), on: Vec::new() }
+        MemberView { member: m.clone(), running, jobs, next_at: next_checkin(m, now, &Utc), handle: handle_of(&m.name), on: m.wakes.iter().map(|w| w.on.clone()).collect() }
     }
 
     /// A new or edited member, checked against the rest of the crew.
@@ -207,6 +208,37 @@ impl PromptPart for Note {
     }
 }
 
+/// A member's job ended: `crew.reported` (ADR-0043), from the runtime's durable task facts, so a hand-off
+/// survives a restart. `quiet`: the job's crew block said there was nothing to do.
+fn reported(s: &mut Setup, st: &Arc<State>) {
+    for (name, failed) in [("reported", false), ("reported_failed", true)] {
+        let st = st.clone();
+        let on = move |ctx: wisp_kernel::Ctx, call: wisp_kernel::Call, f: wisp_runtime_api::events::TaskFact| {
+            let st = st.clone();
+            async move {
+                let Some(id) = f.crew.clone() else { return Ok(()) };
+                let Ok(m) = st.member(&id) else { return Ok(()) };
+                let turns = ctx.run_json(&call, "runtime.turns", serde_json::json!({ "id": f.session_id })).await.unwrap_or_default();
+                let mut p = turns.as_array().and_then(|t| t.last()).and_then(|t| t.get("presentation").cloned()).unwrap_or_default();
+                let quiet = wisp_crew_core::memory::take_crew_block(&mut p).is_some_and(|d| d.quiet);
+                ctx.emit(&call, &wisp_crew_api::events::Reported { crew_id: m.id, member: m.name, session_id: f.session_id.0.clone(), status: if failed { "error".into() } else { "done".into() }, quiet, text: f.text.chars().take(500).collect() });
+                Ok(())
+            }
+        };
+        if failed {
+            s.on_durable::<wisp_runtime_api::events::TaskFailed, _, _>(name, move |ctx, call, d| {
+                let on = on.clone();
+                async move { if let wisp_kernel::durable::Durable::Event { event, .. } = d { on(ctx, call, event.0).await } else { Ok(()) } }
+            });
+        } else {
+            s.on_durable::<wisp_runtime_api::events::TaskFinished, _, _>(name, move |ctx, call, d| {
+                let on = on.clone();
+                async move { if let wisp_kernel::durable::Durable::Event { event, .. } = d { on(ctx, call, event.0).await } else { Ok(()) } }
+            });
+        }
+    }
+}
+
 impl Plugin for CrewPlugin {
     fn manifest(&self) -> Manifest {
         Manifest::embedded(include_str!("../wisp-plugin.json"))
@@ -219,6 +251,8 @@ impl Plugin for CrewPlugin {
         let note: Arc<dyn PromptPart> = Arc::new(Note(st.clone()));
         s.contribute(&PROMPT, note);
         jobs::register(s, &st);
+        reported(s, &st);
+        wakes::register(s, &st);
         let tick = st.clone();
         s.on_start(move |ctx| async move {
             let store = ctx.service::<wisp_store::Store>()?.as_ref().clone();

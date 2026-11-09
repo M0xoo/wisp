@@ -189,6 +189,20 @@ pub fn normalize_member(body: &MemberBody, prev: Option<&Member>, c: &Checks, id
     m.parallel = parallel_of(body.parallel, prev.map(|p| p.parallel));
     m.team = normalize_team(&team_src)?;
     m.paused = body.paused.or(prev.map(|p| p.paused)).unwrap_or(false);
+    // wakes (ADR-0043): given, or v1's `on` read as wakes, or what it had
+    let wakes = match (&body.wakes, &body.on) {
+        (Some(w), _) => w.clone(),
+        (None, Some(on)) => wisp_automations_api::v1::member_wakes(&m.name, on),
+        (None, None) => prev.map(|p| p.wakes.clone()).unwrap_or_default(),
+    };
+    for w in &wakes {
+        let mut t = w.clone();
+        t.crew.clone_from(&m.name);
+        if let Some(p) = wisp_automations_api::spec::check(&t).into_iter().find(|p| !p.starts_with("what it does")) {
+            return Err(bad(format!("{}'s wake on {}: {p}", m.name, w.on)));
+        }
+    }
+    m.wakes = wakes;
     if let Some(nb) = &body.notebook {
         m.notebook = clamp_notebook(nb);
     }

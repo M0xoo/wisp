@@ -49,4 +49,43 @@ impl ResourceKind for CrewKind {
     fn apply<'a>(&'a self, call: &'a Call, op: &'a Op) -> BoxFuture<'a, Result<()>> {
         self.0.apply(call, op)
     }
+    /// A loop of hand-offs (A wakes on B's report, B on A's) is refused at apply, naming it (ADR-0043).
+    fn check_all(&self, after: &[Resource]) -> Vec<String> {
+        wake_loops(after)
+    }
+}
+
+/// The crew in a plan, as it would be after it: a loop of hand-offs is a problem naming it.
+pub fn wake_loops(after: &[Resource]) -> Vec<String> {
+    let wakes: Vec<(String, wisp_automations_api::TriggerSpec)> = after
+        .iter()
+        .filter(|r| r.kind == "crew")
+        .flat_map(|r| {
+            let list: Vec<wisp_automations_api::TriggerSpec> = r.spec.get("wakes").and_then(|w| serde_json::from_value(w.clone()).ok()).unwrap_or_default();
+            list.into_iter().map(move |w| (r.name.clone(), w))
+        })
+        .collect();
+    wisp_automations_api::spec::wake_cycle(&wisp_automations_api::spec::wake_edges(&wakes)).map(|c| vec![format!("crew wakes go round in a loop: {} (each wakes on the one before's report)", c.join(" → "))]).unwrap_or_default()
+}
+
+#[cfg(test)]
+#[allow(clippy::assert_is_empty)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn crew_wake_cycle_refused_at_apply() {
+        let member = |name: &str, after: &str| Resource::new("crew", name, json!({ "wakes": [{ "on": "crew.reported", "match": { "member": after } }] }));
+        let fine = vec![member("bo", "ada"), member("cy", "bo"), Resource::new("crew", "ada", json!({}))];
+        assert!(wake_loops(&fine).is_empty());
+        let looped = vec![member("ada", "bo"), member("bo", "ada")];
+        let p = wake_loops(&looped);
+        assert_eq!(p.len(), 1, "{p:?}");
+        assert!(p[0].contains("ada → bo → ada") || p[0].contains("bo → ada → bo"), "names the loop: {}", p[0]);
+        // the plan's after-set: a loop closed by a member the formula doesn't touch is still found
+        let with_other_kind = vec![member("ada", "bo"), Resource::new("trigger", "bo", json!({})), member("bo", "ada")];
+        assert_eq!(wake_loops(&with_other_kind).len(), 1);
+    }
 }

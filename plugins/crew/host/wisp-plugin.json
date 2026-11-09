@@ -13,13 +13,22 @@
     "runtime:create",
     "runtime:get",
     "runtime:profiles",
+    "runtime:turns",
     "store:write{owner:crew}"
   ],
   "requires": {},
   "provides": {},
   "contributes": {
-    "events": ["crew.changed", "crew.imported", {"type": "crew.job_filed", "durable": true}, "crew.job_started", "crew.joined", "crew.left", "crew.shared"],
+    "events": ["crew.changed", "crew.imported", {"type": "crew.job_filed", "durable": true}, {"type": "crew.reported", "durable": true}, "crew.job_started", "crew.joined", "crew.left", "crew.shared"],
     "commands": [
+      {
+        "id": "crew.wake",
+        "title": "Wake a crew member: a job, because something happened"
+      },
+      {
+        "id": "crew.wakeMentions",
+        "title": "Wake the crew members a text mentions"
+      },
       {
         "id": "crew.list",
         "title": "Your crew",
@@ -66,6 +75,11 @@
       {
         "id": "crew.stats",
         "title": "Each member's track record",
+        "readOnly": true
+      },
+      {
+        "id": "crew.graph",
+        "title": "Who wakes whom",
         "readOnly": true
       }
     ]

@@ -99,3 +99,31 @@ pub struct Imported {
     pub source: String,
 }
 event!(Imported = "crew.imported");
+
+/// A member's job ended: what they reported (ADR-0043: the `crew.reported` trigger source, for hand-offs).
+/// Durable. `quiet`: they had nothing to do (a wake's trigger counts it as skipped, not failed).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "crew/")]
+pub struct Reported {
+    pub crew_id: String,
+    /// the member's name (`member` in a trigger's `match`)
+    pub member: String,
+    pub session_id: String,
+    /// done | error
+    pub status: String,
+    pub quiet: bool,
+    /// what they said, cut
+    #[serde(default)]
+    pub text: String,
+}
+impl Event for Reported {
+    const TYPE: &'static str = "crew.reported";
+    const DURABLE: bool = true;
+    fn subject(&self) -> Option<String> {
+        Some(self.session_id.clone())
+    }
+    fn key(&self) -> Option<String> {
+        Some(format!("{}:{}", self.session_id, self.status))
+    }
+}

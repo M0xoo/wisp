@@ -105,10 +105,14 @@ pub struct MemberBody {
     #[ts(optional, type = "number | null")]
     #[allow(clippy::option_option)]
     pub wake_at: Option<Option<i64>>,
-    /// trigger kinds that start its jobs (`ci`, `done`, `finished`)
+    /// v1's trigger kinds that start its jobs (`ci`, `done`, `finished`): read as `wakes`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub on: Option<Vec<String>>,
+    /// what else wakes them (ADR-0043): trigger specs, their target this member
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "Array<unknown>")]
+    pub wakes: Option<Vec<wisp_automations_api::TriggerSpec>>,
 }
 
 /// Where a member sits on the Org page: x from the chart's middle, y from its top, in px.
@@ -506,3 +510,68 @@ mod tests {
         assert_eq!(v.len(), ALL.len());
     }
 }
+
+/// `crew.wake`: a job for a member because something happened (a trigger, an outside harness, `wisp crew wake`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "crew/")]
+pub struct WakeArgs {
+    /// the member's id, name or @handle
+    pub id: String,
+    /// why: what happened, as the job's prompt
+    #[serde(default)]
+    pub why: String,
+    /// where it came from (`trigger:review`, `chat`, `mcp`), recorded on the job
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub source: Option<String>,
+}
+
+/// `crew.wakeMentions`: every member a text mentions (`@ada`) gets a job.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "crew/")]
+pub struct MentionArgs {
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub source: Option<String>,
+}
+
+command!(
+    /// A member wakes: a job, now or in their queue (ADR-0043)
+    Wake = "crew.wake" [PERM_ASSIGN] : WakeArgs => Started
+);
+command!(
+    /// Members mentioned in a text wake (`@ada please look`)
+    WakeMentions = "crew.wakeMentions" [PERM_ASSIGN] : MentionArgs => Vec<Started>
+);
+
+/// One hand-off: `to` wakes when `from` reports (`crew.reported` with `match: {member: from}`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "crew/")]
+pub struct WakeEdge {
+    pub from: String,
+    pub to: String,
+}
+
+/// `wisp crew graph`: who wakes whom, each member's other wakes, and a loop if one slipped in.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "crew/")]
+pub struct WakeGraph {
+    pub edges: Vec<WakeEdge>,
+    /// member → the `on` of each of its wakes
+    pub wakes: BTreeMap<String, Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub cycle: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "crew/")]
+pub struct GraphArgs {}
+
+command!(
+    /// Who wakes whom (ADR-0043)
+    Graph = "crew.graph" [PERM_READ] : GraphArgs => WakeGraph, read
+);

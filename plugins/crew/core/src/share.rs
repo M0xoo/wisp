@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use wisp_crew_api::{BRIEF_MAX, CREW_COLORS, MAX_CREW, MAX_PARALLEL, MEMBER_KINDS, MODES};
+use wisp_crew_api::{BRIEF_MAX, CREW_COLORS, MAX_CREW, MAX_PARALLEL, MODES};
 
 use crate::cron::{Words, read_schedule};
 use crate::error::{Result, bad};
@@ -147,7 +147,8 @@ fn bp_fields(raw: &Value, words: &dyn Words) -> Result<(String, String, Vec<Stri
     let mut on: Vec<String> = arr(raw.get("on")).iter().map(|v| str_of(Some(v))).collect();
     on.sort();
     on.dedup();
-    if let Some(k) = on.iter().find(|k| !MEMBER_KINDS.contains(&k.as_str())) {
+    // a v1 share's `on`: the kinds v1 had (read as wakes, ADR-0043)
+    if let Some(k) = on.iter().find(|k| !matches!(k.as_str(), "finished" | "done" | "ci")) {
         return Err(bad(format!("on: {k} isn't one of finished, done, ci")));
     }
     let mode = Some(str_of(raw.get("mode"))).filter(|s| !s.is_empty()).unwrap_or_else(|| "auto".into());

@@ -57,8 +57,6 @@ pub const CREW_COLORS: [&str; 8] = ["violet", "teal", "amber", "rose", "sky", "l
 /// The harnesses a member may run on (v1 adapters, without wisp's own).
 pub const HARNESSES: [&str; 7] = ["claude", "codex", "opencode", "cursor", "antigravity", "grok", "copilot"];
 pub const MODES: [&str; 3] = ["plan", "edits", "auto"];
-/// What else may start a member's jobs (automations' member trigger kinds).
-pub const MEMBER_KINDS: [&str; 3] = ["ci", "done", "finished"];
 
 /// A spell's member: the spell owns these fields of its blueprint (Make it mine lets go).
 pub const DEFINITION: [&str; 10] = ["name", "role", "avatar", "color", "brief", "cron", "on", "mode", "kit", "team"];

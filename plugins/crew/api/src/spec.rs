@@ -57,7 +57,11 @@ pub struct CrewSpec {
     /// their notebook (a file: it stays a file)
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub notebook: String,
-    /// what else starts their jobs (trigger kinds: `ci`, `done`, `finished`)
+    /// v1's "also starts when" (`ci`, `done`, `finished`): read as `wakes` on import
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub on: Vec<String>,
+    /// what else wakes them (ADR-0043): triggers whose target is this member (`on: crew.reported`,
+    /// `on: pr.review_requested`, `on: schedule` …); `cron` stays the shorthand for one schedule
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub wakes: Vec<wisp_automations_api::TriggerSpec>,
 }
