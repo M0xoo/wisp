@@ -375,6 +375,18 @@ impl Ctx {
         self.k().map(|k| crate::life::manifests(&k)).unwrap_or_default()
     }
 
+    /// Every plugin's state (on, off, refused): the trigger engine marks a trigger unavailable when its source's
+    /// plugin is off (ADR-0043). Additive (2026-11-09).
+    pub fn plugin_status(&self) -> Vec<PluginStatus> {
+        self.k().map(|k| crate::life::status(&k)).unwrap_or_default()
+    }
+
+    /// Each contribution to `point` with the id of the plugin that made it (ADR-0043: a source or a provided
+    /// trigger is shown with its plugin). Additive (2026-11-09).
+    pub fn contributions_by<T: ?Sized + Send + Sync + 'static>(&self, point: &Point<T>) -> Vec<(String, Arc<T>)> {
+        self.k().map(|k| crate::kernel_api::contributions(&k, point).into_iter().map(|(c, t)| (c.plugin().to_owned(), t)).collect()).unwrap_or_default()
+    }
+
     /// The durable event log, when there is one (ADR-0044). Additive (2026-11-09).
     pub fn event_log(&self) -> Option<Arc<dyn crate::durable::EventLog>> {
         self.k().ok()?.event_log().map(|l| l.0)

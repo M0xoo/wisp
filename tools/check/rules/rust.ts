@@ -266,7 +266,7 @@ export function eventsInCode(text: string): Map<string, boolean> {
     out.set(ty, /const DURABLE: bool = true/.test(rest));
   }
   for (const m of text.matchAll(/\bevent!\(\s*\w+\s*=\s*"([^"]+)"/g)) out.set(m[1] ?? '', false);
-  for (const m of text.matchAll(/\bdurable!\(\s*\w+\s*=\s*"([^"]+)"/g)) out.set(m[1] ?? '', true);
+  for (const m of text.matchAll(/\b(?:durable|task_fact)!\(\s*\w+\s*=\s*"([^"]+)"/g)) out.set(m[1] ?? '', true);
   return out;
 }
 

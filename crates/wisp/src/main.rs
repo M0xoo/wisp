@@ -12,6 +12,7 @@ mod code;
 mod commands;
 mod desktop;
 mod events_cli;
+mod trigger_cli;
 mod extras;
 mod folder;
 mod repo_cli;
@@ -212,6 +213,8 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Optio
         "share" if o.words.len() == 1 && args::session_id(&o.words[0]) => share_cli::share(&connect().await?, &o, cwd).await?,
         "share" if o.words.len() == 1 && o.words[0].split_once('.').is_some_and(|(k, n)| !k.is_empty() && !n.is_empty() && !n.contains(' ')) => cloud_cli::share_setup(&connect().await?, &o).await?,
         "events" if matches!(o.words.first().map(String::as_str), None | Some("tail" | "why" | "retry" | "parked" | "ls")) => events_cli::run(&connect().await?, &p.argv, o.json).await?,
+        "trigger" | "triggers" if matches!(o.words.first().map(String::as_str), None | Some("add" | "ls" | "list" | "rm" | "remove" | "fire" | "test" | "log" | "resume" | "approve" | "sources")) => trigger_cli::run(&connect().await?, p, first, &cwd.display().to_string()).await?,
+        "crew" if matches!(o.words.first().map(String::as_str), Some("wake" | "graph")) => trigger_cli::run(&connect().await?, p, "crew", &cwd.display().to_string()).await?,
         "shares" if o.words.is_empty() => cloud_cli::shares(&connect().await?, &o).await?,
         "cloud" if o.words.len() <= 2 && matches!(o.words.first().map(String::as_str), None | Some("signin" | "login" | "signout" | "logout" | "status")) => cloud_cli::cloud(&connect().await?, &o).await?,
         "computer" if o.words.len() <= 1 && matches!(o.words.first().map(String::as_str), None | Some("on" | "off" | "status")) => cloud_cli::computer(&connect().await?, &o).await?,

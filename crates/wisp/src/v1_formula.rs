@@ -84,9 +84,17 @@ pub fn formula_of(cfg: &Value) -> (Vec<Resource>, Vec<String>) {
             }
             out.push(Resource::new("task", name_of(&t, "schedule"), Value::Object(spec)));
         } else {
-            let mut spec = pick(&t, &[("prompt", "prompt"), ("cwd", "project"), ("crew", "crew"), ("branch", "branch"), ("label", "label"), ("every", "every"), ("enabled", "enabled")]);
-            spec.insert("on".into(), json!(kind));
-            out.push(Resource::new("trigger", name_of(&t, kind), Value::Object(spec)));
+            // each of v1's kinds as the source it is now (ADR-0043: ci → ci.failed, slack → chat.message, …)
+            // v1 rows leave out what they didn't set: read over a blank row
+            let mut base = serde_json::to_value(wisp_automations_api::TriggerBase::default()).unwrap_or_default();
+            if let (Some(b), Some(o)) = (base.as_object_mut(), t.as_object()) {
+                b.extend(o.iter().filter(|(_, v)| !v.is_null()).map(|(k, v)| (k.clone(), v.clone())));
+            }
+            let row = serde_json::from_value::<wisp_automations_api::TriggerBase>(base).ok();
+            match row.as_ref().and_then(wisp_automations_api::v1::from_v1) {
+                Some((_, spec)) => out.push(Resource::new("trigger", name_of(&t, kind), serde_json::to_value(spec).unwrap_or_default())),
+                None => notes.push(format!("the trigger {} is a kind v2 doesn't know ({kind}): declare it again with wisp trigger add", s(&t, "name"))),
+            }
         }
     }
     for t in list("teams") {
@@ -100,7 +108,13 @@ pub fn formula_of(cfg: &Value) -> (Vec<Resource>, Vec<String>) {
         out.push(Resource::new("team", name_of(&t, "team"), json!({ "members": members })));
     }
     for m in list("crew") {
-        let spec = pick(&m, &[("role", "role"), ("avatar", "avatar"), ("color", "color"), ("brief", "brief"), ("cwd", "cwd"), ("machine", "machine"), ("sandbox", "sandbox"), ("agent", "agent"), ("model", "model"), ("effort", "effort"), ("mode", "mode"), ("cron", "cron"), ("parallel", "parallel"), ("kit", "kit"), ("team", "team"), ("paused", "paused"), ("notebook", "notebook")]);
+        let mut spec = pick(&m, &[("role", "role"), ("avatar", "avatar"), ("color", "color"), ("brief", "brief"), ("cwd", "cwd"), ("machine", "machine"), ("sandbox", "sandbox"), ("agent", "agent"), ("model", "model"), ("effort", "effort"), ("mode", "mode"), ("cron", "cron"), ("parallel", "parallel"), ("kit", "kit"), ("team", "team"), ("paused", "paused"), ("notebook", "notebook")]);
+        // v1's `on` (finished, done, ci) is the member's wakes now (ADR-0043)
+        let on: Vec<String> = m.get("on").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect();
+        let wakes = wisp_automations_api::v1::member_wakes(s(&m, "name"), &on);
+        if !wakes.is_empty() {
+            spec.insert("wakes".into(), serde_json::to_value(wakes).unwrap_or_default());
+        }
         out.push(Resource::new("crew", s(&m, "name"), Value::Object(spec)));
     }
     for m in list("machines") {
@@ -141,6 +155,8 @@ mod tests {
         for want in ["project/api", "agent/default", "setting/settings.timeZone", "task/fix-issue", "task/nightly", "trigger/ci", "team/review-pair", "crew/Ada", "machine/studio", "connector/linear", "channel/telegram"] {
             assert!(names.iter().any(|n| n == want), "{want} in {names:?}");
         }
+        let ci = rs.iter().find(|r| r.kind == "trigger" && r.name == "ci").unwrap();
+        assert_eq!((ci.spec["on"].as_str(), ci.spec["branch"].as_str(), ci.spec["every"].as_u64()), (Some("ci.failed"), Some("main"), Some(5)), "v1's ci is ci.failed now");
         let nightly = rs.iter().find(|r| r.name == "nightly").unwrap();
         assert_eq!(nightly.spec["schedule"], "0 2 * * *");
         assert!(notes.iter().any(|n| n.contains("linear")), "{notes:?}");

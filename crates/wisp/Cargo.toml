@@ -85,6 +85,7 @@ wisp-history-api.workspace = true
 wisp-share-api.workspace = true
 wisp-share-core.workspace = true
 wisp-resources-api.workspace = true
+wisp-automations-api.workspace = true
 wisp-resources-core.workspace = true
 wisp-cli-api.workspace = true
 wisp-cli-core.workspace = true
