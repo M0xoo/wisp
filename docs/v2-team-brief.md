@@ -73,3 +73,15 @@ UI agents read `docs/v2-ui-brief.md` as well.
   `[[bench]]`-free binary or a `#[test] #[ignore]` bench), and numbers in your report.
 - Your report: what you built (files), its public API, tests and the monoflow verify output, bench
   numbers, plan-coverage rows you moved, and what you need from another crate.
+
+## Quality over speed (owner, 2026-11-09)
+
+"Take your time: everything coded well, the whole vision implemented, all edge cases thought through."
+- Before building a feature, write its **edge cases** in its ADR (an "Edge cases" section): empty and huge inputs,
+  concurrent edits, offline and restart mid-way, permissions and capped callers, secrets, peers on another
+  machine, Windows/Linux/macOS, migrations from older data, undo/rollback, and what each frontend (app, TUI, CLI,
+  SDK) shows. Each one gets a test, named after it.
+- No stubs reported as done: a kind, command or screen is done only when it acts, is tested, and is reachable from
+  every frontend.
+- The lead verifies every hand-off (full suite, clippy, gates, screenshots) and runs a verifier pass between coder
+  jobs. A finding is fixed before new scope starts.
