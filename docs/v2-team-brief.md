@@ -83,5 +83,9 @@ UI agents read `docs/v2-ui-brief.md` as well.
   SDK) shows. Each one gets a test, named after it.
 - No stubs reported as done: a kind, command or screen is done only when it acts, is tested, and is reachable from
   every frontend.
-- The lead verifies every hand-off (full suite, clippy, gates, screenshots) and runs a verifier pass between coder
-  jobs. A finding is fixed before new scope starts.
+- **Test what changed, fast (owner, 2026-11-09):** while working, `cargo test -p <crate> [--test <file>]`; at
+  hand-off, `.agents/bin/monoflow verify --affected` (cached: changed packages and their dependents), clippy on the
+  touched crates and `npm run check`. Never run the full `cargo test --workspace` locally: on macOS it waits ~30 s per
+  test binary (225 binaries, 2 h+). The full suite is PR CI's job on Linux.
+- The lead verifies every hand-off with those same gates (plus screenshots for UI) and starts the next job at once;
+  a finding is fixed in the next job, before new scope.

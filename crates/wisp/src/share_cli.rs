@@ -41,7 +41,7 @@ pub async fn share(c: &Client, o: &Opts, cwd: &Path) -> Result<i32> {
     if !["spec", "report", "full"].contains(&level.as_str()) {
         return Err(CliError::said(format!("--level {level}: spec, report or full")));
     }
-    let to = o.to.clone().map(|t| if t == "link" { "cloud".to_owned() } else { t }).unwrap_or_else(|| "file".into());
+    let to = o.to.clone().map_or_else(|| "file".into(), |t| if t == "link" { "cloud".to_owned() } else { t });
     if !["file", "gist", "cloud", "wisp-cloud"].contains(&to.as_str()) {
         eprintln!("  ✗ --to {to}: cloud, file or gist");
         return Ok(1);
