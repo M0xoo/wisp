@@ -123,6 +123,28 @@ test('the agent schedules with resume_later; marking done drops its wake-ups, ke
   assert.equal(s.laterChain, undefined);
 });
 
+test('resume_later called while the turn is still running fires once it comes due', async () => {
+  process.env.FAKE_DELAY = '1500';
+  let s;
+  try {
+    s = await api('/sessions', { prompt: 'watch CI', cwd: makeRepo(), agent: 'claude', worktree: false });
+    await until(() => srv.runner.live.has(s.id));
+    const out = await api('/internal/later', { session: s.id, minutes: 5, message: 'check CI again' }, 'POST', { 'x-wisp-token': srv.token });
+    assert.match(out.text, /Scheduled/);
+    assert.equal(srv.store.get(s.id).state, 'running', 'set mid-turn');
+  } finally {
+    delete process.env.FAKE_DELAY;
+  }
+  await ended(s.id);
+  s = srv.store.get(s.id);
+  assert.deepEqual(s.later?.map((l) => l.text), ['check CI again'], 'still scheduled after the turn ends');
+  past(s);
+  await srv.later.tick();
+  const done = await ended(s.id, 2);
+  assert.equal(done.turns.at(-1).prompt, 'check CI again');
+  assert.equal(done.later, undefined);
+});
+
 test('a reminder on a task brings it back to Needs you, and snoozes', async () => {
   const s = await task();
   await api(`/sessions/${s.id}`, { state: 'done' }, 'PATCH');

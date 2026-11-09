@@ -1888,7 +1888,9 @@ export class Runner extends EventEmitter {
       delete session.forLater;
     }
     const quiet = ((crewOut.quiet || crewOut.filed) && !holding && !handing) || waits || !!back;
-    if (quiet) Object.assign(session, { state: 'done', unread: false, ...(crewOut.quiet && { archived: true }) }, back);
+    // A quiet check-in that scheduled a follow-up (resume_later) is filed under Done, not archived:
+    // Later lets what an archived task scheduled lapse, so it would never come back.
+    if (quiet) Object.assign(session, { state: 'done', unread: false, ...(crewOut.quiet && !session.later?.length && { archived: true }) }, back);
     if (crewOut.quiet && !holding && !handing) turn.quiet = true; // for the member's track record (usage.js crewStats)
     // A crew report worth reading but not urgent: filed in For later, unread, and nobody is pinged.
     const parked = !!crewOut.later && !quiet && !holding && !handing && !crewOut.filed;
