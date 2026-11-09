@@ -52,6 +52,8 @@ wisp-update-core = { path = "plugins/update/core" }
 wisp-crew-api = { path = "plugins/crew/api" }
 wisp-crew-core = { path = "plugins/crew/core" }
 wisp-goal-api = { path = "plugins/goal/api" }
+wisp-history-api = { path = "plugins/history/api" }
+wisp-history-core = { path = "plugins/history/core" }
 wisp-goal-core = { path = "plugins/goal/core" }
 wisp-later-api = { path = "plugins/later/api" }
 wisp-later-core = { path = "plugins/later/core" }
