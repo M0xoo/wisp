@@ -117,7 +117,7 @@ test('markdown: headings, nested lists, tables, code and links', () => {
   assert.match(html, /<ul><li><strong>One<\/strong> with <code>code<\/code><ul><li>nested <em>two<\/em><\/li><\/ul><\/li><li>three wrapped<\/li><\/ul>/);
   assert.match(html, /<td><code>x<\/code><\/td><td><a href="\/integrations.html#mcp">docs<\/a><\/td>/);
   assert.match(html, /<pre data-lang="sh"><code>echo &quot;&lt;hi&gt;&quot;<\/code><\/pre>/);
-  assert.match(html, /<a href="https:\/\/github.com\/M0xoo\/wisp\/blob\/main\/README.md#cli">the README<\/a>/);
+  assert.match(html, /<a href="https:\/\/github.com\/WispAgents\/wisp\/blob\/main\/README.md#cli">the README<\/a>/);
 });
 
 test('the privacy policy has the contact and the account deletion anchor Play links to, and every footer links it', () => {
