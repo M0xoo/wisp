@@ -90,6 +90,8 @@ pub struct AuthOptions<'a> {
     /// an open route reached from outside: no token is `public`
     pub public: bool,
     pub agent_set: Option<&'a AgentSet>,
+    /// an API key's set (`x-wisp-key`, a declared capability set's `key`)
+    pub key_set: Option<&'a AgentSet>,
 }
 
 /// The session ids a request names, in the order they count.
@@ -156,6 +158,13 @@ pub fn resolve(
         }
         return Err(ApiError::BadToken);
     }
+    if let Some(key) = h.get("x-wisp-key") {
+        let key = key.to_str().map_err(|_| ApiError::BadToken)?;
+        return match o.key_set.and_then(|f| f(key)) {
+            Some(set) => Ok(Caller { set, session: None, plugin: None }),
+            None => Err(ApiError::BadToken),
+        };
+    }
     if o.via_proxy && header(h, "x-wisp-proxy-via") == Some("key") {
         return Ok(Caller {
             set: sets::APIKEY.into(),
@@ -205,6 +214,7 @@ mod tests {
             via_proxy: via,
             public: false,
             agent_set: None,
+            key_set: None,
         }
     }
     fn params(id: &str) -> BTreeMap<String, String> {

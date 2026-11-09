@@ -41,6 +41,10 @@ pub trait Backend: Send + Sync + 'static {
     fn wake_route(&self, _method: &str, _path: &str) -> BoxFuture<'static, bool> {
         Box::pin(async { false })
     }
+    /// the user capability set an API key (`x-wisp-key`) speaks with; None: not a key
+    fn key_set(&self, _key: &str) -> Option<String> {
+        None
+    }
 }
 
 impl Backend for Kernel {
@@ -82,5 +86,9 @@ impl Backend for Kernel {
             None,
         );
         Box::pin(async move { fut.await > 0 })
+    }
+
+    fn key_set(&self, key: &str) -> Option<String> {
+        Kernel::key_set(self, key)
     }
 }

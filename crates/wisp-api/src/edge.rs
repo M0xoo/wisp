@@ -265,6 +265,7 @@ impl Edge {
             via_proxy: via,
             public: open,
             agent_set: None,
+            key_set: None,
         };
         let caller = self.caller(&parts.headers, &params, &body, &auth)?;
         if !open && entry.permission != CHECKED_INSIDE {
@@ -299,12 +300,15 @@ impl Edge {
         // the backend decides the agent's set (agent:capped for a capped task)
         let backend = self.backend.clone();
         let f: auth::AgentSet = Arc::new(move |id: &str| backend.agent_set(id));
+        let backend = self.backend.clone();
+        let k: auth::AgentSet = Arc::new(move |key: &str| backend.key_set(key));
         auth::resolve(
             h,
             params,
             body,
             &AuthOptions {
                 agent_set: Some(&f),
+                key_set: Some(&k),
                 ..*o
             },
         )

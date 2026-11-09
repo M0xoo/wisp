@@ -395,6 +395,15 @@ impl Ctx {
         self.k()?.caps.remove(id);
         Ok(())
     }
+    /// An API key that speaks with a user's capability set (`custom:<name>`): a request carrying it
+    /// (`x-wisp-key`) acts with that set. Memory only. Needs `kernel:caps`. Additive (2026-11-09).
+    pub fn define_capability_key(&self, set: &str, key: &str) -> Result<()> {
+        if !self.may("kernel:caps") || !set.starts_with("custom:") {
+            return Err(WireError::forbidden(format!("{} may not give a key to {set}", self.plugin())));
+        }
+        self.k()?.caps.set_key(set, key);
+        Ok(())
+    }
     /// Every plugin the kernel has and its state (the plugin manager's view). Needs `plugins:manage`.
     /// Additive (2026-11-08).
     pub fn plugins(&self) -> Result<Vec<crate::PluginStatus>> {

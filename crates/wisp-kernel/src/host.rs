@@ -481,6 +481,10 @@ impl Kernel {
     pub fn status(&self) -> Vec<PluginStatus> {
         crate::life::status(&self.state)
     }
+    /// The `custom:` set an API key speaks with, if a capability set declared it.
+    pub fn key_set(&self, key: &str) -> Option<String> {
+        self.state.caps.key_set(key)
+    }
     pub fn set_enabled(&self, plugin: &str, on: bool) -> BoxFuture<'static, Result<()>> {
         crate::life::set_enabled(self.state.clone(), plugin.to_owned(), on)
     }

@@ -343,6 +343,8 @@ pub fn plugin_set(id: &str, permissions: &[String]) -> CapabilitySet {
 #[derive(Debug, Default)]
 pub(crate) struct Registry {
     sets: RwLock<HashMap<String, Arc<Compiled>>>,
+    /// an API key → the `custom:` set its holder speaks with (memory only: keys stay in secrets)
+    keys: RwLock<Vec<(String, String)>>,
 }
 
 impl Registry {
@@ -350,6 +352,32 @@ impl Registry {
         if let Ok(mut m) = self.sets.write() {
             m.remove(id);
         }
+        if let Ok(mut k) = self.keys.write() {
+            k.retain(|(_, set)| set != id);
+        }
+    }
+
+    /// `key` speaks with `set` from now on (one key, one set; an empty key only clears).
+    pub(crate) fn set_key(&self, set: &str, key: &str) {
+        if let Ok(mut k) = self.keys.write() {
+            k.retain(|(kk, s)| s != set && kk != key);
+            if !key.is_empty() {
+                k.push((key.to_owned(), set.to_owned()));
+            }
+        }
+    }
+
+    /// The set a key speaks with; every key is compared in full (no early exit on a prefix).
+    pub(crate) fn key_set(&self, key: &str) -> Option<String> {
+        let k = self.keys.read().ok()?;
+        let mut found = None;
+        for (kk, set) in k.iter() {
+            let same = kk.len() == key.len() && kk.bytes().zip(key.bytes()).fold(0u8, |acc, (a, b)| acc | (a ^ b)) == 0;
+            if same {
+                found = Some(set.clone());
+            }
+        }
+        found
     }
 
     pub(crate) fn define(&self, s: &CapabilitySet) {
