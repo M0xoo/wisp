@@ -193,6 +193,11 @@ impl Conn {
         Ok(got)
     }
 
+    /// The stream dropped and a reconnect is due (the TUI's connection banner).
+    pub(crate) fn reconnecting(&self) -> bool {
+        self.retry.is_some()
+    }
+
     pub(crate) async fn start(&mut self) -> Result<Vec<Got>> {
         let outs = self.sync.handle(Input::Open, self.now());
         self.carry(outs).await

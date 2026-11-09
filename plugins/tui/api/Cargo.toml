@@ -1,0 +1,15 @@
+[package]
+name = "wisp-tui-api"
+description = "wisp tui's points (ADR-0024): tui.view@1, tui.input@1, term.block@1, the theme from @wisp/tokens, and the built-in block renderers"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+ratatui.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

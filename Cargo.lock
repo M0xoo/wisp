@@ -3820,6 +3820,7 @@ dependencies = [
  "wisp-termctx-core",
  "wisp-terminal",
  "wisp-testkit",
+ "wisp-tui-api",
  "wisp-update",
  "wisp-workflows",
  "wisp-worktrees",
@@ -5485,6 +5486,14 @@ dependencies = [
  "serde_json",
  "tokio",
  "wisp-kernel",
+]
+
+[[package]]
+name = "wisp-tui-api"
+version = "2.0.0"
+dependencies = [
+ "ratatui",
+ "serde_json",
 ]
 
 [[package]]

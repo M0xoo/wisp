@@ -76,6 +76,7 @@ wisp-router-core = { path = "plugins/router/core" }
 wisp-automations-api = { path = "plugins/automations/api" }
 wisp-automations-core = { path = "plugins/automations/core" }
 wisp-termctx-api = { path = "plugins/termctx/api" }
+wisp-tui-api = { path = "plugins/tui/api" }
 wisp-termctx-core = { path = "plugins/termctx/core" }
 wisp-learn-api = { path = "plugins/learn/api" }
 wisp-learn-core = { path = "plugins/learn/core" }

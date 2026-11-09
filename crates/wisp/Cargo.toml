@@ -91,6 +91,7 @@ wisp-resources-core.workspace = true
 wisp-cli-api.workspace = true
 wisp-cli-core.workspace = true
 ratatui.workspace = true
+wisp-tui-api.workspace = true
 wisp-sync.workspace = true
 wisp-settings = { path = "../../plugins/settings/host", optional = true }
 wisp-runtime = { path = "../../plugins/runtime/host", optional = true }
