@@ -6,9 +6,22 @@
   "api": "^1",
   "description": "goals: rounds, verdicts, judges, stalls",
   "kind": "plugin",
-  "server": { "builtin": "wisp_goal" },
-  "permissions": [],
+  "server": {
+    "builtin": "wisp_goal"
+  },
+  "permissions": [
+    "runtime:get",
+    "runtime:turns",
+    "runtime:profiles",
+    "runtime:quick",
+    "runtime:setExt",
+    "runtime:followUp",
+    "runtime:ask"
+  ],
   "requires": {},
   "provides": {},
-  "contributes": {}
+  "contributes": {},
+  "activation": [
+    "onStartup"
+  ]
 }
