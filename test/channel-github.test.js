@@ -293,7 +293,7 @@ test('lists: each ends with an example, and this repo’s project is the default
     ['help', /Say what you’d type in wisp/],
     ['', /Say what you’d type in wisp/],
     ['projects', new RegExp(`• ${name}  ← default`)],
-    ['models', /• claude: opus, sonnet, haiku/],
+    ['models', /• claude: fable, opus, sonnet, haiku/],
     ['machines', /• this computer · online/],
     ['status', /./],
     ['crew', /./],

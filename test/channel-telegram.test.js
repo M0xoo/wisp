@@ -378,7 +378,7 @@ test('plain text starts a task; a leading colon sends it as written; what’s wr
   const count = srv.store.all().length;
   for (const [text, re] of [
     ['on nothere: fix it', /No machine “nothere”/],
-    ['with gpt-0 fix it', /No model “gpt-0”[\s\S]*Choices: opus, sonnet, haiku[\s\S]*Nothing started/],
+    ['with gpt-0 fix it', /No model “gpt-0”[\s\S]*Choices: fable, opus, sonnet, haiku[\s\S]*Nothing started/],
     ['#nosuch fix it', new RegExp(`No project matches “nosuch”[\\s\\S]*Choices: .*${web}`)],
     ['@nobody fix it', /No crew member or project matches “nobody”/],
     [`in ${name}`, /What should it do/],
@@ -406,7 +406,7 @@ test('lists: each ends with an example in the user’s own words', async () => {
   for (const [text, re] of [
     ['help', /Say what you’d type in wisp/],
     ['/projects', new RegExp(`• ${name}  ← default`)],
-    ['models', /• claude: opus, sonnet, haiku/],
+    ['models', /• claude: fable, opus, sonnet, haiku/],
     ['machines', /• this computer · online/],
     ['status', /./],
   ]) {
