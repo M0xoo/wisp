@@ -170,20 +170,20 @@ mod tests {
     #[test]
     fn github_forms() {
         for s in [
-            "https://github.com/M0xoo/wisp",
-            "https://github.com/M0xoo/wisp.git",
-            "https://github.com/M0xoo/wisp/tree/main/server",
-            "github.com/M0xoo/wisp/",
-            "git@github.com:M0xoo/wisp.git",
+            "https://github.com/WispAgents/wisp",
+            "https://github.com/WispAgents/wisp.git",
+            "https://github.com/WispAgents/wisp/tree/main/server",
+            "github.com/WispAgents/wisp/",
+            "git@github.com:WispAgents/wisp.git",
         ] {
-            assert_eq!(gh(s, false).as_deref(), Some("M0xoo/wisp"), "{s}");
+            assert_eq!(gh(s, false).as_deref(), Some("WispAgents/wisp"), "{s}");
         }
-        assert_eq!(gh("M0xoo/wisp", true).as_deref(), Some("M0xoo/wisp"));
+        assert_eq!(gh("WispAgents/wisp", true).as_deref(), Some("WispAgents/wisp"));
         assert_eq!(
-            parse_repo("https://github.com/M0xoo/wisp/pull/3", false)
+            parse_repo("https://github.com/WispAgents/wisp/pull/3", false)
                 .map(|r| r.url)
                 .as_deref(),
-            Some("https://github.com/M0xoo/wisp.git")
+            Some("https://github.com/WispAgents/wisp.git")
         );
     }
 
@@ -213,7 +213,7 @@ mod tests {
             "/Users/me/app",
             "./app",
             "app",
-            "M0xoo/wisp",
+            "WispAgents/wisp",
             "https://github.com/M0xoo",
             "C:\\code\\app",
             "",

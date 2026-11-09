@@ -7,7 +7,7 @@ const ANSWER = `# Rate limit on /login
 
 Added a **sliding-window** limiter: 5 attempts per minute per IP, then \`429\` with *Retry-After*.
 It reads the IP from ~~the socket~~ \`X-Forwarded-For\` behind the proxy.  
-A hard break sits before this line. Docs: [limiter guide](https://trywisp.dev/guides "Guides") or <https://trywisp.dev>, and a bare one https://github.com/M0xoo/wisp/pull/754.
+A hard break sits before this line. Docs: [limiter guide](https://trywisp.dev/guides "Guides") or <https://trywisp.dev>, and a bare one https://github.com/WispAgents/wisp/pull/754.
 
 ## What changed
 

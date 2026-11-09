@@ -11,8 +11,8 @@
 
 pub const PKG: &str = "wisp-agents";
 pub const TAP: &str = "m0xoo/tap/wisp-agents";
-pub const RELEASES: &str = "https://api.github.com/repos/M0xoo/wisp/releases";
-pub const DOWNLOADS: &str = "https://github.com/M0xoo/wisp/releases/latest";
+pub const RELEASES: &str = "https://api.github.com/repos/WispAgents/wisp/releases";
+pub const DOWNLOADS: &str = "https://github.com/WispAgents/wisp/releases/latest";
 pub const REGISTRY: &str = "https://registry.npmjs.org/-/package/wisp-agents/dist-tags";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

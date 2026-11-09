@@ -5,11 +5,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/M0xoo/wisp.git",
+    "url": "git+https://github.com/WispAgents/wisp.git",
     "directory": "npm/wisp-agents"
   },
-  "homepage": "https://github.com/M0xoo/wisp#readme",
-  "bugs": "https://github.com/M0xoo/wisp/issues",
+  "homepage": "https://github.com/WispAgents/wisp#readme",
+  "bugs": "https://github.com/WispAgents/wisp/issues",
   "type": "module",
   "bin": {
     "wisp": "bin/wisp.js"

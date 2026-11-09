@@ -102,7 +102,7 @@ pub fn draft(d: &DraftInput<'_>) -> Draft {
         .collect::<Vec<_>>()
         .join("\n\n");
     let body = format!(
-        "{}\n\n_Shipped from [wisp](https://github.com/M0xoo/wisp)._",
+        "{}\n\n_Shipped from [wisp](https://github.com/WispAgents/wisp)._",
         body.trim()
     );
     Draft {

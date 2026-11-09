@@ -108,7 +108,7 @@ pub fn ssh_hint(stderr: &str, target: &str) -> Option<Hint> {
 /// The hint for a bootstrap step that failed for good (v1: `node`, now the wisp binary).
 pub fn step_hint(step: &str) -> Option<Hint> {
     (step == crate::bootstrap::INSTALL).then(|| Hint {
-        url: Some("https://github.com/M0xoo/wisp/releases".into()),
+        url: Some("https://github.com/WispAgents/wisp/releases".into()),
         ..Hint::titled("wisp couldn’t be installed there", "wisp couldn’t install itself there (see above). Install wisp on that computer by hand (npm i -g wisp-agents, or the download for its system), then Try again.")
     })
 }

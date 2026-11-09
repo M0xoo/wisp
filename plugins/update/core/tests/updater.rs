@@ -431,7 +431,7 @@ fn the_app_checks_github_releases_and_picks_its_download() {
         let req = u.begin_check(0, "stable");
         assert_eq!(
             req.url,
-            "https://api.github.com/repos/M0xoo/wisp/releases/latest"
+            "https://api.github.com/repos/WispAgents/wisp/releases/latest"
         );
         assert_eq!(req.accept, "application/vnd.github+json");
         u.end_check(&req, Some(&rel));
@@ -442,7 +442,7 @@ fn the_app_checks_github_releases_and_picks_its_download() {
         );
         assert_eq!(
             v.command.as_deref(),
-            Some("https://github.com/M0xoo/wisp/releases/latest")
+            Some("https://github.com/WispAgents/wisp/releases/latest")
         );
         assert_eq!(u.asset.as_ref().map(|a| a.name.as_str()), want);
         assert_eq!(asset_name(&u.platform, image).as_deref(), want);
@@ -453,10 +453,10 @@ fn the_app_checks_github_releases_and_picks_its_download() {
 fn the_app_on_beta_or_nightly_picks_the_newest_release_its_channel_allows() {
     let asset = |v: &str| json!([{ "name": "wisp-mac-arm64.zip", "browser_download_url": format!("https://dl/{v}/wisp-mac-arm64.zip") }]);
     let list = json!([
-        { "tag_name": "nightly", "name": "wisp 99.1.0-nightly.20261024.317", "prerelease": true, "html_url": "https://github.com/M0xoo/wisp/releases/tag/nightly", "assets": asset("nightly") },
-        { "tag_name": "v99.1.0-beta.1", "name": "v99.1.0-beta.1", "prerelease": true, "html_url": "https://github.com/M0xoo/wisp/releases/tag/v99.1.0-beta.1", "assets": asset("beta") },
+        { "tag_name": "nightly", "name": "wisp 99.1.0-nightly.20261024.317", "prerelease": true, "html_url": "https://github.com/WispAgents/wisp/releases/tag/nightly", "assets": asset("nightly") },
+        { "tag_name": "v99.1.0-beta.1", "name": "v99.1.0-beta.1", "prerelease": true, "html_url": "https://github.com/WispAgents/wisp/releases/tag/v99.1.0-beta.1", "assets": asset("beta") },
         { "tag_name": "v99.2.0-beta.1", "draft": true, "prerelease": true, "assets": asset("draft") },
-        { "tag_name": "v99.0.0", "prerelease": false, "html_url": "https://github.com/M0xoo/wisp/releases/tag/v99.0.0", "assets": asset("stable") },
+        { "tag_name": "v99.0.0", "prerelease": false, "html_url": "https://github.com/WispAgents/wisp/releases/tag/v99.0.0", "assets": asset("stable") },
     ]);
     for (channel, latest, from) in [
         ("beta", "99.1.0-beta.1", "beta"),
@@ -471,7 +471,7 @@ fn the_app_on_beta_or_nightly_picks_the_newest_release_its_channel_allows() {
         let req = u.begin_check(0, channel);
         assert_eq!(
             req.url,
-            "https://api.github.com/repos/M0xoo/wisp/releases?per_page=30"
+            "https://api.github.com/repos/WispAgents/wisp/releases?per_page=30"
         );
         u.end_check(&req, Some(&list));
         let v = u.view(channel);

@@ -65,7 +65,7 @@ def wispBootstrap = tasks.register('wispBootstrap') {
         def v = wispVersion()
         def to = new File(wispAssets, 'wisp/bootstrap.sh')
         to.parentFile.mkdirs()
-        to.text = from.text.replace('__VERSION__', "'${v}'").replace('__DIST__', "'https://github.com/M0xoo/wisp/releases/download/v${v}'")
+        to.text = from.text.replace('__VERSION__', "'${v}'").replace('__DIST__', "'https://github.com/WispAgents/wisp/releases/download/v${v}'")
     }
 }
 android.sourceSets.main.assets.srcDir(wispAssets)

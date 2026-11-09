@@ -8,7 +8,7 @@
 //       `monoflow graph impact` (owner + transitive dependents). Works with any monoflow version (the
 //       pinned 8c6bc74 ignores `verify --base`). Files no package owns are listed as unmapped:
 //       monoflow counts them as nothing affected (§9.4.4 item 3), and G14 must see that.
-//   node tools/g14.ts replay [--last=200] [--repo=M0xoo/wisp] [--json]
+//   node tools/g14.ts replay [--last=200] [--repo=WispAgents/wisp] [--json]
 //       For the last N merged PRs, downloads the artifacts pr.yml uploaded (g14-affected: the affected
 //       set; verify-all-*: the full run) and scores them. PRs whose runs predate v2 CI have no artifacts
 //       and are counted as "no data". Needs `gh` signed in.
@@ -176,7 +176,7 @@ if (import.meta.main) {
       if (out) writeFileSync(out, text);
       else process.stdout.write(text);
     } else if (cmd === 'replay') {
-      process.exitCode = replay(Number(flag('last') ?? GATE.prs), flag('repo') ?? 'M0xoo/wisp', process.argv.includes('--json')) ? 0 : 1;
+      process.exitCode = replay(Number(flag('last') ?? GATE.prs), flag('repo') ?? 'WispAgents/wisp', process.argv.includes('--json')) ? 0 : 1;
     } else {
       process.stderr.write('usage: node tools/g14.ts affected [--base=origin/main] [--out=f] | replay [--last=200] [--repo=o/r] [--json]\n');
       process.exitCode = 2;

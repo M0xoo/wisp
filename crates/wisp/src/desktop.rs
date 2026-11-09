@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use sha2::{Digest, Sha256};
 
-pub const RELEASES: &str = "https://github.com/M0xoo/wisp/releases/download";
+pub const RELEASES: &str = "https://github.com/WispAgents/wisp/releases/download";
 pub const GET_APP: &str = "https://trywisp.dev/#install";
 
 /// desktop/scripts/package.mjs names them the same way.

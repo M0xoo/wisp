@@ -21,7 +21,7 @@ fn draft_is_conventional_from_the_hero_title() {
     assert!(d.body.starts_with("No question asked."));
     assert!(
         d.body
-            .ends_with("_Shipped from [wisp](https://github.com/M0xoo/wisp)._")
+            .ends_with("_Shipped from [wisp](https://github.com/WispAgents/wisp)._")
     );
     assert_eq!(
         draft(&input("feat(ui): already conventional", "")).title,

@@ -24,7 +24,7 @@ pub const STEPS: &[(&str, &str)] = &[
 ];
 
 /// Where release downloads live: `<DIST>/v<version>/{SHA256SUMS.txt, wisp-bin-<os>-<arch>.tar.gz}`.
-pub const DIST: &str = "https://github.com/M0xoo/wisp/releases/download";
+pub const DIST: &str = "https://github.com/WispAgents/wisp/releases/download";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Api {
@@ -177,7 +177,7 @@ mod tests {
         assert!(sh.lines().any(|l| l == "VERSION='2.0.0'"));
         assert!(
             sh.lines()
-                .any(|l| l == "DIST='https://github.com/M0xoo/wisp/releases/download/v2.0.0'")
+                .any(|l| l == "DIST='https://github.com/WispAgents/wisp/releases/download/v2.0.0'")
         );
         assert!(!sh.contains("__"), "every field filled");
         // the default command: this version's binary, nothing on the line itself to inject
