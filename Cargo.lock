@@ -3777,12 +3777,14 @@ dependencies = [
  "wisp-git",
  "wisp-github",
  "wisp-goal",
+ "wisp-goal-tui",
  "wisp-grid",
  "wisp-grid-client",
  "wisp-grok",
  "wisp-history",
  "wisp-history-api",
  "wisp-history-core",
+ "wisp-history-tui",
  "wisp-issues",
  "wisp-kernel",
  "wisp-later",
@@ -4446,6 +4448,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wisp-goal-tui"
+version = "2.0.0"
+dependencies = [
+ "ratatui",
+ "serde_json",
+ "wisp-tui-api",
+]
+
+[[package]]
 name = "wisp-grid"
 version = "2.0.0"
 dependencies = [
@@ -4597,6 +4608,15 @@ dependencies = [
  "wisp-history-api",
  "wisp-share-api",
  "zstd",
+]
+
+[[package]]
+name = "wisp-history-tui"
+version = "2.0.0"
+dependencies = [
+ "ratatui",
+ "serde_json",
+ "wisp-tui-api",
 ]
 
 [[package]]

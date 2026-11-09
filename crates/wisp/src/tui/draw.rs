@@ -266,6 +266,13 @@ pub fn draw(f: &mut Frame<'_>, app: &App) -> Hit {
     match &app.overlay {
         Some(Overlay::Help) => help(f, th, area, app.help_scroll),
         Some(Overlay::Palette(p, _)) => palette(f, app, p, area),
+        Some(Overlay::Ask(_, label, text)) => {
+            let r = centered(area, 64, 3);
+            f.render_widget(Clear, r);
+            let line = Line::from(vec![Span::styled(format!("{} ", g(app).prompt()), Style::default().fg(th.accent_ink).add_modifier(Modifier::BOLD)), Span::styled(text.clone(), th.text()), Span::styled("▏", Style::default().fg(th.accent))]);
+            let b = frame(th, label, true).title_bottom(Line::from(hints(th, &[("Enter", "show"), ("Esc", "back")])).right_aligned());
+            f.render_widget(Paragraph::new(line).block(b), r);
+        }
         Some(Overlay::Confirm(q, _, _)) => {
             let r = centered(area, 56, 3);
             f.render_widget(Clear, r);
@@ -403,7 +410,8 @@ fn header(app: &App, session: &Value, w: usize) -> Vec<Line<'static>> {
     let project = s(session, "cwd").rsplit('/').next().unwrap_or_default().to_owned();
     let run = [cell(session, "/agent"), cell(session, "/model")].into_iter().filter(|x| !x.is_empty()).collect::<Vec<_>>().join(" ");
     let mut meta: Vec<String> = [project, cell(session, "/branch"), run].into_iter().filter(|x| !x.is_empty()).collect();
-    for (label, v) in [("PR #", cell(session, "/pr/number")), ("goal ", cell(session, "/goal/progress")), ("@", cell(session, "/crew"))] {
+    // the goal comes from wisp.goal's own tui crate (a TaskHeader input), as the GUI's band does
+    for (label, v) in [("PR #", cell(session, "/pr/number")), ("@", cell(session, "/crew"))] {
         if !v.is_empty() {
             meta.push(format!("{label}{v}"));
         }
@@ -705,14 +713,23 @@ fn view(f: &mut Frame<'_>, app: &App, id: &str, r: Rect) {
     let rest = w.saturating_sub(fixed + 1).max(8);
     let widths: Vec<usize> = cols.iter().map(|c| if c.width == 0 { rest } else { usize::from(c.width) }).collect();
     let mut keys: Vec<(String, String)> = v.actions().iter().map(|a| (a.key.to_string(), a.label.clone())).collect();
+    if let wisp_tui_api::Source::Command { args, .. } = v.source()
+        && let Some(label) = wisp_tui_api::asks(&args)
+    {
+        keys.push(("A".to_owned(), label.to_lowercase()));
+    }
     keys.extend([("r".to_owned(), "reload".to_owned()), ("Esc".to_owned(), "back".to_owned())]);
     let key_refs: Vec<(&str, &str)> = keys.iter().map(|(k, l)| (k.as_str(), l.as_str())).collect();
-    let mut lines = pane_head(app, &format!("{}  {}", v.title(), rows.rows.len()), hints(th, &key_refs), true, w);
+    // a view that asked for something (the file it blames) names it
+    let head = rows.asked.as_ref().map_or_else(|| format!("{}  {}", v.title(), rows.rows.len()), |x| format!("{}  {x}", v.title()));
+    let mut lines = pane_head(app, &head, hints(th, &key_refs), true, w);
     lines.push(Line::from(""));
     let row_of = |row: &Value, st: Style| -> Vec<Span<'static>> {
         let mut spans = Vec::new();
         for (c, cw) in cols.iter().zip(&widths) {
-            spans.push(Span::styled(format!("{:<cw$}  ", cut(&cell(row, &c.pointer), *cw), cw = *cw), st));
+            // the view may colour a cell (a gutter); the selection's weight stays
+            let own = v.style(row, c, th).map_or(st, |x| st.patch(x));
+            spans.push(Span::styled(format!("{:<cw$}  ", cut(&cell(row, &c.pointer), *cw), cw = *cw), own));
         }
         spans
     };

@@ -48,6 +48,13 @@ impl BlameSource for Git {
             per
         })
     }
+    fn lines(&self, root: PathBuf, file: String) -> BoxFuture<'static, Vec<(String, String)>> {
+        let p = self.0.clone();
+        Box::pin(async move {
+            let out = run(&p, "git", &root, &["blame", "--porcelain", "--", file.as_str()]).await.unwrap_or_default();
+            porcelain_lines(&out)
+        })
+    }
     fn message(&self, root: PathBuf, sha: String) -> BoxFuture<'static, String> {
         let p = self.0.clone();
         Box::pin(async move { run(&p, "git", &root, &["show", "-s", "--format=%B", &sha]).await.unwrap_or_default() })
@@ -120,6 +127,27 @@ impl LazyGit {
     }
 }
 
+/// `git blame --porcelain` as (commit, text) per line: each line is a header (`sha orig final [count]`), then
+/// metadata the first time a commit shows, then the line's text after a tab.
+pub(crate) fn porcelain_lines(out: &str) -> Vec<(String, String)> {
+    let mut lines = Vec::new();
+    let mut sha = String::new();
+    for l in out.lines() {
+        if let Some(text) = l.strip_prefix('\t') {
+            lines.push((sha.clone(), text.to_owned()));
+            continue;
+        }
+        let mut w = l.split_whitespace();
+        if let (Some(s), Some(_), Some(_)) = (w.next(), w.next(), w.next())
+            && s.len() == 40
+            && s.bytes().all(|b| b.is_ascii_hexdigit())
+        {
+            s.clone_into(&mut sha);
+        }
+    }
+    lines
+}
+
 macro_rules! lazy {
     ($self:ident, $default:expr, |$g:ident| $body:expr) => {
         match $self.git() {
@@ -135,6 +163,9 @@ impl BlameSource for LazyGit {
     }
     fn blame(&self, root: PathBuf, file: String, range: Option<(u32, u32)>) -> BoxFuture<'static, Vec<(String, u32)>> {
         lazy!(self, Vec::new(), |g| g.blame(root, file, range))
+    }
+    fn lines(&self, root: PathBuf, file: String) -> BoxFuture<'static, Vec<(String, String)>> {
+        lazy!(self, Vec::new(), |g| g.lines(root, file))
     }
     fn message(&self, root: PathBuf, sha: String) -> BoxFuture<'static, String> {
         lazy!(self, String::new(), |g| g.message(root, sha))

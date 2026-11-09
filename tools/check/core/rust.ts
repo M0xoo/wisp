@@ -7,7 +7,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, posix } from 'node:path';
 
-export type CrateRole = 'api' | 'core' | 'host';
+/** a plugin's crates: its contract, its sans-IO logic, its server side, and its terminal UI (ADR-0024) */
+export type CrateRole = 'api' | 'core' | 'host' | 'tui';
 
 export interface Crate {
   name: string;
@@ -79,7 +80,7 @@ function readCrate(root: string, dir: string): Crate {
     kind.push(dep);
     if (!depLine.has(dep)) depLine.set(dep, i + 1);
   });
-  const p = /^plugins\/([^/]+)\/(api|core|host)$/.exec(dir);
+  const p = /^plugins\/([^/]+)\/(api|core|host|tui)$/.exec(dir);
   const crate: Crate = { name, dir, base: /^crates\/[^/]+$/.test(dir) && dir !== 'crates/wisp', deps, devDeps, depLine };
   if (p?.[1] && p[2]) {
     crate.plugin = p[1];

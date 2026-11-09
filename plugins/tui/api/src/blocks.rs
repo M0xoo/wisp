@@ -213,7 +213,8 @@ fn more(b: &Value, th: &Theme, out: &mut Vec<Line<'static>>) {
             }
         }
         "code" | "terminal" => {
-            let head = if s(b, "type") == "terminal" { format!("$ {}", s(b, "command")) } else { s(b, "caption").to_owned() };
+            // a terminal block without its command shows only its output (no lone `$`)
+            let head = if s(b, "type") == "terminal" { if s(b, "command").is_empty() { String::new() } else { format!("$ {}", s(b, "command")) } } else { s(b, "caption").to_owned() };
             out.extend(title(&head, th));
             let body = if s(b, "type") == "terminal" { s(b, "output") } else { s(b, "code") };
             for l in body.lines() {
@@ -289,6 +290,7 @@ mod tests {
             (json!({ "type": "question", "question": "Which?", "options": [{ "label": "A" }, { "label": "B" }] }), "? Which?\n  1 A\n  2 B"),
             (json!({ "type": "files", "items": [{ "path": "a.rs", "change": "added", "note": "new" }] }), "+ a.rs  new"),
             (json!({ "type": "flow", "title": "Data" }), "[flow] Data"),
+            (json!({ "type": "terminal", "output": "exit 0" }), "  exit 0"),
         ];
         for (b, want) in cases {
             assert_eq!(text(&render(&b, 80, &th)), want, "{b}");

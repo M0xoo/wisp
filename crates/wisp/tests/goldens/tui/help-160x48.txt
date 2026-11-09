@@ -1,5 +1,5 @@
  wisp                     3 tasks │ Add dark mode   running
-                                  │ api · wisp/dark · codex gpt-5
+                                  │ api · wisp/dark · codex gpt-5  ○ goal: judging · round 1
  RUNNING  1                   ╭ Keys · any key closes ───────────────────────────────────────────────────────────────────────────╮─────────────────────────────
 ▌Add dark mode                │ EVERYWHERE                                                                                       │
 ▌⠋ codex · web                │   Ctrl-K  :               command palette: tasks, views, commands, settings                      │

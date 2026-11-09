@@ -9,6 +9,7 @@ members = [
   "plugins/*/api",
   "plugins/*/core",
   "plugins/*/host",
+  "plugins/*/tui",
   "apps/grid",
   "apps/grid/boxd",
 ]
@@ -53,6 +54,8 @@ wisp-crew-api = { path = "plugins/crew/api" }
 wisp-crew-core = { path = "plugins/crew/core" }
 wisp-goal-api = { path = "plugins/goal/api" }
 wisp-history-api = { path = "plugins/history/api" }
+wisp-history-tui = { path = "plugins/history/tui" }
+wisp-goal-tui = { path = "plugins/goal/tui" }
 wisp-history-core = { path = "plugins/history/core" }
 wisp-goal-core = { path = "plugins/goal/core" }
 wisp-later-api = { path = "plugins/later/api" }

@@ -33,7 +33,8 @@ export const rustLayers: Rule = {
     const all = crates(ctx.root);
     const byName = new Map(all.map((c) => [c.name, c]));
     const out: Finding[] = [];
-    const order = { api: 0, core: 1, host: 2 } as const;
+    // a plugin's tui crate sits beside its host: both use its api and core, neither uses the other
+    const order = { api: 0, core: 1, host: 2, tui: 2 } as const;
     for (const c of all) {
       for (const name of c.deps) {
         const d = byName.get(name);
@@ -43,6 +44,7 @@ export const rustLayers: Rule = {
         if (c.base) bad('a base crate depends on no plugin (ADR-0003)');
         else if (c.plugin && c.role && d.plugin !== c.plugin && d.role !== 'api') bad(`a plugin uses other plugins through their api crate only (wisp-${d.plugin}-api)`);
         else if (c.plugin && c.role && d.plugin === c.plugin && order[d.role] > order[c.role]) bad(`${c.role} sits below ${d.role} (api ← core ← host)`);
+        else if (c.plugin && c.role && d.plugin === c.plugin && order[d.role] === order[c.role] && d.role !== c.role) bad(`${c.role} and ${d.role} sit side by side (a tui crate runs in the CLI, the host in the server)`);
       }
     }
     return out;

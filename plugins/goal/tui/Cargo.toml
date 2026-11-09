@@ -1,0 +1,16 @@
+[package]
+name = "wisp-goal-tui"
+description = "wisp.goal in the terminal (ADR-0024, tui.input@1): where the task's goal stands, in its header"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+ratatui.workspace = true
+serde_json.workspace = true
+wisp-tui-api.workspace = true
+
+[lints]
+workspace = true

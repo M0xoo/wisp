@@ -65,6 +65,24 @@ test('rust source reading: comments, strings, raw strings and chars are blanked;
   assert.ok(isTestFile('crates/a/tests/x.rs') && isTestFile('crates/a/src/resolve_tests.rs') && !isTestFile('crates/a/src/contests.rs'));
 });
 
+test('rust-layers: a plugin tui crate uses its api and other plugins\' api; never a host, and no host uses it (ADR-0024)', async () => {
+  const root = writeTree(
+    new Map([
+      ['Cargo.toml', '[workspace]\nmembers = ["plugins/*/api", "plugins/*/host", "plugins/*/tui"]\n'],
+      ['plugins/shop/api/Cargo.toml', '[package]\nname = "wisp-shop-api"\n'],
+      ['plugins/shop/host/Cargo.toml', '[package]\nname = "wisp-shop"\n\n[dependencies]\nwisp-shop-tui.workspace = true\n'],
+      ['plugins/shop/tui/Cargo.toml', '[package]\nname = "wisp-shop-tui"\n\n[dependencies]\nwisp-shop-api.workspace = true\nwisp-shop.workspace = true\nwisp-till-api.workspace = true\nwisp-till.workspace = true\n'],
+      ['plugins/till/api/Cargo.toml', '[package]\nname = "wisp-till-api"\n'],
+      ['plugins/till/host/Cargo.toml', '[package]\nname = "wisp-till"\n'],
+    ]),
+  );
+  const got = await messages(rustLayers, root);
+  assert.equal(got.length, 3, got.join('\n'));
+  assert.ok(got.some((m) => m.includes('wisp-shop-tui depends on wisp-shop ') && m.includes('side by side')));
+  assert.ok(got.some((m) => m.includes('wisp-shop depends on wisp-shop-tui') && m.includes('side by side')));
+  assert.ok(got.some((m) => m.includes('wisp-shop-tui depends on wisp-till ') && m.includes('api crate only')));
+});
+
 test('rust-events: emitted_type_missing_from_manifest_fails_check (and a listed type nobody emits, and durable as in the code)', async () => {
   const cargo = '[package]\nname = "wisp-shop"\n';
   const root = writeTree(

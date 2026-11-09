@@ -48,6 +48,35 @@ async fn task_answer(b: &dyn BlameSource, root: &Path, all: &[Doc], d: &Doc) -> 
     json!({ "target": d.id(), "kind": "task", "tasks": [card(all, d.id(), json!({ "commits": commits, "files": files, "added": added, "surviving": surviving, "stillThere": still_there(surviving, added) }))] })
 }
 
+/// Every line of a file (or of `range`) with the task that wrote it, for a why-gutter: `{n, text, task, title,
+/// why}`, `task` null for a line written by hand. A source that can't list lines answers none.
+async fn by_line(b: &dyn BlameSource, root: &Path, all: &[Doc], path: &str, range: Option<(u32, u32)>, of: &mut std::collections::HashMap<String, Vec<String>>) -> Vec<Value> {
+    let lines = b.lines(root.to_owned(), path.to_owned()).await;
+    let (from, to) = range.unwrap_or((1, u32::MAX));
+    let mut out = Vec::new();
+    for (i, (sha, text)) in lines.into_iter().enumerate() {
+        let n = u32::try_from(i + 1).unwrap_or(u32::MAX);
+        if n < from || n > to {
+            continue;
+        }
+        if !of.contains_key(&sha) {
+            let ids = of_commit(b, root, all, &sha).await;
+            of.insert(sha.clone(), ids);
+        }
+        let task = of.get(&sha).and_then(|ids| ids.first()).cloned();
+        let doc = task.as_deref().and_then(|t| find(all, t));
+        out.push(json!({
+            "n": n,
+            "text": text,
+            "task": task,
+            "title": doc.map(Doc::title),
+            "why": doc.and_then(|t| t.doc.pointer("/spec/prompt")).and_then(Value::as_str),
+            "commit": sha.get(..12).unwrap_or(&sha),
+        }));
+    }
+    out
+}
+
 #[allow(clippy::many_single_char_names, clippy::too_many_lines)] // one answer per kind of target
 pub async fn answer(ctx: &Ctx, a: &BlameArgs) -> Result<Value> {
     let root = PathBuf::from(&a.repo);
@@ -81,7 +110,11 @@ pub async fn answer(ctx: &Ctx, a: &BlameArgs) -> Result<Value> {
         }
         let (total, hand, by) = shares(&lines, &|s| of.get(s).cloned().unwrap_or_default());
         let tasks: Vec<Value> = by.iter().map(|(id, n)| card(&all, id, json!({ "lines": n, "share": if total > 0 { f64::from(*n) / f64::from(total) } else { 0.0 } }))).collect();
-        return Ok(json!({ "target": target, "kind": if range.is_some() { "lines" } else { "file" }, "lines": total, "byHand": hand, "tasks": tasks }));
+        let mut out = json!({ "target": target, "kind": if range.is_some() { "lines" } else { "file" }, "lines": total, "byHand": hand, "tasks": tasks });
+        if a.by_line {
+            out["byLine"] = Value::Array(by_line(b.as_ref(), &root, &all, &path, range, &mut of).await);
+        }
+        return Ok(out);
     }
     let is_dir = tokio::fs::metadata(&full).await.is_ok_and(|m| m.is_dir());
     let shas = if is_dir { b.commits(root.clone(), String::new(), path.clone()).await } else { b.commits(root.clone(), target.to_owned(), String::new()).await };

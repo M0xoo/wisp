@@ -118,6 +118,60 @@ async fn after(ctx: &Ctx, defaults: &kinds::Defaults, e: &TurnEnded) {
     }
 }
 
+/// What a task's list row says about its goal (`summary.goal`, the GUI's `GoalView`: the band over the task,
+/// the list's pill): the goal as its spec has it, where its judging stands (`ext["wisp.goal"]`) and the last
+/// round's verdicts. None for a task without a goal.
+pub fn view_of(spec: &Value, st: Option<&GoalState>, set_at: i64, at: i64, d: &kinds::GoalSpec) -> Option<Value> {
+    let g = goal_of(spec, d)?;
+    let st = st.cloned().unwrap_or_default();
+    let status = match st.state.as_str() {
+        "met" => "met",
+        "stalled" => "out",
+        "judging" => "checking",
+        _ => "working",
+    };
+    let met = |v: &Value| v.get("met").and_then(Value::as_bool) == Some(true);
+    let checks: Vec<Value> = st.verdicts.iter().map(|v| json!({ "round": st.rounds, "at": at, "verdict": if met(v) { "met" } else { "not_yet" }, "why": v.get("why").and_then(Value::as_str).unwrap_or_default() })).collect();
+    let mut view = json!({
+        "text": g.text,
+        "judges": g.judges.iter().map(|j| json!({ "agent": j, "model": "", "effort": "", "name": j })).collect::<Vec<_>>(),
+        "vote": g.vote,
+        "status": status,
+        "round": st.rounds,
+        "setAt": set_at,
+        "checks": checks,
+    });
+    if !st.why.is_empty() {
+        view["why"] = Value::String(st.why.clone());
+    }
+    if !st.verdicts.is_empty() {
+        let all_met = st.verdicts.iter().all(met);
+        let why = st.verdicts.iter().filter_map(|v| v.get("why").and_then(Value::as_str)).collect::<Vec<_>>().join(" · ");
+        let tally = format!("{}/{}", st.verdicts.iter().filter(|v| met(v)).count(), st.verdicts.len());
+        view["last"] = json!({ "verdict": if all_met { "met" } else { "not_yet" }, "why": why, "tally": tally });
+    }
+    Some(view)
+}
+
+/// `runtime.summary@1`: the goal on each task's list row.
+struct Summary {
+    defaults: kinds::Defaults,
+}
+
+impl wisp_runtime_api::points::SummaryField for Summary {
+    fn plugin(&self) -> &str {
+        PLUGIN
+    }
+    fn fields(&self, session: &wisp_runtime_api::model::Session, _last: Option<&wisp_runtime_api::model::Turn>, out: &mut std::collections::BTreeMap<String, Value>) {
+        let spec = session.ext.get("wisp.runtime").and_then(|r| r.get("spec")).cloned().unwrap_or_default();
+        let st: Option<GoalState> = session.ext.get(PLUGIN).and_then(|v| serde_json::from_value(v.clone()).ok());
+        let d = self.defaults.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+        if let Some(v) = view_of(&spec, st.as_ref(), session.created_at, session.updated_at, &d) {
+            out.insert("goal".into(), v);
+        }
+    }
+}
+
 impl Plugin for GoalPlugin {
     fn manifest(&self) -> Manifest {
         Manifest::embedded(include_str!("../wisp-plugin.json"))
@@ -125,6 +179,8 @@ impl Plugin for GoalPlugin {
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let defaults = crate::kinds::register(s);
+        let summary: Arc<dyn wisp_runtime_api::points::SummaryField> = Arc::new(Summary { defaults: Arc::clone(&defaults) });
+        s.contribute(&wisp_runtime_api::points::SUMMARY, summary);
         let d = Arc::clone(&defaults);
         s.on::<TurnEnded, _, _>(move |ctx, e| {
             let (d, e, c) = (d.clone(), e.clone(), ctx.clone());
@@ -142,6 +198,24 @@ mod tests {
     #[test]
     fn manifest_is_valid() {
         assert_eq!(GoalPlugin.manifest().id, "wisp.goal");
+    }
+
+    /// The GUI's goal band reads `summary.goal`: a task with a goal says where it stands, judged or not.
+    #[test]
+    fn goal_summary_shows_where_the_goal_stands() {
+        let d = kinds::GoalSpec::default();
+        assert_eq!(view_of(&json!({ "prompt": "x" }), None, 1, 2, &d), None, "no goal: no field");
+        let spec = json!({ "goal": { "text": "a.txt says hello!" }, "agent": "claude" });
+        let fresh = view_of(&spec, None, 10, 20, &d).unwrap_or_default();
+        assert_eq!((fresh["text"].clone(), fresh["status"].clone(), fresh["round"].clone(), fresh["setAt"].clone()), (json!("a.txt says hello!"), json!("working"), json!(0), json!(10)));
+        assert_eq!(fresh["judges"][0]["name"], "claude");
+        let st = GoalState { state: "again".into(), rounds: 2, verdicts: vec![json!({ "judge": "claude", "met": false, "why": "no exclamation mark" })], why: String::new() };
+        let again = view_of(&spec, Some(&st), 10, 20, &d).unwrap_or_default();
+        assert_eq!((again["round"].clone(), again["checks"][0]["verdict"].clone(), again["last"]["why"].clone(), again["last"]["tally"].clone()), (json!(2), json!("not_yet"), json!("no exclamation mark"), json!("0/1")));
+        let met = view_of(&spec, Some(&GoalState { state: "met".into(), rounds: 3, ..GoalState::default() }), 10, 20, &d).unwrap_or_default();
+        assert_eq!(met["status"], "met");
+        let out = view_of(&spec, Some(&GoalState { state: "stalled".into(), rounds: 5, why: "past 5 rounds".into(), ..GoalState::default() }), 10, 20, &d).unwrap_or_default();
+        assert_eq!((out["status"].clone(), out["why"].clone()), (json!("out"), json!("past 5 rounds")));
     }
 
     #[test]

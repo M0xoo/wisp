@@ -49,7 +49,7 @@ fn opened() -> App {
     let long = "The session cookie now lives for an hour instead of a minute, and the refresh path reads the same constant, so the two can't drift again.";
     let t = a.open.as_mut().unwrap();
     t.snapshot(vec![
-        row("session", "t2", json!({ "id": "t2", "title": "Add dark mode", "state": "running", "cwd": "/w/api", "agent": "codex", "body": { "model": "gpt-5", "branch": "wisp/dark", "ext": { "wisp.runtime": { "ask": { "id": "q1", "question": "Use the system theme by default?", "options": ["Yes", "No, dark"] } } }, "queue": [{ "id": "u1", "text": "then add a toggle", "at": 1 }] } })),
+        row("session", "t2", json!({ "id": "t2", "title": "Add dark mode", "state": "running", "cwd": "/w/api", "agent": "codex", "body": { "model": "gpt-5", "branch": "wisp/dark", "ext": { "wisp.goal": { "state": "judging", "rounds": 1 }, "wisp.runtime": { "ask": { "id": "q1", "question": "Use the system theme by default?", "options": ["Yes", "No, dark"] } } }, "queue": [{ "id": "u1", "text": "then add a toggle", "at": 1 }] } })),
         row("turn", "T1", json!({ "id": "T1", "idx": 0, "body": { "status": "done", "prompt": "Make sessions last longer", "presentation": { "blocks": [{ "type": "hero", "title": "Sessions last an hour", "status": "done", "summary": "ttl 60 → 3600" }, { "type": "markdown", "text": long }] } } })),
         row("turn", "T2", json!({ "id": "T2", "idx": 1, "body": { "status": "running", "prompt": "Add dark mode" } })),
         row("event", "1", json!({ "seq": 1, "turn_id": "T1", "body": { "kind": "tool", "tool": "edit", "label": "Edit", "file": "/w/api/src/auth.ts", "detail": DIFF } })),
@@ -296,6 +296,11 @@ fn goldens_at_80x24_and_160x48() {
     a.done(Then::View("crew".into()), Ok(json!([{ "id": "m1", "name": "Ada", "role": "reviewer", "running": 1, "jobs": 4 }, { "id": "m2", "name": "Lin", "role": "docs", "running": 0, "jobs": 2, "machine": "box" }])));
     golden("crew-80x24", &screen(&a, 80, 24));
     golden("crew-160x48", &screen(&a, 160, 48));
+    a.open_view("blame");
+    a.overlay = None;
+    a.views.entry("blame".into()).or_default().asked = Some("src/auth.ts".into());
+    a.done(Then::View("blame".into()), Ok(blame_answer()));
+    golden("blame-160x48", &screen(&a, 160, 48));
     a.screen = None;
     a.key(ch('?'));
     golden("help-160x48", &screen(&a, 160, 48));
@@ -378,6 +383,14 @@ fn every_view_renders_to_html_for_the_visual_check() {
             let mut a = opened();
             a.key(ch('?'));
             shots.push(("help", a));
+            let mut a = opened();
+            a.open_view("blame");
+            a.views.entry("blame".into()).or_default().asked = Some("src/auth.ts".into());
+            a.overlay = None;
+            a.done(Then::View("blame".into()), Ok(blame_answer()));
+            a.key(ch('j'));
+            a.key(ch('j'));
+            shots.push(("blame", a));
             let mut a = opened();
             a.key(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::CONTROL));
             shots.push(("palette", a));
@@ -484,4 +497,49 @@ fn a_redraw_leaves_nothing_of_the_frame_before() {
     assert_eq!(t.backend().buffer(), fresh.backend().buffer(), "every cell of the second frame is the second frame's");
     let text: String = (0..34).map(|y| (0..120).map(|x| t.backend().buffer()[(x, y)].symbol().to_owned()).collect::<String>()).collect();
     assert!(!text.contains("toggle"), "the queue that went is gone");
+}
+
+fn blame_answer() -> Value {
+    json!({ "target": "src/auth.ts", "kind": "file", "byLine": [
+        { "n": 1, "text": "import { session } from './session';", "task": "01a1bc12ab34", "title": "Fix the login", "why": "Sessions expire too soon; make them last an hour.", "commit": "a8c8f27e01b2" },
+        { "n": 2, "text": "export const ttl = 3600;", "task": "01a1bc12ab34", "title": "Fix the login", "why": "Sessions expire too soon; make them last an hour.", "commit": "a8c8f27e01b2" },
+        { "n": 3, "text": "// tuned by hand", "task": null, "commit": "77aa01bb02cc" },
+        { "n": 4, "text": "export function login() {}", "task": "02b2cd", "title": "Add dark mode", "why": "Dark mode everywhere", "commit": "c3d4e5f6a7b8" }
+    ] })
+}
+
+/// The repo-history blame (a plugin's own `tui/` crate, wisp-history-tui): `g b` asks for a file, then shows each
+/// line beside the task that wrote it; `A` asks for another.
+#[test]
+fn the_blame_view_asks_for_a_file_then_shows_the_why_gutter() {
+    let mut a = opened();
+    a.focus = Zone::List;
+    assert_eq!(a.key(ch('g')), vec![]);
+    assert_eq!(a.key(ch('b')), vec![], "nothing loads before the file is named");
+    assert!(matches!(&a.overlay, Some(Overlay::Ask(v, label, _)) if v == "blame" && label == "File"));
+    for c in "src/auth.ts".chars() {
+        a.key(ch(c));
+    }
+    let fx = a.key(key(KeyCode::Enter));
+    assert_eq!(fx, vec![Effect::Cmd { id: "history.blame".into(), args: json!({ "target": "src/auth.ts", "repo": "/w/api", "byLine": true }), then: Then::View("blame".into()) }]);
+    a.done(Then::View("blame".into()), Ok(blame_answer()));
+    let s = screen(&a, 160, 45);
+    assert!(s.contains("Fix the login") && s.contains("by hand") && s.contains("export const ttl = 3600;"), "{s}");
+    assert!(s.contains("Sessions expire too soon"), "the selected line's task: what it was asked\n{s}");
+    assert_eq!(s.matches("Fix the login").count(), 3, "the gutter names a run once (and the detail, and the sidebar, once)\n{s}");
+    a.key(ch('A'));
+    assert!(matches!(&a.overlay, Some(Overlay::Ask(_, _, t)) if t == "src/auth.ts"), "A asks again, with the last answer");
+    a.key(key(KeyCode::Esc));
+    assert_eq!(a.screen.as_deref(), Some("blame"), "Esc keeps the file shown");
+}
+
+/// The plugins' points are real: wisp.goal's own tui crate puts its input in the task header, and
+/// wisp.history's adds a view, through the same registry the built-ins use.
+#[test]
+fn plugins_contribute_through_the_tui_points() {
+    let a = opened();
+    let s = screen(&a, 160, 45);
+    assert!(s.contains("○ goal: judging · round 1"), "wisp-goal-tui's TaskHeader input\n{s}");
+    assert!(a.reg.find("blame").is_some(), "wisp-history-tui's view");
+    assert!(!a.reg.blocks.is_empty(), "the built-in term.block renderer");
 }

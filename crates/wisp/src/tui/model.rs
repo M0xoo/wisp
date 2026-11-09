@@ -11,19 +11,23 @@ pub fn s<'a>(v: &'a Value, k: &str) -> &'a str {
     v.get(k).and_then(Value::as_str).unwrap_or_default()
 }
 
-/// A row's fields and its `body`'s, as one object (the store keeps hot fields at the top, the rest in `body`).
+/// A row's fields, its `body`'s and its `summary`'s, as one object: the store keeps hot fields at the top, the
+/// rest in `body`, and a list row's own view (camelCase: `status`, `preview`, `forLater`…) in `summary`. The top
+/// wins over the body; the summary adds what neither has.
 pub fn merged(v: &Value) -> Value {
     let mut out = Map::new();
     if let Some(o) = v.as_object() {
         for (k, x) in o {
-            if k != "body" {
+            if k != "body" && k != "summary" {
                 out.insert(k.clone(), x.clone());
             }
         }
     }
-    if let Some(b) = v.get("body").and_then(Value::as_object) {
-        for (k, x) in b {
-            out.entry(k.clone()).or_insert_with(|| x.clone());
+    for part in ["body", "summary"] {
+        if let Some(b) = v.get(part).and_then(Value::as_object) {
+            for (k, x) in b {
+                out.entry(k.clone()).or_insert_with(|| x.clone());
+            }
         }
     }
     Value::Object(out)
@@ -34,6 +38,8 @@ pub fn merged(v: &Value) -> Value {
 pub enum Section {
     NeedsYou,
     Running,
+    /// saved for later (design/for-later.md): the GUI's "For later"
+    Later,
     Done,
 }
 
@@ -42,6 +48,7 @@ impl Section {
         match self {
             Self::NeedsYou => "Needs you",
             Self::Running => "Running",
+            Self::Later => "For later",
             Self::Done => "Done",
         }
     }
@@ -50,15 +57,17 @@ impl Section {
             "waiting" | "asking" => Self::NeedsYou,
             "review" if t.get("unread").and_then(Value::as_bool) == Some(true) => Self::NeedsYou,
             "running" | "starting" | "queued" => Self::Running,
+            _ if t.get("forLater").is_some_and(|l| !l.is_null() && l != &Value::Bool(false)) => Self::Later,
             _ => Self::Done,
         }
     }
 }
 
-/// The task list.
+/// The task list: each row as the server sent it (patches apply to it) and flat, as it's drawn ([`merged`]).
 #[derive(Debug, Default)]
 pub struct Tasks {
     pub rows: BTreeMap<String, Value>,
+    raw: BTreeMap<String, Value>,
 }
 
 impl Tasks {
@@ -72,27 +81,36 @@ impl Tasks {
     pub fn fold(&mut self, rows: Option<Vec<Row>>, ops: Vec<EntityOp>) -> Vec<String> {
         let mut changed = Vec::new();
         if let Some(rows) = rows {
-            self.rows.clear();
+            self.raw.clear();
             for r in rows.into_iter().filter(|r| r.e == "session") {
                 changed.push(r.id.clone());
-                self.rows.insert(r.id, r.v);
+                self.raw.insert(r.id, r.v);
             }
+            self.rows = self.raw.iter().map(|(k, v)| (k.clone(), merged(v))).collect();
         }
         for op in ops.into_iter().filter(|o| o.e == "session") {
             changed.push(op.id.clone());
             match op.change {
                 Change::Upsert { v } => {
-                    self.rows.insert(op.id, v);
+                    self.raw.insert(op.id.clone(), v);
                 }
                 Change::Del => {
-                    self.rows.remove(&op.id);
+                    self.raw.remove(&op.id);
                 }
                 Change::Patch { ops } => {
-                    if let Some(v) = self.rows.get_mut(&op.id) {
+                    if let Some(v) = self.raw.get_mut(&op.id) {
                         let _ = wisp_protocol::apply_patch(v, &ops);
                     }
                 }
                 Change::Append { .. } => {}
+            }
+            match self.raw.get(&op.id) {
+                Some(v) => {
+                    self.rows.insert(op.id, merged(v));
+                }
+                None => {
+                    self.rows.remove(&op.id);
+                }
             }
         }
         changed
@@ -205,5 +223,32 @@ impl Transcript {
         if !self.expanded.remove(&seq) {
             self.expanded.insert(seq);
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use serde_json::json;
+    use wisp_protocol::{PatchOp, Topic};
+
+    use super::*;
+
+    /// The list topic's rows as the server sends them: hot columns at the top, `cwd` in `body`, the list's own
+    /// fields in `summary`. The sidebar reads all three, and a patch to the summary moves a task between sections.
+    #[test]
+    fn a_list_row_reads_its_body_and_summary() {
+        let mut t = Tasks::default();
+        let raw = json!({ "id": "s1", "title": "Fix", "state": "review", "updated_at": 5, "body": { "cwd": "/w/api", "state": "ignored" }, "summary": { "status": "blocked", "forLater": { "at": 9 } } });
+        t.fold(Some(vec![Row { e: "session".into(), id: "s1".into(), v: raw }]), Vec::new());
+        let row = &t.rows["s1"];
+        assert_eq!((s(row, "cwd"), s(row, "status"), s(row, "state")), ("/w/api", "blocked", "review"), "the top wins over the body");
+        assert_eq!(Section::of(row), Section::Later);
+        let op = EntityOp { topic: Topic::parse("list").unwrap(), e: "session".into(), id: "s1".into(), change: Change::Patch { ops: vec![PatchOp::Replace { path: "/summary/forLater".into(), value: Value::Null }] } };
+        assert_eq!(t.fold(None, vec![op]), vec!["s1".to_owned()]);
+        assert_eq!(Section::of(&t.rows["s1"]), Section::Done, "unsaved: back with the rest");
+        let del = EntityOp { topic: Topic::parse("list").unwrap(), e: "session".into(), id: "s1".into(), change: Change::Del };
+        t.fold(None, vec![del]);
+        assert!(t.rows.is_empty());
     }
 }

@@ -90,6 +90,8 @@ pub enum Overlay {
     Palette(Palette, For),
     /// a row action that asks first: (question, command, args)
     Confirm(String, String, Value),
+    /// a view whose source asks for a value first (`"{?File}"`): (view id, label, what's typed)
+    Ask(String, String, String),
 }
 
 /// A view's rows, as its source last gave them.
@@ -97,6 +99,8 @@ pub enum Overlay {
 #[allow(clippy::struct_field_names)] // `views["crew"].rows`
 pub struct Rows {
     pub rows: Vec<Value>,
+    /// what the view's source asked for, answered (`"{?File}"`), kept for reloads
+    pub asked: Option<String>,
     pub sel: usize,
     pub loading: bool,
     pub error: String,
@@ -450,9 +454,22 @@ impl App {
     fn load(&mut self, id: &str) -> Vec<Effect> {
         let Some(v) = self.reg.find(id) else { return Vec::new() };
         let r = self.views.entry(id.to_owned()).or_default();
-        r.loading = true;
         match v.source() {
-            Source::Command { id: cmd, args, .. } => vec![Effect::Cmd { id: cmd, args, then: Then::View(id.to_owned()) }],
+            Source::Command { id: cmd, args, .. } => {
+                // a source that asks (a file to blame): the answer first, then the load
+                if let Some(label) = wisp_tui_api::asks(&args) {
+                    let Some(answer) = r.asked.clone() else {
+                        self.overlay = Some(Overlay::Ask(id.to_owned(), label, String::new()));
+                        return Vec::new();
+                    };
+                    r.loading = true;
+                    let args = wisp_tui_api::fill_asked(&args, &answer, &self.cwd);
+                    return vec![Effect::Cmd { id: cmd, args, then: Then::View(id.to_owned()) }];
+                }
+                r.loading = true;
+                let args = wisp_tui_api::fill_asked(&args, "", &self.cwd);
+                vec![Effect::Cmd { id: cmd, args, then: Then::View(id.to_owned()) }]
+            }
             // a topic view is fed by the loop's watch of it
             Source::Topic { .. } => Vec::new(),
         }
@@ -470,6 +487,16 @@ impl App {
             KeyCode::Down | KeyCode::Char('j') => r.sel = (r.sel + 1).min(n.saturating_sub(1)),
             KeyCode::Up | KeyCode::Char('k') => r.sel = r.sel.saturating_sub(1),
             KeyCode::Char('r') => return self.load(id),
+            // a view that asked for something (a file to blame): ask again
+            KeyCode::Char('A') if matches!(v.source(), Source::Command { ref args, .. } if wisp_tui_api::asks(args).is_some()) => {
+                let label = match v.source() {
+                    Source::Command { args, .. } => wisp_tui_api::asks(&args).unwrap_or_default(),
+                    Source::Topic { .. } => String::new(),
+                };
+                let had = r.asked.clone().unwrap_or_default();
+                self.overlay = Some(Overlay::Ask(id.to_owned(), label, had));
+                return Vec::new();
+            }
             KeyCode::Char(c) => {
                 let Some(row) = r.rows.get(r.sel).cloned() else { return Vec::new() };
                 if let Some(a) = v.actions().into_iter().find(|a| a.key == c) {
@@ -759,6 +786,29 @@ impl App {
                 self.overlay = Some(Overlay::Help);
                 Vec::new()
             }
+            Overlay::Ask(view, label, mut text) => {
+                match k.code {
+                    KeyCode::Esc => {
+                        // nothing asked yet: the view has nothing to show, so it closes too
+                        if self.views.get(&view).is_none_or(|r| r.asked.is_none()) {
+                            self.screen = None;
+                            self.focus = Zone::List;
+                        }
+                        return Vec::new();
+                    }
+                    KeyCode::Enter if !text.trim().is_empty() => {
+                        self.views.entry(view.clone()).or_default().asked = Some(text.trim().to_owned());
+                        return self.load(&view);
+                    }
+                    KeyCode::Backspace => {
+                        text.pop();
+                    }
+                    KeyCode::Char(c) => text.push(c),
+                    _ => {}
+                }
+                self.overlay = Some(Overlay::Ask(view, label, text));
+                Vec::new()
+            }
             Overlay::Confirm(_, cmd, args) => {
                 if matches!(k.code, KeyCode::Char('y') | KeyCode::Enter) {
                     let then = self.screen.clone().map_or(Then::Nothing, Then::View);
@@ -930,7 +980,7 @@ impl App {
                         let list = if ptr.is_empty() { &val } else { val.pointer(&ptr).unwrap_or(&Value::Null) };
                         // a row action's answer isn't the list: read the list again
                         if let Some(a) = list.as_array() {
-                            rows.rows.clone_from(a);
+                            rows.rows = self.reg.find(&v).map_or_else(|| a.clone(), |x| x.shape(a.clone()));
                             rows.sel = rows.sel.min(rows.rows.len().saturating_sub(1));
                             rows.error.clear();
                         } else {

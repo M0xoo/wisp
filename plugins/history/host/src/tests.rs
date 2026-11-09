@@ -292,3 +292,26 @@ async fn an_agent_can_ask_but_not_answer() {
     let e = k.call(agent, "history.resumeAnswer", json!({ "request": r["id"], "approve": true })).await.unwrap_err();
     assert_eq!(e.code, wisp_kernel::Code::Forbidden, "{e:?}");
 }
+
+/// The TUI's why-gutter: a file's blame with `byLine` lists every line with the task that wrote it (its title and
+/// prompt), and a line written by hand with none.
+#[tokio::test(flavor = "multi_thread")]
+async fn blame_by_line_names_each_lines_task() {
+    let d = dir("byline", "", true);
+    let k = kernel(&d, &Arc::new(Mutex::new("Fix".into())), true, &Kept::default()).await;
+    std::fs::write(d.join("code.txt"), "one\ntwo\nthree\n").unwrap();
+    git(&d, &["add", "code.txt"]);
+    git(&d, &["commit", "-qm", "the task's code\n\nWisp-Task: 01a1bc12ab34"]);
+    k.call(Caller::user(), "history.track", track()).await.unwrap();
+    std::fs::write(d.join("code.txt"), "one\nTWO\nthree\n").unwrap();
+    git(&d, &["commit", "-qam", "by hand"]);
+    let b = k.call(Caller::user(), "history.blame", json!({ "target": "code.txt", "repo": d.display().to_string(), "byLine": true })).await.unwrap();
+    let lines = b["byLine"].as_array().unwrap();
+    assert_eq!(lines.len(), 3, "{b}");
+    assert_eq!((lines[0]["n"].clone(), lines[0]["text"].clone()), (json!(1), json!("one")));
+    assert!(lines[0]["task"].as_str().unwrap().starts_with("01a1bc12ab34"), "{b}");
+    assert!(lines[0]["title"].is_string(), "the task's title for the gutter: {b}");
+    assert_eq!((lines[1]["text"].clone(), lines[1]["task"].clone()), (json!("TWO"), Value::Null), "by hand: no task");
+    let plain = k.call(Caller::user(), "history.blame", json!({ "target": "code.txt", "repo": d.display().to_string() })).await.unwrap();
+    assert!(plain.get("byLine").is_none(), "only when asked");
+}

@@ -22,7 +22,11 @@ export function useTask(client: PluginClient, key: () => EntityKey | undefined):
   const k = key();
   if (!k) return () => undefined;
   const row = useSignal(client.entities.row<SessionRow>(KIND.session, k));
-  return () => row() as SessionRow | undefined;
+  // the server's row keeps the list's fields (the goal among them) in `summary`: read them as the row's own
+  return () => {
+    const r = row() as (SessionRow & { summary?: Record<string, unknown> }) | undefined;
+    return r?.summary && typeof r.summary === 'object' ? ({ ...r.summary, ...r } as SessionRow) : r;
+  };
 }
 
 export function useCrew(client: PluginClient): Accessor<readonly MemberRow[]> {

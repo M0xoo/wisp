@@ -64,6 +64,35 @@ pub trait TuiView: Send + Sync + 'static {
     fn detail(&self, row: &Value, _width: u16, th: &Theme) -> Vec<Line<'static>> {
         detail_of(row, th)
     }
+    /// a cell's own colour (a gutter, a state), else the table's
+    fn style(&self, _row: &Value, _column: &Column, _th: &Theme) -> Option<ratatui::style::Style> {
+        None
+    }
+    /// the source's rows as the table shows them (a gutter label on the first line of a run, a total…)
+    fn shape(&self, rows: Vec<Value>) -> Vec<Value> {
+        rows
+    }
+}
+
+/// The first `"{?Label}"` in a source's args: what the TUI asks before it loads the view (a file to blame).
+pub fn asks(args: &Value) -> Option<String> {
+    match args {
+        Value::String(s) if s.starts_with("{?") && s.ends_with('}') => Some(s[2..s.len() - 1].to_owned()),
+        Value::Object(o) => o.values().find_map(asks),
+        Value::Array(a) => a.iter().find_map(asks),
+        _ => None,
+    }
+}
+
+/// `args` with `"{?label}"` strings set to `answer` and `"{cwd}"` to the project the TUI runs in.
+pub fn fill_asked(args: &Value, answer: &str, cwd: &str) -> Value {
+    match args {
+        Value::String(s) if s.starts_with("{?") && s.ends_with('}') => Value::String(answer.to_owned()),
+        Value::String(s) if s == "{cwd}" => Value::String(cwd.to_owned()),
+        Value::Object(o) => Value::Object(o.iter().map(|(k, v)| (k.clone(), fill_asked(v, answer, cwd))).collect()),
+        Value::Array(a) => Value::Array(a.iter().map(|v| fill_asked(v, answer, cwd)).collect()),
+        other => other.clone(),
+    }
 }
 
 /// A row as `key: value` lines (the default detail).
@@ -257,6 +286,10 @@ mod tests {
         let row = json!({ "id": "m1", "name": "Ada", "on": ["ci.failed", "schedule"], "paused": true });
         assert_eq!((cell(&row, "/name"), cell(&row, "/on"), cell(&row, "/paused"), cell(&row, "/nope")), ("Ada".into(), "ci.failed, schedule".into(), "✓".into(), String::new()));
         assert_eq!(fill(&json!({ "id": "{/id}", "why": "from the tui", "n": [ "{/name}" ] }), &row), json!({ "id": "m1", "why": "from the tui", "n": ["Ada"] }));
+        let asked = json!({ "target": "{?File}", "repo": "{cwd}", "byLine": true });
+        assert_eq!(asks(&asked).as_deref(), Some("File"));
+        assert_eq!(fill_asked(&asked, "src/a.rs", "/w/api"), json!({ "target": "src/a.rs", "repo": "/w/api", "byLine": true }));
+        assert_eq!(asks(&json!({ "id": "{/id}" })), None);
         let t = Table::new("crew", "Crew", Source::Command { id: "crew.list".into(), args: json!({}), rows: String::new() }).goto('c').col("Name", "/name", 20).act('w', "Wake", "crew.wake", json!({ "id": "{/id}" }), false);
         assert_eq!((TuiView::goto(&t), t.columns().len(), t.actions()[0].key), (Some('c'), 1, 'w'));
     }

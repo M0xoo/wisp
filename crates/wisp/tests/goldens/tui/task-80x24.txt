@@ -1,5 +1,5 @@
  Add dark mode   running
- api · wisp/dark · codex gpt-5
+ api · wisp/dark · codex gpt-5  ○ goal: judging · round 1
  ──────────────────────────────────────────────────────────────────────────────
 
  path reads the same constant, so the two can't drift again.

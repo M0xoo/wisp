@@ -43,6 +43,11 @@ pub trait BlameSource: Send + Sync + 'static {
     fn added(&self, root: PathBuf, sha: String) -> BoxFuture<'static, Vec<(String, u32)>>;
     /// Whether `root` is under this source at all.
     fn knows(&self, root: PathBuf) -> BoxFuture<'static, bool>;
+    /// Each line of `file` as it is now, in order: (the commit that wrote it, its text). Additive (2026-11-09,
+    /// the TUI's why-gutter): a source without it answers nothing, and blame falls back to its totals.
+    fn lines(&self, _root: PathBuf, _file: String) -> BoxFuture<'static, Vec<(String, String)>> {
+        Box::pin(async { Vec::new() })
+    }
 }
 
 pub const BLAME: Point<dyn BlameSource> = Point::new("history.blame", 1);
@@ -107,6 +112,10 @@ pub struct Gone {
 pub struct BlameArgs {
     pub target: String,
     pub repo: String,
+    /// a file's answer also lists every line with the task that wrote it (`byLine`). Additive (2026-11-09).
+    #[serde(default, rename = "byLine", skip_serializing_if = "std::ops::Not::not")]
+    #[ts(rename = "byLine", type = "boolean | undefined")]
+    pub by_line: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
