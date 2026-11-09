@@ -65,7 +65,7 @@ test('WISP_VERSION=nightly takes npm\'s nightly tag, and --app the rolling night
   assert.equal(r.status, 0, r.stderr);
   assert.equal(fs.readFileSync(env.log, 'utf8').trim(), 'install -g wisp-agents@nightly');
   // releases/download/vnightly doesn't exist: the nightly's tag is plain `nightly`.
-  assert.match(fs.readFileSync(script, 'utf8'), /"\$VERSION" = nightly \]; then base="https:\/\/github\.com\/M0xoo\/wisp\/releases\/download\/nightly"/);
+  assert.match(fs.readFileSync(script, 'utf8'), /"\$VERSION" = nightly \]; then base="https:\/\/github\.com\/WispAgents\/wisp\/releases\/download\/nightly"/);
 });
 
 test('install.sh refuses Node.js older than 20 before touching npm', opts, () => {

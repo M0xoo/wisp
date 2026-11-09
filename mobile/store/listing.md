@@ -34,7 +34,7 @@ wisp in your pocket.
 Private by design: your prompts, code and the agents' replies stay on your computers. The app has
 no ads and no analytics of its own.
 
-wisp is free and open source: github.com/M0xoo/wisp
+wisp is free and open source: github.com/WispAgents/wisp
 You need a coding agent account (Claude Code, Codex, …) to run tasks.
 ```
 

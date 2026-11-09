@@ -34,7 +34,7 @@ die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 # The desktop app, from the release's .zip (the same build the app updates itself from).
 install_app() {
   [ "$(uname -s)" = Darwin ] \
-    || die "--app installs the macOS app. On Linux, download the AppImage or .deb from https://github.com/M0xoo/wisp/releases/latest"
+    || die "--app installs the macOS app. On Linux, download the AppImage or .deb from https://github.com/WispAgents/wisp/releases/latest"
   case "$(uname -m)" in
     arm64) arch=arm64 ;;
     x86_64) arch=x64 ;;
@@ -48,9 +48,9 @@ install_app() {
     *) die "the wisp app needs macOS 13.3 or later, and this Mac has $mac. wisp in the browser works here: curl -fsSL https://trywisp.dev/install.sh | bash" ;;
   esac
   local base zip want got dest # tmp stays global: the EXIT trap reads it
-  if [ "$VERSION" = latest ]; then base="https://github.com/M0xoo/wisp/releases/latest/download"
-  elif [ "$VERSION" = nightly ]; then base="https://github.com/M0xoo/wisp/releases/download/nightly"
-  else base="https://github.com/M0xoo/wisp/releases/download/v${VERSION#v}"; fi
+  if [ "$VERSION" = latest ]; then base="https://github.com/WispAgents/wisp/releases/latest/download"
+  elif [ "$VERSION" = nightly ]; then base="https://github.com/WispAgents/wisp/releases/download/nightly"
+  else base="https://github.com/WispAgents/wisp/releases/download/v${VERSION#v}"; fi
   base="${WISP_DOWNLOADS:-$base}" # tests point this at a folder
   zip="wisp-mac-$arch.zip"
   tmp="$(mktemp -d)"

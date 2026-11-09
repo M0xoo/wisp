@@ -79,9 +79,9 @@ test('one archive name per platform, the same in package.mjs; none where there i
 });
 
 test('the release a version comes from, WISP_HOME and the stand-in URL', () => {
-  assert.equal(releaseUrl('0.58.0', {}), 'https://github.com/M0xoo/wisp/releases/download/v0.58.0');
-  assert.equal(releaseUrl('0.59.0-beta.1', {}), 'https://github.com/M0xoo/wisp/releases/download/v0.59.0-beta.1');
-  assert.equal(releaseUrl('0.58.1-nightly.20261108.317', {}), 'https://github.com/M0xoo/wisp/releases/download/nightly');
+  assert.equal(releaseUrl('0.58.0', {}), 'https://github.com/WispAgents/wisp/releases/download/v0.58.0');
+  assert.equal(releaseUrl('0.59.0-beta.1', {}), 'https://github.com/WispAgents/wisp/releases/download/v0.59.0-beta.1');
+  assert.equal(releaseUrl('0.58.1-nightly.20261108.317', {}), 'https://github.com/WispAgents/wisp/releases/download/nightly');
   assert.equal(releaseUrl('0.58.0', { WISP_SHELL_URL: 'http://127.0.0.1:9/r/' }), 'http://127.0.0.1:9/r');
   assert.equal(shellDir('0.58.0', '/h/.wisp'), path.join('/h/.wisp', 'desktop', '0.58.0'));
   assert.equal(shellExe('/d', 'darwin'), path.join('/d', 'wisp.app/Contents/MacOS/wisp'));

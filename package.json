@@ -56,11 +56,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/M0xoo/wisp.git"
+    "url": "git+https://github.com/WispAgents/wisp.git"
   },
   "homepage": "https://trywisp.dev/",
   "bugs": {
-    "url": "https://github.com/M0xoo/wisp/issues"
+    "url": "https://github.com/WispAgents/wisp/issues"
   },
   "exports": {
     ".": "./server/client.js",

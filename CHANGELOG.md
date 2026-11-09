@@ -674,7 +674,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Delegate to your other machines:** the launcher's **Subagents** button is now **Delegate**, and each delegate picks where it runs: *With the lead* (as before), this computer, or any of your machines, with the harness, model and thinking level installed there. The lead's place is shown (and switchable) at the top. A delegate away from the lead gets a copy of the lead's work there (uncommitted edits too), runs hidden, and its changes come back to the lead's folder as a patch when it finishes (a three-way merge if the lead moved on; conflicts and patches that don't apply are reported to the lead). The lead hears each delegate's place in its team note. API: `machine` (`here` or a machine id) on each `subagents` member.
 - **Install the Mac app with one line, without the "can't verify" warning:** `curl -fsSL https://trywisp.dev/install.sh | bash -s -- --app` downloads wisp.app from the latest release, checks it against `SHA256SUMS.txt` and puts it in /Applications, with no Node needed. curl doesn't quarantine what it downloads, so macOS opens the not-yet-notarized app straight away. `WISP_VERSION` pins a release here too.
-- **Beta and nightly builds, and an update channel to follow them.** **Settings → General → Updates**: *Stable* (as before), *Beta* (previews of the next release, npm `wisp-agents@next`) or *Nightly* (a build of `main` every night the full test suite passes, npm `wisp-agents@nightly` and the apps on the [nightly release](https://github.com/M0xoo/wisp/releases/tag/nightly)). *Update to …* then offers the newest build of that channel, for npm, npx and the desktop app; a stable release that's newer still wins. Homebrew stays on stable. `install.sh` takes `WISP_VERSION=next` or `WISP_VERSION=nightly` (with `--app` too).
+- **Beta and nightly builds, and an update channel to follow them.** **Settings → General → Updates**: *Stable* (as before), *Beta* (previews of the next release, npm `wisp-agents@next`) or *Nightly* (a build of `main` every night the full test suite passes, npm `wisp-agents@nightly` and the apps on the [nightly release](https://github.com/WispAgents/wisp/releases/tag/nightly)). *Update to …* then offers the newest build of that channel, for npm, npx and the desktop app; a stable release that's newer still wins. Homebrew stays on stable. `install.sh` takes `WISP_VERSION=next` or `WISP_VERSION=nightly` (with `--app` too).
 
 ### Changed
 
@@ -1454,39 +1454,39 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.29.0...HEAD
-[0.29.0]: https://github.com/M0xoo/wisp/compare/v0.28.2...v0.29.0
-[0.28.2]: https://github.com/M0xoo/wisp/compare/v0.28.1...v0.28.2
-[0.28.1]: https://github.com/M0xoo/wisp/compare/v0.28.0...v0.28.1
-[0.28.0]: https://github.com/M0xoo/wisp/compare/v0.27.0...v0.28.0
-[0.27.0]: https://github.com/M0xoo/wisp/compare/v0.26.0...v0.27.0
-[0.26.0]: https://github.com/M0xoo/wisp/compare/v0.25.0...v0.26.0
-[0.25.0]: https://github.com/M0xoo/wisp/compare/v0.24.1...v0.25.0
-[0.24.1]: https://github.com/M0xoo/wisp/compare/v0.24.0...v0.24.1
-[0.24.0]: https://github.com/M0xoo/wisp/compare/v0.23.0...v0.24.0
-[0.23.0]: https://github.com/M0xoo/wisp/compare/v0.22.0...v0.23.0
-[0.22.0]: https://github.com/M0xoo/wisp/compare/v0.21.0...v0.22.0
-[0.21.0]: https://github.com/M0xoo/wisp/compare/v0.20.0...v0.21.0
-[0.20.0]: https://github.com/M0xoo/wisp/compare/v0.19.0...v0.20.0
-[0.19.0]: https://github.com/M0xoo/wisp/compare/v0.18.1...v0.19.0
-[0.18.1]: https://github.com/M0xoo/wisp/compare/v0.18.0...v0.18.1
-[0.18.0]: https://github.com/M0xoo/wisp/compare/v0.17.0...v0.18.0
-[0.17.0]: https://github.com/M0xoo/wisp/compare/v0.16.0...v0.17.0
-[0.16.0]: https://github.com/M0xoo/wisp/compare/v0.15.0...v0.16.0
-[0.15.0]: https://github.com/M0xoo/wisp/compare/v0.14.0...v0.15.0
-[0.14.0]: https://github.com/M0xoo/wisp/compare/v0.13.0...v0.14.0
-[0.13.0]: https://github.com/M0xoo/wisp/compare/v0.12.0...v0.13.0
-[0.12.0]: https://github.com/M0xoo/wisp/compare/v0.11.0...v0.12.0
-[0.11.0]: https://github.com/M0xoo/wisp/compare/v0.10.0...v0.11.0
-[0.10.0]: https://github.com/M0xoo/wisp/compare/v0.9.0...v0.10.0
-[0.9.0]: https://github.com/M0xoo/wisp/compare/v0.8.0...v0.9.0
-[0.8.0]: https://github.com/M0xoo/wisp/compare/v0.7.0...v0.8.0
-[0.7.0]: https://github.com/M0xoo/wisp/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/M0xoo/wisp/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/M0xoo/wisp/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/M0xoo/wisp/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/M0xoo/wisp/compare/v0.2.2...v0.3.0
-[0.2.2]: https://github.com/M0xoo/wisp/compare/v0.2.1...v0.2.2
-[0.2.1]: https://github.com/M0xoo/wisp/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/M0xoo/wisp/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/M0xoo/wisp/releases/tag/v0.1.0
+[Unreleased]: https://github.com/WispAgents/wisp/compare/v0.29.0...HEAD
+[0.29.0]: https://github.com/WispAgents/wisp/compare/v0.28.2...v0.29.0
+[0.28.2]: https://github.com/WispAgents/wisp/compare/v0.28.1...v0.28.2
+[0.28.1]: https://github.com/WispAgents/wisp/compare/v0.28.0...v0.28.1
+[0.28.0]: https://github.com/WispAgents/wisp/compare/v0.27.0...v0.28.0
+[0.27.0]: https://github.com/WispAgents/wisp/compare/v0.26.0...v0.27.0
+[0.26.0]: https://github.com/WispAgents/wisp/compare/v0.25.0...v0.26.0
+[0.25.0]: https://github.com/WispAgents/wisp/compare/v0.24.1...v0.25.0
+[0.24.1]: https://github.com/WispAgents/wisp/compare/v0.24.0...v0.24.1
+[0.24.0]: https://github.com/WispAgents/wisp/compare/v0.23.0...v0.24.0
+[0.23.0]: https://github.com/WispAgents/wisp/compare/v0.22.0...v0.23.0
+[0.22.0]: https://github.com/WispAgents/wisp/compare/v0.21.0...v0.22.0
+[0.21.0]: https://github.com/WispAgents/wisp/compare/v0.20.0...v0.21.0
+[0.20.0]: https://github.com/WispAgents/wisp/compare/v0.19.0...v0.20.0
+[0.19.0]: https://github.com/WispAgents/wisp/compare/v0.18.1...v0.19.0
+[0.18.1]: https://github.com/WispAgents/wisp/compare/v0.18.0...v0.18.1
+[0.18.0]: https://github.com/WispAgents/wisp/compare/v0.17.0...v0.18.0
+[0.17.0]: https://github.com/WispAgents/wisp/compare/v0.16.0...v0.17.0
+[0.16.0]: https://github.com/WispAgents/wisp/compare/v0.15.0...v0.16.0
+[0.15.0]: https://github.com/WispAgents/wisp/compare/v0.14.0...v0.15.0
+[0.14.0]: https://github.com/WispAgents/wisp/compare/v0.13.0...v0.14.0
+[0.13.0]: https://github.com/WispAgents/wisp/compare/v0.12.0...v0.13.0
+[0.12.0]: https://github.com/WispAgents/wisp/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/WispAgents/wisp/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/WispAgents/wisp/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/WispAgents/wisp/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/WispAgents/wisp/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/WispAgents/wisp/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/WispAgents/wisp/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/WispAgents/wisp/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/WispAgents/wisp/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/WispAgents/wisp/compare/v0.2.2...v0.3.0
+[0.2.2]: https://github.com/WispAgents/wisp/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/WispAgents/wisp/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/WispAgents/wisp/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/WispAgents/wisp/releases/tag/v0.1.0

@@ -4,7 +4,7 @@ Last updated: 2026-10-23
 
 This policy covers wisp: the `wisp-agents` app you run on your own computers, the wisp app for
 Android (`dev.trywisp.mobile`), wisp Cloud (`grid.trywisp.dev`) and this site (`trywisp.dev`).
-wisp is open source ([github.com/M0xoo/wisp](https://github.com/M0xoo/wisp)), so everything
+wisp is open source ([github.com/WispAgents/wisp](https://github.com/WispAgents/wisp)), so everything
 below can be checked in the code. Questions or requests: **[hello@trywisp.dev](mailto:hello@trywisp.dev)**.
 
 **The short version:** wisp runs on your computers. Your prompts, code, file paths, project names
@@ -124,5 +124,5 @@ data.
 ## Changes
 
 We'll update this page when what wisp collects changes, and note it in the
-[changelog](https://github.com/M0xoo/wisp/blob/main/CHANGELOG.md). Contact:
+[changelog](https://github.com/WispAgents/wisp/blob/main/CHANGELOG.md). Contact:
 **[hello@trywisp.dev](mailto:hello@trywisp.dev)**.
