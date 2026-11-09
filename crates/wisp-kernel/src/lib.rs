@@ -9,6 +9,7 @@
 //! implementation is a list point, watching data is a topic, a handle is a service.
 
 pub mod caps;
+pub mod decl;
 pub mod error;
 pub mod http;
 pub mod ids;

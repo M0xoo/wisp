@@ -316,6 +316,9 @@ pub struct CommandInfo {
     /// the argument type as a TypeScript declaration with its doc comments, when the api crate gives it
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub args: Option<String>,
+    /// why it's only for a screen (`uiOnly` in its manifest): no MCP tool. Additive (2026-11-09).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui_only: Option<String>,
 }
 
 impl Ctx {
@@ -324,9 +327,9 @@ impl Ctx {
     /// Additive (2026-11-08).
     pub fn catalogue(&self, caller: &Caller) -> Vec<CommandInfo> {
         let Ok(k) = self.k() else { return Vec::new() };
-        let titles: std::collections::HashMap<String, String> = k
+        let decls: std::collections::HashMap<String, crate::manifest::CommandDecl> = k
             .lock_plugins()
-            .map(|ps| ps.slots.iter().flat_map(|s| s.manifest.commands()).map(|c| (c.id, c.title)).collect())
+            .map(|ps| ps.slots.iter().flat_map(|s| s.manifest.commands()).map(|c| (c.id.clone(), c)).collect())
             .unwrap_or_default();
         let set = k.caps.get(&caller.set);
         let Ok(reg) = k.reg.read() else { return Vec::new() };
@@ -337,7 +340,8 @@ impl Ctx {
             .map(|e| CommandInfo {
                 id: e.id.clone(),
                 plugin: e.owner.to_string(),
-                title: titles.get(&e.id).cloned(),
+                title: decls.get(&e.id).map(|d| d.title.clone()),
+                ui_only: decls.get(&e.id).and_then(|d| d.ui_only.clone()),
                 read_only: e.read_only,
                 permission: e.perm.to_string(),
                 args: (e.args_ts)(),

@@ -168,3 +168,11 @@ fn an_invalid_embedded_manifest_is_refused_with_why() {
     assert_eq!(m.id, "invalid.manifest");
     assert!(m.validate().is_err());
 }
+
+#[test]
+fn a_ui_only_without_a_reason_is_refused() {
+    let with = |u: Value| errors(&json!({ "wispPlugin": 1, "id": "acme.x", "version": "1.0.0", "api": "^1", "contributes": { "commands": [{ "id": "x.pick", "title": "Pick", "uiOnly": u }] } }));
+    assert!(with(json!("")).iter().any(|(p, m)| p == "contributes.commands[0].uiOnly" && m.contains("says why")));
+    assert!(with(json!(true)).iter().any(|(p, _)| p == "contributes.commands[0].uiOnly"));
+    assert_eq!(with(json!("a drag on the canvas; there's nothing to type")), Vec::new());
+}

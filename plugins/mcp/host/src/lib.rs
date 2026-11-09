@@ -57,6 +57,34 @@ pub(crate) fn extras(ctx: &Ctx) -> (Vec<Extra>, Vec<Arc<wisp_mcp_api::ToolContri
     (ex, list)
 }
 
+/// The contributed tools and, after them, one per catalogue command `call`'s caller may run (ADR-0040),
+/// never under a name wisp's own tools or a contribution already have.
+pub(crate) fn extras_for(ctx: &Ctx, call: &Call) -> (Vec<Extra>, Vec<Arc<wisp_mcp_api::ToolContribution>>) {
+    let (mut ex, mut list) = extras(ctx);
+    let mut taken: Vec<String> = ex.iter().map(|e| e.name.clone()).collect();
+    if let Ok(t) = wisp_mcp_core::table::table() {
+        taken.extend(t.agent.iter().chain(t.user.iter()).map(|d| d.name.clone()));
+    }
+    taken.push("delegate".into());
+    let refs: Vec<&str> = taken.iter().map(String::as_str).collect();
+    let catalogue = ctx.catalogue(call.caller());
+    for (name, id, read_only, tool) in wisp_mcp_core::generated::tools(&catalogue, &refs) {
+        let object = wisp_kernel::decl::parse(catalogue.iter().find(|c| c.id == id).and_then(|c| c.args.as_deref())).object;
+        let run: wisp_mcp_api::ToolFn = Arc::new(move |ctx, call, tc| {
+            let id = id.clone();
+            Box::pin(async move {
+                Ok(match ctx.run_json(&call, &id, wisp_mcp_core::generated::args_of(object, &tc.args)).await {
+                    Ok(v) => wisp_mcp_api::ToolText { text: Some(v.to_string()), error: None },
+                    Err(e) => wisp_mcp_api::ToolText { text: None, error: Some(e.message) },
+                })
+            })
+        });
+        ex.push(Extra { name: name.clone(), raw: tool.to_string(), audience: wisp_mcp_api::Audience::Both, flags: OwnFlags { read_only, capped_off: false } });
+        list.push(Arc::new(wisp_mcp_api::ToolContribution { tool, audience: wisp_mcp_api::Audience::Both, read_only, capped_off: false, run }));
+    }
+    (ex, list)
+}
+
 /// Who `call` speaks for, with its session's flags (and what `mcp.session@1` contributors add).
 pub(crate) fn who(ctx: &Ctx, call: &Call, sessions: &Sessions) -> Who {
     let caller = call.caller();
@@ -111,7 +139,7 @@ impl Plugin for McpPlugin {
             let st = st.clone();
             async move {
                 let w = who(&ctx, &call, &st);
-                let (ex, _) = extras(&ctx);
+                let (ex, _) = extras_for(&ctx, &call);
                 let list: Value = serde_json::from_str(&wisp_mcp_core::tools_list(&w, &ex)).unwrap_or(Value::Null);
                 Ok(list.get("tools").and_then(Value::as_array).cloned().unwrap_or_default())
             }

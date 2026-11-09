@@ -172,6 +172,9 @@ pub struct CommandDecl {
     pub title: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub optimistic: Option<String>,
+    /// why it's only for a screen, so it isn't an MCP tool (ADR-0040). Additive (2026-11-09).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui_only: Option<String>,
 }
 
 impl Manifest {

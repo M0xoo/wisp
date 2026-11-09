@@ -49,7 +49,7 @@ fn commands(v: Option<&Value>, pid: &str, p: &mut Problems) {
         };
         unknown_keys(
             c,
-            &["id", "title", "optimistic", "readOnly", "permission"],
+            &["id", "title", "optimistic", "readOnly", "permission", "uiOnly"],
             &at,
             p,
         );
@@ -69,6 +69,10 @@ fn commands(v: Option<&Value>, pid: &str, p: &mut Problems) {
                 format!("{at}.title"),
                 "every command has a title (the palette shows it)",
             );
+        }
+        // ADR-0040: a command that isn't an MCP tool says why
+        if c.get("uiOnly").is_some_and(|u| u.as_str().is_none_or(|w| w.trim().len() < 8)) {
+            p.add(format!("{at}.uiOnly"), "a command left out of the MCP tools says why (a sentence: what only a screen can do)");
         }
         if c.get("optimistic")
             .is_some_and(|o| o != "none" && o != "declared")

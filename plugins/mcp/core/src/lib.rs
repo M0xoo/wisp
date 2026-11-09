@@ -7,6 +7,7 @@ pub mod asks;
 pub mod dispatch;
 pub mod error;
 pub mod frame;
+pub mod generated;
 pub mod plan;
 pub mod rpc;
 pub mod table;

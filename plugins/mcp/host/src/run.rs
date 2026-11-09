@@ -6,7 +6,7 @@ use serde_json::{Map, Value, json};
 use wisp_kernel::{Call, Ctx};
 use wisp_mcp_core::{AgentAction, Outcome, Step, Who, agent_action, owner_text, user, words};
 
-use crate::{Sessions, extras, who as who_of};
+use crate::{Sessions, extras_for, who as who_of};
 
 /// How often a waiting tool looks again (an ask, a task to finish).
 const POLL_MS: u64 = 250;
@@ -20,7 +20,7 @@ pub async fn rpc(ctx: &Ctx, call: &Call, sessions: &Sessions, text: &str, cwd: O
         merge_flags(ctx, call, session, info).await;
         only = narrowed(ctx, call, sessions, session).await;
     }
-    let (ex, contributed) = extras(ctx);
+    let (ex, contributed) = extras_for(ctx, call);
     let plan = wisp_mcp_core::plan(text, &w, &ex);
     let mut replies = Vec::with_capacity(plan.steps.len());
     for step in plan.steps {
