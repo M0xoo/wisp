@@ -5,6 +5,14 @@ The coder takes the next unchecked item as soon as one ends, with no wait for re
 no local full suites. The lead commits each item by concern and pushes; PR #756 CI runs the tests. CI failures
 are fixed at the start of the next item.
 
+**Next coder job, small (owner, 2026-11-09): Fable in the Claude model catalogue.** Claude Code 2.1.321 accepts
+`--model fable` (Fable 5.2, `claude-fable-5-2`, the newest and most capable).
+- Add `model("fable", "Fable", "Newest and most capable")` to `plugins/claude/host/src/lib.rs`, first after Default.
+- Add `"fable" => "Fable"` to `plugins/budget/core/src/compare.rs`.
+- Check that the router plugin's model ranking, families and blocked/prefer rules accept `claude:fable`.
+- Named tests: `claude_catalogue_lists_fable`, `router_ranks_claude_fable`, `budget_labels_fable`.
+- v1 gets the same fix in a separate PR from Sana (delegation 80eea720eab0): match its label and hint.
+
 **Fix first (from PR #756 CI, run 42673407031):** `crates/wisp/tests/serve_code.rs`
 `a_formula_applied_exported_and_its_workflow_run` (:109) and `atomic_apply_every_kind_history_import_and_sharing`
 (:246) fail. `wisp apply` says "no plugin in this wisp owns `tasks:`", so a recent round dropped the owner of
@@ -33,6 +41,8 @@ alone.
 6. [ ] **TUI** (first slice done in round 6: list, answer, composer) (ADR-0024): `wisp tui` mirrors the GUI with ratatui, from the Rust SyncClient; `tui.view`, `tui.input` and `term.block`; `--on <machine>`.
    - **The bar is `docs/v2-tui-design.md` (owner, 2026-11-09): opencode / Claude Code conversation, lazygit / k9s
      navigation, in wisp's look.** The first slice is round 6; the rest of that doc is this item.
+   - Built (docs/v2-round-6.md, "Item 6"): the points, the shell, the views, the goldens. Left: `--on`, For later and
+     Repo tab, the blame gutter, hunk jumps, terminal images, the real-terminal pass.
 7. [ ] **GUI** (ADR-0016/0017/0012):
    - the 46 remaining views at v1 parity;
    - the new screens: Repo tab, blame gutter, import, Share setup, Setup section, My shares, Automations "When" picker and crew Wakes;
