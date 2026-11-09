@@ -232,6 +232,9 @@ pub struct PlanArgs {
     /// the user said yes to its sensitive ops (`--trust`)
     #[serde(default)]
     pub trust: bool,
+    /// `kind.name` addresses to delete (`wisp destroy`), whatever `resources` says. Additive (2026-11-09).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub destroy: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

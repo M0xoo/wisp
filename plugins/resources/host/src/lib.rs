@@ -67,10 +67,26 @@ async fn make_plan(ctx: &Ctx, call: &Call, a: &PlanArgs) -> Result<Plan> {
                 Resource { kind: info.kind.clone(), spec, ..r.clone() }
             })
             .collect();
-        if desired.is_empty() {
+        let gone: Vec<&str> = a.destroy.iter().filter_map(|d| d.split_once('.')).filter(|(kind, _)| info.named(kind)).map(|(_, n)| n).collect();
+        if desired.is_empty() && gone.is_empty() {
             continue;
         }
         let current = k.read(call).await?;
+        if !gone.is_empty() {
+            let ops: Vec<Op> = current
+                .iter()
+                .filter(|c| gone.contains(&c.name.as_str()))
+                .map(|c| Op { op: OpKind::Delete, kind: info.kind.clone(), name: c.name.clone(), spec: c.spec.clone(), id: c.id.clone(), changes: Vec::new(), before: None })
+                .collect();
+            if info.sensitive {
+                for o in &ops {
+                    out.sensitive.push(k.describe(o).unwrap_or_else(|| format!("{} the {} {}", verb(o.op), info.kind, o.name)));
+                }
+            }
+            out.ops.extend(ops);
+            infos.push(info);
+            continue;
+        }
         let ops = if let Some(ops) = k.plan(&current, &desired, a.prune) {
             out.unchanged += desired.len().saturating_sub(ops.iter().filter(|o| o.op != OpKind::Delete).count());
             ops

@@ -8,6 +8,8 @@
 //! - [`schema`]: a spec checked against its kind's schema; the whole formula's schema for editors.
 
 pub mod export;
+pub mod expr;
 pub mod formula;
+pub mod module;
 pub mod plan;
 pub mod schema;

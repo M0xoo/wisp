@@ -60,8 +60,8 @@ pub fn documents(text: &str, format: Format) -> Result<Vec<Value>, String> {
     }
 }
 
-/// `${env:NAME}` filled in every string; the names that weren't set are returned.
-fn fill_env(v: &mut Value, src: &dyn Source, missing: &mut BTreeSet<String>) {
+/// `${env:NAME}` filled in every string; the names that weren't set are added to `missing`.
+pub fn fill_env(v: &mut Value, src: &dyn Source, missing: &mut BTreeSet<String>) {
     match v {
         Value::String(s) if s.contains("${env:") => {
             let mut out = String::new();
