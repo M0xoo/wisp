@@ -10,6 +10,7 @@
 
 pub mod caps;
 pub mod decl;
+pub mod durable;
 pub mod error;
 pub mod http;
 pub mod ids;
@@ -91,6 +92,17 @@ pub trait Command: 'static {
 /// A fact, published after the command that caused it commits, in order, per subscriber queue.
 pub trait Event: Serialize + DeserializeOwned + Clone + Send + Sync + 'static {
     const TYPE: &'static str;
+    /// Kept in the event log and delivered from a cursor (ADR-0044): a lifecycle fact someone would be
+    /// upset to miss. Additive (2026-11-09).
+    const DURABLE: bool = false;
+    /// What it's about (a task id, a PR), for `wisp events tail --subject` and the topic. Additive.
+    fn subject(&self) -> Option<String> {
+        None
+    }
+    /// A durable event's dedupe key: a repeated `(type, key)` within 24 h is recorded once. Additive.
+    fn key(&self) -> Option<String> {
+        None
+    }
 }
 
 /// An interceptor hook (`before:run`): ordered, can continue, modify or veto.
@@ -222,6 +234,8 @@ impl Call {
                 via_set: None,
                 kernel: std::sync::Weak::new(),
                 tx: None,
+                cause: None,
+                cause_depth: 0,
             }),
         }
     }

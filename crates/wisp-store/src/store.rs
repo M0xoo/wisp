@@ -104,6 +104,8 @@ pub(crate) struct Shared {
     pub listeners: RwLock<Vec<(u64, CommitFn)>>,
     pub epoch_listeners: RwLock<Vec<(u64, EpochListener)>>,
     pub next_id: AtomicU64,
+    /// the event log's dedupe keys and append count (ADR-0044)
+    pub log: crate::events::LogState,
 }
 
 pub(crate) fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -213,12 +215,14 @@ impl Store {
             listeners: RwLock::new(Vec::new()),
             epoch_listeners: RwLock::new(Vec::new()),
             next_id: AtomicU64::new(1),
+            log: crate::events::LogState::default(),
         });
         let thread = Arc::new(WriterThread::start(shared.clone())?);
         let store = Self { shared, thread };
         store.define_entity(SETTING)?;
         store.define_entity(PLUGIN)?;
         store.init_epoch()?;
+        store.init_events()?;
         Ok(store)
     }
 

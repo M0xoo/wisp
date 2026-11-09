@@ -58,6 +58,35 @@ pub(crate) struct Pending {
     pub(crate) ty: String,
     pub(crate) plugin: Arc<str>,
     pub(crate) data: Payload,
+    /// kept in the log (ADR-0044)
+    pub(crate) durable: bool,
+    pub(crate) subject: Option<String>,
+    pub(crate) key: Option<String>,
+    /// the durable event whose handler emitted it, and how deep that chain is
+    pub(crate) cause: Option<u64>,
+    pub(crate) depth: u32,
+    pub(crate) root: String,
+    pub(crate) at: i64,
+    /// durable: whether it's in the log yet (a repeat within 24 h is never published)
+    pub(crate) written: Logged,
+    /// a write in flight carries it
+    pub(crate) taken: bool,
+}
+
+/// Whether a durable event is in the log (ADR-0044).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Logged {
+    Not,
+    /// a repeat of its (type, key) within 24 h: recorded once, so not again (and not published)
+    Repeat,
+    At(u64),
+}
+
+impl Pending {
+    /// An ephemeral event (the kernel's own, a vetoed notice).
+    pub(crate) fn plain(ty: &str, plugin: Arc<str>, data: Payload) -> Self {
+        Self { ty: ty.to_owned(), plugin, data, durable: false, subject: None, key: None, cause: None, depth: 0, root: String::new(), at: 0, written: Logged::Not, taken: false }
+    }
 }
 
 /// A published event as subscribers see it.
@@ -73,7 +102,17 @@ pub struct EventEnvelope {
     pub root: String,
     /// the store's change cursor when the store published it on commit
     pub cursor: Option<u64>,
-    data: Payload,
+    /// a durable event's seq in the log (ADR-0044); None for an ephemeral one
+    pub durable_seq: Option<u64>,
+    /// what it's about (a task, a PR)
+    pub subject: Option<String>,
+    /// its dedupe key
+    pub key: Option<String>,
+    /// the durable event whose handler emitted it
+    pub cause: Option<u64>,
+    /// how many causes deep it is (0: nothing caused it)
+    pub depth: u32,
+    pub(crate) data: Payload,
 }
 
 impl EventEnvelope {
@@ -98,13 +137,18 @@ impl EventEnvelope {
 
 impl serde::Serialize for EventEnvelope {
     fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
-        let mut st = s.serialize_struct("EventEnvelope", 7)?;
+        let mut st = s.serialize_struct("EventEnvelope", 12)?;
         st.serialize_field("seq", &self.seq)?;
         st.serialize_field("type", &self.ty)?;
         st.serialize_field("plugin", &self.plugin)?;
         st.serialize_field("at", &self.at)?;
         st.serialize_field("root", &self.root)?;
         st.serialize_field("cursor", &self.cursor)?;
+        st.serialize_field("durableSeq", &self.durable_seq)?;
+        st.serialize_field("subject", &self.subject)?;
+        st.serialize_field("key", &self.key)?;
+        st.serialize_field("cause", &self.cause)?;
+        st.serialize_field("depth", &self.depth)?;
         st.serialize_field("data", &self.data())?;
         st.end()
     }
@@ -138,6 +182,9 @@ struct Index {
 }
 
 pub(crate) struct Bus {
+    pub(crate) ring: crate::durable::Ring,
+    /// durable subscriptions by (plugin, name), for `retry`
+    pub(crate) durables: Mutex<HashMap<(String, String), crate::durable::DSub>>,
     seq: AtomicU64,
     queues: Mutex<HashMap<Arc<str>, Arc<Queue>>>,
     index: RwLock<Arc<Index>>,
@@ -147,6 +194,8 @@ pub(crate) struct Bus {
 impl Bus {
     pub(crate) fn new(work: Arc<Work>) -> Self {
         Self {
+            ring: crate::durable::Ring::new(work.clone()),
+            durables: Mutex::default(),
             seq: AtomicU64::new(0),
             queues: Mutex::default(),
             index: RwLock::default(),
@@ -252,6 +301,24 @@ impl Bus {
         }
     }
 
+    /// A durable event is in the log: its durable subscribers may take it now.
+    pub(crate) fn remember(&self, k: &KernelState, seq: u64, p: &Pending) {
+        self.ring.insert(Arc::new(EventEnvelope {
+            seq: 0,
+            ty: p.ty.clone(),
+            plugin: p.plugin.to_string(),
+            at: if p.at > 0 { p.at } else { k.now_ms() },
+            root: p.root.clone(),
+            cursor: None,
+            durable_seq: Some(seq),
+            subject: p.subject.clone(),
+            key: p.key.clone(),
+            cause: p.cause,
+            depth: p.depth,
+            data: p.data.clone(),
+        }));
+    }
+
     /// Publishes one committed event to every queue that wants it. Returns its envelope.
     pub(crate) fn publish(
         &self,
@@ -268,6 +335,14 @@ impl Bus {
             at: k.now_ms(),
             root: root.to_owned(),
             cursor,
+            durable_seq: match p.written {
+                Logged::At(s) => Some(s),
+                _ => None,
+            },
+            subject: p.subject,
+            key: p.key,
+            cause: p.cause,
+            depth: p.depth,
             data: p.data,
         });
         let ix = self.index.read().map(|i| i.clone()).unwrap_or_default();

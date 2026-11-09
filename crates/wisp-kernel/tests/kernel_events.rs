@@ -112,7 +112,7 @@ async fn after_ok_only_in_order_and_at_least_once() {
 }
 
 #[tokio::test]
-async fn a_full_queue_marks_the_subscriber_lagging() {
+async fn lagging_ephemeral_subscriber_drops_and_records_diag() {
     let gate = Arc::new(tokio::sync::Notify::new());
     let g2 = gate.clone();
     let slow = common::plugin("wisp.slow", json!({}), move |s| {
@@ -159,4 +159,42 @@ async fn the_commit_hook_publishes_on_commit_and_drops_on_rollback() {
     k.idle().await;
     // 1 went out on commit with the store's cursor, 2 was rolled back, 3 went out when the command returned
     assert_eq!(*seen.lock().unwrap(), [(1, Some(9001)), (3, None)]);
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Made2 {
+    n: u32,
+    by: String,
+}
+impl Event for Made2 {
+    const TYPE: &'static str = "src.made@2";
+}
+
+cmd!(Both, "src.both", u32, ());
+
+#[tokio::test]
+async fn event_v2_type_and_v1_type_both_emitted_for_one_minor() {
+    let (v1, v2) = (Arc::<Mutex<Vec<u32>>>::default(), Arc::<Mutex<Vec<String>>>::default());
+    let (a, b) = (v1.clone(), v2.clone());
+    let src = common::plugin("wisp.src", json!({}), |s| {
+        s.command::<Both, _, _>(|ctx, call, n| async move { ctx.emit_versions(&call, &Made2 { n, by: "ada".into() }, &Made { n }) });
+    });
+    let old = common::plugin("wisp.old", json!({}), move |s| {
+        let a = a.clone();
+        s.on::<Made, _, _>(move |_, e| {
+            let a = a.clone();
+            async move { a.lock().unwrap().push(e.n) }
+        });
+    });
+    let new = common::plugin("wisp.new", json!({}), move |s| {
+        let b = b.clone();
+        s.on::<Made2, _, _>(move |_, e| {
+            let b = b.clone();
+            async move { b.lock().unwrap().push(e.by) }
+        });
+    });
+    let k = common::start(PluginGroup::new().add(src).add(old).add(new)).await;
+    k.call(Caller::user(), "src.both", json!(7)).await.unwrap();
+    k.idle().await;
+    assert_eq!((v1.lock().unwrap().clone(), v2.lock().unwrap().clone()), (vec![7], vec!["ada".to_owned()]), "an old subscriber keeps getting the old shape");
 }

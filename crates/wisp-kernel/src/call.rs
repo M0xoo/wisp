@@ -18,6 +18,8 @@ pub const MAX_DEPTH: u32 = 8;
 #[derive(Debug, Default)]
 pub(crate) struct RootTx {
     pub(crate) events: Mutex<Vec<Pending>>,
+    /// for the store's in-transaction append (durable events)
+    pub(crate) kernel: Weak<KernelState>,
     /// (command, args, the context of the plugin that vetoed: the follow-up speaks for it)
     pub(crate) follow: Mutex<Vec<(String, Value, crate::host::Ctx)>>,
 }
@@ -38,6 +40,9 @@ pub(crate) struct CallInner {
     pub(crate) kernel: Weak<KernelState>,
     /// Some inside a command
     pub(crate) tx: Option<Arc<RootTx>>,
+    /// the durable event whose handler made this call (ADR-0044), and its chain depth
+    pub(crate) cause: Option<u64>,
+    pub(crate) cause_depth: u32,
 }
 
 impl CallInner {
@@ -64,6 +69,8 @@ impl CallInner {
             via_set,
             kernel: Arc::downgrade(k),
             tx: None,
+            cause: None,
+            cause_depth: 0,
         }
     }
 
@@ -159,5 +166,16 @@ impl Call {
     /// The plugin whose code runs this call, if any.
     pub fn via(&self) -> Option<&str> {
         self.inner.via.as_deref()
+    }
+
+    /// The durable event whose handler made this call (ADR-0044). Additive (2026-11-09).
+    pub fn cause(&self) -> Option<u64> {
+        self.inner.cause
+    }
+
+    /// How many durable events deep this call's chain of causes goes (0: a person, a timer). A trigger
+    /// refuses to fire past 3 (ADR-0043). Additive (2026-11-09).
+    pub fn cause_depth(&self) -> u32 {
+        self.inner.cause_depth
     }
 }

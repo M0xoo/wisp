@@ -99,7 +99,7 @@ impl WriterThread {
         rx.recv().map_err(|_| StoreError::Closed)?
     }
 
-    async fn queued<T: Send + 'static>(
+    pub(crate) async fn queued<T: Send + 'static>(
         &self,
         work: impl FnOnce(&Arc<Shared>) -> Result<T> + Send + 'static,
     ) -> Result<T> {
@@ -151,7 +151,7 @@ impl Drop for WriterThread {
 }
 
 /// One write closure in one transaction, on the writer thread.
-fn transact<T>(s: &Arc<Shared>, f: impl FnOnce(&mut Writer<'_>) -> Result<T>) -> Result<T> {
+pub(crate) fn transact<T>(s: &Arc<Shared>, f: impl FnOnce(&mut Writer<'_>) -> Result<T>) -> Result<T> {
     let _span = tracing::debug_span!("store.write").entered();
     let db = lock(&s.writer);
     db.prepare_cached("BEGIN IMMEDIATE")?.execute([])?; // cached: parsed once, not per transaction
@@ -216,6 +216,10 @@ impl Store {
         T: Send + 'static,
         F: FnOnce(&mut Writer<'_>) -> Result<T> + Send + 'static,
     {
+        // a command's durable events (and a durable handler's cursor) ride on its writes (ADR-0044)
+        if let Some(intx) = wisp_kernel::durable::take() {
+            return self.write_durable(intx, f).await;
+        }
         self.thread.queued(move |s| transact(s, f)).await
     }
 

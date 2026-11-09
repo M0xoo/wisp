@@ -96,6 +96,11 @@ impl KernelState {
             .and_then(|v| v.clone().downcast::<T>().ok())
     }
 
+    /// The durable event log, when the app provides one (ADR-0044).
+    pub(crate) fn event_log(&self) -> Option<crate::durable::EventLogService> {
+        self.service::<crate::durable::EventLogService>().map(|l| (*l).clone())
+    }
+
     pub(crate) fn clock(&self) -> Option<Arc<dyn Clock>> {
         self.service::<Arc<dyn Clock>>().map(|c| (*c).clone())
     }

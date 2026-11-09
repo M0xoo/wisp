@@ -80,7 +80,9 @@ pub const KERNEL_MIGRATIONS: &[Migration] = &[Migration::sql(
       UNIQUE (kind, id)
     ) STRICT;
     ",
-)];
+),
+// the durable event log (ADR-0044)
+Migration::sql(2, crate::events::SQL)];
 
 fn config_topic(_: &Row) -> Vec<String> {
     vec!["config".to_owned()]

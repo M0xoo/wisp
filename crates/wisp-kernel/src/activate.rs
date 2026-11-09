@@ -74,7 +74,7 @@ pub(crate) fn activate(k: &Arc<KernelState>, id: &str) -> BoxFuture<'static, Res
 /// Runs every setup in order, then every `on_start` in order (`App::start`'s contract). A failure turns
 /// that plugin off with the reason, and a new resolution takes its dependents with it.
 pub(crate) async fn batch(k: &Arc<KernelState>, ids: Vec<String>) {
-    let mut started: Vec<(String, Ctx, Vec<StartFn>)> = Vec::new();
+    let mut started: Vec<(String, Ctx, Vec<StartFn>, Vec<crate::durable::DSub>)> = Vec::new();
     let mut failed = false;
     for id in ids {
         let Some((plugin, ctx, manifest)) = begin(k, &id) else {
@@ -84,14 +84,14 @@ pub(crate) async fn batch(k: &Arc<KernelState>, ids: Vec<String>) {
         let r = std::panic::catch_unwind(AssertUnwindSafe(|| plugin.setup(&mut s)))
             .unwrap_or_else(|_| Err(WireError::internal("setup panicked")));
         match r.and_then(|()| install(k, &ctx, &manifest, s)) {
-            Ok(starts) => started.push((id, ctx, starts)),
+            Ok((starts, durables)) => started.push((id, ctx, starts, durables)),
             Err(e) => {
                 fail(k, &id, "setup", &e);
                 failed = true;
             }
         }
     }
-    for (id, ctx, starts) in started {
+    for (id, ctx, starts, durables) in started {
         let mut res = Ok(());
         for f in starts {
             if k.lock_plugins().ok().and_then(|ps| ps.phase(&id)) != Some(Phase::Starting) {
@@ -108,7 +108,13 @@ pub(crate) async fn batch(k: &Arc<KernelState>, ids: Vec<String>) {
             }
         }
         match res {
-            Ok(()) => finish(k, &id),
+            Ok(()) => {
+                finish(k, &id);
+                // durable subscriptions start once the plugin has (its tables exist, its services run)
+                for d in durables {
+                    crate::durable::start(k, &ctx, d);
+                }
+            }
             Err(e) => {
                 fail(k, &id, "start", &e);
                 failed = true;
@@ -186,12 +192,13 @@ pub(crate) fn deactivate(k: &KernelState, id: &str, why: String, to: Phase) {
         reg.remove_owner(id);
     }
     k.bus.drop_owner(id);
+    k.bus.ring.stop_owner(id);
     k.settings.release(id);
     tracing::info!(plugin = id, "off");
 }
 
 /// Checks then installs what `setup` registered. Nothing is installed if anything is refused.
-fn install(k: &Arc<KernelState>, ctx: &Ctx, m: &crate::Manifest, s: Setup) -> Result<Vec<StartFn>> {
+fn install(k: &Arc<KernelState>, ctx: &Ctx, m: &crate::Manifest, s: Setup) -> Result<(Vec<StartFn>, Vec<crate::durable::DSub>)> {
     let id = ctx.plugin();
     {
         let reg = k.read_reg()?;
@@ -240,7 +247,12 @@ fn install(k: &Arc<KernelState>, ctx: &Ctx, m: &crate::Manifest, s: Setup) -> Re
     for (pattern, f) in s.events {
         add_sub(k, ctx, pattern, f);
     }
-    Ok(s.starts)
+    for d in &s.durables {
+        if let Ok(mut m) = k.bus.durables.lock() {
+            m.insert((ctx.plugin().to_owned(), d.name.clone()), d.clone());
+        }
+    }
+    Ok((s.starts, s.durables))
 }
 
 fn check_command(reg: &crate::reg::Registry, id: &str, c: &CmdReg) -> Result<()> {

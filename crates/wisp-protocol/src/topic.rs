@@ -8,10 +8,11 @@ use std::sync::Arc;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// `list` · `config` · `crew` · `machines` · `stuff` · `session:<id>` · `plugin:<id>:<topic>`.
+/// `list` · `config` · `crew` · `machines` · `stuff` · `session:<id>` · `plugin:<id>:<topic>` ·
+/// `events:*` / `events:<area>.*` / `events:<type>` (the durable event log, ADR-0044; additive 2026-11-09).
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, ts_rs::TS)]
 #[ts(
-    type = "'list' | 'config' | 'crew' | 'machines' | 'stuff' | `session:${string}` | `plugin:${string}:${string}`"
+    type = "'list' | 'config' | 'crew' | 'machines' | 'stuff' | `session:${string}` | `plugin:${string}:${string}` | `events:${string}`"
 )]
 pub struct Topic(Arc<str>);
 
@@ -63,6 +64,9 @@ pub fn is_topic(s: &str) -> bool {
     if let Some(id) = s.strip_prefix("session:") {
         return !id.is_empty() && !id.chars().any(char::is_whitespace);
     }
+    if let Some(rest) = s.strip_prefix("events:") {
+        return is_events_topic(rest);
+    }
     if let Some(rest) = s.strip_prefix("plugin:") {
         let Some((id, name)) = rest.split_once(':') else {
             return false;
@@ -76,6 +80,17 @@ pub fn is_topic(s: &str) -> bool {
         return ok(id, &['.']) && ok(name, &['.', '_']);
     }
     false
+}
+
+/// `*`, `<area>.*` or a type (`pr.opened`, `task.finished@2`): what a durable event's row is on.
+fn is_events_topic(rest: &str) -> bool {
+    if rest == "*" {
+        return true;
+    }
+    let body = rest.strip_suffix(".*").unwrap_or(rest);
+    !body.is_empty()
+        && !body.starts_with('.')
+        && body.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '_' | '-' | '@'))
 }
 
 impl fmt::Debug for Topic {
@@ -120,6 +135,9 @@ mod tests {
             "session:s-1/x",
             "plugin:wisp.git:status",
             "plugin:acme-x:a_b.c",
+            "events:*",
+            "events:pr.*",
+            "events:turn.finished",
         ] {
             assert!(is_topic(ok), "{ok}");
         }
@@ -134,6 +152,9 @@ mod tests {
             "plugin:x:",
             "plugin:x:y z",
             "bogus topic",
+            "events:",
+            "events:*.finished",
+            "events:PR",
         ] {
             assert!(!is_topic(bad), "{bad}");
         }

@@ -131,7 +131,7 @@ fn enter(k: &Arc<KernelState>, e: &CmdEntry, from: Option<&Ctx>, parent: &Call) 
     let tx = if in_cmd {
         p.tx.clone()
     } else {
-        Some(Arc::new(RootTx::default()))
+        Some(Arc::new(RootTx { kernel: Arc::downgrade(k), ..RootTx::default() }))
     };
     let call = CallInner {
         root: p.root.clone(),
@@ -150,6 +150,8 @@ fn enter(k: &Arc<KernelState>, e: &CmdEntry, from: Option<&Ctx>, parent: &Call) 
         via_set: e.ctx.inner.set.clone(),
         kernel: Arc::downgrade(k),
         tx: tx.clone(),
+        cause: p.cause,
+        cause_depth: p.cause_depth,
     };
     Ok(Entered {
         call: call.into_call(),
@@ -167,6 +169,12 @@ async fn run<T: Send + 'static>(
 ) -> Result<T> {
     let span = tracing::debug_span!("cmd", id = %e.id, depth = en.call.inner.depth, root = %en.call.inner.root);
     let scope = e.ctx.inner.scope.clone();
+    // a root command's store writes carry its durable events (and a durable handler's cursor) along
+    let durable = en.root.as_ref().map(|tx| crate::durable::Scope { tx: Some(tx.clone()), cursor: crate::durable::current().cursor });
+    let fut: BoxFuture<'static, Result<T>> = match durable {
+        Some(d) => Box::pin(crate::durable::scoped(d, fut)),
+        None => fut,
+    };
     let res = async {
         tokio::select! {
             biased;
@@ -192,6 +200,7 @@ async fn run<T: Send + 'static>(
     }
     if let Some(tx) = en.root {
         if res.is_ok() {
+            crate::durable::append_rest(k, &tx).await;
             flush(k, &en.call.inner.root, &tx, None, 0);
         }
         en.call.inner.cancel.cancel();
@@ -214,6 +223,10 @@ pub(crate) fn flush(k: &KernelState, root: &str, tx: &RootTx, cursor: Option<u64
         })
         .unwrap_or_default();
     for p in pending {
+        // a durable repeat (same type and key within 24 h) is the same fact: not published again
+        if p.durable && p.written == crate::events::Logged::Repeat {
+            continue;
+        }
         k.bus.publish(k, root, cursor, p);
     }
 }
@@ -331,13 +344,49 @@ pub(crate) fn edge(
     })
 }
 
-/// Records an event on the call's root command, or publishes it at once outside a command.
-pub(crate) fn emit(ctx: &Ctx, call: &Call, ty: &str, data: Payload) {
+/// What an event says about itself (ADR-0044): durable, what it's about, its dedupe key.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct Meta {
+    pub(crate) durable: bool,
+    pub(crate) subject: Option<String>,
+    pub(crate) key: Option<String>,
+}
+
+/// Records an event on the call's root command, or publishes it at once outside a command (a durable one
+/// outside a command goes to the log first, in its own transaction).
+pub(crate) fn emit(ctx: &Ctx, call: &Call, ty: &str, data: Payload, meta: Meta) {
+    let at = ctx.k().map_or(0, |k| k.now_ms());
     let p = Pending {
         ty: ty.to_owned(),
         plugin: ctx.inner.id.clone(),
         data,
+        durable: meta.durable,
+        subject: meta.subject,
+        key: meta.key,
+        cause: call.inner.cause,
+        depth: call.inner.cause_depth,
+        root: call.inner.root.clone(),
+        at,
+        written: crate::events::Logged::Not,
+        taken: false,
     };
+    if p.durable && call.inner.tx.is_none() {
+        // outside a command: in-process subscribers get it at once (in order with what follows), the
+        // log and the durable subscribers once it's appended
+        if let Ok(k) = ctx.k() {
+            let tx = Arc::new(RootTx { kernel: Arc::downgrade(&k), ..RootTx::default() });
+            if let Ok(mut ev) = tx.events.lock() {
+                ev.push(p.clone());
+            }
+            k.bus.publish(&k, &call.inner.root, None, p);
+            k.work.add(1);
+            tokio::spawn(async move {
+                crate::durable::append_rest(&k, &tx).await;
+                k.work.done(1);
+            });
+        }
+        return;
+    }
     match &call.inner.tx {
         Some(tx) => {
             if let Ok(mut ev) = tx.events.lock() {

@@ -2,9 +2,10 @@
 // Do not edit: change the Rust types and run it again.
 
 /**
- * `list` · `config` · `crew` · `machines` · `stuff` · `session:<id>` · `plugin:<id>:<topic>`.
+ * `list` · `config` · `crew` · `machines` · `stuff` · `session:<id>` · `plugin:<id>:<topic>` ·
+ * `events:*` / `events:<area>.*` / `events:<type>` (the durable event log, ADR-0044; additive 2026-11-09).
  */
-export type Topic = 'list' | 'config' | 'crew' | 'machines' | 'stuff' | `session:${string}` | `plugin:${string}:${string}`;
+export type Topic = 'list' | 'config' | 'crew' | 'machines' | 'stuff' | `session:${string}` | `plugin:${string}:${string}` | `events:${string}`;
 
 /**
  * RFC 6902, the subset wisp emits. Paths are JSON Pointers into the entity.

@@ -42,7 +42,7 @@ export type {
 import type { Topic } from './generated/protocol.ts';
 
 export function isTopic(s: string): s is Topic {
-  return s === 'list' || s === 'config' || s === 'crew' || s === 'machines' || s === 'stuff' || /^session:[^\s]+$/.test(s) || /^plugin:[a-z0-9.-]+:[a-z0-9._-]+$/.test(s);
+  return s === 'list' || s === 'config' || s === 'crew' || s === 'machines' || s === 'stuff' || /^session:[^\s]+$/.test(s) || /^plugin:[a-z0-9.-]+:[a-z0-9._-]+$/.test(s) || /^events:(\*|[a-z0-9_@-][a-z0-9._@-]*(\.\*)?)$/.test(s);
 }
 
 export { applyPatch, deepEqual, diff, escapePointer, parsePointer } from './json-patch.ts';

@@ -21,6 +21,7 @@ mod coalescer;
 mod commit;
 mod entity;
 mod error;
+pub mod events;
 mod import;
 mod json_file;
 mod json_out;

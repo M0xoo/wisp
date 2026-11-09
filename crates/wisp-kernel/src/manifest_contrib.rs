@@ -20,8 +20,9 @@ pub(crate) fn contributes(v: &Value, pid: &str, p: &mut Problems) {
         }
     }
     commands(o.get("commands"), pid, p);
-    for k in ["events", "topics", "parts", "icons"] {
-        let own = k == "events" || k == "parts";
+    events(o.get("events"), pid, p);
+    for k in ["topics", "parts", "icons"] {
+        let own = k == "parts";
         string_list(o.get(k), &format!("contributes.{k}"), p, &mut |s, at, p| {
             if own && !owned_by(s, pid) && !pid.is_empty() {
                 owned(Some(&Value::from(s)), pid, at, p, k);
@@ -33,6 +34,36 @@ pub(crate) fn contributes(v: &Value, pid: &str, p: &mut Problems) {
     set_settings(o.get("setSettings"), pid, p);
     ui(o.get("ui"), p);
     misc(o, p);
+}
+
+/// `contributes.events` (ADR-0044): the types this plugin emits, as a type or
+/// `{ type, durable, title, subject, key }`. Types are named by area (`pr.opened`, `turn.finished`), not by
+/// plugin, so any plugin may emit any area's; `tools/check` (rust-events) holds the list to the code.
+fn events(v: Option<&Value>, _pid: &str, p: &mut Problems) {
+    let Some(v) = v else { return };
+    let Some(list) = v.as_array() else {
+        return p.add("contributes.events", "must be a list of types or {type, durable, title}");
+    };
+    for (i, e) in list.iter().enumerate() {
+        let at = format!("contributes.events[{i}]");
+        let ty = match e {
+            Value::String(_) => e.clone(),
+            Value::Object(o) => {
+                unknown_keys(o, &["type", "durable", "title", "subject", "key", "schema", "until"], &at, p);
+                if o.get("durable").is_some_and(|d| !d.is_boolean()) {
+                    p.add(format!("{at}.durable"), "must be true or false");
+                }
+                o.get("type").cloned().unwrap_or(Value::Null)
+            }
+            _ => {
+                p.add(at, "must be a type or {type, durable, title}");
+                continue;
+            }
+        };
+        if ty.as_str().is_none_or(str::is_empty) {
+            p.add(format!("{at}.type"), "must be the event's type");
+        }
+    }
 }
 
 fn commands(v: Option<&Value>, pid: &str, p: &mut Problems) {

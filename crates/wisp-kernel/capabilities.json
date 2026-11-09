@@ -11,7 +11,7 @@
       "allow": [
         "runtime:*", "session:*", "stuff:*", "crew:*", "git:*", "fs:*", "topic:read", "ask:*", "later:*", "goal:*",
         "connectors:*", "machines:*", "sandbox:*", "prs:*", "notice:send", "plugins:read", "blob:*", "budget:read", "mcp:call",
-        "history:blame", "history:requests", "history:resumeRequest"
+        "history:blame", "history:requests", "events:tail", "events:why", "history:resumeRequest"
       ],
       "deny": [
         { "permission": "plugins:install", "why": "install a plugin: the user installs plugins" },

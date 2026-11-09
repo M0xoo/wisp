@@ -120,6 +120,8 @@ where
             via_set: h.ctx.inner.set.clone(),
             kernel: Arc::downgrade(k),
             tx: p.tx.clone(),
+            cause: p.cause,
+            cause_depth: p.cause_depth,
         }
         .into_call();
         let ms = h.opts.timeout_ms.clamp(1, TIMEOUT_MAX_MS);
@@ -237,11 +239,7 @@ fn veto(
         k,
         &call.inner.root,
         None,
-        Pending {
-            ty: "kernel.vetoed".into(),
-            plugin: Arc::from("wisp.kernel"),
-            data: Payload::Json(Arc::new(data)),
-        },
+        Pending::plain("kernel.vetoed", Arc::from("wisp.kernel"), Payload::Json(Arc::new(data))),
     );
     WireError::new(Code::Vetoed, message)
         .with_details(json!({ "by": &*h.owner, "reason": code, "hook": hook }))

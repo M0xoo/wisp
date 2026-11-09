@@ -305,6 +305,7 @@ impl Bridge {
                     &call,
                     &s(&p, "type"),
                     Payload::Json(Arc::new(p.get("data").cloned().unwrap_or(Value::Null))),
+                    crate::dispatch::Meta::default(),
                 );
                 now(Ok(()))
             }

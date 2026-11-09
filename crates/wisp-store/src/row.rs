@@ -60,6 +60,9 @@ pub fn is_topic(t: &str) -> bool {
     if let Some(id) = t.strip_prefix("session:") {
         return !id.is_empty() && !id.chars().any(char::is_whitespace);
     }
+    if t.starts_with("events:") {
+        return wisp_protocol_like_events(t);
+    }
     if let Some((id, name)) = t.strip_prefix("plugin:").and_then(|r| r.split_once(':')) {
         let ok = |s: &str, extra: &[u8]| {
             !s.is_empty()
@@ -69,6 +72,16 @@ pub fn is_topic(t: &str) -> bool {
         return ok(id, b".-") && ok(name, b"._-");
     }
     false
+}
+
+/// `events:*`, `events:<area>.*`, `events:<type>` (ADR-0044; the same grammar as wisp-protocol's).
+fn wisp_protocol_like_events(t: &str) -> bool {
+    let rest = &t["events:".len()..];
+    if rest == "*" {
+        return true;
+    }
+    let body = rest.strip_suffix(".*").unwrap_or(rest);
+    !body.is_empty() && !body.starts_with('.') && body.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, b'.' | b'_' | b'-' | b'@'))
 }
 
 /// A typed row: any `Serialize` struct whose fields are the kind's columns.

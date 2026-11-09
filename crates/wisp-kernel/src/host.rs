@@ -60,6 +60,7 @@ pub struct Setup {
     pub(crate) commands: Vec<CmdReg>,
     pub(crate) hooks: Vec<HookReg>,
     pub(crate) events: Vec<(String, SubFn)>,
+    pub(crate) durables: Vec<crate::durable::DSub>,
     pub(crate) points: Vec<(String, u32, Erased, Option<Value>)>,
     pub(crate) services: Vec<(&'static str, u32, Erased)>,
     pub(crate) starts: Vec<StartFn>,
@@ -89,6 +90,7 @@ impl Setup {
             commands: Vec::new(),
             hooks: Vec::new(),
             events: Vec::new(),
+            durables: Vec::new(),
             points: Vec::new(),
             services: Vec::new(),
             starts: Vec::new(),
@@ -194,6 +196,44 @@ impl Setup {
             })
         });
         self.events.push((E::TYPE.to_owned(), sub));
+    }
+
+    /// A durable subscription to `E` (ADR-0044): named, with a cursor kept in the log, replayed from it
+    /// after a restart, a lag or being off; effectively once (the cursor rides on the handler's writes).
+    /// `Durable::Gap` when the cursor fell off the retention window. Additive (2026-11-09).
+    pub fn on_durable<E, F, Fut>(&mut self, name: &str, f: F)
+    where
+        E: Event,
+        F: Fn(Ctx, Call, crate::durable::Durable<E>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<()>> + Send + 'static,
+    {
+        let f = Arc::new(f);
+        let df: crate::durable::DurableFn = Arc::new(move |ctx, call, env| {
+            let f = f.clone();
+            Box::pin(async move {
+                match crate::durable::typed::<E>(&env) {
+                    Some(d) => f(ctx, call, d).await,
+                    None => Ok(()),
+                }
+            })
+        });
+        let pattern = format!("{}|{}", E::TYPE, crate::durable::GAP);
+        self.durables.push(crate::durable::DSub { name: name.to_owned(), pattern, f: df, ctx: self.ctx.clone() });
+    }
+
+    /// A durable subscription to every durable event matching `pattern` (`pr.*`, `*`), as envelopes (a
+    /// sink, telemetry, the events topic). Gaps come as `event.gap`. Additive (2026-11-09).
+    pub fn on_durable_any<F, Fut>(&mut self, name: &str, pattern: &str, f: F)
+    where
+        F: Fn(Ctx, Call, Arc<EventEnvelope>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<()>> + Send + 'static,
+    {
+        let f = Arc::new(f);
+        let df: crate::durable::DurableFn = Arc::new(move |ctx, call, env| {
+            let f = f.clone();
+            Box::pin(async move { f(ctx, call, env).await })
+        });
+        self.durables.push(crate::durable::DSub { name: name.to_owned(), pattern: format!("{pattern}|{}", crate::durable::GAP), f: df, ctx: self.ctx.clone() });
     }
 
     /// Adds an implementation to a list point owned by some plugin.
@@ -330,9 +370,44 @@ impl Ctx {
         crate::hooks::typed::<H>(self.clone(), call.clone(), hctx)
     }
 
+    /// Every plugin's manifest (the events catalogue reads `contributes.events`). Additive (2026-11-09).
+    pub fn manifests(&self) -> Vec<Manifest> {
+        self.k().map(|k| crate::life::manifests(&k)).unwrap_or_default()
+    }
+
+    /// The durable event log, when there is one (ADR-0044). Additive (2026-11-09).
+    pub fn event_log(&self) -> Option<Arc<dyn crate::durable::EventLog>> {
+        self.k().ok()?.event_log().map(|l| l.0)
+    }
+
+    /// The newest durable seq this process knows, and a watch on it (live readers of the log). Additive.
+    pub fn durable_head(&self) -> Option<tokio::sync::watch::Receiver<u64>> {
+        Some(self.k().ok()?.bus.ring.head_watch())
+    }
+
+    /// Delivers a parked durable event again to the subscriptions that parked it. → how many. Additive.
+    pub fn retry_event(&self, seq: u64) -> BoxFuture<'static, Result<usize>> {
+        let k = self.k();
+        Box::pin(async move { crate::durable::retry(&k?, seq).await })
+    }
+
+    /// A payload's new version and the old one, together (ADR-0044): breaking a payload means a new type
+    /// (`task.finished@2`), and the old type keeps being emitted for one minor. `E2::TYPE` must be
+    /// `E1::TYPE@<n>`; refused otherwise. Additive (2026-11-09).
+    pub fn emit_versions<E2: Event, E1: Event>(&self, call: &Call, new: &E2, old: &E1) -> Result<()> {
+        let base = E2::TYPE.split_once('@').map(|(b, _)| b);
+        if base != Some(E1::TYPE.split('@').next().unwrap_or(E1::TYPE)) {
+            return Err(crate::WireError::invalid(format!("{} isn't a new version of {}", E2::TYPE, E1::TYPE)));
+        }
+        self.emit(call, new);
+        self.emit(call, old);
+        Ok(())
+    }
+
     /// Records `e`; it is published after the call that emitted it commits.
     pub fn emit<E: Event>(&self, call: &Call, e: &E) {
-        crate::dispatch::emit(self, call, E::TYPE, Payload::Typed(Arc::new(e.clone())));
+        let meta = crate::dispatch::Meta { durable: E::DURABLE, subject: e.subject(), key: e.key() };
+        crate::dispatch::emit(self, call, E::TYPE, Payload::Typed(Arc::new(e.clone())), meta);
     }
 
     pub fn contributions<T: ?Sized + Send + Sync + 'static>(
@@ -424,6 +499,12 @@ impl App {
     /// Resolves the set (topological by requires/extends, refusals with reasons), runs every setup,
     /// then every `on_start`. Returns the running kernel.
     pub async fn start(self) -> Result<Kernel> {
+        // durable subscriptions made from now on start at the log's head (ADR-0044)
+        if let Some(log) = self.state.event_log()
+            && let Ok((_, last)) = log.0.bounds().await
+        {
+            self.state.bus.ring.raise_head(last);
+        }
         crate::life::start(self).await
     }
 }
