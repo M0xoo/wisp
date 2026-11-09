@@ -108,13 +108,48 @@ Seen on a real `wisp serve` (fake claude linked as `claude`):
    - Seen: set, then cleared on the real server; the list row's `summary.goal` followed.
    - The frame's optimistic patch now says `working` (it said `running`, not a goal status) and clears the goal for empty text.
 
+## Round 5 (2026-11-10)
+
+Seen on a real `wisp serve` (fake claude linked as `claude`, the demo project committed so git has a base):
+- the side pane: `docs/qa/r9-changes-1440-{dark,light}.png` and `docs/qa/r9-changes-390-{dark,light}.png`;
+- the task page with its question: `docs/qa/r9-ask-1440-{dark,light}.png` and `docs/qa/r9-ask-390-{dark,light}.png`.
+
+1. **The side pane, as v1's `#panel`:**
+   - **Its head:** Changes · PR · Shell tabs (the kit's `Tabs`) and close. shell-task attaches the panel to all three side areas, so switching keeps the head.
+   - **PR and Shell aren't built:** they say "Not in this pane yet". They're not counted as done.
+   - **Changes from git:**
+     - wisp-git's `git.changes {path, base}` gives every file the work changed since it left its base, committed or not;
+     - the base is the task's worktree base (`ext["wisp.worktrees"].baseRef`), else HEAD;
+     - rows with context and line numbers, a new hunk after each gap, "1 file · +1 −1 vs HEAD".
+     - A folder that isn't a repo falls back to the turns' own edits.
+     - Test: `changes.test.ts` "git's diff against the base reads as the kit's".
+   - **On a phone:** the pane covers the task as its own page (the kit's Stage renders `side` in stack layout too, `--z-pane`, a new token).
+2. **The task page's turns, from real data:**
+   - the read/edit/run counts and the activity list read the turn's `event` rows (they read `body.activity`, which the server never sends, so they were always 0), with paths shown from the task's folder;
+   - each answer shows its whole presentation through the kit's `Answer`. `TurnView` takes an `answer` slot, in the hero's place.
+3. **What waits on you, over the reply box:**
+   - a new input `shell.task:foot` (additive, contract.ts);
+   - shell-task's `TaskFoot` shows the agent's live question with its choices, or a tool's Allow / Always allow / Deny (`runtime.answer`; the card goes at once, and a refusal brings it back);
+   - then the queued follow-ups, with Send now (`runtime.queue.sendNow`) and Remove (`runtime.queue.edit`, at once).
+   - Test: `foot.test.ts`. `apps/web/test/plugins.test.tsx` now checks that `shell.task:foot` and `shell.side:changes` have their plugins.
+   - **Seen:** the stalled goal's question, on the real server. The queue isn't seen: the fake finishes too fast to queue behind.
+4. **"Take over" is "Open in <harness>" everywhere** (the queue's rename):
+   - the task's action and its More entry: "Open in Claude Code", from the task's harness;
+   - i18n keys `shell.task.openIn` and `openInTitle`, and `shell-settings.keys.openIn`; Settings' "Open tasks in";
+   - the QA notes (qa/views.mjs, qa/scenarios/web.md) say it too;
+   - **TUI:**
+     - `o` hands the terminal to `wisp open <task>` (the CLI's Open-in, v1's Take over) and takes it back after;
+     - Space opens a step; the help and the goldens say so;
+     - `handed()` is the one way the TUI hands the terminal over, shared with `$EDITOR`.
+     - Test: `o_opens_the_task_in_its_harness_and_space_opens_a_step`.
+5. **shell-task's main screen** stays the frame's view, with shell-task's parts attached: the band, the foot and the side pane.
+   - Moving the frame's TaskView into the plugin would copy its helpers (rows-view, commands, harness, pickers), which the frame's Home and sidebar share.
+   - The stubs left: TaskHead, Transcript, PlanView, the cards other than the question, and SidePanel's PR and Shell.
+
 ## Left (next in item 7, in this order)
 
-- **The side pane next:**
-  - its head as v1 has it: tabs for Changes, PR, Shell and Preview, and close;
-  - the diff against the base branch from git, with context lines; it shows the edit's own lines today;
-  - Shell and PR.
-- **shell-task's main screen:** TaskHead, Transcript (steps, folds), the ask card and the queue, then attach `shell.screen:task` in place of the frame's view.
+- **The side pane:** PR and Shell (and Preview). Changes' Stage, Commit and Viewed.
+- **shell-task's main screen:** move the frame's chassis and its shared helpers into packages a plugin may use. Then TaskHead, Transcript (steps, folds) and PlanView.
 - **Unattached plugin UIs:** router, ship, worktrees, update, and goal's Checks, EditGoal and RunView.
 - **Then the v1 views:** settings panes, crew, My Stuff, the computer pane, automations, machines.
 - **Then the new screens:** Repo tab, blame gutter, import, Share setup, Setup section, My shares, the Automations When picker, crew Wakes.
