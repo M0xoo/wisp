@@ -84,8 +84,33 @@ pub fn content_text(c: &serde_json::Value) -> Option<String> {
     (!parts.is_empty()).then(|| parts.join("\n"))
 }
 
+/// What a CLI wrapped in `<tag>…</tag>`, trimmed; None when it isn't there.
+pub fn tagged(s: &str, tag: &str) -> Option<String> {
+    let open = format!("<{tag}>");
+    let from = s.find(&open)? + open.len();
+    let to = s[from..].find(&format!("</{tag}>"))? + from;
+    Some(s[from..to].trim().to_owned())
+}
+
+/// A folder as the CLI may have stored it: as given and resolved (`/tmp` is `/private/tmp` on macOS); the
+/// host resolves it (this crate does no I/O).
+pub fn folder_forms(cwd: &str, resolved: Option<&std::path::Path>) -> Vec<String> {
+    let mut out = vec![cwd.trim_end_matches('/').to_owned()];
+    if let Some(r) = resolved.map(|r| r.display().to_string()).filter(|r| !out.contains(r)) {
+        out.push(r);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn tags_and_folders() {
+        assert_eq!(super::tagged("<t>x</t>\n<q>\n hi \n</q>", "q").as_deref(), Some("hi"));
+        assert_eq!(super::tagged("<q>open", "q"), None);
+        assert_eq!(super::folder_forms("/tmp/a/", Some(std::path::Path::new("/private/tmp/a"))), vec!["/tmp/a".to_owned(), "/private/tmp/a".to_owned()]);
+    }
+
     #[test]
     fn iso_times() {
         assert_eq!(super::iso_ms("1970-01-01T00:00:01.500Z"), 1500);

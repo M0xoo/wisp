@@ -6,6 +6,7 @@
 //! driver over `wisp-antigravity-core`'s parser with the file tracker on, and the resume command.
 
 mod driver;
+pub mod sessions;
 
 use std::sync::{Arc, Mutex};
 
@@ -217,6 +218,8 @@ impl Plugin for AntigravityPlugin {
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let h: Arc<dyn Harness> = Arc::new(AntigravityHarness::default());
         s.contribute(&HARNESS, h);
+        let sessions: Arc<dyn wisp_runtime_api::harness::sessions::HarnessSessions> = Arc::new(crate::sessions::AntigravitySessions::from_env());
+        s.contribute(&wisp_runtime_api::harness::sessions::SESSIONS, sessions);
         Ok(())
     }
 }

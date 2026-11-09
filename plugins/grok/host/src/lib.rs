@@ -7,6 +7,7 @@
 //! the resume command (its TUI takes no first prompt: wisp types it in).
 
 mod driver;
+pub mod sessions;
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -178,6 +179,8 @@ impl Plugin for GrokPlugin {
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let h: Arc<dyn Harness> = Arc::new(GrokHarness::default());
         s.contribute(&HARNESS, h);
+        let sessions: Arc<dyn wisp_runtime_api::harness::sessions::HarnessSessions> = Arc::new(crate::sessions::GrokSessions::from_env());
+        s.contribute(&wisp_runtime_api::harness::sessions::SESSIONS, sessions);
         Ok(())
     }
 }

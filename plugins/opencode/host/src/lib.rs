@@ -7,6 +7,7 @@
 //! `wisp-opencode-core`'s parser with the file tracker on, and the resume command.
 
 mod driver;
+pub mod sessions;
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -227,6 +228,8 @@ impl Plugin for OpencodePlugin {
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let h: Arc<dyn Harness> = Arc::new(OpencodeHarness::default());
         s.contribute(&HARNESS, h);
+        let sessions: Arc<dyn wisp_runtime_api::harness::sessions::HarnessSessions> = Arc::new(crate::sessions::OpencodeSessions::from_env());
+        s.contribute(&wisp_runtime_api::harness::sessions::SESSIONS, sessions);
         Ok(())
     }
 }
