@@ -58,6 +58,7 @@ function Body(props: { readonly k: EntityKey; readonly s: SessionRow; readonly n
   };
   const list = (): JSX.Element => (
     <ListRow
+      layout="feed"
       part={props.nested ? `list.row.${props.nested}` : 'list.row'}
       title={props.s.title || t('shell-list.row.untitled')}
       lead={<Mark s={props.s} view={view()} name={name()} />}

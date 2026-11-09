@@ -44,7 +44,7 @@ export function chipOf(load: Row<Load> | undefined, now: number): Chip {
 
 /** The computer's name for the chip and the pane: This Mac, This PC, This computer. */
 export const machineLabelKey = (platform: string | undefined): string =>
-  platform === 'darwin' ? 'list.here.mac' : platform === 'win32' ? 'list.here.pc' : 'list.here.computer';
+  platform === 'darwin' ? 'shell-list.here.mac' : platform === 'win32' ? 'shell-list.here.pc' : 'shell-list.here.computer';
 
 /** "3.4 GB": under 1 MB in KB (at least 1), under 1 GB in whole MB, under 10 GB one decimal. */
 export function size(bytes: number): string {

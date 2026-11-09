@@ -11,6 +11,7 @@ import { colorToken, KIND, type Plan, type Row, type SessionRow } from '../types
 import { follow } from './follow.ts';
 import { kitT } from './say.ts';
 import { useEnv } from './env.ts';
+import { flatSession } from '../model/wire.ts';
 
 type Group = Extract<Entry, { kind: 'group' }>;
 
@@ -21,7 +22,7 @@ export function GroupRow(props: { readonly entry: Group }): JSX.Element {
   // the runs' own rows, so a run finishing repaints the head's count
   const live = follow(() => {
     const keys = props.entry.runs.map((r) => r.key);
-    return computed(() => keys.map((k) => env.client.entities.row<SessionRow>(KIND.session, k)()).filter((r): r is SessionRow => r !== undefined));
+    return computed(() => keys.map((k) => flatSession(env.client.entities.row<SessionRow>(KIND.session, k)())).filter((r): r is SessionRow => r !== undefined));
   });
   const first = (): SessionRow | undefined => live()[0];
   const finished = (): number => live().filter((r) => r.state === 'review' || r.state === 'done').length;

@@ -168,6 +168,18 @@ export interface NavigationOptions {
   views?: ViewRegistry;
   warn?: Warn;
   onChange?: (url: string) => void;
+  /** the page's own wisp: a task named by a bare id in a URL (`/task/<id>`, a link the CLI printed) is its */
+  home?: string;
+}
+
+/** A bare session id in a decoded URL becomes the home peer's entity key (`<home>:<id>`), as the app's own
+ *  navigation names it; one that names its peer is kept. Without a home, ids stay as they are. */
+export function homed(nav: Omit<Nav, 'layout'>, home: string | undefined): Omit<Nav, 'layout'> {
+  if (!home) return nav;
+  const key = (id: string): SessionId => (id.includes(':') ? id : `${home}:${id}`) as SessionId;
+  const main = nav.main.kind === 'task' ? { kind: 'task' as const, id: key(nav.main.id) } : nav.main;
+  const side = nav.side.kind === 'changes' || nav.side.kind === 'shell' || nav.side.kind === 'pr' ? { kind: nav.side.kind, id: key(nav.side.id) } : nav.side;
+  return main === nav.main && side === nav.side ? nav : { ...nav, main, side };
 }
 
 /** Views a URL or an intent names must be registered: an unknown one lands on Home. */
@@ -182,7 +194,7 @@ function knownViews(nav: Omit<Nav, 'layout'>, views: ViewRegistry | undefined): 
 export function createNavigation(o: NavigationOptions): Navigation {
   const warn = o.warn ?? (() => {});
   const url0 = o.history?.read() ?? '/';
-  const start = knownViews(decodeNav(url0), o.views);
+  const start = knownViews(homed(decodeNav(url0), o.home), o.views);
   const state = signal<Nav>({ ...initialNav(o.width), ...start });
 
   const commit = (next: Nav, push: boolean): void => {
@@ -196,7 +208,7 @@ export function createNavigation(o: NavigationOptions): Navigation {
 
   if (o.history) {
     const h = o.history;
-    o.scope.add(h.listen((url) => commit(navigate(untracked(state), { t: 'restore', to: knownViews(decodeNav(url), o.views) }), false)));
+    o.scope.add(h.listen((url) => commit(navigate(untracked(state), { t: 'restore', to: knownViews(homed(decodeNav(url), o.home), o.views) }), false)));
   }
 
   return {

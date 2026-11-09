@@ -192,3 +192,14 @@ test('a view that is not registered (or was switched off) lands on Home', () => 
   assert.equal(warnings.length, 2);
   scope.dispose();
 });
+
+test('a bare task id in a URL is the home peer\'s task: /task/<id> opens it, ?side too (2026-11-09 /task/<id> mounted nothing)', () => {
+  const scope = createScope('t');
+  const nav = createNavigation({ scope, width: 1440, history: memoryHistory('/task/abc123?side=changes:abc123'), home: 'local' });
+  assert.deepEqual(nav.nav().main, { kind: 'task', id: 'local:abc123' });
+  assert.deepEqual(nav.nav().side, { kind: 'changes', id: 'local:abc123' });
+  // one that names its peer is kept; without a home, ids stay as they are
+  const other = createNavigation({ scope, width: 1440, history: memoryHistory('/task/box%3Aabc'), home: 'local' });
+  assert.deepEqual(other.nav().main, { kind: 'task', id: 'box:abc' });
+  assert.deepEqual(createNavigation({ scope, width: 1440, history: memoryHistory('/task/abc') }).nav().main, { kind: 'task', id: 'abc' });
+});

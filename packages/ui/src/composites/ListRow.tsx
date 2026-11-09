@@ -27,6 +27,9 @@ export interface ListRowProps extends KitProps {
   /** Opening as a link, so middle-click and Copy link work. */
   readonly href?: string;
   readonly onContextMenu?: (e: MouseEvent) => void;
+  /** `feed`: v1's task row (#feed .it-head): the time and the actions on the title's line, the pills on the
+   *  line under it, beside the sub, so the title keeps the row's width. Default `line`: everything on one line. */
+  readonly layout?: 'line' | 'feed';
 }
 
 /** The row's one click target: a button or link stretched over the row by CSS (::after). */
@@ -69,6 +72,7 @@ export function ListRow(props: ListRowProps): JSX.Element {
       data-current={flag(props.current)}
       data-quiet={flag(props.quiet)}
       data-time={flag(props.time !== undefined)}
+      data-layout={props.layout === 'feed' ? 'feed' : undefined}
       data-interactive={flag(props.onOpen !== undefined || props.href !== undefined)}
       onContextMenu={(e) => props.onContextMenu?.(e)}
     >

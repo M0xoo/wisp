@@ -9,6 +9,14 @@
     border-radius: var(--radius-md); color: var(--ink); transition: background var(--dur-fast);
   }
   [data-kit='list-row'][data-time] { --k-time-w: var(--size-time-col); }
+  /* the feed row (v1 .it-head): the title's line has the actions then the time; the pills go under them, on
+     the sub's line, so the title keeps the width the time and the actions leave */
+  [data-kit='list-row'][data-layout='feed'] { grid-template-columns: auto minmax(0, 1fr) auto var(--k-time-w); grid-template-rows: auto auto 1fr; align-items: start; }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-lead'] { grid-row: 1; align-self: center; }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-main'] { grid-column: 2; grid-row: 1 / -1; }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-actions'] { grid-column: 3; grid-row: 1; align-self: center; }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-time'] { grid-column: 4; grid-row: 1; align-self: center; }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-pills'] { grid-column: 3 / -1; grid-row: 2; justify-content: flex-end; }
   [data-kit='list-row'][data-interactive]:hover { background: var(--bg-2); }
   [data-kit='list-row'][data-current] { background: var(--bg-2); }
   [data-kit='list-row'][data-selected] { background: var(--accent-soft); }
@@ -25,6 +33,11 @@
   }
   [data-kit='list-row-lead']:empty, [data-kit='list-row-pills']:empty, [data-kit='list-row-time']:empty,
   [data-kit='list-row-actions']:empty, [data-kit='list-row-sub']:empty { display: none; }
+  /* v1's quick buttons (.it-quick, .it-later): 24px, pulled in by their margins, so the row's actions take
+     ~60px and the title keeps the rest of a 340px sidebar; a gap holding one's place is the same size */
+  [data-kit='list-row-actions'] > :is([data-kit='icon-button'], [data-kit='gap']) {
+    width: var(--size-control-xs); height: var(--size-control-xs); margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-1));
+  }
   [data-kit='list-row']:hover > [data-kit='list-row-actions'], [data-kit='list-row']:focus-within > [data-kit='list-row-actions'] { opacity: 1; pointer-events: auto; }
   [data-kit='list-row-hit'] { display: block; min-width: 0; width: 100%; padding: 0; text-align: start; color: inherit; outline: 0; }
   /* The one click target covers the whole row; actions sit above it. */

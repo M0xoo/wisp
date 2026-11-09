@@ -5,6 +5,7 @@
 
 import { computed, type DeepReadonly, type EntityKey, type PluginClient, type PluginStore, type Readable } from '@wisp/client';
 import { createPlacement } from './model/placement.ts';
+import { flatSession } from './model/wire.ts';
 import { ALL, needsYou, SECTION_IDS, type Filter, type SectionId, type Sections } from './model/sections.ts';
 import { KIND, type Agent, type Plan, type Project, type Row, type Session, type SessionRow } from './types.ts';
 
@@ -60,7 +61,9 @@ export function modelOf(client: PluginClient): ListModel {
 function createModel(client: PluginClient): ListModel {
   const view = client.defineStore<ViewState>({ id: `${client.id}.view`, version: 1, defaults: { filter: 'all', toggled: [] }, check: checkView, persist: true });
   const keys = client.entities.keys(KIND.session);
-  const rows = client.entities.list<Session>(KIND.session);
+  // the server's rows, flat (body, columns, summary: model/wire.ts)
+  const raw = client.entities.list<Session>(KIND.session);
+  const rows = computed(() => raw().map((r) => flatSession(r)));
   const plans = client.entities.list<Plan>(KIND.plan);
   const filtered = createPlacement();
   const unfiltered = createPlacement();
@@ -81,7 +84,10 @@ function createModel(client: PluginClient): ListModel {
     needsCount,
     projects,
     agents,
-    row: (key) => client.entities.row<Session>(KIND.session, key),
+    row: (key) => {
+      const r = client.entities.row<Session>(KIND.session, key);
+      return computed(() => flatSession(r()));
+    },
     setFilter: (project) => view.set((v) => ({ filter: project, toggled: [...v.toggled] })),
     toggleSection: (id) => view.set((v) => ({ filter: v.filter, toggled: v.toggled.includes(id) ? v.toggled.filter((x) => x !== id) : [...v.toggled, id] })),
   };

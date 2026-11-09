@@ -11,7 +11,7 @@ import { createEntityStore, type EntityReader } from './entities.ts';
 import { loadFirstPaint, persistEntities, restoreFirstPaint } from './first-paint.ts';
 import { createI18n, type Catalogue, type I18n } from './i18n.ts';
 import { interpret, type Machine, type MachineDef } from './machine.ts';
-import { createNavigation, decodeNav, type HistoryAdapter, type Navigation } from './nav-url.ts';
+import { createNavigation, decodeNav, homed, type HistoryAdapter, type Navigation } from './nav-url.ts';
 import type { Intent } from './nav.ts';
 import { createPeers, type PeerConfig, type Peers } from './peers.ts';
 import { memoryPersist, type Persist } from './persist.ts';
@@ -107,7 +107,7 @@ export function createClient(o: ClientOptions): Client {
   const saveNav = (url: string): void => {
     persist.write([{ ns: 'nav', key: 'last', value: url }]).catch(() => {});
   };
-  const nav = createNavigation({ scope, width: o.width, views, warn, onChange: saveNav, ...(o.history && { history: o.history }) });
+  const nav = createNavigation({ scope, width: o.width, views, warn, onChange: saveNav, home: o.home, ...(o.history && { history: o.history }) });
   const readPeers: PluginClient['peers'] = { list: peers.list, status: peers.status, info: peers.info, name: peers.name, hasFeature: peers.hasFeature };
   const rows = persistEntities({ writer, persist, scope, warn, linkOf: (p) => peers.save(p) });
 
@@ -131,7 +131,7 @@ export function createClient(o: ClientOptions): Client {
       // plugins registered their views by now, so the URL may name one; when it says nothing
       // (`/`), the app goes back where it was
       const url = o.history?.read() ?? '/';
-      nav.navigate({ t: 'restore', to: decodeNav(url === '/' && typeof last === 'string' ? last : url) });
+      nav.navigate({ t: 'restore', to: homed(decodeNav(url === '/' && typeof last === 'string' ? last : url), o.home) });
       for (const cfg of list) {
         const link = saved.get(cfg.peer)?.link;
         peers.add(link && !cfg.saved ? { ...cfg, saved: link } : cfg);

@@ -6,7 +6,7 @@
 
 import { render } from 'solid-js/web';
 import { computed, effect, signal, untracked, type Client, type PeerId, type PluginClient } from '@wisp/client';
-import { KitProvider, KIT_STRINGS, type KitString, type Toaster } from '@wisp/ui';
+import { BLOCK_STRINGS, KitProvider, KIT_STRINGS, type KitString, type Toaster } from '@wisp/ui';
 import type { PluginUiDef, ShellApi, ShellContext } from './contract.ts';
 import { namespaceOf } from './define.ts';
 import { SHELL_STRINGS } from './i18n/en.ts';
@@ -56,6 +56,8 @@ export function createShell(o: ShellOptions): Shell {
   self.strings(SHELL_STRINGS);
   const kitScope = client.scope.child('kit');
   client.i18n.register('kit', Object.fromEntries(Object.entries(KIT_STRINGS).map(([k, v]) => [`kit.${k}`, v])), kitScope);
+  // the answer blocks' copy (`block.*`), the kit's like its own strings: every screen that shows blocks reads them here
+  client.i18n.register('block', BLOCK_STRINGS, kitScope);
   const settings = self.settings(SHELL_SETTINGS);
   const t: ShellContext['t'] = (key, vars) => client.i18n.t(key, vars);
   const kitT = (key: KitString, vars?: Readonly<Record<string, string | number>>): string => client.i18n.t(`kit.${key}`, vars);
@@ -123,7 +125,15 @@ export function createShell(o: ShellOptions): Shell {
     const ns = namespaceOf(def.id);
     const pc = clients.get(def.id) ?? client.plugin(ns);
     clients.set(def.id, pc);
-    if (def.catalogue && Object.keys(def.catalogue).length > 0) pc.strings(def.catalogue);
+    if (def.catalogue && Object.keys(def.catalogue).length > 0) {
+      // a string is the plugin's under its namespace (`crew.x`) or its full id (`wisp.crew.x`), as an
+      // extension id may be; the full-id ones are registered under the id, so each key still has one owner
+      const full = `${def.id}.`;
+      const byId = def.id === ns ? [] : Object.entries(def.catalogue).filter(([k]) => k.startsWith(full));
+      const rest = Object.fromEntries(Object.entries(def.catalogue).filter(([k]) => !(def.id !== ns && k.startsWith(full))));
+      if (Object.keys(rest).length > 0) pc.strings(rest);
+      if (byId.length > 0) client.i18n.register(def.id, Object.fromEntries(byId), pc.scope);
+    }
     for (const v of def.views ?? []) {
       pc.registerView({
         id: v.kind,

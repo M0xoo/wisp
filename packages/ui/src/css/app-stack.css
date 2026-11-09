@@ -12,7 +12,7 @@
      shows it as it was (its scroll, nothing rebuilt); it's inert while hidden */
   [data-kit='stage'][data-layout='stack'][data-page='main'] > [data-kit='topbar'] { display: none; }
   [data-kit='stage'][data-layout='stack'][data-page='main'] > [data-kit='feed-wrap'] { display: none; }
-  [data-kit='stage'][data-layout='stack'][data-page='main'][data-behind] > [data-kit='feed-wrap'] { display: block; grid-row: 1 / -1; transform: translateX(-100%); }
+  [data-kit='stage'][data-layout='stack'][data-page='main'][data-behind] > [data-kit='feed-wrap'] { display: flex; grid-row: 1 / -1; transform: translateX(-100%); }
   [data-kit='stage'][data-layout='stack'][data-page='main'][data-behind] [data-kit='split-top'],
   [data-kit='stage'][data-layout='stack'][data-page='main'][data-behind] [data-kit='sec-toggle'] { visibility: hidden; }
 

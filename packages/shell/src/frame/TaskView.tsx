@@ -49,11 +49,14 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   const key = props.id as EntityKey;
   const scope = shell.client.scope.child(`task:${key}`);
   onCleanup(() => scope.dispose());
-  shell.client.peers.watch(ownerOf(key), `session:${key}`, scope);
+  // the topic names the session by its own id, the part after `<peer>:`
+  const bare = key.slice(key.indexOf(':') + 1);
+  shell.client.peers.watch(ownerOf(key), `session:${bare}`, scope);
   const row = useSignal(shell.client.entities.row<SessionRow>(SESSION, key));
   const allTurns = useSignal(shell.client.entities.list<TurnRow>('turn'));
   const sessions = useSignal(shell.client.entities.list<SessionRow>(SESSION));
-  const turns = createMemo(() => allTurns().filter((x) => x.session_id === key).sort((a, b) => a.idx - b.idx));
+  // a turn names its session by the bare id the server gave it, or by the key (an optimistic one)
+  const turns = createMemo(() => allTurns().filter((x) => x.session_id === key || x.session_id === bare).sort((a, b) => a.idx - b.idx));
   const [text, setText] = createSignal('');
   let input: HTMLTextAreaElement | undefined;
   queueMicrotask(() => shell.nav().layout === 'split' && input?.focus());

@@ -24,7 +24,8 @@ export interface FlatOptions {
   readonly openLead?: EntityKey | undefined;
 }
 
-export const isOpenSection = (id: SectionId, toggled: ReadonlySet<SectionId>): boolean => FOLDED_BY_DEFAULT.has(id) !== toggled.has(id);
+/** Open by default unless folded by default; a toggle flips that. */
+export const isOpenSection = (id: SectionId, toggled: ReadonlySet<SectionId>): boolean => !FOLDED_BY_DEFAULT.has(id) !== toggled.has(id);
 
 const holds = (e: Entry, key: EntityKey | undefined): boolean =>
   key !== undefined && (e.key === key || (e.kind === 'group' && e.runs.some((r) => r.key === key)));
