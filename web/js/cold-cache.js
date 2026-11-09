@@ -60,6 +60,7 @@ const COMPACT_WRITE = 30_000;
 const PRICES = {
   'claude-opus-5-5': [4, 0.2, 20],
   'claude-sonnet-5-5': [2, 0.2, 10],
+  'claude-fable-5-2': [8, 0.2, 40],
   'claude-fable-5-1': [10, 0.25, 50],
   'claude-fable-5': [10, 0.25, 50],
 };

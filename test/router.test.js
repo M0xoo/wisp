@@ -589,3 +589,19 @@ test('Codex limits: a 429 with plan left is a one-minute blip; a full window, a 
     assert.equal(l.scope, 'agent', t);
   }
 });
+
+test('Claude Code offers Fable, and Auto ranks it frontier and honours rules on it', () => {
+  const ids = adapters.claude.models.map((m) => m.id);
+  assert.deepEqual(ids.slice(0, 2), ['', 'fable'], 'Fable comes first after Default, as the most capable');
+  assert.equal(tierOf('claude:fable'), 3);
+  assert.equal(tierOf('claude:fable:high'), 3);
+  assert.ok(ruleMatches('claude:fable', 'claude:fable:high') && !ruleMatches('claude:fable', 'claude:opus'));
+  const r = new Router(tmp('router-fable'));
+  const agents = [{ id: 'claude', name: 'Claude Code', available: true, efforts: adapters.claude.efforts, models: adapters.claude.models }];
+  const only = ['claude:opus', 'claude:sonnet', 'claude:haiku'];
+  for (let i = 0; i < 10; i++) {
+    const p = r.choose({ prompt: 'fix the bug', agents, blocked: only, rng: seeded(i + 1) });
+    assert.equal(splitKey(p.key).model, 'fable', p.key);
+  }
+  for (let i = 0; i < 10; i++) assert.notEqual(splitKey(r.choose({ prompt: 'fix the bug', agents, blocked: ['claude:fable'], rng: seeded(i + 1) }).key).model, 'fable');
+});

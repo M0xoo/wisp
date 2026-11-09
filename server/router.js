@@ -217,8 +217,9 @@ function resetIn(t) {
 }
 
 // The harness · models the benchmarks know, whatever level they were measured at.
+// A tier row counts too: Fable has no score of its own yet, and without it Auto never offered it.
 const PRIOR_BASES = new Set(Object.keys(PRIORS.arms).map((k) => baseOf(k).replace(SUFFIX, '')));
-const knownToPriors = (k) => PRIOR_BASES.has(baseOf(canon(k)).replace(SUFFIX, '')) || PRIOR_BASES.has(k.replace(SUFFIX, ''));
+const knownToPriors = (k) => PRIOR_BASES.has(baseOf(canon(k)).replace(SUFFIX, '')) || PRIOR_BASES.has(k.replace(SUFFIX, '')) || Object.hasOwn(PRIORS.tiers || {}, baseOf(k).replace(SUFFIX, ''));
 
 // The arms wisp may route to, from listAgents(): each harness's default model, the models the
 // priors know, models with history here, and new models in a known family (on probation).
@@ -291,8 +292,9 @@ export class Router {
       seen.add(c.key);
       const arm = this.state.arms[c.key];
       if (!arm) {
-        // Something new later on is on probation until it has shown what it can do.
-        this.state.arms[c.key] = { firstSeen: this.now(), state: first || this.#prior(c.key) ? 'ready' : 'new' };
+        // Something new later on is on probation until it has shown what it can do, and so is a
+        // model the benchmarks only place by tier (Fable): Auto suggests it, never runs it unasked.
+        this.state.arms[c.key] = { firstSeen: this.now(), state: this.#prior(c.key) || (first && !c.model) ? 'ready' : 'new' };
         if (!first) added.push({ key: c.key, label: c.label, state: this.state.arms[c.key].state });
       } else if (arm.state === 'gone') arm.state = 'ready';
     }
