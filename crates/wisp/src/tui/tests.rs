@@ -321,7 +321,22 @@ fn html(a: &App, w: u16, h: u16) -> String {
     let css = |c: Color, dflt: Color| -> String {
         match if c == Color::Reset { dflt } else { c } {
             Color::Rgb(r, g, b) => format!("#{r:02x}{g:02x}{b:02x}"),
-            Color::Indexed(i) => format!("var(--x{i})"),
+            // xterm's 256: the 16, the 6×6×6 cube, the grey ramp (what Terminal.app draws)
+            Color::Indexed(i) => {
+                let (r, g, b) = match i {
+                    0..=15 => [(0, 0, 0), (205, 0, 0), (0, 205, 0), (205, 205, 0), (0, 0, 238), (205, 0, 205), (0, 205, 205), (229, 229, 229), (127, 127, 127), (255, 0, 0), (0, 255, 0), (255, 255, 0), (92, 92, 255), (255, 0, 255), (0, 255, 255), (255, 255, 255)][usize::from(i)],
+                    16..=231 => {
+                        let step = |v: u8| if v == 0 { 0 } else { 55 + 40 * v };
+                        let n = i - 16;
+                        (step(n / 36), step(n / 6 % 6), step(n % 6))
+                    }
+                    _ => {
+                        let v = 8 + 10 * (i - 232);
+                        (v, v, v)
+                    }
+                };
+                format!("#{r:02x}{g:02x}{b:02x}")
+            }
             other => format!("{other:?}").to_lowercase(),
         }
     };
@@ -354,7 +369,7 @@ fn html(a: &App, w: u16, h: u16) -> String {
 fn every_view_renders_to_html_for_the_visual_check() {
     let Ok(dir) = std::env::var("WISP_TUI_LOOK") else { return };
     std::fs::create_dir_all(&dir).unwrap();
-    for (th, mode) in [(Theme::DARK, "dark"), (Theme::LIGHT, "light")] {
+    for (th, mode) in [(Theme::DARK, "dark"), (Theme::LIGHT, "light"), (Theme::DARK.indexed(), "dark-256"), (Theme::LIGHT.indexed(), "light-256")] {
         for (w, h) in [(100u16, 30u16), (160, 45)] {
             let mut shots: Vec<(&str, App)> = Vec::new();
             let mut a = opened();

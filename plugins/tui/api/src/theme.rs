@@ -106,6 +106,24 @@ impl Theme {
         self
     }
 
+    /// Every colour as the nearest of the 16 ANSI ones (`WISP_TUI_COLOR=16`); the page's own background stays
+    /// the terminal's, so the near-black and near-white surfaces don't turn into grey slabs.
+    #[must_use]
+    pub fn basic(mut self) -> Self {
+        let f = to_16;
+        for c in [&mut self.ink, &mut self.ink2, &mut self.muted, &mut self.faint, &mut self.line, &mut self.line2, &mut self.accent, &mut self.accent_ink, &mut self.on_accent, &mut self.good, &mut self.warn, &mut self.bad, &mut self.info, &mut self.add, &mut self.del, &mut self.term_ink] {
+            *c = f(*c);
+        }
+        for c in &mut self.tk {
+            *c = f(*c);
+        }
+        for c in [&mut self.bg, &mut self.rail, &mut self.panel, &mut self.surface, &mut self.term_bg, &mut self.add_bg, &mut self.del_bg, &mut self.accent_soft] {
+            *c = Color::Reset;
+        }
+        self.bg2 = if self.mode == Mode::Light { Color::Gray } else { Color::Black };
+        self
+    }
+
     pub fn text(&self) -> Style {
         Style::default().fg(self.ink)
     }
@@ -170,8 +188,66 @@ pub fn from_env(get: &dyn Fn(&str) -> Option<String>) -> Theme {
         _ => Mode::Dark,
     };
     let t = Theme::of(mode);
-    let truecolor = get("COLORTERM").is_some_and(|c| c.contains("truecolor") || c.contains("24bit"));
-    if truecolor { t } else { t.indexed() }
+    match depth(get) {
+        Depth::True => t,
+        Depth::C256 => t.indexed(),
+        Depth::C16 => t.basic(),
+    }
+}
+
+/// How many colours the terminal draws.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Depth {
+    True,
+    C256,
+    C16,
+}
+
+/// `WISP_TUI_COLOR=truecolor|256|16` when set; else Apple's Terminal.app (`TERM_PROGRAM=Apple_Terminal`) gets 256
+/// whatever `COLORTERM` says (it shows 24-bit colour as grey: the owner's washed-out TUI, 2026-11-09); else true
+/// colour when `COLORTERM` says so; else 256.
+pub fn depth(get: &dyn Fn(&str) -> Option<String>) -> Depth {
+    match get("WISP_TUI_COLOR").as_deref().map(str::trim) {
+        Some("truecolor" | "24bit" | "true") => return Depth::True,
+        Some("256") => return Depth::C256,
+        Some("16") => return Depth::C16,
+        _ => {}
+    }
+    if get("TERM_PROGRAM").as_deref() == Some("Apple_Terminal") {
+        return Depth::C256;
+    }
+    if get("COLORTERM").is_some_and(|c| c.contains("truecolor") || c.contains("24bit")) { Depth::True } else { Depth::C256 }
+}
+
+/// The 16 ANSI colours, as xterm draws them, nearest first by distance.
+const ANSI16: [(Color, (u8, u8, u8)); 16] = [
+    (Color::Black, (0, 0, 0)),
+    (Color::Red, (205, 0, 0)),
+    (Color::Green, (0, 205, 0)),
+    (Color::Yellow, (205, 205, 0)),
+    (Color::Blue, (0, 0, 238)),
+    (Color::Magenta, (205, 0, 205)),
+    (Color::Cyan, (0, 205, 205)),
+    (Color::Gray, (229, 229, 229)),
+    (Color::DarkGray, (127, 127, 127)),
+    (Color::LightRed, (255, 0, 0)),
+    (Color::LightGreen, (0, 255, 0)),
+    (Color::LightYellow, (255, 255, 0)),
+    (Color::LightBlue, (92, 92, 255)),
+    (Color::LightMagenta, (255, 0, 255)),
+    (Color::LightCyan, (0, 255, 255)),
+    (Color::White, (255, 255, 255)),
+];
+
+/// The nearest of the 16 ANSI colours.
+#[allow(clippy::many_single_char_names)] // r g b
+pub fn to_16(c: Color) -> Color {
+    let Color::Rgb(r, g, b) = c else { return c };
+    let d = |x: (u8, u8, u8)| (i32::from(x.0) - i32::from(r)).pow(2) + (i32::from(x.1) - i32::from(g)).pow(2) + (i32::from(x.2) - i32::from(b)).pow(2);
+    // a colour keeps its hue (a red stays red, not the nearest grey); a grey stays grey
+    let grey = |x: &Color| matches!(x, Color::Black | Color::DarkGray | Color::Gray | Color::White);
+    let chroma = r.max(g).max(b) - r.min(g).min(b);
+    ANSI16.iter().filter(|(x, _)| grey(x) == (chroma < 48)).min_by_key(|(_, rgb)| d(*rgb)).map_or(c, |(c, _)| *c)
 }
 
 #[cfg(test)]
@@ -207,6 +283,22 @@ mod tests {
             }
         }
         assert_eq!(Theme::DARK.ink, crate::tokens::DARK.ink);
+    }
+
+    /// Terminal.app shows 24-bit colour as grey: it gets 256 even when the shell sets `COLORTERM=truecolor`;
+    /// `WISP_TUI_COLOR` overrides either way.
+    #[test]
+    fn apple_terminal_gets_256_colours_even_with_colorterm_truecolor() {
+        let env = |pairs: &'static [(&'static str, &'static str)]| move |k: &str| pairs.iter().find(|(n, _)| *n == k).map(|(_, v)| (*v).to_owned());
+        let apple = env(&[("TERM_PROGRAM", "Apple_Terminal"), ("COLORTERM", "truecolor")]);
+        assert_eq!(depth(&apple), Depth::C256);
+        assert!(matches!(from_env(&apple).ink, Color::Indexed(_)));
+        assert_eq!(depth(&env(&[("TERM_PROGRAM", "iTerm.app"), ("COLORTERM", "truecolor")])), Depth::True);
+        assert_eq!(depth(&env(&[("TERM_PROGRAM", "Apple_Terminal"), ("WISP_TUI_COLOR", "truecolor")])), Depth::True, "the override wins");
+        assert_eq!(depth(&env(&[("COLORTERM", "truecolor"), ("WISP_TUI_COLOR", "256")])), Depth::C256);
+        let sixteen = from_env(&env(&[("WISP_TUI_COLOR", "16")]));
+        assert!(!matches!(sixteen.ink, Color::Rgb(..) | Color::Indexed(_)) && sixteen.bg == Color::Reset, "{sixteen:?}");
+        assert_eq!(to_16(hex(0xff_6369)), Color::LightRed);
     }
 
     #[test]

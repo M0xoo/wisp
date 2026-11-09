@@ -200,12 +200,14 @@ fn ago(now: i64, at: i64) -> String {
     if now <= 0 || at <= 0 || at > now + 60_000 {
         return String::new();
     }
-    let m = (now - at) / 60_000;
-    match m {
-        0 => "now".into(),
-        1..=59 => format!("{m}m"),
-        60..=1439 => format!("{}h", m / 60),
-        _ => format!("{}d", m / 1440),
+    // v1 format.js ago(): now under 45 s, then each unit rounded
+    let s = (now - at) / 1000;
+    let round = |n: i64, d: i64| (n + d / 2) / d;
+    match s {
+        ..45 => "now".into(),
+        45..3600 => format!("{}m", round(s, 60).max(1)),
+        3600..86_400 => format!("{}h", round(s, 3600)),
+        _ => format!("{}d", round(s, 86_400)),
     }
 }
 
