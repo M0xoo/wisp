@@ -269,4 +269,9 @@ pub struct AdoptArgs {
     #[serde(default)]
     #[ts(type = "Record<string, unknown>")]
     pub ext: serde_json::Map<String, Value>,
+    /// a session run outside wisp (ADR-0035): its id in that CLI. The task isn't read-only then, and its
+    /// next follow-up continues the same session there. Additive (2026-11-09).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub resume_id: Option<String>,
 }

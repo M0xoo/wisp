@@ -13,4 +13,9 @@ turns: Array<unknown>, spec: TaskSpec,
 /**
  * where it came from (`{ "wisp.share": { … } }`)
  */
-ext: Record<string, unknown>, };
+ext: Record<string, unknown>, 
+/**
+ * a session run outside wisp (ADR-0035): its id in that CLI. The task isn't read-only then, and its
+ * next follow-up continues the same session there. Additive (2026-11-09).
+ */
+resumeId?: string, };

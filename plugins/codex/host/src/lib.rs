@@ -6,6 +6,8 @@
 //! driver over `wisp-codex-core`'s parser with the file tracker on, the resume command and folder
 //! trust. Everything that touches the system goes through the runtime's `HarnessSys`.
 
+pub mod sessions;
+
 mod driver;
 mod launch;
 
@@ -318,6 +320,8 @@ impl Plugin for CodexPlugin {
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let h: Arc<dyn Harness> = Arc::new(CodexHarness::default());
         s.contribute(&HARNESS, h);
+        let sessions: Arc<dyn wisp_runtime_api::harness::sessions::HarnessSessions> = Arc::new(crate::sessions::CodexSessions);
+        s.contribute(&wisp_runtime_api::harness::sessions::SESSIONS, sessions);
         Ok(())
     }
 }

@@ -5,6 +5,8 @@
 //! and a driver over `wisp-claude-core`'s stream-json parser. Everything that touches the system goes
 //! through the runtime's `HarnessSys`.
 
+pub mod sessions;
+
 mod driver;
 mod launch;
 
@@ -191,6 +193,8 @@ impl Plugin for ClaudePlugin {
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let h: Arc<dyn Harness> = Arc::new(ClaudeHarness::default());
         s.contribute(&HARNESS, h);
+        let sessions: Arc<dyn wisp_runtime_api::harness::sessions::HarnessSessions> = Arc::new(crate::sessions::ClaudeSessions);
+        s.contribute(&wisp_runtime_api::harness::sessions::SESSIONS, sessions);
         Ok(())
     }
 }

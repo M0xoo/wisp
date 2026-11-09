@@ -386,3 +386,20 @@ pub struct ProjectRunArgs {
     /// a folder in the project
     pub cwd: String,
 }
+
+/// `runtime.sessions`: this folder's sessions run outside wisp, across harnesses (ADR-0035). Additive.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct SessionsArgs {
+    pub cwd: String,
+}
+
+/// `runtime.adoptSession`: one of them as a wisp task; its follow-ups continue it in its CLI. Additive.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct AdoptSessionArgs {
+    pub harness: String,
+    pub id: String,
+}

@@ -25,6 +25,8 @@ use std::collections::BTreeMap;
 use serde_json::Value;
 use wisp_kernel::{BoxFuture, Point, Result};
 
+pub mod sessions;
+
 pub use event::*;
 pub use info::*;
 pub use run::*;
