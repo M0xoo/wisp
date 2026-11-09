@@ -1,1 +1,6 @@
-{}
+{
+  "shell-task.side.changes.title": "Changes",
+  "shell-task.side.changes.count.one": "1 file · +{add} −{del}",
+  "shell-task.side.changes.count.other": "{count} files · +{add} −{del}",
+  "shell-task.side.changes.empty": "No changes yet"
+}

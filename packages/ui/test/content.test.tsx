@@ -93,11 +93,12 @@ describe('Icon', () => {
 
 describe('Time', () => {
   const now = Date.parse('2026-11-07T12:00:00Z');
-  test('the past is relative, short', () => {
+  test('the past is relative, short, as v1 wrote it: now, 28m, 4h, 3d (owner, 2026-11-10)', () => {
     expect(timeLabel(now - 10_000, now, englishT)).toBe('now');
-    expect(timeLabel(now - 28 * 60_000, now, englishT)).toBe('28m ago');
-    expect(timeLabel(now - 3 * 3_600_000, now, englishT)).toBe('3h ago');
-    expect(timeLabel(now - 2 * 86_400_000, now, englishT)).toBe('2d ago');
+    expect(timeLabel(now - 28 * 60_000, now, englishT)).toBe('28m');
+    expect(timeLabel(now - 3.6 * 3_600_000, now, englishT)).toBe('4h');
+    expect(timeLabel(now - 2.6 * 86_400_000, now, englishT)).toBe('3d');
+    expect(timeLabel(now - 90 * 86_400_000, now, englishT)).toBe('90d');
   });
   test('the future is absolute, never "in 18m"', () => {
     const label = timeLabel(now + 18 * 60_000, now, englishT, 'en-GB');
@@ -111,7 +112,7 @@ describe('Time', () => {
     expect(el?.getAttribute('datetime')).toBe(new Date(now - 60_000).toISOString());
     expect(el?.hasAttribute('data-column')).toBe(true);
     expect(el?.getAttribute('title')).toBeTruthy();
-    expect(el?.textContent).toBe('1m ago');
+    expect(el?.textContent).toBe('1m');
   });
   test('the hover on a time soon says how long until it', () => {
     mount(() => <Time at={now + 18 * 60_000} now={now} />);

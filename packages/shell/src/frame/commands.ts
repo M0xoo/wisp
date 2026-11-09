@@ -85,7 +85,7 @@ export const setMode = defineCommand<{ id: string; mode: string }>({ id: 'runtim
 
 export const setAgent = defineCommand<{ id: string; agent: string }>({ id: 'runtime.setAgent', owner: (a) => a.id, optimistic: (_b, a) => patch(a.id, '/agent', a.agent) });
 
-export const setGoal = defineCommand<{ id: string; text: string }>({ id: 'goal.set', owner: (a) => a.id, optimistic: (_b, a) => patch(a.id, '/summary/goal', { text: a.text, status: 'running', round: 0, checks: [] }) });
+export const setGoal = defineCommand<{ id: string; text: string }>({ id: 'goal.set', owner: (a) => a.id, optimistic: (_b, a) => patch(a.id, '/summary/goal', a.text.trim() ? { text: a.text, status: 'working', round: 0, checks: [] } : null) });
 
 /** Rerun and Fork: the new task's row and page show at once (the client names it). */
 function copyOf(id: 'runtime.rerun' | 'runtime.fork') {

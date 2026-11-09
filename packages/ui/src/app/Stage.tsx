@@ -20,6 +20,9 @@ export interface StageProps {
   readonly head: JSX.Element;
   readonly list: JSX.Element;
   readonly main: JSX.Element;
+  /** v1 #panel: the pane beside the open task (Changes, Shell, PR), the window's full height at its right edge.
+   *  Split only; on a phone the shell opens it as its own page. */
+  readonly side?: JSX.Element;
   readonly gripLabel: string;
   /** stack, main page: the list stays laid out behind it (Home's prompt box opened from the list) */
   readonly listBehind?: boolean;
@@ -32,11 +35,14 @@ export interface StageProps {
 /** v1 #stage: the rail, the sidebar's head and body, the main pane, the grip. */
 export function Stage(props: StageProps): JSX.Element {
   return (
-    <main data-kit="stage" data-part="shell.app" data-layout={props.layout} data-page={props.page} data-behind={flag(props.listBehind)} data-titlebar={props.titlebar} data-rail={flag(props.rail !== undefined)}>
+    <main data-kit="stage" data-part="shell.app" data-layout={props.layout} data-page={props.page} data-behind={flag(props.listBehind)} data-titlebar={props.titlebar} data-rail={flag(props.rail !== undefined)} data-side={flag(props.layout === 'split' && props.side !== undefined)}>
       {props.layout === 'split' ? props.rail : null}
       <header data-kit="topbar" data-part="topbar" data-drag={flag(props.titlebar !== undefined)}>{props.head}</header>
       <div data-kit="feed-wrap" data-part="sidebar" inert={props.layout === 'stack' && props.page === 'main'}>{props.list}</div>
       <section data-kit="split-main" data-part="split.main">{props.main}</section>
+      <Show when={props.layout === 'split' && props.side}>
+        <aside data-kit="side-pane" data-part="side">{props.side}</aside>
+      </Show>
       <Show when={props.layout === 'split'}>
         <div data-kit="split-grip" data-part="sidebar.grip" role="separator" aria-orientation="vertical" aria-label={props.gripLabel} onDblClick={() => props.onGripReset?.()} />
       </Show>

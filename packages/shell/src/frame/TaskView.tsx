@@ -28,6 +28,8 @@ interface TurnBody {
   readonly raw?: string;
   readonly presentationNotes?: string;
   readonly changes?: readonly { readonly file: string; readonly edits?: readonly unknown[] }[];
+  /** where runtime keeps a turn's changes today */
+  readonly ext?: { readonly 'wisp.runtime'?: { readonly changes?: readonly { readonly file: string; readonly edits?: readonly unknown[] }[] } };
 }
 
 interface TurnRow {
@@ -176,7 +178,8 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                     const b = turn.body;
                     const hero = b.presentation?.blocks?.find((x) => x.type === 'hero');
                     const count = (k: string): number => (b.activity ?? []).filter((a) => a.kind === k).length;
-                    const edits = (b.changes ?? []).reduce((n, c) => n + (c.edits?.length ?? 0), 0);
+                    const changes = b.ext?.['wisp.runtime']?.changes ?? b.changes ?? [];
+                    const edits = changes.reduce((n, c) => n + (c.edits?.length ?? 0), 0);
                     const tokens = (b.stats?.inputTokens ?? 0) + (b.stats?.outputTokens ?? 0);
                     return (
                       <TurnView
@@ -196,7 +199,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                         ]}
                         stats={[{ text: `${Math.max(0, (b.endedAt ?? turn.started_at) - turn.started_at)}ms` }, { text: `$${(b.stats?.costUsd ?? 0).toFixed(2)}` }]}
                         receipt={{ text: t('shell.task.tokens', { n: tokens }), title: t('shell.task.tokensTitle', { n: tokens }) }}
-                        {...((b.changes?.length ?? 0) > 0 && { files: { label: t('shell.task.files', { n: b.changes?.length ?? 0 }), plus: `+${edits ? 1 : 0}`, minus: `−${edits ? 1 : 0}`, act: { onClick: () => side('changes') } } })}
+                        {...(changes.length > 0 && { files: { label: t('shell.task.files', { n: changes.length }), plus: `+${edits ? 1 : 0}`, minus: `−${edits ? 1 : 0}`, act: { onClick: () => side('changes') } } })}
                         activity={{ open: stepsOpen(), onToggle: () => setStepsOpen(!stepsOpen()), items: (b.activity ?? []).map((a) => ({ icon: ACT_ICON[a.kind] ?? 'tool', text: a.label ?? a.kind })) }}
                         {...(notesOpen() && { notes: String((b as { presentation?: { notes?: string } }).presentation?.notes ?? t('shell.task.noNotes')) })}
                         tools={[

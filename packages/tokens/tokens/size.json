@@ -40,6 +40,7 @@
   "lazy-chunk": "400px",
   "rail": "56px",
   "rail-w": "64px",
+  "panel-w": "480px",
   "side": "340px",
   "icon-tile": "17px",
   "pill-row": "19px",

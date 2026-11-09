@@ -1,4 +1,5 @@
-// How a time reads (design/copy.md): relative for the past in lists (28m ago), absolute for the
+// How a time reads (design/copy.md): relative for the past in lists (v1 format.js ago(): now, 28m, 4h, 3d;
+// owner, 2026-11-10: v2 looks exactly like v1, ADR-0016), absolute for the
 // future (14:32, Mon 9:00; never "in 18m", which reads as "ago"), the full date and "in 18 min"
 // on hover. Pure, so it's tested without a clock.
 import type { Translate } from '../core/i18n.tsx';
@@ -18,10 +19,10 @@ export function timeLabel(at: number, now: number, t: Translate, locale?: string
   const diff = now - at;
   if (diff >= 0) {
     if (diff < 45_000) return t('time.now');
+    // v1 ago(): each unit rounded, days with no end
     if (diff < HOUR) return t('time.minutes', { n: Math.max(1, Math.round(diff / MIN)) });
-    if (diff < DAY) return t('time.hours', { n: Math.floor(diff / HOUR) });
-    if (diff < 30 * DAY) return t('time.days', { n: Math.floor(diff / DAY) });
-    return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(at);
+    if (diff < DAY) return t('time.hours', { n: Math.round(diff / HOUR) });
+    return t('time.days', { n: Math.round(diff / DAY) });
   }
   return futureLabel(at, now, locale);
 }

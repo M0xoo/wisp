@@ -8,7 +8,7 @@ import type { Readable } from '@wisp/client';
 import { Stage, Toasts, useSignal, type StagePage } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { Area, ClientsProvider, type Clients } from '../slot.tsx';
-import { MainPane } from './Panes.tsx';
+import { MainPane, SidePane } from './Panes.tsx';
 import { Overlays } from './Overlays.tsx';
 import { Head, Rail, SidebarList } from './Sidebar.tsx';
 
@@ -40,6 +40,7 @@ export function App(props: { readonly clients: Clients; readonly recent: Readabl
         head={<Head filter={filter} setFilter={setFilter} />}
         list={<Area input="shell.sidebar:list" fallback={<SidebarList onNew={onNew} homeOn={nav().main.kind === 'home' && (nav().layout === 'split' || launcher())} filter={filter} />} />}
         main={<MainPane onBack={() => setLauncher(false)} />}
+        {...(nav().side.kind !== 'none' && { side: <SidePane /> })}
         gripLabel={shell.t('shell.side.grip')}
         listBehind={nav().main.kind === 'home'}
         {...(titlebar && { titlebar })}
