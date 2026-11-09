@@ -32,7 +32,7 @@ export const KEYS = {
 
 export const EDITORS = ['vscode', 'cursor', 'windsurf', 'zed', 'idea', 'none'] as const;
 
-/** A terminal wisp can take over in (v1 config.terminals), on the config topic. */
+/** A terminal a task can open in (v1 config.terminals), on the config topic. */
 export interface TerminalApp {
   id: string;
   label: string;

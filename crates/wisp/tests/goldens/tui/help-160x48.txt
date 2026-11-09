@@ -1,25 +1,25 @@
  wisp                     3 tasks │ Add dark mode   running
-                                  │ api · wisp/dark · codex gpt-5  ○ goal: judging · round 1
- RUNNING  1                   ╭ Keys · any key closes ───────────────────────────────────────────────────────────────────────────╮─────────────────────────────
-▌Add dark mode                │ EVERYWHERE                                                                                       │
-▌⠋ codex · web                │   Ctrl-K  :               command palette: tasks, views, commands, settings                      │
-                              │   ?                       this help (j k scroll it on a small screen)                            │
- DONE  2                      │   Tab  Shift-Tab          next zone · in the composer: cycle mode plan → edits → auto            │
- Fix the login                │   g then c a m s , h t    go to crew, automations, machines, My Stuff, settings, history, tasks  │
- ● claude · api               │   [  ]                    narrow or widen the focused zone (or drag its border)                  │
- Old one                      │   Ctrl-C  q               quit (q outside the composer)                                          │
- ✓ claude · api               │                                                                                                  │
-                              │ TASKS                                                                                            │
+                              ╭ Keys · any key closes ───────────────────────────────────────────────────────────────────────────╮
+ RUNNING  1                   │ EVERYWHERE                                                                                       │─────────────────────────────
+▌Add dark mode                │   Ctrl-K  :               command palette: tasks, views, commands, settings                      │
+▌⠋ codex · web                │   ?                       this help (j k scroll it on a small screen)                            │
+                              │   Tab  Shift-Tab          next zone · in the composer: cycle mode plan → edits → auto            │
+ DONE  2                      │   g then c a m s , h t    go to crew, automations, machines, My Stuff, settings, history, tasks  │
+ Fix the login                │   [  ]                    narrow or widen the focused zone (or drag its border)                  │
+ ● claude · api               │   Ctrl-C  q               quit (q outside the composer)                                          │
+ Old one                      │                                                                                                  │
+ ✓ claude · api               │ TASKS                                                                                            │
                               │   j k  ↑ ↓                move                                                                   │
-                              │   Enter  l                open the task                                                          │ame constant, so the two
-                              │   n                       new task                                                               │
+                              │   Enter  l                open the task                                                          │
+                              │   n                       new task                                                               │ame constant, so the two
                               │   i                       reply to the selected task                                             │
                               │   /                       search                                                                 │
                               │                                                                                                  │
                               │ THE TASK                                                                                         │
                               │   i  Enter                write (the composer)                                                   │
                               │   j k                     move between steps                                                     │
-                              │   o  Space                open or close the step (a tool call, a diff)                           │
+                              │   Space                   open or close the step (a tool call, a diff)                           │
+                              │   o                       open in its harness (Claude Code, Codex…), back here after             │
                               │   1-9                     answer the question with that choice                                   │
                               │   y  a  n                 allow · always allow · deny a tool                                     │
                               │   Esc                     interrupt the running turn                                             │

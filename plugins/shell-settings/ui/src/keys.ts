@@ -32,7 +32,7 @@ export function shortcutGroups(mac: boolean): readonly ShortcutGroup[] {
         { keys: ['L'], label: 'shell-settings.keys.later' },
         { keys: ['M'], label: 'shell-settings.keys.rename' },
         { keys: ['⌫'], label: 'shell-settings.keys.delete' },
-        { keys: ['T'], label: 'shell-settings.keys.takeover' },
+        { keys: ['T'], label: 'shell-settings.keys.openIn' },
         { keys: ['⌃`'], label: 'shell-settings.keys.shell' },
         { keys: ['P'], label: 'shell-settings.keys.pr' },
         { keys: ['D'], label: 'shell-settings.keys.changes' },

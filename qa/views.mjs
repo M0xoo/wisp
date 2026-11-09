@@ -38,7 +38,7 @@ export function views({ tasks, goal }) {
   };
   const first = () => open(tasks[0].id);
   // The task's own buttons, not its keys: opening a task puts the caret in its reply box
-  // (on a phone Transcript, Rerun… and Take over sit at the top of More)
+  // (on a phone Transcript, Rerun… and Open in <harness> sit at the top of More)
   const bar = (a) => async (p) => {
     await first()(p);
     if (await p.locator(`.item.open .it-actions [data-a="${a}"]:visible`).count()) return click(p, `.item.open .it-actions [data-a="${a}"]:visible`);

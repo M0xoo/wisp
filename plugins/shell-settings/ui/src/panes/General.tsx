@@ -1,7 +1,7 @@
-// Settings → General (v1 settings.js 'general'): where files open, where you take over, and how
+// Settings → General (v1 settings.js 'general'): where files open, where a task opens in its harness, and how
 // tasks start. Every row is another plugin's setting, read from its `setting` row and written with
 // `settings.set` (instant, rolled back with a toast on a refusal); a row a plugin locked says so.
-// "Take over in" shows only with two terminals or more, and its command field only for Custom.
+// "Open tasks in" shows only with two terminals or more, and its command field only for Custom.
 
 import { Show, createMemo, type JSX } from 'solid-js';
 import { computed, type PluginClient } from '@wisp/client';

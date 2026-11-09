@@ -134,6 +134,8 @@ pub enum Effect {
     Send { task: Option<String>, text: String, attachments: Vec<String>, mode: Mode, queue: bool, local: String },
     /// the composer's text in `$EDITOR`; what's saved comes back with [`App::edited`]
     Editor(String),
+    /// Open in <harness>: the terminal handed to `wisp open <task>` (the harness resumes the task there), then back
+    OpenIn(String),
     /// the project's files for the `@` picker (`git ls-files`), back as `Then::Mentions("file")`
     Files,
 }
@@ -583,7 +585,9 @@ impl App {
                 self.step(-1);
                 Vec::new()
             }
-            KeyCode::Char('o' | ' ') => {
+            // o: Open in <harness> (v1's Take over): the terminal goes to `wisp open <task>` until it's done
+            KeyCode::Char('o') => self.sel.clone().filter(|id| !id.starts_with("local-")).map_or_else(Vec::new, |id| vec![Effect::OpenIn(id)]),
+            KeyCode::Char(' ') => {
                 if let (Some(c), Some(t)) = (self.cursor, self.open.as_mut()) {
                     t.toggle(c);
                 }

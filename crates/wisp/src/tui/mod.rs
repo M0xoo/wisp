@@ -89,18 +89,35 @@ fn send_cmd(task: Option<String>, text: &str, attachments: &[String], mode: app:
     }
 }
 
+/// The terminal handed to `program` until it ends (the input thread paused), then taken back. → it succeeded.
+fn handed(paused: &AtomicBool, program: &std::ffi::OsStr, args: &[std::ffi::OsString]) -> bool {
+    paused.store(true, Ordering::Relaxed);
+    ratatui::restore();
+    let _ = execute!(std::io::stdout(), event::DisableMouseCapture, event::DisableBracketedPaste);
+    let ok = std::process::Command::new(program).args(args).status().is_ok_and(|s| s.success());
+    let _ = ratatui::init();
+    let _ = execute!(std::io::stdout(), event::EnableMouseCapture, event::EnableBracketedPaste);
+    paused.store(false, Ordering::Relaxed);
+    ok
+}
+
+/// Open in <harness>: `wisp open <task>` in this terminal (v1's Take over), the TUI back after.
+fn open_in(id: &str, paused: &AtomicBool) {
+    let me = std::env::current_exe().map_or_else(|_| "wisp".into(), std::path::PathBuf::into_os_string);
+    handed(paused, &me, &["open".into(), id.into()]);
+}
+
 /// `$EDITOR` on the composer's text; the terminal is handed over and back.
 fn editor(text: &str, paused: &AtomicBool) -> Option<String> {
     let path = std::env::temp_dir().join(format!("wisp-tui-{}.md", std::process::id()));
     std::fs::write(&path, text).ok()?;
-    paused.store(true, Ordering::Relaxed);
-    ratatui::restore();
     let ed = std::env::var("VISUAL").or_else(|_| std::env::var("EDITOR")).unwrap_or_else(|_| "vi".into());
     let mut parts = ed.split_whitespace();
-    let ok = parts.next().is_some_and(|bin| std::process::Command::new(bin).args(parts).arg(&path).status().is_ok_and(|s| s.success()));
-    let _ = ratatui::init();
-    let _ = execute!(std::io::stdout(), event::EnableMouseCapture, event::EnableBracketedPaste);
-    paused.store(false, Ordering::Relaxed);
+    let ok = parts.next().is_some_and(|bin| {
+        let mut args: Vec<std::ffi::OsString> = parts.map(Into::into).collect();
+        args.push(path.clone().into_os_string());
+        handed(paused, bin.as_ref(), &args)
+    });
     let out = ok.then(|| std::fs::read_to_string(&path).ok()).flatten();
     let _ = std::fs::remove_file(&path);
     out
@@ -149,6 +166,10 @@ pub async fn run(c: &Client, cwd: &str) -> Result<i32> {
                         let files: Vec<Value> = out.map(|o| String::from_utf8_lossy(&o.stdout).lines().take(20_000).map(|l| Value::String(l.to_owned())).collect()).unwrap_or_default();
                         let _ = tx.send((Then::Mentions("file".into()), Ok(Value::Array(files)))).await;
                     });
+                }
+                Effect::OpenIn(id) => {
+                    open_in(&id, &paused);
+                    let _ = term.clear();
                 }
                 Effect::Editor(text) => {
                     if let Some(t) = editor(&text, &paused) {

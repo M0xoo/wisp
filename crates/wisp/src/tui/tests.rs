@@ -116,7 +116,7 @@ fn a_tool_step_shows_its_counts_and_opens_to_its_diff() {
     a.key(ch('k'));
     a.key(ch('k'));
     assert_eq!(a.cursor, Some(1), "k walks back to the edit");
-    a.key(ch('o'));
+    a.key(ch(' '));
     let s = screen(&a, 160, 48);
     assert!(s.contains("ttl = 60;") && s.contains("ttl = 3600;"), "open: the diff, side by side when wide:\n{s}");
     a.key(ch(' '));
@@ -189,7 +189,7 @@ fn the_composer_opens_the_at_and_slash_pickers() {
     a.key(ch('/'));
     assert!(matches!(a.overlay, Some(Overlay::Palette(_, super::app::For::Slash))));
     a.key(ch('g'));
-    a.key(ch('o'));
+    a.key(ch(' '));
     a.key(key(KeyCode::Enter));
     assert_eq!(a.composer.text(), "/goal.set ");
     a.composer.clear();
@@ -388,7 +388,7 @@ fn every_view_renders_to_html_for_the_visual_check() {
             a.focus = Zone::Task;
             a.key(ch('k'));
             a.key(ch('k'));
-            a.key(ch('o'));
+            a.key(ch(' '));
             a.side = Some(super::app::Side::Changes);
             shots.push(("changes", a));
             let mut a = opened();
@@ -446,7 +446,7 @@ fn no_ghost_text_every_glyph_reads_against_its_background() {
         a.focus = Zone::Task;
         a.key(ch('k'));
         a.key(ch('k'));
-        a.key(ch('o'));
+        a.key(ch(' '));
         a.side = Some(super::app::Side::Changes);
         views.push(a);
         let mut a = opened();
@@ -557,4 +557,18 @@ fn plugins_contribute_through_the_tui_points() {
     assert!(s.contains("○ goal: judging · round 1"), "wisp-goal-tui's TaskHeader input\n{s}");
     assert!(a.reg.find("blame").is_some(), "wisp-history-tui's view");
     assert!(!a.reg.blocks.is_empty(), "the built-in term.block renderer");
+}
+
+/// `o` is Open in <harness> (v1's Take over, renamed 2026-11-10): the task goes to `wisp open`; Space opens a step.
+#[test]
+fn o_opens_the_task_in_its_harness_and_space_opens_a_step() {
+    let mut a = opened();
+    a.focus = Zone::Task;
+    assert_eq!(a.key(ch('o')), vec![Effect::OpenIn("t2".into())]);
+    a.key(ch('k'));
+    a.key(ch(' '));
+    assert!(a.open.as_ref().unwrap().expanded.contains(&a.cursor.unwrap()), "Space toggles the step");
+    let mut b = opened();
+    b.key(ch('?'));
+    assert!(screen(&b, 160, 48).contains("open in its harness"), "the help says so");
 }

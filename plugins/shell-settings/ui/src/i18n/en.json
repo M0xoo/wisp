@@ -12,7 +12,7 @@
   "shell-settings.group.computers": "Computers",
   "shell-settings.group.advanced": "Advanced",
   "shell-settings.pane.general": "General",
-  "shell-settings.pane.general.lede": "Where files open, where you take over, and how tasks start.",
+  "shell-settings.pane.general.lede": "Where files open, where tasks open in their harness, and how tasks start.",
   "shell-settings.editor": "Open files in",
   "shell-settings.editor.hint": "File links in cards and diffs",
   "shell-settings.editor.vscode": "VS Code",
@@ -21,7 +21,7 @@
   "shell-settings.editor.zed": "Zed",
   "shell-settings.editor.idea": "JetBrains",
   "shell-settings.editor.none": "Copy path",
-  "shell-settings.terminal": "Take over in",
+  "shell-settings.terminal": "Open tasks in",
   "shell-settings.terminal.hint": "Where you carry on a task yourself: a terminal inside wisp, or a terminal app",
   "shell-settings.terminal-command": "Terminal command",
   "shell-settings.terminal-command.hint": "{cwd} and {cmd} are filled in",
@@ -29,7 +29,7 @@
   "shell-settings.tui": "Babysitting mode (Terminals)",
   "shell-settings.tui.hint": "Each task you send opens straight in the agent’s own terminal, already working on your prompt, instead of wisp’s cards. Follow-ups are typed there, and opening the task again resumes it",
   "shell-settings.blocks": "wisp blocks",
-  "shell-settings.blocks.hint": "Agents end with wisp’s cards: diffs, test runs, previews, next steps. Off, they answer in plain text, which also reads cleaner when you take over",
+  "shell-settings.blocks.hint": "Agents end with wisp’s cards: diffs, test runs, previews, next steps. Off, they answer in plain text, which also reads cleaner when you open a task in its harness",
   "shell-settings.worktree": "Worktree per task",
   "shell-settings.worktree.hint": "Each task gets its own branch from origin/main, in git repos",
   "shell-settings.review": "Review by another harness",
@@ -81,7 +81,6 @@
   "shell-settings.keys.later": "Save for later / unsave",
   "shell-settings.keys.rename": "Rename item",
   "shell-settings.keys.delete": "Delete item",
-  "shell-settings.keys.takeover": "Take over: carry on with the agent in a terminal",
   "shell-settings.keys.shell": "Shell in the task’s folder (again: back to the reply box)",
   "shell-settings.keys.pr": "Review PR: checks, reviews and comments in the side panel",
   "shell-settings.keys.changes": "Changes: every file the task changed, in the side panel",
@@ -121,5 +120,6 @@
   "shell-settings.diag.status.waking": "Waking",
   "shell-settings.diag.status.unreachable": "Unreachable",
   "shell-settings.diag.status.incompatible": "Needs an update",
-  "shell-settings.diag.cursor": "At {seq}"
+  "shell-settings.diag.cursor": "At {seq}",
+  "shell-settings.keys.openIn": "Open in the task’s harness: carry on with the agent in a terminal"
 }
