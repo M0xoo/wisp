@@ -43,19 +43,19 @@ async function call(method, p, body) {
 
 test('parseRepo reads GitHub URLs, ssh and scp forms, and leaves paths alone', () => {
   const gh = (s, o) => parseRepo(s, o)?.gh;
-  assert.equal(gh('https://github.com/M0xoo/wisp'), 'M0xoo/wisp');
-  assert.equal(gh('https://github.com/M0xoo/wisp.git'), 'M0xoo/wisp');
-  assert.equal(gh('https://github.com/M0xoo/wisp/tree/main/server'), 'M0xoo/wisp');
-  assert.equal(gh('github.com/M0xoo/wisp/'), 'M0xoo/wisp');
-  assert.equal(gh('git@github.com:M0xoo/wisp.git'), 'M0xoo/wisp');
-  assert.equal(gh('M0xoo/wisp', { shorthand: true }), 'M0xoo/wisp');
-  assert.equal(parseRepo('https://github.com/M0xoo/wisp/pull/3').url, 'https://github.com/M0xoo/wisp.git');
+  assert.equal(gh('https://github.com/WispAgents/wisp'), 'WispAgents/wisp');
+  assert.equal(gh('https://github.com/WispAgents/wisp.git'), 'WispAgents/wisp');
+  assert.equal(gh('https://github.com/WispAgents/wisp/tree/main/server'), 'WispAgents/wisp');
+  assert.equal(gh('github.com/WispAgents/wisp/'), 'WispAgents/wisp');
+  assert.equal(gh('git@github.com:WispAgents/wisp.git'), 'WispAgents/wisp');
+  assert.equal(gh('WispAgents/wisp', { shorthand: true }), 'WispAgents/wisp');
+  assert.equal(parseRepo('https://github.com/WispAgents/wisp/pull/3').url, 'https://github.com/WispAgents/wisp.git');
   assert.deepEqual(
     (({ host, name, gh }) => ({ host, name, gh }))(parseRepo('https://gitlab.com/group/sub/app.git')),
     { host: 'gitlab.com', name: 'app', gh: null },
   );
   assert.equal(parseRepo('ssh://git@example.org:2222/team/tool.git').name, 'tool');
-  for (const p of ['~/code/app', '/Users/me/app', './app', 'app', 'M0xoo/wisp', 'https://github.com/M0xoo', 'C:\\code\\app']) assert.equal(parseRepo(p), null, p);
+  for (const p of ['~/code/app', '/Users/me/app', './app', 'app', 'WispAgents/wisp', 'https://github.com/M0xoo', 'C:\\code\\app']) assert.equal(parseRepo(p), null, p);
 });
 
 test('POST /projects with a repo URL clones it into the clone folder and adds the clone', async () => {

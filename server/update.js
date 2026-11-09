@@ -2,7 +2,7 @@
 // relaunches wisp. How depends on how this copy was installed:
 //   global  npm install -g wisp-agents@latest (also what install.sh does), then rerun bin/wisp.js
 //   npx     nothing to install: relaunch through `npx -y wisp-agents@latest`
-//   brew    brew upgrade m0xoo/tap/wisp-agents, then rerun it from the keg's opt/ link
+//   brew    brew upgrade wisp-agents (from whichever tap it came from), then rerun it from the keg's opt/ link
 //   app     the desktop app from GitHub Releases (wisp.app, the Windows installer, the AppImage):
 //           downloads the new build from the latest release, swaps it in and reopens it
 //   git     a clone of the repo, i.e. working on wisp itself: never offers an update
@@ -25,14 +25,15 @@ const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const REGISTRY = `https://registry.npmjs.org/-/package/${PKG.name}/dist-tags`;
 const DAY = 24 * 3600_000;
 const TICK = 30 * 60_000; // timers stall while the machine sleeps, so poll the wall clock instead
-const TAP = 'm0xoo/tap/wisp-agents';
+// the installed formula's own tap (m0xoo/tap before the move, wispagents/tap after): brew resolves it
+const TAP = 'wisp-agents';
 // <prefix>/Cellar/wisp-agents/<version>/libexec/lib/node_modules/wisp-agents
 const CELLAR = /^(.*)[\\/]Cellar[\\/]wisp-agents[\\/]/;
 // The desktop app keeps wisp's files unpacked in wisp.app/Contents/Resources/app (resources\app on
 // Windows and Linux). Releases name their downloads without a version, see desktop/scripts/package.mjs.
 const PACKAGED = /[\\/](Contents[\\/]Resources|resources)[\\/]app$/;
-const RELEASES = 'https://api.github.com/repos/M0xoo/wisp/releases';
-export const DOWNLOADS = 'https://github.com/M0xoo/wisp/releases/latest';
+const RELEASES = 'https://api.github.com/repos/WispAgents/wisp/releases';
+export const DOWNLOADS = 'https://github.com/WispAgents/wisp/releases/latest';
 
 // Which npm dist-tags each channel follows; the rolling GitHub release `nightly` goes with the last.
 export const CHANNELS = { stable: ['latest'], beta: ['latest', 'next'], nightly: ['latest', 'next', 'nightly'] };

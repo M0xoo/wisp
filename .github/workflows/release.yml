@@ -15,7 +15,7 @@ name: release
 #   3. publishes wisp-agents to npm (with provenance)
 #   4. publishes the release, so the site's download links and the app's updater see it only once
 #      everything is up
-#   5. bumps the Homebrew tap (M0xoo/homebrew-tap) to the new npm tarball
+#   5. bumps the Homebrew tap (WispAgents/homebrew-tap) to the new npm tarball
 # A push only releases a version npm doesn't have yet. Run it by hand (Actions → release → Run
 # workflow) to finish one that stopped half way: every step skips what's already done. With
 # "dry run" ticked it only builds the desktop apps and runs the install gate (kept as the run's
@@ -28,13 +28,13 @@ name: release
 # -f nightly=true` makes one now, without waiting for the tests.
 #
 # npm publishes through trusted publishing (OIDC, no token): npmjs.com → wisp-agents → Settings
-# trusts M0xoo/wisp, release.yml, environment `npm`. npm allows one trusted publisher per
+# trusts WispAgents/wisp, release.yml, environment `npm`. npm allows one trusted publisher per
 # package, so stable and nightly both publish from here. The `npm` environment only deploys from
 # main, and npm refuses publishes by token, so what reaches npm is what was merged to main: the
 # PR review is the gate, as in most projects, with no approval step in the run.
 #
 # Secrets (all optional):
-#   HOMEBREW_TAP_TOKEN          a token that can push to M0xoo/homebrew-tap; without it the tap is skipped
+#   HOMEBREW_TAP_TOKEN          a token that can push to WispAgents/homebrew-tap; without it the tap is skipped
 # The apps aren't signed: the Mac one is signed ad hoc (desktop/scripts/package.mjs, MAC_SIGN_IDENTITY
 # for a Developer ID) and macOS asks to confirm the first open; SmartScreen warns on Windows.
 
@@ -264,13 +264,13 @@ jobs:
       VERSION: ${{ needs.plan.outputs.version }}
     steps:
       - uses: actions/checkout@v5
-      - name: Bump M0xoo/homebrew-tap
+      - name: Bump WispAgents/homebrew-tap
         run: |
           if [ -z "$TOKEN" ]; then echo "::notice::No HOMEBREW_TAP_TOKEN secret: bump the tap by hand."; exit 0; fi
           url="https://registry.npmjs.org/wisp-agents/-/wisp-agents-$VERSION.tgz"
           for i in $(seq 1 30); do curl -fsSLo pkg.tgz "$url" && break; sleep 10; done # the CDN can lag the publish
           sha=$(sha256sum pkg.tgz | cut -d' ' -f1)
-          git clone --depth 1 "https://x-access-token:$TOKEN@github.com/M0xoo/homebrew-tap.git" tap
+          git clone --depth 1 "https://x-access-token:$TOKEN@github.com/WispAgents/homebrew-tap.git" tap
           sed -e "s#^  url \".*\"#  url \"$url\"#" -e "s#^  sha256 \".*\"#  sha256 \"$sha\"#" packaging/homebrew/wisp-agents.rb > tap/Formula/wisp-agents.rb
           cd tap
           if git diff --quiet; then echo "The tap already has $VERSION."; exit 0; fi

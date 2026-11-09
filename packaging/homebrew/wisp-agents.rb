@@ -1,6 +1,6 @@
-# Homebrew formula for wisp-agents. Lives in the M0xoo/homebrew-tap repo as Formula/wisp-agents.rb:
+# Homebrew formula for wisp-agents. Lives in the WispAgents/homebrew-tap repo as Formula/wisp-agents.rb:
 #
-#   brew tap m0xoo/tap
+#   brew tap wispagents/tap
 #   brew install wisp-agents
 #
 # The release workflow (.github/workflows/release.yml) copies this file to the tap with `url` and

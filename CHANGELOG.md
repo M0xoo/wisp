@@ -76,6 +76,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **wisp moved to the WispAgents org.** The repo is [WispAgents/wisp](https://github.com/WispAgents/wisp) and the Homebrew tap is [WispAgents/homebrew-tap](https://github.com/WispAgents/homebrew-tap): new installs use `brew install wispagents/tap/wisp-agents` for the CLI, and **`brew install --cask wispagents/tap/wisp` now installs the desktop app**. Existing `m0xoo/tap` installs keep updating (GitHub redirects, and Update now runs `brew upgrade wisp-agents`).
 - **A worktree's copied folders cost no disk on a Mac.** What `.worktreeinclude` brings into a new worktree (a `node_modules`, a build cache) is now a copy-on-write clone on APFS, and on Linux on btrfs, XFS or bcachefs: it shares the checkout's blocks until one side changes a file. A 2.1 GB `node_modules` took 2.2 GB of disk per worktree and now takes under 0.1 GB. Other file systems and Windows copy as before. The worktree records how many bytes it shares (`prepared.cloned`).
 - **Old worktrees go sooner, and never pile up past a cap.** A clean task whose PR is merged or closed loses its folder at the next hourly cleanup, a Done one after a day idle, and the rest after 7 days instead of 14 (Settings → Worktrees → *Clean up automatically*). New *Keep at most* (20, 40 or 80 worktrees, or no limit; 40 by default): past that many tasks' worktrees the oldest idle ones go, a few minutes after the new one that went over; left over folders don't count. Uncommitted work, kept worktrees, For later, open PRs and tasks in use still never go, even over the cap, and branches stay, so replying brings a folder back. Each cleanup also runs `git worktree prune` in your repos, so `git worktree add` stops reading hundreds of entries for folders long gone. Looking costs less while agents work: folder sizes are measured at most every 6 hours or when one comes or goes, and git reads only folders that changed. Folders no task knows still go only by hand. Spells can set it (`settings.worktreeMax`).
 - **One answer box for questions and approvals: the reply box.** A question or approval card used to carry its own *Or say what to do instead (denies this call)…* box right above the reply box's *Or tell Claude Code what to do instead…*, and both were cut short on a phone. Now the card holds the question and its buttons, and you type your answer in the reply box. It answers the question, or denies the approval with your words, exactly as the old box did, in Plan, Edits and Full auto. A mode, harness or team you picked under the box waits for your next follow-up instead of turning the answer into a new run. A spell that hides `composer` or `composer.input` still loads, with a warning, and the box stays while a task waits on your answer.
@@ -174,6 +175,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **wisp Grid no longer goes down as a computer's tunnel closes.** A computer hanging up or reconnecting, or the grid shutting down, could land its keep-alive ping on a tunnel already closing, which threw where nothing caught it and stopped the grid. That ping is now skipped.
 - **A long question shows its answers when it opens.** When an agent's question or approval had more text than fit, its answers sat under the reply box, so you had to scroll past everything to reach them: on a phone, and on a laptop-sized window. They now stop above the reply box and the text scrolls under them. Cards that fit look the same.
 - **Quitting wisp while a cloud computer wakes stops the wake.** The wake and tunnel checks went on asking the grid for up to 90 s after wisp had stopped, keeping the process alive and changing the machine's state after the server was gone.
+- **A crew check-in's follow-up comes back even when it had nothing to report.** A check-in that scheduled a follow-up (resume_later) and said it found nothing new was archived as its turn ended, and wisp drops what an archived task scheduled, so the follow-up never ran. Such a check-in is now filed under Done, still quiet, and its follow-up goes when it comes due.
 
 ## [0.57.0] - 2026-11-03
 - **A phone tap can't repeat after a restart.** ntfy sends taps of the same second again, and wisp forgot which it had handled when it restarted, so a Done could close a task you had reopened since. wisp now keeps the last ids with its place in ntfy.
@@ -689,7 +691,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Delegate to your other machines:** the launcher's **Subagents** button is now **Delegate**, and each delegate picks where it runs: *With the lead* (as before), this computer, or any of your machines, with the harness, model and thinking level installed there. The lead's place is shown (and switchable) at the top. A delegate away from the lead gets a copy of the lead's work there (uncommitted edits too), runs hidden, and its changes come back to the lead's folder as a patch when it finishes (a three-way merge if the lead moved on; conflicts and patches that don't apply are reported to the lead). The lead hears each delegate's place in its team note. API: `machine` (`here` or a machine id) on each `subagents` member.
 - **Install the Mac app with one line, without the "can't verify" warning:** `curl -fsSL https://trywisp.dev/install.sh | bash -s -- --app` downloads wisp.app from the latest release, checks it against `SHA256SUMS.txt` and puts it in /Applications, with no Node needed. curl doesn't quarantine what it downloads, so macOS opens the not-yet-notarized app straight away. `WISP_VERSION` pins a release here too.
-- **Beta and nightly builds, and an update channel to follow them.** **Settings → General → Updates**: *Stable* (as before), *Beta* (previews of the next release, npm `wisp-agents@next`) or *Nightly* (a build of `main` every night the full test suite passes, npm `wisp-agents@nightly` and the apps on the [nightly release](https://github.com/M0xoo/wisp/releases/tag/nightly)). *Update to …* then offers the newest build of that channel, for npm, npx and the desktop app; a stable release that's newer still wins. Homebrew stays on stable. `install.sh` takes `WISP_VERSION=next` or `WISP_VERSION=nightly` (with `--app` too).
+- **Beta and nightly builds, and an update channel to follow them.** **Settings → General → Updates**: *Stable* (as before), *Beta* (previews of the next release, npm `wisp-agents@next`) or *Nightly* (a build of `main` every night the full test suite passes, npm `wisp-agents@nightly` and the apps on the [nightly release](https://github.com/WispAgents/wisp/releases/tag/nightly)). *Update to …* then offers the newest build of that channel, for npm, npx and the desktop app; a stable release that's newer still wins. Homebrew stays on stable. `install.sh` takes `WISP_VERSION=next` or `WISP_VERSION=nightly` (with `--app` too).
 
 ### Changed
 
@@ -1469,39 +1471,39 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.29.0...HEAD
-[0.29.0]: https://github.com/M0xoo/wisp/compare/v0.28.2...v0.29.0
-[0.28.2]: https://github.com/M0xoo/wisp/compare/v0.28.1...v0.28.2
-[0.28.1]: https://github.com/M0xoo/wisp/compare/v0.28.0...v0.28.1
-[0.28.0]: https://github.com/M0xoo/wisp/compare/v0.27.0...v0.28.0
-[0.27.0]: https://github.com/M0xoo/wisp/compare/v0.26.0...v0.27.0
-[0.26.0]: https://github.com/M0xoo/wisp/compare/v0.25.0...v0.26.0
-[0.25.0]: https://github.com/M0xoo/wisp/compare/v0.24.1...v0.25.0
-[0.24.1]: https://github.com/M0xoo/wisp/compare/v0.24.0...v0.24.1
-[0.24.0]: https://github.com/M0xoo/wisp/compare/v0.23.0...v0.24.0
-[0.23.0]: https://github.com/M0xoo/wisp/compare/v0.22.0...v0.23.0
-[0.22.0]: https://github.com/M0xoo/wisp/compare/v0.21.0...v0.22.0
-[0.21.0]: https://github.com/M0xoo/wisp/compare/v0.20.0...v0.21.0
-[0.20.0]: https://github.com/M0xoo/wisp/compare/v0.19.0...v0.20.0
-[0.19.0]: https://github.com/M0xoo/wisp/compare/v0.18.1...v0.19.0
-[0.18.1]: https://github.com/M0xoo/wisp/compare/v0.18.0...v0.18.1
-[0.18.0]: https://github.com/M0xoo/wisp/compare/v0.17.0...v0.18.0
-[0.17.0]: https://github.com/M0xoo/wisp/compare/v0.16.0...v0.17.0
-[0.16.0]: https://github.com/M0xoo/wisp/compare/v0.15.0...v0.16.0
-[0.15.0]: https://github.com/M0xoo/wisp/compare/v0.14.0...v0.15.0
-[0.14.0]: https://github.com/M0xoo/wisp/compare/v0.13.0...v0.14.0
-[0.13.0]: https://github.com/M0xoo/wisp/compare/v0.12.0...v0.13.0
-[0.12.0]: https://github.com/M0xoo/wisp/compare/v0.11.0...v0.12.0
-[0.11.0]: https://github.com/M0xoo/wisp/compare/v0.10.0...v0.11.0
-[0.10.0]: https://github.com/M0xoo/wisp/compare/v0.9.0...v0.10.0
-[0.9.0]: https://github.com/M0xoo/wisp/compare/v0.8.0...v0.9.0
-[0.8.0]: https://github.com/M0xoo/wisp/compare/v0.7.0...v0.8.0
-[0.7.0]: https://github.com/M0xoo/wisp/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/M0xoo/wisp/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/M0xoo/wisp/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/M0xoo/wisp/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/M0xoo/wisp/compare/v0.2.2...v0.3.0
-[0.2.2]: https://github.com/M0xoo/wisp/compare/v0.2.1...v0.2.2
-[0.2.1]: https://github.com/M0xoo/wisp/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/M0xoo/wisp/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/M0xoo/wisp/releases/tag/v0.1.0
+[Unreleased]: https://github.com/WispAgents/wisp/compare/v0.29.0...HEAD
+[0.29.0]: https://github.com/WispAgents/wisp/compare/v0.28.2...v0.29.0
+[0.28.2]: https://github.com/WispAgents/wisp/compare/v0.28.1...v0.28.2
+[0.28.1]: https://github.com/WispAgents/wisp/compare/v0.28.0...v0.28.1
+[0.28.0]: https://github.com/WispAgents/wisp/compare/v0.27.0...v0.28.0
+[0.27.0]: https://github.com/WispAgents/wisp/compare/v0.26.0...v0.27.0
+[0.26.0]: https://github.com/WispAgents/wisp/compare/v0.25.0...v0.26.0
+[0.25.0]: https://github.com/WispAgents/wisp/compare/v0.24.1...v0.25.0
+[0.24.1]: https://github.com/WispAgents/wisp/compare/v0.24.0...v0.24.1
+[0.24.0]: https://github.com/WispAgents/wisp/compare/v0.23.0...v0.24.0
+[0.23.0]: https://github.com/WispAgents/wisp/compare/v0.22.0...v0.23.0
+[0.22.0]: https://github.com/WispAgents/wisp/compare/v0.21.0...v0.22.0
+[0.21.0]: https://github.com/WispAgents/wisp/compare/v0.20.0...v0.21.0
+[0.20.0]: https://github.com/WispAgents/wisp/compare/v0.19.0...v0.20.0
+[0.19.0]: https://github.com/WispAgents/wisp/compare/v0.18.1...v0.19.0
+[0.18.1]: https://github.com/WispAgents/wisp/compare/v0.18.0...v0.18.1
+[0.18.0]: https://github.com/WispAgents/wisp/compare/v0.17.0...v0.18.0
+[0.17.0]: https://github.com/WispAgents/wisp/compare/v0.16.0...v0.17.0
+[0.16.0]: https://github.com/WispAgents/wisp/compare/v0.15.0...v0.16.0
+[0.15.0]: https://github.com/WispAgents/wisp/compare/v0.14.0...v0.15.0
+[0.14.0]: https://github.com/WispAgents/wisp/compare/v0.13.0...v0.14.0
+[0.13.0]: https://github.com/WispAgents/wisp/compare/v0.12.0...v0.13.0
+[0.12.0]: https://github.com/WispAgents/wisp/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/WispAgents/wisp/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/WispAgents/wisp/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/WispAgents/wisp/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/WispAgents/wisp/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/WispAgents/wisp/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/WispAgents/wisp/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/WispAgents/wisp/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/WispAgents/wisp/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/WispAgents/wisp/compare/v0.2.2...v0.3.0
+[0.2.2]: https://github.com/WispAgents/wisp/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/WispAgents/wisp/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/WispAgents/wisp/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/WispAgents/wisp/releases/tag/v0.1.0

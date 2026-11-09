@@ -7,7 +7,7 @@ seriously.
 
 Report it privately, not in a public issue:
 
-- **GitHub:** [Report a vulnerability](https://github.com/M0xoo/wisp/security/advisories/new) (private advisory).
+- **GitHub:** [Report a vulnerability](https://github.com/WispAgents/wisp/security/advisories/new) (private advisory).
 - **Email:** [hello@trywisp.dev](mailto:hello@trywisp.dev), with "security" in the subject.
 
 Include what you found, how to reproduce it, and the version (`wisp --version`) or, for wisp Cloud,

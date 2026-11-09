@@ -114,7 +114,7 @@ test('relaunchCommand keeps the port wisp is serving on', () => {
 test('Homebrew installs upgrade through brew and relaunch from the opt/ link, not the old keg', () => {
   const u = new Updater({ port: 5123, env: {}, root: KEG('/opt/homebrew') });
   assert.equal(u.method, 'brew');
-  assert.equal(u.command(), `${JSON.stringify(path.join('/opt/homebrew', 'bin', 'brew'))} upgrade m0xoo/tap/wisp-agents`);
+  assert.equal(u.command(), `${JSON.stringify(path.join('/opt/homebrew', 'bin', 'brew'))} upgrade wisp-agents`);
   const wisp = path.join('/opt/homebrew', 'opt/wisp-agents/libexec/lib/node_modules/wisp-agents', 'bin', 'wisp.js');
   assert.ok(u.relaunchCommand(false).endsWith(`${JSON.stringify(wisp)} --browser --no-open --port 5123`));
 });
@@ -164,19 +164,19 @@ test('the app checks GitHub Releases and picks the download for its OS and CPU',
     assert.equal(v.method, 'app');
     assert.equal(v.latest, '99.0.0');
     assert.equal(v.available, true);
-    assert.equal(v.command, 'https://github.com/M0xoo/wisp/releases/latest');
+    assert.equal(v.command, 'https://github.com/WispAgents/wisp/releases/latest');
     assert.equal(u.asset?.name, name);
   }
-  assert.ok(urls.every((u) => u === 'https://api.github.com/repos/M0xoo/wisp/releases/latest'));
+  assert.ok(urls.every((u) => u === 'https://api.github.com/repos/WispAgents/wisp/releases/latest'));
 });
 
 test('the app on beta or nightly picks the newest release its channel allows, nightly by its title', async () => {
   const asset = (v) => [{ name: 'wisp-mac-arm64.zip', browser_download_url: `https://dl/${v}/wisp-mac-arm64.zip` }];
   const list = [
-    { tag_name: 'nightly', name: 'wisp 99.1.0-nightly.20261024.317', prerelease: true, html_url: 'https://github.com/M0xoo/wisp/releases/tag/nightly', assets: asset('nightly') },
-    { tag_name: 'v99.1.0-beta.1', name: 'v99.1.0-beta.1', prerelease: true, html_url: 'https://github.com/M0xoo/wisp/releases/tag/v99.1.0-beta.1', assets: asset('beta') },
+    { tag_name: 'nightly', name: 'wisp 99.1.0-nightly.20261024.317', prerelease: true, html_url: 'https://github.com/WispAgents/wisp/releases/tag/nightly', assets: asset('nightly') },
+    { tag_name: 'v99.1.0-beta.1', name: 'v99.1.0-beta.1', prerelease: true, html_url: 'https://github.com/WispAgents/wisp/releases/tag/v99.1.0-beta.1', assets: asset('beta') },
     { tag_name: 'v99.2.0-beta.1', name: 'v99.2.0-beta.1', draft: true, prerelease: true, assets: asset('draft') },
-    { tag_name: 'v99.0.0', name: 'v99.0.0', prerelease: false, html_url: 'https://github.com/M0xoo/wisp/releases/tag/v99.0.0', assets: asset('stable') },
+    { tag_name: 'v99.0.0', name: 'v99.0.0', prerelease: false, html_url: 'https://github.com/WispAgents/wisp/releases/tag/v99.0.0', assets: asset('stable') },
   ];
   const urls = [];
   const fetch = async (url) => (urls.push(url), { ok: true, json: async () => list });
@@ -187,7 +187,7 @@ test('the app on beta or nightly picks the newest release its channel allows, ni
     assert.equal(u.asset.browser_download_url, `https://dl/${from}/wisp-mac-arm64.zip`);
     assert.equal(v.command, list.find((r) => r.assets.includes(u.asset)).html_url);
   }
-  assert.ok(urls.every((u) => u === 'https://api.github.com/repos/M0xoo/wisp/releases?per_page=30'));
+  assert.ok(urls.every((u) => u === 'https://api.github.com/repos/WispAgents/wisp/releases?per_page=30'));
 });
 
 test('an AppImage update checks the sha256, replaces the file and reopens it', async () => {

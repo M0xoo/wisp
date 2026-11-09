@@ -723,6 +723,36 @@ test('a member starts when a task finishes or is marked done, in its project, ab
   assert.equal((await api('/triggers')).filter((t) => t.crew === vee.id).length, 0);
 });
 
+test('a quiet check-in that scheduled a follow-up mid-turn is filed, not archived, and the follow-up fires', async () => {
+  const cy = await api('/crew', { name: 'Quin', role: 'Merger', brief: 'Merge green PRs. CREWQUIET', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
+  process.env.FAKE_DELAY = '1500';
+  let session;
+  try {
+    ({ session } = await api(`/crew/${cy.id}/checkin`, {}));
+    await until(() => srv.runner.live.has(session.id));
+    // The agent's resume_later (server/mcp-ask.js) while its turn runs.
+    const r = await fetch(`${base}/api/internal/later`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-wisp-token': srv.token }, body: JSON.stringify({ session: session.id, minutes: 30, message: 'merge #744 once green' }) });
+    assert.equal(r.status, 200, await r.text());
+  } finally {
+    delete process.env.FAKE_DELAY;
+  }
+  const done = await ended(session.id);
+  await until(() => !srv.runner.live.has(session.id));
+  assert.equal(done.state, 'done', 'filed under Done: nobody is pinged');
+  assert.equal(done.unread, false);
+  assert.equal(done.archived, undefined, 'not archived: it still has work scheduled');
+  const s = srv.store.get(session.id);
+  assert.deepEqual(s.later?.map((l) => l.text), ['merge #744 once green']);
+  s.later[0].at = Date.now() - 1000;
+  await srv.later.tick();
+  const next = await until(async () => {
+    const x = await api(`/sessions/${session.id}`);
+    return x.turns.length === 2 && x.turns[1].status !== 'running' && x;
+  });
+  assert.equal(next.turns[1].prompt, 'merge #744 once green');
+  assert.equal(next.turns[1].later.by, 'Quin');
+});
+
 test('a check-in worth reading but not urgent is filed in For later: unread, nobody pinged, forLater beats quiet', async () => {
   const bo = await api('/crew', { name: 'Bo', role: 'Digest', brief: 'Send a digest. CREWLATER', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
   const { session } = await api(`/crew/${bo.id}/checkin`, {});

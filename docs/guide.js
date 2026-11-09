@@ -44,7 +44,7 @@
   // ---------- ways to get wisp (the landing page's tabs, docs/main.js) ----------
   // Picking a tab updates the command, its Copy and the note, and every other box on the page
   // follows. Download shows this OS's app; on a Mac, the curl --app install (no "can't verify").
-  const DL = 'https://github.com/M0xoo/wisp/releases/latest/download/';
+  const DL = 'https://github.com/WispAgents/wisp/releases/latest/download/';
   const MAC_APP = 'curl -fsSL https://trywisp.dev/install.sh | bash -s -- --app';
   const BUILDS = { mac: ['macOS', 'wisp-mac-arm64.dmg'], 'mac-x64': ['macOS', 'wisp-mac-x64.dmg'], win: ['Windows', 'wisp-windows-x64-setup.exe'], 'win-arm64': ['Windows', 'wisp-windows-arm64-setup.exe'], linux: ['Linux', 'wisp-linux-x64.deb'], 'linux-arm64': ['Linux', 'wisp-linux-arm64.deb'] };
   const plat = `${navigator.userAgentData?.platform || ''} ${navigator.platform || ''} ${navigator.userAgent}`;

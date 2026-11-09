@@ -4,7 +4,7 @@ Thanks for helping. Bug reports, harness adapters, spells and fixes are all welc
 
 ## Before you start
 
-- **Bugs:** open an [issue](https://github.com/M0xoo/wisp/issues/new/choose) with the version
+- **Bugs:** open an [issue](https://github.com/WispAgents/wisp/issues/new/choose) with the version
   (`wisp --version`), your OS, the harness and what you expected to happen.
 - **Bigger changes:** open an issue first so we can agree on the shape before you write it.
 - **Security issues:** don't open an issue; see [SECURITY.md](SECURITY.md).
@@ -12,7 +12,7 @@ Thanks for helping. Bug reports, harness adapters, spells and fixes are all welc
 ## Working on the code
 
 ```sh
-git clone https://github.com/M0xoo/wisp && cd wisp
+git clone https://github.com/WispAgents/wisp && cd wisp
 npm install
 npm run dev:web     # the server with the page, restarts on server changes
 npm test            # everything

@@ -402,6 +402,8 @@ export class Machines extends EventEmitter {
         try {
           health = await this.#raw(m, c, 'GET', '/health', undefined, { timeout: 30_000 });
         } catch (err) {
+          // An answer that lands after stop() or a new connect changes nothing (wisp may be gone).
+          if (c.hungUp || this.conns.get(m.id) !== c) break;
           // Your other computer isn't connected to the grid: nothing here can wake it.
           if (err.status === 503 && m.computer) return this.#asleep(m, c);
           if (err.status === 401 || err.status === 403) {

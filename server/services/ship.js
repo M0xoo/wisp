@@ -312,7 +312,7 @@ export function createShip(app) {
     const title = conventional ? text : `${type}: ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
     const keep = blocks.filter((b) => !['hero', 'next', 'question', 'diff', 'code', 'image', 'video', 'preview', 'terminal', 'task'].includes(b?.type));
     const body = [hero?.summary, blocksToMarkdown(keep, turn)].filter(Boolean).join('\n\n').trim();
-    return { title: title.slice(0, 100), body: `${body}\n\n_Shipped from [wisp](https://github.com/M0xoo/wisp)._`.trim() };
+    return { title: title.slice(0, 100), body: `${body}\n\n_Shipped from [wisp](https://github.com/WispAgents/wisp)._`.trim() };
   };
 
   runner.on('ended', ({ session, interrupted, errorText }) => {

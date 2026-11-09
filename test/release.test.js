@@ -79,7 +79,7 @@ test('a nightly is the next patch, stamped with the UTC date and time, and sorts
 
 test('nightly notes carry Unreleased, the commit, and the rolling download links', () => {
   const body = nightlyNotes(CHANGELOG, '1.2.1-nightly.20261024.317', 'abcdef1234567890');
-  assert.match(body, /\[abcdef1\]\(https:\/\/github\.com\/M0xoo\/wisp\/commit\/abcdef1234567890\)/);
+  assert.match(body, /\[abcdef1\]\(https:\/\/github\.com\/WispAgents\/wisp\/commit\/abcdef1234567890\)/);
   assert.match(body, /## Since the last release\n\n- next\n/);
   assert.match(body, /## Get wisp 1\.2\.1-nightly\.20261024\.317/);
   assert.match(body, /releases\/download\/nightly\/wisp-mac-arm64\.dmg/);
