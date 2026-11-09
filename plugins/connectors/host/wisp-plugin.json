@@ -8,7 +8,9 @@
   "server": {
     "builtin": "wisp-connectors"
   },
-  "permissions": [],
+  "permissions": [
+    "runtime:get"
+  ],
   "activation": [
     "onStartup"
   ],

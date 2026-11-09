@@ -3269,6 +3269,7 @@ dependencies = [
  "wisp-learn",
  "wisp-lsp",
  "wisp-machine",
+ "wisp-machines",
  "wisp-mcp",
  "wisp-ntfy",
  "wisp-opencode",
@@ -3403,6 +3404,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "subtle",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
@@ -3482,6 +3484,7 @@ name = "wisp-channels"
 version = "2.0.0"
 dependencies = [
  "async-trait",
+ "base64 0.22.1",
  "schemars",
  "serde",
  "serde_json",
@@ -3491,7 +3494,9 @@ dependencies = [
  "wisp-channels-api",
  "wisp-channels-core",
  "wisp-kernel",
+ "wisp-proc",
  "wisp-resources-api",
+ "wisp-runtime-api",
 ]
 
 [[package]]
@@ -3856,6 +3861,7 @@ dependencies = [
  "wisp-goal-core",
  "wisp-kernel",
  "wisp-resources-api",
+ "wisp-runtime-api",
 ]
 
 [[package]]
@@ -4157,6 +4163,26 @@ dependencies = [
  "serde",
  "serde_json",
  "wisp-machine-api",
+]
+
+[[package]]
+name = "wisp-machines"
+version = "2.0.0"
+dependencies = [
+ "futures",
+ "rand 0.9.5",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "wisp-kernel",
+ "wisp-machines-api",
+ "wisp-machines-core",
+ "wisp-proc",
+ "wisp-protocol",
+ "wisp-store",
 ]
 
 [[package]]

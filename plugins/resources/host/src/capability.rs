@@ -1,7 +1,8 @@
 //! The `capability` kind (ADR-0028: "capability: kernel"): user-defined capability sets. The kernel knows
 //! no kind, so wisp.resources holds it: kept as declared (`StoredKind`) and loaded into the kernel as
-//! `custom:<name>` when it's applied and at start, so a caller with that set (an API key, a channel) may
-//! do what it allows and nothing else. It changes who may act, so it is sensitive.
+//! `custom:<name>` when it's applied and at start, so a caller with that set may do what it allows and
+//! nothing else. Its `key` (`${secret:NAME}`) is an API key: a request with `x-wisp-key: <it>` speaks
+//! with the set. It changes who may act, so it is sensitive.
 
 use std::sync::Arc;
 
@@ -33,9 +34,15 @@ pub fn set_id(name: &str) -> String {
     format!("custom:{name}")
 }
 
-fn load(ctx: &Ctx, name: &str, spec: &serde_json::Value) -> Result<()> {
+/// The set into the kernel, and its API key (`${secret:NAME}` read; memory only) with it.
+async fn load(ctx: &Ctx, name: &str, spec: &serde_json::Value) -> Result<()> {
     let c: CapabilitySpec = serde_json::from_value(spec.clone()).unwrap_or_default();
-    ctx.define_capability(&CapabilitySet { id: set_id(name), allow: c.allow, deny: c.deny, ..CapabilitySet::default() })
+    ctx.define_capability(&CapabilitySet { id: set_id(name), allow: c.allow, deny: c.deny, ..CapabilitySet::default() })?;
+    let key = match c.key.strip_prefix("${secret:").and_then(|r| r.strip_suffix('}')) {
+        Some(n) => wisp_kernel::services::secrets(ctx)?.get(n).await?.unwrap_or_default(),
+        None => c.key,
+    };
+    ctx.define_capability_key(&set_id(name), &key)
 }
 
 struct CapabilityKind(Arc<StoredKind>);
@@ -54,7 +61,7 @@ impl ResourceKind for CapabilityKind {
     fn apply<'a>(&'a self, call: &'a Call, op: &'a Op) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             self.0.apply(call, op).await?;
-            if op.op == OpKind::Delete { self.0.ctx.remove_capability(&set_id(&op.name)) } else { load(&self.0.ctx, &op.name, &op.spec) }
+            if op.op == OpKind::Delete { self.0.ctx.remove_capability(&set_id(&op.name)) } else { load(&self.0.ctx, &op.name, &op.spec).await }
         })
     }
 }
@@ -65,7 +72,7 @@ pub fn register(s: &mut Setup) {
     s.contribute(&RESOURCE_KIND, k);
     s.on_start(move |ctx| async move {
         for (name, spec) in inner.specs().await.unwrap_or_default() {
-            if let Err(e) = load(&ctx, &name, &spec) {
+            if let Err(e) = load(&ctx, &name, &spec).await {
                 tracing::warn!(set = %name, "capability set not loaded: {}", e.message);
             }
         }
