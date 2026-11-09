@@ -54,6 +54,11 @@ pub struct Opts {
     pub with_deps: bool,
     pub upgrade: bool,
     pub check: bool,
+    pub refresh_only: bool,
+    /// `wisp open`: `--in <harness>`, `--print`, `--no-adopt`
+    pub open_in: Option<String>,
+    pub print: bool,
+    pub no_adopt: bool,
 }
 
 /// Reads `argv` (after the command word) for the options above.
@@ -107,6 +112,10 @@ pub fn opts(argv: &[String]) -> Opts {
             "--with-deps" => o.with_deps = true,
             "-upgrade" | "--upgrade" => o.upgrade = true,
             "--check" => o.check = true,
+            "--refresh-only" | "-refresh-only" => o.refresh_only = true,
+            "--in" => o.open_in = Some(val(&mut it)),
+            "--print" => o.print = true,
+            "--no-adopt" => o.no_adopt = true,
             "--prune" => o.prune = true,
             "--trust" => o.trust = true,
             "--dry-run" => o.dry_run = true,
@@ -200,6 +209,7 @@ pub fn show_plan(p: &Plan, st: &wisp_cli_api::Style) {
         let painted = match mark {
             '+' => format!("  {} {}", paint(st, GREEN, "+"), line),
             '-' => format!("  {} {}", paint(st, RED, "-"), line),
+            '~' if p.drift.contains(&line) => format!("  {} {}  {}", paint(st, YELLOW, "~"), line, paint(st, DIM, "(drift: changed in wisp since the last apply)")),
             '~' => format!("  {} {}", paint(st, YELLOW, "~"), line),
             _ => paint(st, DIM, &format!("  {line}")),
         };
@@ -268,8 +278,11 @@ pub async fn apply(c: &Client, verb: &str, o: &Opts, cwd: &Path) -> Result<i32> 
     }
     say(&format!("{} {}", paint(&st, BOLD, "Plan"), paint(&st, DIM, &format!("({}{})", loaded.sources.join(", "), if foreign { ", from elsewhere" } else { "" }))));
     show_plan(&plan, &st);
-    if plan.ops.iter().any(|x| x.op == wisp_resources_api::OpKind::Update) && verb != "destroy" {
-        say(&format!("  {}", paint(&st, DIM, "~ is drift: what wisp has differs from the files (changed in the app, or here); apply makes it the files'")));
+    if o.refresh_only {
+        let done = c.cmd("resources.refresh", json!({ "resources": plan.drift })).await?;
+        let n = done.as_array().map_or(0, Vec::len);
+        say(&format!("  {} {n} drifted resource{} taken as wisp has {} (wisp export writes them into the files)", paint(&st, GREEN, "✓"), if n == 1 { "" } else { "s" }, if n == 1 { "it" } else { "them" }));
+        return Ok(0);
     }
     if matches!(verb, "diff" | "plan") || o.dry_run || plan.ops.is_empty() {
         if plan.ops.is_empty() && !matches!(verb, "diff" | "plan") {

@@ -93,7 +93,7 @@ mod tests {
 
     #[test]
     fn each_shell_names_every_plugin_verb_and_flag() {
-        let c = Catalogue::new(vec![CommandInfo { id: "crew.create".into(), plugin: "wisp.crew".into(), title: None, read_only: false, permission: "crew:write".into(), args: Some("{ name?: string, }".into()) }]);
+        let c = Catalogue::new(vec![CommandInfo { id: "crew.create".into(), plugin: "wisp.crew".into(), title: None, read_only: false, permission: "crew:write".into(), args: Some("{ name?: string, }".into()), ui_only: None }]);
         for sh in ["zsh", "bash", "fish"] {
             let s = script(sh, &c, &["ls", "show"]).unwrap();
             assert!(s.contains("crew") && s.contains("create") && s.contains("name") && s.contains("ls"), "{sh}: {s}");

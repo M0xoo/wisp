@@ -24,13 +24,53 @@ fn s<'a>(v: &'a Value, k: &str) -> &'a str {
     v.get(k).and_then(Value::as_str).unwrap_or("")
 }
 
-/// `wisp task spec|export|formula <id>`.
+/// `wisp task setup`: what the task had → what it used.
+fn setup_text(v: &Value) -> String {
+    let mut out = Vec::new();
+    let a = &v["available"];
+    if a.is_null() {
+        out.push(format!("Setup: {}", v["note"].as_str().unwrap_or("not recorded")));
+    } else {
+        out.push(format!("Harness: {} {} ({} mode{})", s(a, "harness"), s(a, "model"), a["mode"].as_str().unwrap_or_default(), if a.pointer("/permissions/untrusted") == Some(&json!(true)) { ", untrusted repo" } else { "" }));
+        out.push("Skills:".into());
+        for k in a["skills"].as_array().into_iter().flatten() {
+            let n = v.pointer(&format!("/used/skills/{}", s(k, "name"))).and_then(Value::as_u64).unwrap_or(0);
+            out.push(format!("  {}  {}  {}{}", s(k, "name"), if k["outside"] == true { "outside wisp" } else { "from wisp" }, s(k, "hash"), if n > 0 { format!("  → used {n}×") } else { String::new() }));
+        }
+        out.push("MCP servers:".into());
+        for m in a["mcpServers"].as_array().into_iter().flatten() {
+            let probe = match s(m, "probe") {
+                "ok" => format!("v{} · {} tools", s(m, "version"), m["tools"].as_array().map_or(0, Vec::len)),
+                "failed" => format!("not probed: {}", s(m, "why")),
+                other => other.to_owned(),
+            };
+            out.push(format!("  {}  {}  ({probe})", s(m, "name"), s(m, "at")));
+        }
+    }
+    out.push("Used:".into());
+    for (k, n) in v.pointer("/used/mcpTools").and_then(Value::as_object).into_iter().flatten() {
+        out.push(format!("  {k}  {n}×"));
+    }
+    for (k, n) in v.pointer("/used/builtin").and_then(Value::as_object).into_iter().flatten() {
+        out.push(format!("  {k} (built-in)  {n}×"));
+    }
+    for b in v.pointer("/used/blocked").and_then(Value::as_array).into_iter().flatten() {
+        out.push(format!("  blocked: {} {}", s(b, "tool"), s(b, "detail")));
+    }
+    out.join("\n")
+}
+
+/// `wisp task spec|export|formula|setup <id>`.
 pub async fn task(c: &Client, o: &Opts) -> Result<i32> {
     let (verb, id) = match o.words.as_slice() {
         [v, id, ..] => (v.as_str(), id.as_str()),
         _ => return Err(CliError::said("wisp task spec|export|formula <id>")),
     };
     match verb {
+        "setup" => {
+            let v = c.cmd("runtime.setup", json!({ "id": id })).await?;
+            say(&if o.json { serde_json::to_string_pretty(&v).unwrap_or_default() } else { setup_text(&v) });
+        }
         "spec" => {
             let spec = c.cmd("runtime.spec", json!({ "id": id })).await?;
             say(&if o.json { serde_json::to_string_pretty(&spec).unwrap_or_default() } else { yaml(&spec) });

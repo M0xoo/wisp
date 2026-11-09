@@ -96,6 +96,20 @@ pub fn vars(o: &Opts, dir: &Path) -> Result<Map<String, Value>> {
     Ok(out)
 }
 
+/// Each declared variable with no value and no default, asked for (`ask` gets the question, answers a line);
+/// an answer that isn't its type is refused.
+pub fn ask_missing(declared: &[module::Variable], have: &mut Map<String, Value>, ask: &mut dyn FnMut(&str) -> Option<String>) -> Result<()> {
+    let missing: Vec<&module::Variable> = declared.iter().filter(|v| v.default.is_none() && !have.contains_key(&v.name)).collect();
+    for v in missing {
+        let about = if v.description.is_empty() { String::new() } else { format!(" ({})", v.description) };
+        let ty = if v.ty.is_empty() { "any" } else { v.ty.as_str() };
+        let Some(answer) = ask(&format!("  var.{} [{ty}]{about}: ", v.name)).filter(|a| !a.is_empty()) else { continue };
+        let typed = module::typed(v, json!(answer)).map_err(CliError::said)?;
+        have.insert(v.name.clone(), typed);
+    }
+    Ok(())
+}
+
 /// A module source that git fetches (`git::…`, a URL, `github.com/…`), not a path.
 fn remote(source: &str) -> bool {
     source.starts_with("git::") || source.contains("://") || source.starts_with("github.com/") || source.starts_with("gitlab.com/")
@@ -148,7 +162,15 @@ pub fn config(o: &Opts, ks: &[KindInfo], dir: &Path) -> Result<Config> {
     if files.is_empty() {
         return Err(CliError::said(format!("no *.wisp.yml in {}", dir.display())));
     }
-    let input = Input { files, vars: vars(o, dir)?, workspace: workspace(dir), ..Input::default() };
+    let mut have = vars(o, dir)?;
+    if std::io::IsTerminal::is_terminal(&std::io::stdin()) && std::io::IsTerminal::is_terminal(&std::io::stderr()) {
+        ask_missing(&module::declared(&files), &mut have, &mut |q| {
+            eprint!("{q}");
+            let mut line = String::new();
+            std::io::stdin().read_line(&mut line).ok().map(|_| line.trim().to_owned())
+        })?;
+    }
+    let input = Input { files, vars: have, workspace: workspace(dir), ..Input::default() };
     let mut c = module::configure(&input, ks, &mut DirEnv { dir: dir.to_owned() }).map_err(CliError::said)?;
     let mut missing = BTreeSet::new();
     let src = crate::code::Files { cwd: dir.to_owned() };
@@ -339,6 +361,11 @@ pub fn rename_text(text: &str, from: &str, to: &str, line: Option<usize>) -> Str
         out.push_str(&s);
     }
     out
+}
+
+/// The stored name and kind of an address (`agent.reviewer` → `reviewer`, inside a module `rev-reviewer`).
+pub fn stored_name(c: &Config, address: &str) -> Option<(String, String)> {
+    c.addresses.iter().find(|(a, ..)| a == address).map(|(_, k, n, _)| (n.clone(), k.clone()))
 }
 
 /// `wisp mv <from> <to>`: the declaration and every reference renamed in the folder's files.
@@ -561,6 +588,27 @@ mod tests {
         let all = vec![r("crew", "ada", json!({ "agent": "reviewer" })), r("agent", "reviewer", json!({ "skills": ["tidy"], "harness": "codex" })), r("skill", "tidy", json!({})), r("agent", "other", json!({}))];
         let got: Vec<String> = with_deps(&all, &["crew.ada".into()]).iter().map(|r| format!("{}.{}", r.kind, r.name)).collect();
         assert_eq!(got, ["crew.ada", "agent.reviewer", "skill.tidy"]);
+    }
+
+    #[test]
+    fn a_missing_variable_is_asked_in_a_tty() {
+        let files = vec![("a.wisp.yml".to_owned(), "variables:\n  model: { type: string, description: the reviewer's model }\n  n: { type: number, default: 2 }\n".to_owned())];
+        let mut have = Map::new();
+        let mut asked = Vec::new();
+        ask_missing(&module::declared(&files), &mut have, &mut |q| {
+            asked.push(q.to_owned());
+            Some("opus".into())
+        })
+        .unwrap();
+        assert_eq!(asked, ["  var.model [string] (the reviewer's model): "], "only the one with no value or default");
+        assert_eq!(have["model"], json!("opus"));
+    }
+
+    #[test]
+    fn a_typed_answer_is_checked() {
+        let files = vec![("a.wisp.yml".to_owned(), "variables: { n: { type: number } }".to_owned())];
+        let e = ask_missing(&module::declared(&files), &mut Map::new(), &mut |_| Some("lots".into())).unwrap_err();
+        assert!(e.to_string().contains("a number"), "{e}");
     }
 
     #[test]

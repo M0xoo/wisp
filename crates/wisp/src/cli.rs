@@ -156,7 +156,7 @@ mod tests {
             let Ok(text) = std::fs::read_to_string(e.path().join("host/wisp-plugin.json")) else { continue };
             let m: Value = serde_json::from_str(&text).unwrap();
             for c in m["contributes"]["commands"].as_array().into_iter().flatten() {
-                out.push(wisp_kernel::CommandInfo { id: c["id"].as_str().unwrap().to_owned(), plugin: m["id"].as_str().unwrap().to_owned(), title: c["title"].as_str().map(str::to_owned), read_only: false, permission: String::new(), args: None });
+                out.push(wisp_kernel::CommandInfo { id: c["id"].as_str().unwrap().to_owned(), plugin: m["id"].as_str().unwrap().to_owned(), title: c["title"].as_str().map(str::to_owned), read_only: false, permission: String::new(), args: None, ui_only: c["uiOnly"].as_str().map(str::to_owned) });
             }
         }
         out

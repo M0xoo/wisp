@@ -103,7 +103,7 @@ async fn dispatch(p: &Parsed, user_home: &Path, cwd: &Path) -> Result<i32> {
     }
     match p.command {
         Some("grid") => return extras::grid(&p.argv),
-        Some("mcp") => return repo_cli::mcp(&p.argv, cwd),
+        Some("mcp") => return repo_cli::mcp(&p.argv, cwd, port).await,
         Some("skill") => {
             extras::skill(p.words.get(1).map(String::as_str), f, user_home, cwd)?;
             if p.words.get(1).map(String::as_str) == Some("install") {
@@ -148,8 +148,8 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Optio
         "apply" | "diff" | "validate" | "plan" | "destroy" if !o.files.is_empty() || folder::folder(&o, cwd).is_some() => code::apply(&connect().await?, first, &o, cwd).await?,
         "init" if o.words.len() <= 1 => folder::init(cwd, &o)?,
         "track" if o.words.len() == 1 => repo_cli::track(&connect().await?, &o, cwd).await?,
-        "untrack" if o.words.len() == 1 => repo_cli::untrack(&o, cwd)?,
-        "blame" if o.words.len() == 1 => repo_cli::blame_cmd(&o, cwd)?,
+        "untrack" if o.words.len() == 1 => repo_cli::untrack_cmd(Client::connect(port, false).await.ok().as_ref(), &o, cwd).await?,
+        "blame" if o.words.len() == 1 => repo_cli::blame_any(Client::connect(port, false).await.ok().as_ref(), &o, cwd).await?,
         "log" if o.words.len() <= 1 => repo_cli::log(&p.argv, &o, cwd)?,
         "tasks" if p.argv.iter().any(|a| a == "--touching" || a == "--tracked") => repo_cli::log(&p.argv, &code::Opts { words: Vec::new(), ..o.clone() }, cwd)?,
         "ls" | "list" if p.argv.iter().any(|a| a == "--repo") => repo_cli::log(&p.argv, &code::Opts { words: Vec::new(), ..o.clone() }, cwd)?,
@@ -167,8 +167,17 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Optio
                 "graph" => folder::graph(&cfg),
                 _ => match o.words.as_slice() {
                     [from, to] => {
+                        let (stored, kind) = folder::stored_name(&cfg, from).ok_or_else(|| CliError::said(format!("{from} isn't declared here")))?;
+                        if folder::stored_name(&cfg, to).is_some() {
+                            return Err(CliError::said(format!("{to} is declared already")));
+                        }
+                        let new_name = format!("{}{}", stored.strip_suffix(from.split_once('.').map_or("", |(_, n)| n)).unwrap_or_default(), to.split_once('.').map_or("", |(_, n)| n));
+                        let has = c.cmd("resources.export", serde_json::json!({ "kinds": [kind] })).await.is_ok_and(|l| l.as_array().is_some_and(|a| a.iter().any(|r| r["name"] == stored.as_str())));
+                        if has {
+                            c.cmd("resources.rename", serde_json::json!({ "kind": kind, "from": stored, "to": new_name })).await?;
+                        }
                         let n = folder::mv(&dir, &cfg, from, to)?;
-                        scripted::say(&format!("  ✓ {from} → {to} in {n} file{} (the next wisp apply renames it in wisp)", if n == 1 { "" } else { "s" }));
+                        scripted::say(&format!("  ✓ {from} → {to} in {n} file{}{}", if n == 1 { "" } else { "s" }, if has { " and in wisp" } else { "" }));
                         0
                     }
                     _ => return Err(CliError::said("wisp mv <kind>.<name> <kind>.<new name>")),
@@ -189,13 +198,14 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Optio
             }
             code::export_cmd(&c, &o).await?
         }
-        "task" if matches!(o.words.first().map(String::as_str), Some("spec" | "export" | "formula")) && o.words.len() >= 2 => tasks_cli::task(&connect().await?, &o).await?,
+        "task" if matches!(o.words.first().map(String::as_str), Some("spec" | "export" | "formula" | "setup")) && o.words.len() >= 2 => tasks_cli::task(&connect().await?, &o).await?,
         "task" if o.words.first().map(String::as_str) == Some("history") && o.words.len() == 2 => history_cli::task_history(&connect().await?, &o.words[1], o.json).await?,
         "ls" | "list" if history_cli::wants_history(&o) && !p.flags.watch => history_cli::ls(&connect().await?, &o, cwd).await?,
         "history" if o.words.first().map(String::as_str) == Some("export") => history_cli::export(&connect().await?, &o, cwd).await?,
         "import" if o.words.len() <= 1 => history_cli::import(&connect().await?, &o, home).await?,
         "share" if o.words.len() == 1 && args::session_id(&o.words[0]) => share_cli::share(&connect().await?, &o, cwd).await?,
         "open" if o.words.len() == 1 && (o.words[0].ends_with(".wisp-task") || o.words[0].starts_with("http") || o.words[0].starts_with("gist:")) => share_cli::open(&connect().await?, &o, cwd).await?,
+        "open" if o.words.len() == 1 => repo_cli::open_task(&connect().await?, &p.argv, &o, cwd).await?,
         "rerun" if (o.words.len() == 1 && args::session_id(&o.words[0])) || o.last.is_some() => {
             let o = code::Opts { words: std::iter::once("rerun".to_owned()).chain(o.words.clone()).collect(), ..o };
             tasks_cli::rerun(&connect().await?, &o, cwd).await?

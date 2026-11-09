@@ -96,6 +96,30 @@ impl HarnessSessions for CodexSessions {
             out
         })
     }
+    fn raw(&self, id: &str) -> BoxFuture<'static, Option<Vec<u8>>> {
+        let id = id.to_owned();
+        Box::pin(async move {
+            for p in rollouts(5000).await.into_iter().filter(|p| p.to_string_lossy().contains(&id)) {
+                if let Ok(b) = tokio::fs::read(&p).await {
+                    return Some(b);
+                }
+            }
+            None
+        })
+    }
+    fn restore(&self, id: &str, _cwd: &str, raw: Vec<u8>) -> BoxFuture<'static, bool> {
+        let id = id.to_owned();
+        Box::pin(async move {
+            if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+                return false;
+            }
+            if rollouts(5000).await.iter().any(|p| p.to_string_lossy().contains(&id)) {
+                return true;
+            }
+            let dir = store().join("restored");
+            tokio::fs::create_dir_all(&dir).await.is_ok() && tokio::fs::write(dir.join(format!("rollout-restored-{id}.jsonl")), raw).await.is_ok()
+        })
+    }
     fn read(&self, id: &str) -> BoxFuture<'static, Option<(OutsideSession, Vec<SessionTurn>)>> {
         let id = id.to_owned();
         Box::pin(async move {

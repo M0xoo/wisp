@@ -7,8 +7,7 @@ use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
-use wisp_share_api::Bundle;
-use wisp_share_core::repo;
+use wisp_history_core::repo;
 
 use crate::client::{CliError, Client, Result};
 use crate::code::Opts;
@@ -81,47 +80,29 @@ fn commits_of(root: &Path, id: &str) -> Vec<String> {
     git(root, &["log", "--all", "--format=%H", &format!("--grep=Wisp-Task: {}", repo::short(id))]).unwrap_or_default().lines().map(str::to_owned).filter(|l| !l.is_empty()).collect()
 }
 
-/// `wisp track <id> [--level full|report|spec] [--repo <path>]`: the task written into `.wisp/` (with its
-/// transcript at `full`, the default), for you to commit.
+/// `wisp track <id> [--level full|report|spec] [--repo <path>]`: `history.track` writes the task into the
+/// repo's history (its store: files, notes or LFS), for you to commit.
 #[allow(clippy::many_single_char_names)]
 pub async fn track(c: &Client, o: &Opts, cwd: &Path) -> Result<i32> {
     let id = o.words.first().ok_or_else(|| CliError::said("wisp track <task id>"))?;
-    let level = o.level.clone().unwrap_or_else(|| "full".into());
-    let root = root(&o.project.as_ref().map_or_else(|| cwd.to_owned(), PathBuf::from));
-    let p = c.cmd("share.preview", json!({ "id": id, "level": level })).await?;
-    let mut b: Bundle = serde_json::from_value(p["bundle"].clone()).map_err(|e| CliError::said(e.to_string()))?;
-    let task = c.cmd("runtime.get", json!({ "id": id })).await.unwrap_or_default();
-    // in a repo a task is known by its own id (the trailer's), not the share's
-    if let Some(tid) = task.get("id").and_then(Value::as_str) {
-        tid.clone_into(&mut b.id);
+    let mut a = json!({ "id": id });
+    if let Some(l) = &o.level {
+        a["level"] = json!(l);
     }
-    let pr = task.pointer("/ext/wisp.ship/pr/url").and_then(Value::as_str).map(str::to_owned);
-    let me = git(&root, &["config", "user.name"]).unwrap_or_default();
-    let written = write_task(&root, &b, &commits_of(&root, &b.id), pr.as_deref(), me.trim())?;
+    if let Some(r) = &o.project {
+        a["repo"] = json!(root(Path::new(r)).display().to_string());
+    } else if root(cwd).join(".wisp").is_dir() {
+        a["repo"] = json!(root(cwd).display().to_string());
+    }
+    let t = c.cmd("history.track", a).await?;
     let st = crate::cli::style();
-    for f in &written {
-        say(&format!("  {} .wisp/{f}", wisp_cli_core::term::paint(&st, wisp_cli_core::term::GREEN, "+")));
+    for f in t["files"].as_array().into_iter().flatten().filter_map(Value::as_str) {
+        say(&format!("  {} {f}", wisp_cli_core::term::paint(&st, wisp_cli_core::term::GREEN, "+")));
     }
-    let n = p["redactions"].as_array().map_or(0, Vec::len);
-    say(&format!("  tracked {} ({level}{}): commit .wisp/ with your changes", repo::short(&b.id), if n > 0 { format!(", {n} things scrubbed") } else { String::new() }));
+    let n = t["scrubbed"].as_u64().unwrap_or(0);
+    let pr = t["pr"].as_str().map_or_else(String::new, |p| format!(", {p}"));
+    say(&format!("  tracked {} ({}{}{pr}): commit .wisp/ with your changes", repo::short(id), s(&t, "store"), if n > 0 { format!(", {n} things scrubbed") } else { String::new() }));
     Ok(0)
-}
-
-/// The task's files written under `<root>/.wisp`. → their paths, relative to `.wisp/`.
-pub fn write_task(root: &Path, b: &Bundle, commits: &[String], pr: Option<&str>, by: &str) -> Result<Vec<String>> {
-    let dot = root.join(".wisp");
-    // a lower level than before: what isn't kept goes
-    let _ = remove_task(root, &b.id, None);
-    let mut out = Vec::new();
-    for (rel, bytes) in repo::files_for(b, commits, pr, by) {
-        let p = dot.join(&rel);
-        if let Some(d) = p.parent() {
-            std::fs::create_dir_all(d).map_err(|e| CliError::said(e.to_string()))?;
-        }
-        std::fs::write(&p, bytes).map_err(|e| CliError::said(format!("{}: {e}", p.display())))?;
-        out.push(rel);
-    }
-    Ok(out)
 }
 
 /// Removes a task's files, or (with `keep`) what's above that level. → what went.
@@ -146,7 +127,24 @@ fn remove_task(root: &Path, id: &str, keep: Option<&str>) -> Vec<String> {
     gone
 }
 
-/// `wisp untrack <id> [--keep report|spec]`.
+/// `wisp untrack <id> [--keep report|spec]`: through `history.untrack` when a wisp answers (its store),
+/// else the files here.
+pub async fn untrack_cmd(c: Option<&Client>, o: &Opts, cwd: &Path) -> Result<i32> {
+    let id = o.words.first().ok_or_else(|| CliError::said("wisp untrack <task id> [--keep report|spec]"))?;
+    let Some(c) = c else { return untrack(o, cwd) };
+    let mut a = json!({ "id": id, "repo": root(cwd).display().to_string() });
+    if let Some(k) = o.level.as_deref().filter(|l| matches!(*l, "report" | "spec")) {
+        a["keep"] = json!(k);
+    }
+    let g = c.cmd("history.untrack", a).await?;
+    for f in g["files"].as_array().into_iter().flatten().filter_map(Value::as_str) {
+        say(&format!("  - {f}"));
+    }
+    say("  (git history keeps what was committed before)");
+    Ok(0)
+}
+
+/// `wisp untrack` with no wisp running: the files here.
 pub fn untrack(o: &Opts, cwd: &Path) -> Result<i32> {
     let id = o.words.first().ok_or_else(|| CliError::said("wisp untrack <task id> [--keep report|spec]"))?;
     let keep = o.level.as_deref().filter(|l| matches!(*l, "report" | "spec"));
@@ -441,6 +439,22 @@ async fn track_in(c: &Client, o: &Opts, root: &Path) -> Result<i32> {
     track(c, &o, root).await
 }
 
+/// `wisp blame`: `history.blame` when a wisp answers (with how much is still there), else offline here.
+pub async fn blame_any(c: Option<&Client>, o: &Opts, cwd: &Path) -> Result<i32> {
+    let Some(c) = c else { return blame_cmd(o, cwd) };
+    let target = o.words.first().ok_or_else(|| CliError::said("wisp blame <file>:<line> | <file> | <commit> | #<pr> | <task id>"))?;
+    let b = c.cmd("history.blame", json!({ "target": target, "repo": root(cwd).display().to_string() })).await?;
+    if o.json {
+        say(&serde_json::to_string_pretty(&b).unwrap_or_default());
+    } else {
+        show_blame(&b);
+        if let Some(x) = b.pointer("/tasks/0/what/stillThere").and_then(Value::as_f64) {
+            say(&format!("  {:.0}% of what it wrote is still there", x * 100.0));
+        }
+    }
+    Ok(0)
+}
+
 /// `wisp skill install --agent claude|codex`: wisp's MCP server (`wisp mcp`) for that harness, and for
 /// Claude Code its `SessionEnd` hook (`wisp adopt --hook`) and wisp's skill.
 pub fn skill_install(argv: &[String], cwd: &Path) -> Result<i32> {
@@ -519,7 +533,7 @@ fn mcp_tool(root: &Path, name: &str, args: &Value) -> Value {
                 None => json!({ "content": [{ "type": "text", "text": "no tracked task with that id" }], "isError": true }),
             }
         }
-        "wisp_resume" => tool_text(&format!("Resuming starts work, so it's the user's call. Ask them to run: wisp resume {}", args.get("id").and_then(Value::as_str).unwrap_or_default())),
+        "wisp_resume" => tool_text(&format!("No wisp is running here, so nothing was asked. Ask the user to run: wisp resume {}", args.get("id").and_then(Value::as_str).unwrap_or_default())),
         _ => json!({ "content": [{ "type": "text", "text": format!("{name} isn't a tool here") }], "isError": true }),
     }
 }
@@ -547,19 +561,171 @@ pub fn mcp_reply(root: &Path, msg: &Value) -> Option<Value> {
     Some(json!({ "jsonrpc": "2.0", "id": id, "result": result }))
 }
 
-/// `wisp mcp [--repo <path>]`: the history tools over stdio, from the files and git (no wisp needed).
+/// `wisp_resume` with a wisp running: a request the user approves (nothing starts until then).
+async fn resume_request(c: &Client, root: &Path, args: &Value) -> Value {
+    let id = args.get("id").and_then(Value::as_str).unwrap_or_default();
+    let why = args.get("why").and_then(Value::as_str).unwrap_or_default();
+    match c.cmd("history.resumeRequest", json!({ "id": id, "by": "an agent (wisp mcp)", "why": why, "repo": root.display().to_string() })).await {
+        Ok(r) => tool_text(&format!("Asked: request {} waits for the user's yes (wisp: Resume requests). Nothing starts before that.", s(&r, "id"))),
+        Err(e) => json!({ "content": [{ "type": "text", "text": e.to_string() }], "isError": true }),
+    }
+}
+
+/// `wisp mcp [--repo <path>]`: the history tools over stdio, from the files and git (no wisp needed;
+/// `wisp_resume` asks the running wisp, when there is one).
 #[allow(clippy::unnecessary_wraps)] // every command answers a Result
-pub fn mcp(argv: &[String], cwd: &Path) -> Result<i32> {
+pub async fn mcp(argv: &[String], cwd: &Path, port: u16) -> Result<i32> {
     let at = argv.iter().position(|a| a == "--repo").and_then(|i| argv.get(i + 1)).map_or_else(|| cwd.to_owned(), PathBuf::from);
     let root = root(&at);
     let stdin = std::io::stdin();
     let mut out = std::io::stdout().lock();
+    let client = Client::connect(port, false).await.ok();
     for line in stdin.lock().lines().map_while(std::result::Result::ok) {
         let Ok(msg) = serde_json::from_str::<Value>(&line) else { continue };
-        if let Some(r) = mcp_reply(&root, &msg) {
+        let reply = match (&client, msg.pointer("/params/name").and_then(Value::as_str)) {
+            (Some(c), Some("wisp_resume")) if msg.get("method").and_then(Value::as_str) == Some("tools/call") => {
+                Some(json!({ "jsonrpc": "2.0", "id": msg.get("id").cloned().unwrap_or(Value::Null), "result": resume_request(c, &root, msg.pointer("/params/arguments").unwrap_or(&json!({}))).await }))
+            }
+            _ => mcp_reply(&root, &msg),
+        };
+        if let Some(r) = reply {
             let _ = writeln!(out, "{r}");
             let _ = out.flush();
         }
     }
     Ok(0)
+}
+
+/// How `wisp open` runs a task's harness: the program, its args, where, and the session it'll be.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenPlan {
+    pub harness: String,
+    pub program: String,
+    pub args: Vec<String>,
+    pub cwd: String,
+    /// resume | restore | continue
+    pub how: String,
+    /// the session it resumes (what's adopted back after); None for a continuation (found after)
+    pub session: Option<String>,
+    pub note: String,
+}
+
+/// The harness's interactive CLI (`WISP_CLAUDE_BIN`… as wisp's own runs, else its name on PATH).
+pub fn harness_program(h: &str) -> String {
+    let (var, name) = match h {
+        "claude" => ("WISP_CLAUDE_BIN", "claude"),
+        "codex" => ("WISP_CODEX_BIN", "codex"),
+        "cursor" => ("WISP_CURSOR_BIN", "cursor-agent"),
+        "opencode" => ("WISP_OPENCODE_BIN", "opencode"),
+        "copilot" => ("WISP_COPILOT_BIN", "copilot"),
+        "grok" => ("WISP_GROK_BIN", "grok"),
+        "antigravity" => ("WISP_ANTIGRAVITY_BIN", "agy"),
+        other => ("", other),
+    };
+    std::env::var(var).ok().filter(|b| !b.is_empty()).unwrap_or_else(|| name.to_owned())
+}
+
+/// A harness's "resume this session" args, when it has one.
+pub fn resume_args(h: &str, session: &str) -> Option<Vec<String>> {
+    match h {
+        "claude" => Some(vec!["--resume".into(), session.into()]),
+        "codex" => Some(vec!["resume".into(), session.into()]),
+        _ => None,
+    }
+}
+
+/// What `wisp open` does, from what's known: the task's harness and session, the harness asked for, and
+/// whether a native log could be restored.
+pub fn open_plan(task_harness: &str, session: Option<&str>, asked: Option<&str>, cwd: &str, prime: &str) -> OpenPlan {
+    let harness = asked.unwrap_or(task_harness).to_owned();
+    let program = harness_program(&harness);
+    if harness == task_harness
+        && let Some(s) = session
+        && let Some(args) = resume_args(&harness, s)
+    {
+        return OpenPlan { harness, program, args, cwd: cwd.to_owned(), how: "resume".into(), session: Some(s.to_owned()), note: String::new() };
+    }
+    let note = format!("a new {harness} session that continues the task (not the same session)");
+    OpenPlan { harness, program, args: vec![format!("You are continuing a task someone (or another agent) started.\n\n{prime}")], cwd: cwd.to_owned(), how: "continue".into(), session: None, note }
+}
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(0))
+}
+
+/// The folder a task opens in: its own, else (gone) a fresh worktree at its base commit.
+fn open_cwd(cwd: &str, spec: &Value) -> Result<String> {
+    if Path::new(cwd).is_dir() {
+        return Ok(cwd.to_owned());
+    }
+    let sha = spec.pointer("/base/sha").and_then(Value::as_str).filter(|s| !s.is_empty()).ok_or_else(|| CliError::said(format!("{cwd} is gone and the task has no base commit to open at")))?;
+    let from = spec.get("cwd").and_then(Value::as_str).map(Path::new).filter(|p| p.is_dir()).ok_or_else(|| CliError::said(format!("{cwd} is gone, and so is its repo")))?;
+    let dir = std::env::temp_dir().join(format!("wisp-open-{}", &sha[..sha.len().min(12)]));
+    if !dir.is_dir() {
+        git(&root(from), &["worktree", "add", "--detach", &dir.display().to_string(), sha]).ok_or_else(|| CliError::said(format!("couldn't check out {sha} to open it")))?;
+    }
+    Ok(dir.display().to_string())
+}
+
+/// `wisp open <task> [--in <harness>] [--print] [--no-adopt]` (v1's Take over).
+#[allow(clippy::many_single_char_names, clippy::too_many_lines)]
+pub async fn open_task(c: &Client, argv: &[String], o: &Opts, cwd: &Path) -> Result<i32> {
+    let flag = |k: &str| argv.iter().position(|a| a == k).and_then(|i| argv.get(i + 1)).map(String::as_str);
+    let has = |k: &str| argv.iter().any(|a| a == k);
+    let id = o.words.first().ok_or_else(|| CliError::said("wisp open <task id> [--in claude|codex|…]"))?;
+    let asked = flag("--in");
+    let plan = if let Ok(task) = c.cmd("runtime.get", json!({ "id": id })).await {
+        let spec = c.cmd("runtime.spec", json!({ "id": id })).await.unwrap_or_default();
+        let report = c.cmd("share.preview", json!({ "id": id, "level": "report" })).await.ok().and_then(|p| p.pointer("/bundle/report").map(|r| repo::report_md(s(&task, "title"), r))).unwrap_or_default();
+        let prime = wisp_history_core::resume_prompt(s(&task, "title"), s(&spec, "prompt"), &report);
+        let dir = open_cwd(s(&task, "cwd"), &spec)?;
+        open_plan(s(&task, "agent"), task.get("resumeId").and_then(Value::as_str), asked, &dir, &prime)
+    } else {
+        let root = root(cwd);
+        let all = tracked(&root);
+        let t = find(&all, id).ok_or_else(|| CliError::said(format!("no task {id}: not on this wisp, and not in {}'s .wisp/", root.display())))?;
+        let (h, sid) = (s(&t.doc["session"], "harness").to_owned(), s(&t.doc["session"], "id").to_owned());
+        let native = root.join(".wisp/history").join(format!("{}.native.jsonl.zst", t.id()));
+        let mut restored = false;
+        if !sid.is_empty()
+            && let Ok(z) = std::fs::read(&native)
+        {
+            use base64::Engine as _;
+            let raw = base64::engine::general_purpose::STANDARD.encode(repo::decompress(&z));
+            restored = c.cmd("runtime.restoreSession", json!({ "harness": h, "id": sid, "cwd": root.display().to_string(), "raw": raw })).await.is_ok_and(|r| r["restored"] == true);
+        }
+        let md = std::fs::read_to_string(root.join(t.path.replace(".task.yml", ".report.md"))).unwrap_or_default();
+        let prime = wisp_history_core::resume_prompt(s(&t.doc, "title"), s(&t.doc["spec"], "prompt"), &md);
+        let task_h = if h.is_empty() { s(&t.doc["spec"], "agent").to_owned() } else { h };
+        let mut p = open_plan(&task_h, restored.then_some(sid.as_str()), asked, &root.display().to_string(), &prime);
+        if restored && p.how == "resume" {
+            "restore".clone_into(&mut p.how);
+        }
+        p
+    };
+    if has("--print") || o.json {
+        say(&serde_json::to_string_pretty(&plan).unwrap_or_default());
+        return Ok(0);
+    }
+    if !plan.note.is_empty() {
+        say(&format!("  {} {}", plan.how, plan.note));
+    }
+    let started = now_ms();
+    let status = std::process::Command::new(&plan.program).args(&plan.args).current_dir(&plan.cwd).status().map_err(|e| CliError::said(format!("{}: {e}", plan.program)))?;
+    if has("--no-adopt") {
+        return Ok(status.code().unwrap_or(0));
+    }
+    // what was done there comes back as the task's next turns (or, a continuation, as its own task)
+    let session = match &plan.session {
+        Some(sid) => Some(sid.clone()),
+        None => c.cmd("runtime.sessions", json!({ "cwd": plan.cwd })).await.ok().and_then(|l| l.as_array().and_then(|a| a.iter().find(|x| s(x, "harness") == plan.harness && x["startedAt"].as_i64().unwrap_or(0) >= started - 1000).map(|x| s(x, "id").to_owned()))),
+    };
+    if let Some(sid) = session {
+        match c.cmd("runtime.adoptSession", json!({ "harness": plan.harness, "id": sid })).await {
+            Ok(m) => say(&format!("  ✓ back in wisp: task {}", s(&m, "id"))),
+            Err(e) => say(&format!("  (not adopted back: {e})")),
+        }
+    }
+    Ok(status.code().unwrap_or(0))
 }

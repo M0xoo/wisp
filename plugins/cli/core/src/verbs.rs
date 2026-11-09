@@ -344,7 +344,7 @@ mod tests {
     use super::*;
 
     fn info(id: &str, args: Option<&str>) -> CommandInfo {
-        CommandInfo { id: id.into(), plugin: "wisp.x".into(), title: Some(format!("the {id}")), read_only: false, permission: id.replace('.', ":"), args: args.map(str::to_owned) }
+        CommandInfo { id: id.into(), plugin: "wisp.x".into(), title: Some(format!("the {id}")), read_only: false, permission: id.replace('.', ":"), args: args.map(str::to_owned), ui_only: None }
     }
 
     fn cat() -> Catalogue {

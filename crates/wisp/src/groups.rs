@@ -18,8 +18,8 @@ pub struct Where {
     pub user_home: PathBuf,
 }
 
-pub const DEFAULT: [&str; 45] = [
-    "cli", "resources", "workflows", "share", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "machines", "grid-client", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update",
+pub const DEFAULT: [&str; 46] = [
+    "cli", "resources", "workflows", "share", "history", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "machines", "grid-client", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update",
 ];
 /// A grid box serves the web frontend only (ADR-0024).
 pub const BOX_OFF: [&str; 3] = ["machines", "update", "cli"];
@@ -114,6 +114,8 @@ fn add(g: PluginGroup, name: &str, at: &Where) -> PluginGroup {
         "crew" => g.add(wisp_crew::CrewPlugin),
         #[cfg(feature = "goal")]
         "goal" => g.add(wisp_goal::GoalPlugin),
+        #[cfg(feature = "history")]
+        "history" => g.add(wisp_history::HistoryPlugin),
         #[cfg(feature = "later")]
         "later" => g.add(wisp_later::LaterPlugin),
         #[cfg(feature = "budget")]
@@ -197,6 +199,7 @@ pub fn in_build(name: &str) -> bool {
         "machines" => cfg!(feature = "machines"),
         "crew" => cfg!(feature = "crew"),
         "goal" => cfg!(feature = "goal"),
+        "history" => cfg!(feature = "history"),
         "later" => cfg!(feature = "later"),
         "budget" => cfg!(feature = "budget"),
         "router" => cfg!(feature = "router"),

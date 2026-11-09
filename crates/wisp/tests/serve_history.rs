@@ -212,6 +212,152 @@ async fn a_claude_code_session_is_adopted_tracked_and_continued() {
     let before = api.cmd("runtime.list", json!({})).await.as_array().unwrap().len();
     let (code, out, err) = wisp(&dir, &repo, port, &["adopt", "--hook"], Some(&hook_in));
     assert_eq!(code, 0, "{out}{err}");
+    assert_eq!(api.cmd("runtime.list", json!({})).await.as_array().unwrap().len(), before, "auto, the same session: its task, never a second");
+    // a session the hook hasn't seen: adopted
+    let sid2 = "5f1c2e1a-0000-4000-8000-00000000abce";
+    std::fs::write(store.join(format!("{sid2}.jsonl")), format!("{}\n", lines[0])).unwrap();
+    let (code, out, err) = wisp(&dir, &repo, port, &["adopt", "--hook"], Some(&json!({ "session_id": sid2, "cwd": cwd }).to_string()));
+    assert_eq!(code, 0, "{out}{err}");
     assert_eq!(api.cmd("runtime.list", json!({})).await.as_array().unwrap().len(), before + 1, "auto: adopted");
+    drop(serve);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_same_session_is_adopted_once_and_the_pr_comes_from_gh() {
+    let dir = temp("serve-history-once");
+    let repo = std::fs::canonicalize(dir.join("proj")).unwrap();
+    git(&repo, &["init", "-q", "-b", "main"]);
+    git(&repo, &["add", "."]);
+    git(&repo, &["commit", "-qm", "init"]);
+    let cwd = repo.display().to_string();
+    let store = dir.join("claude-cfg/projects").join(cwd.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect::<String>());
+    std::fs::create_dir_all(&store).unwrap();
+    let sid = "6a2d3f2b-0000-4000-8000-00000000beef";
+    let line = |role: &str, text: &str, at: &str| if role == "user" { json!({ "type": "user", "message": { "role": "user", "content": text }, "cwd": cwd, "timestamp": at }) } else { json!({ "type": "assistant", "message": { "role": "assistant", "content": [{ "type": "text", "text": text }] }, "timestamp": at }) };
+    let file = store.join(format!("{sid}.jsonl"));
+    let write = |lines: &[Value]| std::fs::write(&file, lines.iter().map(|l| format!("{l}\n")).collect::<String>()).unwrap();
+    let mut lines = vec![line("user", "rename it", "2026-11-08T10:00:00.000Z"), line("assistant", "Done.", "2026-11-08T10:00:05.000Z")];
+    write(&lines);
+    // gh: a PR whose head is the task's commit, and an unrelated one
+    let bin = dir.join("ghbin");
+    wisp_testkit::install_fakes(&bin, &["gh"]).unwrap();
+    let state = dir.join("gh-state.json");
+    let (serve, port) = start_with(&dir, &[("CLAUDE_CONFIG_DIR", dir.join("claude-cfg").to_str().unwrap()), ("WISP_GH_BIN", bin.join("gh").to_str().unwrap()), ("FAKE_GH_STATE", state.to_str().unwrap())]);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    assert_eq!(wisp(&dir, &repo, port, &["init"], None).0, 0);
+
+    // the_same_session_is_adopted_once
+    let adopt = || wisp(&dir, &repo, port, &["adopt", sid], None);
+    let task_of = |out: &str| out.split_whitespace().skip_while(|w| *w != "task").nth(1).unwrap_or_default().to_owned();
+    let (code, out, err) = adopt();
+    assert_eq!(code, 0, "{out}{err}");
+    let first = task_of(&out);
+    let n = api.cmd("runtime.list", json!({})).await.as_array().unwrap().len();
+    let (_, out, _) = adopt();
+    assert_eq!(task_of(&out), first, "the same task");
+    assert_eq!(api.cmd("runtime.list", json!({})).await.as_array().unwrap().len(), n, "no new one");
+    // adopting_again_adds_only_new_turns
+    lines.push(line("user", "and the docs", "2026-11-08T10:05:00.000Z"));
+    lines.push(line("assistant", "Docs too.", "2026-11-08T10:05:09.000Z"));
+    write(&lines);
+    let (_, out, _) = adopt();
+    assert_eq!(task_of(&out), first);
+    let turns = api.turns(&first).await;
+    assert_eq!((turns.len(), turns[1]["prompt"].clone()), (2, json!("and the docs")));
+    // a_session_id_never_leaves_the_store
+    let bad = api.try_cmd("runtime.adoptSession", json!({ "harness": "claude", "id": "../../etc/passwd" })).await;
+    assert!(bad["ok"] == false && bad.to_string().contains("isn't a session id"), "{bad}");
+
+    // track_finds_the_pr_through_gh
+    git(&repo, &["commit", "-q", "--allow-empty", "-m", &format!("work\n\nWisp-Task: {}", &first[..12])]);
+    let sha = git(&repo, &["rev-parse", "HEAD"]);
+    std::fs::write(&state, json!({ "prs": { "7": { "number": 7, "url": "https://github.com/acme/app/pull/7", "headRefName": "other-branch", "headRefOid": "0000000000000000000000000000000000000000", "state": "OPEN" }, "8": { "number": 8, "url": "https://github.com/acme/app/pull/8", "headRefName": "wisp/rename", "headRefOid": sha, "state": "OPEN" } } }).to_string()).unwrap();
+    let (code, out, err) = wisp(&dir, &repo, port, &["track", &first], None);
+    assert_eq!(code, 0, "{out}{err}");
+    assert!(out.contains("https://github.com/acme/app/pull/8"), "{out}");
+    // no_pr_when_nothing_matches: only an unrelated PR
+    std::fs::write(&state, json!({ "prs": { "7": { "number": 7, "url": "https://github.com/acme/app/pull/7", "headRefName": "other-branch", "headRefOid": "0000000000000000000000000000000000000000", "state": "OPEN" } } }).to_string()).unwrap();
+    let (_, out, _) = wisp(&dir, &repo, port, &["track", &first], None);
+    assert!(!out.contains("/pull/"), "never a guess: {out}");
+    drop(serve);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn offers_the_mark_resume_requests_and_injection() {
+    let dir = temp("serve-history-ask");
+    let repo = std::fs::canonicalize(dir.join("proj")).unwrap();
+    git(&repo, &["init", "-q", "-b", "main"]);
+    git(&repo, &["add", "."]);
+    git(&repo, &["commit", "-qm", "init"]);
+    let rec = dir.join("rec");
+    std::fs::create_dir_all(&rec).unwrap();
+    let env = [("FAKE_RECORD", rec.to_str().unwrap())];
+    let (serve, port) = start_with(&dir, &env);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    assert_eq!(wisp(&dir, &repo, port, &["init"], None).0, 0);
+    let run = async |prompt: &str| {
+        let made = api.cmd("runtime.create", json!({ "prompt": prompt, "cwd": repo, "agent": "claude", "worktree": false })).await;
+        let id = made["id"].as_str().unwrap().to_owned();
+        api.until(&id, "the turn ends", |t| t.last().is_some_and(ended)).await;
+        id
+    };
+    let ext = async |id: &str| api.cmd("runtime.get", json!({ "id": id })).await["ext"]["wisp.history"].clone();
+
+    // ask_mode_offers_then_saves
+    let id = run("fix math.js TOPIC[Fix add]").await;
+    api.cmd("runtime.setState", json!({ "id": id, "state": "done" })).await;
+    until("offered", async || ext(&id).await["offer"] == true).await;
+    assert!(task_files(&repo).iter().all(|f| !f.contains("tasks/2026")), "ask mode writes nothing by itself");
+    let saved = api.cmd("history.save", json!({ "id": id })).await;
+    assert!(saved["files"].to_string().contains(".task.yml"), "{saved}");
+    // the_in_repo_mark_names_the_repo_and_files
+    let mark = ext(&id).await;
+    assert_eq!((mark["offer"].clone(), mark["tracked"]["store"].clone()), (json!(false), json!("files")), "{mark}");
+    assert_eq!(mark["tracked"]["repo"], repo.display().to_string());
+
+    // manual_mode_offers_nothing
+    std::fs::write(repo.join(".wisp/wisp.yml"), "wisp: 1\nhistory: { track: manual }\n").unwrap();
+    let other = run("write the notes").await;
+    api.cmd("runtime.setState", json!({ "id": other, "state": "done" })).await;
+    tokio::time::sleep(Duration::from_millis(800)).await;
+    assert!(ext(&other).await.get("offer").is_none(), "{}", ext(&other).await);
+
+    // a_resume_request_waits_for_the_user, and asking again doesn't make a second one
+    let n = api.cmd("runtime.list", json!({})).await.as_array().unwrap().len();
+    let r = api.cmd("history.resumeRequest", json!({ "id": id, "by": "an agent", "repo": repo })).await;
+    assert_eq!(r["state"], "pending");
+    assert_eq!(api.cmd("history.resumeRequest", json!({ "id": id, "repo": repo })).await["id"], r["id"]);
+    assert_eq!(api.cmd("runtime.list", json!({})).await.as_array().unwrap().len(), n, "nothing started");
+    // resume_requests_survive_a_restart
+    serve.stop();
+    let (serve, port) = start_with(&dir, &env);
+    let api = Api { http: reqwest::Client::new(), port, n: 100.into() };
+    let pending = api.cmd("history.requests", json!({})).await;
+    assert_eq!(pending[0]["id"], r["id"], "{pending}");
+    // a_denied_request_starts_nothing
+    let denied = api.cmd("history.resumeAnswer", json!({ "request": r["id"], "approve": false })).await;
+    assert_eq!(denied["state"], "denied");
+    assert_eq!(api.cmd("runtime.list", json!({})).await.as_array().unwrap().len(), n);
+    // an_approved_request_starts_once
+    let again = api.cmd("history.resumeRequest", json!({ "id": id, "repo": repo })).await;
+    let ok = api.cmd("history.resumeAnswer", json!({ "request": again["id"], "approve": true })).await;
+    let started = ok["started"].as_str().unwrap().to_owned();
+    assert_eq!(api.cmd("runtime.spec", json!({ "id": started })).await["lineage"]["forkOf"], id.as_str());
+    let twice = api.try_cmd("history.resumeAnswer", json!({ "request": again["id"], "approve": true })).await;
+    assert!(twice["ok"] == false && twice.to_string().contains("approved already"), "{twice}");
+
+    // injection_is_off_by_default
+    let argv = || std::fs::read_to_string(rec.join("claude.jsonl")).unwrap_or_default();
+    assert!(!argv().contains("Earlier tasks on these files"), "off by default");
+    // injection_names_the_tasks_on_files_the_prompt_names (the saved task touched math.js)
+    std::fs::write(repo.join(".wisp/wisp.yml"), "wisp: 1\nhistory: { track: manual, inject: true }\n").unwrap();
+    std::fs::write(rec.join("claude.jsonl"), "").unwrap();
+    let api2 = &api;
+    let made = api2.cmd("runtime.create", json!({ "prompt": "make it faster", "cwd": repo, "agent": "claude", "worktree": false })).await;
+    api2.until(made["id"].as_str().unwrap(), "ends", |t| t.last().is_some_and(ended)).await;
+    assert!(!argv().contains("Earlier tasks on these files"), "a prompt naming no file gets nothing");
+    let made = api2.cmd("runtime.create", json!({ "prompt": "the bug in math.js again", "cwd": repo, "agent": "claude", "worktree": false })).await;
+    api2.until(made["id"].as_str().unwrap(), "ends", |t| t.last().is_some_and(ended)).await;
+    assert!(argv().contains("Earlier tasks on these files") && argv().contains("Fix add"), "{}", &argv()[..argv().len().min(300)]);
     drop(serve);
 }

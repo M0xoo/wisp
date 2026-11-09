@@ -85,7 +85,7 @@ async fn a_formula_folder_with_variables_references_modules_and_workspaces() {
     std::fs::write(w.join("workspaces/prod.vars.yml"), "model: opus-4\n").unwrap();
     assert_eq!(wisp(&dir, &repo, port, &["workspace", "select", "prod"]).0, 0);
     let (_, out, _) = wisp(&dir, &repo, port, &["plan"]);
-    assert!(out.contains("~ agent/reviewer") && out.contains("opus-4") && out.contains("drift"), "{out}");
+    assert!(out.contains("~ agent/reviewer") && out.contains("opus-4") && !out.contains("drift: changed"), "a workspace's values are the files' change, not drift: {out}");
     assert!(out.contains("workspace prod"), "{out}");
     assert_eq!(wisp(&dir, &repo, port, &["workspace", "select", "default"]).0, 0);
 
@@ -132,5 +132,66 @@ async fn a_formula_folder_with_variables_references_modules_and_workspaces() {
     let (code, out, err) = wisp(&dir, &repo, port, &["destroy", "--yes"]);
     assert_eq!(code, 0, "{out}{err}");
     assert!(profile(&api, "team-reviewer").await.is_null() && profile(&api, "helper-0").await.is_null(), "{out}");
+    drop(serve);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn mv_is_a_rename_in_wisp_and_drift_is_what_changed_outside_the_files() {
+    let dir = temp("serve-folder-state");
+    let repo = dir.join("proj");
+    let w = repo.join(".wisp");
+    std::fs::create_dir_all(&w).unwrap();
+    std::fs::write(w.join("a.wisp.yml"), "agents:\n  reviewer: { harness: codex, model: m1 }\n  other: { harness: claude }\nskills:\n  tidy: { description: keeps it tidy, body: B }\n").unwrap();
+    let (serve, port) = start(&dir);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    assert_eq!(wisp(&dir, &repo, port, &["apply", "--yes"]).0, 0);
+
+    // mv_keeps_the_store_row: a rename in wisp, nothing to do after
+    let (code, out, err) = wisp(&dir, &repo, port, &["mv", "skill.tidy", "skill.neat"]);
+    assert_eq!(code, 0, "{out}{err}");
+    assert!(out.contains("and in wisp"), "{out}");
+    let skills = api.cmd("resources.export", json!({ "kinds": ["skill"] })).await;
+    assert_eq!(skills.as_array().unwrap().iter().map(|r| r["name"].clone()).collect::<Vec<_>>(), [json!("neat")], "{skills}");
+    let (_, out, _) = wisp(&dir, &repo, port, &["plan"]);
+    assert!(out.contains("0 to add, 0 to change, 0 to remove"), "no destroy and create: {out}");
+
+    // mv_onto_a_taken_name_is_refused, mv_of_an_undeclared_address_is_refused
+    let (code, _, err) = wisp(&dir, &repo, port, &["mv", "agent.reviewer", "agent.other"]);
+    assert_eq!(code, 1);
+    assert!(err.contains("declared already"), "{err}");
+    assert!(profile(&api, "reviewer").await.is_object(), "nothing changed");
+    let (code, _, err) = wisp(&dir, &repo, port, &["mv", "agent.nobody", "agent.somebody"]);
+    assert_eq!(code, 1);
+    assert!(err.contains("isn't declared"), "{err}");
+
+    // drift_is_only_what_changed_outside_the_files
+    let mut p = profile(&api, "reviewer").await;
+    p["model"] = json!("m2-from-the-app");
+    api.cmd("runtime.profile.set", p).await;
+    let (_, out, _) = wisp(&dir, &repo, port, &["plan"]);
+    assert!(out.contains("agent/reviewer") && out.contains("drift: changed in wisp since the last apply"), "{out}");
+    std::fs::write(w.join("a.wisp.yml"), std::fs::read_to_string(w.join("a.wisp.yml")).unwrap().replace("other: { harness: claude }", "other: { harness: claude, model: x }")).unwrap();
+    let (_, out, _) = wisp(&dir, &repo, port, &["plan"]);
+    let other = out.lines().find(|l| l.contains("agent/other")).unwrap_or_default();
+    assert!(!other.contains("drift"), "a change in the files isn't drift: {out}");
+
+    // refresh_only_accepts_the_store
+    let (code, out, err) = wisp(&dir, &repo, port, &["plan", "--refresh-only"]);
+    assert_eq!(code, 0, "{out}{err}");
+    assert!(out.contains("1 drifted resource taken"), "{out}");
+    let (_, out, _) = wisp(&dir, &repo, port, &["plan"]);
+    assert!(!out.contains("drift: changed"), "{out}");
+
+    // a_never_applied_resource_has_no_drift
+    api.cmd("runtime.profile.set", json!({ "name": "fresh", "harness": "codex" })).await;
+    std::fs::write(w.join("b.wisp.yml"), "agents:\n  fresh: { harness: codex, model: m9 }\n").unwrap();
+    let (_, out, _) = wisp(&dir, &repo, port, &["plan"]);
+    assert!(out.contains("~ agent/fresh") && !out.lines().find(|l| l.contains("agent/fresh")).unwrap_or_default().contains("drift"), "{out}");
+
+    // without_a_tty_it_says_how_to_set_it
+    std::fs::write(w.join("c.wisp.yml"), "variables:\n  region: { type: string }\n").unwrap();
+    let (code, _, err) = wisp(&dir, &repo, port, &["plan"]);
+    assert_eq!(code, 1);
+    assert!(err.contains("var.region has no value") && err.contains("WISP_VAR_region"), "{err}");
     drop(serve);
 }

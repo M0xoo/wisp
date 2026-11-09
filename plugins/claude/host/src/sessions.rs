@@ -60,6 +60,22 @@ pub fn parse(id: &str, text: &str) -> (OutsideSession, Vec<SessionTurn>) {
 #[derive(Debug)]
 pub struct ClaudeSessions;
 
+pub use wisp_runtime_api::harness::sessions::safe_id;
+
+/// A session's log, from whichever project folder holds it.
+async fn find(id: &str) -> Option<Vec<u8>> {
+    if !safe_id(id) {
+        return None;
+    }
+    let mut rd = tokio::fs::read_dir(store().join("projects")).await.ok()?;
+    while let Ok(Some(e)) = rd.next_entry().await {
+        if let Ok(b) = tokio::fs::read(e.path().join(format!("{id}.jsonl"))).await {
+            return Some(b);
+        }
+    }
+    None
+}
+
 impl HarnessSessions for ClaudeSessions {
     fn harness(&self) -> &'static str {
         "claude"
@@ -84,16 +100,29 @@ impl HarnessSessions for ClaudeSessions {
         })
     }
     fn read(&self, id: &str) -> BoxFuture<'static, Option<(OutsideSession, Vec<SessionTurn>)>> {
-        let (root, id) = (store().join("projects"), id.to_owned());
+        let id = id.to_owned();
         Box::pin(async move {
-            let mut rd = tokio::fs::read_dir(&root).await.ok()?;
-            while let Ok(Some(e)) = rd.next_entry().await {
-                let p = e.path().join(format!("{id}.jsonl"));
-                if let Ok(text) = tokio::fs::read_to_string(&p).await {
-                    return Some(parse(&id, &text));
-                }
+            let text = String::from_utf8(find(&id).await?).ok()?;
+            Some(parse(&id, &text))
+        })
+    }
+    fn raw(&self, id: &str) -> BoxFuture<'static, Option<Vec<u8>>> {
+        let id = id.to_owned();
+        Box::pin(async move { find(&id).await })
+    }
+    fn restore(&self, id: &str, cwd: &str, raw: Vec<u8>) -> BoxFuture<'static, bool> {
+        let dir = store().join("projects").join(project_dir(cwd));
+        let id = id.to_owned();
+        Box::pin(async move {
+            if !safe_id(&id) || tokio::fs::create_dir_all(&dir).await.is_err() {
+                return false;
             }
-            None
+            let p = dir.join(format!("{id}.jsonl"));
+            // a log already here is the CLI's own (newer, or this computer's): never overwritten
+            if tokio::fs::metadata(&p).await.is_ok() {
+                return true;
+            }
+            tokio::fs::write(&p, raw).await.is_ok()
         })
     }
 }
@@ -120,5 +149,6 @@ mod tests {
         assert_eq!((t[0].text.as_str(), t[0].model.as_str()), ("Fixed: a + b.", "claude-opus-4"));
         assert_eq!(t[1].prompt, "now add a test");
         assert_eq!(project_dir("/Users/me/my.app"), "-Users-me-my-app");
+        assert!(safe_id("5f1c2e1a-0000-4000-8000-00000000abcd") && !safe_id("../x") && !safe_id("a/b") && !safe_id(""));
     }
 }
