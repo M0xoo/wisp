@@ -1,0 +1,31 @@
+[package]
+name = "wisp-machines"
+description = "wisp.machines host: peers (your other computers) over the v2 sync protocol, the ssh and loopback transports, the peers service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+futures.workspace = true
+rand.workspace = true
+# the peer link streams (SSE, uploads): the kernel's net service answers whole bodies only
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+wisp-kernel.workspace = true
+wisp-machines-api = { path = "../api" }
+wisp-machines-core = { path = "../core" }
+wisp-proc.workspace = true
+wisp-protocol.workspace = true
+wisp-store.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

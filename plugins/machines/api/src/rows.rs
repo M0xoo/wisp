@@ -177,7 +177,7 @@ pub struct RemoteInfo {
     pub home: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agents: Option<Vec<RemoteAgent>>,
-    /// 1: a v1 wisp, reached through the whole-stream relay; 2+: the sync protocol
+    /// the sync protocol both sides speak (from the welcome)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proto: Option<u32>,
 }

@@ -4,36 +4,18 @@
 use std::collections::BTreeMap;
 
 use serde_json::Value;
-use wisp_machines_api::{OwnerOf, PeerRow, owner_of};
+use wisp_machines_api::{PeerRow, owner_of};
 
-/// The local handle of the peer an id belongs to: `<id>@<machine>` names it, `<peer>:<uuid>` is
-/// matched against each row's learned `peer`.
+/// The peer an id belongs to: its `<peer>:` origin matched against each row's learned `peer`. The id
+/// goes there unchanged (a v2 id is the same everywhere).
 pub fn owner<'a>(id: &str, peers: &'a [PeerRow]) -> Option<&'a PeerRow> {
-    match owner_of(id)? {
-        OwnerOf::Machine { machine, .. } => peers.iter().find(|p| p.id == machine),
-        OwnerOf::Peer { peer, .. } => peers.iter().find(|p| p.peer.as_deref() == Some(peer)),
-    }
+    let peer = owner_of(id)?;
+    peers.iter().find(|p| p.peer.as_deref() == Some(peer))
 }
 
-/// The id as its owner knows it.
-pub fn there(id: &str) -> &str {
-    match owner_of(id) {
-        Some(OwnerOf::Machine { id, .. } | OwnerOf::Peer { id, .. }) => id,
-        None => id,
-    }
-}
-
-/// `args` with its ids (`id`, `sessionId`, `parentId`) as the owner knows them.
-pub fn args_there(args: &Value) -> Value {
-    let mut a = args.clone();
-    if let Some(o) = a.as_object_mut() {
-        for k in ["id", "sessionId", "parentId"] {
-            if let Some(Value::String(s)) = o.get_mut(k) {
-                *s = there(s).to_owned();
-            }
-        }
-    }
-    a
+/// The peer a routed command's args name (`id`, `sessionId`, `parentId`, first that has an owner).
+pub fn owner_of_args<'a>(args: &Value, peers: &'a [PeerRow]) -> Option<&'a PeerRow> {
+    ["id", "sessionId", "parentId"].iter().find_map(|k| args.get(*k).and_then(Value::as_str).and_then(|id| owner(id, peers)))
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -100,13 +82,11 @@ mod tests {
     #[test]
     fn commands_go_to_the_owner() {
         let peers = [row("ab12cd", Some("laptop")), row("ef34ab", None)];
-        assert_eq!(owner("s1@ef34ab", &peers).map(|p| p.id.as_str()), Some("ef34ab"));
         assert_eq!(owner("laptop:0190", &peers).map(|p| p.id.as_str()), Some("ab12cd"));
         assert!(owner("studio:0190", &peers).is_none());
         assert!(owner("local", &peers).is_none());
-        assert_eq!(there("s1@ef34ab"), "s1");
-        assert_eq!(there("laptop:0190"), "laptop:0190", "a v2 id is the same everywhere");
-        assert_eq!(args_there(&json!({"id": "s1@m1", "text": "hi", "parentId": "p@m1"})), json!({"id": "s1", "text": "hi", "parentId": "p"}));
+        assert!(owner("s1@ef34ab", &peers).is_none(), "v1's qualified ids are gone (ADR-0031)");
+        assert_eq!(owner_of_args(&json!({"text": "hi", "sessionId": "laptop:0190"}), &peers).map(|p| p.id.as_str()), Some("ab12cd"));
     }
 
     #[test]

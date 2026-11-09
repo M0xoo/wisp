@@ -37,7 +37,8 @@ pub enum Api {
 #[derive(Debug, Clone)]
 pub struct BootOpts<'a> {
     pub port: u16,
-    /// a custom start command; '' runs this version's binary
+    /// a custom start command (a `wisp` binary: it gets `serve --port <port>`); '' runs this
+    /// version's release binary
     pub command: &'a str,
     pub api: Api,
     /// download wisp when it isn't there
@@ -69,7 +70,7 @@ pub fn bootstrap_script(o: &BootOpts<'_>) -> String {
         .replace("__CMD__", &cmd)
 }
 
-/// What the default command runs, for the card (v1 showed `npx -y wisp-agents@<version>`).
+/// What the default command runs, for the card: the release binary the bootstrap installed.
 pub fn default_command(version: &str) -> String {
     format!("~/.wisp/bin/{version}/wisp")
 }
@@ -227,6 +228,8 @@ mod tests {
             "a port taken by another program"
         );
         assert!(sh.ends_with("exec cat >/dev/null\n"), "holds the session");
+        assert!(sh.contains("exec $CMD serve --port $PORT"), "the Rust binary's own server");
+        assert!(!sh.contains("--no-open"), "v1's Node CLI flags are gone");
         assert!(sh.starts_with("say() {"), "the phone runs it as is");
     }
 

@@ -3,7 +3,7 @@
 //! resumes from the cursor instead of taking the whole list again. Pure: the host flushes `dirty()`
 //! to the store in one transaction per flush, not one per remote change.
 //!
-//! Ids stay as the peer made them (a v2 peer's `<peer>:<uuid>`); only the v1 relay's view qualifies.
+//! Ids stay as the peer made them.
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::Value;
@@ -137,23 +137,6 @@ impl Mirror {
             }
         }
         (out, drifted)
-    }
-
-    /// One row, as the v1 relay sees it (a summary event).
-    pub fn put(&mut self, peer: &str, id: &str, v: Value) -> Touched {
-        let key = ("session".to_owned(), id.to_owned());
-        self.topic(peer, LIST).insert(key.clone(), v);
-        let mut out = Vec::new();
-        self.touch(peer, &key, RemoteOp::Upsert, &mut out);
-        out.remove(0)
-    }
-
-    pub fn del(&mut self, peer: &str, id: &str) -> Option<Touched> {
-        let key = ("session".to_owned(), id.to_owned());
-        self.topic(peer, LIST).remove(&key)?;
-        let mut out = Vec::new();
-        self.touch(peer, &key, RemoteOp::Del, &mut out);
-        out.pop()
     }
 
     /// A peer whose rows can't be trusted any more (a new epoch), or one removed.

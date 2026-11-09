@@ -1,5 +1,4 @@
-//! Commands of `wisp.machines`. The id is the permission (`machines.add` → `machines:add`). v1's
-//! `/api/machines/*` routes are thin adapters over these, same paths and JSON shapes.
+//! Commands of `wisp.machines`. The id is the permission (`machines.add` → `machines:add`).
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -9,7 +8,7 @@ use wisp_kernel::Command;
 
 use crate::rows::{FoundHost, MirrorRow, PeerView, Reachability, SshHost};
 
-/// Input to `machines.add` and `machines.update`. v1 called the address `target` (accepted too).
+/// Input to `machines.add` and `machines.update`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct AddArgs {
@@ -19,9 +18,7 @@ pub struct AddArgs {
     pub transport: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub address: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub target: Option<String>,
-    /// a number, or v1's string form ("4477"): validated by the transport
+    /// a number, or its string form ("4477"): validated by the transport
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "number | string")]
     pub port: Option<Value>,
@@ -29,7 +26,7 @@ pub struct AddArgs {
     pub command: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_connect: Option<bool>,
-    /// false: add it without connecting (v1 `connect: false`)
+    /// false: add it without connecting
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub connect: Option<bool>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -41,9 +38,8 @@ pub struct AddArgs {
 }
 
 impl AddArgs {
-    /// `address`, else v1's `target`
     pub fn address(&self) -> Option<&str> {
-        self.address.as_deref().or(self.target.as_deref())
+        self.address.as_deref()
     }
 }
 
@@ -116,7 +112,7 @@ pub struct SessionsArgs {
     pub id: Option<String>,
 }
 
-/// A JSON call passed through to a peer's API (v1's `machines.json`): path under `/api`.
+/// A JSON call passed through to a peer's API: path under `/api`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct CallArgs {

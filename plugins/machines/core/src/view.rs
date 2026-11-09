@@ -43,6 +43,31 @@ pub fn clean_ssh(input: &AddArgs, prev: Option<&PeerRow>) -> Result<Cleaned, Str
     Ok(Cleaned { name: Some(name), address: Some(target), port: Some(port), command: Some(command), auto_connect: Some(auto) })
 }
 
+/// Hosts a `loopback` peer may name: another wisp on this computer (another `WISP_HOME`, another
+/// port). Anything else would send this wisp's requests off the computer unencrypted.
+pub const LOOPBACK: [&str; 4] = ["127.0.0.1", "localhost", "::1", "[::1]"];
+
+/// A loopback peer's fields: a loopback host and the port its wisp serves on (no default: 4477 is
+/// this wisp's own).
+pub fn clean_loopback(input: &AddArgs, prev: Option<&PeerRow>) -> Result<Cleaned, String> {
+    let host = input.address().map_or_else(|| prev.map_or_else(|| "127.0.0.1".to_owned(), |p| p.address.clone()), str::to_owned);
+    let host = host.trim().to_ascii_lowercase();
+    if !LOOPBACK.contains(&host.as_str()) {
+        return Err("Address: 127.0.0.1 or localhost (a wisp on this computer).".into());
+    }
+    let port = match input.port.as_ref() {
+        None | Some(Value::Null) => prev.map(|p| f64::from(p.port)),
+        v => port_value(v, None),
+    };
+    let port = port.filter(|p| p.fract() == 0.0 && (1.0..=65535.0).contains(p)).ok_or("Port: a number from 1 to 65535.")?;
+    #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "checked to be an integer in 1..=65535 above")]
+    let port = port as u16;
+    let name = cut(input.name.as_deref().or(prev.map(|p| p.name.as_str())).unwrap_or_default().trim(), MAX_NAME);
+    let name = if name.is_empty() { format!("{host}:{port}") } else { name };
+    let auto = input.auto_connect.or(prev.map(|p| p.auto_connect)).unwrap_or(true);
+    Ok(Cleaned { name: Some(name), address: Some(host), port: Some(port), command: Some(String::new()), auto_connect: Some(auto) })
+}
+
 /// A grid peer's address comes from the grid: only its name and auto-connect change here.
 pub fn clean_grid(input: &AddArgs, prev: &PeerRow) -> Cleaned {
     let name = cut(input.name.as_deref().unwrap_or(&prev.name).trim(), MAX_NAME);

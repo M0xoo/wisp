@@ -4,7 +4,8 @@ say() { printf '@@wisp %s\n' "$*"; }
 # only ever sees `sh -s`. Steps come back as `@@wisp step <id> <run|done|warn> <detail>`, `@@wisp fail
 # <id> <message>`, `@@wisp stale <pid>`, and finally `@@wisp ready <version> <pid>`; then `cat` holds
 # the session (and the tunnel) open until this side lets go. API `any` takes whichever wisp already
-# runs there; a number is the lowest protocol this side speaks.
+# runs there; a number is the lowest protocol this side speaks. wisp starts as `<cmd> serve --port
+# <port>` (the Rust binary's own server); the sync welcome then decides the protocol.
 PORT=__PORT__
 INSTALL=__INSTALL__
 API=__API__
@@ -14,7 +15,7 @@ CMD=__CMD__
 cd "$HOME" 2>/dev/null # wisp started from the login folder would take a project there for its own
 say step ssh done "$(uname -sn 2>/dev/null)"
 # A non-interactive SSH shell skips the profile that puts things on PATH (Homebrew, nvm, Volta…),
-# where an npm-installed wisp lives.
+# where an npm-installed wisp (`wisp-agents`) lives.
 SH=$SHELL; [ -n "$SH" ] || SH=/bin/sh
 LP=$("$SH" -lc 'printf "%s" "$PATH"' </dev/null 2>/dev/null) && [ -n "$LP" ] && PATH="$LP:$PATH"
 NVM_BIN=
@@ -34,9 +35,8 @@ fi
 field() { tr ',{}' '\n\n\n' | sed -n "s/^[[:space:]]*\"$1\"[[:space:]]*:[[:space:]]*\"\{0,1\}\([^\"]*\)\"\{0,1\}[[:space:]]*\$/\1/p" | head -n 1; }
 # "<name> <version> <proto> <pid>" of whatever answers on PORT, or nothing (exit 1) when nothing does.
 health() {
-  if command -v probe >/dev/null 2>&1; then J=$(probe "http://127.0.0.1:$PORT/api/health" 2>/dev/null) || return 1
-  elif [ -x "$WISP_DIR/wisp" ]; then J=$("$WISP_DIR/wisp" health --port "$PORT" 2>/dev/null) || return 1
-  else return 1; fi
+  command -v probe >/dev/null 2>&1 || return 1
+  J=$(probe "http://127.0.0.1:$PORT/api/health" 2>/dev/null) || return 1
   N=$(printf '%s' "$J" | field name); [ -n "$N" ] || N=other
   V=$(printf '%s' "$J" | field version)
   P=$(printf '%s' "$J" | field proto_max); [ -n "$P" ] || P=$(printf '%s' "$J" | field apiVersion)
@@ -80,8 +80,9 @@ if [ -n "$H" ]; then
 else
   LOG=$WISP_HOME; [ -n "$LOG" ] || LOG=$HOME/.wisp
   mkdir -p "$LOG"; LOG=$LOG/machine.log
+  command -v probe >/dev/null 2>&1 || { say fail wisp "Neither curl nor wget is there to check on wisp. Install one of them there."; exit 0; }
   say step wisp run "starting wisp $VERSION"
-  nohup sh -c "exec $CMD --no-open --port $PORT" >"$LOG" 2>&1 </dev/null &
+  nohup sh -c "exec $CMD serve --port $PORT" >"$LOG" 2>&1 </dev/null &
   PID=$!
   i=0
   until H=$(health) && [ -n "$H" ]; do

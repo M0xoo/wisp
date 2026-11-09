@@ -282,28 +282,3 @@ pub trait Transport: Send + Sync + 'static {
 }
 
 pub const TRANSPORT: Point<dyn Transport> = Point::new("machines.transport", 1);
-
-/// One action of `/sessions/<id>@<machine>/<action>` another plugin answers (take over, move…).
-#[derive(Debug, Clone)]
-pub struct ProxyCall {
-    pub machine: String,
-    /// the id over there
-    pub id: String,
-    /// the id here, `<id>@<machine>`
-    pub qualified: String,
-    pub action: String,
-    pub method: String,
-    pub query: Vec<(String, String)>,
-    pub body: Option<Value>,
-    /// what the request came through (x-wisp-tunnel, a proxy): some answers differ for the grid
-    pub headers: Vec<(String, String)>,
-}
-
-/// `machines.proxy@1`: `None` lets the call pass through to the peer unchanged.
-pub trait ProxyAction: Send + Sync + 'static {
-    fn action(&self) -> &str;
-    fn methods(&self) -> &[&str];
-    fn handle(&self, call: ProxyCall) -> BoxFuture<'static, Result<Option<(u16, Value)>>>;
-}
-
-pub const PROXY: Point<dyn ProxyAction> = Point::new("machines.proxy", 1);

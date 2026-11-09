@@ -43,13 +43,12 @@ fn ops_apply_in_order_and_a_patch_that_misses_drifts_the_topic() {
 }
 
 #[test]
-fn the_relay_puts_rows_and_a_reset_drops_a_peer() {
+fn a_reset_drops_a_peer() {
     let mut m = Mirror::new();
-    m.put("m1", "s1", json!({"id": "s1"}));
-    m.put("m2", "s9", json!({"id": "s9"}));
+    m.load("m1", "session", "s1", json!({"id": "s1"}));
+    m.load("m2", "session", "s9", json!({"id": "s9"}));
     assert_eq!(m.rows(Some("m1")).len(), 1);
     assert_eq!(m.rows(None).len(), 2);
-    assert!(m.del("m1", "nope").is_none());
     let gone = m.reset("m1");
     assert_eq!(gone.len(), 1);
     assert!(m.rows(Some("m1")).is_empty());
