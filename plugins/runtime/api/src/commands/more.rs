@@ -376,3 +376,13 @@ pub struct AgentText {
     #[ts(optional)]
     pub error: Option<String>,
 }
+
+/// `runtime.projectRun`: the run scripts of the project a folder is in (its `run:`, a dev server), in a
+/// terminal of their own (`run:<project>`). Additive (2026-11-09).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct ProjectRunArgs {
+    /// a folder in the project
+    pub cwd: String,
+}

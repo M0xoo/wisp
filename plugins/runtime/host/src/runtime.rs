@@ -318,6 +318,34 @@ impl Runtime {
         })
     }
 
+    /// A task created held for its worktree: it moves into `wt` (`ext["wisp.worktrees"]`, its cwd), and its
+    /// first turn starts, or is held with the setup's error when the project's setup failed there
+    /// (v1's held-turn card: Start now runs it anyway, Skip stops it).
+    pub async fn worktree_ready(self: &Arc<Self>, id: &str, wt: Option<serde_json::Value>, setup_failed: Option<String>) -> Result<Option<wisp_runtime_api::TurnId>> {
+        let guard = self.task_lock(id).await;
+        let mut s = self.repo.session(id).await?;
+        if let Some(w) = wt {
+            if let Some(cwd) = w.get("cwd").and_then(serde_json::Value::as_str).filter(|c| !c.is_empty()) {
+                cwd.clone_into(&mut s.cwd);
+            }
+            s.ext.insert("wisp.worktrees".into(), w);
+        }
+        if let Some(why) = setup_failed
+            && let Some(own) = s.ext.get_mut("wisp.runtime").and_then(serde_json::Value::as_object_mut)
+        {
+            own.insert("setupFailed".into(), serde_json::json!(why));
+        }
+        s.queue_held = false;
+        if s.queue.is_empty() {
+            self.persist(&mut s, Vec::new()).await?;
+            return Ok(None);
+        }
+        let item = s.queue.remove(0);
+        self.persist(&mut s, Vec::new()).await?;
+        drop(guard);
+        Ok(Some(self.start_turn(s, item).await?))
+    }
+
     /// `runtime.followUp` (v1 `reply`): starts a turn, queues, interrupts, answers an open question, or
     /// holds, as the queue decider says.
     pub async fn follow_up(self: &Arc<Self>, a: FollowUpArgs) -> Result<FollowedUp> {

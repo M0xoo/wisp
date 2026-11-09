@@ -146,10 +146,16 @@ impl Runtime {
             },
             parent_id: s.parent_id.clone(),
         };
-        let ctx = match self.host.before_run(ctx).await {
+        let mut ctx = match self.host.before_run(ctx).await {
             Ok(c) => c,
             Err(e) => return self.refused(s, turn, &e.message).await,
         };
+        // its project's setup failed in its fresh worktree: the turn waits with why (once: Start now runs it)
+        if ctx.hold.is_none()
+            && let Some(why) = s.ext.get_mut("wisp.runtime").and_then(Value::as_object_mut).and_then(|o| o.remove("setupFailed"))
+        {
+            ctx.hold = Some(wisp_runtime_api::model::Held { by: "wisp.runtime".into(), kind: "setup".into(), until: None, data: serde_json::json!({ "label": "Its setup", "why": why }) });
+        }
         if let Some(h) = ctx.hold.clone() {
             turn.status = TurnStatus::Held;
             turn.held = Some(h.clone());

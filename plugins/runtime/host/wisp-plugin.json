@@ -45,7 +45,10 @@
     "proc:exec{bin:*}",
     "proc:spawn{bin:*}",
     "store:write{owner:runtime}",
-    "telemetry:track"
+    "telemetry:track",
+    "worktrees:create",
+    "accounts:write",
+    "terminal:open"
   ],
   "server": {
     "builtin": "wisp-runtime"
@@ -274,6 +277,10 @@
       {
         "id": "runtime.adopt",
         "title": "Import a shared task, read-only"
+      },
+      {
+        "id": "runtime.projectRun",
+        "title": "Run a project's run scripts"
       }
     ],
     "topics": [

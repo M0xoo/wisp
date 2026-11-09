@@ -160,9 +160,9 @@ async fn specs_of(a: &StartArgs, section: &str, stored: Option<&std::sync::Arc<w
     out
 }
 
-/// What the stored kinds do to a task as it starts (`crate::kinds`): its project's agent, worktree,
-/// setup and instructions; its harness's switch and defaults; its team; its skills. Returns the brief.
-async fn act(kinds: Option<&crate::kinds::Kinds>, proc: &Proc, a: &mut StartArgs, profile: Option<&AgentSpec>) -> Result<Value> {
+/// What the stored kinds do to a task as it starts (`crate::kinds`): its project's agent, worktree and
+/// instructions (its setup runs in a fresh worktree: `project_setup`); its harness's switch and defaults; its team; its skills. Returns the brief.
+async fn act(kinds: Option<&crate::kinds::Kinds>, a: &mut StartArgs, profile: Option<&AgentSpec>) -> Result<Value> {
     let cwd = a.cwd.clone().unwrap_or_default();
     let projects = specs_of(a, "projects", kinds.map(|k| &k.project)).await;
     let project = crate::kinds::project_for(&projects, &cwd);
@@ -183,16 +183,6 @@ async fn act(kinds: Option<&crate::kinds::Kinds>, proc: &Proc, a: &mut StartArgs
         }
         if h.from == "path" && !h.path.is_empty() {
             bin = Some(h.path.clone());
-        }
-    }
-    // its project's setup, in its folder, before the first turn
-    if let Some((name, p)) = project.as_ref().filter(|(_, p)| p.trust.as_ref().is_none_or(|t| t.setup)) {
-        for cmd in &p.setup {
-            let opts = ExecOpts { cwd: Some(cwd.clone().into()), timeout: Some(std::time::Duration::from_secs(600)), ..ExecOpts::default() };
-            let r = proc.exec("sh", &["-c".to_owned(), cmd.clone()], opts).await.map_err(|e| WireError::internal(format!("{name}'s setup: {e}")))?;
-            if !r.exit.success() {
-                return Err(WireError::invalid(format!("{name}'s setup `{cmd}` failed: {}", String::from_utf8_lossy(&r.stderr).trim())));
-            }
         }
     }
     // a team the task names: its subagents (on the task, and in its system prompt)
@@ -243,6 +233,26 @@ async fn act(kinds: Option<&crate::kinds::Kinds>, proc: &Proc, a: &mut StartArgs
     Ok(brief)
 }
 
+/// The setup commands of the project `a`'s folder is in, when it trusts its setup (v1: they run in a
+/// fresh worktree or clone only, never on every task).
+pub async fn project_setup(kinds: Option<&crate::kinds::Kinds>, a: &StartArgs) -> Vec<String> {
+    let projects = specs_of(a, "projects", kinds.map(|k| &k.project)).await;
+    crate::kinds::project_for(&projects, a.cwd.as_deref().unwrap_or_default()).filter(|(_, p)| p.trust.as_ref().is_none_or(|t| t.setup)).map(|(_, p)| p.setup).unwrap_or_default()
+}
+
+/// Runs the setup in `dir`, in order; the first failure, said for the held card.
+pub async fn run_setup(proc: &Proc, dir: &str, cmds: &[String]) -> Option<String> {
+    for cmd in cmds {
+        let opts = ExecOpts { cwd: Some(dir.into()), timeout: Some(std::time::Duration::from_secs(600)), ..ExecOpts::default() };
+        match proc.exec("sh", &["-c".to_owned(), cmd.clone()], opts).await {
+            Ok(r) if r.exit.success() => {}
+            Ok(r) => return Some(format!("`{cmd}` failed: {}", String::from_utf8_lossy(&r.stderr).trim())),
+            Err(e) => return Some(format!("`{cmd}` didn't start: {e}")),
+        }
+    }
+    None
+}
+
 /// The project the folder is in names the agent when the task doesn't, and its worktree default; a
 /// profile the overlay declares is this task's (it leaves nothing behind).
 async fn defaults(a: &mut StartArgs, kinds: Option<&crate::kinds::Kinds>) {
@@ -274,7 +284,7 @@ pub async fn prepare(store: &Store, proc: &Proc, home: Option<&std::path::Path>,
     let (asked_model, asked_effort, asked_mode) = (a.model.clone().unwrap_or_default(), a.effort.clone().unwrap_or_default(), a.mode);
     let project = a.cwd.clone().unwrap_or_default();
     let resolved = resolve(store, &mut a, &asked).await?;
-    let brief = act(kinds, proc, &mut a, resolved.as_ref().map(|(_, p)| p)).await?;
+    let brief = act(kinds, &mut a, resolved.as_ref().map(|(_, p)| p)).await?;
     // the code it starts from
     let cwd = a.cwd.clone().unwrap_or_default();
     let mut base = if cwd.is_empty() { None } else { base_at(proc, &cwd).await };

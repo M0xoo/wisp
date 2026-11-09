@@ -205,6 +205,7 @@ fn commands(s: &mut Setup, slot: &Slot) {
     let start = slot.clone();
     let made_kinds = crate::kinds::register(s);
     let harness_kind = made_kinds.harness.clone();
+    let project_kind = made_kinds.project.clone();
     let brief: Arc<dyn wisp_runtime_api::points::PromptPart> = Arc::new(crate::kinds::Brief);
     s.contribute(&wisp_runtime_api::points::PROMPT, brief);
     s.command::<c::Create, _, _>(move |_ctx, call, a| {
@@ -213,9 +214,27 @@ fn commands(s: &mut Setup, slot: &Slot) {
             let a = ctx.run_hook::<BeforeCreate>(&call, a).await?;
             let (store, proc) = (ctx.service::<Store>()?, ctx.service::<Proc>()?);
             let home = wisp_kernel::services::paths(&ctx).ok().map(|p| p.home().to_owned());
+            // a worktree of its own: made before the first turn, the project's setup run in it
             let p = crate::specs::prepare(&store, &proc, home.as_deref(), Some(&kinds), a).await?;
             let rt = rt(&slot)?;
-            let made = rt.create(p.args).await.map_err(WireError::from)?;
+            let mut args = p.args;
+            let wants_tree = args.worktree == Some(true) && !args.hold && args.cwd.as_deref().is_some_and(|c| !c.is_empty());
+            let setup = if wants_tree { crate::specs::project_setup(Some(&kinds), &args).await } else { Vec::new() };
+            args.hold |= wants_tree;
+            let (cwd, title, mode) = (args.cwd.clone().unwrap_or_default(), args.title.clone().unwrap_or_default(), args.mode);
+            let made = rt.create(args).await.map_err(WireError::from)?;
+            let made = if wants_tree {
+                let mode = mode.map(|m| serde_json::to_value(m).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default()).unwrap_or_default();
+                let wt = ctx.run_json(&call, "worktrees.create", serde_json::json!({ "sessionId": made.id.as_str(), "cwd": cwd, "title": title, "mode": mode })).await.ok().filter(serde_json::Value::is_object);
+                let failed = match wt.as_ref().and_then(|w| w.get("path")).and_then(serde_json::Value::as_str) {
+                    Some(dir) if !setup.is_empty() => crate::specs::run_setup(&proc, dir, &setup).await,
+                    _ => None,
+                };
+                let turn_id = rt.worktree_ready(made.id.as_str(), wt, failed).await.map_err(WireError::from)?;
+                c::Created { id: made.id, turn_id }
+            } else {
+                made
+            };
             // the steps after the first go in the queue, in order: each starts when the turn before ends
             for text in p.steps {
                 let f = c::FollowUpArgs { id: made.id.clone(), text, queue: Some(true), by: Some("step".into()), ..c::FollowUpArgs::default() };
@@ -236,7 +255,7 @@ fn commands(s: &mut Setup, slot: &Slot) {
     edits(s, slot);
     reads(s, slot);
     for_agents(s, slot);
-    more(s, slot, harness_kind);
+    more(s, slot, harness_kind, project_kind);
 }
 
 /// What agents read of the user's tasks (`wisp_sessions`, `wisp_session`), with their usage events.
@@ -268,7 +287,7 @@ fn for_agents(s: &mut Setup, slot: &Slot) {
 }
 
 /// asks, approvals, /btw, compact, rerun, fork, subagents, quick, sign-in, overage, agents (more.rs)
-fn more(s: &mut Setup, slot: &Slot, harness_kind: Arc<wisp_resources_api::StoredKind>) {
+fn more(s: &mut Setup, slot: &Slot, harness_kind: Arc<wisp_resources_api::StoredKind>, kinds_for_run: Arc<wisp_resources_api::StoredKind>) {
     cmd!(s, slot, c::Ask, |r, call, a| r.ask(a).await.map(|ask_id| c::Asked { ask_id }));
     cmd!(s, slot, c::Answer, |r, call, a| r.answer(&a.id, &a.text).await);
     cmd!(s, slot, c::PollAnswerOf, |r, call, a| Ok(r.poll_answer(&a.ask_id)));
@@ -286,6 +305,19 @@ fn more(s: &mut Setup, slot: &Slot, harness_kind: Arc<wisp_resources_api::Stored
     cmd!(s, slot, c::SignIn, |r, call, a| r.sign_in(a.id.as_str(), &a.turn_id).await.map(|_| c::Ack {}));
     cmd!(s, slot, c::SignInDone, |r, call, a| r.sign_in_done(&a.agent, &a.account).await.map(|()| c::Ack {}));
     cmd!(s, slot, c::Overage, |r, call, a| r.overage(a.id.as_str(), &a.turn_id, &a.kind).await.map(|()| c::Ack {}));
+    let projects = kinds_for_run;
+    s.command::<c::ProjectRun, _, _>(move |ctx, call, a| {
+        let projects = projects.clone();
+        async move {
+            let list = projects.specs().await.unwrap_or_default();
+            let (name, p) = crate::kinds::project_for(&list, &a.cwd).ok_or_else(|| WireError::not_found(format!("{} isn't in a declared project (projects: in a formula)", a.cwd)))?;
+            if p.run.is_empty() {
+                return Err(WireError::invalid(format!("{name} has no run scripts (run: in its project)")));
+            }
+            let args = serde_json::json!({ "kind": "shell", "id": format!("run:{name}"), "argv": ["sh", "-c", p.run.join(" && ")], "cwd": p.path });
+            ctx.run_json(&call, "terminal.open", args).await
+        }
+    });
     let (agents, harnesses) = (slot.clone(), harness_kind);
     s.command::<c::Agents, _, _>(move |_ctx, _call, a| {
         let (slot, harnesses) = (agents.clone(), harnesses.clone());

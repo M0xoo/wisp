@@ -108,6 +108,7 @@ command!(Note = "runtime.note": NoteArgs => Ack);
 command!(Settle = "runtime.settle": SettleArgs => Ack);
 command!(Search = "runtime.search": SearchArgs => Vec<SearchHit>, read_only);
 command!(Quick = "runtime.quick": QuickArgs => QuickResult);
+command!(ProjectRun = "runtime.projectRun": ProjectRunArgs => Value);
 command!(Agents = "runtime.agents": AgentsArgs => Vec<AgentStatus>, read_only);
 command!(Card = "runtime.card": CardArgs => Created);
 command!(Fork = "runtime.fork": ForkArgs => Created);
