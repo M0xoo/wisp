@@ -161,3 +161,24 @@ When the open project has a `.wisp/` folder, the sidebar gets a second tab besid
 - `wisp ls --all` shows both, with the repo rows marked (`⎇`) and your tracked tasks marked "in repo".
 - `wisp show <id>` works on either kind: a repo task opens as its read-only report, with the next commands
   printed (`wisp resume`, `wisp rerun`, `wisp blame`).
+
+## Take over a task in its own CLI, from anywhere (added 2026-11-09)
+
+v1's Take over (open the task's session in the agent's own CLI, with the note that the user now reads replies in a
+terminal) comes to the CLI and the TUI, and works on tasks from the repo history too:
+
+- `wisp takeover <id> [--agent claude|codex|…]` (TUI: `t` on a task; app: Take over, as in v1) runs the harness's
+  interactive CLI in the current terminal, in the task's folder (its worktree, or a fresh worktree at its base
+  commit if the folder is gone), resumed on the task's conversation.
+- **For your own task:** it resumes the harness's own session (`claude --resume <id>`, `codex resume <id>`), as v1
+  does.
+- **For a task from the repo or a share** (someone else's, another computer's): `.wisp/history/` keeps the harness's
+  **native session log** next to wisp's normalised transcript, when the harness has one (Claude Code's `.jsonl`,
+  Codex's rollout file), scrubbed and compressed. Take over restores it into the CLI's own store on this machine and
+  resumes it, so the conversation continues exactly where the original left off.
+- **Without a native log, or with a different harness** (`--agent codex` on a Claude task): it starts a new CLI
+  session primed with the task's spec, report and a summary of its transcript ("you are continuing this task: …").
+  It says plainly that it's a continuation, not the same session.
+- **Afterwards:** when the CLI session ends, wisp adopts it back (ADR-0035), so the takeover becomes the task's next
+  turns and is tracked like any other. `--no-adopt` leaves it out.
+- **SDK:** `task.takeover({ agent })` returns the command line to run, for editors and scripts.
