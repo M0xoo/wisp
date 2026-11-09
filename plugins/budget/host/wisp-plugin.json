@@ -18,6 +18,7 @@
   },
   "provides": {},
   "contributes": {
+    "events": ["budget.changed", "budget.drain", "budget.plan_free", "budget.reset", "budget.share"],
     "commands": [
       {
         "id": "budget.view",

@@ -107,13 +107,7 @@
         "title": "Run a command on the computer that owns its row"
       }
     ],
-    "events": [
-      "machines.online",
-      "machines.offline",
-      "machines.changed",
-      "machines.removed",
-      "machines.remote"
-    ],
+    "events": ["machines.changed", "machines.offline", "machines.online", "machines.remote", "machines.removed"],
     "topics": [
       "machines",
       "plugin:wisp.machines:remote",

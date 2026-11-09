@@ -183,6 +183,13 @@ pub struct PrOpened {
 }
 impl Event for PrOpened {
     const TYPE: &'static str = "pr.opened";
+    const DURABLE: bool = true;
+    fn subject(&self) -> Option<String> {
+        Some(self.session.clone())
+    }
+    fn key(&self) -> Option<String> {
+        Some(format!("{}#{}", self.repo, self.pr.number))
+    }
 }
 
 /// A PR changed in a way worth coming back for (state, review, CI settled): the task goes unread.
@@ -204,6 +211,13 @@ pub struct PrMerged {
 }
 impl Event for PrMerged {
     const TYPE: &'static str = "pr.merged";
+    const DURABLE: bool = true;
+    fn subject(&self) -> Option<String> {
+        Some(self.session.clone())
+    }
+    fn key(&self) -> Option<String> {
+        Some(format!("{}:{}", self.session, self.prs.len()))
+    }
 }
 
 /// The task has a new value for "something to ship".

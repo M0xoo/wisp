@@ -102,11 +102,7 @@
         "title": "Remove an attachment"
       }
     ],
-    "events": [
-      "stuff.saved",
-      "stuff.removed",
-      "stuff.launched"
-    ],
+    "events": ["stuff.launched", "stuff.removed", "stuff.saved"],
     "topics": [
       "stuff",
       "uploads"

@@ -8,6 +8,24 @@ use wisp_kernel::Event;
 use crate::model::{Step, Summary, TurnStatus};
 use crate::{SessionId, TurnId};
 
+/// A lifecycle fact someone would be upset to miss: kept in the event log (ADR-0044).
+macro_rules! durable {
+    ($name:ident = $ty:literal, |$e:ident| subject: $subject:expr, key: $key:expr) => {
+        impl Event for $name {
+            const TYPE: &'static str = $ty;
+            const DURABLE: bool = true;
+            fn subject(&self) -> Option<String> {
+                let $e = self;
+                Some($subject)
+            }
+            fn key(&self) -> Option<String> {
+                let $e = self;
+                Some($key)
+            }
+        }
+    };
+}
+
 macro_rules! event {
     ($name:ident = $ty:literal) => {
         impl Event for $name {
@@ -54,7 +72,7 @@ pub struct TurnFinished {
     pub interrupted: bool,
     pub summary: Summary,
 }
-event!(TurnFinished = "turn.finished");
+durable!(TurnFinished = "turn.finished", |e| subject: e.session_id.0.clone(), key: e.turn_id.0.clone());
 
 /// Every end, quiet ones too (telemetry, budget).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -77,7 +95,7 @@ pub struct TurnEnded {
     pub agent: String,
     pub model: String,
 }
-event!(TurnEnded = "turn.ended");
+durable!(TurnEnded = "turn.ended", |e| subject: e.session_id.0.clone(), key: e.turn_id.0.clone());
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -88,7 +106,7 @@ pub struct TurnHeld {
     pub by: String,
     pub kind: String,
 }
-event!(TurnHeld = "turn.held");
+durable!(TurnHeld = "turn.held", |e| subject: e.session_id.0.clone(), key: format!("{}:{}", e.turn_id.0, e.kind));
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -126,4 +144,4 @@ pub struct SessionAsked {
     pub ask_id: String,
     pub question: String,
 }
-event!(SessionAsked = "session.asked");
+durable!(SessionAsked = "session.asked", |e| subject: e.session_id.0.clone(), key: e.ask_id.clone());

@@ -14,5 +14,5 @@
   "activation": [
     "onStartup"
   ],
-  "contributes": {}
+  "contributes": { "events": ["connectors.agent_added", "connectors.changed", "connectors.works"] }
 }

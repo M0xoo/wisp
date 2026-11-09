@@ -23,6 +23,7 @@
   "requires": {},
   "provides": {},
   "contributes": {
+    "events": ["router.added"],
     "commands": [
       {
         "id": "router.view",

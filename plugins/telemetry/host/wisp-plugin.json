@@ -18,6 +18,7 @@
     "onStartup"
   ],
   "contributes": {
+    "events": ["telemetry.event"],
     "commands": [
       {
         "id": "telemetry.track",

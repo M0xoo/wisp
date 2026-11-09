@@ -245,6 +245,13 @@ pub struct ReviewFinished {
 }
 impl Event for ReviewFinished {
     const TYPE: &'static str = "review.finished";
+    const DURABLE: bool = true;
+    fn subject(&self) -> Option<String> {
+        Some(self.session_id.clone())
+    }
+    fn key(&self) -> Option<String> {
+        Some(format!("{}@{}", self.session_id, self.head))
+    }
 }
 
 // ---------- points review owns (others contribute) ----------

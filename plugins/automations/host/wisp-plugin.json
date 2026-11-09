@@ -18,6 +18,7 @@
   "requires": {},
   "provides": {},
   "contributes": {
+    "events": ["automations.changed"],
     "commands": [
       {
         "id": "automations.tasks",

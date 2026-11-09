@@ -11,6 +11,8 @@
   "permissions": [
     "connectors:*",
     "crew:*",
+    "events:tail",
+    "events:why",
     "later:*",
     "machines:*",
     "plugins:*",
@@ -23,6 +25,7 @@
     "onStartup"
   ],
   "contributes": {
+    "events": ["mcp.ask.closed", "mcp.ask.shown"],
     "commands": [
       {
         "id": "mcp.rpc",

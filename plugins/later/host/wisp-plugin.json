@@ -22,6 +22,7 @@
   "requires": {},
   "provides": {},
   "contributes": {
+    "events": ["later.added", "later.dropped", {"type": "later.fired", "durable": true}, "later.goalRoundDue", "later.planStarted"],
     "commands": [
       {
         "id": "later.add",

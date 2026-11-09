@@ -256,4 +256,75 @@ export const rustResourceKinds: Rule = {
   },
 };
 
-export const RUST_RULES: readonly Rule[] = [rustLayers, rustSansIo, rustUnsafe, rustSizes, rustManifests, rustResourceKinds];
+/** The event types a plugin's crates define (`const TYPE`, `event!`, `durable!`), and which are durable. */
+export function eventsInCode(text: string): Map<string, boolean> {
+  const out = new Map<string, boolean>();
+  for (const m of text.matchAll(/const TYPE: &'static str = "([^"]+)";(?=([\s\S]{0,160}))/g)) {
+    const ty = m[1] ?? '';
+    // the impl's own DURABLE, before its closing brace
+    const rest = (m[2] ?? '').split('\n}')[0] ?? '';
+    out.set(ty, /const DURABLE: bool = true/.test(rest));
+  }
+  for (const m of text.matchAll(/\bevent!\(\s*\w+\s*=\s*"([^"]+)"/g)) out.set(m[1] ?? '', false);
+  for (const m of text.matchAll(/\bdurable!\(\s*\w+\s*=\s*"([^"]+)"/g)) out.set(m[1] ?? '', true);
+  return out;
+}
+
+/** `contributes.events` as the kernel reads it: a type, or `{ type, durable }`. */
+function eventsInManifest(m: Record<string, unknown>): Map<string, boolean> {
+  const out = new Map<string, boolean>();
+  const list = (m['contributes'] as { events?: unknown } | undefined)?.events;
+  for (const e of Array.isArray(list) ? (list as unknown[]) : []) {
+    if (typeof e === 'string') out.set(e, false);
+    else if (e && typeof e === 'object' && typeof (e as { type?: unknown }).type === 'string') out.set((e as { type: string }).type, (e as { durable?: unknown }).durable === true);
+  }
+  return out;
+}
+
+export const rustEvents: Rule = {
+  id: 'rust-events',
+  description: 'every event type a plugin emits is in its manifest’s contributes.events (durable as in the code), and the manifest lists none nobody emits (ADR-0044)',
+  run(ctx) {
+    const out: Finding[] = [];
+    const all = crates(ctx.root).filter((c) => c.plugin && (c.role === 'api' || c.role === 'host'));
+    const plugins = new Set(all.map((c) => c.plugin ?? ''));
+    for (const plugin of plugins) {
+      const host = all.find((c) => c.plugin === plugin && c.role === 'host');
+      if (!host) continue;
+      const file = `${host.dir}/wisp-plugin.json`;
+      if (!existsSync(join(ctx.root, file))) continue;
+      let m: Record<string, unknown>;
+      try {
+        m = JSON.parse(readFileSync(join(ctx.root, file), 'utf8')) as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+      const code = new Map<string, boolean>();
+      for (const c of all.filter((x) => x.plugin === plugin)) {
+        for (const f of rustFiles(ctx.root, `${c.dir}/src`).filter((x) => !isTestFile(x))) {
+          for (const [t, d] of eventsInCode(stripTests(readFileSync(join(ctx.root, f), 'utf8')))) code.set(t, d || (code.get(t) ?? false));
+        }
+      }
+      const listed = eventsInManifest(m);
+      for (const [t, d] of code) {
+        if (!listed.has(t)) out.push(finding(file, 1, 'rust-events', `${t} is emitted (${plugin}) but missing from contributes.events`));
+        else if (listed.get(t) !== d) out.push(finding(file, 1, 'rust-events', `${t} is ${d ? '' : 'not '}durable in the code: say "durable": ${d} in contributes.events`));
+      }
+      for (const t of listed.keys()) {
+        if (!code.has(t)) out.push(finding(file, 1, 'rust-events', `contributes.events lists ${t}, which nothing in ${plugin} emits`));
+        // a new version keeps its old type emitted for one minor (ADR-0044)
+        const base = t.split('@')[0] ?? t;
+        if (t.includes('@') && !listed.has(base)) out.push(finding(file, 1, 'rust-events', `${t} is a new version: ${base} stays emitted (and listed) for one minor`));
+      }
+    }
+    return out;
+  },
+};
+
+/** The text before `#[cfg(test)]`: a test's own event types aren't the plugin's. */
+function stripTests(text: string): string {
+  const at = text.indexOf('#[cfg(test)]');
+  return at < 0 ? text : text.slice(0, at);
+}
+
+export const RUST_RULES: readonly Rule[] = [rustLayers, rustSansIo, rustUnsafe, rustSizes, rustManifests, rustResourceKinds, rustEvents];

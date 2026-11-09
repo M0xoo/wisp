@@ -2,7 +2,8 @@
 //! has it: this plugin owns the pipeline (the catalogue, opt-out, scrubbing, the queue, the install's
 //! distinct id) and hands batches to every `telemetry.sink@1`. It names no vendor: `wisp.posthog` is
 //! one sink. Events come from the plugin that owns the fact (`telemetry.track`), or from kernel events
-//! where v1 tracked on the runner's (`turn.started` → `turn_started`, `turn.ended` → `turn_ended`).
+//! where v1 tracked on the runner's (`turn.started` → `turn_started`, and `turn.ended` → `turn_ended` as a
+//! durable subscriber, ADR-0044).
 //!
 //! Nothing here blocks: a flush runs every 15 s (or at 50 events) off the caller's way, each sink in its
 //! own task with a 3 s budget; a batch a sink doesn't take is dropped (v1: telemetry never gets in the
@@ -194,14 +195,16 @@ impl Plugin for TelemetryPlugin {
             }
         });
         let sl = slot.clone();
-        s.on::<TurnEnded, _, _>(move |ctx, e| {
+        // a durable fact (ADR-0044): telemetry is one more durable subscriber, so a restart loses no turn's end
+        s.on_durable::<TurnEnded, _, _>("turn_ended", move |ctx, call, d| {
             let slot = sl.clone();
             async move {
-                let Ok(st) = state(&slot) else { return };
-                let call = ctx.root_call();
+                let wisp_kernel::durable::Durable::Event { event: e, .. } = d else { return Ok(()) };
+                let Ok(st) = state(&slot) else { return Ok(()) };
                 if let Some((r, t)) = facts(&ctx, &call, e.session_id.as_str(), e.turn_id.as_str()).await {
                     st.track(&ctx, "turn_ended", ended_props(&r, &t, e.interrupted)).await;
                 }
+                Ok(())
             }
         });
         let start = slot;

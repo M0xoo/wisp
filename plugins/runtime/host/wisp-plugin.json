@@ -58,6 +58,7 @@
   ],
   "migrations": "runtime",
   "contributes": {
+    "events": [{"type": "session.asked", "durable": true}, "session.changed", "session.created", "session.deleted", "turn.activity", {"type": "turn.ended", "durable": true}, {"type": "turn.finished", "durable": true}, {"type": "turn.held", "durable": true}, "turn.limits", "turn.started"],
     "commands": [
       {
         "id": "runtime.create",

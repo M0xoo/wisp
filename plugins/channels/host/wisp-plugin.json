@@ -23,6 +23,7 @@
     "onStartup"
   ],
   "contributes": {
+    "events": ["channels.changed", "channels.started"],
     "commands": [
       {
         "id": "channels.view",

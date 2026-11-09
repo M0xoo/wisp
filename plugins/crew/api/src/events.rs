@@ -70,7 +70,13 @@ pub struct JobFiled {
     /// filed in For later, no notification
     pub for_later: bool,
 }
-event!(JobFiled = "crew.job_filed");
+impl Event for JobFiled {
+    const TYPE: &'static str = "crew.job_filed";
+    const DURABLE: bool = true;
+    fn subject(&self) -> Option<String> {
+        Some(self.session_id.clone())
+    }
+}
 
 /// Members were shared (v1 telemetry `crew_shared`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]

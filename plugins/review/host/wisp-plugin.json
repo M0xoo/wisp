@@ -43,9 +43,7 @@
         "readOnly": true
       }
     ],
-    "events": [
-      "review.finished"
-    ],
+    "events": [{"type": "review.finished", "durable": true}],
     "points": [
       {
         "id": "review.tests",

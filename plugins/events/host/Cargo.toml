@@ -1,0 +1,26 @@
+[package]
+name = "wisp-events"
+description = "wisp.events host: the durable event log from outside the process (tail, why, retry, the catalogue, the events topic, MCP wisp_events) and its sinks (a signed webhook)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+hmac.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio = { workspace = true, features = ["time"] }
+tracing.workspace = true
+wisp-events-api = { path = "../api" }
+wisp-kernel.workspace = true
+wisp-mcp-api = { path = "../../mcp/api" }
+wisp-store.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

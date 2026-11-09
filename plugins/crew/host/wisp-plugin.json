@@ -18,6 +18,7 @@
   "requires": {},
   "provides": {},
   "contributes": {
+    "events": ["crew.changed", "crew.imported", {"type": "crew.job_filed", "durable": true}, "crew.job_started", "crew.joined", "crew.left", "crew.shared"],
     "commands": [
       {
         "id": "crew.list",

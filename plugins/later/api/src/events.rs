@@ -34,7 +34,16 @@ pub struct Fired {
     pub by: String,
     pub remind: bool,
 }
-event!(Fired = "later.fired");
+impl Event for Fired {
+    const TYPE: &'static str = "later.fired";
+    const DURABLE: bool = true;
+    fn subject(&self) -> Option<String> {
+        Some(self.session_id.clone())
+    }
+    fn key(&self) -> Option<String> {
+        Some(self.entry_id.clone())
+    }
+}
 
 /// An entry wisp scheduled went without being sent: `cancelled` by the user, or the task was marked
 /// `done`. wisp.goal hears it for a round that waited for the plan (the goal waits for the user now).

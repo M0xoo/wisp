@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { codeLines, header, isTestFile } from '../core/rust.ts';
-import { RUST_MAX_FILE, RUST_MAX_FN, longFns, rustLayers, rustManifests, rustSansIo, rustSizes, rustUnsafe } from '../rules/rust.ts';
-import { fixture, run, writeTree } from './helpers.ts';
+import { RUST_MAX_FILE, RUST_MAX_FN, eventsInCode, longFns, rustEvents, rustLayers, rustManifests, rustSansIo, rustSizes, rustUnsafe } from '../rules/rust.ts';
+import { fixture, messages, run, writeTree } from './helpers.ts';
 
 test('rust-layers: plugins use other plugins through -api only; api ↛ core ↛ host; base crates use no plugin', async () => {
   assert.deepEqual(await run(rustLayers, fixture('rust')), [
@@ -63,4 +63,38 @@ test('rust source reading: comments, strings, raw strings and chars are blanked;
   assert.deepEqual(longFns(`fn f() {\n    let s = "}";\n${lines(RUST_MAX_FN, () => '    x();')}\n}`).map(([l, n]) => `${l} ${n}`), ['1 f']);
   assert.equal(header('//! one\n//! size-ok: why\nuse x;\n// later: size-ok: no'), '//! one\n//! size-ok: why');
   assert.ok(isTestFile('crates/a/tests/x.rs') && isTestFile('crates/a/src/resolve_tests.rs') && !isTestFile('crates/a/src/contests.rs'));
+});
+
+test('rust-events: emitted_type_missing_from_manifest_fails_check (and a listed type nobody emits, and durable as in the code)', async () => {
+  const cargo = '[package]\nname = "wisp-shop"\n';
+  const root = writeTree(
+    new Map([
+      ['Cargo.toml', '[workspace]\nmembers = ["plugins/*/api", "plugins/*/host"]\n'],
+      ['plugins/shop/api/Cargo.toml', '[package]\nname = "wisp-shop-api"\n'],
+      [
+        'plugins/shop/api/src/lib.rs',
+        [
+          'impl Event for Sold {',
+          '    const TYPE: &\'static str = "shop.sold";',
+          '    const DURABLE: bool = true;',
+          '}',
+          'impl Event for Seen {',
+          '    const TYPE: &\'static str = "shop.seen";',
+          '}',
+          'event!(Opened = "shop.opened");',
+          '#[cfg(test)]',
+          'mod tests { impl Event for T { const TYPE: &\'static str = "test.only"; } }',
+        ].join('\n'),
+      ],
+      ['plugins/shop/host/Cargo.toml', cargo],
+      ['plugins/shop/host/src/lib.rs', 'impl Plugin for Shop {}'],
+      ['plugins/shop/host/wisp-plugin.json', JSON.stringify({ wispPlugin: 1, id: 'wisp.shop', contributes: { events: [{ type: 'shop.sold', durable: false }, 'shop.seen', 'shop.gone'] } })],
+    ]),
+  );
+  const got = await messages(rustEvents, root);
+  assert.equal(got.length, 3, got.join('\n'));
+  assert.ok(got.some((m) => m.includes('shop.opened is emitted')));
+  assert.ok(got.some((m) => m.includes('shop.sold is durable in the code')));
+  assert.ok(got.some((m) => m.includes('lists shop.gone')));
+  assert.deepEqual([...eventsInCode('durable!(X = "a.b", |e| subject: 1, key: 2);')], [['a.b', true]]);
 });

@@ -15,6 +15,20 @@ import { join, relative } from 'node:path';
 
 export const BUDGETS = { initialJsBr: 120 * 1024, initialCssBr: 30 * 1024 } as const;
 
+/** The durable event log's budgets (ADR-0044), measured and gated by `spikes/events` (it exits 1 on a miss). */
+export const EVENT_BUDGETS = {
+  /** emit → in-process handler, p99 */
+  emitToHandlerP99Ms: 1,
+  /** durable appends a second */
+  durableAppendPerS: 20_000,
+  /** replay of 100 000 events to a durable subscription */
+  replay100kMs: 1_000,
+  /** the events:* topic to a client, p99 (the sync path's budget: spikes/sync-bench-rs) */
+  topicP99Ms: 150,
+  /** write amplification on the streaming bench: unchanged, since stream events stay ephemeral */
+  writeAmplification: 15,
+} as const;
+
 const arg = (name: string): string | undefined => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 const dist = arg('dist') ?? join(import.meta.dirname, '..', 'apps', 'web', 'dist');
 

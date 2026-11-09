@@ -30,6 +30,7 @@
     "onStartup"
   ],
   "contributes": {
+    "events": ["pr.changed", {"type": "pr.merged", "durable": true}, {"type": "pr.opened", "durable": true}, "ship.follow_up", "ship.step", "ship.to_ship"],
     "commands": [
       {
         "id": "ship.track",

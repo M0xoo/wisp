@@ -16,6 +16,7 @@
     "onStartup"
   ],
   "contributes": {
+    "events": ["terminal.changed"],
     "commands": [
       {
         "id": "terminal.open",

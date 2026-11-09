@@ -1,0 +1,27 @@
+{
+  "wispPlugin": 1,
+  "id": "wisp.events",
+  "name": "Events",
+  "version": "2.0.0",
+  "api": "^1",
+  "description": "The durable event log from outside the process: tail, why, retry, the catalogue, the events topic, MCP wisp_events, and sinks (a signed webhook) (ADR-0044)",
+  "kind": "plugin",
+  "server": { "builtin": "wisp_events" },
+  "provides": { "events.sink": { "version": "1.0.0" } },
+  "permissions": ["secrets:read", "net:connect{host:*}", "settings:read"],
+  "activation": ["onStartup"],
+  "contributes": {
+    "commands": [
+      { "id": "events.tail", "title": "What happened: durable events by type, subject or since", "readOnly": true },
+      { "id": "events.why", "title": "What caused an event: its chain, root first", "readOnly": true },
+      { "id": "events.retry", "title": "Deliver a parked event again" },
+      { "id": "events.parked", "title": "Events a subscription gave up on, and why", "readOnly": true },
+      { "id": "events.ls", "title": "Every event type wisp emits", "readOnly": true },
+      { "id": "events.sinksStatus", "title": "Where events are forwarded, and how each sink is doing", "readOnly": true },
+      { "id": "events.resume", "title": "Resume a paused sink" }
+    ],
+    "settings": [
+      { "key": "events.sinks", "type": "json", "default": [], "title": "Event sinks" }
+    ]
+  }
+}

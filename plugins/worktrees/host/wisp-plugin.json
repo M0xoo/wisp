@@ -33,6 +33,7 @@
     "onStartup"
   ],
   "contributes": {
+    "events": ["worktree.added", "worktree.removed", "worktrees.cleaned"],
     "commands": [
       {
         "id": "worktrees.create",

@@ -23,5 +23,5 @@
   "activation": [
     "onStartup"
   ],
-  "contributes": {}
+  "contributes": { "events": ["machine.automations_paused", "machine.load_free"] }
 }
