@@ -5,6 +5,13 @@ The coder takes the next unchecked item as soon as one ends, with no wait for re
 no local full suites. The lead commits each item by concern and pushes; PR #756 CI runs the tests. CI failures
 are fixed at the start of the next item.
 
+**TUI colour fix (owner's real Terminal, 2026-11-09):** Apple's Terminal.app (`TERM_PROGRAM=Apple_Terminal`) doesn't draw
+24-bit colour; it shows it as grey. The owner's shell sets `COLORTERM=truecolor`, so `plugins/tui/api/src/theme.rs`
+`from_env` picked true colour and the whole TUI came out washed grey. With `COLORTERM=` it's right.
+- Fix: `TERM_PROGRAM=Apple_Terminal` always gets the 256-colour theme, whatever `COLORTERM` says.
+- Add `WISP_TUI_COLOR=truecolor|256|16` to override.
+- Named test: `apple_terminal_gets_256_colours_even_with_colorterm_truecolor`.
+
 **Next coder job, small (owner, 2026-11-09): Fable in the Claude model catalogue.** Claude Code 2.1.321 accepts
 `--model fable` (Fable 5.2, `claude-fable-5-2`, the newest and most capable).
 - Add `model("fable", "Fable", "Newest and most capable")` to `plugins/claude/host/src/lib.rs`, first after Default.
