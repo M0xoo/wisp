@@ -1,12 +1,16 @@
 //! wisp.channels' resource kinds (ADR-0028): channels (Telegram, Slack, Discord, GitHub, email, ntfy)
-//! and notifications (what notifies where). Kept as declared (`StoredKind`); tokens are
-//! `${secret:NAME}` references. A channel changes who may start work, so it is sensitive.
+//! and notifications (what notifies where). Acted on: applying a channel gives its transport its config
+//! (`${secret:}` read, in memory only) and starts it when it's on (off by default), stops it when it's
+//! off or gone; a notification sends its events to a channel or a webhook. A channel changes who may
+//! start work, so it is sensitive.
+
+use std::sync::{Arc, Mutex};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use wisp_kernel::Setup;
-use wisp_resources_api::{KindInfo, stored};
+use wisp_kernel::{BoxFuture, Call, Ctx, Result, Setup};
+use wisp_resources_api::{KindInfo, Op, OpKind, RESOURCE_KIND, Resource, ResourceKind, StoredKind, schema_of};
 
 /// A channel: where people talk to wisp and hear back from it.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -26,7 +30,8 @@ pub struct ChannelSpec {
     /// the most a message may start: plan | edits (never auto)
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub cap: String,
-    /// where its tasks run (a project or machine), and thread rules
+    /// the transport's own settings (ntfy: `server`, `topic`; Slack: `appToken`…), merged into its
+    /// config; where its tasks run (a project or machine), and thread rules
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub routing: Option<Value>,
 }
@@ -44,7 +49,69 @@ pub struct NotificationSpec {
     pub projects: Vec<String>,
 }
 
-pub fn register(s: &mut Setup) {
-    let _ = stored::<ChannelSpec>(s, |sc| KindInfo::new("channel", "channels", "wisp.channels", sc).order(40).sensitive());
-    let _ = stored::<NotificationSpec>(s, |sc| KindInfo::new("notification", "notifications", "wisp.channels", sc).order(45));
+pub type Notifications = Arc<Mutex<Vec<(String, NotificationSpec)>>>;
+pub type Channels = Arc<Mutex<Vec<(String, ChannelSpec)>>>;
+
+/// `${secret:NAME}` read from secrets (an unknown one stays as it is).
+pub async fn reveal(ctx: &Ctx, text: &str) -> String {
+    let mut out = text.to_owned();
+    let Ok(secrets) = wisp_kernel::services::secrets(ctx) else { return out };
+    while let Some(a) = out.find("${secret:") {
+        let Some(b) = out[a..].find('}') else { break };
+        let name = out[a + 9..a + b].to_owned();
+        let Ok(Some(v)) = secrets.get(&name).await else { break };
+        out.replace_range(a..=a + b, &v);
+    }
+    out
+}
+
+/// Re-reads the declared channels and notifications, then has the hub act on them.
+pub type OnChange = Arc<dyn Fn() -> BoxFuture<'static, ()> + Send + Sync>;
+
+struct Kind {
+    inner: Arc<StoredKind>,
+    after: OnChange,
+}
+
+impl ResourceKind for Kind {
+    fn info(&self) -> KindInfo {
+        self.inner.info()
+    }
+    fn read<'a>(&'a self, call: &'a Call) -> BoxFuture<'a, Result<Vec<Resource>>> {
+        self.inner.read(call)
+    }
+    fn describe(&self, op: &Op) -> Option<String> {
+        (self.inner.info.kind == "channel" && op.op != OpKind::Delete && op.spec.get("enabled") == Some(&Value::Bool(true)))
+            .then(|| format!("turns on the {} channel {}: messages there can start tasks", op.spec.get("transport").and_then(Value::as_str).unwrap_or("?"), op.name))
+    }
+    fn apply<'a>(&'a self, call: &'a Call, op: &'a Op) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            self.inner.apply(call, op).await?;
+            (self.after)().await;
+            Ok(())
+        })
+    }
+}
+
+pub struct Kinds {
+    pub channels: Arc<StoredKind>,
+    pub notifications: Arc<StoredKind>,
+}
+
+pub async fn read(k: &Kinds, ch: &Channels, no: &Notifications) {
+    let c = k.channels.specs().await.unwrap_or_default().into_iter().filter_map(|(n, v)| Some((n, serde_json::from_value(v).ok()?))).collect();
+    let n = k.notifications.specs().await.unwrap_or_default().into_iter().filter_map(|(n, v)| Some((n, serde_json::from_value(v).ok()?))).collect();
+    *ch.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = c;
+    *no.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = n;
+}
+
+pub fn register(s: &mut Setup, after: &OnChange) -> Arc<Kinds> {
+    let ctx = s.ctx();
+    let channels = Arc::new(StoredKind::new(KindInfo::new("channel", "channels", "wisp.channels", schema_of::<ChannelSpec>()).order(40).sensitive(), ctx.clone()));
+    let notifications = Arc::new(StoredKind::new(KindInfo::new("notification", "notifications", "wisp.channels", schema_of::<NotificationSpec>()).order(45), ctx));
+    for inner in [channels.clone(), notifications.clone()] {
+        let k: Arc<dyn ResourceKind> = Arc::new(Kind { inner, after: after.clone() });
+        s.contribute(&RESOURCE_KIND, k);
+    }
+    Arc::new(Kinds { channels, notifications })
 }

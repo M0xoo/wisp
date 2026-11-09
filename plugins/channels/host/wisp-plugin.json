@@ -4,13 +4,72 @@
   "name": "Channels",
   "version": "2.0.0",
   "api": "^1",
-  "description": "wisp.channels: the hub every way of reaching wisp from outside goes through (plan §6.11.3)",
+  "description": "wisp.channels: the hub every way of reaching wisp from outside goes through (plan \u00a76.11.3): the channel and notification kinds",
   "server": {
     "builtin": "wisp-channels"
   },
-  "permissions": [],
+  "permissions": [
+    "runtime:get",
+    "runtime:list",
+    "runtime:create",
+    "runtime:stop",
+    "runtime:followUp",
+    "runtime:btw",
+    "runtime:setState",
+    "runtime:answer",
+    "resources:export"
+  ],
   "activation": [
     "onStartup"
   ],
-  "contributes": {}
+  "contributes": {
+    "commands": [
+      {
+        "id": "channels.view",
+        "title": "Which channels are on",
+        "readOnly": true
+      },
+      {
+        "id": "channels.update",
+        "title": "Change a channel's settings"
+      },
+      {
+        "id": "channels.test",
+        "title": "Send a test to every channel that's on"
+      },
+      {
+        "id": "channels.send",
+        "title": "Send a notice"
+      },
+      {
+        "id": "channels.notify",
+        "title": "Notify about a task"
+      },
+      {
+        "id": "channels.act",
+        "title": "Act on a task from a channel"
+      },
+      {
+        "id": "channels.inbound",
+        "title": "A message the grid held"
+      },
+      {
+        "id": "channels.routed",
+        "title": "A message the grid routed"
+      },
+      {
+        "id": "channels.rotate",
+        "title": "Replace a channel's private URL"
+      },
+      {
+        "id": "channels.extra",
+        "title": "A channel's extra view",
+        "readOnly": true
+      },
+      {
+        "id": "channels.refresh",
+        "title": "Read the channels again"
+      }
+    ]
+  }
 }
