@@ -51,6 +51,14 @@ pub struct Profile {
     pub spec: AgentSpec,
 }
 
+/// `runtime.profile.rename`: in place (ADR-0034, `wisp mv`). Additive (2026-11-09).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct RenameArgs {
+    pub from: String,
+    pub to: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "runtime/")]
 pub struct NameArgs {

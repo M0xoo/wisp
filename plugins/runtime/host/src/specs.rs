@@ -60,6 +60,31 @@ pub async fn set_profile(store: &Store, p: Profile) -> Result<Profile> {
     Ok(p)
 }
 
+/// A profile renamed in place: one write moves its row (and its name inside), refusing a taken name.
+pub async fn rename_profile(store: &Store, from: &str, to: &str) -> Result<Profile> {
+    named(to)?;
+    let (f, t) = (from.to_owned(), to.to_owned());
+    let moved = store
+        .write(move |w| {
+            if w.get(PROFILE.kind, t.as_str())?.is_some() {
+                return Ok(Err(format!("an agent named {t} exists already")));
+            }
+            let Some(row) = w.get(PROFILE.kind, f.as_str())? else { return Ok(Err(format!("no agent named {f}"))) };
+            let mut body = row.get("body").cloned().unwrap_or_default();
+            body["name"] = json!(t);
+            let mut r = Row::new();
+            r.insert("id".into(), json!(t));
+            r.insert("body".into(), body.clone());
+            w.upsert(PROFILE.kind, r)?;
+            w.del(PROFILE.kind, f.as_str())?;
+            Ok(Ok(body))
+        })
+        .await
+        .map_err(store_err)?
+        .map_err(WireError::conflict)?;
+    serde_json::from_value(moved).map_err(|e| WireError::internal(e.to_string()))
+}
+
 pub async fn remove_profile(store: &Store, name: &str) -> Result<()> {
     let n = name.to_owned();
     store.write(move |w| w.del(PROFILE.kind, n.as_str()).map(|_| ())).await.map_err(store_err)

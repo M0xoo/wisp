@@ -146,10 +146,11 @@ fn specs(s: &mut Setup, slot: &Slot) {
     use wisp_resources_api::{CrudKind, KindInfo, RESOURCE_KIND, ResourceKind, schema_of};
     use wisp_runtime_api::spec::AgentSpec;
     let info = KindInfo::new("agent", "agents", "wisp.runtime", schema_of::<AgentSpec>()).order(20);
-    let kind: Arc<dyn ResourceKind> = Arc::new(CrudKind::new::<AgentSpec>(info, s.ctx(), "runtime.profiles", "runtime.profile.set", "runtime.profile.set", "runtime.profile.remove").keyed("name", "name", "name"));
+    let kind: Arc<dyn ResourceKind> = Arc::new(CrudKind::new::<AgentSpec>(info, s.ctx(), "runtime.profiles", "runtime.profile.set", "runtime.profile.set", "runtime.profile.remove").keyed("name", "name", "name").renames("runtime.profile.rename"));
     s.contribute(&RESOURCE_KIND, kind);
     s.command::<c::Profiles, _, _>(|ctx, _, _| async move { crate::specs::profiles(&*ctx.service::<Store>()?).await });
     s.command::<c::ProfileSet, _, _>(|ctx, _, p| async move { crate::specs::set_profile(&*ctx.service::<Store>()?, p).await });
+    s.command::<c::ProfileRename, _, _>(|ctx, _, a| async move { crate::specs::rename_profile(&*ctx.service::<Store>()?, &a.from, &a.to).await });
     s.command::<c::ProfileRemove, _, _>(|ctx, _, a| async move {
         crate::specs::remove_profile(&*ctx.service::<Store>()?, &a.name).await?;
         Ok(c::Ack {})

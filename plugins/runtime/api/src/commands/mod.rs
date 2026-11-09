@@ -126,6 +126,7 @@ command!(
     ProfileSet = "runtime.profile.set": crate::spec::Profile => crate::spec::Profile
 );
 command!(ProfileRemove = "runtime.profile.remove": crate::spec::NameArgs => Ack);
+command!(ProfileRename = "runtime.profile.rename": crate::spec::RenameArgs => crate::spec::Profile);
 command!(
     /// A task's spec: what was asked, from which code, under which formula, from where (ADR-0027).
     SpecOf = "runtime.spec": IdArgs => crate::spec::TaskSpec, read_only

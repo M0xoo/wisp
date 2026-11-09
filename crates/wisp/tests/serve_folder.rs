@@ -188,6 +188,16 @@ async fn mv_is_a_rename_in_wisp_and_drift_is_what_changed_outside_the_files() {
     let (_, out, _) = wisp(&dir, &repo, port, &["plan"]);
     assert!(out.contains("~ agent/fresh") && !out.lines().find(|l| l.contains("agent/fresh")).unwrap_or_default().contains("drift"), "{out}");
 
+    // an_agent_rename_is_one_write: in place, what wisp had comes along
+    let before = profile(&api, "reviewer").await;
+    let (code, out, err) = wisp(&dir, &repo, port, &["mv", "agent.reviewer", "agent.critic"]);
+    assert_eq!(code, 0, "{out}{err}");
+    let after = profile(&api, "critic").await;
+    assert!(profile(&api, "reviewer").await.is_null(), "the old name is gone");
+    assert_eq!((after["model"].clone(), after["harness"].clone()), (before["model"].clone(), before["harness"].clone()), "{after}");
+    let taken = api.try_cmd("runtime.profile.rename", json!({ "from": "critic", "to": "other" })).await;
+    assert!(taken["ok"] == false && taken.to_string().contains("exists already"), "{taken}");
+
     // without_a_tty_it_says_how_to_set_it
     std::fs::write(w.join("c.wisp.yml"), "variables:\n  region: { type: string }\n").unwrap();
     let (code, _, err) = wisp(&dir, &repo, port, &["plan"]);

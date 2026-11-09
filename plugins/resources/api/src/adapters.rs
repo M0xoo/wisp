@@ -61,13 +61,21 @@ pub struct CrudKind {
     /// the spec type's default, as JSON
     pub defaults: Value,
     fields: Vec<String>,
+    /// the command that renames in place (`{from, to}`); None: the trait's make-then-remove
+    pub rename_cmd: Option<&'static str>,
 }
 
 impl CrudKind {
     /// A kind over commands, its spec type `S` (schema, fields and defaults from it).
     pub fn new<S: schemars::JsonSchema + Default + serde::Serialize>(info: KindInfo, ctx: Ctx, list: &'static str, create: &'static str, update: &'static str, remove: &'static str) -> Self {
         let fields = props(&info.schema);
-        Self { info, ctx, list: (list, json!({})), name_field: "name", id_field: "id", create, update, remove, id_arg: "id", defaults: serde_json::to_value(S::default()).unwrap_or(Value::Null), fields }
+        Self { info, ctx, list: (list, json!({})), name_field: "name", id_field: "id", create, update, remove, id_arg: "id", defaults: serde_json::to_value(S::default()).unwrap_or(Value::Null), fields, rename_cmd: None }
+    }
+    /// Renames go through `cmd` (`{from, to}`, one write in the owner), not make-then-remove.
+    #[must_use]
+    pub fn renames(mut self, cmd: &'static str) -> Self {
+        self.rename_cmd = Some(cmd);
+        self
     }
     #[must_use]
     pub fn keyed(mut self, name_field: &'static str, id_field: &'static str, id_arg: &'static str) -> Self {
@@ -92,6 +100,17 @@ impl std::fmt::Debug for CrudKind {
 impl ResourceKind for CrudKind {
     fn info(&self) -> KindInfo {
         self.info.clone()
+    }
+    fn rename<'a>(&'a self, call: &'a Call, from: &'a str, to: &'a str) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            if let Some(cmd) = self.rename_cmd {
+                return self.ctx.run_json(call, cmd, json!({ "from": from, "to": to })).await.map(drop);
+            }
+            let now = self.read(call).await?;
+            let r = now.iter().find(|r| r.name == from).ok_or_else(|| WireError::not_found(format!("wisp has no {} named {from}", self.info.kind)))?;
+            self.apply(call, &Op { op: OpKind::Create, kind: self.info.kind.clone(), name: to.to_owned(), spec: r.spec.clone(), id: None, changes: Vec::new(), before: None }).await?;
+            self.apply(call, &Op { op: OpKind::Delete, kind: self.info.kind.clone(), name: from.to_owned(), spec: r.spec.clone(), id: r.id.clone(), changes: Vec::new(), before: None }).await
+        })
     }
 
     fn read<'a>(&'a self, call: &'a Call) -> BoxFuture<'a, Result<Vec<Resource>>> {
