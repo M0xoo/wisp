@@ -108,6 +108,8 @@ fn add(g: PluginGroup, name: &str, at: &Where) -> PluginGroup {
         "lsp" => g.add(wisp_lsp::LspPlugin),
         #[cfg(feature = "machine")]
         "machine" => g.add(wisp_machine::MachinePlugin),
+        #[cfg(feature = "machines")]
+        "machines" => g.add(wisp_machines::MachinesPlugin),
         #[cfg(feature = "crew")]
         "crew" => g.add(wisp_crew::CrewPlugin),
         #[cfg(feature = "goal")]
@@ -192,6 +194,7 @@ pub fn in_build(name: &str) -> bool {
         "terminal" => cfg!(feature = "terminal"),
         "lsp" => cfg!(feature = "lsp"),
         "machine" => cfg!(feature = "machine"),
+        "machines" => cfg!(feature = "machines"),
         "crew" => cfg!(feature = "crew"),
         "goal" => cfg!(feature = "goal"),
         "later" => cfg!(feature = "later"),
@@ -241,9 +244,9 @@ mod tests {
     #[cfg(feature = "all-plugins")]
     fn the_default_build_has_every_plugin_host() {
         let have = compiled(Group::Default);
-        // machines and grid-client have no host crate yet
+        // grid-client has no host crate yet
         let missing: Vec<&str> = DEFAULT.iter().copied().filter(|n| !have.contains(n)).collect();
-        assert_eq!(missing, ["machines", "grid-client"]);
+        assert_eq!(missing, ["grid-client"]);
         assert!(["settings", "runtime", "claude"].iter().all(|n| have.contains(n)), "a task can run");
     }
 }

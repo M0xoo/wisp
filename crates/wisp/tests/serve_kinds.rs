@@ -3,7 +3,7 @@
 //! run (its setup, system prompt, MCP servers, trust, tools, the harnesses offered); a trigger and a
 //! pipeline start tasks after it; an app lands on the shelf; and `wisp run --formula` runs one task
 //! under a formula that leaves nothing behind. (capability and plugin: their hosts' tests.)
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::too_many_lines)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::too_many_lines, clippy::assert_is_empty)]
 
 mod common;
 
@@ -37,6 +37,17 @@ fn runs(rec: &Path) -> Vec<Vec<String>> {
         .collect()
 }
 
+fn git(dir: &Path, args: &[&str]) {
+    let o = Command::new("git").args(args).current_dir(dir).env("GIT_AUTHOR_NAME", "t").env("GIT_AUTHOR_EMAIL", "t@t").env("GIT_COMMITTER_NAME", "t").env("GIT_COMMITTER_EMAIL", "t@t").output().unwrap();
+    assert!(o.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&o.stderr));
+}
+
+fn repo(dir: &Path) {
+    git(dir, &["init", "-q", "-b", "main"]);
+    git(dir, &["add", "."]);
+    git(dir, &["commit", "-qm", "init"]);
+}
+
 async fn apply(api: &Api, resources: Value) -> Value {
     let r = api.try_cmd("resources.apply", json!({ "resources": resources })).await;
     assert_eq!(r["ok"], true, "{r}");
@@ -53,6 +64,7 @@ async fn a_project_profile_skill_team_connector_harness_and_tools_shape_the_run(
     let proj = dir.join("proj");
     let rec = dir.join("rec");
     std::fs::create_dir_all(&rec).unwrap();
+    repo(&proj);
     let (serve, port) = start_with(&dir, &[("FAKE_RECORD", rec.to_str().unwrap())]);
     let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
     apply(
@@ -60,7 +72,7 @@ async fn a_project_profile_skill_team_connector_harness_and_tools_shape_the_run(
         json!([
             { "kind": "agent", "name": "reviewer", "spec": { "harness": "claude", "instructions": "AGENT-RULE-1", "skills": ["tidy"] } },
             { "kind": "skill", "name": "tidy", "spec": { "description": "keeps it tidy", "body": "SKILL-BODY-2" } },
-            { "kind": "project", "name": "proj", "spec": { "path": proj, "agent": "reviewer", "setup": ["echo ok > setup-ran.txt"], "instructions": "PROJECT-RULE-3", "trust": { "setup": true } } },
+            { "kind": "project", "name": "proj", "spec": { "path": proj, "agent": "reviewer", "worktree": { "enabled": true }, "setup": ["echo ok > setup-ran.txt"], "instructions": "PROJECT-RULE-3", "trust": { "setup": true } } },
             { "kind": "team", "name": "crew", "spec": { "members": { "helper": { "agent": "codex", "count": 2, "why": "runs the tests" } } } },
             { "kind": "connector", "name": "docs", "spec": { "command": "docs-mcp", "args": ["--stdio"], "agents": ["reviewer"] } },
             { "kind": "harness", "name": "codex", "spec": { "enabled": false } },
@@ -69,13 +81,20 @@ async fn a_project_profile_skill_team_connector_harness_and_tools_shape_the_run(
     )
     .await;
 
-    // no agent named: the project's; its setup ran first, in its folder
+    // no agent named: the project's; a worktree of its own, its setup run there first (only there)
     let made = api.cmd("runtime.create", json!({ "prompt": "fix the add bug", "cwd": proj, "team": "crew" })).await;
     let id = made["id"].as_str().unwrap().to_owned();
     finished(&api, &id).await;
-    assert_eq!(std::fs::read_to_string(proj.join("setup-ran.txt")).unwrap().trim(), "ok", "project: setup");
+    let task = api.cmd("runtime.get", json!({ "id": id })).await;
+    let tree = task["ext"]["wisp.worktrees"]["path"].as_str().unwrap_or_else(|| panic!("project: its worktree: {task}")).to_owned();
+    assert_eq!(task["cwd"].as_str(), Some(tree.as_str()), "the task runs in it");
+    assert_eq!(std::fs::read_to_string(Path::new(&tree).join("setup-ran.txt")).unwrap().trim(), "ok", "project: setup in the fresh worktree");
+    assert!(!proj.join("setup-ran.txt").exists(), "project: never in the folder itself");
+    let plain = api.cmd("runtime.create", json!({ "prompt": "again", "cwd": proj, "worktree": false, "agent": "claude" })).await;
+    finished(&api, plain["id"].as_str().unwrap()).await;
+    assert!(!proj.join("setup-ran.txt").exists(), "project: no setup for a task in the folder");
     assert_eq!(api.cmd("runtime.spec", json!({ "id": id })).await["agent"], "reviewer", "project: its agent");
-    let argv = runs(&rec).pop().expect("a claude run");
+    let argv = runs(&rec).into_iter().next().expect("a claude run");
     let all = argv.join("\n");
     for (what, needle) in [("project: instructions", "PROJECT-RULE-3"), ("agent: instructions", "AGENT-RULE-1"), ("skill: given to the run", "SKILL-BODY-2"), ("team: given to the run", "helper (codex, up to 2 at once): runs the tests")] {
         assert!(all.contains(needle), "{what}: {all}");
@@ -105,6 +124,27 @@ async fn a_project_profile_skill_team_connector_harness_and_tools_shape_the_run(
     let agents = api.cmd("runtime.agents", json!({})).await;
     let codex = agents.as_array().unwrap().iter().find(|a| a["id"] == "codex").unwrap();
     assert_eq!(codex["available"], false, "harness: {codex}");
+    drop(serve);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_failing_setup_holds_the_first_turn_with_why() {
+    let dir = temp("serve-kinds-setup");
+    let proj = dir.join("proj");
+    repo(&proj);
+    let (serve, port) = start_with(&dir, &[]);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    apply(&api, json!([{ "kind": "project", "name": "proj", "spec": { "path": proj, "worktree": { "enabled": true }, "setup": ["echo nope >&2; exit 3"] } }])).await;
+    let made = api.cmd("runtime.create", json!({ "prompt": "fix the add bug", "cwd": proj, "agent": "claude" })).await;
+    let id = made["id"].as_str().unwrap().to_owned();
+    let t = api.until(&id, "the turn is held", |t| t.last().is_some_and(|t| t["status"] == "held")).await;
+    let held = &t.last().unwrap()["held"];
+    assert_eq!(held["kind"], "setup", "{held}");
+    assert!(held["data"]["why"].as_str().unwrap_or_default().contains("nope"), "the card says why: {held}");
+    // Start now runs it anyway
+    api.cmd("runtime.release", json!({ "id": id, "turnId": t.last().unwrap()["id"], "action": "start" })).await;
+    let t = api.until(&id, "it ran", |t| t.last().is_some_and(|t| t["status"] == "done")).await;
+    assert_eq!(t.last().unwrap()["status"], "done");
     drop(serve);
 }
 
@@ -163,7 +203,9 @@ async fn wisp_run_formula_is_an_overlay_for_one_task_that_leaves_nothing() {
     let proj = dir.join("proj");
     let rec = dir.join("rec");
     std::fs::create_dir_all(&rec).unwrap();
-    std::fs::write(dir.join("f.yml"), "wisp: 1\nagents:\n  - name: solo\n    harness: claude\n    instructions: OVERLAY-RULE-${env:RULE_NO}\n    skills: [house]\nskills:\n  - name: house\n    description: the house style\n    body: OVERLAY-SKILL\nconnectors:\n  - name: scratch\n    command: scratch-mcp\nsettings:\n  settings.timeZone: Europe/Zurich\n").unwrap();
+    std::fs::write(dir.join("f.yml"), "wisp: 1\nagents:\n  - name: solo\n    harness: claude\n    instructions: OVERLAY-RULE-${env:RULE_NO}\n    skills: [house]\nskills:\n  - name: house\n    description: the house style\n    body: OVERLAY-SKILL\nconnectors:\n  - name: scratch\n    command: scratch-mcp\n    env: { TOKEN: \"${secret:SCRATCH}\" }\nsettings:\n  settings.timeZone: Europe/Zurich\n").unwrap();
+    std::fs::create_dir_all(dir.join("home")).unwrap();
+    std::fs::write(dir.join("home/secrets.json"), r#"{"wisp":{"SCRATCH":"tok-777"}}"#).unwrap();
     let (serve, port) = start_with(&dir, &[("FAKE_RECORD", rec.to_str().unwrap())]);
     let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
     let before = api.cmd("resources.export", json!({})).await;
@@ -188,6 +230,9 @@ async fn wisp_run_formula_is_an_overlay_for_one_task_that_leaves_nothing() {
     let argv = runs(&rec).pop().expect("a claude run");
     let all = argv.join("\n");
     assert!(all.contains("OVERLAY-RULE-5") && all.contains("OVERLAY-SKILL") && all.contains("scratch-mcp"), "{all}");
+    assert!(all.contains("tok-777"), "the overlay connector's secret was read for the run: {all}");
+    let row = api.cmd("runtime.get", json!({ "id": id })).await;
+    assert!(!row.to_string().contains("tok-777") && row.to_string().contains("${secret:SCRATCH}"), "and never stored: {row}");
     assert_eq!(api.cmd("runtime.spec", json!({ "id": id })).await["agent"], "solo");
     let snap = api.cmd("runtime.snapshot", json!({ "of": id })).await;
     assert!(snap.to_string().contains("OVERLAY-RULE-5"), "its snapshot says what it ran with: {snap}");
@@ -200,5 +245,189 @@ async fn wisp_run_formula_is_an_overlay_for_one_task_that_leaves_nothing() {
     finished(&api, next["id"].as_str().unwrap()).await;
     let all = runs(&rec).pop().unwrap().join("\n");
     assert!(!all.contains("OVERLAY") && !all.contains("scratch-mcp"), "the overlay was that task's alone: {all}");
+    drop(serve);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_goal_keeps_going_until_its_judges_say_met_and_stalls_with_a_question() {
+    let dir = temp("serve-kinds-goal");
+    let proj = dir.join("proj");
+    let (serve, port) = start_with(&dir, &[]);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    // the defaults: one judge, two rounds (the fake judge says what TOPIC[…] in its prompt says)
+    apply(&api, json!([{ "kind": "goal", "name": "default", "spec": { "judges": ["claude"], "maxRounds": 2 } }])).await;
+    let made = api.cmd("runtime.create", json!({ "prompt": "fix the add bug", "cwd": proj, "agent": "claude", "goal": { "text": "tests pass TOPIC[NOT MET: the tests still fail]" } })).await;
+    let id = made["id"].as_str().unwrap().to_owned();
+    let at = Instant::now();
+    let task = loop {
+        let t = api.cmd("runtime.get", json!({ "id": id })).await;
+        if t["ext"]["wisp.goal"]["state"] == "stalled" {
+            break t;
+        }
+        assert!(at.elapsed() < Duration::from_secs(60), "the goal stalls: {t}");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    };
+    assert_eq!(task["ext"]["wisp.goal"]["rounds"], 2, "{task}");
+    let turns = api.turns(&id).await;
+    assert_eq!(turns.len(), 2, "the first turn and one more round");
+    assert!(turns[1]["prompt"].as_str().unwrap().contains("the tests still fail"), "the round is told what's missing: {}", turns[1]["prompt"]);
+    let at = Instant::now();
+    while !api.cmd("runtime.get", json!({ "id": id })).await.to_string().contains("after 2 rounds") {
+        assert!(at.elapsed() < Duration::from_secs(30), "it asks you");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+
+    let ok = api.cmd("runtime.create", json!({ "prompt": "fix it", "cwd": proj, "agent": "claude", "goal": "tests pass TOPIC[MET]" })).await;
+    let oid = ok["id"].as_str().unwrap().to_owned();
+    let at = Instant::now();
+    while api.cmd("runtime.get", json!({ "id": oid })).await["ext"]["wisp.goal"]["state"] != "met" {
+        assert!(at.elapsed() < Duration::from_secs(60), "met");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    assert_eq!(api.turns(&oid).await.len(), 1, "met after the first turn: no more rounds");
+    drop(serve);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_webhook_trigger_starts_its_task_only_with_its_secret() {
+    let dir = temp("serve-kinds-hook");
+    let proj = dir.join("proj");
+    let (serve, port) = start_with(&dir, &[]);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    apply(&api, json!([{ "kind": "trigger", "name": "deploy", "spec": { "on": "webhook", "secret": "s3cret-hook-value", "prompt": "Deploy what was pushed", "project": proj } }])).await;
+    let url = format!("http://127.0.0.1:{port}/api/triggers/deploy");
+    let post = |secret: Option<&str>| {
+        let mut r = api.http.post(&url).header("content-type", "application/json").body(r#"{"ref":"refs/heads/main"}"#);
+        if let Some(s) = secret {
+            r = r.header("x-wisp-secret", s);
+        }
+        r.send()
+    };
+    assert_eq!(post(None).await.unwrap().status().as_u16(), 404, "no secret: nothing");
+    assert_eq!(post(Some("wrong")).await.unwrap().status().as_u16(), 404, "a wrong one: the same");
+    assert!(api.cmd("runtime.list", json!({})).await.as_array().unwrap().is_empty());
+    let r = post(Some("s3cret-hook-value")).await.unwrap();
+    let status = r.status().as_u16();
+    let body: Value = serde_json::from_str(&r.text().await.unwrap()).unwrap_or_default();
+    assert_eq!(status, 202, "{body}");
+    let id = body["id"].as_str().unwrap().to_owned();
+    let spec = api.cmd("runtime.spec", json!({ "id": id })).await;
+    assert_eq!(spec["lineage"]["triggeredBy"], "trigger:deploy");
+    assert!(spec["prompt"].as_str().unwrap().contains("refs/heads/main"), "the body is handed over: {spec}");
+    drop(serve);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_harness_from_brew_is_installed_when_it_isnt_there() {
+    let dir = temp("serve-kinds-brew");
+    let brew = dir.join("brew");
+    std::fs::write(&brew, format!("#!/bin/sh\necho \"$@\" >> {}\n", dir.join("brew.log").display())).unwrap();
+    #[cfg(unix)]
+    std::fs::set_permissions(&brew, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    let (serve, port) = start_with(&dir, &[("WISP_GROK_BIN", "/no/such/grok"), ("WISP_BREW", brew.to_str().unwrap())]);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    // there already: nothing runs
+    apply(&api, json!([{ "kind": "harness", "name": "claude", "spec": { "from": "brew", "package": "claude-code" } }])).await;
+    assert!(!dir.join("brew.log").exists(), "claude is there: no install");
+    // missing: brew installs its formula
+    apply(&api, json!([{ "kind": "harness", "name": "grok", "spec": { "from": "brew", "package": "grok-cli" } }])).await;
+    assert_eq!(std::fs::read_to_string(dir.join("brew.log")).unwrap().trim(), "install grok-cli");
+    drop(serve);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_pipeline_moves_on_at_a_limit_and_picks_the_best_of_n() {
+    let dir = temp("serve-kinds-pipe");
+    let proj = dir.join("proj");
+    let (serve, port) = start_with(&dir, &[("FAKE_LIMIT_ONCE", dir.join("limit-hit").to_str().unwrap())]);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    apply(&api, json!([{ "kind": "pipeline", "name": "default", "spec": { "atLimit": "next", "bestOf": 2, "judge": "claude" } }])).await;
+    // the harnesses' own detect calls go through the fake too: let them run, then arm the limit
+    api.cmd("runtime.agents", json!({})).await;
+    let _ = std::fs::remove_file(dir.join("limit-hit"));
+    // the first run hits its usage limit: it carries on on another harness
+    let made = api.cmd("runtime.create", json!({ "prompt": "fix the add bug", "title": "Fix add", "cwd": proj, "agent": "claude" })).await;
+    let id = made["id"].as_str().unwrap().to_owned();
+    let t = api.until(&id, "it carries on elsewhere", |t| t.len() == 2 && ended(&t[1])).await;
+    assert_eq!(t[0]["status"], "error", "{:?}", t[0]);
+    assert_ne!(t[1]["agent"], "claude", "another harness: {:?}", t[1]);
+    assert!(t[1]["prompt"].as_str().unwrap().contains("usage limit"));
+
+    // best of 2: a second run of the same ask, and the judge's pick on the first
+    let made = api.cmd("runtime.create", json!({ "prompt": "write the release note", "cwd": proj, "agent": "claude" })).await;
+    let id = made["id"].as_str().unwrap().to_owned();
+    let at = Instant::now();
+    let pick = loop {
+        let t = api.cmd("runtime.get", json!({ "id": id })).await;
+        if t["ext"]["wisp.router"]["bestOf"].is_object() {
+            break t["ext"]["wisp.router"]["bestOf"].clone();
+        }
+        assert!(at.elapsed() < Duration::from_secs(60), "the judge picks: {t}");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    };
+    let runs = pick["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 2, "{pick}");
+    assert!(runs.contains(&pick["winner"]), "{pick}");
+    let other = runs.iter().find(|r| **r != json!(id)).unwrap();
+    assert_eq!(api.cmd("runtime.spec", json!({ "id": other })).await["prompt"], "write the release note");
+    drop(serve);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_projects_run_scripts_run_in_a_terminal_of_their_own() {
+    let dir = temp("serve-kinds-run");
+    let proj = dir.join("proj");
+    let (serve, port) = start_with(&dir, &[]);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    apply(&api, json!([{ "kind": "project", "name": "web", "spec": { "path": proj, "run": ["echo serving > ran.txt"] } }])).await;
+    let term = api.cmd("runtime.projectRun", json!({ "cwd": proj.join("src") })).await;
+    assert!(term.to_string().contains("run:web"), "{term}");
+    let at = Instant::now();
+    while !proj.join("ran.txt").exists() {
+        assert!(at.elapsed() < Duration::from_secs(20), "the run script ran");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let refused = api.try_cmd("runtime.projectRun", json!({ "cwd": dir })).await;
+    assert_eq!(refused["ok"], false, "not in a project: {refused}");
+    drop(serve);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_machine_becomes_a_peer_and_goes_with_its_resource() {
+    let dir = temp("serve-kinds-machine");
+    let (serve, port) = start_with(&dir, &[]);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    let names = |l: &Value| l.as_array().unwrap().iter().map(|p| (p["name"].as_str().unwrap_or_default().to_owned(), p["port"].clone())).collect::<Vec<_>>();
+    apply(&api, json!([{ "kind": "machine", "name": "studio", "spec": { "transport": "loopback", "address": "127.0.0.1", "port": 9 } }, { "kind": "machine", "name": "this", "spec": { "limits": { "maxRuns": 4 } } }])).await;
+    assert_eq!(names(&api.cmd("machines.list", json!({})).await), [("studio".to_owned(), json!(9))], "a peer, and this computer isn't one");
+    apply(&api, json!([{ "kind": "machine", "name": "studio", "spec": { "transport": "loopback", "address": "127.0.0.1", "port": 10 } }])).await;
+    assert_eq!(names(&api.cmd("machines.list", json!({})).await), [("studio".to_owned(), json!(10))], "updated in place");
+    let r = api.try_cmd("resources.apply", json!({ "resources": [{ "kind": "machine", "name": "this", "spec": {} }], "prune": true })).await;
+    assert_eq!(r["ok"], true, "{r}");
+    assert!(api.cmd("machines.list", json!({})).await.as_array().unwrap().is_empty(), "pruned: the peer goes");
+    drop(serve);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_api_key_speaks_with_its_capability_set_at_the_edge() {
+    let dir = temp("serve-kinds-key");
+    std::fs::create_dir_all(dir.join("home")).unwrap();
+    std::fs::write(dir.join("home/secrets.json"), r#"{"wisp":{"CI_KEY":"ci-key-0123456789abcdef"}}"#).unwrap();
+    let (serve, port) = start_with(&dir, &[]);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    apply(&api, json!([{ "kind": "capability", "name": "ci", "spec": { "allow": ["runtime:list"], "key": "${secret:CI_KEY}" } }])).await;
+    let call = |key: &str, cmd: &str, args: Value| {
+        let r = api.http.post(format!("http://127.0.0.1:{port}/api/cmd")).header("content-type", "application/json").header("idempotency-key", format!("{cmd}-{key}")).header("x-wisp-key", key).body(json!({ "cmd": cmd, "args": args }).to_string()).send();
+        async move {
+            let r = r.await.unwrap();
+            (r.status().as_u16(), r.json::<Value>().await.unwrap_or(Value::Null))
+        }
+    };
+    let (st, list) = call("ci-key-0123456789abcdef", "runtime.list", json!({})).await;
+    assert_eq!(st, 200, "the key may list: {list}");
+    let (st, made) = call("ci-key-0123456789abcdef", "runtime.create", json!({ "prompt": "x", "cwd": dir })).await;
+    assert_eq!(st, 403, "and nothing else: {made}");
+    let (st, _) = call("not-a-key", "runtime.list", json!({})).await;
+    assert_eq!(st, 403, "an unknown key is refused, as a bad token is");
     drop(serve);
 }
