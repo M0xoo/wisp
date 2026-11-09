@@ -25,3 +25,17 @@ impl Plugin for MachinePlugin {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn manifest_is_valid() {
+        if let Err(e) = Manifest::parse(include_str!("../wisp-plugin.json")) {
+            panic!("{}", e.message);
+        }
+        assert_eq!(MachinePlugin.manifest().id, "wisp.machine");
+    }
+}

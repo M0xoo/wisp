@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { codeLines, header, isTestFile } from '../core/rust.ts';
-import { RUST_MAX_FILE, RUST_MAX_FN, eventsInCode, longFns, rustEvents, rustLayers, rustManifests, rustSansIo, rustSizes, rustUnsafe } from '../rules/rust.ts';
+import { RUST_MAX_FILE, RUST_MAX_FN, eventsInCode, longFns, rustEvents, rustLayers, rustManifests, rustMcp, rustSansIo, rustSizes, rustUnsafe } from '../rules/rust.ts';
 import { fixture, messages, run, writeTree } from './helpers.ts';
 
 test('rust-layers: plugins use other plugins through -api only; api ↛ core ↛ host; base crates use no plugin', async () => {
@@ -97,4 +97,22 @@ test('rust-events: emitted_type_missing_from_manifest_fails_check (and a listed 
   assert.ok(got.some((m) => m.includes('shop.sold is durable in the code')));
   assert.ok(got.some((m) => m.includes('lists shop.gone')));
   assert.deepEqual([...eventsInCode('durable!(X = "a.b", |e| subject: 1, key: 2);')], [['a.b', true]]);
+});
+
+test('rust-mcp: a listed command its host never registers is no MCP tool; uiOnly says why (ADR-0040)', async () => {
+  const cargo = '[package]\nname = "wisp-shop"\n';
+  const root = writeTree(
+    new Map([
+      ['Cargo.toml', '[workspace]\nmembers = ["plugins/*/api", "plugins/*/host", "plugins/*/core"]\n'],
+      ['plugins/shop/api/Cargo.toml', '[package]\nname = "wisp-shop-api"\n'],
+      ['plugins/shop/api/src/lib.rs', ['command!(List = "shop.list" read yes : Value => Value);', 'command!(', '    /// buy one', '    Buy = "shop.buy" : Value => Value', ');', 'command!(Run, "shop.run", Value, Value);', 'impl Command for Peek { const ID: &\'static str = "shop.peek"; type Args = (); }', 'command!(Gone = "shop.gone" : Value => Value);'].join('\n')],
+      ['plugins/shop/host/Cargo.toml', cargo],
+      ['plugins/shop/host/src/lib.rs', ['use wisp_shop_api::{Run as RunCmd};', 'impl Plugin for Shop {}', 's.command::<api::List, _, _>(f);', 'on!(s, st, c::Buy, |st, a| x);', 's.command::<RunCmd, _, _>(g);', 's.command::<Peek, _, _>(h);'].join('\n')],
+      ['plugins/shop/host/wisp-plugin.json', JSON.stringify({ wispPlugin: 1, id: 'wisp.shop', contributes: { commands: [{ id: 'shop.list', title: 'l' }, { id: 'shop.buy', title: 'b' }, { id: 'shop.run', title: 'r' }, { id: 'shop.peek', title: 'p' }, { id: 'shop.gone', title: 'g' }, { id: 'shop.pane', title: 'p', uiOnly: 'only a screen can drag it' }, { id: 'shop.lazy', title: 'z', uiOnly: 'ui' }] } })],
+    ]),
+  );
+  const got = await messages(rustMcp, root);
+  assert.equal(got.length, 2, got.join('\n'));
+  assert.ok(got.some((m) => m.includes('shop.gone is listed but its host registers it nowhere')));
+  assert.ok(got.some((m) => m.includes('shop.lazy: "uiOnly" says why')));
 });

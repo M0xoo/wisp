@@ -83,6 +83,11 @@ pub trait Host: Send + Sync + 'static {
     fn outcomes(&self) -> Vec<Arc<dyn TurnOutcome>> {
         Vec::new()
     }
+    /// Another plugin's command, through its id (a My Stuff mention's `stuff.describe`). Unavailable in tests.
+    fn command(&self, cmd: &str, _args: serde_json::Value) -> BoxFuture<'static, Result<serde_json::Value, WireError>> {
+        let e = WireError::unavailable(format!("{cmd}: no kernel here"));
+        Box::pin(async move { Err(e) })
+    }
 }
 
 /// A host for tests and tools: records what was emitted, lets every run through, serves fixed harnesses.

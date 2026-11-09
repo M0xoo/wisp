@@ -37,6 +37,9 @@ impl Host for CtxHost {
     fn net(&self) -> Option<wisp_kernel::services::NetService> {
         wisp_kernel::services::net(&self.ctx).ok()
     }
+    fn command(&self, cmd: &str, args: serde_json::Value) -> wisp_kernel::BoxFuture<'static, std::result::Result<serde_json::Value, WireError>> {
+        self.ctx.run_json(&self.ctx.root_call(), cmd, args)
+    }
     fn emit(&self, e: Emitted) {
         let call = self.ctx.root_call();
         match e {
@@ -377,7 +380,7 @@ fn more(s: &mut Setup, slot: &Slot, harness_kind: Arc<wisp_resources_api::Stored
             for t in rt.repo.turns(id, None, None).await.map_err(WireError::from)? {
                 steps.extend(rt.repo.steps(t.id.as_str(), None).await.map_err(WireError::from)?);
             }
-            let available = crate::setup::load(&rt.repo.store, id).await;
+            let available = crate::setup::load(&rt.repo.store, id).await.map(|a| crate::setup::changed(a, &crate::setup::latest_versions()));
             let note = if available.is_some() { serde_json::Value::Null } else if s.ext.contains_key("wisp.adopted") { serde_json::json!("it ran outside wisp: what it had isn't known") } else { serde_json::json!("not recorded (it ran before wisp kept setups)") };
             Ok(serde_json::json!({ "id": id, "available": available, "note": note, "used": crate::setup::used(&steps) }))
         }

@@ -99,12 +99,18 @@ pub fn register(s: &mut Setup, cell: &Cell) {
         Ok(st.view(&it).await)
     });
     on!(s, cell, c::SetPublished, |st, ctx, call, a| {
+        let was = st.shelf.get(&a.id).is_some_and(|x| x.published.is_some());
+        let publishing = a.published.is_some();
         let it = st.shelf.set_published(&a.id, a.published).await.map_err(w)?;
+        if publishing {
+            crate::routes::track(&ctx, "stuff_publish", serde_json::json!({ "by": "you", "update": was }));
+        }
         Ok(st.view(&it).await)
     });
     on!(s, cell, c::Launch, |st, ctx, call, a| {
         let port = st.apps.launch(&a.id).await.map_err(w)?;
         ctx.emit(&call, &c::AppLaunched { id: a.id });
+        crate::routes::track(&ctx, "stuff_launch", serde_json::json!({}));
         Ok(c::Launched { port, url: format!("http://localhost:{port}/") })
     });
     on!(s, cell, c::Stop, |st, ctx, call, a| Ok(c::Done { ok: st.apps.stop(&a.id) }));

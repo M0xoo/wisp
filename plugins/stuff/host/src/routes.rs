@@ -49,7 +49,19 @@ fn item(s: &Stuff, req: &Request) -> Result<StuffItem> {
 
 pub fn saved(ctx: &Ctx, call: &Call, it: &StuffItem, update: bool) {
     let session = it.from.as_ref().and_then(|f| f.session.clone());
-    ctx.emit(call, &Saved { id: it.id.clone(), session, by: it.by.clone().unwrap_or_else(|| "you".into()), kind: it.kind, update });
+    let by = it.by.clone().unwrap_or_else(|| "you".into());
+    ctx.emit(call, &Saved { id: it.id.clone(), session, by: by.clone(), kind: it.kind, update });
+    // v1's stuff_save: what kind, by whom (never what it is)
+    let props = serde_json::json!({ "kind": it.kind, "by": if by == "you" { "you" } else { "agent" }, "update": update });
+    track(ctx, "stuff_save", props);
+}
+
+/// A usage event (wisp.telemetry decides whether it goes), off the caller's way.
+pub fn track(ctx: &Ctx, event: &'static str, props: serde_json::Value) {
+    let c = ctx.clone();
+    ctx.spawn(async move {
+        let _ = c.run_json(&c.root_call(), "telemetry.track", serde_json::json!({ "event": event, "props": props })).await;
+    });
 }
 
 /// A file dropped on the page, or a picture from a task on another computer: the raw body.

@@ -193,6 +193,7 @@ impl Plugin for WorktreesPlugin {
 mod commands;
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     #[test]
     fn the_manifest_is_valid() {
@@ -200,5 +201,22 @@ mod tests {
         let m = wisp_kernel::Plugin::manifest(&p);
         assert_eq!(m.id, "wisp.worktrees", "{:?}", m.description);
         assert!(m.requires.contains_key("git.service"));
+    }
+
+    /// v1's worktree defaults are registry settings (`wisp settings`, formulas, the Settings pane): read through
+    /// `ctx.setting`, which answers only for a declared key.
+    #[test]
+    fn worktree_settings_are_in_the_registry() {
+        let p = super::WorktreesPlugin::new("/tmp/h", "/tmp/u");
+        let m = wisp_kernel::Plugin::manifest(&p);
+        let keys: Vec<String> = m.contributes.get("settings").and_then(serde_json::Value::as_array).into_iter().flatten().filter_map(|s| s.get("key").and_then(serde_json::Value::as_str).map(str::to_owned)).collect();
+        for k in ["worktrees.cleanup", "worktrees.max", "worktrees.onDone", "worktrees.projectAsk"] {
+            assert!(keys.iter().any(|x| x == k), "{k} in {keys:?}");
+        }
+        // cleanup has no default: unset is "never chosen", and its clock starts at the upgrade (v1)
+        let cleanup = m.contributes["settings"].as_array().and_then(|a| a.iter().find(|s| s["key"] == "worktrees.cleanup")).cloned().unwrap_or_default();
+        assert!(cleanup.get("default").is_none());
+        // and v1's names import to them
+        assert_eq!(wisp_settings_api::key_of("worktreeMax"), "worktrees.max");
     }
 }

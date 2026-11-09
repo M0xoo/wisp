@@ -40,6 +40,7 @@
     }
   },
   "permissions": [
+    "stuff:read",
     "fs:read{path:~/.wisp/sessions}",
     "fs:write{path:~/.wisp/sessions}",
     "proc:exec{bin:*}",

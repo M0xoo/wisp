@@ -18,10 +18,29 @@
     "machines:list",
     "machines:add",
     "machines:update",
-    "machines:remove"
+    "machines:remove",
+    "runtime:list",
+    "proc:exec{bin:sysctl}",
+    "proc:exec{bin:vm_stat}",
+    "proc:exec{bin:pmset}",
+    "proc:exec{bin:date}",
+    "settings:read"
   ],
+  "provides": { "machine.service": { "version": "1.0.0" } },
   "activation": [
     "onStartup"
   ],
-  "contributes": { "events": ["machine.automations_paused", "machine.load_free"] }
+  "contributes": {
+    "events": ["machine.automations_paused", "machine.load_free"],
+    "commands": [
+      { "id": "machine.load", "title": "What the RAM/CPU guard reads and holds", "readOnly": true },
+      { "id": "machine.automations.pause", "title": "Pause automations until a time (0 resumes them)" }
+    ],
+    "settings": [
+      { "key": "machine.memoryFloor", "type": "enum", "values": ["off", "10", "15", "20", "25"], "title": "Automations wait while free memory is under this percent" },
+      { "key": "machine.cpuCeiling", "type": "enum", "values": ["off", "100", "150", "200"], "title": "Automations wait while the CPU stays over this percent of a core per core" },
+      { "key": "machine.maxRuns", "type": "enum", "values": ["off", "4", "6", "8", "12", "16", "auto"], "title": "Runs at once before automations wait" },
+      { "key": "machine.batteryHold", "type": "enum", "values": ["off", "20", "40"], "title": "On battery under this percent, check-ins and the crew queue wait" }
+    ]
+  }
 }

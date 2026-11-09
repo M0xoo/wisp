@@ -36,6 +36,12 @@
   "contributes": {
     "events": ["worktree.added", "worktree.removed", "worktrees.cleaned"],
     "triggerSources": ["files.changed"],
+    "settings": [
+      { "key": "worktrees.cleanup", "type": "enum", "values": ["off", "3", "7", "14", "30"], "title": "Idle worktrees go after this many days (unset: 7, counted from when wisp got it)" },
+      { "key": "worktrees.max", "type": "enum", "values": ["off", "20", "40", "80"], "default": "40", "title": "Worktree folders kept before the oldest idle ones go" },
+      { "key": "worktrees.onDone", "type": "enum", "values": ["ask", "remove", "keep"], "default": "ask", "title": "When a task is done, its worktree folders" },
+      { "key": "worktrees.projectAsk", "type": "enum", "values": ["on", "off"], "default": "on", "title": "Ask before trusting a new project's setup scripts" }
+    ],
     "commands": [
       {
         "id": "worktrees.create",

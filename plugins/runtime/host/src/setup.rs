@@ -152,15 +152,75 @@ pub async fn load(store: &wisp_store::Store, id: &str) -> Option<Value> {
     store.read_async(move |r| r.get(SETUP.kind, id.as_str())).await.ok().flatten().and_then(|r| r.get("body").cloned())
 }
 
-/// Records `available` now, then probes its MCP servers and records them again (the run doesn't wait).
-pub fn record(store: wisp_store::Store, proc: Arc<wisp_proc::Proc>, net: Option<wisp_kernel::services::NetService>, id: String, available: Value, servers: Vec<(String, Value)>, spawn: &dyn Fn(wisp_kernel::BoxFuture<'static, ()>)) {
+/// The latest version seen of each harness (`harness:<id>`) and MCP server (`mcp:<name>`), this process: what a
+/// task's recorded setup is compared with ("changed since: v1.4 → v1.6").
+fn versions() -> &'static Mutex<HashMap<String, String>> {
+    static V: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+    V.get_or_init(Mutex::default)
+}
+
+pub fn note_version(key: &str, version: &str) {
+    if !version.is_empty() {
+        versions().lock().unwrap_or_else(PoisonError::into_inner).insert(key.to_owned(), version.to_owned());
+    }
+}
+
+pub fn latest_versions() -> HashMap<String, String> {
+    versions().lock().unwrap_or_else(PoisonError::into_inner).clone()
+}
+
+/// What a task had, with what has changed since: each MCP server (and the harness) whose version now differs gets
+/// `changedSince: "1.4.0 → 1.6.0"`.
+pub fn changed(mut available: Value, latest: &HashMap<String, String>) -> Value {
+    let was = |v: &Value| v.as_str().filter(|s| !s.is_empty()).map(str::to_owned);
+    if let Some(h) = available.get("harness").and_then(Value::as_str).map(str::to_owned)
+        && let (Some(had), Some(now)) = (was(&available["harnessVersion"]), latest.get(&format!("harness:{h}")))
+        && had != *now
+    {
+        available["harnessChangedSince"] = json!(format!("{had} → {now}"));
+    }
+    for srv in available.get_mut("mcpServers").and_then(Value::as_array_mut).into_iter().flatten() {
+        let name = srv.get("name").and_then(Value::as_str).unwrap_or_default().to_owned();
+        if let (Some(had), Some(now)) = (was(&srv["version"]), latest.get(&format!("mcp:{name}")))
+            && had != *now
+        {
+            srv["changedSince"] = json!(format!("{had} → {now}"));
+        }
+    }
+    available
+}
+
+/// The harness's version, once per process per harness (its `detect`).
+async fn harness_version(h: &Arc<dyn wisp_runtime_api::harness::Harness>, sys: &dyn wisp_runtime_api::harness::HarnessSys) -> Option<String> {
+    let key = format!("harness:{}", h.info().id);
+    if let Some(v) = latest_versions().get(&key) {
+        return Some(v.clone());
+    }
+    let v = h.detect(sys).await.version?;
+    note_version(&key, &v);
+    Some(v)
+}
+
+/// Records `available` now, then probes its MCP servers and the harness's version and records them again (the run
+/// doesn't wait).
+#[allow(clippy::too_many_arguments)] // the store, the proc and net it probes with, the task, what it had
+pub fn record(store: wisp_store::Store, proc: Arc<wisp_proc::Proc>, net: Option<wisp_kernel::services::NetService>, harness: Option<Arc<dyn wisp_runtime_api::harness::Harness>>, id: String, available: Value, servers: Vec<(String, Value)>, spawn: &dyn Fn(wisp_kernel::BoxFuture<'static, ()>)) {
     spawn(Box::pin(async move {
         save(&store, &id, available.clone()).await;
         let mut a = available;
+        if let Some(h) = harness {
+            let sys = crate::sys::ProcSys { proc: (*proc).clone() };
+            if let Some(v) = harness_version(&h, &sys).await {
+                a["harnessVersion"] = json!(v);
+            }
+        }
         let mut list = Vec::new();
         for (name, cfg) in servers {
             let mut entry = a["mcpServers"].as_array().and_then(|l| l.iter().find(|s| s["name"] == name.as_str()).cloned()).unwrap_or_else(|| json!({ "name": name }));
             if let (Some(e), Value::Object(p)) = (entry.as_object_mut(), probe(&proc, net.as_ref(), &cfg).await) {
+                if let Some(v) = p.get("version").and_then(Value::as_str) {
+                    note_version(&format!("mcp:{name}"), v);
+                }
                 e.extend(p);
             }
             list.push(entry);
@@ -204,6 +264,19 @@ mod tests {
 
     fn tool(kind: ToolKind, label: &str) -> Step {
         Step { seq: 0, t: 0, activity: Activity::Tool { tool: kind, label: label.into(), file: None, detail: None, call_id: None, output: None } }
+    }
+
+    #[test]
+    fn changed_since_compares_what_a_task_had_with_what_is_there_now() {
+        let had = json!({ "harness": "claude", "harnessVersion": "2.0.1", "mcpServers": [{ "name": "linear", "version": "1.4.0" }, { "name": "fs", "version": "0.3.0" }, { "name": "new", "probe": "failed" }] });
+        let latest: HashMap<String, String> = [("harness:claude", "2.0.4"), ("mcp:linear", "1.6.0"), ("mcp:fs", "0.3.0")].iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect();
+        let c = changed(had, &latest);
+        assert_eq!(c["harnessChangedSince"], "2.0.1 → 2.0.4");
+        assert_eq!(c["mcpServers"][0]["changedSince"], "1.4.0 → 1.6.0");
+        assert!(c["mcpServers"][1].get("changedSince").is_none(), "the same version: nothing said");
+        assert!(c["mcpServers"][2].get("changedSince").is_none(), "never probed: nothing to compare");
+        // nothing seen since (a new process): nothing claimed
+        assert!(changed(json!({ "harness": "claude", "harnessVersion": "2.0.1" }), &HashMap::new()).get("harnessChangedSince").is_none());
     }
 
     #[test]

@@ -768,6 +768,9 @@ impl Runtime {
         for h in self.host.harnesses() {
             let info = h.info().clone();
             let found = h.detect(&sys).await;
+            if let Some(v) = &found.version {
+                crate::setup::note_version(&format!("harness:{}", info.id), v);
+            }
             out.push(AgentStatus {
                 id: info.id.clone(),
                 name: info.name.clone(),

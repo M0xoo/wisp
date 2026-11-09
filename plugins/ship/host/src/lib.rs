@@ -93,12 +93,12 @@ fn commands(s: &mut Setup, slot: &Slot) {
         async move { Ok(get(&sl)?.view(&call, &a.session, &a.draft).await?) }
     });
     let sl = slot.clone();
-    s.command::<api::ShipIt, _, _>(move |_ctx, call, a| {
+    s.command::<api::ShipIt, _, _>(move |ctx, call, a| {
         let sl = sl.clone();
         async move {
-            Ok(get(&sl)?
-                .ship_all(&call, &a.session, &a.title, &a.body, a.draft)
-                .await?)
+            let out = get(&sl)?.ship_all(&call, &a.session, &a.title, &a.body, a.draft).await?;
+            track(&ctx, "ship", serde_json::json!({ "draft": a.draft }));
+            Ok(out)
         }
     });
     let sl = slot.clone();
@@ -112,9 +112,13 @@ fn commands(s: &mut Setup, slot: &Slot) {
         async move { Ok(get(&sl)?.details(&a.session).await?) }
     });
     let sl = slot.clone();
-    s.command::<api::Merge, _, _>(move |_ctx, call, a| {
+    s.command::<api::Merge, _, _>(move |ctx, call, a| {
         let sl = sl.clone();
-        async move { Ok(get(&sl)?.merge_all(&call, &a.session).await?) }
+        async move {
+            let out = get(&sl)?.merge_all(&call, &a.session).await?;
+            track(&ctx, "merge", serde_json::json!({}));
+            Ok(out)
+        }
     });
     let sl = slot.clone();
     s.command::<api::Attach, _, _>(move |_ctx, call, a| {
@@ -194,3 +198,11 @@ fn start_timers(ctx: &Ctx, ship: &Arc<Ship>) -> Result<()> {
 
 #[cfg(test)]
 mod tests;
+
+/// A usage event (wisp.telemetry decides whether it goes), off the caller's way.
+fn track(ctx: &wisp_kernel::Ctx, event: &'static str, props: serde_json::Value) {
+    let c = ctx.clone();
+    ctx.spawn(async move {
+        let _ = c.run_json(&c.root_call(), "telemetry.track", serde_json::json!({ "event": event, "props": props })).await;
+    });
+}

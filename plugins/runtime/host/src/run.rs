@@ -182,7 +182,9 @@ impl Runtime {
             session_id: s.id.clone(),
             turn_id: turn.id.clone(),
         }));
-        let mut run = self.harness_run(&s, &turn, &ctx, harness.as_ref());
+        // a task or My Stuff mentioned in the prompt (the turn as saved keeps the user's words)
+        let asked = Turn { prompt: self.with_mentions(&s, &turn, harness.info()).await, ..turn.clone() };
+        let mut run = self.harness_run(&s, &asked, &ctx, harness.as_ref());
         run.grants = next.get("grants").and_then(Value::as_array).map(|g| g.iter().filter_map(Value::as_str).map(str::to_owned).collect()).unwrap_or_default();
         run.fork = next.get("fork").and_then(Value::as_bool).unwrap_or(false) && harness.info().fork;
         if next.get("once").and_then(Value::as_str) == Some("auto") {
@@ -204,7 +206,8 @@ impl Runtime {
         let available = crate::setup::available(s, run, &s.agent);
         let servers: Vec<(String, Value)> = run.mcp_servers.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         let host = self.host.clone();
-        crate::setup::record(self.repo.store.clone(), Arc::new(self.proc.clone()), self.host.net(), s.id.0.clone(), available, servers, &move |f| host.spawn(f));
+        let harness = self.harness(&s.agent).ok();
+        crate::setup::record(self.repo.store.clone(), Arc::new(self.proc.clone()), self.host.net(), harness, s.id.0.clone(), available, servers, &move |f| host.spawn(f));
     }
 
     /// `before:run` vetoed it, or its harness is gone: the turn says why, and the task lands.
