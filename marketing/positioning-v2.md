@@ -78,3 +78,41 @@ pillar, in order, each with the four-ways line, then the close: "Declare. Run. T
 "You read a report, not a transcript" is no longer a headline. The report is a view: the apps open on it by default,
 and the full transcript is one click away (and always kept, ADR-0033). Mention it inside the Run section's details or
 the docs as an option, not as a pillar or a hero claim.
+
+## References the owner likes (2026-11-09): warp.dev, openclaw.ai, herdr.dev
+
+What each does well, and what we take:
+- **warp.dev:** a hero that looks like a live dashboard (a block-character grid of task states with a running
+  counter: "224 tasks · 1,422 PRs shipped"), an annotated YAML panel with callouts, figure labels
+  ("[ fig. 1 — the factory ]"), proof as measured outcomes (cost per PR, benchmarks) rather than quotes, and a
+  "use it everywhere" section (factories, terminal, CLI). Terse, technical, mostly lowercase.
+  → Take: the live hero (wisp's tasks running across your machines, streaming), the annotated `.wisp/` panel with
+  callouts, figure labels, numbers as proof, and the App · TUI · CLI · SDK section.
+- **openclaw.ai:** personality through a mascot and ASCII art, an install block right under the hero, testimonials as
+  X-post cards, "What people are building" (community showcase), "works with everything" tags, links to docs,
+  Discord and GitHub everywhere. Playful but confident.
+  → Take: **wisp's spirit** as the mascot (the site already has `spirit.js`), a quick-start terminal block, a
+  community gallery of formulas and modules people share (ties to wisp Cloud sharing, ADR-0038), real posts as
+  social proof, and the harness and integration tag cloud.
+- **herdr.dev:** a hero mosaic of real screenshots, a README-style explainer with a numbered anchor menu, copyable
+  install commands per OS, and terminal snippets showing agents running agents.
+  → Take: real app and TUI screenshots (the site rule: the app is always shown), the README-style pillar sections,
+  and per-OS install blocks.
+
+**Direction for the v2 site:** a live, technical hero (tasks streaming across machines, Warp-style), wisp's spirit
+for personality (OpenClaw-style), real screenshots and a README-style flow through Declare · Run · Track
+(Herdr-style), proof in numbers, and a community gallery. It's built in the site rework, after the docs foundation.
+
+## ⚠️ Competitive note: Warp now says "software factories as code"
+
+warp.dev's hero is "Open infrastructure for cloud software factories", with "Your software factory, defined in code"
+and a `factory.yaml`: "factories as code, any model or harness". So **"as code" alone is no longer ours**, and the
+uniqueness claim in this doc must change before launch. Where wisp is still different (to verify with the researcher):
+- **Track:** the repo carries every task, with its transcript, next to the code it wrote. `wisp blame`, `resume`
+  and `.wisp/` are the differentiator to lead with.
+- **Open source and yours:** MIT, local-first, your own machines and accounts, $0 on top. Warp's factories are
+  cloud infrastructure, with early access and enterprise sales.
+- **Every frontend equal:** app, TUI, CLI and SDK.
+
+Action: the researcher (Moris) compares wisp v2 with Warp's factories, OpenClaw and Herdr before any claim ships,
+and the hero is re-checked against it.
