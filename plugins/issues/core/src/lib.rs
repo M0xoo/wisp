@@ -3,6 +3,7 @@
 
 pub mod rows;
 pub mod sources;
+pub mod trigger;
 
 use std::collections::{HashMap, VecDeque};
 

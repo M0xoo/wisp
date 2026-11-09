@@ -58,7 +58,7 @@
   ],
   "migrations": "runtime",
   "contributes": {
-    "events": [{"type": "session.asked", "durable": true}, "session.changed", "session.created", "session.deleted", "turn.activity", {"type": "turn.ended", "durable": true}, {"type": "turn.finished", "durable": true}, {"type": "turn.held", "durable": true}, "turn.limits", "turn.started"],
+    "events": [{"type": "session.asked", "durable": true}, "session.changed", "session.created", "session.deleted", "turn.activity", {"type": "turn.ended", "durable": true}, {"type": "turn.finished", "durable": true}, {"type": "turn.held", "durable": true}, "turn.limits", "turn.started", {"type": "task.finished", "durable": true}, {"type": "task.failed", "durable": true}, {"type": "task.held", "durable": true}, {"type": "task.asked", "durable": true}, {"type": "task.done", "durable": true}],
     "commands": [
       {
         "id": "runtime.create",

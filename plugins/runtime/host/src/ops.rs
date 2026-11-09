@@ -86,7 +86,11 @@ impl Runtime {
             Ok(())
         })
         .await
-        .map(drop)
+        .map(|s| {
+            if state == SessionState::Done {
+                self.host.emit(crate::host::Emitted::Task("task.done", crate::host::fact(&s, None, "marked", "", None)));
+            }
+        })
     }
 
     /// A plugin writes its own ext slot only (the caller's plugin id is checked by the command handler).

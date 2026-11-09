@@ -21,6 +21,7 @@
 )]
 
 pub mod base;
+pub mod changes;
 pub mod done;
 pub mod include;
 pub mod naming;

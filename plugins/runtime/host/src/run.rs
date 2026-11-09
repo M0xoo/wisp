@@ -163,12 +163,8 @@ impl Runtime {
             s.unread = true;
             s.updated_at = self.now();
             self.persist(&mut s, vec![turn.clone()]).await?;
-            self.host.emit(Emitted::Held(TurnHeld {
-                session_id: s.id.clone(),
-                turn_id: turn.id.clone(),
-                by: h.by,
-                kind: h.kind,
-            }));
+            self.host.emit(Emitted::Task("task.held", crate::host::fact(&s, Some(&turn.id), "held", &format!("{} ({})", h.kind, h.by), None)));
+            self.host.emit(Emitted::Held(TurnHeld { session_id: s.id.clone(), turn_id: turn.id.clone(), by: h.by, kind: h.kind }));
             return Ok(turn.id);
         }
         let harness = match self.harness(&s.agent) {

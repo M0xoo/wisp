@@ -12,6 +12,7 @@ wisp-kernel.workspace = true
 wisp-proc.workspace = true
 wisp-git-api.workspace = true
 wisp-issues-api.workspace = true
+wisp-automations-api.workspace = true
 wisp-issues-core.workspace = true
 serde_json.workspace = true
 tracing.workspace = true

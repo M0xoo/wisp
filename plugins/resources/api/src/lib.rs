@@ -192,6 +192,11 @@ pub trait ResourceKind: Send + Sync {
     fn check(&self, _r: &Resource) -> Vec<String> {
         Vec::new()
     }
+    /// Problems across the kind's resources as the apply would leave them (a cycle of crew wakes). Additive
+    /// (2026-11-09, ADR-0043).
+    fn check_all(&self, _after: &[Resource]) -> Vec<String> {
+        Vec::new()
+    }
     /// The op in plain words, for the trust prompt ("lets Telegram chat 123 start tasks").
     fn describe(&self, _op: &Op) -> Option<String> {
         None

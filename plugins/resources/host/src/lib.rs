@@ -110,6 +110,10 @@ async fn make_plan(ctx: &Ctx, call: &Call, a: &PlanArgs) -> Result<Plan> {
                 out.sensitive.push(k.describe(o).unwrap_or_else(|| format!("{} the {} {}", verb(o.op), info.kind, o.name)));
             }
         }
+        // the kind's resources as the apply leaves them: what's kept, what's made or changed
+        let mut after: Vec<Resource> = current.iter().filter(|c| !ops.iter().any(|o| o.name == c.name)).cloned().collect();
+        after.extend(ops.iter().filter(|o| o.op != OpKind::Delete).map(|o| Resource::new(info.kind.clone(), o.name.clone(), o.spec.clone())));
+        out.problems.extend(k.check_all(&after).into_iter().map(|p| format!("{}: {p}", info.section)));
         out.ops.extend(ops);
         infos.push(info);
     }

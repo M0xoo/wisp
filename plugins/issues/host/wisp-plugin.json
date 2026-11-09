@@ -13,6 +13,7 @@
   "activation": ["onCommand:issues.list", "onRoute:GET /api/issues"],
   "contributes": {
     "commands": [{ "id": "issues.list", "title": "List issues to start a task from", "readOnly": true }],
+    "triggerSources": ["issue.opened", "issue.labeled"],
     "points": [
       { "id": "issues.projects", "version": 1, "kind": "list" },
       { "id": "issues.connectors", "version": 1, "kind": "list" }

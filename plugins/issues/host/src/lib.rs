@@ -2,6 +2,7 @@
 //! comes back as `{error, fix}` beside an empty list, for the picker to show.
 
 pub mod list;
+mod trigger;
 
 use std::sync::Arc;
 
@@ -24,6 +25,8 @@ impl Plugin for IssuesPlugin {
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let ctx = s.ctx();
         let lister = Arc::new(Lister::new(deps(&ctx)?));
+        let src: Arc<dyn wisp_automations_api::TriggerSource> = Arc::new(trigger::Issues(lister.clone(), ctx.clone()));
+        s.contribute(&wisp_automations_api::SOURCE, src);
         let l = lister;
         s.command::<List, _, _>(move |_ctx, call, args| {
             let l = l.clone();

@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 wisp-issues-api.workspace = true
+wisp-automations-api.workspace = true
 base64.workspace = true
 serde_json.workspace = true
 

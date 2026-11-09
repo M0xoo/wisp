@@ -137,6 +137,8 @@ impl Lister {
         match found {
             Some(p) => Ok(Some(p)),
             None if id == "none" => Ok(None),
+            // a folder (a trigger's `project`): its origin says the repo
+            None if id.starts_with('/') => Ok(Some(ProjectRef { id: id.to_owned(), name: id.rsplit('/').next().unwrap_or(id).to_owned(), repo: String::new(), dir: Some(id.to_owned()) })),
             None => Err(WireError::not_found("No such project")),
         }
     }

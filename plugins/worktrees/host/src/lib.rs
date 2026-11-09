@@ -10,6 +10,7 @@ pub mod engine;
 pub mod error;
 pub mod fsx;
 pub mod ports;
+mod files;
 mod runtime_port;
 pub mod prepare;
 pub mod trust;
@@ -142,6 +143,7 @@ impl Plugin for WorktreesPlugin {
     fn setup(&self, s: &mut Setup) -> WireResult<()> {
         let st = State::new(self.clone());
         commands::register(s, &st);
+        files::register(s);
         let hook_st = st.clone();
         s.intercept::<BeforeRunView, _, _>(
             InterceptOpts {

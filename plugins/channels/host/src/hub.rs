@@ -143,6 +143,17 @@ impl Phone for KPhone {
         Err(WireError::unavailable("not a cloud wisp"))
     }
     fn thread_saved(&self) {}
+    fn heard(&self, channel: &str, sender: &str, text: &str) {
+        let at = self.0.clock().map_or(0, |c| c.now_ms());
+        // the transport let the sender in (its allowed users), so the message is `trusted`: @mentions wake the crew
+        let ev = json!({ "on": "chat.message", "key": format!("chat:{channel}:{sender}:{at}"), "at": at, "summary": text.lines().next().unwrap_or("").chars().take(160).collect::<String>(), "payload": { "channel": channel, "user": sender, "text": text, "trusted": true } });
+        let ctx = self.0.clone();
+        self.0.spawn(async move {
+            if let Err(e) = ctx.run_json(&ctx.root_call(), "automations.trigger.push", ev).await {
+                tracing::debug!("chat.message not handed to triggers: {}", e.message);
+            }
+        });
+    }
     async fn thread_ctx(&self, session_id: &str) -> Result<ThreadCtx> {
         let t = self.cmd("runtime.get", json!({ "id": session_id })).await?;
         Ok(ThreadCtx { agent: t.get("agent").and_then(Value::as_str).unwrap_or_default().to_owned(), machine: String::new() })

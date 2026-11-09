@@ -13,8 +13,10 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+wisp-automations-api.workspace = true
 wisp-channels-api.workspace = true
 wisp-kernel.workspace = true
+wisp-proc.workspace = true
 wisp-github-core.workspace = true
 
 [dev-dependencies]

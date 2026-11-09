@@ -17,7 +17,8 @@
     "runtime:btw",
     "runtime:setState",
     "runtime:answer",
-    "resources:export"
+    "resources:export",
+    "automations:run"
   ],
   "activation": [
     "onStartup"

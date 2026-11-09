@@ -27,6 +27,8 @@ pub enum Emitted {
     Ended(TurnEnded),
     Held(TurnHeld),
     Limits(TurnLimits),
+    /// a `task.*` fact (ADR-0043): its type and what it says
+    Task(&'static str, wisp_runtime_api::events::TaskFact),
 }
 
 impl Emitted {
@@ -41,6 +43,7 @@ impl Emitted {
             Self::Ended(_) => "turn.ended",
             Self::Held(_) => "turn.held",
             Self::Limits(_) => "turn.limits",
+            Self::Task(ty, _) => ty,
         }
     }
 }
@@ -141,5 +144,21 @@ impl Host for Recorder {
     }
     fn harnesses(&self) -> Vec<Arc<dyn Harness>> {
         self.harnesses.clone()
+    }
+}
+
+/// A `task.*` fact about `s` (ADR-0043).
+pub fn fact(s: &wisp_runtime_api::model::Session, turn: Option<&wisp_runtime_api::TurnId>, status: &str, text: &str, cost: Option<f64>) -> wisp_runtime_api::events::TaskFact {
+    wisp_runtime_api::events::TaskFact {
+        session_id: s.id.clone(),
+        turn_id: turn.cloned(),
+        title: s.title.clone(),
+        cwd: s.cwd.clone(),
+        agent: s.agent.clone(),
+        crew: s.ext_of("wisp.crew").get("id").and_then(serde_json::Value::as_str).map(str::to_owned),
+        tags: s.tags.clone(),
+        status: status.to_owned(),
+        text: text.chars().take(500).collect(),
+        cost_usd: cost,
     }
 }

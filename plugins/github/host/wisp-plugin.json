@@ -4,16 +4,18 @@
   "name": "GitHub",
   "version": "2.0.0",
   "api": "^1",
-  "description": "wisp.github: the GitHub transport for wisp.channels (gh api polling, mentions, issue replies)",
+  "description": "wisp.github: CI as a trigger source (gh run list), and the GitHub transport for wisp.channels",
   "server": {
     "builtin": "wisp-github"
   },
   "requires": {
     "wisp.channels": "^2"
   },
-  "permissions": [],
+  "permissions": ["proc:exec{bin:gh}"],
   "activation": [
     "onStartup"
   ],
-  "contributes": {}
+  "contributes": {
+    "triggerSources": ["ci.failed", "ci.passed"]
+  }
 }

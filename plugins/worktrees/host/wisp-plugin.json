@@ -22,6 +22,7 @@
     "git:worktree.remove",
     "git:branch.delete",
     "proc:exec{bin:cp}",
+    "proc:exec{bin:git}",
     "proc:exec{bin:du}",
     "proc:exec{bin:df}",
     "proc:exec{bin:sh}",
@@ -34,6 +35,7 @@
   ],
   "contributes": {
     "events": ["worktree.added", "worktree.removed", "worktrees.cleaned"],
+    "triggerSources": ["files.changed"],
     "commands": [
       {
         "id": "worktrees.create",

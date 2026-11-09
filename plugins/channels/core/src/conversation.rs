@@ -136,6 +136,7 @@ impl Surface<'_> {
 /// `text`: the message, through `strip_formatting`. `session_id`: the task its thread belongs to.
 /// `thread_text`: the same message as it reads in that thread (None: `text`).
 pub async fn converse(c: &dyn Conversation, text: &str, session_id: Option<&str>, thread_text: Option<&str>) -> Result<Value> {
+    c.phone().heard(c.channel(), c.sender(), thread_text.unwrap_or(text));
     if let Some(id) = session_id {
         let tc = c.phone().thread_ctx(id).await?;
         let ctx = ChannelCtx { thread: Some(tc), ..c.ctx().clone() };

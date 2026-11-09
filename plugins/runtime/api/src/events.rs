@@ -145,3 +145,57 @@ pub struct SessionAsked {
     pub question: String,
 }
 durable!(SessionAsked = "session.asked", |e| subject: e.session_id.0.clone(), key: e.ask_id.clone());
+
+/// What a `task.*` fact says (ADR-0043): the trigger sources `task.finished`, `task.failed`, `task.held`,
+/// `task.asked` and `task.done`, each durable, so a trigger or a crew wake never misses one.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct TaskFact {
+    pub session_id: SessionId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub turn_id: Option<TurnId>,
+    pub title: String,
+    /// its folder (a trigger's `project` matches it)
+    pub cwd: String,
+    pub agent: String,
+    /// the crew member whose job it is
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub crew: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    /// done | error | held | asked | marked
+    pub status: String,
+    /// what it said (its answer's first lines, the question, why it's held)
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub cost_usd: Option<f64>,
+}
+
+macro_rules! task_fact {
+    ($name:ident = $ty:literal) => {
+        #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+        #[serde(transparent)]
+        pub struct $name(pub TaskFact);
+        impl Event for $name {
+            const TYPE: &'static str = $ty;
+            const DURABLE: bool = true;
+            fn subject(&self) -> Option<String> {
+                Some(self.0.session_id.0.clone())
+            }
+            fn key(&self) -> Option<String> {
+                Some(format!("{}:{}", self.0.session_id.0, self.0.turn_id.as_ref().map_or_else(|| self.0.text.chars().take(40).collect(), |t| t.0.clone())))
+            }
+        }
+    };
+}
+
+task_fact!(TaskFinished = "task.finished");
+task_fact!(TaskFailed = "task.failed");
+task_fact!(TaskHeld = "task.held");
+task_fact!(TaskAsked = "task.asked");
+task_fact!(TaskDone = "task.done");

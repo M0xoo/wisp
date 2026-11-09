@@ -211,6 +211,9 @@ pub trait Phone: Send + Sync + 'static {
     async fn grid_reply(&self, thread: &str, text: &str) -> Result<()>;
     /// a queued job's thread got its first reply
     fn thread_saved(&self);
+    /// a message came in from someone the channel lets in: triggers on `chat.message` hear it (ADR-0043). Its
+    /// text is handed on, never logged or counted.
+    fn heard(&self, _channel: &str, _sender: &str, _text: &str) {}
     async fn thread_ctx(&self, session_id: &str) -> Result<ThreadCtx>;
     async fn start_parsed(&self, p: &Parsed, o: &StartOpts) -> Result<Started>;
     async fn stop(&self, session_id: &str) -> Result<String>;

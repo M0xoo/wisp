@@ -184,6 +184,7 @@ impl Runtime {
             s.archived = false; // a question needs the user: it comes back to the feed
             self.asks().insert(ask_id.clone(), s.id.0.clone());
             self.persist(&mut s, Vec::new()).await?;
+            self.host.emit(crate::host::Emitted::Task("task.asked", crate::host::fact(&s, None, "asked", &question, None)));
             (self.last_turn(id.as_str()).await?.map(|t| t.id), label, ask_id)
         };
         if let Some(t) = tid {

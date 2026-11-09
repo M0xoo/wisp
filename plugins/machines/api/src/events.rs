@@ -11,6 +11,11 @@ pub struct Online {
 }
 impl Event for Online {
     const TYPE: &'static str = "machines.online";
+    /// a computer coming back is a trigger source (ADR-0043): kept, so a wake never misses it
+    const DURABLE: bool = true;
+    fn subject(&self) -> Option<String> {
+        Some(self.id.clone())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]

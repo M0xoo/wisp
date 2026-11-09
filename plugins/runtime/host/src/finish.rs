@@ -184,6 +184,11 @@ impl Runtime {
             agent: turn.agent.clone(),
             model: turn.model.clone(),
         }));
+        match turn.status {
+            TurnStatus::Done => self.host.emit(Emitted::Task("task.finished", crate::host::fact(s, Some(&turn.id), "done", text, cost))),
+            TurnStatus::Error => self.host.emit(Emitted::Task("task.failed", crate::host::fact(s, Some(&turn.id), "error", text, cost))),
+            _ => {}
+        }
         if l.notify {
             self.host.emit(Emitted::Finished(TurnFinished {
                 session_id: s.id.clone(),

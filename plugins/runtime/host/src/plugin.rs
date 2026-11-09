@@ -49,6 +49,16 @@ impl Host for CtxHost {
             Emitted::Ended(x) => self.ctx.emit(&call, &x),
             Emitted::Held(x) => self.ctx.emit(&call, &x),
             Emitted::Limits(x) => self.ctx.emit(&call, &x),
+            Emitted::Task(ty, f) => {
+                use wisp_runtime_api::events::{TaskAsked, TaskDone, TaskFailed, TaskFinished, TaskHeld};
+                match ty {
+                    "task.finished" => self.ctx.emit(&call, &TaskFinished(f)),
+                    "task.failed" => self.ctx.emit(&call, &TaskFailed(f)),
+                    "task.held" => self.ctx.emit(&call, &TaskHeld(f)),
+                    "task.asked" => self.ctx.emit(&call, &TaskAsked(f)),
+                    _ => self.ctx.emit(&call, &TaskDone(f)),
+                }
+            }
         }
     }
     fn before_run(&self, c: BeforeRunCtx) -> BoxFuture<'static, WireResult<BeforeRunCtx>> {

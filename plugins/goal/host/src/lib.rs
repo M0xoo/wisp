@@ -102,6 +102,12 @@ async fn after(ctx: &Ctx, defaults: &kinds::Defaults, e: &TurnEnded) {
         }
     }
     let _ = ctx.run_json(&call, "runtime.setExt", json!({ "id": id, "plugin": PLUGIN, "value": st })).await;
+    // the verdict as a durable fact (ADR-0043: `goal.met` and `goal.failed` start triggers and wake crew)
+    match &step {
+        Next::Met => ctx.emit(&call, &wisp_goal_api::GoalMet { session_id: id.to_owned(), goal: g.text.clone(), rounds: st.rounds }),
+        Next::Stall(why) => ctx.emit(&call, &wisp_goal_api::GoalFailed { session_id: id.to_owned(), goal: g.text.clone(), rounds: st.rounds, why: why.clone() }),
+        Next::Again(_) => {}
+    }
     let out = match step {
         Next::Met => Ok(Value::Null),
         Next::Again(text) => ctx.run_json(&call, "runtime.followUp", json!({ "id": id, "text": text, "by": BY })).await,
