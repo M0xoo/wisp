@@ -63,3 +63,20 @@ connectors, rules) is already a resource, so:
 - **Receiving:** Import setup (or `wisp apply`, or adding it as a module) shows the plan in plain words, asks for any
   secret the receiver doesn't have yet, and refuses new permissions without confirmation (ADR-0028 trust).
 - v1's crew sharing (`.crew.json`, gists) becomes this; the old files are read once by `wisp import`.
+
+### Importing in the app and the TUI (added 2026-11-09)
+
+Import is a first-class screen, not a CLI-only step:
+- **Ways in:** drag and drop a folder, zip, `.wisp-task` or `wisp.yml` onto the window; open a grid share link or
+  a `wisp://` link (the app registers the scheme); paste a gist, git or module URL into **Import** (Settings, the
+  palette, the project menu); or, on first run, **Bring your setup from wisp v1** (`wisp import`).
+- **The plan, visually:** one card per resource, grouped as added, changed and removed, each with what it does in
+  plain words ("Ada reviews every PR on weekdays at 7 with Codex"). Changes show a field-level diff. A **Trust**
+  section lists new permissions, connectors, channels, triggers and machines, each needing a tick.
+- **Secrets inline:** a missing `${secret:linear}` shows as a field to fill right there. It's saved to
+  `secrets.json`, never to the files.
+- **Pick what to take:** untick any resource (its dependents are unticked with it, and the plan says why).
+- **Apply** shows progress per resource at once, and rolls everything back with a clear message if one fails
+  (atomic apply). Imported tasks (`.wisp-task`) open on their run, rerun, import-read-only and compare choices
+  (ADR-0027).
+- The TUI has the same screen (`wisp tui`, Import, or `i`). The CLI shows the same plan as text.
