@@ -15,6 +15,10 @@
   "contributes": {
     "commands": [
       { "id": "grid-client.signin", "title": "Sign in to wisp Cloud (or another grid)" },
+      { "id": "grid-client.sandbox", "title": "Make a sandbox on the grid, as a machine" },
+      { "id": "grid-client.sandboxes", "title": "Your sandboxes on the grid", "readOnly": true },
+      { "id": "grid-client.sandboxRemove", "title": "Delete a sandbox (its box and home)" },
+      { "id": "grid-client.teams", "title": "Team spaces on the grid: list, make, show, add or remove a member" },
       { "id": "grid-client.signinStatus", "title": "How a sign-in is going", "readOnly": true },
       { "id": "grid-client.signinCancel", "title": "Stop a sign-in" },
       { "id": "grid-client.status", "title": "Signed in where, and this computer on the grid", "readOnly": true },

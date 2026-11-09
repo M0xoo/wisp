@@ -168,6 +168,47 @@ pub struct Update {
     pub latest: i64,
 }
 
+/// `wisp sandbox new [name]`: a box of its own on the grid, kept as a peer (ADR-0041).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "grid-client/")]
+pub struct SandboxArgs {
+    /// what it's for ("fix the login")
+    #[serde(default)]
+    pub name: String,
+}
+
+/// A sandbox on the grid, and the peer wisp keeps for it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "grid-client/")]
+pub struct Sandbox {
+    pub id: String,
+    pub name: String,
+    pub url: String,
+    /// its peer in machines ("" when there's none here)
+    #[serde(default)]
+    pub machine: String,
+}
+
+/// `wisp team …`: team spaces on the grid (ADR-0041).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "grid-client/")]
+pub struct TeamsArgs {
+    /// ls | new | show | add | rm
+    pub op: String,
+    #[serde(default)]
+    pub slug: String,
+    /// a new team's name
+    #[serde(default)]
+    pub name: String,
+    /// the member to add or remove
+    #[serde(default)]
+    pub handle: String,
+    /// owner | admin | member | viewer
+    #[serde(default)]
+    pub role: String,
+}
+
 macro_rules! command {
     ($name:ident = $id:literal $(read $ro:ident)? : $args:ty => $out:ty) => {
         #[derive(Debug)]
@@ -196,3 +237,7 @@ command!(Revoke = "grid-client.revoke" : IdArgs => Value);
 command!(Fetch = "grid-client.fetch" read yes : FetchArgs => Fetched);
 command!(Imported = "grid-client.imported" : ImportedArgs => Value);
 command!(Updates = "grid-client.updates" read yes : NoArgs => Vec<Update>);
+command!(SandboxNew = "grid-client.sandbox" : SandboxArgs => Sandbox);
+command!(SandboxList = "grid-client.sandboxes" read yes : NoArgs => Vec<Sandbox>);
+command!(SandboxRemove = "grid-client.sandboxRemove" : IdArgs => Value);
+command!(Teams = "grid-client.teams" : TeamsArgs => Value);

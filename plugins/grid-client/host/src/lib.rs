@@ -21,6 +21,7 @@ mod cloud;
 pub mod computer;
 mod net;
 mod peers;
+mod sandboxes;
 mod signin;
 mod state;
 mod transport;
@@ -110,6 +111,10 @@ impl Plugin for GridClientPlugin {
         on!(s, slot, api::Fetch, |st, a| async move { cloud::fetch(&st, &a.link, a.password.as_deref()).await });
         on!(s, slot, api::Imported, |st, a| async move { cloud::imported(&st, &a.link, a.version).await });
         on!(s, slot, api::Updates, |st, _a| async move { cloud::updates(&st).await });
+        on!(s, slot, api::SandboxNew, |st, a| async move { sandboxes::create(&st, &a.name).await });
+        on!(s, slot, api::SandboxList, |st, _a| async move { sandboxes::list(&st).await });
+        on!(s, slot, api::SandboxRemove, |st, a| async move { sandboxes::remove(&st, &a.id).await });
+        on!(s, slot, api::Teams, |st, a| async move { sandboxes::teams(&st, &a).await });
         s.on_start(move |ctx| async move {
             let store = ctx.service::<Store>()?.as_ref().clone();
             state::install(&store).map_err(|e| WireError::internal(e.to_string()))?;

@@ -177,6 +177,75 @@ pub async fn computer(c: &Client, o: &Opts) -> Result<i32> {
 }
 
 /// `wisp shares`.
+/// `wisp sandbox new [name…] | ls | rm <id>`: a box of its own on the grid for one task, kept as a machine
+/// (`wisp run --on "Sandbox …" …` runs there).
+pub async fn sandbox(c: &Client, o: &Opts) -> Result<i32> {
+    let st = crate::cli::style();
+    let verb = o.words.first().map_or("ls", String::as_str);
+    let rest = o.words.get(1..).unwrap_or_default().join(" ");
+    match verb {
+        "new" | "add" => {
+            let v = c.cmd("grid-client.sandbox", json!({ "name": rest })).await?;
+            if o.json {
+                say(&v.to_string());
+            } else {
+                say(&format!("  {} sandbox {} at {}  {}", paint(&st, GREEN, "✓"), s(&v, "id"), s(&v, "url"), paint(&st, DIM, &format!("(machine {})", s(&v, "machine")))));
+            }
+        }
+        "ls" | "list" => {
+            let v = c.cmd("grid-client.sandboxes", json!({})).await?;
+            if o.json {
+                say(&v.to_string());
+                return Ok(0);
+            }
+            let list = v.as_array().cloned().unwrap_or_default();
+            if list.is_empty() {
+                say("  no sandboxes: wisp sandbox new <what it's for>");
+            }
+            for x in &list {
+                let here = if s(x, "machine").is_empty() { paint(&st, DIM, "(not a machine here)") } else { String::new() };
+                say(&format!("  {}  {:<28} {} {here}", s(x, "id"), s(x, "name"), s(x, "url")));
+            }
+        }
+        "rm" | "remove" | "delete" => {
+            let id = o.words.get(1).ok_or_else(|| CliError::said("wisp sandbox rm <id>"))?;
+            c.cmd("grid-client.sandboxRemove", json!({ "id": id })).await?;
+            say(&format!("  {} sandbox {id} deleted, with its home", paint(&st, GREEN, "✓")));
+        }
+        other => return Err(CliError::said(format!("wisp sandbox {other}: new, ls or rm"))),
+    }
+    Ok(0)
+}
+
+/// `wisp team ls | new <slug> [name…] | show <slug> | add <slug> <handle> [role] | rm <slug> <handle>`
+pub async fn team(c: &Client, o: &Opts) -> Result<i32> {
+    let word = |i: usize| o.words.get(i).cloned().unwrap_or_default();
+    let op = if o.words.is_empty() { "ls".to_owned() } else { word(0) };
+    let mut args = json!({ "op": op, "slug": word(1) });
+    match op.as_str() {
+        "new" | "create" => args["name"] = json!(o.words.get(2..).unwrap_or_default().join(" ")),
+        "add" => {
+            args["handle"] = json!(word(2));
+            args["role"] = json!(word(3));
+        }
+        "rm" | "remove" => args["handle"] = json!(word(2)),
+        _ => {}
+    }
+    let v = c.cmd("grid-client.teams", args).await?;
+    if o.json || !matches!(op.as_str(), "ls" | "list" | "show") {
+        say(&if o.json { v.to_string() } else { format!("  ✓ {op} {}", word(1)) });
+        return Ok(0);
+    }
+    let teams = v.get("teams").and_then(Value::as_array).or_else(|| v.as_array()).cloned().unwrap_or_default();
+    for t in &teams {
+        say(&format!("  {:<20} {:<24} {}", s(t, "slug"), s(t, "name"), s(t, "role")));
+    }
+    for m in v.get("members").and_then(Value::as_array).into_iter().flatten() {
+        say(&format!("  {:<20} {}", s(m, "handle"), s(m, "role")));
+    }
+    Ok(0)
+}
+
 pub async fn shares(c: &Client, o: &Opts) -> Result<i32> {
     let st = crate::cli::style();
     if let Some(id) = &o.revoke {

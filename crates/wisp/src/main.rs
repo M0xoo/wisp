@@ -215,6 +215,8 @@ async fn as_code(p: &Parsed, port: u16, cwd: &Path, home: &Path) -> Result<Optio
         "events" if matches!(o.words.first().map(String::as_str), None | Some("tail" | "why" | "retry" | "parked" | "ls")) => events_cli::run(&connect().await?, &p.argv, o.json).await?,
         "trigger" | "triggers" if matches!(o.words.first().map(String::as_str), None | Some("add" | "ls" | "list" | "rm" | "remove" | "fire" | "test" | "log" | "resume" | "approve" | "sources")) => trigger_cli::run(&connect().await?, p, first, &cwd.display().to_string()).await?,
         "crew" if matches!(o.words.first().map(String::as_str), Some("wake" | "graph")) => trigger_cli::run(&connect().await?, p, "crew", &cwd.display().to_string()).await?,
+        "sandbox" | "sandboxes" if matches!(o.words.first().map(String::as_str), None | Some("new" | "add" | "ls" | "list" | "rm" | "remove" | "delete")) => cloud_cli::sandbox(&connect().await?, &o).await?,
+        "team" | "teams" if matches!(o.words.first().map(String::as_str), None | Some("ls" | "list" | "new" | "create" | "show" | "add" | "rm" | "remove")) => cloud_cli::team(&connect().await?, &o).await?,
         "shares" if o.words.is_empty() => cloud_cli::shares(&connect().await?, &o).await?,
         "cloud" if o.words.len() <= 2 && matches!(o.words.first().map(String::as_str), None | Some("signin" | "login" | "signout" | "logout" | "status")) => cloud_cli::cloud(&connect().await?, &o).await?,
         "computer" if o.words.len() <= 1 && matches!(o.words.first().map(String::as_str), None | Some("on" | "off" | "status")) => cloud_cli::computer(&connect().await?, &o).await?,
