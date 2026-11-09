@@ -80,14 +80,15 @@ test('the service marks both tasks, names the conflicting files, and clears when
   const ov = createOverlaps(ctx);
   try {
     sessions.forEach((s) => ov.touch(s));
-    await until(() => sessions[0].overlaps && sessions[1].overlaps, { what: 'overlaps' });
+    await ov.settled();
     assert.deepEqual(sessions[0].overlaps, [{ id: 'b', title: 'Swap add', files: ['math.js'], more: 0, conflicts: ['math.js'] }]);
     assert.equal(sessions[1].overlaps[0].id, 'a');
     assert.equal(sessions[2].overlaps, undefined, 'a task changing other files is left alone');
     // Merged: it drops out, and the other task's warning goes with it.
     sessions[1].pr = { state: 'MERGED' };
     ov.touch(sessions[1]);
-    await until(() => !sessions[0].overlaps, { what: 'cleared' });
+    await ov.settled();
+    assert.equal(sessions[0].overlaps, undefined);
     assert.equal(sessions[1].overlaps, undefined);
   } finally {
     ov.stop();
@@ -106,7 +107,7 @@ test('the same file at different lines is an overlap with nothing conflicting', 
   const ov = createOverlaps(app(sessions));
   try {
     sessions.forEach((s) => ov.touch(s));
-    await until(() => sessions[0].overlaps, { what: 'overlap' });
+    await ov.settled();
     assert.deepEqual(sessions[0].overlaps[0].conflicts, []);
     assert.deepEqual(sessions[0].overlaps[0].files, ['util.js']);
   } finally {
@@ -128,7 +129,7 @@ test('only active tasks count: done, stopped and archived ones never warn, and l
   const ov = createOverlaps(app(sessions));
   try {
     sessions.forEach((s) => ov.touch(s));
-    await until(() => sessions[0].overlaps, { what: 'overlaps' });
+    await ov.settled();
     assert.deepEqual(sessions[0].overlaps.map((o) => o.id), ['b'], 'only the other active task');
     assert.deepEqual(sessions[1].overlaps.map((o) => o.id), ['a']);
     for (const s of sessions.slice(2)) assert.equal(s.overlaps, undefined, `${s.title} never warns`);
@@ -140,7 +141,7 @@ test('only active tasks count: done, stopped and archived ones never warn, and l
     // Back in Needs you: compared again.
     sessions[1].state = 'review';
     ov.changed(sessions[1]);
-    await until(() => sessions[0].overlaps, { what: 'back' });
+    await ov.settled();
     assert.deepEqual(sessions[0].overlaps.map((o) => o.id), ['b']);
   } finally {
     ov.stop();
