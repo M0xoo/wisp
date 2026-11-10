@@ -1,6 +1,6 @@
-# ui-commands: what the rule reports (baseline 2026-11-10, 79 findings)
+# ui-commands: what the rule still reports (62 findings, 2026-11-10; baseline 79)
 
-Regenerate with `node /tmp/run-rule.ts` or `npm run check` (the rule `ui-commands`, tools/check/rules/ui-commands.ts). It must reach 0.
+Regenerate with `npm run check` (rule `ui-commands`). It must reach 0.
 
 - packages/shell/src/frame/commands.ts:78 the UI sends runtime.forLater, which no plugin manifest lists: rename it to the server's id or add the command
 - packages/shell/src/frame/commands.ts:84 the UI sends runtime.setMode, which no plugin manifest lists: rename it to the server's id or add the command
@@ -13,9 +13,6 @@ Regenerate with `node /tmp/run-rule.ts` or `npm run check` (the rule `ui-command
 - plugins/connectors/ui/src/commands.ts:70 the UI sends connectors.signout, which no plugin manifest lists: rename it to the server's id or add the command
 - plugins/connectors/ui/src/commands.ts:77 the UI sends connectors.signin, which no plugin manifest lists: rename it to the server's id or add the command
 - plugins/connectors/ui/src/commands.ts:84 the UI sends connectors.import, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/crew/ui/src/commands.ts:76 the UI sends session.answer, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/crew/ui/src/commands.ts:83 the UI sends session.followUp, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/crew/ui/src/commands.ts:90 the UI sends session.update, which no plugin manifest lists: rename it to the server's id or add the command
 - plugins/crew/ui/src/more/commands.ts:28 the UI sends crew.localKit, which no plugin manifest lists: rename it to the server's id or add the command
 - plugins/crew/ui/src/more/commands.ts:43 the UI sends crew.export, which no plugin manifest lists: rename it to the server's id or add the command
 - plugins/crew/ui/src/more/commands.ts:50 the UI sends crew.import, which no plugin manifest lists: rename it to the server's id or add the command
@@ -33,26 +30,12 @@ Regenerate with `node /tmp/run-rule.ts` or `npm run check` (the rule `ui-command
 - plugins/machine/ui/src/types.ts:9 the UI watches plugin:wisp.machine:snapshot, which no server writes
 - plugins/machine/ui/src/types.ts:10 the UI watches plugin:wisp.machine:load, which no server writes
 - plugins/router/ui/src/commands.ts:42 the UI sends project.update, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-composer/ui/src/commands.ts:35 the UI sends runtime.reply, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-composer/ui/src/commands.ts:61 the UI sends runtime.queue.now, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-composer/ui/src/commands.ts:73 the UI sends runtime.queue.order, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-composer/ui/src/commands.ts:80 the UI sends runtime.queue.cancel, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-composer/ui/src/commands.ts:107 the UI sends runtime.side, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-task/ui/src/commands/session.ts:12 the UI sends session.rename, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-task/ui/src/commands/session.ts:18 the UI sends session.stop, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-task/ui/src/commands/session.ts:25 the UI sends session.setMode, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-task/ui/src/commands/session.ts:32 the UI sends session.reply, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-task/ui/src/commands/session.ts:39 the UI sends session.answer, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-task/ui/src/commands/session.ts:50 the UI sends session.allowRetry, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-task/ui/src/commands/session.ts:57 the UI sends session.exec, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-task/ui/src/commands/session.ts:63 the UI sends session.markDone, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-task/ui/src/commands/session.ts:69 the UI sends session.reopen, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-task/ui/src/commands/session.ts:75 the UI sends session.archive, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-task/ui/src/commands/session.ts:81 the UI sends session.fork, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-task/ui/src/commands/session.ts:87 the UI sends session.rerun, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-task/ui/src/commands/session.ts:93 the UI sends session.compact, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-task/ui/src/commands/session.ts:100 the UI sends session.held, which no plugin manifest lists: rename it to the server's id or add the command
-- plugins/shell-task/ui/src/commands/session.ts:107 the UI sends session.appState, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-composer/ui/src/commands.ts:79 the UI sends runtime.queue.order, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-composer/ui/src/commands.ts:86 the UI sends runtime.queue.cancel, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-composer/ui/src/commands.ts:114 the UI sends runtime.side, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:29 the UI sends session.setMode, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:64 the UI sends session.exec, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:122 the UI sends session.appState, which no plugin manifest lists: rename it to the server's id or add the command
 - plugins/ship/ui/src/commands.ts:55 the UI sends ship.review, which no plugin manifest lists: rename it to the server's id or add the command
 - plugins/stuff/ui/src/commands.ts:92 the UI sends stuff.publish, which no plugin manifest lists: rename it to the server's id or add the command
 - plugins/stuff/ui/src/commands.ts:98 the UI sends stuff.unpublish, which no plugin manifest lists: rename it to the server's id or add the command

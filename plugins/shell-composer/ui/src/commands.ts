@@ -33,8 +33,9 @@ export interface ReplyArgs {
 
 /** A follow-up: answers what the task asks, queues behind the run, steers it, or starts a turn. */
 export const reply = defineCommand<ReplyArgs, { queued?: boolean; interrupted?: boolean; answered?: boolean }>({
-  id: 'runtime.reply',
+  id: 'runtime.followUp',
   owner: (a) => a.session,
+  wire: (a) => ({ id: bare(a.session), text: a.text, queue: a.queue, attachments: a.attachments, ...(a.mode !== undefined && { mode: a.mode }) }),
   optimistic: (base, a) => {
     const s = session(base, a.session);
     if (!s) return [];
@@ -50,23 +51,28 @@ export const reply = defineCommand<ReplyArgs, { queued?: boolean; interrupted?: 
 });
 
 type QueueArgs = { session: EntityKey; item: string };
+/** the bare id the peer knows the task by */
+const bare = (key: EntityKey): string => key.slice(key.indexOf(':') + 1);
 
 export const queueEdit = defineCommand<QueueArgs & { text: string }>({
-  id: 'runtime.queue.edit',
+  id: 'runtime.queue.text',
   owner: (a) => a.session,
+  wire: (a) => ({ id: bare(a.session), itemId: a.item, text: a.text }),
   optimistic: (base, a) => patch(a.session, [{ path: '/queue', value: edit(queueOf(base, a.session), a.item, a.text) }]),
 });
 
 /** Send now: interrupts the run with this one (or starts it); the rest of the queue carries on. */
 export const queueNow = defineCommand<QueueArgs>({
-  id: 'runtime.queue.now',
+  id: 'runtime.queue.sendNow',
   owner: (a) => a.session,
+  wire: (a) => ({ id: bare(a.session), itemId: a.item }),
   optimistic: (base, a) => patch(a.session, [{ path: '/queue', value: remove(queueOf(base, a.session), a.item) }, { path: '/queueHeld', value: false }]),
 });
 
 export const queueMerge = defineCommand<{ session: EntityKey; items: string[] }>({
   id: 'runtime.queue.merge',
   owner: (a) => a.session,
+  wire: (a) => ({ id: bare(a.session), ids: a.items }),
   optimistic: (base, a) => patch(a.session, [{ path: '/queue', value: combine(queueOf(base, a.session), a.items) }]),
 });
 
@@ -90,6 +96,7 @@ export const queueCancel = defineCommand<QueueArgs>({
 export const stop = defineCommand<{ session: EntityKey }>({
   id: 'runtime.stop',
   owner: (a) => a.session,
+  wire: (a) => ({ id: bare(a.session) }),
   optimistic: (base, a) => patch(a.session, [{ path: '/state', value: 'review' }, ...(queueOf(base, a.session).length ? [{ path: '/queueHeld', value: true }] : [])]),
 });
 

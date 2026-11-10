@@ -74,22 +74,25 @@ const sessionPatch = (key: EntityKey, ops: Record<string, unknown>): EntityOps =
 
 /** Answer a job that asks you: it carries on at once and goes back to asking if refused. */
 export const answerJob = defineCommand<{ key: EntityKey; sessionId: string; text: string }>({
-  id: 'session.answer',
+  id: 'runtime.answer',
   owner: (a) => a.key,
+  wire: (a) => ({ id: a.sessionId, text: a.text }),
   optimistic: (_base, a) => sessionPatch(a.key, { state: 'running', asks: false, question: '', live: '' }),
 });
 
 /** Follow up on a job: that job carries on (the member remembers it). */
 export const followJob = defineCommand<{ key: EntityKey; sessionId: string; text: string; confirmLimit?: boolean }>({
-  id: 'session.followUp',
+  id: 'runtime.followUp',
   owner: (a) => a.key,
+  wire: (a) => ({ id: a.sessionId, text: a.text }),
   optimistic: (_base, a) => sessionPatch(a.key, { state: 'running', live: '' }),
 });
 
 /** Seen in the thread: its report is read. */
 export const markRead = defineCommand<{ key: EntityKey; id: string; unread: false }>({
-  id: 'session.update',
+  id: 'runtime.markRead',
   owner: (a) => a.key,
+  wire: (a) => ({ id: a.id, unread: false }),
   optimistic: (_base, a) => sessionPatch(a.key, { unread: false }),
   dedupe: (a) => `read:${a.id}`,
 });

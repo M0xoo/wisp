@@ -235,3 +235,29 @@ Seen on a real `wisp serve`:
   2. the server handlers, each with its named test;
   3. the topics;
   4. the registrations.
+
+## Round 9 (2026-11-10): ui-commands, step 1 (renames), 79 → 62
+
+Renamed to the server's ids. The args are reshaped by `wire`; the server's catalogue is the source of truth:
+- **shell-task:**
+  - `session.rename / stop / reply / answer / allowRetry / markDone / reopen / archive / fork / rerun / compact / held` → `runtime.rename / stop / followUp / answer / approveBlocked / setState (done, review) / archive / fork / rerun / compact / release`;
+  - answer sends allow / always / deny or the choice as `text`;
+  - held: cancel → skip, the rest → start. Wait sends nothing; it's what not answering does.
+- **crew:** `session.answer / followUp / update` → `runtime.answer / followUp / markRead`.
+- **shell-composer:**
+  - `runtime.reply` → `runtime.followUp`;
+  - the queue's edit → `runtime.queue.text` (one item's text);
+  - `queue.now` → `runtime.queue.sendNow`;
+  - merge and stop wired to the server's args (`ids`, `id`). Merge and stop had the right ids but the wrong args, which the rule can't see.
+
+Typecheck is clean for shell-task, crew and shell-composer. Not seen in Chrome this round; the next round checks these with the step-2 handlers.
+
+**Left: 62,** listed in `docs/v2-sweep-commands.md`.
+- **Step 2, server handlers:**
+  - the frame's `runtime.setMode`, `runtime.setAgent`, `runtime.forLater` and `checkpoint.restore`;
+  - `session.setMode / exec / appState`, `runtime.side`, `runtime.queue.order / cancel`;
+  - later's `session.held` (needs the held turn's id on the row);
+  - goal 4, machine 4, worktrees 3, crew 4, connectors 7, stuff 6 (publish needs the grid flow; `stuff.setPublished` takes the published link), share 3;
+  - `ship.review`, `project.update`.
+- **Step 3, topics:** the machine snapshot and load; the worktrees rows.
+- **Step 4:** the 14 plugin UIs registered nowhere.
