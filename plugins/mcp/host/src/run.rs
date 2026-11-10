@@ -29,22 +29,37 @@ pub async fn rpc(ctx: &Ctx, call: &Call, sessions: &Sessions, text: &str, cwd: O
             Step::Silent => None,
             Step::Call(c) if only.as_ref().is_some_and(|o| !o.allows(&c.name)) => Some(wisp_mcp_core::finish(&c.id, &c.name, &w, Outcome::Failed(format!("{} isn't one of this agent's tools (tools: in its formula)", c.name)))),
             Step::Call(c) => {
-                let outcome = match c.extra.and_then(|i| contributed.get(i)) {
-                    Some(t) => {
-                        let tc = wisp_mcp_api::ToolCall { args: Value::Object(c.args), session: call.caller().session.clone() };
-                        match (t.run)(ctx.clone(), call.clone(), tc).await {
-                            Ok(t) if t.error.is_some() => Outcome::Failed(t.error.unwrap_or_default()),
-                            Ok(t) => Outcome::Text(t.text.unwrap_or_default()),
-                            Err(e) => Outcome::Failed(e.message),
-                        }
+                let outcome = if let Some(t) = c.extra.and_then(|i| contributed.get(i)) {
+                    let tc = wisp_mcp_api::ToolCall { args: Value::Object(c.args), session: call.caller().session.clone() };
+                    match (t.run)(ctx.clone(), call.clone(), tc).await {
+                        Ok(t) if t.error.is_some() => Outcome::Failed(t.error.unwrap_or_default()),
+                        Ok(t) => Outcome::Text(t.text.unwrap_or_default()),
+                        Err(e) => Outcome::Failed(e.message),
                     }
-                    None => builtin(ctx, call, &w, &c.name, c.args, cwd.as_deref()).await,
+                } else {
+                    let fact = wisp_mcp_core::telemetry::of(&c.name, &c.args, matches!(w, Who::Agent { .. }));
+                    let out = builtin(ctx, call, &w, &c.name, c.args, cwd.as_deref()).await;
+                    if let Some((event, props)) = fact.filter(|_| !matches!(out, Outcome::Failed(_))) {
+                        track(ctx, call, &w, event, props).await;
+                    }
+                    out
                 };
                 Some(wisp_mcp_core::finish(&c.id, &c.name, &w, outcome))
             }
         });
     }
     wisp_mcp_core::assemble(replies, plan.batch)
+}
+
+/// A tool call's catalogue event (`wisp_mcp_core::telemetry`), with the caller's harness.
+async fn track(ctx: &Ctx, call: &Call, w: &Who, event: &str, mut props: Value) {
+    if let Who::Agent { session, .. } = w {
+        let agent = owner(ctx, call, "runtime.get", json!({ "id": session })).await.ok().and_then(|s| s.get("agent").cloned());
+        if let (Some(o), Some(a)) = (props.as_object_mut(), agent) {
+            o.insert("agent".into(), a);
+        }
+    }
+    let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", json!({ "event": event, "props": props })).await;
 }
 
 /// The `tools` spec for this session's run (its agent profile's, else its mode's), when one is declared.

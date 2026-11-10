@@ -1,9 +1,8 @@
-//! placeholder
-//!
-//! The plugin is registered and its manifest checked; its commands, routes and migrations are registered here as they are ported. Until then it adds nothing to the
-//! kernel, so switching it on or off changes nothing else.
+//! wisp.connectors: the MCP servers agents get. `kinds`: the `connector` resource kind and what runs get
+//! (`runtime.run@1`); `pane`: Settings → Connectors' commands, rows and the sign-in callback.
 
 mod kinds;
+mod pane;
 
 use wisp_kernel::{Manifest, Plugin, Result, Setup};
 
@@ -16,7 +15,8 @@ impl Plugin for ConnectorsPlugin {
     }
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
-        crate::kinds::register(s);
+        let (stored, kind) = crate::kinds::register(s);
+        crate::pane::register(s, stored, kind);
         Ok(())
     }
 }

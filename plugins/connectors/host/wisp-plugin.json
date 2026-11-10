@@ -4,15 +4,70 @@
   "name": "Connectors",
   "version": "2.0.0",
   "api": "^1",
-  "description": "wisp.connectors plugin: wiring to the kernel, store, secrets, proc and HTTP routes",
+  "description": "The MCP servers agents get: the connector resource kind, what each run gets, and Settings → Connectors (add, test, import from the harnesses' configs, OAuth sign-in).",
   "server": {
     "builtin": "wisp-connectors"
   },
   "permissions": [
-    "runtime:get"
+    "runtime:get",
+    "secrets:read",
+    "secrets:write",
+    "net:fetch{host:*}",
+    "proc:spawn{bin:*}",
+    "store:write{owner:connectors}",
+    "fs:read{scope:home}"
   ],
   "activation": [
     "onStartup"
   ],
-  "contributes": { "events": ["connectors.agent_added", "connectors.changed", "connectors.works"] }
+  "contributes": {
+    "events": [
+      "connectors.agent_added",
+      "connectors.changed",
+      "connectors.works"
+    ],
+    "commands": [
+      {
+        "id": "connectors.list",
+        "title": "Every connector, the servers found in the harnesses' configs, and the reach",
+        "readOnly": true
+      },
+      {
+        "id": "connectors.add",
+        "title": "Add a connector (its secrets go to the secrets file)"
+      },
+      {
+        "id": "connectors.update",
+        "title": "Change a connector, or switch it on or off"
+      },
+      {
+        "id": "connectors.remove",
+        "title": "Remove a connector and its secrets"
+      },
+      {
+        "id": "connectors.test",
+        "title": "Start a connector and list its tools"
+      },
+      {
+        "id": "connectors.import",
+        "title": "Add servers found in the harnesses' own configs, or hide them"
+      },
+      {
+        "id": "connectors.signin",
+        "title": "Sign in to a remote connector (OAuth): the page to open"
+      },
+      {
+        "id": "connectors.oauthFinish",
+        "title": "Finish a connector's sign-in",
+        "uiOnly": "the sign-in page's callback, reached by the browser coming back"
+      },
+      {
+        "id": "connectors.signout",
+        "title": "Sign out of a connector"
+      }
+    ],
+    "topics": [
+      "plugin:wisp.connectors:list"
+    ]
+  }
 }

@@ -150,7 +150,7 @@ export function statusOf(c: ConnectorView, signing: boolean): Status {
 export const SIGNING_MS = 10 * 60_000;
 export function stillSigning(c: ConnectorView, since: number, now: number): boolean {
   if (now - since > SIGNING_MS) return false;
-  return !(c.signedIn?.at !== null && c.signedIn?.at !== undefined && c.signedIn.at >= since - 5000);
+  return !(c.signed_in?.at !== null && c.signed_in?.at !== undefined && c.signed_in.at >= since - 5000);
 }
 
 /** The found card's sources: every harness a found server is in, once. */

@@ -19,6 +19,7 @@
     "runtime:*",
     "ship:*",
     "stuff:*",
+    "telemetry:track",
     "watch:*"
   ],
   "activation": [

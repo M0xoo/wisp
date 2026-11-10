@@ -59,8 +59,8 @@ export interface ConnectorView {
   headers: KeyState[];
   enabled: boolean;
   test: ProbeResult | null;
-  signedIn: SignedIn | null;
-  addedAt: number;
+  signed_in: SignedIn | null;
+  added_at: number;
   /** harnesses that keep their own server by this name (it is skipped for them) */
   own: string[];
   /** a test is running: the row says Checking… */

@@ -56,7 +56,7 @@ struct ConnectorKind {
 }
 
 /// `${secret:NAME}` read from secrets (an unknown one stays as it is: the plan said so already).
-async fn reveal(ctx: &Ctx, text: &str) -> String {
+pub(crate) async fn reveal(ctx: &Ctx, text: &str) -> String {
     let mut out = text.to_owned();
     let Ok(secrets) = wisp_kernel::services::secrets(ctx) else { return out };
     while let Some(a) = out.find("${secret:") {
@@ -75,6 +75,13 @@ async fn refresh(inner: &StoredKind, cache: &Cache) {
         let Ok(mut c) = serde_json::from_value::<ConnectorSpec>(v) else { continue };
         for x in c.env.values_mut().chain(c.headers.values_mut()) {
             *x = reveal(&inner.ctx, x).await;
+        }
+        // signed in (Settings → Connectors): the token goes as a bearer header
+        if c.oauth == Some(true) && !c.headers.contains_key("Authorization") {
+            let t = reveal(&inner.ctx, &format!("${{secret:{}:token}}", wisp_connectors_api::secrets_ns(&name))).await;
+            if !t.starts_with("${secret:") {
+                c.headers.insert("Authorization".into(), format!("Bearer {t}"));
+            }
         }
         list.push((name, c));
     }
@@ -162,11 +169,12 @@ async fn reveal_overlay(ctx: &Ctx, call: &Call, revealed: &Revealed, session: &s
     revealed.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(session.to_owned(), list);
 }
 
-pub fn register(s: &mut Setup) {
+pub fn register(s: &mut Setup) -> (Arc<StoredKind>, Arc<dyn ResourceKind>) {
     let inner = Arc::new(StoredKind::new(KindInfo::new("connector", "connectors", "wisp.connectors", schema_of::<ConnectorSpec>()).order(18), s.ctx()));
     let cache: Cache = Arc::default();
     let k: Arc<dyn ResourceKind> = Arc::new(ConnectorKind { inner: inner.clone(), cache: cache.clone() });
-    s.contribute(&RESOURCE_KIND, k);
+    s.contribute(&RESOURCE_KIND, k.clone());
+    let out = (inner.clone(), k);
     let revealed: Revealed = Arc::default();
     let runs: Arc<dyn RunPart> = Arc::new(Runs(cache.clone(), revealed.clone()));
     s.contribute(&RUN, runs);
@@ -181,6 +189,7 @@ pub fn register(s: &mut Setup) {
         refresh(&inner, &cache).await;
         Ok(())
     });
+    out
 }
 
 #[cfg(test)]

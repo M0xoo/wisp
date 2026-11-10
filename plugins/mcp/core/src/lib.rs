@@ -12,6 +12,7 @@ pub mod plan;
 pub mod rpc;
 pub mod table;
 pub mod team;
+pub mod telemetry;
 pub mod user;
 pub mod words;
 
