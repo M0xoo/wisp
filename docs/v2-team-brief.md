@@ -91,3 +91,15 @@ UI agents read `docs/v2-ui-brief.md` as well.
 - The lead checks compile, clippy and `npm run check`, commits and pushes, and starts the next job at once. CI
   failures go into the next coder job; nobody stops coding to wait for CI. One batched verification pass comes when
   all the code exists.
+
+## Seeing the UI you build (owner, 2026-11-10)
+
+For any UI work, look at it yourself while you build:
+- **Claude in Chrome** (the `mcp__claude-in-chrome__*` tools) is allowed and preferred when your harness has it.
+  - Open your own tab on the running `wisp serve` (fake harnesses) or the vite dev server.
+  - Click through what you changed, read the console and network errors, and resize to phone width.
+  - Never touch the owner's other tabs or sites, and never trigger alert or confirm dialogs.
+- **Otherwise:** playwright-core installed in /tmp, with the system Chrome (`executablePath`). Never add it to the repo.
+- **The gates on the view you touched:** `node qa/{parity,layout,feedback}.mjs --views=<view>` (the hook allows one or
+  two views).
+- **Every round doc lists the PNGs you looked at:** desktop and phone, light and dark.

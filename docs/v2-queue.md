@@ -77,6 +77,7 @@ alone.
    - Built (docs/v2-round-6.md, "Item 6"): the points, the shell, the views, the goldens. Left: `--on`, For later and
      Repo tab, the blame gutter, hunk jumps, terminal images, the real-terminal pass.
 7. [ ] **GUI** (ADR-0016/0017/0012):
+   - **See what you build:** Claude in Chrome (or playwright-core in /tmp) on every UI change; see docs/v2-team-brief.md "Seeing the UI you build".
    - **UI quality plan (owner, 2026-11-10: "too many bugs to even count").** The gates make the bug list, not people.
      1. **References first:** capture v1's desktop-mode reference for every view in `design/v1-reference/` (46 of
         49 have none for desktop, so they're unchecked). Use the same capture tool v1-reference used, on v1 in
