@@ -28,6 +28,19 @@ Right after ui-commands reaches 0, and before the UI burndown:
   - the `harness == "claude"` branch in `runtime/setup.rs`;
   - regenerating the TS bindings.
 
+**Nothing of v1 gets lost (owner, 2026-11-10: "v1 UI and features are amazing, make sure we don't lose any of
+them").** Part of the coverage sweep. Its scope is user-facing features, not only routes:
+- **Generate `docs/v1-features.md`** from v1 on origin/main:
+  - every CHANGELOG entry under Added and Changed (632 user-facing entries over 72 releases), one row each;
+  - every `web/js/features/*` module (99), each Settings pane and setting key, each keyboard shortcut, each
+    tip, each menu item, each answer block type, each CLI command.
+- **Each row gets its v2 status:** `built` (the v2 command, screen and named test that carry it), `missing`
+  (work), or `dropped` (with the ADR or the owner's words). A v1 bug fixed in v2 links `docs/v1-bugs-fixed.md`.
+- **A `tools/check` rule, `v1-features`:** a row without a status is an error, and `missing` rows are counted in
+  CI's summary. They're built one by one, UI included, through the gates.
+- **The default is to keep it.** Anything unsure is kept as v1 had it and asked about under *Questions* in
+  `docs/v1-bugs-fixed.md`. Only the owner or an ADR drops a v1 feature.
+
 **GUI naming (2026-11-10):** the task side menu still says "Take over". The decision is "Open in <harness>" (for example "Open
 in Claude Code"; CLI `wisp open <id> --in X`, TUI `o`). Rename it in every frontend and in the i18n keys.
 
