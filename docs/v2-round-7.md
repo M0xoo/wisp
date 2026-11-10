@@ -146,11 +146,38 @@ Seen on a real `wisp serve` (fake claude linked as `claude`, the demo project co
    - Moving the frame's TaskView into the plugin would copy its helpers (rows-view, commands, harness, pickers), which the frame's Home and sidebar share.
    - The stubs left: TaskHead, Transcript, PlanView, the cards other than the question, and SidePanel's PR and Shell.
 
+## Round 6 (2026-11-10): step 4 and Settings
+
+Seen on a real `wisp serve`:
+- Settings → Auto at 1440 and 390, dark and light: `docs/qa/r10-auto-*.png`;
+- Worktrees and Updates at 1440: `docs/qa/r10-worktrees-1440-*.png`, `docs/qa/r10-updates-1440-*.png`.
+
+1. **Settings never opened in v2.**
+   - **No registration:** `shellSettingsUi(...)` has no default export and nothing called it, so the Settings frame wasn't registered. Every pane (General, Notifications, Keys, Auto, Worktrees, Updates, This Mac) was unreachable.
+     - `apps/web/src/main.tsx` now registers it after the glob, with every plugin's panes, each with its plugin's client (`Shell.settingsPanes()`, additive), and the translator.
+   - **Its view id:** `shell.settings` was outside its plugin's namespace, so registering it threw and the page didn't boot. It's now `shell-settings.sheet`, and the frame's Home and sidebar and wisp.machine open it by that.
+   - **v1's one wide surface:** the panes listed on the left, the pane on the right. It opens as a `viewer` (a large dialog; a sheet on phones).
+     - Kit: `Dialog` and `Sheet` take `bare` (the content brings its own head and close; the title stays for screen readers).
+     - Contract: `ViewDef.bare` (additive); the Settings view sets it.
+2. **router:** its Settings → Auto pane is registered (agents group). The scaffold's probe stays detached.
+3. **worktrees and update:** their panes were already declared; with Settings registered they show, and they read the server (seen).
+4. **ship, wired:**
+   - **The plugin entry:** the PR pill on a task's row (`shell.row:head`), the PR strip over the open task (`shell.task:band`), and Ship it's dialog as an overlay view (`ship.dialog`; the plugin test caught `wisp.ship.ship` outside its namespace).
+   - **The frame's "Ship it…"** opens that dialog; it called `ship.open`, which no server has.
+   - **The command args:** wisp-ship's commands name the task by `session` (the bare id). `@wisp/client`'s `defineCommand` takes `wire`, the args as the peer's command takes them (additive), and ship's seven commands use it.
+     - Test: `packages/client/test/commands.test.ts` "a command's wire shape".
+   - **Ids aligned with the server:** `ship.prepare` → `ship.view`, `ship.fixConflicts` → `ship.fix_conflicts`, `ship.checkLog` → `ship.check_log`. The last two are now listed in ship's manifest; they were registered but unlisted, so default deny made them unreachable.
+   - ship's `shell.ts` uses @wisp/shell's context.
+   - **Not seen:** the pill, the strip and the dialog with a PR. That needs a pushed branch and gh; the fake setup has neither.
+
 ## Left (next in item 7, in this order)
 
-- **The side pane:** PR and Shell (and Preview). Changes' Stage, Commit and Viewed.
-- **shell-task's main screen:** move the frame's chassis and its shared helpers into packages a plugin may use. Then TaskHead, Transcript (steps, folds) and PlanView.
-- **Unattached plugin UIs:** router, ship, worktrees, update, and goal's Checks, EditGoal and RunView.
-- **Then the v1 views:** settings panes, crew, My Stuff, the computer pane, automations, machines.
-- **Then the new screens:** Repo tab, blame gutter, import, Share setup, Setup section, My shares, the Automations When picker, crew Wakes.
+- **Server handlers missing for UI commands:**
+  - ship's `ship.review` (review by another harness);
+  - router's `project.update`;
+  - "Harnesses it may use" is empty: the `harness` rows the Auto pane reads don't come from the server;
+  - Worktrees' On disk list stays at "Looking…".
+- **The task page:** the PR and Shell side panes, TaskHead, transcript folds and PlanView, so shell-task has no stubs left.
+- **Step 5, the v1 panes and views still missing:** Agents, Connectors, Machines, Cloud, Memory, Automations, Spells, Usage, Privacy; then crew, My Stuff, the computer pane, automations and machines as screens.
+- **Step 6:** the new screens.
 - **After the GUI:** the channels grammar port.
