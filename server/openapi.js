@@ -1101,6 +1101,7 @@ export function openapi({ version, port }) {
             important: { type: 'boolean', description: 'With agent auto: no exploring, take the pick with the best record' },
             autoPin: { type: 'string', description: "With agent auto: the pick a preview showed (an arm key, 'claude:opus:high'); it runs if it still can" },
             autoOverride: { type: 'object', properties: { key: { type: 'string' }, type: { type: 'string' } }, description: 'With a harness you picked: the pick Auto previewed instead, so it learns from the change' },
+            crewRun: { type: 'object', properties: { agent: { type: 'string' }, model: { type: 'string' }, effort: { type: 'string' } }, description: 'A prompt addressed to one crew member (`@Ada …`): the harness, model and thinking level picked for this job, instead of the member’s own' },
             mode: { enum: ['plan', 'edits', 'auto'], default: 'auto' },
             model: { type: 'string' },
             effort: { type: 'string', description: 'Thinking level: low, medium, high, xhigh, max (per harness)' },
