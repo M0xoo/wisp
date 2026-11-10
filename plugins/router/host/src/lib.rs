@@ -51,6 +51,16 @@ impl State {
         Ok(())
     }
 
+    /// `view` written as the row Settings → Auto watches, then given back.
+    async fn published(&self, v: RouterView) -> RouterView {
+        if let Some(store) = self.store.get()
+            && let Err(e) = store::publish(store, &v).await
+        {
+            tracing::warn!(error = %e, "router: publishing the view");
+        }
+        v
+    }
+
     /// The rows the state marked dirty (and the settings, when they changed), in one transaction.
     async fn save(&self, settings: bool) {
         let Some(store) = self.store.get().cloned() else { return };
@@ -143,11 +153,15 @@ impl Plugin for RouterPlugin {
         s.on_start(move |ctx| async move {
             let store = ctx.service::<wisp_store::Store>()?.as_ref().clone();
             let home = ctx.service::<Paths>().ok().map(|p| p.home().to_owned());
-            opening.open(store, home).await
+            opening.open(store, home).await?;
+            // the view row exists from the start: Settings → Auto never waits on a row nobody wrote
+            let here = agents(&ctx, &ctx.root_call()).await;
+            opening.published(view(&opening, &here, now(&ctx))).await;
+            Ok(())
         });
         on!(s, st, View, |st, ctx, call, _a| {
             let here = agents(&ctx, &call).await;
-            Ok(view(&st, &here, now(&ctx)))
+            Ok(st.published(view(&st, &here, now(&ctx))).await)
         });
         on!(s, st, Set, |st, ctx, call, a| {
             let here = agents(&ctx, &call).await;
@@ -156,7 +170,7 @@ impl Plugin for RouterPlugin {
                 auto::apply_patch(&mut set, &a, &|id| here.iter().any(|h| h.id == id)).map_err(|e| WireError::invalid(e.to_string()))?;
             }
             st.save(true).await;
-            Ok(view(&st, &here, now(&ctx)))
+            Ok(st.published(view(&st, &here, now(&ctx))).await)
         });
         on!(s, st, Preview, |st, ctx, call, a| {
             let here = agents(&ctx, &call).await;
@@ -166,7 +180,7 @@ impl Plugin for RouterPlugin {
             let here = agents(&ctx, &call).await;
             lock(&st.router).reset(now(&ctx));
             st.save(false).await;
-            Ok(view(&st, &here, now(&ctx)))
+            Ok(st.published(view(&st, &here, now(&ctx))).await)
         });
         on!(s, st, Signal, |st, ctx, call, a| {
             let out = lock(&st.router).signal(&a.id, &a.patch, now(&ctx));
@@ -191,6 +205,25 @@ mod tests {
     #[test]
     fn manifest_is_valid() {
         assert_eq!(RouterPlugin.manifest().id, "wisp.router");
+    }
+
+    /// Settings → Auto watches one `router_view` row: it's written whole and flat (the UI reads `arms`, `goal`,
+    /// `settings` at the top), from `router.view`'s answer, and it's in the topic the UI subscribes to.
+    #[tokio::test]
+    async fn the_auto_view_is_published_as_a_flat_row() {
+        use wisp_store::{Location, Store};
+        let db = Store::open(Location::Memory, std::sync::Arc::new(wisp_store::SystemClock)).unwrap();
+        store::install(&db).unwrap();
+        let st = State::new();
+        let here = vec![AgentInfo { id: "claude".into(), name: "Claude Code".into(), available: true, ..AgentInfo::default() }];
+        let v = view(&st, &here, 1_000);
+        store::publish(&db, &v).await.unwrap();
+        let row = db.read(|r| r.get("router_view", "view")).unwrap().unwrap();
+        let want = serde_json::to_value(&v).unwrap();
+        assert_eq!(row.get("goal"), want.get("goal"));
+        assert!(row.get("arms").is_some_and(Value::is_array) && row.get("settings").is_some_and(Value::is_object), "{row:?}");
+        assert_eq!((store::VIEW.topics)(&row), vec![store::VIEW_TOPIC.to_owned()]);
+        assert_eq!(store::VIEW_TOPIC, "plugin:wisp.router:view", "the topic the UI watches (plugins/router/ui types.ts TOPIC.view)");
     }
 
     #[test]

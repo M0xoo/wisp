@@ -24,7 +24,58 @@ pub const MIGRATIONS: &[Migration] = &[Migration::sql(
      CREATE TABLE router_route (id TEXT PRIMARY KEY, at INTEGER NOT NULL, body TEXT NOT NULL) STRICT;
      CREATE INDEX router_route_at ON router_route (at);
      CREATE TABLE router_meta (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;",
+), Migration::sql(
+    2,
+    // Auto's whole view as one row (Settings → Auto reads it live; added 2026-11-10: the UI watched a row no
+    // server wrote)
+    "CREATE TABLE router_view (id TEXT PRIMARY KEY, goals TEXT NOT NULL, goal TEXT NOT NULL, settings TEXT NOT NULL,
+       projects TEXT NOT NULL, priors TEXT NOT NULL, learned INTEGER NOT NULL, routed INTEGER NOT NULL, picks INTEGER NOT NULL,
+       corrections INTEGER NOT NULL, arms TEXT NOT NULL, recent TEXT NOT NULL) STRICT;",
 )];
+
+/// The topic Settings → Auto watches: one `router_view` row, id `view`, the whole of `router.view`.
+pub const VIEW_TOPIC: &str = "plugin:wisp.router:view";
+
+fn view_topics(_: &Row) -> Vec<String> {
+    vec![VIEW_TOPIC.into()]
+}
+
+/// Auto's view as the UI reads it; its columns are the view's own fields, so the row is flat (the UI reads them
+/// at the top and its optimistic patches write `/settings/…`).
+pub const VIEW: EntityDef = EntityDef {
+    kind: "router_view",
+    table: "router_view",
+    key: "id",
+    columns: &[
+        ("id", Col::Text),
+        ("goals", Col::Text),
+        ("goal", Col::Text),
+        ("settings", Col::Text),
+        ("projects", Col::Text),
+        ("priors", Col::Text),
+        ("learned", Col::Int),
+        ("routed", Col::Int),
+        ("picks", Col::Int),
+        ("corrections", Col::Int),
+        ("arms", Col::Text),
+        ("recent", Col::Text),
+    ],
+    json_columns: &["goals", "settings", "projects", "priors", "arms", "recent"],
+    parent: None,
+    seq: None,
+    topics: view_topics,
+};
+
+/// Writes the view row (`router.view`'s answer, flat).
+pub async fn publish(store: &Store, view: &impl serde::Serialize) -> wisp_store::Result<()> {
+    let Value::Object(fields) = serde_json::to_value(view)? else { return Ok(()) };
+    let mut row = Row::new();
+    row.insert("id".into(), json!("view"));
+    for (k, _) in VIEW.columns.iter().skip(1) {
+        row.insert((*k).into(), fields.get(*k).cloned().unwrap_or(Value::Null));
+    }
+    store.write(move |w| w.upsert(VIEW.kind, row).map(|_| ())).await
+}
 
 fn topics(_: &Row) -> Vec<String> {
     vec![TOPIC.into()]
@@ -53,7 +104,7 @@ pub const ROUTE: EntityDef = EntityDef {
 
 pub fn install(store: &Store) -> wisp_store::Result<()> {
     store.migrate(OWNER, MIGRATIONS)?;
-    for def in [ARM, STAT, TASTE, COOL, META, ROUTE] {
+    for def in [ARM, STAT, TASTE, COOL, META, ROUTE, VIEW] {
         store.define_entity(def)?;
     }
     Ok(())
