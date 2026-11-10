@@ -261,3 +261,119 @@ Typecheck is clean for shell-task, crew and shell-composer. Not seen in Chrome t
   - `ship.review`, `project.update`.
 - **Step 3, topics:** the machine snapshot and load; the worktrees rows.
 - **Step 4:** the 14 plugin UIs registered nowhere.
+
+## Round 10 (2026-11-10): ui-commands, steps 2–4, 50 → 13
+
+Every command a UI sends now has a server handler, and every topic a UI watches has a writer. The 13 left are
+plugin UI packages with logic but no screen (below). Clippy is clean on the 19 touched crates.
+
+### Server handlers (each with its named test)
+
+| UI sent | Server now | Named test |
+|---|---|---|
+| runtime setMode / setAgent / forLater / queue.order / queue.cancel / held | `runtime.*` (ops.rs, more.rs) | `mode_agent_for_later_and_queue_order_and_cancel_change_the_task`, `the_row_carries_for_later_and_the_held_turns_id` |
+| goal pause / resume / drop / check / set | `goal.*` | `goal_pause_resume_and_drop_move_its_state`, `goal_set_changes_or_clears_the_goal` |
+| worktrees keep / bringIn / dismiss | `worktrees.*` (+ Bring in offers, core `offer.rs`) | `keep_pins_a_tasks_worktree_and_an_unknown_task_is_not_found`, `bring_in_makes_tasks_of_the_offers_paths_and_not_now_is_remembered`, `a_projects_foreign_worktrees_are_offered_once_and_wisps_own_are_not`, `bring_in_takes_only_the_offers_paths` |
+| machine stop / fix / harnessClean / pauseAutomations, `machine.read` | `machine.stop`, `.fix`, `.harness.clean`, `.automations.pause`, `.read` (procs.rs: ps, attribution, leftovers, history) | `stop_refuses_wisp_its_parents_and_strangers`, `a_running_tasks_run_is_the_tagged_process_wisp_started` |
+| crew localKit / export / import | `crew.kit`, `crew.export`, `crew.import` (transfer.rs) | `a_crew_bundle_exports_reviews_and_imports_paused_and_a_secret_refuses_it` |
+| later.park | `later.park` (→ runtime.forLater, setState for Undo) | `park_saves_now_or_at_the_old_time_and_false_unsaves` |
+| ship.review | renamed to `review.maybe` (force) | (wisp.review's own tests) |
+| project.update | `runtime.projectTest` (a project's `test`), router lists projects | `a_projects_test_command_is_set_cleared_and_read_back`, `tests_per_project_lists_the_declared_projects_and_their_test_commands` |
+| session.exec / session.appState | `runtime.exec`, `runtime.appState` | `an_app_blocks_state_is_kept_on_its_turn_and_exec_needs_a_command` |
+| checkpoint.restore | `git.restoreTurn`; git keeps a checkpoint as each turn starts (`RunPart::before_turn`, additive) and `Repo::restore` (additive, `git:restore`) | `restore_puts_the_folder_and_the_branch_back_at_a_checkpoint` (real git), `a_turn_keeps_what_run_parts_give_it_before_it_runs`, `a_turns_checkpoint_is_read_from_its_ext` |
+| share create / stop / peek (+ preview wire) | `share.create` (→ share.send to wisp Cloud, link kept on the task, `shared` on the row), `share.stop` (→ grid-client.revoke), `share.peek` (→ grid-client.fetch) | `a_share_link_is_kept_on_its_task_and_a_pasted_one_reads_as_its_card` |
+| stuff starters / addStarter / reveal / targets / publish / unpublish | `stuff.*` commands (were HTTP-only or missing) | `show_in_folder_opens_each_oss_file_manager_on_the_item` |
+| connectors add / update / remove / test / import / signin / signout | connectors host was a placeholder: pane.rs ports Settings → Connectors (secrets in the secrets file, local probe over stdio, remote over HTTP, harness configs found and imported, OAuth discovery + registration + PKCE + callback, bearer token to runs) | `a_connector_form_keeps_secrets_out_of_its_spec`, `the_connectors_pane_rows_carry_key_names_never_values` |
+
+### Topics now written
+
+- `plugin:wisp.worktrees:worktrees`: `worktrees.item`, `.leftover`, `.status` (`status`), `.offer` rows, republished when a look ends or a clean-up moves (`the_worktrees_pane_rows_are_published_flat_and_a_gone_folder_leaves`).
+- `plugin:wisp.machine:snapshot` / `:load`: `machine.snapshot` and `machine.load` rows, id `this` (`the_snapshot_and_load_rows_are_published_on_the_topics_the_ui_watches`).
+- `plugin:wisp.connectors:list`: `connectors.connector`, `.found`, `.reach`.
+
+Two-word fields are snake-case columns (the store refuses camelCase column names): the UIs read `used_at`, `clean_at`,
+`leftover_groups`, `mem_free_pct`, `paused_until`, `left_behind`, `signed_in`, `added_at`.
+
+### v1 bugs found on the way
+
+- Every Later command (add, edit, snooze, cancel, plan edit/start/cancel) sent the entity key `<peer>:<id>` where the
+  server reads the bare id: each now has a `wire` that strips it.
+- `share.preview` sent `{session}`; the server reads `{id}`.
+
+### Screens
+
+- **Settings → Connectors** (registered): the found banner (Not now / Review), your connectors with their check
+  (tools, or why), switch and menu (Check again, Edit, Sign in/out, Remove), starting points when empty, the reach
+  note, the Add/Edit form (local or remote, secret pairs, pasted config) and the import review. Seen working against
+  the real backend: it found posthog and unstyle in this computer's harness configs, imported both, started unstyle
+  and listed its tool, got PostHog's 401 and offered Sign in, and sign-in registered with PostHog's OAuth.
+  PNGs: /tmp/wisp-qa-gui/r11-connectors-1440-{dark,light}.png, r11-connectors-390-{dark,light}.png,
+  r11-connectors-review-1440-dark.png, r11-connectors-add-1440-light.png, r11-connectors-rows-1440-dark.png,
+  r11-connectors-signin-1440-dark.png.
+
+### Left: the 13 packages with no screen (none deleted: each is a v1 screen's home)
+
+| Package | Its screen (v1 reference) | Backend |
+|---|---|---|
+| accounts-ui | Settings → Agents (`settings.agents`) | commands exist; rows are `body` docs, no `accounts.harness` rows yet |
+| machines-ui | Settings → Machines | commands exist |
+| grid-client-ui | Settings → Cloud | commands exist |
+| learn-ui | Settings → Memory | **no commands** |
+| automations-ui | Settings → Automations | commands exist |
+| plugins-ui | Settings → Spells | 2 of v1's 10 |
+| budget-ui | Settings → Usage | commands exist |
+| telemetry-ui | Settings → Privacy | commands exist |
+| settings-ui | (General is shell-settings'; this package is an empty scaffold) | settings.* |
+| stuff-ui | My Stuff page, share dialog/card | commands exist |
+| shell-home-ui | Home (needs, tips, overlaps) | — |
+| shell-composer-ui | the task composer's queue and runner pickers | — |
+| issues-ui | dev harness only, no src | issues.list |
+
+Parity note for the shell: v1's Settings nav is flat (no AGENTS / COMPUTERS / ADVANCED headings) and the sheet is
+wider (900 px from x 270); v2's frame differs.
+
+## Round 11 (2026-11-10): the 14 unregistered UIs, 13 → 2
+
+Every plugin UI package but two is registered with a real screen, seen in Chrome against the running binary.
+None was deleted. `coder` owns the UI now (docs/v2-queue.md, two coders); `backend-coder` edits runtime and
+update in the same worktree, so the server-side work below is only what a screen needed.
+
+### Screens (named tests; PNGs in /tmp/wisp-qa-gui/r11-*)
+
+| Package | Screen | Server side it needed | Named tests |
+|---|---|---|---|
+| connectors-ui | Settings → Connectors (round 10) | pane.rs (round 10) | (round 10) |
+| accounts-ui | Settings → Agents: harnesses with version, models, state; extra accounts; CLI sign-in steps; opencode keys; Install; Re-check; changed-harness notice; git and gh; Ask when a harness changes | `accounts.harness/.account/.login/.key/.tool/.place` rows (view.rs), each CLI's status asked at start and after a change | `the_agents_pane_rows_are_flat_and_named_as_the_ui_reads_them` |
+| telemetry-ui | Settings → Privacy: usage stats (and why off), repo-trust question | `telemetry.state` row | `the_privacy_row_says_on_off_and_blocked_by_the_environment` |
+| budget-ui | Settings → Usage: 7-day spend, turns, worked, questions; plan windows; Automations stop at, per harness | `runtime.usage` (core usage.rs) | `usage_sums_spend_counts_turns_and_says_how_many_worked` |
+| grid-client-ui | Settings → Cloud: sign in (device code), this computer on the grid, sign out | `grid-client.cloud` row, rewritten on every step | `the_cloud_row_carries_the_sign_in_under_way_and_who_is_signed_in` |
+| machines-ui | Settings → Machines: machines over SSH (state, connect, remove, add), This computer over SSH | none (rows and `machines.reachable` exist) | — |
+| automations-ui | Settings → Automations: recipes (run, remove), triggers (state, runs, run now) | none | — |
+| plugins-ui | Settings → Plugins (v1's Spells, ADR-0031): every plugin, its state and switch | none | — |
+| settings-ui | Settings → All settings: every declared setting, searchable, control by type, lock shown | none | — |
+| stuff-ui | My Stuff page (sidebar): search, kinds, by day, cards and their menu, Add files | `stuff.item` view rows, rewritten after every command and upload | `my_stuffs_rows_are_the_view_flat_and_named_as_the_page_reads_them` |
+| shell-home-ui | the finish/ask notifier (toast; system notification when wisp isn't in front), started by apps/web | none | `a_task_that_finishes_or_asks_tells_you_once_from_the_stores_row_shape` (vitest) |
+| shell-composer-ui | the queued follow-ups over the reply box (`shell.task:foot`): send now, edit, combine, move, cancel (shell-task's minimal copy removed) | optimistic paths moved to `/body/queue` | — |
+
+### Found and fixed on the way
+
+- **The store takes camelCase column names** (quoted in every statement; a case-only twin is refused), so a
+  plugin's rows reach the UI as its types name them. `camel_case_columns_keep_the_wire_names_and_a_case_twin_is_refused`.
+- **Ship it never loaded**: its manifest listed `ship.fix_conflicts` and `ship.check_log` twice and the kernel
+  refused the plugin at start. `every_built_in_plugins_manifest_validates` (wisp bin; `PluginGroup::manifests()`).
+- **Deep links to plugin views 404'd**: the edge took `/view/stuff.page` for a missing file. App routes are the app.
+  Added to `bullet6_static_files`.
+- A plugin's strings must sit under its namespace (`telemetry.*`, `budget.*`): registration threw silently otherwise.
+
+### Left
+
+- **learn-ui, issues-ui: blocked on backend** (backend-coder's v1-coverage gaps): learn's host is a placeholder
+  (no commands, no retros), and `issues.list` can't resolve a project (nothing contributes `issues.projects`).
+  Their screens: Settings → Memory, and the launcher's Issue picker (`design/v1-reference/home.issues`).
+- Clippy on `wisp-runtime` and `wisp` is left to the batched pass: `more()` in runtime/plugin.rs is 103 lines
+  after backend-coder's in-progress Cold/Exec edits, and the update plugin doesn't compile mid-edit.
+- Missing in v2, seen while building these panes: v1's "Hide .env values", "Subagents run on", "Webhook triggers",
+  the usage charts page, Cast a spell, harness logos in the kit. Not shown as switches that do nothing.
+- The queue over the reply box was typechecked and wired, not yet seen with a real queue (needs a running task
+  with follow-ups queued).
+- Shell parity: v1's Settings nav is flat and the sheet wider; v2's Stats tiles put the value above the label.
