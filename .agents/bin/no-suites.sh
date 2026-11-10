@@ -16,7 +16,7 @@ done
 deny() { echo "Refused: $1. Coders code: test only the crate or file you changed (cargo test -p <crate> --test <file> <name>). Full suites, e2e and UI gates run in PR CI (docs/v2-team-brief.md)." >&2; exit 2; }
 # Never kill by name pattern: `pkill -f "wisp serve"` also matched other agents (their prompt holds the words) and
 # killed them with SIGTERM (exit 143, 2026-11-10). Kill a server by its port (lsof -ti tcp:PORT -sTCP:LISTEN) or a pid.
-if echo "$cmd" | grep -Eq '(^|[;&|[:space:](])(pkill|killall)([[:space:]]|$)'; then
+if echo "$cmd" | grep -Eq '(^|[;&|(])[[:space:]]*(sudo[[:space:]]+)?(pkill|killall)([[:space:]]|$)'; then
   echo "Refused: pkill/killall match other agents' processes (their prompts contain the same words). Kill by port: lsof -ti tcp:PORT -sTCP:LISTEN | xargs kill, or by the pid you started (\$!)." >&2; exit 2
 fi
 echo "$cmd" | grep -Eq '(^|[;&|[:space:]])cargo[[:space:]]+(test|nextest)' && ! echo "$cmd" | grep -Eq '(^|[[:space:]])(-p|--package)([[:space:]=])' && deny "a workspace-wide cargo test"
