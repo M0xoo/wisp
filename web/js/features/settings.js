@@ -45,7 +45,7 @@ const REVIEW_CHOICES = () => [
 ];
 import { crewRecord } from './crew-record.js';
 import { crewList } from './crew.js';
-import { connectorsPane } from './connectors.js';
+import { connectorsPane, openConnectorFor } from './connectors.js';
 import { budgetHtml, compareReport, dismissNotice, drainReport, STOP_AT, STOP_BY, STOP_KEYS } from './budget.js';
 import { reveal } from './feed.js';
 import { SETTINGS } from '../spell-schema.js';
@@ -1020,6 +1020,8 @@ export function openSettings(opts) {
   paintHints();
   if (!MOBILE && !grid) bus.on('machines', () => ($('.machines-hint', node).textContent = machinesSummary()), { node });
   connectorsPane($('.cn-box', node), host('connectors'));
+  // From the issue picker's Connect Linear… / Connect Jira…: that connector's form, filled in.
+  if (opts?.connector) openConnectorFor(host('connectors'), opts.connector);
   $('#openRouter', node).onclick = () => openRouter({ host: host('auto') });
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));

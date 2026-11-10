@@ -372,3 +372,77 @@ export function probe(c, home, bridge) {
     send({ id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'wisp', version: VERSION } } });
   });
 }
+
+// Calls a connector's tools from wisp itself (the issue picker lists Linear and Jira through a
+// signed-in server's tools): starts it through the proxy, as a turn would, and hands fn a
+// call(name, args) that resolves to the tool's result. A JSON-RPC error, a tool's isError, the
+// server stopping or a minute without an answer reject with the server's own words.
+export function mcpCall(c, home, bridge, fn, { timeoutMs = PROBE_MS } = {}) {
+  const child = spawn(process.execPath, [PROXY, c.id], { env: { ...process.env, ...proxyEnv(home, bridge) }, stdio: ['pipe', 'pipe', 'pipe'] });
+  let out = '';
+  let err = '';
+  let next = 1;
+  let dead = null;
+  const waiting = new Map(); // id -> { ok, no }
+  const tidy = (t) => String(t || '').replace(/^wisp: /, '').replace(`${c.name}: `, '');
+  const die = (why) => {
+    if (dead) return;
+    const tail = err.trim().split(/\r?\n/).filter(Boolean).slice(-3).join(' · ');
+    dead = new Error(clip(tidy(tail || why), 300));
+    for (const w of waiting.values()) w.no(dead);
+    waiting.clear();
+  };
+  const timer = setTimeout(() => die('It didn’t answer within a minute'), timeoutMs);
+  const send = (msg) => child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', ...msg })}\n`);
+  const ask = (method, params) =>
+    dead
+      ? Promise.reject(dead)
+      : new Promise((ok, no) => {
+          const id = next++;
+          waiting.set(id, { ok, no });
+          send({ id, method, params });
+        });
+  child.on('error', (e) => die(e.message));
+  child.on('exit', (code) => die(`It stopped before answering (exit ${code})`));
+  child.stdin.on('error', () => {});
+  child.stderr.on('data', (d) => (err = (err + d).slice(-4000)));
+  child.stdout.on('data', (d) => {
+    out += d;
+    let i;
+    while ((i = out.indexOf('\n')) >= 0) {
+      const line = out.slice(0, i).trim();
+      out = out.slice(i + 1);
+      let m;
+      try {
+        m = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (m.method && m.id != null) {
+        send({ id: m.id, error: { code: -32601, message: 'wisp is only calling tools' } });
+        continue;
+      }
+      const w = waiting.get(m.id);
+      if (!w) continue;
+      waiting.delete(m.id);
+      if (m.error) w.no(new Error(clip(tidy(m.error.message || 'It refused'), 300)));
+      else w.ok(m.result);
+    }
+  });
+  const call = async (name, args = {}) => {
+    const r = await ask('tools/call', { name, arguments: args });
+    if (r?.isError) throw new Error(clip(tidy((r.content || []).map((x) => x.text || '').join(' ').trim() || `${name} failed`), 300));
+    return r;
+  };
+  return (async () => {
+    try {
+      await ask('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'wisp', version: VERSION } });
+      send({ method: 'notifications/initialized' });
+      return await fn(call);
+    } finally {
+      clearTimeout(timer);
+      dead ||= new Error('done');
+      child.kill();
+    }
+  })();
+}
