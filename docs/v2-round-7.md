@@ -181,3 +181,40 @@ Seen on a real `wisp serve`:
 - **Step 5, the v1 panes and views still missing:** Agents, Connectors, Machines, Cloud, Memory, Automations, Spells, Usage, Privacy; then crew, My Stuff, the computer pane, automations and machines as screens.
 - **Step 6:** the new screens.
 - **After the GUI:** the channels grammar port.
+
+## Round 7 (2026-11-10): the sweep, and server data the UI waits on
+
+### The sweep (owner: "Settings had never opened, so others may be in the same state")
+
+- **Commands:** `/tmp/sweep.py` compares every UI `defineCommand` id (packages/*, plugins/*/ui) with every command a server manifest lists, or that the kernel and the binary define.
+  - 124 UI commands; **59 have no server**. The full list is in `docs/v2-sweep-commands.md` (generated; regenerate it after fixes).
+  - Groups: the frame's own (`runtime.setMode`, `runtime.setAgent`, `runtime.forLater`, `checkpoint.restore`), shell-task's `session.*` (v1 names), shell-composer's `runtime.reply`, `runtime.side` and `runtime.queue.now` / `cancel`, goal's pause / resume / drop / check, connectors (5; its host lists no commands), stuff's publish / unpublish / targets / starters and `share.*`, worktrees' keep / dismiss / bringIn, machine's four, crew's export / import / localKit, `later.park`, `project.update`, `ship.review`.
+  - Many are renames to commands the server has, under v1's names. Some are real gaps.
+- **Plugin UIs registered nowhere:**
+  - fixed: Settings (round 6), shell-list (round 1), ship (round 6);
+  - still unregistered: connectors and stuff (built components, no `index.ts`); shell-composer and shell-home (parts and models only).
+- **Topics the UI watches that no server writes:**
+  - fixed: Auto's `router_view` (below);
+  - still open: worktrees' `plugin:wisp.worktrees:worktrees` (`worktrees.item`, `.leftover`, `.status`, `.offer`). The server publishes no rows, so Settings → Worktrees' On disk list stays at "Looking…".
+
+### Fixed this round
+
+- **Settings → Auto's view:**
+  - **Cause:** the pane watched `plugin:wisp.router:view` for a `router_view` row, and no server wrote one, so "Harnesses it may use" and What it learned stayed empty.
+  - **Fix:** wisp-router publishes `router.view`'s answer as that row:
+    - flat, so the UI reads `arms`, `goal` and `settings` at the top and its optimistic patches still apply;
+    - a forward-only migration 2, `router_view`;
+    - written at start and after every view, set and reset.
+  - Test: `the_auto_view_is_published_as_a_flat_row`. Clippy is clean on wisp-router.
+
+### Left (next, in this order)
+
+1. **Server data the UI waits on:**
+   - worktrees' rows (a table per kind, written on each sweep and status);
+   - `ship.review`;
+   - `project.update`;
+   - then the 59 commands in `docs/v2-sweep-commands.md`: the renames on the UI side (`wire` makes the arg shapes match), the real gaps as server handlers, each with a named test.
+2. **Register** connectors and stuff, each checked on the real server.
+3. **The task page:** the PR and Shell side panes, the head, transcript folds, the plan view.
+4. **Step 5:** the missing v1 Settings panes, then crew, My Stuff, the computer pane, automations, machines.
+5. **Step 6:** the new screens.
