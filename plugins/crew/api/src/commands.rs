@@ -277,6 +277,14 @@ pub struct AssignArgs {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]
     pub confirm_limit: bool,
+    /// this job's own harness, model, level or mode, instead of the member's (v1 `crewRun`, #764)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub run: Option<crate::RunPick>,
+    /// `run` is what you picked in wisp's own prompt box: it may change the harness (a channel's may not)
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub picked: bool,
 }
 
 /// A job started, or queued behind the member's `parallel` limit.

@@ -24,11 +24,12 @@ export const updateMember = defineCommand<{ key: EntityKey; id: string } & Membe
   },
 });
 
-/** crew.localKit: skills and instructions files on the member's computer (read-only). */
+/** crew.kit: skills and instructions files on the member's computer (read-only). */
 export const localKit = defineCommand<{ key: EntityKey; cwd?: string }, LocalKit>({
-  id: 'crew.localKit',
+  id: 'crew.kit',
   owner: (a) => a.key,
-  optimistic: 'none', pending: 'the crew.localKit control',
+  wire: (a) => ({ cwd: a.cwd ?? '' }),
+  optimistic: 'none', pending: 'the crew.kit control',
   dedupe: (a) => `localKit:${a.key}:${a.cwd ?? ''}`,
 });
 
@@ -43,6 +44,7 @@ export const kitJob = defineCommand<{ key: EntityKey; crewId: string; prompt: st
 export const exportCrew = defineCommand<{ peer: string; ids: string[]; kit: boolean; notebook: boolean; team: boolean; gist?: boolean }, ExportAnswer>({
   id: 'crew.export',
   owner: (a) => a.peer,
+  wire: ({ peer: _p, ...rest }) => rest,
   optimistic: 'none', pending: 'the crew.export control',
 });
 
@@ -50,6 +52,7 @@ export const exportCrew = defineCommand<{ peer: string; ids: string[]; kit: bool
 export const reviewImport = defineCommand<{ peer: string; text?: string; url?: string; dryRun: true }, ImportPreview>({
   id: 'crew.import',
   owner: (a) => a.peer,
+  wire: ({ peer: _p, ...rest }) => rest,
   optimistic: 'none', pending: 'the crew.import control',
 });
 
@@ -70,6 +73,7 @@ export interface Joining {
 export const runImport = defineCommand<{ peer: string; text?: string; url?: string; choices: Record<string, ImportChoice>; joining: Joining[] }, { members: MemberView[] }>({
   id: 'crew.import',
   owner: (a) => a.peer,
+  wire: ({ peer: _p, joining: _j, ...rest }) => rest,
   optimistic: (_base, a) =>
     a.joining.map((j) => ({
       e: KIND.member,

@@ -14,7 +14,9 @@
     "runtime:get",
     "runtime:profiles",
     "runtime:turns",
-    "store:write{owner:crew}"
+    "resources:read",
+    "store:write{owner:crew}",
+    "telemetry:track"
   ],
   "requires": {},
   "provides": {},
@@ -80,6 +82,20 @@
       {
         "id": "crew.graph",
         "title": "Who wakes whom",
+        "readOnly": true
+      },
+      {
+        "id": "crew.export",
+        "title": "Share members as a crew file (refused while it holds a secret)",
+        "readOnly": true
+      },
+      {
+        "id": "crew.import",
+        "title": "Review a crew file, or add its members (paused)"
+      },
+      {
+        "id": "crew.kit",
+        "title": "Skills and instructions a member's kit can take",
         "readOnly": true
       }
     ]

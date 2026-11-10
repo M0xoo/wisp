@@ -19,6 +19,7 @@ wisp-crew-api.workspace = true
 wisp-resources-api.workspace = true
 wisp-crew-core.workspace = true
 wisp-runtime-api.workspace = true
+wisp-later-api.workspace = true
 wisp-store.workspace = true
 
 [dev-dependencies]

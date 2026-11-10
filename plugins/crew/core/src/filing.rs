@@ -26,6 +26,18 @@ pub fn file_turn(job: JobKind, turns: usize, data: Option<&CrewOut>) -> Filing {
     Filing { quiet, filed: job == JobKind::Delegated, later }
 }
 
+impl Filing {
+    /// v1 #760: a quiet job that scheduled a follow-up (`resume_later` during its turn) is filed under Done,
+    /// not archived. wisp.later lets what an archived task scheduled lapse, so it would never come back.
+    #[must_use]
+    pub fn keeping(self, scheduled: bool) -> Self {
+        if self.quiet && scheduled {
+            return Self { quiet: false, filed: true, ..self };
+        }
+        self
+    }
+}
+
 /// The follow-ups that may go (v1 crew.js:750-756): at most 3, each to a task the member is linked to
 /// (a follow-up without a task goes to the job's own `from`). A delegated job's follow-up to the lead
 /// that delegated it is dropped: that lead reads its report, and the two could bounce work back and forth.
@@ -110,4 +122,24 @@ pub fn team_for(m: &Member, job: JobKind, extra: &[TeamRow]) -> Vec<TeamRow> {
         None => true,
     });
     all
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn quiet() -> CrewOut {
+        CrewOut { quiet: true, ..CrewOut::default() }
+    }
+
+    #[test]
+    fn a_quiet_check_in_keeps_its_scheduled_follow_up() {
+        let f = file_turn(JobKind::Checkin, 1, Some(&quiet()));
+        assert!(f.quiet, "nothing scheduled: archived as before");
+        assert_eq!(f.keeping(false), f);
+        let kept = f.keeping(true);
+        assert!(!kept.quiet && kept.filed && !kept.later, "filed under Done, not archived: {kept:?}");
+        let loud = file_turn(JobKind::Checkin, 1, None).keeping(true);
+        assert_eq!(loud, Filing::default(), "a report worth reading still lands in review");
+    }
 }

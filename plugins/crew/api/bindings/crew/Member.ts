@@ -36,4 +36,8 @@ away: Record<string, unknown>, links: Array<Link>, offers: Array<Offer>, wakeAt:
 /**
  * the minute (ms / 60 000) its last scheduled check-in ran in: that minute is no longer due
  */
-lastMinute: number | null, held?: Held, spell?: SpellLock, changed?: Changed, createdAt: number, updatedAt: number, };
+lastMinute: number | null, held?: Held, spell?: SpellLock, changed?: Changed, 
+/**
+ * what else wakes them (ADR-0043): triggers whose target is this member
+ */
+wakes?: Array<unknown>, createdAt: number, updatedAt: number, };

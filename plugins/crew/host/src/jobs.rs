@@ -6,10 +6,11 @@ use std::sync::Arc;
 
 use serde_json::{Value, json};
 use wisp_crew_api::commands as c;
-use wisp_crew_api::{CrewExt, JobKind, JobSummary, Member, MemberView, PLUGIN_ID, TICK_MS, WaitingJob};
+use wisp_crew_api::{CrewExt, JobKind, JobSummary, Member, MemberView, PLUGIN_ID, RunPick, TICK_MS, WaitingJob};
 use wisp_crew_core::cron::Utc;
 use wisp_crew_core::layout::{layout_of, normalize_layout};
 use wisp_crew_core::note::checkin_prompt;
+use wisp_crew_core::run::{job_body, job_run};
 use wisp_crew_core::queue::{Placement, checkin_already, count_checkin, drain_count, place};
 use wisp_crew_core::tick::tick;
 use wisp_kernel::{Call, Ctx, Setup, WireError};
@@ -39,12 +40,15 @@ async fn view(ctx: &Ctx, call: &Call, st: &State, m: &Member) -> MemberView {
 }
 
 /// Starts one job as a task.
-async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, prompt: &str, job: JobKind, attachments: &[Value]) -> Result<Value, WireError> {
+/// `w.run`: this job's own pick (`wisp_crew_core::run`), already checked.
+async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: &WaitingJob) -> Result<Value, WireError> {
+    let (prompt, job, attachments) = (&w.prompt, w.job, &w.attachments);
     let ext = CrewExt { id: m.id.clone(), job, ..CrewExt::default() };
-    let agent = (!m.agent.is_empty() && m.agent != "auto").then(|| m.agent.clone());
+    let (agent, model, effort, mode) = job_body(m, w.run.as_ref());
+    let agent = (!agent.is_empty() && agent != "auto").then_some(agent);
     let args = json!({
-        "prompt": prompt, "agent": agent, "model": (!m.model.is_empty()).then(|| m.model.clone()), "effort": (!m.effort.is_empty()).then(|| m.effort.clone()),
-        "mode": m.mode, "cwd": (!m.cwd.is_empty()).then(|| m.cwd.clone()), "attachments": attachments, "by": "crew", "title": format!("{} · {}", m.name, if job == JobKind::Checkin { "Check-in" } else { "Job" }),
+        "prompt": prompt, "agent": agent, "model": (!model.is_empty()).then_some(model), "effort": (!effort.is_empty()).then_some(effort),
+        "mode": mode, "cwd": (!m.cwd.is_empty()).then(|| m.cwd.clone()), "attachments": attachments, "by": "crew", "title": format!("{} · {}", m.name, if job == JobKind::Checkin { "Check-in" } else { "Job" }),
         "ext": { PLUGIN_ID: ext },
     });
     let made = ctx.run_json(call, "runtime.create", args).await?;
@@ -55,15 +59,20 @@ async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, prompt: &str, job
     Ok(session.unwrap_or(made))
 }
 
+/// A job to start or queue.
+fn work(prompt: String, job: JobKind, attachments: Vec<Value>, run: Option<RunPick>) -> WaitingJob {
+    WaitingJob { prompt, job, attachments, run, ..WaitingJob::default() }
+}
+
 /// A job for `m`: now when a slot is free, else in its queue (v1 `assign`).
-async fn assign(ctx: &Ctx, call: &Call, st: &State, m: &Member, prompt: String, job: JobKind, attachments: Vec<Value>) -> Result<c::Started, WireError> {
+async fn assign(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: WaitingJob) -> Result<c::Started, WireError> {
     let busy = u32::try_from(jobs_of(ctx, call, st, m).await.iter().filter(|j| j.live()).count()).unwrap_or(u32::MAX);
-    match place(m, busy, job).map_err(wire)? {
-        Placement::Start => Ok(c::Started { session: Some(start(ctx, call, st, m, &prompt, job, &attachments).await?), ..c::Started::default() }),
+    match place(m, busy, w.job).map_err(wire)? {
+        Placement::Start => Ok(c::Started { session: Some(start(ctx, call, st, m, &w).await?), ..c::Started::default() }),
         Placement::Queue => {
             let id = wisp_kernel::ids::uuid7();
             let mut m = m.clone();
-            m.queue.push(WaitingJob { id: id.clone(), prompt, job, attachments, at: now(ctx), ..WaitingJob::default() });
+            m.queue.push(WaitingJob { id: id.clone(), at: now(ctx), ..w });
             let position = u32::try_from(m.queue.len()).unwrap_or(u32::MAX);
             st.put(m);
             st.save().await;
@@ -83,7 +92,7 @@ async fn checkin(ctx: &Ctx, call: &Call, st: &State, id: &str, wake: bool) -> Re
     count_checkin(&mut m, now(ctx));
     st.put(m.clone());
     st.save().await;
-    assign(ctx, call, st, &m, prompt, JobKind::Checkin, Vec::new()).await
+    assign(ctx, call, st, &m, work(prompt, JobKind::Checkin, Vec::new(), None)).await
 }
 
 macro_rules! on {
@@ -106,7 +115,7 @@ fn wakes(s: &mut Setup, st: &Arc<State>) {
             Some(src) => format!("{why}\n\n(woken by {src})"),
             None => why,
         };
-        assign(&ctx, &call, &st, &m, prompt, JobKind::Task, Vec::new()).await
+        assign(&ctx, &call, &st, &m, work(prompt, JobKind::Task, Vec::new(), None)).await
     });
     on!(s, st, c::WakeMentions, |st, ctx, call, a| {
         let crew = lock(&st.saved).crew.clone();
@@ -118,7 +127,7 @@ fn wakes(s: &mut Setup, st: &Arc<State>) {
                 Some(src) => format!("You were mentioned ({src}):\n\n{}", a.text.trim()),
                 None => format!("You were mentioned:\n\n{}", a.text.trim()),
             };
-            out.push(assign(&ctx, &call, &st, &m, prompt, JobKind::Task, Vec::new()).await?);
+            out.push(assign(&ctx, &call, &st, &m, work(prompt, JobKind::Task, Vec::new(), None)).await?);
         }
         Ok(out)
     });
@@ -198,7 +207,9 @@ pub(crate) fn register(s: &mut Setup, st: &Arc<State>) {
         if prompt.is_empty() {
             return Err(WireError::invalid("Tell them what to do."));
         }
-        assign(&ctx, &call, &st, &m, prompt, JobKind::Task, a.attachments).await
+        let harnesses = if a.run.as_ref().is_some_and(|r| r.agent.is_some()) { profile_names(&ctx, &call).await } else { Vec::new() };
+        let run = job_run(&m, a.run.as_ref(), a.picked, &|h| harnesses.iter().any(|p| p == h)).map_err(wire)?;
+        assign(&ctx, &call, &st, &m, work(prompt, JobKind::Task, a.attachments, run)).await
     });
     on!(s, st, c::Checkin, |st, ctx, call, a| checkin(&ctx, &call, &st, &a.id, false).await);
     wakes(s, st);
@@ -251,7 +262,7 @@ async fn run_tick(ctx: &Ctx, st: &State) {
         let due: Vec<WaitingJob> = m.queue.drain(..n).collect();
         st.put(m.clone());
         for w in due {
-            if let Err(e) = start(ctx, &call, st, &m, &w.prompt, w.job, &w.attachments).await {
+            if let Err(e) = start(ctx, &call, st, &m, &w).await {
                 tracing::warn!(member = %m.name, error = %e.message, "crew job");
             }
         }

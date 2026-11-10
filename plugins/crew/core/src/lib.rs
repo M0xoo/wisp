@@ -13,6 +13,7 @@ pub mod memory;
 pub mod mentions;
 pub mod note;
 pub mod queue;
+pub mod run;
 pub mod scan;
 pub mod schedule;
 pub mod share;

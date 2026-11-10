@@ -247,11 +247,14 @@ pub struct ReplyTo {
     pub entry_id: String,
 }
 
-/// One job's own model, effort or mode ("@ada with opus plan: …").
+/// One job's own model, effort or mode ("@ada with opus plan: …"); `agent` only from wisp's own prompt box (#764).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "crew/")]
 pub struct RunPick {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub agent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub model: Option<String>,

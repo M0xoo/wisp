@@ -8,7 +8,16 @@ export type { KitFile, Member, MemberView, TeamRow };
 /** A kit file without its id and switch: what you write, paste or a job proposes. */
 export type KitDraft = { kind: 'skill' | 'rules'; name: string; description?: string; body: string; path?: string };
 
-/** crew.localKit: skills and instructions files on this computer. */
+/** crew.kit's answer: a file a kit can take (wisp's skills, the project's AGENTS.md). */
+export interface LocalKitFile {
+  name: string;
+  description: string;
+  path: string;
+  /** `home` or `project` */
+  from: string;
+}
+
+/** Skills and instructions files on this computer, grouped (v1's shape). */
 export interface LocalItem {
   name: string;
   description?: string;
@@ -19,10 +28,13 @@ export interface LocalItem {
   /** files beside its SKILL.md */
   files?: number;
 }
-export interface LocalKit {
+export interface LocalKitGroups {
   skills: LocalItem[];
   rules: LocalItem[];
 }
+
+/** crew.kit answers a flat list. */
+export type LocalKit = readonly LocalKitFile[];
 
 /** crew.export: the bundle for these options, checked (notes; secrets refuse it). */
 export interface ExportAnswer {

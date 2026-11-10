@@ -8,6 +8,7 @@
 mod jobs;
 mod kind;
 mod store;
+mod transfer;
 mod wakes;
 
 use std::path::PathBuf;
@@ -24,7 +25,7 @@ use wisp_crew_core::schedule::next_checkin;
 use wisp_kernel::services::Paths;
 use wisp_kernel::{Manifest, Plugin, Result, Setup, WireError};
 use wisp_runtime_api::model::Session;
-use wisp_runtime_api::points::{PROMPT, PromptPart};
+use wisp_runtime_api::points::{OUTCOME, Outcome, PROMPT, PromptPart, TurnOutcome};
 
 #[derive(Debug, Default)]
 pub struct CrewPlugin;
@@ -63,7 +64,7 @@ pub(crate) fn wire(e: wisp_crew_core::Error) -> WireError {
     }
 }
 
-struct NewIds;
+pub(crate) struct NewIds;
 impl Ids for NewIds {
     fn next_id(&mut self) -> String {
         wisp_kernel::ids::uuid7().replace('-', "").chars().rev().take(16).collect()
@@ -208,6 +209,30 @@ impl PromptPart for Note {
     }
 }
 
+/// How a member's job lands (v1 runner.js `#finishTurn` with `crewOut`): quiet (archived), For later, or
+/// filed under Done, from its crew block. A quiet job that scheduled a follow-up is filed, not archived (#760).
+struct Filed;
+
+impl TurnOutcome for Filed {
+    fn id(&self) -> &'static str {
+        "wisp.crew"
+    }
+    fn outcome(&self, s: &Session, turn: &wisp_runtime_api::model::Turn) -> Option<Outcome> {
+        let job = s.ext.get(wisp_crew_api::PLUGIN_ID).and_then(|v| serde_json::from_value::<CrewExt>(v.clone()).ok())?;
+        let mut p = turn.presentation.as_ref().and_then(|p| serde_json::to_value(p).ok()).unwrap_or_default();
+        let data = wisp_crew_core::memory::take_crew_block(&mut p);
+        let f = wisp_crew_core::filing::file_turn(job.job, turn.idx as usize + 1, data.as_ref()).keeping(scheduled(s));
+        Some(Outcome { quiet: f.quiet, filed: f.filed, later: f.later })
+    }
+}
+
+/// The task has follow-ups or a reminder still to come (wisp.later's mirror on the task).
+fn scheduled(s: &Session) -> bool {
+    // read by key, not by the full row: a mirror written by a newer wisp.later still counts
+    let Some(l) = s.ext.get(wisp_later_api::PLUGIN_ID) else { return false };
+    l.get("later").and_then(serde_json::Value::as_array).is_some_and(|a| !a.is_empty()) || l.get("reminder").is_some_and(|r| !r.is_null())
+}
+
 /// A member's job ended: `crew.reported` (ADR-0043), from the runtime's durable task facts, so a hand-off
 /// survives a restart. `quiet`: the job's crew block said there was nothing to do.
 fn reported(s: &mut Setup, st: &Arc<State>) {
@@ -250,9 +275,12 @@ impl Plugin for CrewPlugin {
         let st = Arc::new(State::new());
         let note: Arc<dyn PromptPart> = Arc::new(Note(st.clone()));
         s.contribute(&PROMPT, note);
+        let filed: Arc<dyn TurnOutcome> = Arc::new(Filed);
+        s.contribute(&OUTCOME, filed);
         jobs::register(s, &st);
         reported(s, &st);
         wakes::register(s, &st);
+        transfer::register(s, &st);
         let tick = st.clone();
         s.on_start(move |ctx| async move {
             let store = ctx.service::<wisp_store::Store>()?.as_ref().clone();
@@ -272,6 +300,19 @@ mod tests {
     #[test]
     fn manifest_is_valid() {
         assert_eq!(CrewPlugin.manifest().id, "wisp.crew");
+    }
+
+    #[test]
+    fn a_quiet_check_in_keeps_its_scheduled_follow_up() {
+        let job = CrewExt { id: "m1".into(), job: wisp_crew_api::JobKind::Checkin, ..CrewExt::default() };
+        let mut s = Session::default();
+        s.ext.insert(wisp_crew_api::PLUGIN_ID.into(), serde_json::to_value(&job).unwrap());
+        let crew = serde_json::json!({ "type": "crew", "quiet": true });
+        let turn = wisp_runtime_api::model::Turn { presentation: Some(serde_json::from_value(serde_json::json!({ "v": 1, "blocks": [crew] })).unwrap()), ..wisp_runtime_api::model::Turn::default() };
+        assert_eq!(Filed.outcome(&s, &turn), Some(Outcome { quiet: true, filed: false, later: false }), "nothing scheduled: archived");
+        s.ext.insert(wisp_later_api::PLUGIN_ID.into(), serde_json::json!({ "later": [{ "id": "l1", "at": 5, "text": "check again" }] }));
+        assert_eq!(Filed.outcome(&s, &turn), Some(Outcome { quiet: false, filed: true, later: false }), "a follow-up is due: filed under Done so it fires");
+        assert_eq!(Filed.outcome(&Session::default(), &turn), None, "not a crew job");
     }
 
     #[test]

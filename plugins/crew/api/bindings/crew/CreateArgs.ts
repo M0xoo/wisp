@@ -25,6 +25,10 @@ team?: Array<unknown>, paused?: boolean, notebook?: string,
  */
 wakeAt?: number | null, 
 /**
- * trigger kinds that start its jobs (`ci`, `done`, `finished`)
+ * v1's trigger kinds that start its jobs (`ci`, `done`, `finished`): read as `wakes`
  */
-on?: Array<string>, };
+on?: Array<string>, 
+/**
+ * what else wakes them (ADR-0043): trigger specs, their target this member
+ */
+wakes?: Array<unknown>, };
