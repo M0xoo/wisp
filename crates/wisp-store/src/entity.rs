@@ -65,6 +65,13 @@ fn ident(s: &str) -> bool {
         && b.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_')
 }
 
+/// A column name: the wire's field name as it is (`usedAt`, `leftover_groups`); quoted in every statement, so
+/// case is kept. SQLite compares names without case, so two that differ only in case are refused as repeats.
+fn column_name(s: &str) -> bool {
+    let mut b = s.bytes();
+    b.next().is_some_and(|c| c.is_ascii_alphabetic() || c == b'_') && b.all(|c| c.is_ascii_alphanumeric() || c == b'_')
+}
+
 fn kind_name(s: &str) -> bool {
     let mut b = s.bytes();
     b.next().is_some_and(|c| c.is_ascii_lowercase())
@@ -123,7 +130,7 @@ impl Kind {
         }
         let mut how = Vec::with_capacity(def.columns.len());
         for (i, (c, t)) in def.columns.iter().enumerate() {
-            if !ident(c) || def.columns[..i].iter().any(|(d, _)| d == c) {
+            if !column_name(c) || def.columns[..i].iter().any(|(d, _)| d.eq_ignore_ascii_case(c)) {
                 return Err(invalid(format!("{k}: bad or repeated column name {c}")));
             }
             let json = def.json_columns.contains(c);

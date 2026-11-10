@@ -825,3 +825,22 @@ fn query_json_is_the_query_as_json_text() {
         );
     }
 }
+
+/// A column is named as the wire names the field (`usedAt`), so a plugin's rows reach the UI flat with no
+/// renaming; two names that differ only in case are one column to SQLite and are refused.
+#[test]
+fn camel_case_columns_keep_the_wire_names_and_a_case_twin_is_refused() {
+    fn topics(_: &Row) -> Vec<String> {
+        vec!["plugin:x:y".into()]
+    }
+    let f = open();
+    f.store.migrate("x", &[wisp_store::Migration::sql(1, "CREATE TABLE x_item (id TEXT PRIMARY KEY, usedAt INTEGER NOT NULL, signedIn TEXT) STRICT;")]).unwrap();
+    let def = EntityDef { kind: "x.item", table: "x_item", key: "id", columns: &[("id", Col::Text), ("usedAt", Col::Int), ("signedIn", Col::Text)], json_columns: &["signedIn"], parent: None, seq: None, topics };
+    f.store.define_entity(def).unwrap();
+    f.store.write_blocking(|w| w.upsert("x.item", row!({ "id": "a", "usedAt": 5, "signedIn": { "at": 1 } }))).unwrap();
+    let r = f.store.get("x.item", "a").unwrap().unwrap();
+    assert_eq!(r["usedAt"], 5);
+    assert_eq!(r["signedIn"]["at"], 1);
+    let twin = EntityDef { kind: "x.twin", columns: &[("id", Col::Text), ("usedAt", Col::Int), ("usedat", Col::Int)], json_columns: &[], ..def };
+    assert_eq!(code(f.store.define_entity(twin)), Code::Invalid);
+}
