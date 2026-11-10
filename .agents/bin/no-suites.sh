@@ -18,5 +18,6 @@ echo "$cmd" | grep -Eq '(^|[;&|[:space:]])cargo[[:space:]]+(test|nextest)' && ! 
 echo "$cmd" | grep -Eq '(^|[;&|[:space:]])cargo[[:space:]]+(test|nextest).*--workspace' && deny "cargo test --workspace"
 echo "$cmd" | grep -Eq '(^|[;&|[:space:]])npm[[:space:]]+(test|t|run[[:space:]]+(test|verify))([[:space:]]|$)' && deny "the npm test suite"
 echo "$cmd" | grep -Eq 'monoflow[^;&|]*[[:space:]]verify' && deny "monoflow verify (the outer loop)"
-echo "$cmd" | grep -Eq 'qa/(parity|layout|feedback)\.mjs' && deny "a UI gate run (qa/*.mjs)"
+# UI gates on one view are a targeted check (owner, 2026-11-10): `--views=<one or two>` is allowed, the full run isn't
+echo "$cmd" | grep -Eq 'qa/(parity|layout|feedback)\.mjs' && ! echo "$cmd" | grep -Eq -- '--views=[^, ]+(,[^, ]+)?([[:space:]]|$)' && deny "a full UI gate run (qa/*.mjs); run it on the view you changed: --views=<view>"
 exit 0
