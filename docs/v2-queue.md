@@ -54,6 +54,18 @@ alone.
    - Built (docs/v2-round-6.md, "Item 6"): the points, the shell, the views, the goldens. Left: `--on`, For later and
      Repo tab, the blame gutter, hunk jumps, terminal images, the real-terminal pass.
 7. [ ] **GUI** (ADR-0016/0017/0012):
+   - **UI quality plan (owner, 2026-11-10: "too many bugs to even count").** The gates make the bug list, not people.
+     1. **References first:** capture v1's desktop-mode reference for every view in `design/v1-reference/` (46 of
+        49 have none for desktop, so they're unchecked). Use the same capture tool v1-reference used, on v1 in
+        desktop mode, with the seed data.
+     2. **Baseline (2026-11-10):** parity 0/96. home isn't reachable; task has 109/153 parts off and 6.9 % px.
+        Record the per-view table in `docs/v2-ui-burndown.md` after every round.
+     3. **Burn it down one view at a time:** for the view you touch, run `node qa/parity.mjs --views=<view>`,
+        `qa/layout.mjs --views=<view>` and `qa/feedback.mjs --views=<view>` (the hook allows one or two views).
+        A view is done when all three pass at every width and theme and every button reaches the server
+        (ui-commands at 0).
+     4. Order: home → task (+ composer, changes, goal, more, ship, transcript) → list/palette/me-menu → settings
+        panes → crew → stuff → automations → projects, then the new screens.
    - the 46 remaining views at v1 parity;
    - the new screens: Repo tab, blame gutter, import, Share setup, Setup section, My shares, Automations "When" picker and crew Wakes;
    - composer `@` and `/`.
