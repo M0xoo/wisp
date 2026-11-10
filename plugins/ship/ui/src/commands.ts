@@ -10,11 +10,16 @@ interface Task {
   readonly key: EntityKey;
 }
 const owner = (a: Task): string => a.key;
+/** wisp-ship's commands name the task by `session`, its bare id (the UI's args carry the entity key) */
+const wire = (a: Task): Record<string, unknown> => {
+  const { key, ...rest } = a as Task & Record<string, unknown>;
+  return { ...rest, session: key.slice(key.indexOf(':') + 1) };
+};
 const row = (base: EntityReader, key: EntityKey): ShipSession | undefined => base.peek<ShipSession>(SESSION, key) as ShipSession | undefined;
 const set = (key: EntityKey, path: string, value: unknown): LocalOp => ({ e: SESSION, id: key, op: 'patch', ops: [{ op: 'add', path, value } satisfies PatchOp] });
 
 /** GET /sessions/:id/ship: what would ship (routes, counts, the drafted message). Reads only. */
-export const prepare = defineCommand<Task, ShipInfo>({ id: 'ship.prepare', owner, optimistic: 'none', pending: 'the ship.prepare control' });
+export const prepare = defineCommand<Task, ShipInfo>({ id: 'ship.view', owner, wire, optimistic: 'none', pending: 'the ship.prepare control' });
 
 export interface ShipArgs extends Task {
   readonly title: string;
@@ -29,17 +34,17 @@ export interface ShipArgs extends Task {
 /** POST /sessions/:id/ship: commit, push, open or update the PR. The row starts its track at once. */
 export const ship = defineCommand<ShipArgs, ShipResult>({
   id: 'ship.ship',
-  owner,
+  owner, wire,
   optimistic: (base, a) => (row(base, a.key) ? [set(a.key, '/shipping', { step: a.first, update: a.update })] : []),
 });
 
 /** POST /sessions/:id/pr: check the PR now (wisp also checks every minute). */
-export const refresh = defineCommand<Task, PrSummary>({ id: 'ship.refresh', owner, optimistic: 'none', pending: 'the ship.refresh control' });
+export const refresh = defineCommand<Task, PrSummary>({ id: 'ship.refresh', owner, wire, optimistic: 'none', pending: 'the ship.refresh control' });
 
 /** POST /sessions/:id/fix-conflicts: the row says "Fixing merge conflicts" at once. */
 export const fixConflicts = defineCommand<Task>({
-  id: 'ship.fixConflicts',
-  owner,
+  id: 'ship.fix_conflicts',
+  owner, wire,
   optimistic: (base, a) => {
     const s = row(base, a.key);
     return s ? [set(a.key, '/conflictFix', { ...s.conflictFix, step: 'fixing', why: '' })] : [];
@@ -49,7 +54,7 @@ export const fixConflicts = defineCommand<Task>({
 /** POST /sessions/:id/review: review by another harness, now. The chip says Reviewing at once. */
 export const review = defineCommand<Task>({
   id: 'ship.review',
-  owner,
+  owner, wire,
   optimistic: (base, a) => {
     const s = row(base, a.key);
     if (!s?.pr) return [];
@@ -62,9 +67,9 @@ export const review = defineCommand<Task>({
 
 /** POST /sessions/:id/merge: squash-merge each open PR, sync the local base, clean up. The confirm
  * came first; the merge itself takes seconds, so the flow shows it (not a guess at the result). */
-export const merge = defineCommand<Task, MergeResult>({ id: 'ship.merge', owner, optimistic: 'none', pending: 'the ship.merge control' });
+export const merge = defineCommand<Task, MergeResult>({ id: 'ship.merge', owner, wire, optimistic: 'none', pending: 'the ship.merge control' });
 
 /** GET /sessions/:id/check-log: the end of a failing check's log, for Ask to fix. Reads only. */
-export const checkLog = defineCommand<Task & { readonly url: string }, { log: string }>({ id: 'ship.checkLog', owner, optimistic: 'none', pending: 'the ship.checkLog control' });
+export const checkLog = defineCommand<Task & { readonly url: string }, { log: string }>({ id: 'ship.check_log', owner, wire, optimistic: 'none', pending: 'the ship.checkLog control' });
 
 export const COMMANDS = [prepare, ship, refresh, fixConflicts, review, merge, checkLog] as const;

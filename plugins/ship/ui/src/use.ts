@@ -11,7 +11,7 @@ import { guessShip } from './model/ship.ts';
 import { useShell, type ShipShell } from './shell.ts';
 import { AGENT, SESSION, type AgentRow, type ShipSession } from './types.ts';
 
-export const SHIP_VIEW = 'wisp.ship.ship';
+export const SHIP_VIEW = 'ship.dialog'; // in the plugin's namespace, as every view id is
 
 export function useSession(client: PluginClient, key: () => EntityKey | undefined): Accessor<ShipSession | undefined> {
   const row = createMemo(() => {

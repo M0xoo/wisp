@@ -34,6 +34,15 @@
     "events": ["pr.changed", {"type": "pr.merged", "durable": true}, {"type": "pr.opened", "durable": true}, "ship.follow_up", "ship.step", "ship.to_ship"],
     "commands": [
       {
+        "id": "ship.fix_conflicts",
+        "title": "Fix a task's PR conflicts: the task merges its base in"
+      },
+      {
+        "id": "ship.check_log",
+        "title": "The end of a failing check's log",
+        "readOnly": true
+      },
+      {
         "id": "ship.track",
         "title": "Track a task's repos for Ship it"
       },
