@@ -37,7 +37,13 @@ where
             let cell = cell.clone();
             Box::pin(async move {
                 let s = state::get(&cell)?;
-                state::answer(f(s, ctx, call, req).await)
+                let (c2, s2) = (ctx.clone(), s.clone());
+                let out = state::answer(f(s, ctx, call, req).await);
+                // a write (an upload, a starter): My Stuff's rows follow
+                if method != "GET" {
+                    crate::view::publish(&c2, &s2);
+                }
+                out
             })
         }),
     }

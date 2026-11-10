@@ -19,6 +19,7 @@ mod routes;
 mod save;
 pub mod shelf;
 mod starters;
+mod view;
 pub mod state;
 pub mod store;
 mod uploads;
@@ -52,6 +53,7 @@ impl Plugin for StuffPlugin {
             let dir = home.join("stuff");
             let db = ctx.service::<wisp_store::Store>()?.as_ref().clone();
             store::install(&db).map_err(WireError::from)?;
+            view::install(&db).map_err(WireError::from)?;
             let shelf = Shelf::open(Arc::new(store::StoreBlobs { store: db.clone() }), Arc::new(store::StoreRows { store: db }), dir, ctx.clock()?)
                 .await
                 .map_err(WireError::from)?;
@@ -71,7 +73,9 @@ impl Plugin for StuffPlugin {
                 stop.cancelled().await;
                 on_stop.stop_all(); // switched off: every app it launched stops
             });
-            let _ = cell.set(Arc::new(Stuff { shelf, apps, shots: std::sync::RwLock::default() }));
+            let st = Arc::new(Stuff { shelf, apps, shots: std::sync::RwLock::default() });
+            let _ = cell.set(st.clone());
+            view::publish(&ctx, &st);
             Ok(())
         });
         Ok(())

@@ -9,12 +9,16 @@ import type { ImportArgs, ShareCardInfo, Shared, SharePreview } from './types.ts
 /** The summary row's entity kind (the runtime plugin's, read through the store). */
 export const SESSION = 'session';
 
+/** `<peer>:<id>` → `<id>`: the key routes the command, the peer reads its own id. */
+const bare = (k: string): string => k.slice(k.indexOf(':') + 1);
+
 const sharedOf = (base: EntityReader, key: EntityKey): unknown => (base.peek<{ shared?: unknown }>(SESSION, key) ?? {}).shared;
 
 /** What a share of the task would carry, and where it would go. */
 export const sharePreview = defineCommand<{ session: EntityKey }, SharePreview>({
   id: 'share.preview',
   owner: (a) => a.session,
+  wire: (a) => ({ id: bare(a.session) }),
   optimistic: 'none', pending: 'the share.preview control',
 });
 
@@ -23,6 +27,7 @@ export const sharePreview = defineCommand<{ session: EntityKey }, SharePreview>(
 export const shareCreate = defineCommand<{ session: EntityKey; passkey?: string; work: boolean }, Shared>({
   id: 'share.create',
   owner: (a) => a.session,
+  wire: (a) => ({ session: bare(a.session), ...(a.passkey !== undefined && { passkey: a.passkey }), work: a.work }),
   optimistic: 'none', pending: 'the share.create control',
   // a second click while one is packing is the same share
   dedupe: (a) => a.session,
@@ -32,6 +37,7 @@ export const shareCreate = defineCommand<{ session: EntityKey; passkey?: string;
 export const shareStop = defineCommand<{ session: EntityKey }>({
   id: 'share.stop',
   owner: (a) => a.session,
+  wire: (a) => ({ session: bare(a.session) }),
   optimistic: (base, a): EntityOps => (sharedOf(base, a.session) === undefined ? [] : [{ e: SESSION, id: a.session, op: 'patch', ops: [{ op: 'remove', path: '/shared' }] }]),
 });
 
@@ -39,6 +45,7 @@ export const shareStop = defineCommand<{ session: EntityKey }>({
 export const sharePeek = defineCommand<{ home: string; url: string; passkey?: string }, ShareCardInfo>({
   id: 'share.peek',
   owner: (a) => a.home,
+  wire: (a) => ({ url: a.url, ...(a.passkey !== undefined && { passkey: a.passkey }) }),
   optimistic: 'none', pending: 'the share.peek control',
 });
 

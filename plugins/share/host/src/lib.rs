@@ -27,6 +27,8 @@ use wisp_share_core::{Scrub, canonical, counts, scrub, secret_env};
 
 pub use wisp_share_api::PLUGIN_ID;
 
+mod link;
+
 /// The secret this wisp signs shares with (`share/key`: a 32-byte ed25519 seed, base64).
 const KEY: &str = "share/key";
 
@@ -176,8 +178,12 @@ async fn import(ctx: &Ctx, call: &Call, b: Bundle) -> Result<Value> {
     let harness = b.needs.iter().find_map(|n| n.strip_prefix("harness:")).unwrap_or_default();
     let mut spec = b.spec.clone();
     spec["lineage"] = json!({ "sharedFrom": b.id });
+    let n = turns.len();
     let args = json!({ "title": format!("{} (shared by {})", b.title, b.from.name), "agent": harness, "cwd": "", "turns": turns, "spec": spec, "ext": { PLUGIN_ID: { "id": b.id, "from": b.from.name, "level": "full" } } });
-    ctx.run_json(call, "runtime.adopt", args).await
+    let out = ctx.run_json(call, "runtime.adopt", args).await?;
+    let props = json!({ "turns": n, "work": "none", "switched": false });
+    let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", json!({ "event": "task_import", "props": props })).await;
+    Ok(out)
 }
 
 /// `share.send`: what goes, signed, to the destination named.
@@ -243,6 +249,7 @@ impl Plugin for SharePlugin {
         s.command::<Import, _, _>(|ctx, call, a| async move { import(&ctx, &call, a.bundle).await });
         s.command::<SendCmd, _, _>(|ctx, call, a| async move { send(&ctx, &call, a).await });
         s.command::<Destinations, _, _>(|ctx, _call, _a| async move { Ok(destinations(&ctx).await) });
+        link::register(s);
         Ok(())
     }
 }

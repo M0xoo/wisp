@@ -124,10 +124,10 @@ export const saveItem = defineCommand<SaveArgs, StuffView>({
 });
 
 /** The panes wisp ships (v1 GET /stuff/starters). */
-export const listStarters = defineCommand<{ readonly peer: PeerId }, { starters: Starter[] }>({ id: 'stuff.starters', owner: (a) => a.peer, optimistic: 'none', pending: 'the stuff.starters control' });
+export const listStarters = defineCommand<{ readonly peer: PeerId }, { starters: Starter[] }>({ id: 'stuff.starters', owner: (a) => a.peer, wire: () => ({}), optimistic: 'none', pending: 'the stuff.starters control' });
 
 /** Adds a starter to My Stuff once (it grants and pins nothing). */
-export const addStarter = defineCommand<{ readonly peer: PeerId; readonly id: string }, StuffView>({ id: 'stuff.addStarter', owner: (a) => a.peer, optimistic: 'none', pending: 'the stuff.addStarter control' });
+export const addStarter = defineCommand<{ readonly peer: PeerId; readonly id: string }, StuffView>({ id: 'stuff.addStarter', owner: (a) => a.peer, wire: (a) => ({ id: a.id }), optimistic: 'none', pending: 'the stuff.addStarter control' });
 
 /** Make a pane: a task of kind `pane` on your defaults, in an empty folder of its own. */
 export const makePane = defineCommand<{ readonly peer: PeerId; readonly prompt: string; readonly agent?: string; readonly model?: string; readonly effort?: string; readonly account?: string; readonly ext: { 'wisp.stuff': { kind: 'pane' } } }, { id: string }>({
@@ -140,6 +140,6 @@ export const makePane = defineCommand<{ readonly peer: PeerId; readonly prompt: 
 export const revealItem = defineCommand<ItemArgs, { ok: boolean; path?: string }>({ id: 'stuff.reveal', owner: (a) => a.key, optimistic: 'none', pending: 'the stuff.reveal control' });
 
 /** Where an app can be published (the publisher's targets): your wisp Grids, by host. */
-export const publishTargets = defineCommand<{ readonly peer: PeerId }, { host: string }[]>({ id: 'stuff.targets', owner: (a) => a.peer, optimistic: 'none', pending: 'the stuff.targets control' });
+export const publishTargets = defineCommand<{ readonly peer: PeerId }, { host: string }[]>({ id: 'stuff.targets', owner: (a) => a.peer, wire: () => ({}), optimistic: 'none', pending: 'the stuff.targets control' });
 
 export const STUFF_COMMANDS = [updateItem, removeItem, restoreItem, launchApp, stopApp, resetData, allowPane, grantOf, publishApp, unpublishApp, saveItem, listStarters, addStarter, revealItem, publishTargets] as const;

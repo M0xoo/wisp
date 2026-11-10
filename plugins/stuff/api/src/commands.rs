@@ -168,6 +168,30 @@ command!(
     Uploads, "stuff.uploads", Some("stuff:read"), true, Ids => Vec<Upload>
 );
 command!(RemoveUpload, "stuff.removeUpload", Some("stuff:save"), false, Id => Done);
+command!(
+    /// The panes wisp ships, each with the item it was added as (v1 GET /stuff/starters).
+    Starters, "stuff.starters", Some("stuff:read"), true, Empty => Value
+);
+command!(
+    /// Adds a starter pane once (it grants and pins nothing).
+    AddStarter, "stuff.addStarter", Some("stuff:save"), false, Id => StuffView
+);
+command!(
+    /// Show in folder: this computer's file manager opens on it; the path comes back either way.
+    Reveal, "stuff.reveal", Some("stuff:read"), false, Id => Value
+);
+command!(
+    /// Where an app can be published (the publisher's targets): none without a publisher.
+    Targets, "stuff.targets", Some("stuff:read"), true, Empty => Vec<Value>
+);
+command!(
+    /// Publish (again) to the publisher's grid: a link anyone can open.
+    PublishApp, "stuff.publish", Some("stuff:publish"), false, Id => StuffView
+);
+command!(
+    /// Take an app's public link down.
+    UnpublishApp, "stuff.unpublish", Some("stuff:publish"), false, Id => StuffView
+);
 
 // ---------- events (published after the command commits) ----------
 

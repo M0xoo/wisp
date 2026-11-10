@@ -18,7 +18,10 @@
     "net:listen{host:127.0.0.1}",
     "store:write{owner:stuff}",
     "topic:write{topic:stuff}",
-    "topic:write{topic:uploads}"
+    "topic:write{topic:uploads}",
+    "proc:exec{bin:open}",
+    "proc:exec{bin:xdg-open}",
+    "proc:exec{bin:explorer}"
   ],
   "requires": {},
   "provides": {},
@@ -101,9 +104,39 @@
       {
         "id": "stuff.removeUpload",
         "title": "Remove an attachment"
+      },
+      {
+        "id": "stuff.starters",
+        "title": "The panes wisp ships",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.addStarter",
+        "title": "Add a starter pane to My Stuff"
+      },
+      {
+        "id": "stuff.reveal",
+        "title": "Show an item in its folder"
+      },
+      {
+        "id": "stuff.targets",
+        "title": "Where an app can be published",
+        "readOnly": true
+      },
+      {
+        "id": "stuff.publish",
+        "title": "Publish an app: a link anyone can open"
+      },
+      {
+        "id": "stuff.unpublish",
+        "title": "Take an app's public link down"
       }
     ],
-    "events": ["stuff.launched", "stuff.removed", "stuff.saved"],
+    "events": [
+      "stuff.launched",
+      "stuff.removed",
+      "stuff.saved"
+    ],
     "topics": [
       "stuff",
       "uploads"

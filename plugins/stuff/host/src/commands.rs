@@ -16,6 +16,16 @@ fn w(e: crate::error::Error) -> WireError {
     e.into()
 }
 
+/// The file manager, on `path`: macOS reveals it in Finder, Windows selects it in Explorer, elsewhere its
+/// folder opens.
+pub fn reveal_argv(os: &str, path: &str) -> (&'static str, Vec<String>) {
+    match os {
+        "macos" => ("open", vec!["-R".into(), path.into()]),
+        "windows" => ("explorer", vec![format!("/select,{path}")]),
+        _ => ("xdg-open", vec![Path::new(path).parent().map_or_else(|| path.to_owned(), |d| d.display().to_string())]),
+    }
+}
+
 /// Registers command `$C` with `|s, ctx, call, args| body` over the started state.
 macro_rules! on {
     ($s:ident, $cell:ident, $C:ty, |$st:ident, $ctx:ident, $call:ident, $a:ident| $body:expr) => {{
@@ -25,7 +35,13 @@ macro_rules! on {
             async move {
                 let $st: Arc<Stuff> = state::get(&cell)?;
                 let _ = (&$ctx, &$call);
-                $body
+                let kept = ($ctx.clone(), $st.clone());
+                let out = { $body };
+                // My Stuff's page reads rows: a change is written there too
+                if !<$C as wisp_kernel::Command>::READ_ONLY {
+                    crate::view::publish(&kept.0, &kept.1);
+                }
+                out
             }
         });
     }};
@@ -107,6 +123,39 @@ pub fn register(s: &mut Setup, cell: &Cell) {
         }
         Ok(st.view(&it).await)
     });
+    on!(s, cell, c::Starters, |st, ctx, call, _a| Ok(serde_json::json!({ "starters": crate::starters::list(&st.shelf) })));
+    on!(s, cell, c::AddStarter, |st, ctx, call, a| {
+        let (it, _) = crate::starters::add(&st.shelf, &a.id).await.map_err(w)?.ok_or_else(|| WireError::not_found("wisp has no starter by that name."))?;
+        Ok(st.view(&it).await)
+    });
+    on!(s, cell, c::Reveal, |st, ctx, call, a| {
+        let it = st.shelf.get(&a.id).ok_or_else(gone).map_err(w)?;
+        if it.url.is_some() {
+            return Err(WireError::invalid("A link has no file."));
+        }
+        let path = st.shelf.local_path(&it).await.map_err(w)?;
+        let (bin, args) = reveal_argv(std::env::consts::OS, &path);
+        let opened = match ctx.service::<wisp_proc::Proc>() {
+            Ok(p) => p.exec(bin, &args, wisp_proc::ExecOpts::default()).await.is_ok_and(|r| r.exit.success()),
+            Err(_) => false,
+        };
+        Ok(serde_json::json!({ "ok": opened, "path": path }))
+    });
+    on!(s, cell, c::Targets, |_st, ctx, call, _a| match ctx.use_service::<c::PublishService>() {
+        Ok(p) => p.targets(&call),
+        Err(_) => Ok(Vec::new()),
+    });
+    on!(s, cell, c::PublishApp, |st, ctx, call, a| {
+        let p = ctx.use_service::<c::PublishService>().map_err(|_| WireError::invalid("Publishing needs wisp Cloud: sign in first."))?;
+        let it = p.publish(&call, &a.id, serde_json::json!({})).await?;
+        crate::routes::track(&ctx, "stuff_publish", serde_json::json!({ "by": "you" }));
+        Ok(st.view(&it).await)
+    });
+    on!(s, cell, c::UnpublishApp, |st, ctx, call, a| {
+        let p = ctx.use_service::<c::PublishService>().map_err(|_| WireError::invalid("Publishing needs wisp Cloud: sign in first."))?;
+        let it = p.unpublish(&call, &a.id).await?;
+        Ok(st.view(&it).await)
+    });
     on!(s, cell, c::Launch, |st, ctx, call, a| {
         let port = st.apps.launch(&a.id).await.map_err(w)?;
         ctx.emit(&call, &c::AppLaunched { id: a.id });
@@ -121,4 +170,16 @@ pub fn register(s: &mut Setup, cell: &Cell) {
     on!(s, cell, c::UploadOf, |st, ctx, call, a| st.shelf.upload(&a.id).await.map_err(w));
     on!(s, cell, c::Uploads, |st, ctx, call, a| st.shelf.uploads(&a.ids).await.map_err(w));
     on!(s, cell, c::RemoveUpload, |st, ctx, call, a| Ok(c::Done { ok: st.shelf.remove_upload(&a.id).await.map_err(w)? }));
+}
+
+#[cfg(test)]
+mod reveal_tests {
+    use super::reveal_argv;
+
+    #[test]
+    fn show_in_folder_opens_each_oss_file_manager_on_the_item() {
+        assert_eq!(reveal_argv("macos", "/s/a.png"), ("open", vec!["-R".to_owned(), "/s/a.png".to_owned()]));
+        assert_eq!(reveal_argv("linux", "/s/a.png"), ("xdg-open", vec!["/s".to_owned()]));
+        assert_eq!(reveal_argv("windows", "C:\\s\\a.png").0, "explorer");
+    }
 }
