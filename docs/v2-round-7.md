@@ -218,3 +218,20 @@ Seen on a real `wisp serve`:
 3. **The task page:** the PR and Shell side panes, the head, transcript folds, the plan view.
 4. **Step 5:** the missing v1 Settings panes, then crew, My Stuff, the computer pane, automations, machines.
 5. **Step 6:** the new screens.
+
+## Round 8 (2026-11-10): the `ui-commands` rule
+
+- **`tools/check/rules/ui-commands.ts`**, in `RULES`, errors only:
+  - every command id a UI package defines (`defineCommand`) is listed by a plugin manifest, and named in that plugin's Rust;
+  - every `plugin:<id>:<name>` topic a UI watches is named in some plugin's Rust (a writer);
+  - every `plugins/*/ui` is registered by apps/web: a default export from `src/index.ts`, or an import in apps/web/src.
+  - Fixture test: `tools/check/test/ui-commands.test.ts`. It passes, with four kinds of finding, one each.
+- **Baseline on the repo: 79 findings,** listed in `docs/v2-sweep-commands.md` (regenerated from the rule). It's more than the sweep's 59 because the rule also checks the Rust side and the topics:
+  - 61 commands with no server (the shell-task, crew and later `session.*`, the frame's 4, shell-composer's 5, connectors 7, crew 4, goal 4, machine 4, stuff 6, share 3, worktrees 3, `ship.review`, `project.update`);
+  - 3 topics nobody writes: `plugin:wisp.machine:snapshot` and `:load`, and `plugin:wisp.worktrees:worktrees`;
+  - 14 plugin UIs registered nowhere: accounts, automations, budget, connectors, grid-client, issues, learn, machines, plugins, settings, shell-composer, shell-home, stuff, telemetry.
+- **⚠ The rule fails `npm run check` (and CI) until the 79 are fixed.** That's the point, but it means CI goes red as soon as this lands. Fixing them is the next job, in this order:
+  1. the renames to the server's ids (`wire` reshapes the args);
+  2. the server handlers, each with its named test;
+  3. the topics;
+  4. the registrations.
