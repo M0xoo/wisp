@@ -1,5 +1,11 @@
 # v2 build queue (code first, verify later)
 
+**Two coders (owner, 2026-11-10).**
+- `coder` owns the UI: ui-commands → 0, then the UI burndown with the gates and the v1-features rows that need screens.
+- `backend-coder` owns the v1 sync ports, the v1-coverage check and its backend gaps, the channels grammar and
+  transports, and the SDKs.
+- They use separate CARGO_TARGET_DIRs (/tmp/wisp-target-coder and /tmp/wisp-target-b). The lead commits.
+
 The coder takes the next unchecked item as soon as one ends, with no wait for review or CI. Rules are in
 `docs/v2-team-brief.md`: stay compiling (`cargo check`), clippy on the touched crates, write the ADR's named tests,
 no local full suites. The lead commits each item by concern and pushes; PR #756 CI runs the tests. CI failures
