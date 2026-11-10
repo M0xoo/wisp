@@ -18,6 +18,37 @@ pub struct SetArgs {
     pub text: String,
 }
 
+/// `goal.pause` / `goal.resume` / `goal.drop` / `goal.check`: a task's goal held, going again, gone, or judged now.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskArgs {
+    /// the task
+    pub id: String,
+    /// why it's paused (shown on the band)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub why: Option<String>,
+}
+
+macro_rules! goal_command {
+    ($ty:ident, $id:literal) => {
+        #[derive(Debug)]
+        pub struct $ty;
+        impl Command for $ty {
+            const ID: &'static str = $id;
+            type Args = TaskArgs;
+            type Out = serde_json::Value;
+            fn args_ts() -> Option<String> {
+                Some(format!("{}{}", <TaskArgs as ::ts_rs::TS>::docs().unwrap_or_default(), <TaskArgs as ::ts_rs::TS>::inline(&::ts_rs::Config::default())))
+            }
+        }
+    };
+}
+goal_command!(Pause, "goal.pause");
+goal_command!(Resume, "goal.resume");
+goal_command!(Drop, "goal.drop");
+goal_command!(Check, "goal.check");
+
 #[derive(Debug)]
 pub struct Set;
 impl Command for Set {

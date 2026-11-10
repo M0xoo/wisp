@@ -29,6 +29,7 @@ const putGoal = (key: EntityKey, goal: GoalView): EntityOps => [{ e: KIND.sessio
 export const setGoal = defineCommand<SetArgs, GoalView>({
   id: 'goal.set',
   owner: (a) => a.session,
+  wire: (a) => ({ id: a.session.slice(a.session.indexOf(':') + 1), text: a.goal.text }),
   optimistic: (base, a) => {
     const row = rowOf(base, a.session);
     if (!row) return [];
@@ -55,18 +56,21 @@ function moved(base: EntityReader, a: TaskArgs, status: 'paused' | 'working', wh
 export const pauseGoal = defineCommand<TaskArgs & { readonly why?: string }, GoalView>({
   id: 'goal.pause',
   owner: (a) => a.session,
+  wire: (a) => ({ id: a.session.slice(a.session.indexOf(':') + 1), ...('why' in a && a.why !== undefined && { why: a.why }) }),
   optimistic: (base, a) => moved(base, a, 'paused', a.why),
 });
 
 export const resumeGoal = defineCommand<TaskArgs, GoalView>({
   id: 'goal.resume',
   owner: (a) => a.session,
+  wire: (a) => ({ id: a.session.slice(a.session.indexOf(':') + 1) }),
   optimistic: (base, a) => moved(base, a, 'working'),
 });
 
 export const dropGoal = defineCommand<TaskArgs, { dropped: boolean }>({
   id: 'goal.drop',
   owner: (a) => a.session,
+  wire: (a) => ({ id: a.session.slice(a.session.indexOf(':') + 1) }),
   optimistic: (base, a) => (rowOf(base, a.session)?.goal ? [{ e: KIND.session, id: a.session, op: 'patch', ops: [{ op: 'remove', path: '/goal' }] }] : []),
 });
 
@@ -74,6 +78,7 @@ export const dropGoal = defineCommand<TaskArgs, { dropped: boolean }>({
 export const checkGoal = defineCommand<TaskArgs, Record<string, never>>({
   id: 'goal.check',
   owner: (a) => a.session,
+  wire: (a) => ({ id: a.session.slice(a.session.indexOf(':') + 1) }),
   optimistic: 'none', pending: 'the goal.check control',
 });
 

@@ -14,7 +14,11 @@ const STARTING = 'Starting up';
 
 const session = (base: EntityReader, key: EntityKey): Row<Session> | undefined => base.peek<Session>(KIND.session, key);
 const patch = (key: EntityKey, ops: { path: string; value: unknown }[]): EntityOps => [{ e: KIND.session, id: key, op: 'patch', ops: ops.map((o) => ({ op: 'add', ...o })) }];
-const queueOf = (base: EntityReader, key: EntityKey): readonly Row<QueueItem>[] => session(base, key)?.queue ?? [];
+/** The task's queue: the store keeps the task whole in its row's `body` (a flat row, a test's, has it on top). */
+const queueOf = (base: EntityReader, key: EntityKey): readonly Row<QueueItem>[] => {
+  const s = session(base, key) as (Row<Session> & { body?: { queue?: readonly Row<QueueItem>[] } }) | undefined;
+  return s?.body?.queue ?? s?.queue ?? [];
+};
 const live = (s: Row<Session> | undefined): boolean => s?.state === 'running' || s?.state === 'waiting';
 
 export interface ReplyArgs {
@@ -42,7 +46,7 @@ export const reply = defineCommand<ReplyArgs, { queued?: boolean; interrupted?: 
     if (s.ask || s.asks || s.approval) return patch(a.session, [{ path: '/ask', value: null }, { path: '/asks', value: false }, { path: '/state', value: 'running' }]);
     if (live(s) && a.queue) {
       const item: QueueItem = { id: a.id, text: a.text, attachments: a.attachments, at: a.at, ...(a.mode && { mode: a.mode }), ...(a.run && { run: a.run }) };
-      return patch(a.session, [{ path: '/queue', value: [...queueOf(base, a.session), item] }]);
+      return patch(a.session, [{ path: '/body/queue', value: [...queueOf(base, a.session), item] }]);
     }
     // steering shows nothing new until the interrupt lands (v1 startOptimistic returns null)
     if (live(s)) return [];
@@ -58,7 +62,7 @@ export const queueEdit = defineCommand<QueueArgs & { text: string }>({
   id: 'runtime.queue.text',
   owner: (a) => a.session,
   wire: (a) => ({ id: bare(a.session), itemId: a.item, text: a.text }),
-  optimistic: (base, a) => patch(a.session, [{ path: '/queue', value: edit(queueOf(base, a.session), a.item, a.text) }]),
+  optimistic: (base, a) => patch(a.session, [{ path: '/body/queue', value: edit(queueOf(base, a.session), a.item, a.text) }]),
 });
 
 /** Send now: interrupts the run with this one (or starts it); the rest of the queue carries on. */
@@ -66,29 +70,31 @@ export const queueNow = defineCommand<QueueArgs>({
   id: 'runtime.queue.sendNow',
   owner: (a) => a.session,
   wire: (a) => ({ id: bare(a.session), itemId: a.item }),
-  optimistic: (base, a) => patch(a.session, [{ path: '/queue', value: remove(queueOf(base, a.session), a.item) }, { path: '/queueHeld', value: false }]),
+  optimistic: (base, a) => patch(a.session, [{ path: '/body/queue', value: remove(queueOf(base, a.session), a.item) }, { path: '/body/queueHeld', value: false }]),
 });
 
 export const queueMerge = defineCommand<{ session: EntityKey; items: string[] }>({
   id: 'runtime.queue.merge',
   owner: (a) => a.session,
   wire: (a) => ({ id: bare(a.session), ids: a.items }),
-  optimistic: (base, a) => patch(a.session, [{ path: '/queue', value: combine(queueOf(base, a.session), a.items) }]),
+  optimistic: (base, a) => patch(a.session, [{ path: '/body/queue', value: combine(queueOf(base, a.session), a.items) }]),
 });
 
 export const queueOrder = defineCommand<{ session: EntityKey; order: string[] }>({
   id: 'runtime.queue.order',
   owner: (a) => a.session,
-  optimistic: (base, a) => patch(a.session, [{ path: '/queue', value: reorder(queueOf(base, a.session), a.order) }]),
+  wire: (a) => ({ id: bare(a.session), order: a.order }),
+  optimistic: (base, a) => patch(a.session, [{ path: '/body/queue', value: reorder(queueOf(base, a.session), a.order) }]),
 });
 
 /** Cancel one follow-up. Removing the last one also lifts a Stop's hold (runner.js:748). */
 export const queueCancel = defineCommand<QueueArgs>({
   id: 'runtime.queue.cancel',
   owner: (a) => a.session,
+  wire: (a) => ({ id: bare(a.session), itemId: a.item }),
   optimistic: (base, a) => {
     const rest = remove(queueOf(base, a.session), a.item);
-    return patch(a.session, [{ path: '/queue', value: rest }, ...(rest.length === 0 ? [{ path: '/queueHeld', value: false }] : [])]);
+    return patch(a.session, [{ path: '/body/queue', value: rest }, ...(rest.length === 0 ? [{ path: '/body/queueHeld', value: false }] : [])]);
   },
 });
 
@@ -97,7 +103,7 @@ export const stop = defineCommand<{ session: EntityKey }>({
   id: 'runtime.stop',
   owner: (a) => a.session,
   wire: (a) => ({ id: bare(a.session) }),
-  optimistic: (base, a) => patch(a.session, [{ path: '/state', value: 'review' }, ...(queueOf(base, a.session).length ? [{ path: '/queueHeld', value: true }] : [])]),
+  optimistic: (base, a) => patch(a.session, [{ path: '/state', value: 'review' }, ...(queueOf(base, a.session).length ? [{ path: '/body/queueHeld', value: true }] : [])]),
 });
 
 /** /btw: a side question on a copy of the conversation; the run carries on. */
@@ -112,8 +118,10 @@ export const btw = defineCommand<{ session: EntityKey; id: string; question: str
 
 /** /side: a side discussion of its own, beside the task; it shows at once as a pending task. */
 export const side = defineCommand<{ session: EntityKey; id: string; text: string; attachments: Attachment[]; run?: Partial<Runner>; at: number }>({
-  id: 'runtime.side',
+  // a side discussion is a task of its own under this one (runtime.create with its parent)
+  id: 'runtime.create',
   owner: (a) => a.session,
+  wire: (a) => ({ prompt: a.text, parentId: bare(a.session), attachments: a.attachments, ...(a.run?.agent !== undefined && { agent: a.run.agent }) }),
   optimistic: (base, a) => {
     const main = session(base, a.session);
     const key = entityKey(ownerOf(a.session), a.id);

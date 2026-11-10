@@ -20,6 +20,7 @@ mod run;
 mod signin;
 mod store;
 mod sys;
+mod view;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
@@ -48,6 +49,10 @@ pub(crate) struct State {
     /// a hash per (real path, size, mtime), so a program that didn't move is hashed once
     pub hashes: Mutex<HashMap<String, (u64, f64, String)>>,
     pub flows: signin::Flows,
+    /// harnesses being installed now (the row says Installing…)
+    pub installing: Mutex<std::collections::HashSet<String>>,
+    /// each CLI login's last status (`login id` → signed in?), asked at start and after a change
+    pub statuses: Mutex<HashMap<String, Option<bool>>>,
 }
 
 pub(crate) fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -119,8 +124,13 @@ impl Plugin for AccountsPlugin {
                 held: Mutex::new(HashMap::new()),
                 hashes: Mutex::new(HashMap::new()),
                 flows: signin::Flows::default(),
+                installing: Mutex::default(),
+                statuses: Mutex::default(),
             };
-            let _ = start.set(Arc::new(st));
+            view::install(&st.store).map_err(store_err)?;
+            let st = Arc::new(st);
+            let _ = start.set(st.clone());
+            view::soon(&ctx, &st);
             Ok(())
         });
         Ok(())

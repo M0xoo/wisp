@@ -58,7 +58,12 @@ macro_rules! on {
             let slot = slot.clone();
             async move {
                 let $st = state(&slot)?;
-                $body
+                let out = { $body };
+                // Settings → Agents reads rows: a change is written there too
+                if !<$C as wisp_kernel::Command>::READ_ONLY {
+                    crate::view::soon(&$ctx, &$st);
+                }
+                out
             }
         });
     }};
@@ -141,6 +146,14 @@ pub(crate) fn register(s: &mut Setup, slot: &Slot) {
     signing_in(s, slot);
 }
 
+/// While it lives, the harness shows Installing… (dropped on every way out of the install).
+struct Installing(Arc<State>, String);
+impl Drop for Installing {
+    fn drop(&mut self) {
+        lock(&self.0.installing).remove(&self.1);
+    }
+}
+
 /// Keys, install, re-check and live limits.
 #[allow(clippy::many_single_char_names)]
 fn keyed_and_more(s: &mut Setup, slot: &Slot) {
@@ -180,6 +193,9 @@ fn keyed_and_more(s: &mut Setup, slot: &Slot) {
         let pkg = a.package.clone().filter(|p| !p.is_empty()).or_else(|| h.npm_package()).ok_or_else(|| WireError::invalid(format!("wisp can’t install {}. Install it yourself, then re-check.", h.info().name)))?;
         // `name@version` (a pin) stays; a bare name gets the latest
         let pkg = if pkg[1..].contains('@') { pkg } else { format!("{pkg}@latest") };
+        lock(&st.installing).insert(a.agent.clone());
+        crate::view::publish(&ctx, &st).await;
+        let _done = Installing(st.clone(), a.agent.clone());
         let dir = st.home.join("tools");
         tokio::fs::create_dir_all(&dir).await.map_err(|e| WireError::invalid(e.to_string()))?;
         let npm = std::env::var("WISP_NPM").ok().filter(|n| !n.is_empty()).unwrap_or_else(|| "npm".into());

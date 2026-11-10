@@ -34,11 +34,14 @@ fn on_a_box() -> bool {
     std::env::var("WISP_BOX").is_ok_and(|v| !v.is_empty() && v != "0")
 }
 
-fn set_state(st: &St, state: &str, error: &str, retry: Option<u64>) {
-    let mut c = lock(&st.computer);
-    c.state = state.into();
-    c.error = error.into();
-    c.retry_in_ms = retry;
+fn set_state(st: &Arc<St>, state: &str, error: &str, retry: Option<u64>) {
+    {
+        let mut c = lock(&st.computer);
+        c.state = state.into();
+        c.error = error.into();
+        c.retry_in_ms = retry;
+    }
+    crate::view::publish(st);
 }
 
 pub fn view(st: &St) -> ComputerState {

@@ -23,7 +23,34 @@ use wisp_telemetry_core::env::{FLUSH_MS, TIMEOUT_MS};
 use wisp_telemetry_core::turns::{BlockFact, RunFacts, TurnFacts, ended_props, started_props};
 use wisp_telemetry_core::{Common, Env, ScrubOptions, Telemetry, Tracked};
 
-const MIGRATIONS: &[Migration] = &[Migration::sql(1, "CREATE TABLE telemetry_meta (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;")];
+const MIGRATIONS: &[Migration] = &[
+    Migration::sql(1, "CREATE TABLE telemetry_meta (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;"),
+    Migration::sql(2, "CREATE TABLE telemetry_state (id TEXT PRIMARY KEY, \"on\" INTEGER NOT NULL, setting INTEGER NOT NULL, blocked INTEGER NOT NULL) STRICT;"),
+];
+
+/// Settings → Privacy reads one row, id `this`: stats on, the switch, and whether the environment turns them off.
+pub const STATE_TOPIC: &str = "plugin:wisp.telemetry:state";
+const STATE: EntityDef = EntityDef {
+    kind: "telemetry.state",
+    table: "telemetry_state",
+    key: "id",
+    columns: &[("id", Col::Text), ("on", Col::Bool), ("setting", Col::Bool), ("blocked", Col::Bool)],
+    json_columns: &[],
+    parent: None,
+    seq: None,
+    topics: |_| vec![STATE_TOPIC.to_owned()],
+};
+
+/// The Privacy row: `on` only when the switch is on and nothing in the environment turns stats off.
+pub fn state_row(setting: bool, env: &Env) -> Row {
+    let blocked = wisp_telemetry_core::env::env_disabled(env);
+    let mut r = Row::new();
+    r.insert("id".into(), json!("this"));
+    r.insert("on".into(), json!(setting && !blocked));
+    r.insert("setting".into(), json!(setting));
+    r.insert("blocked".into(), json!(blocked));
+    r
+}
 const META: EntityDef = EntityDef { kind: "telemetry_meta", table: "telemetry_meta", key: "id", columns: &[("id", Col::Text), ("body", Col::Text)], json_columns: &["body"], parent: None, seq: None, topics: |_| Vec::new() };
 
 struct State {
@@ -47,9 +74,9 @@ fn now(ctx: &Ctx) -> i64 {
 
 impl State {
     async fn save(&self) {
-        let (id, on) = {
+        let (id, on, row) = {
             let t = lock(&self.t);
-            (t.install_id.clone(), t.setting_on)
+            (t.install_id.clone(), t.setting_on, state_row(t.setting_on, &t.env))
         };
         let body = json!({ "installId": id, "telemetry": if on { "on" } else { "off" } });
         let _ = self
@@ -58,7 +85,8 @@ impl State {
                 let mut r = Row::new();
                 r.insert("id".into(), json!("settings"));
                 r.insert("body".into(), body);
-                w.upsert(META.kind, r).map(|_| ())
+                w.upsert(META.kind, r)?;
+                w.upsert(STATE.kind, row).map(|_| ())
             })
             .await;
     }
@@ -212,6 +240,7 @@ impl Plugin for TelemetryPlugin {
             let store = ctx.service::<Store>()?.as_ref().clone();
             store.migrate("telemetry", MIGRATIONS).map_err(WireError::from)?;
             store.define_entity(META).map_err(WireError::from)?;
+            store.define_entity(STATE).map_err(WireError::from)?;
             let saved = store.read_async(|r| r.query(META.kind, &Query::new())).await.map_err(WireError::from)?;
             let body = saved.first().and_then(|r| r.get("body").cloned()).unwrap_or(Value::Null);
             let e = env();
@@ -229,6 +258,7 @@ impl Plugin for TelemetryPlugin {
             t.setting_on = wisp_telemetry_core::env::setting_on(body.get("telemetry"));
             let st = Arc::new(State { store, t: Mutex::new(t) });
             let _ = start.set(st.clone());
+            st.save().await; // the Privacy row exists from the start
             // app_started: which harnesses are installed, and their versions (v1 index.js), off the start's way
             let (c3, st3) = (ctx.clone(), st.clone());
             ctx.spawn(async move {
@@ -257,6 +287,18 @@ impl Plugin for TelemetryPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The Privacy row: on with the switch on, off with it off, and off with the switch on when the
+    /// environment says so (`DO_NOT_TRACK`, `WISP_TELEMETRY=0`, `CI`), with `blocked` saying why.
+    #[test]
+    fn the_privacy_row_says_on_off_and_blocked_by_the_environment() {
+        let none: Env = Env::default();
+        assert_eq!(state_row(true, &none)["on"], true);
+        assert_eq!(state_row(false, &none)["on"], false);
+        let dnt: Env = [("DO_NOT_TRACK".to_owned(), "1".to_owned())].into_iter().collect();
+        let r = state_row(true, &dnt);
+        assert_eq!((r["on"].clone(), r["setting"].clone(), r["blocked"].clone()), (json!(false), json!(true), json!(true)));
+    }
 
     #[test]
     fn manifest_is_valid() {

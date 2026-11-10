@@ -1,1 +1,12 @@
-{}
+{
+  "telemetry.privacy.pane": "Privacy",
+  "telemetry.privacy.lede": "What wisp sends about itself (never prompts, paths or code), and what it asks before a repo's own programs run.",
+  "telemetry.privacy.stats.title": "Anonymous usage stats",
+  "telemetry.privacy.stats.on": "On",
+  "telemetry.privacy.stats.off": "Off",
+  "telemetry.privacy.stats.blocked": "Off (DO_NOT_TRACK, WISP_TELEMETRY=0 or CI)",
+  "telemetry.privacy.stats.what": "Agent, model, status, timings and scrubbed errors only.",
+  "telemetry.privacy.trust.title": "Ask before a repo’s hooks, servers and setup run",
+  "telemetry.privacy.trust.description": "Claude Code runs a repo’s hooks and MCP servers, and wisp runs its worktree setup, without asking. On, the first run in a repo, and the first after one of them changes, waits for you with the list: Trust and start, Run without them, or Skip (not in Full auto, which runs them unasked). It shows what a repo asks to run; it can’t tell you whether that’s safe",
+  "telemetry.privacy.locked": "Set by {by}"
+}

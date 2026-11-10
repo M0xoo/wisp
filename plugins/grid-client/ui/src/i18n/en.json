@@ -1,1 +1,20 @@
-{}
+{
+  "grid-client.pane": "Cloud",
+  "grid-client.lede": "Your wisp on a server: it keeps working while this computer sleeps.",
+  "grid-client.signin.title": "Sign in to a wisp Grid",
+  "grid-client.signin.description": "Your own wisp on a server: tasks keep going when this computer sleeps, and you reach them from any browser or the phone app. A grid is yours (wisp grid serve), your team’s, or a hosted one.",
+  "grid-client.signin.grid": "The grid's address",
+  "grid-client.signin.go": "Sign in",
+  "grid-client.waiting.title": "Approve it in your browser",
+  "grid-client.waiting.description": "The grid's page asks for this code. wisp goes on by itself once you approve it.",
+  "grid-client.cancel": "Cancel",
+  "grid-client.signedIn": "Signed in as {handle}",
+  "grid-client.signOut": "Sign out",
+  "grid-client.computer.title": "This computer on the grid",
+  "grid-client.computer.off": "Off: turn it on to reach this wisp from any browser or your phone, with no SSH and no open ports",
+  "grid-client.computer.online": "Online at {url}",
+  "grid-client.computer.onlineNoUrl": "Online",
+  "grid-client.computer.connecting": "Connecting…",
+  "grid-client.computer.retrying": "Trying again…",
+  "grid-client.note": "A cloud computer shows up under Machines and in Run on, like any other computer. It sleeps when nothing’s going on (watching it from here doesn’t keep it up), and wakes when you send it something or a schedule is due."
+}

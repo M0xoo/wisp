@@ -8,6 +8,7 @@ import { browserHistory, createClient, httpTransport, indexedDBPersist, peerId, 
 import { commandErrorToast, createShell, detectPlatform } from '@wisp/shell';
 import { createToaster } from '@wisp/ui';
 import { shellSettingsUi } from '@wisp-plugin/shell-settings-ui';
+import { startNotifier } from '@wisp-plugin/shell-home-ui';
 import { pluginUis } from './plugins.ts';
 import { registerWorker } from './worker.ts';
 
@@ -50,6 +51,10 @@ for (const { path, def } of pluginUis()) {
     client.devtools.record({ kind: 'warn', message: `${path}: ${String(err)}` }); // one bad plugin never stops the app
   }
 }
+
+// A task finishing or asking: a toast, and a system notification when wisp isn't in front (v1 notify.js)
+const homeClient = shell.pluginClient('wisp.shell-home');
+if (homeClient) startNotifier({ client: homeClient, platform, toast: toaster, nav: shell.nav, focused: () => document.hasFocus() });
 
 // Settings: the frame (an overlay view) and its own panes, given what only the shell has (ADR-0003: inputs, no
 // private API): every plugin's panes, each with its plugin's client, and the translator. It has no default

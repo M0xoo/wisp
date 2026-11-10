@@ -9,6 +9,10 @@ import { KIND, type Held, type LaterView, type Plan, type SessionRow } from './t
 
 type Key = Parameters<EntityReader['peek']>[1];
 const asKey = (s: string): Key => s as Key;
+/** `<peer>:<id>` → `<id>`: the key routes the command, the server reads its own id. */
+const bare = (k: string): string => k.slice(k.indexOf(':') + 1);
+const bareSession = <A extends { sessionId: string }>(a: A): A => ({ ...a, sessionId: bare(a.sessionId) });
+const bareId = <A extends { id: string }>(a: A): A => ({ ...a, id: bare(a.id) });
 
 /** A patch setting (or removing, when undefined) top-level fields of a row the reader holds. */
 function patchRow<T extends object>(base: EntityReader, kind: string, key: string, next: (row: T) => Partial<Record<keyof T, unknown>>): EntityOps {
@@ -38,6 +42,7 @@ export interface AddArgs {
 export const addFollowUp = defineCommand<AddArgs, LaterView>({
   id: 'later.add',
   owner: (a) => a.sessionId,
+  wire: bareSession,
   optimistic: (base, a) =>
     session(base, a.sessionId, (s) => ({
       later: sortLater([...(s.later ?? []), { id: a.tmp, at: a.at, text: a.text, by: 'user', setAt: a.setAt, ...(a.remind && { remind: true as const }) }]),
@@ -48,6 +53,7 @@ export type EditArgs = { sessionId: string; item: string } & ({ at: number } | {
 export const editFollowUp = defineCommand<EditArgs>({
   id: 'later.edit',
   owner: (a) => a.sessionId,
+  wire: bareSession,
   optimistic: (base, a) =>
     session(base, a.sessionId, (s) => {
       const list = s.later ?? [];
@@ -61,6 +67,7 @@ export const editFollowUp = defineCommand<EditArgs>({
 export const snoozeReminder = defineCommand<{ sessionId: string; at: number; tmp: string; setAt: number }>({
   id: 'later.edit',
   owner: (a) => a.sessionId,
+  wire: bareSession,
   dedupe: (a) => `snooze:${a.sessionId}:${a.at}`,
   optimistic: (base, a) =>
     session(base, a.sessionId, (s) => ({
@@ -73,6 +80,7 @@ export const snoozeReminder = defineCommand<{ sessionId: string; at: number; tmp
 export const cancelFollowUp = defineCommand<{ sessionId: string; item: string }>({
   id: 'later.cancel',
   owner: (a) => a.sessionId,
+  wire: bareSession,
   optimistic: (base, a) => session(base, a.sessionId, (s) => ({ later: listOrNone((s.later ?? []).filter((l) => l.id !== a.item)) })),
 });
 
@@ -80,6 +88,7 @@ export const cancelFollowUp = defineCommand<{ sessionId: string; item: string }>
 export const park = defineCommand<{ sessionId: string; forLater: boolean; at: number; state?: string }>({
   id: 'later.park',
   owner: (a) => a.sessionId,
+  wire: (a) => ({ sessionId: bare(a.sessionId), forLater: a.forLater ? a.at || true : false, ...(a.state && { state: a.state }) }),
   optimistic: (base, a) =>
     session(base, a.sessionId, () => ({
       forLater: a.forLater ? { at: a.at, by: 'user' } : undefined,
@@ -114,6 +123,7 @@ export type EditPlanArgs = { id: string } & ({ at: number } | { text: string } |
 export const editPlan = defineCommand<EditPlanArgs>({
   id: 'later.editPlan',
   owner: (a) => a.id,
+  wire: bareId,
   optimistic: (base, a) =>
     patchRow<Plan>(base, KIND.plan, a.id, (p) => {
       if ('at' in a) return { at: a.at, draft: undefined, after: undefined, lost: undefined };
@@ -126,12 +136,14 @@ export const editPlan = defineCommand<EditPlanArgs>({
 export const startPlan = defineCommand<{ id: string; now: true }, { session?: { id: string } }>({
   id: 'later.editPlan',
   owner: (a) => a.id,
+  wire: bareId,
   optimistic: (_base, a) => [{ e: KIND.plan, id: asKey(a.id), op: 'del' }],
 });
 
 export const cancelPlan = defineCommand<{ id: string }>({
   id: 'later.cancelPlan',
   owner: (a) => a.id,
+  wire: bareId,
   optimistic: (_base, a) => [{ e: KIND.plan, id: asKey(a.id), op: 'del' }],
 });
 
@@ -141,8 +153,10 @@ export type HeldAction = 'start' | 'without' | 'wait' | 'skip';
  * runtime owns held runs; Later only shows them. The row moves at once (Working, Scheduled, Done).
  */
 export const heldAction = defineCommand<{ sessionId: string; action: HeldAction }>({
-  id: 'session.held',
+  // runtime.held finds the held turn itself; Wait is not answering (nothing to send for it)
+  id: 'runtime.held',
   owner: (a) => a.sessionId,
+  wire: (a) => ({ id: bare(a.sessionId), action: a.action === 'skip' ? 'skip' : 'start' }),
   optimistic: (base, a) =>
     session(base, a.sessionId, (s) => {
       if (a.action === 'start' || a.action === 'without') return { state: 'running', unread: false, held: undefined };

@@ -1,5 +1,5 @@
 // The tips under the prompt box, each with the trywisp.dev guide section that explains it (v1
-// web/js/tips-data.js). The text lives in the catalogue (`home.tip.<id>`, with **bold**, `code`
+// web/js/tips-data.js). The text lives in the catalogue (`shell-home.tip.<id>`, with **bold**, `code`
 // and _italic_ marked in it); this file holds which tips there are, in order, and where each links.
 
 const SITE = 'https://trywisp.dev';

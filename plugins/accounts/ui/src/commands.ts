@@ -179,3 +179,11 @@ export const keyRemove = defineCommand<ProviderArgs>({
 
 /** Test: one cheap call with the saved key; the answer lands on the row's `test`. */
 export const keyTest = defineCommand<ProviderArgs>({ id: 'accounts.keys.test', owner: (a) => a.peer, optimistic: 'none', pending: 'the accounts.keys.test control' });
+
+/** Ask before running a harness whose program changed (POST /agents/watch/ask). */
+export const setAsk = defineCommand<{ peer: PeerId; on: boolean }>({
+  id: 'accounts.watch.ask',
+  owner: (a) => a.peer,
+  wire: (a) => ({ on: a.on }),
+  optimistic: (base, a) => merge<{ id: string; grid: boolean; ask: boolean }>(base, 'accounts.place', at(a.peer, 'this'), { ask: a.on }),
+});

@@ -22,7 +22,13 @@
   "provides": {},
   "contributes": {
     "events": [{"type": "goal.met", "durable": true}, {"type": "goal.failed", "durable": true}],
-    "commands": [{ "id": "goal.set", "title": "Set, change or clear a task's goal" }]
+    "commands": [
+      { "id": "goal.set", "title": "Set, change or clear a task's goal" },
+      { "id": "goal.pause", "title": "Pause a task's goal: no judging until it resumes" },
+      { "id": "goal.resume", "title": "Resume a task's paused goal" },
+      { "id": "goal.drop", "title": "Drop a task's goal" },
+      { "id": "goal.check", "title": "Judge a task's goal now, on its last answer" }
+    ]
   },
   "activation": [
     "onStartup"

@@ -31,7 +31,20 @@
     "onStartup"
   ],
   "contributes": {
-    "events": ["pr.changed", {"type": "pr.merged", "durable": true}, {"type": "pr.opened", "durable": true}, "ship.follow_up", "ship.step", "ship.to_ship"],
+    "events": [
+      "pr.changed",
+      {
+        "type": "pr.merged",
+        "durable": true
+      },
+      {
+        "type": "pr.opened",
+        "durable": true
+      },
+      "ship.follow_up",
+      "ship.step",
+      "ship.to_ship"
+    ],
     "commands": [
       {
         "id": "ship.fix_conflicts",
@@ -73,17 +86,8 @@
         "title": "Attach a pull request to a task"
       },
       {
-        "id": "ship.fix_conflicts",
-        "title": "Ask a task to merge its base in"
-      },
-      {
         "id": "ship.recheck",
         "title": "Recheck what a task has to ship"
-      },
-      {
-        "id": "ship.check_log",
-        "title": "A failing check's log",
-        "readOnly": true
       }
     ]
   }

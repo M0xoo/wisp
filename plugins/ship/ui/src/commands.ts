@@ -51,10 +51,12 @@ export const fixConflicts = defineCommand<Task>({
   },
 });
 
-/** POST /sessions/:id/review: review by another harness, now. The chip says Reviewing at once. */
+/** POST /sessions/:id/review: review by another harness, now. The chip says Reviewing at once. wisp.review
+ * runs it (`review.maybe`, forced: by hand it runs whatever the setting says). */
 export const review = defineCommand<Task>({
-  id: 'ship.review',
-  owner, wire,
+  id: 'review.maybe',
+  owner,
+  wire: (a) => ({ id: a.key.slice(a.key.indexOf(':') + 1), force: true }),
   optimistic: (base, a) => {
     const s = row(base, a.key);
     if (!s?.pr) return [];

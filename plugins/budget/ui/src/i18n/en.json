@@ -1,1 +1,19 @@
-{}
+{
+  "budget.usage.pane": "Usage",
+  "budget.usage.lede": "Spend and outcomes over the last 7 days.",
+  "budget.usage.spend": "Spend",
+  "budget.usage.turns": "Turns",
+  "budget.usage.worked": "Worked",
+  "budget.usage.questions": "Questions",
+  "budget.usage.plan.title": "Plan budget",
+  "budget.usage.plan.description": "Your plans’ usage windows, as Claude Code and Codex report them on each run",
+  "budget.usage.plan.none": "Shows each account’s usage windows after its next Claude Code or Codex run.",
+  "budget.usage.stop.title": "Automations stop at",
+  "budget.usage.stop.description": "Check-ins, triggers, goal rounds and agents’ own follow-ups wait once an account passes this much of a window, and go on after it resets. What you start always runs",
+  "budget.usage.stop.own": "Its own line. Same follows Automations stop at",
+  "budget.usage.stop.same": "Same",
+  "budget.usage.stop.off": "Off",
+  "budget.usage.stop.50": "50%",
+  "budget.usage.stop.75": "75%",
+  "budget.usage.stop.90": "90%"
+}

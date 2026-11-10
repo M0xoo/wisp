@@ -140,7 +140,7 @@ export function SidebarList(props: { readonly onNew: () => void; readonly homeOn
   };
   return (
     <>
-      <SplitTop newLabel={shell.t('shell.side.new')} newTitle={shell.t('shell.side.newTitle')} stuffLabel={shell.t('shell.side.stuff')} on={props.homeOn} onNew={props.onNew} onStuff={() => shell.navigate({ t: 'openView', id: 'stuff' as never, params: null as Json })} />
+      <SplitTop newLabel={shell.t('shell.side.new')} newTitle={shell.t('shell.side.newTitle')} stuffLabel={shell.t('shell.side.stuff')} on={props.homeOn} onNew={props.onNew} onStuff={() => shell.navigate({ t: 'openView', id: 'stuff.page' as never, params: null as Json })} />
       <Feed>
         <For each={SECTIONS.filter((id) => (bySection().get(id)?.length ?? 0) > 0)}>
           {(id) => (

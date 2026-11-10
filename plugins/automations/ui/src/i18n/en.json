@@ -1,1 +1,18 @@
-{}
+{
+  "automations.pane": "Automations",
+  "automations.lede": "Saved prompts, and the triggers that launch them for you.",
+  "automations.recipes": "Recipes",
+  "automations.recipes.description": "Prompts you run often, with their project and agent",
+  "automations.recipes.none": "Save a prompt you run often",
+  "automations.triggers": "Triggers",
+  "automations.triggers.description": "Run a recipe on a schedule, a CI failure or a new issue",
+  "automations.triggers.none": "Run a recipe on a schedule, a CI failure or a new issue",
+  "automations.trigger.line.one": "Ran {runs} time · last {last}",
+  "automations.trigger.line.other": "Ran {runs} times · last {last}",
+  "automations.never": "never",
+  "automations.more": "More for {name}",
+  "automations.run": "Run now",
+  "automations.fire": "Run now",
+  "automations.remove": "Remove",
+  "automations.none": "None yet"
+}

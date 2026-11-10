@@ -148,6 +148,8 @@ export interface ToolRow {
 
 export interface PlaceRow {
   grid: boolean;
+  /** ask before running a harness whose program changed (v1 defaults.harnessAsk) */
+  ask: boolean;
 }
 
 // ---------- command arguments (ids in commands.ts) ----------

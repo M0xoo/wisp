@@ -1,1 +1,9 @@
-{}
+{
+  "settings.pane": "All settings",
+  "settings.all.lede": "Every setting wisp’s plugins declare: the same ones `wisp settings` and a formula’s settings: reach.",
+  "settings.all.search": "Search settings",
+  "settings.all.loading": "Loading…",
+  "settings.all.none": "No setting matches.",
+  "settings.all.locked": "{key} · set by {by}",
+  "settings.all.default": "Default"
+}

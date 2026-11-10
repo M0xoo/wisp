@@ -25,6 +25,7 @@ mod sandboxes;
 mod signin;
 mod state;
 mod transport;
+mod view;
 
 use std::sync::{Arc, OnceLock};
 
@@ -76,7 +77,13 @@ macro_rules! on {
             let slot = slot.clone();
             async move {
                 let $st = st(&slot)?;
-                $body.await
+                let kept = $st.clone();
+                let out = $body.await;
+                // Settings → Cloud's row follows every change
+                if !<$cmd as wisp_kernel::Command>::READ_ONLY {
+                    crate::view::publish(&kept);
+                }
+                out
             }
         });
     }};
@@ -118,9 +125,11 @@ impl Plugin for GridClientPlugin {
         s.on_start(move |ctx| async move {
             let store = ctx.service::<Store>()?.as_ref().clone();
             state::install(&store).map_err(|e| WireError::internal(e.to_string()))?;
+            view::install(&store).map_err(|e| WireError::internal(e.to_string()))?;
             let st = St::load(ctx, store).await?;
             let _ = slot.set(st.clone());
             computer::resume(&st).await;
+            view::publish(&st);
             let st2 = st.clone();
             st.ctx.spawn(async move {
                 let _ = peers::sync_computers(&st2).await;
@@ -131,7 +140,7 @@ impl Plugin for GridClientPlugin {
     }
 }
 
-fn status(st: &St) -> api::Status {
+pub(crate) fn status(st: &St) -> api::Status {
     let a = st.account();
     api::Status { signed_in: a.is_some(), grid: a.as_ref().map(|a| a.grid.clone()).unwrap_or_default(), handle: a.as_ref().map(|a| a.handle.clone()).unwrap_or_default(), machine: a.map(|a| a.machine).unwrap_or_default(), computer: computer::view(st) }
 }

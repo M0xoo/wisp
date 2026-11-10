@@ -1,1 +1,15 @@
-{}
+{
+  "plugins.pane": "Plugins",
+  "plugins.lede": "Changes to wisp itself: buttons, panels, blocks, looks and behaviour. Each is a plugin you can switch off.",
+  "plugins.yours": "Yours",
+  "plugins.none": "No plugins of your own yet",
+  "plugins.none.description": "Plugins you add, or a colleague sends you, show here",
+  "plugins.builtin": "Built in",
+  "plugins.builtin.description": "What wisp is made of. Switching one off frees everything it made; what needs it says why",
+  "plugins.version": "Version {version}",
+  "plugins.on": "{name} on",
+  "plugins.state.active": "On",
+  "plugins.state.resolved": "On",
+  "plugins.state.off": "Off",
+  "plugins.state.refused": "Refused"
+}

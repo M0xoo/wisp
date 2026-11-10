@@ -63,6 +63,11 @@ pub fn view(st: &State, agent: &str, acc: &str) -> LoginView {
     lock(&st.flows.0).get(&login_id(agent, acc)).map_or_else(|| LoginView::idle(agent, account_key(acc)), |f| f.view.clone())
 }
 
+/// Every sign-in wisp knows of, by its row id.
+pub fn all(st: &State) -> Vec<(String, LoginView)> {
+    lock(&st.flows.0).iter().map(|(k, f)| (k.clone(), f.view.clone())).collect()
+}
+
 /// Signed in or not, and as whom; kept on the account for the page.
 pub async fn status(ctx: &Ctx, st: &State, h: &dyn Harness, acc: &str) -> Result<LoginStatus, WireError> {
     let l = spec(h)?;

@@ -26,8 +26,8 @@ const GOAL_END = new Set(['met', 'impossible', 'out', 'paused']);
 function goalVerb(r: TaskRow, t: T): string | undefined {
   const g = r.goal;
   if (!g || !GOAL_END.has(g.status)) return undefined;
-  if (g.status === 'met') return (g.round ?? 1) > 1 ? t('home.notify.metRounds', { title: r.title, n: g.round ?? 1 }) : t('home.notify.met', { title: r.title });
-  return t(`home.notify.${g.status}`, { title: r.title });
+  if (g.status === 'met') return (g.round ?? 1) > 1 ? t('shell-home.notify.metRounds', { title: r.title, n: g.round ?? 1 }) : t('shell-home.notify.met', { title: r.title });
+  return t(`shell-home.notify.${g.status}`, { title: r.title });
 }
 
 /**
@@ -42,22 +42,37 @@ export function noticeFor(prev: TaskRow | undefined, next: TaskRow, o: { sibling
   if (!asks && !finished) return null;
   if (next.crew) {
     const name = next.crew.name ?? '';
-    const head = asks ? t('home.notify.memberAsks', { name, title: next.title }) : t('home.notify.member', { name, title: next.title });
+    const head = asks ? t('shell-home.notify.memberAsks', { name, title: next.title }) : t('shell-home.notify.member', { name, title: next.title });
     return { tag: next.id, head, title: `${name}: ${next.title}`, body: (asks ? next.question : next.preview) ?? '', asks };
   }
   if (asks) {
-    const head = next.approval ? t('home.notify.approval', { title: next.title }) : t('home.notify.question', { title: next.title });
+    const head = next.approval ? t('shell-home.notify.approval', { title: next.title }) : t('shell-home.notify.question', { title: next.title });
     return { tag: next.id, head, title: titleOf(next), body: next.question ?? '', asks };
   }
   const runs = next.groupId ? o.siblings.filter((x) => x.groupId === next.groupId && !x.archived) : [];
   if (runs.length > 1 && runs.some((x) => x.id !== next.id && x.state === 'running')) return null; // the last run says it
   const goal = goalVerb(next, t);
-  const head = goal ?? (runs.length > 1 ? t('home.notify.runs', { title: next.title, n: runs.length }) : t('home.notify.ready', { title: next.title }));
-  const body = goal ? (next.goal?.last?.why ?? '') : next.preview || t('home.notify.bodyReady');
+  const head = goal ?? (runs.length > 1 ? t('shell-home.notify.runs', { title: next.title, n: runs.length }) : t('shell-home.notify.ready', { title: next.title }));
+  const body = goal ? (next.goal?.last?.why ?? '') : next.preview || t('shell-home.notify.bodyReady');
   return { tag: next.id, head, title: titleOf(next), body, asks };
 }
 
 const titleOf = (r: TaskRow): string => (r.project ? `${r.project}: ${r.title}` : r.title);
+
+/** A session row as the store keeps it (`body` and `summary` json columns) read flat, as the list reads it:
+ * the summary's `question`, `approval`, `preview`, `goal` at the top. A flat row is its own. */
+export function flatRow(raw: unknown): TaskRow | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const top = raw as Record<string, unknown>;
+  const part = (k: string): Record<string, unknown> => (top[k] && typeof top[k] === 'object' ? (top[k] as Record<string, unknown>) : {});
+  if (!('body' in top) && !('summary' in top)) return raw as TaskRow;
+  const out: Record<string, unknown> = { ...part('body') };
+  for (const [k, v] of Object.entries(top)) if (k !== 'body' && k !== 'summary') out[k.replace(/_([a-z])/g, (_m, c: string) => c.toUpperCase())] = v;
+  Object.assign(out, part('summary'));
+  if (out['question'] === '') delete out['question'];
+  if (out['approval'] === false) delete out['approval'];
+  return out as unknown as TaskRow;
+}
 
 export interface NotifierDeps {
   readonly client: PluginClient;
@@ -80,15 +95,15 @@ export function startNotifier(d: NotifierDeps): () => void {
   };
   const tell = (key: EntityKey, n: Notice): void => {
     if (viewing(key)) return;
-    d.toast?.show(n.head, { action: { label: t('home.notify.open'), onClick: () => client.navigate({ t: 'openFromToast', target: target(key) }) } });
+    d.toast?.show(n.head, { action: { label: t('shell-home.notify.open'), onClick: () => client.navigate({ t: 'openFromToast', target: target(key) }) } });
     if (!d.focused()) void d.platform.notify({ title: n.title, body: n.body, tag: n.tag, target: target(key) });
   };
   // read without tracking: a row's effect must not wake for every other row
-  const siblings = (): TaskRow[] => untracked(() => client.entities.list<TaskRow>(SESSION)() as TaskRow[]);
+  const siblings = (): TaskRow[] => untracked(() => (client.entities.list<unknown>(SESSION)() as unknown[]).map(flatRow).filter((r): r is TaskRow => r !== undefined));
   const follow = (key: EntityKey): void => {
-    const cell = { prev: client.entities.peek<TaskRow>(SESSION, key) as TaskRow | undefined, stop: () => {} };
+    const cell = { prev: flatRow(client.entities.peek<unknown>(SESSION, key)), stop: () => {} };
     cell.stop = effect(() => {
-      const next = client.entities.row<TaskRow>(SESSION, key)() as TaskRow | undefined;
+      const next = flatRow(client.entities.row<unknown>(SESSION, key)());
       // the first run only records where the row is: a reload doesn't announce every task again
       const prev = cell.prev;
       cell.prev = next;

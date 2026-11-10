@@ -67,6 +67,47 @@ async fn set(ctx: &Ctx, a: &wisp_goal_api::SetArgs) -> Result<Value> {
     Ok(view_of(&spec, Some(&st), task.get("createdAt").and_then(Value::as_i64).unwrap_or(0), at, &kinds::GoalSpec::default()).unwrap_or(Value::Null))
 }
 
+/// The new state of a task's goal for pause / resume / drop (pure: the handlers write what this gives).
+pub fn moved(st: Option<&GoalState>, to: &str, why: Option<&str>) -> GoalState {
+    let mut st = st.cloned().unwrap_or_default();
+    match to {
+        "paused" => {
+            "paused".clone_into(&mut st.state);
+            why.unwrap_or_default().clone_into(&mut st.why);
+        }
+        "cleared" => st = GoalState { state: "cleared".into(), ..GoalState::default() },
+        // going again: where it left off, without the pause's note
+        _ => {
+            st.state.clear();
+            st.why.clear();
+        }
+    }
+    st
+}
+
+/// `goal.pause` / `goal.resume` / `goal.drop`: the goal's state written, the band's view given back.
+async fn move_goal(ctx: &Ctx, a: &wisp_goal_api::TaskArgs, to: &str) -> Result<Value> {
+    let call = ctx.root_call();
+    let task = ctx.run_json(&call, "runtime.get", json!({ "id": a.id })).await?;
+    let had: Option<GoalState> = task.pointer("/ext/wisp.goal").and_then(|v| serde_json::from_value(v.clone()).ok());
+    let st = moved(had.as_ref(), to, a.why.as_deref());
+    ctx.run_json(&call, "runtime.setExt", json!({ "id": a.id, "plugin": PLUGIN, "value": st })).await?;
+    let spec = task.pointer("/ext/wisp.runtime/spec").cloned().unwrap_or_default();
+    Ok(view_of(&spec, Some(&st), task.get("createdAt").and_then(Value::as_i64).unwrap_or(0), task.get("updatedAt").and_then(Value::as_i64).unwrap_or(0), &kinds::GoalSpec::default()).unwrap_or(Value::Null))
+}
+
+/// `goal.check`: the last finished turn judged now (in the background; the band shows it as it lands).
+async fn check_now(ctx: &Ctx, defaults: &kinds::Defaults, id: &str) -> Result<Value> {
+    let turns = ctx.run_json(&ctx.root_call(), "runtime.turns", json!({ "id": id })).await?;
+    let last = turns.as_array().and_then(|t| t.iter().rev().find(|t| t.get("status").and_then(Value::as_str) == Some("done")).cloned());
+    let Some(turn) = last.and_then(|t| t.get("id").and_then(Value::as_str).map(str::to_owned)) else {
+        return Err(wisp_kernel::WireError::invalid("No finished turn to check yet."));
+    };
+    let (c, d, id) = (ctx.clone(), defaults.clone(), id.to_owned());
+    ctx.spawn(async move { judge_turn(&c, &d, &id, &turn).await });
+    Ok(json!({}))
+}
+
 /// A judge's run: its profile's harness and model, or the harness itself.
 async fn pick_of(ctx: &Ctx, judge: &str) -> Value {
     let profiles = ctx.run_json(&ctx.root_call(), "runtime.profiles", json!({})).await.unwrap_or_default();
@@ -96,8 +137,12 @@ async fn after(ctx: &Ctx, defaults: &kinds::Defaults, e: &TurnEnded) {
     if e.status != TurnStatus::Done {
         return;
     }
+    judge_turn(ctx, defaults, e.session_id.as_str(), e.turn_id.as_str()).await;
+}
+
+/// A turn's answer judged against the task's goal: met, another round, or past the limit a question.
+async fn judge_turn(ctx: &Ctx, defaults: &kinds::Defaults, id: &str, turn_id: &str) {
     let call = ctx.root_call();
-    let id = e.session_id.as_str();
     let Ok(task) = ctx.run_json(&call, "runtime.get", json!({ "id": id })).await else { return };
     if task.get("parentId").is_some_and(|p| !p.is_null()) {
         return;
@@ -106,12 +151,12 @@ async fn after(ctx: &Ctx, defaults: &kinds::Defaults, e: &TurnEnded) {
     let d = defaults.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
     let mut st: GoalState = task.pointer("/ext/wisp.goal").and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or_default();
     let Some(g) = goal_with(&spec, Some(&st), &d) else { return };
-    if st.state == "met" {
+    if matches!(st.state.as_str(), "met" | "paused") {
         return;
     }
     // a turn you started after a stall: a new count
     let turns = ctx.run_json(&call, "runtime.turns", json!({ "id": id })).await.unwrap_or_default();
-    let last = turns.as_array().and_then(|t| t.iter().find(|t| t.get("id").and_then(Value::as_str) == Some(e.turn_id.as_str())).cloned()).unwrap_or_default();
+    let last = turns.as_array().and_then(|t| t.iter().find(|t| t.get("id").and_then(Value::as_str) == Some(turn_id)).cloned()).unwrap_or_default();
     if st.state == "stalled" && last.get("by").and_then(Value::as_str) != Some(BY) {
         st.rounds = 0;
     }
@@ -153,6 +198,7 @@ pub fn view_of(spec: &Value, st: Option<&GoalState>, set_at: i64, at: i64, d: &k
     let st = st.cloned().unwrap_or_default();
     let status = match st.state.as_str() {
         "met" => "met",
+        "paused" => "paused",
         "stalled" => "out",
         "judging" => "checking",
         _ => "working",
@@ -209,6 +255,14 @@ impl Plugin for GoalPlugin {
         let summary: Arc<dyn wisp_runtime_api::points::SummaryField> = Arc::new(Summary { defaults: Arc::clone(&defaults) });
         s.contribute(&wisp_runtime_api::points::SUMMARY, summary);
         s.command::<wisp_goal_api::Set, _, _>(|ctx, _call, a| async move { set(&ctx, &a).await });
+        s.command::<wisp_goal_api::Pause, _, _>(|ctx, _call, a| async move { move_goal(&ctx, &a, "paused").await });
+        s.command::<wisp_goal_api::Resume, _, _>(|ctx, _call, a| async move { move_goal(&ctx, &a, "working").await });
+        s.command::<wisp_goal_api::Drop, _, _>(|ctx, _call, a| async move { move_goal(&ctx, &a, "cleared").await });
+        let dc = Arc::clone(&defaults);
+        s.command::<wisp_goal_api::Check, _, _>(move |ctx, _call, a| {
+            let d = dc.clone();
+            async move { check_now(&ctx, &d, &a.id).await }
+        });
         let d = Arc::clone(&defaults);
         s.on::<TurnEnded, _, _>(move |ctx, e| {
             let (d, e, c) = (d.clone(), e.clone(), ctx.clone());
@@ -260,6 +314,21 @@ mod tests {
         assert_eq!(goal_with(&spec, Some(&cleared), &d), None);
         assert_eq!(view_of(&spec, Some(&cleared), 1, 2, &d), None, "the band goes");
         assert_eq!(view_of(&spec, Some(&changed), 1, 2, &d).unwrap_or_default()["status"], "working");
+    }
+
+    /// Pause holds the goal with its note (no judging while paused), resume goes on where it was, drop clears it.
+    #[test]
+    fn goal_pause_resume_and_drop_move_its_state() {
+        let d = kinds::GoalSpec::default();
+        let spec = json!({ "goal": "tests pass", "agent": "claude" });
+        let was = GoalState { state: "again".into(), rounds: 2, ..GoalState::default() };
+        let paused = moved(Some(&was), "paused", Some("waiting on the API"));
+        assert_eq!((paused.state.as_str(), paused.rounds, paused.why.as_str()), ("paused", 2, "waiting on the API"));
+        assert_eq!(view_of(&spec, Some(&paused), 1, 2, &d).unwrap_or_default()["status"], "paused");
+        let resumed = moved(Some(&paused), "working", None);
+        assert_eq!((resumed.state.as_str(), resumed.rounds, resumed.why.as_str()), ("", 2, ""));
+        assert_eq!(view_of(&spec, Some(&resumed), 1, 2, &d).unwrap_or_default()["status"], "working");
+        assert_eq!(view_of(&spec, Some(&moved(Some(&resumed), "cleared", None)), 1, 2, &d), None);
     }
 
     #[test]

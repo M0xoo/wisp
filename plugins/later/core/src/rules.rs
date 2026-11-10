@@ -503,3 +503,28 @@ pub fn card_summary(p: &Plan, failed: bool, now: i64, tz: i32) -> String {
 pub fn card_title(text: &str) -> String {
     clip(text.lines().next().unwrap_or(""), 120)
 }
+
+/// Save for later / Unsave (`later.park`): `forLater` is `true` (saved now), a time (Undo puts the old one
+/// back), or `false`/absent (unsaved). `(saved, at)`.
+pub fn park_of(for_later: Option<&serde_json::Value>, now: i64) -> (bool, Option<i64>) {
+    match for_later {
+        Some(serde_json::Value::Bool(true)) => (true, Some(now)),
+        Some(serde_json::Value::Number(n)) => n.as_i64().filter(|n| *n > 0).map_or((false, None), |n| (true, Some(n))),
+        _ => (false, None),
+    }
+}
+
+#[cfg(test)]
+mod park_tests {
+    use super::park_of;
+    use serde_json::json;
+
+    #[test]
+    fn park_saves_now_or_at_the_old_time_and_false_unsaves() {
+        assert_eq!(park_of(Some(&json!(true)), 9), (true, Some(9)));
+        assert_eq!(park_of(Some(&json!(5)), 9), (true, Some(5)), "Undo puts back when it was saved");
+        assert_eq!(park_of(Some(&json!(false)), 9), (false, None));
+        assert_eq!(park_of(None, 9), (false, None));
+        assert_eq!(park_of(Some(&json!(0)), 9), (false, None));
+    }
+}

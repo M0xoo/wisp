@@ -16,6 +16,8 @@
     "runtime:get",
     "runtime:note",
     "runtime:setExt",
+    "runtime:forLater",
+    "runtime:setState",
     "store:write{owner:later}",
     "telemetry:track"
   ],
@@ -27,6 +29,10 @@
       {
         "id": "later.add",
         "title": "Schedule a follow-up or a reminder on a task"
+      },
+      {
+        "id": "later.park",
+        "title": "Save a task for later, or unsave it"
       },
       {
         "id": "later.list",

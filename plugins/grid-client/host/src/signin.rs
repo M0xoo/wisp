@@ -43,11 +43,12 @@ pub async fn start(st: &Arc<St>, a: &SignInArgs) -> Result<SignIn> {
     Ok(flow)
 }
 
-fn finish(st: &St, id: &str, state: &str, error: &str) {
+fn finish(st: &Arc<St>, id: &str, state: &str, error: &str) {
     if let Some(f) = lock(&st.flows).get_mut(id) {
         f.state = state.into();
         f.error = error.into();
     }
+    crate::view::publish(st);
 }
 
 async fn poll(st: Arc<St>, id: String, code: String, mut interval: u64, add_computer: bool) {
@@ -73,6 +74,7 @@ async fn poll(st: Arc<St>, id: String, code: String, mut interval: u64, add_comp
                         if let Some(f) = lock(&st.flows).get_mut(&id) {
                             (f.state, f.handle, f.machine) = ("done".into(), handle, machine);
                         }
+                        crate::view::publish(&st);
                     }
                     Err(err) => finish(&st, &id, "failed", &err.message),
                 }

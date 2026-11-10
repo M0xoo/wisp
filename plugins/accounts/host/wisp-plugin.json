@@ -13,7 +13,9 @@
     "runtime:release",
     "runtime:signInDone",
     "store:write{owner:accounts}",
-    "telemetry:track"
+    "telemetry:track",
+    "git:read",
+    "store:write{owner:accounts_view}"
   ],
   "activation": [
     "onStartup"

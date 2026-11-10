@@ -27,7 +27,8 @@ export const stop = defineCommand<{ key: EntityKey }>({
 });
 
 export const setMode = defineCommand<{ key: EntityKey; mode: Mode }>({
-  id: 'session.setMode',
+  id: 'runtime.setMode',
+  wire: (a) => ({ id: bare(a.key), mode: a.mode }),
   owner,
   optimistic: (base, a) => (has(base, a.key) ? [patch(a.key, [{ path: '/mode', value: a.mode }])] : []),
 });
@@ -62,9 +63,10 @@ export const allowRetry = defineCommand<{ key: EntityKey; tool?: string; detail?
 
 /** A one-click command from an `actions` block, run in the task's folder (v1 /exec). */
 export const exec = defineCommand<{ key: EntityKey; command: string }, { code: number; output: string }>({
-  id: 'session.exec',
+  id: 'runtime.exec',
+  wire: (a) => ({ id: bare(a.key), command: a.command }),
   owner,
-  optimistic: 'none', pending: 'the session.exec control',
+  optimistic: 'none', pending: 'the runtime.exec control',
 });
 
 export const markDone = defineCommand<{ key: EntityKey }>({
@@ -120,7 +122,8 @@ export const releaseHeld = defineCommand<{ key: EntityKey; turnId: string; actio
 
 /** Saves an `app` block's state (v1 /app-state). */
 export const appState = defineCommand<{ key: EntityKey; turnId: string; block: string; state: unknown }>({
-  id: 'session.appState',
+  id: 'runtime.appState',
+  wire: (a) => ({ id: bare(a.key), turnId: a.turnId, block: a.block, state: a.state }),
   owner,
-  optimistic: 'none', pending: 'the session.appState control',
+  optimistic: 'none', pending: 'the runtime.appState control',
 });

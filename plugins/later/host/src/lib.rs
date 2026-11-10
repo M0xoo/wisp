@@ -296,6 +296,15 @@ fn commands(s: &mut Setup, slot: &Slot) {
         st.mirror(&ctx, &call, &a.session_id).await;
         Ok(c::Empty {})
     });
+    on!(s, slot, c::Park, |_st, ctx, call, a| {
+        let (on, at) = rules::park_of(a.for_later.as_ref(), now(&ctx));
+        ctx.run_json(&call, "runtime.forLater", json!({ "id": a.session_id, "forLater": on, "at": at })).await?;
+        if let Some(state) = &a.state {
+            // Undo after Mark done puts the task's state back
+            ctx.run_json(&call, "runtime.setState", json!({ "id": a.session_id, "state": state })).await?;
+        }
+        Ok(c::Parked { for_later: at.filter(|_| on).map(|at| wisp_later_api::ForLater { at, by: a.by.clone().unwrap_or_else(|| "you".into()) }) })
+    });
     on!(s, slot, c::Plans, |st, _ctx, _call, _a| Ok(lock(&st.plans).clone()));
     on!(s, slot, c::GetPlan, |st, _ctx, _call, a| lock(&st.plans).iter().find(|p| p.id == a.id).cloned().ok_or_else(|| WireError::not_found("No such plan.")));
     on!(s, slot, c::MakePlan, |st, ctx, call, a| {

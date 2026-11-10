@@ -19,12 +19,12 @@ export function needsList(rows: readonly TaskRow[]): TaskRow[] {
 
 /** The word in the row's state column, as a catalogue key. */
 export function stateKey(r: TaskRow): string {
-  if (r.question) return 'home.state.asking';
-  if (r.approval) return 'home.state.approval';
-  if (r.reminder) return 'home.state.reminder';
-  if (r.state === 'error') return 'home.state.error';
-  if (r.status === 'blocked') return 'home.state.blocked';
-  return r.state === 'done' ? 'home.state.done' : 'home.state.ready';
+  if (r.question) return 'shell-home.state.asking';
+  if (r.approval) return 'shell-home.state.approval';
+  if (r.reminder) return 'shell-home.state.reminder';
+  if (r.state === 'error') return 'shell-home.state.error';
+  if (r.status === 'blocked') return 'shell-home.state.blocked';
+  return r.state === 'done' ? 'shell-home.state.done' : 'shell-home.state.ready';
 }
 
 /** The pill's tone for that word. */
