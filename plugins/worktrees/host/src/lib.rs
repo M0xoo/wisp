@@ -9,6 +9,7 @@ pub mod done;
 pub mod engine;
 pub mod error;
 pub mod fsx;
+pub mod pane;
 pub mod ports;
 mod files;
 mod runtime_port;
@@ -64,6 +65,8 @@ pub struct State {
     built: OnceCell<Parts>,
     /// a sweep is already due a few minutes after a new folder took the count past the cap
     pub cap_pending: std::sync::atomic::AtomicBool,
+    /// Bring in's offers as last looked for (git worktree list per project is not run per refresh)
+    pub offers: tokio::sync::Mutex<Vec<api::Offer>>,
 }
 
 impl std::fmt::Debug for State {
@@ -88,6 +91,7 @@ impl State {
             plugin,
             built: OnceCell::new(),
             cap_pending: false.into(),
+            offers: tokio::sync::Mutex::new(Vec::new()),
         })
     }
 
@@ -102,7 +106,25 @@ impl State {
             plugin,
             built: OnceCell::new_with(Some((engine, cleanup, port))),
             cap_pending: false.into(),
+            offers: tokio::sync::Mutex::new(Vec::new()),
         })
+    }
+
+    /// Looks for Bring in offers again (every declared project's worktrees).
+    pub async fn look_for_offers(&self, ctx: &Ctx) {
+        let Ok((e, _, p)) = self.parts(ctx).await else { return };
+        let found = pane::offers(&e, p.as_ref(), &ctx.root_call()).await;
+        *self.offers.lock().await = found;
+    }
+
+    /// Republishes the pane's rows (`pane::publish`) from the last look and the offers.
+    pub async fn refresh(&self, ctx: &Ctx) {
+        let (Ok((_, c, _)), Ok(store)) = (self.parts(ctx).await, ctx.service::<wisp_store::Store>()) else { return };
+        let view = c.view(false).await;
+        let offers = self.offers.lock().await.clone();
+        if let Err(e) = pane::publish(&store, &view, &offers).await {
+            tracing::warn!(error = %e, "worktrees: publishing the pane's rows");
+        }
     }
 
     pub async fn parts(&self, ctx: &Ctx) -> WireResult<(Arc<Engine>, Arc<Cleanup>, Arc<dyn Port>)> {
@@ -170,7 +192,20 @@ impl Plugin for WorktreesPlugin {
         );
         let start_st = st;
         s.on_start(move |ctx| async move {
+            if let Ok(store) = ctx.service::<wisp_store::Store>() {
+                pane::install(&store).map_err(|e| WireError::internal(e.to_string()))?;
+            }
             let (engine, cleanup, port) = start_st.parts(&ctx).await?;
+            // the pane's rows: now, and each time a look ends or a clean-up moves
+            let (pub_st, pub_ctx, changed) = (start_st.clone(), ctx.clone(), cleanup.clone());
+            ctx.spawn(async move {
+                pub_st.look_for_offers(&pub_ctx).await;
+                pub_st.refresh(&pub_ctx).await;
+                loop {
+                    changed.changed.notified().await;
+                    pub_st.refresh(&pub_ctx).await;
+                }
+            });
             let mut set = port.settings().await;
             if set.cleanup_from == 0 {
                 set.cleanup_from = engine.clock.now_ms();

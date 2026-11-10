@@ -21,7 +21,7 @@ export function fmtSize(n: number): string {
 /** A task's folders and the leftovers, as one list (v1 entries()); keys never collide. */
 export function entries(items: readonly WorktreeItem[], leftovers: readonly Leftover[]): Entry[] {
   const tasks: Entry[] = items.map((x) => ({ ...x, key: `t:${x.id}`, left: false }));
-  const left: Entry[] = leftovers.map((x) => ({ key: `l:${x.name}`, left: true, name: x.name, title: x.name, status: (x.only ?? 0) > 0 ? 'dirty' : 'left', only: x.only, size: x.size, usedAt: x.usedAt }));
+  const left: Entry[] = leftovers.map((x) => ({ key: `l:${x.name}`, left: true, name: x.name, title: x.name, status: (x.only ?? 0) > 0 ? 'dirty' : 'left', only: x.only, size: x.size, used_at: x.used_at }));
   return [...tasks, ...left];
 }
 
@@ -38,7 +38,7 @@ export function matches(filter: Filter, x: Entry): boolean {
 }
 
 /** Biggest first, then the longest unused: what's worth removing is on top. */
-export const bySize = (a: Entry, b: Entry): number => (b.size ?? 0) - (a.size ?? 0) || a.usedAt - b.usedAt;
+export const bySize = (a: Entry, b: Entry): number => (b.size ?? 0) - (a.size ?? 0) || a.used_at - b.used_at;
 
 export function counts(list: readonly Entry[]): Record<Filter, number> {
   const out: Record<Filter, number> = { all: 0, dirty: 0, kept: 0, left: 0 };
@@ -48,7 +48,7 @@ export function counts(list: readonly Entry[]): Record<Filter, number> {
 
 /** What Clean up now takes: idle, and untouched for a day (the server's MIN_IDLE). */
 export function ready(items: readonly WorktreeItem[], now: number): WorktreeItem[] {
-  return items.filter((x) => x.status === 'idle' && now - x.usedAt >= DAY);
+  return items.filter((x) => x.status === 'idle' && now - x.used_at >= DAY);
 }
 
 /** The state column: why it stays, or when it goes. */
@@ -57,8 +57,8 @@ export function statusText(x: Entry, now: number): string {
   if (x.status === 'dirty') return t('worktrees.state.dirty', { count: x.only });
   if (x.status === 'checking') return '';
   if (x.status !== 'idle') return t(`worktrees.state.${x.status}`);
-  if (x.cleanAt === null) return t('worktrees.state.idle');
-  const days = Math.ceil((x.cleanAt - now) / DAY);
+  if (x.clean_at === null) return t('worktrees.state.idle');
+  const days = Math.ceil((x.clean_at - now) / DAY);
   return days > 1 ? t('worktrees.state.goes-in', { count: days }) : t('worktrees.state.goes-next');
 }
 

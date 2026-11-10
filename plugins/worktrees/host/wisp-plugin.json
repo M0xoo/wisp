@@ -14,6 +14,7 @@
   },
   "provides": {},
   "permissions": [
+    "telemetry:track",
     "git:repo",
     "git:read",
     "git:status",
@@ -28,7 +29,11 @@
     "proc:exec{bin:sh}",
     "runtime:list",
     "runtime:get",
-    "runtime:setExt"
+    "runtime:setExt",
+    "runtime:sessions",
+    "runtime:adopt",
+    "runtime:adoptSession",
+    "resources:read"
   ],
   "activation": [
     "onStartup"
@@ -68,6 +73,18 @@
       {
         "id": "worktrees.clean",
         "title": "Remove worktrees by hand"
+      },
+      {
+        "id": "worktrees.keep",
+        "title": "Keep a task's worktree, or stop keeping it"
+      },
+      {
+        "id": "worktrees.bringIn",
+        "title": "Bring in worktrees another tool left in a project, as tasks"
+      },
+      {
+        "id": "worktrees.dismiss",
+        "title": "Stop offering a project's other worktrees (Not now)"
       },
       {
         "id": "worktrees.sweep",

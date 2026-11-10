@@ -233,6 +233,62 @@ impl Command for TrustPending {
     type Out = Option<Pending>;
 }
 
+// ---------- the Settings → Worktrees pane's own writes ----------
+
+/// Keep (pin) a task's worktree, or stop keeping it (v1 PATCH /sessions/:id { keepWorktree }).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeepArgs {
+    pub id: String,
+    pub keep: bool,
+}
+
+#[derive(Debug)]
+pub struct Keep;
+impl Command for Keep {
+    const ID: &'static str = "worktrees.keep";
+    type Args = KeepArgs;
+    type Out = ();
+}
+
+/// Bring in worktrees another tool left in a project (v1 POST /projects/:id/foreign-worktrees): each path
+/// becomes a task in that folder, marked foreign so wisp's cleanup never touches it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BringInArgs {
+    /// the project's name
+    pub project: String,
+    pub paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BringInOut {
+    /// the new tasks' ids
+    pub created: Vec<String>,
+    /// paths that aren't one of the offer's (gone, or already a task's)
+    pub skipped: Vec<String>,
+}
+
+#[derive(Debug)]
+pub struct BringIn;
+impl Command for BringIn {
+    const ID: &'static str = "worktrees.bringIn";
+    type Args = BringInArgs;
+    type Out = BringInOut;
+}
+
+/// Not now: the project's offer goes and isn't made again (v1 POST …/foreign-worktrees/dismiss).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DismissArgs {
+    pub project: String,
+}
+
+#[derive(Debug)]
+pub struct Dismiss;
+impl Command for Dismiss {
+    const ID: &'static str = "worktrees.dismiss";
+    type Args = DismissArgs;
+    type Out = ();
+}
+
 // ---------- events ----------
 
 /// A new folder: sizes are stale, and past the cap a sweep comes a few minutes on.

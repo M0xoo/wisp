@@ -28,7 +28,7 @@ function Row(props: { readonly x: Entry; readonly list: ListProps }): JSX.Elemen
   const meta = (): string => {
     const e = x();
     const where = e.left ? [t('worktrees.row.no-task')] : [e.project, e.branch];
-    return [...where, e.usedAt ? props.list.ago(e.usedAt) : ''].filter(Boolean).join(' · ');
+    return [...where, e.used_at ? props.list.ago(e.used_at) : ''].filter(Boolean).join(' · ');
   };
   const state = (): string => statusText(x(), props.list.now);
   const kept = (): boolean => x().status === 'kept';

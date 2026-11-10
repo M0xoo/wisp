@@ -24,6 +24,7 @@ export const STATUS_ID = 'status';
 /** Why a task's folder stays, or `idle`: it can go (v1 standing()). */
 export type ItemStatus = 'idle' | 'dirty' | 'busy' | 'kept' | 'parked' | 'pr' | 'unreadable' | 'checking';
 
+/** A `worktrees.item` row: the server's columns (snake case where two words). */
 export interface WorktreeItem {
   readonly id: string;
   readonly title: string;
@@ -34,9 +35,9 @@ export interface WorktreeItem {
   readonly only: number;
   /** bytes; null where there's no du */
   readonly size: number | null;
-  readonly usedAt: number;
+  readonly used_at: number;
   /** when the cleanup takes it (idle only) */
-  readonly cleanAt: number | null;
+  readonly clean_at: number | null;
 }
 
 export interface Leftover {
@@ -44,7 +45,7 @@ export interface Leftover {
   readonly size: number | null;
   /** null: git can't tell */
   readonly only: number | null;
-  readonly usedAt: number;
+  readonly used_at: number;
 }
 
 export interface WorktreesStatus {
@@ -81,7 +82,7 @@ export interface Offer {
 /** One row of the list: a task's folders or a leftover, as v1's entries() built them. */
 export type Entry =
   | (WorktreeItem & { readonly key: string; readonly left: false })
-  | { readonly key: string; readonly left: true; readonly name: string; readonly title: string; readonly status: 'dirty' | 'left'; readonly only: number | null; readonly size: number | null; readonly usedAt: number };
+  | { readonly key: string; readonly left: true; readonly name: string; readonly title: string; readonly status: 'dirty' | 'left'; readonly only: number | null; readonly size: number | null; readonly used_at: number };
 
 export type Filter = 'all' | 'dirty' | 'kept' | 'left';
 

@@ -8,6 +8,7 @@ import { KIND, type BringInArgs, type CleanArgs, type DismissArgs, type KeepArgs
 export const clean = defineCommand<CleanArgs>({
   id: 'worktrees.clean',
   owner: (a) => a.peer,
+  wire: ({ peer: _p, ...rest }) => rest,
   optimistic: (_base, a): LocalOp[] => [
     ...(a.ids ?? []).map((id): LocalOp => ({ e: KIND.item, id: entityKey(a.peer, id), op: 'del' })),
     ...(a.leftovers ?? []).map((name): LocalOp => ({ e: KIND.leftover, id: entityKey(a.peer, name), op: 'del' })),
@@ -18,6 +19,7 @@ export const clean = defineCommand<CleanArgs>({
 export const keep = defineCommand<KeepArgs>({
   id: 'worktrees.keep',
   owner: (a) => entityKey(a.peer, a.id),
+  wire: (a) => ({ id: a.id, keep: a.keep }),
   optimistic: (base: EntityReader, a): LocalOp[] => {
     const id = entityKey(a.peer, a.id);
     if (!base.peek<WorktreeItem>(KIND.item, id)) return [];
@@ -29,6 +31,7 @@ export const keep = defineCommand<KeepArgs>({
 export const bringIn = defineCommand<BringInArgs>({
   id: 'worktrees.bringIn',
   owner: (a) => a.peer,
+  wire: (a) => ({ project: a.project, paths: a.paths }),
   dedupe: (a) => a.project, // a double click is the first click (v1 `held`)
   optimistic: (_base, a): LocalOp[] => [{ e: KIND.offer, id: entityKey(a.peer, a.project), op: 'del' }],
 });
@@ -37,6 +40,7 @@ export const bringIn = defineCommand<BringInArgs>({
 export const dismiss = defineCommand<DismissArgs>({
   id: 'worktrees.dismiss',
   owner: (a) => a.peer,
+  wire: (a) => ({ project: a.project }),
   dedupe: (a) => a.project,
   optimistic: (_base, a): LocalOp[] => [{ e: KIND.offer, id: entityKey(a.peer, a.project), op: 'del' }],
 });

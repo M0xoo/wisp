@@ -54,6 +54,8 @@ pub struct Cleanup {
     queue: Mutex<VecDeque<Job>>,
     cleaning: std::sync::Mutex<Option<Progress>>,
     scanning: Mutex<()>,
+    /// a look ended or a clean-up moved: the pane's rows are republished (`pane::publish`)
+    pub changed: tokio::sync::Notify,
 }
 
 impl std::fmt::Debug for Cleanup {
@@ -89,6 +91,7 @@ impl Cleanup {
             queue: Mutex::new(VecDeque::new()),
             cleaning: std::sync::Mutex::new(None),
             scanning: Mutex::new(()),
+            changed: tokio::sync::Notify::new(),
         })
     }
 
@@ -100,6 +103,7 @@ impl Cleanup {
         if let Ok(mut c) = self.cleaning.lock() {
             *c = v;
         }
+        self.changed.notify_one();
     }
 
     /// A new folder: sizes are stale.
@@ -193,6 +197,7 @@ impl Cleanup {
         s.leftovers = leftovers;
         s.disk = disk.or(s.disk);
         s.at = self.engine.clock.now_ms().max(1);
+        self.changed.notify_one();
     }
 
     async fn look_all(

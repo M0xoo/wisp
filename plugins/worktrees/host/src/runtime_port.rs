@@ -8,9 +8,11 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::Value;
 use wisp_kernel::{BoxFuture, Ctx};
-use wisp_runtime_api::commands::{Get, IdArgs, List, ListArgs, SetExt, SetExtArgs};
+use wisp_runtime_api::commands::{AdoptSession, AdoptSessionArgs, Get, IdArgs, List, ListArgs, Sessions, SessionsArgs, SetExt, SetExtArgs};
+use wisp_runtime_api::spec::AdoptArgs;
+use wisp_runtime_api::commands::Adopt;
 use wisp_runtime_api::model::SessionState;
-use wisp_worktrees_api::{EXT, Worktree};
+use wisp_worktrees_api::{EXT, OfferItem, Worktree};
 
 use crate::ports::{Port, TaskInfo, TaskTree, WtSettings};
 
@@ -99,9 +101,52 @@ impl Port for RuntimePort {
 
     fn save_settings(&self, s: WtSettings) -> BoxFuture<'static, ()> {
         if let Ok(mut cur) = self.state.lock() {
-            (cur.cleanup_from, cur.last, cur.trust) = (s.cleanup_from, s.last, s.trust);
+            (cur.cleanup_from, cur.last, cur.trust, cur.dismissed) = (s.cleanup_from, s.last, s.trust, s.dismissed);
         }
         Box::pin(async {})
+    }
+
+    fn projects(&self) -> BoxFuture<'static, Vec<(String, String)>> {
+        let ctx = self.ctx.clone();
+        Box::pin(async move {
+            let call = ctx.root_call();
+            let Ok(list) = ctx.run::<wisp_resources_api::Export>(&call, wisp_resources_api::ExportArgs { kinds: vec!["project".into()], include: Vec::new() }).await else { return Vec::new() };
+            list.into_iter()
+                .filter(|r| r.kind == "project")
+                .filter_map(|r| r.spec.get("path").and_then(Value::as_str).filter(|p| p.starts_with('/') || p.contains(":\\")).map(|p| (r.name.clone(), p.to_owned())))
+                .collect()
+        })
+    }
+
+    fn chat_in(&self, path: String) -> BoxFuture<'static, bool> {
+        let ctx = self.ctx.clone();
+        Box::pin(async move { ctx.run::<Sessions>(&ctx.root_call(), SessionsArgs { cwd: path }).await.is_ok_and(|v| !v.is_empty()) })
+    }
+
+    fn bring_in(&self, item: OfferItem, root: String) -> BoxFuture<'static, Option<String>> {
+        let ctx = self.ctx.clone();
+        Box::pin(async move {
+            let call = ctx.root_call();
+            // a chat that ran there: that session, carried on in its CLI; else an empty task in the folder
+            let chat = ctx.run::<Sessions>(&call, SessionsArgs { cwd: item.path.clone() }).await.ok().and_then(|v| v.into_iter().next());
+            let made = match chat {
+                Some(c) => ctx.run::<AdoptSession>(&call, AdoptSessionArgs { harness: c.harness, id: c.id }).await,
+                None => ctx.run::<Adopt>(&call, AdoptArgs { title: item.branch.clone(), cwd: item.path.clone(), ..AdoptArgs::default() }).await,
+            };
+            let id = match made {
+                Ok(c) => c.id,
+                Err(e) => {
+                    tracing::warn!(error = %e.message, path = %item.path, "worktrees: bringing in a worktree");
+                    return None;
+                }
+            };
+            let wt = Worktree { path: item.path.clone(), cwd: item.path, branch: item.branch, root, foreign: true, ..Worktree::default() };
+            let value = serde_json::to_value(&wt).unwrap_or(Value::Null);
+            if let Err(e) = ctx.run::<SetExt>(&call, SetExtArgs { id: id.clone(), plugin: EXT.into(), value }).await {
+                tracing::warn!(error = %e.message, "worktrees: marking a brought-in worktree");
+            }
+            Some(id.0)
+        })
     }
 }
 

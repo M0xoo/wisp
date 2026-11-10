@@ -25,6 +25,7 @@ pub mod changes;
 pub mod done;
 pub mod include;
 pub mod naming;
+pub mod offer;
 pub mod removal;
 pub mod setup;
 pub mod sweep;

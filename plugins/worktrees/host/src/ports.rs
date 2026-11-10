@@ -51,6 +51,8 @@ pub struct WtSettings {
     pub cleanup_from: i64,
     pub last: Option<CleanedRecord>,
     pub trust: TrustState,
+    /// projects whose Bring in offer was dismissed (Not now)
+    pub dismissed: Vec<String>,
 }
 
 pub trait Port: Send + Sync + 'static {
@@ -62,6 +64,18 @@ pub trait Port: Send + Sync + 'static {
     fn machine_short(&self) -> bool {
         false
     }
+    /// the declared projects, (name, folder): where Bring in looks
+    fn projects(&self) -> BoxFuture<'static, Vec<(String, String)>> {
+        Box::pin(async { Vec::new() })
+    }
+    /// a harness session ran outside wisp in this folder (a chat Bring in resumes)
+    fn chat_in(&self, _path: String) -> BoxFuture<'static, bool> {
+        Box::pin(async { false })
+    }
+    /// make a task in another tool's worktree (marked foreign: the cleanup never touches it); its id
+    fn bring_in(&self, _item: wisp_worktrees_api::OfferItem, _root: String) -> BoxFuture<'static, Option<String>> {
+        Box::pin(async { None })
+    }
 }
 
 /// An in-memory port: tests, and a headless install without runtime.
@@ -70,6 +84,9 @@ pub struct MemPort {
     pub tasks: Mutex<Vec<TaskInfo>>,
     pub settings: Mutex<WtSettings>,
     pub short: std::sync::atomic::AtomicBool,
+    pub projects: Mutex<Vec<(String, String)>>,
+    /// what `bring_in` made: (path, root)
+    pub brought: Mutex<Vec<(String, String)>>,
 }
 
 impl MemPort {
@@ -78,6 +95,8 @@ impl MemPort {
             tasks: Mutex::new(tasks),
             settings: Mutex::new(settings),
             short: false.into(),
+            projects: Mutex::new(Vec::new()),
+            brought: Mutex::new(Vec::new()),
         })
     }
 }
@@ -107,5 +126,16 @@ impl Port for MemPort {
     }
     fn machine_short(&self) -> bool {
         self.short.load(std::sync::atomic::Ordering::Relaxed)
+    }
+    fn projects(&self) -> BoxFuture<'static, Vec<(String, String)>> {
+        let v = self.projects.lock().map(|p| p.clone()).unwrap_or_default();
+        Box::pin(async move { v })
+    }
+    fn bring_in(&self, item: wisp_worktrees_api::OfferItem, root: String) -> BoxFuture<'static, Option<String>> {
+        let id = self.brought.lock().ok().map(|mut b| {
+            b.push((item.path.clone(), root));
+            format!("brought-{}", b.len())
+        });
+        Box::pin(async move { id })
     }
 }

@@ -197,6 +197,35 @@ pub struct WorktreesView {
     pub last: Option<CleanedRecord>,
 }
 
+/// One worktree another tool left in a project, as Bring in offers it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "worktrees/")]
+pub struct OfferItem {
+    pub path: String,
+    pub branch: String,
+    /// the folder's name
+    pub name: String,
+    /// uncommitted files
+    pub dirty: u32,
+    /// a Claude Code chat to resume in it
+    pub chat: bool,
+}
+
+/// A project's worktrees no wisp task knows (v1 bring-in.js): one offer per project, until brought in or
+/// dismissed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "worktrees/")]
+pub struct Offer {
+    /// the project's name (its id)
+    pub project: String,
+    pub name: String,
+    /// the tool that left them: `Conductor`, else `git`
+    pub from: String,
+    pub items: Vec<OfferItem>,
+    /// worktrees with no branch: they can't be brought in
+    pub detached: u32,
+}
+
 // ---------- Done asks about the worktree ----------
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
