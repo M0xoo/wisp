@@ -286,7 +286,9 @@ fn main() {
     // First: a second launch must stop here, before it starts anything.
     .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
     .plugin(tauri_plugin_dialog::init())
-    .plugin(tauri_plugin_opener::init())
+    // Without its click script: that one sends every http(s) target=_blank click to an IPC call the
+    // page isn't granted, and the click did nothing. Clicks go where window.open goes, open_outside.
+    .plugin(tauri_plugin_opener::Builder::new().open_js_links_on_click(false).build())
     .plugin(tauri_plugin_notification::init())
     .manage(Server::default())
     .invoke_handler(tauri::generate_handler![pick_folder, start_drag, zoom_window, notify::notify_show])
