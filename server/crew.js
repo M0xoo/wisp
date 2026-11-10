@@ -604,9 +604,10 @@ export class Crew {
   // run: this job's own model, effort or mode ("@ada with opus plan: …"). thread: the channel thread
   // it came from ({ channel, chat, message, ack }), which its answer goes back to. Both stay with a
   // job that waits in the queue, restarts included.
-  async assign(m, { prompt, job = 'task', from = null, origin = null, attachments = [], reply = null, wake = false, tagged = [], kit = false, event = '', unattended = false, confirmLimit, run = null, thread = null, capped = null } = {}) {
+  // picked: run is what you picked in wisp's own prompt box for this job, harness included.
+  async assign(m, { prompt, job = 'task', from = null, origin = null, attachments = [], reply = null, wake = false, tagged = [], kit = false, event = '', unattended = false, confirmLimit, run = null, picked = false, thread = null, capped = null } = {}) {
     if (!JOBS.has(job)) job = 'task';
-    run = this.#jobRun(m, run);
+    run = this.#jobRun(m, run, picked);
     const text = String(prompt || '').trim() || (job === 'checkin' ? checkinPrompt(m, { wake }) : '');
     if (!text) throw bad('Tell them what to do.');
     const extra = tagged.filter((x) => x.id !== m.id).map((x) => taggedDelegate(x, 'job'));
@@ -621,15 +622,19 @@ export class Crew {
     return { session: await this.#start(m, w, { now: true }) };
   }
 
-  // One job's run, checked here as well as in the grammar: whoever calls this, a member keeps its
-  // harness (its kit and memory are made for it), and Auto picks its own model.
-  #jobRun(m, run) {
-    if (!run) return null;
-    if (run.agent && run.agent !== m.agent) throw bad(`${m.name} stays on ${adapters[m.agent]?.name || m.agent}: a job can’t change harness.`);
-    if (m.agent === 'auto' && (run.model || run.effort)) throw bad(`${m.name} is on Auto, which picks the model itself.`);
+  // One job's run, checked here as well as in the grammar: a member keeps its harness (its kit and
+  // memory are made for it) unless you picked another for this job in wisp's prompt box (picked),
+  // and Auto picks its own model.
+  #jobRun(m, run, picked = false) {
+    if (!run || typeof run !== 'object') return null;
+    const swap = !!run.agent && run.agent !== m.agent;
+    if (swap && !picked) throw bad(`${m.name} stays on ${adapters[m.agent]?.name || m.agent}: a job can’t change harness.`);
+    if (swap && run.agent !== 'auto' && !adapters[run.agent]) throw bad(`No harness “${String(run.agent).slice(0, 40)}”.`);
+    const agent = swap ? run.agent : m.agent;
+    if (agent === 'auto' && (run.model || run.effort)) throw bad(agent === m.agent ? `${m.name} is on Auto, which picks the model itself.` : 'Auto picks the model itself.');
     if (run.mode !== undefined && !MODES.has(run.mode)) throw bad('mode must be plan, edits or auto.');
     if (run.effort !== undefined && !/^[\w-]{1,20}$/.test(run.effort)) throw bad('That thinking level isn’t one.');
-    const out = { ...(run.model && { model: String(run.model).slice(0, 120) }), ...(run.effort && { effort: run.effort }), ...(run.mode && { mode: run.mode }) };
+    const out = { ...(swap && { agent }), ...(run.model && { model: String(run.model).slice(0, 120) }), ...(run.effort && { effort: run.effort }), ...(run.mode && { mode: run.mode }) };
     return Object.keys(out).length ? out : null;
   }
 
@@ -645,7 +650,9 @@ export class Crew {
 
   // What launch gets for job w of member m.
   #bodyFor(m, w) {
-    return { prompt: w.prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: w.run?.model || m.model || undefined, effort: w.run?.effort || m.effort || undefined, mode: w.run?.mode || m.mode, attachments: w.attachments || [], ...(w.capped && { capped: w.capped }), ...this.#teamFor(m, w.job, w.team) };
+    // Another harness for this job: the member's model and level are the member's harness's, so they stay behind.
+    const own = !w.run?.agent;
+    return { prompt: w.prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: w.run?.agent || m.agent, model: w.run?.model || (own && m.model) || undefined, effort: w.run?.effort || (own && m.effort) || undefined, mode: w.run?.mode || m.mode, attachments: w.attachments || [], ...(w.capped && { capped: w.capped }), ...this.#teamFor(m, w.job, w.team) };
   }
 
   // now: you're there (assign), so a job of yours near the limit is asked about rather than held.

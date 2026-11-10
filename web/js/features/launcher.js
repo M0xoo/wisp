@@ -272,6 +272,7 @@ export function renderLauncher() {
     if (forRow.dataset.h !== html) (forRow.innerHTML = html), (forRow.dataset.h = html);
     forRow.hidden = !m;
     forRow.classList.toggle('off', !!m && !forWho());
+    box.paintRun?.();
   };
   forRow.onclick = (e) => {
     if (!e.target.closest('.att-x')) return;
@@ -341,10 +342,29 @@ export function renderLauncher() {
   let curEffort = savedEffort(agent?.id, curModel);
   let curAccount = savedAccount(agent?.id); // '' is Auto: wisp picks
   const runnerBtn = $('#runner', box);
+  // A prompt for one crew member (the rail's pick, or "@Ada …"): the picker shows their harness,
+  // and what you pick there is for their job only (crewRun on the launch), not your own default.
+  let crewRun = null; // { id, agent, model, effort }
+  const jobFor = () => {
+    const a = addressedTo(forWho() || ta.value);
+    return a.members.length === 1 && terminalAsk(a.rest) === null ? a.members[0] : null;
+  };
+  const memberRun = (m) => (crewRun?.id === m.id ? crewRun : { id: m.id, agent: m.agent || 'auto', model: m.model || '', effort: m.effort || '' });
+  let runKey = '';
   const paintRunner = () => {
-    paintRunnerBtn(runnerBtn, agent?.id, curModel, curEffort, curAccount);
-    runnerBtn.title = compare.length || agent?.id === 'auto' ? runnerTip(agent?.id, curModel, curEffort, curAccount) : `Harness, model and thinking level${curEffort ? `\nThinking: ${effortLabel(curEffort)}` : ''}`;
+    const m = jobFor();
+    const r = m && memberRun(m);
+    runKey = m ? `${r.id}:${r.agent}:${r.model}:${r.effort}` : '';
+    if (r) paintRunnerBtn(runnerBtn, r.agent, r.model, r.effort, '');
+    else paintRunnerBtn(runnerBtn, agent?.id, curModel, curEffort, curAccount);
+    runnerBtn.title = r ? `${m.name}’s harness, model and thinking level: a change is for this job only` : compare.length || agent?.id === 'auto' ? runnerTip(agent?.id, curModel, curEffort, curAccount) : `Harness, model and thinking level${curEffort ? `\nThinking: ${effortLabel(curEffort)}` : ''}`;
     paintTry();
+  };
+  // Typing (or a rail pick) moves the prompt to or from a member: repaint only when that changes.
+  box.paintRun = () => {
+    const m = jobFor();
+    const r = m && memberRun(m);
+    if ((m ? `${r.id}:${r.agent}:${r.model}:${r.effort}` : '') !== runKey) paintRunner();
   };
 
   launcherGoal(box, ta);
@@ -522,7 +542,15 @@ export function renderLauncher() {
       });
     },
   });
-  runnerBtn.onclick = () => runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, account: curAccount, savedModel, savedEffort, places: launch.where, auto: true, back: ta }, pickRun);
+  runnerBtn.onclick = () => {
+    const m = jobFor();
+    if (!m) return runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, account: curAccount, savedModel, savedEffort, places: launch.where, auto: true, back: ta }, pickRun);
+    const r = memberRun(m);
+    runnerPicker(runnerBtn, { agent: r.agent, model: r.model, effort: r.effort, savedModel, savedEffort, places: [m.sandbox ? 'sandbox' : m.machine || ''], auto: true, back: ta }, (id, model, effort) => {
+      crewRun = { id: m.id, agent: id, model: model || '', effort: effort || '' };
+      paintRunner();
+    });
+  };
   // Spells: set the pickers (setLaunch), or launch once with other settings (launchWith). The
   // spare-allowance card (split.js) sets the harness and its account the same way.
   box.spellSet = (v) => {
@@ -748,8 +776,8 @@ export function renderLauncher() {
     }
     if (!confirm) {
       const first = over?.agent ? { agent: over.agent, account: savedAccount(over.agent) } : { agent: agent?.id, account: curAccount };
-      // "@Ada …" runs on Ada's harness, here (one on another computer: the server asks there).
-      const runs = toCrew.length ? toCrew.filter((m) => !m.machine).map((m) => ({ agent: m.agent, account: '', here: true })) : [first, ...compare];
+      // "@Ada …" runs on Ada's harness (or the one picked for this job), here (one on another computer: the server asks there).
+      const runs = toCrew.length ? toCrew.filter((m) => !m.machine).map((m) => ({ agent: toCrew.length === 1 ? memberRun(m).agent : m.agent, account: '', here: true })) : [first, ...compare];
       // Runs of this launch on one account go at once, so they're summed (a crew job goes on its own).
       const together = (r) => (r.here ? 1 : runs.filter((x) => x.agent === r.agent && (x.account || '') === (r.account || '')).length);
       for (const t of targets) {
@@ -770,6 +798,10 @@ export function renderLauncher() {
     const cmp = compare;
     const runner = over?.agent ? { agent: over.agent, model: over.model ?? savedModel(over.agent), effort: over.effort ?? '', account: savedAccount(over.agent) } : { agent: agent?.id || 'claude', model: curModel, effort: curEffort, account: curAccount };
     const launchMode = over?.mode || curMode;
+    // The harness picked for one member's job, when it isn't just theirs.
+    const own = toCrew.length === 1 && memberRun(toCrew[0]);
+    const mine = own && toCrew[0];
+    const jobRun = own && (own.agent !== (mine.agent || 'auto') || own.model !== (mine.model || '') || own.effort !== (mine.effort || '')) ? { agent: own.agent, ...(own.agent !== 'auto' && own.model && { model: own.model }), ...(own.agent !== 'auto' && own.effort && { effort: own.effort }) } : undefined;
     // What Auto showed is what runs (autoPin); something else picked after it showed is a correction.
     const pin = !over && runner.agent === 'auto' ? pv.shown()?.pick.key : undefined;
     const corrected = !over && runner.agent !== 'auto' ? override : null;
@@ -777,7 +809,7 @@ export function renderLauncher() {
     const goalBack = box.goalTaken?.(goal) || (() => {});
     // A repo still cloning gets a stand-in project; its card says so until the clone lands.
     const fetching = (t) => t.k && [t.project, ...t.also].some((p) => p && !p.scratch && !pathAt(p, t.k)); // not on that machine yet
-    const pending = targets.map((t) => addPending(toCrew.length ? addr.rest : toSend, t.project ? t : { ...t, project: { id: t.clone.id, name: t.clone.name, path: '', color: 'slate' } }, runner, t.clone ? `Cloning ${t.clone.label}` : fetching(t) ? `Cloning ${t.project.name} on ${placeName(t.k)}` : typedSandbox !== null ? 'Starting a sandbox' : undefined));
+    const pending = targets.map((t) => addPending(toCrew.length ? addr.rest : toSend, t.project ? t : { ...t, project: { id: t.clone.id, name: t.clone.name, path: '', color: 'slate' } }, own ? { agent: own.agent, model: own.model, effort: own.effort } : runner, t.clone ? `Cloning ${t.clone.label}` : fetching(t) ? `Cloning ${t.project.name} on ${placeName(t.k)}` : typedSandbox !== null ? 'Starting a sandbox' : undefined));
     // A terminal session (/terminal, or Settings → General) opens at once, still starting up: its
     // terminal is where you carry on, so there's nothing to wait for on the prompt page. The server
     // decides (services/tui.js); this is its guess for the things the page knows.
@@ -817,7 +849,7 @@ export function renderLauncher() {
         targets.map((t, i) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt: toSend, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && (!cmp.length || typedTerm) ? false : undefined, progress: t.sandbox ? pending[i] : undefined, compare: cmp.length && !typedTerm ? cmp.map(({ trial, ...c }) => c) : undefined, trial: !typedTerm && cmp.some((c) => c.trial) ? true : undefined, subagents: !typedTerm && team.length && canLead(runner.agent) ? team : undefined, goal: typedTerm ? undefined : goal, confirmLimit: confirm || undefined, autoPin: pin, autoOverride: corrected || undefined, ...cells },
+            body: { prompt: toSend, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && (!cmp.length || typedTerm) ? false : undefined, progress: t.sandbox ? pending[i] : undefined, compare: cmp.length && !typedTerm ? cmp.map(({ trial, ...c }) => c) : undefined, trial: !typedTerm && cmp.some((c) => c.trial) ? true : undefined, subagents: !typedTerm && team.length && canLead(runner.agent) ? team : undefined, goal: typedTerm ? undefined : goal, confirmLimit: confirm || undefined, autoPin: pin, autoOverride: corrected || undefined, crewRun: jobRun, ...cells },
           }),
         ),
       );
@@ -853,7 +885,9 @@ export function renderLauncher() {
         return;
       }
       dropped = null; // × was for that prompt
+      if (own) crewRun = null; // the next job for them starts from their own harness again
       paintFor();
+      paintRunner();
       if (corrected && override === corrected) override = null;
       if (backToAuto) {
         const goal = backToAuto;
