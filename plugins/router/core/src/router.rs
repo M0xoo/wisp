@@ -69,7 +69,9 @@ impl Router {
             seen.insert(c.key.clone());
             match self.st.arms.get_mut(&c.key) {
                 None => {
-                    let state = if first || prior_of(&c.key).is_some() { Life::Ready } else { Life::New };
+                    // v1 #763: on the first look only a harness's default and scored models are ready; a model
+                    // the benchmarks place by tier alone (Fable) is on probation like anything new
+                    let state = if prior_of(&c.key).is_some() || (first && c.model.is_empty()) { Life::Ready } else { Life::New };
                     self.st.arms.insert(c.key.clone(), ArmState { first_seen: now, state });
                     self.st.dirty.arms.insert(c.key.clone());
                     if !first {

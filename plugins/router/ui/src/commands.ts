@@ -38,10 +38,11 @@ export const routerPreview = defineCommand<{ peer: PeerId } & PreviewArgs, Previ
   dedupe: (a) => JSON.stringify([a.peer, a.prompt, a.attachments, a.goal, a.team, a.machine]),
 });
 
-/** A project's test command (Tests per project). The project row is runtime's; the view row shows it. */
+/** A project's test command (Tests per project). The project is runtime's resource; the view row shows it. */
 export const projectTests = defineCommand<{ peer: PeerId; id: string; testCommand: string }, unknown>({
-  id: 'project.update',
+  id: 'runtime.projectTest',
   owner: (a) => a.peer,
+  wire: (a) => ({ name: a.id, testCommand: a.testCommand }),
   optimistic: (base, a): EntityOps => {
     const key = viewKey(a.peer);
     const view = base.peek<RouterView>(KIND.view, key);

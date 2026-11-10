@@ -10,7 +10,9 @@
     "builtin": "wisp_router"
   },
   "permissions": [
+    "telemetry:track",
     "runtime:agents",
+    "resources:read",
     "runtime:spec",
     "runtime:turns",
     "runtime:get",
@@ -21,7 +23,7 @@
     "store:write{owner:router}"
   ],
   "requires": {},
-  "provides": {},
+  "provides": { "router.service": { "version": "1.0.0" } },
   "contributes": {
     "events": ["router.added"],
     "commands": [

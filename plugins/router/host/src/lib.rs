@@ -8,6 +8,7 @@
 
 mod pipeline;
 mod kind;
+mod service;
 mod store;
 
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
@@ -27,6 +28,8 @@ struct State {
     router: Mutex<Router>,
     settings: Mutex<Settings>,
     store: OnceLock<wisp_store::Store>,
+    /// this computer's harnesses at the last look, for `router.service`'s picks
+    here: Mutex<Vec<AgentInfo>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -35,7 +38,7 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 
 impl State {
     fn new() -> Self {
-        Self { router: Mutex::new(Router::new(RouterState::default())), settings: Mutex::new(Settings::default()), store: OnceLock::new() }
+        Self { router: Mutex::new(Router::new(RouterState::default())), settings: Mutex::new(Settings::default()), store: OnceLock::new(), here: Mutex::default() }
     }
 
     /// The tables, v1's files once, then the state from the tables. At start, before any command.
@@ -104,12 +107,35 @@ fn now(ctx: &Ctx) -> i64 {
     ctx.clock().map_or(0, |c| c.now_ms())
 }
 
-fn view(st: &State, here: &[AgentInfo], now: i64) -> RouterView {
+fn view(st: &State, here: &[AgentInfo], projects: Vec<Value>, now: i64) -> RouterView {
+    here.clone_into(&mut lock(&st.here));
     let s = lock(&st.settings).clone();
     let mut r = lock(&st.router);
     r.sync(here, false, now);
     let prefs = auto::prefs(&s, here);
-    RouterView { goals: auto::goals(), goal: auto::goal_of(None, &s).to_owned(), settings: auto::settings_view(&s), projects: Vec::new(), report: report::report(&r, here, &prefs, now) }
+    RouterView { goals: auto::goals(), goal: auto::goal_of(None, &s).to_owned(), settings: auto::settings_view(&s), projects, report: report::report(&r, here, &prefs, now) }
+}
+
+/// Tests per project: each declared project (`resources.export`'s `project` kind) with its test command.
+pub fn project_rows(resources: &[Value]) -> Vec<Value> {
+    resources
+        .iter()
+        .filter(|r| r.get("kind").and_then(Value::as_str) == Some("project"))
+        .filter_map(|r| {
+            let name = r.get("name").and_then(Value::as_str)?;
+            let spec = r.get("spec").cloned().unwrap_or(Value::Null);
+            let mut row = serde_json::json!({ "id": name, "name": name, "testCommand": spec.get("test").and_then(Value::as_str).unwrap_or_default() });
+            if let Some(c) = spec.get("color").and_then(Value::as_str).filter(|c| !c.is_empty()) {
+                row["color"] = Value::String(c.to_owned());
+            }
+            Some(row)
+        })
+        .collect()
+}
+
+async fn projects(ctx: &Ctx, call: &wisp_kernel::Call) -> Vec<Value> {
+    let list = ctx.run_json(call, "resources.export", serde_json::json!({ "kinds": ["project"] })).await.ok();
+    list.as_ref().and_then(Value::as_array).map(|a| project_rows(a)).unwrap_or_default()
 }
 
 /// The same prompt previews the same pick: the dice are seeded from it.
@@ -149,6 +175,9 @@ impl Plugin for RouterPlugin {
         let k: Arc<dyn wisp_resources_api::ResourceKind> = Arc::new(kind::RouterKind { ctx: s.ctx() });
         s.contribute(&wisp_resources_api::RESOURCE_KIND, k);
         let st = Arc::new(State::new());
+        let svc: Arc<dyn wisp_router_api::service::RouterApi> = Arc::new(service::Svc { st: st.clone(), ctx: s.ctx() });
+        s.provide::<wisp_router_api::service::RouterService>(svc);
+        service::learn(s, &st);
         let opening = st.clone();
         s.on_start(move |ctx| async move {
             let store = ctx.service::<wisp_store::Store>()?.as_ref().clone();
@@ -156,12 +185,14 @@ impl Plugin for RouterPlugin {
             opening.open(store, home).await?;
             // the view row exists from the start: Settings → Auto never waits on a row nobody wrote
             let here = agents(&ctx, &ctx.root_call()).await;
-            opening.published(view(&opening, &here, now(&ctx))).await;
+            let ps = projects(&ctx, &ctx.root_call()).await;
+            opening.published(view(&opening, &here, ps, now(&ctx))).await;
             Ok(())
         });
         on!(s, st, View, |st, ctx, call, _a| {
             let here = agents(&ctx, &call).await;
-            Ok(st.published(view(&st, &here, now(&ctx))).await)
+            let ps = projects(&ctx, &call).await;
+            Ok(st.published(view(&st, &here, ps, now(&ctx))).await)
         });
         on!(s, st, Set, |st, ctx, call, a| {
             let here = agents(&ctx, &call).await;
@@ -170,7 +201,8 @@ impl Plugin for RouterPlugin {
                 auto::apply_patch(&mut set, &a, &|id| here.iter().any(|h| h.id == id)).map_err(|e| WireError::invalid(e.to_string()))?;
             }
             st.save(true).await;
-            Ok(st.published(view(&st, &here, now(&ctx))).await)
+            let ps = projects(&ctx, &call).await;
+            Ok(st.published(view(&st, &here, ps, now(&ctx))).await)
         });
         on!(s, st, Preview, |st, ctx, call, a| {
             let here = agents(&ctx, &call).await;
@@ -180,7 +212,8 @@ impl Plugin for RouterPlugin {
             let here = agents(&ctx, &call).await;
             lock(&st.router).reset(now(&ctx));
             st.save(false).await;
-            Ok(st.published(view(&st, &here, now(&ctx))).await)
+            let ps = projects(&ctx, &call).await;
+            Ok(st.published(view(&st, &here, ps, now(&ctx))).await)
         });
         on!(s, st, Signal, |st, ctx, call, a| {
             let out = lock(&st.router).signal(&a.id, &a.patch, now(&ctx));
@@ -216,7 +249,7 @@ mod tests {
         store::install(&db).unwrap();
         let st = State::new();
         let here = vec![AgentInfo { id: "claude".into(), name: "Claude Code".into(), available: true, ..AgentInfo::default() }];
-        let v = view(&st, &here, 1_000);
+        let v = view(&st, &here, Vec::new(), 1_000);
         store::publish(&db, &v).await.unwrap();
         let row = db.read(|r| r.get("router_view", "view")).unwrap().unwrap();
         let want = serde_json::to_value(&v).unwrap();
@@ -224,6 +257,23 @@ mod tests {
         assert!(row.get("arms").is_some_and(Value::is_array) && row.get("settings").is_some_and(Value::is_object), "{row:?}");
         assert_eq!((store::VIEW.topics)(&row), vec![store::VIEW_TOPIC.to_owned()]);
         assert_eq!(store::VIEW_TOPIC, "plugin:wisp.router:view", "the topic the UI watches (plugins/router/ui types.ts TOPIC.view)");
+    }
+
+    /// Tests per project lists every declared project with its test command (none: empty), so the field
+    /// the Auto pane edits has a row to show.
+    #[test]
+    fn tests_per_project_lists_the_declared_projects_and_their_test_commands() {
+        let res = vec![
+            serde_json::json!({ "kind": "project", "name": "app", "spec": { "path": "/w/app", "test": "cargo test -p app", "color": "#f00" } }),
+            serde_json::json!({ "kind": "project", "name": "web", "spec": { "path": "/w/web" } }),
+            serde_json::json!({ "kind": "skill", "name": "x", "spec": {} }),
+        ];
+        let rows = project_rows(&res);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0]["testCommand"], "cargo test -p app");
+        assert_eq!(rows[0]["color"], "#f00");
+        assert_eq!(rows[1]["testCommand"], "");
+        assert!(rows[1].get("color").is_none());
     }
 
     #[test]
@@ -235,6 +285,6 @@ mod tests {
         let two = serde_json::to_value(preview(&st, &here, a(), 1_000)).unwrap();
         assert_eq!(one, two);
         assert_eq!(one["pick"]["agent"], "claude", "{one}");
-        assert!(view(&st, &here, 1_000).goals.contains_key("balanced"));
+        assert!(view(&st, &here, Vec::new(), 1_000).goals.contains_key("balanced"));
     }
 }

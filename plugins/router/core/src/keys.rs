@@ -162,9 +162,11 @@ pub struct Candidate {
     pub delegates: bool,
 }
 
+/// The benchmarks know it: a score at any level, or a tier row alone (v1 #763: Fable has a tier and no score
+/// yet, and without the tier Auto never offered it).
 fn known_to_priors(k: &str) -> bool {
     let b = &shipped().bases;
-    b.contains(strip_suffix(&base_of(&canon(k)))) || b.contains(strip_suffix(k))
+    b.contains(strip_suffix(&base_of(&canon(k)))) || b.contains(strip_suffix(k)) || shipped().priors.tiers.contains_key(strip_suffix(&base_of(k)))
 }
 
 /// The arms wisp may route to: each harness's default model, the models the priors know, models
@@ -269,5 +271,32 @@ mod fable_tests {
         assert!(!rule_matches("claude:fable", "claude:opus:high", None));
         assert!(!rule_matches("claude:opus", "claude:fable", None));
         assert_eq!(split_key(&canon("claude:fable")).model, "fable");
+    }
+
+    /// v1 #763: a model the benchmarks only place by tier is a candidate, and on probation even on the first look:
+    /// Auto suggests it and runs it only when nothing else fits, never in place of a scored arm unasked.
+    #[test]
+    fn auto_offers_a_tier_only_model_on_probation() {
+        use crate::choose::{Prefs, choose};
+        use crate::math::Mulberry32;
+        use crate::router::Router;
+        use crate::state::{Life, RouterState};
+        use wisp_router_api::{AgentInfo, ChooseArgs, ModelInfo};
+        let m = |id: &str| ModelInfo { id: id.into(), label: None, efforts: None };
+        let agents = vec![AgentInfo { id: "claude".into(), name: "Claude Code".into(), available: true, models: ["", "fable", "opus", "sonnet", "haiku"].map(m).to_vec(), ..AgentInfo::default() }];
+        assert!(candidates(&agents, &std::collections::BTreeSet::new()).iter().any(|c| c.key == "claude:fable"), "a tier row makes it a candidate");
+        let mut r = Router::new(RouterState::default());
+        r.sync(&agents, false, 1_000);
+        assert_eq!(r.st.arms.get("claude:fable").map(|a| a.state), Some(Life::New), "no score: on probation from the first look");
+        assert_eq!(r.st.arms.get("claude:").map(|a| a.state), Some(Life::Ready), "the harness's default is ready");
+        let only = ["claude:", "claude:opus", "claude:sonnet", "claude:haiku"].map(str::to_owned).to_vec();
+        for seed in 1..=10 {
+            let a = ChooseArgs { prompt: "fix the bug".into(), blocked: Some(only.clone()), ..ChooseArgs::default() };
+            let p = choose(&r.st, 2_000, &a, &agents, &Prefs::default(), &mut Mulberry32::new(seed)).unwrap();
+            assert_eq!(split_key(&p.route.key).model, "fable", "{}", p.route.key);
+            let a = ChooseArgs { prompt: "fix the bug".into(), blocked: Some(vec!["claude:fable".into()]), ..ChooseArgs::default() };
+            let p = choose(&r.st, 2_000, &a, &agents, &Prefs::default(), &mut Mulberry32::new(seed)).unwrap();
+            assert_ne!(split_key(&p.route.key).model, "fable");
+        }
     }
 }
