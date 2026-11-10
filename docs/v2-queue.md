@@ -28,6 +28,20 @@ Right after ui-commands reaches 0, and before the UI burndown:
   - the `harness == "claude"` branch in `runtime/setup.rs`;
   - regenerating the TS bindings.
 
+**v1 inventory done (2026-11-10): `docs/v1-features.md` (326 features with tester scenarios),
+`docs/v1-features-summary.md`.** 102 built, 181 partial, 39 missing, 4 dropped (ADR-0031).
+- Decision: a feature is **built** only when every frontend v1 offered it in has it (GUI included). Server plus CLI
+  without the GUI stays **partial**.
+- The work it gives, in order, after ui-commands reaches 0:
+  1. mount the 13 unmounted plugin UIs plus shell-home's tips and notifications;
+  2. build the 8 shell-task stubs (TaskHead, Transcript, PlanView, AskCard, HaltCard, HeldCard, Receipt, WhatChanged);
+  3. v1's ~30 keyboard shortcuts;
+  4. the summary's top 30, in order;
+  5. every remaining partial or missing row.
+- Each row turns `built` with its evidence (the command, the screen and a named test, run through the gates on its view).
+- The `v1-features` check (rule over docs/v1-features.md) comes with item 1. Verify the 13 'not verified' rows with
+  named tests.
+
 **Nothing of v1 gets lost (owner, 2026-11-10: "v1 UI and features are amazing, make sure we don't lose any of
 them").** Part of the coverage sweep. Its scope is user-facing features, not only routes:
 - **Generate `docs/v1-features.md`** from v1 on origin/main:
