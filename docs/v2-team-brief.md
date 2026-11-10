@@ -103,3 +103,8 @@ For any UI work, look at it yourself while you build:
 - **The gates on the view you touched:** `node qa/{parity,layout,feedback}.mjs --views=<view>` (the hook allows one or
   two views).
 - **Every round doc lists the PNGs you looked at:** desktop and phone, light and dark.
+
+## Never kill by name (2026-11-10)
+`pkill -f "wisp serve"` killed the other coder: its `claude -p` command line holds its brief, which contained those
+words, so it got SIGTERM (exit 143) again and again. Stop a server by its port (`lsof -ti tcp:PORT -sTCP:LISTEN |
+xargs kill`) or by the pid you saved when you started it (`$!`). The hook refuses `pkill` and `killall`.
