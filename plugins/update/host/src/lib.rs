@@ -155,6 +155,15 @@ async fn shell(ctx: &Ctx, cmd: &str, env: &[(String, String)]) -> std::result::R
     Ok(())
 }
 
+/// Hands off to the detached waiter that stops this wisp and starts the new one (`Updater::hand_off`), through
+/// the proc service. False: it can't here (Windows, the desktop app's own swap), and the user restarts it.
+fn relaunch(ctx: &Ctx, st: &St) -> bool {
+    let Some(args) = lock(&st.up).hand_off(std::process::id()) else { return false };
+    let Ok(proc) = ctx.service::<wisp_proc::Proc>() else { return false };
+    // Err: the user restarts it by hand, as `next` says
+    proc.spawn_detached("sh", &args, wisp_proc::SpawnOpts { no_stdin: true, ..wisp_proc::SpawnOpts::default() }).is_ok()
+}
+
 async fn install(ctx: &Ctx, st: &St) -> Result<Value> {
     let step = lock(&st.up).begin_install().map_err(|r| match r {
         Refusal::Invalid(m) => WireError::invalid(m),
@@ -189,7 +198,8 @@ async fn install(ctx: &Ctx, st: &St) -> Result<Value> {
     }
     let mut v = publish(ctx, st).await;
     if v["status"] == "restarting" {
-        v["next"] = json!(format!("Restart wisp to use {} (quit it and run `wisp` again).", v["latest"].as_str().unwrap_or("the new version")));
+        let latest = v["latest"].as_str().unwrap_or("the new version").to_owned();
+        v["next"] = json!(if relaunch(ctx, st) { format!("wisp restarts on {latest} now.") } else { format!("Restart wisp to use {latest} (quit it and run `wisp` again).") });
     }
     Ok(v)
 }

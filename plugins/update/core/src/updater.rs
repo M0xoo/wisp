@@ -403,6 +403,20 @@ impl Updater {
         self.status = Status::Restarting;
     }
 
+    /// The detached waiter that relaunches wisp (v1 update.js `handOff`): it stops this wisp (`pid`) with
+    /// SIGTERM, so it lets go cleanly, waits until it's gone (≤ 30 s), then runs [`Self::relaunch_command`].
+    /// The desktop app is reopened, a browser tab kept. `None` on Windows (no `sh`; the user restarts it) or when
+    /// there's nothing to relaunch.
+    pub fn hand_off(&self, pid: u32) -> Option<Vec<String>> {
+        let cmd = self.relaunch_command(self.env.desktop.is_some());
+        if self.platform.windows() || cmd.is_empty() || self.status != Status::Restarting {
+            return None;
+        }
+        // let the answer reach the page first, then stop and wait for the port to be free
+        let script = format!("sleep 1; kill -TERM {pid} 2>/dev/null; for i in $(seq 300); do kill -0 {pid} 2>/dev/null || break; sleep 0.1; done; {cmd}");
+        Some(vec!["-c".to_owned(), script])
+    }
+
     /// "Download it from …": the tail of every app update failure.
     pub fn later(&self) -> String {
         format!(

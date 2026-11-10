@@ -589,3 +589,19 @@ fn installed_version_reads_a_package_json() {
     );
     assert_eq!(installed_version("not json"), None);
 }
+
+/// v1 update.js `handOff`: after an install, a detached waiter stops this wisp (SIGTERM, its clean stop),
+/// waits until it's gone and starts the new version on the same port. Only once the install is done.
+#[test]
+fn an_installed_update_relaunches_wisp_through_a_detached_waiter() {
+    let mut u = updater(global(), Env::default());
+    let _ = check(&mut u, "stable", &json!({ "latest": "9.0.0" }));
+    assert_eq!(u.hand_off(4242), None, "nothing installed yet: no relaunch");
+    u.install_done();
+    let argv = u.hand_off(4242).expect("a relaunch");
+    assert_eq!(argv[0], "-c");
+    let script = &argv[1];
+    assert!(script.contains("kill -TERM 4242"), "{script}");
+    assert!(script.contains("kill -0 4242"), "it waits for this wisp to be gone: {script}");
+    assert!(script.ends_with(&u.relaunch_command(false)), "then starts the new one, keeping the tab: {script}");
+}
