@@ -64,6 +64,7 @@ alone.
    - Each screen is seen in Chrome once (desktop and phone, light and dark); parity/layout/feedback gates run in CI.
 8. [ ] **Apps:** the desktop app embeds the core (Tauri, `apps/desktop`); Android gets its own frontend.
 9. [ ] **Cutover:**
+   - Once our own tasks run on wisp v2, turn on `.wisp/` tracking for this repo (owner, 2026-11-10). Don't backfill the v2 rewrite sessions run on v1.
    - delete v1 (`server/`, `web/`, v1 `grid/`, v1 `desktop/` packaging, v1 tests and workflows);
    - CI workflows for v2 only;
    - budgets (binary ≤ 15 MB, initial JS ≤ 120 KB br);
