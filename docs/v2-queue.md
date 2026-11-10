@@ -5,7 +5,30 @@ The coder takes the next unchecked item as soon as one ends, with no wait for re
 no local full suites. The lead commits each item by concern and pushes; PR #756 CI runs the tests. CI failures
 are fixed at the start of the next item.
 
-**[x] Done 2026-11-10 (docs/v2-round-7.md, round 5).** **GUI naming (2026-11-10):** the task side menu still says "Take over". The decision is "Open in <harness>" (for example "Open
+**[x] Done 2026-11-10 (docs/v2-round-7.md, round 5).** **v1 → v2 coverage sweep (owner, 2026-11-10: "the backend isn't finished, a lot of searching for missing work").**
+Right after ui-commands reaches 0, and before the UI burndown:
+- A `tools/check` rule, `v1-coverage`, maps every v1 HTTP route (`docs/v1-routes.txt`, 304, generated from v1
+  `server/routes/*.js` on origin/main), every v1 MCP tool, CLI command, setting key and telemetry event to the v2
+  command, setting or event that serves its intent.
+- An unmapped item is an error, unless `docs/v1-dropped.md` lists it with a reason (ADR-0031: no compat routes,
+  but the feature's intent is kept).
+- The generated table goes in `docs/v2-coverage.md`, and each unmapped item is work: build it with a named test.
+- Quick counts already show holes:
+  - connectors: 9 v1 routes, 0 v2 commands;
+  - spells/plugins: 10 vs 2;
+  - issues/projects: 11 vs 1;
+  - learn: 0 commands.
+- Known gaps to fold in:
+  - the channels grammar (Slack, Discord, GitHub, email);
+  - the machine process view, stop/fix/clean and the heavy-step lock;
+  - update relaunch, `wisp ssh`, the copilot reader;
+  - the missing telemetry events;
+  - grid inbox, mail, routes and sites;
+  - the TS and Python SDKs;
+  - the `harness == "claude"` branch in `runtime/setup.rs`;
+  - regenerating the TS bindings.
+
+**GUI naming (2026-11-10):** the task side menu still says "Take over". The decision is "Open in <harness>" (for example "Open
 in Claude Code"; CLI `wisp open <id> --in X`, TUI `o`). Rename it in every frontend and in the i18n keys.
 
 **[x] Done 2026-11-10 (docs/v2-round-6.md, round 4).** **TUI colour fix (owner's real Terminal, 2026-11-09):** Apple's Terminal.app (`TERM_PROGRAM=Apple_Terminal`) doesn't draw
