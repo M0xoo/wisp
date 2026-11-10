@@ -104,6 +104,34 @@ pub fn session_view(t: &Value) -> SessionView {
     }
 }
 
+/// A harness as `runtime.agents` lists it, as the grammar reads it.
+fn agent_view(a: &Value) -> wisp_channels_api::AgentView {
+    let strs = |v: &Value| v.as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect::<Vec<_>>();
+    let models = a["models"].as_array().into_iter().flatten().map(|m| wisp_channels_api::ModelView { id: m["id"].as_str().unwrap_or_default().to_owned(), label: m["label"].as_str().map(str::to_owned), efforts: strs(&m["efforts"]) }).collect();
+    wisp_channels_api::AgentView { id: a["id"].as_str().unwrap_or_default().to_owned(), name: a["name"].as_str().map(str::to_owned), available: a["available"].as_bool().unwrap_or(false), signed_in: a["signedIn"].as_bool().unwrap_or(true), models, efforts: strs(&a["efforts"]) }
+}
+
+/// A crew member as `crew.list` gives it (its `member` and how busy it is).
+fn member_view(v: &Value) -> wisp_channels_api::MemberView {
+    let m = v.get("member").unwrap_or(v);
+    let s = |k: &str| m[k].as_str().filter(|x| !x.is_empty()).map(str::to_owned);
+    wisp_channels_api::MemberView {
+        id: s("id").unwrap_or_default(),
+        name: s("name").unwrap_or_default(),
+        role: s("role"),
+        agent: s("agent").unwrap_or_else(|| "auto".into()),
+        model: s("model"),
+        effort: s("effort"),
+        mode: serde_json::from_value(m["mode"].clone()).ok(),
+        cwd: s("cwd"),
+        machine: s("machine"),
+        sandbox: m["sandbox"].as_bool().unwrap_or(false) || m["sandbox"].is_string(),
+        paused: m["paused"].as_bool().unwrap_or(false),
+        running: v["running"].as_u64().and_then(|n| u32::try_from(n).ok()).unwrap_or(0),
+        queue: m["queue"].as_array().cloned().unwrap_or_default(),
+    }
+}
+
 /// What wisp does when a channel asks: runtime commands, as the channel's caller (its capability set).
 pub struct KPhone(pub Ctx);
 
@@ -123,10 +151,29 @@ fn mode_str(m: Option<wisp_channels_api::views::Mode>) -> Option<&'static str> {
 
 #[async_trait]
 impl Phone for KPhone {
+    /// Everything a message may pick from: projects, this computer's harnesses (as the lists and the grammar read
+    /// them), the crew, Auto's goals, the default project and harness, the tasks running or waiting.
     async fn context(&self) -> Result<ChannelCtx> {
-        Ok(ChannelCtx { projects: self.projects().await?, default_agent: "claude".into(), ..ChannelCtx::default() })
+        let projects = self.projects().await?;
+        let agents: Vec<wisp_channels_api::AgentView> = self.cmd("runtime.agents", json!({})).await.ok().and_then(|v| serde_json::from_value::<Vec<Value>>(v).ok()).unwrap_or_default().iter().map(agent_view).collect();
+        let crew = self.cmd("crew.list", json!({})).await.ok().and_then(|v| v.as_array().cloned()).unwrap_or_default().iter().map(member_view).collect();
+        let tasks = self.sessions().await.unwrap_or_default().into_iter().filter(|s| matches!(s.state.as_str(), "running" | "waiting")).map(|s| wisp_channels_api::TaskRow { id: s.id, title: s.title, state: s.state }).collect();
+        let adapters = agents.iter().map(|a| wisp_channels_api::AdapterView { agent: a.clone(), overrides: Vec::new() }).collect();
+        let default_agent = agents.iter().find(|a| a.available).map(|a| a.id.clone()).unwrap_or_default();
+        Ok(ChannelCtx { default_project: projects.first().cloned(), projects, agents, adapters, crew, goals: wisp_router_api::GOALS.iter().map(|g| g.0.to_owned()).collect(), default_agent, tasks, ..ChannelCtx::default() })
     }
-    fn count(&self, _kind: &str, _detail: Option<&str>) {}
+    /// v1 phone.js `count`: fixed values only (start, thread, list, refused and their detail), never what a
+    /// message said; counted as `channel_event`.
+    fn count(&self, kind: &str, detail: Option<&str>) {
+        let mut props = json!({ "kind": kind });
+        if let Some(d) = detail {
+            props["detail"] = json!(d);
+        }
+        let ctx = self.0.clone();
+        self.0.spawn(async move {
+            let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", json!({ "event": "channel_event", "props": props })).await;
+        });
+    }
     fn on_grid(&self) -> bool {
         false
     }
@@ -324,6 +371,9 @@ impl ChannelHub for Hub {
     }
     async fn act(&self, a: &ActArgs) -> Result<String> {
         KPhone(self.ctx.clone()).act(a).await
+    }
+    async fn converse(&self, c: &dyn wisp_channels_api::conversation::Conversation, text: &str, session_id: Option<&str>, thread_text: Option<&str>) -> Result<Value> {
+        wisp_channels_core::conversation::converse(c, text, session_id, thread_text).await
     }
     fn hash(&self, s: &str) -> String {
         wisp_channels_core::sign::sha256_hex(s.as_bytes())

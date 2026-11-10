@@ -2,95 +2,15 @@
 //! channel implements [`Conversation`] (what differs for it: how it says things, where a task started
 //! there answers) and keeps only its wire and who may speak. No IO of its own: everything goes
 //! through the channel's `say` and the phone.
-use async_trait::async_trait;
 use serde_json::Value;
-use wisp_channels_api::{ActArgs, ActKind, ChannelCtx, Later, Mode, Parsed, Phone, Problem, RunOpts, StartOpts, Started, Thread};
-use wisp_kernel::{Result, WireError};
+pub use wisp_channels_api::conversation::{BTW_HELP, Conversation, NO_PROJECTS, NO_PROMPT, failed_line, first_part};
+use wisp_channels_api::{ActArgs, ActKind, ChannelCtx, Mode, Parsed, Problem, RunOpts, StartOpts, Started, Thread};
+use wisp_kernel::Result;
 
 use crate::grammar::parse_message;
 use crate::lists;
 use crate::policy::cap_mode;
-use crate::scrub::{hide_names, truncate};
-
-pub const NO_PROMPT: &str = "What should it do? Say it after the options.";
-pub const NO_PROJECTS: &str = "No projects yet. Open a folder in wisp first.";
-pub const BTW_HELP: &str = "Type your question after /btw.";
-
-pub fn failed_line(what: &str, err: &WireError) -> String {
-    format!("Couldn’t {what}: {}", truncate(&err.message, 300))
-}
-
-/// The part of a line before its first `:`, ending in one full stop.
-pub fn first_part(line: &str) -> String {
-    let head = line.split(':').next().unwrap_or_default();
-    format!("{}.", head.strip_suffix('.').unwrap_or(head))
-}
-
-/// What differs per channel in a conversation (v1 `conversation.js`'s `c`).
-#[async_trait]
-pub trait Conversation: Send + Sync {
-    fn phone(&self) -> &dyn Phone;
-    fn ctx(&self) -> &ChannelCtx;
-    fn channel(&self) -> &str;
-    /// the sender's display name
-    fn name(&self) -> &str;
-    /// the sender's stable id
-    fn sender(&self) -> &str;
-    /// the most this chat may ask for
-    fn cap(&self) -> Mode;
-    fn fallback(&self) -> Option<Mode> {
-        None
-    }
-    fn about(&self) -> Option<&str> {
-        None
-    }
-    /// false: a channel that can't answer a tool approval
-    fn approvals(&self) -> bool;
-    /// the line for `stop`, `done` or `/btw` out of a thread
-    fn no_thread(&self) -> &str;
-
-    /// Posts a line here. Its value is what the channel sent (a message id), for `acked`.
-    async fn say(&self, text: String) -> Result<Value>;
-    async fn list(&self, p: &Parsed) -> Result<Value>;
-    async fn refuse(&self, problems: &[Problem]) -> Result<Value> {
-        self.say(lists::refusal(problems)).await
-    }
-    /// where a task started here answers
-    async fn thread(&self, _p: &Parsed) -> Option<Thread> {
-        None
-    }
-    /// a line when the message points at something gone
-    fn stale(&self, _p: &Parsed) -> Option<String> {
-        None
-    }
-    fn acked(&self, _thread: Option<&Thread>, _sent: &Value) {}
-    /// keeps a first reply that couldn't go, for the next thing said in that thread. true: kept.
-    fn owe(&self, _ack: &str) -> bool {
-        false
-    }
-    /// status with less in it
-    fn quiet(&self, line: String) -> String {
-        line
-    }
-    /// a follow-up's answer, as this channel says it
-    fn run_line(&self, line: String) -> String {
-        line
-    }
-    /// where a later answer goes; None: said in this thread when it comes
-    fn later(&self) -> Option<Later> {
-        None
-    }
-    /// before a follow-up runs (a reaction, a typing mark); the returned undo runs if no turn comes
-    fn before_run(&self, _session_id: &str) -> Option<Box<dyn FnOnce() + Send>> {
-        None
-    }
-    fn failed(&self, what: &str, err: &WireError) -> String {
-        failed_line(what, err)
-    }
-    fn btw_help(&self) -> &str {
-        BTW_HELP
-    }
-}
+use crate::scrub::hide_names;
 
 /// say, refuse and list for a place others can read, or not (`open`). There a list is one fixed
 /// line, help has nothing of yours, a refusal has no choices, and anything said loses names you didn't
@@ -165,7 +85,7 @@ async fn start(c: &dyn Conversation, p: &Parsed) -> Result<Value> {
     if let Some(cmd) = p.command.as_deref().filter(|n| *n != "new") {
         phone.count("list", Some(cmd));
         if lists::is_list(Some(cmd)) {
-            return c.list(p).await;
+            return c.list(p, lists::render(p.command.as_deref().unwrap_or_default(), c.ctx(), &p.arg)).await;
         }
         return c.say(c.no_thread().to_owned()).await;
     }
@@ -220,7 +140,7 @@ async fn in_thread(c: &dyn Conversation, session_id: &str, p: &Parsed) -> Result
     let phone = c.phone();
     let cmd = p.command.as_deref();
     if lists::is_list(cmd) && cmd != Some("status") {
-        return c.list(p).await;
+        return c.list(p, lists::render(p.command.as_deref().unwrap_or_default(), c.ctx(), &p.arg)).await;
     }
     match cmd {
         Some("stop") => return c.say(phone.stop(session_id).await?).await,

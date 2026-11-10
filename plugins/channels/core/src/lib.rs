@@ -3,6 +3,7 @@
 //! lists), the conversation flow, link codes, signed taps, box rules and routed retries. Sans-IO: no
 //! tokio, fs, net or clock; time comes in as an argument.
 
+pub mod conversation;
 pub mod grammar;
 pub mod link;
 pub mod lists;

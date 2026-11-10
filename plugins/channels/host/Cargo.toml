@@ -23,6 +23,7 @@ wisp-runtime-api.workspace = true
 tracing.workspace = true
 wisp-channels-api.workspace = true
 wisp-channels-core.workspace = true
+wisp-router-api.workspace = true
 wisp-kernel.workspace = true
 
 [lints]

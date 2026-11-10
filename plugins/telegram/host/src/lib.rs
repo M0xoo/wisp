@@ -5,8 +5,8 @@
 //! `/new` never starts twice. Every request goes through the hub's `Net`; the wire's decisions are
 //! `wisp-telegram-core`'s.
 //!
-//! Not here yet: the `options` grammar (plain text as the launcher; it needs the channels grammar and lists, still
-//! being ported), and the cloud box's webhook through the grid's inbox.
+//! With `options` on, plain text reads as the launcher's grammar (`conv.rs`, through wisp.channels' flow). Not here
+//! yet: the cloud box's webhook through the grid's inbox.
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -18,6 +18,8 @@ use wisp_channels_api::policy::{Gate, GateArgs, RateLimit, STALE_S, gate};
 use wisp_channels_api::scrub::scrub_out;
 use wisp_kernel::{CancellationToken, Manifest, Plugin, Result, Setup, WireError};
 use wisp_telegram_core::{self as core, Message, Update, encode_tap, forwarded, links_it, parse_tap, publish_text, truncate};
+
+mod conv;
 
 const MAX_TG_IDS: usize = 20;
 const LONG_POLL_S: u64 = 25;
@@ -82,6 +84,24 @@ impl Telegram {
             body["allow_sending_without_reply"] = json!(true);
         }
         self.api("sendMessage", body, 15_000).await
+    }
+
+    /// A list as it is (only names you gave wisp): no scrubbing of its @names.
+    async fn say_raw(&self, text: &str) -> Result<Value> {
+        self.api("sendMessage", json!({ "chat_id": self.chat(), "text": truncate(text, core::CHUNK_MAX) }), 15_000).await
+    }
+
+    /// `options` on: the message reads as the launcher's grammar, through wisp.channels' flow.
+    async fn with_options(&self, m: &Message, text: &str) -> Result<()> {
+        let bot = s(&self.cfg(), "botName").to_owned();
+        let phone = self.hub.phone();
+        let ctx = phone.context().await?;
+        let reply_to = m.reply_to();
+        let session = reply_to.and_then(|r| self.session_of(r));
+        let name = m.from.as_ref().and_then(|f| f.first_name.clone()).unwrap_or_default();
+        let c = conv::TgConv { tg: self, phone, ctx, m, name, stale: reply_to.is_some() && session.is_none() };
+        let said = conv::text_of(m, if text.starts_with('@') { &bot } else { "" });
+        self.hub.converse(&c, &said, session.as_deref(), None).await.map(|_| ())
     }
 
     /// Replies to this Telegram message reach the task it's about.
@@ -166,6 +186,11 @@ impl Telegram {
             self.say("Forwarded, so nothing started. Say it in your own words to run it.", Some(m.message_id)).await?;
             return Ok(());
         }
+        if cfg["options"] == true {
+            return self.with_options(m, text).await;
+        }
+        // triggers on chat.message hear what the linked chat says (ADR-0043), whatever it asks of wisp
+        self.hub.phone().heard("telegram", &m.chat.id, text);
         if let Some((cmd, arg)) = core::slash_command(text)
             && ["new", "projects", "help", "start"].contains(&cmd.as_str())
         {

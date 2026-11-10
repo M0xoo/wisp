@@ -18,6 +18,9 @@
     "runtime:setState",
     "runtime:answer",
     "resources:export",
+    "runtime:agents",
+    "crew:read",
+    "telemetry:track",
     "automations:run"
   ],
   "activation": [

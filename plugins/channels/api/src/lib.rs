@@ -6,6 +6,8 @@
 
 /// Pure policy, scrubbing and secret redaction every transport uses (moved from wisp-channels-core so a transport
 /// plugin reaches them through this api, as the layers require).
+pub mod conversation;
+pub mod markup;
 pub mod policy;
 pub mod scrub;
 pub mod secrets;

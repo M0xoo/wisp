@@ -19,5 +19,9 @@ thiserror.workspace = true
 wisp-channels-api.workspace = true
 wisp-kernel.workspace = true
 
+[dev-dependencies]
+regex.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
+
 [lints]
 workspace = true

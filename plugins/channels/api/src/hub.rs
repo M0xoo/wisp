@@ -296,6 +296,19 @@ pub trait ChannelHub: Send + Sync + 'static {
     async fn default_project(&self) -> Option<ProjectView>;
     async fn act(&self, a: &ActArgs) -> Result<String>;
 
+    /// One message through `c`'s door: the grammar and what it asks for (wisp.channels' flow, v1
+    /// `converse`). `session_id`: the task its thread belongs to; `thread_text`: the message as it reads
+    /// there. Additive (2026-11-10): a hub without the flow says so.
+    async fn converse(
+        &self,
+        _c: &dyn crate::conversation::Conversation,
+        _text: &str,
+        _session_id: Option<&str>,
+        _thread_text: Option<&str>,
+    ) -> Result<Value> {
+        Err(wisp_kernel::WireError::unavailable("this hub reads no messages"))
+    }
+
     /// sha256 hex (a link guesser's bucket, a hashed sender)
     fn hash(&self, s: &str) -> String;
     /// uniform in `[min, max)`
