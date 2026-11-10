@@ -93,6 +93,9 @@ async fn bullet6_static_files() {
             .status,
         404
     );
+    // a plugin view's id has a dot (`stuff.page`): its deep link is the app, not a missing file
+    let view = send(p, "GET", "/view/stuff.page", &[], b"").await;
+    assert_eq!((view.status, view.h("x-wisp-build")), (200, Some(build.as_str())));
     // no way out of the bundle, escaped or not
     for out in [
         "/../Cargo.toml",

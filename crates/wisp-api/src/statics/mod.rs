@@ -239,9 +239,10 @@ impl StaticFiles {
                 && f.components().any(|c| c.as_os_str() == "assets");
             return answer(method, h, e, mime(ext), for_good, None);
         }
-        // a path with an extension that isn't here is a 404, not the app (a stale chunk must fail loudly)
+        // a path with an extension that isn't here is a 404, not the app (a stale chunk must fail loudly);
+        // the app's own routes are always the app, dots and all: a plugin view is `/view/stuff.page`
         let last = pathname.rsplit('/').next().unwrap_or("");
-        if last.rsplit_once('.').is_some_and(|(_, ext)| {
+        if !app_route(pathname) && last.rsplit_once('.').is_some_and(|(_, ext)| {
             !ext.is_empty() && ext.bytes().all(|b| b.is_ascii_alphanumeric()) && ext != "html"
         }) {
             return respond::text(
@@ -277,6 +278,11 @@ impl StaticFiles {
     pub fn stop(&self) {
         self.stop.cancel();
     }
+}
+
+/// The app's own routes (`@wisp/client` nav-url.ts): their ids may hold dots.
+fn app_route(pathname: &str) -> bool {
+    ["/view/", "/crew/", "/s/"].iter().any(|p| pathname.starts_with(p))
 }
 
 fn answer(
