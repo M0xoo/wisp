@@ -11,18 +11,12 @@ import { MOBILE, S } from '../core/state.js';
 import { ask } from '../ui/confirm.js';
 import { present } from '../ui/overlay.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
+import { EXAMPLES, exampleFor, isFor } from '../connector-examples.js';
 
 const NAMES = { claude: 'Claude Code', codex: 'Codex', copilot: 'Copilot', opencode: 'OpenCode', grok: 'Grok' };
 const agentName = (id) => S.agents.find((a) => a.id === id)?.name || NAMES[id] || id;
 const list = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
 
-// Starting points for the empty list: the form filled in, the secret left for you.
-const EXAMPLES = [
-  { label: 'PostHog', name: 'posthog', transport: 'remote', url: 'https://mcp.posthog.com/mcp' },
-  { label: 'GitHub', name: 'github', transport: 'remote', url: 'https://api.githubcopilot.com/mcp/', headers: [{ key: 'Authorization', placeholder: 'Bearer ghp_…' }] },
-  { label: 'Filesystem', name: 'filesystem', transport: 'local', command: 'npx -y @modelcontextprotocol/server-filesystem ~/Documents' },
-  { label: 'Postgres', name: 'postgres', transport: 'local', command: 'npx -y @modelcontextprotocol/server-postgres postgresql://localhost/mydb' },
-];
 
 let last = null; // the last list seen, painted at once next time while a fresh one loads
 let repaint = () => {}; // the open pane's, for answers that arrive from a form
@@ -185,7 +179,7 @@ function pairRow(kind, p = {}) {
   </div>`;
 }
 
-export function openEditor(host, { item, example, draft } = {}) {
+export function openEditor(host, { item, example, draft, from } = {}) {
   const d = draft || {
     name: item?.name ?? example?.name ?? '',
     transport: item?.transport || example?.transport || 'local',
@@ -375,8 +369,20 @@ export function openEditor(host, { item, example, draft } = {}) {
   setTimeout(() => {
     // An example leaves its secret for you: start there.
     const empty = $$('.cn-pair [data-f="value"]', f).find((x) => !x.value && !x.closest('[hidden]'));
-    (example && empty ? empty : item ? $f(transport === 'local' ? 'command' : 'url') : $f('name')).focus();
+    // One that signs in: its button, so Enter (or a click) is all that's left.
+    const signin = (example?.signIn || from) && $('[data-act="addsignin"], [data-act="signin"]', f);
+    (signin || (example && empty ? empty : item ? $f(transport === 'local' ? 'command' : 'url') : $f('name'))).focus();
   });
+}
+
+// From the issue picker (Connect Linear… / Connect Jira…): the connector you already have for it, to
+// sign in again, or a new one from its example.
+export async function openConnectorFor(host, source) {
+  const v = last || took(await api('/connectors').catch(() => null));
+  const have = v?.connectors.find((c) => isFor(source, c));
+  if (have) return openEditor(host, { item: have, from: source });
+  const example = exampleFor(source);
+  if (example) openEditor(host, { example });
 }
 
 // Several servers pasted at once: each is added, and a refusal names which.

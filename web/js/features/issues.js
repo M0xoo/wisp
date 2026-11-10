@@ -17,8 +17,8 @@ export const issuePrompt = (i) => `Fix ${i.ref}: ${i.title}\n\n${i.url}${i.body?
 const FIX = {
   signin: 'Sign in to GitHub',
   install: 'Install the GitHub CLI',
-  linear: 'Open Connectors',
-  jira: 'Open Connectors',
+  linear: 'Connect Linear',
+  jira: 'Connect Jira',
   retry: 'Try again',
 };
 const note = (text, fix) => `<div class="pal-note" role="status">${icon(fix === 'retry' ? 'warn' : 'info')}<p>${esc(text)}</p>${FIX[fix] ? `<button class="ghost sm" data-fix="${fix}">${FIX[fix]}</button>` : ''}</div>`;
@@ -51,14 +51,16 @@ export function pickIssue({ project, ta, source = 'github' }) {
     // Every source but this one: GitHub for the project, then Linear and Jira (or how to connect them)
     const out = [];
     if (source !== 'github' && project?.id) out.push({ group: g, label: `${name}’s GitHub issues`, icon: 'github', run: () => pickIssue({ project, ta }) });
-    if (!linear) out.push(r.linear ? { group: g, label: 'Linear issues assigned to you', icon: 'issue', keywords: 'linear', run: () => pickIssue({ project, ta, source: 'linear' }) } : { group: g, label: 'Connect Linear…', sub: 'Settings → Connectors, with an API key', icon: 'plug', keywords: 'linear connector', run: openConnectors });
-    if (!jira) out.push(r.jira ? { group: g, label: 'Jira issues assigned to you', icon: 'issue', keywords: 'jira atlassian', run: () => pickIssue({ project, ta, source: 'jira' }) } : { group: g, label: 'Connect Jira…', sub: 'Settings → Connectors: site, email and API token', icon: 'plug', keywords: 'jira atlassian connector', run: openConnectors });
+    if (!linear) out.push(r.linear ? { group: g, label: 'Linear issues assigned to you', icon: 'issue', keywords: 'linear', run: () => pickIssue({ project, ta, source: 'linear' }) } : { group: g, label: 'Connect Linear…', sub: 'Sign in with your Linear account', icon: 'plug', keywords: 'linear connector', run: () => openConnectors('linear') });
+    if (!jira) out.push(r.jira ? { group: g, label: 'Jira issues assigned to you', icon: 'issue', keywords: 'jira atlassian', run: () => pickIssue({ project, ta, source: 'jira' }) } : { group: g, label: 'Connect Jira…', sub: 'Sign in with your Atlassian account', icon: 'plug', keywords: 'jira atlassian connector', run: () => openConnectors('jira') });
     return out;
   };
   const load = () =>
     ask()
       .then((r) => {
         if (r.repo) group = `Open issues · ${r.repo}`;
+        // None assigned to you: the workspace's open ones, under a heading that says so.
+        if (linear && r.scope === 'all') group = 'Open on Linear (none assigned to you)';
         const empty = !r.error && !r.issues.length && note(linear ? 'Nothing open is assigned to you on Linear.' : jira ? 'Nothing open is assigned to you on Jira.' : `${r.repo || name} has no open issues.`);
         close.set({ items: [...toItems(r), ...others(r)], notice: r.error ? note(r.error, r.fix) : empty || '' });
       })
@@ -69,7 +71,7 @@ export function pickIssue({ project, ta, source = 'github' }) {
     if (!fix) return;
     if (fix === 'retry') return void load();
     close();
-    if (fix === 'linear' || fix === 'jira') return openConnectors();
+    if (fix === 'linear' || fix === 'jira') return openConnectors(fix);
     openGh();
   });
 }
@@ -81,8 +83,9 @@ function openGh() {
     $('.sx .sx-tool')?.scrollIntoView({ block: 'center' });
   });
 }
-function openConnectors() {
-  import('./settings.js').then((m) => m.openSettings({ pane: 'connectors' }));
+// Settings → Connectors, at that source's connector (a new one filled in, or yours to sign in again).
+function openConnectors(source) {
+  import('./settings.js').then((m) => m.openSettings({ pane: 'connectors', connector: source }));
 }
 
 // Into the prompt, the caret at its end. A draft it replaces comes back with Undo.
