@@ -13,8 +13,5 @@ serde_json.workspace = true
 thiserror.workspace = true
 wisp-learn-api.workspace = true
 
-[dev-dependencies]
-rand.workspace = true
-
 [lints]
 workspace = true
