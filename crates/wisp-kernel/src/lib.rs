@@ -292,6 +292,10 @@ impl PluginGroup {
         self.disabled.push(id.to_owned());
         self
     }
+    /// Each plugin's manifest, in the group's order (a build's own check that all of them load).
+    pub fn manifests(&self) -> Vec<Manifest> {
+        self.plugins.iter().map(|p| p.manifest()).collect()
+    }
     #[must_use]
     pub fn extend(mut self, other: PluginGroup) -> Self {
         self.plugins.extend(other.plugins);

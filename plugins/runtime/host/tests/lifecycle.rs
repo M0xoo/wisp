@@ -471,3 +471,14 @@ async fn a_task_on_auto_runs_on_the_routers_pick_and_teaches_it() {
     assert_eq!(*auto.picks.lock().unwrap(), 1);
     assert_eq!(auto.told.lock().unwrap().as_slice(), ["launched", "manual", "override"]);
 }
+
+/// What the CLI was on a turn (its `cli` event: version, catalog) is kept on the turn, so the page can say what
+/// moved since the last turn (v1 what-changed.js).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_turn_keeps_what_the_cli_was() {
+    let r = rig().await;
+    let id = r.rt.create(start("cli 2.1.0")).await.unwrap().id;
+    until("the turn to end", || async { r.rt.turns(id.as_str(), None, None).await.unwrap().first().is_some_and(|t| t.ended_at.is_some()) }).await;
+    let t = &r.rt.turns(id.as_str(), None, None).await.unwrap()[0];
+    assert_eq!(t.ext["wisp.runtime"]["cli"]["version"], "2.1.0");
+}

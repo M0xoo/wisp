@@ -113,14 +113,17 @@ pub fn script(prompt: &str) -> Vec<Value> {
             json!({"type":"result","text":"Error: boom\nmore","isError":true}),
         ];
     }
-    vec![
-        json!({"type":"session","id":"conv-1"}),
+    let cli = prompt.strip_prefix("cli ").map(|v| json!({"type":"cli","version":v}));
+    let mut lines = vec![json!({"type":"session","id":"conv-1"})];
+    lines.extend(cli);
+    lines.extend([
         json!({"type":"tool","kind":"run","label":"Run tests","id":"c1"}),
         json!({"type":"tool_output","id":"c1","text":"ok"}),
         json!({"type":"change","file":"a.ts","op":"edit","edits":[{"before":"a","after":"b"}]}),
         json!({"type":"text","text":hero}),
         json!({"type":"result","text":hero,"isError":false,"stats":{"costUsd":0.01,"durationMs":5}}),
-    ]
+    ]);
+    lines
 }
 
 async fn fake_cli(io: SimIo) -> Exit {

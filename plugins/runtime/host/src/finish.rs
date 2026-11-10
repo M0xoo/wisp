@@ -92,8 +92,9 @@ impl Runtime {
         turn.changed_files = u32::try_from(head.changes.len()).ok().filter(|n| *n > 0);
         turn.n_events = n_events;
         turn.resume_id.clone_from(&head.resume_id);
-        if !head.changes.is_empty() || !head.blocked.is_empty() || auth_failed {
-            turn.ext.insert("wisp.runtime".into(), json!({ "changes": head.changes, "blocked": head.blocked, "authFailed": auth_failed }));
+        if !head.changes.is_empty() || !head.blocked.is_empty() || auth_failed || head.cli.is_some() {
+            // `cli`: what the CLI was this turn (version, catalog), for the page's "since the last turn" line
+            turn.ext.insert("wisp.runtime".into(), json!({ "changes": head.changes, "blocked": head.blocked, "authFailed": auth_failed, "cli": head.cli }));
         }
         if status == TurnStatus::Done
             && turn.idx == 0

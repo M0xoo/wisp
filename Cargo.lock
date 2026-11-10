@@ -4027,6 +4027,7 @@ dependencies = [
  "wisp-kernel",
  "wisp-proc",
  "wisp-resources-api",
+ "wisp-router-api",
  "wisp-runtime-api",
 ]
 
@@ -4048,11 +4049,13 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "hmac",
+ "regex",
  "serde",
  "serde_json",
  "sha2",
  "subtle",
  "thiserror 2.0.21",
+ "tokio",
  "wisp-channels-api",
  "wisp-kernel",
 ]
@@ -4144,12 +4147,15 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+ "tokio",
  "tracing",
  "wisp-connectors-api",
  "wisp-connectors-core",
  "wisp-kernel",
+ "wisp-proc",
  "wisp-resources-api",
  "wisp-runtime-api",
+ "wisp-store",
 ]
 
 [[package]]
@@ -4214,6 +4220,7 @@ dependencies = [
  "wisp-crew-api",
  "wisp-crew-core",
  "wisp-kernel",
+ "wisp-later-api",
  "wisp-resources-api",
  "wisp-runtime-api",
  "wisp-store",
@@ -4361,6 +4368,7 @@ dependencies = [
  "wisp-git-core",
  "wisp-kernel",
  "wisp-proc",
+ "wisp-runtime-api",
 ]
 
 [[package]]
@@ -4717,6 +4725,8 @@ dependencies = [
  "wisp-kernel",
  "wisp-learn-api",
  "wisp-learn-core",
+ "wisp-runtime-api",
+ "wisp-store",
 ]
 
 [[package]]
@@ -4733,7 +4743,6 @@ dependencies = [
 name = "wisp-learn-core"
 version = "2.0.0"
 dependencies = [
- "rand 0.9.5",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -4788,6 +4797,8 @@ dependencies = [
  "wisp-machine-core",
  "wisp-proc",
  "wisp-resources-api",
+ "wisp-runtime-api",
+ "wisp-store",
 ]
 
 [[package]]
@@ -5151,6 +5162,7 @@ dependencies = [
  "wisp-kernel",
  "wisp-proc",
  "wisp-resources-api",
+ "wisp-router-api",
  "wisp-runtime-api",
  "wisp-runtime-core",
  "wisp-store",
@@ -5213,6 +5225,7 @@ dependencies = [
  "serde",
  "serde_json",
  "wisp-kernel",
+ "wisp-runtime-api",
  "wisp-share-api",
  "wisp-share-core",
 ]
@@ -5332,6 +5345,7 @@ dependencies = [
  "tokio",
  "tracing",
  "wisp-kernel",
+ "wisp-proc",
  "wisp-resources-api",
  "wisp-store",
  "wisp-stuff-api",
@@ -5590,8 +5604,10 @@ dependencies = [
  "wisp-git-api",
  "wisp-kernel",
  "wisp-proc",
+ "wisp-resources-api",
  "wisp-runtime-api",
  "wisp-settings-api",
+ "wisp-store",
  "wisp-worktrees-api",
  "wisp-worktrees-core",
 ]

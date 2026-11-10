@@ -252,6 +252,15 @@ mod tests {
         assert!(compiled(Group::Default).iter().all(|n| in_build(n)));
     }
 
+    /// A manifest the kernel refuses at start (a command listed twice) drops the whole plugin: the ship
+    /// plugin was gone that way. Every built-in plugin's manifest validates.
+    #[test]
+    fn every_built_in_plugins_manifest_validates() {
+        let at = Where { home: std::env::temp_dir().join("wisp-groups-test"), user_home: std::env::temp_dir() };
+        let bad: Vec<String> = Group::Default.build(&at).manifests().iter().filter_map(|m| m.validate().err().map(|e| format!("{}: {}", m.id, e.message))).collect();
+        assert_eq!(bad, Vec::<String>::new());
+    }
+
     #[test]
     #[cfg(feature = "all-plugins")]
     fn the_default_build_has_every_plugin_host() {
