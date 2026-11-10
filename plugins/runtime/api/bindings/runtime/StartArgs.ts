@@ -3,6 +3,7 @@ import type { SessionId } from "../SessionId";
 import type { JsonValue } from "../serde_json/JsonValue";
 import type { AgentSpec } from "./AgentSpec";
 import type { Attachment } from "./Attachment";
+import type { AutoOverride } from "./AutoOverride";
 import type { Base } from "./Base";
 import type { Lineage } from "./Lineage";
 import type { Mode } from "./Mode";
@@ -38,4 +39,8 @@ crew?: string, team?: unknown, connectors?: Array<string>, schedule?: string,
 /**
  * the formula overlay it runs under: formula sections (`agents`, …) recorded in its snapshot
  */
-formula?: unknown, lineage?: Lineage, };
+formula?: unknown, lineage?: Lineage, 
+/**
+ * a harness you picked after Auto's preview showed another (v1 `autoOverride`): Auto learns from it
+ */
+autoOverride?: AutoOverride, };

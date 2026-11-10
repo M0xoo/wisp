@@ -40,6 +40,8 @@
     }
   },
   "permissions": [
+    "router:read",
+    "router:write",
     "stuff:read",
     "fs:read{path:~/.wisp/sessions}",
     "fs:write{path:~/.wisp/sessions}",
@@ -113,6 +115,12 @@
         "id": "runtime.release",
         "title": "Release a held task"
       },
+      { "id": "runtime.held", "title": "Start or skip a task's held turn" },
+      { "id": "runtime.setMode", "title": "Set the mode a task's next turns run in" },
+      { "id": "runtime.setAgent", "title": "Set the harness a task's next turns run on" },
+      { "id": "runtime.forLater", "title": "Save a task for later, or take it out" },
+      { "id": "runtime.queue.order", "title": "Reorder a task's queued follow-ups" },
+      { "id": "runtime.queue.cancel", "title": "Take a queued follow-up out" },
       {
         "id": "runtime.get",
         "title": "A task",
@@ -131,6 +139,11 @@
       {
         "id": "runtime.activity",
         "title": "A task's activity",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.cold",
+        "title": "A large idle task's prompt cache: gone cold or not, and what Compact now would cost",
         "readOnly": true
       },
       {
@@ -283,6 +296,23 @@
       {
         "id": "runtime.projectRun",
         "title": "Run a project's run scripts"
+      },
+      {
+        "id": "runtime.exec",
+        "title": "Run a one-click command from a presentation in the task's folder"
+      },
+      {
+        "id": "runtime.appState",
+        "title": "Keep an app block's state on its turn"
+      },
+      {
+        "id": "runtime.usage",
+        "title": "Spend, turns, how many worked and questions asked over the last days",
+        "readOnly": true
+      },
+      {
+        "id": "runtime.projectTest",
+        "title": "Set the command that runs a project's tests"
       }
     ],
     "topics": [

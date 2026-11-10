@@ -15,6 +15,7 @@ wisp-store.workspace = true
 wisp-proc.workspace = true
 wisp-runtime-api.workspace = true
 wisp-runtime-core.workspace = true
+wisp-router-api.workspace = true
 serde.workspace = true
 blake3.workspace = true
 schemars.workspace = true

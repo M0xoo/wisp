@@ -168,6 +168,8 @@ fn stats(v: Option<&Value>) -> Option<TurnStats> {
         cache_tokens: cache,
         ms: num("durationMs"),
         models,
+        context_tokens: num("contextTokens"),
+        cache_ttl_ms: num("cacheTtlMs"),
     })
 }
 

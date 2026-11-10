@@ -83,6 +83,12 @@ command!(QueueSendNow = "runtime.queue.sendNow": QueueItemArgs => FollowedUp);
 command!(QueueMerge = "runtime.queue.merge": QueueMergeArgs => Ack);
 command!(QueueText = "runtime.queue.text": QueueTextArgs => Ack);
 command!(Release = "runtime.release": ReleaseArgs => Ack);
+command!(Held = "runtime.held": HeldArgs => Ack);
+command!(SetMode = "runtime.setMode": SetModeArgs => Ack);
+command!(SetAgent = "runtime.setAgent": SetAgentArgs => Ack);
+command!(ForLater = "runtime.forLater": ForLaterArgs => Ack);
+command!(QueueOrder = "runtime.queue.order": QueueOrderArgs => Ack);
+command!(QueueCancel = "runtime.queue.cancel": QueueItemArgs => Ack);
 command!(Get = "runtime.get": IdArgs => Session, read_only);
 command!(List = "runtime.list": ListArgs => Vec<Summary>, read_only);
 command!(Turns = "runtime.turns": TurnsArgs => Vec<Turn>, read_only);
@@ -90,6 +96,8 @@ command!(ActivityOf = "runtime.activity": ActivityArgs => ActivityPage, read_onl
 command!(PresentationOf = "runtime.presentation": PresentationArgs => Option<Presentation>, read_only);
 command!(SetExt = "runtime.setExt": SetExtArgs => Ack);
 command!(TurnSetExt = "runtime.turn.setExt": TurnExtArgs => Ack);
+command!(Exec = "runtime.exec": ExecArgs => ExecOut);
+command!(AppState = "runtime.appState": AppStateArgs => Ack);
 command!(Answer = "runtime.answer": AnswerArgs => Value);
 command!(Ask = "runtime.ask": AskArgs => Asked);
 command!(Approval = "runtime.approval": ApprovalArgs => Value);
@@ -109,6 +117,8 @@ command!(Settle = "runtime.settle": SettleArgs => Ack);
 command!(Search = "runtime.search": SearchArgs => Vec<SearchHit>, read_only);
 command!(Quick = "runtime.quick": QuickArgs => QuickResult);
 command!(ProjectRun = "runtime.projectRun": ProjectRunArgs => Value);
+command!(ProjectTest = "runtime.projectTest": ProjectTestArgs => Ack);
+command!(Usage = "runtime.usage": UsageArgs => UsageSummary, read_only);
 command!(Sessions = "runtime.sessions": SessionsArgs => Vec<crate::harness::sessions::OutsideSession>, read_only);
 command!(AdoptSession = "runtime.adoptSession": AdoptSessionArgs => Created);
 command!(RestoreSession = "runtime.restoreSession": RestoreSessionArgs => Value);
@@ -142,6 +152,10 @@ command!(
 command!(
     /// The effective formula a task ran with, by its hash or the task's id (ADR-0029).
     SnapshotOf = "runtime.snapshot": crate::spec::HashArgs => crate::spec::Snapshot, read_only
+);
+command!(
+    /// A large idle task's prompt cache (gone cold: the next reply re-reads it) and Compact now's estimate.
+    Cold = "runtime.cold": ColdArgs => ColdOut, read_only
 );
 
 /// `wisp_sessions`: an `agent:session` token reads every task's line (the lead's decision); a capped one

@@ -14,6 +14,51 @@ use crate::{SessionId, TurnId};
 #[ts(export, export_to = "runtime/")]
 pub struct Ack {}
 
+/// `runtime.setMode`: the mode the task's next turns run in.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct SetModeArgs {
+    pub id: SessionId,
+    pub mode: Mode,
+}
+
+/// `runtime.setAgent`: the harness the task's next turns run on.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct SetAgentArgs {
+    pub id: SessionId,
+    pub agent: String,
+}
+
+/// `runtime.forLater`: saved for later (the list's For later), or not.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct ForLaterArgs {
+    pub id: SessionId,
+    pub for_later: bool,
+    /// when it was saved (Undo puts the old time back); now when unset
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
+    pub at: Option<i64>,
+}
+
+/// `runtime.queue.order`: the queued follow-ups in this order (ids the queue doesn't have are skipped).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct QueueOrderArgs {
+    pub id: SessionId,
+    pub order: Vec<String>,
+}
+
+/// `runtime.held`: the task's held turn started anyway, or skipped (the held turn found here).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct HeldArgs {
+    pub id: SessionId,
+    pub action: ReleaseAction,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "runtime/")]
 pub struct IdArgs {
@@ -129,6 +174,20 @@ pub struct StartArgs {
     #[serde(default, skip_serializing_if = "crate::spec::Lineage::is_empty")]
     #[ts(as = "Option<crate::spec::Lineage>", optional)]
     pub lineage: crate::spec::Lineage,
+    /// a harness you picked after Auto's preview showed another (v1 `autoOverride`): Auto learns from it
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub auto_override: Option<AutoOverride>,
+}
+
+/// The pick Auto's preview showed before you chose your own (`key`: its arm, `type`: the kind of task).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct AutoOverride {
+    pub key: String,
+    #[serde(default, rename = "type", skip_serializing_if = "Option::is_none")]
+    #[ts(optional, rename = "type")]
+    pub kind: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -336,6 +395,34 @@ pub struct TurnExtArgs {
     pub turn_id: TurnId,
     pub plugin: String,
     pub value: Value,
+}
+
+/// `runtime.exec`: a one-click command from an `actions` block, run in the task's folder (v1 /exec). The
+/// user's click only: no agent capability set names it. Additive (2026-11-10).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct ExecArgs {
+    pub id: SessionId,
+    pub command: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct ExecOut {
+    pub code: i32,
+    /// stdout then stderr, cut to the last 64 KB
+    pub output: String,
+}
+
+/// `runtime.appState`: an `app` block's state, kept on its turn (`ext["wisp.apps"][block]`, v1 /app-state).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct AppStateArgs {
+    pub id: SessionId,
+    pub turn_id: TurnId,
+    pub block: String,
+    pub state: Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]

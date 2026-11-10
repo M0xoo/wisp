@@ -173,6 +173,8 @@ impl Runtime {
         };
         // one-off extras a command left for this run (approveBlocked's grants, a fork's first run)
         let next = s.ext.get_mut("wisp.runtime").and_then(Value::as_object_mut).and_then(|o| o.remove("next")).unwrap_or(Value::Null);
+        // what other plugins keep on the turn before it runs (git: the checkpoint its rollback goes back to)
+        self.kept_before(&s, &mut turn).await;
         s.state = SessionState::Running;
         s.unread = false;
         s.archived = false;
@@ -201,12 +203,22 @@ impl Runtime {
         Ok(turn.id)
     }
 
+    /// What `runtime.run@1` contributors keep on a turn just before it runs (at most 3 s each).
+    async fn kept_before(&self, s: &Session, turn: &mut Turn) {
+        for part in self.host.run_parts() {
+            if let Ok(Some((k, v))) = tokio::time::timeout(std::time::Duration::from_secs(3), part.before_turn(s)).await {
+                turn.ext.insert(k, v);
+            }
+        }
+    }
+
     /// What the task had (ADR-0029), at its first run; its MCP servers probed in the background.
     fn record_setup(&self, s: &Session, run: &HarnessRun) {
-        let available = crate::setup::available(s, run, &s.agent);
+        let harness = self.harness(&s.agent).ok();
+        let dirs = harness.as_ref().map(|h| h.skill_dirs(&run.cwd)).unwrap_or_default();
+        let available = crate::setup::available(s, run, &s.agent, &dirs);
         let servers: Vec<(String, Value)> = run.mcp_servers.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         let host = self.host.clone();
-        let harness = self.harness(&s.agent).ok();
         crate::setup::record(self.repo.store.clone(), Arc::new(self.proc.clone()), self.host.net(), harness, s.id.0.clone(), available, servers, &move |f| host.spawn(f));
     }
 

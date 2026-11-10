@@ -77,6 +77,9 @@ pub struct ProjectSpec {
     pub run: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trust: Option<ProjectTrust>,
+    /// the command that runs its tests (Auto learns from whether a task's tests pass)
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub test: String,
     /// notes every task in it starts with (learned preferences, per-project rules)
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub instructions: String,
@@ -275,6 +278,19 @@ fn harness_kind(s: &mut Setup) -> std::sync::Arc<wisp_resources_api::StoredKind>
     inner
 }
 
+/// A project's spec with its test command set (empty clears it): what `runtime.projectTest` writes.
+pub fn with_test(spec: &Value, command: &str) -> Value {
+    let mut s = spec.clone();
+    if let Some(o) = s.as_object_mut() {
+        if command.trim().is_empty() {
+            o.remove("test");
+        } else {
+            o.insert("test".into(), Value::String(command.trim().to_owned()));
+        }
+    }
+    s
+}
+
 /// The project whose path holds `cwd` (the longest), if one is declared.
 pub fn project_for(projects: &[(String, Value)], cwd: &str) -> Option<(String, ProjectSpec)> {
     let norm = |p: &str| p.trim_end_matches('/').to_owned();
@@ -352,6 +368,16 @@ mod tests {
         let brew = HarnessSpec { from: "brew".into(), package: "grok-cli".into(), ..HarnessSpec::default() };
         assert_eq!(install_plan(&brew, false, None, None), Some(Install::Brew("grok-cli".into())));
         assert_eq!(install_plan(&HarnessSpec { enabled: Some(false), ..brew }, false, None, None), None);
+    }
+
+    #[test]
+    fn a_projects_test_command_is_set_cleared_and_read_back() {
+        let spec = serde_json::json!({ "path": "/w/app" });
+        let set = with_test(&spec, "  cargo test ");
+        assert_eq!(set["test"], "cargo test");
+        let p: ProjectSpec = serde_json::from_value(set.clone()).unwrap();
+        assert_eq!(p.test, "cargo test", "the spec reads it back (deny_unknown_fields knows it)");
+        assert!(with_test(&set, "").get("test").is_none());
     }
 
     #[test]

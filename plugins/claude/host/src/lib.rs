@@ -104,6 +104,10 @@ impl Harness for ClaudeHarness {
     fn info(&self) -> &HarnessInfo {
         &self.info
     }
+    /// Claude Code loads `~/.claude/skills` (or `$CLAUDE_CONFIG_DIR/skills`) and the project's `.claude/skills`.
+    fn skill_dirs(&self, cwd: &str) -> Vec<(std::path::PathBuf, String)> {
+        vec![(sessions::store().join("skills"), "~/.claude/skills".into()), (std::path::Path::new(cwd).join(".claude/skills"), ".claude/skills".into())]
+    }
 
     fn detect<'a>(&'a self, sys: &'a dyn HarnessSys) -> BoxFuture<'a, HarnessFound> {
         Box::pin(async move {
@@ -251,5 +255,16 @@ mod tests {
         let h = ClaudeHarness::default();
         let run = HarnessRun { bin: Some("/opt/claude".into()), prompt: "hi".into(), ..HarnessRun::default() };
         assert_eq!(h.launch(&run).map(|l| l.program).ok().as_deref(), Some("/opt/claude"));
+    }
+
+    /// The setup record names no harness: Claude's own skill folders come from it (was a
+    /// `harness == "claude"` branch in wisp.runtime's setup.rs).
+    #[test]
+    fn claude_names_the_skill_folders_it_loads_by_itself() {
+        let dirs = ClaudeHarness::default().skill_dirs("/work/app");
+        let labels: Vec<&str> = dirs.iter().map(|(_, l)| l.as_str()).collect();
+        assert_eq!(labels, ["~/.claude/skills", ".claude/skills"]);
+        assert_eq!(dirs[1].0, std::path::Path::new("/work/app/.claude/skills"));
+        assert!(dirs[0].0.ends_with("skills"));
     }
 }

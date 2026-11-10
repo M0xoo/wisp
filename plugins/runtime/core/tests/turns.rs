@@ -561,3 +561,23 @@ fn a_v1_session_file_imports_1_to_1() {
     assert!(import::from_v1(&json!({"title": "no id"})).is_err());
 }
 
+
+/// Saved for later (`runtime.forLater` writes `ext["wisp.runtime"].forLater`) is on the row for the list's For later
+/// section; a held turn's row names that turn, so Later's Start / Skip can release it.
+#[test]
+fn the_row_carries_for_later_and_the_held_turns_id() {
+    let mut s = session();
+    s.ext.insert("wisp.runtime".into(), json!({ "forLater": { "at": 5, "by": "you" } }));
+    let held = Turn {
+        id: "t9".into(),
+        status: TurnStatus::Held,
+        held: Some(serde_json::from_value(json!({ "kind": "limit", "by": "budget" })).unwrap()),
+        ..Turn::default()
+    };
+    let row = summarize(&s, &RowFacts { last: Some(&held), ..RowFacts::default() }, BTreeMap::new());
+    let v = serde_json::to_value(&row).unwrap();
+    assert_eq!(v["forLater"], json!({ "at": 5, "by": "you" }));
+    assert_eq!(v["held"]["turnId"], "t9");
+    let plain = serde_json::to_value(summarize(&session(), &RowFacts::default(), BTreeMap::new())).unwrap();
+    assert!(plain.get("forLater").is_none());
+}

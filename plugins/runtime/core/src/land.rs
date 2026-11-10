@@ -150,11 +150,27 @@ pub fn turn_stats(s: &HarnessStats) -> TurnStats {
         (None, None) => None,
         (read, write) => Some(read.unwrap_or(0) + write.unwrap_or(0)),
     };
-    let models = s
-        .extra
-        .get("models")
-        .and_then(Value::as_object)
-        .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+    // a map by model, or Claude's list of `{model, input, output, cacheRead, cacheWrite}` keyed by its model
+    let models = match s.extra.get("models") {
+        Some(Value::Object(m)) => Some(m.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
+        Some(Value::Array(a)) => Some(
+            a.iter()
+                .filter_map(|m| Some((m.get("model")?.as_str()?.to_owned(), m.clone())))
+                .collect(),
+        ),
+        _ => None,
+    };
+    let whole = |k: &str| {
+        s.extra
+            .get(k)
+            .and_then(Value::as_f64)
+            .filter(|x| x.is_finite() && *x >= 0.0)
+            .map(|x| {
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // finite, ≥ 0, token counts
+                let n = x.round() as u64;
+                n
+            })
+    };
     TurnStats {
         cost_usd: s.cost_usd,
         input_tokens: s.input_tokens,
@@ -162,6 +178,8 @@ pub fn turn_stats(s: &HarnessStats) -> TurnStats {
         cache_tokens: cache,
         ms: s.duration_ms,
         models,
+        context_tokens: whole("contextTokens"),
+        cache_ttl_ms: whole("cacheTtlMs"),
     }
 }
 

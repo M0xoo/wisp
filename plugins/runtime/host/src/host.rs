@@ -71,6 +71,10 @@ pub trait Host: Send + Sync + 'static {
     fn after_steps(&self) -> Vec<Arc<dyn AfterTurn>> {
         Vec::new()
     }
+    /// `router.service@1` (Auto) and a call that speaks for wisp.runtime, when a router is on. Additive.
+    fn router(&self) -> Option<(Arc<dyn wisp_router_api::service::RouterApi>, wisp_kernel::Call)> {
+        None
+    }
     fn blocks(&self) -> Vec<Arc<dyn BlockType>> {
         Vec::new()
     }
@@ -98,6 +102,10 @@ pub struct Recorder {
     /// a `before:run` that vetoes with this message, or holds with this kind
     pub veto: Option<String>,
     pub hold: Option<String>,
+    /// `runtime.run@1` contributions (a test's checkpoint keeper)
+    pub parts: Vec<Arc<dyn RunPart>>,
+    /// a stand-in for `router.service@1` (Auto)
+    pub router: Option<Arc<dyn wisp_router_api::service::RouterApi>>,
 }
 
 impl std::fmt::Debug for Recorder {
@@ -123,6 +131,9 @@ impl Recorder {
 }
 
 impl Host for Recorder {
+    fn run_parts(&self) -> Vec<Arc<dyn RunPart>> {
+        self.parts.clone()
+    }
     fn emit(&self, e: Emitted) {
         self.events
             .lock()
@@ -149,6 +160,9 @@ impl Host for Recorder {
     }
     fn harnesses(&self) -> Vec<Arc<dyn Harness>> {
         self.harnesses.clone()
+    }
+    fn router(&self) -> Option<(Arc<dyn wisp_router_api::service::RouterApi>, wisp_kernel::Call)> {
+        self.router.clone().map(|r| (r, wisp_kernel::Call::new_root(wisp_kernel::Caller::user())))
     }
 }
 

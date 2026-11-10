@@ -63,6 +63,70 @@ impl Runtime {
         .map(drop)
     }
 
+    /// The mode the task's next turns run in.
+    pub async fn set_mode(self: &Arc<Self>, id: &str, mode: wisp_runtime_api::model::Mode) -> Result<()> {
+        self.edit(id, |s| {
+            s.mode = mode;
+            Ok(())
+        })
+        .await
+        .map(drop)
+    }
+
+    /// The harness the task's next turns run on (the turn running finishes where it is).
+    pub async fn set_agent(self: &Arc<Self>, id: &str, agent: &str) -> Result<()> {
+        if agent.trim().is_empty() {
+            return Err(RuntimeError::Invalid("a harness id is needed".into()));
+        }
+        self.edit(id, |s| {
+            agent.trim().clone_into(&mut s.agent);
+            Ok(())
+        })
+        .await
+        .map(drop)
+    }
+
+    /// Saved for later (`ext["wisp.runtime"].forLater`, the list's For later section), or taken out.
+    pub async fn for_later(self: &Arc<Self>, id: &str, on: bool, at: Option<i64>) -> Result<()> {
+        self.edit(id, |s| {
+            let at = at.unwrap_or(s.updated_at);
+            let slot = s.ext.entry("wisp.runtime".into()).or_insert_with(|| serde_json::json!({}));
+            if let Some(o) = slot.as_object_mut() {
+                if on {
+                    o.insert("forLater".into(), serde_json::json!({ "at": at, "by": "you" }));
+                } else {
+                    o.remove("forLater");
+                }
+            }
+            Ok(())
+        })
+        .await
+        .map(drop)
+    }
+
+    /// The queue in this order (the composer's drag).
+    pub async fn queue_order(self: &Arc<Self>, id: &str, order: &[String]) -> Result<()> {
+        self.edit(id, |s| {
+            let mut held = s.queue_held;
+            queue::reorder(&mut Queue { items: &mut s.queue, held: &mut held }, order);
+            Ok(())
+        })
+        .await
+        .map(drop)
+    }
+
+    /// One queued follow-up taken out.
+    pub async fn queue_cancel(self: &Arc<Self>, id: &str, item: &str) -> Result<()> {
+        self.edit(id, |s| {
+            let mut held = s.queue_held;
+            queue::remove(&mut Queue { items: &mut s.queue, held: &mut held }, item);
+            s.queue_held = held;
+            Ok(())
+        })
+        .await
+        .map(drop)
+    }
+
     pub async fn mark_read(self: &Arc<Self>, id: &str, unread: bool) -> Result<()> {
         self.edit(id, |s| {
             s.unread = unread;
@@ -122,6 +186,42 @@ impl Runtime {
         }
         t.ext.insert(plugin.to_owned(), value);
         self.persist(&mut s, vec![t]).await.map(drop)
+    }
+
+    /// An `app` block's state on its turn (`ext["wisp.apps"][block]`); a block id is needed.
+    pub async fn app_state(self: &Arc<Self>, id: &str, turn: &str, block: &str, state: Value) -> Result<()> {
+        if block.trim().is_empty() {
+            return Err(RuntimeError::Invalid("which block?".into()));
+        }
+        let _guard = self.task_lock(id).await;
+        let mut s = self.repo.session(id).await?;
+        let mut t = self.repo.turn(turn).await?;
+        if t.session_id != s.id {
+            return Err(RuntimeError::NoTurn(turn.to_owned()));
+        }
+        let slot = t.ext.entry("wisp.apps".to_owned()).or_insert_with(|| serde_json::json!({}));
+        if !slot.is_object() {
+            *slot = serde_json::json!({});
+        }
+        if let Some(o) = slot.as_object_mut() {
+            o.insert(block.to_owned(), state);
+        }
+        self.persist(&mut s, vec![t]).await.map(drop)
+    }
+
+    /// A one-click command in the task's folder (`sh -c`, 2 min at most): its exit code and output.
+    pub async fn exec(self: &Arc<Self>, id: &str, command: &str) -> Result<(i32, String)> {
+        if command.trim().is_empty() {
+            return Err(RuntimeError::Invalid("no command to run".into()));
+        }
+        let s = self.repo.session(id).await?;
+        let opts = wisp_proc::ExecOpts { cwd: (!s.cwd.is_empty()).then(|| s.cwd.clone().into()), timeout: Some(std::time::Duration::from_secs(120)), ..wisp_proc::ExecOpts::default() };
+        let r = self.proc.exec("sh", &["-c".to_owned(), command.to_owned()], opts).await.map_err(|e| RuntimeError::Invalid(e.to_string()))?;
+        let mut out = r.stdout_text();
+        out.push_str(&r.stderr_text());
+        let cut = out.len().saturating_sub(64 * 1024);
+        let start = (cut..out.len()).find(|i| out.is_char_boundary(*i)).unwrap_or(out.len());
+        Ok((r.exit.shell_code(), out[start..].to_owned()))
     }
 
     pub async fn delete(self: &Arc<Self>, id: &str) -> Result<()> {
@@ -461,6 +561,17 @@ impl Runtime {
         limit: Option<u32>,
     ) -> Result<Vec<Turn>> {
         self.repo.turns(id, before, limit).await
+    }
+
+    /// `runtime.cold`: the task's prompt cache and Compact now, as of now (`wisp_runtime_core::cold`).
+    pub async fn cold(&self, id: &str) -> Result<wisp_runtime_api::commands::ColdOut> {
+        let s = self.repo.session(id).await?;
+        let turns = self.repo.turns(id, None, None).await?;
+        let now = self.now();
+        Ok(wisp_runtime_api::commands::ColdOut {
+            cache: wisp_runtime_core::cold::cold_cache(&s, &turns, now),
+            compact: wisp_runtime_core::cold::compact_offer(&s, &turns, now),
+        })
     }
 
     pub async fn activity(&self, turn: &str, since: Option<u64>) -> Result<ActivityPage> {

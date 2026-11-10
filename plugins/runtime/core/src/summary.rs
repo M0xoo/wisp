@@ -83,6 +83,11 @@ fn live(f: &RowFacts<'_>, waiting: &str) -> String {
     f.after_busy.unwrap_or_default().to_owned()
 }
 
+/// The held turn's id (Later's Start / Skip name it).
+fn t_id(t: Option<&Turn>) -> String {
+    t.map(|t| t.id.as_str().to_owned()).unwrap_or_default()
+}
+
 /// The row. `fields`: what `runtime.summary@1` contributors added, flattened onto it.
 pub fn summarize(s: &Session, f: &RowFacts<'_>, fields: BTreeMap<String, Value>) -> Summary {
     let mut names: Vec<&str> = Vec::new();
@@ -111,6 +116,10 @@ pub fn summarize(s: &Session, f: &RowFacts<'_>, fields: BTreeMap<String, Value>)
     if !s.tags.is_empty() {
         out.insert("tags".into(), json!(s.tags));
     }
+    // saved for later (`runtime.forLater`): the list's For later section
+    if let Some(l) = s.ext.get("wisp.runtime").and_then(|r| r.get("forLater")).filter(|l| !l.is_null()) {
+        out.insert("forLater".into(), l.clone());
+    }
     if let Some(h) = f
         .last
         .filter(|t| t.status == TurnStatus::Held)
@@ -118,7 +127,7 @@ pub fn summarize(s: &Session, f: &RowFacts<'_>, fields: BTreeMap<String, Value>)
     {
         out.insert(
             "held".into(),
-            json!({ "kind": h.kind, "by": h.by, "until": h.until, "data": h.data }),
+            json!({ "kind": h.kind, "by": h.by, "until": h.until, "data": h.data, "turnId": t_id(f.last) }),
         );
     }
     let asks = f.ask.is_some()

@@ -240,6 +240,14 @@ pub struct TurnStats {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub models: Option<BTreeMap<String, Value>>,
+    /// how large the conversation was after the turn (0: it compacted); the cold-cache line reads it
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub context_tokens: Option<u64>,
+    /// how long the provider keeps the prompt cache (Claude: 5 min or 1 h); absent: the harness doesn't say
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub cache_ttl_ms: Option<u64>,
 }
 
 /// The answer's rendered form: the fenced `wisp` block, parsed and checked. `v` is the parser version

@@ -35,17 +35,13 @@ pub fn skills_in(dir: &Path, from: &str) -> Vec<Value> {
     out
 }
 
-fn claude_config() -> PathBuf {
-    std::env::var("CLAUDE_CONFIG_DIR").ok().filter(|d| !d.is_empty()).map_or_else(|| PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".claude"), PathBuf::from)
-}
-
-/// What a run had, as recorded at its first turn (MCP servers not yet probed).
-pub fn available(s: &Session, run: &HarnessRun, harness: &str) -> Value {
+/// What a run had, as recorded at its first turn (MCP servers not yet probed). `skill_dirs`: where the
+/// harness finds skills by itself (`Harness::skill_dirs`; no harness is named here).
+pub fn available(s: &Session, run: &HarnessRun, harness: &str, skill_dirs: &[(PathBuf, String)]) -> Value {
     let brief = s.ext.get("wisp.runtime").and_then(|o| o.get("brief")).cloned().unwrap_or_default();
     let mut skills: Vec<Value> = brief.get("skills").and_then(Value::as_array).into_iter().flatten().map(|k| json!({ "name": k["name"], "source": "wisp", "hash": hash(k["body"].as_str().unwrap_or_default().as_bytes()), "outside": false })).collect();
-    if harness == "claude" {
-        skills.extend(skills_in(&claude_config().join("skills"), "~/.claude/skills"));
-        skills.extend(skills_in(&Path::new(&run.cwd).join(".claude/skills"), ".claude/skills"));
+    for (dir, label) in skill_dirs {
+        skills.extend(skills_in(dir, label));
     }
     let servers: Vec<Value> = run
         .mcp_servers

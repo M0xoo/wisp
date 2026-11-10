@@ -387,6 +387,17 @@ pub struct ProjectRunArgs {
     pub cwd: String,
 }
 
+/// `runtime.projectTest`: a declared project's test command (Settings → Auto, Tests per project); empty
+/// clears it. Additive (2026-11-10).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct ProjectTestArgs {
+    /// the project's name
+    pub name: String,
+    pub test_command: String,
+}
+
 /// `runtime.sessions`: this folder's sessions run outside wisp, across harnesses (ADR-0035). Additive.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -415,4 +426,71 @@ pub struct RestoreSessionArgs {
     pub cwd: String,
     /// the log, base64
     pub raw: String,
+}
+
+/// `runtime.usage`: Settings → Usage's line over the last `days` (7 when unset). Additive (2026-11-10).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct UsageArgs {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub days: Option<u32>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct UsageSummary {
+    /// the window's start (ms)
+    #[ts(type = "number")]
+    pub from: i64,
+    /// dollars, where the harness says
+    pub spend: f64,
+    pub turns: u32,
+    /// 0–100: the ended turns that didn't fail; null when none ended
+    pub worked: Option<f64>,
+    /// turns that ended by asking a question
+    pub questions: u32,
+}
+
+/// `runtime.cold` (v1 web/js/cold-cache.js): a large idle task's prompt cache, and Compact now.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct ColdArgs {
+    pub id: SessionId,
+}
+
+/// The provider's prompt cache of a large idle task: the next reply re-reads `tokens` once it's `cold`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct ColdCache {
+    #[ts(type = "number")]
+    pub tokens: u64,
+    #[ts(type = "number")]
+    pub ttl_ms: u64,
+    /// when the cache is taken as gone: its last use + TTL × 1.25 (caches outlive their TTL a little)
+    #[ts(type = "number")]
+    pub cold_at: i64,
+    pub cold: bool,
+}
+
+/// Compact now: compacting now against the same reply once cold, USD at API list prices (`None`: a model
+/// with no price, tokens only). Offered until `until` (the TTL itself: a dead cache costs what it saves).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "runtime/")]
+pub struct CompactOffer {
+    #[ts(type = "number")]
+    pub tokens: u64,
+    pub compact: Option<f64>,
+    pub cold: Option<f64>,
+    #[ts(type = "number")]
+    pub until: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct ColdOut {
+    pub cache: Option<ColdCache>,
+    pub compact: Option<CompactOffer>,
 }

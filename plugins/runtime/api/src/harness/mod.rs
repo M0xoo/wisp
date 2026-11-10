@@ -92,6 +92,11 @@ pub trait Harness: Send + Sync + 'static {
     fn program(&self) -> Option<String> {
         None
     }
+    /// Folders of skills the CLI loads by itself for a run in `cwd`: `(path, label)`, label as shown
+    /// (`~/.claude/skills`). The setup record lists them by name and hash (ADR-0029). Additive (2026-11-10).
+    fn skill_dirs(&self, _cwd: &str) -> Vec<(std::path::PathBuf, String)> {
+        Vec::new()
+    }
     /// How to get it on that OS, sent while it isn't found.
     fn setup(&self, _platform: &str) -> Option<SetupTip> {
         None

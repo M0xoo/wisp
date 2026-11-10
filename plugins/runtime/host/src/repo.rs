@@ -101,6 +101,13 @@ impl Repo {
         Ok(turns)
     }
 
+    /// Every turn that started at or after `from` (Settings → Usage).
+    pub async fn turns_since(&self, from: i64) -> Result<Vec<Turn>> {
+        let q = Query::new().cond("started_at", Cond::Gte(from.into()));
+        let rows = self.store.read_async(move |r| r.query("turn", &q)).await?;
+        rows.iter().map(rows::turn_of).collect()
+    }
+
     /// One turn by id.
     pub async fn turn(&self, id: &str) -> Result<Turn> {
         let key = id.to_owned();

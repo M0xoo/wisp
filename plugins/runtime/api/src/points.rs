@@ -120,6 +120,11 @@ pub trait RunPart: Send + Sync + 'static {
     fn mcp_servers(&self, _session: &Session, _q: &McpQuery) -> BTreeMap<String, Value> {
         BTreeMap::new()
     }
+    /// Just before a turn runs (not a held one): an ext slot to keep on the turn, `(plugin id, value)`.
+    /// git's checkpoint (what the folder was, for the turn's rollback). Awaited, at most 3 s. Additive.
+    fn before_turn(&self, _session: &Session) -> BoxFuture<'static, Option<(String, Value)>> {
+        Box::pin(async { None })
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

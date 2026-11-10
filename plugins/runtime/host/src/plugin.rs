@@ -94,6 +94,9 @@ impl Host for CtxHost {
     fn outcomes(&self) -> Vec<Arc<dyn wisp_runtime_api::points::TurnOutcome>> {
         self.ctx.contributions(&OUTCOME)
     }
+    fn router(&self) -> Option<(Arc<dyn wisp_router_api::service::RouterApi>, wisp_kernel::Call)> {
+        self.ctx.use_service::<wisp_router_api::service::RouterService>().ok().map(|r| (r, self.ctx.root_call()))
+    }
 }
 
 /// The task tree as the kernel's scope reads it: a delegation's parent chain.
@@ -125,6 +128,11 @@ macro_rules! cmd {
             }
         });
     }};
+}
+
+/// A catalogue event for the fact this plugin owns (ADR-0021); never fails the command that caused it.
+async fn track(ctx: &wisp_kernel::Ctx, event: &str, props: serde_json::Value) {
+    let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", serde_json::json!({ "event": event, "props": props })).await;
 }
 
 /// How often the retention sweep looks.
@@ -303,6 +311,22 @@ fn for_agents(s: &mut Setup, slot: &Slot) {
     });
 }
 
+/// `runtime.fork`, counted as `fork_task`.
+fn fork(s: &mut Setup, slot: &Slot) {
+    let sl = slot.clone();
+    s.command::<c::Fork, _, _>(move |ctx, _call, a| {
+        let slot = sl.clone();
+        async move {
+            let r = rt(&slot)?;
+            let (id, latest) = (a.id.clone(), a.turn_id.is_none());
+            let out = r.fork(a).await.map_err(WireError::from)?;
+            let agent = r.get(id.as_str()).await.map(|x| x.agent).unwrap_or_default();
+            track(&ctx, "fork_task", serde_json::json!({ "agent": agent, "switched": false, "latest": latest })).await;
+            Ok(out)
+        }
+    });
+}
+
 /// asks, approvals, /btw, compact, rerun, fork, subagents, quick, sign-in, overage, agents (more.rs)
 fn more(s: &mut Setup, slot: &Slot, harness_kind: Arc<wisp_resources_api::StoredKind>, kinds_for_run: Arc<wisp_resources_api::StoredKind>) {
     cmd!(s, slot, c::Ask, |r, call, a| r.ask(a).await.map(|ask_id| c::Asked { ask_id }));
@@ -314,7 +338,7 @@ fn more(s: &mut Setup, slot: &Slot, harness_kind: Arc<wisp_resources_api::Stored
     cmd!(s, slot, c::BtwDrop, |r, call, a| r.btw_drop(a.id.as_str(), &a.btw_id).await.map(|()| c::Ack {}));
     cmd!(s, slot, c::Compact, |r, call, a| r.compact(&a.id).await);
     cmd!(s, slot, c::Rerun, |r, call, a| r.rerun(a).await);
-    cmd!(s, slot, c::Fork, |r, call, a| r.fork(a).await);
+    fork(s, slot);
     cmd!(s, slot, c::Adopt, |r, call, a| r.adopt(a).await);
     cmd!(s, slot, c::Delegate, |r, call, a| r.delegate(a).await);
     cmd!(s, slot, c::Results, |r, call, a| r.results(a).await);
@@ -322,6 +346,7 @@ fn more(s: &mut Setup, slot: &Slot, harness_kind: Arc<wisp_resources_api::Stored
     cmd!(s, slot, c::SignIn, |r, call, a| r.sign_in(a.id.as_str(), &a.turn_id).await.map(|_| c::Ack {}));
     cmd!(s, slot, c::SignInDone, |r, call, a| r.sign_in_done(&a.agent, &a.account).await.map(|()| c::Ack {}));
     cmd!(s, slot, c::Overage, |r, call, a| r.overage(a.id.as_str(), &a.turn_id, &a.kind).await.map(|()| c::Ack {}));
+    project_test(s, kinds_for_run.clone());
     let projects = kinds_for_run;
     s.command::<c::ProjectRun, _, _>(move |ctx, call, a| {
         let projects = projects.clone();
@@ -332,7 +357,9 @@ fn more(s: &mut Setup, slot: &Slot, harness_kind: Arc<wisp_resources_api::Stored
                 return Err(WireError::invalid(format!("{name} has no run scripts (run: in its project)")));
             }
             let args = serde_json::json!({ "kind": "shell", "id": format!("run:{name}"), "argv": ["sh", "-c", p.run.join(" && ")], "cwd": p.path });
-            ctx.run_json(&call, "terminal.open", args).await
+            let out = ctx.run_json(&call, "terminal.open", args).await?;
+            track(&ctx, "run_app", serde_json::json!({ "source": "project" })).await;
+            Ok(out)
         }
     });
     s.command::<c::Sessions, _, _>(|ctx, _call, a| async move {
@@ -409,6 +436,12 @@ fn edits(s: &mut Setup, slot: &Slot) {
         .archive(a.id.as_str(), a.archived)
         .await
         .map(|()| c::Ack {}));
+    cmd!(s, slot, c::SetMode, |r, call, a| r.set_mode(a.id.as_str(), a.mode).await.map(|()| c::Ack {}));
+    cmd!(s, slot, c::SetAgent, |r, call, a| r.set_agent(a.id.as_str(), &a.agent).await.map(|()| c::Ack {}));
+    cmd!(s, slot, c::ForLater, |r, call, a| r.for_later(a.id.as_str(), a.for_later, a.at).await.map(|()| c::Ack {}));
+    cmd!(s, slot, c::QueueOrder, |r, call, a| r.queue_order(a.id.as_str(), &a.order).await.map(|()| c::Ack {}));
+    cmd!(s, slot, c::QueueCancel, |r, call, a| r.queue_cancel(a.id.as_str(), &a.item_id).await.map(|()| c::Ack {}));
+    cmd!(s, slot, c::Held, |r, call, a| r.held(a.id.as_str(), a.action == c::ReleaseAction::Start).await.map(|()| c::Ack {}));
     cmd!(s, slot, c::MarkRead, |r, call, a| r
         .mark_read(a.id.as_str(), a.unread)
         .await
@@ -459,6 +492,7 @@ fn reads(s: &mut Setup, slot: &Slot) {
     cmd!(s, slot, c::ActivityOf, |r, call, a| r
         .activity(a.turn_id.as_str(), a.since_seq)
         .await);
+    cmd!(s, slot, c::Cold, |r, call, a| r.cold(a.id.as_str()).await);
     cmd!(s, slot, c::PresentationOf, |r, call, a| r
         .presentation(a.id.as_str(), a.turn)
         .await);
@@ -468,6 +502,23 @@ fn reads(s: &mut Setup, slot: &Slot) {
             .await
             .map(|()| c::Ack {})
     });
+    cmd!(s, slot, c::Usage, |r, call, a| {
+        let from = r.now() - i64::from(a.days.unwrap_or(7).clamp(1, 366)) * 86_400_000;
+        let turns = r.repo.turns_since(from).await?;
+        Ok(wisp_runtime_core::usage::summarize(&turns, from))
+    });
+    let sl = slot.clone();
+    s.command::<c::Exec, _, _>(move |ctx, _call, a| {
+        let slot = sl.clone();
+        async move {
+            let r = rt(&slot)?;
+            let (code, output) = r.exec(a.id.as_str(), &a.command).await.map_err(WireError::from)?;
+            let agent = r.get(a.id.as_str()).await.map(|x| x.agent).unwrap_or_default();
+            track(&ctx, "exec_action", serde_json::json!({ "agent": agent, "exitCode": code })).await;
+            Ok(c::ExecOut { code, output })
+        }
+    });
+    cmd!(s, slot, c::AppState, |r, call, a| r.app_state(a.id.as_str(), a.turn_id.as_str(), &a.block, a.state).await.map(|()| c::Ack {}));
     cmd!(s, slot, c::TurnSetExt, |r, call, a| {
         own_slot(&call, &a.plugin)?;
         r.turn_set_ext(a.id.as_str(), a.turn_id.as_str(), &a.plugin, a.value)
@@ -532,4 +583,20 @@ impl Plugin for RuntimePlugin {
         });
         Ok(())
     }
+}
+
+/// `runtime.projectTest`: a declared project's test command, written through its resource kind.
+fn project_test(s: &mut Setup, tests_kind: Arc<wisp_resources_api::StoredKind>) {
+    s.command::<c::ProjectTest, _, _>(move |_ctx, call, a| {
+        let kind = tests_kind.clone();
+        async move {
+            use wisp_resources_api::ResourceKind as _;
+            let list = kind.specs().await.unwrap_or_default();
+            let (_, before) = list.into_iter().find(|(n, _)| *n == a.name).ok_or_else(|| WireError::not_found(format!("No project called {}", a.name)))?;
+            let spec = crate::kinds::with_test(&before, &a.test_command);
+            let op = wisp_resources_api::Op { op: wisp_resources_api::OpKind::Update, kind: "project".into(), name: a.name.clone(), spec, id: None, changes: Vec::new(), before: Some(before) };
+            kind.apply(&call, &op).await?;
+            Ok(c::Ack {})
+        }
+    });
 }

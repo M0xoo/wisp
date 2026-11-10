@@ -239,21 +239,62 @@ impl Runtime {
         lock(&self.live).get(id).and_then(|l| l.label.clone())
     }
 
+    /// Auto's pick for a new task, or `None` (no router on, or nothing allowed can run now: the first
+    /// harness then, as before).
+    fn auto_pick(&self, a: &StartArgs) -> Option<wisp_router_api::Pick> {
+        let (router, call) = self.host.router()?;
+        let choose = wisp_router_api::ChooseArgs { prompt: a.prompt.clone(), attachments: u32::try_from(a.attachments.len()).unwrap_or(u32::MAX), need_delegate: a.team.is_some(), ..wisp_router_api::ChooseArgs::default() };
+        match router.pick(&call, wisp_router_api::service::PickRequest { choose, level_up: None }) {
+            Ok(p) => p,
+            Err(e) => {
+                tracing::warn!(error = %e.message, "Auto couldn't pick: the first harness runs it");
+                None
+            }
+        }
+    }
+
+    /// What the launch teaches Auto (v1 index.js:315): its route, your own pick of a top-level task (your
+    /// taste), and a pick that overrode Auto's preview. Subagents, crew and channel jobs teach nothing.
+    fn auto_learn(&self, s: &Session, a: &StartArgs, pick: Option<&wisp_router_api::Pick>) {
+        use wisp_router_api::service::Outcome;
+        let Some((router, call)) = self.host.router() else { return };
+        let id = s.id.0.clone();
+        let mut out = Vec::new();
+        if let Some(p) = pick {
+            out.push(Outcome::Launched { id, route: wisp_router_api::StoredRoute::from_route(&p.route) });
+        } else if a.parent_id.is_none() && a.by.is_none() {
+            let attachments = u32::try_from(a.attachments.len()).unwrap_or(u32::MAX);
+            out.push(Outcome::Manual { id, agent: s.agent.clone(), model: s.model.clone(), effort: s.effort.clone(), prompt: a.prompt.clone(), attachments });
+            if let Some(o) = &a.auto_override {
+                out.push(Outcome::Override { kind: o.kind.clone(), auto: o.key.clone(), chose: wisp_router_api::arm_key(&s.agent, &s.model, &s.effort), prompt: a.prompt.clone() });
+            }
+        }
+        for o in out {
+            if let Err(e) = router.report(&call, o) {
+                tracing::warn!(error = %e.message, "Auto didn't hear of a launch");
+            }
+        }
+    }
+
     /// `runtime.create`: a new task, and its first turn starts.
     pub async fn create(self: &Arc<Self>, a: StartArgs) -> Result<Created> {
         if a.prompt.trim().is_empty() {
             return Err(RuntimeError::Invalid("a task needs a prompt".into()));
         }
         let first = self.host.harnesses().into_iter().next();
-        let agent = a
-            .agent
-            .clone()
-            .filter(|x| !x.is_empty() && x != "auto")
+        // Auto (v1 router.js): nothing named, or `auto`: the router picks harness, model and level
+        let pick = if a.agent.as_deref().is_none_or(|x| x.is_empty() || x == "auto") { self.auto_pick(&a) } else { None };
+        let agent = pick
+            .as_ref()
+            .map(|p| p.agent.clone())
+            .or_else(|| a.agent.clone().filter(|x| !x.is_empty() && x != "auto"))
             .or_else(|| first.as_ref().map(|h| h.info().id.clone()))
             .unwrap_or_default();
-        let model = a
-            .model
-            .clone()
+        let model = pick
+            .as_ref()
+            .map(|p| p.model.clone())
+            .filter(|m| !m.is_empty())
+            .or_else(|| a.model.clone())
             .or_else(|| {
                 self.harness(&agent)
                     .ok()
@@ -270,7 +311,7 @@ impl Runtime {
                 .unwrap_or_else(|| land::auto_title(&prompt::mentions::plain_mentions(&a.prompt))),
             agent,
             model,
-            effort: a.effort.clone().unwrap_or_default(),
+            effort: pick.as_ref().map(|p| p.effort.clone()).filter(|e| !e.is_empty()).or_else(|| a.effort.clone()).unwrap_or_default(),
             account: a.account.clone(),
             mode: a.mode.unwrap_or(Mode::Auto),
             cwd: a.cwd.clone().unwrap_or_default(),
@@ -289,10 +330,14 @@ impl Runtime {
         };
         own.insert("titleAuto".into(), a.title.is_none().into());
         s.ext.insert("wisp.runtime".into(), serde_json::Value::Object(own));
+        if let Some(p) = &pick {
+            s.ext.insert(wisp_router_api::PLUGIN_ID.into(), serde_json::json!({ "route": p.route }));
+        }
         let summary = self.persist(&mut s, Vec::new()).await?;
         self.host.emit(Emitted::Created(SessionCreated {
             session: (*summary).clone(),
         }));
+        self.auto_learn(&s, &a, pick.as_ref());
         let item = QueueItem {
             id: wisp_kernel::ids::uuid7(),
             text: a.prompt,
