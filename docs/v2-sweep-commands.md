@@ -1,63 +1,83 @@
-# Commands the UI sends that no server handles (generated 2026-11-10 by the sweep in docs/v2-round-7.md, round 7)
+# ui-commands: what the rule reports (baseline 2026-11-10, 79 findings)
 
-| UI command | sent from |
-|---|---|
-| checkpoint.restore | packages/shell/src/frame/commands.ts |
-| connectors.add | plugins/connectors/ui/src/commands.ts |
-| connectors.import | plugins/connectors/ui/src/commands.ts |
-| connectors.remove | plugins/connectors/ui/src/commands.ts |
-| connectors.signin | plugins/connectors/ui/src/commands.ts |
-| connectors.signout | plugins/connectors/ui/src/commands.ts |
-| connectors.test | plugins/connectors/ui/src/commands.ts |
-| connectors.update | plugins/connectors/ui/src/commands.ts |
-| crew.export | plugins/crew/ui/src/more/commands.ts |
-| crew.import | plugins/crew/ui/src/more/commands.ts |
-| crew.localKit | plugins/crew/ui/src/more/commands.ts |
-| goal.check | plugins/goal/ui/src/commands.ts |
-| goal.drop | plugins/goal/ui/src/commands.ts |
-| goal.pause | plugins/goal/ui/src/commands.ts |
-| goal.resume | plugins/goal/ui/src/commands.ts |
-| later.park | plugins/later/ui/src/commands.ts |
-| machine.fix | plugins/machine/ui/src/commands.ts |
-| machine.harnessClean | plugins/machine/ui/src/commands.ts |
-| machine.pauseAutomations | plugins/machine/ui/src/commands.ts |
-| machine.stop | plugins/machine/ui/src/commands.ts |
-| project.update | plugins/router/ui/src/commands.ts |
-| runtime.forLater | packages/shell/src/frame/commands.ts |
-| runtime.queue.cancel | plugins/shell-composer/ui/src/commands.ts |
-| runtime.queue.now | plugins/shell-composer/ui/src/commands.ts |
-| runtime.queue.order | plugins/shell-composer/ui/src/commands.ts |
-| runtime.reply | plugins/shell-composer/ui/src/commands.ts |
-| runtime.setAgent | packages/shell/src/frame/commands.ts |
-| runtime.setMode | packages/shell/src/frame/commands.ts |
-| runtime.side | plugins/shell-composer/ui/src/commands.ts |
-| session.allowRetry | plugins/shell-task/ui/src/commands/session.ts |
-| session.answer | plugins/crew/ui/src/commands.ts, plugins/shell-task/ui/src/commands/session.ts |
-| session.appState | plugins/shell-task/ui/src/commands/session.ts |
-| session.archive | plugins/shell-task/ui/src/commands/session.ts |
-| session.compact | plugins/shell-task/ui/src/commands/session.ts |
-| session.exec | plugins/shell-task/ui/src/commands/session.ts |
-| session.followUp | plugins/crew/ui/src/commands.ts |
-| session.fork | plugins/shell-task/ui/src/commands/session.ts |
-| session.held | plugins/later/ui/src/commands.ts, plugins/shell-task/ui/src/commands/session.ts |
-| session.markDone | plugins/shell-task/ui/src/commands/session.ts |
-| session.rename | plugins/shell-task/ui/src/commands/session.ts |
-| session.reopen | plugins/shell-task/ui/src/commands/session.ts |
-| session.reply | plugins/shell-task/ui/src/commands/session.ts |
-| session.rerun | plugins/shell-task/ui/src/commands/session.ts |
-| session.setMode | plugins/shell-task/ui/src/commands/session.ts |
-| session.stop | plugins/shell-task/ui/src/commands/session.ts |
-| session.update | plugins/crew/ui/src/commands.ts |
-| share.create | plugins/stuff/ui/src/share/commands.ts |
-| share.peek | plugins/stuff/ui/src/share/commands.ts |
-| share.stop | plugins/stuff/ui/src/share/commands.ts |
-| ship.review | plugins/ship/ui/src/commands.ts |
-| stuff.addStarter | plugins/stuff/ui/src/commands.ts |
-| stuff.publish | plugins/stuff/ui/src/commands.ts |
-| stuff.reveal | plugins/stuff/ui/src/commands.ts |
-| stuff.starters | plugins/stuff/ui/src/commands.ts |
-| stuff.targets | plugins/stuff/ui/src/commands.ts |
-| stuff.unpublish | plugins/stuff/ui/src/commands.ts |
-| worktrees.bringIn | plugins/worktrees/ui/src/commands.ts |
-| worktrees.dismiss | plugins/worktrees/ui/src/commands.ts |
-| worktrees.keep | plugins/worktrees/ui/src/commands.ts |
+Regenerate with `node /tmp/run-rule.ts` or `npm run check` (the rule `ui-commands`, tools/check/rules/ui-commands.ts). It must reach 0.
+
+- packages/shell/src/frame/commands.ts:78 the UI sends runtime.forLater, which no plugin manifest lists: rename it to the server's id or add the command
+- packages/shell/src/frame/commands.ts:84 the UI sends runtime.setMode, which no plugin manifest lists: rename it to the server's id or add the command
+- packages/shell/src/frame/commands.ts:86 the UI sends runtime.setAgent, which no plugin manifest lists: rename it to the server's id or add the command
+- packages/shell/src/frame/commands.ts:109 the UI sends checkpoint.restore, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/connectors/ui/src/commands.ts:41 the UI sends connectors.add, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/connectors/ui/src/commands.ts:47 the UI sends connectors.update, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/connectors/ui/src/commands.ts:58 the UI sends connectors.remove, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/connectors/ui/src/commands.ts:64 the UI sends connectors.test, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/connectors/ui/src/commands.ts:70 the UI sends connectors.signout, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/connectors/ui/src/commands.ts:77 the UI sends connectors.signin, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/connectors/ui/src/commands.ts:84 the UI sends connectors.import, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/crew/ui/src/commands.ts:76 the UI sends session.answer, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/crew/ui/src/commands.ts:83 the UI sends session.followUp, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/crew/ui/src/commands.ts:90 the UI sends session.update, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/crew/ui/src/more/commands.ts:28 the UI sends crew.localKit, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/crew/ui/src/more/commands.ts:43 the UI sends crew.export, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/crew/ui/src/more/commands.ts:50 the UI sends crew.import, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/crew/ui/src/more/commands.ts:70 the UI sends crew.import, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/goal/ui/src/commands.ts:55 the UI sends goal.pause, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/goal/ui/src/commands.ts:61 the UI sends goal.resume, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/goal/ui/src/commands.ts:67 the UI sends goal.drop, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/goal/ui/src/commands.ts:74 the UI sends goal.check, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/later/ui/src/commands.ts:80 the UI sends later.park, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/later/ui/src/commands.ts:143 the UI sends session.held, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/machine/ui/src/commands.ts:68 the UI sends machine.stop, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/machine/ui/src/commands.ts:69 the UI sends machine.pauseAutomations, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/machine/ui/src/commands.ts:76 the UI sends machine.harnessClean, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/machine/ui/src/commands.ts:77 the UI sends machine.fix, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/machine/ui/src/types.ts:9 the UI watches plugin:wisp.machine:snapshot, which no server writes
+- plugins/machine/ui/src/types.ts:10 the UI watches plugin:wisp.machine:load, which no server writes
+- plugins/router/ui/src/commands.ts:42 the UI sends project.update, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-composer/ui/src/commands.ts:35 the UI sends runtime.reply, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-composer/ui/src/commands.ts:61 the UI sends runtime.queue.now, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-composer/ui/src/commands.ts:73 the UI sends runtime.queue.order, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-composer/ui/src/commands.ts:80 the UI sends runtime.queue.cancel, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-composer/ui/src/commands.ts:107 the UI sends runtime.side, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:12 the UI sends session.rename, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:18 the UI sends session.stop, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:25 the UI sends session.setMode, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:32 the UI sends session.reply, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:39 the UI sends session.answer, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:50 the UI sends session.allowRetry, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:57 the UI sends session.exec, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:63 the UI sends session.markDone, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:69 the UI sends session.reopen, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:75 the UI sends session.archive, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:81 the UI sends session.fork, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:87 the UI sends session.rerun, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:93 the UI sends session.compact, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:100 the UI sends session.held, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/shell-task/ui/src/commands/session.ts:107 the UI sends session.appState, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/ship/ui/src/commands.ts:55 the UI sends ship.review, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/stuff/ui/src/commands.ts:92 the UI sends stuff.publish, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/stuff/ui/src/commands.ts:98 the UI sends stuff.unpublish, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/stuff/ui/src/commands.ts:127 the UI sends stuff.starters, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/stuff/ui/src/commands.ts:130 the UI sends stuff.addStarter, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/stuff/ui/src/commands.ts:140 the UI sends stuff.reveal, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/stuff/ui/src/commands.ts:143 the UI sends stuff.targets, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/stuff/ui/src/share/commands.ts:23 the UI sends share.create, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/stuff/ui/src/share/commands.ts:32 the UI sends share.stop, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/stuff/ui/src/share/commands.ts:39 the UI sends share.peek, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/worktrees/ui/src/commands.ts:18 the UI sends worktrees.keep, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/worktrees/ui/src/commands.ts:29 the UI sends worktrees.bringIn, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/worktrees/ui/src/commands.ts:37 the UI sends worktrees.dismiss, which no plugin manifest lists: rename it to the server's id or add the command
+- plugins/worktrees/ui/src/types.ts:9 the UI watches plugin:wisp.worktrees:worktrees, which no server writes
+- plugins/accounts/ui/package.json:1 @wisp-plugin/accounts-ui is registered nowhere: give src/index.ts a default definePluginUi(…), or register it in apps/web
+- plugins/automations/ui/package.json:1 @wisp-plugin/automations-ui is registered nowhere: give src/index.ts a default definePluginUi(…), or register it in apps/web
+- plugins/budget/ui/package.json:1 @wisp-plugin/budget-ui is registered nowhere: give src/index.ts a default definePluginUi(…), or register it in apps/web
+- plugins/connectors/ui/package.json:1 @wisp-plugin/connectors-ui is registered nowhere: give src/index.ts a default definePluginUi(…), or register it in apps/web
+- plugins/grid-client/ui/package.json:1 @wisp-plugin/grid-client-ui is registered nowhere: give src/index.ts a default definePluginUi(…), or register it in apps/web
+- plugins/issues/ui/package.json:1 @wisp-plugin/issues-ui is registered nowhere: give src/index.ts a default definePluginUi(…), or register it in apps/web
+- plugins/learn/ui/package.json:1 @wisp-plugin/learn-ui is registered nowhere: give src/index.ts a default definePluginUi(…), or register it in apps/web
+- plugins/machines/ui/package.json:1 @wisp-plugin/machines-ui is registered nowhere: give src/index.ts a default definePluginUi(…), or register it in apps/web
+- plugins/plugins/ui/package.json:1 @wisp-plugin/plugins-ui is registered nowhere: give src/index.ts a default definePluginUi(…), or register it in apps/web
+- plugins/settings/ui/package.json:1 @wisp-plugin/settings-ui is registered nowhere: give src/index.ts a default definePluginUi(…), or register it in apps/web
+- plugins/shell-composer/ui/package.json:1 @wisp-plugin/shell-composer-ui is registered nowhere: give src/index.ts a default definePluginUi(…), or register it in apps/web
+- plugins/shell-home/ui/package.json:1 @wisp-plugin/shell-home-ui is registered nowhere: give src/index.ts a default definePluginUi(…), or register it in apps/web
+- plugins/stuff/ui/package.json:1 @wisp-plugin/stuff-ui is registered nowhere: give src/index.ts a default definePluginUi(…), or register it in apps/web
+- plugins/telemetry/ui/package.json:1 @wisp-plugin/telemetry-ui is registered nowhere: give src/index.ts a default definePluginUi(…), or register it in apps/web
