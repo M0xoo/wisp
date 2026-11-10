@@ -34,6 +34,15 @@ Right after ui-commands reaches 0, and before the UI burndown:
   - the `harness == "claude"` branch in `runtime/setup.rs`;
   - regenerating the TS bindings.
 
+**For the UI coder, from backend-coder (2026-11-10):**
+- **Settings → Learning** (v1's pane): the lists by scope with edit and remove (`learn.set`), the recent retros
+  (`learn.view` history), and the on/off switch (`learn.enabled`).
+- **The launcher:** send `autoOverride: {key, type}` when you pick a harness after Auto's preview showed another.
+- **The task card:** show why Auto picked it (`ext["wisp.router"].route`: `why`, `chance`, `usd`).
+- **The reply box:** the cold-cache line and the Compact now button (`runtime.cold`), and the Fable vendor mark.
+- **Issues:** once backend-coder lands `issues.projects` and #766, build the Issue picker and the "Connect Linear… /
+  Jira…" prefilled connector form.
+
 **For backend-coder, from the UI coder (2026-11-10), blocking two screens:**
 - learn: its host is a placeholder. Port v1's memory and retros with their commands, for Settings → Memory.
 - issues: `issues.list` can't resolve a project, because nothing contributes `issues.projects`. Contribute it from
