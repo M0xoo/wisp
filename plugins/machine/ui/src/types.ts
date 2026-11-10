@@ -110,7 +110,8 @@ export interface MachineSnapshot {
   readonly tasks: readonly TaskUse[];
   readonly crew: readonly CrewUse[];
   readonly leftovers: readonly Leftover[];
-  readonly leftoverGroups: readonly LeftoverGroup[];
+  /** the store's column names: snake case where two words */
+  readonly leftover_groups: readonly LeftoverGroup[];
   readonly history: readonly HistoryPoint[];
   readonly reclaim: readonly (ReclaimGroup | HarnessGroup)[];
   /** Settings → Worktrees' automatic cleanup, in idle days, or 'off' */
@@ -121,13 +122,13 @@ export interface MachineSnapshot {
 export interface MachineLoad {
   readonly at: number;
   readonly platform?: string;
-  readonly memFreePct: number | null;
+  readonly mem_free_pct: number | null;
   readonly runs: number;
   readonly held: { readonly kind: Held; readonly why: string } | null;
   readonly limits: { readonly floor: number | null };
-  readonly pausedUntil: number;
+  readonly paused_until: number;
   /** processes left behind, from the last snapshot */
-  readonly left: number;
+  readonly left_behind: number;
 }
 
 /** The task row's RAM column reads `res` off the list summary (set over 500 MB or 50% CPU). */

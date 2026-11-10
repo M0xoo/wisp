@@ -102,7 +102,7 @@ export function LeftBehind(props: Props): JSX.Element {
   const t = props.client.t;
   const cmds = machineCommands(props.data.peer);
   const left = createMemo(() => props.data.snap()?.leftovers ?? []);
-  const groups = createMemo(() => props.data.snap()?.leftoverGroups ?? []);
+  const groups = createMemo(() => props.data.snap()?.leftover_groups ?? []);
   const kill = (pids: readonly number[]): void => {
     for (const pid of pids) void props.client.run(cmds.stopPid, { pid }).catch(() => {});
   };

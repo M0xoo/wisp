@@ -4,6 +4,7 @@
 
 mod kinds;
 mod hold;
+mod procs;
 mod this_mac;
 mod watch;
 

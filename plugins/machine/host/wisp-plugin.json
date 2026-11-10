@@ -24,6 +24,9 @@
     "proc:exec{bin:vm_stat}",
     "proc:exec{bin:pmset}",
     "proc:exec{bin:date}",
+    "proc:exec{bin:ps}",
+    "runtime:create",
+    "worktrees:view",
     "settings:read"
   ],
   "provides": { "machine.service": { "version": "1.0.0" } },
@@ -34,6 +37,10 @@
     "events": ["machine.automations_paused", "machine.load_free"],
     "commands": [
       { "id": "machine.load", "title": "What the RAM/CPU guard reads and holds", "readOnly": true },
+      { "id": "machine.read", "title": "What agents cost this computer: memory, CPU, disk, leftovers", "readOnly": true },
+      { "id": "machine.stop", "title": "Stop a process a task's run left running" },
+      { "id": "machine.fix", "title": "File a fix for processes a run left running" },
+      { "id": "machine.harness.clean", "title": "Remove the harnesses' crash dumps and stale files" },
       { "id": "machine.automations.pause", "title": "Pause automations until a time (0 resumes them)" }
     ],
     "settings": [

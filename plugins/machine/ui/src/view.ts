@@ -61,14 +61,14 @@ export interface Chip {
  */
 export function chipOf(o: { load: MachineLoad | undefined; pausedUntil: number; left: number; now: number; t: T }): Chip | null {
   const { load, now, t } = o;
-  const free = load?.memFreePct ?? null;
+  const free = load?.mem_free_pct ?? null;
   const runs = load?.runs ?? 0;
   const floor = load?.limits.floor ?? FLOOR_DEFAULT;
   const held = load?.held && load.held.kind !== 'paused' ? load.held : null;
-  const until = Math.max(o.pausedUntil, load?.pausedUntil ?? 0);
+  const until = Math.max(o.pausedUntil, load?.paused_until ?? 0);
   const tight = free !== null && free < floor + TIGHT;
   const paused = until > now;
-  const left = o.left || load?.left || 0;
+  const left = o.left || load?.left_behind || 0;
   if (!tight && !held && !paused && !left) return null;
   const [lead, rest] =
     tight || held
@@ -87,12 +87,12 @@ export function loadOf(m: MachineSnapshot): MachineLoad {
   return {
     at: m.at,
     ...(m.platform !== undefined && { platform: m.platform }),
-    memFreePct: m.mem.freePct,
+    mem_free_pct: m.mem.freePct,
     runs: g.runs,
     held: g.held && g.held !== 'paused' ? { kind: g.held, why: g.why ?? '' } : null,
     limits: { floor: g.floor },
-    pausedUntil: g.pausedUntil,
-    left: m.leftovers.length,
+    paused_until: g.pausedUntil,
+    left_behind: m.leftovers.length,
   };
 }
 

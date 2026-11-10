@@ -147,7 +147,14 @@ impl Plugin for TerminalPlugin {
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let slot: Slot = Arc::new(OnceLock::new());
-        on!(s, slot, c::Open, |r, ctx, call, a| Ok(r.open(&ctx, &a)));
+        on!(s, slot, c::Open, |r, ctx, call, a| {
+            let out = r.open(&ctx, &a);
+            if a.kind == TermKind::Takeover {
+                // v1 proxy.js / takeover: the harness opened in wisp's own terminal (Open in <harness>)
+                let _ = ctx.run_json(&ctx.root_call(), "telemetry.track", json!({ "event": "takeover", "props": { "terminal": "wisp", "machine": false } })).await;
+            }
+            Ok(out)
+        });
         on!(s, slot, c::Get, |r, ctx, call, a| Ok(r.info(a.kind, &a.id)));
         on!(s, slot, c::Close, |r, ctx, call, a| Ok(c::Done { ok: r.close(a.kind, &a.id).await }));
         on!(s, slot, c::Input, |r, ctx, call, a| {

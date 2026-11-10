@@ -35,7 +35,7 @@ function pauseOps(base: EntityReader, peer: PeerId, until: number): EntityOps {
   const key = entityKey(peer, THIS);
   const out: EntityOps[number][] = [];
   if (base.peek<MachineSnapshot>(SNAPSHOT, key)) out.push({ e: SNAPSHOT, id: key, op: 'patch', ops: [{ op: 'replace', path: '/guard/pausedUntil', value: until }] });
-  if (base.peek<MachineLoad>(LOAD, key)) out.push({ e: LOAD, id: key, op: 'patch', ops: [{ op: 'replace', path: '/pausedUntil', value: until }] });
+  if (base.peek<MachineLoad>(LOAD, key)) out.push({ e: LOAD, id: key, op: 'patch', ops: [{ op: 'replace', path: '/paused_until', value: until }] });
   return out;
 }
 
@@ -66,14 +66,14 @@ export interface MachineCommands {
 export function machineCommands(peer: PeerId): MachineCommands {
   return {
     stopPid: defineCommand({ id: 'machine.stop', owner: () => peer, optimistic: (base, a) => dropFrom(base, peer, 'leftovers', (x) => x.pid === a.pid) }),
-    pause: defineCommand({ id: 'machine.pauseAutomations', owner: () => peer, optimistic: (base, a) => pauseOps(base, peer, a.until) }),
+    pause: defineCommand({ id: 'machine.automations.pause', owner: () => peer, optimistic: (base, a) => pauseOps(base, peer, a.until) }),
     clean: defineCommand({
       id: 'worktrees.clean',
       owner: () => peer,
       // the group these ids make up goes (worktrees.clean takes task ids, or folder names for leftovers)
       optimistic: (base, a) => dropFrom(base, peer, 'reclaim', (x) => (a.leftovers ? x.kind === 'leftover' : x.kind !== 'leftover' && x.kind !== 'harness' && covers(a.ids, x))),
     }),
-    harnessClean: defineCommand({ id: 'machine.harnessClean', owner: () => peer, optimistic: 'none', pending: 'the machine.harnessClean control' }),
+    harnessClean: defineCommand({ id: 'machine.harness.clean', owner: () => peer, optimistic: 'none', pending: 'the machine.harness.clean control' }),
     fix: defineCommand({ id: 'machine.fix', owner: () => peer, optimistic: 'none', pending: 'the machine.fix control' }),
     later: defineCommand({ id: 'later.add', owner: (a) => entityKey(peer, a.sessionId), optimistic: 'none', pending: 'the later.add control' }),
   };

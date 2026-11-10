@@ -5,7 +5,8 @@
 //! `machine.service@1` (what holds unattended work: crew, triggers, Later, goal rounds), `machine.load`, and
 //! `machine.automations.pause`; when a hold lifts it says so (`machine.load_free`), and held work goes.
 //!
-//! Not here yet: the process view (`machine.read`, attribution, `machine.stop`, `.fix`, `.harness.clean`).
+//! The process view (`machine.read`, attribution, `machine.stop`, `.fix`, `.harness.clean`, the rows the
+//! page and the chip watch) is `procs`.
 
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
@@ -22,16 +23,16 @@ const SAMPLE_MS: u64 = 10_000;
 
 pub struct Guard {
     load: Mutex<Load>,
-    knobs: Mutex<Knobs>,
-    total: Mutex<u64>,
+    pub(crate) knobs: Mutex<Knobs>,
+    pub(crate) total: Mutex<u64>,
     runs: Mutex<u32>,
-    battery: Mutex<Option<parse::Battery>>,
+    pub(crate) battery: Mutex<Option<parse::Battery>>,
     tz: Mutex<i64>,
     now: Mutex<i64>,
-    mac: bool,
+    pub(crate) mac: bool,
 }
 
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+pub(crate) fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
@@ -46,7 +47,7 @@ impl Guard {
         Self { load: Mutex::default(), knobs: Mutex::default(), total: Mutex::new(0), runs: Mutex::new(0), battery: Mutex::new(None), tz: Mutex::new(0), now: Mutex::new(0), mac }
     }
 
-    fn with<T>(&self, f: impl FnOnce(&mut Load, &Against<'_>, Option<Hold>) -> T) -> T {
+    pub(crate) fn with<T>(&self, f: impl FnOnce(&mut Load, &Against<'_>, Option<Hold>) -> T) -> T {
         let knobs = lock(&self.knobs).clone();
         let now = *lock(&self.now);
         let a = Against { knobs: &knobs, total: *lock(&self.total), runs: *lock(&self.runs), now, mac: self.mac };
@@ -79,13 +80,13 @@ impl MachineApi for Guard {
     }
 }
 
-async fn run(proc: &wisp_proc::Proc, bin: &str, args: &[&str]) -> Option<String> {
+pub(crate) async fn run(proc: &wisp_proc::Proc, bin: &str, args: &[&str]) -> Option<String> {
     let args: Vec<String> = args.iter().map(|a| (*a).to_owned()).collect();
     let r = proc.exec(bin, &args, wisp_proc::ExecOpts { timeout: Some(Duration::from_secs(5)), ..wisp_proc::ExecOpts::default() }).await.ok()?;
     r.exit.success().then(|| r.stdout_text())
 }
 
-fn cores() -> f64 {
+pub(crate) fn cores() -> f64 {
     f64::from(u32::try_from(std::thread::available_parallelism().map_or(1, std::num::NonZero::get)).unwrap_or(1))
 }
 
@@ -121,7 +122,7 @@ fn read_knobs(ctx: &Ctx, paused: Option<i64>) -> Knobs {
     Knobs { memory_floor: knob(ctx, "machine.memoryFloor"), cpu_ceiling: knob(ctx, "machine.cpuCeiling"), max_runs: knob(ctx, "machine.maxRuns"), battery_hold: knob(ctx, "machine.batteryHold"), automations_paused_until: paused }
 }
 
-async fn tick(ctx: &Ctx, g: &Guard, proc: &wisp_proc::Proc) {
+async fn tick(ctx: &Ctx, g: &Guard, proc: &wisp_proc::Proc, procs: &crate::procs::Procs) {
     let now = ctx.clock().map_or(0, |c| c.now_ms());
     *lock(&g.now) = now;
     let paused = lock(&g.knobs).automations_paused_until;
@@ -137,10 +138,12 @@ async fn tick(ctx: &Ctx, g: &Guard, proc: &wisp_proc::Proc) {
         let reading = g.with(Load::reading);
         ctx.emit(&ctx.root_call(), &LoadFree { reading });
     }
+    procs.tick(ctx, g, proc, now).await;
 }
 
 pub(crate) fn setup(s: &mut Setup) {
     let g = Arc::new(Guard::new(cfg!(target_os = "macos")));
+    let procs = crate::procs::setup(s, &g);
     s.provide::<MachineService>(g.clone());
     let r = g.clone();
     s.command::<c::Load, _, _>(move |_ctx, call, _| {
@@ -167,6 +170,9 @@ pub(crate) fn setup(s: &mut Setup) {
     });
     s.on_start(move |ctx| async move {
         let proc = ctx.service::<wisp_proc::Proc>()?;
+        if let Ok(store) = ctx.service::<wisp_store::Store>() {
+            crate::procs::install(&store).map_err(|e| WireError::internal(e.to_string()))?;
+        }
         let total = total_memory(&proc, g.mac).await;
         *lock(&g.total) = total;
         if let Some(tz) = run(&proc, "date", &["+%z"]).await.and_then(|t| parse::parse_tz_offset(&t)) {
@@ -176,7 +182,7 @@ pub(crate) fn setup(s: &mut Setup) {
         let c2 = ctx.clone();
         ctx.spawn(async move {
             loop {
-                tick(&c2, &g, &proc).await;
+                tick(&c2, &g, &proc, &procs).await;
                 clock.sleep(SAMPLE_MS).await;
             }
         });
