@@ -15,7 +15,14 @@
   },
   "permissions": [
     "proc:exec{bin:git}",
-    "proc:exec{bin:gh}"
+    "proc:exec{bin:gh}",
+    "runtime:get",
+    "runtime:turns",
+    "git:repo",
+    "git:read",
+    "git:snapshot",
+    "git:restore",
+    "git:watch"
   ],
   "activation": [
     "onStartup"
@@ -52,6 +59,10 @@
       {
         "id": "git.clone",
         "title": "Clone a repo"
+      },
+      {
+        "id": "git.restoreTurn",
+        "title": "Put a task's folder back as it was before one of its turns"
       }
     ]
   },

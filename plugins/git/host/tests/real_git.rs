@@ -566,3 +566,29 @@ async fn clone_reuses_the_same_repo_and_suffixes_another() {
     assert!(bad.unwrap_err().message.contains("Couldn’t clone"));
     drop(dir);
 }
+
+/// A turn's rollback: the folder comes back as the checkpoint had it (a changed file restored, a new file
+/// gone, an untracked file then untracked again) and a commit made since leaves the branch.
+#[tokio::test]
+async fn restore_puts_the_folder_and_the_branch_back_at_a_checkpoint() {
+    let t = tmp("restore");
+    let dir = repo(&t);
+    let (_, s) = service();
+    let o = owner();
+    let r = s.repo(&user(), &o, dir.to_str().unwrap()).await.unwrap();
+    write(&dir, "notes.txt", "mine, untracked\n");
+    let head = r.rev_parse(&user(), "HEAD").await.unwrap().unwrap();
+    let snap = r.snapshot(&user()).await.unwrap().expect("untracked notes: a snapshot");
+    // the turn: edits a tracked file, adds one, commits, and leaves another untracked
+    edit(&dir);
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-qm", "agent work"]);
+    write(&dir, "later.txt", "made after\n");
+    r.restore(&user(), &snap, &head).await.unwrap();
+    assert_eq!(r.rev_parse(&user(), "HEAD").await.unwrap().unwrap(), head, "the commit left the branch");
+    assert!(!dir.join("new.txt").exists() && !dir.join("later.txt").exists(), "files made since are gone");
+    assert_eq!(std::fs::read_to_string(dir.join("notes.txt")).unwrap(), "mine, untracked\n");
+    let st = git(&dir, &["status", "--porcelain"]);
+    assert_eq!(st.trim(), "?? notes.txt", "untracked again, nothing else changed: {st}");
+    assert!(r.restore(&stranger(), &snap, &head).await.is_err(), "git:restore is checked");
+}

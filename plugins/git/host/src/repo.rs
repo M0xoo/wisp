@@ -178,6 +178,10 @@ impl Repo for RepoImpl {
         let base = base.to_owned();
         guarded!(self, call, "patch", |me| me.patch(&base))
     }
+    fn restore(&self, call: &Call, to: &str, head: &str) -> Fut<()> {
+        let (to, head) = (to.to_owned(), head.to_owned());
+        guarded!(self, call, "restore", |me| me.restore(&to, &head))
+    }
     fn on_change(
         &self,
         call: &Call,

@@ -405,6 +405,33 @@ impl Inner {
         sha.map(Some)
     }
 
+    /// The folder back as `to` has it, the branch back at `head` (see `Repo::restore`). Untracked files `to`
+    /// doesn't hold are removed first (`read-tree -u` leaves untracked files alone); then the tree is read
+    /// into the index and the folder, and a mixed reset puts the index and the branch at `head`, so what
+    /// was untracked then is untracked again.
+    pub async fn restore(&self, to: &str, head: &str) -> Result<()> {
+        let Some(to) = self.rev_parse(to).await? else {
+            return Err(GitError::Refused(format!("no checkpoint {to} in this repo")));
+        };
+        let Some(head) = self.rev_parse(head).await? else {
+            return Err(GitError::Refused(format!("no commit {head} in this repo")));
+        };
+        let root = std::path::Path::new(&self.info.root).to_path_buf();
+        let held = self.git.raw(&root, &["ls-tree", "-r", "-z", "--name-only", &to]).await?;
+        let held: std::collections::HashSet<&[u8]> = held.split(|b| *b == 0).filter(|p| !p.is_empty()).collect();
+        let loose = self.git.raw(&root, &["ls-files", "-z", "--others", "--exclude-standard"]).await?;
+        for p in loose.split(|b| *b == 0).filter(|p| !p.is_empty() && !held.contains(p)) {
+            let rel = String::from_utf8_lossy(p).into_owned();
+            if rel.split('/').any(|c| c == "..") {
+                continue;
+            }
+            let _ = tokio::fs::remove_file(root.join(&rel)).await;
+        }
+        self.git.run(&root, &args(&["read-tree", "--reset", "-u", &to]), Opts::default()).await?;
+        self.git.run(&root, &args(&["reset", "--quiet", "--mixed", &head]), Opts::default()).await?;
+        Ok(())
+    }
+
     /// A binary patch of the folder against `base`, untracked included; "" when nothing changed.
     pub async fn patch(&self, base: &str) -> Result<String> {
         let Some(tree) = self.work_tree().await? else {

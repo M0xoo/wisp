@@ -3,6 +3,7 @@
 //! (`wisp_proc::Proc`): nothing blocks a runtime thread, and the pure logic lives in wisp-git-core.
 
 mod changes;
+mod checkpoint;
 pub mod commands;
 mod error;
 mod read;
@@ -99,6 +100,7 @@ impl Plugin for GitPlugin {
             let sv = sv.clone();
             async move { wisp_git_api::GitService::tools(&sv, &call).await }
         });
+        checkpoint::register(s, &svc);
         let sv = Service(svc);
         s.command::<CloneCmd, _, _>(move |_ctx, call, a| {
             let sv = sv.clone();

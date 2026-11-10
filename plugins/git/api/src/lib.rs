@@ -64,6 +64,7 @@ pub const PERMISSIONS: &[(&str, &str)] = &[
     ("sync_base", "git:merge.ff"),
     ("snapshot", "git:snapshot"),
     ("patch", "git:snapshot"),
+    ("restore", "git:restore"),
     ("on_change", "git:watch"),
     ("touch", "git:watch"),
 ];
@@ -165,6 +166,13 @@ pub trait Repo: Send + Sync + std::fmt::Debug + 'static {
     fn snapshot(&self, call: &Call) -> Fut<Option<String>>;
     /// A binary patch of the folder against `base`, untracked included; "" when nothing changed.
     fn patch(&self, call: &Call, base: &str) -> Fut<String>;
+    /// Puts the folder back as `to` (a `snapshot`, or a commit) has it and the branch at `head` (what HEAD
+    /// was then): files made since go, changed ones come back, commits made since leave the branch (the
+    /// reflog keeps them). A turn's rollback. Additive (2026-11-10): a repo without it refuses.
+    fn restore(&self, call: &Call, to: &str, head: &str) -> Fut<()> {
+        let _ = (call, to, head);
+        Box::pin(async { Err(wisp_kernel::WireError::invalid("this repo can't restore a checkpoint")) })
+    }
 
     fn on_change(
         &self,
