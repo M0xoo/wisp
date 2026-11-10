@@ -6,7 +6,8 @@ import type { ExtensionId } from '@wisp/client';
 
 /** The Settings overlay: `params.pane` names the open pane (none on a phone: the list); `filter`
  * reaches the pane as a prop (This Mac opens Worktrees on one filter). */
-export const VIEW_ID = 'shell.settings' as ExtensionId;
+// in the plugin's namespace (a view id is its plugin's): the frame's Home, its sidebar and wisp.machine open it by it
+export const VIEW_ID = 'shell-settings.sheet' as ExtensionId;
 export interface SettingsParams {
   pane?: string;
   filter?: string;

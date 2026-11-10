@@ -196,3 +196,10 @@ test('a command with no optimistic result names the control that shows it in fli
   assert.equal(bare.optimistic, 'none');
   assert.equal(named.pending, 'the Ship it button');
 });
+
+test('a command\'s wire shape: the peer gets the args as its command takes them (an entity key as the bare id)', async () => {
+  const { commands, mutates } = await setup();
+  const view = defineCommand<{ key: EntityKey }>({ id: 'ship.view', owner: (a) => a.key, wire: (a) => ({ session: a.key.slice(a.key.indexOf(':') + 1) }), optimistic: 'none', pending: 'the ship.view control' });
+  void commands.run(view, { key: S1 }).catch(() => undefined);
+  assert.deepEqual(mutates()[0]?.args, { session: 's1' });
+});

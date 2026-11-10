@@ -7,6 +7,7 @@ import '@wisp/ui/styles';
 import { browserHistory, createClient, httpTransport, indexedDBPersist, peerId, untracked, uuidv7, type PeerConfig } from '@wisp/client';
 import { commandErrorToast, createShell, detectPlatform } from '@wisp/shell';
 import { createToaster } from '@wisp/ui';
+import { shellSettingsUi } from '@wisp-plugin/shell-settings-ui';
 import { pluginUis } from './plugins.ts';
 import { registerWorker } from './worker.ts';
 
@@ -49,6 +50,20 @@ for (const { path, def } of pluginUis()) {
     client.devtools.record({ kind: 'warn', message: `${path}: ${String(err)}` }); // one bad plugin never stops the app
   }
 }
+
+// Settings: the frame (an overlay view) and its own panes, given what only the shell has (ADR-0003: inputs, no
+// private API): every plugin's panes, each with its plugin's client, and the translator. It has no default
+// definition, so the glob above skips it: registered here, after the others, so their panes are there.
+shell.register(
+  shellSettingsUi({
+    panes: () =>
+      shell.settingsPanes()().flatMap((pane) => {
+        const c = shell.pluginClient(pane.plugin);
+        return c ? [{ pane, client: c }] : [];
+      }),
+    t: (key, vars) => client.i18n.t(key, vars),
+  }),
+);
 
 /** Other wisps this device reaches (Settings → Computers): { peer, name, base }. */
 function extraPeers(): PeerConfig[] {

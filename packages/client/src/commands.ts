@@ -23,6 +23,8 @@ interface CommandBase<A, R> {
   readonly id: string; // 'session.rename'
   /** the entity key (or a bare peer id) whose peer runs the command */
   readonly owner: (args: A) => string;
+  /** the args as the peer's command takes them, when the UI's differ (an entity key → the bare id it knows). Additive. */
+  readonly wire?: (args: A) => unknown;
   /** runs with the same key while one is in flight are that one run; default: id + args */
   readonly dedupe?: (args: A) => string;
   /** the peer must offer this, or the command fails at once with the reason */
@@ -214,7 +216,7 @@ export function createCommands(o: CommandsOptions): Commands {
         return w.promise as Promise<R>;
       }
       const mid = uuidv7(now());
-      const r: PendingRecord = { mid, cmd: def.id, args, peer, ops, key, at: now() };
+      const r: PendingRecord = { mid, cmd: def.id, args: def.wire ? def.wire(args) : args, peer, ops, key, at: now() };
       records.set(mid, r);
       waiters.set(mid, w);
       byKey.set(key, mid);

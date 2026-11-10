@@ -104,7 +104,6 @@ export const rerun = copyOf('runtime.rerun');
 export const fork = copyOf('runtime.fork');
 
 /** Ship it: no result to show before the push, so the button shows it's working. */
-export const shipOpen = defineCommand<{ id: string }, { number: number }>({ id: 'ship.open', owner: (a) => a.id, optimistic: 'none', pending: 'Ship it (split.actions)' });
 
 /** Restore the worktree to before a turn: the rollback button shows it's working. */
 export const restore = defineCommand<{ id: string; turn: string }, { restored: boolean }>({ id: 'checkpoint.restore', owner: (a) => a.id, optimistic: 'none', pending: 'the turn’s restore button (tb-btn rollback)' });

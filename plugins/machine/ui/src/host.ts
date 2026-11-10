@@ -30,5 +30,5 @@ export function useHost(client: PluginClient): Host {
  * `shell.settings` with `{ pane, filter? }` (in the report), in one place so it's one edit.
  */
 export function openSettings(navigate: (i: Intent) => void, pane: string, filter?: string): void {
-  navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'shell.settings' as ExtensionId, params: filter ? { pane, filter } : { pane } } });
+  navigate({ t: 'openOverlay', overlay: { kind: 'viewer', id: 'shell-settings.sheet' as ExtensionId, params: filter ? { pane, filter } : { pane } } });
 }

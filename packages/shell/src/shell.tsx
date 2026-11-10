@@ -7,7 +7,7 @@
 import { render } from 'solid-js/web';
 import { computed, effect, signal, untracked, type Client, type PeerId, type PluginClient } from '@wisp/client';
 import { BLOCK_STRINGS, KitProvider, KIT_STRINGS, type KitString, type Toaster } from '@wisp/ui';
-import type { PluginUiDef, ShellApi, ShellContext } from './contract.ts';
+import type { PluginUiDef, SettingsPaneDef, ShellApi, ShellContext } from './contract.ts';
 import { namespaceOf } from './define.ts';
 import { SHELL_STRINGS } from './i18n/en.ts';
 import type { Platform } from './platform/types.ts';
@@ -44,6 +44,8 @@ export interface Shell extends ShellApi {
   /** the shell's own plugin client (for its built-ins and tests) */
   readonly self: PluginClient;
   pluginClient(id: string): PluginClient | undefined;
+  /** every plugin's Settings panes, each with the plugin that gave it (the Settings frame lists them) */
+  settingsPanes(): () => readonly (SettingsPaneDef & { readonly plugin: string })[];
 }
 
 const RECENT_MAX = 20;
@@ -173,6 +175,7 @@ export function createShell(o: ShellOptions): Shell {
       clients.get(id)?.scope.dispose();
     },
     pluginClient: (id) => clients.get(id),
+    settingsPanes: () => registry.settingsPanes as () => readonly (SettingsPaneDef & { readonly plugin: string })[],
     render(root) {
       const scope = self.scope.child('render');
       scope.add(trackRecent());

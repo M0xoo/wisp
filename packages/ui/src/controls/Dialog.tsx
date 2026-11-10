@@ -29,6 +29,8 @@ export interface DialogProps extends KitProps, WithChildren, WithVars {
   readonly role?: 'dialog' | 'alertdialog';
   /** Clicking outside closes it (default true; false for a form with unsaved input). */
   readonly closeOnOutside?: boolean;
+  /** the content brings its own head and close (a frame like Settings): the title stays for screen readers only */
+  readonly bare?: boolean;
   /** Where focus goes first (default: the first focusable inside). */
   readonly initialFocus?: () => HTMLElement | null;
   readonly t?: Translate;
@@ -60,6 +62,7 @@ function Surface(props: DialogProps & { readonly kind: Kind; readonly api: dialo
           data-kit={props.kind}
           data-part={props.part}
           data-size={props.size ?? 'md'}
+          data-bare={props.bare ? '' : undefined}
           style={styleOf({}, props.vars)}
         >
           <Show when={props.kind === 'sheet'}>

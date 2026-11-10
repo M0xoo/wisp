@@ -76,7 +76,7 @@ export function Head(props: { readonly filter: () => string; readonly setFilter:
   const slots = useHeadSlots();
   const nav = useSignal(shell.nav);
   const homeOn = (): boolean => nav().main.kind === 'home';
-  const sheet = (pane: string): void => shell.navigate({ t: 'openOverlay', overlay: { kind: 'sheet', id: 'shell.settings' as never, params: { pane } } });
+  const sheet = (pane: string): void => shell.navigate({ t: 'openOverlay', overlay: { kind: 'viewer', id: 'shell-settings.sheet' as never, params: { pane } } });
   const account = (): MenuEntry[] => [
     { value: 'settings', label: shell.t('shell.account.settings'), icon: 'settings' },
     { value: 'machines', label: shell.t('shell.account.machines'), icon: 'laptop' },

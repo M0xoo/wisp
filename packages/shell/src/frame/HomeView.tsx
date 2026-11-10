@@ -82,7 +82,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   };
   const tool = (id: string, part: string, icon: LauncherTool['icon'], label: string, title: string, more: Partial<LauncherTool> = {}): LauncherTool => ({ id, part, icon, label, title, ...more });
   const view = (id: string): void => shell.navigate({ t: 'openView', id: id as never, params: null as Json });
-  const settingsSheet = (pane: string): void => shell.navigate({ t: 'openOverlay', overlay: { kind: 'sheet', id: 'shell.settings' as never, params: { pane } } });
+  const settingsSheet = (pane: string): void => shell.navigate({ t: 'openOverlay', overlay: { kind: 'viewer', id: 'shell-settings.sheet' as never, params: { pane } } });
   const pick = (): { name: string; logo?: string } => harnessOf(harnesses(), agent() === 'auto' ? auto() : agent());
   const chips = (): LauncherChip[] => [
     ...projects().map((p) => ({ id: p.id, kind: 'project' as const, name: p.name, title: p.path, color: p.color, on: project()?.id === p.id, act: { onClick: () => setWhere(p.id) } })),

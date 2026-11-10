@@ -38,6 +38,9 @@
   }
   [data-kit='dialog'][data-size='sm'], [data-kit='sheet'][data-size='sm'] { --dialog-w: var(--size-dialog-sm); }
   [data-kit='dialog'][data-size='lg'], [data-kit='sheet'][data-size='lg'] { --dialog-w: var(--size-dialog-lg); }
+  /* bare: the content is the whole surface, its own head and close; the title is for screen readers only */
+  [data-kit='dialog'][data-bare], [data-kit='sheet'][data-bare] { padding: 0; overflow: hidden; }
+  :is([data-kit='dialog'], [data-kit='sheet'])[data-bare] > [data-kit='dialog-head'] { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   [data-kit='dialog-head'] { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); margin-bottom: var(--space-6); }
   [data-kit='dialog-head'] > [data-kit='icon-button'] { margin-right: calc(-1 * var(--space-4)); }
   [data-kit='dialog-title'] { margin: 0; min-width: 0; font-family: var(--display); font-size: var(--fs-title); font-weight: var(--fw-semibold); line-height: var(--lh-tight); letter-spacing: var(--tracking-title); color: var(--ink); }

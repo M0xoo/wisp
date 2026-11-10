@@ -10,6 +10,7 @@
     "@wisp/shell": "*",
     "@wisp/sync": "*",
     "@wisp/ui": "*",
+    "@wisp-plugin/shell-settings-ui": "*",
     "solid-js": "^1.9.18"
   },
   "devDependencies": {

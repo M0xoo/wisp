@@ -22,7 +22,7 @@ export const PLUGIN_ID = 'wisp.shell-settings';
 
 /** The intent that opens Settings, on `pane` or (on a phone) on the list. */
 export function openSettings(pane?: string): Intent {
-  return { t: 'openOverlay', overlay: { kind: 'sheet', id: VIEW_ID, params: pane === undefined ? {} : { pane } } };
+  return { t: 'openOverlay', overlay: { kind: 'viewer', id: VIEW_ID, params: pane === undefined ? {} : { pane } } };
 }
 
 const General = lazy(() => import('./panes/General.tsx'));
@@ -43,6 +43,8 @@ export function settingsView(deps: FrameDeps): ViewDef<SettingsParams> {
   return {
     kind: VIEW_ID,
     slot: 'overlay',
+    // its own head (the panes' list, the pane's title and close): the dialog draws none
+    bare: true,
     parse: parseParams,
     component: (p) => SettingsView({ client: p.client, params: p.params, deps }),
     title: () => catalogue['shell-settings.title'] ?? 'Settings',

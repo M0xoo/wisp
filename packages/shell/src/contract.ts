@@ -122,6 +122,8 @@ export interface ViewDef<P = unknown> {
   title?(params: P): string;
   /** added: an overlay view's presentation (default 'dialog'; a sheet on phones either way) */
   overlay?: 'viewer' | 'dialog' | 'sheet';
+  /** added 2026-11-10 (additive): the view draws its own head and close (Settings); the dialog adds none */
+  bare?: boolean;
 }
 
 /** A Settings pane. */
