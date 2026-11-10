@@ -34,6 +34,11 @@ Right after ui-commands reaches 0, and before the UI burndown:
   - the `harness == "claude"` branch in `runtime/setup.rs`;
   - regenerating the TS bindings.
 
+**For backend-coder, from the UI coder (2026-11-10), blocking two screens:**
+- learn: its host is a placeholder. Port v1's memory and retros with their commands, for Settings → Memory.
+- issues: `issues.list` can't resolve a project, because nothing contributes `issues.projects`. Contribute it from
+  runtime's projects, for the launcher's Issue picker.
+
 **v1 sync (owner, 2026-11-10: "check changes to v1 every so often").** v1 fixes the owner lands on main get
 ported here. The log and the per-commit actions are in `docs/v1-sync.md`. Open from the first sync: #760 (a quiet
 crew job keeps its follow-ups), #761 (desktop new-tab links), the #763 rest (probation, vendor id, pricing), #764

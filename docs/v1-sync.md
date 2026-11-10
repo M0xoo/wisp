@@ -4,7 +4,7 @@ The owner keeps fixing wisp v1 (`origin/main`) while v2 is built. At every coder
 commits since the last sync (`git log <last>..origin/main`), decides for each what v2 needs, and queues it here and in
 `docs/v2-queue.md`. v2 ports the intent (and the test's scenario), not the JS.
 
-Last synced v1 commit: **c855acd6** (2026-11-10)
+Last synced v1 commit: **dd0764eb** (2026-11-10)
 
 | v1 | What it fixed | v2 action |
 |---|---|---|
@@ -13,3 +13,4 @@ Last synced v1 commit: **c855acd6** (2026-11-10)
 | #761 cdc12dbc | desktop: target=_blank clicks open in the browser (opener plugin's JS-link script was refused by capabilities) | **queue:** v2's `apps/desktop` (Tauri): register the opener with `open_js_links_on_click(false)`; clicks go through `on_new_window` → `open_outside`; test like v1's TAURI-06 real click |
 | #763 f0291d3f | Fable in the Claude picker; Auto routes to it (tier row counts, probation without a score); `fable` vendor; Compact prices $8/$0.20/$40 | **check:** v2 has the catalogue and router rank (round 8). Also port: probation when there's no benchmark score, the bare `fable` vendor id, and Compact pricing for claude-fable-5-2 |
 | #764 c855acd6 | a crew member's job uses the harness/model/level picked in the launcher (`crewRun`, that job only); the picker shows the member's setup; channels still can't change it | **queue:** v2 crew + composer: the launcher shows the member's harness/model/effort, a change goes with the launch for that job only; named test `a_launcher_pick_overrides_the_member_for_that_job_only` |
+| #766 dd0764eb | the issue picker lists Linear and Jira issues from a signed-in (OAuth) connector through its own MCP tools (Linear `list_issues`, Atlassian `searchJiraIssuesUsingJql`), falling back to the workspace's open Linear issues; "Connect Linear… / Jira…" opens the connector form prefilled | **queue (backend-coder, with the issues.projects work):** issues lists through a signed-in connector's tools; **UI coder:** the Connect… links open the prefilled connector form; test like v1 `issue-signin.test.js` |
