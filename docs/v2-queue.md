@@ -28,6 +28,11 @@ Right after ui-commands reaches 0, and before the UI burndown:
   - the `harness == "claude"` branch in `runtime/setup.rs`;
   - regenerating the TS bindings.
 
+**v1 sync (owner, 2026-11-10: "check changes to v1 every so often").** v1 fixes the owner lands on main get
+ported here. The log and the per-commit actions are in `docs/v1-sync.md`. Open from the first sync: #760 (a quiet
+crew job keeps its follow-ups), #761 (desktop new-tab links), the #763 rest (probation, vendor id, pricing), #764
+(launcher pick for a crew job). Do them at the start of the next job, each with its named test.
+
 **v1 inventory done (2026-11-10): `docs/v1-features.md` (326 features with tester scenarios),
 `docs/v1-features-summary.md`.** 102 built, 181 partial, 39 missing, 4 dropped (ADR-0031).
 - Decision: a feature is **built** only when every frontend v1 offered it in has it (GUI included). Server plus CLI
