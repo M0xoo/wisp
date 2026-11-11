@@ -14,14 +14,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Your other computers' tasks in your list.** A machine wisp keeps (another computer, a sandbox) is reached through this wisp, so its tasks show and open like yours.
 - **The file view's ✦ and Go to definition.** ✦ puts the file (or the lines you selected) in the reply box to ask about it; ⌘-click or F12 on a name opens where it's declared, at its line. New task's @ offers the picked project's files.
 - **Trust a plugin you installed** (`plugins.trust`, ADR-0048): installed plugins are untrusted whatever they say, and an untrusted plugin's process starts without your environment (keys, tokens).
-
 - **Projects show everywhere.** The top bar's chips, New task's row and Home now list your projects (they were empty on a real server), and picking a chip filters the list.
 - **The Projects dialog.** Add a folder or a GitHub URL (cloned for you), see how many tasks each project has, rename it, give it a colour, remove it, and add a repo found on this computer with one click.
 - **Your project order.** Drag a project (or Alt+←/→) in the top bar, New task's row or the Projects dialog; every place keeps the same order.
 - **Install a plugin from Settings → Plugins.** A folder or a git URL; it comes in off and says, in words, what switching it on lets it do. Remove takes it out. `wisp plugin install <folder or URL>` and `wisp plugin remove <id>` do the same.
 - **The file view.** ✎ on a changed file (or Open on a file in the reply box's @ menu) opens it beside the task: edit, then Save or ⌘S. It never saves over a change made since you opened it, or while the agent is working. Its why-gutter shows which task wrote each line; a click opens it.
 - **Email attachments reach the task.** Files you attach to a mail go with the task it starts (or the reply it follows up), up to 1 MB each; any left out are said in the answer.
-
 - **Edit a crew member.** Edit… on a member's page (and + on the rail) opens their editor: name, role, brief, how often they check in, jobs at once, harness, mode, folder, and Wakes: what else starts their jobs (another member reporting, a PR, a channel message…).
 - **The Repo tab.** Beside Tasks, a project's committed agent history from everyone who worked on it, grouped by month and filtered by words or a path; a row opens its report, and Resume carries on from there on today's code.
 - **Settings → Setup.** What's set up here (crew, agents, workflows, triggers… with counts), Share setup (the whole setup or some kinds, as `wisp.yml`, to copy), and Import: paste a formula, see what it adds, changes and removes, untick what you don't want, then Apply.
@@ -29,7 +27,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **`wisp sdk types ts|py [FILE]`** writes the typed commands of the running wisp for the TypeScript or Python SDK, the same text `generateTypes()` and `generate_stubs()` make.
 - **A PR comment follows its branch's task.** `/wisp …` on a PR with no task of its own goes to the newest task working on that PR's branch in the project.
 - **Install a plugin while wisp runs** (`plugins.install`, ADR-0046): from a folder or a git URL into `~/.wisp/plugins`. It starts off and says what it asks for; switching it on is the consent, and it stays on across restarts. `plugins.uninstall` removes it.
-
 - **A crew member's page.** Picking a face on the rail opens their thread: every job oldest first (quiet check-ins folded into one line), what they're doing in the head, Pause or Resume, Check in now, their notebook and brief (edit them in place), and a box to give them a job. The list beside it holds only their jobs.
 - **The grid's own pages.** Signed in at your grid's address: home (your cloud wisp, your computers, your published apps) and your account (signed-in devices, how you sign in, sign out, delete), with every button working. When the grid routes Telegram, the account page has the form to connect your bot and say who may send.
 - **A new trigger from the app.** Automations → Triggers → New trigger: pick what starts it from every source the plugins offer, grouped by plugin, fill in that source's fields and the prompt. Test on the last 5 events shows what it would have done.
@@ -41,7 +38,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Ask near the limit and Wait for the reset.** Before a task would take a usage window past your line (Settings → Usage, 90% by default), wisp asks first; automations wait for the reset instead. A task at its limit can carry on by itself after the reset (Wait for the reset), and Check Codex while work waits reads Codex's usage every 10 minutes while something waits on it. The CLI's `--yes` goes ahead anyway.
 - **Mail on a wisp Grid.** A grid with `mail` gives each cloud computer a secret address; only mail the sender's own domain signed (DKIM, checked by the grid) reaches it, and replies go only to the thread they answer.
 - **The SDKs, for v2.** `wisp-agents/client` (TypeScript) and `wisp` (Python) run any command and follow tasks live, with types generated from your wisp's own catalogue (`generateTypes`, `generate_stubs`).
-
 - **Pick the harness and model in New task.** The harness · model button opens a searchable picker: harnesses on the left, their models on the right, and the thinking level for the model you pick.
 - **Auto says what it will run, and learns from your pick.** As you type, New task shows Auto's pick (harness, model, thinking) with why in its tooltip. Pick your own after that, and Auto learns from it. A task Auto routed shows a dot on its harness logo, and the tooltip says why Auto picked it, how likely it is to work and what it should cost.
 - **Settings → Memory.** Learn from tasks on or off. What's remembered, with Open memory: preferences and lessons for every project and for each project, each one removable, with a box to add more, and the recent retros with what each one learned.
@@ -81,6 +77,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Everything the app does, from your terminal.** `wisp "fix the login"` now stays with the task: you see each step as it runs, then the answer drawn for the terminal (stats, files, diffs, tests, checklists, trees, charts and links you can click), never JSON. When the agent asks something or needs an approval, type a number to answer; a reply box after the answer sends a follow-up to the same task. Ctrl-C leaves it running (`wisp attach <id>` picks it up again) and a second Ctrl-C stops it. `-d` returns at once, outside a terminal that's the default, and the next `wisp` command tells you when it finished, asks or failed. Every command of every plugin is there too, as `wisp <plugin> <verb>` with flags from its arguments (`wisp settings set theme dark`, `wisp crew create --name Ada`), `--json` for scripts, `wisp help`, `wisp help <plugin>`, `wisp completions zsh|bash|fish`, `wisp ls --watch` and `wisp show <id> --watch`. `NO_COLOR` and pipes get plain text.
 - **v2 looks like wisp today, and answers every press at once.** The v2 app's frame (the crew rail, the list and its head, Home's prompt box, an open task with its details, overlaps and reply box) is drawn from v1's own values at every width from phone to desktop, and in the Mac app's title-bar mode, checked against screenshots of v1 by `qa/parity.mjs`. Every control in those screens now does something you see in the same frame: picking a mode, agent, when to start or who to delegate to changes its label, Worktree and Goal flip, a new task and a follow-up show at once (*Starting…*), Rerun and Fork open their new task straight away, Ship it and Restore show their button working, and a refused action rolls back with a note saying why (`qa/feedback.mjs`). Plugins' top-bar, row and task-head extensions show in the new frame again.
 
+### Changed
+
+- **Try it two ways is no longer a button in the prompt box's bar.** It did what **+** already does: with Claude Code picked, add a run with **+** and set it to Claude Code too: its picker has the *What's different* group, Subagents and Skills, as before; Compare still says what differed. Spells that name `launcher.tryTwo` still load, with a warning.
+- **Stop asks first, for an agent and a subagent alike.** Stop on a working task, a subagent's run, the goal check, *Waiting on …* or a row of Activity → Using (Stop, and Later once you pick a time) opens a small confirm by the button (**Stop** / **Stop subagent**, or Cancel). It says what else happens: the agent's running subagents stop too, a stopped subagent sends its lead no report, and queued follow-ups stay held.
+
 ### Fixed
 
 - Settings no longer shows "unknown command terminal.apps": the terminal apps on this computer are listed, and `npm run check` now catches a command the UI calls that no plugin handles.
@@ -88,7 +89,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Discord calls wait their turn per channel when Discord says to slow down, instead of failing.
 - Slack answers one message at a time per thread (two quick messages, or a click right after one, no longer race), while other threads go on side by side.
 - Leaving a subagent's page goes back to its lead's task.
-
 - **Settings kept after a reload.** Your settings were saved but every pane read them from a place the server never filled, so after a reload Settings showed the defaults. They now read back as you left them, including what another plugin pins.
 - **wisp serve started without its tasks.** One setting's choices listed an empty value, so the task runner and every harness were refused at start.
 - **Menus and pickers inside Settings and dialogs** opened behind them.
@@ -102,19 +102,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Ship it never loaded: its manifest listed two commands twice, and wisp refuses such a plugin at start. A check now validates every built-in plugin's manifest.
 - Reloading a plugin's page (`/view/stuff.page`, any view id with a dot) showed "not found".
 - Later's actions (add, edit, snooze, cancel, plans) and Share's preview sent the task's key where wisp reads its id, so they did nothing.
-
-### Removed
-
-- **v1's routes, events and spells are gone from the server (ADR-0031).** `/api/events` is the sync stream only (it takes the sync hello), `/api/spells*`, the v1 route adapters with a v2 command, v1's event names, the JSON files written next to the store and the v1 relay are removed. The CLI uses v2's commands (`wisp usage`, `wisp spell` and `wisp computer` are gone; `--try` points to `--compare` and `wisp rerun --formula`). `wisp import` still brings a v1 home over, once.
-- **Drag projects into your own order.** Drag a project chip in the top bar or New task's *in* row, a row of the searchable project list (+N, with nothing typed), or a row of Projects (Manage projects) to put it where you want it. The order is one: it shows the same everywhere projects are listed, including the command palette and a crew member's *Works in*. A project added afterwards goes first. A project's right-click menu has **Sort by recent use** to go back. On a phone, hold a chip before dragging it. Spells can turn dragging off per place (`movable` on `topbar.projects`, `launcher.projects`, `project.list`, `project.rows`).
-
-### Changed
-
-- **Try it two ways is no longer a button in the prompt box's bar.** It did what **+** already does: with Claude Code picked, add a run with **+** and set it to Claude Code too: its picker has the *What's different* group, Subagents and Skills, as before; Compare still says what differed. Spells that name `launcher.tryTwo` still load, with a warning.
-- **Stop asks first, for an agent and a subagent alike.** Stop on a working task, a subagent's run, the goal check, *Waiting on …* or a row of Activity → Using (Stop, and Later once you pick a time) opens a small confirm by the button (**Stop** / **Stop subagent**, or Cancel). It says what else happens: the agent's running subagents stop too, a stopped subagent sends its lead no report, and queued follow-ups stay held.
-
-### Fixed
-
 - **An opened step in a task's activity shows its whole title.** A long step ("Running a Python script, then searching for …") stayed cut after you opened it, both on screen and in the title wisp saved; now an opened step shows its full title, wrapped. Steps from before this fix stay cut.
 - **Goal on with an empty Done when no longer sends without asking.** Turning on Goal in New task or a task's reply box and pressing Send with Done when left empty used to start the task (or send the message) without a goal, so it stopped after one round. Now nothing goes: Done when gets the focus, your text stays, and a toast says the goal is empty, with **Send without a goal** to send it anyway. With Done when filled but nothing in New task's box, Send says *Say what to do first* instead of doing nothing.
 - **A goal is checked only once its agent is done, not while it still waits.** With Claude Code's own subagents still at work, a turn that ended with a full report had its goal checked at once (and the subagents cut off a few seconds later); now the turn waits for them and the goal is checked on the report that follows. A turn whose agent scheduled its own wake-up (`resume_later`) isn't checked either: the goal stays on and is checked after that wake-up's turn. Cancel the wake-up and the goal is checked at once; mark the task done (or let the wake-up lapse) and the goal pauses for you.
@@ -123,6 +110,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **A picture loading in a task no longer moves the page.** Pictures and videos in an answer load once they're near, with no room kept for them, so at the end of a task each one pushed the end off screen (by up to its height) as it arrived. The view now stays at the end, before the page paints; read higher up, it holds what you're reading.
 - **No more Allow & retry that can't allow anything.** In Full auto, Claude Code still refuses a few commands with its own safety check (a heredoc it can't parse: “could not be checked for dangerous rm operations”), and no rule lifts that. The *Blocked by permissions* card offered Allow & retry for them anyway, which did nothing useful. It now lists what was refused with a note that wisp can't allow it, and no buttons.
 - **A subagent's title on a phone is one line, like its lead's beside it.** Opening a subagent's task on a phone, the lead's title in the head was cut short on one line while the subagent's own title wrapped to two; now both are one line, cut short.
+
+### Removed
+
+- **v1's routes, events and spells are gone from the server (ADR-0031).** `/api/events` is the sync stream only (it takes the sync hello), `/api/spells*`, the v1 route adapters with a v2 command, v1's event names, the JSON files written next to the store and the v1 relay are removed. The CLI uses v2's commands (`wisp usage`, `wisp spell` and `wisp computer` are gone; `--try` points to `--compare` and `wisp rerun --formula`). `wisp import` still brings a v1 home over, once.
+- **Drag projects into your own order.** Drag a project chip in the top bar or New task's *in* row, a row of the searchable project list (+N, with nothing typed), or a row of Projects (Manage projects) to put it where you want it. The order is one: it shows the same everywhere projects are listed, including the command palette and a crew member's *Works in*. A project added afterwards goes first. A project's right-click menu has **Sort by recent use** to go back. On a phone, hold a chip before dragging it. Spells can turn dragging off per place (`movable` on `topbar.projects`, `launcher.projects`, `project.list`, `project.rows`).
 
 ## [0.58.0] - 2026-11-11
 
