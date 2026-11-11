@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { attachmentNote, clip, detectVersion, exitText, fileTracker, helpEfforts, helpText, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
-import { describeCommand } from './commands.js';
+import { runLabel } from './commands.js';
 
 const BIN = process.env.WISP_ANTIGRAVITY_BIN || 'agy';
 
@@ -166,7 +166,7 @@ const fileOf = (p) => pick(p, 'TargetFile', 'AbsolutePath', 'FilePath', 'File', 
 function describeTool(name, p, cwd) {
   const f = rel(fileOf(p), cwd);
   const n = name.toLowerCase();
-  if (n === 'run_command') return { kind: 'run', label: describeCommand(p.CommandLine, cwd), detail: p.CommandLine };
+  if (n === 'run_command') return { kind: 'run', ...runLabel(p.CommandLine, cwd), detail: p.CommandLine };
   if (EDIT_TOOL.test(n) && f) return { kind: 'edit', label: `${/delete/.test(n) ? 'Deleting' : 'Editing'} ${f}`, file: f };
   if (/^view_/.test(n) && f) return { kind: 'read', label: `Reading ${f}`, file: f };
   if (n === 'list_dir') return { kind: 'search', label: `Listing ${rel(p.DirectoryPath, cwd) || '.'}` };

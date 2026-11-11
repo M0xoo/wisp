@@ -103,6 +103,7 @@ export function stepOf(ev) {
   const item = { t: Date.now(), kind: ev.type === 'tool' ? ev.kind : ev.type === 'text' ? 'text' : 'error' };
   if (ev.type === 'tool') {
     Object.assign(item, { label: ev.label, file: ev.file, detail: ev.detail });
+    if (ev.title) item.title = ev.title; // the whole label, which an opened step shows
     if (ev.id) item.call = String(ev.id); // a tool_output later finds its call by this
     if (ev.output && OUTPUT_KINDS.has(item.kind)) item.output = clipOutput(ev.output);
   } else if (ev.type === 'text') item.label = ev.text.slice(0, MAX_TEXT);
