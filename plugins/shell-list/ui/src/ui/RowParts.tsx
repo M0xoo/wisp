@@ -3,9 +3,9 @@
 // model, where it runs, project, branch), the pills, the RAM and the time, and the hover actions.
 // Every cell keeps its place whatever the task says, so a row never shifts (design/layout.md §4).
 
-import { routeOf, routeTip, type RouteSeen } from '@wisp/shell';
+import { routeOf, routeTip, type HarnessUiDef, type RouteSeen } from '@wisp/shell';
 import { For, Match, Show, Switch, type JSX } from 'solid-js';
-import { Avatar, Dot, Gap, Icon, IconButton, Inline, Pill, Text, Time, futureLabel, timeTitle } from '@wisp/ui';
+import { Dot, Gap, Icon, IconButton, Inline, Pill, RowLogo, Text, Time, futureLabel, timeTitle, useSignal } from '@wisp/ui';
 import type { EntityKey } from '@wisp/client';
 import { colorToken, type SessionRow } from '../types.ts';
 import type { PillView, RowView, RunView, SubView } from '../model/row.ts';
@@ -25,7 +25,16 @@ export function Mark(props: { readonly s: SessionRow; readonly view: RowView; re
         {(o) => <Icon name={o().icon} size="md" tone="muted" label={say(env.shell.t, o().title, env.now())} part="list.row.mark" />}
       </Match>
       <Match when={(() => { const x = m(); return x.kind === 'agent' ? x : undefined; })()}>
-        {(a) => <Avatar name={props.name} size="sm" color={colorToken(props.s.color)} {...(a().status ? { status: a().status } : {})} part="list.row.mark" />}
+        {/* v1 feed.js .it-dot: one dot before the title, the accent while unread, grey once read; it pulses while the run works */}
+        {(a) => (
+          <Dot
+            size="md"
+            tone={props.view.unread ? 'accent' : 'neutral'}
+            live={a().live}
+            {...(props.view.unread ? { label: env.shell.t('shell-list.row.unread') } : {})}
+            part="list.row.mark"
+          />
+        )}
       </Match>
     </Switch>
   );
@@ -51,18 +60,22 @@ export function SubLine(props: { readonly sub: SubView | undefined }): JSX.Eleme
 export function RunLine(props: { readonly run: RunView | undefined; readonly s: SessionRow }): JSX.Element {
   const env = useEnv();
   const route = (): RouteSeen | undefined => routeOf({ ext: (props.s as { ext?: unknown }).ext });
+  const harnesses = useSignal(env.shell.harnesses());
+  /** the harness as its plugin registered it: v1's name ("Claude Code") and logo */
+  const harness = (): HarnessUiDef | undefined => harnesses().find((h) => h.id === props.s.agent);
   return (
     <Inline gap="3" align="center" part="list.row.run">
       <Show when={props.run}>
         {(r) => (
           <Inline gap="2" align="center" part="list.row.harness">
-            {/* Auto picked this run: v1's accent dot, and why in the tip (runners.js modelBadge) */}
-            <Show when={route()}>
-              <Dot tone="accent" />
+            {/* v1 runBadge: the harness's logo (Auto's accent dot on its corner when it picked the run) and its name */}
+            <Show when={harness()?.logo} fallback={<Show when={route()}><Dot tone="accent" /></Show>}>
+              {(src) => <RowLogo src={src()} routed={!!route()} />}
             </Show>
-            <Text size="xs" tone="faint" truncate title={route() ? routeTip(route() as RouteSeen, env.shell.t) : say(env.shell.t, r().title, env.now())}>
-              {r().model ? `${r().agentName} · ${r().model}` : r().agentName}
+            <Text size="xs" tone="muted" truncate title={route() ? routeTip(route() as RouteSeen, env.shell.t) : say(env.shell.t, r().title, env.now())}>
+              {r().model ? `${harness()?.name ?? r().agentName} · ${r().model}` : (harness()?.name ?? r().agentName)}
             </Text>
+            <Text size="xs" tone="faint">·</Text>
             <Icon name={r().sandbox ? 'box' : r().remote ? 'server' : 'laptop'} size="xs" tone="faint" />
             <Text size="xs" tone="faint" truncate>{r().where}</Text>
           </Inline>
@@ -111,9 +124,6 @@ export function Pills(props: { readonly view: RowView }): JSX.Element {
   const env = useEnv();
   return (
     <>
-      <Show when={props.view.unread}>
-        <Dot tone="accent" size="md" label={env.shell.t('shell-list.row.unread')} part="list.row.unread" />
-      </Show>
       <For each={props.view.pills}>{(p) => <OnePill p={p} />}</For>
       <Show when={props.view.ram}>
         {(ram) => (

@@ -14,9 +14,27 @@
   [data-kit='list-row'][data-layout='feed'] { grid-template-columns: auto minmax(0, 1fr) auto var(--k-time-w); grid-template-rows: auto auto 1fr; align-items: start; }
   [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-lead'] { grid-row: 1; align-self: center; }
   [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-main'] { grid-column: 2; grid-row: 1 / -1; }
+  /* with a foot (v1 split.css .it-run: grid-row 3, column 2 / -1): the title and its sub take two rows, the run
+     line runs under them and the pills, the row's full width */
+  /* with a foot the title and the sub are cells of their own: the title beside the time (row 1), the sub beside the
+     pills (row 2), so the pill sits on the sub's line whatever height the hover actions give row 1 */
+  [data-kit='list-row'][data-layout='feed'][data-foot] { row-gap: var(--space-1); grid-template-rows: auto auto auto; }
+  [data-kit='list-row'][data-layout='feed'][data-foot] > [data-kit='list-row-main'] { display: contents; }
+  [data-kit='list-row'][data-layout='feed'][data-foot] > [data-kit='list-row-main'] > [data-kit='list-row-hit'] { grid-column: 2; grid-row: 1; align-self: start; min-width: 0; }
+  /* the time in the title's line box, so both sit on one baseline (v1 .it-head .q-time) */
+  [data-kit='list-row'][data-layout='feed'][data-foot] > [data-kit='list-row-time'] { align-self: start; line-height: calc(var(--fs-md) * var(--lh-snug)); }
+  /* the dot centred on the title's line (v1 .it-dot) */
+  [data-kit='list-row'][data-layout='feed'][data-foot] > [data-kit='list-row-lead'] { align-self: start; display: flex; align-items: center; height: calc(var(--fs-md) * var(--lh-snug)); }
+  /* the quick actions float over the title's end, beside the time (v1 split.css .it-quick: absolute, top 7px, right
+     40px), so they never make row 1 taller than the title: the dot, the title and the time share one line */
+  [data-kit='list-row'][data-layout='feed'][data-foot] > [data-kit='list-row-actions'] {
+    position: absolute; top: var(--space-3); right: calc(var(--k-time-w) + var(--space-6)); background: var(--bg-2); border-radius: var(--radius-sm);
+  }
+  [data-kit='list-row'][data-layout='feed'][data-foot] > [data-kit='list-row-main'] > [data-kit='list-row-sub'] { grid-column: 2; grid-row: 2; align-self: center; min-width: 0; }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-foot'] { grid-column: 2 / -1; grid-row: 3; min-width: 0; }
   [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-actions'] { grid-column: 3; grid-row: 1; align-self: center; }
   [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-time'] { grid-column: 4; grid-row: 1; align-self: center; }
-  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-pills'] { grid-column: 3 / -1; grid-row: 2; justify-content: flex-end; }
+  [data-kit='list-row'][data-layout='feed'] > [data-kit='list-row-pills'] { grid-column: 3 / -1; grid-row: 2; align-self: center; justify-content: flex-end; }
   [data-kit='list-row'][data-interactive]:hover { background: var(--bg-2); }
   [data-kit='list-row'][data-current] { background: var(--bg-2); }
   [data-kit='list-row'][data-selected] { background: var(--accent-soft); }

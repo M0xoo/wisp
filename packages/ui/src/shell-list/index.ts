@@ -3,5 +3,6 @@
 export { FoldHead, type FoldHeadProps } from './FoldHead.tsx';
 export { Dot, type DotProps } from './Dot.tsx';
 export { Gap, type GapProps } from './Gap.tsx';
+export { RowLogo, type RowLogoProps } from './RowLogo.tsx';
 export { Swipe, type SwipeDir, type SwipeProps, type SwipeSide } from './Swipe.tsx';
 export { SWIPE_COMMIT, SWIPE_EDGE, SWIPE_FLICK, SWIPE_GIVE, SWIPE_SLOP, swipeArmed, swipeCommits, swipeOffset, swipePhase, swipeSpeed, swipeStarts, type SwipePhase } from './swipe-math.ts';

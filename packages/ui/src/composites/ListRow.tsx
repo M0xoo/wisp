@@ -11,6 +11,8 @@ export interface ListRowProps extends KitProps {
   readonly sub?: JSX.Element;
   /** An icon, avatar or status mark before the text. */
   readonly lead?: JSX.Element;
+  /** feed layout: a last line across the whole row, under the sub and the pills (v1 .it-run, the run line) */
+  readonly foot?: JSX.Element;
   /** Pills after the text, in their own column. */
   readonly pills?: JSX.Element;
   /** Usually a <Time>; its column is fixed-width. */
@@ -77,6 +79,7 @@ export function ListRow(props: ListRowProps): JSX.Element {
       data-quiet={flag(props.quiet)}
       data-time={flag(props.time !== undefined)}
       data-layout={props.layout === 'feed' ? 'feed' : undefined}
+      data-foot={flag(!!props.foot)}
       data-interactive={flag(props.onOpen !== undefined || props.href !== undefined)}
       onContextMenu={(e) => props.onContextMenu?.(e)}
     >
@@ -89,6 +92,11 @@ export function ListRow(props: ListRowProps): JSX.Element {
           {props.sub}
         </div>
       </div>
+      <Show when={props.foot}>
+        <div data-kit="list-row-foot" data-part={sub(part(), 'foot')}>
+          {props.foot}
+        </div>
+      </Show>
       <div data-kit="list-row-pills" data-part={sub(part(), 'pills')}>
         {props.pills}
       </div>

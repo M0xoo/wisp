@@ -62,9 +62,9 @@ function Body(props: { readonly k: EntityKey; readonly s: SessionRow; readonly n
       part={props.nested ? `list.row.${props.nested}` : 'list.row'}
       title={props.s.title || t('shell-list.row.untitled')}
       lead={<Mark s={props.s} view={view()} name={name()} />}
-      sub={
+      sub={<SubLine sub={view().sub} />}
+      foot={
         <Stack gap="0">
-          <SubLine sub={view().sub} />
           <RunLine run={view().run} s={props.s} />
           <Slot input="shell.row:bottom" session={session} />
         </Stack>
