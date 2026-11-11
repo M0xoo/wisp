@@ -660,7 +660,7 @@ test('in a DM lists are whole; in a guild others read them, so none of your name
   for (const [text, re] of [
     ['help', /Say what you’d type in wisp/],
     ['projects', new RegExp(`• ${name}`)],
-    ['models', /• claude: opus, sonnet, haiku/],
+    ['models', /• claude: fable, opus, sonnet, haiku/],
     ['machines', /• this computer · online/],
     ['crew', /./],
   ]) {

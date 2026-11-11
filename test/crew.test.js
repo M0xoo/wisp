@@ -364,6 +364,18 @@ test('@Name with a quick answer: the crew block\'s topic names the job', async (
   assert.deepEqual(done.turns[0].presentation.blocks, [{ type: 'markdown', text: "Yes, it's merged." }]);
 });
 
+test('@Name with a harness picked in the prompt box: that job runs on it, the next on theirs again', async () => {
+  const s = await api('/sessions', { prompt: '@Ada check it on codex', cwd: repo, agent: 'claude', crewRun: { agent: 'codex' } });
+  assert.deepEqual(jobOf(s), { id: ada.id, job: 'task' });
+  assert.equal(s.agent, 'codex');
+  assert.equal((await ended(s.id)).agent, 'codex');
+  assert.equal((await api(`/crew/${ada.id}`)).agent, 'claude', 'the member keeps their harness');
+  const again = await api('/sessions', { prompt: '@Ada and once more', cwd: repo, agent: 'codex' });
+  assert.equal(again.agent, 'claude', 'the launcher’s own harness isn’t the job’s');
+  await ended(again.id);
+  await assert.rejects(api('/sessions', { prompt: '@Ada go', cwd: repo, crewRun: { agent: 'nope' } }), /No harness “nope”/);
+});
+
 test('@Name starting a follow-up: they answer on the task, under the message', async () => {
   await api(`/crew/${ada.id}`, { parallel: 3 }, 'PATCH');
   const task = await api('/sessions', { prompt: 'Fix the add function', cwd: makeRepo(), agent: 'claude', worktree: false });

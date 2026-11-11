@@ -308,7 +308,8 @@ export default {
   fork: true, // run({ resumeId, fork }) answers on a copy of the conversation (/btw)
   models: [
     { id: '', label: 'Default', hint: 'Whatever Claude Code is set to' },
-    { id: 'opus', label: 'Opus', hint: 'Most capable, for hard problems' },
+    { id: 'fable', label: 'Fable', hint: 'Most capable, for the hardest, longest work' },
+    { id: 'opus', label: 'Opus', hint: 'Frontier, for hard problems' },
     { id: 'sonnet', label: 'Sonnet', hint: 'Fast and smart, everyday work' },
     { id: 'haiku', label: 'Haiku', hint: 'Fastest, for quick tasks' },
   ],

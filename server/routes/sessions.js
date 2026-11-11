@@ -234,8 +234,10 @@ export function register(r, app) {
       // so a 409 for one doesn't leave the others started (and Start anyway giving them a second
       // job). Members on other computers start first: their wisp asks there, before any here went.
       if (t.lead.length > 1 && body.confirmLimit !== true) for (const m of t.lead) await app.crew.askFirst(m, job);
+      // crewRun: the harness, model and level picked in the prompt box for this job, one member only.
+      const run = t.lead.length === 1 && body.crewRun && typeof body.crewRun === 'object' ? { agent: body.crewRun.agent || undefined, model: body.crewRun.model || undefined, effort: body.crewRun.effort || undefined } : null;
       const jobs = [];
-      for (const m of [...t.lead].sort((x, y) => elsewhere(y) - elsewhere(x))) jobs.push({ m, out: await app.crew.assign(m, { ...job, job: 'task', confirmLimit: body.confirmLimit === true }) });
+      for (const m of [...t.lead].sort((x, y) => elsewhere(y) - elsewhere(x))) jobs.push({ m, out: await app.crew.assign(m, { ...job, job: 'task', confirmLimit: body.confirmLimit === true, ...(run && { run, picked: true }) }) });
       jobs.sort((x, y) => t.lead.indexOf(x.m) - t.lead.indexOf(y.m));
       const list = jobs.map(({ m, out }) => (out.session ? sumOf(out.session) : { queued: out.queued, crew: { id: m.id, name: m.name } }));
       return c.send(201, list.length > 1 ? { ...list[0], group: list } : list[0]);

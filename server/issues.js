@@ -1,6 +1,6 @@
 // Issues to start a task from (New task → Issue): a project's open GitHub issues through gh, or the
-// Linear issues assigned to you when a Linear connector has an API key (Linear's GraphQL API; no
-// sign-in of its own). routes/issues.js serves them. A failure comes back as words the page shows,
+// Linear / Jira issues assigned to you: through their APIs when a connector has an API key, or
+// through the tools of their MCP server when it's signed in with the browser. routes/issues.js serves them. A failure comes back as words the page shows,
 // with what fixes it (fix: install | signin | remote | linear), never as a thrown error.
 //
 //   { source, issues: [{ id, ref, number, title, url, labels, assignee, body, updatedAt }], linear }
@@ -155,22 +155,94 @@ export async function jiraIssues({ site, email, token }, q = '', { fetch = globa
   return { issues: (j.issues || []).map(jiraIssue(site)) };
 }
 
+// --- Signed in instead: the source's own MCP server (Settings → Connectors → Linear / Jira, Add and
+// sign in). Its OAuth token is for that server only, so the issues come through its tools. ---
+
+const FOR = { linear: /linear/i, jira: /jira|atlassian/i };
+// An enabled remote connector for that source, signed in with the browser.
+export function signedInConnector(source, connectors = [], secrets) {
+  return connectors.find((c) => c.enabled !== false && c.transport === 'remote' && c.oauth && FOR[source].test([c.name, c.url].join(' ')) && secrets?.get(ns(c.id), 'oauth:access')) || null;
+}
+
+// A tool's answer: the JSON in its text (or its structured content), else the text itself.
+function toolJson(r) {
+  if (r?.structuredContent) return r.structuredContent;
+  const t = (r?.content || []).filter((x) => x.type === 'text').map((x) => x.text).join('\n').trim();
+  try {
+    return JSON.parse(t);
+  } catch {
+    return t;
+  }
+}
+const listOf = (v, ...keys) => (Array.isArray(v) ? v : keys.map((k) => v?.[k]).find(Array.isArray) || []);
+const nameOf = (v) => (typeof v === 'string' ? v : v?.displayName || v?.name || '');
+const CLOSED = /^(done|completed|canceled|cancelled|duplicate)$/i;
+
+// Linear MCP's list_issues item → one issue; null for one that's closed.
+export function linearMcpIssue(n) {
+  const state = nameOf(n.status ?? n.state);
+  if (/^(completed|canceled)$/i.test(n.statusType || '') || CLOSED.test(state) || n.completedAt || n.canceledAt) return null;
+  const ref = n.identifier || n.id;
+  return { id: String(n.id || ref), ref, number: ref, title: String(n.title || ''), url: n.url || '', labels: names(listOf(n.labels, 'nodes')), assignee: nameOf(n.assignee), body: body(n.description), updatedAt: n.updatedAt || null };
+}
+
+// A refusal for want of a sign-in, in the picker's words, with Connectors as its fix.
+const mcpProblem = (err, source) => {
+  const label = source === 'jira' ? 'Jira' : 'Linear';
+  return /sign-in|sign in|HTTP 40[13]|unauthori[sz]ed/i.test(err.message) ? { error: `${label} wants you to sign in again: Settings → Connectors.`, fix: source } : { error: `${label} couldn’t list your issues: ${clip(err.message, 200)}` };
+};
+
+// Yours first; none open (a team that doesn't assign), the workspace's open ones (scope: all). Closed
+// ones come back too, so it asks for twice as many and keeps the open.
+const LINEAR_FIELDS = ['id', 'title', 'url', 'labels', 'assignee', 'status', 'statusType', 'updatedAt', 'description'];
+export async function linearMcpIssues(mcp, c, q = '') {
+  try {
+    return await mcp(c, async (call) => {
+      const open = async (assignee) => listOf(toolJson(await call('list_issues', { ...(assignee && { assignee }), ...(q && { query: q }), limit: LIMIT * 2, orderBy: 'updatedAt', fields: LINEAR_FIELDS })), 'issues', 'nodes').map(linearMcpIssue).filter(Boolean).slice(0, LIMIT);
+      const mine = await open('me');
+      return mine.length ? { scope: 'mine', issues: mine } : { scope: 'all', issues: await open() };
+    });
+  } catch (err) {
+    return mcpProblem(err, 'linear');
+  }
+}
+
+// Atlassian's: the sites you can reach, the first with Jira, then a JQL search there.
+export async function jiraMcpIssues(mcp, c, q = '') {
+  try {
+    return await mcp(c, async (call) => {
+      const sites = listOf(toolJson(await call('getAccessibleAtlassianResources', {})), 'resources');
+      const site = sites.find((s) => (s.scopes || []).some((x) => /jira/.test(x))) || sites[0];
+      if (!site?.id) return { error: 'Your Atlassian account has no Jira site to list issues from.' };
+      const jql = `assignee = currentUser() AND statusCategory != Done${q ? ` AND text ~ "${q.replace(/["\\]/g, ' ')}"` : ''} ORDER BY updated DESC`;
+      const r = toolJson(await call('searchJiraIssuesUsingJql', { cloudId: site.id, jql, maxResults: LIMIT, fields: ['summary', 'labels', 'assignee', 'description', 'updated'] }));
+      const url = String(site.url || '').replace(/\/+$/, '');
+      return { issues: listOf(r, 'issues').map(jiraIssue(url)) };
+    });
+  } catch (err) {
+    return mcpProblem(err, 'jira');
+  }
+}
+
 // The list for the picker. project: a project from the config; dir: its folder on this computer.
-export async function listIssues({ source = 'github', project, dir, q = '', connectors, secrets, now = Date.now() }) {
+// mcp(connector, fn): runs fn(call) against a connector's server (connectors.js mcpCall).
+export async function listIssues({ source = 'github', project, dir, q = '', connectors, secrets, mcp, now = Date.now() }) {
   q = String(q || '').trim().slice(0, 200);
   const key = linearKey(connectors, secrets);
-  const linear = !!key;
+  const linearMcp = !key && signedInConnector('linear', connectors, secrets);
+  const linear = !!(key || linearMcp);
   const jira = jiraCreds(connectors, secrets);
-  const out = (x) => ({ source, issues: [], linear, jira: !!jira, ...x });
-  if (source === 'jira' && !jira) return out({ error: 'Connect Jira (a Jira or Atlassian connector with its site, email and API token) to list the issues assigned to you.', fix: 'jira' });
-  if (source === 'linear' && !key) return out({ error: 'Connect Linear with an API key to list the issues assigned to you.', fix: 'linear' });
+  const jiraMcp = !jira && signedInConnector('jira', connectors, secrets);
+  const out = (x) => ({ source, issues: [], linear, jira: !!(jira || jiraMcp), ...x });
+  if (source === 'jira' && !jira && !jiraMcp) return out({ error: 'Connect Jira to list the issues assigned to you: add Jira in Settings → Connectors and sign in.', fix: 'jira' });
+  if (source === 'linear' && !linear) return out({ error: 'Connect Linear to list the issues assigned to you: add Linear in Settings → Connectors and sign in.', fix: 'linear' });
   if (source === 'github' && !project) return out({ error: 'Pick a project to see its issues.', fix: 'project' });
   const id = `${source}:${source === 'github' ? project.id : ''}:${q}`;
   const hit = cache.get(id);
-  if (hit && now - hit.at < TTL) return { ...hit.value, linear, jira: !!jira };
+  if (hit && now - hit.at < TTL) return { ...hit.value, linear, jira: !!(jira || jiraMcp) };
   let value;
-  if (source === 'linear') value = out(await linearIssues(key, q));
-  else if (source === 'jira') value = out(await jiraIssues(jira, q));
+  if (source === 'linear') value = out(key ? await linearIssues(key, q) : await linearMcpIssues(mcp, linearMcp, q));
+  else if (source === 'jira') value = out(jira ? await jiraIssues(jira, q) : await jiraMcpIssues(mcp, jiraMcp, q));
   else {
     const repo = await repoOfProject(project, dir);
     if (!repo) return out({ error: `${project.name || 'This project'} has no GitHub remote, so it has no issues to list.`, fix: 'remote' });
