@@ -1,283 +1,228 @@
-// wisp client SDK: everything the web UI can do, from Node (or anything with fetch).
-// Zero dependencies. Importable as `wisp-agents/client`; the HTTP paths and bodies match v1's
-// server/client.js so scripts written against v1 keep working.
+// wisp's TypeScript/JavaScript SDK (ADR-0028): everything a frontend can do, from Node or anything with fetch.
+// Every call is a command (POST /api/cmd, with an idempotency key) or a topic subscription (the sync stream,
+// GET /api/events), so permissions, idempotency and live updates behave as they do in the app. Zero dependencies.
 //
 //   import { WispClient } from 'wisp-agents/client';
-//   const wisp = await WispClient.connect();            // finds the running wisp, or starts one
-//   const s = await wisp.launch({ prompt: 'fix the flaky auth test', cwd: process.cwd() });
-//   const done = await wisp.wait(s.id);                  // until it finishes or asks you something
-//   console.log((await wisp.presentation(s.id)).markdown);
+//   const w = await WispClient.connect();                       // the running wisp, or one started for you
+//   const t = await w.run({ prompt: 'fix the flaky auth test', cwd: process.cwd() });
+//   const done = await w.wait(t.id);                            // until it stops working (live, not polled)
+//   console.log((await w.presentation(done.id))?.blocks);
+//   await w.cmd('runtime.followUp', { id: t.id, text: 'and add a test' });   // any command in the catalogue
+//
+// Types for every command come from the running wisp: `generateTypes(await w.catalogue())`.
 
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 export const DEFAULT_PORT = 4477;
+/** The sync protocol this SDK speaks (wisp-protocol PROTO_MIN..PROTO). */
+export const PROTO = 2;
 const BIN = fileURLToPath(new URL('./bin/wisp.js', import.meta.url));
-const MAX_WAIT_CALL = 280; // seconds per long-poll; fetch gives up on headers after 300s
-
-// `--try subagents=haiku,skills=off` (repeatable): the second run's change, as compare[] takes it.
-export function tryRuns(list) {
-  const out = {};
-  for (const x of list.flatMap((v) => String(v).split(',')).filter(Boolean)) {
-    const [key, value] = x.split('=');
-    if (key === 'subagents' && ['haiku', 'sonnet', 'task'].includes(value)) out.subagentModel = value === 'task' ? '' : value;
-    else if (key === 'skills' && value === 'off') out.skills = 'off';
-    else throw new Error('Use --try subagents=haiku|sonnet|task or --try skills=off');
-  }
-  return out;
-}
-
-// Why `--try` can't go with these flags, or null. Said here: nothing has to start to refuse it.
-export function tryProblem({ agent, compare, mode, worktree }) {
-  if (!agent || agent === 'auto') return '--try needs --agent: pick a harness first';
-  if (compare) return '--try is its own comparison: leave out --compare';
-  if (mode === 'plan') return '--try needs edits to compare, so it doesn’t run in Plan mode';
-  if (worktree === false) return '--try keeps a worktree per run: leave out --no-worktree';
-  return null;
-}
 
 export const wispHome = () => process.env.WISP_HOME || path.join(os.homedir(), '.wisp');
 
-// The running server advertises itself in ~/.wisp/server.json. Stale files (dead pid) are ignored.
+/** The port the running wisp advertises in `<home>/server.json`, or null. */
 export function discover(home = wispHome()) {
   try {
     const info = JSON.parse(fs.readFileSync(path.join(home, 'server.json'), 'utf8'));
-    if (info.pid) process.kill(info.pid, 0);
-    return info;
+    return Number.isInteger(info.port) ? info.port : null;
   } catch {
     return null;
   }
 }
 
+/** A refusal in wisp's own words: `code` (`invalid`, `forbidden`, `not_found`, `conflict`, …), and whether a retry may help. */
 export class WispError extends Error {
-  constructor(message, status, body) {
+  constructor(message, { code = 'internal', status = 0, retry = false, body = null } = {}) {
     super(message);
     this.name = 'WispError';
-    this.status = status;
-    this.body = body;
+    Object.assign(this, { code, status, retry, body });
   }
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const key = () => `sdk-${randomBytes(12).toString('hex')}`;
+
+/** SSE, chunk by chunk (a frame may split anywhere): `push(text)` → `[{ event, id, data }]`. */
+export class SseParser {
+  #buf = '';
+  #ev = { event: '', id: null, data: [] };
+  push(text) {
+    this.#buf += text;
+    const out = [];
+    for (let i; (i = this.#buf.search(/\r?\n/)) >= 0; ) {
+      const line = this.#buf.slice(0, i);
+      this.#buf = this.#buf.slice(i + (this.#buf[i] === '\r' ? 2 : 1));
+      if (line === '') {
+        if (this.#ev.data.length) out.push({ event: this.#ev.event || 'message', id: this.#ev.id, data: this.#ev.data.join('\n') });
+        this.#ev = { event: '', id: this.#ev.id, data: [] };
+      } else if (!line.startsWith(':')) {
+        const c = line.indexOf(':');
+        const [field, value] = c < 0 ? [line, ''] : [line.slice(0, c), line.slice(c + 1).replace(/^ /, '')];
+        if (field === 'data') this.#ev.data.push(value);
+        else if (field === 'event') this.#ev.event = value;
+        else if (field === 'id') this.#ev.id = value;
+      }
+    }
+    return out;
+  }
+}
+
+/** A sync frame's server messages (`welcome`, `snapshot`, `patch`, …), or null for anything else. */
+export function decodeFrame(ev) {
+  if (ev.event !== 'sync') return null;
+  try {
+    const messages = JSON.parse(ev.data);
+    return Array.isArray(messages) ? messages : null;
+  } catch {
+    return null;
+  }
+}
+
+const IDENT = /^[A-Za-z_$][\w$]*$/;
+const prop = (k) => (IDENT.test(k) ? k : JSON.stringify(k));
+
+/** A `.d.ts` for the commands a catalogue lists: `WispCommands` (id → args and result), and `cmd`'s overload. */
+export function generateTypes(catalogue) {
+  const lines = ['// Generated by wisp-agents generateTypes() from a running wisp\'s catalogue. Do not edit.', 'export interface WispCommands {'];
+  for (const c of [...catalogue].sort((a, b) => a.id.localeCompare(b.id))) {
+    if (c.uiOnly) continue;
+    if (c.title) lines.push(`  /** ${String(c.title).replace(/\*\//g, '* /')}${c.readOnly ? ' (read only)' : ''} */`);
+    lines.push(`  ${prop(c.id)}: { args: ${c.args || 'Record<string, unknown>'}; result: unknown };`);
+  }
+  lines.push('}', '', "declare module 'wisp-agents/client' {", '  interface WispClient {', '    cmd<K extends keyof WispCommands>(id: K, args: WispCommands[K][\'args\'], opts?: { key?: string }): Promise<WispCommands[K][\'result\']>;', '  }', '}', '');
+  return lines.join('\n');
+}
 
 export class WispClient {
-  // url: e.g. http://127.0.0.1:4477. Defaults to WISP_URL (set for agents running inside wisp),
-  // then WISP_PORT, then server.json, then 4477.
-  constructor({ url, port } = {}) {
-    const p = port || Number(process.env.WISP_PORT) || discover()?.port || DEFAULT_PORT;
-    this.url = (url || (port ? '' : process.env.WISP_URL) || `http://127.0.0.1:${p}`).replace(/\/$/, '');
+  /** `url`: `http://127.0.0.1:<port>` (or a peer's); `token`: `WISP_TOKEN` when it asks for one. */
+  constructor({ url = `http://127.0.0.1:${DEFAULT_PORT}`, token = process.env.WISP_TOKEN || '' } = {}) {
+    this.url = url.replace(/\/+$/, '');
+    this.token = token;
+    this.clientId = `sdk-${randomBytes(8).toString('hex')}`;
   }
 
-  // Connect to the running wisp; with start (default), launch a headless one if none answers.
-  static async connect({ url, port, start = true, timeoutMs = 15_000 } = {}) {
-    const client = new WispClient({ url, port });
-    if (await client.ping()) return client;
-    if (!start) throw new WispError(`wisp is not running at ${client.url}`, 0);
-    const child = spawn(process.execPath, [BIN, '--no-open', '--port', new URL(client.url).port || String(DEFAULT_PORT)], {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true,
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, // an Electron app using this SDK: its execPath is Electron
-    });
-    child.unref();
-    const end = Date.now() + timeoutMs;
-    while (Date.now() < end) {
-      if (await client.ping()) return client;
-      await sleep(150);
+  /** The running wisp (`server.json`), or one started with `wisp serve` when `start` and none answers. */
+  static async connect({ url, port, home = wispHome(), token, start = true, timeoutMs = 15_000 } = {}) {
+    const found = url || `http://127.0.0.1:${port || discover(home) || DEFAULT_PORT}`;
+    const c = new WispClient({ url: found, token });
+    if (await c.alive()) return c;
+    if (!start || url) throw new WispError(`No wisp answers at ${found}. Start one with: wisp serve`, { code: 'unavailable', retry: true });
+    spawn(process.execPath, [BIN, 'serve'], { detached: true, stdio: 'ignore', env: { ...process.env, WISP_HOME: home } }).unref();
+    const until = Date.now() + timeoutMs;
+    while (Date.now() < until) {
+      await new Promise((r) => setTimeout(r, 200));
+      const p = discover(home);
+      const next = p ? new WispClient({ url: `http://127.0.0.1:${p}`, token }) : c;
+      if (await next.alive()) return next;
     }
-    throw new WispError(`wisp did not start at ${client.url}`, 0);
+    throw new WispError(`wisp didn’t start within ${Math.round(timeoutMs / 1000)} s`, { code: 'unavailable', retry: true });
   }
 
-  // An agent inside wisp is handed WISP_TOKEN; sending it lets the server tell who is asking.
-  #headers(contentType) {
-    const h = {};
-    if (contentType) h['content-type'] = contentType;
-    if (process.env.WISP_TOKEN) h['x-wisp-token'] = process.env.WISP_TOKEN;
-    return h;
+  #headers(extra = {}) {
+    return { ...(this.token && { 'x-wisp-token': this.token }), ...extra };
   }
 
-  async request(method, p, body, { raw = false, signal } = {}) {
-    // wisp takes only JSON on anything but a read, a body-less DELETE included.
-    if (body === undefined && method !== 'GET' && method !== 'HEAD') body = {};
-    const isBuf = body instanceof Uint8Array || body instanceof ArrayBuffer;
-    const type = body === undefined ? undefined : isBuf ? 'application/octet-stream' : 'application/json';
-    const res = await fetch(`${this.url}/api${p}`, {
-      method,
-      signal,
-      headers: this.#headers(type),
-      body: body === undefined ? undefined : isBuf ? body : JSON.stringify(body),
-    });
-    if (raw && res.ok) return res;
-    const text = await res.text();
-    let json;
+  async alive() {
     try {
-      json = text ? JSON.parse(text) : {};
-    } catch {
-      json = { text };
-    }
-    if (!res.ok) throw new WispError(json.error?.message || json.error || json.message || res.statusText, res.status, json);
-    return json;
-  }
-
-  async ping() {
-    try {
-      return (await this.health()).ok === true;
+      const r = await fetch(`${this.url}/api/health`, { headers: this.#headers(), signal: AbortSignal.timeout(2000) });
+      return r.ok;
     } catch {
       return false;
     }
   }
 
-  health = () => this.request('GET', '/health');
-  agents = () => this.request('GET', '/agents');
-  config = () => this.request('GET', '/config');
-  machines = () => this.request('GET', '/machines');
-  updateConfig = (patch) => this.request('PATCH', '/config', patch);
-
-  projects = () => this.request('GET', '/projects');
-  addProject = (dir, { name } = {}) => this.request('POST', '/projects', { path: path.resolve(dir), name });
-  removeProject = (id) => this.request('DELETE', `/projects/${id}`);
-
-  // The crew. A member is found by id, name or @handle.
-  crew = () => this.request('GET', '/crew');
-  crewMember = (id) => this.request('GET', `/crew/${encodeURIComponent(id)}`);
-  addCrew = (member) => this.request('POST', '/crew', member); // { name, role, brief, cwd, agent, …, checkin }
-  updateCrew = (id, patch) => this.request('PATCH', `/crew/${encodeURIComponent(id)}`, patch);
-  removeCrew = (id) => this.request('DELETE', `/crew/${encodeURIComponent(id)}`);
-  importCrew = (body) => this.request('POST', '/crew/import', body); // { text | url, choices, dryRun }
-  exportCrew = (body) => this.request('POST', '/crew/export', body); // { ids, kit, notebook, team, gist }
-
-  // filter: { state, cwd, project, archived, limit }
-  sessions(filter = {}) {
-    const q = new URLSearchParams(Object.entries(filter).filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => [k, String(v)]));
-    return this.request('GET', `/sessions${q.size ? `?${q}` : ''}`);
-  }
-  session = (id) => this.request('GET', `/sessions/${id}`);
-  presentation = (id, { turn } = {}) => this.request('GET', `/sessions/${id}/presentation${turn !== undefined ? `?turn=${encodeURIComponent(turn)}` : ''}`);
-  update = (id, patch) => this.request('PATCH', `/sessions/${id}`, patch); // { title, state, unread, archived, forLater }
-  remove = (id) => this.request('DELETE', `/sessions/${id}`);
-  stop = (id) => this.request('POST', `/sessions/${id}/stop`, {});
-  answer = (id, text) => this.request('POST', `/sessions/${id}/answer`, { text });
-  revert = (id, fileOrOpts, opts = {}) => {
-    const body = typeof fileOrOpts === 'string' ? { file: fileOrOpts, ...opts } : fileOrOpts || {};
-    return this.request('POST', `/sessions/${id}/revert`, body);
-  };
-  rollback = (id, { turnId, restore = false } = {}) => this.request('POST', `/sessions/${id}/rollback`, { turnId, restore });
-  exec = (id, cmdOrOpts, opts = {}) => {
-    const body = typeof cmdOrOpts === 'string' ? { command: cmdOrOpts, ...opts } : cmdOrOpts || {};
-    return this.request('POST', `/sessions/${id}/exec`, body);
-  };
-  takeover = (id, { open = false } = {}) => this.request(open ? 'POST' : 'GET', `/sessions/${id}/takeover`, open ? {} : undefined);
-
-  // { prompt, cwd, agent, mode, model, effort, attachments: [uploadId] }. Missing agent/mode/model
-  // fall back to the launcher's remembered defaults, like `wisp "…"` does; effort only if given.
-  // worktree: true/false overrides the default (on in git repos). compare: [{ agent, model, effort }]
-  // runs the same task on more harnesses at once, each in its own worktree. subagents:
-  // [{ name, agent, model, effort, use }] (or preset: a saved team's id) the lead can delegate to.
-  // also: more folders the same task works in (each git repo gets its own worktree and PR).
-  // machine: run it on one of the user's machines (id; '' or none = this computer).
-  // confirmLimit: the user agreed to go ahead although it takes a usage window past their Ask near
-  // the limit line (refused with 409 and `hold` otherwise).
-  // subagentModel: '' | haiku | sonnet, skills: 'off' (here and on each compare entry): Claude Code
-  // only. trial: Try it two ways, a compare of one setup with one change: Compare says what differed.
-  async launch({ prompt, cwd = process.cwd(), also, agent, mode, model, effort, attachments, worktree, compare, subagents, preset, kind, machine, confirmLimit, subagentModel, skills, trial } = {}) {
-    if (!agent || !mode || model === undefined) {
-      const { defaults = {} } = await this.config();
-      agent ||= defaults.agent || 'auto';
-      mode ||= defaults.mode || 'auto';
-      model ??= defaults.models?.[agent] ?? (agent === defaults.agent ? defaults.model || '' : '');
+  /** One command: its result, or a `WispError` in wisp's words. The same `key` makes a retry one command. */
+  async cmd(id, args = {}, { key: k = key(), signal } = {}) {
+    let r;
+    try {
+      r = await fetch(`${this.url}/api/cmd`, { method: 'POST', headers: this.#headers({ 'content-type': 'application/json', 'idempotency-key': k }), body: JSON.stringify({ cmd: id, args }), signal });
+    } catch (err) {
+      throw new WispError(`wisp at ${this.url}: ${err.message}`, { code: 'unavailable', retry: true });
     }
-    if (trial) compare = compare?.map((c) => ({ ...c, model: c.model ?? model })); // a copy of the lead: its model as the launch settled it
-    return this.request('POST', '/sessions', { prompt, cwd: path.resolve(cwd), also: also?.length ? also.map((d) => path.resolve(d)) : undefined, agent, mode, model, effort, attachments, worktree, compare, subagents, preset, kind, machine, confirmLimit, subagentModel, skills, trial });
+    const body = await r.json().catch(() => null);
+    if (body?.ok === true) return body.result ?? null;
+    const e = body?.error;
+    throw new WispError(e?.message || `${id}: HTTP ${r.status}`, { code: e?.code || 'internal', status: r.status, retry: !!e?.retry, body });
   }
 
-  // Ship it: commit the session's worktree, push its branch, open (or update) the PR.
-  ship = (id, { title, body, draft } = {}) => this.request('POST', `/sessions/${id}/ship`, { title, body, draft });
-  merge = (id) => this.request('POST', `/sessions/${id}/merge`, {});
-
-  // Recipes: saved prompts with {params}. key is the id or the name.
-  recipes = () => this.request('GET', '/recipes');
-  saveRecipe = (recipe) => this.request(recipe.id ? 'PATCH' : 'POST', `/recipes${recipe.id ? `/${recipe.id}` : ''}`, recipe);
-  runRecipe = (key, { params, words, cwd = process.cwd(), agent, model, effort, mode } = {}) =>
-    this.request('POST', `/recipes/${encodeURIComponent(key)}/run`, { params, words, cwd: path.resolve(cwd), agent, model, effort, mode });
-  triggers = () => this.request('GET', '/triggers');
-  usage = ({ days } = {}) => this.request('GET', `/usage${days ? `?days=${days}` : ''}`);
-
-  // A follow-up. If the agent is blocked on ask_user, this answers it. queue: wait for the
-  // current run instead of interrupting it (default: the user's setting). agent / model / effort:
-  // run it, and the follow-ups after it, on another harness, model or thinking level.
-  reply = (id, text, { attachments, queue, mode, agent, model, effort, confirmLimit } = {}) => this.request('POST', `/sessions/${id}/reply`, { text, attachments, queue, mode, agent, model, effort, confirmLimit });
-
-  // A side question (/btw): a read-only run of its own answers it while the task's run carries on.
-  // Resolves with { id, question, status: done | error, answer | error } once it's answered
-  // (status stays running if timeoutMs runs out first), or right away with wait: false.
-  async btw(id, text, { attachments, wait = true, timeoutMs = 6 * 60_000 } = {}) {
-    const q = await this.request('POST', `/sessions/${id}/btw`, { text, attachments });
-    return wait ? this.btwAnswer(id, q.id, { timeoutMs }) : q;
+  /** Every command this caller may run, with its title and its args' TypeScript type. */
+  catalogue() {
+    return this.cmd('cli.catalogue', {});
   }
 
-  async btwAnswer(id, btwId, { timeoutMs = 6 * 60_000 } = {}) {
-    const end = Date.now() + timeoutMs;
-    for (;;) {
-      const s = await this.request('GET', `/sessions/${id}`);
-      const b = (s.turns || []).flatMap((t) => t.btw || []).find((x) => x.id === btwId);
-      if (!b) return { id: btwId, status: 'error', error: 'It was dismissed.' };
-      if (b.status !== 'running' || Date.now() > end) return b;
-      await sleep(1500);
-    }
+  // ---- tasks (runtime.*), the calls scripts use most ----
+
+  /** Start a task: `{ prompt, cwd?, agent?, model?, effort?, mode?, worktree?, confirmLimit?, … }` (runtime.create). */
+  run(spec) {
+    return this.cmd('runtime.create', { cwd: process.cwd(), ...spec });
+  }
+  get(id) {
+    return this.cmd('runtime.get', { id });
+  }
+  list(args = {}) {
+    return this.cmd('runtime.list', args);
+  }
+  turns(id, args = {}) {
+    return this.cmd('runtime.turns', { id, ...args });
+  }
+  presentation(id, args = {}) {
+    return this.cmd('runtime.presentation', { id, ...args });
+  }
+  followUp(id, text, opts = {}) {
+    return this.cmd('runtime.followUp', { id, text, attachments: [], ...opts });
+  }
+  stop(id) {
+    return this.cmd('runtime.stop', { id });
+  }
+  /** Declare resources, as `wisp apply` does: the plan, applied unless `dryRun`. */
+  apply(resources, { dryRun = false } = {}) {
+    return this.cmd(dryRun ? 'resources.plan' : 'resources.apply', { resources });
   }
 
-  // Upload a file (path, Buffer or Uint8Array) to attach to a launch or reply. Returns { id, … }.
-  async upload(file, { name, type } = {}) {
-    const data = typeof file === 'string' ? await fs.promises.readFile(file) : file;
-    name ||= typeof file === 'string' ? path.basename(file) : 'file';
-    const q = new URLSearchParams({ name, ...(type ? { type } : {}) });
-    return this.request('POST', `/uploads?${q}`, data);
-  }
-
-  // Resolve once the session needs you: finished (review/done) or waiting on a question.
-  // Returns the session summary plus { timedOut } when timeoutMs runs out first.
-  async wait(id, { timeoutMs = 30 * 60_000, signal } = {}) {
-    const end = Date.now() + timeoutMs;
-    for (;;) {
-      const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
-      const s = await this.request('GET', `/sessions/${id}/wait?timeout=${Math.min(left, MAX_WAIT_CALL)}`, undefined, { signal });
-      if (!s.timedOut || left <= MAX_WAIT_CALL) return s;
-    }
-  }
-
-  // Live server events (the same stream the UI uses), as an async iterator of { event, data }.
-  // Events: summary, activity, turn, finished, removed, config, ping.
-  async *events({ signal } = {}) {
-    const res = await this.request('GET', '/events', undefined, { raw: true, signal });
+  /**
+   * The sync stream for `topics` (`list`, `session:<id>`, …): yields its server messages (`welcome`, `snapshot`,
+   * `patch`, `resync`, …) as they come. Read only: nothing is mutated through it. Ends with `signal`.
+   */
+  async *events(topics, { signal } = {}) {
+    const q = new URLSearchParams({ proto_min: String(PROTO), proto_max: String(PROTO), client_id: this.clientId, build: 'wisp-agents-sdk', fresh: [].concat(topics).join(',') });
+    const r = await fetch(`${this.url}/api/events?${q}`, { headers: this.#headers({ accept: 'text/event-stream' }), signal });
+    if (!r.ok || !r.body) throw new WispError(`the sync stream said ${r.status}`, { code: 'unavailable', status: r.status, retry: true });
+    const parser = new SseParser();
     const decoder = new TextDecoder();
-    let buf = '';
-    for await (const chunk of res.body) {
-      // Normalising CRLF on the whole buffer lets \r\n\r\n framing parse too, even split across chunks.
-      buf = (buf + decoder.decode(chunk, { stream: true })).replace(/\r\n/g, '\n');
-      let at;
-      while ((at = buf.indexOf('\n\n')) !== -1) {
-        const frame = buf.slice(0, at);
-        buf = buf.slice(at + 2);
-        yield parseFrame(frame);
+    for await (const chunk of r.body) {
+      for (const ev of parser.push(decoder.decode(chunk, { stream: true }))) {
+        const messages = decodeFrame(ev);
+        if (messages) yield* messages;
       }
     }
   }
-}
 
-// One SSE frame → { event, data }. `data:` lines join with \n; data that isn't JSON stays a string.
-export function parseFrame(frame) {
-  const lines = frame.split('\n');
-  const event = lines.find((l) => l.startsWith('event:'))?.slice(6).trim() || 'message';
-  const data = lines
-    .filter((l) => l.startsWith('data:'))
-    .map((l) => l.slice(l.startsWith('data: ') ? 6 : 5))
-    .join('\n');
-  try {
-    return { event, data: data ? JSON.parse(data) : null };
-  } catch {
-    return { event, data };
+  /**
+   * Until the task stops working (`until(session)` true; by default: its state isn't `running`), or `timeoutMs`.
+   * Live: each change on its topic is a look, never a timer.
+   */
+  async wait(id, { until = (s) => s.state !== 'running', timeoutMs = 30 * 60_000, signal } = {}) {
+    const first = await this.get(id);
+    if (until(first)) return first;
+    const stop = new AbortController();
+    const timer = setTimeout(() => stop.abort(new WispError(`${id} still works after ${Math.round(timeoutMs / 1000)} s`, { code: 'timeout' })), timeoutMs);
+    signal?.addEventListener('abort', () => stop.abort(signal.reason), { once: true });
+    try {
+      for await (const m of this.events([`session:${id}`], { signal: stop.signal })) {
+        if (m.t !== 'snapshot' && m.t !== 'patch') continue;
+        const s = await this.get(id);
+        if (until(s)) return s;
+      }
+      throw new WispError('the sync stream ended', { code: 'unavailable', retry: true });
+    } catch (err) {
+      throw stop.signal.aborted && stop.signal.reason instanceof Error ? stop.signal.reason : err;
+    } finally {
+      clearTimeout(timer);
+      stop.abort();
+    }
   }
 }
