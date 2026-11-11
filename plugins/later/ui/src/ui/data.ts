@@ -36,7 +36,8 @@ export const sessions = (c: PluginClient): Readable<readonly Keyed<SessionRow>[]
 /** Plans as { key, plan }. */
 export function plans(c: PluginClient): Readable<readonly { key: string; plan: Plan }[]> {
   const rows = keyedRows<Plan>(c, KIND.plan);
-  return computed(() => rows().map((r) => ({ key: r.key, plan: r.row })));
+  // a `later_plan` row is `{id, body}`, the plan in its body
+  return computed(() => rows().map((r) => ({ key: r.key, plan: planOf(r.row) })));
 }
 
 /** The time, now and every `ms` while the calling component lives. */
@@ -49,3 +50,9 @@ export function useNow(client: PluginClient, ms = 30_000): Accessor<number> {
 
 /** A temp id for an optimistic row (the peer gives the real one). */
 export const tmpId = (now: number): string => `tmp-${uuidv7(now)}`;
+
+/** The plan in a `later_plan` row (`{id, body: Plan}`), or the row itself when it is the plan. */
+export function planOf(row: unknown): Plan {
+  const b = (row as { body?: unknown } | null)?.body;
+  return (b && typeof b === 'object' && 'kind' in b ? b : row) as Plan;
+}
