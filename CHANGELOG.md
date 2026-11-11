@@ -17,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Goal on with an empty Done when no longer sends without asking.** Turning on Goal in New task or a task's reply box and pressing Send with Done when left empty used to start the task (or send the message) without a goal, so it stopped after one round. Now nothing goes: Done when gets the focus, your text stays, and a toast says the goal is empty, with **Send without a goal** to send it anyway. With Done when filled but nothing in New task's box, Send says *Say what to do first* instead of doing nothing.
 - **The phone's Back from a subagent's run goes back to its lead.** In the Android app, Back from a delegate's run (or a crew member's job opened from a task) opened the lead and then closed it in the same press, landing on the task list. One Back now opens the task it came from, and the next one goes to the list, as the Back button in the task's head already did.
+- **A task that delegated a lot opens fast on the phone again.** The phone already fetched only a task's latest turns, but it still got every subagent's whole run with them: a lead with 48 subagents sent 46 MB through the tunnel. Now it gets only the subagents its shown turns delegated to, each with just the turn its card shows (3.5 MB for that task). Opening a subagent shows that turn at once and loads the rest of its run.
 
 ## [0.58.0] - 2026-11-11
 
