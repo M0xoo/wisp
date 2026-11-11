@@ -17,7 +17,7 @@ use wisp_kernel::{Call, Ctx, Setup, WireError};
 
 use crate::{State, lock, wire};
 
-fn now(ctx: &Ctx) -> i64 {
+pub(crate) fn now(ctx: &Ctx) -> i64 {
     ctx.clock().map_or(0, |c| c.now_ms())
 }
 
@@ -45,7 +45,7 @@ async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: &WaitingJob) -
     let (prompt, job, attachments) = (&w.prompt, w.job, &w.attachments);
     // what it was asked, for its page (a check-in's prompt is the crew's own)
     let asked = (job != JobKind::Checkin && !prompt.trim().is_empty()).then(|| prompt.chars().take(2000).collect::<String>());
-    let ext = CrewExt { id: m.id.clone(), job, prompt: asked, ..CrewExt::default() };
+    let ext = CrewExt { id: m.id.clone(), job, prompt: asked, from: w.from.clone(), reply: w.reply.clone(), ..CrewExt::default() };
     let (agent, model, effort, mode) = job_body(m, w.run.as_ref());
     let agent = (!agent.is_empty() && agent != "auto").then_some(agent);
     let args = json!({
@@ -56,6 +56,9 @@ async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: &WaitingJob) -
     let made = ctx.run_json(call, "runtime.create", args).await?;
     if let Some(id) = made.get("id").and_then(Value::as_str) {
         st.add_job(&m.id, id, now(ctx)).await;
+        if let Some(r) = &w.reply {
+            crate::answers::started(ctx, call, st, r, id).await;
+        }
     }
     let session = ctx.run_json(call, "runtime.get", json!({ "id": made.get("id") })).await.ok();
     Ok(session.unwrap_or(made))
@@ -67,7 +70,7 @@ fn work(prompt: String, job: JobKind, attachments: Vec<Value>, run: Option<RunPi
 }
 
 /// A job for `m`: now when a slot is free, else in its queue (v1 `assign`).
-async fn assign(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: WaitingJob) -> Result<c::Started, WireError> {
+pub(crate) async fn assign(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: WaitingJob) -> Result<c::Started, WireError> {
     let busy = u32::try_from(jobs_of(ctx, call, st, m).await.iter().filter(|j| j.live()).count()).unwrap_or(u32::MAX);
     match place(m, busy, w.job).map_err(wire)? {
         Placement::Start => Ok(c::Started { session: Some(start(ctx, call, st, m, &w).await?), ..c::Started::default() }),

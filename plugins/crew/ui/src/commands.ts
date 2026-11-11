@@ -7,7 +7,31 @@ import { defineCommand, type EntityKey, type EntityOps, type PeerId } from '@wis
 import { KIND, type Member, type SessionRow } from './types.ts';
 
 /** The member fields the editor and the page change. */
-export type MemberPatch = Partial<Pick<Member, 'name' | 'role' | 'avatar' | 'color' | 'brief' | 'cron' | 'on' | 'parallel' | 'team' | 'cwd' | 'machine' | 'sandbox' | 'agent' | 'model' | 'effort' | 'mode' | 'paused' | 'kit' | 'notebook'>>;
+export type MemberPatch = Partial<
+  Pick<
+    Member,
+    | 'name'
+    | 'role'
+    | 'avatar'
+    | 'color'
+    | 'brief'
+    | 'cron'
+    | 'on'
+    | 'parallel'
+    | 'team'
+    | 'cwd'
+    | 'machine'
+    | 'sandbox'
+    | 'agent'
+    | 'model'
+    | 'effort'
+    | 'mode'
+    | 'paused'
+    | 'kit'
+    | 'notebook'
+    | 'wakes'
+  >
+>;
 
 const replace = (key: EntityKey, patch: Record<string, unknown>): EntityOps => [
   { e: KIND.member, id: key, op: 'patch', ops: Object.entries(patch).map(([k, value]) => ({ op: 'add' as const, path: `/${k}`, value })) },
@@ -50,7 +74,8 @@ export const checkIn = defineCommand<{ key: EntityKey; crewId: string }, { sessi
   id: 'crew.checkin',
   owner: (a) => a.key,
   wire: (a) => ({ id: a.crewId }),
-  optimistic: 'none', pending: 'the crew.checkin control',
+  optimistic: 'none',
+  pending: 'the crew.checkin control',
 });
 
 /**
@@ -69,7 +94,15 @@ export const assignJob = defineCommand<
   optimistic: (_base, a) => {
     const now = Date.now();
     const row = {
-      id: a.job, parent_id: null, title: a.title, state: 'running', agent: '', archived: false, unread: false, created_at: now, updated_at: now,
+      id: a.job,
+      parent_id: null,
+      title: a.title,
+      state: 'running',
+      agent: '',
+      archived: false,
+      unread: false,
+      created_at: now,
+      updated_at: now,
       summary: { status: 'running', live: 'Starting…', preview: '', pending: true, turnCount: 0, queued: 0, cwd: '', model: '' },
       body: { ext: { 'wisp.crew': { id: a.crewId, job: 'task', prompt: a.prompt, ...(a.kit && { kit: true }) } } },
     };
@@ -110,3 +143,12 @@ export const markRead = defineCommand<{ key: EntityKey; id: string; unread: fals
 });
 
 export const COMMANDS = [updateMember, createMember, removeMember, detachMember, checkIn, assignJob, answerJob, followJob, markRead];
+
+/** A reply in a task that starts with @a member: their job, their answer under the task's latest turn (crew.ask). */
+export const askCrew = defineCommand<{ task: EntityKey; id: string; question: string }>({
+  id: 'crew.ask',
+  owner: (a) => a.task,
+  wire: (a) => ({ sessionId: a.task.slice(a.task.indexOf(':') + 1), id: a.id, text: a.question }),
+  optimistic: 'none',
+  pending: 'the reply box, cleared at once; the answer card shows under the turn',
+});

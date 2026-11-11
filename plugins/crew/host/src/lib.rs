@@ -5,6 +5,7 @@
 //! The crew lives in crew-owned store tables (`store.rs`): every change is one transaction of the rows it
 //! touched. v1's config.json crew is imported once at start.
 
+mod answers;
 mod jobs;
 mod kind;
 mod store;
@@ -48,6 +49,8 @@ pub(crate) struct State {
     /// members changed (or gone) since the last save
     dirty: Mutex<std::collections::BTreeSet<String>>,
     layout_dirty: std::sync::atomic::AtomicBool,
+    /// one writer at a time for the answers kept on a task's turns (read, change, write back)
+    pub answering: tokio::sync::Mutex<()>,
 }
 
 pub(crate) fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -73,7 +76,7 @@ impl Ids for NewIds {
 
 impl State {
     fn new() -> Self {
-        Self { saved: Mutex::default(), jobs: Mutex::default(), store: std::sync::OnceLock::new(), dirty: Mutex::default(), layout_dirty: false.into() }
+        Self { saved: Mutex::default(), jobs: Mutex::default(), store: std::sync::OnceLock::new(), dirty: Mutex::default(), layout_dirty: false.into(), answering: tokio::sync::Mutex::new(()) }
     }
 
     /// The tables, then v1's crew once, then the cache. At start, before any command.
@@ -246,6 +249,10 @@ fn reported(s: &mut Setup, st: &Arc<State>) {
                 let turns = ctx.run_json(&call, "runtime.turns", serde_json::json!({ "id": f.session_id })).await.unwrap_or_default();
                 let mut p = turns.as_array().and_then(|t| t.last()).and_then(|t| t.get("presentation").cloned()).unwrap_or_default();
                 let quiet = wisp_crew_core::memory::take_crew_block(&mut p).is_some_and(|d| d.quiet);
+                // asked in another task: the answer goes under the message that asked
+                let text = turns.as_array().and_then(|t| t.last()).and_then(|t| t.get("text")).and_then(serde_json::Value::as_str).map_or_else(|| f.text.clone(), str::to_owned);
+                let said = wisp_crew_core::answers::answer_text(&text, &p);
+                answers::answered(&ctx, &call, &st, &f.session_id.0, &said, failed).await;
                 ctx.emit(&call, &wisp_crew_api::events::Reported { crew_id: m.id, member: m.name, session_id: f.session_id.0.clone(), status: if failed { "error".into() } else { "done".into() }, quiet, text: f.text.chars().take(500).collect() });
                 Ok(())
             }
@@ -278,6 +285,7 @@ impl Plugin for CrewPlugin {
         let filed: Arc<dyn TurnOutcome> = Arc::new(Filed);
         s.contribute(&OUTCOME, filed);
         jobs::register(s, &st);
+        answers::register(s, &st);
         reported(s, &st);
         wakes::register(s, &st);
         transfer::register(s, &st);

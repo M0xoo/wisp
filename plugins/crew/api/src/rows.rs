@@ -237,6 +237,39 @@ pub struct LogEntry {
     pub session_id: Option<String>,
 }
 
+/// A member's answer under the message that asked it (v1 `turn.btw` with `crew`), kept on that turn in crew's own
+/// ext slot (`turn.ext["wisp.crew"].answers`). A reply to it threads right after it and carries on the same job.
+/// Additive (2026-11-11).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "crew/")]
+pub struct CrewAnswer {
+    pub id: String,
+    /// the member's id
+    pub crew: String,
+    /// their name when asked (the member may be renamed or gone later)
+    #[serde(default)]
+    pub member: String,
+    /// the job answering it, once it started
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub job: Option<String>,
+    pub question: String,
+    #[serde(default)]
+    pub answer: String,
+    /// `running`, `done` or `error`
+    pub status: String,
+    /// the first entry of the thread this one continues
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub thread: Option<String>,
+    #[ts(type = "number")]
+    pub asked_at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional, type = "number")]
+    pub answered_at: Option<i64>,
+}
+
 /// Where a job's answer goes: an entry under a message in another task.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

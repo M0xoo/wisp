@@ -14,6 +14,9 @@
     "runtime:get",
     "runtime:profiles",
     "runtime:turns",
+    "runtime:followUp",
+    "runtime:setExt",
+    "runtime:turn.setExt",
     "resources:read",
     "store:write{owner:crew}",
     "telemetry:track"
@@ -68,6 +71,14 @@
       {
         "id": "crew.detach",
         "title": "Make a spell's member yours"
+      },
+      {
+        "id": "crew.ask",
+        "title": "Ask a crew member in a task: their answer lands under your message"
+      },
+      {
+        "id": "crew.reply",
+        "title": "Reply to a crew member's answer in a task: the same job carries on"
       },
       {
         "id": "crew.assign",

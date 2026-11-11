@@ -112,6 +112,8 @@ export interface Member {
   spell?: SpellLock;
   changed?: { from: Record<string, unknown> | null; at: number };
   offers: Offer[];
+  /** what else wakes them (ADR-0043): trigger specs targeting this member */
+  wakes?: { on: string; match?: Record<string, unknown> }[];
   createdAt: number;
   updatedAt: number;
 }

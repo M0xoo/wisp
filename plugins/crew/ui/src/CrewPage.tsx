@@ -32,6 +32,7 @@ import { t } from './i18n.ts';
 import { cadenceLabel, JOB_ICON, originLabel, statusLine } from './model.ts';
 import { facts, pillOf, quietLabel, thread } from './page.ts';
 import type { SessionRow } from './types.ts';
+import { VIEW } from './views.ts';
 
 const SHOW = 30;
 
@@ -55,6 +56,7 @@ export default function CrewPage(props: ExtensionProps): JSX.Element {
   const ago = (at: number): string => timeLabel(at, now(), englishT);
   // a member with no harness of its own runs on the default one (the first the harness plugins list)
   const harness = (id: string): { name: string; logo?: string | undefined } => {
+    if (id === 'auto') return { name: t('wisp.crew.editor.auto') };
     const h = harnesses().find((x) => x.id === id) ?? (id ? undefined : harnesses()[0]);
     return { name: h?.name ?? id, logo: h?.logo };
   };
@@ -81,6 +83,8 @@ export default function CrewPage(props: ExtensionProps): JSX.Element {
           setDraft('');
           c.run(assignJob, { key: m().key, crewId: m().id, job: uuidv7(), prompt, title: prompt.split('\n')[0]?.slice(0, 80) ?? prompt }).catch(() => setDraft(prompt));
         };
+        // Edit… (v1 crewEditor): the editor dialog over the page
+        const editMember = (): void => c.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: VIEW.editor as never, params: { id: m().id } } });
         const checkin = (): void => void c.run(checkIn, { key: m().key, crewId: m().id }).catch(() => undefined);
         const remove = (): void => {
           setRemoving(false);
@@ -144,11 +148,12 @@ export default function CrewPage(props: ExtensionProps): JSX.Element {
                     part="crew.page.more"
                     trigger={{ icon: 'dots', 'aria-label': t('wisp.crew.page.more'), variant: 'ghost', size: 'sm' }}
                     items={[
+                      { value: 'edit', label: t('wisp.crew.page.editMember'), icon: 'pen' },
                       { value: 'checkin', label: t('wisp.crew.page.checkin'), icon: 'clock' },
                       { kind: 'separator' },
                       { value: 'remove', label: t('wisp.crew.page.remove'), icon: 'trash', danger: true },
                     ]}
-                    onSelect={(v) => (v === 'checkin' ? checkin() : setRemoving(true))}
+                    onSelect={(v) => (v === 'edit' ? editMember() : v === 'checkin' ? checkin() : setRemoving(true))}
                   />
                   <Show when={nav().layout !== 'stack'}>
                     <IconButton icon="x" label={t('wisp.crew.page.close')} variant="ghost" onClick={close} />
@@ -190,6 +195,7 @@ export default function CrewPage(props: ExtensionProps): JSX.Element {
                   <CrewSideActions
                     items={[
                       { icon: 'clock', label: t('wisp.crew.page.checkin'), act: { onClick: checkin } },
+                      { icon: 'pen', label: t('wisp.crew.page.editMember'), act: { onClick: editMember } },
                       { icon: 'trash', label: t('wisp.crew.page.remove'), danger: true, act: { onClick: () => setRemoving(true) } },
                     ]}
                   />

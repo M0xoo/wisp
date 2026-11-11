@@ -29,6 +29,17 @@ const made = new WeakMap<PluginClient, CrewData>();
 const EMPTY: MemberState<SessionRow> = { jobs: [], sent: [], asks: false, live: [], unread: 0, mood: 'idle' };
 export const emptyState = (paused: boolean): MemberState<SessionRow> => ({ ...EMPTY, mood: paused ? 'sleep' : 'idle' });
 
+/** A `crew_member` row as the crew host writes it (`{id, name, updated_at, body: Member}`), read as the member; a row
+ * already flat (dev data, an optimistic upsert) is its own. Before this the screens read `role`, `avatar`, `paused`… off
+ * the row itself, where they never are (round 16). */
+export function memberOf(row: unknown): MemberView {
+  const r = (row ?? {}) as Record<string, unknown>;
+  const body = r['body'];
+  if (!body || typeof body !== 'object') return r as unknown as MemberView;
+  const { body: _b, ...top } = r;
+  return { ...(body as Record<string, unknown>), ...top } as unknown as MemberView;
+}
+
 export function crewData(client: PluginClient): CrewData {
   const had = made.get(client);
   if (had) return had;
@@ -39,12 +50,16 @@ export function crewData(client: PluginClient): CrewData {
     const ks = keys();
     return rows().map((v, i) => {
       const key = ks[i] as EntityKey;
-      return { ...(v as MemberView), key, peer: ownerOf(key) } as CrewMember;
+      return { ...memberOf(v), key, peer: ownerOf(key) } as CrewMember;
     });
   });
   // the peer's task rows, each read as a job when it is one (jobs.ts: body.ext["wisp.crew"])
   const rowsOf = e.list<Parameters<typeof jobOf>[0]>(KIND.session);
-  const sessions = computed(() => rowsOf().map((r) => jobOf(r) ?? ({ id: r.id, title: r.title ?? '', agent: r.agent ?? '', cwd: '', state: r.state ?? 'idle', createdAt: r.created_at ?? 0, updatedAt: r.updated_at ?? 0 } as SessionRow))) as Readable<readonly SessionRow[]>;
+  const sessions = computed(() =>
+    rowsOf().map(
+      (r) => jobOf(r) ?? ({ id: r.id, title: r.title ?? '', agent: r.agent ?? '', cwd: '', state: r.state ?? 'idle', createdAt: r.created_at ?? 0, updatedAt: r.updated_at ?? 0 } as SessionRow),
+    ),
+  ) as Readable<readonly SessionRow[]>;
   const jobs = filterBy(sessions, (s) => !!s.crew);
   const byCrew = groupBy(jobs, (s) => s.crew?.id ?? '');
   const states = computed(() => {

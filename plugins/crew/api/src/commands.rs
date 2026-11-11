@@ -381,6 +381,22 @@ pub struct Imported {
     pub room: Option<u32>,
 }
 
+/// `crew.ask`: a message in a task that's for a member (`@ada can you check this?`): it becomes their job, and their
+/// answer lands under that message. Additive (2026-11-11).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "crew/")]
+pub struct AskArgs {
+    pub session_id: String,
+    /// the member's id, name or @handle
+    pub id: String,
+    pub text: String,
+    /// the turn it's asked under (the task's latest when left out)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub turn_id: Option<String>,
+}
+
 /// `POST /sessions/:id/crew-reply`: you reply to a member's answer on a task.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -464,11 +480,15 @@ command!(
 );
 command!(
     /// `POST /sessions/:id/crew-reply`
-    Reply = "crew.reply" [PERM_ASSIGN] : ReplyArgs => Started
+    Reply = "crew.reply" [PERM_ASSIGN] : ReplyArgs => crate::CrewAnswer
+);
+command!(
+    /// A message in a task for a member: their job, its answer under the message (v1 `/btw @ada`)
+    Ask = "crew.ask" [PERM_ASSIGN] : AskArgs => crate::CrewAnswer
 );
 
 /// Every command id this crate declares, for the manifest and capability sets.
-pub const ALL: [&str; 16] = [
+pub const ALL: [&str; 17] = [
     List::ID,
     Get::ID,
     LocalKit::ID,
@@ -485,6 +505,7 @@ pub const ALL: [&str; 16] = [
     Assign::ID,
     Checkin::ID,
     Reply::ID,
+    Ask::ID,
 ];
 
 #[cfg(test)]

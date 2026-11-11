@@ -31,7 +31,8 @@ export function useTask(client: PluginClient, key: () => EntityKey | undefined):
 
 export function useCrew(client: PluginClient): Accessor<readonly MemberRow[]> {
   const list = useSignal(client.entities.list<MemberRow>(KIND.member));
-  return () => list() as readonly MemberRow[];
+  // the crew host keeps a member in its row's body ({id, name, updated_at, body})
+  return () => (list() as readonly (MemberRow & { body?: Partial<MemberRow> })[]).map((r) => ({ ...r.body, ...r }) as MemberRow);
 }
 
 export function useHarnesses(client: PluginClient): Accessor<readonly HarnessRow[]> {
