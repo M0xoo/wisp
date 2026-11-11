@@ -638,6 +638,8 @@ body.split.stack .split-head .sh-title {
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere;
   font-size: 14px; line-height: 1.3;
 }
+/* Beside a lead's name (one line, cut short), the subagent's title is one line too, not two. */
+body.split.stack .split-head .sh-row.has-trail .sh-title:not([contenteditable='true']) { display: block; white-space: nowrap; text-overflow: ellipsis; }
 body.split.stack .split-head .sh-acts { min-height: 44px; }
 body.split.stack :is(.crew-view, .org-view) .cv-top .sh-back { margin-right: -2px; }
 
