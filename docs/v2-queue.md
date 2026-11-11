@@ -19,7 +19,7 @@ loop that hid them, now fixed):**
   - the WIP commits stopped at the usage limit: "wip(v2 gui): task page PR and Shell panes…" and "wip(v2 issues)…";
   - the coder was mid-edit on TaskView's turn folds and `shell.turn:foot`, and the edit was refused. Redo it.
 
-**Two coders (owner, 2026-11-10).**
+**One coder again after the 2026-11-11 round (owner: token burn).** Earlier: **Two coders (owner, 2026-11-10).**
 - `coder` owns the UI: ui-commands → 0, then the UI burndown with the gates and the v1-features rows that need screens.
 - `backend-coder` owns the v1 sync ports, the v1-coverage check and its backend gaps, the channels grammar and
   transports, and the SDKs.
