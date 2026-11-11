@@ -422,3 +422,57 @@ has `PlanPage.tsx` (the task page's shape; TaskDetails gained `when`). Test `the
 
 **Left:** the `app`, `doc`, `preview`, `map`, `graph` block renderers (stubs; pure halves exist); the runtime recording
 `refusal` on a turn (backend-coder); Settings parity and the rest of the queue.
+
+## Round 13 (2026-11-11): the last five answer blocks, Settings parity
+
+**Answer blocks (the kit has no stub renderer left).** `Map.tsx`, `Doc.tsx`, `Preview.tsx`, `Graph.tsx`, `App.tsx` on
+their existing pure halves (map-spec, rich-doc, rich-preview-spec, graph-layout, rich-app-doc), v1's CSS in
+`answer-rich.css` (and the shared rb-out/rb-title/rb-cant/rb-caption, which Image and Video used unstyled). BlockContext
+gained `revealFile`; the frame's `answerContext` now keeps an app's state through `runtime.appState` (400 ms after its
+last save). Fixed on the way: an app frame born with an empty `srcdoc` stays empty in Chrome (the page is built before
+the frame). Tokens: `size-map`, `size-preview`. Test `map_doc_preview_graph_and_app_blocks_render_and_act_as_v1s_did`;
+the gallery's Rich blocks section shows all of them (PNGs r13-{map,preview,graph,app}-*).
+
+**Settings parity** (the parity gate, one `settings.<pane>` view per run):
+- The sheet: `Dialog size="xl"` (900 × 680, tokens `size-dialog-xl[-h]`), the frame is the card (its line and corners,
+  `surface`), 200 px nav (172 under 800), 58 px head, v1's type (14 px, 1.55, ink). On a phone: a full-screen sheet
+  (`Sheet size="xl"`), and the account menu opens Settings on its list as v1 did.
+- The nav: one flat list in v1's order (`V1_ORDER`), v2's own panes after; tabs (`role="tab"`) as v1's tablist, which is
+  also how the gate's v1 openers reach a pane.
+- Rows: groups on `surface-2`, rows 9 × 14 px (11 on a phone), the line on top of the next row, wide selects stretched.
+- Bugs fixed: picking a pane didn't reach the frame (the view copied `params` once); picking used kind `dialog`, so the
+  sheet shrank to 600 px after the first click; General crashed in dev builds (a local component named `Switch` was
+  taken for Solid's); Take over in never showed (no `terminal.app` rows exist: it asks `terminal.apps` now, listed in
+  wisp.terminal's manifest as ui-only).
+- Missing v1 settings built: Hide .env values (`git.maskEnvFiles`), Webhook triggers (`automations.webhookTriggers`, the
+  Automations pane rebuilt as v1's one group with Manage), Subagents run on (`runtime.subagentModel`), the Usage tiles
+  (`Stats compact`), harness logos (`SettingsRow logo`, and ui packages for opencode, Cursor, Antigravity, Grok and
+  Copilot carrying v1's marks, mono ones following the OS scheme).
+- Results: settings.general at 1440 light/dark: every settings part matches v1's metrics; the pixels left (2.7% / 4.5%)
+  are the home page under the sheet (v1's New task button, its card shapes). Ten panes reach and compare; Memory
+  waits on learn (backend-coder), Spells is v2's Plugins (ADR-0031, a different pane id).
+- Tests: `settings_nav_is_v1s_flat_list_in_v1s_order_with_v2s_own_panes_after`,
+  `automations_lines_say_none_yet_or_name_what_there_is_as_v1_did`, the five harness ui tests, kit `settings.test.tsx`.
+
+**Left for backend-coder:** a per-day usage command (Usage → Charts and breakdowns, Crew track record); `refusal` on turns.
+
+**Keys, the @ and / menus, files (round 13, part 2).**
+- v1's keys (about 30): J/K, O/Enter, E, A, L, M, Delete, T, Ctrl+`, P, D, V, ⇧R, ⇧F, S, C, U, ], /, 1–9, as
+  `ShortcutDef`s in `builtins.tsx`. The open task's own act through `frame/task-keys.ts`: a cancelable DOM event the
+  page handles as its buttons do (no shared state), the list's on the picked row. Test
+  `v1s_keys_walk_the_list_act_on_the_picked_row_and_reach_the_open_tasks_page`.
+- Fixed on the way: opening the side panel rebuilt the whole task page (App passed `side` as a reactive spread, which
+  re-created `main`; and MainPane's keyed child read `nav()` tracked): the steps closed, the scroll and focus went.
+- The @ and / menus: a new contribution, `PluginUiDef.prompt` (`PromptSourceDef`, additive, contract.ts), collected
+  like the palette's; the frame draws them in the reply box and New task (`frame/prompt-menu.ts`, kit
+  `PromptSuggestList`), sends a picked `@Title` as `@[Title](scheme:id)`; shell-composer registers tasks, crew, My
+  Stuff and v1's commands (`prompt.ts`, its slash words added to its catalogue; /spell not offered, ADR-0031).
+- Files: picked, pasted or dropped (`frame/attach.ts`, kit `onFiles` / `onPaste` with a drop highlight), uploaded at
+  once through `client.http(peer)`, the prompt carrying them (`runtime.followUp` / `runtime.create` `attachments`).
+  Before this, picked files were shown as chips and dropped on send. Test
+  `pasted_and_dropped_files_become_chips_and_go_up_to_the_tasks_computer_as_its_attachments`.
+
+**Left in the queue:** the searchable harness · model picker (shell-composer's RunnerPicker needs a frame slot or a
+port), ↑ history in New task, files in the @ menu (a file-index command), the backend notes (Learning pane,
+autoOverride, the route card, the cold line and Compact), the crew tint (#768), learn-ui and issues-ui, the new
+screens.

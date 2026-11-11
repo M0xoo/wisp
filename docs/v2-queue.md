@@ -66,6 +66,10 @@ Right after ui-commands reaches 0, and before the UI burndown:
 - Settings → Phone gets "Accept tasks from channels" (`channels.acceptChannels`).
 - The grid account page gets the routing form: bot token and the people who may route.
 
+**For backend-coder, from the UI coder (round 13, 2026-11-11):**
+- a per-day usage command, for Usage → Charts and breakdowns and the Crew track record (v1's usage page);
+- a file-index command, for the @ menu's files (v1 lists a project's files for @).
+
 **For backend-coder, from the UI coder (2026-11-11):** record refusals on turns, so the refusal hand-off card shows
 (v1: a Claude refusal is offered to another harness).
 
