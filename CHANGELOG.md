@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Drag projects into your own order.** Drag a project chip in the top bar or New task's *in* row, a row of the searchable project list (+N, with nothing typed), or a row of Projects (Manage projects) to put it where you want it. The order is one: it shows the same everywhere projects are listed, including the command palette and a crew member's *Works in*. A project added afterwards goes first. A project's right-click menu has **Sort by recent use** to go back. On a phone, hold a chip before dragging it. Spells can turn dragging off per place (`movable` on `topbar.projects`, `launcher.projects`, `project.list`, `project.rows`).
+
 ### Changed
 
 - **Try it two ways is no longer a button in the prompt box's bar.** It did what **+** already does: with Claude Code picked, add a run with **+** and set it to Claude Code too: its picker has the *What's different* group, Subagents and Skills, as before; Compare still says what differed. Spells that name `launcher.tryTwo` still load, with a warning.

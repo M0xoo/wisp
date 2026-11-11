@@ -22,7 +22,8 @@ import { mentionBox } from './mentions.js';
 import { askNotify } from './notify.js';
 import { MACHINE_STATE, machineById, pathAt, placeName, placeOf, placesOf, projectById, projects, projectTitle, usable } from './places.js';
 import { projectList } from './project-list.js';
-import { openProjects, projectMenu } from './projects.js';
+import { moveProject, openProjects, projectMenu } from './projects.js';
+import { reorderable } from '../ui/reorder.js';
 import { runnerPicker } from './runner-picker.js';
 import { needsSetup, nudgeSetup, renderSetup } from './setup.js';
 import { accountOf, agentName, agentsAt, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt, harnessLogo, MAX_RUNNERS, modeMenu, MODES, paintRunnerBtn, runnerTip, savedAccount, savedEffort, savedModel } from './runners.js';
@@ -995,7 +996,8 @@ export function renderLaunchChips() {
   const none = `<button class="lp-chip none ${pick === NO_FOLDER ? 'on' : ''}" data-id="${NO_FOLDER}" title="No folder: a general ask, with no project and no worktree. The agent gets an empty scratch directory.">${icon('text')}<span>No folder</span></button>`;
   const html = `<span class="l-in">in</span><span class="lp-group">${chips}${more}${none}${add}${offline}</span>`;
   // Unchanged chips stay as they were folded: fitting measures the row once per chip it folds.
-  if (box.dataset.h !== html) {
+  // Mid-drag the chips stay as they are (a repaint would drop the one held); it ends with one.
+  if (box.dataset.h !== html && !box.classList.contains('reordering')) {
     box.dataset.h = html;
     box.innerHTML = html;
     beforePaint(fitLaunchChips);
@@ -1070,6 +1072,8 @@ export function renderLaunchChips() {
     const conn = e.target.closest('[data-connect]');
     if (conn) connectMachine(conn.dataset.connect);
   };
+  // Drag a chip to put the projects in your order, here and everywhere else they show.
+  reorderable(box, { item: '.lp-chip[data-id]:not(.none):not(.cloning)', ok: () => spellProp('launcher.projects', 'movable') !== false, onEnd: () => renderLaunchChips(), onDrop: (id, to, after) => moveProject(id, to, after) });
   // Right-click a project: Edit project…, Remove project. No folder and a clone aren't one yet.
   box.oncontextmenu = (e) => {
     const chip = e.target.closest('.lp-chip[data-id]');

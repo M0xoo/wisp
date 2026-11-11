@@ -27,6 +27,7 @@ import { openOrg } from './org.js';
 import { openStuff, stuffPalette } from './stuff.js';
 import { openPhone } from './phone.js';
 import { openProjects, renderProjects } from './projects.js';
+import { projects } from './places.js';
 import { agentName } from './runners.js';
 import { openSettings } from './settings.js';
 import { mergeLabel, mergePr, shipDialog, shipLabel, shippable } from './ship.js';
@@ -220,7 +221,7 @@ function paletteItems() {
     renderLaunchChips();
   };
   items.push({ group: 'Projects', label: 'All projects', sub: S.filter === 'all' ? 'Current filter' : '', dot: 'slate', keywords: 'filter clear', run: filter('all') });
-  for (const p of S.config.projects.slice().sort((x, y) => (y.lastUsedAt || y.addedAt) - (x.lastUsedAt || x.addedAt))) {
+  for (const p of projects()) {
     items.push({ group: 'Projects', label: p.name, sub: S.filter === p.id ? 'Current filter' : p.path, dot: p.color, keywords: `filter ${p.path}`, at: p.lastUsedAt || p.addedAt, run: filter(p.id) });
   }
   return items;
