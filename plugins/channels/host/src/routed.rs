@@ -3,7 +3,8 @@
 //! at the computer itself). Its first reply goes back in the answer, which the grid says in the chat; the thread is
 //! kept on the task (`remote.routed`), so a follow-up in that chat reaches the same task.
 //!
-//! Not here yet: a task's later report going back to the chat (`grid-client` posting `/api/channels/reply`).
+//! A task it started says how it went back in that chat (`report`): through the grid (`grid-client.reply`), under the
+//! thread, again later when the grid can't be reached (v1 channels/routed.js `publish`, `#retry`).
 
 use std::sync::{Arc, Mutex};
 
@@ -102,9 +103,65 @@ pub async fn handle(ctx: &Ctx, hub: Arc<dyn ChannelHub>, a: &Value) -> Result<Ht
     Ok(HttpOut { status: 200, body: json!({ "reply": said }) })
 }
 
+/// v1 `LATER_MS`: a report that couldn't get out tries again after these (a grid restart takes seconds to minutes).
+pub const LATER_MS: [u64; 5] = [15_000, 60_000, 5 * 60_000, 15 * 60_000, 30 * 60_000];
+/// What a chat line may hold (v1 `clean`'s truncate).
+const MAX: usize = 4000;
+
+/// What the chat reads: the task's title line and its answer, cut to what a chat line holds.
+pub fn report_text(title: &str, text: &str) -> String {
+    let all = if text.trim().is_empty() { title.to_owned() } else { format!("{title}\n\n{text}") };
+    if all.chars().count() <= MAX {
+        return all;
+    }
+    let mut cut: String = all.chars().take(MAX - 1).collect();
+    cut.push('…');
+    cut
+}
+
+/// After the grid answered `status` on try `tries` (0 first): wait this long and try again, or give up. The grid
+/// said no (4xx but busy) or it went: never again.
+pub fn again_in(status: u16, tries: usize) -> Option<u64> {
+    let refused = (400..500).contains(&status) && status != 429;
+    if (200..300).contains(&status) || refused {
+        return None;
+    }
+    LATER_MS.get(tries).copied()
+}
+
+/// A task the grid routed here ended: its report goes to the chat, trying again while the grid can't be reached.
+pub async fn report(ctx: &Ctx, thread: &str, title: &str, text: &str) {
+    let body = json!({ "thread": thread, "text": report_text(title, text) });
+    for tries in 0.. {
+        let r = ctx.run_json(&ctx.root_call(), "grid-client.reply", body.clone()).await;
+        let status = r.as_ref().ok().and_then(|v| v["status"].as_u64()).and_then(|s| u16::try_from(s).ok()).unwrap_or(0);
+        let Some(wait) = again_in(status, tries) else {
+            if !(200..300).contains(&status) {
+                tracing::warn!(status, "routed: a report didn’t get out");
+            }
+            return;
+        };
+        let Ok(clock) = ctx.clock() else { return };
+        clock.sleep(wait).await;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_report_goes_once_tries_again_while_the_grid_is_away_and_stops_when_it_says_no() {
+        assert_eq!(again_in(200, 0), None, "sent");
+        assert_eq!(again_in(0, 0), Some(15_000), "unreachable: in 15 s");
+        assert_eq!(again_in(502, 4), Some(30 * 60_000));
+        assert_eq!(again_in(502, 5), None, "five times, then it's dropped");
+        assert_eq!(again_in(429, 1), Some(60_000), "busy isn't no");
+        assert_eq!(again_in(404, 0), None, "the grid said no");
+        assert_eq!(report_text("✓ Fix the login", "Done: 2 files."), "✓ Fix the login\n\nDone: 2 files.");
+        assert_eq!(report_text("✓ x", " "), "✓ x");
+        assert_eq!(report_text("t", &"a".repeat(5000)).chars().count(), 4000);
+    }
 
     #[test]
     fn a_routed_message_is_refused_unless_this_computer_accepts_channels() {

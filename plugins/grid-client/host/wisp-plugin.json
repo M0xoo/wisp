@@ -30,7 +30,8 @@
       { "id": "grid-client.revoke", "title": "Stop sharing" },
       { "id": "grid-client.fetch", "title": "Open a share link", "readOnly": true },
       { "id": "grid-client.imported", "title": "Record a share taken in (for update available)" },
-      { "id": "grid-client.updates", "title": "Imported shares with an update", "readOnly": true }
+      { "id": "grid-client.updates", "title": "Imported shares with an update", "readOnly": true },
+      { "id": "grid-client.reply", "title": "Report a routed task back to the chat it came from", "uiOnly": "wisp.channels reports a routed task's end through it; an agent has no thread to name" }
     ],
     "settings": [
       { "key": "grid-client.previews", "type": "bool", "default": false, "title": "Show local pages in previews" }

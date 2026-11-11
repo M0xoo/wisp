@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 use wisp_channels_api::views::{Action, ActionKind, Msg, SessionView};
 use wisp_channels_api::{Act, Extra, HttpOut, Inbound, InboundOpts, Line, Notify, Refresh, Rotate, Routed, SendNotice, Sent, TRANSPORTS, Test, Transport, Update, View};
 use wisp_kernel::{CancellationToken, Ctx, Manifest, Plugin, Result, Setup, WireError};
-use wisp_runtime_api::events::{SessionAsked, TurnEnded};
+use wisp_runtime_api::events::{SessionAsked, TurnEnded, TurnFinished};
 use wisp_runtime_api::model::TurnStatus;
 
 use crate::hub::{Hub, State};
@@ -145,6 +145,21 @@ fn events(s: &mut Setup, live: &Arc<Live>) {
                 let acts = vec![Action { label: "Done".into(), kind: ActionKind::Done, reference: e.turn_id.as_str().to_owned(), index: 0 }];
                 notify(&c, &live, event, e.session_id.as_str(), &why, acts).await;
             });
+        }
+        async {}
+    });
+    // a task the grid routed here: how it went goes back to that chat (routed.rs)
+    let l = live.clone();
+    s.on::<TurnFinished, _, _>(move |ctx, e| {
+        let thread = hub::routed_thread(&l.st, e.session_id.as_str());
+        if let Some(thread) = thread {
+            let mark = match e.status {
+                TurnStatus::Done => "✓",
+                TurnStatus::Error => "✗",
+                _ => "■",
+            };
+            let (title, text, c) = (format!("{mark} {}", e.summary.title), e.summary.preview.clone(), ctx.clone());
+            ctx.spawn(async move { routed::report(&c, &thread, &title, &text).await });
         }
         async {}
     });

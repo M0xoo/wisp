@@ -209,6 +209,23 @@ pub struct TeamsArgs {
     pub role: String,
 }
 
+/// `grid-client.reply`: a routed task's report, back to the chat it came from (the grid's thread for it).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "grid-client/")]
+pub struct ReplyArgs {
+    pub thread: String,
+    pub text: String,
+}
+
+/// What the grid answered (`status` 0: it couldn't be reached).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "grid-client/")]
+pub struct Replied {
+    pub status: u16,
+    #[serde(default)]
+    pub error: String,
+}
+
 macro_rules! command {
     ($name:ident = $id:literal $(read $ro:ident)? : $args:ty => $out:ty) => {
         #[derive(Debug)]
@@ -241,3 +258,4 @@ command!(SandboxNew = "grid-client.sandbox" : SandboxArgs => Sandbox);
 command!(SandboxList = "grid-client.sandboxes" read yes : NoArgs => Vec<Sandbox>);
 command!(SandboxRemove = "grid-client.sandboxRemove" : IdArgs => Value);
 command!(Teams = "grid-client.teams" : TeamsArgs => Value);
+command!(Reply = "grid-client.reply" : ReplyArgs => Replied);

@@ -124,6 +124,7 @@ impl Plugin for GridClientPlugin {
         on!(s, slot, api::SandboxList, |st, _a| async move { sandboxes::list(&st).await });
         on!(s, slot, api::SandboxRemove, |st, a| async move { sandboxes::remove(&st, &a.id).await });
         on!(s, slot, api::Teams, |st, a| async move { sandboxes::teams(&st, &a).await });
+        on!(s, slot, api::Reply, |st, a| async move { Ok::<_, WireError>(computer::reply(&st, &a).await) });
         s.on_start(move |ctx| async move {
             let store = ctx.service::<Store>()?.as_ref().clone();
             state::install(&store).map_err(|e| WireError::internal(e.to_string()))?;

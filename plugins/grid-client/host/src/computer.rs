@@ -19,7 +19,7 @@ use hyper_util::client::legacy::Client;
 use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::rt::{TokioExecutor, TokioIo, TokioTimer};
 use serde_json::{Value, json};
-use wisp_grid_client_api::{ComputerState, PREVIEWS};
+use wisp_grid_client_api::{self as api, ComputerState, PREVIEWS};
 use wisp_grid_client_core::{Dialed, TUNNEL_PROTOCOL, dialed, local_headers, preview_port, retry_ms};
 use wisp_kernel::{CancellationToken, Result, WireError};
 
@@ -246,5 +246,16 @@ pub async fn resume(st: &Arc<St>) {
         && !on_a_box()
     {
         start(st, &a.grid, &a.computer_id, &t);
+    }
+}
+
+/// `grid-client.reply`: `POST /api/channels/reply {thread, text}` with this computer's device token (grid
+/// `edge_route.rs`). Always answers what the grid said, so the caller decides whether to try again.
+pub async fn reply(st: &St, a: &api::ReplyArgs) -> api::Replied {
+    let Ok((acct, token)) = st.signed_in().await else { return api::Replied { status: 401, error: "Not signed in to wisp Cloud".into() } };
+    let url = format!("{}/api/channels/reply", acct.grid.trim_end_matches('/'));
+    match net::call(&st.http, "POST", &url, Some(&token), Some(&json!({ "thread": a.thread, "text": a.text })), &[]).await {
+        Ok((status, v)) => api::Replied { status, error: if status < 300 { String::new() } else { v["error"].as_str().unwrap_or_default().to_owned() } },
+        Err(e) => api::Replied { status: 0, error: e.message },
     }
 }

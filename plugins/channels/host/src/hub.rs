@@ -20,6 +20,11 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// The grid's thread for a task routed here (`remote.routed`), if it is one.
+pub fn routed_thread(st: &State, session_id: &str) -> Option<String> {
+    lock(&st.remotes).get(session_id).and_then(|r| r.get("routed")).and_then(Value::as_str).map(str::to_owned)
+}
+
 /// What the hub keeps, shared by every transport.
 #[derive(Default)]
 pub struct State {
