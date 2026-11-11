@@ -84,6 +84,8 @@ fn snapshot_sources() -> Vec<wisp_api::v2_store::TopicSource> {
     [wisp_store::SETTING, wisp_store::PLUGIN]
         .into_iter()
         .map(|d| wisp_api::v2_store::TopicSource { kind: d.kind, key: d.key, matches: config, query: |_| wisp_store::Query::new() })
+        // the projects (wisp.runtime's `project` kind, `StoredKind::published`): read in full while runtime is on
+        .chain(std::iter::once(wisp_api::v2_store::TopicSource { kind: "project", key: "id", matches: config, query: |_| wisp_store::Query::new() }))
         .collect()
 }
 

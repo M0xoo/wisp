@@ -25,6 +25,7 @@ pub const HELP: &str = "usage:
   wisp plugin                   list plugins
   wisp plugin new <name>        start a plugin of your own in ~/.wisp/plugins/<name>
   wisp plugin enable|disable <id>   switch a plugin on or off
+  wisp plugin install <folder|git URL>  install one, off, and see what it asks for; remove <id> takes it out
   wisp crew                     list your crew
   wisp import [v1 home]         bring a wisp v1 home (~/.wisp) in: its plan first, then on yes   (--dry-run  --yes)
   wisp apply -f wisp.yml        your setup as code: plan, diff, confirm   (--dry-run  --yes  --prune  --trust  --profile P)

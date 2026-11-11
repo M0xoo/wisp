@@ -271,3 +271,22 @@ async fn topic_events_resumes_from_client_cursor() {
     assert!(!again.contains(&first), "resumed, not re-sent: {again}");
     drop(serve);
 }
+
+/// Projects reach every screen (round 17): a project applied as a resource is a `project` row on `config`, the topic
+/// every screen watches, in the first snapshot (read in full, so the change feed's retention can't drop it) and
+/// after a restart, as `{id: name, body: {path, …}}`.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_project_reaches_every_screen_on_config_and_after_a_restart() {
+    let dir = temp("serve-events-projects");
+    let (serve, port) = start_with(&dir, &[]);
+    let api = Api { http: reqwest::Client::new(), port, n: 0.into() };
+    let path = dir.join("proj").display().to_string();
+    api.cmd("resources.apply", json!({ "resources": [{ "kind": "project", "name": "web", "spec": { "path": path, "color": "teal" } }], "trust": true })).await;
+    let snap = stream(port, "c1", "config", None, |s| s.contains("\"snapshot\"") && s.contains("\"web\"")).await;
+    assert!(snap.contains("\"e\":\"project\"") && snap.contains("\"id\":\"web\"") && snap.contains("teal"), "{snap}");
+    serve.stop();
+    let (serve, port) = start_with(&dir, &[]);
+    let snap = stream(port, "c2", "config", None, |s| s.contains("\"snapshot\"") && s.contains("\"web\"")).await;
+    assert!(snap.contains("\"e\":\"project\"") && snap.contains(&path), "after a restart: {snap}");
+    drop(serve);
+}

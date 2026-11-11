@@ -12,8 +12,7 @@ export type Vars = Readonly<Record<string, string | number>>;
 
 export const catalogue: Readonly<Record<string, string>> = en;
 
-const fill = (s: string, vars: Vars | undefined): string =>
-  vars ? s.replace(/\{(\w+)\}/g, (m, name: string) => (Object.hasOwn(vars, name) ? String(vars[name]) : m)) : s;
+const fill = (s: string, vars: Vars | undefined): string => (vars ? s.replace(/\{(\w+)\}/g, (m, name: string) => (Object.hasOwn(vars, name) ? String(vars[name]) : m)) : s);
 
 export function t(key: Key, vars?: Vars): string {
   const count = vars?.['count'];

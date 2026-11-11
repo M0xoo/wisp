@@ -11,5 +11,21 @@
   "plugins.state.active": "On",
   "plugins.state.resolved": "On",
   "plugins.state.off": "Off",
-  "plugins.state.refused": "Refused"
+  "plugins.state.refused": "Refused",
+  "plugins.install": "Install a plugin",
+  "plugins.install.hint": "A folder on this computer or a git URL. It's installed off: you see what it asks for, then switch it on",
+  "plugins.install.placeholder": "~/code/my-plugin or https://github.com/you/wisp-plugin",
+  "plugins.install.go": "Install",
+  "plugins.installed": "{name} {version} is installed, off",
+  "plugins.asks": "Switching it on lets it:",
+  "plugins.asksNothing": "It asks for nothing beyond showing itself.",
+  "plugins.switchOn": "Switch it on",
+  "plugins.notNow": "Not now",
+  "plugins.remove": "Remove {name}",
+  "plugins.perm.exec": "run {bin} on this computer",
+  "plugins.perm.net": "reach {host} on the network",
+  "plugins.perm.fsRead": "read files in {path}",
+  "plugins.perm.fsWrite": "change files in {path}",
+  "plugins.perm.read": "read your {what}",
+  "plugins.perm.do": "{what}"
 }

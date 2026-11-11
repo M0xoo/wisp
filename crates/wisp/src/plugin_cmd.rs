@@ -36,7 +36,24 @@ pub async fn run(c: &Client, p: &Parsed, args: &[String]) -> Result<()> {
             out(f, &r, &format!("  ✓ {id} {}", if on { "on" } else { "off" }));
             Ok(())
         }
-        other => Err(CliError::said(format!("wisp plugin {other}: ls, enable <id>, disable <id> or new <name> (a plugin from elsewhere: declare it under plugins: in a formula)"))),
+        // ADR-0046: from a folder or a git URL, off; it says what it asks for, and `enable` is the consent
+        "install" | "add" => {
+            let source = need(args.get(1), "a folder or a git URL")?;
+            let source = if source.contains("://") || source.starts_with("git@") { source.to_owned() } else { std::path::absolute(source).map_or_else(|_| source.to_owned(), |p| p.display().to_string()) };
+            let r = c.cmd("plugins.install", json!({ "source": source })).await?;
+            let asks: Vec<String> = r.get("permissions").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(|x| format!("    {x}")).collect();
+            let id = s(&r, "id");
+            let what = if asks.is_empty() { "It asks for nothing.".to_owned() } else { format!("Switching it on lets it:\n{}", asks.join("\n")) };
+            out(f, &r, &format!("  ✓ {} {} is installed, off.\n  {what}\n  Switch it on with: wisp plugin enable {id}", s(&r, "name"), s(&r, "version")));
+            Ok(())
+        }
+        "remove" | "uninstall" | "rm" => {
+            let id = need(args.get(1), "plugin id")?;
+            let r = c.cmd("plugins.uninstall", json!({ "id": id })).await?;
+            out(f, &r, &format!("  ✓ {id} removed"));
+            Ok(())
+        }
+        other => Err(CliError::said(format!("wisp plugin {other}: ls, install <folder or git URL>, enable <id>, disable <id>, remove <id> or new <name>"))),
     }
 }
 
