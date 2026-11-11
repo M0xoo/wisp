@@ -1,10 +1,13 @@
 # v2 build queue (code first, verify later)
 
-**Left after round 16 (2026-11-11), in this order:** publish the `project` rows to the UI (nothing watches
-`plugin:wisp.resources:specs`: project chips and Home's projects are empty on a real server), then #772 (project order
-and drag); terminal tasks (`terminalSessions`); Discord's `/wisp`, buttons, box interactions and REST rate-limit
-buckets; email attachments (grid MIME parts, an upload from bytes, files on `StartOpts`/`RunOpts`); a Plugins pane
-(Install…, Remove) and `wisp plugin install`; the blame gutter once the GUI has a file view.
+**Left after round 17 (2026-11-11), in this order:** terminal tasks (`terminalSessions`: a task in the harness's own
+CLI in a PTY, follow-ups typed into it, its turns read back from the CLI's session files); Discord's `/wisp`
+(registration on start, `INTERACTION_CREATE` → a deferred reply edited later, autocomplete), buttons (signed
+`custom_id`s → `act`), and interactions held by the grid (ed25519-checked); the file view's ✦ and Go to definition;
+New task's @ files; Machines in the Projects dialog.
+
+**Done in round 17:** projects reach the app (published on `config`), one project filter, #772, the Projects dialog,
+the Plugins pane, the file view and the why-gutter, email attachments, Discord REST buckets.
 
 **Done in round 16:** terminal.apps (below), the plugins install path (ADR-0046), crew.reply, one turn per Slack thread,
 a PR following its branch's task, the serve_budget e2e, `wisp sdk types`.

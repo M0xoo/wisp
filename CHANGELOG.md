@@ -7,6 +7,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Projects show everywhere.** The top bar's chips, New task's row and Home now list your projects (they were empty on a real server), and picking a chip filters the list.
+- **The Projects dialog.** Add a folder or a GitHub URL (cloned for you), see how many tasks each project has, rename it, give it a colour, remove it, and add a repo found on this computer with one click.
+- **Your project order.** Drag a project (or Alt+←/→) in the top bar, New task's row or the Projects dialog; every place keeps the same order.
+- **Install a plugin from Settings → Plugins.** A folder or a git URL; it comes in off and says, in words, what switching it on lets it do. Remove takes it out. `wisp plugin install <folder or URL>` and `wisp plugin remove <id>` do the same.
+- **The file view.** ✎ on a changed file (or Open on a file in the reply box's @ menu) opens it beside the task: edit, then Save or ⌘S. It never saves over a change made since you opened it, or while the agent is working. Its why-gutter shows which task wrote each line; a click opens it.
+- **Email attachments reach the task.** Files you attach to a mail go with the task it starts (or the reply it follows up), up to 1 MB each; any left out are said in the answer.
+
 - **Edit a crew member.** Edit… on a member's page (and + on the rail) opens their editor: name, role, brief, how often they check in, jobs at once, harness, mode, folder, and Wakes: what else starts their jobs (another member reporting, a PR, a channel message…).
 - **The Repo tab.** Beside Tasks, a project's committed agent history from everyone who worked on it, grouped by month and filtered by words or a path; a row opens its report, and Resume carries on from there on today's code.
 - **Settings → Setup.** What's set up here (crew, agents, workflows, triggers… with counts), Share setup (the whole setup or some kinds, as `wisp.yml`, to copy), and Import: paste a formula, see what it adds, changes and removes, untick what you don't want, then Apply.
@@ -70,6 +77,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Settings no longer shows "unknown command terminal.apps": the terminal apps on this computer are listed, and `npm run check` now catches a command the UI calls that no plugin handles.
 - Menus and selects inside a dialog open in front of it.
+- Discord calls wait their turn per channel when Discord says to slow down, instead of failing.
 - Slack answers one message at a time per thread (two quick messages, or a click right after one, no longer race), while other threads go on side by side.
 - Leaving a subagent's page goes back to its lead's task.
 

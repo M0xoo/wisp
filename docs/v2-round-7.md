@@ -675,3 +675,59 @@ on. Tests: `crates/wisp-kernel/tests/kernel_install.rs` (3), `plugins/plugins/ho
 - The blame gutter: the GUI has no file view to put it in (`wisp blame` works in the CLI).
 - A Plugins pane with Install… and Remove, and `wisp plugin install` (the command is there, MCP- and CLI-reachable
   through the catalogue).
+
+## Round 17 (2026-11-11): projects reach the app, #772, the Plugins pane, the file view and blame gutter, email attachments
+
+**Projects reach the app (root cause).** Projects were `StoredKind` rows: entity `runtime_spec_project` on
+`plugin:wisp.resources:specs`, which nothing watches, while every screen reads entity `project` on `config`. Now
+`StoredKind::published(entity)` (and `stored_published`) puts a kind's rows on `config` as that entity, defined at
+start; runtime's project kind publishes as `project`; `wisp serve` lists it among config's full-read sources (a
+first snapshot and one after retention both have it); `full_rows` skips a source whose kind isn't defined yet
+(`Reader::defines`). A task's project is the one that holds its folder (`projectOf`, deepest wins; summaries carry
+no `projectId`). Test `a_project_reaches_every_screen_on_config_and_after_a_restart` (serve_events). The Repo tab's
+`resources.export` workaround is gone (it reads the rows).
+
+**One project filter.** The top bar's chips only filtered the shell's fallback list; shell-list kept its own filter
+and a second chip row (never seen: there were never projects). Now `shell.projectFilter` (a device setting) is the
+filter, `ShellContext.projectFilter` (additive) hands it out, shell-list follows it, and its duplicate row is gone (v1
+has the top bar's only). Seen in Chrome: a chip filters the list live and after a reload; the phone has one row.
+
+**#772.** One order, `runtime.projectOrder` (settings row, optimistic); kit `reorderable` (drag with the item on the
+`DataTransfer`, Alt+arrows) on `SidebarHead`'s chips, the `Launcher`'s chips, `Toolbar` items (shell-list) and
+`ListRow` (the Projects dialog). Tests: kit `a_dragged_or_alt_moved_item_lands_before_…`, shell
+`projects_read_from_their_rows_in_your_order_and_a_task_is_in_the_project_holding_its_folder`, shell-list
+`a_task_is_in_the_project_holding_its_folder_and_the_filter_shows_only_that_projects_tasks`. Seen in Chrome.
+
+**The Projects dialog** (`shell.projects`; "Add a folder…" opened a pane nobody registered): Add (a folder, or a
+GitHub URL through `git.clone`), each project with its task count, rename in place, colour, Remove, Found on this
+machine (`runtime.discover`, v1's `discoverRepos`: each repo once on a case-insensitive disk, a v1 bug fixed). A
+folder already a project is said, not added twice. Seen in Chrome at 1440 light and 390 dark.
+
+**The Plugins pane.** Install a plugin (a folder or a git URL) → a card naming it and what switching it on lets it do,
+in words (`permissionWords`), Switch it on / Not now; Remove on your own. `wisp plugin install|remove`. Test
+`an_installed_plugins_permissions_read_as_words_before_it_is_switched_on`. Seen in Chrome (install, on, remove).
+
+**The file view and the why-gutter.** `worktrees.source` / `worktrees.save` / `worktrees.files` (paths inside the
+task's folder only, text up to 1 MB, a save refused while the agent works or if the file changed: core
+`the_file_view_reads_only_inside_the_tasks_folder_and_only_text`); kit `FileView` (line numbers, highlighted text under
+an editable layer, ⌘S, the why-gutter, a thread when narrow); nav's Changes side takes `file` (URL `&file=`, a way out
+refused: `a_file_in_the_changes_side_round_trips_…`); shell-task `FilePane` (‹ Back, Saved/Unsaved, Save); kit
+`Diff.onOpenFile` (✎); the gutter from `history.blame {byLine}` (`the_why_gutter_marks_where_each_task_starts_…`); the
+reply box's @ offers the task's files, ↵ inserts `@path`, Open (⌘↵, `PromptItem.open`, kit `SuggestItem.onOpen`)
+opens it (`a_tasks_files_in_the_at_menu_…`, `mod_enter_opens_the_active_row_…`). Seen in Chrome: a gutter label,
+an edit saved with ⌘S (on disk), Back, Open from @, phone dark.
+
+**Email attachments, end to end.** The grid's MIME reader keeps attachment parts (10 at most, 1 MB each, 1.4 MB in
+all: the inbox holds 2 MB per person; a mail whose files don't fit is held without them); the box keeps each as an
+upload (`stuff.receive`, `Phone::upload`); `Conversation::attachments`, `StartOpts`/`RunOpts.attachments` take them to
+`runtime.create` / `runtime.followUp`; what didn't come along is said. Tests: grid
+`a_mails_attachments_are_kept_with_safe_names_within_the_limits`, email core `a_mails_files_decode_…`, transport
+`an_emails_attachments_go_with_the_task_and_the_ones_left_out_are_said`.
+
+**Discord REST rate-limit buckets.** `wisp_discord_core::rest` (`bucket_of`, `Limits`: a used-up bucket waits for its
+reset, a 429 pauses its bucket or all, 3 tries); the host's `rest` goes through it on the hub's clock. Test
+`discord_rest_calls_wait_per_bucket_and_a_429_pauses_its_bucket_or_all`.
+
+**Left:** terminal tasks (`terminalSessions`); Discord's `/wisp` (registration, the interaction and its deferred
+reply), buttons, interactions held by the grid; the file view's ✦ (ask about a selection), New task's @ files (a
+project's, not a task's), Go to definition; Machines in the Projects dialog.
