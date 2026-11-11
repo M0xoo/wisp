@@ -1,5 +1,24 @@
 # v2 build queue (code first, verify later)
 
+**Fix first when the usage limit resets (2026-11-11, `npm run check` = 21 errors; the check hung on a rust-sizes
+loop that hid them, now fixed):**
+- UI coder:
+  - `packages/ui/src/css/answer-content.css`: 76px is off the token scale (:67, :73), and flex-wrap is outside Wrap
+    (:79, :83);
+  - `app-task.css:108`: flex-wrap;
+  - `composites.css:38`: a selector ending in an :is() list;
+  - `connectors/ui/src/panes/Connectors.tsx:72`: location outside navigate();
+  - `stuff/ui/src/StuffPage.tsx:82`: fetch outside @wisp/client;
+  - learn-ui and issues-ui are unregistered (build them once the backend lands).
+- backend-coder:
+  - `connectors/host`: 8 commands are listed but registered nowhere (rust-mcp). Register them through the kernel,
+    so they're in the catalogue and MCP tools;
+  - learn and worktrees keep tables but register no resource kind (add one, or list it in
+    plugins/resources/pending).
+- Both:
+  - the WIP commits stopped at the usage limit: "wip(v2 gui): task page PR and Shell panes…" and "wip(v2 issues)…";
+  - the coder was mid-edit on TaskView's turn folds and `shell.turn:foot`, and the edit was refused. Redo it.
+
 **Two coders (owner, 2026-11-10).**
 - `coder` owns the UI: ui-commands → 0, then the UI burndown with the gates and the v1-features rows that need screens.
 - `backend-coder` owns the v1 sync ports, the v1-coverage check and its backend gaps, the channels grammar and

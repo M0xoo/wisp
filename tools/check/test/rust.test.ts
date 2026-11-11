@@ -65,6 +65,12 @@ test('rust source reading: comments, strings, raw strings and chars are blanked;
   assert.ok(isTestFile('crates/a/tests/x.rs') && isTestFile('crates/a/src/resolve_tests.rs') && !isTestFile('crates/a/src/contests.rs'));
 });
 
+test('rust-sizes: a size-ok reason under more comment lines ends the scan (it used to loop forever)', () => {
+  const body = lines(RUST_MAX_FN + 5, () => '    x();');
+  const src = `// one\n// two\n// size-ok: one straight pass\n// three\n#[inline]\nfn long() {\n${body}\n}\n// no reason\nfn other() {\n${body}\n}`;
+  assert.deepEqual(longFns(src).map(([, n]) => n), ['other']);
+});
+
 test('rust-layers: a plugin tui crate uses its api and other plugins\' api; never a host, and no host uses it (ADR-0024)', async () => {
   const root = writeTree(
     new Map([

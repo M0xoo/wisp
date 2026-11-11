@@ -126,7 +126,11 @@ export function longFns(text: string, max = RUST_MAX_FN): [number, string, numbe
     // a reason sits in the comments and attributes right above the fn
     let k = i - 1;
     let ok = false;
-    while (k >= 0 && /^\s*(\/\/|#\[|$)/.test(raw[k] ?? '')) ok ||= REASON.test(raw[k--] ?? '');
+    while (k >= 0 && /^\s*(\/\/|#\[|$)/.test(raw[k] ?? '')) {
+      // decrement outside `||=`: once ok is true the right side never runs, and k-- with it (an endless loop)
+      if (REASON.test(raw[k] ?? '')) ok = true;
+      k--;
+    }
     if (len > max && !ok) out.push([i + 1, m[1], len]);
   }
   return out;
