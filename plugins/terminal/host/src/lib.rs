@@ -15,7 +15,7 @@ use wisp_kernel::http::{Request, Response, Route};
 use wisp_kernel::{Ctx, Manifest, Plugin, Result, Setup, WireError};
 use wisp_proc::Proc;
 use wisp_terminal_api::commands as c;
-use wisp_terminal_api::{ShellInfo, TermKind};
+use wisp_terminal_api::{ShellInfo, TermKind, TerminalApps};
 
 use registry::Registry;
 
@@ -137,6 +137,14 @@ macro_rules! on {
     }};
 }
 
+/// Settings → General's Take over in list for this computer (`terminal.apps`): the platform's terminal apps, only
+/// "In wisp" on a wisp Grid box (no desktop there), and the default a fresh setting starts with.
+fn apps_here(os: &str, env: &dyn Fn(&str) -> Option<String>) -> TerminalApps {
+    let platform = wisp_terminal_core::apps::platform_name(os);
+    let l = wisp_terminal_core::apps::Lookups { platform, env, has: &|_| false, exists: &|_| false };
+    TerminalApps { terminals: wisp_terminal_core::apps::terminals_here(&l), default_terminal: wisp_terminal_core::apps::default_terminal(platform).to_owned() }
+}
+
 #[derive(Debug, Default)]
 pub struct TerminalPlugin;
 
@@ -169,6 +177,7 @@ impl Plugin for TerminalPlugin {
             let shell = std::env::var("SHELL").ok();
             Ok(ShellInfo { supported: !cfg!(windows), open: r.live(TermKind::Shell, &a.id), app: !a.via_proxy && cfg!(target_os = "macos"), name: wisp_terminal_core::folder::shell_name(shell.as_deref()) })
         });
+        s.command::<c::Apps, _, _>(|_ctx, _call, _a| async move { Ok(apps_here(std::env::consts::OS, &|k| std::env::var(k).ok())) });
         routes(s, &slot);
         let start = slot;
         s.on_start(move |ctx| async move {
@@ -183,6 +192,19 @@ impl Plugin for TerminalPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn settings_lists_this_computers_terminal_apps_and_only_in_wisp_on_a_grid_box() {
+        let mac = apps_here("macos", &|_| None);
+        let ids: Vec<&str> = mac.terminals.iter().map(|t| t.id.as_str()).collect();
+        assert!(ids.contains(&"terminal") && ids.contains(&"iterm") && ids.contains(&"wisp"), "{ids:?}");
+        assert_eq!(mac.default_terminal, "wisp");
+        let win = apps_here("windows", &|_| None);
+        assert!(win.terminals.iter().any(|t| t.id == "wt") && !win.terminals.iter().any(|t| t.id == "wisp"));
+        assert_eq!(win.default_terminal, "auto");
+        let grid = apps_here("linux", &|k| (k == "WISP_GRID_URL").then(|| "https://grid.example".to_owned()));
+        assert_eq!(grid.terminals.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), ["wisp"]);
+    }
 
     #[test]
     fn manifest_is_valid() {

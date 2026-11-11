@@ -9,6 +9,7 @@ test('ui-commands: a UI command no manifest lists, one no Rust handles, a topic 
       ['package.json', JSON.stringify({ name: 'fixture', private: true, type: 'module', workspaces: ['packages/*', 'plugins/*/ui', 'apps/*'] })],
       ['plugins/shop/host/wisp-plugin.json', JSON.stringify({ wispPlugin: 1, id: 'wisp.shop', contributes: { commands: [{ id: 'shop.buy', title: 'b' }, { id: 'shop.ghost', title: 'g' }] } })],
       ['plugins/shop/api/src/lib.rs', 'const ID: &str = "shop.buy";\nconst T: &str = "plugin:wisp.shop:cart";'],
+      ['plugins/shop/host/src/lib.rs', 's.command_named("shop.buy", handler);'],
       ['plugins/shop/ui/package.json', JSON.stringify({ name: '@wisp-plugin/shop-ui' })],
       ['plugins/shop/ui/src/index.ts', 'export default definePluginUi({ id: "wisp.shop" });'],
       [
@@ -36,3 +37,21 @@ test('ui-commands: a UI command no manifest lists, one no Rust handles, a topic 
   assert.ok(got.some((m) => m.includes('plugin:wisp.shop:gone, which no server writes')));
   assert.ok(got.some((m) => m.includes('@wisp-plugin/till-ui is registered nowhere')));
 });
+
+test('ui-commands: a command its api declares but no host registers fails (terminal.apps, round 15); one the host registers by type passes', async () => {
+  const root = writeTree(
+    new Map([
+      ['package.json', JSON.stringify({ name: 'fixture', private: true, type: 'module', workspaces: ['plugins/*/ui'] })],
+      ['plugins/term/host/wisp-plugin.json', JSON.stringify({ wispPlugin: 1, id: 'wisp.term', contributes: { commands: [{ id: 'term.apps', title: 'a', uiOnly: 'Settings' }, { id: 'term.open', title: 'o' }, { id: 'term.view', title: 'v' }] } })],
+      ['plugins/term/api/src/lib.rs', 'command!(Apps = "term.apps", "term:read": AppsArgs => Apps);\ncommand!(Open = "term.open", "term:open": OpenArgs => Info);\nimpl Command for View {\n    const ID: &\'static str = "term.view";\n}'],
+      ['plugins/term/host/src/lib.rs', 'on!(s, slot, c::Open, |r, ctx, call, a| Ok(r.open(&a)));\ns.command::<api::View, _, _>(handler);'],
+      ['plugins/term/ui/package.json', JSON.stringify({ name: '@wisp-plugin/term-ui' })],
+      ['plugins/term/ui/src/index.ts', 'export default definePluginUi({ id: "wisp.term" });'],
+      ['plugins/term/ui/src/commands.ts', ["defineCommand<A>({ id: 'term.apps', owner });", "defineCommand<A>({ id: 'term.open', owner });", "defineCommand<A>({ id: 'term.view', owner });"].join('\n')],
+    ]),
+  );
+  const got = await messages(uiCommands, root);
+  assert.equal(got.length, 1, got.join('\n'));
+  assert.ok(got[0]?.includes('term.apps: plugins/term declares it but nothing registers a handler (its host never names Apps)'));
+});
+

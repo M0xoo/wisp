@@ -2,7 +2,9 @@
 // sits unregistered (docs/v2-round-7.md: Settings had never opened; 59 commands had no server).
 //
 //   - every command id a UI package defines (`defineCommand({ id: '…' })` in packages/*/src, plugins/*/ui/src) is
-//     listed by a plugin manifest (`contributes.commands`) and named in that plugin's Rust (api or host);
+//     listed by a plugin manifest (`contributes.commands`) and handled: the plugin's host or core (or a crate) names
+//     the id, or the command's type from its api (`command!(Apps = "terminal.apps")` → `Apps`). Naming it in the api
+//     alone is not a handler: `terminal.apps` was listed (ui-only) and declared, and nothing served it (round 15);
 //   - every `plugin:<id>:<name>` topic a UI watches is named in some plugin's Rust (a writer publishes it);
 //   - every plugins/*/ui is registered by apps/web: a default export from src/index.ts(x) (the glob in
 //     apps/web/src/plugins.ts) or an import in apps/web/src.
@@ -40,6 +42,21 @@ export function commandsIn(text: string): { id: string; line: number }[] {
   return out;
 }
 
+/** The command types an api crate declares, id → type: `Apps = "terminal.apps"`, `SetPublished, "stuff.setPublished"`, or
+ * `impl Command for View { const ID = "ship.view" }`. */
+export function commandTypes(text: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const m of text.matchAll(/(?:^|[(\s])([A-Z]\w*)\s*[=,]\s*"([a-z][\w-]*\.[\w.-]+)"/gm)) if (m[1] && m[2] && !out.has(m[2])) out.set(m[2], m[1]);
+  // `impl Command for View { const ID: &'static str = "ship.view"; … }`
+  for (const m of text.matchAll(/impl\s+(?:[\w:]+::)?Command\s+for\s+(\w+)\s*\{[^}]*?const\s+ID\s*:[^=]*=\s*"([^"]+)"/g)) if (m[1] && m[2]) out.set(m[2], m[1]);
+  return out;
+}
+
+/** Does the handling side (host/core/crates text) serve `id`: its id string, or its api type as a word. */
+export function handles(served: string, id: string, type: string | undefined): boolean {
+  return served.includes(`"${id}"`) || (type !== undefined && new RegExp(`\\b${type}\\b`).test(served));
+}
+
 /** `'plugin:<id>:<name>'` topics a UI file names, with their lines. */
 export function topicsIn(text: string): { topic: string; line: number }[] {
   return [...text.matchAll(/'(plugin:[\w.-]+:[\w.-]+)'/g)].map((m) => ({ topic: m[1] ?? '', line: text.slice(0, m.index ?? 0).split('\n').length }));
@@ -55,6 +72,8 @@ export const uiCommands: Rule = {
     // the server side: listed ids per plugin folder, and every plugin's Rust text
     const listed = new Map<string, string>(); // command id → plugin folder
     const rust = new Map<string, string>(); // plugin folder → its api+host+core Rust
+    const served = new Map<string, string>(); // plugin folder → its host+core Rust (where handlers live)
+    const types = new Map<string, string>(); // command id → its api type
     for (const p of dirs(join(root, 'plugins'))) {
       const m = join(root, 'plugins', p, 'host', 'wisp-plugin.json');
       if (existsSync(m)) {
@@ -65,10 +84,14 @@ export const uiCommands: Rule = {
           // a broken manifest is rust-manifests' finding
         }
       }
-      const src = ['api', 'host', 'core'].flatMap((k) => walk(join(root, 'plugins', p, k, 'src'), (f) => f.endsWith('.rs')));
-      rust.set(p, src.map((f) => readFileSync(f, 'utf8')).join('\n'));
+      const read = (k: string): string => walk(join(root, 'plugins', p, k, 'src'), (f) => f.endsWith('.rs')).map((f) => readFileSync(f, 'utf8')).join('\n');
+      const api = read('api');
+      for (const [id, type] of commandTypes(api)) types.set(id, type);
+      served.set(p, `${read('host')}\n${read('core')}`);
+      rust.set(p, `${api}\n${served.get(p) ?? ''}`);
     }
-    const allRust = [...rust.values()].join('\n') + walk(join(root, 'crates'), (f) => f.endsWith('.rs')).map((f) => readFileSync(f, 'utf8')).join('\n');
+    const crates = walk(join(root, 'crates'), (f) => f.endsWith('.rs')).map((f) => readFileSync(f, 'utf8')).join('\n');
+    const allRust = [...rust.values()].join('\n') + crates;
     // the UI side
     const uiRoots = [...dirs(join(root, 'packages')).map((d) => join(root, 'packages', d, 'src')), ...dirs(join(root, 'plugins')).map((d) => join(root, 'plugins', d, 'ui', 'src'))];
     for (const file of uiRoots.flatMap((d) => walk(d, (f) => /\.tsx?$/.test(f)))) {
@@ -77,6 +100,7 @@ export const uiCommands: Rule = {
         const owner = listed.get(id);
         if (!owner) out.push(finding(rel(file), line, RULE, `the UI sends ${id}, which no plugin manifest lists: rename it to the server's id or add the command`));
         else if (!(rust.get(owner) ?? '').includes(`"${id}"`)) out.push(finding(rel(file), line, RULE, `the UI sends ${id}: plugins/${owner} lists it but its Rust never names it (no handler)`));
+        else if (!handles(`${served.get(owner) ?? ''}\n${crates}`, id, types.get(id))) out.push(finding(rel(file), line, RULE, `the UI sends ${id}: plugins/${owner} declares it but nothing registers a handler (its host never names ${types.get(id) ?? id})`));
       }
       for (const { topic, line } of topicsIn(text)) {
         if (!allRust.includes(`"${topic}"`)) out.push(finding(rel(file), line, RULE, `the UI watches ${topic}, which no server writes`));
