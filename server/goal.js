@@ -222,7 +222,24 @@ export class Goals {
     if (!g || g.status !== 'working' || session.parentId || session.delegated) return false;
     if (ev.stopped) return this.#pauseQuiet(session, 'You stopped the run'), false;
     if (ev.isError) return this.#pauseQuiet(session, 'The run ended with an error'), false;
+    // It scheduled its own wake-up (resume_later) this turn: it says it's waiting, not done. The
+    // goal stays on and is checked after the wake-up's turn (g.wake: which one; wakeGone if it never goes).
+    const wake = session.later?.find((l) => !l.remind && l.by !== 'user' && l.by !== 'wisp' && l.setAt >= (turn.startedAt || 0));
+    if (wake) return (g.wake = wake.id), false;
+    delete g.wake;
     return true;
+  }
+
+  // The wake-up a goal waited for left without going (later.js). cancelled: you took it off
+  // Scheduled, so the round's report stands and is checked now. Otherwise (marked done, archived,
+  // missed while wisp was off) the goal waits for you.
+  wakeGone(session, l, { cancelled = false } = {}) {
+    const g = session.goal;
+    if (!g || g.status !== 'working' || g.wake !== l.id) return;
+    delete g.wake;
+    if (cancelled) return this.#kick(session);
+    this.#pauseQuiet(session, 'Its agent’s wake-up didn’t go');
+    this.runner.refresh(session);
   }
 
   // The user's Stop: the goal waits for them. A follow-up of theirs leaves it on (it's checked

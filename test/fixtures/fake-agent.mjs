@@ -47,6 +47,7 @@
 //   FAKE_GOAL_STEPS  claude's goal checks read and run things first (goal-runs)
 //   FAKE_HANG_STEP  ms before a hanging judge says one more thing (a step arriving live)
 //   FAKE_GOAL_SCRIPT  JSON [{ why, next, progress }]: what each goal check says (screenshots)
+//   FAKE_BACKGROUND_TYPE  the background task's task_type (local_bash by default; local_agent: a subagent)
 //   FAKE_LINGER  ms to stay alive after the result, as a real CLI flushing on its way out does
 //   FAKE_MCP_POLICY=1  copilot: warn that an organization policy blocked wisp's MCP server
 //   FAKE_SESSION_ERROR  copilot: report this session.error (a quota) and end with exit code 1
@@ -779,7 +780,7 @@ if (name === 'claude') {
     if (bg) {
       // Captured from claude 2.1.302: the result arrives while the task runs, then the task's
       // notification wakes the agent up for a second turn and a second result.
-      const task = { task_id: 'bg1', task_type: 'local_bash', description: 'Run the full test suite' };
+      const task = { task_id: 'bg1', task_type: process.env.FAKE_BACKGROUND_TYPE || 'local_bash', description: 'Run the full test suite' };
       out({ type: 'system', subtype: 'background_tasks_changed', tasks: [task], session_id: session });
       out({ type: 'system', subtype: 'task_started', ...task, is_backgrounded: true, session_id: session });
       const first = process.env.FAKE_BACKGROUND_DONE ? final('dev server left running') : "I'll report once it has finished.";

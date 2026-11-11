@@ -463,6 +463,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     hold: (s) => app.reserve.forTask(s),
     fresh: (s) => app.reserve.freshTask(s),
     goalRound: (s, l) => app.goals.carryOn(s, l),
+    wakeGone: (s, l, o) => app.goals.wakeGone(s, l, o), // a goal waiting on an agent's wake-up that never went
     // A reminder came due: the page notifies, and so does the phone.
     notify: (s) => {
       app.broadcast('reminder', { session: summarize(s, store) });
