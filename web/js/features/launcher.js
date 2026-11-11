@@ -644,7 +644,11 @@ export function renderLauncher() {
     if (over && !(over instanceof Event) && over.text && !ta.value.trim().startsWith(over.text)) ta.value = `${over.text}${ta.value.trim() ? `\n\n${ta.value.trim()}` : ''}`;
     if (over instanceof Event) over = null;
     const prompt = ta.value.trim();
-    if (!prompt) return ta.focus();
+    if (!prompt) {
+      // A goal with nothing to do: say so, or Send looks broken.
+      if (box.goal?.()) toast(`${icon('target')} Say what to do first`);
+      return ta.focus();
+    }
     // /spell <what to change>: cast a spell instead of starting a task.
     const ask = spellAsk(prompt);
     if (ask !== null) {
@@ -703,6 +707,8 @@ export function renderLauncher() {
       return box.goalOpen?.();
     }
     if (typedGoal && isGoalDrop(typedGoal)) return toast('No goal to drop yet: <b>/goal drop</b> works in a task’s reply box.');
+    // Goal on but Done when empty: ask first rather than start it without one.
+    if (!typedGoal && box.goalEmpty?.()) return;
     // /terminal <task>: in the agent's own terminal (the server reads it, launch.js), opened at once.
     if (terminalAsk(prompt) === '') return toast('Say what to do after /terminal, like “/terminal fix the login bug”');
     // /sandbox <task>: a fresh box of its own on your grid, made from here (services/sandbox.js).
