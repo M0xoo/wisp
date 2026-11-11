@@ -49,6 +49,8 @@ use crate::tunnels::{TUNNEL_PROTOCOL, Tunnels};
 mod sandboxes;
 #[path = "edge_signin.rs"]
 mod signin;
+#[path = "edge_sites.rs"]
+mod sites;
 pub use signin::{Reqwest, SignIn};
 
 /// The grid's session cookie.
@@ -71,6 +73,8 @@ pub struct Grid {
     /// sign-in with GitHub, Google or an OIDC issuer
     pub signin: SignIn,
     pub sandboxes: crate::sandboxes::Sandboxes,
+    /// apps published from My Stuff (`sites.rs`)
+    pub sites: crate::sites::Sites,
 }
 
 impl std::fmt::Debug for Grid {
@@ -89,8 +93,8 @@ impl HostLookups for Grid {
     fn previews(&self) -> bool {
         false
     }
-    fn site(&self, _label: &str) -> Option<SiteRow> {
-        None
+    fn site(&self, label: &str) -> Option<SiteRow> {
+        self.sites.by_label(label).ok().flatten()
     }
     fn sandbox(&self, label: &str) -> Option<SandboxRow> {
         self.sandboxes.by_label(label).ok().flatten()
@@ -173,7 +177,9 @@ impl Grid {
         let sb = sandboxes.clone();
         // a sandbox's box starts with its owner's sandbox env and sign-ins; the user's own box never does
         boxes.set_env_for(Arc::new(move |u: &BoxUser| u.owner.as_deref().filter(|_| u.sandbox.is_some()).map(|o| sb.env_for(o)).unwrap_or_default()));
-        Arc::new(Self { cfg, db, clock, accounts, shares, teams, tunnels: Arc::new(Tunnels::default()), boxes, roots, page, client, signin, sandboxes })
+        let urls = cfg.clone();
+        let sites = crate::sites::Sites::new(db.clone(), clock.clone(), &cfg.data_dir, cfg.file_cfg.sites.as_ref(), Arc::new(move |l: &str| urls.instance_url(l)));
+        Arc::new(Self { cfg, db, clock, accounts, shares, teams, tunnels: Arc::new(Tunnels::default()), boxes, roots, page, client, signin, sandboxes, sites })
     }
 
     fn who(&self, h: &HeaderMap) -> Who {
@@ -213,7 +219,7 @@ impl Grid {
                 _ => Ok(json(404, &json!({ "error": "Pages in boxes aren't shown on this grid." }))),
             },
             HostKind::Sandbox(sb) => self.sandbox_reach(req, &sb).await,
-            HostKind::Site(_) => Ok(json(404, &json!({ "error": "not on this grid yet" }))),
+            HostKind::Site(site) => Ok(self.site_reach(&req, site.as_ref())),
             HostKind::Unknown => Ok(json(421, &json!({ "error": "This grid doesn't serve that address." }))),
         };
         out.unwrap_or_else(|e| err(&e))
@@ -228,6 +234,12 @@ impl Grid {
         let who = self.who(req.headers());
         if parts.first() == Some(&"api") && parts.get(1) == Some(&"computers") && parts.len() == 4 && parts[3] == "tunnel" {
             return self.tunnel(req, &who, parts[2]);
+        }
+        // an app's bundle may be bigger than any other body: read up to the sites' own cap
+        if parts.first() == Some(&"api") && parts.get(1) == Some(&"sites") && parts.len() <= 3 {
+            let key = parts.get(2).map(|k| (*k).to_owned());
+            let q = q.to_owned();
+            return self.sites_route(req, &who, key.as_deref(), &q).await;
         }
         let (head, body) = req.into_parts();
         let bytes = read_bytes(body, crate::shares::MAX_BYTES * 2).await?;

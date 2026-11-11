@@ -155,9 +155,10 @@ pub fn hold_why(label: &str, used: f64, stop: f64, name: &str, account_label: &s
     format!("{who}’s {} window is at {}, past your {}", lower_first(label), pct(used), pct(stop))
 }
 
-/// Drain watch's units in words: dollars for Claude, tokens for the rest.
-pub fn unit_words(agent: &str, u: f64) -> String {
-    if agent == "claude" {
+/// Drain watch's units in words: dollars where the runs reported their cost (Claude Code), else millions of
+/// tokens. `in_usd` comes from what was counted, so no harness is named here.
+pub fn unit_words(in_usd: bool, u: f64) -> String {
+    if in_usd {
         format!("${u:.2}")
     } else if u >= 0.1 {
         format!("{u:.1}M tokens")
@@ -174,7 +175,7 @@ pub fn clock_words(at: i64, offset_min: i32) -> String {
 }
 
 /// Drain watch's words for the phone (budget.js:676).
-pub fn drain_why(d: &Drain, name: &str, account_label: &str, agent: &str, offset_min: i32) -> String {
+pub fn drain_why(d: &Drain, name: &str, account_label: &str, in_usd: bool, offset_min: i32) -> String {
     let who = if account_label.is_empty() { name.to_owned() } else { format!("{name} ({account_label})") };
     let failed = if d.failed.runs > 0 { format!(" {} of them ended in an error and still took {}.", d.failed.runs, pct(d.failed.du)) } else { String::new() };
     format!(
@@ -183,7 +184,7 @@ pub fn drain_why(d: &Drain, name: &str, account_label: &str, agent: &str, offset
         d.runs,
         pct(d.du),
         lower_first(&d.label),
-        unit_words(agent, d.units),
+        unit_words(in_usd, d.units),
         d.ratio,
     )
 }
@@ -196,4 +197,17 @@ pub fn drain_title(d: &Drain, name: &str) -> String {
 /// Nobody started it by hand: Automations stop at may hold it.
 pub fn unattended(by: Option<&str>) -> bool {
     by.is_some_and(|b| UNATTENDED_BY.contains(&b))
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use super::*;
+
+    /// The unit follows what was counted (a run's cost, or its tokens), never a harness's name.
+    #[test]
+    fn drain_units_are_dollars_when_runs_reported_their_cost_else_tokens() {
+        assert_eq!(unit_words(true, 1.234), "$1.23");
+        assert_eq!(unit_words(false, 1.25), "1.2M tokens");
+        assert_eq!(unit_words(false, 0.05), "0.05M tokens");
+    }
 }

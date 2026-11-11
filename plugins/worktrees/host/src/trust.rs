@@ -3,6 +3,7 @@
 
 use serde_json::{Value, json};
 use wisp_kernel::Verdict;
+use wisp_runtime_api::harness::ProjectHooks;
 use wisp_worktrees_api::{Pending, TrustItem};
 use wisp_worktrees_core::trust::{self, TrustState};
 
@@ -43,28 +44,29 @@ async fn linked_key(top: &std::path::Path, dot_git: &std::path::Path) -> Option<
     Some(fsx::parent(&common))
 }
 
-/// Claude Code's items for a run in `dir`: its folder's files and, from a subfolder, the checkout's.
-/// Never the home folder's (`~/.claude/settings.json` is the user's own).
-pub async fn claude_items(dir: &str, user_home: &str) -> Vec<TrustItem> {
+/// A harness's items for a run in `dir` (`Harness::project_hooks`): its folder's files and, from a subfolder,
+/// the checkout's. Never the home folder's (`~/.claude/settings.json` is the user's own).
+pub async fn hook_items(dir: &str, user_home: &str, hooks: &ProjectHooks) -> Vec<TrustItem> {
     let at = fsx::real(dir).await;
     let home = fsx::real(user_home).await;
     let (top, _) = repo_of(dir).await;
     let mut out = Vec::new();
     for d in trust::claude_dirs(&at, &top, &home) {
-        for f in trust::SETTINGS_FILES {
+        for f in &hooks.settings {
             let text = fsx::read_opt(fsx::join(d, f)).await;
-            out.extend(trust::settings_items(
-                text.as_deref(),
-                &trust::relative(&at, &fsx::join(d, f)),
-            ));
+            out.extend(trust::settings_items(text.as_deref(), &trust::relative(&at, &fsx::join(d, f))));
         }
-        let text = fsx::read_opt(fsx::join(d, trust::MCP_FILE)).await;
-        out.extend(trust::mcp_items(
-            text.as_deref(),
-            &trust::relative(&at, &fsx::join(d, trust::MCP_FILE)),
-        ));
+        if let Some(m) = &hooks.mcp {
+            let text = fsx::read_opt(fsx::join(d, m)).await;
+            out.extend(trust::mcp_items(text.as_deref(), &trust::relative(&at, &fsx::join(d, m))));
+        }
     }
     out
+}
+
+/// What the harness `agent` runs from a project's own files, from its plugin (`runtime.harness@1`).
+pub fn hooks_of(ctx: &wisp_kernel::Ctx, agent: &str) -> Option<ProjectHooks> {
+    ctx.contributions(&wisp_runtime_api::harness::HARNESS).iter().find(|h| h.info().id == agent).and_then(|h| h.project_hooks())
 }
 
 /// The setup steps a new worktree of `root` would run, as the card lists them.
@@ -73,20 +75,19 @@ pub async fn setup_items(e: &Engine, root: &str) -> Vec<TrustItem> {
     trust::setup_items(rs.file.as_deref(), &rs.commands)
 }
 
-/// What a run of `agent` in `dir` would run that isn't trusted: Claude Code's items (other harnesses
-/// don't read them) plus `extra` (a new worktree's held setup).
+/// What a run in `dir` would run that isn't trusted: its harness's items (`hooks`; a harness that reads none
+/// has none) plus `extra` (a new worktree's held setup).
 pub async fn pending(
     st: &TrustState,
     dir: &str,
-    agent: &str,
+    hooks: Option<&ProjectHooks>,
     extra: Vec<TrustItem>,
     user_home: &str,
 ) -> Option<Pending> {
     let (_, key) = repo_of(dir).await;
-    let mut items = if agent == "claude" {
-        claude_items(dir, user_home).await
-    } else {
-        Vec::new()
+    let mut items = match hooks {
+        Some(h) => hook_items(dir, user_home, h).await,
+        None => Vec::new(),
     };
     items.extend(extra);
     st.untrusted(&key, items)
@@ -114,6 +115,7 @@ pub async fn before_run(
     st: &TrustState,
     project_ask: Option<&str>,
     user_home: &str,
+    hooks: Option<&ProjectHooks>,
     ctx: Value,
 ) -> Verdict<Value> {
     let s = |k: &str| ctx.get(k).and_then(Value::as_str).unwrap_or("").to_owned();
@@ -125,7 +127,7 @@ pub async fn before_run(
     if already || !trust::asks(project_ask, &s("mode")) {
         return Verdict::Continue;
     }
-    let Some(p) = pending(st, &s("cwd"), &s("agent"), Vec::new(), user_home).await else {
+    let Some(p) = pending(st, &s("cwd"), hooks, Vec::new(), user_home).await else {
         return Verdict::Continue;
     };
     let mut held = ctx;
@@ -136,4 +138,26 @@ pub async fn before_run(
         );
     }
     Verdict::Modify { ctx: held }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    /// No harness is named here: what a run would load from the project comes from its harness's hooks.
+    #[tokio::test]
+    async fn a_harness_with_project_hooks_lists_them_and_one_without_lists_none() {
+        let dir = std::env::temp_dir().join(format!("wisp-trust-{}", std::process::id()));
+        tokio::fs::create_dir_all(dir.join(".git")).await.unwrap();
+        tokio::fs::write(dir.join(".mcp.json"), r#"{"mcpServers":{"db":{"command":"npx","args":["db-mcp"]}}}"#).await.unwrap();
+        let d = dir.to_string_lossy().into_owned();
+        let hooks = ProjectHooks { settings: vec![".claude/settings.json".into()], mcp: Some(".mcp.json".into()) };
+        let items = hook_items(&d, "/nonexistent-home", &hooks).await;
+        assert!(items.iter().any(|i| i.name == "db"), "{items:?}");
+        let st = TrustState::default();
+        assert!(pending(&st, &d, None, Vec::new(), "/nonexistent-home").await.is_none(), "a harness that reads no project files asks nothing");
+        assert!(pending(&st, &d, Some(&hooks), Vec::new(), "/nonexistent-home").await.is_some());
+        let _ = tokio::fs::remove_dir_all(&dir).await;
+    }
 }

@@ -104,6 +104,10 @@ impl Harness for ClaudeHarness {
     fn info(&self) -> &HarnessInfo {
         &self.info
     }
+    /// Claude Code runs a project's hooks and plugins from its settings files, and its MCP servers from `.mcp.json`.
+    fn project_hooks(&self) -> Option<wisp_runtime_api::harness::ProjectHooks> {
+        Some(wisp_runtime_api::harness::ProjectHooks { settings: vec![".claude/settings.json".into(), ".claude/settings.local.json".into()], mcp: Some(".mcp.json".into()) })
+    }
     /// Claude Code loads `~/.claude/skills` (or `$CLAUDE_CONFIG_DIR/skills`) and the project's `.claude/skills`.
     fn skill_dirs(&self, cwd: &str) -> Vec<(std::path::PathBuf, String)> {
         vec![(sessions::store().join("skills"), "~/.claude/skills".into()), (std::path::Path::new(cwd).join(".claude/skills"), ".claude/skills".into())]

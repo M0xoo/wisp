@@ -217,7 +217,8 @@ pub fn register(s: &mut Setup, st: &Arc<State>) {
     handle!(s, st, api::TrustPending, |st, ctx, _call, args| {
         let (e, _, p) = st.parts(&ctx).await?;
         let set = p.settings().await;
-        Ok(trust::pending(&set.trust, &args.dir, &args.agent, args.extra, &e.user_home).await)
+        let hooks = trust::hooks_of(&ctx, &args.agent);
+        Ok(trust::pending(&set.trust, &args.dir, hooks.as_ref(), args.extra, &e.user_home).await)
     });
 }
 

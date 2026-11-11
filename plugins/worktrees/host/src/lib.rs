@@ -180,10 +180,12 @@ impl Plugin for WorktreesPlugin {
                         return wisp_kernel::Verdict::Continue;
                     };
                     let set = port.settings().await;
+                    let hooks = trust::hooks_of(&ctx, hctx.get("agent").and_then(serde_json::Value::as_str).unwrap_or_default());
                     trust::before_run(
                         &set.trust,
                         set.project_ask.as_deref(),
                         &engine.user_home,
+                        hooks.as_ref(),
                         hctx,
                     )
                     .await
