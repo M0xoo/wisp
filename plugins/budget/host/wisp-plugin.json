@@ -18,6 +18,10 @@
   },
   "provides": {},
   "contributes": {
+    "settings": [
+      { "key": "budget.drainWatch", "type": "bool", "default": false, "title": "Drain watch: tell the phone when a plan moves much faster than usual for the same work" },
+      { "key": "budget.windowNotice", "type": "bool", "default": true, "title": "Window notices: say when a usage window changed length or resets early" }
+    ],
     "events": ["budget.changed", "budget.drain", "budget.plan_free", "budget.reset", "budget.share"],
     "commands": [
       {
@@ -33,6 +37,14 @@
       {
         "id": "budget.record",
         "title": "Record an account's usage windows"
+      },
+      {
+        "id": "budget.dismissDrain",
+        "title": "Drain watch: hide an account window's card until a later run shows it again"
+      },
+      {
+        "id": "budget.dismissNotice",
+        "title": "Hide a window's notice until that window changes again"
       },
       {
         "id": "budget.setStop",

@@ -13,6 +13,7 @@ wisp-resources-api.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+jiff.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 wisp-kernel.workspace = true

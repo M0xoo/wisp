@@ -52,6 +52,16 @@ pub fn spend(acc: &mut Acc, units: f64, failed: bool, now: i64) -> bool {
     true
 }
 
+/// A run's units of work (v1 budget.js `unitsOf`): its cost when it reported one, else its tokens in millions;
+/// 0 is no sample. `in_usd`: whether they're dollars (the phone's words say which).
+#[allow(clippy::cast_precision_loss, reason = "a token count well under 2^52")]
+pub fn units_of(cost_usd: Option<f64>, tokens: Option<u64>) -> (f64, bool) {
+    match cost_usd.filter(|c| c.is_finite() && *c > 0.0) {
+        Some(c) => (c, true),
+        None => (tokens.map_or(0.0, |t| t as f64 / 1e6), false),
+    }
+}
+
 fn sum(xs: &[&DrainSample], f: fn(&DrainSample) -> f64) -> f64 {
     xs.iter().map(|x| f(x)).sum()
 }
@@ -116,5 +126,53 @@ impl DrainNotes {
         }
         self.sent.insert(k, now);
         true
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use wisp_budget_api::{LimitWindow, LimitsReport};
+
+    use super::*;
+    use crate::Budget;
+
+    fn at(used: f64) -> LimitsReport {
+        LimitsReport { windows: vec![LimitWindow { id: "five_hour".into(), used, resets_at: Some(30 * 24 * H), ms: Some(5 * H), slot: None }], ..LimitsReport::default() }
+    }
+
+    /// v1 test/budget.test.js "drain watch": two weeks of usual runs, then two recent runs that take four times the
+    /// window for the same work; the phone hears once per two hours, and only with the watch on.
+    #[test]
+    fn runs_that_take_twice_their_usual_share_show_a_drain_and_the_phone_hears_once() {
+        let mut b = Budget::load(Vec::new());
+        let (mut used, mut t) = (0.0, H);
+        // each run reads the windows as it starts and as it ends: what moved in between is its
+        for _ in 0..6 {
+            b.record("claude", "default", &at(used), t - 60_000);
+            used += 0.01;
+            b.record("claude", "default", &at(used), t);
+            assert!(b.spend("claude", "default", 1.0, false, t).is_none(), "usual runs drain nothing");
+            t += H;
+        }
+        t += 10 * H;
+        let mut last = None;
+        for failed in [false, true] {
+            b.record("claude", "default", &at(used), t - 60_000);
+            used += 0.04;
+            b.record("claude", "default", &at(used), t);
+            last = b.spend("claude", "default", 1.0, failed, t);
+            t += 10 * 60_000;
+        }
+        let d = last.unwrap();
+        assert_eq!((d.id.as_str(), d.runs, d.failed.runs), ("five_hour", 2, 1));
+        assert!(d.ratio >= 3.9, "{}", d.ratio);
+        let mut notes = DrainNotes::default();
+        assert!(!notes.due("claude@default", &d.id, false, t), "off: no note");
+        assert!(notes.due("claude@default", &d.id, true, t));
+        assert!(!notes.due("claude@default", &d.id, true, t + H), "once per two hours");
+        assert!(notes.due("claude@default", &d.id, true, t + 2 * H));
+        assert!(b.dismiss_drain("claude", "default", &d.id, t));
+        assert!(b.drain("claude", "default", t).is_none(), "dismissed until a later run shows it again");
     }
 }

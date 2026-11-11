@@ -3,9 +3,25 @@
 // stops (Automations stop at, and each harness's own line).
 import { createResource, For, onCleanup, Show, type JSX } from 'solid-js';
 import { entityKey, type PluginClient } from '@wisp/client';
-import { ChoiceSetting, Meter, SettingsGroup, SettingsRow, Stats, Text, useSignal } from '@wisp/ui';
+import { ChoiceSetting, Meter, SelectSetting, SettingsGroup, SettingsRow, Stats, useSignal, type SettingSource } from '@wisp/ui';
 import { META, plans, setStop, TOPIC, usage, type AccountPlan } from '../commands.ts';
 import { t } from '../i18n.ts';
+import { fromRow } from '../source.ts';
+
+/** v1 Subagents run on: the model Claude Code's own subagents use ('' = the task's), read by the runtime as
+ * `runtime.subagentModel` and passed to claude as CLAUDE_CODE_SUBAGENT_MODEL. */
+const SUBAGENT_KEY = 'runtime.subagentModel';
+function subagentSource(c: PluginClient): SettingSource<string> {
+  const s = fromRow(c, SUBAGENT_KEY, '');
+  return {
+    value: () => {
+      const v = (s.value as () => unknown)();
+      return v === 'haiku' || v === 'sonnet' ? v : 'task';
+    },
+    ...(s.lockedBy && { lockedBy: s.lockedBy }),
+    set: (v) => s.set(v === 'task' ? '' : v),
+  };
+}
 
 const STOPS = ['off', '50', '75', '90'] as const;
 type Stop = 'same' | (typeof STOPS)[number];
@@ -41,10 +57,8 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
   const label = (name: string, account: string, window: string): string => [name, account && account !== 'default' ? account : '', window].filter(Boolean).join(' · ');
   return (
     <>
-      <Text as="p" tone="muted" part="budget.usage.lede">
-        {t('budget.usage.lede')}
-      </Text>
       <Stats
+        compact
         part="budget.usage.stats"
         items={[
           { label: t('budget.usage.spend'), value: line() ? money(line()?.spend ?? 0) : '—' },
@@ -54,7 +68,7 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
         ]}
       />
       <SettingsGroup part="budget.usage.plan" title={t('budget.usage.plan.title')} description={t('budget.usage.plan.description')}>
-        <Show when={reported()} fallback={<SettingsRow part="budget.usage.plan.none" title={t('budget.usage.plan.none')} control={<span />} />}>
+        <Show when={reported()} fallback={<SettingsRow part="budget.usage.plan.none" title="" description={t('budget.usage.plan.none')} control={<span />} />}>
           <For each={windows() ?? []}>
             {(h) => (
               <For each={h.accounts}>
@@ -63,6 +77,13 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
             )}
           </For>
         </Show>
+        <SelectSetting
+          part="settings.subagentModel"
+          title={t('budget.usage.subagents.title')}
+          description={t('budget.usage.subagents.description')}
+          source={subagentSource(c)}
+          items={(['task', 'haiku', 'sonnet'] as const).map((v) => ({ value: v, label: t(`budget.usage.subagents.${v}`) }))}
+        />
         <ChoiceSetting part="budget.usage.stop" title={t('budget.usage.stop.title')} description={t('budget.usage.stop.description')} source={stop('autoStop', 'off')} items={STOPS.map((v) => ({ value: v, label: t(`budget.usage.stop.${v}`) }))} />
         <For each={PLANNED}>
           {(p) => <ChoiceSetting part="budget.usage.stop.own" title={p.name} description={t('budget.usage.stop.own')} source={stop(p.key, 'same')} items={(['same', ...STOPS] as Stop[]).map((v) => ({ value: v, label: t(`budget.usage.stop.${v}`) }))} />}

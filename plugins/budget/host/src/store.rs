@@ -68,11 +68,11 @@ pub async fn load(store: &Store) -> wisp_store::Result<(Vec<(String, String, Acc
         .await
 }
 
-/// v1 config.json `defaults`: the stop lines.
+/// v1 config.json `defaults`: the stop lines, and Drain watch.
 fn import_settings(f: &ImportFile, w: &mut Writer<'_>) -> wisp_store::Result<()> {
     let cfg: Value = f.json()?;
     let mut out = serde_json::Map::new();
-    for k in [wisp_budget_api::settings::AUTO_STOP, wisp_budget_api::settings::AUTO_STOP_CLAUDE, wisp_budget_api::settings::AUTO_STOP_CODEX] {
+    for k in [wisp_budget_api::settings::AUTO_STOP, wisp_budget_api::settings::AUTO_STOP_CLAUDE, wisp_budget_api::settings::AUTO_STOP_CODEX, wisp_budget_api::settings::DRAIN_WATCH] {
         if let Some(v) = cfg.pointer(&format!("/defaults/{k}")) {
             out.insert(k.into(), v.clone());
         }

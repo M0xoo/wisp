@@ -3,6 +3,7 @@
 //! on an account past its stop line is held, and starts once the account is free again (its windows
 //! reset, or a reading says they reset early). The user's own runs are never held.
 
+mod drain;
 mod kinds;
 mod store;
 
@@ -16,7 +17,7 @@ use wisp_budget_core::Budget;
 use wisp_budget_core::limits::report_from_value;
 use wisp_kernel::services::Paths;
 use wisp_kernel::{Ctx, Failure, InterceptOpts, Manifest, Plugin, Result, Setup, Verdict, WireError};
-use wisp_runtime_api::events::TurnLimits;
+use wisp_runtime_api::events::{TurnEnded, TurnLimits};
 use wisp_runtime_api::hooks::{BeforeRun, BeforeRunCtx};
 use wisp_runtime_api::model::Held;
 use wisp_store::Store;
@@ -36,6 +37,8 @@ struct State {
     budget: Mutex<Budget>,
     settings: Mutex<Value>,
     held: Mutex<HeldTurns>,
+    /// Drain watch's notes sent, per window
+    notes: Mutex<wisp_budget_core::drain::DrainNotes>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -144,9 +147,27 @@ impl Plugin for BudgetPlugin {
     fn setup(&self, s: &mut Setup) -> Result<()> {
         crate::kinds::register(s);
         let slot: Slot = Arc::new(OnceLock::new());
-        on!(s, slot, c::View, |st, ctx, a| Ok(lock(&st.budget).view(&a.agent, now(&ctx))));
+        on!(s, slot, c::View, |st, ctx, a| {
+            let mut v = lock(&st.budget).view(&a.agent, now(&ctx));
+            // v1 meta.js:63: the drain card with Drain watch on, the notices unless they're switched off
+            let (drain, notices) = (drain::watch_on(ctx.setting(drain::WATCH).as_ref(), &lock(&st.settings)), ctx.setting(drain::NOTICE).and_then(|v| v.as_bool()).unwrap_or(true));
+            for acc in &mut v {
+                drain::shown(acc, drain, notices);
+            }
+            Ok(v)
+        });
         on!(s, slot, c::Hold, |st, ctx, a| Ok(st.hold(&a.agent, &a.account, now(&ctx))));
         on!(s, slot, c::Record, |st, ctx, a| Ok(st.record(&ctx, &a.agent, &a.account, &a.report).await));
+        on!(s, slot, c::DismissDrain, |st, ctx, a| {
+            let ok = lock(&st.budget).dismiss_drain(&a.agent, &account_of(&a.account), &a.window, now(&ctx));
+            st.save().await;
+            Ok(c::Done { ok })
+        });
+        on!(s, slot, c::DismissNotice, |st, _ctx, a| {
+            let ok = lock(&st.budget).dismiss_notice(&a.agent, &account_of(&a.account), &a.window);
+            st.save().await;
+            Ok(c::Done { ok })
+        });
         on!(s, slot, c::SetStop, |st, ctx, a| {
             let keys = [settings::AUTO_STOP, settings::AUTO_STOP_CLAUDE, settings::AUTO_STOP_CODEX];
             if !keys.contains(&a.key.as_str()) || !(STOP_AT.contains(&a.value.as_str()) || (a.value == "same" && a.key != settings::AUTO_STOP)) {
@@ -183,6 +204,15 @@ impl Plugin for BudgetPlugin {
                 st.record(&ctx, &e.agent, e.account.as_deref().unwrap_or(""), &report).await;
             }
         });
+        let ended = slot.clone();
+        s.on::<TurnEnded, _, _>(move |ctx, e| {
+            let slot = ended.clone();
+            async move {
+                if let Ok(st) = state(&slot) {
+                    st.ended(&ctx, &e).await;
+                }
+            }
+        });
         let start = slot;
         s.on_start(move |ctx| async move {
             let store = ctx.service::<Store>()?.as_ref().clone();
@@ -191,7 +221,7 @@ impl Plugin for BudgetPlugin {
                 store::import_v1(&store, p.home()).await.map_err(WireError::from)?;
             }
             let (accs, settings) = store::load(&store).await.map_err(WireError::from)?;
-            let st = Arc::new(State { store, budget: Mutex::new(Budget::load(accs)), settings: Mutex::new(settings), held: Mutex::new(BTreeMap::new()) });
+            let st = Arc::new(State { store, budget: Mutex::new(Budget::load(accs)), settings: Mutex::new(settings), held: Mutex::new(BTreeMap::new()), notes: Mutex::default() });
             let _ = start.set(st.clone());
             // held work starts when its windows reset on their own
             if let Ok(clock) = ctx.clock() {
