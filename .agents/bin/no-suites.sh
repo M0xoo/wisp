@@ -23,6 +23,7 @@ echo "$cmd" | grep -Eq '(^|[;&|[:space:]])cargo[[:space:]]+(test|nextest)' && ! 
 echo "$cmd" | grep -Eq '(^|[;&|[:space:]])cargo[[:space:]]+(test|nextest).*--workspace' && deny "cargo test --workspace"
 echo "$cmd" | grep -Eq '(^|[;&|[:space:]])npm[[:space:]]+(test|t|run[[:space:]]+(test|verify))([[:space:]]|$)' && deny "the npm test suite"
 echo "$cmd" | grep -Eq 'monoflow[^;&|]*[[:space:]]verify' && deny "monoflow verify (the outer loop)"
-# UI gates on one view are a targeted check (owner, 2026-11-10): `--views=<one or two>` is allowed, the full run isn't
-echo "$cmd" | grep -Eq 'qa/(parity|layout|feedback)\.mjs' && ! echo "$cmd" | grep -Eq -- '--views=[^, ]+(,[^, ]+)?([[:space:]]|$)' && deny "a full UI gate run (qa/*.mjs); run it on the view you changed: --views=<view>"
+# UI gates: running one on chosen views (--views=…) is a targeted check; only a full run is the outer loop. Reading the
+# file or mentioning it in text is fine (match the command that runs it).
+echo "$cmd" | grep -Eq '(^|[;&|(])[[:space:]]*(node|npx)[[:space:]]+(--[^ ]+[[:space:]]+)*qa/(parity|layout|feedback)\.mjs' && ! echo "$cmd" | grep -Eq -- '--views=' && deny "a full UI gate run (qa/*.mjs); run it on the views you changed: --views=<view>[,<view>…]"
 exit 0
