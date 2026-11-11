@@ -381,7 +381,7 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | cli | `grid serve` | `cli:grid` |
 | cli | `grid users` | `cli:grid` |
 | cli | `grid waitlist` | `cli:grid` |
-| setting | `acceptChannels` | `todo:setting acceptChannels (channels: accept from other computers)` |
+| setting | `acceptChannels` | `setting:channels.acceptChannels` |
 | setting | `accounts` | `cmd:accounts.list` |
 | setting | `agent` | `kind:agents` |
 | setting | `apps` | `todo:setting apps (stuff: apps settings)` |
@@ -392,19 +392,19 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | setting | `cloneDir` | `todo:setting cloneDir (where git.clone puts repos)` |
 | setting | `cpuCeiling` | `setting:machine.cpuCeiling` |
 | setting | `drainWatch` | `todo:setting drainWatch (limits: watch for a plan draining early)` |
-| setting | `editor` | `todo:setting editor (the editor Open uses)` |
+| setting | `editor` | `kind:ui` |
 | setting | `effort` | `kind:agents` |
-| setting | `fixConflicts` | `todo:setting fixConflicts (ship: fix merge conflicts by itself)` |
+| setting | `fixConflicts` | `setting:ship.fixConflicts` |
 | setting | `followUp` | `todo:setting followUp (ship: follow the PR after shipping)` |
-| setting | `goalJudges` | `todo:setting goalJudges` |
-| setting | `goalVote` | `todo:setting goalVote` |
-| setting | `harnessAsk` | `todo:setting harnessAsk (ask before a changed harness runs)` |
+| setting | `goalJudges` | `kind:goal` |
+| setting | `goalVote` | `kind:goal` |
+| setting | `harnessAsk` | `cmd:accounts.watch.ask` |
 | setting | `leanRuns` | `todo:setting leanRuns` |
 | setting | `learn` | `setting:learn.enabled` |
 | setting | `limitHold` | `todo:setting limitHold (hold a turn near the usage limit)` |
 | setting | `limitWait` | `todo:setting limitWait (wait for the reset)` |
 | setting | `liveLimits` | `todo:setting liveLimits` |
-| setting | `maskEnvFiles` | `todo:setting maskEnvFiles` |
+| setting | `maskEnvFiles` | `setting:git.maskEnvFiles` |
 | setting | `maxRuns` | `setting:machine.maxRuns` |
 | setting | `memoryFloor` | `setting:machine.memoryFloor` |
 | setting | `mode` | `kind:agents` |
@@ -422,7 +422,7 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | setting | `teamPreset` | `kind:teams` |
 | setting | `telemetry` | `cmd:telemetry.set` |
 | setting | `telemetryNotice` | `ui:settings store (the one-time usage-stats notice)` |
-| setting | `terminal` | `todo:setting terminal (the terminal app take over uses)` |
+| setting | `terminal` | `kind:ui` |
 | setting | `terminalSessions` | `todo:setting terminalSessions` |
 | setting | `theme` | `ui:settings store (light, dark, system)` |
 | setting | `transcript` | `ui:settings store (transcript density)` |
@@ -430,7 +430,7 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | setting | `watch` | `todo:setting watch (harness-watch: adopt outside sessions)` |
 | setting | `webhookTriggers` | `todo:setting webhookTriggers` |
 | setting | `windowNotice` | `todo:setting windowNotice` |
-| setting | `worktree` | `todo:setting worktree (a worktree per task by default)` |
+| setting | `worktree` | `kind:projects` |
 | setting | `worktreeCleanup` | `setting:worktrees.cleanup` |
 | setting | `worktreeMax` | `setting:worktrees.max` |
 | setting | `worktreeOnDone` | `setting:worktrees.onDone` |
