@@ -1,5 +1,23 @@
 # v2 build queue (code first, verify later)
 
+**One coder from here (2026-11-11). backend-coder's leftovers join the queue, after the UI items:**
+- From backend round 7:
+  - the plugins install path (an ADR first: a plugin source at runtime, through the kernel's exec host, per
+    ADR-0003/0031);
+  - crew.reply (store crew answers under the message that asked);
+  - terminal tasks, for terminalSessions;
+  - Discord's /wisp slash command, buttons and box interactions, plus REST rate-limit buckets;
+  - one turn at a time per Slack thread;
+  - a PR following its branch's task (GitHub);
+  - email attachments;
+  - the serve_budget e2e for Ask near the limit;
+  - a `wisp sdk types` CLI verb.
+- UI notes from round 7:
+  - the limit card (`turn.limit`: who, until when, other accounts, the extra-usage way), plus Settings → Usage's
+    Ask near the limit, Wait for the reset and Live limits;
+  - New task pre-fills its team from `runtime.subagents`.
+- Owner action: claim `wisp` on PyPI before the Python SDK goes into the release workflow.
+
 **Fix first when the usage limit resets (2026-11-11, `npm run check` = 21 errors; the check hung on a rust-sizes
 loop that hid them, now fixed):**
 - UI coder:
@@ -65,6 +83,14 @@ Right after ui-commands reaches 0, and before the UI burndown:
 - My Stuff's Publish shows `published.url` (open, copy) and Unpublish, and `stuff.targets` names the grid.
 - Settings → Phone gets "Accept tasks from channels" (`channels.acceptChannels`).
 - The grid account page gets the routing form: bot token and the people who may route.
+
+**For backend-coder, from the UI coder (round 14, 2026-11-11):**
+- the grid's signed-in pages: v2 serves no `/account` (nothing calls `pages::account_page`), so the routing form
+  (`route_section`, already rendered there) and its `POST /channels/route` and `/channels/route/remove` (v1
+  server.js 842–861: CSRF, a rate limit, the flash) have nowhere to live;
+- `RunPick` has no account, so the limit card can't offer "Continue on <other account>";
+- a crew member's `bg` (v1 #768: the task panel tint, '' their glow, 'none', or a crew colour), for the editor's
+  Task panel row.
 
 **For backend-coder, from the UI coder (round 13, 2026-11-11):**
 - a per-day usage command, for Usage → Charts and breakdowns and the Crew track record (v1's usage page);

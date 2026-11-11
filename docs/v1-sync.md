@@ -4,7 +4,7 @@ The owner keeps fixing wisp v1 (`origin/main`) while v2 is built. At every coder
 commits since the last sync (`git log <last>..origin/main`), decides for each what v2 needs, and queues it here and in
 `docs/v2-queue.md`. v2 ports the intent (and the test's scenario), not the JS.
 
-Last synced v1 commit: **ca2dff27** (2026-11-11)
+Last synced v1 commit: **d5056a54** (2026-11-11)
 
 | v1 | What it fixed | v2 action |
 |---|---|---|
@@ -17,3 +17,7 @@ Last synced v1 commit: **ca2dff27** (2026-11-11)
 | #768 a782a639 | a picked crew member tints the task panel (TRY-18) | **queue (UI coder):** the crew rail pick tints the task panel as v1, parity-checked |
 | #767 1f66e31c | release 0.58.0 | v1 only (v2 keeps its Unreleased) |
 | #769 ca2dff27 | with Goal on and "Done when" empty, Send asks first instead of sending a goal-less task | **queue (UI coder):** the composer asks the same; named test |
+| #771 3435a2b9 | the launcher drops "Try it two ways"; + already adds a run, and "What's different" opens from a run added with + | **queue (UI):** match: no Try-two button; the compare group opens from a + run |
+| #772 2c021cb4 | drag projects into your own order everywhere they show (top bar chips, New task's in row, +N list, Projects dialog); one stored order | **queue:** a project `order` (runtime projects kind, a command to set the order) + drag in every place v2 shows projects |
+| #773 f52dfcf0 | phone Back from a subagent's run goes to its lead | **queue (phone frontend, item 8):** navigation Back from a subagent opens its lead |
+| #774 d5056a54 | the phone gets only the subagent turns its window shows (a lead with 48 subagents sent them all) | **check:** v2's sync sends topics by window/cursor; make sure a lead's task view doesn't subscribe every subagent's full turns; test with many subagents |
