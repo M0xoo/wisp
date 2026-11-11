@@ -174,6 +174,7 @@ fn world(connectors: Vec<Connector>, gh_bin: &str) -> World {
         http: Some(linear.clone()),
         projects: Some(Arc::new(FakeProjects)),
         connectors: Some(Arc::new(FixedConnectors(connectors))),
+        tools: None,
         linear_api: "http://linear.test/graphql".into(),
         now: Arc::new(move || c.load(Ordering::SeqCst)),
     });

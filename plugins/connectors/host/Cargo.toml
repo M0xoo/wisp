@@ -8,6 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+wisp-issues-api.workspace = true
 schemars.workspace = true
 wisp-resources-api.workspace = true
 serde.workspace = true

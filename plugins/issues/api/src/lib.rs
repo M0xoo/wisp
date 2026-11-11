@@ -81,6 +81,10 @@ pub struct IssueList {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub fix: Option<String>,
+    /// Linear through its server: `mine`, or `all` (none assigned to you: the workspace's open ones). Additive.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub scope: Option<String>,
 }
 
 /// A problem in words, with what fixes it.
@@ -146,6 +150,9 @@ pub struct Connector {
     pub enabled: bool,
     pub env: Vec<(String, String)>,
     pub headers: Vec<(String, String)>,
+    /// signed in with the browser (OAuth): its server's tools list the issues (v1 #766). Additive.
+    #[serde(default)]
+    pub signed_in: bool,
 }
 
 /// `issues.connectors@1`: the MCP connectors and their secrets (the connectors plugin). Read-only.

@@ -36,6 +36,15 @@ use crate::model::Mode;
 /// The point every harness plugin contributes one `Arc<dyn Harness>` to.
 pub const HARNESS: Point<dyn Harness> = Point::new("runtime.harness", 1);
 
+/// [`Harness::project_hooks`]: paths relative to the project's folder (and its checkout's top).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProjectHooks {
+    /// settings files that hold hooks and plugins (`.claude/settings.json`)
+    pub settings: Vec<String>,
+    /// the file that declares MCP servers (`.mcp.json`)
+    pub mcp: Option<String>,
+}
+
 // ---------- the I/O a harness may ask for outside a run ----------
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -90,6 +99,12 @@ pub trait Harness: Send + Sync + 'static {
     /// The program a run starts (what detect found, else the CLI's name): what wisp.accounts' harness
     /// watch pins. None: the harness has no program of its own. Additive (2026-11-08).
     fn program(&self) -> Option<String> {
+        None
+    }
+    /// The files in a project from which the CLI runs commands of its own (hooks, plugins, MCP servers), so a
+    /// repo's must be trusted before a run there (wisp.worktrees' project trust). None: it reads none. Additive
+    /// (2026-11-10).
+    fn project_hooks(&self) -> Option<ProjectHooks> {
         None
     }
     /// Folders of skills the CLI loads by itself for a run in `cwd`: `(path, label)`, label as shown

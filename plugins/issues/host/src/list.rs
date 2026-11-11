@@ -16,8 +16,15 @@ pub trait Origin: Send + Sync + 'static {
     fn origin(&self, call: &Call, dir: &str) -> BoxFuture<'static, Option<String>>;
 }
 
+/// A connector's tool, called by wisp (`connectors.call`): the tool's result, or why not in words.
+pub trait Tools: Send + Sync + 'static {
+    fn call(&self, call: &Call, connector: &str, tool: &str, args: serde_json::Value) -> BoxFuture<'static, std::result::Result<serde_json::Value, String>>;
+}
+
 /// What the lister reads through. Each is a trait object so tests swap them.
 pub struct Deps {
+    /// a signed-in connector's tools (v1 #766); None: only API keys count
+    pub tools: Option<Arc<dyn Tools>>,
     pub proc: Proc,
     pub gh: String,
     pub origin: Arc<dyn Origin>,
@@ -88,7 +95,11 @@ impl Lister {
         };
         let key = core::linear_key(&connectors);
         let jira = core::jira_creds(&connectors);
-        let (linear, has_jira) = (key.is_some(), jira.is_some());
+        // no key: a server signed in with the browser lists them through its own tools (v1 #766)
+        let signed = |src| if self.deps.tools.is_some() { core::mcp::signed_in_connector(src, &connectors).map(|c| c.id.clone()) } else { None };
+        let linear_mcp = key.is_none().then(|| signed(Source::Linear)).flatten();
+        let jira_mcp = jira.is_none().then(|| signed(Source::Jira)).flatten();
+        let (linear, has_jira) = (key.is_some() || linear_mcp.is_some(), jira.is_some() || jira_mcp.is_some());
         if let Some(refused) = core::precheck(args.source, project.is_some(), linear, has_jira) {
             return Ok(refused);
         }
@@ -107,11 +118,14 @@ impl Lister {
             return Ok(hit);
         }
         let value = match (args.source, project) {
-            (Source::Linear, _) => {
-                self.linear(key.as_deref().unwrap_or_default(), &q, linear, has_jira)
-                    .await
-            }
-            (Source::Jira, _) => self.jira(jira.as_ref(), &q, linear, has_jira).await,
+            (Source::Linear, _) => match (&key, &linear_mcp) {
+                (None, Some(c)) => self.linear_tools(call, c, &q, has_jira).await,
+                _ => self.linear(key.as_deref().unwrap_or_default(), &q, linear, has_jira).await,
+            },
+            (Source::Jira, _) => match (&jira, &jira_mcp) {
+                (None, Some(c)) => self.jira_tools(call, c, &q, linear).await,
+                _ => self.jira(jira.as_ref(), &q, linear, has_jira).await,
+            },
             (Source::Github, Some(p)) => self.github(call, &p, &q, linear, has_jira).await,
             (Source::Github, None) => {
                 return Err(WireError::internal(
@@ -244,6 +258,45 @@ impl Lister {
         match got {
             Ok(issues) => IssueList { issues, ..base },
             Err(p) => core::refused(Source::Linear, linear, jira, p),
+        }
+    }
+
+    async fn tool(&self, call: &Call, c: &str, tool: &str, args: serde_json::Value) -> std::result::Result<serde_json::Value, String> {
+        match &self.deps.tools {
+            Some(t) => t.call(call, c, tool, args).await,
+            None => Err("no connectors here".into()),
+        }
+    }
+
+    /// Linear through its server's `list_issues`: yours, else (a team that doesn't assign) the workspace's open ones.
+    async fn linear_tools(&self, call: &Call, c: &str, q: &str, jira: bool) -> IssueList {
+        let (mut got, mut scope) = (Vec::new(), "mine");
+        for who in [Some("me"), None] {
+            scope = if who.is_some() { "mine" } else { "all" };
+            match self.tool(call, c, "list_issues", core::mcp::linear_args(who, q)).await {
+                Ok(r) => got = core::mcp::linear_list(&r),
+                Err(e) => return core::refused(Source::Linear, true, jira, core::mcp::mcp_problem(Source::Linear, &e)),
+            }
+            if !got.is_empty() {
+                break;
+            }
+        }
+        IssueList { source: Source::Linear, issues: got, linear: true, jira, scope: Some(scope.into()), ..IssueList::default() }
+    }
+
+    /// Jira through Atlassian's server: the first site with Jira, then a JQL search there.
+    async fn jira_tools(&self, call: &Call, c: &str, q: &str, linear: bool) -> IssueList {
+        let fail = |e: &str| core::refused(Source::Jira, linear, true, core::mcp::mcp_problem(Source::Jira, e));
+        let sites = match self.tool(call, c, "getAccessibleAtlassianResources", serde_json::json!({})).await {
+            Ok(r) => r,
+            Err(e) => return fail(&e),
+        };
+        let Some((cloud, url)) = core::mcp::jira_site(&sites) else {
+            return core::refused(Source::Jira, linear, true, Problem { error: core::mcp::NO_JIRA_SITE.into(), fix: None });
+        };
+        match self.tool(call, c, "searchJiraIssuesUsingJql", core::mcp::jira_args(&cloud, q)).await {
+            Ok(r) => IssueList { source: Source::Jira, issues: core::mcp::jira_list(&url, &r), linear, jira: true, ..IssueList::default() },
+            Err(e) => fail(&e),
         }
     }
 

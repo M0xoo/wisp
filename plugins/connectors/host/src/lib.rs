@@ -1,6 +1,7 @@
 //! wisp.connectors: the MCP servers agents get. `kinds`: the `connector` resource kind and what runs get
 //! (`runtime.run@1`); `pane`: Settings → Connectors' commands, rows and the sign-in callback.
 
+mod call;
 mod kinds;
 mod pane;
 
@@ -16,6 +17,7 @@ impl Plugin for ConnectorsPlugin {
 
     fn setup(&self, s: &mut Setup) -> Result<()> {
         let (stored, kind) = crate::kinds::register(s);
+        crate::call::register(s, stored.clone());
         crate::pane::register(s, stored, kind);
         Ok(())
     }

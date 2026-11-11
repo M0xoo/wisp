@@ -271,6 +271,31 @@ command!(
     AgentSignin, "connectors.agent.signin", "connectors:agent.signin", true, AgentSigninArgs, AgentSigninOut
 );
 
+/// `connectors.call`: one tool of a remote (HTTP) connector, called by wisp itself with the connector's own
+/// sign-in or headers (v1 connectors.js `mcpCall`; the issue picker lists Linear and Jira through them).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "connectors/")]
+pub struct CallArgs {
+    pub id: String,
+    pub tool: String,
+    #[serde(default)]
+    #[ts(type = "Record<string, unknown>")]
+    pub args: Value,
+}
+
+/// The tool's result as the server gave it (`content`, `structuredContent`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "connectors/")]
+pub struct CallOut {
+    #[ts(type = "unknown")]
+    pub result: Value,
+}
+
+command!(
+    /// A remote connector's tool, called by wisp (not an agent): its sign-in stays here.
+    Call, "connectors.call", "connectors:call", false, CallArgs, CallOut
+);
+
 // ---------- events ----------
 
 /// Settings should look again (v1 `broadcast('connectors')`).

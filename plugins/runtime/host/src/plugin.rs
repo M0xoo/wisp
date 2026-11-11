@@ -231,6 +231,8 @@ fn commands(s: &mut Setup, slot: &Slot) {
     let made_kinds = crate::kinds::register(s);
     let harness_kind = made_kinds.harness.clone();
     let project_kind = made_kinds.project.clone();
+    let issue_projects: Arc<dyn wisp_issues_api::Projects> = Arc::new(crate::kinds::IssueProjects(project_kind.clone()));
+    s.contribute(&wisp_issues_api::PROJECTS, issue_projects);
     let brief: Arc<dyn wisp_runtime_api::points::PromptPart> = Arc::new(crate::kinds::Brief);
     s.contribute(&wisp_runtime_api::points::PROMPT, brief);
     s.command::<c::Create, _, _>(move |_ctx, call, a| {

@@ -12,7 +12,7 @@ use wisp_git_api::GitServiceV1;
 use wisp_issues_api::{CONNECTORS, Connectors, Http, List, PROJECTS, Projects};
 use wisp_kernel::{BoxFuture, Call, Ctx, Manifest, Plugin, Result, Setup};
 
-pub use list::{Deps, FixedConnectors, Lister, Origin, why_of};
+pub use list::{Deps, FixedConnectors, Lister, Origin, Tools, why_of};
 
 #[derive(Debug, Default)]
 pub struct IssuesPlugin;
@@ -88,6 +88,28 @@ impl Connectors for AllConnectors {
     }
 }
 
+/// A connector's tool through wisp.connectors (`connectors.call`), as this plugin's caller.
+struct ConnectorTools(Ctx);
+impl Tools for ConnectorTools {
+    fn call(&self, call: &Call, connector: &str, tool: &str, args: serde_json::Value) -> BoxFuture<'static, std::result::Result<serde_json::Value, String>> {
+        let (ctx, call, a) = (self.0.clone(), call.clone(), serde_json::json!({ "id": connector, "tool": tool, "args": args }));
+        Box::pin(async move { ctx.run_json(&call, "connectors.call", a).await.map(|o| o.get("result").cloned().unwrap_or_default()).map_err(|e| e.message) })
+    }
+}
+
+/// The kernel's net service as the lister's HTTP client (Linear's and Jira's APIs with a key).
+struct NetHttp(Ctx);
+impl Http for NetHttp {
+    fn send(&self, req: wisp_issues_api::HttpRequest) -> BoxFuture<'static, std::result::Result<wisp_issues_api::HttpResponse, String>> {
+        let ctx = self.0.clone();
+        Box::pin(async move {
+            let n = wisp_kernel::services::net(&ctx).map_err(|e| e.message)?;
+            let r = n.fetch(wisp_kernel::services::NetRequest { method: req.method, url: req.url, headers: req.headers, body: req.body.unwrap_or_default(), timeout_ms: req.timeout_ms }).await.map_err(|e| e.message)?;
+            Ok(wisp_issues_api::HttpResponse { status: r.status, status_text: String::new(), body: r.body })
+        })
+    }
+}
+
 fn deps(ctx: &Ctx) -> Result<Deps> {
     let proc = ctx.service::<wisp_proc::Proc>()?;
     let clock = ctx.clock().ok();
@@ -95,7 +117,8 @@ fn deps(ctx: &Ctx) -> Result<Deps> {
         proc: (*proc).clone(),
         gh: std::env::var("WISP_GH_BIN").unwrap_or_else(|_| "gh".into()),
         origin: Arc::new(GitOrigin(ctx.clone())),
-        http: ctx.service::<Arc<dyn Http>>().ok().map(|h| (*h).clone()),
+        http: Some(ctx.service::<Arc<dyn Http>>().ok().map_or_else(|| Arc::new(NetHttp(ctx.clone())) as Arc<dyn Http>, |h| (*h).clone())),
+        tools: Some(Arc::new(ConnectorTools(ctx.clone()))),
         projects: Some(Arc::new(FirstProjects(ctx.clone()))),
         connectors: Some(Arc::new(AllConnectors(ctx.clone()))),
         linear_api: std::env::var("WISP_LINEAR_API")

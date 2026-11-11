@@ -5,4 +5,8 @@ import type { Source } from "./Source";
 /**
  * The picker's answer. `linear`/`jira`: whether those sources are connected, for its switch.
  */
-export type IssueList = { source: Source, issues: Array<Issue>, linear: boolean, jira: boolean, repo?: string, error?: string, fix?: string, };
+export type IssueList = { source: Source, issues: Array<Issue>, linear: boolean, jira: boolean, repo?: string, error?: string, fix?: string, 
+/**
+ * Linear through its server: `mine`, or `all` (none assigned to you: the workspace's open ones). Additive.
+ */
+scope?: string, };

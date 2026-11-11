@@ -64,6 +64,10 @@
       {
         "id": "connectors.signout",
         "title": "Sign out of a connector"
+      },
+      {
+        "id": "connectors.call",
+        "title": "Call one tool of a remote connector, with its own sign-in (the issue picker lists Linear and Jira through them)"
       }
     ],
     "topics": [

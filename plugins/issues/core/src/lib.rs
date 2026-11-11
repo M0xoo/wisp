@@ -1,6 +1,7 @@
 //! wisp-issues-core: everything issues decides, without IO. The host gathers (gh's output, an origin
 //! URL, an HTTP answer, the clock) and these functions turn it into the picker's list.
 
+pub mod mcp;
 pub mod rows;
 pub mod sources;
 pub mod trigger;
@@ -102,14 +103,9 @@ pub fn precheck(source: Source, has_project: bool, linear: bool, jira: bool) -> 
         fix: Some(fix.into()),
     };
     let why = match source {
-        Source::Jira if !jira => p(
-            "Connect Jira (a Jira or Atlassian connector with its site, email and API token) to list the issues assigned to you.",
-            "jira",
-        ),
-        Source::Linear if !linear => p(
-            "Connect Linear with an API key to list the issues assigned to you.",
-            "linear",
-        ),
+        // v1 #766: a connector with a key, or one signed in with the browser
+        Source::Jira if !jira => p("Connect Jira to list the issues assigned to you: add Jira in Settings → Connectors and sign in.", "jira"),
+        Source::Linear if !linear => p("Connect Linear to list the issues assigned to you: add Linear in Settings → Connectors and sign in.", "linear"),
         Source::Github if !has_project => p("Pick a project to see its issues.", "project"),
         _ => return None,
     };
