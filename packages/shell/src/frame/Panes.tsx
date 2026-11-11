@@ -13,6 +13,7 @@ import type { ExtensionProps } from '../contract.ts';
 import { Area, Slot, useViewClient } from '../slot.tsx';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { FallbackList } from './FallbackList.tsx';
+import { backOf } from './rows-view.ts';
 import { PeerBanner } from './PeerBanner.tsx';
 import { HomeView } from './HomeView.tsx';
 
@@ -69,9 +70,14 @@ export function MainPane(props: { readonly onBack?: () => void }): JSX.Element {
           case 'home':
             return <Area input="shell.screen:home" fallback={<HomeView {...(now.layout === 'stack' && props.onBack && { onBack: props.onBack })} />} />;
           case 'task': {
+            // v1 #773: Back from a subagent's run opens its lead; anything else goes back through history
+            const goBack = (id: string, row: { parent_id?: string | null } | undefined): void => {
+              const lead = backOf(id, row);
+              shell.navigate(lead ? { t: 'openTask', id: lead as never } : { t: 'back' });
+            };
             const id = main.id;
             const session = useSession(() => id);
-            return <Area input="shell.screen:task" id={id} session={session} fallback={<TaskView id={id} {...(now.layout === 'stack' && props.onBack && { onBack: () => shell.navigate({ t: 'back' }) })} />} />;
+            return <Area input="shell.screen:task" id={id} session={session} fallback={<TaskView id={id} {...(now.layout === 'stack' && props.onBack && { onBack: () => goBack(id, session() as { parent_id?: string | null } | undefined) })} />} />;
           }
           case 'crew':
             return <Area input="shell.screen:crew" id={main.id} fallback={<EmptyState icon="crew" title={shell.t('shell.view.missing')} compact />} />;

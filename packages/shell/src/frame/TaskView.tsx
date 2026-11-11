@@ -46,7 +46,16 @@ interface EventRow {
   readonly seq: number;
   readonly turn_id: string;
   readonly kind?: string;
-  readonly body?: { readonly kind?: string; readonly tool?: string; readonly label?: string; readonly text?: string; readonly detail?: string; readonly output?: string; readonly callId?: string; readonly name?: string };
+  readonly body?: {
+    readonly kind?: string;
+    readonly tool?: string;
+    readonly label?: string;
+    readonly text?: string;
+    readonly detail?: string;
+    readonly output?: string;
+    readonly callId?: string;
+    readonly name?: string;
+  };
 }
 
 interface TurnRow {
@@ -76,10 +85,17 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   const allTurns = useSignal(shell.client.entities.list<TurnRow>('turn'));
   const allEvents = useSignal(shell.client.entities.list<EventRow>('event'));
   /** a turn's steps, oldest first: its tool calls and its messages */
-  const stepsOf = (turnId: string): EventRow[] => allEvents().filter((e) => e.turn_id === turnId).sort((a, b) => a.seq - b.seq);
+  const stepsOf = (turnId: string): EventRow[] =>
+    allEvents()
+      .filter((e) => e.turn_id === turnId)
+      .sort((a, b) => a.seq - b.seq);
   const sessions = useSignal(shell.client.entities.list<SessionRow>(SESSION));
   // a turn names its session by the bare id the server gave it, or by the key (an optimistic one)
-  const turns = createMemo(() => allTurns().filter((x) => x.session_id === key || x.session_id === bare).sort((a, b) => a.idx - b.idx));
+  const turns = createMemo(() =>
+    allTurns()
+      .filter((x) => x.session_id === key || x.session_id === bare)
+      .sort((a, b) => a.idx - b.idx),
+  );
   const [text, setText] = createSignal('');
   let input: HTMLTextAreaElement | undefined;
   queueMicrotask(() => shell.nav().layout === 'split' && input?.focus());
@@ -131,6 +147,17 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     }
     menu.reset();
     if (!v) return;
+    // a plugin's prompt source may take it (@a crew member: their job, their answer under this turn)
+    const pc = shell.client.plugin('shell');
+    if (
+      files().length === 0 &&
+      shell
+        .promptSources()()
+        .some((p) => (p.where ?? ['reply']).includes('reply') && p.send?.(v, { client: pc, task: key }) === true)
+    ) {
+      setText('');
+      return;
+    }
     setText('');
     const g = goal();
     if (g) void run(setGoal, { id: key, text: g }).catch(() => undefined);
@@ -140,7 +167,9 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     const idx = turns().length;
     // the box clears at once; with files, the turn starts once they're up (usually already)
     const go = (attachments: readonly Attachment[]): void => {
-      run(followUp, { id: key, text: v, turnId, idx, at, ...(attachments.length > 0 && { attachments }), ...(runOf() ? { run: runOf() as NonNullable<ReturnType<typeof runOf>> } : {}) }).catch(() => setText(v));
+      run(followUp, { id: key, text: v, turnId, idx, at, ...(attachments.length > 0 && { attachments }), ...(runOf() ? { run: runOf() as NonNullable<ReturnType<typeof runOf>> } : {}) }).catch(() =>
+        setText(v),
+      );
     };
     if (files().length === 0) go([]);
     else void att.take().then(go);
@@ -183,7 +212,11 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
             kind: 'group' as const,
             id: 'lean',
             label: t('shell.task.lean'),
-            items: (['follow', 'on', 'off'] as const).map((v) => ({ value: `lean:${v}`, label: t(`shell.task.lean.${v}`), checked: ((row()?.body as { lean?: string } | undefined)?.lean ?? 'follow') === v })),
+            items: (['follow', 'on', 'off'] as const).map((v) => ({
+              value: `lean:${v}`,
+              label: t(`shell.task.lean.${v}`),
+              checked: ((row()?.body as { lean?: string } | undefined)?.lean ?? 'follow') === v,
+            })),
           },
         ]
       : []),
@@ -200,8 +233,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     else if (v.startsWith('lean:')) {
       const lean = v.slice(5);
       void run(setLean, { id: key, ...(lean !== 'follow' && { lean: lean as 'on' | 'off' }) }).catch(() => undefined);
-    }
-    else if (v === 'copy') void shell.platform.copy(location.href).then((ok) => shell.toast.show(t(ok ? 'shell.task.copied' : 'shell.task.copyFailed')));
+    } else if (v === 'copy') void shell.platform.copy(location.href).then((ok) => shell.toast.show(t(ok ? 'shell.task.copied' : 'shell.task.copyFailed')));
     else if (v === 'archive') {
       void run(archive, { id: key, archived: true }).catch(() => undefined);
       shell.navigate({ t: 'archive', id: key as never });
@@ -212,8 +244,24 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   };
   const actions = (s: SessionRow): TaskAction[] => [
     { id: 'transcript', deskOnly: true, key: 'V', icon: 'transcript', label: t('shell.task.transcript'), title: t('shell.task.transcriptTitle'), act: { onClick: () => setStepsOpen(!stepsOpen()) } },
-    { id: 'rerun', deskOnly: true, key: '⇧R', icon: 'rerun', label: t('shell.task.rerun'), title: t('shell.task.rerunTitle'), act: { menu: { items: agentMenu(t, harnesses(), s.agent, false), onSelect: (a) => copy(rerun, a) } } },
-    { id: 'openIn', deskOnly: true, key: 'T', icon: 'terminal', label: t('shell.task.openIn', { harness: harnessOf(harnesses(), s.agent).name }), title: t('shell.task.openInTitle', { harness: harnessOf(harnesses(), s.agent).name }), act: { onClick: () => side('shell') } },
+    {
+      id: 'rerun',
+      deskOnly: true,
+      key: '⇧R',
+      icon: 'rerun',
+      label: t('shell.task.rerun'),
+      title: t('shell.task.rerunTitle'),
+      act: { menu: { items: agentMenu(t, harnesses(), s.agent, false), onSelect: (a) => copy(rerun, a) } },
+    },
+    {
+      id: 'openIn',
+      deskOnly: true,
+      key: 'T',
+      icon: 'terminal',
+      label: t('shell.task.openIn', { harness: harnessOf(harnesses(), s.agent).name }),
+      title: t('shell.task.openInTitle', { harness: harnessOf(harnesses(), s.agent).name }),
+      act: { onClick: () => side('shell') },
+    },
     { id: 'changes', key: 'D', icon: 'file', label: t('shell.task.changes'), title: t('shell.task.changesTitle'), part: 'split.changes', act: { onClick: () => side('changes') } },
     { id: 'shell', key: '⌃`', icon: 'shell', label: t('shell.task.shell'), title: t('shell.task.shellTitle'), part: 'split.shell', act: { onClick: () => side('shell') } },
     { id: 'ship', key: 'S', icon: 'send', label: t('shell.task.ship'), title: t('shell.task.shipTitle'), act: { onClick: ship } },
@@ -285,84 +333,127 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
               }
               turns={
                 <>
-                {/* the band over the turns (wisp.goal's): `shell.task:band`, the task's row as its session */}
-                <Slot input="shell.task:band" layout="stack" id={key} session={() => s() as never} />
-                <Show when={fold().hidden > 0}>
-                  <Button size="sm" variant="ghost" icon="chevron" part="turn.fold" onClick={() => setUnfolded(true)}>
-                    {t('shell.task.earlier', { n: fold().hidden })}
-                  </Button>
-                </Show>
-                <For each={fold().shown}>
-                  {(turn) => {
-                    const b = turn.body;
-                    const hero = b.presentation?.blocks?.find((x) => x.type === 'hero');
-                    // the steps come as the turn's events (the task's topic); a turn row that carries its own still reads
-                    const steps = createMemo((): { kind: string; label?: string; detail?: string; out?: string; bad?: boolean }[] => {
-                      const all = stepsOf(turn.id);
-                      const kindOf = (e: EventRow): string => e.kind ?? e.body?.kind ?? '';
-                      // a tool's output: on the step itself, or the tool_output that names its call
-                      const outputs = new Map(all.filter((e) => kindOf(e) === 'tool_output' && e.body?.callId).map((e) => [e.body?.callId ?? '', e.body?.text ?? '']));
-                      const ev = all.filter((e) => kindOf(e) === 'tool' || kindOf(e) === 'tool_error');
-                      if (!ev.length) return [...(b.activity ?? [])];
-                      return ev.map((e) =>
-                        kindOf(e) === 'tool_error'
-                          ? { kind: 'error', label: e.body?.text ?? e.body?.name ?? '', bad: true }
-                          : { kind: e.body?.tool ?? 'tool', label: e.body?.label ?? '', ...(e.body?.detail && { detail: e.body.detail }), ...((e.body?.output ?? outputs.get(e.body?.callId ?? '')) && { out: e.body?.output ?? outputs.get(e.body?.callId ?? '') ?? '' }) },
-                      );
-                    });
-                    const cwd = String((s() as { body?: { cwd?: string } }).body?.cwd ?? s().summary['cwd'] ?? '');
-                    const here = (text: string): string => (cwd ? text.replace(new RegExp(`(/private)?${cwd.replace(/^\/private/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?`, 'g'), '') : text);
-                    const count = (k: string): number => steps().filter((a) => a.kind === k).length;
-                    const blocks = b.presentation?.blocks ?? [];
-                    const changes = b.ext?.['wisp.runtime']?.changes ?? b.changes ?? [];
-                    const figures = changeFigures(changes);
-                    const tokens = (b.stats?.inputTokens ?? 0) + (b.stats?.outputTokens ?? 0);
-                    return (
-                      <>
-                      <TurnView
-                        prompt={turn.prompt}
-                        harness={h().name}
-                        {...(h().logo && { logo: h().logo })}
-                        time={clock(turn.started_at)}
-                        timeTitle={longTime(turn.started_at)}
-                        {...(b.checkpoint?.commit && { sha: { short: b.checkpoint.commit.slice(0, 7), title: t('shell.task.checkpoint', { branch: b.checkpoint.branch ?? '', sha: b.checkpoint.commit }) } })}
-                        {...(hero?.title && { hero: { title: hero.title, summary: hero.summary ?? '' } })}
-                        {...(blocks.length > 0 && { answer: <Answer blocks={blocks} ctx={answerContext({ shell, key, turnId: turn.id, latest: () => turn.id === turns().at(-1)?.id, reply, draft, openChanges: () => side('changes'), apps: () => ((b as { ext?: Record<string, unknown> }).ext?.['wisp.apps'] ?? {}) as Record<string, unknown> })} /> })}
-                        {...(turn.status === 'running' && { live: s().summary.live || t('shell.task.starting') })}
-                        actsTitle={t('shell.task.activity')}
-                        acts={[
-                          { icon: 'read', text: String(count('read')), title: t('shell.task.read', { n: count('read') }) },
-                          { icon: 'pen', text: String(count('edit')), title: t('shell.task.edited', { n: count('edit') }) },
-                          { icon: 'terminal', text: String(count('run')), title: t('shell.task.ran', { n: count('run') }) },
-                        ]}
-                        stats={[{ text: duration((b.endedAt ?? (turn.status === 'running' ? Date.now() : turn.started_at)) - turn.started_at) }, ...(b.stats?.costUsd !== undefined ? [{ text: `$${b.stats.costUsd.toFixed(2)}` }] : [])]}
-                        receipt={{ text: t('shell.task.tokens', { n: tokens }), title: t('shell.task.tokensTitle', { n: tokens }) }}
-                        {...(changes.length > 0 && { files: { label: t('shell.task.files', { n: figures.files }), plus: `+${figures.plus}`, minus: `−${figures.minus}`, act: { onClick: () => side('changes') } } })}
-                        activity={{ open: stepsOpen(), onToggle: () => setStepsOpen(!stepsOpen()), items: steps().map((a) => ({ icon: ACT_ICON[a.kind] ?? 'tool', text: here(a.label ?? a.kind), ...(a.detail && { detail: here(a.detail) }), ...(a.out && { out: here(a.out) }), ...(a.bad && { bad: true }) })) }}
-                        {...(notesOpen() && { notes: String((b as { presentation?: { notes?: string } }).presentation?.notes ?? t('shell.task.noNotes')) })}
-                        tools={[
-                          { id: 'notes', icon: 'text', label: t('shell.task.notes'), on: notesOpen(), act: { onClick: () => setNotesOpen(!notesOpen()) } },
-                          {
-                            id: 'rollback',
-                            icon: 'replay',
-                            label: t('shell.task.rollback'),
-                            act: {
-                              pending: restoring(),
-                              onClick: () => {
-                                setRestoring(true);
-                                run(restore, { id: key, turn: turn.id }).then(() => shell.toast.success(t('shell.task.restored')), () => undefined).finally(() => setRestoring(false));
+                  {/* the band over the turns (wisp.goal's): `shell.task:band`, the task's row as its session */}
+                  <Slot input="shell.task:band" layout="stack" id={key} session={() => s() as never} />
+                  <Show when={fold().hidden > 0}>
+                    <Button size="sm" variant="ghost" icon="chevron" part="turn.fold" onClick={() => setUnfolded(true)}>
+                      {t('shell.task.earlier', { n: fold().hidden })}
+                    </Button>
+                  </Show>
+                  <For each={fold().shown}>
+                    {(turn) => {
+                      const b = turn.body;
+                      const hero = b.presentation?.blocks?.find((x) => x.type === 'hero');
+                      // the steps come as the turn's events (the task's topic); a turn row that carries its own still reads
+                      const steps = createMemo((): { kind: string; label?: string; detail?: string; out?: string; bad?: boolean }[] => {
+                        const all = stepsOf(turn.id);
+                        const kindOf = (e: EventRow): string => e.kind ?? e.body?.kind ?? '';
+                        // a tool's output: on the step itself, or the tool_output that names its call
+                        const outputs = new Map(all.filter((e) => kindOf(e) === 'tool_output' && e.body?.callId).map((e) => [e.body?.callId ?? '', e.body?.text ?? '']));
+                        const ev = all.filter((e) => kindOf(e) === 'tool' || kindOf(e) === 'tool_error');
+                        if (!ev.length) return [...(b.activity ?? [])];
+                        return ev.map((e) =>
+                          kindOf(e) === 'tool_error'
+                            ? { kind: 'error', label: e.body?.text ?? e.body?.name ?? '', bad: true }
+                            : {
+                                kind: e.body?.tool ?? 'tool',
+                                label: e.body?.label ?? '',
+                                ...(e.body?.detail && { detail: e.body.detail }),
+                                ...((e.body?.output ?? outputs.get(e.body?.callId ?? '')) && { out: e.body?.output ?? outputs.get(e.body?.callId ?? '') ?? '' }),
                               },
-                            },
-                          },
-                          { id: 'fork', icon: 'fork', label: t('shell.task.fork'), part: 'turn.fork', act: { onClick: () => copy(fork) } },
-                        ]}
-                      />
-                      {/* under each turn, what plugins say of it (shell-task's cards: why it stopped, held, what changed, the receipt): `shell.turn:foot`, the turn's key as its id */}
-                      <Slot input="shell.turn:foot" layout="stack" id={entityKey(peer, turn.id)} session={() => s() as never} />
-                      </>
-                    );
-                  }}
-                </For>
+                        );
+                      });
+                      const cwd = String((s() as { body?: { cwd?: string } }).body?.cwd ?? s().summary['cwd'] ?? '');
+                      const here = (text: string): string => (cwd ? text.replace(new RegExp(`(/private)?${cwd.replace(/^\/private/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?`, 'g'), '') : text);
+                      const count = (k: string): number => steps().filter((a) => a.kind === k).length;
+                      const blocks = b.presentation?.blocks ?? [];
+                      const changes = b.ext?.['wisp.runtime']?.changes ?? b.changes ?? [];
+                      const figures = changeFigures(changes);
+                      const tokens = (b.stats?.inputTokens ?? 0) + (b.stats?.outputTokens ?? 0);
+                      return (
+                        <>
+                          <TurnView
+                            prompt={turn.prompt}
+                            harness={h().name}
+                            {...(h().logo && { logo: h().logo })}
+                            time={clock(turn.started_at)}
+                            timeTitle={longTime(turn.started_at)}
+                            {...(b.checkpoint?.commit && {
+                              sha: { short: b.checkpoint.commit.slice(0, 7), title: t('shell.task.checkpoint', { branch: b.checkpoint.branch ?? '', sha: b.checkpoint.commit }) },
+                            })}
+                            {...(hero?.title && { hero: { title: hero.title, summary: hero.summary ?? '' } })}
+                            {...(blocks.length > 0 && {
+                              answer: (
+                                <Answer
+                                  blocks={blocks}
+                                  ctx={answerContext({
+                                    shell,
+                                    key,
+                                    turnId: turn.id,
+                                    latest: () => turn.id === turns().at(-1)?.id,
+                                    reply,
+                                    draft,
+                                    openChanges: () => side('changes'),
+                                    apps: () => ((b as { ext?: Record<string, unknown> }).ext?.['wisp.apps'] ?? {}) as Record<string, unknown>,
+                                  })}
+                                />
+                              ),
+                            })}
+                            {...(turn.status === 'running' && { live: s().summary.live || t('shell.task.starting') })}
+                            actsTitle={t('shell.task.activity')}
+                            acts={[
+                              { icon: 'read', text: String(count('read')), title: t('shell.task.read', { n: count('read') }) },
+                              { icon: 'pen', text: String(count('edit')), title: t('shell.task.edited', { n: count('edit') }) },
+                              { icon: 'terminal', text: String(count('run')), title: t('shell.task.ran', { n: count('run') }) },
+                            ]}
+                            stats={[
+                              { text: duration((b.endedAt ?? (turn.status === 'running' ? Date.now() : turn.started_at)) - turn.started_at) },
+                              ...(b.stats?.costUsd !== undefined ? [{ text: `$${b.stats.costUsd.toFixed(2)}` }] : []),
+                            ]}
+                            receipt={{ text: t('shell.task.tokens', { n: tokens }), title: t('shell.task.tokensTitle', { n: tokens }) }}
+                            {...(changes.length > 0 && {
+                              files: { label: t('shell.task.files', { n: figures.files }), plus: `+${figures.plus}`, minus: `−${figures.minus}`, act: { onClick: () => side('changes') } },
+                            })}
+                            activity={{
+                              open: stepsOpen(),
+                              onToggle: () => setStepsOpen(!stepsOpen()),
+                              items: steps().map((a) => ({
+                                icon: ACT_ICON[a.kind] ?? 'tool',
+                                text: here(a.label ?? a.kind),
+                                ...(a.detail && { detail: here(a.detail) }),
+                                ...(a.out && { out: here(a.out) }),
+                                ...(a.bad && { bad: true }),
+                              })),
+                            }}
+                            {...(notesOpen() && { notes: String((b as { presentation?: { notes?: string } }).presentation?.notes ?? t('shell.task.noNotes')) })}
+                            tools={[
+                              { id: 'notes', icon: 'text', label: t('shell.task.notes'), on: notesOpen(), act: { onClick: () => setNotesOpen(!notesOpen()) } },
+                              {
+                                id: 'rollback',
+                                icon: 'replay',
+                                label: t('shell.task.rollback'),
+                                act: {
+                                  pending: restoring(),
+                                  onClick: () => {
+                                    setRestoring(true);
+                                    run(restore, { id: key, turn: turn.id })
+                                      .then(
+                                        () => shell.toast.success(t('shell.task.restored')),
+                                        () => undefined,
+                                      )
+                                      .finally(() => setRestoring(false));
+                                  },
+                                },
+                              },
+                              { id: 'fork', icon: 'fork', label: t('shell.task.fork'), part: 'turn.fork', act: { onClick: () => copy(fork) } },
+                            ]}
+                          />
+                          {/* under each turn, what plugins say of it (shell-task's cards: why it stopped, held, what changed, the receipt): `shell.turn:foot`, the turn's key as its id */}
+                          <Slot input="shell.turn:foot" layout="stack" id={entityKey(peer, turn.id)} session={() => s() as never} />
+                        </>
+                      );
+                    }}
+                  </For>
                 </>
               }
               dock={
@@ -377,7 +468,14 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                         open={t('shell.overlap.open')}
                         openTitle={t('shell.overlap.openTitle')}
                         onOpen={() => shell.navigate({ t: 'openTask', id: o().id as never })}
-                        moreAct={{ menu: { items: ov().slice(1).map((x) => ({ value: x.id, label: titleOf(x.id), hint: overlapLine(x, t) })), onSelect: (id) => shell.navigate({ t: 'openTask', id: id as never }) } }}
+                        moreAct={{
+                          menu: {
+                            items: ov()
+                              .slice(1)
+                              .map((x) => ({ value: x.id, label: titleOf(x.id), hint: overlapLine(x, t) })),
+                            onSelect: (id) => shell.navigate({ t: 'openTask', id: id as never }),
+                          },
+                        }}
                       />
                     )}
                   </Show>
@@ -397,21 +495,64 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                     inputRef={(el) => (input = el)}
                     attach={t('shell.home.attach')}
                     attachAct={{ onClick: attach, pending: picking() }}
-                    mode={{ label: t(`shell.mode.${mode()}`), title: t('shell.home.fullAutoTitle'), icon: MODE_ICON[mode()], act: { menu: { items: modeMenu(t, mode()), onSelect: (m) => void run(setMode, { id: key, mode: m }).catch(() => undefined) } } }}
-                    runner={{ title: t('shell.task.runner', { name: [h().name, replyRun()?.model ?? '', replyRun()?.effort ?? ''].filter(Boolean).join(' · ') }), ...(h().logo && { logo: h().logo }), act: { onClick: () => setPickingRunner(true) } }}
+                    mode={{
+                      label: t(`shell.mode.${mode()}`),
+                      title: t('shell.home.fullAutoTitle'),
+                      icon: MODE_ICON[mode()],
+                      act: { menu: { items: modeMenu(t, mode()), onSelect: (m) => void run(setMode, { id: key, mode: m }).catch(() => undefined) } },
+                    }}
+                    runner={{
+                      title: t('shell.task.runner', { name: [h().name, replyRun()?.model ?? '', replyRun()?.effort ?? ''].filter(Boolean).join(' · ') }),
+                      ...(h().logo && { logo: h().logo }),
+                      act: { onClick: () => setPickingRunner(true) },
+                    }}
                     team={t('shell.home.delegateTitle')}
-                    teamAct={{ menu: { items: teamMenu(t, harnesses(), team()), onSelect: (v) => { const next = new Set(team()); if (next.has(v)) next.delete(v); else next.add(v); setTeam(next); } } }}
+                    teamAct={{
+                      menu: {
+                        items: teamMenu(t, harnesses(), team()),
+                        onSelect: (v) => {
+                          const next = new Set(team());
+                          if (next.has(v)) next.delete(v);
+                          else next.add(v);
+                          setTeam(next);
+                        },
+                      },
+                    }}
                     goal={t('shell.task.goal')}
                     goalOn={goal() !== undefined}
                     goalAct={{ onClick: () => setGoalText(goal() === undefined ? '' : undefined) }}
-                    {...(goal() !== undefined && { goalLine: { label: t('shell.home.goal'), placeholder: t('shell.home.goalPlaceholder'), value: goal() ?? '', onInput: setGoalText, ref: (el: HTMLInputElement) => (goalInput = el) } })}
+                    {...(goal() !== undefined && {
+                      goalLine: {
+                        label: t('shell.home.goal'),
+                        placeholder: t('shell.home.goalPlaceholder'),
+                        value: goal() ?? '',
+                        onInput: setGoalText,
+                        ref: (el: HTMLInputElement) => (goalInput = el),
+                      },
+                    })}
                     later={t('shell.home.later')}
                     laterAct={{ menu: { items: whenMenu(t), onSelect: (w) => setWhen(w as When) } }}
                     send={t('shell.home.send')}
                     hint={hint()}
                     extras={[
-                      ...files().map((f, i) => ({ id: `file:${i}:${f.name}`, icon: 'clip' as const, label: f.name, removeLabel: t('shell.home.remove', { name: f.name }), onRemove: () => att.remove(f) })),
-                      ...(when() ? [{ id: 'when', icon: 'clock' as const, label: t('shell.when.chip', { when: t(`shell.when.${when()}`) }), removeLabel: t('shell.when.clear'), onRemove: () => setWhen(undefined) }] : []),
+                      ...files().map((f, i) => ({
+                        id: `file:${i}:${f.name}`,
+                        icon: 'clip' as const,
+                        label: f.name,
+                        removeLabel: t('shell.home.remove', { name: f.name }),
+                        onRemove: () => att.remove(f),
+                      })),
+                      ...(when()
+                        ? [
+                            {
+                              id: 'when',
+                              icon: 'clock' as const,
+                              label: t('shell.when.chip', { when: t(`shell.when.${when()}`) }),
+                              removeLabel: t('shell.when.clear'),
+                              onRemove: () => setWhen(undefined),
+                            },
+                          ]
+                        : []),
                     ]}
                   />
                   <RunnerPicker

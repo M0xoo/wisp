@@ -12,6 +12,7 @@ import { MainPane, SidePane } from './Panes.tsx';
 import { Overlays } from './Overlays.tsx';
 import { Head, Rail, SidebarList } from './Sidebar.tsx';
 import { crewTint, type TintMember } from './crew-tint.ts';
+import { flatRow } from './rows-view.ts';
 
 const Switcher = lazy(() => import('../switcher/Switcher.tsx'));
 
@@ -32,7 +33,7 @@ export function App(props: { readonly clients: Clients; readonly recent: Readabl
   const settings = useSignal(shell.client.entities.list<{ key: string; value: unknown }>('setting'));
   const tint = createMemo(() => {
     const n = nav().main;
-    const picked = n.kind === 'crew' ? crew().find((m) => m.id === n.id) : undefined;
+    const picked = n.kind === 'crew' ? crew().map((r) => flatRow<TintMember>(r)).find((m) => m.id === n.id) : undefined;
     return crewTint(picked, settings().find((r) => r.key === 'crew.tint')?.value);
   });
   const onNew = (): void => {

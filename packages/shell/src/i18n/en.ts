@@ -184,8 +184,6 @@ export const SHELL_STRINGS = {
   'shell.home.compare': 'Compare: run the same task on another harness, side by side',
   'shell.home.attach': 'Attach files',
   'shell.home.where': 'Runs on this computer. Add a machine to run on other computers too.',
-  'shell.home.tryTwo': 'Try it two ways',
-  'shell.home.tryTwoTitle': 'Pick a harness first',
   'shell.home.delegate': 'Delegate',
   'shell.home.delegateTitle': 'Delegate: agents the lead can hand parts of the task to, on other harnesses or other machines',
   'shell.home.goal': 'Goal',

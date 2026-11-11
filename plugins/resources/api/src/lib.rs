@@ -309,3 +309,38 @@ command!(Apply = "resources.apply" ["resources:apply"] : PlanArgs => Applied);
 command!(Export = "resources.export" ["resources:read"] read yes : ExportArgs => Vec<Resource>);
 command!(Rename = "resources.rename" ["resources:apply"] : RenameArgs => Value);
 command!(Refresh = "resources.refresh" ["resources:apply"] : RefreshArgs => Vec<String>);
+
+/// `resources.read`: a formula pasted into the app's Import (YAML, JSON or TOML), as the resources it declares and
+/// the secrets it references; nothing changes. Additive (2026-11-11).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReadArgs {
+    pub text: String,
+    /// `yaml` (the default), `json` or `toml`
+    #[serde(default)]
+    pub format: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct ReadOut {
+    pub resources: Vec<Resource>,
+    pub secrets: Vec<String>,
+}
+
+/// `resources.write`: the setup (or some kinds of it) as a formula's text, as `wisp export` writes it, for the
+/// app's Share setup. Additive (2026-11-11).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WriteArgs {
+    #[serde(default)]
+    pub kinds: Vec<String>,
+    #[serde(default)]
+    pub format: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WriteOut {
+    pub text: String,
+    pub count: u32,
+}
+
+command!(Read = "resources.read" ["resources:read"] read yes : ReadArgs => ReadOut);
+command!(Write = "resources.write" ["resources:read"] read yes : WriteArgs => WriteOut);

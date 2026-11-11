@@ -234,6 +234,29 @@ pub fn load(root: &str, src: &mut dyn Source, kinds: &[KindInfo], profiles: &[St
     Ok(out)
 }
 
+/// A formula pasted as text (the app's Import, ADR-0034): read like a file, but `include:` can't be followed
+/// (there's nowhere to read it from) and `${env:…}` has no environment to fill from.
+pub fn read_text(text: &str, format: Format, kinds: &[KindInfo]) -> Result<Loaded, String> {
+    struct Pasted<'a>(&'a str);
+    impl Source for Pasted<'_> {
+        fn load(&mut self, reference: &str, from: Option<&str>) -> Result<(String, String), String> {
+            match from {
+                None => Ok((self.0.to_owned(), reference.to_owned())),
+                Some(_) => Err(format!("it includes {reference}, which pasted text can't reach: import the file or its URL instead")),
+            }
+        }
+        fn env(&self, _name: &str) -> Option<String> {
+            None
+        }
+    }
+    let root = match format {
+        Format::Json => "pasted.json",
+        Format::Toml => "pasted.toml",
+        Format::Yaml => "pasted.yml",
+    };
+    load(root, &mut Pasted(text), kinds, &[])
+}
+
 /// A formula from somewhere else: a URL or a gist anywhere in its includes.
 pub fn foreign(sources: &[String]) -> bool {
     sources.iter().any(|s| s.starts_with("http://") || s.starts_with("https://") || s.starts_with("gist:"))
@@ -305,5 +328,23 @@ mod tests {
         assert!(err("wisp: 1\ninclude: x.yml\n").contains("includes itself"));
         assert!(foreign(&["wisp.yml".into(), "https://x.dev/team.yml".into()]));
         assert!(!foreign(&["wisp.yml".into()]));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod read_text_tests {
+    use super::*;
+
+    #[test]
+    fn a_pasted_formula_reads_as_its_resources_and_refuses_an_include() {
+        let kinds = vec![KindInfo::new("crew", "crew", "wisp.crew", serde_json::json!({})).map_form()];
+        let got = read_text("wisp: 1\ncrew:\n  ada:\n    role: reviews PRs\n    brief: ${secret:linear}\n", Format::Yaml, &kinds).unwrap();
+        assert_eq!(got.resources.iter().map(|r| (r.kind.as_str(), r.name.as_str())).collect::<Vec<_>>(), [("crew", "ada")]);
+        assert_eq!(got.secrets, ["linear"]);
+        let e = read_text("wisp: 1\ninclude: base.yml\n", Format::Yaml, &kinds).unwrap_err();
+        assert!(e.contains("pasted text can't reach"), "{e}");
+        assert!(read_text("not: a formula", Format::Yaml, &kinds).unwrap_err().contains("not a wisp formula"));
+        assert_eq!(read_text("{\"wisp\": 1}", Format::Json, &kinds).unwrap().resources.len(), 0);
     }
 }

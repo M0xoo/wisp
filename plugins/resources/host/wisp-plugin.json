@@ -40,6 +40,16 @@
         "readOnly": true
       },
       {
+        "id": "resources.read",
+        "title": "Read a pasted formula: the resources it declares and the secrets it needs",
+        "readOnly": true
+      },
+      {
+        "id": "resources.write",
+        "title": "The setup as a formula's text (Share setup)",
+        "readOnly": true
+      },
+      {
         "id": "resources.rename",
         "title": "Rename a resource in place (wisp mv)"
       },

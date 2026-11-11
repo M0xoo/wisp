@@ -13,7 +13,7 @@ import { useNow } from '../clock.ts';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { rowSlots, useHeadSlots } from './slots.tsx';
 import { harnessOf } from './harness.ts';
-import { SECTIONS, crewOf, goalOf, longTime, overlapOf, sectionOf, shortAgo, statusOf, type SectionId } from './rows-view.ts';
+import { SECTIONS, crewOf, flatRow, goalOf, longTime, overlapOf, sectionOf, shortAgo, statusOf, type SectionId } from './rows-view.ts';
 
 
 interface ProjectRow {
@@ -39,7 +39,8 @@ function useSessions(): () => readonly SessionRow[] {
 export function Rail(): JSX.Element {
   const shell = useShell();
   const crew = useSignal(shell.client.entities.list<CrewRow>('crew_member'));
-  const members = createMemo<RailMember[]>(() => crew().map((c) => ({ id: c.id, name: c.name, avatar: c.avatar ?? '', color: c.color ?? 'violet' })));
+  // the crew host keeps a member in its row's body
+  const members = createMemo<RailMember[]>(() => crew().map((r) => flatRow<CrewRow>(r)).map((c) => ({ id: c.id, name: c.name, avatar: c.avatar ?? '', color: c.color ?? 'violet' })));
   const nav = useSignal(shell.nav);
   return (
     <CrewRail
@@ -52,7 +53,8 @@ export function Rail(): JSX.Element {
       onAll={() => shell.navigate({ t: 'home' })}
       onMember={(id) => shell.navigate({ t: 'openCrew', id: id as never })}
       onOrg={() => shell.navigate({ t: 'openView', id: 'crew.org' as never, params: null as Json })}
-      onAdd={() => shell.navigate({ t: 'openView', id: 'crew.new' as never, params: null as Json })}
+      // wisp.crew's editor (an overlay view; without that plugin, navigation drops it)
+      onAdd={() => shell.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'crew.editor' as never, params: {} } })}
     />
   );
 }

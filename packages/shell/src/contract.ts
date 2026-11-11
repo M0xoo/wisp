@@ -281,6 +281,12 @@ export interface PromptSourceDef {
   /** among sources for one trigger, lower first */
   order?: number;
   items(query: string, ctx: { client: PluginClient; task?: string }): readonly PromptItem[];
+  /**
+   * A reply this source takes instead of the task's agent (crew: a reply that starts with @a member is for them). Gets
+   * the stored text (mentions encoded); true: it was taken (and sent), the box clears and nothing goes to the agent.
+   * Additive (2026-11-11).
+   */
+  send?(text: string, ctx: { client: PluginClient; task: string }): boolean;
 }
 
 /** 'e', 'shift+r', 'mod+k' (⌘ on a Mac, Ctrl elsewhere), 'ctrl+`', 'escape', '?' */

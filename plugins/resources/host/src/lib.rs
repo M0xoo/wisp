@@ -19,7 +19,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use wisp_kernel::{Call, Ctx, Manifest, Plugin, Result, Setup, WireError};
-use wisp_resources_api::{Applied, Apply, Export, ExportArgs, KindInfo, Kinds, Op, OpKind, Plan, PlanArgs, PlanCmd, RESOURCE_KIND, Refresh, RefreshArgs, Rename, RenameArgs, Resource, ResourceKind, Scope};
+use wisp_resources_api::{Applied, Apply, Export, ExportArgs, Read, ReadOut, Write, WriteOut, KindInfo, Kinds, Op, OpKind, Plan, PlanArgs, PlanCmd, RESOURCE_KIND, Refresh, RefreshArgs, Rename, RenameArgs, Resource, ResourceKind, Scope};
 use wisp_resources_core::{formula, plan, schema};
 
 pub use wisp_resources_api::PLUGIN_ID;
@@ -248,6 +248,15 @@ async fn export(ctx: &Ctx, call: &Call, a: &ExportArgs) -> Result<Vec<Resource>>
     Ok(out)
 }
 
+/// `yaml` (or anything else), `json`, `toml`.
+fn format_named(f: &str) -> wisp_resources_core::formula::Format {
+    match f {
+        "json" => wisp_resources_core::formula::Format::Json,
+        "toml" => wisp_resources_core::formula::Format::Toml,
+        _ => wisp_resources_core::formula::Format::Yaml,
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct ResourcesPlugin;
 
@@ -267,6 +276,19 @@ impl Plugin for ResourcesPlugin {
         s.command::<Rename, _, _>(|ctx, call, a| async move { rename(&ctx, &call, &a).await });
         s.command::<Refresh, _, _>(|ctx, call, a| async move { refresh(&ctx, &call, &a).await });
         s.command::<Export, _, _>(|ctx, call, a| async move { export(&ctx, &call, &a).await });
+        // the app's Import and Share setup (ADR-0034): pasted text in, the setup out as text
+        s.command::<Read, _, _>(|ctx, _call, a| {
+            let ks: Vec<KindInfo> = kinds(&ctx).iter().map(|k| k.info()).collect();
+            async move {
+                let loaded = wisp_resources_core::formula::read_text(&a.text, format_named(&a.format), &ks).map_err(WireError::invalid)?;
+                Ok(ReadOut { resources: loaded.resources, secrets: loaded.secrets })
+            }
+        });
+        s.command::<Write, _, _>(|ctx, call, a| async move {
+            let ks: Vec<KindInfo> = kinds(&ctx).iter().map(|k| k.info()).collect();
+            let list = export(&ctx, &call, &ExportArgs { kinds: a.kinds.clone(), include: Vec::new() }).await?;
+            Ok(WriteOut { text: wisp_resources_core::export::write(&list, &ks, format_named(&a.format)), count: u32::try_from(list.len()).unwrap_or(u32::MAX) })
+        });
         Ok(())
     }
 }

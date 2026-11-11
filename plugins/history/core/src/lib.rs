@@ -156,3 +156,62 @@ mod tests {
         assert!(inject_text(&relevant(&all, "math.js", 5)).is_empty());
     }
 }
+
+/// A tracked task as the Repo tab's row (`history.list`).
+pub fn repo_task(d: &Doc) -> wisp_history_api::RepoTask {
+    let s = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
+    let n = |k: &str| u32::try_from(d.doc.get(k).and_then(Value::as_array).map_or(0, Vec::len)).unwrap_or(u32::MAX);
+    wisp_history_api::RepoTask {
+        id: d.id().to_owned(),
+        title: d.title().to_owned(),
+        agent: s(&d.doc["spec"], "agent"),
+        by: s(&d.doc, "trackedBy"),
+        created_at: d.doc.get("createdAt").and_then(Value::as_i64).unwrap_or(0),
+        pr: s(&d.doc, "pr"),
+        commits: n("commits"),
+        files: n("files"),
+        level: s(&d.doc, "level"),
+        path: d.path.clone(),
+    }
+}
+
+/// The Repo tab's rows: those matching the filters (a path prefix, an agent, words in the title or prompt), newest first.
+pub fn repo_list(all: &[Doc], path: Option<&str>, agent: Option<&str>, grep: Option<&str>) -> Vec<wisp_history_api::RepoTask> {
+    let want = |o: Option<&str>| o.map(str::trim).filter(|x| !x.is_empty()).map(str::to_owned);
+    let (path, agent, grep) = (want(path), want(agent), want(grep).map(|g| g.to_lowercase()));
+    let mut out: Vec<wisp_history_api::RepoTask> = all
+        .iter()
+        .filter(|d| path.as_deref().is_none_or(|p| d.files().iter().any(|f| f.starts_with(p.trim_end_matches('/')))))
+        .filter(|d| agent.as_deref().is_none_or(|a| d.doc.pointer("/spec/agent").and_then(Value::as_str) == Some(a)))
+        .filter(|d| {
+            grep.as_deref().is_none_or(|g| format!("{} {}", d.title(), d.doc.pointer("/spec/prompt").and_then(Value::as_str).unwrap_or_default()).to_lowercase().contains(g))
+        })
+        .map(repo_task)
+        .collect();
+    out.sort_by_key(|t| std::cmp::Reverse(t.created_at));
+    out
+}
+
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod repo_list_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn doc(id: &str, at: i64, agent: &str, prompt: &str, files: &[&str]) -> Doc {
+        Doc { path: format!(".wisp/tasks/{id}.task.yml"), doc: json!({ "id": id, "title": format!("task {id}"), "createdAt": at, "level": "report", "trackedBy": "ada", "spec": { "agent": agent, "prompt": prompt }, "commits": ["a1", "b2"], "pr": "#12", "files": files }) }
+    }
+
+    #[test]
+    fn the_repo_tab_lists_the_repos_tracked_tasks_newest_first_with_the_clis_filters() {
+        let all = [doc("t1", 10, "claude", "fix the login", &["auth/login.ts"]), doc("t2", 30, "codex", "add search", &["web/search.ts"]), doc("t3", 20, "claude", "rename auth", &["auth/a.ts", "web/b.ts"])];
+        let ids = |l: Vec<wisp_history_api::RepoTask>| l.into_iter().map(|t| t.id).collect::<Vec<_>>();
+        assert_eq!(ids(repo_list(&all, None, None, None)), ["t2", "t3", "t1"]);
+        assert_eq!(ids(repo_list(&all, Some("auth/"), None, None)), ["t3", "t1"]);
+        assert_eq!(ids(repo_list(&all, None, Some("claude"), Some("LOGIN"))), ["t1"]);
+        assert_eq!(ids(repo_list(&all, Some(" "), Some(""), None)).len(), 3, "an empty filter is none");
+        let row = repo_task(&all[0]);
+        assert_eq!((row.agent.as_str(), row.by.as_str(), row.commits, row.files, row.pr.as_str()), ("claude", "ada", 2, 1, "#12"));
+    }
+}

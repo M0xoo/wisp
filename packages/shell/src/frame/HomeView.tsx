@@ -200,7 +200,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           tool('where', 'launcher.where', 'laptop', t('shell.home.where'), t('shell.home.where'), { text: false, act: { menu: { items: [{ value: 'here', label: t('shell.card.thisComputer'), icon: 'laptop', checked: true }, { kind: 'separator' }, { value: 'add', label: t('shell.home.addMachine'), icon: 'plus' }], onSelect: (v) => v === 'add' && view('machine.this') } } }),
         ]}
         mid={[
-          tool('tryTwo', 'launcher.tryTwo', 'rerun', t('shell.home.tryTwo'), agent() === 'auto' ? t('shell.home.tryTwoTitle') : t('shell.home.tryTwo'), { disabled: agent() === 'auto', text: false, on: compare() === agent(), act: { onClick: () => setCompare(compare() === agent() ? undefined : agent()) } }),
+          // v1 #771: no Try it two ways button; the runner's + adds the second run
           tool('team', 'launcher.team', 'agent', t('shell.home.delegate'), t('shell.home.delegateTitle'), { text: true, ...(team().size > 0 && { on: true }), act: { menu: { items: teamMenu(t, harnesses(), team()), onSelect: (v) => { const next = new Set(team()); if (next.has(v)) next.delete(v); else next.add(v); pickTeam(next); } } } }),
         ]}
         tail={[

@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
 import { computed, signal } from 'alien-signals';
-import { createRoot } from 'solid-js';
+import { createRoot, createSignal } from 'solid-js';
 import { mount, part } from './helpers.tsx';
 import { ExtensionSlot, Text, useSignal, type ExtensionOutput, type Subscribable } from '../src/index.ts';
 
@@ -100,5 +100,16 @@ describe('ExtensionSlot', () => {
   test('empty: the fallback shows', () => {
     mount(() => <ExtensionSlot input="shell.list:top" extensions={[]} fallback={<Text part="empty.text">none</Text>} />);
     expect(part('empty.text')).not.toBeNull();
+  });
+});
+
+test('useSignal follows a getter over Solid signals too (a form draft read by a setting control)', () => {
+  createRoot((dispose) => {
+    const [draft, setDraft] = createSignal('a');
+    const v = useSignal(() => draft());
+    expect(v()).toBe('a');
+    setDraft('b');
+    expect(v()).toBe('b');
+    dispose();
   });
 });

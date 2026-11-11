@@ -121,3 +121,22 @@ export function crewOf(s: Pick<SessionRow, 'body'>): string | undefined {
   const c = (s.body?.['ext'] as Readonly<Record<string, unknown>> | undefined)?.['wisp.crew'] as { id?: unknown } | undefined;
   return typeof c?.id === 'string' ? c.id : undefined;
 }
+
+/** A row whose fields live in its `body` (a `crew_member`: `{id, name, updated_at, body}`), read flat; a flat row is its own. */
+export function flatRow<T>(row: unknown): T {
+  const r = (row ?? {}) as Record<string, unknown>;
+  const body = r['body'];
+  if (!body || typeof body !== 'object') return r as T;
+  const { body: _b, ...top } = r;
+  return { ...(body as Record<string, unknown>), ...top } as T;
+}
+
+/** Where Back goes from a task on a phone (v1 #773): a subagent's run goes to its lead (on the same computer), any
+ * other task back through history (undefined). */
+export function backOf(key: string, row: { readonly parent_id?: string | null } | undefined): string | undefined {
+  const parent = row?.parent_id;
+  if (!parent) return undefined;
+  const at = key.indexOf(':');
+  return at > 0 ? `${key.slice(0, at)}:${parent}` : parent;
+}
+

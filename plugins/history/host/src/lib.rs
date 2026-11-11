@@ -281,6 +281,19 @@ impl Plugin for HistoryPlugin {
         s.command::<api::Save, _, _>(|ctx, call, a| async move { track(&ctx, &call, &a).await });
         s.command::<api::Untrack, _, _>(|ctx, call, a| async move { untrack(&ctx, &call, &a).await });
         s.command::<api::BlameCmd, _, _>(|ctx, _call, a| async move { blame::answer(&ctx, &a).await });
+        // the Repo tab (ADR-0033): the repo's committed agent history, and one task's read-only report
+        s.command::<api::List, _, _>(|_ctx, _call, a| async move {
+            let all = docs(std::path::Path::new(&a.repo)).await;
+            Ok(wisp_history_core::repo_list(&all, a.path.as_deref(), a.agent.as_deref(), a.grep.as_deref()))
+        });
+        s.command::<api::Report, _, _>(|_ctx, _call, a| async move {
+            let root = std::path::PathBuf::from(&a.repo);
+            let all = docs(&root).await;
+            let d = wisp_history_core::find(&all, &a.id).ok_or_else(|| WireError::not_found(format!("no task {} in this repo's history", a.id)))?;
+            let report = tokio::fs::read_to_string(root.join(d.path.replace(".task.yml", ".report.md"))).await.unwrap_or_default();
+            let prompt = d.doc.pointer("/spec/prompt").and_then(Value::as_str).unwrap_or_default().to_owned();
+            Ok(api::RepoReport { task: wisp_history_core::repo_task(d), prompt, report })
+        });
         requests::register(s);
         hooks(s);
         Ok(())

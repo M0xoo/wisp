@@ -163,3 +163,59 @@ command!(BlameCmd, "history.blame", BlameArgs, Value, read_only = true);
 command!(ResumeRequestCmd, "history.resumeRequest", ResumeRequestArgs, ResumeRequest);
 command!(ResumeAnswer, "history.resumeAnswer", AnswerArgs, ResumeRequest);
 command!(Requests, "history.requests", Empty, Vec<ResumeRequest>, read_only = true);
+
+/// `history.list`: the repo's committed agent history (ADR-0033's Repo tab, `wisp ls --repo`), newest first,
+/// with the CLI's filters. Additive (2026-11-11).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+pub struct ListArgs {
+    /// the repo (a project's folder)
+    pub repo: String,
+    /// only tasks that touched files under it
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    /// words in the title or the prompt
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grep: Option<String>,
+}
+
+/// One row of the Repo tab.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoTask {
+    pub id: String,
+    pub title: String,
+    pub agent: String,
+    /// who tracked it (the person), "" when unknown
+    pub by: String,
+    #[ts(type = "number")]
+    pub created_at: i64,
+    pub pr: String,
+    pub commits: u32,
+    pub files: u32,
+    /// spec, report or full
+    pub level: String,
+    /// its file under `.wisp/`
+    pub path: String,
+}
+
+/// `history.report`: a tracked task's report (its `.report.md`) and what was asked, read-only.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+pub struct ReportArgs {
+    pub repo: String,
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoReport {
+    pub task: RepoTask,
+    pub prompt: String,
+    /// markdown
+    pub report: String,
+}
+
+command!(List, "history.list", ListArgs, Vec<RepoTask>, read_only = true);
+command!(Report, "history.report", ReportArgs, RepoReport, read_only = true);

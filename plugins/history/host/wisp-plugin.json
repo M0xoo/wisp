@@ -18,7 +18,9 @@
       { "id": "history.blame", "title": "Which task made this", "readOnly": true },
       { "id": "history.resumeRequest", "title": "Ask to resume an earlier task" },
       { "id": "history.resumeAnswer", "title": "Approve or deny a resume request" },
-      { "id": "history.requests", "title": "Resume requests", "readOnly": true }
+      { "id": "history.requests", "title": "Resume requests", "readOnly": true },
+      { "id": "history.list", "title": "The repo's committed agent history (the Repo tab, wisp ls --repo)", "readOnly": true },
+      { "id": "history.report", "title": "A tracked task's report and what was asked", "readOnly": true }
     ]
   }
 }

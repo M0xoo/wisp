@@ -1,7 +1,7 @@
 // Bridges @wisp/client's signals (alien-signals) into Solid. The client store stays framework
 // independent; a component reads it through `useSignal(selector)` and re-renders when it changes.
 import { effect } from 'alien-signals';
-import { createSignal, getOwner, onCleanup, type Accessor } from 'solid-js';
+import { createComputed, createSignal, getOwner, onCleanup, type Accessor } from 'solid-js';
 
 /** Something with a current value that says when it changes. */
 export interface Subscribable<T> {
@@ -33,5 +33,8 @@ export function useSignal<T>(readable: Readable<T>): Accessor<T> {
         setValue(() => v);
       });
   if (getOwner()) onCleanup(stop);
+  // a getter may read Solid signals too (a setting source a form builds over its own draft): follow those as well,
+  // or such a value is read once and the control never shows the change
+  if (!isSubscribable(readable) && getOwner()) createComputed(() => setValue(() => readable()));
   return value;
 }
