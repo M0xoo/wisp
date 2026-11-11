@@ -31,11 +31,11 @@ if (MOBILE)
     // An older app sets location.hash for a tapped notification: a new entry, not a Back.
     if (!e.state?.wispBack && location.hash.startsWith('#/s/')) return;
     const depth = e.state?.wispBack || 0;
+    // Taken off before any closes: closing one can open another (Back from a subagent's run opens
+    // its lead), whose new entry is above depth and must stay for the next Back.
+    const closing = stack.splice(depth).reverse();
     let closed = false;
-    while (stack.length > depth) {
-      const close = stack.pop();
-      if (close) (close(), (closed = true));
-    }
+    for (const close of closing) if (close) (close(), (closed = true));
     // Only entries closed another way: this Back showed nothing, so it takes the next step too
     // (from the page's own entry, that's back to the list of computers).
     if (!closed) history.back();
