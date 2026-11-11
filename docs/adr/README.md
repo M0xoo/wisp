@@ -47,3 +47,4 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0040](0040-meet-users-where-they-work.md) | Every feature reachable inside wisp and from the user's own harness (MCP + skill), git, CI, editors, chat; passive by default |
 | [0041](0041-grid-is-the-hub.md) | The grid is the hub: shared things (gallery, teams, grid:// modules) and remote machines usable from GUI, TUI, CLI, SDK, MCP |
 | [0042](0042-swappability-of-new-features.md) | Every feature added since 0003 is its own plugin with points a user plugin can fill (history, share, resources, workflows, …) |
+| [0045](0045-grid-mail-dns-resolver.md) | Grid mail checks DKIM itself against the signer's DNS, with hickory-resolver (the one new dependency) |

@@ -58,11 +58,16 @@ fn slack_noise(j: &Value) -> bool {
     e.is_object() && (e.get("bot_id").is_some_and(|b| !b.is_null()) || e.get("subtype").and_then(Value::as_str).is_some_and(|s| s != "file_share"))
 }
 
-pub const CHANNELS: [ChannelDef; 3] = [
+pub const CHANNELS: [ChannelDef; 4] = [
     ChannelDef { name: "telegram", headers: &["x-telegram-bot-api-secret-token"], event_id: |j| str_of(j.get("update_id")), live: |_| false, skip: |_| false },
     ChannelDef { name: "slack", headers: &["x-slack-signature", "x-slack-request-timestamp"], event_id: |j| str_of(j.get("event_id")), live: |j| j.get("type").and_then(Value::as_str) == Some("url_verification"), skip: slack_noise },
     ChannelDef { name: "discord", headers: &["x-signature-ed25519", "x-signature-timestamp"], event_id: |j| str_of(j.get("id")), live: |j| j.get("type").and_then(Value::as_i64) == Some(1), skip: |_| false },
+    // held by the grid's mail (mail/service.rs), never by a request: its headers are the grid's own verdict
+    ChannelDef { name: "email", headers: &["x-wisp-mail-from", "x-wisp-mail-dmarc", "x-wisp-mail-id"], event_id: |j| str_of(j.get("messageId")), live: |_| false, skip: |_| false },
 ];
+
+/// A held message its box accepted (a 2xx): `(user id, the delivery)`. Mail keeps the thread then.
+pub type Delivered = Arc<dyn Fn(&str, &Delivery) + Send + Sync>;
 
 pub fn channel(name: &str) -> Option<&'static ChannelDef> {
     CHANNELS.iter().find(|c| c.name == name)
@@ -157,6 +162,8 @@ pub struct Inbox {
     pub url_of: Arc<dyn Fn(&str) -> String + Send + Sync>,
     wakes: Mutex<HashMap<String, Strikes>>,
     busy: tokio::sync::Mutex<()>,
+    /// told of each delivery a box accepted (set once, by mail)
+    pub delivered: std::sync::OnceLock<Delivered>,
 }
 
 impl std::fmt::Debug for Inbox {
@@ -170,7 +177,7 @@ pub type Answer = Option<(u16, Value)>;
 
 impl Inbox {
     pub fn new(db: Arc<Db>, clock: SharedClock, secrets: Option<Arc<Secrets>>, boxes: Arc<dyn Boxes>, deliver: Arc<dyn Deliver>, opts: Opts, url_of: Arc<dyn Fn(&str) -> String + Send + Sync>) -> Self {
-        Self { db, clock, secrets, boxes, deliver, opts, url_of, wakes: Mutex::default(), busy: tokio::sync::Mutex::new(()) }
+        Self { db, clock, secrets, boxes, deliver, opts, url_of, wakes: Mutex::default(), busy: tokio::sync::Mutex::new(()), delivered: std::sync::OnceLock::new() }
     }
 
     fn secrets(&self) -> Result<&Secrets> {
@@ -326,6 +333,9 @@ impl Inbox {
             let ok = (200..300).contains(&status);
             if ok {
                 self.strikes().remove(&user.id);
+                if let Some(f) = self.delivered.get() {
+                    f(&user.id, &d);
+                }
                 if dropped > 0 {
                     self.db.with(|c| c.execute("UPDATE channel_urls SET dropped = max(0, dropped - ?1) WHERE user_id = ?2 AND channel = ?3", params![dropped, user.id, row.channel]))?;
                 }

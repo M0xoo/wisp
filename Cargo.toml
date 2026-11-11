@@ -154,6 +154,8 @@ rand = "0.9"
 regex = "1.13"
 # ADR-0023: IANA time zones, host crates only
 jiff = "0.2.39"
+# apps/grid mail: DKIM keys are TXT records in the signer's DNS (ADR-0045)
+hickory-resolver = "0.26.3"
 # ADR-0030: formulas (wisp.yml / .json / .toml) and their JSON Schema, generated from the Rust types
 serde-saphyr = "2.1.1"
 toml = { version = "1.2", default-features = false, features = ["parse", "serde", "display"] }

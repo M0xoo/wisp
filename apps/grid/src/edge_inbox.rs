@@ -59,9 +59,13 @@ impl Grid {
         }
         let ch = |b: Option<&Value>| b.and_then(Value::as_str).map(str::to_owned).or_else(|| query(q, "channel")).unwrap_or_default();
         match (method.as_str(), which) {
+            ("GET", "url") if ch(None) == "email" => self.mail_address(&user, false),
             ("GET", "url") => Ok(json(200, &self.inbox.url_for(&user, &ch(None))?)),
             ("POST", "rotate") => {
                 let b = parse_body(h, bytes)?;
+                if ch(b.get("channel")) == "email" {
+                    return self.mail_address(&user, true);
+                }
                 Ok(json(200, &self.inbox.rotate(&user, &ch(b.get("channel")))?))
             }
             _ => Ok(json(404, &json!({ "error": "not found" }))),

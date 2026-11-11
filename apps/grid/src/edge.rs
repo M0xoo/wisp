@@ -55,6 +55,8 @@ mod sites;
 mod inbox;
 #[path = "edge_route.rs"]
 mod route;
+#[path = "edge_mail.rs"]
+mod mail;
 pub use signin::{Reqwest, SignIn};
 
 /// The grid's session cookie.
@@ -83,6 +85,8 @@ pub struct Grid {
     pub inbox: crate::inbox::Inbox,
     /// `on laptop` through the grid's own bot (`route.rs`)
     pub routes: crate::route::Routes,
+    /// mail to a box's secret address (`mail/service.rs`), when grid.json has `mail`
+    pub mail: Option<Arc<crate::mail::service::MailService>>,
 }
 
 impl std::fmt::Debug for Grid {
@@ -202,7 +206,17 @@ impl Grid {
             public_url: cfg.public_url.clone(),
             on: inbox.opts.enabled && ch.route == Some(true),
         };
-        Arc::new(Self { cfg, db, clock, accounts, shares, teams, tunnels, boxes, roots, page, client, signin, sandboxes, sites, inbox, routes })
+        let mail = mail_of(&cfg, &db, &clock, &inbox);
+        if let Some(m) = mail.clone() {
+            let _ = inbox.delivered.set(Arc::new(move |user: &str, d: &crate::inbox::Delivery| {
+                if d.channel == "email"
+                    && let Err(e) = m.delivered(user, &d.headers, &d.body)
+                {
+                    tracing::warn!("grid: mail: a thread wasn’t kept: {e}");
+                }
+            }));
+        }
+        Arc::new(Self { cfg, db, clock, accounts, shares, teams, tunnels, boxes, roots, page, client, signin, sandboxes, sites, inbox, routes, mail })
     }
 
     fn who(&self, h: &HeaderMap) -> Who {
@@ -315,6 +329,11 @@ impl Grid {
             (_, ["api", "channels", which @ ("url" | "rotate")]) => self.channels_route(&method, which, q, &head.headers, &bytes, &who),
             (_, ["api", "channels", which @ ("route" | "reply")]) => self.route_api(&method, which, &head.headers, &bytes, &who).await,
             ("POST", ["_route", tok]) => self.route_in(&head.headers, tok, &bytes),
+            ("POST", ["_mail", provider]) => self.mail_in(provider, &bytes).await,
+            ("POST", ["api", "channels", "mail", "reply"]) => {
+                let b = parse_body(&head.headers, &bytes)?;
+                self.mail_reply(&Value::Object(b), &who).await
+            }
             ("GET", []) => Ok(html(200, pages::message_page(&self.page, &MessagePage { title: self.cfg.name.clone(), text: "Share and reach your wisps from anywhere.".into(), link: Some(("/gallery".into(), "See what people are building".into())), tone: Tone::Plain }), &[])),
             _ => Ok(json(404, &json!({ "error": "not found" }))),
         }
@@ -608,6 +627,32 @@ impl Grid {
 }
 
 /// The inbox's settings from grid.json's `channels` (off unless `enabled: true`).
+/// Mail, when grid.json has it, channels are held, and there's a master key (the addresses are sealed).
+fn mail_of(cfg: &GridConfig, db: &Arc<crate::db::Db>, clock: &crate::clock::SharedClock, inbox: &crate::inbox::Inbox) -> Option<Arc<crate::mail::service::MailService>> {
+    use crate::mail::service::{Http, MailService, Opts, Outbound};
+    let m = cfg.file_cfg.mail.as_ref()?;
+    if !inbox.opts.enabled || inbox.secrets.is_none() || m.inbound.provider != "ses" || m.outbound.provider != "ses" {
+        return None;
+    }
+    let out = Outbound { region: m.outbound.region.clone(), access_key_id: m.outbound.access_key_id.clone(), secret_access_key: m.outbound.secret_access_key.clone().unwrap_or_default(), endpoint: m.outbound.extra.get("endpoint").and_then(Value::as_str).map(str::to_owned) };
+    let opts = Opts { domain: m.domain.to_lowercase(), topic_arn: m.inbound.topic_arn.clone(), keys: m.inbound.keys.clone().unwrap_or_default(), outbound: out.clone(), send_per_hour: m.send_per_hour.unwrap_or(30), thread_days: m.thread_days.unwrap_or(7) };
+    // a dev grid has no real senders, so grid.json can name their keys; nothing else skips DNS
+    let txt: Arc<crate::dkim::Txt> = if let (true, Some(keys)) = (cfg.file_cfg.auth.dev, m.inbound.dkim_keys.clone()) {
+        Arc::new(move |name: String| {
+            let k = keys.get(&name).cloned();
+            Box::pin(async move { k.map(|r| vec![vec![r]]).ok_or(crate::dkim::Lookup::NoSuchKey) })
+        })
+    } else {
+        let Some(t) = crate::mail::service::system_txt() else {
+            tracing::warn!("grid: mail: no DNS resolver, so no mail");
+            return None;
+        };
+        t
+    };
+    let wire = Arc::new(Http { client: reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).build().ok()?, out, clock: clock.clone() });
+    Some(Arc::new(MailService::new(db.clone(), clock.clone(), opts, txt, wire)))
+}
+
 fn inbox_opts(c: Option<&crate::config::ChannelsConfig>) -> crate::inbox::Opts {
     let d = crate::inbox::Opts::default();
     let Some(c) = c else { return d };
