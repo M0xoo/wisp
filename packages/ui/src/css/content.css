@@ -79,6 +79,9 @@
     padding: var(--space-0) var(--space-3); font-size: var(--fs-xs); font-weight: var(--fw-regular); color: var(--muted);
   }
   [data-kit='pill'][data-variant='outline'][data-tone='accent'] { border-color: transparent; background: var(--accent-soft); color: var(--accent-ink); }
+  /* v1's list pill (split.css #feed .it-side .pill): no box, 19px tall, 11.5px, a 5px dot */
+  [data-kit='pill'][data-size='sm'] { height: 19px; font-size: var(--fs-xs); }
+  [data-kit='pill'][data-size='sm'] > [data-kit='pill-dot'] { width: 5px; height: 5px; }
   [data-kit='pill-label'] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   [data-kit='pill-dot'] { flex: none; width: var(--size-dot); height: var(--size-dot); border-radius: 50%; background: var(--k-tone); }
   [data-kit='pill-dot'][data-live] { animation: kit-pulse 1.6s ease-in-out infinite; }

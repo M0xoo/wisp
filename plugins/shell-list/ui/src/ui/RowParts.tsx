@@ -94,7 +94,8 @@ function OnePill(props: { readonly p: PillView }): JSX.Element {
   return (
     <Pill
       tone={props.p.tone}
-      variant={props.p.variant ?? 'soft'}
+      variant={props.p.variant ?? 'plain'}
+      size="sm"
       part={`list.pill.${props.p.id}`}
       {...(props.p.dot ? { dot: true } : {})}
       {...(props.p.live ? { live: true } : {})}

@@ -16,6 +16,8 @@ export interface PillProps extends KitProps, WithChildren {
   /** soft: a tinted fill (states). outline: a hairline border (tags, topics). */
   /** plain: the dot and the word only (v1 Settings → Agents' state) */
   readonly variant?: 'soft' | 'outline' | 'plain';
+  /** sm: v1's list size (split.css #feed .it-side .pill: 19px tall, 11.5px, a 5px dot) */
+  readonly size?: 'sm';
   readonly title?: string;
 }
 
@@ -28,6 +30,7 @@ export function Pill(props: PillProps): JSX.Element {
       data-part={props.part ?? 'ui.pill'}
       data-tone={props.tone ?? 'neutral'}
       data-variant={props.variant ?? 'soft'}
+      data-size={props.size}
     >
       <Show when={props.dot}>
         <span data-kit="pill-dot" data-live={flag(props.live)} />
