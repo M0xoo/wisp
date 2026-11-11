@@ -1,10 +1,15 @@
 # v2 build queue (code first, verify later)
 
-**Left after round 17 (2026-11-11), in this order:** terminal tasks (`terminalSessions`: a task in the harness's own
-CLI in a PTY, follow-ups typed into it, its turns read back from the CLI's session files); Discord's `/wisp`
-(registration on start, `INTERACTION_CREATE` → a deferred reply edited later, autocomplete), buttons (signed
-`custom_id`s → `act`), and interactions held by the grid (ed25519-checked); the file view's ✦ and Go to definition;
-New task's @ files; Machines in the Projects dialog.
+**Left after round 18 (2026-11-11), in this order:** (terminal tasks and Discord's `/wisp`, buttons and grid-held
+interactions: done in round 18) the grid checking Discord's signature itself, so a stranger's `/wisp` wakes no box;
+a terminal task on Codex and the others (only Claude's `resume_command` names a conversation); ADR-0048's
+descriptor UI (a Worker in a sandboxed frame; the shell renders kit descriptors; calls as the plugin) and then the
+WASM host; sandboxes' Browser tab (box image + previews of a box's ports on the edge) and the task head's Sandbox pill;
+Run on in the GUI (machines are peers of the app now); hover from a language server in the file view.
+
+**Done in round 18:** sandboxes (ADR-0047: /sandbox, delegates, crew jobs, judges, the pane, sign-ins, env, owners and
+the sweep), the app's peers through this wisp, the file view's ✦ and Go to definition, New task's @ files, the
+untrusted tier's trust and clean environment (ADR-0048).
 
 **Done in round 17:** projects reach the app (published on `config`), one project filter, #772, the Projects dialog,
 the Plugins pane, the file view and the why-gutter, email attachments, Discord REST buckets.

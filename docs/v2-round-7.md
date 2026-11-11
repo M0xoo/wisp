@@ -731,3 +731,78 @@ reset, a 429 pauses its bucket or all, 3 tries); the host's `rest` goes through 
 **Left:** terminal tasks (`terminalSessions`); Discord's `/wisp` (registration, the interaction and its deferred
 reply), buttons, interactions held by the grid; the file view's ✦ (ask about a selection), New task's @ files (a
 project's, not a task's), Go to definition; Machines in the Projects dialog.
+
+## Round 18 (2026-11-11): sandboxes in full, the app's peers through this wisp, the file view's ✦ and Go to definition, the untrusted tier (ADR)
+
+**Sandboxes (ADR-0047, `plugins/sandbox/{api,core,host,ui}`).**
+- The grid already made them and kept them sealed sign-ins and env; nothing used them. `wisp.sandbox` now:
+  `sandbox.launch` (`/sandbox`), `sandbox.place {owner}` (a delegate, a crew job or member, a goal's judges; the
+  member's own and a delegate's are reused), `sandbox.seed` (inside only: bundle + uncommitted patch, branch, origin,
+  author, `.wisp/sandbox.sh` once, a base kept for `sandbox.patch`), `sandbox.patch` / `sandbox.bring` (a delegate's
+  changes back into the lead's folder), `sandbox.drop`, `sandbox.own`, `sandbox.info`, `sandbox.claude.begin|code|state`
+  (`claude setup-token` on a pty, its link and the code, the token to the grid), `sandbox.logout`, `sandbox.env`.
+- One owner each (`data.owner`): `{task}`, `{pending}`, `{lead, member}`, `{crew, job}`, `{crew}`, `{judges}`; never a
+  place you pick (Machines skips them). Gone with the owner: `session.deleted` (delegates, judges, jobs here),
+  `crew.left`, and a look every minute at task-owned ones (their task gone on the sandbox: the sandbox goes). The sweep
+  (start, every 10 min) drops failed drops and launches that never got a task.
+- Rules: Claude (and Auto) start only once signed in for sandboxes; Codex and the others sign in inside (the task's
+  sign-in card, routed to the sandbox's peer, or the pane's "Sign in to Codex there"). A full grid fails a launch at
+  once; a crew job goes back in its queue. The grid gives a sandbox's box `WISP_SANDBOX=1` (seed only there; it makes
+  no sandboxes). A new box sleeps: the wait sends it one real request.
+- Delegates: runtime's `delegate` takes a member whose place is `sandbox` (it refused every other machine before):
+  child `<machine>|<id>`, followed up there next time, its report read there, its changes brought back once done.
+- Crew: `sandbox: job|own` on a member: the job's task is made in the sandbox (`<machine>|<id>`), read back there.
+- Goal judges (new in v2): `goal: {…, sandbox: true}` → their own sandbox, `runtime.quick` there.
+- Tests: core (7: owners, drop rules, sweep, bundle and seed commands, may-start, full grid, setup-token output),
+  host `seed.rs` (2: `only_a_sandbox_takes_a_seed_and_its_setup_runs_once`,
+  `a_delegates_changes_come_back_as_the_difference_from_what_came_in`), goal `a_goal_may_ask_for_its_judges_in_a_sandbox`,
+  sandbox-ui `a_sandbox_prompt_is_read_off_new_task_…`, and end to end `serve_sandbox` on a real `wisp-grid dev`
+  (refused, signed in, launched with the project, reached through the proxy, owned, deleted with its task).
+- Seen in Chrome: `/sandbox` → the placeholder with the Sandbox pill → the task opened from its sandbox after 24 s, its
+  row "claude · Sandbox"; the Sandboxes pane; phone dark.
+- Not here: the Browser tab (needs Xvfb, Chromium and noVNC in the box image, and previews of a box's ports on the
+  grid's edge, which refuses them today), network policy, warm sandboxes; the task head's own Sandbox pill.
+
+**The app reaches every machine through this wisp.** `machines` proxies `/api/peer/<machine>/api/{events,cmd}` over
+the machine's own link (its token never reaches the app); `apps/web` adds each machine row with a peer as a peer of
+the app, named by the machine's own id (two boxes both call themselves "this computer"). A watch on a peer not added
+yet now waits for it (`a_watch_on_a_peer_added_later_starts_…`). shell-list marks rows from a sandbox
+(`a_row_from_a_sandbox_says_sandbox_…`) and gives `model.row` the project and machine too (it only flattened).
+
+**The file view.** ✦ puts `@path` (and `:from-to` when lines are selected) in the reply box (the reply box now
+registers as `reply`); ⌘-click / F12 → `worktrees.grep {def}` → the definition's file at its line (`#L12`, marked).
+`git grep -E` has no `\b`/`\s`: POSIX classes. New task's @ lists the picked project's files (`worktrees.files
+{path}`, your projects only). Tests: kit `the_file_view_says_which_lines_are_selected_…`, shell-task
+`go_to_definitions_place_opens_at_its_line_…`, worktrees core `go_to_definition_finds_where_a_name_is_declared`.
+
+**The untrusted tier (ADR-0048), first part.** Installed plugins read as untrusted whatever their manifest says
+(`an_installed_plugin_is_untrusted_whatever_its_manifest_says`); `plugins.trust`; an untrusted exec plugin starts with
+an empty environment (`an_untrusted_exec_plugin_starts_with_an_empty_environment`). Left: the descriptor UI (a Worker
+in a sandboxed frame, kit descriptors rendered by the shell, calls as the plugin), then the WASM host.
+
+**Discord `/wisp`, buttons, grid-held interactions.** `wisp-discord-core::interaction` (sans-IO): `/wisp` as
+registered (no Full auto, no machine on a box), its options read as the words you'd type (`@ada in web plan: …`), an
+interaction read down to who/where/what, autocomplete (25 at most), signed buttons five to a row, the grid's early
+answer, Ed25519 over timestamp+body (ed25519-dalek, already a workspace dependency). Host (`slash.rs`): `/wisp`
+registered on READY (and on a box's start, by REST, with the app's `verify_key` checked against the key pasted);
+deferred at once, the thinking reply edited once ("▶ On it." then a thread on it, or the answer), removed if nothing
+was said, "wisp hit an error" on failure; a `link <code>` in a DM; autocomplete only for linked people; a press
+verified, the buttons removed, the result said; `inbound` for a cloud wisp (signature, ping → pong, keystroke answered
+there, too old → 410 and the linked person told, repeats by id kept in the config, a stranger → 403). Reports carry
+buttons; "Choices:" only when they can't. Grid: `/wisp` and presses are held and answered at once (5, 6); pings and
+keystrokes go live; anything else isn't held. Tests: core 6 (`slash_options_read_as_the_words_youd_have_typed`, …),
+host `tests/interactions.rs` 4, grid `discords_slash_and_press_are_answered_at_once_and_held_…`. The test hub's sign
+format no longer has `:` (a `custom_id` splits on it). Left: the grid checking the signature itself (with the box's
+key and linked people, so a stranger's `/wisp` wakes nothing).
+
+**Terminal tasks (`terminal.terminalSessions`, `/terminal …`).** `StartArgs.terminal`; `runtime/host/src/term.rs`: a
+terminal task makes no headless turn; `runtime.terminal` opens the harness's own CLI (`resume_command`, now on Claude
+too: `--session-id`/`--resume`, mode, `--append-system-prompt` wisp's note, `--add-dir`, `-- prompt`) in a `takeover`
+terminal with `tui`; the conversation is named by wisp (its id is the task's `resumeId`); a follow-up is typed in
+(bracketed paste) while it runs, else it opens again resumed; when the terminal ends the CLI's turns are read back
+(`readopt`) and the task is for review. The setting only for a task started by hand (no parent, not held, no `by`,
+no ext, no steps). Tests: runtime `a_terminal_task_opens_on_its_prompt_named_by_wisp_…`,
+`only_a_task_started_by_hand_starts_in_a_terminal_…`, claude `resume_command_is_v1s`, e2e serve_terminal
+`a_terminal_task_runs_in_the_harnesss_own_cli_…`.
+
+**Left:** the untrusted tier's descriptor UI; Discord's grid-side signature check.

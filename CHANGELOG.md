@@ -7,6 +7,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Sandboxes.** `/sandbox fix the login` in New task runs the task in a box of its own on your wisp Grid: your project goes in (uncommitted changes too), the agent can install and break anything there, and the task shows in your list as Sandbox. A delegate (its place: Sandbox), a crew member's jobs (a sandbox per job, or their own) and a goal's judges can run in one too. Each sandbox goes with what it was made for.
+- **Terminal tasks.** With Settings → General → *Terminal sessions* on, or a prompt that starts with `/terminal`, a task you send opens in the agent's own CLI in a terminal inside wisp, already working on your prompt. wisp still keeps its folder, worktree and title; a follow-up from wisp's box is typed into the terminal, or opens it again on the same conversation once it ended; when it ends, its turns come back into the task. Crew jobs, schedules, goals and held tasks still run in wisp.
+- **Discord `/wisp`.** `/wisp` with its options (crew, project, machine, model, mode, completed as you type for linked people only) starts or steers a task like a mention; a report's choices are buttons; a cloud wisp takes `/wisp` and button presses through its grid, which answers Discord at once while the box wakes.
+- **Settings → Computers → Sandboxes.** Sign in to Claude once for every sandbox (on your own subscription; the token is sealed on the grid, never kept here), env vars every sandbox gets, and each sandbox with whose it is, Open, Sign in to Codex there, and Delete.
+- **Your other computers' tasks in your list.** A machine wisp keeps (another computer, a sandbox) is reached through this wisp, so its tasks show and open like yours.
+- **The file view's ✦ and Go to definition.** ✦ puts the file (or the lines you selected) in the reply box to ask about it; ⌘-click or F12 on a name opens where it's declared, at its line. New task's @ offers the picked project's files.
+- **Trust a plugin you installed** (`plugins.trust`, ADR-0048): installed plugins are untrusted whatever they say, and an untrusted plugin's process starts without your environment (keys, tokens).
+
 - **Projects show everywhere.** The top bar's chips, New task's row and Home now list your projects (they were empty on a real server), and picking a chip filters the list.
 - **The Projects dialog.** Add a folder or a GitHub URL (cloned for you), see how many tasks each project has, rename it, give it a colour, remove it, and add a repo found on this computer with one click.
 - **Your project order.** Drag a project (or Alt+←/→) in the top bar, New task's row or the Projects dialog; every place keeps the same order.
