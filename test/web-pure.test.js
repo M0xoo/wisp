@@ -16,7 +16,7 @@ import { historyStep, MAX_SENT, remember } from '../web/js/prompt-history.js';
 import { isSpirit, parseSpirit, rollSpirit, SPIRIT, spiritCode, spiritDefs, spiritSvg } from '../web/js/spirit.js';
 import { decode, encode, mentionHtml, plain } from '../web/js/mention-text.js';
 import { clock24, cronWords, toCron } from '../web/js/schedule.js';
-import { atTail, landStart, landing, noteScroll, ownSend, ownWaiting, turnChange } from '../web/js/tail.js';
+import { atTail, landStart, landing, mediaShift, noteScroll, ownSend, ownWaiting, turnChange } from '../web/js/tail.js';
 
 test('esc escapes HTML and treats null as empty', () => {
   assert.equal(esc(`<a href="x">'&'</a>`), '&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
@@ -464,4 +464,26 @@ test('own sends: a flagged send owns the next new turn, for 15 s, but not a comp
   const turns = [{ id: 'a' }, { id: 'b' }];
   assert.equal(turnChange({ turns, known: ['a'], last: 'a', flagged: true }).own, true);
   assert.equal(turnChange({ turns: [{ id: 'a' }, { id: 'b', by: 'compact' }], known: ['a'], last: 'a', flagged: true }).own, false);
+});
+
+test('mediaShift: a picture loading while at the tail keeps the view at the end', () => {
+  assert.equal(mediaShift({ tail: true, anchors: true, inset: 100, grew: [{ top: 500, from: 0, to: 400 }] }), 'end');
+  assert.equal(mediaShift({ tail: true, anchors: false, inset: 100, grew: [{ top: 20, from: 0, to: 400 }] }), 'end');
+});
+
+test('mediaShift: with scroll anchoring the browser already held the text', () => {
+  assert.equal(mediaShift({ tail: false, anchors: true, inset: 100, grew: [{ top: -300, from: 0, to: 400 }] }), 0);
+});
+
+test('mediaShift: without anchoring, only pictures wholly above the reading line shift it', () => {
+  // above: pushes what's read down by its growth; at or below the line: the text above stays put
+  assert.equal(mediaShift({ tail: false, anchors: false, inset: 100, grew: [{ top: -50, from: 0, to: 300 }] }), 300);
+  assert.equal(mediaShift({ tail: false, anchors: false, inset: 100, grew: [{ top: 300, from: 0, to: 300 }] }), 0);
+  assert.equal(mediaShift({ tail: false, anchors: false, inset: 100, grew: [{ top: 60, from: 80, to: 300 }] }), 0); // straddles the line
+});
+
+test('mediaShift: pictures higher up count toward where a lower one was', () => {
+  // The second one's top now (250) is 300 lower than before (-50): it too was above the line.
+  const grew = [{ top: 250, from: 0, to: 200 }, { top: -100, from: 0, to: 300 }];
+  assert.equal(mediaShift({ tail: false, anchors: false, inset: 100, grew }), 500);
 });
