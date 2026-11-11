@@ -18,8 +18,8 @@ pub struct Where {
     pub user_home: PathBuf,
 }
 
-pub const DEFAULT: [&str; 48] = [
-    "cli", "events", "resources", "workflows", "share", "history", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "machines", "grid-client", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update", "termctx",
+pub const DEFAULT: [&str; 49] = [
+    "cli", "events", "resources", "workflows", "share", "history", "settings", "runtime", "claude", "codex", "cursor", "opencode", "copilot", "grok", "antigravity", "accounts", "git", "worktrees", "ship", "review", "issues", "terminal", "lsp", "machine", "machines", "grid-client", "crew", "goal", "later", "budget", "router", "automations", "learn", "channels", "telegram", "slack", "discord", "github", "email", "ntfy", "mcp", "connectors", "stuff", "plugins", "telemetry", "posthog", "update", "termctx", "sandbox",
 ];
 /// A grid box serves the web frontend only (ADR-0024).
 pub const BOX_OFF: [&str; 3] = ["machines", "update", "cli"];
@@ -70,6 +70,7 @@ impl Group {
 
 /// Adds plugin `name` if its crate is in this build.
 #[allow(unused_variables)]
+#[allow(clippy::too_many_lines)] // one arm per plugin this build has: a table, not logic
 fn add(g: PluginGroup, name: &str, at: &Where) -> PluginGroup {
     match name {
         #[cfg(feature = "settings")]
@@ -122,6 +123,8 @@ fn add(g: PluginGroup, name: &str, at: &Where) -> PluginGroup {
         "goal" => g.add(wisp_goal::GoalPlugin),
         #[cfg(feature = "history")]
         "history" => g.add(wisp_history::HistoryPlugin),
+        #[cfg(feature = "sandbox")]
+        "sandbox" => g.add(wisp_sandbox::SandboxPlugin::default()),
         #[cfg(feature = "later")]
         "later" => g.add(wisp_later::LaterPlugin),
         #[cfg(feature = "budget")]
@@ -209,6 +212,7 @@ pub fn in_build(name: &str) -> bool {
         "crew" => cfg!(feature = "crew"),
         "goal" => cfg!(feature = "goal"),
         "history" => cfg!(feature = "history"),
+        "sandbox" => cfg!(feature = "sandbox"),
         "later" => cfg!(feature = "later"),
         "budget" => cfg!(feature = "budget"),
         "router" => cfg!(feature = "router"),

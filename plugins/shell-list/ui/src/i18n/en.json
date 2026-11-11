@@ -105,5 +105,6 @@
   "shell-list.menu.unpin": "Unpin",
   "shell-list.quick.save": "Save for later",
   "shell-list.quick.unsave": "Unsave",
-  "shell-list.empty.crew": "No tasks for {name} yet."
+  "shell-list.empty.crew": "No tasks for {name} yet.",
+  "shell-list.run.sandbox": "Sandbox"
 }

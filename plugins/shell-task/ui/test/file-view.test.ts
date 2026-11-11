@@ -23,3 +23,12 @@ test('the_why_gutter_marks_where_each_task_starts_and_threads_its_lines', () => 
   expect(statusOf({ loading: false, saving: false, dirty: false })).toBe('saved');
   expect(statusOf({ loading: false, saving: false, dirty: false, error: 'gone' })).toBe('error');
 });
+
+test('go_to_definitions_place_opens_at_its_line_and_the_spark_asks_about_the_file_or_its_lines', async () => {
+  const { askText, placeOf } = await import('../src/side/FilePane.tsx');
+  expect(placeOf('src/text.rs#L12')).toEqual({ file: 'src/text.rs', line: 12 });
+  expect(placeOf('src/text.rs')).toEqual({ file: 'src/text.rs' });
+  expect(askText('src/a.ts', undefined)).toBe('@src/a.ts ');
+  expect(askText('src/a.ts', { from: 3, to: 3 })).toBe('@src/a.ts:3 ');
+  expect(askText('src/a.ts', { from: 3, to: 9 })).toBe('@src/a.ts:3-9 ');
+});

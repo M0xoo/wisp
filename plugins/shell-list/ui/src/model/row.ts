@@ -43,6 +43,8 @@ export interface RunView {
   readonly model?: string;
   readonly where: string;
   readonly remote: boolean;
+  /** it runs in a sandbox of its own (ADR-0047): the machine's slot says Sandbox, with the box */
+  readonly sandbox?: boolean;
   readonly title: Txt;
 }
 
@@ -73,6 +75,8 @@ export interface RowContext {
   readonly swipes: boolean;
   /** what this computer is called (This Mac, Studio) */
   readonly here: string;
+  /** what a sandbox is called in the machine's slot ("Sandbox") */
+  readonly sandbox?: string;
   readonly agents: ReadonlyMap<string, Row<Agent>>;
 }
 
@@ -122,7 +126,8 @@ export function runOf(s: SessionRow, c: RowContext): RunView | undefined {
   if (!s.agent || s.agent === 'wisp' || s.kind === 'reminder') return undefined;
   const a = c.agents.get(s.agent);
   const model = (s.model && a?.models?.find((m) => m.id === s.model)?.label) || s.model || undefined;
-  const where = s.machine?.name ?? c.here;
+  const sandbox = s.machine?.kind === 'sandbox';
+  const where = sandbox ? (c.sandbox ?? 'Sandbox') : (s.machine?.name ?? c.here);
   const name = agentName(s.agent, c.agents);
   return {
     agent: s.agent,
@@ -130,6 +135,7 @@ export function runOf(s: SessionRow, c: RowContext): RunView | undefined {
     ...(model ? { model } : {}),
     where,
     remote: !!s.machine,
+    ...(sandbox && { sandbox: true }),
     title: tx(s.effort ? 'shell-list.run.tip-effort' : 'shell-list.run.tip', { agent: name, model: model ?? '', effort: s.effort === 'xhigh' ? 'X-High' : s.effort ? s.effort.charAt(0).toUpperCase() + s.effort.slice(1) : '', where }),
   };
 }

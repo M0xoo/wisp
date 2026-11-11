@@ -3,12 +3,12 @@
 import { lazy } from 'solid-js';
 
 const TaskSide = lazy(() => import('./TaskSide.tsx'));
-import { defineExtension, definePluginUi } from './define.ts';
+import { defineExtension, definePluginUi, defineView } from './define.ts';
+import { TERM_VIEW } from './open-task.ts';
 import { CATALOGUE } from './i18n/index.ts';
 
 export { CATALOGUE };
 export type * from './types.ts';
-
 
 export default definePluginUi({
   id: 'wisp.shell-task',
@@ -22,5 +22,9 @@ export default definePluginUi({
     defineExtension({ id: 'shell-task.turn', attachTo: { id: 'shell.turn:foot' }, component: lazy(() => import('./cards/TurnFoot.tsx')) }),
     // over the reply box: the agent's question (or a tool's approval) and the queued follow-ups
     defineExtension({ id: 'shell-task.foot', attachTo: { id: 'shell.task:foot' }, component: lazy(() => import('./foot/TaskFoot.tsx')) }),
+    // a terminal task opens on its terminal
+    defineExtension({ id: 'shell-task.term-open', attachTo: { id: 'shell.task:foot' }, component: lazy(() => import('./foot/TermOpen.tsx')) }),
   ],
+  // a terminal task's CLI beside it (`shell-task.term`, the Terminal tab)
+  views: [defineView({ kind: TERM_VIEW, slot: 'side', parse: () => null, title: () => CATALOGUE['shell-task.side.term'] ?? '', component: TaskSide as never })],
 });

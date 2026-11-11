@@ -94,6 +94,8 @@ export function createPeers(o: PeersOptions): Peers {
   const warn = o.warn ?? (() => {});
   const now = (): number => o.scope.timers.now();
   const peers = new Map<PeerId, PeerRuntime>();
+  /** watches on a peer not added yet, started when it is */
+  const waiting = new Map<PeerId, { topic: Topic; scope: Scope; opts: { passive?: boolean } }[]>();
   const ids = signal<readonly PeerId[]>([]);
   const statusOf = new Map<PeerId, WritableSignal<PeerStatus>>();
   const infoOf = new Map<PeerId, WritableSignal<PeerInfo | undefined>>();
@@ -233,6 +235,10 @@ export function createPeers(o: PeersOptions): Peers {
       });
       // open after the current task, so the views that watch right after add() ride on the hello
       scope.timeout(0, () => feed(p, { kind: 'open' }));
+      // the watches that waited for this peer go now
+      const pending = waiting.get(cfg.peer) ?? [];
+      waiting.delete(cfg.peer);
+      for (const w of pending) manager.watch(cfg.peer, w.topic, w.scope, w.opts);
     },
     remove: (peer) => peers.get(peer)?.scope.dispose(),
     http: (peer) => peerHttp(() => peers.get(peer)?.cfg.transport, peer),
@@ -249,7 +255,19 @@ export function createPeers(o: PeersOptions): Peers {
     hasFeature: (peer, need) => hasFeature(untracked(infoSig(peer)), need, manager.name(peer)),
     watch(peer, topic, scope, opts = {}) {
       const p = peers.get(peer);
-      if (!p) return warn(`watch on an unknown peer ${peer}`, topic);
+      if (!p) {
+        // a peer the app adds a moment later (a machine's, once its row arrives): the watch waits for it
+        const w = { topic, scope, opts };
+        const list = waiting.get(peer) ?? [];
+        list.push(w);
+        waiting.set(peer, list);
+        scope.add(() => {
+          const l = waiting.get(peer)?.filter((x) => x !== w) ?? [];
+          if (l.length > 0) waiting.set(peer, l);
+          else waiting.delete(peer);
+        });
+        return;
+      }
       const passive = opts.passive === true;
       feed(p, { kind: 'subscribe', topic, passive });
       scope.add(() => feed(p, { kind: 'unsubscribe', topic, passive }));

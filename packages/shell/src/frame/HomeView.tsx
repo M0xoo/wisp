@@ -109,7 +109,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
       .sort((a, b) => b.updated_at - a.updated_at),
   );
   // the @ and / menus (plugins' prompt sources), New task's own
-  const menu = usePromptMenu({ shell, where: 'home', text, setText, input: () => input, id: 'launcher-suggest' });
+  const menu = usePromptMenu({ shell, where: 'home', text, setText, input: () => input, id: 'launcher-suggest', project: () => project()?.path });
   let goalInput: HTMLInputElement | undefined;
   const send = (): void => {
     const prompt = menu.encode(text().trim());
@@ -129,6 +129,19 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     const p = project();
     const id = entityKey(home, uuidv7());
     const g = goal();
+    // a plugin's prompt source may take it (`/sandbox …`: a sandbox of its own), with what New task picked
+    const launch = { ...(p && { cwd: p.path }), agent: agent(), mode: mode(), ...(model() && { model: model() }), ...(effort() && { effort: effort() }), ...(g && { goal: g }) };
+    const pc = shell.client.plugin('shell');
+    if (
+      files().length === 0 &&
+      shell
+        .promptSources()()
+        .some((s) => (s.where ?? ['home']).includes('home') && s.send?.(prompt, { client: pc, task: '', launch }) === true)
+    ) {
+      setText('');
+      setGoal(undefined);
+      return;
+    }
     // the row and the page at once (optimistic), the box cleared; a refusal puts the text back. With files, the
     // task starts once they're up (usually already: they went when they were added)
     setText('');

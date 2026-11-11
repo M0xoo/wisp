@@ -4038,6 +4038,7 @@ dependencies = [
  "wisp-router",
  "wisp-runtime",
  "wisp-runtime-api",
+ "wisp-sandbox",
  "wisp-settings",
  "wisp-share",
  "wisp-share-api",
@@ -4514,6 +4515,7 @@ name = "wisp-discord"
 version = "2.0.0"
 dependencies = [
  "async-trait",
+ "ed25519-dalek",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -5407,6 +5409,7 @@ dependencies = [
  "wisp-runtime-api",
  "wisp-runtime-core",
  "wisp-store",
+ "wisp-terminal-api",
 ]
 
 [[package]]
@@ -5428,6 +5431,41 @@ dependencies = [
  "serde",
  "serde_json",
  "wisp-runtime-api",
+]
+
+[[package]]
+name = "wisp-sandbox"
+version = "2.0.0"
+dependencies = [
+ "base64 0.22.1",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "wisp-crew-api",
+ "wisp-kernel",
+ "wisp-proc",
+ "wisp-runtime-api",
+ "wisp-sandbox-api",
+ "wisp-sandbox-core",
+ "wisp-testkit",
+]
+
+[[package]]
+name = "wisp-sandbox-api"
+version = "2.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "wisp-kernel",
+]
+
+[[package]]
+name = "wisp-sandbox-core"
+version = "2.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -41,3 +41,22 @@ test('a_task_is_in_the_project_holding_its_folder_and_the_filter_shows_only_that
   expect(ids('web')).toEqual(['a']);
   expect(ids('all')).toEqual(['a', 'b', 'c']);
 });
+
+test('a_row_from_a_sandbox_says_sandbox_in_the_machines_slot_and_one_from_this_wisp_says_nothing', async () => {
+  const { machinesByPeer, onMachine } = await import('../src/state.ts');
+  const { runOf } = await import('../src/model/row.ts');
+  const ms = machinesByPeer([
+    { id: 'h:m1', body: { peer: 'sbx1', name: 'Sandbox fix the login', data: { sandbox: 'a1' } } },
+    { id: 'h:m2', body: { peer: 'studio', name: 'Studio' } },
+    { id: 'h:m3', body: { peer: null, name: 'Not answered yet' } },
+  ]);
+  expect([...ms.keys()]).toEqual(['m1', 'm2']);
+  const r = row('a', '/root/code/web');
+  const boxed = onMachine(r, ms.get('m1'));
+  expect(onMachine(r, ms.get('m1'))).toBe(boxed);
+  expect(onMachine(r, undefined)).toBe(r);
+  const ctx = { split: false, open: false, swipes: false, here: 'This Mac', sandbox: 'Sandbox', agents: new Map() } as never;
+  expect(runOf(boxed, ctx)).toMatchObject({ where: 'Sandbox', sandbox: true, remote: true });
+  expect(runOf(onMachine(r, ms.get('m2')), ctx)).toMatchObject({ where: 'Studio', remote: true });
+  expect(runOf(r, ctx)).toMatchObject({ where: 'This Mac', remote: false });
+});

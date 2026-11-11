@@ -71,7 +71,7 @@ export function slashItems(list: readonly SlashCommand[], query: string, t: (k: 
 const rows = <T>(c: PluginClient, kind: string): readonly T[] => c.entities.list<T>(kind)() as readonly T[];
 
 /** The files a task's @ offers (v1 F-comp-15): the best matches of the path typed, the name first. */
-export function fileItems(files: readonly string[], query: string, open: (path: string) => void): PromptItem[] {
+export function fileItems(files: readonly string[], query: string, open?: (path: string) => void): PromptItem[] {
   const q = query.toLowerCase();
   const scored = files
     .map((f) => {
@@ -83,14 +83,14 @@ export function fileItems(files: readonly string[], query: string, open: (path: 
     .sort((a, b) => a.score - b.score || a.f.length - b.f.length);
   return scored.slice(0, MAX).map(({ f, name }) => {
     const dir = f.slice(0, Math.max(0, f.length - name.length - 1));
-    return { value: `file:${f}`, label: name, ...(dir && { detail: dir }), icon: 'file', insert: `@${f} `, open: () => open(f) };
+    return { value: `file:${f}`, label: name, ...(dir && { detail: dir }), icon: 'file', insert: `@${f} `, ...(open && { open: () => open(f) }) };
   });
 }
 
-const listFiles = defineCommand<{ key: EntityKey; id: string }, { files: string[] }>({
+const listFiles = defineCommand<{ key: EntityKey; id?: string; path?: string }, { files: string[] }>({
   id: 'worktrees.files',
   owner: (a) => a.key,
-  wire: (a) => ({ id: a.id }),
+  wire: (a) => (a.path ? { path: a.path } : { id: a.id }),
   optimistic: 'none',
   pending: 'the @ menu’s files',
 });
@@ -98,13 +98,22 @@ const listFiles = defineCommand<{ key: EntityKey; id: string }, { files: string[
 const filesOf = new Map<string, readonly string[]>();
 function taskFiles(c: PluginClient, task: string | undefined): readonly string[] {
   if (!task) return [];
-  const had = filesOf.get(task);
+  return cached(task, () => c.run(listFiles, { key: task as EntityKey, id: task.slice(task.indexOf(':') + 1) }));
+}
+
+/** New task's picked project's files (this wisp's), before there's a task. */
+function projectFiles(c: PluginClient, path: string | undefined): readonly string[] {
+  if (!path) return [];
+  return cached(`project:${path}`, () => c.run(listFiles, { key: `${c.home}:files` as EntityKey, path }));
+}
+
+function cached(key: string, ask: () => Promise<{ files: string[] }>): readonly string[] {
+  const had = filesOf.get(key);
   if (had) return had;
-  filesOf.set(task, []);
-  const id = task.slice(task.indexOf(':') + 1);
-  void c.run(listFiles, { key: task as EntityKey, id }).then(
-    (r) => filesOf.set(task, r.files),
-    () => filesOf.delete(task),
+  filesOf.set(key, []);
+  void ask().then(
+    (r) => filesOf.set(key, r.files),
+    () => filesOf.delete(key),
   );
   return [];
 }
@@ -120,6 +129,13 @@ export const PROMPT_SOURCES: PromptSourceDef[] = [
         rows<CrewRow & { body?: Partial<CrewRow> }>(ctx.client, 'crew_member').map((r) => ({ ...r.body, ...r })),
         q,
       ),
+  },
+  {
+    id: 'shell-composer.files.home',
+    trigger: '@',
+    where: ['home'],
+    order: 25,
+    items: (q, ctx) => (q ? fileItems(projectFiles(ctx.client, ctx.project), q) : []),
   },
   {
     id: 'shell-composer.files',

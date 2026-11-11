@@ -274,6 +274,16 @@ export interface PromptItem {
   open?: () => void;
 }
 
+/** New task's picks, for a prompt source that takes what's sent there (`/sandbox …`). Additive (2026-11-11). */
+export interface LaunchPick {
+  readonly cwd?: string;
+  readonly agent?: string;
+  readonly model?: string;
+  readonly effort?: string;
+  readonly mode?: string;
+  readonly goal?: unknown;
+}
+
 /** What a prompt box's @ or / menu offers, from a plugin (shell-composer: tasks, crew, My Stuff, the commands). */
 export interface PromptSourceDef {
   id: string;
@@ -282,13 +292,14 @@ export interface PromptSourceDef {
   where?: readonly ('reply' | 'home')[];
   /** among sources for one trigger, lower first */
   order?: number;
-  items(query: string, ctx: { client: PluginClient; task?: string }): readonly PromptItem[];
+  /** `project`: New task's picked project's folder (additive, 2026-11-11) */
+  items(query: string, ctx: { client: PluginClient; task?: string; project?: string }): readonly PromptItem[];
   /**
    * A reply this source takes instead of the task's agent (crew: a reply that starts with @a member is for them). Gets
    * the stored text (mentions encoded); true: it was taken (and sent), the box clears and nothing goes to the agent.
    * Additive (2026-11-11).
    */
-  send?(text: string, ctx: { client: PluginClient; task: string }): boolean;
+  send?(text: string, ctx: { client: PluginClient; task: string; launch?: LaunchPick }): boolean;
 }
 
 /** 'e', 'shift+r', 'mod+k' (⌘ on a Mac, Ctrl elsewhere), 'ctrl+`', 'escape', '?' */

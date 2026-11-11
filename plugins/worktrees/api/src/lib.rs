@@ -393,7 +393,36 @@ pub struct Saved {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FilesArgs {
+    /// a task: its folder's files
+    #[serde(default)]
     pub id: String,
+    /// or a project of yours, by its folder (New task's @ before there's a task). Additive (2026-11-11).
+    #[serde(default)]
+    pub path: String,
+}
+
+/// Go to definition (v1 `/sessions/:id/grep?def=`): where a name is declared in the task's folder.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GrepArgs {
+    pub id: String,
+    pub def: String,
+}
+
+#[derive(Debug)]
+pub struct Grep;
+impl Command for Grep {
+    const ID: &'static str = "worktrees.grep";
+    const READ_ONLY: bool = true;
+    type Args = GrepArgs;
+    type Out = Vec<Hit>;
+}
+
+/// One place a name is found (`git grep -n`: `path:line:text`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Hit {
+    pub path: String,
+    pub line: u32,
+    pub text: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

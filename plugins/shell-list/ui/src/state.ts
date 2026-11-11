@@ -9,7 +9,7 @@ import { reordered } from '@wisp/ui';
 import { createPlacement } from './model/placement.ts';
 import { flatSession, LATER_TOPIC, listPlan } from './model/wire.ts';
 import { ALL, needsYou, SECTION_IDS, type Filter, type SectionId, type Sections } from './model/sections.ts';
-import { KIND, type Agent, type Plan, type Project, type Row, type Session, type SessionRow } from './types.ts';
+import { KIND, type Agent, type MachineRef, type Plan, type Project, type Row, type Session, type SessionRow } from './types.ts';
 
 export interface ViewState {
   /** a project id, or 'all' (v1 wisp.filter) */
@@ -71,6 +71,28 @@ const setOrder = defineCommand<{ peer: PeerId; value: string[] }>({
   optimistic: (_b, a) => [{ e: 'setting', id: entityKey(a.peer, PROJECT_ORDER), op: 'upsert', v: { key: PROJECT_ORDER, value: a.value, locked_by: null } as never }],
 });
 
+/** The machines this wisp keeps that have answered, by the peer id the app gives them (their own id). */
+export function machinesByPeer(rows: readonly { id: string; body?: { peer?: string | null; name?: string; data?: Record<string, unknown> } }[]): Map<string, MachineRef> {
+  const out = new Map<string, MachineRef>();
+  for (const r of rows) {
+    if (!r.body?.peer) continue;
+    // the app names a machine's peer by the machine's own id (apps/web followMachines)
+    const id = String(r.id).slice(String(r.id).indexOf(':') + 1);
+    out.set(id, { id, name: r.body?.name ?? id, ...(r.body?.data?.['sandbox'] ? { kind: 'sandbox' as const } : {}) });
+  }
+  return out;
+}
+
+const onMachines = new WeakMap<SessionRow, { m: MachineRef | undefined; out: SessionRow }>();
+/** The row with the machine it runs on (rows from this wisp: none), the same object while that doesn't change. */
+export function onMachine(s: SessionRow, m: MachineRef | undefined): SessionRow {
+  const had = onMachines.get(s);
+  if (had && had.m?.id === m?.id && had.m?.kind === m?.kind && had.m?.name === m?.name) return had.out;
+  const out = m ? ({ ...s, machine: m } as SessionRow) : s;
+  onMachines.set(s, { m, out });
+  return out;
+}
+
 /** The row with the project its folder is in (`projectId`), the same object while that doesn't change. */
 const placed = new WeakMap<SessionRow, { ps: readonly ProjectView[]; out: SessionRow }>();
 export function inProjectOf(s: SessionRow, ps: readonly ProjectView[]): SessionRow {
@@ -91,9 +113,14 @@ function createModel(client: PluginClient): ListModel {
   const projectRows = client.entities.list<unknown>(KIND.project);
   const settingRows = client.entities.list<{ key: string; value: unknown }>('setting');
   const projects = computed(() => projectList(projectRows(), settingRows().find((r) => r.key === PROJECT_ORDER)?.value));
+  // a row from another wisp: which machine it is (a sandbox shows as Sandbox), from wisp.machines' rows
+  const machineRows = client.entities.list<{ id: string; body?: { peer?: string | null; name?: string; data?: Record<string, unknown> } }>('machines_peer');
+  const machines = computed(() => machinesByPeer(machineRows()));
   const rows = computed(() => {
     const ps = projects();
-    return raw().map((r) => inProjectOf(flatSession(r), ps));
+    const ms = machines();
+    const ks = keys();
+    return raw().map((r, i) => onMachine(inProjectOf(flatSession(r), ps), ms.get(String(ks[i] ?? '').split(':')[0] ?? '')));
   });
   // Scheduled and Drafts: wisp.later's plans, on its own topic
   client.watch(client.home, LATER_TOPIC as never);
@@ -131,7 +158,11 @@ function createModel(client: PluginClient): ListModel {
     agents,
     row: (key) => {
       const r = client.entities.row<Session>(KIND.session, key);
-      return computed(() => flatSession(r()));
+      // the same row the sections hold: its project and the machine it runs on (a sandbox says so)
+      return computed(() => {
+        const flat = flatSession(r());
+        return flat ? onMachine(inProjectOf(flat, projects()), machines().get(String(key).split(':')[0] ?? '')) : flat;
+      });
     },
     crew,
     setCrew: (id) => crew(id),

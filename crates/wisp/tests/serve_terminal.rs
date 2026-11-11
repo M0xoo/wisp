@@ -61,3 +61,47 @@ async fn a_tasks_shell_streams_what_it_is_typed() {
     assert!(api.cmd("terminal.get", json!({ "kind": "shell", "id": id })).await.is_null());
     drop(serve);
 }
+
+/// v1 services/tui.js: `/terminal …` (or Settings → General → Terminal sessions) starts the task in the harness's
+/// own CLI in a terminal in wisp, on the prompt, with no headless run; the CLI's conversation is named by wisp
+/// (`--session-id`, so it can be resumed); a follow-up opens it again resumed once it ended; and when it ends the
+/// task is for review.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_terminal_task_runs_in_the_harnesss_own_cli_and_a_follow_up_resumes_it() {
+    if cfg!(windows) {
+        return;
+    }
+    let dir = temp("serve-terminal-task");
+    let (serve, port) = start_with(&dir, &[]);
+    let api = Arc::new(Api { http: reqwest::Client::new(), port, n: 0.into() });
+    let made = api.cmd("runtime.create", json!({ "prompt": "/terminal fix the add bug", "cwd": dir.join("proj"), "agent": "claude" })).await;
+    let id = made["id"].as_str().unwrap().to_owned();
+    assert!(made["turnId"].is_null(), "no headless turn: {made}");
+    let info = api.cmd("terminal.get", json!({ "kind": "takeover", "id": id })).await;
+    assert_eq!(info["tui"], true, "{info}");
+    let task = api.cmd("runtime.get", json!({ "id": id })).await;
+    let named = task["resumeId"].as_str().unwrap_or_default().to_owned();
+    assert_eq!(named.len(), 36, "the conversation named by wisp: {task}");
+    assert_eq!(task["ext"]["wisp.runtime"]["terminal"]["prompt"], "fix the add bug", "{task}");
+    // the CLI ends (here: its terminal closed; the fake reads its prompt to the end): the task is for review
+    api.cmd("terminal.close", json!({ "kind": "takeover", "id": id })).await;
+    let at = Instant::now();
+    loop {
+        let t = api.cmd("runtime.get", json!({ "id": id })).await;
+        if t["state"] == "review" {
+            break;
+        }
+        if at.elapsed() > Duration::from_secs(20) {
+            let term = api.cmd("terminal.get", json!({ "kind": "takeover", "id": id })).await;
+            panic!("it never ended: {t}\n{term}");
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    // a follow-up opens it again, resumed
+    let f = api.cmd("runtime.followUp", json!({ "id": id, "text": "and add a test" })).await;
+    assert!(f.get("turnId").is_none_or(Value::is_null), "{f}");
+    let again = api.cmd("runtime.get", json!({ "id": id })).await;
+    assert_eq!(again["resumeId"].as_str(), Some(named.as_str()), "the same conversation");
+    assert!(api.cmd("terminal.get", json!({ "kind": "takeover", "id": id })).await.is_object());
+    drop(serve);
+}

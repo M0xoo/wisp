@@ -5,7 +5,7 @@
 import { Match, Show, Switch, createMemo, createResource, type JSX } from 'solid-js';
 import { defineCommand, type EntityKey } from '@wisp/client';
 import { Box, Diff, EmptyState, IconButton, Inline, Stack, Tabs, Text, useSignal } from '@wisp/ui';
-import type { SidePane } from '../open-task.ts';
+import { TERM_VIEW, isTui, type SidePane } from '../open-task.ts';
 import { useShell } from '../shell.ts';
 import { useTask } from '../task-context.tsx';
 import { filesOf, gitFiles, type ChangeTurn, type GitChanges } from './changes.ts';
@@ -61,7 +61,10 @@ export function SidePanel(props: { readonly pane: SidePane; readonly file?: stri
   const t = shell.t;
   const open = (pane: string): void => {
     if (pane === 'changes' || pane === 'pr' || pane === 'shell') shell.navigate({ t: 'openSide', side: { kind: pane, id: task.key as never } });
+    if (pane === 'term') shell.navigate({ t: 'openSide', side: { kind: 'view', id: TERM_VIEW as never } });
   };
+  // a terminal task's CLI comes first
+  const panes = (): readonly SidePane[] => (isTui(task.task()) ? ['term', ...PANES] : PANES);
   return (
     <Stack gap="4" part="side.panel" grow>
       <Inline gap="2" align="center" part="side.head">
@@ -70,7 +73,7 @@ export function SidePanel(props: { readonly pane: SidePane; readonly file?: stri
           aria-label={t('shell-task.side.label')}
           value={props.pane}
           onChange={open}
-          items={PANES.map((p) => ({ value: p, label: t(`shell-task.side.${p}`), icon: p === 'changes' ? 'file' : p === 'pr' ? 'merge' : 'terminal' }))}
+          items={panes().map((p) => ({ value: p, label: t(`shell-task.side.${p}`), icon: p === 'changes' ? 'file' : p === 'pr' ? 'merge' : 'terminal' }))}
         />
         <Box grow />
         <IconButton icon="x" size="sm" label={t('shell-task.side.close')} onClick={() => shell.navigate({ t: 'closeSide' })} />
@@ -84,7 +87,10 @@ export function SidePanel(props: { readonly pane: SidePane; readonly file?: stri
           <PrPane />
         </Match>
         <Match when={props.pane === 'shell'}>
-          <ShellPane />
+          <ShellPane kind="shell" />
+        </Match>
+        <Match when={props.pane === 'term'}>
+          <ShellPane kind="takeover" />
         </Match>
       </Switch>
     </Stack>

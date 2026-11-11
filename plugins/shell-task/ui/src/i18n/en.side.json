@@ -3,6 +3,8 @@
   "shell-task.side.changes": "Changes",
   "shell-task.side.pr": "PR",
   "shell-task.side.shell": "Shell",
+  "shell-task.side.term": "Terminal",
+  "shell-task.term.end": "End terminal",
   "shell-task.side.close": "Close the panel",
   "shell-task.side.changes.title": "Changes",
   "shell-task.side.changes.count.one": "1 file · +{add} −{del}",
@@ -74,5 +76,7 @@
   "shell-task.file.saving": "Saving…",
   "shell-task.file.unsaved": "Unsaved",
   "shell-task.file.saved": "Saved",
-  "shell-task.file.error": "Couldn’t open it"
+  "shell-task.file.error": "Couldn’t open it",
+  "shell-task.file.ask": "Ask about it: the file (or the lines selected) goes in the reply box",
+  "shell-task.file.noDefinition": "No definition of {name} in this folder"
 }

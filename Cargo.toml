@@ -57,6 +57,8 @@ wisp-history-api = { path = "plugins/history/api" }
 wisp-history-tui = { path = "plugins/history/tui" }
 wisp-goal-tui = { path = "plugins/goal/tui" }
 wisp-history-core = { path = "plugins/history/core" }
+wisp-sandbox-api = { path = "plugins/sandbox/api" }
+wisp-sandbox-core = { path = "plugins/sandbox/core" }
 wisp-goal-core = { path = "plugins/goal/core" }
 wisp-later-api = { path = "plugins/later/api" }
 wisp-later-core = { path = "plugins/later/core" }

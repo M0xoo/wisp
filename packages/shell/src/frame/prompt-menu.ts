@@ -73,6 +73,8 @@ export function usePromptMenu(o: {
   readonly shell: ShellContext;
   readonly where: 'reply' | 'home';
   readonly task?: string;
+  /** New task's picked project's folder (its files for @) */
+  readonly project?: () => string | undefined;
   readonly text: Accessor<string>;
   readonly setText: (v: string) => void;
   readonly input: () => HTMLTextAreaElement | undefined;
@@ -82,10 +84,15 @@ export function usePromptMenu(o: {
   const [at, setAt] = createSignal<MenuAt | null>(null);
   const [active, setActive] = createSignal(0);
   const [mentions, setMentions] = createSignal<readonly Mentioned[]>([]);
-  const ctx = { client: o.shell.client.plugin('shell'), ...(o.task !== undefined && { task: o.task }) };
+  const base = { client: o.shell.client.plugin('shell'), ...(o.task !== undefined && { task: o.task }) };
+  // New task's picked project, read when the menu asks (its files for @)
+  const ctxNow = (): Parameters<PromptSourceDef['items']>[1] => {
+    const project = o.project?.();
+    return project ? { ...base, project } : base;
+  };
   const items = createMemo((): PromptItem[] => {
     const m = at();
-    return m ? itemsFor(sources(), m, o.where, ctx) : [];
+    return m ? itemsFor(sources(), m, o.where, ctxNow()) : [];
   });
   const pick = (value: string): void => {
     const m = at();

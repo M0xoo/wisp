@@ -114,6 +114,8 @@ export interface Task {
   review?: { status: string; by?: string; findings?: number; why?: string } | null;
   watch?: Watch;
   term?: boolean;
+  /** a terminal task (the harness's own CLI in a terminal in wisp) */
+  tui?: boolean;
   tags?: string[];
   parentId?: string;
   sideOf?: { id: string; title: string };

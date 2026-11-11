@@ -63,7 +63,7 @@ export function RunLine(props: { readonly run: RunView | undefined; readonly s: 
             <Text size="xs" tone="faint" truncate title={route() ? routeTip(route() as RouteSeen, env.shell.t) : say(env.shell.t, r().title, env.now())}>
               {r().model ? `${r().agentName} · ${r().model}` : r().agentName}
             </Text>
-            <Icon name={r().remote ? 'server' : 'laptop'} size="xs" tone="faint" />
+            <Icon name={r().sandbox ? 'box' : r().remote ? 'server' : 'laptop'} size="xs" tone="faint" />
             <Text size="xs" tone="faint" truncate>{r().where}</Text>
           </Inline>
         )}

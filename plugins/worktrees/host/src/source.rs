@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 use wisp_kernel::{Call, Ctx, Result, Setup, WireError};
 use wisp_proc::{Env, ExecOpts, Proc};
 use wisp_worktrees_api::{self as api, EXT};
-use wisp_worktrees_core::source::{file_list, hash_of, inside, not_editable};
+use wisp_worktrees_core::source::{def_pattern, file_list, hash_of, hits, ident, inside, not_editable};
 
 /// The task's folder and its state.
 async fn folder(ctx: &Ctx, call: &Call, id: &str) -> Result<(PathBuf, String)> {
@@ -55,8 +55,29 @@ pub(crate) fn register(s: &mut Setup) {
         tokio::fs::write(&file, a.text.as_bytes()).await.map_err(|e| WireError::internal(format!("couldn't save it: {e}")))?;
         Ok(api::Saved { hash: hash_of(a.text.as_bytes()) })
     });
-    s.command::<api::Files, _, _>(|ctx, call, a| async move {
+    s.command::<api::Grep, _, _>(|ctx, call, a| async move {
         let (root, _) = folder(&ctx, &call, &a.id).await?;
+        let name = ident(&a.def).ok_or_else(|| WireError::invalid("Go to definition looks for a name (letters, digits, _)."))?;
+        let proc = ctx.service::<Proc>()?;
+        let args: Vec<String> = ["grep", "-n", "-I", "-E", &def_pattern(name)].map(str::to_owned).to_vec();
+        let opts = ExecOpts { cwd: Some(root), env: Env::default().with("GIT_OPTIONAL_LOCKS", "0"), timeout: Some(Duration::from_secs(15)), max_output: 1 << 20, ..ExecOpts::default() };
+        Ok(match proc.exec("git", &args, opts).await {
+            Ok(r) if r.exit.success() => hits(&r.stdout_text(), 20),
+            _ => Vec::new(),
+        })
+    });
+    s.command::<api::Files, _, _>(|ctx, call, a| async move {
+        // a project of yours by its folder (New task's @), else the task's folder
+        let root = if a.id.is_empty() {
+            let mine = ctx.run_json(&call, "resources.export", json!({ "kinds": ["project"] })).await.unwrap_or_default();
+            let known = mine.as_array().into_iter().flatten().any(|r| r.pointer("/spec/path").and_then(Value::as_str).is_some_and(|p| p.trim_end_matches('/') == a.path.trim_end_matches('/')));
+            if !known {
+                return Err(WireError::forbidden("Only a project of yours lists its files here."));
+            }
+            PathBuf::from(&a.path)
+        } else {
+            folder(&ctx, &call, &a.id).await?.0
+        };
         let proc = ctx.service::<Proc>()?;
         let args: Vec<String> = ["ls-files", "--cached", "--others", "--exclude-standard", "-z"].map(str::to_owned).to_vec();
         let opts = ExecOpts { cwd: Some(root), env: Env::default().with("GIT_OPTIONAL_LOCKS", "0"), timeout: Some(Duration::from_secs(15)), max_output: 8 << 20, ..ExecOpts::default() };

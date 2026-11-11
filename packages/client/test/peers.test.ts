@@ -204,3 +204,21 @@ test('an op the store cannot apply starts its topic over: the link unsubscribes 
   await settle();
   assert.deepEqual(t.posted.slice(before).map((m) => `${m.t} ${'topic' in m ? m.topic : ''}`), ['unsub session:s9', 'sub session:s9']);
 });
+
+test('a_watch_on_a_peer_added_later_starts_when_it_is_added_and_one_whose_scope_ended_never_does', async () => {
+  const { peers, t, conn, scope } = await setup();
+  const B = peerId('sandbox-m1');
+  const view = scope.child('task');
+  const gone = scope.child('closed-view');
+  peers.watch(B, 'session:t1' as Topic, view);
+  peers.watch(B, 'session:t2' as Topic, gone);
+  gone.dispose();
+  peers.add({ peer: B, name: 'Sandbox', transport: t });
+  await settle();
+  conn()?.push(welcome());
+  await settle();
+  // it rides the hello (the topics a connection opens with) or a `sub` after it
+  const said = JSON.stringify([t.connections.map((c) => c.params), t.posted]);
+  assert.ok(said.includes('session:t1'), said);
+  assert.ok(!said.includes('session:t2'), 'its view had closed');
+});

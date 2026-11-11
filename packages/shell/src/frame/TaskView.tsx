@@ -131,6 +131,9 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   const harnesses = useSignal(shell.harnesses());
   // the @ and / menus (plugins' prompt sources: shell-composer's tasks, crew, My Stuff and commands)
   const menu = usePromptMenu({ shell, where: 'reply', task: key, text, setText, input: () => input, id: `reply-suggest-${bare}` });
+  // a plugin may fill this reply box (the file view's ✦: "@src/a.ts:12-20 "): set it, the caret at its end
+  const replyBox = { text: () => text(), set: (v: string) => (setText(v), menu.typed(v)), focus: () => (input?.focus(), input?.setSelectionRange(input.value.length, input.value.length)) };
+  if (shell.prompts) onCleanup(shell.prompts.provide('reply', replyBox));
   // the reply box's harness · model (v1 S.replyRunners): the next follow-ups run on it, the task keeps its own
   const [replyRun, setReplyRun] = createSignal<Runner | undefined>(undefined);
   const [runnerOpen, setPickingRunner] = createSignal(false);

@@ -30,6 +30,13 @@ const save = defineCommand<{ key: EntityKey; id: string; path: string; text: str
   optimistic: 'none',
   pending: 'Save, then Saved',
 });
+const grep = defineCommand<{ key: EntityKey; id: string; def: string }, { path: string; line: number; text: string }[]>({
+  id: 'worktrees.grep',
+  owner: (a) => a.key,
+  wire: (a) => ({ id: a.id, def: a.def }),
+  optimistic: 'none',
+  pending: 'Go to definition',
+});
 const blame = defineCommand<{ key: EntityKey; repo: string; path: string }, { byLine?: BlameLine[] }>({
   id: 'history.blame',
   owner: (a) => a.key,
@@ -38,12 +45,25 @@ const blame = defineCommand<{ key: EntityKey; repo: string; path: string }, { by
   pending: 'the why-gutter',
 });
 
+/** `src/a.ts#L12` (Go to definition's place) → the file and the line. */
+export function placeOf(p: string): { readonly file: string; readonly line?: number } {
+  const m = /^(.*)#L(\d+)$/.exec(p);
+  return m ? { file: m[1] ?? p, line: Number(m[2]) } : { file: p };
+}
+
+/** What ✦ puts in the reply box: the file, and the lines when some are selected. */
+export function askText(file: string, lines: { readonly from: number; readonly to: number } | undefined): string {
+  return `@${file}${lines ? (lines.from === lines.to ? `:${lines.from}` : `:${lines.from}-${lines.to}`) : ''} `;
+}
+
 export function FilePane(props: { readonly path: string }): JSX.Element {
+  const place = createMemo(() => placeOf(props.path));
+  const path = (): string => place().file;
   const shell = useShell();
   const task = useTask();
   const t = shell.t;
   const [file, { refetch }] = createResource(
-    () => props.path,
+    () => path(),
     (path) => task.client.run(source, { key: task.key, id: task.id, path }).catch((e: unknown) => ({ error: e instanceof Error ? e.message : String(e) })),
   );
   const loaded = (): Source | undefined => {
@@ -99,6 +119,28 @@ export function FilePane(props: { readonly path: string }): JSX.Element {
       .finally(() => setSaving(false));
   };
   const back = (): void => shell.navigate({ t: 'openSide', side: { kind: 'changes', id: task.key as never } });
+  // ✦: ask the task's agent about this file (the selected lines, when some are)
+  const [lines, setLines] = createSignal<{ readonly from: number; readonly to: number } | undefined>(undefined);
+  const ask = (): void => {
+    const box = shell.prompts?.get('reply');
+    if (!box) return;
+    const now = box.text();
+    box.set(`${now}${now && !now.endsWith(' ') ? ' ' : ''}${askText(path(), lines())}`);
+    box.focus();
+  };
+  // Go to definition: where the name is declared in the task's folder, opened at its line
+  const goTo = (name: string): void => {
+    void task.client.run(grep, { key: task.key, id: task.id, def: name }).then(
+      (found) => {
+        // a file of the same kind first (a .rs name in .rs files), not this one, then whatever was found
+        const ext = (f: string): string => f.slice(f.lastIndexOf('.') + 1);
+        const hit = found.find((h) => h.path !== path() && ext(h.path) === ext(path())) ?? found.find((h) => ext(h.path) === ext(path())) ?? found[0];
+        if (!hit) return shell.toast.show(t('shell-task.file.noDefinition', { name }));
+        shell.navigate({ t: 'openSide', side: { kind: 'changes', id: task.key as never, file: `${hit.path}#L${hit.line}` } });
+      },
+      () => undefined,
+    );
+  };
   const error = (): string | undefined => {
     const f = file();
     return f && 'error' in f ? f.error : undefined;
@@ -108,10 +150,11 @@ export function FilePane(props: { readonly path: string }): JSX.Element {
     <Stack gap="0" grow part="side.file">
       <Inline gap="2" align="center" part="side.file.head">
         <IconButton icon="back" size="sm" variant="ghost" label={t('shell-task.file.back')} onClick={back} />
-        <Text mono size="sm" truncate title={props.path}>
-          {props.path.split('/').pop() ?? props.path}
+        <Text mono size="sm" truncate title={path()}>
+          {path().split('/').pop() ?? path()}
         </Text>
         <Box grow />
+        <IconButton icon="spark" size="sm" variant="ghost" label={t('shell-task.file.ask')} onClick={ask} part="side.file.ask" />
         <Text size="sm" tone="muted" nowrap part="side.file.status">
           {status()}
         </Text>
@@ -139,11 +182,14 @@ export function FilePane(props: { readonly path: string }): JSX.Element {
         <Box grow part="side.file.body">
           <FileView
             text={text()}
-            lang={langOfPath(props.path)}
+            lang={langOfPath(path())}
             onInput={(v) => setDraft(v)}
             onSave={doSave}
             gutter={gutter()}
-            aria-label={t('shell-task.file.label', { path: props.path })}
+            line={place().line}
+            onSelectLines={setLines}
+            onDefinition={goTo}
+            aria-label={t('shell-task.file.label', { path: path() })}
             part="side.file.view"
           />
         </Box>

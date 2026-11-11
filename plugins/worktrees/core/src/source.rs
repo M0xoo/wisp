@@ -57,10 +57,53 @@ pub fn file_list(z: &str) -> (Vec<String>, usize) {
     (all, more)
 }
 
+pub use wisp_worktrees_api::Hit;
+
+/// A name the editor may look for: an identifier, nothing a pattern would read as more.
+pub fn ident(name: &str) -> Option<&str> {
+    let n = name.trim();
+    let ok = !n.is_empty() && n.len() <= 120 && n.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$') && !n.chars().next().is_some_and(char::is_numeric);
+    ok.then_some(n)
+}
+
+/// `git grep -E` for where `name` is declared (v1 `/grep?def=`): after a keyword that declares one, or assigned a
+/// function. The name is an identifier already (`ident`).
+pub fn def_pattern(name: &str) -> String {
+    // POSIX classes and explicit word edges: `git grep -E` has no `\b` or `\s`
+    let n = name.replace('$', "[$]");
+    let decl = "function|class|const|let|var|def|fn|struct|enum|trait|type|interface|impl|mod|func|module";
+    format!("(^|[^A-Za-z0-9_])({decl})[[:space:]]+{n}([^A-Za-z0-9_$]|$)|(^|[^A-Za-z0-9_$.]){n}[[:space:]]*[:=][[:space:]]*(async[[:space:]]+)?(function([^A-Za-z0-9_$]|$)|\\()")
+}
+
+/// `git grep -n` output as hits, at most `max`; text cut to 200 characters.
+pub fn hits(out: &str, max: usize) -> Vec<Hit> {
+    out.lines()
+        .filter_map(|l| {
+            let (path, rest) = l.split_once(':')?;
+            let (n, text) = rest.split_once(':')?;
+            Some(Hit { path: path.to_owned(), line: n.parse().ok()?, text: text.trim().chars().take(200).collect() })
+        })
+        .take(max)
+        .collect()
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// The pattern as `git grep -E` reads it, run here through the system's grep (tests only).
+    fn regex_lite(pattern: &str) -> impl Fn(&str) -> bool + use<> {
+        let p = pattern.to_owned();
+        move |line: &str| {
+            let mut c = std::process::Command::new("grep").args(["-E", "-q", &p]).stdin(std::process::Stdio::piped()).spawn().unwrap();
+            {
+                use std::io::Write as _;
+                c.stdin.take().unwrap().write_all(line.as_bytes()).unwrap();
+            }
+            c.wait().unwrap().success()
+        }
+    }
 
     /// v1 workspace.js sourceFile: a path names a file inside the task's folder only; binary or huge files aren't
     /// edited here; the hash tells a changed file.
@@ -79,5 +122,22 @@ mod tests {
         assert_eq!(hash_of(b"abc"), hash_of(b"abc"));
         assert_ne!(hash_of(b"abc"), hash_of(b"abd"));
         assert_eq!(file_list("b\0a\0b\0"), (vec!["a".to_owned(), "b".to_owned()], 0));
+    }
+
+    /// v1 workspace.js `/grep?def=`: Go to definition finds where a name is declared, and only an identifier is
+    /// looked for.
+    #[test]
+    fn go_to_definition_finds_where_a_name_is_declared() {
+        assert_eq!(ident(" squash "), Some("squash"));
+        assert_eq!((ident("a.b"), ident("1x"), ident("")), (None, None, None));
+        let re = regex_lite(&def_pattern("squash"));
+        for yes in ["pub fn squash(s: &str)", "export function squash(a)", "const squash = (a) =>", "  squash: async function () {", "def squash(x):"] {
+            assert!(re(yes), "{yes}");
+        }
+        for no in ["squash(x);", "let squashed = 1", "// squash it"] {
+            assert!(!re(no), "{no}");
+        }
+        let h = hits("src/text.rs:5:pub fn squash(s: &str) -> String {\nweb/a.js:12:export function squash(a) {\nbad line", 10);
+        assert_eq!(h, vec![Hit { path: "src/text.rs".into(), line: 5, text: "pub fn squash(s: &str) -> String {".into() }, Hit { path: "web/a.js".into(), line: 12, text: "export function squash(a) {".into() }]);
     }
 }

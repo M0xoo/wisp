@@ -62,7 +62,7 @@ export function buildEnv(shell: ShellContext, client: PluginClient): ListEnv {
     swipes,
     keys: !shell.platform.mobile,
     agents,
-    rowCtx: (key) => ({ split: split(), open: open() === key, swipes, here: here(), agents: agents() }),
+    rowCtx: (key) => ({ split: split(), open: open() === key, swipes, here: here(), sandbox: shell.t('shell-list.run.sandbox'), agents: agents() }),
     openTask: (key) => {
       shell.selection.set(key);
       client.navigate({ t: 'openTask', id: key as never });
