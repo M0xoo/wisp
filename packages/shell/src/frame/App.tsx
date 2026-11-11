@@ -11,6 +11,7 @@ import { Area, ClientsProvider, type Clients } from '../slot.tsx';
 import { MainPane, SidePane } from './Panes.tsx';
 import { Overlays } from './Overlays.tsx';
 import { Head, Rail, SidebarList } from './Sidebar.tsx';
+import { crewTint, type TintMember } from './crew-tint.ts';
 
 const Switcher = lazy(() => import('../switcher/Switcher.tsx'));
 
@@ -26,6 +27,14 @@ export function App(props: { readonly clients: Clients; readonly recent: Readabl
   // the desktop app on a Mac: the page is the title bar (Stage's titlebar, the platform's drag regions)
   const titlebar = shell.platform.titlebar === 'mac' ? 'mac' : undefined;
   onMount(() => onCleanup(shell.platform.dragRegions(document.body)));
+  // a crew member picked on the rail tints the list beside it (v1 #768); Settings → General → Crew tint turns it off
+  const crew = useSignal(shell.client.entities.list<TintMember>('crew_member'));
+  const settings = useSignal(shell.client.entities.list<{ key: string; value: unknown }>('setting'));
+  const tint = createMemo(() => {
+    const n = nav().main;
+    const picked = n.kind === 'crew' ? crew().find((m) => m.id === n.id) : undefined;
+    return crewTint(picked, settings().find((r) => r.key === 'crew.tint')?.value);
+  });
   const onNew = (): void => {
     setLauncher(true);
     shell.navigate({ t: 'home' });
@@ -44,6 +53,7 @@ export function App(props: { readonly clients: Clients; readonly recent: Readabl
         side={nav().side.kind !== 'none' ? <SidePane /> : undefined}
         gripLabel={shell.t('shell.side.grip')}
         listBehind={nav().main.kind === 'home'}
+        tint={tint()}
         {...(titlebar && { titlebar })}
       />
       <Overlays />

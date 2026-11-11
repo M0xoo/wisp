@@ -7,7 +7,7 @@
 import { render } from 'solid-js/web';
 import { computed, effect, signal, untracked, type Client, type PeerId, type PluginClient } from '@wisp/client';
 import { BLOCK_STRINGS, KitProvider, KIT_STRINGS, type KitString, type Toaster } from '@wisp/ui';
-import type { PluginUiDef, SettingsPaneDef, ShellApi, ShellContext } from './contract.ts';
+import type { PluginUiDef, PromptBox, SettingsPaneDef, ShellApi, ShellContext } from './contract.ts';
 import { namespaceOf } from './define.ts';
 import { SHELL_STRINGS } from './i18n/en.ts';
 import type { Platform } from './platform/types.ts';
@@ -79,6 +79,7 @@ export function createShell(o: ShellOptions): Shell {
 
   const selected = signal<string | undefined>(undefined);
   const focusTargets = new Map<string, () => void>();
+  const prompts = new Map<string, PromptBox>();
   const recent = signal<readonly string[]>([]);
   const nav = client.nav.nav;
   const openTask = computed(() => {
@@ -100,6 +101,15 @@ export function createShell(o: ShellOptions): Shell {
       toggle: () => void settings.set('shell.sidebar.open', !untracked(settings.get('shell.sidebar.open'))),
       width: () => settings.get('shell.sidebar.width')(),
       setWidth: (px) => void settings.set('shell.sidebar.width', Math.round(Math.min(640, Math.max(220, px)))),
+    },
+    prompts: {
+      provide(name, box) {
+        prompts.set(name, box);
+        return () => {
+          if (prompts.get(name) === box) prompts.delete(name);
+        };
+      },
+      get: (name) => prompts.get(name),
     },
     focusTargets: {
       provide(name, focus) {

@@ -19,8 +19,10 @@ test('a_refused_turn_goes_only_to_a_harness_on_another_vendors_model_with_that_m
   ]);
   // a configured model counts first; max caps the list
   expect(handoffTargets({ from: 'claude', agents, models: { copilot: 'gemini-3-pro' }, max: 1 })).toEqual([{ agent: 'copilot', model: 'gemini-3-pro', vendor: 'google' }]);
-  // the refusing vendor unknown: a target still needs a known one
-  expect(handoffTargets({ from: 'copilot', agents: [{ id: 'opencode', available: true }, { id: 'codex', available: true }] })).toEqual([{ agent: 'codex', model: '', vendor: 'openai' }]);
+  // the refusing vendor unknown: every other harness that's set up (the runtime's rule, backend round 6)
+  expect(handoffTargets({ from: 'copilot', agents: [{ id: 'opencode', available: true }, { id: 'codex', available: true }] }).map((x) => x.agent)).toEqual(['opencode', 'codex']);
+  // the runtime's vendor wins over reading the model
+  expect(handoffTargets({ from: 'copilot', fromModel: 'gpt-5', vendor: 'anthropic', agents: [{ id: 'codex', available: true }, { id: 'claude', available: true }] }).map((x) => x.agent)).toEqual(['codex']);
   // the limit card: the first other harness that's set up
   expect(limitTarget('claude', agents)?.agent).toBe('copilot');
   expect(limitTarget('claude', [{ id: 'claude', available: true }])).toBeUndefined();

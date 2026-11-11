@@ -308,6 +308,13 @@ export interface ShortcutDef {
 
 export type ThemePref = 'system' | 'light' | 'dark';
 
+/** A prompt box another plugin may fill (ShellContext.prompts). */
+export interface PromptBox {
+  text(): string;
+  set(text: string): void;
+  focus(): void;
+}
+
 /** What every screen reads through useShell(): the shell's own state and services. */
 export interface ShellContext {
   readonly client: Client;
@@ -324,6 +331,9 @@ export interface ShellContext {
   readonly sidebar: { open(): boolean; toggle(): void; width(): number; setWidth(px: number): void };
   /** named things a shortcut can focus ('launcher' for ⌘L, 'reply' for /): the owner registers */
   readonly focusTargets: { provide(name: string, focus: () => void): () => void; focus(name: string): boolean };
+  /** added 2026-11-11 (additive): the prompt boxes ('launcher' for New task) a plugin may fill, as v1's Start from an
+   * issue fills New task's prompt; the owner registers its box while it shows */
+  readonly prompts?: { provide(name: string, box: PromptBox): () => void; get(name: string): PromptBox | undefined };
   readonly palette: { open(query?: string): void };
   /** the extensions on one input, resolved (overrides, disable, attach, config, order) */
   extensions(input: string): () => readonly ResolvedExtension[];

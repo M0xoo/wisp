@@ -5,6 +5,7 @@
 // and the client toasts why.
 
 import { usePromptMenu } from './prompt-menu.ts';
+import { RunnerPicker } from './RunnerPicker.tsx';
 import { useAttachments } from './attach.ts';
 import { createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
 import { entityKey, uuidv7, type EntityKey, type Json } from '@wisp/client';
@@ -14,7 +15,9 @@ import { usePluginClient } from '../slot.tsx';
 import { useNow } from '../clock.ts';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { longTime, sectionOf, shortAgo, statusOf } from './rows-view.ts';
-import { create, setSetting , type Attachment } from './commands.ts';
+import { autoPreview, create, setSetting, type Attachment } from './commands.ts';
+import { goalGate } from './goal-gate.ts';
+import { autoPick, overrideOf, PREVIEW_DEBOUNCE, type AutoPreview } from './auto.ts';
 import { defaultHarness, harnessOf } from './harness.ts';
 import { MODE_ICON, agentMenu, agentName, modeMenu, teamMenu, whenAt, whenMenu, type Mode, type When } from './pickers.ts';
 
@@ -47,6 +50,10 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   const [text, setText] = createSignal('');
   const [mode, setMode] = createSignal<Mode>('auto');
   const [agent, setAgent] = createSignal('auto');
+  // the model and thinking level picked for the harness (Default: '')
+  const [model, setModel] = createSignal('');
+  const [effort, setEffort] = createSignal('');
+  const [picker, setPicker] = createSignal(false);
   const [compare, setCompare] = createSignal<string | undefined>(undefined);
   const [team, setTeam] = createSignal<ReadonlySet<string>>(new Set());
   const [goal, setGoal] = createSignal<string | undefined>(undefined);
@@ -57,8 +64,30 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   const [picking, setPicking] = createSignal(false);
   const [where, setWhere] = createSignal<string | undefined>(undefined); // a project id, 'none', or the first project
   const [tipAt, setTipAt] = createSignal(0);
+  // what Auto would run for the prompt (v1 auto-preview.js): asked after a pause in typing, the newest answer wins;
+  // kept when you then pick your own harness, so the task tells Auto what it had shown (autoOverride)
+  const [preview, setPreview] = createSignal<AutoPreview | undefined>(undefined);
+  let asked = 0;
+  const scope = shell.client.scope.child('home');
+  onCleanup(() => scope.dispose());
+  let cancel: (() => void) | undefined;
+  const ask = (v: string): void => {
+    cancel?.();
+    if (agent() !== 'auto') return;
+    const n = ++asked;
+    if (!v.trim()) return void setPreview(undefined);
+    cancel = scope.timeout(PREVIEW_DEBOUNCE, () => {
+      shell.client.commands
+        .run(autoPreview, { peer: home, prompt: v.trim(), ...(files().length > 0 && { attachments: files().length }), ...(goal() ? { goal: goal() as string } : {}), ...(team().size > 0 && { team: true }) })
+        .then((p) => n === asked && setPreview(p))
+        .catch(() => undefined);
+    });
+  };
   let input: HTMLTextAreaElement | undefined;
   onCleanup(shell.focusTargets.provide('launcher', () => input?.focus()));
+  // a plugin may fill this prompt (Start from an issue): set it, the caret at its end
+  const box = { text: () => text(), set: (v: string) => (setText(v), menu.typed(v)), focus: () => (input?.focus(), input?.setSelectionRange(input.value.length, input.value.length)) };
+  if (shell.prompts) onCleanup(shell.prompts.provide('launcher', box));
   // v1 puts the caret in the prompt a beat after Home shows
   queueMicrotask(() => input?.focus());
   const project = createMemo(() => (where() === 'none' ? undefined : (projects().find((p) => p.id === where()) ?? projects()[0])));
@@ -66,19 +95,37 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   const needs = createMemo(() => sessions().filter((s) => !s.archived && sectionOf(s) === 'needs').sort((a, b) => b.updated_at - a.updated_at));
   // the @ and / menus (plugins' prompt sources), New task's own
   const menu = usePromptMenu({ shell, where: 'home', text, setText, input: () => input, id: 'launcher-suggest' });
+  let goalInput: HTMLInputElement | undefined;
   const send = (): void => {
     const prompt = menu.encode(text().trim());
+    // Goal on and Done when empty: ask first, so a task meant to keep going doesn't start as a one-shot (v1 #769)
+    const gate = goalGate(prompt, goal());
+    if (gate === 'askGoal') {
+      goalInput?.focus();
+      shell.toast.show(t('shell.goal.empty'), { action: { label: t('shell.goal.sendWithout'), onClick: () => (setGoal(undefined), send()) } });
+      return;
+    }
+    if (gate !== 'send') {
+      if (gate === 'sayWhat') shell.toast.show(t('shell.goal.sayWhat'));
+      input?.focus();
+      return;
+    }
     menu.reset();
-    if (!prompt) return;
     const p = project();
     const id = entityKey(home, uuidv7());
     const g = goal();
     // the row and the page at once (optimistic), the box cleared; a refusal puts the text back. With files, the
     // task starts once they're up (usually already: they went when they were added)
     setText('');
+    // Auto with a preview: the router picks on the peer (the same pick); the row shows it until the peer's arrives
+    const ap = agent() === 'auto' ? autoPick(preview()) : undefined;
+    const ov = overrideOf(preview(), { agent: agent(), model: model() });
+    const runner = { agent: ap ? 'auto' : agent() === 'auto' ? auto() : agent(), ...(ap && { shows: ap.agent }), ...(ov && { autoOverride: ov }) };
+    asked++;
+    setPreview(undefined);
     const go = (attachments: readonly Attachment[]): void => {
       shell.client.commands
-        .run(create, { peer: home, id, prompt, agent: agent() === 'auto' ? auto() : agent(), mode: mode(), at: Date.now(), ...(p && { cwd: p.path, projectId: p.id, color: p.color }), ...(g && { goal: g }), ...(attachments.length > 0 && { attachments }) })
+        .run(create, { peer: home, id, prompt, ...runner, mode: mode(), at: Date.now(), ...(p && { cwd: p.path, projectId: p.id, color: p.color }), ...(g && { goal: g }), ...(attachments.length > 0 && { attachments }), ...(agent() !== 'auto' && model() && { model: model() }), ...(agent() !== 'auto' && effort() && { effort: effort() }) })
         .catch(() => setText(prompt));
       shell.navigate({ t: 'openTask', id: id as EntityKey as never });
     };
@@ -95,7 +142,8 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   const tool = (id: string, part: string, icon: LauncherTool['icon'], label: string, title: string, more: Partial<LauncherTool> = {}): LauncherTool => ({ id, part, icon, label, title, ...more });
   const view = (id: string): void => shell.navigate({ t: 'openView', id: id as never, params: null as Json });
   const settingsSheet = (pane: string): void => shell.navigate({ t: 'openOverlay', overlay: { kind: 'viewer', id: 'shell-settings.sheet' as never, params: { pane } } });
-  const pick = (): { name: string; logo?: string } => harnessOf(harnesses(), agent() === 'auto' ? auto() : agent());
+  const shown = (): { agent: string; label: string } | undefined => (agent() === 'auto' ? autoPick(preview()) : undefined);
+  const pick = (): { name: string; logo?: string } => harnessOf(harnesses(), shown()?.agent ?? (agent() === 'auto' ? auto() : agent()));
   const chips = (): LauncherChip[] => [
     ...projects().map((p) => ({ id: p.id, kind: 'project' as const, name: p.name, title: p.path, color: p.color, on: project()?.id === p.id, act: { onClick: () => setWhere(p.id) } })),
     { id: 'none', kind: 'none', name: t('shell.home.noFolder'), title: t('shell.home.noFolderTitle'), on: where() === 'none', act: { onClick: () => setWhere('none') } },
@@ -116,6 +164,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
         onInput={(v) => {
           setText(v);
           menu.typed(v);
+          ask(v);
         }}
         onSend={send}
         suggest={menu.suggest()}
@@ -126,12 +175,13 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
         runner={{
           label: agentName(t, harnesses(), agent()),
           title: t('shell.home.autoTitle'),
-          pick: pick().name,
-          pickTitle: t('shell.home.pickTitle', { name: pick().name }),
+          pick: shown()?.label ?? [pick().name, agent() !== 'auto' && model() ? model() : '', agent() !== 'auto' ? effort() : ''].filter(Boolean).join(' · '),
+          pickTitle: shown() ? t('shell.home.autoWhy', { label: preview()?.pick?.label ?? '', why: preview()?.why ?? '' }) : t('shell.home.pickTitle', { name: pick().name }),
           ...(pick().logo && { logo: pick().logo }),
           compare: compare() ? t('shell.home.compareWith', { name: agentName(t, harnesses(), compare() ?? '') }) : t('shell.home.compare'),
-          act: { menu: { items: agentMenu(t, harnesses(), agent()), onSelect: setAgent } },
-          pickAct: { menu: { items: agentMenu(t, harnesses(), agent() === 'auto' ? auto() : agent(), false), onSelect: setAgent } },
+          act: { menu: { items: agentMenu(t, harnesses(), agent()), onSelect: (a) => (setAgent(a), setModel(''), setEffort('')) } },
+          // the searchable harness · model picker (v1 runner-picker.js)
+          pickAct: { onClick: () => setPicker(true) },
           compareAct: { menu: { items: agentMenu(t, harnesses(), compare() ?? '', false), onSelect: (v) => setCompare(compare() === v ? undefined : v) } },
         }}
         lead={[
@@ -148,7 +198,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           tool('later', 'launcher.later', 'clock', t('shell.home.later'), t('shell.home.later'), { ...(when() && { on: true }), act: { menu: { items: whenMenu(t), onSelect: (v) => setWhen(v as When) } } }),
         ]}
         sendLabel={when() ? t('shell.when.send', { at: new Date(whenAt(when() ?? 'hour', now())).toLocaleString() }) : t('shell.home.send')}
-        {...(goal() !== undefined && { goal: { label: t('shell.home.goal'), placeholder: t('shell.home.goalPlaceholder'), value: goal() ?? '', onInput: setGoal } })}
+        {...(goal() !== undefined && { goal: { label: t('shell.home.goal'), placeholder: t('shell.home.goalPlaceholder'), value: goal() ?? '', onInput: setGoal, ref: (el: HTMLInputElement) => (goalInput = el) } })}
         extras={extras()}
         recipes={{
           label: t('shell.home.recipes'),
@@ -157,7 +207,19 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           issue: t('shell.home.issue'),
           issueTitle: t('shell.home.issueTitle'),
           addAct: { onClick: () => settingsSheet('recipes') },
-          issueAct: { onClick: () => shell.palette.open() },
+          // Start from an issue (wisp.issues' picker, an overlay view; without that plugin, navigation drops it)
+          issueAct: { onClick: () => shell.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'issues.picker' as never, params: { project: project()?.id ?? '', name: project()?.name ?? '' } } }) },
+        }}
+      />
+      <RunnerPicker
+        open={picker()}
+        onOpenChange={setPicker}
+        peer={home}
+        value={{ agent: agent() === 'auto' ? auto() : agent(), model: model(), effort: effort() }}
+        onChange={(r) => {
+          setAgent(r.agent);
+          setModel(r.model);
+          setEffort(r.effort);
         }}
       />
       <NextList

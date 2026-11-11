@@ -3,6 +3,8 @@
 // otherwise none, and the control that sent it shows its pending state (Ship it, a restore).
 // The ids and args are runtime's, goal's and ship's (plugins/*/api); the mock peer answers them too.
 
+import type { AutoPreview } from './auto.ts';
+import type { ColdOut } from './cold.ts';
 import { defineCommand, entityKey, type EntityKey, type PeerId } from '@wisp/client';
 
 /** the bare id the peer knows a task by: nav and rows name it by its entity key (`<peer>:<id>`) */
@@ -46,6 +48,8 @@ export interface CreateArgs {
   readonly prompt: string;
   readonly agent: string;
   readonly mode: string;
+  readonly model?: string;
+  readonly effort?: string;
   readonly at: number;
   readonly cwd?: string;
   readonly projectId?: string;
@@ -53,6 +57,10 @@ export interface CreateArgs {
   readonly goal?: string;
   /** files that go with the prompt (uploaded first: stuff's /uploads) */
   readonly attachments?: readonly Attachment[];
+  /** you picked your own harness after Auto's preview showed `key` (runtime tells the router) */
+  readonly autoOverride?: { readonly key: string; readonly type?: string };
+  /** the harness the new row shows until the server's arrives (Auto's previewed pick); not sent */
+  readonly shows?: string;
 }
 
 /** A file sent with a prompt (runtime's Attachment): what stuff's upload answered. */
@@ -67,7 +75,18 @@ export interface Attachment {
 export const create = defineCommand<CreateArgs, { id: string }>({
   id: 'runtime.create',
   owner: (a) => a.peer,
-  optimistic: (_base, a) => [{ e: SESSION, id: a.id as EntityKey, op: 'upsert', v: startingRow({ ...a, title: a.prompt.split('\n')[0]?.slice(0, 80) ?? a.prompt }) as never }],
+  wire: ({ shows: _shows, ...a }) => a,
+  optimistic: (_base, a) => [{ e: SESSION, id: a.id as EntityKey, op: 'upsert', v: startingRow({ ...a, agent: a.shows ?? a.agent, title: a.prompt.split('\n')[0]?.slice(0, 80) ?? a.prompt }) as never }],
+});
+
+/** What Auto would run for the launcher's prompt (`router.preview`, read-only; the router plugin off: refused). */
+export const autoPreview = defineCommand<{ peer: string; prompt: string; attachments?: number; goal?: string; team?: boolean }, AutoPreview>({
+  id: 'router.preview',
+  owner: (a) => a.peer,
+  wire: ({ peer: _peer, ...a }) => a,
+  optimistic: 'none',
+  pending: 'Auto',
+  dedupe: (a) => JSON.stringify([a.peer, a.prompt, a.attachments, a.goal, a.team]),
 });
 
 /** A follow-up: it shows in the transcript at once (its turn, under the id the client chose, Starting…),
@@ -148,3 +167,12 @@ export const appState = defineCommand<{ id: string; turnId: string; block: strin
   optimistic: 'none',
   pending: 'none: the app keeps its own state while it runs',
 });
+
+/** This task's own lean runs ('on' | 'off'), or none to follow Settings (runtime.leanRuns). */
+export const setLean = defineCommand<{ id: string; lean?: 'on' | 'off' }>({ id: 'runtime.setLean', owner: (a) => a.id, wire: (a) => ({ id: bare(a.id), ...(a.lean && { lean: a.lean }) }), optimistic: (_b, a) => patch(a.id, '/body/lean', a.lean ?? null) });
+
+/** A large idle task's prompt cache and Compact now's estimate (`runtime.cold`, read-only). */
+export const coldOf = defineCommand<{ id: string }, ColdOut>({ id: 'runtime.cold', owner: (a) => a.id, wire: (a) => ({ id: bare(a.id) }), optimistic: 'none', pending: 'the cache' });
+
+/** Compact now: the task shrinks to a summary in a turn of its own, working at once. */
+export const compactNow = defineCommand<{ id: string }>({ id: 'runtime.compact', owner: (a) => a.id, wire: (a) => ({ id: bare(a.id) }), optimistic: (_b, a) => patch(a.id, '/state', 'running') });

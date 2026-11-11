@@ -391,13 +391,15 @@ export interface ReplyBoxProps {
   readonly goalOn?: boolean;
   readonly goalAct?: Act;
   /** Goal on: its condition, over the box */
-  readonly goalLine?: { readonly label: string; readonly placeholder: string; readonly value: string; readonly onInput: (v: string) => void };
+  readonly goalLine?: { readonly label: string; readonly placeholder: string; readonly value: string; readonly onInput: (v: string) => void; readonly ref?: (el: HTMLInputElement) => void };
   readonly later: string;
   readonly laterAct?: Act;
   readonly send: string;
   readonly sendAct?: Act;
   /** what's attached and when it goes: chips over the bar */
   readonly extras?: readonly { readonly id: string; readonly icon: IconName; readonly label: string; readonly removeLabel: string; readonly onRemove: () => void }[];
+  /** the bar's quiet line (v1 .c-hint): the cold cache's words, with a short form for a narrow bar, and an optional link (Compact now) */
+  readonly hint?: { readonly long: string; readonly short: string; readonly title?: string; readonly link?: { readonly label: string; readonly title?: string; readonly act: Act } } | undefined;
 }
 
 /** v1 .composer: the reply box under a task. It wakes (its toolbar shows) when the caret goes in, and
@@ -446,7 +448,7 @@ export function ReplyBox(props: ReplyBoxProps): JSX.Element {
         {(g) => (
           <div data-kit="l-goal" data-in="reply">
             <Icon name="target" />
-            <input data-kit="l-goal-input" aria-label={g().label} placeholder={g().placeholder} value={g().value} onInput={(e) => g().onInput(e.currentTarget.value)} />
+            <input data-kit="l-goal-input" ref={(el) => g().ref?.(el)} aria-label={g().label} placeholder={g().placeholder} value={g().value} onInput={(e) => g().onInput(e.currentTarget.value)} />
           </div>
         )}
       </Show>
@@ -511,7 +513,30 @@ export function ReplyBox(props: ReplyBoxProps): JSX.Element {
             </button>
           )}
         />
-        <span data-kit="grow" />
+        <Show when={props.hint} fallback={<span data-kit="grow" />}>
+          {(h) => (
+            <span data-kit="c-hint" data-part="composer.hint">
+              <span data-kit="c-cold-row">
+                <span data-kit="c-cold" title={h().title ?? h().long}>
+                  <span data-kit="cc-long">{h().long}</span>
+                  <span data-kit="cc-short">{h().short}</span>
+                </span>
+                <Show when={h().link}>
+                  {(l) => (
+                    <WithAct
+                      act={l().act}
+                      render={(trigger) => (
+                        <button type="button" {...trigger()} data-kit="link" data-part="composer.hint.link" title={l().title ?? l().label}>
+                          {l().label}
+                        </button>
+                      )}
+                    />
+                  )}
+                </Show>
+              </span>
+            </span>
+          )}
+        </Show>
         <WithAct
           act={props.laterAct}
           render={(trigger) => (

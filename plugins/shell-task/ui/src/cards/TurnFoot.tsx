@@ -24,6 +24,7 @@ const followUp = defineCommand<{ key: EntityKey; text: string; run?: { agent: st
   optimistic: 'none',
   pending: 'the card’s buttons, locked at once',
 });
+const addLater = defineCommand<{ key: EntityKey; sessionId: string; text: string; at: number }>({ id: 'later.add', owner: (a) => a.key, wire: (a) => ({ sessionId: a.sessionId, text: a.text, at: a.at }), optimistic: 'none', pending: 'Wait until' });
 const agents = defineCommand<{ key: EntityKey }, AgentLike[]>({ id: 'runtime.agents', owner: (a) => a.key, wire: () => ({}), optimistic: 'none', pending: 'the hand-off buttons' });
 /** v1's words for carrying on after a limit (server/later.js LIMIT_CARRY_ON). */
 const CARRY_ON = 'Carry on from where the last run stopped at the usage limit.';
@@ -55,7 +56,7 @@ export default function TurnFoot(props: ExtensionProps): JSX.Element {
   const targets = (): Target[] => {
     const h = halt();
     const list = set() ?? [];
-    if (h?.kind === 'refused') return handoffTargets({ from: from(), fromModel: String(doc()?.ext?.['wisp.runtime']?.refusal?.model ?? (doc() as { model?: string } | undefined)?.model ?? ''), agents: list });
+    if (h?.kind === 'refused') return handoffTargets({ from: h.agent || from(), fromModel: h.model, ...(h.vendor && { vendor: h.vendor }), agents: list });
     const one = h?.kind === 'limit' ? limitTarget(from(), list) : undefined;
     return one ? [one] : [];
   };
@@ -81,6 +82,10 @@ export default function TurnFoot(props: ExtensionProps): JSX.Element {
                   const text = h().kind === 'refused' ? ((d() as { prompt?: string }).prompt ?? '') : CARRY_ON;
                   return c.run(followUp, { key: taskKey(), text, run: { agent: to.agent, ...(to.model && { model: to.model }) } });
                 }}
+                onWait={(until) =>
+                  // v1 limitCard Wait until: the carry-on follow-up, scheduled for the reset (wisp.later)
+                  c.run(addLater, { key: taskKey(), sessionId: bare(String(task()?.id ?? '')), text: CARRY_ON, at: until })
+                }
                 onSignIn={() => {
                   quiet(c.run(signIn, { key: taskKey(), turnId: d().id }));
                   shell.navigate({ t: 'openOverlay', overlay: { kind: 'viewer', id: 'shell-settings.sheet' as never, params: { pane: 'agents' } } });

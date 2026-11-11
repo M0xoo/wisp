@@ -43,10 +43,19 @@ export interface Target {
 /** The harnesses a refused turn may go to, each with the model to pin (v1 handoffTargets). A harness qualifies
  * with its configured model when that model's vendor is known and different, else with the first model it lists
  * from another vendor. Unknown vendors never qualify: they might be the same one. */
-export function handoffTargets(o: { from: string; fromModel?: string; agents: readonly AgentLike[]; models?: Readonly<Record<string, string>>; max?: number }): Target[] {
-  const refused = vendorOf(o.fromModel, o.from);
+export function handoffTargets(o: { from: string; fromModel?: string; vendor?: string; agents: readonly AgentLike[]; models?: Readonly<Record<string, string>>; max?: number }): Target[] {
+  // the runtime's word on whose model refused, else read from the model; unknown: every other harness (backend round 6)
+  const refused = o.vendor ?? vendorOf(o.fromModel, o.from);
   const ok = (v: string): boolean => !!v && v !== refused;
   const out: Target[] = [];
+  if (!refused) {
+    for (const a of o.agents) {
+      if (a.id === o.from || a.id === 'wisp' || a.id === 'auto' || !a.available) continue;
+      out.push({ agent: a.id, model: String(o.models?.[a.id] ?? ''), vendor: vendorOf(o.models?.[a.id], a.id) });
+      if (out.length >= (o.max ?? 3)) break;
+    }
+    return out;
+  }
   for (const a of o.agents) {
     if (a.id === o.from || a.id === 'wisp' || a.id === 'auto' || !a.available) continue;
     const set = String(o.models?.[a.id] ?? '');

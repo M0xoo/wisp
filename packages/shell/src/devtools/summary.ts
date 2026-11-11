@@ -4,7 +4,7 @@
 
 import type { DevEntry } from '@wisp/client';
 
-export const STORE_KINDS = ['session', 'turn', 'event', 'setting', 'crew.member', 'machine', 'stuff'] as const;
+export const STORE_KINDS = ['session', 'turn', 'event', 'setting', 'crew_member', 'machine', 'stuff'] as const;
 
 export function describe(e: DevEntry): string {
   switch (e.kind) {

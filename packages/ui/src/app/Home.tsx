@@ -94,7 +94,7 @@ export interface LauncherProps {
   readonly sendLabel: string;
   readonly sendAct?: Act;
   /** Goal on: its condition, under the prompt (v1 .l-goal) */
-  readonly goal?: { readonly label: string; readonly placeholder: string; readonly value: string; readonly onInput: (v: string) => void };
+  readonly goal?: { readonly label: string; readonly placeholder: string; readonly value: string; readonly onInput: (v: string) => void; readonly ref?: (el: HTMLInputElement) => void };
   /** files attached, and when it starts if not now: chips under the prompt */
   readonly extras?: readonly { readonly id: string; readonly icon: IconName; readonly label: string; readonly removeLabel: string; readonly onRemove: () => void }[];
   readonly recipes: { readonly label: string; readonly empty: string; readonly add: string; readonly issue: string; readonly issueTitle: string; readonly addAct?: Act; readonly issueAct?: Act };
@@ -202,7 +202,7 @@ export function Launcher(props: LauncherProps): JSX.Element {
           {(g) => (
             <div data-kit="l-goal" data-part="launcher.goalLine">
               <Icon name="target" />
-              <input data-kit="l-goal-input" aria-label={g().label} placeholder={g().placeholder} value={g().value} onInput={(e) => g().onInput(e.currentTarget.value)} />
+              <input data-kit="l-goal-input" ref={(el) => g().ref?.(el)} aria-label={g().label} placeholder={g().placeholder} value={g().value} onInput={(e) => g().onInput(e.currentTarget.value)} />
             </div>
           )}
         </Show>

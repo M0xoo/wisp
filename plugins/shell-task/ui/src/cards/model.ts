@@ -13,8 +13,12 @@ export interface TurnDoc {
   readonly held?: { readonly by: string; readonly kind: string; readonly until?: number | null; readonly data?: { readonly label?: string; readonly why?: string } };
   readonly stats?: { readonly costUsd?: number; readonly inputTokens?: number; readonly outputTokens?: number; readonly cacheTokens?: number; readonly models?: Readonly<Record<string, { readonly input?: number; readonly output?: number; readonly cacheRead?: number; readonly cacheWrite?: number }>> } | null;
   readonly presentation?: { readonly blocks?: readonly { readonly type: string; readonly title?: string; readonly summary?: string; readonly status?: string }[] } | null;
+  /** the harness turned it down (runtime's TurnRefusal, v1 `turn.refusal`) */
+  readonly refusal?: { readonly agent?: string; readonly model?: string; readonly vendor?: string; readonly kind?: string; readonly line?: string } | null;
+  /** it hit its account's usage limit (runtime's TurnLimit, v1 `turn.limit`) */
+  readonly limit?: { readonly account?: string; readonly until?: number; readonly others?: readonly { readonly id: string; readonly label: string; readonly kind?: string }[]; readonly kind?: string; readonly extra?: string; readonly waiting?: boolean } | null;
   readonly ext?: {
-    readonly 'wisp.runtime'?: { readonly authFailed?: boolean; readonly refusal?: { readonly text?: string; readonly agent?: string; readonly model?: string } | null; readonly overage?: { readonly kind?: string } | null; readonly cli?: { readonly version?: string; readonly catalog?: string; readonly models?: Record<string, unknown> } | null };
+    readonly 'wisp.runtime'?: { readonly authFailed?: boolean; readonly overage?: { readonly kind?: string } | null; readonly cli?: { readonly version?: string; readonly catalog?: string; readonly models?: Record<string, unknown> } | null };
     /** wisp.budget's shares of the plan windows this turn moved (v1 `turn.plan`) */
     readonly 'wisp.budget'?: { readonly plan?: readonly Share[] };
   };
@@ -37,20 +41,24 @@ export function heldOf(d: TurnDoc): { label: string; why: string; until?: number
   return { label, why: d.held.data?.why ?? '', ...(d.held.until ? { until: d.held.until } : {}) };
 }
 
-export type Halt = { kind: 'signedOut' } | { kind: 'limit'; text: string } | { kind: 'refused'; text: string };
+export type Halt =
+  | { kind: 'signedOut' }
+  | { kind: 'limit'; text: string; until?: number; extra?: string; waiting?: boolean; others: readonly { id: string; label: string }[] }
+  | { kind: 'refused'; text: string; agent: string; model: string; vendor?: string };
 
 /** Why a finished turn stopped short and what it can do next, or null (v1 limitCard, refusalCard, sign-in-card).
- * Only the three v1 had a card for: signed out, the harness's refusal (the runtime's `refusal` fact on the turn,
- * v1 `turn.refusal`), and a usage limit. Any other failure says itself in the answer (its hero, its blocks, its
- * Try again), so it gets no card. */
+ * Only the three v1 had a card for: signed out, the harness's refusal (`turn.refusal`), and a usage limit
+ * (`turn.limit`, or an error that says so before the runtime recorded one). Any other failure says itself in the
+ * answer (its hero, its blocks, its Try again), so it gets no card. */
 export function haltOf(d: TurnDoc): Halt | null {
-  const rt = d.ext?.['wisp.runtime'];
-  if (rt?.authFailed) return { kind: 'signedOut' };
-  if (rt?.refusal) return { kind: 'refused', text: String(rt.refusal.text ?? '').trim() };
-  if (d.status !== 'error' && !d.isError) return null;
+  if (d.ext?.['wisp.runtime']?.authFailed) return { kind: 'signedOut' };
+  if (d.refusal) return { kind: 'refused', text: String(d.refusal.line ?? '').trim(), agent: d.refusal.agent ?? d.agent ?? '', model: d.refusal.model ?? '', ...(d.refusal.vendor && { vendor: d.refusal.vendor }) };
   const hero = d.presentation?.blocks?.find((b) => b.type === 'hero');
   const text = (hero?.summary || d.text || '').trim();
-  return /usage limit|rate limit|limit (reached|resets)|out of (credits|usage)|quota/i.test(text) ? { kind: 'limit', text } : null;
+  if (d.limit)
+    return { kind: 'limit', text, ...(d.limit.until && { until: d.limit.until }), ...(d.limit.extra && { extra: d.limit.extra }), ...(d.limit.waiting && { waiting: true }), others: (d.limit.others ?? []).map((o) => ({ id: o.id, label: o.label })) };
+  if (d.status !== 'error' && !d.isError) return null;
+  return /usage limit|rate limit|limit (reached|resets)|out of (credits|usage)|quota/i.test(text) ? { kind: 'limit', text, others: [] } : null;
 }
 
 /** What moved in the CLI since the last turn on the same harness and account (v1 what-changed.js, the CLI

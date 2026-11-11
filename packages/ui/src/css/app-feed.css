@@ -34,6 +34,9 @@
   [data-kit='it-run'] > * { flex: none; }
   [data-kit='ir-logo'] { display: inline-flex; width: var(--size-icon-sm); height: var(--size-icon-sm); margin-right: 5px; color: var(--muted); }
   [data-kit='ir-logo'] > * { display: block; width: 100%; height: 100%; }
+  /* Auto picked it (v1 auto.css .model-logo.routed) */
+  [data-kit='ir-logo'][data-routed] { position: relative; }
+  [data-kit='ir-logo'][data-routed]::before { content: ''; position: absolute; right: -3px; bottom: -3px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 var(--size-ring-thin) var(--surface); }
   [data-kit='ir-h'] { color: var(--muted); }
   [data-kit='ir-w'] { flex: 0 1 auto; display: inline-flex; align-items: center; min-width: 8ch; overflow: hidden; text-overflow: ellipsis; }
   [data-kit='ir-w']::before { content: '·'; padding: 0 5px; }

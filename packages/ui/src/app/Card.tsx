@@ -24,7 +24,8 @@ export interface TaskCardProps {
   readonly goal?: { readonly n: number; readonly progress: number; readonly title: string; readonly paused: boolean };
   readonly overlap?: { readonly n: number; readonly title: string };
   /** the third line: harness logo and name, and where it runs */
-  readonly run?: { readonly logo?: string; readonly harness: string; readonly where: string; readonly title: string };
+  /** `routed`: Auto picked this run (v1's accent dot on the logo; the title says why) */
+  readonly run?: { readonly logo?: string; readonly harness: string; readonly where: string; readonly title: string; readonly routed?: boolean };
   readonly time: string;
   readonly timeTitle: string;
   readonly laterLabel: string;
@@ -73,7 +74,7 @@ export function TaskCard(props: TaskCardProps): JSX.Element {
         <Show when={props.run}>
           {(r) => (
             <span data-kit="it-run" data-part="card.run" title={r().title}>
-              <i data-kit="ir-logo">
+              <i data-kit="ir-logo" data-routed={r().routed ? '' : undefined}>
                 <Show when={r().logo}>{(src) => <img src={src()} alt="" />}</Show>
               </i>
               <span data-kit="ir-h">{r().harness}</span>

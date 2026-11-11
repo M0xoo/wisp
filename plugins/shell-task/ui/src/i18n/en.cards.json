@@ -35,5 +35,8 @@
   "shell-task.halt.hand": "Hand to {name}",
   "shell-task.halt.handTip": "Sends the same prompt to {name}, with this task's turns",
   "shell-task.halt.handTipModel": "Sends the same prompt to {name} on {model}, with this task's turns",
-  "shell-task.halt.noTarget": "No agent on another company’s model is set up to take it. Add one in Settings → Agents, or rephrase it in the reply box."
+  "shell-task.halt.noTarget": "No agent on another company’s model is set up to take it. Add one in Settings → Agents, or rephrase it in the reply box.",
+  "shell-task.halt.wait": "Wait until {at}",
+  "shell-task.halt.waiting": "Carries on at {at}, after the reset",
+  "shell-task.halt.extra": "Get extra usage"
 }

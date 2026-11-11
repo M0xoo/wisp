@@ -49,6 +49,7 @@
     --tracking-display: -0.025em;
     --size-hairline: 1px;
     --size-ring: 2px;
+    --size-ring-thin: 1.5px;
     --size-tests-ring: 76px;
     --size-dialog-xl: 900px;
     --size-dialog-xl-h: 680px;
@@ -159,6 +160,7 @@
     --bp-pane-wide: 860px;
     --bp-pane-xs: 375px;
     --bp-box-xs: 290px;
+    --bp-bar-cold: 326px;
     --bg: #ffffff;
     --bg-2: #f3f3f2;
     --rail: #f7f7f6;

@@ -30,6 +30,9 @@ export interface StageProps {
    * Mac, v1 body.desktop.mac): room for them, and the top bar, rail and task head drag the window */
   readonly titlebar?: 'mac';
   readonly onGripReset?: () => void;
+  /** split with the rail: the picked crew member's colour (a crew colour name); the list and its top bar take a very
+   *  light wash of it (v1 #768 .crew-tint) */
+  readonly tint?: string | undefined;
 }
 
 /** v1 #stage: the rail, the sidebar's head and body, the main pane, the grip. */
@@ -37,8 +40,8 @@ export function Stage(props: StageProps): JSX.Element {
   return (
     <main data-kit="stage" data-part="shell.app" data-layout={props.layout} data-page={props.page} data-behind={flag(props.listBehind)} data-titlebar={props.titlebar} data-rail={flag(props.rail !== undefined)} data-side={flag(props.side !== undefined)}>
       {props.layout === 'split' ? props.rail : null}
-      <header data-kit="topbar" data-part="topbar" data-drag={flag(props.titlebar !== undefined)}>{props.head}</header>
-      <div data-kit="feed-wrap" data-part="sidebar" inert={props.layout === 'stack' && props.page === 'main'}>{props.list}</div>
+      <header data-kit="topbar" data-part="topbar" data-drag={flag(props.titlebar !== undefined)} data-tint={flag(!!props.tint)} data-color={props.tint || undefined}>{props.head}</header>
+      <div data-kit="feed-wrap" data-part="sidebar" inert={props.layout === 'stack' && props.page === 'main'} data-tint={flag(!!props.tint)} data-color={props.tint || undefined}>{props.list}</div>
       <section data-kit="split-main" data-part="split.main">{props.main}</section>
       <Show when={props.side}>
         <aside data-kit="side-pane" data-part="side">{props.side}</aside>

@@ -8,6 +8,7 @@ import type { EntityKey, Json } from '@wisp/client';
 import { forLater, markRead, setState } from './commands.ts';
 import { CrewRail, Feed, FeedSection, SidebarHead, SplitTop, TaskCard, useSignal, type MenuEntry, type ProjectChip, type RailMember } from '@wisp/ui';
 import { useShell } from '../context.tsx';
+import { routeOf, routeTip } from './auto.ts';
 import { useNow } from '../clock.ts';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { rowSlots, useHeadSlots } from './slots.tsx';
@@ -37,7 +38,7 @@ function useSessions(): () => readonly SessionRow[] {
 
 export function Rail(): JSX.Element {
   const shell = useShell();
-  const crew = useSignal(shell.client.entities.list<CrewRow>('crew.member'));
+  const crew = useSignal(shell.client.entities.list<CrewRow>('crew_member'));
   const members = createMemo<RailMember[]>(() => crew().map((c) => ({ id: c.id, name: c.name, avatar: c.avatar ?? '', color: c.color ?? 'violet' })));
   const nav = useSignal(shell.nav);
   return (
@@ -153,6 +154,8 @@ export function SidebarList(props: { readonly onNew: () => void; readonly homeOn
                   const where = shell.t('shell.card.thisComputer');
                   const goal = goalOf(s, shell.t);
                   const overlap = overlapOf(s, titleOf, shell.t);
+                  // Auto picked this run: the logo's dot, and why in its tip (v1 runners.js modelBadge)
+                  const route = routeOf(s.body);
                   return (
                     <TaskCard
                       slots={rowSlots(s.id, () => s as never)}
@@ -167,7 +170,7 @@ export function SidebarList(props: { readonly onNew: () => void; readonly homeOn
                       status={statusOf(s, shell.t)}
                       {...(goal && { goal })}
                       {...(overlap && { overlap })}
-                      {...(h && { run: { harness: h.name, where, title: shell.t('shell.card.runTitle', { harness: h.name, where }), ...(h.logo && { logo: h.logo }) } })}
+                      {...(h && { run: { harness: h.name, where, title: route ? routeTip(route, shell.t) : shell.t('shell.card.runTitle', { harness: h.name, where }), routed: !!route, ...(h.logo && { logo: h.logo }) } })}
                       time={shortAgo(s.updated_at, now())}
                       timeTitle={longTime(s.updated_at)}
                       laterLabel={shell.t('shell.card.later')}

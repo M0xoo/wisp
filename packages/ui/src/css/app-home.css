@@ -91,6 +91,9 @@
   [data-kit='rb-h'] { flex: none; font-weight: 500; color: var(--ink); }
   [data-kit='runner-btn'] > [data-kit='icon'] { width: var(--size-icon-sm); height: var(--size-icon-sm); margin-left: var(--space-3); color: var(--faint); transform: rotate(90deg); }
   [data-kit='apv-l'] { min-width: 0; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* the pick gives way before anything else on a full bar (v1 .rb-m: flex 0 10000 auto), so Send stays inside the box */
+  [data-kit='l-bar'] > [data-kit='runners'] { flex: 0 1 auto; min-width: 0; }
+  [data-kit='runners'] > [data-kit='auto-pv'] { flex: 0 10000 auto; min-width: 0; overflow: hidden; }
   [data-kit='vs-btn'] { position: relative; display: grid; place-items: center; width: 30px; height: 28px; font: 600 var(--fs-xs) var(--mono); letter-spacing: 0.02em; color: var(--faint); }
   [data-kit='vs-btn']:hover { background: var(--bg-2); color: var(--ink); }
   [data-kit='vs-btn'] > [data-kit='icon'] { width: var(--size-icon-sm); height: var(--size-icon-sm); }

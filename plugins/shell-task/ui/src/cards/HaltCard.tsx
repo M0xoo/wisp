@@ -17,12 +17,18 @@ export function HaltCard(props: {
   readonly onSignIn: () => void;
   readonly onRetry: () => void;
   readonly onHand: (to: Target) => Promise<unknown>;
+  /** a limit's Wait until: the carry-on follow-up at the reset */
+  readonly onWait?: (until: number) => Promise<unknown>;
 }): JSX.Element {
   const h = (): Halt => props.halt;
   const [locked, setLocked] = createSignal(false);
   const title = (): string => {
     const k = h().kind;
-    return k === 'signedOut' ? props.t('shell-task.halt.signedOut', { name: props.name }) : k === 'limit' ? props.t('shell-task.halt.limit', { name: props.name }) : props.t('shell-task.halt.refused', { name: props.name });
+    return k === 'signedOut'
+      ? props.t('shell-task.halt.signedOut', { name: props.name })
+      : k === 'limit'
+        ? props.t('shell-task.halt.limit', { name: props.name })
+        : props.t('shell-task.halt.refused', { name: props.name });
   };
   const text = (): string => {
     const x = h();
@@ -35,7 +41,14 @@ export function HaltCard(props: {
   const handButtons = (): JSX.Element => (
     <For each={props.targets}>
       {(to, i) => (
-        <Button size="sm" variant={i() === 0 && h().kind === 'refused' ? 'primary' : 'ghost'} icon="agent" disabled={locked()} title={props.t(to.model ? 'shell-task.halt.handTipModel' : 'shell-task.halt.handTip', { name: props.nameOf(to.agent), model: to.model })} onClick={() => hand(to)}>
+        <Button
+          size="sm"
+          variant={i() === 0 && h().kind === 'refused' ? 'primary' : 'ghost'}
+          icon="agent"
+          disabled={locked()}
+          title={props.t(to.model ? 'shell-task.halt.handTipModel' : 'shell-task.halt.handTip', { name: props.nameOf(to.agent), model: to.model })}
+          onClick={() => hand(to)}
+        >
           {props.t('shell-task.halt.hand', { name: props.nameOf(to.agent) })}
         </Button>
       )}
@@ -54,11 +67,53 @@ export function HaltCard(props: {
             </Button>
           </Match>
           <Match when={h().kind === 'refused'}>{handButtons()}</Match>
-          <Match when={h().kind === 'limit'}>
-            <Button size="sm" variant="ghost" icon="replay" disabled={locked()} onClick={() => props.onRetry()}>
-              {props.t('shell-task.halt.retry')}
-            </Button>
-            {handButtons()}
+          <Match when={h().kind === 'limit' && h()}>
+            {(l) => {
+              const lim = l() as Extract<Halt, { kind: 'limit' }>;
+              const at = (): string => (lim.until ? new Date(lim.until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
+              return (
+                <>
+                  <Show
+                    when={lim.until && !lim.waiting && props.onWait}
+                    fallback={
+                      <Show
+                        when={lim.waiting && lim.until}
+                        fallback={
+                          <Button size="sm" variant="ghost" icon="replay" disabled={locked()} onClick={() => props.onRetry()}>
+                            {props.t('shell-task.halt.retry')}
+                          </Button>
+                        }
+                      >
+                        <Text size="sm" tone="muted">
+                          {props.t('shell-task.halt.waiting', { at: at() })}
+                        </Text>
+                      </Show>
+                    }
+                  >
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      icon="clock"
+                      disabled={locked()}
+                      onClick={() => {
+                        setLocked(true);
+                        props.onWait?.(lim.until ?? 0).catch(() => setLocked(false));
+                      }}
+                    >
+                      {props.t('shell-task.halt.wait', { at: at() })}
+                    </Button>
+                  </Show>
+                  {handButtons()}
+                  <Show when={lim.extra}>
+                    {(u) => (
+                      <Button size="sm" variant="ghost" icon="external" onClick={() => window.open(u(), '_blank', 'noopener')}>
+                        {props.t('shell-task.halt.extra')}
+                      </Button>
+                    )}
+                  </Show>
+                </>
+              );
+            }}
           </Match>
         </Switch>
       </Inline>

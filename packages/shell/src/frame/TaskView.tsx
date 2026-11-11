@@ -5,7 +5,7 @@
 // Mark done, a follow-up, Rerun and Fork show their result before the peer answers; Ship it and a
 // restore show their control working; the panes and menus open in the same frame.
 
-import { For, Show, createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
+import { For, Show, createMemo, createResource, createSignal, onCleanup, type JSX } from 'solid-js';
 import { entityKey, ownerOf, uuidv7, type EntityKey } from '@wisp/client';
 import { Answer, Button, OverlapNote, ReplyBox, TaskBody, TaskDetails, TaskHead, TurnView, useSignal, type IconName, type MenuEntry, type TaskAction } from '@wisp/ui';
 import { useShell } from '../context.tsx';
@@ -13,7 +13,10 @@ import { SESSION, type SessionRow } from '../rows.ts';
 import { Slot } from '../slot.tsx';
 import { TaskHeadSlot } from './slots.tsx';
 import { changeFigures, duration, folded, longTime, overlapLine, overlapsOf, statusOf } from './rows-view.ts';
-import { archive, followUp, forLater, type Attachment, fork, remove, rename, rerun, restore, setAgent, setGoal, setMode, setState } from './commands.ts';
+import { coldHint, compactItem } from './cold.ts';
+import { goalGate } from './goal-gate.ts';
+import { useNow } from '../clock.ts';
+import { archive, coldOf, compactNow, followUp, forLater, setLean, type Attachment, fork, remove, rename, rerun, restore, setAgent, setGoal, setMode, setState } from './commands.ts';
 import { answerContext } from './answer-ctx.ts';
 import { TASK_KEY, type TaskKey } from './task-keys.ts';
 import { usePromptMenu } from './prompt-menu.ts';
@@ -81,6 +84,17 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   const titleOf = (id: string): string => sessions().find((s) => s.id === id)?.title ?? '';
   const peer = ownerOf(key);
   const run = shell.client.commands.run;
+  // the cold-cache line and Compact now (v1 cold-cache.js): asked again whenever the task settles or changes
+  const now = useNow(shell.client);
+  const [cold] = createResource(
+    () => {
+      const r = row();
+      return r && r.state !== 'running' ? `${r.state}:${r.updated_at}` : undefined;
+    },
+    () => run(coldOf, { id: key }).catch(() => undefined),
+  );
+  const hint = (): ReturnType<typeof coldHint> => (row()?.state === 'running' ? undefined : coldHint(cold(), now(), t));
+  const compactOffer = (): ReturnType<typeof compactItem> => (row()?.state === 'running' ? undefined : compactItem(cold(), now(), t));
   // what's open in the page: the steps, the notes, a command in flight, the reply's extras
   const [stepsOpen, setStepsOpen] = createSignal(false);
   const [notesOpen, setNotesOpen] = createSignal(false);
@@ -99,8 +113,16 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   const harnesses = useSignal(shell.harnesses());
   // the @ and / menus (plugins' prompt sources: shell-composer's tasks, crew, My Stuff and commands)
   const menu = usePromptMenu({ shell, where: 'reply', task: key, text, setText, input: () => input, id: `reply-suggest-${bare}` });
+  let goalInput: HTMLInputElement | undefined;
   const send = (): void => {
     const v = menu.encode(text().trim());
+    // the Done when line open and empty: nothing goes, the line takes the focus (v1 #769 replyGoalEmpty)
+    const gate = goalGate(v, goal());
+    if (gate === 'askGoal') {
+      goalInput?.focus();
+      shell.toast.show(t('shell.goal.empty'), { action: { label: t('shell.goal.sendWithout'), onClick: () => (setGoalText(undefined), send()) } });
+      return;
+    }
     menu.reset();
     if (!v) return;
     setText('');
@@ -147,6 +169,18 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     { value: 'openIn', label: t('shell.task.openIn', { harness: harnessName() }), icon: 'terminal', keys: 'T' },
     { kind: 'separator' },
     { value: 'fork', label: t('shell.task.fork'), icon: 'fork' },
+    ...(compactOffer() ? [{ value: 'compact', label: t('shell.cold.compact'), icon: 'minus' as const, hint: compactOffer()?.note ?? '' }] : []),
+    // v1's task menu: Lean runs for this task, or as Settings says (Claude Code only)
+    ...(row()?.agent === 'claude'
+      ? [
+          {
+            kind: 'group' as const,
+            id: 'lean',
+            label: t('shell.task.lean'),
+            items: (['follow', 'on', 'off'] as const).map((v) => ({ value: `lean:${v}`, label: t(`shell.task.lean.${v}`), checked: ((row()?.body as { lean?: string } | undefined)?.lean ?? 'follow') === v })),
+          },
+        ]
+      : []),
     { value: 'copy', label: t('shell.task.copyLink'), icon: 'copy' },
     { value: 'archive', label: t('shell.task.archive'), icon: 'archive' },
     { value: 'delete', label: t('shell.task.delete'), icon: 'trash', danger: true },
@@ -156,6 +190,11 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     else if (v === 'rerun') copy(rerun);
     else if (v === 'openIn' || v === 'shell') side('shell');
     else if (v === 'fork') copy(fork);
+    else if (v === 'compact') void run(compactNow, { id: key }).catch(() => undefined);
+    else if (v.startsWith('lean:')) {
+      const lean = v.slice(5);
+      void run(setLean, { id: key, ...(lean !== 'follow' && { lean: lean as 'on' | 'off' }) }).catch(() => undefined);
+    }
     else if (v === 'copy') void shell.platform.copy(location.href).then((ok) => shell.toast.show(t(ok ? 'shell.task.copied' : 'shell.task.copyFailed')));
     else if (v === 'archive') {
       void run(archive, { id: key, archived: true }).catch(() => undefined);
@@ -359,10 +398,11 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                     goal={t('shell.task.goal')}
                     goalOn={goal() !== undefined}
                     goalAct={{ onClick: () => setGoalText(goal() === undefined ? '' : undefined) }}
-                    {...(goal() !== undefined && { goalLine: { label: t('shell.home.goal'), placeholder: t('shell.home.goalPlaceholder'), value: goal() ?? '', onInput: setGoalText } })}
+                    {...(goal() !== undefined && { goalLine: { label: t('shell.home.goal'), placeholder: t('shell.home.goalPlaceholder'), value: goal() ?? '', onInput: setGoalText, ref: (el: HTMLInputElement) => (goalInput = el) } })}
                     later={t('shell.home.later')}
                     laterAct={{ menu: { items: whenMenu(t), onSelect: (w) => setWhen(w as When) } }}
                     send={t('shell.home.send')}
+                    hint={hint()}
                     extras={[
                       ...files().map((f, i) => ({ id: `file:${i}:${f.name}`, icon: 'clip' as const, label: f.name, removeLabel: t('shell.home.remove', { name: f.name }), onRemove: () => att.remove(f) })),
                       ...(when() ? [{ id: 'when', icon: 'clock' as const, label: t('shell.when.chip', { when: t(`shell.when.${when()}`) }), removeLabel: t('shell.when.clear'), onRemove: () => setWhen(undefined) }] : []),

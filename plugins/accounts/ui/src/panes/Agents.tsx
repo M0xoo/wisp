@@ -6,7 +6,8 @@
 import { createMemo, createSignal, For, Match, onCleanup, Show, Switch as Pick, type JSX } from 'solid-js';
 import { entityKey, type PluginClient } from '@wisp/client';
 import { useShell } from '@wisp/shell';
-import { Button, Dialog, Inline, Input, Link, Menu, Pill, SettingsGroup, SettingsRow, Stack, Switch, Text, useSignal } from '@wisp/ui';
+import { Button, Dialog, Inline, Input, Link, Menu, Pill, SelectSetting, SettingsGroup, SettingsRow, Stack, Switch, Text, useSignal } from '@wisp/ui';
+import { fromRow, text } from '../source.ts';
 import { addAccount, install, keyRemove, keySet, loginCancel, loginInput, loginStart, logout, recheck, removeAccount, setAsk, trust } from '../commands.ts';
 import { t } from '../i18n.ts';
 import { ACCOUNT, HARNESS, KEY, LOGIN, PLACE, TOOL, TOPIC, loginId, type AccountRow, type HarnessRow, type KeyRow, type LoginRow, type PlaceRow, type ToolRow } from '../types.ts';
@@ -285,6 +286,14 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
         </Button>
       </Inline>
       <SettingsGroup part="accounts.watch">
+        {/* v1 Lean Claude Code runs (`runtime.leanRuns`): off, wisp's side runs, every run */}
+        <SelectSetting
+          part="settings.leanRuns"
+          title={t('accounts.lean.title')}
+          description={t('accounts.lean.description')}
+          source={text(fromRow(c, 'runtime.leanRuns'), 'on')}
+          items={(['off', 'on', 'all'] as const).map((v) => ({ value: v, label: t(`accounts.lean.${v}`) }))}
+        />
         <SettingsRow
           part="accounts.ask"
           title={t('accounts.ask.title')}

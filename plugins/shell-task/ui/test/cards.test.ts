@@ -11,8 +11,10 @@ describe('turn cards', () => {
     expect(heldOf(turn(1, { status: 'held', held: { by: 'wisp.budget', kind: 'limit', data: { label: 'Near the limit', why: '91%' } } }))).toEqual({ label: 'Near the limit', why: '91%' });
     expect(heldOf(turn(1))).toBeNull();
     expect(haltOf(turn(1, { ext: { 'wisp.runtime': { authFailed: true } } }))).toEqual({ kind: 'signedOut' });
-    expect(haltOf(turn(1, { status: 'error', text: "You've hit your usage limit · resets 3pm" }))?.kind).toBe('limit');
-    expect(haltOf(turn(1, { status: 'done', ext: { 'wisp.runtime': { refusal: { text: ' I can’t help with that. ' } } } }))).toEqual({ kind: 'refused', text: 'I can’t help with that.' });
+    expect(haltOf(turn(1, { status: 'error', text: "You've hit your usage limit · resets 3pm" }))).toEqual({ kind: 'limit', text: "You've hit your usage limit · resets 3pm", others: [] });
+    expect(haltOf(turn(1, { status: 'done', refusal: { agent: 'claude', model: 'opus', vendor: 'anthropic', kind: 'policy', line: ' I can’t help with that. ' } }))).toEqual({ kind: 'refused', text: 'I can’t help with that.', agent: 'claude', model: 'opus', vendor: 'anthropic' });
+    // the runtime's limit: when it resets, the other accounts, extra usage
+    expect(haltOf(turn(1, { status: 'done', limit: { until: 99, others: [{ id: 'w', label: 'Work', kind: 'work' }], extra: 'https://x' } }))).toEqual({ kind: 'limit', text: '', until: 99, extra: 'https://x', others: [{ id: 'w', label: 'Work' }] });
     // any other failure says itself in its answer (hero, blocks, Try again): no card, even when the hero is "blocked"
     expect(haltOf(turn(1, { status: 'error', text: 'boom' }))).toBeNull();
     expect(haltOf(turn(1, { status: 'error', presentation: { blocks: [{ type: 'hero', title: 'Claude Code failed', summary: 'claude exited with code 0', status: 'blocked' }] } }))).toBeNull();
