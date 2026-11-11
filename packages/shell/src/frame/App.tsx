@@ -40,7 +40,8 @@ export function App(props: { readonly clients: Clients; readonly recent: Readabl
         head={<Head filter={filter} setFilter={setFilter} />}
         list={<Area input="shell.sidebar:list" fallback={<SidebarList onNew={onNew} homeOn={nav().main.kind === 'home' && (nav().layout === 'split' || launcher())} filter={filter} />} />}
         main={<MainPane onBack={() => setLauncher(false)} />}
-        {...(nav().side.kind !== 'none' && { side: <SidePane /> })}
+        // a plain prop, not a spread: a reactive spread rebuilds every prop (the task page too) when the side opens
+        side={nav().side.kind !== 'none' ? <SidePane /> : undefined}
         gripLabel={shell.t('shell.side.grip')}
         listBehind={nav().main.kind === 'home'}
         {...(titlebar && { titlebar })}

@@ -11,7 +11,7 @@
 // `if` is not applied here: it reads the render's props (the session), so the slot applies it.
 
 import { computed, signal, untracked, type Readable } from '@wisp/client';
-import type { BlockRendererDef, ExtensionDef, PaletteSourceDef, PluginUiDef, ResolvedExtension, SettingsPaneDef, ShortcutDef, TreeConfig, ViewDef, HarnessUiDef } from './contract.ts';
+import type { BlockRendererDef, ExtensionDef, PaletteSourceDef, PluginUiDef, PromptSourceDef, ResolvedExtension, SettingsPaneDef, ShortcutDef, TreeConfig, ViewDef, HarnessUiDef } from './contract.ts';
 
 export type Warn = (msg: string, data?: unknown) => void;
 
@@ -31,6 +31,7 @@ export interface Registry {
   settingsPanes: Readable<readonly SettingsPaneDef[]>;
   harnesses: Readable<readonly HarnessUiDef[]>;
   palette: Readable<readonly (PaletteSourceDef & { plugin: string })[]>;
+  prompt: Readable<readonly (PromptSourceDef & { plugin: string })[]>;
   shortcuts: Readable<readonly (ShortcutDef & { plugin: string })[]>;
   block(type: string): BlockRendererDef | undefined;
   view(kind: string): ViewDef | undefined;
@@ -159,6 +160,7 @@ export function createRegistry(warn: Warn = () => {}): Registry {
     settingsPanes: computed(() => flat((d) => d.settings)().slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0))),
     harnesses: computed(() => flat((d) => d.harnesses)().slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0))),
     palette: computed(() => flat((d) => d.palette)().slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0))),
+    prompt: computed(() => flat((d) => d.prompt)().slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0))),
     shortcuts: flat((d) => d.shortcuts),
     // a later plugin's renderer for the same block type wins: that's how one is replaced
     block: (type) => lastBy((d) => d.blocks, (b) => b.type, type),

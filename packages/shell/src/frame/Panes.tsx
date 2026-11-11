@@ -4,7 +4,7 @@
 // by what they show, so opening another task builds its screen afresh (its scopes, its
 // subscriptions) and the old one's end with it.
 
-import { Match, Show, Switch, createMemo, lazy, type JSX } from 'solid-js';
+import { Match, Show, Switch, createMemo, lazy, untrack, type JSX } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
 import type { EntityKey, Nav } from '@wisp/client';
 import { EmptyState, Stack, useSignal } from '@wisp/ui';
@@ -57,18 +57,21 @@ const mainKey = (n: Nav): string => (n.main.kind === 'home' ? 'home' : n.main.ki
 export function MainPane(props: { readonly onBack?: () => void }): JSX.Element {
   const shell = useShell();
   const nav = useSignal(shell.nav);
-  const key = createMemo(() => mainKey(nav()));
+  // the layout is part of the key (Back shows in a stack); nothing else of nav may rebuild the page: a side
+  // panel opening must keep the task's open steps, its scroll and the focus (v1's panel did)
+  const key = createMemo(() => `${mainKey(nav())}|${nav().layout}`);
   return (
     <Show when={key()} keyed>
       {(_k) => {
-        const main = nav().main;
+        const now = untrack(nav);
+        const main = now.main;
         switch (main.kind) {
           case 'home':
-            return <Area input="shell.screen:home" fallback={<HomeView {...(nav().layout === 'stack' && props.onBack && { onBack: props.onBack })} />} />;
+            return <Area input="shell.screen:home" fallback={<HomeView {...(now.layout === 'stack' && props.onBack && { onBack: props.onBack })} />} />;
           case 'task': {
             const id = main.id;
             const session = useSession(() => id);
-            return <Area input="shell.screen:task" id={id} session={session} fallback={<TaskView id={id} {...(nav().layout === 'stack' && props.onBack && { onBack: () => shell.navigate({ t: 'back' }) })} />} />;
+            return <Area input="shell.screen:task" id={id} session={session} fallback={<TaskView id={id} {...(now.layout === 'stack' && props.onBack && { onBack: () => shell.navigate({ t: 'back' }) })} />} />;
           }
           case 'crew':
             return <Area input="shell.screen:crew" id={main.id} fallback={<EmptyState icon="crew" title={shell.t('shell.view.missing')} compact />} />;

@@ -25,8 +25,8 @@ function OverlayView(props: { readonly overlay: Overlay }): JSX.Element {
   const initialFocus = (): HTMLElement | null => document.querySelector<HTMLElement>('[data-part="shell.overlay"] input, [data-part="shell.overlay"] textarea');
   const sheet = (): boolean => nav().layout === 'stack' || props.overlay.kind === 'sheet';
   return (
-    <Show when={sheet()} fallback={<Dialog open title={title()} bare={def?.bare === true} onOpenChange={close} initialFocus={initialFocus} size={props.overlay.kind === 'viewer' ? 'lg' : 'md'} part="shell.overlay">{body()}</Dialog>}>
-      <Sheet open title={title()} bare={def?.bare === true} onOpenChange={close} initialFocus={initialFocus} part="shell.overlay">{body()}</Sheet>
+    <Show when={sheet()} fallback={<Dialog open title={title()} bare={def?.bare === true} onOpenChange={close} initialFocus={initialFocus} size={props.overlay.kind === 'viewer' ? 'xl' : 'md'} part="shell.overlay">{body()}</Dialog>}>
+      <Sheet open title={title()} bare={def?.bare === true} onOpenChange={close} initialFocus={initialFocus} {...(props.overlay.kind === 'viewer' && { size: 'xl' as const })} part="shell.overlay">{body()}</Sheet>
     </Show>
   );
 }

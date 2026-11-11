@@ -4,6 +4,8 @@
 // new task's row and page straight away (Starting…), the box cleared; a refusal puts the text back
 // and the client toasts why.
 
+import { usePromptMenu } from './prompt-menu.ts';
+import { useAttachments } from './attach.ts';
 import { createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
 import { entityKey, uuidv7, type EntityKey, type Json } from '@wisp/client';
 import { KeysHint, Launcher, NextList, SplitHome, Tips, useSignal, type LauncherChip, type LauncherTool, type PlainTip } from '@wisp/ui';
@@ -12,7 +14,7 @@ import { usePluginClient } from '../slot.tsx';
 import { useNow } from '../clock.ts';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { longTime, sectionOf, shortAgo, statusOf } from './rows-view.ts';
-import { create, setSetting } from './commands.ts';
+import { create, setSetting , type Attachment } from './commands.ts';
 import { defaultHarness, harnessOf } from './harness.ts';
 import { MODE_ICON, agentMenu, agentName, modeMenu, teamMenu, whenAt, whenMenu, type Mode, type When } from './pickers.ts';
 
@@ -49,7 +51,9 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   const [team, setTeam] = createSignal<ReadonlySet<string>>(new Set());
   const [goal, setGoal] = createSignal<string | undefined>(undefined);
   const [when, setWhen] = createSignal<When | undefined>(undefined);
-  const [files, setFiles] = createSignal<readonly File[]>([]);
+  // files with the new task: picked, pasted or dropped, each uploading at once to this computer
+  const att = useAttachments(shell, () => home);
+  const files = att.files;
   const [picking, setPicking] = createSignal(false);
   const [where, setWhere] = createSignal<string | undefined>(undefined); // a project id, 'none', or the first project
   const [tipAt, setTipAt] = createSignal(0);
@@ -60,24 +64,32 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   const project = createMemo(() => (where() === 'none' ? undefined : (projects().find((p) => p.id === where()) ?? projects()[0])));
   const worktree = createMemo(() => settings().find((r) => r.key === 'defaults.worktree')?.value !== false);
   const needs = createMemo(() => sessions().filter((s) => !s.archived && sectionOf(s) === 'needs').sort((a, b) => b.updated_at - a.updated_at));
+  // the @ and / menus (plugins' prompt sources), New task's own
+  const menu = usePromptMenu({ shell, where: 'home', text, setText, input: () => input, id: 'launcher-suggest' });
   const send = (): void => {
-    const prompt = text().trim();
+    const prompt = menu.encode(text().trim());
+    menu.reset();
     if (!prompt) return;
     const p = project();
     const id = entityKey(home, uuidv7());
     const g = goal();
-    // the row and the page at once (optimistic), the box cleared; a refusal puts the text back
+    // the row and the page at once (optimistic), the box cleared; a refusal puts the text back. With files, the
+    // task starts once they're up (usually already: they went when they were added)
     setText('');
-    shell.client.commands
-      .run(create, { peer: home, id, prompt, agent: agent() === 'auto' ? auto() : agent(), mode: mode(), at: Date.now(), ...(p && { cwd: p.path, projectId: p.id, color: p.color }), ...(g && { goal: g }) })
-      .catch(() => setText(prompt));
-    shell.navigate({ t: 'openTask', id: id as EntityKey as never });
+    const go = (attachments: readonly Attachment[]): void => {
+      shell.client.commands
+        .run(create, { peer: home, id, prompt, agent: agent() === 'auto' ? auto() : agent(), mode: mode(), at: Date.now(), ...(p && { cwd: p.path, projectId: p.id, color: p.color }), ...(g && { goal: g }), ...(attachments.length > 0 && { attachments }) })
+        .catch(() => setText(prompt));
+      shell.navigate({ t: 'openTask', id: id as EntityKey as never });
+    };
+    if (files().length === 0) go([]);
+    else void att.take().then(go);
   };
   const attach = (): void => {
     setPicking(true);
     void shell.platform.pickFiles({ multiple: true }).then((picked) => {
       setPicking(false);
-      if (picked.length) setFiles([...files(), ...picked]);
+      if (picked.length) att.add(picked);
     });
   };
   const tool = (id: string, part: string, icon: LauncherTool['icon'], label: string, title: string, more: Partial<LauncherTool> = {}): LauncherTool => ({ id, part, icon, label, title, ...more });
@@ -90,7 +102,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     { id: 'pick', kind: 'pick', name: t('shell.home.otherFolder'), title: t('shell.home.otherFolderTitle'), act: { menu: { items: [...projects().map((p) => ({ value: p.id, label: p.name, hint: p.path })), { kind: 'separator' as const }, { value: 'add', label: t('shell.home.addProject'), icon: 'folder' as const }], onSelect: (v: string) => (v === 'add' ? settingsSheet('projects') : setWhere(v)) } } },
   ];
   const extras = () => [
-    ...files().map((f, i) => ({ id: `file:${i}:${f.name}`, icon: 'clip' as const, label: f.name, removeLabel: t('shell.home.remove', { name: f.name }), onRemove: () => setFiles(files().filter((x) => x !== f)) })),
+    ...files().map((f, i) => ({ id: `file:${i}:${f.name}`, icon: 'clip' as const, label: f.name, removeLabel: t('shell.home.remove', { name: f.name }), onRemove: () => att.remove(f) })),
     ...(when() ? [{ id: 'when', icon: 'clock' as const, label: t('shell.when.chip', { when: t(`shell.when.${when()}`) }), removeLabel: t('shell.when.clear'), onRemove: () => setWhen(undefined) }] : []),
   ];
   const tips = (): PlainTip[] => [0, 1, 2].map((k) => TIPS[(tipAt() + k) % TIPS.length] ?? 'goal1').map((id) => ({ before: t(`shell.tips.${id}`), bold: t(`shell.tips.${id}b`), after: t(`shell.tips.${id}a`), href: `${GUIDE}#${id}` }));
@@ -101,8 +113,14 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
         chips={chips()}
         placeholder={t('shell.home.placeholder')}
         value={text()}
-        onInput={setText}
+        onInput={(v) => {
+          setText(v);
+          menu.typed(v);
+        }}
         onSend={send}
+        suggest={menu.suggest()}
+        onPaste={att.paste}
+        onFiles={att.add}
         inputRef={(el) => (input = el)}
         mode={{ label: t(`shell.mode.${mode()}`), title: t('shell.home.fullAutoTitle'), icon: MODE_ICON[mode()], act: { menu: { items: modeMenu(t, mode()), onSelect: (v) => setMode(v as Mode) } } }}
         runner={{

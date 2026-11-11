@@ -11,6 +11,32 @@ interface Row {
   v: unknown;
 }
 
+/** The harnesses Settings → Agents lists (wisp.accounts' topic), as v1's reference had them: Claude Code and Codex
+ * with their own sign-in, opencode wanting a key, the others signed in. */
+const HARNESS_ROWS = (
+  [
+    { id: 'claude', name: 'Claude Code', version: '9.9.9 (Fake Claude Code)', models: 3, signIn: 'cli', brand: 'Claude' },
+    { id: 'codex', name: 'Codex', version: 'fake-codex 9.9.9', models: 2, signIn: 'cli', brand: 'Codex', provider: 'ChatGPT' },
+    { id: 'opencode', name: 'opencode', version: '1.99.0', models: 2, signIn: 'key', hasKey: false },
+    { id: 'cursor', name: 'Cursor', version: 'fake-cursor-agent 9.9.9', models: 2, signIn: 'none' },
+    { id: 'antigravity', name: 'Antigravity', version: 'fake-agy 9.9.9', models: 2, signIn: 'cli' },
+    { id: 'grok', name: 'Grok', version: 'fake-grok 9.9.9', models: 2, signIn: 'cli' },
+    { id: 'copilot', name: 'Copilot', version: 'fake-copilot 9.9.9', models: 2, signIn: 'none' },
+  ] as const
+).map((h, ord) => ({
+  e: 'accounts.harness',
+  id: h.id,
+  v: { ...h, ord, available: true, models: Array.from({ length: h.models }, (_, i) => ({ id: `${h.id}-m${i}`, label: `Model ${i + 1}` })) },
+}));
+
+/** The terminals a Mac offers (Settings → General → Take over in), In wisp first as in v1's reference. */
+const TERMINALS = [
+  { e: 'terminal.app', id: 'wisp', v: { id: 'wisp', label: 'In wisp' } },
+  { e: 'terminal.app', id: 'terminal', v: { id: 'terminal', label: 'Terminal' } },
+  { e: 'terminal.app', id: 'iterm', v: { id: 'iterm', label: 'iTerm' } },
+  { e: 'terminal.app', id: 'custom', v: { id: 'custom', label: 'Custom command…' } },
+];
+
 export interface Seeded {
   topics: Map<Topic, Row[]>;
   plugins: PeerInfo['plugins'];
@@ -161,7 +187,9 @@ export function seed(o: { peer: string; now: number; extra: number }): Seeded {
   topics.set('config', [
     { e: 'setting', id: 'shell.theme', v: { key: 'shell.theme', value: 'system', locked_by: null } },
     { e: 'setting', id: 'defaults.agent', v: { key: 'defaults.agent', value: 'claude', locked_by: null } },
+    ...TERMINALS,
   ]);
+  topics.set('plugin:wisp.accounts:harnesses', HARNESS_ROWS);
   topics.set('crew', CREW.map((c) => ({ e: 'crew.member', id: c.id, v: c })));
   topics.set('machines', MACHINES.map((m) => ({ e: 'machine', id: m.id, v: { ...m, addedAt: o.now - 30 * 24 * HOUR } })));
   topics.set('stuff', STUFF.map((s, i) => ({ e: 'stuff', id: s.id, v: { ...s, savedAt: o.now - (i + 1) * 5 * HOUR } })));
@@ -270,7 +298,9 @@ export function fromV1(v1: V1Seed, peer: string): Seeded {
   topics.set('config', [
     { e: 'setting', id: 'shell.theme', v: { key: 'shell.theme', value: 'system', locked_by: null } },
     ...(v1.config.projects ?? []).map((p) => ({ e: 'project', id: p.id, v: p })),
+    ...TERMINALS,
   ]);
+  topics.set('plugin:wisp.accounts:harnesses', HARNESS_ROWS);
   topics.set('crew', v1.crew.map((c) => ({ e: 'crew.member', id: c.id, v: c })));
   topics.set('machines', []);
   topics.set('stuff', []);

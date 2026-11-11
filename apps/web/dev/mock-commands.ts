@@ -141,6 +141,8 @@ export const COMMANDS: Record<string, CommandFn> = {
     const n = 800 + Math.floor(ctx.now() / 1000) % 100;
     return { ops: sessionPatch(ctx, id, [{ op: 'add', path: '/summary/pr', value: { number: n, state: 'OPEN', url: `https://github.com/example/repo/pull/${n}` } }]), result: { number: n } };
   },
+  // wisp.terminal's list for this computer, as a Mac answers it (v1's reference: In wisp first)
+  'terminal.apps': () => ({ ops: [], result: { terminals: [{ id: 'wisp', label: 'In wisp' }, { id: 'terminal', label: 'Terminal' }, { id: 'iterm', label: 'iTerm' }, { id: 'custom', label: 'Custom command…' }], defaultTerminal: 'wisp' } }),
   'checkpoint.restore': (a, ctx) => ({ ops: sessionPatch(ctx, str(obj(a), 'id'), [touch(ctx)]), result: { restored: true } }),
   'settings.set': (a, ctx) => {
     const x = obj(a);

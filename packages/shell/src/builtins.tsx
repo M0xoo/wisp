@@ -10,6 +10,8 @@ import type { PaletteItem, PluginUiDef, ShellContext, ShortcutDef } from './cont
 import { defineExtension, defineView } from './define.ts';
 import { THEMES } from './theme.ts';
 import { SESSION, type SessionRow } from './rows.ts';
+import { archive, markRead, remove, setState } from './frame/commands.ts';
+import { TASK_KEY, type TaskKey } from './frame/task-keys.ts';
 
 export const SHELL_SETTINGS = [
   { key: 'shell.theme', type: 'enum', values: THEMES, default: 'system', scope: 'server', overridable: true },
@@ -77,13 +79,100 @@ function escape(ctx: ShellContext, e: KeyboardEvent): boolean {
   return true;
 }
 
+/** O / Enter on the picked row: open it (or, open already, back to the list's place) */
+function open(ctx: ShellContext): boolean {
+  // a focused control keeps its own Enter (a button, a link, a menu item)
+  const f = document.activeElement;
+  if (f && f !== document.body && !f.closest('[data-part="card"]')) return false;
+  const id = ctx.selection.get();
+  if (!id || (ctx.nav().main.kind === 'task' && String((ctx.nav().main as { id?: unknown }).id) === id)) return false;
+  void ctx.client.commands.run(markRead, { id, unread: false }).catch(() => undefined);
+  ctx.navigate({ t: 'openTask', id: id as never });
+  return true;
+}
+
 function launcher(ctx: ShellContext): void {
   if (ctx.nav().overlays.length > 0) ctx.navigate({ t: 'closeOverlay', id: ctx.nav().overlays[0]?.id as ExtensionId });
   if (!ctx.focusTargets.focus('launcher')) ctx.navigate({ t: 'home' });
 }
 
+/** The list's rows in their order on screen (the list and Home's feed draw a `card` per task with its key). */
+const rowIds = (): string[] => [...document.querySelectorAll<HTMLElement>('[data-part="card"][data-id]')].map((e) => e.dataset['id'] ?? '').filter((id, i, all) => id !== '' && all.indexOf(id) === i);
+
+/** The task the keys act on: the open one, else the row picked with J/K. */
+function target(ctx: ShellContext): string | undefined {
+  const main = ctx.nav().main;
+  return main.kind === 'task' ? String(main.id) : ctx.selection.get();
+}
+
+/** An action of the open task's page (its Transcript, Ship it, …): handled there, as the button would. */
+function taskKey(ctx: ShellContext, act: TaskKey): boolean {
+  if (ctx.nav().main.kind !== 'task') return false;
+  return !document.dispatchEvent(new CustomEvent(TASK_KEY, { detail: act, cancelable: true }));
+}
+
+/** J/K (v1 kbd.js): the next or previous row; with a task open, that task opens (the split follows). */
+function step(ctx: ShellContext, by: 1 | -1): boolean {
+  const ids = rowIds();
+  if (!ids.length) return false;
+  const cur = target(ctx);
+  const i = cur === undefined ? -1 : ids.indexOf(cur);
+  const next = ids[Math.min(ids.length - 1, Math.max(0, i < 0 ? (by > 0 ? 0 : ids.length - 1) : i + by))];
+  if (!next) return false;
+  ctx.selection.set(next);
+  document.querySelector<HTMLElement>(`[data-part="card"][data-id="${CSS.escape(next)}"]`)?.scrollIntoView({ block: 'nearest' });
+  if (ctx.nav().main.kind === 'task') ctx.navigate({ t: 'openTask', id: next as never });
+  return true;
+}
+
+/** E, A, Delete on the open task or the picked row: as its button or menu item does. */
+function rowAct(ctx: ShellContext, act: 'done' | 'archive' | 'delete'): boolean {
+  if (taskKey(ctx, act)) return true;
+  const id = target(ctx);
+  if (!id) return false;
+  const run = ctx.client.commands.run;
+  if (act === 'done') {
+    void run(setState, { id, state: 'done' }).catch(() => undefined);
+    ctx.navigate({ t: 'markDone', id: id as never });
+  } else if (act === 'archive') {
+    void run(archive, { id, archived: true }).catch(() => undefined);
+    ctx.navigate({ t: 'archive', id: id as never });
+  } else {
+    void run(remove, { id }).catch(() => undefined);
+    ctx.navigate({ t: 'delete', id: id as never });
+  }
+  return true;
+}
+
 function shortcuts(ctx: ShellContext): ShortcutDef[] {
+  const k = (id: string, keys: string, label: string, act: TaskKey, group: ShortcutDef['group'] = 'task'): ShortcutDef => ({ id: `shell.task.${id}`, keys, label, group, run: () => taskKey(ctx, act) });
   return [
+    // the list (v1 kbd.js): J/K, O/Enter, and the row's own keys on the picked row
+    { id: 'shell.next', keys: 'j', label: 'shell.key.next', group: 'list', run: () => step(ctx, 1) },
+    { id: 'shell.prev', keys: 'k', label: 'shell.key.next', group: 'list', run: () => step(ctx, -1) },
+    { id: 'shell.open', keys: 'o', label: 'shell.key.open', group: 'list', run: () => open(ctx) },
+    { id: 'shell.open.enter', keys: 'enter', label: 'shell.key.open', group: 'list', run: () => open(ctx) },
+    { id: 'shell.done', keys: 'e', label: 'shell.key.done', group: 'task', run: () => rowAct(ctx, 'done') },
+    { id: 'shell.archive', keys: 'a', label: 'shell.key.archive', group: 'task', run: () => rowAct(ctx, 'archive') },
+    { id: 'shell.delete', keys: 'delete', label: 'shell.key.delete', group: 'task', run: () => rowAct(ctx, 'delete') },
+    { id: 'shell.delete.back', keys: 'backspace', label: 'shell.key.delete', group: 'task', run: () => rowAct(ctx, 'delete') },
+    // the open task's page: what its buttons and More menu do
+    k('follow', '/', 'shell.key.follow', 'reply'),
+    k('later', 'l', 'shell.key.later', 'later'),
+    k('rename', 'm', 'shell.key.rename', 'rename'),
+    k('openIn', 't', 'shell.key.openIn', 'openIn'),
+    k('shell', 'ctrl+`', 'shell.key.shell', 'shell'),
+    k('pr', 'p', 'shell.key.pr', 'pr'),
+    k('changes', 'd', 'shell.key.changes', 'changes'),
+    k('transcript', 'v', 'shell.key.transcript', 'transcript'),
+    k('rerun', 'shift+r', 'shell.key.rerun', 'rerun'),
+    k('fork', 'shift+f', 'shell.key.fork', 'fork'),
+    k('ship', 's', 'shell.key.ship', 'ship'),
+    k('collapse', 'c', 'shell.key.collapse', 'collapse', 'general'),
+    k('top', 'u', 'shell.key.top', 'top', 'general'),
+    k('panel', ']', 'shell.key.panel', 'panel', 'general'),
+    ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => k(`answer${n}`, String(n), 'shell.key.answer', `answer:${n}` as TaskKey)),
+
     { id: 'shell.palette', keys: 'mod+k', label: 'shell.key.palette', group: 'general', when: 'always', run: () => ctx.palette.open() },
     { id: 'shell.launcher', keys: 'mod+l', label: 'shell.key.launcher', group: 'general', when: 'always', run: () => launcher(ctx) },
     { id: 'shell.new', keys: 'n', label: 'shell.key.launcher', group: 'general', run: () => launcher(ctx) },

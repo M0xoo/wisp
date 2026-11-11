@@ -118,6 +118,7 @@ export function createShell(o: ShellOptions): Shell {
     extensions: (input) => registry.input(input),
     settingsPanes: () => registry.settingsPanes,
     harnesses: () => registry.harnesses,
+    promptSources: () => registry.prompt,
     block: (type) => registry.block(type),
     view: (kind) => registry.view(kind),
   };

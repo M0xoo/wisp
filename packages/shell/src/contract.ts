@@ -164,6 +164,8 @@ export interface PluginUiDef {
   palette?: PaletteSourceDef[];
   /** added: its keyboard shortcuts (only keys the shell doesn't use itself, see BUILT_IN_KEYS) */
   shortcuts?: ShortcutDef[];
+  /** added 2026-11-11 (additive): what a prompt box's @ and / menus offer (v1 composer.js) */
+  prompt?: PromptSourceDef[];
   /** added 2026-11-08 (additive): the coding agents it runs, as the screens name and mark them (a
    * harness plugin's UI: plugins/claude/ui). The shell knows none of them itself (ADR-0003). */
   harnesses?: HarnessUiDef[];
@@ -257,6 +259,30 @@ export interface PaletteSourceDef {
   deep?(query: string, ctx: PaletteContext, signal: AbortSignal): Promise<readonly PaletteItem[]>;
 }
 
+/** One row of a prompt box's @ or / menu. */
+export interface PromptItem {
+  value: string;
+  label: string;
+  detail?: string;
+  hint?: string;
+  icon?: string;
+  /** what replaces the trigger and what was typed after it (`/goal `, `@Fix the login bug `) */
+  insert: string;
+  /** a mention: sent as `@[title](scheme:id)` (v1 mention-text.js), shown as `@title` */
+  mention?: { scheme: 'wisp' | 'crew' | 'stuff'; id: string; title: string };
+}
+
+/** What a prompt box's @ or / menu offers, from a plugin (shell-composer: tasks, crew, My Stuff, the commands). */
+export interface PromptSourceDef {
+  id: string;
+  trigger: '@' | '/';
+  /** the boxes it serves: a task's reply box, New task's (both when unset) */
+  where?: readonly ('reply' | 'home')[];
+  /** among sources for one trigger, lower first */
+  order?: number;
+  items(query: string, ctx: { client: PluginClient; task?: string }): readonly PromptItem[];
+}
+
 /** 'e', 'shift+r', 'mod+k' (⌘ on a Mac, Ctrl elsewhere), 'ctrl+`', 'escape', '?' */
 export type KeyCombo = string;
 
@@ -304,6 +330,8 @@ export interface ShellContext {
   settingsPanes(): () => readonly SettingsPaneDef[];
   /** added 2026-11-08 (additive): the coding agents the harness plugins registered, in picker order */
   harnesses(): () => readonly HarnessUiDef[];
+  /** added 2026-11-11 (additive): every plugin's prompt sources (the @ and / menus) */
+  promptSources(): () => readonly PromptSourceDef[];
   block(type: string): BlockRendererDef | undefined;
   view(kind: string): ViewDef | undefined;
 }

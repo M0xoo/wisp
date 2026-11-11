@@ -76,9 +76,9 @@ export function Head(props: { readonly filter: () => string; readonly setFilter:
   const slots = useHeadSlots();
   const nav = useSignal(shell.nav);
   const homeOn = (): boolean => nav().main.kind === 'home';
-  const sheet = (pane: string): void => shell.navigate({ t: 'openOverlay', overlay: { kind: 'viewer', id: 'shell-settings.sheet' as never, params: { pane } } });
+  const sheet = (pane: string | undefined): void => shell.navigate({ t: 'openOverlay', overlay: { kind: 'viewer', id: 'shell-settings.sheet' as never, params: pane === undefined ? {} : { pane } } });
   const account = (): MenuEntry[] => [
-    { value: 'settings', label: shell.t('shell.account.settings'), icon: 'settings' },
+    { value: 'settings', label: shell.t('shell.account.settings'), icon: 'settings', part: 'topbar.settings' },
     { value: 'machines', label: shell.t('shell.account.machines'), icon: 'laptop' },
     { value: 'automations', label: shell.t('shell.account.automations'), icon: 'bolt' },
     { kind: 'separator' },
@@ -87,7 +87,8 @@ export function Head(props: { readonly filter: () => string; readonly setFilter:
   const onAccount = (v: string): void => {
     if (v === 'theme') void shell.theme.set(shell.theme.resolved() === 'dark' ? 'light' : 'dark');
     else if (v === 'machines') shell.navigate({ t: 'openView', id: 'machine.this' as never, params: null as Json });
-    else sheet(v === 'automations' ? 'automations' : 'general');
+    // Settings on a phone opens on its list, as v1's did; a wider window shows General beside the list
+    else sheet(v === 'automations' ? 'automations' : nav().layout === 'stack' ? undefined : 'general');
   };
   return (
     <SidebarHead

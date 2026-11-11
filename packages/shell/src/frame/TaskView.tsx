@@ -13,8 +13,11 @@ import { SESSION, type SessionRow } from '../rows.ts';
 import { Slot } from '../slot.tsx';
 import { TaskHeadSlot } from './slots.tsx';
 import { changeFigures, duration, folded, longTime, overlapLine, overlapsOf, statusOf } from './rows-view.ts';
-import { archive, followUp, fork, remove, rename, rerun, restore, setAgent, setGoal, setMode, setState } from './commands.ts';
+import { archive, followUp, forLater, type Attachment, fork, remove, rename, rerun, restore, setAgent, setGoal, setMode, setState } from './commands.ts';
 import { answerContext } from './answer-ctx.ts';
+import { TASK_KEY, type TaskKey } from './task-keys.ts';
+import { usePromptMenu } from './prompt-menu.ts';
+import { useAttachments } from './attach.ts';
 import { harnessOf } from './harness.ts';
 import { MODE_ICON, agentMenu, modeMenu, teamMenu, whenMenu, type Mode, type When } from './pickers.ts';
 
@@ -86,21 +89,33 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   // older turns fold away (v1 transcript.js): Show earlier opens them for this view
   const [unfolded, setUnfolded] = createSignal(false);
   const fold = createMemo(() => folded(turns(), unfolded()));
-  const [files, setFiles] = createSignal<readonly File[]>([]);
+  // files with the reply: picked, pasted or dropped, each uploading at once to the task's computer
+  const att = useAttachments(shell, () => ownerOf(key));
+  const files = att.files;
   const [team, setTeam] = createSignal<ReadonlySet<string>>(new Set());
   const [goal, setGoalText] = createSignal<string | undefined>(undefined);
   const [when, setWhen] = createSignal<When | undefined>(undefined);
   const nav = useSignal(shell.nav);
   const harnesses = useSignal(shell.harnesses());
+  // the @ and / menus (plugins' prompt sources: shell-composer's tasks, crew, My Stuff and commands)
+  const menu = usePromptMenu({ shell, where: 'reply', task: key, text, setText, input: () => input, id: `reply-suggest-${bare}` });
   const send = (): void => {
-    const v = text().trim();
+    const v = menu.encode(text().trim());
+    menu.reset();
     if (!v) return;
     setText('');
     const g = goal();
     if (g) void run(setGoal, { id: key, text: g }).catch(() => undefined);
     setGoalText(undefined);
-    setFiles([]);
-    run(followUp, { id: key, text: v, turnId: entityKey(peer, uuidv7()), idx: turns().length, at: Date.now() }).catch(() => setText(v));
+    const turnId = entityKey(peer, uuidv7());
+    const at = Date.now();
+    const idx = turns().length;
+    // the box clears at once; with files, the turn starts once they're up (usually already)
+    const go = (attachments: readonly Attachment[]): void => {
+      run(followUp, { id: key, text: v, turnId, idx, at, ...(attachments.length > 0 && { attachments }) }).catch(() => setText(v));
+    };
+    if (files().length === 0) go([]);
+    else void att.take().then(go);
   };
   /** an answer's `next` chip, `question` option, `actions` reply: sent as a follow-up */
   const reply = (v: string): void => {
@@ -160,11 +175,45 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     { id: 'done', key: 'E', icon: 'done', label: t('shell.task.done'), title: t('shell.card.done'), tone: 'good', act: { onClick: markDone } },
     { id: 'more', icon: 'dots', label: t('shell.task.more'), title: t('shell.task.more'), act: { menu: { items: more(), onSelect: onMore } } },
   ];
+  // the shell's task keys (v1 kbd.js, builtins.tsx): what this page's buttons and More menu do
+  const onKey = (e: Event): void => {
+    const act = (e as CustomEvent<TaskKey>).detail;
+    const did = ((): boolean => {
+      if (act === 'transcript') setStepsOpen(!stepsOpen());
+      else if (act === 'rerun' || act === 'fork' || act === 'archive' || act === 'delete') onMore(act);
+      else if (act === 'openIn' || act === 'shell') side('shell');
+      else if (act === 'changes' || act === 'panel') {
+        if (act === 'panel' && nav().side.kind !== 'none') shell.navigate({ t: 'closeSide' });
+        else side('changes');
+      } else if (act === 'pr') shell.navigate({ t: 'toggleSide', side: { kind: 'pr', id: key as never } });
+      else if (act === 'ship') ship();
+      else if (act === 'done') markDone();
+      else if (act === 'later') void run(forLater, { id: key, forLater: !(row()?.summary['forLater'] === true) }).catch(() => undefined);
+      else if (act === 'reply') input?.focus();
+      else if (act === 'rename') document.querySelector<HTMLElement>('[data-part="split.title"]')?.click();
+      else if (act === 'collapse') {
+        setStepsOpen(false);
+        setUnfolded(false);
+      } else if (act === 'top') document.querySelector('[data-kit="turns"]')?.firstElementChild?.scrollIntoView({ block: 'start' });
+      else if (act.startsWith('answer:')) {
+        // the question waiting over the reply box, else the latest answer's question block: its Nth choice
+        const n = Number(act.slice(7)) - 1;
+        const opts = document.querySelectorAll<HTMLButtonElement>('[data-part="task.ask"] button, [data-part="block.question.option"]:not(:disabled)');
+        const b = opts[n];
+        if (!b) return false;
+        b.click();
+      } else return false;
+      return true;
+    })();
+    if (did) e.preventDefault();
+  };
+  document.addEventListener(TASK_KEY, onKey);
+  onCleanup(() => document.removeEventListener(TASK_KEY, onKey));
   const attach = (): void => {
     setPicking(true);
     void shell.platform.pickFiles({ multiple: true }).then((picked) => {
       setPicking(false);
-      if (picked.length) setFiles([...files(), ...picked]);
+      if (picked.length) att.add(picked);
     });
   };
   return (
@@ -233,7 +282,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                         timeTitle={longTime(turn.started_at)}
                         {...(b.checkpoint?.commit && { sha: { short: b.checkpoint.commit.slice(0, 7), title: t('shell.task.checkpoint', { branch: b.checkpoint.branch ?? '', sha: b.checkpoint.commit }) } })}
                         {...(hero?.title && { hero: { title: hero.title, summary: hero.summary ?? '' } })}
-                        {...(blocks.length > 0 && { answer: <Answer blocks={blocks} ctx={answerContext({ shell, key, turnId: turn.id, latest: () => turn.id === turns().at(-1)?.id, reply, draft, openChanges: () => side('changes') })} /> })}
+                        {...(blocks.length > 0 && { answer: <Answer blocks={blocks} ctx={answerContext({ shell, key, turnId: turn.id, latest: () => turn.id === turns().at(-1)?.id, reply, draft, openChanges: () => side('changes'), apps: () => ((b as { ext?: Record<string, unknown> }).ext?.['wisp.apps'] ?? {}) as Record<string, unknown> })} /> })}
                         {...(turn.status === 'running' && { live: s().summary.live || t('shell.task.starting') })}
                         actsTitle={t('shell.task.activity')}
                         acts={[
@@ -292,8 +341,14 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                   <ReplyBox
                     placeholder={t('shell.task.reply', { name: h().name })}
                     value={text()}
-                    onInput={setText}
+                    onInput={(v) => {
+                      setText(v);
+                      menu.typed(v);
+                    }}
                     onSend={send}
+                    suggest={menu.suggest()}
+                    onPaste={att.paste}
+                    onFiles={att.add}
                     inputRef={(el) => (input = el)}
                     attach={t('shell.home.attach')}
                     attachAct={{ onClick: attach, pending: picking() }}
@@ -309,7 +364,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                     laterAct={{ menu: { items: whenMenu(t), onSelect: (w) => setWhen(w as When) } }}
                     send={t('shell.home.send')}
                     extras={[
-                      ...files().map((f, i) => ({ id: `file:${i}:${f.name}`, icon: 'clip' as const, label: f.name, removeLabel: t('shell.home.remove', { name: f.name }), onRemove: () => setFiles(files().filter((x) => x !== f)) })),
+                      ...files().map((f, i) => ({ id: `file:${i}:${f.name}`, icon: 'clip' as const, label: f.name, removeLabel: t('shell.home.remove', { name: f.name }), onRemove: () => att.remove(f) })),
                       ...(when() ? [{ id: 'when', icon: 'clock' as const, label: t('shell.when.chip', { when: t(`shell.when.${when()}`) }), removeLabel: t('shell.when.clear'), onRemove: () => setWhen(undefined) }] : []),
                     ]}
                   />

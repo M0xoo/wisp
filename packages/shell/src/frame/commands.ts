@@ -51,6 +51,16 @@ export interface CreateArgs {
   readonly projectId?: string;
   readonly color?: string;
   readonly goal?: string;
+  /** files that go with the prompt (uploaded first: stuff's /uploads) */
+  readonly attachments?: readonly Attachment[];
+}
+
+/** A file sent with a prompt (runtime's Attachment): what stuff's upload answered. */
+export interface Attachment {
+  readonly id: string;
+  readonly name: string;
+  readonly mime: string;
+  readonly size: number;
 }
 
 /** New task: its row and page show at once, Starting… */
@@ -62,7 +72,7 @@ export const create = defineCommand<CreateArgs, { id: string }>({
 
 /** A follow-up: it shows in the transcript at once (its turn, under the id the client chose, Starting…),
  * and the task is working again. */
-export const followUp = defineCommand<{ id: string; text: string; turnId: string; idx: number; at: number }>({
+export const followUp = defineCommand<{ id: string; text: string; turnId: string; idx: number; at: number; attachments?: readonly Attachment[] }>({
   id: 'runtime.followUp',
   owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }),
   optimistic: (_base, a) => [
@@ -129,4 +139,12 @@ export const approveBlocked = defineCommand<{ id: string; turnId: string; allow:
   wire: (a) => ({ id: bare(a.id), turnId: bare(a.turnId), allow: a.allow }),
   optimistic: 'none',
   pending: 'the blocked card, settled at once',
+});
+/** An `app` block's saved state, kept on its turn (`ext["wisp.apps"][block]`). */
+export const appState = defineCommand<{ id: string; turnId: string; block: string; state: unknown }, unknown>({
+  id: 'runtime.appState',
+  owner: (a) => a.id,
+  wire: (a) => ({ id: bare(a.id), turnId: bare(a.turnId), block: a.block, state: a.state }),
+  optimistic: 'none',
+  pending: 'none: the app keeps its own state while it runs',
 });

@@ -6,7 +6,7 @@ import { entityKey, ownerOf } from '@wisp/client';
 import { useSignal, type BlockContext, type StuffRef, type TaskRef } from '@wisp/ui';
 import type { ShellContext } from '../contract.ts';
 import { SESSION, type SessionRow } from '../rows.ts';
-import { approveBlocked, exec } from './commands.ts';
+import { appState, approveBlocked, exec } from './commands.ts';
 
 export interface AnswerHost {
   readonly shell: ShellContext;
@@ -17,6 +17,8 @@ export interface AnswerHost {
   readonly reply: (text: string) => void;
   readonly draft: (text: string) => void;
   readonly openChanges: () => void;
+  /** what the turn's `app` blocks saved (`ext["wisp.apps"]`) */
+  readonly apps: () => Readonly<Record<string, unknown>>;
 }
 
 export function answerContext(h: AnswerHost): BlockContext {
@@ -40,6 +42,10 @@ export function answerContext(h: AnswerHost): BlockContext {
     openTask: (id) => shell.navigate({ t: 'openTask', id: keyOf(id) as never }),
     openUrl: (url) => shell.platform.openExternal(url),
     openFile: () => h.openChanges(),
+    appState: {
+      get: (block) => h.apps()[block],
+      set: (block, state) => void run(appState, { id: key, turnId: h.turnId, block, state }).catch(() => undefined),
+    },
     // My Stuff's page (wisp.stuff's view); its items are `stuff.item` rows on the `stuff` topic everyone watches
     openStuff: () => shell.navigate({ t: 'openView', id: 'stuff.page' as never, params: null }),
     stuff: (id) => {
