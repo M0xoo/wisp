@@ -40,6 +40,8 @@ pub enum Step {
     Resumed,
     /// a person's message (`MESSAGE_CREATE`'s `d`)
     Message(Value),
+    /// `/wisp`, a keystroke in it, or a press on a button (`INTERACTION_CREATE`'s `d`)
+    Interaction(Value),
     /// close now; `again`: Discord asked for a new connection; `wait_ms`: not before this
     Close { again: bool, wait_ms: u64 },
 }
@@ -119,6 +121,7 @@ impl Conn {
             }
             "RESUMED" => vec![Step::Resumed],
             "MESSAGE_CREATE" => vec![Step::Message(d.clone())],
+            "INTERACTION_CREATE" => vec![Step::Interaction(d.clone())],
             _ => Vec::new(),
         }
     }

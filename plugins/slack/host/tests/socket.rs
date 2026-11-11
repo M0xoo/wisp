@@ -114,7 +114,7 @@ fn click(id: &str, user: &str, value: &Value) -> WsFrame {
 async fn a_signed_button_answers_and_says_who_and_a_forged_one_does_nothing() {
     let h = hub(&["U1"]);
     h.net.replies.lock().unwrap().extend([Reply::json("chat.update", json!({ "ok": true })), Reply::json("chat.postEphemeral", json!({ "ok": true }))]);
-    let good = json!({ "k": "a", "s": "t1", "r": "ask1", "i": 0, "sig": "sig:t1:a:ask1:0" });
+    let good = json!({ "k": "a", "s": "t1", "r": "ask1", "i": 0, "sig": "sig.t1.a.ask1.0" });
     let forged = json!({ "k": "a", "s": "t1", "r": "ask1", "i": 0, "sig": "nope" });
     h.ws.push(vec![
         ScriptWs::text(&json!({ "type": "hello" })),

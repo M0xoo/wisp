@@ -19,6 +19,7 @@ wisp-kernel.workspace = true
 tokio = { workspace = true, features = ["macros"] }
 
 [dev-dependencies]
+ed25519-dalek.workspace = true
 tokio.workspace = true
 
 [lints]

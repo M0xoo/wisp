@@ -8,11 +8,15 @@
 //! stranger's DM gets one line, a stranger in a server silence. A message can't ask for more than Edits, and nothing
 //! posted pings anyone, shows a link as something else, or unfurls. The wire's decisions are `wisp-discord-core`'s.
 //!
-//! Not here yet: `/wisp` and its autocomplete, buttons (interactions), a cloud box's interactions through the grid.
+//! `/wisp` (registered by REST, its options read as the words you'd type), its autocomplete (your names only to
+//! someone linked) and a report's choices as signed buttons are interactions (`slash`): on a computer they come
+//! down the gateway; on a cloud wisp, which opens no socket, Discord posts them to the box's URL on the grid, which
+//! answers in Discord's three seconds and holds them for the box; the box checks Discord's signature itself.
 
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 
 mod conv;
+mod slash;
 
 use async_trait::async_trait;
 use serde_json::{Value, json};
@@ -34,6 +38,11 @@ pub const STRANGER: &str = "This wisp only answers people linked to it. To link,
 pub const LINKED: &str = "✓ Linked to wisp. Mention me in a server, or write here, to say what you’d type in wisp.";
 pub const WRONG_CODE: &str = "That code doesn’t match. Send `link` and the code shown in wisp → Settings → Phone → Discord.";
 const FIX: &str = "Check the token in wisp → Settings → Phone → Discord.";
+
+/// What the grid lost while wisp slept (v1 channel.js `lostLine`).
+pub fn lost_line(n: u32) -> String {
+    if n == 1 { "One message didn’t reach wisp while it was asleep. Send it again to run it.".into() } else { format!("{n} messages didn’t reach wisp while it was asleep. Send them again to run them.") }
+}
 
 #[derive(Debug, Default)]
 pub struct DiscordPlugin;
@@ -113,6 +122,12 @@ impl Discord {
     }
     fn mark(&self, error: Option<String>) {
         self.hub.mark(NAME, Status { ok: Some(error.is_none()), error, at: Some(self.hub.now_ms()), ..Status::default() });
+    }
+    pub(crate) fn mark_up(&self) {
+        self.mark(None);
+    }
+    pub(crate) fn mark_down(&self, why: &str) {
+        self.mark(Some(why.to_owned()));
     }
 
     /// One REST call, in its rate-limit bucket: it waits while the bucket (or Discord as a whole) is paused, and a 429
@@ -248,8 +263,15 @@ impl Discord {
                     }
                     Step::Ready(me) => {
                         ready = true;
+                        let app = me.app_id.clone().unwrap_or_default();
                         *lock(&self.me) = Some(me);
                         self.mark(None);
+                        let d = self.clone();
+                        self.hub.spawn(Box::pin(async move {
+                            if let Err(e) = d.register(&app).await {
+                                d.hub.warn(&format!("discord: /wisp: {}", e.message));
+                            }
+                        }));
                     }
                     Step::Resumed => {
                         ready = true;
@@ -259,6 +281,14 @@ impl Discord {
                         let me = self.clone();
                         self.hub.spawn(Box::pin(async move {
                             if let Err(e) = me.message(&d).await {
+                                me.hub.warn(&format!("discord: {}", e.message));
+                            }
+                        }));
+                    }
+                    Step::Interaction(d) => {
+                        let me = self.clone();
+                        self.hub.spawn(Box::pin(async move {
+                            if let Err(e) = me.interaction(&d, false).await {
                                 me.hub.warn(&format!("discord: {}", e.message));
                             }
                         }));
@@ -318,7 +348,7 @@ impl Discord {
         let ctx = phone.context().await?;
         let typed = if text.is_empty() { "help".to_owned() } else if text.to_lowercase().starts_with("new ") || text.eq_ignore_ascii_case("new") { format!("/{text}") } else { text };
         let session = self.session_for(&m.channel, m.reference.as_deref());
-        let c = conv::DiscordConv { discord: self, phone, ctx, m: &m, target: Mutex::new((m.channel.clone(), Some(m.id.clone()))), in_thread: Mutex::new(false) };
+        let c = conv::DiscordConv::new(self, phone, ctx, &m, None);
         self.hub.converse(&c, &typed, session.as_deref(), None).await.map(|_| ())
     }
 }
@@ -328,9 +358,10 @@ impl Transport for Discord {
     fn name(&self) -> &str {
         NAME
     }
+    /// On a cloud wisp the public key too: what it checks Discord's calls with.
     fn ready(&self) -> bool {
         let c = self.cfg();
-        c["enabled"] == true && !s(&c, "token").is_empty() && !self.hub.grid().in_box()
+        c["enabled"] == true && !s(&c, "token").is_empty() && (!self.hub.grid().in_box() || !s(&c, "publicKey").is_empty())
     }
     fn kind(&self) -> TransportKind {
         TransportKind::Thread
@@ -339,6 +370,9 @@ impl Transport for Discord {
     async fn start(&self, stop: CancellationToken) {
         if !self.ready() {
             return;
+        }
+        if self.hub.grid().in_box() {
+            return self.over_http().await;
         }
         let Some(me) = self.this.upgrade() else { return };
         let base = self.hub.tune("discordBackoffMs").unwrap_or(BACKOFF_MS);
@@ -407,15 +441,43 @@ impl Transport for Discord {
             Some(b) if !msg.title.starts_with(&format!("{b}: ")) => format!("{b}: {}", msg.title),
             _ => msg.title.clone(),
         };
-        let choices: Vec<&str> = msg.actions.iter().filter(|a| a.kind != ActionKind::Done).map(|a| a.label.as_str()).collect();
-        let here = if t["thread"] == true || chat.is_empty() { "Mention me here to answer or follow up." } else { "Reply to this message to answer or follow up." };
+        let components = self.components(msg, sv);
+        let choices: Vec<&str> = if components.is_empty() { msg.actions.iter().filter(|a| a.kind != ActionKind::Done).map(|a| a.label.as_str()).collect() } else { Vec::new() };
+        let here = match (self.hub.grid().in_box(), t["thread"] == true || chat.is_empty()) {
+            (true, true) => "Use /wisp here to answer or follow up.",
+            (true, false) => "Answer or follow up in wisp.",
+            (false, true) => "Mention me here, or use /wisp, to answer or follow up.",
+            (false, false) => "Reply to this message to answer or follow up.",
+        };
         let text = [title, msg.text.clone(), if choices.is_empty() { String::new() } else { format!("Choices: {}", choices.join(" · ")) }, here.to_owned()].into_iter().filter(|p| !p.is_empty()).collect::<Vec<_>>().join("\n\n");
-        let sent = self.say(&chat, reply.as_deref(), &text).await?;
+        let mut body = post_body(&text, reply.as_deref());
+        if !components.is_empty() {
+            body["components"] = Value::Array(components);
+        }
+        let to = format!("/channels/{chat}/messages");
+        let sent = match self.rest("POST", &to, Some(&body)).await {
+            // something Discord won't take in a button: the words still go
+            Err(e) if body.get("components").is_some() && e.message.contains("Invalid Form Body") => self.say(&chat, reply.as_deref(), &text).await?,
+            r => r?,
+        };
         if let Some(id) = sent.get("id").and_then(Value::as_str) {
             self.link(&sv.id, id);
         }
         self.hub.phone().count("report", Some("full"));
         Ok(())
+    }
+
+    async fn inbound(&self, raw: &[u8], headers: &wisp_channels_api::Headers, opts: wisp_channels_api::InboundOpts) -> wisp_channels_api::InboundResult {
+        let Some(me) = self.this.upgrade() else { return wisp_channels_api::InboundResult::error(503, "Discord is stopping.") };
+        me.held(raw, headers, opts).await
+    }
+
+    /// Told where someone linked last spoke: there's no other place known to be theirs.
+    async fn dropped(&self, n: u32) {
+        let chat = s(&self.cfg(), "spoke").to_owned();
+        if !chat.is_empty() {
+            let _ = self.say(&chat, None, &lost_line(n)).await;
+        }
     }
 
     /// `GET /api/remote/discord/invite`: the link that adds the bot to a server.

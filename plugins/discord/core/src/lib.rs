@@ -4,6 +4,7 @@
 //! wire; everything it decides is decided here.
 
 pub mod gateway;
+pub mod interaction;
 pub mod message;
 pub mod rest;
 

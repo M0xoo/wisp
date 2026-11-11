@@ -421,10 +421,10 @@ impl ChannelHub for TestHub {
         lock(&self.away).insert(session_id.to_owned(), entry);
     }
     fn sign(&self, session_id: &str, kind: ActionKind, reference: &str, index: u32) -> String {
-        format!("sig:{session_id}:{}:{reference}:{index}", kind.code())
+        format!("sig.{session_id}.{}.{reference}.{index}", kind.code())
     }
     fn verify(&self, s: &Signed) -> bool {
-        s.sig == format!("sig:{}:{}:{}:{}", s.s, s.k, s.r, s.i)
+        s.sig == format!("sig.{}.{}.{}.{}", s.s, s.k, s.r, s.i)
     }
     fn started_from(&self, session_id: &str) -> Option<(String, Option<String>)> {
         lock(&self.started).get(session_id).cloned()
