@@ -300,6 +300,11 @@
         "title": "Run a project's run scripts"
       },
       {
+        "id": "runtime.discover",
+        "title": "Git repos on this computer that aren't projects yet",
+        "readOnly": true
+      },
+      {
         "id": "runtime.exec",
         "title": "Run a one-click command from a presentation in the task's folder"
       },
@@ -340,6 +345,7 @@
       { "key": "runtime.watch", "type": "bool", "default": true, "title": "Watch agents work: agents may open what they built in wisp's browser to check it" },
       { "key": "runtime.blocks", "type": "bool", "default": true, "title": "wisp blocks: answers come as cards (off: plain markdown)" },
       { "key": "runtime.subagentModel", "type": "enum", "values": ["task", "haiku", "sonnet"], "default": "task", "title": "The model Claude Code's subagents run on (task: the task's own)" },
+      { "key": "runtime.projectOrder", "type": "json", "default": [], "title": "Your project order (names): the chips, New task's row and the Projects list show them so; drag to change it" },
       { "key": "runtime.subagents", "type": "json", "default": [], "title": "The team new tasks start with: [{ name, agent, model?, effort?, use? }] (New task pre-fills it; a task's own team wins)" },
       { "key": "runtime.limitWait", "type": "bool", "default": false, "title": "Wait for the reset: a task at its usage limit carries on by itself after the reset, in the same conversation" },
       { "key": "runtime.followUp", "type": "enum", "values": ["interrupt", "queue"], "default": "interrupt", "title": "A follow-up while a task works: interrupt it, or queue after it" }

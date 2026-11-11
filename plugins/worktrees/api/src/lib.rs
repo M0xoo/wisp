@@ -355,3 +355,78 @@ pub trait SetupSource: Send + Sync + 'static {
 }
 
 pub const SETUP_SOURCES: Point<dyn SetupSource> = Point::new("worktrees.setup", 1);
+
+/// The task's file view (v1 `GET /sessions/:id/source`): one file of the task's folder (its worktree, else its
+/// folder) to read and edit. Additive (2026-11-11).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceArgs {
+    /// the task
+    pub id: String,
+    /// relative to the task's folder
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Source {
+    pub path: String,
+    pub text: String,
+    /// what a save sends back, so it refuses a file that changed since
+    pub hash: String,
+    /// the folder it's in (the gutter's blame asks there)
+    pub root: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SaveArgs {
+    pub id: String,
+    pub path: String,
+    pub text: String,
+    /// the hash it was opened with; empty: save whatever is there
+    #[serde(default)]
+    pub hash: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Saved {
+    pub hash: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FilesArgs {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileList {
+    pub files: Vec<String>,
+    /// how many more there were past the list's end
+    pub more: usize,
+    /// false: not a git folder (nothing listed)
+    pub git: bool,
+}
+
+#[derive(Debug)]
+pub struct SourceCmd;
+impl Command for SourceCmd {
+    const ID: &'static str = "worktrees.source";
+    const READ_ONLY: bool = true;
+    type Args = SourceArgs;
+    type Out = Source;
+}
+
+#[derive(Debug)]
+pub struct Save;
+impl Command for Save {
+    const ID: &'static str = "worktrees.save";
+    type Args = SaveArgs;
+    type Out = Saved;
+}
+
+#[derive(Debug)]
+pub struct Files;
+impl Command for Files {
+    const ID: &'static str = "worktrees.files";
+    const READ_ONLY: bool = true;
+    type Args = FilesArgs;
+    type Out = FileList;
+}

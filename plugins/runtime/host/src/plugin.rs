@@ -352,6 +352,7 @@ fn more(s: &mut Setup, slot: &Slot, harness_kind: Arc<wisp_resources_api::Stored
     cmd!(s, slot, c::SignInDone, |r, call, a| r.sign_in_done(&a.agent, &a.account).await.map(|()| c::Ack {}));
     cmd!(s, slot, c::Overage, |r, call, a| r.overage(a.id.as_str(), &a.turn_id, &a.kind).await.map(|()| c::Ack {}));
     project_test(s, kinds_for_run.clone());
+    discover(s, kinds_for_run.clone());
     let projects = kinds_for_run;
     s.command::<c::ProjectRun, _, _>(move |ctx, call, a| {
         let projects = projects.clone();
@@ -589,6 +590,21 @@ impl Plugin for RuntimePlugin {
         });
         Ok(())
     }
+}
+
+/// `runtime.discover`: git repos under your home that aren't projects yet (`found.rs`).
+fn discover(s: &mut Setup, known: Arc<wisp_resources_api::StoredKind>) {
+    s.command::<c::Discover, _, _>(move |_ctx, _call, _a| {
+        let known = known.clone();
+        async move {
+            let paths: Vec<String> = known.specs().await.unwrap_or_default().into_iter().filter_map(|(_, s)| s.get("path").and_then(serde_json::Value::as_str).map(str::to_owned)).collect();
+            let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(std::path::PathBuf::from);
+            Ok(match home {
+                Some(h) => crate::found::discover(&h, &paths).await,
+                None => Vec::new(),
+            })
+        }
+    });
 }
 
 /// `runtime.projectTest`: a declared project's test command, written through its resource kind.

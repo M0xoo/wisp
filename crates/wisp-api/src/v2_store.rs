@@ -140,6 +140,10 @@ fn full_rows(
     }
     let mut out = Vec::new();
     for s in mine {
+        // a plugin's kind that isn't defined yet (it hasn't started, or it's off) has no rows to show
+        if !r.defines(s.kind) {
+            continue;
+        }
         let text = r.query_json(s.kind, &(s.query)(topic))?;
         let rows: Vec<Map<String, Value>> = serde_json::from_str(&text)
             .map_err(|e| wisp_store::StoreError::Internal(format!("{}: {e}", s.kind)))?;

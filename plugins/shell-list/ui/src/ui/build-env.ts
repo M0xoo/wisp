@@ -2,7 +2,7 @@
 // (navigation, the keyboard's task, the agents), one clock for the rows' times owned by a child of
 // the plugin's scope (so it stops with the list), the action context, and the list's local state.
 
-import { createMemo, createSignal, onCleanup } from 'solid-js';
+import { createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
 import { useSignal } from '@wisp/ui';
 import type { EntityKey, PluginClient } from '@wisp/client';
 import type { ShellContext } from '@wisp/shell/contract';
@@ -18,6 +18,12 @@ export const TICK_MS = 30_000;
 
 export function buildEnv(shell: ShellContext, client: PluginClient): ListEnv {
   const model = modelOf(client);
+  // the project the top bar's chips picked: the list shows it (one filter, v1 wisp.filter)
+  const picked = useSignal(shell.projectFilter?.value ?? (() => undefined));
+  createEffect(() => {
+    const f = picked();
+    if (f !== undefined && f !== model.view.value().filter) model.setFilter(f);
+  });
   const nav = useSignal(shell.nav);
   const selected = useSignal(shell.selection.get);
   const agents = useSignal(model.agents);

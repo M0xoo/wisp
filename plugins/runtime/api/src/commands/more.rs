@@ -494,3 +494,19 @@ pub struct ColdOut {
     pub cache: Option<ColdCache>,
     pub compact: Option<CompactOffer>,
 }
+
+/// `runtime.discover`: git repos on this computer that aren't projects yet (v1 `/projects/discover`, places.js
+/// `discoverRepos`): the usual folders under your home, two levels down, the 24 touched last. Additive (2026-11-11).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct DiscoverArgs {}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct FoundRepo {
+    pub path: String,
+    pub name: String,
+    /// when it was last changed (ms)
+    #[ts(type = "number")]
+    pub mtime: i64,
+}

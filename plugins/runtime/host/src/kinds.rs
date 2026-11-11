@@ -13,7 +13,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use wisp_kernel::Setup;
-use wisp_resources_api::{KindInfo, stored};
+use wisp_resources_api::{KindInfo, stored, stored_published};
 
 /// How a project uses worktrees (v1 `worktree`, `worktreeOnDone`, `worktreeCleanup`, `worktreeMax`,
 /// `cloneDir`, `fixConflicts`, `.worktreeinclude`).
@@ -186,7 +186,8 @@ pub struct Kinds {
 pub fn register(s: &mut Setup) -> std::sync::Arc<Kinds> {
     let owner = "wisp.runtime";
     std::sync::Arc::new(Kinds {
-        project: stored::<ProjectSpec>(s, |sc| KindInfo::new("project", "projects", owner, sc).order(10)),
+        // every screen shows projects (chips, New task's "in", Home): published as `project` on `config`
+        project: stored_published::<ProjectSpec>(s, "project", |sc| KindInfo::new("project", "projects", owner, sc).order(10)),
         harness: harness_kind(s),
         skill: stored::<SkillSpec>(s, |sc| KindInfo::new("skill", "skills", owner, sc).order(15)),
         team: stored::<TeamSpec>(s, |sc| KindInfo::new("team", "teams", owner, sc).order(25)),

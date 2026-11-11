@@ -16,6 +16,7 @@ pub mod pane;
 pub mod ports;
 mod files;
 mod runtime_port;
+mod source;
 pub mod prepare;
 pub mod trust;
 
@@ -168,6 +169,7 @@ impl Plugin for WorktreesPlugin {
     fn setup(&self, s: &mut Setup) -> WireResult<()> {
         let st = State::new(self.clone());
         commands::register(s, &st);
+        source::register(s);
         files::register(s);
         let hook_st = st.clone();
         s.intercept::<BeforeRunView, _, _>(

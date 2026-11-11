@@ -16,7 +16,6 @@ import { buildEnv } from './build-env.ts';
 import { DeleteDialog, RenameDialog } from './Dialogs.tsx';
 import { Env, useEnv, type ListEnv } from './env.ts';
 import { GroupRow, PlanRow, SectionHead } from './OtherRows.tsx';
-import { ProjectChips } from './ProjectChips.tsx';
 import { revealIn } from './reveal.ts';
 import { Slot } from './Slot.tsx';
 import { TaskRow } from './TaskRow.tsx';
@@ -60,7 +59,6 @@ function ListBody(): JSX.Element {
   createEffect(on(env.selected, (k) => k !== undefined && box.el && revealIn(box.el, items(), k, ROW_ESTIMATE), { defer: true }));
   return (
     <Stack gap="2" grow part="list.sidebar">
-      <ProjectChips />
       <Slot input="shell.list:top" layout="stack" />
       <Show when={items().length > 0} fallback={<EmptyState icon="spark" compact title={emptyTitle()} part="list.empty" />}>
         <ContextMenu items={menu()} onSelect={(v) => pick(env, v, plugins())} part="list.menu">
@@ -84,9 +82,30 @@ function ItemView(props: { readonly item: Item }): JSX.Element {
   return (
     <Switch>
       <Match when={head()}>{(h) => <SectionHead id={h().id} count={h().count} open={h().open} entries={sections()[h().id]} />}</Match>
-      <Match when={(() => { const e = entry(); return e?.kind === 'task' ? e : undefined; })()}>{(e) => <TaskRow k={e().key} />}</Match>
-      <Match when={(() => { const e = entry(); return e?.kind === 'group' ? e : undefined; })()}>{(e) => <GroupRow entry={e()} />}</Match>
-      <Match when={(() => { const e = entry(); return e?.kind === 'plan' ? e : undefined; })()}>{(e) => <PlanRow plan={e().plan} />}</Match>
+      <Match
+        when={(() => {
+          const e = entry();
+          return e?.kind === 'task' ? e : undefined;
+        })()}
+      >
+        {(e) => <TaskRow k={e().key} />}
+      </Match>
+      <Match
+        when={(() => {
+          const e = entry();
+          return e?.kind === 'group' ? e : undefined;
+        })()}
+      >
+        {(e) => <GroupRow entry={e()} />}
+      </Match>
+      <Match
+        when={(() => {
+          const e = entry();
+          return e?.kind === 'plan' ? e : undefined;
+        })()}
+      >
+        {(e) => <PlanRow plan={e().plan} />}
+      </Match>
       <Match when={nested()}>{(n) => <TaskRow k={n().key} nested={n().t} />}</Match>
     </Switch>
   );

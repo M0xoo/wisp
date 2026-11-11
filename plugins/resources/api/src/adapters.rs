@@ -265,6 +265,10 @@ fn stored_topics(_: &wisp_store::Row) -> Vec<String> {
     vec!["plugin:wisp.resources:specs".into()]
 }
 
+fn config_topics(_: &wisp_store::Row) -> Vec<String> {
+    vec!["config".into()]
+}
+
 #[allow(clippy::needless_pass_by_value)] // for map_err
 fn store_err(e: wisp_store::StoreError) -> WireError {
     WireError::internal(format!("store: {e}"))
@@ -282,6 +286,21 @@ impl StoredKind {
         let table = leak(format!("{prefix}_spec_{}", info.kind.replace('-', "_")));
         let def = wisp_store::EntityDef { kind: table, table, key: "id", columns: &[("id", wisp_store::Col::Text), ("body", wisp_store::Col::Text)], json_columns: &["body"], parent: None, seq: None, topics: stored_topics };
         Self { owner: leak(format!("{prefix}.spec.{}", info.kind)), sql: leak(format!("CREATE TABLE {table} (id TEXT PRIMARY KEY, body TEXT NOT NULL) STRICT;")), def, info, ctx, ready: std::sync::OnceLock::new() }
+    }
+
+    /// Its rows reach every client as entity `entity` on `config` (a row is `{id: name, body: spec}`), the topic
+    /// every screen watches and reads in full (`wisp serve` lists `entity` among config's sources): for a kind
+    /// the app shows everywhere, such as projects.
+    #[must_use]
+    pub fn published(mut self, entity: &'static str) -> Self {
+        self.def.kind = entity;
+        self.def.topics = config_topics;
+        self
+    }
+
+    /// Defines its table and entity now (at start), so the first read of `config` finds it.
+    pub fn ensure(&self) -> Result<()> {
+        self.store().map(drop)
     }
 
     fn store(&self) -> Result<std::sync::Arc<wisp_store::Store>> {
@@ -357,6 +376,16 @@ impl ResourceKind for StoredKind {
 }
 
 /// Contributes a [`StoredKind`] for spec type `S` and hands it back, for the owner to read its specs.
+/// [`stored`], its rows published as entity `entity` on `config` ([`StoredKind::published`]), defined at start.
+pub fn stored_published<S: schemars::JsonSchema>(s: &mut wisp_kernel::Setup, entity: &'static str, info: impl FnOnce(Value) -> KindInfo) -> std::sync::Arc<StoredKind> {
+    let k = std::sync::Arc::new(StoredKind::new(info(crate::schema_of::<S>()), s.ctx()).published(entity));
+    let as_kind: std::sync::Arc<dyn ResourceKind> = k.clone();
+    s.contribute(&crate::RESOURCE_KIND, as_kind);
+    let start = k.clone();
+    s.on_start(move |_| async move { start.ensure() });
+    k
+}
+
 pub fn stored<S: schemars::JsonSchema>(s: &mut wisp_kernel::Setup, info: impl FnOnce(Value) -> KindInfo) -> std::sync::Arc<StoredKind> {
     let k = std::sync::Arc::new(StoredKind::new(info(crate::schema_of::<S>()), s.ctx()));
     let as_kind: std::sync::Arc<dyn ResourceKind> = k.clone();

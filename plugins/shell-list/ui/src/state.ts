@@ -3,7 +3,9 @@
 // this adds is derived (the sections, memoised in placement.ts) plus one plugin store: the view
 // (project filter, folded sections). The shell keeps the recent tasks (⌃Tab) itself.
 
-import { computed, signal, type DeepReadonly, type EntityKey, type PluginClient, type PluginStore, type Readable } from '@wisp/client';
+import { computed, defineCommand, entityKey, signal, type DeepReadonly, type EntityKey, type PeerId, type PluginClient, type PluginStore, type Readable } from '@wisp/client';
+import { PROJECT_ORDER, projectList, projectOf, type ProjectView } from '@wisp/shell';
+import { reordered } from '@wisp/ui';
 import { createPlacement } from './model/placement.ts';
 import { flatSession, LATER_TOPIC, listPlan } from './model/wire.ts';
 import { ALL, needsYou, SECTION_IDS, type Filter, type SectionId, type Sections } from './model/sections.ts';
@@ -26,7 +28,10 @@ export interface ListModel {
   /** every task, no filter: the project counts, the title's (n), the palette */
   readonly everything: Readable<Sections>;
   readonly needsCount: Readable<number>;
-  readonly projects: Readable<readonly Row<Project>[]>;
+  /** in your order (v1 #772, `runtime.projectOrder`) */
+  readonly projects: Readable<readonly ProjectView[]>;
+  /** drag a project into another place in your order */
+  readonly reorderProjects: (id: string, before: string | undefined) => void;
   readonly agents: Readable<ReadonlyMap<string, Row<Agent>>>;
   row(key: EntityKey): Readable<SessionRow | undefined>;
   setFilter(project: string): void;
@@ -46,9 +51,6 @@ function checkView(v: unknown): ViewState | undefined {
   return { filter: o['filter'], toggled };
 }
 
-/** Projects by last use, newest first (places.js recentFirst). */
-const recentFirst = (a: Row<Project>, b: Row<Project>): number => (b.lastUsedAt ?? b.addedAt ?? 0) - (a.lastUsedAt ?? a.addedAt ?? 0);
-
 // One model per plugin client: the list, the shortcuts and the palette meet here. A WeakMap, so a
 // client switched off (its scope disposed, dropped by the shell) takes its model with it.
 const MODELS = new WeakMap<PluginClient, ListModel>();
@@ -61,16 +63,46 @@ export function modelOf(client: PluginClient): ListModel {
   return m;
 }
 
+/** `runtime.projectOrder`, saved at once (the chips move as you drop) and rolled back if refused. */
+const setOrder = defineCommand<{ peer: PeerId; value: string[] }>({
+  id: 'settings.set',
+  owner: (a) => a.peer,
+  wire: (a) => ({ key: PROJECT_ORDER, value: a.value }),
+  optimistic: (_b, a) => [{ e: 'setting', id: entityKey(a.peer, PROJECT_ORDER), op: 'upsert', v: { key: PROJECT_ORDER, value: a.value, locked_by: null } as never }],
+});
+
+/** The row with the project its folder is in (`projectId`), the same object while that doesn't change. */
+const placed = new WeakMap<SessionRow, { ps: readonly ProjectView[]; out: SessionRow }>();
+export function inProjectOf(s: SessionRow, ps: readonly ProjectView[]): SessionRow {
+  const had = placed.get(s);
+  if (had?.ps === ps) return had.out;
+  const id = projectOf((s as { cwd?: string }).cwd, ps)?.id;
+  const out = had && had.out.projectId === id ? had.out : id === s.projectId ? s : ({ ...s, projectId: id } as SessionRow);
+  placed.set(s, { ps, out });
+  return out;
+}
+
 function createModel(client: PluginClient): ListModel {
   const view = client.defineStore<ViewState>({ id: `${client.id}.view`, version: 1, defaults: { filter: 'all', toggled: [] }, check: checkView, persist: true });
   const keys = client.entities.keys(KIND.session);
   // the server's rows, flat (body, columns, summary: model/wire.ts)
   const raw = client.entities.list<Session>(KIND.session);
-  const rows = computed(() => raw().map((r) => flatSession(r)));
+  // the projects in your order; a task is in the one that holds its folder (v1 projectFor)
+  const projectRows = client.entities.list<unknown>(KIND.project);
+  const settingRows = client.entities.list<{ key: string; value: unknown }>('setting');
+  const projects = computed(() => projectList(projectRows(), settingRows().find((r) => r.key === PROJECT_ORDER)?.value));
+  const rows = computed(() => {
+    const ps = projects();
+    return raw().map((r) => inProjectOf(flatSession(r), ps));
+  });
   // Scheduled and Drafts: wisp.later's plans, on its own topic
   client.watch(client.home, LATER_TOPIC as never);
   const planRows = client.entities.list<unknown>(KIND.plan);
-  const plans = computed(() => planRows().map(listPlan).filter((p): p is Plan => p !== undefined));
+  const plans = computed(() =>
+    planRows()
+      .map(listPlan)
+      .filter((p): p is Plan => p !== undefined),
+  );
   const filtered = createPlacement();
   const unfiltered = createPlacement();
   const crew = signal<string | undefined>(undefined);
@@ -78,8 +110,6 @@ function createModel(client: PluginClient): ListModel {
   const sections = computed(() => filtered({ keys: keys(), rows: rows(), plans: plans(), filter: filterOf(view.value(), crew()), filterKey: `${view.value().filter}|${crew() ?? ''}` }));
   const everything = computed(() => unfiltered({ keys: keys(), rows: rows(), plans: plans(), filter: ALL, filterKey: 'all' }));
   const needsCount = computed(() => everything().needs.filter((e) => (e.kind === 'task' ? needsYou(e.s) : e.kind === 'group' && e.runs.some((r) => needsYou(r.s)))).length);
-  const projectList = client.entities.list<Project>(KIND.project);
-  const projects = computed(() => [...projectList()].sort(recentFirst));
   const agentList = client.entities.list<Agent>(KIND.agent);
   const agents = computed(() => new Map(agentList().map((a) => [a.id, a])));
   return {
@@ -90,6 +120,14 @@ function createModel(client: PluginClient): ListModel {
     everything,
     needsCount,
     projects,
+    reorderProjects: (id, before) => {
+      const value = reordered(
+        projects().map((p) => p.id),
+        id,
+        before,
+      );
+      void client.run(setOrder, { peer: client.home, value }).catch(() => undefined);
+    },
     agents,
     row: (key) => {
       const r = client.entities.row<Session>(KIND.session, key);

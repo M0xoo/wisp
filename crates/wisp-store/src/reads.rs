@@ -107,6 +107,10 @@ impl Reader<'_> {
         get_row(self.db, &*self.shared.kind(kind)?, &id.into())
     }
     /// Rows of a kind; with `select`, only those columns are read and returned.
+    /// Whether `kind` is defined yet (a plugin defines its kinds when it starts).
+    pub fn defines(&self, kind: &str) -> bool {
+        self.shared.kind(kind).is_ok()
+    }
     pub fn query(&self, kind: &str, q: &Query) -> Result<Vec<Row>> {
         query(self.db, &*self.shared.kind(kind)?, q)
     }

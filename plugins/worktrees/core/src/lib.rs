@@ -28,6 +28,7 @@ pub mod naming;
 pub mod offer;
 pub mod removal;
 pub mod setup;
+pub mod source;
 pub mod sweep;
 pub mod trust;
 
