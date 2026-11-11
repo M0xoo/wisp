@@ -39,6 +39,8 @@ export const RICH_STRINGS = {
   'block.doc.minutes': '{n} min read',
   'block.doc.copy': 'Copy the markdown',
   'block.doc.full': 'Full screen',
+  'block.doc.reveal': 'Show in folder',
+  'block.doc.revealTip': 'Show the file in its folder',
   'block.doc.fullTip': 'Read it full screen',
   'block.doc.readAll': 'Read all {n} lines',
   'block.doc.loading': 'Loading the file…',
@@ -92,6 +94,8 @@ export const RICH_STRINGS = {
   'block.app.sendTo': 'Send to the agent',
   'block.app.offer': 'The app offers this',
   'block.app.send': 'Send',
+  'block.app.edit': 'Edit first',
+  'block.app.sendTask': 'Send to the task',
   'block.app.copy': 'Copy',
   'block.app.dismiss': 'Dismiss',
 } as const;

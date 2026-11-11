@@ -82,6 +82,8 @@ export interface BlockContext {
   /** a task by id, live: the `task` block's title and state */
   readonly task?: (id: string) => Accessor<TaskRef | undefined>;
   readonly stuff?: (id: string) => Accessor<StuffRef | undefined>;
+  /** Show in folder for a file an answer names (`doc`): the computer's file manager opens on it */
+  readonly revealFile?: (path: string) => void;
   /** a file's text for the `doc` block, live */
   readonly docText?: (path: string) => Accessor<DocText>;
   /** a path or URL an agent named (image, video, doc) → a URL the page can load; undefined: can't */
