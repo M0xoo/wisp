@@ -10,6 +10,8 @@ import { $, $$, beforePaint, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { actionCount, turnTime } from '../core/format.js';
 import { toastError } from '../ui/toast.js';
+import { ask } from '../ui/confirm.js';
+import { stopQuestion } from '../stop-question.js';
 import { viewImage } from '../ui/viewer.js';
 import { popover } from '../ui/popover.js';
 import { execAction, forkable, forkTask, moreMenu, openInEditor, rerun, revealFile, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
@@ -33,7 +35,7 @@ import { prsOf, renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
 import { changesButton, openPanel, paintDoor, shellButton, shellLive, watchButton } from './panel.js';
 import { paintSplit } from './split.js';
-import { copiesOf, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize, waitingOn } from './team.js';
+import { copiesOf, liveSubs, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize, waitingOn } from './team.js';
 import { noOutputLine, stream } from '../no-output.js';
 import { appendStep, KIND_ICON, pickView, renderLiveTranscript, renderTranscript, sameStep, transcriptOn, updateStep } from './transcript.js';
 import { paintCard } from './spells.js';
@@ -898,6 +900,16 @@ function renderTurn(s, t, isLatest, fold, tx) {
   return node;
 }
 
+// Stop is hard to take back, so it asks first, by the button: a lead and a subagent alike.
+// Checked again after the answer: a run that ended (or a queued follow-up that started) while
+// the question was open isn't stopped by an old Yes.
+const confirmStop = async (s, anchor) => {
+  const q = stopQuestion(s, agentName(s.agent), liveSubs(s));
+  if (!(await ask(q.text, { ok: q.ok, danger: true, anchor }))) return false;
+  const cur = S.sessions.get(s.id) || s;
+  return cur.state === 'running' || cur.state === 'waiting';
+};
+
 // The goal's check after a round (server/goal.js): the task is still in Working, so the latest turn
 // keeps a live panel, with Stop, while wisp reads the changes and runs the tests.
 function renderGoalCheck(s) {
@@ -912,6 +924,7 @@ function renderGoalCheck(s) {
     </div>`);
   $('.stop', node).onclick = async (e) => {
     const btn = e.currentTarget;
+    if (!(await confirmStop(s, btn))) return;
     btn.disabled = true;
     btn.lastChild.textContent = 'Stopping…';
     await api(`/sessions/${s.id}/stop`, { method: 'POST', body: {} }).catch((err) => {
@@ -937,6 +950,7 @@ function renderTeamWait(s, t, team) {
     </div>`);
   $('.stop', node).onclick = async (e) => {
     const btn = e.currentTarget;
+    if (!(await confirmStop(s, btn))) return;
     btn.disabled = true;
     btn.lastChild.textContent = 'Stopping…';
     await api(`/sessions/${s.id}/stop`, { method: 'POST', body: {} }).catch((err) => {
@@ -996,8 +1010,9 @@ function renderWorking(s, t, tx) {
       openPanel(s.id, 'watch');
     };
   $('.stop', node).onclick = async (e) => {
-    // Shows at once; the run winds down and the live update replaces this panel.
+    // Shows at once once you say so; the run winds down and the live update replaces this panel.
     const btn = e.currentTarget;
+    if (!(await confirmStop(s, btn))) return;
     btn.disabled = true;
     btn.lastChild.textContent = 'Stopping…';
     $('.w-status b', node).textContent = `Stopping ${agentName(s.agent)}…`;

@@ -111,8 +111,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Automated**
 
 ### WEB-09 · Stop a running task
-- **Steps:** launch a task that hangs (`FAKE_HANG`-style long run), press Stop.
-- **Expected:** the run stops, the card says it was stopped, no agent process is left.
+- **Steps:** launch a task that hangs (`FAKE_HANG`-style long run), press Stop, then Cancel; press Stop again, then **Stop**. Do the same on a running subagent's run (opened from its lead), and on a row's **Stop** in Activity → Using.
+- **Expected:** Stop first asks by the button (*Stop Claude Code?*, Cancel / **Stop**; a subagent: *Stop this subagent?*, its lead gets no report, **Stop subagent**; a lead with subagents at work says they stop too; queued follow-ups stay held). Cancel leaves it running and Stop enabled. Confirming stops the run, the card says it was stopped, no agent process is left. A run that ended while the question was open isn't stopped again.
 - **Suite** (`test/e2e.test.js`), **Automated** (API stop of a long run)
 
 ### WEB-10 · Mark done, archive, delete

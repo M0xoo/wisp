@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Changed
 
 - **Try it two ways is no longer a button in the prompt box's bar.** It did what **+** already does: with Claude Code picked, add a run with **+** and set it to Claude Code too: its picker has the *What's different* group, Subagents and Skills, as before; Compare still says what differed. Spells that name `launcher.tryTwo` still load, with a warning.
+- **Stop asks first, for an agent and a subagent alike.** Stop on a working task, a subagent's run, the goal check, *Waiting on …* or a row of Activity → Using (Stop, and Later once you pick a time) opens a small confirm by the button (**Stop** / **Stop subagent**, or Cancel). It says what else happens: the agent's running subagents stop too, a stopped subagent sends its lead no report, and queued follow-ups stay held.
 
 ### Fixed
 

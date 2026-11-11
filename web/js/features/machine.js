@@ -312,12 +312,18 @@ export function mountMachine(box, { show } = {}) {
     const x = usingRows(v).find((y) => y.key === key);
     if (!x) return;
     if (a === 'open') return reveal(x.id);
-    if (a === 'stop') return act([key], () => stopTasks(x.ids));
+    // Both ask first, as Stop does on the task itself (turns.js): Later stops it now too.
+    const what = x.kind === 'crew' ? `${x.title}’s ${plural(x.ids.length, 'job')}` : x.title;
+    if (a === 'stop') {
+      if (!(await ask(`Stop ${what}?\n\nThe run ends where it is. Queued follow-ups stay, held until you send one.`, { ok: 'Stop', danger: true, anchor: b }))) return;
+      return act([key], () => stopTasks(x.ids));
+    }
     if (a === 'later') {
       return timeMenu(b, {
         back: b,
         choices: laterChoices(),
         pick: async (at) => {
+          if (!(await ask(`Stop ${what} now?\n\nThe run ends where it is and carries on ${clock(at)}.`, { ok: 'Stop', danger: true, anchor: b }))) return;
           if (!(await act([key], () => stopTasks(x.ids)))) return;
           const ok = (await Promise.all(x.ids.map((id) => scheduleFollowUp(id, { at, text: LATER_TEXT })))).every(Boolean);
           if (ok) toast(`Stopped. ${x.kind === 'crew' ? 'Its jobs carry' : 'It carries'} on ${esc(clock(at))}`);

@@ -477,6 +477,11 @@ export function waitingOn(s, t) {
   if (s.state !== 'running' || s.parentId || t !== s.turns.at(-1) || t.status === 'running' || s.auto?.busy || s.goal?.status === 'checking') return [];
   return [...new Set(delegationsOf(s, t).filter(({ ct }) => ct?.status === 'running').map(({ d }) => `@${d.name}`))];
 }
+// How many of the latest turn's delegates are still at work: a Stop stops them with their lead (turns.js asks).
+export const liveSubs = (s) => {
+  const t = s.turns?.at(-1);
+  return t ? new Set(delegationsOf(s, t).filter(({ ct }) => !ct || ct.status === 'running').map(({ d }) => d.sessionId)).size : 0;
+};
 export const subKey = (s, t) => delegationsOf(s, t).map(({ ct }) => ct?.status || '?').join(',');
 const subStatus = (ct) => {
   if (!ct || ct.status === 'running') return { cls: 'waiting', label: 'Working' };
