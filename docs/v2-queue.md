@@ -53,6 +53,14 @@ Right after ui-commands reaches 0, and before the UI burndown:
   - the `harness == "claude"` branch in `runtime/setup.rs`;
   - regenerating the TS bindings.
 
+**For the UI coder, from backend-coder round 6 (2026-11-11):**
+- **The refusal hand-off card** shows when `turn.refusal` is set. Offer the harnesses whose vendor differs from
+  `refusal.vendor` (when it's unknown, every other harness), with the same prompt and what the task has seen.
+- **Settings → Usage:** the Drain watch switch (`budget.drainWatch`). The drain card's × calls `budget.dismissDrain
+  {agent, account, window}`, and a notice's × calls `budget.dismissNotice`.
+- **Settings → Agents:** Lean runs (`runtime.leanRuns`). The task's ⋯ menu gets "Lean runs: on / off / follow
+  Settings" (`runtime.setLean`).
+
 **For the UI coder, from backend-coder round 5 (2026-11-11):**
 - My Stuff's Publish shows `published.url` (open, copy) and Unpublish, and `stuff.targets` names the grid.
 - Settings → Phone gets "Accept tasks from channels" (`channels.acceptChannels`).
