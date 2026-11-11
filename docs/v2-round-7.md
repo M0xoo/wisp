@@ -476,3 +476,78 @@ the gallery's Rich blocks section shows all of them (PNGs r13-{map,preview,graph
 port), ↑ history in New task, files in the @ menu (a file-index command), the backend notes (Learning pane,
 autoOverride, the route card, the cold line and Compact), the crew tint (#768), learn-ui and issues-ui, the new
 screens.
+
+## Round 14 (2026-11-11): the model picker, the backend notes, the crew tint, the goal ask, learn-ui, issues-ui
+
+**The harness · model picker.** `frame/RunnerPicker.tsx` (Dialog: one search, harnesses left, models right, the
+model's thinking levels), opened from New task's harness · model button; `runner.ts` pure, test
+`the_harness_model_picker_searches_every_harnesses_models_and_offers_the_picks_thinking_levels`. `runtime.agents`
+takes ~7.5 s, so it loads when Home mounts. The reply box's picker and the harness logos in the list are left.
+
+**Auto in the launcher.** `frame/auto.ts`: `router.preview` after a 300 ms pause (scope timer), the newest answer
+wins; the runner chip shows the pick (harness · model · level) and why in its tooltip; New task sends `agent: 'auto'`
+when Auto previewed (before this the frame sent the default harness, so the router never routed a New task), the
+row showing the previewed harness until the peer's arrives (`shows`, not sent); `autoOverride {key, type}` when you
+pick your own after a preview. Routed rows: the kit's `run.routed` (v1's accent dot) and v1's routeTip
+(`ext["wisp.router"].route`, not once `switched`). Tests `picking_your_own_harness_after_autos_preview_tells_auto_what_it_had_shown`,
+`a_routed_rows_logo_says_why_auto_picked_it_as_v1_did`.
+
+**The cold line and Compact now.** `frame/cold.ts` over `runtime.cold` (asked when the task settles or changes);
+the kit `ReplyBox.hint` (v1 .c-hint/.c-cold-row with the short form under 326 px: token `bp-bar-cold`); Compact now
+in the ⋯ menu with its note while warm (`runtime.compact`, optimistic running). Test
+`a_large_idle_tasks_cold_cache_and_compact_now_say_what_v1_said_and_when`. The Fable vendor mark was already in
+`cards/vendors.ts`.
+
+**Refusal and limit cards on the real fields.** `turn.refusal` and `turn.limit` (`cards/model.ts` haltOf); the limit
+card's Wait until the reset (`later.add` CARRY_ON at `until`), "Carries on at …", the other harnesses, Get extra
+usage; an unknown refusing vendor offers every other harness. Tests in `cards.test.ts`, `vendors.test.ts`.
+
+**Drain watch, window notices, Lean runs.** Settings → Usage (`budget/ui/src/drain.ts`, test
+`drain_watch_and_window_changes_say_what_v1_said`; `budget.dismissDrain`/`dismissNotice`); Settings → Agents Lean
+runs (`runtime.leanRuns`); a Claude task's ⋯ Lean runs: follow / on / off (`runtime.setLean`).
+
+**Settings → Memory (learn-ui).** `plugins/learn/ui`: Learn from tasks (`learn.enabled`), Remembered (count · last
+retro), Open memory (each scope's preferences and lessons, remove and add through `learn.set`, the recent retros).
+Test `the_memory_pane_counts_what_is_remembered_lists_scopes_and_edits_one_list`. Parity `settings.memory`: the pane
+body matches v1; the diffs are the nav (v2's own panes) and seed data.
+
+**Start from an issue (issues-ui).** `plugins/issues/ui`: an overlay view `issues.picker` from New task's Issue
+button; `issues.list` for GitHub / Linear / Jira, filtered as you type and searched on the peer past the newest 50;
+Other sources, or Connect Linear… / Jira… (Settings → Connectors with v1's Linear / Jira example filled in, or yours
+to sign in again: connectors-ui `exampleFor`/`isFor`). Picking fills New task's prompt through a new additive
+`ShellContext.prompts` (`provide`/`get`, optional; New task registers 'launcher'), with Undo for a replaced draft.
+Test `the_issue_picker_lists_a_sources_issues_offers_the_others_or_connect_and_writes_the_prompt`.
+
+**My Stuff Publish.** StuffPage's menu: Publish to `<grid>` (`stuff.targets`), Copy / Open public link, Update the
+public link, Unpublish, with v1's toasts (Published at …, Link copied, Open).
+
+**The crew tint (#768).** Kit `Stage.tint` (v1 .crew-tint: an 8% wash of `--pc` on the list and its top bar, split
+with the rail); `frame/crew-tint.ts` (the member's glow: its spirit's colour, else its own); setting `crew.tint`
+(declared in the crew manifest, bool, on) with Settings → General → Crew tint. Test
+`a_picked_crew_member_tints_the_list_with_their_glow_unless_the_setting_or_their_tint_says_none`. The per-member
+Task panel tint (`bg`) needs the field on the peer.
+
+**The goal ask (#769).** `frame/goal-gate.ts`: Goal on and Done when empty stops Send in New task and the reply box,
+puts the caret in Done when (kit goal line `ref`) and offers Send without a goal; a goal with no prompt says Say what
+to do first. Test `send_with_goal_on_and_done_when_empty_asks_first_instead_of_starting_a_one_shot_task`.
+
+**v1 bug found on the way.** Settings switches on settings their plugin declares `bool` (Accept tasks from
+channels, wisp blocks, Auto-fix PR conflicts, Watch agents work, Interactive answers) wrote `'on'`/`'off'`, which the
+kernel refuses ("must be true or false"): every click rolled back. `source.ts` `onOff(…, key)` writes true/false for
+`BOOL_KEYS`. Test `a_switch_on_a_bool_setting_writes_true_or_false_not_v1s_on_and_off`.
+
+**Not built:** the grid account page's routing form. The form's markup is in `apps/grid/src/pages/account.rs`, but
+the v2 grid serves no signed-in pages (`/` is a message page; nothing calls `account_page`) and has no
+`POST /channels/route` or `/channels/route/remove`; that is grid-edge work for backend-coder.
+
+**Left:** the reply box's harness · model picker; logos in the picker's harness list; the per-member tint (`bg`);
+the new screens (Repo tab, blame gutter, import, Share setup, Setup section, My shares, the Automations When picker,
+crew Wakes).
+
+**Found while checking in Chrome (round 14):** the rail read crew members as `crew.member` rows, but the crew host
+writes `crew_member` (topic `crew`): the rail showed nobody on a real server (fixed in Sidebar, App's tint, the @
+menu's crew source and the dev seed). The runtime's manifest listed `""` as an enum value (`runtime.subagentModel`),
+which the kernel refuses, so `wisp serve` ran without runtime and every harness: values are now `task`, `haiku`,
+`sonnet` (budget-ui writes `task`); `npm run check`'s manifests rule uses the TS validator and missed it. Settings
+rows don't read back on a real server (`settings_value` vs `setting`): a backend note.
+

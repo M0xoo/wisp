@@ -85,6 +85,12 @@ Right after ui-commands reaches 0, and before the UI burndown:
 - The grid account page gets the routing form: bot token and the people who may route.
 
 **For backend-coder, from the UI coder (round 14, 2026-11-11):**
+- **settings never read back on a real server:** the peer publishes `settings_value` rows (`{id, body: {v}}`,
+  `crates/wisp/src/settings_store.rs`) but every UI reads `setting` rows (`{key, value, locked_by}`: the client's
+  `settings.ts` patch, each plugin's `fromRow`, the dev seed). A write is stored (`wisp settings get` says true) and
+  the pane shows the default after a reload. Publish `setting` rows (or say which name wins and the UI follows);
+- `router.preview` answers in ~7.5 s (the same as `runtime.agents`), so Auto's pick shows long after you stop typing;
+- `terminal.apps` is unknown on the edge (Settings → General's Take over in toasts it on every open);
 - the grid's signed-in pages: v2 serves no `/account` (nothing calls `pages::account_page`), so the routing form
   (`route_section`, already rendered there) and its `POST /channels/route` and `/channels/route/remove` (v1
   server.js 842–861: CSRF, a rate limit, the flash) have nowhere to live;
