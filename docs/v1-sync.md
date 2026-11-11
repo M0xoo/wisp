@@ -4,7 +4,7 @@ The owner keeps fixing wisp v1 (`origin/main`) while v2 is built. At every coder
 commits since the last sync (`git log <last>..origin/main`), decides for each what v2 needs, and queues it here and in
 `docs/v2-queue.md`. v2 ports the intent (and the test's scenario), not the JS.
 
-Last synced v1 commit: **d5056a54** (2026-11-11)
+Last synced v1 commit: **f3db6466** (2026-11-12)
 
 | v1 | What it fixed | v2 action |
 |---|---|---|
@@ -21,3 +21,9 @@ Last synced v1 commit: **d5056a54** (2026-11-11)
 | #772 2c021cb4 | drag projects into your own order everywhere they show (top bar chips, New task's in row, +N list, Projects dialog); one stored order | **done (round 17):** one order (`runtime.projectOrder`), drag (and Alt+arrows) in the top bar, New task's row, shell-list's chips and the Projects dialog; projects reach the app (published on `config`) |
 | #773 f52dfcf0 | phone Back from a subagent's run goes to its lead | **queue (phone frontend, item 8):** navigation Back from a subagent opens its lead |
 | #774 d5056a54 | the phone gets only the subagent turns its window shows (a lead with 48 subagents sent them all) | **check:** v2's sync sends topics by window/cursor; make sure a lead's task view doesn't subscribe every subagent's full turns; test with many subagents |
+| #775 c2f7418d | a goal is checked only once its agent is done, not while it waits | **queue:** v2's goal judging runs on turn end only when the task isn't waiting (asked / held); named test |
+| #776 6ba38265 | a picture loading in a task no longer moves the page | **queue (UI):** images in turns reserve their box (width/height or aspect) so nothing jumps (ADR "nothing jumps") |
+| #777 400ee51c | no Allow & retry when the turn already ran in Full auto | **queue:** the blocked card hides Allow & retry for a Full auto turn |
+| #778 4dfff478 | phone: a subagent's title is one line, like its lead's | **queue (phone frontend):** subagent rows one line |
+| #779 72ba8003, #780 6dc0cac5 | an opened activity step shows its full title (not the server-cut one) | **queue:** the step keeps its full title in the event row; the UI shows it whole when opened |
+| #781 f3db6466 | Stop asks first, for an agent and a subagent alike | **queue (UI):** Stop confirms first, for tasks and subagents; named test |

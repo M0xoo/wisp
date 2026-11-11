@@ -56,6 +56,16 @@ skip the host check?), and make the rule catch it.
   - then the WASM component host (wasmtime, WASI 0.3, behind the `wasm` feature) as the sandboxed third-party tier.
   - ADR first: it extends ADR-0046, and the default for anything downloaded is the untrusted tier.
 
+**v1 sync 2026-11-12 (port these first in the next job):**
+- #775: a goal is checked only after its agent is done;
+- #776: an image loading doesn't move the page;
+- #777: no Allow & retry on a Full auto turn;
+- #779 and #780: an opened step shows its full title;
+- #781: Stop asks first;
+- #778 waits for the phone frontend.
+
+The details are in docs/v1-sync.md.
+
 **One coder from here (2026-11-11). backend-coder's leftovers join the queue, after the UI items:**
 - From backend round 7:
   - the plugins install path (an ADR first: a plugin source at runtime, through the kernel's exec host, per
