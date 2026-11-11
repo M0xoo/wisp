@@ -63,6 +63,10 @@ body.wisp-mobile .launcher .lp-chip.add.pick:is(:not(:only-child), :not(:has(> s
 .lp-chip.more:hover, .lp-chip.more.open { color: var(--ink); border-color: var(--line-2); }
 .lp-chip.more .i { width: 12px; height: 12px; }
 .l-projects .lp-chip[hidden] { display: none; }
+/* drag a chip to reorder (ui/reorder.js): it floats, a line marks where it lands */
+.l-projects .lp-chip.dragged { z-index: 2; background: var(--surface); border-color: var(--line-2); box-shadow: var(--shadow-2); }
+.l-projects .lp-chip.drop-before { box-shadow: -4px 0 0 -1px var(--accent); }
+.l-projects .lp-chip.drop-after { box-shadow: 4px 0 0 -1px var(--accent); }
 /* one task, several folders: a small badge on a chip's corner adds it (+) or leaves it out (×) */
 .l-projects .lp-chip { position: relative; }
 .lp-also {

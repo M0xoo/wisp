@@ -5,6 +5,7 @@
 import { esc } from '../md.js';
 import { icon } from '../core/dom.js';
 import { HERE, inGrid, S } from '../core/state.js';
+import { byOrder } from '../project-order.js';
 
 export const projectById = (id) => S.config.projects.find((p) => p.id === id);
 
@@ -24,9 +25,10 @@ export const SANDBOX_KEY = 'sandbox';
 export const placeName = (k) => (k === SANDBOX_KEY ? 'Sandbox' : k ? machineById(k)?.name || 'machine' : HERE);
 // The tool a brought-in worktree came from (Summary.foreign): 'conductor' reads Conductor.
 export const foreignName = (id) => (id ? `${id[0].toUpperCase()}${id.slice(1)}` : '');
-export const recentFirst = (a, b) => (b.lastUsedAt || b.addedAt) - (a.lastUsedAt || a.addedAt);
-// Every project, on every place: one that isn't on a place yet gets cloned there on first use.
-export const projects = () => [...S.config.projects].sort(recentFirst);
+export { recentFirst } from '../project-order.js';
+// Every project, on every place, in the order they show (dragged, else most recent first): one
+// that isn't on a place yet gets cloned there on first use.
+export const projects = () => [...(S.config.projects || [])].sort(byOrder);
 // The project's folder on place k, or '' when wisp still has to put it there.
 export const pathAt = (p, k) => (placeOf(p) === k ? p.path : p?.copies?.[k || 'here'] || '');
 // The places that have a checkout of it: where it was added first.

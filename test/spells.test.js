@@ -589,6 +589,13 @@ test('My Stuff: its box, page, filters, cards and Save buttons are parts; its he
   assert.ok(problems({ ...base0, parts: { 'stuff.page': { props: { cardWidth: 40 } } } }).some((x) => /cardWidth/.test(x)));
 });
 
+test('Projects: dragging them into your order can be turned off wherever they show', () => {
+  const parts = { 'topbar.projects': {}, 'launcher.projects': {}, 'project.list': {}, 'project.rows': {} };
+  for (const k of Object.keys(parts)) parts[k] = { props: { movable: false } };
+  assert.deepEqual(problems({ ...base0, parts: { ...parts, 'project.grip': { hide: true } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'project.list': { props: { movable: 'off' } } } }).some((x) => /movable/.test(x)));
+});
+
 test('Org: moving cards by hand can be turned off, and Reset layout is a part', () => {
   assert.deepEqual(problems({ ...base0, parts: { 'org.chart': { props: { movable: false } }, 'org.reset': { hide: true } } }), []);
   assert.ok(problems({ ...base0, parts: { 'org.chart': { props: { movable: 'no' } } } }).some((x) => /movable/.test(x)));

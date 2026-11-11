@@ -31,7 +31,7 @@ import { runnerPicker } from './runner-picker.js';
 import { MODES, agentName, harnessesAt, harnessLogo, modeMenu, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
 import { connectMachine } from './machines.js';
 import { placeMenu } from './place-menu.js';
-import { canSandbox, inProject, machineById, pathAt, placeName, placesOf } from './places.js';
+import { canSandbox, inProject, machineById, pathAt, placeName, placesOf, projects } from './places.js';
 import { slotHtml, spellProp } from './spells.js';
 import { paintTeamBtn, teamEditor } from './team.js';
 import { addFiles, kitClick, kitHtml, offerClick, offerHtml } from './crew-kit.js';
@@ -2137,7 +2137,7 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
     }
     if (e.target.closest('.ce-proj')) {
       projectList(e.target.closest('.ce-proj'), {
-        projects: (S.config.projects || []).filter((p) => placesOf(p).includes(d.machine)),
+        projects: projects().filter((p) => placesOf(p).includes(d.machine)),
         current: S.config.projects?.find((p) => pathAt(p, d.machine) === d.cwd)?.id,
         extras: [{ id: '', icon: 'x', label: 'No project' }],
         label: 'Works in',

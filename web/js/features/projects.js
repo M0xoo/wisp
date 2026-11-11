@@ -15,9 +15,12 @@ import { feedToTop, groups, renderFeed } from './feed.js';
 import { renderLaunchChips } from './launcher.js';
 import { loadConfig } from './live.js';
 import { connectMachine, openMachines } from './machines.js';
-import { inProject, MACHINE_STATE, machineById, pathAt, placeName, placesOf, projectById, projectTitle, recentFirst } from './places.js';
+import { inProject, MACHINE_STATE, machineById, pathAt, placeName, placesOf, projectById, projects, projectTitle } from './places.js';
 import { projectList } from './project-list.js';
 import { ask } from '../ui/confirm.js';
+import { reorderable } from '../ui/reorder.js';
+import { spellProp } from './spells.js';
+import { moved } from '../project-order.js';
 
 // Project filter chips in the top bar before the rest fold into "+N".
 const TOP_CHIPS = 6;
@@ -39,7 +42,7 @@ export function renderProjects() {
   const chip = (id, name, color) => `<button class="p-chip ${S.filter === id ? 'on' : ''} c-${color}" data-id="${id}" title="${esc(id === 'all' ? 'All projects' : projectTitle(projectById(id)))}">
       ${id === 'all' ? '' : '<i class="p-dot"></i>'}<span>${esc(name)}</span>${projectById(id)?.machine ? icon('server', 'p-where') : ''}${badges(id)}
     </button>`;
-  const list = S.config.projects.slice().sort(recentFirst);
+  const list = projects(); // the order dragged, else most recent first
   // Tens of projects: the filtered one and those that need you first, then the most recent, up to
   // TOP_CHIPS, kept in recent order so chips don't shuffle; the rest sit behind "+N".
   const keep = new Set([
@@ -49,6 +52,8 @@ export function renderProjects() {
   ].slice(0, TOP_CHIPS));
   const shown = list.filter((p) => keep.has(p));
   const html = `<div class="p-scroll">${chip('all', 'All', 'slate')}${shown.map((p) => chip(p.id, p.name, p.color)).join('')}</div><button class="p-chip more" id="moreProjects" title="All ${list.length} projects" aria-haspopup="dialog"><i class="p-dot" hidden></i><span class="p-more-n"></span><span class="p-need" hidden></span>${icon('chevron', 'chev')}</button><button class="p-chip add" id="manageProjects" title="Manage projects">${icon('plus')}</button>`;
+  // Mid-drag the chips stay as they are (a repaint would drop the one held); it ends with one.
+  if ($('#projects').classList.contains('reordering')) return;
   // Called after every feed render: unchanged chips are left as they are, already fitted (fitting
   // measures the bar, a forced layout per chip). A new width refits through the ResizeObserver.
   if ($('#projects').dataset.h === html) return;
@@ -135,6 +140,35 @@ export function renderProjects() {
     }),
   );
   $('#manageProjects').onclick = () => openProjects();
+  // Drag a chip to put the projects in your order, here and everywhere else they show.
+  reorderable($('#projects'), { item: '.p-chip[data-id]:not([data-id="all"])', ok: () => spellProp('topbar.projects', 'movable') !== false, onEnd: () => renderProjects(), onDrop: (id, to, after) => moveProject(id, to, after) });
+}
+
+// Put project id just before (or after) project `to`, everywhere projects show. At once, back
+// with a toast if the server refuses. ids: the whole order to set instead ([] is most recent
+// first). repaint: an open list's own paint, run on both.
+let moves = 0; // the latest move: an older one refused doesn't roll back over it
+export async function moveProject(id, to, after, { ids = null, repaint = () => {} } = {}) {
+  const was = projects().map((p) => p.id);
+  const next = ids || moved(was, id, to, after);
+  if (next === was) return;
+  const orders = new Map(S.config.projects.map((p) => [p.id, p.order]));
+  const apply = (get) => S.config.projects.forEach((p) => (get(p) === undefined ? delete p.order : (p.order = get(p))));
+  const at = new Map(next.map((x, i) => [x, i]));
+  const mine = ++moves;
+  apply((p) => at.get(p.id));
+  repaintProjects();
+  repaint();
+  try {
+    await api('/projects/order', { method: 'PUT', body: { ids: next } });
+  } catch (err) {
+    // A later move went on top: the server's order is the truth, not this one's snapshot.
+    if (mine === moves) apply((p) => orders.get(p.id));
+    else await loadConfig().catch(() => {});
+    repaintProjects();
+    repaint();
+    toastError(err);
+  }
 }
 
 // Everything that shows a project, after the page changed it without waiting for the server.
@@ -178,6 +212,7 @@ export function projectMenu(id, e, anchor) {
   const menu = el(`
     <div class="menu project" role="menu" aria-label="${esc(p.name)}" style="top:${y}px;left:${x}px">
       <button data-a="edit" role="menuitem">${icon('pen')}Edit project…</button>
+      ${S.config.projects.some((x) => x.order != null) ? `<button data-a="recent" role="menuitem">${icon('clock')}Sort by recent use</button>` : ''}
       <button data-a="delete" class="danger" role="menuitem">${icon('trash')}Remove project</button>
     </div>`);
   menu.onclick = async (ev) => {
@@ -185,6 +220,7 @@ export function projectMenu(id, e, anchor) {
     if (!a) return;
     close();
     if (a === 'edit') editProject(id);
+    if (a === 'recent') moveProject(null, null, false, { ids: [] });
     if (a === 'delete' && (await ask(`Remove “${p.name}” from wisp?\n\nIts tasks and files are kept.`, { ok: 'Remove project', danger: true, anchor }))) removeProject(id);
   };
   const close = popover(menu);
@@ -430,21 +466,22 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
   const list = () => {
     const box = $('#plist', node);
     // Every project, wherever it was added: each runs on every place. Its row says where it's checked out.
-    const projects = [...S.config.projects].sort(recentFirst);
+    const all = projects();
     const pending = clones
       .map(
         (j) => `<div class="prow cloning"><span class="swatch"><span class="orb live"></span></span>
           <div class="prow-main"><b class="pname">${esc(repoName(j.url))}</b><span class="ppath">Cloning ${esc(repoLabel(j.url))}…</span></div></div>`,
       )
       .join('');
-    box.innerHTML = projects.length || pending
+    box.innerHTML = all.length || pending
       ? pending +
-        projects
+        all
           .map((p) => {
             const n = [...S.sessions.values()].filter((s) => inProject(s, p.id)).length;
             const at = placesOf(p);
             const spots = at.map((k) => `<span class="pplace" title="${esc(k ? `${pathAt(p, k)} on ${placeName(k)}` : pathAt(p, k))}">${icon(k ? 'server' : 'laptop')}${esc(placeName(k))}</span>`).join('');
             return `<div class="prow c-${p.color}" data-id="${p.id}">
+              ${all.length > 1 && spellProp('project.rows', 'movable') !== false ? `<span class="pgrip" aria-hidden="true" title="Drag to change the order">${icon('grip')}</span>` : ''}
               <button class="swatch" title="Change colour"><i class="p-dot"></i></button>
               <div class="prow-main"><input class="pname" value="${esc(p.name)}" aria-label="Project name"><span class="ppath">${S.machines.length ? spots : esc(tilde(p.path))}</span></div>
               <span class="pcount">${n} task${n === 1 ? '' : 's'}</span>
@@ -453,6 +490,8 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
           })
           .join('')
       : `<p class="muted">No projects yet. Add a folder above, or pick one below.</p>`;
+    // Drag a row (not its name or buttons) to put the projects in your order.
+    reorderable(box, { item: '.prow[data-id]', axis: 'y', ok: (e) => !e.target.closest('button') && spellProp('project.rows', 'movable') !== false, onDrop: (id, to, after) => moveProject(id, to, after, { repaint: list }) });
     $$('.prow[data-id]', box).forEach((row) => {
       const id = row.dataset.id;
       const p = projectById(id);

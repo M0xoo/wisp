@@ -542,6 +542,11 @@ export const PARTS = {
   // The right-click menu on a project (top bar, New task, the +N list) and its Edit project dialog.
   'project.menu': '.menu.project',
   'project.edit': '.project-edit',
+  // The searchable list of every project (+N in the top bar or New task, a crew member's Works in).
+  'project.list': '.menu.pm',
+  // The Projects dialog's list (Manage projects), and the handle each row is dragged by.
+  'project.rows': '.projects-modal .plist',
+  'project.grip': '.projects-modal .pgrip',
   'budget.drain': '.sx-budget .bg-drain',
   // …and the Check Codex while work waits row.
   'settings.liveLimits': '.sx-budget .sx-row:has(#liveLimits)',
@@ -633,6 +638,12 @@ export const PART_PROPS = {
   'crew.record': { tips: 'bool' }, // the suggestion line under a member's numbers (on)
   'section.crew': { rows: 'int' }, // full rows shown when nobody's busy (2); the rest fold. Not with the crew rail: every member has its face
   'org.chart': { movable: 'bool' }, // cards can be moved by hand (on); off keeps the automatic tiers
+  // movable: projects can be dragged into your own order there (on); off keeps them where they are.
+  // The order is one, wherever it was dragged; Sort by recent use (a project's menu) undoes it.
+  'topbar.projects': { movable: 'bool' },
+  'launcher.projects': { movable: 'bool' },
+  'project.list': { movable: 'bool' },
+  'project.rows': { movable: 'bool' },
   'stuff.page': { view: ['grid', 'list'], group: ['time', 'task'], cardWidth: 'px' }, // until you pick one there; cardWidth: a card's least width in the grid
   tips: { count: 'int' },
   'split.upcoming': { count: 'int' },
