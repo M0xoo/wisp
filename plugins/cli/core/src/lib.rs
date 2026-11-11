@@ -13,6 +13,7 @@ pub mod completions;
 pub mod decl;
 pub mod human;
 pub mod md;
+pub mod sdk;
 pub mod term;
 pub mod verbs;
 

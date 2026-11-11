@@ -167,6 +167,8 @@ pub fn session_view(t: &Value) -> SessionView {
         cwd: Some(s("cwd")).filter(|m| !m.is_empty()),
         parent_id: t.get("parentId").and_then(Value::as_str).map(str::to_owned),
         queue_held: t.get("queueHeld").and_then(Value::as_bool).unwrap_or(false),
+        branch: t.pointer("/ext/wisp.worktrees/branch").and_then(Value::as_str).filter(|b| !b.is_empty()).map(str::to_owned),
+        created_at: t.get("createdAt").and_then(Value::as_i64),
         ..SessionView::default()
     }
 }

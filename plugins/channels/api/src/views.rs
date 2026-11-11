@@ -213,6 +213,12 @@ pub struct SessionView {
     pub turns: Vec<TurnView>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remote: Option<Remote>,
+    /// the branch its worktree is on (`ext["wisp.worktrees"].branch`), when it has one. Additive (2026-11-11).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    /// when it was made (ms), for "the newest". Additive (2026-11-11).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

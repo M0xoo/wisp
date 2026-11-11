@@ -117,6 +117,31 @@ pub fn help(cat: &Catalogue, words: &[String]) -> i32 {
     0
 }
 
+/// `wisp sdk types ts|py [FILE]`: the SDKs' typed commands, printed or written to FILE.
+pub fn sdk_types(cat: &Catalogue, lang: Option<&String>, out: Option<&String>) -> i32 {
+    let Some(text) = lang.and_then(|l| wisp_cli_core::sdk::types(cat, l)) else {
+        eprintln!("  ✗ wisp sdk types ts|py [FILE]");
+        return USAGE_EXIT;
+    };
+    match out {
+        None => {
+            // the text ends with its own newline
+            say(text.strip_suffix('\n').unwrap_or(&text));
+            0
+        }
+        Some(f) => match std::fs::write(f, text) {
+            Ok(()) => {
+                say(&format!("  ✓ wrote {f}"));
+                0
+            }
+            Err(e) => {
+                eprintln!("  ✗ couldn't write {f}: {e}");
+                1
+            }
+        },
+    }
+}
+
 pub fn completions(cat: &Catalogue, shell: Option<&String>) -> i32 {
     let Some(s) = shell.and_then(|sh| completions::script(sh, cat, &crate::args::COMMANDS)) else {
         eprintln!("  ✗ wisp completions zsh|bash|fish");

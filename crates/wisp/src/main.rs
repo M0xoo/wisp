@@ -100,7 +100,7 @@ async fn dispatch(p: &Parsed, user_home: &Path, cwd: &Path) -> Result<i32> {
     }
     let rest = p.words.get(1..).unwrap_or_default();
     // a task this terminal left running that finished, asks or failed: one line before anything else
-    if !matches!(p.command, Some("serve" | "mcp" | "grid" | "desktop" | "completions")) && Client::new(port).ping().await {
+    if !matches!(p.command, Some("serve" | "mcp" | "grid" | "desktop" | "completions" | "sdk")) && Client::new(port).ping().await {
         attach::notices(&Client::new(port), &home).await;
     }
     if let Some(code) = as_code(p, port, f.cwd.as_deref().unwrap_or(cwd), &home).await? {
@@ -304,6 +304,10 @@ async fn live(p: &Parsed, home: &Path, port: u16) -> Result<Option<i32>> {
         Some("completions") => {
             let c = Client::connect(port, true).await?;
             cli::completions(&cli::catalogue(&c, home).await?, words.get(1))
+        }
+        Some("sdk") => {
+            let c = Client::connect(port, true).await?;
+            cli::sdk_types(&cli::catalogue(&c, home).await?, words.get(2), words.get(3))
         }
         // `wisp <plugin> <verb> …`: a command of the catalogue, else (it names none) a task
         None if p.literal != args::Literal::Task && words.first().is_some_and(|w| plugin_word(w)) && words.len() >= 2 => {

@@ -5203,6 +5203,7 @@ dependencies = [
  "tracing",
  "wisp-kernel",
  "wisp-plugins-api",
+ "wisp-proc",
  "wisp-resources",
  "wisp-resources-api",
  "wisp-store",

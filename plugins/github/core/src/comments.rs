@@ -211,6 +211,23 @@ pub fn report(title: &str, text: &str, choices: &[&str], by: Option<&str>) -> St
     [title, text.to_owned(), choices, "Comment `/wisp …` to answer or follow up.".to_owned()].into_iter().filter(|p| !p.is_empty()).collect::<Vec<_>>().join("\n\n")
 }
 
+/// A PR with no task of its own follows the task on its branch (v1 github.js `#threadOf`'s `headRefName`): the
+/// newest lead task (not a subagent, not one handed off to another) whose worktree is on `head`, in this project.
+/// `tasks` are `(id, parent, delegated, cwd, branch, created_at)`.
+pub fn follows_branch<'a>(tasks: impl IntoIterator<Item = (&'a str, bool, bool, &'a str, Option<&'a str>, i64)>, head: &str, project: &str) -> Option<String> {
+    let head = head.trim();
+    if head.is_empty() {
+        return None;
+    }
+    let root = project.trim_end_matches('/');
+    let inside = |cwd: &str| cwd == root || cwd.strip_prefix(root).is_some_and(|r| r.starts_with('/'));
+    tasks
+        .into_iter()
+        .filter(|(_, parent, delegated, cwd, branch, _)| !parent && !delegated && inside(cwd) && *branch == Some(head))
+        .max_by_key(|t| t.5)
+        .map(|t| t.0.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -255,5 +272,23 @@ mod tests {
         assert_eq!(fixed_line(false, false), "✅ wisp finished this.");
         assert!(about("a/b", 12, true).contains("gh pr view 12 --repo a/b") && about("a/b", 12, true).contains("untrusted"));
         assert_eq!(report("✓ Done", "ok", &["Yes"], Some("Ada")), "Ada: ✓ Done\n\nok\n\nChoices: Yes\n\nComment `/wisp …` to answer or follow up.");
+    }
+
+    /// v1 test/channel-github.test.js "a PR follows its branch's task": the newest lead task on the PR's branch in
+    /// its project, never a subagent, a delegated one, another project's or another branch's.
+    #[test]
+    fn a_pr_with_no_task_of_its_own_follows_the_newest_lead_task_on_its_branch() {
+        let tasks = [
+            ("old", false, false, "/w/api", Some("fix-login"), 1),
+            ("new", false, false, "/w/api/server", Some("fix-login"), 5),
+            ("kid", true, false, "/w/api", Some("fix-login"), 9),
+            ("handed", false, true, "/w/api", Some("fix-login"), 9),
+            ("other-repo", false, false, "/w/apiary", Some("fix-login"), 9),
+            ("other-branch", false, false, "/w/api", Some("main"), 9),
+            ("no-tree", false, false, "/w/api", None, 9),
+        ];
+        assert_eq!(follows_branch(tasks, "fix-login", "/w/api/").as_deref(), Some("new"));
+        assert_eq!(follows_branch(tasks, "nope", "/w/api"), None);
+        assert_eq!(follows_branch(tasks, "  ", "/w/api"), None);
     }
 }

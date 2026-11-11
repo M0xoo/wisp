@@ -51,6 +51,7 @@ pub const HELP: &str = "usage:
   wisp <plugin> <verb> …        any command of any plugin, flags from its arguments (wisp crew create --name Ada)
   wisp help [plugin [verb]]     every plugin's commands, a plugin's verbs, a verb's flags
   wisp completions zsh|bash|fish  shell completions from the same catalogue
+  wisp sdk types ts|py [FILE]   typed commands for the SDKs (a .d.ts or a .pyi), from the same catalogue
   wisp -- \"ls the repo\"         a task that starts with a command name
 
 launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|antigravity|grok|copilot  --model ID  --effort LEVEL
@@ -58,8 +59,8 @@ launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|ant
                 --yes  go ahead although it takes a usage window past your Ask near the limit line
 options:        --port N  --browser  --no-open  --json  --version";
 
-pub const COMMANDS: [&str; 24] = [
-    "attach", "help", "completions", "add", "ls", "list", "show", "wait", "reply", "btw", "stop", "mcp", "skill", "ship", "merge", "run", "recipes", "plugin", "plugins", "crew", "grid", "serve", "import", "desktop",
+pub const COMMANDS: [&str; 25] = [
+    "attach", "help", "completions", "sdk", "add", "ls", "list", "show", "wait", "reply", "btw", "stop", "mcp", "skill", "ship", "merge", "run", "recipes", "plugin", "plugins", "crew", "grid", "serve", "import", "desktop",
 ];
 pub const LS_STATES: [&str; 4] = ["running", "waiting", "review", "done"];
 /// wisp-grid's commands (apps/grid's CLI). A test keeps `wisp grid <word>` routing in step.
@@ -225,6 +226,7 @@ fn fits(cmd: &str, w: &[String]) -> bool {
         // `wisp help`, `wisp help crew`, `wisp help crew create`: a task never starts with "help" and two words
         "help" => n <= 4 && w.iter().skip(1).all(|x| x.bytes().all(|b| b.is_ascii_lowercase() || b == b'-' || b == b'_' || b == b'.')),
         "completions" => n == 2 && ["zsh", "bash", "fish"].contains(&w1),
+        "sdk" => (n == 3 || n == 4) && w1 == "types" && ["ts", "py", "typescript", "python"].contains(&w.get(2).map_or("", String::as_str)),
         "recipes" | "serve" | "desktop" | "import" => n == 1,
         "run" => n > 1,
         "crew" => n == 1 || (w1 == "ls" && n == 2),

@@ -87,6 +87,25 @@ fn snapshot_sources() -> Vec<wisp_api::v2_store::TopicSource> {
         .collect()
 }
 
+/// The user's own plugins (`<home>/plugins/<slug>`, ADR-0046) join the group, each off at start: the plugin manager
+/// switches back on the ones you switched on.
+fn with_user_plugins(g: wisp_kernel::PluginGroup, home: &Path) -> wisp_kernel::PluginGroup {
+    #[cfg(feature = "plugins")]
+    {
+        let mut g = g;
+        for p in wisp_plugins::user_plugins(&home.join("plugins")) {
+            let id = wisp_kernel::Plugin::manifest(&p).id;
+            g = g.add(p).disable(&id);
+        }
+        g
+    }
+    #[cfg(not(feature = "plugins"))]
+    {
+        let _ = home;
+        g
+    }
+}
+
 /// `<home>/wisp.db`, opened before the kernel so every plugin finds it as a service. Startup only:
 /// opening and migrating block, which is fine here and nowhere else.
 fn open_store(home: &Path) -> Result<wisp_store::Store> {
@@ -114,7 +133,7 @@ pub async fn boot(home: &Path, port: u16, host: Option<&str>) -> Result<Running>
     // settings outlive a restart: the kernel's registry saves them through the store
     let settings = crate::settings_store::StoreSettings::open(&store).map_err(|e| CliError::said(format!("wisp could not read its settings: {e}")))?;
     let log = wisp_kernel::durable::EventLogService(std::sync::Arc::new(store.clone()));
-    let app = crate::services::provide(App::new(), home, VERSION, notify).service(store.clone()).service(log).service(access).service(settings).plugins(group.build(&at));
+    let app = crate::services::provide(App::new(), home, VERSION, notify).service(store.clone()).service(log).service(access).service(settings).plugins(with_user_plugins(group.build(&at), home));
     let kernel = app.start().await.map_err(|e| CliError::said(format!("wisp could not start: {}", e.message)))?;
     for s in kernel.status().iter().filter(|s| s.state == "refused") {
         tracing::warn!("plugin {} refused: {}", s.id, s.reason.as_deref().unwrap_or(""));

@@ -183,6 +183,25 @@ impl Gh {
         }
     }
 
+    /// A PR with no task of its own: the task on its head branch in this project (`gh pr view --json headRefName`).
+    async fn branch_task(&self, repo: &str, number: u64, project: &ProjectView) -> Option<String> {
+        let args: Vec<String> = ["pr", "view", &number.to_string(), "--repo", repo, "--json", "headRefName"].map(str::to_owned).to_vec();
+        let out = self.hub.exec().run("gh", &args, None, 30_000).await.ok()?;
+        let head = serde_json::from_str::<Value>(&out.stdout).ok()?.get("headRefName")?.as_str()?.to_owned();
+        let phone = self.hub.phone();
+        let root = project.path.trim_end_matches('/');
+        let mut leads: Vec<_> = phone.sessions().await.ok()?.into_iter().filter(|s| s.parent_id.is_none() && s.cwd.as_deref().is_some_and(|c| c.starts_with(root))).collect();
+        leads.sort_by_key(|s| std::cmp::Reverse(s.created_at.unwrap_or(0)));
+        // the list rows have no branch: read the newest few in full
+        let mut full = Vec::new();
+        for s in leads.into_iter().take(20) {
+            if let Ok(Some(v)) = phone.session(&s.id).await {
+                full.push(v);
+            }
+        }
+        gc::follows_branch(full.iter().map(|s| (s.id.as_str(), s.parent_id.is_some(), s.delegated, s.cwd.as_deref().unwrap_or_default(), s.branch.as_deref(), s.created_at.unwrap_or(0))), &head, &project.path)
+    }
+
     async fn comment(self: &Arc<Self>, repo: &str, project: &ProjectView, cur: &mut Cursor, c: &Comment) -> Result<()> {
         let Some(cmd) = c.command.clone() else {
             // remembered too: a comment from the cursor's own second, edited into /wisp later, isn't older
@@ -215,7 +234,10 @@ impl Gh {
         ctx.projects.sort_by_key(|p| p.id != project.id);
         let text = wisp_channels_api::markup::strip_formatting(&if cmd.to_lowercase().starts_with("new ") || cmd.eq_ignore_ascii_case("new") { format!("/{cmd}") } else if cmd.is_empty() { "help".into() } else { cmd }, wisp_channels_api::markup::Markup::Plain, "");
         let key = format!("{repo}#{number}");
-        let session = self.hub.find_remote(&|r, _| r.get("gh").and_then(Value::as_str) == Some(key.as_str())).into_iter().next();
+        let mut session = self.hub.find_remote(&|r, _| r.get("gh").and_then(Value::as_str) == Some(key.as_str())).into_iter().next();
+        if session.is_none() && c.pr {
+            session = self.branch_task(repo, number, project).await;
+        }
         let conv = GhConv { gh: self.clone(), phone, ctx, repo: repo.to_owned(), number, key, login: c.login.clone(), sender: c.user_id.clone(), about: gc::about(repo, number, c.pr), open };
         self.hub.converse(&conv, &text, session.as_deref(), None).await.map(drop)
     }

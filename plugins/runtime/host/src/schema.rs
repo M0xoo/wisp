@@ -202,3 +202,27 @@ pub fn install(store: &wisp_store::Store) -> wisp_store::Result<()> {
     store.define_search("turn", &["prompt", "answer"])?;
     Ok(())
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod window_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn row(v: serde_json::Value) -> Row {
+        let serde_json::Value::Object(m) = v else { panic!("a row is an object") };
+        m.into_iter().collect()
+    }
+
+    /// v1 #774: a lead with 48 subagents sent the phone every subagent's turns. Here a turn or event is only on its
+    /// own task's topic, so a page watching `session:<lead>` never receives a subagent's turns; the subagent's row
+    /// reaches the list (its summary), not its turns.
+    #[test]
+    fn a_leads_page_gets_none_of_its_subagents_turns() {
+        let sub_turn = row(json!({ "id": "t9", "session_id": "sub1" }));
+        assert_eq!(child_topics(&sub_turn), vec![session_topic("sub1")]);
+        assert!(!child_topics(&sub_turn).contains(&session_topic("lead")));
+        let sub = row(json!({ "id": "sub1", "parent_id": "lead" }));
+        assert_eq!(session_topics(&sub), vec![wisp_runtime_api::TOPIC_LIST.to_owned(), session_topic("sub1")]);
+    }
+}

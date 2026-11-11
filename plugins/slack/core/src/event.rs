@@ -338,3 +338,4 @@ fn link(url: &str, label: Option<&str>) -> String {
         Some(l) => format!("{l} ({url})"),
     }
 }
+

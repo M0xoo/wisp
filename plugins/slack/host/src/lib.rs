@@ -6,12 +6,13 @@
 //! silence. A message can't ask for more than Edits. Every envelope is acked the moment it arrives.
 //!
 //! The wire's decisions are `wisp-slack-core`'s; every request goes through the hub's `Net` and its `Ws`.
-//! Not here yet: one turn at a time per thread.
+//! One turn at a time per thread (`turns`), side by side across threads.
 
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 
 mod click;
 mod conv;
+mod turns;
 
 use async_trait::async_trait;
 use serde_json::{Value, json};
@@ -48,7 +49,7 @@ impl TransportDef for Def {
         NAME
     }
     fn create(&self, hub: Arc<dyn ChannelHub>) -> Arc<dyn Transport> {
-        Arc::new_cyclic(|this| Slack { this: this.clone(), hub, seen: Mutex::default(), limit: Mutex::default(), strangers: Mutex::new(RateLimit::new(3, 60_000)), me: Mutex::default() })
+        Arc::new_cyclic(|this| Slack { this: this.clone(), hub, seen: Mutex::default(), limit: Mutex::default(), strangers: Mutex::new(RateLimit::new(3, 60_000)), me: Mutex::default(), turns: turns::Turns::default() })
     }
     fn secrets(&self) -> &'static [&'static str] {
         &["botToken", "appToken", "signingSecret"]
@@ -71,6 +72,8 @@ pub(crate) struct Slack {
     /// a line each, and then silence
     strangers: Mutex<RateLimit>,
     pub me: Mutex<Option<Me>>,
+    /// one turn at a time per thread
+    turns: turns::Turns,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -195,7 +198,8 @@ impl Slack {
                     Step::Event(payload) => {
                         let me = self.clone();
                         self.hub.spawn(Box::pin(async move {
-                            if let Err(e) = me.event(&payload).await {
+                            let key = event::thread_key(&payload).unwrap_or_default();
+                            if let Err(e) = me.turns.queue(&key, me.event(&payload)).await {
                                 me.hub.warn(&format!("slack: {}", e.message));
                             }
                         }));
@@ -203,7 +207,8 @@ impl Slack {
                     Step::Click(payload) => {
                         let me = self.clone();
                         self.hub.spawn(Box::pin(async move {
-                            if let Err(e) = me.click(&payload).await {
+                            let key = event::click(&payload).map(|c| format!("{}:{}", c.chat, c.root)).unwrap_or_default();
+                            if let Err(e) = me.turns.queue(&key, me.click(&payload)).await {
                                 me.hub.warn(&format!("slack: {}", e.message));
                             }
                         }));
@@ -419,7 +424,8 @@ impl Transport for Slack {
                 let bot = s(&me.cfg(), "botToken").to_owned();
                 let _ = me.who_am_i(&bot).await;
             }
-            if let Err(e) = me.event(&j).await {
+            let key = event::thread_key(&j).unwrap_or_default();
+            if let Err(e) = me.turns.queue(&key, me.event(&j)).await {
                 me.hub.warn(&format!("slack: {}", e.message));
             }
         });
