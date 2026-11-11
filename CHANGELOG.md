@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-11-11
+
 ### Added
 
 - **What the harnesses keep on disk, and fixes for what runs leave behind.** `GET /api/machine` now measures every installed harness's own folders (Claude Code and Cowork's VM, Codex, Cursor, opencode, Antigravity, Copilot, Grok) with `du` alone, never opening a file. One click (`POST /api/machine/harness/clean`) removes only crash dumps and Claude Code's stale temp files; everything else says how that CLI cleans up after itself. Processes runs left behind are grouped by the command that started them and the task, and **File a fix** (`POST /api/machine/fix`) gives Bugsy, or a task in that project, the command lines and "kill what you spawn". On a Mac, each process's memory is now what Activity Monitor shows (its footprint), not RSS, which read about a quarter low.
