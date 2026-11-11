@@ -49,7 +49,7 @@ impl TransportDef for Def {
         NAME
     }
     fn create(&self, hub: Arc<dyn ChannelHub>) -> Arc<dyn Transport> {
-        Arc::new_cyclic(|this| Discord { this: this.clone(), hub, seen: Mutex::default(), limit: Mutex::default(), strangers: Mutex::new(RateLimit::new(3, 60_000)), me: Mutex::default(), session: Mutex::default() })
+        Arc::new_cyclic(|this| Discord { this: this.clone(), hub, seen: Mutex::default(), limit: Mutex::default(), strangers: Mutex::new(RateLimit::new(3, 60_000)), me: Mutex::default(), session: Mutex::default(), limits: Mutex::default() })
     }
     fn secrets(&self) -> &'static [&'static str] {
         &["token", "publicKey"]
@@ -65,6 +65,8 @@ pub(crate) struct Discord {
     pub me: Mutex<Option<Me>>,
     /// what a resume needs, across connections
     session: Mutex<Option<Session>>,
+    /// Discord's REST limits, per bucket (wisp-discord-core `rest`)
+    limits: Mutex<wisp_discord_core::rest::Limits>,
 }
 
 pub(crate) fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -113,26 +115,48 @@ impl Discord {
         self.hub.mark(NAME, Status { ok: Some(error.is_none()), error, at: Some(self.hub.now_ms()), ..Status::default() });
     }
 
-    /// One REST call. The token goes in a header; an error is only ever Discord's own words.
+    /// One REST call, in its rate-limit bucket: it waits while the bucket (or Discord as a whole) is paused, and a 429
+    /// pauses the bucket and tries again (`rest::TRIES` in all). The token goes in a header; an error is only ever
+    /// Discord's own words.
     pub(crate) async fn rest(&self, method: &str, path: &str, body: Option<&Value>) -> Result<Value> {
+        use wisp_discord_core::rest::{TRIES, bucket_of};
         let base = std::env::var("WISP_DISCORD_API").unwrap_or_else(|_| "https://discord.com/api/v10".into());
         let url = format!("{}{path}", base.trim_end_matches('/'));
         let token = s(&self.cfg(), "token").to_owned();
-        let req = match body {
-            Some(b) => HttpRequest::post_json(url, b),
-            None => HttpRequest::get(url),
-        };
-        let mut req = req.header("authorization", format!("Bot {token}")).header("user-agent", "DiscordBot (https://trywisp.dev, 1)").timeout(15_000);
-        method.clone_into(&mut req.method);
-        let r = self.hub.net().fetch(req).await.map_err(|e| WireError::unavailable(format!("Discord: {e}")))?;
-        let j = r.json();
-        if r.status == 401 {
-            return Err(WireError::conflict(format!("Discord: {}. {FIX}", j.get("message").and_then(Value::as_str).unwrap_or("unauthorized"))));
+        let bucket = bucket_of(method, path);
+        for left in (1..=TRIES).rev() {
+            let wait = lock(&self.limits).wait_ms(&bucket, self.hub.now_ms());
+            if wait > 0 {
+                self.hub.sleep(wait).await;
+            }
+            let req = match body {
+                Some(b) => HttpRequest::post_json(url.clone(), b),
+                None => HttpRequest::get(url.clone()),
+            };
+            let mut req = req.header("authorization", format!("Bot {token}")).header("user-agent", "DiscordBot (https://trywisp.dev, 1)").timeout(15_000);
+            method.clone_into(&mut req.method);
+            let r = self.hub.net().fetch(req).await.map_err(|e| WireError::unavailable(format!("Discord: {e}")))?;
+            lock(&self.limits).learn(&bucket, &r.headers, self.hub.now_ms());
+            let j = r.json();
+            if r.status == 429 {
+                let header = |k: &str| r.headers.iter().find(|(n, _)| n.eq_ignore_ascii_case(k)).map(|(_, v)| v.clone());
+                let after = j.get("retry_after").and_then(Value::as_f64).or_else(|| header("retry-after").and_then(|v| v.parse().ok()));
+                let global = j.get("global").and_then(Value::as_bool).unwrap_or(false) || header("x-ratelimit-global").is_some();
+                lock(&self.limits).limited(&bucket, after, global, self.hub.now_ms());
+                if left <= 1 {
+                    return Err(WireError::unavailable("Discord: rate limited"));
+                }
+                continue;
+            }
+            if r.status == 401 {
+                return Err(WireError::conflict(format!("Discord: {}. {FIX}", j.get("message").and_then(Value::as_str).unwrap_or("unauthorized"))));
+            }
+            if !(200..300).contains(&r.status) {
+                return Err(WireError::unavailable(format!("Discord: {}", j.get("message").and_then(Value::as_str).map_or_else(|| r.status.to_string(), str::to_owned))));
+            }
+            return Ok(j);
         }
-        if !(200..300).contains(&r.status) {
-            return Err(WireError::unavailable(format!("Discord: {}", j.get("message").and_then(Value::as_str).map_or_else(|| r.status.to_string(), str::to_owned))));
-        }
-        Ok(j)
+        Err(WireError::unavailable("Discord: rate limited"))
     }
 
     /// A post in `chat`, as a reply to `reply` when it isn't a task's own thread.

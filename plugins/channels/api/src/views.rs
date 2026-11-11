@@ -431,6 +431,9 @@ pub struct StartOpts {
     pub about: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thread: Option<Thread>,
+    /// files the message brought (uploads), for the task. Additive (2026-11-11).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<Value>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -447,6 +450,9 @@ pub struct RunOpts {
     /// false: a channel that can't answer a tool approval
     #[serde(default = "yes")]
     pub approvals: bool,
+    /// files the message brought (uploads), for the turn. Additive (2026-11-11).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<Value>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

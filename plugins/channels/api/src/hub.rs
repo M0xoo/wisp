@@ -234,6 +234,11 @@ pub trait Phone: Send + Sync + 'static {
     ) -> Result<String>;
     async fn mention(&self, session_id: &str, p: &Parsed, o: &StartOpts) -> Result<Started>;
     async fn launch(&self, project: &ProjectView, prompt: &str) -> Result<Option<SessionView>>;
+    /// A file a message brought, kept as an upload (`stuff.receive`): `{id, name, mime, size}` for a task's
+    /// `attachments`. Additive (2026-11-11); a phone without uploads refuses.
+    async fn upload(&self, _name: &str, _mime: &str, _bytes: Vec<u8>) -> Result<serde_json::Value> {
+        Err(wisp_kernel::WireError::unavailable("files can't be kept here"))
+    }
     async fn act(&self, a: &ActArgs) -> Result<String>;
     async fn projects(&self) -> Result<Vec<ProjectView>>;
     /// a task here or on a machine (`<id>@<machine>`), with its turns and ask

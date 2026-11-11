@@ -276,6 +276,9 @@ impl Phone for KPhone {
         if let Some(ag) = &p.agent {
             a["agent"] = json!(ag);
         }
+        if !o.attachments.is_empty() {
+            a["attachments"] = json!(o.attachments);
+        }
         let made = self.cmd("runtime.create", a).await?;
         let id = made.get("id").and_then(Value::as_str).unwrap_or_default().to_owned();
         let t = self.cmd("runtime.get", json!({ "id": id })).await.unwrap_or_default();
@@ -298,11 +301,19 @@ impl Phone for KPhone {
             self.cmd("runtime.btw", json!({ "id": session_id, "question": p.prompt })).await?;
             return Ok("Asked on the side.".into());
         }
+        if !o.attachments.is_empty() {
+            a["attachments"] = json!(o.attachments);
+        }
         self.cmd("runtime.followUp", a).await?;
         Ok("Sent.".into())
     }
     async fn mention(&self, _session_id: &str, p: &Parsed, o: &StartOpts) -> Result<Started> {
         self.start_parsed(p, o).await
+    }
+    async fn upload(&self, name: &str, mime: &str, bytes: Vec<u8>) -> Result<Value> {
+        use base64::Engine as _;
+        let u = self.cmd("stuff.receive", json!({ "name": name, "mime": mime, "data": base64::engine::general_purpose::STANDARD.encode(bytes) })).await?;
+        Ok(json!({ "id": u.get("id"), "name": u.get("name"), "mime": u.get("mime"), "size": u.get("size") }))
     }
     async fn launch(&self, project: &ProjectView, prompt: &str) -> Result<Option<SessionView>> {
         let made = self.cmd("runtime.create", json!({ "prompt": prompt, "cwd": project.path, "mode": "plan" })).await?;

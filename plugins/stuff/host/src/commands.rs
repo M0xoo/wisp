@@ -172,6 +172,11 @@ pub fn register(s: &mut Setup, cell: &Cell) {
     });
     on!(s, cell, c::UploadOf, |st, ctx, call, a| st.shelf.upload(&a.id).await.map_err(w));
     on!(s, cell, c::Uploads, |st, ctx, call, a| st.shelf.uploads(&a.ids).await.map_err(w));
+    on!(s, cell, c::Receive, |st, ctx, call, a| {
+        use base64::Engine as _;
+        let bytes = base64::engine::general_purpose::STANDARD.decode(a.data.as_bytes()).map_err(|_| wisp_kernel::WireError::invalid("the file's bytes aren't base64"))?;
+        st.shelf.receive_upload(bytes, Some(&a.name), Some(&a.mime)).await.map_err(w)
+    });
     on!(s, cell, c::RemoveUpload, |st, ctx, call, a| Ok(c::Done { ok: st.shelf.remove_upload(&a.id).await.map_err(w)? }));
 }
 

@@ -77,6 +77,7 @@ fn start_opts(c: &dyn Conversation, thread: Option<Thread>) -> StartOpts {
         fallback: c.fallback(),
         about: c.about().map(str::to_owned),
         thread,
+        attachments: c.attachments(),
     }
 }
 
@@ -169,7 +170,7 @@ async fn in_thread(c: &dyn Conversation, session_id: &str, p: &Parsed) -> Result
         }
     }
     let undo = if btw { None } else { c.before_run(session_id) };
-    let o = RunOpts { name: c.name().into(), sender: Some(c.sender().into()), cap: Some(c.cap()), btw, about: c.about().map(str::to_owned), approvals: c.approvals() };
+    let o = RunOpts { name: c.name().into(), sender: Some(c.sender().into()), cap: Some(c.cap()), btw, about: c.about().map(str::to_owned), approvals: c.approvals(), attachments: c.attachments() };
     // Only the follow-up itself: a reply that fails to arrive mustn't say it wasn't sent, or it gets
     // sent twice.
     let line = match phone.run(session_id, p, &o, c.later()).await {

@@ -3,7 +3,6 @@
 //! a reply that goes only to that thread's sender, at a rate.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use base64::Engine as _;
 use rsa::pkcs8::EncodePublicKey as _;
 use rsa::signature::{SignatureEncoding as _, Signer as _};
 use sha2::Sha256;

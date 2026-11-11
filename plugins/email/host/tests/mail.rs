@@ -70,3 +70,19 @@ async fn anyone_unproved_or_else_gets_a_403_and_a_stray_reply_starts_nothing() {
     assert_eq!(h.conversed().len(), 0, "nothing ran");
     assert!(h.mailed.lock().unwrap()[0].2.contains("can’t find the task this answers"));
 }
+
+/// An email's attachments reach the task it starts (round 17): each file the grid brought is kept as an upload
+/// and goes with the task; one it couldn't bring is said before the answer.
+#[tokio::test]
+async fn an_emails_attachments_go_with_the_task_and_the_ones_left_out_are_said() {
+    let h = hub();
+    let dyn_hub: Arc<dyn ChannelHub> = h.clone();
+    let t = wisp_email::transport(dyn_hub);
+    let m = json!({ "subject": "in api: why does this fail", "text": "see the log", "date": "2024-01-02T03:04:00Z", "attachments": 2, "files": [{ "name": "build.log", "mime": "text/plain", "data": "ZXJyb3I=" }] });
+    assert_eq!(deliver(&t, &m, heads("ada@example.com", "pass", "<m9@x>")).await, 200);
+    let c = h.conversed();
+    assert_eq!(c[0].attachments, vec![json!({ "id": "u1", "name": "build.log", "mime": "text/plain", "size": 5 })]);
+    assert_eq!(h.phone.uploads.lock().unwrap()[0].2, b"error".to_vec());
+    let mailed = h.mailed.lock().unwrap().clone();
+    assert!(mailed[0].2.contains("1 attachment didn’t come along"), "{mailed:?}");
+}

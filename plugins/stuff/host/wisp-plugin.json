@@ -102,6 +102,10 @@
         "readOnly": true
       },
       {
+        "id": "stuff.receive",
+        "title": "Keep a file that came another way (an email's attachment) as an upload"
+      },
+      {
         "id": "stuff.uploads",
         "title": "Read attachments",
         "readOnly": true

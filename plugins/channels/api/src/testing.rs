@@ -219,6 +219,8 @@ pub struct TestPhone {
     pub ctx: ChannelCtx,
     pub counts: Mutex<Vec<(String, Option<String>)>>,
     pub heard: Mutex<Vec<(String, String, String)>>,
+    /// files kept as uploads: (name, mime, bytes)
+    pub uploads: Mutex<Vec<(String, String, Vec<u8>)>>,
 }
 
 #[async_trait]
@@ -260,6 +262,12 @@ impl Phone for TestPhone {
     async fn launch(&self, _project: &ProjectView, _prompt: &str) -> Result<Option<SessionView>> {
         Ok(None)
     }
+    async fn upload(&self, name: &str, mime: &str, bytes: Vec<u8>) -> Result<Value> {
+        let mut u = lock(&self.uploads);
+        let size = bytes.len();
+        u.push((name.to_owned(), mime.to_owned(), bytes));
+        Ok(serde_json::json!({ "id": format!("u{}", u.len()), "name": name, "mime": mime, "size": size }))
+    }
     async fn act(&self, _a: &ActArgs) -> Result<String> {
         Ok("✓ Done.".into())
     }
@@ -283,6 +291,8 @@ pub struct Conversed {
     pub session: Option<String>,
     /// what the transport's thread was for it
     pub thread: Option<Thread>,
+    /// the files it brought (uploads)
+    pub attachments: Vec<Value>,
 }
 
 /// The hub. `reply`: what the flow says back through the conversation's door (`say`), when set; a session id in
@@ -431,7 +441,7 @@ impl ChannelHub for TestHub {
     }
     async fn converse(&self, c: &dyn Conversation, text: &str, session_id: Option<&str>, _thread_text: Option<&str>) -> Result<Value> {
         let thread = c.thread(&Parsed::default()).await;
-        lock(&self.conversed).push(Conversed { channel: c.channel().to_owned(), sender: c.sender().to_owned(), text: text.to_owned(), session: session_id.map(str::to_owned), thread: thread.clone() });
+        lock(&self.conversed).push(Conversed { channel: c.channel().to_owned(), sender: c.sender().to_owned(), text: text.to_owned(), session: session_id.map(str::to_owned), thread: thread.clone(), attachments: c.attachments() });
         let Some(reply) = &self.reply else { return Ok(Value::Null) };
         let sent = c.say(reply.clone()).await?;
         if let (Some(sid), Some(mut t)) = (self.start_as.as_ref(), thread) {

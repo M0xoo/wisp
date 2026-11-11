@@ -28,7 +28,23 @@ pub struct Mail {
     pub text: String,
     pub html: String,
     pub attachments: u32,
+    /// the attachments kept to hand on (`FILES_MAX` of them, each at most `FILE_MAX`, `FILES_BYTES` in all); the
+    /// rest are counted in `attachments` and said to be left out
+    pub files: Vec<MailFile>,
 }
+
+/// An attached file: its name, type and bytes.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MailFile {
+    pub name: String,
+    pub mime: String,
+    pub bytes: Vec<u8>,
+}
+
+pub const FILES_MAX: usize = 10;
+/// What a held mail may carry: the grid's inbox keeps 2 MB per person, and base64 adds a third.
+pub const FILE_MAX: usize = 1 << 20;
+pub const FILES_BYTES: usize = 1_400_000;
 
 /// A Message-ID as one may be written.
 pub fn msg_id_ok(s: &str) -> bool {
@@ -161,6 +177,14 @@ struct Found {
     text: Option<String>,
     html: Option<String>,
     attachments: u32,
+    files: Vec<MailFile>,
+}
+
+/// A safe file name: its last path part, printable, at most 120 characters (`attachment` when it gives none).
+fn file_name(raw: &str) -> String {
+    let base = encoded_words(raw).rsplit(['/', '\\']).next().unwrap_or_default().chars().filter(|c| !c.is_control()).collect::<String>();
+    let t = base.trim().trim_start_matches('.').chars().take(120).collect::<String>();
+    if t.is_empty() { "attachment".to_owned() } else { t }
 }
 
 /// One part and what's inside it. Text in a part with a filename is an attachment, whatever its type.
@@ -203,6 +227,12 @@ fn walk_part(list: &[(String, String)], body: &str, out: &mut Found, depth: u32)
     let attached = place == "attachment" || param(&pp, "filename").is_some() || param(&tp, "name").is_some();
     if attached || !(ty == "text/plain" || ty == "text/html") {
         out.attachments += 1;
+        let bytes = unencode(body, first(list, "content-transfer-encoding"));
+        let used: usize = out.files.iter().map(|f| f.bytes.len()).sum();
+        if out.files.len() < FILES_MAX && !bytes.is_empty() && bytes.len() <= FILE_MAX && used + bytes.len() <= FILES_BYTES {
+            let name = file_name(param(&pp, "filename").or_else(|| param(&tp, "name")).unwrap_or_default());
+            out.files.push(MailFile { name, mime: if ty.is_empty() { "application/octet-stream".to_owned() } else { ty.clone() }, bytes });
+        }
         return;
     }
     let text = decode_text(&unencode(body, first(list, "content-transfer-encoding")), param(&tp, "charset").unwrap_or("utf-8"));
@@ -288,6 +318,7 @@ pub fn parse_mail(raw: &[u8]) -> Mail {
         text: found.text.unwrap_or_default().chars().take(TEXT_MAX).collect(),
         html: found.html.unwrap_or_default().chars().take(HTML_MAX).collect(),
         attachments: found.attachments,
+        files: found.files,
     }
 }
 
@@ -361,6 +392,22 @@ pub fn compose_mail(o: &Out<'_>) -> Option<String> {
 mod tests {
     use super::*;
 
+    /// Attachments a mail brings: base64 or not, a path in the name dropped, at most `FILES_MAX` kept (each counted).
+    #[test]
+    fn a_mails_attachments_are_kept_with_safe_names_within_the_limits() {
+        use std::fmt::Write as _;
+        let mut raw = String::from("From: a@b.co\r\nContent-Type: multipart/mixed; boundary=\"B\"\r\n\r\n--B\r\nContent-Type: text/plain\r\n\r\nsee attached\r\n");
+        raw.push_str("--B\r\nContent-Type: image/png\r\nContent-Disposition: attachment; filename=\"../../etc/shot.png\"\r\nContent-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n");
+        for i in 0..12 {
+            let _ = write!(raw, "--B\r\nContent-Type: text/plain; name=n{i}.txt\r\n\r\nfile {i}\r\n");
+        }
+        raw.push_str("--B--\r\n");
+        let m = parse_mail(raw.as_bytes());
+        assert_eq!((m.text.as_str(), m.attachments, m.files.len()), ("see attached", 13, FILES_MAX));
+        assert_eq!((m.files[0].name.as_str(), m.files[0].mime.as_str(), m.files[0].bytes.as_slice()), ("shot.png", "image/png", b"hello".as_slice()));
+        assert_eq!(m.files[1].name, "n0.txt");
+    }
+
     /// v1 test/mail.test.js `parseMail`: who it's from, strictly; the text whichever way it came.
     #[test]
     fn a_message_is_read_strictly_and_its_text_whichever_way_it_came() {
@@ -369,6 +416,8 @@ mod tests {
         assert_eq!((m.from.as_str(), m.subject.as_str(), m.message_id.as_str()), ("ada@example.com", "fix é now", "<m1@x.y>"));
         assert_eq!((m.in_reply_to.as_str(), m.references.len()), ("<r1@w>", 2));
         assert_eq!((m.text.as_str(), m.html.as_str(), m.attachments), ("café ok", "<p>hi</p>", 1));
+        // the attachment is kept to hand on: its name, type and bytes (round 17)
+        assert_eq!(m.files, vec![MailFile { name: "x.pdf".into(), mime: "application/pdf".into(), bytes: b"PDF".to_vec() }]);
         assert!(!m.auto);
         let two = raw.replacen("Subject:", "Subject: other\r\nSubject:", 1);
         assert_eq!(parse_mail(two.as_bytes()).from, "", "a second Subject: nobody it's certainly from");

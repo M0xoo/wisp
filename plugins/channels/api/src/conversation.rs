@@ -51,6 +51,11 @@ pub trait Conversation: Send + Sync {
     fn about(&self) -> Option<&str> {
         None
     }
+    /// files the message brought (uploads: `{id, name, mime, size}`), for the task or the turn it starts. Additive
+    /// (2026-11-11): an email's attachments.
+    fn attachments(&self) -> Vec<serde_json::Value> {
+        Vec::new()
+    }
     /// false: a channel that can't answer a tool approval
     fn approvals(&self) -> bool;
     /// the line for `stop`, `done` or `/btw` out of a thread

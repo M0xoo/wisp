@@ -5,6 +5,7 @@
 
 pub mod gateway;
 pub mod message;
+pub mod rest;
 
 /// Guilds, guild messages, direct messages: no privileged intent (`MESSAGE_CONTENT`), so only a mention, a DM or a
 /// slash command carries its text.

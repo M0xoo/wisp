@@ -8,7 +8,8 @@
 //! person it was forged from). Only what a person just wrote is read; a reply to a task follows that task and never
 //! reads the subject, and a reply to nothing wisp knows starts nothing. Plan unless asked, Edits at most.
 //!
-//! Not here yet: attachments (only the text is read).
+//! Attachments: the files the grid brought (1 MB each, 1.4 MB in all) become uploads the task or its turn gets;
+//! the ones it couldn't bring are said.
 
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 
@@ -159,7 +160,18 @@ impl Email {
         let mut ids = vec![id];
         ids.extend(refs);
         at.session = session.clone();
-        let conv = MailConv { email: self.clone(), phone, ctx, at: Mutex::new(at), ids, sender: s(&self.cfg(), "sender").to_owned() };
+        // its files, kept as uploads for the task (or the turn) it starts
+        let mut files = Vec::new();
+        for (name, mime, bytes) in ec::files_of(m) {
+            match phone.upload(&name, &mime, bytes).await {
+                Ok(u) => files.push(u),
+                Err(e) => self.hub.warn(&format!("email: an attachment wasn't kept: {}", e.message)),
+            }
+        }
+        if let Some(line) = ec::left_out(m, files.len()) {
+            self.say(&at, &line).await?;
+        }
+        let conv = MailConv { email: self.clone(), phone, ctx, at: Mutex::new(at), ids, sender: s(&self.cfg(), "sender").to_owned(), files };
         self.hub.converse(&conv, &text, session.as_deref(), None).await.map(drop)
     }
 }
@@ -172,6 +184,8 @@ struct MailConv {
     /// this message and what it names: the new task's thread
     ids: Vec<String>,
     sender: String,
+    /// its attachments, kept as uploads
+    files: Vec<Value>,
 }
 
 #[async_trait]
@@ -201,6 +215,9 @@ impl Conversation for MailConv {
     }
     fn approvals(&self) -> bool {
         false
+    }
+    fn attachments(&self) -> Vec<Value> {
+        self.files.clone()
     }
     #[allow(clippy::unnecessary_literal_bound)] // the trait's signature
     fn no_thread(&self) -> &str {

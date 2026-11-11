@@ -164,6 +164,20 @@ command!(Stop, "stuff.stop", Some("stuff:launch"), false, Id => Done);
 command!(ResetData, "stuff.resetData", Some("stuff:save"), false, Id => StuffView);
 command!(UploadOf, "stuff.upload", Some("stuff:read"), true, Id => Option<Upload>);
 command!(
+    /// A file that came another way than a drop (an email's attachment): kept as an upload. Additive (2026-11-11).
+    Receive, "stuff.receive", Some("stuff:receive"), false, ReceiveArgs => Upload
+);
+
+/// `stuff.receive`'s file: its name, type and bytes (base64).
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, ts_rs::TS)]
+#[ts(export, export_to = "stuff/")]
+pub struct ReceiveArgs {
+    pub name: String,
+    #[serde(default)]
+    pub mime: String,
+    pub data: String,
+}
+command!(
     /// v1 `uploads.resolve`: unknown ids are dropped.
     Uploads, "stuff.uploads", Some("stuff:read"), true, Ids => Vec<Upload>
 );

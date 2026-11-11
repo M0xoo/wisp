@@ -188,6 +188,30 @@ pub fn is_address(s: &str) -> bool {
     !local.is_empty() && !local.chars().any(bad) && !domain.chars().any(bad) && domain.split_once('.').is_some_and(|(a, b)| !a.is_empty() && !b.is_empty())
 }
 
+/// The files a mail brought, as the grid handed them on (`files: [{name, mime, data}]`, base64): name, type, bytes.
+/// A file whose bytes don't decode is skipped.
+pub fn files_of(m: &Value) -> Vec<(String, String, Vec<u8>)> {
+    use base64::Engine as _;
+    m.get("files")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|f| {
+            let name = f.get("name").and_then(Value::as_str).filter(|n| !n.is_empty()).unwrap_or("attachment").to_owned();
+            let mime = f.get("mime").and_then(Value::as_str).unwrap_or("application/octet-stream").to_owned();
+            let bytes = base64::engine::general_purpose::STANDARD.decode(f.get("data")?.as_str()?).ok()?;
+            Some((name, mime, bytes))
+        })
+        .collect()
+}
+
+/// What to say when some attachments didn't come along (the grid keeps 1 MB each, 1.4 MB in all), or None.
+pub fn left_out(m: &Value, kept: usize) -> Option<String> {
+    let all = usize::try_from(m.get("attachments").and_then(Value::as_u64).unwrap_or(0)).unwrap_or(usize::MAX);
+    let n = all.saturating_sub(kept);
+    (n > 0).then(|| format!("{n} attachment{} didn’t come along (too big for mail: 1 MB each at most). Add {} in wisp if the task needs {}.", if n == 1 { "" } else { "s" }, if n == 1 { "it" } else { "them" }, if n == 1 { "it" } else { "them" }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,5 +242,16 @@ mod tests {
         assert_eq!(date_ms(&json!(5)), Some(5));
         assert_eq!(date_ms(&json!("soon")), None);
         assert!(is_address("ada@example.com") && !is_address("ada@localhost") && !is_address("a b@x.y"));
+    }
+
+    /// An email's attachments reach the task (round 17): the grid's files decode; ones it couldn't bring are said.
+    #[test]
+    fn a_mails_files_decode_and_the_ones_left_out_are_said() {
+        let m = json!({ "attachments": 3, "files": [{ "name": "shot.png", "mime": "image/png", "data": "aGVsbG8=" }, { "name": "bad", "data": "!!" }, { "data": "eA==" }] });
+        let f = files_of(&m);
+        assert_eq!(f, vec![("shot.png".to_owned(), "image/png".to_owned(), b"hello".to_vec()), ("attachment".to_owned(), "application/octet-stream".to_owned(), b"x".to_vec())]);
+        assert_eq!(left_out(&m, 2).as_deref(), Some("1 attachment didn’t come along (too big for mail: 1 MB each at most). Add it in wisp if the task needs it."));
+        assert_eq!(left_out(&json!({ "attachments": 2 }), 2), None);
+        assert_eq!(files_of(&json!({})), Vec::new());
     }
 }

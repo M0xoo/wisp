@@ -8,6 +8,7 @@
 //!   proved message (a 2xx), at a rate, to the address that message came from. A stranger's refused mail holds
 //!   nothing, so no one can make themselves a target by writing in.
 
+use base64::Engine as _;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -275,9 +276,19 @@ impl MailService {
     fn take(inbox: &Inbox, user: &UserRow, m: &Mail, verdict: &str) -> Result<bool> {
         let Some(def) = crate::inbox::channel("email") else { return Ok(false) };
         let headers = vec![(FROM_HEADER.to_owned(), m.from.clone()), (DMARC_HEADER.to_owned(), verdict.to_owned()), (ID_HEADER.to_owned(), m.message_id.clone())];
-        let body = json!({ "messageId": m.message_id, "subject": m.subject, "text": m.text, "html": m.html, "date": crate::mail::date_iso(&m.date), "inReplyTo": m.in_reply_to, "references": m.references, "attachments": m.attachments });
+        let body = json!({ "messageId": m.message_id, "subject": m.subject, "text": m.text, "html": m.html, "date": crate::mail::date_iso(&m.date), "inReplyTo": m.in_reply_to, "references": m.references, "attachments": m.attachments, "files": m.files.iter().map(|f| json!({ "name": f.name, "mime": f.mime, "data": base64::engine::general_purpose::STANDARD.encode(&f.bytes) })).collect::<Vec<_>>() });
         let bytes = body.to_string().into_bytes();
-        inbox.hold(user, def, &bytes, &headers, true, &body)
+        if inbox.hold(user, def, &bytes, &headers, true, &body)? {
+            return Ok(true);
+        }
+        // its files don't fit what's held now: the words still go (the box says the files were left out)
+        if m.files.is_empty() {
+            return Ok(false);
+        }
+        let mut bare = body;
+        bare["files"] = json!([]);
+        let bytes = bare.to_string().into_bytes();
+        inbox.hold(user, def, &bytes, &headers, true, &bare)
     }
 
     /// A message its box accepted: from here on the box may answer it (the inbox calls this on a 2xx).
