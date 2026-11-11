@@ -53,6 +53,9 @@ Right after ui-commands reaches 0, and before the UI burndown:
   - the `harness == "claude"` branch in `runtime/setup.rs`;
   - regenerating the TS bindings.
 
+**For backend-coder, from the UI coder (2026-11-11):** record refusals on turns, so the refusal hand-off card shows
+(v1: a Claude refusal is offered to another harness).
+
 **For the UI coder, from backend-coder (2026-11-10):**
 - **Settings → Learning** (v1's pane): the lists by scope with edit and remove (`learn.set`), the recent retros
   (`learn.view` history), and the on/off switch (`learn.enabled`).

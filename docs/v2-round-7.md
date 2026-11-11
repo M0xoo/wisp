@@ -377,3 +377,48 @@ update in the same worktree, so the server-side work below is only what a screen
 - The queue over the reply box was typechecked and wired, not yet seen with a real queue (needs a running task
   with follow-ups queued).
 - Shell parity: v1's Settings nav is flat and the sheet wider; v2's Stats tiles put the value above the label.
+
+## Round 12 (2026-11-11): the task page, answer blocks, the plan page
+
+**Fixed first (the UI part of `npm run check`):** `answer-content.css` (76px → `--size-tests-ring`, a new token in
+`packages/tokens/tokens/size.json`, generated files rebuilt; `flex-wrap` → the kit's `Wrap`), `app-task.css:108` (a step
+with output is a column, `li[data-fold]`), `composites.css:38` (the `:is()` list split in two selectors),
+`Connectors.tsx:72` (the page's origin comes from the shell's `Platform.origin`, new and additive, and the sign-in opens
+through `platform.openExternal`), `StuffPage.tsx:82` (the upload goes through `client.http(peer).send`). The check's UI
+errors are now only learn-ui and issues-ui, which wait on backend-coder.
+
+**`@wisp/client`: a peer's own routes.** `Transport.request?` (a raw body) and `Transport.events?` (an event-stream
+route), HTTP implements both with the peer's headers; `Peers.http(peer)` and `PluginClient.http(peer)` wrap them (JSON
+answers, a status ≥ 400 throws with the server's words). Additive. Users: My Stuff's Add files, the Shell pane, and
+drop/paste files next. Test `http_routes_carry_raw_bodies_with_the_peers_headers_and_stream_a_routes_events`.
+
+**The task page.**
+- Turn cards on a new slot `shell.turn:foot` (contract.ts, additive), shell-task's `TurnFoot`: HaltCard (signed out →
+  Sign in; a usage limit → Send again / Hand to; a refusal → Hand to a harness on another vendor's model, v1 vendors.js
+  ported as `cards/vendors.ts`), HeldCard (Start now / Skip, `runtime.release`), WhatChanged (the runtime now keeps
+  `ext["wisp.runtime"].cli` per turn), Receipt (v1 receipt.js: cache share from the per-model counts, the longest plan
+  window from `ext["wisp.budget"].plan`, Past your plan). A plain failure gets no card: its answer says it (v1 too).
+- Side panel: PR (`PrPane.tsx`, `ship.details`; asks only when the task row carries a PR) and Shell (`ShellPane.tsx`,
+  the kit `<Terminal>`, input numbered from 0 as `wisp_terminal_core::order` expects).
+- Answer blocks: 9 of the kit's 14 stub renderers built (compare, terminal, tests, task, stuff, question, blocked,
+  actions, next) with v1's CSS on tokens (`answer-content.css`, `answer-rich.css`, both were empty). `BlockContext`
+  gained `draft`, `deny`, and `run` may return its result (`RunResult`). The frame now passes a context
+  (`frame/answer-ctx.ts`: reply, draft, `runtime.exec`, `runtime.approveBlocked`, open task / link / changes / My Stuff,
+  live task and stuff rows; `latest` read live).
+- shell-task has no stubs: the dead `TaskMain`, `TaskView`, `head/TaskHead`, `transcript/Transcript`, `plan/PlanView` and
+  three empty catalogues are deleted (the frame's head renames in place, its transcript folds; v1's plan view is
+  wisp.later's page, below).
+- Fixed on the way: toasts half off-screen (Zag's inline inset beat the kit's `left: 50%`); every phone state pill green
+  (specificity).
+
+**The plan page (`later.plan`).** shell-list opened it but later-ui registered no view, and the list read entity kind
+`plan` while wisp.later publishes `later_plan` (`{id, body}`) on `plugin:wisp.later:later`, which nobody watched: the
+Scheduled and Drafts sections were always empty. shell-list now watches the topic and maps rows (`listPlan`); later-ui
+has `PlanPage.tsx` (the task page's shape; TaskDetails gained `when`). Test `the_plan_page_says_when_it_starts…`.
+
+**Tests run (named only):** rows-view `a_turns_time…`, runtime `a_turn_keeps_what_the_cli_was`, shell-task `cards`,
+`pr`, `pr-pane`, `vendors`, ui `blocks-act` (2), client `http_routes…`, later `plan-page`. PNGs in /tmp/wisp-qa-gui
+(r12-*), 1440 and 390, light and dark.
+
+**Left:** the `app`, `doc`, `preview`, `map`, `graph` block renderers (stubs; pure halves exist); the runtime recording
+`refusal` on a turn (backend-coder); Settings parity and the rest of the queue.

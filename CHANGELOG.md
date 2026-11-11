@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Added
 
 - **Settings, every pane.** Agents (each harness with its version, models and state; extra Claude and Codex accounts; a CLI's sign-in steps; opencode's keys; Install; Re-check; the notice when a harness's program changed; git and the GitHub CLI), Connectors (MCP servers every task's agent gets: add a local command or a remote URL with its keys kept in the secrets file, import the ones your harnesses already have, each checked by starting it and listing its tools, OAuth sign-in for remote ones), Machines (computers over SSH, and what another needs to reach this one: SSH server, Tailscale, keys), Cloud (sign in to a wisp Grid, this computer on it), Automations (recipes and triggers, run now), Usage (the week's spend, turns, how many worked and questions; each plan's windows; where unattended work stops), Privacy (usage stats, and asking before a repo's own programs run), Plugins (v1's Spells: every plugin and its switch) and All settings (every setting a plugin declares, searchable, with what locks it).
+- **The task page, whole.** Every answer block draws again: the follow-up chips (a click puts the text in the reply box, ⌘-click sends it), the agent's question with its numbered answers, Blocked by permissions with Allow & retry and Deny, one-click actions that run in the task's folder and show their exit code and output (and offer to send a failure to the agent), the terminal and test results with Run again, cards for another task or something in My Stuff, and before/after. Under each turn: why it stopped and what next (signed out: Sign in; a usage limit: Send again or hand it to another harness; a refusal: hand it to a harness on another company's model), what holds it with Start now and Skip, what changed in the CLI since the last turn, and its receipt (cache share, its share of the plan's week, Past your plan). The side panel's PR pane (where the PR stands with Merge or Fix conflicts, checks with the passed folded, reviews, the conversation, files) and Shell pane (a login shell in the task's folder, End shell, Start again). Older turns fold behind Show earlier; a step with output opens to it; rename a task by clicking its title.
+- **Scheduled tasks and reminders open.** They show in the list's Scheduled section again, and open to their page: change what it will say (saved when you click away), Start now, Change start time…, Delete.
 - **My Stuff.** What you and your agents kept, from the sidebar: search, kinds, by day, cards with their menu (open or launch, copy, download, star, its task, show in folder, remove), and Add files.
 - **A task's queued follow-ups.** Over the reply box, each with when it goes, and Send now, Edit, Combine with the next, Move and Cancel.
 - **Notifications.** A task that finishes or asks tells you: a toast in the app, and a system notification when wisp isn't in front.
@@ -33,6 +35,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- Toasts sat half off the left edge of the window; they're bottom centre again.
+- On a phone every task's state pill was green, Failed included.
+- Scheduled tasks and reminders never showed in the list: it read the wrong rows.
 - Ship it never loaded: its manifest listed two commands twice, and wisp refuses such a plugin at start. A check now validates every built-in plugin's manifest.
 - Reloading a plugin's page (`/view/stuff.page`, any view id with a dot) showed "not found".
 - Later's actions (add, edit, snooze, cancel, plans) and Share's preview sent the task's key where wisp reads its id, so they did nothing.
