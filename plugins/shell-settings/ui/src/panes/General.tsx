@@ -3,8 +3,8 @@
 // `settings.set` (instant, rolled back with a toast on a refusal); a row a plugin locked says so.
 // "Open tasks in" shows only with two terminals or more, and its command field only for Custom.
 
-import { Show, createMemo, type JSX } from 'solid-js';
-import { computed, type PluginClient } from '@wisp/client';
+import { Show, createMemo, createResource, type JSX } from 'solid-js';
+import { computed, defineCommand, type PluginClient } from '@wisp/client';
 import { Input, SelectSetting, SettingsGroup, SettingsRow, SwitchSetting, useSignal, type SelectOption } from '@wisp/ui';
 import { t, type Key } from '../i18n.ts';
 import { fromRow, onOff, text } from '../source.ts';
@@ -22,12 +22,17 @@ export function reviewChoices(harnesses: readonly Harness[], picked: string): Se
   ];
 }
 
-function Switch(props: { readonly client: PluginClient; readonly k: string; readonly dflt: boolean; readonly title: Key; readonly hint: Key }): JSX.Element {
+function OnOffRow(props: { readonly client: PluginClient; readonly k: string; readonly dflt: boolean; readonly title: Key; readonly hint: Key }): JSX.Element {
   return <SwitchSetting title={t(props.title)} description={t(props.hint)} source={onOff(fromRow(props.client, props.k), props.dflt)} locked={locked} />;
 }
 
+/** wisp.terminal's list for this computer (v1 config.terminals): In wisp, the terminal apps found, Custom. */
+const terminalApps = defineCommand<{ peer: string }, { terminals: TerminalApp[]; defaultTerminal: string }>({ id: 'terminal.apps', owner: (a) => a.peer, wire: () => ({}), optimistic: 'none', pending: 'the Take over in list' });
+
 function TakeOver(props: { readonly client: PluginClient }): JSX.Element {
-  const apps = useSignal(props.client.entities.list<TerminalApp>(TERMINAL_KIND));
+  const rows = useSignal(props.client.entities.list<TerminalApp>(TERMINAL_KIND));
+  const [asked] = createResource(() => props.client.run(terminalApps, { peer: props.client.home }).then((r) => r.terminals, () => [] as TerminalApp[]));
+  const apps = (): readonly TerminalApp[] => (rows().length > 0 ? rows() : (asked() ?? []));
   const terminal = text(fromRow(props.client, KEYS.terminal), 'wisp');
   const current = useSignal(terminal.value);
   const command = fromRow(props.client, KEYS.terminalCommand, '');
@@ -61,7 +66,7 @@ function Review(props: { readonly client: PluginClient }): JSX.Element {
   const picked = useSignal(review.value);
   const harnesses = useSignal(props.client.entities.list<Harness>(HARNESS_KIND));
   const items = createMemo(() => reviewChoices(harnesses() as readonly Harness[], picked()));
-  return <SelectSetting title={t('shell-settings.review')} description={t('shell-settings.review.hint')} source={review} locked={locked} items={items()} />;
+  return <SelectSetting part="settings.review" title={t('shell-settings.review')} description={t('shell-settings.review.hint')} source={review} locked={locked} items={items()} />;
 }
 
 export default function General(props: { readonly client: PluginClient }): JSX.Element {
@@ -73,19 +78,19 @@ export default function General(props: { readonly client: PluginClient }): JSX.E
         <TakeOver client={props.client} />
       </SettingsGroup>
       <SettingsGroup part="settings.general.answers">
-        <Switch client={props.client} k={KEYS.tui} dflt={false} title="shell-settings.tui" hint="shell-settings.tui.hint" />
-        <Switch client={props.client} k={KEYS.blocks} dflt title="shell-settings.blocks" hint="shell-settings.blocks.hint" />
+        <OnOffRow client={props.client} k={KEYS.tui} dflt={false} title="shell-settings.tui" hint="shell-settings.tui.hint" />
+        <OnOffRow client={props.client} k={KEYS.blocks} dflt title="shell-settings.blocks" hint="shell-settings.blocks.hint" />
       </SettingsGroup>
       <SettingsGroup part="settings.general.tasks">
-        <Switch client={props.client} k={KEYS.worktree} dflt title="shell-settings.worktree" hint="shell-settings.worktree.hint" />
+        <OnOffRow client={props.client} k={KEYS.worktree} dflt title="shell-settings.worktree" hint="shell-settings.worktree.hint" />
         <Review client={props.client} />
-        <Switch client={props.client} k={KEYS.fixConflicts} dflt={false} title="shell-settings.fix-conflicts" hint="shell-settings.fix-conflicts.hint" />
-        <Switch client={props.client} k={KEYS.readTimes} dflt title="shell-settings.read-times" hint="shell-settings.read-times.hint" />
-        <Switch client={props.client} k={KEYS.watch} dflt title="shell-settings.watch" hint="shell-settings.watch.hint" />
-        <Switch client={props.client} k={KEYS.apps} dflt title="shell-settings.apps" hint="shell-settings.apps.hint" />
+        <OnOffRow client={props.client} k={KEYS.fixConflicts} dflt={false} title="shell-settings.fix-conflicts" hint="shell-settings.fix-conflicts.hint" />
+        <OnOffRow client={props.client} k={KEYS.readTimes} dflt title="shell-settings.read-times" hint="shell-settings.read-times.hint" />
+        <OnOffRow client={props.client} k={KEYS.watch} dflt title="shell-settings.watch" hint="shell-settings.watch.hint" />
+        <OnOffRow client={props.client} k={KEYS.apps} dflt title="shell-settings.apps" hint="shell-settings.apps.hint" />
       </SettingsGroup>
       <SettingsGroup part="settings.general.transcript">
-        <Switch client={props.client} k={KEYS.transcript} dflt={false} title="shell-settings.transcript" hint="shell-settings.transcript.hint" />
+        <OnOffRow client={props.client} k={KEYS.transcript} dflt={false} title="shell-settings.transcript" hint="shell-settings.transcript.hint" />
       </SettingsGroup>
     </>
   );

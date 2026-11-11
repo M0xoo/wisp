@@ -73,6 +73,7 @@
     font-weight: var(--fw-medium); line-height: var(--lh-tight); white-space: nowrap;
     color: color-mix(in srgb, var(--k-tone) 85%, var(--ink)); background: color-mix(in srgb, var(--k-tone) 9%, transparent);
   }
+  [data-kit='pill'][data-variant='plain'] { padding: 0; background: transparent; border-color: transparent; font-weight: var(--fw-medium); }
   [data-kit='pill'][data-variant='outline'] {
     background: transparent; border: var(--size-hairline) solid var(--line); border-radius: var(--radius-pill);
     padding: var(--space-0) var(--space-3); font-size: var(--fs-xs); font-weight: var(--fw-regular); color: var(--muted);

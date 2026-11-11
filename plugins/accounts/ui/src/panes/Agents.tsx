@@ -5,6 +5,7 @@
 // git and the GitHub CLI that Ship it needs; Re-check. Every write shows at once.
 import { createMemo, createSignal, For, Match, onCleanup, Show, Switch as Pick, type JSX } from 'solid-js';
 import { entityKey, type PluginClient } from '@wisp/client';
+import { useShell } from '@wisp/shell';
 import { Button, Dialog, Inline, Input, Link, Menu, Pill, SettingsGroup, SettingsRow, Stack, Switch, Text, useSignal } from '@wisp/ui';
 import { addAccount, install, keyRemove, keySet, loginCancel, loginInput, loginStart, logout, recheck, removeAccount, setAsk, trust } from '../commands.ts';
 import { t } from '../i18n.ts';
@@ -113,6 +114,9 @@ function Keys(props: { readonly c: PluginClient; readonly h: HarnessRow; readonl
 
 export default function Agents(props: { readonly client: PluginClient }): JSX.Element {
   const c = props.client;
+  // each harness's mark, as its own plugin registered it (HarnessUiDef.logo: plugins/claude/ui, …)
+  const marks = useSignal(useShell().harnesses());
+  const logoOf = (id: string): string | undefined => marks().find((m) => m.id === id)?.logo;
   const peer = c.home;
   const scope = c.scope.child('agents-pane');
   onCleanup(() => scope.dispose());
@@ -166,26 +170,8 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
 
   return (
     <>
-      <Text as="p" tone="muted" part="accounts.lede">
-        {t('accounts.lede')}
-      </Text>
       <SettingsGroup
         part="accounts.harnesses"
-        actions={
-          <Button
-            size="sm"
-            variant="ghost"
-            icon="rerun"
-            part="accounts.recheck"
-            disabled={rechecking()}
-            onClick={() => {
-              setRechecking(true);
-              c.run(recheck, { peer }).finally(() => setRechecking(false));
-            }}
-          >
-            {rechecking() ? t('accounts.recheck.running') : t('accounts.recheck')}
-          </Button>
-        }
       >
         <For each={sorted()}>
           {(h) => {
@@ -195,11 +181,12 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
                 <SettingsRow
                   part="accounts.harness.row"
                   title={h.name}
+                  {...(logoOf(h.id) && { logo: logoOf(h.id) as string })}
                   description={harnessLine(h, accs(h.id).length)}
                   control={
                     <Inline gap="3">
                       <Show when={h.signIn === 'key' && present(h)}>
-                        <Button size="sm" icon="lock" part="accounts.keys.open" onClick={() => setKeysOf(h)}>
+                        <Button size="sm" variant="primary" icon="lock" part="accounts.keys.open" onClick={() => setKeysOf(h)}>
                           {keysFor(h.id).some((k) => k.set) ? t('accounts.keys.edit') : t('accounts.keys.add')}
                         </Button>
                       </Show>
@@ -209,7 +196,7 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
                           {h.installing === true ? t('accounts.installing') : t('accounts.install')}
                         </Button>
                       </Show>
-                      <Pill tone={state().tone} dot variant="outline">
+                      <Pill tone={state().tone} dot variant="plain">
                         {state().label}
                       </Pill>
                     </Inline>
@@ -273,7 +260,7 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
               title={x.name}
               description={x.installed ? t('accounts.tool.ready') : (x.setup?.tip ?? t('accounts.tool.missing'))}
               control={
-                <Pill tone={x.installed ? 'good' : 'bad'} dot variant="outline">
+                <Pill tone={x.installed ? 'good' : 'bad'} dot variant="plain">
                   {x.installed ? t('accounts.state.ready') : t('accounts.state.notFound')}
                 </Pill>
               }
@@ -281,6 +268,22 @@ export default function Agents(props: { readonly client: PluginClient }): JSX.El
           )}
         </For>
       </SettingsGroup>
+      {/* Re-check under the list: v1's pane opens on the harnesses */}
+      <Inline justify="end">
+        <Button
+          size="sm"
+          variant="ghost"
+          icon="rerun"
+          part="accounts.recheck"
+          disabled={rechecking()}
+          onClick={() => {
+            setRechecking(true);
+            c.run(recheck, { peer }).finally(() => setRechecking(false));
+          }}
+        >
+          {rechecking() ? t('accounts.recheck.running') : t('accounts.recheck')}
+        </Button>
+      </Inline>
       <SettingsGroup part="accounts.watch">
         <SettingsRow
           part="accounts.ask"

@@ -4,6 +4,7 @@
 import { For, Match, Show, Switch, createSignal, type JSX } from 'solid-js';
 import { flag } from '../core/props.ts';
 import { Icon } from '../content/Icon.tsx';
+import { PromptSuggestList, dropHandlers, suggestKeyDown, type PromptSuggest } from '../composer/PromptSuggest.tsx';
 import type { IconName } from '../content/icons.ts';
 import { ActIcon, WithAct, actAttrs, type Act } from './act.tsx';
 
@@ -65,6 +66,12 @@ export interface LauncherProps {
   readonly value: string;
   readonly onInput: (v: string) => void;
   readonly onSend: () => void;
+  /** the @ and / menus (under the box) */
+  readonly suggest?: PromptSuggest | undefined;
+  /** a paste into the box (files): the host may take it */
+  readonly onPaste?: (e: ClipboardEvent) => void;
+  /** files dropped on the box; it lights up while they're over it */
+  readonly onFiles?: (files: File[]) => void;
   readonly inputRef?: (el: HTMLTextAreaElement) => void;
   readonly mode: { readonly label: string; readonly title: string; readonly icon?: IconName; readonly act?: Act };
   readonly runner: {
@@ -161,6 +168,7 @@ function Chip(props: { readonly c: LauncherChip }): JSX.Element {
 /** v1 #launcher: the prompt box on Home. */
 export function Launcher(props: LauncherProps): JSX.Element {
   const key = (e: KeyboardEvent): void => {
+    if (suggestKeyDown(props.suggest, e)) return;
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       props.onSend();
@@ -169,6 +177,7 @@ export function Launcher(props: LauncherProps): JSX.Element {
   const empty = (): boolean => props.value.trim() === '';
   // Send with nothing written: the prompt takes the caret and its placeholder lights up until you type
   const [nudge, setNudge] = createSignal(false);
+  const [over, setOver] = createSignal(false);
   let input: HTMLTextAreaElement | undefined;
   const send = (): void => {
     if (props.sendAct?.pending) return;
@@ -178,7 +187,7 @@ export function Launcher(props: LauncherProps): JSX.Element {
   };
   return (
     <div data-kit="sh-launch">
-      <section data-kit="launcher" data-part="launcher" data-nudge={flag(nudge())}>
+      <section data-kit="launcher" data-part="launcher" data-nudge={flag(nudge())} data-drop={flag(over())} {...dropHandlers(() => props.onFiles, setOver)}>
         <div data-kit="l-projects" data-part="launcher.projects">
           <span data-kit="l-in">{props.inLabel}</span>
           <span data-kit="lp-group">
@@ -186,7 +195,8 @@ export function Launcher(props: LauncherProps): JSX.Element {
           </span>
         </div>
         <div data-kit="mn-wrap">
-          <textarea data-kit="prompt" data-part="launcher.input" rows="2" placeholder={props.placeholder} value={props.value} ref={(el) => ((input = el), props.inputRef?.(el))} onBlur={() => setNudge(false)} onInput={(e) => (setNudge(false), props.onInput(e.currentTarget.value))} onKeyDown={key} />
+          <textarea data-kit="prompt" data-part="launcher.input" rows="2" placeholder={props.placeholder} value={props.value} ref={(el) => ((input = el), props.inputRef?.(el))} onBlur={() => setNudge(false)} onInput={(e) => (setNudge(false), props.onInput(e.currentTarget.value))} onKeyDown={key} onPaste={(e) => props.onPaste?.(e)} />
+          <PromptSuggestList suggest={props.suggest} place="below" />
         </div>
         <Show when={props.goal}>
           {(g) => (

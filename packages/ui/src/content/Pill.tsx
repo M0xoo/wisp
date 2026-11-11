@@ -14,7 +14,8 @@ export interface PillProps extends KitProps, WithChildren {
   readonly live?: boolean;
   readonly icon?: IconName;
   /** soft: a tinted fill (states). outline: a hairline border (tags, topics). */
-  readonly variant?: 'soft' | 'outline';
+  /** plain: the dot and the word only (v1 Settings → Agents' state) */
+  readonly variant?: 'soft' | 'outline' | 'plain';
   readonly title?: string;
 }
 

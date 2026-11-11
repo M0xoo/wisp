@@ -32,23 +32,27 @@ const rank = (g: string): number => {
   return i < 0 ? GROUP_ORDER.length : i;
 };
 
-/** Panes sorted into nav groups: by group order, then `order`, then title; the first group has no heading. Pure, for tests. */
-export function groupPanes(entries: readonly PaneEntry[], title: (key: string) => string, groupLabel: (id: string) => string): SettingsNavGroup[] {
+/** v1's Settings, in its order (v1 web/js/features/settings.js SECTIONS): one flat list, no headings. A pane v1
+ * didn't have follows them, by its group and `order` (Theme, Keyboard shortcuts, Updates, All settings, …). */
+export const V1_ORDER = ['general', 'notifications', 'agents', 'connectors', 'auto', 'machines', 'cloud', 'memory', 'automations', 'plugins', 'machine', 'worktrees', 'usage', 'privacy'] as const;
+
+const v1Rank = (id: string): number => {
+  const i = (V1_ORDER as readonly string[]).indexOf(id);
+  return i < 0 ? V1_ORDER.length : i;
+};
+
+/** The nav: one group without a heading (v1's flat list), v1's panes first in its order. Pure, for tests. */
+export function groupPanes(entries: readonly PaneEntry[], title: (key: string) => string, _groupLabel?: (id: string) => string): SettingsNavGroup[] {
   const sorted = [...entries].sort(
     (a, b) =>
+      v1Rank(a.pane.id) - v1Rank(b.pane.id) ||
       rank(a.pane.group) - rank(b.pane.group) ||
       a.pane.group.localeCompare(b.pane.group) ||
       (a.pane.order ?? 100) - (b.pane.order ?? 100) ||
       title(a.pane.title).localeCompare(title(b.pane.title)),
   );
-  const groups: SettingsNavGroup[] = [];
-  for (const e of sorted) {
-    const item = { id: e.pane.id, label: title(e.pane.title), icon: e.pane.icon as SettingsNavGroup['items'][number]['icon'] };
-    const last = groups.at(-1);
-    if (last?.id === e.pane.group) groups[groups.length - 1] = { ...last, items: [...last.items, item] };
-    else groups.push({ id: e.pane.group, ...(groups.length > 0 && { label: groupLabel(e.pane.group) }), items: [item] });
-  }
-  return groups;
+  if (sorted.length === 0) return [];
+  return [{ id: 'all', items: sorted.map((e) => ({ id: e.pane.id, label: title(e.pane.title), icon: e.pane.icon as SettingsNavGroup['items'][number]['icon'] })) }];
 }
 
 /** The pane to show: the one asked for if it's there, else the first in nav order. */
@@ -67,7 +71,7 @@ export function parseParams(p: unknown): SettingsParams {
 /** The intent that opens Settings on `pane` (or, on a phone, on the list). */
 export function settingsIntent(pane?: string, filter?: string) {
   const params = { ...(pane !== undefined && { pane }), ...(filter !== undefined && { filter }) };
-  return { t: 'openOverlay' as const, overlay: { kind: 'dialog' as const, id: VIEW_ID, params } };
+  return { t: 'openOverlay' as const, overlay: { kind: 'viewer' as const, id: VIEW_ID, params } };
 }
 
 /** Inside the shell: its panes (each with its plugin's client) and its translator. */
@@ -102,6 +106,8 @@ export function SettingsView(props: { readonly client: PluginClient; readonly pa
   };
   return (
     <SettingsFrame
+      // v1's own name for the whole sheet (.modal.sx), without a namespace: parity measures it by this
+      part={'settings' as `${string}.${string}`}
       title={own('shell-settings.title')}
       groups={groups()}
       current={current()?.pane.id ?? ''}

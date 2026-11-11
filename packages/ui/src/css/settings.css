@@ -1,27 +1,31 @@
 @layer kit {
   /* The frame is its own container: it lays out by its width, not the viewport's, so it works in
      a sheet, beside a task, or on a phone. */
-  [data-kit='settings-frame'] { container: settings / inline-size; height: 100%; min-height: 0; background: var(--bg); }
-  [data-kit='settings-frame-grid'] { display: grid; grid-template-columns: var(--size-menu-min) minmax(0, 1fr); height: 100%; min-height: 0; }
+  [data-kit='settings-frame'] { container: settings / inline-size; height: 100%; min-height: 0; background: var(--surface); font-size: var(--fs-lg); line-height: 1.55; color: var(--ink); }
+  /* in a dialog it is the card itself (v1 .modal.sx): its line and corners */
+  [data-kit='dialog'] [data-kit='settings-frame'] { border: var(--size-hairline) solid var(--line); border-radius: var(--radius-xl); overflow: hidden; }
+  [data-kit='settings-frame-grid'] { display: grid; grid-template-columns: var(--size-settings-nav) minmax(0, 1fr); height: 100%; min-height: 0; }
+  @container settings (max-width: 800px) { [data-kit='settings-frame-grid'] { grid-template-columns: var(--size-settings-nav-narrow) minmax(0, 1fr); } }
 
   [data-kit='settings-nav'] {
-    display: flex; flex-direction: column; gap: var(--space-4); min-height: 0; overflow-y: auto;
-    padding: var(--space-6) var(--space-4); border-right: var(--size-hairline) solid var(--line); background: var(--bg-2);
+    display: flex; flex-direction: column; gap: var(--size-hairline); min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    padding: calc(var(--space-7) + var(--space-1)) var(--space-5); border-right: var(--size-hairline) solid var(--line); background: var(--bg-2);
   }
-  [data-kit='settings-nav-head'] { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 0 var(--space-3); min-height: var(--size-control-md); }
-  [data-kit='settings-nav-title'] { margin: 0; font-size: var(--fs-title); font-weight: var(--fw-semibold); color: var(--ink); min-width: 0; }
+  [data-kit='settings-nav-head'] { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin: 0 var(--space-4) 14px; }
+  [data-kit='settings-nav-title'] { margin: 0; font: var(--fw-semibold) var(--fs-title) / 1.2 var(--display); letter-spacing: -0.015em; color: var(--ink); min-width: 0; }
   [data-kit='settings-nav-close'] { display: none; }
   [data-kit='settings-nav-search'] { padding: 0 var(--space-1); }
-  [data-kit='settings-nav-list'] { display: flex; flex-direction: column; gap: var(--space-5); }
+  [data-kit='settings-nav-list'] { display: flex; flex-direction: column; gap: var(--space-1); }
   [data-kit='settings-nav-group'] { display: flex; flex-direction: column; gap: var(--space-1); }
   [data-kit='settings-nav-group-label'] { padding: 0 var(--space-3); font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; }
   [data-kit='settings-nav-item'] {
-    display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: var(--size-control-md);
-    padding: 0 var(--space-3); border: 0; border-radius: var(--radius-control); background: transparent;
+    display: flex; align-items: center; gap: 9px; width: 100%; min-height: var(--size-control-md);
+    padding: 0 var(--space-5); border: 0; border-radius: var(--radius-md); background: transparent;
     color: var(--ink-2); font: inherit; font-size: var(--fs-md); text-align: start; cursor: pointer;
   }
-  [data-kit='settings-nav-item']:hover { background: var(--sunk); color: var(--ink); }
-  [data-kit='settings-nav-item'][data-current] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); }
+  [data-kit='settings-nav-item']:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+  [data-kit='settings-nav-item'][data-current] { background: var(--surface); color: var(--ink); font-weight: var(--fw-medium); box-shadow: var(--shadow-1); }
+  [data-kit='settings-nav-item'][data-current] > [data-kit='icon'] { color: var(--accent); }
   [data-kit='settings-nav-item']:focus-visible { outline: var(--size-ring) solid var(--accent); outline-offset: calc(-1 * var(--size-ring)); }
   [data-kit='settings-nav-item'] > [data-kit='icon'] { flex: none; color: var(--muted); }
   [data-kit='settings-nav-label'] { flex: 1 1 auto; min-width: 0; }
@@ -31,13 +35,13 @@
   [data-kit='settings-main'] { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   [data-kit='settings-main'] > [data-kit='bar'] {
     display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-3); flex: none;
-    height: var(--bar-h); padding: 0 var(--space-4) 0 var(--space-8); border-bottom: var(--size-hairline) solid var(--line);
+    min-height: var(--size-settings-head); padding: var(--space-5) var(--space-6) var(--space-5) var(--space-8); border-bottom: var(--size-hairline) solid var(--line);
   }
   [data-kit='settings-up'] { display: none; }
-  [data-kit='settings-pane-title'] { flex: 1 1 auto; margin: 0; min-width: 0; font-size: var(--fs-lg); font-weight: var(--fw-semibold); color: var(--ink); }
+  [data-kit='settings-pane-title'] { flex: 1 1 auto; margin: 0; min-width: 0; font: var(--fw-semibold) var(--fs-title) / 1.3 var(--display); letter-spacing: -0.01em; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   [data-kit='settings-body'] { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-  [data-kit='settings-pane'] { display: flex; flex-direction: column; gap: var(--space-8); max-width: var(--size-prose); padding: var(--space-7) var(--space-8) var(--space-9); }
-  [data-kit='settings-lede'] { margin: 0; font-size: var(--fs-md); color: var(--muted); line-height: var(--lh-snug); }
+  [data-kit='settings-pane'] { display: flex; flex-direction: column; gap: 14px; padding: var(--space-7) var(--space-8) 28px; }
+  [data-kit='settings-lede'] { margin: 0 var(--space-1) var(--space-1); font-size: var(--fs-sm); color: var(--muted); line-height: 1.5; }
 
   [data-kit='settings-group'] { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
   [data-kit='settings-group-head'] { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-6); }
@@ -46,8 +50,8 @@
   [data-kit='settings-group-description'] { margin: 0; font-size: var(--fs-sm); color: var(--muted); line-height: var(--lh-snug); }
   [data-kit='settings-group-actions'] { display: flex; align-items: center; gap: var(--space-2); flex: none; }
   [data-kit='settings-group-body'] {
-    display: flex; flex-direction: column; min-width: 0; padding: 0 var(--space-7);
-    border: var(--size-hairline) solid var(--line); border-radius: var(--radius-lg); background: var(--surface);
+    display: flex; flex-direction: column; min-width: 0; padding: 0;
+    border: var(--size-hairline) solid var(--line); border-radius: calc(var(--radius-lg) + var(--space-1)); background: var(--surface-2);
   }
 
   [data-kit='meter'] {
@@ -57,6 +61,8 @@
   [data-kit='meter-fill'] { position: absolute; inset: 0 auto 0 0; width: var(--k-v); border-radius: inherit; background: var(--k-tone); transition: width var(--dur-base) var(--ease); }
   [data-kit='meter-mark'] { position: absolute; top: calc(-1 * var(--space-1)); bottom: calc(-1 * var(--space-1)); left: var(--k-m); width: var(--size-ring); background: var(--ink-2); border-radius: var(--radius-pill); }
 
+  /* a choice in a settings row (v1 .sx-seg): the picked one in the accent */
+  [data-kit='settings-row'] [data-kit='tabs'][data-variant='pill'] [data-kit='tab'][data-selected] { color: var(--accent-ink); }
   [data-kit='setting-locked'] { display: block; margin-top: var(--space-1); color: var(--ink-2); }
 
   /* Narrow: the list, or a pane over it with Back. */
@@ -70,8 +76,8 @@
     [data-kit='settings-nav-item'][data-current] { background: transparent; box-shadow: none; }
     [data-kit='settings-nav-chevron'] { display: flex; }
     [data-kit='settings-up'] { display: flex; }
-    [data-kit='settings-main'] > [data-kit='bar'] { padding: 0 var(--space-3); }
-    [data-kit='settings-pane'] { padding: var(--space-6) var(--space-5) var(--space-9); gap: var(--space-7); }
-    [data-kit='settings-group-body'] { padding: 0 var(--space-5); }
+    [data-kit='settings-main'] > [data-kit='bar'] { min-height: var(--size-settings-head-phone); padding: var(--space-4); gap: var(--space-1); }
+    [data-kit='settings-pane'] { padding: 14px var(--space-7) var(--space-8); gap: 14px; }
+    [data-kit='settings-row'] { padding: 11px 14px; }
   }
 }

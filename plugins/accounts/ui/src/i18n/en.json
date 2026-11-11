@@ -59,5 +59,6 @@
   "accounts.tool.ready": "Ship it pushes branches and opens pull requests with it",
   "accounts.tool.missing": "Needed to ship a task's work",
   "accounts.ask.title": "Ask when a harness changes",
-  "accounts.ask.description": "When a harness's program is updated or moved, unattended runs wait for you to trust it"
+  "accounts.ask.description": "When a harness's program is updated or moved, unattended runs wait for you to trust it",
+  "accounts.pane.lede": "The harnesses wisp found on this machine. Pick one next to the model in the launcher."
 }

@@ -14,6 +14,8 @@ export interface Stat {
 
 export interface StatsProps extends KitProps {
   readonly items: readonly Stat[];
+  /** v1's tiles in a pane (.us-tiles: Settings → Usage): one row, the label over the value, quiet */
+  readonly compact?: boolean;
   /** Formats numbers; default: the reader's locale. */
   readonly format?: (value: number) => string;
 }
@@ -22,7 +24,7 @@ export function Stats(props: StatsProps): JSX.Element {
   const part = (): PartName => props.part ?? 'ui.stats';
   const shown = (v: string | number): string => (typeof v === 'number' ? (props.format ?? ((n) => n.toLocaleString()))(v) : v);
   return (
-    <dl id={props.id} data-kit="stats" data-part={part()}>
+    <dl id={props.id} data-kit="stats" data-part={part()} data-compact={props.compact ? '' : undefined}>
       <For each={props.items}>
         {(s) => (
           <div data-kit="stat" data-part={sub(part(), 'item')} data-tone={s.tone}>

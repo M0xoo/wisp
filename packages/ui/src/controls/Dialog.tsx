@@ -11,7 +11,7 @@ import { Icon } from '../content/Icon.tsx';
 import type { MenuTrigger } from './Menu.tsx';
 import { TriggerButton } from './trigger.tsx';
 
-export type DialogSize = 'sm' | 'md' | 'lg';
+export type DialogSize = 'sm' | 'md' | 'lg' | 'xl';
 
 export interface DialogProps extends KitProps, WithChildren, WithVars {
   readonly title: string;
@@ -23,7 +23,7 @@ export interface DialogProps extends KitProps, WithChildren, WithVars {
   readonly onOpenChange?: (open: boolean) => void;
   /** Or let the dialog render its own opening button. */
   readonly trigger?: MenuTrigger;
-  /** 400, 600 (default) or 800 wide. */
+  /** 400, 600 (default) or 800 wide; xl: v1's Settings modal, 900 × 680 (less on a short window) */
   readonly size?: DialogSize;
   /** `alertdialog` for a confirm that interrupts. */
   readonly role?: 'dialog' | 'alertdialog';
@@ -56,7 +56,7 @@ function Surface(props: DialogProps & { readonly kind: Kind; readonly api: dialo
   return (
     <Portal>
       <div {...props.api.getBackdropProps()} data-kit="backdrop" data-sheet={props.kind === 'sheet' ? '' : undefined} />
-      <div {...props.api.getPositionerProps()} data-kit="dialog-positioner" data-sheet={props.kind === 'sheet' ? '' : undefined}>
+      <div {...props.api.getPositionerProps()} data-kit="dialog-positioner" data-sheet={props.kind === 'sheet' ? '' : undefined} data-size={props.size ?? 'md'}>
         <div
           {...props.api.getContentProps()}
           data-kit={props.kind}

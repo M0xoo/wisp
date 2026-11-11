@@ -38,8 +38,11 @@
   }
   [data-kit='dialog'][data-size='sm'], [data-kit='sheet'][data-size='sm'] { --dialog-w: var(--size-dialog-sm); }
   [data-kit='dialog'][data-size='lg'], [data-kit='sheet'][data-size='lg'] { --dialog-w: var(--size-dialog-lg); }
+  [data-kit='dialog'][data-size='xl'] { --dialog-w: var(--size-dialog-xl); height: min(var(--size-dialog-xl-h), calc(100dvh - var(--space-8) * 2)); max-height: none; }
   /* bare: the content is the whole surface, its own head and close; the title is for screen readers only */
   [data-kit='dialog'][data-bare], [data-kit='sheet'][data-bare] { padding: 0; overflow: hidden; }
+  /* a bare dialog's content draws the whole box, its edge and corners included (v1's .modal.sx is the frame) */
+  [data-kit='dialog'][data-bare] { border: 0; background: transparent; }
   :is([data-kit='dialog'], [data-kit='sheet'])[data-bare] > [data-kit='dialog-head'] { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   [data-kit='dialog-head'] { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); margin-bottom: var(--space-6); }
   [data-kit='dialog-head'] > [data-kit='icon-button'] { margin-right: calc(-1 * var(--space-4)); }
@@ -58,6 +61,10 @@
     }
     [data-kit='sheet-handle'] { display: block; align-self: center; flex: none; width: var(--size-control-lg); height: var(--space-2); margin-bottom: var(--space-6); border-radius: var(--radius-pill); background: var(--line-2); }
     [data-kit='sheet'] [data-kit='dialog-foot'] > [data-kit='button'] { flex: 1 1 0; }
+    /* xl (Settings): the whole screen, as v1's settings on a phone; its own head has Back and close */
+    [data-kit='dialog-positioner'][data-sheet][data-size='xl'] { place-items: stretch; }
+    [data-kit='sheet'][data-size='xl'] { height: 100dvh; max-height: 100dvh; padding: 0 0 env(safe-area-inset-bottom, 0px); border: 0; border-radius: 0; animation: kit-rise var(--dur-slow) var(--ease); }
+    [data-kit='sheet'][data-size='xl'] > [data-kit='sheet-handle'] { display: none; }
   }
 
   /* Tabs: an underline (line) or a segmented control (pill). */

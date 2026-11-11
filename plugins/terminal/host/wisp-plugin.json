@@ -16,7 +16,9 @@
     "onStartup"
   ],
   "contributes": {
-    "events": ["terminal.changed"],
+    "events": [
+      "terminal.changed"
+    ],
     "commands": [
       {
         "id": "terminal.open",
@@ -43,6 +45,12 @@
         "id": "terminal.shell.info",
         "title": "The task's shell, for the panel",
         "readOnly": true
+      },
+      {
+        "id": "terminal.apps",
+        "title": "This computer's terminal apps",
+        "readOnly": true,
+        "uiOnly": "Settings → General's Take over in list for this computer; an agent has no use for it"
       }
     ]
   }

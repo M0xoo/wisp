@@ -50,6 +50,14 @@
     --size-hairline: 1px;
     --size-ring: 2px;
     --size-tests-ring: 76px;
+    --size-dialog-xl: 900px;
+    --size-dialog-xl-h: 680px;
+    --size-settings-nav: 200px;
+    --size-settings-nav-narrow: 172px;
+    --size-settings-head: 58px;
+    --size-settings-head-phone: 57px;
+    --size-map: 300px;
+    --size-preview: 640px;
     --size-dot: 6px;
     --size-dot-lg: 8px;
     --size-icon-xs: 11px;

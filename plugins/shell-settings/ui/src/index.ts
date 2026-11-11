@@ -46,7 +46,17 @@ export function settingsView(deps: FrameDeps): ViewDef<SettingsParams> {
     // its own head (the panes' list, the pane's title and close): the dialog draws none
     bare: true,
     parse: parseParams,
-    component: (p) => SettingsView({ client: p.client, params: p.params, deps }),
+    // getters, not a copy: the props stay live, so picking a pane (a new `params`) reaches the frame
+    component: (p) =>
+      SettingsView({
+        get client() {
+          return p.client;
+        },
+        get params() {
+          return p.params;
+        },
+        deps,
+      }),
     title: () => catalogue['shell-settings.title'] ?? 'Settings',
   };
 }

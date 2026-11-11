@@ -5,6 +5,7 @@ import { For, Show, createSignal, onCleanup, onMount, type JSX } from 'solid-js'
 import { flag } from '../core/props.ts';
 import { ActIcon, WithAct, type Act } from './act.tsx';
 import { Icon } from '../content/Icon.tsx';
+import { PromptSuggestList, dropHandlers, suggestKeyDown, type PromptSuggest } from '../composer/PromptSuggest.tsx';
 import type { IconName } from '../content/icons.ts';
 
 export interface TaskHeadProps {
@@ -373,6 +374,12 @@ export interface ReplyBoxProps {
   readonly value: string;
   readonly onInput: (v: string) => void;
   readonly onSend: () => void;
+  /** the @ and / menus: what the host offers for what's typed (over the box) */
+  readonly suggest?: PromptSuggest | undefined;
+  /** a paste into the box (files, a pasted task link): the host may take it */
+  readonly onPaste?: (e: ClipboardEvent) => void;
+  /** files dropped on the box (v1: anywhere on it); it lights up while they're over it */
+  readonly onFiles?: (files: File[]) => void;
   readonly inputRef?: (el: HTMLTextAreaElement) => void;
   readonly attach: string;
   readonly attachAct?: Act;
@@ -404,6 +411,7 @@ export function ReplyBox(props: ReplyBoxProps): JSX.Element {
   onMount(() => document.addEventListener('pointerdown', outside, true));
   onCleanup(() => document.removeEventListener('pointerdown', outside, true));
   const key = (e: KeyboardEvent): void => {
+    if (suggestKeyDown(props.suggest, e)) return;
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       props.onSend();
@@ -411,6 +419,7 @@ export function ReplyBox(props: ReplyBoxProps): JSX.Element {
   };
   // Send with nothing written: the box takes the caret and its placeholder lights up until you type
   const [nudge, setNudge] = createSignal(false);
+  const [over, setOver] = createSignal(false);
   let input: HTMLTextAreaElement | undefined;
   const send = (): void => {
     if (props.sendAct?.pending) return;
@@ -419,9 +428,19 @@ export function ReplyBox(props: ReplyBoxProps): JSX.Element {
     setNudge(true); // until the next key or the caret leaves
   };
   return (
-    <div data-nudge={flag(nudge())} data-kit="reply-box" data-part="composer" data-awake={flag(awake())} ref={(el) => (box = el)} onFocusIn={(e) => (e.target as HTMLElement).dataset['kit'] === 'reply' && setAwake(true)}>
+    <div
+      data-nudge={flag(nudge())}
+      data-kit="reply-box"
+      data-part="composer"
+      data-awake={flag(awake())}
+      data-drop={flag(over())}
+      ref={(el) => (box = el)}
+      onFocusIn={(e) => (e.target as HTMLElement).dataset['kit'] === 'reply' && setAwake(true)}
+      {...dropHandlers(() => props.onFiles, setOver)}
+    >
       <div data-kit="mn-wrap">
-        <textarea data-kit="reply" data-part="composer.input" rows="1" placeholder={props.placeholder} value={props.value} ref={(el) => ((input = el), props.inputRef?.(el))} onBlur={() => setNudge(false)} onInput={(e) => (setNudge(false), props.onInput(e.currentTarget.value))} onKeyDown={key} />
+        <PromptSuggestList suggest={props.suggest} place="above" />
+        <textarea data-kit="reply" data-part="composer.input" rows="1" placeholder={props.placeholder} value={props.value} ref={(el) => ((input = el), props.inputRef?.(el))} onBlur={() => setNudge(false)} onInput={(e) => (setNudge(false), props.onInput(e.currentTarget.value))} onKeyDown={key} onPaste={(e) => props.onPaste?.(e)} aria-activedescendant={props.suggest && props.suggest.items.length > 0 ? `${props.suggest.id}-o${props.suggest.active}` : undefined} />
       </div>
       <Show when={props.goalLine}>
         {(g) => (

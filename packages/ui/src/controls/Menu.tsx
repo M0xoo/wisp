@@ -13,6 +13,8 @@ import type { ButtonSize, ButtonVariant } from './Button.tsx';
 export interface MenuItem {
   readonly kind?: 'item';
   readonly value: string;
+  /** its own part name (a v1 part such as `topbar.settings`), instead of the menu's `<part>.item` */
+  readonly part?: PartName;
   readonly label: string;
   readonly icon?: IconName;
   /** A second line under the label. */
@@ -80,7 +82,7 @@ function Item(props: { readonly api: menu.Api; readonly item: MenuItem; readonly
     <div
       {...props.api.getItemProps({ value: props.item.value, disabled: props.item.disabled, valueText: props.item.label })}
       data-kit="menu-item"
-      data-part={sub(props.part, 'item')}
+      data-part={props.item.part ?? sub(props.part, 'item')}
       data-danger={flag(props.item.danger)}
       data-value={props.item.value}
     >

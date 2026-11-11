@@ -1,0 +1,20 @@
+{
+  "name": "@wisp-plugin/copilot-ui",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "How the screens name and mark Copilot (its harness lives in plugins/copilot/host).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@wisp/shell": "*"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

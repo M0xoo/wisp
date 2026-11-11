@@ -29,7 +29,7 @@ describe('SettingsFrame', () => {
     expect(part('settings.frame.nav')).not.toBeNull();
     expect(part('settings.frame.head')?.getAttribute('data-kit')).toBe('bar');
     expect(document.querySelectorAll('[data-part="settings.frame.item"]').length).toBe(3);
-    expect(document.querySelector('[aria-current="page"]')?.textContent).toContain('General');
+    expect(document.querySelector('[aria-selected="true"]')?.textContent).toContain('General');
     expect(document.querySelector('[data-kit="settings-nav-group-label"]')?.textContent).toBe('Agents');
   });
 

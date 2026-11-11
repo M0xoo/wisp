@@ -36,4 +36,12 @@
   [data-kit='file-chip'][data-status='uploading'] { color: var(--muted); }
   [data-kit='file-chip'][data-status='uploading'] > [data-kit='icon'] { animation: kit-pulse var(--dur-slower) var(--ease) infinite alternate; }
   [data-kit='file-chip'][data-status='failed'] { border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); color: var(--bad); }
+  /* the @ and / menus of a prompt box: over the reply box, under New task's (v1 .mention-menu) */
+  [data-kit='mn-wrap'], [data-kit='prompt-wrap'] { position: relative; }
+  [data-kit='prompt-suggest'] { position: absolute; left: 0; right: 0; z-index: var(--z-menu); max-width: var(--size-menu-max); }
+  [data-kit='prompt-suggest'][data-place='above'] { bottom: calc(100% + var(--space-3)); }
+  [data-kit='prompt-suggest'][data-place='below'] { top: calc(100% + var(--space-3)); }
+  [data-kit='prompt-suggest'] > [data-kit='menu'] { position: static; max-height: var(--size-sheet-max); overflow-y: auto; }
+  /* files over a prompt box: it says it takes them (v1 .composer.drop) */
+  [data-kit='reply-box'][data-drop], [data-kit='launcher'][data-drop] { outline: var(--size-ring) dashed var(--accent); outline-offset: var(--size-ring); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
 }

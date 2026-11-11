@@ -61,10 +61,10 @@ function NavItems(props: { readonly frame: SettingsFrameProps; readonly part: Pa
     nav.querySelector<HTMLElement>(`[data-pane="${CSS.escape(next)}"]`)?.focus();
   };
   return (
-    <div data-kit="settings-nav-list" onKeyDown={onKey}>
+    <div data-kit="settings-nav-list" role="tablist" aria-orientation="vertical" onKeyDown={onKey}>
       <For each={props.frame.groups}>
         {(g) => (
-          <div data-kit="settings-nav-group" data-part={sub(props.part, 'group')} data-group={g.id}>
+          <div data-kit="settings-nav-group" role="presentation" data-part={sub(props.part, 'group')} data-group={g.id}>
             <Show when={g.label}>{(l) => <span data-kit="settings-nav-group-label" data-text="control">{l()}</span>}</Show>
             <For each={g.items}>
               {(item) => (
@@ -73,7 +73,8 @@ function NavItems(props: { readonly frame: SettingsFrameProps; readonly part: Pa
                   data-kit="settings-nav-item"
                   data-part={sub(props.part, 'item')}
                   data-pane={item.id}
-                  aria-current={props.frame.current === item.id ? 'page' : undefined}
+                  role="tab"
+                  aria-selected={props.frame.current === item.id}
                   data-current={flag(props.frame.current === item.id)}
                   onClick={() => props.frame.onPick(item.id)}
                 >
