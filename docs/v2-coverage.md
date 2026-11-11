@@ -106,7 +106,7 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | route | `GET /recipes/:key` | `cmd:workflows.list` |
 | route | `GET /remote` | `cmd:channels.view` |
 | route | `GET /remote/discord/invite` | `todo:channels discord transport (invite link)` |
-| route | `GET /remote/slack/manifest` | `todo:channels slack transport (app manifest)` |
+| route | `GET /remote/slack/manifest` | `cmd:channels.extra` |
 | route | `GET /router` | `cmd:router.view` |
 | route | `GET /sandbox` | `cmd:grid-client.sandboxes` |
 | route | `GET /search` | `cmd:runtime.search` |
@@ -164,7 +164,7 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | route | `PATCH /projects/:id` | `kind:projects`, `cmd:runtime.projectRun`, `cmd:runtime.projectTest` |
 | route | `PATCH /recipes/:key` | `cmd:workflows.set` |
 | route | `PATCH /router` | `cmd:router.set` |
-| route | `PATCH /sessions/:id` | `cmd:runtime.rename`, `cmd:runtime.setState`, `cmd:runtime.archive`, `cmd:runtime.markRead`, `cmd:runtime.setMode` |
+| route | `PATCH /sessions/:id` | `cmd:runtime.rename`, `cmd:runtime.setState`, `cmd:runtime.archive`, `cmd:runtime.markRead`, `cmd:runtime.setMode`, `cmd:runtime.setLean` |
 | route | `PATCH /sessions/:id/goal` | `cmd:goal.pause`, `cmd:goal.resume` |
 | route | `PATCH /sessions/:id/later` | `cmd:later.edit` |
 | route | `PATCH /sessions/:id/queue` | `cmd:runtime.queue.edit`, `cmd:runtime.queue.order` |
@@ -173,13 +173,13 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | route | `PATCH /teams/:id` | `kind:teams` |
 | route | `PATCH /triggers/:id` | `cmd:automations.task.set` |
 | route | `POST /agents/:id/accounts` | `cmd:accounts.add` |
-| route | `POST /agents/:id/drain/dismiss` | `todo:limits drain dismiss (v1: hide the "plan drains early" card)` |
+| route | `POST /agents/:id/drain/dismiss` | `cmd:budget.dismissDrain` |
 | route | `POST /agents/:id/keys` | `cmd:accounts.keys.set` |
 | route | `POST /agents/:id/login` | `cmd:accounts.login.start` |
 | route | `POST /agents/:id/login/input` | `cmd:accounts.login.input` |
 | route | `POST /agents/:id/logout` | `cmd:accounts.logout` |
 | route | `POST /agents/:id/trust` | `cmd:accounts.watch.trust` |
-| route | `POST /agents/:id/windows/dismiss` | `todo:limits window notice dismiss (v1 defaults.windowNotice)` |
+| route | `POST /agents/:id/windows/dismiss` | `cmd:budget.dismissNotice` |
 | route | `POST /agents/install` | `cmd:accounts.install` |
 | route | `POST /agents/recheck` | `cmd:accounts.recheck` |
 | route | `POST /automations/pause` | `cmd:machine.automations.pause` |
@@ -384,22 +384,22 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | setting | `acceptChannels` | `setting:channels.acceptChannels` |
 | setting | `accounts` | `cmd:accounts.list` |
 | setting | `agent` | `kind:agents` |
-| setting | `apps` | `todo:setting apps (stuff: apps settings)` |
+| setting | `apps` | `setting:runtime.apps` |
 | setting | `autoStop` | `cmd:budget.setStop` |
 | setting | `automationsPausedUntil` | `cmd:machine.automations.pause` |
 | setting | `batteryHold` | `setting:machine.batteryHold` |
-| setting | `blocks` | `todo:setting blocks (answer block types turned off)` |
-| setting | `cloneDir` | `todo:setting cloneDir (where git.clone puts repos)` |
+| setting | `blocks` | `setting:runtime.blocks` |
+| setting | `cloneDir` | `setting:git.cloneDir` |
 | setting | `cpuCeiling` | `setting:machine.cpuCeiling` |
-| setting | `drainWatch` | `todo:setting drainWatch (limits: watch for a plan draining early)` |
+| setting | `drainWatch` | `setting:budget.drainWatch` |
 | setting | `editor` | `kind:ui` |
 | setting | `effort` | `kind:agents` |
 | setting | `fixConflicts` | `setting:ship.fixConflicts` |
-| setting | `followUp` | `todo:setting followUp (ship: follow the PR after shipping)` |
+| setting | `followUp` | `setting:runtime.followUp` |
 | setting | `goalJudges` | `kind:goal` |
 | setting | `goalVote` | `kind:goal` |
 | setting | `harnessAsk` | `cmd:accounts.watch.ask` |
-| setting | `leanRuns` | `todo:setting leanRuns` |
+| setting | `leanRuns` | `setting:runtime.leanRuns` |
 | setting | `learn` | `setting:learn.enabled` |
 | setting | `limitHold` | `todo:setting limitHold (hold a turn near the usage limit)` |
 | setting | `limitWait` | `todo:setting limitWait (wait for the reset)` |
@@ -417,7 +417,7 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | setting | `review` | `setting:review.harness` |
 | setting | `router` | `cmd:router.set` |
 | setting | `spareCard` | `ui:settings store (the spare task card)` |
-| setting | `subagentModel` | `todo:setting subagentModel` |
+| setting | `subagentModel` | `setting:runtime.subagentModel` |
 | setting | `subagents` | `todo:setting subagents` |
 | setting | `teamPreset` | `kind:teams` |
 | setting | `telemetry` | `cmd:telemetry.set` |
@@ -427,9 +427,9 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | setting | `theme` | `ui:settings store (light, dark, system)` |
 | setting | `transcript` | `ui:settings store (transcript density)` |
 | setting | `updateChannel` | `setting:update.updateChannel` |
-| setting | `watch` | `todo:setting watch (harness-watch: adopt outside sessions)` |
-| setting | `webhookTriggers` | `todo:setting webhookTriggers` |
-| setting | `windowNotice` | `todo:setting windowNotice` |
+| setting | `watch` | `setting:runtime.watch` |
+| setting | `webhookTriggers` | `setting:automations.webhookTriggers` |
+| setting | `windowNotice` | `setting:budget.windowNotice` |
 | setting | `worktree` | `kind:projects` |
 | setting | `worktreeCleanup` | `setting:worktrees.cleanup` |
 | setting | `worktreeMax` | `setting:worktrees.max` |
