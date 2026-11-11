@@ -105,7 +105,7 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | route | `GET /recipes` | `cmd:workflows.list` |
 | route | `GET /recipes/:key` | `cmd:workflows.list` |
 | route | `GET /remote` | `cmd:channels.view` |
-| route | `GET /remote/discord/invite` | `todo:channels discord transport (invite link)` |
+| route | `GET /remote/discord/invite` | `cmd:channels.extra` |
 | route | `GET /remote/slack/manifest` | `cmd:channels.extra` |
 | route | `GET /router` | `cmd:router.view` |
 | route | `GET /sandbox` | `cmd:grid-client.sandboxes` |
@@ -401,9 +401,9 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | setting | `harnessAsk` | `cmd:accounts.watch.ask` |
 | setting | `leanRuns` | `setting:runtime.leanRuns` |
 | setting | `learn` | `setting:learn.enabled` |
-| setting | `limitHold` | `todo:setting limitHold (hold a turn near the usage limit)` |
-| setting | `limitWait` | `todo:setting limitWait (wait for the reset)` |
-| setting | `liveLimits` | `todo:setting liveLimits` |
+| setting | `limitHold` | `setting:budget.limitHold` |
+| setting | `limitWait` | `setting:runtime.limitWait` |
+| setting | `liveLimits` | `setting:budget.liveLimits` |
 | setting | `maskEnvFiles` | `setting:git.maskEnvFiles` |
 | setting | `maxRuns` | `setting:machine.maxRuns` |
 | setting | `memoryFloor` | `setting:machine.memoryFloor` |
@@ -418,7 +418,7 @@ kept). `npm run check` (rule `v1-coverage`) reads this table: every v1 item has 
 | setting | `router` | `cmd:router.set` |
 | setting | `spareCard` | `ui:settings store (the spare task card)` |
 | setting | `subagentModel` | `setting:runtime.subagentModel` |
-| setting | `subagents` | `todo:setting subagents` |
+| setting | `subagents` | `setting:runtime.subagents` |
 | setting | `teamPreset` | `kind:teams` |
 | setting | `telemetry` | `cmd:telemetry.set` |
 | setting | `telemetryNotice` | `ui:settings store (the one-time usage-stats notice)` |
