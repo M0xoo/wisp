@@ -7,7 +7,7 @@ import { sideable, startSide } from './side.js';
 
 // A follow-up box's / menu: /side only where it can start one, /goal not on a side discussion.
 const slashFor = (s) => SLASH.filter((c) => (c.name !== 'side' || sideable(s)) && (c.name !== 'goal' || !s?.sideOf));
-import { editGoal, goalAction, paintReplyGoal, replyGoalHtml, setGoal, showGoal, takeReplyGoal, wireReplyGoal } from './goal.js';
+import { editGoal, goalAction, paintReplyGoal, replyGoalEmpty, replyGoalHtml, setGoal, showGoal, takeReplyGoal, wireReplyGoal } from './goal.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
 import { here, MOBILE, S, saveOpen } from '../core/state.js';
@@ -715,6 +715,8 @@ export async function sendReply(id, text, { confirm = false } = {}) {
     S.drafts.delete(id);
     return feedbackCommand(text, { sessionId: id, restore: () => ta?.isConnected && !ta.value && ((ta.value = text), ta.dispatchEvent(new Event('input'))) });
   }
+  // Goal opened but Done when left empty: ask before it goes without one (the draft stays put).
+  if (replyGoalEmpty(id, () => sendReply(id, text, { confirm }))) return;
   if (n?.tray?.busy) toast('Waiting for uploads…');
   const attachments = n?.tray ? await n.tray.ids() : [];
   const mode = S.replyModes.get(id);

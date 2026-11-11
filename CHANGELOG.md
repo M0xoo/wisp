@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **Goal on with an empty Done when no longer sends without asking.** Turning on Goal in New task or a task's reply box and pressing Send with Done when left empty used to start the task (or send the message) without a goal, so it stopped after one round. Now nothing goes: Done when gets the focus, your text stays, and a toast says the goal is empty, with **Send without a goal** to send it anyway. With Done when filled but nothing in New task's box, Send says *Say what to do first* instead of doing nothing.
+
 ## [0.58.0] - 2026-11-11
 
 ### Added

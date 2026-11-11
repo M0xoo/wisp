@@ -341,16 +341,24 @@ export function launcherGoal(box, ta) {
     if (on) return input.focus();
     btn.click();
   };
+  // Goal on with Done when empty: the launch waits, so a task meant to keep going doesn't start as
+  // a one-shot. The toast's Send without a goal turns Goal off and launches.
+  box.goalEmpty = () => {
+    if (!on || input.value.trim()) return false;
+    input.focus();
+    emptyGoalToast(() => {
+      on = false;
+      paint();
+      $('#launch', box).click();
+    });
+    return true;
+  };
   // What the launch sends: { text }, or nothing. Taking it clears the line and turns Goal off for
   // the next prompt (both back on failure).
   box.goal = () => {
     if (!on) return null;
     const text = input.value.trim();
-    if (!text) {
-      toast(`${icon('target')} No goal: Done when is empty`);
-      return null;
-    }
-    return { text, ...(judges.length && { judges, vote }) };
+    return text ? { text, ...(judges.length && { judges, vote }) } : null;
   };
   box.goalTaken = (goal) => {
     if (!goal) return () => {};
@@ -438,6 +446,27 @@ export function paintReplyGoal(id) {
   line.hidden = !open;
   comp.classList.toggle('g-on', open);
   $('.lg-keys', line).textContent = $('.reply', comp).value.trim() ? 'Sent with your message' : 'Enter sets it';
+}
+
+// Send with the Done when line open and empty: nothing goes, the line gets the focus, and the
+// toast offers to send without a goal (it closes the line and sends).
+export function replyGoalEmpty(id, send) {
+  if (!lineOpen.has(id)) return false;
+  const comp = $('.composer', S.nodes.get(id)?.card);
+  const input = comp && $('.c-goal-line input', comp);
+  if (!input || input.value.trim()) return false;
+  input.focus();
+  emptyGoalToast(() => {
+    openReplyGoal(id, false);
+    send();
+  });
+  return true;
+}
+
+function emptyGoalToast(sendAnyway) {
+  toast(`${icon('target')} Done when is empty`, {
+    action: { label: 'Send without a goal', run: sendAnyway },
+  });
 }
 
 // What Send takes with the message: { text } while the line is open and filled, or null. Taking it
