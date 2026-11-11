@@ -1,5 +1,10 @@
 # v2 build queue (code first, verify later)
 
+**Bug seen in round 14's PNG (2026-11-11):** a toast says "unknown command terminal.apps (is its plugin off?)" on Settings
+open. `terminal.apps` is listed (ui-only) but no server handles it at runtime. Serve it (list the terminal apps
+installed on this computer). The ui-commands rule should have caught this, so check why it didn't (does a ui-only listing
+skip the host check?), and make the rule catch it.
+
 **One coder from here (2026-11-11). backend-coder's leftovers join the queue, after the UI items:**
 - From backend round 7:
   - the plugins install path (an ADR first: a plugin source at runtime, through the kernel's exec host, per
