@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Try it two ways is no longer a button in the prompt box's bar.** It did what **+** already does: with Claude Code picked, add a run with **+** and set it to Claude Code too: its picker has the *What's different* group, Subagents and Skills, as before; Compare still says what differed. Spells that name `launcher.tryTwo` still load, with a warning.
+
 ### Fixed
 
 - **Goal on with an empty Done when no longer sends without asking.** Turning on Goal in New task or a task's reply box and pressing Send with Done when left empty used to start the task (or send the message) without a goal, so it stopped after one round. Now nothing goes: Done when gets the focus, your text stays, and a toast says the goal is empty, with **Send without a goal** to send it anyway. With Done when filled but nothing in New task's box, Send says *Say what to do first* instead of doing nothing.
