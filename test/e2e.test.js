@@ -661,6 +661,17 @@ test('claude: a refused call gets an Allow & retry card; the retry allows exactl
   assert.equal(twice.status, 409);
 });
 
+test('claude in Full auto: what its own safety check still refused gets no Allow & retry, only a note', async () => {
+  const s = await api('/sessions', { prompt: 'BLOCKED SAFETY publish it', cwd: makeRepo(), agent: 'claude', mode: 'auto' });
+  const done = await settled(s.id, 1);
+  const turn = done.turns[0];
+  assert.ok(!turn.blocked, 'nothing to allow: the run already allowed everything wisp can');
+  assert.deepEqual(turn.presentation.blocks.map((b) => b.type), ['hero', 'blocked'], 'the card still says what was refused');
+  assert.deepEqual(turn.presentation.blocks[1].items, [{ tool: 'Bash', detail: 'npm publish' }]);
+  const r = await fetch(`${base}/api/sessions/${s.id}/approve`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ turnId: turn.id }) });
+  assert.equal(r.status, 404);
+});
+
 test('claude: Allow & retry works while the CLI is still exiting after its result', async () => {
   process.env.FAKE_LINGER = '2000'; // under the 3 s linger, so the run is still live when we approve
   try {
