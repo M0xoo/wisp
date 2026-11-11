@@ -236,3 +236,33 @@ mod tests {
         assert!(!same_repo("not a repo", "not a repo"));
     }
 }
+
+/// Where people keep their repos (v1 services/places.js `REPO_ROOTS`, without Documents, Downloads, Desktop).
+pub const REPO_ROOTS: [&str; 11] = ["code", "Code", "dev", "Developer", "projects", "Projects", "src", "repos", "work", "git", "GitHub"];
+
+/// Where a pasted repo URL is cloned (v1 `cloneRoot`): `git.cloneDir` (`~/` is home), else the first of the usual
+/// repo folders that is there, else `~/code`. `is_dir` asks the file system (sans-IO here).
+pub fn clone_root(setting: Option<&str>, home: &str, is_dir: impl Fn(&str) -> bool) -> String {
+    let home = home.trim_end_matches('/');
+    if let Some(d) = setting.map(str::trim).filter(|d| !d.is_empty()) {
+        return match d.strip_prefix("~") {
+            Some(rest) if rest.is_empty() || rest.starts_with('/') => format!("{home}{rest}"),
+            _ => d.to_owned(),
+        };
+    }
+    REPO_ROOTS.iter().map(|r| format!("{home}/{r}")).find(|d| is_dir(d)).unwrap_or_else(|| format!("{home}/code"))
+}
+
+#[cfg(test)]
+mod clone_root_tests {
+    use super::*;
+
+    #[test]
+    fn a_repo_is_cloned_where_settings_say_else_the_first_usual_folder_else_code() {
+        assert_eq!(clone_root(Some("~/src/oss"), "/Users/a", |_| false), "/Users/a/src/oss");
+        assert_eq!(clone_root(Some("/data/repos"), "/Users/a", |_| false), "/data/repos");
+        assert_eq!(clone_root(Some(" "), "/Users/a", |d| d == "/Users/a/Developer"), "/Users/a/Developer");
+        assert_eq!(clone_root(None, "/Users/a/", |d| d == "/Users/a/dev" || d == "/Users/a/work"), "/Users/a/dev", "in v1's order");
+        assert_eq!(clone_root(None, "/Users/a", |_| false), "/Users/a/code");
+    }
+}

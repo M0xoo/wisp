@@ -288,6 +288,8 @@ pub struct Synced {
 #[serde(rename_all = "camelCase")]
 pub struct CloneRequest {
     pub url: String,
+    /// the folder it goes in; '' (or left out): `git.cloneDir`, else the usual repo folder (additive, 2026-11-11)
+    #[serde(default)]
     pub parent: String,
 }
 

@@ -23,6 +23,9 @@
   "requires": {},
   "provides": {},
   "contributes": {
+    "settings": [
+      { "key": "automations.webhookTriggers", "type": "bool", "default": false, "title": "Webhook triggers: other services may start this computer's webhook triggers (POST /api/triggers/<name> with its secret)" }
+    ],
     "events": ["automations.changed", {"type": "trigger.fired", "durable": true}],
     "commands": [
       {

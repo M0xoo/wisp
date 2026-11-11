@@ -77,6 +77,10 @@ pub fn same(a: &str, b: &str) -> bool {
     bool::from(a.as_bytes().ct_eq(other)) && eq_len
 }
 
+/// v1 hooks.js:152: inbound webhooks are off until switched on at this computer (Settings → Automations); off,
+/// every webhook answers the same 404 as one that isn't there.
+pub const WEBHOOKS: &str = "automations.webhookTriggers";
+
 /// What a webhook call gets, before it reaches the engine: 413 over the cap; the same 404 for a wrong or
 /// missing secret, an unknown or off trigger, and one with no secret (an open route: the secret is the only key).
 pub fn webhook_verdict(body_len: usize, want: Option<&str>, given: &str) -> Option<u16> {
@@ -96,6 +100,9 @@ fn answer(status: u16, body: Value) -> wisp_kernel::http::Response {
 /// `POST /api/triggers/:name`: the body is the event's payload (JSON, or `{text}`); `x-wisp-delivery` or
 /// `x-github-delivery` is its dedupe key.
 async fn webhook(ctx: Ctx, engine: Shared, req: wisp_kernel::http::Request) -> Result<wisp_kernel::http::Response> {
+    if ctx.setting(WEBHOOKS).and_then(|v| v.as_bool()) != Some(true) {
+        return Ok(answer(404, json!({ "error": "no such trigger" })));
+    }
     let name = req.param("name").unwrap_or_default().to_owned();
     let t = engine.all(&ctx).into_iter().find(|t| t.name == name && t.spec.on == "webhook" && t.spec.on());
     let want = match &t {

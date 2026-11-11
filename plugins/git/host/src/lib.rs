@@ -23,6 +23,9 @@ use wisp_kernel::{Manifest, Plugin, Result, Setup, WireError};
 use wisp_proc::Proc;
 
 pub use error::GitError;
+
+/// Where a repo is cloned when no folder is named (v1 `defaults.cloneDir`).
+pub const CLONE_DIR: &str = "git.cloneDir";
 pub use repo::RepoImpl;
 pub use service::{GitServiceImpl, Service};
 pub use shared::Now;
@@ -112,9 +115,17 @@ impl Plugin for GitPlugin {
         });
         checkpoint::register(s, &svc);
         let sv = Service(svc);
-        s.command::<CloneCmd, _, _>(move |_ctx, call, a| {
+        s.command::<CloneCmd, _, _>(move |ctx, call, mut a| {
             let sv = sv.clone();
-            async move { wisp_git_api::GitService::clone_repo(&sv, &call, a).await }
+            async move {
+                // no folder named: where Settings → Projects → clone into says (v1 defaults.cloneDir)
+                if a.parent.trim().is_empty() {
+                    let home = std::env::var("HOME").unwrap_or_default();
+                    let set = ctx.setting(CLONE_DIR);
+                    a.parent = wisp_git_core::repo_url::clone_root(set.as_ref().and_then(|v| v.as_str()), &home, |d| std::path::Path::new(d).is_dir());
+                }
+                wisp_git_api::GitService::clone_repo(&sv, &call, a).await
+            }
         });
         Ok(())
     }

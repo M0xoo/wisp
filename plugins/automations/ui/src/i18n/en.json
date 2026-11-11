@@ -1,6 +1,5 @@
 {
   "automations.pane": "Automations",
-  "automations.lede": "Saved prompts, and the triggers that launch them for you.",
   "automations.recipes": "Recipes",
   "automations.recipes.description": "Prompts you run often, with their project and agent",
   "automations.recipes.none": "Save a prompt you run often",
@@ -14,5 +13,13 @@
   "automations.run": "Run now",
   "automations.fire": "Run now",
   "automations.remove": "Remove",
-  "automations.none": "None yet"
+  "automations.none": "None yet",
+  "automations.pane.lede": "Saved prompts, and the triggers that launch them for you.",
+  "automations.manage": "Manage",
+  "automations.back": "Automations",
+  "automations.triggers.short": "run a recipe on a schedule, CI failure or new issue",
+  "automations.summary.more": "{names} and {n} more",
+  "automations.webhooks": "Webhook triggers",
+  "automations.webhooks.description": "Lets Slack, Linear or any service start a task by calling a trigger’s secret URL. Off: those URLs refuse every call",
+  "automations.locked": "Set by {by}"
 }

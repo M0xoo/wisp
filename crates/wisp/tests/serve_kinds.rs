@@ -303,6 +303,8 @@ async fn a_webhook_trigger_starts_its_task_only_with_its_secret() {
         }
         r.send()
     };
+    assert_eq!(post(Some("s3cret-hook-value")).await.unwrap().status().as_u16(), 404, "webhooks are off until switched on here (v1 defaults.webhookTriggers)");
+    api.cmd("settings.set", json!({ "key": "automations.webhookTriggers", "value": true })).await;
     assert_eq!(post(None).await.unwrap().status().as_u16(), 404, "no secret: nothing");
     assert_eq!(post(Some("wrong")).await.unwrap().status().as_u16(), 404, "a wrong one: the same");
     assert!(api.cmd("runtime.list", json!({})).await.as_array().unwrap().is_empty());
