@@ -9,7 +9,8 @@
     "builtin": "wisp-plugins"
   },
   "permissions": [
-    "plugins:manage"
+    "plugins:manage",
+    "proc:exec{bin:git}"
   ],
   "activation": [
     "onStartup"
@@ -24,6 +25,14 @@
       {
         "id": "plugins.setEnabled",
         "title": "Switch a plugin on or off"
+      },
+      {
+        "id": "plugins.install",
+        "title": "Install a plugin of yours from a folder or a git URL (off until you switch it on)"
+      },
+      {
+        "id": "plugins.uninstall",
+        "title": "Remove a plugin you installed"
       }
     ]
   }

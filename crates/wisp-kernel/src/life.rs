@@ -425,6 +425,65 @@ pub(crate) fn set_enabled(
     })
 }
 
+/// ADR-0046: a plugin added while the kernel runs (a user's install). It's validated first and starts **off**:
+/// switching it on (`set_enabled`) is the consent to the permissions it asks for.
+pub(crate) fn add(k: Arc<KernelState>, plugin: Arc<dyn Plugin>) -> BoxFuture<'static, Result<()>> {
+    Box::pin(async move {
+        let m = plugin.manifest();
+        m.validate()?;
+        {
+            let mut ps = k.lock_plugins()?;
+            if ps.slot(&m.id).is_some() {
+                return Err(WireError::conflict(format!("{} is already here: uninstall it first", m.id)));
+            }
+            k.caps.define(&crate::caps::plugin_set(&m.id, &m.permissions));
+            ps.off.insert(m.id.clone(), format!("{} is installed, not switched on yet", m.id));
+            let b = builtin(&m);
+            ps.slots.push(Slot {
+                manifest: m,
+                plugin,
+                builtin: b,
+                phase: Phase::Resolved,
+                reason: None,
+                scope: None,
+                ctx: None,
+                ready: Arc::new(Notify::new()),
+                crashes: 0,
+                scheduled: false,
+            });
+        }
+        reconcile(&k).await;
+        Ok(())
+    })
+}
+
+/// ADR-0046: a user's plugin taken out while the kernel runs: switched off (everything it registered goes with
+/// it), then its slot dropped. Only `user.` plugins: a built-in can be switched off, never removed.
+pub(crate) fn remove(k: Arc<KernelState>, id: String) -> BoxFuture<'static, Result<()>> {
+    Box::pin(async move {
+        if !id.starts_with("user.") {
+            return Err(WireError::forbidden(format!("{id} is built in: switch it off instead")));
+        }
+        {
+            let mut ps = k.lock_plugins()?;
+            if ps.slot(&id).is_none() {
+                return Err(WireError::not_found(format!("no plugin {id}")));
+            }
+            ps.off.insert(id.clone(), format!("{id} is being uninstalled"));
+        }
+        reconcile(&k).await;
+        {
+            let mut ps = k.lock_plugins()?;
+            ps.slots.retain(|s| s.manifest.id != id);
+            ps.off.remove(&id);
+            ps.failed.remove(&id);
+        }
+        k.caps.remove(&crate::caps::plugin_set(&id, &[]).id);
+        reconcile(&k).await;
+        Ok(())
+    })
+}
+
 /// A plugin's process died (exec tier): off with the reason, then back on after a backoff
 /// (`base_ms` doubling), until `max` restarts.
 pub(crate) fn crashed(k: &Arc<KernelState>, id: &str, why: &str, base_ms: u64, max: u32) {

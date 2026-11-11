@@ -64,22 +64,37 @@ impl ResourceKind for PluginKind {
 
 async fn put_back(ctx: &Ctx, inner: &StoredKind) {
     for (name, spec) in inner.specs().await.unwrap_or_default() {
-        if enabled(&spec) == Some(false)
-            && let Err(e) = ctx.set_plugin_enabled(&name, false).await
+        // a user's plugin starts off (ADR-0046): the ones you switched on come back on
+        let on = enabled(&spec);
+        let want = if name.starts_with("user.") { on.filter(|x| *x) } else { on.filter(|x| !*x) };
+        if let Some(on) = want
+            && let Err(e) = ctx.set_plugin_enabled(&name, on).await
         {
-            tracing::warn!(plugin = %name, "not switched off: {}", e.message);
+            tracing::warn!(plugin = %name, "not switched {}: {}", if on { "on" } else { "off" }, e.message);
         }
     }
 }
 
-pub fn register(s: &mut Setup) {
+/// A user's plugin switched on or off (ADR-0046) is kept as its `plugin` resource, so it comes back that way.
+pub async fn remember(inner: &StoredKind, call: &Call, id: &str, on: bool) -> Result<()> {
+    if !id.starts_with("user.") {
+        return Ok(());
+    }
+    let had = inner.specs().await?.into_iter().any(|(n, _)| n == id);
+    let op = Op { op: if had { OpKind::Update } else { OpKind::Create }, kind: "plugin".into(), name: id.to_owned(), spec: serde_json::json!({ "enabled": on }), id: None, changes: Vec::new(), before: None };
+    inner.apply(call, &op).await
+}
+
+pub fn register(s: &mut Setup) -> Arc<StoredKind> {
     let inner = Arc::new(StoredKind::new(KindInfo::new("plugin", "plugins", "wisp.plugins", schema_of::<PluginSpec>()).order(2).sensitive(), s.ctx()));
     let k: Arc<dyn ResourceKind> = Arc::new(PluginKind(inner.clone()));
     s.contribute(&RESOURCE_KIND, k);
+    let back = inner.clone();
     s.on_start(move |ctx| async move {
-        put_back(&ctx, &inner).await;
+        put_back(&ctx, &back).await;
         Ok(())
     });
+    inner
 }
 
 #[cfg(test)]

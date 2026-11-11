@@ -429,6 +429,18 @@ impl Ctx {
         let id = id.to_owned();
         Box::pin(async move { crate::life::set_enabled(k?, id, on).await })
     }
+    /// ADR-0046: adds a plugin while wisp runs (a user's install), off until switched on. Needs `plugins:manage`.
+    /// Additive (2026-11-11).
+    pub fn install_plugin(&self, plugin: Arc<dyn Plugin>) -> crate::BoxFuture<'static, Result<()>> {
+        let k = if self.may("plugins:manage") { self.k() } else { Err(WireError::forbidden(format!("{} doesn't declare plugins:manage", self.plugin()))) };
+        Box::pin(async move { crate::life::add(k?, plugin).await })
+    }
+    /// ADR-0046: takes a `user.` plugin out (off, then gone). Needs `plugins:manage`. Additive (2026-11-11).
+    pub fn uninstall_plugin(&self, id: &str) -> crate::BoxFuture<'static, Result<()>> {
+        let k = if self.may("plugins:manage") { self.k() } else { Err(WireError::forbidden(format!("{} doesn't declare plugins:manage", self.plugin()))) };
+        let id = id.to_owned();
+        Box::pin(async move { crate::life::remove(k?, id).await })
+    }
     /// The plugin's own capability set allows `permission`? (its manifest's permissions)
     pub fn may(&self, permission: &str) -> bool {
         crate::perm::parse(permission).is_some_and(|p| {
