@@ -610,3 +610,68 @@ editor (Edit…, Wakes), and the backend leftovers: the plugins install path (AD
 Discord's /wisp, one turn per Slack thread, a PR following its branch's task, email attachments, the serve_budget
 e2e, `wisp sdk types`, v1 sync #771–#774. automations' own sources (schedule, once) declare no field schema, so the
 editor shows no cron field for them.
+
+## Round 16 (2026-11-11): terminal.apps, the crew editor and answers, Repo, Setup, plugins install, the leftovers
+
+**terminal.apps.** Served (`apps_here`: the apps `terminals_here` finds, the default first; test
+`settings_lists_this_computers_terminal_apps_and_only_in_wisp_on_a_grid_box`). Why ui-commands missed it: the api
+crate named the id, and the rule counted that as handled. It now wants the id or its type named in a host, core or
+crate (not an api crate): "declares it but nothing registers a handler" (test in `tools/check/test/ui-commands.test.ts`).
+
+**The crew editor (F-crew-1).** `crew.editor` dialog (`CrewEditor.tsx`, `editor.ts`): name, role, brief, checks in, jobs
+at once, harness (Auto), mode, folder, and Wakes (ADR-0043: `{on, match}` trigger specs; "After X reports" first, then
+every source but manual/schedule/once). Edit… on the page's ⋯ and side, + on the rail. Found: the crew view ids were
+`wisp.crew.*`, which the client refuses, and that silently unregistered all of crew-ui (now `crew.*`); member rows
+keep their fields in `body` (`memberOf`, shell `flatRow`). Tests `the_crew_editor_saves_only_what_changed_…`,
+`a_crew_member_row_reads_its_fields_from_its_body_…`. Seen in Chrome: a role and a hand-off wake kept across a reload.
+
+**Crew answers in a task (crew.ask, crew.reply).** A reply that starts with `@member` is for them (v1 crew.js
+`replyIn`): `crew.ask` keeps a `CrewAnswer` on the asking turn (crew's own `turn.ext["wisp.crew"].answers`), gives the
+member a job whose `reply` points at it, and the job's report fills the answer in. `crew.reply` threads your reply
+right after the thread's last entry and follows up the same job, `reply` now pointing at the new entry. UI: the
+shell contract's `PromptSourceDef.send` (additive: a source may take a reply instead of the task's agent), crew-ui's
+`wisp.crew.ask` source, and `Answers.tsx` on `shell.turn:foot` (who, what you asked, the answer, Reply). Tests: core
+`a_reply_to_a_members_answer_lands_right_under_its_thread_and_carries_on_the_same_job`, crew-ui
+`a_reply_starting_with_crew_members_goes_to_them_and_their_answers_read_back_from_the_turn`. Seen in Chrome at 1440
+light and 390 dark: `@Reviewer is this ready to merge?` answered under its turn, Reply threaded and answered by the same
+job. Found there: a turn's `text` carries the ```` ```wisp ```` JSON, so the answer is the prose ahead of it (or the
+hero's title and summary): `answer_text`.
+
+**The Repo tab.** `history.list` / `history.report` (ADR-0033), `plugins/history/ui`: Tasks · Repo tabs, the project
+picker (from `resources.export {kinds:[project]}`), filter (words or a path), rows by month, the read-only report,
+Resume (a fork that carries on). Test `the_repo_tab_lists_the_repos_tracked_tasks_newest_first_with_the_clis_filters`.
+
+**Settings → Setup, Share setup, Import.** `resources.read` (a pasted formula, includes refused) and `resources.write`;
+`plugins/resources/ui` `Setup.tsx`: counts per kind, Share setup (the formula as `wisp.yml`, Copy), Import (the plan
+as cards, each ticked, problems/secrets/trust callouts, Apply). Test
+`a_pasted_formula_reads_as_its_resources_and_refuses_an_include`. Seen in Chrome (the plan caught a wake loop).
+
+**Plugins installed at runtime (ADR-0046).** Kernel `life::add`/`remove`, `Ctx::install_plugin`/`uninstall_plugin`
+(plugins:manage). `plugins.install {source}` (a folder copied, or `git clone --depth 1` through proc; validated in a
+staging folder; the same id replaced only after the new one checks out) and `plugins.uninstall`; `wisp serve` loads
+`~/.wisp/plugins/*` off at start, and a switch on a `user.` plugin is kept as its `plugin` resource so it comes back
+on. Tests: `crates/wisp-kernel/tests/kernel_install.rs` (3), `plugins/plugins/host/tests/install.rs` (3, with
+`user_plugins_load_at_start`), `plugin_kind`'s still passes.
+
+**Leftovers.**
+- One turn at a time per Slack thread (`turns.rs`, messages, clicks and grid-held events; test
+  `one_turn_at_a_time_per_slack_thread_side_by_side_across_threads`).
+- A PR with no task of its own follows the newest lead task on its head branch (`gh pr view --json headRefName`;
+  `SessionView.branch`, `created_at` additive; test `a_pr_with_no_task_of_its_own_follows_the_newest_lead_task_on_its_branch`).
+- The serve_budget e2e for Ask near the limit (`a_run_that_would_take_the_window_past_your_line_is_asked_about_and_a_yes_goes`:
+  learned from three runs, refused turn with wisp's words, a yes runs, a crew job held as `ask`).
+- `wisp sdk types ts|py [FILE]` (cli-core `sdk::types`, the SDKs' text byte for byte; test
+  `sdk_types_are_what_the_sdks_generate_from_the_catalogue`).
+- v1 sync: #771 (tryTwo gone), #773 (Back from a subagent opens its lead), #774 (test
+  `a_leads_page_gets_none_of_its_subagents_turns`).
+
+**Left:**
+- Terminal tasks (`terminalSessions`: a task in the harness's own CLI in a PTY, follow-ups typed into it, its turns read back
+  from the CLI's session files).
+- Discord's `/wisp` (registration, autocomplete), buttons, box interactions, REST rate-limit buckets.
+- Email attachments (the grid's MIME only counts them; an upload from bytes and `StartOpts`/`RunOpts` files are needed).
+- #772: project order and drag. It needs the `project` rows published to the UI first: nothing watches
+  `plugin:wisp.resources:specs`, so project chips and Home's projects are empty on a real server.
+- The blame gutter: the GUI has no file view to put it in (`wisp blame` works in the CLI).
+- A Plugins pane with Install… and Remove, and `wisp plugin install` (the command is there, MCP- and CLI-reachable
+  through the catalogue).

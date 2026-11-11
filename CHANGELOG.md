@@ -7,6 +7,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Edit a crew member.** Edit… on a member's page (and + on the rail) opens their editor: name, role, brief, how often they check in, jobs at once, harness, mode, folder, and Wakes: what else starts their jobs (another member reporting, a PR, a channel message…).
+- **The Repo tab.** Beside Tasks, a project's committed agent history from everyone who worked on it, grouped by month and filtered by words or a path; a row opens its report, and Resume carries on from there on today's code.
+- **Settings → Setup.** What's set up here (crew, agents, workflows, triggers… with counts), Share setup (the whole setup or some kinds, as `wisp.yml`, to copy), and Import: paste a formula, see what it adds, changes and removes, untick what you don't want, then Apply.
+- **Ask a crew member in a task.** A reply that starts with `@Ada` goes to Ada, not the task's agent: it's her job, and her answer shows under that message. Reply to it there and the same job carries on, its next answer right under yours.
+- **`wisp sdk types ts|py [FILE]`** writes the typed commands of the running wisp for the TypeScript or Python SDK, the same text `generateTypes()` and `generate_stubs()` make.
+- **A PR comment follows its branch's task.** `/wisp …` on a PR with no task of its own goes to the newest task working on that PR's branch in the project.
+- **Install a plugin while wisp runs** (`plugins.install`, ADR-0046): from a folder or a git URL into `~/.wisp/plugins`. It starts off and says what it asks for; switching it on is the consent, and it stays on across restarts. `plugins.uninstall` removes it.
+
 - **A crew member's page.** Picking a face on the rail opens their thread: every job oldest first (quiet check-ins folded into one line), what they're doing in the head, Pause or Resume, Check in now, their notebook and brief (edit them in place), and a box to give them a job. The list beside it holds only their jobs.
 - **The grid's own pages.** Signed in at your grid's address: home (your cloud wisp, your computers, your published apps) and your account (signed-in devices, how you sign in, sign out, delete), with every button working. When the grid routes Telegram, the account page has the form to connect your bot and say who may send.
 - **A new trigger from the app.** Automations → Triggers → New trigger: pick what starts it from every source the plugins offer, grouped by plugin, fill in that source's fields and the prompt. Test on the last 5 events shows what it would have done.
@@ -59,6 +67,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **v2 looks like wisp today, and answers every press at once.** The v2 app's frame (the crew rail, the list and its head, Home's prompt box, an open task with its details, overlaps and reply box) is drawn from v1's own values at every width from phone to desktop, and in the Mac app's title-bar mode, checked against screenshots of v1 by `qa/parity.mjs`. Every control in those screens now does something you see in the same frame: picking a mode, agent, when to start or who to delegate to changes its label, Worktree and Goal flip, a new task and a follow-up show at once (*Starting…*), Rerun and Fork open their new task straight away, Ship it and Restore show their button working, and a refused action rolls back with a note saying why (`qa/feedback.mjs`). Plugins' top-bar, row and task-head extensions show in the new frame again.
 
 ### Fixed
+
+- Settings no longer shows "unknown command terminal.apps": the terminal apps on this computer are listed, and `npm run check` now catches a command the UI calls that no plugin handles.
+- Menus and selects inside a dialog open in front of it.
+- Slack answers one message at a time per thread (two quick messages, or a click right after one, no longer race), while other threads go on side by side.
+- Leaving a subagent's page goes back to its lead's task.
 
 - **Settings kept after a reload.** Your settings were saved but every pane read them from a place the server never filled, so after a reload Settings showed the defaults. They now read back as you left them, including what another plugin pins.
 - **wisp serve started without its tasks.** One setting's choices listed an empty value, so the task runner and every harness were refused at start.

@@ -1,5 +1,14 @@
 # v2 build queue (code first, verify later)
 
+**Left after round 16 (2026-11-11), in this order:** publish the `project` rows to the UI (nothing watches
+`plugin:wisp.resources:specs`: project chips and Home's projects are empty on a real server), then #772 (project order
+and drag); terminal tasks (`terminalSessions`); Discord's `/wisp`, buttons, box interactions and REST rate-limit
+buckets; email attachments (grid MIME parts, an upload from bytes, files on `StartOpts`/`RunOpts`); a Plugins pane
+(Install…, Remove) and `wisp plugin install`; the blame gutter once the GUI has a file view.
+
+**Done in round 16:** terminal.apps (below), the plugins install path (ADR-0046), crew.reply, one turn per Slack thread,
+a PR following its branch's task, the serve_budget e2e, `wisp sdk types`.
+
 **Bug seen in round 14's PNG (2026-11-11):** a toast says "unknown command terminal.apps (is its plugin off?)" on Settings
 open. `terminal.apps` is listed (ui-only) but no server handles it at runtime. Serve it (list the terminal apps
 installed on this computer). The ui-commands rule should have caught this, so check why it didn't (does a ui-only listing
