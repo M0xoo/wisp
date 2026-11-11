@@ -95,7 +95,16 @@ export function usePrompt(o: PromptOptions): Prompt {
     return items.length ? { kind: 'mention', start: q.start, items } : undefined;
   });
   // a new list starts at its first row
-  createEffect(on(() => menu()?.items.map((i) => i.value).join('\n'), () => setActive(0), { defer: true }));
+  createEffect(
+    on(
+      () =>
+        menu()
+          ?.items.map((i) => i.value)
+          .join('\n'),
+      () => setActive(0),
+      { defer: true },
+    ),
+  );
 
   function pick(value: string): void {
     const m = menu();
@@ -117,7 +126,7 @@ export function usePrompt(o: PromptOptions): Prompt {
     const m = menu();
     if (!m) return false;
     const k = suggestKey(e, m.items.length, active());
-    if (!k) return false;
+    if (!k || k.t === 'open') return false;
     // Enter on a bare command typed out in full sends it (/goal, /feedback): v1 SL
     if (k.t === 'pick' && e.key === 'Enter' && m.kind === 'slash') {
       const exact = o.slash().find((c) => `/${c.name}` === shown().trim());
@@ -236,5 +245,4 @@ export function usePrompt(o: PromptOptions): Prompt {
 }
 
 /** The textarea's combobox wiring for the open menu. */
-export const listboxOf = (p: Prompt, id: string): { id: string; active: string } | undefined =>
-  p.menu() ? { id, active: optionId(id, p.active()) } : undefined;
+export const listboxOf = (p: Prompt, id: string): { id: string; active: string } | undefined => (p.menu() ? { id, active: optionId(id, p.active()) } : undefined);

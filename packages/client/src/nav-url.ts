@@ -38,6 +38,7 @@ export function encodeNav(nav: Omit<Nav, 'layout'>): string {
   const s = nav.side;
   if (s.kind === 'view') q.set('side', `view:${s.id}`);
   else if (s.kind !== 'none') q.set('side', `${s.kind}:${s.id}`);
+  if (s.kind === 'changes' && s.file) q.set('file', s.file);
   for (const o of nav.overlays) q.append('o', o.params === null ? `${o.kind}:${o.id}` : `${o.kind}:${o.id}:${JSON.stringify(o.params)}`);
   const qs = q.toString();
   return qs ? `${path}?${qs}` : path;
@@ -55,6 +56,12 @@ function decodeMain(path: string, q: URLSearchParams): Main {
     if (params !== undefined) return { kind: 'view', id: id as ExtensionId, params };
   }
   return { kind: 'home' };
+}
+
+/** A file of the task's folder in the Changes side's file view: relative, no way out. */
+function withFile(side: Side, file: string | null): Side {
+  if (side.kind !== 'changes' || !file || file.startsWith('/') || file.split('/').includes('..')) return side;
+  return { ...side, file };
 }
 
 function decodeSide(raw: string | null): Side {
@@ -89,8 +96,11 @@ export function decodeNav(url: string): Omit<Nav, 'layout'> {
   const qi = url.indexOf('?');
   const path = qi < 0 ? url : url.slice(0, qi);
   const q = new URLSearchParams(qi < 0 ? '' : url.slice(qi + 1));
-  const overlays = q.getAll('o').map(decodeOverlay).filter((o): o is Overlay => o !== undefined);
-  return { main: decodeMain(path, q), side: decodeSide(q.get('side')), overlays };
+  const overlays = q
+    .getAll('o')
+    .map(decodeOverlay)
+    .filter((o): o is Overlay => o !== undefined);
+  return { main: decodeMain(path, q), side: withFile(decodeSide(q.get('side')), q.get('file')), overlays };
 }
 
 // ---------- the history adapter ----------
@@ -178,7 +188,7 @@ export function homed(nav: Omit<Nav, 'layout'>, home: string | undefined): Omit<
   if (!home) return nav;
   const key = (id: string): SessionId => (id.includes(':') ? id : `${home}:${id}`) as SessionId;
   const main = nav.main.kind === 'task' ? { kind: 'task' as const, id: key(nav.main.id) } : nav.main;
-  const side = nav.side.kind === 'changes' || nav.side.kind === 'shell' || nav.side.kind === 'pr' ? { kind: nav.side.kind, id: key(nav.side.id) } : nav.side;
+  const side = nav.side.kind === 'changes' || nav.side.kind === 'shell' || nav.side.kind === 'pr' ? { ...nav.side, id: key(nav.side.id) } : nav.side;
   return main === nav.main && side === nav.side ? nav : { ...nav, main, side };
 }
 
@@ -202,7 +212,7 @@ export function createNavigation(o: NavigationOptions): Navigation {
     if (next === cur || sameNav(next, cur)) return;
     state(next);
     const url = encodeNav(next);
-    if (o.history && url !== o.history.read()) (push ? o.history.push(url) : o.history.replace(url));
+    if (o.history && url !== o.history.read()) push ? o.history.push(url) : o.history.replace(url);
     o.onChange?.(url);
   };
 

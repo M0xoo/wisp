@@ -21,8 +21,16 @@ export function App(props: { readonly clients: Clients; readonly recent: Readabl
   const nav = useSignal(shell.nav);
   // stack only: Home's prompt box as its own page (v1 body.stack-page), opened from New task
   const [launcher, setLauncher] = createSignal(false);
-  const [filter, setFilter] = createSignal('all');
-  createEffect(on(() => nav().main.kind, (k) => k !== 'home' && setLauncher(false)));
+  // the top bar's project chips; the list (shell-list, or the fallback) follows it
+  const picked = useSignal(shell.projectFilter?.value ?? (() => 'all'));
+  const filter = (): string => picked() || 'all';
+  const setFilter = (id: string): void => shell.projectFilter?.set(id);
+  createEffect(
+    on(
+      () => nav().main.kind,
+      (k) => k !== 'home' && setLauncher(false),
+    ),
+  );
   const page = createMemo<StagePage>(() => (nav().main.kind === 'home' && !launcher() ? 'list' : 'main'));
   const switcher = shell.platform.kind === 'desktop';
   // the desktop app on a Mac: the page is the title bar (Stage's titlebar, the platform's drag regions)
@@ -33,7 +41,12 @@ export function App(props: { readonly clients: Clients; readonly recent: Readabl
   const settings = useSignal(shell.client.entities.list<{ key: string; value: unknown }>('setting'));
   const tint = createMemo(() => {
     const n = nav().main;
-    const picked = n.kind === 'crew' ? crew().map((r) => flatRow<TintMember>(r)).find((m) => m.id === n.id) : undefined;
+    const picked =
+      n.kind === 'crew'
+        ? crew()
+            .map((r) => flatRow<TintMember>(r))
+            .find((m) => m.id === n.id)
+        : undefined;
     return crewTint(picked, settings().find((r) => r.key === 'crew.tint')?.value);
   });
   const onNew = (): void => {

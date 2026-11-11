@@ -5,7 +5,7 @@
 // `shell` plugin in builtins.tsx.
 
 import { render } from 'solid-js/web';
-import { computed, effect, signal, untracked, type Client, type PeerId, type PluginClient } from '@wisp/client';
+import { computed, effect, signal, untracked, type Client, type PeerId, type PluginClient, type Readable } from '@wisp/client';
 import { BLOCK_STRINGS, KitProvider, KIT_STRINGS, type KitString, type Toaster } from '@wisp/ui';
 import type { PluginUiDef, PromptBox, SettingsPaneDef, ShellApi, ShellContext } from './contract.ts';
 import { namespaceOf } from './define.ts';
@@ -101,6 +101,10 @@ export function createShell(o: ShellOptions): Shell {
       toggle: () => void settings.set('shell.sidebar.open', !untracked(settings.get('shell.sidebar.open'))),
       width: () => settings.get('shell.sidebar.width')(),
       setWidth: (px) => void settings.set('shell.sidebar.width', Math.round(Math.min(640, Math.max(220, px)))),
+    },
+    projectFilter: {
+      value: settings.get('shell.projectFilter') as Readable<string>,
+      set: (id) => void settings.set('shell.projectFilter', id || 'all'),
     },
     prompts: {
       provide(name, box) {

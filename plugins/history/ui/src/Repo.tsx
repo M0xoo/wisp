@@ -3,8 +3,8 @@
 // report (`history.report`) with Resume (a new task that carries on from there, on today's code).
 import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show, type JSX } from 'solid-js';
 import { defineCommand, entityKey, type PeerId, type PluginClient } from '@wisp/client';
-import { useShell } from '@wisp/shell';
-import { Button, EmptyState, Icon, Input, ListRow, Markdown, SelectSetting, SettingsGroup, Stack, Text, englishT, timeLabel } from '@wisp/ui';
+import { PROJECT_ORDER, projectList, useShell } from '@wisp/shell';
+import { Button, EmptyState, Icon, Input, ListRow, Markdown, SelectSetting, SettingsGroup, Stack, Text, englishT, timeLabel, useSignal } from '@wisp/ui';
 import { t } from './i18n.ts';
 import { byMonth, repoLine, resumePrompt, type RepoTask } from './model.ts';
 
@@ -19,7 +19,6 @@ interface Report {
   readonly report: string;
 }
 
-const projectsOf = defineCommand<{ peer: PeerId }, { name: string; spec?: { path?: string } }[]>({ id: 'resources.export', owner: (a) => a.peer, wire: () => ({ kinds: ['project'] }), optimistic: 'none', pending: 'the projects' });
 const list = defineCommand<{ peer: PeerId; repo: string; grep?: string; path?: string }, RepoTask[]>({
   id: 'history.list',
   owner: (a) => a.peer,
@@ -27,7 +26,13 @@ const list = defineCommand<{ peer: PeerId; repo: string; grep?: string; path?: s
   optimistic: 'none',
   pending: 'the repo history',
 });
-const report = defineCommand<{ peer: PeerId; repo: string; id: string }, Report>({ id: 'history.report', owner: (a) => a.peer, wire: ({ peer: _p, ...a }) => a, optimistic: 'none', pending: 'the report' });
+const report = defineCommand<{ peer: PeerId; repo: string; id: string }, Report>({
+  id: 'history.report',
+  owner: (a) => a.peer,
+  wire: ({ peer: _p, ...a }) => a,
+  optimistic: 'none',
+  pending: 'the report',
+});
 const resume = defineCommand<{ peer: PeerId; prompt: string; title: string; cwd: string; agent?: string; forkOf: string }, { id: string }>({
   id: 'runtime.create',
   owner: (a) => a.peer,
@@ -47,14 +52,10 @@ export default function Repo(props: { readonly client: PluginClient; readonly pa
   const c = props.client;
   const shell = useShell();
   const say = t as (k: string, v?: Readonly<Record<string, string | number>>) => string;
-  // the projects as runtime keeps them: `project` resources (resources.export), each a name and its folder
-  const [projectList] = createResource(() =>
-    c
-      .run(projectsOf, { peer: c.home })
-      .then((rs) => rs.map((r) => ({ id: r.name, name: r.name, path: r.spec?.path ?? '' })).filter((p) => !!p.path))
-      .catch((): Project[] => []),
-  );
-  const projects = (): Project[] => projectList() ?? [];
+  // the projects as every screen reads them (wisp.runtime's `project` rows on `config`), in your order
+  const projectRows = useSignal(c.entities.list<unknown>('project'));
+  const settings = useSignal(c.entities.list<{ key: string; value: unknown }>('setting'));
+  const projects = createMemo((): Project[] => projectList(projectRows(), settings().find((r) => r.key === PROJECT_ORDER)?.value).filter((p) => !!p.path));
   const [picked, setPicked] = createSignal(props.params.project ?? '');
   const project = createMemo(() => projects().find((p) => p.id === picked()) ?? projects()[0]);
   // the first project once they arrive, so the picker shows which one this is
@@ -86,8 +87,18 @@ export default function Repo(props: { readonly client: PluginClient; readonly pa
     const p = project();
     if (!p) return;
     void c
-      .run(resume, { peer: c.home, prompt: resumePrompt(r.task.title, r.prompt, r.report), title: say('history.report.resumed', { title: r.task.title }), cwd: p.path, ...(r.task.agent && { agent: r.task.agent }), forkOf: r.task.id })
-      .then((out) => shell.navigate({ t: 'openTask', id: entityKey(c.home, out.id) as never }), () => undefined);
+      .run(resume, {
+        peer: c.home,
+        prompt: resumePrompt(r.task.title, r.prompt, r.report),
+        title: say('history.report.resumed', { title: r.task.title }),
+        cwd: p.path,
+        ...(r.task.agent && { agent: r.task.agent }),
+        forkOf: r.task.id,
+      })
+      .then(
+        (out) => shell.navigate({ t: 'openTask', id: entityKey(c.home, out.id) as never }),
+        () => undefined,
+      );
   };
   return (
     <Stack gap="4" pad="4" part="history.repo">
@@ -104,10 +115,22 @@ export default function Repo(props: { readonly client: PluginClient; readonly pa
         fallback={
           <>
             <SettingsGroup part="history.repo.head">
-              <SelectSetting part="history.repo.project" title={t('history.repo.project')} source={{ value: () => project()?.id ?? '', set: setPicked }} items={projects().map((p) => ({ value: p.id, label: p.name }))} />
+              <SelectSetting
+                part="history.repo.project"
+                title={t('history.repo.project')}
+                source={{ value: () => project()?.id ?? '', set: setPicked }}
+                items={projects().map((p) => ({ value: p.id, label: p.name }))}
+              />
             </SettingsGroup>
             <Input type="search" icon="search" size="sm" value={q()} placeholder={t('history.repo.filter')} aria-label={t('history.repo.filter')} onInput={typed} part="history.repo.filter" />
-            <Show when={!rows.loading} fallback={<Text size="sm" tone="muted">{t('history.repo.loading')}</Text>}>
+            <Show
+              when={!rows.loading}
+              fallback={
+                <Text size="sm" tone="muted">
+                  {t('history.repo.loading')}
+                </Text>
+              }
+            >
               <Show when={(rows() ?? []).length > 0} fallback={<EmptyState icon="branch" compact title={project() ? t('history.repo.none') : t('history.repo.pick')} part="history.repo.empty" />}>
                 <For each={byMonth(rows() ?? [], month)}>
                   {(g) => (
@@ -122,7 +145,11 @@ export default function Repo(props: { readonly client: PluginClient; readonly pa
                             title={r.title}
                             sub={repoLine(r, say)}
                             lead={<Icon name="branch" size="sm" tone="faint" />}
-                            time={<Text size="xs" tone="faint">{timeLabel(r.createdAt, Date.now(), englishT)}</Text>}
+                            time={
+                              <Text size="xs" tone="faint">
+                                {timeLabel(r.createdAt, Date.now(), englishT)}
+                              </Text>
+                            }
                             onOpen={() => setOpen(r.id)}
                           />
                         )}
@@ -141,7 +168,14 @@ export default function Repo(props: { readonly client: PluginClient; readonly pa
               {t('history.report.back')}
             </Button>
           </span>
-          <Show when={shown()} fallback={<Text size="sm" tone="muted">{t('history.repo.loading')}</Text>}>
+          <Show
+            when={shown()}
+            fallback={
+              <Text size="sm" tone="muted">
+                {t('history.repo.loading')}
+              </Text>
+            }
+          >
             {(r) => (
               <>
                 <Stack gap="1">
@@ -157,7 +191,14 @@ export default function Repo(props: { readonly client: PluginClient; readonly pa
                 <Text size="xs" tone="faint" weight="medium">
                   {t('history.report.report')}
                 </Text>
-                <Show when={r().report.trim()} fallback={<Text size="sm" tone="muted">{t('history.report.none')}</Text>}>
+                <Show
+                  when={r().report.trim()}
+                  fallback={
+                    <Text size="sm" tone="muted">
+                      {t('history.report.none')}
+                    </Text>
+                  }
+                >
                   <Markdown source={r().report} />
                 </Show>
                 <span>

@@ -3,6 +3,7 @@
 // then the icon alone (the label moves to the tooltip and aria-label), then into a More menu.
 // Widths are measured by one ResizeObserver from a hidden copy of every item in both forms, so the
 // plan needs no layout reads after a write. Left/Right/Home/End move focus, as in any toolbar.
+import { reorderable, type OnReorder } from '../core/reorder.ts';
 import { createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from 'solid-js';
 import { Key } from '@zag-js/solid';
 import type { Space } from '@wisp/tokens';
@@ -29,9 +30,7 @@ interface ItemBase {
 
 /** A pinned item (Send, Stop, the mode whose menu is open) never collapses. Any other has a numeric
  * priority, lower collapses first, and an action so it can live in the More menu. */
-export type ToolbarItem =
-  | (ItemBase & { readonly priority: 'pin'; readonly onSelect?: () => void })
-  | (ItemBase & { readonly priority: number; readonly onSelect: () => void });
+export type ToolbarItem = (ItemBase & { readonly priority: 'pin'; readonly onSelect?: () => void }) | (ItemBase & { readonly priority: number; readonly onSelect: () => void });
 
 export interface ToolbarProps extends KitProps, WithVars {
   /** Required: what the toolbar acts on ("Task actions"). */
@@ -42,6 +41,8 @@ export interface ToolbarProps extends KitProps, WithVars {
   /** The shorter bar height (--bar-h-compact). */
   readonly compact?: boolean;
   readonly t?: Translate;
+  /** items that aren't pinned can be dragged (or Alt+←/→) into another order (v1 #772: the project chips) */
+  readonly onReorder?: OnReorder;
 }
 
 const FOCUSABLE = 'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])';
@@ -50,16 +51,13 @@ const FOCUSABLE = 'button:not(:disabled), a[href], input:not(:disabled), select:
 export function nextInToolbar(items: readonly HTMLElement[], current: number, key: string): HTMLElement | undefined {
   if (items.length === 0) return undefined;
   const last = items.length - 1;
-  const index =
-    key === 'ArrowRight' ? (current >= last ? 0 : current + 1)
-    : key === 'ArrowLeft' ? (current <= 0 ? last : current - 1)
-    : key === 'Home' ? 0
-    : key === 'End' ? last
-    : -1;
+  const index = key === 'ArrowRight' ? (current >= last ? 0 : current + 1) : key === 'ArrowLeft' ? (current <= 0 ? last : current - 1) : key === 'Home' ? 0 : key === 'End' ? last : -1;
   return index < 0 ? undefined : items[index];
 }
 
 function onToolbarKey(e: KeyboardEvent): void {
+  // an item moved itself (Alt+←/→ on a reorderable one): the focus stays on it
+  if (e.defaultPrevented) return;
   const bar = e.currentTarget;
   const target = e.target;
   if (!(bar instanceof HTMLElement) || !(target instanceof HTMLElement)) return;
@@ -84,7 +82,9 @@ function ItemView(props: { readonly item: ToolbarItem; readonly form: 'full' | '
   return (
     <Show when={!props.item.render} fallback={props.item.render?.(props.form)}>
       <Show when={props.form === 'full'} fallback={<IconButton {...common()} icon={props.item.icon} label={props.item.label} />}>
-        <Button {...common()} icon={props.item.icon}>{props.item.label}</Button>
+        <Button {...common()} icon={props.item.icon}>
+          {props.item.label}
+        </Button>
       </Show>
     </Show>
   );
@@ -109,7 +109,12 @@ function useMeasure(onChange: (sizes: ReadonlyMap<string, number>) => void): (el
 export function Toolbar(props: ToolbarProps): JSX.Element {
   const t = useT(() => props.t);
   const [level, setLevel] = createSignal(0);
-  const forms = createMemo(() => formsAt(props.items.map((i) => ({ id: i.id, priority: i.priority, full: 0, icon: 0 })), level()));
+  const forms = createMemo(() =>
+    formsAt(
+      props.items.map((i) => ({ id: i.id, priority: i.priority, full: 0, icon: 0 })),
+      level(),
+    ),
+  );
   const formOf = (id: string): ItemForm => forms().get(id) ?? 'full';
   const gapPx = (): number => [0, 2, 4, 6, 8, 10, 12, 16, 24, 32][Number(props.gap ?? '2')] ?? 4;
   const observe = useMeasure((sizes) => {
@@ -126,6 +131,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
   // More sits right after the last item that can fold into it, so pins after it (Send) stay last.
   // Placed with CSS order, so no node moves when it appears.
   const moreOrder = (): number => 2 * props.items.reduce((last, item, i) => (item.priority === 'pin' ? last : i), -1) + 1;
+  const movable = (): string[] => props.items.filter((i) => i.priority !== 'pin').map((i) => i.id);
   let bar: HTMLDivElement | undefined;
   onMount(() => bar && observe(bar));
   return (
@@ -145,7 +151,15 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
     >
       <Key each={props.items} by={(i) => i.id}>
         {(item, index) => (
-          <div style={{ order: 2 * index() }} data-kit="toolbar-item" data-item={item().id} data-form={formOf(item().id)} data-pinned={flag(item().priority === 'pin')} hidden={formOf(item().id) === 'overflow'}>
+          <div
+            {...reorderable(`toolbar:${props['aria-label']}`, item().id, movable, item().priority === 'pin' ? undefined : props.onReorder)}
+            style={{ order: 2 * index() }}
+            data-kit="toolbar-item"
+            data-item={item().id}
+            data-form={formOf(item().id)}
+            data-pinned={flag(item().priority === 'pin')}
+            hidden={formOf(item().id) === 'overflow'}
+          >
             <ItemView item={item()} form={formOf(item().id) === 'full' ? 'full' : 'icon'} />
           </div>
         )}
@@ -159,12 +173,18 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
         <For each={props.items}>
           {(item) => (
             <>
-              <span data-measure={`${item.id}:full`} ref={(el) => observe(el)}><ItemView item={item} form="full" /></span>
-              <span data-measure={`${item.id}:icon`} ref={(el) => observe(el)}><ItemView item={item} form="icon" /></span>
+              <span data-measure={`${item.id}:full`} ref={(el) => observe(el)}>
+                <ItemView item={item} form="full" />
+              </span>
+              <span data-measure={`${item.id}:icon`} ref={(el) => observe(el)}>
+                <ItemView item={item} form="icon" />
+              </span>
             </>
           )}
         </For>
-        <span data-measure="more" ref={(el) => observe(el)}><IconButton icon="dots" label={t('more')} size="sm" /></span>
+        <span data-measure="more" ref={(el) => observe(el)}>
+          <IconButton icon="dots" label={t('more')} size="sm" />
+        </span>
       </div>
     </div>
   );

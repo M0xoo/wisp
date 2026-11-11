@@ -7,7 +7,7 @@ import { useT, type Translate } from '../../core/i18n.tsx';
 import { Icon } from '../Icon.tsx';
 import type { IconName } from '../icons.ts';
 import { Text } from '../Text.tsx';
-import { Button } from '../../controls/Button.tsx';
+import { Button, IconButton } from '../../controls/Button.tsx';
 import { parseDiff, type DiffFile, type DiffLine, type DiffStatus } from './parse.ts';
 
 export interface DiffProps extends KitProps {
@@ -20,6 +20,8 @@ export interface DiffProps extends KitProps {
   /** Shown in place of lines for a binary file. Without it the file shows its header only. */
   readonly binaryLabel?: string;
   readonly t?: Translate;
+  /** a file's head gets Edit, opening it in the file view (v1's panel editor); not for a deleted file */
+  readonly onOpenFile?: (path: string) => void;
 }
 
 type Row = { readonly kind: 'hunk'; readonly text: string } | DiffLine;
@@ -58,7 +60,7 @@ function LineRow(props: { readonly row: Row }): JSX.Element {
   );
 }
 
-function FileHead(props: { readonly file: DiffFile; readonly part: PartName }): JSX.Element {
+function FileHead(props: { readonly file: DiffFile; readonly part: PartName; readonly onOpen?: ((path: string) => void) | undefined; readonly t: Translate }): JSX.Element {
   const f = (): DiffFile => props.file;
   return (
     <header data-kit="diff-head" data-part={sub(props.part, 'head')}>
@@ -75,6 +77,9 @@ function FileHead(props: { readonly file: DiffFile; readonly part: PartName }): 
           {f().path}
         </Text>
       </span>
+      <Show when={props.onOpen && props.file.status !== 'deleted' && !props.file.binary}>
+        <IconButton icon="pen" size="sm" variant="ghost" label={props.t('edit-file', { path: props.file.path })} onClick={() => props.onOpen?.(props.file.path)} part={sub(props.part, 'edit')} />
+      </Show>
       <span data-kit="diff-counts">
         <Show when={f().additions > 0}>
           <Text mono size="xs" tone="good" numeric>{`+${f().additions}`}</Text>
@@ -87,7 +92,14 @@ function FileHead(props: { readonly file: DiffFile; readonly part: PartName }): 
   );
 }
 
-function FileView(props: { readonly file: DiffFile; readonly part: PartName; readonly lazyLines: number; readonly binaryLabel: string | undefined; readonly t: Translate }): JSX.Element {
+function FileView(props: {
+  readonly file: DiffFile;
+  readonly part: PartName;
+  readonly lazyLines: number;
+  readonly binaryLabel: string | undefined;
+  readonly t: Translate;
+  readonly onOpen?: ((path: string) => void) | undefined;
+}): JSX.Element {
   const rows = createMemo(() => rowsOf(props.file));
   const lines = (): number => props.file.hunks.reduce((n, h) => n + h.lines.length, 0);
   const big = (): boolean => lines() > props.lazyLines;
@@ -96,7 +108,7 @@ function FileView(props: { readonly file: DiffFile; readonly part: PartName; rea
   const digits = createMemo(() => String(Math.max(1, ...props.file.hunks.map((h) => Math.max(h.oldStart, h.newStart) + h.lines.length))).length);
   return (
     <section data-kit="diff-file" data-part={sub(props.part, 'file')} data-status={props.file.status}>
-      <FileHead file={props.file} part={props.part} />
+      <FileHead file={props.file} part={props.part} onOpen={props.onOpen} t={props.t} />
       <Show when={!props.file.binary} fallback={<Show when={props.binaryLabel}>{(label) => <div data-kit="diff-note">{label()}</div>}</Show>}>
         <Show
           when={!big() || open()}
@@ -131,7 +143,9 @@ export function Diff(props: DiffProps): JSX.Element {
   const part = (): PartName => props.part ?? 'ui.diff';
   return (
     <div id={props.id} data-kit="diff" data-part={part()}>
-      <For each={files()}>{(file) => <FileView file={file} part={part()} lazyLines={props.lazyLines ?? 400} binaryLabel={props.binaryLabel ?? t('diff.binary')} t={t} />}</For>
+      <For each={files()}>
+        {(file) => <FileView file={file} part={part()} lazyLines={props.lazyLines ?? 400} binaryLabel={props.binaryLabel ?? t('diff.binary')} t={t} onOpen={props.onOpenFile} />}
+      </For>
     </div>
   );
 }

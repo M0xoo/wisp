@@ -5,6 +5,7 @@
 // Every element carries v1's PARTS name (web/js/spell-schema.js) as its data-part.
 import { For, Show, type JSX } from 'solid-js';
 import { flag } from '../core/props.ts';
+import { reorderable, type OnReorder } from '../core/reorder.ts';
 import { Icon } from '../content/Icon.tsx';
 import type { IconName } from '../content/icons.ts';
 import { Spirit } from '../crew/Spirit.tsx';
@@ -38,13 +39,30 @@ export interface StageProps {
 /** v1 #stage: the rail, the sidebar's head and body, the main pane, the grip. */
 export function Stage(props: StageProps): JSX.Element {
   return (
-    <main data-kit="stage" data-part="shell.app" data-layout={props.layout} data-page={props.page} data-behind={flag(props.listBehind)} data-titlebar={props.titlebar} data-rail={flag(props.rail !== undefined)} data-side={flag(props.side !== undefined)}>
+    <main
+      data-kit="stage"
+      data-part="shell.app"
+      data-layout={props.layout}
+      data-page={props.page}
+      data-behind={flag(props.listBehind)}
+      data-titlebar={props.titlebar}
+      data-rail={flag(props.rail !== undefined)}
+      data-side={flag(props.side !== undefined)}
+    >
       {props.layout === 'split' ? props.rail : null}
-      <header data-kit="topbar" data-part="topbar" data-drag={flag(props.titlebar !== undefined)} data-tint={flag(!!props.tint)} data-color={props.tint || undefined}>{props.head}</header>
-      <div data-kit="feed-wrap" data-part="sidebar" inert={props.layout === 'stack' && props.page === 'main'} data-tint={flag(!!props.tint)} data-color={props.tint || undefined}>{props.list}</div>
-      <section data-kit="split-main" data-part="split.main">{props.main}</section>
+      <header data-kit="topbar" data-part="topbar" data-drag={flag(props.titlebar !== undefined)} data-tint={flag(!!props.tint)} data-color={props.tint || undefined}>
+        {props.head}
+      </header>
+      <div data-kit="feed-wrap" data-part="sidebar" inert={props.layout === 'stack' && props.page === 'main'} data-tint={flag(!!props.tint)} data-color={props.tint || undefined}>
+        {props.list}
+      </div>
+      <section data-kit="split-main" data-part="split.main">
+        {props.main}
+      </section>
       <Show when={props.side}>
-        <aside data-kit="side-pane" data-part="side">{props.side}</aside>
+        <aside data-kit="side-pane" data-part="side">
+          {props.side}
+        </aside>
       </Show>
       <Show when={props.layout === 'split'}>
         <div data-kit="split-grip" data-part="sidebar.grip" role="separator" aria-orientation="vertical" aria-label={props.gripLabel} onDblClick={() => props.onGripReset?.()} />
@@ -77,7 +95,17 @@ export interface CrewRailProps {
 
 function RailBtn(props: { readonly icon: IconName; readonly label: string; readonly part: string; readonly kind: string; readonly on?: boolean; readonly onClick?: () => void }): JSX.Element {
   return (
-    <button type="button" data-kit="cl-btn" data-a={props.kind} data-part={props.part} data-on={flag(props.on)} aria-label={props.label} title={props.label} aria-current={props.on ? 'page' : undefined} onClick={() => props.onClick?.()}>
+    <button
+      type="button"
+      data-kit="cl-btn"
+      data-a={props.kind}
+      data-part={props.part}
+      data-on={flag(props.on)}
+      aria-label={props.label}
+      title={props.label}
+      aria-current={props.on ? 'page' : undefined}
+      onClick={() => props.onClick?.()}
+    >
       <Show when={props.on !== undefined}>
         <i data-kit="cl-pip" data-part="crew.rail.pick" />
       </Show>
@@ -139,6 +167,8 @@ export interface SidebarHeadProps {
   readonly onAccount?: () => void;
   readonly onView?: () => void;
   readonly onChip?: (id: string) => void;
+  /** drag a project chip (or Alt+←/→) into your own order (v1 #772); All stays first */
+  readonly onReorder?: OnReorder;
   readonly onManage?: () => void;
   readonly accountAct?: Act;
   readonly manageAct?: Act;
@@ -156,11 +186,20 @@ export interface SidebarHeadProps {
 
 /** v1 #topbar in split: the brand, Search, the avatar, the sidebar button, then the project chips. */
 export function SidebarHead(props: SidebarHeadProps): JSX.Element {
+  const projectIds = (): string[] => props.chips.filter((c) => c.color !== undefined).map((c) => c.id);
   return (
     <>
       <div data-kit="tb-lead">
         {props.slots?.brand ?? (
-          <a data-kit="brand" data-part="topbar.brand" href="#" aria-current={props.homeOn ? 'page' : undefined} title={props.brandLabel} aria-label={props.brandLabel} onClick={(e) => (e.preventDefault(), props.onBrand?.())}>
+          <a
+            data-kit="brand"
+            data-part="topbar.brand"
+            href="#"
+            aria-current={props.homeOn ? 'page' : undefined}
+            title={props.brandLabel}
+            aria-label={props.brandLabel}
+            onClick={(e) => (e.preventDefault(), props.onBrand?.())}
+          >
             <span data-kit="brand-orb" />
           </a>
         )}
@@ -170,13 +209,24 @@ export function SidebarHead(props: SidebarHeadProps): JSX.Element {
         <div data-kit="p-scroll">
           <For each={props.chips}>
             {(c) => (
-              <button type="button" data-kit="p-chip" data-on={flag(props.on === c.id)} aria-current={props.on === c.id ? 'true' : undefined} data-color={c.color ?? 'slate'} title={c.title} onClick={() => props.onChip?.(c.id)}>
+              <button
+                type="button"
+                {...reorderable('topbar.projects', c.id, projectIds, c.color === undefined ? undefined : props.onReorder)}
+                data-kit="p-chip"
+                data-on={flag(props.on === c.id)}
+                aria-current={props.on === c.id ? 'true' : undefined}
+                data-color={c.color ?? 'slate'}
+                title={c.title}
+                onClick={() => props.onChip?.(c.id)}
+              >
                 <Show when={c.color}>
                   <i data-kit="p-dot" />
                 </Show>
                 <span data-text="control">{c.name}</span>
                 <Show when={c.need > 0}>
-                  <span data-kit="p-need" title={c.needLabel}>{c.need}</span>
+                  <span data-kit="p-need" title={c.needLabel}>
+                    {c.need}
+                  </span>
                 </Show>
               </button>
             )}
@@ -276,7 +326,9 @@ export function FeedSection(props: FeedSectionProps): JSX.Element {
     <section data-kit="f-group" data-part={`section.${props.id}`} data-collapsed={flag(props.collapsed)}>
       <h4 data-kit="sec-toggle" data-part="section.heading" role="button" tabindex="0" aria-expanded={!props.collapsed} onClick={() => props.onToggle?.()}>
         <Icon name="chevron" />
-        <span data-kit="sec-name" data-text="control">{props.name}</span>
+        <span data-kit="sec-name" data-text="control">
+          {props.name}
+        </span>
         <span data-kit="sec-n">{props.count}</span>
       </h4>
       <Show when={!props.collapsed}>

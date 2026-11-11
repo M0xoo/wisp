@@ -10,12 +10,9 @@
 import { assertNever, type CrewId, type ExtensionId, type Json, type SessionId } from './types.ts';
 
 export type Layout = 'split' | 'stack';
-export type Main =
-  | { kind: 'home' }
-  | { kind: 'task'; id: SessionId }
-  | { kind: 'crew'; id: CrewId }
-  | { kind: 'view'; id: ExtensionId; params: Json };
-export type Side = { kind: 'none' } | { kind: 'changes' | 'shell' | 'pr'; id: SessionId } | { kind: 'view'; id: ExtensionId };
+export type Main = { kind: 'home' } | { kind: 'task'; id: SessionId } | { kind: 'crew'; id: CrewId } | { kind: 'view'; id: ExtensionId; params: Json };
+/** `changes` with `file`: that file of the task's folder in the file view (Back goes to Changes). Additive (2026-11-11). */
+export type Side = { kind: 'none' } | { kind: 'changes'; id: SessionId; file?: string } | { kind: 'shell' | 'pr'; id: SessionId } | { kind: 'view'; id: ExtensionId };
 export type Overlay = { kind: 'viewer' | 'dialog' | 'sheet'; id: ExtensionId; params: Json };
 
 export type Nav = {

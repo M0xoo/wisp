@@ -15,6 +15,7 @@ export const KIT_STRINGS = {
   notifications: 'Notifications',
   'show-lines': 'Show {n} more lines',
   'show-file': 'Show {n} lines',
+  'edit-file': 'Edit {path}',
   'time.now': 'now',
   'time.seconds': '{n}s ago',
   'time.minutes': '{n}m',

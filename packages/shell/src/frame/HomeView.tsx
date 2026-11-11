@@ -4,6 +4,7 @@
 // new task's row and page straight away (Starting…), the box cleared; a refusal puts the text back
 // and the client toasts why.
 
+import { useProjects } from './projects.ts';
 import { usePromptMenu } from './prompt-menu.ts';
 import { RunnerPicker } from './RunnerPicker.tsx';
 import { useAttachments } from './attach.ts';
@@ -21,13 +22,6 @@ import { autoPick, overrideOf, PREVIEW_DEBOUNCE, type AutoPreview } from './auto
 import { defaultHarness, harnessOf } from './harness.ts';
 import { MODE_ICON, agentMenu, agentName, modeMenu, teamMenu, teamPrefill, teamRows, whenAt, whenMenu, type Mode, type When } from './pickers.ts';
 
-interface ProjectRow {
-  readonly id: string;
-  readonly name: string;
-  readonly path: string;
-  readonly color: string;
-}
-
 interface SettingRow {
   readonly key: string;
   readonly value: unknown;
@@ -41,7 +35,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   const t = shell.t;
   const home = usePluginClient('shell').home;
   const sessions = useSignal(shell.client.entities.list<SessionRow>(SESSION));
-  const projects = useSignal(shell.client.entities.list<ProjectRow>('project'));
+  const { list: projects, reorder } = useProjects(shell, usePluginClient('shell').home);
   const settings = useSignal(shell.client.entities.list<SettingRow>('setting'));
   const now = useNow(shell.client);
   const harnesses = useSignal(shell.harnesses());
@@ -89,7 +83,13 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     if (!v.trim()) return void setPreview(undefined);
     cancel = scope.timeout(PREVIEW_DEBOUNCE, () => {
       shell.client.commands
-        .run(autoPreview, { peer: home, prompt: v.trim(), ...(files().length > 0 && { attachments: files().length }), ...(goal() ? { goal: goal() as string } : {}), ...(team().size > 0 && { team: true }) })
+        .run(autoPreview, {
+          peer: home,
+          prompt: v.trim(),
+          ...(files().length > 0 && { attachments: files().length }),
+          ...(goal() ? { goal: goal() as string } : {}),
+          ...(team().size > 0 && { team: true }),
+        })
         .then((p) => n === asked && setPreview(p))
         .catch(() => undefined);
     });
@@ -103,7 +103,11 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   queueMicrotask(() => input?.focus());
   const project = createMemo(() => (where() === 'none' ? undefined : (projects().find((p) => p.id === where()) ?? projects()[0])));
   const worktree = createMemo(() => settings().find((r) => r.key === 'defaults.worktree')?.value !== false);
-  const needs = createMemo(() => sessions().filter((s) => !s.archived && sectionOf(s) === 'needs').sort((a, b) => b.updated_at - a.updated_at));
+  const needs = createMemo(() =>
+    sessions()
+      .filter((s) => !s.archived && sectionOf(s) === 'needs')
+      .sort((a, b) => b.updated_at - a.updated_at),
+  );
   // the @ and / menus (plugins' prompt sources), New task's own
   const menu = usePromptMenu({ shell, where: 'home', text, setText, input: () => input, id: 'launcher-suggest' });
   let goalInput: HTMLInputElement | undefined;
@@ -136,7 +140,20 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     setPreview(undefined);
     const go = (attachments: readonly Attachment[]): void => {
       shell.client.commands
-        .run(create, { peer: home, id, prompt, ...runner, mode: mode(), at: Date.now(), ...(p && { cwd: p.path, projectId: p.id, color: p.color }), ...(g && { goal: g }), ...(attachments.length > 0 && { attachments }), ...(agent() !== 'auto' && model() && { model: model() }), ...(agent() !== 'auto' && effort() && { effort: effort() }), ...(team().size > 0 && { team: teamRows(team(), subagents(), (a) => agentName(t, harnesses(), a)) }) })
+        .run(create, {
+          peer: home,
+          id,
+          prompt,
+          ...runner,
+          mode: mode(),
+          at: Date.now(),
+          ...(p && { cwd: p.path, projectId: p.id, color: p.color }),
+          ...(g && { goal: g }),
+          ...(attachments.length > 0 && { attachments }),
+          ...(agent() !== 'auto' && model() && { model: model() }),
+          ...(agent() !== 'auto' && effort() && { effort: effort() }),
+          ...(team().size > 0 && { team: teamRows(team(), subagents(), (a) => agentName(t, harnesses(), a)) }),
+        })
         .catch(() => setText(prompt));
       shell.navigate({ t: 'openTask', id: id as EntityKey as never });
     };
@@ -156,20 +173,41 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   const shown = (): { agent: string; label: string } | undefined => (agent() === 'auto' ? autoPick(preview()) : undefined);
   const pick = (): { name: string; logo?: string } => harnessOf(harnesses(), shown()?.agent ?? (agent() === 'auto' ? auto() : agent()));
   const chips = (): LauncherChip[] => [
-    ...projects().map((p) => ({ id: p.id, kind: 'project' as const, name: p.name, title: p.path, color: p.color, on: project()?.id === p.id, act: { onClick: () => setWhere(p.id) } })),
+    ...projects().map((p) => ({ id: p.id, kind: 'project' as const, name: p.name, title: p.path, color: p.color || 'slate', on: project()?.id === p.id, act: { onClick: () => setWhere(p.id) } })),
     { id: 'none', kind: 'none', name: t('shell.home.noFolder'), title: t('shell.home.noFolderTitle'), on: where() === 'none', act: { onClick: () => setWhere('none') } },
-    { id: 'pick', kind: 'pick', name: t('shell.home.otherFolder'), title: t('shell.home.otherFolderTitle'), act: { menu: { items: [...projects().map((p) => ({ value: p.id, label: p.name, hint: p.path })), { kind: 'separator' as const }, { value: 'add', label: t('shell.home.addProject'), icon: 'folder' as const }], onSelect: (v: string) => (v === 'add' ? settingsSheet('projects') : setWhere(v)) } } },
+    {
+      id: 'pick',
+      kind: 'pick',
+      name: t('shell.home.otherFolder'),
+      title: t('shell.home.otherFolderTitle'),
+      act: {
+        menu: {
+          items: [
+            ...projects().map((p) => ({ value: p.id, label: p.name, hint: p.path })),
+            { kind: 'separator' as const },
+            { value: 'add', label: t('shell.home.addProject'), icon: 'folder' as const },
+          ],
+          onSelect: (v: string) => (v === 'add' ? shell.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'shell.projects' as never, params: null } }) : setWhere(v)),
+        },
+      },
+    },
   ];
   const extras = () => [
     ...files().map((f, i) => ({ id: `file:${i}:${f.name}`, icon: 'clip' as const, label: f.name, removeLabel: t('shell.home.remove', { name: f.name }), onRemove: () => att.remove(f) })),
-    ...(when() ? [{ id: 'when', icon: 'clock' as const, label: t('shell.when.chip', { when: t(`shell.when.${when()}`) }), removeLabel: t('shell.when.clear'), onRemove: () => setWhen(undefined) }] : []),
+    ...(when()
+      ? [{ id: 'when', icon: 'clock' as const, label: t('shell.when.chip', { when: t(`shell.when.${when()}`) }), removeLabel: t('shell.when.clear'), onRemove: () => setWhen(undefined) }]
+      : []),
   ];
-  const tips = (): PlainTip[] => [0, 1, 2].map((k) => TIPS[(tipAt() + k) % TIPS.length] ?? 'goal1').map((id) => ({ before: t(`shell.tips.${id}`), bold: t(`shell.tips.${id}b`), after: t(`shell.tips.${id}a`), href: `${GUIDE}#${id}` }));
+  const tips = (): PlainTip[] =>
+    [0, 1, 2]
+      .map((k) => TIPS[(tipAt() + k) % TIPS.length] ?? 'goal1')
+      .map((id) => ({ before: t(`shell.tips.${id}`), bold: t(`shell.tips.${id}b`), after: t(`shell.tips.${id}a`), href: `${GUIDE}#${id}` }));
   return (
     <SplitHome greeting={t('shell.home.hello')} {...(props.onBack && { onBack: props.onBack, backLabel: t('shell.home.back') })}>
       <Launcher
         inLabel={t('shell.home.in')}
         chips={chips()}
+        onReorder={reorder}
         placeholder={t('shell.home.placeholder')}
         value={text()}
         onInput={(v) => {
@@ -197,19 +235,58 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
         }}
         lead={[
           tool('attach', 'launcher.attach', 'clip', t('shell.home.attach'), t('shell.home.attach'), { act: { onClick: attach, pending: picking() } }),
-          tool('where', 'launcher.where', 'laptop', t('shell.home.where'), t('shell.home.where'), { text: false, act: { menu: { items: [{ value: 'here', label: t('shell.card.thisComputer'), icon: 'laptop', checked: true }, { kind: 'separator' }, { value: 'add', label: t('shell.home.addMachine'), icon: 'plus' }], onSelect: (v) => v === 'add' && view('machine.this') } } }),
+          tool('where', 'launcher.where', 'laptop', t('shell.home.where'), t('shell.home.where'), {
+            text: false,
+            act: {
+              menu: {
+                items: [
+                  { value: 'here', label: t('shell.card.thisComputer'), icon: 'laptop', checked: true },
+                  { kind: 'separator' },
+                  { value: 'add', label: t('shell.home.addMachine'), icon: 'plus' },
+                ],
+                onSelect: (v) => v === 'add' && view('machine.this'),
+              },
+            },
+          }),
         ]}
         mid={[
           // v1 #771: no Try it two ways button; the runner's + adds the second run
-          tool('team', 'launcher.team', 'agent', t('shell.home.delegate'), t('shell.home.delegateTitle'), { text: true, ...(team().size > 0 && { on: true }), act: { menu: { items: teamMenu(t, harnesses(), team()), onSelect: (v) => { const next = new Set(team()); if (next.has(v)) next.delete(v); else next.add(v); pickTeam(next); } } } }),
+          tool('team', 'launcher.team', 'agent', t('shell.home.delegate'), t('shell.home.delegateTitle'), {
+            text: true,
+            ...(team().size > 0 && { on: true }),
+            act: {
+              menu: {
+                items: teamMenu(t, harnesses(), team()),
+                onSelect: (v) => {
+                  const next = new Set(team());
+                  if (next.has(v)) next.delete(v);
+                  else next.add(v);
+                  pickTeam(next);
+                },
+              },
+            },
+          }),
         ]}
         tail={[
-          tool('goal', 'launcher.goal', 'target', t('shell.home.goal'), t('shell.home.goalTitle'), { text: true, ...(goal() !== undefined && { on: true }), act: { onClick: () => setGoal(goal() === undefined ? '' : undefined) } }),
-          tool('worktree', 'launcher.worktree', 'branch', worktree() ? t('shell.home.worktree') : t('shell.home.inPlace'), t('shell.home.worktreeTitle'), { text: true, on: worktree(), act: { onClick: () => void shell.client.commands.run(setSetting, { peer: home, key: 'defaults.worktree', value: !worktree() }).catch(() => undefined) } }),
-          tool('later', 'launcher.later', 'clock', t('shell.home.later'), t('shell.home.later'), { ...(when() && { on: true }), act: { menu: { items: whenMenu(t), onSelect: (v) => setWhen(v as When) } } }),
+          tool('goal', 'launcher.goal', 'target', t('shell.home.goal'), t('shell.home.goalTitle'), {
+            text: true,
+            ...(goal() !== undefined && { on: true }),
+            act: { onClick: () => setGoal(goal() === undefined ? '' : undefined) },
+          }),
+          tool('worktree', 'launcher.worktree', 'branch', worktree() ? t('shell.home.worktree') : t('shell.home.inPlace'), t('shell.home.worktreeTitle'), {
+            text: true,
+            on: worktree(),
+            act: { onClick: () => void shell.client.commands.run(setSetting, { peer: home, key: 'defaults.worktree', value: !worktree() }).catch(() => undefined) },
+          }),
+          tool('later', 'launcher.later', 'clock', t('shell.home.later'), t('shell.home.later'), {
+            ...(when() && { on: true }),
+            act: { menu: { items: whenMenu(t), onSelect: (v) => setWhen(v as When) } },
+          }),
         ]}
         sendLabel={when() ? t('shell.when.send', { at: new Date(whenAt(when() ?? 'hour', now())).toLocaleString() }) : t('shell.home.send')}
-        {...(goal() !== undefined && { goal: { label: t('shell.home.goal'), placeholder: t('shell.home.goalPlaceholder'), value: goal() ?? '', onInput: setGoal, ref: (el: HTMLInputElement) => (goalInput = el) } })}
+        {...(goal() !== undefined && {
+          goal: { label: t('shell.home.goal'), placeholder: t('shell.home.goalPlaceholder'), value: goal() ?? '', onInput: setGoal, ref: (el: HTMLInputElement) => (goalInput = el) },
+        })}
         extras={extras()}
         recipes={{
           label: t('shell.home.recipes'),
@@ -219,7 +296,9 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
           issueTitle: t('shell.home.issueTitle'),
           addAct: { onClick: () => settingsSheet('recipes') },
           // Start from an issue (wisp.issues' picker, an overlay view; without that plugin, navigation drops it)
-          issueAct: { onClick: () => shell.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'issues.picker' as never, params: { project: project()?.id ?? '', name: project()?.name ?? '' } } }) },
+          issueAct: {
+            onClick: () => shell.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'issues.picker' as never, params: { project: project()?.id ?? '', name: project()?.name ?? '' } } }),
+          },
         }}
       />
       <RunnerPicker
@@ -236,7 +315,16 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
       <NextList
         heading={t('shell.section.needs')}
         count={needs().length}
-        rows={needs().slice(0, 5).map((s) => ({ id: s.id, title: s.title, color: String(s.summary['color'] ?? 'slate'), state: statusOf(s, t).label, time: shortAgo(s.updated_at, now()), timeTitle: longTime(s.updated_at) }))}
+        rows={needs()
+          .slice(0, 5)
+          .map((s) => ({
+            id: s.id,
+            title: s.title,
+            color: String(s.summary['color'] ?? 'slate'),
+            state: statusOf(s, t).label,
+            time: shortAgo(s.updated_at, now()),
+            timeTitle: longTime(s.updated_at),
+          }))}
         onOpen={(id) => shell.navigate({ t: 'openTask', id: id as EntityKey as never })}
       />
       <Tips

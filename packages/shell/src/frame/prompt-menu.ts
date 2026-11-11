@@ -69,7 +69,15 @@ export interface PromptMenu {
   readonly reset: () => void;
 }
 
-export function usePromptMenu(o: { readonly shell: ShellContext; readonly where: 'reply' | 'home'; readonly task?: string; readonly text: Accessor<string>; readonly setText: (v: string) => void; readonly input: () => HTMLTextAreaElement | undefined; readonly id: string }): PromptMenu {
+export function usePromptMenu(o: {
+  readonly shell: ShellContext;
+  readonly where: 'reply' | 'home';
+  readonly task?: string;
+  readonly text: Accessor<string>;
+  readonly setText: (v: string) => void;
+  readonly input: () => HTMLTextAreaElement | undefined;
+  readonly id: string;
+}): PromptMenu {
   const sources = o.shell.promptSources();
   const [at, setAt] = createSignal<MenuAt | null>(null);
   const [active, setActive] = createSignal(0);
@@ -100,7 +108,14 @@ export function usePromptMenu(o: { readonly shell: ShellContext; readonly where:
     return {
       id: o.id,
       label: o.shell.t(at()?.trigger === '/' ? 'shell.prompt.slash' : 'shell.prompt.mention'),
-      items: list.map((x) => ({ value: x.value, label: x.label, ...(x.detail && { detail: x.detail }), ...(x.hint && { hint: x.hint }), ...(x.icon && { icon: x.icon as never }) })),
+      items: list.map((x) => ({
+        value: x.value,
+        label: x.label,
+        ...(x.detail && { detail: x.detail }),
+        ...(x.hint && { hint: x.hint }),
+        ...(x.icon && { icon: x.icon as never }),
+        ...(x.open && { onOpen: x.open, openLabel: o.shell.t('shell.prompt.open', { name: x.label }) }),
+      })),
       active: Math.min(active(), list.length - 1),
       onPick: pick,
       onActive: setActive,

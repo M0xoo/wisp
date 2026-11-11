@@ -3,6 +3,7 @@
 // then the tips. On a phone it's its own page with a back button in its head.
 import { For, Match, Show, Switch, createSignal, type JSX } from 'solid-js';
 import { flag } from '../core/props.ts';
+import { reorderable, type OnReorder } from '../core/reorder.ts';
 import { Icon } from '../content/Icon.tsx';
 import { PromptSuggestList, dropHandlers, suggestKeyDown, type PromptSuggest } from '../composer/PromptSuggest.tsx';
 import type { IconName } from '../content/icons.ts';
@@ -24,11 +25,15 @@ export function SplitHome(props: SplitHomeProps): JSX.Element {
           <button type="button" data-kit="sh-back" data-part="split.back" aria-label={props.backLabel} title={props.backLabel} onClick={() => props.onBack?.()}>
             <Icon name="back" />
           </button>
-          <h2 data-kit="sh-hello" data-part="split.greeting">{props.greeting}</h2>
+          <h2 data-kit="sh-hello" data-part="split.greeting">
+            {props.greeting}
+          </h2>
         </div>
       </Show>
       <Show when={!props.onBack}>
-        <h2 data-kit="sh-hello" data-part="split.greeting">{props.greeting}</h2>
+        <h2 data-kit="sh-hello" data-part="split.greeting">
+          {props.greeting}
+        </h2>
       </Show>
       {props.children}
     </div>
@@ -62,6 +67,8 @@ export interface LauncherChip {
 export interface LauncherProps {
   readonly inLabel: string;
   readonly chips: readonly LauncherChip[];
+  /** drag a project chip (or Alt+←/→) into your own order (v1 #772) */
+  readonly onReorder?: OnReorder;
   readonly placeholder: string;
   readonly value: string;
   readonly onInput: (v: string) => void;
@@ -129,13 +136,14 @@ function Tool(props: { readonly t: LauncherTool }): JSX.Element {
   );
 }
 
-function Chip(props: { readonly c: LauncherChip }): JSX.Element {
+function Chip(props: { readonly c: LauncherChip; readonly ids: () => readonly string[]; readonly onReorder?: OnReorder | undefined }): JSX.Element {
   return (
     <WithAct
       act={props.c.act}
       render={(trigger) => (
         <button
           type="button"
+          {...reorderable('launcher.projects', props.c.id, props.ids, props.c.kind === 'project' ? props.onReorder : undefined)}
           {...trigger()}
           data-kit="lp-chip"
           data-on={flag(props.c.on)}
@@ -167,6 +175,7 @@ function Chip(props: { readonly c: LauncherChip }): JSX.Element {
 
 /** v1 #launcher: the prompt box on Home. */
 export function Launcher(props: LauncherProps): JSX.Element {
+  const projectIds = (): string[] => props.chips.filter((c) => c.kind === 'project').map((c) => c.id);
   const key = (e: KeyboardEvent): void => {
     if (suggestKeyDown(props.suggest, e)) return;
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -191,11 +200,22 @@ export function Launcher(props: LauncherProps): JSX.Element {
         <div data-kit="l-projects" data-part="launcher.projects">
           <span data-kit="l-in">{props.inLabel}</span>
           <span data-kit="lp-group">
-            <For each={props.chips}>{(c) => <Chip c={c} />}</For>
+            <For each={props.chips}>{(c) => <Chip c={c} ids={projectIds} onReorder={props.onReorder} />}</For>
           </span>
         </div>
         <div data-kit="mn-wrap">
-          <textarea data-kit="prompt" data-part="launcher.input" rows="2" placeholder={props.placeholder} value={props.value} ref={(el) => ((input = el), props.inputRef?.(el))} onBlur={() => setNudge(false)} onInput={(e) => (setNudge(false), props.onInput(e.currentTarget.value))} onKeyDown={key} onPaste={(e) => props.onPaste?.(e)} />
+          <textarea
+            data-kit="prompt"
+            data-part="launcher.input"
+            rows="2"
+            placeholder={props.placeholder}
+            value={props.value}
+            ref={(el) => ((input = el), props.inputRef?.(el))}
+            onBlur={() => setNudge(false)}
+            onInput={(e) => (setNudge(false), props.onInput(e.currentTarget.value))}
+            onKeyDown={key}
+            onPaste={(e) => props.onPaste?.(e)}
+          />
           <PromptSuggestList suggest={props.suggest} place="below" />
         </div>
         <Show when={props.goal}>
@@ -238,9 +258,13 @@ export function Launcher(props: LauncherProps): JSX.Element {
               render={(trigger) => (
                 <button type="button" {...trigger()} data-kit="runner-btn" data-part="launcher.harness" title={props.runner.title}>
                   <span data-kit="rb-logo">
-                    <i data-kit="auto-mark"><Icon name="spark" /></i>
+                    <i data-kit="auto-mark">
+                      <Icon name="spark" />
+                    </i>
                   </span>
-                  <span data-kit="rb-h" data-text="control">{props.runner.label}</span>
+                  <span data-kit="rb-h" data-text="control">
+                    {props.runner.label}
+                  </span>
                   <Icon name="chevron" />
                 </button>
               )}
@@ -252,7 +276,9 @@ export function Launcher(props: LauncherProps): JSX.Element {
                   <span data-kit="rb-logo" data-small="">
                     <Show when={props.runner.logo}>{(src) => <img src={src()} alt="" />}</Show>
                   </span>
-                  <span data-kit="apv-l" data-text="control">{props.runner.pick}</span>
+                  <span data-kit="apv-l" data-text="control">
+                    {props.runner.pick}
+                  </span>
                 </button>
               )}
             />
@@ -268,15 +294,7 @@ export function Launcher(props: LauncherProps): JSX.Element {
           <For each={props.mid}>{(t) => <Tool t={t} />}</For>
           <span data-kit="grow" />
           <For each={props.tail}>{(t) => <Tool t={t} />}</For>
-          <button
-            type="button"
-            {...actAttrs(props.sendAct)}
-            data-kit="send"
-            data-part="launcher.send"
-            title={props.sendLabel}
-            aria-label={props.sendLabel}
-            onClick={send}
-          >
+          <button type="button" {...actAttrs(props.sendAct)} data-kit="send" data-part="launcher.send" title={props.sendLabel} aria-label={props.sendLabel} onClick={send}>
             <ActIcon act={props.sendAct}>
               <Icon name="enter" />
             </ActIcon>
@@ -337,11 +355,15 @@ export function NextList(props: { readonly heading: string; readonly count: numb
         {(r) => (
           <button type="button" data-kit="sh-task" data-color={r.color} data-id={r.id} onClick={() => props.onOpen(r.id)}>
             <span data-kit="q-dot" />
-            <span data-kit="sh-t" data-text="control" title={r.title}>{r.title}</span>
+            <span data-kit="sh-t" data-text="control" title={r.title}>
+              {r.title}
+            </span>
             <Show when={r.state}>
               <span data-kit="sh-s">{r.state}</span>
             </Show>
-            <span data-kit="sh-time" title={r.timeTitle}>{r.time}</span>
+            <span data-kit="sh-time" title={r.timeTitle}>
+              {r.time}
+            </span>
           </button>
         )}
       </For>
@@ -367,17 +389,29 @@ export interface PlainTip {
 }
 
 /** v1 .sh-tips: setup cards, then one-line tips. */
-export function Tips(props: { readonly heading: string; readonly more: string; readonly moreTitle: string; readonly setup: readonly SetupTip[]; readonly tips: readonly PlainTip[]; readonly onMore?: () => void; readonly onOpen?: (href: string) => void }): JSX.Element {
+export function Tips(props: {
+  readonly heading: string;
+  readonly more: string;
+  readonly moreTitle: string;
+  readonly setup: readonly SetupTip[];
+  readonly tips: readonly PlainTip[];
+  readonly onMore?: () => void;
+  readonly onOpen?: (href: string) => void;
+}): JSX.Element {
   return (
     <div data-kit="sh-tips" data-part="tips">
       <h4>
         {props.heading}
-        <button type="button" data-kit="tip-more" title={props.moreTitle} onClick={() => props.onMore?.()}>{props.more}</button>
+        <button type="button" data-kit="tip-more" title={props.moreTitle} onClick={() => props.onMore?.()}>
+          {props.more}
+        </button>
       </h4>
       <For each={props.setup}>
         {(s) => (
           <button type="button" data-kit="sh-tip" data-setup="" data-part={s.kind === 'grid' ? 'tips.setup tips.grid' : 'tips.setup tips.tools'} onClick={() => s.onClick?.()}>
-            <span data-kit="ts-badge"><Icon name={s.icon} /></span>
+            <span data-kit="ts-badge">
+              <Icon name={s.icon} />
+            </span>
             <span data-kit="ts-text">
               <b>{s.title}</b>
               <small>{s.body}</small>

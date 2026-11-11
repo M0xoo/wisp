@@ -13,15 +13,9 @@ import { useNow } from '../clock.ts';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { rowSlots, useHeadSlots } from './slots.tsx';
 import { harnessOf } from './harness.ts';
-import { SECTIONS, crewOf, flatRow, goalOf, longTime, overlapOf, sectionOf, shortAgo, statusOf, type SectionId } from './rows-view.ts';
-
-
-interface ProjectRow {
-  readonly id: string;
-  readonly name: string;
-  readonly path: string;
-  readonly color: string;
-}
+import { SECTIONS, crewOf, flatRow, goalOf, longTime, overlapOf, projectOf, sectionOf, shortAgo, statusOf, type SectionId } from './rows-view.ts';
+import { useProjects } from './projects.ts';
+import { usePluginClient } from '../slot.tsx';
 
 interface CrewRow {
   readonly id: string;
@@ -40,7 +34,11 @@ export function Rail(): JSX.Element {
   const shell = useShell();
   const crew = useSignal(shell.client.entities.list<CrewRow>('crew_member'));
   // the crew host keeps a member in its row's body
-  const members = createMemo<RailMember[]>(() => crew().map((r) => flatRow<CrewRow>(r)).map((c) => ({ id: c.id, name: c.name, avatar: c.avatar ?? '', color: c.color ?? 'violet' })));
+  const members = createMemo<RailMember[]>(() =>
+    crew()
+      .map((r) => flatRow<CrewRow>(r))
+      .map((c) => ({ id: c.id, name: c.name, avatar: c.avatar ?? '', color: c.color ?? 'violet' })),
+  );
   const nav = useSignal(shell.nav);
   return (
     <CrewRail
@@ -63,7 +61,7 @@ export function Rail(): JSX.Element {
 export function Head(props: { readonly filter: () => string; readonly setFilter: (id: string) => void }): JSX.Element {
   const shell = useShell();
   const sessions = useSessions();
-  const projects = useSignal(shell.client.entities.list<ProjectRow>('project'));
+  const { list: projects, reorder } = useProjects(shell, usePluginClient('shell').home);
   const needs = (pred: (s: SessionRow) => boolean): number => sessions().filter((s) => sectionOf(s) === 'needs' && pred(s)).length;
   const needLabel = (n: number): string => shell.t(n === 1 ? 'shell.side.need.one' : 'shell.side.need.other', { count: n });
   const chips = createMemo<ProjectChip[]>(() => {
@@ -71,8 +69,8 @@ export function Head(props: { readonly filter: () => string; readonly setFilter:
     return [
       { id: 'all', name: shell.t('shell.side.allChip'), title: shell.t('shell.side.all'), need: all, needLabel: needLabel(all) },
       ...projects().map((p) => {
-        const n = needs((s) => s.summary['projectId'] === p.id);
-        return { id: p.id, name: p.name, title: p.path, color: p.color, need: n, needLabel: needLabel(n) };
+        const n = needs((s) => projectOf(String(s.summary['cwd'] ?? ''), projects())?.id === p.id);
+        return { id: p.id, name: p.name, title: p.path, color: p.color || 'slate', need: n, needLabel: needLabel(n) };
       }),
     ];
   });
@@ -108,8 +106,17 @@ export function Head(props: { readonly filter: () => string; readonly setFilter:
       onSearch={() => shell.palette.open()}
       onView={() => shell.sidebar.toggle()}
       onChip={(id) => props.setFilter(id)}
+      onReorder={reorder}
       accountAct={{ menu: { items: account(), onSelect: onAccount } }}
-      manageAct={{ menu: { items: [{ value: 'add', label: shell.t('shell.home.addProject'), icon: 'folder' }, { value: 'manage', label: shell.t('shell.side.manage'), icon: 'settings' }], onSelect: (v) => sheet(v === 'add' ? 'projects' : 'projects') } }}
+      manageAct={{
+        menu: {
+          items: [
+            { value: 'add', label: shell.t('shell.home.addProject'), icon: 'folder' },
+            { value: 'manage', label: shell.t('shell.side.manage'), icon: 'settings' },
+          ],
+          onSelect: () => shell.navigate({ t: 'openOverlay', overlay: { kind: 'dialog', id: 'shell.projects' as never, params: null } }),
+        },
+      }}
     />
   );
 }
@@ -127,6 +134,7 @@ export function SidebarList(props: { readonly onNew: () => void; readonly homeOn
     return m.kind === 'task' ? m.id : undefined;
   });
   const titleOf = (id: string): string => sessions().find((s) => s.id === id)?.title ?? '';
+  const projects = useProjects(shell, usePluginClient('shell').home).list;
   // a crew member picked on the rail: the list holds only their jobs (v1 crew.js inPick)
   const crew = useSignal(shell.client.entities.list<CrewRow>('crew_member'));
   const picked = createMemo(() => {
@@ -137,7 +145,7 @@ export function SidebarList(props: { readonly onNew: () => void; readonly homeOn
   const bySection = createMemo(() => {
     const out = new Map<SectionId, SessionRow[]>();
     const who = picked()?.id;
-    const shown = sessions().filter((s) => (props.filter() === 'all' || s.summary['projectId'] === props.filter()) && (!who || crewOf(s) === who));
+    const shown = sessions().filter((s) => (props.filter() === 'all' || projectOf(String(s.summary['cwd'] ?? ''), projects())?.id === props.filter()) && (!who || crewOf(s) === who));
     for (const s of shown.sort((a, b) => b.updated_at - a.updated_at)) {
       const k = sectionOf(s);
       out.set(k, [...(out.get(k) ?? []), s]);
@@ -152,7 +160,14 @@ export function SidebarList(props: { readonly onNew: () => void; readonly homeOn
   };
   return (
     <>
-      <SplitTop newLabel={shell.t('shell.side.new')} newTitle={shell.t('shell.side.newTitle')} stuffLabel={shell.t('shell.side.stuff')} on={props.homeOn} onNew={props.onNew} onStuff={() => shell.navigate({ t: 'openView', id: 'stuff.page' as never, params: null as Json })} />
+      <SplitTop
+        newLabel={shell.t('shell.side.new')}
+        newTitle={shell.t('shell.side.newTitle')}
+        stuffLabel={shell.t('shell.side.stuff')}
+        on={props.homeOn}
+        onNew={props.onNew}
+        onStuff={() => shell.navigate({ t: 'openView', id: 'stuff.page' as never, params: null as Json })}
+      />
       <Feed>
         <For each={SECTIONS.filter((id) => (bySection().get(id)?.length ?? 0) > 0)}>
           {(id) => (
@@ -180,7 +195,15 @@ export function SidebarList(props: { readonly onNew: () => void; readonly homeOn
                       status={statusOf(s, shell.t)}
                       {...(goal && { goal })}
                       {...(overlap && { overlap })}
-                      {...(h && { run: { harness: h.name, where, title: route ? routeTip(route, shell.t) : shell.t('shell.card.runTitle', { harness: h.name, where }), routed: !!route, ...(h.logo && { logo: h.logo }) } })}
+                      {...(h && {
+                        run: {
+                          harness: h.name,
+                          where,
+                          title: route ? routeTip(route, shell.t) : shell.t('shell.card.runTitle', { harness: h.name, where }),
+                          routed: !!route,
+                          ...(h.logo && { logo: h.logo }),
+                        },
+                      })}
                       time={shortAgo(s.updated_at, now())}
                       timeTitle={longTime(s.updated_at)}
                       laterLabel={shell.t('shell.card.later')}

@@ -65,5 +65,14 @@
   "shell-task.shell.ended": "Shell ended",
   "shell-task.shell.endedCode": "Shell ended (exit {code})",
   "shell-task.shell.end": "End shell",
-  "shell-task.shell.again": "Start again"
+  "shell-task.shell.again": "Start again",
+  "shell-task.file.back": "Back to Changes",
+  "shell-task.file.save": "Save",
+  "shell-task.file.retry": "Try again",
+  "shell-task.file.label": "{path}: edit, then Save (⌘S)",
+  "shell-task.file.loading": "Opening…",
+  "shell-task.file.saving": "Saving…",
+  "shell-task.file.unsaved": "Unsaved",
+  "shell-task.file.saved": "Saved",
+  "shell-task.file.error": "Couldn’t open it"
 }

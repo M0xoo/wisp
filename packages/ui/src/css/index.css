@@ -19,6 +19,7 @@
 @import './blocks.css';
 @import './markdown.css';
 @import './diff.css';
+@import './file-view.css';
 @import './virtual.css';
 @import './answer.css';
 @import './answer-content.css';

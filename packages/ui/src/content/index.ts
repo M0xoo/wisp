@@ -7,3 +7,4 @@ export { timeLabel, timeTitle, futureLabel } from './time-format.ts';
 export { Avatar, initials, type AvatarProps } from './Avatar.tsx';
 export { Skeleton, type SkeletonProps, type SkeletonWidth } from './Skeleton.tsx';
 export { Divider, type DividerProps } from './Divider.tsx';
+export { FileView, langOfPath, type FileViewProps, type GutterMark } from './file/FileView.tsx';

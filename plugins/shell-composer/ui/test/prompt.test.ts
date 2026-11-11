@@ -23,3 +23,14 @@ test('the_at_menu_names_tasks_crew_and_stuff_by_what_is_typed_and_the_slash_menu
   expect(slashItems(HOME_SLASH, 'bt', t)).toEqual([]);
   expect(slashItems(HOME_SLASH, 'te', t).map((x) => x.label)).toEqual(['/terminal']);
 });
+
+test('a_tasks_files_in_the_at_menu_insert_their_path_and_open_in_the_file_view', async () => {
+  const { fileItems } = await import('../src/prompt.ts');
+  const opened: string[] = [];
+  const items = fileItems(['src/auth/login.ts', 'src/app.ts', 'docs/login-flow.md', 'README.md'], 'login', (f) => opened.push(f));
+  expect(items.map((i) => i.value)).toEqual(['file:src/auth/login.ts', 'file:docs/login-flow.md']);
+  expect(items[0]).toMatchObject({ label: 'login.ts', detail: 'src/auth', insert: '@src/auth/login.ts ', icon: 'file' });
+  items[0]?.open?.();
+  expect(opened).toEqual(['src/auth/login.ts']);
+  expect(fileItems(['a.ts'], 'zzz', () => undefined)).toEqual([]);
+});

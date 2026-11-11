@@ -15,8 +15,9 @@ export function openTaskKey(client: Client, nav: Nav): EntityKey | undefined {
 export type SidePane = 'changes' | 'shell' | 'pr' | 'watch';
 
 /** The pane open beside the task: the side kinds nav knows, plus the watch view (`shell-task.watch`). */
-export function sideOf(nav: Nav): { pane: SidePane; id: string } | undefined {
+export function sideOf(nav: Nav): { pane: SidePane; id: string; file?: string } | undefined {
   const s = nav.side;
+  if (s.kind === 'changes' && s.file) return { pane: s.kind, id: s.id, file: s.file };
   if (s.kind === 'changes' || s.kind === 'shell' || s.kind === 'pr') return { pane: s.kind, id: s.id };
   if (s.kind === 'view' && s.id === 'shell-task.watch' && nav.main.kind === 'task') return { pane: 'watch', id: nav.main.id };
   return undefined;

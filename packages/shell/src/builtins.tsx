@@ -17,6 +17,8 @@ export const SHELL_SETTINGS = [
   { key: 'shell.theme', type: 'enum', values: THEMES, default: 'system', scope: 'server', overridable: true },
   { key: 'shell.sidebar.width', type: 'int', min: 220, max: 640, default: 320, scope: 'device' },
   { key: 'shell.sidebar.open', type: 'bool', default: true, scope: 'device' },
+  /** the project the list shows (the top bar's chips): a project's id, or 'all' (v1 wisp.filter) */
+  { key: 'shell.projectFilter', type: 'string', default: 'all', scope: 'device' },
   /** other wisps this device connects to: [{ peer, name, base }] */
   { key: 'shell.peers', type: 'json', default: [] as Json[], scope: 'device' },
 ] as const;
@@ -26,7 +28,10 @@ const Shortcuts = lazy(() => import('./frame/Shortcuts.tsx'));
 const Inspector = lazy(() => import('./devtools/Inspector.tsx'));
 const Appearance = lazy(() => import('./frame/Appearance.tsx'));
 
-const overlay = (id: string): { t: 'openOverlay'; overlay: { kind: 'dialog'; id: ExtensionId; params: null } } => ({ t: 'openOverlay', overlay: { kind: 'dialog', id: id as ExtensionId, params: null } });
+const overlay = (id: string): { t: 'openOverlay'; overlay: { kind: 'dialog'; id: ExtensionId; params: null } } => ({
+  t: 'openOverlay',
+  overlay: { kind: 'dialog', id: id as ExtensionId, params: null },
+});
 const none = (p: unknown): null | undefined => (p === null || p === undefined ? null : undefined);
 
 function appItems(ctx: ShellContext): PaletteItem[] {
@@ -46,7 +51,14 @@ function appItems(ctx: ShellContext): PaletteItem[] {
     theme('system', 'shell.cmd.theme.system', 'settings'),
     { id: 'shell.sidebar', group: g, label: ctx.t('shell.cmd.sidebar'), icon: 'panel', kbd: '[', keywords: 'sidebar list fold', run: () => ctx.sidebar.toggle() },
     { id: 'shell.shortcuts', group: g, label: ctx.t('shell.cmd.shortcuts'), icon: 'info', kbd: '?', keywords: 'keys keyboard help', run: () => ctx.navigate(overlay('shell.shortcuts')) },
-    { id: 'shell.diagnostics', group: g, label: ctx.t('shell.cmd.diagnostics'), icon: 'bug', keywords: 'devtools debug inspector log state report', run: () => ctx.navigate(overlay('shell.devtools')) },
+    {
+      id: 'shell.diagnostics',
+      group: g,
+      label: ctx.t('shell.cmd.diagnostics'),
+      icon: 'bug',
+      keywords: 'devtools debug inspector log state report',
+      run: () => ctx.navigate(overlay('shell.devtools')),
+    },
   ];
 }
 
@@ -56,7 +68,15 @@ function taskItems(ctx: ShellContext): PaletteItem[] {
   const out: PaletteItem[] = [];
   for (const s of rows) {
     if (s.archived) continue;
-    out.push({ id: `task:${s.id}`, group: g, label: s.title, sub: ctx.t(`shell.state.${s.state}`), icon: s.state === 'running' ? 'spark' : 'feed', at: s.updated_at, run: () => ctx.navigate({ t: 'openTask', id: s.id as never }) });
+    out.push({
+      id: `task:${s.id}`,
+      group: g,
+      label: s.title,
+      sub: ctx.t(`shell.state.${s.state}`),
+      icon: s.state === 'running' ? 'spark' : 'feed',
+      at: s.updated_at,
+      run: () => ctx.navigate({ t: 'openTask', id: s.id as never }),
+    });
   }
   return out.sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
 }
@@ -145,7 +165,13 @@ function rowAct(ctx: ShellContext, act: 'done' | 'archive' | 'delete'): boolean 
 }
 
 function shortcuts(ctx: ShellContext): ShortcutDef[] {
-  const k = (id: string, keys: string, label: string, act: TaskKey, group: ShortcutDef['group'] = 'task'): ShortcutDef => ({ id: `shell.task.${id}`, keys, label, group, run: () => taskKey(ctx, act) });
+  const k = (id: string, keys: string, label: string, act: TaskKey, group: ShortcutDef['group'] = 'task'): ShortcutDef => ({
+    id: `shell.task.${id}`,
+    keys,
+    label,
+    group,
+    run: () => taskKey(ctx, act),
+  });
   return [
     // the list (v1 kbd.js): J/K, O/Enter, and the row's own keys on the picked row
     { id: 'shell.next', keys: 'j', label: 'shell.key.next', group: 'list', run: () => step(ctx, 1) },
@@ -185,11 +211,12 @@ function shortcuts(ctx: ShellContext): ShortcutDef[] {
 export function shellUi(ctx: ShellContext): PluginUiDef {
   return {
     id: 'shell',
-    extensions: [
-    ],
+    extensions: [],
     views: [
       defineView({ kind: 'shell.palette', slot: 'overlay', overlay: 'dialog', parse: none, component: Palette }),
       defineView({ kind: 'shell.shortcuts', slot: 'overlay', overlay: 'dialog', parse: none, component: Shortcuts, title: () => ctx.t('shell.shortcuts.title') }),
+      // add, order, rename and remove projects (v1 features/projects.js); every "Add a project" opens it
+      defineView({ kind: 'shell.projects', slot: 'overlay', overlay: 'dialog', parse: none, component: lazy(() => import('./frame/Projects.tsx')), title: () => ctx.t('shell.projects.title') }),
       defineView({ kind: 'shell.devtools', slot: 'overlay', overlay: 'viewer', parse: none, component: Inspector, title: () => ctx.t('shell.diag.title') }),
     ],
     settings: [

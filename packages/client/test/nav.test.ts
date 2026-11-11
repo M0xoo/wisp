@@ -135,7 +135,13 @@ test('model: after any intents, a task pane sits beside its own task, a toast le
 
 test('property: decode(encode(nav)) is nav for every nav state', () => {
   const r = prng(7);
-  const mains: Main[] = [{ kind: 'home' }, { kind: 'task', id: T1 }, { kind: 'crew', id: 'box:c/1' as CrewId }, { kind: 'view', id: 'git.graph' as ExtensionId, params: { a: [1, 'x:y'], b: null } }, { kind: 'view', id: 'x.y' as ExtensionId, params: null }];
+  const mains: Main[] = [
+    { kind: 'home' },
+    { kind: 'task', id: T1 },
+    { kind: 'crew', id: 'box:c/1' as CrewId },
+    { kind: 'view', id: 'git.graph' as ExtensionId, params: { a: [1, 'x:y'], b: null } },
+    { kind: 'view', id: 'x.y' as ExtensionId, params: null },
+  ];
   const sides: Side[] = [{ kind: 'none' }, { kind: 'changes', id: T2 }, { kind: 'view', id: 'git.graph' as ExtensionId }];
   for (let i = 0; i < 200; i++) {
     const overlays = [viewer, dialog, { kind: 'sheet', id: 'a.b' as ExtensionId, params: 'p:q?&=' as Json } as Overlay].filter(() => r.int(2) === 0);
@@ -149,7 +155,10 @@ test('a broken or hostile URL lands on Home and never throws', () => {
   for (const url of ['/task/', '/task/%E0%A4%A', '/view/../../etc', '/view/a.b?p={bad', '/nope/x', '/?side=shell:', '/?side=evil:x', '/?o=dialog:a b', '/?o=popup:x', '//', '']) {
     const nav = decodeNav(url);
     assert.ok(nav.main.kind === 'home' || nav.main.kind === 'task', url);
-    assert.ok(nav.overlays.every((o) => /^[A-Za-z0-9._-]+$/.test(o.id)), url);
+    assert.ok(
+      nav.overlays.every((o) => /^[A-Za-z0-9._-]+$/.test(o.id)),
+      url,
+    );
   }
 });
 
@@ -176,7 +185,11 @@ test('a view that is not registered (or was switched off) lands on Home', () => 
   const scope = createScope();
   const plugin = scope.child('plugin:git');
   const views = createViews();
-  const graph = views.register(plugin, { id: 'git.graph', slot: 'main', parse: (p) => (typeof p === 'object' && p !== null && !Array.isArray(p) && typeof p['repo'] === 'string' ? { repo: p['repo'] } : undefined) });
+  const graph = views.register(plugin, {
+    id: 'git.graph',
+    slot: 'main',
+    parse: (p) => (typeof p === 'object' && p !== null && !Array.isArray(p) && typeof p['repo'] === 'string' ? { repo: p['repo'] } : undefined),
+  });
   const warnings: string[] = [];
   const nav = createNavigation({ scope, width: 1280, history: memoryHistory('/view/git.graph?p=%7B%22repo%22%3A%22r1%22%7D'), views, warn: (m) => warnings.push(m) });
   assert.deepEqual(nav.nav().main, { kind: 'view', id: 'git.graph', params: { repo: 'r1' } });
@@ -193,7 +206,7 @@ test('a view that is not registered (or was switched off) lands on Home', () => 
   scope.dispose();
 });
 
-test('a bare task id in a URL is the home peer\'s task: /task/<id> opens it, ?side too (2026-11-09 /task/<id> mounted nothing)', () => {
+test("a bare task id in a URL is the home peer's task: /task/<id> opens it, ?side too (2026-11-09 /task/<id> mounted nothing)", () => {
   const scope = createScope('t');
   const nav = createNavigation({ scope, width: 1440, history: memoryHistory('/task/abc123?side=changes:abc123'), home: 'local' });
   assert.deepEqual(nav.nav().main, { kind: 'task', id: 'local:abc123' });
@@ -202,4 +215,14 @@ test('a bare task id in a URL is the home peer\'s task: /task/<id> opens it, ?si
   const other = createNavigation({ scope, width: 1440, history: memoryHistory('/task/box%3Aabc'), home: 'local' });
   assert.deepEqual(other.nav().main, { kind: 'task', id: 'box:abc' });
   assert.deepEqual(createNavigation({ scope, width: 1440, history: memoryHistory('/task/abc') }).nav().main, { kind: 'task', id: 'abc' });
+});
+
+test('a_file_in_the_changes_side_round_trips_through_the_url_and_a_path_out_of_the_folder_is_dropped', () => {
+  const nav: Omit<Nav, 'layout'> = { main: { kind: 'task', id: 'h:t1' as SessionId }, side: { kind: 'changes', id: 'h:t1' as SessionId, file: 'src/app.ts' }, overlays: [] };
+  const url = encodeNav(nav);
+  assert.match(url, /side=changes%3Ah%3At1&file=src%2Fapp\.ts/);
+  assert.deepEqual(decodeNav(url), nav);
+  for (const bad of ['../etc/passwd', '/etc/passwd', 'a/../../b']) {
+    assert.deepEqual(decodeNav(`/task/h%3At1?side=changes%3Ah%3At1&file=${encodeURIComponent(bad)}`).side, { kind: 'changes', id: 'h:t1' });
+  }
 });

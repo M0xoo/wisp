@@ -24,6 +24,11 @@ export function suggestKeyDown(s: PromptSuggest | undefined, e: KeyboardEvent): 
   else if (r.t === 'pick') {
     const it = s.items[s.active];
     if (it) s.onPick(it.value);
+  } else if (r.t === 'open') {
+    const it = s.items[s.active];
+    if (!it?.onOpen) return false;
+    it.onOpen();
+    s.onClose();
   } else s.onClose();
   return true;
 }
@@ -42,7 +47,10 @@ export function PromptSuggestList(props: { readonly suggest: PromptSuggest | und
 
 /** A prompt box as a drop target for files (v1 attachments.js): it lights up while files are over it; text drops
  * stay the browser's (into the box). Returns the box's handlers; none when the host takes no files. */
-export function dropHandlers(onFiles: () => ((files: File[]) => void) | undefined, setOver: (on: boolean) => void): {
+export function dropHandlers(
+  onFiles: () => ((files: File[]) => void) | undefined,
+  setOver: (on: boolean) => void,
+): {
   onDragOver?: (e: DragEvent) => void;
   onDragLeave?: (e: DragEvent) => void;
   onDrop?: (e: DragEvent) => void;

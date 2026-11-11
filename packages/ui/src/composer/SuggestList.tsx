@@ -2,6 +2,7 @@
 // task and crew pickers). Focus never leaves the text box: the box drives it with ↑/↓, Enter and
 // Tab (`suggestKey`), and points at the active row with aria-activedescendant. Mousedown on a row
 // is prevented so the click doesn't blur the box. Looks like a Menu (it is one, without the focus).
+import { IconButton } from '../controls/Button.tsx';
 import { For, Show, type JSX } from 'solid-js';
 import { flag, sub, type KitProps, type PartName } from '../core/props.ts';
 import { Icon } from '../content/Icon.tsx';
@@ -15,6 +16,10 @@ export interface SuggestItem {
   /** One line under the label. */
   readonly hint?: string;
   readonly icon?: IconName;
+  /** A second way to take it: an Open button on the row (and ⌘↵ / Ctrl+↵ on the active row), e.g. a file in the
+   * file view while ↵ inserts its mention. */
+  readonly onOpen?: () => void;
+  readonly openLabel?: string;
 }
 
 export interface SuggestListProps extends KitProps {
@@ -33,15 +38,16 @@ export interface SuggestListProps extends KitProps {
 export const optionId = (list: string, i: number): string => `${list}-o${i}`;
 
 /** What a key does to an open list: move the active row, pick it, close, or nothing. */
-export function suggestKey(e: Pick<KeyboardEvent, 'key' | 'shiftKey' | 'isComposing' | 'altKey' | 'metaKey' | 'ctrlKey'>, count: number, active: number):
-  | { readonly t: 'move'; readonly to: number }
-  | { readonly t: 'pick' }
-  | { readonly t: 'close' }
-  | undefined {
+export function suggestKey(
+  e: Pick<KeyboardEvent, 'key' | 'shiftKey' | 'isComposing' | 'altKey' | 'metaKey' | 'ctrlKey'>,
+  count: number,
+  active: number,
+): { readonly t: 'move'; readonly to: number } | { readonly t: 'pick' } | { readonly t: 'open' } | { readonly t: 'close' } | undefined {
   if (count === 0 || e.isComposing) return e.key === 'Escape' ? { t: 'close' } : undefined;
   if (e.key === 'ArrowDown') return { t: 'move', to: (active + 1) % count };
   if (e.key === 'ArrowUp') return { t: 'move', to: (active - 1 + count) % count };
   if ((e.key === 'Enter' || e.key === 'Tab') && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) return { t: 'pick' };
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) return { t: 'open' };
   if (e.key === 'Escape') return { t: 'close' };
   return undefined;
 }
@@ -51,9 +57,20 @@ export function SuggestList(props: SuggestListProps): JSX.Element {
   return (
     <div id={props.id} role="listbox" aria-label={props['aria-label']} data-kit="menu" data-part={part()} data-suggest="" onMouseDown={(e) => e.preventDefault()}>
       <Show when={props.title}>
-        <div data-kit="menu-group-label" data-text="control">{props.title}</div>
+        <div data-kit="menu-group-label" data-text="control">
+          {props.title}
+        </div>
       </Show>
-      <Show when={props.items.length > 0} fallback={<Show when={props.empty}><div data-kit="menu-item" aria-disabled="true" data-disabled="">{props.empty}</div></Show>}>
+      <Show
+        when={props.items.length > 0}
+        fallback={
+          <Show when={props.empty}>
+            <div data-kit="menu-item" aria-disabled="true" data-disabled="">
+              {props.empty}
+            </div>
+          </Show>
+        }
+      >
         <For each={props.items}>
           {(item, i) => (
             <div
@@ -80,8 +97,29 @@ export function SuggestList(props: SuggestListProps): JSX.Element {
                     )}
                   </Show>
                 </span>
-                <Show when={item.hint}>{(hint) => <span data-kit="menu-item-hint" data-text="control">{hint()}</span>}</Show>
+                <Show when={item.hint}>
+                  {(hint) => (
+                    <span data-kit="menu-item-hint" data-text="control">
+                      {hint()}
+                    </span>
+                  )}
+                </Show>
               </span>
+              <Show when={item.onOpen}>
+                {(open) => (
+                  <IconButton
+                    icon="expand"
+                    size="sm"
+                    variant="ghost"
+                    label={item.openLabel ?? ''}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      open()();
+                    }}
+                    part={sub(part(), 'open')}
+                  />
+                )}
+              </Show>
             </div>
           )}
         </For>

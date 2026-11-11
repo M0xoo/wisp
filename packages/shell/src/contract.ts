@@ -4,7 +4,7 @@
 // use exactly this API (no private API for first-party code, plan §6.0.3).
 
 import type { Component, JSX } from 'solid-js';
-import type { Client, PluginClient, Nav, Intent } from '@wisp/client';
+import type { Client, PluginClient, Nav, Intent, Readable } from '@wisp/client';
 import type { Toaster } from '@wisp/ui';
 import type { Platform } from './platform/types.ts';
 
@@ -270,6 +270,8 @@ export interface PromptItem {
   insert: string;
   /** a mention: sent as `@[title](scheme:id)` (v1 mention-text.js), shown as `@title` */
   mention?: { scheme: 'wisp' | 'crew' | 'stuff'; id: string; title: string };
+  /** a second way to take it (an Open button on the row, ⌘↵): a file opens in the task's file view. Additive (2026-11-11). */
+  open?: () => void;
 }
 
 /** What a prompt box's @ or / menu offers, from a plugin (shell-composer: tasks, crew, My Stuff, the commands). */
@@ -335,6 +337,9 @@ export interface ShellContext {
   readonly selection: { get(): string | undefined; set(key: string | undefined): void };
   /** the list beside the task (split view): `[` folds it */
   readonly sidebar: { open(): boolean; toggle(): void; width(): number; setWidth(px: number): void };
+  /** added 2026-11-11 (additive): the project the list shows, set by the top bar's chips ('all', or a project's id);
+   * a list in `shell.sidebar:list` follows it */
+  readonly projectFilter?: { readonly value: Readable<string>; set(id: string): void };
   /** named things a shortcut can focus ('launcher' for ⌘L, 'reply' for /): the owner registers */
   readonly focusTargets: { provide(name: string, focus: () => void): () => void; focus(name: string): boolean };
   /** added 2026-11-11 (additive): the prompt boxes ('launcher' for New task) a plugin may fill, as v1's Start from an

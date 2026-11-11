@@ -140,3 +140,46 @@ export function backOf(key: string, row: { readonly parent_id?: string | null } 
   return at > 0 ? `${key.slice(0, at)}:${parent}` : parent;
 }
 
+/** A project as the screens show it: wisp.runtime's `project` row (`{id: name, body: spec}`) flattened. */
+export interface ProjectView {
+  readonly id: string;
+  readonly name: string;
+  readonly path: string;
+  readonly color: string;
+}
+
+/** The setting that keeps your project order (v1 #772): one list of names, used everywhere projects show. */
+export const PROJECT_ORDER = 'runtime.projectOrder';
+
+/** The projects in your order: the ones you placed first, as you placed them, then the rest by name. */
+export function projectList(rows: readonly unknown[], order: unknown): ProjectView[] {
+  const placed = Array.isArray(order) ? order.filter((x): x is string => typeof x === 'string') : [];
+  const all = rows.map((r) => {
+    const p = flatRow<{ id?: unknown; name?: unknown; path?: unknown; color?: unknown }>(r);
+    const id = String(p.id ?? '');
+    return { id, name: typeof p.name === 'string' && p.name ? p.name : id, path: String(p.path ?? ''), color: String(p.color ?? '') };
+  });
+  const at = (id: string): number => {
+    const i = placed.indexOf(id);
+    return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  return all.filter((p) => p.id).sort((a, b) => at(a.id) - at(b.id) || a.name.localeCompare(b.name));
+}
+
+/** The project a folder is in (v1 `projectFor`): the one whose path holds it, the deepest when they nest. */
+export function projectOf(cwd: string | undefined, projects: readonly ProjectView[]): ProjectView | undefined {
+  if (!cwd) return undefined;
+  const inside = (root: string): boolean => {
+    const r = root.replace(/\/+$/, '');
+    return !!r && (cwd === r || cwd.startsWith(`${r}/`));
+  };
+  return projects.filter((p) => inside(p.path)).sort((a, b) => b.path.length - a.path.length)[0];
+}
+
+/** The order after dragging `id` to where `to` is (before it; at the end when `to` is undefined). */
+export function movedOrder(current: readonly ProjectView[], id: string, to: string | undefined): string[] {
+  const ids = current.map((p) => p.id).filter((x) => x !== id);
+  const i = to === undefined ? -1 : ids.indexOf(to);
+  ids.splice(i < 0 ? ids.length : i, 0, id);
+  return ids;
+}

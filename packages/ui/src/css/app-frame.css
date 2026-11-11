@@ -219,4 +219,7 @@
   [data-titlebar='mac'][data-layout='split'][data-rail] > [data-kit='topbar'] [data-kit='brand'] { margin-left: 0; }
   [data-kit='stage'][data-titlebar='mac'][data-layout='stack'] [data-kit='split-head'] { padding-left: 98px; }
   [data-kit='stage'][data-titlebar='mac'][data-layout='stack'] [data-kit='sh-bar'] { padding-left: 82px; }
+  /* v1 #772: a project chip dragged over another shows where it lands (before it) */
+  [data-reorder] { cursor: grab; }
+  [data-reorder][data-drop-on] { box-shadow: inset var(--size-ring) 0 0 var(--accent); }
 }

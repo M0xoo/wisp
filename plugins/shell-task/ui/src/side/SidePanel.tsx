@@ -11,6 +11,7 @@ import { useTask } from '../task-context.tsx';
 import { filesOf, gitFiles, type ChangeTurn, type GitChanges } from './changes.ts';
 import { PrPane } from './PrPane.tsx';
 import { ShellPane } from './ShellPane.tsx';
+import { FilePane } from './FilePane.tsx';
 
 /** wisp-git's read: the work's diff since `base` (its peer is the task's). */
 const gitChanges = defineCommand<{ key: EntityKey; path: string; base: string }, GitChanges>({ id: 'git.changes', owner: (a) => a.key, optimistic: 'none', pending: 'the Changes pane' });
@@ -46,7 +47,7 @@ function Changes(): JSX.Element {
         </Text>
       </Show>
       <Show when={files().length > 0} fallback={<EmptyState icon="file" title={t(git.loading ? 'shell-task.side.changes.loading' : 'shell-task.side.changes.empty')} compact />}>
-        <Diff files={files()} />
+        <Diff files={files()} onOpenFile={(file) => shell.navigate({ t: 'openSide', side: { kind: 'changes', id: task.key as never, file } })} />
       </Show>
     </Stack>
   );
@@ -54,7 +55,7 @@ function Changes(): JSX.Element {
 
 const PANES: readonly SidePane[] = ['changes', 'pr', 'shell'];
 
-export function SidePanel(props: { readonly pane: SidePane }): JSX.Element {
+export function SidePanel(props: { readonly pane: SidePane; readonly file?: string }): JSX.Element {
   const shell = useShell();
   const task = useTask();
   const t = shell.t;
@@ -64,11 +65,18 @@ export function SidePanel(props: { readonly pane: SidePane }): JSX.Element {
   return (
     <Stack gap="4" part="side.panel" grow>
       <Inline gap="2" align="center" part="side.head">
-        <Tabs variant="pill" aria-label={t('shell-task.side.label')} value={props.pane} onChange={open} items={PANES.map((p) => ({ value: p, label: t(`shell-task.side.${p}`), icon: p === 'changes' ? 'file' : p === 'pr' ? 'merge' : 'terminal' }))} />
+        <Tabs
+          variant="pill"
+          aria-label={t('shell-task.side.label')}
+          value={props.pane}
+          onChange={open}
+          items={PANES.map((p) => ({ value: p, label: t(`shell-task.side.${p}`), icon: p === 'changes' ? 'file' : p === 'pr' ? 'merge' : 'terminal' }))}
+        />
         <Box grow />
         <IconButton icon="x" size="sm" label={t('shell-task.side.close')} onClick={() => shell.navigate({ t: 'closeSide' })} />
       </Inline>
       <Switch>
+        <Match when={props.pane === 'changes' && props.file}>{(f) => <FilePane path={f()} />}</Match>
         <Match when={props.pane === 'changes'}>
           <Changes />
         </Match>

@@ -19,7 +19,7 @@ export default function TaskSide(props: ExtensionProps): JSX.Element {
     <Show when={key()} keyed>
       {(k) => (
         <TaskProvider value={createTaskContext(props.client, k)}>
-          <Show when={side()}>{(s) => <SidePanel pane={s().pane} />}</Show>
+          <Show when={side()}>{(s) => <SidePanel pane={s().pane} {...(s().file !== undefined && { file: s().file })} />}</Show>
         </TaskProvider>
       )}
     </Show>

@@ -3,6 +3,7 @@
 // fixed-width column and hover-only actions appear beside it, never on top of it (v1 #188, #209).
 import { Show, type JSX } from 'solid-js';
 import { flag, sub, type KitProps, type PartName } from '../core/props.ts';
+import type { ReorderAttrs } from '../core/reorder.ts';
 
 export interface ListRowProps extends KitProps {
   readonly title: string;
@@ -30,6 +31,8 @@ export interface ListRowProps extends KitProps {
   /** `feed`: v1's task row (#feed .it-head): the time and the actions on the title's line, the pills on the
    *  line under it, beside the sub, so the title keeps the row's width. Default `line`: everything on one line. */
   readonly layout?: 'line' | 'feed';
+  /** Dragging rows into your own order: `reorderable(list, id, ids, onReorder)` (v1 #772, the Projects list). */
+  readonly reorder?: ReorderAttrs;
 }
 
 /** The row's one click target: a button or link stretched over the row by CSS (::after). */
@@ -64,6 +67,7 @@ export function ListRow(props: ListRowProps): JSX.Element {
   const part = (): PartName => props.part ?? 'ui.list-row';
   return (
     <div
+      {...props.reorder}
       id={props.id}
       data-kit="list-row"
       data-part={part()}
@@ -76,14 +80,24 @@ export function ListRow(props: ListRowProps): JSX.Element {
       data-interactive={flag(props.onOpen !== undefined || props.href !== undefined)}
       onContextMenu={(e) => props.onContextMenu?.(e)}
     >
-      <div data-kit="list-row-lead" data-part={sub(part(), 'lead')}>{props.lead}</div>
+      <div data-kit="list-row-lead" data-part={sub(part(), 'lead')}>
+        {props.lead}
+      </div>
       <div data-kit="list-row-main" data-part={sub(part(), 'main')}>
         <Hit row={props} part={part()} />
-        <div data-kit="list-row-sub" data-part={sub(part(), 'sub')}>{props.sub}</div>
+        <div data-kit="list-row-sub" data-part={sub(part(), 'sub')}>
+          {props.sub}
+        </div>
       </div>
-      <div data-kit="list-row-pills" data-part={sub(part(), 'pills')}>{props.pills}</div>
-      <div data-kit="list-row-time" data-part={sub(part(), 'time')}>{props.time}</div>
-      <div data-kit="list-row-actions" data-part={sub(part(), 'actions')}>{props.actions}</div>
+      <div data-kit="list-row-pills" data-part={sub(part(), 'pills')}>
+        {props.pills}
+      </div>
+      <div data-kit="list-row-time" data-part={sub(part(), 'time')}>
+        {props.time}
+      </div>
+      <div data-kit="list-row-actions" data-part={sub(part(), 'actions')}>
+        {props.actions}
+      </div>
     </div>
   );
 }
