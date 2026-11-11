@@ -31,7 +31,7 @@ pub const ENV_REMOVE: [&str; 10] = [
 const SUBAGENT_MODELS: [&str; 2] = ["haiku", "sonnet"];
 pub const APPROVE_TOOL: &str = "mcp__wisp__approve";
 
-fn permission_mode(mode: Mode) -> &'static str {
+pub(crate) fn permission_mode(mode: Mode) -> &'static str {
     match mode {
         Mode::Plan => "plan",
         Mode::Edits => "acceptEdits",

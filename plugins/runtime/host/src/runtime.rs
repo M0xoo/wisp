@@ -354,6 +354,9 @@ impl Runtime {
             _ => serde_json::Map::new(),
         };
         own.insert("titleAuto".into(), a.title.is_none().into());
+        if a.terminal {
+            own.insert("terminal".into(), serde_json::json!({ "prompt": a.prompt, "opened": false }));
+        }
         s.ext.insert("wisp.runtime".into(), serde_json::Value::Object(own));
         if let Some(p) = &pick {
             s.ext.insert(wisp_router_api::PLUGIN_ID.into(), serde_json::json!({ "route": p.route }));
@@ -372,6 +375,11 @@ impl Runtime {
             opts: a.confirm_limit.then(|| serde_json::json!({ "confirmLimit": true })),
             ..QueueItem::default()
         };
+        if a.terminal {
+            // no headless run: the CLI in its terminal is the task's run (`terminal_argv`)
+            self.persist(&mut s, Vec::new()).await?;
+            return Ok(Created { id: s.id, turn_id: None });
+        }
         if a.hold {
             s.queue.push(item);
             s.queue_held = true;

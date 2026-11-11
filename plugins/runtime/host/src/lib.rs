@@ -23,6 +23,7 @@ mod run;
 mod setup;
 mod side;
 mod specs;
+mod term;
 pub mod runtime;
 pub mod schema;
 pub mod sys;

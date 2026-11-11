@@ -573,7 +573,8 @@ impl Runtime {
                 continue;
             }
             let (name, count) = (str_at(m, "name"), m.get("count").and_then(Value::as_u64).unwrap_or(1));
-            if m.get("machine").is_some_and(|x| !x.is_null()) || m.get("crew").is_some_and(|x| !x.is_null()) {
+            let in_sandbox = str_at(m, "machine") == "sandbox";
+            if (m.get("machine").is_some_and(|x| !x.is_null()) && !in_sandbox) || m.get("crew").is_some_and(|x| !x.is_null()) {
                 out.push(err(&want, "Members on another machine or from the crew can't take work here yet.".into()));
                 continue;
             }
@@ -586,6 +587,17 @@ impl Runtime {
             };
             claimed.push(slot_name.clone());
             let existing = children.get(&slot_name).and_then(Value::as_str).map(str::to_owned);
+            // its place is a sandbox (ADR-0047): the lead's work goes in, the task runs there, its changes come back
+            if in_sandbox {
+                match self.sandbox_member(&lead, m, &slot_name, existing, &prompt).await {
+                    Ok(key) => {
+                        made.insert(slot_name.clone(), json!(key));
+                        out.push(Delegation { id: SessionId(key), subagent: slot_name, agent: str_at(m, "agent"), model: str_at(m, "model"), effort: str_at(m, "effort"), turn_id: TurnId(String::new()), place: Some("sandbox".into()), error: None });
+                    }
+                    Err(e) => out.push(err(&want, e.to_string())),
+                }
+                continue;
+            }
             let (child, child_turn) = self.run_member(&lead, m, &slot_name, existing, &prompt, capped.as_ref(), &mut made).await?;
             let c = self.repo.session(&child).await?;
             out.push(Delegation { id: c.id.clone(), subagent: slot_name, agent: c.agent, model: c.model, effort: c.effort, turn_id: child_turn.unwrap_or_else(|| TurnId(String::new())), place: None, error: None });
@@ -613,6 +625,59 @@ impl Runtime {
             self.add_row(a.id.as_str(), turn.id.as_str(), tool_row(ToolKind::Agent, format!("Delegated to {}", who.join(", ")))).await?;
         }
         Ok(out)
+    }
+
+    /// A member whose place is a sandbox: its sandbox (made once, the lead's work in it), and its task there, new or
+    /// followed up. → `<machine>|<task>`.
+    async fn sandbox_member(self: &Arc<Self>, lead: &Session, m: &Value, slot_name: &str, existing: Option<String>, prompt: &str) -> Result<String> {
+        let wire = |e: wisp_kernel::WireError| RuntimeError::Invalid(e.message);
+        if let Some((machine, id)) = existing.as_deref().and_then(|k| k.split_once('|')) {
+            let mid = format!("dlg-{}", wisp_kernel::ids::uuid7());
+            self.host.command("machines.route", json!({ "id": machine, "cmd": "runtime.followUp", "args": { "id": id, "text": prompt, "queue": true }, "mid": mid })).await.map_err(wire)?;
+            return Ok(format!("{machine}|{id}"));
+        }
+        let placed = self.host.command("sandbox.place", json!({ "owner": { "lead": lead.id.0, "member": slot_name }, "cwd": lead.cwd })).await.map_err(wire)?;
+        let machine = str_at(&placed, "machine");
+        let mut args = json!({ "prompt": prompt, "cwd": str_at(&placed, "cwd"), "mode": lead.mode, "title": format!("{slot_name} · {}", lead.title) });
+        for k in ["agent", "model", "effort"] {
+            let v = str_at(m, k);
+            if !v.is_empty() {
+                args[k] = json!(v);
+            }
+        }
+        let mid = format!("dlg-{}", wisp_kernel::ids::uuid7());
+        let made = self.host.command("machines.route", json!({ "id": machine, "cmd": "runtime.create", "args": args, "mid": mid })).await.map_err(wire)?;
+        Ok(format!("{machine}|{}", str_at(&made, "id")))
+    }
+
+    /// A sandbox member's report, read there; once it's done, its changes come into the lead's folder (once).
+    async fn sandbox_report(self: &Arc<Self>, lead: &Session, key: &str) -> Option<Report> {
+        let (machine, id) = key.split_once('|')?;
+        let route = |cmd: &str, args: Value| self.host.command("machines.route", json!({ "id": machine, "cmd": cmd, "args": args, "mid": format!("dlg-{}", wisp_kernel::ids::uuid7()) }));
+        let s = route("runtime.get", json!({ "id": id })).await.ok()?;
+        let state: SessionState = serde_json::from_value(s.get("state").cloned().unwrap_or_default()).unwrap_or(SessionState::Running);
+        let done = state != SessionState::Running;
+        let turns = route("runtime.turns", json!({ "id": id })).await.ok().unwrap_or_default();
+        let last = turns.as_array().and_then(|t| t.last()).cloned().unwrap_or_default();
+        let mut text = str_at(&last, "text");
+        let brought = slot(lead).and_then(|m| m.get("brought")).and_then(Value::as_array).is_some_and(|b| b.iter().any(|x| x.as_str() == Some(key)));
+        if done && !brought {
+            let b = self.host.command("sandbox.bring", json!({ "machine": machine, "from": str_at(&s, "cwd"), "into": lead.cwd })).await;
+            let note = match b {
+                Ok(b) if b.get("error").is_some_and(|e| !e.is_null()) => format!("\n\n(Its changes didn't come back: {})", str_at(&b, "error")),
+                Ok(b) if b.get("files").and_then(Value::as_u64).unwrap_or(0) > 0 => format!("\n\n(Its changes to {} file(s) are in your folder now.)", b["files"]),
+                Ok(_) => String::new(),
+                Err(e) => format!("\n\n(Its changes didn't come back: {})", e.message),
+            };
+            text.push_str(&note);
+            let _g = self.task_lock(lead.id.as_str()).await;
+            if let Ok(mut l) = self.repo.session(lead.id.as_str()).await {
+                with_slot(&mut l.ext, |x| push(x, "brought", json!(key)));
+                let _ = self.persist(&mut l, Vec::new()).await;
+            }
+        }
+        let cost = last.pointer("/stats/costUsd").and_then(Value::as_f64);
+        Some(Report { id: SessionId(key.to_owned()), subagent: str_at(&s, "title").split(" · ").next().unwrap_or_default().to_owned(), state, done, text, cost_usd: cost })
     }
 
     /// One member's task: its child resumed (following the lead's folder, mode and cap), or made.
@@ -678,7 +743,16 @@ impl Runtime {
         loop {
             let mut reports = Vec::new();
             let mut all_done = true;
+            let lead = self.repo.session(a.id.as_str()).await?;
             for id in &ids {
+                // a member in a sandbox: read there
+                if id.contains('|') {
+                    if let Some(r) = self.sandbox_report(&lead, id).await {
+                        all_done &= r.done;
+                        reports.push(r);
+                    }
+                    continue;
+                }
                 let s = self.repo.session(id).await?;
                 if s.parent_id.as_ref() != Some(&a.id) {
                     continue;

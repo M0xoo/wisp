@@ -164,7 +164,14 @@ impl Plugin for TerminalPlugin {
             Ok(out)
         });
         on!(s, slot, c::Get, |r, ctx, call, a| Ok(r.info(a.kind, &a.id)));
-        on!(s, slot, c::Close, |r, ctx, call, a| Ok(c::Done { ok: r.close(a.kind, &a.id).await }));
+        on!(s, slot, c::Close, |r, ctx, call, a| {
+            let ok = r.close(a.kind, &a.id).await;
+            if ok {
+                // hung up: forgotten, and whoever owns the task hears it ended
+                ctx.emit(&call, &wisp_terminal_api::Changed { kind: a.kind, id: a.id.clone(), state: wisp_terminal_api::TermState::Ended, code: None, gone: true });
+            }
+            Ok(c::Done { ok })
+        });
         on!(s, slot, c::Input, |r, ctx, call, a| {
             let mut ok = true;
             if let Some(d) = a.data.as_deref() {

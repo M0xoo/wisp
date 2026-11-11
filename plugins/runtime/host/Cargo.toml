@@ -14,6 +14,7 @@ sha2.workspace = true
 wisp-store.workspace = true
 wisp-proc.workspace = true
 wisp-runtime-api.workspace = true
+wisp-terminal-api.workspace = true
 wisp-runtime-core.workspace = true
 wisp-router-api.workspace = true
 wisp-issues-api.workspace = true

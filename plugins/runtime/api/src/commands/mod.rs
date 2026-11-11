@@ -107,6 +107,11 @@ command!(ApproveBlocked = "runtime.approveBlocked": ApproveBlockedArgs => Value)
 command!(Btw = "runtime.btw": BtwArgs => BtwEntry);
 command!(BtwDrop = "runtime.btw.drop": BtwDropArgs => Ack);
 command!(Compact = "runtime.compact": IdArgs => FollowedUp);
+command!(
+    /// A terminal task's CLI in its terminal (v1 services/tui.js `openTui`): opened on its first prompt the first
+    /// time, else resumed (on `prompt`, a follow-up, when given). Its follow-ups go the same way.
+    Terminal = "runtime.terminal": TerminalArgs => serde_json::Value
+);
 command!(Delegate = "runtime.delegate": DelegateArgs => Vec<Delegation>);
 command!(Results = "runtime.results": ResultsArgs => Reports, read_only);
 command!(Rerun = "runtime.rerun": RerunArgs => FollowedUp);

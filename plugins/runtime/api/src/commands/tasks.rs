@@ -62,6 +62,23 @@ pub struct QueueOrderArgs {
     pub order: Vec<String>,
 }
 
+/// `runtime.terminal`: open (or resume) a terminal task's CLI in its terminal.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "runtime/")]
+pub struct TerminalArgs {
+    pub id: SessionId,
+    /// a follow-up to start it on, once the last terminal ended
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub prompt: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub cols: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub rows: Option<f64>,
+}
+
 /// `runtime.held`: the task's held turn started anyway, or skipped (the held turn found here).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "runtime/")]
@@ -146,6 +163,12 @@ pub struct StartArgs {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]
     pub hold: bool,
+    /// a terminal task (v1 services/tui.js, Settings → General → Terminal sessions): the harness's own CLI in a
+    /// terminal in wisp, started on the prompt, instead of wisp's headless run; follow-ups are typed into it and
+    /// its turns are read back from the CLI's own session. Additive (2026-11-11).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub terminal: bool,
     /// namespaced extras the caller's plugin stores on the new task (`ext[callerPluginId]`)
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     #[ts(as = "Option<Ext>", optional)]

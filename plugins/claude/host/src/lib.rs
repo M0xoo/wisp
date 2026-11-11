@@ -137,6 +137,37 @@ impl Harness for ClaudeHarness {
         })
     }
 
+    /// v1 claude.js `resumeCommand`: the conversation resumed (`--resume`), or a new one named by wisp
+    /// (`--session-id`), in the task's mode, told it's in wisp, on the prompt (after `--`, so it's never a flag).
+    fn resume_command(&self, o: &wisp_runtime_api::harness::ResumeOptions) -> Option<wisp_runtime_api::harness::ResumeCommand> {
+        let mut argv = vec![self.program().unwrap_or_else(|| DEFAULT_BIN.to_owned())];
+        let pair = |argv: &mut Vec<String>, k: &str, v: &str| argv.extend([k.to_owned(), v.to_owned()]);
+        match (o.resume_id.as_deref().filter(|r| !r.is_empty()), o.session_id.as_deref().filter(|s| !s.is_empty())) {
+            (Some(r), _) => pair(&mut argv, "--resume", r),
+            (None, Some(s)) => pair(&mut argv, "--session-id", s),
+            (None, None) => {}
+        }
+        if !o.model.is_empty() {
+            pair(&mut argv, "--model", &o.model);
+        }
+        if !o.effort.is_empty() {
+            pair(&mut argv, "--effort", &o.effort);
+        }
+        if let Some(m) = o.mode {
+            pair(&mut argv, "--permission-mode", launch::permission_mode(m));
+        }
+        if let Some(p) = o.system_prompt.as_deref().filter(|p| !p.is_empty()) {
+            pair(&mut argv, "--append-system-prompt", p);
+        }
+        for d in &o.dirs {
+            pair(&mut argv, "--add-dir", d);
+        }
+        if let Some(p) = o.prompt.as_deref().filter(|p| !p.is_empty()) {
+            pair(&mut argv, "--", p);
+        }
+        Some(wisp_runtime_api::harness::ResumeCommand { argv, types_prompt: false })
+    }
+
     fn program(&self) -> Option<String> {
         Some(self.found_bin().or_else(|| std::env::var("WISP_CLAUDE_BIN").ok().filter(|b| !b.is_empty())).unwrap_or_else(|| DEFAULT_BIN.to_owned()))
     }
@@ -214,6 +245,17 @@ impl Plugin for ClaudePlugin {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn resume_command_is_v1s() {
+        use wisp_runtime_api::harness::ResumeOptions;
+        let h = ClaudeHarness::default();
+        let o = ResumeOptions { session_id: Some("u-1".into()), model: "opus".into(), mode: Some(wisp_runtime_api::model::Mode::Edits), system_prompt: Some("SYS".into()), dirs: vec!["/d".into()], prompt: Some("-x fix".into()), ..ResumeOptions::default() };
+        let argv = h.resume_command(&o).map(|c| c.argv).unwrap_or_default();
+        assert_eq!(argv[1..], ["--session-id", "u-1", "--model", "opus", "--permission-mode", "acceptEdits", "--append-system-prompt", "SYS", "--add-dir", "/d", "--", "-x fix"]);
+        let r = h.resume_command(&ResumeOptions { resume_id: Some("u-1".into()), session_id: Some("u-2".into()), ..ResumeOptions::default() }).map(|c| c.argv).unwrap_or_default();
+        assert_eq!(r[1..], ["--resume", "u-1"], "resumed, never named again");
+    }
+
     use super::*;
 
     #[test]

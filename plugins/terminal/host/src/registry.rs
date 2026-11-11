@@ -93,6 +93,7 @@ impl Registry {
             });
         }
         let started = at;
+        let ectx = ctx.clone();
         ctx.spawn(async move {
             let mut utf8 = Utf8Stream::new();
             while let Some(o) = rx.recv().await {
@@ -111,14 +112,21 @@ impl Registry {
             }
             let exit = handle.exited().await;
             let code = exit.code.unwrap_or(-1);
-            let mut m = lock(&map);
-            if let Some(t) = m.get_mut(&key).filter(|t| t.info.started_at == started) {
-                t.info.state = step(t.info.state, exit_event(t.info.state, code));
-                t.info.code = Some(code);
-                t.handle = None;
-                broadcast(t, &sse::exit(Some(code)));
-                t.clients.clear();
-                t.info.clients = 0;
+            let ended = {
+                let mut m = lock(&map);
+                m.get_mut(&key).filter(|t| t.info.started_at == started).map(|t| {
+                    t.info.state = step(t.info.state, exit_event(t.info.state, code));
+                    t.info.code = Some(code);
+                    t.handle = None;
+                    broadcast(t, &sse::exit(Some(code)));
+                    t.clients.clear();
+                    t.info.clients = 0;
+                    t.info.state
+                })
+            };
+            // ended on its own (a take over's CLI quit): whoever owns the task hears it
+            if let Some(state) = ended {
+                ectx.emit(&ectx.root_call(), &wisp_terminal_api::Changed { kind: key.0, id: key.1.clone(), state, code: Some(code), gone: false });
             }
         });
         info

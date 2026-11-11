@@ -39,21 +39,7 @@
       "version": "1.0.0"
     }
   },
-  "permissions": [
-    "router:read",
-    "router:write",
-    "stuff:read",
-    "fs:read{path:~/.wisp/sessions}",
-    "fs:write{path:~/.wisp/sessions}",
-    "proc:exec{bin:*}",
-    "proc:spawn{bin:*}",
-    "store:write{owner:runtime}",
-    "telemetry:track",
-    "worktrees:create",
-    "accounts:write",
-    "budget:read",
-    "terminal:open"
-  ],
+  "permissions": ["router:read", "router:write", "stuff:read", "fs:read{path:~/.wisp/sessions}", "fs:write{path:~/.wisp/sessions}", "proc:exec{bin:*}", "proc:spawn{bin:*}", "store:write{owner:runtime}", "telemetry:track", "worktrees:create", "accounts:write", "budget:read", "terminal:open", "terminal:input", "terminal:read", "sandbox:place", "sandbox:bring", "machines:route"],
   "server": {
     "builtin": "wisp-runtime"
   },
@@ -219,6 +205,10 @@
       {
         "id": "runtime.compact",
         "title": "Compact the conversation"
+      },
+      {
+        "id": "runtime.terminal",
+        "title": "Open a terminal task's CLI"
       },
       {
         "id": "runtime.rerun",

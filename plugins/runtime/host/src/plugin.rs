@@ -241,13 +241,20 @@ fn commands(s: &mut Setup, slot: &Slot) {
     s.command::<c::Create, _, _>(move |_ctx, call, a| {
         let (slot, ctx, kinds) = (start.clone(), c1.clone(), made_kinds.clone());
         async move {
-            let a = ctx.run_hook::<BeforeCreate>(&call, a).await?;
+            let mut a = ctx.run_hook::<BeforeCreate>(&call, a).await?;
+            if let Some(rest) = crate::term::slash(&a.prompt) {
+                a.prompt = rest;
+                a.terminal = true;
+            }
             let (store, proc) = (ctx.service::<Store>()?, ctx.service::<Proc>()?);
             let home = wisp_kernel::services::paths(&ctx).ok().map(|p| p.home().to_owned());
             // a worktree of its own: made before the first turn, the project's setup run in it
             let p = crate::specs::prepare(&store, &proc, home.as_deref(), Some(&kinds), a).await?;
             let rt = rt(&slot)?;
             let mut args = p.args;
+            let on = ctx.setting("terminal.terminalSessions").is_some_and(|v| v == true || v == "on");
+            args.terminal = crate::term::starts_in_terminal(&args, on) && rt.harness(args.agent.as_deref().unwrap_or("claude")).is_ok_and(|h| h.resume_command(&wisp_runtime_api::harness::ResumeOptions::default()).is_some());
+            let terminal = args.terminal;
             let wants_tree = args.worktree == Some(true) && !args.hold && args.cwd.as_deref().is_some_and(|c| !c.is_empty());
             let setup = if wants_tree { crate::specs::project_setup(Some(&kinds), &args).await } else { Vec::new() };
             args.hold |= wants_tree;
@@ -265,6 +272,9 @@ fn commands(s: &mut Setup, slot: &Slot) {
             } else {
                 made
             };
+            if terminal {
+                crate::term::open(&ctx, &call, &rt, made.id.as_str(), None, (None, None)).await?;
+            }
             // the steps after the first go in the queue, in order: each starts when the turn before ends
             for text in p.steps {
                 let f = c::FollowUpArgs { id: made.id.clone(), text, queue: Some(true), by: Some("step".into()), ..c::FollowUpArgs::default() };
@@ -278,7 +288,11 @@ fn commands(s: &mut Setup, slot: &Slot) {
         let (slot, ctx) = (follow.clone(), c2.clone());
         async move {
             let a = ctx.run_hook::<BeforeFollowUp>(&call, a).await?;
-            rt(&slot)?.follow_up(a).await.map_err(WireError::from)
+            let rt = rt(&slot)?;
+            if rt.repo.session(a.id.as_str()).await.is_ok_and(|s| crate::term::term_of(&s).is_some()) {
+                return crate::term::follow_up(&ctx, &call, &rt, a.id.as_str(), &a.text).await;
+            }
+            rt.follow_up(a).await.map_err(WireError::from)
         }
     });
     specs(s, slot);
@@ -286,6 +300,7 @@ fn commands(s: &mut Setup, slot: &Slot) {
     reads(s, slot);
     for_agents(s, slot);
     more(s, slot, harness_kind, project_kind);
+    crate::term::setup(s, slot);
 }
 
 /// What agents read of the user's tasks (`wisp_sessions`, `wisp_session`), with their usage events.
