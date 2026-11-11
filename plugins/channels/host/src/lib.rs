@@ -6,6 +6,7 @@
 
 mod ws;
 mod hub;
+mod routed;
 mod kinds;
 
 use std::collections::HashMap;
@@ -247,7 +248,14 @@ fn more_commands(s: &mut Setup, live: &Arc<Live>) {
             Ok(json!({ "ok": true }))
         }
     });
-    s.command::<Routed, _, _>(|_ctx, _call, _a| async { Err::<HttpOut, _>(WireError::unavailable("routed messages need the grid client")) });
+    let l = live.clone();
+    s.command::<Routed, _, _>(move |ctx, _call, a| {
+        let live = l.clone();
+        async move {
+            let hub: Arc<dyn wisp_channels_api::ChannelHub> = Arc::new(Hub { ctx: ctx.clone(), st: live.st.clone() });
+            routed::handle(&ctx, hub, &a).await
+        }
+    });
 }
 
 impl Plugin for ChannelsPlugin {

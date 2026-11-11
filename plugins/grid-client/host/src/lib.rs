@@ -21,6 +21,7 @@ mod cloud;
 pub mod computer;
 mod net;
 mod peers;
+mod publish;
 mod sandboxes;
 mod signin;
 mod state;
@@ -103,6 +104,7 @@ impl Plugin for GridClientPlugin {
         }
         let d: Arc<dyn ShareDestination> = Arc::new(LazyCloud(slot.clone()));
         s.contribute(&DESTINATION, d);
+        publish::provide(s, &slot);
         on!(s, slot, api::SignInCmd, |st, a| signin::start(&st, &a));
         on!(s, slot, api::SignInGet, |st, a| async move { signin::get(&st, &a.id) });
         on!(s, slot, api::SignInCancel, |st, a| async move { signin::cancel(&st, &a.id) });

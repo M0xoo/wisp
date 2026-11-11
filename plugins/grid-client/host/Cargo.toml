@@ -8,6 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+wisp-stuff-api.workspace = true
 base64.workspace = true
 bytes.workspace = true
 ed25519-dalek.workspace = true

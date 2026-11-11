@@ -194,6 +194,19 @@ fn previews_on(st: &St) -> bool {
 /// One stream from the grid: to wisp here, or (a preview) to a page on this computer.
 async fn serve(st: &St, local: &Client<HttpConnector, Body>, port: u16, req: http::Request<Incoming>) -> http::Response<Body> {
     let (parts, body) = req.into_parts();
+    // a message the grid routed here (`on <this computer> …`): marked by the grid alone (its edge drops the mark
+    // from everything else it forwards), handed to wisp.channels, never to wisp's HTTP as the user
+    if parts.headers.get("x-wisp-route").and_then(|v| v.to_str().ok()) == Some("grid") {
+        if parts.uri.path() != "/api/channels/routed" || parts.method != http::Method::POST {
+            return answer(404, &json!({ "error": "not found" }));
+        }
+        let Ok(b) = http_body_util::Limited::new(body, 64 * 1024).collect().await.map(http_body_util::Collected::to_bytes) else { return answer(413, &json!({ "reply": "That message was too big." })) };
+        let args: Value = serde_json::from_slice(&b).unwrap_or(Value::Null);
+        return match st.ctx.run_json(&st.ctx.root_call(), "channels.routed", args).await {
+            Ok(out) => answer(u16::try_from(out["status"].as_u64().unwrap_or(200)).unwrap_or(200), &out["body"]),
+            Err(e) => answer(e.status(), &json!({ "reply": e.message })),
+        };
+    }
     let from: Vec<(String, String)> = parts.headers.iter().filter_map(|(k, v)| Some((k.as_str().to_owned(), v.to_str().ok()?.to_owned()))).collect();
     let preview = parts.headers.get("x-wisp-preview").map(|v| preview_port(v.to_str().ok()));
     let target = match preview {

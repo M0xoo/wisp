@@ -4497,6 +4497,8 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "wisp-channels-api",
+ "wisp-channels-core",
  "x509-cert",
 ]
 
@@ -4529,6 +4531,7 @@ dependencies = [
  "wisp-runtime-api",
  "wisp-share-api",
  "wisp-store",
+ "wisp-stuff-api",
 ]
 
 [[package]]

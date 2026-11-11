@@ -27,6 +27,9 @@
     "onStartup"
   ],
   "contributes": {
+    "settings": [
+      { "key": "channels.acceptChannels", "type": "bool", "default": false, "title": "Accept tasks from channels: messages routed here through wisp Cloud (“on this computer …”) may start tasks. Switch it on at this computer." }
+    ],
     "events": ["channels.changed", "channels.started"],
     "commands": [
       {
