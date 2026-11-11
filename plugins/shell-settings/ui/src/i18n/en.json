@@ -44,6 +44,8 @@
   "shell-settings.watch.hint": "On long tasks, agents may put a page beside the task that shows their progress as they go, and keep it current. It opens in the side panel",
   "shell-settings.apps": "Interactive answers",
   "shell-settings.apps.hint": "Agents may answer with a small page you use in place, like a slider with a live preview or a list to pick from. It runs sandboxed, with no network, and sends nothing until you click Send",
+  "shell-settings.crew-tint": "Crew tint",
+  "shell-settings.crew-tint.hint": "With the crew rail, the task list takes a very light tint of the colour of the member you pick",
   "shell-settings.transcript": "Full transcript",
   "shell-settings.transcript.hint": "Every message and step the agent took, with its presentation at the end. Any one card switches with its Transcript button or V",
   "shell-settings.pane.appearance": "Appearance",

@@ -29,6 +29,7 @@ export const KEYS = {
   transcript: 'shell-task.transcript', // off unless 'on'
   notify: 'settings.notify', // 'on' | 'off'
   acceptChannels: 'channels.acceptChannels', // off unless 'on'
+  crewTint: 'crew.tint', // bool, on by default
 } as const;
 
 export const EDITORS = ['vscode', 'cursor', 'windsurf', 'zed', 'idea', 'none'] as const;

@@ -23,7 +23,7 @@ export function reviewChoices(harnesses: readonly Harness[], picked: string): Se
 }
 
 function OnOffRow(props: { readonly client: PluginClient; readonly k: string; readonly dflt: boolean; readonly title: Key; readonly hint: Key }): JSX.Element {
-  return <SwitchSetting title={t(props.title)} description={t(props.hint)} source={onOff(fromRow(props.client, props.k), props.dflt)} locked={locked} />;
+  return <SwitchSetting title={t(props.title)} description={t(props.hint)} source={onOff(fromRow(props.client, props.k), props.dflt, props.k)} locked={locked} />;
 }
 
 /** wisp.terminal's list for this computer (v1 config.terminals): In wisp, the terminal apps found, Custom. */
@@ -88,6 +88,9 @@ export default function General(props: { readonly client: PluginClient }): JSX.E
         <OnOffRow client={props.client} k={KEYS.readTimes} dflt title="shell-settings.read-times" hint="shell-settings.read-times.hint" />
         <OnOffRow client={props.client} k={KEYS.watch} dflt title="shell-settings.watch" hint="shell-settings.watch.hint" />
         <OnOffRow client={props.client} k={KEYS.apps} dflt title="shell-settings.apps" hint="shell-settings.apps.hint" />
+      </SettingsGroup>
+      <SettingsGroup part="settings.general.crew">
+        <OnOffRow client={props.client} k={KEYS.crewTint} dflt title="shell-settings.crew-tint" hint="shell-settings.crew-tint.hint" />
       </SettingsGroup>
       <SettingsGroup part="settings.general.transcript">
         <OnOffRow client={props.client} k={KEYS.transcript} dflt={false} title="shell-settings.transcript" hint="shell-settings.transcript.hint" />

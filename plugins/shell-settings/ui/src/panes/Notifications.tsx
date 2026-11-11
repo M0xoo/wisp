@@ -55,7 +55,7 @@ export default function Notifications(props: { readonly client: PluginClient }):
       </SettingsGroup>
       <SettingsGroup part="settings.notifications.away">
         <SettingsRow title={t('shell-settings.phone')} description={t('shell-settings.phone.hint')} control={<Button size="sm" variant="secondary" icon="phone" onClick={openMachines}>{t('shell-settings.phone.setup')}</Button>} />
-        <SwitchSetting title={t('shell-settings.channels')} description={t('shell-settings.channels.hint')} source={onOff(fromRow(props.client, KEYS.acceptChannels), false)} locked={(by) => t('shell-settings.locked', { by })} />
+        <SwitchSetting title={t('shell-settings.channels')} description={t('shell-settings.channels.hint')} source={onOff(fromRow(props.client, KEYS.acceptChannels), false, KEYS.acceptChannels)} locked={(by) => t('shell-settings.locked', { by })} />
       </SettingsGroup>
     </>
   );

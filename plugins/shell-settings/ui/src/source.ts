@@ -34,14 +34,19 @@ export function fromRow(client: PluginClient, key: string, fallback: Json = null
 }
 
 /** A switch over an 'on' / 'off' setting (or a boolean one). `dflt`: what unset means. */
-export function onOff(s: SettingSource<Json>, dflt: boolean): SettingSource<boolean> {
+export function onOff(s: SettingSource<Json>, dflt: boolean, key?: string): SettingSource<boolean> {
   const read = (v: Json): boolean => (v === true || v === 'on' ? true : v === false || v === 'off' ? false : dflt);
+  // a setting its plugin declares `bool` refuses 'on' / 'off' ("must be true or false"): it gets true / false
+  const asBool = key !== undefined && BOOL_KEYS.has(key);
   return {
     value: computed(() => read((s.value as () => Json)())),
     ...(s.lockedBy && { lockedBy: s.lockedBy }),
-    set: (on) => s.set(on ? 'on' : 'off'),
+    set: (on) => s.set(asBool ? on : on ? 'on' : 'off'),
   };
 }
+
+/** The rows' keys their plugins declare as `bool` (wisp-plugin.json settings); the rest keep v1's 'on' / 'off'. */
+export const BOOL_KEYS: ReadonlySet<string> = new Set(['runtime.blocks', 'ship.fixConflicts', 'runtime.watch', 'runtime.apps', 'channels.acceptChannels', 'crew.tint']);
 
 /** A text or enum setting as a string; `dflt` when unset. */
 export function text(s: SettingSource<Json>, dflt: string): SettingSource<string> {
