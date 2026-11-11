@@ -3,6 +3,7 @@
 // model, where it runs, project, branch), the pills, the RAM and the time, and the hover actions.
 // Every cell keeps its place whatever the task says, so a row never shifts (design/layout.md §4).
 
+import { routeOf, routeTip, type RouteSeen } from '@wisp/shell';
 import { For, Match, Show, Switch, type JSX } from 'solid-js';
 import { Avatar, Dot, Gap, Icon, IconButton, Inline, Pill, Text, Time, futureLabel, timeTitle } from '@wisp/ui';
 import type { EntityKey } from '@wisp/client';
@@ -49,12 +50,17 @@ export function SubLine(props: { readonly sub: SubView | undefined }): JSX.Eleme
 /** Harness · model · where, then the project and the branch: the row's third line. */
 export function RunLine(props: { readonly run: RunView | undefined; readonly s: SessionRow }): JSX.Element {
   const env = useEnv();
+  const route = (): RouteSeen | undefined => routeOf({ ext: (props.s as { ext?: unknown }).ext });
   return (
     <Inline gap="3" align="center" part="list.row.run">
       <Show when={props.run}>
         {(r) => (
           <Inline gap="2" align="center" part="list.row.harness">
-            <Text size="xs" tone="faint" truncate title={say(env.shell.t, r().title, env.now())}>
+            {/* Auto picked this run: v1's accent dot, and why in the tip (runners.js modelBadge) */}
+            <Show when={route()}>
+              <Dot tone="accent" />
+            </Show>
+            <Text size="xs" tone="faint" truncate title={route() ? routeTip(route() as RouteSeen, env.shell.t) : say(env.shell.t, r().title, env.now())}>
               {r().model ? `${r().agentName} · ${r().model}` : r().agentName}
             </Text>
             <Icon name={r().remote ? 'server' : 'laptop'} size="xs" tone="faint" />

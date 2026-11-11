@@ -21,5 +21,20 @@
   "automations.summary.more": "{names} and {n} more",
   "automations.webhooks": "Webhook triggers",
   "automations.webhooks.description": "Lets Slack, Linear or any service start a task by calling a trigger’s secret URL. Off: those URLs refuse every call",
-  "automations.locked": "Set by {by}"
+  "automations.locked": "Set by {by}",
+  "automations.editor.new": "New trigger",
+  "automations.editor.title": "New trigger",
+  "automations.editor.name": "Name",
+  "automations.editor.namePlaceholder": "review-every-pr",
+  "automations.editor.when": "When",
+  "automations.editor.pick": "Pick what starts it",
+  "automations.editor.loading": "Reading what can start one…",
+  "automations.editor.off": "{plugin} · off now",
+  "automations.editor.prompt": "Prompt",
+  "automations.editor.promptHint": "What the task is asked. {event.summary} puts in what happened",
+  "automations.editor.missing": "Needed",
+  "automations.editor.cancel": "Cancel",
+  "automations.editor.save": "Save",
+  "automations.test": "Test on the last 5 events",
+  "automations.tried.none": "No events yet to test it on"
 }

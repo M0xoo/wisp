@@ -16,12 +16,14 @@ import { changeFigures, duration, folded, longTime, overlapLine, overlapsOf, sta
 import { coldHint, compactItem } from './cold.ts';
 import { goalGate } from './goal-gate.ts';
 import { useNow } from '../clock.ts';
-import { archive, coldOf, compactNow, followUp, forLater, setLean, type Attachment, fork, remove, rename, rerun, restore, setAgent, setGoal, setMode, setState } from './commands.ts';
+import { archive, coldOf, compactNow, followUp, forLater, setLean, type Attachment, fork, remove, rename, rerun, restore, setGoal, setMode, setState } from './commands.ts';
 import { answerContext } from './answer-ctx.ts';
 import { TASK_KEY, type TaskKey } from './task-keys.ts';
 import { usePromptMenu } from './prompt-menu.ts';
 import { useAttachments } from './attach.ts';
 import { harnessOf } from './harness.ts';
+import { RunnerPicker } from './RunnerPicker.tsx';
+import { runPick, type Runner } from './runner.ts';
 import { MODE_ICON, agentMenu, modeMenu, teamMenu, whenMenu, type Mode, type When } from './pickers.ts';
 
 interface TurnBody {
@@ -113,6 +115,10 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   const harnesses = useSignal(shell.harnesses());
   // the @ and / menus (plugins' prompt sources: shell-composer's tasks, crew, My Stuff and commands)
   const menu = usePromptMenu({ shell, where: 'reply', task: key, text, setText, input: () => input, id: `reply-suggest-${bare}` });
+  // the reply box's harness · model (v1 S.replyRunners): the next follow-ups run on it, the task keeps its own
+  const [replyRun, setReplyRun] = createSignal<Runner | undefined>(undefined);
+  const [runnerOpen, setPickingRunner] = createSignal(false);
+  const runOf = (): ReturnType<typeof runPick> => runPick(replyRun());
   let goalInput: HTMLInputElement | undefined;
   const send = (): void => {
     const v = menu.encode(text().trim());
@@ -134,7 +140,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     const idx = turns().length;
     // the box clears at once; with files, the turn starts once they're up (usually already)
     const go = (attachments: readonly Attachment[]): void => {
-      run(followUp, { id: key, text: v, turnId, idx, at, ...(attachments.length > 0 && { attachments }) }).catch(() => setText(v));
+      run(followUp, { id: key, text: v, turnId, idx, at, ...(attachments.length > 0 && { attachments }), ...(runOf() ? { run: runOf() as NonNullable<ReturnType<typeof runOf>> } : {}) }).catch(() => setText(v));
     };
     if (files().length === 0) go([]);
     else void att.take().then(go);
@@ -258,7 +264,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
   return (
     <Show when={row()}>
       {(s) => {
-        const h = (): { name: string; logo?: string } => harnessOf(harnesses(), s().agent);
+        const h = (): { name: string; logo?: string } => harnessOf(harnesses(), replyRun()?.agent ?? s().agent);
         const branch = (): string => String(s().summary['branch'] ?? '');
         const color = (): string => String(s().summary['color'] ?? 'slate');
         const ov = createMemo(() => overlapsOf(s()));
@@ -392,7 +398,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                     attach={t('shell.home.attach')}
                     attachAct={{ onClick: attach, pending: picking() }}
                     mode={{ label: t(`shell.mode.${mode()}`), title: t('shell.home.fullAutoTitle'), icon: MODE_ICON[mode()], act: { menu: { items: modeMenu(t, mode()), onSelect: (m) => void run(setMode, { id: key, mode: m }).catch(() => undefined) } } }}
-                    runner={{ title: t('shell.task.runner', { name: h().name }), ...(h().logo && { logo: h().logo }), act: { menu: { items: agentMenu(t, harnesses(), s().agent, false), onSelect: (a) => void run(setAgent, { id: key, agent: a }).catch(() => undefined) } } }}
+                    runner={{ title: t('shell.task.runner', { name: [h().name, replyRun()?.model ?? '', replyRun()?.effort ?? ''].filter(Boolean).join(' · ') }), ...(h().logo && { logo: h().logo }), act: { onClick: () => setPickingRunner(true) } }}
                     team={t('shell.home.delegateTitle')}
                     teamAct={{ menu: { items: teamMenu(t, harnesses(), team()), onSelect: (v) => { const next = new Set(team()); if (next.has(v)) next.delete(v); else next.add(v); setTeam(next); } } }}
                     goal={t('shell.task.goal')}
@@ -407,6 +413,13 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                       ...files().map((f, i) => ({ id: `file:${i}:${f.name}`, icon: 'clip' as const, label: f.name, removeLabel: t('shell.home.remove', { name: f.name }), onRemove: () => att.remove(f) })),
                       ...(when() ? [{ id: 'when', icon: 'clock' as const, label: t('shell.when.chip', { when: t(`shell.when.${when()}`) }), removeLabel: t('shell.when.clear'), onRemove: () => setWhen(undefined) }] : []),
                     ]}
+                  />
+                  <RunnerPicker
+                    open={runnerOpen()}
+                    onOpenChange={setPickingRunner}
+                    peer={peer}
+                    value={replyRun() ?? { agent: s().agent, model: String(s().summary.model ?? ''), effort: '' }}
+                    onChange={setReplyRun}
                   />
                 </>
               }

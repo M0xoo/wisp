@@ -70,7 +70,7 @@ const rows = <T,>(c: PluginClient, kind: string): readonly T[] => c.entities.lis
 
 export const PROMPT_SOURCES: PromptSourceDef[] = [
   { id: 'shell-composer.tasks', trigger: '@', order: 10, items: (q, ctx) => taskItems(rows<TaskRow>(ctx.client, 'session'), q, ctx.task) },
-  { id: 'shell-composer.crew', trigger: '@', order: 20, items: (q, ctx) => crewItems(rows<CrewRow>(ctx.client, 'crew.member'), q) },
+  { id: 'shell-composer.crew', trigger: '@', order: 20, items: (q, ctx) => crewItems(rows<CrewRow>(ctx.client, 'crew_member'), q) },
   { id: 'shell-composer.stuff', trigger: '@', order: 30, items: (q, ctx) => stuffItems(rows<StuffRow>(ctx.client, 'stuff.item'), q) },
   { id: 'shell-composer.slash', trigger: '/', where: ['reply'], items: (q, ctx) => slashItems(SLASH, q, (k) => ctx.client.t(k)) },
   { id: 'shell-composer.slash.home', trigger: '/', where: ['home'], items: (q, ctx) => slashItems(HOME_SLASH, q, (k) => ctx.client.t(k)) },

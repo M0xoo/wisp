@@ -28,6 +28,9 @@ export function flatSession(raw: SessionRow | undefined): SessionRow | undefined
   const out: Record<string, unknown> = { ...body };
   for (const [k, v] of Object.entries(top)) if (k !== 'body' && k !== 'summary') out[camel(k)] = v;
   Object.assign(out, summary);
+  // whose crew job it is: the crew's note in `ext` (CrewExt), read as v1's `crew`
+  const job = obj(obj(out['ext'])?.['wisp.crew']);
+  if (job && typeof job['id'] === 'string' && out['crew'] === undefined) out['crew'] = { id: job['id'], ...(typeof job['job'] === 'string' && { job: job['job'] }) };
   const flat = out as unknown as SessionRow;
   cache.set(raw, flat);
   return flat;

@@ -58,6 +58,18 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
     return v === true || v === 'on';
   };
   const drainWatch: SettingSource<boolean> = { value: watching, ...(drainSrc.lockedBy && { lockedBy: drainSrc.lockedBy }), set: (on) => drainSrc.set(on) };
+  // a bool setting as a switch (true / false; v1's 'on' read as true)
+  const onOff = (key: string, dflt: boolean): SettingSource<boolean> => {
+    const src = fromRow(c, key, dflt);
+    const v = (): boolean => {
+      const x = (src.value as () => unknown)();
+      return x === true || x === 'on' || (x !== false && x !== 'off' && dflt);
+    };
+    return { value: v, ...(src.lockedBy && { lockedBy: src.lockedBy }), set: (on) => src.set(on) };
+  };
+  // Ask near the limit (`budget.limitHold`: off, 80, 90, 95)
+  const holdSrc = fromRow(c, 'budget.limitHold', '90');
+  const hold: SettingSource<string> = { value: () => String((holdSrc.value as () => unknown)() ?? '90'), ...(holdSrc.lockedBy && { lockedBy: holdSrc.lockedBy }), set: (v) => holdSrc.set(v) };
   const when = (at: number): string => timeLabel(at, Date.now(), englishT);
   const hide = (p: Promise<unknown>): void => void p.then(() => void again(), () => {});
   const reported = (): boolean => (windows() ?? []).some((w) => w.accounts.some((a) => a.windows.length > 0));
@@ -135,6 +147,9 @@ export default function Usage(props: { readonly client: PluginClient }): JSX.Ele
         <For each={PLANNED}>
           {(p) => <ChoiceSetting part="budget.usage.stop.own" title={p.name} description={t('budget.usage.stop.own')} source={stop(p.key, 'same')} items={(['same', ...STOPS] as Stop[]).map((v) => ({ value: v, label: t(`budget.usage.stop.${v}`) }))} />}
         </For>
+        <SwitchSetting part="settings.liveLimits" title={t('budget.usage.live.title')} description={t('budget.usage.live.description')} source={onOff('budget.liveLimits', false)} />
+        <ChoiceSetting part="settings.limitHold" title={t('budget.usage.hold.title')} description={t('budget.usage.hold.description')} source={hold} items={(['off', '80', '90', '95'] as const).map((v) => ({ value: v, label: v === 'off' ? t('budget.usage.stop.off') : `${v}%` }))} />
+        <SwitchSetting part="settings.limitWait" title={t('budget.usage.wait.title')} description={t('budget.usage.wait.description')} source={onOff('runtime.limitWait', false)} />
       </SettingsGroup>
     </>
   );

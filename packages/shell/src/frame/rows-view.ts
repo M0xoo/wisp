@@ -115,3 +115,9 @@ export function folded<T>(turns: readonly T[], open: boolean, keep = 3): { hidde
   if (open || turns.length <= keep + 1) return { hidden: 0, shown: turns };
   return { hidden: turns.length - keep, shown: turns.slice(-keep) };
 }
+
+/** The crew member a task is a job of (`body.ext["wisp.crew"].id`), or undefined. */
+export function crewOf(s: Pick<SessionRow, 'body'>): string | undefined {
+  const c = (s.body?.['ext'] as Readonly<Record<string, unknown>> | undefined)?.['wisp.crew'] as { id?: unknown } | undefined;
+  return typeof c?.id === 'string' ? c.id : undefined;
+}

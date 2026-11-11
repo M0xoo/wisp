@@ -26,5 +26,11 @@
   "budget.usage.drain.description": "Warns here, and on your phone when it’s set up, when an account’s last two hours of runs took twice or more its usual share of a window for the same work. Copy report puts the numbers in words for a support ticket",
   "budget.usage.drain.copy": "Copy report",
   "budget.usage.drain.dismiss": "Dismiss",
-  "budget.usage.notice.hide": "Hide until this window changes again"
+  "budget.usage.notice.hide": "Hide until this window changes again",
+  "budget.usage.live.title": "Check Codex while work waits",
+  "budget.usage.live.description": "While work waits for a Codex plan, wisp asks Codex every 10 minutes how its windows stand (nothing is spent). A reset that comes early, like a banked one, lets that work go at once",
+  "budget.usage.hold.title": "Ask near the limit",
+  "budget.usage.hold.description": "Before a task would take a 5-hour or weekly window past this, wisp asks first. Scheduled runs and crew jobs wait in Needs you",
+  "budget.usage.wait.title": "Wait for the reset",
+  "budget.usage.wait.description": "At a usage limit, the task waits under Scheduled and carries on in the same conversation when the window resets. Off: it stops and asks you"
 }

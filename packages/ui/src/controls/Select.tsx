@@ -13,6 +13,8 @@ export interface SelectOption {
   readonly value: string;
   readonly label: string;
   readonly disabled?: boolean;
+  /** A heading drawn over the first option of each run with the same group (the "When" picker's sources by plugin). */
+  readonly group?: string;
 }
 
 export interface SelectProps extends KitProps, Labelled {
@@ -80,7 +82,13 @@ export function Select(props: SelectProps): JSX.Element {
         <div {...api().getPositionerProps()} data-kit="positioner">
           <ul {...api().getContentProps()} data-kit="listbox" data-part={sub(part(), 'list')}>
             <For each={props.items}>
-              {(item) => (
+              {(item, i) => (
+                <>
+                <Show when={item.group && props.items[i() - 1]?.group !== item.group}>
+                  <li role="presentation" data-kit="option-group" data-part={sub(part(), 'group')}>
+                    {item.group}
+                  </li>
+                </Show>
                 <li {...api().getItemProps({ item })} data-kit="option" data-part={sub(part(), 'option')}>
                   <span {...api().getItemTextProps({ item })} data-kit="option-label">
                     {item.label}
@@ -89,6 +97,7 @@ export function Select(props: SelectProps): JSX.Element {
                     <Icon name="check" size="sm" tone="accent-ink" />
                   </Show>
                 </li>
+                </>
               )}
             </For>
           </ul>

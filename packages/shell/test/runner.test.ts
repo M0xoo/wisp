@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { effortsFor, harnessesFor, modelsFor, runnerWords, type AgentOffer } from '../src/frame/runner.ts';
+import { effortsFor, harnessesFor, modelsFor, runnerWords, type AgentOffer, runPick } from '../src/frame/runner.ts';
 
 const AGENTS: AgentOffer[] = [
   { id: 'codex', name: 'Codex', available: true, models: [{ id: 'gpt-5.5', label: 'GPT-5.5' }], efforts: ['low', 'high'] },
@@ -20,4 +20,10 @@ test('the_harness_model_picker_searches_every_harnesses_models_and_offers_the_pi
   expect(effortsFor(AGENTS, { agent: 'claude', model: 'opus', effort: '' })).toEqual(['low', 'medium', 'high', 'max']);
   expect(effortsFor(AGENTS, { agent: 'claude', model: 'haiku', effort: '' })).toEqual(['low', 'high']);
   expect(runnerWords(AGENTS, { agent: 'claude', model: 'opus', effort: 'high' }, (id) => (id === 'claude' ? 'Claude Code' : id))).toBe('Claude Code · Opus 5.5 · high');
+});
+
+test('the_reply_boxs_harness_model_pick_goes_with_the_next_follow_up_and_none_keeps_the_tasks_own', () => {
+  expect(runPick(undefined)).toBeUndefined();
+  expect(runPick({ agent: 'codex', model: '', effort: '' })).toEqual({ agent: 'codex' });
+  expect(runPick({ agent: 'claude', model: 'opus', effort: 'high' })).toEqual({ agent: 'claude', model: 'opus', effort: 'high' });
 });

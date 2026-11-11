@@ -1,6 +1,7 @@
 /* Menus (v1's .menu): a floating card of rows, 44px rows on touch screens. */
 @layer kit {
-  [data-kit='positioner'] { z-index: var(--z-menu); }
+  /* over any overlay too: a Select or a Menu in Settings or a dialog opens above it (--z-overlay-menu) */
+  [data-kit='positioner'] { z-index: var(--z-overlay-menu); }
   [data-kit='menu'] {
     min-width: min(var(--size-menu-min), calc(100vw - var(--space-7))); max-width: min(var(--size-menu-max), calc(100vw - var(--space-7)));
     max-height: min(var(--size-popover), 60vh); overflow-y: auto; padding: var(--space-2);

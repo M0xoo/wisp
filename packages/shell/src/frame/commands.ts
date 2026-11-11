@@ -57,6 +57,8 @@ export interface CreateArgs {
   readonly goal?: string;
   /** files that go with the prompt (uploaded first: stuff's /uploads) */
   readonly attachments?: readonly Attachment[];
+  /** the delegates it starts with (runtime's StartArgs.team) */
+  readonly team?: readonly { readonly name: string; readonly agent: string; readonly model?: string; readonly effort?: string; readonly use?: string }[];
   /** you picked your own harness after Auto's preview showed `key` (runtime tells the router) */
   readonly autoOverride?: { readonly key: string; readonly type?: string };
   /** the harness the new row shows until the server's arrives (Auto's previewed pick); not sent */
@@ -91,7 +93,7 @@ export const autoPreview = defineCommand<{ peer: string; prompt: string; attachm
 
 /** A follow-up: it shows in the transcript at once (its turn, under the id the client chose, Starting…),
  * and the task is working again. */
-export const followUp = defineCommand<{ id: string; text: string; turnId: string; idx: number; at: number; attachments?: readonly Attachment[] }>({
+export const followUp = defineCommand<{ id: string; text: string; turnId: string; idx: number; at: number; attachments?: readonly Attachment[]; run?: { agent?: string; model?: string; effort?: string } }>({
   id: 'runtime.followUp',
   owner: (a) => a.id, wire: (a) => ({ ...a, id: bare(a.id) }),
   optimistic: (_base, a) => [

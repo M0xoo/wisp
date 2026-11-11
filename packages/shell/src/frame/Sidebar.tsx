@@ -6,14 +6,14 @@
 import { For, Show, createMemo, createSignal, type JSX } from 'solid-js';
 import type { EntityKey, Json } from '@wisp/client';
 import { forLater, markRead, setState } from './commands.ts';
-import { CrewRail, Feed, FeedSection, SidebarHead, SplitTop, TaskCard, useSignal, type MenuEntry, type ProjectChip, type RailMember } from '@wisp/ui';
+import { CrewRail, EmptyState, Feed, FeedSection, SidebarHead, SplitTop, TaskCard, useSignal, type MenuEntry, type ProjectChip, type RailMember } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { routeOf, routeTip } from './auto.ts';
 import { useNow } from '../clock.ts';
 import { SESSION, type SessionRow } from '../rows.ts';
 import { rowSlots, useHeadSlots } from './slots.tsx';
 import { harnessOf } from './harness.ts';
-import { SECTIONS, goalOf, longTime, overlapOf, sectionOf, shortAgo, statusOf, type SectionId } from './rows-view.ts';
+import { SECTIONS, crewOf, goalOf, longTime, overlapOf, sectionOf, shortAgo, statusOf, type SectionId } from './rows-view.ts';
 
 
 interface ProjectRow {
@@ -125,10 +125,18 @@ export function SidebarList(props: { readonly onNew: () => void; readonly homeOn
     return m.kind === 'task' ? m.id : undefined;
   });
   const titleOf = (id: string): string => sessions().find((s) => s.id === id)?.title ?? '';
+  // a crew member picked on the rail: the list holds only their jobs (v1 crew.js inPick)
+  const crew = useSignal(shell.client.entities.list<CrewRow>('crew_member'));
+  const picked = createMemo(() => {
+    const m = nav().main;
+    return m.kind === 'crew' ? crew().find((c) => c.id === m.id) : undefined;
+  });
   // newest first within a section, as v1's feed
   const bySection = createMemo(() => {
     const out = new Map<SectionId, SessionRow[]>();
-    for (const s of [...sessions()].filter((s) => props.filter() === 'all' || s.summary['projectId'] === props.filter()).sort((a, b) => b.updated_at - a.updated_at)) {
+    const who = picked()?.id;
+    const shown = sessions().filter((s) => (props.filter() === 'all' || s.summary['projectId'] === props.filter()) && (!who || crewOf(s) === who));
+    for (const s of shown.sort((a, b) => b.updated_at - a.updated_at)) {
       const k = sectionOf(s);
       out.set(k, [...(out.get(k) ?? []), s]);
     }
@@ -191,7 +199,9 @@ export function SidebarList(props: { readonly onNew: () => void; readonly homeOn
           )}
         </For>
       </Feed>
-      <Show when={sessions().length === 0}>{null}</Show>
+      <Show when={picked() && bySection().size === 0}>
+        <EmptyState title={shell.t('shell.crew.none', { name: picked()?.name ?? '' })} compact part="sidebar.crew.none" />
+      </Show>
     </>
   );
 }

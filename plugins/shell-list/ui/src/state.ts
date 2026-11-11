@@ -3,7 +3,7 @@
 // this adds is derived (the sections, memoised in placement.ts) plus one plugin store: the view
 // (project filter, folded sections). The shell keeps the recent tasks (⌃Tab) itself.
 
-import { computed, type DeepReadonly, type EntityKey, type PluginClient, type PluginStore, type Readable } from '@wisp/client';
+import { computed, signal, type DeepReadonly, type EntityKey, type PluginClient, type PluginStore, type Readable } from '@wisp/client';
 import { createPlacement } from './model/placement.ts';
 import { flatSession, LATER_TOPIC, listPlan } from './model/wire.ts';
 import { ALL, needsYou, SECTION_IDS, type Filter, type SectionId, type Sections } from './model/sections.ts';
@@ -30,6 +30,9 @@ export interface ListModel {
   readonly agents: Readable<ReadonlyMap<string, Row<Agent>>>;
   row(key: EntityKey): Readable<SessionRow | undefined>;
   setFilter(project: string): void;
+  /** a crew member picked on the rail: the list holds only its jobs (v1 crew.js inPick); undefined: all */
+  setCrew(id: string | undefined): void;
+  readonly crew: Readable<string | undefined>;
   toggleSection(id: SectionId): void;
 }
 
@@ -70,8 +73,9 @@ function createModel(client: PluginClient): ListModel {
   const plans = computed(() => planRows().map(listPlan).filter((p): p is Plan => p !== undefined));
   const filtered = createPlacement();
   const unfiltered = createPlacement();
-  const filterOf = (v: DeepReadonly<ViewState>): Filter => ({ project: v.filter });
-  const sections = computed(() => filtered({ keys: keys(), rows: rows(), plans: plans(), filter: filterOf(view.value()), filterKey: view.value().filter }));
+  const crew = signal<string | undefined>(undefined);
+  const filterOf = (v: DeepReadonly<ViewState>, who: string | undefined): Filter => ({ project: v.filter, ...(who !== undefined && { crew: who }) });
+  const sections = computed(() => filtered({ keys: keys(), rows: rows(), plans: plans(), filter: filterOf(view.value(), crew()), filterKey: `${view.value().filter}|${crew() ?? ''}` }));
   const everything = computed(() => unfiltered({ keys: keys(), rows: rows(), plans: plans(), filter: ALL, filterKey: 'all' }));
   const needsCount = computed(() => everything().needs.filter((e) => (e.kind === 'task' ? needsYou(e.s) : e.kind === 'group' && e.runs.some((r) => needsYou(r.s)))).length);
   const projectList = client.entities.list<Project>(KIND.project);
@@ -91,6 +95,8 @@ function createModel(client: PluginClient): ListModel {
       const r = client.entities.row<Session>(KIND.session, key);
       return computed(() => flatSession(r()));
     },
+    crew,
+    setCrew: (id) => crew(id),
     setFilter: (project) => view.set((v) => ({ filter: project, toggled: [...v.toggled] })),
     toggleSection: (id) => view.set((v) => ({ filter: v.filter, toggled: v.toggled.includes(id) ? v.toggled.filter((x) => x !== id) : [...v.toggled, id] })),
   };

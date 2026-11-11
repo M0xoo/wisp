@@ -6,6 +6,7 @@ import { entityKey, type PluginClient } from '@wisp/client';
 import { Button, Inline, Input, Link, SettingsGroup, SettingsRow, Stack, Switch, Text, useSignal } from '@wisp/ui';
 import { cancelSignIn, DEFAULT_GRID, KIND, setComputer, signIn, signOut, TOPIC, type CloudRow } from '../commands.ts';
 import { t } from '../i18n.ts';
+import { MyShares } from './MyShares.tsx';
 
 const host = (url: string): string => url.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
@@ -62,6 +63,7 @@ export default function Cloud(props: { readonly client: PluginClient }): JSX.Ele
               control={<Switch aria-label={t('grid-client.computer.title')} checked={r()?.computer?.on ?? false} onChange={(on) => void c.run(setComputer, { peer, on }).catch(() => {})} />}
             />
           </SettingsGroup>
+          <MyShares client={c} />
         </Match>
         <Match when={waiting()}>
           {(s) => (

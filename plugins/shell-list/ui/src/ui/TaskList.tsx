@@ -38,6 +38,19 @@ function ListBody(): JSX.Element {
   const t = env.shell.t;
   const sections = useSignal(env.model.sections);
   const view = useSignal(env.model.view.value);
+  // a crew member's page open: the list holds only their jobs (v1 crew.js inPick), with v1's empty line
+  const nav = useSignal(env.shell.nav);
+  const members = useSignal(env.client.entities.list<{ id: string; name: string }>('crew_member'));
+  const picked = createMemo(() => {
+    const m = nav().main;
+    return m.kind === 'crew' ? String(m.id) : undefined;
+  });
+  createEffect(() => env.model.setCrew(picked()));
+  const emptyTitle = (): string => {
+    const who = picked();
+    if (who !== undefined) return t('shell-list.empty.crew', { name: members().find((m) => m.id === who)?.name ?? '' });
+    return t(view().filter !== 'all' ? 'shell-list.empty.project' : 'shell-list.empty.all');
+  };
   const toggled = createMemo(() => new Set(view().toggled));
   const items = createMemo(() => flatten(sections(), { toggled: toggled(), open: env.open(), split: env.split() }));
   const plugins = useSignal(env.shell.extensions('shell.row:menu'));
@@ -49,7 +62,7 @@ function ListBody(): JSX.Element {
     <Stack gap="2" grow part="list.sidebar">
       <ProjectChips />
       <Slot input="shell.list:top" layout="stack" />
-      <Show when={items().length > 0} fallback={<EmptyState icon="spark" compact title={t(view().filter !== 'all' ? 'shell-list.empty.project' : 'shell-list.empty.all')} part="list.empty" />}>
+      <Show when={items().length > 0} fallback={<EmptyState icon="spark" compact title={emptyTitle()} part="list.empty" />}>
         <ContextMenu items={menu()} onSelect={(v) => pick(env, v, plugins())} part="list.menu">
           <VirtualList ref={(el) => (box.el = el)} items={items()} key={itemKey} estimate={ROW_ESTIMATE} overscan={8} grow aria-label={t('shell-list.list.label')} part="list.rows">
             {(item) => <ItemView item={item()} />}

@@ -190,7 +190,7 @@ export function seed(o: { peer: string; now: number; extra: number }): Seeded {
     ...TERMINALS,
   ]);
   topics.set('plugin:wisp.accounts:harnesses', HARNESS_ROWS);
-  topics.set('crew', CREW.map((c) => ({ e: 'crew.member', id: c.id, v: c })));
+  topics.set('crew', CREW.map((c) => ({ e: 'crew_member', id: c.id, v: c })));
   topics.set('machines', MACHINES.map((m) => ({ e: 'machine', id: m.id, v: { ...m, addedAt: o.now - 30 * 24 * HOUR } })));
   topics.set('stuff', STUFF.map((s, i) => ({ e: 'stuff', id: s.id, v: { ...s, savedAt: o.now - (i + 1) * 5 * HOUR } })));
   return {
@@ -301,7 +301,7 @@ export function fromV1(v1: V1Seed, peer: string): Seeded {
     ...TERMINALS,
   ]);
   topics.set('plugin:wisp.accounts:harnesses', HARNESS_ROWS);
-  topics.set('crew', v1.crew.map((c) => ({ e: 'crew.member', id: c.id, v: c })));
+  topics.set('crew', v1.crew.map((c) => ({ e: 'crew_member', id: c.id, v: c })));
   topics.set('machines', []);
   topics.set('stuff', []);
   return {

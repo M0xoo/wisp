@@ -3,7 +3,7 @@
 // closes it. Runs on what `runtime.agents` says (asked once the box shows).
 import { Show, createMemo, createResource, createSignal, type JSX } from 'solid-js';
 import { defineCommand } from '@wisp/client';
-import { Dialog, Grid, Input, RadioGroup, Select, Stack, Text } from '@wisp/ui';
+import { Dialog, Grid, Input, RadioGroup, Select, Stack, Text, useSignal } from '@wisp/ui';
 import { useShell } from '../context.tsx';
 import { effortsFor, harnessesFor, modelsFor, type AgentOffer, type Runner } from './runner.ts';
 
@@ -12,6 +12,9 @@ const agentsOf = defineCommand<{ peer: string }, AgentOffer[]>({ id: 'runtime.ag
 export function RunnerPicker(props: { readonly open: boolean; readonly onOpenChange: (open: boolean) => void; readonly peer: string; readonly value: Runner; readonly onChange: (r: Runner) => void }): JSX.Element {
   const shell = useShell();
   const t = shell.t;
+  const harnesses = useSignal(shell.harnesses());
+  /** each harness's logo, as its plugin registered it */
+  const logoOf = (id: string): string | undefined => harnesses().find((h) => h.id === id)?.logo;
   const [query, setQuery] = createSignal('');
   // asked when New task shows, not when the picker opens: detecting the harnesses takes seconds
   const [agents] = createResource(
@@ -29,7 +32,7 @@ export function RunnerPicker(props: { readonly open: boolean; readonly onOpenCha
         <Show when={list().length > 0} fallback={<Text size="sm" tone="muted">{agents.loading ? t('shell.runner.loading') : t('shell.runner.none')}</Text>}>
           <RadioGroup
             label={t('shell.runner.harness')}
-            options={list().map((a) => ({ value: a.id, label: a.name, ...(!a.available && { disabled: true, hint: t('shell.runner.notSetUp') }) }))}
+            options={list().map((a) => ({ value: a.id, label: a.name, logo: logoOf(a.id), ...(!a.available && { disabled: true, hint: t('shell.runner.notSetUp') }) }))}
             value={props.value.agent}
             onChange={(agent) => props.onChange({ agent, model: '', effort: '' })}
           />

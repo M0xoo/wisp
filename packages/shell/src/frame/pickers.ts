@@ -40,3 +40,24 @@ export function whenAt(w: When, now: number): number {
   d.setHours(9, 0, 0, 0);
   return d.getTime();
 }
+
+/** A delegate New task starts with (`runtime.subagents`, v1 defaults.subagents): one row per harness. */
+export interface TeamRow {
+  readonly name: string;
+  readonly agent: string;
+  readonly model?: string;
+  readonly effort?: string;
+  readonly use?: string;
+}
+
+const rowsOf = (setting: unknown): TeamRow[] =>
+  Array.isArray(setting) ? setting.filter((r): r is TeamRow => !!r && typeof r === 'object' && typeof (r as TeamRow).agent === 'string' && !!(r as TeamRow).agent) : [];
+
+/** Delegate's picks before you touch it: the harnesses Settings names (v1 pre-fills New task's team). */
+export const teamPrefill = (setting: unknown): ReadonlySet<string> => new Set(rowsOf(setting).map((r) => r.agent));
+
+/** What New task sends as its team: Settings' row for a picked harness (its model, level, use), else its name. */
+export function teamRows(picked: ReadonlySet<string>, setting: unknown, nameOf: (agent: string) => string): TeamRow[] {
+  const rows = rowsOf(setting);
+  return [...picked].map((agent) => rows.find((r) => r.agent === agent) ?? { name: nameOf(agent), agent });
+}

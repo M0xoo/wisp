@@ -7,7 +7,7 @@
 import { usePromptMenu } from './prompt-menu.ts';
 import { RunnerPicker } from './RunnerPicker.tsx';
 import { useAttachments } from './attach.ts';
-import { createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
+import { createEffect, createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
 import { entityKey, uuidv7, type EntityKey, type Json } from '@wisp/client';
 import { KeysHint, Launcher, NextList, SplitHome, Tips, useSignal, type LauncherChip, type LauncherTool, type PlainTip } from '@wisp/ui';
 import { useShell } from '../context.tsx';
@@ -19,7 +19,7 @@ import { autoPreview, create, setSetting, type Attachment } from './commands.ts'
 import { goalGate } from './goal-gate.ts';
 import { autoPick, overrideOf, PREVIEW_DEBOUNCE, type AutoPreview } from './auto.ts';
 import { defaultHarness, harnessOf } from './harness.ts';
-import { MODE_ICON, agentMenu, agentName, modeMenu, teamMenu, whenAt, whenMenu, type Mode, type When } from './pickers.ts';
+import { MODE_ICON, agentMenu, agentName, modeMenu, teamMenu, teamPrefill, teamRows, whenAt, whenMenu, type Mode, type When } from './pickers.ts';
 
 interface ProjectRow {
   readonly id: string;
@@ -56,6 +56,17 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
   const [picker, setPicker] = createSignal(false);
   const [compare, setCompare] = createSignal<string | undefined>(undefined);
   const [team, setTeam] = createSignal<ReadonlySet<string>>(new Set());
+  // the team new tasks start with (Settings, `runtime.subagents`): pre-filled until you pick your own
+  let teamTouched = false;
+  const subagents = (): unknown => settings().find((r) => r.key === 'runtime.subagents')?.value;
+  createEffect(() => {
+    const pre = teamPrefill(subagents());
+    if (!teamTouched) setTeam(pre);
+  });
+  const pickTeam = (next: ReadonlySet<string>): void => {
+    teamTouched = true;
+    setTeam(next);
+  };
   const [goal, setGoal] = createSignal<string | undefined>(undefined);
   const [when, setWhen] = createSignal<When | undefined>(undefined);
   // files with the new task: picked, pasted or dropped, each uploading at once to this computer
@@ -125,7 +136,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
     setPreview(undefined);
     const go = (attachments: readonly Attachment[]): void => {
       shell.client.commands
-        .run(create, { peer: home, id, prompt, ...runner, mode: mode(), at: Date.now(), ...(p && { cwd: p.path, projectId: p.id, color: p.color }), ...(g && { goal: g }), ...(attachments.length > 0 && { attachments }), ...(agent() !== 'auto' && model() && { model: model() }), ...(agent() !== 'auto' && effort() && { effort: effort() }) })
+        .run(create, { peer: home, id, prompt, ...runner, mode: mode(), at: Date.now(), ...(p && { cwd: p.path, projectId: p.id, color: p.color }), ...(g && { goal: g }), ...(attachments.length > 0 && { attachments }), ...(agent() !== 'auto' && model() && { model: model() }), ...(agent() !== 'auto' && effort() && { effort: effort() }), ...(team().size > 0 && { team: teamRows(team(), subagents(), (a) => agentName(t, harnesses(), a)) }) })
         .catch(() => setText(prompt));
       shell.navigate({ t: 'openTask', id: id as EntityKey as never });
     };
@@ -190,7 +201,7 @@ export function HomeView(props: { readonly onBack?: () => void }): JSX.Element {
         ]}
         mid={[
           tool('tryTwo', 'launcher.tryTwo', 'rerun', t('shell.home.tryTwo'), agent() === 'auto' ? t('shell.home.tryTwoTitle') : t('shell.home.tryTwo'), { disabled: agent() === 'auto', text: false, on: compare() === agent(), act: { onClick: () => setCompare(compare() === agent() ? undefined : agent()) } }),
-          tool('team', 'launcher.team', 'agent', t('shell.home.delegate'), t('shell.home.delegateTitle'), { text: true, ...(team().size > 0 && { on: true }), act: { menu: { items: teamMenu(t, harnesses(), team()), onSelect: (v) => { const next = new Set(team()); if (next.has(v)) next.delete(v); else next.add(v); setTeam(next); } } } }),
+          tool('team', 'launcher.team', 'agent', t('shell.home.delegate'), t('shell.home.delegateTitle'), { text: true, ...(team().size > 0 && { on: true }), act: { menu: { items: teamMenu(t, harnesses(), team()), onSelect: (v) => { const next = new Set(team()); if (next.has(v)) next.delete(v); else next.add(v); pickTeam(next); } } } }),
         ]}
         tail={[
           tool('goal', 'launcher.goal', 'target', t('shell.home.goal'), t('shell.home.goalTitle'), { text: true, ...(goal() !== undefined && { on: true }), act: { onClick: () => setGoal(goal() === undefined ? '' : undefined) } }),

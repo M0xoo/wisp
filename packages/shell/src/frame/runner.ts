@@ -53,3 +53,8 @@ export function runnerWords(agents: readonly AgentOffer[], r: Runner, name: (id:
   const model = a?.models.find((m) => m.id === r.model)?.label ?? (r.model || '');
   return [name(r.agent), model, r.effort].filter(Boolean).join(' · ');
 }
+
+/** A reply's own harness · model (the reply box's pick) as runtime.followUp's `run`; none: the task's own. */
+export function runPick(r: Runner | undefined): { agent: string; model?: string; effort?: string } | undefined {
+  return r ? { agent: r.agent, ...(r.model && { model: r.model }), ...(r.effort && { effort: r.effort }) } : undefined;
+}

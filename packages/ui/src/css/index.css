@@ -35,5 +35,6 @@
 @import './app-stack.css';
 @import './ship.css';
 @import './crew.css';
+@import './crew-view.css';
 @import './transcript.css';
 @import './home.css';

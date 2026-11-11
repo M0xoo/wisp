@@ -4,8 +4,9 @@
 // computer's webhook triggers; off, those URLs refuse every call). Lists are read when the pane opens and after a change.
 import { createResource, createSignal, For, Match, Show, Switch, type JSX } from 'solid-js';
 import type { PluginClient } from '@wisp/client';
-import { Button, englishT, Menu, Pill, SettingsGroup, SettingsRow, SwitchSetting, timeLabel, type SettingSource } from '@wisp/ui';
-import { fireTrigger, recipes, removeRecipe, runRecipe, triggers, type Recipe, type Trigger } from '../commands.ts';
+import { Button, englishT, Inline, Menu, Pill, SettingsGroup, SettingsRow, SwitchSetting, timeLabel, type SettingSource } from '@wisp/ui';
+import { fireTrigger, recipes, removeRecipe, runRecipe, testTrigger, triggers, type Recipe, type Tried, type Trigger } from '../commands.ts';
+import { TriggerEditor } from './TriggerEditor.tsx';
 import { t } from '../i18n.ts';
 import { fromRow } from '../source.ts';
 
@@ -42,6 +43,8 @@ export default function Automations(props: { readonly client: PluginClient }): J
   };
   const ago = (at: number | null | undefined): string => (at ? timeLabel(at, Date.now(), englishT) : t('automations.never'));
   const [view, setView] = createSignal<'home' | 'recipes' | 'triggers'>('home');
+  const [adding, setAdding] = createSignal(false);
+  const [tried, setTried] = createSignal<Record<string, Tried[]>>({});
   const back = (): JSX.Element => (
     <Button size="sm" variant="ghost" icon="back" part="automations.back" onClick={() => setView('home')}>
       {t('automations.back')}
@@ -110,7 +113,23 @@ export default function Automations(props: { readonly client: PluginClient }): J
         </SettingsGroup>
       </Match>
       <Match when={view() === 'triggers'}>
-        {back()}
+        <Inline gap="2" justify="between">
+          {back()}
+          <Show when={!adding()}>
+            <Button size="sm" variant="ghost" icon="plus" part="automations.trigger.new" onClick={() => setAdding(true)}>
+              {t('automations.editor.new')}
+            </Button>
+          </Show>
+        </Inline>
+        <Show when={adding()}>
+          <TriggerEditor
+            client={c}
+            onDone={(saved) => {
+              setAdding(false);
+              if (saved) void againT();
+            }}
+          />
+        </Show>
         <SettingsGroup part="automations.triggers" title={t('automations.triggers')} description={t('automations.triggers.description')}>
           <Show
             when={(ts() ?? []).length > 0}
@@ -118,23 +137,45 @@ export default function Automations(props: { readonly client: PluginClient }): J
           >
             <For each={ts() ?? []}>
               {(x) => (
-                <SettingsRow
-                  part="automations.trigger"
-                  title={x.name}
-                  description={x.why || t('automations.trigger.line', { runs: x.runs, last: ago(x.lastRunAt) })}
-                  control={
-                    <>
-                      <Pill tone={TONE[x.state] ?? 'neutral'} dot variant="outline">
-                        {x.state}
-                      </Pill>
-                      <Menu
-                        trigger={{ icon: 'dots', 'aria-label': t('automations.more', { name: x.name }), variant: 'ghost', size: 'sm' }}
-                        items={[{ value: 'fire', label: t('automations.fire'), icon: 'play' }]}
-                        onSelect={() => after(c.run(fireTrigger, { peer, name: x.name }), () => void againT())}
-                      />
-                    </>
-                  }
-                />
+                <>
+                  <SettingsRow
+                    part="automations.trigger"
+                    title={x.name}
+                    description={x.why || t('automations.trigger.line', { runs: x.runs, last: ago(x.lastRunAt) })}
+                    control={
+                      <>
+                        <Pill tone={TONE[x.state] ?? 'neutral'} dot variant="outline">
+                          {x.state}
+                        </Pill>
+                        <Menu
+                          trigger={{ icon: 'dots', 'aria-label': t('automations.more', { name: x.name }), variant: 'ghost', size: 'sm' }}
+                          items={[
+                            { value: 'test', label: t('automations.test'), icon: 'search' },
+                            { value: 'fire', label: t('automations.fire'), icon: 'play' },
+                          ]}
+                          onSelect={(v) =>
+                            v === 'test'
+                              ? void c.run(testTrigger, { peer, name: x.name }).then(
+                                  (r) => setTried({ ...tried(), [x.name]: r }),
+                                  () => {},
+                                )
+                              : after(c.run(fireTrigger, { peer, name: x.name }), () => void againT())
+                          }
+                        />
+                      </>
+                    }
+                  />
+                  {/* would it have fired: the last five events of its source, dry run (ADR-0043's live preview) */}
+                  <Show when={tried()[x.name]}>
+                    {(list) => (
+                      <Show when={list().length > 0} fallback={<SettingsRow part="automations.tried.none" title="" description={t('automations.tried.none')} control={<span />} />}>
+                        <For each={list()}>
+                          {(r) => <SettingsRow part="automations.tried" title={r.summary || r.key} description={[r.result, r.why].filter(Boolean).join(' · ')} control={<span />} />}
+                        </For>
+                      </Show>
+                    )}
+                  </Show>
+                </>
               )}
             </For>
           </Show>

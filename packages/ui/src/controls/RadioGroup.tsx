@@ -9,6 +9,8 @@ export interface RadioOption {
   /** A second line under the label. */
   readonly hint?: string;
   readonly disabled?: boolean;
+  /** A logo before the label (a harness's, in the harness · model picker). */
+  readonly logo?: string | undefined;
 }
 
 export interface RadioGroupProps extends KitProps {
@@ -51,6 +53,13 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
               onChange={() => props.onChange(option.value)}
               data-kit="radio-input"
             />
+            <Show when={option.logo}>
+              {(src) => (
+                <i data-kit="radio-logo">
+                  <img src={src()} alt="" />
+                </i>
+              )}
+            </Show>
             <span data-kit="radio-text">
               <span data-kit="toggle-label">{option.label}</span>
               <Show when={option.hint}>{(hint) => <span data-kit="radio-hint">{hint()}</span>}</Show>

@@ -157,6 +157,7 @@ export const SHELL_STRINGS = {
   'shell.home.auto': 'Auto',
   'shell.home.autoTitle': 'Auto · Balanced',
   'shell.home.pickTitle': 'Auto will run {name}: your usual pick',
+  'shell.crew.none': 'No tasks for {name} yet.',
   'shell.home.autoWhy': 'Auto will run {label}: {why}',
   'shell.goal.empty': 'Done when is empty',
   'shell.goal.sendWithout': 'Send without a goal',
