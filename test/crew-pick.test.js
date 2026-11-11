@@ -41,7 +41,7 @@ for (const n of ['HTMLElement', 'HTMLTextAreaElement', 'HTMLInputElement', 'HTML
 globalThis.setInterval = () => 0; // the page's pollers would keep the test running
 const { S } = await import('../web/js/core/state.js');
 const { expand, groups, reveal } = await import('../web/js/features/feed.js');
-const { addressedTo, crewPick, inPick, memberJobs, memberState, openMember, pickedPrompt, pickMember, pickThread, setCrewPick } = await import('../web/js/features/crew.js');
+const { addressedTo, crewPick, inPick, memberJobs, memberState, openMember, panelTint, pickedPrompt, pickMember, pickThread, setCrewPick } = await import('../web/js/features/crew.js');
 
 const ada = { id: 'adaada', name: 'Ada', log: [] };
 const bob = { id: 'bobbob', name: 'Bob', log: [] };
@@ -60,6 +60,15 @@ beforeEach(() => {
   S.crewOpen = null;
   S.crewPick = null;
   S.config = { ...S.config, crew: [ada, bob], projects: [] };
+});
+
+test('the task panel takes the picked member’s tint, unless they picked another or none', () => {
+  assert.equal(panelTint(null), '');
+  assert.equal(panelTint({ color: 'teal' }), 'teal');
+  assert.equal(panelTint({ color: 'teal', bg: 'rose' }), 'rose');
+  assert.equal(panelTint({ color: 'teal', bg: 'none' }), '');
+  // A spell's or imported member can carry a colour the avatar doesn't match: the face wins.
+  assert.equal(panelTint({ avatar: 'ghost.sky.dots.smile.none', color: 'violet' }), 'sky');
 });
 
 test('with no pick the list is as it was', () => {

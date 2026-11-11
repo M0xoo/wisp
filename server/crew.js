@@ -94,6 +94,9 @@ export function normalizeMember(body = {}, prev = null, { taken = [], exists = (
   if (!MODES.has(mode)) throw bad('mode must be plan, edits or auto.');
   const cron = readSchedule(v('cron')); // words ("every monday") or cron
   const color = CREW_COLORS.includes(v('color')) ? v('color') : prev?.color || CREW_COLORS[taken.length % CREW_COLORS.length];
+  // The task panel's tint while this member is picked: their glow (''), none, or a colour of its own.
+  const bg = String(v('bg'));
+  if (bg && bg !== 'none' && !CREW_COLORS.includes(bg)) throw bad('A task panel tint is their glow, none, or one of the crew colours.');
   const notebook = typeof body.notebook === 'string' ? clampNotebook(body.notebook) : prev?.notebook || '';
   return {
     id: prev?.id || newId(),
@@ -101,6 +104,7 @@ export function normalizeMember(body = {}, prev = null, { taken = [], exists = (
     role: String(v('role')).replace(/\s+/g, ' ').trim().slice(0, 60),
     avatar: avatarOf(v('avatar')), // a spirit (web/js/spirit.js), an emoji, or '' (rolled from the name)
     color,
+    bg,
     brief: String(v('brief')).trim().slice(0, BRIEF_MAX),
     cwd,
     machine, // '' = this computer
