@@ -21,12 +21,39 @@ pub(crate) fn now(ctx: &Ctx) -> i64 {
     ctx.clock().map_or(0, |c| c.now_ms())
 }
 
+/// A job's task: here, or on the machine (a sandbox) it runs on (`<machine>|<id>`).
+async fn job_task(ctx: &Ctx, call: &Call, id: &str) -> Result<Value, WireError> {
+    match id.split_once('|') {
+        Some((machine, task)) => ctx.run_json(call, "machines.route", json!({ "id": machine, "cmd": "runtime.get", "args": { "id": task }, "mid": format!("crew-{}", wisp_kernel::ids::uuid7()) })).await,
+        None => ctx.run_json(call, "runtime.get", json!({ "id": id })).await,
+    }
+}
+
+/// The grid said it's full (or the user has all the sandboxes they may): a crew job waits and tries again.
+fn grid_full(message: &str) -> bool {
+    let m = message.to_lowercase();
+    m.contains("is full") || m.contains("sandboxes of yours")
+}
+
+/// Where a member's job runs when it isn't here (ADR-0047): a sandbox per job, or their own. `(machine, cwd)`.
+async fn sandbox_for(ctx: &Ctx, call: &Call, m: &Member) -> Result<Option<(String, String)>, WireError> {
+    let owner = match m.sandbox.as_str() {
+        "own" => json!({ "crew": m.id }),
+        "job" => json!({ "crew": m.id, "job": "" }),
+        _ => return Ok(None),
+    };
+    let cwd = (!m.cwd.is_empty()).then(|| m.cwd.clone());
+    let placed = ctx.run_json(call, "sandbox.place", json!({ "owner": owner, "cwd": cwd })).await?;
+    let s = |k: &str| placed.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
+    Ok(Some((s("machine"), s("cwd"))))
+}
+
 /// The member's jobs as the runtime has them now.
 async fn jobs_of(ctx: &Ctx, call: &Call, st: &State, m: &Member) -> Vec<JobSummary> {
     let ids = lock(&st.jobs).get(&m.id).cloned().unwrap_or_default();
     let mut out = Vec::new();
     for id in ids {
-        let Ok(s) = ctx.run_json(call, "runtime.get", json!({ "id": id })).await else { continue };
+        let Ok(s) = job_task(ctx, call, &id).await else { continue };
         let job = s.pointer("/ext/wisp.crew/job").and_then(|j| serde_json::from_value::<JobKind>(j.clone()).ok()).unwrap_or_default();
         let state = s.get("state").and_then(Value::as_str).unwrap_or("done").to_owned();
         out.push(JobSummary { session_id: id, crew_id: m.id.clone(), job, state });
@@ -53,14 +80,30 @@ async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: &WaitingJob) -
         "mode": mode, "cwd": (!m.cwd.is_empty()).then(|| m.cwd.clone()), "attachments": attachments, "by": "crew", "title": format!("{} · {}", m.name, if job == JobKind::Checkin { "Check-in" } else { "Job" }),
         "ext": { PLUGIN_ID: ext },
     });
-    let made = ctx.run_json(call, "runtime.create", args).await?;
+    let mut args = args;
+    // in a sandbox (a fresh one per job, or the member's own): the job's task runs there
+    let place = sandbox_for(ctx, call, m).await?;
+    let made = match &place {
+        Some((machine, cwd)) => {
+            args["cwd"] = json!(cwd);
+            let made = ctx.run_json(call, "machines.route", json!({ "id": machine, "cmd": "runtime.create", "args": args, "mid": format!("crew-{}", wisp_kernel::ids::uuid7()) })).await?;
+            let id = format!("{machine}|{}", made.get("id").and_then(Value::as_str).unwrap_or_default());
+            if m.sandbox == "job" {
+                let _ = ctx.run_json(call, "sandbox.own", json!({ "machine": machine, "owner": { "crew": m.id, "job": id } })).await;
+            }
+            let mut made = made;
+            made["id"] = json!(id);
+            made
+        }
+        None => ctx.run_json(call, "runtime.create", args).await?,
+    };
     if let Some(id) = made.get("id").and_then(Value::as_str) {
         st.add_job(&m.id, id, now(ctx)).await;
         if let Some(r) = &w.reply {
             crate::answers::started(ctx, call, st, r, id).await;
         }
     }
-    let session = ctx.run_json(call, "runtime.get", json!({ "id": made.get("id") })).await.ok();
+    let session = job_task(ctx, call, made.get("id").and_then(Value::as_str).unwrap_or_default()).await.ok();
     Ok(session.unwrap_or(made))
 }
 
@@ -269,6 +312,13 @@ async fn run_tick(ctx: &Ctx, st: &State) {
         for w in due {
             if let Err(e) = start(ctx, &call, st, &m, &w).await {
                 tracing::warn!(member = %m.name, error = %e.message, "crew job");
+                // a full grid (its sandboxes): the job waits its turn again instead of being lost (ADR-0047)
+                if grid_full(&e.message)
+                    && let Ok(mut again) = st.member(&m.id)
+                {
+                    again.queue.insert(0, w);
+                    st.put(again);
+                }
             }
         }
     }

@@ -28,6 +28,8 @@ pub struct Goal {
     pub judges: Vec<String>,
     pub vote: String,
     pub max_rounds: u32,
+    /// its judges run in a sandbox of their own, seeded with the task's folder (ADR-0047: `goal.sandbox`)
+    pub sandbox: bool,
 }
 
 pub fn goal_of(spec: &Value, d: &kinds::GoalSpec) -> Option<Goal> {
@@ -37,7 +39,8 @@ pub fn goal_of(spec: &Value, d: &kinds::GoalSpec) -> Option<Goal> {
     let judges = list(g.get("judges")).or_else(|| Some(d.judges.clone()).filter(|j| !j.is_empty())).unwrap_or_else(|| vec![spec.get("agent").and_then(Value::as_str).filter(|a| !a.is_empty()).unwrap_or("claude").to_owned()]);
     let vote = g.get("vote").and_then(Value::as_str).map(str::to_owned).or_else(|| Some(d.vote.clone()).filter(|v| !v.is_empty())).unwrap_or_else(|| "majority".into());
     let max_rounds = g.get("maxRounds").and_then(Value::as_u64).and_then(|n| u32::try_from(n).ok()).or(d.max_rounds).unwrap_or(MAX_ROUNDS);
-    Some(Goal { text, judges, vote, max_rounds })
+    let sandbox = g.get("sandbox").and_then(Value::as_bool).unwrap_or(false);
+    Some(Goal { text, judges, vote, max_rounds, sandbox })
 }
 
 /// The goal as it stands: `goal.set`'s text over the spec's; none once it was cleared.
@@ -122,9 +125,23 @@ async fn judge(ctx: &Ctx, g: &Goal, task: &Value, answer: &str) -> Vec<wisp_goal
     let title = task.get("title").and_then(Value::as_str).unwrap_or_default();
     let cwd = task.get("cwd").and_then(Value::as_str).unwrap_or_default();
     let mut out = Vec::new();
+    // judges in a sandbox: one for this task's judges (made once, reused every round), the task's folder in it
+    let place = if g.sandbox {
+        let id = task.get("id").and_then(Value::as_str).unwrap_or_default();
+        match ctx.run_json(&ctx.root_call(), "sandbox.place", json!({ "owner": { "judges": id }, "cwd": (!cwd.is_empty()).then_some(cwd) })).await {
+            Ok(p) => Some((p.get("machine").and_then(Value::as_str).unwrap_or_default().to_owned(), p.get("cwd").and_then(Value::as_str).unwrap_or_default().to_owned())),
+            Err(e) => return g.judges.iter().map(|j| wisp_goal_core::Verdict { judge: j.clone(), met: false, why: format!("{j} couldn't judge in a sandbox: {}", e.message) }).collect(),
+        }
+    } else {
+        None
+    };
     for j in &g.judges {
-        let a = json!({ "prompt": judge_prompt(&g.text, title, answer), "cwd": cwd, "pick": pick_of(ctx, j).await, "timeoutMs": 300_000 });
-        let said = ctx.run_json(&ctx.root_call(), "runtime.quick", a).await.map(|r| r.get("text").and_then(Value::as_str).unwrap_or_default().to_owned());
+        let a = json!({ "prompt": judge_prompt(&g.text, title, answer), "cwd": place.as_ref().map_or(cwd, |p| p.1.as_str()), "pick": pick_of(ctx, j).await, "timeoutMs": 300_000 });
+        let asked = match &place {
+            Some((machine, _)) => ctx.run_json(&ctx.root_call(), "machines.route", json!({ "id": machine, "cmd": "runtime.quick", "args": a, "mid": format!("judge-{}", wisp_kernel::ids::uuid7()) })).await,
+            None => ctx.run_json(&ctx.root_call(), "runtime.quick", a).await,
+        };
+        let said = asked.map(|r| r.get("text").and_then(Value::as_str).unwrap_or_default().to_owned());
         out.push(match said {
             Ok(text) => verdict(j, &text),
             Err(e) => wisp_goal_core::Verdict { judge: j.clone(), met: false, why: format!("{j} couldn't judge: {}", e.message) },
@@ -280,6 +297,15 @@ mod tests {
     #[test]
     fn manifest_is_valid() {
         assert_eq!(GoalPlugin.manifest().id, "wisp.goal");
+    }
+
+    /// ADR-0047 (new in v2): a goal may ask for its judges in a sandbox; a goal that doesn't, judges here.
+    #[test]
+    fn a_goal_may_ask_for_its_judges_in_a_sandbox() {
+        let d = kinds::GoalSpec::default();
+        let boxed = goal_of(&json!({ "goal": { "text": "tests pass", "judges": ["claude"], "sandbox": true } }), &d).unwrap();
+        assert!(boxed.sandbox);
+        assert!(!goal_of(&json!({ "goal": "tests pass" }), &d).unwrap().sandbox);
     }
 
     /// The GUI's goal band reads `summary.goal`: a task with a goal says where it stands, judged or not.

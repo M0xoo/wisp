@@ -26,6 +26,7 @@ mod letin;
 mod link;
 mod loopback;
 mod manager;
+mod proxy;
 mod service;
 mod ssh;
 mod state;
@@ -66,6 +67,7 @@ impl Plugin for MachinesPlugin {
         let lo: Arc<dyn Transport> = Arc::new(LoopbackTransport);
         s.contribute(&TRANSPORT, lo);
         commands::register(s, &slot);
+        proxy::register(s, &slot);
         let svc: Arc<dyn wisp_machines_api::MachinesService> = Arc::new(service::Service(slot.clone()));
         s.provide::<Peers>(svc);
         s.on_start(move |ctx| async move {

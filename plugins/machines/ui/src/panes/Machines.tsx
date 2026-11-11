@@ -58,7 +58,12 @@ export default function Machines(props: { readonly client: PluginClient }): JSX.
   const [adding, setAdding] = createSignal(false);
   const [reach, { refetch }] = createResource(() => c.run(reachable, { peer }).catch(() => undefined));
   const stateOf = (id: string): StatusBody | undefined => (statuses() as readonly Doc<StatusBody>[]).find((s) => s.body.id === id || s.id === id)?.body;
-  const list = (): PeerBody[] => (peers() as readonly Doc<PeerBody>[]).map((p) => p.body).sort((a, b) => a.name.localeCompare(b.name));
+  // a sandbox belongs to its owner (ADR-0047): never a machine you pick or manage here (Settings → Cloud lists them)
+  const list = (): PeerBody[] =>
+    (peers() as readonly Doc<PeerBody>[])
+      .map((p) => p.body)
+      .filter((p) => !p.data?.['sandbox'])
+      .sort((a, b) => a.name.localeCompare(b.name));
   const act = (id: string, v: string): void => {
     if (v === 'connect') quiet(c.run(connect, { peer, id }));
     else if (v === 'disconnect') quiet(c.run(disconnect, { peer, id }));

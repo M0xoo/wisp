@@ -14,8 +14,12 @@
 //!   already up, and never wakes one; asleep, 503.
 //! - Nothing a message said goes to a log: channel and size only.
 //!
-//! Not here yet: Discord's edge (it answers an interaction's PING itself, with the box's public key), mail's
-//! provider webhook (`mail.rs`).
+//! - **Discord's three seconds:** `/wisp` and a button press are held and answered at once ("thinking", "seen"); the
+//!   box goes on from that answer and checks Discord's signature itself. A ping (the Portal's check) and an
+//!   autocomplete keystroke go live, to a box already up.
+//!
+//! Not here yet: the grid checking Discord's signature itself (with the box's public key and its linked people, so
+//! a stranger's `/wisp` wakes nothing), mail's provider webhook (`mail.rs`).
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -45,6 +49,22 @@ pub struct ChannelDef {
     pub live: fn(&Value) -> bool,
     /// what no box acts on: not held (a wake for it would be refused and count as a strike)
     pub skip: fn(&Value) -> bool,
+    /// what the sender gets at once for a message held (Discord wants an answer in three seconds, the box may be
+    /// asleep); None: the plain 200
+    pub early: fn(&Value) -> Option<Value>,
+}
+
+fn kind_of(j: &Value) -> Option<i64> {
+    j.get("type").and_then(Value::as_i64)
+}
+
+/// Discord: "thinking" for `/wisp` (5), "seen" for a press (6). The box goes on from that answer.
+fn discord_early(j: &Value) -> Option<Value> {
+    match kind_of(j)? {
+        2 => Some(json!({ "type": 5 })),
+        3 => Some(json!({ "type": 6 })),
+        _ => None,
+    }
 }
 
 fn str_of(v: Option<&Value>) -> Option<String> {
@@ -59,11 +79,11 @@ fn slack_noise(j: &Value) -> bool {
 }
 
 pub const CHANNELS: [ChannelDef; 4] = [
-    ChannelDef { name: "telegram", headers: &["x-telegram-bot-api-secret-token"], event_id: |j| str_of(j.get("update_id")), live: |_| false, skip: |_| false },
-    ChannelDef { name: "slack", headers: &["x-slack-signature", "x-slack-request-timestamp"], event_id: |j| str_of(j.get("event_id")), live: |j| j.get("type").and_then(Value::as_str) == Some("url_verification"), skip: slack_noise },
-    ChannelDef { name: "discord", headers: &["x-signature-ed25519", "x-signature-timestamp"], event_id: |j| str_of(j.get("id")), live: |j| j.get("type").and_then(Value::as_i64) == Some(1), skip: |_| false },
+    ChannelDef { name: "telegram", headers: &["x-telegram-bot-api-secret-token"], event_id: |j| str_of(j.get("update_id")), live: |_| false, skip: |_| false, early: |_| None },
+    ChannelDef { name: "slack", headers: &["x-slack-signature", "x-slack-request-timestamp"], event_id: |j| str_of(j.get("event_id")), live: |j| j.get("type").and_then(Value::as_str) == Some("url_verification"), skip: slack_noise, early: |_| None },
+    ChannelDef { name: "discord", headers: &["x-signature-ed25519", "x-signature-timestamp"], event_id: |j| str_of(j.get("id")), live: |j| matches!(kind_of(j), Some(1 | 4)), skip: |j| !matches!(kind_of(j), Some(2 | 3)), early: discord_early },
     // held by the grid's mail (mail/service.rs), never by a request: its headers are the grid's own verdict
-    ChannelDef { name: "email", headers: &["x-wisp-mail-from", "x-wisp-mail-dmarc", "x-wisp-mail-id"], event_id: |j| str_of(j.get("messageId")), live: |_| false, skip: |_| false },
+    ChannelDef { name: "email", headers: &["x-wisp-mail-from", "x-wisp-mail-dmarc", "x-wisp-mail-id"], event_id: |j| str_of(j.get("messageId")), live: |_| false, skip: |_| false, early: |_| None },
 ];
 
 /// A held message its box accepted (a 2xx): `(user id, the delivery)`. Mail keeps the thread then.
@@ -241,7 +261,7 @@ impl Inbox {
             return Ok(None);
         }
         self.hold(user, def, body, &kept, false, &j)?;
-        Ok(None)
+        Ok((def.early)(&j).map(|a| (200, a)))
     }
 
     /// A request that can't wait: the box's answer if it's up; asleep or starting, 503 (never woken).

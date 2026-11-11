@@ -190,6 +190,21 @@ pub struct Sandbox {
     pub machine: String,
 }
 
+/// The grid's sandbox settings (ADR-0047): a sign-in every sandbox starts with (`agent` and its token), or an env var
+/// (`key`; an empty `value` takes it out). Values go to the grid sealed and never come back.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "grid-client/")]
+pub struct SandboxSetArgs {
+    #[serde(default)]
+    pub agent: String,
+    #[serde(default)]
+    pub token: String,
+    #[serde(default)]
+    pub key: String,
+    #[serde(default)]
+    pub value: String,
+}
+
 /// `wisp team …`: team spaces on the grid (ADR-0041).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "grid-client/")]
@@ -257,5 +272,9 @@ command!(Updates = "grid-client.updates" read yes : NoArgs => Vec<Update>);
 command!(SandboxNew = "grid-client.sandbox" : SandboxArgs => Sandbox);
 command!(SandboxList = "grid-client.sandboxes" read yes : NoArgs => Vec<Sandbox>);
 command!(SandboxRemove = "grid-client.sandboxRemove" : IdArgs => Value);
+command!(SandboxInfo = "grid-client.sandboxInfo" read yes : NoArgs => Value);
+command!(SandboxLogin = "grid-client.sandboxLogin" : SandboxSetArgs => Value);
+command!(SandboxLogout = "grid-client.sandboxLogout" : SandboxSetArgs => Value);
+command!(SandboxEnv = "grid-client.sandboxEnv" : SandboxSetArgs => Value);
 command!(Teams = "grid-client.teams" : TeamsArgs => Value);
 command!(Reply = "grid-client.reply" : ReplyArgs => Replied);

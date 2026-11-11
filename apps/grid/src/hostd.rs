@@ -183,6 +183,10 @@ impl ProcessHost {
     fn box_env(&self, user: &BoxUser, port: u16, secret: &str) -> Vec<(String, String)> {
         let mut env = vec![("WISP_PORT".to_owned(), port.to_string()), ("WISP_BOX".to_owned(), "1".to_owned()), ("WISP_TRUSTED_PROXY_SECRET".to_owned(), secret.to_owned()), ("WISP_PUBLIC_URL".to_owned(), (self.o.url_of)(&user.handle))];
         env.extend(self.o.env.iter().cloned());
+        // a sandbox's wisp knows it is one: it takes a project in, and publishes, shares and makes nothing (ADR-0047)
+        if user.sandbox.is_some() {
+            env.push(("WISP_SANDBOX".to_owned(), "1".to_owned()));
+        }
         let more = lock(&self.env_for.0).clone();
         if let Some(f) = more {
             env.extend(f(user));

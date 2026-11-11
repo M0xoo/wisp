@@ -12,6 +12,8 @@
   "permissions": [
     "runtime:get",
     "runtime:turns",
+    "sandbox:place",
+    "machines:route",
     "runtime:profiles",
     "runtime:quick",
     "runtime:setExt",

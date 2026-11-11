@@ -71,6 +71,42 @@ pub async fn remove(st: &Arc<St>, id: &str) -> Result<Value> {
     Ok(json!({ "ok": true, "machine": machine }))
 }
 
+/// One call to the grid's `/api/sandboxes…` with this computer's device token (ADR-0047).
+async fn grid(st: &Arc<St>, method: &str, path: &str, body: Option<&Value>) -> Result<Value> {
+    let (a, token) = st.signed_in().await.map_err(WireError::unavailable)?;
+    let (status, v) = net::call(&st.http, method, &format!("{}/api/sandboxes{path}", a.grid), Some(&token), body, &[]).await?;
+    if status >= 400 {
+        return Err(net::refused(status, &v));
+    }
+    Ok(v)
+}
+
+/// Whether the grid makes sandboxes, the sign-ins and env names they start with, and the list.
+pub async fn info(st: &Arc<St>) -> Result<Value> {
+    grid(st, "GET", "", None).await
+}
+
+/// A sign-in every sandbox starts with (`claude`: a `claude setup-token` token), sealed on the grid.
+pub async fn login(st: &Arc<St>, a: &api::SandboxSetArgs) -> Result<Value> {
+    if a.agent.trim().is_empty() || a.token.trim().is_empty() {
+        return Err(WireError::invalid("which sign-in, and its token?"));
+    }
+    grid(st, "PUT", &format!("/logins/{}", a.agent.trim()), Some(&json!({ "token": a.token.trim() }))).await
+}
+
+pub async fn logout(st: &Arc<St>, a: &api::SandboxSetArgs) -> Result<Value> {
+    grid(st, "DELETE", &format!("/logins/{}", a.agent.trim()), None).await
+}
+
+/// An env var every sandbox gets; an empty value takes it out.
+pub async fn env(st: &Arc<St>, a: &api::SandboxSetArgs) -> Result<Value> {
+    let key = a.key.trim();
+    if key.is_empty() {
+        return Err(WireError::invalid("which variable?"));
+    }
+    if a.value.is_empty() { grid(st, "DELETE", &format!("/env/{key}"), None).await } else { grid(st, "PUT", "/env", Some(&json!({ "key": key, "value": a.value }))).await }
+}
+
 /// The HTTP call a team op is.
 pub fn team_call(a: &api::TeamsArgs) -> Result<(&'static str, String, Option<Value>)> {
     let need = |v: &str, what: &str| if v.trim().is_empty() { Err(WireError::invalid(format!("wisp team {}: which {what}?", a.op))) } else { Ok(()) };

@@ -172,3 +172,21 @@ fn a_held_message_past_its_hour_is_gone_and_counted() {
     assert_eq!(w.inbox.waiting().unwrap(), Vec::<String>::new());
     assert_eq!(w.inbox.url_for(&w.user, "telegram").unwrap()["dropped"], 1);
 }
+
+/// Discord wants an answer in three seconds and a box may be asleep: `/wisp` and a press are held and answered at
+/// once ("thinking", "seen"); a ping and a keystroke go live to a box that's up; anything else isn't held.
+#[tokio::test]
+async fn discords_slash_and_press_are_answered_at_once_and_held_and_a_keystroke_goes_live() {
+    let w = world(vec![200], Opts::default());
+    let ix = |t: i64, id: &str| json!({ "type": t, "id": id }).to_string().into_bytes();
+    let heads = vec![("x-signature-ed25519".to_owned(), "ab".to_owned()), ("x-signature-timestamp".to_owned(), "1".to_owned())];
+    assert_eq!(w.inbox.accept(&w.user, "discord", &heads, Some(&ix(2, "11"))).await.unwrap(), Some((200, json!({ "type": 5 }))));
+    assert_eq!(w.inbox.accept(&w.user, "discord", &heads, Some(&ix(3, "12"))).await.unwrap(), Some((200, json!({ "type": 6 }))));
+    assert_eq!(w.inbox.accept(&w.user, "discord", &heads, Some(&ix(4, "13"))).await.unwrap().unwrap().0, 503, "a keystroke never wakes a box");
+    assert_eq!(w.inbox.accept(&w.user, "discord", &heads, Some(&ix(9, "14"))).await.unwrap(), None);
+    assert_eq!(w.inbox.waiting().unwrap(), vec!["u1".to_owned()]);
+    assert_eq!(w.inbox.drain(&w.user).await.unwrap(), None);
+    let got = w.the_box.got.lock().unwrap().clone();
+    assert_eq!(got.len(), 2, "the slash and the press, not the rest");
+    assert_eq!(got[0].headers.len(), 2, "with the signature the box checks");
+}

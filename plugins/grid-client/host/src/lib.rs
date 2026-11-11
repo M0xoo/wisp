@@ -123,6 +123,10 @@ impl Plugin for GridClientPlugin {
         on!(s, slot, api::SandboxNew, |st, a| async move { sandboxes::create(&st, &a.name).await });
         on!(s, slot, api::SandboxList, |st, _a| async move { sandboxes::list(&st).await });
         on!(s, slot, api::SandboxRemove, |st, a| async move { sandboxes::remove(&st, &a.id).await });
+        on!(s, slot, api::SandboxInfo, |st, _a| async move { sandboxes::info(&st).await });
+        on!(s, slot, api::SandboxLogin, |st, a| async move { sandboxes::login(&st, &a).await });
+        on!(s, slot, api::SandboxLogout, |st, a| async move { sandboxes::logout(&st, &a).await });
+        on!(s, slot, api::SandboxEnv, |st, a| async move { sandboxes::env(&st, &a).await });
         on!(s, slot, api::Teams, |st, a| async move { sandboxes::teams(&st, &a).await });
         on!(s, slot, api::Reply, |st, a| async move { Ok::<_, WireError>(computer::reply(&st, &a).await) });
         s.on_start(move |ctx| async move {

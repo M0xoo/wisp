@@ -15,6 +15,8 @@ export interface PeerBody {
   readonly address: string;
   readonly port: number;
   readonly addedAt: number;
+  /** the transport's own fields (a sandbox's `sandbox` id and `owner`) */
+  readonly data?: Readonly<Record<string, unknown>>;
 }
 
 export interface StatusBody {

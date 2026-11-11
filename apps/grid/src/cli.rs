@@ -31,7 +31,9 @@ pub async fn main(args: Vec<String>) -> i32 {
                 eprintln!("  ✗ {}: {e}", data.display());
                 return 1;
             }
-            match crate::edge::dev(&data, port, bin, Vec::new(), idle).await {
+            // dev only: a fake harness and the web bundle for the boxes too, when set here
+            let pass: Vec<(String, String)> = ["WISP_CLAUDE_BIN", "WISP_CODEX_BIN", "WISP_WEB_DIR"].iter().filter_map(|k| std::env::var(k).ok().map(|v| ((*k).to_owned(), v))).collect();
+            match crate::edge::dev(&data, port, bin, pass, idle).await {
                 Ok((grid, port, stop)) => {
                     eprintln!("\n  ◌ wisp Grid (dev) at http://wisp.localhost:{port}  ·  sign in at /auth/dev\n    sign in from wisp: wisp cloud signin http://wisp.localhost:{port}\n");
                     let _ = tokio::signal::ctrl_c().await;
