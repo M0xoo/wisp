@@ -3,6 +3,7 @@
 // get reads. `plugin(id)` hands a plugin the same APIs a built-in uses, all owned by its scope, so
 // switching it off drops its stores, views, strings, settings, machines and subscriptions.
 
+import type { PeerHttp } from './transport.ts';
 import { createCommands, type CommandDef, type CommandError, type Commands } from './commands.ts';
 import { createStoreHost, type PluginStore, type StoreDecl } from './define-store.ts';
 import { createDevtools, type Devtools } from './devtools.ts';
@@ -58,6 +59,8 @@ export interface PluginClient {
   watch(peer: PeerId, topic: Topic, owner?: Scope, opts?: { passive?: boolean }): void;
   /** the peers this client reaches, read-only: which are there, how each is, what each offers */
   readonly peers: Pick<Peers, 'list' | 'status' | 'info' | 'name' | 'hasFeature'>;
+  /** a peer's own routes: raw uploads, event streams (a terminal). Everything else is a command. */
+  http(peer: PeerId): PeerHttp;
   /** this client's own wisp (ClientOptions.home) */
   readonly home: PeerId;
   /** kind 5: text and files being written, keyed (entity, field), kept across reloads (the composer's drafts) */
@@ -174,6 +177,7 @@ export function createClient(o: ClientOptions): Client {
       t: (key, vars) => i18n.t(key, vars),
       watch: (peer, topic, owner = ps, opts) => peers.watch(peer, topic, owner, opts),
       peers: readPeers,
+      http: (peer) => peers.http(peer),
       home: o.home,
       drafts,
     };

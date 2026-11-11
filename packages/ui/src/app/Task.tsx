@@ -115,6 +115,8 @@ export interface TaskDetailsProps {
   readonly color: string;
   /** the state, shown on a phone (the list says it beside the task on a desktop) */
   readonly status?: { readonly label: string; readonly tone: string };
+  /** a plan's when (v1 plan-view .pv-when): Starts in 2h, At 3pm, Draft, After “x”; first in the column */
+  readonly when?: { readonly icon: IconName; readonly label: string; readonly title?: string };
   readonly branch?: { readonly head: string; readonly tail: string; readonly title: string };
   readonly actions: readonly TaskAction[];
 }
@@ -124,6 +126,14 @@ export function TaskDetails(props: TaskDetailsProps): JSX.Element {
   return (
     <div data-kit="it-bar" data-part="split.details">
       <div data-kit="it-props">
+        <Show when={props.when}>
+          {(w) => (
+            <span data-kit="it-when" data-part="split.when" title={w().title}>
+              <Icon name={w().icon} />
+              <span>{w().label}</span>
+            </span>
+          )}
+        </Show>
         <Show when={props.status}>
           {(st) => (
             <span data-kit="it-state" data-tone={st().tone}>
@@ -245,7 +255,7 @@ export function TurnView(props: TurnViewProps): JSX.Element {
               {(it) => {
                 const [open, setOpen] = createSignal(false);
                 return (
-                  <li data-bad={flag(it.bad)}>
+                  <li data-bad={flag(it.bad)} data-fold={flag(!!it.out)}>
                     <Show
                       when={it.out}
                       fallback={

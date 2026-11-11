@@ -4,6 +4,7 @@
 // again, Edit, Sign in or out, Remove); an empty list offers starting points. Every write shows at once.
 import { createMemo, createSignal, For, onCleanup, Show, type JSX } from 'solid-js';
 import type { PluginClient } from '@wisp/client';
+import { useShell } from '@wisp/shell';
 import { Button, Inline, Menu, Pill, SettingsGroup, SettingsRow, Switch, Text, useSignal } from '@wisp/ui';
 import { addConnector, importFound, removeConnector, signIn, signOut, testConnector, updateConnector } from '../commands.ts';
 import { homeRow, homeRows } from '../data.ts';
@@ -44,6 +45,7 @@ function toneOf(c: ConnectorView, signing: boolean): 'good' | 'bad' | 'warn' | '
 
 export default function Connectors(props: { readonly client: PluginClient }): JSX.Element {
   const c = props.client;
+  const shell = useShell();
   const peer = c.home;
   const scope = c.scope.child('connectors-pane');
   onCleanup(() => scope.dispose());
@@ -68,10 +70,12 @@ export default function Connectors(props: { readonly client: PluginClient }): JS
     setEditing(undefined);
   };
   const login = (x: ConnectorView): void => {
+    const platform = shell.platform;
     setSigning({ ...signing(), [x.id]: Date.now() });
-    c.run(signIn, { peer, id: x.id, origin: location.origin }).then(
+    // the sign-in comes back to this page (the shell's platform knows its origin: local, a machine, the grid)
+    c.run(signIn, { peer, id: x.id, origin: platform.origin }).then(
       (r) => {
-        window.open(r.url, '_blank', 'noopener');
+        platform.openExternal(r.url);
       },
       () => setSigning({ ...signing(), [x.id]: 0 }),
     );

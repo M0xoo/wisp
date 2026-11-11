@@ -97,7 +97,7 @@ test('http: one GET streams the frames, split anywhere; the hello rides on the q
   const p: ServerMessage = { t: 'patch', seq: 5, ops: [{ topic: 'list', e: 'session', id: 's1', op: 'del' }] };
   const wire = `retry: 2000\n\n${encodeFrame(null, [w])}: hb\n\n${encodeFrame(5, [p])}`;
   const cut = [wire.slice(0, 7), wire.slice(7, 60), wire.slice(60, 61), wire.slice(61)];
-  const calls: { url: string; headers: Record<string, string>; body?: string }[] = [];
+  const calls: { url: string; headers: Record<string, string>; body?: string | Blob | ArrayBuffer }[] = [];
   const fetch: FetchLike = async (url, init) => {
     calls.push({ url, headers: init.headers, ...(init.body !== undefined && { body: init.body }) });
     return init.method === 'GET' ? streamOf(cut) : { ok: true, status: 202, body: null, text: async () => '' };
@@ -114,7 +114,7 @@ test('http: one GET streams the frames, split anywhere; the hello rides on the q
   await t.post({ t: 'sub', topic: 'session:s1' }, new AbortController().signal);
   assert.equal(calls[1]?.url, 'https://box.example/api/events');
   assert.equal(calls[1]?.headers['x-wisp-client'], 'c1', 'names the stream it belongs to');
-  assert.deepEqual(JSON.parse(calls[1]?.body ?? ''), { t: 'sub', topic: 'session:s1' });
+  assert.deepEqual(JSON.parse(String(calls[1]?.body ?? '')), { t: 'sub', topic: 'session:s1' });
 });
 
 test('http: a sleeping box is PeerDown asleep, other failures are unreachable with the status', async () => {
@@ -132,4 +132,22 @@ test('http: a sleeping box is PeerDown asleep, other failures are unreachable wi
   assert.ok(e1 instanceof PeerDown && e1.status === 'asleep');
   const e2 = await run(httpTransport({ base: '', fetch: fail(502) }));
   assert.ok(e2 instanceof PeerDown && e2.status === 'unreachable' && /HTTP 502/.test(e2.message));
+});
+
+test('http_routes_carry_raw_bodies_with_the_peers_headers_and_stream_a_routes_events', async () => {
+  const calls: { url: string; method: string; headers: Record<string, string>; body?: unknown }[] = [];
+  const fetch: FetchLike = async (url, init) => {
+    calls.push({ url, method: init.method, headers: init.headers, body: init.body });
+    if (url.endsWith('/shell')) return streamOf(['event: hello\ndata: {"cols":80}\n\nevent: da', 'ta\ndata: "hi"\n\n']);
+    return { ok: true, status: 200, body: null, text: async () => '{"id":"s1"}' };
+  };
+  const t = httpTransport({ base: 'https://box.example', fetch, headers: () => ({ authorization: 'Bearer tok' }) });
+  const bytes = new Uint8Array([1, 2, 3]).buffer;
+  const res = await t.request?.({ method: 'POST', path: '/stuff/upload?name=a.png', body: bytes, contentType: 'application/octet-stream' }, new AbortController().signal);
+  assert.deepEqual(res, { status: 200, text: '{"id":"s1"}' });
+  assert.deepEqual(calls[0], { url: 'https://box.example/api/stuff/upload?name=a.png', method: 'POST', headers: { 'content-type': 'application/octet-stream', authorization: 'Bearer tok' }, body: bytes });
+  const seen: { event: string; data: string }[] = [];
+  for await (const ev of t.events?.('/sessions/s1/shell', new AbortController().signal) ?? []) seen.push(ev);
+  assert.deepEqual(seen, [{ event: 'hello', data: '{"cols":80}' }, { event: 'data', data: '"hi"' }]);
+  assert.deepEqual(calls[1]?.headers, { accept: 'text/event-stream', authorization: 'Bearer tok' });
 });

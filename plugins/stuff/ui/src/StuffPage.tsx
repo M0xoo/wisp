@@ -5,6 +5,7 @@
 // `stuff.item` view rows on the `stuff` topic; every write shows at once.
 import { createMemo, createSignal, For, onCleanup, Show, type JSX } from 'solid-js';
 import { entityKey, ownerOf, type EntityKey, type PluginClient, type SessionId } from '@wisp/client';
+import { useShell } from '@wisp/shell';
 import { Button, Card, EmptyState, Icon, Inline, Input, Menu, Stack, Text, Wrap } from '@wisp/ui';
 import { itemActions, type ActionId } from './actions.ts';
 import { launchApp, removeItem, revealItem, stopApp, updateItem } from './commands.ts';
@@ -20,6 +21,7 @@ const fileUrl = (e: Entry): string => `/api/stuff/${encodeURIComponent(e.it.id)}
 
 export default function StuffPage(props: { readonly client: PluginClient }): JSX.Element {
   const c = props.client;
+  const shell = useShell();
   const t = (k: string, v?: Readonly<Record<string, string | number>>): string => c.t(k, v);
   const scope = c.scope.child('stuff-page');
   onCleanup(() => scope.dispose());
@@ -79,7 +81,10 @@ export default function StuffPage(props: { readonly client: PluginClient }): JSX
 
   const upload = (files: FileList | null): void => {
     for (const f of Array.from(files ?? [])) {
-      void fetch(`/api/stuff/upload?name=${encodeURIComponent(f.name)}&type=${encodeURIComponent(f.type)}`, { method: 'POST', body: f, headers: { 'content-type': 'application/octet-stream' } }).catch(() => {});
+      // the bytes go to My Stuff's upload route on this computer; its rows follow on the stuff topic
+      c.http(c.home)
+        .send({ method: 'POST', path: `/stuff/upload?name=${encodeURIComponent(f.name)}&type=${encodeURIComponent(f.type)}`, body: f, contentType: 'application/octet-stream' })
+        .catch((e: unknown) => shell.toast.error(e instanceof Error ? e.message : String(e)));
     }
   };
   let picker: HTMLInputElement | undefined;

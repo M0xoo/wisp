@@ -148,12 +148,15 @@ pub fn register(s: &mut Setup, cell: &Cell) {
     on!(s, cell, c::PublishApp, |st, ctx, call, a| {
         let p = ctx.use_service::<c::PublishService>().map_err(|_| WireError::invalid("Publishing needs wisp Cloud: sign in first."))?;
         let it = p.publish(&call, &a.id, serde_json::json!({})).await?;
+        // the publisher recorded the link (`stuff.setPublished`): the item as My Stuff has it now
+        let it = st.shelf.get(&it.id).unwrap_or(it);
         crate::routes::track(&ctx, "stuff_publish", serde_json::json!({ "by": "you" }));
         Ok(st.view(&it).await)
     });
     on!(s, cell, c::UnpublishApp, |st, ctx, call, a| {
         let p = ctx.use_service::<c::PublishService>().map_err(|_| WireError::invalid("Publishing needs wisp Cloud: sign in first."))?;
         let it = p.unpublish(&call, &a.id).await?;
+        let it = st.shelf.get(&it.id).unwrap_or(it);
         Ok(st.view(&it).await)
     });
     on!(s, cell, c::Launch, |st, ctx, call, a| {

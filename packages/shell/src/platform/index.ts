@@ -21,6 +21,7 @@ export function nullPlatform(over: Partial<Platform> = {}): Platform {
     standalone: false,
     apple: true,
     titlebar: 'none',
+    origin: 'http://localhost',
     dragRegions: () => () => {},
     notifyPermission: async () => 'unsupported',
     requestNotify: async () => 'unsupported',

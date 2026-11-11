@@ -19,6 +19,36 @@ export interface Transport {
   post(message: ClientMessage, signal: AbortSignal): Promise<void>;
   /** grid only: ask hostd to start the box */
   wake?(signal: AbortSignal): Promise<void>;
+  /** a plugin's own route, with a raw body (a dropped file's bytes) and the peer's headers; HTTP-like
+   *  transports only. Resolves the status and the body as text; a status ≥ 400 is the caller's to read. */
+  request?(r: RawRequest, signal: AbortSignal): Promise<RawResponse>;
+  /** a plugin's own event-stream route (a terminal's output): each SSE event until it ends or `signal` aborts */
+  events?(path: string, signal: AbortSignal): AsyncIterable<RouteEvent>;
+}
+
+export interface RawRequest {
+  readonly method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  /** under /api: `/stuff/upload?name=a.png` */
+  readonly path: string;
+  readonly body?: Blob | ArrayBuffer | string;
+  readonly contentType?: string;
+}
+
+export interface RawResponse {
+  readonly status: number;
+  readonly text: string;
+}
+
+export interface RouteEvent {
+  readonly event: string;
+  readonly data: string;
+}
+
+/** A peer's routes, through its transport (PluginClient.http). Refuses on a transport without them. */
+export interface PeerHttp {
+  /** the body parsed as JSON (null when empty); a status ≥ 400 throws with the server's message */
+  send(r: RawRequest, signal?: AbortSignal): Promise<unknown>;
+  events(path: string, signal: AbortSignal): AsyncIterable<RouteEvent>;
 }
 
 /** A transport says why it can't connect: a sleeping box isn't an error and isn't retried. */

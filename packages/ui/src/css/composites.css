@@ -35,7 +35,8 @@
   [data-kit='list-row-actions']:empty, [data-kit='list-row-sub']:empty { display: none; }
   /* v1's quick buttons (.it-quick, .it-later): 24px, pulled in by their margins, so the row's actions take
      ~60px and the title keeps the rest of a 340px sidebar; a gap holding one's place is the same size */
-  [data-kit='list-row-actions'] > :is([data-kit='icon-button'], [data-kit='gap']) {
+  [data-kit='list-row-actions'] > [data-kit='icon-button'],
+  [data-kit='list-row-actions'] > [data-kit='gap'] {
     width: var(--size-control-xs); height: var(--size-control-xs); margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-1));
   }
   [data-kit='list-row']:hover > [data-kit='list-row-actions'], [data-kit='list-row']:focus-within > [data-kit='list-row-actions'] { opacity: 1; pointer-events: auto; }

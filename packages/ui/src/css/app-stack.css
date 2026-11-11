@@ -49,9 +49,11 @@
     font-weight: 500; color: color-mix(in srgb, var(--tone) 85%, var(--ink)); background: color-mix(in srgb, var(--tone) 9%, transparent); white-space: nowrap;
   }
   [data-kit='it-state'] > i { width: 6px; height: 6px; border-radius: 50%; background: var(--tone); }
-  [data-kit='it-state'][data-tone='info'] { --tone: var(--accent); }
-  [data-kit='it-state'][data-tone='bad'] { --tone: var(--bad); }
-  [data-kit='it-state'][data-tone='warn'] { --tone: var(--warn); }
+  /* as specific as the stack rule above that sets the default (good), or every state read green (Failed too) */
+  [data-kit='stage'][data-layout='stack'] [data-kit='it-state'][data-tone='info'],
+  [data-kit='stage'][data-layout='stack'] [data-kit='it-state'][data-tone='live'] { --tone: var(--accent); }
+  [data-kit='stage'][data-layout='stack'] [data-kit='it-state'][data-tone='bad'] { --tone: var(--bad); }
+  [data-kit='stage'][data-layout='stack'] [data-kit='it-state'][data-tone='warn'] { --tone: var(--warn); }
   [data-kit='stage'][data-layout='stack'] [data-kit='model-logo'] { flex: none; }
   [data-kit='stage'][data-layout='stack'] [data-kit='model-logo'] > img { margin: 0; }
   [data-kit='stage'][data-layout='stack'] [data-kit='ml-name'] { display: none; }

@@ -225,6 +225,23 @@ impl Event for AppLaunched {
     const TYPE: &'static str = "stuff.launched";
 }
 
+/// `stuff.bundle`: an app's files as one body for its grid (v1 bundle.js `packDir`): each file a 4-byte length,
+/// a JSON header `{path, size}` and its bytes, base64 here; what holds secrets left out.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AppBundle {
+    pub title: String,
+    pub entry: String,
+    pub files: u32,
+    pub size: u64,
+    /// the bundle, base64
+    pub body: String,
+}
+
+command!(
+    /// An app packed for publishing (its secrets and source maps left out). For the publisher.
+    Bundle, "stuff.bundle", Some("stuff:publish"), true, Id => AppBundle
+);
+
 // ---------- the publisher (provided by the plugin that knows the grid) ----------
 
 /// An app's public link on your wisp Grid (v1 services/publish.js). The provider writes `published`

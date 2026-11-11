@@ -7,6 +7,7 @@
 
 mod kinds;
 mod agent;
+mod bundle;
 pub mod appdb;
 mod appfiles;
 mod commands;
@@ -48,6 +49,7 @@ impl Plugin for StuffPlugin {
             s.route(r);
         }
         commands::register(s, &cell);
+        bundle::register(s, &cell);
         s.on_start(move |ctx| async move {
             let home = ctx.service::<Paths>()?.home().to_owned();
             let dir = home.join("stuff");

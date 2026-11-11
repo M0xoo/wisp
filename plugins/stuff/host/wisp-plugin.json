@@ -80,6 +80,11 @@
         "title": "Record where an app is published"
       },
       {
+        "id": "stuff.bundle",
+        "title": "An app's files packed for publishing (its secrets left out)",
+        "readOnly": true
+      },
+      {
         "id": "stuff.launch",
         "title": "Launch an app"
       },

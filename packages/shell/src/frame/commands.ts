@@ -119,3 +119,14 @@ export const setSetting = defineCommand<{ peer: string; key: string; value: unkn
   owner: (a) => a.peer,
   optimistic: (_b, a) => [{ e: 'setting', id: entityKey(a.peer as PeerId, a.key), op: 'upsert', v: { key: a.key, value: a.value, locked_by: null } as never }],
 });
+
+/** An answer's one-click command (actions, terminal, tests), run in the task's folder; the user's click only. */
+export const exec = defineCommand<{ id: string; command: string }, { code: number; output: string }>({ id: 'runtime.exec', owner: (a) => a.id, wire: (a) => ({ id: bare(a.id), command: a.command }), optimistic: 'none', pending: 'the block’s Run button' });
+/** A `blocked` block's Allow & retry / Deny. */
+export const approveBlocked = defineCommand<{ id: string; turnId: string; allow: boolean }, unknown>({
+  id: 'runtime.approveBlocked',
+  owner: (a) => a.id,
+  wire: (a) => ({ id: bare(a.id), turnId: bare(a.turnId), allow: a.allow }),
+  optimistic: 'none',
+  pending: 'the blocked card, settled at once',
+});

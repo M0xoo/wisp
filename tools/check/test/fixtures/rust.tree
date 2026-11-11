@@ -121,4 +121,4 @@ impl Plugin for Chat {}
 [package]
 name = "wisp-stub"
 === plugins/stub/host/src/lib.rs
-//! not a plugin yet: no manifest needed
+//! a host crate that isn't a plugin (yet): refused, every host crate is a plugin

@@ -48,7 +48,7 @@ export type { IdbFactory, IdbKeyRangeStatic } from './persist-idb.ts';
 export type { PeerConfig, PeerStatus, Peers } from './peers.ts';
 export type { LinkSaved, PeerLink } from './peer.ts';
 export { PeerDown } from './transport.ts';
-export type { Frame, Transport } from './transport.ts';
+export type { Frame, PeerHttp, RawRequest, RawResponse, RouteEvent, Transport } from './transport.ts';
 export { httpTransport } from './http.ts';
 export type { FetchLike, FetchResponse, HttpTransportOptions } from './http.ts';
 export { compareVersions, hasFeature, updateReason } from './features.ts';

@@ -14,6 +14,7 @@ import { Slot } from '../slot.tsx';
 import { TaskHeadSlot } from './slots.tsx';
 import { changeFigures, duration, folded, longTime, overlapLine, overlapsOf, statusOf } from './rows-view.ts';
 import { archive, followUp, fork, remove, rename, rerun, restore, setAgent, setGoal, setMode, setState } from './commands.ts';
+import { answerContext } from './answer-ctx.ts';
 import { harnessOf } from './harness.ts';
 import { MODE_ICON, agentMenu, modeMenu, teamMenu, whenMenu, type Mode, type When } from './pickers.ts';
 
@@ -100,6 +101,15 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
     setGoalText(undefined);
     setFiles([]);
     run(followUp, { id: key, text: v, turnId: entityKey(peer, uuidv7()), idx: turns().length, at: Date.now() }).catch(() => setText(v));
+  };
+  /** an answer's `next` chip, `question` option, `actions` reply: sent as a follow-up */
+  const reply = (v: string): void => {
+    run(followUp, { id: key, text: v, turnId: entityKey(peer, uuidv7()), idx: turns().length, at: Date.now() }).catch(() => undefined);
+  };
+  /** an answer's chip without ⌘: into the reply box, to read first */
+  const draft = (v: string): void => {
+    setText(v);
+    input?.focus();
   };
   const side = (kind: 'changes' | 'shell'): void => shell.navigate({ t: 'toggleSide', side: { kind, id: key as never } });
   /** a new task from this one (Rerun, Fork): its row and page show at once */
@@ -223,7 +233,7 @@ export default function TaskView(props: { readonly id: string; readonly onBack?:
                         timeTitle={longTime(turn.started_at)}
                         {...(b.checkpoint?.commit && { sha: { short: b.checkpoint.commit.slice(0, 7), title: t('shell.task.checkpoint', { branch: b.checkpoint.branch ?? '', sha: b.checkpoint.commit }) } })}
                         {...(hero?.title && { hero: { title: hero.title, summary: hero.summary ?? '' } })}
-                        {...(blocks.length > 0 && { answer: <Answer blocks={blocks} /> })}
+                        {...(blocks.length > 0 && { answer: <Answer blocks={blocks} ctx={answerContext({ shell, key, turnId: turn.id, latest: () => turn.id === turns().at(-1)?.id, reply, draft, openChanges: () => side('changes') })} /> })}
                         {...(turn.status === 'running' && { live: s().summary.live || t('shell.task.starting') })}
                         actsTitle={t('shell.task.activity')}
                         acts={[

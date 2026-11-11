@@ -5,7 +5,7 @@
 
 import { computed, type DeepReadonly, type EntityKey, type PluginClient, type PluginStore, type Readable } from '@wisp/client';
 import { createPlacement } from './model/placement.ts';
-import { flatSession } from './model/wire.ts';
+import { flatSession, LATER_TOPIC, listPlan } from './model/wire.ts';
 import { ALL, needsYou, SECTION_IDS, type Filter, type SectionId, type Sections } from './model/sections.ts';
 import { KIND, type Agent, type Plan, type Project, type Row, type Session, type SessionRow } from './types.ts';
 
@@ -64,7 +64,10 @@ function createModel(client: PluginClient): ListModel {
   // the server's rows, flat (body, columns, summary: model/wire.ts)
   const raw = client.entities.list<Session>(KIND.session);
   const rows = computed(() => raw().map((r) => flatSession(r)));
-  const plans = client.entities.list<Plan>(KIND.plan);
+  // Scheduled and Drafts: wisp.later's plans, on its own topic
+  client.watch(client.home, LATER_TOPIC as never);
+  const planRows = client.entities.list<unknown>(KIND.plan);
+  const plans = computed(() => planRows().map(listPlan).filter((p): p is Plan => p !== undefined));
   const filtered = createPlacement();
   const unfiltered = createPlacement();
   const filterOf = (v: DeepReadonly<ViewState>): Filter => ({ project: v.filter });

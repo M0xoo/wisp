@@ -12,7 +12,7 @@ import { hasFeature, updateReason, type FeatureAnswer, type FeatureNeed } from '
 import { syncLink, type ClientInput, type ClientOutput, type LinkSaved, type PeerLink } from './peer.ts';
 import type { Scope } from './scope.ts';
 import { batch, signal, untracked, type Readable, type WritableSignal } from './signals.ts';
-import { PeerDown, type Frame, type Transport } from './transport.ts';
+import { PeerDown, type Frame, type PeerHttp, type Transport } from './transport.ts';
 import type { PeerId, Warn } from './types.ts';
 
 export type PeerStatus =
@@ -52,6 +52,8 @@ export interface Peers {
   /** asks for older rows of `topic` (a transcript page); false when the peer isn't online */
   window(peer: PeerId, w: { req: string; topic: Topic; beforeSeq: number; limit: number }): boolean;
   save(peer: PeerId): LinkSaved | undefined;
+  /** the peer's own routes (raw bodies, event streams), through its transport */
+  http(peer: PeerId): PeerHttp;
   onLive(fn: (peer: PeerId) => void): () => void;
   onSent(fn: (peer: PeerId, mid: string) => void): () => void;
   onAnswer(fn: (peer: PeerId, a: Answer) => void): () => void;
@@ -233,6 +235,7 @@ export function createPeers(o: PeersOptions): Peers {
       scope.timeout(0, () => feed(p, { kind: 'open' }));
     },
     remove: (peer) => peers.get(peer)?.scope.dispose(),
+    http: (peer) => peerHttp(() => peers.get(peer)?.cfg.transport, peer),
     list: () => () => ids(),
     status: (peer) => {
       const s = statusSig(peer);
@@ -290,4 +293,31 @@ export function createPeers(o: PeersOptions): Peers {
     onRows: (fn) => listen(on.rows, fn),
   };
   return manager;
+}
+
+/** A peer's routes over its transport: JSON answers, a refusal as an Error with the server's words. */
+function peerHttp(transport: () => Transport | undefined, peer: PeerId): PeerHttp {
+  const need = <K extends 'request' | 'events'>(k: K): NonNullable<Transport[K]> => {
+    const t = transport();
+    const f = t?.[k];
+    if (!t || !f) throw new Error(`${peer} can't be reached that way (${t?.kind ?? 'no transport'})`);
+    return f.bind(t) as NonNullable<Transport[K]>;
+  };
+  return {
+    async send(r, signal) {
+      const res = await need('request')(r, signal ?? new AbortController().signal);
+      let body: unknown = null;
+      try {
+        body = res.text ? JSON.parse(res.text) : null;
+      } catch {
+        body = res.text;
+      }
+      if (res.status >= 400) {
+        const msg = (body as { error?: { message?: string }; message?: string } | null)?.error?.message ?? (body as { message?: string } | null)?.message;
+        throw new Error(typeof msg === 'string' ? msg : `HTTP ${res.status}`);
+      }
+      return body;
+    },
+    events: (path, signal) => need('events')(path, signal),
+  };
 }

@@ -3,7 +3,7 @@
 // can't run one says so in one sentence; an ended shell keeps its last screen with Start again (never the dead
 // screen reopened); End shell hangs it up. Keys and sizes go through wisp.terminal's commands (`terminal.input`,
 // numbered so they go in in order); the output is its event stream (`GET /api/sessions/:id/shell`: hello, data,
-// exit, gone), read with EventSource because the client has no route stream yet (docs/v2-round-7.md, round 12).
+// exit, gone), read through the client's `http(peer).events`, so a machine's or the grid's task works the same.
 import { Show, createSignal, onCleanup, onMount, type JSX } from 'solid-js';
 import { defineCommand, ownerOf, type EntityKey } from '@wisp/client';
 import { Button, EmptyState, Inline, Screen, Stack, Terminal, Text } from '@wisp/ui';
@@ -38,7 +38,7 @@ export function ShellPane(): JSX.Element {
   const screen = new Screen(100, 30);
   const from = Math.random().toString(36).slice(2, 10);
   let seq = 0;
-  let es: EventSource | undefined;
+  let es: AbortController | undefined;
   const [where, setWhere] = createSignal<Info | undefined>();
   const [error, setError] = createSignal('');
   const [drawn, setDrawn] = createSignal(false);
@@ -46,27 +46,30 @@ export function ShellPane(): JSX.Element {
   const [size, setSize] = createSignal({ cols: 100, rows: 30 });
 
   const connect = (): void => {
-    es?.close();
-    // the home peer's own page: same origin (a machine's or the grid's page proxies the same path)
-    es = new EventSource(`/api/sessions/${encodeURIComponent(id)}/shell`);
-    es.addEventListener('hello', (e) => {
-      const h = JSON.parse((e as MessageEvent<string>).data) as { cols: number; rows: number };
-      screen.reset();
-      screen.resize(h.cols, h.rows);
-      setEnded(undefined);
-    });
-    es.addEventListener('data', (e) => {
-      screen.write(JSON.parse((e as MessageEvent<string>).data) as string);
-      setDrawn(true);
-    });
-    es.addEventListener('exit', (e) => {
-      setEnded((JSON.parse((e as MessageEvent<string>).data) as { code: number | null }).code ?? 0);
-      es?.close();
-    });
-    es.addEventListener('gone', () => {
-      setEnded(0);
-      es?.close();
-    });
+    es?.abort();
+    const ac = new AbortController();
+    es = ac;
+    // the task's peer's own route, through its transport (this computer, a machine, the grid)
+    void (async () => {
+      try {
+        for await (const ev of c.http(ownerOf(task.key)).events(`/sessions/${encodeURIComponent(id)}/shell`, ac.signal)) {
+          if (ev.event === 'hello') {
+            const h = JSON.parse(ev.data) as { cols: number; rows: number };
+            screen.reset();
+            screen.resize(h.cols, h.rows);
+            setEnded(undefined);
+          } else if (ev.event === 'data') {
+            screen.write(JSON.parse(ev.data) as string);
+            setDrawn(true);
+          } else if (ev.event === 'exit' || ev.event === 'gone') {
+            setEnded(ev.event === 'exit' ? ((JSON.parse(ev.data) as { code: number | null }).code ?? 0) : 0);
+            ac.abort();
+          }
+        }
+      } catch (e: unknown) {
+        if (!ac.signal.aborted) setError(e instanceof Error ? e.message : String(e));
+      }
+    })();
   };
   const begin = (restart = false): void => {
     setError('');
@@ -83,7 +86,7 @@ export function ShellPane(): JSX.Element {
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
     );
   });
-  onCleanup(() => es?.close());
+  onCleanup(() => es?.abort());
   const send = (data: string): void => {
     if (ended() !== undefined) return;
     // numbered from 0 per page (wisp_terminal_core::order): they go in in order whatever order they land in
@@ -97,7 +100,7 @@ export function ShellPane(): JSX.Element {
   };
   const end = (): void => {
     setEnded(0);
-    es?.close();
+    es?.abort();
     void c.run(close, { key: task.key, id }).catch(() => undefined);
   };
   const peerName = (): string => (ownerOf(task.key) === c.home ? t('shell-task.shell.here') : String(c.peers.name?.(ownerOf(task.key)) ?? ''));

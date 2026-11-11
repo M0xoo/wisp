@@ -49,6 +49,8 @@ export interface Platform {
    * the page is the title bar (the desktop app on a Mac: room for them, and the top bar drags the
    * window); 'none' when the window has its own, or there's no window (a browser tab, a phone) */
   readonly titlebar: 'mac' | 'none';
+  /** the page's own origin (`https://box.grid.trywisp.dev`, `http://127.0.0.1:4791`): where a sign-in returns to */
+  readonly origin: string;
   /** where the page is the title bar ('mac'): a press on a region marked to drag moves the window.
    * Returns the stop function; a no-op elsewhere. */
   dragRegions(root: Element): () => void;
@@ -79,7 +81,7 @@ export interface PlatformWindow {
   addEventListener(type: string, fn: (e: Event) => void): void;
   removeEventListener(type: string, fn: (e: Event) => void): void;
   open(url: string, target?: string, features?: string): unknown;
-  readonly location: { reload(): void };
+  readonly location: { reload(): void; readonly origin: string };
   readonly Notification?: typeof Notification;
   readonly __TAURI_INTERNALS__?: { invoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> };
   readonly Capacitor?: CapacitorGlobal;

@@ -178,7 +178,7 @@ export type { EntityKey };
 
 export const KIND = {
   session: 'session',
-  plan: 'plan',
+  plan: 'later_plan',
   project: 'project',
   machine: 'machine',
   load: 'load',

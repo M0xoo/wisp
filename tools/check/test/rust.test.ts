@@ -32,6 +32,8 @@ test('rust-manifests: a plugin host needs a manifest Manifest::parse accepts, co
     'plugins/git/host/wisp-plugin.json:1 rust-manifests', // chat.send outside git.*
     'plugins/git/host/wisp-plugin.json:1 rust-manifests', // git.push named by no set
     'plugins/git/host/wisp-plugin.json:1 rust-manifests', // "git.bare" is not {id, title}
+    'plugins/stub/host/Cargo.toml:1 rust-manifests', // every host crate is a plugin: it implements none
+    'plugins/stub/host/Cargo.toml:1 rust-manifests', // … and has no manifest
   ]);
 });
 
@@ -129,10 +131,10 @@ test('rust-mcp: a listed command its host never registers is no MCP tool; uiOnly
     new Map([
       ['Cargo.toml', '[workspace]\nmembers = ["plugins/*/api", "plugins/*/host", "plugins/*/core"]\n'],
       ['plugins/shop/api/Cargo.toml', '[package]\nname = "wisp-shop-api"\n'],
-      ['plugins/shop/api/src/lib.rs', ['command!(List = "shop.list" read yes : Value => Value);', 'command!(', '    /// buy one', '    Buy = "shop.buy" : Value => Value', ');', 'command!(Run, "shop.run", Value, Value);', 'impl Command for Peek { const ID: &\'static str = "shop.peek"; type Args = (); }', 'command!(Gone = "shop.gone" : Value => Value);'].join('\n')],
+      ['plugins/shop/api/src/lib.rs', ['command!(List = "shop.list" read yes : Value => Value);', 'command!(', '    /// buy one', '    Buy = "shop.buy" : Value => Value', ');', 'command!(Run, "shop.run", Value, Value);', 'impl Command for Peek { const ID: &\'static str = "shop.peek"; type Args = (); }', 'command!(Gone = "shop.gone" : Value => Value);', 'command!(Sell = "shop.sell" : Value => Value);'].join('\n')],
       ['plugins/shop/host/Cargo.toml', cargo],
-      ['plugins/shop/host/src/lib.rs', ['use wisp_shop_api::{Run as RunCmd};', 'impl Plugin for Shop {}', 's.command::<api::List, _, _>(f);', 'on!(s, st, c::Buy, |st, a| x);', 's.command::<RunCmd, _, _>(g);', 's.command::<Peek, _, _>(h);'].join('\n')],
-      ['plugins/shop/host/wisp-plugin.json', JSON.stringify({ wispPlugin: 1, id: 'wisp.shop', contributes: { commands: [{ id: 'shop.list', title: 'l' }, { id: 'shop.buy', title: 'b' }, { id: 'shop.run', title: 'r' }, { id: 'shop.peek', title: 'p' }, { id: 'shop.gone', title: 'g' }, { id: 'shop.pane', title: 'p', uiOnly: 'only a screen can drag it' }, { id: 'shop.lazy', title: 'z', uiOnly: 'ui' }] } })],
+      ['plugins/shop/host/src/lib.rs', ['use wisp_shop_api::{Run as RunCmd};', 'impl Plugin for Shop {}', 's.command::<api::List, _, _>(f);', 'on!(s, st, c::Buy, |st, a| x);', 's.command::<RunCmd, _, _>(g);', 's.command::<Peek, _, _>(h);', 'on!(api::Sell, |p, ctx, a| p.sell(&ctx, &a).await);'].join('\n')],
+      ['plugins/shop/host/wisp-plugin.json', JSON.stringify({ wispPlugin: 1, id: 'wisp.shop', contributes: { commands: [{ id: 'shop.list', title: 'l' }, { id: 'shop.buy', title: 'b' }, { id: 'shop.run', title: 'r' }, { id: 'shop.peek', title: 'p' }, { id: 'shop.gone', title: 'g' }, { id: 'shop.sell', title: 's' }, { id: 'shop.pane', title: 'p', uiOnly: 'only a screen can drag it' }, { id: 'shop.lazy', title: 'z', uiOnly: 'ui' }] } })],
     ]),
   );
   const got = await messages(rustMcp, root);

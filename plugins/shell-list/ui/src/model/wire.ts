@@ -4,7 +4,7 @@
 // flattened: body, then the columns, then the summary on top. One flat row per server row, kept while
 // the row is unchanged, so memoised sections and keyed rows stay put.
 
-import type { SessionRow } from '../types.ts';
+import type { Plan, SessionRow } from '../types.ts';
 
 const cache = new WeakMap<object, SessionRow>();
 
@@ -31,4 +31,32 @@ export function flatSession(raw: SessionRow | undefined): SessionRow | undefined
   const flat = out as unknown as SessionRow;
   cache.set(raw, flat);
   return flat;
+}
+
+/** wisp.later's topic: its plans (`later_plan`) and the follow-ups on tasks. */
+export const LATER_TOPIC = 'plugin:wisp.later:later';
+
+/** A task or reminder that hasn't started, as wisp.later keeps it (`later_plan` rows: `{id, body}`). */
+interface LaterPlan {
+  readonly id?: string;
+  readonly kind?: string;
+  readonly at?: number | null;
+  readonly setAt?: number;
+  readonly draft?: boolean;
+  readonly title?: string;
+  readonly text?: string;
+  readonly body?: { readonly prompt?: string; readonly agent?: string; readonly cwd?: string } | null;
+}
+
+/** A `later_plan` row as the list draws it: Scheduled (a time, or after a task) or Drafts. */
+export function listPlan(row: unknown): Plan | undefined {
+  const r = row as { readonly id?: string; readonly body?: LaterPlan } | undefined;
+  const p: LaterPlan | undefined = r?.body && typeof r.body === 'object' && 'kind' in r.body ? r.body : (r as LaterPlan | undefined);
+  const id = p?.id ?? r?.id;
+  if (!p || !id) return undefined;
+  const task = p.kind !== 'reminder';
+  const title = (task ? (p.title ?? (p.body?.prompt ?? '').split('\n')[0]) : p.text) ?? '';
+  const cwd = p.body?.cwd ?? '';
+  const project = cwd.split('/').filter(Boolean).pop();
+  return { id, kind: p.draft ? 'draft' : task ? 'task' : 'reminder', title, at: p.at ?? p.setAt ?? 0, ...(p.body?.agent && { agent: p.body.agent }), ...(project && { project }) };
 }

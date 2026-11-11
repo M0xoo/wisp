@@ -29,6 +29,7 @@ export function browserPlatform(w: PlatformWindow): Platform {
     standalone,
     apple,
     titlebar: 'none',
+    origin: w.location.origin,
     dragRegions: () => () => {},
     notifyPermission: () => Promise.resolve(permissionOf(w)),
     async requestNotify() {

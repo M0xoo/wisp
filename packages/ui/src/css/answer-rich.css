@@ -1,3 +1,89 @@
-/* Rich and interactive answer blocks (flow … app): v1 blocks.css, on tokens. */
+/* Rich and interactive answer blocks (flow … app): v1 blocks.css and feed.css (.b-question, .b-blocked), on tokens. */
 @layer kit {
+  /* next (v1 .b-next): Follow up, then a chip per suggestion */
+  [data-kit='rb-next'] { padding-top: var(--space-3); }
+  [data-kit='rb-next-head'] { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); }
+  [data-kit='rb-next-head'] > [data-kit='icon'] { color: var(--muted); }
+  [data-kit='rb-chip'] {
+    padding: var(--space-3) var(--space-6); border-radius: var(--radius-md); background: var(--surface); border: var(--size-hairline) solid var(--line-2); font-size: var(--fs-md); color: var(--ink-2); text-align: left;
+    transition: border-color var(--dur-fast), background var(--dur-fast), color var(--dur-fast); animation: kit-rise 0.4s var(--ease) calc(200ms + var(--k, 0) * 50ms) both;
+  }
+  [data-kit='rb-chip']:hover:not(:disabled) { border-color: var(--faint); color: var(--ink); background: var(--surface-2); }
+  [data-kit='rb-chip']:disabled { cursor: default; }
+
+  /* question (v1 .b-question): the agent's call, its numbered options; greyed once answered */
+  [data-kit='rb-question'], [data-kit='rb-blocked'] { padding: var(--space-7) calc(var(--space-7) + var(--space-1)); border-radius: var(--radius); background: var(--surface); border: var(--size-hairline) solid color-mix(in srgb, var(--accent) 60%, var(--line)); }
+  [data-kit='rb-question'][data-answered] { opacity: 0.65; background: var(--surface-2); border-color: var(--line); }
+  [data-kit='rb-q-head'] { display: flex; align-items: center; gap: var(--space-3); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--accent-ink); }
+  [data-kit='rb-q-text'] { margin: var(--space-3) 0 var(--space-6); font: var(--fw-semibold) 17px / 1.4 var(--display); letter-spacing: -0.015em; color: var(--ink); }
+  [data-kit='rb-opt'] {
+    display: inline-flex; align-items: center; gap: 9px; min-height: var(--size-control-md); padding: var(--space-3) var(--space-6) var(--space-3) var(--space-4); border-radius: var(--radius-md);
+    border: var(--size-hairline) solid var(--line-2); background: var(--surface); font-weight: var(--fw-medium); text-align: left; transition: border-color var(--dur-fast), background var(--dur-fast);
+  }
+  [data-kit='rb-opt'] small { display: block; font-weight: var(--fw-regular); color: var(--muted); font-size: var(--fs-sm); }
+  [data-kit='rb-opt-k'] { display: grid; place-items: center; width: var(--size-avatar-sm); height: var(--size-avatar-sm); border-radius: var(--radius-sm); background: var(--bg-2); font: var(--fw-medium) var(--fs-xs) var(--mono); color: var(--muted); flex: none; }
+  [data-kit='rb-opt']:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  [data-kit='rb-opt']:disabled { cursor: default; }
+  [data-kit='rb-opt'][data-own] { color: var(--muted); border-style: dashed; padding-left: var(--space-6); }
+
+  /* blocked (v1 .b-blocked): the refused tool calls, Allow & retry / Deny */
+  [data-kit='rb-blocked'] { padding: 14px var(--space-7); border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+  [data-kit='rb-blocked'][data-resolved] { background: var(--surface-2); border-color: var(--line); }
+  [data-kit='rb-blocked'] [data-kit='rb-q-head'] { margin-bottom: var(--space-4); color: var(--warn); }
+  [data-kit='rb-blocked'][data-resolved] [data-kit='rb-q-head'] { color: var(--muted); }
+  [data-kit='rb-bl-state'] { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-weight: var(--fw-medium); color: var(--muted); }
+  [data-kit='rb-bl-items'] { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+  [data-kit='rb-bl-items'] > li { min-width: 0; }
+  [data-kit='rb-bl-tool'] { font: var(--fw-medium) var(--fs-xs) var(--mono); padding: 1px var(--space-3); border-radius: 5px; background: var(--bg-2); color: var(--ink-2); flex: none; }
+  [data-kit='rb-bl-items'] code { font: var(--fs-sm) / 1.45 var(--mono); color: var(--ink); overflow-wrap: anywhere; min-width: 0; }
+  [data-kit='rb-bl-items'] small { flex-basis: 100%; color: var(--muted); font-size: var(--fs-sm); }
+  [data-kit='rb-bl-foot'] { margin-top: var(--space-6); }
+  [data-kit='rb-bl-note'] { font-size: var(--fs-sm); color: var(--muted); }
+  [data-kit='rb-btn'] {
+    display: inline-flex; align-items: center; gap: var(--space-3); height: var(--size-control-sm); padding: 0 var(--space-6); border-radius: var(--radius-control);
+    font-size: var(--fs-md); font-weight: var(--fw-medium); color: var(--ink); white-space: nowrap; transition: background var(--dur-fast);
+  }
+  [data-kit='rb-btn']:hover { background: var(--bg-2); }
+  [data-kit='rb-btn'][data-primary] { background: var(--ink); color: var(--bg); }
+  [data-kit='rb-btn'][data-primary]:hover { background: color-mix(in srgb, var(--ink) 85%, var(--bg)); }
+
+  /* actions (v1 .b-actions): one-click steps, each with its result under it */
+  [data-kit='rb-actions'] { padding: var(--space-7) calc(var(--space-7) + var(--space-1)) var(--space-6); }
+  [data-kit='rb-act-list'] { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-4); }
+  [data-kit='rb-act'] { border-radius: var(--radius); border: var(--size-hairline) solid var(--line); background: var(--surface-2); overflow: hidden; transition: border-color var(--dur-fast); animation: kit-rise 0.45s var(--ease) calc(150ms + var(--k, 0) * 70ms) both; }
+  [data-kit='rb-act'][data-ok] { border-color: color-mix(in srgb, var(--good) 35%, var(--line)); }
+  [data-kit='rb-act'][data-bad] { border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+  [data-kit='rb-act'] [data-kit='cb-run-out'] { margin-top: 0; border-radius: 0; }
+  [data-kit='rb-act-bar'] { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); padding: 9px var(--space-6); }
+  [data-kit='rb-act-info'] { min-width: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+  [data-kit='rb-act-info'] > b { font-weight: var(--fw-semibold); font-size: var(--fs-md); color: var(--ink); }
+  [data-kit='rb-act-cmd'] { font: var(--fs-xs) var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-kit='rb-act-detail'] { font-size: var(--fs-sm); color: var(--muted); }
+  [data-kit='rb-act-side'] { display: inline-flex; align-items: center; gap: var(--space-4); flex: none; }
+  [data-kit='rb-act-side'] [data-kit='cb-exit'] { background: var(--bg-2); color: var(--muted); }
+  [data-kit='rb-act-side'] [data-kit='cb-exit'][data-ok] { background: var(--add-bg); color: var(--good); }
+  [data-kit='rb-act-side'] [data-kit='cb-exit'][data-bad] { background: var(--del-bg); color: var(--bad); }
+
+  /* task and stuff (v1 .b-task): another task, or something in My Stuff, as a card that opens it */
+  [data-kit='rb-task'] { display: flex; align-items: center; gap: var(--space-6); width: 100%; padding: var(--space-5) var(--space-6); text-align: left; font: inherit; color: var(--ink); cursor: pointer; transition: border-color var(--dur-fast), background var(--dur-fast); }
+  [data-kit='rb-task']:hover:not(:disabled) { border-color: var(--line-2); background: var(--surface-2); }
+  [data-kit='rb-task']:focus-visible { outline: var(--size-ring) solid var(--accent); outline-offset: var(--size-ring); }
+  [data-kit='rb-task'][data-missing], [data-kit='rb-task']:disabled { cursor: default; }
+  [data-kit='rb-task-ic'] { display: grid; place-items: center; width: var(--size-control-md); height: var(--size-control-md); border-radius: var(--radius-md); background: var(--accent-soft); color: var(--accent); flex: none; }
+  [data-kit='rb-task'][data-missing] [data-kit='rb-task-ic'] { color: var(--faint); background: var(--bg-2); }
+  [data-kit='rb-task-main'] { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+  [data-kit='rb-task-main'] > b { font: var(--fw-semibold) var(--fs-lg) / 1.3 var(--display); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-kit='rb-task'][data-missing] [data-kit='rb-task-main'] > b { color: var(--muted); }
+  [data-kit='rb-task-meta'] { min-width: 0; font-size: var(--fs-sm); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  [data-kit='rb-task-note'] { font-size: var(--fs-md); color: var(--muted); }
+  [data-kit='rb-task-pill'] { display: inline-flex; align-items: center; gap: 5px; height: var(--size-pill); padding: 0 var(--space-4); border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: var(--fw-medium); background: var(--bg-2); color: var(--muted); white-space: nowrap; flex: none; }
+  [data-kit='rb-task-pill'] > i { width: var(--size-dot); height: var(--size-dot); border-radius: var(--radius-pill); background: currentColor; }
+  [data-kit='rb-task-pill'][data-state='running'] { color: var(--accent-ink); background: var(--accent-soft); }
+  [data-kit='rb-task-pill'][data-state='waiting'] { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+  [data-kit='rb-task-pill'][data-state='review'] { color: var(--good); background: color-mix(in srgb, var(--good) 12%, transparent); }
+  [data-kit='rb-task-pill'][data-state='error'] { color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); }
+  [data-kit='rb-task-open'] { flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--muted); }
+  [data-kit='rb-task-open'] > [data-kit='icon'] { transition: translate var(--dur-fast) var(--ease); }
+  [data-kit='rb-task']:hover [data-kit='rb-task-open'] { color: var(--ink); }
+  [data-kit='rb-task']:hover [data-kit='rb-task-open'] > [data-kit='icon'] { translate: 2px 0; }
 }

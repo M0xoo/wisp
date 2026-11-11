@@ -25,7 +25,7 @@ function readerOf(body: object | null): ByteReader | undefined {
   const b = body as { getReader?: unknown } | null;
   return b && typeof b.getReader === 'function' ? (b.getReader as () => ByteReader).call(b) : undefined;
 }
-export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body?: string; signal: AbortSignal }) => Promise<FetchResponse>;
+export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body?: string | Blob | ArrayBuffer; signal: AbortSignal }) => Promise<FetchResponse>;
 
 export interface HttpTransportOptions {
   /** the peer's origin: 'https://box.grid.trywisp.dev' or '' for the page's own wisp */
@@ -78,6 +78,30 @@ export function httpTransport(o: HttpTransportOptions): Transport {
         signal,
       });
       if (!res.ok) throw await failure(res, message.t);
+    },
+    async request(r, signal) {
+      const res = await fetchFn(`${o.base}/api${r.path}`, {
+        method: r.method,
+        headers: { ...(r.contentType && { 'content-type': r.contentType }), ...o.headers?.() },
+        ...(r.body !== undefined && { body: r.body }),
+        signal,
+      });
+      return { status: res.status, text: await res.text() };
+    },
+    async *events(path, signal) {
+      const res = await fetchFn(`${o.base}/api${path}`, { method: 'GET', headers: { accept: 'text/event-stream', ...o.headers?.() }, signal });
+      const reader = res.ok ? readerOf(res.body) : undefined;
+      if (!reader) throw await failure(res, path);
+      const parser = new SseParser();
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done || signal.aborted) return;
+          if (value) for (const ev of parser.push(value)) yield { event: ev.event, data: ev.data };
+        }
+      } finally {
+        reader.cancel().catch(() => {});
+      }
     },
   };
 }
