@@ -153,6 +153,81 @@ test('/goal right after a turn lands, while its CLI is still on its way out, is 
   }
 });
 
+// The goal is checked when the agent is done, not when it ends a turn still waiting on something.
+test('a goal is not checked while background subagents still run, only on the report after them', async () => {
+  Object.assign(process.env, { FAKE_BACKGROUND: '4500', FAKE_BACKGROUND_DONE: '1', FAKE_BACKGROUND_TYPE: 'local_agent' }); // a full answer with a subagent still at work
+  try {
+    const s = await api('/sessions', { prompt: 'fan it out', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: 'it is fanned out [met after 1]' } });
+    await until(async () => (await api(`/sessions/${s.id}`)).turns[0].activity.some((a) => a.kind === 'background'));
+    const waiting = await api(`/sessions/${s.id}`);
+    assert.equal(waiting.turns[0].status, 'running', 'the turn waits on its subagent');
+    assert.equal(waiting.goal.checks.length, 0, 'no check yet');
+    const done = await landed(s.id);
+    assert.equal(done.turns.length, 1);
+    assert.match(done.turns[0].presentation.blocks[0].summary, /background done/, 'checked on the report after the subagent');
+    assert.equal(done.goal.checks.length, 1);
+    assert.equal(done.goal.status, 'met');
+  } finally {
+    for (const k of ['FAKE_BACKGROUND', 'FAKE_BACKGROUND_DONE', 'FAKE_BACKGROUND_TYPE']) delete process.env[k];
+  }
+});
+
+test('a goal is not checked on a turn that scheduled its own wake-up (resume_later); the wake-up is', async () => {
+  process.env.FAKE_DELAY = '1500';
+  let s;
+  try {
+    s = await api('/sessions', { prompt: 'wait for CI', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: 'CI is green [met after 1]' } });
+    await until(() => srv.runner.live.has(s.id));
+    const r = await fetch(`${base}/api/internal/later`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-wisp-token': srv.token }, body: JSON.stringify({ session: s.id, minutes: 5, message: 'check CI again' }) });
+    assert.equal(r.status, 200, await r.text());
+  } finally {
+    delete process.env.FAKE_DELAY;
+  }
+  const first = await until(async () => {
+    const x = await api(`/sessions/${s.id}`);
+    return x.state === 'review' && x;
+  }, { timeout: 30_000 });
+  assert.equal(first.goal.checks.length, 0, 'it said it is waiting: no check');
+  assert.equal(first.goal.status, 'working');
+  const live = srv.store.get(s.id);
+  live.later[0].at = Date.now() - 1000;
+  await srv.later.tick();
+  const done = await until(async () => {
+    const x = await api(`/sessions/${s.id}`);
+    return x.turns.length === 2 && x.state === 'review' && x.goal.status === 'met' && x;
+  }, { timeout: 30_000 });
+  assert.equal(done.goal.checks.length, 1);
+  assert.equal(done.goal.checks[0].turnId, done.turns[1].id);
+});
+
+test('a goal waiting on a wake-up is checked once you cancel it, and waits for you when the task is marked done', async () => {
+  const waitFor = async () => {
+    process.env.FAKE_DELAY = '1500';
+    let s;
+    try {
+      s = await api('/sessions', { prompt: 'wait for CI', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: 'CI is green [met after 1]' } });
+      await until(() => srv.runner.live.has(s.id));
+      await fetch(`${base}/api/internal/later`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-wisp-token': srv.token }, body: JSON.stringify({ session: s.id, minutes: 5, message: 'check CI again' }) });
+    } finally {
+      delete process.env.FAKE_DELAY;
+    }
+    await until(async () => (await api(`/sessions/${s.id}`)).state === 'review', { timeout: 30_000 });
+    await until(() => !srv.runner.live.has(s.id));
+    return srv.store.get(s.id);
+  };
+  let s = await waitFor();
+  assert.ok(srv.later.cancel(s, s.later[0].id));
+  const done = await landed(s.id);
+  assert.equal(done.goal.status, 'met', 'cancelled: the report it gave is checked');
+  assert.equal(done.goal.checks.length, 1);
+  s = await waitFor();
+  await api(`/sessions/${s.id}`, { state: 'done' }, 'PATCH');
+  const x = await api(`/sessions/${s.id}`);
+  assert.equal(x.later, undefined);
+  assert.equal(x.goal.status, 'paused', 'marked done: the goal waits for you');
+  assert.equal(x.goal.checks.length, 0);
+});
+
 test('a launch that is just /goal makes the condition the task; pause lands it after its round', async () => {
   const s = await api('/sessions', { prompt: '/goal the readme is clear', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
   assert.equal(s.goal.text, 'the readme is clear');

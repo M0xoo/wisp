@@ -1764,7 +1764,10 @@ export class Runner extends EventEmitter {
         // It ended its turn in plain text with background tasks still running ("I'll report once
         // it's done"): the CLI wakes it up when they finish and it reports again, so the turn stays
         // open. A full presentation is a finished task that left something up (a dev server).
-        if (ev.background > 0 && !ev.isError && !turn.plain && parsePresentation(ev.text).fallback) {
+        // Toward a goal, a subagent still at work means it isn't done either, whatever it said:
+        // the goal is checked on the report that follows, not on this one.
+        const subagents = ev.backgroundAgents > 0 && session.goal?.status === 'working' && !session.parentId && !session.delegated;
+        if (ev.background > 0 && !ev.isError && (subagents || (!turn.plain && parsePresentation(ev.text).fallback))) {
           turn.interim = { text: ev.text, stats: ev.stats };
           this.#waitItem(session, turn);
           return 'waiting';
