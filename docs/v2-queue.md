@@ -18,9 +18,11 @@ skip the host check?), and make the rule catch it.
   - the serve_budget e2e for Ask near the limit;
   - a `wisp sdk types` CLI verb.
 - UI notes from round 7:
-  - the limit card (`turn.limit`: who, until when, other accounts, the extra-usage way), plus Settings → Usage's
-    Ask near the limit, Wait for the reset and Live limits;
-  - New task pre-fills its team from `runtime.subagents`.
+  - [x] the limit card (`turn.limit`: who, until when, other accounts, the extra-usage way), plus Settings → Usage's
+    Ask near the limit, Wait for the reset and Live limits (rounds 14–15);
+  - [x] New task pre-fills its team from `runtime.subagents` (round 15).
+- Found in round 15: automations' own sources (`schedule`, `once`, `webhook`, `manual`) declare an empty field
+  schema, so the trigger editor shows no `cron`/`at` field for them; declare their JSON Schemas in the source.
 - Owner action: claim `wisp` on PyPI before the Python SDK goes into the release workflow.
 
 **Fix first when the usage limit resets (2026-11-11, `npm run check` = 21 errors; the check hung on a rust-sizes

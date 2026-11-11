@@ -551,3 +551,62 @@ which the kernel refuses, so `wisp serve` ran without runtime and every harness:
 `sonnet` (budget-ui writes `task`); `npm run check`'s manifests rule uses the TS validator and missed it. Settings
 rows don't read back on a real server (`settings_value` vs `setting`): a backend note.
 
+
+## Round 15 (2026-11-11): settings read back, the crew page, the grid's pages, the When picker, My shares
+
+**Settings read back (one shape end to end).** The store published `settings_value` rows (`{id, body: {v}}`) that no
+client read; every pane reads `setting` rows (`{key, value, locked_by}`), and the config snapshot already served the
+core `setting` table, which nothing wrote. Now:
+- `crates/wisp/src/settings_store.rs` writes the core `setting` rows: `value` (what's in force), `locked_by`, and a new
+  `saved` column (the user's own value, kept under another plugin's lock; core migration 3). Its migration 2 moves
+  `settings_value` into `setting` and drops it. At start, last run's locks are let go (their plugins lock again).
+- The kernel tells the backend about locks (`SettingsBackend::lock`, additive with a default body; `Settings` keeps the
+  backend from `load`), so a pinned setting shows its value and who holds it.
+- Test `a_setting_written_reads_back_as_the_setting_row_clients_read_after_a_restart` (old table moved, write, reset,
+  device setting not published, lock then restart). Seen in Chrome: Accept tasks from channels read back as stored
+  across reloads, toggled both ways.
+- Found on the way: `runtime.subagentModel` listed `""` as an enum value, which the kernel refuses, so `wisp serve`
+  ran without runtime and every harness (values `task`, `haiku`, `sonnet` now). `npm run check`'s manifest rule uses
+  the TS validator and doesn't catch it.
+
+**Item 2:** `routeOf`/`routeTip` and their test were already in HEAD (be96270e); nothing to redo. Now exported from
+`@wisp/shell` and used by shell-list's row (the list the app draws; round 14 only reached the shell's fallback list).
+
+**The crew page.** Kit `CrewView`, `CrewJob`, `CrewQuiet`, `CrewEmpty`, `CrewFacts`, `CrewSideActions`, `CrewSection`,
+`CrewText` (`packages/ui/src/crew/CrewView.tsx`, `css/crew-view.css`, v1 crew.css values; the details column from
+860 px of the page's own width by container query). crew-ui's `CrewPage.tsx` on `shell.screen:crew`; `jobs.ts` reads a
+job from runtime's real row (`body.ext["wisp.crew"]`; crew-ui's types were v1-shaped and found no jobs); crew-ui's
+command wires fixed to the crew API (`crew.assign {id, prompt}`, `crew.checkin {id}`, the optimistic job row in
+runtime's shape). `CrewExt.prompt` (additive) carries what a job was asked. The list beside it: shell-list filters by
+the picked member (`setCrew`), "No tasks for X yet". The rail and the tint read `crew.member` while the host writes
+`crew_member`: fixed (shell, the @ menu, the dev seed). Tests: `a_members_page_reads_its_jobs_…`,
+`a_picked_crew_members_list_holds_only_their_jobs_…` (shell-list), `…only_the_tasks_that_are_their_jobs` (shell).
+Seen in Chrome: 1440 light, 1024 dark (folded About), 390 dark; a job given from the box ran and showed.
+
+**The reply box's picker and logos.** `RunnerPicker` in the reply box: the pick rides on the next follow-ups as `run`
+(`runPick`, test). Harness logos in its list (kit `RadioOption.logo`).
+
+**The grid's signed-in pages.** `apps/grid/src/edge_pages.rs`: `GET /` (home, or the public page signed out),
+`/account`, `/go`, and every form under them (`/instance/stop`, `/computers/:id/remove`, `/sites/:key/remove`,
+`/devices/:id/revoke`, `/identities/unlink`, `/channels/route`, `/channels/route/remove`, `/signout[?all=1]`,
+`/account/delete`), CSRF from the session cookie, v1's flash lines. The Telegram routing form shows when the grid
+routes. Tests `a_signed_in_person_sees_home_and_account_and_their_forms_work`,
+`the_account_page_offers_the_telegram_routing_form_and_says_what_was_wrong` (`apps/grid/tests/pages.rs`).
+
+**New screens (item 5, part).**
+- Automations → Triggers → New trigger: the When picker over `automations.sources`, grouped by plugin (kit
+  `SelectOption.group`), the source's schema fields, the prompt, `resources.apply`; Test on the last 5 events
+  (`automations.trigger.test`). Test `the_when_picker_groups_sources_by_owner_…`. Seen in Chrome.
+- My shares under Settings → Cloud (`grid-client.shares`/`revoke`). Test `my_shares_lists_what_i_shared_…`. Not seen in
+  Chrome (needs a grid sign-in).
+- Found on the way: every Menu and Select opened behind Settings and dialogs (positioner z 40 under overlays at 50):
+  now `--z-overlay-menu`.
+
+**Backend leftovers (item 6, part):** Settings → Usage: Ask near the limit, Wait for the reset, Check Codex while work
+waits; New task pre-fills its team from `runtime.subagents` and sends it (`teamPrefill`, `teamRows`, test).
+
+**Left:** the other new screens (Repo tab, blame gutter, import, Share setup, Setup section, crew Wakes), the crew
+editor (Edit…, Wakes), and the backend leftovers: the plugins install path (ADR first), crew.reply, terminal tasks,
+Discord's /wisp, one turn per Slack thread, a PR following its branch's task, email attachments, the serve_budget
+e2e, `wisp sdk types`, v1 sync #771–#774. automations' own sources (schedule, once) declare no field schema, so the
+editor shows no cron field for them.

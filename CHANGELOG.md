@@ -7,6 +7,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **A crew member's page.** Picking a face on the rail opens their thread: every job oldest first (quiet check-ins folded into one line), what they're doing in the head, Pause or Resume, Check in now, their notebook and brief (edit them in place), and a box to give them a job. The list beside it holds only their jobs.
+- **The grid's own pages.** Signed in at your grid's address: home (your cloud wisp, your computers, your published apps) and your account (signed-in devices, how you sign in, sign out, delete), with every button working. When the grid routes Telegram, the account page has the form to connect your bot and say who may send.
+- **A new trigger from the app.** Automations → Triggers → New trigger: pick what starts it from every source the plugins offer, grouped by plugin, fill in that source's fields and the prompt. Test on the last 5 events shows what it would have done.
+- **My shares.** Settings → Cloud lists what you've shared through wisp Cloud, with who may open it, its views, imports and version, and Copy link, Open and Stop sharing.
+- **The reply box's harness · model.** The same searchable picker as New task; your pick goes with the next replies. The picker shows each harness's logo.
+- **Ask near the limit, Wait for the reset and Check Codex while work waits** in Settings → Usage.
+- **New task starts with your team.** The team in Settings (`runtime.subagents`) is picked for you, and New task sends the team you pick.
 - **Slack, Discord, GitHub and email reach wisp.** Mention the bot in Slack or Discord (or DM it), comment `/wisp …` on an issue or PR of your repo, or mail your cloud computer's address, and the message reads like New task: a task starts and answers there, in its thread, issue or reply. Only people you linked (or you) may speak; a channel can't ask for more than Edits. Slack's questions come with buttons.
 - **Ask near the limit and Wait for the reset.** Before a task would take a usage window past your line (Settings → Usage, 90% by default), wisp asks first; automations wait for the reset instead. A task at its limit can carry on by itself after the reset (Wait for the reset), and Check Codex while work waits reads Codex's usage every 10 minutes while something waits on it. The CLI's `--yes` goes ahead anyway.
 - **Mail on a wisp Grid.** A grid with `mail` gives each cloud computer a secret address; only mail the sender's own domain signed (DKIM, checked by the grid) reaches it, and replies go only to the thread they answer.
@@ -53,6 +60,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Settings kept after a reload.** Your settings were saved but every pane read them from a place the server never filled, so after a reload Settings showed the defaults. They now read back as you left them, including what another plugin pins.
+- **wisp serve started without its tasks.** One setting's choices listed an empty value, so the task runner and every harness were refused at start.
+- **Menus and pickers inside Settings and dialogs** opened behind them.
 - **Goal on, Done when empty.** Send now stops, puts the caret in Done when and offers Send without a goal, instead of starting a task that doesn't keep going. A goal with no prompt says Say what to do first.
 - **Settings switches that were refused.** Accept tasks from channels, wisp blocks, Auto-fix PR conflicts, Watch agents work and Interactive answers saved `on`/`off` into settings that take true or false, so every click was rolled back.
 - Toasts sat half off the left edge of the window; they're bottom centre again.
