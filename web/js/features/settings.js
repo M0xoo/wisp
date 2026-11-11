@@ -152,6 +152,7 @@ export function openSettings(opts) {
           </div>
           <div class="sx-group">
             ${row('Theme', 'System follows your computer’s light or dark setting', `<fieldset class="pk-seg theme-seg">${[['system', 'laptop', 'System'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']].map(([v, i, l]) => `<button type="button" data-v="${v}">${icon(i)}${l}</button>`).join('')}</fieldset>`)}
+            ${row('Crew tint', 'With the crew rail, the task list takes a very light tint of the colour of the member you pick. Each member’s own is in their editor, under Task panel', '<button class="switch" id="crewTintOn" role="switch"></button>')}
           </div>
           <div class="sx-group">
             ${row('Full transcript', 'Every message and step the agent took, with its presentation at the end. Any one card switches with its Transcript button<span class="key-hint"> or <kbd>V</kbd></span>', '<button class="switch" id="txDefault" role="switch"></button>')}
@@ -896,6 +897,7 @@ export function openSettings(opts) {
   };
   onOff('#tuiOn', 'terminalSessions', (v) => v === 'on');
   onOff('#blocksOn', 'blocks', (v) => v !== 'off');
+  onOff('#crewTintOn', 'crewTint', (v) => v !== 'off');
   const ap = $('#appsOn', node);
   const paintAp = () => ap.setAttribute('aria-checked', S.config.defaults.apps !== 'off');
   ap.onclick = async () => {
@@ -1026,7 +1028,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { acceptChannels: '#acceptChannels', theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', worktreeCleanup: '#wtrCleanup', worktreeMax: '#wtrMax', worktreeOnDone: '#wtrOnDone', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', leanRuns: 'select[name="leanRuns"]', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers', review: 'select[name="review"]', subagentModel: 'select[name="subagentModel"]', memoryFloor: 'select[name="memoryFloor"]', cpuCeiling: 'select[name="cpuCeiling"]', maxRuns: 'select[name="maxRuns"]' };
+  const LOCKABLE = { acceptChannels: '#acceptChannels', theme: '.theme-seg', transcript: '#txDefault', crewTint: '#crewTintOn', worktree: '#wtDefault', worktreeCleanup: '#wtrCleanup', worktreeMax: '#wtrMax', worktreeOnDone: '#wtrOnDone', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', spareCard: '#spareCard', windowNotice: '#windowNotice', harnessAsk: '#harnessAsk', maskEnvFiles: '#maskEnv', leanRuns: 'select[name="leanRuns"]', projectAsk: '#projectAsk', liveLimits: '#liveLimits', limitHold: '.hold-seg', webhookTriggers: '#hookTriggers', review: 'select[name="review"]', subagentModel: 'select[name="subagentModel"]', memoryFloor: 'select[name="memoryFloor"]', cpuCeiling: 'select[name="cpuCeiling"]', maxRuns: 'select[name="maxRuns"]' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

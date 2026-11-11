@@ -92,6 +92,25 @@ export const inPick = (s) => {
 export function setCrewPick(id) {
   S.crewPick = id;
   save('wisp.crewPick', id);
+  paintCrewTint();
+}
+
+// What colour the task panel takes for a member: their glow (''), a colour they picked, or none.
+export const panelTint = (m) => (!m ? '' : m.bg === 'none' ? '' : m.bg || glowOf(m));
+
+// The list beside the rail takes a very light wash of the picked member's colour, so a glance says
+// whose jobs it holds. It stays its usual colour when nothing is picked, the rail is off, the
+// setting is off, or their tint is none. The c- class goes on the panel, not body, so --pc stays out
+// of everything else on the page.
+export function paintCrewTint() {
+  const m = S.config.defaults?.crewTint === 'off' ? null : memberById(crewPick());
+  const tint = panelTint(m);
+  for (const n of [$('#feedWrap'), $('#topbar')]) {
+    if (!n) continue;
+    for (const c of SPIRIT.color) n.classList.remove(`c-${c}`);
+    n.classList.toggle('crew-tint', !!tint);
+    if (tint) n.classList.add(`c-${tint}`);
+  }
 }
 // A face picks its member and opens its thread; picked already, it's All.
 export function pickMember(id) {
@@ -152,12 +171,17 @@ export function memberState(m) {
   return { jobs, sent, asks, live, unread, mood: asks ? 'asks' : live.length ? 'live' : m.paused ? 'sleep' : 'idle' };
 }
 
+// The colour a member glows: its spirit's own when it has one, else the colour it was given. A
+// spell or an imported member can carry a colour that doesn't match its avatar; the face and the
+// task panel both go by this, so they never disagree.
+export const glowOf = (m) => (isSpirit(m?.avatar) ? parseSpirit(m.avatar).color : m?.color || parseSpirit('', m?.name).color);
+
 // A member's face: its spirit (or the emoji it was given) on a disc of its colour.
 export function avatarHtml(m, { size = 30, state, dot = true, small = size < 22 } = {}) {
   const st = memberState(m);
   const mood = state || st.mood;
   const face = m.avatar && !isSpirit(m.avatar) ? `<span>${esc(m.avatar)}</span>` : spiritSvg(m.avatar, { seed: m.name, state: mood, small });
-  const color = isSpirit(m.avatar) ? parseSpirit(m.avatar).color : m.color || parseSpirit('', m.name).color;
+  const color = glowOf(m);
   const badge = dot && (st.asks || st.unread) ? `<i class="cr-dot${st.asks ? ' asks' : ''}"></i>` : '';
   return `<span class="cr-av c-${color}${m.avatar && !isSpirit(m.avatar) ? ' emoji' : ''}" style="--size:${size}px">${face}${badge}</span>`;
 }
@@ -424,6 +448,7 @@ export function paintCrew() {
   while (box.children.length > want.length) box.lastElementChild.remove();
   for (const id of pinned) if (!S.sessions.has(id)) pinned.delete(id);
   paintCrewView();
+  paintCrewTint();
   return shown;
 }
 
@@ -1834,6 +1859,8 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
     name: member?.name || '',
     role: member?.role || '',
     avatar: member?.avatar || '',
+    color: member?.color || '',
+    bg: member?.bg || '', // the task panel's tint while they're picked
     brief: member?.brief ?? '',
     cron: member?.cron ?? '',
     on: (member?.on || []).filter((k) => EVENTS.some(([e]) => e === k)), // what else starts their jobs
@@ -1874,6 +1901,13 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
         </div>
         <div class="ce-stack ce-events"><span>Also starts when <small>with a job about that task, in their project (any, if they have none)</small></span>
           <div class="ce-cadence ce-on">${EVENTS.map(([k, l]) => `<button type="button" class="lp-chip" data-on="${k}" aria-pressed="false">${icon(k === 'ci' ? 'warn' : k === 'done' ? 'done' : 'bolt')}${l}</button>`).join('')}</div>
+        </div>
+        <div class="ce-stack ce-tint"><span>Task panel <small>the list’s very light tint while they’re picked on the rail</small></span>
+          <div class="ce-tints" role="group" aria-label="Task panel tint">
+            <button type="button" class="cm-opt ce-bg" data-bg="" title="Their glow (default)" aria-label="Their glow (default)" aria-pressed="false"><i class="cm-sw ce-glow"></i></button>
+            <button type="button" class="cm-opt ce-bg ce-none" data-bg="none" title="No tint" aria-label="No tint" aria-pressed="false">${icon('x')}</button>
+            ${SPIRIT.color.map((c) => `<button type="button" class="cm-opt ce-bg" data-bg="${c}" title="${c}" aria-label="${c}" aria-pressed="false"><i class="cm-sw c-${c}"></i></button>`).join('')}
+          </div>
         </div>
         <div class="ce-bar">
           ${task ? '' : `<button type="button" class="tog-btn where-btn ce-place" title="The computer their jobs run on" aria-haspopup="menu"></button>
@@ -1919,6 +1953,19 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
 
   const paintFace = () => {
     $('.ce-face', node).innerHTML = `${avatarHtml({ ...d, id: '' }, { size: 64, dot: false, state: 'idle' })}<span class="ce-dice">${icon('rerun')}</span>`;
+    paintTint();
+  };
+  // The colour their task panel takes when nothing else is picked: their glow, or the server's
+  // colour for a member that has an emoji instead of a spirit.
+  const glowColor = () => (isSpirit(d.avatar) ? parseSpirit(d.avatar).color : d.color || SPIRIT.color[crewList().length % SPIRIT.color.length]);
+  const paintTint = () => {
+    const glow = $('.ce-glow', node);
+    if (glow) glow.className = `cm-sw ce-glow c-${glowColor()}`;
+    $$('[data-bg]', node).forEach((b) => {
+      const on = b.dataset.bg === (d.bg || '');
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', on);
+    });
   };
   const paintHandle = () => {
     const n = $f('name').value.trim();
@@ -1991,6 +2038,7 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
   };
   const setFace = (code) => {
     d.avatar = code;
+    if (isSpirit(code)) d.color = parseSpirit(code).color;
     paintFace();
     if (!maker.hidden) paintMaker();
   };
@@ -2016,6 +2064,12 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
     }
     const opt = e.target.closest('[data-code]');
     if (opt) return setFace(opt.dataset.code);
+    const bgBtn = e.target.closest('[data-bg]');
+    if (bgBtn) {
+      d.bg = bgBtn.dataset.bg;
+      paintTint();
+      return;
+    }
     if (e.target.closest('[data-a="roll"]')) return setFace(rollSpirit(Math.random()));
     const tpl = TEMPLATES.find((t) => t.key === e.target.closest('[data-tpl]')?.dataset.tpl);
     if (tpl) {
@@ -2128,7 +2182,7 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
 
   f.onsubmit = async (e) => {
     e.preventDefault();
-    const body = { name: $f('name').value.trim(), role: $f('role').value.trim(), avatar: d.avatar, ...(isSpirit(d.avatar) && { color: parseSpirit(d.avatar).color }), brief: $f('brief').value.trim(), cron: d.cron, on: d.on, parallel: d.parallel, mode: d.mode, team: d.team, ...(task ? {} : { cwd: d.cwd, machine: d.machine, sandbox: d.sandbox, agent: d.agent, model: d.model, effort: d.effort }) };
+    const body = { name: $f('name').value.trim(), role: $f('role').value.trim(), avatar: d.avatar, color: glowColor(), bg: d.bg, brief: $f('brief').value.trim(), cron: d.cron, on: d.on, parallel: d.parallel, mode: d.mode, team: d.team, ...(task ? {} : { cwd: d.cwd, machine: d.machine, sandbox: d.sandbox, agent: d.agent, model: d.model, effort: d.effort }) };
     if (!body.name) return $f('name').focus();
     if (!locked && body.cron && !toCron(body.cron)) return $f('cron').focus();
     // A spell's member: only where and how they run is yours to change.
@@ -2141,7 +2195,7 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
       return;
     }
     // Optimistic: the row is there at once, and goes (with the dialog back) if the server refuses.
-    const temp = { ...body, id: `new-${Date.now()}`, color: parseSpirit(d.avatar).color, log: [], queue: [], notebook: '', paused: false };
+    const temp = { ...body, id: `new-${Date.now()}`, log: [], queue: [], notebook: '', paused: false };
     S.config.crew = [...crewList(), temp];
     paintCrew();
     try {
@@ -2161,6 +2215,7 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
     }
   };
   paintFace();
+  paintTint();
   paintHandle();
   paintCadence();
   paintBar();

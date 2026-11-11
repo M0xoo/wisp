@@ -432,6 +432,14 @@ test('later: Scheduled, Coming up, the follow-up rows, Send later and the time c
   assert.ok(problems({ ...base0, settings: { readTimes: 'sometimes' } }).some((x) => /readTimes/.test(x) && /on \| off/.test(x)));
 });
 
+test('the crew tint: a setting, and the editor’s row is a part', () => {
+  assert.deepEqual(schema.SETTINGS.crewTint, ['on', 'off']);
+  assert.deepEqual(problems({ ...base0, settings: { crewTint: 'off' } }), []);
+  assert.ok(problems({ ...base0, settings: { crewTint: 'sometimes' } }).some((x) => /crewTint/.test(x) && /on \| off/.test(x)));
+  assert.equal(schema.PARTS['crew.editor.tint'], '.crew-edit .ce-tint');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['crew.editor.tint'] } }), []);
+});
+
 test('machine load: memoryFloor, cpuCeiling and maxRuns with their lists, and Settings → Usage → Machine load as a part', () => {
   assert.deepEqual(problems({ ...base0, settings: { memoryFloor: '20', cpuCeiling: '200', maxRuns: '6' } }), []);
   assert.deepEqual(problems({ ...base0, settings: { memoryFloor: 'off', cpuCeiling: 'off', maxRuns: 'auto' } }), []);

@@ -35,6 +35,9 @@ body.has-rail:not(.side-hidden) .split-grip { left: calc(var(--rail-w) + var(--s
 body.has-rail.side-right:not(.side-hidden) .split-grip { left: auto; right: calc(var(--rail-w) + var(--side-w) - 7.5px); }
 body.has-rail .split-main { background: var(--bg); }
 body.has-rail:not(.side-hidden) .topbar, body.has-rail:not(.side-hidden) .feed-wrap { --rail: var(--panel); }
+/* A picked crew member tints the panel: a very light wash of their colour (crew.js paints the c-
+   class on the panel itself, so --pc reaches nothing else). */
+body.has-rail:not(.side-hidden) .topbar.crew-tint, body.has-rail:not(.side-hidden) .feed-wrap.crew-tint { --rail: color-mix(in srgb, var(--pc) 8%, var(--panel)); }
 body.split.has-rail:not(.side-hidden) .topbar { margin: 8px 8px 0 56px; border: 1px solid var(--line); border-bottom: 0; border-radius: 11px 11px 0 0; }
 body.split.has-rail:not(.side-hidden) .feed-wrap { margin: 0 8px 8px 56px; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 11px 11px; }
 body.split.has-rail.side-right:not(.side-hidden) .topbar { margin: 8px 56px 0 8px; }
@@ -430,7 +433,7 @@ body.desktop.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .view-btn
 body.desktop.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .search-btn:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 body.desktop.mac.split.has-rail:not(.side-right, .side-hidden) .topbar .projects {
   flex-basis: calc(100% + 32px); min-height: 49px; margin: 3px -10px 0 -22px; padding: 10px 10px 4px;
-  border: 1px solid var(--line); border-bottom: 0; border-radius: 11px 11px 0 0; background: var(--panel);
+  border: 1px solid var(--line); border-bottom: 0; border-radius: 11px 11px 0 0; background: var(--rail);
 }
 body.desktop.mac.split.side-right .split-head { padding-left: max(88px, var(--pad, 24px)); }
 .split-stage { flex: 1; min-height: 0; }

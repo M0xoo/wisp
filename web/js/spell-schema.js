@@ -120,6 +120,7 @@ export const PARTS = {
   'crew.offer': '.crew-view .cv-offer',
   'turn.kitOffer': '#feed .t-offers', // kit files an agent proposed for a crew member, under its answer
   'crew.editor.events': '.crew-edit .ce-events', // its "Also starts when" chips
+  'crew.editor.tint': '.crew-edit .ce-tint', // its task panel tint: their glow, none, or a colour
   // Sharing (crew-share.js): Share (a file, JSON, a gist or a spell) and Import with its review. Not
   // the review a spell's member needs before it resumes, nor the note saying which spell it's from:
   // a spell mustn't hide what gates its own members.
@@ -726,6 +727,8 @@ export const HOOK_ACTIONS = new Set(['reply', 'done', 'archive', 'forLater', 'no
 // mustn't move you onto nightlies) and anything secret are not here.
 export const SETTINGS = {
   theme: THEMES,
+  // The task panel takes a very light tint of the crew member picked on the rail (web/css/split.css).
+  crewTint: ['on', 'off'],
   editor: ['vscode', 'cursor', 'windsurf', 'zed', 'idea', 'none'],
   // Take over in: wisp (a terminal in the page), auto, or a terminal app (not a custom command).
   terminal: ['auto', 'wisp', 'terminal', 'iterm', 'warp', 'cmux', 'wt', 'powershell', 'cmd', 'ghostty', 'kitty', 'wezterm', 'gnome-terminal', 'konsole', 'xfce4-terminal', 'alacritty', 'xterm'],

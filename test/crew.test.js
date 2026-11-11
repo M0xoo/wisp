@@ -48,6 +48,15 @@ test('a member needs a unique, plain name, a known harness and a valid schedule'
   assert.equal(edited.log.length, 1);
 });
 
+test('a member’s task panel tint: their glow, none, or a crew colour', () => {
+  assert.equal(normalizeMember({ name: 'Ada' }).bg, '', 'their glow by default');
+  assert.equal(normalizeMember({ name: 'Ada', bg: 'teal' }).bg, 'teal');
+  assert.equal(normalizeMember({ name: 'Ada', bg: 'none' }).bg, 'none');
+  const m = normalizeMember({ name: 'Ada', bg: 'sky' });
+  assert.equal(normalizeMember({ role: 'x' }, m, { taken: [m] }).bg, 'sky', 'an edit without it keeps it');
+  assert.throws(() => normalizeMember({ name: 'Ada', bg: 'pink' }), /task panel tint/);
+});
+
 test('a member on a machine: a machine you have, its folder there unchecked here; a job sent from another wisp', () => {
   assert.throws(() => normalizeMember({ name: 'Ada', machine: 'nope99' }), /isn’t one of yours/);
   const m = normalizeMember({ name: 'Ada', machine: 'abc123', cwd: '/home/me/repo' }, null, { exists: () => false, machineOk: (id) => id === 'abc123' });

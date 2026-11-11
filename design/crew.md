@@ -54,7 +54,9 @@ is a row in the list; the rail's pick (below) turns the list into that member's 
   with it, a task that's open stays open. Under a pick the list is that member's jobs, every kind, as
   ordinary rows in the normal sections, and nothing else: your tasks, others' jobs and plans go, and
   home's Needs you, the project chips' counts and ⌃Tab follow (`groups()` in `feed.js`). It ANDs with
-  the project filter. None yet: *No tasks for Ada yet.* Nothing goes to the server and rows that stay
+  the project filter. While someone is picked the panel takes a very light wash of their colour
+  (their glow, unless their editor's **Task panel** says another colour or none; Settings →
+  Appearance → **Crew tint** turns it off), so the list and the rail read as one. None yet: *No tasks for Ada yet.* Nothing goes to the server and rows that stay
   aren't touched. **A pick never hides a question:** All takes the amber or accent dot while something
   it would bring back asks you or has an unread report, and the tab title still counts everything.
   Opening what the pick hides (a notification, a link, search, a recipe, another member's thread, a
