@@ -4,6 +4,7 @@
 // so the crew's own work stays proportional to its few dozen jobs).
 
 import { computed, filterBy, groupBy, ownerOf, type EntityKey, type PeerId, type PluginClient, type Readable } from '@wisp/client';
+import { jobOf } from './jobs.ts';
 import { rankCrew } from './model.ts';
 import { memberState, type MemberState } from './rules/feed.ts';
 import { KIND, type MemberView, type SessionRow } from './types.ts';
@@ -41,7 +42,9 @@ export function crewData(client: PluginClient): CrewData {
       return { ...(v as MemberView), key, peer: ownerOf(key) } as CrewMember;
     });
   });
-  const sessions = e.list<SessionRow>(KIND.session) as Readable<readonly SessionRow[]>;
+  // the peer's task rows, each read as a job when it is one (jobs.ts: body.ext["wisp.crew"])
+  const rowsOf = e.list<Parameters<typeof jobOf>[0]>(KIND.session);
+  const sessions = computed(() => rowsOf().map((r) => jobOf(r) ?? ({ id: r.id, title: r.title ?? '', agent: r.agent ?? '', cwd: '', state: r.state ?? 'idle', createdAt: r.created_at ?? 0, updatedAt: r.updated_at ?? 0 } as SessionRow))) as Readable<readonly SessionRow[]>;
   const jobs = filterBy(sessions, (s) => !!s.crew);
   const byCrew = groupBy(jobs, (s) => s.crew?.id ?? '');
   const states = computed(() => {

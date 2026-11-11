@@ -10,4 +10,9 @@ export type CrewExt = { id: string, job: JobKind, from?: TaskRef, reply?: ReplyT
 /**
  * tasks it followed up on
  */
-sent?: Array<TaskRef>, };
+sent?: Array<TaskRef>, 
+/**
+ * what it was asked (a job you or a task gave it; a check-in's own prompt is left out), up to 2000
+ * characters: its page shows it over the answer (v1 `session.crew.prompt`). Additive (2026-11-11).
+ */
+prompt?: string, };

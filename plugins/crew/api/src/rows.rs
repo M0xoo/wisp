@@ -460,6 +460,11 @@ pub struct CrewExt {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(as = "Option<Vec<TaskRef>>", optional)]
     pub sent: Vec<TaskRef>,
+    /// what it was asked (a job you or a task gave it; a check-in's own prompt is left out), up to 2000
+    /// characters: its page shows it over the answer (v1 `session.crew.prompt`). Additive (2026-11-11).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub prompt: Option<String>,
 }
 
 /// One job of a member as the scheduler sees it: which member, what kind, whether it is live.

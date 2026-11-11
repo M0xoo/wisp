@@ -17,6 +17,7 @@ const replace = (key: EntityKey, patch: Record<string, unknown>): EntityOps => [
 export const updateMember = defineCommand<{ key: EntityKey; id: string } & MemberPatch, Member>({
   id: 'crew.update',
   owner: (a) => a.key,
+  wire: ({ key: _key, ...a }) => a,
   optimistic: (_base, { key, id: _id, ...patch }) => replace(key, patch),
 });
 
@@ -24,6 +25,7 @@ export const updateMember = defineCommand<{ key: EntityKey; id: string } & Membe
 export const createMember = defineCommand<{ peer: PeerId; id: string; member: Member; checkin?: boolean }, Member>({
   id: 'crew.create',
   owner: (a) => a.peer,
+  wire: (a) => ({ ...a.member, id: a.id, ...(a.checkin && { checkin: true }) }),
   optimistic: (_base, a) => [{ e: KIND.member, id: `${a.peer}:${a.id}` as EntityKey, op: 'upsert', v: a.member }],
 });
 
@@ -31,6 +33,7 @@ export const createMember = defineCommand<{ peer: PeerId; id: string; member: Me
 export const removeMember = defineCommand<{ key: EntityKey; id: string }>({
   id: 'crew.remove',
   owner: (a) => a.key,
+  wire: (a) => ({ id: a.id }),
   optimistic: (_base, a) => [{ e: KIND.member, id: a.key, op: 'del' }],
 });
 
@@ -38,6 +41,7 @@ export const removeMember = defineCommand<{ key: EntityKey; id: string }>({
 export const detachMember = defineCommand<{ key: EntityKey; id: string }, Member>({
   id: 'crew.detach',
   owner: (a) => a.key,
+  wire: (a) => ({ id: a.id }),
   optimistic: (_base, a) => [{ e: KIND.member, id: a.key, op: 'patch', ops: [{ op: 'remove', path: '/spell' }] }],
 });
 
@@ -45,6 +49,7 @@ export const detachMember = defineCommand<{ key: EntityKey; id: string }, Member
 export const checkIn = defineCommand<{ key: EntityKey; crewId: string }, { session?: SessionRow; queued?: boolean; already?: boolean }>({
   id: 'crew.checkin',
   owner: (a) => a.key,
+  wire: (a) => ({ id: a.crewId }),
   optimistic: 'none', pending: 'the crew.checkin control',
 });
 
@@ -58,10 +63,17 @@ export const assignJob = defineCommand<
 >({
   id: 'crew.assign',
   owner: (a) => a.key,
+  // the crew's AssignArgs: the member's id and what to do (the peer picks the task's id)
+  wire: (a) => ({ id: a.crewId, prompt: a.prompt, ...(a.kit && { kit: true }), ...(a.confirmLimit && { confirmLimit: true }) }),
+  // a task row in the peer's own shape (runtime's session row), pending until the real one arrives
   optimistic: (_base, a) => {
     const now = Date.now();
-    const row: SessionRow = { id: a.job, title: a.title, agent: '', cwd: '', state: 'running', pending: true, createdAt: now, updatedAt: now, crew: { id: a.crewId, job: 'task', prompt: a.prompt, ...(a.kit && { kit: true }) } };
-    return [{ e: KIND.session, id: `${a.key.slice(0, a.key.indexOf(':'))}:${a.job}` as EntityKey, op: 'upsert', v: row }];
+    const row = {
+      id: a.job, parent_id: null, title: a.title, state: 'running', agent: '', archived: false, unread: false, created_at: now, updated_at: now,
+      summary: { status: 'running', live: 'Starting…', preview: '', pending: true, turnCount: 0, queued: 0, cwd: '', model: '' },
+      body: { ext: { 'wisp.crew': { id: a.crewId, job: 'task', prompt: a.prompt, ...(a.kit && { kit: true }) } } },
+    };
+    return [{ e: KIND.session, id: `${a.key.slice(0, a.key.indexOf(':'))}:${a.job}` as EntityKey, op: 'upsert', v: row as never }];
   },
   dedupe: (a) => `assign:${a.job}`,
 });

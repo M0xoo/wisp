@@ -3,3 +3,4 @@
 export { Face, faceColor, type FaceProps, type FaceSize } from './Face.tsx';
 export { Rail, RailTile, RailCard, type RailProps, type RailTileProps, type RailCardProps } from './Rail.tsx';
 export { isEmojiAvatar, spiritHash, type SpiritColor, type SpiritMood } from './spirit-code.ts';
+export { CrewView, CrewJob, CrewQuiet, CrewEmpty, CrewFacts, CrewSideActions, CrewSection, CrewText, type CrewViewProps, type CrewJobProps } from './CrewView.tsx';

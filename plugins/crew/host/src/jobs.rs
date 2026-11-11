@@ -43,7 +43,9 @@ async fn view(ctx: &Ctx, call: &Call, st: &State, m: &Member) -> MemberView {
 /// `w.run`: this job's own pick (`wisp_crew_core::run`), already checked.
 async fn start(ctx: &Ctx, call: &Call, st: &State, m: &Member, w: &WaitingJob) -> Result<Value, WireError> {
     let (prompt, job, attachments) = (&w.prompt, w.job, &w.attachments);
-    let ext = CrewExt { id: m.id.clone(), job, ..CrewExt::default() };
+    // what it was asked, for its page (a check-in's prompt is the crew's own)
+    let asked = (job != JobKind::Checkin && !prompt.trim().is_empty()).then(|| prompt.chars().take(2000).collect::<String>());
+    let ext = CrewExt { id: m.id.clone(), job, prompt: asked, ..CrewExt::default() };
     let (agent, model, effort, mode) = job_body(m, w.run.as_ref());
     let agent = (!agent.is_empty() && agent != "auto").then_some(agent);
     let args = json!({
