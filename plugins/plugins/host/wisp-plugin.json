@@ -33,7 +33,8 @@
       {
         "id": "plugins.uninstall",
         "title": "Remove a plugin you installed"
-      }
+      },
+      { "id": "plugins.trust", "title": "Trust a plugin you installed (or take the trust back): it reloads" }
     ]
   }
 }

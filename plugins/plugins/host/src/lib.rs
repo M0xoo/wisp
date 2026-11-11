@@ -5,7 +5,7 @@
 mod install;
 mod kinds;
 
-pub use install::{UserPlugin, at_start as user_plugins};
+pub use install::{UserPlugin, at_start as user_plugins, read as read_plugin};
 
 use wisp_kernel::{Ctx, Manifest, Plugin, PluginStatus, Result, Setup, WireError};
 use wisp_plugins_api::{List, PluginRow, SetEnabled};
@@ -27,6 +27,16 @@ impl wisp_kernel::Command for Uninstall {
     const ID: &'static str = "plugins.uninstall";
     const PERMISSION: Option<&'static str> = Some(wisp_plugins_api::perm::WRITE);
     type Args = install::UninstallArgs;
+    type Out = serde_json::Value;
+}
+
+/// `plugins.trust` (ADR-0048): a plugin of yours trusted, or back to untrusted.
+#[derive(Debug)]
+pub struct Trust;
+impl wisp_kernel::Command for Trust {
+    const ID: &'static str = "plugins.trust";
+    const PERMISSION: Option<&'static str> = Some(wisp_plugins_api::perm::WRITE);
+    type Args = install::TrustArgs;
     type Out = serde_json::Value;
 }
 
@@ -63,6 +73,7 @@ impl Plugin for PluginsPlugin {
         // ADR-0046: a user's plugin from a folder or a git URL, and taking one out
         s.command::<Install, _, _>(|ctx, _call, a| async move { install::install(&ctx, &a).await });
         s.command::<Uninstall, _, _>(|ctx, _call, a| async move { install::uninstall(&ctx, &a).await });
+        s.command::<Trust, _, _>(|ctx, _call, a| async move { install::trust(&ctx, &a).await });
         Ok(())
     }
 }

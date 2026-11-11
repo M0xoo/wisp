@@ -35,9 +35,14 @@ impl Plugin for UserPlugin {
     }
 }
 
-/// The plugin in `dir` (its `wisp-plugin.json`), checked: a `user.` id and a valid manifest.
-pub fn read(dir: &Path, text: &str) -> Result<UserPlugin> {
-    let m = Manifest::parse(text)?;
+/// The mark a plugin you trusted keeps beside its manifest (ADR-0048).
+pub const TRUSTED: &str = ".wisp-trusted";
+
+/// The plugin in `dir` (its `wisp-plugin.json`), checked: a `user.` id and a valid manifest. Untrusted whatever the
+/// manifest says (ADR-0048), unless you trusted it (`trusted`: its mark is there).
+pub fn read(dir: &Path, text: &str, trusted: bool) -> Result<UserPlugin> {
+    let mut m = Manifest::parse(text)?;
+    m.trust = Some(if trusted { "trusted" } else { "untrusted" }.to_owned());
     if !m.id.starts_with("user.") {
         return Err(WireError::invalid(format!("{} isn't a user plugin's id: a plugin you install is named user.<something> (built-in ids are wisp's own)", m.id)));
     }
@@ -59,7 +64,7 @@ pub fn at_start(plugins: &Path) -> Vec<UserPlugin> {
     dirs.sort();
     for d in dirs {
         let Ok(text) = std::fs::read_to_string(d.join(MANIFEST)) else { continue };
-        match read(&d, &text) {
+        match read(&d, &text, d.join(TRUSTED).is_file()) {
             Ok(p) => out.push(p),
             Err(e) => tracing::warn!(folder = %d.display(), "a plugin there isn't loaded: {}", e.message),
         }
@@ -150,7 +155,7 @@ pub async fn install(ctx: &Ctx, a: &InstallArgs) -> Result<Installed> {
         return gone(why).await;
     }
     let text = tokio::fs::read_to_string(staging.join(MANIFEST)).await.unwrap_or_default();
-    let m = match Manifest::parse(&text).and_then(|m| read(&staging, &text).map(|_| m)) {
+    let m = match Manifest::parse(&text).and_then(|m| read(&staging, &text, false).map(|_| m)) {
         Ok(m) => m,
         Err(e) => return gone(e.message).await,
     };
@@ -162,7 +167,8 @@ pub async fn install(ctx: &Ctx, a: &InstallArgs) -> Result<Installed> {
     let _ = tokio::fs::remove_dir_all(&dir).await;
     tokio::fs::rename(&staging, &dir).await.map_err(|e| WireError::internal(format!("couldn't move it into place: {e}")))?;
     let text = tokio::fs::read_to_string(dir.join(MANIFEST)).await.unwrap_or_default();
-    ctx.install_plugin(Arc::new(read(&dir, &text)?)).await?;
+    // what's installed starts untrusted, a reinstall too: trusting it again is your call
+    ctx.install_plugin(Arc::new(read(&dir, &text, false)?)).await?;
     Ok(Installed { id: m.id.clone(), name: m.name.clone().unwrap_or_else(|| m.id.clone()), version: m.version.clone(), permissions: m.permissions.clone(), folder: dir.display().to_string() })
 }
 
@@ -172,4 +178,33 @@ pub async fn uninstall(ctx: &Ctx, a: &UninstallArgs) -> Result<serde_json::Value
     let home = ctx.service::<wisp_kernel::services::Paths>()?;
     let _ = tokio::fs::remove_dir_all(home.join("plugins").join(slug(&a.id))).await;
     Ok(serde_json::json!({ "ok": true, "id": a.id }))
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TrustArgs {
+    pub id: String,
+    pub trusted: bool,
+}
+
+/// `plugins.trust` (ADR-0048): a plugin of yours trusted (its own process with your environment) or back to
+/// untrusted; it reloads, and is on again if it was.
+pub async fn trust(ctx: &Ctx, a: &TrustArgs) -> Result<serde_json::Value> {
+    if !a.id.starts_with("user.") {
+        return Err(WireError::invalid("Only a plugin you installed has a trust to change."));
+    }
+    let home = ctx.service::<wisp_kernel::services::Paths>()?;
+    let dir = home.join("plugins").join(slug(&a.id));
+    let text = tokio::fs::read_to_string(dir.join(MANIFEST)).await.map_err(|_| WireError::not_found(format!("{} isn't installed.", a.id)))?;
+    let was_on = ctx.plugins()?.iter().any(|p| p.id == a.id && p.state != "off");
+    if a.trusted {
+        tokio::fs::write(dir.join(TRUSTED), b"").await.map_err(|e| WireError::internal(e.to_string()))?;
+    } else {
+        let _ = tokio::fs::remove_file(dir.join(TRUSTED)).await;
+    }
+    ctx.uninstall_plugin(&a.id).await?;
+    ctx.install_plugin(Arc::new(read(&dir, &text, a.trusted)?)).await?;
+    if was_on {
+        ctx.set_plugin_enabled(&a.id, true).await?;
+    }
+    Ok(serde_json::json!({ "id": a.id, "trusted": a.trusted }))
 }

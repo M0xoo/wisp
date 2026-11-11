@@ -103,8 +103,17 @@ fn default_spawn(
     args: &[String],
     cwd: Option<&Path>,
     env: &[(String, String)],
+    untrusted: bool,
 ) -> std::io::Result<tokio::process::Child> {
     let mut c = tokio::process::Command::new(program);
+    // an untrusted plugin (ADR-0048) gets none of wisp's environment (its keys and tokens): a PATH to find its
+    // runtime, its own folder as its home, and what wisp tells it
+    if untrusted {
+        c.env_clear().env("PATH", std::env::var_os("PATH").unwrap_or_default());
+        if let Some(d) = cwd {
+            c.env("HOME", d);
+        }
+    }
     c.args(args)
         .envs(env.iter().cloned())
         .stdin(std::process::Stdio::piped())
@@ -135,7 +144,7 @@ async fn start(ctx: Ctx, m: Manifest, root: Option<PathBuf>, opts: ExecOptions) 
     env.push(("WISP_PLUGIN".into(), id.clone()));
     let spawned = match k.service::<Arc<dyn ExecSpawner>>() {
         Some(s) => s.spawn(&program, &argv[1..], root.as_deref(), &env),
-        None => default_spawn(&program, &argv[1..], root.as_deref(), &env),
+        None => default_spawn(&program, &argv[1..], root.as_deref(), &env, m.trust.as_deref() == Some("untrusted")),
     };
     let mut child = spawned.map_err(|e| {
         WireError::unavailable(format!("{id}: can't start {}: {e}", program.display()))

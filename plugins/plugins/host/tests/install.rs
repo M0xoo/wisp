@@ -84,3 +84,34 @@ fn user_plugins_load_at_start() {
     assert_eq!(got.iter().map(|p| wisp_kernel::Plugin::manifest(p).id).collect::<Vec<_>>(), ["user.theme"]);
     let _ = std::fs::remove_dir_all(&home);
 }
+
+/// ADR-0048: whatever its manifest claims, an installed plugin is untrusted until you trust it; trusting it reloads
+/// it as trusted and keeps it on, and taking the trust back makes it untrusted again.
+#[tokio::test]
+async fn an_installed_plugin_is_untrusted_whatever_its_manifest_says() {
+    let home = dir("trust");
+    let k = TestApp::new().with(wisp_plugins::PluginsPlugin).service(Paths::new(&home)).start().await;
+    let src = source(&home, "user.claims", "1.0.0");
+    let m = src.join("wisp-plugin.json");
+    let mut v: Value = serde_json::from_str(&std::fs::read_to_string(&m).unwrap()).unwrap();
+    v["trust"] = json!("trusted");
+    std::fs::write(&m, v.to_string()).unwrap();
+    k.call(Caller::user(), "plugins.install", json!({ "source": src.display().to_string() })).await.unwrap();
+    let builtin = |list: &Value| list.as_array().unwrap().iter().find(|p| p["id"] == "user.claims").map(|p| p["builtin"].clone());
+    let trust_of = |k: &wisp_kernel::Kernel| k.status().into_iter().find(|s| s.id == "user.claims").map(|s| s.builtin);
+    assert_eq!(trust_of(&k), Some(false));
+    k.call(Caller::user(), "plugins.setEnabled", json!({ "id": "user.claims", "enabled": true })).await.unwrap();
+    k.call(Caller::user(), "plugins.trust", json!({ "id": "user.claims", "trusted": true })).await.unwrap();
+    assert!(home.join("plugins/claims/.wisp-trusted").is_file());
+    let list = k.call(Caller::user(), "plugins.list", json!({})).await.unwrap();
+    assert_eq!(state(&list, "user.claims").as_deref(), Some("active"), "still on after the reload");
+    assert_eq!(builtin(&list), Some(json!(false)), "trusted, still yours: never a built-in");
+    k.call(Caller::user(), "plugins.trust", json!({ "id": "user.claims", "trusted": false })).await.unwrap();
+    assert!(!home.join("plugins/claims/.wisp-trusted").exists());
+    // a built-in's trust isn't yours to change
+    assert!(k.call(Caller::user(), "plugins.trust", json!({ "id": "wisp.runtime", "trusted": false })).await.is_err());
+    // the manifest as read: untrusted whatever it said
+    let text = std::fs::read_to_string(home.join("plugins/claims/wisp-plugin.json")).unwrap();
+    let read = wisp_plugins::read_plugin(&home.join("plugins/claims"), &text, false).unwrap();
+    assert_eq!(wisp_kernel::Plugin::manifest(&read).trust.as_deref(), Some("untrusted"));
+}

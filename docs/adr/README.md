@@ -49,3 +49,5 @@ state, a wire message, or turns off a rule in `tools/check`.
 | [0042](0042-swappability-of-new-features.md) | Every feature added since 0003 is its own plugin with points a user plugin can fill (history, share, resources, workflows, …) |
 | [0045](0045-grid-mail-dns-resolver.md) | Grid mail checks DKIM itself against the signer's DNS, with hickory-resolver (the one new dependency) |
 | [0046](0046-plugins-installed-at-runtime.md) | A user's plugin is installed while wisp runs (a folder or a git URL, `user.` ids), off until switched on |
+| [0047](0047-sandboxes.md) | Sandboxes are their own plugin (wisp.sandbox): one owner each, deleted with it; /sandbox, delegates, crew jobs, judges |
+| [0048](0048-untrusted-plugin-tier.md) | Anything downloaded is an untrusted plugin: its UI is described (kit descriptors from a Worker in a sandboxed frame), its calls checked as itself |

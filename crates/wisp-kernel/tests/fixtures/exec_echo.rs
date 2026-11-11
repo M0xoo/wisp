@@ -72,7 +72,7 @@ impl Rpc {
                         std::thread::sleep(std::time::Duration::from_secs(60));
                     }
                 }
-                for c in ["say", "nested", "deep", "hook", "setting", "crash"] {
+                for c in ["say", "nested", "deep", "hook", "setting", "crash", "env"] {
                     self.request("command.register", json!({ "id": format!("echo.{c}") }))
                         .unwrap();
                 }
@@ -135,6 +135,12 @@ impl Rpc {
             ),
             "echo.setting" => self.request("settings.get", json!({ "key": "echo.greeting" })),
             "echo.crash" => std::process::exit(3),
+            // what its environment holds (names only): an untrusted plugin's is nearly empty (ADR-0048)
+            "echo.env" => {
+                let mut names: Vec<String> = std::env::vars().map(|(k, _)| k).collect();
+                names.sort();
+                Ok(json!({ "names": names }))
+            }
             _ => Err(json!({ "code": -32601, "message": "no such command" })),
         }
     }

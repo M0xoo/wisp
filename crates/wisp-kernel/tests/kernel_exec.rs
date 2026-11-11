@@ -36,7 +36,7 @@ impl Hook for Go {
 }
 
 fn echo(mode: &str) -> Manifest {
-    let cmds: Vec<Value> = ["say", "nested", "deep", "hook", "setting", "crash"]
+    let cmds: Vec<Value> = ["say", "nested", "deep", "hook", "setting", "crash", "env"]
         .iter()
         .map(|c| json!({ "id": format!("echo.{c}"), "title": c }))
         .collect();
@@ -246,4 +246,26 @@ async fn a_child_that_never_finishes_setup_or_dies_at_once_is_refused() {
         why.as_deref().unwrap_or_default().contains("start failed"),
         "{why:?}"
     );
+}
+
+/// ADR-0048: an untrusted plugin's child starts with none of wisp's environment (its keys and tokens), only a PATH,
+/// its folder as its home and what wisp tells it; a trusted one keeps the environment it was started with.
+#[tokio::test]
+async fn an_untrusted_exec_plugin_starts_with_an_empty_environment() {
+    let names = |k: &Kernel| {
+        let k = k.clone();
+        async move { k.call(Caller::user(), "echo.env", json!(null)).await.unwrap()["names"].as_array().unwrap().iter().map(|v| v.as_str().unwrap().to_owned()).collect::<Vec<_>>() }
+    };
+    let dir = std::env::temp_dir().join(format!("wisp-untrusted-{}", wisp_kernel::ids::uuid7()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut m = echo("ok");
+    m.trust = Some("untrusted".into());
+    let k = common::start(PluginGroup::new().add(ExecPlugin::new(m, Some(dir.clone())))).await;
+    until(|| common::state(&k, "acme.echo").0 == "active").await;
+    let got = names(&k).await;
+    assert!(got.iter().all(|n| ["PATH", "HOME", "WISP_PLUGIN", "PWD", "__CF_USER_TEXT_ENCODING"].contains(&n.as_str())), "{got:?}");
+    assert!(got.contains(&"WISP_PLUGIN".to_owned()) && got.contains(&"HOME".to_owned()));
+    let trusted = common::start(PluginGroup::new().add(ExecPlugin::new(echo("ok"), None))).await;
+    until(|| common::state(&trusted, "acme.echo").0 == "active").await;
+    assert!(names(&trusted).await.len() > got.len(), "a trusted one keeps its environment");
 }
