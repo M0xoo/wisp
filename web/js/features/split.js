@@ -440,9 +440,10 @@ export function paintHead(s) {
   h.className = `split-head c-${s.color} st-${s.state}`;
   // Stacked, Back replaces the crumb, the dot and Close: back to the member for its job, else the list.
   const stacked = isStacked();
+  const trail = trailHtml(s);
   const html = `
-    <div class="sh-row">
-      ${stacked ? backBtn(s) : ''}${trailHtml(s)}${stacked ? '' : crumb(s) || (trailOf(s).length ? '' : qDot(s))}
+    <div class="sh-row${trail ? ' has-trail' : ''}">
+      ${stacked ? backBtn(s) : ''}${trail}${stacked ? '' : crumb(s) || (trailOf(s).length ? '' : qDot(s))}
       <h2 class="sh-title" title="${MOBILE ? '' : 'Rename (M)'}">${esc(s.title)}</h2>
       <span class="sh-acts">${slotHtml('split.head', s)}${panelBtn()}${stacked ? '' : `<button class="icon-btn sh-close" title="${esc(closeLabel(s))}" aria-label="Close">${icon('x')}</button>`}</span>
     </div>`;
