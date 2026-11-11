@@ -28,6 +28,7 @@ import { defaultTerminal, inWisp, openInTerminal, shq } from '../terminal.js';
 import { bad, clip, expand, MODES } from '../util.js';
 import { APP_MAX_STATE } from '../../web/js/app-doc.js';
 import { watchDoc } from '../watch.js';
+import { leanSession } from '../session-view.js';
 import { TAKEOVER_NOTE, tuiArgv } from '../services/tui.js';
 import { sendOnce } from '../services/send-once.js';
 import { terminalAsk } from '../../web/js/slash-text.js';
@@ -248,26 +249,6 @@ export function register(r, app) {
     c.send(201, out.length > 1 ? { ...out[0], group: out } : out[0]);
   });
 
-  // A lead comes with its subagents' sessions, so its cards can show their reports and diffs.
-  // ?lean=1 (the page): without each edit's whole file from before it, which only rollback reads
-  // (here, on the server). A tenth or more of a big task, and the phone fetches it through a tunnel.
-  // &turns=N (the phone): the latest N turns whole, older ones as stubs with what their folded row
-  // shows (prompt, time, result title, mode and account); unfolding one fetches the task whole.
-  const leanTurns = (turns) => turns?.map((t) => (t.changes?.some((x) => 'beforeFile' in x) ? { ...t, changes: t.changes.map(({ beforeFile, ...x }) => x) } : t));
-  const STUB = ['id', 'prompt', 'by', 'goal', 'status', 'startedAt', 'endedAt', 'rolledBackAt', 'moved', 'mode', 'account', 'agent', 'model', 'effort', 'forked', 'shared', 'btw', 'checkpoint', 'held', 'attachments'];
-  const stub = (t) => {
-    const out = { stub: true };
-    for (const k of STUB) if (t[k] !== undefined) out[k] = t[k];
-    const hero = t.presentation?.blocks?.find((b) => b.type === 'hero');
-    if (hero) out.presentation = { blocks: [{ type: 'hero', title: hero.title }] };
-    return out;
-  };
-  const windowed = (turns, n) => (n > 0 && turns?.length > n ? turns.map((t, i) => (i < turns.length - n ? stub(t) : t)) : turns);
-  const lean = (s, n) => ({
-    ...s,
-    turns: windowed(leanTurns(s.turns), n),
-    ...(s.childSessions && { childSessions: Object.fromEntries(Object.entries(s.childSessions).map(([k, x]) => [k, { ...x, turns: leanTurns(x.turns) }])) }),
-  });
   r.route(
     'GET',
     '/sessions/:id',
@@ -276,7 +257,7 @@ export function register(r, app) {
       // Crew members' jobs it delegated count as its children here too.
       const kids = [...Object.values(s.children || {}), ...s.turns.flatMap((t) => (t.delegations || []).filter((d) => d.crew).map((d) => d.sessionId))];
       const out = kids.length ? { ...s, childSessions: Object.fromEntries(kids.map((cid) => [cid, store.get(cid) || runner.crewChild(cid)]).filter(([, x]) => x)) } : s;
-      const sent = c.query.get('lean') === '1' ? lean(out, Number(c.query.get('turns')) || 0) : out;
+      const sent = c.query.get('lean') === '1' ? leanSession(out, Number(c.query.get('turns')) || 0, { whole: (id) => !store.get(id) }) : out;
       c.send(200, maskOn(store.config) ? maskSession(sent) : sent);
     }),
   );
