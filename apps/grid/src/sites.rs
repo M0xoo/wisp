@@ -38,6 +38,7 @@ fn env_name(n: &str) -> bool {
 }
 
 /// A file that never goes in an app, saved or published: what holds secrets, and source maps.
+#[allow(clippy::case_sensitive_file_extension_comparisons)] // `name` is lowercased already
 pub fn private_file(rel: &str) -> bool {
     let mut dirs = segments(rel);
     let name = dirs.pop().unwrap_or_default();
@@ -263,7 +264,11 @@ impl std::fmt::Debug for Sites {
 }
 
 fn hex(n: usize) -> String {
-    (0..n).map(|_| format!("{:02x}", rand::random::<u8>())).collect()
+    (0..n).fold(String::new(), |mut s, _| {
+        use std::fmt::Write as _;
+        let _ = write!(s, "{:02x}", rand::random::<u8>());
+        s
+    })
 }
 
 impl Sites {

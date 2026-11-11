@@ -51,6 +51,10 @@ mod sandboxes;
 mod signin;
 #[path = "edge_sites.rs"]
 mod sites;
+#[path = "edge_inbox.rs"]
+mod inbox;
+#[path = "edge_route.rs"]
+mod route;
 pub use signin::{Reqwest, SignIn};
 
 /// The grid's session cookie.
@@ -75,6 +79,10 @@ pub struct Grid {
     pub sandboxes: crate::sandboxes::Sandboxes,
     /// apps published from My Stuff (`sites.rs`)
     pub sites: crate::sites::Sites,
+    /// channels' messages held for sleeping boxes (`inbox.rs`)
+    pub inbox: crate::inbox::Inbox,
+    /// `on laptop` through the grid's own bot (`route.rs`)
+    pub routes: crate::route::Routes,
 }
 
 impl std::fmt::Debug for Grid {
@@ -115,22 +123,22 @@ enum Who {
     Device(UserRow, crate::rows::DeviceRow),
     /// the grid's own cookie (a browser)
     Session(UserRow),
-    /// `Box <handle> <secret>`: a box asking for itself
-    Box,
+    /// `Box <handle> <secret>`: a box asking for itself (its user, the secret checked against the running box's)
+    Box(UserRow),
 }
 
 impl Who {
     fn user(&self) -> Option<&UserRow> {
         match self {
-            Self::Device(u, _) | Self::Session(u) => Some(u),
-            _ => None,
+            Self::Device(u, _) | Self::Session(u) | Self::Box(u) => Some(u),
+            Self::Nobody => None,
         }
     }
     fn credential(&self) -> Option<Credential> {
         match self {
             Self::Device(..) => Some(Credential::Device),
             Self::Session(_) => Some(Credential::Session),
-            Self::Box => Some(Credential::Box),
+            Self::Box(_) => Some(Credential::Box),
             Self::Nobody => None,
         }
     }
@@ -173,19 +181,39 @@ impl Grid {
         // the master key seals a sandbox's token and sign-ins; without one, sandboxes are off and say why
         let secrets = crate::secrets::Secrets::open(db.clone(), &cfg.data_dir, &crate::config::process_env()).map(Arc::new).map_err(|e| tracing::warn!("grid: no master key, so no sandboxes: {e}")).ok();
         let sb_cfg = cfg.sandboxes.clone().unwrap_or_default();
-        let sandboxes = crate::sandboxes::Sandboxes { db: db.clone(), clock: clock.clone(), secrets, enabled: sb_cfg.enabled != Some(false), per_user: sb_cfg.per_user.unwrap_or(10) };
+        let sandboxes = crate::sandboxes::Sandboxes { db: db.clone(), clock: clock.clone(), secrets: secrets.clone(), enabled: sb_cfg.enabled != Some(false), per_user: sb_cfg.per_user.unwrap_or(10) };
         let sb = sandboxes.clone();
         // a sandbox's box starts with its owner's sandbox env and sign-ins; the user's own box never does
         boxes.set_env_for(Arc::new(move |u: &BoxUser| u.owner.as_deref().filter(|_| u.sandbox.is_some()).map(|o| sb.env_for(o)).unwrap_or_default()));
         let urls = cfg.clone();
         let sites = crate::sites::Sites::new(db.clone(), clock.clone(), &cfg.data_dir, cfg.file_cfg.sites.as_ref(), Arc::new(move |l: &str| urls.instance_url(l)));
-        Arc::new(Self { cfg, db, clock, accounts, shares, teams, tunnels: Arc::new(Tunnels::default()), boxes, roots, page, client, signin, sandboxes, sites })
+        let inbox = crate::inbox::Inbox::new(db.clone(), clock.clone(), secrets.clone(), boxes.clone(), Arc::new(crate::inbox::HttpDeliver::default()), inbox_opts(cfg.file_cfg.channels.as_ref()), {
+            let urls = cfg.clone();
+            Arc::new(move |h: &str| urls.instance_url(h))
+        });
+        let tunnels = Arc::new(Tunnels::default());
+        let ch = cfg.file_cfg.channels.clone().unwrap_or_default();
+        let routes = crate::route::Routes {
+            db: db.clone(),
+            clock: clock.clone(),
+            secrets: secrets.clone(),
+            telegram: Arc::new(crate::route::HttpTelegram { base: ch.telegram_api.clone().unwrap_or_else(|| "https://api.telegram.org".into()), client: reqwest::Client::new() }),
+            computers: Arc::new(route::TunnelComputers(tunnels.clone())),
+            public_url: cfg.public_url.clone(),
+            on: inbox.opts.enabled && ch.route == Some(true),
+        };
+        Arc::new(Self { cfg, db, clock, accounts, shares, teams, tunnels, boxes, roots, page, client, signin, sandboxes, sites, inbox, routes })
     }
 
     fn who(&self, h: &HeaderMap) -> Who {
         let auth = header_str(h, "authorization");
-        if auth.starts_with("Box ") {
-            return Who::Box;
+        if let Some(rest) = auth.strip_prefix("Box ") {
+            // the running box's own secret, never a stopped one's: a box asks only for itself
+            let (handle, secret) = rest.trim().split_once(' ').unwrap_or((rest.trim(), ""));
+            return match self.accounts.user_by_handle(handle).ok().flatten() {
+                Some(u) if !secret.is_empty() && self.boxes.secret(&u.id).is_some_and(|s| crate::secrets::safe_equal(&s, secret)) => Who::Box(u),
+                _ => Who::Nobody,
+            };
         }
         if let Ok(Some((u, d))) = self.accounts.device(auth) {
             return Who::Device(u, d);
@@ -212,7 +240,10 @@ impl Grid {
         let kind = host_kind(&host, self.as_ref());
         let out = match kind {
             HostKind::Root => self.root(req).await,
-            HostKind::Edge { handle } => self.edge(req, &handle).await,
+            HostKind::Edge { handle } => match req.uri().path().strip_prefix("/_in/").map(str::to_owned) {
+                Some(tok) => self.inbox_in(req, &handle, &tok).await,
+                None => self.edge(req, &handle).await,
+            },
             HostKind::Computer(c) => self.computer_reach(req, &c, None).await,
             HostKind::Preview(p) => match p.of {
                 PreviewOf::Computer(c) => self.computer_reach(req, &c, Some(p.port)).await,
@@ -281,6 +312,9 @@ impl Grid {
             (_, ["api", "shares", ..] | ["api", "gallery"] | ["s", ..]) | ("GET", ["gallery"]) => self.shares_route(&method, &parts, q, &head.headers, &bytes, &who),
             (_, ["api", "sandboxes", ..]) => self.sandboxes_route(&method, &parts, &head.headers, &bytes, &who).await,
             (_, ["api", "teams", ..]) => self.teams_route(&method, &parts, &head.headers, &bytes, &who),
+            (_, ["api", "channels", which @ ("url" | "rotate")]) => self.channels_route(&method, which, q, &head.headers, &bytes, &who),
+            (_, ["api", "channels", which @ ("route" | "reply")]) => self.route_api(&method, which, &head.headers, &bytes, &who).await,
+            ("POST", ["_route", tok]) => self.route_in(&head.headers, tok, &bytes),
             ("GET", []) => Ok(html(200, pages::message_page(&self.page, &MessagePage { title: self.cfg.name.clone(), text: "Share and reach your wisps from anywhere.".into(), link: Some(("/gallery".into(), "See what people are building".into())), tone: Tone::Plain }), &[])),
             _ => Ok(json(404, &json!({ "error": "not found" }))),
         }
@@ -501,6 +535,8 @@ impl Grid {
         head.headers.remove("cookie");
         head.headers.remove("x-wisp-tunnel");
         head.headers.remove("x-wisp-preview");
+        // only the grid's own route marks a request to a computer as a routed message (`route.rs`)
+        head.headers.remove(crate::route::ROUTE_MARK);
         if let Some(p) = preview
             && let Ok(v) = p.to_string().parse()
         {
@@ -571,8 +607,51 @@ impl Grid {
     }
 }
 
+/// The inbox's settings from grid.json's `channels` (off unless `enabled: true`).
+fn inbox_opts(c: Option<&crate::config::ChannelsConfig>) -> crate::inbox::Opts {
+    let d = crate::inbox::Opts::default();
+    let Some(c) = c else { return d };
+    crate::inbox::Opts {
+        enabled: c.enabled == Some(true),
+        max_rows: c.max_rows.unwrap_or(d.max_rows),
+        max_bytes: c.max_bytes.unwrap_or(d.max_bytes),
+        ttl_ms: c.ttl_ms.unwrap_or(d.ttl_ms),
+        retry_ms: c.retry_ms.unwrap_or(d.retry_ms),
+        wake_retry_ms: c.wake_retry_ms.unwrap_or(d.wake_retry_ms),
+        ..d
+    }
+}
+
+/// After a restart, everyone with something held is drained; every minute what's past its hour goes.
+fn inbox_loop(grid: &Arc<Grid>, stop: CancellationToken) {
+    if !grid.inbox.opts.enabled {
+        return;
+    }
+    for uid in grid.inbox.waiting().unwrap_or_default() {
+        if let Ok(Some(u)) = grid.accounts.user_by_id(&uid) {
+            grid.drain_later(u);
+        }
+    }
+    let g = grid.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                () = stop.cancelled() => return,
+                () = tokio::time::sleep(std::time::Duration::from_secs(60)) => {}
+            }
+            if let Err(e) = g.inbox.sweep() {
+                tracing::warn!("grid: inbox sweep: {e}");
+            }
+            if let Err(e) = g.routes.sweep() {
+                tracing::warn!("grid: route sweep: {e}");
+            }
+        }
+    });
+}
+
 /// Serves `grid` on `listener` until `stop`.
 pub async fn serve(grid: Arc<Grid>, listener: TcpListener, stop: CancellationToken) {
+    inbox_loop(&grid, stop.clone());
     loop {
         let (sock, _addr): (tokio::net::TcpStream, SocketAddr) = tokio::select! {
             () = stop.cancelled() => return,

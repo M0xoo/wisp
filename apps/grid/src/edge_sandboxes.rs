@@ -45,7 +45,7 @@ impl Grid {
     pub(super) async fn sandboxes_route(&self, method: &Method, parts: &[&str], h: &HeaderMap, bytes: &[u8], who: &Who) -> Result<Resp> {
         let user = match who {
             Who::Device(u, _) | Who::Session(u) => u.clone(),
-            Who::Box => return Err(bad("A box asks for sandboxes through its owner's wisp.", 403)),
+            Who::Box(_) => return Err(bad("A box asks for sandboxes through its owner's wisp.", 403)),
             Who::Nobody => return Err(bad("Sign in first.", 401)),
         };
         let body = || parse_body(h, bytes);
