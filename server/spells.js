@@ -20,6 +20,9 @@ import { normalizeBlueprints, SPELL_CREW_MAX } from './crew-share.js';
 import { bad, clip, truncate, writeJsonAtomic } from './util.js';
 import { paneWidthsProblem, panesProblem } from '../web/js/pane-bridge.js';
 
+// Parts wisp no longer has: spells that name them still load, with a warning.
+const GONE_PARTS = { 'launcher.tryTwo': 'the Try it two ways button is gone (add a copy of the harness with + instead)' };
+
 const ID = /^[a-z0-9][a-z0-9-]{0,40}$/;
 const MAX_SCRIPT = 64 * 1024;
 const MAX_ITEMS = 40; // per list in a spell
@@ -253,6 +256,10 @@ export function normalizeSpell(raw) {
   const parts = {};
   for (const [name, v] of Object.entries(obj(j.parts) || {})) {
     const where = `parts.${name}`;
+    if (name in GONE_PARTS) {
+      warnings.push(`parts.${name}: ${GONE_PARTS[name]}, ignored`);
+      continue;
+    }
     if (!(name in PARTS)) {
       p.at_(where, `not a part (see the part list)`);
       continue;
@@ -289,6 +296,7 @@ export function normalizeSpell(raw) {
   const ui = obj(j.ui) || {};
   const hide = arr(ui.hide).filter((h) => {
     if (h in PARTS) return true;
+    if (h in GONE_PARTS) return warnings.push(`ui.hide ${h}: ${GONE_PARTS[h]}, ignored`), false;
     p.at_('ui.hide', `${h} isn't a part`);
     return false;
   });

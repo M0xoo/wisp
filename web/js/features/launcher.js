@@ -200,7 +200,6 @@ export function renderLauncher() {
         <button class="auto-pv" id="autoPv" aria-haspopup="dialog" hidden></button>
         <button class="vs-btn vs-add" id="compareBtn" aria-label="Compare">${icon('plus')}</button>
       </div>
-      <button class="tog-btn" id="tryTwoBtn" aria-haspopup="dialog" aria-label="Try it two ways">${icon('rerun')}<span>Try it two ways</span></button>
       <button class="tog-btn team-btn" id="teamBtn" aria-haspopup="dialog"></button>
       ${MOBILE ? `<button class="tog-btn issue-btn" aria-haspopup="dialog" title="Start from one of the project’s open issues">${icon('issue')}<span>Issue</span></button>` : ''}
       <button class="tog-btn l-more" id="launchMore" title="Run on another computer, compare, delegate, a goal, a worktree, start later, start from an issue">${icon('dots')}<span>More options</span></button>
@@ -404,35 +403,16 @@ export function renderLauncher() {
       api('/config', { method: 'PATCH', body: { defaults: { subagents: team, teamPreset } } }).catch(() => {});
     });
 
-  // Try it two ways: a copy of the lead beside it, with one setting changed in its picker. Disabled
-  // says so on click too: a phone has no tooltip.
-  const tryBtn = $('#tryTwoBtn', box);
-  const tryRefused = () => {
-    if (agent?.id === 'auto') return 'Pick a harness first';
-    if (curMode === 'plan') return 'Try it two ways needs edits to compare: switch out of Plan';
-    return compare.length >= MAX_RUNNERS - 1 && !compare.some((c) => c.trial) ? `Up to ${MAX_RUNNERS} runs side by side` : '';
-  };
+  // Try it two ways: with Claude Code leading, a run added with + gets a What's different group in its
+  // picker (on Claude Code), so the same harness runs twice with one setting changed. Not in Plan (no
+  // edits to compare), and one such run at a time.
+  const canTry = (i) => agent?.id === 'claude' && curMode !== 'plan' && !compare.some((c, k) => k !== i && c.trial);
   function paintTry() {
-    const why = tryRefused();
-    tryBtn.setAttribute('aria-disabled', String(!!why));
-    tryBtn.title = why || 'Try it two ways: run this task twice on this harness, changing one setting. Compare says what differed';
     // The pill folds a copy that only differs by its variant down to those words (launcher.css).
     const c = compare[0];
     const copy = $('.runner-btn.cmp-x', runners);
     copy?.classList.toggle('same', !!c?.trial && c.agent === agent?.id && c.model === curModel && c.effort === curEffort && !!$('.rb-v', copy));
   }
-  tryBtn.onclick = () => {
-    const why = tryRefused();
-    if (why) {
-      toast(esc(why), { tone: 'bad' });
-      return;
-    }
-    if (!compare.some((c) => c.trial)) {
-      compare = [...compare, { agent: agent.id, model: curModel, effort: curEffort, account: curAccount || undefined, trial: true }];
-      paintCompare();
-    }
-    $$('.runner-btn.cmp-x', runners)[compare.findIndex((c) => c.trial)]?.click();
-  };
 
   // Compare: more harnesses get the same task (up to MAX_RUNNERS in all); picks here don't touch
   // the launcher defaults. Each extra sits behind a "vs" that removes it; the button at the end
@@ -490,9 +470,9 @@ export function renderLauncher() {
       return;
     }
     const was = compare[i];
-    const variant = was.trial ? { ...(was.subagentModel !== undefined && { subagentModel: was.subagentModel }), ...(was.skills && { skills: was.skills }) } : undefined;
+    const variant = was.trial || canTry(i) ? { ...(was.subagentModel !== undefined && { subagentModel: was.subagentModel }), ...(was.skills && { skills: was.skills }) } : undefined;
     runnerPicker(x, { ...was, variant, savedModel, savedEffort, places: launch.where, back: ta }, (id, model, effort, account, picked) => {
-      compare = compare.map((c, k) => (k === i ? { agent: id, model, effort, account: account || undefined, ...(c.trial && { trial: true, ...picked }) } : c));
+      compare = compare.map((c, k) => (k === i ? { agent: id, model, effort, account: account || undefined, ...((c.trial || (picked && Object.keys(picked).length)) && { trial: true, ...picked }) } : c));
       paintCompare();
     });
   });

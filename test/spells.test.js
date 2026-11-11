@@ -1183,12 +1183,15 @@ test('Compare: its table and note are parts spells can restyle or hide', () => {
   assert.ok(problems({ ...base0, parts: { 'compare.notes': { style: { color: 'var(--muted)' } } } }).length, 'a typo is refused');
 });
 
-test('Try it two ways: its button and Compare\'s what-differed line are parts', () => {
-  assert.equal(schema.PARTS['launcher.tryTwo'], '#tryTwoBtn');
+test('Try it two ways: Compare\'s what-differed line and the picker\'s group are parts; the old button loads with a warning', () => {
+  assert.equal(schema.PARTS['launcher.tryTwo'], undefined);
   assert.equal(schema.PARTS['compare.diff'], '.compare-modal .cmp-diff');
   assert.equal(schema.PARTS['picker.vary'], '.picker .pk-vary');
-  assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.tryTwo', 'compare.diff', 'picker.vary'] }, parts: { 'launcher.tryTwo': { style: { color: 'var(--muted)' } }, 'compare.diff': { style: { fontSize: '14px' } } } }), []);
-  assert.ok(problems({ ...base0, ui: { hide: ['launcher.tryTwoo'] } }).length, 'a typo is refused');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['compare.diff', 'picker.vary'] }, parts: { 'compare.diff': { style: { fontSize: '14px' } } } }), []);
+  const old = normalizeSpell({ ...base0, ui: { hide: ['launcher.tryTwo', 'picker.vary'] }, parts: { 'launcher.tryTwo': { style: { color: 'var(--muted)' } } } });
+  assert.deepEqual(old.spell.ui.hide, ['picker.vary']);
+  assert.equal(old.spell.parts, undefined);
+  assert.ok(old.warnings.some((w) => w.startsWith('ui.hide launcher.tryTwo')) && old.warnings.some((w) => w.startsWith('parts.launcher.tryTwo')));
   assert.ok(problems({ ...base0, parts: { 'compare.diffs': { style: { color: 'var(--muted)' } } } }).length, 'a typo is refused');
 });
 

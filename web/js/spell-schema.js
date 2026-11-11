@@ -180,7 +180,6 @@ export const PARTS = {
   'picker.thinking': '.picker .pk-think',
   'picker.vary': '.picker .pk-vary', // Try it two ways: the What's different group
   'launcher.compare': '#compareBtn',
-  'launcher.tryTwo': '#tryTwoBtn', // Try it two ways: the same harness twice, one setting changed
   'launcher.team': '#teamBtn',
   'launcher.issue': '#launcher .issue-btn', // Issue: start from one of the project's open issues (GitHub, Linear)
   'issues.picker': '.palette.issues', // the list of issues it opens
